@@ -1,6 +1,7 @@
 import {
   Home,
   Users,
+  FolderKanban,
   Settings,
   ScrollText,
   type LucideIcon,
@@ -30,6 +31,13 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     items: [
       { title: "Início", href: "/", icon: Home, mobile: true },
+      {
+        title: "Projetos",
+        href: "/projetos",
+        icon: FolderKanban,
+        roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"],
+        mobile: true,
+      },
       {
         title: "Clientes",
         href: "/clientes",

@@ -16,11 +16,31 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "supervisor", recurso: "configuracoes", acao: "gerir" },
   { role: "supervisor", recurso: "clientes", acao: "ver" },
   { role: "supervisor", recurso: "clientes", acao: "gerir" },
+  { role: "supervisor", recurso: "projetos", acao: "ver" },
+  { role: "supervisor", recurso: "projetos", acao: "gerir" },
   // Administrativo: configurações, usuários e clientes
   { role: "administrativo", recurso: "usuarios", acao: "gerir" },
   { role: "administrativo", recurso: "configuracoes", acao: "gerir" },
   { role: "administrativo", recurso: "clientes", acao: "ver" },
   { role: "administrativo", recurso: "clientes", acao: "gerir" },
+  { role: "administrativo", recurso: "projetos", acao: "ver" },
+  { role: "administrativo", recurso: "projetos", acao: "gerir" },
+  // Perfis internos: veem projetos (escopo filtra para os seus)
+  { role: "clt", recurso: "projetos", acao: "ver" },
+  { role: "estagiario", recurso: "projetos", acao: "ver" },
+  { role: "projetista_pj", recurso: "projetos", acao: "ver" },
+  { role: "freelancer", recurso: "projetos", acao: "ver" },
+];
+
+const DISCIPLINAS_CATALOGO = [
+  "Arquitetura",
+  "Estrutural",
+  "Hidrossanitário",
+  "Elétrico",
+  "Incêndio (PPCI)",
+  "Climatização (AVAC)",
+  "Fundações",
+  "Terraplenagem",
 ];
 
 async function main() {
@@ -65,6 +85,16 @@ async function main() {
     });
   }
   console.log(`✔ ${PERMISSOES_BASE.length} permissões base garantidas.`);
+
+  // 3) Catálogo de disciplinas
+  for (let i = 0; i < DISCIPLINAS_CATALOGO.length; i++) {
+    await prisma.disciplinaCatalogo.upsert({
+      where: { nome: DISCIPLINAS_CATALOGO[i] },
+      create: { nome: DISCIPLINAS_CATALOGO[i], ordem: i },
+      update: { ordem: i },
+    });
+  }
+  console.log(`✔ ${DISCIPLINAS_CATALOGO.length} disciplinas no catálogo.`);
 }
 
 main()

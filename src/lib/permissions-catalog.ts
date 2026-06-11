@@ -19,6 +19,14 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     ],
   },
   {
+    recurso: "projetos",
+    label: "Projetos",
+    acoes: [
+      { acao: "ver", label: "Ver projetos" },
+      { acao: "gerir", label: "Criar/editar projetos e disciplinas" },
+    ],
+  },
+  {
     recurso: "usuarios",
     label: "Usuários",
     acoes: [{ acao: "gerir", label: "Gerir usuários" }],

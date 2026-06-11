@@ -42,6 +42,10 @@ model User {
   auditLogs AuditLog[]
   resetSolicitacoes SolicitacaoResetSenha[]
 
+  projetosMembro       ProjetoMembro[]
+  disciplinasResponsavel DisciplinaResponsavel[]
+  revisoes             RevisaoDisciplina[]
+
   @@index([role])
   @@map("user")
 }
@@ -224,6 +228,7 @@ model Cliente {
   usuarioId String? @unique
 
   contatos  ContatoCliente[]
+  projetos  Projeto[]
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
@@ -244,4 +249,137 @@ model ContatoCliente {
 
   @@index([clienteId])
   @@map("contato_cliente")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Projetos & Disciplinas (Onda 1)
+// ─────────────────────────────────────────────────────────────
+
+enum TipoProjeto {
+  particular
+  licitacao
+}
+
+enum SituacaoProjeto {
+  em_andamento
+  concluido
+  arquivado
+  cancelado
+}
+
+enum StatusDisciplina {
+  aguardando
+  em_andamento
+  em_revisao
+  entregue
+  aprovado
+}
+
+/// Catálogo configurável de disciplinas (Estrutural, Hidráulica…).
+model DisciplinaCatalogo {
+  id    String  @id @default(cuid())
+  nome  String  @unique
+  ativo Boolean @default(true)
+  ordem Int     @default(0)
+
+  @@map("disciplina_catalogo")
+}
+
+/// Sequência atômica do número AAXXXX por ano.
+model ProjetoSequencia {
+  ano    Int @id
+  ultimo Int @default(0)
+
+  @@map("projeto_sequencia")
+}
+
+model Projeto {
+  id          String          @id @default(cuid())
+  ano         Int
+  sequencial  Int
+  /// Código de exibição AAXXXX (ex.: 260142).
+  codigo      String          @unique
+  tipo        TipoProjeto     @default(particular)
+  situacao    SituacaoProjeto @default(em_andamento)
+  nome        String
+  descricao   String?
+  clienteId   String
+  cliente     Cliente         @relation(fields: [clienteId], references: [id])
+  areaM2      Decimal?        @db.Decimal(12, 2)
+  endereco    String?
+  prazoFinal  DateTime?
+
+  disciplinas Disciplina[]
+  membros     ProjetoMembro[]
+
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([ano, sequencial])
+  @@index([clienteId])
+  @@index([situacao])
+  @@map("projeto")
+}
+
+model ProjetoMembro {
+  id        String  @id @default(cuid())
+  projetoId String
+  projeto   Projeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id])
+  papel     String? // ex.: coordenador, projetista
+
+  @@unique([projetoId, userId])
+  @@index([userId])
+  @@map("projeto_membro")
+}
+
+model Disciplina {
+  id        String           @id @default(cuid())
+  projetoId String
+  projeto   Projeto          @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  nome      String
+  status    StatusDisciplina @default(aguardando)
+  prazo     DateTime?
+  /// Valor a pagar ao(s) projetista(s) por esta entrega.
+  valor     Decimal?         @db.Decimal(12, 2)
+  ordem     Int              @default(0)
+
+  responsaveis DisciplinaResponsavel[]
+  revisoes     RevisaoDisciplina[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projetoId])
+  @@index([status])
+  @@map("disciplina")
+}
+
+model DisciplinaResponsavel {
+  id           String     @id @default(cuid())
+  disciplinaId String
+  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
+
+  @@unique([disciplinaId, userId])
+  @@index([userId])
+  @@map("disciplina_responsavel")
+}
+
+/// Log imutável de revisões (RV00, RV01…) por disciplina.
+model RevisaoDisciplina {
+  id           String     @id @default(cuid())
+  disciplinaId String
+  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+  numero       Int // 0 = RV00
+  motivo       String?
+  autorId      String
+  autor        User       @relation(fields: [autorId], references: [id])
+  createdAt    DateTime   @default(now())
+
+  @@unique([disciplinaId, numero])
+  @@index([disciplinaId])
+  @@map("revisao_disciplina")
 }

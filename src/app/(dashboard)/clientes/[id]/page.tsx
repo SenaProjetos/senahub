@@ -8,6 +8,9 @@ import {
   resumoFinanceiroCliente,
   type ContatoItem,
 } from "@/modules/clientes/queries";
+import { projetosDoCliente } from "@/modules/projetos/queries";
+import { formatarCodigo } from "@/modules/projetos/numbering";
+import { SITUACAO_PROJETO_LABEL } from "@/modules/projetos/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +32,7 @@ export default async function ClienteDetalhePage({
   if (!cliente) notFound();
 
   const fin = await resumoFinanceiroCliente(id);
+  const projetos = await projetosDoCliente(id);
   const endereco = [
     cliente.logradouro,
     cliente.numero,
@@ -145,7 +149,26 @@ export default async function ClienteDetalhePage({
           <CardDescription>Projetos vinculados a este cliente</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">Disponível quando os Projetos entrarem (Onda 1b).</p>
+          {projetos.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum projeto vinculado.</p>
+          ) : (
+            <ul className="divide-y text-sm">
+              {projetos.map((p) => (
+                <li key={p.id} className="flex items-center justify-between py-2">
+                  <Link href={`/projetos/${p.id}`} className="flex items-center gap-3 hover:underline">
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {formatarCodigo(p.codigo)}
+                    </span>
+                    <span className="font-medium">{p.nome}</span>
+                  </Link>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>{p._count.disciplinas} disc.</span>
+                    <Badge variant="outline">{SITUACAO_PROJETO_LABEL[p.situacao]}</Badge>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </CardContent>
       </Card>
     </div>
