@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
+    "dev:server": "tsx watch --tsconfig tsconfig.server.json server.ts --dev",
     "build": "next build --turbopack",
-    "start": "next start",
+    "start": "tsx --tsconfig tsconfig.server.json server.ts",
     "lint": "eslint",
     "test": "vitest run",
     "db:generate": "prisma generate",
@@ -30,6 +31,7 @@
     "pg-boss": "^12.18.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "server-only": "^0.0.1",
     "shadcn": "^4.11.0",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
