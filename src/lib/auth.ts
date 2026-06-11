@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "postgresql" }),
@@ -24,6 +25,23 @@ export const auth = betterAuth({
       role: { type: "string", required: false, defaultValue: "cliente", input: false },
       ativo: { type: "boolean", required: false, defaultValue: true, input: false },
       mustChangePassword: { type: "boolean", required: false, defaultValue: false, input: false },
+    },
+  },
+  databaseHooks: {
+    session: {
+      create: {
+        after: async (session) => {
+          // Registra cada login bem-sucedido (regra de auditoria).
+          await logAudit({
+            userId: session.userId,
+            modulo: "auth",
+            acao: "login",
+            tipo: "login",
+            resultado: "sucesso",
+            ip: session.ipAddress || null,
+          });
+        },
+      },
     },
   },
   // Trava anti-força-bruta embutida (por IP).
