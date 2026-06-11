@@ -5,12 +5,14 @@ import { ArrowLeft, CalendarDays, MapPin, Ruler } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { obterProjeto, usuariosInternos } from "@/modules/projetos/queries";
+import { listarInputs, linkInput, progressoInputs } from "@/modules/inputs/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { SITUACAO_PROJETO_LABEL } from "@/modules/projetos/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DisciplinaCard } from "@/components/projetos/disciplina-card";
+import { InputsPanel } from "@/components/inputs/inputs-panel";
 
 export const metadata: Metadata = { title: "Projeto" };
 
@@ -33,6 +35,13 @@ export default async function ProjetoDetalhePage({
     can(user.role, "uploads", "validar"),
   ]);
   const internos = podeGerir ? await usuariosInternos() : [];
+
+  const [inputs, link, progresso] = await Promise.all([
+    listarInputs(projeto.id),
+    linkInput(projeto.id),
+    progressoInputs(projeto.id),
+  ]);
+  const baseUrl = process.env.APP_URL ?? "";
 
   const disciplinas = projeto.disciplinas.map((d) => {
     const uploads = d.uploads.map((u) => ({
@@ -123,6 +132,21 @@ export default async function ProjetoDetalhePage({
           ))}
         </div>
       </div>
+
+      <InputsPanel
+        projetoId={projeto.id}
+        podeGerir={podeGerir}
+        disciplinas={projeto.disciplinas.map((d) => d.nome)}
+        itens={inputs.map((i) => ({
+          id: i.id,
+          disciplina: i.disciplina,
+          pergunta: i.pergunta,
+          resposta: i.resposta ?? "",
+        }))}
+        progresso={progresso}
+        token={link?.ativo ? link.token : null}
+        baseUrl={baseUrl}
+      />
 
       <Card>
         <CardHeader>

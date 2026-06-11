@@ -314,6 +314,8 @@ model Projeto {
 
   disciplinas Disciplina[]
   membros     ProjetoMembro[]
+  inputs      InputProjeto[]
+  linkInput   LinkPublicoInput?
 
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -322,6 +324,34 @@ model Projeto {
   @@index([clienteId])
   @@index([situacao])
   @@map("projeto")
+}
+
+/// Campo de input do projeto (pergunta + resposta do cliente).
+model InputProjeto {
+  id         String   @id @default(cuid())
+  projetoId  String
+  projeto    Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  disciplina String? // null = geral; senão nome da disciplina
+  pergunta   String
+  resposta   String?
+  ordem      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([projetoId])
+  @@map("input_projeto")
+}
+
+/// Link público (por token) para o cliente preencher os inputs sem login.
+model LinkPublicoInput {
+  id        String   @id @default(cuid())
+  projetoId String   @unique
+  projeto   Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@map("link_publico_input")
 }
 
 model ProjetoMembro {
