@@ -1,13 +1,25 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { History, Users, GitBranch } from "lucide-react";
+import {
+  History,
+  Users,
+  GitBranch,
+  FolderUp,
+  Upload as UploadIcon,
+  Download,
+  FileArchive,
+  CheckCircle2,
+  ShieldCheck,
+} from "lucide-react";
 import {
   atualizarStatusDisciplina,
   definirResponsaveis,
   registrarRevisao,
 } from "@/modules/projetos/actions";
+import { validarEntrega } from "@/modules/uploads/actions";
 import { STATUS_CHIP, STATUS_LABEL } from "@/modules/projetos/status";
 import type { StatusDisciplina } from "@/generated/prisma/client";
 import { STATUS_DISCIPLINA } from "@/modules/projetos/schemas";
@@ -32,6 +44,17 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
+type UploadItem = {
+  id: string;
+  pacote: "A" | "B" | "OUTROS";
+  nomeArquivo: string;
+  versao: number;
+  tamanho: number;
+  validado: boolean;
+  autor: string;
+  data: string;
+};
+
 type Disc = {
   id: string;
   nome: string;
@@ -41,7 +64,17 @@ type Disc = {
   responsaveis: { userId: string; name: string }[];
   ehResponsavel: boolean;
   revisoes: { id: string; numero: number; motivo: string | null; autor: string; data: string }[];
+  uploads: UploadItem[];
+  temA: boolean;
+  temB: boolean;
+  jaValidado: boolean;
 };
+
+function tamanhoLegivel(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
 
 function brl(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -50,14 +83,17 @@ function brl(v: number) {
 export function DisciplinaCard({
   disciplina,
   podeGerir,
+  podeValidar,
   internos,
 }: {
   disciplina: Disc;
   podeGerir: boolean;
+  podeValidar: boolean;
   internos: { id: string; name: string; role: string }[];
 }) {
   const [pending, start] = useTransition();
   const podeMexerStatus = podeGerir || disciplina.ehResponsavel;
+  const podeEnviar = podeGerir || disciplina.ehResponsavel;
 
   function mudarStatus(status: string | null) {
     if (!status) return;
@@ -117,11 +153,207 @@ export function DisciplinaCard({
         </Select>
       )}
 
+      {disciplina.jaValidado && (
+        <div className="flex items-center gap-1.5 rounded-sm bg-status-aprovado/10 px-2 py-1 text-xs text-status-aprovado">
+          <ShieldCheck className="size-3.5" /> Entrega validada · pagamento liberado
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-1.5">
+        <ArquivosDialog
+          disciplina={disciplina}
+          podeEnviar={podeEnviar}
+          podeValidar={podeValidar}
+        />
         <RevisaoDialog disciplina={disciplina} podeRegistrar={podeMexerStatus} />
         {podeGerir && <ResponsaveisDialog disciplina={disciplina} internos={internos} />}
       </div>
     </div>
+  );
+}
+
+function ArquivosDialog({
+  disciplina,
+  podeEnviar,
+  podeValidar,
+}: {
+  disciplina: Disc;
+  podeEnviar: boolean;
+  podeValidar: boolean;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [pacote, setPacote] = useState<"A" | "B">("A");
+  const [validando, start] = useTransition();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const completoParaValidar = disciplina.temA && disciplina.temB && !disciplina.jaValidado;
+
+  async function enviar(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setEnviando(true);
+    try {
+      const fd = new FormData();
+      fd.set("disciplinaId", disciplina.id);
+      fd.set("pacote", pacote);
+      for (const f of Array.from(files)) fd.append("files", f);
+      const res = await fetch("/api/uploads", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Falha no envio.");
+        return;
+      }
+      const ok = data.resultados.filter((r: { ok: boolean }) => r.ok).length;
+      const real = data.resultados.filter((r: { realocado?: boolean }) => r.realocado).length;
+      const falhas = data.resultados.filter((r: { ok: boolean }) => !r.ok);
+      toast.success(`${ok} arquivo(s) enviado(s).`);
+      if (real > 0) toast.info(`${real} arquivo(s) não suportado(s) foram para a pasta "outros".`);
+      for (const f of falhas) toast.error(`${f.nome}: ${f.motivo}`);
+      router.refresh();
+    } finally {
+      setEnviando(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  function validar() {
+    start(async () => {
+      const res = await validarEntrega({ disciplinaId: disciplina.id });
+      if (res.ok) {
+        toast.success(`Entrega validada. ${res.data.pagamentos} pagamento(s) liberado(s).`);
+        setOpen(false);
+        router.refresh();
+      } else {
+        toast.error(res.error);
+      }
+    });
+  }
+
+  const porPacote = (p: "A" | "B" | "OUTROS") => disciplina.uploads.filter((u) => u.pacote === p);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <Button variant="outline" size="sm">
+            <FolderUp className="size-3.5" /> Arquivos ({disciplina.uploads.length})
+          </Button>
+        }
+      />
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{disciplina.nome} — arquivos</DialogTitle>
+          <DialogDescription>
+            Pacote A: plantas e memoriais · Pacote B: backup do software.
+          </DialogDescription>
+        </DialogHeader>
+
+        {podeEnviar && !disciplina.jaValidado && (
+          <div className="space-y-2 rounded-sm border p-3">
+            <div className="flex items-center gap-2">
+              <Select value={pacote} onValueChange={(v) => setPacote((v as "A" | "B") ?? "A")}>
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="A">Pacote A</SelectItem>
+                  <SelectItem value="B">Pacote B</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                size="sm"
+                onClick={() => inputRef.current?.click()}
+                disabled={enviando}
+              >
+                <UploadIcon className="size-3.5" /> {enviando ? "Enviando…" : "Enviar arquivos"}
+              </Button>
+              <input
+                ref={inputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => enviar(e.target.files)}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Formatos não suportados no Pacote A vão automaticamente para &quot;outros&quot;.
+            </p>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {(["A", "B", "OUTROS"] as const).map((p) => {
+            const itens = porPacote(p);
+            if (itens.length === 0 && p === "OUTROS") return null;
+            return (
+              <div key={p}>
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground">
+                    {p === "OUTROS" ? "Outros (não suportados)" : `Pacote ${p}`}
+                  </span>
+                  {itens.length > 0 && (
+                    <a
+                      href={`/api/uploads/disciplina/${disciplina.id}/zip`}
+                      className="hidden"
+                      aria-hidden
+                    />
+                  )}
+                </div>
+                {itens.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Nenhum arquivo.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {itens.map((u) => (
+                      <li
+                        key={u.id}
+                        className="flex items-center justify-between gap-2 rounded-sm border px-2 py-1 text-xs"
+                      >
+                        <span className="min-w-0 flex-1 truncate">
+                          {u.nomeArquivo}
+                          {u.versao > 1 && (
+                            <span className="ml-1 font-mono text-muted-foreground">v{u.versao}</span>
+                          )}
+                          {u.validado && (
+                            <CheckCircle2 className="ml-1 inline size-3 text-status-aprovado" />
+                          )}
+                        </span>
+                        <span className="text-muted-foreground">{tamanhoLegivel(u.tamanho)}</span>
+                        <a
+                          href={`/api/uploads/${u.id}/download`}
+                          className="text-primary hover:underline"
+                          aria-label="Baixar"
+                        >
+                          <Download className="size-3.5" />
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
+          {disciplina.uploads.length > 0 && (
+            <Button variant="outline" size="sm" render={<a href={`/api/uploads/disciplina/${disciplina.id}/zip`} />}>
+              <FileArchive className="size-3.5" /> Baixar tudo (.zip)
+            </Button>
+          )}
+          {podeValidar && (
+            <Button onClick={validar} disabled={!completoParaValidar || validando}>
+              <ShieldCheck className="size-4" />
+              {disciplina.jaValidado
+                ? "Já validada"
+                : validando
+                  ? "Validando…"
+                  : "Validar entrega"}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

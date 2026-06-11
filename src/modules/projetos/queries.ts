@@ -60,6 +60,20 @@ export async function obterProjeto(viewer: Viewer, id: string) {
         include: {
           responsaveis: { include: { user: { select: { id: true, name: true } } } },
           revisoes: { orderBy: { numero: "desc" }, include: { autor: { select: { name: true } } } },
+          uploads: {
+            orderBy: [{ pacote: "asc" }, { createdAt: "desc" }],
+            select: {
+              id: true,
+              pacote: true,
+              nomeArquivo: true,
+              versao: true,
+              tamanho: true,
+              validado: true,
+              createdAt: true,
+              autor: { select: { name: true } },
+            },
+          },
+          _count: { select: { pagamentos: true } },
         },
       },
     },

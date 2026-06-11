@@ -27,6 +27,11 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     ],
   },
   {
+    recurso: "uploads",
+    label: "Uploads & Validação",
+    acoes: [{ acao: "validar", label: "Validar entregas (libera pagamento)" }],
+  },
+  {
     recurso: "usuarios",
     label: "Usuários",
     acoes: [{ acao: "gerir", label: "Gerir usuários" }],

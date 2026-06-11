@@ -18,6 +18,7 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "supervisor", recurso: "clientes", acao: "gerir" },
   { role: "supervisor", recurso: "projetos", acao: "ver" },
   { role: "supervisor", recurso: "projetos", acao: "gerir" },
+  { role: "supervisor", recurso: "uploads", acao: "validar" },
   // Administrativo: configurações, usuários e clientes
   { role: "administrativo", recurso: "usuarios", acao: "gerir" },
   { role: "administrativo", recurso: "configuracoes", acao: "gerir" },

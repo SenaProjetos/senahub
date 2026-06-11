@@ -28,25 +28,44 @@ export default async function ProjetoDetalhePage({
   const projeto = await obterProjeto(user, id);
   if (!projeto) notFound();
 
-  const podeGerir = await can(user.role, "projetos", "gerir");
+  const [podeGerir, podeValidar] = await Promise.all([
+    can(user.role, "projetos", "gerir"),
+    can(user.role, "uploads", "validar"),
+  ]);
   const internos = podeGerir ? await usuariosInternos() : [];
 
-  const disciplinas = projeto.disciplinas.map((d) => ({
-    id: d.id,
-    nome: d.nome,
-    status: d.status,
-    prazo: d.prazo ? new Date(d.prazo).toISOString() : null,
-    valor: d.valor != null ? Number(d.valor) : null,
-    responsaveis: d.responsaveis.map((r) => ({ userId: r.userId, name: r.user.name })),
-    ehResponsavel: d.responsaveis.some((r) => r.userId === user.id),
-    revisoes: d.revisoes.map((rv) => ({
-      id: rv.id,
-      numero: rv.numero,
-      motivo: rv.motivo,
-      autor: rv.autor.name,
-      data: new Date(rv.createdAt).toISOString(),
-    })),
-  }));
+  const disciplinas = projeto.disciplinas.map((d) => {
+    const uploads = d.uploads.map((u) => ({
+      id: u.id,
+      pacote: u.pacote,
+      nomeArquivo: u.nomeArquivo,
+      versao: u.versao,
+      tamanho: u.tamanho,
+      validado: u.validado,
+      autor: u.autor.name,
+      data: new Date(u.createdAt).toISOString(),
+    }));
+    return {
+      id: d.id,
+      nome: d.nome,
+      status: d.status,
+      prazo: d.prazo ? new Date(d.prazo).toISOString() : null,
+      valor: d.valor != null ? Number(d.valor) : null,
+      responsaveis: d.responsaveis.map((r) => ({ userId: r.userId, name: r.user.name })),
+      ehResponsavel: d.responsaveis.some((r) => r.userId === user.id),
+      revisoes: d.revisoes.map((rv) => ({
+        id: rv.id,
+        numero: rv.numero,
+        motivo: rv.motivo,
+        autor: rv.autor.name,
+        data: new Date(rv.createdAt).toISOString(),
+      })),
+      uploads,
+      temA: uploads.some((u) => u.pacote === "A"),
+      temB: uploads.some((u) => u.pacote === "B"),
+      jaValidado: d._count.pagamentos > 0,
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -98,6 +117,7 @@ export default async function ProjetoDetalhePage({
               key={d.id}
               disciplina={d}
               podeGerir={podeGerir}
+              podeValidar={podeValidar}
               internos={internos}
             />
           ))}
