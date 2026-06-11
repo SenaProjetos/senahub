@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Direção 5 — Aço Escovado</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Marca: Navy #1C2D58 · Steel #576980 · Slate #6E838B · Mist #A8B2B4 · Fog #CACAC8 */
+  :root[data-theme="dark"]{
+    --bg:#10141B; --panel-grad:linear-gradient(180deg,#1B2330 0%,#161D27 100%); --panel-flat:#1B2330;
+    --line:#2C3848; --hairline:#243040;
+    --ink:#E8EBEE; --ink-dim:#A8B2B4; --ink-faint:#6E838B;
+    --steel:#7C92AD; --steel-hi:#9DB2CC; --navy:#1C2D58;
+    --ok:#5FA083; --warn:#C29A4B; --danger:#C76E6E;
+    --st-aguardando:#8B7FC7; --st-andamento:#4E9BB0; --st-revisao:#C76E94; --st-entregue:#C29A4B; --st-aprovado:#5FA083;
+    --brush:repeating-linear-gradient(180deg,rgba(168,178,180,.025) 0 1px,transparent 1px 3px);
+    --input-bg:#10141B; --row-line:#222D3B; --row-hover:rgba(124,146,173,.07);
+    --btn-grad:linear-gradient(180deg,#647A96,#4C5F77); --btn-edge:#7C92AD; --btn-ink:#FFFFFF;
+    --bar-bg:#10141B; --sheen:inset 0 1px 0 rgba(157,178,204,.18);
+  }
+  :root[data-theme="light"]{
+    --bg:#D9DBDA; --panel-grad:linear-gradient(180deg,#F2F3F2 0%,#E6E8E7 100%); --panel-flat:#EFF0EF;
+    --line:#B9BCBA; --hairline:#C8CBC9;
+    --ink:#1C2D58; --ink-dim:#576980; --ink-faint:#6E838B;
+    --steel:#576980; --steel-hi:#1C2D58; --navy:#1C2D58;
+    --ok:#3E7D63; --warn:#A87E2F; --danger:#B05050;
+    --st-aguardando:#6A5BB8; --st-andamento:#2E7D96; --st-revisao:#B0507A; --st-entregue:#A87E2F; --st-aprovado:#3E7D63;
+    --brush:repeating-linear-gradient(180deg,rgba(28,45,88,.02) 0 1px,transparent 1px 3px);
+    --input-bg:#FAFBFA; --row-line:#D5D7D5; --row-hover:rgba(87,105,128,.08);
+    --btn-grad:linear-gradient(180deg,#2A3D6B,#1C2D58); --btn-edge:#576980; --btn-ink:#FFFFFF;
+    --bar-bg:#FAFBFA; --sheen:inset 0 1px 0 rgba(255,255,255,.7);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);background-image:var(--brush);color:var(--ink);font-family:'Saira',sans-serif;min-height:100vh;padding:40px 48px;transition:background-color .25s,color .25s}
+  .theme-toggle{position:fixed;top:18px;right:20px;z-index:10;display:flex;align-items:center;gap:8px;
+    background:var(--panel-grad);border:1px solid var(--line);padding:8px 16px;cursor:pointer;
+    color:var(--ink);font-family:'Saira',sans-serif;font-size:13px;box-shadow:var(--sheen);
+    clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+  .tag-dir{font-family:'Spline Sans Mono',monospace;font-size:10.5px;letter-spacing:.22em;color:var(--steel);text-transform:uppercase}
+  h1.dir{font-variation-settings:"wdth" 87;font-size:36px;font-weight:750;letter-spacing:.01em;text-transform:uppercase;margin:4px 0 2px}
+  h1.dir span{color:var(--steel)}
+  .dir-sub{color:var(--ink-dim);font-size:15px;margin-bottom:36px;max-width:660px}
+  .grid{display:grid;grid-template-columns:380px 1fr;gap:22px;align-items:start}
+  .card{background:var(--panel-grad);border:1px solid var(--line);padding:28px;box-shadow:var(--sheen), 0 10px 30px rgba(0,0,0,.18);
+    clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)}
+  /* LOGIN */
+  .logo{display:flex;align-items:center;gap:12px;margin-bottom:26px}
+  .logo-mark{width:44px;height:44px;background:linear-gradient(135deg,var(--steel),var(--navy));color:#fff;display:grid;place-items:center;font-weight:800;font-size:19px;font-variation-settings:"wdth" 90;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+  .logo b{font-weight:750;font-size:20px;text-transform:uppercase;font-variation-settings:"wdth" 90;letter-spacing:.03em}
+  .logo span{color:var(--steel)}
+  .login h2{font-weight:700;font-size:20px;text-transform:uppercase;font-variation-settings:"wdth" 88;letter-spacing:.03em;margin-bottom:4px}
+  .login p{color:var(--ink-dim);font-size:13.5px;margin-bottom:22px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-family:'Spline Sans Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:6px}
+  .field input{width:100%;background:var(--input-bg);border:1px solid var(--line);padding:11px 14px;color:var(--ink);font-family:'Saira',sans-serif;font-size:14.5px;outline:none;transition:border .2s;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
+  .field input:focus{border-color:var(--steel)}
+  .btn{width:100%;margin-top:8px;background:var(--btn-grad);border:1px solid var(--btn-edge);color:var(--btn-ink);font-family:'Saira',sans-serif;font-weight:700;font-size:14.5px;letter-spacing:.08em;text-transform:uppercase;padding:13px;cursor:pointer;box-shadow:var(--sheen);clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
+  .btn:hover{filter:brightness(1.12)}
+  .login .aux{margin-top:16px;font-size:12.5px;color:var(--ink-faint);display:flex;justify-content:space-between}
+  .login .aux a{color:var(--steel);text-decoration:none;font-weight:600}
+  /* DASH */
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px}
+  .kpi{background:var(--panel-grad);border:1px solid var(--line);padding:18px 20px;box-shadow:var(--sheen);position:relative;clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
+  .kpi .k-label{font-family:'Spline Sans Mono',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-faint)}
+  .kpi .k-value{font-size:32px;font-weight:750;font-variation-settings:"wdth" 90;margin-top:4px}
+  .kpi .k-delta{font-size:11.5px;color:var(--ok);font-weight:600}
+  .kpi.warn .k-delta{color:var(--warn)}
+  .kpi.warn{border-color:var(--warn)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  thead th{font-family:'Spline Sans Mono',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint);text-align:left;padding:10px 14px;border-bottom:1px solid var(--line)}
+  tbody td{padding:12px 14px;border-bottom:1px solid var(--row-line)}
+  tbody tr:hover{background:var(--row-hover)}
+  .mono{font-family:'Spline Sans Mono',monospace;font-size:12px;color:var(--steel);font-weight:600}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;letter-spacing:.03em;padding:3px 10px;border:1px solid;clip-path:polygon(5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 5px)}
+  .chip::before{content:"";width:6px;height:6px;background:currentColor}
+  .c-and{color:var(--st-andamento);border-color:color-mix(in srgb,var(--st-andamento) 50%,transparent);background:color-mix(in srgb,var(--st-andamento) 10%,transparent)}
+  .c-rev{color:var(--st-revisao);border-color:color-mix(in srgb,var(--st-revisao) 50%,transparent);background:color-mix(in srgb,var(--st-revisao) 10%,transparent)}
+  .c-apr{color:var(--st-aprovado);border-color:color-mix(in srgb,var(--st-aprovado) 50%,transparent);background:color-mix(in srgb,var(--st-aprovado) 10%,transparent)}
+  .c-ent{color:var(--st-entregue);border-color:color-mix(in srgb,var(--st-entregue) 50%,transparent);background:color-mix(in srgb,var(--st-entregue) 10%,transparent)}
+  .c-agu{color:var(--st-aguardando);border-color:color-mix(in srgb,var(--st-aguardando) 50%,transparent);background:color-mix(in srgb,var(--st-aguardando) 10%,transparent)}
+  .bar{height:8px;background:var(--bar-bg);border:1px solid var(--hairline);width:110px}
+  .bar i{display:block;height:100%;background:linear-gradient(180deg,var(--steel-hi),var(--steel))}
+  .card-title{font-weight:700;font-size:14px;text-transform:uppercase;font-variation-settings:"wdth" 88;letter-spacing:.05em;margin-bottom:14px}
+  /* SPECIMEN */
+  .spec{margin-top:22px;display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center}
+  .spec .type p:first-child{font-size:23px;font-weight:750;font-variation-settings:"wdth" 88;text-transform:uppercase}
+  .spec .type p:nth-child(2){color:var(--ink-dim);font-size:14px}
+  .spec .type p:nth-child(3){font-family:'Spline Sans Mono',monospace;font-size:12px;color:var(--steel);margin-top:4px}
+  .swatches{display:flex;gap:8px}
+  .sw{width:38px;height:38px;border:1px solid var(--line);position:relative}
+  .sw small{position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);font-size:8.5px;font-family:'Spline Sans Mono',monospace;color:var(--ink-faint);white-space:nowrap}
+</style>
+</head>
+<body>
+  <button class="theme-toggle" onclick="const h=document.documentElement;h.dataset.theme=h.dataset.theme==='dark'?'light':'dark';this.querySelector('span').textContent=h.dataset.theme==='dark'?'Tema escuro':'Tema claro'">
+    ☀/🌙 <span>Tema escuro</span>
+  </button>
+
+  <div class="tag-dir">Direção 05 / 06 — paleta da marca</div>
+  <h1 class="dir">Aço Escovado <span>// industrial</span></h1>
+  <p class="dir-sub">Steel como protagonista: superfícies com gradiente metálico, textura escovada sutil, cantos chanfrados como chapa cortada. Claro = alumínio escovado; escuro = aço temperado.</p>
+
+  <div class="grid">
+    <div class="card login">
+      <div class="logo"><div class="logo-mark">S</div><b>SENA<span>HUB</span></b></div>
+      <h2>Identifique-se</h2>
+      <p>Acesse a plataforma de gestão integrada</p>
+      <div class="field"><label>E-mail</label><input value="engenharia@sena.com.br"></div>
+      <div class="field"><label>Senha</label><input type="password" value="••••••••••"></div>
+      <button class="btn">Entrar</button>
+      <div class="aux"><a href="#">Esqueci minha senha</a><span>v2.0</span></div>
+    </div>
+
+    <div>
+      <div class="kpis">
+        <div class="kpi"><div class="k-label">Projetos ativos</div><div class="k-value">24</div><div class="k-delta">▲ 3 este mês</div></div>
+        <div class="kpi"><div class="k-label">Receita prevista</div><div class="k-value">R$ 312k</div><div class="k-delta">▲ 8,2%</div></div>
+        <div class="kpi warn"><div class="k-label">Entregas pendentes</div><div class="k-value">7</div><div class="k-delta">2 vencem hoje</div></div>
+      </div>
+      <div class="card" style="padding:20px">
+        <div class="card-title">Projetos recentes</div>
+        <table>
+          <thead><tr><th>Código</th><th>Projeto</th><th>Disciplina</th><th>Status</th><th>Progresso</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">26-0142</td><td>Residencial Vila Real</td><td>Estrutural</td><td><span class="chip c-and">Em andamento</span></td><td><div class="bar"><i style="width:62%"></i></div></td></tr>
+            <tr><td class="mono">26-0139</td><td>Centro Logístico Anhanguera</td><td>Hidráulica</td><td><span class="chip c-rev">Em revisão</span></td><td><div class="bar"><i style="width:85%"></i></div></td></tr>
+            <tr><td class="mono">26-0136</td><td>Ed. Comercial Faria Lima</td><td>Elétrica</td><td><span class="chip c-apr">Aprovado</span></td><td><div class="bar"><i style="width:100%"></i></div></td></tr>
+            <tr><td class="mono">26-0133</td><td>Galpão Industrial Jundiaí</td><td>Fundações</td><td><span class="chip c-ent">Entregue</span></td><td><div class="bar"><i style="width:96%"></i></div></td></tr>
+            <tr><td class="mono">26-0128</td><td>Hospital Municipal Norte</td><td>Estrutural</td><td><span class="chip c-agu">Aguardando</span></td><td><div class="bar"><i style="width:12%"></i></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card spec">
+    <div class="type">
+      <p>Saira — títulos condensados</p>
+      <p>Largura variável (condensado nos títulos, normal no corpo). Voz técnica.</p>
+      <p>Spline Sans Mono — códigos 26-0142, rótulos, datas</p>
+    </div>
+    <div class="swatches" style="padding-bottom:14px">
+      <div class="sw" style="background:#1C2D58"><small>Navy</small></div>
+      <div class="sw" style="background:#576980"><small>Steel</small></div>
+      <div class="sw" style="background:#6E838B"><small>Slate</small></div>
+      <div class="sw" style="background:#A8B2B4"><small>Mist</small></div>
+      <div class="sw" style="background:#CACAC8"><small>Fog</small></div>
+    </div>
+  </div>
+</body>
+</html>

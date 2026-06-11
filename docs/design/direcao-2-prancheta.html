@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Direção 2 — Prancheta</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root[data-theme="light"]{
+    --paper:#F6F2E9; --paper-2:#FDFBF5; --grid:#D8E4EE; --ink:#22303C; --ink-dim:#5C6B7A; --ink-faint:#93A1AF;
+    --pencil:#D6432B; --pencil-soft:rgba(214,67,43,.10); --blue:#2C5F8A; --blue-soft:rgba(44,95,138,.10);
+    --ok:#2E7D5B; --warn:#B97A1E; --line:#C9BFA8; --row-line:#E4DCC9;
+    --st-aguardando:#7A5FB8; --st-andamento:#1B7A99; --st-revisao:#B8447A; --st-entregue:#B97A1E; --st-aprovado:#2E7D5B;
+    --input-bg:#FFFFFF; --chip-bg:#FFFFFF; --card-shadow:3px 3px 0 rgba(34,48,60,.08);
+    --btn-bg:#22303C; --btn-ink:#FDFBF5; --bar-bg:#FFFFFF;
+    --bar-fill:repeating-linear-gradient(45deg,#2C5F8A,#2C5F8A 4px,#4E7FA8 4px,#4E7FA8 8px);
+    --row-hover:rgba(44,95,138,.05);
+  }
+  :root[data-theme="dark"]{
+    --paper:#1F232A; --paper-2:#272C34; --grid:#2A303A; --ink:#E9E6DC; --ink-dim:#AEAB9F; --ink-faint:#7D7B70;
+    --pencil:#FF7A5C; --pencil-soft:rgba(255,122,92,.14); --blue:#7FB3DC; --blue-soft:rgba(127,179,220,.12);
+    --ok:#6FCF97; --warn:#E0A458; --line:#3D4450; --row-line:#343B46;
+    --st-aguardando:#B8A5F0; --st-andamento:#5BC8DB; --st-revisao:#F08CB4; --st-entregue:#E0A458; --st-aprovado:#6FCF97;
+    --input-bg:#1B1F26; --chip-bg:#1B1F26; --card-shadow:3px 3px 0 rgba(0,0,0,.35);
+    --btn-bg:#E9E6DC; --btn-ink:#1F232A; --bar-bg:#1B1F26;
+    --bar-fill:repeating-linear-gradient(45deg,#7FB3DC,#7FB3DC 4px,#5A8FB8 4px,#5A8FB8 8px);
+    --row-hover:rgba(127,179,220,.06);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    background:var(--paper); color:var(--ink); font-family:'Public Sans',sans-serif;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size:28px 28px;
+    min-height:100vh; padding:40px 48px; transition:background-color .25s, color .25s;
+  }
+  .theme-toggle{position:fixed;top:18px;right:20px;z-index:10;display:flex;align-items:center;gap:8px;
+    background:var(--paper-2);border:1px solid var(--line);border-radius:3px;padding:8px 16px;cursor:pointer;
+    color:var(--ink);font-family:'Public Sans',sans-serif;font-size:13px;box-shadow:var(--card-shadow)}
+  .theme-toggle:hover{border-color:var(--pencil)}
+  .tag-dir{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;color:var(--pencil);text-transform:uppercase}
+  h1.dir{font-family:'Sora',sans-serif;font-size:32px;font-weight:700;letter-spacing:-.02em;margin:6px 0 2px}
+  h1.dir em{font-style:normal;color:var(--pencil);position:relative}
+  h1.dir em::after{content:"";position:absolute;left:0;right:0;bottom:2px;height:8px;background:var(--pencil-soft);z-index:-1}
+  .dir-sub{color:var(--ink-dim);font-size:15px;margin-bottom:36px}
+  .grid{display:grid;grid-template-columns:380px 1fr;gap:24px;align-items:start}
+  .card{background:var(--paper-2);border:1px solid var(--line);border-radius:4px;padding:28px;box-shadow:var(--card-shadow)}
+  .stamp{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--blue);border:1.5px dashed var(--blue);padding:4px 10px;border-radius:2px;transform:rotate(-1.5deg);background:var(--blue-soft)}
+  /* LOGIN */
+  .logo{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+  .logo-mark{width:42px;height:42px;border:2px solid var(--ink);border-radius:4px;display:grid;place-items:center;font-family:'Sora',sans-serif;font-weight:700;font-size:18px;background:var(--paper);box-shadow:2px 2px 0 var(--pencil);color:var(--ink)}
+  .logo b{font-family:'Sora',sans-serif;font-weight:700;font-size:20px}
+  .logo span{color:var(--pencil)}
+  .login h2{font-family:'Sora',sans-serif;font-weight:600;font-size:21px;margin-bottom:4px}
+  .login p{color:var(--ink-dim);font-size:13.5px;margin-bottom:22px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:6px}
+  .field input{width:100%;background:var(--input-bg);border:1px solid var(--line);border-bottom:2px solid var(--ink);border-radius:3px;padding:11px 14px;color:var(--ink);font-family:'Public Sans',sans-serif;font-size:14.5px;outline:none;transition:border-color .2s}
+  .field input:focus{border-bottom-color:var(--pencil)}
+  .btn{width:100%;margin-top:8px;background:var(--btn-bg);border:none;color:var(--btn-ink);font-family:'Sora',sans-serif;font-weight:600;font-size:14.5px;letter-spacing:.03em;padding:13px;border-radius:3px;cursor:pointer;box-shadow:3px 3px 0 var(--pencil);transition:transform .1s}
+  .btn:hover{transform:translate(-1px,-1px)}
+  .login .aux{margin-top:16px;font-size:12.5px;color:var(--ink-faint);display:flex;justify-content:space-between;align-items:center}
+  .login .aux a{color:var(--blue);text-decoration:underline;text-underline-offset:3px}
+  /* DASH */
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px}
+  .kpi{background:var(--paper-2);border:1px solid var(--line);border-radius:4px;padding:18px 20px;box-shadow:var(--card-shadow)}
+  .kpi .k-label{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint)}
+  .kpi .k-value{font-family:'Sora',sans-serif;font-size:30px;font-weight:700;margin-top:4px}
+  .kpi .k-delta{font-size:12px;color:var(--ok);font-weight:500}
+  .kpi.warn .k-delta{color:var(--warn)}
+  .kpi.warn .k-value{color:var(--pencil)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  thead th{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);text-align:left;padding:10px 14px;border-bottom:2px solid var(--ink)}
+  tbody td{padding:12px 14px;border-bottom:1px solid var(--row-line)}
+  tbody tr:hover{background:var(--row-hover)}
+  .mono{font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--blue);font-weight:500}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;padding:3px 10px;border-radius:2px;border:1px solid;background:var(--chip-bg)}
+  .chip::before{content:"";width:7px;height:7px;background:currentColor}
+  .c-and{color:var(--st-andamento);border-color:var(--st-andamento)}
+  .c-rev{color:var(--st-revisao);border-color:var(--st-revisao)}
+  .c-apr{color:var(--st-aprovado);border-color:var(--st-aprovado)}
+  .c-ent{color:var(--st-entregue);border-color:var(--st-entregue)}
+  .c-agu{color:var(--st-aguardando);border-color:var(--st-aguardando)}
+  .bar{height:7px;background:var(--bar-bg);border:1px solid var(--line);width:110px}
+  .bar i{display:block;height:100%;background:var(--bar-fill)}
+  .card-title{font-family:'Sora',sans-serif;font-weight:600;font-size:15px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
+  /* SPECIMEN */
+  .spec{margin-top:24px;display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center}
+  .spec .type p:first-child{font-family:'Sora',sans-serif;font-size:23px;font-weight:700}
+  .spec .type p:nth-child(2){color:var(--ink-dim);font-size:14px}
+  .spec .type p:nth-child(3){font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--blue);margin-top:4px}
+  .swatches{display:flex;gap:8px}
+  .sw{width:38px;height:38px;border-radius:3px;border:1px solid var(--line)}
+</style>
+</head>
+<body>
+  <button class="theme-toggle" onclick="const h=document.documentElement;h.dataset.theme=h.dataset.theme==='dark'?'light':'dark';this.querySelector('span').textContent=h.dataset.theme==='dark'?'Tema escuro':'Tema claro'">
+    ☀/🌙 <span>Tema claro</span>
+  </button>
+
+  <div class="tag-dir">Direção 02 / 03</div>
+  <h1 class="dir">Prancheta — <em>papel técnico</em></h1>
+  <p class="dir-sub">Prancheta de desenho: papel milimetrado, tinta grafite, lápis vermelho de revisão, carimbos. Tema escuro: prancheta noturna, mesma linguagem em grafite escuro.</p>
+
+  <div class="grid">
+    <div class="card login">
+      <div class="logo"><div class="logo-mark">S</div><b>SENA<span>HUB</span></b></div>
+      <h2>Bem-vindo de volta</h2>
+      <p>Acesse a plataforma de gestão integrada</p>
+      <div class="field"><label>E-mail</label><input value="engenharia@sena.com.br"></div>
+      <div class="field"><label>Senha</label><input type="password" value="••••••••••"></div>
+      <button class="btn">Entrar</button>
+      <div class="aux"><a href="#">Esqueci minha senha</a><span class="stamp">Rev. 2026</span></div>
+    </div>
+
+    <div>
+      <div class="kpis">
+        <div class="kpi"><div class="k-label">Projetos ativos</div><div class="k-value">24</div><div class="k-delta">▲ 3 este mês</div></div>
+        <div class="kpi"><div class="k-label">Receita prevista</div><div class="k-value">R$ 312k</div><div class="k-delta">▲ 8,2%</div></div>
+        <div class="kpi warn"><div class="k-label">Entregas pendentes</div><div class="k-value">7</div><div class="k-delta">2 vencem hoje</div></div>
+      </div>
+      <div class="card" style="padding:20px">
+        <div class="card-title">Projetos recentes <span class="stamp">folha 01/04</span></div>
+        <table>
+          <thead><tr><th>Código</th><th>Projeto</th><th>Disciplina</th><th>Status</th><th>Progresso</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">26-0142</td><td>Residencial Vila Real</td><td>Estrutural</td><td><span class="chip c-and">Em andamento</span></td><td><div class="bar"><i style="width:62%"></i></div></td></tr>
+            <tr><td class="mono">26-0139</td><td>Centro Logístico Anhanguera</td><td>Hidráulica</td><td><span class="chip c-rev">Em revisão</span></td><td><div class="bar"><i style="width:85%"></i></div></td></tr>
+            <tr><td class="mono">26-0136</td><td>Ed. Comercial Faria Lima</td><td>Elétrica</td><td><span class="chip c-apr">Aprovado</span></td><td><div class="bar"><i style="width:100%"></i></div></td></tr>
+            <tr><td class="mono">26-0133</td><td>Galpão Industrial Jundiaí</td><td>Fundações</td><td><span class="chip c-ent">Entregue</span></td><td><div class="bar"><i style="width:96%"></i></div></td></tr>
+            <tr><td class="mono">26-0128</td><td>Hospital Municipal Norte</td><td>Estrutural</td><td><span class="chip c-agu">Aguardando</span></td><td><div class="bar"><i style="width:12%"></i></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card spec">
+    <div class="type">
+      <p>Sora — títulos e números</p>
+      <p>Public Sans no corpo — sólida, legível, neutra como manual técnico.</p>
+      <p>IBM Plex Mono — códigos 26-0142, carimbos, datas</p>
+    </div>
+    <div class="swatches">
+      <div class="sw" style="background:var(--paper)"></div>
+      <div class="sw" style="background:var(--paper-2)"></div>
+      <div class="sw" style="background:var(--ink)"></div>
+      <div class="sw" style="background:var(--pencil)"></div>
+      <div class="sw" style="background:var(--blue)"></div>
+      <div class="sw" style="background:var(--st-aprovado)"></div>
+      <div class="sw" style="background:var(--st-entregue)"></div>
+    </div>
+  </div>
+</body>
+</html>

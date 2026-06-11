@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Direção 4 — Marca Registrada</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&family=Red+Hat+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Marca: Navy #1C2D58 · Steel #576980 · Slate #6E838B · Mist #A8B2B4 · Fog #CACAC8 */
+  :root[data-theme="dark"]{
+    --bg:#0D1428; --surface:#15203F; --surface-2:#1C2D58; --line:#2A3D6B;
+    --ink:#EAEDF3; --ink-dim:#A8B2B4; --ink-faint:#6E838B;
+    --accent:#8FA8CC; --interactive:#576980;
+    --ok:#5FA083; --warn:#C29A4B; --danger:#C76E6E;
+    --st-aguardando:#8B7FC7; --st-andamento:#4E9BB0; --st-revisao:#C76E94; --st-entregue:#C29A4B; --st-aprovado:#5FA083;
+    --input-bg:#0D1428; --row-line:#22325A; --row-hover:rgba(87,105,128,.12);
+    --btn-bg:#576980; --btn-hover:#6B7F99; --btn-ink:#FFFFFF;
+    --card-shadow:0 8px 28px rgba(7,12,26,.45); --bar-bg:#0D1428;
+  }
+  :root[data-theme="light"]{
+    --bg:#EFF1F3; --surface:#FFFFFF; --surface-2:#E4E8ED; --line:#CACAC8;
+    --ink:#1C2D58; --ink-dim:#576980; --ink-faint:#6E838B;
+    --accent:#1C2D58; --interactive:#576980;
+    --ok:#3E7D63; --warn:#A87E2F; --danger:#B05050;
+    --st-aguardando:#6A5BB8; --st-andamento:#2E7D96; --st-revisao:#B0507A; --st-entregue:#A87E2F; --st-aprovado:#3E7D63;
+    --input-bg:#FFFFFF; --row-line:#E2E5E9; --row-hover:rgba(28,45,88,.05);
+    --btn-bg:#1C2D58; --btn-hover:#2A3D6B; --btn-ink:#FFFFFF;
+    --card-shadow:0 4px 18px rgba(28,45,88,.10); --bar-bg:#E4E8ED;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--ink);font-family:'Schibsted Grotesk',sans-serif;min-height:100vh;padding:40px 48px;transition:background-color .25s,color .25s}
+  .theme-toggle{position:fixed;top:18px;right:20px;z-index:10;display:flex;align-items:center;gap:8px;
+    background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:8px 16px;cursor:pointer;
+    color:var(--ink);font-family:'Schibsted Grotesk',sans-serif;font-size:13px;box-shadow:var(--card-shadow)}
+  .theme-toggle:hover{border-color:var(--interactive)}
+  .tag-dir{font-family:'Red Hat Mono',monospace;font-size:11px;letter-spacing:.2em;color:var(--ink-faint);text-transform:uppercase}
+  h1.dir{font-size:34px;font-weight:800;letter-spacing:-.02em;margin:4px 0 2px}
+  h1.dir span{color:var(--interactive)}
+  .dir-sub{color:var(--ink-dim);font-size:15px;margin-bottom:36px;max-width:640px}
+  .grid{display:grid;grid-template-columns:380px 1fr;gap:24px;align-items:start}
+  .card{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--surface-2);border-radius:12px;padding:28px;box-shadow:var(--card-shadow)}
+  :root[data-theme="light"] .card{border-left-color:#1C2D58}
+  /* LOGIN */
+  .logo{display:flex;align-items:center;gap:12px;margin-bottom:26px}
+  .logo-mark{width:42px;height:42px;border-radius:10px;background:var(--surface-2);color:var(--ink);display:grid;place-items:center;font-weight:800;font-size:18px;border:1px solid var(--line)}
+  :root[data-theme="light"] .logo-mark{background:#1C2D58;color:#fff}
+  .logo b{font-weight:800;font-size:20px;letter-spacing:-.01em}
+  .logo span{color:var(--interactive)}
+  .login h2{font-weight:700;font-size:22px;margin-bottom:4px;letter-spacing:-.01em}
+  .login p{color:var(--ink-dim);font-size:13.5px;margin-bottom:22px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-family:'Red Hat Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:6px}
+  .field input{width:100%;background:var(--input-bg);border:1px solid var(--line);border-radius:8px;padding:11px 14px;color:var(--ink);font-family:'Schibsted Grotesk',sans-serif;font-size:14.5px;outline:none;transition:border .2s,box-shadow .2s}
+  .field input:focus{border-color:var(--interactive);box-shadow:0 0 0 3px rgba(87,105,128,.2)}
+  .btn{width:100%;margin-top:8px;background:var(--btn-bg);border:none;color:var(--btn-ink);font-family:'Schibsted Grotesk',sans-serif;font-weight:700;font-size:15px;padding:13px;border-radius:8px;cursor:pointer;transition:background .15s}
+  .btn:hover{background:var(--btn-hover)}
+  .login .aux{margin-top:16px;font-size:12.5px;color:var(--ink-faint);display:flex;justify-content:space-between}
+  .login .aux a{color:var(--interactive);text-decoration:none;font-weight:600}
+  /* DASH */
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px}
+  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px;box-shadow:var(--card-shadow)}
+  .kpi .k-label{font-family:'Red Hat Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint)}
+  .kpi .k-value{font-size:32px;font-weight:800;letter-spacing:-.02em;margin-top:4px}
+  .kpi .k-delta{font-size:12px;color:var(--ok);font-weight:600}
+  .kpi.warn .k-delta{color:var(--warn)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  thead th{font-family:'Red Hat Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);text-align:left;padding:10px 14px;border-bottom:1px solid var(--line)}
+  tbody td{padding:12px 14px;border-bottom:1px solid var(--row-line)}
+  tbody tr:hover{background:var(--row-hover)}
+  .mono{font-family:'Red Hat Mono',monospace;font-size:12.5px;color:var(--ink-dim);font-weight:600}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 10px;border-radius:99px;border:1px solid}
+  .chip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+  .c-and{color:var(--st-andamento);border-color:color-mix(in srgb,var(--st-andamento) 45%,transparent);background:color-mix(in srgb,var(--st-andamento) 10%,transparent)}
+  .c-rev{color:var(--st-revisao);border-color:color-mix(in srgb,var(--st-revisao) 45%,transparent);background:color-mix(in srgb,var(--st-revisao) 10%,transparent)}
+  .c-apr{color:var(--st-aprovado);border-color:color-mix(in srgb,var(--st-aprovado) 45%,transparent);background:color-mix(in srgb,var(--st-aprovado) 10%,transparent)}
+  .c-ent{color:var(--st-entregue);border-color:color-mix(in srgb,var(--st-entregue) 45%,transparent);background:color-mix(in srgb,var(--st-entregue) 10%,transparent)}
+  .c-agu{color:var(--st-aguardando);border-color:color-mix(in srgb,var(--st-aguardando) 45%,transparent);background:color-mix(in srgb,var(--st-aguardando) 10%,transparent)}
+  .bar{height:6px;border-radius:3px;background:var(--bar-bg);overflow:hidden;width:110px}
+  .bar i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--interactive),var(--accent))}
+  .card-title{font-weight:700;font-size:15px;margin-bottom:14px}
+  /* SPECIMEN */
+  .spec{margin-top:24px;display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center}
+  .spec .type p:first-child{font-size:24px;font-weight:800;letter-spacing:-.02em}
+  .spec .type p:nth-child(2){color:var(--ink-dim);font-size:14px}
+  .spec .type p:nth-child(3){font-family:'Red Hat Mono',monospace;font-size:12.5px;color:var(--ink-faint);margin-top:4px}
+  .swatches{display:flex;gap:8px}
+  .sw{width:38px;height:38px;border-radius:8px;border:1px solid var(--line);position:relative}
+  .sw small{position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);font-size:8.5px;font-family:'Red Hat Mono',monospace;color:var(--ink-faint);white-space:nowrap}
+</style>
+</head>
+<body>
+  <button class="theme-toggle" onclick="const h=document.documentElement;h.dataset.theme=h.dataset.theme==='dark'?'light':'dark';this.querySelector('span').textContent=h.dataset.theme==='dark'?'Tema escuro':'Tema claro'">
+    ☀/🌙 <span>Tema escuro</span>
+  </button>
+
+  <div class="tag-dir">Direção 04 / 06 — paleta da marca</div>
+  <h1 class="dir">Marca Registrada <span>· navy corporativo</span></h1>
+  <p class="dir-sub">A paleta da marca em estado puro: Navy domina superfícies, Steel marca o interativo, Mist e Fog fazem a hierarquia do texto. Sem textura — respiro, peso tipográfico e sombra suave.</p>
+
+  <div class="grid">
+    <div class="card login">
+      <div class="logo"><div class="logo-mark">S</div><b>SENA<span>HUB</span></b></div>
+      <h2>Bem-vindo de volta</h2>
+      <p>Acesse a plataforma de gestão integrada</p>
+      <div class="field"><label>E-mail</label><input value="engenharia@sena.com.br"></div>
+      <div class="field"><label>Senha</label><input type="password" value="••••••••••"></div>
+      <button class="btn">Entrar</button>
+      <div class="aux"><a href="#">Esqueci minha senha</a><span>v2.0</span></div>
+    </div>
+
+    <div>
+      <div class="kpis">
+        <div class="kpi"><div class="k-label">Projetos ativos</div><div class="k-value">24</div><div class="k-delta">▲ 3 este mês</div></div>
+        <div class="kpi"><div class="k-label">Receita prevista</div><div class="k-value">R$ 312k</div><div class="k-delta">▲ 8,2%</div></div>
+        <div class="kpi warn"><div class="k-label">Entregas pendentes</div><div class="k-value">7</div><div class="k-delta">2 vencem hoje</div></div>
+      </div>
+      <div class="card" style="padding:20px">
+        <div class="card-title">Projetos recentes</div>
+        <table>
+          <thead><tr><th>Código</th><th>Projeto</th><th>Disciplina</th><th>Status</th><th>Progresso</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">26-0142</td><td>Residencial Vila Real</td><td>Estrutural</td><td><span class="chip c-and">Em andamento</span></td><td><div class="bar"><i style="width:62%"></i></div></td></tr>
+            <tr><td class="mono">26-0139</td><td>Centro Logístico Anhanguera</td><td>Hidráulica</td><td><span class="chip c-rev">Em revisão</span></td><td><div class="bar"><i style="width:85%"></i></div></td></tr>
+            <tr><td class="mono">26-0136</td><td>Ed. Comercial Faria Lima</td><td>Elétrica</td><td><span class="chip c-apr">Aprovado</span></td><td><div class="bar"><i style="width:100%"></i></div></td></tr>
+            <tr><td class="mono">26-0133</td><td>Galpão Industrial Jundiaí</td><td>Fundações</td><td><span class="chip c-ent">Entregue</span></td><td><div class="bar"><i style="width:96%"></i></div></td></tr>
+            <tr><td class="mono">26-0128</td><td>Hospital Municipal Norte</td><td>Estrutural</td><td><span class="chip c-agu">Aguardando</span></td><td><div class="bar"><i style="width:12%"></i></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card spec">
+    <div class="type">
+      <p>Schibsted Grotesk — títulos e corpo</p>
+      <p>Hierarquia por peso (400→800). Limpa, contemporânea, sem frieza.</p>
+      <p>Red Hat Mono — códigos 26-0142, rótulos, datas</p>
+    </div>
+    <div class="swatches" style="padding-bottom:14px">
+      <div class="sw" style="background:#1C2D58"><small>Navy</small></div>
+      <div class="sw" style="background:#576980"><small>Steel</small></div>
+      <div class="sw" style="background:#6E838B"><small>Slate</small></div>
+      <div class="sw" style="background:#A8B2B4"><small>Mist</small></div>
+      <div class="sw" style="background:#CACAC8"><small>Fog</small></div>
+    </div>
+  </div>
+</body>
+</html>

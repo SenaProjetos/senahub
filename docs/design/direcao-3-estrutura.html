@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Direção 3 — Estrutura</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Martian+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root[data-theme="dark"]{
+    --concrete:#161614; --panel:#1E1E1B; --panel-2:#26261F; --edge:#3A3A33;
+    --ink:#F2F0E9; --ink-dim:#A8A698; --ink-faint:#6E6C60;
+    --amber:#FFB200; --amber-dim:rgba(255,178,0,.12); --signal:#FF5A1F;
+    --ok:#7BC96F; --danger:#FF6B6B;
+    --st-aguardando:#B8A5F0; --st-andamento:#5BC8DB; --st-revisao:#F08CB4; --st-entregue:#FFB200; --st-aprovado:#7BC96F;
+    --noise:rgba(242,240,233,.025); --row-line:#2C2C26; --bar-bg:#161614;
+    --bar-fill:repeating-linear-gradient(-45deg,#FFB200,#FFB200 6px,#CC8E00 6px,#CC8E00 12px);
+    --chip-ink:#161614; --btn-ink:#161614; --btn-hover:#FFC433;
+  }
+  :root[data-theme="light"]{
+    --concrete:#E8E6E0; --panel:#F4F3EF; --panel-2:#ECEAE3; --edge:#C9C7BD;
+    --ink:#1E1E1B; --ink-dim:#5C5B52; --ink-faint:#92907F;
+    --amber:#E89B00; --amber-dim:rgba(232,155,0,.16); --signal:#E04A12;
+    --ok:#3E8E41; --danger:#D33A3A;
+    --st-aguardando:#8B6FD8; --st-andamento:#1B98B5; --st-revisao:#D6568E; --st-entregue:#E89B00; --st-aprovado:#4C9E44;
+    --noise:rgba(30,30,27,.04); --row-line:#DCDAD2; --bar-bg:#FFFFFF;
+    --bar-fill:repeating-linear-gradient(-45deg,#E89B00,#E89B00 6px,#C28200 6px,#C28200 12px);
+    --chip-ink:#FFFFFF; --btn-ink:#1E1E1B; --btn-hover:#F5B533;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    background:var(--concrete); color:var(--ink); font-family:'Archivo',sans-serif;
+    background-image:radial-gradient(var(--noise) 1px, transparent 1px);
+    background-size:6px 6px;
+    min-height:100vh; padding:40px 48px; transition:background-color .25s, color .25s;
+  }
+  .hazard{height:8px;background:repeating-linear-gradient(-45deg,var(--amber),var(--amber) 12px,var(--concrete) 12px,var(--concrete) 24px);margin:-40px -48px 32px}
+  .theme-toggle{position:fixed;top:26px;right:20px;z-index:10;display:flex;align-items:center;gap:8px;
+    background:var(--panel);border:2px solid var(--edge);padding:8px 16px;cursor:pointer;
+    color:var(--ink);font-family:'Archivo',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+  .theme-toggle:hover{border-color:var(--amber)}
+  .tag-dir{font-family:'Martian Mono',monospace;font-size:10px;letter-spacing:.24em;color:var(--amber);text-transform:uppercase}
+  h1.dir{font-family:'Archivo',sans-serif;font-variation-settings:"wdth" 115;font-size:38px;font-weight:850;letter-spacing:-.01em;text-transform:uppercase;margin:6px 0 2px}
+  h1.dir span{color:var(--amber)}
+  .dir-sub{color:var(--ink-dim);font-size:15px;margin-bottom:36px;max-width:640px}
+  .grid{display:grid;grid-template-columns:380px 1fr;gap:20px;align-items:start}
+  .card{background:var(--panel);border:2px solid var(--edge);padding:28px;position:relative}
+  .card .corner{position:absolute;top:-2px;left:-2px;width:14px;height:14px;border-top:3px solid var(--amber);border-left:3px solid var(--amber)}
+  /* LOGIN */
+  .logo{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+  .logo-mark{width:44px;height:44px;background:var(--amber);color:var(--chip-ink);display:grid;place-items:center;font-weight:900;font-size:20px;font-variation-settings:"wdth" 110}
+  .logo b{font-weight:850;font-size:21px;text-transform:uppercase;font-variation-settings:"wdth" 112;letter-spacing:.01em}
+  .logo span{color:var(--amber)}
+  .login h2{font-weight:800;font-size:20px;text-transform:uppercase;font-variation-settings:"wdth" 108;margin-bottom:4px}
+  .login p{color:var(--ink-dim);font-size:13.5px;margin-bottom:22px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-family:'Martian Mono',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:6px}
+  .field input{width:100%;background:var(--concrete);border:2px solid var(--edge);padding:11px 14px;color:var(--ink);font-family:'Archivo',sans-serif;font-size:14.5px;outline:none;transition:border-color .15s}
+  .field input:focus{border-color:var(--amber)}
+  .btn{width:100%;margin-top:8px;background:var(--amber);border:none;color:var(--btn-ink);font-family:'Archivo',sans-serif;font-weight:850;font-size:14.5px;letter-spacing:.08em;text-transform:uppercase;padding:14px;cursor:pointer;transition:background .15s}
+  .btn:hover{background:var(--btn-hover)}
+  .login .aux{margin-top:16px;font-size:12.5px;color:var(--ink-faint);display:flex;justify-content:space-between}
+  .login .aux a{color:var(--amber);text-decoration:none;border-bottom:1px solid var(--amber)}
+  /* DASH */
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px}
+  .kpi{background:var(--panel);border:2px solid var(--edge);padding:18px 20px;position:relative}
+  .kpi .k-label{font-family:'Martian Mono',monospace;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-faint)}
+  .kpi .k-value{font-size:32px;font-weight:850;font-variation-settings:"wdth" 110;margin-top:4px}
+  .kpi .k-delta{font-size:11.5px;color:var(--ok);font-weight:600}
+  .kpi.warn{border-color:var(--amber)}
+  .kpi.warn .k-delta{color:var(--amber)}
+  .kpi.warn::before{content:"!";position:absolute;top:10px;right:12px;width:20px;height:20px;background:var(--amber);color:var(--chip-ink);display:grid;place-items:center;font-weight:900;font-size:13px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  thead th{font-family:'Martian Mono',monospace;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-faint);text-align:left;padding:10px 14px;border-bottom:2px solid var(--edge)}
+  tbody td{padding:12px 14px;border-bottom:1px solid var(--row-line)}
+  tbody tr:hover{background:var(--amber-dim)}
+  .mono{font-family:'Martian Mono',monospace;font-size:11.5px;color:var(--amber);font-weight:600}
+  :root[data-theme="light"] .mono{color:#B87B00}
+  .chip{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:4px 9px;color:var(--chip-ink)}
+  .c-and{background:var(--st-andamento)}
+  .c-rev{background:var(--st-revisao)}
+  .c-apr{background:var(--st-aprovado)}
+  .c-ent{background:var(--st-entregue)}
+  .c-agu{background:var(--st-aguardando)}
+  .bar{height:10px;background:var(--bar-bg);border:1px solid var(--edge);width:110px}
+  .bar i{display:block;height:100%;background:var(--bar-fill)}
+  .card-title{font-weight:800;font-size:14px;text-transform:uppercase;font-variation-settings:"wdth" 108;letter-spacing:.04em;margin-bottom:14px}
+  /* SPECIMEN */
+  .spec{margin-top:20px;display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center}
+  .spec .type p:first-child{font-size:24px;font-weight:850;font-variation-settings:"wdth" 112;text-transform:uppercase}
+  .spec .type p:nth-child(2){color:var(--ink-dim);font-size:14px}
+  .spec .type p:nth-child(3){font-family:'Martian Mono',monospace;font-size:11.5px;color:var(--amber);margin-top:4px}
+  :root[data-theme="light"] .spec .type p:nth-child(3){color:#B87B00}
+  .swatches{display:flex;gap:8px}
+  .sw{width:38px;height:38px;border:2px solid var(--edge)}
+</style>
+</head>
+<body>
+  <div class="hazard"></div>
+  <button class="theme-toggle" onclick="const h=document.documentElement;h.dataset.theme=h.dataset.theme==='dark'?'light':'dark';this.querySelector('span').textContent=h.dataset.theme==='dark'?'Tema escuro':'Tema claro'">
+    ☀/🌙 <span>Tema escuro</span>
+  </button>
+
+  <div class="tag-dir">Direção 03 / 03</div>
+  <h1 class="dir">Estrutura <span>// canteiro</span></h1>
+  <p class="dir-sub">Brutalista de obra: concreto, âmbar de sinalização, blocos sólidos, sem cantos arredondados. Tema claro: concreto aparente diurno, mesma gramática.</p>
+
+  <div class="grid">
+    <div class="card login">
+      <div class="corner"></div>
+      <div class="logo"><div class="logo-mark">S</div><b>SENA<span>HUB</span></b></div>
+      <h2>Identifique-se</h2>
+      <p>Acesso restrito à equipe e clientes</p>
+      <div class="field"><label>E-mail</label><input value="engenharia@sena.com.br"></div>
+      <div class="field"><label>Senha</label><input type="password" value="••••••••••"></div>
+      <button class="btn">Entrar →</button>
+      <div class="aux"><a href="#">Esqueci minha senha</a><span>v2.0</span></div>
+    </div>
+
+    <div>
+      <div class="kpis">
+        <div class="kpi"><div class="k-label">Projetos ativos</div><div class="k-value">24</div><div class="k-delta">▲ 3 este mês</div></div>
+        <div class="kpi"><div class="k-label">Receita prevista</div><div class="k-value">R$ 312k</div><div class="k-delta">▲ 8,2%</div></div>
+        <div class="kpi warn"><div class="k-label">Entregas pendentes</div><div class="k-value">7</div><div class="k-delta">2 vencem hoje</div></div>
+      </div>
+      <div class="card" style="padding:20px">
+        <div class="corner"></div>
+        <div class="card-title">Projetos recentes</div>
+        <table>
+          <thead><tr><th>Código</th><th>Projeto</th><th>Disciplina</th><th>Status</th><th>Progresso</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">26-0142</td><td>Residencial Vila Real</td><td>Estrutural</td><td><span class="chip c-and">Em andamento</span></td><td><div class="bar"><i style="width:62%"></i></div></td></tr>
+            <tr><td class="mono">26-0139</td><td>Centro Logístico Anhanguera</td><td>Hidráulica</td><td><span class="chip c-rev">Em revisão</span></td><td><div class="bar"><i style="width:85%"></i></div></td></tr>
+            <tr><td class="mono">26-0136</td><td>Ed. Comercial Faria Lima</td><td>Elétrica</td><td><span class="chip c-apr">Aprovado</span></td><td><div class="bar"><i style="width:100%"></i></div></td></tr>
+            <tr><td class="mono">26-0133</td><td>Galpão Industrial Jundiaí</td><td>Fundações</td><td><span class="chip c-ent">Entregue</span></td><td><div class="bar"><i style="width:96%"></i></div></td></tr>
+            <tr><td class="mono">26-0128</td><td>Hospital Municipal Norte</td><td>Estrutural</td><td><span class="chip c-agu">Aguardando</span></td><td><div class="bar"><i style="width:12%"></i></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card spec">
+    <div class="corner"></div>
+    <div class="type">
+      <p>Archivo Expanded — títulos</p>
+      <p>Archivo regular no corpo. Peso e largura variáveis fazem toda a hierarquia.</p>
+      <p>Martian Mono — códigos 26-0142, rótulos, datas</p>
+    </div>
+    <div class="swatches">
+      <div class="sw" style="background:var(--concrete)"></div>
+      <div class="sw" style="background:var(--panel)"></div>
+      <div class="sw" style="background:var(--amber)"></div>
+      <div class="sw" style="background:var(--signal)"></div>
+      <div class="sw" style="background:var(--st-aprovado)"></div>
+      <div class="sw" style="background:var(--st-andamento)"></div>
+      <div class="sw" style="background:var(--st-revisao)"></div>
+    </div>
+  </div>
+</body>
+</html>
