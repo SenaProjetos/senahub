@@ -1,12 +1,15 @@
 import { Shell } from "@/components/shell/shell";
+import { requireUser } from "@/lib/session";
 
-// TODO(onda-0/auth): substituir por role da sessão quando better-auth entrar.
-const MOCK_ROLE = "admin" as const;
-
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <Shell role={MOCK_ROLE}>{children}</Shell>;
+  const user = await requireUser();
+  return (
+    <Shell role={user.role} user={user}>
+      {children}
+    </Shell>
+  );
 }

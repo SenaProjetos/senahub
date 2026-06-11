@@ -5,7 +5,9 @@ import { usePathname } from "next/navigation";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { UserMenu } from "@/components/shell/user-menu";
 import { NAV_GROUPS } from "@/lib/nav-config";
+import type { Role } from "@/lib/roles";
 
 function Clock() {
   const [now, setNow] = useState<Date | null>(null);
@@ -34,7 +36,13 @@ function titleFromPath(pathname: string): string {
   return match?.title ?? "SenaHub";
 }
 
-export function Header({ title }: { title?: string }) {
+export function Header({
+  title,
+  user,
+}: {
+  title?: string;
+  user: { name: string; email: string; role: Role; image?: string | null };
+}) {
   const pathname = usePathname();
   const resolved = title ?? titleFromPath(pathname);
   return (
@@ -46,6 +54,7 @@ export function Header({ title }: { title?: string }) {
           <Bell className="size-4" />
         </Button>
         <ThemeToggle />
+        <UserMenu user={user} />
       </div>
     </header>
   );

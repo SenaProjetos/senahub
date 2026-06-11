@@ -6,3 +6,186 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+// ─────────────────────────────────────────────────────────────
+// Identidade & acesso
+// ─────────────────────────────────────────────────────────────
+
+enum Role {
+  admin
+  supervisor
+  administrativo
+  clt
+  estagiario
+  projetista_pj
+  freelancer
+  cliente
+}
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+
+  // Campos de domínio
+  role               Role    @default(cliente)
+  ativo              Boolean @default(true)
+  mustChangePassword Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions Session[]
+  accounts Account[]
+  auditLogs AuditLog[]
+  resetSolicitacoes SolicitacaoResetSenha[]
+
+  @@index([role])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// Pedido de reset de senha (admin reinicia pela tela de usuários).
+model SolicitacaoResetSenha {
+  id        String   @id @default(cuid())
+  email     String
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  resolvida Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([resolvida])
+  @@map("solicitacao_reset_senha")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Permissões finas (recurso:ação), configuráveis em runtime
+// ─────────────────────────────────────────────────────────────
+
+model Permissao {
+  id      String  @id @default(cuid())
+  role    Role
+  recurso String
+  acao    String
+  permitido Boolean @default(true)
+
+  @@unique([role, recurso, acao])
+  @@index([role])
+  @@map("permissao")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Auditoria (registro imutável de toda mutação)
+// ─────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  modulo     String
+  acao       String
+  tipo       String   @default("acao") // acao | login | erro
+  resultado  String   @default("sucesso") // sucesso | falha | bloqueado
+  entidade   String?
+  entidadeId String?
+  detalhe    Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([modulo])
+  @@index([createdAt])
+  @@map("audit_log")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Notificações (sininho interno) + Web Push
+// ─────────────────────────────────────────────────────────────
+
+model Notificacao {
+  id        String   @id @default(cuid())
+  userId    String
+  titulo    String
+  corpo     String?
+  href      String?
+  lida      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, lida])
+  @@map("notificacao")
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("push_subscription")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Configuração geral do sistema (chave/valor)
+// ─────────────────────────────────────────────────────────────
+
+model ConfigSistema {
+  chave     String   @id
+  valor     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("config_sistema")
+}
