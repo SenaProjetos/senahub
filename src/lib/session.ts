@@ -39,3 +39,11 @@ export async function requireRole(...roles: Role[]): Promise<SessionUser> {
   if (!roles.includes(user.role)) redirect("/sem-permissao");
   return user;
 }
+
+/** Exige permissão fina `recurso:acao` (admin tem bypass); senão, sem permissão. */
+export async function requirePermission(recurso: string, acao: string): Promise<SessionUser> {
+  const { can } = await import("@/lib/permissions");
+  const user = await requireUser();
+  if (!(await can(user.role, recurso, acao))) redirect("/sem-permissao");
+  return user;
+}

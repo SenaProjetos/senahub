@@ -11,6 +11,14 @@ export type RecursoCatalogo = {
 
 export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
   {
+    recurso: "clientes",
+    label: "Clientes",
+    acoes: [
+      { acao: "ver", label: "Ver clientes" },
+      { acao: "gerir", label: "Criar/editar clientes" },
+    ],
+  },
+  {
     recurso: "usuarios",
     label: "Usuários",
     acoes: [{ acao: "gerir", label: "Gerir usuários" }],

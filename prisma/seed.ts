@@ -14,9 +14,13 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   // Supervisor: gestão ampla
   { role: "supervisor", recurso: "usuarios", acao: "gerir" },
   { role: "supervisor", recurso: "configuracoes", acao: "gerir" },
-  // Administrativo: configurações e usuários
+  { role: "supervisor", recurso: "clientes", acao: "ver" },
+  { role: "supervisor", recurso: "clientes", acao: "gerir" },
+  // Administrativo: configurações, usuários e clientes
   { role: "administrativo", recurso: "usuarios", acao: "gerir" },
   { role: "administrativo", recurso: "configuracoes", acao: "gerir" },
+  { role: "administrativo", recurso: "clientes", acao: "ver" },
+  { role: "administrativo", recurso: "clientes", acao: "gerir" },
 ];
 
 async function main() {

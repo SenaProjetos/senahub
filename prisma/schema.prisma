@@ -189,3 +189,59 @@ model ConfigSistema {
 
   @@map("config_sistema")
 }
+
+// ─────────────────────────────────────────────────────────────
+// Clientes (Onda 1)
+// ─────────────────────────────────────────────────────────────
+
+enum TipoPessoa {
+  PF
+  PJ
+}
+
+model Cliente {
+  id           String     @id @default(cuid())
+  tipo         TipoPessoa @default(PJ)
+  nome         String // nome (PF) ou razão social (PJ)
+  nomeFantasia String?
+  documento    String? // CPF ou CNPJ
+  email        String?
+  telefone     String?
+
+  // Endereço
+  cep         String?
+  logradouro  String?
+  numero      String?
+  complemento String?
+  bairro      String?
+  cidade      String?
+  uf          String?
+
+  observacoes String?
+  ativo       Boolean  @default(true)
+
+  // Login externo opcional do cliente (criado sob demanda).
+  usuarioId String? @unique
+
+  contatos  ContatoCliente[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([ativo])
+  @@index([nome])
+  @@map("cliente")
+}
+
+model ContatoCliente {
+  id        String  @id @default(cuid())
+  clienteId String
+  cliente   Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  nome      String
+  cargo     String?
+  email     String?
+  telefone  String?
+  principal Boolean @default(false)
+
+  @@index([clienteId])
+  @@map("contato_cliente")
+}

@@ -1,5 +1,6 @@
 import {
   Home,
+  Users,
   Settings,
   ScrollText,
   type LucideIcon,
@@ -29,6 +30,12 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     items: [
       { title: "Início", href: "/", icon: Home, mobile: true },
+      {
+        title: "Clientes",
+        href: "/clientes",
+        icon: Users,
+        roles: ["admin", "supervisor", "administrativo"],
+      },
     ],
   },
   {
