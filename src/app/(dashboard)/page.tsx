@@ -6,6 +6,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { requireUser } from "@/lib/session";
+import { HeroCard } from "@/components/dashboard/hero-card";
 
 const KPIS = [
   { label: "Projetos ativos", value: "—", delta: "aguardando dados" },
@@ -13,17 +15,11 @@ const KPIS = [
   { label: "Entregas pendentes", value: "—", delta: "aguardando dados" },
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const user = await requireUser();
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">
-          Bem-vindo ao SenaHub
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Plataforma de gestão integrada — fundação da Onda 0.
-        </p>
-      </div>
+      <HeroCard nome={user.name} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {KPIS.map((kpi) => (

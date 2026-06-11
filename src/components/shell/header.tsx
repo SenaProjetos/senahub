@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Bell } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/shell/user-menu";
+import { NotificationBell } from "@/components/notificacoes/notification-bell";
 import { NAV_GROUPS } from "@/lib/nav-config";
 import type { Role } from "@/lib/roles";
 
@@ -50,9 +49,7 @@ export function Header({
       <h1 className="truncate text-lg font-bold tracking-tight">{resolved}</h1>
       <div className="flex items-center gap-1.5">
         <Clock />
-        <Button variant="ghost" size="icon" aria-label="Notificações" className="relative">
-          <Bell className="size-4" />
-        </Button>
+        <NotificationBell />
         <ThemeToggle />
         <UserMenu user={user} />
       </div>

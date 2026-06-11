@@ -20,6 +20,9 @@ export const metadata: Metadata = {
   },
   description: "Plataforma de gestão integrada — engenharia BIM",
   robots: { index: false, follow: false },
+  manifest: "/manifest.json",
+  appleWebApp: { capable: true, title: "SenaHub", statusBarStyle: "black-translucent" },
+  icons: { icon: "/icons/icon-192.png", apple: "/icons/icon-192.png" },
 };
 
 export const viewport: Viewport = {
