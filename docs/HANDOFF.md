@@ -1,0 +1,174 @@
+# SenaHub Remake — Handoff / Estado do Projeto
+
+> Documento de continuidade. Permite a qualquer dev/IA retomar o trabalho do ponto exato.
+> Atualizado em 2026-06-12. Ondas 0–3 **completas e verificadas**; faltam O4, O5, automações e deploy.
+
+---
+
+## 1. O que é
+
+Reconstrução do zero do SenaHub (ERP sob medida para escritório de engenharia BIM) em
+`C:\SENA_ADM\SENAHUB\SENAHub-remake`. O sistema antigo (`..\SENAHub`, Next 15 + Docker/WSL2/Redis)
+continua rodando em paralelo até o cutover. Relatório do sistema antigo: `docs/RELATORIO-SISTEMA.md`.
+
+**Decisões fixas (acordadas com o usuário — não rediscutir):**
+1. **Banco limpo** — sem migração de dados; re-cadastro manual no cutover.
+2. **Stack:** Next 15 + React 19, monolito modular (Server Actions + camada de serviço; rotas REST só para streaming/multipart/token público).
+3. **Infra nativa Windows** — sem Docker/WSL2/Redis/Nginx. PostgreSQL 17 nativo (porta **5433** em dev), pg-boss (jobs), cache LRU em memória, Cloudflare Tunnel mantido.
+4. **Visual "Marca Registrada"**: paleta da marca (Navy `#1C2D58`, Steel `#576980`, Slate `#6E838B`, Mist `#A8B2B4`, Fog `#CACAC8`), bordas retas 2px, fundo mosaico SVG da marca (`public/MARCA/background_M2.svg` escuro / `background_L2.svg` claro, **211×179px inteiros** para não gerar linhas de emenda), Schibsted Grotesk + Red Hat Mono, tema claro+escuro (next-themes, dark default). Mockup aprovado: `docs/design/direcao-final.html`.
+5. Convenções: commits semânticos pt-BR; código em inglês, UI em português; mobile-first; PWA; **auditoria obrigatória em toda mutação**.
+
+## 2. Setup de desenvolvimento
+
+```
+npm install                # postinstall roda prisma generate
+npm run dev                # Next só (sem socket/jobs) — chat NÃO funciona aqui
+npm run dev:server         # server.ts completo (Next + Socket.io + pg-boss) — usar p/ chat
+npm run build              # next build --turbopack
+npm test                   # vitest (33 testes)
+npm run db:migrate         # prisma migrate dev
+npm run db:seed            # admin + permissões + catálogos (idempotente)
+npm run smoke:onda1|onda2|onda3efg   # smokes e2e contra o banco de dev
+```
+
+- **Banco dev:** PostgreSQL 17 nativo Windows, porta **5433**, db `senahub_remake` (`.env` → `DATABASE_URL`). O 5432 é o Docker do sistema ANTIGO — não tocar.
+- **Admin seed:** `tadrio@senaprojetos.com.br` / senha inicial `SenaHub@2026` (troca obrigatória no 1º login).
+- **Storage:** `STORAGE_BASE_PATH` no `.env` (uploads de projeto, atestados, NFs).
+- **NUNCA** rodar `next build` com `next dev` ativo no mesmo `.next` (corrompe; se acontecer: apagar `.next`).
+
+## 3. Arquitetura
+
+```
+src/
+  app/                  # (auth)/login, (dashboard)/<módulos>, api/ (multipart/token/streaming)
+  modules/<dominio>/    # schemas.ts (Zod) · queries.ts (server-only) · actions.ts ("use server") · service.ts
+  components/<dominio>/ # client components do módulo
+  components/ui/        # shadcn (base-ui, NÃO Radix — triggers usam render={}, não asChild)
+  lib/                  # auth, session, permissions, with-action, audit, storage, push, notificar,
+                        # mail, jobs, socket, cache, cep, ofx
+server.ts               # Next + Socket.io + pg-boss num processo (tsx, tsconfig.server.json)
+prisma/schema.prisma    # + prisma.config.ts (Prisma 7: URL fica no config, não no schema)
+```
+
+**Pilar central — `defineAction` (`lib/with-action.ts`):** toda Server Action passa por
+sessão → gate de roles → permissão fina (`recurso:ação`, tabela `Permissao`, cache LRU 10min, admin bypass) →
+Zod → execução → **auditoria automática** (`AuditLog`). Erros de negócio: `throw new ActionError("msg")`.
+
+**Escopo de dados:** perfis globais (`admin`,`supervisor`) veem tudo; demais filtrados
+(`escopoProjeto` em `modules/projetos/queries.ts`; extrato próprio no financeiro; RH gate por
+`HR_ADMIN_ROLES` = admin+supervisor+administrativo — padrão `{ modulo:"rh", roles: HR_ADMIN_ROLES }`).
+
+**8 perfis:** admin, supervisor, administrativo, clt, estagiario, projetista_pj, freelancer, cliente.
+Matriz fina configurável em Configurações→Permissões (catálogo em `lib/permissions-catalog.ts` + seed).
+
+## 4. Estado — ondas entregues (0–3, todas verificadas)
+
+| Onda | Conteúdo | Verificação |
+|---|---|---|
+| **O0** | Design system + shell (sidebar colapsável, bottom-nav, header), better-auth (1º acesso troca senha, reset notifica admin, rate-limit), usuários+permissões, defineAction+auditoria (+visualizador /auditoria), notificações (sino+web-push+som)+PWA, server.ts (Socket.io+pg-boss, job backup pg_dump) | smoke O0 |
+| **O1** | Clientes (PF/PJ, CEP ViaCEP), Projetos (numeração atômica **AAXXXX**, disciplinas status independente, multi-responsáveis, prazos, revisões RVxx, escopo), Uploads A/B (arquivo-a-arquivo, não-suportado→OUTROS, SHA-256, versões, ZIP, anti-path-traversal), **validação→PagamentoProjetista** (regra de ouro, split por responsável, notifica), Inputs+link público token | `smoke:onda1` |
+| **O2** | Financeiro: plano de contas hierárquico (1.x/2.x semeado), cadastros, **Lancamento unificado** (previsto=a pagar/receber, confirmado=caixa/DRE; recorrência; valorEfetivo parcial), folha projetistas (**pagar→Lancamento confirmado por tipo**: PJ→2.01, freelancer→2.02, CLT→2.03, estag→2.04), fluxo de caixa, **OFX+conciliação** (dedup fitid, auto-match valor/sinal/±5d), DRE+indicadores+Excel | `smoke:onda2` |
+| **O3** | Chat (canais geral/projeto/disciplina auto-criados, DM, presença, status, **push+som em toda conversa**; freelancer/cliente fora do #geral), Ponto (**troca de projeto na jornada**, banco de horas, escala, espelho, rateio CLT por projeto), RH (abono+atestado, férias, clima anônimo, **folha CLT→2.03 com reabrir**, holerite e-mail, onboarding templates, NF-PJ upload+validação) | `smoke:onda3`, `smoke:onda3efg` |
+
+Fluxo crítico completo já funciona: upload→validação→pagamento→folha→lançamento→caixa/DRE.
+
+## 5. O QUE FALTA
+
+### 5.1 Onda 4 — Comercial/CRM (próxima)
+- **Leads**: cadastro, conversão lead→cliente (reusar `modules/clientes`).
+- **Funil Kanban**: etapas configuráveis (`FunilEtapa`), oportunidades com arrastar-e-soltar
+  (instalar `@dnd-kit/core` + `@dnd-kit/sortable`), atividades/histórico por oportunidade.
+- **Metas comerciais** + dashboard de vendas.
+- **Propostas**: itens por disciplina, condições de pagamento (**% ou R$**), versões, copiar proposta
+  ("-cópia" no nome, traz tudo), anexos.
+- **Preços automáticos**: `TabelaPreco` configurável (valor/m² por disciplina) + campo área do projeto;
+  botão "aplicar tabela" na proposta; PDF NÃO exibe unitários, só totais por disciplina.
+- **PDF da proposta** (instalar `jspdf` + `jspdf-autotable`) + **envio por e-mail** (lib/mail.ts pronta)
+  + **visualização pública por token** (`/a/proposta/[token]`, padrão igual `/p/inputs/[token]`)
+  + **pixel de rastreio** de abertura (`/api/t/proposta/[token]/pixel` → grava Visualizacao).
+- **Proposta aceita → gerar projeto**: criar Projeto+Disciplinas (usar `proximoCodigoProjeto`)
+  e chamar `ensureCanaisProjeto` (chat) — zero redigitação. Notificar equipe.
+
+### 5.2 Onda 5 — Complementares
+- **Jurídico**: pastas por projeto/cliente, contratos versionados (minuta→assinado→aditivo),
+  modelos, certidões (tipos configuráveis, validade), download. Alertas de vencimento 30/15/7 dias (job).
+- **Licitações**: processos (modalidade, datas), documentos versionados, alertas 15/7/1,
+  **medições → Lancamento receita**, importar licitação ganha → projeto (status "Em execução")
+  com documentação indo ao Jurídico em pastas por projeto.
+- **Tarefas**: Kanban colunas configuráveis (`TarefaStatus`), dependências entre tarefas,
+  checklist, multi-responsáveis, comentários, anexos.
+- **Planejamento/Recursos**: workspace (kanban+gantt rascunho→aplicar), **EAP com linha de base**
+  estilo MSProject (gantt com linha dupla: baseline vs real), matriz de recursos com
+  **multiplicador de capacidade** por pessoa, detecção de superalocação. Projetista vê seus projetos read-only.
+- **Agenda**: compromissos, convites com confirmação, agenda do dia; prazos de projeto/disciplina
+  no calendário (marcação única, sem duplicar — bug do sistema antigo).
+- **Qualidade**: índice de retrabalho por disciplina (fonte: `RevisaoDisciplina` já existe),
+  snapshot mensal (job dia 1º), gauge + linha de tendência (instalar `recharts`).
+- **Dashboard/Relatórios executivos**: KPIs reais na home (hoje mostram "—"): projetos ativos,
+  receita prevista, entregas pendentes; SLA de entregas; produtividade (horas × valor — rateio já existe).
+- **Suporte**: tickets internos com anexos e status.
+
+### 5.3 Automações pendentes (jobs pg-boss — `lib/jobs.ts`)
+| Job | Regra |
+|---|---|
+| Alertas prazo disciplina | D-7/D-3/D-1 → notificar responsáveis + gestores (diário) |
+| Lembrete ponto não batido | CLT sem sessão aberta após X min do início da `EscalaTrabalho` (dias úteis) |
+| Inadimplência | Lancamento receita previsto vencido D+1 → notificação interna; e-mail de cobrança opcional |
+| Certidões/contratos | vencimento 30/15/7 (O5 jurídico) |
+| Licitações | prazos 15/7/1 (O5) |
+| Snapshot qualidade | dia 1º, grava índice mensal (O5) |
+| Snapshot dashboard | diário, série histórica de KPIs (O5) |
+| Resumo semanal | e-mail seg 07h para admin/supervisor: entregas, vencimentos, caixa |
+Existente: backup diário (pg_dump → pasta; conferir destino/retenção no deploy).
+
+### 5.4 Deploy / Cutover (produção no mesmo servidor Windows 11)
+1. `.env` produção: `DATABASE_URL` (db novo `senahub` prod na instância 5433 ou nova), senha forte do Postgres, `BETTER_AUTH_SECRET` forte (32+ bytes), `BETTER_AUTH_URL`/`APP_URL` = domínio público, `NODE_ENV=production`, SMTP real, `STORAGE_BASE_PATH` = pasta de rede definitiva.
+2. `npm run build` + rodar `npm start` (server.ts) como **serviço Windows via NSSM** — criar `scripts/instalar-servico.ps1` (nssm install SenaHub "node caminho" …; AppDirectory; stdout/stderr log; restart on failure).
+3. **cloudflared** como serviço apontando `http://localhost:3000` (tunnel já existe p/ sistema antigo — criar rota nova ou trocar no cutover). LAN acessa direto `http://servidor:3000`.
+4. Backup: job pg_boss diário roda `pg_dump` → pasta de rede, retenção 30 dias; testar restauração.
+5. better-auth: remover `disableCSRFCheck` de dev; conferir `trustedOrigins=[BETTER_AUTH_URL]`.
+6. PWA: gerar ícones reais (`public/icons/icon-192.png`/512 a partir de `public/MARCA/icon.ico`).
+7. Re-cadastro do essencial (usuários, clientes, projetos ativos); sistema antigo vira leitura.
+8. Security pass: rate-limit login ok; revisar CSP/headers (`next.config.ts`); `robots` já noindex.
+
+### 5.5 Melhorias e ferramentas sugeridas (backlog futuro)
+- **Busca global** (Ctrl+K): shadcn `command` (cmdk) — projetos/clientes/lançamentos.
+- **Gráficos**: `recharts` no dashboard, DRE (barras mensais), fluxo de caixa projetado, qualidade.
+- **@dnd-kit**: funil comercial (O4) e Kanban de tarefas (O5).
+- **react-hook-form + @hookform/resolvers**: formulários grandes (proposta) — hoje forms são useState manual.
+- **Avatares**: upload com `sharp` (resize), exibir no header/chat.
+- **Holerite/Relatórios em PDF** (jspdf, além do Excel).
+- **DFC e Balanço** (além da DRE); **orçamento anual** (previsto×realizado por categoria).
+- **Encargos automáticos folha** (tabelas INSS/IRRF progressivas → calcular descontos).
+- **Paginação/virtualização** nas tabelas grandes (lançamentos, auditoria) quando o volume crescer.
+- **Logs estruturados** (pino) + rotação de arquivos; endpoint `/api/health` p/ monitoramento (Uptime Kuma local).
+- **Playwright e2e** nos fluxos críticos (login, upload→validação, lançamento).
+- **2FA opcional** (plugin better-auth) para admin.
+- **Multi-instância** (só se precisar): presença do chat + socket.io para Redis adapter.
+- **Anexos no chat** com preview de imagem; **emoji picker**; **menções** com autocomplete (hoje texto simples).
+- **Tema do cliente externo**: portal mínimo do cliente (projetos read-only + extrato) com layout próprio.
+
+## 6. Gotchas técnicos (economizam horas)
+
+- **Prisma 7**: URL no `prisma.config.ts` (não no schema); client gerado em `src/generated/prisma` (ESM);
+  **sempre** `npx prisma generate` após editar schema (migrate dev já gera); driver adapter `@prisma/adapter-pg` em `lib/prisma.ts`.
+- **shadcn atual = base-ui** (não Radix): `DialogTrigger`/`DropdownMenuTrigger`/`TooltipTrigger` usam
+  `render={<.../>}`; `Select onValueChange` recebe `string | null` → tratar `?? ""`.
+- **CJS sob Turbopack** (`archiver`, `exceljs`): `createRequire(import.meta.url)` + cast — ver
+  `api/uploads/disciplina/[id]/zip/route.ts` e `api/financeiro/relatorios/dre/xlsx/route.ts`.
+- **Scripts tsx** (seed, smokes, server.ts): rodar com `--tsconfig tsconfig.server.json`
+  (stub de `server-only` + polyfill AsyncLocalStorage como 1º import do server.ts).
+- **pg-boss v12**: export nomeado `import { PgBoss } from "pg-boss"`.
+- **better-auth dev**: porta dinâmica do preview quebrava origin → `disableCSRFCheck` só em dev.
+- **Logos**: usar `<img>` (não next/image) — SVGs com ratios variados; sufixo `_dark` = arte clara p/ fundo escuro.
+- **Som do chat**: WebAudio em `lib/chat-client.ts` (sem asset de áudio).
+- **Helpers usados no client** não podem morar em arquivo com `import "server-only"` (ex.: `ponto/format.ts` separado).
+- **Smoke e2e via script tsx** contra o banco > dirigir preview MCP (contexto de navegação instável).
+
+## 7. Referências no repo
+
+- `docs/RELATORIO-SISTEMA.md` — espec funcional completa do sistema antigo (fonte de requisitos de O4/O5).
+- `docs/design/direcao-final.html` — mockup aprovado do design system.
+- `C:\SENA_ADM\SENAHUB\SENAHub\prisma\schema.prisma` — schema antigo (referência de campos p/ O4/O5).
+- `C:\SENA_ADM\SENAHUB\historico de prompts.txt` — dores históricas do usuário (muitas já resolvidas).
+- Git log: convenção `feat(onda-Nx): …` / `test(onda-N): …`.
