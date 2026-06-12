@@ -53,6 +53,8 @@ model User {
   lancamentosAutor     Lancamento[]          @relation("LancamentoAutor")
   canaisMembro         CanalMembro[]
   mensagens            Mensagem[]
+  sessoes              SessaoTrabalho[]
+  escala               EscalaTrabalho?
 
   @@index([role])
   @@map("user")
@@ -324,6 +326,7 @@ model Projeto {
   linkInput   LinkPublicoInput?
   lancamentos Lancamento[]
   canais      Canal[]
+  sessoes     SessaoTrabalho[]
 
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -650,6 +653,38 @@ model Mensagem {
 
   @@index([canalId, createdAt])
   @@map("mensagem")
+}
+
+// ─────────────────────────────────────────────────────────────
+// RH — Ponto, banco de horas, rateio (Onda 3b)
+// ─────────────────────────────────────────────────────────────
+
+/// Uma sessão de trabalho (cronômetro). fim=null = em andamento.
+/// Troca de projeto fecha a sessão atual e abre outra → tempo por projeto.
+model SessaoTrabalho {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projetoId String?
+  projeto   Projeto?  @relation(fields: [projetoId], references: [id])
+  inicio    DateTime
+  fim       DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, inicio])
+  @@index([projetoId])
+  @@map("sessao_trabalho")
+}
+
+/// Jornada esperada do colaborador (para cálculo de saldo de banco de horas).
+model EscalaTrabalho {
+  id       String  @id @default(cuid())
+  userId   String  @unique
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  horasDia Decimal @default(8) @db.Decimal(4, 2)
+  ativo    Boolean @default(true)
+
+  @@map("escala_trabalho")
 }
 
 model ProjetoMembro {

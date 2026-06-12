@@ -4,6 +4,7 @@ import {
   FolderKanban,
   Wallet,
   MessageSquare,
+  Clock,
   Settings,
   ScrollText,
   type LucideIcon,
@@ -51,6 +52,18 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/chat",
         icon: MessageSquare,
         roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj"],
+        mobile: true,
+      },
+    ],
+  },
+  {
+    title: "RH",
+    items: [
+      {
+        title: "Ponto",
+        href: "/ponto",
+        icon: Clock,
+        roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"],
         mobile: true,
       },
     ],
