@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Settings2, Receipt, ArrowDownToLine, ArrowUpFromLine, BarChart3, Banknote, LineChart } from "lucide-react";
+import { Settings2, Receipt, ArrowDownToLine, ArrowUpFromLine, BarChart3, Banknote, LineChart, ArrowLeftRight } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { meuExtrato } from "@/modules/financeiro/queries";
@@ -21,7 +21,8 @@ const ATALHOS = [
   { href: "/financeiro/contas-a-receber", icon: ArrowDownToLine, titulo: "Contas a receber", desc: "Recebimentos" },
   { href: "/financeiro/folha-projetistas", icon: Banknote, titulo: "Folha de projetistas", desc: "Pagamentos por entrega" },
   { href: "/financeiro/fluxo-caixa", icon: LineChart, titulo: "Fluxo de caixa", desc: "Saldos e movimentos" },
-  { href: "/financeiro/relatorios", icon: BarChart3, titulo: "Relatórios", desc: "DRE, DFC, indicadores" },
+  { href: "/financeiro/conciliacao", icon: ArrowLeftRight, titulo: "Conciliação", desc: "Importar OFX e conciliar" },
+  { href: "/financeiro/relatorios", icon: BarChart3, titulo: "Relatórios", desc: "DRE e indicadores" },
   { href: "/financeiro/cadastros", icon: Settings2, titulo: "Cadastros", desc: "Plano de contas, contas, fornecedores" },
 ];
 

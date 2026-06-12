@@ -380,6 +380,7 @@ model CategoriaFinanceira {
   ativo  Boolean       @default(true)
 
   lancamentos Lancamento[]
+  regras      RegraCategorizacao[]
 
   @@index([tipo, ativo])
   @@map("categoria_financeira")
@@ -416,6 +417,8 @@ model ContaBancaria {
   ordem        Int               @default(0)
 
   lancamentos Lancamento[]
+  extratos    ExtratoBancario[]
+  transacoes  TransacaoBancaria[]
 
   @@map("conta_bancaria")
 }
@@ -515,6 +518,8 @@ model Lancamento {
   autorId String
   autor   User   @relation("LancamentoAutor", fields: [autorId], references: [id])
 
+  transacao TransacaoBancaria?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -523,6 +528,57 @@ model Lancamento {
   @@index([data])
   @@index([projetoId])
   @@map("lancamento")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Financeiro — Conciliação bancária (OFX) (Onda 2d)
+// ─────────────────────────────────────────────────────────────
+
+model ExtratoBancario {
+  id          String              @id @default(cuid())
+  contaId     String
+  conta       ContaBancaria       @relation(fields: [contaId], references: [id])
+  nomeArquivo String?
+  importadoEm DateTime            @default(now())
+  transacoes  TransacaoBancaria[]
+
+  @@index([contaId])
+  @@map("extrato_bancario")
+}
+
+model TransacaoBancaria {
+  id          String          @id @default(cuid())
+  extratoId   String
+  extrato     ExtratoBancario @relation(fields: [extratoId], references: [id], onDelete: Cascade)
+  contaId     String
+  conta       ContaBancaria   @relation(fields: [contaId], references: [id])
+  /// Identificador único da transação no OFX (dedup).
+  fitid       String
+  data        DateTime        @db.Date
+  /// Positivo = entrada, negativo = saída.
+  valor       Decimal         @db.Decimal(14, 2)
+  descricao   String
+  conciliado  Boolean         @default(false)
+  /// Lançamento ao qual esta transação foi conciliada.
+  lancamentoId String?        @unique
+  lancamento   Lancamento?    @relation(fields: [lancamentoId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([contaId, fitid])
+  @@index([contaId, conciliado])
+  @@map("transacao_bancaria")
+}
+
+/// Regra de auto-categorização: descrição que casa → categoria sugerida.
+model RegraCategorizacao {
+  id          String              @id @default(cuid())
+  termo       String
+  categoriaId String
+  categoria   CategoriaFinanceira @relation(fields: [categoriaId], references: [id])
+  ativo       Boolean             @default(true)
+
+  @@map("regra_categorizacao")
 }
 
 model ProjetoMembro {

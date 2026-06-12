@@ -26,13 +26,20 @@ export async function obterCliente(id: string) {
   });
 }
 
-/**
- * Resumo financeiro do cliente (valor total / pago / em aberto).
- * Stub na Onda 1 — preenchido quando o Financeiro entrar (Onda 2).
- */
+/** Resumo financeiro do cliente: receitas vinculadas (total / pago / em aberto). */
 export async function resumoFinanceiroCliente(clienteId: string) {
-  void clienteId;
-  return { total: 0, pago: 0, emAberto: 0 };
+  const lancamentos = await prisma.lancamento.findMany({
+    where: { clienteId, tipo: "receita", status: { not: "cancelado" } },
+    select: { valor: true, valorEfetivo: true, status: true },
+  });
+  let total = 0;
+  let pago = 0;
+  for (const l of lancamentos) {
+    const v = Number(l.valorEfetivo ?? l.valor);
+    total += v;
+    if (l.status === "confirmado") pago += v;
+  }
+  return { total, pago, emAberto: total - pago };
 }
 
 export type ClienteListItem = Awaited<ReturnType<typeof listarClientes>>[number];
