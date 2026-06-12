@@ -13,6 +13,7 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx --tsconfig tsconfig.server.json prisma/seed.ts",
     "smoke:onda1": "tsx --tsconfig tsconfig.server.json scripts/smoke-onda1.ts",
+    "smoke:onda2": "tsx --tsconfig tsconfig.server.json scripts/smoke-onda2.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
