@@ -30,9 +30,10 @@ model User {
   image         String?
 
   // Campos de domínio
-  role               Role    @default(cliente)
-  ativo              Boolean @default(true)
-  mustChangePassword Boolean @default(false)
+  role               Role       @default(cliente)
+  ativo              Boolean    @default(true)
+  mustChangePassword Boolean    @default(false)
+  chatStatus         ChatStatus @default(disponivel)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -50,6 +51,8 @@ model User {
   pagamentos           PagamentoProjetista[] @relation("PagamentoProjetista")
   socio                Socio?
   lancamentosAutor     Lancamento[]          @relation("LancamentoAutor")
+  canaisMembro         CanalMembro[]
+  mensagens            Mensagem[]
 
   @@index([role])
   @@map("user")
@@ -320,6 +323,7 @@ model Projeto {
   inputs      InputProjeto[]
   linkInput   LinkPublicoInput?
   lancamentos Lancamento[]
+  canais      Canal[]
 
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -581,6 +585,73 @@ model RegraCategorizacao {
   @@map("regra_categorizacao")
 }
 
+// ─────────────────────────────────────────────────────────────
+// Chat interno (Onda 3a)
+// ─────────────────────────────────────────────────────────────
+
+enum TipoCanal {
+  geral
+  projeto
+  disciplina
+  dm
+}
+
+enum ChatStatus {
+  disponivel
+  ocupado
+  reuniao
+}
+
+model Canal {
+  id           String      @id @default(cuid())
+  tipo         TipoCanal
+  nome         String?
+  projetoId    String?
+  projeto      Projeto?    @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  disciplinaId String?
+  disciplina   Disciplina? @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+
+  membros   CanalMembro[]
+  mensagens Mensagem[]
+  createdAt DateTime      @default(now())
+
+  @@index([tipo])
+  @@index([projetoId])
+  @@index([disciplinaId])
+  @@map("canal")
+}
+
+model CanalMembro {
+  id         String    @id @default(cuid())
+  canalId    String
+  canal      Canal     @relation(fields: [canalId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadAt DateTime?
+
+  @@unique([canalId, userId])
+  @@index([userId])
+  @@map("canal_membro")
+}
+
+model Mensagem {
+  id        String   @id @default(cuid())
+  canalId   String
+  canal     Canal    @relation(fields: [canalId], references: [id], onDelete: Cascade)
+  autorId   String
+  autor     User     @relation(fields: [autorId], references: [id])
+  conteudo  String
+  fixada    Boolean  @default(false)
+  anexoPath String?
+  anexoNome String?
+  anexoMime String?
+  createdAt DateTime @default(now())
+  editedAt  DateTime?
+
+  @@index([canalId, createdAt])
+  @@map("mensagem")
+}
+
 model ProjetoMembro {
   id        String  @id @default(cuid())
   projetoId String
@@ -609,6 +680,7 @@ model Disciplina {
   revisoes     RevisaoDisciplina[]
   uploads      Upload[]
   pagamentos   PagamentoProjetista[]
+  canais       Canal[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

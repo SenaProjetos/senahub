@@ -1,6 +1,7 @@
 import type { Server as HttpServer } from "node:http";
 import { Server as SocketServer } from "socket.io";
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 let io: SocketServer | null = null;
 
@@ -35,10 +36,27 @@ export function initSocket(server: HttpServer): SocketServer {
     }
   });
 
-  io.on("connection", (socket) => {
+  io.on("connection", async (socket) => {
     const userId = socket.data.userId as string;
     presenca.set(userId, (presenca.get(userId) ?? 0) + 1);
     io!.emit("presenca", { userId, online: true });
+
+    // Entra no room próprio e nos rooms dos canais de que é membro.
+    socket.join(`user:${userId}`);
+    try {
+      const canais = await prisma.canalMembro.findMany({
+        where: { userId },
+        select: { canalId: true },
+      });
+      for (const c of canais) socket.join(`canal:${c.canalId}`);
+    } catch {
+      // sem DB no contexto → ignora (live cai para refresh)
+    }
+
+    // Cliente pede para entrar em um canal recém-criado (ex.: nova DM).
+    socket.on("entrar-canal", (canalId: string) => {
+      if (typeof canalId === "string") socket.join(`canal:${canalId}`);
+    });
 
     socket.on("disconnect", () => {
       const n = (presenca.get(userId) ?? 1) - 1;
@@ -61,4 +79,18 @@ export function getIo(): SocketServer | null {
 
 export function usuariosOnline(): string[] {
   return [...presenca.keys()];
+}
+
+export function usuarioOnline(userId: string): boolean {
+  return presenca.has(userId);
+}
+
+/** Emite um evento para todos no room de um canal. */
+export function emitParaCanal(canalId: string, evento: string, payload: unknown) {
+  io?.to(`canal:${canalId}`).emit(evento, payload);
+}
+
+/** Emite um evento para um usuário específico (todos os dispositivos). */
+export function emitParaUsuario(userId: string, evento: string, payload: unknown) {
+  io?.to(`user:${userId}`).emit(evento, payload);
 }
