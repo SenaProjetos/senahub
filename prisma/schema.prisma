@@ -55,6 +55,11 @@ model User {
   mensagens            Mensagem[]
   sessoes              SessaoTrabalho[]
   escala               EscalaTrabalho?
+  abonos               AbonoFalta[]          @relation("AbonoUser")
+  abonosValidados      AbonoFalta[]          @relation("AbonoValidador")
+  ferias               Ferias[]              @relation("FeriasUser")
+  feriasValidadas      Ferias[]              @relation("FeriasValidador")
+  emocoes              RegistroEmocao[]
 
   @@index([role])
   @@map("user")
@@ -685,6 +690,70 @@ model EscalaTrabalho {
   ativo    Boolean @default(true)
 
   @@map("escala_trabalho")
+}
+
+// ─────────────────────────────────────────────────────────────
+// RH — Abono, férias, clima (Onda 3c)
+// ─────────────────────────────────────────────────────────────
+
+enum StatusSolicitacao {
+  pendente
+  aprovado
+  rejeitado
+}
+
+/// Abono de faltas via atestado. Supervisor/RH valida.
+model AbonoFalta {
+  id           String            @id @default(cuid())
+  userId       String
+  user         User              @relation("AbonoUser", fields: [userId], references: [id], onDelete: Cascade)
+  dataInicio   DateTime          @db.Date
+  dataFim      DateTime          @db.Date
+  motivo       String?
+  atestadoPath String?
+  atestadoNome String?
+  status       StatusSolicitacao @default(pendente)
+  validadoPorId String?
+  validadoPor   User?            @relation("AbonoValidador", fields: [validadoPorId], references: [id])
+  validadoEm   DateTime?
+  createdAt    DateTime          @default(now())
+
+  @@index([userId])
+  @@index([status])
+  @@map("abono_falta")
+}
+
+/// Solicitação de férias.
+model Ferias {
+  id            String            @id @default(cuid())
+  userId        String
+  user          User              @relation("FeriasUser", fields: [userId], references: [id], onDelete: Cascade)
+  inicio        DateTime          @db.Date
+  fim           DateTime          @db.Date
+  observacao    String?
+  status        StatusSolicitacao @default(pendente)
+  validadoPorId String?
+  validadoPor   User?             @relation("FeriasValidador", fields: [validadoPorId], references: [id])
+  createdAt     DateTime          @default(now())
+
+  @@index([userId])
+  @@index([status])
+  @@map("ferias")
+}
+
+/// Registro de clima emocional. Anônimo na exibição (admin vê só agregado).
+model RegistroEmocao {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  humor      Int // 1 (péssimo) a 5 (ótimo)
+  comentario String?
+  dia        DateTime @db.Date
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, dia])
+  @@index([dia])
+  @@map("registro_emocao")
 }
 
 model ProjetoMembro {
