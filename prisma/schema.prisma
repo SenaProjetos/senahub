@@ -49,6 +49,7 @@ model User {
   uploadsValidados     Upload[]              @relation("UploadValidador")
   pagamentos           PagamentoProjetista[] @relation("PagamentoProjetista")
   socio                Socio?
+  lancamentosAutor     Lancamento[]          @relation("LancamentoAutor")
 
   @@index([role])
   @@map("user")
@@ -231,10 +232,11 @@ model Cliente {
   // Login externo opcional do cliente (criado sob demanda).
   usuarioId String? @unique
 
-  contatos  ContatoCliente[]
-  projetos  Projeto[]
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  contatos    ContatoCliente[]
+  projetos    Projeto[]
+  lancamentos Lancamento[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
   @@index([ativo])
   @@index([nome])
@@ -317,6 +319,7 @@ model Projeto {
   membros     ProjetoMembro[]
   inputs      InputProjeto[]
   linkInput   LinkPublicoInput?
+  lancamentos Lancamento[]
 
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -376,6 +379,8 @@ model CategoriaFinanceira {
   ordem  Int           @default(0)
   ativo  Boolean       @default(true)
 
+  lancamentos Lancamento[]
+
   @@index([tipo, ativo])
   @@map("categoria_financeira")
 }
@@ -385,6 +390,8 @@ model CentroCusto {
   nome  String  @unique
   ativo Boolean @default(true)
   ordem Int     @default(0)
+
+  lancamentos Lancamento[]
 
   @@map("centro_custo")
 }
@@ -408,6 +415,8 @@ model ContaBancaria {
   ativo        Boolean           @default(true)
   ordem        Int               @default(0)
 
+  lancamentos Lancamento[]
+
   @@map("conta_bancaria")
 }
 
@@ -416,6 +425,8 @@ model FormaPagamento {
   nome  String  @unique
   ativo Boolean @default(true)
   ordem Int     @default(0)
+
+  lancamentos Lancamento[]
 
   @@map("forma_pagamento")
 }
@@ -434,6 +445,8 @@ model Fornecedor {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
+  lancamentos Lancamento[]
+
   @@index([ativo])
   @@map("fornecedor")
 }
@@ -447,6 +460,69 @@ model Socio {
   createdAt  DateTime @default(now())
 
   @@map("socio")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Financeiro — Lançamentos (ledger) + contas a pagar/receber (Onda 2b)
+// ─────────────────────────────────────────────────────────────
+
+enum TipoLancamento {
+  receita
+  despesa
+}
+
+enum StatusLancamento {
+  previsto // conta a pagar/receber em aberto
+  confirmado // pago/recebido (entra no caixa e na DRE)
+  cancelado
+}
+
+/// Lançamento financeiro. previsto = conta a pagar/receber; confirmado = realizado.
+model Lancamento {
+  id        String           @id @default(cuid())
+  tipo      TipoLancamento
+  descricao String
+  valor     Decimal          @db.Decimal(14, 2)
+  /// Valor efetivamente pago/recebido (parcial). Se null, considera `valor`.
+  valorEfetivo Decimal?      @db.Decimal(14, 2)
+  status    StatusLancamento @default(previsto)
+
+  /// Competência/realização. `vencimento` para previstos; `dataConfirmacao` ao realizar.
+  data            DateTime  @db.Date
+  vencimento      DateTime? @db.Date
+  dataConfirmacao DateTime? @db.Date
+
+  categoriaId String
+  categoria   CategoriaFinanceira @relation(fields: [categoriaId], references: [id])
+  centroId    String?
+  centro      CentroCusto?        @relation(fields: [centroId], references: [id])
+  contaId     String?
+  conta       ContaBancaria?      @relation(fields: [contaId], references: [id])
+  formaId     String?
+  forma       FormaPagamento?     @relation(fields: [formaId], references: [id])
+  projetoId   String?
+  projeto     Projeto?            @relation(fields: [projetoId], references: [id])
+  fornecedorId String?
+  fornecedor   Fornecedor?        @relation(fields: [fornecedorId], references: [id])
+  clienteId   String?
+  cliente     Cliente?            @relation(fields: [clienteId], references: [id])
+
+  observacao       String?
+  recorrenciaGrupo String?
+  /// Vínculo com a folha de projetistas (Onda 2c).
+  pagamentoProjetistaId String? @unique
+
+  autorId String
+  autor   User   @relation("LancamentoAutor", fields: [autorId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tipo, status])
+  @@index([vencimento])
+  @@index([data])
+  @@index([projetoId])
+  @@map("lancamento")
 }
 
 model ProjetoMembro {
