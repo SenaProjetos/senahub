@@ -32,6 +32,15 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     acoes: [{ acao: "validar", label: "Validar entregas (libera pagamento)" }],
   },
   {
+    recurso: "financeiro",
+    label: "Financeiro",
+    acoes: [
+      { acao: "ver", label: "Ver financeiro (cadastros, lançamentos, relatórios)" },
+      { acao: "gerir", label: "Lançar e gerir financeiro" },
+      { acao: "extrato", label: "Ver apenas o próprio extrato" },
+    ],
+  },
+  {
     recurso: "usuarios",
     label: "Usuários",
     acoes: [{ acao: "gerir", label: "Gerir usuários" }],

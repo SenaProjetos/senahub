@@ -19,6 +19,8 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "supervisor", recurso: "projetos", acao: "ver" },
   { role: "supervisor", recurso: "projetos", acao: "gerir" },
   { role: "supervisor", recurso: "uploads", acao: "validar" },
+  { role: "supervisor", recurso: "financeiro", acao: "ver" },
+  { role: "supervisor", recurso: "financeiro", acao: "gerir" },
   // Administrativo: configurações, usuários e clientes
   { role: "administrativo", recurso: "usuarios", acao: "gerir" },
   { role: "administrativo", recurso: "configuracoes", acao: "gerir" },
@@ -26,12 +28,39 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "administrativo", recurso: "clientes", acao: "gerir" },
   { role: "administrativo", recurso: "projetos", acao: "ver" },
   { role: "administrativo", recurso: "projetos", acao: "gerir" },
+  { role: "administrativo", recurso: "financeiro", acao: "ver" },
+  { role: "administrativo", recurso: "financeiro", acao: "gerir" },
   // Perfis internos: veem projetos (escopo filtra para os seus)
   { role: "clt", recurso: "projetos", acao: "ver" },
   { role: "estagiario", recurso: "projetos", acao: "ver" },
   { role: "projetista_pj", recurso: "projetos", acao: "ver" },
   { role: "freelancer", recurso: "projetos", acao: "ver" },
+  // Extrato próprio (sem ver o financeiro completo)
+  { role: "clt", recurso: "financeiro", acao: "extrato" },
+  { role: "projetista_pj", recurso: "financeiro", acao: "extrato" },
+  { role: "freelancer", recurso: "financeiro", acao: "extrato" },
+  { role: "cliente", recurso: "financeiro", acao: "extrato" },
 ];
+
+/** Plano de contas inicial. Códigos usados na auto-categorização de pagamentos. */
+const PLANO_CONTAS: { codigo: string; nome: string; tipo: "receita" | "despesa"; pai?: string }[] = [
+  { codigo: "1", nome: "Receitas", tipo: "receita" },
+  { codigo: "1.01", nome: "Projetos particulares", tipo: "receita", pai: "1" },
+  { codigo: "1.02", nome: "Licitações", tipo: "receita", pai: "1" },
+  { codigo: "1.03", nome: "Outras receitas", tipo: "receita", pai: "1" },
+  { codigo: "2", nome: "Despesas", tipo: "despesa" },
+  { codigo: "2.01", nome: "Projetistas PJ", tipo: "despesa", pai: "2" },
+  { codigo: "2.02", nome: "Freelancers", tipo: "despesa", pai: "2" },
+  { codigo: "2.03", nome: "Folha CLT", tipo: "despesa", pai: "2" },
+  { codigo: "2.04", nome: "Estagiários", tipo: "despesa", pai: "2" },
+  { codigo: "2.05", nome: "Fornecedores externos", tipo: "despesa", pai: "2" },
+  { codigo: "2.06", nome: "Despesas administrativas", tipo: "despesa", pai: "2" },
+  { codigo: "2.07", nome: "Impostos", tipo: "despesa", pai: "2" },
+  { codigo: "2.08", nome: "Pró-labore / retiradas", tipo: "despesa", pai: "2" },
+];
+
+const FORMAS_PAGAMENTO = ["PIX", "Transferência", "Boleto", "Dinheiro", "Cartão"];
+const CENTROS_CUSTO = ["Operacional", "Administrativo", "Comercial"];
 
 const DISCIPLINAS_CATALOGO = [
   "Arquitetura",
@@ -96,6 +125,44 @@ async function main() {
     });
   }
   console.log(`✔ ${DISCIPLINAS_CATALOGO.length} disciplinas no catálogo.`);
+
+  // 4) Plano de contas (cria pais antes das filhas — array já ordenado)
+  const idsPorCodigo = new Map<string, string>();
+  for (let i = 0; i < PLANO_CONTAS.length; i++) {
+    const c = PLANO_CONTAS[i];
+    const cat = await prisma.categoriaFinanceira.upsert({
+      where: { codigo: c.codigo },
+      create: {
+        codigo: c.codigo,
+        nome: c.nome,
+        tipo: c.tipo,
+        ordem: i,
+        paiId: c.pai ? idsPorCodigo.get(c.pai) : null,
+      },
+      update: { nome: c.nome, ordem: i, paiId: c.pai ? idsPorCodigo.get(c.pai) : null },
+    });
+    idsPorCodigo.set(c.codigo, cat.id);
+  }
+  console.log(`✔ ${PLANO_CONTAS.length} contas no plano de contas.`);
+
+  // 5) Formas de pagamento
+  for (let i = 0; i < FORMAS_PAGAMENTO.length; i++) {
+    await prisma.formaPagamento.upsert({
+      where: { nome: FORMAS_PAGAMENTO[i] },
+      create: { nome: FORMAS_PAGAMENTO[i], ordem: i },
+      update: {},
+    });
+  }
+
+  // 6) Centros de custo
+  for (let i = 0; i < CENTROS_CUSTO.length; i++) {
+    await prisma.centroCusto.upsert({
+      where: { nome: CENTROS_CUSTO[i] },
+      create: { nome: CENTROS_CUSTO[i], ordem: i },
+      update: {},
+    });
+  }
+  console.log(`✔ ${FORMAS_PAGAMENTO.length} formas de pagamento, ${CENTROS_CUSTO.length} centros de custo.`);
 }
 
 main()

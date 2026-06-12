@@ -48,6 +48,7 @@ model User {
   uploadsAutor         Upload[]              @relation("UploadAutor")
   uploadsValidados     Upload[]              @relation("UploadValidador")
   pagamentos           PagamentoProjetista[] @relation("PagamentoProjetista")
+  socio                Socio?
 
   @@index([role])
   @@map("user")
@@ -352,6 +353,100 @@ model LinkPublicoInput {
   createdAt DateTime @default(now())
 
   @@map("link_publico_input")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Financeiro — Cadastros base (Onda 2a)
+// ─────────────────────────────────────────────────────────────
+
+enum TipoCategoria {
+  receita
+  despesa
+}
+
+/// Plano de contas hierárquico (código ex.: "2.01").
+model CategoriaFinanceira {
+  id     String        @id @default(cuid())
+  codigo String        @unique
+  nome   String
+  tipo   TipoCategoria
+  paiId  String?
+  pai    CategoriaFinanceira?  @relation("CategoriaFilhas", fields: [paiId], references: [id])
+  filhas CategoriaFinanceira[] @relation("CategoriaFilhas")
+  ordem  Int           @default(0)
+  ativo  Boolean       @default(true)
+
+  @@index([tipo, ativo])
+  @@map("categoria_financeira")
+}
+
+model CentroCusto {
+  id    String  @id @default(cuid())
+  nome  String  @unique
+  ativo Boolean @default(true)
+  ordem Int     @default(0)
+
+  @@map("centro_custo")
+}
+
+enum TipoContaBancaria {
+  corrente
+  poupanca
+  caixa
+  investimento
+}
+
+model ContaBancaria {
+  id           String            @id @default(cuid())
+  nome         String
+  tipo         TipoContaBancaria @default(corrente)
+  banco        String?
+  agencia      String?
+  numero       String?
+  saldoInicial Decimal           @default(0) @db.Decimal(14, 2)
+  padrao       Boolean           @default(false)
+  ativo        Boolean           @default(true)
+  ordem        Int               @default(0)
+
+  @@map("conta_bancaria")
+}
+
+model FormaPagamento {
+  id    String  @id @default(cuid())
+  nome  String  @unique
+  ativo Boolean @default(true)
+  ordem Int     @default(0)
+
+  @@map("forma_pagamento")
+}
+
+model Fornecedor {
+  id          String     @id @default(cuid())
+  tipo        TipoPessoa @default(PJ)
+  nome        String
+  documento   String?
+  email       String?
+  telefone    String?
+  /// Tipo de serviço (topografia, sondagem, ensaios…)
+  servico     String?
+  observacoes String?
+  ativo       Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([ativo])
+  @@map("fornecedor")
+}
+
+model Socio {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id])
+  percentual Decimal  @db.Decimal(5, 2)
+  ativo      Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  @@map("socio")
 }
 
 model ProjetoMembro {
