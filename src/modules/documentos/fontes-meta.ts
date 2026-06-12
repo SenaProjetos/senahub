@@ -6,7 +6,7 @@
 export type ParamFonte = {
   id: string;
   label: string;
-  tipo: "projeto" | "cliente" | "usuario" | "mes";
+  tipo: "projeto" | "cliente" | "usuario" | "mes" | "proposta";
 };
 export type CampoDoc = { chave: string; label: string };
 
@@ -53,6 +53,31 @@ export const FONTES: FonteDef[] = [
         { chave: "Prazo", label: "Prazo" },
         { chave: "Valor", label: "Valor (R$)" },
         { chave: "Responsaveis", label: "Responsáveis" },
+      ],
+    },
+  },
+  {
+    id: "proposta",
+    label: "Proposta comercial (+ itens como linhas)",
+    params: [{ id: "propostaId", label: "Proposta", tipo: "proposta" }],
+    escalares: [
+      { chave: "Numero", label: "Número (PR-260001)" },
+      { chave: "Titulo", label: "Título" },
+      { chave: "ClienteNome", label: "Cliente — nome" },
+      { chave: "ClienteDocumento", label: "Cliente — CPF/CNPJ" },
+      { chave: "ClienteEndereco", label: "Cliente — endereço" },
+      { chave: "AreaM2", label: "Área (m²)" },
+      { chave: "Validade", label: "Validade" },
+      { chave: "Total", label: "Valor total" },
+      { chave: "Condicoes", label: "Condições (texto)" },
+      { chave: "Observacoes", label: "Observações" },
+    ],
+    colecao: {
+      label: "Itens da proposta",
+      campos: [
+        { chave: "Disciplina", label: "Disciplina" },
+        { chave: "Descricao", label: "Descrição" },
+        { chave: "Valor", label: "Valor" },
       ],
     },
   },

@@ -60,6 +60,48 @@ export async function resolverFonte(
       };
     }
 
+    case "proposta": {
+      const p = await prisma.proposta.findUnique({
+        where: { id: params.propostaId ?? "" },
+        include: {
+          cliente: true,
+          itens: { orderBy: { ordem: "asc" } },
+          condicoes: { orderBy: { ordem: "asc" } },
+        },
+      });
+      if (!p) return { escalar: {}, linhas: [] };
+      const total = p.itens.reduce((s, it) => s + Number(it.valor), 0);
+      const endereco = [p.cliente.logradouro, p.cliente.numero, p.cliente.cidade, p.cliente.uf]
+        .filter(Boolean)
+        .join(", ");
+      const condicoes = p.condicoes
+        .map((c) =>
+          c.tipo === "percentual"
+            ? `${c.descricao}: ${Number(c.valor)}%`
+            : `${c.descricao}: R$ ${Number(c.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+        )
+        .join(" · ");
+      return {
+        escalar: {
+          Numero: p.numero,
+          Titulo: p.titulo,
+          ClienteNome: p.cliente.nome,
+          ClienteDocumento: p.cliente.documento ?? "",
+          ClienteEndereco: endereco,
+          AreaM2: p.areaM2 != null ? Number(p.areaM2) : "",
+          Validade: p.validade ?? "",
+          Total: total,
+          Condicoes: condicoes,
+          Observacoes: p.observacoes ?? "",
+        },
+        linhas: p.itens.map((it) => ({
+          Disciplina: it.disciplina,
+          Descricao: it.descricao ?? "",
+          Valor: Number(it.valor),
+        })),
+      };
+    }
+
     case "extrato": {
       const userId = params.userId ?? "";
       const [user, pagamentos] = await Promise.all([

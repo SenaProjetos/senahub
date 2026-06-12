@@ -37,6 +37,7 @@ export default async function PreviewPage({
         valores={sp}
         projetos={opcoes.projetos.map((p) => ({ id: p.id, label: `${p.codigo} · ${p.nome}` }))}
         usuarios={opcoes.usuarios.map((u) => ({ id: u.id, label: u.name }))}
+        propostas={opcoes.propostas.map((p) => ({ id: p.id, label: `${p.numero} · ${p.titulo}` }))}
       />
 
       {faltamParams ? (

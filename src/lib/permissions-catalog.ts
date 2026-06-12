@@ -41,6 +41,14 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     ],
   },
   {
+    recurso: "comercial",
+    label: "Comercial (CRM)",
+    acoes: [
+      { acao: "ver", label: "Ver funil e propostas" },
+      { acao: "gerir", label: "Gerir leads, propostas e tabelas de preço" },
+    ],
+  },
+  {
     recurso: "documentos",
     label: "Estúdio de Documentos",
     acoes: [

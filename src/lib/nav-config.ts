@@ -9,6 +9,7 @@ import {
   UserCog,
   Banknote,
   FileText,
+  TrendingUp,
   Settings,
   ScrollText,
   type LucideIcon,
@@ -49,6 +50,12 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Clientes",
         href: "/clientes",
         icon: Users,
+        roles: ["admin", "supervisor", "administrativo"],
+      },
+      {
+        title: "Comercial",
+        href: "/comercial",
+        icon: TrendingUp,
         roles: ["admin", "supervisor", "administrativo"],
       },
       {

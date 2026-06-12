@@ -65,6 +65,9 @@ model User {
   notasFiscais         NotaFiscalPJ[]        @relation("NfUser")
   nfsValidadas         NotaFiscalPJ[]        @relation("NfValidador")
   documentoVersoes     DocumentoModeloVersao[]
+  atividadesLead       AtividadeLead[]
+  propostasAutor       Proposta[]            @relation("PropostaAutor")
+  propostaVersoes      PropostaVersao[]      @relation("PropostaVersaoAutor")
 
   @@index([role])
   @@map("user")
@@ -250,6 +253,8 @@ model Cliente {
   contatos    ContatoCliente[]
   projetos    Projeto[]
   lancamentos Lancamento[]
+  leads       Lead[]
+  propostas   Proposta[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -336,6 +341,7 @@ model Projeto {
   linkInput   LinkPublicoInput?
   lancamentos Lancamento[]
   canais      Canal[]
+  proposta    Proposta?
   sessoes     SessaoTrabalho[]
 
   createdAt   DateTime        @default(now())
@@ -830,6 +836,207 @@ model RevisaoDisciplina {
 // ─────────────────────────────────────────────────────────────
 // Uploads & Validação → Pagamento (Onda 1)
 // ─────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────
+// Comercial / CRM (Onda 4)
+// ─────────────────────────────────────────────────────────────
+
+/// Etapa do funil de vendas (Kanban configurável).
+model FunilEtapa {
+  id    String  @id @default(cuid())
+  nome  String  @unique
+  ordem Int     @default(0)
+  cor   String?
+  ativo Boolean @default(true)
+
+  leads Lead[]
+
+  @@map("funil_etapa")
+}
+
+model Lead {
+  id            String     @id @default(cuid())
+  nome          String
+  contato       String?
+  email         String?
+  telefone      String?
+  origem        String?
+  valorEstimado Decimal?   @db.Decimal(14, 2)
+  etapaId       String
+  etapa         FunilEtapa @relation(fields: [etapaId], references: [id])
+  /// Preenchido quando o lead é convertido em cliente.
+  clienteId     String?
+  cliente       Cliente?   @relation(fields: [clienteId], references: [id])
+  observacoes   String?
+  arquivado     Boolean    @default(false)
+
+  atividades AtividadeLead[]
+  propostas  Proposta[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([etapaId, arquivado])
+  @@map("lead")
+}
+
+model AtividadeLead {
+  id        String   @id @default(cuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  autorId   String
+  autor     User     @relation(fields: [autorId], references: [id])
+  nota      String
+  createdAt DateTime @default(now())
+
+  @@index([leadId])
+  @@map("atividade_lead")
+}
+
+model MetaComercial {
+  id    String  @id @default(cuid())
+  ano   Int
+  mes   Int
+  valor Decimal @db.Decimal(14, 2)
+
+  @@unique([ano, mes])
+  @@map("meta_comercial")
+}
+
+/// Tabela de preço por m² por disciplina (preços automáticos da proposta).
+model TabelaPreco {
+  id    String  @id @default(cuid())
+  nome  String  @unique
+  ativo Boolean @default(true)
+
+  itens ItemTabelaPreco[]
+
+  @@map("tabela_preco")
+}
+
+model ItemTabelaPreco {
+  id         String      @id @default(cuid())
+  tabelaId   String
+  tabela     TabelaPreco @relation(fields: [tabelaId], references: [id], onDelete: Cascade)
+  disciplina String
+  valorM2    Decimal     @db.Decimal(12, 2)
+
+  @@unique([tabelaId, disciplina])
+  @@map("item_tabela_preco")
+}
+
+enum StatusProposta {
+  rascunho
+  enviada
+  aceita
+  recusada
+}
+
+model PropostaSequencia {
+  ano    Int @id
+  ultimo Int @default(0)
+
+  @@map("proposta_sequencia")
+}
+
+model Proposta {
+  id         String         @id @default(cuid())
+  ano        Int
+  sequencial Int
+  /// Número de exibição: PR-260001
+  numero     String         @unique
+  titulo     String
+  clienteId  String
+  cliente    Cliente        @relation(fields: [clienteId], references: [id])
+  leadId     String?
+  lead       Lead?          @relation(fields: [leadId], references: [id])
+  status     StatusProposta @default(rascunho)
+  areaM2     Decimal?       @db.Decimal(12, 2)
+  validade   DateTime?      @db.Date
+  observacoes String?
+  /// Token do link público (/a/proposta/[token]).
+  token      String         @unique
+  autorId    String
+  autor      User           @relation("PropostaAutor", fields: [autorId], references: [id])
+  /// Projeto gerado no aceite.
+  projetoId  String?        @unique
+  projeto    Projeto?       @relation(fields: [projetoId], references: [id])
+
+  enviadaEm DateTime?
+  aceitaEm  DateTime?
+
+  itens         PropostaItem[]
+  condicoes     PropostaCondicao[]
+  versoes       PropostaVersao[]
+  visualizacoes PropostaVisualizacao[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([ano, sequencial])
+  @@index([status])
+  @@index([clienteId])
+  @@map("proposta")
+}
+
+model PropostaItem {
+  id         String   @id @default(cuid())
+  propostaId String
+  proposta   Proposta @relation(fields: [propostaId], references: [id], onDelete: Cascade)
+  disciplina String
+  descricao  String?
+  valor      Decimal  @db.Decimal(14, 2)
+  ordem      Int      @default(0)
+
+  @@index([propostaId])
+  @@map("proposta_item")
+}
+
+enum TipoCondicao {
+  percentual
+  valor
+}
+
+model PropostaCondicao {
+  id         String       @id @default(cuid())
+  propostaId String
+  proposta   Proposta     @relation(fields: [propostaId], references: [id], onDelete: Cascade)
+  descricao  String
+  tipo       TipoCondicao @default(percentual)
+  valor      Decimal      @db.Decimal(14, 2)
+  ordem      Int          @default(0)
+
+  @@index([propostaId])
+  @@map("proposta_condicao")
+}
+
+/// Snapshot da proposta a cada salvar (itens+condições serializados).
+model PropostaVersao {
+  id         String   @id @default(cuid())
+  propostaId String
+  proposta   Proposta @relation(fields: [propostaId], references: [id], onDelete: Cascade)
+  numero     Int
+  snapshot   Json
+  autorId    String
+  autor      User     @relation("PropostaVersaoAutor", fields: [autorId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@unique([propostaId, numero])
+  @@map("proposta_versao")
+}
+
+/// Abertura registrada pelo pixel do link público.
+model PropostaVisualizacao {
+  id         String   @id @default(cuid())
+  propostaId String
+  proposta   Proposta @relation(fields: [propostaId], references: [id], onDelete: Cascade)
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([propostaId])
+  @@map("proposta_visualizacao")
+}
 
 // ─────────────────────────────────────────────────────────────
 // Estúdio de Documentos (Onda D) — modelos de relatório em bandas

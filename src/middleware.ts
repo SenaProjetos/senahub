@@ -2,8 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSessionCookie } from "better-auth/cookies";
 
 // Rotas públicas (não exigem sessão).
-// "/p" e "/api/p" = páginas/endpoints públicos por token (inputs do cliente).
-const PUBLIC_PATHS = ["/login", "/sem-permissao", "/recuperar-senha", "/p", "/api/p"];
+// "/p","/api/p" = inputs do cliente; "/a","/api/t" = proposta pública + pixel.
+const PUBLIC_PATHS = ["/login", "/sem-permissao", "/recuperar-senha", "/p", "/api/p", "/a", "/api/t"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));

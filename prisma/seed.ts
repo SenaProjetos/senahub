@@ -36,6 +36,9 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "supervisor", recurso: "documentos", acao: "gerir" },
   { role: "administrativo", recurso: "documentos", acao: "ver" },
   { role: "administrativo", recurso: "documentos", acao: "gerir" },
+  { role: "administrativo", recurso: "comercial", acao: "ver" },
+  { role: "administrativo", recurso: "comercial", acao: "gerir" },
+  { role: "supervisor", recurso: "comercial", acao: "ver" },
   // Perfis internos: veem projetos (escopo filtra para os seus)
   { role: "clt", recurso: "projetos", acao: "ver" },
   { role: "estagiario", recurso: "projetos", acao: "ver" },
@@ -77,6 +80,14 @@ const RUBRICAS: { nome: string; tipo: "provento" | "desconto" }[] = [
   { nome: "Vale-transporte", tipo: "desconto" },
   { nome: "Adiantamento", tipo: "desconto" },
   { nome: "Faltas", tipo: "desconto" },
+];
+
+const FUNIL_ETAPAS = [
+  { nome: "Orçamento", cor: "#8B7FC7" },
+  { nome: "Em negociação", cor: "#4E9BB0" },
+  { nome: "Proposta enviada", cor: "#C29A4B" },
+  { nome: "Contratado", cor: "#5FA083" },
+  { nome: "Perdido", cor: "#6E838B" },
 ];
 
 const ONBOARDING_PADRAO = {
@@ -221,7 +232,17 @@ async function main() {
   }
   console.log(`✔ ${RUBRICAS.length} rubricas, template de onboarding garantido.`);
 
-  // 9) Modelo de documento exemplo (Estúdio de Documentos)
+  // 9) Etapas do funil comercial
+  for (let i = 0; i < FUNIL_ETAPAS.length; i++) {
+    await prisma.funilEtapa.upsert({
+      where: { nome: FUNIL_ETAPAS[i].nome },
+      create: { nome: FUNIL_ETAPAS[i].nome, cor: FUNIL_ETAPAS[i].cor, ordem: i },
+      update: { ordem: i },
+    });
+  }
+  console.log(`✔ ${FUNIL_ETAPAS.length} etapas do funil comercial.`);
+
+  // 10) Modelo de documento exemplo (Estúdio de Documentos)
   const existeModelo = await prisma.documentoModelo.findFirst({
     where: { nome: "Relatório do projeto (exemplo)" },
   });

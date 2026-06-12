@@ -21,6 +21,7 @@ export function PreviewBar({
   valores,
   projetos,
   usuarios,
+  propostas = [],
 }: {
   modeloId: string;
   nome: string;
@@ -28,6 +29,7 @@ export function PreviewBar({
   valores: Record<string, string>;
   projetos: { id: string; label: string }[];
   usuarios: { id: string; label: string }[];
+  propostas?: { id: string; label: string }[];
 }) {
   const router = useRouter();
 
@@ -56,6 +58,22 @@ export function PreviewBar({
                 </SelectTrigger>
                 <SelectContent>
                   {projetos.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            );
+          }
+          if (p.tipo === "proposta") {
+            return (
+              <Select key={p.id} value={valores[p.id] ?? ""} onValueChange={(v) => setParam(p.id, v ?? "")}>
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder={p.label} />
+                </SelectTrigger>
+                <SelectContent>
+                  {propostas.map((o) => (
                     <SelectItem key={o.id} value={o.id}>
                       {o.label}
                     </SelectItem>
