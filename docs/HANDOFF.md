@@ -1,8 +1,8 @@
 # SenaHub Remake — Handoff / Estado do Projeto
 
 > Documento de continuidade. Permite a qualquer dev/IA retomar o trabalho do ponto exato.
-> Atualizado em 2026-06-12. Ondas 0–3 + **Onda D (Estúdio de Documentos v1)** completas e
-> verificadas; faltam O4, O5, automações, evoluções do Estúdio e deploy.
+> Atualizado em 2026-06-12. Ondas 0–4 + **Onda D (Estúdio de Documentos v1)** completas e
+> verificadas; faltam O5, automações, evoluções do Estúdio e deploy.
 
 ---
 
@@ -73,27 +73,18 @@ Matriz fina configurável em Configurações→Permissões (catálogo em `lib/pe
 
 | **OD** | **Estúdio de Documentos v1** (`/documentos`): editor visual de modelos em **bandas** (cabeçalho do relatório / cabeçalho de colunas / **detalhe que repete por linha** / rodapés), elementos com posição absoluta (label, campo, linha, retângulo, imagem) com drag/resize/snap 8px, zoom, undo/redo (Ctrl+Z/Y), atalhos (Delete, setas), painel de propriedades (texto, inserir token, x/y/w/h, fonte, negrito, alinhamento, cores, borda, travado/visível), duplicar elemento. **Tokens**: `[Campo]`, `[Fonte.Campo]`, `[Sum/Count/Avg/Min/Max(X)]`, `[Hoje]`, `[Pagina]/[Paginas]`, formatos `:c2` moeda `:d` data `:p1` percent `:n0` número (`modules/documentos/tokens.ts`, puro+testado). **Fontes de dados** dos módulos do Hub (`fontes-meta.ts` metadados client + `fontes.ts` resolução server): empresa, projeto(+disciplinas), extrato do projetista(+pagamentos), lançamentos do mês. Salvar **versiona** (DocumentoModeloVersao, restaurar). Preview com dados reais (seletor de parâmetros) + **Imprimir/PDF** (print CSS A4 em globals.css, classes `doc-pagina`/`doc-no-print`/`doc-print-area`). Permissões `documentos:ver|gerir`. Modelo exemplo no seed ("Relatório do projeto"). | testes tokens (41 total) |
 
-Fluxo crítico completo já funciona: upload→validação→pagamento→folha→lançamento→caixa/DRE.
+| **O4** | **Comercial/CRM** (`/comercial`, `modules/comercial`): funil Kanban com **@dnd-kit** (etapas semeadas: Orçamento→Em negociação→Proposta enviada→Contratado→Perdido; arrastar move etapa), leads (atividades/notas, **converter→cliente**), meta mensal editável com barra de progresso (realizado = propostas aceitas no mês). **Propostas** `PR-AAXXXX` (sequência atômica): itens por disciplina, condições **% ou R$**, copiar ("— cópia"), **versões snapshot** a cada salvar, **tabela de preço R$/m² × área** (`/comercial/tabelas`, botão "Aplicar"), status rascunho/enviada/aceita/recusada. **Página pública** `/a/proposta/[token]` (só totais, sem unitários) com **pixel** `/api/t/proposta/[token]/pixel` (grava ip/UA, badge de aberturas), **envio por e-mail** com link. Fonte **"proposta"** no Estúdio de Documentos. **Aceitar → cria projeto AAXXXX + disciplinas (valores) + canais de chat (`ensureCanaisProjeto`) + notifica** — zero redigitação. Permissões `comercial:ver\|gerir`. | `smoke:onda4` |
+
+Fluxo crítico completo já funciona: lead→proposta→aceite→projeto→upload→validação→pagamento→folha→lançamento→caixa/DRE.
 
 ## 5. O QUE FALTA
 
-### 5.1 Onda 4 — Comercial/CRM (próxima)
-- **Leads**: cadastro, conversão lead→cliente (reusar `modules/clientes`).
-- **Funil Kanban**: etapas configuráveis (`FunilEtapa`), oportunidades com arrastar-e-soltar
-  (instalar `@dnd-kit/core` + `@dnd-kit/sortable`), atividades/histórico por oportunidade.
-- **Metas comerciais** + dashboard de vendas.
-- **Propostas**: itens por disciplina, condições de pagamento (**% ou R$**), versões, copiar proposta
-  ("-cópia" no nome, traz tudo), anexos.
-- **Preços automáticos**: `TabelaPreco` configurável (valor/m² por disciplina) + campo área do projeto;
-  botão "aplicar tabela" na proposta; PDF NÃO exibe unitários, só totais por disciplina.
-- **PDF da proposta**: usar o **Estúdio de Documentos** (fonte "proposta" + modelo tipo proposta;
-  ver §5.4b) em vez de jspdf hardcoded + **envio por e-mail** (lib/mail.ts pronta)
-  + **visualização pública por token** (`/a/proposta/[token]`, padrão igual `/p/inputs/[token]`)
-  + **pixel de rastreio** de abertura (`/api/t/proposta/[token]/pixel` → grava Visualizacao).
-- **Proposta aceita → gerar projeto**: criar Projeto+Disciplinas (usar `proximoCodigoProjeto`)
-  e chamar `ensureCanaisProjeto` (chat) — zero redigitação. Notificar equipe.
+### 5.1 Onda 4 — Comercial/CRM ✅ ENTREGUE (ver tabela §4)
+Restos opcionais da O4 (não bloqueiam): anexos em proposta; criar proposta direto do lead
+(pré-preenchendo cliente); etapas do funil configuráveis por UI (hoje só seed);
+gerar PDF da proposta pelo Estúdio com modelo padrão por tipo (ver §5.4b).
 
-### 5.2 Onda 5 — Complementares
+### 5.2 Onda 5 — Complementares (próxima)
 - **Jurídico**: pastas por projeto/cliente, contratos versionados (minuta→assinado→aditivo),
   modelos, certidões (tipos configuráveis, validade), download. Alertas de vencimento 30/15/7 dias (job).
 - **Licitações**: processos (modalidade, datas), documentos versionados, alertas 15/7/1,
