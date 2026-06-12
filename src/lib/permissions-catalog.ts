@@ -41,6 +41,14 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     ],
   },
   {
+    recurso: "documentos",
+    label: "Estúdio de Documentos",
+    acoes: [
+      { acao: "ver", label: "Ver e gerar documentos" },
+      { acao: "gerir", label: "Criar/editar modelos de documento" },
+    ],
+  },
+  {
     recurso: "usuarios",
     label: "Usuários",
     acoes: [{ acao: "gerir", label: "Gerir usuários" }],

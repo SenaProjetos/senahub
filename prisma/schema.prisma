@@ -64,6 +64,7 @@ model User {
   onboarding           OnboardingProcesso?
   notasFiscais         NotaFiscalPJ[]        @relation("NfUser")
   nfsValidadas         NotaFiscalPJ[]        @relation("NfValidador")
+  documentoVersoes     DocumentoModeloVersao[]
 
   @@index([role])
   @@map("user")
@@ -829,6 +830,53 @@ model RevisaoDisciplina {
 // ─────────────────────────────────────────────────────────────
 // Uploads & Validação → Pagamento (Onda 1)
 // ─────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────
+// Estúdio de Documentos (Onda D) — modelos de relatório em bandas
+// ─────────────────────────────────────────────────────────────
+
+enum TipoDocumento {
+  relatorio
+  proposta
+  contrato
+  recibo
+  holerite
+  outro
+}
+
+/// Modelo (template) de documento. Layout em bandas no schemaJson.
+model DocumentoModelo {
+  id        String        @id @default(cuid())
+  nome      String
+  descricao String?
+  tipo      TipoDocumento @default(relatorio)
+  /// Fonte de dados padrão (id do registry em modules/documentos/fontes.ts).
+  fonte     String?
+  schemaJson Json
+  ativo     Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  versoes DocumentoModeloVersao[]
+
+  @@index([tipo, ativo])
+  @@map("documento_modelo")
+}
+
+/// Histórico de versões (criada a cada salvar).
+model DocumentoModeloVersao {
+  id         String          @id @default(cuid())
+  modeloId   String
+  modelo     DocumentoModelo @relation(fields: [modeloId], references: [id], onDelete: Cascade)
+  numero     Int
+  schemaJson Json
+  autorId    String
+  autor      User            @relation(fields: [autorId], references: [id])
+  createdAt  DateTime        @default(now())
+
+  @@unique([modeloId, numero])
+  @@map("documento_modelo_versao")
+}
 
 // ─────────────────────────────────────────────────────────────
 // RH — Folha CLT, Onboarding, NF de PJ (Onda 3e/3f/3g)

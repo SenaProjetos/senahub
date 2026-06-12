@@ -1,6 +1,8 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { auth } from "../src/lib/auth";
+import { docVazio, novoId, type DocSchema } from "../src/modules/documentos/schema";
+import type { Prisma } from "../src/generated/prisma/client";
 
 const ADMIN_EMAIL = "tadrio@senaprojetos.com.br";
 const ADMIN_NAME = "Tádrio";
@@ -30,6 +32,10 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "administrativo", recurso: "projetos", acao: "gerir" },
   { role: "administrativo", recurso: "financeiro", acao: "ver" },
   { role: "administrativo", recurso: "financeiro", acao: "gerir" },
+  { role: "supervisor", recurso: "documentos", acao: "ver" },
+  { role: "supervisor", recurso: "documentos", acao: "gerir" },
+  { role: "administrativo", recurso: "documentos", acao: "ver" },
+  { role: "administrativo", recurso: "documentos", acao: "gerir" },
   // Perfis internos: veem projetos (escopo filtra para os seus)
   { role: "clt", recurso: "projetos", acao: "ver" },
   { role: "estagiario", recurso: "projetos", acao: "ver" },
@@ -214,6 +220,103 @@ async function main() {
     });
   }
   console.log(`✔ ${RUBRICAS.length} rubricas, template de onboarding garantido.`);
+
+  // 9) Modelo de documento exemplo (Estúdio de Documentos)
+  const existeModelo = await prisma.documentoModelo.findFirst({
+    where: { nome: "Relatório do projeto (exemplo)" },
+  });
+  if (!existeModelo) {
+    const schema = modeloExemploProjeto();
+    await prisma.documentoModelo.create({
+      data: {
+        nome: "Relatório do projeto (exemplo)",
+        tipo: "relatorio",
+        fonte: "projeto",
+        schemaJson: schema as unknown as Prisma.InputJsonValue,
+      },
+    });
+    console.log("✔ Modelo de documento exemplo criado.");
+  }
+}
+
+/** Layout exemplo: timbrado + dados do projeto + tabela de disciplinas + total. */
+function modeloExemploProjeto(): DocSchema {
+  const doc = docVazio();
+  const estilo = (extra: Partial<DocSchema["bandas"][0]["elementos"][0]["estilo"]> = {}) => ({
+    fontSize: 12,
+    bold: false,
+    italic: false,
+    align: "left" as const,
+    color: "",
+    bg: "",
+    borderW: 0,
+    borderColor: "#1C2D58",
+    radius: 0,
+    ...extra,
+  });
+  const el = (
+    tipo: "label" | "campo" | "linha" | "retangulo" | "imagem",
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    texto: string,
+    e: Partial<ReturnType<typeof estilo>> = {},
+  ) => ({ id: novoId(), tipo, x, y, w, h, texto, estilo: estilo(e), visivel: true, travado: false });
+
+  doc.bandas = [
+    {
+      id: novoId(),
+      tipo: "cabecalho",
+      altura: 168,
+      elementos: [
+        el("imagem", 0, 8, 180, 48, "/MARCA/logo_completa_light.svg"),
+        el("label", 0, 72, 420, 34, "RELATÓRIO DO PROJETO", { fontSize: 24, bold: true, color: "#1C2D58" }),
+        el("campo", 0, 110, 420, 20, "[Codigo] · [Nome]", { fontSize: 13, color: "#576980" }),
+        el("campo", 478, 72, 220, 18, "Cliente: [ClienteNome]", { fontSize: 11, align: "right" }),
+        el("campo", 478, 92, 220, 18, "[ClienteDocumento]", { fontSize: 11, align: "right", color: "#6E838B" }),
+        el("campo", 478, 112, 220, 18, "Emitido em [Hoje]", { fontSize: 11, align: "right", color: "#6E838B" }),
+        el("linha", 0, 152, 698, 2, "", { bg: "#1C2D58" }),
+      ],
+    },
+    {
+      id: novoId(),
+      tipo: "cabecalhoPagina",
+      altura: 28,
+      elementos: [
+        el("retangulo", 0, 0, 698, 26, "", { bg: "#1C2D58" }),
+        el("label", 8, 4, 300, 18, "Disciplina", { bold: true, color: "#FFFFFF", fontSize: 11 }),
+        el("label", 320, 4, 120, 18, "Status", { bold: true, color: "#FFFFFF", fontSize: 11 }),
+        el("label", 460, 4, 110, 18, "Responsáveis", { bold: true, color: "#FFFFFF", fontSize: 11 }),
+        el("label", 590, 4, 100, 18, "Valor", { bold: true, color: "#FFFFFF", fontSize: 11, align: "right" }),
+      ],
+    },
+    {
+      id: novoId(),
+      tipo: "detalhe",
+      altura: 26,
+      elementos: [
+        el("campo", 8, 4, 300, 18, "[Disciplina]", { fontSize: 11 }),
+        el("campo", 320, 4, 120, 18, "[Status]", { fontSize: 11, color: "#576980" }),
+        el("campo", 460, 4, 110, 18, "[Responsaveis]", { fontSize: 10, color: "#6E838B" }),
+        el("campo", 590, 4, 100, 18, "[Valor:c2]", { fontSize: 11, align: "right" }),
+        el("linha", 0, 24, 698, 1, "", { bg: "#CACAC8" }),
+      ],
+    },
+    {
+      id: novoId(),
+      tipo: "rodape",
+      altura: 120,
+      elementos: [
+        el("label", 380, 12, 200, 22, "Total das disciplinas", { bold: true, align: "right" }),
+        el("campo", 590, 12, 100, 22, "[Sum(Valor):c2]", { bold: true, align: "right", fontSize: 13 }),
+        el("linha", 0, 64, 240, 1, "", { bg: "#1C2D58" }),
+        el("label", 0, 70, 240, 16, "Assinatura / Responsável técnico", { fontSize: 10, color: "#6E838B" }),
+        el("campo", 478, 70, 220, 16, "Sena Projetos · [Hoje]", { fontSize: 10, align: "right", color: "#6E838B" }),
+      ],
+    },
+  ];
+  return doc;
 }
 
 main()

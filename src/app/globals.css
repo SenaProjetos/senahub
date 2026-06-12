@@ -198,3 +198,33 @@
     padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
   }
 }
+
+/* Estúdio de Documentos — impressão/PDF: só o documento, A4 sem margens extras */
+@media print {
+  body {
+    background: white !important;
+  }
+  .brand-backdrop::before {
+    display: none;
+  }
+  aside,
+  header,
+  nav,
+  .doc-no-print {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  .doc-print-area {
+    overflow: visible !important;
+  }
+  .doc-pagina {
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+  @page {
+    size: A4;
+    margin: 0;
+  }
+}
