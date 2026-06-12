@@ -58,3 +58,53 @@ export async function climaResumo() {
 
 export type AbonoPendente = Awaited<ReturnType<typeof abonosPendentes>>[number];
 export type FeriasPendente = Awaited<ReturnType<typeof feriasPendentes>>[number];
+
+// ── Onboarding (Onda 3f) ──────────────────────────────────────
+
+export async function meuOnboarding(userId: string) {
+  return prisma.onboardingProcesso.findUnique({
+    where: { userId },
+    include: { itens: { orderBy: { ordem: "asc" } } },
+  });
+}
+
+export async function onboardingsAtivos() {
+  return prisma.onboardingProcesso.findMany({
+    include: {
+      user: { select: { name: true, role: true } },
+      itens: { orderBy: { ordem: "asc" } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function opcoesOnboarding() {
+  const [templates, comProcesso] = await Promise.all([
+    prisma.onboardingTemplate.findMany({ where: { ativo: true }, orderBy: { nome: "asc" } }),
+    prisma.onboardingProcesso.findMany({ select: { userId: true } }),
+  ]);
+  const ids = comProcesso.map((p) => p.userId);
+  const usuarios = await prisma.user.findMany({
+    where: { ativo: true, role: { not: "cliente" }, id: { notIn: ids } },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+  return { templates, usuarios };
+}
+
+// ── Notas fiscais de PJ (Onda 3g) ─────────────────────────────
+
+export async function minhasNFs(userId: string) {
+  return prisma.notaFiscalPJ.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function nfsPendentes() {
+  return prisma.notaFiscalPJ.findMany({
+    where: { status: "enviada" },
+    orderBy: { createdAt: "asc" },
+    include: { user: { select: { name: true } } },
+  });
+}

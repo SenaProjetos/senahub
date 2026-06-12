@@ -60,6 +60,10 @@ model User {
   ferias               Ferias[]              @relation("FeriasUser")
   feriasValidadas      Ferias[]              @relation("FeriasValidador")
   emocoes              RegistroEmocao[]
+  holerites            Holerite[]
+  onboarding           OnboardingProcesso?
+  notasFiscais         NotaFiscalPJ[]        @relation("NfUser")
+  nfsValidadas         NotaFiscalPJ[]        @relation("NfValidador")
 
   @@index([role])
   @@map("user")
@@ -825,6 +829,155 @@ model RevisaoDisciplina {
 // ─────────────────────────────────────────────────────────────
 // Uploads & Validação → Pagamento (Onda 1)
 // ─────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────
+// RH — Folha CLT, Onboarding, NF de PJ (Onda 3e/3f/3g)
+// ─────────────────────────────────────────────────────────────
+
+enum TipoRubrica {
+  provento
+  desconto
+}
+
+/// Catálogo de rubricas da folha (salário, VT, INSS, IRRF…).
+model RubricaFolha {
+  id    String      @id @default(cuid())
+  nome  String      @unique
+  tipo  TipoRubrica
+  ordem Int         @default(0)
+  ativo Boolean     @default(true)
+
+  itens HoleriteItem[]
+
+  @@map("rubrica_folha")
+}
+
+enum StatusFolha {
+  aberta
+  fechada
+}
+
+model FolhaPagamento {
+  id        String      @id @default(cuid())
+  ano       Int
+  mes       Int // 1-12
+  status    StatusFolha @default(aberta)
+  fechadaEm DateTime?
+  /// Lançamento de despesa (2.03) criado ao fechar.
+  lancamentoId String?  @unique
+
+  holerites Holerite[]
+  createdAt DateTime   @default(now())
+
+  @@unique([ano, mes])
+  @@map("folha_pagamento")
+}
+
+model Holerite {
+  id        String         @id @default(cuid())
+  folhaId   String
+  folha     FolhaPagamento @relation(fields: [folhaId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User           @relation(fields: [userId], references: [id])
+  enviadoEm DateTime?
+
+  itens HoleriteItem[]
+
+  @@unique([folhaId, userId])
+  @@map("holerite")
+}
+
+model HoleriteItem {
+  id         String        @id @default(cuid())
+  holeriteId String
+  holerite   Holerite      @relation(fields: [holeriteId], references: [id], onDelete: Cascade)
+  rubricaId  String?
+  rubrica    RubricaFolha? @relation(fields: [rubricaId], references: [id])
+  descricao  String
+  tipo       TipoRubrica
+  valor      Decimal       @db.Decimal(12, 2)
+
+  @@index([holeriteId])
+  @@map("holerite_item")
+}
+
+model OnboardingTemplate {
+  id    String  @id @default(cuid())
+  nome  String  @unique
+  ativo Boolean @default(true)
+
+  itens     OnboardingTemplateItem[]
+  processos OnboardingProcesso[]
+
+  @@map("onboarding_template")
+}
+
+model OnboardingTemplateItem {
+  id         String             @id @default(cuid())
+  templateId String
+  template   OnboardingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  descricao  String
+  ordem      Int                @default(0)
+
+  @@index([templateId])
+  @@map("onboarding_template_item")
+}
+
+/// Checklist de admissão de um colaborador (1 por usuário).
+model OnboardingProcesso {
+  id         String              @id @default(cuid())
+  userId     String              @unique
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  templateId String?
+  template   OnboardingTemplate? @relation(fields: [templateId], references: [id])
+  createdAt  DateTime            @default(now())
+
+  itens OnboardingItem[]
+
+  @@map("onboarding_processo")
+}
+
+model OnboardingItem {
+  id          String             @id @default(cuid())
+  processoId  String
+  processo    OnboardingProcesso @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  descricao   String
+  ordem       Int                @default(0)
+  concluido   Boolean            @default(false)
+  concluidoEm DateTime?
+
+  @@index([processoId])
+  @@map("onboarding_item")
+}
+
+enum StatusNF {
+  enviada
+  aprovada
+  rejeitada
+}
+
+/// Nota fiscal enviada por PJ/freelancer para faturar pagamentos.
+model NotaFiscalPJ {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation("NfUser", fields: [userId], references: [id])
+  numero      String?
+  valor       Decimal  @db.Decimal(12, 2)
+  /// Caminho relativo a STORAGE_BASE_PATH.
+  arquivoPath String
+  arquivoNome String
+  status      StatusNF @default(enviada)
+  observacao  String?
+
+  validadoPorId String?
+  validadoPor   User?     @relation("NfValidador", fields: [validadoPorId], references: [id])
+  validadoEm    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, status])
+  @@map("nota_fiscal_pj")
+}
 
 enum PacoteUpload {
   A // plantas / memoriais

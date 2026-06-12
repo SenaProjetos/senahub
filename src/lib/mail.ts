@@ -1,0 +1,45 @@
+import "server-only";
+import nodemailer from "nodemailer";
+
+let transporter: nodemailer.Transporter | null = null;
+
+function getTransporter(): nodemailer.Transporter | null {
+  if (transporter) return transporter;
+  const host = process.env.SMTP_HOST;
+  if (!host) return null;
+  transporter = nodemailer.createTransport({
+    host,
+    port: Number(process.env.SMTP_PORT) || 587,
+    secure: process.env.SMTP_SECURE === "true",
+    auth: process.env.SMTP_USER
+      ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+      : undefined,
+  });
+  return transporter;
+}
+
+export function smtpConfigurado(): boolean {
+  return !!process.env.SMTP_HOST;
+}
+
+/** Envia e-mail. Retorna false se SMTP não configurado ou falha. */
+export async function enviarEmail(opts: {
+  to: string;
+  subject: string;
+  html: string;
+}): Promise<boolean> {
+  const t = getTransporter();
+  if (!t) return false;
+  try {
+    await t.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: opts.to,
+      subject: opts.subject,
+      html: opts.html,
+    });
+    return true;
+  } catch (err) {
+    console.error("[mail] falha ao enviar:", err);
+    return false;
+  }
+}

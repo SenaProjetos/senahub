@@ -62,6 +62,30 @@ const PLANO_CONTAS: { codigo: string; nome: string; tipo: "receita" | "despesa";
 const FORMAS_PAGAMENTO = ["PIX", "Transferência", "Boleto", "Dinheiro", "Cartão"];
 const CENTROS_CUSTO = ["Operacional", "Administrativo", "Comercial"];
 
+const RUBRICAS: { nome: string; tipo: "provento" | "desconto" }[] = [
+  { nome: "Salário base", tipo: "provento" },
+  { nome: "Horas extras", tipo: "provento" },
+  { nome: "Bonificação", tipo: "provento" },
+  { nome: "INSS", tipo: "desconto" },
+  { nome: "IRRF", tipo: "desconto" },
+  { nome: "Vale-transporte", tipo: "desconto" },
+  { nome: "Adiantamento", tipo: "desconto" },
+  { nome: "Faltas", tipo: "desconto" },
+];
+
+const ONBOARDING_PADRAO = {
+  nome: "Admissão padrão",
+  itens: [
+    "Assinar contrato de trabalho",
+    "Entregar documentos pessoais (RG, CPF, comprovante de residência)",
+    "Criar acesso ao SenaHub",
+    "Configurar e-mail corporativo",
+    "Apresentar equipe e projetos ativos",
+    "Treinamento nos padrões de projeto da empresa",
+    "Configurar softwares (CAD/BIM)",
+  ],
+};
+
 const DISCIPLINAS_CATALOGO = [
   "Arquitetura",
   "Estrutural",
@@ -163,6 +187,33 @@ async function main() {
     });
   }
   console.log(`✔ ${FORMAS_PAGAMENTO.length} formas de pagamento, ${CENTROS_CUSTO.length} centros de custo.`);
+
+  // 7) Rubricas da folha
+  for (let i = 0; i < RUBRICAS.length; i++) {
+    await prisma.rubricaFolha.upsert({
+      where: { nome: RUBRICAS[i].nome },
+      create: { nome: RUBRICAS[i].nome, tipo: RUBRICAS[i].tipo, ordem: i },
+      update: { ordem: i },
+    });
+  }
+
+  // 8) Template de onboarding padrão
+  const tpl = await prisma.onboardingTemplate.upsert({
+    where: { nome: ONBOARDING_PADRAO.nome },
+    create: { nome: ONBOARDING_PADRAO.nome },
+    update: {},
+  });
+  const itensExistentes = await prisma.onboardingTemplateItem.count({ where: { templateId: tpl.id } });
+  if (itensExistentes === 0) {
+    await prisma.onboardingTemplateItem.createMany({
+      data: ONBOARDING_PADRAO.itens.map((descricao, i) => ({
+        templateId: tpl.id,
+        descricao,
+        ordem: i,
+      })),
+    });
+  }
+  console.log(`✔ ${RUBRICAS.length} rubricas, template de onboarding garantido.`);
 }
 
 main()
