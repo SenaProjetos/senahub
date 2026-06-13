@@ -31,6 +31,7 @@ npm run build              # next build --turbopack
 npm test                   # vitest (41 testes)
 npm run db:migrate         # prisma migrate dev
 npm run db:seed            # admin + permissões + catálogos (idempotente)
+npm run seed:demo          # dataset de demonstração (uso corrente) — limpa dados de negócio e recria; usuários demo senha Demo@2026
 npm run admin:reset-senha  # reseta senha do admin p/ SenaHub@2026 (hash better-auth + troca obrig.)
 npm run smoke:onda1|onda2|onda3|onda3efg|onda4|onda5   # smokes e2e contra o banco de dev
 ```
