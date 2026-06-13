@@ -169,6 +169,26 @@ export const FONTES: FonteDef[] = [
     },
   },
   {
+    id: "dre",
+    label: "DRE do mês (+ categorias como linhas)",
+    params: [{ id: "mes", label: "Competência (AAAA-MM)", tipo: "mes" }],
+    escalares: [
+      { chave: "Competencia", label: "Competência" },
+      { chave: "TotalReceitas", label: "Total de receitas" },
+      { chave: "TotalDespesas", label: "Total de despesas" },
+      { chave: "Resultado", label: "Resultado" },
+    ],
+    colecao: {
+      label: "Categorias (DRE)",
+      campos: [
+        { chave: "Codigo", label: "Código" },
+        { chave: "Categoria", label: "Categoria" },
+        { chave: "Tipo", label: "Tipo (receita/despesa)" },
+        { chave: "Valor", label: "Valor" },
+      ],
+    },
+  },
+  {
     id: "holerite",
     label: "Holerite (+ itens como linhas)",
     params: [{ id: "holeriteId", label: "Holerite", tipo: "holerite" }],

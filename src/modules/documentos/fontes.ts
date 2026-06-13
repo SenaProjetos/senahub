@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { formatarCodigo } from "@/modules/projetos/numbering";
+import { relatorioDRE } from "@/modules/financeiro/relatorios/queries";
 import type { Escalar, Linha } from "@/modules/documentos/tokens";
 
 /**
@@ -239,6 +240,28 @@ export async function resolverFonte(
           Descricao: i.descricao,
           TipoRubrica: i.tipo,
           Valor: Number(i.valor),
+        })),
+      };
+    }
+
+    case "dre": {
+      const [anoS, mesS] = (params.mes ?? "").split("-");
+      const ano = Number(anoS);
+      const mes = Number(mesS);
+      if (!ano || !mes) return { escalar: {}, linhas: [] };
+      const dre = await relatorioDRE(new Date(ano, mes - 1, 1), new Date(ano, mes, 0, 23, 59, 59));
+      return {
+        escalar: {
+          Competencia: `${String(mes).padStart(2, "0")}/${ano}`,
+          TotalReceitas: dre.totalReceitas,
+          TotalDespesas: dre.totalDespesas,
+          Resultado: dre.resultado,
+        },
+        linhas: [...dre.receitas, ...dre.despesas].map((l) => ({
+          Codigo: l.codigo,
+          Categoria: l.nome,
+          Tipo: l.tipo,
+          Valor: l.valor,
         })),
       };
     }
