@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { indiceQualidadeAtual, snapshotsQualidade } from "@/modules/qualidade/queries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { TrendLine } from "@/components/qualidade/trend-line";
 
 export const metadata: Metadata = { title: "Qualidade" };
 
@@ -97,7 +98,16 @@ export default async function QualidadePage() {
           {snapshots.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhum snapshot ainda.</p>
           ) : (
-            <ul className="divide-y text-sm">
+            <>
+              <TrendLine
+                pontos={[...snapshots]
+                  .reverse()
+                  .map((s) => ({
+                    rotulo: `${String(s.mes).padStart(2, "0")}/${String(s.ano).slice(2)}`,
+                    valor: Number(s.indice),
+                  }))}
+              />
+              <ul className="mt-4 divide-y text-sm">
               {snapshots.map((s) => (
                 <li key={s.id} className="flex items-center justify-between py-1.5">
                   <span className="font-mono">
@@ -109,7 +119,8 @@ export default async function QualidadePage() {
                   <span className="font-mono font-semibold">{Number(s.indice).toFixed(1)}%</span>
                 </li>
               ))}
-            </ul>
+              </ul>
+            </>
           )}
         </CardContent>
       </Card>
