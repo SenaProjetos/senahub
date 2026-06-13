@@ -116,7 +116,7 @@ exportar cronograma (Excel/PDF); workspace de rascunho separado antes de aplicar
 | Licitações | prazo de proposta 15/7/1 → gestores | ✅ |
 | Snapshot qualidade | dia 1º 02:00, grava índice do mês anterior | ✅ |
 | Resumo semanal | seg 07h: entregas/a receber/a pagar → notificação + e-mail | ✅ |
-| Snapshot dashboard | diário, série histórica de KPIs | ⬜ (com Planejamento/Dashboard) |
+| Snapshot dashboard | diário 23:30, série histórica de KPIs (home: card "Evolução") | ✅ |
 | E-mail de cobrança | inadimplência → e-mail ao cliente (hoje só notificação interna) | ⬜ opcional |
 Existente: backup diário (pg_dump → pasta; conferir destino/retenção no deploy).
 
@@ -134,8 +134,7 @@ Existente: backup diário (pg_dump → pasta; conferir destino/retenção no dep
 A v1 está funcional; a visão é ser O gerador de TODO documento do escritório
 (propostas O4, contratos, holerites, relatórios gerenciais). Próximos passos:
 - **Novas fontes de dados**: ✅ proposta (O4), ✅ **cliente isolado** (+projetos), ✅ **licitação/medições**
-  (O5), ✅ **holerite** (folha CLT, +itens). Falta: **DRE do período** (precisa de query reutilizável de
-  DRE em `modules/financeiro` — hoje só na página/route). Adicionar fonte = `fontes-meta.ts` (metadados)
+  (O5), ✅ **holerite** (folha CLT, +itens), ✅ **DRE do mês** (reusa `relatorioDRE`). Adicionar fonte = `fontes-meta.ts` (metadados)
   + `fontes.ts` (resolução); o seletor de parâmetro é genérico por `tipo` em `preview-bar.tsx`
   (mes = input month; resto = select de `opcoesParametros`) — o editor pega a fonte automático.
 - **Integração nos módulos**: ✅ botão "Gerar documento" no projeto/proposta/holerite
@@ -161,16 +160,17 @@ A v1 está funcional; a visão é ser O gerador de TODO documento do escritório
 
 ### 5.5 Melhorias e ferramentas sugeridas (backlog futuro)
 - ✅ **Busca global** (Ctrl+K): `CommandPalette` próprio (sem cmdk) sobre o Dialog base-ui — projetos/clientes/lançamentos, escopado por viewer; gatilho no header.
-- **Gráficos**: ✅ dashboard (receita 6m realizado×previsto) e ✅ qualidade (linha de tendência) com **SVG/CSS próprio** (sem recharts — evita risco de dep). Falta: DRE (barras mensais), fluxo de caixa projetado.
-- ✅ **Dashboard executivo**: KPIs reais + gráfico de receita + tabela "Projetos recentes" (estilo mockup).
+- **Gráficos**: ✅ dashboard (receita 6m realizado×previsto), ✅ qualidade (linha de tendência), ✅ **resultado mensal** no orçamento (barras divergentes) — SVG/CSS próprio (sem recharts). Falta: fluxo de caixa projetado.
+- ✅ **Dashboard executivo**: KPIs reais + gráfico de receita + tabela "Projetos recentes" (estilo mockup) + card "Evolução" (snapshots).
 - ✅ **/api/health** (ping de banco; rota pública; Uptime Kuma/LB).
+- ✅ **Orçamento anual** (`/financeiro/orcamento`): previsto×realizado por categoria + KPIs + gráfico de resultado mensal.
+- ✅ **DFC/Balanço**: ⬜ ainda falta (além da DRE). **Paginação**: auditoria ✅ pagina; lançamentos faz filtro client-side (paginar exigiria mover filtros p/ server — quando o volume crescer).
 - **@dnd-kit**: funil comercial (O4) e Kanban de tarefas (O5).
 - **react-hook-form + @hookform/resolvers**: formulários grandes (proposta) — hoje forms são useState manual.
 - **Avatares**: upload com `sharp` (resize), exibir no header/chat.
 - **Holerite/Relatórios em PDF** (jspdf, além do Excel).
-- **DFC e Balanço** (além da DRE); **orçamento anual** (previsto×realizado por categoria).
-- **Encargos automáticos folha** (tabelas INSS/IRRF progressivas → calcular descontos).
-- **Paginação/virtualização** nas tabelas grandes (lançamentos, auditoria) quando o volume crescer.
+- **DFC e Balanço** (além da DRE).
+- **Encargos automáticos folha** (tabelas INSS/IRRF progressivas → calcular descontos). **Precisa validação manual** das tabelas vigentes.
 - **Logs estruturados** (pino) + rotação de arquivos. (`/api/health` ✅ já existe.)
 - **Playwright e2e** nos fluxos críticos (login, upload→validação, lançamento).
 - **2FA opcional** (plugin better-auth) para admin.
