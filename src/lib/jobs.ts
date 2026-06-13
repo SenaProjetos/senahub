@@ -1,6 +1,15 @@
 import { PgBoss } from "pg-boss";
 import { executarBackup } from "@/lib/backup";
 import { notificarAdmins } from "@/lib/notifications";
+import {
+  alertasPrazoDisciplina,
+  alertaInadimplencia,
+  alertaCertidoes,
+  alertaLicitacoes,
+  snapshotQualidadeMensal,
+  lembretePontoNaoBatido,
+  resumoSemanal,
+} from "@/lib/jobs-handlers";
 
 let boss: PgBoss | null = null;
 
@@ -41,6 +50,56 @@ export async function startJobs(): Promise<PgBoss> {
     await boss.schedule(FILA_BACKUP, "0 3 * * *", {}, { tz: "America/Sao_Paulo" });
     console.log("[pg-boss] backup diário agendado (03:00).");
   }
+
+  // ── Automações (Onda 5g) ───────────────────────────────────
+  const TZ = { tz: "America/Sao_Paulo" };
+  const automacoes: { fila: string; cron: string; handler: () => Promise<unknown> }[] = [
+    {
+      fila: "alertas-diarios",
+      cron: "0 8 * * *", // 08:00 — prazos de disciplina, inadimplência, certidões, licitações
+      handler: async () => {
+        const [a, b, c, d] = await Promise.all([
+          alertasPrazoDisciplina(),
+          alertaInadimplencia(),
+          alertaCertidoes(),
+          alertaLicitacoes(),
+        ]);
+        console.log(`[alertas] prazos=${a} inad=${b} certidões=${c} licitações=${d}`);
+      },
+    },
+    {
+      fila: "lembrete-ponto",
+      cron: "15 9 * * 1-5", // dias úteis 09:15
+      handler: async () => {
+        const n = await lembretePontoNaoBatido();
+        if (n > 0) console.log(`[ponto] ${n} lembrete(s).`);
+      },
+    },
+    {
+      fila: "snapshot-qualidade",
+      cron: "0 2 1 * *", // dia 1º às 02:00 — foto do mês anterior
+      handler: snapshotQualidadeMensal,
+    },
+    {
+      fila: "resumo-semanal",
+      cron: "0 7 * * 1", // segunda 07:00
+      handler: resumoSemanal,
+    },
+  ];
+
+  for (const a of automacoes) {
+    await boss.createQueue(a.fila);
+    await boss.work(a.fila, async () => {
+      try {
+        await a.handler();
+      } catch (err) {
+        console.error(`[${a.fila}] falhou:`, err);
+        throw err;
+      }
+    });
+    await boss.schedule(a.fila, a.cron, {}, TZ);
+  }
+  console.log(`[pg-boss] ${automacoes.length} automações agendadas.`);
 
   console.log("[pg-boss] iniciado.");
   return boss;

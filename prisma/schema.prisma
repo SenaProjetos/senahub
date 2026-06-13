@@ -68,6 +68,14 @@ model User {
   atividadesLead       AtividadeLead[]
   propostasAutor       Proposta[]            @relation("PropostaAutor")
   propostaVersoes      PropostaVersao[]      @relation("PropostaVersaoAutor")
+  tarefasCriadas       Tarefa[]              @relation("TarefaCriador")
+  tarefasResponsavel   TarefaResponsavel[]
+  docJuridicoVersoes   DocJuridicoVersao[]
+  docLicitacaoVersoes  DocLicitacaoVersao[]
+  compromissosCriados  Compromisso[]         @relation("CompromissoCriador")
+  compromissosConvites CompromissoParticipante[]
+  ticketsAutor         TicketSuporte[]       @relation("TicketAutor")
+  ticketMensagens      TicketMensagem[]      @relation("TicketMensagemAutor")
 
   @@index([role])
   @@map("user")
@@ -255,6 +263,7 @@ model Cliente {
   lancamentos Lancamento[]
   leads       Lead[]
   propostas   Proposta[]
+  docsJuridicos DocumentoJuridico[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -342,6 +351,9 @@ model Projeto {
   lancamentos Lancamento[]
   canais      Canal[]
   proposta    Proposta?
+  tarefas     Tarefa[]
+  docsJuridicos DocumentoJuridico[]
+  licitacao   Licitacao?
   sessoes     SessaoTrabalho[]
 
   createdAt   DateTime        @default(now())
@@ -836,6 +848,314 @@ model RevisaoDisciplina {
 // ─────────────────────────────────────────────────────────────
 // Uploads & Validação → Pagamento (Onda 1)
 // ─────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────
+// Tarefas (Onda 5a)
+// ─────────────────────────────────────────────────────────────
+
+model TarefaStatus {
+  id        String  @id @default(cuid())
+  nome      String  @unique
+  ordem     Int     @default(0)
+  cor       String?
+  /// Coluna final: tarefas aqui contam como concluídas (libera dependentes).
+  concluido Boolean @default(false)
+  ativo     Boolean @default(true)
+
+  tarefas Tarefa[]
+
+  @@map("tarefa_status")
+}
+
+model Tarefa {
+  id        String       @id @default(cuid())
+  titulo    String
+  descricao String?
+  statusId  String
+  status    TarefaStatus @relation(fields: [statusId], references: [id])
+  prazo     DateTime?    @db.Date
+  projetoId String?
+  projeto   Projeto?     @relation(fields: [projetoId], references: [id])
+  criadorId String
+  criador   User         @relation("TarefaCriador", fields: [criadorId], references: [id])
+  arquivada Boolean      @default(false)
+
+  responsaveis TarefaResponsavel[]
+  itens        TarefaItem[]
+  dependeDe    TarefaDependencia[] @relation("Dependente")
+  dependentes  TarefaDependencia[] @relation("DependeDe")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([statusId, arquivada])
+  @@map("tarefa")
+}
+
+model TarefaResponsavel {
+  id       String @id @default(cuid())
+  tarefaId String
+  tarefa   Tarefa @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User   @relation(fields: [userId], references: [id])
+
+  @@unique([tarefaId, userId])
+  @@map("tarefa_responsavel")
+}
+
+model TarefaItem {
+  id        String  @id @default(cuid())
+  tarefaId  String
+  tarefa    Tarefa  @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+  descricao String
+  concluido Boolean @default(false)
+  ordem     Int     @default(0)
+
+  @@index([tarefaId])
+  @@map("tarefa_item")
+}
+
+model TarefaDependencia {
+  id          String @id @default(cuid())
+  tarefaId    String
+  tarefa      Tarefa @relation("Dependente", fields: [tarefaId], references: [id], onDelete: Cascade)
+  dependeDeId String
+  dependeDe   Tarefa @relation("DependeDe", fields: [dependeDeId], references: [id], onDelete: Cascade)
+
+  @@unique([tarefaId, dependeDeId])
+  @@map("tarefa_dependencia")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Jurídico (Onda 5b)
+// ─────────────────────────────────────────────────────────────
+
+model DocumentoJuridico {
+  id         String   @id @default(cuid())
+  titulo     String
+  /// contrato | aditivo | proposta | procuracao | outro
+  tipo       String   @default("contrato")
+  projetoId  String?
+  projeto    Projeto? @relation(fields: [projetoId], references: [id])
+  clienteId  String?
+  cliente    Cliente? @relation(fields: [clienteId], references: [id])
+  observacao String?
+  createdAt  DateTime @default(now())
+
+  versoes DocJuridicoVersao[]
+
+  @@index([projetoId])
+  @@map("documento_juridico")
+}
+
+model DocJuridicoVersao {
+  id          String            @id @default(cuid())
+  documentoId String
+  documento   DocumentoJuridico @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  numero      Int
+  arquivoPath String
+  arquivoNome String
+  autorId     String
+  autor       User              @relation(fields: [autorId], references: [id])
+  createdAt   DateTime          @default(now())
+
+  @@unique([documentoId, numero])
+  @@map("doc_juridico_versao")
+}
+
+model CertidaoTipo {
+  id   String @id @default(cuid())
+  nome String @unique
+
+  certidoes Certidao[]
+
+  @@map("certidao_tipo")
+}
+
+model Certidao {
+  id          String       @id @default(cuid())
+  tipoId      String
+  tipo        CertidaoTipo @relation(fields: [tipoId], references: [id])
+  descricao   String?
+  validade    DateTime     @db.Date
+  arquivoPath String?
+  arquivoNome String?
+  createdAt   DateTime     @default(now())
+
+  @@index([validade])
+  @@map("certidao")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Licitações (Onda 5c)
+// ─────────────────────────────────────────────────────────────
+
+enum StatusLicitacao {
+  em_andamento
+  ganha
+  perdida
+  em_execucao
+  concluida
+}
+
+model Licitacao {
+  id             String          @id @default(cuid())
+  titulo         String
+  orgao          String?
+  modalidade     String?
+  numeroEdital   String?
+  prazoProposta  DateTime?       @db.Date
+  valorEstimado  Decimal?        @db.Decimal(14, 2)
+  status         StatusLicitacao @default(em_andamento)
+  observacoes    String?
+  /// Projeto criado ao importar (status vira em_execucao).
+  projetoId      String?         @unique
+  projeto        Projeto?        @relation(fields: [projetoId], references: [id])
+
+  docs     DocumentoLicitacao[]
+  medicoes MedicaoLicitacao[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@map("licitacao")
+}
+
+model DocumentoLicitacao {
+  id          String    @id @default(cuid())
+  licitacaoId String
+  licitacao   Licitacao @relation(fields: [licitacaoId], references: [id], onDelete: Cascade)
+  titulo      String
+
+  versoes DocLicitacaoVersao[]
+
+  @@index([licitacaoId])
+  @@map("documento_licitacao")
+}
+
+model DocLicitacaoVersao {
+  id          String             @id @default(cuid())
+  documentoId String
+  documento   DocumentoLicitacao @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  numero      Int
+  arquivoPath String
+  arquivoNome String
+  autorId     String
+  autor       User               @relation(fields: [autorId], references: [id])
+  createdAt   DateTime           @default(now())
+
+  @@unique([documentoId, numero])
+  @@map("doc_licitacao_versao")
+}
+
+/// Medição → vira Lançamento de receita (1.02) previsto.
+model MedicaoLicitacao {
+  id           String    @id @default(cuid())
+  licitacaoId  String
+  licitacao    Licitacao @relation(fields: [licitacaoId], references: [id], onDelete: Cascade)
+  numero       Int
+  descricao    String?
+  valor        Decimal   @db.Decimal(14, 2)
+  data         DateTime  @db.Date
+  lancamentoId String?   @unique
+
+  @@unique([licitacaoId, numero])
+  @@map("medicao_licitacao")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Agenda (Onda 5d)
+// ─────────────────────────────────────────────────────────────
+
+model Compromisso {
+  id        String    @id @default(cuid())
+  titulo    String
+  descricao String?
+  local     String?
+  inicio    DateTime
+  fim       DateTime?
+  criadorId String
+  criador   User      @relation("CompromissoCriador", fields: [criadorId], references: [id])
+  createdAt DateTime  @default(now())
+
+  participantes CompromissoParticipante[]
+
+  @@index([inicio])
+  @@map("compromisso")
+}
+
+model CompromissoParticipante {
+  id            String      @id @default(cuid())
+  compromissoId String
+  compromisso   Compromisso @relation(fields: [compromissoId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  /// null = pendente, true = confirmado, false = recusou
+  confirmado    Boolean?
+
+  @@unique([compromissoId, userId])
+  @@map("compromisso_participante")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Qualidade (Onda 5e)
+// ─────────────────────────────────────────────────────────────
+
+/// Foto mensal do índice de retrabalho (revisões por disciplina).
+model QualidadeSnapshot {
+  id               String  @id @default(cuid())
+  ano              Int
+  mes              Int
+  /// % de disciplinas com ao menos 1 revisão (RV>0).
+  indice           Decimal @db.Decimal(5, 2)
+  totalDisciplinas Int
+  comRevisao       Int
+
+  createdAt DateTime @default(now())
+
+  @@unique([ano, mes])
+  @@map("qualidade_snapshot")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Suporte (Onda 5f)
+// ─────────────────────────────────────────────────────────────
+
+enum StatusTicket {
+  aberto
+  em_atendimento
+  resolvido
+}
+
+model TicketSuporte {
+  id        String       @id @default(cuid())
+  titulo    String
+  descricao String
+  status    StatusTicket @default(aberto)
+  autorId   String
+  autor     User         @relation("TicketAutor", fields: [autorId], references: [id])
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  mensagens TicketMensagem[]
+
+  @@index([status])
+  @@map("ticket_suporte")
+}
+
+model TicketMensagem {
+  id        String        @id @default(cuid())
+  ticketId  String
+  ticket    TicketSuporte @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  autorId   String
+  autor     User          @relation("TicketMensagemAutor", fields: [autorId], references: [id])
+  texto     String
+  createdAt DateTime      @default(now())
+
+  @@index([ticketId])
+  @@map("ticket_mensagem")
+}
 
 // ─────────────────────────────────────────────────────────────
 // Comercial / CRM (Onda 4)

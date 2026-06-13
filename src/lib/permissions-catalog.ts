@@ -49,6 +49,27 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     ],
   },
   {
+    recurso: "juridico",
+    label: "Jurídico",
+    acoes: [
+      { acao: "ver", label: "Ver documentos e certidões" },
+      { acao: "gerir", label: "Gerir documentos jurídicos" },
+    ],
+  },
+  {
+    recurso: "licitacoes",
+    label: "Licitações",
+    acoes: [
+      { acao: "ver", label: "Ver licitações" },
+      { acao: "gerir", label: "Gerir licitações e medições" },
+    ],
+  },
+  {
+    recurso: "qualidade",
+    label: "Qualidade",
+    acoes: [{ acao: "ver", label: "Ver índice de qualidade" }],
+  },
+  {
     recurso: "documentos",
     label: "Estúdio de Documentos",
     acoes: [

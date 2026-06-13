@@ -39,6 +39,15 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "administrativo", recurso: "comercial", acao: "ver" },
   { role: "administrativo", recurso: "comercial", acao: "gerir" },
   { role: "supervisor", recurso: "comercial", acao: "ver" },
+  // O5: jurídico, licitações, qualidade
+  { role: "supervisor", recurso: "juridico", acao: "ver" },
+  { role: "supervisor", recurso: "juridico", acao: "gerir" },
+  { role: "administrativo", recurso: "juridico", acao: "ver" },
+  { role: "administrativo", recurso: "juridico", acao: "gerir" },
+  { role: "administrativo", recurso: "licitacoes", acao: "ver" },
+  { role: "administrativo", recurso: "licitacoes", acao: "gerir" },
+  { role: "supervisor", recurso: "licitacoes", acao: "ver" },
+  { role: "supervisor", recurso: "qualidade", acao: "ver" },
   // Perfis internos: veem projetos (escopo filtra para os seus)
   { role: "clt", recurso: "projetos", acao: "ver" },
   { role: "estagiario", recurso: "projetos", acao: "ver" },
@@ -81,6 +90,14 @@ const RUBRICAS: { nome: string; tipo: "provento" | "desconto" }[] = [
   { nome: "Adiantamento", tipo: "desconto" },
   { nome: "Faltas", tipo: "desconto" },
 ];
+
+const TAREFA_STATUS = [
+  { nome: "A fazer", cor: "#8B7FC7", concluido: false },
+  { nome: "Em andamento", cor: "#4E9BB0", concluido: false },
+  { nome: "Concluído", cor: "#5FA083", concluido: true },
+];
+
+const CERTIDAO_TIPOS = ["CND Federal", "CND Estadual", "CND Municipal", "FGTS", "Trabalhista", "ART/RRT"];
 
 const FUNIL_ETAPAS = [
   { nome: "Orçamento", cor: "#8B7FC7" },
@@ -231,6 +248,19 @@ async function main() {
     });
   }
   console.log(`✔ ${RUBRICAS.length} rubricas, template de onboarding garantido.`);
+
+  // 8b) Status de tarefas + tipos de certidão (O5)
+  for (let i = 0; i < TAREFA_STATUS.length; i++) {
+    await prisma.tarefaStatus.upsert({
+      where: { nome: TAREFA_STATUS[i].nome },
+      create: { ...TAREFA_STATUS[i], ordem: i },
+      update: { ordem: i, concluido: TAREFA_STATUS[i].concluido },
+    });
+  }
+  for (const nome of CERTIDAO_TIPOS) {
+    await prisma.certidaoTipo.upsert({ where: { nome }, create: { nome }, update: {} });
+  }
+  console.log(`✔ ${TAREFA_STATUS.length} status de tarefa, ${CERTIDAO_TIPOS.length} tipos de certidão.`);
 
   // 9) Etapas do funil comercial
   for (let i = 0; i < FUNIL_ETAPAS.length; i++) {
