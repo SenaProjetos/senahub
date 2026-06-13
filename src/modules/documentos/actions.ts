@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import {
@@ -136,5 +137,29 @@ export const restaurarVersao = defineAction(
     ]);
     revalidatePath(`${PATH}/${i.modeloId}`);
     return { modeloId: i.modeloId };
+  },
+);
+
+const CHAVE_PADROES = "documentos.padroes";
+const padraoSchema = z.object({
+  fonte: z.string().min(1),
+  modeloId: z.string().optional().or(z.literal("")),
+});
+
+/** Define (ou remove, se modeloId vazio) o modelo padrão de uma fonte. */
+export const salvarPadraoDocumento = defineAction(
+  { ...base, acao: "salvar-padrao-doc", entidade: "ConfigSistema", schema: padraoSchema },
+  async (i) => {
+    const atual = await prisma.configSistema.findUnique({ where: { chave: CHAVE_PADROES } });
+    const mapa = { ...((atual?.valor as Record<string, string> | null) ?? {}) };
+    if (i.modeloId) mapa[i.fonte] = i.modeloId;
+    else delete mapa[i.fonte];
+    await prisma.configSistema.upsert({
+      where: { chave: CHAVE_PADROES },
+      create: { chave: CHAVE_PADROES, valor: mapa },
+      update: { valor: mapa },
+    });
+    revalidatePath("/configuracoes/documentos");
+    return { fonte: i.fonte };
   },
 );

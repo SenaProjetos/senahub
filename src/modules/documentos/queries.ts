@@ -26,13 +26,27 @@ export async function obterModelo(id: string) {
   return { ...m, schema: parsed.success ? parsed.data : docVazio() };
 }
 
-/** Modelos ativos de uma fonte (para o botão "Gerar documento" nos módulos). */
+const CHAVE_PADROES = "documentos.padroes";
+
+/** Mapa fonte → modeloId padrão (Configurações → Documentos padrão). */
+export async function padroesDocumento(): Promise<Record<string, string>> {
+  const c = await prisma.configSistema.findUnique({ where: { chave: CHAVE_PADROES } });
+  return (c?.valor as Record<string, string> | null) ?? {};
+}
+
+/** Modelos ativos de uma fonte (botão "Gerar documento"); o modelo padrão vem primeiro. */
 export async function modelosPorFonte(fonte: string) {
-  return prisma.documentoModelo.findMany({
-    where: { ativo: true, fonte },
-    orderBy: { nome: "asc" },
-    select: { id: true, nome: true },
-  });
+  const [modelos, padroes] = await Promise.all([
+    prisma.documentoModelo.findMany({
+      where: { ativo: true, fonte },
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true },
+    }),
+    padroesDocumento(),
+  ]);
+  const padraoId = padroes[fonte];
+  if (!padraoId) return modelos;
+  return [...modelos].sort((a, b) => (a.id === padraoId ? -1 : b.id === padraoId ? 1 : 0));
 }
 
 /** Opções para os parâmetros das fontes (selects do preview). */
