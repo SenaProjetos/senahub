@@ -1,7 +1,9 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, KeyRound } from "lucide-react";
+import { toast } from "sonner";
+import { LogOut, KeyRound, Camera } from "lucide-react";
 import { signOut } from "@/lib/auth-client";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -30,6 +32,8 @@ export function UserMenu({
   user: { name: string; email: string; role: Role; image?: string | null };
 }) {
   const router = useRouter();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [enviando, setEnviando] = useState(false);
 
   async function logout() {
     await signOut();
@@ -37,8 +41,31 @@ export function UserMenu({
     router.refresh();
   }
 
+  async function onArquivo(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setEnviando(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+      const res = await fetch("/api/avatar", { method: "POST", body: fd });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) {
+        toast.success("Foto atualizada.");
+        router.refresh();
+      } else {
+        toast.error(j.error ?? "Falha ao enviar a foto.");
+      }
+    } finally {
+      setEnviando(false);
+    }
+  }
+
   return (
-    <DropdownMenu>
+    <>
+      <input ref={fileRef} type="file" accept="image/*" hidden onChange={onArquivo} />
+      <DropdownMenu>
       <DropdownMenuTrigger
         render={
           <Button variant="ghost" size="icon" aria-label="Conta" className="rounded-full">
@@ -62,6 +89,10 @@ export function UserMenu({
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => fileRef.current?.click()} disabled={enviando}>
+          <Camera className="size-4" />
+          {enviando ? "Enviando…" : "Alterar foto"}
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => router.push("/trocar-senha")}>
           <KeyRound className="size-4" />
           Trocar senha
@@ -71,6 +102,7 @@ export function UserMenu({
           Sair
         </DropdownMenuItem>
       </DropdownMenuContent>
-    </DropdownMenu>
+      </DropdownMenu>
+    </>
   );
 }
