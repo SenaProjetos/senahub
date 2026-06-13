@@ -1,5 +1,52 @@
 import "server-only";
+import { addDays, differenceInCalendarDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
+
+export type SemanaProjecao = {
+  inicio: string;
+  fim: string;
+  entradas: number;
+  saidas: number;
+  saldo: number;
+};
+
+/**
+ * Projeção de caixa: a partir do saldo atual, projeta o saldo semana a semana
+ * usando os lançamentos PREVISTOS (a receber/pagar) por vencimento. Detecta gap (saldo < 0).
+ */
+export async function projecaoCaixa(saldoInicial: number, semanas = 8): Promise<SemanaProjecao[]> {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const fim = addDays(hoje, semanas * 7);
+  const previstos = await prisma.lancamento.findMany({
+    where: { status: "previsto", vencimento: { gte: hoje, lte: fim } },
+    select: { tipo: true, valor: true, vencimento: true },
+  });
+
+  const buckets: SemanaProjecao[] = Array.from({ length: semanas }, (_, i) => {
+    const ini = addDays(hoje, i * 7);
+    return {
+      inicio: ini.toISOString().slice(0, 10),
+      fim: addDays(ini, 6).toISOString().slice(0, 10),
+      entradas: 0,
+      saidas: 0,
+      saldo: 0,
+    };
+  });
+  for (const l of previstos) {
+    if (!l.vencimento) continue;
+    const idx = Math.floor(differenceInCalendarDays(l.vencimento, hoje) / 7);
+    if (idx < 0 || idx >= semanas) continue;
+    if (l.tipo === "receita") buckets[idx].entradas += Number(l.valor);
+    else buckets[idx].saidas += Number(l.valor);
+  }
+  let saldo = saldoInicial;
+  for (const b of buckets) {
+    saldo += b.entradas - b.saidas;
+    b.saldo = saldo;
+  }
+  return buckets;
+}
 
 /**
  * Fluxo de caixa: saldo por conta (saldo inicial + confirmados) e

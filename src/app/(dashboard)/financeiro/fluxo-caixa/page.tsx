@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
-import { fluxoCaixa } from "@/modules/financeiro/caixa/queries";
+import { fluxoCaixa, projecaoCaixa } from "@/modules/financeiro/caixa/queries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -20,6 +20,11 @@ function brl(v: number) {
 export default async function FluxoCaixaPage() {
   await requirePermission("financeiro", "ver");
   const { contas, saldoTotal, entradas, saidas, movimentos } = await fluxoCaixa();
+  const projecao = await projecaoCaixa(saldoTotal, 8);
+  const temGap = projecao.some((p) => p.saldo < 0);
+
+  const dataCurta = (iso: string) =>
+    new Date(iso + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 
   return (
     <div className="space-y-6">
@@ -66,6 +71,48 @@ export default async function FluxoCaixaPage() {
               ))}
             </ul>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Projeção de caixa — 8 semanas</CardTitle>
+          <CardDescription>
+            Saldo projetado a partir do saldo atual e dos lançamentos previstos (por vencimento).
+            {temGap && <span className="ml-1 text-destructive">Atenção: saldo fica negativo.</span>}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Semana</TableHead>
+                <TableHead className="text-right">Entradas</TableHead>
+                <TableHead className="text-right">Saídas</TableHead>
+                <TableHead className="text-right">Saldo projetado</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {projecao.map((p) => (
+                <TableRow key={p.inicio} className={p.saldo < 0 ? "bg-destructive/5" : ""}>
+                  <TableCell className="font-mono text-xs">
+                    {dataCurta(p.inicio)} – {dataCurta(p.fim)}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-xs text-success">
+                    {p.entradas ? `+${brl(p.entradas)}` : "—"}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-xs text-warning">
+                    {p.saidas ? `-${brl(p.saidas)}` : "—"}
+                  </TableCell>
+                  <TableCell
+                    className={`text-right font-mono text-xs font-semibold ${p.saldo < 0 ? "text-destructive" : ""}`}
+                  >
+                    {brl(p.saldo)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
 
