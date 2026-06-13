@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Users, ShieldCheck, FileText } from "lucide-react";
+import { Users, ShieldCheck, FileText, Percent } from "lucide-react";
 import { requireRole } from "@/lib/session";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -24,6 +24,12 @@ const ITENS = [
     icon: FileText,
     titulo: "Documentos padrão",
     descricao: "Modelo do Estúdio usado por padrão em cada fonte.",
+  },
+  {
+    href: "/configuracoes/encargos",
+    icon: Percent,
+    titulo: "Encargos da folha",
+    descricao: "Faixas de INSS e IRRF usadas no holerite.",
   },
 ];
 

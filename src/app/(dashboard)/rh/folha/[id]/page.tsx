@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/session";
 import { HR_ADMIN_ROLES } from "@/lib/roles";
 import { obterFolha } from "@/modules/rh/folha/queries";
 import { modelosPorFonte } from "@/modules/documentos/queries";
+import { faixasPorTipo } from "@/modules/rh/encargos/queries";
 import { FolhaDetalheView } from "@/components/rh/folha/folha-detalhe-view";
 
 export const metadata: Metadata = { title: "Folha CLT" };
@@ -15,13 +16,19 @@ export default async function FolhaDetalhePage({
 }) {
   await requireRole(...HR_ADMIN_ROLES);
   const { id } = await params;
-  const [dados, modelosDoc] = await Promise.all([obterFolha(id), modelosPorFonte("holerite")]);
+  const [dados, modelosDoc, faixas] = await Promise.all([
+    obterFolha(id),
+    modelosPorFonte("holerite"),
+    faixasPorTipo(),
+  ]);
   if (!dados) notFound();
 
   const { folha, rubricas, elegiveis } = dados;
   return (
     <FolhaDetalheView
       modelosDoc={modelosDoc}
+      faixasInss={faixas.inss}
+      faixasIrrf={faixas.irrf}
       folha={{
         id: folha.id,
         ano: folha.ano,

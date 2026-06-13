@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
+import { calcularEncargos, type Faixa } from "@/lib/encargos";
 import {
   Select,
   SelectContent,
@@ -59,11 +60,15 @@ export function FolhaDetalheView({
   rubricas,
   elegiveis,
   modelosDoc,
+  faixasInss,
+  faixasIrrf,
 }: {
   folha: { id: string; ano: number; mes: number; status: "aberta" | "fechada"; holerites: HoleriteT[] };
   rubricas: Rubrica[];
   elegiveis: { id: string; name: string; role: string }[];
   modelosDoc: { id: string; nome: string }[];
+  faixasInss: Faixa[];
+  faixasIrrf: Faixa[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -242,6 +247,8 @@ export function FolhaDetalheView({
         folhaId={folha.id}
         editor={editor}
         rubricas={rubricas}
+        faixasInss={faixasInss}
+        faixasIrrf={faixasIrrf}
         onClose={() => setEditor(null)}
       />
     </div>
@@ -252,11 +259,15 @@ function HoleriteEditor({
   folhaId,
   editor,
   rubricas,
+  faixasInss,
+  faixasIrrf,
   onClose,
 }: {
   folhaId: string;
   editor: { userId: string; nome: string; itens: Item[] } | null;
   rubricas: Rubrica[];
+  faixasInss: Faixa[];
+  faixasIrrf: Faixa[];
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -283,6 +294,30 @@ function HoleriteEditor({
         valor: 0,
       },
     ]);
+  }
+
+  /** Calcula INSS/IRRF sobre o total de proventos e injeta os descontos. */
+  function calcularEncargosClick() {
+    const proventos = itens
+      .filter((it) => it.tipo === "provento")
+      .reduce((s, it) => s + (Number(it.valor) || 0), 0);
+    if (proventos <= 0) {
+      toast.error("Adicione proventos antes de calcular encargos.");
+      return;
+    }
+    const { inss, irrf } = calcularEncargos(proventos, faixasInss, faixasIrrf);
+    setItens((arr) => {
+      const semAuto = arr.filter((it) => it.descricao !== "INSS" && it.descricao !== "IRRF");
+      const novos = [...semAuto];
+      if (inss > 0) novos.push({ rubricaId: null, descricao: "INSS", tipo: "desconto", valor: inss });
+      if (irrf > 0) novos.push({ rubricaId: null, descricao: "IRRF", tipo: "desconto", valor: irrf });
+      return novos;
+    });
+    if (inss === 0 && irrf === 0) {
+      toast.message("Configure as faixas em Configurações → Encargos.");
+    } else {
+      toast.success(`INSS R$ ${inss.toLocaleString("pt-BR")} · IRRF R$ ${irrf.toLocaleString("pt-BR")}`);
+    }
   }
 
   function salvar() {
@@ -368,6 +403,13 @@ function HoleriteEditor({
                 + {r.nome}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={calcularEncargosClick}
+              className="rounded-sm border border-primary/50 px-2 py-1 text-xs text-primary hover:bg-primary/10"
+            >
+              ∑ Calcular INSS/IRRF
+            </button>
           </div>
 
           <p className="border-t pt-2 text-right text-sm font-semibold">

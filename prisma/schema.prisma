@@ -1547,6 +1547,19 @@ model RubricaFolha {
   @@map("rubrica_folha")
 }
 
+/// Faixa de encargo da folha (INSS/IRRF). Sem valores embutidos — configurável em Configurações.
+model EncargoFaixa {
+  id       String  @id @default(cuid())
+  tipo     String // "inss" | "irrf"
+  limite   Decimal @db.Decimal(14, 2) // limite superior da faixa
+  aliquota Decimal @db.Decimal(6, 3) // %
+  deduzir  Decimal @default(0) @db.Decimal(14, 2) // parcela a deduzir (IRRF)
+  ordem    Int     @default(0)
+
+  @@index([tipo, ordem])
+  @@map("encargo_faixa")
+}
+
 enum StatusFolha {
   aberta
   fechada
