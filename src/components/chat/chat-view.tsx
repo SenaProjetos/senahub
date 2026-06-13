@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Send, Hash, AtSign, Plus, Circle, Paperclip, X, FileText } from "lucide-react";
+import { Send, Hash, AtSign, Plus, Circle, Paperclip, X, FileText, Smile } from "lucide-react";
 import { getSocket, tocarSom } from "@/lib/chat-client";
 import {
   enviarMensagem,
@@ -52,6 +52,21 @@ const STATUS_COR: Record<string, string> = {
   reuniao: "text-status-revisao",
 };
 
+const EMOJIS = ["👍","🙏","✅","🔥","🎉","😀","😅","😂","🤔","👀","💪","🚀","❤️","👏","🙌","📌","⚠️","✏️","📎","💡","✔️","❌","⏰","📅","💰","📈","🏗️","📐"];
+
+/** Realça @menções no texto da mensagem. */
+function renderConteudo(txt: string) {
+  return txt.split(/(@\w+)/g).map((parte, i) =>
+    parte.startsWith("@") ? (
+      <span key={i} className="font-semibold opacity-90">
+        {parte}
+      </span>
+    ) : (
+      <span key={i}>{parte}</span>
+    ),
+  );
+}
+
 export function ChatView({
   canais: canaisIniciais,
   usuarios,
@@ -73,6 +88,7 @@ export function ChatView({
   const [online, setOnline] = useState<Set<string>>(new Set());
   const [anexo, setAnexo] = useState<File | null>(null);
   const [enviandoAnexo, setEnviandoAnexo] = useState(false);
+  const [emojiAberto, setEmojiAberto] = useState(false);
   const anexoRef = useRef<HTMLInputElement>(null);
   const fimRef = useRef<HTMLDivElement>(null);
   const selRef = useRef(sel);
@@ -185,6 +201,17 @@ export function ChatView({
 
   const canalSel = canais.find((c) => c.id === sel);
 
+  const mencaoMatch = texto.match(/(^|\s)@(\w*)$/);
+  const mencaoOpcoes = mencaoMatch
+    ? usuarios
+        .filter((u) => u.id !== meId && u.name.toLowerCase().includes(mencaoMatch[2].toLowerCase()))
+        .slice(0, 6)
+    : [];
+  function inserirMencao(nome: string) {
+    const primeiro = nome.split(" ")[0];
+    setTexto((t) => t.replace(/(^|\s)@(\w*)$/, (_m, pre) => `${pre}@${primeiro} `));
+  }
+
   return (
     <div className="grid h-[calc(100svh-9rem)] grid-cols-1 gap-3 lg:grid-cols-[300px_1fr]">
       {/* Lista de canais */}
@@ -289,7 +316,9 @@ export function ChatView({
                           </a>
                         )
                       )}
-                      {m.conteudo && <p className="whitespace-pre-wrap break-words">{m.conteudo}</p>}
+                      {m.conteudo && (
+                        <p className="whitespace-pre-wrap break-words">{renderConteudo(m.conteudo)}</p>
+                      )}
                       <p className="mt-0.5 text-right text-[10px] opacity-60">
                         {new Date(m.createdAt).toLocaleTimeString("pt-BR", {
                           hour: "2-digit",
@@ -302,7 +331,7 @@ export function ChatView({
               })}
               <div ref={fimRef} />
             </div>
-            <div className="border-t p-2">
+            <div className="relative border-t p-2">
               {anexo && (
                 <div className="mb-2 flex items-center gap-2 rounded-sm border bg-muted/40 px-2 py-1 text-xs">
                   <Paperclip className="size-3 shrink-0" />
@@ -310,6 +339,38 @@ export function ChatView({
                   <button type="button" onClick={() => setAnexo(null)} aria-label="Remover anexo">
                     <X className="size-3.5 text-muted-foreground hover:text-foreground" />
                   </button>
+                </div>
+              )}
+              {mencaoOpcoes.length > 0 && (
+                <div className="absolute bottom-full left-2 z-10 mb-1 w-56 overflow-hidden rounded-sm border bg-popover shadow-md">
+                  {mencaoOpcoes.map((u) => (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => inserirMencao(u.name)}
+                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-muted"
+                    >
+                      <AtSign className="size-3 text-muted-foreground" />
+                      <span className="truncate">{u.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {emojiAberto && (
+                <div className="absolute bottom-full left-2 z-10 mb-1 grid w-64 grid-cols-8 gap-1 rounded-sm border bg-popover p-2 shadow-md">
+                  {EMOJIS.map((e) => (
+                    <button
+                      key={e}
+                      type="button"
+                      onClick={() => {
+                        setTexto((t) => t + e);
+                        setEmojiAberto(false);
+                      }}
+                      className="rounded-sm p-1 text-lg hover:bg-muted"
+                    >
+                      {e}
+                    </button>
+                  ))}
                 </div>
               )}
               <div className="flex items-center gap-2">
@@ -329,6 +390,14 @@ export function ChatView({
                   aria-label="Anexar arquivo"
                 >
                   <Paperclip className="size-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setEmojiAberto((v) => !v)}
+                  aria-label="Emoji"
+                >
+                  <Smile className="size-4" />
                 </Button>
                 <Input
                   value={texto}
