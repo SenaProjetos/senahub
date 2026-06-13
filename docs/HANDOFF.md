@@ -174,6 +174,25 @@ A v1 está funcional; a visão é ser O gerador de TODO documento do escritório
 - **Anexos no chat** com preview de imagem; **emoji picker**; **menções** com autocomplete (hoje texto simples).
 - **Tema do cliente externo**: portal mínimo do cliente (projetos read-only + extrato) com layout próprio.
 
+### 5.6 Revisão de front-end — fidelidade ao mockup (`docs/design/direcao-final.html`)
+Tokens (paleta dark/light, radius 2px, fundo mosaico, cores de status), fontes e fundo estão fiéis.
+Já corrigido (commit `fix(design): fidelidade ao mockup`):
+- **Fonte** (causa raiz): variáveis do next/font estavam no `<body>`, mas `font-sans` é aplicado no
+  `<html>` → corpo caía no serif do navegador. Movidas para o `<html>`. **Conferir visualmente** que
+  todo texto agora é Schibsted Grotesk (e mono = Red Hat Mono).
+- **Card**: borda 1px + borda-esquerda 4px de acento (Navy) + sombra (era `ring` fraco); título 700.
+- **Badge** `rounded-sm`; **chips de status** com quadradinho de acento.
+
+Pendente (auditoria ampla, varrer todas as telas comparando com o mockup):
+- **Hierarquia tipográfica**: conferir pesos/tamanhos por tela (mockup: h1 800/-.02em, KPI 800,
+  título de card 700, h2 de login 700; rótulos mono 10px uppercase tracking .14–.16em).
+- **Login**: comparar layout/espaçamentos com o card de login do mockup.
+- **Tabelas**: cabeçalho mono uppercase + `tracking` e linhas (`row-line`/`row-hover`) como no mockup.
+- **KPIs/dashboard**: deltas (▲ verde / warn) e tamanhos.
+- **Barras de progresso**: gradiente `interactive→accent` (mockup) vs cor sólida atual.
+- **Sidebar/header/bottom-nav**: revisar contra a identidade (não há no mockup; validar coerência).
+- Rodar com `npm run dev` e comparar lado a lado claro/escuro; idealmente Playwright screenshot diff.
+
 ## 6. Gotchas técnicos (economizam horas)
 
 - **Prisma 7**: URL no `prisma.config.ts` (não no schema); client gerado em `src/generated/prisma` (ESM);
