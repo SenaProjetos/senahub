@@ -12,6 +12,7 @@ export async function listarUsuarios(opts?: { incluirInativos?: boolean }) {
       role: true,
       ativo: true,
       mustChangePassword: true,
+      clienteId: true,
       createdAt: true,
     },
   });

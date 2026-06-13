@@ -55,11 +55,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-type FormState = { id?: string; name: string; email: string; role: Role };
+type FormState = { id?: string; name: string; email: string; role: Role; clienteId: string };
 
-const EMPTY: FormState = { name: "", email: "", role: "projetista_pj" };
+const EMPTY: FormState = { name: "", email: "", role: "projetista_pj", clienteId: "" };
 
-export function UsuariosView({ usuarios }: { usuarios: UsuarioListItem[] }) {
+export function UsuariosView({
+  usuarios,
+  clientes,
+}: {
+  usuarios: UsuarioListItem[];
+  clientes: { id: string; nome: string }[];
+}) {
   const [mostrarInativos, setMostrarInativos] = useState(true);
   const [form, setForm] = useState<FormState | null>(null);
   const [credencial, setCredencial] = useState<{ email: string; senha: string } | null>(null);
@@ -71,13 +77,13 @@ export function UsuariosView({ usuarios }: { usuarios: UsuarioListItem[] }) {
     if (!form) return;
     startTransition(async () => {
       if (form.id) {
-        const res = await editarUsuario({ id: form.id, name: form.name, role: form.role });
+        const res = await editarUsuario({ id: form.id, name: form.name, role: form.role, clienteId: form.clienteId });
         if (res.ok) {
           toast.success("Usuário atualizado.");
           setForm(null);
         } else toast.error(res.error);
       } else {
-        const res = await criarUsuario({ name: form.name, email: form.email, role: form.role });
+        const res = await criarUsuario({ name: form.name, email: form.email, role: form.role, clienteId: form.clienteId });
         if (res.ok) {
           setForm(null);
           setCredencial({ email: res.data.email, senha: res.data.senhaTemporaria });
@@ -162,7 +168,13 @@ export function UsuariosView({ usuarios }: { usuarios: UsuarioListItem[] }) {
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem
                         onClick={() =>
-                          setForm({ id: u.id, name: u.name, email: u.email, role: u.role as Role })
+                          setForm({
+                            id: u.id,
+                            name: u.name,
+                            email: u.email,
+                            role: u.role as Role,
+                            clienteId: u.clienteId ?? "",
+                          })
                         }
                       >
                         <Pencil className="size-4" /> Editar
@@ -246,6 +258,27 @@ export function UsuariosView({ usuarios }: { usuarios: UsuarioListItem[] }) {
                   </SelectContent>
                 </Select>
               </div>
+              {form.role === "cliente" && (
+                <div className="space-y-1.5">
+                  <Label>Cliente vinculado (portal)</Label>
+                  <Select
+                    value={form.clienteId || "__none"}
+                    onValueChange={(v) => setForm({ ...form, clienteId: v === "__none" ? "" : (v ?? "") })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">— não vinculado</SelectItem>
+                      {clientes.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>

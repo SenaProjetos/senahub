@@ -45,7 +45,14 @@ export type NavGroup = {
 export const NAV_GROUPS: NavGroup[] = [
   {
     items: [
-      { title: "Início", href: "/", icon: Home, mobile: true },
+      {
+        title: "Início",
+        href: "/",
+        icon: Home,
+        roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"],
+        mobile: true,
+      },
+      { title: "Meus projetos", href: "/portal", icon: FolderKanban, roles: ["cliente"], mobile: true },
       {
         title: "Projetos",
         href: "/projetos",

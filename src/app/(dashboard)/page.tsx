@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -22,6 +23,7 @@ function brl(v: number) {
 
 export default async function HomePage() {
   const user = await requireUser();
+  if (user.role === "cliente") redirect("/portal");
   const [kpis, projetos, receita, snapshots] = await Promise.all([
     kpisHome(),
     projetosRecentes(user),

@@ -16,6 +16,7 @@ export async function criarUsuarioComCredencial(input: {
   name: string;
   email: string;
   role: Role;
+  clienteId?: string;
 }): Promise<{ id: string; senhaTemporaria: string }> {
   const senhaTemporaria = gerarSenhaTemporaria();
   const ctx = await auth.$context;
@@ -29,6 +30,7 @@ export async function criarUsuarioComCredencial(input: {
       role: input.role,
       ativo: true,
       mustChangePassword: true,
+      clienteId: input.role === "cliente" ? input.clienteId || null : null,
     },
   });
 

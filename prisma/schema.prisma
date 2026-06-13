@@ -34,6 +34,9 @@ model User {
   ativo              Boolean    @default(true)
   mustChangePassword Boolean    @default(false)
   chatStatus         ChatStatus @default(disponivel)
+  /// Vínculo do usuário externo (role cliente) ao Cliente que ele representa no portal.
+  clienteId          String?
+  cliente            Cliente?   @relation("ClienteUsuarios", fields: [clienteId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -264,6 +267,7 @@ model Cliente {
   lancamentos Lancamento[]
   leads       Lead[]
   propostas   Proposta[]
+  usuarios    User[]             @relation("ClienteUsuarios")
   docsJuridicos DocumentoJuridico[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt

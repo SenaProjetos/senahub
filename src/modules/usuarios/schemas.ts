@@ -5,12 +5,14 @@ export const criarUsuarioSchema = z.object({
   name: z.string().min(2, "Informe o nome."),
   email: z.string().email("E-mail inválido."),
   role: z.enum(ROLES),
+  clienteId: z.string().optional().or(z.literal("")),
 });
 
 export const editarUsuarioSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(2, "Informe o nome."),
   role: z.enum(ROLES),
+  clienteId: z.string().optional().or(z.literal("")),
 });
 
 export const usuarioIdSchema = z.object({ id: z.string().min(1) });

@@ -50,7 +50,11 @@ export const editarUsuario = defineAction(
   async (input) => {
     await prisma.user.update({
       where: { id: input.id },
-      data: { name: input.name, role: input.role },
+      data: {
+        name: input.name,
+        role: input.role,
+        clienteId: input.role === "cliente" ? input.clienteId || null : null,
+      },
     });
     revalidatePath(REVALIDATE);
     return { id: input.id };
