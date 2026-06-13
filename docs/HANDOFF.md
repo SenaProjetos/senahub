@@ -141,9 +141,9 @@ A v1 está funcional; a visão é ser O gerador de TODO documento do escritório
   (`GerarDocumentoButton` + `modelosPorFonte`) abre o preview com parâmetro pré-preenchido;
   ✅ **modelo padrão por tipo** em Configurações → Documentos padrão (`ConfigSistema 'documentos.padroes'`;
   o padrão aparece primeiro no dropdown). Sem modelo da fonte → botão oculto.
-- **PDF server-side** (puppeteer-core + chrome headless local) p/ anexar a e-mail
-  (proposta por e-mail O4) sem depender do diálogo de impressão. **Pendente — precisa validação manual**
-  (binário do Chrome no servidor + teste do PDF). Hoje: Imprimir/PDF via diálogo do navegador.
+- ✅ **PDF server-side** (puppeteer-core): `GET /api/documentos/[id]/pdf` — Chrome headless (`CHROME_PATH`)
+  navega no preview com o cookie de sessão e gera A4; botão "Baixar PDF". **Configurar `CHROME_PATH`
+  no servidor** (caminho do chrome.exe) e validar a geração. Falta: anexar automaticamente ao e-mail da proposta.
 - **Paginação real**: quebra por altura de página, rodapé de página repetido em cada página,
   `[Pagina]/[Paginas]` reais (hoje render é fluxo único; rodapePagina renderiza 1×).
 - **Novos elementos**: tabela rica (colunas configuráveis, zebra), gráfico (recharts→SVG estático),
@@ -169,14 +169,14 @@ A v1 está funcional; a visão é ser O gerador de TODO documento do escritório
 - **react-hook-form + @hookform/resolvers**: formulários grandes (proposta) — hoje forms são useState manual.
 - ✅ **Avatares**: upload `POST /api/avatar` (sharp 256²) + serve `/api/avatar/[id]` + "Alterar foto" no menu; exibe no header/chat via `user.image`. **Validar upload no navegador.**
 - **Holerite/Relatórios em PDF** (jspdf, além do Excel).
-- **DFC e Balanço** (além da DRE).
-- **Encargos automáticos folha** (tabelas INSS/IRRF progressivas → calcular descontos). **Precisa validação manual** das tabelas vigentes.
+- ✅ **DFC** (`/financeiro/dfc`, método direto por atividade, classificação de categoria) e ✅ **Balanço gerencial** (`/financeiro/balanco`, posição base caixa — não é Balanço contábil formal).
+- ✅ **Encargos folha (INSS/IRRF)**: motor progressivo (`lib/encargos.ts`, testado) + faixas configuráveis (Configurações → Encargos) + botão "Calcular INSS/IRRF" no holerite. **Estrutura pronta — informar os valores vigentes em Configurações.**
 - **Logs estruturados** (pino) + rotação de arquivos. (`/api/health` ✅ já existe.)
 - **Playwright e2e** nos fluxos críticos (login, upload→validação, lançamento).
 - **2FA opcional** (plugin better-auth) para admin.
 - **Multi-instância** (só se precisar): presença do chat + socket.io para Redis adapter.
 - ✅ **Chat**: anexos (imagem/arquivo, `/api/chat/anexo` membership-gated), **emoji picker** e **menções** com autocomplete (`@`). **Validar no navegador (`dev:server`).**
-- **Tema do cliente externo**: portal mínimo do cliente (projetos read-only + extrato) com layout próprio.
+- ✅ **Portal do cliente externo** (`/portal`): projetos read-only + disciplinas, escopo estrito por `User.clienteId` (vinculado em Configurações → Usuários). Cliente é redirecionado p/ o portal no login. Layout reusa o shell (nav filtrado).
 
 ### 5.6 Revisão de front-end — fidelidade ao mockup (`docs/design/direcao-final.html`)
 Tokens (paleta dark/light, radius 2px, fundo mosaico, cores de status), fontes e fundo estão fiéis.
@@ -186,6 +186,7 @@ Já corrigido (commit `fix(design): fidelidade ao mockup`):
   todo texto agora é Schibsted Grotesk (e mono = Red Hat Mono).
 - **Card**: borda 1px + borda-esquerda 4px de acento (Navy) + sombra (era `ring` fraco); título 700.
 - **Badge** `rounded-sm`; **chips de status** com quadradinho de acento.
+- **Cabeçalho de tabela** (shadcn `TableHead`): mono 10px uppercase tracking, igualando ao mockup.
 
 Pendente (auditoria ampla, varrer todas as telas comparando com o mockup):
 - **Hierarquia tipográfica**: conferir pesos/tamanhos por tela (mockup: h1 800/-.02em, KPI 800,
