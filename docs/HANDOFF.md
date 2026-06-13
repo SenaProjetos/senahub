@@ -167,7 +167,7 @@ A v1 está funcional; a visão é ser O gerador de TODO documento do escritório
 - ✅ **DFC/Balanço**: ⬜ ainda falta (além da DRE). **Paginação**: auditoria ✅ pagina; lançamentos faz filtro client-side (paginar exigiria mover filtros p/ server — quando o volume crescer).
 - **@dnd-kit**: funil comercial (O4) e Kanban de tarefas (O5).
 - **react-hook-form + @hookform/resolvers**: formulários grandes (proposta) — hoje forms são useState manual.
-- **Avatares**: upload com `sharp` (resize), exibir no header/chat.
+- ✅ **Avatares**: upload `POST /api/avatar` (sharp 256²) + serve `/api/avatar/[id]` + "Alterar foto" no menu; exibe no header/chat via `user.image`. **Validar upload no navegador.**
 - **Holerite/Relatórios em PDF** (jspdf, além do Excel).
 - **DFC e Balanço** (além da DRE).
 - **Encargos automáticos folha** (tabelas INSS/IRRF progressivas → calcular descontos). **Precisa validação manual** das tabelas vigentes.
