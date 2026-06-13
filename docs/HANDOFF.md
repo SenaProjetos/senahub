@@ -175,7 +175,7 @@ A v1 está funcional; a visão é ser O gerador de TODO documento do escritório
 - **Playwright e2e** nos fluxos críticos (login, upload→validação, lançamento).
 - **2FA opcional** (plugin better-auth) para admin.
 - **Multi-instância** (só se precisar): presença do chat + socket.io para Redis adapter.
-- ✅ **Anexos no chat** (imagem com preview, arquivo com link; `POST/GET /api/chat/anexo`, membership-gated). **Validar no navegador (`dev:server`).** Falta: **emoji picker**, **menções** com autocomplete.
+- ✅ **Chat**: anexos (imagem/arquivo, `/api/chat/anexo` membership-gated), **emoji picker** e **menções** com autocomplete (`@`). **Validar no navegador (`dev:server`).**
 - **Tema do cliente externo**: portal mínimo do cliente (projetos read-only + extrato) com layout próprio.
 
 ### 5.6 Revisão de front-end — fidelidade ao mockup (`docs/design/direcao-final.html`)
