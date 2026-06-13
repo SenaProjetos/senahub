@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import type { Orcamento, LinhaOrcamento } from "@/modules/financeiro/relatorios/queries";
+import type { Orcamento, LinhaOrcamento, MesResultado } from "@/modules/financeiro/relatorios/queries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ResultadoMensalChart } from "@/components/financeiro/resultado-mensal-chart";
 import {
   Select,
   SelectContent,
@@ -57,7 +58,15 @@ function Secao({ titulo, linhas }: { titulo: string; linhas: LinhaOrcamento[] })
   );
 }
 
-export function OrcamentoView({ ano, orcamento }: { ano: number; orcamento: Orcamento }) {
+export function OrcamentoView({
+  ano,
+  orcamento,
+  serieMensal,
+}: {
+  ano: number;
+  orcamento: Orcamento;
+  serieMensal: MesResultado[];
+}) {
   const router = useRouter();
   const t = orcamento.totais;
   const atual = new Date().getFullYear();
@@ -110,6 +119,16 @@ export function OrcamentoView({ ano, orcamento }: { ano: number; orcamento: Orca
           </Card>
         ))}
       </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Resultado mensal — {ano}</CardTitle>
+          <CardDescription>Receita − despesa realizadas, por mês.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResultadoMensalChart dados={serieMensal} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="pb-2">

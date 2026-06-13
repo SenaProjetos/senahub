@@ -110,6 +110,34 @@ export async function orcamentoPorCategoria(de: Date, ate: Date): Promise<Orcame
   };
 }
 
+export type MesResultado = { mes: number; rotulo: string; receita: number; despesa: number; resultado: number };
+
+/** Série mensal (12 meses do ano) de receita/despesa realizadas e resultado — para gráfico. */
+export async function serieMensalResultado(ano: number): Promise<MesResultado[]> {
+  const lancs = await prisma.lancamento.findMany({
+    where: {
+      status: "confirmado",
+      dataConfirmacao: { gte: new Date(ano, 0, 1), lte: new Date(ano, 11, 31, 23, 59, 59) },
+    },
+    select: { tipo: true, valor: true, valorEfetivo: true, dataConfirmacao: true },
+  });
+  const meses: MesResultado[] = Array.from({ length: 12 }, (_, i) => ({
+    mes: i,
+    rotulo: new Date(ano, i, 1).toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""),
+    receita: 0,
+    despesa: 0,
+    resultado: 0,
+  }));
+  for (const l of lancs) {
+    const m = l.dataConfirmacao!.getMonth();
+    const v = Number(l.valorEfetivo ?? l.valor);
+    if (l.tipo === "receita") meses[m].receita += v;
+    else meses[m].despesa += v;
+  }
+  for (const m of meses) m.resultado = m.receita - m.despesa;
+  return meses;
+}
+
 /** Indicadores rápidos do período. */
 export async function indicadores(de: Date, ate: Date) {
   const [projetosAtivos, recebido, aReceber] = await Promise.all([
