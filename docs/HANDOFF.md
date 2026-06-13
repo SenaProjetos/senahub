@@ -122,11 +122,11 @@ Existente: backup diário (pg_dump → pasta; conferir destino/retenção no dep
 
 ### 5.4 Deploy / Cutover (produção no mesmo servidor Windows 11)
 1. `.env` produção: `DATABASE_URL` (db novo `senahub` prod na instância 5433 ou nova), senha forte do Postgres, `BETTER_AUTH_SECRET` forte (32+ bytes), `BETTER_AUTH_URL`/`APP_URL` = domínio público, `NODE_ENV=production`, SMTP real, `STORAGE_BASE_PATH` = pasta de rede definitiva.
-2. `npm run build` + rodar `npm start` (server.ts) como **serviço Windows via NSSM** — criar `scripts/instalar-servico.ps1` (nssm install SenaHub "node caminho" …; AppDirectory; stdout/stderr log; restart on failure).
+2. `npm run build` + rodar `npm start` (server.ts) como **serviço Windows via NSSM** — ✅ `scripts/instalar-servico.ps1` criado (node tsx server.ts; AppDirectory; env; logs com rotação; restart on failure; idempotente). Rodar como admin no servidor após `npm install`+`npm run build`. **Não executado** (precisa nssm/prod).
 3. **cloudflared** como serviço apontando `http://localhost:3000` (tunnel já existe p/ sistema antigo — criar rota nova ou trocar no cutover). LAN acessa direto `http://servidor:3000`.
 4. Backup: job pg_boss diário roda `pg_dump` → pasta de rede, retenção 30 dias; testar restauração.
 5. better-auth: remover `disableCSRFCheck` de dev; conferir `trustedOrigins=[BETTER_AUTH_URL]`.
-6. PWA: gerar ícones reais (`public/icons/icon-192.png`/512 a partir de `public/MARCA/icon.ico`).
+6. PWA: ✅ ícones reais já existem em `public/icons/` (192/512/maskable, via `scripts/gerar-icones.ts`).
 7. Re-cadastro do essencial (usuários, clientes, projetos ativos); sistema antigo vira leitura.
 8. Security pass: rate-limit login ok; revisar CSP/headers (`next.config.ts`); `robots` já noindex.
 
@@ -139,11 +139,12 @@ A v1 está funcional; a visão é ser O gerador de TODO documento do escritório
   + `fontes.ts` (resolução); o seletor de parâmetro é genérico por `tipo` em `preview-bar.tsx`
   (mes = input month; resto = select de `opcoesParametros`) — o editor pega a fonte automático.
 - **Integração nos módulos**: ✅ botão "Gerar documento" no projeto/proposta/holerite
-  (`GerarDocumentoButton` + `modelosPorFonte`) abre o preview com parâmetro pré-preenchido
-  (`/documentos/[id]/preview?projetoId=…`); sem modelo da fonte → botão oculto. Falta: campo
-  "modelo padrão por tipo" em Configurações (hoje lista todos os modelos da fonte no dropdown).
+  (`GerarDocumentoButton` + `modelosPorFonte`) abre o preview com parâmetro pré-preenchido;
+  ✅ **modelo padrão por tipo** em Configurações → Documentos padrão (`ConfigSistema 'documentos.padroes'`;
+  o padrão aparece primeiro no dropdown). Sem modelo da fonte → botão oculto.
 - **PDF server-side** (puppeteer-core + chrome headless local) p/ anexar a e-mail
-  (proposta por e-mail O4) sem depender do diálogo de impressão.
+  (proposta por e-mail O4) sem depender do diálogo de impressão. **Pendente — precisa validação manual**
+  (binário do Chrome no servidor + teste do PDF). Hoje: Imprimir/PDF via diálogo do navegador.
 - **Paginação real**: quebra por altura de página, rodapé de página repetido em cada página,
   `[Pagina]/[Paginas]` reais (hoje render é fluxo único; rodapePagina renderiza 1×).
 - **Novos elementos**: tabela rica (colunas configuráveis, zebra), gráfico (recharts→SVG estático),
@@ -152,14 +153,17 @@ A v1 está funcional; a visão é ser O gerador de TODO documento do escritório
 - **UX**: arrastar da paleta direto pro canvas, multi-seleção, alinhar/distribuir,
   guias inteligentes (smart guides), copiar/colar entre bandas e modelos, réguas (px/mm),
   grade configurável, modo mm (impressão técnica).
-- **Documentos gerados persistidos**: model `DocumentoGerado` (modeloId, params, snapshot do
-  schema+dados, PDF no storage) p/ histórico imutável do que foi enviado ao cliente.
+- **Documentos gerados persistidos**: ✅ model `DocumentoGerado` (snapshot schema+dados+params, nomes
+  guardados), botão "Salvar geração" no preview, histórico em `/documentos/gerados` ("Reabrir" no preview).
+  Falta: anexar o PDF no storage (depende do PDF server-side).
 - **Condicionais**: visibilidade de elemento por expressão (ex.: só mostra se [Valor]>0);
   blocos repetidos aninhados (grupos com subtotal).
 
 ### 5.5 Melhorias e ferramentas sugeridas (backlog futuro)
-- **Busca global** (Ctrl+K): shadcn `command` (cmdk) — projetos/clientes/lançamentos.
-- **Gráficos**: `recharts` no dashboard, DRE (barras mensais), fluxo de caixa projetado, qualidade.
+- ✅ **Busca global** (Ctrl+K): `CommandPalette` próprio (sem cmdk) sobre o Dialog base-ui — projetos/clientes/lançamentos, escopado por viewer; gatilho no header.
+- **Gráficos**: ✅ dashboard (receita 6m realizado×previsto) e ✅ qualidade (linha de tendência) com **SVG/CSS próprio** (sem recharts — evita risco de dep). Falta: DRE (barras mensais), fluxo de caixa projetado.
+- ✅ **Dashboard executivo**: KPIs reais + gráfico de receita + tabela "Projetos recentes" (estilo mockup).
+- ✅ **/api/health** (ping de banco; rota pública; Uptime Kuma/LB).
 - **@dnd-kit**: funil comercial (O4) e Kanban de tarefas (O5).
 - **react-hook-form + @hookform/resolvers**: formulários grandes (proposta) — hoje forms são useState manual.
 - **Avatares**: upload com `sharp` (resize), exibir no header/chat.
@@ -167,7 +171,7 @@ A v1 está funcional; a visão é ser O gerador de TODO documento do escritório
 - **DFC e Balanço** (além da DRE); **orçamento anual** (previsto×realizado por categoria).
 - **Encargos automáticos folha** (tabelas INSS/IRRF progressivas → calcular descontos).
 - **Paginação/virtualização** nas tabelas grandes (lançamentos, auditoria) quando o volume crescer.
-- **Logs estruturados** (pino) + rotação de arquivos; endpoint `/api/health` p/ monitoramento (Uptime Kuma local).
+- **Logs estruturados** (pino) + rotação de arquivos. (`/api/health` ✅ já existe.)
 - **Playwright e2e** nos fluxos críticos (login, upload→validação, lançamento).
 - **2FA opcional** (plugin better-auth) para admin.
 - **Multi-instância** (só se precisar): presença do chat + socket.io para Redis adapter.
