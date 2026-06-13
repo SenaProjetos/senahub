@@ -1,10 +1,10 @@
 # SenaHub Remake — Handoff / Estado do Projeto
 
 > Documento de continuidade. Permite a qualquer dev/IA retomar o trabalho do ponto exato.
-> Atualizado em 2026-06-13. Ondas 0–4 + **Onda D (Estúdio de Documentos v1)** completas e
-> verificadas. **Onda 5 entregue em 6 de 8 submódulos** (tarefas, agenda, jurídico,
-> licitações, qualidade, suporte + 7 automações pg-boss). **Falta de O5: Planejamento/Recursos**
-> (EAP/gantt/baseline/matriz de recursos). Depois: evoluções do Estúdio e deploy.
+> Atualizado em 2026-06-13. Ondas 0–4 + **Onda D (Estúdio de Documentos v1)** + **Onda 5
+> completa** (tarefas, agenda, jurídico, licitações, qualidade, suporte, **planejamento/recursos**
+> + 7 automações pg-boss). Verificadas (tsc limpo, 41 testes, smokes O1–O5). Próximo:
+> evoluções do Estúdio (§5.4b), restos opcionais (§5.2) e deploy (§5.4).
 
 ---
 
@@ -31,7 +31,7 @@ npm run build              # next build --turbopack
 npm test                   # vitest (33 testes)
 npm run db:migrate         # prisma migrate dev
 npm run db:seed            # admin + permissões + catálogos (idempotente)
-npm run smoke:onda1|onda2|onda3efg   # smokes e2e contra o banco de dev
+npm run smoke:onda1|onda2|onda3|onda3efg|onda4|onda5   # smokes e2e contra o banco de dev
 ```
 
 - **Banco dev:** PostgreSQL 17 nativo Windows, porta **5433**, db `senahub_remake` (`.env` → `DATABASE_URL`). O 5432 é o Docker do sistema ANTIGO — não tocar.
@@ -79,6 +79,8 @@ Matriz fina configurável em Configurações→Permissões (catálogo em `lib/pe
 
 | **O5** (parcial) | **Complementares** (commits `fix(auth)` + `feat(onda-5)`): **Tarefas** (`/tarefas`, dnd-kit, colunas configuráveis `TarefaStatus`, **dependências com bloqueio de conclusão**, checklist, multi-responsáveis, prazos, notifica). **Agenda** (`/agenda`, compromissos+convites+confirmação, **prazos de projeto/disciplina no calendário marcação única**, notifica convidados). **Jurídico** (`/juridico`, docs por projeto/cliente **versionados** upload/download, certidões tipo+validade, `juridico:ver\|gerir`). **Licitações** (`/licitacoes`, processos+docs versionados, **medição→Lancamento receita previsto cat 1.02**, **importar ganha→projeto+canais+docs ao Jurídico**, `licitacoes:ver\|gerir`). **Qualidade** (`/qualidade`, índice de retrabalho por disciplina, snapshots mensais, **KPIs reais da home**). **Suporte** (`/suporte`, tickets+mensagens+status). **7 automações pg-boss** (`lib/jobs-handlers.ts`): prazo disciplina D-7/3/1, inadimplência D+1, certidões 30/15/7, licitações 15/7/1, lembrete ponto, snapshot qualidade mensal, resumo semanal e-mail. | tsc limpo, 41 testes, rotas compilam (307) |
 
+| **O5b** | **Planejamento & Recursos** (commit `feat(onda-5): planejamento/recursos`). **Planejamento** (`/planejamento`, `modules/planejamento`): índice de projetos com resumo do plano; por projeto (`/planejamento/[id]`) **EAP hierárquica** (tarefa/subtarefa), **gantt de linha dupla** (`components/planejamento/gantt.tsx`: barra prevista + progresso × barra de linha de base, eixo por mês, marcador de hoje), **dependências FS** com detecção de ciclo, **definir/atualizar linha de base** (snapshot previsto→baseline na própria tarefa), **aplicar ao projeto** (grava prazo das disciplinas vinculadas), tabela WBS com coluna de desvio (±dias vs baseline). `planejamento:ver` (internos exceto freelancer, escopo de projeto) / `gerir` (gestores); **projetista vê read-only**. **Recursos** (`/recursos`): matriz pessoa × projeto com **multiplicador de capacidade** por pessoa, alocação %/período, **detecção de superalocação** (Σ% > capacidade×100, linha destacada), custo/hora e cor. `recursos:ver\|gerir` (gestores). Models: `EapTarefa`, `EapDependencia`, `Recurso`, `Alocacao`. | `smoke:onda5` (8/8) |
+
 Fluxo crítico completo já funciona: lead→proposta→aceite→projeto→upload→validação→pagamento→folha→lançamento→caixa/DRE.
 
 > **Achado (2026-06-13):** o admin de dev **não loga mais com a senha seed `SenaHub@2026`** —
@@ -93,18 +95,14 @@ Restos opcionais da O4 (não bloqueiam): anexos em proposta; criar proposta dire
 (pré-preenchendo cliente); etapas do funil configuráveis por UI (hoje só seed);
 gerar PDF da proposta pelo Estúdio com modelo padrão por tipo (ver §5.4b).
 
-### 5.2 Onda 5 — Complementares
-**Entregue** (ver tabela §4, linha O5): Jurídico, Licitações, Tarefas, Agenda, Qualidade,
-Suporte + 7 automações pg-boss.
+### 5.2 Onda 5 — Complementares ✅ ENTREGUE (ver tabela §4, linhas O5 e O5b)
+Jurídico, Licitações, Tarefas, Agenda, Qualidade, Suporte, Planejamento/Recursos + 7 automações pg-boss.
 
-**Falta de O5 — Planejamento/Recursos** (próximo): workspace (kanban+gantt rascunho→aplicar),
-**EAP com linha de base** estilo MSProject (gantt com linha dupla: baseline vs real), matriz de
-recursos com **multiplicador de capacidade** por pessoa, detecção de superalocação.
-Projetista vê seus projetos read-only.
-
-Restos opcionais dos submódulos entregues (não bloqueiam): comentários/anexos em Tarefas;
-anexos em Suporte; gauge de qualidade com `recharts` (hoje barras); SLA de entregas e
-produtividade (horas × valor) no Dashboard.
+Restos opcionais (não bloqueiam): comentários/anexos em Tarefas; anexos em Suporte;
+gauge de qualidade com `recharts` (hoje barras); SLA de entregas e produtividade
+(horas × valor) no Dashboard. **Planejamento** (evoluções): reordenar/indentar tarefas por
+drag na EAP; setas de dependência no gantt; superalocação ciente do período (hoje soma total);
+exportar cronograma (Excel/PDF); workspace de rascunho separado antes de aplicar.
 
 ### 5.3 Automações (jobs pg-boss — `lib/jobs.ts` + `lib/jobs-handlers.ts`)
 | Job | Regra | Estado |
