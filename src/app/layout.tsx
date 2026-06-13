@@ -38,10 +38,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
-      <body
-        className={`${schibstedGrotesk.variable} ${redHatMono.variable} brand-backdrop antialiased`}
-      >
+    <html
+      lang="pt-BR"
+      suppressHydrationWarning
+      className={`${schibstedGrotesk.variable} ${redHatMono.variable}`}
+    >
+      <body className="brand-backdrop antialiased">
         <Providers>{children}</Providers>
       </body>
     </html>
