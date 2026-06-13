@@ -138,9 +138,10 @@ A v1 está funcional; a visão é ser O gerador de TODO documento do escritório
   DRE em `modules/financeiro` — hoje só na página/route). Adicionar fonte = `fontes-meta.ts` (metadados)
   + `fontes.ts` (resolução); o seletor de parâmetro é genérico por `tipo` em `preview-bar.tsx`
   (mes = input month; resto = select de `opcoesParametros`) — o editor pega a fonte automático.
-- **Integração nos módulos**: botão "Gerar documento" no projeto/proposta/holerite abrindo
-  o preview com parâmetros pré-preenchidos (`/documentos/[id]/preview?projetoId=…`);
-  campo "modelo padrão por tipo" (ex.: proposta usa modelo X) em Configurações.
+- **Integração nos módulos**: ✅ botão "Gerar documento" no projeto/proposta/holerite
+  (`GerarDocumentoButton` + `modelosPorFonte`) abre o preview com parâmetro pré-preenchido
+  (`/documentos/[id]/preview?projetoId=…`); sem modelo da fonte → botão oculto. Falta: campo
+  "modelo padrão por tipo" em Configurações (hoje lista todos os modelos da fonte no dropdown).
 - **PDF server-side** (puppeteer-core + chrome headless local) p/ anexar a e-mail
   (proposta por e-mail O4) sem depender do diálogo de impressão.
 - **Paginação real**: quebra por altura de página, rodapé de página repetido em cada página,
