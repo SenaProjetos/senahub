@@ -1,8 +1,10 @@
 # SenaHub Remake — Handoff / Estado do Projeto
 
 > Documento de continuidade. Permite a qualquer dev/IA retomar o trabalho do ponto exato.
-> Atualizado em 2026-06-12. Ondas 0–4 + **Onda D (Estúdio de Documentos v1)** completas e
-> verificadas; faltam O5, automações, evoluções do Estúdio e deploy.
+> Atualizado em 2026-06-13. Ondas 0–4 + **Onda D (Estúdio de Documentos v1)** completas e
+> verificadas. **Onda 5 entregue em 6 de 8 submódulos** (tarefas, agenda, jurídico,
+> licitações, qualidade, suporte + 7 automações pg-boss). **Falta de O5: Planejamento/Recursos**
+> (EAP/gantt/baseline/matriz de recursos). Depois: evoluções do Estúdio e deploy.
 
 ---
 
@@ -75,7 +77,14 @@ Matriz fina configurável em Configurações→Permissões (catálogo em `lib/pe
 
 | **O4** | **Comercial/CRM** (`/comercial`, `modules/comercial`): funil Kanban com **@dnd-kit** (etapas semeadas: Orçamento→Em negociação→Proposta enviada→Contratado→Perdido; arrastar move etapa), leads (atividades/notas, **converter→cliente**), meta mensal editável com barra de progresso (realizado = propostas aceitas no mês). **Propostas** `PR-AAXXXX` (sequência atômica): itens por disciplina, condições **% ou R$**, copiar ("— cópia"), **versões snapshot** a cada salvar, **tabela de preço R$/m² × área** (`/comercial/tabelas`, botão "Aplicar"), status rascunho/enviada/aceita/recusada. **Página pública** `/a/proposta/[token]` (só totais, sem unitários) com **pixel** `/api/t/proposta/[token]/pixel` (grava ip/UA, badge de aberturas), **envio por e-mail** com link. Fonte **"proposta"** no Estúdio de Documentos. **Aceitar → cria projeto AAXXXX + disciplinas (valores) + canais de chat (`ensureCanaisProjeto`) + notifica** — zero redigitação. Permissões `comercial:ver\|gerir`. | `smoke:onda4` |
 
+| **O5** (parcial) | **Complementares** (commits `fix(auth)` + `feat(onda-5)`): **Tarefas** (`/tarefas`, dnd-kit, colunas configuráveis `TarefaStatus`, **dependências com bloqueio de conclusão**, checklist, multi-responsáveis, prazos, notifica). **Agenda** (`/agenda`, compromissos+convites+confirmação, **prazos de projeto/disciplina no calendário marcação única**, notifica convidados). **Jurídico** (`/juridico`, docs por projeto/cliente **versionados** upload/download, certidões tipo+validade, `juridico:ver\|gerir`). **Licitações** (`/licitacoes`, processos+docs versionados, **medição→Lancamento receita previsto cat 1.02**, **importar ganha→projeto+canais+docs ao Jurídico**, `licitacoes:ver\|gerir`). **Qualidade** (`/qualidade`, índice de retrabalho por disciplina, snapshots mensais, **KPIs reais da home**). **Suporte** (`/suporte`, tickets+mensagens+status). **7 automações pg-boss** (`lib/jobs-handlers.ts`): prazo disciplina D-7/3/1, inadimplência D+1, certidões 30/15/7, licitações 15/7/1, lembrete ponto, snapshot qualidade mensal, resumo semanal e-mail. | tsc limpo, 41 testes, rotas compilam (307) |
+
 Fluxo crítico completo já funciona: lead→proposta→aceite→projeto→upload→validação→pagamento→folha→lançamento→caixa/DRE.
+
+> **Achado (2026-06-13):** o admin de dev **não loga mais com a senha seed `SenaHub@2026`** —
+> a conta tem hash válido (já trocou a senha no 1º acesso, comportamento esperado, **não é bug**).
+> Os scripts soltos em `scripts/` (check-flag/check-password/disable-must-change/test-login) são
+> scratch desse debug; podem ser removidos. `scripts/check-flag.ts` tem erro de tipo (select inválido).
 
 ## 5. O QUE FALTA
 
@@ -84,36 +93,31 @@ Restos opcionais da O4 (não bloqueiam): anexos em proposta; criar proposta dire
 (pré-preenchendo cliente); etapas do funil configuráveis por UI (hoje só seed);
 gerar PDF da proposta pelo Estúdio com modelo padrão por tipo (ver §5.4b).
 
-### 5.2 Onda 5 — Complementares (próxima)
-- **Jurídico**: pastas por projeto/cliente, contratos versionados (minuta→assinado→aditivo),
-  modelos, certidões (tipos configuráveis, validade), download. Alertas de vencimento 30/15/7 dias (job).
-- **Licitações**: processos (modalidade, datas), documentos versionados, alertas 15/7/1,
-  **medições → Lancamento receita**, importar licitação ganha → projeto (status "Em execução")
-  com documentação indo ao Jurídico em pastas por projeto.
-- **Tarefas**: Kanban colunas configuráveis (`TarefaStatus`), dependências entre tarefas,
-  checklist, multi-responsáveis, comentários, anexos.
-- **Planejamento/Recursos**: workspace (kanban+gantt rascunho→aplicar), **EAP com linha de base**
-  estilo MSProject (gantt com linha dupla: baseline vs real), matriz de recursos com
-  **multiplicador de capacidade** por pessoa, detecção de superalocação. Projetista vê seus projetos read-only.
-- **Agenda**: compromissos, convites com confirmação, agenda do dia; prazos de projeto/disciplina
-  no calendário (marcação única, sem duplicar — bug do sistema antigo).
-- **Qualidade**: índice de retrabalho por disciplina (fonte: `RevisaoDisciplina` já existe),
-  snapshot mensal (job dia 1º), gauge + linha de tendência (instalar `recharts`).
-- **Dashboard/Relatórios executivos**: KPIs reais na home (hoje mostram "—"): projetos ativos,
-  receita prevista, entregas pendentes; SLA de entregas; produtividade (horas × valor — rateio já existe).
-- **Suporte**: tickets internos com anexos e status.
+### 5.2 Onda 5 — Complementares
+**Entregue** (ver tabela §4, linha O5): Jurídico, Licitações, Tarefas, Agenda, Qualidade,
+Suporte + 7 automações pg-boss.
 
-### 5.3 Automações pendentes (jobs pg-boss — `lib/jobs.ts`)
-| Job | Regra |
-|---|---|
-| Alertas prazo disciplina | D-7/D-3/D-1 → notificar responsáveis + gestores (diário) |
-| Lembrete ponto não batido | CLT sem sessão aberta após X min do início da `EscalaTrabalho` (dias úteis) |
-| Inadimplência | Lancamento receita previsto vencido D+1 → notificação interna; e-mail de cobrança opcional |
-| Certidões/contratos | vencimento 30/15/7 (O5 jurídico) |
-| Licitações | prazos 15/7/1 (O5) |
-| Snapshot qualidade | dia 1º, grava índice mensal (O5) |
-| Snapshot dashboard | diário, série histórica de KPIs (O5) |
-| Resumo semanal | e-mail seg 07h para admin/supervisor: entregas, vencimentos, caixa |
+**Falta de O5 — Planejamento/Recursos** (próximo): workspace (kanban+gantt rascunho→aplicar),
+**EAP com linha de base** estilo MSProject (gantt com linha dupla: baseline vs real), matriz de
+recursos com **multiplicador de capacidade** por pessoa, detecção de superalocação.
+Projetista vê seus projetos read-only.
+
+Restos opcionais dos submódulos entregues (não bloqueiam): comentários/anexos em Tarefas;
+anexos em Suporte; gauge de qualidade com `recharts` (hoje barras); SLA de entregas e
+produtividade (horas × valor) no Dashboard.
+
+### 5.3 Automações (jobs pg-boss — `lib/jobs.ts` + `lib/jobs-handlers.ts`)
+| Job | Regra | Estado |
+|---|---|---|
+| Alertas prazo disciplina | D-7/D-3/D-1 → responsáveis + gestores (08:00 diário) | ✅ |
+| Lembrete ponto não batido | CLT/estagiário sem sessão aberta hoje (dias úteis 09:15) | ✅ |
+| Inadimplência | Lancamento receita previsto vencido D+1 → notificação gestores | ✅ |
+| Certidões | vencimento 30/15/7 → gestores | ✅ |
+| Licitações | prazo de proposta 15/7/1 → gestores | ✅ |
+| Snapshot qualidade | dia 1º 02:00, grava índice do mês anterior | ✅ |
+| Resumo semanal | seg 07h: entregas/a receber/a pagar → notificação + e-mail | ✅ |
+| Snapshot dashboard | diário, série histórica de KPIs | ⬜ (com Planejamento/Dashboard) |
+| E-mail de cobrança | inadimplência → e-mail ao cliente (hoje só notificação interna) | ⬜ opcional |
 Existente: backup diário (pg_dump → pasta; conferir destino/retenção no deploy).
 
 ### 5.4 Deploy / Cutover (produção no mesmo servidor Windows 11)
