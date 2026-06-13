@@ -76,6 +76,7 @@ model User {
   compromissosConvites CompromissoParticipante[]
   ticketsAutor         TicketSuporte[]       @relation("TicketAutor")
   ticketMensagens      TicketMensagem[]      @relation("TicketMensagemAutor")
+  recurso              Recurso?
 
   @@index([role])
   @@map("user")
@@ -355,6 +356,8 @@ model Projeto {
   docsJuridicos DocumentoJuridico[]
   licitacao   Licitacao?
   sessoes     SessaoTrabalho[]
+  eapTarefas  EapTarefa[]
+  alocacoes   Alocacao[]
 
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -808,6 +811,7 @@ model Disciplina {
   uploads      Upload[]
   pagamentos   PagamentoProjetista[]
   canais       Canal[]
+  eapTarefas   EapTarefa[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1155,6 +1159,90 @@ model TicketMensagem {
 
   @@index([ticketId])
   @@map("ticket_mensagem")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Planejamento & Recursos (Onda 5)
+// ─────────────────────────────────────────────────────────────
+
+/// Tarefa da EAP (WBS) de um projeto — hierárquica, com datas previstas
+/// (plano atual) e de linha de base (snapshot p/ o gantt de linha dupla).
+model EapTarefa {
+  id             String      @id @default(cuid())
+  projetoId      String
+  projeto        Projeto     @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  parentId       String?
+  parent         EapTarefa?  @relation("EapFilhas", fields: [parentId], references: [id], onDelete: Cascade)
+  filhas         EapTarefa[] @relation("EapFilhas")
+  disciplinaId   String?
+  disciplina     Disciplina? @relation(fields: [disciplinaId], references: [id], onDelete: SetNull)
+  nome           String
+  ordem          Int         @default(0)
+  inicioPrevisto DateTime    @db.Date
+  fimPrevisto    DateTime    @db.Date
+  inicioBaseline DateTime?   @db.Date
+  fimBaseline    DateTime?   @db.Date
+  progresso      Int         @default(0)
+
+  predecessoras EapDependencia[] @relation("EapDependente")
+  sucessoras    EapDependencia[] @relation("EapPredecessora")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projetoId])
+  @@index([parentId])
+  @@map("eap_tarefa")
+}
+
+/// Dependência FS entre tarefas da EAP (predecessora termina antes da sucessora iniciar).
+model EapDependencia {
+  id             String    @id @default(cuid())
+  tarefaId       String
+  tarefa         EapTarefa @relation("EapDependente", fields: [tarefaId], references: [id], onDelete: Cascade)
+  predecessoraId String
+  predecessora   EapTarefa @relation("EapPredecessora", fields: [predecessoraId], references: [id], onDelete: Cascade)
+
+  @@unique([tarefaId, predecessoraId])
+  @@index([predecessoraId])
+  @@map("eap_dependencia")
+}
+
+/// Pessoa como recurso de planejamento (multiplicador de capacidade, custo/hora, cor).
+model Recurso {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  capacidade Decimal  @default(1.0) @db.Decimal(4, 2)
+  custoHora  Decimal? @db.Decimal(10, 2)
+  cor        String   @default("#576980")
+  ativo      Boolean  @default(true)
+
+  alocacoes Alocacao[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("recurso")
+}
+
+/// Alocação de um recurso a um projeto (percentual + período opcional). Base da matriz de recursos.
+model Alocacao {
+  id         String    @id @default(cuid())
+  recursoId  String
+  recurso    Recurso   @relation(fields: [recursoId], references: [id], onDelete: Cascade)
+  projetoId  String
+  projeto    Projeto   @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  percentual Int       @default(100)
+  inicio     DateTime? @db.Date
+  fim        DateTime? @db.Date
+  observacao String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([recursoId, projetoId])
+  @@index([projetoId])
+  @@map("alocacao")
 }
 
 // ─────────────────────────────────────────────────────────────

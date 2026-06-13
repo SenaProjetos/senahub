@@ -16,6 +16,7 @@
     "smoke:onda2": "tsx --tsconfig tsconfig.server.json scripts/smoke-onda2.ts",
     "smoke:onda3efg": "tsx --tsconfig tsconfig.server.json scripts/smoke-onda3efg.ts",
     "smoke:onda4": "tsx --tsconfig tsconfig.server.json scripts/smoke-onda4.ts",
+    "smoke:onda5": "tsx --tsconfig tsconfig.server.json scripts/smoke-onda5.ts",
     "smoke:onda3": "tsx --tsconfig tsconfig.server.json scripts/smoke-onda3.ts",
     "postinstall": "prisma generate"
   },

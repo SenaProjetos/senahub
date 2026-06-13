@@ -70,6 +70,22 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     acoes: [{ acao: "ver", label: "Ver índice de qualidade" }],
   },
   {
+    recurso: "planejamento",
+    label: "Planejamento",
+    acoes: [
+      { acao: "ver", label: "Ver EAP e cronograma dos projetos" },
+      { acao: "gerir", label: "Editar EAP, linha de base e aplicar plano" },
+    ],
+  },
+  {
+    recurso: "recursos",
+    label: "Recursos",
+    acoes: [
+      { acao: "ver", label: "Ver matriz de recursos" },
+      { acao: "gerir", label: "Gerir capacidade e alocações" },
+    ],
+  },
+  {
     recurso: "documentos",
     label: "Estúdio de Documentos",
     acoes: [

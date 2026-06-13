@@ -15,6 +15,7 @@ import {
   Scale,
   Gavel,
   Gauge,
+  GanttChart,
   LifeBuoy,
   Settings,
   ScrollText,
@@ -136,6 +137,18 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: "Gestão",
     items: [
+      {
+        title: "Planejamento",
+        href: "/planejamento",
+        icon: GanttChart,
+        roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj"],
+      },
+      {
+        title: "Recursos",
+        href: "/recursos",
+        icon: Users,
+        roles: ["admin", "supervisor", "administrativo"],
+      },
       {
         title: "Jurídico",
         href: "/juridico",

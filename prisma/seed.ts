@@ -48,6 +48,18 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "administrativo", recurso: "licitacoes", acao: "gerir" },
   { role: "supervisor", recurso: "licitacoes", acao: "ver" },
   { role: "supervisor", recurso: "qualidade", acao: "ver" },
+  // O5: planejamento (ver p/ internos; gerir p/ gestores) e recursos (gestores)
+  { role: "supervisor", recurso: "planejamento", acao: "ver" },
+  { role: "supervisor", recurso: "planejamento", acao: "gerir" },
+  { role: "administrativo", recurso: "planejamento", acao: "ver" },
+  { role: "administrativo", recurso: "planejamento", acao: "gerir" },
+  { role: "clt", recurso: "planejamento", acao: "ver" },
+  { role: "estagiario", recurso: "planejamento", acao: "ver" },
+  { role: "projetista_pj", recurso: "planejamento", acao: "ver" },
+  { role: "supervisor", recurso: "recursos", acao: "ver" },
+  { role: "supervisor", recurso: "recursos", acao: "gerir" },
+  { role: "administrativo", recurso: "recursos", acao: "ver" },
+  { role: "administrativo", recurso: "recursos", acao: "gerir" },
   // Perfis internos: veem projetos (escopo filtra para os seus)
   { role: "clt", recurso: "projetos", acao: "ver" },
   { role: "estagiario", recurso: "projetos", acao: "ver" },
