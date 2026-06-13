@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Printer, Pencil, Save } from "lucide-react";
+import { ArrowLeft, Printer, Pencil, Save, FileDown } from "lucide-react";
 import { registrarDocumentoGerado } from "@/modules/documentos/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,6 +100,21 @@ export function PreviewBar({
         <Button variant="outline" size="sm" onClick={salvarGeracao} disabled={pending || !podeSalvar}>
           <Save className="size-4" /> {pending ? "Salvando…" : "Salvar geração"}
         </Button>
+        {podeSalvar && (
+          <Button
+            variant="outline"
+            size="sm"
+            render={
+              <a
+                href={`/api/documentos/${modeloId}/pdf?${new URLSearchParams(valores).toString()}`}
+                target="_blank"
+                rel="noreferrer"
+              />
+            }
+          >
+            <FileDown className="size-4" /> Baixar PDF
+          </Button>
+        )}
         <Button size="sm" onClick={() => window.print()}>
           <Printer className="size-4" /> Imprimir / PDF
         </Button>
