@@ -26,6 +26,15 @@ export async function obterModelo(id: string) {
   return { ...m, schema: parsed.success ? parsed.data : docVazio() };
 }
 
+/** Modelos ativos de uma fonte (para o botão "Gerar documento" nos módulos). */
+export async function modelosPorFonte(fonte: string) {
+  return prisma.documentoModelo.findMany({
+    where: { ativo: true, fonte },
+    orderBy: { nome: "asc" },
+    select: { id: true, nome: true },
+  });
+}
+
 /** Opções para os parâmetros das fontes (selects do preview). */
 export async function opcoesParametros() {
   const [projetos, usuarios, propostas, clientes, licitacoes, holerites] = await Promise.all([

@@ -5,6 +5,7 @@ import { can } from "@/lib/permissions";
 import { obterProposta } from "@/modules/comercial/queries";
 import { listarTabelasPreco } from "@/modules/comercial/queries";
 import { catalogoDisciplinas } from "@/modules/projetos/queries";
+import { modelosPorFonte } from "@/modules/documentos/queries";
 import { PropostaEditor } from "@/components/comercial/proposta-editor";
 
 export const metadata: Metadata = { title: "Proposta" };
@@ -13,10 +14,11 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
   const user = await requirePermission("comercial", "ver");
   const podeGerir = await can(user.role, "comercial", "gerir");
   const { id } = await params;
-  const [p, catalogo, tabelas] = await Promise.all([
+  const [p, catalogo, tabelas, modelosDoc] = await Promise.all([
     obterProposta(id),
     catalogoDisciplinas(),
     listarTabelasPreco(),
+    modelosPorFonte("proposta"),
   ]);
   if (!p) notFound();
 
@@ -24,6 +26,7 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
     <PropostaEditor
       podeGerir={podeGerir}
       baseUrl={process.env.APP_URL ?? ""}
+      modelosDoc={modelosDoc}
       proposta={{
         id: p.id,
         numero: p.numero,

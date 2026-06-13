@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import {
   Select,
   SelectContent,
@@ -57,10 +58,12 @@ export function FolhaDetalheView({
   folha,
   rubricas,
   elegiveis,
+  modelosDoc,
 }: {
   folha: { id: string; ano: number; mes: number; status: "aberta" | "fechada"; holerites: HoleriteT[] };
   rubricas: Rubrica[];
   elegiveis: { id: string; name: string; role: string }[];
+  modelosDoc: { id: string; nome: string }[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -183,6 +186,7 @@ export function FolhaDetalheView({
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base">{h.user.name}</CardTitle>
                 <div className="flex items-center gap-1">
+                  <GerarDocumentoButton modelos={modelosDoc} paramId="holeriteId" valor={h.id} variant="ghost" />
                   {h.enviadoEm && (
                     <Badge variant="outline" className="text-success border-success/40">
                       enviado

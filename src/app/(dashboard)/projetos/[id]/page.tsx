@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DisciplinaCard } from "@/components/projetos/disciplina-card";
 import { InputsPanel } from "@/components/inputs/inputs-panel";
+import { modelosPorFonte } from "@/modules/documentos/queries";
+import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 
 export const metadata: Metadata = { title: "Projeto" };
 
@@ -36,10 +38,11 @@ export default async function ProjetoDetalhePage({
   ]);
   const internos = podeGerir ? await usuariosInternos() : [];
 
-  const [inputs, link, progresso] = await Promise.all([
+  const [inputs, link, progresso, modelosDoc] = await Promise.all([
     listarInputs(projeto.id),
     linkInput(projeto.id),
     progressoInputs(projeto.id),
+    modelosPorFonte("projeto"),
   ]);
   const baseUrl = process.env.APP_URL ?? "";
 
@@ -97,6 +100,7 @@ export default async function ProjetoDetalhePage({
             </Link>
           </p>
         </div>
+        <GerarDocumentoButton modelos={modelosDoc} paramId="projetoId" valor={projeto.id} />
       </div>
 
       <div className="grid gap-4 text-sm sm:grid-cols-3">

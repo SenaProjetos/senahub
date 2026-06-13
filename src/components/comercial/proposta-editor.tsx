@@ -25,6 +25,7 @@ import {
   enviarPropostaEmail,
 } from "@/modules/comercial/actions";
 import { STATUS_PROPOSTA_CHIP } from "./propostas-view";
+import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -69,12 +70,14 @@ export function PropostaEditor({
   tabelas,
   podeGerir,
   baseUrl,
+  modelosDoc,
 }: {
   proposta: Proposta;
   catalogo: string[];
   tabelas: Tabela[];
   podeGerir: boolean;
   baseUrl: string;
+  modelosDoc: { id: string; nome: string }[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -200,6 +203,7 @@ export function PropostaEditor({
           <p className="text-sm text-muted-foreground">{proposta.cliente}</p>
         </div>
         <div className="flex flex-wrap gap-1.5">
+          <GerarDocumentoButton modelos={modelosDoc} paramId="propostaId" valor={proposta.id} />
           <Button variant="outline" size="sm" onClick={copiarLink}>
             <Link2 className="size-3.5" /> Link
           </Button>
