@@ -1,8 +1,11 @@
 "use client";
 
+import { useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Printer, Pencil } from "lucide-react";
+import { toast } from "sonner";
+import { ArrowLeft, Printer, Pencil, Save } from "lucide-react";
+import { registrarDocumentoGerado } from "@/modules/documentos/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -29,12 +32,24 @@ export function PreviewBar({
   opcoes: Record<string, { id: string; label: string }[]>;
 }) {
   const router = useRouter();
+  const [pending, start] = useTransition();
 
   function setParam(id: string, valor: string) {
     const p = new URLSearchParams(valores);
     if (valor) p.set(id, valor);
     else p.delete(id);
     router.push(`/documentos/${modeloId}/preview?${p.toString()}`);
+  }
+
+  // Pode salvar a geração quando todos os parâmetros da fonte estão preenchidos.
+  const podeSalvar = !fonte || fonte.params.every((p) => valores[p.id]);
+
+  function salvarGeracao() {
+    start(async () => {
+      const r = await registrarDocumentoGerado({ modeloId, params: valores });
+      if (r.ok) toast.success("Documento gerado salvo no histórico.");
+      else toast.error(r.error);
+    });
   }
 
   return (
@@ -76,8 +91,14 @@ export function PreviewBar({
           );
         })}
 
+        <Button variant="ghost" size="sm" render={<Link href="/documentos/gerados" />}>
+          Gerados
+        </Button>
         <Button variant="outline" size="sm" render={<Link href={`/documentos/${modeloId}`} />}>
           <Pencil className="size-4" /> Editar
+        </Button>
+        <Button variant="outline" size="sm" onClick={salvarGeracao} disabled={pending || !podeSalvar}>
+          <Save className="size-4" /> {pending ? "Salvando…" : "Salvar geração"}
         </Button>
         <Button size="sm" onClick={() => window.print()}>
           <Printer className="size-4" /> Imprimir / PDF

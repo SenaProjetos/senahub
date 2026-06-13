@@ -49,6 +49,23 @@ export async function modelosPorFonte(fonte: string) {
   return [...modelos].sort((a, b) => (a.id === padraoId ? -1 : b.id === padraoId ? 1 : 0));
 }
 
+/** Histórico de documentos gerados (imutável), mais recentes primeiro. */
+export async function documentosGerados(limite = 50) {
+  return prisma.documentoGerado.findMany({
+    orderBy: { createdAt: "desc" },
+    take: limite,
+    select: {
+      id: true,
+      modeloId: true,
+      modeloNome: true,
+      fonte: true,
+      params: true,
+      geradoPorNome: true,
+      createdAt: true,
+    },
+  });
+}
+
 /** Opções para os parâmetros das fontes (selects do preview). */
 export async function opcoesParametros() {
   const [projetos, usuarios, propostas, clientes, licitacoes, holerites] = await Promise.all([

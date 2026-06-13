@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
+import { resolverFonte } from "@/modules/documentos/fontes";
 import {
   criarModeloSchema,
   salvarModeloSchema,
@@ -161,5 +162,36 @@ export const salvarPadraoDocumento = defineAction(
     });
     revalidatePath("/configuracoes/documentos");
     return { fonte: i.fonte };
+  },
+);
+
+const gerarSchema = z.object({
+  modeloId: z.string().min(1),
+  params: z.record(z.string(), z.string()),
+});
+
+/** Persiste um documento gerado (snapshot imutável do schema + dados resolvidos). */
+export const registrarDocumentoGerado = defineAction(
+  { modulo: "documentos", recurso: "documentos", permissao: "ver", acao: "gerar-documento", entidade: "DocumentoGerado", schema: gerarSchema },
+  async (i, { user }) => {
+    const modelo = await prisma.documentoModelo.findUnique({ where: { id: i.modeloId } });
+    if (!modelo) throw new ActionError("Modelo não encontrado.");
+    const dados = modelo.fonte
+      ? await resolverFonte(modelo.fonte, i.params)
+      : { escalar: {}, linhas: [] };
+    const g = await prisma.documentoGerado.create({
+      data: {
+        modeloId: modelo.id,
+        modeloNome: modelo.nome,
+        fonte: modelo.fonte,
+        params: i.params,
+        schemaSnapshot: modelo.schemaJson as Prisma.InputJsonValue,
+        dadosSnapshot: dados as unknown as Prisma.InputJsonValue,
+        geradoPorId: user.id,
+        geradoPorNome: user.name,
+      },
+    });
+    revalidatePath("/documentos/gerados");
+    return { id: g.id };
   },
 );

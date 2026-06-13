@@ -1493,6 +1493,25 @@ model DocumentoModeloVersao {
   @@map("documento_modelo_versao")
 }
 
+/// Documento gerado e persistido (histórico imutável do que foi produzido/enviado).
+/// Snapshot do schema + dados resolvidos no momento da geração; nomes guardados p/ sobreviver à exclusão.
+model DocumentoGerado {
+  id             String   @id @default(cuid())
+  modeloId       String?
+  modeloNome     String
+  fonte          String?
+  params         Json
+  schemaSnapshot Json
+  dadosSnapshot  Json
+  geradoPorId    String
+  geradoPorNome  String
+  createdAt      DateTime @default(now())
+
+  @@index([modeloId])
+  @@index([createdAt])
+  @@map("documento_gerado")
+}
+
 // ─────────────────────────────────────────────────────────────
 // RH — Folha CLT, Onboarding, NF de PJ (Onda 3e/3f/3g)
 // ─────────────────────────────────────────────────────────────
