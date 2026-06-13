@@ -34,7 +34,7 @@ export function LoginForm() {
       toast.error(
         error.status === 401 || error.status === 403
           ? "E-mail ou senha incorretos."
-          : "Não foi possível entrar. Tente novamente.",
+          : error?.message || "Não foi possível entrar. Tente novamente.",
       );
       return;
     }
