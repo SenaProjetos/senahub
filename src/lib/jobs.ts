@@ -7,6 +7,7 @@ import {
   alertaCertidoes,
   alertaLicitacoes,
   snapshotQualidadeMensal,
+  snapshotDashboardDiario,
   lembretePontoNaoBatido,
   resumoSemanal,
 } from "@/lib/jobs-handlers";
@@ -79,6 +80,11 @@ export async function startJobs(): Promise<PgBoss> {
       fila: "snapshot-qualidade",
       cron: "0 2 1 * *", // dia 1º às 02:00 — foto do mês anterior
       handler: snapshotQualidadeMensal,
+    },
+    {
+      fila: "snapshot-dashboard",
+      cron: "30 23 * * *", // diário 23:30 — foto dos KPIs do dia
+      handler: snapshotDashboardDiario,
     },
     {
       fila: "resumo-semanal",

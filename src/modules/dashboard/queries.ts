@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma, StatusDisciplina } from "@/generated/prisma/client";
 import { GLOBAL_ROLES, type Role } from "@/lib/roles";
+import { kpisHome } from "@/modules/qualidade/queries";
 
 type Viewer = { id: string; role: Role };
 
@@ -61,6 +62,47 @@ export async function projetosRecentes(viewer: Viewer, limite = 6) {
       status: gargalo as StatusDisciplina,
     };
   });
+}
+
+/** Grava a foto diária dos KPIs (idempotente por dia; chamado pelo job). */
+export async function gravarSnapshotDashboard() {
+  const hoje = new Date();
+  const dia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  const k = await kpisHome();
+  const recebido = await prisma.lancamento.aggregate({
+    where: {
+      tipo: "receita",
+      status: "confirmado",
+      dataConfirmacao: {
+        gte: new Date(hoje.getFullYear(), hoje.getMonth(), 1),
+        lte: new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59),
+      },
+    },
+    _sum: { valor: true },
+  });
+  const dados = {
+    projetosAtivos: k.projetosAtivos,
+    receitaPrevista: k.receitaPrevista,
+    entregasPendentes: k.entregasPendentes,
+    recebidoNoMes: Number(recebido._sum.valor ?? 0),
+  };
+  return prisma.dashboardSnapshot.upsert({
+    where: { dia },
+    create: { dia, ...dados },
+    update: dados,
+  });
+}
+
+/** Série histórica de KPIs (mais antigos→recentes para gráfico). */
+export async function snapshotsDashboard(n = 30) {
+  const snaps = await prisma.dashboardSnapshot.findMany({ orderBy: { dia: "desc" }, take: n });
+  return snaps.reverse().map((s) => ({
+    dia: s.dia.toISOString().slice(0, 10),
+    projetosAtivos: s.projetosAtivos,
+    receitaPrevista: Number(s.receitaPrevista),
+    entregasPendentes: s.entregasPendentes,
+    recebidoNoMes: Number(s.recebidoNoMes),
+  }));
 }
 
 /** Série de 6 meses: receita realizada (caixa) vs prevista (a receber). */

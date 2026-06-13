@@ -9,11 +9,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { requireUser } from "@/lib/session";
 import { kpisHome } from "@/modules/qualidade/queries";
-import { projetosRecentes, serieReceita } from "@/modules/dashboard/queries";
+import { projetosRecentes, serieReceita, snapshotsDashboard } from "@/modules/dashboard/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { STATUS_CHIP, STATUS_LABEL } from "@/modules/projetos/status";
 import { HeroCard } from "@/components/dashboard/hero-card";
 import { ReceitaChart } from "@/components/dashboard/receita-chart";
+import { TrendLine } from "@/components/qualidade/trend-line";
 
 function brl(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
@@ -21,10 +22,11 @@ function brl(v: number) {
 
 export default async function HomePage() {
   const user = await requireUser();
-  const [kpis, projetos, receita] = await Promise.all([
+  const [kpis, projetos, receita, snapshots] = await Promise.all([
     kpisHome(),
     projetosRecentes(user),
     serieReceita(),
+    snapshotsDashboard(30),
   ]);
 
   const cards = [
@@ -123,6 +125,23 @@ export default async function HomePage() {
           </CardContent>
         </Card>
       </div>
+
+      {snapshots.length >= 2 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Evolução — projetos ativos</CardTitle>
+            <CardDescription>Série histórica (snapshot diário dos KPIs).</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TrendLine
+              pontos={snapshots.map((s) => ({
+                rotulo: s.dia.slice(8, 10) + "/" + s.dia.slice(5, 7),
+                valor: s.projetosAtivos,
+              }))}
+            />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

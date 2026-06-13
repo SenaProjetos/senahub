@@ -1122,6 +1122,19 @@ model QualidadeSnapshot {
   @@map("qualidade_snapshot")
 }
 
+/// Foto diária dos KPIs do dashboard (série histórica). Idempotente por dia.
+model DashboardSnapshot {
+  id                String   @id @default(cuid())
+  dia               DateTime @unique @db.Date
+  projetosAtivos    Int
+  receitaPrevista   Decimal  @db.Decimal(14, 2)
+  entregasPendentes Int
+  recebidoNoMes     Decimal  @db.Decimal(14, 2)
+  createdAt         DateTime @default(now())
+
+  @@map("dashboard_snapshot")
+}
+
 // ─────────────────────────────────────────────────────────────
 // Suporte (Onda 5f)
 // ─────────────────────────────────────────────────────────────

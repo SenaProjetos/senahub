@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { notificarMuitos } from "@/lib/notificar";
 import { enviarEmail, smtpConfigurado } from "@/lib/mail";
 import { gravarSnapshotQualidade } from "@/modules/qualidade/queries";
+import { gravarSnapshotDashboard } from "@/modules/dashboard/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 
 /** Rotinas das automações (chamadas pelos jobs do pg-boss em lib/jobs.ts). */
@@ -119,6 +120,11 @@ export async function alertaLicitacoes(): Promise<number> {
 export async function snapshotQualidadeMensal() {
   const anterior = subMonths(new Date(), 1);
   return gravarSnapshotQualidade(anterior.getFullYear(), anterior.getMonth() + 1);
+}
+
+/** Diário: grava a foto dos KPIs do dashboard (série histórica). */
+export async function snapshotDashboardDiario() {
+  await gravarSnapshotDashboard();
 }
 
 /** Dias úteis 09:15: CLT/estagiário sem ponto aberto hoje → lembrete. */
