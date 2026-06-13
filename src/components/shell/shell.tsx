@@ -1,6 +1,7 @@
 import { Sidebar } from "@/components/shell/sidebar";
 import { Header } from "@/components/shell/header";
 import { BottomNav } from "@/components/shell/bottom-nav";
+import { CommandPalette } from "@/components/shell/command-palette";
 import type { Role } from "@/lib/roles";
 import type { SessionUser } from "@/lib/session";
 
@@ -23,6 +24,7 @@ export function Shell({
         <main className="flex-1 p-4 pb-24 lg:p-6 lg:pb-6">{children}</main>
       </div>
       <BottomNav role={role} />
+      <CommandPalette />
     </div>
   );
 }
