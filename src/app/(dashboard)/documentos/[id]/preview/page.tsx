@@ -35,9 +35,17 @@ export default async function PreviewPage({
         nome={modelo.nome}
         fonte={def ? { id: def.id, label: def.label, params: def.params } : null}
         valores={sp}
-        projetos={opcoes.projetos.map((p) => ({ id: p.id, label: `${p.codigo} · ${p.nome}` }))}
-        usuarios={opcoes.usuarios.map((u) => ({ id: u.id, label: u.name }))}
-        propostas={opcoes.propostas.map((p) => ({ id: p.id, label: `${p.numero} · ${p.titulo}` }))}
+        opcoes={{
+          projeto: opcoes.projetos.map((p) => ({ id: p.id, label: `${p.codigo} · ${p.nome}` })),
+          usuario: opcoes.usuarios.map((u) => ({ id: u.id, label: u.name })),
+          proposta: opcoes.propostas.map((p) => ({ id: p.id, label: `${p.numero} · ${p.titulo}` })),
+          cliente: opcoes.clientes.map((c) => ({ id: c.id, label: c.nome })),
+          licitacao: opcoes.licitacoes.map((l) => ({ id: l.id, label: l.titulo })),
+          holerite: opcoes.holerites.map((h) => ({
+            id: h.id,
+            label: `${h.user.name} · ${String(h.folha.mes).padStart(2, "0")}/${h.folha.ano}`,
+          })),
+        }}
       />
 
       {faltamParams ? (

@@ -19,17 +19,14 @@ export function PreviewBar({
   nome,
   fonte,
   valores,
-  projetos,
-  usuarios,
-  propostas = [],
+  opcoes,
 }: {
   modeloId: string;
   nome: string;
   fonte: { id: string; label: string; params: ParamFonte[] } | null;
   valores: Record<string, string>;
-  projetos: { id: string; label: string }[];
-  usuarios: { id: string; label: string }[];
-  propostas?: { id: string; label: string }[];
+  /** Opções dos selects por tipo de parâmetro (projeto, cliente, usuario, proposta, licitacao, holerite). */
+  opcoes: Record<string, { id: string; label: string }[]>;
 }) {
   const router = useRouter();
 
@@ -50,63 +47,32 @@ export function PreviewBar({
 
       <div className="ml-auto flex flex-wrap items-center gap-2">
         {fonte?.params.map((p) => {
-          if (p.tipo === "projeto") {
+          if (p.tipo === "mes") {
             return (
-              <Select key={p.id} value={valores[p.id] ?? ""} onValueChange={(v) => setParam(p.id, v ?? "")}>
-                <SelectTrigger className="w-64">
-                  <SelectValue placeholder={p.label} />
-                </SelectTrigger>
-                <SelectContent>
-                  {projetos.map((o) => (
-                    <SelectItem key={o.id} value={o.id}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input
+                key={p.id}
+                type="month"
+                className="w-44"
+                value={valores[p.id] ?? ""}
+                onChange={(e) => setParam(p.id, e.target.value)}
+                aria-label={p.label}
+              />
             );
           }
-          if (p.tipo === "proposta") {
-            return (
-              <Select key={p.id} value={valores[p.id] ?? ""} onValueChange={(v) => setParam(p.id, v ?? "")}>
-                <SelectTrigger className="w-64">
-                  <SelectValue placeholder={p.label} />
-                </SelectTrigger>
-                <SelectContent>
-                  {propostas.map((o) => (
-                    <SelectItem key={o.id} value={o.id}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            );
-          }
-          if (p.tipo === "usuario") {
-            return (
-              <Select key={p.id} value={valores[p.id] ?? ""} onValueChange={(v) => setParam(p.id, v ?? "")}>
-                <SelectTrigger className="w-56">
-                  <SelectValue placeholder={p.label} />
-                </SelectTrigger>
-                <SelectContent>
-                  {usuarios.map((o) => (
-                    <SelectItem key={o.id} value={o.id}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            );
-          }
+          const lista = opcoes[p.tipo] ?? [];
           return (
-            <Input
-              key={p.id}
-              type="month"
-              className="w-44"
-              value={valores[p.id] ?? ""}
-              onChange={(e) => setParam(p.id, e.target.value)}
-              aria-label={p.label}
-            />
+            <Select key={p.id} value={valores[p.id] ?? ""} onValueChange={(v) => setParam(p.id, v ?? "")}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder={p.label} />
+              </SelectTrigger>
+              <SelectContent>
+                {lista.map((o) => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           );
         })}
 

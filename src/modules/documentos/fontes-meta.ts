@@ -6,7 +6,7 @@
 export type ParamFonte = {
   id: string;
   label: string;
-  tipo: "projeto" | "cliente" | "usuario" | "mes" | "proposta";
+  tipo: "projeto" | "cliente" | "usuario" | "mes" | "proposta" | "licitacao" | "holerite";
 };
 export type CampoDoc = { chave: string; label: string };
 
@@ -118,6 +118,72 @@ export const FONTES: FonteDef[] = [
         { chave: "Descricao", label: "Descrição" },
         { chave: "Categoria", label: "Categoria" },
         { chave: "TipoMov", label: "Tipo" },
+        { chave: "Valor", label: "Valor" },
+      ],
+    },
+  },
+  {
+    id: "cliente",
+    label: "Cliente (+ projetos como linhas)",
+    params: [{ id: "clienteId", label: "Cliente", tipo: "cliente" }],
+    escalares: [
+      { chave: "Nome", label: "Nome / razão social" },
+      { chave: "NomeFantasia", label: "Nome fantasia" },
+      { chave: "Documento", label: "CPF/CNPJ" },
+      { chave: "Email", label: "E-mail" },
+      { chave: "Telefone", label: "Telefone" },
+      { chave: "Endereco", label: "Endereço" },
+    ],
+    colecao: {
+      label: "Projetos do cliente",
+      campos: [
+        { chave: "Codigo", label: "Código" },
+        { chave: "Projeto", label: "Projeto" },
+        { chave: "Situacao", label: "Situação" },
+        { chave: "PrazoFinal", label: "Prazo final" },
+      ],
+    },
+  },
+  {
+    id: "licitacao",
+    label: "Licitação (+ medições como linhas)",
+    params: [{ id: "licitacaoId", label: "Licitação", tipo: "licitacao" }],
+    escalares: [
+      { chave: "Titulo", label: "Título" },
+      { chave: "Orgao", label: "Órgão" },
+      { chave: "Modalidade", label: "Modalidade" },
+      { chave: "NumeroEdital", label: "Nº do edital" },
+      { chave: "PrazoProposta", label: "Prazo da proposta" },
+      { chave: "ValorEstimado", label: "Valor estimado" },
+      { chave: "Status", label: "Status" },
+      { chave: "TotalMedido", label: "Total medido" },
+    ],
+    colecao: {
+      label: "Medições",
+      campos: [
+        { chave: "Numero", label: "Nº" },
+        { chave: "Descricao", label: "Descrição" },
+        { chave: "Valor", label: "Valor" },
+        { chave: "Data", label: "Data" },
+      ],
+    },
+  },
+  {
+    id: "holerite",
+    label: "Holerite (+ itens como linhas)",
+    params: [{ id: "holeriteId", label: "Holerite", tipo: "holerite" }],
+    escalares: [
+      { chave: "Colaborador", label: "Colaborador" },
+      { chave: "Competencia", label: "Competência (MM/AAAA)" },
+      { chave: "TotalProventos", label: "Total de proventos" },
+      { chave: "TotalDescontos", label: "Total de descontos" },
+      { chave: "Liquido", label: "Líquido" },
+    ],
+    colecao: {
+      label: "Itens do holerite",
+      campos: [
+        { chave: "Descricao", label: "Descrição" },
+        { chave: "TipoRubrica", label: "Tipo (provento/desconto)" },
         { chave: "Valor", label: "Valor" },
       ],
     },

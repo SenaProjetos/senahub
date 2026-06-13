@@ -163,6 +163,86 @@ export async function resolverFonte(
       };
     }
 
+    case "cliente": {
+      const c = await prisma.cliente.findUnique({
+        where: { id: params.clienteId ?? "" },
+        include: { projetos: { orderBy: [{ ano: "desc" }, { sequencial: "desc" }] } },
+      });
+      if (!c) return { escalar: {}, linhas: [] };
+      const endereco = [c.logradouro, c.numero, c.bairro, c.cidade, c.uf].filter(Boolean).join(", ");
+      return {
+        escalar: {
+          Nome: c.nome,
+          NomeFantasia: c.nomeFantasia ?? "",
+          Documento: c.documento ?? "",
+          Email: c.email ?? "",
+          Telefone: c.telefone ?? "",
+          Endereco: endereco,
+        },
+        linhas: c.projetos.map((p) => ({
+          Codigo: formatarCodigo(p.codigo),
+          Projeto: p.nome,
+          Situacao: p.situacao.replace("_", " "),
+          PrazoFinal: p.prazoFinal ?? "",
+        })),
+      };
+    }
+
+    case "licitacao": {
+      const l = await prisma.licitacao.findUnique({
+        where: { id: params.licitacaoId ?? "" },
+        include: { medicoes: { orderBy: { numero: "asc" } } },
+      });
+      if (!l) return { escalar: {}, linhas: [] };
+      const totalMedido = l.medicoes.reduce((s, m) => s + Number(m.valor), 0);
+      return {
+        escalar: {
+          Titulo: l.titulo,
+          Orgao: l.orgao ?? "",
+          Modalidade: l.modalidade ?? "",
+          NumeroEdital: l.numeroEdital ?? "",
+          PrazoProposta: l.prazoProposta ?? "",
+          ValorEstimado: l.valorEstimado != null ? Number(l.valorEstimado) : "",
+          Status: l.status.replace("_", " "),
+          TotalMedido: totalMedido,
+        },
+        linhas: l.medicoes.map((m) => ({
+          Numero: m.numero,
+          Descricao: m.descricao ?? "",
+          Valor: Number(m.valor),
+          Data: m.data,
+        })),
+      };
+    }
+
+    case "holerite": {
+      const h = await prisma.holerite.findUnique({
+        where: { id: params.holeriteId ?? "" },
+        include: {
+          user: { select: { name: true } },
+          folha: { select: { ano: true, mes: true } },
+          itens: true,
+        },
+      });
+      if (!h) return { escalar: {}, linhas: [] };
+      const proventos = h.itens.filter((i) => i.tipo === "provento").reduce((s, i) => s + Number(i.valor), 0);
+      const descontos = h.itens.filter((i) => i.tipo === "desconto").reduce((s, i) => s + Number(i.valor), 0);
+      return {
+        escalar: {
+          Colaborador: h.user.name,
+          Competencia: `${String(h.folha.mes).padStart(2, "0")}/${h.folha.ano}`,
+          TotalProventos: proventos,
+          TotalDescontos: descontos,
+          Liquido: proventos - descontos,
+        },
+        linhas: h.itens.map((i) => ({
+          Descricao: i.descricao,
+          TipoRubrica: i.tipo,
+          Valor: Number(i.valor),
+        })),
+      };
+    }
+
     default:
       return { escalar: {}, linhas: [] };
   }

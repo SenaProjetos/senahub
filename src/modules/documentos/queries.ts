@@ -28,7 +28,7 @@ export async function obterModelo(id: string) {
 
 /** Opções para os parâmetros das fontes (selects do preview). */
 export async function opcoesParametros() {
-  const [projetos, usuarios, propostas] = await Promise.all([
+  const [projetos, usuarios, propostas, clientes, licitacoes, holerites] = await Promise.all([
     prisma.projeto.findMany({
       orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
       select: { id: true, codigo: true, nome: true },
@@ -44,8 +44,24 @@ export async function opcoesParametros() {
       select: { id: true, numero: true, titulo: true },
       take: 100,
     }),
+    prisma.cliente.findMany({
+      where: { ativo: true },
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true },
+      take: 200,
+    }),
+    prisma.licitacao.findMany({
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, titulo: true },
+      take: 100,
+    }),
+    prisma.holerite.findMany({
+      orderBy: { folha: { ano: "desc" } },
+      select: { id: true, user: { select: { name: true } }, folha: { select: { ano: true, mes: true } } },
+      take: 100,
+    }),
   ]);
-  return { projetos, usuarios, propostas };
+  return { projetos, usuarios, propostas, clientes, licitacoes, holerites };
 }
 
 export type ModeloListItem = Awaited<ReturnType<typeof listarModelos>>[number];
