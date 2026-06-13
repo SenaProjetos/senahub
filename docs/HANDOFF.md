@@ -160,7 +160,7 @@ A v1 está funcional; a visão é ser O gerador de TODO documento do escritório
 
 ### 5.5 Melhorias e ferramentas sugeridas (backlog futuro)
 - ✅ **Busca global** (Ctrl+K): `CommandPalette` próprio (sem cmdk) sobre o Dialog base-ui — projetos/clientes/lançamentos, escopado por viewer; gatilho no header.
-- **Gráficos**: ✅ dashboard (receita 6m realizado×previsto), ✅ qualidade (linha de tendência), ✅ **resultado mensal** no orçamento (barras divergentes) — SVG/CSS próprio (sem recharts). Falta: fluxo de caixa projetado.
+- **Gráficos**: ✅ dashboard (receita 6m), ✅ qualidade (tendência), ✅ resultado mensal (orçamento), ✅ **projeção de caixa 8 semanas** (fluxo de caixa, com detecção de gap) — SVG/CSS/tabela próprios (sem recharts).
 - ✅ **Dashboard executivo**: KPIs reais + gráfico de receita + tabela "Projetos recentes" (estilo mockup) + card "Evolução" (snapshots).
 - ✅ **/api/health** (ping de banco; rota pública; Uptime Kuma/LB).
 - ✅ **Orçamento anual** (`/financeiro/orcamento`): previsto×realizado por categoria + KPIs + gráfico de resultado mensal.
