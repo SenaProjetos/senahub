@@ -133,9 +133,11 @@ Existente: backup diário (pg_dump → pasta; conferir destino/retenção no dep
 ### 5.4b Estúdio de Documentos — evoluções (roadmap do módulo)
 A v1 está funcional; a visão é ser O gerador de TODO documento do escritório
 (propostas O4, contratos, holerites, relatórios gerenciais). Próximos passos:
-- **Novas fontes de dados**: proposta (O4 — itens/condições/totais), holerite (folha CLT),
-  cliente isolado, licitação/medições (O5), DRE do período. Basta adicionar em
-  `fontes-meta.ts` (metadados) + `fontes.ts` (resolução) — o editor pega automático.
+- **Novas fontes de dados**: ✅ proposta (O4), ✅ **cliente isolado** (+projetos), ✅ **licitação/medições**
+  (O5), ✅ **holerite** (folha CLT, +itens). Falta: **DRE do período** (precisa de query reutilizável de
+  DRE em `modules/financeiro` — hoje só na página/route). Adicionar fonte = `fontes-meta.ts` (metadados)
+  + `fontes.ts` (resolução); o seletor de parâmetro é genérico por `tipo` em `preview-bar.tsx`
+  (mes = input month; resto = select de `opcoesParametros`) — o editor pega a fonte automático.
 - **Integração nos módulos**: botão "Gerar documento" no projeto/proposta/holerite abrindo
   o preview com parâmetros pré-preenchidos (`/documentos/[id]/preview?projetoId=…`);
   campo "modelo padrão por tipo" (ex.: proposta usa modelo X) em Configurações.
