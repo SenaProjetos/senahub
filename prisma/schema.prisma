@@ -416,6 +416,8 @@ model CategoriaFinanceira {
   filhas CategoriaFinanceira[] @relation("CategoriaFilhas")
   ordem  Int           @default(0)
   ativo  Boolean       @default(true)
+  /// Atividade no DFC: "operacional" | "investimento" | "financiamento" (default operacional).
+  grupoDfc String?
 
   lancamentos Lancamento[]
   regras      RegraCategorizacao[]

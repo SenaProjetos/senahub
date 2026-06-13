@@ -1,5 +1,71 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { fluxoCaixa } from "@/modules/financeiro/caixa/queries";
+
+const GRUPOS_DFC = ["operacional", "investimento", "financiamento"] as const;
+export type GrupoDFC = (typeof GRUPOS_DFC)[number];
+export type AtividadeDFC = {
+  grupo: GrupoDFC;
+  entradas: number;
+  saidas: number;
+  liquido: number;
+  linhas: { codigo: string; nome: string; valor: number }[];
+};
+
+/** DFC método direto: movimentos confirmados no período por atividade (grupoDfc da categoria). */
+export async function relatorioDFC(de: Date, ate: Date) {
+  const lancs = await prisma.lancamento.findMany({
+    where: { status: "confirmado", dataConfirmacao: { gte: de, lte: ate } },
+    include: { categoria: { select: { codigo: true, nome: true, tipo: true, grupoDfc: true } } },
+  });
+  const mapa = new Map<GrupoDFC, Map<string, { codigo: string; nome: string; valor: number }>>();
+  for (const g of GRUPOS_DFC) mapa.set(g, new Map());
+  for (const l of lancs) {
+    const g = (GRUPOS_DFC as readonly string[]).includes(l.categoria.grupoDfc ?? "")
+      ? (l.categoria.grupoDfc as GrupoDFC)
+      : "operacional";
+    const bucket = mapa.get(g)!;
+    const cur = bucket.get(l.categoria.codigo) ?? { codigo: l.categoria.codigo, nome: l.categoria.nome, valor: 0 };
+    const v = Number(l.valorEfetivo ?? l.valor);
+    cur.valor += l.tipo === "receita" ? v : -v;
+    bucket.set(l.categoria.codigo, cur);
+  }
+  const atividades: AtividadeDFC[] = GRUPOS_DFC.map((grupo) => {
+    const linhas = [...mapa.get(grupo)!.values()].sort((a, b) => a.codigo.localeCompare(b.codigo));
+    const entradas = linhas.filter((l) => l.valor > 0).reduce((s, l) => s + l.valor, 0);
+    const saidas = linhas.filter((l) => l.valor < 0).reduce((s, l) => s - l.valor, 0);
+    return { grupo, entradas, saidas, liquido: entradas - saidas, linhas };
+  });
+  return { de: de.toISOString().slice(0, 10), ate: ate.toISOString().slice(0, 10), atividades, variacao: atividades.reduce((s, a) => s + a.liquido, 0) };
+}
+
+/** Categorias p/ classificação no DFC. */
+export async function categoriasParaDfc() {
+  const cats = await prisma.categoriaFinanceira.findMany({
+    where: { ativo: true },
+    orderBy: { codigo: "asc" },
+    select: { id: true, codigo: true, nome: true, tipo: true, grupoDfc: true },
+  });
+  return cats.map((c) => ({ ...c, grupoDfc: c.grupoDfc ?? "operacional" }));
+}
+
+/**
+ * Balanço gerencial (simplificado, base caixa): caixa + a receber = ativo;
+ * a pagar = passivo; PL = ativo − passivo. NÃO é Balanço contábil formal (sem partidas dobradas).
+ */
+export async function balancoGerencial() {
+  const [{ saldoTotal }, aReceberAgg, aPagarAgg] = await Promise.all([
+    fluxoCaixa(1),
+    prisma.lancamento.aggregate({ where: { tipo: "receita", status: "previsto" }, _sum: { valor: true } }),
+    prisma.lancamento.aggregate({ where: { tipo: "despesa", status: "previsto" }, _sum: { valor: true } }),
+  ]);
+  const caixa = saldoTotal;
+  const aReceber = Number(aReceberAgg._sum.valor ?? 0);
+  const aPagar = Number(aPagarAgg._sum.valor ?? 0);
+  const ativo = caixa + aReceber;
+  const passivo = aPagar;
+  return { caixa, aReceber, aPagar, ativo, passivo, pl: ativo - passivo };
+}
 
 export type LinhaDRE = { codigo: string; nome: string; tipo: string; valor: number };
 export type DRE = {
