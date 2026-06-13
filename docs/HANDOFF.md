@@ -28,9 +28,10 @@ npm install                # postinstall roda prisma generate
 npm run dev                # Next só (sem socket/jobs) — chat NÃO funciona aqui
 npm run dev:server         # server.ts completo (Next + Socket.io + pg-boss) — usar p/ chat
 npm run build              # next build --turbopack
-npm test                   # vitest (33 testes)
+npm test                   # vitest (41 testes)
 npm run db:migrate         # prisma migrate dev
 npm run db:seed            # admin + permissões + catálogos (idempotente)
+npm run admin:reset-senha  # reseta senha do admin p/ SenaHub@2026 (hash better-auth + troca obrig.)
 npm run smoke:onda1|onda2|onda3|onda3efg|onda4|onda5   # smokes e2e contra o banco de dev
 ```
 
@@ -83,10 +84,11 @@ Matriz fina configurável em Configurações→Permissões (catálogo em `lib/pe
 
 Fluxo crítico completo já funciona: lead→proposta→aceite→projeto→upload→validação→pagamento→folha→lançamento→caixa/DRE.
 
-> **Achado (2026-06-13):** o admin de dev **não loga mais com a senha seed `SenaHub@2026`** —
-> a conta tem hash válido (já trocou a senha no 1º acesso, comportamento esperado, **não é bug**).
-> Os scripts soltos em `scripts/` (check-flag/check-password/disable-must-change/test-login) são
-> scratch desse debug; podem ser removidos. `scripts/check-flag.ts` tem erro de tipo (select inválido).
+> **Login do admin (resolvido 2026-06-13):** o hash da conta do admin estava defasado e não
+> validava contra `SenaHub@2026` (o seed só define a senha ao **criar** o admin; num admin
+> pré-existente a senha não é reaplicada). Resolvido com **`npm run admin:reset-senha`**
+> (`scripts/reset-admin-senha.ts`) — re-hasha a senha padrão pelo `auth.$context.password.hash`
+> do better-auth e marca troca obrigatória. Login confirmado (200 → `/trocar-senha`).
 
 ## 5. O QUE FALTA
 
