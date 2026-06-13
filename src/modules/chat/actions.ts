@@ -9,10 +9,18 @@ import { getOrCreateDM } from "@/modules/chat/service";
 
 const base = { modulo: "chat" } as const;
 
-const enviarSchema = z.object({
-  canalId: z.string().min(1),
-  conteudo: z.string().min(1).max(4000),
-});
+const enviarSchema = z
+  .object({
+    canalId: z.string().min(1),
+    conteudo: z.string().max(4000).default(""),
+    anexoPath: z.string().optional(),
+    anexoNome: z.string().optional(),
+    anexoMime: z.string().optional(),
+  })
+  .refine((v) => v.conteudo.trim().length > 0 || !!v.anexoPath, {
+    message: "Escreva uma mensagem ou anexe um arquivo.",
+    path: ["conteudo"],
+  });
 
 async function exigirMembro(canalId: string, userId: string) {
   const m = await prisma.canalMembro.findUnique({
@@ -27,7 +35,14 @@ export const enviarMensagem = defineAction(
     await exigirMembro(i.canalId, user.id);
 
     const msg = await prisma.mensagem.create({
-      data: { canalId: i.canalId, autorId: user.id, conteudo: i.conteudo },
+      data: {
+        canalId: i.canalId,
+        autorId: user.id,
+        conteudo: i.conteudo,
+        anexoPath: i.anexoPath || null,
+        anexoNome: i.anexoNome || null,
+        anexoMime: i.anexoMime || null,
+      },
       include: { autor: { select: { id: true, name: true } } },
     });
 
@@ -35,6 +50,8 @@ export const enviarMensagem = defineAction(
       id: msg.id,
       canalId: i.canalId,
       conteudo: msg.conteudo,
+      anexoMime: msg.anexoMime,
+      anexoNome: msg.anexoNome,
       autor: { id: msg.autor.id, name: msg.autor.name },
       createdAt: msg.createdAt,
     };
@@ -53,7 +70,7 @@ export const enviarMensagem = defineAction(
       offline.map((id) =>
         notificar(id, {
           titulo: `Mensagem de ${msg.autor.name}`,
-          corpo: i.conteudo.slice(0, 120),
+          corpo: i.conteudo ? i.conteudo.slice(0, 120) : "📎 Anexo",
           href: `/chat?c=${i.canalId}`,
           tag: `chat-${i.canalId}`,
         }),

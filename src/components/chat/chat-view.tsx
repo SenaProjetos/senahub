@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Send, Hash, AtSign, Plus, Circle } from "lucide-react";
+import { Send, Hash, AtSign, Plus, Circle, Paperclip, X, FileText } from "lucide-react";
 import { getSocket, tocarSom } from "@/lib/chat-client";
 import {
   enviarMensagem,
@@ -33,6 +33,8 @@ import {
 type Msg = {
   id: string;
   conteudo: string;
+  anexoMime?: string | null;
+  anexoNome?: string | null;
   autor: { id: string; name: string };
   createdAt: string | Date;
 };
@@ -69,6 +71,9 @@ export function ChatView({
   const [texto, setTexto] = useState("");
   const [status, setStatus] = useState(statusInicial);
   const [online, setOnline] = useState<Set<string>>(new Set());
+  const [anexo, setAnexo] = useState<File | null>(null);
+  const [enviandoAnexo, setEnviandoAnexo] = useState(false);
+  const anexoRef = useRef<HTMLInputElement>(null);
   const fimRef = useRef<HTMLDivElement>(null);
   const selRef = useRef(sel);
   selRef.current = sel;
@@ -133,13 +138,36 @@ export function ChatView({
     fimRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [mensagens]);
 
-  function enviar() {
-    if (!texto.trim() || !sel) return;
+  async function enviar() {
+    if (!sel || enviandoAnexo) return;
+    if (!texto.trim() && !anexo) return;
     const conteudo = texto;
+    const arquivo = anexo;
     setTexto("");
-    void enviarMensagem({ canalId: sel, conteudo }).then((r) => {
-      if (!r.ok) toast.error(r.error);
-    });
+    setAnexo(null);
+
+    let meta: { anexoPath: string; anexoNome: string; anexoMime: string } | undefined;
+    if (arquivo) {
+      setEnviandoAnexo(true);
+      try {
+        const fd = new FormData();
+        fd.append("canalId", sel);
+        fd.append("file", arquivo);
+        const res = await fetch("/api/chat/anexo", { method: "POST", body: fd });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          toast.error(j.error ?? "Falha ao enviar o anexo.");
+          setEnviandoAnexo(false);
+          return;
+        }
+        meta = j;
+      } finally {
+        setEnviandoAnexo(false);
+      }
+    }
+
+    const r = await enviarMensagem({ canalId: sel, conteudo, ...meta });
+    if (!r.ok) toast.error(r.error);
   }
 
   function mudarStatus(s: string) {
@@ -239,7 +267,29 @@ export function ChatView({
                       )}
                     >
                       {!meu && <p className="text-xs font-semibold opacity-80">{m.autor.name}</p>}
-                      <p className="whitespace-pre-wrap break-words">{m.conteudo}</p>
+                      {m.anexoMime && (
+                        m.anexoMime.startsWith("image/") ? (
+                          <a href={`/api/chat/anexo/${m.id}`} target="_blank" rel="noreferrer">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={`/api/chat/anexo/${m.id}`}
+                              alt={m.anexoNome ?? "anexo"}
+                              className="mb-1 max-h-48 rounded-sm border border-current/10 object-cover"
+                            />
+                          </a>
+                        ) : (
+                          <a
+                            href={`/api/chat/anexo/${m.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mb-1 flex items-center gap-1.5 rounded-sm bg-background/20 px-2 py-1 text-xs underline-offset-2 hover:underline"
+                          >
+                            <FileText className="size-3.5 shrink-0" />
+                            <span className="truncate">{m.anexoNome ?? "Arquivo"}</span>
+                          </a>
+                        )
+                      )}
+                      {m.conteudo && <p className="whitespace-pre-wrap break-words">{m.conteudo}</p>}
                       <p className="mt-0.5 text-right text-[10px] opacity-60">
                         {new Date(m.createdAt).toLocaleTimeString("pt-BR", {
                           hour: "2-digit",
@@ -252,16 +302,44 @@ export function ChatView({
               })}
               <div ref={fimRef} />
             </div>
-            <div className="flex items-center gap-2 border-t p-2">
-              <Input
-                value={texto}
-                onChange={(e) => setTexto(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), enviar())}
-                placeholder="Mensagem…"
-              />
-              <Button size="icon" onClick={enviar} aria-label="Enviar">
-                <Send className="size-4" />
-              </Button>
+            <div className="border-t p-2">
+              {anexo && (
+                <div className="mb-2 flex items-center gap-2 rounded-sm border bg-muted/40 px-2 py-1 text-xs">
+                  <Paperclip className="size-3 shrink-0" />
+                  <span className="flex-1 truncate">{anexo.name}</span>
+                  <button type="button" onClick={() => setAnexo(null)} aria-label="Remover anexo">
+                    <X className="size-3.5 text-muted-foreground hover:text-foreground" />
+                  </button>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <input
+                  ref={anexoRef}
+                  type="file"
+                  hidden
+                  onChange={(e) => {
+                    setAnexo(e.target.files?.[0] ?? null);
+                    e.target.value = "";
+                  }}
+                />
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => anexoRef.current?.click()}
+                  aria-label="Anexar arquivo"
+                >
+                  <Paperclip className="size-4" />
+                </Button>
+                <Input
+                  value={texto}
+                  onChange={(e) => setTexto(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), enviar())}
+                  placeholder="Mensagem…"
+                />
+                <Button size="icon" onClick={enviar} disabled={enviandoAnexo} aria-label="Enviar">
+                  <Send className="size-4" />
+                </Button>
+              </div>
             </div>
           </>
         ) : (

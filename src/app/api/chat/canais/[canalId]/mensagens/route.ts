@@ -15,6 +15,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ canalId: strin
       id: m.id,
       conteudo: m.conteudo,
       fixada: m.fixada,
+      anexoMime: m.anexoMime,
+      anexoNome: m.anexoNome,
       autor: { id: m.autor.id, name: m.autor.name },
       createdAt: m.createdAt,
     })),
