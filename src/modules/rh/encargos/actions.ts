@@ -5,6 +5,7 @@ import { z } from "zod";
 import { defineAction } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { HR_ADMIN_ROLES } from "@/lib/roles";
+import { CHAVE_DEDUCAO_DEP } from "@/modules/rh/encargos/queries";
 
 const base = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
 
@@ -39,5 +40,19 @@ export const salvarFaixasEncargo = defineAction(
     ]);
     revalidatePath("/configuracoes/encargos");
     return { tipo: i.tipo, total: i.faixas.length };
+  },
+);
+
+/** Define o valor da dedução de IRRF por dependente. */
+export const salvarDeducaoDependente = defineAction(
+  { ...base, acao: "salvar-deducao-dep", entidade: "ConfigSistema", schema: z.object({ valor: z.number().min(0) }) },
+  async (i) => {
+    await prisma.configSistema.upsert({
+      where: { chave: CHAVE_DEDUCAO_DEP },
+      create: { chave: CHAVE_DEDUCAO_DEP, valor: i.valor },
+      update: { valor: i.valor },
+    });
+    revalidatePath("/configuracoes/encargos");
+    return { valor: i.valor };
   },
 );

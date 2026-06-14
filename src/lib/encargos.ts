@@ -47,14 +47,18 @@ export function calcularIRRF(base: number, faixas: Faixa[]): number {
   return v > 0 ? round2(v) : 0;
 }
 
-/** Calcula INSS e IRRF de uma vez a partir do total de proventos. */
+/**
+ * Calcula INSS e IRRF a partir do total de proventos.
+ * `deducaoDependentes` = (dedução por dependente) × (nº de dependentes) — abatida da base do IRRF.
+ */
 export function calcularEncargos(
   proventos: number,
   faixasInss: Faixa[],
   faixasIrrf: Faixa[],
+  deducaoDependentes = 0,
 ): { inss: number; irrf: number; baseIrrf: number } {
   const inss = calcularINSS(proventos, faixasInss);
-  const baseIrrf = round2(proventos - inss);
+  const baseIrrf = round2(Math.max(0, proventos - inss - deducaoDependentes));
   const irrf = calcularIRRF(baseIrrf, faixasIrrf);
   return { inss, irrf, baseIrrf };
 }

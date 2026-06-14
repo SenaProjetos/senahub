@@ -65,4 +65,11 @@ describe("calcularEncargos (proventos -> INSS, base, IRRF)", () => {
     // 4715*27.5% - 675 = 1296.625 - 675 = 621.63 (round2)
     expect(r.irrf).toBe(621.63);
   });
+  it("abate dedução por dependente da base do IRRF", () => {
+    // 2 dependentes × 200 = 400 abatido: base 4715 - 400 = 4315
+    const r = calcularEncargos(5000, INSS, IRRF, 400);
+    expect(r.baseIrrf).toBe(4315);
+    // 4315*27.5% - 675 = 1186.625 - 675 = 511.63
+    expect(r.irrf).toBe(511.63);
+  });
 });

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Users, ShieldCheck, FileText, Percent } from "lucide-react";
+import { Users, ShieldCheck, FileText, Percent, CalendarDays } from "lucide-react";
 import { requireRole } from "@/lib/session";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -30,6 +30,12 @@ const ITENS = [
     icon: Percent,
     titulo: "Encargos da folha",
     descricao: "Faixas de INSS e IRRF usadas no holerite.",
+  },
+  {
+    href: "/configuracoes/feriados",
+    icon: CalendarDays,
+    titulo: "Feriados",
+    descricao: "Calendário de feriados (ponto, escala, banco de horas).",
   },
 ];
 

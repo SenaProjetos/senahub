@@ -62,6 +62,8 @@ export function FolhaDetalheView({
   modelosDoc,
   faixasInss,
   faixasIrrf,
+  deducaoDep,
+  dependentesPorUser,
 }: {
   folha: { id: string; ano: number; mes: number; status: "aberta" | "fechada"; holerites: HoleriteT[] };
   rubricas: Rubrica[];
@@ -69,6 +71,8 @@ export function FolhaDetalheView({
   modelosDoc: { id: string; nome: string }[];
   faixasInss: Faixa[];
   faixasIrrf: Faixa[];
+  deducaoDep: number;
+  dependentesPorUser: Record<string, number>;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -249,6 +253,7 @@ export function FolhaDetalheView({
         rubricas={rubricas}
         faixasInss={faixasInss}
         faixasIrrf={faixasIrrf}
+        deducaoDependentes={editor ? (dependentesPorUser[editor.userId] ?? 0) * deducaoDep : 0}
         onClose={() => setEditor(null)}
       />
     </div>
@@ -261,6 +266,7 @@ function HoleriteEditor({
   rubricas,
   faixasInss,
   faixasIrrf,
+  deducaoDependentes,
   onClose,
 }: {
   folhaId: string;
@@ -268,6 +274,7 @@ function HoleriteEditor({
   rubricas: Rubrica[];
   faixasInss: Faixa[];
   faixasIrrf: Faixa[];
+  deducaoDependentes: number;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -305,7 +312,7 @@ function HoleriteEditor({
       toast.error("Adicione proventos antes de calcular encargos.");
       return;
     }
-    const { inss, irrf } = calcularEncargos(proventos, faixasInss, faixasIrrf);
+    const { inss, irrf } = calcularEncargos(proventos, faixasInss, faixasIrrf, deducaoDependentes);
     setItens((arr) => {
       const semAuto = arr.filter((it) => it.descricao !== "INSS" && it.descricao !== "IRRF");
       const novos = [...semAuto];

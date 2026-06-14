@@ -80,6 +80,7 @@ model User {
   ticketsAutor         TicketSuporte[]       @relation("TicketAutor")
   ticketMensagens      TicketMensagem[]      @relation("TicketMensagemAutor")
   recurso              Recurso?
+  dependentes          Dependente[]
 
   @@index([role])
   @@map("user")
@@ -1564,6 +1565,31 @@ model EncargoFaixa {
 
   @@index([tipo, ordem])
   @@map("encargo_faixa")
+}
+
+/// Dependente de um colaborador (p/ dedução de IRRF e cadastro de RH).
+model Dependente {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nome       String
+  nascimento DateTime? @db.Date
+  parentesco String?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@map("dependente")
+}
+
+/// Feriado (cadastro p/ ponto/escala/banco de horas). Data única.
+model Feriado {
+  id        String   @id @default(cuid())
+  data      DateTime @unique @db.Date
+  nome      String
+  tipo      String   @default("nacional") // nacional | estadual | municipal
+  createdAt DateTime @default(now())
+
+  @@map("feriado")
 }
 
 enum StatusFolha {

@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { minutosSessao } from "@/modules/ponto/format";
+import { feriadosUteisNoMes } from "@/modules/rh/feriados/queries";
 
 export { minutosSessao };
 
@@ -62,7 +63,8 @@ export async function espelhoMes(userId: string, ano: number, mes: number) {
 
   const escala = await prisma.escalaTrabalho.findUnique({ where: { userId } });
   const horasDia = escala ? Number(escala.horasDia) : 8;
-  const esperadoMin = horasDia * 60 * diasUteis(ano, mes);
+  const feriadosUteis = await feriadosUteisNoMes(ano, mes);
+  const esperadoMin = horasDia * 60 * Math.max(0, diasUteis(ano, mes) - feriadosUteis);
 
   return {
     dias: [...porDia.entries()]

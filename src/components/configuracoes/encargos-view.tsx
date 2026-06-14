@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
-import { salvarFaixasEncargo } from "@/modules/rh/encargos/actions";
+import { salvarFaixasEncargo, salvarDeducaoDependente } from "@/modules/rh/encargos/actions";
 import type { FaixaDTO } from "@/modules/rh/encargos/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Linha = { limite: string; aliquota: string; deduzir: string };
@@ -105,7 +106,44 @@ function TabelaFaixas({
   );
 }
 
-export function EncargosView({ inss, irrf }: { inss: FaixaDTO[]; irrf: FaixaDTO[] }) {
+function DeducaoDependente({ inicial }: { inicial: number }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [valor, setValor] = useState(String(inicial));
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Dedução por dependente (IRRF)</CardTitle>
+        <CardDescription>Valor abatido da base do IRRF por dependente cadastrado.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-end gap-2">
+          <div className="space-y-1.5">
+            <Label>R$ por dependente</Label>
+            <Input type="number" step="0.01" min="0" value={valor} onChange={(e) => setValor(e.target.value)} className="w-40" />
+          </div>
+          <Button
+            size="sm"
+            disabled={pending}
+            onClick={() =>
+              start(async () => {
+                const r = await salvarDeducaoDependente({ valor: Number(valor) });
+                if (r.ok) {
+                  toast.success("Dedução salva.");
+                  router.refresh();
+                } else toast.error(r.error);
+              })
+            }
+          >
+            {pending ? "Salvando…" : "Salvar"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function EncargosView({ inss, irrf, deducaoDep }: { inss: FaixaDTO[]; irrf: FaixaDTO[]; deducaoDep: number }) {
   return (
     <div className="space-y-5">
       <div>
@@ -121,6 +159,8 @@ export function EncargosView({ inss, irrf }: { inss: FaixaDTO[]; irrf: FaixaDTO[
           faixas no botão “Calcular encargos”. Para a última faixa, use um limite alto.
         </p>
       </div>
+
+      <DeducaoDependente inicial={deducaoDep} />
       <div className="grid gap-4 lg:grid-cols-2">
         <TabelaFaixas
           titulo="INSS"

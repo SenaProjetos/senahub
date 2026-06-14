@@ -23,3 +23,11 @@ export async function faixasPorTipo(): Promise<{ inss: FaixaDTO[]; irrf: FaixaDT
     irrf: todas.filter((f) => f.tipo === "irrf"),
   };
 }
+
+export const CHAVE_DEDUCAO_DEP = "encargos.deducaoDependente";
+
+/** Valor (R$) da dedução de IRRF por dependente. */
+export async function deducaoDependente(): Promise<number> {
+  const c = await prisma.configSistema.findUnique({ where: { chave: CHAVE_DEDUCAO_DEP } });
+  return typeof c?.valor === "number" ? c.valor : Number(c?.valor ?? 0);
+}

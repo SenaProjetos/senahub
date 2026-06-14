@@ -122,6 +122,12 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Banknote,
         roles: ["admin", "supervisor", "administrativo"],
       },
+      {
+        title: "Funcionários",
+        href: "/rh/funcionarios",
+        icon: UserCog,
+        roles: ["admin", "supervisor", "administrativo"],
+      },
     ],
   },
   {
