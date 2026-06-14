@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, CalendarDays, MapPin, Ruler, LayoutGrid, Wrench } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
-import { obterProjeto, usuariosInternos } from "@/modules/projetos/queries";
+import { obterProjeto, usuariosInternos, margemProjeto } from "@/modules/projetos/queries";
 import { listarInputs, linkInput, progressoInputs } from "@/modules/inputs/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { SITUACAO_PROJETO_LABEL } from "@/modules/projetos/status";
@@ -22,6 +22,10 @@ function fmtData(d: Date | null) {
   return d ? new Date(d).toLocaleDateString("pt-BR") : null;
 }
 
+function brl(v: number) {
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
 export default async function ProjetoDetalhePage({
   params,
 }: {
@@ -32,11 +36,13 @@ export default async function ProjetoDetalhePage({
   const projeto = await obterProjeto(user, id);
   if (!projeto) notFound();
 
-  const [podeGerir, podeValidar] = await Promise.all([
+  const [podeGerir, podeValidar, podeVerFinanceiro] = await Promise.all([
     can(user.role, "projetos", "gerir"),
     can(user.role, "uploads", "validar"),
+    can(user.role, "financeiro", "ver"),
   ]);
   const internos = podeGerir ? await usuariosInternos() : [];
+  const margem = podeVerFinanceiro ? await margemProjeto(projeto.id) : null;
 
   const [inputs, link, progresso, modelosDoc] = await Promise.all([
     listarInputs(projeto.id),
@@ -159,6 +165,50 @@ export default async function ProjetoDetalhePage({
         token={link?.ativo ? link.token : null}
         baseUrl={baseUrl}
       />
+
+      {margem && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Margem do projeto</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-4">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Receitas</p>
+                <p className="font-mono text-lg font-bold text-success">{brl(margem.receitaConfirmada)}</p>
+                {margem.receitaPrevista > 0 && (
+                  <p className="text-xs text-muted-foreground">+ {brl(margem.receitaPrevista)} previsto</p>
+                )}
+              </div>
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Despesas diretas</p>
+                <p className="font-mono text-lg font-bold text-destructive">{brl(margem.despesaDireta)}</p>
+                {margem.despesaDiretaPrevista > 0 && (
+                  <p className="text-xs text-muted-foreground">+ {brl(margem.despesaDiretaPrevista)} previsto</p>
+                )}
+              </div>
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Custo de horas</p>
+                <p className="font-mono text-lg font-bold text-destructive">{brl(margem.custoHoras)}</p>
+                <p className="text-xs text-muted-foreground">rateio fechado</p>
+              </div>
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Margem</p>
+                <p className={`font-mono text-lg font-bold ${margem.margem >= 0 ? "text-success" : "text-destructive"}`}>
+                  {brl(margem.margem)}
+                </p>
+                {margem.margemPct != null && (
+                  <p className="text-xs text-muted-foreground">{margem.margemPct.toFixed(1)}%</p>
+                )}
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Margem realizada = receitas confirmadas − despesas diretas confirmadas − custo de horas rateado.
+              O custo de horas reflete os meses com rateio fechado.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

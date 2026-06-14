@@ -85,6 +85,7 @@ model User {
   dependentes          Dependente[]
   tarefaComentarios    TarefaComentario[]    @relation("TarefaComentarioAutor")
   habilidades          UserHabilidade[]
+  rateios              RateioHora[]
 
   @@index([role])
   @@map("user")
@@ -368,6 +369,7 @@ model Projeto {
   eapTarefas  EapTarefa[]
   alocacoes   Alocacao[]
   servicos    ServicoTerceirizado[]
+  rateios     RateioHora[]
 
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -729,6 +731,28 @@ model EscalaTrabalho {
   ativo    Boolean @default(true)
 
   @@map("escala_trabalho")
+}
+
+/// Rateio mensal do custo de horas trabalhadas por projeto (Fluxo C: ponto → custo → margem).
+/// Snapshot fechado por mês: congela o custo/hora vigente no momento do fechamento.
+model RateioHora {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projetoId String
+  projeto   Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  ano       Int
+  mes       Int
+  minutos   Int
+  /// Custo/hora usado no fechamento (snapshot de Recurso.custoHora ou derivado do salário base).
+  custoHora Decimal  @db.Decimal(10, 2)
+  /// Custo total rateado = minutos / 60 × custoHora.
+  custo     Decimal  @db.Decimal(12, 2)
+  fechadoEm DateTime @default(now())
+
+  @@unique([userId, projetoId, ano, mes])
+  @@index([projetoId, ano, mes])
+  @@map("rateio_hora")
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -115,6 +115,51 @@ export async function usuariosInternos() {
   });
 }
 
+/**
+ * Margem econômica do projeto (vida inteira):
+ * receitas confirmadas − despesas diretas confirmadas − custo de horas rateado.
+ * Custo de horas vem do snapshot fechado (`RateioHora`); valores previstos retornam à parte.
+ */
+export async function margemProjeto(projetoId: string) {
+  const [lancs, rateio] = await Promise.all([
+    prisma.lancamento.findMany({
+      where: { projetoId, status: { not: "cancelado" } },
+      select: { tipo: true, status: true, valor: true, valorEfetivo: true },
+    }),
+    prisma.rateioHora.aggregate({ where: { projetoId }, _sum: { custo: true } }),
+  ]);
+
+  let receitaConfirmada = 0;
+  let receitaPrevista = 0;
+  let despesaConfirmada = 0;
+  let despesaPrevista = 0;
+  for (const l of lancs) {
+    const realizado = Number(l.valorEfetivo ?? l.valor);
+    const previsto = Number(l.valor);
+    if (l.tipo === "receita") {
+      if (l.status === "confirmado") receitaConfirmada += realizado;
+      else receitaPrevista += previsto;
+    } else {
+      if (l.status === "confirmado") despesaConfirmada += realizado;
+      else despesaPrevista += previsto;
+    }
+  }
+
+  const custoHoras = Number(rateio._sum.custo ?? 0);
+  const margem = receitaConfirmada - despesaConfirmada - custoHoras;
+  const margemPct = receitaConfirmada > 0 ? (margem / receitaConfirmada) * 100 : null;
+
+  return {
+    receitaConfirmada,
+    receitaPrevista,
+    despesaDireta: despesaConfirmada,
+    despesaDiretaPrevista: despesaPrevista,
+    custoHoras,
+    margem,
+    margemPct,
+  };
+}
+
 export type ProjetoListItem = Awaited<ReturnType<typeof listarProjetos>>[number];
 export type ProjetoDetalhe = NonNullable<Awaited<ReturnType<typeof obterProjeto>>>;
 export type DisciplinaDetalhe = ProjetoDetalhe["disciplinas"][number];

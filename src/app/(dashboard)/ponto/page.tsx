@@ -5,8 +5,8 @@ import {
   sessaoAberta,
   projetosDoUsuario,
   espelhoMes,
-  rateioMes,
 } from "@/modules/ponto/queries";
+import { rateioMesGestor } from "@/modules/rh/rateio/queries";
 import { PontoView } from "@/components/ponto/ponto-view";
 
 export const metadata: Metadata = { title: "Ponto" };
@@ -31,7 +31,9 @@ export default async function PontoPage() {
   ]);
 
   const ehGestor = HR_ADMIN_ROLES.includes(user.role);
-  const rateio = ehGestor ? await rateioMes(hoje.getFullYear(), hoje.getMonth() + 1) : null;
+  const ano = hoje.getFullYear();
+  const mes = hoje.getMonth() + 1;
+  const rateio = ehGestor ? await rateioMesGestor(ano, mes) : null;
 
   return (
     <PontoView
@@ -39,6 +41,8 @@ export default async function PontoPage() {
       projetos={projetos}
       espelho={espelho}
       rateio={rateio}
+      ano={ano}
+      mes={mes}
     />
   );
 }

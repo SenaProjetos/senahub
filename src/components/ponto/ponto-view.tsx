@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Play, Square, Repeat } from "lucide-react";
 import { baterPonto, trocarProjeto, encerrarJornada } from "@/modules/ponto/actions";
+import { fecharRateioMes } from "@/modules/rh/rateio/actions";
 import { fmtHoras } from "@/modules/ponto/format";
+
+const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -44,16 +47,28 @@ function Cronometro({ inicio }: { inicio: string | Date }) {
   );
 }
 
+type Rateio = {
+  porProjeto: { projeto: string; minutos: number; custo: number }[];
+  semProjeto: number;
+  custoTotal: number;
+  fechado: boolean;
+  fechadoEm: string | Date | null;
+};
+
 export function PontoView({
   aberta,
   projetos,
   espelho,
   rateio,
+  ano,
+  mes,
 }: {
   aberta: { inicio: string | Date; projeto: { id: string; codigo: string; nome: string } | null } | null;
   projetos: Projeto[];
   espelho: Espelho;
-  rateio: { porProjeto: { projeto: string; minutos: number }[]; semProjeto: number } | null;
+  rateio: Rateio | null;
+  ano: number;
+  mes: number;
 }) {
   const router = useRouter();
   const [projetoId, setProjetoId] = useState(aberta?.projeto?.id ?? NONE);
@@ -194,8 +209,30 @@ export function PontoView({
       {rateio && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Rateio de horas por projeto (equipe)</CardTitle>
-            <CardDescription>Mês atual</CardDescription>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">Rateio de horas por projeto (equipe)</CardTitle>
+                <CardDescription>
+                  Mês atual · custo total {brl(rateio.custoTotal)}
+                  {rateio.fechado && rateio.fechadoEm
+                    ? ` · fechado em ${new Date(rateio.fechadoEm).toLocaleDateString("pt-BR")}`
+                    : ""}
+                </CardDescription>
+              </div>
+              <Button
+                size="sm"
+                variant={rateio.fechado ? "outline" : "default"}
+                disabled={busy || rateio.porProjeto.length === 0}
+                onClick={() =>
+                  acao(
+                    () => fecharRateioMes({ ano, mes }),
+                    rateio.fechado ? "Rateio refechado." : "Rateio do mês fechado.",
+                  )
+                }
+              >
+                {rateio.fechado ? "Refechar mês" : "Fechar mês"}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {rateio.porProjeto.length === 0 ? (
@@ -203,15 +240,17 @@ export function PontoView({
             ) : (
               <ul className="divide-y text-sm">
                 {rateio.porProjeto.map((r) => (
-                  <li key={r.projeto} className="flex items-center justify-between py-2">
-                    <span>{r.projeto}</span>
-                    <span className="font-mono">{fmtHoras(r.minutos)}</span>
+                  <li key={r.projeto} className="flex items-center justify-between gap-3 py-2">
+                    <span className="min-w-0 flex-1 truncate">{r.projeto}</span>
+                    <span className="font-mono text-muted-foreground">{fmtHoras(r.minutos)}</span>
+                    <span className="w-28 text-right font-mono">{brl(r.custo)}</span>
                   </li>
                 ))}
                 {rateio.semProjeto > 0 && (
-                  <li className="flex items-center justify-between py-2 text-muted-foreground">
-                    <span>Sem projeto</span>
+                  <li className="flex items-center justify-between gap-3 py-2 text-muted-foreground">
+                    <span className="min-w-0 flex-1 truncate">Sem projeto</span>
                     <span className="font-mono">{fmtHoras(rateio.semProjeto)}</span>
+                    <span className="w-28 text-right font-mono">—</span>
                   </li>
                 )}
               </ul>
