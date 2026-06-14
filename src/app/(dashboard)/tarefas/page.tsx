@@ -30,6 +30,14 @@ export default async function TarefasPage() {
           itens: t.itens.map((it) => ({ id: it.id, descricao: it.descricao, concluido: it.concluido })),
           dependeDeIds: t.dependeDe.map((d) => d.dependeDe.id),
           bloqueada: tarefaBloqueada(t),
+          comentarios: t.comentarios.map((c) => ({
+            id: c.id,
+            texto: c.texto,
+            autor: c.autor.name,
+            data: c.createdAt.toISOString(),
+            anexoMime: c.anexoMime,
+            anexoNome: c.anexoNome,
+          })),
         })),
       }))}
     />

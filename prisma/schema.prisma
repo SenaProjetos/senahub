@@ -83,6 +83,8 @@ model User {
   ticketMensagens      TicketMensagem[]      @relation("TicketMensagemAutor")
   recurso              Recurso?
   dependentes          Dependente[]
+  tarefaComentarios    TarefaComentario[]    @relation("TarefaComentarioAutor")
+  habilidades          UserHabilidade[]
 
   @@index([role])
   @@map("user")
@@ -365,6 +367,7 @@ model Projeto {
   sessoes     SessaoTrabalho[]
   eapTarefas  EapTarefa[]
   alocacoes   Alocacao[]
+  servicos    ServicoTerceirizado[]
 
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -496,6 +499,7 @@ model Fornecedor {
   updatedAt   DateTime   @updatedAt
 
   lancamentos Lancamento[]
+  servicos    ServicoTerceirizado[]
 
   @@index([ativo])
   @@map("fornecedor")
@@ -900,6 +904,7 @@ model Tarefa {
   itens        TarefaItem[]
   dependeDe    TarefaDependencia[] @relation("Dependente")
   dependentes  TarefaDependencia[] @relation("DependeDe")
+  comentarios  TarefaComentario[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1179,7 +1184,10 @@ model TicketMensagem {
   ticket    TicketSuporte @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   autorId   String
   autor     User          @relation("TicketMensagemAutor", fields: [autorId], references: [id])
-  texto     String
+  texto     String        @default("")
+  anexoPath String?
+  anexoNome String?
+  anexoMime String?
   createdAt DateTime      @default(now())
 
   @@index([ticketId])
@@ -1611,6 +1619,60 @@ model Feriado {
   createdAt DateTime @default(now())
 
   @@map("feriado")
+}
+
+/// Comentário de tarefa (texto e/ou anexo).
+model TarefaComentario {
+  id        String   @id @default(cuid())
+  tarefaId  String
+  tarefa    Tarefa   @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+  autorId   String
+  autor     User     @relation("TarefaComentarioAutor", fields: [autorId], references: [id])
+  texto     String   @default("")
+  anexoPath String?
+  anexoNome String?
+  anexoMime String?
+  createdAt DateTime @default(now())
+
+  @@index([tarefaId])
+  @@map("tarefa_comentario")
+}
+
+/// Habilidade/competência (catálogo).
+model Habilidade {
+  id       String           @id @default(cuid())
+  nome     String           @unique
+  usuarios UserHabilidade[]
+
+  @@map("habilidade")
+}
+
+/// Vínculo colaborador × habilidade.
+model UserHabilidade {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habilidadeId String
+  habilidade   Habilidade @relation(fields: [habilidadeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, habilidadeId])
+  @@map("user_habilidade")
+}
+
+/// Serviço terceirizado contratado para um projeto (fornecedor externo).
+model ServicoTerceirizado {
+  id           String      @id @default(cuid())
+  projetoId    String
+  projeto      Projeto     @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  fornecedorId String?
+  fornecedor   Fornecedor? @relation(fields: [fornecedorId], references: [id])
+  descricao    String
+  valor        Decimal?    @db.Decimal(14, 2)
+  status       String      @default("contratado") // contratado | concluido | cancelado
+  createdAt    DateTime    @default(now())
+
+  @@index([projetoId])
+  @@map("servico_terceirizado")
 }
 
 enum StatusFolha {

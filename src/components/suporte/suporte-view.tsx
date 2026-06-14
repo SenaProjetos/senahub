@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Send } from "lucide-react";
+import { Plus, Send, Paperclip, FileText } from "lucide-react";
 import { abrirTicket, responderTicket, mudarStatusTicket } from "@/modules/suporte/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,7 +32,7 @@ type Ticket = {
   status: string;
   autor: string;
   criadoEm: string;
-  mensagens: { id: string; autor: string; texto: string; data: string }[];
+  mensagens: { id: string; autor: string; texto: string; data: string; anexoMime: string | null; anexoNome: string | null }[];
 };
 
 const STATUS_CHIP: Record<string, string> = {
@@ -48,6 +48,7 @@ export function SuporteView({ tickets, ehGestor }: { tickets: Ticket[]; ehGestor
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
   const [respostas, setRespostas] = useState<Record<string, string>>({});
+  const [arquivos, setArquivos] = useState<Record<string, File | null>>({});
 
   function abrir() {
     start(async () => {
@@ -63,12 +64,26 @@ export function SuporteView({ tickets, ehGestor }: { tickets: Ticket[]; ehGestor
   }
 
   function responder(id: string) {
-    const texto = respostas[id]?.trim();
-    if (!texto) return;
+    const texto = (respostas[id] ?? "").trim();
+    const arquivo = arquivos[id];
+    if (!texto && !arquivo) return;
     start(async () => {
-      const r = await responderTicket({ ticketId: id, texto });
+      let meta: { anexoPath?: string; anexoNome?: string; anexoMime?: string } = {};
+      if (arquivo) {
+        const fd = new FormData();
+        fd.append("file", arquivo);
+        const res = await fetch("/api/suporte/anexo", { method: "POST", body: fd });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          toast.error(j.error ?? "Falha no anexo.");
+          return;
+        }
+        meta = j;
+      }
+      const r = await responderTicket({ ticketId: id, texto, ...meta });
       if (r.ok) {
         setRespostas((s) => ({ ...s, [id]: "" }));
+        setArquivos((s) => ({ ...s, [id]: null }));
         router.refresh();
       } else toast.error(r.error);
     });
@@ -136,18 +151,27 @@ export function SuporteView({ tickets, ehGestor }: { tickets: Ticket[]; ehGestor
                 {t.mensagens.length > 0 && (
                   <div className="space-y-1.5 rounded-sm border border-dashed p-2.5">
                     {t.mensagens.map((m) => (
-                      <p key={m.id} className="text-sm">
+                      <div key={m.id} className="text-sm">
                         <span className="font-semibold">{m.autor}:</span>{" "}
-                        <span className="text-muted-foreground">{m.texto}</span>
-                      </p>
+                        {m.texto && <span className="text-muted-foreground">{m.texto}</span>}
+                        {m.anexoMime && (
+                          <a href={`/api/suporte/anexo/${m.id}`} target="_blank" rel="noreferrer" className="ml-1 inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                            <FileText className="size-3" /> {m.anexoNome ?? "anexo"}
+                          </a>
+                        )}
+                      </div>
                     ))}
                   </div>
                 )}
 
                 {t.status !== "resolvido" && (
                   <div className="flex items-center gap-2">
+                    <label className="cursor-pointer text-muted-foreground hover:text-foreground" aria-label="Anexar">
+                      <Paperclip className={`size-4 ${arquivos[t.id] ? "text-primary" : ""}`} />
+                      <input type="file" hidden onChange={(e) => { setArquivos((s) => ({ ...s, [t.id]: e.target.files?.[0] ?? null })); e.target.value = ""; }} />
+                    </label>
                     <Input
-                      placeholder="Responder…"
+                      placeholder={arquivos[t.id] ? `Anexo: ${arquivos[t.id]?.name}` : "Responder…"}
                       value={respostas[t.id] ?? ""}
                       onChange={(e) => setRespostas((s) => ({ ...s, [t.id]: e.target.value }))}
                       onKeyDown={(e) => e.key === "Enter" && responder(t.id)}

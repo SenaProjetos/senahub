@@ -130,3 +130,43 @@ export const arquivarTarefa = defineAction(
     return { id: i.id };
   },
 );
+
+const comentarioSchema = z
+  .object({
+    tarefaId: z.string().min(1),
+    texto: z.string().max(2000).default(""),
+    anexoPath: z.string().optional(),
+    anexoNome: z.string().optional(),
+    anexoMime: z.string().optional(),
+  })
+  .refine((v) => v.texto.trim().length > 0 || !!v.anexoPath, { message: "Comentário vazio.", path: ["texto"] });
+
+export const comentarTarefa = defineAction(
+  { ...base, acao: "comentar-tarefa", entidade: "TarefaComentario", schema: comentarioSchema },
+  async (i, { user }) => {
+    const c = await prisma.tarefaComentario.create({
+      data: {
+        tarefaId: i.tarefaId,
+        autorId: user.id,
+        texto: i.texto,
+        anexoPath: i.anexoPath || null,
+        anexoNome: i.anexoNome || null,
+        anexoMime: i.anexoMime || null,
+      },
+    });
+    rev();
+    return { id: c.id };
+  },
+);
+
+export const removerComentario = defineAction(
+  { ...base, acao: "rm-comentario-tarefa", entidade: "TarefaComentario", schema: idSchema },
+  async (i, { user }) => {
+    const c = await prisma.tarefaComentario.findUnique({ where: { id: i.id }, select: { autorId: true } });
+    if (!c) throw new ActionError("Comentário não encontrado.");
+    if (c.autorId !== user.id && user.role !== "admin") throw new ActionError("Só o autor remove.");
+    await prisma.tarefaComentario.delete({ where: { id: i.id } });
+    rev();
+    return { id: i.id };
+  },
+);

@@ -13,7 +13,15 @@ const ticketSchema = z.object({
   titulo: z.string().min(1, "Informe o título."),
   descricao: z.string().min(1, "Descreva o problema."),
 });
-const mensagemSchema = z.object({ ticketId: z.string().min(1), texto: z.string().min(1) });
+const mensagemSchema = z
+  .object({
+    ticketId: z.string().min(1),
+    texto: z.string().max(4000).default(""),
+    anexoPath: z.string().optional(),
+    anexoNome: z.string().optional(),
+    anexoMime: z.string().optional(),
+  })
+  .refine((v) => v.texto.trim().length > 0 || !!v.anexoPath, { message: "Mensagem vazia.", path: ["texto"] });
 const statusSchema = z.object({
   id: z.string().min(1),
   status: z.enum(["aberto", "em_atendimento", "resolvido"]),
@@ -45,12 +53,19 @@ export const responderTicket = defineAction(
     const t = await prisma.ticketSuporte.findUnique({ where: { id: i.ticketId } });
     if (!t) throw new ActionError("Ticket não encontrado.");
     await prisma.ticketMensagem.create({
-      data: { ticketId: i.ticketId, autorId: user.id, texto: i.texto },
+      data: {
+        ticketId: i.ticketId,
+        autorId: user.id,
+        texto: i.texto,
+        anexoPath: i.anexoPath || null,
+        anexoNome: i.anexoNome || null,
+        anexoMime: i.anexoMime || null,
+      },
     });
     if (t.autorId !== user.id) {
       await notificar(t.autorId, {
         titulo: "Resposta no seu ticket",
-        corpo: i.texto.slice(0, 80),
+        corpo: i.texto ? i.texto.slice(0, 80) : "📎 Anexo",
         href: "/suporte",
         tag: `ticket-${t.id}`,
       });

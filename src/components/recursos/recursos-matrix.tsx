@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, AlertTriangle, Trash2, UserPlus } from "lucide-react";
 import { salvarRecurso, salvarAlocacao, removerAlocacao } from "@/modules/planejamento/actions";
+import { criarHabilidade, alternarHabilidadeUsuario } from "@/modules/rh/habilidades/actions";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,18 +52,25 @@ type Projeto = { id: string; codigo: string; nome: string };
 
 const NONE = "__none";
 
+type Habilidade = { id: string; nome: string };
+
 export function RecursosMatrix({
   linhas,
   projetos,
   usuariosSemRecurso,
   podeGerir,
+  catalogoHabilidades,
+  habilidadesPorUser,
 }: {
   linhas: Linha[];
   projetos: Projeto[];
   usuariosSemRecurso: { id: string; name: string; role: string }[];
   podeGerir: boolean;
+  catalogoHabilidades: Habilidade[];
+  habilidadesPorUser: Record<string, Habilidade[]>;
 }) {
   const router = useRouter();
+  const [habDlg, setHabDlg] = useState<{ userId: string; nome: string } | null>(null);
   const [pending, start] = useTransition();
   const [recursoDlg, setRecursoDlg] = useState<{ open: boolean; linha: Linha | null }>({
     open: false,
@@ -126,6 +134,22 @@ export function RecursosMatrix({
                         <div className="font-medium">{l.nome}</div>
                         <div className="text-[11px] text-muted-foreground">
                           {ROLE_LABELS[l.role as Role] ?? l.role}
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-1">
+                          {(habilidadesPorUser[l.userId] ?? []).map((h) => (
+                            <span key={h.id} className="rounded-sm bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                              {h.nome}
+                            </span>
+                          ))}
+                          {podeGerir && (
+                            <button
+                              type="button"
+                              onClick={() => setHabDlg({ userId: l.userId, nome: l.nome })}
+                              className="rounded-sm border border-dashed px-1.5 py-0.5 text-[10px] text-muted-foreground hover:border-primary hover:text-foreground"
+                            >
+                              + habilidade
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -262,7 +286,101 @@ export function RecursosMatrix({
           />
         </>
       )}
+
+      {podeGerir && habDlg && (
+        <HabilidadesDialog
+          alvo={habDlg}
+          catalogo={catalogoHabilidades}
+          atribuidas={(habilidadesPorUser[habDlg.userId] ?? []).map((h) => h.id)}
+          pending={pending}
+          onClose={() => setHabDlg(null)}
+          onToggle={(habilidadeId) =>
+            start(async () => {
+              const r = await alternarHabilidadeUsuario({ userId: habDlg.userId, habilidadeId });
+              if (r.ok) router.refresh();
+              else toast.error(r.error);
+            })
+          }
+          onCriar={(nome) =>
+            start(async () => {
+              const r = await criarHabilidade({ nome });
+              if (r.ok) router.refresh();
+              else toast.error(r.error);
+            })
+          }
+        />
+      )}
     </div>
+  );
+}
+
+function HabilidadesDialog({
+  alvo,
+  catalogo,
+  atribuidas,
+  pending,
+  onClose,
+  onToggle,
+  onCriar,
+}: {
+  alvo: { userId: string; nome: string };
+  catalogo: Habilidade[];
+  atribuidas: string[];
+  pending: boolean;
+  onClose: () => void;
+  onToggle: (habilidadeId: string) => void;
+  onCriar: (nome: string) => void;
+}) {
+  const [nova, setNova] = useState("");
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Habilidades · {alvo.nome}</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-wrap gap-1.5">
+          {catalogo.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma habilidade. Crie abaixo.</p>}
+          {catalogo.map((h) => {
+            const on = atribuidas.includes(h.id);
+            return (
+              <button
+                key={h.id}
+                type="button"
+                disabled={pending}
+                onClick={() => onToggle(h.id)}
+                className={`rounded-sm border px-2 py-1 text-xs ${on ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:border-primary/50"}`}
+              >
+                {h.nome}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-2">
+          <Input
+            placeholder="Nova habilidade…"
+            value={nova}
+            onChange={(e) => setNova(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && nova.trim()) {
+                onCriar(nova);
+                setNova("");
+              }
+            }}
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={pending || !nova.trim()}
+            onClick={() => {
+              onCriar(nova);
+              setNova("");
+            }}
+          >
+            Criar
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

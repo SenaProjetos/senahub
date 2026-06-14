@@ -34,6 +34,8 @@ export default async function SuportePage() {
           autor: m.autor.name,
           texto: m.texto,
           data: m.createdAt.toISOString(),
+          anexoMime: m.anexoMime,
+          anexoNome: m.anexoNome,
         })),
       }))}
     />

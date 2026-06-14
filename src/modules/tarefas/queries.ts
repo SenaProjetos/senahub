@@ -19,6 +19,10 @@ export async function quadroTarefas() {
               dependeDe: { select: { id: true, titulo: true, status: { select: { concluido: true } } } },
             },
           },
+          comentarios: {
+            orderBy: { createdAt: "asc" },
+            include: { autor: { select: { name: true } } },
+          },
         },
       },
     },

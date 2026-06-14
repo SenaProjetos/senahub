@@ -1,10 +1,17 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2, Archive } from "lucide-react";
-import { criarTarefa, editarTarefa, arquivarTarefa, toggleItemTarefa } from "@/modules/tarefas/actions";
+import { Plus, Trash2, Archive, Paperclip, Send, FileText, X } from "lucide-react";
+import {
+  criarTarefa,
+  editarTarefa,
+  arquivarTarefa,
+  toggleItemTarefa,
+  comentarTarefa,
+  removerComentario,
+} from "@/modules/tarefas/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +42,7 @@ export type TarefaUI = {
   itens: { id?: string; descricao: string; concluido: boolean }[];
   dependeDeIds: string[];
   bloqueada: boolean;
+  comentarios?: { id: string; texto: string; autor: string; data: string; anexoMime: string | null; anexoNome: string | null }[];
 };
 
 export type OpcoesUI = {
@@ -82,12 +90,55 @@ export function TarefaDialog({
   });
   const [form, setForm] = useState(tarefa ? deTarefa(tarefa) : vazio);
   const [novoItem, setNovoItem] = useState("");
+  const [comentarios, setComentarios] = useState(tarefa?.comentarios ?? []);
+  const [novoComent, setNovoComent] = useState("");
+  const [comentFile, setComentFile] = useState<File | null>(null);
+  const comentFileRef = useRef<HTMLInputElement>(null);
   const key = tarefa?.id ?? "nova";
   const [lastKey, setLastKey] = useState(key);
   if (lastKey !== key) {
     setLastKey(key);
     setForm(tarefa ? deTarefa(tarefa) : vazio);
     setNovoItem("");
+    setComentarios(tarefa?.comentarios ?? []);
+    setNovoComent("");
+    setComentFile(null);
+  }
+
+  function enviarComentario() {
+    if (!tarefa || (!novoComent.trim() && !comentFile)) return;
+    const texto = novoComent;
+    const arquivo = comentFile;
+    setNovoComent("");
+    setComentFile(null);
+    start(async () => {
+      let meta: { anexoPath?: string; anexoNome?: string; anexoMime?: string } = {};
+      if (arquivo) {
+        const fd = new FormData();
+        fd.append("file", arquivo);
+        const res = await fetch("/api/tarefas/anexo", { method: "POST", body: fd });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          toast.error(j.error ?? "Falha no anexo.");
+          return;
+        }
+        meta = j;
+      }
+      const r = await comentarTarefa({ tarefaId: tarefa.id, texto, ...meta });
+      if (r.ok) {
+        setComentarios((cs) => [
+          ...cs,
+          { id: r.data.id, texto, autor: "Você", data: new Date().toISOString(), anexoMime: meta.anexoMime ?? null, anexoNome: meta.anexoNome ?? null },
+        ]);
+      } else toast.error(r.error);
+    });
+  }
+  function excluirComentario(id: string) {
+    start(async () => {
+      const r = await removerComentario({ id });
+      if (r.ok) setComentarios((cs) => cs.filter((c) => c.id !== id));
+      else toast.error(r.error);
+    });
   }
 
   function toggleArr(campo: "responsaveisIds" | "dependeDeIds", id: string) {
@@ -289,6 +340,56 @@ export function TarefaDialog({
                     </button>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {tarefa && (
+            <div className="space-y-1.5 border-t pt-3">
+              <Label>Comentários</Label>
+              {comentarios.length > 0 && (
+                <ul className="max-h-40 space-y-1.5 overflow-y-auto">
+                  {comentarios.map((c) => (
+                    <li key={c.id} className="rounded-sm bg-muted/50 px-2 py-1 text-sm">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-[11px] font-semibold text-muted-foreground">{c.autor}</span>
+                        <button type="button" onClick={() => excluirComentario(c.id)} aria-label="Remover" className="text-muted-foreground hover:text-foreground">
+                          <X className="size-3" />
+                        </button>
+                      </div>
+                      {c.texto && <p className="whitespace-pre-wrap break-words">{c.texto}</p>}
+                      {c.anexoMime && (
+                        <a href={`/api/tarefas/anexo/${c.id}`} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                          <FileText className="size-3" /> {c.anexoNome ?? "anexo"}
+                        </a>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {comentFile && (
+                <div className="flex items-center gap-2 rounded-sm border bg-muted/40 px-2 py-1 text-xs">
+                  <Paperclip className="size-3 shrink-0" />
+                  <span className="flex-1 truncate">{comentFile.name}</span>
+                  <button type="button" onClick={() => setComentFile(null)} aria-label="Remover anexo">
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <input ref={comentFileRef} type="file" hidden onChange={(e) => { setComentFile(e.target.files?.[0] ?? null); e.target.value = ""; }} />
+                <Button size="icon" variant="ghost" type="button" onClick={() => comentFileRef.current?.click()} aria-label="Anexar">
+                  <Paperclip className="size-4" />
+                </Button>
+                <Input
+                  value={novoComent}
+                  onChange={(e) => setNovoComent(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), enviarComentario())}
+                  placeholder="Comentar…"
+                />
+                <Button size="icon" type="button" onClick={enviarComentario} disabled={pending} aria-label="Enviar">
+                  <Send className="size-4" />
+                </Button>
               </div>
             </div>
           )}
