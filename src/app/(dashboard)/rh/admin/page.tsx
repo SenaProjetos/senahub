@@ -9,25 +9,34 @@ import {
   opcoesOnboarding,
   nfsPendentes,
 } from "@/modules/rh/queries";
+import { fechamentosDoMes } from "@/modules/rh/banco/queries";
 import { RhAdminView } from "@/components/rh/rh-admin-view";
 import { OnboardingAdmin } from "@/components/rh/onboarding-admin";
 import { NfAdmin } from "@/components/rh/nf-admin";
+import { BancoHorasAdmin } from "@/components/rh/banco-horas-admin";
 
 export const metadata: Metadata = { title: "RH — administração" };
 
 export default async function RhAdminPage() {
   await requireRole(...HR_ADMIN_ROLES);
-  const [abonos, ferias, clima, processos, opcoes, nfs] = await Promise.all([
+  // Banco de horas: alvo de fechamento = mês anterior ao atual.
+  const agora = new Date();
+  const bancoMes = agora.getMonth() === 0 ? 12 : agora.getMonth();
+  const bancoAno = agora.getMonth() === 0 ? agora.getFullYear() - 1 : agora.getFullYear();
+
+  const [abonos, ferias, clima, processos, opcoes, nfs, fechamentos] = await Promise.all([
     abonosPendentes(),
     feriasPendentes(),
     climaResumo(),
     onboardingsAtivos(),
     opcoesOnboarding(),
     nfsPendentes(),
+    fechamentosDoMes(bancoAno, bancoMes),
   ]);
   return (
     <div className="space-y-6">
       <RhAdminView abonos={abonos} ferias={ferias} clima={clima} />
+      <BancoHorasAdmin ano={bancoAno} mes={bancoMes} fechamentos={fechamentos} />
       <div className="grid gap-4 lg:grid-cols-2">
         <OnboardingAdmin
           processos={processos.map((p) => ({

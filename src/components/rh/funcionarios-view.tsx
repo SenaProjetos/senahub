@@ -8,6 +8,7 @@ import {
   adicionarDependente,
   removerDependente,
   salvarSalario,
+  salvarDataAdmissao,
   adicionarDocumentoFuncionario,
   removerDocumentoFuncionario,
 } from "@/modules/rh/funcionarios/actions";
@@ -29,7 +30,17 @@ function fmtBytes(n: number) {
 
 type Dep = { id: string; nome: string; nascimento: string | null; parentesco: string | null };
 type Doc = { id: string; tipo: string; nome: string; nomeArquivo: string; tamanho: number; criadoEm: string };
-type Func = { id: string; name: string; role: string; salarioBase: number | null; dependentes: Dep[]; documentos: Doc[] };
+type Aquisitivo = { diasDisponiveis: number; proximoVencimento: string | null; temVencido: boolean; diasVencidos: number };
+type Func = {
+  id: string;
+  name: string;
+  role: string;
+  salarioBase: number | null;
+  dataAdmissao: string | null;
+  aquisitivo: Aquisitivo | null;
+  dependentes: Dep[];
+  documentos: Doc[];
+};
 
 function FuncCard({ f }: { f: Func }) {
   const router = useRouter();
@@ -37,6 +48,7 @@ function FuncCard({ f }: { f: Func }) {
   const [nome, setNome] = useState("");
   const [nascimento, setNascimento] = useState("");
   const [salario, setSalario] = useState(f.salarioBase != null ? String(f.salarioBase) : "");
+  const [admissao, setAdmissao] = useState(f.dataAdmissao ?? "");
   const [docTipo, setDocTipo] = useState("contrato");
   const [docNome, setDocNome] = useState("");
   const [busyDoc, setBusyDoc] = useState(false);
@@ -47,6 +59,16 @@ function FuncCard({ f }: { f: Func }) {
       const r = await salvarSalario({ userId: f.id, salarioBase: Number(salario) || 0 });
       if (r.ok) {
         toast.success("Salário salvo.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  function salvarAdm() {
+    start(async () => {
+      const r = await salvarDataAdmissao({ userId: f.id, dataAdmissao: admissao });
+      if (r.ok) {
+        toast.success("Admissão salva.");
         router.refresh();
       } else toast.error(r.error);
     });
@@ -121,15 +143,35 @@ function FuncCard({ f }: { f: Func }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="flex items-end gap-2">
+        <div className="flex flex-wrap items-end gap-2">
           <div className="space-y-1.5">
             <Label className="text-xs">Salário base (R$)</Label>
-            <Input type="number" step="0.01" min="0" value={salario} onChange={(e) => setSalario(e.target.value)} className="w-40" />
+            <Input type="number" step="0.01" min="0" value={salario} onChange={(e) => setSalario(e.target.value)} className="w-36" />
           </div>
           <Button size="sm" variant="outline" onClick={salvarSal} disabled={pending}>
             Salvar
           </Button>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Admissão</Label>
+            <Input type="date" value={admissao} onChange={(e) => setAdmissao(e.target.value)} className="w-40" />
+          </div>
+          <Button size="sm" variant="outline" onClick={salvarAdm} disabled={pending}>
+            Salvar
+          </Button>
         </div>
+
+        {f.aquisitivo && (
+          <div className="rounded-sm border bg-muted/30 px-3 py-2 text-xs">
+            <span className="font-mono uppercase tracking-[0.12em] text-muted-foreground">Férias · </span>
+            <span className="font-semibold">{f.aquisitivo.diasDisponiveis} dia(s) disponível(is)</span>
+            {f.aquisitivo.proximoVencimento && (
+              <span className="text-muted-foreground"> · vence {new Date(f.aquisitivo.proximoVencimento + "T00:00:00").toLocaleDateString("pt-BR")}</span>
+            )}
+            {f.aquisitivo.temVencido && (
+              <span className="ml-1 font-semibold text-destructive">· {f.aquisitivo.diasVencidos} dia(s) vencido(s)!</span>
+            )}
+          </div>
+        )}
         {f.dependentes.length > 0 && (
           <ul className="divide-y text-sm">
             {f.dependentes.map((d) => (

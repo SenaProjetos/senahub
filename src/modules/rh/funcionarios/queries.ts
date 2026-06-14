@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { periodosAquisitivos, resumoAquisitivo } from "@/lib/aquisitivo";
 
 /** Funcionários (CLT/estagiário) com seus dependentes — base p/ folha e dedução de IRRF. */
 export async function listarFuncionarios() {
@@ -11,6 +12,7 @@ export async function listarFuncionarios() {
       name: true,
       role: true,
       salarioBase: true,
+      dataAdmissao: true,
       dependentes: {
         orderBy: { createdAt: "asc" },
         select: { id: true, nome: true, nascimento: true, parentesco: true },
@@ -21,11 +23,28 @@ export async function listarFuncionarios() {
       },
     },
   });
+
+  // Férias aprovadas de todos (1 query) p/ calcular dias gozados por período aquisitivo.
+  const feriasAprovadas = await prisma.ferias.findMany({
+    where: { userId: { in: us.map((u) => u.id) }, status: "aprovado" },
+    select: { userId: true, inicio: true, fim: true },
+  });
+  const feriasPorUser = new Map<string, { inicio: Date; fim: Date }[]>();
+  for (const f of feriasAprovadas) {
+    const arr = feriasPorUser.get(f.userId) ?? [];
+    arr.push({ inicio: f.inicio, fim: f.fim });
+    feriasPorUser.set(f.userId, arr);
+  }
+
   return us.map((u) => ({
     id: u.id,
     name: u.name,
     role: u.role,
     salarioBase: u.salarioBase != null ? Number(u.salarioBase) : null,
+    dataAdmissao: u.dataAdmissao ? u.dataAdmissao.toISOString().slice(0, 10) : null,
+    aquisitivo: u.dataAdmissao
+      ? resumoAquisitivo(periodosAquisitivos(u.dataAdmissao, feriasPorUser.get(u.id) ?? []))
+      : null,
     dependentes: u.dependentes.map((d) => ({
       id: d.id,
       nome: d.nome,

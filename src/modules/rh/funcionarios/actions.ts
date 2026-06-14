@@ -64,6 +64,19 @@ export const salvarSalario = defineAction(
   },
 );
 
+/** Define a data de admissão do colaborador (base do período aquisitivo de férias). */
+export const salvarDataAdmissao = defineAction(
+  { ...base, acao: "salvar-admissao", entidade: "User", schema: z.object({ userId: z.string().min(1), dataAdmissao: opt(z.string()) }) },
+  async (i) => {
+    await prisma.user.update({
+      where: { id: i.userId },
+      data: { dataAdmissao: i.dataAdmissao ? new Date(i.dataAdmissao + "T00:00:00Z") : null },
+    });
+    rev();
+    return { id: i.userId };
+  },
+);
+
 const TIPOS_DOC = ["contrato", "rg", "cpf", "aso", "diploma", "comprovante", "outro"] as const;
 
 export const adicionarDocumentoFuncionario = defineAction(

@@ -39,6 +39,8 @@ model User {
   cliente            Cliente?   @relation("ClienteUsuarios", fields: [clienteId], references: [id])
   /// Salário base do colaborador CLT/estagiário (p/ geração automática de holerites).
   salarioBase        Decimal?   @db.Decimal(12, 2)
+  /// Data de admissão (CLT) — base do período aquisitivo de férias.
+  dataAdmissao       DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -87,6 +89,7 @@ model User {
   habilidades          UserHabilidade[]
   rateios              RateioHora[]
   funcDocumentos       FuncionarioDocumento[] @relation("FuncDocumentos")
+  bancoHoras           BancoHorasMensal[]
 
   @@index([role])
   @@map("user")
@@ -755,6 +758,24 @@ model RateioHora {
   @@unique([userId, projetoId, ano, mes])
   @@index([projetoId, ano, mes])
   @@map("rateio_hora")
+}
+
+/// Fechamento mensal do banco de horas: congela saldo do mês e o acumulado (carry-forward).
+model BancoHorasMensal {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ano              Int
+  mes              Int
+  /// Saldo do mês (trabalhado − esperado), em minutos.
+  saldoMinutos     Int
+  /// Saldo acumulado até este mês (carry-forward), em minutos.
+  acumuladoMinutos Int
+  fechadoEm        DateTime @default(now())
+
+  @@unique([userId, ano, mes])
+  @@index([userId])
+  @@map("banco_horas_mensal")
 }
 
 // ─────────────────────────────────────────────────────────────
