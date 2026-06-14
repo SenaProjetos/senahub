@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, MapPin, Ruler } from "lucide-react";
+import { ArrowLeft, CalendarDays, MapPin, Ruler, LayoutGrid } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { obterProjeto, usuariosInternos } from "@/modules/projetos/queries";
@@ -100,7 +100,12 @@ export default async function ProjetoDetalhePage({
             </Link>
           </p>
         </div>
-        <GerarDocumentoButton modelos={modelosDoc} paramId="projetoId" valor={projeto.id} />
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" render={<Link href={`/projetos/${projeto.id}/pranchas`} />}>
+            <LayoutGrid className="size-4" /> Pranchas
+          </Button>
+          <GerarDocumentoButton modelos={modelosDoc} paramId="projetoId" valor={projeto.id} />
+        </div>
       </div>
 
       <div className="grid gap-4 text-sm sm:grid-cols-3">

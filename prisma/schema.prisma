@@ -809,6 +809,8 @@ model Disciplina {
   nome      String
   status    StatusDisciplina @default(aguardando)
   prazo     DateTime?
+  /// Quando a disciplina foi entregue/aprovada (p/ SLA de entregas).
+  entregueEm DateTime?
   /// Valor a pagar ao(s) projetista(s) por esta entrega.
   valor     Decimal?         @db.Decimal(12, 2)
   ordem     Int              @default(0)
@@ -819,6 +821,7 @@ model Disciplina {
   pagamentos   PagamentoProjetista[]
   canais       Canal[]
   eapTarefas   EapTarefa[]
+  pranchas     Prancha[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1579,6 +1582,22 @@ model Dependente {
 
   @@index([userId])
   @@map("dependente")
+}
+
+/// Prancha (folha técnica) de uma disciplina — código, título, revisão, escala.
+model Prancha {
+  id           String     @id @default(cuid())
+  disciplinaId String
+  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+  codigo       String
+  titulo       String
+  revisao      String?
+  escala       String?
+  ordem        Int        @default(0)
+  createdAt    DateTime   @default(now())
+
+  @@index([disciplinaId])
+  @@map("prancha")
 }
 
 /// Feriado (cadastro p/ ponto/escala/banco de horas). Data única.

@@ -120,9 +120,14 @@ export const atualizarStatusDisciplina = defineAction(
       throw new ActionError("Apenas responsáveis ou gestores alteram o status.");
     }
 
+    const entregue = input.status === "entregue" || input.status === "aprovado";
     await prisma.disciplina.update({
       where: { id: input.disciplinaId },
-      data: { status: input.status },
+      data: {
+        status: input.status,
+        // marca a entrega (preserva a 1ª data); limpa se voltar a um status não-entregue.
+        entregueEm: entregue ? (disciplina.entregueEm ?? new Date()) : null,
+      },
     });
     revalidatePath(`/projetos/${disciplina.projetoId}`);
     return { disciplinaId: input.disciplinaId, status: input.status };

@@ -43,6 +43,61 @@ export async function indiceQualidadeAtual() {
   };
 }
 
+/** SLA de entregas: prazo cumprido × estourado, por disciplina. */
+export async function slaEntregas() {
+  const hoje = new Date();
+  const discs = await prisma.disciplina.findMany({
+    where: { prazo: { not: null }, projeto: { situacao: { in: ["em_andamento", "concluido"] } } },
+    select: {
+      id: true,
+      nome: true,
+      status: true,
+      prazo: true,
+      entregueEm: true,
+      projeto: { select: { id: true, codigo: true } },
+    },
+  });
+
+  let noPrazo = 0;
+  let atrasadasEntregues = 0;
+  let pendentesVencidas = 0;
+  let pendentesEmDia = 0;
+  const atrasos: { projeto: string; projetoId: string; nome: string; dias: number; entregue: boolean }[] = [];
+
+  for (const d of discs) {
+    const entregue = d.status === "entregue" || d.status === "aprovado";
+    if (entregue) {
+      if (d.entregueEm) {
+        const dias = Math.round((d.entregueEm.getTime() - d.prazo!.getTime()) / 86400000);
+        if (dias <= 0) noPrazo++;
+        else {
+          atrasadasEntregues++;
+          atrasos.push({ projeto: d.projeto.codigo, projetoId: d.projeto.id, nome: d.nome, dias, entregue: true });
+        }
+      } else {
+        noPrazo++; // entregue sem data registrada → considera no prazo
+      }
+    } else if (d.prazo! < hoje) {
+      pendentesVencidas++;
+      const dias = Math.round((hoje.getTime() - d.prazo!.getTime()) / 86400000);
+      atrasos.push({ projeto: d.projeto.codigo, projetoId: d.projeto.id, nome: d.nome, dias, entregue: false });
+    } else {
+      pendentesEmDia++;
+    }
+  }
+
+  const baseEntregues = noPrazo + atrasadasEntregues;
+  return {
+    total: discs.length,
+    noPrazo,
+    atrasadasEntregues,
+    pendentesVencidas,
+    pendentesEmDia,
+    percentualNoPrazo: baseEntregues > 0 ? Math.round((noPrazo / baseEntregues) * 100) : 100,
+    atrasos: atrasos.sort((a, b) => b.dias - a.dias).slice(0, 10),
+  };
+}
+
 export async function snapshotsQualidade() {
   return prisma.qualidadeSnapshot.findMany({
     orderBy: [{ ano: "desc" }, { mes: "desc" }],

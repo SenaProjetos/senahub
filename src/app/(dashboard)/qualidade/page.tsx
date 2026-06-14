@@ -1,14 +1,20 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { requirePermission } from "@/lib/session";
-import { indiceQualidadeAtual, snapshotsQualidade } from "@/modules/qualidade/queries";
+import { indiceQualidadeAtual, snapshotsQualidade, slaEntregas } from "@/modules/qualidade/queries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { TrendLine } from "@/components/qualidade/trend-line";
 
 export const metadata: Metadata = { title: "Qualidade" };
 
 export default async function QualidadePage() {
   await requirePermission("qualidade", "ver");
-  const [atual, snapshots] = await Promise.all([indiceQualidadeAtual(), snapshotsQualidade()]);
+  const [atual, snapshots, sla] = await Promise.all([
+    indiceQualidadeAtual(),
+    snapshotsQualidade(),
+    slaEntregas(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -57,6 +63,70 @@ export default async function QualidadePage() {
           </CardHeader>
         </Card>
       </div>
+
+      <div>
+        <h3 className="mb-2 text-lg font-bold tracking-tight">SLA de entregas</h3>
+        <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">% no prazo</CardDescription>
+              <CardTitle className={`text-3xl ${sla.percentualNoPrazo < 70 ? "text-destructive" : sla.percentualNoPrazo < 90 ? "text-warning" : "text-success"}`}>
+                {sla.percentualNoPrazo}%
+              </CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">Entregues no prazo</CardDescription>
+              <CardTitle className="text-3xl text-success">{sla.noPrazo}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">Entregues atrasadas</CardDescription>
+              <CardTitle className="text-3xl text-warning">{sla.atrasadasEntregues}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">Pendentes vencidas</CardDescription>
+              <CardTitle className="text-3xl text-destructive">{sla.pendentesVencidas}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">Pendentes em dia</CardDescription>
+              <CardTitle className="text-3xl">{sla.pendentesEmDia}</CardTitle>
+            </CardHeader>
+          </Card>
+        </div>
+      </div>
+
+      {sla.atrasos.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Maiores atrasos</CardTitle>
+            <CardDescription>Disciplinas entregues após o prazo ou pendentes vencidas.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y text-sm">
+              {sla.atrasos.map((a, i) => (
+                <li key={i} className="flex items-center justify-between gap-2 py-1.5">
+                  <Link href={`/projetos/${a.projetoId}`} className="hover:underline">
+                    <span className="font-mono text-xs text-primary">{a.projeto}</span> · {a.nome}
+                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className={a.entregue ? "border-warning/40 text-warning" : "border-destructive/40 text-destructive"}>
+                      {a.entregue ? "atrasada" : "vencida"}
+                    </Badge>
+                    <span className="w-12 text-right font-mono text-xs">+{a.dias}d</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
