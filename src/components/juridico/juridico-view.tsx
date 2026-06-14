@@ -4,12 +4,15 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { differenceInCalendarDays } from "date-fns";
-import { Plus, Upload, Download, Trash2 } from "lucide-react";
+import { Plus, Upload, Download, Trash2, Folder, FolderPlus, X } from "lucide-react";
 import {
   criarDocJuridico,
   excluirDocJuridico,
   criarCertidao,
   excluirCertidao,
+  criarPastaJuridica,
+  excluirPastaJuridica,
+  moverDocPasta,
 } from "@/modules/juridico/actions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,11 +32,13 @@ type Doc = {
   id: string;
   titulo: string;
   tipo: string;
+  pastaId: string | null;
   projeto: string | null;
   cliente: string | null;
   versoes: { id: string; numero: number; arquivoNome: string; autor: string; data: string }[];
 };
 type Cert = { id: string; tipo: string; descricao: string | null; validade: string };
+type Pasta = { id: string; nome: string; total: number };
 
 const NONE = "__none";
 const TIPOS_DOC = ["contrato", "aditivo", "proposta", "procuracao", "outro"];
@@ -44,6 +49,7 @@ export function JuridicoView({
   tipos,
   projetos,
   clientes,
+  pastas,
   podeGerir,
 }: {
   docs: Doc[];
@@ -51,6 +57,7 @@ export function JuridicoView({
   tipos: { id: string; nome: string }[];
   projetos: { id: string; label: string }[];
   clientes: { id: string; label: string }[];
+  pastas: Pasta[];
   podeGerir: boolean;
 }) {
   return (
@@ -70,7 +77,7 @@ export function JuridicoView({
         <Card className="mt-3">
           <CardContent className="pt-5">
             <TabsContent value="docs">
-              <DocsTab docs={docs} projetos={projetos} clientes={clientes} podeGerir={podeGerir} />
+              <DocsTab docs={docs} projetos={projetos} clientes={clientes} pastas={pastas} podeGerir={podeGerir} />
             </TabsContent>
             <TabsContent value="certidoes">
               <CertidoesTab certidoes={certidoes} tipos={tipos} podeGerir={podeGerir} />
@@ -82,15 +89,19 @@ export function JuridicoView({
   );
 }
 
+const SEM_PASTA = "__sempasta";
+
 function DocsTab({
   docs,
   projetos,
   clientes,
+  pastas,
   podeGerir,
 }: {
   docs: Doc[];
   projetos: { id: string; label: string }[];
   clientes: { id: string; label: string }[];
+  pastas: Pasta[];
   podeGerir: boolean;
 }) {
   const router = useRouter();
@@ -99,8 +110,19 @@ function DocsTab({
   const [tipo, setTipo] = useState("contrato");
   const [projetoId, setProjetoId] = useState(NONE);
   const [clienteId, setClienteId] = useState(NONE);
+  const [pastaId, setPastaId] = useState(NONE);
+  const [filtro, setFiltro] = useState<string | null>(null); // null = todas; SEM_PASTA; ou id
+  const [novaPasta, setNovaPasta] = useState("");
   const uploadRef = useRef<HTMLInputElement>(null);
   const [uploadDoc, setUploadDoc] = useState<string | null>(null);
+
+  const docsVisiveis =
+    filtro === null
+      ? docs
+      : filtro === SEM_PASTA
+        ? docs.filter((d) => !d.pastaId)
+        : docs.filter((d) => d.pastaId === filtro);
+  const nomePasta = (id: string | null) => (id ? (pastas.find((p) => p.id === id)?.nome ?? null) : null);
 
   function criar() {
     if (!titulo.trim()) return toast.error("Informe o título.");
@@ -110,6 +132,7 @@ function DocsTab({
         tipo: tipo as never,
         projetoId: projetoId === NONE ? "" : projetoId,
         clienteId: clienteId === NONE ? "" : clienteId,
+        pastaId: pastaId === NONE ? "" : pastaId,
         observacao: "",
       });
       if (r.ok) {
@@ -117,6 +140,34 @@ function DocsTab({
         setTitulo("");
         router.refresh();
       } else toast.error(r.error);
+    });
+  }
+
+  function criarPasta() {
+    if (!novaPasta.trim()) return;
+    start(async () => {
+      const r = await criarPastaJuridica({ nome: novaPasta, parentId: "" });
+      if (r.ok) {
+        toast.success("Pasta criada.");
+        setNovaPasta("");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+  function excluirPasta(id: string) {
+    start(async () => {
+      const r = await excluirPastaJuridica({ id });
+      if (r.ok) {
+        if (filtro === id) setFiltro(null);
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+  function mover(id: string, pasta: string) {
+    start(async () => {
+      const r = await moverDocPasta({ id, pastaId: pasta === NONE ? "" : pasta });
+      if (r.ok) router.refresh();
+      else toast.error(r.error);
     });
   }
 
@@ -187,28 +238,103 @@ function DocsTab({
               ))}
             </SelectContent>
           </Select>
+          <Select value={pastaId} onValueChange={(v) => setPastaId(v ?? NONE)}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Pasta" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NONE}>Sem pasta</SelectItem>
+              {pastas.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button size="sm" onClick={criar} disabled={pending}>
             <Plus className="size-3.5" /> Criar
           </Button>
         </div>
       )}
 
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button
+          onClick={() => setFiltro(null)}
+          className={`rounded-sm border px-2.5 py-1 text-xs ${filtro === null ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          Todas ({docs.length})
+        </button>
+        <button
+          onClick={() => setFiltro(SEM_PASTA)}
+          className={`rounded-sm border px-2.5 py-1 text-xs ${filtro === SEM_PASTA ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          Sem pasta ({docs.filter((d) => !d.pastaId).length})
+        </button>
+        {pastas.map((p) => (
+          <span
+            key={p.id}
+            className={`inline-flex items-center gap-1 rounded-sm border px-2.5 py-1 text-xs ${filtro === p.id ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground"}`}
+          >
+            <button onClick={() => setFiltro(p.id)} className="inline-flex items-center gap-1 hover:text-foreground">
+              <Folder className="size-3" /> {p.nome} ({p.total})
+            </button>
+            {podeGerir && (
+              <button onClick={() => excluirPasta(p.id)} aria-label="Excluir pasta" className="hover:text-destructive" disabled={pending}>
+                <X className="size-3" />
+              </button>
+            )}
+          </span>
+        ))}
+        {podeGerir && (
+          <span className="inline-flex items-center gap-1">
+            <Input
+              className="h-7 w-32 text-xs"
+              placeholder="Nova pasta…"
+              value={novaPasta}
+              onChange={(e) => setNovaPasta(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && criarPasta()}
+            />
+            <Button size="icon" variant="ghost" aria-label="Criar pasta" onClick={criarPasta} disabled={pending || !novaPasta.trim()}>
+              <FolderPlus className="size-4" />
+            </Button>
+          </span>
+        )}
+      </div>
+
       <input ref={uploadRef} type="file" className="hidden" onChange={(e) => enviarVersao(e.target.files?.[0] ?? null)} />
 
-      {docs.length === 0 ? (
+      {docsVisiveis.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nenhum documento.</p>
       ) : (
         <div className="space-y-3">
-          {docs.map((d) => (
+          {docsVisiveis.map((d) => (
             <div key={d.id} className="rounded-sm border p-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{d.titulo}</span>
                 <Badge variant="outline">{d.tipo}</Badge>
+                {nomePasta(d.pastaId) && (
+                  <Badge variant="outline" className="text-info border-info/40">
+                    <Folder className="mr-1 size-3" /> {nomePasta(d.pastaId)}
+                  </Badge>
+                )}
                 {d.projeto && <span className="font-mono text-xs text-muted-foreground">{d.projeto}</span>}
                 {d.cliente && <span className="text-xs text-muted-foreground">{d.cliente}</span>}
-                <div className="ml-auto flex gap-1.5">
+                <div className="ml-auto flex items-center gap-1.5">
                   {podeGerir && (
                     <>
+                      <Select value={d.pastaId ?? NONE} onValueChange={(v) => mover(d.id, v ?? NONE)}>
+                        <SelectTrigger className="h-8 w-36 text-xs">
+                          <SelectValue placeholder="Pasta" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={NONE}>Sem pasta</SelectItem>
+                          {pastas.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <Button
                         size="sm"
                         variant="outline"

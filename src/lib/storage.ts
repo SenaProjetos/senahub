@@ -66,3 +66,12 @@ export async function existeArquivo(relativo: string): Promise<boolean> {
     return false;
   }
 }
+
+/** Remove um arquivo do disco. Best-effort: ignora se já não existe. */
+export async function removerArquivo(relativo: string): Promise<void> {
+  try {
+    await fs.unlink(resolverCaminho(relativo));
+  } catch {
+    /* já removido */
+  }
+}

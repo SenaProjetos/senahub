@@ -11,7 +11,7 @@ export default async function JuridicoPage() {
   const user = await requirePermission("juridico", "ver");
   const podeGerir = await can(user.role, "juridico", "gerir");
 
-  const [docs, certidoes, tipos, projetos, clientes] = await Promise.all([
+  const [docs, certidoes, tipos, projetos, clientes, pastas] = await Promise.all([
     prisma.documentoJuridico.findMany({
       orderBy: { createdAt: "desc" },
       include: {
@@ -27,15 +27,21 @@ export default async function JuridicoPage() {
       select: { id: true, codigo: true, nome: true },
     }),
     listarClientes({ incluirInativos: false }),
+    prisma.pastaJuridica.findMany({
+      orderBy: [{ ordem: "asc" }, { nome: "asc" }],
+      select: { id: true, nome: true, _count: { select: { documentos: true } } },
+    }),
   ]);
 
   return (
     <JuridicoView
       podeGerir={podeGerir}
+      pastas={pastas.map((p) => ({ id: p.id, nome: p.nome, total: p._count.documentos }))}
       docs={docs.map((d) => ({
         id: d.id,
         titulo: d.titulo,
         tipo: d.tipo,
+        pastaId: d.pastaId,
         projeto: d.projeto?.codigo ?? null,
         cliente: d.cliente?.nome ?? null,
         versoes: d.versoes.map((v) => ({

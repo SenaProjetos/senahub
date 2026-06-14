@@ -86,6 +86,7 @@ model User {
   tarefaComentarios    TarefaComentario[]    @relation("TarefaComentarioAutor")
   habilidades          UserHabilidade[]
   rateios              RateioHora[]
+  funcDocumentos       FuncionarioDocumento[] @relation("FuncDocumentos")
 
   @@index([role])
   @@map("user")
@@ -370,6 +371,7 @@ model Projeto {
   alocacoes   Alocacao[]
   servicos    ServicoTerceirizado[]
   rateios     RateioHora[]
+  arquivos    ArquivoProjeto[]
 
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -984,13 +986,87 @@ model DocumentoJuridico {
   projeto    Projeto? @relation(fields: [projetoId], references: [id])
   clienteId  String?
   cliente    Cliente? @relation(fields: [clienteId], references: [id])
+  pastaId    String?
+  pasta      PastaJuridica? @relation(fields: [pastaId], references: [id], onDelete: SetNull)
   observacao String?
   createdAt  DateTime @default(now())
 
   versoes DocJuridicoVersao[]
 
   @@index([projetoId])
+  @@index([pastaId])
   @@map("documento_juridico")
+}
+
+/// Pasta (árvore) para organizar documentos jurídicos.
+model PastaJuridica {
+  id         String              @id @default(cuid())
+  nome       String
+  parentId   String?
+  parent     PastaJuridica?      @relation("PastaArvore", fields: [parentId], references: [id], onDelete: SetNull)
+  filhas     PastaJuridica[]     @relation("PastaArvore")
+  documentos DocumentoJuridico[]
+  ordem      Int                 @default(0)
+  createdAt  DateTime            @default(now())
+
+  @@index([parentId])
+  @@map("pasta_juridica")
+}
+
+/// Documento (com versões) de um projeto — repositório geral, separado dos pacotes A/B de Upload.
+model ArquivoProjeto {
+  id        String                 @id @default(cuid())
+  projetoId String
+  projeto   Projeto                @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  nome      String
+  /// contrato | planta | memorial | foto | administrativo | outro
+  categoria String?
+  descricao String?
+  autorId   String
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  versoes   ArquivoProjetoVersao[]
+
+  @@index([projetoId])
+  @@map("arquivo_projeto")
+}
+
+model ArquivoProjetoVersao {
+  id          String         @id @default(cuid())
+  arquivoId   String
+  arquivo     ArquivoProjeto @relation(fields: [arquivoId], references: [id], onDelete: Cascade)
+  numero      Int
+  caminho     String
+  nomeArquivo String
+  mime        String
+  tamanho     Int
+  hashSha256  String
+  autorId     String
+  createdAt   DateTime       @default(now())
+
+  @@unique([arquivoId, numero])
+  @@index([arquivoId])
+  @@map("arquivo_projeto_versao")
+}
+
+/// Documento de RH de um colaborador (contrato, RG, ASO, diploma…).
+model FuncionarioDocumento {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation("FuncDocumentos", fields: [userId], references: [id], onDelete: Cascade)
+  /// contrato | rg | cpf | aso | diploma | comprovante | outro
+  tipo        String   @default("outro")
+  nome        String
+  caminho     String
+  nomeArquivo String
+  mime        String
+  tamanho     Int
+  hashSha256  String
+  autorId     String
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@map("funcionario_documento")
 }
 
 model DocJuridicoVersao {

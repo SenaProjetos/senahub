@@ -14,6 +14,7 @@ const docSchema = z.object({
   tipo: z.enum(["contrato", "aditivo", "proposta", "procuracao", "outro"]),
   projetoId: opt(z.string()),
   clienteId: opt(z.string()),
+  pastaId: opt(z.string()),
   observacao: opt(z.string()),
 });
 
@@ -34,11 +35,52 @@ export const criarDocJuridico = defineAction(
         tipo: i.tipo,
         projetoId: i.projetoId || null,
         clienteId: i.clienteId || null,
+        pastaId: i.pastaId || null,
         observacao: i.observacao || null,
       },
     });
     rev();
     return { id: d.id };
+  },
+);
+
+export const criarPastaJuridica = defineAction(
+  { ...base, acao: "criar-pasta", entidade: "PastaJuridica", schema: z.object({ nome: z.string().min(1, "Informe o nome."), parentId: opt(z.string()) }) },
+  async (i) => {
+    const max = await prisma.pastaJuridica.aggregate({ where: { parentId: i.parentId || null }, _max: { ordem: true } });
+    const p = await prisma.pastaJuridica.create({
+      data: { nome: i.nome, parentId: i.parentId || null, ordem: (max._max.ordem ?? -1) + 1 },
+    });
+    rev();
+    return { id: p.id };
+  },
+);
+
+export const renomearPastaJuridica = defineAction(
+  { ...base, acao: "renomear-pasta", entidade: "PastaJuridica", schema: z.object({ id: z.string().min(1), nome: z.string().min(1, "Informe o nome.") }) },
+  async (i) => {
+    await prisma.pastaJuridica.update({ where: { id: i.id }, data: { nome: i.nome } });
+    rev();
+    return { id: i.id };
+  },
+);
+
+export const excluirPastaJuridica = defineAction(
+  { ...base, acao: "excluir-pasta", entidade: "PastaJuridica", schema: idSchema },
+  async (i) => {
+    // onDelete: SetNull desvincula os documentos; filhas viram raiz.
+    await prisma.pastaJuridica.delete({ where: { id: i.id } });
+    rev();
+    return { id: i.id };
+  },
+);
+
+export const moverDocPasta = defineAction(
+  { ...base, acao: "mover-doc-pasta", entidade: "DocumentoJuridico", schema: z.object({ id: z.string().min(1), pastaId: opt(z.string()) }) },
+  async (i) => {
+    await prisma.documentoJuridico.update({ where: { id: i.id }, data: { pastaId: i.pastaId || null } });
+    rev();
+    return { id: i.id };
   },
 );
 

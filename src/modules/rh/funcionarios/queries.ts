@@ -15,6 +15,10 @@ export async function listarFuncionarios() {
         orderBy: { createdAt: "asc" },
         select: { id: true, nome: true, nascimento: true, parentesco: true },
       },
+      funcDocumentos: {
+        orderBy: { createdAt: "desc" },
+        select: { id: true, tipo: true, nome: true, nomeArquivo: true, tamanho: true, createdAt: true },
+      },
     },
   });
   return us.map((u) => ({
@@ -27,6 +31,14 @@ export async function listarFuncionarios() {
       nome: d.nome,
       nascimento: d.nascimento ? d.nascimento.toISOString().slice(0, 10) : null,
       parentesco: d.parentesco,
+    })),
+    documentos: u.funcDocumentos.map((d) => ({
+      id: d.id,
+      tipo: d.tipo,
+      nome: d.nome,
+      nomeArquivo: d.nomeArquivo,
+      tamanho: d.tamanho,
+      criadoEm: d.createdAt.toISOString(),
     })),
   }));
 }
