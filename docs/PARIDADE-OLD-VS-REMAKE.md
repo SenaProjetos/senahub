@@ -185,17 +185,23 @@ para revisão humana quando o stack diverge, e diverge bastante:
 
 Sequência proposta. Padrão = 1 onda → verificação (tsc/lint/testes) → 1 commit.
 
-| Onda | Conteúdo | Itens | Bloqueio |
+| Onda | Conteúdo | Itens | Status |
 |---|---|---|---|
-| **H1 — Custo-hora → margem** 🔴 | Persistir rateio de horas CLT e empurrar custo para a margem do projeto (Fluxo C completo) | D1 | Nenhum — **pronta p/ começar** |
-| **H2 — Repositórios de arquivo** | `ArquivoProjeto`+versões, `FuncionarioDocumento`, `PastaJuridica` (reusa `storage.ts`) | B1, D4, E1 | Nenhum — pronta |
-| **H3 — Férias CLT + banco de horas** | `PeriodoAquisitivo` (ciclo aquisitivo, 1/3) + fechamento mensal de banco de horas | D2, D3 | Nenhum — pronta |
-| **H4 — Orçamento editável** | Workspace de planejamento orçamentário (rascunho, importar gastos, versões) | A4 | Nenhum (lê Lancamento) |
-| **H5 — Financeiro: doc-link** | Fase 2 adaptada (`DocumentoFinanceiro`) | A2, A3, §G F2 | Decisão G.2.1 |
-| **H6 — Financeiro: aging** | Fase 3 adaptada (SVG) | §G F3 | Após H5 (aging cita doc) |
-| **H7 — Financeiro: aprovação** | Fase 4 adaptada (alçada) | A1, §G F4 | Decisão G.2.2/3 |
-| **H8 — Itens a confirmar** | Demais "Aplicar" não-prioritários (A5–A8, B2–B5, C1–C3, D5–D7, E2–E8) | — | Após você marcar Pular |
+| **H1 — Custo-hora → margem** 🔴 | `RateioHora` (snapshot mensal) + `margemProjeto` + card no projeto + custo/fechar no ponto | D1 | ✅ **Entregue** `a55f317` |
+| **H2 — Repositórios de arquivo** | `ArquivoProjeto`+versões, `FuncionarioDocumento`, `PastaJuridica` | B1, D4, E1 | ✅ **Entregue** `0cf8cd7` |
+| **H3 — Férias CLT + banco de horas** | `dataAdmissao` + períodos aquisitivos (lib + 6 testes) + `BancoHorasMensal` (fechamento/acumulado) | D2, D3 | ✅ **Entregue** `1dc09b8` |
+| **H4 — Orçamento editável** | `OrcamentoItem` (planejado por categoria/ano) + edição inline + % do orçado | A4 (parcial) | ✅ **Entregue** `a9f0ce4` |
+| **H5 — Financeiro: doc-link** | Fase 2 adaptada (`DocumentoFinanceiro`) | A2, A3, §G F2 | ⏸ Decisão G.2.1 |
+| **H6 — Financeiro: aging** | Fase 3 adaptada (SVG) | §G F3 | ⏸ Após H5 |
+| **H7 — Financeiro: aprovação** | Fase 4 adaptada (alçada) | A1, §G F4 | ⏸ Decisão G.2.2/3 |
+| **H8 — Itens a confirmar** | Demais "Aplicar" não-prioritários (A5–A8, B2–B5, C1–C3, D5–D7, E2–E8) | — | Após você marcar `Pular` |
 | — | Fase 5 OFX | — | **PULAR (já existe)** |
 
-> **Ondas H1–H4 estão desbloqueadas e confirmadas** (suas 4 prioridades). H5–H7 dependem das
-> decisões de G.2. H8 espera suas marcações de `Pular`.
+> **H1–H4 entregues** (suas 4 prioridades, 1 commit por onda, tsc 0 · 58 testes em cada
+> checkpoint). H5–H7 (financeiro) dependem das decisões de §G.2. H8 espera suas marcações de
+> `Pular`.
+>
+> **Notas de implementação:** H3 = períodos aquisitivos **computados** (sem tabela
+> `PeriodoAquisitivo`, sempre derivados da admissão); banco de horas pessoal mostra acumulado
+> via RH-admin (linha no espelho pessoal = melhoria futura). H4 = orçamento **planejado×realizado
+> editável**; rascunhos/versões/importar-gastos do módulo antigo ficam como melhoria futura.
