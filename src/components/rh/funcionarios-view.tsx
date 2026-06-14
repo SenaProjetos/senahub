@@ -4,20 +4,32 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Trash2, Users } from "lucide-react";
-import { adicionarDependente, removerDependente } from "@/modules/rh/funcionarios/actions";
+import { adicionarDependente, removerDependente, salvarSalario } from "@/modules/rh/funcionarios/actions";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Dep = { id: string; nome: string; nascimento: string | null; parentesco: string | null };
-type Func = { id: string; name: string; role: string; dependentes: Dep[] };
+type Func = { id: string; name: string; role: string; salarioBase: number | null; dependentes: Dep[] };
 
 function FuncCard({ f }: { f: Func }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [nome, setNome] = useState("");
   const [nascimento, setNascimento] = useState("");
+  const [salario, setSalario] = useState(f.salarioBase != null ? String(f.salarioBase) : "");
+
+  function salvarSal() {
+    start(async () => {
+      const r = await salvarSalario({ userId: f.id, salarioBase: Number(salario) || 0 });
+      if (r.ok) {
+        toast.success("Salário salvo.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
 
   function add() {
     if (!nome.trim()) return;
@@ -47,7 +59,16 @@ function FuncCard({ f }: { f: Func }) {
           {ROLE_LABELS[f.role as Role] ?? f.role} · {f.dependentes.length} dependente(s)
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className="space-y-3">
+        <div className="flex items-end gap-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Salário base (R$)</Label>
+            <Input type="number" step="0.01" min="0" value={salario} onChange={(e) => setSalario(e.target.value)} className="w-40" />
+          </div>
+          <Button size="sm" variant="outline" onClick={salvarSal} disabled={pending}>
+            Salvar
+          </Button>
+        </div>
         {f.dependentes.length > 0 && (
           <ul className="divide-y text-sm">
             {f.dependentes.map((d) => (

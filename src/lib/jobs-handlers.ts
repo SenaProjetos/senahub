@@ -122,6 +122,44 @@ export async function snapshotQualidadeMensal() {
   return gravarSnapshotQualidade(anterior.getFullYear(), anterior.getMonth() + 1);
 }
 
+/** Rotinas noturnas de RH/comercial: propostas vencidas e férias que iniciam hoje. */
+export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: number }> {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const amanha = addDays(hoje, 1);
+
+  const props = await prisma.proposta.findMany({
+    where: { status: "enviada", validade: { lt: hoje } },
+    select: { id: true, numero: true, titulo: true },
+  });
+  if (props.length > 0) {
+    const ids = await gestores(["admin", "supervisor", "administrativo"]);
+    for (const p of props) {
+      await notificarMuitos(ids, {
+        titulo: "Proposta vencida (sem retorno)",
+        corpo: `${p.numero} — ${p.titulo}`,
+        href: "/comercial/propostas",
+        tag: `prop-venc-${p.id}`,
+      });
+    }
+  }
+
+  const fer = await prisma.ferias.findMany({
+    where: { status: "aprovado", inicio: { gte: hoje, lt: amanha } },
+    select: { id: true, userId: true },
+  });
+  for (const f of fer) {
+    const ids = [...(await gestores(["admin", "supervisor", "administrativo"])), f.userId];
+    await notificarMuitos(ids, {
+      titulo: "Férias iniciam hoje",
+      corpo: "Período de férias aprovado começa hoje.",
+      href: "/rh",
+      tag: `ferias-inicio-${f.id}`,
+    });
+  }
+  return { propostas: props.length, ferias: fer.length };
+}
+
 /** Diário: grava a foto dos KPIs do dashboard (série histórica). */
 export async function snapshotDashboardDiario() {
   await gravarSnapshotDashboard();

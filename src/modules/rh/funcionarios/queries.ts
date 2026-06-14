@@ -10,6 +10,7 @@ export async function listarFuncionarios() {
       id: true,
       name: true,
       role: true,
+      salarioBase: true,
       dependentes: {
         orderBy: { createdAt: "asc" },
         select: { id: true, nome: true, nascimento: true, parentesco: true },
@@ -20,6 +21,7 @@ export async function listarFuncionarios() {
     id: u.id,
     name: u.name,
     role: u.role,
+    salarioBase: u.salarioBase != null ? Number(u.salarioBase) : null,
     dependentes: u.dependentes.map((d) => ({
       id: d.id,
       nome: d.nome,

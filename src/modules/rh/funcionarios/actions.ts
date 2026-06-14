@@ -44,3 +44,13 @@ export const removerDependente = defineAction(
     return { id: i.id };
   },
 );
+
+/** Define o salário base do colaborador (p/ geração automática de holerite). */
+export const salvarSalario = defineAction(
+  { ...base, acao: "salvar-salario", entidade: "User", schema: z.object({ userId: z.string().min(1), salarioBase: z.number().min(0) }) },
+  async (i) => {
+    await prisma.user.update({ where: { id: i.userId }, data: { salarioBase: i.salarioBase } });
+    rev();
+    return { id: i.userId };
+  },
+);

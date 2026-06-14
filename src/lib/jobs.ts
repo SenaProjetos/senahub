@@ -10,6 +10,7 @@ import {
   snapshotDashboardDiario,
   lembretePontoNaoBatido,
   resumoSemanal,
+  rotinasRhDiarias,
 } from "@/lib/jobs-handlers";
 
 let boss: PgBoss | null = null;
@@ -85,6 +86,14 @@ export async function startJobs(): Promise<PgBoss> {
       fila: "snapshot-dashboard",
       cron: "30 23 * * *", // diário 23:30 — foto dos KPIs do dia
       handler: snapshotDashboardDiario,
+    },
+    {
+      fila: "rotinas-rh",
+      cron: "0 1 * * *", // diário 01:00 — propostas vencidas, férias do dia
+      handler: async () => {
+        const r = await rotinasRhDiarias();
+        console.log(`[rh] propostas vencidas=${r.propostas} férias iniciando=${r.ferias}`);
+      },
     },
     {
       fila: "resumo-semanal",

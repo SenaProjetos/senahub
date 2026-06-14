@@ -4,13 +4,14 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Lock, Unlock, Mail, Pencil } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Lock, Unlock, Mail, Pencil, Wand2 } from "lucide-react";
 import {
   salvarHolerite,
   removerHolerite,
   fecharFolha,
   reabrirFolha,
   enviarHolerites,
+  gerarHoleritesAutomatico,
 } from "@/modules/rh/folha/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -91,6 +92,15 @@ export function FolhaDetalheView({
       } else toast.error(r.error);
     });
   }
+  function gerarAuto() {
+    start(async () => {
+      const r = await gerarHoleritesAutomatico({ id: folha.id });
+      if (r.ok) {
+        toast.success(`${r.data.criados} holerite(s) gerado(s) automaticamente.`);
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
   function reabrir() {
     start(async () => {
       const r = await reabrirFolha({ id: folha.id });
@@ -143,9 +153,14 @@ export function FolhaDetalheView({
         </div>
         <div className="flex flex-wrap gap-2">
           {aberta ? (
-            <Button onClick={fechar} disabled={pending || folha.holerites.length === 0}>
-              <Lock className="size-4" /> Fechar folha
-            </Button>
+            <>
+              <Button variant="outline" onClick={gerarAuto} disabled={pending}>
+                <Wand2 className="size-4" /> Gerar automático
+              </Button>
+              <Button onClick={fechar} disabled={pending || folha.holerites.length === 0}>
+                <Lock className="size-4" /> Fechar folha
+              </Button>
+            </>
           ) : (
             <>
               <Button variant="outline" onClick={reabrir} disabled={pending}>

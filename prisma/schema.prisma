@@ -37,6 +37,8 @@ model User {
   /// Vínculo do usuário externo (role cliente) ao Cliente que ele representa no portal.
   clienteId          String?
   cliente            Cliente?   @relation("ClienteUsuarios", fields: [clienteId], references: [id])
+  /// Salário base do colaborador CLT/estagiário (p/ geração automática de holerites).
+  salarioBase        Decimal?   @db.Decimal(12, 2)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

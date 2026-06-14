@@ -6,6 +6,9 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { HR_ADMIN_ROLES } from "@/lib/roles";
 import { enviarEmail, smtpConfigurado } from "@/lib/mail";
+import { calcularEncargos } from "@/lib/encargos";
+import { faixasPorTipo, deducaoDependente } from "@/modules/rh/encargos/queries";
+import { dependentesPorUsuario } from "@/modules/rh/funcionarios/queries";
 
 const base = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
 const PATH = "/rh/folha";
@@ -40,6 +43,56 @@ export const criarFolha = defineAction(
     const folha = await prisma.folhaPagamento.create({ data: { ano: i.ano, mes: i.mes } });
     revalidatePath(PATH);
     return { id: folha.id };
+  },
+);
+
+/** Gera holerites automaticamente p/ CLT/estagiário com salário base (INSS/IRRF + dependentes). */
+export const gerarHoleritesAutomatico = defineAction(
+  { ...base, acao: "gerar-holerites-auto", entidade: "FolhaPagamento", schema: idSchema },
+  async (i) => {
+    const folha = await prisma.folhaPagamento.findUnique({
+      where: { id: i.id },
+      include: { holerites: { select: { userId: true } } },
+    });
+    if (!folha) throw new ActionError("Folha não encontrada.");
+    if (folha.status === "fechada") throw new ActionError("Folha fechada — reabra para gerar.");
+
+    const jaTem = folha.holerites.map((h) => h.userId);
+    const funcionarios = await prisma.user.findMany({
+      where: { ativo: true, role: { in: ["clt", "estagiario"] }, salarioBase: { not: null }, id: { notIn: jaTem } },
+      select: { id: true, salarioBase: true },
+    });
+    if (funcionarios.length === 0) {
+      throw new ActionError("Nenhum funcionário com salário base pendente (cadastre em RH → Funcionários).");
+    }
+
+    const [{ inss, irrf }, dedDep, nDeps] = await Promise.all([
+      faixasPorTipo(),
+      deducaoDependente(),
+      dependentesPorUsuario(funcionarios.map((f) => f.id)),
+    ]);
+
+    let criados = 0;
+    for (const f of funcionarios) {
+      const salario = Number(f.salarioBase);
+      const enc = calcularEncargos(salario, inss, irrf, (nDeps[f.id] ?? 0) * dedDep);
+      await prisma.holerite.create({
+        data: {
+          folhaId: folha.id,
+          userId: f.id,
+          itens: {
+            create: [
+              { descricao: "Salário base", tipo: "provento", valor: salario },
+              ...(enc.inss > 0 ? [{ descricao: "INSS", tipo: "desconto" as const, valor: enc.inss }] : []),
+              ...(enc.irrf > 0 ? [{ descricao: "IRRF", tipo: "desconto" as const, valor: enc.irrf }] : []),
+            ],
+          },
+        },
+      });
+      criados++;
+    }
+    revalidatePath(`${PATH}/${folha.id}`);
+    return { criados };
   },
 );
 
