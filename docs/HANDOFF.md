@@ -199,6 +199,20 @@ Pendente (auditoria ampla, varrer todas as telas comparando com o mockup):
 - **Sidebar/header/bottom-nav**: revisar contra a identidade (não há no mockup; validar coerência).
 - Rodar com `npm run dev` e comparar lado a lado claro/escuro; idealmente Playwright screenshot diff.
 
+### 5.7 Paridade com o sistema antigo (`docs/RELATORIO-SISTEMA.md`)
+Auditoria do remake × spec do sistema antigo. Núcleo (§4.1–4.14, fluxos §5) completo.
+**Lacunas fechadas (4 blocos):**
+- ✅ **Dependentes** + dedução de IRRF por dependente (`/rh/funcionarios`, config em Encargos).
+- ✅ **Feriados** (`/configuracoes/feriados`, importar nacionais via Páscoa) — descontam no banco de horas.
+- ✅ **Pranchas** por disciplina (`/projetos/[id]/pranchas`) e ✅ **SLA de entregas** (Qualidade, `Disciplina.entregueEm`).
+- ✅ **Geração automática de folha CLT** (salário base + INSS/IRRF) e ✅ **cron RH noturno** (propostas vencidas, férias do dia).
+- ✅ **Comentários/anexos em Tarefas**, ✅ **anexos em Suporte**, ✅ **Habilidades** (matriz de recursos), ✅ **Serviços terceirizados** por projeto.
+
+**Restos do antigo ainda não portados (menores/opcionais):** fechamento automático de banco de horas e
+geração automática de folha de projetistas (hoje manuais); composição de preço detalhada (remake usa
+tabela R$/m²); transição de ciclo de férias (status é só aprovação); `LmConfig` (lista de material BIM);
+"comparar versões" de proposta. Diferenças intencionais (stack/design) não são lacunas — ver §1.
+
 ## 6. Gotchas técnicos (economizam horas)
 
 - **Prisma 7**: URL no `prisma.config.ts` (não no schema); client gerado em `src/generated/prisma` (ESM);
