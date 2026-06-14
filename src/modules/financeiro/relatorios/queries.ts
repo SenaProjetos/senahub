@@ -116,9 +116,11 @@ export async function relatorioDRE(de: Date, ate: Date): Promise<DRE> {
 }
 
 export type LinhaOrcamento = {
+  categoriaId: string;
   codigo: string;
   nome: string;
   tipo: string;
+  planejado: number;
   previsto: number;
   realizado: number;
 };
@@ -128,8 +130,10 @@ export type Orcamento = {
   receitas: LinhaOrcamento[];
   despesas: LinhaOrcamento[];
   totais: {
+    receitaPlanejada: number;
     receitaPrevista: number;
     receitaRealizada: number;
+    despesaPlanejada: number;
     despesaPrevista: number;
     despesaRealizada: number;
   };
@@ -137,29 +141,51 @@ export type Orcamento = {
 
 /**
  * Orçamento por categoria no período (por competência `data`):
- * previsto = lançamentos ainda previstos; realizado = confirmados (valorEfetivo).
+ * planejado = orçado para o ano (OrcamentoItem); previsto = lançamentos previstos;
+ * realizado = confirmados (valorEfetivo). Inclui categorias só orçadas (sem lançamento).
  */
 export async function orcamentoPorCategoria(de: Date, ate: Date): Promise<Orcamento> {
-  const lancamentos = await prisma.lancamento.findMany({
-    where: { data: { gte: de, lte: ate } },
-    include: { categoria: { select: { codigo: true, nome: true, tipo: true } } },
-  });
+  const ano = de.getFullYear();
+  const [lancamentos, itens] = await Promise.all([
+    prisma.lancamento.findMany({
+      where: { data: { gte: de, lte: ate } },
+      include: { categoria: { select: { id: true, codigo: true, nome: true, tipo: true } } },
+    }),
+    prisma.orcamentoItem.findMany({
+      where: { ano },
+      include: { categoria: { select: { id: true, codigo: true, nome: true, tipo: true } } },
+    }),
+  ]);
 
   const mapa = new Map<string, LinhaOrcamento>();
+  const novaLinha = (c: { id: string; codigo: string; nome: string; tipo: string }): LinhaOrcamento => ({
+    categoriaId: c.id,
+    codigo: c.codigo,
+    nome: c.nome,
+    tipo: c.tipo,
+    planejado: 0,
+    previsto: 0,
+    realizado: 0,
+  });
+
   for (const l of lancamentos) {
-    const k = l.categoria.codigo;
-    const cur =
-      mapa.get(k) ??
-      { codigo: l.categoria.codigo, nome: l.categoria.nome, tipo: l.categoria.tipo, previsto: 0, realizado: 0 };
+    const c = l.categoria;
+    const cur = mapa.get(c.id) ?? novaLinha(c);
     if (l.status === "confirmado") cur.realizado += Number(l.valorEfetivo ?? l.valor);
-    else cur.previsto += Number(l.valor);
-    mapa.set(k, cur);
+    else if (l.status === "previsto") cur.previsto += Number(l.valor);
+    mapa.set(c.id, cur);
+  }
+  for (const it of itens) {
+    const c = it.categoria;
+    const cur = mapa.get(c.id) ?? novaLinha(c);
+    cur.planejado = Number(it.valorPlanejado);
+    mapa.set(c.id, cur);
   }
 
   const linhas = [...mapa.values()].sort((a, b) => a.codigo.localeCompare(b.codigo));
   const receitas = linhas.filter((l) => l.tipo === "receita");
   const despesas = linhas.filter((l) => l.tipo === "despesa");
-  const soma = (arr: LinhaOrcamento[], campo: "previsto" | "realizado") =>
+  const soma = (arr: LinhaOrcamento[], campo: "planejado" | "previsto" | "realizado") =>
     arr.reduce((s, l) => s + l[campo], 0);
 
   return {
@@ -168,12 +194,24 @@ export async function orcamentoPorCategoria(de: Date, ate: Date): Promise<Orcame
     receitas,
     despesas,
     totais: {
+      receitaPlanejada: soma(receitas, "planejado"),
       receitaPrevista: soma(receitas, "previsto"),
       receitaRealizada: soma(receitas, "realizado"),
+      despesaPlanejada: soma(despesas, "planejado"),
       despesaPrevista: soma(despesas, "previsto"),
       despesaRealizada: soma(despesas, "realizado"),
     },
   };
+}
+
+/** Categorias ativas para adicionar ao orçamento. */
+export async function categoriasFinanceiras() {
+  const cs = await prisma.categoriaFinanceira.findMany({
+    where: { ativo: true },
+    orderBy: { codigo: "asc" },
+    select: { id: true, codigo: true, nome: true, tipo: true },
+  });
+  return cs;
 }
 
 export type MesResultado = { mes: number; rotulo: string; receita: number; despesa: number; resultado: number };

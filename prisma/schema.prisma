@@ -438,9 +438,24 @@ model CategoriaFinanceira {
 
   lancamentos Lancamento[]
   regras      RegraCategorizacao[]
+  orcamentos  OrcamentoItem[]
 
   @@index([tipo, ativo])
   @@map("categoria_financeira")
+}
+
+/// Valor orçado (planejado) de uma categoria para um ano — base do orçamento editável.
+model OrcamentoItem {
+  id             String              @id @default(cuid())
+  ano            Int
+  categoriaId    String
+  categoria      CategoriaFinanceira @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
+  valorPlanejado Decimal             @db.Decimal(14, 2)
+  updatedAt      DateTime            @updatedAt
+
+  @@unique([ano, categoriaId])
+  @@index([ano])
+  @@map("orcamento_item")
 }
 
 model CentroCusto {
