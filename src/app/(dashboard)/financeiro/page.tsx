@@ -5,7 +5,9 @@ import { Settings2, Receipt, ArrowDownToLine, ArrowUpFromLine, BarChart3, Bankno
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { meuExtrato } from "@/modules/financeiro/queries";
+import { agingReport } from "@/modules/financeiro/aging/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
+import { AgingWidget } from "@/components/financeiro/aging-widget";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -35,12 +37,14 @@ export default async function FinanceiroPage() {
   const podeVer = await can(user.role, "financeiro", "ver");
 
   if (podeVer) {
+    const [receber, pagar] = await Promise.all([agingReport("receita"), agingReport("despesa")]);
     return (
       <div className="space-y-6">
         <div>
           <h2 className="text-2xl font-extrabold tracking-tight">Financeiro</h2>
           <p className="text-sm text-muted-foreground">Visão geral e atalhos do módulo financeiro.</p>
         </div>
+        <AgingWidget receber={receber} pagar={pagar} />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {ATALHOS.map((a) => (
             <Link key={a.href} href={a.href}>
