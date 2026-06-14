@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Settings2, Receipt, ArrowDownToLine, ArrowUpFromLine, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale } from "lucide-react";
+import { Settings2, Receipt, ArrowDownToLine, ArrowUpFromLine, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { meuExtrato } from "@/modules/financeiro/queries";
@@ -25,7 +25,8 @@ const ATALHOS = [
   { href: "/financeiro/relatorios", icon: BarChart3, titulo: "Relatórios", desc: "DRE e indicadores" },
   { href: "/financeiro/dfc", icon: Activity, titulo: "DFC", desc: "Fluxo de caixa por atividade" },
   { href: "/financeiro/balanco", icon: Scale, titulo: "Balanço gerencial", desc: "Ativo, passivo e PL (base caixa)" },
-  { href: "/financeiro/orcamento", icon: Target, titulo: "Orçamento anual", desc: "Previsto × realizado por categoria" },
+  { href: "/financeiro/orcamento", icon: Target, titulo: "Orçamento anual", desc: "Planejado × realizado por categoria" },
+  { href: "/financeiro/documentos", icon: FileText, titulo: "Documentos", desc: "NF, contratos e parcelamento" },
   { href: "/financeiro/cadastros", icon: Settings2, titulo: "Cadastros", desc: "Plano de contas, contas, fornecedores" },
 ];
 

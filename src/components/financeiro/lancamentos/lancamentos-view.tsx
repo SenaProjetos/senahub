@@ -112,6 +112,11 @@ export function LancamentosView({
                         {formatarCodigo(l.projeto.codigo)} · {l.projeto.nome}
                       </span>
                     )}
+                    {l.documentoFinanceiro && (
+                      <span className="block font-mono text-[10px] uppercase tracking-wide text-info">
+                        doc · {l.documentoFinanceiro.numero ?? l.documentoFinanceiro.tipo}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {l.categoria.codigo} {l.categoria.nome}

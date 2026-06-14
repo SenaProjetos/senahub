@@ -585,6 +585,9 @@ model Lancamento {
 
   observacao       String?
   recorrenciaGrupo String?
+  /// Documento-fonte (NF/contrato/proposta/medição) — rastreabilidade de origem (Fase 2).
+  documentoFinanceiroId String?
+  documentoFinanceiro   DocumentoFinanceiro? @relation(fields: [documentoFinanceiroId], references: [id], onDelete: SetNull)
   /// Vínculo com a folha de projetistas (Onda 2c).
   pagamentoProjetistaId String? @unique
 
@@ -600,7 +603,42 @@ model Lancamento {
   @@index([vencimento])
   @@index([data])
   @@index([projetoId])
+  @@index([documentoFinanceiroId])
   @@map("lancamento")
+}
+
+enum TipoDocumentoFinanceiro {
+  nf_entrada
+  nf_servico
+  contrato
+  proposta
+  medicao
+}
+
+/// Documento-fonte de movimentações financeiras (rastreabilidade + parcelamento). Fase 2.
+/// Híbrido: modelo próprio p/ NF/contrato; `referenciaId` reaproveita Proposta/Medição existentes.
+model DocumentoFinanceiro {
+  id             String                  @id @default(cuid())
+  tipo           TipoDocumentoFinanceiro
+  numero         String?
+  dataEmissao    DateTime?               @db.Date
+  valorDocumento Decimal?                @db.Decimal(14, 2)
+  /// FKs escalares (sem relação, resolvidos por lookup) p/ não inflar Fornecedor/Cliente.
+  fornecedorId   String?
+  clienteId      String?
+  /// Quando tipo = proposta|medicao: id da Proposta/MedicaoLicitacao reaproveitada (ref. soft).
+  referenciaId   String?
+  arquivoPath    String?
+  arquivoNome    String?
+  arquivoMime    String?
+  observacao     String?
+  autorId        String
+  createdAt      DateTime                @default(now())
+
+  lancamentos Lancamento[]
+
+  @@index([tipo])
+  @@map("documento_financeiro")
 }
 
 // ─────────────────────────────────────────────────────────────
