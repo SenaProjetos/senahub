@@ -18,6 +18,7 @@ import {
   salvarValorDisciplinaLicitacao,
   removerValorDisciplinaLicitacao,
 } from "@/modules/licitacoes/extras/actions";
+import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -294,12 +295,12 @@ function LicCard({
           )}
           {lic.projeto && (
             <Link href={`/projetos/${lic.projeto.id}`} className="font-mono text-xs text-primary hover:underline">
-              {lic.projeto.codigo}
+              {formatarCodigo(lic.projeto.codigo)}
             </Link>
           )}
           {podeGerir && (
             <div className="ml-auto flex items-center gap-1.5">
-              <Select value={lic.status} onValueChange={mudarStatus}>
+              <Select value={lic.status} items={STATUS_LABEL} onValueChange={mudarStatus}>
                 <SelectTrigger className="h-8 w-36">
                   <SelectValue />
                 </SelectTrigger>

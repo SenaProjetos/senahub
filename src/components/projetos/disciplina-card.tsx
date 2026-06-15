@@ -139,7 +139,7 @@ export function DisciplinaCard({
       </div>
 
       {podeMexerStatus && (
-        <Select value={disciplina.status} onValueChange={mudarStatus} disabled={pending}>
+        <Select value={disciplina.status} items={STATUS_LABEL} onValueChange={mudarStatus} disabled={pending}>
           <SelectTrigger className="h-8">
             <SelectValue />
           </SelectTrigger>

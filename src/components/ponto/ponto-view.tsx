@@ -7,6 +7,7 @@ import { Play, Square, Repeat } from "lucide-react";
 import { baterPonto, trocarProjeto, encerrarJornada } from "@/modules/ponto/actions";
 import { fecharRateioMes } from "@/modules/rh/rateio/actions";
 import { fmtHoras } from "@/modules/ponto/format";
+import { formatarCodigo } from "@/modules/projetos/numbering";
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 import { Button } from "@/components/ui/button";
@@ -113,7 +114,7 @@ export function PontoView({
                     <SelectItem value={NONE}>Sem projeto</SelectItem>
                     {projetos.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {p.codigo} · {p.nome}
+                        {formatarCodigo(p.codigo)} · {p.nome}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -146,7 +147,7 @@ export function PontoView({
                     <SelectItem value={NONE}>Sem projeto</SelectItem>
                     {projetos.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {p.codigo} · {p.nome}
+                        {formatarCodigo(p.codigo)} · {p.nome}
                       </SelectItem>
                     ))}
                   </SelectContent>

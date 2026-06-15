@@ -6,7 +6,44 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const Select = SelectPrimitive.Root
+/**
+ * Coleta value→label dos <SelectItem> na árvore de children, para o base-ui
+ * renderizar o RÓTULO (e não o valor cru) no <SelectValue> sem precisar do popup aberto.
+ */
+function coletarItems(children: React.ReactNode, acc: Record<string, React.ReactNode>) {
+  React.Children.forEach(children, (child) => {
+    if (!React.isValidElement(child)) return
+    const props = child.props as { value?: unknown; children?: React.ReactNode }
+    if (child.type === SelectItem) {
+      if (props.value != null && typeof props.value !== "object") {
+        acc[String(props.value)] = props.children
+      }
+      return
+    }
+    if (props?.children) coletarItems(props.children, acc)
+  })
+}
+
+function Select<Value, Multiple extends boolean | undefined = false>(
+  props: SelectPrimitive.Root.Props<Value, Multiple>,
+) {
+  const { items, children } = props
+  let resolved = items
+  if (resolved == null) {
+    const acc: Record<string, React.ReactNode> = {}
+    try {
+      coletarItems(children, acc)
+    } catch {
+      /* fallback: sem items */
+    }
+    if (Object.keys(acc).length > 0) resolved = acc as typeof items
+  }
+  return (
+    <SelectPrimitive.Root {...props} items={resolved}>
+      {children}
+    </SelectPrimitive.Root>
+  )
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (

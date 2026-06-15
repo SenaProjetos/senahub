@@ -18,6 +18,7 @@ import {
   excluirModeloContrato,
   novaVersaoCertidao,
 } from "@/modules/juridico/actions";
+import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -329,7 +330,7 @@ function DocsTab({
                     <Folder className="mr-1 size-3" /> {nomePasta(d.pastaId)}
                   </Badge>
                 )}
-                {d.projeto && <span className="font-mono text-xs text-muted-foreground">{d.projeto}</span>}
+                {d.projeto && <span className="font-mono text-xs text-muted-foreground">{formatarCodigo(d.projeto)}</span>}
                 {d.cliente && <span className="text-xs text-muted-foreground">{d.cliente}</span>}
                 <div className="ml-auto flex items-center gap-1.5">
                   {podeGerir && (

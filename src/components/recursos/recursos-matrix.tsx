@@ -7,6 +7,7 @@ import { Plus, AlertTriangle, Trash2, UserPlus } from "lucide-react";
 import { salvarRecurso, salvarAlocacao, removerAlocacao } from "@/modules/planejamento/actions";
 import { criarHabilidade, alternarHabilidadeUsuario } from "@/modules/rh/habilidades/actions";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
+import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -178,7 +179,7 @@ export function RecursosMatrix({
                             }`}
                             title={`${a.projetoNome}${a.observacao ? ` — ${a.observacao}` : ""}`}
                           >
-                            {a.projetoCodigo} <span className="text-muted-foreground">{a.percentual}%</span>
+                            {formatarCodigo(a.projetoCodigo)} <span className="text-muted-foreground">{a.percentual}%</span>
                           </button>
                         ))
                       )}
@@ -600,7 +601,7 @@ function AlocacaoDialog({
               <SelectContent>
                 {projetos.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
-                    {p.codigo} · {p.nome}
+                    {formatarCodigo(p.codigo)} · {p.nome}
                   </SelectItem>
                 ))}
               </SelectContent>

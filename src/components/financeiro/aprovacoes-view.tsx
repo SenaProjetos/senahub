@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, X, ShieldCheck } from "lucide-react";
 import { aprovarLancamento, rejeitarLancamento, salvarLimiteAprovacao } from "@/modules/financeiro/aprovacao/actions";
+import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -121,7 +122,7 @@ export function AprovacoesView({
                       <span className="font-medium">{l.descricao}</span>
                       <span className="block text-xs text-muted-foreground">
                         {l.fornecedor ?? "—"}
-                        {l.projeto ? ` · ${l.projeto}` : ""}
+                        {l.projeto ? ` · ${formatarCodigo(l.projeto)}` : ""}
                         {l.vencimento ? ` · vence ${new Date(l.vencimento + "T00:00:00").toLocaleDateString("pt-BR")}` : ""}
                       </span>
                     </td>

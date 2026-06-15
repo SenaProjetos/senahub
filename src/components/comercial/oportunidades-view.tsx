@@ -247,7 +247,7 @@ function OpRow({
         <div className="mt-2 space-y-2 border-t pt-2">
           {podeGerir && (
             <div className="flex flex-wrap items-center gap-2">
-              <Select value={o.etapa} onValueChange={(v) => setEtapa(v ?? o.etapa)}>
+              <Select value={o.etapa} items={ETAPA_LABEL} onValueChange={(v) => setEtapa(v ?? o.etapa)}>
                 <SelectTrigger className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {ETAPAS.map((e) => (<SelectItem key={e} value={e}>{ETAPA_LABEL[e]}</SelectItem>))}

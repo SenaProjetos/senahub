@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
   DndContext,
   DragOverlay,
@@ -148,7 +149,7 @@ function CardTarefa({
             <span className="truncate">{t.titulo}</span>
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            {t.projetoCodigo && <span className="font-mono">{t.projetoCodigo}</span>}
+            {t.projetoCodigo && <span className="font-mono">{formatarCodigo(t.projetoCodigo)}</span>}
             {t.prazo && (
               <span className={`flex items-center gap-1 ${atrasada ? "text-destructive" : ""}`}>
                 <CalendarDays className="size-3" />

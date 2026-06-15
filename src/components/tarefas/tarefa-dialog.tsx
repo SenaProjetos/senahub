@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Trash2, Archive, Paperclip, Send, FileText, X } from "lucide-react";
+import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
   criarTarefa,
   editarTarefa,
@@ -248,7 +249,7 @@ export function TarefaDialog({
                   <SelectItem value={NONE}>—</SelectItem>
                   {opcoes.projetos.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.codigo}
+                      {formatarCodigo(p.codigo)}
                     </SelectItem>
                   ))}
                 </SelectContent>

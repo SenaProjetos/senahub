@@ -133,7 +133,7 @@ export function SuporteView({ tickets, ehGestor }: { tickets: Ticket[]; ehGestor
                   </span>
                   {ehGestor && (
                     <div className="ml-auto">
-                      <Select value={t.status} onValueChange={(v) => status(t.id, v)}>
+                      <Select value={t.status} items={{ aberto: "Aberto", em_atendimento: "Em atendimento", resolvido: "Resolvido" }} onValueChange={(v) => status(t.id, v)}>
                         <SelectTrigger className="h-8 w-40">
                           <SelectValue />
                         </SelectTrigger>

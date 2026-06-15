@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { minutosSessao } from "@/modules/ponto/format";
+import { formatarCodigo } from "@/modules/projetos/numbering";
 
 function diasUteis(ano: number, mes: number): number {
   let n = 0;
@@ -108,7 +109,7 @@ export async function rateioMesGestor(ano: number, mes: number) {
   let custoTotal = 0;
   for (const r of rows) {
     const p = pinfo.get(r.projetoId);
-    const label = p ? `${p.codigo} · ${p.nome}` : r.projetoId;
+    const label = p ? `${formatarCodigo(p.codigo)} · ${p.nome}` : r.projetoId;
     const cur = agg.get(r.projetoId) ?? { projeto: label, minutos: 0, custo: 0 };
     cur.minutos += r.minutos;
     cur.custo += r.custo;
