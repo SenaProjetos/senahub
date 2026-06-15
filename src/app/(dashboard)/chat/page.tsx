@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { sincronizarCanaisDoUsuario } from "@/modules/chat/service";
 import { listarCanais, usuariosParaDM } from "@/modules/chat/queries";
+import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
 import { ChatView } from "@/components/chat/chat-view";
 
 export const metadata: Metadata = { title: "Chat" };
@@ -19,10 +20,11 @@ export default async function ChatPage() {
   );
 
   await sincronizarCanaisDoUsuario();
-  const [canais, usuarios, eu] = await Promise.all([
+  const [canais, usuarios, eu, prefs] = await Promise.all([
     listarCanais(user.id),
     usuariosParaDM(user.id),
     prisma.user.findUnique({ where: { id: user.id }, select: { chatStatus: true } }),
+    getPreferencias(user.id),
   ]);
 
   return (
@@ -31,6 +33,8 @@ export default async function ChatPage() {
       usuarios={usuarios}
       meId={user.id}
       status={eu?.chatStatus ?? "disponivel"}
+      somChat={prefs.somChat !== false}
+      mostrarRecibos={prefs.mostrarRecibos !== false}
     />
   );
 }

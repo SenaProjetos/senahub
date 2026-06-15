@@ -191,6 +191,12 @@ export const NAV_GROUPS: NavGroup[] = [
     title: "Sistema",
     items: [
       {
+        title: "Preferências",
+        href: "/preferencias",
+        icon: UserCog,
+        roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"],
+      },
+      {
         title: "Configurações",
         href: "/configuracoes",
         icon: Settings,

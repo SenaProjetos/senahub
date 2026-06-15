@@ -205,11 +205,11 @@ Sequência proposta. Padrão = 1 onda → verificação (tsc/lint/testes) → 1 
 > modelos de contrato, versão de certidão, histórico/valores de licitação, recibo de leitura,
 > auto-cadastro, preferências.
 >
-> **Nota de profundidade:** E6 (recibo de leitura) tem **UI completa no chat** — ✓ enviado /
-> ✓✓ lido (com nomes no tooltip), marcação automática ao abrir o canal e atualização **ao
-> vivo via socket** (evento `leitura`). E8 (preferências) permanece **modelo + action/query**
-> (sem UI de tela), por ser ⚪ de baixo valor; o restante tem UI funcional. Tudo verificado:
-> tsc 0 · 64 testes · smoke runtime por grupo.
+> **Nota de profundidade:** todos os 21 itens com **UI funcional**. E6 (recibo de leitura) no
+> chat — ✓ enviado / ✓✓ lido (nomes no tooltip), marcação automática ao abrir o canal,
+> atualização **ao vivo via socket** (evento `leitura`); respeita a preferência do usuário.
+> E8 (preferências) → página **/preferencias** (todo interno) com store dedicado server-side;
+> as prefs de chat (som + recibos) têm efeito real. Verificado: tsc 0 · 64 testes · smoke por grupo.
 
 > **Decisões G.2 aplicadas:** doc-link **híbrido** (G.2.1); aprovação por **`financeiro:aprovar`**
 > (G.2.2); limite em **`ConfigSistema`** (G.2.3); **Fase 5 OFX pulada** (já existia). Permissão

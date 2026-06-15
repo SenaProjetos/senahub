@@ -73,11 +73,15 @@ export function ChatView({
   usuarios,
   meId,
   status: statusInicial,
+  somChat = true,
+  mostrarRecibos = true,
 }: {
   canais: CanalListItem[];
   usuarios: Usuario[];
   meId: string;
   status: string;
+  somChat?: boolean;
+  mostrarRecibos?: boolean;
 }) {
   const router = useRouter();
   const sp = useSearchParams();
@@ -115,7 +119,7 @@ export function ChatView({
   useEffect(() => {
     const s = getSocket();
     function onMensagem(p: Msg & { canalId: string }) {
-      if (p.autor.id !== meId) tocarSom();
+      if (p.autor.id !== meId && somChat) tocarSom();
       if (p.canalId === selRef.current) {
         setMensagens((m) => [...m, p]);
         void marcarLido({ canalId: p.canalId });
@@ -161,7 +165,7 @@ export function ChatView({
       s.off("entrar-canal-novo", onNovoCanal);
       s.off("leitura", onLeitura);
     };
-  }, [meId, router]);
+  }, [meId, router, somChat]);
 
   useEffect(() => {
     fimRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -339,7 +343,7 @@ export function ChatView({
                             minute: "2-digit",
                           })}
                         </span>
-                        {meu &&
+                        {meu && mostrarRecibos &&
                           (m.leituras && m.leituras.length > 0 ? (
                             <span title={`Lido por ${m.leituras.map((l) => l.user.name).join(", ")}`} className="inline-flex">
                               <CheckCheck className="size-3 text-info" aria-label="Lido" />
