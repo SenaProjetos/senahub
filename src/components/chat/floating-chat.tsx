@@ -51,7 +51,7 @@ export function FloatingChat() {
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="h-[85vh] w-[min(1000px,96vw)] max-w-none overflow-hidden p-3">
+        <DialogContent className="h-[85vh] w-[min(1000px,96vw)] max-w-none overflow-hidden p-3 sm:max-w-[min(1000px,96vw)]">
           <DialogHeader className="sr-only">
             <DialogTitle>Chat</DialogTitle>
           </DialogHeader>
