@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, MapPin, Ruler, LayoutGrid, Wrench, FolderOpen } from "lucide-react";
+import { ArrowLeft, CalendarDays, MapPin, Ruler, LayoutGrid, Wrench, FolderOpen, SlidersHorizontal } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { obterProjeto, usuariosInternos, margemProjeto } from "@/modules/projetos/queries";
@@ -115,6 +115,9 @@ export default async function ProjetoDetalhePage({
           </Button>
           <Button variant="outline" size="sm" render={<Link href={`/projetos/${projeto.id}/arquivos`} />}>
             <FolderOpen className="size-4" /> Arquivos
+          </Button>
+          <Button variant="outline" size="sm" render={<Link href={`/projetos/${projeto.id}/extras`} />}>
+            <SlidersHorizontal className="size-4" /> Mais
           </Button>
           <GerarDocumentoButton modelos={modelosDoc} paramId="projetoId" valor={projeto.id} />
         </div>

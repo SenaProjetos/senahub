@@ -375,6 +375,9 @@ model Projeto {
   servicos    ServicoTerceirizado[]
   rateios     RateioHora[]
   arquivos    ArquivoProjeto[]
+  composicaoPreco ProjetoComposicaoPreco?
+  lmConfig    LmConfig?
+  linhasBase  LinhaBase[]
 
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -975,6 +978,7 @@ model Disciplina {
   canais       Canal[]
   eapTarefas   EapTarefa[]
   pranchas     Prancha[]
+  solicitacoesRevisao SolicitacaoRevisao[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -982,6 +986,80 @@ model Disciplina {
   @@index([projetoId])
   @@index([status])
   @@map("disciplina")
+}
+
+enum StatusSolicRevisao {
+  pendente
+  aceita
+  recusada
+}
+
+/// Pedido formal de revisão de uma disciplina (workflow), com anexo opcional (B2).
+model SolicitacaoRevisao {
+  id            String             @id @default(cuid())
+  disciplinaId  String
+  disciplina    Disciplina         @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+  solicitanteId String
+  motivo        String
+  status        StatusSolicRevisao @default(pendente)
+  respostaMotivo String?
+  anexoPath     String?
+  anexoNome     String?
+  createdAt     DateTime           @default(now())
+  respondidoEm  DateTime?
+
+  @@index([disciplinaId])
+  @@map("solicitacao_revisao")
+}
+
+/// Composição de preço detalhada do projeto (memória de cálculo) (B3).
+model ProjetoComposicaoPreco {
+  id         String                @id @default(cuid())
+  projetoId  String                @unique
+  projeto    Projeto               @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  observacao String?
+  updatedAt  DateTime              @updatedAt
+  itens      ItemComposicaoPreco[]
+
+  @@map("projeto_composicao_preco")
+}
+
+model ItemComposicaoPreco {
+  id            String                 @id @default(cuid())
+  composicaoId  String
+  composicao    ProjetoComposicaoPreco @relation(fields: [composicaoId], references: [id], onDelete: Cascade)
+  descricao     String
+  quantidade    Decimal                @default(1) @db.Decimal(12, 2)
+  valorUnitario Decimal                @default(0) @db.Decimal(14, 2)
+  ordem         Int                    @default(0)
+
+  @@index([composicaoId])
+  @@map("item_composicao_preco")
+}
+
+/// Configuração de Lista de Materiais (BIM) do projeto — texto livre (B4).
+model LmConfig {
+  id        String   @id @default(cuid())
+  projetoId String   @unique
+  projeto   Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  conteudo  String   @default("")
+  updatedAt DateTime @updatedAt
+
+  @@map("lm_config")
+}
+
+/// Linha de base do cronograma: snapshot nomeado das datas da EAP (B5).
+model LinhaBase {
+  id        String   @id @default(cuid())
+  projetoId String
+  projeto   Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  nome      String
+  /// Snapshot [{ id, nome, inicio, fim }] das tarefas da EAP no momento.
+  snapshot  Json
+  createdAt DateTime @default(now())
+
+  @@index([projetoId])
+  @@map("linha_base")
 }
 
 model DisciplinaResponsavel {
