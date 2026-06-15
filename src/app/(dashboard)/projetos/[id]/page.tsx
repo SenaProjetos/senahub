@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DisciplinaCard } from "@/components/projetos/disciplina-card";
+import { EquipeManager } from "@/components/projetos/equipe-manager";
 import { InputsPanel } from "@/components/inputs/inputs-panel";
 import { modelosPorFonte } from "@/modules/documentos/queries";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
@@ -230,8 +231,15 @@ export default async function ProjetoDetalhePage({
       )}
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
           <CardTitle className="text-base">Equipe do projeto</CardTitle>
+          {podeGerir && (
+            <EquipeManager
+              projetoId={projeto.id}
+              internos={internos}
+              membrosAtuais={projeto.membros.map((m) => m.userId)}
+            />
+          )}
         </CardHeader>
         <CardContent>
           {equipe.length === 0 ? (
