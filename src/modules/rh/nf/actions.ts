@@ -35,6 +35,7 @@ export const validarNF = defineAction(
         observacao: i.observacao || null,
         validadoPorId: user.id,
         validadoEm: new Date(),
+        historico: { create: { de: nf.status, para: i.status, autorId: user.id } },
       },
     });
 

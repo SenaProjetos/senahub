@@ -90,6 +90,7 @@ model User {
   rateios              RateioHora[]
   funcDocumentos       FuncionarioDocumento[] @relation("FuncDocumentos")
   bancoHoras           BancoHorasMensal[]
+  feedbacksRecebidos   FeedbackRH[]           @relation("FeedbackAlvo")
 
   @@index([role])
   @@map("user")
@@ -2149,9 +2150,39 @@ model NotaFiscalPJ {
   validadoEm    DateTime?
 
   createdAt DateTime @default(now())
+  historico NotaFiscalPJHistorico[]
 
   @@index([userId, status])
   @@map("nota_fiscal_pj")
+}
+
+/// Trilha de status da NF de PJ (D6).
+model NotaFiscalPJHistorico {
+  id        String       @id @default(cuid())
+  notaId    String
+  nota      NotaFiscalPJ @relation(fields: [notaId], references: [id], onDelete: Cascade)
+  de        String?
+  para      String
+  autorId   String?
+  createdAt DateTime     @default(now())
+
+  @@index([notaId])
+  @@map("nota_fiscal_pj_historico")
+}
+
+/// Feedback / 1:1 de RH sobre um colaborador (D5).
+model FeedbackRH {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation("FeedbackAlvo", fields: [userId], references: [id], onDelete: Cascade)
+  autorId   String
+  /// feedback | reuniao_1a1 | reconhecimento | alerta
+  tipo      String   @default("feedback")
+  conteudo  String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("feedback_rh")
 }
 
 enum PacoteUpload {
