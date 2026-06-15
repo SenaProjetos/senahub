@@ -32,8 +32,26 @@ export default async function CadastrosFinanceirosPage() {
       centros={centros}
       contas={contas.map((c) => ({ ...c, saldoInicial: Number(c.saldoInicial) }))}
       formas={formas}
-      fornecedores={fornecedores}
-      socios={socios.map((s) => ({ id: s.id, nome: s.user.name, percentual: Number(s.percentual) }))}
+      fornecedores={fornecedores.map((f) => ({
+        ...f,
+        catalogo: f.catalogo.map((s) => ({
+          id: s.id,
+          descricao: s.descricao,
+          valorReferencia: s.valorReferencia != null ? Number(s.valorReferencia) : null,
+        })),
+      }))}
+      socios={socios.map((s) => ({
+        id: s.id,
+        nome: s.user.name,
+        percentual: Number(s.percentual),
+        retiradas: s.retiradas.map((r) => ({
+          id: r.id,
+          data: r.data.toISOString().slice(0, 10),
+          valor: Number(r.valor),
+          tipo: r.tipo,
+          observacao: r.observacao,
+        })),
+      }))}
       usuarios={usuarios}
     />
   );

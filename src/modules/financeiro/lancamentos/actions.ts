@@ -11,6 +11,8 @@ import {
   confirmarLancamentoSchema,
   idLancamentoSchema,
 } from "@/modules/financeiro/lancamentos/schemas";
+import { z } from "zod";
+import { removerArquivo } from "@/lib/storage";
 import { devePassarPorAprovacao } from "@/lib/aprovacao";
 import { notificarMuitos } from "@/lib/notificar";
 import { limiteAprovacao, aprovadores } from "@/modules/financeiro/aprovacao/queries";
@@ -112,7 +114,7 @@ export const editarLancamento = defineAction(
 /** Confirma (realiza) um lançamento previsto → entra no caixa/DRE. */
 export const confirmarLancamento = defineAction(
   { ...base, acao: "confirmar-lancamento", entidade: "Lancamento", schema: confirmarLancamentoSchema },
-  async (i) => {
+  async (i, ctx) => {
     const lanc = await prisma.lancamento.findUnique({ where: { id: i.id } });
     if (!lanc) throw new ActionError("Lançamento não encontrado.");
     if (lanc.status === "confirmado") throw new ActionError("Já confirmado.");
@@ -126,6 +128,7 @@ export const confirmarLancamento = defineAction(
         contaId: i.contaId || lanc.contaId,
         formaId: i.formaId || lanc.formaId,
         valorEfetivo: i.valorEfetivo ?? null,
+        statusHistorico: { create: { de: lanc.status, para: "confirmado", autorId: ctx.user.id } },
       },
     });
     rev();
@@ -133,10 +136,59 @@ export const confirmarLancamento = defineAction(
   },
 );
 
+// ── Tags e anexos do lançamento (A6) ──────────────────────────
+export const salvarTagsLancamento = defineAction(
+  { ...base, acao: "salvar-tags-lancamento", entidade: "Lancamento", schema: z.object({ id: z.string().min(1), tags: z.array(z.string().min(1)).max(20) }) },
+  async (i) => {
+    const tags = [...new Set(i.tags.map((t) => t.trim()).filter(Boolean))];
+    await prisma.lancamento.update({ where: { id: i.id }, data: { tags } });
+    rev();
+    return { id: i.id };
+  },
+);
+
+export const adicionarAnexoLancamento = defineAction(
+  {
+    ...base,
+    acao: "add-anexo-lancamento",
+    entidade: "LancamentoAnexo",
+    schema: z.object({
+      lancamentoId: z.string().min(1),
+      meta: z.object({ caminho: z.string().min(1), nome: z.string().min(1), mime: z.string().min(1), tamanho: z.number().int().nonnegative() }),
+    }),
+  },
+  async (i, ctx) => {
+    const a = await prisma.lancamentoAnexo.create({
+      data: { lancamentoId: i.lancamentoId, caminho: i.meta.caminho, nome: i.meta.nome, mime: i.meta.mime, tamanho: i.meta.tamanho, autorId: ctx.user.id },
+    });
+    rev();
+    return { id: a.id };
+  },
+);
+
+export const removerAnexoLancamento = defineAction(
+  { ...base, acao: "rm-anexo-lancamento", entidade: "LancamentoAnexo", schema: z.object({ id: z.string().min(1) }) },
+  async (i) => {
+    const a = await prisma.lancamentoAnexo.findUnique({ where: { id: i.id }, select: { caminho: true } });
+    if (!a) throw new ActionError("Anexo não encontrado.");
+    await prisma.lancamentoAnexo.delete({ where: { id: i.id } });
+    await removerArquivo(a.caminho);
+    rev();
+    return { id: i.id };
+  },
+);
+
 export const cancelarLancamento = defineAction(
   { ...base, acao: "cancelar-lancamento", entidade: "Lancamento", schema: idLancamentoSchema },
-  async (i) => {
-    await prisma.lancamento.update({ where: { id: i.id }, data: { status: "cancelado" } });
+  async (i, ctx) => {
+    const atual = await prisma.lancamento.findUnique({ where: { id: i.id }, select: { status: true } });
+    await prisma.lancamento.update({
+      where: { id: i.id },
+      data: {
+        status: "cancelado",
+        statusHistorico: { create: { de: atual?.status ?? null, para: "cancelado", autorId: ctx.user.id } },
+      },
+    });
     rev();
     return { id: i.id };
   },

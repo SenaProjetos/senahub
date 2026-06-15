@@ -25,6 +25,7 @@ type Conta = {
   saldoInicial: number;
   padrao: boolean;
 };
+type Servico = { id: string; descricao: string; valorReferencia: number | null };
 type Fornecedor = {
   id: string;
   tipo: "PF" | "PJ";
@@ -35,7 +36,10 @@ type Fornecedor = {
   servico: string | null;
   observacoes: string | null;
   ativo: boolean;
+  catalogo: Servico[];
 };
+type Retirada = { id: string; data: string; valor: number; tipo: string; observacao: string | null };
+type SocioRow = { id: string; nome: string; percentual: number; retiradas: Retirada[] };
 
 export function CadastrosView({
   categorias,
@@ -51,7 +55,7 @@ export function CadastrosView({
   contas: Conta[];
   formas: { id: string; nome: string }[];
   fornecedores: Fornecedor[];
-  socios: { id: string; nome: string; percentual: number }[];
+  socios: SocioRow[];
   usuarios: { id: string; name: string }[];
 }) {
   return (

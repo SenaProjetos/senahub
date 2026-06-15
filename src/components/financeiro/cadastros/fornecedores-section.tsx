@@ -3,11 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Pencil, Power, PowerOff } from "lucide-react";
+import { Plus, Pencil, Power, PowerOff, ChevronDown, Trash2 } from "lucide-react";
 import {
   criarFornecedor,
   editarFornecedor,
   alternarFornecedor,
+  criarFornecedorServico,
+  removerFornecedorServico,
 } from "@/modules/financeiro/cadastros/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +30,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+type Servico = { id: string; descricao: string; valorReferencia: number | null };
 type Fornecedor = {
   id: string;
   tipo: "PF" | "PJ";
@@ -38,7 +41,10 @@ type Fornecedor = {
   servico: string | null;
   observacoes: string | null;
   ativo: boolean;
+  catalogo: Servico[];
 };
+
+const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export function FornecedoresSection({ fornecedores }: { fornecedores: Fornecedor[] }) {
   const router = useRouter();
@@ -71,34 +77,15 @@ export function FornecedoresSection({ fornecedores }: { fornecedores: Fornecedor
           <li className="p-3 text-sm text-muted-foreground">Nenhum fornecedor.</li>
         ) : (
           fornecedores.map((f) => (
-            <li key={f.id} className={`flex items-center justify-between gap-2 p-3 ${f.ativo ? "" : "opacity-60"}`}>
-              <div>
-                <p className="flex items-center gap-2 text-sm font-medium">
-                  {f.nome} <Badge variant="outline">{f.tipo}</Badge>
-                  {f.servico && <span className="text-xs text-muted-foreground">{f.servico}</span>}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {f.documento ?? "—"}
-                  {f.telefone ? ` · ${f.telefone}` : ""}
-                </p>
-              </div>
-              <div className="flex items-center gap-1">
-                <Button size="icon" variant="ghost" onClick={() => alternar(f)} aria-label="Ativar/Desativar">
-                  {f.ativo ? <PowerOff className="size-4" /> : <Power className="size-4" />}
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => {
-                    setEdit(f);
-                    setOpen(true);
-                  }}
-                  aria-label="Editar"
-                >
-                  <Pencil className="size-4" />
-                </Button>
-              </div>
-            </li>
+            <FornRow
+              key={f.id}
+              f={f}
+              onAlternar={() => alternar(f)}
+              onEditar={() => {
+                setEdit(f);
+                setOpen(true);
+              }}
+            />
           ))
         )}
       </ul>
@@ -232,5 +219,89 @@ function FornecedorDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function FornRow({ f, onAlternar, onEditar }: { f: Fornecedor; onAlternar: () => void; onEditar: () => void }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [aberto, setAberto] = useState(false);
+  const [desc, setDesc] = useState("");
+  const [valor, setValor] = useState("");
+
+  function addServico() {
+    if (!desc.trim()) {
+      toast.error("Informe a descrição.");
+      return;
+    }
+    start(async () => {
+      const r = await criarFornecedorServico({ fornecedorId: f.id, descricao: desc, valorReferencia: valor ? Number(valor) : undefined });
+      if (r.ok) {
+        toast.success("Serviço adicionado ao catálogo.");
+        setDesc("");
+        setValor("");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+  function rmServico(id: string) {
+    start(async () => {
+      const r = await removerFornecedorServico({ id });
+      if (r.ok) router.refresh();
+      else toast.error(r.error);
+    });
+  }
+
+  return (
+    <li className={`p-3 ${f.ativo ? "" : "opacity-60"}`}>
+      <div className="flex items-center justify-between gap-2">
+        <button className="min-w-0 text-left" onClick={() => setAberto(!aberto)}>
+          <p className="flex items-center gap-2 text-sm font-medium">
+            <ChevronDown className={`size-3.5 text-muted-foreground transition-transform ${aberto ? "rotate-180" : ""}`} />
+            {f.nome} <Badge variant="outline">{f.tipo}</Badge>
+            {f.catalogo.length > 0 && <span className="text-xs text-muted-foreground">{f.catalogo.length} serviço(s)</span>}
+          </p>
+          <p className="pl-5 text-xs text-muted-foreground">
+            {f.documento ?? "—"}
+            {f.telefone ? ` · ${f.telefone}` : ""}
+          </p>
+        </button>
+        <div className="flex items-center gap-1">
+          <Button size="icon" variant="ghost" onClick={onAlternar} aria-label="Ativar/Desativar">
+            {f.ativo ? <PowerOff className="size-4" /> : <Power className="size-4" />}
+          </Button>
+          <Button size="icon" variant="ghost" onClick={onEditar} aria-label="Editar">
+            <Pencil className="size-4" />
+          </Button>
+        </div>
+      </div>
+
+      {aberto && (
+        <div className="mt-2 space-y-2 border-t pt-2">
+          {f.catalogo.length > 0 && (
+            <ul className="divide-y text-xs">
+              {f.catalogo.map((s) => (
+                <li key={s.id} className="flex items-center justify-between gap-2 py-1">
+                  <span>{s.descricao}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="font-mono text-muted-foreground">{s.valorReferencia != null ? brl(s.valorReferencia) : "—"}</span>
+                    <button onClick={() => rmServico(s.id)} aria-label="Remover serviço" className="text-muted-foreground hover:text-destructive">
+                      <Trash2 className="size-3" />
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex flex-wrap items-end gap-2">
+            <Input placeholder="Serviço (ex.: Sondagem SPT)" value={desc} onChange={(e) => setDesc(e.target.value)} className="min-w-40 flex-1" />
+            <Input type="number" step="0.01" placeholder="Valor ref." value={valor} onChange={(e) => setValor(e.target.value)} className="w-32" />
+            <Button size="sm" variant="outline" onClick={addServico} disabled={pending}>
+              <Plus className="size-3.5" /> Serviço
+            </Button>
+          </div>
+        </div>
+      )}
+    </li>
   );
 }

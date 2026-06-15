@@ -3,12 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, MoreHorizontal, Check, Ban, Trash2 } from "lucide-react";
+import { Plus, MoreHorizontal, Check, Ban, Trash2, Paperclip } from "lucide-react";
 import { cancelarLancamento, excluirLancamento } from "@/modules/financeiro/lancamentos/actions";
 import type { LancamentoItem, OpcoesLancamento } from "@/modules/financeiro/lancamentos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { LancamentoForm } from "./lancamento-form";
 import { ConfirmarDialog } from "./confirmar-dialog";
+import { LancamentoDetalheDialog } from "./lancamento-detalhe-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -35,6 +36,7 @@ function dt(d: string | Date | null) {
 
 const STATUS_CHIP: Record<string, string> = {
   previsto: "text-warning border-warning/40",
+  aguardando_aprovacao: "text-info border-info/40",
   confirmado: "text-success border-success/40",
   cancelado: "text-muted-foreground",
 };
@@ -50,6 +52,7 @@ export function LancamentosView({
   const [, start] = useTransition();
   const [formOpen, setFormOpen] = useState(false);
   const [confirmar, setConfirmar] = useState<LancamentoItem | null>(null);
+  const [detalhe, setDetalhe] = useState<LancamentoItem | null>(null);
 
   function cancelar(id: string) {
     start(async () => {
@@ -117,6 +120,13 @@ export function LancamentosView({
                         doc · {l.documentoFinanceiro.numero ?? l.documentoFinanceiro.tipo}
                       </span>
                     )}
+                    {l.tags.length > 0 && (
+                      <span className="mt-0.5 flex flex-wrap gap-1">
+                        {l.tags.map((t) => (
+                          <Badge key={t} variant="outline" className="px-1 py-0 text-[10px]">{t}</Badge>
+                        ))}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {l.categoria.codigo} {l.categoria.nome}
@@ -133,6 +143,18 @@ export function LancamentosView({
                     </Badge>
                   </TableCell>
                   <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Detalhes"
+                      className="relative"
+                      onClick={() => setDetalhe(l)}
+                    >
+                      <Paperclip className="size-4" />
+                      {l.anexos.length > 0 && (
+                        <span className="absolute right-1 top-1 size-1.5 rounded-full bg-info" />
+                      )}
+                    </Button>
                     {l.status !== "cancelado" && (
                       <DropdownMenu>
                         <DropdownMenuTrigger
@@ -172,6 +194,7 @@ export function LancamentosView({
         contas={opcoes.contas}
         formas={opcoes.formas}
       />
+      <LancamentoDetalheDialog lancamento={detalhe} podeGerir onClose={() => setDetalhe(null)} />
     </div>
   );
 }

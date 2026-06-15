@@ -9,6 +9,8 @@ const INCLUDE = {
   fornecedor: { select: { nome: true } },
   cliente: { select: { nome: true } },
   documentoFinanceiro: { select: { id: true, tipo: true, numero: true } },
+  anexos: { orderBy: { createdAt: "desc" }, select: { id: true, nome: true, mime: true, tamanho: true, createdAt: true } },
+  statusHistorico: { orderBy: { createdAt: "desc" }, select: { de: true, para: true, createdAt: true } },
 } satisfies Prisma.LancamentoInclude;
 
 export async function listarLancamentos(opts?: {

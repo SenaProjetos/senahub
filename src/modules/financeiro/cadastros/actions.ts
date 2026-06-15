@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import {
@@ -154,6 +155,74 @@ export const removerSocio = defineAction(
   { ...base, acao: "remover-socio", entidade: "Socio", schema: idSchema },
   async (i) => {
     await prisma.socio.delete({ where: { id: i.id } });
+    rev();
+    return { id: i.id };
+  },
+);
+
+// ── Retiradas de sócio (A5) ───────────────────────────────────
+export const criarRetiradaSocio = defineAction(
+  {
+    ...base,
+    acao: "criar-retirada-socio",
+    entidade: "RetiradaSocio",
+    schema: z.object({
+      socioId: z.string().min(1),
+      data: z.string().min(1, "Informe a data."),
+      valor: z.number().positive("Informe o valor."),
+      tipo: z.enum(["pro_labore", "distribuicao", "adiantamento"]),
+      observacao: z.string().optional().or(z.literal("")),
+    }),
+  },
+  async (i) => {
+    await prisma.retiradaSocio.create({
+      data: {
+        socioId: i.socioId,
+        data: new Date(i.data + "T00:00:00Z"),
+        valor: i.valor,
+        tipo: i.tipo,
+        observacao: i.observacao || null,
+      },
+    });
+    rev();
+    return { ok: true };
+  },
+);
+
+export const removerRetiradaSocio = defineAction(
+  { ...base, acao: "remover-retirada-socio", entidade: "RetiradaSocio", schema: idSchema },
+  async (i) => {
+    await prisma.retiradaSocio.delete({ where: { id: i.id } });
+    rev();
+    return { id: i.id };
+  },
+);
+
+// ── Catálogo de serviços de fornecedor (A7) ───────────────────
+export const criarFornecedorServico = defineAction(
+  {
+    ...base,
+    acao: "criar-forn-servico",
+    entidade: "FornecedorServico",
+    schema: z.object({
+      fornecedorId: z.string().min(1),
+      descricao: z.string().min(1, "Informe a descrição."),
+      valorReferencia: z.number().min(0).optional(),
+    }),
+  },
+  async (i) => {
+    await prisma.fornecedorServico.create({
+      data: { fornecedorId: i.fornecedorId, descricao: i.descricao, valorReferencia: i.valorReferencia ?? null },
+    });
+    rev();
+    return { ok: true };
+  },
+);
+
+export const removerFornecedorServico = defineAction(
+  { ...base, acao: "remover-forn-servico", entidade: "FornecedorServico", schema: idSchema },
+  async (i) => {
+    await prisma.fornecedorServico.delete({ where: { id: i.id } });
     rev();
     return { id: i.id };
   },

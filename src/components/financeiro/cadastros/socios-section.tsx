@@ -3,8 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
-import { criarSocio, removerSocio } from "@/modules/financeiro/cadastros/actions";
+import { Plus, Trash2, ChevronDown, Wallet } from "lucide-react";
+import {
+  criarSocio,
+  removerSocio,
+  criarRetiradaSocio,
+  removerRetiradaSocio,
+} from "@/modules/financeiro/cadastros/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,8 +21,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type Socio = { id: string; nome: string; percentual: number };
+type Retirada = { id: string; data: string; valor: number; tipo: string; observacao: string | null };
+type Socio = { id: string; nome: string; percentual: number; retiradas: Retirada[] };
 type Usuario = { id: string; name: string };
+
+const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const TIPO_RET: Record<string, string> = { pro_labore: "Pró-labore", distribuicao: "Distribuição", adiantamento: "Adiantamento" };
 
 export function SociosSection({ socios, usuarios }: { socios: Socio[]; usuarios: Usuario[] }) {
   const router = useRouter();
@@ -57,17 +66,7 @@ export function SociosSection({ socios, usuarios }: { socios: Socio[]; usuarios:
         {socios.length === 0 ? (
           <li className="p-3 text-sm text-muted-foreground">Nenhum sócio.</li>
         ) : (
-          socios.map((s) => (
-            <li key={s.id} className="flex items-center justify-between gap-2 p-3">
-              <span className="text-sm font-medium">{s.nome}</span>
-              <div className="flex items-center gap-3">
-                <span className="font-mono text-sm">{s.percentual.toFixed(2)}%</span>
-                <Button size="icon" variant="ghost" onClick={() => remover(s.id)} aria-label="Remover">
-                  <Trash2 className="size-4" />
-                </Button>
-              </div>
-            </li>
-          ))
+          socios.map((s) => <SocioRow key={s.id} s={s} onRemover={remover} />)
         )}
       </ul>
       <p className={`text-xs ${total > 100 ? "text-destructive" : "text-muted-foreground"}`}>
@@ -103,5 +102,100 @@ export function SociosSection({ socios, usuarios }: { socios: Socio[]; usuarios:
         </Button>
       </div>
     </div>
+  );
+}
+
+function SocioRow({ s, onRemover }: { s: Socio; onRemover: (id: string) => void }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [aberto, setAberto] = useState(false);
+  const [form, setForm] = useState({ data: "", valor: "", tipo: "pro_labore", observacao: "" });
+  const totalRet = s.retiradas.reduce((a, r) => a + r.valor, 0);
+
+  function addRetirada() {
+    if (!form.data || !form.valor) {
+      toast.error("Informe data e valor.");
+      return;
+    }
+    start(async () => {
+      const r = await criarRetiradaSocio({
+        socioId: s.id,
+        data: form.data,
+        valor: Number(form.valor),
+        tipo: form.tipo as "pro_labore" | "distribuicao" | "adiantamento",
+        observacao: form.observacao,
+      });
+      if (r.ok) {
+        toast.success("Retirada registrada.");
+        setForm({ data: "", valor: "", tipo: "pro_labore", observacao: "" });
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+  function rmRetirada(id: string) {
+    start(async () => {
+      const r = await removerRetiradaSocio({ id });
+      if (r.ok) router.refresh();
+      else toast.error(r.error);
+    });
+  }
+
+  return (
+    <li className="p-3">
+      <div className="flex items-center justify-between gap-2">
+        <button className="inline-flex items-center gap-1.5 text-left" onClick={() => setAberto(!aberto)}>
+          <ChevronDown className={`size-3.5 text-muted-foreground transition-transform ${aberto ? "rotate-180" : ""}`} />
+          <span className="text-sm font-medium">{s.nome}</span>
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <Wallet className="size-3" /> {s.retiradas.length} · {brl(totalRet)}
+          </span>
+        </button>
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-sm">{s.percentual.toFixed(2)}%</span>
+          <Button size="icon" variant="ghost" onClick={() => onRemover(s.id)} aria-label="Remover">
+            <Trash2 className="size-4" />
+          </Button>
+        </div>
+      </div>
+
+      {aberto && (
+        <div className="mt-2 space-y-2 border-t pt-2">
+          {s.retiradas.length > 0 && (
+            <ul className="divide-y text-xs">
+              {s.retiradas.map((r) => (
+                <li key={r.id} className="flex items-center justify-between gap-2 py-1">
+                  <span className="text-muted-foreground">
+                    {new Date(r.data + "T00:00:00").toLocaleDateString("pt-BR")} · {TIPO_RET[r.tipo] ?? r.tipo}
+                    {r.observacao ? ` · ${r.observacao}` : ""}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="font-mono">{brl(r.valor)}</span>
+                    <button onClick={() => rmRetirada(r.id)} aria-label="Remover retirada" className="text-muted-foreground hover:text-destructive">
+                      <Trash2 className="size-3" />
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex flex-wrap items-end gap-2">
+            <Input type="date" value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} className="w-36" />
+            <Input type="number" step="0.01" placeholder="Valor" value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} className="w-28" />
+            <Select value={form.tipo} onValueChange={(v) => setForm({ ...form, tipo: v ?? "pro_labore" })}>
+              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pro_labore">Pró-labore</SelectItem>
+                <SelectItem value="distribuicao">Distribuição</SelectItem>
+                <SelectItem value="adiantamento">Adiantamento</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input placeholder="Obs." value={form.observacao} onChange={(e) => setForm({ ...form, observacao: e.target.value })} className="w-32 flex-1" />
+            <Button size="sm" variant="outline" onClick={addRetirada} disabled={pending}>
+              <Plus className="size-3.5" /> Retirada
+            </Button>
+          </div>
+        </div>
+      )}
+    </li>
   );
 }

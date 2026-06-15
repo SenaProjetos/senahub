@@ -21,12 +21,16 @@ export function listarFornecedores(incluirInativos = true) {
   return prisma.fornecedor.findMany({
     where: incluirInativos ? {} : { ativo: true },
     orderBy: { nome: "asc" },
+    include: { catalogo: { where: { ativo: true }, orderBy: { descricao: "asc" } } },
   });
 }
 
 export async function listarSocios() {
   return prisma.socio.findMany({
-    include: { user: { select: { id: true, name: true } } },
+    include: {
+      user: { select: { id: true, name: true } },
+      retiradas: { orderBy: { data: "desc" }, take: 24 },
+    },
     orderBy: { createdAt: "asc" },
   });
 }

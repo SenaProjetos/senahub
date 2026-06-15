@@ -522,9 +522,24 @@ model Fornecedor {
 
   lancamentos Lancamento[]
   servicos    ServicoTerceirizado[]
+  catalogo    FornecedorServico[]
 
   @@index([ativo])
   @@map("fornecedor")
+}
+
+/// Serviço que um fornecedor presta (catálogo) — com valor de referência (A7).
+model FornecedorServico {
+  id              String     @id @default(cuid())
+  fornecedorId    String
+  fornecedor      Fornecedor @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+  descricao       String
+  valorReferencia Decimal?   @db.Decimal(14, 2)
+  ativo           Boolean    @default(true)
+  createdAt       DateTime   @default(now())
+
+  @@index([fornecedorId])
+  @@map("fornecedor_servico")
 }
 
 model Socio {
@@ -535,7 +550,30 @@ model Socio {
   ativo      Boolean  @default(true)
   createdAt  DateTime @default(now())
 
+  retiradas  RetiradaSocio[]
+
   @@map("socio")
+}
+
+enum TipoRetiradaSocio {
+  pro_labore
+  distribuicao
+  adiantamento
+}
+
+/// Retirada de sócio (pró-labore, distribuição de lucro, adiantamento).
+model RetiradaSocio {
+  id         String            @id @default(cuid())
+  socioId    String
+  socio      Socio             @relation(fields: [socioId], references: [id], onDelete: Cascade)
+  data       DateTime          @db.Date
+  valor      Decimal           @db.Decimal(14, 2)
+  tipo       TipoRetiradaSocio @default(pro_labore)
+  observacao String?
+  createdAt  DateTime          @default(now())
+
+  @@index([socioId])
+  @@map("retirada_socio")
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -586,9 +624,13 @@ model Lancamento {
 
   observacao       String?
   recorrenciaGrupo String?
+  /// Etiquetas livres (A6).
+  tags             String[]  @default([])
   /// Documento-fonte (NF/contrato/proposta/medição) — rastreabilidade de origem (Fase 2).
   documentoFinanceiroId String?
   documentoFinanceiro   DocumentoFinanceiro? @relation(fields: [documentoFinanceiroId], references: [id], onDelete: SetNull)
+  anexos           LancamentoAnexo[]
+  statusHistorico  LancamentoStatusHistorico[]
   /// Aprovação por alçada (Fase 4): quem aprovou, quando, e motivo se rejeitado.
   aprovadoPorId  String?
   aprovadoEm     DateTime?
@@ -2035,10 +2077,67 @@ model PagamentoProjetista {
   pagoEm           DateTime?
   observacao       String?
   lancamentoId     String? // vínculo futuro com o Financeiro (Onda 2)
+  /// Lote de folha de projetistas (A8).
+  folhaId          String?
+  folha            FolhaProjetista? @relation(fields: [folhaId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 
   @@index([projetistaId, status])
   @@index([disciplinaId])
+  @@index([folhaId])
   @@map("pagamento_projetista")
+}
+
+enum StatusFolhaProjetista {
+  aberta
+  fechada
+  paga
+}
+
+/// Lote mensal de pagamentos de projetistas (A8): agrupa PagamentoProjetista do período.
+model FolhaProjetista {
+  id         String                @id @default(cuid())
+  ano        Int
+  mes        Int
+  status     StatusFolhaProjetista @default(aberta)
+  total      Decimal               @default(0) @db.Decimal(14, 2)
+  fechadaEm  DateTime?
+  pagaEm     DateTime?
+  createdAt  DateTime              @default(now())
+
+  pagamentos PagamentoProjetista[]
+
+  @@unique([ano, mes])
+  @@map("folha_projetista")
+}
+
+/// Anexo (comprovante) de um lançamento financeiro (A6).
+model LancamentoAnexo {
+  id           String     @id @default(cuid())
+  lancamentoId String
+  lancamento   Lancamento @relation(fields: [lancamentoId], references: [id], onDelete: Cascade)
+  caminho      String
+  nome         String
+  mime         String
+  tamanho      Int
+  autorId      String
+  createdAt    DateTime   @default(now())
+
+  @@index([lancamentoId])
+  @@map("lancamento_anexo")
+}
+
+/// Trilha de mudanças de status de um lançamento (A6).
+model LancamentoStatusHistorico {
+  id           String     @id @default(cuid())
+  lancamentoId String
+  lancamento   Lancamento @relation(fields: [lancamentoId], references: [id], onDelete: Cascade)
+  de           String?
+  para         String
+  autorId      String?
+  createdAt    DateTime   @default(now())
+
+  @@index([lancamentoId])
+  @@map("lancamento_status_historico")
 }

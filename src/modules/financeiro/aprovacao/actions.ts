@@ -50,7 +50,13 @@ export const aprovarLancamento = defineAction(
     if (l.status !== "aguardando_aprovacao") throw new ActionError("Lançamento não está aguardando aprovação.");
     await prisma.lancamento.update({
       where: { id: i.id },
-      data: { status: "previsto", aprovadoPorId: ctx.user.id, aprovadoEm: new Date(), motivoRejeicao: null },
+      data: {
+        status: "previsto",
+        aprovadoPorId: ctx.user.id,
+        aprovadoEm: new Date(),
+        motivoRejeicao: null,
+        statusHistorico: { create: { de: "aguardando_aprovacao", para: "previsto", autorId: ctx.user.id } },
+      },
     });
     if (l.autorId !== ctx.user.id) {
       await notificar(l.autorId, { titulo: "Despesa aprovada", corpo: l.descricao, href: "/financeiro/lancamentos" });
@@ -69,7 +75,13 @@ export const rejeitarLancamento = defineAction(
     if (l.status !== "aguardando_aprovacao") throw new ActionError("Lançamento não está aguardando aprovação.");
     await prisma.lancamento.update({
       where: { id: i.id },
-      data: { status: "cancelado", aprovadoPorId: ctx.user.id, aprovadoEm: new Date(), motivoRejeicao: i.motivo },
+      data: {
+        status: "cancelado",
+        aprovadoPorId: ctx.user.id,
+        aprovadoEm: new Date(),
+        motivoRejeicao: i.motivo,
+        statusHistorico: { create: { de: "aguardando_aprovacao", para: "cancelado", autorId: ctx.user.id } },
+      },
     });
     if (l.autorId !== ctx.user.id) {
       await notificar(l.autorId, { titulo: "Despesa rejeitada", corpo: `${l.descricao} — ${i.motivo}`, href: "/financeiro/lancamentos" });
