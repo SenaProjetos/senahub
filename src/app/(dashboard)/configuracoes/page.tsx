@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Users, ShieldCheck, FileText, Percent, CalendarDays } from "lucide-react";
+import { Users, ShieldCheck, FileText, Percent, CalendarDays, Megaphone } from "lucide-react";
 import { requireRole } from "@/lib/session";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -36,6 +36,12 @@ const ITENS = [
     icon: CalendarDays,
     titulo: "Feriados",
     descricao: "Calendário de feriados (ponto, escala, banco de horas).",
+  },
+  {
+    href: "/configuracoes/avisos",
+    icon: Megaphone,
+    titulo: "Aviso geral",
+    descricao: "Enviar comunicado (sino + push) para todos os usuários.",
   },
 ];
 
