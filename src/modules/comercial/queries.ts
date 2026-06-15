@@ -14,7 +14,11 @@ export async function funilCompleto() {
       },
     },
   });
-  return etapas;
+  // Serializa Decimal → number (Client Components não aceitam Decimal).
+  return etapas.map((e) => ({
+    ...e,
+    leads: e.leads.map((l) => ({ ...l, valorEstimado: l.valorEstimado != null ? Number(l.valorEstimado) : null })),
+  }));
 }
 
 export async function obterLead(id: string) {
