@@ -34,3 +34,15 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+
+Admin	tadrio@senaprojetos.com.br	SenaHub@2026
+Supervisor	helena@demo.senahub	Demo@2026
+Administrativo	paulo@demo.senahub	Demo@2026
+Projetista PJ	ana@demo.senahub	Demo@2026
+Projetista PJ	bruno@demo.senahub	Demo@2026
+CLT	carla@demo.senahub	Demo@2026
+Estagiário	diego@demo.senahub	Demo@2026
+Freelancer	elis@demo.senahub	Demo@2026
+Cliente (portal)	portal@alfa.com	Demo@2026
+Cliente (portal)	portal@beta.com	Demo@2026
