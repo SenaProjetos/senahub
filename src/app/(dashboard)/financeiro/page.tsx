@@ -4,8 +4,10 @@ import { redirect } from "next/navigation";
 import { Settings2, Receipt, ArrowDownToLine, ArrowUpFromLine, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
+import { ShieldCheck } from "lucide-react";
 import { meuExtrato } from "@/modules/financeiro/queries";
 import { agingReport } from "@/modules/financeiro/aging/queries";
+import { totalAguardando } from "@/modules/financeiro/aprovacao/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { AgingWidget } from "@/components/financeiro/aging-widget";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,7 +39,11 @@ export default async function FinanceiroPage() {
   const podeVer = await can(user.role, "financeiro", "ver");
 
   if (podeVer) {
-    const [receber, pagar] = await Promise.all([agingReport("receita"), agingReport("despesa")]);
+    const [receber, pagar, aguardando] = await Promise.all([
+      agingReport("receita"),
+      agingReport("despesa"),
+      totalAguardando(),
+    ]);
     return (
       <div className="space-y-6">
         <div>
@@ -46,6 +52,18 @@ export default async function FinanceiroPage() {
         </div>
         <AgingWidget receber={receber} pagar={pagar} />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Link href="/financeiro/aprovacoes">
+            <Card className={`h-full transition-colors hover:border-primary/50 ${aguardando > 0 ? "border-warning/50" : ""}`}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <ShieldCheck className="size-5 text-primary" />
+                  {aguardando > 0 && <Badge variant="outline" className="border-warning/40 text-warning">{aguardando}</Badge>}
+                </div>
+                <CardTitle className="text-base">Aprovações</CardTitle>
+                <CardDescription>Despesas aguardando alçada</CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
           {ATALHOS.map((a) => (
             <Link key={a.href} href={a.href}>
               <Card className="h-full transition-colors hover:border-primary/50">

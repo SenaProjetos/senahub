@@ -191,11 +191,16 @@ Sequência proposta. Padrão = 1 onda → verificação (tsc/lint/testes) → 1 
 | **H2 — Repositórios de arquivo** | `ArquivoProjeto`+versões, `FuncionarioDocumento`, `PastaJuridica` | B1, D4, E1 | ✅ **Entregue** `0cf8cd7` |
 | **H3 — Férias CLT + banco de horas** | `dataAdmissao` + períodos aquisitivos (lib + 6 testes) + `BancoHorasMensal` (fechamento/acumulado) | D2, D3 | ✅ **Entregue** `1dc09b8` |
 | **H4 — Orçamento editável** | `OrcamentoItem` (planejado por categoria/ano) + edição inline + % do orçado | A4 (parcial) | ✅ **Entregue** `a9f0ce4` |
-| **H5 — Financeiro: doc-link** | Fase 2 adaptada (`DocumentoFinanceiro`) | A2, A3, §G F2 | ⏸ Decisão G.2.1 |
-| **H6 — Financeiro: aging** | Fase 3 adaptada (SVG) | §G F3 | ⏸ Após H5 |
-| **H7 — Financeiro: aprovação** | Fase 4 adaptada (alçada) | A1, §G F4 | ⏸ Decisão G.2.2/3 |
+| **H5 — Financeiro: doc-link** | `DocumentoFinanceiro` (híbrido) + parcelas vinculadas + badge | A2, A3, §G F2 | ✅ **Entregue** `4b2a22d` |
+| **H6 — Financeiro: aging** | `lib/aging` + `agingReport` + widget SVG no hub | §G F3 | ✅ **Entregue** `a4364dc` |
+| **H7 — Financeiro: aprovação** | Alçada (`financeiro:aprovar` + limite em `ConfigSistema`) + painel | A1, §G F4 | ✅ **Entregue** (este commit) |
 | **H8 — Itens a confirmar** | Demais "Aplicar" não-prioritários (A5–A8, B2–B5, C1–C3, D5–D7, E2–E8) | — | Após você marcar `Pular` |
 | — | Fase 5 OFX | — | **PULAR (já existe)** |
+
+> **Decisões G.2 aplicadas:** doc-link **híbrido** (G.2.1); aprovação por **`financeiro:aprovar`**
+> (G.2.2); limite em **`ConfigSistema`** (G.2.3); **Fase 5 OFX pulada** (já existia). Permissão
+> `financeiro:aprovar` só existe para `admin` por padrão — conceda a `supervisor` em
+> Configurações → Permissões se desejar.
 
 > **H1–H4 entregues** (suas 4 prioridades, 1 commit por onda, tsc 0 · 58 testes em cada
 > checkpoint). H5–H7 (financeiro) dependem das decisões de §G.2. H8 espera suas marcações de

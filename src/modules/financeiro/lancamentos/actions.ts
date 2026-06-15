@@ -11,6 +11,9 @@ import {
   confirmarLancamentoSchema,
   idLancamentoSchema,
 } from "@/modules/financeiro/lancamentos/schemas";
+import { devePassarPorAprovacao } from "@/lib/aprovacao";
+import { notificarMuitos } from "@/lib/notificar";
+import { limiteAprovacao, aprovadores } from "@/modules/financeiro/aprovacao/queries";
 
 const base = { modulo: "financeiro", recurso: "financeiro", permissao: "gerir" } as const;
 
@@ -34,6 +37,15 @@ export const criarLancamento = defineAction(
     if (!dataBase) throw new ActionError("Data inválida.");
     const vencBase = data(i.vencimento || undefined);
 
+    // Alçada (Fase 4): despesa ≥ limite trava em aguardando_aprovacao (ignora "confirmado").
+    const limite = await limiteAprovacao();
+    const precisaAprovar = devePassarPorAprovacao(i.tipo, i.valor, limite);
+    const statusInicial = precisaAprovar
+      ? ("aguardando_aprovacao" as const)
+      : i.confirmado
+        ? ("confirmado" as const)
+        : ("previsto" as const);
+
     const grupo = i.ocorrencias > 1 ? randomUUID() : null;
     const comum = {
       tipo: i.tipo,
@@ -49,19 +61,28 @@ export const criarLancamento = defineAction(
       observacao: i.observacao || null,
       recorrenciaGrupo: grupo,
       autorId: user.id,
-      status: i.confirmado ? ("confirmado" as const) : ("previsto" as const),
+      status: statusInicial,
     };
 
+    const confirmaAgora = statusInicial === "confirmado";
     const registros = Array.from({ length: i.ocorrencias }, (_, n) => ({
       ...comum,
       data: addMonths(dataBase, n),
       vencimento: vencBase ? addMonths(vencBase, n) : null,
-      dataConfirmacao: i.confirmado ? addMonths(dataBase, n) : null,
+      dataConfirmacao: confirmaAgora ? addMonths(dataBase, n) : null,
     }));
 
     await prisma.lancamento.createMany({ data: registros });
+    if (precisaAprovar) {
+      const ids = await aprovadores();
+      await notificarMuitos(ids.filter((id) => id !== user.id), {
+        titulo: "Despesa aguardando aprovação",
+        corpo: `${i.descricao} — ${i.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`,
+        href: "/financeiro/aprovacoes",
+      });
+    }
     rev();
-    return { ocorrencias: registros.length };
+    return { ocorrencias: registros.length, aguardandoAprovacao: precisaAprovar };
   },
 );
 
@@ -95,6 +116,7 @@ export const confirmarLancamento = defineAction(
     const lanc = await prisma.lancamento.findUnique({ where: { id: i.id } });
     if (!lanc) throw new ActionError("Lançamento não encontrado.");
     if (lanc.status === "confirmado") throw new ActionError("Já confirmado.");
+    if (lanc.status === "aguardando_aprovacao") throw new ActionError("Despesa aguardando aprovação.");
 
     await prisma.lancamento.update({
       where: { id: i.id },

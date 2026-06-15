@@ -549,6 +549,7 @@ enum TipoLancamento {
 
 enum StatusLancamento {
   previsto // conta a pagar/receber em aberto
+  aguardando_aprovacao // despesa acima da alçada, trava até aprovação
   confirmado // pago/recebido (entra no caixa e na DRE)
   cancelado
 }
@@ -588,6 +589,10 @@ model Lancamento {
   /// Documento-fonte (NF/contrato/proposta/medição) — rastreabilidade de origem (Fase 2).
   documentoFinanceiroId String?
   documentoFinanceiro   DocumentoFinanceiro? @relation(fields: [documentoFinanceiroId], references: [id], onDelete: SetNull)
+  /// Aprovação por alçada (Fase 4): quem aprovou, quando, e motivo se rejeitado.
+  aprovadoPorId  String?
+  aprovadoEm     DateTime?
+  motivoRejeicao String?
   /// Vínculo com a folha de projetistas (Onda 2c).
   pagamentoProjetistaId String? @unique
 
