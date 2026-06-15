@@ -35,6 +35,10 @@ export const criarProjeto = defineAction(
     entidadeId: (d) => (d as { id: string }).id,
   },
   async (input) => {
+    // Equipe = membros escolhidos ∪ responsáveis das disciplinas (dedup).
+    const equipeIds = [
+      ...new Set([...input.membrosIds, ...input.disciplinas.flatMap((d) => d.responsaveisIds)]),
+    ];
     const projeto = await prisma.$transaction(async (tx) => {
       const { ano, sequencial, codigo } = await proximoCodigoProjeto(tx);
       return tx.projeto.create({
@@ -50,7 +54,7 @@ export const criarProjeto = defineAction(
           endereco: input.endereco,
           prazoFinal: parseData(input.prazoFinal),
           membros: {
-            create: input.membrosIds.map((userId) => ({ userId })),
+            create: equipeIds.map((userId) => ({ userId })),
           },
           disciplinas: {
             create: input.disciplinas.map((d, i) => ({
@@ -155,6 +159,12 @@ export const definirResponsaveis = defineAction(
       prisma.disciplinaResponsavel.deleteMany({ where: { disciplinaId: input.disciplinaId } }),
       prisma.disciplinaResponsavel.createMany({
         data: input.responsaveisIds.map((userId) => ({ disciplinaId: input.disciplinaId, userId })),
+        skipDuplicates: true,
+      }),
+      // Responsável por disciplina entra automaticamente na equipe do projeto (não duplica nem
+      // sobrescreve papel de quem já é membro). Saída da disciplina não remove da equipe.
+      prisma.projetoMembro.createMany({
+        data: input.responsaveisIds.map((userId) => ({ projetoId: disciplina.projetoId, userId, papel: "projetista" })),
         skipDuplicates: true,
       }),
     ]);
