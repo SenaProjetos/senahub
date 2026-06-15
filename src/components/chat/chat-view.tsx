@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Send, Hash, AtSign, Plus, Circle, Paperclip, X, FileText, Smile } from "lucide-react";
+import { Send, Hash, AtSign, Plus, Circle, Paperclip, X, FileText, Smile, Check, CheckCheck } from "lucide-react";
 import { getSocket, tocarSom } from "@/lib/chat-client";
 import {
   enviarMensagem,
@@ -37,6 +37,7 @@ type Msg = {
   anexoNome?: string | null;
   autor: { id: string; name: string };
   createdAt: string | Date;
+  leituras?: { userId: string; user: { name: string } }[];
 };
 type Usuario = { id: string; name: string; role: string; chatStatus: string };
 type ChatStatus = "disponivel" | "ocupado" | "reuniao";
@@ -136,6 +137,16 @@ export function ChatView({
         return n;
       });
     }
+    function onLeitura(p: { canalId: string; leitorId: string; leitorNome: string }) {
+      if (p.canalId !== selRef.current || p.leitorId === meId) return;
+      setMensagens((ms) =>
+        ms.map((m) =>
+          m.autor.id === meId && !(m.leituras ?? []).some((l) => l.userId === p.leitorId)
+            ? { ...m, leituras: [...(m.leituras ?? []), { userId: p.leitorId, user: { name: p.leitorNome } }] }
+            : m,
+        ),
+      );
+    }
     function onNovoCanal(p: { canalId: string }) {
       s.emit("entrar-canal", p.canalId);
       router.refresh();
@@ -143,10 +154,12 @@ export function ChatView({
     s.on("mensagem", onMensagem);
     s.on("presenca", onPresenca);
     s.on("entrar-canal-novo", onNovoCanal);
+    s.on("leitura", onLeitura);
     return () => {
       s.off("mensagem", onMensagem);
       s.off("presenca", onPresenca);
       s.off("entrar-canal-novo", onNovoCanal);
+      s.off("leitura", onLeitura);
     };
   }, [meId, router]);
 
@@ -319,11 +332,23 @@ export function ChatView({
                       {m.conteudo && (
                         <p className="whitespace-pre-wrap break-words">{renderConteudo(m.conteudo)}</p>
                       )}
-                      <p className="mt-0.5 text-right text-[10px] opacity-60">
-                        {new Date(m.createdAt).toLocaleTimeString("pt-BR", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                      <p className="mt-0.5 flex items-center justify-end gap-1 text-[10px] opacity-60">
+                        <span>
+                          {new Date(m.createdAt).toLocaleTimeString("pt-BR", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                        {meu &&
+                          (m.leituras && m.leituras.length > 0 ? (
+                            <span title={`Lido por ${m.leituras.map((l) => l.user.name).join(", ")}`} className="inline-flex">
+                              <CheckCheck className="size-3 text-info" aria-label="Lido" />
+                            </span>
+                          ) : (
+                            <span title="Enviado" className="inline-flex">
+                              <Check className="size-3" aria-label="Enviado" />
+                            </span>
+                          ))}
                       </p>
                     </div>
                   </div>

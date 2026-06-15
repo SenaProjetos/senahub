@@ -88,6 +88,21 @@ export const marcarLido = defineAction(
       where: { canalId: i.canalId, userId: user.id },
       data: { lastReadAt: new Date() },
     });
+    // Recibos de leitura por mensagem (E6): marca as mensagens de outros como lidas.
+    const msgs = await prisma.mensagem.findMany({
+      where: { canalId: i.canalId, autorId: { not: user.id } },
+      select: { id: true },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    });
+    if (msgs.length > 0) {
+      await prisma.mensagemLeitura.createMany({
+        data: msgs.map((m) => ({ mensagemId: m.id, userId: user.id })),
+        skipDuplicates: true,
+      });
+      // Recibo ao vivo: avisa o canal que este usuário leu (autores atualizam ✓✓).
+      emitParaCanal(i.canalId, "leitura", { canalId: i.canalId, leitorId: user.id, leitorNome: user.name });
+    }
     return { canalId: i.canalId };
   },
 );

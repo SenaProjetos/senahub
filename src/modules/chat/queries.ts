@@ -69,7 +69,10 @@ export async function mensagensCanal(canalId: string, userId: string, limite = 1
     where: { canalId },
     orderBy: { createdAt: "desc" },
     take: limite,
-    include: { autor: { select: { id: true, name: true } } },
+    include: {
+      autor: { select: { id: true, name: true } },
+      leituras: { select: { userId: true, user: { select: { name: true } } } },
+    },
   });
   return msgs.reverse();
 }
