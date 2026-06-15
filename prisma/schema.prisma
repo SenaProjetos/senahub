@@ -91,6 +91,8 @@ model User {
   funcDocumentos       FuncionarioDocumento[] @relation("FuncDocumentos")
   bancoHoras           BancoHorasMensal[]
   feedbacksRecebidos   FeedbackRH[]           @relation("FeedbackAlvo")
+  mensagensLidas       MensagemLeitura[]
+  preference           UserPreference?
 
   @@index([role])
   @@map("user")
@@ -805,9 +807,67 @@ model Mensagem {
   anexoMime String?
   createdAt DateTime @default(now())
   editedAt  DateTime?
+  leituras  MensagemLeitura[]
 
   @@index([canalId, createdAt])
   @@map("mensagem")
+}
+
+/// Confirmação de leitura de uma mensagem por um usuário (E6).
+model MensagemLeitura {
+  id         String   @id @default(cuid())
+  mensagemId String
+  mensagem   Mensagem @relation(fields: [mensagemId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lidaEm     DateTime @default(now())
+
+  @@unique([mensagemId, userId])
+  @@index([mensagemId])
+  @@map("mensagem_leitura")
+}
+
+/// Biblioteca de modelos de contrato (texto base) (E2).
+model ModeloContrato {
+  id        String   @id @default(cuid())
+  nome      String
+  categoria String?
+  conteudo  String   @default("")
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("modelo_contrato")
+}
+
+enum StatusSolicCadastro {
+  pendente
+  aprovada
+  recusada
+}
+
+/// Pedido público de cadastro (auto-cadastro → admin aprova) (E7).
+model SolicitacaoCadastro {
+  id        String              @id @default(cuid())
+  nome      String
+  email     String
+  telefone  String?
+  mensagem  String?
+  status    StatusSolicCadastro @default(pendente)
+  createdAt DateTime            @default(now())
+
+  @@index([status])
+  @@map("solicitacao_cadastro")
+}
+
+/// Preferências do usuário (store dedicado, key-value em JSON) (E8).
+model UserPreference {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dados     Json     @default("{}")
+  updatedAt DateTime @updatedAt
+
+  @@map("user_preference")
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1355,9 +1415,26 @@ model Certidao {
   arquivoPath String?
   arquivoNome String?
   createdAt   DateTime     @default(now())
+  versoes     CertidaoVersao[]
 
   @@index([validade])
   @@map("certidao")
+}
+
+/// Versão histórica de uma certidão (E3).
+model CertidaoVersao {
+  id          String   @id @default(cuid())
+  certidaoId  String
+  certidao    Certidao @relation(fields: [certidaoId], references: [id], onDelete: Cascade)
+  numero      Int
+  validade    DateTime @db.Date
+  arquivoPath String?
+  arquivoNome String?
+  autorId     String
+  createdAt   DateTime @default(now())
+
+  @@unique([certidaoId, numero])
+  @@map("certidao_versao")
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1388,12 +1465,39 @@ model Licitacao {
 
   docs     DocumentoLicitacao[]
   medicoes MedicaoLicitacao[]
+  historico         LicitacaoHistorico[]
+  valoresDisciplina DisciplinaValorLicitacao[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([status])
   @@map("licitacao")
+}
+
+/// Evento na timeline de uma licitação (E4).
+model LicitacaoHistorico {
+  id          String    @id @default(cuid())
+  licitacaoId String
+  licitacao   Licitacao @relation(fields: [licitacaoId], references: [id], onDelete: Cascade)
+  descricao   String
+  autorId     String?
+  createdAt   DateTime  @default(now())
+
+  @@index([licitacaoId])
+  @@map("licitacao_historico")
+}
+
+/// Valor por disciplina dentro de uma licitação/edital (E5).
+model DisciplinaValorLicitacao {
+  id          String    @id @default(cuid())
+  licitacaoId String
+  licitacao   Licitacao @relation(fields: [licitacaoId], references: [id], onDelete: Cascade)
+  disciplina  String
+  valor       Decimal   @db.Decimal(14, 2)
+
+  @@index([licitacaoId])
+  @@map("disciplina_valor_licitacao")
 }
 
 model DocumentoLicitacao {

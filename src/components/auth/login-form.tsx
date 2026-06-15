@@ -82,7 +82,7 @@ export function LoginForm() {
           </Button>
           <div className="flex justify-between pt-1 text-xs text-muted-foreground">
             <RecuperarSenhaDialog />
-            <span className="font-mono">v2.0</span>
+            <a href="/solicitar-cadastro" className="hover:text-foreground">Solicitar acesso</a>
           </div>
         </form>
       </CardContent>

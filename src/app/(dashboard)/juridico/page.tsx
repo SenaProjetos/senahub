@@ -11,7 +11,7 @@ export default async function JuridicoPage() {
   const user = await requirePermission("juridico", "ver");
   const podeGerir = await can(user.role, "juridico", "gerir");
 
-  const [docs, certidoes, tipos, projetos, clientes, pastas] = await Promise.all([
+  const [docs, certidoes, tipos, projetos, clientes, pastas, modelos] = await Promise.all([
     prisma.documentoJuridico.findMany({
       orderBy: { createdAt: "desc" },
       include: {
@@ -20,7 +20,7 @@ export default async function JuridicoPage() {
         versoes: { orderBy: { numero: "desc" }, include: { autor: { select: { name: true } } } },
       },
     }),
-    prisma.certidao.findMany({ orderBy: { validade: "asc" }, include: { tipo: true } }),
+    prisma.certidao.findMany({ orderBy: { validade: "asc" }, include: { tipo: true, _count: { select: { versoes: true } } } }),
     prisma.certidaoTipo.findMany({ orderBy: { nome: "asc" } }),
     prisma.projeto.findMany({
       orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
@@ -31,6 +31,7 @@ export default async function JuridicoPage() {
       orderBy: [{ ordem: "asc" }, { nome: "asc" }],
       select: { id: true, nome: true, _count: { select: { documentos: true } } },
     }),
+    prisma.modeloContrato.findMany({ orderBy: { nome: "asc" } }),
   ]);
 
   return (
@@ -57,7 +58,9 @@ export default async function JuridicoPage() {
         tipo: c.tipo.nome,
         descricao: c.descricao,
         validade: c.validade.toISOString().slice(0, 10),
+        versoes: c._count.versoes,
       }))}
+      modelos={modelos.map((m) => ({ id: m.id, nome: m.nome, categoria: m.categoria, conteudo: m.conteudo }))}
       tipos={tipos}
       projetos={projetos.map((p) => ({ id: p.id, label: `${p.codigo} · ${p.nome}` }))}
       clientes={clientes.map((c) => ({ id: c.id, label: c.nome }))}

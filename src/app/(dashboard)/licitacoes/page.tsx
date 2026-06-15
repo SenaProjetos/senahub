@@ -20,6 +20,8 @@ export default async function LicitacoesPage() {
           include: { versoes: { orderBy: { numero: "desc" } } },
         },
         medicoes: { orderBy: { numero: "asc" } },
+        historico: { orderBy: { createdAt: "desc" }, take: 20 },
+        valoresDisciplina: { orderBy: { disciplina: "asc" } },
       },
     }),
     listarClientes({ incluirInativos: false }),
@@ -51,6 +53,8 @@ export default async function LicitacoesPage() {
           valor: Number(m.valor),
           data: m.data.toISOString().slice(0, 10),
         })),
+        historico: l.historico.map((h) => ({ id: h.id, descricao: h.descricao, data: h.createdAt.toISOString() })),
+        valoresDisciplina: l.valoresDisciplina.map((v) => ({ id: v.id, disciplina: v.disciplina, valor: Number(v.valor) })),
       }))}
     />
   );

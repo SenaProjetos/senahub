@@ -13,6 +13,11 @@ import {
   importarLicitacao,
   excluirLicitacao,
 } from "@/modules/licitacoes/actions";
+import {
+  registrarEventoLicitacao,
+  salvarValorDisciplinaLicitacao,
+  removerValorDisciplinaLicitacao,
+} from "@/modules/licitacoes/extras/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,6 +51,8 @@ type Lic = {
   projeto: { id: string; codigo: string } | null;
   docs: { id: string; titulo: string; versoes: { id: string; numero: number; arquivoNome: string }[] }[];
   medicoes: { id: string; numero: number; valor: number; data: string }[];
+  historico: { id: string; descricao: string; data: string }[];
+  valoresDisciplina: { id: string; disciplina: string; valor: number }[];
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -414,7 +421,100 @@ function LicCard({
             </Button>
           </div>
         )}
+
+        <LicExtras lic={lic} podeGerir={podeGerir} />
       </CardContent>
     </Card>
+  );
+}
+
+function LicExtras({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [evento, setEvento] = useState("");
+  const [disc, setDisc] = useState("");
+  const [valor, setValor] = useState("");
+  const brlf = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const totalDisc = lic.valoresDisciplina.reduce((s, v) => s + v.valor, 0);
+
+  function addEvento() {
+    if (!evento.trim()) return;
+    start(async () => {
+      const r = await registrarEventoLicitacao({ licitacaoId: lic.id, descricao: evento });
+      if (r.ok) {
+        setEvento("");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+  function addValor() {
+    if (!disc.trim() || !valor) return;
+    start(async () => {
+      const r = await salvarValorDisciplinaLicitacao({ licitacaoId: lic.id, disciplina: disc, valor: Number(valor) });
+      if (r.ok) {
+        setDisc("");
+        setValor("");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+  function rmValor(id: string) {
+    start(async () => {
+      const r = await removerValorDisciplinaLicitacao({ id });
+      if (r.ok) router.refresh();
+      else toast.error(r.error);
+    });
+  }
+
+  return (
+    <div className="mt-3 grid gap-3 border-t pt-3 sm:grid-cols-2">
+      <div>
+        <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Histórico</p>
+        {lic.historico.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Sem eventos.</p>
+        ) : (
+          <ul className="space-y-0.5 text-xs text-muted-foreground">
+            {lic.historico.map((h) => (
+              <li key={h.id}><span className="font-mono">{new Date(h.data).toLocaleDateString("pt-BR")}</span> · {h.descricao}</li>
+            ))}
+          </ul>
+        )}
+        {podeGerir && (
+          <div className="mt-1.5 flex gap-1.5">
+            <Input value={evento} onChange={(e) => setEvento(e.target.value)} placeholder="Registrar evento…" className="h-8 text-xs" />
+            <Button size="sm" variant="outline" onClick={addEvento} disabled={pending}>+</Button>
+          </div>
+        )}
+      </div>
+      <div>
+        <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+          Valores por disciplina {totalDisc > 0 ? `· ${brlf(totalDisc)}` : ""}
+        </p>
+        {lic.valoresDisciplina.length > 0 && (
+          <ul className="space-y-0.5 text-xs">
+            {lic.valoresDisciplina.map((v) => (
+              <li key={v.id} className="flex items-center justify-between gap-2">
+                <span>{v.disciplina}</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="font-mono">{brlf(v.valor)}</span>
+                  {podeGerir && (
+                    <button onClick={() => rmValor(v.id)} aria-label="Remover" className="text-muted-foreground hover:text-destructive">
+                      <Trash2 className="size-3" />
+                    </button>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {podeGerir && (
+          <div className="mt-1.5 flex gap-1.5">
+            <Input value={disc} onChange={(e) => setDisc(e.target.value)} placeholder="Disciplina" className="h-8 flex-1 text-xs" />
+            <Input type="number" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="Valor" className="h-8 w-24 text-xs" />
+            <Button size="sm" variant="outline" onClick={addValor} disabled={pending}>+</Button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

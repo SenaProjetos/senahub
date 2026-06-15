@@ -114,3 +114,45 @@ export const excluirCertidao = defineAction(
     return { id: i.id };
   },
 );
+
+// ── E2 Modelos de contrato ────────────────────────────────────
+export const criarModeloContrato = defineAction(
+  { ...base, acao: "criar-modelo", entidade: "ModeloContrato", schema: z.object({ nome: z.string().min(1, "Informe o nome."), categoria: opt(z.string()), conteudo: z.string().default("") }) },
+  async (i) => {
+    const m = await prisma.modeloContrato.create({ data: { nome: i.nome, categoria: i.categoria || null, conteudo: i.conteudo || "" } });
+    rev();
+    return { id: m.id };
+  },
+);
+export const editarModeloContrato = defineAction(
+  { ...base, acao: "editar-modelo", entidade: "ModeloContrato", schema: z.object({ id: z.string().min(1), nome: z.string().min(1), categoria: opt(z.string()), conteudo: z.string() }) },
+  async (i) => {
+    await prisma.modeloContrato.update({ where: { id: i.id }, data: { nome: i.nome, categoria: i.categoria || null, conteudo: i.conteudo } });
+    rev();
+    return { id: i.id };
+  },
+);
+export const excluirModeloContrato = defineAction(
+  { ...base, acao: "excluir-modelo", entidade: "ModeloContrato", schema: idSchema },
+  async (i) => {
+    await prisma.modeloContrato.delete({ where: { id: i.id } });
+    rev();
+    return { id: i.id };
+  },
+);
+
+// ── E3 Nova versão de certidão ────────────────────────────────
+export const novaVersaoCertidao = defineAction(
+  { ...base, acao: "nova-versao-certidao", entidade: "CertidaoVersao", schema: z.object({ certidaoId: z.string().min(1), validade: z.string().min(1, "Informe a validade.") }) },
+  async (i, ctx) => {
+    const c = await prisma.certidao.findUnique({ where: { id: i.certidaoId }, include: { versoes: { orderBy: { numero: "desc" }, take: 1 } } });
+    if (!c) throw new ActionError("Certidão não encontrada.");
+    const numero = (c.versoes[0]?.numero ?? 0) + 1;
+    await prisma.$transaction([
+      prisma.certidaoVersao.create({ data: { certidaoId: c.id, numero, validade: c.validade, arquivoPath: c.arquivoPath, arquivoNome: c.arquivoNome, autorId: ctx.user.id } }),
+      prisma.certidao.update({ where: { id: c.id }, data: { validade: new Date(i.validade) } }),
+    ]);
+    rev();
+    return { numero };
+  },
+);
