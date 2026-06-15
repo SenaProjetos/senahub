@@ -2,7 +2,7 @@ import { differenceInCalendarDays, addDays, format, startOfMonth, endOfMonth } f
 import { ptBR } from "date-fns/locale";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 
-const PX = 18; // pixels por dia
+export const GANTT_PX_DEFAULT = 18; // pixels por dia
 const ROW = 34; // altura da linha (px)
 const LABEL_W = 220;
 
@@ -12,9 +12,11 @@ const parse = (iso: string) => new Date(iso + "T00:00:00");
 export function Gantt({
   tarefas,
   onSelecionar,
+  px = GANTT_PX_DEFAULT,
 }: {
   tarefas: EapTarefaDTO[];
   onSelecionar?: (id: string) => void;
+  px?: number;
 }) {
   if (tarefas.length === 0) {
     return (
@@ -36,10 +38,10 @@ export function Gantt({
   const inicio = startOfMonth(minRaw);
   const fim = endOfMonth(maxRaw);
   const totalDias = differenceInCalendarDays(fim, inicio) + 1;
-  const timelineW = totalDias * PX;
+  const timelineW = totalDias * px;
 
-  const offset = (d: Date) => differenceInCalendarDays(d, inicio) * PX;
-  const larguraDias = (a: Date, b: Date) => (differenceInCalendarDays(b, a) + 1) * PX;
+  const offset = (d: Date) => differenceInCalendarDays(d, inicio) * px;
+  const larguraDias = (a: Date, b: Date) => (differenceInCalendarDays(b, a) + 1) * px;
 
   // Segmentos de mês p/ o cabeçalho.
   const meses: { left: number; width: number; label: string }[] = [];
@@ -96,7 +98,7 @@ export function Gantt({
             const ai = parse(t.inicioPrevisto);
             const af = parse(t.fimPrevisto);
             const left = offset(ai);
-            const width = Math.max(PX, larguraDias(ai, af));
+            const width = Math.max(px, larguraDias(ai, af));
             const bI = t.inicioBaseline ? parse(t.inicioBaseline) : null;
             const bF = t.fimBaseline ? parse(t.fimBaseline) : null;
             const desviado =
@@ -127,7 +129,7 @@ export function Gantt({
                   {bI && bF && (
                     <div
                       className={`absolute rounded-sm ${desviado ? "bg-destructive/40" : "bg-muted-foreground/30"}`}
-                      style={{ left: offset(bI), width: Math.max(PX, larguraDias(bI, bF)), top: 22, height: 5 }}
+                      style={{ left: offset(bI), width: Math.max(px, larguraDias(bI, bF)), top: 22, height: 5 }}
                       title="Linha de base"
                     />
                   )}

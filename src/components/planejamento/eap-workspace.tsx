@@ -4,12 +4,12 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Flag, CheckCheck, ArrowLeft } from "lucide-react";
+import { Plus, Flag, CheckCheck, ArrowLeft, ZoomIn, ZoomOut } from "lucide-react";
 import { definirLinhaBase, aplicarAoProjeto } from "@/modules/planejamento/actions";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Gantt } from "@/components/planejamento/gantt";
+import { Gantt, GANTT_PX_DEFAULT } from "@/components/planejamento/gantt";
 import { EapDialog } from "@/components/planejamento/eap-dialog";
 
 const fmt = (iso: string | null) =>
@@ -37,6 +37,7 @@ export function EapWorkspace({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [px, setPx] = useState(GANTT_PX_DEFAULT);
   const [dialog, setDialog] = useState<{ open: boolean; tarefa: EapTarefaDTO | null }>({
     open: false,
     tarefa: null,
@@ -100,7 +101,16 @@ export function EapWorkspace({
         )}
       </div>
 
-      <Gantt tarefas={tarefas} onSelecionar={podeGerir ? selecionar : undefined} />
+      <div className="flex items-center justify-end gap-1">
+        <span className="mr-1 text-xs text-muted-foreground">Zoom</span>
+        <Button size="icon-sm" variant="outline" aria-label="Diminuir zoom" onClick={() => setPx((p) => Math.max(6, p - 4))} disabled={px <= 6}>
+          <ZoomOut className="size-3.5" />
+        </Button>
+        <Button size="icon-sm" variant="outline" aria-label="Aumentar zoom" onClick={() => setPx((p) => Math.min(48, p + 4))} disabled={px >= 48}>
+          <ZoomIn className="size-3.5" />
+        </Button>
+      </div>
+      <Gantt tarefas={tarefas} onSelecionar={podeGerir ? selecionar : undefined} px={px} />
 
       {/* Lista / EAP */}
       <div className="overflow-x-auto rounded-sm border">
