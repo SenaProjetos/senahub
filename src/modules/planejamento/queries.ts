@@ -103,6 +103,46 @@ export async function eapDoProjeto(projetoId: string) {
 
 export type EapTarefaDTO = Awaited<ReturnType<typeof eapDoProjeto>>["tarefas"][number];
 
+/** Cronograma consolidado: projetos ativos (com EAP) + suas tarefas/linha de base (#7). */
+export async function cronogramaProjetosAtivos() {
+  const projetos = await prisma.projeto.findMany({
+    where: { situacao: "em_andamento", eapTarefas: { some: {} } },
+    orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
+    select: {
+      id: true,
+      codigo: true,
+      nome: true,
+      eapTarefas: {
+        orderBy: { ordem: "asc" },
+        include: {
+          disciplina: { select: { id: true, nome: true } },
+          predecessoras: { select: { predecessoraId: true } },
+        },
+      },
+    },
+  });
+  return projetos.map((p) => ({
+    id: p.id,
+    codigo: p.codigo,
+    nome: p.nome,
+    temLinhaBase: p.eapTarefas.some((t) => t.inicioBaseline != null),
+    tarefas: p.eapTarefas.map((t) => ({
+      id: t.id,
+      parentId: t.parentId,
+      nome: t.nome,
+      ordem: t.ordem,
+      progresso: t.progresso,
+      inicioPrevisto: iso(t.inicioPrevisto),
+      fimPrevisto: iso(t.fimPrevisto),
+      inicioBaseline: t.inicioBaseline ? iso(t.inicioBaseline) : null,
+      fimBaseline: t.fimBaseline ? iso(t.fimBaseline) : null,
+      disciplinaId: t.disciplinaId,
+      disciplinaNome: t.disciplina?.nome ?? null,
+      predecessoraIds: t.predecessoras.map((pp) => pp.predecessoraId),
+    })),
+  }));
+}
+
 /**
  * Matriz de recursos: pessoas (recursos) × projetos, com total de alocação vs capacidade.
  * Superalocado = soma dos percentuais > capacidade × 100.
