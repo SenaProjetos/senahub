@@ -9,6 +9,7 @@ import {
   removerInput,
   responderInputs,
   gerarLinkInput,
+  aplicarInputsPadrao,
 } from "@/modules/inputs/actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -96,6 +97,16 @@ export function InputsPanel({
     });
   }
 
+  function aplicarPadrao() {
+    start(async () => {
+      const res = await aplicarInputsPadrao({ projetoId });
+      if (res.ok) {
+        toast.success(res.data.criados > 0 ? `${res.data.criados} input(s) padrão adicionado(s).` : "Nenhum input padrão novo.");
+        router.refresh();
+      } else toast.error(res.error);
+    });
+  }
+
   async function copiar() {
     if (!linkUrl) return;
     await navigator.clipboard.writeText(linkUrl);
@@ -119,6 +130,9 @@ export function InputsPanel({
                   <Copy className="size-3.5" /> Copiar link
                 </Button>
               ) : null}
+              <Button variant="outline" size="sm" onClick={aplicarPadrao} disabled={pending}>
+                <Plus className="size-3.5" /> Aplicar padrão
+              </Button>
               <Button variant="outline" size="sm" onClick={gerarLink} disabled={pending}>
                 <Link2 className="size-3.5" /> {token ? "Regerar link" : "Gerar link público"}
               </Button>

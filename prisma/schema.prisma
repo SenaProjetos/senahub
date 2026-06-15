@@ -392,6 +392,19 @@ model Projeto {
 }
 
 /// Campo de input do projeto (pergunta + resposta do cliente).
+/// Pergunta padrão de input por disciplina (template), aplicada automaticamente aos projetos (#3).
+model InputTemplate {
+  id         String   @id @default(cuid())
+  disciplina String? // null = geral; senão nome da disciplina (DisciplinaCatalogo)
+  pergunta   String
+  ordem      Int      @default(0)
+  ativo      Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  @@index([disciplina])
+  @@map("input_template")
+}
+
 model InputProjeto {
   id         String   @id @default(cuid())
   projetoId  String

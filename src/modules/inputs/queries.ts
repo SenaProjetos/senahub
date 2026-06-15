@@ -1,6 +1,11 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 
+/** Templates de inputs padrão (catálogo por disciplina). */
+export async function listarInputTemplates() {
+  return prisma.inputTemplate.findMany({ orderBy: [{ disciplina: "asc" }, { ordem: "asc" }] });
+}
+
 export async function listarInputs(projetoId: string) {
   return prisma.inputProjeto.findMany({
     where: { projetoId },

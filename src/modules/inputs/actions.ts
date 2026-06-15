@@ -2,6 +2,7 @@
 
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { defineAction } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import {
@@ -10,6 +11,29 @@ import {
   responderInputsSchema,
   gerarLinkSchema,
 } from "@/modules/inputs/schemas";
+
+const projBase = { modulo: "projetos", recurso: "projetos", permissao: "gerir" } as const;
+const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
+
+/** Cria, no projeto, os inputs padrão (InputTemplate) das disciplinas dele — sem duplicar. */
+async function aplicarInputsPadraoCore(projetoId: string): Promise<number> {
+  const [proj, existentes, templates] = await Promise.all([
+    prisma.projeto.findUnique({ where: { id: projetoId }, select: { disciplinas: { select: { nome: true } } } }),
+    prisma.inputProjeto.findMany({ where: { projetoId }, select: { disciplina: true, pergunta: true } }),
+    prisma.inputTemplate.findMany({ where: { ativo: true }, orderBy: [{ disciplina: "asc" }, { ordem: "asc" }] }),
+  ]);
+  if (!proj) return 0;
+  const discs = new Set(proj.disciplinas.map((d) => d.nome));
+  const jaTem = new Set(existentes.map((e) => `${e.disciplina ?? ""}|${e.pergunta}`));
+  const novos = templates.filter(
+    (t) => (t.disciplina == null || discs.has(t.disciplina)) && !jaTem.has(`${t.disciplina ?? ""}|${t.pergunta}`),
+  );
+  if (novos.length === 0) return 0;
+  await prisma.inputProjeto.createMany({
+    data: novos.map((t) => ({ projetoId, disciplina: t.disciplina, pergunta: t.pergunta, ordem: t.ordem })),
+  });
+  return novos.length;
+}
 
 export const adicionarInput = defineAction(
   {
@@ -87,6 +111,8 @@ export const gerarLinkInput = defineAction(
     entidadeId: (d) => (d as { projetoId: string }).projetoId,
   },
   async (input) => {
+    // Garante que os inputs padrão das disciplinas estejam no projeto antes de liberar o link.
+    await aplicarInputsPadraoCore(input.projetoId);
     const token = randomBytes(18).toString("hex");
     await prisma.linkPublicoInput.upsert({
       where: { projetoId: input.projetoId },
@@ -95,5 +121,53 @@ export const gerarLinkInput = defineAction(
     });
     revalidatePath(`/projetos/${input.projetoId}`);
     return { projetoId: input.projetoId, token };
+  },
+);
+
+// ── Inputs padrão por disciplina (#3) ─────────────────────────
+export const aplicarInputsPadrao = defineAction(
+  { ...projBase, acao: "aplicar-inputs-padrao", entidade: "InputProjeto", schema: z.object({ projetoId: z.string().min(1) }) },
+  async (i) => {
+    const criados = await aplicarInputsPadraoCore(i.projetoId);
+    revalidatePath(`/projetos/${i.projetoId}`);
+    return { criados };
+  },
+);
+
+const templateSchema = z.object({
+  disciplina: opt(z.string()),
+  pergunta: z.string().min(1, "Informe a pergunta."),
+  ordem: z.number().int().min(0).optional(),
+});
+
+export const criarInputTemplate = defineAction(
+  { ...projBase, acao: "criar-input-template", entidade: "InputTemplate", schema: templateSchema },
+  async (i) => {
+    const t = await prisma.inputTemplate.create({
+      data: { disciplina: i.disciplina || null, pergunta: i.pergunta, ordem: i.ordem ?? 0 },
+    });
+    revalidatePath("/configuracoes/inputs");
+    return { id: t.id };
+  },
+);
+
+export const editarInputTemplate = defineAction(
+  { ...projBase, acao: "editar-input-template", entidade: "InputTemplate", schema: templateSchema.extend({ id: z.string().min(1) }) },
+  async (i) => {
+    await prisma.inputTemplate.update({
+      where: { id: i.id },
+      data: { disciplina: i.disciplina || null, pergunta: i.pergunta, ordem: i.ordem ?? 0 },
+    });
+    revalidatePath("/configuracoes/inputs");
+    return { id: i.id };
+  },
+);
+
+export const excluirInputTemplate = defineAction(
+  { ...projBase, acao: "excluir-input-template", entidade: "InputTemplate", schema: z.object({ id: z.string().min(1) }) },
+  async (i) => {
+    await prisma.inputTemplate.delete({ where: { id: i.id } });
+    revalidatePath("/configuracoes/inputs");
+    return { id: i.id };
   },
 );
