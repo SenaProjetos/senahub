@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { criarCliente, editarCliente } from "@/modules/clientes/actions";
 import type { CriarClienteInput } from "@/modules/clientes/schemas";
+import { validarCpfCnpj } from "@/lib/documento";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -75,7 +76,13 @@ export function ClienteForm({
     }
   }
 
+  const docInvalido = (form.documento ?? "").trim() !== "" && !validarCpfCnpj(form.documento ?? "");
+
   function salvar() {
+    if (docInvalido) {
+      toast.error(form.tipo === "PJ" ? "CNPJ inválido." : "CPF inválido.");
+      return;
+    }
     startTransition(async () => {
       const res = form.id
         ? await editarCliente({ ...form, id: form.id })
@@ -133,7 +140,11 @@ export function ClienteForm({
               <Input
                 value={form.documento ?? ""}
                 onChange={(e) => set("documento", e.target.value)}
+                aria-invalid={docInvalido}
               />
+              {docInvalido && (
+                <p className="text-xs text-destructive">{form.tipo === "PJ" ? "CNPJ inválido." : "CPF inválido."}</p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Telefone</Label>
@@ -207,7 +218,7 @@ export function ClienteForm({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={salvar} disabled={pending || !form.nome}>
+          <Button onClick={salvar} disabled={pending || !form.nome || docInvalido}>
             {pending ? "Salvando…" : "Salvar"}
           </Button>
         </DialogFooter>

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
+import { validarCpfCnpj } from "@/lib/documento";
 import {
   categoriaSchema,
   categoriaEditSchema,
@@ -109,6 +110,7 @@ export const editarForma = defineAction(
 export const criarFornecedor = defineAction(
   { ...base, acao: "criar-fornecedor", entidade: "Fornecedor", schema: fornecedorSchema },
   async (i) => {
+    if (i.documento && !validarCpfCnpj(i.documento)) throw new ActionError("CPF/CNPJ inválido.");
     const c = await prisma.fornecedor.create({ data: { ...i, email: i.email || null } });
     rev();
     return { id: c.id };
@@ -118,6 +120,7 @@ export const editarFornecedor = defineAction(
   { ...base, acao: "editar-fornecedor", entidade: "Fornecedor", schema: fornecedorEditSchema },
   async (i) => {
     const { id, ...rest } = i;
+    if (rest.documento && !validarCpfCnpj(rest.documento)) throw new ActionError("CPF/CNPJ inválido.");
     await prisma.fornecedor.update({ where: { id }, data: { ...rest, email: rest.email || null } });
     rev();
     return { id };
