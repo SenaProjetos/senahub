@@ -312,7 +312,7 @@ export function ChatView({
   return (
     <div className={`grid ${alturaClasse} grid-cols-1 gap-3 lg:grid-cols-[300px_1fr]`}>
       {/* Lista de canais */}
-      <div className={cn("flex flex-col rounded-sm border", sel && "hidden lg:flex")}>
+      <div className={cn("flex min-h-0 flex-col overflow-hidden rounded-sm border", sel && "hidden lg:flex")}>
         <div className="flex items-center justify-between gap-2 border-b p-2">
           <Select value={status} onValueChange={(v) => mudarStatus(v ?? "disponivel")}>
             <SelectTrigger className="h-8 flex-1">
@@ -328,7 +328,7 @@ export function ChatView({
           </Select>
           <DMDialog usuarios={usuarios} online={online} onAbrir={novaDM} />
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {gerais.map((c) => (
             <CanalBtn key={c.id} c={c} sel={sel} onSelect={setSel} />
           ))}
@@ -399,7 +399,7 @@ export function ChatView({
       </div>
 
       {/* Conversa */}
-      <div className={cn("flex flex-col rounded-sm border", !sel && "hidden lg:flex")}>
+      <div className={cn("flex min-h-0 flex-col overflow-hidden rounded-sm border", !sel && "hidden lg:flex")}>
         {canalSel ? (
           <>
             <div className="flex items-center gap-2 border-b p-3">
@@ -414,7 +414,7 @@ export function ChatView({
               {canalSel.tipo === "dm" ? <AtSign className="size-4" /> : <Hash className="size-4" />}
               <span className="font-semibold">{canalSel.nome}</span>
             </div>
-            <div className="flex-1 space-y-2 overflow-y-auto p-3">
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
               {mensagens.map((m) => {
                 const meu = m.autor.id === meId;
                 return (
