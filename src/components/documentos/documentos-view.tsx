@@ -174,7 +174,7 @@ export function DocumentosView({ modelos, podeGerir }: { modelos: Modelo[]; pode
               <div className="space-y-1.5">
                 <Label>Tipo</Label>
                 <Select value={tipo} onValueChange={(v) => setTipo(v ?? "relatorio")}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -189,7 +189,7 @@ export function DocumentosView({ modelos, podeGerir }: { modelos: Modelo[]; pode
               <div className="space-y-1.5">
                 <Label>Fonte de dados</Label>
                 <Select value={fonte} onValueChange={(v) => setFonte(v ?? "__none")}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full min-w-0">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
