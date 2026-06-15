@@ -194,8 +194,21 @@ Sequência proposta. Padrão = 1 onda → verificação (tsc/lint/testes) → 1 
 | **H5 — Financeiro: doc-link** | `DocumentoFinanceiro` (híbrido) + parcelas vinculadas + badge | A2, A3, §G F2 | ✅ **Entregue** `4b2a22d` |
 | **H6 — Financeiro: aging** | `lib/aging` + `agingReport` + widget SVG no hub | §G F3 | ✅ **Entregue** `a4364dc` |
 | **H7 — Financeiro: aprovação** | Alçada (`financeiro:aprovar` + limite em `ConfigSistema`) + painel | A1, §G F4 | ✅ **Entregue** (este commit) |
-| **H8 — Itens a confirmar** | Demais "Aplicar" não-prioritários (A5–A8, B2–B5, C1–C3, D5–D7, E2–E8) | — | Após você marcar `Pular` |
-| — | Fase 5 OFX | — | **PULAR (já existe)** |
+| **H8 — Itens não-prioritários** | A5–A8, B2–B5, C1–C3, D5–D7, E2–E8 (21 itens) | — | ✅ **Entregue** (5 commits) |
+| — | Fase 5 OFX | — | **PULADO (já existe)** |
+
+> **H8 entregue** (5 commits, 1 por domínio): **fin** (`15fc02f`) retiradas de sócio,
+> anexo/tag/histórico de lançamento, catálogo de fornecedor, lote de folha · **proj**
+> (`255e6cf`) solicitação de revisão, composição de preço, LM config, linhas de base ·
+> **com** (`755d731`) oportunidades (CRM 2 estágios), anexos de proposta, comparar versões ·
+> **rh** (`1b3b2b2`) feedback/1:1, histórico de NF, ponto manual · **jur** (`0db59fc`)
+> modelos de contrato, versão de certidão, histórico/valores de licitação, recibo de leitura,
+> auto-cadastro, preferências.
+>
+> **Nota de profundidade:** E6 (recibo de leitura) e E8 (preferências) entregues como
+> **modelo + action/query** (sem integração profunda no chat ao vivo / sem UI de tela), por
+> serem ⚪ de baixo valor; o restante tem UI funcional. Tudo verificado: tsc 0 · 64 testes ·
+> smoke runtime por grupo.
 
 > **Decisões G.2 aplicadas:** doc-link **híbrido** (G.2.1); aprovação por **`financeiro:aprovar`**
 > (G.2.2); limite em **`ConfigSistema`** (G.2.3); **Fase 5 OFX pulada** (já existia). Permissão
