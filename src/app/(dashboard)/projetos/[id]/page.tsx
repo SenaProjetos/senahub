@@ -85,6 +85,19 @@ export default async function ProjetoDetalhePage({
     };
   });
 
+  // Equipe derivada: responsáveis das disciplinas ∪ membros manuais (papel do membro prevalece).
+  const equipeMap = new Map<string, { nome: string; papel: string | null }>();
+  for (const d of disciplinas) {
+    for (const r of d.responsaveis) {
+      if (!equipeMap.has(r.userId)) equipeMap.set(r.userId, { nome: r.name, papel: "projetista" });
+    }
+  }
+  for (const m of projeto.membros) {
+    const cur = equipeMap.get(m.userId);
+    equipeMap.set(m.userId, { nome: m.user.name, papel: m.papel ?? cur?.papel ?? null });
+  }
+  const equipe = [...equipeMap.entries()].map(([userId, v]) => ({ userId, ...v }));
+
   return (
     <div className="space-y-6">
       <div className="flex items-start gap-3">
@@ -221,13 +234,13 @@ export default async function ProjetoDetalhePage({
           <CardTitle className="text-base">Equipe do projeto</CardTitle>
         </CardHeader>
         <CardContent>
-          {projeto.membros.length === 0 ? (
+          {equipe.length === 0 ? (
             <p className="text-sm text-muted-foreground">Sem membros adicionais.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {projeto.membros.map((m) => (
-                <Badge key={m.id} variant="outline">
-                  {m.user.name}
+              {equipe.map((m) => (
+                <Badge key={m.userId} variant="outline">
+                  {m.nome}
                   {m.papel ? ` · ${m.papel}` : ""}
                 </Badge>
               ))}
