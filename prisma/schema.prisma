@@ -1062,6 +1062,59 @@ model LinhaBase {
   @@map("linha_base")
 }
 
+enum StatusOportunidade {
+  aberta
+  ganha
+  perdida
+}
+
+/// Oportunidade comercial (estágio entre Lead e Proposta) com atividades próprias (C1).
+model Oportunidade {
+  id            String                  @id @default(cuid())
+  titulo        String
+  /// FK escalar (resolvido por lookup) p/ não inflar Cliente.
+  clienteId     String?
+  valorEstimado Decimal?                @db.Decimal(14, 2)
+  etapa         String                  @default("qualificacao")
+  status        StatusOportunidade      @default(aberta)
+  responsavelId String?
+  observacao    String?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  atividades    AtividadeOportunidade[]
+
+  @@index([status])
+  @@map("oportunidade")
+}
+
+model AtividadeOportunidade {
+  id             String       @id @default(cuid())
+  oportunidadeId String
+  oportunidade   Oportunidade @relation(fields: [oportunidadeId], references: [id], onDelete: Cascade)
+  tipo           String       @default("nota")
+  descricao      String
+  autorId        String
+  createdAt      DateTime     @default(now())
+
+  @@index([oportunidadeId])
+  @@map("atividade_oportunidade")
+}
+
+/// Anexo de uma proposta comercial (C2). `propostaId` escalar (sem relação).
+model PropostaAnexo {
+  id         String   @id @default(cuid())
+  propostaId String
+  caminho    String
+  nome       String
+  mime       String
+  tamanho    Int
+  autorId    String
+  createdAt  DateTime @default(now())
+
+  @@index([propostaId])
+  @@map("proposta_anexo")
+}
+
 model DisciplinaResponsavel {
   id           String     @id @default(cuid())
   disciplinaId String
