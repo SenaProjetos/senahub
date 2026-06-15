@@ -75,6 +75,7 @@ export function ChatView({
   status: statusInicial,
   somChat = true,
   mostrarRecibos = true,
+  alturaClasse = "h-[calc(100svh-9rem)]",
 }: {
   canais: CanalListItem[];
   usuarios: Usuario[];
@@ -82,6 +83,7 @@ export function ChatView({
   status: string;
   somChat?: boolean;
   mostrarRecibos?: boolean;
+  alturaClasse?: string;
 }) {
   const router = useRouter();
   const sp = useSearchParams();
@@ -230,7 +232,7 @@ export function ChatView({
   }
 
   return (
-    <div className="grid h-[calc(100svh-9rem)] grid-cols-1 gap-3 lg:grid-cols-[300px_1fr]">
+    <div className={`grid ${alturaClasse} grid-cols-1 gap-3 lg:grid-cols-[300px_1fr]`}>
       {/* Lista de canais */}
       <div className={cn("flex flex-col rounded-sm border", sel && "hidden lg:flex")}>
         <div className="flex items-center justify-between gap-2 border-b p-2">
