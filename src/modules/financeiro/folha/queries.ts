@@ -17,7 +17,9 @@ export async function listarFolha(opts?: { status?: "pendente" | "pago" | "cance
     .filter((i) => i.status === "pendente")
     .reduce((s, i) => s + Number(i.valor), 0);
   const pago = itens.filter((i) => i.status === "pago").reduce((s, i) => s + Number(i.valor), 0);
-  return { itens, pendente, pago };
+  // Serializa Decimal → number (Client Components não aceitam Decimal).
+  const itensSerial = itens.map((i) => ({ ...i, valor: Number(i.valor) }));
+  return { itens: itensSerial, pendente, pago };
 }
 
 export type FolhaItem = Awaited<ReturnType<typeof listarFolha>>["itens"][number];

@@ -13,6 +13,16 @@ const INCLUDE = {
   statusHistorico: { orderBy: { createdAt: "desc" }, select: { de: true, para: true, createdAt: true } },
 } satisfies Prisma.LancamentoInclude;
 
+type LancRaw = Prisma.LancamentoGetPayload<{ include: typeof INCLUDE }>;
+/** Serializa Decimal → number (Client Components não aceitam Decimal). */
+function serializar(l: LancRaw) {
+  return {
+    ...l,
+    valor: Number(l.valor),
+    valorEfetivo: l.valorEfetivo != null ? Number(l.valorEfetivo) : null,
+  };
+}
+
 export async function listarLancamentos(opts?: {
   tipo?: "receita" | "despesa";
   status?: "previsto" | "confirmado" | "cancelado";
@@ -29,25 +39,28 @@ export async function listarLancamentos(opts?: {
     if (opts.de) (where.data as Prisma.DateTimeFilter).gte = new Date(opts.de);
     if (opts.ate) (where.data as Prisma.DateTimeFilter).lte = new Date(opts.ate);
   }
-  return prisma.lancamento.findMany({ where, orderBy: { data: "desc" }, include: INCLUDE });
+  const rows = await prisma.lancamento.findMany({ where, orderBy: { data: "desc" }, include: INCLUDE });
+  return rows.map(serializar);
 }
 
 /** Contas a pagar: despesas previstas, ordenadas por vencimento. */
-export function contasAPagar() {
-  return prisma.lancamento.findMany({
+export async function contasAPagar() {
+  const rows = await prisma.lancamento.findMany({
     where: { tipo: "despesa", status: "previsto" },
     orderBy: [{ vencimento: "asc" }, { data: "asc" }],
     include: INCLUDE,
   });
+  return rows.map(serializar);
 }
 
 /** Contas a receber: receitas previstas, ordenadas por vencimento. */
-export function contasAReceber() {
-  return prisma.lancamento.findMany({
+export async function contasAReceber() {
+  const rows = await prisma.lancamento.findMany({
     where: { tipo: "receita", status: "previsto" },
     orderBy: [{ vencimento: "asc" }, { data: "asc" }],
     include: INCLUDE,
   });
+  return rows.map(serializar);
 }
 
 /** Opções para os selects do formulário de lançamento. */
