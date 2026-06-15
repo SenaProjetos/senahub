@@ -51,7 +51,7 @@ export function FloatingChat() {
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="h-[88vh] w-[min(1000px,96vw)] max-w-none overflow-hidden p-3">
+        <DialogContent className="h-[85vh] w-[min(1000px,96vw)] max-w-none overflow-hidden p-3">
           <DialogHeader className="sr-only">
             <DialogTitle>Chat</DialogTitle>
           </DialogHeader>
@@ -63,7 +63,7 @@ export function FloatingChat() {
               status={data.status}
               somChat={data.somChat}
               mostrarRecibos={data.mostrarRecibos}
-              alturaClasse="h-full"
+              alturaClasse="h-[calc(85vh-2rem)]"
             />
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">

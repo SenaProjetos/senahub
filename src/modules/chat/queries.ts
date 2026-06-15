@@ -13,6 +13,8 @@ export async function listarCanais(userId: string) {
             where: { userId: { not: userId } },
             include: { user: { select: { id: true, name: true, chatStatus: true } } },
           },
+          projeto: { select: { codigo: true } },
+          disciplina: { select: { projetoId: true, projeto: { select: { codigo: true } } } },
         },
       },
     },
@@ -32,10 +34,15 @@ export async function listarCanais(userId: string) {
       const outro = m.canal.membros[0]?.user;
       const nome =
         m.canal.tipo === "dm" ? (outro?.name ?? "Conversa") : (m.canal.nome ?? m.canal.tipo);
+      const projetoId = m.canal.projetoId ?? m.canal.disciplina?.projetoId ?? null;
+      const projetoCodigo = m.canal.projeto?.codigo ?? m.canal.disciplina?.projeto?.codigo ?? null;
       return {
         id: m.canal.id,
         tipo: m.canal.tipo,
         nome,
+        projetoId,
+        projetoCodigo,
+        disciplinaId: m.canal.disciplinaId,
         outroUserId: m.canal.tipo === "dm" ? (outro?.id ?? null) : null,
         ultima: ultima
           ? { conteudo: ultima.conteudo, autor: ultima.autor.name, createdAt: ultima.createdAt }

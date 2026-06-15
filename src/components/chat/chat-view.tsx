@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Send, Hash, AtSign, Plus, Circle, Paperclip, X, FileText, Smile, Check, CheckCheck } from "lucide-react";
+import { Send, Hash, AtSign, Plus, Circle, Paperclip, X, FileText, Smile, Check, CheckCheck, ChevronDown } from "lucide-react";
+import { formatarCodigo } from "@/modules/projetos/numbering";
 import { getSocket, tocarSom } from "@/lib/chat-client";
 import {
   enviarMensagem,
@@ -68,6 +69,57 @@ function renderConteudo(txt: string) {
   );
 }
 
+function CanalBtn({
+  c,
+  sel,
+  onSelect,
+  indent,
+  mostrarCodigo,
+}: {
+  c: CanalListItem;
+  sel: string | null;
+  onSelect: (id: string) => void;
+  indent?: boolean;
+  mostrarCodigo?: boolean;
+}) {
+  return (
+    <button
+      onClick={() => onSelect(c.id)}
+      className={cn(
+        "flex w-full items-center gap-2 border-b p-2.5 text-left text-sm hover:bg-muted/50",
+        indent && "pl-7",
+        sel === c.id && "bg-muted",
+      )}
+    >
+      {c.tipo === "dm" ? (
+        <AtSign className="size-4 shrink-0 text-muted-foreground" />
+      ) : (
+        <Hash className="size-4 shrink-0 text-muted-foreground" />
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-1">
+          <span className="truncate font-medium">
+            {c.nome}
+            {mostrarCodigo && c.projetoCodigo ? (
+              <span className="ml-1 font-mono text-xs text-muted-foreground">{formatarCodigo(c.projetoCodigo)}</span>
+            ) : null}
+          </span>
+          {c.naoLidas > 0 && (
+            <span className="ml-1 shrink-0 rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">
+              {c.naoLidas}
+            </span>
+          )}
+        </div>
+        {c.ultima && (
+          <p className="truncate text-xs text-muted-foreground">
+            {c.ultima.autor}: {c.ultima.conteudo}
+          </p>
+        )}
+      </div>
+    </button>
+  );
+}
+
 export function ChatView({
   canais: canaisIniciais,
   usuarios,
@@ -93,6 +145,7 @@ export function ChatView({
   const [texto, setTexto] = useState("");
   const [status, setStatus] = useState(statusInicial);
   const [online, setOnline] = useState<Set<string>>(new Set());
+  const [recolhidos, setRecolhidos] = useState<Set<string>>(new Set());
   const [anexo, setAnexo] = useState<File | null>(null);
   const [enviandoAnexo, setEnviandoAnexo] = useState(false);
   const [emojiAberto, setEmojiAberto] = useState(false);
@@ -231,6 +284,31 @@ export function ChatView({
     setTexto((t) => t.replace(/(^|\s)@(\w*)$/, (_m, pre) => `${pre}@${primeiro} `));
   }
 
+  function toggleProjeto(pid: string) {
+    setRecolhidos((s) => {
+      const n = new Set(s);
+      if (n.has(pid)) n.delete(pid);
+      else n.add(pid);
+      return n;
+    });
+  }
+
+  // Agrupa canais: #geral, grupos por projeto (canal do projeto + subcanais de disciplina) e DMs.
+  const gerais = canais.filter((c) => c.tipo === "geral");
+  const dms = canais.filter((c) => c.tipo === "dm");
+  const projetos = new Map<string, { codigo: string | null; principal: CanalListItem | null; subs: CanalListItem[]; naoLidas: number }>();
+  for (const c of canais) {
+    if (c.tipo !== "projeto" && c.tipo !== "disciplina") continue;
+    const pid = c.projetoId ?? c.id;
+    const g = projetos.get(pid) ?? { codigo: c.projetoCodigo, principal: null, subs: [], naoLidas: 0 };
+    if (c.tipo === "projeto") g.principal = c;
+    else g.subs.push(c);
+    if (!g.codigo) g.codigo = c.projetoCodigo;
+    g.naoLidas += c.naoLidas;
+    projetos.set(pid, g);
+  }
+  const onlineUsuarios = usuarios.filter((u) => online.has(u.id));
+
   return (
     <div className={`grid ${alturaClasse} grid-cols-1 gap-3 lg:grid-cols-[300px_1fr]`}>
       {/* Lista de canais */}
@@ -251,37 +329,72 @@ export function ChatView({
           <DMDialog usuarios={usuarios} online={online} onAbrir={novaDM} />
         </div>
         <div className="flex-1 overflow-y-auto">
-          {canais.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => setSel(c.id)}
-              className={cn(
-                "flex w-full items-center gap-2 border-b p-2.5 text-left text-sm hover:bg-muted/50",
-                sel === c.id && "bg-muted",
-              )}
-            >
-              {c.tipo === "dm" ? (
-                <AtSign className="size-4 shrink-0 text-muted-foreground" />
-              ) : (
-                <Hash className="size-4 shrink-0 text-muted-foreground" />
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between">
-                  <span className="truncate font-medium">{c.nome}</span>
-                  {c.naoLidas > 0 && (
-                    <span className="ml-1 rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">
-                      {c.naoLidas}
-                    </span>
-                  )}
-                </div>
-                {c.ultima && (
-                  <p className="truncate text-xs text-muted-foreground">
-                    {c.ultima.autor}: {c.ultima.conteudo}
-                  </p>
-                )}
-              </div>
-            </button>
+          {gerais.map((c) => (
+            <CanalBtn key={c.id} c={c} sel={sel} onSelect={setSel} />
           ))}
+
+          {[...projetos.entries()].map(([pid, g]) => {
+            const recolhido = recolhidos.has(pid);
+            return (
+              <div key={pid}>
+                <div className="flex items-center border-b bg-muted/30">
+                  <button
+                    onClick={() => toggleProjeto(pid)}
+                    className="px-1.5 py-2 text-muted-foreground hover:text-foreground"
+                    aria-label={recolhido ? "Expandir" : "Recolher"}
+                  >
+                    <ChevronDown className={cn("size-4 transition-transform", recolhido && "-rotate-90")} />
+                  </button>
+                  <button
+                    onClick={() => g.principal && setSel(g.principal.id)}
+                    className="flex min-w-0 flex-1 items-center gap-1.5 py-2 pr-2 text-left text-sm hover:bg-muted/50"
+                  >
+                    <Hash className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="truncate font-semibold">
+                      {g.codigo ? formatarCodigo(g.codigo) : g.principal?.nome ?? "Projeto"}
+                    </span>
+                    {g.principal?.nome && g.codigo && (
+                      <span className="truncate text-xs text-muted-foreground">· {g.principal.nome}</span>
+                    )}
+                    {g.naoLidas > 0 && (
+                      <span className="ml-auto shrink-0 rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">
+                        {g.naoLidas}
+                      </span>
+                    )}
+                  </button>
+                </div>
+                {!recolhido && g.subs.map((c) => <CanalBtn key={c.id} c={c} sel={sel} onSelect={setSel} indent />)}
+              </div>
+            );
+          })}
+
+          {dms.length > 0 && (
+            <p className="border-b px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Mensagens diretas
+            </p>
+          )}
+          {dms.map((c) => (
+            <CanalBtn key={c.id} c={c} sel={sel} onSelect={setSel} />
+          ))}
+        </div>
+
+        {/* Usuários online */}
+        <div className="border-t p-2">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Online ({onlineUsuarios.length})
+          </p>
+          {onlineUsuarios.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Ninguém online.</p>
+          ) : (
+            <ul className="max-h-28 space-y-0.5 overflow-y-auto">
+              {onlineUsuarios.map((u) => (
+                <li key={u.id} className="flex items-center gap-1.5 text-xs">
+                  <Circle className="size-2 shrink-0 fill-status-aprovado text-status-aprovado" />
+                  <span className="truncate">{u.name}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 
