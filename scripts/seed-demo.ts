@@ -130,8 +130,8 @@ async function main() {
   }
 
   // Usuários de portal (cliente) vinculados
-  const portalAlfa = await criarUsuario("Portal Alfa", "portal@alfa.com", "cliente", clientes[0].id);
-  const portalBeta = await criarUsuario("Portal Beta", "portal@beta.com", "cliente", clientes[1].id);
+  await criarUsuario("Portal Alfa", "portal@alfa.com", "cliente", clientes[0].id);
+  await criarUsuario("Portal Beta", "portal@beta.com", "cliente", clientes[1].id);
 
   // ── Categorias / contas ─────────────────────────────────────
   const cats = await prisma.categoriaFinanceira.findMany({ select: { id: true, codigo: true, tipo: true } });
