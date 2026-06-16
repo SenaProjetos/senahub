@@ -48,3 +48,6 @@ next-env.d.ts
 /dev-err.log
 /.devpid
 /storage
+
+# amostras de importação (dados reais — não commitar)
+/docs/samples/

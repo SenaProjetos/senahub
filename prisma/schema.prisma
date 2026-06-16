@@ -58,6 +58,7 @@ model User {
   pagamentos           PagamentoProjetista[] @relation("PagamentoProjetista")
   socio                Socio?
   lancamentosAutor     Lancamento[]          @relation("LancamentoAutor")
+  importacoesFinanceiras ImportacaoFinanceira[] @relation("ImportacaoFinanceiraAutor")
   canaisMembro         CanalMembro[]
   mensagens            Mensagem[]
   sessoes              SessaoTrabalho[]
@@ -662,6 +663,12 @@ model Lancamento {
 
   transacao TransacaoBancaria?
 
+  /// Migração de dados externos (ex.: "Meu Dinheiro"). `importLoteId` agrupa o lote (undo);
+  /// `importHash` (sha256 de tipo|data|valor|descrição|categoria) evita reimportar a mesma linha.
+  importLoteId String?
+  importLote   ImportacaoFinanceira? @relation(fields: [importLoteId], references: [id], onDelete: SetNull)
+  importHash   String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -670,7 +677,34 @@ model Lancamento {
   @@index([data])
   @@index([projetoId])
   @@index([documentoFinanceiroId])
+  @@index([importLoteId])
+  @@index([importHash])
   @@map("lancamento")
+}
+
+/// Lote de importação financeira (migração de ERP externo). Guarda contagens por tipo,
+/// o mapeamento aplicado (snapshot p/ auditoria) e permite desfazer (deleteMany por lote).
+model ImportacaoFinanceira {
+  id                  String   @id @default(cuid())
+  nomeArquivo         String
+  origem              String   @default("meu_dinheiro")
+  totalLinhas         Int
+  lancamentosCriados  Int      @default(0)
+  categoriasCriadas   Int      @default(0)
+  contasCriadas       Int      @default(0)
+  formasCriadas       Int      @default(0)
+  centrosCriados      Int      @default(0)
+  fornecedoresCriados Int      @default(0)
+  clientesCriados     Int      @default(0)
+  mapeamento          Json
+  autorId             String
+  autor               User     @relation("ImportacaoFinanceiraAutor", fields: [autorId], references: [id])
+  desfeitoEm          DateTime?
+  createdAt           DateTime @default(now())
+  lancamentos         Lancamento[]
+
+  @@index([autorId])
+  @@map("importacao_financeira")
 }
 
 enum TipoDocumentoFinanceiro {

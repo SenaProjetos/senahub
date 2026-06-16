@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Settings2, Receipt, ArrowDownToLine, ArrowUpFromLine, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText } from "lucide-react";
+import { Settings2, Receipt, ArrowDownToLine, ArrowUpFromLine, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText, Upload } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { ShieldCheck } from "lucide-react";
@@ -39,11 +39,18 @@ export default async function FinanceiroPage() {
   const podeVer = await can(user.role, "financeiro", "ver");
 
   if (podeVer) {
-    const [receber, pagar, aguardando] = await Promise.all([
+    const [receber, pagar, aguardando, podeGerir] = await Promise.all([
       agingReport("receita"),
       agingReport("despesa"),
       totalAguardando(),
+      can(user.role, "financeiro", "gerir"),
     ]);
+    const atalhos = podeGerir
+      ? [
+          ...ATALHOS,
+          { href: "/financeiro/importar", icon: Upload, titulo: "Importar dados", desc: "Migrar planilha do Meu Dinheiro" },
+        ]
+      : ATALHOS;
     return (
       <div className="space-y-6">
         <div>
@@ -64,7 +71,7 @@ export default async function FinanceiroPage() {
               </CardHeader>
             </Card>
           </Link>
-          {ATALHOS.map((a) => (
+          {atalhos.map((a) => (
             <Link key={a.href} href={a.href}>
               <Card className="h-full transition-colors hover:border-primary/50">
                 <CardHeader>
