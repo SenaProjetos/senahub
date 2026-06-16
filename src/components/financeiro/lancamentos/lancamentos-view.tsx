@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition, type PointerEvent as ReactPointerEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -36,6 +36,17 @@ type Modo = "todos" | "mes" | "semestre" | "ano" | "custom";
 
 const NONE = "__none";
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+type ColKey = "data" | "descricao" | "categoria" | "valor" | "saldo";
+const COLUNAS_DEF: { key: ColKey; label: string; right?: boolean }[] = [
+  { key: "data", label: "Data" },
+  { key: "descricao", label: "Descrição" },
+  { key: "categoria", label: "Categoria / Conta" },
+  { key: "valor", label: "Valor", right: true },
+  { key: "saldo", label: "Saldo", right: true },
+];
+const LARGURAS_PADRAO: Record<ColKey, number> = { data: 90, descricao: 360, categoria: 200, valor: 130, saldo: 130 };
+const COLS_LS = "livrocaixa-larguras";
 
 const SIT_META: Record<Situacao, { label: string; cor: string }> = {
   pendente: { label: "Pendentes", cor: "bg-destructive" },
@@ -102,6 +113,37 @@ export function LancamentosView({
   const [valorMin, setValorMin] = useState("");
   const [valorMax, setValorMax] = useState("");
   const [agruparPor, setAgruparPor] = useState("");
+
+  const [larguras, setLarguras] = useState<Record<ColKey, number>>(LARGURAS_PADRAO);
+  useEffect(() => {
+    try {
+      const s = localStorage.getItem(COLS_LS);
+      if (s) setLarguras({ ...LARGURAS_PADRAO, ...JSON.parse(s) });
+    } catch { /* ignora */ }
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem(COLS_LS, JSON.stringify(larguras)); } catch { /* ignora */ }
+  }, [larguras]);
+
+  const template = `28px ${larguras.data}px ${larguras.descricao}px ${larguras.categoria}px ${larguras.valor}px ${larguras.saldo}px 40px`;
+  const totalLargura = 68 + larguras.data + larguras.descricao + larguras.categoria + larguras.valor + larguras.saldo;
+
+  function iniciarResize(key: ColKey, e: ReactPointerEvent) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = larguras[key];
+    const move = (ev: PointerEvent) => {
+      const w = Math.max(60, startW + (ev.clientX - startX));
+      setLarguras((p) => ({ ...p, [key]: w }));
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+  const resetCol = (key: ColKey) => setLarguras((p) => ({ ...p, [key]: LARGURAS_PADRAO[key] }));
 
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [formOpen, setFormOpen] = useState(false);
@@ -378,7 +420,7 @@ export function LancamentosView({
         <Button onClick={() => setFormOpen(true)}><Plus className="size-4" /> Novo lançamento</Button>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
+      <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
         {/* coluna esquerda */}
         <div className="space-y-4">
           <PeriodoCard modo={modo} setModo={setModo} refData={ref} setRef={setRef} de={de} setDe={setDe} ate={ate} setAte={setAte} />
@@ -484,12 +526,23 @@ export function LancamentosView({
 
           {/* lista */}
           <div className="overflow-x-auto rounded-sm border">
-            <div className="min-w-[760px]">
-              <div className="grid grid-cols-[28px_84px_1fr_150px_120px_120px_40px] gap-2 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">
-                <span /><span>Data</span><span>Descrição</span><span>Categoria / Conta</span>
-                <span className="text-right">Valor</span><span className="text-right">Saldo</span><span />
+            <div style={{ width: totalLargura }}>
+              <div className="grid gap-2 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground" style={{ gridTemplateColumns: template }}>
+                <span />
+                {COLUNAS_DEF.map((c) => (
+                  <span key={c.key} className={`relative ${c.right ? "text-right" : ""}`}>
+                    {c.label}
+                    <span
+                      onPointerDown={(e) => iniciarResize(c.key, e)}
+                      onDoubleClick={() => resetCol(c.key)}
+                      title="Arraste para redimensionar · duplo-clique para redefinir"
+                      className="absolute -right-1 top-0 z-10 h-full w-2 cursor-col-resize select-none hover:bg-primary/30"
+                    />
+                  </span>
+                ))}
+                <span />
               </div>
-              <div className="grid grid-cols-[28px_84px_1fr_150px_120px_120px_40px] items-center gap-2 border-b bg-muted/10 px-3 py-1.5 text-xs">
+              <div className="grid items-center gap-2 border-b bg-muted/10 px-3 py-1.5 text-xs" style={{ gridTemplateColumns: template }}>
                 <span /><span /><span className="font-medium text-muted-foreground">Saldo anterior</span><span />
                 <span /><span className={`text-right font-mono ${saldoAnterior < 0 ? "text-destructive" : "text-success"}`}>{brl(saldoAnterior)}</span><span />
               </div>
@@ -539,7 +592,7 @@ export function LancamentosView({
     const transf = ehTransferencia(topoDe(l));
     const s = signed(l);
     return (
-      <div className={`grid grid-cols-[28px_84px_1fr_150px_120px_120px_40px] items-center gap-2 border-b px-3 py-2 text-sm last:border-0 hover:bg-muted/20 ${l.status === "cancelado" ? "opacity-50" : ""}`}>
+      <div className={`grid items-center gap-2 border-b px-3 py-2 text-sm last:border-0 hover:bg-muted/20 ${l.status === "cancelado" ? "opacity-50" : ""}`} style={{ gridTemplateColumns: template }}>
         <div className="flex items-center gap-1.5">
           <input type="checkbox" checked={selecionados.has(l.id)} onChange={() => toggleSel(l.id)} className="size-3.5" />
           <span className={`size-2 shrink-0 rounded-full ${SIT_META[sit].cor}`} title={SIT_META[sit].label} />
