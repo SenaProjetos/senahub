@@ -6,6 +6,7 @@ const INCLUDE = {
   categoria: { select: { codigo: true, nome: true } },
   centro: { select: { nome: true } },
   conta: { select: { nome: true } },
+  transacao: { select: { id: true } },
   projeto: { select: { codigo: true, nome: true } },
   fornecedor: { select: { nome: true } },
   cliente: { select: { nome: true } },
@@ -72,5 +73,27 @@ export async function opcoesLancamento() {
   return { categorias, centros, contas, formas, projetos, fornecedores, clientes };
 }
 
+/**
+ * Dados do livro-caixa (tela "Lançamentos"): TODOS os lançamentos (qualquer status)
+ * + contas bancárias com saldo inicial. Filtragem por período, conta, situação etc.
+ * é feita no cliente; o saldo acumulado precisa da série completa.
+ */
+export async function dadosLivroCaixa() {
+  const [rows, contas] = await Promise.all([
+    prisma.lancamento.findMany({ orderBy: [{ data: "asc" }, { createdAt: "asc" }], include: INCLUDE }),
+    prisma.contaBancaria.findMany({
+      where: { ativo: true },
+      orderBy: { ordem: "asc" },
+      select: { id: true, nome: true, saldoInicial: true },
+    }),
+  ]);
+  return {
+    itens: rows.map((l) => ({ ...serializar(l), conciliado: l.transacao != null })),
+    contas: contas.map((c) => ({ id: c.id, nome: c.nome, saldoInicial: Number(c.saldoInicial) })),
+  };
+}
+
 export type OpcoesLancamento = Awaited<ReturnType<typeof opcoesLancamento>>;
 export type LancamentoItem = Awaited<ReturnType<typeof listarLancamentos>>[number];
+export type LivroCaixaDados = Awaited<ReturnType<typeof dadosLivroCaixa>>;
+export type LivroCaixaItem = LivroCaixaDados["itens"][number];
