@@ -21,6 +21,7 @@ const base = { modulo: "financeiro", recurso: "financeiro", permissao: "gerir" }
 
 function rev() {
   revalidatePath("/financeiro/lancamentos");
+  revalidatePath("/financeiro/contas");
   revalidatePath("/financeiro/contas-a-pagar");
   revalidatePath("/financeiro/contas-a-receber");
   revalidatePath("/financeiro/relatorios");
@@ -133,6 +134,46 @@ export const confirmarLancamento = defineAction(
     });
     rev();
     return { id: i.id };
+  },
+);
+
+/** Baixa (confirma) vários lançamentos de uma vez. Ignora os já confirmados/aguardando. */
+export const baixarEmLote = defineAction(
+  {
+    ...base,
+    acao: "baixar-lancamentos-lote",
+    entidade: "Lancamento",
+    schema: z.object({
+      ids: z.array(z.string().min(1)).min(1).max(500),
+      contaId: z.string().optional().or(z.literal("")),
+      formaId: z.string().optional().or(z.literal("")),
+      dataConfirmacao: z.string().optional().or(z.literal("")),
+    }),
+  },
+  async (i, ctx) => {
+    const quando = data(i.dataConfirmacao || undefined) ?? new Date();
+    const alvos = await prisma.lancamento.findMany({
+      where: { id: { in: i.ids }, status: "previsto" },
+      select: { id: true, contaId: true, formaId: true },
+    });
+    if (alvos.length === 0) throw new ActionError("Nenhum lançamento elegível (previsto) selecionado.");
+
+    await prisma.$transaction(
+      alvos.map((l) =>
+        prisma.lancamento.update({
+          where: { id: l.id },
+          data: {
+            status: "confirmado",
+            dataConfirmacao: quando,
+            contaId: i.contaId || l.contaId,
+            formaId: i.formaId || l.formaId,
+            statusHistorico: { create: { de: "previsto", para: "confirmado", autorId: ctx.user.id } },
+          },
+        }),
+      ),
+    );
+    rev();
+    return { confirmados: alvos.length, ignorados: i.ids.length - alvos.length };
   },
 );
 

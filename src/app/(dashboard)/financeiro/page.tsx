@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Settings2, Receipt, ArrowDownToLine, ArrowUpFromLine, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText, Upload } from "lucide-react";
+import { Settings2, Receipt, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText, Upload } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { ShieldCheck } from "lucide-react";
@@ -21,8 +21,7 @@ function brl(v: number) {
 
 const ATALHOS = [
   { href: "/financeiro/lancamentos", icon: Receipt, titulo: "Lançamentos", desc: "Receitas e despesas" },
-  { href: "/financeiro/contas-a-pagar", icon: ArrowUpFromLine, titulo: "Contas a pagar", desc: "Despesas a vencer" },
-  { href: "/financeiro/contas-a-receber", icon: ArrowDownToLine, titulo: "Contas a receber", desc: "Recebimentos" },
+  { href: "/financeiro/contas", icon: ArrowLeftRight, titulo: "Contas a pagar e receber", desc: "Pendentes, filtros e exportação" },
   { href: "/financeiro/folha-projetistas", icon: Banknote, titulo: "Folha de projetistas", desc: "Pagamentos por entrega" },
   { href: "/financeiro/fluxo-caixa", icon: LineChart, titulo: "Fluxo de caixa", desc: "Saldos e movimentos" },
   { href: "/financeiro/conciliacao", icon: ArrowLeftRight, titulo: "Conciliação", desc: "Importar OFX e conciliar" },

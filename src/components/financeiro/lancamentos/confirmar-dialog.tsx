@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { confirmarLancamento } from "@/modules/financeiro/lancamentos/actions";
+import { Paperclip } from "lucide-react";
+import { confirmarLancamento, adicionarAnexoLancamento } from "@/modules/financeiro/lancamentos/actions";
 import type { LancamentoItem } from "@/modules/financeiro/lancamentos/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,22 +45,41 @@ export function ConfirmarDialog({
   const [formaId, setFormaId] = useState(NONE);
   const [dataConf, setDataConf] = useState(hoje);
   const [valorEfetivo, setValorEfetivo] = useState("");
+  const [comprovante, setComprovante] = useState<File | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   function confirmar() {
     if (!lancamento) return;
+    const lancId = lancamento.id;
     start(async () => {
       const r = await confirmarLancamento({
-        id: lancamento.id,
+        id: lancId,
         contaId: contaId === NONE ? "" : contaId,
         formaId: formaId === NONE ? "" : formaId,
         dataConfirmacao: dataConf,
         valorEfetivo: valorEfetivo ? Number(valorEfetivo) : undefined,
       });
-      if (r.ok) {
-        toast.success("Lançamento confirmado.");
-        onClose();
-        router.refresh();
-      } else toast.error(r.error);
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
+      // Anexa o comprovante, se houver.
+      if (comprovante) {
+        try {
+          const fd = new FormData();
+          fd.set("file", comprovante);
+          const up = await fetch("/api/financeiro/lancamentos/anexo", { method: "POST", body: fd });
+          const meta = await up.json();
+          if (up.ok) await adicionarAnexoLancamento({ lancamentoId: lancId, meta });
+          else toast.error(meta.error ?? "Comprovante não anexado.");
+        } catch {
+          toast.error("Falha ao anexar comprovante.");
+        }
+      }
+      toast.success("Lançamento confirmado.");
+      setComprovante(null);
+      onClose();
+      router.refresh();
     });
   }
 
@@ -121,6 +141,19 @@ export function ConfirmarDialog({
                 onChange={(e) => setValorEfetivo(e.target.value)}
               />
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Comprovante (opcional)</Label>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pdf,image/*"
+              className="hidden"
+              onChange={(e) => setComprovante(e.target.files?.[0] ?? null)}
+            />
+            <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+              <Paperclip className="size-3.5" /> {comprovante ? comprovante.name : "Anexar comprovante"}
+            </Button>
           </div>
         </div>
         <DialogFooter>

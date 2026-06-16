@@ -4,6 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 
 const INCLUDE = {
   categoria: { select: { codigo: true, nome: true } },
+  centro: { select: { nome: true } },
   conta: { select: { nome: true } },
   projeto: { select: { codigo: true, nome: true } },
   fornecedor: { select: { nome: true } },
@@ -43,20 +44,14 @@ export async function listarLancamentos(opts?: {
   return rows.map(serializar);
 }
 
-/** Contas a pagar: despesas previstas, ordenadas por vencimento. */
-export async function contasAPagar() {
+/**
+ * Dados da tela unificada "Contas a pagar e receber": todos os pendentes
+ * (previstos + aguardando aprovação) de ambos os tipos. Filtragem por período,
+ * dimensões, busca etc. é feita no cliente (volume = só pendentes).
+ */
+export async function dadosContas() {
   const rows = await prisma.lancamento.findMany({
-    where: { tipo: "despesa", status: "previsto" },
-    orderBy: [{ vencimento: "asc" }, { data: "asc" }],
-    include: INCLUDE,
-  });
-  return rows.map(serializar);
-}
-
-/** Contas a receber: receitas previstas, ordenadas por vencimento. */
-export async function contasAReceber() {
-  const rows = await prisma.lancamento.findMany({
-    where: { tipo: "receita", status: "previsto" },
+    where: { status: { in: ["previsto", "aguardando_aprovacao"] } },
     orderBy: [{ vencimento: "asc" }, { data: "asc" }],
     include: INCLUDE,
   });
