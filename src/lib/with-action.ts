@@ -33,6 +33,11 @@ type ActionConfig<S> = {
   entidadeId?: (data: unknown) => string | undefined;
   /** Auditar (default true). */
   audit?: boolean;
+  /**
+   * Captura o estado anterior da entidade ANTES da execução, para auditoria
+   * "valor anterior × valor novo". O retorno vai em `detalhe.antes`; o input vira `detalhe.novo`.
+   */
+  capturarAntes?: (input: S) => Promise<unknown>;
 };
 
 /**
@@ -88,6 +93,7 @@ export function defineAction<S, T>(
 
     // Execução + auditoria
     try {
+      const antes = config.capturarAntes ? await config.capturarAntes(input) : undefined;
       const data = await handler(input, { user, ip });
       if (config.audit !== false) {
         await logAudit({
@@ -97,7 +103,7 @@ export function defineAction<S, T>(
           resultado: "sucesso",
           entidade: config.entidade,
           entidadeId: config.entidadeId?.(data),
-          detalhe: input,
+          detalhe: antes !== undefined ? { antes, novo: input } : input,
           ip,
         });
       }

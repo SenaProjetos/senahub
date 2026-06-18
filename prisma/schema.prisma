@@ -676,11 +676,14 @@ model Lancamento {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  /// Soft delete: quando preenchido, o lançamento foi excluído e some de listagens/relatórios.
+  excluidoEm DateTime?
 
   @@index([tipo, status])
   @@index([vencimento])
   @@index([data])
   @@index([projetoId])
+  @@index([excluidoEm])
   @@index([documentoFinanceiroId])
   @@index([importLoteId])
   @@index([importHash])

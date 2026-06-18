@@ -79,8 +79,8 @@ Da auditoria/estratégico (exigem migração e/ou decisão de arquitetura — **
 - ~~Planejamento de Pagamentos~~ — ✅ **implementado** (ver seção 6 abaixo).
 - **Fechamento Mensal** financeiro.
 - ~~DRE por projeto avançada~~ — ✅ **implementado** (ver seção 7 abaixo). *Resta: rentabilidade por disciplina/coordenador e evolução da margem no tempo.*
-- **Soft delete** real de lançamentos (hoje `excluir` é hard delete).
-- **Auditoria valor-anterior × novo** (hoje `AuditLog` grava só o input).
+- ~~Soft delete real de lançamentos~~ — ✅ **implementado** (seção 8).
+- ~~Auditoria valor-anterior × novo~~ — ✅ **implementado** (seção 8).
 - **Multi-nível de alçada** (item 8).
 - **Senha para exclusão** e **data de competência** (resto do item 6).
 - **Evolução por categoria** (resto do item 4).
@@ -155,3 +155,23 @@ Diferencial estratégico da spec. Sem migração — cálculo sobre os lançamen
 - **Não** incluídos nesta versão: rentabilidade por **disciplina** (Lancamento não tem FK de disciplina) e por **coordenador**, e **evolução da margem no tempo** — ficam como evolução.
 
 **Arquivos:** `src/modules/financeiro/relatorios/{dre-projeto.ts,dre-projeto.test.ts}`, `rentabilidadePorProjeto` em `relatorios/queries.ts`, `src/components/financeiro/relatorios/rentabilidade-view.tsx`, `src/app/(dashboard)/financeiro/rentabilidade/page.tsx`, atalho em `financeiro/page.tsx`.
+
+---
+
+## 8. Conformidade — soft delete + auditoria valor-anterior × novo ✅
+
+Fecha duas "Regras Obrigatórias" da spec. Ambas autorizadas (migração aditiva + alterar lib global).
+
+### Soft delete real (Lancamento)
+- Campo `excluidoEm DateTime?` (migração `20260618173418_lancamento_soft_delete`, aditiva).
+- `excluirLancamento` agora faz **soft delete** (seta `excluidoEm`), não apaga.
+- **Filtro global** via Prisma client extension em `src/lib/prisma.ts`: injeta `excluidoEm: null` em todas as LEITURAS de `lancamento` (`findMany/findFirst/count/aggregate/groupBy`), em todo o sistema. Mutations e `findUnique` (por id) não são afetados; quem quiser ver excluídos passa `excluidoEm` explicitamente.
+- O tipo público do client segue `PrismaClient` (a extensão só intercepta queries), então nenhuma assinatura no resto do app muda.
+
+### Auditoria valor-anterior × novo (lib global)
+- `defineAction` (`src/lib/with-action.ts`) ganhou `capturarAntes?(input)`: captura o estado anterior **antes** da execução; o `AuditLog.detalhe` passa a gravar `{ antes, novo }`. Mecanismo global — qualquer módulo pode adotar.
+- Ligado nas mutations financeiras de lançamento (editar, confirmar, cancelar, excluir) via snapshot JSON-safe do lançamento.
+
+**Limites (sinalizo):** includes aninhados (ex.: linha de planejamento → lançamento) não passam pelo filtro do modelo, então um lançamento excluído ainda referenciado por um plano aparece naquele contexto — aceitável; revisitar se necessário. O `capturarAntes` foi ligado só no financeiro; outros módulos podem aderir depois.
+
+**Arquivos:** `src/lib/prisma.ts`, `src/lib/with-action.ts`, `src/modules/financeiro/lancamentos/actions.ts`, `prisma/schema.prisma`, migração `prisma/migrations/20260618173418_lancamento_soft_delete/`.

@@ -36,6 +36,24 @@ function data(s?: string): Date | undefined {
   return isNaN(d.getTime()) ? undefined : d;
 }
 
+/** Snapshot JSON-safe do lançamento p/ auditoria valor-anterior × novo. */
+async function snapshotLancamento(id: string) {
+  const l = await prisma.lancamento.findUnique({
+    where: { id },
+    select: {
+      valor: true, valorEfetivo: true, status: true, descricao: true, vencimento: true,
+      categoriaId: true, centroId: true, projetoId: true, fornecedorId: true, clienteId: true, observacao: true,
+    },
+  });
+  if (!l) return null;
+  return {
+    ...l,
+    valor: Number(l.valor),
+    valorEfetivo: l.valorEfetivo != null ? Number(l.valorEfetivo) : null,
+    vencimento: l.vencimento ? l.vencimento.toISOString().slice(0, 10) : null,
+  };
+}
+
 export const criarLancamento = defineAction(
   { ...base, acao: "criar-lancamento", entidade: "Lancamento", schema: criarLancamentoSchema },
   async (i, { user }) => {
@@ -106,7 +124,7 @@ export const criarLancamento = defineAction(
 );
 
 export const editarLancamento = defineAction(
-  { ...base, acao: "editar-lancamento", entidade: "Lancamento", schema: editarLancamentoSchema },
+  { ...base, acao: "editar-lancamento", entidade: "Lancamento", schema: editarLancamentoSchema, capturarAntes: (i) => snapshotLancamento(i.id) },
   async (i) => {
     await prisma.lancamento.update({
       where: { id: i.id },
@@ -130,7 +148,7 @@ export const editarLancamento = defineAction(
 
 /** Confirma (realiza) um lançamento previsto → entra no caixa/DRE. */
 export const confirmarLancamento = defineAction(
-  { ...base, acao: "confirmar-lancamento", entidade: "Lancamento", schema: confirmarLancamentoSchema },
+  { ...base, acao: "confirmar-lancamento", entidade: "Lancamento", schema: confirmarLancamentoSchema, capturarAntes: (i) => snapshotLancamento(i.id) },
   async (i, ctx) => {
     const lanc = await prisma.lancamento.findUnique({ where: { id: i.id } });
     if (!lanc) throw new ActionError("Lançamento não encontrado.");
@@ -271,7 +289,7 @@ export const removerAnexoLancamento = defineAction(
 );
 
 export const cancelarLancamento = defineAction(
-  { ...base, acao: "cancelar-lancamento", entidade: "Lancamento", schema: idLancamentoSchema },
+  { ...base, acao: "cancelar-lancamento", entidade: "Lancamento", schema: idLancamentoSchema, capturarAntes: (i) => snapshotLancamento(i.id) },
   async (i, ctx) => {
     const atual = await prisma.lancamento.findUnique({ where: { id: i.id }, select: { status: true } });
     await prisma.lancamento.update({
@@ -287,14 +305,15 @@ export const cancelarLancamento = defineAction(
 );
 
 export const excluirLancamento = defineAction(
-  { ...base, acao: "excluir-lancamento", entidade: "Lancamento", schema: idLancamentoSchema },
+  { ...base, acao: "excluir-lancamento", entidade: "Lancamento", schema: idLancamentoSchema, capturarAntes: (i) => snapshotLancamento(i.id) },
   async (i) => {
     const lanc = await prisma.lancamento.findUnique({ where: { id: i.id } });
     if (!lanc) throw new ActionError("Lançamento não encontrado.");
     if (lanc.pagamentoProjetistaId) {
       throw new ActionError("Lançamento de folha não pode ser excluído aqui.");
     }
-    await prisma.lancamento.delete({ where: { id: i.id } });
+    // Soft delete: marca excluidoEm; some das listagens/relatórios (filtro global no prisma).
+    await prisma.lancamento.update({ where: { id: i.id }, data: { excluidoEm: new Date() } });
     rev();
     return { id: i.id };
   },
