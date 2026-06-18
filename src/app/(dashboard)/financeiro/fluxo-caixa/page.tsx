@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { fluxoCaixa, projecaoCaixa } from "@/modules/financeiro/caixa/queries";
+import { FluxoProjecaoChart } from "@/components/financeiro/fluxo-projecao-chart";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -82,7 +83,8 @@ export default async function FluxoCaixaPage() {
             {temGap && <span className="ml-1 text-destructive">Atenção: saldo fica negativo.</span>}
           </CardDescription>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="space-y-4">
+          <FluxoProjecaoChart dados={projecao} saldoInicial={saldoTotal} />
           <Table>
             <TableHeader>
               <TableRow>

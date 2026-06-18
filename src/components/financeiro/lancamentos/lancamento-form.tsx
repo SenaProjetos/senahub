@@ -3,8 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { criarLancamento } from "@/modules/financeiro/lancamentos/actions";
-import type { OpcoesLancamento } from "@/modules/financeiro/lancamentos/queries";
+import { criarLancamento, editarLancamento } from "@/modules/financeiro/lancamentos/actions";
+import type { OpcoesLancamento, LancamentoItem } from "@/modules/financeiro/lancamentos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,20 +27,28 @@ import {
 
 const NONE = "__none";
 
+function inputDate(d: string | Date | null | undefined): string {
+  if (!d) return "";
+  return new Date(d).toISOString().slice(0, 10);
+}
+
 export function LancamentoForm({
   open,
   onOpenChange,
   opcoes,
   tipoInicial = "despesa",
+  editar = null,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   opcoes: OpcoesLancamento;
   tipoInicial?: "receita" | "despesa";
+  editar?: LancamentoItem | null;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const hoje = new Date().toISOString().slice(0, 10);
+  const modoEdicao = !!editar;
 
   const [tipo, setTipo] = useState<"receita" | "despesa">(tipoInicial);
   const [descricao, setDescricao] = useState("");
@@ -55,6 +63,31 @@ export function LancamentoForm({
   const [observacao, setObservacao] = useState("");
   const [confirmado, setConfirmado] = useState(false);
   const [ocorrencias, setOcorrencias] = useState("1");
+
+  // Sincroniza o formulário quando abre para um novo alvo (edição carrega valores; criação reseta).
+  const alvoKey = open ? (editar?.id ?? "novo") : "fechado";
+  const [prevKey, setPrevKey] = useState(alvoKey);
+  if (prevKey !== alvoKey) {
+    setPrevKey(alvoKey);
+    if (editar) {
+      setTipo(editar.tipo);
+      setDescricao(editar.descricao);
+      setValor(String(Number(editar.valor)));
+      setDataMov(inputDate(editar.data) || hoje);
+      setVencimento(inputDate(editar.vencimento));
+      setCategoriaId(editar.categoriaId);
+      setCentroId(editar.centroId ?? NONE);
+      setProjetoId(editar.projetoId ?? NONE);
+      setFornecedorId(editar.fornecedorId ?? NONE);
+      setClienteId(editar.clienteId ?? NONE);
+      setObservacao(editar.observacao ?? "");
+      setConfirmado(false);
+      setOcorrencias("1");
+    } else if (open) {
+      reset();
+      setTipo(tipoInicial);
+    }
+  }
 
   const categoriasFiltradas = opcoes.categorias.filter((c) => c.tipo === tipo);
 
@@ -78,6 +111,27 @@ export function LancamentoForm({
       return;
     }
     start(async () => {
+      if (modoEdicao && editar) {
+        const r = await editarLancamento({
+          id: editar.id,
+          descricao,
+          valor: Number(valor),
+          data: dataMov,
+          vencimento: vencimento || "",
+          categoriaId,
+          centroId: centroId === NONE ? "" : centroId,
+          projetoId: projetoId === NONE ? "" : projetoId,
+          fornecedorId: fornecedorId === NONE ? "" : fornecedorId,
+          clienteId: clienteId === NONE ? "" : clienteId,
+          observacao,
+        });
+        if (r.ok) {
+          toast.success("Lançamento atualizado.");
+          onOpenChange(false);
+          router.refresh();
+        } else toast.error(r.error);
+        return;
+      }
       const r = await criarLancamento({
         tipo,
         descricao,
@@ -108,8 +162,12 @@ export function LancamentoForm({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Novo lançamento</DialogTitle>
-          <DialogDescription>Receita ou despesa. Use recorrência para repetir mensalmente.</DialogDescription>
+          <DialogTitle>{modoEdicao ? "Editar lançamento" : "Novo lançamento"}</DialogTitle>
+          <DialogDescription>
+            {modoEdicao
+              ? "Altere os dados do lançamento."
+              : "Receita ou despesa. Use recorrência para repetir mensalmente."}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
@@ -118,6 +176,7 @@ export function LancamentoForm({
               <Label>Tipo</Label>
               <Select
                 value={tipo}
+                disabled={modoEdicao}
                 onValueChange={(v) => {
                   setTipo((v as "receita" | "despesa") ?? "despesa");
                   setCategoriaId("");
@@ -238,16 +297,18 @@ export function LancamentoForm({
                 </Select>
               )}
             </div>
-            <div className="space-y-1.5">
-              <Label>Repetir (meses)</Label>
-              <Input
-                type="number"
-                min={1}
-                max={60}
-                value={ocorrencias}
-                onChange={(e) => setOcorrencias(e.target.value)}
-              />
-            </div>
+            {!modoEdicao && (
+              <div className="space-y-1.5">
+                <Label>Repetir (meses)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={ocorrencias}
+                  onChange={(e) => setOcorrencias(e.target.value)}
+                />
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -255,10 +316,12 @@ export function LancamentoForm({
             <Input value={observacao} onChange={(e) => setObservacao(e.target.value)} />
           </div>
 
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={confirmado} onChange={(e) => setConfirmado(e.target.checked)} />
-            Já realizado (confirmado, entra no caixa)
-          </label>
+          {!modoEdicao && (
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={confirmado} onChange={(e) => setConfirmado(e.target.checked)} />
+              Já realizado (confirmado, entra no caixa)
+            </label>
+          )}
         </div>
 
         <DialogFooter>

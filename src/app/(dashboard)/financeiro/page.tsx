@@ -1,15 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Settings2, Receipt, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText, Upload } from "lucide-react";
+import { Settings2, Receipt, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText, Upload, SlidersHorizontal } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, AlertTriangle } from "lucide-react";
 import { meuExtrato } from "@/modules/financeiro/queries";
 import { agingReport } from "@/modules/financeiro/aging/queries";
 import { totalAguardando } from "@/modules/financeiro/aprovacao/queries";
+import { relatorioDRE, serieMensalResultado, despesasPorCategoria } from "@/modules/financeiro/relatorios/queries";
+import { fluxoCaixa, projecaoCaixa } from "@/modules/financeiro/caixa/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { AgingWidget } from "@/components/financeiro/aging-widget";
+import { ResultadoMensalChart } from "@/components/financeiro/resultado-mensal-chart";
+import { CategoriaDonutChart } from "@/components/financeiro/categoria-donut-chart";
+import { FluxoProjecaoChart } from "@/components/financeiro/fluxo-projecao-chart";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -38,24 +43,104 @@ export default async function FinanceiroPage() {
   const podeVer = await can(user.role, "financeiro", "ver");
 
   if (podeVer) {
-    const [receber, pagar, aguardando, podeGerir] = await Promise.all([
+    const hoje = new Date();
+    const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59);
+    const [receber, pagar, aguardando, podeGerir, dreMes, serie, despesas, caixa] = await Promise.all([
       agingReport("receita"),
       agingReport("despesa"),
       totalAguardando(),
       can(user.role, "financeiro", "gerir"),
+      relatorioDRE(inicioMes, fimMes),
+      serieMensalResultado(hoje.getFullYear()),
+      despesasPorCategoria(inicioMes, fimMes),
+      fluxoCaixa(),
     ]);
+    const projecao = await projecaoCaixa(caixa.saldoTotal);
+    const vencidoTotal = receber.totalVencido + pagar.totalVencido;
+    const mesRotulo = hoje.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
     const atalhos = podeGerir
       ? [
           ...ATALHOS,
           { href: "/financeiro/importar", icon: Upload, titulo: "Importar dados", desc: "Migrar planilha do Meu Dinheiro" },
+          { href: "/financeiro/configuracoes", icon: SlidersHorizontal, titulo: "Configurações", desc: "Campos obrigatórios e regras" },
         ]
       : ATALHOS;
     return (
       <div className="space-y-6">
         <div>
           <h2 className="text-2xl font-extrabold tracking-tight">Financeiro</h2>
-          <p className="text-sm text-muted-foreground">Visão geral e atalhos do módulo financeiro.</p>
+          <p className="text-sm text-muted-foreground">Visão geral · {mesRotulo}.</p>
         </div>
+
+        {vencidoTotal > 0 && (
+          <Link href="/financeiro/contas">
+            <div className="flex items-center gap-3 rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm transition-colors hover:bg-destructive/10">
+              <AlertTriangle className="size-5 shrink-0 text-destructive" />
+              <span className="flex-1">
+                <span className="font-semibold text-destructive">{brl(vencidoTotal)}</span> em contas vencidas
+                {pagar.totalVencido > 0 && ` · ${brl(pagar.totalVencido)} a pagar`}
+                {receber.totalVencido > 0 && ` · ${brl(receber.totalVencido)} a receber`}.
+              </span>
+              <span className="text-xs text-muted-foreground">Ver contas →</span>
+            </div>
+          </Link>
+        )}
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard titulo="Receita do mês" valor={dreMes.totalReceitas} tom="success" />
+          <KpiCard titulo="Despesa do mês" valor={dreMes.totalDespesas} tom="destructive" />
+          <KpiCard titulo="Resultado do mês" valor={dreMes.resultado} colorido />
+          <KpiCard titulo="Saldo em caixa" valor={caixa.saldoTotal} colorido />
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Resultado mensal — {hoje.getFullYear()}</CardTitle>
+              <CardDescription>Receita − despesa realizadas por mês.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResultadoMensalChart dados={serie} />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Despesas por categoria</CardTitle>
+              <CardDescription>Confirmadas em {mesRotulo} · total {brl(despesas.total)}.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <CategoriaDonutChart dados={despesas.fatias} total={despesas.total} />
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Projeção de caixa</CardTitle>
+            <CardDescription>Saldos por conta e projeção das próximas semanas.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-6 lg:grid-cols-[260px_1fr]">
+            <ul className="space-y-1 text-sm">
+              {caixa.contas.length === 0 ? (
+                <li className="text-muted-foreground">Nenhuma conta cadastrada.</li>
+              ) : (
+                caixa.contas.map((c) => (
+                  <li key={c.id} className="flex items-center justify-between gap-2">
+                    <span className="truncate">{c.nome}</span>
+                    <span className={`font-mono text-xs ${c.saldo < 0 ? "text-destructive" : ""}`}>{brl(c.saldo)}</span>
+                  </li>
+                ))
+              )}
+              <li className="flex items-center justify-between gap-2 border-t pt-1 font-semibold">
+                <span>Total</span>
+                <span className={`font-mono text-xs ${caixa.saldoTotal < 0 ? "text-destructive" : ""}`}>{brl(caixa.saldoTotal)}</span>
+              </li>
+            </ul>
+            <FluxoProjecaoChart dados={projecao} saldoInicial={caixa.saldoTotal} />
+          </CardContent>
+        </Card>
+
         <AgingWidget receber={receber} pagar={pagar} />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Link href="/financeiro/aprovacoes">
@@ -159,5 +244,28 @@ export default async function FinanceiroPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function KpiCard({
+  titulo,
+  valor,
+  tom,
+  colorido = false,
+}: {
+  titulo: string;
+  valor: number;
+  tom?: "success" | "destructive" | "warning";
+  colorido?: boolean;
+}) {
+  const TONS = { success: "text-success", destructive: "text-destructive", warning: "text-warning" } as const;
+  const cor = tom ? TONS[tom] : colorido ? (valor < 0 ? "text-destructive" : "text-success") : "";
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">{titulo}</CardDescription>
+        <CardTitle className={`text-2xl ${cor}`}>{brl(valor)}</CardTitle>
+      </CardHeader>
+    </Card>
   );
 }

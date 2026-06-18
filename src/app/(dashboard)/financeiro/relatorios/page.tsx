@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
-import { relatorioDRE, indicadores } from "@/modules/financeiro/relatorios/queries";
+import {
+  relatorioDREComparativo,
+  indicadores,
+  totaisPorCategoria,
+  resultadoPorProjeto,
+} from "@/modules/financeiro/relatorios/queries";
 import { RelatoriosView } from "@/components/financeiro/relatorios/relatorios-view";
 
 export const metadata: Metadata = { title: "Relatórios" };
@@ -20,6 +25,20 @@ export default async function RelatoriosPage({
   await requirePermission("financeiro", "ver");
   const sp = await searchParams;
   const { de, ate } = periodoPadrao(sp);
-  const [dre, ind] = await Promise.all([relatorioDRE(de, ate), indicadores(de, ate)]);
-  return <RelatoriosView dre={dre} indicadores={ind} />;
+  const [dre, ind, despesasCat, receitasCat, porProjeto] = await Promise.all([
+    relatorioDREComparativo(de, ate),
+    indicadores(de, ate),
+    totaisPorCategoria("despesa", de, ate),
+    totaisPorCategoria("receita", de, ate),
+    resultadoPorProjeto(de, ate),
+  ]);
+  return (
+    <RelatoriosView
+      dre={dre}
+      indicadores={ind}
+      despesasCat={despesasCat}
+      receitasCat={receitasCat}
+      porProjeto={porProjeto}
+    />
+  );
 }

@@ -16,6 +16,9 @@ import { removerArquivo } from "@/lib/storage";
 import { devePassarPorAprovacao } from "@/lib/aprovacao";
 import { notificarMuitos } from "@/lib/notificar";
 import { limiteAprovacao, aprovadores } from "@/modules/financeiro/aprovacao/queries";
+import { saldoRestante } from "@/modules/financeiro/lancamentos/parcial";
+import { getConfigFinanceiro } from "@/modules/financeiro/config/queries";
+import { obrigatorioFaltando } from "@/modules/financeiro/config/validacao";
 
 const base = { modulo: "financeiro", recurso: "financeiro", permissao: "gerir" } as const;
 
@@ -39,6 +42,19 @@ export const criarLancamento = defineAction(
     const dataBase = data(i.data);
     if (!dataBase) throw new ActionError("Data inválida.");
     const vencBase = data(i.vencimento || undefined);
+
+    // Campos obrigatórios configuráveis (Configurações do módulo financeiro).
+    const cfg = await getConfigFinanceiro();
+    const faltando = obrigatorioFaltando(cfg.obrigatorios, {
+      tipo: i.tipo,
+      centroId: i.centroId || undefined,
+      formaId: i.formaId || undefined,
+      projetoId: i.projetoId || undefined,
+      fornecedorId: i.fornecedorId || undefined,
+      clienteId: i.clienteId || undefined,
+      observacao: i.observacao || undefined,
+    });
+    if (faltando) throw new ActionError(`Campo obrigatório: ${faltando}.`);
 
     // Alçada (Fase 4): despesa ≥ limite trava em aguardando_aprovacao (ignora "confirmado").
     const limite = await limiteAprovacao();
@@ -121,19 +137,54 @@ export const confirmarLancamento = defineAction(
     if (lanc.status === "confirmado") throw new ActionError("Já confirmado.");
     if (lanc.status === "aguardando_aprovacao") throw new ActionError("Despesa aguardando aprovação.");
 
-    await prisma.lancamento.update({
-      where: { id: i.id },
-      data: {
-        status: "confirmado",
-        dataConfirmacao: data(i.dataConfirmacao || undefined) ?? new Date(),
-        contaId: i.contaId || lanc.contaId,
-        formaId: i.formaId || lanc.formaId,
-        valorEfetivo: i.valorEfetivo ?? null,
-        statusHistorico: { create: { de: lanc.status, para: "confirmado", autorId: ctx.user.id } },
-      },
-    });
+    // Valor pago: usa o efetivo informado; se < total, o saldo vira um novo lançamento previsto.
+    const restante = saldoRestante(Number(lanc.valor), i.valorEfetivo);
+    const quando = data(i.dataConfirmacao || undefined) ?? new Date();
+
+    const ops = [
+      prisma.lancamento.update({
+        where: { id: i.id },
+        data: {
+          status: "confirmado" as const,
+          dataConfirmacao: quando,
+          contaId: i.contaId || lanc.contaId,
+          formaId: i.formaId || lanc.formaId,
+          valorEfetivo: i.valorEfetivo ?? null,
+          statusHistorico: { create: { de: lanc.status, para: "confirmado", autorId: ctx.user.id } },
+        },
+      }),
+    ];
+
+    if (restante != null) {
+      ops.push(
+        prisma.lancamento.create({
+          data: {
+            tipo: lanc.tipo,
+            descricao: lanc.descricao,
+            valor: restante,
+            status: "previsto" as const,
+            data: lanc.data,
+            vencimento: lanc.vencimento,
+            categoriaId: lanc.categoriaId,
+            centroId: lanc.centroId,
+            contaId: lanc.contaId,
+            formaId: lanc.formaId,
+            projetoId: lanc.projetoId,
+            fornecedorId: lanc.fornecedorId,
+            clienteId: lanc.clienteId,
+            tags: lanc.tags,
+            documentoFinanceiroId: lanc.documentoFinanceiroId,
+            observacao: [lanc.observacao, "Saldo restante de pagamento parcial"].filter(Boolean).join(" · "),
+            recorrenciaGrupo: lanc.recorrenciaGrupo ?? lanc.id,
+            autorId: ctx.user.id,
+          },
+        }) as (typeof ops)[number],
+      );
+    }
+
+    await prisma.$transaction(ops);
     rev();
-    return { id: i.id };
+    return { id: i.id, restante };
   },
 );
 

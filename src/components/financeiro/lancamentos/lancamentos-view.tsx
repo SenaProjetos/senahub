@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useTransition, type PointerEvent as React
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  Plus, Check, Ban, Trash2, Paperclip, MoreHorizontal, Search, Download, Printer,
+  Plus, Check, Ban, Trash2, Paperclip, Pencil, MoreHorizontal, Search, Download, Printer,
   FileSpreadsheet, ChevronLeft, ChevronRight, X, ArrowLeftRight,
 } from "lucide-react";
 import {
@@ -147,6 +147,7 @@ export function LancamentosView({
 
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [formOpen, setFormOpen] = useState(false);
+  const [editar, setEditar] = useState<LivroCaixaItem | null>(null);
   const [confirmar, setConfirmar] = useState<LivroCaixaItem | null>(null);
   const [detalhe, setDetalhe] = useState<LivroCaixaItem | null>(null);
   const [loteOpen, setLoteOpen] = useState(false);
@@ -158,6 +159,24 @@ export function LancamentosView({
       return byCodigo.get(cod.split(".")[0]) ?? l.categoria?.nome ?? "Sem categoria";
     };
   }, [opcoes.categorias]);
+
+  // Parcela "i/n" derivada do grupo de recorrência (independe do texto da descrição).
+  const parcelaPorId = useMemo(() => {
+    const grupos = new Map<string, LivroCaixaItem[]>();
+    for (const l of itens) {
+      if (!l.recorrenciaGrupo) continue;
+      const arr = grupos.get(l.recorrenciaGrupo) ?? [];
+      arr.push(l);
+      grupos.set(l.recorrenciaGrupo, arr);
+    }
+    const info = new Map<string, string>();
+    for (const arr of grupos.values()) {
+      if (arr.length < 2) continue;
+      const ordenado = [...arr].sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime());
+      ordenado.forEach((l, i) => info.set(l.id, `${i + 1}/${ordenado.length}`));
+    }
+    return info;
+  }, [itens]);
 
   // período → [inicio, fim] (null = aberto)
   const [inicio, fim] = useMemo<[Date | null, Date | null]>(() => {
@@ -567,7 +586,12 @@ export function LancamentosView({
         </div>
       </div>
 
-      <LancamentoForm open={formOpen} onOpenChange={setFormOpen} opcoes={opcoes} />
+      <LancamentoForm
+        open={formOpen || !!editar}
+        editar={editar}
+        opcoes={opcoes}
+        onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditar(null); } }}
+      />
       <ConfirmarDialog lancamento={confirmar} onClose={() => setConfirmar(null)} contas={opcoes.contas} formas={opcoes.formas} />
       <LancamentoDetalheDialog lancamento={detalhe} podeGerir onClose={() => setDetalhe(null)} />
       <LoteDialog
@@ -588,7 +612,7 @@ export function LancamentosView({
 
   function LinhaLanc({ l, saldo }: { l: LivroCaixaItem; saldo?: number }) {
     const sit = situacaoDe(l);
-    const par = parcela(l.descricao);
+    const par = parcela(l.descricao) ?? parcelaPorId.get(l.id) ?? null;
     const transf = ehTransferencia(topoDe(l));
     const s = signed(l);
     return (
@@ -605,6 +629,13 @@ export function LancamentosView({
             {par && <Badge variant="outline" className="px-1 py-0 text-[10px]">{par}</Badge>}
           </span>
           {l.projeto && <span className="block truncate text-xs text-muted-foreground">{formatarCodigo(l.projeto.codigo)} · {l.projeto.nome}</span>}
+          {l.tags.length > 0 && (
+            <span className="flex flex-wrap gap-1 pt-0.5">
+              {l.tags.slice(0, 4).map((t) => (
+                <Badge key={t} variant="outline" className="px-1 py-0 text-[10px] text-muted-foreground">{t}</Badge>
+              ))}
+            </span>
+          )}
         </span>
         <span className="min-w-0 truncate text-xs text-muted-foreground">
           {topoDe(l)}{l.conta && ` · ${l.conta.nome}`}
@@ -622,6 +653,9 @@ export function LancamentosView({
               <DropdownMenuItem onClick={() => setDetalhe(l)}>
                 <Paperclip className="size-4" /> Detalhes{l.anexos.length > 0 ? ` (${l.anexos.length})` : ""}
               </DropdownMenuItem>
+              {l.status !== "cancelado" && (
+                <DropdownMenuItem onClick={() => setEditar(l)}><Pencil className="size-4" /> Editar</DropdownMenuItem>
+              )}
               {l.status === "previsto" && (
                 <DropdownMenuItem onClick={() => setConfirmar(l)}><Check className="size-4" /> Confirmar</DropdownMenuItem>
               )}

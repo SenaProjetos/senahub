@@ -27,6 +27,10 @@ import {
 
 const NONE = "__none";
 
+function brl(v: number) {
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
 export function ConfirmarDialog({
   lancamento,
   onClose,
@@ -47,6 +51,22 @@ export function ConfirmarDialog({
   const [valorEfetivo, setValorEfetivo] = useState("");
   const [comprovante, setComprovante] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Ao abrir para um lançamento, pré-preenche o valor com o total (paga tudo por padrão).
+  const lancKey = lancamento?.id ?? "";
+  const [prevKey, setPrevKey] = useState(lancKey);
+  if (prevKey !== lancKey) {
+    setPrevKey(lancKey);
+    setValorEfetivo(lancamento ? String(Number(lancamento.valor)) : "");
+    setContaId(NONE);
+    setFormaId(NONE);
+    setDataConf(hoje);
+    setComprovante(null);
+  }
+
+  const total = lancamento ? Number(lancamento.valor) : 0;
+  const pago = valorEfetivo ? Number(valorEfetivo) : total;
+  const restante = pago < total ? Math.round((total - pago) * 100) / 100 : 0;
 
   function confirmar() {
     if (!lancamento) return;
@@ -76,7 +96,11 @@ export function ConfirmarDialog({
           toast.error("Falha ao anexar comprovante.");
         }
       }
-      toast.success("Lançamento confirmado.");
+      if (r.data.restante != null) {
+        toast.success(`Confirmado. Saldo de ${brl(r.data.restante)} ficou em aberto.`);
+      } else {
+        toast.success("Lançamento confirmado.");
+      }
       setComprovante(null);
       onClose();
       router.refresh();
@@ -133,15 +157,20 @@ export function ConfirmarDialog({
               <Input type="date" value={dataConf} onChange={(e) => setDataConf(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>Valor efetivo (parcial)</Label>
+              <Label>Valor pago</Label>
               <Input
                 type="number"
-                placeholder={lancamento ? String(Number(lancamento.valor)) : ""}
+                placeholder={lancamento ? String(total) : ""}
                 value={valorEfetivo}
                 onChange={(e) => setValorEfetivo(e.target.value)}
               />
             </div>
           </div>
+          {restante > 0 && (
+            <p className="text-xs text-warning">
+              Pagamento parcial: {brl(restante)} ficará em aberto como uma nova {lancamento?.tipo === "receita" ? "conta a receber" : "conta a pagar"}.
+            </p>
+          )}
           <div className="space-y-1.5">
             <Label>Comprovante (opcional)</Label>
             <input

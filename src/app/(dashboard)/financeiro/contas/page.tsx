@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
+import { can } from "@/lib/permissions";
 import { dadosContas, opcoesLancamento } from "@/modules/financeiro/lancamentos/queries";
 import { ContasPagarReceberView } from "@/components/financeiro/lancamentos/contas-pagar-receber-view";
 
@@ -10,8 +11,13 @@ export default async function ContasPage({
 }: {
   searchParams: Promise<{ tab?: string }>;
 }) {
-  await requirePermission("financeiro", "ver");
-  const [{ tab }, itens, opcoes] = await Promise.all([searchParams, dadosContas(), opcoesLancamento()]);
+  const user = await requirePermission("financeiro", "ver");
+  const [{ tab }, itens, opcoes, podeGerir] = await Promise.all([
+    searchParams,
+    dadosContas(),
+    opcoesLancamento(),
+    can(user.role, "financeiro", "gerir"),
+  ]);
   const tabInicial = tab === "receita" ? "receita" : "despesa";
-  return <ContasPagarReceberView itens={itens} opcoes={opcoes} tabInicial={tabInicial} />;
+  return <ContasPagarReceberView itens={itens} opcoes={opcoes} tabInicial={tabInicial} podeGerir={podeGerir} />;
 }

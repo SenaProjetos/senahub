@@ -1,6 +1,8 @@
 import "server-only";
+import { subDays, differenceInCalendarDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { fluxoCaixa } from "@/modules/financeiro/caixa/queries";
+import { analisarDRE, type LinhaBaseDRE, type DREComparativo } from "./dre";
 
 const GRUPOS_DFC = ["operacional", "investimento", "financiamento"] as const;
 export type GrupoDFC = (typeof GRUPOS_DFC)[number];
@@ -260,4 +262,118 @@ export async function indicadores(de: Date, ate: Date) {
     recebido: Number(recebido._sum.valor ?? 0),
     aReceber: Number(aReceber._sum.valor ?? 0),
   };
+}
+
+export type FatiaCategoria = { nome: string; valor: number };
+
+/**
+ * Confirmados de um tipo agrupados pela categoria de nível 1 (código antes do 1º ponto)
+ * no período. Retorna as `limite` maiores; o restante vira "Outros". Para gráfico de rosca.
+ */
+export async function totaisPorCategoria(
+  tipo: "receita" | "despesa",
+  de: Date,
+  ate: Date,
+  limite = 6,
+): Promise<{ fatias: FatiaCategoria[]; total: number }> {
+  const [lancs, categorias] = await Promise.all([
+    prisma.lancamento.findMany({
+      where: { tipo, status: "confirmado", dataConfirmacao: { gte: de, lte: ate } },
+      include: { categoria: { select: { codigo: true, nome: true } } },
+    }),
+    prisma.categoriaFinanceira.findMany({ select: { codigo: true, nome: true } }),
+  ]);
+  const nomePorCodigo = new Map(categorias.map((c) => [c.codigo, c.nome]));
+
+  const mapa = new Map<string, number>();
+  let total = 0;
+  for (const l of lancs) {
+    const topo = l.categoria.codigo.split(".")[0];
+    const nome = nomePorCodigo.get(topo) ?? l.categoria.nome;
+    const v = Number(l.valorEfetivo ?? l.valor);
+    mapa.set(nome, (mapa.get(nome) ?? 0) + v);
+    total += v;
+  }
+
+  const ordenado = [...mapa.entries()].sort((a, b) => b[1] - a[1]);
+  const principais = ordenado.slice(0, limite).map(([nome, valor]) => ({ nome, valor }));
+  const resto = ordenado.slice(limite).reduce((s, [, v]) => s + v, 0);
+  if (resto > 0) principais.push({ nome: "Outros", valor: resto });
+
+  return { fatias: principais, total };
+}
+
+/** Despesas confirmadas por categoria (rosca). */
+export async function despesasPorCategoria(de: Date, ate: Date, limite = 6) {
+  return totaisPorCategoria("despesa", de, ate, limite);
+}
+
+export type ResultadoProjeto = {
+  projetoId: string;
+  codigo: string;
+  nome: string;
+  receita: number;
+  despesa: number;
+  resultado: number;
+};
+
+/**
+ * Resultado por projeto no período (confirmados): receita, despesa e resultado de
+ * cada projeto com movimento. Para o relatório "Lançamentos por projeto".
+ */
+export async function resultadoPorProjeto(de: Date, ate: Date): Promise<ResultadoProjeto[]> {
+  const lancs = await prisma.lancamento.findMany({
+    where: { status: "confirmado", dataConfirmacao: { gte: de, lte: ate }, projetoId: { not: null } },
+    include: { projeto: { select: { id: true, codigo: true, nome: true } } },
+  });
+  const mapa = new Map<string, ResultadoProjeto>();
+  for (const l of lancs) {
+    if (!l.projeto) continue;
+    const cur =
+      mapa.get(l.projeto.id) ??
+      { projetoId: l.projeto.id, codigo: l.projeto.codigo, nome: l.projeto.nome, receita: 0, despesa: 0, resultado: 0 };
+    const v = Number(l.valorEfetivo ?? l.valor);
+    if (l.tipo === "receita") cur.receita += v;
+    else cur.despesa += v;
+    cur.resultado = cur.receita - cur.despesa;
+    mapa.set(l.projeto.id, cur);
+  }
+  return [...mapa.values()].sort((a, b) => b.resultado - a.resultado);
+}
+
+/** Linhas do DRE (confirmados, agrupados por categoria) de um período — base do comparativo. */
+async function linhasDREPeriodo(de: Date, ate: Date): Promise<LinhaBaseDRE[]> {
+  const lancamentos = await prisma.lancamento.findMany({
+    where: { status: "confirmado", dataConfirmacao: { gte: de, lte: ate } },
+    include: { categoria: { select: { codigo: true, nome: true, tipo: true, grupoDfc: true } } },
+  });
+  const mapa = new Map<string, LinhaBaseDRE>();
+  for (const l of lancamentos) {
+    const c = l.categoria;
+    const cur = mapa.get(c.codigo) ?? { codigo: c.codigo, nome: c.nome, tipo: c.tipo, grupoDfc: c.grupoDfc, valor: 0 };
+    cur.valor += Number(l.valorEfetivo ?? l.valor);
+    mapa.set(c.codigo, cur);
+  }
+  return [...mapa.values()];
+}
+
+/**
+ * DRE comparativo: período atual + período imediatamente anterior de mesma duração,
+ * com análise vertical (AV%), horizontal (AH%) e EBITDA gerencial.
+ */
+export async function relatorioDREComparativo(de: Date, ate: Date): Promise<DREComparativo> {
+  const dias = differenceInCalendarDays(ate, de) + 1;
+  const ateAnt = subDays(de, 1);
+  const deAnt = subDays(ateAnt, dias - 1);
+  const [atuais, anteriores] = await Promise.all([
+    linhasDREPeriodo(de, ate),
+    linhasDREPeriodo(deAnt, ateAnt),
+  ]);
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  return analisarDRE(atuais, anteriores, {
+    de: iso(de),
+    ate: iso(ate),
+    deAnt: iso(deAnt),
+    ateAnt: iso(ateAnt),
+  });
 }

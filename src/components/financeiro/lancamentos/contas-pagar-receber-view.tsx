@@ -4,13 +4,17 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  Plus, Check, Search, Download, Printer, FileSpreadsheet, ChevronLeft, ChevronRight, X,
+  Plus, Check, Pencil, Paperclip, MoreHorizontal, Search, Download, Printer, FileSpreadsheet, ChevronLeft, ChevronRight, X,
 } from "lucide-react";
 import type { LancamentoItem, OpcoesLancamento } from "@/modules/financeiro/lancamentos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { baixarEmLote } from "@/modules/financeiro/lancamentos/actions";
 import { LancamentoForm } from "./lancamento-form";
 import { ConfirmarDialog } from "./confirmar-dialog";
+import { LancamentoDetalheDialog } from "./lancamento-detalhe-dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -62,10 +66,12 @@ export function ContasPagarReceberView({
   itens,
   opcoes,
   tabInicial = "despesa",
+  podeGerir = false,
 }: {
   itens: LancamentoItem[];
   opcoes: OpcoesLancamento;
   tabInicial?: "despesa" | "receita";
+  podeGerir?: boolean;
 }) {
   const router = useRouter();
   const [, start] = useTransition();
@@ -92,6 +98,8 @@ export function ContasPagarReceberView({
 
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [formOpen, setFormOpen] = useState(false);
+  const [editar, setEditar] = useState<LancamentoItem | null>(null);
+  const [detalhe, setDetalhe] = useState<LancamentoItem | null>(null);
   const [confirmar, setConfirmar] = useState<LancamentoItem | null>(null);
   const [loteOpen, setLoteOpen] = useState(false);
 
@@ -495,7 +503,7 @@ export function ContasPagarReceberView({
 
           {/* lista */}
           <div ref={printRef} className="rounded-sm border">
-            <div className="grid grid-cols-[28px_96px_1fr_140px_120px_96px] gap-2 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">
+            <div className="grid grid-cols-[28px_96px_1fr_140px_120px_140px] gap-2 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">
               <span />
               <span>Vencimento</span>
               <span>Descrição</span>
@@ -525,7 +533,14 @@ export function ContasPagarReceberView({
         </div>
       </div>
 
-      <LancamentoForm open={formOpen} onOpenChange={setFormOpen} opcoes={opcoes} tipoInicial={tab} />
+      <LancamentoForm
+        open={formOpen || !!editar}
+        editar={editar}
+        opcoes={opcoes}
+        tipoInicial={tab}
+        onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditar(null); } }}
+      />
+      <LancamentoDetalheDialog lancamento={detalhe} podeGerir={podeGerir} onClose={() => setDetalhe(null)} />
       <ConfirmarDialog lancamento={confirmar} onClose={() => setConfirmar(null)} contas={opcoes.contas} formas={opcoes.formas} />
       <LoteDialog
         open={loteOpen}
@@ -554,7 +569,7 @@ export function ContasPagarReceberView({
     const par = parcela(l.descricao);
     const cor = sit === "pendente" ? "bg-destructive" : sit === "agendado" ? "bg-warning" : "bg-muted-foreground";
     return (
-      <div className="grid grid-cols-[28px_96px_1fr_140px_120px_96px] items-center gap-2 border-b px-3 py-2 text-sm last:border-0 hover:bg-muted/20">
+      <div className="grid grid-cols-[28px_96px_1fr_140px_120px_140px] items-center gap-2 border-b px-3 py-2 text-sm last:border-0 hover:bg-muted/20">
         <div className="flex items-center gap-1.5">
           <input type="checkbox" checked={selecionados.has(l.id)} onChange={() => toggleSel(l.id)} className="size-3.5" />
           <span className={`size-2 shrink-0 rounded-full ${cor}`} title={sit} />
@@ -574,10 +589,21 @@ export function ContasPagarReceberView({
         <span className={`text-right font-mono ${saldo != null ? (saldo < 0 ? "text-destructive" : "text-success") : ""}`}>
           {saldo != null ? brl(saldo) : brl(sinal * Number(l.valor))}
         </span>
-        <span className="text-right">
+        <span className="flex items-center justify-end gap-1">
           <Button size="sm" variant="outline" disabled={l.status === "aguardando_aprovacao"} onClick={() => confirmarRapido(l)}>
             <Check className="size-3.5" /> {tab === "despesa" ? "Pagar" : "Receber"}
           </Button>
+          {podeGerir && (
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Ações"><MoreHorizontal className="size-4" /></Button>} />
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setEditar(l)}><Pencil className="size-4" /> Editar</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setDetalhe(l)}>
+                  <Paperclip className="size-4" /> Anexos{l.anexos.length > 0 ? ` (${l.anexos.length})` : ""}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </span>
       </div>
     );
