@@ -76,7 +76,7 @@ Antes: só aging + atalhos. Agora a tela inicial (`financeiro/page.tsx`) traz:
 ## 4. Pendências para próximas frentes
 
 Da auditoria/estratégico (exigem migração e/ou decisão de arquitetura — **parar e aprovar antes**):
-- **Planejamento de Pagamentos** (módulo inteiro, drag-and-drop, cenários, saldo acumulado).
+- ~~Planejamento de Pagamentos~~ — ✅ **implementado** (ver seção 6 abaixo).
 - **Fechamento Mensal** financeiro.
 - **DRE por projeto avançada** (rateio de indiretos, ROI, rankings, alertas de margem).
 - **Soft delete** real de lançamentos (hoje `excluir` é hard delete).
@@ -111,3 +111,27 @@ Da auditoria/estratégico (exigem migração e/ou decisão de arquitetura — **
 - `src/components/financeiro/lancamentos/lancamento-form.tsx` (modo edição)
 - `src/components/financeiro/lancamentos/lancamentos-view.tsx` (editar, tags, parcela por recorrência)
 - `src/components/financeiro/lancamentos/contas-pagar-receber-view.tsx` (editar + anexos + podeGerir)
+
+---
+
+## 6. Planejamento de Pagamentos (mesa de planejamento) ✅
+
+Módulo novo — o diferencial estratégico da spec. Migração **aditiva** aplicada (`20260618145138_planejamento_pagamentos`): 2 tabelas novas (`planejamento_pagamento`, `planejamento_linha`) + enum `StatusPlanejamento`; nenhuma coluna de tabela existente alterada.
+
+**Modelagem (decisão aprovada):** tabelas dedicadas + recálculo no cliente. Um cenário (`PlanejamentoPagamento`) tem N linhas (`PlanejamentoLinha`) que referenciam lançamentos previstos, com `ordem` e `valorPlanejado`. O saldo acumulado é calculado no navegador (não persistido).
+
+**Fluxo:**
+- Criar cenário com saldo disponível + filtros (período de vencimento, conta, centro, projeto) → carrega automaticamente as contas a pagar em aberto como linhas.
+- Mesa: grid com **drag-and-drop** (`@dnd-kit`, já no projeto — sem dependência nova) para priorizar; a ordem afeta o consumo do saldo.
+- **Saldo acumulado e indicadores recalculados em tempo real** (helper puro `calcularPlano` + 4 testes): saldo inicial, total planejado, saldo remanescente, contempladas/não contempladas, % de cobertura.
+- **Pagamento parcial:** edita `valorPlanejado` por linha; ao executar, o saldo restante da obrigação vira um novo lançamento previsto (reusa `saldoRestante`).
+- Seleção por linha (entra/não entra no consumo), adicionar/remover contas.
+- **Status:** rascunho → análise → aprovado → executado (+ cancelado). Execução só de plano aprovado.
+- **Execução:** confirma (paga) cada linha selecionada pelo valor planejado, gerando os saldos restantes em aberto; marca o plano como executado.
+
+**Decisões tomadas (sinalizo):**
+- Planejamento cobre **despesas previstas** (contas a pagar) — é uma mesa de pagamento.
+- "Executar" = confirmar os lançamentos pelo valor planejado (integra com o caixa/DRE reais), com saldo restante automático nos parciais.
+- **Agrupamentos** (por projeto/cliente/fornecedor/centro) da spec **não** entraram nesta primeira versão — conflitam com o drag-and-drop linear; ficam como evolução. O núcleo (simulação de saldo + prioridade + execução) está completo.
+
+**Arquivos:** `src/modules/financeiro/planejamento/{recalculo.ts,recalculo.test.ts,queries.ts,actions.ts}`, `src/components/financeiro/planejamento/{status.ts,planejamento-lista-view.tsx,planejamento-mesa-view.tsx}`, `src/app/(dashboard)/financeiro/planejamento/{page.tsx,[id]/page.tsx}`, atalho em `financeiro/page.tsx`, migração em `prisma/migrations/20260618145138_planejamento_pagamentos/`.

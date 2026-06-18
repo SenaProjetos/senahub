@@ -94,6 +94,7 @@ model User {
   feedbacksRecebidos   FeedbackRH[]           @relation("FeedbackAlvo")
   mensagensLidas       MensagemLeitura[]
   preference           UserPreference?
+  planejamentos        PlanejamentoPagamento[]
 
   @@index([role])
   @@map("user")
@@ -382,6 +383,7 @@ model Projeto {
   composicaoPreco ProjetoComposicaoPreco?
   lmConfig    LmConfig?
   linhasBase  LinhaBase[]
+  planejamentos PlanejamentoPagamento[]
 
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -485,6 +487,7 @@ model CentroCusto {
   ordem Int     @default(0)
 
   lancamentos Lancamento[]
+  planejamentos PlanejamentoPagamento[]
 
   @@map("centro_custo")
 }
@@ -511,6 +514,7 @@ model ContaBancaria {
   lancamentos Lancamento[]
   extratos    ExtratoBancario[]
   transacoes  TransacaoBancaria[]
+  planejamentos PlanejamentoPagamento[]
 
   @@map("conta_bancaria")
 }
@@ -651,6 +655,7 @@ model Lancamento {
   documentoFinanceiro   DocumentoFinanceiro? @relation(fields: [documentoFinanceiroId], references: [id], onDelete: SetNull)
   anexos           LancamentoAnexo[]
   statusHistorico  LancamentoStatusHistorico[]
+  planejamentoLinhas PlanejamentoLinha[]
   /// Aprovação por alçada (Fase 4): quem aprovou, quando, e motivo se rejeitado.
   aprovadoPorId  String?
   aprovadoEm     DateTime?
@@ -2453,4 +2458,67 @@ model LancamentoStatusHistorico {
 
   @@index([lancamentoId])
   @@map("lancamento_status_historico")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Financeiro — Planejamento de Pagamentos (mesa de planejamento)
+// ─────────────────────────────────────────────────────────────
+
+enum StatusPlanejamento {
+  rascunho
+  analise
+  aprovado
+  executado
+  cancelado
+}
+
+/// Cenário de planejamento de pagamentos: simula o uso do caixa disponível sobre
+/// as contas em aberto, com ordem de prioridade e saldo acumulado recalculado no cliente.
+model PlanejamentoPagamento {
+  id              String             @id @default(cuid())
+  nome            String
+  status          StatusPlanejamento @default(rascunho)
+  /// Saldo disponível informado para o planejamento.
+  saldoDisponivel Decimal            @db.Decimal(14, 2)
+  /// Janela de vencimentos considerada ao montar o plano (opcional).
+  periodoIni      DateTime?          @db.Date
+  periodoFim      DateTime?          @db.Date
+  /// Filtros opcionais aplicados ao carregar as contas.
+  contaId         String?
+  conta           ContaBancaria?     @relation(fields: [contaId], references: [id])
+  centroId        String?
+  centro          CentroCusto?       @relation(fields: [centroId], references: [id])
+  projetoId       String?
+  projeto         Projeto?           @relation(fields: [projetoId], references: [id])
+  observacoes     String?
+  responsavelId   String
+  responsavel     User               @relation(fields: [responsavelId], references: [id])
+  /// Aprovação/execução (scalars sem relação, como no padrão do Lancamento).
+  aprovadoPorId   String?
+  aprovadoEm      DateTime?
+  executadoEm     DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  linhas PlanejamentoLinha[]
+
+  @@index([status])
+  @@map("planejamento_pagamento")
+}
+
+/// Linha do plano: um lançamento previsto (a pagar/receber) com ordem de prioridade
+/// e valor planejado (parcial permitido). O saldo acumulado é calculado, não persistido.
+model PlanejamentoLinha {
+  id             String                @id @default(cuid())
+  planoId        String
+  plano          PlanejamentoPagamento @relation(fields: [planoId], references: [id], onDelete: Cascade)
+  lancamentoId   String
+  lancamento     Lancamento            @relation(fields: [lancamentoId], references: [id], onDelete: Cascade)
+  ordem          Int                   @default(0)
+  valorPlanejado Decimal               @db.Decimal(14, 2)
+  selecionada    Boolean               @default(true)
+
+  @@unique([planoId, lancamentoId])
+  @@index([planoId])
+  @@map("planejamento_linha")
 }
