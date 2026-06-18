@@ -78,7 +78,7 @@ Antes: só aging + atalhos. Agora a tela inicial (`financeiro/page.tsx`) traz:
 Da auditoria/estratégico (exigem migração e/ou decisão de arquitetura — **parar e aprovar antes**):
 - ~~Planejamento de Pagamentos~~ — ✅ **implementado** (ver seção 6 abaixo).
 - **Fechamento Mensal** financeiro.
-- **DRE por projeto avançada** (rateio de indiretos, ROI, rankings, alertas de margem).
+- ~~DRE por projeto avançada~~ — ✅ **implementado** (ver seção 7 abaixo). *Resta: rentabilidade por disciplina/coordenador e evolução da margem no tempo.*
 - **Soft delete** real de lançamentos (hoje `excluir` é hard delete).
 - **Auditoria valor-anterior × novo** (hoje `AuditLog` grava só o input).
 - **Multi-nível de alçada** (item 8).
@@ -135,3 +135,23 @@ Módulo novo — o diferencial estratégico da spec. Migração **aditiva** apli
 - **Agrupamentos** (por projeto/cliente/fornecedor/centro) da spec **não** entraram nesta primeira versão — conflitam com o drag-and-drop linear; ficam como evolução. O núcleo (simulação de saldo + prioridade + execução) está completo.
 
 **Arquivos:** `src/modules/financeiro/planejamento/{recalculo.ts,recalculo.test.ts,queries.ts,actions.ts}`, `src/components/financeiro/planejamento/{status.ts,planejamento-lista-view.tsx,planejamento-mesa-view.tsx}`, `src/app/(dashboard)/financeiro/planejamento/{page.tsx,[id]/page.tsx}`, atalho em `financeiro/page.tsx`, migração em `prisma/migrations/20260618145138_planejamento_pagamentos/`.
+
+---
+
+## 7. DRE por projeto avançada (rentabilidade) ✅
+
+Diferencial estratégico da spec. Sem migração — cálculo sobre os lançamentos confirmados.
+
+**Decisão aprovada:** custos indiretos = despesas confirmadas **sem projeto vinculado**, rateadas entre os projetos **na proporção da receita** de cada um.
+
+- Helper puro `calcularRentabilidade` + `rentabilidadePorCliente` (`relatorios/dre-projeto.ts`) + 6 testes.
+  - lucroBruto = receita − diretos; lucroLiquido = bruto − indireto rateado; margens bruta/líquida (%); ROI = lucroLiquido / (diretos + indireto).
+- Query `rentabilidadePorProjeto(de, ate, margemMinima)`: separa receita/diretos por projeto e o overhead, rateia, agrega totais e ranking de clientes.
+- Página `/financeiro/rentabilidade` (atalho no dashboard): filtros de período + margem mínima; KPIs (receita, diretos, indiretos, lucro líquido + margem); **alertas** de projetos abaixo da margem mínima; **ranking de projetos** (por lucro líquido, com diretos/indireto/margem/ROI) e **ranking de clientes**.
+
+**Decisões/limites (sinalizo):**
+- Receita do projeto = receita **confirmada** vinculada a ele (não usa "valor contratado"/aditivos, que não existem como campo).
+- Margem mínima é um parâmetro da tela (default 0%), não persistido.
+- **Não** incluídos nesta versão: rentabilidade por **disciplina** (Lancamento não tem FK de disciplina) e por **coordenador**, e **evolução da margem no tempo** — ficam como evolução.
+
+**Arquivos:** `src/modules/financeiro/relatorios/{dre-projeto.ts,dre-projeto.test.ts}`, `rentabilidadePorProjeto` em `relatorios/queries.ts`, `src/components/financeiro/relatorios/rentabilidade-view.tsx`, `src/app/(dashboard)/financeiro/rentabilidade/page.tsx`, atalho em `financeiro/page.tsx`.

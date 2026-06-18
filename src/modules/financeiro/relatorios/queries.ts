@@ -3,6 +3,7 @@ import { subDays, differenceInCalendarDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { fluxoCaixa } from "@/modules/financeiro/caixa/queries";
 import { analisarDRE, type LinhaBaseDRE, type DREComparativo } from "./dre";
+import { calcularRentabilidade, rentabilidadePorCliente, type ProjetoEntrada } from "./dre-projeto";
 
 const GRUPOS_DFC = ["operacional", "investimento", "financiamento"] as const;
 export type GrupoDFC = (typeof GRUPOS_DFC)[number];
@@ -340,6 +341,51 @@ export async function resultadoPorProjeto(de: Date, ate: Date): Promise<Resultad
   }
   return [...mapa.values()].sort((a, b) => b.resultado - a.resultado);
 }
+
+/**
+ * Rentabilidade (DRE) por projeto no período: receita e custos diretos por projeto,
+ * custos indiretos (despesas sem projeto) rateados pela receita, lucro/margem/ROI,
+ * ranking de clientes e alertas de margem abaixo do mínimo.
+ */
+export async function rentabilidadePorProjeto(de: Date, ate: Date, margemMinima = 0) {
+  const lancs = await prisma.lancamento.findMany({
+    where: { status: "confirmado", dataConfirmacao: { gte: de, lte: ate } },
+    include: { projeto: { select: { id: true, codigo: true, nome: true, cliente: { select: { nome: true } } } } },
+  });
+
+  const mapa = new Map<string, ProjetoEntrada>();
+  let totalIndireto = 0;
+  for (const l of lancs) {
+    const v = Number(l.valorEfetivo ?? l.valor);
+    if (!l.projeto) {
+      if (l.tipo === "despesa") totalIndireto += v; // overhead a ratear
+      continue;
+    }
+    const cur =
+      mapa.get(l.projeto.id) ??
+      {
+        projetoId: l.projeto.id,
+        codigo: l.projeto.codigo,
+        nome: l.projeto.nome,
+        cliente: l.projeto.cliente?.nome ?? null,
+        receita: 0,
+        diretos: 0,
+      };
+    if (l.tipo === "receita") cur.receita += v;
+    else cur.diretos += v;
+    mapa.set(l.projeto.id, cur);
+  }
+
+  const resultado = calcularRentabilidade([...mapa.values()], totalIndireto, margemMinima);
+  return {
+    de: de.toISOString().slice(0, 10),
+    ate: ate.toISOString().slice(0, 10),
+    margemMinima,
+    ...resultado,
+    clientes: rentabilidadePorCliente(resultado.projetos),
+  };
+}
+export type RentabilidadeRelatorio = Awaited<ReturnType<typeof rentabilidadePorProjeto>>;
 
 /** Linhas do DRE (confirmados, agrupados por categoria) de um período — base do comparativo. */
 async function linhasDREPeriodo(de: Date, ate: Date): Promise<LinhaBaseDRE[]> {
