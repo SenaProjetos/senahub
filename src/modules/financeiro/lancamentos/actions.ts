@@ -60,6 +60,7 @@ export const criarLancamento = defineAction(
     const dataBase = data(i.data);
     if (!dataBase) throw new ActionError("Data inválida.");
     const vencBase = data(i.vencimento || undefined);
+    const compBase = data(i.dataCompetencia || undefined);
 
     // Campos obrigatórios configuráveis (Configurações do módulo financeiro).
     const cfg = await getConfigFinanceiro();
@@ -107,6 +108,7 @@ export const criarLancamento = defineAction(
       data: addMonths(dataBase, n),
       vencimento: vencBase ? addMonths(vencBase, n) : null,
       dataConfirmacao: confirmaAgora ? addMonths(dataBase, n) : null,
+      dataCompetencia: compBase ? addMonths(compBase, n) : null,
     }));
 
     await prisma.lancamento.createMany({ data: registros });
@@ -133,6 +135,7 @@ export const editarLancamento = defineAction(
         valor: i.valor,
         data: data(i.data),
         vencimento: data(i.vencimento || undefined) ?? null,
+        dataCompetencia: data(i.dataCompetencia || undefined) ?? null,
         categoriaId: i.categoriaId,
         centroId: i.centroId || null,
         projetoId: i.projetoId || null,

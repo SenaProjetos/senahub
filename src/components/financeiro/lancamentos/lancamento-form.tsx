@@ -55,6 +55,7 @@ export function LancamentoForm({
   const [valor, setValor] = useState("");
   const [dataMov, setDataMov] = useState(hoje);
   const [vencimento, setVencimento] = useState("");
+  const [dataCompetencia, setDataCompetencia] = useState("");
   const [categoriaId, setCategoriaId] = useState("");
   const [centroId, setCentroId] = useState(NONE);
   const [projetoId, setProjetoId] = useState(NONE);
@@ -75,6 +76,7 @@ export function LancamentoForm({
       setValor(String(Number(editar.valor)));
       setDataMov(inputDate(editar.data) || hoje);
       setVencimento(inputDate(editar.vencimento));
+      setDataCompetencia(inputDate(editar.dataCompetencia));
       setCategoriaId(editar.categoriaId);
       setCentroId(editar.centroId ?? NONE);
       setProjetoId(editar.projetoId ?? NONE);
@@ -95,6 +97,7 @@ export function LancamentoForm({
     setDescricao("");
     setValor("");
     setVencimento("");
+    setDataCompetencia("");
     setCategoriaId("");
     setCentroId(NONE);
     setProjetoId(NONE);
@@ -118,6 +121,7 @@ export function LancamentoForm({
           valor: Number(valor),
           data: dataMov,
           vencimento: vencimento || "",
+          dataCompetencia: dataCompetencia || "",
           categoriaId,
           centroId: centroId === NONE ? "" : centroId,
           projetoId: projetoId === NONE ? "" : projetoId,
@@ -138,6 +142,7 @@ export function LancamentoForm({
         valor: Number(valor),
         data: dataMov,
         vencimento: vencimento || "",
+        dataCompetencia: dataCompetencia || "",
         categoriaId,
         centroId: centroId === NONE ? "" : centroId,
         projetoId: projetoId === NONE ? "" : projetoId,
@@ -211,6 +216,11 @@ export function LancamentoForm({
               <Label>Vencimento</Label>
               <Input type="date" value={vencimento} onChange={(e) => setVencimento(e.target.value)} />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Data de competência (opcional)</Label>
+            <Input type="date" value={dataCompetencia} onChange={(e) => setDataCompetencia(e.target.value)} />
           </div>
 
           <div className="space-y-1.5">

@@ -631,6 +631,8 @@ model Lancamento {
   data            DateTime  @db.Date
   vencimento      DateTime? @db.Date
   dataConfirmacao DateTime? @db.Date
+  /// Data de competência (regime de competência). Se null, usa `data`.
+  dataCompetencia DateTime? @db.Date
 
   categoriaId String
   categoria   CategoriaFinanceira @relation(fields: [categoriaId], references: [id])

@@ -1,5 +1,6 @@
 import "server-only";
 import { subDays, differenceInCalendarDays } from "date-fns";
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { fluxoCaixa } from "@/modules/financeiro/caixa/queries";
 import { analisarDRE, type LinhaBaseDRE, type DREComparativo } from "./dre";
@@ -463,10 +464,23 @@ export async function rentabilidadePorProjeto(de: Date, ate: Date, margemMinima 
 }
 export type RentabilidadeRelatorio = Awaited<ReturnType<typeof rentabilidadePorProjeto>>;
 
+/** Base do DRE: caixa (data de confirmação) ou competência (data de competência, ou `data`). */
+export type BaseDRE = "caixa" | "competencia";
+
 /** Linhas do DRE (confirmados, agrupados por categoria) de um período — base do comparativo. */
-async function linhasDREPeriodo(de: Date, ate: Date): Promise<LinhaBaseDRE[]> {
+async function linhasDREPeriodo(de: Date, ate: Date, base: BaseDRE): Promise<LinhaBaseDRE[]> {
+  const where: Prisma.LancamentoWhereInput =
+    base === "competencia"
+      ? {
+          status: "confirmado",
+          OR: [
+            { dataCompetencia: { gte: de, lte: ate } },
+            { dataCompetencia: null, data: { gte: de, lte: ate } },
+          ],
+        }
+      : { status: "confirmado", dataConfirmacao: { gte: de, lte: ate } };
   const lancamentos = await prisma.lancamento.findMany({
-    where: { status: "confirmado", dataConfirmacao: { gte: de, lte: ate } },
+    where,
     include: { categoria: { select: { codigo: true, nome: true, tipo: true, grupoDfc: true } } },
   });
   const mapa = new Map<string, LinhaBaseDRE>();
@@ -483,13 +497,13 @@ async function linhasDREPeriodo(de: Date, ate: Date): Promise<LinhaBaseDRE[]> {
  * DRE comparativo: período atual + período imediatamente anterior de mesma duração,
  * com análise vertical (AV%), horizontal (AH%) e EBITDA gerencial.
  */
-export async function relatorioDREComparativo(de: Date, ate: Date): Promise<DREComparativo> {
+export async function relatorioDREComparativo(de: Date, ate: Date, base: BaseDRE = "caixa"): Promise<DREComparativo> {
   const dias = differenceInCalendarDays(ate, de) + 1;
   const ateAnt = subDays(de, 1);
   const deAnt = subDays(ateAnt, dias - 1);
   const [atuais, anteriores] = await Promise.all([
-    linhasDREPeriodo(de, ate),
-    linhasDREPeriodo(deAnt, ateAnt),
+    linhasDREPeriodo(de, ate, base),
+    linhasDREPeriodo(deAnt, ateAnt, base),
   ]);
   const iso = (d: Date) => d.toISOString().slice(0, 10);
   return analisarDRE(atuais, anteriores, {

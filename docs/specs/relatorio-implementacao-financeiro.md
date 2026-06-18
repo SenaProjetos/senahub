@@ -66,7 +66,7 @@ Antes: só aging + atalhos. Agora a tela inicial (`financeiro/page.tsx`) traz:
 - Nova página `financeiro/configuracoes` (+ atalho no dashboard, só para `gerir`).
 - Persistência via `ConfigSistema` (chave `financeiro.config`) — sem schema novo.
 - **Campos obrigatórios configuráveis** (contato, centro, projeto, forma, observação), com enforcement **no servidor** (`criarLancamento`) via helper puro `obrigatorioFaltando` (+ 5 testes). Default = nada obrigatório (preserva o comportamento atual).
-- *Não implementado* (sinalizado): “senha para exclusão” (precisa de re-checagem de credencial — sensível); data de competência separada da data de caixa.
+- *Não implementado* (sinalizado): “senha para exclusão” (precisa de re-checagem de credencial — sensível). **Data de competência** ✅ feita (seção 11).
 
 ### Item 8 — Multi-nível de alçada ⏸️ DIFERIDO
 - Exige **migração de schema** (vários limites + papéis aprovadores) e decisão de arquitetura. Conforme as regras do projeto, não fiz migração sem aprovação. Hoje há alçada de **um** limite (`financeiro.limiteAprovacao`) + notificações a aprovadores na criação. Notificações de vencimento já existem (job D+1 “recebimento vencido” + resumo semanal).
@@ -82,7 +82,7 @@ Da auditoria/estratégico (exigem migração e/ou decisão de arquitetura — **
 - ~~Soft delete real de lançamentos~~ — ✅ **implementado** (seção 8).
 - ~~Auditoria valor-anterior × novo~~ — ✅ **implementado** (seção 8).
 - ~~Multi-nível de alçada~~ — ✅ **implementado** (seção 10).
-- **Senha para exclusão** e **data de competência** (resto do item 6).
+- ~~Data de competência~~ — ✅ **implementada** (seção 11). · **Senha para exclusão** (resto do item 6).
 - **Evolução por categoria** (resto do item 4).
 
 ---
@@ -210,3 +210,19 @@ Migração aditiva (`20260618174538_fechamento_mensal`): tabela `fechamento_mens
 **Limites:** papéis aprovadores configuráveis restritos a admin/supervisor/administrativo (`PAPEIS_APROVADORES`). Roteamento por faixa (não sequencial/multi-assinatura).
 
 **Arquivos:** `src/modules/financeiro/aprovacao/{niveis.ts,niveis.test.ts,queries.ts,actions.ts}`, `src/modules/financeiro/lancamentos/actions.ts`, `src/components/financeiro/config/configuracoes-view.tsx`, `src/app/(dashboard)/financeiro/configuracoes/page.tsx`.
+
+---
+
+## 11. Data de competência (regime de competência) ✅
+
+Migração aditiva (`20260618183205_lancamento_data_competencia`): campo `dataCompetencia` (Date, opcional) em `Lancamento`.
+
+**Decisão aprovada:** o regime de competência considera **só os confirmados, datados pela competência** (`dataCompetencia ?? data`) — não inclui previstos. Default do DRE = **caixa** (preserva o comportamento atual).
+
+- Formulário de lançamento aceita "Data de competência (opcional)"; em recorrência, desloca por mês junto com a data. `criar`/`editar` persistem o campo.
+- `relatorioDREComparativo(de, ate, base)` ganha `base: "caixa" | "competencia"`. Caixa = confirmados por `dataConfirmacao` (atual). Competência = confirmados filtrados por `dataCompetencia` (ou `data` quando ausente).
+- Página de Relatórios: seletor **Regime (Caixa/Competência)**, default caixa; rótulo no DRE indica o regime ativo.
+
+**Limites:** o toggle vale para o DRE da tela de Relatórios. A exportação Excel e os demais relatórios (DFC, dashboard) seguem base caixa por ora.
+
+**Arquivos:** `prisma/schema.prisma` + migração; `src/modules/financeiro/lancamentos/{schemas.ts,actions.ts}`, `src/components/financeiro/lancamentos/lancamento-form.tsx`, `src/modules/financeiro/relatorios/queries.ts`, `src/components/financeiro/relatorios/relatorios-view.tsx`, `src/app/(dashboard)/financeiro/relatorios/page.tsx`.

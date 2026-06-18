@@ -10,6 +10,7 @@ import { CategoriaDonutChart } from "@/components/financeiro/categoria-donut-cha
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 function brl(v: number) {
@@ -28,6 +29,7 @@ export function RelatoriosView({
   receitasCat,
   porProjeto,
   evolucao,
+  base,
 }: {
   dre: DREComparativo;
   indicadores: { projetosAtivos: number; recebido: number; aReceber: number };
@@ -35,13 +37,15 @@ export function RelatoriosView({
   receitasCat: { fatias: FatiaCategoria[]; total: number };
   porProjeto: ResultadoProjeto[];
   evolucao: EvolucaoCategorias;
+  base: "caixa" | "competencia";
 }) {
   const router = useRouter();
   const [de, setDe] = useState(dre.de);
   const [ate, setAte] = useState(dre.ate);
+  const [regime, setRegime] = useState(base);
 
   function aplicar() {
-    router.push(`/financeiro/relatorios?de=${de}&ate=${ate}`);
+    router.push(`/financeiro/relatorios?de=${de}&ate=${ate}&base=${regime}`);
   }
 
   const ahResultado = ahResultadoColuna(dre);
@@ -64,6 +68,16 @@ export function RelatoriosView({
             <Label className="text-xs text-muted-foreground">Até</Label>
             <Input type="date" value={ate} onChange={(e) => setAte(e.target.value)} className="w-40" />
           </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Regime</Label>
+            <Select value={regime} onValueChange={(v) => setRegime((v as "caixa" | "competencia") ?? "caixa")}>
+              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="caixa">Caixa</SelectItem>
+                <SelectItem value="competencia">Competência</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Button onClick={aplicar}>Aplicar</Button>
           <Button
             variant="outline"
@@ -85,8 +99,8 @@ export function RelatoriosView({
         <CardHeader>
           <CardTitle className="text-base">Demonstração de Resultado (DRE)</CardTitle>
           <CardDescription>
-            {dre.de} a {dre.ate} · comparado com {dre.anterior.de} a {dre.anterior.ate}. AV = % sobre receita;
-            AH = variação vs. período anterior.
+            Regime: <span className="font-medium">{base === "competencia" ? "competência" : "caixa"}</span> · {dre.de} a {dre.ate} ·
+            comparado com {dre.anterior.de} a {dre.anterior.ate}. AV = % sobre receita; AH = variação vs. período anterior.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

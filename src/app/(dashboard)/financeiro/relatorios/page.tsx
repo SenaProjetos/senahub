@@ -21,14 +21,15 @@ function periodoPadrao(sp: { de?: string; ate?: string }) {
 export default async function RelatoriosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ de?: string; ate?: string }>;
+  searchParams: Promise<{ de?: string; ate?: string; base?: string }>;
 }) {
   await requirePermission("financeiro", "ver");
   const sp = await searchParams;
   const { de, ate } = periodoPadrao(sp);
+  const base = sp.base === "competencia" ? "competencia" : "caixa";
   const ano = ate.getFullYear();
   const [dre, ind, despesasCat, receitasCat, porProjeto, evolucao] = await Promise.all([
-    relatorioDREComparativo(de, ate),
+    relatorioDREComparativo(de, ate, base),
     indicadores(de, ate),
     totaisPorCategoria("despesa", de, ate),
     totaisPorCategoria("receita", de, ate),
@@ -43,6 +44,7 @@ export default async function RelatoriosPage({
       receitasCat={receitasCat}
       porProjeto={porProjeto}
       evolucao={evolucao}
+      base={base}
     />
   );
 }
