@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
-import { rentabilidadePorProjeto } from "@/modules/financeiro/relatorios/queries";
+import { rentabilidadePorProjeto, evolucaoMargemMensal } from "@/modules/financeiro/relatorios/queries";
 import { RentabilidadeView } from "@/components/financeiro/relatorios/rentabilidade-view";
 
 export const metadata: Metadata = { title: "Rentabilidade por projeto" };
@@ -21,6 +21,9 @@ export default async function RentabilidadePage({
   const sp = await searchParams;
   const { de, ate } = periodoPadrao(sp);
   const margem = sp.margem ? Number(sp.margem) : 0;
-  const dados = await rentabilidadePorProjeto(de, ate, Number.isFinite(margem) ? margem : 0);
-  return <RentabilidadeView dados={dados} />;
+  const [dados, evolucao] = await Promise.all([
+    rentabilidadePorProjeto(de, ate, Number.isFinite(margem) ? margem : 0),
+    evolucaoMargemMensal(ate.getFullYear()),
+  ]);
+  return <RentabilidadeView dados={dados} evolucao={evolucao} ano={ate.getFullYear()} />;
 }

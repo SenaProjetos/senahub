@@ -152,7 +152,8 @@ Diferencial estratégico da spec. Sem migração — cálculo sobre os lançamen
 **Decisões/limites (sinalizo):**
 - Receita do projeto = receita **confirmada** vinculada a ele (não usa "valor contratado"/aditivos, que não existem como campo).
 - Margem mínima é um parâmetro da tela (default 0%), não persistido.
-- **Não** incluídos nesta versão: rentabilidade por **disciplina** (Lancamento não tem FK de disciplina) e por **coordenador**, e **evolução da margem no tempo** — ficam como evolução.
+- **Evolução da margem no tempo** ✅ implementada: série mensal (receita/resultado/margem%) na página de Rentabilidade (`evolucaoMargemMensal`).
+- **Não** incluídos: rentabilidade por **disciplina** (Lancamento não tem FK de disciplina) e por **coordenador** — ficam como evolução (precisam de decisão de atribuição).
 
 **Arquivos:** `src/modules/financeiro/relatorios/{dre-projeto.ts,dre-projeto.test.ts}`, `rentabilidadePorProjeto` em `relatorios/queries.ts`, `src/components/financeiro/relatorios/rentabilidade-view.tsx`, `src/app/(dashboard)/financeiro/rentabilidade/page.tsx`, atalho em `financeiro/page.tsx`.
 

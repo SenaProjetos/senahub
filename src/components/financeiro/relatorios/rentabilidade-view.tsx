@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, TrendingUp } from "lucide-react";
-import type { RentabilidadeRelatorio } from "@/modules/financeiro/relatorios/queries";
+import type { RentabilidadeRelatorio, MargemMensal } from "@/modules/financeiro/relatorios/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,15 @@ function pct(v: number | null) {
   return v == null ? "—" : `${v.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 }
 
-export function RentabilidadeView({ dados }: { dados: RentabilidadeRelatorio }) {
+export function RentabilidadeView({
+  dados,
+  evolucao,
+  ano,
+}: {
+  dados: RentabilidadeRelatorio;
+  evolucao: MargemMensal[];
+  ano: number;
+}) {
   const router = useRouter();
   const [de, setDe] = useState(dados.de);
   const [ate, setAte] = useState(dados.ate);
@@ -151,6 +159,41 @@ export function RentabilidadeView({ dados }: { dados: RentabilidadeRelatorio }) 
               ))}
             </ul>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Evolução da margem — {ano}</CardTitle>
+          <CardDescription>Receita, resultado e margem líquida realizados por mês.</CardDescription>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b text-right uppercase tracking-wider text-muted-foreground">
+                <th className="py-1.5 text-left font-medium">Mês</th>
+                {evolucao.map((m) => <th key={m.mes} className="px-1.5 py-1.5 font-medium capitalize">{m.rotulo}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b">
+                <td className="py-1.5 text-left text-muted-foreground">Receita</td>
+                {evolucao.map((m) => <td key={m.mes} className="px-1.5 py-1.5 text-right font-mono text-muted-foreground">{m.receita ? brl(m.receita) : "—"}</td>)}
+              </tr>
+              <tr className="border-b">
+                <td className="py-1.5 text-left text-muted-foreground">Resultado</td>
+                {evolucao.map((m) => <td key={m.mes} className={`px-1.5 py-1.5 text-right font-mono ${m.resultado < 0 ? "text-destructive" : ""}`}>{m.resultado ? brl(m.resultado) : "—"}</td>)}
+              </tr>
+              <tr>
+                <td className="py-1.5 text-left font-medium">Margem</td>
+                {evolucao.map((m) => (
+                  <td key={m.mes} className={`px-1.5 py-1.5 text-right font-mono font-semibold ${m.margem == null ? "text-muted-foreground" : m.margem < 0 ? "text-destructive" : "text-success"}`}>
+                    {pct(m.margem)}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
         </CardContent>
       </Card>
     </div>

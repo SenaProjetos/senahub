@@ -309,6 +309,33 @@ export async function despesasPorCategoria(de: Date, ate: Date, limite = 6) {
   return totaisPorCategoria("despesa", de, ate, limite);
 }
 
+export type MargemMensal = { mes: number; rotulo: string; receita: number; resultado: number; margem: number | null };
+
+/** Série mensal (12 meses) de receita/resultado/margem% realizados — evolução da margem. */
+export async function evolucaoMargemMensal(ano: number): Promise<MargemMensal[]> {
+  const lancs = await prisma.lancamento.findMany({
+    where: { status: "confirmado", dataConfirmacao: { gte: new Date(ano, 0, 1), lte: new Date(ano, 11, 31, 23, 59, 59) } },
+    select: { tipo: true, valor: true, valorEfetivo: true, dataConfirmacao: true },
+  });
+  const acc = Array.from({ length: 12 }, () => ({ receita: 0, despesa: 0 }));
+  for (const l of lancs) {
+    if (!l.dataConfirmacao) continue;
+    const v = Number(l.valorEfetivo ?? l.valor);
+    if (l.tipo === "receita") acc[l.dataConfirmacao.getMonth()].receita += v;
+    else acc[l.dataConfirmacao.getMonth()].despesa += v;
+  }
+  return acc.map((m, i) => {
+    const resultado = m.receita - m.despesa;
+    return {
+      mes: i,
+      rotulo: new Date(ano, i, 1).toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""),
+      receita: Math.round(m.receita * 100) / 100,
+      resultado: Math.round(resultado * 100) / 100,
+      margem: m.receita > 0 ? Math.round((resultado / m.receita) * 1000) / 10 : null,
+    };
+  });
+}
+
 export type EvolucaoCategorias = {
   ano: number;
   meses: string[];
