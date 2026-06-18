@@ -3,10 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { salvarConfigFinanceiro } from "@/modules/financeiro/config/actions";
+import { salvarConfigFinanceiro, salvarAliquotas } from "@/modules/financeiro/config/actions";
 import type { ConfigFinanceiro } from "@/modules/financeiro/config/queries";
 import type { CamposObrigatorios } from "@/modules/financeiro/config/validacao";
+import type { Aliquotas } from "@/modules/financeiro/fechamento/calculo";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const CAMPOS: { key: keyof CamposObrigatorios; label: string; desc: string }[] = [
@@ -17,7 +20,7 @@ const CAMPOS: { key: keyof CamposObrigatorios; label: string; desc: string }[] =
   { key: "observacao", label: "Observação", desc: "Exigir o campo de observação." },
 ];
 
-export function ConfiguracoesView({ config }: { config: ConfigFinanceiro }) {
+export function ConfiguracoesView({ config, aliquotas }: { config: ConfigFinanceiro; aliquotas: Aliquotas }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [obrig, setObrig] = useState<CamposObrigatorios>(config.obrigatorios);
@@ -68,6 +71,56 @@ export function ConfiguracoesView({ config }: { config: ConfigFinanceiro }) {
       <div className="flex justify-end">
         <Button onClick={salvar} disabled={pending}>{pending ? "Salvando…" : "Salvar configurações"}</Button>
       </div>
+
+      <AliquotasCard inicial={aliquotas} />
     </div>
+  );
+}
+
+const CAMPOS_ALIQUOTA: { key: keyof Aliquotas; label: string }[] = [
+  { key: "iss", label: "ISS" },
+  { key: "inss", label: "INSS" },
+  { key: "ir", label: "IR" },
+  { key: "desconto", label: "Desconto" },
+];
+
+function AliquotasCard({ inicial }: { inicial: Aliquotas }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [aliq, setAliq] = useState<Aliquotas>(inicial);
+
+  function set(k: keyof Aliquotas, v: string) {
+    setAliq((p) => ({ ...p, [k]: Math.max(0, Math.min(100, Number(v) || 0)) }));
+  }
+  function salvar() {
+    start(async () => {
+      const r = await salvarAliquotas(aliq);
+      if (r.ok) {
+        toast.success("Alíquotas salvas.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Alíquotas do fechamento mensal (%)</CardTitle>
+        <CardDescription>Retenções e desconto aplicados automaticamente sobre a folha bruta no fechamento.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {CAMPOS_ALIQUOTA.map((c) => (
+            <div key={c.key} className="space-y-1.5">
+              <Label className="text-xs">{c.label}</Label>
+              <Input type="number" step="0.01" min={0} max={100} value={aliq[c.key]} onChange={(e) => set(c.key, e.target.value)} />
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-end">
+          <Button onClick={salvar} disabled={pending}>{pending ? "Salvando…" : "Salvar alíquotas"}</Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

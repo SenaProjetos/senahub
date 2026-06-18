@@ -95,6 +95,7 @@ model User {
   mensagensLidas       MensagemLeitura[]
   preference           UserPreference?
   planejamentos        PlanejamentoPagamento[]
+  fechamentos          FechamentoMensal[]
 
   @@index([role])
   @@map("user")
@@ -2524,4 +2525,41 @@ model PlanejamentoLinha {
   @@unique([planoId, lancamentoId])
   @@index([planoId])
   @@map("planejamento_linha")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Financeiro — Fechamento Mensal
+// ─────────────────────────────────────────────────────────────
+
+enum StatusFechamento {
+  aberto
+  fechado
+}
+
+/// Consolidação financeira do mês: receita/despesa confirmadas + folha de projetistas
+/// com retenções/descontos automáticos (alíquotas configuráveis). Snapshot ao gerar.
+model FechamentoMensal {
+  id                String           @id @default(cuid())
+  ano               Int
+  mes               Int
+  status            StatusFechamento @default(aberto)
+  receitaConfirmada Decimal          @default(0) @db.Decimal(14, 2)
+  despesaConfirmada Decimal          @default(0) @db.Decimal(14, 2)
+  folhaBruta        Decimal          @default(0) @db.Decimal(14, 2)
+  retencaoIss       Decimal          @default(0) @db.Decimal(14, 2)
+  retencaoInss      Decimal          @default(0) @db.Decimal(14, 2)
+  retencaoIr        Decimal          @default(0) @db.Decimal(14, 2)
+  descontos         Decimal          @default(0) @db.Decimal(14, 2)
+  /// Snapshot das alíquotas (%) aplicadas no momento da geração.
+  aliquotas         Json?
+  observacoes       String?
+  responsavelId     String
+  responsavel       User             @relation(fields: [responsavelId], references: [id])
+  fechadoEm         DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@unique([ano, mes])
+  @@index([status])
+  @@map("fechamento_mensal")
 }

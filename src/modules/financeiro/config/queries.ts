@@ -1,8 +1,19 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { CamposObrigatorios } from "@/modules/financeiro/config/validacao";
+import { ALIQUOTAS_ZERO, type Aliquotas } from "@/modules/financeiro/fechamento/calculo";
 
 export const CHAVE_CONFIG_FINANCEIRO = "financeiro.config";
+export const CHAVE_ALIQUOTAS = "financeiro.aliquotas";
+
+/** Alíquotas (%) de retenção/desconto do fechamento mensal. Default = zeros. */
+export async function getAliquotas(): Promise<Aliquotas> {
+  const c = await prisma.configSistema.findUnique({ where: { chave: CHAVE_ALIQUOTAS } });
+  if (!c || typeof c.valor !== "object" || c.valor === null) return ALIQUOTAS_ZERO;
+  const v = c.valor as Record<string, unknown>;
+  const num = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? x : 0);
+  return { iss: num(v.iss), inss: num(v.inss), ir: num(v.ir), desconto: num(v.desconto) };
+}
 
 export type ConfigFinanceiro = {
   obrigatorios: CamposObrigatorios;

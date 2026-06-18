@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { CHAVE_CONFIG_FINANCEIRO } from "@/modules/financeiro/config/queries";
+import { CHAVE_CONFIG_FINANCEIRO, CHAVE_ALIQUOTAS } from "@/modules/financeiro/config/queries";
 
 const schema = z.object({
   obrigatorios: z.object({
@@ -35,6 +35,30 @@ export const salvarConfigFinanceiro = defineAction(
     revalidatePath("/financeiro/configuracoes");
     revalidatePath("/financeiro/lancamentos");
     revalidatePath("/financeiro/contas");
+    return { ok: true };
+  },
+);
+
+const aliquota = z.number().min(0).max(100);
+
+/** Salva as alíquotas (%) de retenção/desconto do fechamento. Requer financeiro:gerir. */
+export const salvarAliquotas = defineAction(
+  {
+    modulo: "financeiro",
+    recurso: "financeiro",
+    permissao: "gerir",
+    acao: "salvar-aliquotas",
+    entidade: "ConfigSistema",
+    schema: z.object({ iss: aliquota, inss: aliquota, ir: aliquota, desconto: aliquota }),
+  },
+  async (i) => {
+    await prisma.configSistema.upsert({
+      where: { chave: CHAVE_ALIQUOTAS },
+      create: { chave: CHAVE_ALIQUOTAS, valor: i },
+      update: { valor: i },
+    });
+    revalidatePath("/financeiro/configuracoes");
+    revalidatePath("/financeiro/fechamento");
     return { ok: true };
   },
 );

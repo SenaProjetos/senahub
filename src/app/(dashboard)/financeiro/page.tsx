@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Settings2, Receipt, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText, Upload, SlidersHorizontal, CalendarClock, TrendingUp } from "lucide-react";
+import { Settings2, Receipt, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText, Upload, SlidersHorizontal, CalendarClock, TrendingUp, CalendarCheck } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { ShieldCheck, AlertTriangle } from "lucide-react";
@@ -64,6 +64,7 @@ export default async function FinanceiroPage() {
       ? [
           ...ATALHOS,
           { href: "/financeiro/planejamento", icon: CalendarClock, titulo: "Planejamento de pagamentos", desc: "Mesa de planejamento do caixa" },
+          { href: "/financeiro/fechamento", icon: CalendarCheck, titulo: "Fechamento mensal", desc: "Consolidação e retenções do mês" },
           { href: "/financeiro/importar", icon: Upload, titulo: "Importar dados", desc: "Migrar planilha do Meu Dinheiro" },
           { href: "/financeiro/configuracoes", icon: SlidersHorizontal, titulo: "Configurações", desc: "Campos obrigatórios e regras" },
         ]

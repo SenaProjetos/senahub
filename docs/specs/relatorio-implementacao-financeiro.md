@@ -77,7 +77,7 @@ Antes: só aging + atalhos. Agora a tela inicial (`financeiro/page.tsx`) traz:
 
 Da auditoria/estratégico (exigem migração e/ou decisão de arquitetura — **parar e aprovar antes**):
 - ~~Planejamento de Pagamentos~~ — ✅ **implementado** (ver seção 6 abaixo).
-- **Fechamento Mensal** financeiro.
+- ~~Fechamento Mensal~~ — ✅ **implementado** (seção 9).
 - ~~DRE por projeto avançada~~ — ✅ **implementado** (ver seção 7 abaixo). *Resta: rentabilidade por disciplina/coordenador e evolução da margem no tempo.*
 - ~~Soft delete real de lançamentos~~ — ✅ **implementado** (seção 8).
 - ~~Auditoria valor-anterior × novo~~ — ✅ **implementado** (seção 8).
@@ -175,3 +175,21 @@ Fecha duas "Regras Obrigatórias" da spec. Ambas autorizadas (migração aditiva
 **Limites (sinalizo):** includes aninhados (ex.: linha de planejamento → lançamento) não passam pelo filtro do modelo, então um lançamento excluído ainda referenciado por um plano aparece naquele contexto — aceitável; revisitar se necessário. O `capturarAntes` foi ligado só no financeiro; outros módulos podem aderir depois.
 
 **Arquivos:** `src/lib/prisma.ts`, `src/lib/with-action.ts`, `src/modules/financeiro/lancamentos/actions.ts`, `prisma/schema.prisma`, migração `prisma/migrations/20260618173418_lancamento_soft_delete/`.
+
+---
+
+## 9. Fechamento Mensal ✅
+
+Migração aditiva (`20260618174538_fechamento_mensal`): tabela `fechamento_mensal` + enum `StatusFechamento` + back-relation em User.
+
+**Decisões aprovadas:** escopo = **os dois** (fechamento do mês inteiro incluindo a consolidação da folha de projetistas); descontos/retenções = **regras automáticas (%)** via alíquotas configuráveis.
+
+- **Alíquotas** (ISS, INSS, IR, Desconto) em `ConfigSistema` (chave `financeiro.aliquotas`), editáveis em **Configurações → Alíquotas do fechamento**.
+- Helper puro `calcularFechamento` (`fechamento/calculo.ts`) + 4 testes: aplica as alíquotas sobre a folha bruta → retenções/descontos/folha líquida; resultado bruto = receita − despesa.
+- `gerarFechamento(ano, mes)` consolida e **snapshota** receita/despesa confirmadas do mês + folha bruta (PagamentoProjetista liberados no mês) + retenções/descontos calculados, guardando as alíquotas usadas. Idempotente (regera enquanto aberto; bloqueia se já fechado).
+- Status **aberto → fechado** (+ reabrir); excluir só com mês aberto.
+- Página `/financeiro/fechamento` (atalho no dashboard): seletor mês/ano + gerar; cada fechamento mostra resultado do mês e folha (bruto, ISS/INSS/IR, descontos, líquido), com **fechar/reabrir/excluir** e **imprimir** (comprovante).
+
+**Decisões/limites (sinalizo):** folha bruta = soma de `PagamentoProjetista` liberados no mês (todos os status). Retenções/descontos incidem sobre a folha bruta. "Consolidar disciplinas" detalhado e geração de comprovantes individuais por projetista ficam como evolução (hoje o comprovante é o relatório do fechamento).
+
+**Arquivos:** `src/modules/financeiro/fechamento/{calculo.ts,calculo.test.ts,queries.ts,actions.ts}`, `src/components/financeiro/fechamento/fechamento-view.tsx`, `src/app/(dashboard)/financeiro/fechamento/page.tsx`, alíquotas em `config/{queries,actions}.ts` + `configuracoes-view.tsx`, atalho em `financeiro/page.tsx`, migração `prisma/migrations/20260618174538_fechamento_mensal/`.
