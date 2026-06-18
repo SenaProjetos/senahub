@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition, type CSSProperties } from "react";
+import { useMemo, useState, useTransition, type CSSProperties, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -19,7 +19,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import {
-  ArrowLeft, GripVertical, Plus, Save, Trash2, Check, Send, ShieldCheck, Play, Ban, X,
+  ArrowLeft, GripVertical, Plus, Save, Trash2, Check, Send, ShieldCheck, Play, Ban, X, ChevronDown, ChevronRight,
 } from "lucide-react";
 import {
   salvarLinhas, atualizarPlano, adicionarLinhas, removerLinha, mudarStatusPlano, executarPlano,
@@ -33,7 +33,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+
+const NONE = "__none";
 
 function brl(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -70,12 +73,48 @@ export function PlanejamentoMesaView({ plano, disponiveis }: { plano: PlanoDetal
     })),
   );
   const [addOpen, setAddOpen] = useState(false);
+  const [agruparPor, setAgruparPor] = useState("");
+  const [recolhidos, setRecolhidos] = useState<Set<string>>(new Set());
 
   const saldoNum = Number(saldo) || 0;
   const { linhas: calc, indicadores } = useMemo(
     () => calcularPlano(saldoNum, linhas.map((l) => ({ selecionada: l.selecionada, valorPlanejado: l.valorPlanejado }))),
     [linhas, saldoNum],
   );
+
+  // Agrupamento (visual): mantém a ordem global; o drag-and-drop só vale sem agrupamento.
+  const grupos = useMemo(() => {
+    if (!agruparPor) return null;
+    const chave = (l: LinhaLocal): string => {
+      const lc = l.lancamento;
+      if (agruparPor === "favorecido") return lc.favorecido ?? "Sem favorecido";
+      if (agruparPor === "projeto") return lc.projeto ? `${formatarCodigo(lc.projeto.codigo)} ${lc.projeto.nome}` : "Sem projeto";
+      if (agruparPor === "categoria") return lc.categoria ?? "Sem categoria";
+      if (agruparPor === "centro") return lc.centro ?? "Sem centro";
+      return "";
+    };
+    const map = new Map<string, { idx: number; linha: LinhaLocal }[]>();
+    linhas.forEach((linha, idx) => {
+      const k = chave(linha);
+      const arr = map.get(k) ?? [];
+      arr.push({ idx, linha });
+      map.set(k, arr);
+    });
+    return [...map.entries()].map(([nome, itens]) => ({
+      nome,
+      itens,
+      subtotal: itens.filter((x) => x.linha.selecionada).reduce((s, x) => s + x.linha.valorPlanejado, 0),
+    }));
+  }, [agruparPor, linhas]);
+
+  function toggleRecolhido(nome: string) {
+    setRecolhidos((p) => {
+      const n = new Set(p);
+      if (n.has(nome)) n.delete(nome);
+      else n.add(nome);
+      return n;
+    });
+  }
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -219,6 +258,22 @@ export function PlanejamentoMesaView({ plano, disponiveis }: { plano: PlanoDetal
         </Card>
       </div>
 
+      {/* Agrupamento */}
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-muted-foreground">Agrupar por</span>
+        <Select value={agruparPor || NONE} onValueChange={(v) => setAgruparPor(v === NONE ? "" : (v ?? ""))}>
+          <SelectTrigger size="sm" className="h-8 w-44"><SelectValue placeholder="Sem agrupamento" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NONE}>Sem agrupamento</SelectItem>
+            <SelectItem value="favorecido">Favorecido</SelectItem>
+            <SelectItem value="projeto">Projeto</SelectItem>
+            <SelectItem value="categoria">Categoria</SelectItem>
+            <SelectItem value="centro">Centro de custo</SelectItem>
+          </SelectContent>
+        </Select>
+        {agruparPor && <span className="text-muted-foreground">Reordenação por arraste disponível só sem agrupamento.</span>}
+      </div>
+
       {/* Grid */}
       <Card>
         <CardContent className="p-0">
@@ -235,11 +290,42 @@ export function PlanejamentoMesaView({ plano, disponiveis }: { plano: PlanoDetal
 
           {linhas.length === 0 ? (
             <p className="px-3 py-8 text-center text-sm text-muted-foreground">Nenhuma conta no plano. Use “Adicionar contas”.</p>
+          ) : grupos ? (
+            grupos.map((g) => {
+              const recolhido = recolhidos.has(g.nome);
+              return (
+                <div key={g.nome}>
+                  <button
+                    type="button"
+                    onClick={() => toggleRecolhido(g.nome)}
+                    className="flex w-full items-center gap-2 border-b bg-muted/20 px-3 py-1.5 text-left text-xs font-semibold hover:bg-muted/40"
+                  >
+                    {recolhido ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+                    <span className="flex-1 truncate">{g.nome}</span>
+                    <span className="text-muted-foreground">{g.itens.length} conta(s)</span>
+                    <span className="font-mono">{brl(g.subtotal)}</span>
+                  </button>
+                  {!recolhido &&
+                    g.itens.map(({ linha, idx }) => (
+                      <LinhaPlanoBase
+                        key={linha.id}
+                        linha={linha}
+                        calc={calc[idx]}
+                        readOnly={readOnly}
+                        onValor={setValor}
+                        onToggle={toggleSel}
+                        onRemover={remover}
+                        handle={<span className="flex items-center text-muted-foreground/40"><GripVertical className="size-4" /></span>}
+                      />
+                    ))}
+                </div>
+              );
+            })
           ) : (
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
               <SortableContext items={linhas.map((l) => l.id)} strategy={verticalListSortingStrategy}>
                 {linhas.map((l, i) => (
-                  <LinhaPlano
+                  <SortableLinha
                     key={l.id}
                     linha={l}
                     calc={calc[i]}
@@ -275,29 +361,42 @@ function Indic({ rotulo, valor, cor }: { rotulo: string; valor: string; cor?: st
   );
 }
 
-function LinhaPlano({
-  linha, calc, readOnly, onValor, onToggle, onRemover,
-}: {
+type LinhaProps = {
   linha: LinhaLocal;
   calc: { saldoAcumulado: number; contemplada: boolean };
   readOnly: boolean;
   onValor: (id: string, v: string) => void;
   onToggle: (id: string) => void;
   onRemover: (id: string) => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: linha.id });
+};
+
+function SortableLinha(props: LinhaProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.linha.id });
   const style: CSSProperties = {
     gridTemplateColumns: COLS,
     transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
     transition,
     opacity: isDragging ? 0.6 : 1,
   };
+  const handle = (
+    <button type="button" className="cursor-grab text-muted-foreground disabled:cursor-default" {...attributes} {...listeners} disabled={props.readOnly} aria-label="Reordenar">
+      <GripVertical className="size-4" />
+    </button>
+  );
+  return <LinhaPlanoBase {...props} innerRef={setNodeRef} style={style} handle={handle} />;
+}
+
+function LinhaPlanoBase({
+  linha, calc, readOnly, onValor, onToggle, onRemover, handle, innerRef, style,
+}: LinhaProps & {
+  handle: ReactNode;
+  innerRef?: (node: HTMLElement | null) => void;
+  style?: CSSProperties;
+}) {
   const lc = linha.lancamento;
   return (
-    <div ref={setNodeRef} style={style} className={`grid items-center gap-2 border-b px-3 py-2 text-sm last:border-0 ${linha.selecionada ? "" : "opacity-50"}`}>
-      <button type="button" className="cursor-grab text-muted-foreground disabled:cursor-default" {...attributes} {...listeners} disabled={readOnly} aria-label="Reordenar">
-        <GripVertical className="size-4" />
-      </button>
+    <div ref={innerRef} style={style ?? { gridTemplateColumns: COLS }} className={`grid items-center gap-2 border-b px-3 py-2 text-sm last:border-0 ${linha.selecionada ? "" : "opacity-50"}`}>
+      {handle}
       <input type="checkbox" checked={linha.selecionada} onChange={() => onToggle(linha.id)} disabled={readOnly} className="size-3.5" />
       <span className="min-w-0">
         <span className="block truncate font-medium">{lc.favorecido ?? lc.descricao}</span>

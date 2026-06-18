@@ -132,7 +132,7 @@ Módulo novo — o diferencial estratégico da spec. Migração **aditiva** apli
 **Decisões tomadas (sinalizo):**
 - Planejamento cobre **despesas previstas** (contas a pagar) — é uma mesa de pagamento.
 - "Executar" = confirmar os lançamentos pelo valor planejado (integra com o caixa/DRE reais), com saldo restante automático nos parciais.
-- **Agrupamentos** (por projeto/cliente/fornecedor/centro) da spec **não** entraram nesta primeira versão — conflitam com o drag-and-drop linear; ficam como evolução. O núcleo (simulação de saldo + prioridade + execução) está completo.
+- **Agrupamentos** ✅ implementados: "Agrupar por" favorecido/projeto/categoria/centro, com grupos recolhíveis e subtotais. O agrupamento é visual (mantém a ordem global); o drag-and-drop de reordenação fica disponível só sem agrupamento (a linha foi refatorada em base apresentacional + wrapper sortable).
 
 **Arquivos:** `src/modules/financeiro/planejamento/{recalculo.ts,recalculo.test.ts,queries.ts,actions.ts}`, `src/components/financeiro/planejamento/{status.ts,planejamento-lista-view.tsx,planejamento-mesa-view.tsx}`, `src/app/(dashboard)/financeiro/planejamento/{page.tsx,[id]/page.tsx}`, atalho em `financeiro/page.tsx`, migração em `prisma/migrations/20260618145138_planejamento_pagamentos/`.
 
