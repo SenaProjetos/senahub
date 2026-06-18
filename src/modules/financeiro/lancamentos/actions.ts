@@ -13,9 +13,9 @@ import {
 } from "@/modules/financeiro/lancamentos/schemas";
 import { z } from "zod";
 import { removerArquivo } from "@/lib/storage";
-import { devePassarPorAprovacao } from "@/lib/aprovacao";
 import { notificarMuitos } from "@/lib/notificar";
-import { limiteAprovacao, aprovadores } from "@/modules/financeiro/aprovacao/queries";
+import { getNiveisAprovacao, aprovadoresPorPapeis } from "@/modules/financeiro/aprovacao/queries";
+import { precisaAprovacao, papeisAprovadores } from "@/modules/financeiro/aprovacao/niveis";
 import { saldoRestante } from "@/modules/financeiro/lancamentos/parcial";
 import { getConfigFinanceiro } from "@/modules/financeiro/config/queries";
 import { obrigatorioFaltando } from "@/modules/financeiro/config/validacao";
@@ -74,9 +74,9 @@ export const criarLancamento = defineAction(
     });
     if (faltando) throw new ActionError(`Campo obrigatório: ${faltando}.`);
 
-    // Alçada (Fase 4): despesa ≥ limite trava em aguardando_aprovacao (ignora "confirmado").
-    const limite = await limiteAprovacao();
-    const precisaAprovar = devePassarPorAprovacao(i.tipo, i.valor, limite);
+    // Alçada por faixa: despesa em faixa que exige aprovação trava em aguardando_aprovacao.
+    const niveis = await getNiveisAprovacao();
+    const precisaAprovar = precisaAprovacao(i.tipo, i.valor, niveis);
     const statusInicial = precisaAprovar
       ? ("aguardando_aprovacao" as const)
       : i.confirmado
@@ -111,7 +111,7 @@ export const criarLancamento = defineAction(
 
     await prisma.lancamento.createMany({ data: registros });
     if (precisaAprovar) {
-      const ids = await aprovadores();
+      const ids = await aprovadoresPorPapeis(papeisAprovadores(i.valor, niveis));
       await notificarMuitos(ids.filter((id) => id !== user.id), {
         titulo: "Despesa aguardando aprovação",
         corpo: `${i.descricao} — ${i.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`,

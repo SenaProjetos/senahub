@@ -81,7 +81,7 @@ Da auditoria/estratégico (exigem migração e/ou decisão de arquitetura — **
 - ~~DRE por projeto avançada~~ — ✅ **implementado** (ver seção 7 abaixo). *Resta: rentabilidade por disciplina/coordenador e evolução da margem no tempo.*
 - ~~Soft delete real de lançamentos~~ — ✅ **implementado** (seção 8).
 - ~~Auditoria valor-anterior × novo~~ — ✅ **implementado** (seção 8).
-- **Multi-nível de alçada** (item 8).
+- ~~Multi-nível de alçada~~ — ✅ **implementado** (seção 10).
 - **Senha para exclusão** e **data de competência** (resto do item 6).
 - **Evolução por categoria** (resto do item 4).
 
@@ -193,3 +193,19 @@ Migração aditiva (`20260618174538_fechamento_mensal`): tabela `fechamento_mens
 **Decisões/limites (sinalizo):** folha bruta = soma de `PagamentoProjetista` liberados no mês (todos os status). Retenções/descontos incidem sobre a folha bruta. "Consolidar disciplinas" detalhado e geração de comprovantes individuais por projetista ficam como evolução (hoje o comprovante é o relatório do fechamento).
 
 **Arquivos:** `src/modules/financeiro/fechamento/{calculo.ts,calculo.test.ts,queries.ts,actions.ts}`, `src/components/financeiro/fechamento/fechamento-view.tsx`, `src/app/(dashboard)/financeiro/fechamento/page.tsx`, alíquotas em `config/{queries,actions}.ts` + `configuracoes-view.tsx`, atalho em `financeiro/page.tsx`, migração `prisma/migrations/20260618174538_fechamento_mensal/`.
+
+---
+
+## 10. Multi-nível de alçada ✅ (sem migração)
+
+**Decisão aprovada:** roteamento por faixa de valor (1 aprovação) — cada faixa define quem aprova.
+
+- Helper puro `niveis.ts` (`faixaPara`/`precisaAprovacao`/`papeisAprovadores`) + 6 testes.
+- Config em `ConfigSistema` (chave `financeiro.niveisAprovacao`): lista de faixas `{ ate, papeis }`. **Fallback**: se não configurado, deriva do limite único legado (preserva o comportamento atual).
+- `criarLancamento`: despesa numa faixa que exige aprovação trava em `aguardando_aprovacao`; notifica os usuários dos **papéis daquela faixa**.
+- `aprovarLancamento`: o papel do aprovador deve cobrir o valor da faixa (admin tem bypass).
+- UI em **Configurações → Níveis de alçada**: faixas dinâmicas (até R$ + papéis ISS-style por checkbox: Administrador/Supervisor/Administrativo); faixa sem papéis = automático.
+
+**Limites:** papéis aprovadores configuráveis restritos a admin/supervisor/administrativo (`PAPEIS_APROVADORES`). Roteamento por faixa (não sequencial/multi-assinatura).
+
+**Arquivos:** `src/modules/financeiro/aprovacao/{niveis.ts,niveis.test.ts,queries.ts,actions.ts}`, `src/modules/financeiro/lancamentos/actions.ts`, `src/components/financeiro/config/configuracoes-view.tsx`, `src/app/(dashboard)/financeiro/configuracoes/page.tsx`.

@@ -3,10 +3,14 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Plus, Trash2 } from "lucide-react";
 import { salvarConfigFinanceiro, salvarAliquotas } from "@/modules/financeiro/config/actions";
+import { salvarNiveisAprovacao } from "@/modules/financeiro/aprovacao/actions";
 import type { ConfigFinanceiro } from "@/modules/financeiro/config/queries";
 import type { CamposObrigatorios } from "@/modules/financeiro/config/validacao";
 import type { Aliquotas } from "@/modules/financeiro/fechamento/calculo";
+import { PAPEIS_APROVADORES, type FaixaAlcada } from "@/modules/financeiro/aprovacao/niveis";
+import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,7 +24,15 @@ const CAMPOS: { key: keyof CamposObrigatorios; label: string; desc: string }[] =
   { key: "observacao", label: "Observação", desc: "Exigir o campo de observação." },
 ];
 
-export function ConfiguracoesView({ config, aliquotas }: { config: ConfigFinanceiro; aliquotas: Aliquotas }) {
+export function ConfiguracoesView({
+  config,
+  aliquotas,
+  niveis,
+}: {
+  config: ConfigFinanceiro;
+  aliquotas: Aliquotas;
+  niveis: FaixaAlcada[];
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [obrig, setObrig] = useState<CamposObrigatorios>(config.obrigatorios);
@@ -73,7 +85,86 @@ export function ConfiguracoesView({ config, aliquotas }: { config: ConfigFinance
       </div>
 
       <AliquotasCard inicial={aliquotas} />
+      <NiveisAlcadaCard inicial={niveis} />
     </div>
+  );
+}
+
+function NiveisAlcadaCard({ inicial }: { inicial: FaixaAlcada[] }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [faixas, setFaixas] = useState<FaixaAlcada[]>(inicial.length > 0 ? inicial : [{ ate: null, papeis: [] }]);
+
+  function setAte(i: number, v: string) {
+    setFaixas((p) => p.map((f, idx) => (idx === i ? { ...f, ate: v === "" ? null : Math.max(0, Number(v) || 0) } : f)));
+  }
+  function togglePapel(i: number, papel: string) {
+    setFaixas((p) =>
+      p.map((f, idx) =>
+        idx === i ? { ...f, papeis: f.papeis.includes(papel) ? f.papeis.filter((x) => x !== papel) : [...f.papeis, papel] } : f,
+      ),
+    );
+  }
+  function adicionar() {
+    setFaixas((p) => [...p, { ate: null, papeis: [] }]);
+  }
+  function remover(i: number) {
+    setFaixas((p) => (p.length > 1 ? p.filter((_, idx) => idx !== i) : p));
+  }
+  function salvar() {
+    start(async () => {
+      const r = await salvarNiveisAprovacao({ niveis: faixas });
+      if (r.ok) {
+        toast.success("Níveis de alçada salvos.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Níveis de alçada (aprovação de despesas)</CardTitle>
+        <CardDescription>
+          Por faixa de valor: defina quem aprova. Faixa sem papéis = aprovação automática. Deixe “até” vazio para “sem teto”.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {faixas.map((f, i) => (
+          <div key={i} className="flex flex-wrap items-center gap-3 rounded-sm border px-3 py-2">
+            <div className="flex items-center gap-1.5">
+              <Label className="text-xs text-muted-foreground">até R$</Label>
+              <Input
+                type="number"
+                min={0}
+                value={f.ate ?? ""}
+                onChange={(e) => setAte(i, e.target.value)}
+                placeholder="sem teto"
+                className="h-8 w-28"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {PAPEIS_APROVADORES.map((papel) => (
+                <label key={papel} className="flex items-center gap-1.5 text-sm">
+                  <input type="checkbox" checked={f.papeis.includes(papel)} onChange={() => togglePapel(i, papel)} className="size-3.5" />
+                  {ROLE_LABELS[papel as Role]}
+                </label>
+              ))}
+            </div>
+            <span className="ml-auto text-xs text-muted-foreground">
+              {f.papeis.length === 0 ? "automático" : "exige aprovação"}
+            </span>
+            <Button variant="ghost" size="icon" aria-label="Remover faixa" onClick={() => remover(i)} disabled={faixas.length <= 1}>
+              <Trash2 className="size-4" />
+            </Button>
+          </div>
+        ))}
+        <div className="flex items-center justify-between">
+          <Button variant="outline" size="sm" onClick={adicionar}><Plus className="size-4" /> Adicionar faixa</Button>
+          <Button onClick={salvar} disabled={pending}>{pending ? "Salvando…" : "Salvar níveis"}</Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
