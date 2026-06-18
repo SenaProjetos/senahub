@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileSpreadsheet, ArrowUp, ArrowDown } from "lucide-react";
 import type { DREComparativo, LinhaDREAnalise } from "@/modules/financeiro/relatorios/dre";
-import type { FatiaCategoria, ResultadoProjeto } from "@/modules/financeiro/relatorios/queries";
+import type { FatiaCategoria, ResultadoProjeto, EvolucaoCategorias } from "@/modules/financeiro/relatorios/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { CategoriaDonutChart } from "@/components/financeiro/categoria-donut-chart";
 import { Button } from "@/components/ui/button";
@@ -27,12 +27,14 @@ export function RelatoriosView({
   despesasCat,
   receitasCat,
   porProjeto,
+  evolucao,
 }: {
   dre: DREComparativo;
   indicadores: { projetosAtivos: number; recebido: number; aReceber: number };
   despesasCat: { fatias: FatiaCategoria[]; total: number };
   receitasCat: { fatias: FatiaCategoria[]; total: number };
   porProjeto: ResultadoProjeto[];
+  evolucao: EvolucaoCategorias;
 }) {
   const router = useRouter();
   const [de, setDe] = useState(dre.de);
@@ -163,8 +165,53 @@ export function RelatoriosView({
           )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Evolução de despesas por categoria — {evolucao.ano}</CardTitle>
+          <CardDescription>Despesas confirmadas por mês (categorias de nível 1).</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {evolucao.categorias.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">Sem despesas confirmadas no ano.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b text-right uppercase tracking-wider text-muted-foreground">
+                    <th className="py-1.5 text-left font-medium">Categoria</th>
+                    {evolucao.meses.map((m) => (
+                      <th key={m} className="px-1.5 py-1.5 font-medium capitalize">{m}</th>
+                    ))}
+                    <th className="px-1.5 py-1.5 font-medium">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {evolucao.categorias.map((c) => (
+                    <tr key={c.nome} className="border-b last:border-0">
+                      <td className="py-1.5 text-left">{c.nome}</td>
+                      {c.valores.map((v, i) => (
+                        <td key={i} className="px-1.5 py-1.5 text-right font-mono text-muted-foreground">
+                          {v ? brlK(v) : "—"}
+                        </td>
+                      ))}
+                      <td className="px-1.5 py-1.5 text-right font-mono font-semibold">{brlK(c.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
+}
+
+function brlK(v: number) {
+  const a = Math.abs(v);
+  if (a >= 1000) return `${(v / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}k`;
+  return v.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
 }
 
 function ahResultadoColuna(dre: DREComparativo): number | null {

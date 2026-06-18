@@ -5,6 +5,7 @@ import {
   indicadores,
   totaisPorCategoria,
   resultadoPorProjeto,
+  evolucaoMensalCategorias,
 } from "@/modules/financeiro/relatorios/queries";
 import { RelatoriosView } from "@/components/financeiro/relatorios/relatorios-view";
 
@@ -25,12 +26,14 @@ export default async function RelatoriosPage({
   await requirePermission("financeiro", "ver");
   const sp = await searchParams;
   const { de, ate } = periodoPadrao(sp);
-  const [dre, ind, despesasCat, receitasCat, porProjeto] = await Promise.all([
+  const ano = ate.getFullYear();
+  const [dre, ind, despesasCat, receitasCat, porProjeto, evolucao] = await Promise.all([
     relatorioDREComparativo(de, ate),
     indicadores(de, ate),
     totaisPorCategoria("despesa", de, ate),
     totaisPorCategoria("receita", de, ate),
     resultadoPorProjeto(de, ate),
+    evolucaoMensalCategorias("despesa", ano),
   ]);
   return (
     <RelatoriosView
@@ -39,6 +42,7 @@ export default async function RelatoriosPage({
       despesasCat={despesasCat}
       receitasCat={receitasCat}
       porProjeto={porProjeto}
+      evolucao={evolucao}
     />
   );
 }

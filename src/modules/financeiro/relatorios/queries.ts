@@ -309,6 +309,55 @@ export async function despesasPorCategoria(de: Date, ate: Date, limite = 6) {
   return totaisPorCategoria("despesa", de, ate, limite);
 }
 
+export type EvolucaoCategorias = {
+  ano: number;
+  meses: string[];
+  categorias: { nome: string; valores: number[]; total: number }[];
+};
+
+/** Evolução mensal (12 meses do ano) por categoria de nível 1, para um tipo. Top N + "Outros". */
+export async function evolucaoMensalCategorias(
+  tipo: "receita" | "despesa",
+  ano: number,
+  limite = 6,
+): Promise<EvolucaoCategorias> {
+  const [lancs, categorias] = await Promise.all([
+    prisma.lancamento.findMany({
+      where: { tipo, status: "confirmado", dataConfirmacao: { gte: new Date(ano, 0, 1), lte: new Date(ano, 11, 31, 23, 59, 59) } },
+      include: { categoria: { select: { codigo: true, nome: true } } },
+    }),
+    prisma.categoriaFinanceira.findMany({ select: { codigo: true, nome: true } }),
+  ]);
+  const nomePorCodigo = new Map(categorias.map((c) => [c.codigo, c.nome]));
+
+  const mapa = new Map<string, number[]>();
+  for (const l of lancs) {
+    if (!l.dataConfirmacao) continue;
+    const topo = l.categoria.codigo.split(".")[0];
+    const nome = nomePorCodigo.get(topo) ?? l.categoria.nome;
+    const arr = mapa.get(nome) ?? new Array<number>(12).fill(0);
+    arr[l.dataConfirmacao.getMonth()] += Number(l.valorEfetivo ?? l.valor);
+    mapa.set(nome, arr);
+  }
+
+  const linhas = [...mapa.entries()]
+    .map(([nome, valores]) => ({ nome, valores, total: valores.reduce((s, v) => s + v, 0) }))
+    .sort((a, b) => b.total - a.total);
+
+  const principais = linhas.slice(0, limite);
+  const resto = linhas.slice(limite);
+  if (resto.length > 0) {
+    const valores = new Array<number>(12).fill(0);
+    for (const r of resto) r.valores.forEach((v, i) => (valores[i] += v));
+    principais.push({ nome: "Outros", valores, total: valores.reduce((s, v) => s + v, 0) });
+  }
+
+  const meses = Array.from({ length: 12 }, (_, i) =>
+    new Date(ano, i, 1).toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""),
+  );
+  return { ano, meses, categorias: principais };
+}
+
 export type ResultadoProjeto = {
   projetoId: string;
   codigo: string;
