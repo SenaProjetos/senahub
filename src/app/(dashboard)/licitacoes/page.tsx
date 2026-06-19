@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { listarLicitacoesResumo } from "@/modules/licitacoes/queries";
+import { obterDashboardLicitacoes } from "@/modules/licitacoes/dashboard/queries";
 import { LicitacoesView } from "@/components/licitacoes/licitacoes-view";
+import { DashboardLicitacoes } from "@/components/licitacoes/dashboard";
 
 export const metadata: Metadata = { title: "Licitações" };
 
@@ -27,16 +29,22 @@ export default async function LicitacoesPage({
     page: sp.page ? Number(sp.page) : 1,
     pageSize: sp.pageSize ? Number(sp.pageSize) : undefined,
   };
-  const data = await listarLicitacoesResumo(filtro);
+  const [data, dash] = await Promise.all([
+    listarLicitacoesResumo(filtro),
+    obterDashboardLicitacoes(),
+  ]);
   return (
-    <LicitacoesView
-      podeGerir={podeGerir}
-      licitacoes={data.rows}
-      total={data.total}
-      page={data.page}
-      pages={data.pages}
-      pageSize={data.pageSize}
-      filtro={{ status: filtro.status, orgao: filtro.orgao, q: filtro.q }}
-    />
+    <div className="space-y-5">
+      <DashboardLicitacoes data={dash} />
+      <LicitacoesView
+        podeGerir={podeGerir}
+        licitacoes={data.rows}
+        total={data.total}
+        page={data.page}
+        pages={data.pages}
+        pageSize={data.pageSize}
+        filtro={{ status: filtro.status, orgao: filtro.orgao, q: filtro.q }}
+      />
+    </div>
   );
 }
