@@ -4,6 +4,8 @@ import { can } from "@/lib/permissions";
 import { listarClientes } from "@/modules/clientes/queries";
 import { nomesModalidadesAtivas } from "@/modules/licitacoes/modalidades/queries";
 import { listarLicitacoes } from "@/modules/licitacoes/queries";
+import { listarChecklistModelos } from "@/modules/licitacoes/habilitacao/queries";
+import { prisma } from "@/lib/prisma";
 import { LicitacoesView } from "@/components/licitacoes/licitacoes-view";
 
 export const metadata: Metadata = { title: "Licitações" };
@@ -31,10 +33,12 @@ export default async function LicitacoesPage({
     pageSize: sp.pageSize ? Number(sp.pageSize) : undefined,
   };
 
-  const [data, clientes, modalidades] = await Promise.all([
+  const [data, clientes, modalidades, modelos, certidoes] = await Promise.all([
     listarLicitacoes(filtro),
     listarClientes({ incluirInativos: false }),
     nomesModalidadesAtivas(),
+    listarChecklistModelos(false),
+    prisma.certidao.findMany({ include: { tipo: true }, orderBy: { validade: "desc" } }),
   ]);
 
   return (
@@ -48,6 +52,12 @@ export default async function LicitacoesPage({
       pages={data.pages}
       pageSize={data.pageSize}
       filtro={{ status: filtro.status, orgao: filtro.orgao, q: filtro.q }}
+      modelosHabilitacao={modelos.map((m) => ({ id: m.id, nome: m.nome }))}
+      certidoes={certidoes.map((c) => ({
+        id: c.id,
+        nome: c.descricao ? `${c.tipo.nome} — ${c.descricao}` : c.tipo.nome,
+        validade: c.validade.toISOString().slice(0, 10),
+      }))}
     />
   );
 }

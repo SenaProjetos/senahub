@@ -27,6 +27,8 @@ import {
   removerAditivoContrato,
 } from "@/modules/licitacoes/contrato/actions";
 import { salvarMatrizRisco } from "@/modules/licitacoes/contrato/matriz-actions";
+import { semearHabilitacao, salvarHabilitacao } from "@/modules/licitacoes/habilitacao/actions";
+import { itemAtendido } from "@/modules/licitacoes/habilitacao/habilitacao";
 import { registrarReajuste, aplicarReajuste, removerReajuste } from "@/modules/licitacoes/contrato/reajuste-actions";
 import {
   saldoContratual,
@@ -49,6 +51,7 @@ import {
 } from "@/modules/licitacoes/eventos/eventos";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -97,6 +100,7 @@ type Lic = {
     riscos: { id: string; evento: string; probabilidade: string; impacto: string; alocacao: string; mitigacao: string | null; ordem: number }[];
     reajustes: { id: string; indice: string; percentual: number; dataBase: string | null; aniversario: string; valorAnterior: number; valorReajustado: number; aplicado: boolean; aplicadoEm: string | null }[];
   } | null;
+  habilitacao: { id: string; exigencia: string; certidaoId: string | null; certidaoNome: string | null; certidaoValidade: string | null; atendido: boolean; obrigatorio: boolean; observacao: string | null; ordem: number }[];
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -130,6 +134,8 @@ export function LicitacoesView({
   pages,
   pageSize,
   filtro,
+  modelosHabilitacao,
+  certidoes,
 }: {
   licitacoes: Lic[];
   clientes: { id: string; nome: string }[];
@@ -140,6 +146,8 @@ export function LicitacoesView({
   pages: number;
   pageSize: number;
   filtro: Filtro;
+  modelosHabilitacao: { id: string; nome: string }[];
+  certidoes: { id: string; nome: string; validade: string }[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -279,7 +287,7 @@ export function LicitacoesView({
 
       <div className="space-y-3">
         {licitacoes.map((l) => (
-          <LicCard key={l.id} lic={l} clientes={clientes} modalidades={modalidades} podeGerir={podeGerir} />
+          <LicCard key={l.id} lic={l} clientes={clientes} modalidades={modalidades} podeGerir={podeGerir} modelosHabilitacao={modelosHabilitacao} certidoes={certidoes} />
         ))}
         {licitacoes.length === 0 && (
           <Card>
@@ -372,11 +380,15 @@ function LicCard({
   clientes,
   modalidades,
   podeGerir,
+  modelosHabilitacao,
+  certidoes,
 }: {
   lic: Lic;
   clientes: { id: string; nome: string }[];
   modalidades: string[];
   podeGerir: boolean;
+  modelosHabilitacao: { id: string; nome: string }[];
+  certidoes: { id: string; nome: string; validade: string }[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -701,6 +713,10 @@ function LicCard({
         <LicContrato lic={lic} podeGerir={podeGerir} />
         <LicMatrizRisco lic={lic} podeGerir={podeGerir} />
         <LicReajuste lic={lic} podeGerir={podeGerir} />
+        <div className="rounded-sm border border-dashed p-2.5">
+          <p className="mb-1.5 text-xs font-semibold text-muted-foreground">Habilitação</p>
+          <LicHabilitacao lic={lic} podeGerir={podeGerir} modelos={modelosHabilitacao} certidoes={certidoes} />
+        </div>
         <LicExtras lic={lic} podeGerir={podeGerir} />
       </CardContent>
 
@@ -775,6 +791,244 @@ function LicCard({
         </DialogContent>
       </Dialog>
     </Card>
+  );
+}
+
+function LicHabilitacao({
+  lic,
+  podeGerir,
+  modelos,
+  certidoes,
+}: {
+  lic: Lic;
+  podeGerir: boolean;
+  modelos: { id: string; nome: string }[];
+  certidoes: { id: string; nome: string; validade: string }[];
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+
+  const sessao = lic.eventos.find((e) => e.tipo === "sessao");
+  const refISO = sessao?.data ?? new Date().toISOString().slice(0, 10);
+
+  type LinhaHab = { exigencia: string; certidaoId: string; atendido: boolean; obrigatorio: boolean; observacao: string };
+  const [itens, setItens] = useState<LinhaHab[]>(
+    lic.habilitacao.map((h) => ({
+      exigencia: h.exigencia,
+      certidaoId: h.certidaoId ?? "",
+      atendido: h.atendido,
+      obrigatorio: h.obrigatorio,
+      observacao: h.observacao ?? "",
+    })),
+  );
+  const [modeloId, setModeloId] = useState<string>(modelos[0]?.id ?? "");
+
+  const atendidos = lic.habilitacao.filter((h) =>
+    itemAtendido({ atendido: h.atendido, certidaoValidadeISO: h.certidaoValidade }, refISO),
+  ).length;
+  const total = lic.habilitacao.length;
+  const obrigatoriosPendentes = lic.habilitacao.filter(
+    (h) => h.obrigatorio && !itemAtendido({ atendido: h.atendido, certidaoValidadeISO: h.certidaoValidade }, refISO),
+  ).length;
+
+  function semear() {
+    if (!modeloId) return;
+    start(async () => {
+      const r = await semearHabilitacao({ licitacaoId: lic.id, modeloId });
+      if (r.ok) {
+        toast.success("Checklist semeado.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  function salvar() {
+    const limpos = itens
+      .map((l) => ({
+        exigencia: l.exigencia.trim(),
+        certidaoId: l.certidaoId,
+        atendido: l.atendido,
+        obrigatorio: l.obrigatorio,
+        observacao: l.observacao,
+      }))
+      .filter((l) => l.exigencia.length > 0);
+    start(async () => {
+      const r = await salvarHabilitacao({ licitacaoId: lic.id, itens: limpos });
+      if (r.ok) {
+        toast.success("Checklist salvo.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  // Somente leitura
+  if (!podeGerir) {
+    if (lic.habilitacao.length === 0) {
+      return <p className="text-xs text-muted-foreground">Sem checklist.</p>;
+    }
+    return (
+      <ul className="space-y-0.5">
+        {lic.habilitacao.map((h) => {
+          const ok = itemAtendido({ atendido: h.atendido, certidaoValidadeISO: h.certidaoValidade }, refISO);
+          return (
+            <li key={h.id} className="flex flex-wrap items-center gap-1.5 text-xs">
+              <span className={h.obrigatorio && !ok ? "font-medium text-destructive" : "text-foreground"}>
+                {h.exigencia}
+              </span>
+              {h.certidaoNome && (
+                <span className="text-muted-foreground">
+                  {h.certidaoNome}
+                  {h.certidaoValidade && ` · val. ${new Date(h.certidaoValidade + "T00:00:00").toLocaleDateString("pt-BR")}`}
+                </span>
+              )}
+              <Badge
+                variant="outline"
+                className={ok ? "text-[10px] py-0 text-success border-success/40" : "text-[10px] py-0 text-destructive border-destructive/40"}
+              >
+                {ok ? "ok" : "pendente"}
+              </Badge>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
+
+  // Editor
+  return (
+    <div className="space-y-1.5">
+      {/* Resumo */}
+      {total > 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span>{atendidos}/{total} atendidos</span>
+          {obrigatoriosPendentes > 0 && (
+            <Badge variant="outline" className="text-[10px] py-0 text-destructive border-destructive/40">
+              {obrigatoriosPendentes} obrigatório(s) pendente(s)
+            </Badge>
+          )}
+        </div>
+      )}
+
+      {/* Semear */}
+      {modelos.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Select
+            value={modeloId || modelos[0]?.id}
+            onValueChange={(v) => { if (v) setModeloId(v); }}
+          >
+            <SelectTrigger className="h-7 w-52 text-xs">
+              <SelectValue placeholder="Modelo…" />
+            </SelectTrigger>
+            <SelectContent>
+              {modelos.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" className="h-7" onClick={semear} disabled={pending || !modeloId}>
+            Semear
+          </Button>
+        </div>
+      )}
+
+      {/* Linhas do checklist */}
+      {itens.length > 0 && (
+        <ul className="space-y-1">
+          {itens.map((l, i) => (
+            <li key={i} className="flex flex-wrap items-center gap-1.5">
+              <Input
+                className="h-7 flex-1 text-xs"
+                placeholder="Exigência"
+                value={l.exigencia}
+                onChange={(e) => {
+                  const next = [...itens];
+                  next[i] = { ...next[i], exigencia: e.target.value };
+                  setItens(next);
+                }}
+              />
+              <Select
+                value={l.certidaoId || "__none__"}
+                onValueChange={(v) => {
+                  const next = [...itens];
+                  next[i] = { ...next[i], certidaoId: v === "__none__" ? "" : (v ?? "") };
+                  setItens(next);
+                }}
+              >
+                <SelectTrigger className="h-7 w-52 text-xs">
+                  <SelectValue placeholder="Certidão…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Nenhuma</SelectItem>
+                  {certidoes.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nome} · {new Date(c.validade + "T00:00:00").toLocaleDateString("pt-BR")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Checkbox
+                  checked={l.atendido as boolean}
+                  onCheckedChange={(v) => {
+                    const next = [...itens];
+                    next[i] = { ...next[i], atendido: v as boolean };
+                    setItens(next);
+                  }}
+                />
+                Atendido
+              </label>
+              <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Checkbox
+                  checked={l.obrigatorio as boolean}
+                  onCheckedChange={(v) => {
+                    const next = [...itens];
+                    next[i] = { ...next[i], obrigatorio: v as boolean };
+                    setItens(next);
+                  }}
+                />
+                Obrigatório
+              </label>
+              <Input
+                className="h-7 w-32 text-xs"
+                placeholder="Observação"
+                value={l.observacao}
+                onChange={(e) => {
+                  const next = [...itens];
+                  next[i] = { ...next[i], observacao: e.target.value };
+                  setItens(next);
+                }}
+              />
+              <button
+                type="button"
+                aria-label="Remover item"
+                disabled={pending}
+                onClick={() => setItens(itens.filter((_, j) => j !== i))}
+                className="text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 className="size-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Ações */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7"
+          onClick={() => setItens([...itens, { exigencia: "", certidaoId: "", atendido: false, obrigatorio: true, observacao: "" }])}
+        >
+          <Plus className="size-3" /> Item
+        </Button>
+        <Button size="sm" variant="outline" className="h-7" onClick={salvar} disabled={pending}>
+          Salvar checklist
+        </Button>
+      </div>
+    </div>
   );
 }
 
