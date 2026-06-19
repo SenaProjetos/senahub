@@ -48,6 +48,9 @@ export function LicitacoesConfigView({ config }: { config: ConfigLicitacoes }) {
     config.reajuste.modo,
   );
   const [indices, setIndices] = useState(config.reajuste.indices.join(", "));
+  const [percentualPadraoReajuste, setPercentualPadraoReajuste] = useState(
+    String(config.reajuste.percentualPadrao),
+  );
   const [datasChaveAlertas, setDatasChaveAlertas] = useState(
     config.datasChave.alertaDiasPadrao.join(", "),
   );
@@ -61,7 +64,11 @@ export function LicitacoesConfigView({ config }: { config: ConfigLicitacoes }) {
           fatorAviso: parseFloat(fatorAviso) || 0,
         },
         pncp: { modo: modoPncp },
-        reajuste: { modo: modoReajuste, indices: parseIndices(indices) },
+        reajuste: {
+          modo: modoReajuste,
+          indices: parseIndices(indices),
+          percentualPadrao: Number(percentualPadraoReajuste) || 0,
+        },
         datasChave: { alertaDiasPadrao: parseDiasAlerta(datasChaveAlertas) },
       });
       if (r.ok) {
@@ -207,6 +214,22 @@ export function LicitacoesConfigView({ config }: { config: ConfigLicitacoes }) {
               onChange={(e) => setIndices(e.target.value)}
               placeholder="Ex.: IPCA, INCC, IGP-M"
               className="max-w-sm"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">% padrão de reajuste (modo automático)</label>
+            <p className="text-xs text-muted-foreground">
+              Usado quando o reajuste está em modo automático para sugerir o reajuste no
+              aniversário.
+            </p>
+            <Input
+              type="number"
+              min={0}
+              step={0.01}
+              value={percentualPadraoReajuste}
+              onChange={(e) => setPercentualPadraoReajuste(e.target.value)}
+              placeholder="Ex.: 5.5"
+              className="max-w-xs"
             />
           </div>
         </CardContent>

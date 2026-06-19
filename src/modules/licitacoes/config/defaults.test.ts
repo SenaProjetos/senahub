@@ -59,4 +59,23 @@ describe("parseConfigLicitacoes", () => {
     const result = parseConfigLicitacoes({ reajuste: { indices: ["IPCA", 2, null] } });
     expect(result.reajuste.indices).toEqual(["IPCA"]);
   });
+
+  // Caso 9 (4.2): undefined → percentualPadrao === 0
+  it("undefined → reajuste.percentualPadrao === 0", () => {
+    expect(parseConfigLicitacoes(undefined).reajuste.percentualPadrao).toBe(0);
+  });
+
+  // Caso 10 (4.2): percentualPadrao 8.5 é preservado; outros campos ficam no default
+  it("reajuste.percentualPadrao 8.5 aceito; modo e indices ficam no default", () => {
+    const result = parseConfigLicitacoes({ reajuste: { percentualPadrao: 8.5 } });
+    expect(result.reajuste.percentualPadrao).toBe(8.5);
+    expect(result.reajuste.modo).toBe("manual");
+    expect(result.reajuste.indices).toEqual(["IPCA", "INCC", "IGP-M"]);
+  });
+
+  // Caso 11 (4.2): percentualPadrao inválido (string) → 0
+  it("reajuste.percentualPadrao string cai no default 0", () => {
+    const result = parseConfigLicitacoes({ reajuste: { percentualPadrao: "x" } });
+    expect(result.reajuste.percentualPadrao).toBe(0);
+  });
 });

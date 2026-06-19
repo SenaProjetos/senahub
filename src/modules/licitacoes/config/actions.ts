@@ -27,6 +27,7 @@ const schema = z.object({
     .object({
       modo: z.enum(["manual", "automatico"]).optional(),
       indices: z.array(z.string()).optional(),
+      percentualPadrao: z.number().optional(),
     })
     .optional(),
   datasChave: z

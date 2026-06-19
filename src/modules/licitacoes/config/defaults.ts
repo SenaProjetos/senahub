@@ -8,7 +8,7 @@ export type ConfigLicitacoes = {
   recurso: { alertaDiasPadrao: number[] };
   aditivo: { limiteAcrescimoPctPadrao: number; fatorAviso: number };
   pncp: { modo: ModoPncp };
-  reajuste: { modo: ModoReajuste; indices: string[] };
+  reajuste: { modo: ModoReajuste; indices: string[]; percentualPadrao: number };
   datasChave: { alertaDiasPadrao: number[] };
 };
 
@@ -18,7 +18,7 @@ export const CONFIG_LICITACOES_PADRAO: ConfigLicitacoes = {
   recurso: { alertaDiasPadrao: [3, 1] },
   aditivo: { limiteAcrescimoPctPadrao: 25, fatorAviso: 0.8 },
   pncp: { modo: "manual" },
-  reajuste: { modo: "manual", indices: ["IPCA", "INCC", "IGP-M"] },
+  reajuste: { modo: "manual", indices: ["IPCA", "INCC", "IGP-M"], percentualPadrao: 0 },
   datasChave: { alertaDiasPadrao: [15, 7, 1] },
 };
 
@@ -75,6 +75,7 @@ export function parseConfigLicitacoes(valor: unknown): ConfigLicitacoes {
   const reajusteRaw = v.reajuste;
   let modoReajuste: ModoReajuste = padrao.reajuste.modo;
   let indicesReajuste = [...padrao.reajuste.indices];
+  let percentualPadraoReajuste = padrao.reajuste.percentualPadrao;
   if (typeof reajusteRaw === "object" && reajusteRaw !== null && !Array.isArray(reajusteRaw)) {
     const rj = reajusteRaw as Record<string, unknown>;
     if (rj.modo === "manual" || rj.modo === "automatico") {
@@ -84,6 +85,9 @@ export function parseConfigLicitacoes(valor: unknown): ConfigLicitacoes {
     if (Array.isArray(arr)) {
       const filtered = (arr as unknown[]).filter((x): x is string => typeof x === "string");
       indicesReajuste = filtered;
+    }
+    if (typeof rj.percentualPadrao === "number" && Number.isFinite(rj.percentualPadrao)) {
+      percentualPadraoReajuste = rj.percentualPadrao;
     }
   }
 
@@ -103,7 +107,7 @@ export function parseConfigLicitacoes(valor: unknown): ConfigLicitacoes {
     recurso: { alertaDiasPadrao: recursoAlertas },
     aditivo: { limiteAcrescimoPctPadrao: limiteAcrescimo, fatorAviso },
     pncp: { modo: modoPncp },
-    reajuste: { modo: modoReajuste, indices: indicesReajuste },
+    reajuste: { modo: modoReajuste, indices: indicesReajuste, percentualPadrao: percentualPadraoReajuste },
     datasChave: { alertaDiasPadrao: datasChaveAlertas },
   };
 }
