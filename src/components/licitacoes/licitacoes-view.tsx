@@ -26,6 +26,8 @@ import {
   adicionarAditivoContrato,
   removerAditivoContrato,
 } from "@/modules/licitacoes/contrato/actions";
+import { salvarMatrizRisco } from "@/modules/licitacoes/contrato/matriz-actions";
+import { registrarReajuste, aplicarReajuste, removerReajuste } from "@/modules/licitacoes/contrato/reajuste-actions";
 import {
   saldoContratual,
   somaDeltas,
@@ -91,6 +93,8 @@ type Lic = {
     reajuste: string | null; garantiaTipo: string | null; garantiaValor: number | null; garantiaValidade: string | null;
     limiteAcrescimoPct: number | null;
     aditivos: { id: string; tipo: string; valorDelta: number | null; novaVigencia: string | null; justificativa: string | null; data: string }[];
+    riscos: { id: string; evento: string; probabilidade: string; impacto: string; alocacao: string; mitigacao: string | null; ordem: number }[];
+    reajustes: { id: string; indice: string; percentual: number; dataBase: string | null; aniversario: string; valorAnterior: number; valorReajustado: number; aplicado: boolean; aplicadoEm: string | null }[];
   } | null;
 };
 
@@ -694,6 +698,8 @@ function LicCard({
         <LicEventos lic={lic} podeGerir={podeGerir} />
         <LicComposicao lic={lic} podeGerir={podeGerir} />
         <LicContrato lic={lic} podeGerir={podeGerir} />
+        <LicMatrizRisco lic={lic} podeGerir={podeGerir} />
+        <LicReajuste lic={lic} podeGerir={podeGerir} />
         <LicExtras lic={lic} podeGerir={podeGerir} />
       </CardContent>
 
@@ -768,6 +774,239 @@ function LicCard({
         </DialogContent>
       </Dialog>
     </Card>
+  );
+}
+
+function LicMatrizRisco({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+
+  type LinhaRisco = { evento: string; probabilidade: string; impacto: string; alocacao: string; mitigacao: string };
+  const [itens, setItens] = useState<LinhaRisco[]>(
+    lic.contrato?.riscos.map((r) => ({ evento: r.evento, probabilidade: r.probabilidade, impacto: r.impacto, alocacao: r.alocacao, mitigacao: r.mitigacao ?? "" })) ?? [],
+  );
+
+  function salvar() {
+    const limpos = itens.map((l) => ({ evento: l.evento.trim(), probabilidade: l.probabilidade, impacto: l.impacto, alocacao: l.alocacao, mitigacao: l.mitigacao })).filter((l) => l.evento.length > 0);
+    start(async () => {
+      const r = await salvarMatrizRisco({ licitacaoId: lic.id, itens: limpos as never });
+      if (r.ok) { toast.success("Matriz de risco salva."); router.refresh(); } else toast.error(r.error);
+    });
+  }
+
+  return (
+    <div className="space-y-1.5 rounded-sm border border-dashed p-2.5">
+      <span className="text-xs font-semibold text-muted-foreground">Matriz de risco</span>
+
+      {!lic.contrato ? (
+        <p className="text-xs text-muted-foreground">Cadastre o contrato para registrar a matriz de risco.</p>
+      ) : !podeGerir ? (
+        lic.contrato.riscos.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Sem riscos registrados.</p>
+        ) : (
+          <ul className="space-y-0.5">
+            {lic.contrato.riscos.map((r) => (
+              <li key={r.id} className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">{r.evento}</span>
+                {" — "}prob. {r.probabilidade} / impacto {r.impacto}, alocação: {r.alocacao}
+                {r.mitigacao && <span className="italic"> · {r.mitigacao}</span>}
+              </li>
+            ))}
+          </ul>
+        )
+      ) : (
+        <>
+          {itens.length > 0 && (
+            <ul className="space-y-1">
+              {itens.map((l, i) => (
+                <li key={i} className="flex flex-wrap items-center gap-1.5">
+                  <Input
+                    className="h-7 flex-1 text-xs"
+                    placeholder="Evento"
+                    value={l.evento}
+                    onChange={(e) => { const next = [...itens]; next[i] = { ...next[i], evento: e.target.value }; setItens(next); }}
+                  />
+                  <Select value={l.probabilidade} onValueChange={(v) => { if (!v) return; const next = [...itens]; next[i] = { ...next[i], probabilidade: v }; setItens(next); }}>
+                    <SelectTrigger className="h-7 w-24 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="baixa">Baixa</SelectItem>
+                      <SelectItem value="media">Média</SelectItem>
+                      <SelectItem value="alta">Alta</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={l.impacto} onValueChange={(v) => { if (!v) return; const next = [...itens]; next[i] = { ...next[i], impacto: v }; setItens(next); }}>
+                    <SelectTrigger className="h-7 w-24 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="baixo">Baixo</SelectItem>
+                      <SelectItem value="medio">Médio</SelectItem>
+                      <SelectItem value="alto">Alto</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={l.alocacao} onValueChange={(v) => { if (!v) return; const next = [...itens]; next[i] = { ...next[i], alocacao: v }; setItens(next); }}>
+                    <SelectTrigger className="h-7 w-32 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="contratante">Contratante</SelectItem>
+                      <SelectItem value="contratado">Contratado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    className="h-7 w-40 text-xs"
+                    placeholder="Mitigação"
+                    value={l.mitigacao}
+                    onChange={(e) => { const next = [...itens]; next[i] = { ...next[i], mitigacao: e.target.value }; setItens(next); }}
+                  />
+                  <button
+                    type="button"
+                    aria-label="Remover risco"
+                    disabled={pending}
+                    onClick={() => setItens(itens.filter((_, j) => j !== i))}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="size-3" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7"
+              onClick={() => setItens([...itens, { evento: "", probabilidade: "media", impacto: "medio", alocacao: "contratado", mitigacao: "" }])}
+            >
+              <Plus className="size-3" /> Risco
+            </Button>
+            <Button size="sm" variant="outline" className="h-7" onClick={salvar} disabled={pending}>
+              Salvar matriz
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function LicReajuste({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+
+  const [indice, setIndice] = useState("");
+  const [percentual, setPercentual] = useState("");
+  const [dataBase, setDataBase] = useState("");
+  const [aniversario, setAniversario] = useState(new Date().toISOString().slice(0, 10));
+
+  function add() {
+    if (!indice.trim()) { toast.error("Informe o índice."); return; }
+    const pct = Number(percentual);
+    if (!Number.isFinite(pct)) { toast.error("Percentual inválido."); return; }
+    if (!aniversario) { toast.error("Informe o aniversário."); return; }
+    start(async () => {
+      const r = await registrarReajuste({ licitacaoId: lic.id, indice, percentual: pct, dataBase, aniversario });
+      if (r.ok) {
+        toast.success("Reajuste registrado e aplicado.");
+        setIndice("");
+        setPercentual("");
+        setDataBase("");
+        setAniversario(new Date().toISOString().slice(0, 10));
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  function aplicar(id: string) {
+    start(async () => {
+      const r = await aplicarReajuste({ id });
+      if (r.ok) { toast.success("Reajuste aplicado."); router.refresh(); } else toast.error(r.error);
+    });
+  }
+
+  function remover(id: string) {
+    start(async () => {
+      const r = await removerReajuste({ id });
+      if (r.ok) router.refresh(); else toast.error(r.error);
+    });
+  }
+
+  return (
+    <div className="space-y-1.5 rounded-sm border border-dashed p-2.5">
+      <span className="text-xs font-semibold text-muted-foreground">Reajustes</span>
+
+      {!lic.contrato ? (
+        <p className="text-xs text-muted-foreground">Cadastre o contrato para registrar reajustes.</p>
+      ) : (
+        <>
+          {lic.contrato.reajustes.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Sem reajustes registrados.</p>
+          ) : (
+            <ul className="space-y-1">
+              {lic.contrato.reajustes.map((r) => (
+                <li key={r.id} className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">{r.indice}</span>
+                  <span className="font-mono">{r.percentual > 0 ? "+" : ""}{r.percentual}%</span>
+                  <span>{brl(r.valorAnterior)} → {brl(r.valorReajustado)}</span>
+                  <span>{new Date(r.aniversario + "T00:00:00").toLocaleDateString("pt-BR")}</span>
+                  {r.aplicado ? (
+                    <Badge variant="outline" className="text-[10px] py-0 text-muted-foreground">
+                      aplicado{r.aplicadoEm ? ` em ${new Date(r.aplicadoEm).toLocaleDateString("pt-BR")}` : ""}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] py-0 text-warning border-warning/40">
+                      pendente
+                    </Badge>
+                  )}
+                  {podeGerir && !r.aplicado && (
+                    <>
+                      <button
+                        type="button"
+                        aria-label="Aplicar reajuste"
+                        disabled={pending}
+                        onClick={() => aplicar(r.id)}
+                        className="text-muted-foreground hover:text-success"
+                      >
+                        <Check className="size-3" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Remover reajuste"
+                        disabled={pending}
+                        onClick={() => remover(r.id)}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="size-3" />
+                      </button>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {podeGerir && (
+            <>
+              <p className="text-[10px] text-muted-foreground italic">
+                Registrar aqui aplica o reajuste imediatamente (atualiza o valor do contrato). Reajustes pendentes vêm do modo automático.
+              </p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Input className="h-7 w-28 text-xs" placeholder="Índice (ex.: INPC)" value={indice} onChange={(e) => setIndice(e.target.value)} />
+                <Input type="number" step="0.01" className="h-7 w-24 text-xs" placeholder="Percentual" value={percentual} onChange={(e) => setPercentual(e.target.value)} />
+                <Input type="date" className="h-7 w-36 text-xs" value={dataBase} onChange={(e) => setDataBase(e.target.value)} />
+                <Input type="date" className="h-7 w-36 text-xs" value={aniversario} onChange={(e) => setAniversario(e.target.value)} />
+                <Button size="sm" variant="outline" className="h-7" onClick={add} disabled={pending || !indice.trim() || !aniversario}>
+                  <Plus className="size-3" /> Reajuste
+                </Button>
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
