@@ -40,6 +40,7 @@ export type LicitacaoListItem = {
     limiteAcrescimoPct: number | null;
     aditivos: { id: string; tipo: string; valorDelta: number | null; novaVigencia: string | null; justificativa: string | null; data: string }[];
     riscos: { id: string; evento: string; probabilidade: string; impacto: string; alocacao: string; mitigacao: string | null; ordem: number }[];
+    reajustes: { id: string; indice: string; percentual: number; dataBase: string | null; aniversario: string; valorAnterior: number; valorReajustado: number; aplicado: boolean; aplicadoEm: string | null }[];
   } | null;
 };
 
@@ -80,7 +81,7 @@ export async function listarLicitacoes(filtro: LicitacaoFiltro = {}) {
         valoresDisciplina: { orderBy: { disciplina: "asc" } },
         eventos: { orderBy: { data: "asc" } },
         composicao: { include: { itens: { orderBy: { ordem: "asc" } } } },
-        contrato: { include: { aditivos: { orderBy: { data: "asc" } }, riscos: { orderBy: { ordem: "asc" } } } },
+        contrato: { include: { aditivos: { orderBy: { data: "asc" } }, riscos: { orderBy: { ordem: "asc" } }, reajustes: { orderBy: { aniversario: "asc" } } } },
       },
     }),
     prisma.licitacao.count({ where }),
@@ -153,6 +154,7 @@ export async function listarLicitacoes(filtro: LicitacaoFiltro = {}) {
       limiteAcrescimoPct: l.contrato.limiteAcrescimoPct != null ? Number(l.contrato.limiteAcrescimoPct) : null,
       aditivos: l.contrato.aditivos.map((a) => ({ id: a.id, tipo: a.tipo, valorDelta: a.valorDelta != null ? Number(a.valorDelta) : null, novaVigencia: a.novaVigencia ? a.novaVigencia.toISOString().slice(0, 10) : null, justificativa: a.justificativa, data: a.data.toISOString().slice(0, 10) })),
       riscos: l.contrato.riscos.map((r) => ({ id: r.id, evento: r.evento, probabilidade: r.probabilidade, impacto: r.impacto, alocacao: r.alocacao, mitigacao: r.mitigacao, ordem: r.ordem })),
+      reajustes: l.contrato.reajustes.map((r) => ({ id: r.id, indice: r.indice, percentual: Number(r.percentual), dataBase: r.dataBase ? r.dataBase.toISOString().slice(0, 10) : null, aniversario: r.aniversario.toISOString().slice(0, 10), valorAnterior: Number(r.valorAnterior), valorReajustado: Number(r.valorReajustado), aplicado: r.aplicadoEm != null, aplicadoEm: r.aplicadoEm ? r.aplicadoEm.toISOString() : null })),
     } : null,
   }));
 

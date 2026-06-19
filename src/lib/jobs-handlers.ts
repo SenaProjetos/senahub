@@ -10,6 +10,7 @@ import { getConfigLicitacoes } from "@/modules/licitacoes/config/queries";
 import { ehRecurso, TIPO_EVENTO_LABEL, type TipoEventoLicitacao } from "@/modules/licitacoes/eventos/eventos";
 import { eventosParaNotificar } from "@/modules/licitacoes/eventos/alertas";
 import { acrescimoAcumuladoPct, somaAcrescimos, proximoDoLimite } from "@/modules/licitacoes/contrato/saldo";
+import { ehAniversarioReajuste, valorReajustado } from "@/modules/licitacoes/contrato/reajuste";
 
 /** Rotinas das automações (chamadas pelos jobs do pg-boss em lib/jobs.ts). */
 
@@ -302,6 +303,58 @@ export async function alertaLimiteAditivo(): Promise<number> {
       href: "/licitacoes",
       tag: `aditivo-limite-${c.id}-${Math.floor(pct)}`,
     });
+    n++;
+  }
+  return n;
+}
+
+/** Aniversário de reajuste do contrato (anual, por vigenciaInicio). Manual → notifica; automático → cria reajuste pendente sugerido. */
+export async function alertaReajusteContrato(): Promise<number> {
+  const cfg = await getConfigLicitacoes();
+  const hoje0 = new Date();
+  hoje0.setHours(0, 0, 0, 0);
+  const hojeISO = hoje0.toISOString().slice(0, 10);
+  const contratos = await prisma.contratoLicitacao.findMany({
+    where: { vigenciaInicio: { not: null } },
+    include: { licitacao: { select: { id: true, titulo: true } }, reajustes: { select: { aniversario: true } } },
+  });
+  const ids = await gestores(["admin", "administrativo"]);
+  let n = 0;
+  for (const c of contratos) {
+    if (!c.vigenciaInicio) continue;
+    const inicioISO = c.vigenciaInicio.toISOString().slice(0, 10);
+    if (!ehAniversarioReajuste(inicioISO, hojeISO)) continue;
+    const jaTem = c.reajustes.some((r) => r.aniversario.toISOString().slice(0, 10) === hojeISO);
+    if (jaTem) continue;
+    if (cfg.reajuste.modo === "automatico") {
+      const valorAnterior = Number(c.valorHomologado);
+      const pct = cfg.reajuste.percentualPadrao;
+      await prisma.reajusteContrato.create({
+        data: {
+          contratoId: c.id,
+          indice: cfg.reajuste.indices[0] ?? "—",
+          percentual: pct,
+          dataBase: c.vigenciaInicio,
+          aniversario: hoje0,
+          valorAnterior,
+          valorReajustado: valorReajustado(valorAnterior, pct),
+          aplicadoEm: null,
+        },
+      });
+      await notificarMuitos(ids, {
+        titulo: "Reajuste sugerido (aniversário do contrato)",
+        corpo: c.licitacao.titulo,
+        href: "/licitacoes",
+        tag: `reajuste-sug-${c.id}-${hojeISO}`,
+      });
+    } else {
+      await notificarMuitos(ids, {
+        titulo: "Reajuste do contrato no aniversário",
+        corpo: c.licitacao.titulo,
+        href: "/licitacoes",
+        tag: `reajuste-due-${c.id}-${hojeISO}`,
+      });
+    }
     n++;
   }
   return n;
