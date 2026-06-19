@@ -32,6 +32,14 @@ export type LicitacaoListItem = {
   valoresDisciplina: { id: string; disciplina: string; valor: number }[];
   eventos: { id: string; tipo: string; data: string; autoria: string | null; protocolo: string | null; observacao: string | null; concluido: boolean }[];
   composicao: { observacao: string | null; itens: { id: string; descricao: string; quantidade: number; valorUnitario: number; ordem: number }[] } | null;
+  contrato: {
+    id: string; numeroContrato: string | null; numeroEmpenho: string | null;
+    valorHomologado: number;
+    vigenciaInicio: string | null; vigenciaFim: string | null;
+    reajuste: string | null; garantiaTipo: string | null; garantiaValor: number | null; garantiaValidade: string | null;
+    limiteAcrescimoPct: number | null;
+    aditivos: { id: string; tipo: string; valorDelta: number | null; novaVigencia: string | null; justificativa: string | null; data: string }[];
+  } | null;
 };
 
 function normalizarStatus(status?: string[]): StatusLicitacao[] {
@@ -71,6 +79,7 @@ export async function listarLicitacoes(filtro: LicitacaoFiltro = {}) {
         valoresDisciplina: { orderBy: { disciplina: "asc" } },
         eventos: { orderBy: { data: "asc" } },
         composicao: { include: { itens: { orderBy: { ordem: "asc" } } } },
+        contrato: { include: { aditivos: { orderBy: { data: "asc" } } } },
       },
     }),
     prisma.licitacao.count({ where }),
@@ -129,6 +138,20 @@ export async function listarLicitacoes(filtro: LicitacaoFiltro = {}) {
           })),
         }
       : null,
+    contrato: l.contrato ? {
+      id: l.contrato.id,
+      numeroContrato: l.contrato.numeroContrato,
+      numeroEmpenho: l.contrato.numeroEmpenho,
+      valorHomologado: Number(l.contrato.valorHomologado),
+      vigenciaInicio: l.contrato.vigenciaInicio ? l.contrato.vigenciaInicio.toISOString().slice(0, 10) : null,
+      vigenciaFim: l.contrato.vigenciaFim ? l.contrato.vigenciaFim.toISOString().slice(0, 10) : null,
+      reajuste: l.contrato.reajuste,
+      garantiaTipo: l.contrato.garantiaTipo,
+      garantiaValor: l.contrato.garantiaValor != null ? Number(l.contrato.garantiaValor) : null,
+      garantiaValidade: l.contrato.garantiaValidade ? l.contrato.garantiaValidade.toISOString().slice(0, 10) : null,
+      limiteAcrescimoPct: l.contrato.limiteAcrescimoPct != null ? Number(l.contrato.limiteAcrescimoPct) : null,
+      aditivos: l.contrato.aditivos.map((a) => ({ id: a.id, tipo: a.tipo, valorDelta: a.valorDelta != null ? Number(a.valorDelta) : null, novaVigencia: a.novaVigencia ? a.novaVigencia.toISOString().slice(0, 10) : null, justificativa: a.justificativa, data: a.data.toISOString().slice(0, 10) })),
+    } : null,
   }));
 
   return {

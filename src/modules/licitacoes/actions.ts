@@ -226,6 +226,9 @@ export const importarLicitacao = defineAction(
           },
         });
       }
+      await tx.contratoLicitacao.create({
+        data: { licitacaoId: lic.id, valorHomologado: lic.valorEstimado ?? 0 },
+      });
       return prj;
     });
 
