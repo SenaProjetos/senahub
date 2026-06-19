@@ -31,6 +31,7 @@ export type LicitacaoListItem = {
   historico: { id: string; descricao: string; data: string }[];
   valoresDisciplina: { id: string; disciplina: string; valor: number }[];
   eventos: { id: string; tipo: string; data: string; autoria: string | null; protocolo: string | null; observacao: string | null; concluido: boolean }[];
+  composicao: { observacao: string | null; itens: { id: string; descricao: string; quantidade: number; valorUnitario: number; ordem: number }[] } | null;
 };
 
 function normalizarStatus(status?: string[]): StatusLicitacao[] {
@@ -69,6 +70,7 @@ export async function listarLicitacoes(filtro: LicitacaoFiltro = {}) {
         historico: { orderBy: { createdAt: "desc" }, take: 20 },
         valoresDisciplina: { orderBy: { disciplina: "asc" } },
         eventos: { orderBy: { data: "asc" } },
+        composicao: { include: { itens: { orderBy: { ordem: "asc" } } } },
       },
     }),
     prisma.licitacao.count({ where }),
@@ -115,6 +117,18 @@ export async function listarLicitacoes(filtro: LicitacaoFiltro = {}) {
       observacao: e.observacao,
       concluido: e.concluidoEm != null,
     })),
+    composicao: l.composicao
+      ? {
+          observacao: l.composicao.observacao,
+          itens: l.composicao.itens.map((it) => ({
+            id: it.id,
+            descricao: it.descricao,
+            quantidade: Number(it.quantidade),
+            valorUnitario: Number(it.valorUnitario),
+            ordem: it.ordem,
+          })),
+        }
+      : null,
   }));
 
   return {

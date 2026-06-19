@@ -168,7 +168,7 @@ export const importarLicitacao = defineAction(
   async (i, { user }) => {
     const lic = await prisma.licitacao.findUnique({
       where: { id: i.id },
-      include: { docs: { include: { versoes: true } } },
+      include: { docs: { include: { versoes: true } }, composicao: { include: { itens: true } } },
     });
     if (!lic) throw new ActionError("Licitação não encontrada.");
     if (!transicaoPermitida(lic.status as StatusLicitacao, "em_execucao", { viaImport: true }))
@@ -205,6 +205,22 @@ export const importarLicitacao = defineAction(
                 arquivoPath: v.arquivoPath,
                 arquivoNome: v.arquivoNome,
                 autorId: v.autorId,
+              })),
+            },
+          },
+        });
+      }
+      if (lic.composicao && lic.composicao.itens.length > 0) {
+        await tx.projetoComposicaoPreco.create({
+          data: {
+            projetoId: prj.id,
+            observacao: lic.composicao.observacao,
+            itens: {
+              create: lic.composicao.itens.map((it) => ({
+                descricao: it.descricao,
+                quantidade: it.quantidade,
+                valorUnitario: it.valorUnitario,
+                ordem: it.ordem,
               })),
             },
           },
