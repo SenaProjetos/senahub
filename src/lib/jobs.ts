@@ -7,6 +7,7 @@ import {
   alertaCertidoes,
   alertaLicitacoes,
   alertaEventosLicitacao,
+  alertaLimiteAditivo,
   snapshotQualidadeMensal,
   snapshotDashboardDiario,
   lembretePontoNaoBatido,
@@ -61,14 +62,15 @@ export async function startJobs(): Promise<PgBoss> {
       fila: "alertas-diarios",
       cron: "0 8 * * *", // 08:00 — prazos de disciplina, inadimplência, certidões, licitações
       handler: async () => {
-        const [a, b, c, d, e] = await Promise.all([
+        const [a, b, c, d, e, f] = await Promise.all([
           alertasPrazoDisciplina(),
           alertaInadimplencia(),
           alertaCertidoes(),
           alertaLicitacoes(),
           alertaEventosLicitacao(),
+          alertaLimiteAditivo(),
         ]);
-        console.log(`[alertas] prazos=${a} inad=${b} certidões=${c} licitações=${d} eventos=${e}`);
+        console.log(`[alertas] prazos=${a} inad=${b} certidões=${c} licitações=${d} eventos=${e} aditivos=${f}`);
       },
     },
     {

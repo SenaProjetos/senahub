@@ -18,6 +18,7 @@ import {
   textoExclusaoVersaoDoc,
 } from "./historico";
 import { removerArquivo } from "@/lib/storage";
+import { saldoContratual, somaDeltas } from "./contrato/saldo";
 
 /** Valida que a modalidade (se informada) pertence à lista configurável ativa. */
 async function validarModalidade(nome: string | null | undefined) {
@@ -115,7 +116,10 @@ export const registrarMedicao = defineAction(
   async (i, { user }) => {
     const lic = await prisma.licitacao.findUnique({
       where: { id: i.licitacaoId },
-      include: { medicoes: { orderBy: { numero: "desc" }, take: 1 } },
+      include: {
+        medicoes: { orderBy: { numero: "desc" } },
+        contrato: { include: { aditivos: true } },
+      },
     });
     if (!lic) throw new ActionError("Licitação não encontrada.");
     if (!lic.projetoId)
@@ -153,9 +157,20 @@ export const registrarMedicao = defineAction(
       await registrarHistorico(tx, lic.id, textoMedicao(numero, i.valor, i.data), user.id);
       return med;
     });
+    let aviso: string | undefined;
+    if (lic.contrato && Number(lic.contrato.valorHomologado) > 0) {
+      const homologado = Number(lic.contrato.valorHomologado);
+      const deltas = somaDeltas(lic.contrato.aditivos.map((a) => ({ valorDelta: a.valorDelta != null ? Number(a.valorDelta) : null })));
+      const medidoAntes = lic.medicoes.reduce((s, m) => s + Number(m.valor), 0);
+      const saldoAntes = saldoContratual(homologado, deltas, medidoAntes);
+      if (i.valor > saldoAntes) {
+        const fmt = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+        aviso = `Atenção: esta medição (${fmt(i.valor)}) excede o saldo contratual (${fmt(saldoAntes)}).`;
+      }
+    }
     rev();
     revalidatePath("/financeiro/contas-a-receber");
-    return { id: medicao.id, numero };
+    return { id: medicao.id, numero, aviso };
   },
 );
 

@@ -9,6 +9,7 @@ import { formatarCodigo } from "@/modules/projetos/numbering";
 import { getConfigLicitacoes } from "@/modules/licitacoes/config/queries";
 import { ehRecurso, TIPO_EVENTO_LABEL, type TipoEventoLicitacao } from "@/modules/licitacoes/eventos/eventos";
 import { eventosParaNotificar } from "@/modules/licitacoes/eventos/alertas";
+import { acrescimoAcumuladoPct, somaAcrescimos, proximoDoLimite } from "@/modules/licitacoes/contrato/saldo";
 
 /** Rotinas das automações (chamadas pelos jobs do pg-boss em lib/jobs.ts). */
 
@@ -278,4 +279,30 @@ export async function resumoSemanal(): Promise<void> {
 
   const dif = differenceInCalendarDays(seteDias, new Date());
   void dif;
+}
+
+/** Contratos cujo acréscimo acumulado de aditivos se aproxima/excede o limite → gestores. */
+export async function alertaLimiteAditivo(): Promise<number> {
+  const cfg = await getConfigLicitacoes();
+  const contratos = await prisma.contratoLicitacao.findMany({
+    include: { aditivos: { select: { valorDelta: true } }, licitacao: { select: { titulo: true } } },
+  });
+  const ids = await gestores(["admin", "administrativo"]);
+  let n = 0;
+  for (const c of contratos) {
+    const homologado = Number(c.valorHomologado);
+    if (homologado <= 0) continue;
+    const acresc = somaAcrescimos(c.aditivos.map((a) => ({ valorDelta: a.valorDelta != null ? Number(a.valorDelta) : null })));
+    const pct = acrescimoAcumuladoPct(homologado, acresc);
+    const limite = c.limiteAcrescimoPct != null ? Number(c.limiteAcrescimoPct) : cfg.aditivo.limiteAcrescimoPctPadrao;
+    if (!proximoDoLimite(pct, limite, cfg.aditivo.fatorAviso)) continue;
+    await notificarMuitos(ids, {
+      titulo: `Aditivo perto do limite (${pct.toFixed(1)}% de ${limite}%)`,
+      corpo: c.licitacao.titulo,
+      href: "/licitacoes",
+      tag: `aditivo-limite-${c.id}-${Math.floor(pct)}`,
+    });
+    n++;
+  }
+  return n;
 }
