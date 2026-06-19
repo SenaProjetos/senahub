@@ -89,6 +89,7 @@ type Lic = {
   contrato: {
     id: string; numeroContrato: string | null; numeroEmpenho: string | null;
     valorHomologado: number;
+    valorHomologadoBase: number | null;
     vigenciaInicio: string | null; vigenciaFim: string | null;
     reajuste: string | null; garantiaTipo: string | null; garantiaValor: number | null; garantiaValidade: string | null;
     limiteAcrescimoPct: number | null;
@@ -1020,7 +1021,7 @@ function LicContrato({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
   const deltas = c ? somaDeltas(c.aditivos.map((a) => ({ valorDelta: a.valorDelta }))) : 0;
   const saldo = c ? saldoContratual(c.valorHomologado, deltas, medido) : 0;
   const acresc = c ? somaAcrescimos(c.aditivos.map((a) => ({ valorDelta: a.valorDelta }))) : 0;
-  const pct = c ? acrescimoAcumuladoPct(c.valorHomologado, acresc) : 0;
+  const pct = c ? acrescimoAcumuladoPct(c.valorHomologadoBase ?? c.valorHomologado, acresc) : 0;
   const limite = c?.limiteAcrescimoPct ?? null;
 
   // Form contrato state
