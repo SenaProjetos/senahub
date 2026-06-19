@@ -1542,6 +1542,12 @@ model Licitacao {
   projetoId      String?         @unique
   projeto        Projeto?        @relation(fields: [projetoId], references: [id])
 
+  /// PNCP — número de controle do edital/contrato.
+  numeroControlePNCP String?
+  pncpUrl            String?
+  origemPNCP         Boolean   @default(false)
+  publicadoPNCPEm    DateTime?
+
   docs     DocumentoLicitacao[]
   medicoes MedicaoLicitacao[]
   historico         LicitacaoHistorico[]
@@ -1554,6 +1560,7 @@ model Licitacao {
   subcontratacoes      SubcontratacaoLicitacao[]
   resultado         ResultadoLicitacao?
   viabilidade       ViabilidadeLicitacao?
+  pncpLogs          IntegracaoPNCPLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1685,6 +1692,24 @@ model Modalidade {
   createdAt DateTime @default(now())
 
   @@map("modalidade")
+}
+
+/// Log de integração com o PNCP (import de editais / publicação de contrato).
+model IntegracaoPNCPLog {
+  id          String     @id @default(cuid())
+  /// "import" | "publicacao"
+  direcao     String
+  referencia  String?
+  licitacaoId String?
+  licitacao   Licitacao? @relation(fields: [licitacaoId], references: [id], onDelete: SetNull)
+  /// "ok" | "erro"
+  status      String
+  mensagem    String?
+  payload     Json?
+  createdAt   DateTime   @default(now())
+
+  @@index([licitacaoId])
+  @@map("integracao_pncp_log")
 }
 
 /// Modelo reutilizável de checklist de habilitação (global, editável em Configurações).
