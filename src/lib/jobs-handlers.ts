@@ -6,6 +6,9 @@ import { enviarEmail, smtpConfigurado } from "@/lib/mail";
 import { gravarSnapshotQualidade } from "@/modules/qualidade/queries";
 import { gravarSnapshotDashboard } from "@/modules/dashboard/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
+import { getConfigLicitacoes } from "@/modules/licitacoes/config/queries";
+import { ehRecurso, TIPO_EVENTO_LABEL, type TipoEventoLicitacao } from "@/modules/licitacoes/eventos/eventos";
+import { eventosParaNotificar } from "@/modules/licitacoes/eventos/alertas";
 
 /** Rotinas das automações (chamadas pelos jobs do pg-boss em lib/jobs.ts). */
 
@@ -187,6 +190,51 @@ export async function lembretePontoNaoBatido(): Promise<number> {
       });
       n++;
     }
+  }
+  return n;
+}
+
+/** Alertas de eventos de licitação (datas-chave e recursos) em D-n → gestores. */
+export async function alertaEventosLicitacao(): Promise<number> {
+  const cfg = await getConfigLicitacoes();
+  const hoje0 = new Date(); hoje0.setHours(0, 0, 0, 0);
+  const hojeISO = hoje0.toISOString().slice(0, 10);
+  const horizonte = addDays(hoje0, 60);
+
+  const evts = await prisma.licitacaoEvento.findMany({
+    where: { concluidoEm: null, data: { gte: hoje0, lte: horizonte } },
+    include: { licitacao: { select: { titulo: true } } },
+  });
+
+  const mapeados = evts.map((e) => ({
+    id: e.id,
+    tipo: e.tipo,
+    dataISO: e.data.toISOString().slice(0, 10),
+    alertaDias: e.alertaDias,
+    concluido: false,
+    titulo: e.licitacao.titulo,
+  }));
+
+  const recursoList = mapeados.filter((e) => ehRecurso(e.tipo as TipoEventoLicitacao));
+  const datasList = mapeados.filter((e) => !ehRecurso(e.tipo as TipoEventoLicitacao));
+  const aNotificar = [
+    ...eventosParaNotificar(recursoList, hojeISO, cfg.recurso.alertaDiasPadrao),
+    ...eventosParaNotificar(datasList, hojeISO, cfg.datasChave.alertaDiasPadrao),
+  ];
+  if (aNotificar.length === 0) return 0;
+
+  const ids = await gestores(["admin", "administrativo"]);
+  const byId = new Map(mapeados.map((e) => [e.id, e]));
+  let n = 0;
+  for (const a of aNotificar) {
+    const e = byId.get(a.id)!;
+    await notificarMuitos(ids, {
+      titulo: `Licitação: ${TIPO_EVENTO_LABEL[a.tipo as TipoEventoLicitacao]} em ${a.dias} dia(s)`,
+      corpo: e.titulo,
+      href: "/licitacoes",
+      tag: `evt-${a.id}-${a.dias}`,
+    });
+    n++;
   }
   return n;
 }
