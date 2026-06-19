@@ -2,6 +2,8 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { relatorioDRE } from "@/modules/financeiro/relatorios/queries";
+import { saldoContratual, somaDeltas } from "@/modules/licitacoes/contrato/saldo";
+import { totalComposicao } from "@/modules/licitacoes/composicao/composicao";
 import type { Escalar, Linha } from "@/modules/documentos/tokens";
 
 /**
@@ -192,10 +194,36 @@ export async function resolverFonte(
     case "licitacao": {
       const l = await prisma.licitacao.findUnique({
         where: { id: params.licitacaoId ?? "" },
-        include: { medicoes: { orderBy: { numero: "asc" } } },
+        include: {
+          medicoes: { orderBy: { numero: "asc" } },
+          contrato: { include: { aditivos: true } },
+          composicao: { include: { itens: true } },
+          viabilidade: true,
+          resultado: true,
+        },
       });
       if (!l) return { escalar: {}, linhas: [] };
       const totalMedido = l.medicoes.reduce((s, m) => s + Number(m.valor), 0);
+      const homologado = l.contrato ? Number(l.contrato.valorHomologado) : 0;
+      const deltas = l.contrato
+        ? somaDeltas(l.contrato.aditivos.map((a) => ({ valorDelta: a.valorDelta != null ? Number(a.valorDelta) : null })))
+        : 0;
+      const saldo = l.contrato ? saldoContratual(homologado, deltas, totalMedido) : "";
+      const totalComp = l.composicao
+        ? totalComposicao(
+            l.composicao.itens.map((it) => ({
+              quantidade: Number(it.quantidade),
+              valorUnitario: Number(it.valorUnitario),
+            })),
+          )
+        : "";
+      const decisao = l.viabilidade
+        ? l.viabilidade.decisao === "go"
+          ? "GO"
+          : l.viabilidade.decisao === "no_go"
+            ? "NO-GO"
+            : "Pendente"
+        : "";
       return {
         escalar: {
           Titulo: l.titulo,
@@ -206,6 +234,16 @@ export async function resolverFonte(
           ValorEstimado: l.valorEstimado != null ? Number(l.valorEstimado) : "",
           Status: l.status.replace("_", " "),
           TotalMedido: totalMedido,
+          ValorHomologado: l.contrato ? homologado : "",
+          SaldoContratual: saldo,
+          NumeroContrato: l.contrato?.numeroContrato ?? "",
+          VigenciaFim: l.contrato?.vigenciaFim ?? "",
+          TotalComposicao: totalComp,
+          DecisaoViabilidade: decisao,
+          Vencedor: l.resultado?.vencedor ?? "",
+          ValorVencedor: l.resultado?.valorVencedor != null ? Number(l.resultado.valorVencedor) : "",
+          NumeroControlePNCP: l.numeroControlePNCP ?? "",
+          PublicadoPNCP: l.publicadoPNCPEm ? "Sim" : "Não",
         },
         linhas: l.medicoes.map((m) => ({
           Numero: m.numero,
