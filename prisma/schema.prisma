@@ -1683,6 +1683,8 @@ model ContratoLicitacao {
   numeroContrato     String?
   numeroEmpenho      String?
   valorHomologado    Decimal           @db.Decimal(14, 2)
+  /// Valor homologado INICIAL (pré-reajustes). Denominador do % de acréscimo de aditivo (Lei 14.133 art.125). Null = usar valorHomologado.
+  valorHomologadoBase Decimal?         @db.Decimal(14, 2)
   vigenciaInicio     DateTime?         @db.Date
   vigenciaFim        DateTime?         @db.Date
   /// Regra/índice de reajuste em texto (estruturado vem na Fase 4).
