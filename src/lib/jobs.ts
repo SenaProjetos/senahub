@@ -6,7 +6,12 @@ import {
   alertaInadimplencia,
   alertaCertidoes,
   alertaLicitacoes,
+  alertaEventosLicitacao,
+  alertaLimiteAditivo,
+  alertaReajusteContrato,
+  alertaPncpNaoPublicado,
   snapshotQualidadeMensal,
+  snapshotLicitacaoMensal,
   snapshotDashboardDiario,
   lembretePontoNaoBatido,
   resumoSemanal,
@@ -60,13 +65,17 @@ export async function startJobs(): Promise<PgBoss> {
       fila: "alertas-diarios",
       cron: "0 8 * * *", // 08:00 — prazos de disciplina, inadimplência, certidões, licitações
       handler: async () => {
-        const [a, b, c, d] = await Promise.all([
+        const [a, b, c, d, e, f, g, h] = await Promise.all([
           alertasPrazoDisciplina(),
           alertaInadimplencia(),
           alertaCertidoes(),
           alertaLicitacoes(),
+          alertaEventosLicitacao(),
+          alertaLimiteAditivo(),
+          alertaReajusteContrato(),
+          alertaPncpNaoPublicado(),
         ]);
-        console.log(`[alertas] prazos=${a} inad=${b} certidões=${c} licitações=${d}`);
+        console.log(`[alertas] prazos=${a} inad=${b} certidões=${c} licitações=${d} eventos=${e} aditivos=${f} reajustes=${g} pncp=${h}`);
       },
     },
     {
@@ -80,7 +89,10 @@ export async function startJobs(): Promise<PgBoss> {
     {
       fila: "snapshot-qualidade",
       cron: "0 2 1 * *", // dia 1º às 02:00 — foto do mês anterior
-      handler: snapshotQualidadeMensal,
+      handler: async () => {
+        await snapshotQualidadeMensal();
+        await snapshotLicitacaoMensal();
+      },
     },
     {
       fila: "snapshot-dashboard",

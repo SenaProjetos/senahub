@@ -5,7 +5,13 @@ import { notificarMuitos } from "@/lib/notificar";
 import { enviarEmail, smtpConfigurado } from "@/lib/mail";
 import { gravarSnapshotQualidade } from "@/modules/qualidade/queries";
 import { gravarSnapshotDashboard } from "@/modules/dashboard/queries";
+import { gravarSnapshotLicitacaoMensal } from "@/modules/licitacoes/dashboard/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
+import { getConfigLicitacoes } from "@/modules/licitacoes/config/queries";
+import { ehRecurso, TIPO_EVENTO_LABEL, type TipoEventoLicitacao } from "@/modules/licitacoes/eventos/eventos";
+import { eventosParaNotificar } from "@/modules/licitacoes/eventos/alertas";
+import { acrescimoAcumuladoPct, somaAcrescimos, proximoDoLimite } from "@/modules/licitacoes/contrato/saldo";
+import { ehAniversarioReajuste, valorReajustado } from "@/modules/licitacoes/contrato/reajuste";
 
 /** Rotinas das automações (chamadas pelos jobs do pg-boss em lib/jobs.ts). */
 
@@ -122,6 +128,12 @@ export async function snapshotQualidadeMensal() {
   return gravarSnapshotQualidade(anterior.getFullYear(), anterior.getMonth() + 1);
 }
 
+/** Dia 1º: snapshot do funil de licitações do mês anterior. */
+export async function snapshotLicitacaoMensal() {
+  const anterior = subMonths(new Date(), 1);
+  return gravarSnapshotLicitacaoMensal(anterior.getFullYear(), anterior.getMonth() + 1);
+}
+
 /** Rotinas noturnas de RH/comercial: propostas vencidas e férias que iniciam hoje. */
 export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: number }> {
   const hoje = new Date();
@@ -191,6 +203,51 @@ export async function lembretePontoNaoBatido(): Promise<number> {
   return n;
 }
 
+/** Alertas de eventos de licitação (datas-chave e recursos) em D-n → gestores. */
+export async function alertaEventosLicitacao(): Promise<number> {
+  const cfg = await getConfigLicitacoes();
+  const hoje0 = new Date(); hoje0.setHours(0, 0, 0, 0);
+  const hojeISO = hoje0.toISOString().slice(0, 10);
+  const horizonte = addDays(hoje0, 60);
+
+  const evts = await prisma.licitacaoEvento.findMany({
+    where: { concluidoEm: null, data: { gte: hoje0, lte: horizonte } },
+    include: { licitacao: { select: { titulo: true } } },
+  });
+
+  const mapeados = evts.map((e) => ({
+    id: e.id,
+    tipo: e.tipo,
+    dataISO: e.data.toISOString().slice(0, 10),
+    alertaDias: e.alertaDias,
+    concluido: false,
+    titulo: e.licitacao.titulo,
+  }));
+
+  const recursoList = mapeados.filter((e) => ehRecurso(e.tipo as TipoEventoLicitacao));
+  const datasList = mapeados.filter((e) => !ehRecurso(e.tipo as TipoEventoLicitacao));
+  const aNotificar = [
+    ...eventosParaNotificar(recursoList, hojeISO, cfg.recurso.alertaDiasPadrao),
+    ...eventosParaNotificar(datasList, hojeISO, cfg.datasChave.alertaDiasPadrao),
+  ];
+  if (aNotificar.length === 0) return 0;
+
+  const ids = await gestores(["admin", "administrativo"]);
+  const byId = new Map(mapeados.map((e) => [e.id, e]));
+  let n = 0;
+  for (const a of aNotificar) {
+    const e = byId.get(a.id)!;
+    await notificarMuitos(ids, {
+      titulo: `Licitação: ${TIPO_EVENTO_LABEL[a.tipo as TipoEventoLicitacao]} em ${a.dias} dia(s)`,
+      corpo: e.titulo,
+      href: "/licitacoes",
+      tag: `evt-${a.id}-${a.dias}`,
+    });
+    n++;
+  }
+  return n;
+}
+
 /** Segunda 07:00: resumo da semana p/ gestores (e-mail se SMTP; sempre notificação). */
 export async function resumoSemanal(): Promise<void> {
   const seteDias = addDays(new Date(), 7);
@@ -230,4 +287,102 @@ export async function resumoSemanal(): Promise<void> {
 
   const dif = differenceInCalendarDays(seteDias, new Date());
   void dif;
+}
+
+/** Contratos cujo acréscimo acumulado de aditivos se aproxima/excede o limite → gestores. */
+export async function alertaLimiteAditivo(): Promise<number> {
+  const cfg = await getConfigLicitacoes();
+  const contratos = await prisma.contratoLicitacao.findMany({
+    include: { aditivos: { select: { valorDelta: true } }, licitacao: { select: { titulo: true } } },
+  });
+  const ids = await gestores(["admin", "administrativo"]);
+  let n = 0;
+  for (const c of contratos) {
+    const homologado = Number(c.valorHomologado);
+    if (homologado <= 0) continue;
+    const baseCalc = c.valorHomologadoBase != null ? Number(c.valorHomologadoBase) : homologado;
+    const acresc = somaAcrescimos(c.aditivos.map((a) => ({ valorDelta: a.valorDelta != null ? Number(a.valorDelta) : null })));
+    const pct = acrescimoAcumuladoPct(baseCalc, acresc);
+    const limite = c.limiteAcrescimoPct != null ? Number(c.limiteAcrescimoPct) : cfg.aditivo.limiteAcrescimoPctPadrao;
+    if (!proximoDoLimite(pct, limite, cfg.aditivo.fatorAviso)) continue;
+    await notificarMuitos(ids, {
+      titulo: `Aditivo perto do limite (${pct.toFixed(1)}% de ${limite}%)`,
+      corpo: c.licitacao.titulo,
+      href: "/licitacoes",
+      tag: `aditivo-limite-${c.id}-${Math.floor(pct)}`,
+    });
+    n++;
+  }
+  return n;
+}
+
+/** Licitações em execução ainda não publicadas no PNCP → gestores (lembrete de publicação). */
+export async function alertaPncpNaoPublicado(): Promise<number> {
+  const lics = await prisma.licitacao.findMany({
+    where: { status: "em_execucao", publicadoPNCPEm: null },
+    select: { id: true, titulo: true },
+  });
+  if (lics.length === 0) return 0;
+  const ids = await gestores(["admin", "administrativo"]);
+  for (const l of lics) {
+    await notificarMuitos(ids, {
+      titulo: "Publicar no PNCP",
+      corpo: l.titulo,
+      href: `/licitacoes/${l.id}`,
+      tag: `pncp-pub-${l.id}`,
+    });
+  }
+  return lics.length;
+}
+
+/** Aniversário de reajuste do contrato (anual, por vigenciaInicio). Manual → notifica; automático → cria reajuste pendente sugerido. */
+export async function alertaReajusteContrato(): Promise<number> {
+  const cfg = await getConfigLicitacoes();
+  const hoje0 = new Date();
+  hoje0.setHours(0, 0, 0, 0);
+  const hojeISO = hoje0.toISOString().slice(0, 10);
+  const contratos = await prisma.contratoLicitacao.findMany({
+    where: { vigenciaInicio: { not: null } },
+    include: { licitacao: { select: { id: true, titulo: true } }, reajustes: { select: { aniversario: true } } },
+  });
+  const ids = await gestores(["admin", "administrativo"]);
+  let n = 0;
+  for (const c of contratos) {
+    if (!c.vigenciaInicio) continue;
+    const inicioISO = c.vigenciaInicio.toISOString().slice(0, 10);
+    if (!ehAniversarioReajuste(inicioISO, hojeISO)) continue;
+    const jaTem = c.reajustes.some((r) => r.aniversario.toISOString().slice(0, 10) === hojeISO);
+    if (jaTem) continue;
+    if (cfg.reajuste.modo === "automatico") {
+      const valorAnterior = Number(c.valorHomologado);
+      const pct = cfg.reajuste.percentualPadrao;
+      await prisma.reajusteContrato.create({
+        data: {
+          contratoId: c.id,
+          indice: cfg.reajuste.indices[0] ?? "—",
+          percentual: pct,
+          dataBase: c.vigenciaInicio,
+          aniversario: hoje0,
+          valorAnterior,
+          valorReajustado: valorReajustado(valorAnterior, pct),
+          aplicadoEm: null,
+        },
+      });
+      await notificarMuitos(ids, {
+        titulo: "Reajuste sugerido (aniversário do contrato)",
+        corpo: c.licitacao.titulo,
+        href: "/licitacoes",
+        tag: `reajuste-sug-${c.id}-${hojeISO}`,
+      });
+    } else {
+      await notificarMuitos(ids, {
+        titulo: "Reajuste do contrato no aniversário",
+        corpo: c.licitacao.titulo,
+        href: "/licitacoes",
+        tag: `reajuste-due-${c.id}-${hojeISO}`,
+      });
+    }
+    n++;
+  }
+  return n;
 }

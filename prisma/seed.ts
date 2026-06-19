@@ -2,6 +2,7 @@ import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { auth } from "../src/lib/auth";
 import { docVazio, novoId, type DocSchema } from "../src/modules/documentos/schema";
+import { MODALIDADES_PADRAO } from "../src/modules/licitacoes/modalidade";
 import type { Prisma } from "../src/generated/prisma/client";
 
 const ADMIN_EMAIL = "tadrio@senaprojetos.com.br";
@@ -283,6 +284,16 @@ async function main() {
     });
   }
   console.log(`✔ ${FUNIL_ETAPAS.length} etapas do funil comercial.`);
+
+  // 9b) Modalidades de licitação (lista config-driven, editável em Configurações)
+  for (let i = 0; i < MODALIDADES_PADRAO.length; i++) {
+    await prisma.modalidade.upsert({
+      where: { nome: MODALIDADES_PADRAO[i] },
+      create: { nome: MODALIDADES_PADRAO[i], ordem: i },
+      update: {},
+    });
+  }
+  console.log(`✔ ${MODALIDADES_PADRAO.length} modalidades de licitação.`);
 
   // 10) Modelo de documento exemplo (Estúdio de Documentos)
   const existeModelo = await prisma.documentoModelo.findFirst({

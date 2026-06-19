@@ -96,6 +96,8 @@ model User {
   preference           UserPreference?
   planejamentos        PlanejamentoPagamento[]
   fechamentos          FechamentoMensal[]
+  responsavelTecnico   ResponsavelTecnico?
+  viabilidadesDecididas ViabilidadeLicitacao[] @relation("ViabilidadeDecisor")
 
   @@index([role])
   @@map("user")
@@ -548,6 +550,8 @@ model Fornecedor {
   lancamentos Lancamento[]
   servicos    ServicoTerceirizado[]
   catalogo    FornecedorServico[]
+  subcontratacoes SubcontratacaoLicitacao[]
+  sancoes     SancaoConcorrente[]
 
   @@index([ativo])
   @@map("fornecedor")
@@ -1473,7 +1477,8 @@ model Certidao {
   arquivoPath String?
   arquivoNome String?
   createdAt   DateTime     @default(now())
-  versoes     CertidaoVersao[]
+  versoes          CertidaoVersao[]
+  habilitacaoItens LicitacaoHabilitacaoItem[]
 
   @@index([validade])
   @@map("certidao")
@@ -1507,6 +1512,20 @@ enum StatusLicitacao {
   concluida
 }
 
+enum TipoEventoLicitacao {
+  abertura
+  sessao
+  resultado
+  assinatura
+  vigencia_inicio
+  vigencia_fim
+  // P1-B — recursos/impugnações reusam a mesma tabela
+  pedido_esclarecimento
+  impugnacao
+  recurso
+  contrarrazao
+}
+
 model Licitacao {
   id             String          @id @default(cuid())
   titulo         String
@@ -1515,16 +1534,33 @@ model Licitacao {
   numeroEdital   String?
   prazoProposta  DateTime?       @db.Date
   valorEstimado  Decimal?        @db.Decimal(14, 2)
+  /// % máximo de subcontratação permitido pelo edital (por certame).
+  subcontratacaoMaxPct Decimal?  @db.Decimal(5, 2)
   status         StatusLicitacao @default(em_andamento)
   observacoes    String?
   /// Projeto criado ao importar (status vira em_execucao).
   projetoId      String?         @unique
   projeto        Projeto?        @relation(fields: [projetoId], references: [id])
 
+  /// PNCP — número de controle do edital/contrato.
+  numeroControlePNCP String?
+  pncpUrl            String?
+  origemPNCP         Boolean   @default(false)
+  publicadoPNCPEm    DateTime?
+
   docs     DocumentoLicitacao[]
   medicoes MedicaoLicitacao[]
   historico         LicitacaoHistorico[]
   valoresDisciplina DisciplinaValorLicitacao[]
+  eventos           LicitacaoEvento[]
+  composicao        LicitacaoComposicaoPreco?
+  contrato          ContratoLicitacao?
+  habilitacao       LicitacaoHabilitacaoItem[]
+  responsaveisTecnicos LicitacaoResponsavelTecnico[]
+  subcontratacoes      SubcontratacaoLicitacao[]
+  resultado         ResultadoLicitacao?
+  viabilidade       ViabilidadeLicitacao?
+  pncpLogs          IntegracaoPNCPLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1546,6 +1582,28 @@ model LicitacaoHistorico {
   @@map("licitacao_historico")
 }
 
+/// Evento datado de uma licitação: datas-chave por fase (Item 1-B) e peças de recurso/impugnação (P1-B).
+model LicitacaoEvento {
+  id          String              @id @default(cuid())
+  licitacaoId String
+  licitacao   Licitacao           @relation(fields: [licitacaoId], references: [id], onDelete: Cascade)
+  tipo        TipoEventoLicitacao
+  data        DateTime            @db.Date
+  /// Antecedências (em dias) para alerta; vazio = usa o padrão da config.
+  alertaDias  Int[]               @default([])
+  /// Para peças de recurso (P1): "propria" | "concorrente"; null para datas-chave.
+  autoria     String?
+  protocolo   String?
+  observacao  String?
+  /// Quando o evento já ocorreu/foi cumprido (some dos alertas).
+  concluidoEm DateTime?
+  createdAt   DateTime            @default(now())
+
+  @@index([licitacaoId])
+  @@index([data])
+  @@map("licitacao_evento")
+}
+
 /// Valor por disciplina dentro de uma licitação/edital (E5).
 model DisciplinaValorLicitacao {
   id          String    @id @default(cuid())
@@ -1556,6 +1614,31 @@ model DisciplinaValorLicitacao {
 
   @@index([licitacaoId])
   @@map("disciplina_valor_licitacao")
+}
+
+/// Composição de preço da proposta da licitação (Item 2-A). Espelha ProjetoComposicaoPreco; copiada ao projeto no import.
+model LicitacaoComposicaoPreco {
+  id          String                    @id @default(cuid())
+  licitacaoId String                    @unique
+  licitacao   Licitacao                 @relation(fields: [licitacaoId], references: [id], onDelete: Cascade)
+  observacao  String?
+  updatedAt   DateTime                  @updatedAt
+  itens       ItemComposicaoLicitacao[]
+
+  @@map("licitacao_composicao_preco")
+}
+
+model ItemComposicaoLicitacao {
+  id            String                   @id @default(cuid())
+  composicaoId  String
+  composicao    LicitacaoComposicaoPreco @relation(fields: [composicaoId], references: [id], onDelete: Cascade)
+  descricao     String
+  quantidade    Decimal                  @default(1) @db.Decimal(12, 2)
+  valorUnitario Decimal                  @default(0) @db.Decimal(14, 2)
+  ordem         Int                      @default(0)
+
+  @@index([composicaoId])
+  @@map("item_composicao_licitacao")
 }
 
 model DocumentoLicitacao {
@@ -1598,6 +1681,306 @@ model MedicaoLicitacao {
 
   @@unique([licitacaoId, numero])
   @@map("medicao_licitacao")
+}
+
+/// Modalidade de licitação — lista configurável (config-driven, editável em Configurações).
+model Modalidade {
+  id        String   @id @default(cuid())
+  nome      String   @unique
+  ordem     Int      @default(0)
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@map("modalidade")
+}
+
+/// Log de integração com o PNCP (import de editais / publicação de contrato).
+model IntegracaoPNCPLog {
+  id          String     @id @default(cuid())
+  /// "import" | "publicacao"
+  direcao     String
+  referencia  String?
+  licitacaoId String?
+  licitacao   Licitacao? @relation(fields: [licitacaoId], references: [id], onDelete: SetNull)
+  /// "ok" | "erro"
+  status      String
+  mensagem    String?
+  payload     Json?
+  createdAt   DateTime   @default(now())
+
+  @@index([licitacaoId])
+  @@map("integracao_pncp_log")
+}
+
+/// Modelo reutilizável de checklist de habilitação (global, editável em Configurações).
+model ChecklistHabilitacaoModelo {
+  id        String                           @id @default(cuid())
+  nome      String                           @unique
+  ativo     Boolean                          @default(true)
+  ordem     Int                              @default(0)
+  itens     ChecklistHabilitacaoModeloItem[]
+  createdAt DateTime                         @default(now())
+
+  @@map("checklist_habilitacao_modelo")
+}
+
+model ChecklistHabilitacaoModeloItem {
+  id          String                     @id @default(cuid())
+  modeloId    String
+  modelo      ChecklistHabilitacaoModelo @relation(fields: [modeloId], references: [id], onDelete: Cascade)
+  exigencia   String
+  obrigatorio Boolean                    @default(true)
+  ordem       Int                        @default(0)
+
+  @@index([modeloId])
+  @@map("checklist_habilitacao_modelo_item")
+}
+
+/// Item do checklist de habilitação de uma licitação (instância). Pode apontar p/ uma Certidao da empresa.
+model LicitacaoHabilitacaoItem {
+  id          String    @id @default(cuid())
+  licitacaoId String
+  licitacao   Licitacao @relation(fields: [licitacaoId], references: [id], onDelete: Cascade)
+  exigencia   String
+  certidaoId  String?
+  certidao    Certidao? @relation(fields: [certidaoId], references: [id])
+  atendido    Boolean   @default(false)
+  obrigatorio Boolean   @default(true)
+  observacao  String?
+  ordem       Int       @default(0)
+
+  @@index([licitacaoId])
+  @@index([certidaoId])
+  @@map("licitacao_habilitacao_item")
+}
+
+/// Responsável técnico (CREA/CAU) — global; pode ser colaborador interno (userId).
+model ResponsavelTecnico {
+  id         String                        @id @default(cuid())
+  nome       String
+  registro   String
+  /// "CREA" | "CAU" | outro
+  conselho   String?
+  userId     String?                       @unique
+  user       User?                         @relation(fields: [userId], references: [id])
+  ativo      Boolean                       @default(true)
+  createdAt  DateTime                      @default(now())
+  licitacoes LicitacaoResponsavelTecnico[]
+
+  @@map("responsavel_tecnico")
+}
+
+/// Vínculo RT ↔ licitação com o documento comprobatório (ART/RRT/CAT).
+model LicitacaoResponsavelTecnico {
+  id              String             @id @default(cuid())
+  licitacaoId     String
+  licitacao       Licitacao          @relation(fields: [licitacaoId], references: [id], onDelete: Cascade)
+  responsavelId   String
+  responsavel     ResponsavelTecnico @relation(fields: [responsavelId], references: [id], onDelete: Cascade)
+  /// "ART" | "RRT" | "CAT"
+  documentoTipo   String
+  numeroDocumento String?
+  arquivoPath     String?
+  arquivoNome     String?
+  createdAt       DateTime           @default(now())
+
+  @@unique([licitacaoId, responsavelId, documentoTipo])
+  @@index([responsavelId])
+  @@map("licitacao_responsavel_tecnico")
+}
+
+/// Subcontratado de uma licitação (P6). Percentual validado contra subcontratacaoMaxPct do edital.
+model SubcontratacaoLicitacao {
+  id           String      @id @default(cuid())
+  licitacaoId  String
+  licitacao    Licitacao   @relation(fields: [licitacaoId], references: [id], onDelete: Cascade)
+  fornecedorId String?
+  fornecedor   Fornecedor? @relation(fields: [fornecedorId], references: [id])
+  nomeLivre    String?
+  objeto       String
+  percentual   Decimal     @db.Decimal(5, 2)
+
+  @@index([licitacaoId])
+  @@map("subcontratacao_licitacao")
+}
+
+/// Contrato/empenho pós-ganha (Item 3-B). valorHomologado pode diferir do estimado; aditivos ajustam.
+model ContratoLicitacao {
+  id                 String            @id @default(cuid())
+  licitacaoId        String            @unique
+  licitacao          Licitacao         @relation(fields: [licitacaoId], references: [id], onDelete: Cascade)
+  numeroContrato     String?
+  numeroEmpenho      String?
+  valorHomologado    Decimal           @db.Decimal(14, 2)
+  /// Valor homologado INICIAL (pré-reajustes). Denominador do % de acréscimo de aditivo (Lei 14.133 art.125). Null = usar valorHomologado.
+  valorHomologadoBase Decimal?         @db.Decimal(14, 2)
+  vigenciaInicio     DateTime?         @db.Date
+  vigenciaFim        DateTime?         @db.Date
+  /// Regra/índice de reajuste em texto (estruturado vem na Fase 4).
+  reajuste           String?
+  garantiaTipo       String?
+  garantiaValor      Decimal?          @db.Decimal(14, 2)
+  garantiaValidade   DateTime?         @db.Date
+  /// % limite de acréscimo (P2). Null = usa padrão da config licitacoes.config.
+  limiteAcrescimoPct Decimal?          @db.Decimal(5, 2)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  aditivos           AditivoContrato[]
+  riscos             MatrizRiscoItem[]
+  reajustes          ReajusteContrato[]
+
+  @@map("contrato_licitacao")
+}
+
+/// Termo aditivo de contrato (valor/prazo/objeto). valorDelta +/- ajusta o valor vigente.
+model AditivoContrato {
+  id            String            @id @default(cuid())
+  contratoId    String
+  contrato      ContratoLicitacao @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  /// "valor" | "prazo" | "valor_prazo" | "objeto"
+  tipo          String
+  valorDelta    Decimal?          @db.Decimal(14, 2)
+  novaVigencia  DateTime?         @db.Date
+  justificativa String?
+  data          DateTime          @db.Date
+  createdAt     DateTime          @default(now())
+
+  @@index([contratoId])
+  @@map("aditivo_contrato")
+}
+
+/// Item da matriz de risco do contrato (P4-B). Obras/serviços de engenharia (Lei 14.133).
+model MatrizRiscoItem {
+  id            String            @id @default(cuid())
+  contratoId    String
+  contrato      ContratoLicitacao @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  evento        String
+  /// "baixa" | "media" | "alta"
+  probabilidade String
+  /// "baixo" | "medio" | "alto"
+  impacto       String
+  /// "contratante" | "contratado"
+  alocacao      String
+  mitigacao     String?
+  ordem         Int               @default(0)
+
+  @@index([contratoId])
+  @@map("matriz_risco_item")
+}
+
+/// Reajuste/repactuação do contrato por índice (P8). aplicadoEm null = pendente/sugerido.
+model ReajusteContrato {
+  id              String            @id @default(cuid())
+  contratoId      String
+  contrato        ContratoLicitacao @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  indice          String
+  percentual      Decimal           @db.Decimal(6, 3)
+  dataBase        DateTime?         @db.Date
+  aniversario     DateTime          @db.Date
+  valorAnterior   Decimal           @db.Decimal(14, 2)
+  valorReajustado Decimal           @db.Decimal(14, 2)
+  /// null = pendente (sugerido pelo modo automático); preenchido = aplicado.
+  aplicadoEm     DateTime?
+  createdAt       DateTime          @default(now())
+
+  @@index([contratoId])
+  @@index([aniversario])
+  @@map("reajuste_contrato")
+}
+
+enum TipoSancao {
+  advertencia
+  multa
+  suspensao
+  impedimento
+  inidoneidade
+}
+
+/// Sanção contra a própria empresa (compliance).
+model SancaoPropria {
+  id         String     @id @default(cuid())
+  tipo       TipoSancao
+  valor      Decimal?   @db.Decimal(14, 2)
+  inicio     DateTime?  @db.Date
+  fim        DateTime?  @db.Date
+  orgao      String?
+  processo   String?
+  observacao String?
+  createdAt  DateTime   @default(now())
+
+  @@index([fim])
+  @@map("sancao_propria")
+}
+
+/// Sanção contra concorrente (inteligência comercial).
+model SancaoConcorrente {
+  id           String      @id @default(cuid())
+  fornecedorId String?
+  fornecedor   Fornecedor? @relation(fields: [fornecedorId], references: [id])
+  nomeLivre    String?
+  tipo         TipoSancao
+  valor        Decimal?    @db.Decimal(14, 2)
+  inicio       DateTime?   @db.Date
+  fim          DateTime?   @db.Date
+  orgao        String?
+  processo     String?
+  observacao   String?
+  createdAt    DateTime    @default(now())
+
+  @@index([fim])
+  @@map("sancao_concorrente")
+}
+
+/// Resultado/concorrência de uma licitação (quem ganhou, valor, nossa classificação).
+model ResultadoLicitacao {
+  id                 String    @id @default(cuid())
+  licitacaoId        String    @unique
+  licitacao          Licitacao @relation(fields: [licitacaoId], references: [id], onDelete: Cascade)
+  vencedor           String?
+  valorVencedor      Decimal?  @db.Decimal(14, 2)
+  nossaClassificacao Int?
+  observacao         String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@map("resultado_licitacao")
+}
+
+/// Viabilidade (go/no-go) de uma licitação. modo "fixo" usa os campos fixos; "configuravel" usa `criterios`.
+model ViabilidadeLicitacao {
+  id                   String                @id @default(cuid())
+  licitacaoId          String                @unique
+  licitacao            Licitacao             @relation(fields: [licitacaoId], references: [id], onDelete: Cascade)
+  /// "fixo" | "configuravel"
+  modo                 String                @default("fixo")
+  margemEsperadaPct    Decimal?              @db.Decimal(5, 2)
+  equipeDisponivel     Boolean?
+  concorrenciaPrevista String?
+  /// "pendente" | "go" | "no_go"
+  decisao              String                @default("pendente")
+  decididoPorId        String?
+  decididoPor          User?                 @relation("ViabilidadeDecisor", fields: [decididoPorId], references: [id])
+  decididoEm           DateTime?
+  justificativa        String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  criterios            ViabilidadeCriterio[]
+
+  @@map("viabilidade_licitacao")
+}
+
+/// Critério livre de viabilidade (modo configurável).
+model ViabilidadeCriterio {
+  id            String               @id @default(cuid())
+  viabilidadeId String
+  viabilidade   ViabilidadeLicitacao @relation(fields: [viabilidadeId], references: [id], onDelete: Cascade)
+  criterio      String
+  atendido      Boolean              @default(false)
+  observacao    String?
+  ordem         Int                  @default(0)
+
+  @@index([viabilidadeId])
+  @@map("viabilidade_criterio")
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -2564,4 +2947,21 @@ model FechamentoMensal {
   @@unique([ano, mes])
   @@index([status])
   @@map("fechamento_mensal")
+}
+
+/// Snapshot mensal de métricas de licitação (série histórica do funil).
+model LicitacaoMetricaMensal {
+  id             String   @id @default(cuid())
+  ano            Int
+  mes            Int
+  totalAbertas   Int      @default(0)
+  totalGanhas    Int      @default(0)
+  totalPerdidas  Int      @default(0)
+  valorGanho     Decimal  @default(0) @db.Decimal(14, 2)
+  valorPerdido   Decimal  @default(0) @db.Decimal(14, 2)
+  valorEmDisputa Decimal  @default(0) @db.Decimal(14, 2)
+  createdAt      DateTime @default(now())
+
+  @@unique([ano, mes])
+  @@map("licitacao_metrica_mensal")
 }
