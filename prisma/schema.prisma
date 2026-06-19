@@ -1473,7 +1473,8 @@ model Certidao {
   arquivoPath String?
   arquivoNome String?
   createdAt   DateTime     @default(now())
-  versoes     CertidaoVersao[]
+  versoes          CertidaoVersao[]
+  habilitacaoItens LicitacaoHabilitacaoItem[]
 
   @@index([validade])
   @@map("certidao")
@@ -1542,6 +1543,7 @@ model Licitacao {
   eventos           LicitacaoEvento[]
   composicao        LicitacaoComposicaoPreco?
   contrato          ContratoLicitacao?
+  habilitacao       LicitacaoHabilitacaoItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1673,6 +1675,48 @@ model Modalidade {
   createdAt DateTime @default(now())
 
   @@map("modalidade")
+}
+
+/// Modelo reutilizável de checklist de habilitação (global, editável em Configurações).
+model ChecklistHabilitacaoModelo {
+  id        String                           @id @default(cuid())
+  nome      String                           @unique
+  ativo     Boolean                          @default(true)
+  ordem     Int                              @default(0)
+  itens     ChecklistHabilitacaoModeloItem[]
+  createdAt DateTime                         @default(now())
+
+  @@map("checklist_habilitacao_modelo")
+}
+
+model ChecklistHabilitacaoModeloItem {
+  id          String                     @id @default(cuid())
+  modeloId    String
+  modelo      ChecklistHabilitacaoModelo @relation(fields: [modeloId], references: [id], onDelete: Cascade)
+  exigencia   String
+  obrigatorio Boolean                    @default(true)
+  ordem       Int                        @default(0)
+
+  @@index([modeloId])
+  @@map("checklist_habilitacao_modelo_item")
+}
+
+/// Item do checklist de habilitação de uma licitação (instância). Pode apontar p/ uma Certidao da empresa.
+model LicitacaoHabilitacaoItem {
+  id          String    @id @default(cuid())
+  licitacaoId String
+  licitacao   Licitacao @relation(fields: [licitacaoId], references: [id], onDelete: Cascade)
+  exigencia   String
+  certidaoId  String?
+  certidao    Certidao? @relation(fields: [certidaoId], references: [id])
+  atendido    Boolean   @default(false)
+  obrigatorio Boolean   @default(true)
+  observacao  String?
+  ordem       Int       @default(0)
+
+  @@index([licitacaoId])
+  @@index([certidaoId])
+  @@map("licitacao_habilitacao_item")
 }
 
 /// Contrato/empenho pós-ganha (Item 3-B). valorHomologado pode diferir do estimado; aditivos ajustam.
