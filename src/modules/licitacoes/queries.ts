@@ -47,6 +47,10 @@ export type LicitacaoListItem = {
   subcontratacaoMaxPct: number | null;
   responsaveisTecnicos: { id: string; responsavelId: string; nome: string; registro: string; conselho: string | null; documentoTipo: string; numeroDocumento: string | null }[];
   subcontratacoes: { id: string; fornecedorId: string | null; fornecedorNome: string | null; nomeLivre: string | null; objeto: string; percentual: number }[];
+  numeroControlePNCP: string | null;
+  pncpUrl: string | null;
+  origemPNCP: boolean;
+  publicadoPNCPEm: string | null;
   resultado: { vencedor: string | null; valorVencedor: number | null; nossaClassificacao: number | null; observacao: string | null } | null;
   viabilidade: {
     modo: string;
@@ -178,6 +182,10 @@ function mapLicitacaoDetalhe(l: LicitacaoComDetalhe): LicitacaoListItem {
     subcontratacaoMaxPct: l.subcontratacaoMaxPct != null ? Number(l.subcontratacaoMaxPct) : null,
     responsaveisTecnicos: l.responsaveisTecnicos.map((r) => ({ id: r.id, responsavelId: r.responsavelId, nome: r.responsavel.nome, registro: r.responsavel.registro, conselho: r.responsavel.conselho, documentoTipo: r.documentoTipo, numeroDocumento: r.numeroDocumento })),
     subcontratacoes: l.subcontratacoes.map((s) => ({ id: s.id, fornecedorId: s.fornecedorId, fornecedorNome: s.fornecedor ? s.fornecedor.nome : null, nomeLivre: s.nomeLivre, objeto: s.objeto, percentual: Number(s.percentual) })),
+    numeroControlePNCP: l.numeroControlePNCP,
+    pncpUrl: l.pncpUrl,
+    origemPNCP: l.origemPNCP,
+    publicadoPNCPEm: l.publicadoPNCPEm ? l.publicadoPNCPEm.toISOString() : null,
     resultado: l.resultado ? { vencedor: l.resultado.vencedor, valorVencedor: l.resultado.valorVencedor != null ? Number(l.resultado.valorVencedor) : null, nossaClassificacao: l.resultado.nossaClassificacao, observacao: l.resultado.observacao } : null,
     viabilidade: l.viabilidade
       ? {

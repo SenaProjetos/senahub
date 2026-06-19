@@ -316,6 +316,25 @@ export async function alertaLimiteAditivo(): Promise<number> {
   return n;
 }
 
+/** Licitações em execução ainda não publicadas no PNCP → gestores (lembrete de publicação). */
+export async function alertaPncpNaoPublicado(): Promise<number> {
+  const lics = await prisma.licitacao.findMany({
+    where: { status: "em_execucao", publicadoPNCPEm: null },
+    select: { id: true, titulo: true },
+  });
+  if (lics.length === 0) return 0;
+  const ids = await gestores(["admin", "administrativo"]);
+  for (const l of lics) {
+    await notificarMuitos(ids, {
+      titulo: "Publicar no PNCP",
+      corpo: l.titulo,
+      href: `/licitacoes/${l.id}`,
+      tag: `pncp-pub-${l.id}`,
+    });
+  }
+  return lics.length;
+}
+
 /** Aniversário de reajuste do contrato (anual, por vigenciaInicio). Manual → notifica; automático → cria reajuste pendente sugerido. */
 export async function alertaReajusteContrato(): Promise<number> {
   const cfg = await getConfigLicitacoes();
