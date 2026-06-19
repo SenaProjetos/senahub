@@ -256,7 +256,7 @@ export function LicitacaoDetailView({
       const r = await excluirLicitacao({ id: lic.id });
       if (r.ok) {
         toast.success("Licitação excluída.");
-        router.refresh();
+        router.push("/licitacoes");
       } else toast.error(r.error);
     });
   }
