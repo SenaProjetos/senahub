@@ -1695,6 +1695,8 @@ model ContratoLicitacao {
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
   aditivos           AditivoContrato[]
+  riscos             MatrizRiscoItem[]
+  reajustes          ReajusteContrato[]
 
   @@map("contrato_licitacao")
 }
@@ -1714,6 +1716,45 @@ model AditivoContrato {
 
   @@index([contratoId])
   @@map("aditivo_contrato")
+}
+
+/// Item da matriz de risco do contrato (P4-B). Obras/serviços de engenharia (Lei 14.133).
+model MatrizRiscoItem {
+  id            String            @id @default(cuid())
+  contratoId    String
+  contrato      ContratoLicitacao @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  evento        String
+  /// "baixa" | "media" | "alta"
+  probabilidade String
+  /// "baixo" | "medio" | "alto"
+  impacto       String
+  /// "contratante" | "contratado"
+  alocacao      String
+  mitigacao     String?
+  ordem         Int               @default(0)
+
+  @@index([contratoId])
+  @@map("matriz_risco_item")
+}
+
+/// Reajuste/repactuação do contrato por índice (P8). aplicadoEm null = pendente/sugerido.
+model ReajusteContrato {
+  id              String            @id @default(cuid())
+  contratoId      String
+  contrato        ContratoLicitacao @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  indice          String
+  percentual      Decimal           @db.Decimal(6, 3)
+  dataBase        DateTime?         @db.Date
+  aniversario     DateTime          @db.Date
+  valorAnterior   Decimal           @db.Decimal(14, 2)
+  valorReajustado Decimal           @db.Decimal(14, 2)
+  /// null = pendente (sugerido pelo modo automático); preenchido = aplicado.
+  aplicadoEm     DateTime?
+  createdAt       DateTime          @default(now())
+
+  @@index([contratoId])
+  @@index([aniversario])
+  @@map("reajuste_contrato")
 }
 
 // ─────────────────────────────────────────────────────────────
