@@ -21,6 +21,7 @@ import {
 } from "@/modules/licitacoes/extras/actions";
 import { salvarComposicaoLicitacao } from "@/modules/licitacoes/composicao/actions";
 import { salvarResultado } from "@/modules/licitacoes/sancoes/actions";
+import { salvarViabilidade, decidirViabilidade } from "@/modules/licitacoes/viabilidade/actions";
 import { totalComposicao, subtotalItem } from "@/modules/licitacoes/composicao/composicao";
 import {
   salvarContratoLicitacao,
@@ -114,6 +115,7 @@ type Lic = {
   responsaveisTecnicos: { id: string; responsavelId: string; nome: string; registro: string; conselho: string | null; documentoTipo: string; numeroDocumento: string | null }[];
   subcontratacoes: { id: string; fornecedorId: string | null; fornecedorNome: string | null; nomeLivre: string | null; objeto: string; percentual: number }[];
   resultado: { vencedor: string | null; valorVencedor: number | null; nossaClassificacao: number | null; observacao: string | null } | null;
+  viabilidade: { modo: string; margemEsperadaPct: number | null; equipeDisponivel: boolean | null; concorrenciaPrevista: string | null; decisao: string; decididoPorNome: string | null; decididoEm: string | null; justificativa: string | null; criterios: { id: string; criterio: string; atendido: boolean; observacao: string | null; ordem: number }[] } | null;
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -151,6 +153,7 @@ export function LicitacoesView({
   certidoes,
   responsaveisTecnicos,
   fornecedores,
+  sancoesPropriasAtivas,
 }: {
   licitacoes: Lic[];
   clientes: { id: string; nome: string }[];
@@ -165,6 +168,7 @@ export function LicitacoesView({
   certidoes: { id: string; nome: string; validade: string }[];
   responsaveisTecnicos: { id: string; nome: string; registro: string; conselho: string | null }[];
   fornecedores: { id: string; nome: string }[];
+  sancoesPropriasAtivas: number;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -309,7 +313,7 @@ export function LicitacoesView({
 
       <div className="space-y-3">
         {licitacoes.map((l) => (
-          <LicCard key={l.id} lic={l} clientes={clientes} modalidades={modalidades} podeGerir={podeGerir} modelosHabilitacao={modelosHabilitacao} certidoes={certidoes} responsaveisTecnicos={responsaveisTecnicos} fornecedores={fornecedores} />
+          <LicCard key={l.id} lic={l} clientes={clientes} modalidades={modalidades} podeGerir={podeGerir} modelosHabilitacao={modelosHabilitacao} certidoes={certidoes} responsaveisTecnicos={responsaveisTecnicos} fornecedores={fornecedores} sancoesPropriasAtivas={sancoesPropriasAtivas} />
         ))}
         {licitacoes.length === 0 && (
           <Card>
@@ -406,6 +410,7 @@ function LicCard({
   certidoes,
   responsaveisTecnicos,
   fornecedores,
+  sancoesPropriasAtivas,
 }: {
   lic: Lic;
   clientes: { id: string; nome: string }[];
@@ -415,6 +420,7 @@ function LicCard({
   certidoes: { id: string; nome: string; validade: string }[];
   responsaveisTecnicos: { id: string; nome: string; registro: string; conselho: string | null }[];
   fornecedores: { id: string; nome: string }[];
+  sancoesPropriasAtivas: number;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -734,6 +740,7 @@ function LicCard({
           </div>
         )}
 
+        <LicViabilidade lic={lic} podeGerir={podeGerir} sancoesPropriasAtivas={sancoesPropriasAtivas} />
         <LicEventos lic={lic} podeGerir={podeGerir} />
         <LicComposicao lic={lic} podeGerir={podeGerir} />
         <LicContrato lic={lic} podeGerir={podeGerir} />
@@ -820,6 +827,264 @@ function LicCard({
         </DialogContent>
       </Dialog>
     </Card>
+  );
+}
+
+function LicViabilidade({
+  lic,
+  podeGerir,
+  sancoesPropriasAtivas,
+}: {
+  lic: Lic;
+  podeGerir: boolean;
+  sancoesPropriasAtivas: number;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+
+  const v = lic.viabilidade;
+
+  // Edit state — initialised from server data or defaults
+  const [modo, setModo] = useState<string>(v?.modo ?? "fixo");
+  const [margem, setMargem] = useState(v?.margemEsperadaPct != null ? String(v.margemEsperadaPct) : "");
+  const [equipe, setEquipe] = useState<boolean>(v?.equipeDisponivel ?? false);
+  const [concorrencia, setConcorrencia] = useState(v?.concorrenciaPrevista ?? "");
+
+  type LinhaCriterio = { criterio: string; atendido: boolean; observacao: string };
+  const [criterios, setCriterios] = useState<LinhaCriterio[]>(
+    v?.criterios.map((c) => ({ criterio: c.criterio, atendido: c.atendido, observacao: c.observacao ?? "" })) ?? [],
+  );
+
+  const [justificativa, setJustificativa] = useState("");
+
+  const decisaoAtual = v?.decisao ?? "pendente";
+
+  function salvar() {
+    const criteriosLimpos = criterios
+      .filter((c) => c.criterio.trim().length > 0)
+      .map((c) => ({ criterio: c.criterio, atendido: c.atendido, observacao: c.observacao }));
+    start(async () => {
+      const r = await salvarViabilidade({
+        licitacaoId: lic.id,
+        modo: modo as "fixo" | "configuravel",
+        margemEsperadaPct: margem.trim() === "" ? undefined : Number(margem),
+        equipeDisponivel: equipe,
+        concorrenciaPrevista: concorrencia,
+        criterios: modo === "configuravel" ? criteriosLimpos : undefined,
+      });
+      if (r.ok) {
+        toast.success("Viabilidade salva.");
+        router.refresh();
+      } else {
+        toast.error(r.error);
+      }
+    });
+  }
+
+  function decidir(decisao: "go" | "no_go" | "pendente") {
+    start(async () => {
+      const r = await decidirViabilidade({ licitacaoId: lic.id, decisao, justificativa });
+      if (r.ok) {
+        toast.success(
+          decisao === "go" ? "GO registrado." : decisao === "no_go" ? "NO-GO registrado." : "Decisão revertida a pendente.",
+        );
+        setJustificativa("");
+        router.refresh();
+      } else {
+        toast.error(r.error);
+      }
+    });
+  }
+
+  const DECISAO_CHIP: Record<string, string> = {
+    pendente: "text-muted-foreground",
+    go: "text-success border-success/40",
+    no_go: "text-destructive border-destructive/40",
+  };
+  const DECISAO_LABEL: Record<string, string> = { pendente: "Pendente", go: "GO", no_go: "NO-GO" };
+
+  return (
+    <div className="space-y-1.5 rounded-sm border border-dashed p-2.5">
+      <p className="text-xs font-semibold text-muted-foreground">Viabilidade (go/no-go)</p>
+
+      {/* Sanction warning */}
+      {sancoesPropriasAtivas > 0 && (
+        <p className="text-xs text-warning">
+          ⚠ Empresa tem {sancoesPropriasAtivas} sanção(ões) ativa(s) — considere no go/no-go.
+        </p>
+      )}
+
+      {/* Current decision badge */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="outline" className={`${DECISAO_CHIP[decisaoAtual] ?? ""}`}>
+          {DECISAO_LABEL[decisaoAtual] ?? decisaoAtual}
+        </Badge>
+        {v?.decididoPorNome && (
+          <span className="text-xs text-muted-foreground">
+            por {v.decididoPorNome}
+            {v.decididoEm ? ` em ${new Date(v.decididoEm).toLocaleString("pt-BR")}` : ""}
+          </span>
+        )}
+        {v?.justificativa && (
+          <span className="text-xs italic text-muted-foreground">{v.justificativa}</span>
+        )}
+      </div>
+
+      {/* Read-only view */}
+      {!podeGerir && (
+        <>
+          {v?.modo === "fixo" && (
+            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+              {v.margemEsperadaPct != null && <span>Margem esperada: <span className="font-mono">{v.margemEsperadaPct}%</span></span>}
+              {v.equipeDisponivel != null && <span>Equipe disponível: {v.equipeDisponivel ? "Sim" : "Não"}</span>}
+              {v.concorrenciaPrevista && <span>Concorrência: {v.concorrenciaPrevista}</span>}
+            </div>
+          )}
+          {v?.modo === "configuravel" && v.criterios.length > 0 && (
+            <ul className="space-y-0.5">
+              {v.criterios.map((c) => (
+                <li key={c.id} className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                  <Badge
+                    variant="outline"
+                    className={c.atendido ? "text-[10px] py-0 text-success border-success/40" : "text-[10px] py-0 text-destructive border-destructive/40"}
+                  >
+                    {c.atendido ? "ok" : "pendente"}
+                  </Badge>
+                  <span className="font-medium text-foreground">{c.criterio}</span>
+                  {c.observacao && <span className="italic">{c.observacao}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+
+      {/* Edit + decide */}
+      {podeGerir && (
+        <>
+          {/* Modo select */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Select value={modo} onValueChange={(v) => { if (v) setModo(v); }}>
+              <SelectTrigger className="h-7 w-32 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fixo">Fixo</SelectItem>
+                <SelectItem value="configuravel">Configurável</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Fixo fields */}
+          {modo === "fixo" && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Input
+                type="number"
+                step="0.01"
+                className="h-7 w-28 text-xs"
+                placeholder="Margem esperada %"
+                value={margem}
+                onChange={(e) => setMargem(e.target.value)}
+              />
+              <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Checkbox
+                  checked={equipe as boolean}
+                  onCheckedChange={(v) => setEquipe(v as boolean)}
+                />
+                Equipe disponível
+              </label>
+              <Input
+                className="h-7 flex-1 text-xs"
+                placeholder="Concorrência prevista"
+                value={concorrencia}
+                onChange={(e) => setConcorrencia(e.target.value)}
+              />
+            </div>
+          )}
+
+          {/* Configuravel criteria */}
+          {modo === "configuravel" && (
+            <div className="space-y-1">
+              {criterios.map((c, i) => (
+                <div key={i} className="flex flex-wrap items-center gap-1.5">
+                  <Input
+                    className="h-7 flex-1 text-xs"
+                    placeholder="Critério"
+                    value={c.criterio}
+                    onChange={(e) => {
+                      const next = [...criterios];
+                      next[i] = { ...next[i], criterio: e.target.value };
+                      setCriterios(next);
+                    }}
+                  />
+                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Checkbox
+                      checked={c.atendido as boolean}
+                      onCheckedChange={(v) => {
+                        const next = [...criterios];
+                        next[i] = { ...next[i], atendido: v as boolean };
+                        setCriterios(next);
+                      }}
+                    />
+                    Atendido
+                  </label>
+                  <Input
+                    className="h-7 w-36 text-xs"
+                    placeholder="Observação"
+                    value={c.observacao}
+                    onChange={(e) => {
+                      const next = [...criterios];
+                      next[i] = { ...next[i], observacao: e.target.value };
+                      setCriterios(next);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    aria-label="Remover critério"
+                    disabled={pending}
+                    onClick={() => setCriterios(criterios.filter((_, j) => j !== i))}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="size-3" />
+                  </button>
+                </div>
+              ))}
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7"
+                onClick={() => setCriterios([...criterios, { criterio: "", atendido: false, observacao: "" }])}
+              >
+                <Plus className="size-3" /> Critério
+              </Button>
+            </div>
+          )}
+
+          <Button size="sm" variant="outline" className="h-7" onClick={salvar} disabled={pending}>
+            Salvar viabilidade
+          </Button>
+
+          {/* Decisão */}
+          <div className="flex flex-wrap items-center gap-1.5 border-t pt-1.5">
+            <Input
+              className="h-7 flex-1 text-xs"
+              placeholder="Justificativa"
+              value={justificativa}
+              onChange={(e) => setJustificativa(e.target.value)}
+            />
+            <Button size="sm" variant="outline" className="h-7 text-success border-success/40" onClick={() => decidir("go")} disabled={pending}>
+              GO
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 text-destructive border-destructive/40" onClick={() => decidir("no_go")} disabled={pending}>
+              NO-GO
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7" onClick={() => decidir("pendente")} disabled={pending}>
+              Reverter p/ pendente
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

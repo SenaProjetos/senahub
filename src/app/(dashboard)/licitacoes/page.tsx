@@ -6,6 +6,8 @@ import { nomesModalidadesAtivas } from "@/modules/licitacoes/modalidades/queries
 import { listarLicitacoes } from "@/modules/licitacoes/queries";
 import { listarChecklistModelos } from "@/modules/licitacoes/habilitacao/queries";
 import { listarResponsaveisTecnicos } from "@/modules/licitacoes/tecnico/queries";
+import { listarSancoesProprias } from "@/modules/licitacoes/sancoes/queries";
+import { sancaoAtiva } from "@/modules/licitacoes/sancoes/sancoes";
 import { prisma } from "@/lib/prisma";
 import { LicitacoesView } from "@/components/licitacoes/licitacoes-view";
 
@@ -34,7 +36,7 @@ export default async function LicitacoesPage({
     pageSize: sp.pageSize ? Number(sp.pageSize) : undefined,
   };
 
-  const [data, clientes, modalidades, modelos, certidoes, rts, fornecedores] = await Promise.all([
+  const [data, clientes, modalidades, modelos, certidoes, rts, fornecedores, proprias] = await Promise.all([
     listarLicitacoes(filtro),
     listarClientes({ incluirInativos: false }),
     nomesModalidadesAtivas(),
@@ -42,7 +44,19 @@ export default async function LicitacoesPage({
     prisma.certidao.findMany({ include: { tipo: true }, orderBy: { validade: "desc" } }),
     listarResponsaveisTecnicos(false),
     prisma.fornecedor.findMany({ where: { ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
+    listarSancoesProprias(),
   ]);
+
+  const hojeISO = new Date().toISOString().slice(0, 10);
+  const sancoesPropriasAtivas = proprias.filter((s) =>
+    sancaoAtiva(
+      {
+        inicio: s.inicio ? s.inicio.toISOString().slice(0, 10) : null,
+        fim: s.fim ? s.fim.toISOString().slice(0, 10) : null,
+      },
+      hojeISO,
+    ),
+  ).length;
 
   return (
     <LicitacoesView
@@ -63,6 +77,7 @@ export default async function LicitacoesPage({
       }))}
       responsaveisTecnicos={rts.map((r) => ({ id: r.id, nome: r.nome, registro: r.registro, conselho: r.conselho }))}
       fornecedores={fornecedores.map((f) => ({ id: f.id, nome: f.nome }))}
+      sancoesPropriasAtivas={sancoesPropriasAtivas}
     />
   );
 }
