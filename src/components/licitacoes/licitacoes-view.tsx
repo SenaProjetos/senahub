@@ -20,6 +20,7 @@ import {
   removerValorDisciplinaLicitacao,
 } from "@/modules/licitacoes/extras/actions";
 import { salvarComposicaoLicitacao } from "@/modules/licitacoes/composicao/actions";
+import { salvarResultado } from "@/modules/licitacoes/sancoes/actions";
 import { totalComposicao, subtotalItem } from "@/modules/licitacoes/composicao/composicao";
 import {
   salvarContratoLicitacao,
@@ -112,6 +113,7 @@ type Lic = {
   subcontratacaoMaxPct: number | null;
   responsaveisTecnicos: { id: string; responsavelId: string; nome: string; registro: string; conselho: string | null; documentoTipo: string; numeroDocumento: string | null }[];
   subcontratacoes: { id: string; fornecedorId: string | null; fornecedorNome: string | null; nomeLivre: string | null; objeto: string; percentual: number }[];
+  resultado: { vencedor: string | null; valorVencedor: number | null; nossaClassificacao: number | null; observacao: string | null } | null;
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -246,11 +248,16 @@ export function LicitacoesView({
             {total} processo(s){total > 0 && ` · exibindo ${inicio}–${fim}`}.
           </p>
         </div>
-        {podeGerir && (
-          <Button onClick={() => setDialogNova(true)}>
-            <Plus className="size-4" /> Nova licitação
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <Link href="/licitacoes/sancoes">
+            <Button variant="outline">Sanções</Button>
+          </Link>
+          {podeGerir && (
+            <Button onClick={() => setDialogNova(true)}>
+              <Plus className="size-4" /> Nova licitação
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filtros */}
@@ -738,6 +745,7 @@ function LicCard({
         </div>
         <LicResponsaveis lic={lic} podeGerir={podeGerir} rtsDisponiveis={responsaveisTecnicos} />
         <LicSubcontratacao lic={lic} podeGerir={podeGerir} fornecedores={fornecedores} />
+        <LicResultado lic={lic} podeGerir={podeGerir} />
         <LicExtras lic={lic} podeGerir={podeGerir} />
       </CardContent>
 
@@ -2106,6 +2114,114 @@ function LicEventos({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
             <Plus className="size-3" /> Adicionar
           </Button>
         </div>
+      )}
+    </div>
+  );
+}
+
+function LicResultado({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+
+  const r = lic.resultado;
+  const [vencedor, setVencedor] = useState(r?.vencedor ?? "");
+  const [vv, setVv] = useState(r?.valorVencedor != null ? String(r.valorVencedor) : "");
+  const [nc, setNc] = useState(r?.nossaClassificacao != null ? String(r.nossaClassificacao) : "");
+  const [observacao, setObservacao] = useState(r?.observacao ?? "");
+
+  function salvar() {
+    start(async () => {
+      const res = await salvarResultado({
+        licitacaoId: lic.id,
+        vencedor,
+        valorVencedor: vv.trim() === "" ? undefined : Number(vv),
+        nossaClassificacao: nc.trim() === "" ? undefined : Number(nc),
+        observacao,
+      });
+      if (res.ok) {
+        toast.success("Resultado salvo.");
+        router.refresh();
+      } else {
+        toast.error(res.error);
+      }
+    });
+  }
+
+  const temDados = r?.vencedor || r?.valorVencedor != null || r?.nossaClassificacao != null || r?.observacao;
+
+  return (
+    <div className="space-y-1.5 rounded-sm border border-dashed p-2.5">
+      <p className="text-xs font-semibold text-muted-foreground">Resultado / concorrência</p>
+
+      {!podeGerir ? (
+        temDados ? (
+          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+            {r?.vencedor && (
+              <span>Vencedor: <span className="font-medium text-foreground">{r.vencedor}</span></span>
+            )}
+            {r?.valorVencedor != null && (
+              <span>Valor: <span className="font-mono">{brl(r.valorVencedor)}</span></span>
+            )}
+            {r?.nossaClassificacao != null && (
+              <span>Nossa classif.: <span className="font-semibold">{r.nossaClassificacao}º</span></span>
+            )}
+            {r?.observacao && <span className="italic">{r.observacao}</span>}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">Sem resultado registrado.</p>
+        )
+      ) : (
+        <>
+          {temDados && (
+            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+              {r?.vencedor && (
+                <span>Vencedor: <span className="font-medium text-foreground">{r.vencedor}</span></span>
+              )}
+              {r?.valorVencedor != null && (
+                <span>Valor: <span className="font-mono">{brl(r.valorVencedor)}</span></span>
+              )}
+              {r?.nossaClassificacao != null && (
+                <span>Nossa classif.: <span className="font-semibold">{r.nossaClassificacao}º</span></span>
+              )}
+              {r?.observacao && <span className="italic">{r.observacao}</span>}
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Input
+              className="h-7 w-44 text-xs"
+              placeholder="Vencedor"
+              value={vencedor}
+              onChange={(e) => setVencedor(e.target.value)}
+            />
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              className="h-7 w-32 text-xs"
+              placeholder="Valor vencedor (R$)"
+              value={vv}
+              onChange={(e) => setVv(e.target.value)}
+            />
+            <Input
+              type="number"
+              step="1"
+              min="1"
+              className="h-7 w-24 text-xs"
+              placeholder="Classif. (1º…)"
+              value={nc}
+              onChange={(e) => setNc(e.target.value)}
+            />
+            <Input
+              className="h-7 flex-1 text-xs"
+              placeholder="Observação"
+              value={observacao}
+              onChange={(e) => setObservacao(e.target.value)}
+            />
+            <Button size="sm" variant="outline" className="h-7" onClick={salvar} disabled={pending}>
+              Salvar resultado
+            </Button>
+          </div>
+        </>
       )}
     </div>
   );
