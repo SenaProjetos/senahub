@@ -61,55 +61,40 @@ export type LicitacaoListItem = {
   } | null;
 };
 
-function normalizarStatus(status?: string[]): StatusLicitacao[] {
-  if (!status?.length) return [];
-  return status.filter((s): s is StatusLicitacao =>
-    (STATUS_LICITACAO as readonly string[]).includes(s),
-  );
-}
+export type ResumoLicitacao = {
+  id: string;
+  titulo: string;
+  orgao: string | null;
+  modalidade: string | null;
+  numeroEdital: string | null;
+  prazoProposta: string;
+  valorEstimado: number | null;
+  status: string;
+  projeto: { id: string; codigo: string } | null;
+  nDocs: number;
+  nMedicoes: number;
+};
 
-function normalizarPageSize(pageSize?: number): number {
-  if (pageSize && (PAGE_SIZES as readonly number[]).includes(pageSize)) return pageSize;
-  return PAGE_SIZE_PADRAO;
-}
+const includeDetalhe = {
+  projeto: { select: { id: true, codigo: true } },
+  docs: { include: { versoes: { orderBy: { numero: "desc" as const } } } },
+  medicoes: { orderBy: { numero: "asc" as const } },
+  historico: { orderBy: { createdAt: "desc" as const }, take: 20 },
+  valoresDisciplina: { orderBy: { disciplina: "asc" as const } },
+  eventos: { orderBy: { data: "asc" as const } },
+  composicao: { include: { itens: { orderBy: { ordem: "asc" as const } } } },
+  contrato: { include: { aditivos: { orderBy: { data: "asc" as const } }, riscos: { orderBy: { ordem: "asc" as const } }, reajustes: { orderBy: { aniversario: "asc" as const } } } },
+  habilitacao: { include: { certidao: { include: { tipo: true } } }, orderBy: { ordem: "asc" as const } },
+  responsaveisTecnicos: { include: { responsavel: true } },
+  subcontratacoes: { include: { fornecedor: { select: { nome: true } } } },
+  resultado: true,
+  viabilidade: { include: { criterios: { orderBy: { ordem: "asc" as const } }, decididoPor: { select: { name: true } } } },
+} satisfies Prisma.LicitacaoInclude;
 
-export async function listarLicitacoes(filtro: LicitacaoFiltro = {}) {
-  const where: Prisma.LicitacaoWhereInput = {};
+type LicitacaoComDetalhe = Prisma.LicitacaoGetPayload<{ include: typeof includeDetalhe }>;
 
-  const statusValidos = normalizarStatus(filtro.status);
-  if (statusValidos.length) where.status = { in: statusValidos };
-  if (filtro.orgao) where.orgao = { contains: filtro.orgao, mode: "insensitive" };
-  if (filtro.q) where.titulo = { contains: filtro.q, mode: "insensitive" };
-
-  const pageSize = normalizarPageSize(filtro.pageSize);
-  const page = Math.max(1, filtro.page ?? 1);
-
-  const [rows, total] = await Promise.all([
-    prisma.licitacao.findMany({
-      where,
-      orderBy: { updatedAt: "desc" },
-      take: pageSize,
-      skip: (page - 1) * pageSize,
-      include: {
-        projeto: { select: { id: true, codigo: true } },
-        docs: { include: { versoes: { orderBy: { numero: "desc" } } } },
-        medicoes: { orderBy: { numero: "asc" } },
-        historico: { orderBy: { createdAt: "desc" }, take: 20 },
-        valoresDisciplina: { orderBy: { disciplina: "asc" } },
-        eventos: { orderBy: { data: "asc" } },
-        composicao: { include: { itens: { orderBy: { ordem: "asc" } } } },
-        contrato: { include: { aditivos: { orderBy: { data: "asc" } }, riscos: { orderBy: { ordem: "asc" } }, reajustes: { orderBy: { aniversario: "asc" } } } },
-        viabilidade: { include: { criterios: { orderBy: { ordem: "asc" } }, decididoPor: { select: { name: true } } } },
-        habilitacao: { include: { certidao: { include: { tipo: true } } }, orderBy: { ordem: "asc" } },
-        responsaveisTecnicos: { include: { responsavel: true } },
-        subcontratacoes: { include: { fornecedor: { select: { nome: true } } } },
-        resultado: true,
-      },
-    }),
-    prisma.licitacao.count({ where }),
-  ]);
-
-  const items: LicitacaoListItem[] = rows.map((l) => ({
+function mapLicitacaoDetalhe(l: LicitacaoComDetalhe): LicitacaoListItem {
+  return {
     id: l.id,
     titulo: l.titulo,
     orgao: l.orgao,
@@ -213,7 +198,44 @@ export async function listarLicitacoes(filtro: LicitacaoFiltro = {}) {
           })),
         }
       : null,
-  }));
+  };
+}
+
+function normalizarStatus(status?: string[]): StatusLicitacao[] {
+  if (!status?.length) return [];
+  return status.filter((s): s is StatusLicitacao =>
+    (STATUS_LICITACAO as readonly string[]).includes(s),
+  );
+}
+
+function normalizarPageSize(pageSize?: number): number {
+  if (pageSize && (PAGE_SIZES as readonly number[]).includes(pageSize)) return pageSize;
+  return PAGE_SIZE_PADRAO;
+}
+
+export async function listarLicitacoes(filtro: LicitacaoFiltro = {}) {
+  const where: Prisma.LicitacaoWhereInput = {};
+
+  const statusValidos = normalizarStatus(filtro.status);
+  if (statusValidos.length) where.status = { in: statusValidos };
+  if (filtro.orgao) where.orgao = { contains: filtro.orgao, mode: "insensitive" };
+  if (filtro.q) where.titulo = { contains: filtro.q, mode: "insensitive" };
+
+  const pageSize = normalizarPageSize(filtro.pageSize);
+  const page = Math.max(1, filtro.page ?? 1);
+
+  const [rows, total] = await Promise.all([
+    prisma.licitacao.findMany({
+      where,
+      orderBy: { updatedAt: "desc" },
+      take: pageSize,
+      skip: (page - 1) * pageSize,
+      include: includeDetalhe,
+    }),
+    prisma.licitacao.count({ where }),
+  ]);
+
+  const items: LicitacaoListItem[] = rows.map(mapLicitacaoDetalhe);
 
   return {
     rows: items,
@@ -222,4 +244,51 @@ export async function listarLicitacoes(filtro: LicitacaoFiltro = {}) {
     pageSize,
     pages: Math.max(1, Math.ceil(total / pageSize)),
   };
+}
+
+export async function obterLicitacao(id: string): Promise<LicitacaoListItem | null> {
+  const l = await prisma.licitacao.findUnique({ where: { id }, include: includeDetalhe });
+  return l ? mapLicitacaoDetalhe(l) : null;
+}
+
+export async function listarLicitacoesResumo(filtro: LicitacaoFiltro = {}) {
+  const where: Prisma.LicitacaoWhereInput = {};
+
+  const statusValidos = normalizarStatus(filtro.status);
+  if (statusValidos.length) where.status = { in: statusValidos };
+  if (filtro.orgao) where.orgao = { contains: filtro.orgao, mode: "insensitive" };
+  if (filtro.q) where.titulo = { contains: filtro.q, mode: "insensitive" };
+
+  const pageSize = normalizarPageSize(filtro.pageSize);
+  const page = Math.max(1, filtro.page ?? 1);
+
+  const [rows, total] = await Promise.all([
+    prisma.licitacao.findMany({
+      where,
+      orderBy: { updatedAt: "desc" },
+      take: pageSize,
+      skip: (page - 1) * pageSize,
+      include: {
+        projeto: { select: { id: true, codigo: true } },
+        _count: { select: { docs: true, medicoes: true } },
+      },
+    }),
+    prisma.licitacao.count({ where }),
+  ]);
+
+  const items: ResumoLicitacao[] = rows.map((l) => ({
+    id: l.id,
+    titulo: l.titulo,
+    orgao: l.orgao,
+    modalidade: l.modalidade,
+    numeroEdital: l.numeroEdital,
+    prazoProposta: l.prazoProposta ? l.prazoProposta.toISOString().slice(0, 10) : "",
+    valorEstimado: l.valorEstimado != null ? Number(l.valorEstimado) : null,
+    status: l.status,
+    projeto: l.projeto ? { id: l.projeto.id, codigo: l.projeto.codigo } : null,
+    nDocs: l._count.docs,
+    nMedicoes: l._count.medicoes,
+  }));
+
+  return { rows: items, total, page, pageSize, pages: Math.max(1, Math.ceil(total / pageSize)) };
 }
