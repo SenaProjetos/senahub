@@ -43,6 +43,7 @@ export type LicitacaoListItem = {
     riscos: { id: string; evento: string; probabilidade: string; impacto: string; alocacao: string; mitigacao: string | null; ordem: number }[];
     reajustes: { id: string; indice: string; percentual: number; dataBase: string | null; aniversario: string; valorAnterior: number; valorReajustado: number; aplicado: boolean; aplicadoEm: string | null }[];
   } | null;
+  habilitacao: { id: string; exigencia: string; certidaoId: string | null; certidaoNome: string | null; certidaoValidade: string | null; atendido: boolean; obrigatorio: boolean; observacao: string | null; ordem: number }[];
 };
 
 function normalizarStatus(status?: string[]): StatusLicitacao[] {
@@ -83,6 +84,7 @@ export async function listarLicitacoes(filtro: LicitacaoFiltro = {}) {
         eventos: { orderBy: { data: "asc" } },
         composicao: { include: { itens: { orderBy: { ordem: "asc" } } } },
         contrato: { include: { aditivos: { orderBy: { data: "asc" } }, riscos: { orderBy: { ordem: "asc" } }, reajustes: { orderBy: { aniversario: "asc" } } } },
+        habilitacao: { include: { certidao: { include: { tipo: true } } }, orderBy: { ordem: "asc" } },
       },
     }),
     prisma.licitacao.count({ where }),
@@ -158,6 +160,17 @@ export async function listarLicitacoes(filtro: LicitacaoFiltro = {}) {
       riscos: l.contrato.riscos.map((r) => ({ id: r.id, evento: r.evento, probabilidade: r.probabilidade, impacto: r.impacto, alocacao: r.alocacao, mitigacao: r.mitigacao, ordem: r.ordem })),
       reajustes: l.contrato.reajustes.map((r) => ({ id: r.id, indice: r.indice, percentual: Number(r.percentual), dataBase: r.dataBase ? r.dataBase.toISOString().slice(0, 10) : null, aniversario: r.aniversario.toISOString().slice(0, 10), valorAnterior: Number(r.valorAnterior), valorReajustado: Number(r.valorReajustado), aplicado: r.aplicadoEm != null, aplicadoEm: r.aplicadoEm ? r.aplicadoEm.toISOString() : null })),
     } : null,
+    habilitacao: l.habilitacao.map((h) => ({
+      id: h.id,
+      exigencia: h.exigencia,
+      certidaoId: h.certidaoId,
+      certidaoNome: h.certidao ? h.certidao.tipo.nome : null,
+      certidaoValidade: h.certidao ? h.certidao.validade.toISOString().slice(0, 10) : null,
+      atendido: h.atendido,
+      obrigatorio: h.obrigatorio,
+      observacao: h.observacao,
+      ordem: h.ordem,
+    })),
   }));
 
   return {
