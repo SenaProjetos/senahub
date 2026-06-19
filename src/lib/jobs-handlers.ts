@@ -293,8 +293,9 @@ export async function alertaLimiteAditivo(): Promise<number> {
   for (const c of contratos) {
     const homologado = Number(c.valorHomologado);
     if (homologado <= 0) continue;
+    const baseCalc = c.valorHomologadoBase != null ? Number(c.valorHomologadoBase) : homologado;
     const acresc = somaAcrescimos(c.aditivos.map((a) => ({ valorDelta: a.valorDelta != null ? Number(a.valorDelta) : null })));
-    const pct = acrescimoAcumuladoPct(homologado, acresc);
+    const pct = acrescimoAcumuladoPct(baseCalc, acresc);
     const limite = c.limiteAcrescimoPct != null ? Number(c.limiteAcrescimoPct) : cfg.aditivo.limiteAcrescimoPctPadrao;
     if (!proximoDoLimite(pct, limite, cfg.aditivo.fatorAviso)) continue;
     await notificarMuitos(ids, {

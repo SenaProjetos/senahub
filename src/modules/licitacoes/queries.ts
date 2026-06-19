@@ -35,6 +35,7 @@ export type LicitacaoListItem = {
   contrato: {
     id: string; numeroContrato: string | null; numeroEmpenho: string | null;
     valorHomologado: number;
+    valorHomologadoBase: number | null;
     vigenciaInicio: string | null; vigenciaFim: string | null;
     reajuste: string | null; garantiaTipo: string | null; garantiaValor: number | null; garantiaValidade: string | null;
     limiteAcrescimoPct: number | null;
@@ -145,6 +146,7 @@ export async function listarLicitacoes(filtro: LicitacaoFiltro = {}) {
       numeroContrato: l.contrato.numeroContrato,
       numeroEmpenho: l.contrato.numeroEmpenho,
       valorHomologado: Number(l.contrato.valorHomologado),
+      valorHomologadoBase: l.contrato.valorHomologadoBase != null ? Number(l.contrato.valorHomologadoBase) : null,
       vigenciaInicio: l.contrato.vigenciaInicio ? l.contrato.vigenciaInicio.toISOString().slice(0, 10) : null,
       vigenciaFim: l.contrato.vigenciaFim ? l.contrato.vigenciaFim.toISOString().slice(0, 10) : null,
       reajuste: l.contrato.reajuste,

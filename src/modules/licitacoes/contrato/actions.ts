@@ -37,41 +37,35 @@ export const salvarContratoLicitacao = defineAction(
     const lic = await prisma.licitacao.findUnique({ where: { id: licitacaoId }, select: { id: true } });
     if (!lic) throw new ActionError("Licitação não encontrada.");
 
-    const existia = await prisma.contratoLicitacao.findUnique({ where: { licitacaoId } });
+    const existente = await prisma.contratoLicitacao.findUnique({
+      where: { licitacaoId },
+      include: { reajustes: { where: { aplicadoEm: { not: null } }, select: { id: true }, take: 1 } },
+    });
+    const temReajusteAplicado = !!existente && existente.reajustes.length > 0;
+
+    const camposAtuais = {
+      valorHomologado,
+      numeroContrato: rest.numeroContrato || null,
+      numeroEmpenho: rest.numeroEmpenho || null,
+      vigenciaInicio: rest.vigenciaInicio ? new Date(rest.vigenciaInicio) : null,
+      vigenciaFim: rest.vigenciaFim ? new Date(rest.vigenciaFim) : null,
+      reajuste: rest.reajuste || null,
+      garantiaTipo: rest.garantiaTipo || null,
+      garantiaValor: rest.garantiaValor ?? null,
+      garantiaValidade: rest.garantiaValidade ? new Date(rest.garantiaValidade) : null,
+      limiteAcrescimoPct: rest.limiteAcrescimoPct ?? null,
+    };
 
     const contrato = await prisma.$transaction(async (tx) => {
       const c = await tx.contratoLicitacao.upsert({
         where: { licitacaoId },
-        create: {
-          licitacaoId,
-          valorHomologado,
-          numeroContrato: rest.numeroContrato || null,
-          numeroEmpenho: rest.numeroEmpenho || null,
-          vigenciaInicio: rest.vigenciaInicio ? new Date(rest.vigenciaInicio) : null,
-          vigenciaFim: rest.vigenciaFim ? new Date(rest.vigenciaFim) : null,
-          reajuste: rest.reajuste || null,
-          garantiaTipo: rest.garantiaTipo || null,
-          garantiaValor: rest.garantiaValor ?? null,
-          garantiaValidade: rest.garantiaValidade ? new Date(rest.garantiaValidade) : null,
-          limiteAcrescimoPct: rest.limiteAcrescimoPct ?? null,
-        },
-        update: {
-          valorHomologado,
-          numeroContrato: rest.numeroContrato || null,
-          numeroEmpenho: rest.numeroEmpenho || null,
-          vigenciaInicio: rest.vigenciaInicio ? new Date(rest.vigenciaInicio) : null,
-          vigenciaFim: rest.vigenciaFim ? new Date(rest.vigenciaFim) : null,
-          reajuste: rest.reajuste || null,
-          garantiaTipo: rest.garantiaTipo || null,
-          garantiaValor: rest.garantiaValor ?? null,
-          garantiaValidade: rest.garantiaValidade ? new Date(rest.garantiaValidade) : null,
-          limiteAcrescimoPct: rest.limiteAcrescimoPct ?? null,
-        },
+        create: { licitacaoId, ...camposAtuais, valorHomologadoBase: valorHomologado },
+        update: { ...camposAtuais, ...(temReajusteAplicado ? {} : { valorHomologadoBase: valorHomologado }) },
       });
       await registrarHistorico(
         tx,
         licitacaoId,
-        existia
+        !!existente
           ? "Contrato atualizado."
           : `Contrato registrado — valor homologado ${brl(valorHomologado)}`,
         user.id,
