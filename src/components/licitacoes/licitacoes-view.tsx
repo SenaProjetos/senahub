@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { differenceInCalendarDays } from "date-fns";
-import { Plus, Upload, Download, Trash2, Import, Receipt } from "lucide-react";
+import { Plus, Upload, Download, Trash2, Import, Receipt, Pencil, X } from "lucide-react";
+import { PAGE_SIZE_PADRAO, PAGE_SIZES } from "@/modules/licitacoes/pagination";
 import {
   criarLicitacao,
   editarLicitacao,
@@ -38,6 +39,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 type Lic = {
   id: string;
@@ -75,14 +77,28 @@ function brl(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+type Filtro = { status: string[]; orgao: string; q: string };
+
 export function LicitacoesView({
   licitacoes,
   clientes,
+  modalidades,
   podeGerir,
+  total,
+  page,
+  pages,
+  pageSize,
+  filtro,
 }: {
   licitacoes: Lic[];
   clientes: { id: string; nome: string }[];
+  modalidades: string[];
   podeGerir: boolean;
+  total: number;
+  page: number;
+  pages: number;
+  pageSize: number;
+  filtro: Filtro;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -90,6 +106,48 @@ export function LicitacoesView({
   const [titulo, setTitulo] = useState("");
   const [orgao, setOrgao] = useState("");
   const [prazo, setPrazo] = useState("");
+
+  // Filtros (busca textual com debounce; status persistido na URL)
+  const [qLocal, setQLocal] = useState(filtro.q);
+  const [orgaoLocal, setOrgaoLocal] = useState(filtro.orgao);
+
+  function setParams(next: Partial<Filtro & { page: number; pageSize: number }>) {
+    const status = next.status ?? filtro.status;
+    const orgaoF = next.orgao ?? filtro.orgao;
+    const q = next.q ?? filtro.q;
+    const ps = next.pageSize ?? pageSize;
+    const pg = next.page ?? 1; // qualquer mudança de filtro reinicia a paginação
+    const params = new URLSearchParams();
+    if (status.length) params.set("status", status.join(","));
+    if (orgaoF) params.set("orgao", orgaoF);
+    if (q) params.set("q", q);
+    if (ps !== PAGE_SIZE_PADRAO) params.set("pageSize", String(ps));
+    if (pg > 1) params.set("page", String(pg));
+    const qs = params.toString();
+    router.push(qs ? `/licitacoes?${qs}` : "/licitacoes");
+  }
+
+  // Debounce das buscas textuais: dispara 400ms após a última tecla.
+  useEffect(() => {
+    if (qLocal === filtro.q && orgaoLocal === filtro.orgao) return;
+    const t = setTimeout(() => setParams({ q: qLocal, orgao: orgaoLocal }), 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qLocal, orgaoLocal]);
+
+  function toggleStatus(s: string) {
+    const next = filtro.status.includes(s)
+      ? filtro.status.filter((x) => x !== s)
+      : [...filtro.status, s];
+    setParams({ status: next });
+  }
+
+  const temFiltro = filtro.status.length > 0 || filtro.orgao !== "" || filtro.q !== "";
+  function limparFiltros() {
+    setQLocal("");
+    setOrgaoLocal("");
+    setParams({ status: [], orgao: "", q: "" });
+  }
 
   function criar() {
     start(async () => {
@@ -112,12 +170,17 @@ export function LicitacoesView({
     });
   }
 
+  const inicio = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const fim = Math.min(page * pageSize, total);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-extrabold tracking-tight">Licitações</h2>
-          <p className="text-sm text-muted-foreground">{licitacoes.length} processo(s).</p>
+          <p className="text-sm text-muted-foreground">
+            {total} processo(s){total > 0 && ` · exibindo ${inicio}–${fim}`}.
+          </p>
         </div>
         {podeGerir && (
           <Button onClick={() => setDialogNova(true)}>
@@ -126,16 +189,105 @@ export function LicitacoesView({
         )}
       </div>
 
+      {/* Filtros */}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            placeholder="Buscar por título…"
+            value={qLocal}
+            onChange={(e) => setQLocal(e.target.value)}
+            className="max-w-xs"
+          />
+          <Input
+            placeholder="Filtrar por órgão…"
+            value={orgaoLocal}
+            onChange={(e) => setOrgaoLocal(e.target.value)}
+            className="max-w-xs"
+          />
+          {temFiltro && (
+            <Button variant="ghost" size="sm" onClick={limparFiltros}>
+              <X className="size-3.5" /> Limpar
+            </Button>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {Object.entries(STATUS_LABEL).map(([k, v]) => {
+            const ativo = filtro.status.includes(k);
+            return (
+              <button
+                key={k}
+                type="button"
+                onClick={() => toggleStatus(k)}
+                aria-pressed={ativo}
+              >
+                <Badge
+                  variant="outline"
+                  className={
+                    ativo
+                      ? `cursor-pointer ${STATUS_CHIP[k]} bg-accent`
+                      : "cursor-pointer text-muted-foreground hover:bg-accent/50"
+                  }
+                >
+                  {v}
+                </Badge>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="space-y-3">
         {licitacoes.map((l) => (
-          <LicCard key={l.id} lic={l} clientes={clientes} podeGerir={podeGerir} />
+          <LicCard key={l.id} lic={l} clientes={clientes} modalidades={modalidades} podeGerir={podeGerir} />
         ))}
         {licitacoes.length === 0 && (
           <Card>
             <CardContent className="py-8 text-center text-sm text-muted-foreground">
-              Nenhuma licitação.
+              {temFiltro ? "Nenhuma licitação para os filtros." : "Nenhuma licitação."}
             </CardContent>
           </Card>
+        )}
+      </div>
+
+      {/* Paginação */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>Itens por página:</span>
+          <Select value={String(pageSize)} onValueChange={(v) => v && setParams({ pageSize: Number(v) })}>
+            <SelectTrigger className="h-8 w-20">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PAGE_SIZES.map((s) => (
+                <SelectItem key={s} value={String(s)}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {pages > 1 && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setParams({ ...filtro, page: page - 1 })}
+            >
+              Anterior
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              {page} / {pages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= pages}
+              onClick={() => setParams({ ...filtro, page: page + 1 })}
+            >
+              Próxima
+            </Button>
+          </div>
         )}
       </div>
 
@@ -177,10 +329,12 @@ export function LicitacoesView({
 function LicCard({
   lic,
   clientes,
+  modalidades,
   podeGerir,
 }: {
   lic: Lic;
   clientes: { id: string; nome: string }[];
+  modalidades: string[];
   podeGerir: boolean;
 }) {
   const router = useRouter();
@@ -190,6 +344,57 @@ function LicCard({
   const [medValor, setMedValor] = useState("");
   const [medData, setMedData] = useState(new Date().toISOString().slice(0, 10));
   const [clienteImport, setClienteImport] = useState("");
+
+  // Edição completa
+  const [dialogEdit, setDialogEdit] = useState(false);
+  const [eTitulo, setETitulo] = useState("");
+  const [eOrgao, setEOrgao] = useState("");
+  const [eModalidade, setEModalidade] = useState("");
+  const [eNumeroEdital, setENumeroEdital] = useState("");
+  const [ePrazo, setEPrazo] = useState("");
+  const [eValor, setEValor] = useState("");
+  const [eObs, setEObs] = useState("");
+
+  function abrirEdicao() {
+    setETitulo(lic.titulo);
+    setEOrgao(lic.orgao ?? "");
+    setEModalidade(lic.modalidade && modalidades.includes(lic.modalidade) ? lic.modalidade : "");
+    setENumeroEdital(lic.numeroEdital ?? "");
+    setEPrazo(lic.prazoProposta);
+    setEValor(lic.valorEstimado != null ? String(lic.valorEstimado) : "");
+    setEObs(lic.observacoes);
+    setDialogEdit(true);
+  }
+
+  function salvarEdicao() {
+    if (!eTitulo.trim()) {
+      toast.error("Informe o título.");
+      return;
+    }
+    const valorNum = eValor.trim() === "" ? undefined : Number(eValor);
+    if (valorNum != null && (Number.isNaN(valorNum) || valorNum < 0)) {
+      toast.error("Valor estimado inválido.");
+      return;
+    }
+    start(async () => {
+      const r = await editarLicitacao({
+        id: lic.id,
+        titulo: eTitulo,
+        orgao: eOrgao,
+        modalidade: eModalidade,
+        numeroEdital: eNumeroEdital,
+        prazoProposta: ePrazo,
+        valorEstimado: valorNum,
+        observacoes: eObs,
+        status: lic.status as never,
+      });
+      if (r.ok) {
+        toast.success("Licitação atualizada.");
+        setDialogEdit(false);
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
 
   const diasPrazo = lic.prazoProposta
     ? differenceInCalendarDays(new Date(lic.prazoProposta + "T00:00:00"), new Date())
@@ -282,6 +487,12 @@ function LicCard({
             {STATUS_LABEL[lic.status]}
           </Badge>
           {lic.orgao && <span className="text-xs text-muted-foreground">{lic.orgao}</span>}
+          {lic.modalidade && (
+            <Badge variant="outline" className="text-muted-foreground">{lic.modalidade}</Badge>
+          )}
+          {lic.numeroEdital && (
+            <span className="font-mono text-xs text-muted-foreground">Edital {lic.numeroEdital}</span>
+          )}
           {diasPrazo != null && lic.status === "em_andamento" && (
             <Badge
               variant="outline"
@@ -300,6 +511,9 @@ function LicCard({
           )}
           {podeGerir && (
             <div className="ml-auto flex items-center gap-1.5">
+              <Button size="icon" variant="ghost" aria-label="Editar" onClick={abrirEdicao}>
+                <Pencil className="size-4" />
+              </Button>
               <Select value={lic.status} items={STATUS_LABEL} onValueChange={mudarStatus}>
                 <SelectTrigger className="h-8 w-36">
                   <SelectValue />
@@ -386,9 +600,26 @@ function LicCard({
                     value={medData}
                     onChange={(e) => setMedData(e.target.value)}
                   />
-                  <Button size="sm" variant="outline" className="h-7" onClick={medir} disabled={pending || !medValor}>
-                    <Plus className="size-3" /> Medir
-                  </Button>
+                  {lic.projeto ? (
+                    <Button size="sm" variant="outline" className="h-7" onClick={medir} disabled={pending || !medValor}>
+                      <Plus className="size-3" /> Medir
+                    </Button>
+                  ) : (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <span className="inline-flex">
+                            <Button size="sm" variant="outline" className="h-7 pointer-events-none" disabled>
+                              <Plus className="size-3" /> Medir
+                            </Button>
+                          </span>
+                        }
+                      />
+                      <TooltipContent>
+                        Importe a licitação ganha para vincular um projeto antes de registrar medições.
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
                 </>
               )}
             </div>
@@ -425,6 +656,77 @@ function LicCard({
 
         <LicExtras lic={lic} podeGerir={podeGerir} />
       </CardContent>
+
+      <Dialog open={dialogEdit} onOpenChange={setDialogEdit}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar licitação</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Título</Label>
+              <Input value={eTitulo} onChange={(e) => setETitulo(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Órgão</Label>
+                <Input value={eOrgao} onChange={(e) => setEOrgao(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Modalidade</Label>
+                <Select
+                  value={eModalidade || "__none__"}
+                  onValueChange={(v) => setEModalidade(v === "__none__" ? "" : (v ?? ""))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Modalidade…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Nenhuma</SelectItem>
+                    {modalidades.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Nº do edital</Label>
+                <Input value={eNumeroEdital} onChange={(e) => setENumeroEdital(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Prazo da proposta</Label>
+                <Input type="date" value={ePrazo} onChange={(e) => setEPrazo(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Valor estimado (R$)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={eValor}
+                onChange={(e) => setEValor(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Observações</Label>
+              <Input value={eObs} onChange={(e) => setEObs(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogEdit(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={salvarEdicao} disabled={pending || !eTitulo.trim()}>
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

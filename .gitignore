@@ -51,3 +51,4 @@ next-env.d.ts
 
 # amostras de importação (dados reais — não commitar)
 /docs/samples/
+.superpowers/

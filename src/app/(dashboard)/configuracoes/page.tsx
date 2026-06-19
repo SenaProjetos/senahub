@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Users, ShieldCheck, FileText, Percent, CalendarDays, Megaphone, ClipboardList } from "lucide-react";
+import { Users, ShieldCheck, FileText, Percent, CalendarDays, Megaphone, ClipboardList, Gavel } from "lucide-react";
 import { requireRole } from "@/lib/session";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -42,6 +42,12 @@ const ITENS = [
     icon: ClipboardList,
     titulo: "Inputs padrão",
     descricao: "Perguntas padrão por disciplina aplicadas ao link do cliente.",
+  },
+  {
+    href: "/configuracoes/modalidades",
+    icon: Gavel,
+    titulo: "Modalidades de licitação",
+    descricao: "Lista de modalidades usada no cadastro de licitações.",
   },
   {
     href: "/configuracoes/avisos",

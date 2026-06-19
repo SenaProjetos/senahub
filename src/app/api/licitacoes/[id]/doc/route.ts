@@ -4,6 +4,7 @@ import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { salvarArquivo, slug, nomeArquivoLimpo } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
+import { registrarHistorico, textoUploadDoc } from "@/modules/licitacoes/historico";
 
 /** Upload de documento da licitação (cria doc + versão, ou nova versão se título igual). */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -44,6 +45,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   await prisma.docLicitacaoVersao.create({
     data: { documentoId: doc.id, numero, arquivoPath: salvo.caminho, arquivoNome: nome, autorId: user.id },
   });
+  await registrarHistorico(prisma, id, textoUploadDoc(titulo, numero), user.id);
 
   await logAudit({
     userId: user.id,

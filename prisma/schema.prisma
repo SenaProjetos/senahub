@@ -1600,6 +1600,17 @@ model MedicaoLicitacao {
   @@map("medicao_licitacao")
 }
 
+/// Modalidade de licitação — lista configurável (config-driven, editável em Configurações).
+model Modalidade {
+  id        String   @id @default(cuid())
+  nome      String   @unique
+  ordem     Int      @default(0)
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@map("modalidade")
+}
+
 // ─────────────────────────────────────────────────────────────
 // Agenda (Onda 5d)
 // ─────────────────────────────────────────────────────────────
