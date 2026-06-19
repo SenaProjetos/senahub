@@ -550,6 +550,7 @@ model Fornecedor {
   servicos    ServicoTerceirizado[]
   catalogo    FornecedorServico[]
   subcontratacoes SubcontratacaoLicitacao[]
+  sancoes     SancaoConcorrente[]
 
   @@index([ativo])
   @@map("fornecedor")
@@ -1550,6 +1551,7 @@ model Licitacao {
   habilitacao       LicitacaoHabilitacaoItem[]
   responsaveisTecnicos LicitacaoResponsavelTecnico[]
   subcontratacoes      SubcontratacaoLicitacao[]
+  resultado         ResultadoLicitacao?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1857,6 +1859,64 @@ model ReajusteContrato {
   @@index([contratoId])
   @@index([aniversario])
   @@map("reajuste_contrato")
+}
+
+enum TipoSancao {
+  advertencia
+  multa
+  suspensao
+  impedimento
+  inidoneidade
+}
+
+/// Sanção contra a própria empresa (compliance).
+model SancaoPropria {
+  id         String     @id @default(cuid())
+  tipo       TipoSancao
+  valor      Decimal?   @db.Decimal(14, 2)
+  inicio     DateTime?  @db.Date
+  fim        DateTime?  @db.Date
+  orgao      String?
+  processo   String?
+  observacao String?
+  createdAt  DateTime   @default(now())
+
+  @@index([fim])
+  @@map("sancao_propria")
+}
+
+/// Sanção contra concorrente (inteligência comercial).
+model SancaoConcorrente {
+  id           String      @id @default(cuid())
+  fornecedorId String?
+  fornecedor   Fornecedor? @relation(fields: [fornecedorId], references: [id])
+  nomeLivre    String?
+  tipo         TipoSancao
+  valor        Decimal?    @db.Decimal(14, 2)
+  inicio       DateTime?   @db.Date
+  fim          DateTime?   @db.Date
+  orgao        String?
+  processo     String?
+  observacao   String?
+  createdAt    DateTime    @default(now())
+
+  @@index([fim])
+  @@map("sancao_concorrente")
+}
+
+/// Resultado/concorrência de uma licitação (quem ganhou, valor, nossa classificação).
+model ResultadoLicitacao {
+  id                 String    @id @default(cuid())
+  licitacaoId        String    @unique
+  licitacao          Licitacao @relation(fields: [licitacaoId], references: [id], onDelete: Cascade)
+  vencedor           String?
+  valorVencedor      Decimal?  @db.Decimal(14, 2)
+  nossaClassificacao Int?
+  observacao         String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@map("resultado_licitacao")
 }
 
 // ─────────────────────────────────────────────────────────────
