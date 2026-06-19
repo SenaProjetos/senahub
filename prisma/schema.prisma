@@ -96,6 +96,7 @@ model User {
   preference           UserPreference?
   planejamentos        PlanejamentoPagamento[]
   fechamentos          FechamentoMensal[]
+  responsavelTecnico   ResponsavelTecnico?
 
   @@index([role])
   @@map("user")
@@ -548,6 +549,7 @@ model Fornecedor {
   lancamentos Lancamento[]
   servicos    ServicoTerceirizado[]
   catalogo    FornecedorServico[]
+  subcontratacoes SubcontratacaoLicitacao[]
 
   @@index([ativo])
   @@map("fornecedor")
@@ -1530,6 +1532,8 @@ model Licitacao {
   numeroEdital   String?
   prazoProposta  DateTime?       @db.Date
   valorEstimado  Decimal?        @db.Decimal(14, 2)
+  /// % máximo de subcontratação permitido pelo edital (por certame).
+  subcontratacaoMaxPct Decimal?  @db.Decimal(5, 2)
   status         StatusLicitacao @default(em_andamento)
   observacoes    String?
   /// Projeto criado ao importar (status vira em_execucao).
@@ -1544,6 +1548,8 @@ model Licitacao {
   composicao        LicitacaoComposicaoPreco?
   contrato          ContratoLicitacao?
   habilitacao       LicitacaoHabilitacaoItem[]
+  responsaveisTecnicos LicitacaoResponsavelTecnico[]
+  subcontratacoes      SubcontratacaoLicitacao[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1717,6 +1723,56 @@ model LicitacaoHabilitacaoItem {
   @@index([licitacaoId])
   @@index([certidaoId])
   @@map("licitacao_habilitacao_item")
+}
+
+/// Responsável técnico (CREA/CAU) — global; pode ser colaborador interno (userId).
+model ResponsavelTecnico {
+  id         String                        @id @default(cuid())
+  nome       String
+  registro   String
+  /// "CREA" | "CAU" | outro
+  conselho   String?
+  userId     String?                       @unique
+  user       User?                         @relation(fields: [userId], references: [id])
+  ativo      Boolean                       @default(true)
+  createdAt  DateTime                      @default(now())
+  licitacoes LicitacaoResponsavelTecnico[]
+
+  @@map("responsavel_tecnico")
+}
+
+/// Vínculo RT ↔ licitação com o documento comprobatório (ART/RRT/CAT).
+model LicitacaoResponsavelTecnico {
+  id              String             @id @default(cuid())
+  licitacaoId     String
+  licitacao       Licitacao          @relation(fields: [licitacaoId], references: [id], onDelete: Cascade)
+  responsavelId   String
+  responsavel     ResponsavelTecnico @relation(fields: [responsavelId], references: [id], onDelete: Cascade)
+  /// "ART" | "RRT" | "CAT"
+  documentoTipo   String
+  numeroDocumento String?
+  arquivoPath     String?
+  arquivoNome     String?
+  createdAt       DateTime           @default(now())
+
+  @@unique([licitacaoId, responsavelId, documentoTipo])
+  @@index([responsavelId])
+  @@map("licitacao_responsavel_tecnico")
+}
+
+/// Subcontratado de uma licitação (P6). Percentual validado contra subcontratacaoMaxPct do edital.
+model SubcontratacaoLicitacao {
+  id           String      @id @default(cuid())
+  licitacaoId  String
+  licitacao    Licitacao   @relation(fields: [licitacaoId], references: [id], onDelete: Cascade)
+  fornecedorId String?
+  fornecedor   Fornecedor? @relation(fields: [fornecedorId], references: [id])
+  nomeLivre    String?
+  objeto       String
+  percentual   Decimal     @db.Decimal(5, 2)
+
+  @@index([licitacaoId])
+  @@map("subcontratacao_licitacao")
 }
 
 /// Contrato/empenho pós-ganha (Item 3-B). valorHomologado pode diferir do estimado; aditivos ajustam.
