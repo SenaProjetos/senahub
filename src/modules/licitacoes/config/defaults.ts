@@ -37,7 +37,7 @@ export function parseConfigLicitacoes(valor: unknown): ConfigLicitacoes {
 
   // --- recurso ---
   const recursoRaw = v.recurso;
-  let recursoAlertas = padrao.recurso.alertaDiasPadrao;
+  let recursoAlertas = [...padrao.recurso.alertaDiasPadrao];
   if (typeof recursoRaw === "object" && recursoRaw !== null && !Array.isArray(recursoRaw)) {
     const r = recursoRaw as Record<string, unknown>;
     const arr = r.alertaDiasPadrao;
@@ -74,7 +74,7 @@ export function parseConfigLicitacoes(valor: unknown): ConfigLicitacoes {
   // --- reajuste ---
   const reajusteRaw = v.reajuste;
   let modoReajuste: ModoReajuste = padrao.reajuste.modo;
-  let indicesReajuste = padrao.reajuste.indices;
+  let indicesReajuste = [...padrao.reajuste.indices];
   if (typeof reajusteRaw === "object" && reajusteRaw !== null && !Array.isArray(reajusteRaw)) {
     const rj = reajusteRaw as Record<string, unknown>;
     if (rj.modo === "manual" || rj.modo === "automatico") {
@@ -89,7 +89,7 @@ export function parseConfigLicitacoes(valor: unknown): ConfigLicitacoes {
 
   // --- datasChave ---
   const datasChaveRaw = v.datasChave;
-  let datasChaveAlertas = padrao.datasChave.alertaDiasPadrao;
+  let datasChaveAlertas = [...padrao.datasChave.alertaDiasPadrao];
   if (typeof datasChaveRaw === "object" && datasChaveRaw !== null && !Array.isArray(datasChaveRaw)) {
     const dc = datasChaveRaw as Record<string, unknown>;
     const arr = dc.alertaDiasPadrao;
