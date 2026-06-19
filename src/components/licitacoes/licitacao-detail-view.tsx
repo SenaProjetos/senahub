@@ -29,6 +29,7 @@ import {
 } from "@/modules/licitacoes/extras/actions";
 import { salvarComposicaoLicitacao } from "@/modules/licitacoes/composicao/actions";
 import { salvarResultado } from "@/modules/licitacoes/sancoes/actions";
+import { salvarDadosPNCP, marcarPublicadoPNCP } from "@/modules/licitacoes/pncp/actions";
 import { salvarViabilidade, decidirViabilidade } from "@/modules/licitacoes/viabilidade/actions";
 import { totalComposicao, subtotalItem } from "@/modules/licitacoes/composicao/composicao";
 import {
@@ -450,6 +451,7 @@ export function LicitacaoDetailView({
         <LicResponsaveis lic={lic} podeGerir={podeGerir} rtsDisponiveis={responsaveisTecnicos} />
         <LicSubcontratacao lic={lic} podeGerir={podeGerir} fornecedores={fornecedores} />
         <LicResultado lic={lic} podeGerir={podeGerir} />
+        <LicPNCP lic={lic} podeGerir={podeGerir} />
         <LicExtras lic={lic} podeGerir={podeGerir} />
       </CardContent>
 
@@ -2182,6 +2184,119 @@ function LicResultado({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
             <Button size="sm" variant="outline" className="h-7" onClick={salvar} disabled={pending}>
               Salvar resultado
             </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function LicPNCP({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+
+  const [numeroControlePNCP, setNumeroControlePNCP] = useState(lic.numeroControlePNCP ?? "");
+  const [pncpUrl, setPncpUrl] = useState(lic.pncpUrl ?? "");
+  const [origemPNCP, setOrigemPNCP] = useState<boolean>(lic.origemPNCP ?? false);
+
+  function salvar() {
+    start(async () => {
+      const r = await salvarDadosPNCP({ licitacaoId: lic.id, numeroControlePNCP, pncpUrl, origemPNCP });
+      if (r.ok) {
+        toast.success("Dados PNCP salvos.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  function alternarPublicacao() {
+    const publicado = !lic.publicadoPNCPEm;
+    start(async () => {
+      const r = await marcarPublicadoPNCP({ licitacaoId: lic.id, publicado });
+      if (r.ok) {
+        toast.success(publicado ? "Publicado no PNCP." : "Publicação desmarcada.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  return (
+    <div className="space-y-1.5 rounded-sm border border-dashed p-2.5">
+      <p className="text-xs font-semibold text-muted-foreground">PNCP</p>
+
+      {/* Exibição de dados */}
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        {lic.numeroControlePNCP && (
+          <span>
+            Nº controle: <span className="font-mono text-foreground">{lic.numeroControlePNCP}</span>
+          </span>
+        )}
+        {lic.pncpUrl && (
+          <a
+            href={lic.pncpUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-primary hover:underline"
+          >
+            Abrir no PNCP ↗
+          </a>
+        )}
+        {lic.origemPNCP && (
+          <Badge variant="outline" className="text-[10px] py-0">
+            origem PNCP
+          </Badge>
+        )}
+        {lic.publicadoPNCPEm ? (
+          <span className="text-success">
+            Publicado em {new Date(lic.publicadoPNCPEm).toLocaleDateString("pt-BR")}
+          </span>
+        ) : (
+          <Badge variant="outline" className="text-[10px] py-0 text-warning border-warning/40">
+            Não publicado no PNCP
+          </Badge>
+        )}
+      </div>
+
+      {/* Edição */}
+      {podeGerir && (
+        <>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Input
+              className="h-7 w-52 text-xs"
+              placeholder="Nº controle PNCP"
+              value={numeroControlePNCP}
+              onChange={(e) => setNumeroControlePNCP(e.target.value)}
+            />
+            <Input
+              className="h-7 flex-1 text-xs"
+              placeholder="URL PNCP"
+              value={pncpUrl}
+              onChange={(e) => setPncpUrl(e.target.value)}
+            />
+            <label className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Checkbox
+                checked={origemPNCP as boolean}
+                onCheckedChange={(v) => setOrigemPNCP(v as boolean)}
+              />
+              Origem PNCP
+            </label>
+            <Button size="sm" variant="outline" className="h-7" onClick={salvar} disabled={pending}>
+              Salvar PNCP
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              className={`h-7 ${lic.publicadoPNCPEm ? "text-destructive border-destructive/40" : "text-success border-success/40"}`}
+              onClick={alternarPublicacao}
+              disabled={pending}
+            >
+              {lic.publicadoPNCPEm ? "Desmarcar publicação" : "Marcar publicado no PNCP"}
+            </Button>
+            <span className="text-[10px] italic text-muted-foreground">
+              Confirme a obrigatoriedade/forma de publicação no PNCP conforme a legislação vigente.
+            </span>
           </div>
         </>
       )}
