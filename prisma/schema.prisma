@@ -1507,6 +1507,20 @@ enum StatusLicitacao {
   concluida
 }
 
+enum TipoEventoLicitacao {
+  abertura
+  sessao
+  resultado
+  assinatura
+  vigencia_inicio
+  vigencia_fim
+  // P1-B — recursos/impugnações reusam a mesma tabela
+  pedido_esclarecimento
+  impugnacao
+  recurso
+  contrarrazao
+}
+
 model Licitacao {
   id             String          @id @default(cuid())
   titulo         String
@@ -1525,6 +1539,7 @@ model Licitacao {
   medicoes MedicaoLicitacao[]
   historico         LicitacaoHistorico[]
   valoresDisciplina DisciplinaValorLicitacao[]
+  eventos           LicitacaoEvento[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1544,6 +1559,28 @@ model LicitacaoHistorico {
 
   @@index([licitacaoId])
   @@map("licitacao_historico")
+}
+
+/// Evento datado de uma licitação: datas-chave por fase (Item 1-B) e peças de recurso/impugnação (P1-B).
+model LicitacaoEvento {
+  id          String              @id @default(cuid())
+  licitacaoId String
+  licitacao   Licitacao           @relation(fields: [licitacaoId], references: [id], onDelete: Cascade)
+  tipo        TipoEventoLicitacao
+  data        DateTime            @db.Date
+  /// Antecedências (em dias) para alerta; vazio = usa o padrão da config.
+  alertaDias  Int[]               @default([])
+  /// Para peças de recurso (P1): "propria" | "concorrente"; null para datas-chave.
+  autoria     String?
+  protocolo   String?
+  observacao  String?
+  /// Quando o evento já ocorreu/foi cumprido (some dos alertas).
+  concluidoEm DateTime?
+  createdAt   DateTime            @default(now())
+
+  @@index([licitacaoId])
+  @@index([data])
+  @@map("licitacao_evento")
 }
 
 /// Valor por disciplina dentro de uma licitação/edital (E5).
