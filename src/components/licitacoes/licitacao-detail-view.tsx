@@ -293,8 +293,17 @@ export function LicitacaoDetailView({
               {formatarCodigo(lic.projeto.codigo)}
             </Link>
           )}
-          {podeGerir && (
+          {podeGerir ? (
             <div className="ml-auto flex items-center gap-1.5">
+              <a
+                href={`/api/licitacoes/${lic.id}/processo/pdf`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-xs font-medium shadow-xs hover:bg-accent hover:text-accent-foreground"
+              >
+                <Download className="size-3.5" />
+                Exportar PDF
+              </a>
               <Button size="icon" variant="ghost" aria-label="Editar" onClick={abrirEdicao}>
                 <Pencil className="size-4" />
               </Button>
@@ -316,6 +325,16 @@ export function LicitacaoDetailView({
                 </Button>
               )}
             </div>
+          ) : (
+            <a
+              href={`/api/licitacoes/${lic.id}/processo/pdf`}
+              target="_blank"
+              rel="noreferrer"
+              className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-xs font-medium shadow-xs hover:bg-accent hover:text-accent-foreground"
+            >
+              <Download className="size-3.5" />
+              Exportar PDF
+            </a>
           )}
         </div>
 
