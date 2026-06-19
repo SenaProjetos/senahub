@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { differenceInCalendarDays } from "date-fns";
-import { Plus, Upload, Download, Trash2, Import, Receipt, Pencil, X } from "lucide-react";
+import { Plus, Upload, Download, Trash2, Import, Receipt, Pencil, X, Check, CalendarClock } from "lucide-react";
 import { PAGE_SIZE_PADRAO, PAGE_SIZES } from "@/modules/licitacoes/pagination";
 import {
   criarLicitacao,
@@ -19,6 +19,17 @@ import {
   salvarValorDisciplinaLicitacao,
   removerValorDisciplinaLicitacao,
 } from "@/modules/licitacoes/extras/actions";
+import {
+  criarEventoLicitacao,
+  concluirEventoLicitacao,
+  excluirEventoLicitacao,
+} from "@/modules/licitacoes/eventos/actions";
+import {
+  TIPO_EVENTO_LICITACAO,
+  TIPO_EVENTO_LABEL,
+  ehRecurso,
+  type TipoEventoLicitacao,
+} from "@/modules/licitacoes/eventos/eventos";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,6 +67,7 @@ type Lic = {
   medicoes: { id: string; numero: number; valor: number; data: string }[];
   historico: { id: string; descricao: string; data: string }[];
   valoresDisciplina: { id: string; disciplina: string; valor: number }[];
+  eventos: { id: string; tipo: string; data: string; autoria: string | null; protocolo: string | null; observacao: string | null; concluido: boolean }[];
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -654,6 +666,7 @@ function LicCard({
           </div>
         )}
 
+        <LicEventos lic={lic} podeGerir={podeGerir} />
         <LicExtras lic={lic} podeGerir={podeGerir} />
       </CardContent>
 
@@ -728,6 +741,205 @@ function LicCard({
         </DialogContent>
       </Dialog>
     </Card>
+  );
+}
+
+function LicEventos({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [tipo, setTipo] = useState<string>(TIPO_EVENTO_LICITACAO[0]);
+  const [data, setData] = useState(new Date().toISOString().slice(0, 10));
+  const [autoria, setAutoria] = useState("propria");
+  const [protocolo, setProtocolo] = useState("");
+  const [observacao, setObservacao] = useState("");
+  const [alertaDias, setAlertaDias] = useState("");
+
+  const tipoAtual = tipo as TipoEventoLicitacao;
+  const mostraRecurso = ehRecurso(tipoAtual);
+
+  const eventosOrdenados = [...lic.eventos].sort((a, b) => a.data.localeCompare(b.data));
+
+  function addEvento() {
+    start(async () => {
+      const dias = alertaDias
+        .split(",")
+        .map((s) => Number(s.trim()))
+        .filter((n) => Number.isFinite(n) && n >= 0);
+      const r = await criarEventoLicitacao({
+        licitacaoId: lic.id,
+        tipo,
+        data,
+        alertaDias: dias,
+        autoria: mostraRecurso ? autoria : undefined,
+        protocolo: mostraRecurso ? protocolo : undefined,
+        observacao,
+      });
+      if (r.ok) {
+        toast.success("Evento adicionado.");
+        setData(new Date().toISOString().slice(0, 10));
+        setProtocolo("");
+        setObservacao("");
+        setAlertaDias("");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  function concluir(id: string, concluido: boolean) {
+    start(async () => {
+      const r = await concluirEventoLicitacao({ id, concluido });
+      if (r.ok) router.refresh();
+      else toast.error(r.error);
+    });
+  }
+
+  function remover(id: string) {
+    start(async () => {
+      const r = await excluirEventoLicitacao({ id });
+      if (r.ok) router.refresh();
+      else toast.error(r.error);
+    });
+  }
+
+  return (
+    <div className="space-y-1.5 rounded-sm border border-dashed p-2.5">
+      <div className="flex items-center gap-1.5">
+        <CalendarClock className="size-3 text-muted-foreground" />
+        <span className="text-xs font-semibold text-muted-foreground">
+          Datas-chave &amp; recursos ({lic.eventos.length})
+        </span>
+      </div>
+
+      {/* Lista de eventos */}
+      {eventosOrdenados.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Nenhum evento registrado.</p>
+      ) : (
+        <ul className="space-y-1">
+          {eventosOrdenados.map((e) => {
+            const diasRestantes = !e.concluido
+              ? differenceInCalendarDays(new Date(e.data + "T00:00:00"), new Date())
+              : null;
+            const label = TIPO_EVENTO_LABEL[e.tipo as TipoEventoLicitacao] ?? e.tipo;
+            const dataBR = new Date(e.data + "T00:00:00").toLocaleDateString("pt-BR");
+            return (
+              <li key={e.id} className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className={e.concluido ? "line-through text-muted-foreground" : "font-medium"}>
+                  {label}
+                </span>
+                <span className="text-muted-foreground">{dataBR}</span>
+                {ehRecurso(e.tipo as TipoEventoLicitacao) && e.autoria && (
+                  <Badge variant="outline" className="text-[10px] py-0">
+                    {e.autoria === "propria" ? "própria" : "concorrente"}
+                  </Badge>
+                )}
+                {e.protocolo && (
+                  <span className="text-muted-foreground">prot. {e.protocolo}</span>
+                )}
+                {e.observacao && (
+                  <span className="text-muted-foreground italic">{e.observacao}</span>
+                )}
+                {e.concluido ? (
+                  <Badge variant="outline" className="text-[10px] py-0 text-muted-foreground">
+                    concluído
+                  </Badge>
+                ) : diasRestantes != null && diasRestantes >= 0 ? (
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] py-0 ${diasRestantes <= 7 ? "text-warning border-warning/40" : ""}`}
+                  >
+                    em {diasRestantes}d
+                  </Badge>
+                ) : diasRestantes != null && diasRestantes < 0 ? (
+                  <Badge variant="outline" className="text-[10px] py-0 text-destructive border-destructive/40">
+                    vencido
+                  </Badge>
+                ) : null}
+                {podeGerir && (
+                  <span className="ml-auto flex items-center gap-1">
+                    <button
+                      type="button"
+                      aria-label={e.concluido ? "Reabrir" : "Concluir"}
+                      disabled={pending}
+                      onClick={() => concluir(e.id, !e.concluido)}
+                      className="text-muted-foreground hover:text-success"
+                    >
+                      <Check className="size-3" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Remover"
+                      disabled={pending}
+                      onClick={() => remover(e.id)}
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="size-3" />
+                    </button>
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {/* Form de adicionar */}
+      {podeGerir && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          <Select value={tipo} onValueChange={(v) => v && setTipo(v)}>
+            <SelectTrigger className="h-7 w-44 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TIPO_EVENTO_LICITACAO.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {TIPO_EVENTO_LABEL[t]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            type="date"
+            className="h-7 w-36 text-xs"
+            value={data}
+            onChange={(e) => setData(e.target.value)}
+          />
+          {mostraRecurso && (
+            <>
+              <Select value={autoria} onValueChange={(v) => v && setAutoria(v)}>
+                <SelectTrigger className="h-7 w-32 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="propria">Própria</SelectItem>
+                  <SelectItem value="concorrente">Concorrente</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                className="h-7 w-32 text-xs"
+                placeholder="Protocolo"
+                value={protocolo}
+                onChange={(e) => setProtocolo(e.target.value)}
+              />
+            </>
+          )}
+          <Input
+            className="h-7 w-40 text-xs"
+            placeholder="Observação"
+            value={observacao}
+            onChange={(e) => setObservacao(e.target.value)}
+          />
+          <Input
+            className="h-7 w-28 text-xs"
+            placeholder="Alertas (ex.: 7, 1)"
+            value={alertaDias}
+            onChange={(e) => setAlertaDias(e.target.value)}
+          />
+          <Button size="sm" variant="outline" className="h-7" onClick={addEvento} disabled={pending || !data}>
+            <Plus className="size-3" /> Adicionar
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
 
