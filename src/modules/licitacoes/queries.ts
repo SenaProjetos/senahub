@@ -213,39 +213,6 @@ function normalizarPageSize(pageSize?: number): number {
   return PAGE_SIZE_PADRAO;
 }
 
-export async function listarLicitacoes(filtro: LicitacaoFiltro = {}) {
-  const where: Prisma.LicitacaoWhereInput = {};
-
-  const statusValidos = normalizarStatus(filtro.status);
-  if (statusValidos.length) where.status = { in: statusValidos };
-  if (filtro.orgao) where.orgao = { contains: filtro.orgao, mode: "insensitive" };
-  if (filtro.q) where.titulo = { contains: filtro.q, mode: "insensitive" };
-
-  const pageSize = normalizarPageSize(filtro.pageSize);
-  const page = Math.max(1, filtro.page ?? 1);
-
-  const [rows, total] = await Promise.all([
-    prisma.licitacao.findMany({
-      where,
-      orderBy: { updatedAt: "desc" },
-      take: pageSize,
-      skip: (page - 1) * pageSize,
-      include: includeDetalhe,
-    }),
-    prisma.licitacao.count({ where }),
-  ]);
-
-  const items: LicitacaoListItem[] = rows.map(mapLicitacaoDetalhe);
-
-  return {
-    rows: items,
-    total,
-    page,
-    pageSize,
-    pages: Math.max(1, Math.ceil(total / pageSize)),
-  };
-}
-
 export async function obterLicitacao(id: string): Promise<LicitacaoListItem | null> {
   const l = await prisma.licitacao.findUnique({ where: { id }, include: includeDetalhe });
   return l ? mapLicitacaoDetalhe(l) : null;

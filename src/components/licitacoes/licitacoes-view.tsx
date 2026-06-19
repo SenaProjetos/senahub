@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Plus, X } from "lucide-react";
 import { PAGE_SIZE_PADRAO, PAGE_SIZES } from "@/modules/licitacoes/pagination";
 import { criarLicitacao } from "@/modules/licitacoes/actions";
-import type { LicitacaoListItem } from "@/modules/licitacoes/queries";
+import type { ResumoLicitacao } from "@/modules/licitacoes/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,43 +27,26 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { LicitacaoDetailView } from "./licitacao-detail-view";
-import { STATUS_LABEL, STATUS_CHIP } from "./_shared";
-
-type Lic = LicitacaoListItem;
+import { STATUS_LABEL, STATUS_CHIP, brl } from "./_shared";
 
 type Filtro = { status: string[]; orgao: string; q: string };
 
 export function LicitacoesView({
   licitacoes,
-  clientes,
-  modalidades,
   podeGerir,
   total,
   page,
   pages,
   pageSize,
   filtro,
-  modelosHabilitacao,
-  certidoes,
-  responsaveisTecnicos,
-  fornecedores,
-  sancoesPropriasAtivas,
 }: {
-  licitacoes: Lic[];
-  clientes: { id: string; nome: string }[];
-  modalidades: string[];
+  licitacoes: ResumoLicitacao[];
   podeGerir: boolean;
   total: number;
   page: number;
   pages: number;
   pageSize: number;
   filtro: Filtro;
-  modelosHabilitacao: { id: string; nome: string }[];
-  certidoes: { id: string; nome: string; validade: string }[];
-  responsaveisTecnicos: { id: string; nome: string; registro: string; conselho: string | null }[];
-  fornecedores: { id: string; nome: string }[];
-  sancoesPropriasAtivas: number;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -130,7 +113,11 @@ export function LicitacoesView({
         setTitulo("");
         setOrgao("");
         setPrazo("");
-        router.refresh();
+        if (r.data?.id) {
+          router.push(`/licitacoes/${r.data.id}`);
+        } else {
+          router.refresh();
+        }
       } else toast.error(r.error);
     });
   }
@@ -208,7 +195,21 @@ export function LicitacoesView({
 
       <div className="space-y-3">
         {licitacoes.map((l) => (
-          <LicitacaoDetailView key={l.id} lic={l} clientes={clientes} modalidades={modalidades} podeGerir={podeGerir} modelosHabilitacao={modelosHabilitacao} certidoes={certidoes} responsaveisTecnicos={responsaveisTecnicos} fornecedores={fornecedores} sancoesPropriasAtivas={sancoesPropriasAtivas} />
+          <Link key={l.id} href={`/licitacoes/${l.id}`} className="block">
+            <Card className="transition-colors hover:border-primary/50">
+              <CardContent className="flex flex-wrap items-center gap-2 py-3">
+                <span className="font-semibold">{l.titulo}</span>
+                <Badge variant="outline" className={STATUS_CHIP[l.status]}>{STATUS_LABEL[l.status]}</Badge>
+                {l.orgao && <span className="text-xs text-muted-foreground">{l.orgao}</span>}
+                {l.modalidade && <Badge variant="outline" className="text-muted-foreground">{l.modalidade}</Badge>}
+                {l.numeroEdital && <span className="font-mono text-xs text-muted-foreground">Edital {l.numeroEdital}</span>}
+                {l.valorEstimado != null && <span className="font-mono text-xs text-muted-foreground">{brl(l.valorEstimado)}</span>}
+                {l.prazoProposta && <span className="text-xs text-muted-foreground">prazo {new Date(l.prazoProposta + "T00:00:00").toLocaleDateString("pt-BR")}</span>}
+                {l.projeto && <span className="font-mono text-xs text-primary">{l.projeto.codigo}</span>}
+                <span className="ml-auto text-[10px] text-muted-foreground">{l.nDocs} doc · {l.nMedicoes} med</span>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
         {licitacoes.length === 0 && (
           <Card>
