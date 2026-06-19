@@ -5,6 +5,7 @@ import { notificarMuitos } from "@/lib/notificar";
 import { enviarEmail, smtpConfigurado } from "@/lib/mail";
 import { gravarSnapshotQualidade } from "@/modules/qualidade/queries";
 import { gravarSnapshotDashboard } from "@/modules/dashboard/queries";
+import { gravarSnapshotLicitacaoMensal } from "@/modules/licitacoes/dashboard/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { getConfigLicitacoes } from "@/modules/licitacoes/config/queries";
 import { ehRecurso, TIPO_EVENTO_LABEL, type TipoEventoLicitacao } from "@/modules/licitacoes/eventos/eventos";
@@ -125,6 +126,12 @@ export async function alertaLicitacoes(): Promise<number> {
 export async function snapshotQualidadeMensal() {
   const anterior = subMonths(new Date(), 1);
   return gravarSnapshotQualidade(anterior.getFullYear(), anterior.getMonth() + 1);
+}
+
+/** Dia 1º: snapshot do funil de licitações do mês anterior. */
+export async function snapshotLicitacaoMensal() {
+  const anterior = subMonths(new Date(), 1);
+  return gravarSnapshotLicitacaoMensal(anterior.getFullYear(), anterior.getMonth() + 1);
 }
 
 /** Rotinas noturnas de RH/comercial: propostas vencidas e férias que iniciam hoje. */
