@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Users, ShieldCheck, FileText, Percent, CalendarDays, Megaphone, ClipboardList, Gavel } from "lucide-react";
+import { Users, ShieldCheck, FileText, Percent, CalendarDays, Megaphone, ClipboardList, Gavel, SlidersHorizontal } from "lucide-react";
 import { requireRole } from "@/lib/session";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -48,6 +48,12 @@ const ITENS = [
     icon: Gavel,
     titulo: "Modalidades de licitação",
     descricao: "Lista de modalidades usada no cadastro de licitações.",
+  },
+  {
+    href: "/configuracoes/licitacoes",
+    icon: SlidersHorizontal,
+    titulo: "Parâmetros de licitação",
+    descricao: "Prazos de recurso, limite de aditivo, modo PNCP/reajuste e alertas.",
   },
   {
     href: "/configuracoes/avisos",
