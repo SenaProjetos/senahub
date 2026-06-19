@@ -39,6 +39,7 @@ export type LicitacaoListItem = {
     reajuste: string | null; garantiaTipo: string | null; garantiaValor: number | null; garantiaValidade: string | null;
     limiteAcrescimoPct: number | null;
     aditivos: { id: string; tipo: string; valorDelta: number | null; novaVigencia: string | null; justificativa: string | null; data: string }[];
+    riscos: { id: string; evento: string; probabilidade: string; impacto: string; alocacao: string; mitigacao: string | null; ordem: number }[];
   } | null;
 };
 
@@ -79,7 +80,7 @@ export async function listarLicitacoes(filtro: LicitacaoFiltro = {}) {
         valoresDisciplina: { orderBy: { disciplina: "asc" } },
         eventos: { orderBy: { data: "asc" } },
         composicao: { include: { itens: { orderBy: { ordem: "asc" } } } },
-        contrato: { include: { aditivos: { orderBy: { data: "asc" } } } },
+        contrato: { include: { aditivos: { orderBy: { data: "asc" } }, riscos: { orderBy: { ordem: "asc" } } } },
       },
     }),
     prisma.licitacao.count({ where }),
@@ -151,6 +152,7 @@ export async function listarLicitacoes(filtro: LicitacaoFiltro = {}) {
       garantiaValidade: l.contrato.garantiaValidade ? l.contrato.garantiaValidade.toISOString().slice(0, 10) : null,
       limiteAcrescimoPct: l.contrato.limiteAcrescimoPct != null ? Number(l.contrato.limiteAcrescimoPct) : null,
       aditivos: l.contrato.aditivos.map((a) => ({ id: a.id, tipo: a.tipo, valorDelta: a.valorDelta != null ? Number(a.valorDelta) : null, novaVigencia: a.novaVigencia ? a.novaVigencia.toISOString().slice(0, 10) : null, justificativa: a.justificativa, data: a.data.toISOString().slice(0, 10) })),
+      riscos: l.contrato.riscos.map((r) => ({ id: r.id, evento: r.evento, probabilidade: r.probabilidade, impacto: r.impacto, alocacao: r.alocacao, mitigacao: r.mitigacao, ordem: r.ordem })),
     } : null,
   }));
 
