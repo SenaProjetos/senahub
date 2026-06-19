@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Users, ShieldCheck, FileText, Percent, CalendarDays, Megaphone, ClipboardList, Gavel, SlidersHorizontal } from "lucide-react";
+import { Users, ShieldCheck, FileText, Percent, CalendarDays, Megaphone, ClipboardList, Gavel, SlidersHorizontal, ListChecks } from "lucide-react";
 import { requireRole } from "@/lib/session";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -54,6 +54,12 @@ const ITENS = [
     icon: SlidersHorizontal,
     titulo: "Parâmetros de licitação",
     descricao: "Prazos de recurso, limite de aditivo, modo PNCP/reajuste e alertas.",
+  },
+  {
+    href: "/configuracoes/habilitacao",
+    icon: ListChecks,
+    titulo: "Checklist de habilitação",
+    descricao: "Modelos de exigências de habilitação usados nas licitações.",
   },
   {
     href: "/configuracoes/avisos",
