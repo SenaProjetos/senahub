@@ -2923,3 +2923,20 @@ model FechamentoMensal {
   @@index([status])
   @@map("fechamento_mensal")
 }
+
+/// Snapshot mensal de métricas de licitação (série histórica do funil).
+model LicitacaoMetricaMensal {
+  id             String   @id @default(cuid())
+  ano            Int
+  mes            Int
+  totalAbertas   Int      @default(0)
+  totalGanhas    Int      @default(0)
+  totalPerdidas  Int      @default(0)
+  valorGanho     Decimal  @default(0) @db.Decimal(14, 2)
+  valorPerdido   Decimal  @default(0) @db.Decimal(14, 2)
+  valorEmDisputa Decimal  @default(0) @db.Decimal(14, 2)
+  createdAt      DateTime @default(now())
+
+  @@unique([ano, mes])
+  @@map("licitacao_metrica_mensal")
+}
