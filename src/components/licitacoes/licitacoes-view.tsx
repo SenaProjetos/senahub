@@ -22,6 +22,19 @@ import {
 import { salvarComposicaoLicitacao } from "@/modules/licitacoes/composicao/actions";
 import { totalComposicao, subtotalItem } from "@/modules/licitacoes/composicao/composicao";
 import {
+  salvarContratoLicitacao,
+  adicionarAditivoContrato,
+  removerAditivoContrato,
+} from "@/modules/licitacoes/contrato/actions";
+import {
+  saldoContratual,
+  somaDeltas,
+  somaAcrescimos,
+  acrescimoAcumuladoPct,
+  limiteExcedido,
+  proximoDoLimite,
+} from "@/modules/licitacoes/contrato/saldo";
+import {
   criarEventoLicitacao,
   concluirEventoLicitacao,
   excluirEventoLicitacao,
@@ -71,6 +84,14 @@ type Lic = {
   valoresDisciplina: { id: string; disciplina: string; valor: number }[];
   eventos: { id: string; tipo: string; data: string; autoria: string | null; protocolo: string | null; observacao: string | null; concluido: boolean }[];
   composicao: { observacao: string | null; itens: { id: string; descricao: string; quantidade: number; valorUnitario: number; ordem: number }[] } | null;
+  contrato: {
+    id: string; numeroContrato: string | null; numeroEmpenho: string | null;
+    valorHomologado: number;
+    vigenciaInicio: string | null; vigenciaFim: string | null;
+    reajuste: string | null; garantiaTipo: string | null; garantiaValor: number | null; garantiaValidade: string | null;
+    limiteAcrescimoPct: number | null;
+    aditivos: { id: string; tipo: string; valorDelta: number | null; novaVigencia: string | null; justificativa: string | null; data: string }[];
+  } | null;
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -463,6 +484,7 @@ function LicCard({
       });
       if (r.ok) {
         toast.success(`Medição ${r.data.numero} registrada — receita criada no financeiro.`);
+        if (r.data.aviso) toast.warning(r.data.aviso);
         setMedValor("");
         router.refresh();
       } else toast.error(r.error);
@@ -671,6 +693,7 @@ function LicCard({
 
         <LicEventos lic={lic} podeGerir={podeGerir} />
         <LicComposicao lic={lic} podeGerir={podeGerir} />
+        <LicContrato lic={lic} podeGerir={podeGerir} />
         <LicExtras lic={lic} podeGerir={podeGerir} />
       </CardContent>
 
@@ -745,6 +768,221 @@ function LicCard({
         </DialogContent>
       </Dialog>
     </Card>
+  );
+}
+
+function LicContrato({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+
+  const c = lic.contrato;
+
+  const medido = lic.medicoes.reduce((s, m) => s + m.valor, 0);
+  const deltas = c ? somaDeltas(c.aditivos.map((a) => ({ valorDelta: a.valorDelta }))) : 0;
+  const saldo = c ? saldoContratual(c.valorHomologado, deltas, medido) : 0;
+  const acresc = c ? somaAcrescimos(c.aditivos.map((a) => ({ valorDelta: a.valorDelta }))) : 0;
+  const pct = c ? acrescimoAcumuladoPct(c.valorHomologado, acresc) : 0;
+  const limite = c?.limiteAcrescimoPct ?? null;
+
+  // Form contrato state
+  const [numeroContrato, setNumeroContrato] = useState(c?.numeroContrato ?? "");
+  const [numeroEmpenho, setNumeroEmpenho] = useState(c?.numeroEmpenho ?? "");
+  const [valorHomologado, setValorHomologado] = useState(c ? String(c.valorHomologado) : "");
+  const [vigenciaInicio, setVigenciaInicio] = useState(c?.vigenciaInicio ?? "");
+  const [vigenciaFim, setVigenciaFim] = useState(c?.vigenciaFim ?? "");
+  const [reajuste, setReajuste] = useState(c?.reajuste ?? "");
+  const [garantiaTipo, setGarantiaTipo] = useState(c?.garantiaTipo ?? "");
+  const [garantiaValor, setGarantiaValor] = useState(c?.garantiaValor != null ? String(c.garantiaValor) : "");
+  const [garantiaValidade, setGarantiaValidade] = useState(c?.garantiaValidade ?? "");
+  const [limiteAcrescimoPct, setLimiteAcrescimoPct] = useState(c?.limiteAcrescimoPct != null ? String(c.limiteAcrescimoPct) : "");
+
+  // Form aditivo state
+  const [aditTipo, setAditTipo] = useState("valor");
+  const [aditValor, setAditValor] = useState("");
+  const [aditVigencia, setAditVigencia] = useState("");
+  const [aditJustif, setAditJustif] = useState("");
+  const [aditData, setAditData] = useState(new Date().toISOString().slice(0, 10));
+
+  function salvarContrato() {
+    const vh = Number(valorHomologado);
+    if (!Number.isFinite(vh) || vh < 0) { toast.error("Valor homologado inválido."); return; }
+    start(async () => {
+      const r = await salvarContratoLicitacao({
+        licitacaoId: lic.id,
+        numeroContrato, numeroEmpenho,
+        valorHomologado: vh,
+        vigenciaInicio, vigenciaFim, reajuste, garantiaTipo,
+        garantiaValor: garantiaValor.trim() === "" ? undefined : Number(garantiaValor),
+        garantiaValidade,
+        limiteAcrescimoPct: limiteAcrescimoPct.trim() === "" ? undefined : Number(limiteAcrescimoPct),
+      });
+      if (r.ok) { toast.success("Contrato salvo."); router.refresh(); } else toast.error(r.error);
+    });
+  }
+
+  function addAditivo() {
+    start(async () => {
+      const r = await adicionarAditivoContrato({
+        licitacaoId: lic.id,
+        tipo: aditTipo as "valor" | "prazo" | "valor_prazo" | "objeto",
+        valorDelta: aditValor.trim() === "" ? undefined : Number(aditValor),
+        novaVigencia: aditVigencia,
+        justificativa: aditJustif,
+        data: aditData,
+      });
+      if (r.ok) {
+        toast.success("Aditivo adicionado.");
+        setAditValor("");
+        setAditVigencia("");
+        setAditJustif("");
+        setAditData(new Date().toISOString().slice(0, 10));
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  function removerAditivo(id: string) {
+    start(async () => {
+      const r = await removerAditivoContrato({ id });
+      if (r.ok) router.refresh();
+      else toast.error(r.error);
+    });
+  }
+
+  const TIPO_ADITIVO_LABEL: Record<string, string> = {
+    valor: "Valor",
+    prazo: "Prazo",
+    valor_prazo: "Valor + Prazo",
+    objeto: "Objeto",
+  };
+
+  const formContrato = (
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Input className="h-7 w-36 text-xs" placeholder="Nº contrato" value={numeroContrato} onChange={(e) => setNumeroContrato(e.target.value)} />
+        <Input className="h-7 w-36 text-xs" placeholder="Nº empenho" value={numeroEmpenho} onChange={(e) => setNumeroEmpenho(e.target.value)} />
+        <Input type="number" step="0.01" min="0" className="h-7 w-36 text-xs" placeholder="Valor homologado *" value={valorHomologado} onChange={(e) => setValorHomologado(e.target.value)} />
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Input type="date" className="h-7 w-36 text-xs" value={vigenciaInicio} onChange={(e) => setVigenciaInicio(e.target.value)} />
+        <Input type="date" className="h-7 w-36 text-xs" value={vigenciaFim} onChange={(e) => setVigenciaFim(e.target.value)} />
+        <Input className="h-7 w-28 text-xs" placeholder="Reajuste" value={reajuste} onChange={(e) => setReajuste(e.target.value)} />
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Input className="h-7 w-28 text-xs" placeholder="Garantia tipo" value={garantiaTipo} onChange={(e) => setGarantiaTipo(e.target.value)} />
+        <Input type="number" step="0.01" min="0" className="h-7 w-28 text-xs" placeholder="Garantia valor" value={garantiaValor} onChange={(e) => setGarantiaValor(e.target.value)} />
+        <Input type="date" className="h-7 w-36 text-xs" value={garantiaValidade} onChange={(e) => setGarantiaValidade(e.target.value)} />
+        <Input type="number" step="0.01" min="0" className="h-7 w-32 text-xs" placeholder="Limite acréscimo %" value={limiteAcrescimoPct} onChange={(e) => setLimiteAcrescimoPct(e.target.value)} />
+      </div>
+      <Button size="sm" variant="outline" className="h-7" onClick={salvarContrato} disabled={pending}>
+        Salvar contrato
+      </Button>
+    </div>
+  );
+
+  return (
+    <div className="space-y-1.5 rounded-sm border border-dashed p-2.5">
+      <span className="text-xs font-semibold text-muted-foreground">Contrato &amp; aditivos</span>
+
+      {c ? (
+        <>
+          {/* Saldo */}
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <span className="text-muted-foreground">
+              Homologado: <span className="font-mono font-semibold">{brl(c.valorHomologado)}</span>
+            </span>
+            <span className="text-muted-foreground">
+              Medido: <span className="font-mono">{brl(medido)}</span>
+            </span>
+            <span className="text-muted-foreground flex items-center gap-1">
+              Saldo:{" "}
+              {saldo < 0 ? (
+                <Badge variant="destructive" className="font-mono text-[10px]">{brl(saldo)}</Badge>
+              ) : (
+                <span className="font-mono font-semibold">{brl(saldo)}</span>
+              )}
+            </span>
+            {c.valorHomologado > 0 && (
+              <span className="text-muted-foreground flex items-center gap-1">
+                Acréscimo: <span className="font-mono">{pct}%</span>
+                {limite != null && (
+                  <>
+                    {" / limite "}
+                    {limiteExcedido(pct, limite) ? (
+                      <Badge variant="destructive" className="text-[10px] py-0">{limite}%</Badge>
+                    ) : proximoDoLimite(pct, limite, 0.8) ? (
+                      <Badge variant="outline" className="text-[10px] py-0 text-warning border-warning/40">{limite}%</Badge>
+                    ) : (
+                      <span>{limite}%</span>
+                    )}
+                  </>
+                )}
+              </span>
+            )}
+          </div>
+
+          {/* Detalhes do contrato */}
+          {(c.numeroContrato || c.numeroEmpenho || c.vigenciaInicio || c.vigenciaFim) && (
+            <p className="text-xs text-muted-foreground">
+              {c.numeroContrato && <span>Contrato {c.numeroContrato} </span>}
+              {c.numeroEmpenho && <span>· Empenho {c.numeroEmpenho} </span>}
+              {c.vigenciaInicio && <span>· Vigência {new Date(c.vigenciaInicio + "T00:00:00").toLocaleDateString("pt-BR")}</span>}
+              {c.vigenciaFim && <span> – {new Date(c.vigenciaFim + "T00:00:00").toLocaleDateString("pt-BR")}</span>}
+            </p>
+          )}
+
+          {/* Form edição contrato */}
+          {podeGerir && formContrato}
+
+          {/* Aditivos */}
+          {c.aditivos.length > 0 && (
+            <ul className="space-y-0.5">
+              {c.aditivos.map((a) => (
+                <li key={a.id} className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">{TIPO_ADITIVO_LABEL[a.tipo] ?? a.tipo}</span>
+                  {a.valorDelta != null && <span className="font-mono">{brl(a.valorDelta)}</span>}
+                  <span>{new Date(a.data + "T00:00:00").toLocaleDateString("pt-BR")}</span>
+                  {a.justificativa && <span className="italic">{a.justificativa}</span>}
+                  {podeGerir && (
+                    <button type="button" aria-label="Remover aditivo" disabled={pending} onClick={() => removerAditivo(a.id)} className="text-muted-foreground hover:text-destructive">
+                      <Trash2 className="size-3" />
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* Form adicionar aditivo */}
+          {podeGerir && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Select value={aditTipo} onValueChange={(v) => v && setAditTipo(v)}>
+                <SelectTrigger className="h-7 w-36 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="valor">Valor</SelectItem>
+                  <SelectItem value="prazo">Prazo</SelectItem>
+                  <SelectItem value="valor_prazo">Valor + Prazo</SelectItem>
+                  <SelectItem value="objeto">Objeto</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input type="number" step="0.01" className="h-7 w-28 text-xs" placeholder="Valor delta" value={aditValor} onChange={(e) => setAditValor(e.target.value)} />
+              <Input type="date" className="h-7 w-36 text-xs" value={aditData} onChange={(e) => setAditData(e.target.value)} />
+              <Input type="date" className="h-7 w-36 text-xs" value={aditVigencia} onChange={(e) => setAditVigencia(e.target.value)} />
+              <Input className="h-7 w-40 text-xs" placeholder="Justificativa" value={aditJustif} onChange={(e) => setAditJustif(e.target.value)} />
+              <Button size="sm" variant="outline" className="h-7" onClick={addAditivo} disabled={pending || !aditData}>
+                <Plus className="size-3" /> Aditivo
+              </Button>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {podeGerir ? formContrato : <p className="text-xs text-muted-foreground">Sem contrato.</p>}
+        </>
+      )}
+    </div>
   );
 }
 
