@@ -1540,6 +1540,7 @@ model Licitacao {
   historico         LicitacaoHistorico[]
   valoresDisciplina DisciplinaValorLicitacao[]
   eventos           LicitacaoEvento[]
+  composicao        LicitacaoComposicaoPreco?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1593,6 +1594,31 @@ model DisciplinaValorLicitacao {
 
   @@index([licitacaoId])
   @@map("disciplina_valor_licitacao")
+}
+
+/// Composição de preço da proposta da licitação (Item 2-A). Espelha ProjetoComposicaoPreco; copiada ao projeto no import.
+model LicitacaoComposicaoPreco {
+  id          String                    @id @default(cuid())
+  licitacaoId String                    @unique
+  licitacao   Licitacao                 @relation(fields: [licitacaoId], references: [id], onDelete: Cascade)
+  observacao  String?
+  updatedAt   DateTime                  @updatedAt
+  itens       ItemComposicaoLicitacao[]
+
+  @@map("licitacao_composicao_preco")
+}
+
+model ItemComposicaoLicitacao {
+  id            String                   @id @default(cuid())
+  composicaoId  String
+  composicao    LicitacaoComposicaoPreco @relation(fields: [composicaoId], references: [id], onDelete: Cascade)
+  descricao     String
+  quantidade    Decimal                  @default(1) @db.Decimal(12, 2)
+  valorUnitario Decimal                  @default(0) @db.Decimal(14, 2)
+  ordem         Int                      @default(0)
+
+  @@index([composicaoId])
+  @@map("item_composicao_licitacao")
 }
 
 model DocumentoLicitacao {
