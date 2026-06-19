@@ -5,6 +5,7 @@ import { listarClientes } from "@/modules/clientes/queries";
 import { nomesModalidadesAtivas } from "@/modules/licitacoes/modalidades/queries";
 import { listarLicitacoes } from "@/modules/licitacoes/queries";
 import { listarChecklistModelos } from "@/modules/licitacoes/habilitacao/queries";
+import { listarResponsaveisTecnicos } from "@/modules/licitacoes/tecnico/queries";
 import { prisma } from "@/lib/prisma";
 import { LicitacoesView } from "@/components/licitacoes/licitacoes-view";
 
@@ -33,12 +34,14 @@ export default async function LicitacoesPage({
     pageSize: sp.pageSize ? Number(sp.pageSize) : undefined,
   };
 
-  const [data, clientes, modalidades, modelos, certidoes] = await Promise.all([
+  const [data, clientes, modalidades, modelos, certidoes, rts, fornecedores] = await Promise.all([
     listarLicitacoes(filtro),
     listarClientes({ incluirInativos: false }),
     nomesModalidadesAtivas(),
     listarChecklistModelos(false),
     prisma.certidao.findMany({ include: { tipo: true }, orderBy: { validade: "desc" } }),
+    listarResponsaveisTecnicos(false),
+    prisma.fornecedor.findMany({ where: { ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
   ]);
 
   return (
@@ -58,6 +61,8 @@ export default async function LicitacoesPage({
         nome: c.descricao ? `${c.tipo.nome} — ${c.descricao}` : c.tipo.nome,
         validade: c.validade.toISOString().slice(0, 10),
       }))}
+      responsaveisTecnicos={rts.map((r) => ({ id: r.id, nome: r.nome, registro: r.registro, conselho: r.conselho }))}
+      fornecedores={fornecedores.map((f) => ({ id: f.id, nome: f.nome }))}
     />
   );
 }

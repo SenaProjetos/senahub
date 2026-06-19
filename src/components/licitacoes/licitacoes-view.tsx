@@ -26,6 +26,14 @@ import {
   adicionarAditivoContrato,
   removerAditivoContrato,
 } from "@/modules/licitacoes/contrato/actions";
+import {
+  salvarResponsavelTecnico,
+  vincularResponsavelTecnico,
+  desvincularResponsavelTecnico,
+  salvarSubcontratacaoMax,
+  adicionarSubcontratacao,
+  removerSubcontratacao,
+} from "@/modules/licitacoes/tecnico/actions";
 import { salvarMatrizRisco } from "@/modules/licitacoes/contrato/matriz-actions";
 import { semearHabilitacao, salvarHabilitacao } from "@/modules/licitacoes/habilitacao/actions";
 import { itemAtendido } from "@/modules/licitacoes/habilitacao/habilitacao";
@@ -101,6 +109,9 @@ type Lic = {
     reajustes: { id: string; indice: string; percentual: number; dataBase: string | null; aniversario: string; valorAnterior: number; valorReajustado: number; aplicado: boolean; aplicadoEm: string | null }[];
   } | null;
   habilitacao: { id: string; exigencia: string; certidaoId: string | null; certidaoNome: string | null; certidaoValidade: string | null; atendido: boolean; obrigatorio: boolean; observacao: string | null; ordem: number }[];
+  subcontratacaoMaxPct: number | null;
+  responsaveisTecnicos: { id: string; responsavelId: string; nome: string; registro: string; conselho: string | null; documentoTipo: string; numeroDocumento: string | null }[];
+  subcontratacoes: { id: string; fornecedorId: string | null; fornecedorNome: string | null; nomeLivre: string | null; objeto: string; percentual: number }[];
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -136,6 +147,8 @@ export function LicitacoesView({
   filtro,
   modelosHabilitacao,
   certidoes,
+  responsaveisTecnicos,
+  fornecedores,
 }: {
   licitacoes: Lic[];
   clientes: { id: string; nome: string }[];
@@ -148,6 +161,8 @@ export function LicitacoesView({
   filtro: Filtro;
   modelosHabilitacao: { id: string; nome: string }[];
   certidoes: { id: string; nome: string; validade: string }[];
+  responsaveisTecnicos: { id: string; nome: string; registro: string; conselho: string | null }[];
+  fornecedores: { id: string; nome: string }[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -287,7 +302,7 @@ export function LicitacoesView({
 
       <div className="space-y-3">
         {licitacoes.map((l) => (
-          <LicCard key={l.id} lic={l} clientes={clientes} modalidades={modalidades} podeGerir={podeGerir} modelosHabilitacao={modelosHabilitacao} certidoes={certidoes} />
+          <LicCard key={l.id} lic={l} clientes={clientes} modalidades={modalidades} podeGerir={podeGerir} modelosHabilitacao={modelosHabilitacao} certidoes={certidoes} responsaveisTecnicos={responsaveisTecnicos} fornecedores={fornecedores} />
         ))}
         {licitacoes.length === 0 && (
           <Card>
@@ -382,6 +397,8 @@ function LicCard({
   podeGerir,
   modelosHabilitacao,
   certidoes,
+  responsaveisTecnicos,
+  fornecedores,
 }: {
   lic: Lic;
   clientes: { id: string; nome: string }[];
@@ -389,6 +406,8 @@ function LicCard({
   podeGerir: boolean;
   modelosHabilitacao: { id: string; nome: string }[];
   certidoes: { id: string; nome: string; validade: string }[];
+  responsaveisTecnicos: { id: string; nome: string; registro: string; conselho: string | null }[];
+  fornecedores: { id: string; nome: string }[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -717,6 +736,8 @@ function LicCard({
           <p className="mb-1.5 text-xs font-semibold text-muted-foreground">Habilitação</p>
           <LicHabilitacao lic={lic} podeGerir={podeGerir} modelos={modelosHabilitacao} certidoes={certidoes} />
         </div>
+        <LicResponsaveis lic={lic} podeGerir={podeGerir} rtsDisponiveis={responsaveisTecnicos} />
+        <LicSubcontratacao lic={lic} podeGerir={podeGerir} fornecedores={fornecedores} />
         <LicExtras lic={lic} podeGerir={podeGerir} />
       </CardContent>
 
@@ -791,6 +812,268 @@ function LicCard({
         </DialogContent>
       </Dialog>
     </Card>
+  );
+}
+
+function LicResponsaveis({
+  lic,
+  podeGerir,
+  rtsDisponiveis,
+}: {
+  lic: Lic;
+  podeGerir: boolean;
+  rtsDisponiveis: { id: string; nome: string; registro: string; conselho: string | null }[];
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+
+  // Vincular
+  const [rtId, setRtId] = useState(rtsDisponiveis[0]?.id ?? "");
+  const [docTipo, setDocTipo] = useState<"ART" | "RRT" | "CAT">("ART");
+  const [numDoc, setNumDoc] = useState("");
+
+  // Cadastrar RT inline
+  const [novoNome, setNovoNome] = useState("");
+  const [novoRegistro, setNovoRegistro] = useState("");
+  const [novoConselho, setNovoConselho] = useState("");
+
+  function vincular() {
+    if (!rtId) { toast.error("Selecione um RT."); return; }
+    start(async () => {
+      const r = await vincularResponsavelTecnico({ licitacaoId: lic.id, responsavelId: rtId, documentoTipo: docTipo, numeroDocumento: numDoc });
+      if (r.ok) {
+        toast.success("RT vinculado.");
+        if (r.data.aviso) toast.warning(r.data.aviso);
+        setNumDoc("");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  function desvincular(id: string) {
+    start(async () => {
+      const r = await desvincularResponsavelTecnico({ id });
+      if (r.ok) router.refresh();
+      else toast.error(r.error);
+    });
+  }
+
+  function cadastrarRT() {
+    if (!novoNome.trim() || !novoRegistro.trim()) { toast.error("Informe nome e registro."); return; }
+    start(async () => {
+      const r = await salvarResponsavelTecnico({ nome: novoNome, registro: novoRegistro, conselho: novoConselho });
+      if (r.ok) {
+        toast.success("RT cadastrado.");
+        setNovoNome("");
+        setNovoRegistro("");
+        setNovoConselho("");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  return (
+    <div className="space-y-1.5 rounded-sm border border-dashed p-2.5">
+      <p className="text-xs font-semibold text-muted-foreground">Responsável técnico</p>
+
+      {lic.responsaveisTecnicos.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Nenhum RT vinculado.</p>
+      ) : (
+        <ul className="space-y-0.5">
+          {lic.responsaveisTecnicos.map((r) => (
+            <li key={r.id} className="flex flex-wrap items-center gap-1.5 text-xs">
+              <span className="font-medium text-foreground">{r.nome}</span>
+              <span className="text-muted-foreground">{r.registro}{r.conselho ? ` · ${r.conselho}` : ""}</span>
+              <Badge variant="outline" className="text-[10px] py-0">{r.documentoTipo}</Badge>
+              {r.numeroDocumento && <span className="font-mono text-muted-foreground">{r.numeroDocumento}</span>}
+              {podeGerir && (
+                <button type="button" aria-label="Desvincular RT" disabled={pending} onClick={() => desvincular(r.id)} className="text-muted-foreground hover:text-destructive">
+                  <Trash2 className="size-3" />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {podeGerir && (
+        <>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {rtsDisponiveis.length === 0 ? (
+              <span className="text-xs text-muted-foreground italic">Cadastre um RT abaixo.</span>
+            ) : (
+              <Select value={rtId || rtsDisponiveis[0]?.id} onValueChange={(v) => { if (v) setRtId(v); }}>
+                <SelectTrigger className="h-7 w-52 text-xs">
+                  <SelectValue placeholder="Selecionar RT…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {rtsDisponiveis.map((rt) => (
+                    <SelectItem key={rt.id} value={rt.id}>
+                      {rt.nome} — {rt.registro}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Select value={docTipo} onValueChange={(v) => { if (v) setDocTipo(v as "ART" | "RRT" | "CAT"); }}>
+              <SelectTrigger className="h-7 w-20 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ART">ART</SelectItem>
+                <SelectItem value="RRT">RRT</SelectItem>
+                <SelectItem value="CAT">CAT</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input className="h-7 w-32 text-xs" placeholder="Nº documento" value={numDoc} onChange={(e) => setNumDoc(e.target.value)} />
+            <Button size="sm" variant="outline" className="h-7" onClick={vincular} disabled={pending || rtsDisponiveis.length === 0}>
+              Vincular
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Input className="h-7 w-36 text-xs" placeholder="Nome do RT" value={novoNome} onChange={(e) => setNovoNome(e.target.value)} />
+            <Input className="h-7 w-28 text-xs" placeholder="Registro" value={novoRegistro} onChange={(e) => setNovoRegistro(e.target.value)} />
+            <Input className="h-7 w-24 text-xs" placeholder="Conselho (opt.)" value={novoConselho} onChange={(e) => setNovoConselho(e.target.value)} />
+            <Button size="sm" variant="outline" className="h-7" onClick={cadastrarRT} disabled={pending || !novoNome.trim() || !novoRegistro.trim()}>
+              <Plus className="size-3" /> Cadastrar RT
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function LicSubcontratacao({
+  lic,
+  podeGerir,
+  fornecedores,
+}: {
+  lic: Lic;
+  podeGerir: boolean;
+  fornecedores: { id: string; nome: string }[];
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+
+  const [tetoInput, setTetoInput] = useState(lic.subcontratacaoMaxPct != null ? String(lic.subcontratacaoMaxPct) : "");
+  const [fornId, setFornId] = useState("__none__");
+  const [nomeLivre, setNomeLivre] = useState("");
+  const [objeto, setObjeto] = useState("");
+  const [percentual, setPercentual] = useState("");
+
+  const soma = lic.subcontratacoes.reduce((s, x) => s + x.percentual, 0);
+  const teto = lic.subcontratacaoMaxPct;
+  const sobrepassou = teto != null && soma > teto;
+
+  function salvarTeto() {
+    start(async () => {
+      const r = await salvarSubcontratacaoMax({ licitacaoId: lic.id, subcontratacaoMaxPct: tetoInput.trim() === "" ? undefined : Number(tetoInput) });
+      if (r.ok) { toast.success("Teto salvo."); router.refresh(); } else toast.error(r.error);
+    });
+  }
+
+  function adicionar() {
+    const pct = Number(percentual);
+    if (!objeto.trim()) { toast.error("Informe o objeto."); return; }
+    if (!Number.isFinite(pct) || pct <= 0) { toast.error("Percentual inválido."); return; }
+    start(async () => {
+      const r = await adicionarSubcontratacao({
+        licitacaoId: lic.id,
+        fornecedorId: fornId === "__none__" ? "" : fornId,
+        nomeLivre: fornId === "__none__" ? nomeLivre : "",
+        objeto,
+        percentual: pct,
+      });
+      if (r.ok) {
+        toast.success("Subcontratação adicionada.");
+        setFornId("__none__");
+        setNomeLivre("");
+        setObjeto("");
+        setPercentual("");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  function remover(id: string) {
+    start(async () => {
+      const r = await removerSubcontratacao({ id });
+      if (r.ok) router.refresh();
+      else toast.error(r.error);
+    });
+  }
+
+  return (
+    <div className="space-y-1.5 rounded-sm border border-dashed p-2.5">
+      <p className="text-xs font-semibold text-muted-foreground">Subcontratação</p>
+
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-muted-foreground">
+          Teto: {teto != null ? `${teto}%` : "não definido"}
+        </span>
+        <span className={`flex items-center gap-1 ${sobrepassou ? "text-destructive" : "text-muted-foreground"}`}>
+          Alocado: {soma}%
+          {sobrepassou && (
+            <Badge variant="destructive" className="text-[10px] py-0">acima do teto</Badge>
+          )}
+        </span>
+      </div>
+
+      {podeGerir && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Input type="number" step="0.01" min="0" className="h-7 w-24 text-xs" placeholder="Teto %" value={tetoInput} onChange={(e) => setTetoInput(e.target.value)} />
+          <Button size="sm" variant="outline" className="h-7" onClick={salvarTeto} disabled={pending}>
+            Salvar teto
+          </Button>
+        </div>
+      )}
+
+      {lic.subcontratacoes.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Nenhuma subcontratação.</p>
+      ) : (
+        <ul className="space-y-0.5">
+          {lic.subcontratacoes.map((s) => (
+            <li key={s.id} className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">{s.fornecedorNome ?? s.nomeLivre}</span>
+              <span className="italic">{s.objeto}</span>
+              <span className="font-mono">{s.percentual}%</span>
+              {podeGerir && (
+                <button type="button" aria-label="Remover subcontratação" disabled={pending} onClick={() => remover(s.id)} className="text-muted-foreground hover:text-destructive">
+                  <Trash2 className="size-3" />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {podeGerir && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Select value={fornId} onValueChange={(v) => { if (v) setFornId(v); }}>
+            <SelectTrigger className="h-7 w-48 text-xs">
+              <SelectValue placeholder="Fornecedor…" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Sem fornecedor (nome livre)</SelectItem>
+              {fornecedores.map((f) => (
+                <SelectItem key={f.id} value={f.id}>
+                  {f.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {fornId === "__none__" && (
+            <Input className="h-7 w-36 text-xs" placeholder="Nome do subcontratado" value={nomeLivre} onChange={(e) => setNomeLivre(e.target.value)} />
+          )}
+          <Input className="h-7 flex-1 text-xs min-w-32" placeholder="Objeto" value={objeto} onChange={(e) => setObjeto(e.target.value)} />
+          <Input type="number" step="0.01" min="0" className="h-7 w-20 text-xs" placeholder="%" value={percentual} onChange={(e) => setPercentual(e.target.value)} />
+          <Button size="sm" variant="outline" className="h-7" onClick={adicionar} disabled={pending || !objeto.trim() || !percentual}>
+            <Plus className="size-3" /> Subcontratado
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
 
