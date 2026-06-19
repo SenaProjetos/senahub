@@ -97,6 +97,7 @@ model User {
   planejamentos        PlanejamentoPagamento[]
   fechamentos          FechamentoMensal[]
   responsavelTecnico   ResponsavelTecnico?
+  viabilidadesDecididas ViabilidadeLicitacao[] @relation("ViabilidadeDecisor")
 
   @@index([role])
   @@map("user")
@@ -1552,6 +1553,7 @@ model Licitacao {
   responsaveisTecnicos LicitacaoResponsavelTecnico[]
   subcontratacoes      SubcontratacaoLicitacao[]
   resultado         ResultadoLicitacao?
+  viabilidade       ViabilidadeLicitacao?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1917,6 +1919,43 @@ model ResultadoLicitacao {
   updatedAt          DateTime  @updatedAt
 
   @@map("resultado_licitacao")
+}
+
+/// Viabilidade (go/no-go) de uma licitação. modo "fixo" usa os campos fixos; "configuravel" usa `criterios`.
+model ViabilidadeLicitacao {
+  id                   String                @id @default(cuid())
+  licitacaoId          String                @unique
+  licitacao            Licitacao             @relation(fields: [licitacaoId], references: [id], onDelete: Cascade)
+  /// "fixo" | "configuravel"
+  modo                 String                @default("fixo")
+  margemEsperadaPct    Decimal?              @db.Decimal(5, 2)
+  equipeDisponivel     Boolean?
+  concorrenciaPrevista String?
+  /// "pendente" | "go" | "no_go"
+  decisao              String                @default("pendente")
+  decididoPorId        String?
+  decididoPor          User?                 @relation("ViabilidadeDecisor", fields: [decididoPorId], references: [id])
+  decididoEm           DateTime?
+  justificativa        String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  criterios            ViabilidadeCriterio[]
+
+  @@map("viabilidade_licitacao")
+}
+
+/// Critério livre de viabilidade (modo configurável).
+model ViabilidadeCriterio {
+  id            String               @id @default(cuid())
+  viabilidadeId String
+  viabilidade   ViabilidadeLicitacao @relation(fields: [viabilidadeId], references: [id], onDelete: Cascade)
+  criterio      String
+  atendido      Boolean              @default(false)
+  observacao    String?
+  ordem         Int                  @default(0)
+
+  @@index([viabilidadeId])
+  @@map("viabilidade_criterio")
 }
 
 // ─────────────────────────────────────────────────────────────
