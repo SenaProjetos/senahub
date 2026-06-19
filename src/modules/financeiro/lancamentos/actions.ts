@@ -17,8 +17,9 @@ import { notificarMuitos } from "@/lib/notificar";
 import { getNiveisAprovacao, aprovadoresPorPapeis } from "@/modules/financeiro/aprovacao/queries";
 import { precisaAprovacao, papeisAprovadores } from "@/modules/financeiro/aprovacao/niveis";
 import { saldoRestante } from "@/modules/financeiro/lancamentos/parcial";
-import { getConfigFinanceiro } from "@/modules/financeiro/config/queries";
+import { getConfigFinanceiro, getExclusaoCompleto } from "@/modules/financeiro/config/queries";
 import { obrigatorioFaltando } from "@/modules/financeiro/config/validacao";
+import { verificarSenha } from "@/modules/financeiro/config/senha";
 
 const base = { modulo: "financeiro", recurso: "financeiro", permissao: "gerir" } as const;
 
@@ -308,8 +309,19 @@ export const cancelarLancamento = defineAction(
 );
 
 export const excluirLancamento = defineAction(
-  { ...base, acao: "excluir-lancamento", entidade: "Lancamento", schema: idLancamentoSchema, capturarAntes: (i) => snapshotLancamento(i.id) },
+  {
+    ...base,
+    acao: "excluir-lancamento",
+    entidade: "Lancamento",
+    schema: z.object({ id: z.string().min(1), senha: z.string().optional() }),
+    capturarAntes: (i) => snapshotLancamento(i.id),
+    redact: ["senha"],
+  },
   async (i) => {
+    const exclusao = await getExclusaoCompleto();
+    if (exclusao.exigir && !verificarSenha(i.senha ?? "", exclusao.hash)) {
+      throw new ActionError("Senha de exclusão incorreta.");
+    }
     const lanc = await prisma.lancamento.findUnique({ where: { id: i.id } });
     if (!lanc) throw new ActionError("Lançamento não encontrado.");
     if (lanc.pagamentoProjetistaId) {

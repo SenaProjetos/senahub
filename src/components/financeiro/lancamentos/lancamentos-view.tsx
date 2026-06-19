@@ -91,10 +91,12 @@ export function LancamentosView({
   itens,
   contas,
   opcoes,
+  exigeSenhaExclusao = false,
 }: {
   itens: LivroCaixaItem[];
   contas: Conta[];
   opcoes: OpcoesLancamento;
+  exigeSenhaExclusao?: boolean;
 }) {
   const router = useRouter();
   const [, start] = useTransition();
@@ -359,8 +361,14 @@ export function LancamentosView({
     });
   }
   function excluir(id: string) {
+    let senha: string | undefined;
+    if (exigeSenhaExclusao) {
+      const s = window.prompt("Senha para excluir o lançamento:");
+      if (s == null) return;
+      senha = s;
+    }
     start(async () => {
-      const r = await excluirLancamento({ id });
+      const r = await excluirLancamento({ id, senha });
       if (r.ok) { toast.success("Excluído."); router.refresh(); } else toast.error(r.error);
     });
   }

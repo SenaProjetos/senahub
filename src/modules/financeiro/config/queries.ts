@@ -5,6 +5,20 @@ import { ALIQUOTAS_ZERO, type Aliquotas } from "@/modules/financeiro/fechamento/
 
 export const CHAVE_CONFIG_FINANCEIRO = "financeiro.config";
 export const CHAVE_ALIQUOTAS = "financeiro.aliquotas";
+export const CHAVE_EXCLUSAO = "financeiro.exclusao";
+
+/** Config de senha de exclusão com o hash (uso interno das actions). */
+export async function getExclusaoCompleto(): Promise<{ exigir: boolean; hash: string | null }> {
+  const c = await prisma.configSistema.findUnique({ where: { chave: CHAVE_EXCLUSAO } });
+  if (!c || typeof c.valor !== "object" || c.valor === null) return { exigir: false, hash: null };
+  const v = c.valor as Record<string, unknown>;
+  return { exigir: !!v.exigir, hash: typeof v.hash === "string" && v.hash.length > 0 ? v.hash : null };
+}
+
+/** Se a exclusão de lançamentos exige senha (para a UI). */
+export async function getConfigExclusao(): Promise<{ exigir: boolean }> {
+  return { exigir: (await getExclusaoCompleto()).exigir };
+}
 
 /** Alíquotas (%) de retenção/desconto do fechamento mensal. Default = zeros. */
 export async function getAliquotas(): Promise<Aliquotas> {

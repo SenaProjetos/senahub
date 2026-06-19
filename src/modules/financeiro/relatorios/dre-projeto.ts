@@ -101,3 +101,22 @@ export function rentabilidadePorCliente(projetos: ProjetoRentab[]): ClienteRenta
   }
   return [...mapa.values()].sort((a, b) => b.lucroLiquido - a.lucroLiquido);
 }
+
+export type CoordenadorRentab = { coordenador: string; receita: number; lucroLiquido: number; projetos: number };
+
+/** Agrega a rentabilidade por coordenador do projeto (mapeamento projetoId → nome). */
+export function agruparPorCoordenador(
+  projetos: ProjetoRentab[],
+  coordPorProjeto: Record<string, string>,
+): CoordenadorRentab[] {
+  const mapa = new Map<string, CoordenadorRentab>();
+  for (const p of projetos) {
+    const c = coordPorProjeto[p.projetoId] ?? "Sem coordenador";
+    const cur = mapa.get(c) ?? { coordenador: c, receita: 0, lucroLiquido: 0, projetos: 0 };
+    cur.receita = cent(cur.receita + p.receita);
+    cur.lucroLiquido = cent(cur.lucroLiquido + p.lucroLiquido);
+    cur.projetos += 1;
+    mapa.set(c, cur);
+  }
+  return [...mapa.values()].sort((a, b) => b.lucroLiquido - a.lucroLiquido);
+}

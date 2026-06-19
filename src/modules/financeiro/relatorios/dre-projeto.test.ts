@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcularRentabilidade, rentabilidadePorCliente, type ProjetoEntrada } from "./dre-projeto";
+import { calcularRentabilidade, rentabilidadePorCliente, agruparPorCoordenador, type ProjetoEntrada } from "./dre-projeto";
 
 const projetos: ProjetoEntrada[] = [
   { projetoId: "a", codigo: "260001", nome: "A", cliente: "Cliente X", receita: 8000, diretos: 3000 },
@@ -53,5 +53,14 @@ describe("rentabilidadePorCliente", () => {
     expect(clientes[0].cliente).toBe("Cliente X");
     expect(clientes[0].lucroLiquido).toBe(5000);
     expect(clientes).toHaveLength(2);
+  });
+});
+
+describe("agruparPorCoordenador", () => {
+  it("agrupa por coordenador; sem mapeamento vira 'Sem coordenador'", () => {
+    const r = calcularRentabilidade(projetos, 0);
+    const porCoord = agruparPorCoordenador(r.projetos, { a: "Ana" });
+    expect(porCoord.find((c) => c.coordenador === "Ana")?.lucroLiquido).toBe(5000);
+    expect(porCoord.find((c) => c.coordenador === "Sem coordenador")?.projetos).toBe(1);
   });
 });

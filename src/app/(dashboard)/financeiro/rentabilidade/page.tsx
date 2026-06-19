@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
-import { rentabilidadePorProjeto, evolucaoMargemMensal } from "@/modules/financeiro/relatorios/queries";
+import {
+  rentabilidadePorProjeto,
+  evolucaoMargemMensal,
+  custoPorDisciplina,
+  coordenadoresPorProjeto,
+} from "@/modules/financeiro/relatorios/queries";
+import { agruparPorCoordenador } from "@/modules/financeiro/relatorios/dre-projeto";
 import { RentabilidadeView } from "@/components/financeiro/relatorios/rentabilidade-view";
 
 export const metadata: Metadata = { title: "Rentabilidade por projeto" };
@@ -21,9 +27,20 @@ export default async function RentabilidadePage({
   const sp = await searchParams;
   const { de, ate } = periodoPadrao(sp);
   const margem = sp.margem ? Number(sp.margem) : 0;
-  const [dados, evolucao] = await Promise.all([
+  const [dados, evolucao, custoDisciplina] = await Promise.all([
     rentabilidadePorProjeto(de, ate, Number.isFinite(margem) ? margem : 0),
     evolucaoMargemMensal(ate.getFullYear()),
+    custoPorDisciplina(de, ate),
   ]);
-  return <RentabilidadeView dados={dados} evolucao={evolucao} ano={ate.getFullYear()} />;
+  const coordMap = await coordenadoresPorProjeto(dados.projetos.map((p) => p.projetoId));
+  const porCoordenador = agruparPorCoordenador(dados.projetos, coordMap);
+  return (
+    <RentabilidadeView
+      dados={dados}
+      evolucao={evolucao}
+      ano={ate.getFullYear()}
+      porCoordenador={porCoordenador}
+      custoDisciplina={custoDisciplina}
+    />
+  );
 }

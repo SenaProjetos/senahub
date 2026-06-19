@@ -38,6 +38,8 @@ type ActionConfig<S> = {
    * "valor anterior × valor novo". O retorno vai em `detalhe.antes`; o input vira `detalhe.novo`.
    */
   capturarAntes?: (input: S) => Promise<unknown>;
+  /** Chaves do input a OMITIR da auditoria (ex.: "senha"). */
+  redact?: string[];
 };
 
 /**
@@ -96,6 +98,12 @@ export function defineAction<S, T>(
       const antes = config.capturarAntes ? await config.capturarAntes(input) : undefined;
       const data = await handler(input, { user, ip });
       if (config.audit !== false) {
+        const inputLog =
+          config.redact && input && typeof input === "object"
+            ? Object.fromEntries(
+                Object.entries(input as Record<string, unknown>).filter(([k]) => !config.redact!.includes(k)),
+              )
+            : input;
         await logAudit({
           userId: user.id,
           modulo: config.modulo,
@@ -103,7 +111,7 @@ export function defineAction<S, T>(
           resultado: "sucesso",
           entidade: config.entidade,
           entidadeId: config.entidadeId?.(data),
-          detalhe: antes !== undefined ? { antes, novo: input } : input,
+          detalhe: antes !== undefined ? { antes, novo: inputLog } : inputLog,
           ip,
         });
       }

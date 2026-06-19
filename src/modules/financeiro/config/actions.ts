@@ -2,9 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { defineAction } from "@/lib/with-action";
+import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { CHAVE_CONFIG_FINANCEIRO, CHAVE_ALIQUOTAS } from "@/modules/financeiro/config/queries";
+import { CHAVE_CONFIG_FINANCEIRO, CHAVE_ALIQUOTAS, CHAVE_EXCLUSAO, getExclusaoCompleto } from "@/modules/financeiro/config/queries";
+import { hashSenha } from "@/modules/financeiro/config/senha";
 
 const schema = z.object({
   obrigatorios: z.object({
@@ -59,6 +60,33 @@ export const salvarAliquotas = defineAction(
     });
     revalidatePath("/financeiro/configuracoes");
     revalidatePath("/financeiro/fechamento");
+    return { ok: true };
+  },
+);
+
+/** Define/atualiza a senha de exclusão e se ela é exigida. Requer financeiro:gerir. */
+export const salvarSenhaExclusao = defineAction(
+  {
+    modulo: "financeiro",
+    recurso: "financeiro",
+    permissao: "gerir",
+    acao: "salvar-senha-exclusao",
+    entidade: "ConfigSistema",
+    schema: z.object({ exigir: z.boolean(), senha: z.string().optional().or(z.literal("")) }),
+    // Não auditar: o input contém a senha em texto puro.
+    audit: false,
+  },
+  async (i) => {
+    const atual = await getExclusaoCompleto();
+    const hash = i.senha && i.senha.length > 0 ? hashSenha(i.senha) : atual.hash;
+    if (i.exigir && !hash) throw new ActionError("Defina uma senha de exclusão.");
+    await prisma.configSistema.upsert({
+      where: { chave: CHAVE_EXCLUSAO },
+      create: { chave: CHAVE_EXCLUSAO, valor: { exigir: i.exigir, hash: hash ?? "" } },
+      update: { valor: { exigir: i.exigir, hash: hash ?? "" } },
+    });
+    revalidatePath("/financeiro/configuracoes");
+    revalidatePath("/financeiro/lancamentos");
     return { ok: true };
   },
 );

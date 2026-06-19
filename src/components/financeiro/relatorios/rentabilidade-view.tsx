@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, TrendingUp } from "lucide-react";
-import type { RentabilidadeRelatorio, MargemMensal } from "@/modules/financeiro/relatorios/queries";
+import type { RentabilidadeRelatorio, MargemMensal, CustoDisciplina } from "@/modules/financeiro/relatorios/queries";
+import type { CoordenadorRentab } from "@/modules/financeiro/relatorios/dre-projeto";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,10 +22,14 @@ export function RentabilidadeView({
   dados,
   evolucao,
   ano,
+  porCoordenador,
+  custoDisciplina,
 }: {
   dados: RentabilidadeRelatorio;
   evolucao: MargemMensal[];
   ano: number;
+  porCoordenador: CoordenadorRentab[];
+  custoDisciplina: CustoDisciplina[];
 }) {
   const router = useRouter();
   const [de, setDe] = useState(dados.de);
@@ -158,6 +163,68 @@ export function RentabilidadeView({
                 </li>
               ))}
             </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Ranking de coordenadores</CardTitle>
+          <CardDescription>Resultado dos projetos agregado por coordenador.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {porCoordenador.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">Sem dados por coordenador.</p>
+          ) : (
+            <ul className="divide-y text-sm">
+              {porCoordenador.map((c) => (
+                <li key={c.coordenador} className="flex items-center justify-between gap-2 py-1.5">
+                  <span className="truncate">{c.coordenador} <span className="text-xs text-muted-foreground">· {c.projetos} projeto(s)</span></span>
+                  <span className="flex items-center gap-3">
+                    <span className="font-mono text-xs text-muted-foreground">{brl(c.receita)}</span>
+                    <span className={`font-mono font-semibold ${c.lucroLiquido < 0 ? "text-destructive" : "text-success"}`}>{brl(c.lucroLiquido)}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Custo por disciplina</CardTitle>
+          <CardDescription>Orçado (valor da disciplina) × pago aos projetistas no período.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {custoDisciplina.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">Sem pagamentos de projetistas no período.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <th className="py-1.5 font-medium">Disciplina</th>
+                    <th className="py-1.5 text-right font-medium">Orçado</th>
+                    <th className="py-1.5 text-right font-medium">Pago</th>
+                    <th className="py-1.5 text-right font-medium">Saldo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {custoDisciplina.map((d) => (
+                    <tr key={d.disciplinaId} className="border-b last:border-0">
+                      <td className="py-1.5">
+                        {d.nome}
+                        <span className="block text-xs text-muted-foreground">{d.projeto}</span>
+                      </td>
+                      <td className="py-1.5 text-right font-mono text-muted-foreground">{brl(d.orcado)}</td>
+                      <td className="py-1.5 text-right font-mono">{brl(d.pago)}</td>
+                      <td className={`py-1.5 text-right font-mono font-semibold ${d.saldo < 0 ? "text-destructive" : ""}`}>{brl(d.saldo)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>

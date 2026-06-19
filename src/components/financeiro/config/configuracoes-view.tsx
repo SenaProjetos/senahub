@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
-import { salvarConfigFinanceiro, salvarAliquotas } from "@/modules/financeiro/config/actions";
+import { salvarConfigFinanceiro, salvarAliquotas, salvarSenhaExclusao } from "@/modules/financeiro/config/actions";
 import { salvarNiveisAprovacao } from "@/modules/financeiro/aprovacao/actions";
 import type { ConfigFinanceiro } from "@/modules/financeiro/config/queries";
 import type { CamposObrigatorios } from "@/modules/financeiro/config/validacao";
@@ -28,10 +28,12 @@ export function ConfiguracoesView({
   config,
   aliquotas,
   niveis,
+  exclusao,
 }: {
   config: ConfigFinanceiro;
   aliquotas: Aliquotas;
   niveis: FaixaAlcada[];
+  exclusao: { exigir: boolean };
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -86,7 +88,48 @@ export function ConfiguracoesView({
 
       <AliquotasCard inicial={aliquotas} />
       <NiveisAlcadaCard inicial={niveis} />
+      <SenhaExclusaoCard inicial={exclusao} />
     </div>
+  );
+}
+
+function SenhaExclusaoCard({ inicial }: { inicial: { exigir: boolean } }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [exigir, setExigir] = useState(inicial.exigir);
+  const [senha, setSenha] = useState("");
+
+  function salvar() {
+    start(async () => {
+      const r = await salvarSenhaExclusao({ exigir, senha: senha || "" });
+      if (r.ok) {
+        toast.success("Configuração de exclusão salva.");
+        setSenha("");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Senha para exclusão</CardTitle>
+        <CardDescription>Proteção contra exclusão acidental de lançamentos. Não é a senha de login.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={exigir} onChange={(e) => setExigir(e.target.checked)} className="size-4" />
+          Exigir senha ao excluir lançamentos
+        </label>
+        <div className="space-y-1.5">
+          <Label className="text-xs">{inicial.exigir ? "Trocar senha (deixe vazio para manter)" : "Definir senha"}</Label>
+          <Input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} className="w-60" autoComplete="new-password" />
+        </div>
+        <div className="flex justify-end">
+          <Button onClick={salvar} disabled={pending}>{pending ? "Salvando…" : "Salvar"}</Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

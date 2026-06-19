@@ -78,11 +78,11 @@ Antes: só aging + atalhos. Agora a tela inicial (`financeiro/page.tsx`) traz:
 Da auditoria/estratégico (exigem migração e/ou decisão de arquitetura — **parar e aprovar antes**):
 - ~~Planejamento de Pagamentos~~ — ✅ **implementado** (ver seção 6 abaixo).
 - ~~Fechamento Mensal~~ — ✅ **implementado** (seção 9).
-- ~~DRE por projeto avançada~~ — ✅ **implementado** (ver seção 7 abaixo). *Resta: rentabilidade por disciplina/coordenador e evolução da margem no tempo.*
+- ~~DRE por projeto avançada~~ — ✅ **implementado** (seção 7; coordenador/disciplina/evolução da margem na seção 12).
 - ~~Soft delete real de lançamentos~~ — ✅ **implementado** (seção 8).
 - ~~Auditoria valor-anterior × novo~~ — ✅ **implementado** (seção 8).
 - ~~Multi-nível de alçada~~ — ✅ **implementado** (seção 10).
-- ~~Data de competência~~ — ✅ **implementada** (seção 11). · **Senha para exclusão** (resto do item 6).
+- ~~Data de competência~~ — ✅ (seção 11). · ~~Senha para exclusão~~ — ✅ (seção 12).
 - **Evolução por categoria** (resto do item 4).
 
 ---
@@ -153,7 +153,7 @@ Diferencial estratégico da spec. Sem migração — cálculo sobre os lançamen
 - Receita do projeto = receita **confirmada** vinculada a ele (não usa "valor contratado"/aditivos, que não existem como campo).
 - Margem mínima é um parâmetro da tela (default 0%), não persistido.
 - **Evolução da margem no tempo** ✅ implementada: série mensal (receita/resultado/margem%) na página de Rentabilidade (`evolucaoMargemMensal`).
-- **Não** incluídos: rentabilidade por **disciplina** (Lancamento não tem FK de disciplina) e por **coordenador** — ficam como evolução (precisam de decisão de atribuição).
+- Rentabilidade por **coordenador** e custo por **disciplina** ✅ feitos na seção 12.
 
 **Arquivos:** `src/modules/financeiro/relatorios/{dre-projeto.ts,dre-projeto.test.ts}`, `rentabilidadePorProjeto` em `relatorios/queries.ts`, `src/components/financeiro/relatorios/rentabilidade-view.tsx`, `src/app/(dashboard)/financeiro/rentabilidade/page.tsx`, atalho em `financeiro/page.tsx`.
 
@@ -226,3 +226,30 @@ Migração aditiva (`20260618183205_lancamento_data_competencia`): campo `dataCo
 **Limites:** o toggle vale para o DRE da tela de Relatórios. A exportação Excel e os demais relatórios (DFC, dashboard) seguem base caixa por ora.
 
 **Arquivos:** `prisma/schema.prisma` + migração; `src/modules/financeiro/lancamentos/{schemas.ts,actions.ts}`, `src/components/financeiro/lancamentos/lancamento-form.tsx`, `src/modules/financeiro/relatorios/queries.ts`, `src/components/financeiro/relatorios/relatorios-view.tsx`, `src/app/(dashboard)/financeiro/relatorios/page.tsx`.
+
+---
+
+## 12. Senha de exclusão + rentabilidade por coordenador/disciplina ✅ (sem migração)
+
+Fecha as últimas pendências. **Sem pendências para evolução futura.**
+
+### Senha para exclusão (decisão: PIN configurável)
+- Helper puro `config/senha.ts` (`hashSenha`/`verificarSenha`, scrypt) + 4 testes.
+- Config `financeiro.exclusao` = `{ exigir, hash }` (hash scrypt, nunca a senha em texto).
+- `excluirLancamento` exige a senha **no servidor** quando ligada; UI pede a senha (prompt) no livro-caixa.
+- **Segurança:** a action de salvar senha não é auditada e o `excluirLancamento` usa a nova opção `redact: ["senha"]` da lib (`with-action.ts`) para não gravar a senha no `AuditLog`.
+- UI: **Configurações → Senha para exclusão** (liga/desliga + define/troca a senha).
+
+### Rentabilidade por coordenador / custo por disciplina (decisão: custo por disciplina)
+- `agruparPorCoordenador` (puro, `dre-projeto.ts`) + teste: agrega o resultado dos projetos por coordenador (membro do projeto com papel "coordenador"; sem → "Sem coordenador").
+- `coordenadoresPorProjeto(ids)` mapeia projeto → coordenador.
+- `custoPorDisciplina(de, ate)`: como **não há receita por disciplina**, entrega **orçado** (`Disciplina.valor`) × **pago** (`PagamentoProjetista` no período) × saldo. É custo, não margem (limite dos dados, conforme decidido).
+- UI: na página de Rentabilidade, **Ranking de coordenadores** + **Custo por disciplina**.
+
+**Arquivos:** `src/lib/with-action.ts` (opção `redact`), `src/modules/financeiro/config/{senha.ts,senha.test.ts,queries.ts,actions.ts}`, `src/modules/financeiro/lancamentos/actions.ts`, `src/components/financeiro/config/configuracoes-view.tsx`, `src/components/financeiro/lancamentos/lancamentos-view.tsx`, `src/app/(dashboard)/financeiro/{configuracoes,lancamentos}/page.tsx`, `src/modules/financeiro/relatorios/{dre-projeto.ts,queries.ts}`, `src/components/financeiro/relatorios/rentabilidade-view.tsx`, `src/app/(dashboard)/financeiro/rentabilidade/page.tsx`.
+
+---
+
+## Status final
+
+**Módulo financeiro: spec + comparação totalmente cobertos.** 12 seções entregues, ~155 testes na suíte, nenhuma pendência aberta. Nada destrutivo no banco em nenhuma migração.

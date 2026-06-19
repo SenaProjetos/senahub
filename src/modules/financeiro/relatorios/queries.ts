@@ -464,6 +464,39 @@ export async function rentabilidadePorProjeto(de: Date, ate: Date, margemMinima 
 }
 export type RentabilidadeRelatorio = Awaited<ReturnType<typeof rentabilidadePorProjeto>>;
 
+export type CustoDisciplina = { disciplinaId: string; nome: string; projeto: string; orcado: number; pago: number; saldo: number };
+
+/** Custo por disciplina no período: orçado (Disciplina.valor) × pago (PagamentoProjetista). */
+export async function custoPorDisciplina(de: Date, ate: Date): Promise<CustoDisciplina[]> {
+  const pagamentos = await prisma.pagamentoProjetista.findMany({
+    where: { liberadoEm: { gte: de, lte: ate } },
+    include: { disciplina: { select: { id: true, nome: true, valor: true, projeto: { select: { codigo: true, nome: true } } } } },
+  });
+  const mapa = new Map<string, CustoDisciplina>();
+  for (const p of pagamentos) {
+    const d = p.disciplina;
+    const cur =
+      mapa.get(d.id) ??
+      { disciplinaId: d.id, nome: d.nome, projeto: `${d.projeto.codigo} ${d.projeto.nome}`, orcado: Number(d.valor ?? 0), pago: 0, saldo: 0 };
+    cur.pago += Number(p.valor);
+    mapa.set(d.id, cur);
+  }
+  for (const c of mapa.values()) c.saldo = Math.round((c.orcado - c.pago) * 100) / 100;
+  return [...mapa.values()].sort((a, b) => b.pago - a.pago);
+}
+
+/** Mapa projetoId → nome do coordenador (membro do projeto com papel "coordenador"). */
+export async function coordenadoresPorProjeto(ids: string[]): Promise<Record<string, string>> {
+  if (ids.length === 0) return {};
+  const membros = await prisma.projetoMembro.findMany({
+    where: { projetoId: { in: ids }, papel: { contains: "coorden", mode: "insensitive" } },
+    include: { user: { select: { name: true } } },
+  });
+  const map: Record<string, string> = {};
+  for (const m of membros) if (!map[m.projetoId]) map[m.projetoId] = m.user.name;
+  return map;
+}
+
 /** Base do DRE: caixa (data de confirmação) ou competência (data de competência, ou `data`). */
 export type BaseDRE = "caixa" | "competencia";
 
