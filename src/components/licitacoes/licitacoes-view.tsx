@@ -138,6 +138,23 @@ export function LicitacoesView({
           <Link href="/licitacoes/sancoes">
             <Button variant="outline">Sanções</Button>
           </Link>
+          {(() => {
+            const exportQs = new URLSearchParams();
+            if (filtro.status.length) exportQs.set("status", filtro.status.join(","));
+            if (filtro.orgao) exportQs.set("orgao", filtro.orgao);
+            if (filtro.q) exportQs.set("q", filtro.q);
+            const exportUrl = `/api/licitacoes/export/xlsx${exportQs.toString() ? `?${exportQs}` : ""}`;
+            return (
+              <Button
+                variant="outline"
+                size="sm"
+                render={<a href={exportUrl} />}
+                nativeButton={false}
+              >
+                Exportar Excel
+              </Button>
+            );
+          })()}
           {podeGerir && (
             <Button onClick={() => setDialogNova(true)}>
               <Plus className="size-4" /> Nova licitação

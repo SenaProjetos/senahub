@@ -226,6 +226,40 @@ export async function obterLicitacao(id: string): Promise<LicitacaoListItem | nu
   return l ? mapLicitacaoDetalhe(l) : null;
 }
 
+export type LinhaExportLicitacao = {
+  titulo: string;
+  orgao: string | null;
+  modalidade: string | null;
+  numeroEdital: string | null;
+  status: string;
+  valorEstimado: number | null;
+  prazoProposta: string | null;
+  projetoCodigo: string | null;
+};
+
+export async function licitacoesParaExport(filtro: LicitacaoFiltro = {}): Promise<LinhaExportLicitacao[]> {
+  const where: Prisma.LicitacaoWhereInput = {};
+  const statusValidos = normalizarStatus(filtro.status);
+  if (statusValidos.length) where.status = { in: statusValidos };
+  if (filtro.orgao) where.orgao = { contains: filtro.orgao, mode: "insensitive" };
+  if (filtro.q) where.titulo = { contains: filtro.q, mode: "insensitive" };
+  const rows = await prisma.licitacao.findMany({
+    where,
+    orderBy: { updatedAt: "desc" },
+    include: { projeto: { select: { codigo: true } } },
+  });
+  return rows.map((l) => ({
+    titulo: l.titulo,
+    orgao: l.orgao,
+    modalidade: l.modalidade,
+    numeroEdital: l.numeroEdital,
+    status: l.status,
+    valorEstimado: l.valorEstimado != null ? Number(l.valorEstimado) : null,
+    prazoProposta: l.prazoProposta ? l.prazoProposta.toISOString().slice(0, 10) : null,
+    projetoCodigo: l.projeto ? l.projeto.codigo : null,
+  }));
+}
+
 export async function listarLicitacoesResumo(filtro: LicitacaoFiltro = {}) {
   const where: Prisma.LicitacaoWhereInput = {};
 
