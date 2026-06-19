@@ -1541,6 +1541,7 @@ model Licitacao {
   valoresDisciplina DisciplinaValorLicitacao[]
   eventos           LicitacaoEvento[]
   composicao        LicitacaoComposicaoPreco?
+  contrato          ContratoLicitacao?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1672,6 +1673,47 @@ model Modalidade {
   createdAt DateTime @default(now())
 
   @@map("modalidade")
+}
+
+/// Contrato/empenho pós-ganha (Item 3-B). valorHomologado pode diferir do estimado; aditivos ajustam.
+model ContratoLicitacao {
+  id                 String            @id @default(cuid())
+  licitacaoId        String            @unique
+  licitacao          Licitacao         @relation(fields: [licitacaoId], references: [id], onDelete: Cascade)
+  numeroContrato     String?
+  numeroEmpenho      String?
+  valorHomologado    Decimal           @db.Decimal(14, 2)
+  vigenciaInicio     DateTime?         @db.Date
+  vigenciaFim        DateTime?         @db.Date
+  /// Regra/índice de reajuste em texto (estruturado vem na Fase 4).
+  reajuste           String?
+  garantiaTipo       String?
+  garantiaValor      Decimal?          @db.Decimal(14, 2)
+  garantiaValidade   DateTime?         @db.Date
+  /// % limite de acréscimo (P2). Null = usa padrão da config licitacoes.config.
+  limiteAcrescimoPct Decimal?          @db.Decimal(5, 2)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  aditivos           AditivoContrato[]
+
+  @@map("contrato_licitacao")
+}
+
+/// Termo aditivo de contrato (valor/prazo/objeto). valorDelta +/- ajusta o valor vigente.
+model AditivoContrato {
+  id            String            @id @default(cuid())
+  contratoId    String
+  contrato      ContratoLicitacao @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  /// "valor" | "prazo" | "valor_prazo" | "objeto"
+  tipo          String
+  valorDelta    Decimal?          @db.Decimal(14, 2)
+  novaVigencia  DateTime?         @db.Date
+  justificativa String?
+  data          DateTime          @db.Date
+  createdAt     DateTime          @default(now())
+
+  @@index([contratoId])
+  @@map("aditivo_contrato")
 }
 
 // ─────────────────────────────────────────────────────────────
