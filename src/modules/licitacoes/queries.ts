@@ -48,6 +48,17 @@ export type LicitacaoListItem = {
   responsaveisTecnicos: { id: string; responsavelId: string; nome: string; registro: string; conselho: string | null; documentoTipo: string; numeroDocumento: string | null }[];
   subcontratacoes: { id: string; fornecedorId: string | null; fornecedorNome: string | null; nomeLivre: string | null; objeto: string; percentual: number }[];
   resultado: { vencedor: string | null; valorVencedor: number | null; nossaClassificacao: number | null; observacao: string | null } | null;
+  viabilidade: {
+    modo: string;
+    margemEsperadaPct: number | null;
+    equipeDisponivel: boolean | null;
+    concorrenciaPrevista: string | null;
+    decisao: string;
+    decididoPorNome: string | null;
+    decididoEm: string | null;
+    justificativa: string | null;
+    criterios: { id: string; criterio: string; atendido: boolean; observacao: string | null; ordem: number }[];
+  } | null;
 };
 
 function normalizarStatus(status?: string[]): StatusLicitacao[] {
@@ -88,6 +99,7 @@ export async function listarLicitacoes(filtro: LicitacaoFiltro = {}) {
         eventos: { orderBy: { data: "asc" } },
         composicao: { include: { itens: { orderBy: { ordem: "asc" } } } },
         contrato: { include: { aditivos: { orderBy: { data: "asc" } }, riscos: { orderBy: { ordem: "asc" } }, reajustes: { orderBy: { aniversario: "asc" } } } },
+        viabilidade: { include: { criterios: { orderBy: { ordem: "asc" } }, decididoPor: { select: { name: true } } } },
         habilitacao: { include: { certidao: { include: { tipo: true } } }, orderBy: { ordem: "asc" } },
         responsaveisTecnicos: { include: { responsavel: true } },
         subcontratacoes: { include: { fornecedor: { select: { nome: true } } } },
@@ -182,6 +194,25 @@ export async function listarLicitacoes(filtro: LicitacaoFiltro = {}) {
     responsaveisTecnicos: l.responsaveisTecnicos.map((r) => ({ id: r.id, responsavelId: r.responsavelId, nome: r.responsavel.nome, registro: r.responsavel.registro, conselho: r.responsavel.conselho, documentoTipo: r.documentoTipo, numeroDocumento: r.numeroDocumento })),
     subcontratacoes: l.subcontratacoes.map((s) => ({ id: s.id, fornecedorId: s.fornecedorId, fornecedorNome: s.fornecedor ? s.fornecedor.nome : null, nomeLivre: s.nomeLivre, objeto: s.objeto, percentual: Number(s.percentual) })),
     resultado: l.resultado ? { vencedor: l.resultado.vencedor, valorVencedor: l.resultado.valorVencedor != null ? Number(l.resultado.valorVencedor) : null, nossaClassificacao: l.resultado.nossaClassificacao, observacao: l.resultado.observacao } : null,
+    viabilidade: l.viabilidade
+      ? {
+          modo: l.viabilidade.modo,
+          margemEsperadaPct: l.viabilidade.margemEsperadaPct != null ? Number(l.viabilidade.margemEsperadaPct) : null,
+          equipeDisponivel: l.viabilidade.equipeDisponivel,
+          concorrenciaPrevista: l.viabilidade.concorrenciaPrevista,
+          decisao: l.viabilidade.decisao,
+          decididoPorNome: l.viabilidade.decididoPor ? l.viabilidade.decididoPor.name : null,
+          decididoEm: l.viabilidade.decididoEm ? l.viabilidade.decididoEm.toISOString() : null,
+          justificativa: l.viabilidade.justificativa,
+          criterios: l.viabilidade.criterios.map((c) => ({
+            id: c.id,
+            criterio: c.criterio,
+            atendido: c.atendido,
+            observacao: c.observacao,
+            ordem: c.ordem,
+          })),
+        }
+      : null,
   }));
 
   return {
