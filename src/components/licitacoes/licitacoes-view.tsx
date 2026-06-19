@@ -19,6 +19,8 @@ import {
   salvarValorDisciplinaLicitacao,
   removerValorDisciplinaLicitacao,
 } from "@/modules/licitacoes/extras/actions";
+import { salvarComposicaoLicitacao } from "@/modules/licitacoes/composicao/actions";
+import { totalComposicao, subtotalItem } from "@/modules/licitacoes/composicao/composicao";
 import {
   criarEventoLicitacao,
   concluirEventoLicitacao,
@@ -68,6 +70,7 @@ type Lic = {
   historico: { id: string; descricao: string; data: string }[];
   valoresDisciplina: { id: string; disciplina: string; valor: number }[];
   eventos: { id: string; tipo: string; data: string; autoria: string | null; protocolo: string | null; observacao: string | null; concluido: boolean }[];
+  composicao: { observacao: string | null; itens: { id: string; descricao: string; quantidade: number; valorUnitario: number; ordem: number }[] } | null;
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -667,6 +670,7 @@ function LicCard({
         )}
 
         <LicEventos lic={lic} podeGerir={podeGerir} />
+        <LicComposicao lic={lic} podeGerir={podeGerir} />
         <LicExtras lic={lic} podeGerir={podeGerir} />
       </CardContent>
 
@@ -741,6 +745,155 @@ function LicCard({
         </DialogContent>
       </Dialog>
     </Card>
+  );
+}
+
+function LicComposicao({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+
+  type LinhaItem = { descricao: string; quantidade: string; valorUnitario: string };
+  const [itens, setItens] = useState<LinhaItem[]>(
+    lic.composicao?.itens.map((it) => ({ descricao: it.descricao, quantidade: String(it.quantidade), valorUnitario: String(it.valorUnitario) })) ?? [],
+  );
+  const [obs, setObs] = useState(lic.composicao?.observacao ?? "");
+
+  const num = (s: string) => { const n = Number(s); return Number.isFinite(n) && n >= 0 ? n : 0; };
+
+  const total = totalComposicao(itens.map((l) => ({ quantidade: num(l.quantidade), valorUnitario: num(l.valorUnitario) })));
+
+  function salvar() {
+    const limpos = itens
+      .map((l) => ({ descricao: l.descricao.trim(), quantidade: num(l.quantidade), valorUnitario: num(l.valorUnitario) }))
+      .filter((l) => l.descricao.length > 0);
+    start(async () => {
+      const r = await salvarComposicaoLicitacao({ licitacaoId: lic.id, observacao: obs, itens: limpos });
+      if (r.ok) { toast.success("Composição salva."); router.refresh(); }
+      else toast.error(r.error);
+    });
+  }
+
+  return (
+    <div className="space-y-1.5 rounded-sm border border-dashed p-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold text-muted-foreground">
+          Composição de preço
+        </span>
+        <span className="font-mono text-xs font-semibold">{brl(total)}</span>
+      </div>
+
+      {lic.valorEstimado != null && (
+        <p className="text-xs text-muted-foreground">
+          Estimado: <span className="font-mono">{brl(lic.valorEstimado)}</span>
+          {" · "}
+          <span className={total > lic.valorEstimado ? "text-destructive" : "text-success"}>
+            {total > lic.valorEstimado ? "+" : ""}
+            {brl(total - lic.valorEstimado)}
+          </span>
+        </p>
+      )}
+
+      {/* Somente leitura */}
+      {!podeGerir && (
+        <>
+          {itens.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Sem composição.</p>
+          ) : (
+            <ul className="space-y-0.5">
+              {itens.map((l, i) => (
+                <li key={i} className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">{l.descricao}</span>
+                  <span>{num(l.quantidade)} × {brl(num(l.valorUnitario))}</span>
+                  <span>=</span>
+                  <span className="font-mono">{brl(subtotalItem({ quantidade: num(l.quantidade), valorUnitario: num(l.valorUnitario) }))}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+
+      {/* Edição */}
+      {podeGerir && (
+        <>
+          {itens.length > 0 && (
+            <ul className="space-y-1">
+              {itens.map((l, i) => (
+                <li key={i} className="flex flex-wrap items-center gap-1.5">
+                  <Input
+                    className="h-7 flex-1 text-xs"
+                    placeholder="Descrição"
+                    value={l.descricao}
+                    onChange={(e) => {
+                      const next = [...itens];
+                      next[i] = { ...next[i], descricao: e.target.value };
+                      setItens(next);
+                    }}
+                  />
+                  <Input
+                    type="number"
+                    step="any"
+                    min="0"
+                    className="h-7 w-20 text-xs"
+                    placeholder="Qtd"
+                    value={l.quantidade}
+                    onChange={(e) => {
+                      const next = [...itens];
+                      next[i] = { ...next[i], quantidade: e.target.value };
+                      setItens(next);
+                    }}
+                  />
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="h-7 w-28 text-xs"
+                    placeholder="Unit."
+                    value={l.valorUnitario}
+                    onChange={(e) => {
+                      const next = [...itens];
+                      next[i] = { ...next[i], valorUnitario: e.target.value };
+                      setItens(next);
+                    }}
+                  />
+                  <span className="font-mono text-xs text-muted-foreground w-24 text-right">
+                    {brl(subtotalItem({ quantidade: num(l.quantidade), valorUnitario: num(l.valorUnitario) }))}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Remover item"
+                    disabled={pending}
+                    onClick={() => setItens(itens.filter((_, j) => j !== i))}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="size-3" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Input
+              className="h-7 flex-1 text-xs"
+              placeholder="Observação"
+              value={obs}
+              onChange={(e) => setObs(e.target.value)}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7"
+              onClick={() => setItens([...itens, { descricao: "", quantidade: "1", valorUnitario: "0" }])}
+            >
+              <Plus className="size-3" /> Item
+            </Button>
+            <Button size="sm" variant="outline" className="h-7" onClick={salvar} disabled={pending}>
+              Salvar composição
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
