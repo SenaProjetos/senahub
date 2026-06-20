@@ -381,6 +381,7 @@ function PropsElemento({
         { valor: "[Grupo]", label: "Valor do grupo (banda de grupo)" },
         { valor: "[Hoje]", label: "Data de hoje" },
         { valor: "[Pagina] de [Paginas]", label: "Página X de Y" },
+        { valor: "[= [Total] * 0,1 ]", label: "Campo calculado [= fórmula ]" },
       ]
     : ehDataset
       ? [
@@ -391,6 +392,7 @@ function PropsElemento({
           { valor: "[Grupo]", label: "Valor do grupo (banda de grupo)" },
           { valor: "[Hoje]", label: "Data de hoje" },
           { valor: "[Pagina] de [Paginas]", label: "Página X de Y" },
+          { valor: "[= [Count()] * 1 ]", label: "Campo calculado [= fórmula ]" },
         ]
       : [];
 
@@ -468,6 +470,20 @@ function PropsElemento({
           <Input type="number" value={el.h} onChange={(e) => upd({ h: Math.max(4, Number(e.target.value) || 4) })} />
         </Campo>
       </div>
+
+      <Campo label="Condição (opcional)">
+        <Input
+          value={el.condicao ?? ""}
+          onChange={(e) => upd({ condicao: e.target.value }, false)}
+          onBlur={(e) => upd({ condicao: e.target.value })}
+          placeholder='[Status] == "Aprovado"'
+        />
+        <p className="text-[11px] text-muted-foreground">
+          Oculta o elemento quando falsa. Ex.: <code>[Sum(Valor)] &gt; 1000</code>,{" "}
+          <code>[Tipo] != &quot;X&quot;</code>, <code>naoVazio([Obs])</code>. Vazio = sempre
+          visível.
+        </p>
+      </Campo>
 
       {el.tipo !== "linha" && el.tipo !== "imagem" && (
         <>

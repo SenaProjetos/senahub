@@ -24,12 +24,22 @@ export type AlinharEixo =
 /** Eixos para distribuição uniforme de uma multi-seleção. */
 export type DistribuirEixo = "horizontal" | "vertical";
 
+/**
+ * Linhas-guia de alinhamento do EDITOR (não fazem parte do schema do documento;
+ * são auxílio visual e de snap, sem persistência obrigatória).
+ * `x`: posições horizontais (guias verticais) · `y`: posições verticais (guias
+ * horizontais), em px no espaço da área útil da banda.
+ */
+export type Guias = { x: number[]; y: number[] };
+
 export type EditorState = {
   schema: DocSchema;
   selecao: Selecao;
   past: DocSchema[];
   future: DocSchema[];
   sujo: boolean;
+  /** Guias de alinhamento (estado do editor). */
+  guias: Guias;
 };
 
 export type EditorAction =
@@ -47,6 +57,10 @@ export type EditorAction =
   | { t: "setAgrupamento"; campo: string }
   | { t: "addBanda"; tipo: TipoBanda; id: string }
   | { t: "removeBanda"; bandaId: string }
+  | { t: "addGuia"; eixo: "x" | "y"; pos: number }
+  | { t: "moverGuia"; eixo: "x" | "y"; indice: number; pos: number }
+  | { t: "removeGuia"; eixo: "x" | "y"; indice: number }
+  | { t: "limparGuias" }
   | { t: "undo" }
   | { t: "redo" }
   | { t: "marcarSalvo" };
@@ -234,6 +248,26 @@ export function editorReducer(state: EditorState, a: EditorAction): EditorState 
       };
     }
 
+    // Guias: estado puramente do editor — não entram no histórico (undo/redo)
+    // nem marcam o documento como sujo.
+    case "addGuia": {
+      const lista = [...state.guias[a.eixo], Math.round(a.pos)];
+      return { ...state, guias: { ...state.guias, [a.eixo]: lista } };
+    }
+
+    case "moverGuia": {
+      const lista = state.guias[a.eixo].map((p, i) => (i === a.indice ? Math.round(a.pos) : p));
+      return { ...state, guias: { ...state.guias, [a.eixo]: lista } };
+    }
+
+    case "removeGuia": {
+      const lista = state.guias[a.eixo].filter((_, i) => i !== a.indice);
+      return { ...state, guias: { ...state.guias, [a.eixo]: lista } };
+    }
+
+    case "limparGuias":
+      return { ...state, guias: { x: [], y: [] } };
+
     case "marcarSalvo":
       return { ...state, sujo: false };
   }
@@ -242,6 +276,27 @@ export function editorReducer(state: EditorState, a: EditorAction): EditorState 
 export const SNAP = 8;
 export function snap(v: number): number {
   return Math.round(v / SNAP) * SNAP;
+}
+
+/** Tolerância (px) para o "imã" das guias durante drag/resize. */
+export const SNAP_GUIA = 6;
+
+/**
+ * Ajusta um valor ao alvo de guia mais próximo dentro de `SNAP_GUIA`.
+ * Pura: se nenhuma guia estiver perto, devolve o valor inalterado.
+ * `alvos` são posições candidatas (ex.: as guias do eixo).
+ */
+export function snapGuia(v: number, alvos: number[], tol = SNAP_GUIA): number {
+  let melhor = v;
+  let menorDist = tol + 1;
+  for (const alvo of alvos) {
+    const d = Math.abs(v - alvo);
+    if (d <= tol && d < menorDist) {
+      menorDist = d;
+      melhor = alvo;
+    }
+  }
+  return melhor;
 }
 
 type PosPatch = Partial<Pick<Elemento, "x" | "y">>;

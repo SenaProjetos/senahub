@@ -1,5 +1,6 @@
 import type { DocSchema, Banda } from "@/modules/documentos/schema";
 import { resolverTexto, type ContextoDados, type Linha } from "@/modules/documentos/tokens";
+import { avaliarCondicao } from "@/modules/documentos/condicoes";
 import { ElementoView } from "@/components/documentos/editor/elemento-view";
 
 /**
@@ -191,6 +192,9 @@ function BandaRender({
     <div className="relative" style={{ width: largura, height: banda.altura, breakInside: "avoid" }}>
       {banda.elementos
         .filter((e) => e.visivel)
+        // Condição opcional: oculta o elemento quando a expressão é falsa.
+        // Sem condição (undefined/"") → avaliarCondicao retorna true.
+        .filter((e) => avaliarCondicao(e.condicao, ctx))
         .map((el) => (
           <div key={el.id} className="absolute" style={{ left: el.x, top: el.y, width: el.w, height: el.h }}>
             <ElementoView

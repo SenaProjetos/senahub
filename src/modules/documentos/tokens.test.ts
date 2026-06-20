@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { resolverTexto, formatar, type ContextoDados } from "@/modules/documentos/tokens";
+import {
+  resolverTexto,
+  formatar,
+  avaliarAritmetica,
+  paraNumero,
+  type ContextoDados,
+} from "@/modules/documentos/tokens";
 
 /** Normaliza o NBSP que o toLocaleString pt-BR usa em moeda. */
 const n = (s: string) => s.replace(/ /g, " ");
@@ -53,5 +59,86 @@ describe("motor de tokens dos documentos", () => {
 
   it("dois-pontos no texto não vira formato (Net 30: obrigado)", () => {
     expect(resolverTexto("[ClienteNome]: obrigado", ctx)).toBe("Alfreds Futterkiste: obrigado");
+  });
+});
+
+describe("avaliador aritmético seguro (shunting-yard)", () => {
+  it("soma e subtração", () => {
+    expect(avaliarAritmetica("2 + 3")).toBe(5);
+    expect(avaliarAritmetica("10 - 4 - 1")).toBe(5);
+  });
+
+  it("multiplicação e divisão", () => {
+    expect(avaliarAritmetica("6 * 7")).toBe(42);
+    expect(avaliarAritmetica("20 / 4")).toBe(5);
+  });
+
+  it("precedência: * antes de +", () => {
+    expect(avaliarAritmetica("2 + 3 * 4")).toBe(14);
+    expect(avaliarAritmetica("10 - 2 * 3")).toBe(4);
+  });
+
+  it("parênteses alteram a precedência", () => {
+    expect(avaliarAritmetica("(2 + 3) * 4")).toBe(20);
+    expect(avaliarAritmetica("2 * (3 + (4 - 1))")).toBe(12);
+  });
+
+  it("decimais e menos unário", () => {
+    expect(avaliarAritmetica("0.5 * 10")).toBe(5);
+    expect(avaliarAritmetica("-3 + 5")).toBe(2);
+    expect(avaliarAritmetica("-(2 + 3)")).toBe(-5);
+  });
+
+  it("divisão por zero → null", () => {
+    expect(avaliarAritmetica("5 / 0")).toBeNull();
+  });
+
+  it("expressão inválida → null", () => {
+    expect(avaliarAritmetica("2 +")).toBeNull();
+    expect(avaliarAritmetica("(2 + 3")).toBeNull();
+    expect(avaliarAritmetica("2 # 3")).toBeNull();
+  });
+});
+
+describe("paraNumero (pt-BR)", () => {
+  it("converte separadores pt-BR e ponto decimal", () => {
+    expect(paraNumero("1.200,50")).toBe(1200.5);
+    expect(paraNumero("1200,5")).toBe(1200.5);
+    expect(paraNumero("1200.5")).toBe(1200.5);
+    expect(paraNumero(42)).toBe(42);
+  });
+  it("vazio/inválido → NaN", () => {
+    expect(Number.isNaN(paraNumero(""))).toBe(true);
+    expect(Number.isNaN(paraNumero(null))).toBe(true);
+  });
+});
+
+describe("campo calculado [= EXPR]", () => {
+  it("multiplicação com token e literal pt-BR", () => {
+    // Total = 5000 → 5000 * 0,1 = 500
+    expect(resolverTexto("[= [Total] * 0,1 ]", ctx)).toBe("500");
+  });
+
+  it("agregados dentro da fórmula (média manual)", () => {
+    // Sum(Valor)=2000,5 ; Count()=2 → 1000,25 (pt-BR, com separador de milhar)
+    expect(resolverTexto("[= [Sum(Valor)] / [Count()] ]", ctx)).toBe("1.000,25");
+  });
+
+  it("respeita o sufixo de formato externo", () => {
+    expect(n(resolverTexto("[= [Total] * 0,1 :c2]", ctx))).toBe("R$ 500,00");
+  });
+
+  it("precedência e parênteses dentro da fórmula", () => {
+    // (Total + 1000) * 2 = (5000+1000)*2 = 12000
+    expect(resolverTexto("[= ([Total] + 1000) * 2 ]", ctx)).toBe("12.000");
+  });
+
+  it("token inexistente vira 0 dentro da fórmula", () => {
+    // NaoExiste → 0 ; 0 + 5 = 5
+    expect(resolverTexto("[= [NaoExiste] + 5 ]", ctx)).toBe("5");
+  });
+
+  it("fórmula inválida resolve para vazio", () => {
+    expect(resolverTexto("[= [Total] / 0 ]", ctx)).toBe("");
   });
 });

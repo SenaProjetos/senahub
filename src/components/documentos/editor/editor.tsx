@@ -141,6 +141,7 @@ export function DocEditor({
     past: [],
     future: [],
     sujo: false,
+    guias: { x: [], y: [] },
   } satisfies EditorState);
   const [nome, setNome] = useState(nomeInicial);
   const [tipo, setTipo] = useState<TipoDoc>(tipoInicial);
@@ -444,7 +445,13 @@ export function DocEditor({
           )}
         </aside>
 
-        <Canvas schema={state.schema} selecao={state.selecao} zoom={zoom} dispatch={dispatch} />
+        <Canvas
+          schema={state.schema}
+          selecao={state.selecao}
+          zoom={zoom}
+          guias={state.guias}
+          dispatch={dispatch}
+        />
 
         <Propriedades
           schema={state.schema}

@@ -129,6 +129,14 @@ export const elementoSchema = z.object({
   travado: z.boolean().default(false),
   /** Colunas do elemento "tabela" (apenas tipo==="tabela"). Modelos antigos → undefined. */
   colunas: z.array(colunaTabelaSchema).optional(),
+  /**
+   * Condição opcional de visibilidade (oculta o elemento quando falsa).
+   * Sintaxe simples e segura (sem eval): `TOKEN OP VALOR` (OP ∈ == != > >= < <=)
+   * ou `vazio([Campo])` / `naoVazio([Campo])`. Ex.: `[Status] == "Aprovado"`,
+   * `[Sum(Valor)] > 1000`, `naoVazio([Observacao])`. Vazio/ausente → sempre
+   * visível. Modelos antigos (sem o campo) → undefined (retrocompat).
+   */
+  condicao: z.string().optional(),
 });
 export type Elemento = z.infer<typeof elementoSchema>;
 
