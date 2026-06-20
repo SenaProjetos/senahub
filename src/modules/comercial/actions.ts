@@ -30,6 +30,13 @@ const rev = () => {
   revalidatePath("/comercial/propostas");
 };
 
+/**
+ * Detecta a etapa "Perdido" pelo NOME (não há flag no schema; ver
+ * FunilEtapa em schema.prisma e a etapa "Perdido" do seed). Comparação
+ * case-insensitive por substring "perdid" — cobre "Perdido"/"Perdida".
+ */
+const etapaEhPerdido = (nome: string) => nome.toLowerCase().includes("perdid");
+
 // ── Leads ─────────────────────────────────────────────────────
 export const criarLead = defineAction(
   { ...base, acao: "criar-lead", entidade: "Lead", schema: criarLeadSchema },
@@ -55,11 +62,34 @@ export const editarLead = defineAction(
   },
 );
 
-/** Drag-and-drop do Kanban: muda a etapa. */
+/**
+ * Drag-and-drop do Kanban (ou troca de etapa via select): muda a etapa.
+ * Se a etapa destino for "Perdido", exige `motivoPerda` e o grava.
+ * Ao sair de "Perdido" para outra etapa, limpa o motivo.
+ */
 export const moverLead = defineAction(
   { ...base, acao: "mover-lead", entidade: "Lead", schema: moverLeadSchema },
   async (i) => {
-    await prisma.lead.update({ where: { id: i.id }, data: { etapaId: i.etapaId } });
+    const destino = await prisma.funilEtapa.findUnique({
+      where: { id: i.etapaId },
+      select: { nome: true },
+    });
+    if (!destino) throw new ActionError("Etapa não encontrada.");
+
+    let motivoPerda: string | null | undefined;
+    if (etapaEhPerdido(destino.nome)) {
+      const motivo = i.motivoPerda?.trim();
+      if (!motivo) throw new ActionError("Informe o motivo da perda.");
+      motivoPerda = motivo;
+    } else {
+      // Saindo de "Perdido" (ou indo para etapa comum): limpa o motivo.
+      motivoPerda = null;
+    }
+
+    await prisma.lead.update({
+      where: { id: i.id },
+      data: { etapaId: i.etapaId, motivoPerda },
+    });
     rev();
     return { id: i.id };
   },

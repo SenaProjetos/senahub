@@ -11,9 +11,11 @@ import {
   arquivarLead,
   converterLead,
   adicionarNotaLead,
+  moverLead,
 } from "@/modules/comercial/actions";
 import type { LeadItem } from "@/modules/comercial/queries";
 import { FollowUpDialog } from "./follow-up-dialog";
+import { MotivoPerdaDialog, etapaEhPerdido } from "./motivo-perda-dialog";
 import { NotasHistorico } from "./notas-historico";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,6 +81,7 @@ export function LeadDialog({
   });
   const [form, setForm] = useState<Form>(lead ? deLead(lead) : vazio);
   const [nota, setNota] = useState("");
+  const [pedirMotivo, setPedirMotivo] = useState(false);
   const key = lead?.id ?? "novo";
   const [lastKey, setLastKey] = useState(key);
   if (lastKey !== key) {
@@ -89,7 +92,8 @@ export function LeadDialog({
 
   const set = (k: keyof Form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
-  function salvar() {
+  /** Salva os campos do lead. Quando informado, grava também o motivo da perda. */
+  function persistir(motivoPerda?: string) {
     const payload = {
       nome: form.nome,
       contato: form.contato,
@@ -101,13 +105,44 @@ export function LeadDialog({
       observacoes: form.observacoes,
     };
     start(async () => {
-      const r = lead ? await editarLead({ ...payload, id: lead.id }) : await criarLead(payload);
-      if (r.ok) {
-        toast.success(lead ? "Lead atualizado." : "Lead criado.");
-        onOpenChange(false);
-        router.refresh();
-      } else toast.error(r.error);
+      if (!lead) {
+        const r = await criarLead(payload);
+        if (r.ok) {
+          toast.success("Lead criado.");
+          onOpenChange(false);
+          router.refresh();
+        } else toast.error(r.error);
+        return;
+      }
+      // Edita os campos; etapa (e motivo da perda) via moverLead se mudou.
+      const r = await editarLead({ ...payload, id: lead.id });
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
+      if (form.etapaId !== lead.etapaId) {
+        const m = await moverLead({ id: lead.id, etapaId: form.etapaId, motivoPerda });
+        if (!m.ok) {
+          toast.error(m.error);
+          return;
+        }
+      }
+      toast.success("Lead atualizado.");
+      onOpenChange(false);
+      router.refresh();
     });
+  }
+
+  function salvar() {
+    // Mudando para "Perdido" exige motivo antes de concluir.
+    if (lead && form.etapaId !== lead.etapaId) {
+      const destino = etapas.find((e) => e.id === form.etapaId);
+      if (destino && etapaEhPerdido(destino.nome)) {
+        setPedirMotivo(true);
+        return;
+      }
+    }
+    persistir();
   }
 
   function converter() {
@@ -162,6 +197,13 @@ export function LeadDialog({
         </DialogHeader>
 
         <div className="space-y-3">
+          {lead?.motivoPerda &&
+            etapaEhPerdido(etapas.find((e) => e.id === lead.etapaId)?.nome ?? "") && (
+              <div className="rounded-sm border border-destructive/40 bg-destructive/5 p-2.5 text-sm">
+                <p className="text-xs font-semibold text-destructive">Motivo da perda</p>
+                <p className="whitespace-pre-wrap">{lead.motivoPerda}</p>
+              </div>
+            )}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Nome / empresa</Label>
@@ -267,6 +309,16 @@ export function LeadDialog({
           </div>
         </DialogFooter>
       </DialogContent>
+
+      <MotivoPerdaDialog
+        open={pedirMotivo}
+        leadNome={form.nome}
+        onOpenChange={setPedirMotivo}
+        onConfirmar={(motivo) => {
+          setPedirMotivo(false);
+          persistir(motivo);
+        }}
+      />
     </Dialog>
   );
 }

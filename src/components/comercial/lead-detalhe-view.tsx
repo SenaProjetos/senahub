@@ -2,9 +2,10 @@
 
 import { useState, type ComponentType } from "react";
 import Link from "next/link";
-import { ArrowLeft, Pencil, Mail, Phone, User2, FileText } from "lucide-react";
+import { ArrowLeft, Pencil, Mail, Phone, User2, FileText, XCircle } from "lucide-react";
 import type { LeadItem } from "@/modules/comercial/queries";
 import { LeadDialog } from "./lead-dialog";
+import { etapaEhPerdido } from "./motivo-perda-dialog";
 import { FollowUpDialog } from "./follow-up-dialog";
 import { NotasHistorico } from "./notas-historico";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ export function LeadDetalheView({
   propostas: PropostaResumo[];
 }) {
   const [editar, setEditar] = useState(false);
+  const perdido = etapaEhPerdido(etapaAtual.nome);
 
   return (
     <div className="space-y-5">
@@ -59,6 +61,16 @@ export function LeadDetalheView({
           </Button>
         </div>
       </div>
+
+      {perdido && lead.motivoPerda && (
+        <div className="flex items-start gap-2 rounded-sm border border-destructive/40 bg-destructive/5 p-3 text-sm">
+          <XCircle className="mt-0.5 size-4 shrink-0 text-destructive" />
+          <div>
+            <p className="font-semibold text-destructive">Motivo da perda</p>
+            <p className="whitespace-pre-wrap text-foreground">{lead.motivoPerda}</p>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-1">

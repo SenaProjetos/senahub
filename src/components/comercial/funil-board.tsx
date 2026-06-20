@@ -18,6 +18,7 @@ import { Plus, GripVertical } from "lucide-react";
 import { moverLead } from "@/modules/comercial/actions";
 import type { EtapaFunil, LeadItem } from "@/modules/comercial/queries";
 import { LeadDialog } from "./lead-dialog";
+import { MotivoPerdaDialog, etapaEhPerdido } from "./motivo-perda-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { brlInteiro } from "@/lib/utils";
@@ -27,7 +28,19 @@ export function FunilBoard({ etapas }: { etapas: EtapaFunil[] }) {
   const [, start] = useTransition();
   const [arrastando, setArrastando] = useState<LeadItem | null>(null);
   const [dialogLead, setDialogLead] = useState<LeadItem | null | "novo">(null);
+  // Move pendente que aguarda o motivo da perda (destino = "Perdido").
+  const [perda, setPerda] = useState<{ leadId: string; etapaId: string; leadNome: string } | null>(
+    null,
+  );
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  function executarMove(leadId: string, etapaId: string, motivoPerda?: string) {
+    start(async () => {
+      const r = await moverLead({ id: leadId, etapaId, motivoPerda });
+      if (r.ok) router.refresh();
+      else toast.error(r.error);
+    });
+  }
 
   function onDragStart(e: DragStartEvent) {
     const lead = etapas.flatMap((et) => et.leads).find((l) => l.id === e.active.id);
@@ -41,11 +54,13 @@ export function FunilBoard({ etapas }: { etapas: EtapaFunil[] }) {
     if (!etapaId) return;
     const origem = etapas.find((et) => et.leads.some((l) => l.id === leadId));
     if (!origem || origem.id === etapaId) return;
-    start(async () => {
-      const r = await moverLead({ id: leadId, etapaId });
-      if (r.ok) router.refresh();
-      else toast.error(r.error);
-    });
+    const destino = etapas.find((et) => et.id === etapaId);
+    if (destino && etapaEhPerdido(destino.nome)) {
+      const lead = origem.leads.find((l) => l.id === leadId);
+      setPerda({ leadId, etapaId, leadNome: lead?.nome ?? "lead" });
+      return;
+    }
+    executarMove(leadId, etapaId);
   }
 
   return (
@@ -73,6 +88,17 @@ export function FunilBoard({ etapas }: { etapas: EtapaFunil[] }) {
         open={dialogLead !== null}
         onOpenChange={(o) => !o && setDialogLead(null)}
         etapas={etapas.map((e) => ({ id: e.id, nome: e.nome }))}
+      />
+
+      <MotivoPerdaDialog
+        open={perda !== null}
+        leadNome={perda?.leadNome ?? ""}
+        onOpenChange={(o) => !o && setPerda(null)}
+        onConfirmar={(motivo) => {
+          if (!perda) return;
+          executarMove(perda.leadId, perda.etapaId, motivo);
+          setPerda(null);
+        }}
       />
     </>
   );

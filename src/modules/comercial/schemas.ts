@@ -14,7 +14,12 @@ export const criarLeadSchema = z.object({
   observacoes: opt(z.string()),
 });
 export const editarLeadSchema = criarLeadSchema.extend({ id: z.string().min(1) });
-export const moverLeadSchema = z.object({ id: z.string().min(1), etapaId: z.string().min(1) });
+export const moverLeadSchema = z.object({
+  id: z.string().min(1),
+  etapaId: z.string().min(1),
+  /** Obrigatório quando a etapa destino é "Perdido"; validado na action. */
+  motivoPerda: opt(z.string()),
+});
 export const idSchema = z.object({ id: z.string().min(1) });
 export const notaLeadSchema = z.object({ leadId: z.string().min(1), nota: z.string().min(1) });
 export const converterLeadSchema = z.object({ id: z.string().min(1) });
