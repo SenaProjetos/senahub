@@ -16,15 +16,12 @@ import { EquipeManager } from "@/components/projetos/equipe-manager";
 import { InputsPanel } from "@/components/inputs/inputs-panel";
 import { modelosPorFonte } from "@/modules/documentos/queries";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
+import { brl } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Projeto" };
 
 function fmtData(d: Date | null) {
   return d ? new Date(d).toLocaleDateString("pt-BR") : null;
-}
-
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 export default async function ProjetoDetalhePage({

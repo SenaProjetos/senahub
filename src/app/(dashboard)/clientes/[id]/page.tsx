@@ -14,12 +14,9 @@ import { SITUACAO_PROJETO_LABEL } from "@/modules/projetos/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { brl } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Cliente" };
-
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 export default async function ClienteDetalhePage({
   params,

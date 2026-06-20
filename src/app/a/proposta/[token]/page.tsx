@@ -1,12 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { brl } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Proposta — Sena Projetos", robots: { index: false } };
-
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 /**
  * Visualização pública da proposta pelo cliente (sem login, por token).

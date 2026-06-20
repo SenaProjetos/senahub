@@ -6,9 +6,9 @@ import { Search, FolderKanban, Users, Wallet, Loader2 } from "lucide-react";
 import { buscaGlobal, type ResultadoBusca } from "@/modules/busca/actions";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { brl } from "@/lib/utils";
 
 const VAZIO: ResultadoBusca = { projetos: [], clientes: [], lancamentos: [] };
-const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export function CommandPalette() {
   const router = useRouter();

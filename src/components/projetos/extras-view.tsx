@@ -20,9 +20,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { brl } from "@/lib/utils";
 
 type Dados = Awaited<ReturnType<typeof extrasDoProjeto>>;
-const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const STATUS_REV: Record<string, string> = { pendente: "text-warning border-warning/40", aceita: "text-success border-success/40", recusada: "text-destructive border-destructive/40" };
 
 export function ExtrasView({
