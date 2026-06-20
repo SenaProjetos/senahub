@@ -32,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { brl } from "@/lib/utils";
 
 type Proposta = {
   id: string;
@@ -50,10 +51,6 @@ export const STATUS_PROPOSTA_CHIP: Record<string, string> = {
   aceita: "text-success border-success/40",
   recusada: "text-destructive border-destructive/40",
 };
-
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 export function PropostasView({
   propostas,

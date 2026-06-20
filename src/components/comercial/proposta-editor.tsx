@@ -38,6 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { brl } from "@/lib/utils";
 
 type Item = { disciplina: string; descricao: string; valor: number };
 type Condicao = { descricao: string; tipo: "percentual" | "valor"; valor: number };
@@ -59,10 +60,6 @@ type Proposta = {
   itens: Item[];
   condicoes: Condicao[];
 };
-
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 export function PropostaEditor({
   proposta,

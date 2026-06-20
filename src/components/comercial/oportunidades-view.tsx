@@ -17,9 +17,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { brl } from "@/lib/utils";
 
 const NONE = "__none";
-const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const ETAPAS = ["qualificacao", "proposta", "negociacao", "fechamento"];
 const ETAPA_LABEL: Record<string, string> = { qualificacao: "Qualificação", proposta: "Proposta", negociacao: "Negociação", fechamento: "Fechamento" };
 const STATUS_COR: Record<string, string> = { aberta: "text-info border-info/40", ganha: "text-success border-success/40", perdida: "text-destructive border-destructive/40" };

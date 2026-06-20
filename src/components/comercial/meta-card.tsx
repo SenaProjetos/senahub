@@ -8,10 +8,7 @@ import { definirMeta } from "@/modules/comercial/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
-}
+import { brlInteiro } from "@/lib/utils";
 
 export function MetaCard({
   ano,
@@ -73,8 +70,8 @@ export function MetaCard({
           </div>
         ) : (
           <CardTitle className="text-2xl">
-            {brl(realizado)}
-            <span className="text-sm font-normal text-muted-foreground"> / {brl(meta)}</span>
+            {brlInteiro(realizado)}
+            <span className="text-sm font-normal text-muted-foreground"> / {brlInteiro(meta)}</span>
           </CardTitle>
         )}
       </CardHeader>

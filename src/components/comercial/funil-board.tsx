@@ -20,10 +20,7 @@ import type { EtapaFunil, LeadItem } from "@/modules/comercial/queries";
 import { LeadDialog } from "./lead-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
-}
+import { brlInteiro } from "@/lib/utils";
 
 export function FunilBoard({ etapas }: { etapas: EtapaFunil[] }) {
   const router = useRouter();
@@ -108,7 +105,7 @@ function Coluna({ etapa, onAbrir }: { etapa: EtapaFunil; onAbrir: (l: LeadItem) 
         )}
       </div>
       {total > 0 && (
-        <p className="mt-1 text-right font-mono text-xs text-muted-foreground">{brl(total)}</p>
+        <p className="mt-1 text-right font-mono text-xs text-muted-foreground">{brlInteiro(total)}</p>
       )}
     </div>
   );
@@ -158,7 +155,7 @@ function CardLead({
           </p>
           <div className="mt-1 flex items-center gap-2">
             {lead.valorEstimado != null && (
-              <span className="font-mono text-xs">{brl(Number(lead.valorEstimado))}</span>
+              <span className="font-mono text-xs">{brlInteiro(Number(lead.valorEstimado))}</span>
             )}
             {lead._count.propostas > 0 && (
               <Badge variant="outline" className="text-[10px]">
