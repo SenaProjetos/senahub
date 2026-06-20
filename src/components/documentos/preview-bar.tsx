@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Printer, Pencil, Save, FileDown } from "lucide-react";
+import { ArrowLeft, Printer, Pencil, Save, FileDown, Ruler } from "lucide-react";
 import { registrarDocumentoGerado } from "@/modules/documentos/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -115,6 +115,19 @@ export function PreviewBar({
             <FileDown className="size-4" /> Baixar PDF
           </Button>
         )}
+        <Button
+          variant="outline"
+          size="sm"
+          render={
+            <a
+              href={`/api/documentos/${modeloId}/dxf?${new URLSearchParams(valores).toString()}`}
+              target="_blank"
+              rel="noreferrer"
+            />
+          }
+        >
+          <Ruler className="size-4" /> Baixar DXF
+        </Button>
         <Button size="sm" onClick={() => window.print()}>
           <Printer className="size-4" /> Imprimir / PDF
         </Button>
