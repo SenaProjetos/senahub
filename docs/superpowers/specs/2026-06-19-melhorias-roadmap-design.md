@@ -255,7 +255,10 @@ Após rodada de decisão com o usuário, implementado:
 - **Planejamento ↔ Tarefas — link leve:** action `gerarTarefaDeEap` + botão "Gerar tarefa" na EAP (one-way, sem unificar).
 - **M6:** sidebar→drawer no mobile (Sheet) + boards com scroll contido; lazy load do editor de documentos (`next/dynamic`); contraste `--muted-foreground` ajustado p/ AA + foco visível na navegação.
 
+- **PNCP import automático ✅** (decisão: palavras-chave via config; API verificada diretamente):
+  client contra `GET pncp.gov.br/api/consulta/v1/contratacoes/publicacao` (verificado: params `dataInicial`/`dataFinal`/`codigoModalidadeContratacao`/`pagina`; resposta `{data,totalPaginas}` com `numeroControlePNCP`/`objetoCompra`/`dataEncerramentoProposta`/etc.). Job diário (06:00) gated por `pncp.modo="api"` + palavras-chave; filtro acento/caso-insensível no objeto, dedup por `numeroControlePNCP`, cria `Licitacao` `origemPNCP`, loga em `IntegracaoPNCPLog`, notifica gestores. Config (palavras-chave, modalidades, UFs, janela) na tela de Licitações. **OFF por padrão** (modo manual) — ativar definindo modo=api + palavras-chave.
+
 **Ainda pendente / precisa de você:**
-- **PNCP import automático:** a integração atual é manual (nº PNCP + marcar publicado). Auto-importar editais exige (1) **critério de negócio** (quais órgãos/UF/modalidades/palavras-chave vigiar) e (2) confirmar a **API pública vigente do PNCP**. Não construído (evita poller especulativo). Aguarda decisão de critério.
 - **PWA offline para ponto:** não selecionado nesta rodada.
 - **Verificação visual (browser)** de toda a UI continua pendente do usuário. Sem `git remote`.
+- **Ativar o PNCP**: em Configurações → Licitações, mude o modo para "api" e defina as palavras-chave para o import diário começar.
