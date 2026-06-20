@@ -41,7 +41,9 @@ Cada fase = `spec → plano → execução` própria (como as ondas M). `master`
   por preset (NBR 10068: margem esquerda 25mm p/ encadernação, demais 10/7mm). `pagina` passa a guardar
   `formato`/`orientacao` (dimensões derivadas em mm→px). Modelos atuais (A4) seguem funcionando.
 - **Estilo de linha:** `borderStyle` (sólida/tracejada/pontilhada) + espessura, em linha e retângulo.
-- **Fontes:** `fontFamily` por elemento (catálogo: Schibsted Grotesk, Red Hat Mono, + 1 serif p/ contratos).
+- **Fontes:** `fontFamily` por elemento, escolhido de um **catálogo configurável por admin** (tela de
+  Configurações → Documentos: admin adiciona/remove famílias; carregamento via next/font ou @font-face).
+  Catálogo inicial: Schibsted Grotesk, Red Hat Mono + serifada p/ contratos.
 - **Texto parágrafo:** novo tipo "paragrafo" (multilinha, wrap, justificado) além de label de 1 linha.
 - **Imagem upload:** elemento imagem aponta para arquivo enviado (reusa `lib/storage`/uploads); galeria simples.
 - *Schema JSON evolui (sem migração).* 
@@ -58,7 +60,8 @@ Cada fase = `spec → plano → execução` própria (como as ondas M). `master`
 - **Permissão por fonte:** cada fonte declara o `recurso:acao` exigido; editor e geração só listam/resolvem as
   fontes que o usuário pode ver (mapa: lançamentos/DRE→`financeiro:ver`, holerite/extrato→`rh`/próprio, projeto→
   `projetos:ver`, licitação→`licitacoes:ver`, etc.).
-- **Fonte externa CSV:** upload de CSV → vira uma coleção (mapeamento de colunas → campos do token).
+- **Fonte externa CSV:** upload de CSV salvo como **dataset reutilizável** (nomeado, model próprio) →
+  vira uma coleção; mapeamento de colunas → campos do token; reusável em várias gerações.
 - **Agrupamento + subtotais** e **elemento tabela** (colunas com largura/header/alinhamento).
 - *Migração leve possível (CSV armazenado / metadados de fonte no modelo).*
 
