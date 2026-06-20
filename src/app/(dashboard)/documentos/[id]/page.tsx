@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
 import { obterModelo } from "@/modules/documentos/queries";
-import { DocEditor } from "@/components/documentos/editor/editor";
+import { DocEditorDynamic as DocEditor } from "@/components/documentos/editor/editor-dynamic";
 
 export const metadata: Metadata = { title: "Editor de documento" };
 
