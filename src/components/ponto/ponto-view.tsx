@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Play, Square, Repeat, Clock } from "lucide-react";
+import { Play, Square, Repeat, Clock, Download, Info } from "lucide-react";
 import { baterPonto, trocarProjeto, encerrarJornada } from "@/modules/ponto/actions";
 import { fecharRateioMes } from "@/modules/rh/rateio/actions";
 import { fmtHoras } from "@/modules/ponto/format";
@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 const NONE = "__none";
 type Projeto = { id: string; codigo: string; nome: string };
@@ -28,6 +29,51 @@ type Espelho = {
   esperadoMinutos: number;
   saldoMinutos: number;
 };
+
+type EspelhoDia = Espelho["dias"][number];
+type LinhaEspelho = {
+  iso: string; // AAAA-MM-DD
+  dia: number;
+  fimDeSemana: boolean;
+  registro: EspelhoDia | null;
+};
+
+/** Gera a grade completa do mês (1..último dia) e faz merge por data com os dias-com-registro. */
+function gradeDoMes(ano: number, mes: number, dias: EspelhoDia[]): LinhaEspelho[] {
+  const porData = new Map(dias.map((d) => [d.dia, d]));
+  const ultimo = new Date(ano, mes, 0).getDate();
+  const linhas: LinhaEspelho[] = [];
+  for (let dia = 1; dia <= ultimo; dia++) {
+    const iso = `${ano}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+    const wd = new Date(ano, mes - 1, dia).getDay();
+    linhas.push({
+      iso,
+      dia,
+      fimDeSemana: wd === 0 || wd === 6,
+      registro: porData.get(iso) ?? null,
+    });
+  }
+  return linhas;
+}
+
+function hhmm(d: string | Date): string {
+  return new Date(d).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+/** Escapa um campo para CSV (RFC 4180): aspas duplas se contiver `,`, `"`, `;` ou quebra de linha. */
+function csvCampo(v: string): string {
+  return /[",;\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+}
+
+function dataPtBr(iso: string): string {
+  // iso = AAAA-MM-DD; evita timezone montando data local.
+  const [a, m, d] = iso.split("-").map(Number);
+  return new Date(a, m - 1, d).toLocaleDateString("pt-BR", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+  });
+}
 
 function Cronometro({ inicio }: { inicio: string | Date }) {
   const [seg, setSeg] = useState(0);
@@ -89,6 +135,49 @@ export function PontoView({
   }
 
   const proj = (id: string) => (id === NONE ? "" : id);
+
+  const linhas = gradeDoMes(ano, mes, espelho.dias);
+
+  function exportarCsv() {
+    const cabecalho = ["Data", "Entrada", "Saída", "Horas", "Projeto", "Saldo"];
+    const jornadaDia =
+      espelho.dias.length > 0 ? espelho.esperadoMinutos / espelho.dias.length : 0;
+    const linhasCsv = linhas.map((l) => {
+      const r = l.registro;
+      if (!r) {
+        return [dataPtBr(l.iso), "—", "—", "—", "—", "—"];
+      }
+      // Entrada = início da 1ª sessão; Saída = fim da última (— se ainda aberta).
+      const primeira = r.sessoes[0];
+      const ultima = r.sessoes[r.sessoes.length - 1];
+      const entrada = primeira ? hhmm(primeira.inicio) : "—";
+      const saida = ultima?.fim ? hhmm(ultima.fim) : "—";
+      const projetos = [
+        ...new Set(r.sessoes.map((s) => s.projeto).filter((p): p is string => !!p)),
+      ].join(" / ");
+      const saldoDia = jornadaDia > 0 && !l.fimDeSemana ? r.minutos - jornadaDia : r.minutos;
+      return [
+        dataPtBr(l.iso),
+        entrada,
+        saida,
+        fmtHoras(r.minutos),
+        projetos || "—",
+        fmtHoras(Math.round(saldoDia)),
+      ];
+    });
+    const conteudo = [cabecalho, ...linhasCsv]
+      .map((cols) => cols.map(csvCampo).join(";"))
+      .join("\r\n");
+    const blob = new Blob(["﻿" + conteudo], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `espelho-ponto-${ano}-${String(mes).padStart(2, "0")}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <div className="space-y-6">
@@ -179,7 +268,26 @@ export function PontoView({
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">Saldo (banco)</CardDescription>
+            <CardDescription className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.16em]">
+              Saldo (banco)
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      aria-label="Como o banco de horas é calculado"
+                      className="inline-flex text-muted-foreground hover:text-foreground"
+                    >
+                      <Info className="size-3" />
+                    </button>
+                  }
+                />
+                <TooltipContent>
+                  Banco de horas = soma (horas trabalhadas − jornada prevista) de todos os dias.
+                  Negativo = horas a compensar.
+                </TooltipContent>
+              </Tooltip>
+            </CardDescription>
             <CardTitle className={`text-2xl ${espelho.saldoMinutos < 0 ? "text-destructive" : "text-success"}`}>
               {fmtHoras(espelho.saldoMinutos)}
             </CardTitle>
@@ -189,21 +297,34 @@ export function PontoView({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Espelho do mês</CardTitle>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="text-base">Espelho do mês</CardTitle>
+            <Button size="sm" variant="outline" onClick={exportarCsv}>
+              <Download className="size-4" /> Exportar CSV
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
-          {espelho.dias.length === 0 ? (
-            <EmptyState icon={Clock} title="Sem registros este mês." />
-          ) : (
-            <ul className="divide-y text-sm">
-              {espelho.dias.map((d) => (
-                <li key={d.dia} className="flex items-center justify-between py-2">
-                  <span>{new Date(d.dia).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" })}</span>
-                  <span className="font-mono">{fmtHoras(d.minutos)}</span>
+          <ul className="divide-y text-sm">
+            {linhas.map((l) => {
+              const r = l.registro;
+              return (
+                <li
+                  key={l.iso}
+                  className={`flex items-center justify-between py-2 ${
+                    l.fimDeSemana ? "text-muted-foreground" : ""
+                  }`}
+                >
+                  <span className="capitalize">{dataPtBr(l.iso)}</span>
+                  {r ? (
+                    <span className="font-mono">{fmtHoras(r.minutos)}</span>
+                  ) : (
+                    <span className="font-mono text-muted-foreground">—</span>
+                  )}
                 </li>
-              ))}
-            </ul>
-          )}
+              );
+            })}
+          </ul>
         </CardContent>
       </Card>
 
