@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Plus, Check, X, Trash2, MapPin, CalendarDays } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Check, X, Trash2, MapPin, CalendarDays, Download } from "lucide-react";
 import {
   criarCompromisso,
   confirmarPresenca,
   excluirCompromisso,
 } from "@/modules/agenda/actions";
+import { gerarIcs } from "@/modules/agenda/ics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +28,7 @@ import {
 type Comp = {
   id: string;
   titulo: string;
+  descricao?: string | null;
   local: string | null;
   inicio: string;
   fim: string | null;
@@ -35,9 +37,59 @@ type Comp = {
   participantes: { nome: string; confirmado: boolean | null }[];
 };
 type Prazo = { data: string; rotulo: string; href: string; tipo: "projeto" | "disciplina" };
+type Vista = "mes" | "semana" | "dia";
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const DIAS = ["D", "S", "T", "Q", "Q", "S", "S"];
+const DIAS_SEMANA = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
+
+// chave YYYY-MM-DD em horário local, para agrupar compromissos por dia
+function chaveDia(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+// segunda-feira da semana que contém `d` (início do dia)
+function inicioSemana(d: Date): Date {
+  const r = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const dow = r.getDay(); // 0=dom … 6=sáb
+  const diff = dow === 0 ? -6 : 1 - dow; // recua até segunda
+  r.setDate(r.getDate() + diff);
+  return r;
+}
+function addDias(d: Date, n: number): Date {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
+function fmtHora(iso: string): string {
+  return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+// dispara o download de um .ics no client
+function baixarIcs(comps: Comp[], nomeArquivo: string) {
+  if (comps.length === 0) {
+    toast.info("Nenhum compromisso para exportar.");
+    return;
+  }
+  const ics = gerarIcs(
+    comps.map((c) => ({
+      uid: `${c.id}@senahub`,
+      titulo: c.titulo,
+      inicio: c.inicio,
+      fim: c.fim ?? undefined,
+      descricao: c.descricao ?? undefined,
+      local: c.local ?? undefined,
+    })),
+  );
+  const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nomeArquivo;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 export function AgendaView({
   ano,
@@ -56,14 +108,152 @@ export function AgendaView({
 }) {
   const router = useRouter();
   const [dialogNovo, setDialogNovo] = useState(false);
+  const [vista, setVista] = useState<Vista>("mes");
+  // dia/semana de referência (estado local) — começa em hoje ou no mês exibido
+  const [refData, setRefData] = useState<Date>(() => {
+    const h = new Date();
+    return h.getFullYear() === ano && h.getMonth() + 1 === mes
+      ? new Date(h.getFullYear(), h.getMonth(), h.getDate())
+      : new Date(ano, mes - 1, 1);
+  });
   void meuId;
 
-  function nav(delta: number) {
+  function navMes(delta: number) {
     const d = new Date(ano, mes - 1 + delta, 1);
     router.push(`/agenda?m=${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   }
 
-  // grade do mês
+  // compromissos agrupados por dia (chave local YYYY-MM-DD), reaproveitando os dados carregados
+  const compsPorChave = useMemo(() => {
+    const m = new Map<string, Comp[]>();
+    for (const c of compromissos) {
+      const k = chaveDia(new Date(c.inicio));
+      const lista = m.get(k);
+      if (lista) lista.push(c);
+      else m.set(k, [c]);
+    }
+    return m;
+  }, [compromissos]);
+
+  // dias da semana corrente (segunda → domingo)
+  const diasDaSemana = useMemo(() => {
+    const seg = inicioSemana(refData);
+    return Array.from({ length: 7 }, (_, i) => addDias(seg, i));
+  }, [refData]);
+
+  const hoje = new Date();
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ToggleVista vista={vista} onChange={setVista} />
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => baixarIcs(compromissosVisiveis(vista, compromissos, refData, diasDaSemana), nomeArquivoIcs(vista, refData, ano, mes))}
+          >
+            <Download className="size-4" /> Exportar .ics
+          </Button>
+          <Button onClick={() => setDialogNovo(true)}>
+            <Plus className="size-4" /> Novo compromisso
+          </Button>
+        </div>
+      </div>
+
+      {vista === "mes" && (
+        <VistaMes
+          ano={ano}
+          mes={mes}
+          compromissos={compromissos}
+          prazos={prazos}
+          onNav={navMes}
+        />
+      )}
+      {vista === "semana" && (
+        <VistaSemana
+          dias={diasDaSemana}
+          compsPorChave={compsPorChave}
+          hoje={hoje}
+          onNav={(delta) => setRefData((d) => addDias(d, delta * 7))}
+          onHoje={() => setRefData(new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()))}
+        />
+      )}
+      {vista === "dia" && (
+        <VistaDia
+          dia={refData}
+          comps={compsPorChave.get(chaveDia(refData)) ?? []}
+          ehHoje={chaveDia(refData) === chaveDia(hoje)}
+          onNav={(delta) => setRefData((d) => addDias(d, delta))}
+          onHoje={() => setRefData(new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()))}
+        />
+      )}
+
+      <NovoCompromissoDialog open={dialogNovo} onOpenChange={setDialogNovo} internos={internos} />
+    </div>
+  );
+}
+
+// ── seletor de vista ──────────────────────────────────────────────────────
+function ToggleVista({ vista, onChange }: { vista: Vista; onChange: (v: Vista) => void }) {
+  const opts: { v: Vista; label: string }[] = [
+    { v: "mes", label: "Mês" },
+    { v: "semana", label: "Semana" },
+    { v: "dia", label: "Dia" },
+  ];
+  return (
+    <div className="inline-flex rounded-md border p-0.5" role="tablist" aria-label="Vista da agenda">
+      {opts.map((o) => (
+        <button
+          key={o.v}
+          type="button"
+          role="tab"
+          aria-selected={vista === o.v}
+          onClick={() => onChange(o.v)}
+          className={`rounded-sm px-3 py-1 text-sm font-medium transition-colors ${
+            vista === o.v
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// compromissos visíveis na vista corrente — base para o export .ics
+function compromissosVisiveis(vista: Vista, todos: Comp[], refData: Date, diasSemana: Date[]): Comp[] {
+  if (vista === "mes") return todos;
+  if (vista === "dia") {
+    const k = chaveDia(refData);
+    return todos.filter((c) => chaveDia(new Date(c.inicio)) === k);
+  }
+  const chaves = new Set(diasSemana.map(chaveDia));
+  return todos.filter((c) => chaves.has(chaveDia(new Date(c.inicio))));
+}
+
+function nomeArquivoIcs(vista: Vista, refData: Date, ano: number, mes: number): string {
+  if (vista === "mes") return `agenda-${ano}-${String(mes).padStart(2, "0")}.ics`;
+  if (vista === "dia") return `agenda-${chaveDia(refData)}.ics`;
+  const seg = inicioSemana(refData);
+  return `agenda-semana-${chaveDia(seg)}.ics`;
+}
+
+// ── vista mensal (grade original) ─────────────────────────────────────────
+function VistaMes({
+  ano,
+  mes,
+  compromissos,
+  prazos,
+  onNav,
+}: {
+  ano: number;
+  mes: number;
+  compromissos: Comp[];
+  prazos: Prazo[];
+  onNav: (delta: number) => void;
+}) {
   const primeiro = new Date(ano, mes - 1, 1);
   const diasNoMes = new Date(ano, mes, 0).getDate();
   const offset = primeiro.getDay();
@@ -71,37 +261,37 @@ export function AgendaView({
   const ehHoje = (d: number) =>
     hoje.getFullYear() === ano && hoje.getMonth() + 1 === mes && hoje.getDate() === d;
 
+  // só os compromissos do mês exibido (a query carrega ±7 dias de folga)
+  const compsDoMes = compromissos.filter((c) => {
+    const d = new Date(c.inicio);
+    return d.getFullYear() === ano && d.getMonth() + 1 === mes;
+  });
+
   const porDia = new Map<number, { comps: Comp[]; prazos: Prazo[] }>();
   for (let d = 1; d <= diasNoMes; d++) porDia.set(d, { comps: [], prazos: [] });
-  for (const c of compromissos) {
+  for (const c of compsDoMes) {
     const d = new Date(c.inicio).getDate();
     porDia.get(d)?.comps.push(c);
   }
   for (const p of prazos) {
-    const d = Number(p.data.slice(8, 10));
-    porDia.get(d)?.prazos.push(p);
+    const [py, pm, pd] = p.data.split("-").map(Number);
+    if (py === ano && pm === mes) porDia.get(pd)?.prazos.push(p);
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" aria-label="Mês anterior" onClick={() => nav(-1)}>
-            <ChevronLeft className="size-4" />
-          </Button>
-          <h2 className="w-48 text-center text-xl font-extrabold tracking-tight">
-            {MESES[mes - 1]} {ano}
-          </h2>
-          <Button variant="ghost" size="icon" aria-label="Próximo mês" onClick={() => nav(1)}>
-            <ChevronRight className="size-4" />
-          </Button>
-        </div>
-        <Button onClick={() => setDialogNovo(true)}>
-          <Plus className="size-4" /> Novo compromisso
+    <>
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="icon" aria-label="Mês anterior" onClick={() => onNav(-1)}>
+          <ChevronLeft className="size-4" />
+        </Button>
+        <h2 className="w-48 text-center text-xl font-extrabold tracking-tight">
+          {MESES[mes - 1]} {ano}
+        </h2>
+        <Button variant="ghost" size="icon" aria-label="Próximo mês" onClick={() => onNav(1)}>
+          <ChevronRight className="size-4" />
         </Button>
       </div>
 
-      {/* Grade mensal */}
       <div className="grid grid-cols-7 gap-1">
         {DIAS.map((d, i) => (
           <div key={i} className="px-1 py-1 text-center font-mono text-[10px] uppercase text-muted-foreground">
@@ -133,7 +323,7 @@ export function AgendaView({
                 ))}
                 {info.comps.map((c) => (
                   <p key={c.id} className="truncate rounded-sm bg-primary/15 px-1 text-[10px] text-primary" title={c.titulo}>
-                    {new Date(c.inicio).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} {c.titulo}
+                    {fmtHora(c.inicio)} {c.titulo}
                   </p>
                 ))}
               </div>
@@ -142,22 +332,145 @@ export function AgendaView({
         })}
       </div>
 
-      {/* Lista do mês */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Compromissos do mês</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {compromissos.length === 0 ? (
+          {compsDoMes.length === 0 ? (
             <EmptyState icon={CalendarDays} title="Nenhum compromisso." />
           ) : (
-            compromissos.map((c) => <CompRow key={c.id} c={c} />)
+            compsDoMes.map((c) => <CompRow key={c.id} c={c} />)
           )}
         </CardContent>
       </Card>
+    </>
+  );
+}
 
-      <NovoCompromissoDialog open={dialogNovo} onOpenChange={setDialogNovo} internos={internos} />
-    </div>
+// ── vista semanal ─────────────────────────────────────────────────────────
+function VistaSemana({
+  dias,
+  compsPorChave,
+  hoje,
+  onNav,
+  onHoje,
+}: {
+  dias: Date[];
+  compsPorChave: Map<string, Comp[]>;
+  hoje: Date;
+  onNav: (delta: number) => void;
+  onHoje: () => void;
+}) {
+  const seg = dias[0];
+  const dom = dias[6];
+  const chaveHoje = chaveDia(hoje);
+  const titulo = `${seg.getDate()} ${MESES[seg.getMonth()].slice(0, 3)} – ${dom.getDate()} ${MESES[dom.getMonth()].slice(0, 3)} ${dom.getFullYear()}`;
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="ghost" size="icon" aria-label="Semana anterior" onClick={() => onNav(-1)}>
+          <ChevronLeft className="size-4" />
+        </Button>
+        <h2 className="min-w-56 text-center text-lg font-extrabold tracking-tight">{titulo}</h2>
+        <Button variant="ghost" size="icon" aria-label="Próxima semana" onClick={() => onNav(1)}>
+          <ChevronRight className="size-4" />
+        </Button>
+        <Button variant="outline" size="sm" onClick={onHoje}>
+          Hoje
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-1 sm:grid-cols-7">
+        {dias.map((dia, i) => {
+          const k = chaveDia(dia);
+          const comps = (compsPorChave.get(k) ?? [])
+            .slice()
+            .sort((a, b) => a.inicio.localeCompare(b.inicio));
+          const ehHoje = k === chaveHoje;
+          return (
+            <div
+              key={k}
+              className={`min-h-32 rounded-sm border p-1.5 ${ehHoje ? "border-primary bg-primary/5" : "border-border/60"}`}
+            >
+              <div className={`mb-1 text-xs font-semibold ${ehHoje ? "text-primary" : "text-muted-foreground"}`}>
+                <span className="uppercase">{DIAS_SEMANA[i].slice(0, 3)}</span>{" "}
+                <span className="font-mono">{dia.getDate()}</span>
+              </div>
+              <div className="space-y-1">
+                {comps.length === 0 ? (
+                  <p className="text-[10px] text-muted-foreground/60">—</p>
+                ) : (
+                  comps.map((c) => (
+                    <div
+                      key={c.id}
+                      className="rounded-sm bg-primary/15 px-1.5 py-1 text-[11px] text-primary"
+                      title={c.local ? `${c.titulo} · ${c.local}` : c.titulo}
+                    >
+                      <span className="font-mono">{fmtHora(c.inicio)}</span>{" "}
+                      <span className="font-medium">{c.titulo}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+// ── vista diária ──────────────────────────────────────────────────────────
+function VistaDia({
+  dia,
+  comps,
+  ehHoje,
+  onNav,
+  onHoje,
+}: {
+  dia: Date;
+  comps: Comp[];
+  ehHoje: boolean;
+  onNav: (delta: number) => void;
+  onHoje: () => void;
+}) {
+  const ordenados = comps.slice().sort((a, b) => a.inicio.localeCompare(b.inicio));
+  const titulo = dia.toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="ghost" size="icon" aria-label="Dia anterior" onClick={() => onNav(-1)}>
+          <ChevronLeft className="size-4" />
+        </Button>
+        <h2 className={`min-w-64 text-center text-lg font-extrabold tracking-tight ${ehHoje ? "text-primary" : ""}`}>
+          {titulo}
+        </h2>
+        <Button variant="ghost" size="icon" aria-label="Próximo dia" onClick={() => onNav(1)}>
+          <ChevronRight className="size-4" />
+        </Button>
+        <Button variant="outline" size="sm" onClick={onHoje}>
+          Hoje
+        </Button>
+      </div>
+
+      <Card>
+        <CardContent className="space-y-2 pt-5">
+          {ordenados.length === 0 ? (
+            <EmptyState icon={CalendarDays} title="Nenhum compromisso neste dia." />
+          ) : (
+            ordenados.map((c) => <CompRow key={c.id} c={c} />)
+          )}
+        </CardContent>
+      </Card>
+    </>
   );
 }
 

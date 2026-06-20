@@ -17,13 +17,15 @@ export default async function AgendaPage({
   const [anoS, mesS] = (sp.m ?? "").split("-");
   const ano = Number(anoS) || hoje.getFullYear();
   const mes = Number(mesS) || hoje.getMonth() + 1;
-  const ini = new Date(ano, mes - 1, 1);
-  const fim = new Date(ano, mes, 0, 23, 59, 59);
+  // Carrega uma folga de ±7 dias para que as vistas semanais nas bordas do mês
+  // (semanas que atravessam a virada de mês) tenham os compromissos vizinhos.
+  const iniQuery = new Date(ano, mes - 1, 1 - 7);
+  const fimQuery = new Date(ano, mes, 0 + 7, 23, 59, 59);
 
   const [compromissos, prazosProjeto, prazosDisciplina, internos] = await Promise.all([
     prisma.compromisso.findMany({
       where: {
-        inicio: { gte: ini, lte: fim },
+        inicio: { gte: iniQuery, lte: fimQuery },
         participantes: { some: { userId: user.id } },
       },
       orderBy: { inicio: "asc" },
@@ -33,12 +35,12 @@ export default async function AgendaPage({
       },
     }),
     prisma.projeto.findMany({
-      where: { situacao: "em_andamento", prazoFinal: { gte: ini, lte: fim } },
+      where: { situacao: "em_andamento", prazoFinal: { gte: iniQuery, lte: fimQuery } },
       select: { id: true, codigo: true, nome: true, prazoFinal: true },
     }),
     prisma.disciplina.findMany({
       where: {
-        prazo: { gte: ini, lte: fim },
+        prazo: { gte: iniQuery, lte: fimQuery },
         status: { notIn: ["aprovado"] },
         projeto: { situacao: "em_andamento" },
       },
@@ -60,6 +62,7 @@ export default async function AgendaPage({
       compromissos={compromissos.map((c) => ({
         id: c.id,
         titulo: c.titulo,
+        descricao: c.descricao,
         local: c.local,
         inicio: c.inicio.toISOString(),
         fim: c.fim ? c.fim.toISOString() : null,
