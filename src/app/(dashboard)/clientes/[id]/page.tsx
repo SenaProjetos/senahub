@@ -1,21 +1,24 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Mail, Phone, MapPin, Users, Building2 } from "lucide-react";
+import { ArrowLeft, Mail, Phone, MapPin, Users, Building2, History } from "lucide-react";
 import { requirePermission } from "@/lib/session";
+import { can } from "@/lib/permissions";
 import {
   obterCliente,
   resumoFinanceiroCliente,
+  historicoCliente,
   type ContatoItem,
 } from "@/modules/clientes/queries";
 import { projetosDoCliente } from "@/modules/projetos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { SITUACAO_PROJETO_LABEL } from "@/modules/projetos/status";
+import { ContatoDialog } from "@/components/clientes/contato-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Cliente" };
 
@@ -24,13 +27,15 @@ export default async function ClienteDetalhePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requirePermission("clientes", "ver");
+  const user = await requirePermission("clientes", "ver");
+  const podeGerir = await can(user.role, "clientes", "gerir");
   const { id } = await params;
   const cliente = await obterCliente(id);
   if (!cliente) notFound();
 
   const fin = await resumoFinanceiroCliente(id);
   const projetos = await projetosDoCliente(id);
+  const historico = await historicoCliente(id);
   const endereco = [
     cliente.logradouro,
     cliente.numero,
@@ -111,8 +116,9 @@ export default async function ClienteDetalhePage({
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
           <CardTitle className="text-base">Contatos</CardTitle>
+          {podeGerir && <ContatoDialog clienteId={cliente.id} />}
         </CardHeader>
         <CardContent>
           {cliente.contatos.length === 0 ? (
@@ -160,6 +166,30 @@ export default async function ClienteDetalhePage({
                     <span>{p._count.disciplinas} disc.</span>
                     <Badge variant="outline">{SITUACAO_PROJETO_LABEL[p.situacao]}</Badge>
                   </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Histórico</CardTitle>
+          <CardDescription>Linha do tempo de eventos do cliente</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {historico.length === 0 ? (
+            <EmptyState icon={History} title="Nenhum evento registrado." />
+          ) : (
+            <ul className="space-y-3 text-sm">
+              {historico.map((ev) => (
+                <li key={ev.id} className="flex gap-3">
+                  <span className="w-20 shrink-0 font-mono text-xs text-muted-foreground">
+                    {formatarData(ev.data)}
+                  </span>
+                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-muted-foreground/40" />
+                  <span>{ev.descricao}</span>
                 </li>
               ))}
             </ul>

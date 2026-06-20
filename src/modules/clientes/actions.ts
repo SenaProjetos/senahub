@@ -7,6 +7,7 @@ import {
   criarClienteSchema,
   editarClienteSchema,
   clienteIdSchema,
+  adicionarContatoSchema,
 } from "@/modules/clientes/schemas";
 
 const REVALIDATE = "/clientes";
@@ -65,6 +66,26 @@ export const desativarCliente = defineAction(
     await prisma.cliente.update({ where: { id: input.id }, data: { ativo: false } });
     revalidatePath(REVALIDATE);
     return { id: input.id };
+  },
+);
+
+export const adicionarContato = defineAction(
+  {
+    modulo: "clientes",
+    acao: "adicionar-contato",
+    recurso: "clientes",
+    permissao: "gerir",
+    entidade: "ContatoCliente",
+    schema: adicionarContatoSchema,
+    entidadeId: (d) => (d as { id: string }).id,
+  },
+  async (input) => {
+    const { clienteId, email, ...rest } = input;
+    const contato = await prisma.contatoCliente.create({
+      data: { ...rest, email: email || null, cliente: { connect: { id: clienteId } } },
+    });
+    revalidatePath(`/clientes/${clienteId}`);
+    return { id: contato.id };
   },
 );
 

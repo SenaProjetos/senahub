@@ -116,6 +116,69 @@ export async function resumoFinanceiroCliente(clienteId: string) {
   return { total, pago, emAberto: total - pago };
 }
 
+/** Evento da timeline de histórico do cliente (apenas dados já existentes). */
+export type EventoHistorico = {
+  id: string;
+  data: Date;
+  tipo: "cadastro" | "projeto" | "proposta" | "lancamento";
+  descricao: string;
+};
+
+/**
+ * Histórico do cliente: agrega, em ordem cronológica decrescente, eventos já
+ * disponíveis no banco — cadastro do cliente, criação de projetos, propostas e
+ * lançamentos financeiros. Não cria nenhum model de "interação".
+ */
+export async function historicoCliente(clienteId: string): Promise<EventoHistorico[]> {
+  const cliente = await prisma.cliente.findUnique({
+    where: { id: clienteId },
+    select: {
+      createdAt: true,
+      nome: true,
+      projetos: {
+        select: { id: true, codigo: true, nome: true, createdAt: true },
+      },
+      propostas: {
+        select: { id: true, numero: true, titulo: true, createdAt: true },
+      },
+      lancamentos: {
+        where: { status: { not: "cancelado" } },
+        select: { id: true, descricao: true, tipo: true, data: true },
+      },
+    },
+  });
+  if (!cliente) return [];
+
+  const eventos: EventoHistorico[] = [
+    {
+      id: `cadastro-${clienteId}`,
+      data: cliente.createdAt,
+      tipo: "cadastro",
+      descricao: "Cliente cadastrado.",
+    },
+    ...cliente.projetos.map((p) => ({
+      id: `projeto-${p.id}`,
+      data: p.createdAt,
+      tipo: "projeto" as const,
+      descricao: `Projeto criado: ${p.codigo} — ${p.nome}`,
+    })),
+    ...cliente.propostas.map((p) => ({
+      id: `proposta-${p.id}`,
+      data: p.createdAt,
+      tipo: "proposta" as const,
+      descricao: `Proposta ${p.numero}: ${p.titulo}`,
+    })),
+    ...cliente.lancamentos.map((l) => ({
+      id: `lancamento-${l.id}`,
+      data: l.data,
+      tipo: "lancamento" as const,
+      descricao: `${l.tipo === "receita" ? "Receita" : "Despesa"}: ${l.descricao}`,
+    })),
+  ];
+
+  return eventos.sort((a, b) => b.data.getTime() - a.data.getTime());
+}
+
 export type ClienteListItem = Awaited<ReturnType<typeof listarClientes>>[number];
 export type ClienteDetalhe = NonNullable<Awaited<ReturnType<typeof obterCliente>>>;
 export type ContatoItem = ClienteDetalhe["contatos"][number];

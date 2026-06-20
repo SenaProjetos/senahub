@@ -26,5 +26,15 @@ export const criarClienteSchema = z.object(base).refine(docValido, docMsg);
 export const editarClienteSchema = z.object({ id: z.string().min(1), ...base }).refine(docValido, docMsg);
 export const clienteIdSchema = z.object({ id: z.string().min(1) });
 
+/** Novo contato vinculado a um cliente (model ContatoCliente). */
+export const adicionarContatoSchema = z.object({
+  clienteId: z.string().min(1),
+  nome: z.string().min(2, "Informe o nome do contato."),
+  cargo: z.string().optional(),
+  email: z.string().email("E-mail inválido.").optional().or(z.literal("")),
+  telefone: z.string().optional(),
+});
+
 export type CriarClienteInput = z.infer<typeof criarClienteSchema>;
 export type EditarClienteInput = z.infer<typeof editarClienteSchema>;
+export type AdicionarContatoInput = z.infer<typeof adicionarContatoSchema>;
