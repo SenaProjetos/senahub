@@ -4,6 +4,10 @@ import { formatarCodigo } from "@/modules/projetos/numbering";
 import { relatorioDRE } from "@/modules/financeiro/relatorios/queries";
 import { saldoContratual, somaDeltas } from "@/modules/licitacoes/contrato/saldo";
 import { totalComposicao } from "@/modules/licitacoes/composicao/composicao";
+import { podeVerFonte } from "@/modules/documentos/fontes-perm";
+import { fontesUsadasNoSchema } from "@/modules/documentos/fontes-usadas";
+import type { Role } from "@/lib/roles";
+import type { DocSchema } from "@/modules/documentos/schema";
 import type { Escalar, Linha } from "@/modules/documentos/tokens";
 
 /**
@@ -14,6 +18,67 @@ import type { Escalar, Linha } from "@/modules/documentos/tokens";
 export { FONTES, fonteDef, type FonteDef, type CampoDoc, type ParamFonte } from "@/modules/documentos/fontes-meta";
 
 export type DadosResolvidos = { escalar: Escalar; linhas: Linha[] };
+
+export { fontesUsadasNoSchema } from "@/modules/documentos/fontes-usadas";
+
+/**
+ * Resultado da resolução MULTI-COLEÇÃO de um modelo:
+ *  - `escalarPrimaria`/`linhasPrimaria`: dados da fonte primária (`modelo.fonte`);
+ *  - `porFonte`: mapa fonteId → {escalar, linhas} de TODAS as fontes usadas
+ *    (inclui a primária), para as bandas de detalhe/grupo com `fonteId` próprio.
+ *
+ * Retrocompat: sem nenhum `fonteId` nas bandas, `porFonte` tem só a primária e o
+ * render se comporta exatamente como antes (usa escalarPrimaria/linhasPrimaria).
+ */
+export type ModeloResolvido = {
+  escalarPrimaria: Escalar;
+  linhasPrimaria: Linha[];
+  porFonte: Record<string, DadosResolvidos>;
+};
+
+/** Convenção de chave de params por fonte (multi-coleção): `f_<fonteId>_<paramId>`. */
+export { PARAM_FONTE_PREFIX, chaveParamFonte } from "@/modules/documentos/fontes-meta";
+
+/**
+ * Resolve TODAS as fontes usadas por um modelo (multi-coleção), aplicando o gate
+ * de permissão por fonte (segurança — fonte sem permissão resolve VAZIO, não
+ * vaza dados). Datasets (`dataset:<id>`) não passam pelo gate (sem dados de
+ * módulo) e resolvem sempre.
+ *
+ * @param fontePrimaria   `modelo.fonte` (pode ser null/"" = sem fonte primária).
+ * @param schema          schema do modelo (deriva as fontes das bandas).
+ * @param paramsPorFonte  params de cada fonte: `paramsPorFonte[fonteId]`.
+ * @param viewerRole      papel do usuário, para `podeVerFonte`.
+ */
+export async function resolverModelo(
+  fontePrimaria: string | null | undefined,
+  schema: DocSchema,
+  paramsPorFonte: Record<string, Record<string, string>>,
+  viewerRole: Role,
+): Promise<ModeloResolvido> {
+  const usadas = fontesUsadasNoSchema(fontePrimaria, schema);
+
+  const porFonte: Record<string, DadosResolvidos> = {};
+  await Promise.all(
+    usadas.map(async (fonteId) => {
+      // Datasets não têm permissão de módulo; fontes de sistema passam pelo gate.
+      const liberada = isFonteDataset(fonteId) || (await podeVerFonte(viewerRole, fonteId));
+      if (!liberada) {
+        porFonte[fonteId] = { escalar: {}, linhas: [] };
+        return;
+      }
+      porFonte[fonteId] = await resolverFonte(fonteId, paramsPorFonte[fonteId] ?? {});
+    }),
+  );
+
+  const prim = (fontePrimaria ?? "").trim();
+  const dadosPrim = prim ? porFonte[prim] : undefined;
+  return {
+    escalarPrimaria: dadosPrim?.escalar ?? {},
+    linhasPrimaria: dadosPrim?.linhas ?? [],
+    porFonte,
+  };
+}
 
 /** Prefixo da convenção de fonte que aponta para um DatasetDocumento de CSV. */
 export const DATASET_PREFIX = "dataset:";

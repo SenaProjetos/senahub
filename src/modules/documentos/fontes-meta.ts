@@ -237,3 +237,19 @@ export const FONTES: FonteDef[] = [
 export function fonteDef(id: string | null | undefined): FonteDef | null {
   return FONTES.find((f) => f.id === id) ?? null;
 }
+
+/**
+ * MULTI-COLEÇÃO — convenção de chave de PARÂMETRO por fonte na URL do preview.
+ *
+ * A fonte PRIMÁRIA mantém as chaves atuais (sem prefixo) p/ retrocompat. As
+ * demais fontes (sub-relatórios) usam o prefixo `f_<fonteId>_<paramId>` para não
+ * colidir quando duas fontes têm params homônimos (ex.: dois `mes`).
+ *
+ * @param fonteId   id da fonte (ex.: "licitacao").
+ * @param paramId   id do parâmetro (ex.: "licitacaoId").
+ * @param primaria  true → chave sem prefixo (fonte primária do modelo).
+ */
+export const PARAM_FONTE_PREFIX = "f_";
+export function chaveParamFonte(fonteId: string, paramId: string, primaria: boolean): string {
+  return primaria ? paramId : `${PARAM_FONTE_PREFIX}${fonteId}_${paramId}`;
+}

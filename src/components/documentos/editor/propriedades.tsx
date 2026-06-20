@@ -35,6 +35,8 @@ export function Propriedades({
   selecao,
   fonte,
   fontesHabilitadas,
+  fontesDados = [],
+  datasets = [],
   fonteColunas = [],
   dispatch,
 }: {
@@ -42,6 +44,10 @@ export function Propriedades({
   selecao: Selecao;
   fonte: string;
   fontesHabilitadas: FonteTipografica[];
+  /** Fontes de sistema permitidas (id+label) — para a fonte por banda (multi-coleção). */
+  fontesDados?: { id: string; label: string }[];
+  /** Datasets disponíveis como fonte (multi-coleção). */
+  datasets?: { id: string; nome: string }[];
   /** Colunas do dataset (quando a fonte é `dataset:<id>`), para inserir tokens. */
   fonteColunas?: string[];
   dispatch: Dispatch<EditorAction>;
@@ -84,7 +90,14 @@ export function Propriedades({
       )}
 
       {selecao.tipo !== "multi" && banda && !elemento && (
-        <PropsBanda banda={banda} schema={schema} dispatch={dispatch} />
+        <PropsBanda
+          banda={banda}
+          schema={schema}
+          fontePrimaria={fonte}
+          fontesDados={fontesDados}
+          datasets={datasets}
+          dispatch={dispatch}
+        />
       )}
       {banda && elemento && (
         <PropsElemento
@@ -290,12 +303,30 @@ function PropsPagina({
 function PropsBanda({
   banda,
   schema,
+  fontePrimaria,
+  fontesDados,
+  datasets,
   dispatch,
 }: {
   banda: Banda;
   schema: DocSchema;
+  /** Fonte primária do modelo (rótulo da opção "(fonte primária)"). */
+  fontePrimaria: string;
+  fontesDados: { id: string; label: string }[];
+  datasets: { id: string; nome: string }[];
   dispatch: Dispatch<EditorAction>;
 }) {
+  // MULTI-COLEÇÃO: bandas que iteram a coleção podem ter fonte própria.
+  const bandaIteraColecao =
+    banda.tipo === "detalhe" || banda.tipo === "grupoCabecalho" || banda.tipo === "grupoRodape";
+  const fonteBanda = banda.fonteId ?? "";
+  // Mantém visível um valor salvo que não esteja nas listas (fonte sem permissão
+  // ou dataset removido) para não perder a escolha.
+  const fonteForaDaLista =
+    !!fonteBanda &&
+    !fontesDados.some((f) => f.id === fonteBanda) &&
+    !datasets.some((d) => `dataset:${d.id}` === fonteBanda);
+
   return (
     <div className="space-y-3">
       <p className="text-xs font-semibold text-muted-foreground">{BANDA_LABEL[banda.tipo]}</p>
@@ -313,6 +344,50 @@ function PropsBanda({
           }
         />
       </Campo>
+
+      {bandaIteraColecao && (
+        <Campo label="Fonte de dados desta banda">
+          <Select
+            value={fonteBanda || "__primaria"}
+            onValueChange={(v) =>
+              dispatch({
+                t: "setBandaFonte",
+                bandaId: banda.id,
+                fonteId: !v || v === "__primaria" ? "" : v,
+              })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__primaria">(fonte primária do modelo)</SelectItem>
+              {fontesDados.map((f) => (
+                <SelectItem key={f.id} value={f.id}>
+                  {f.label}
+                </SelectItem>
+              ))}
+              {datasets.map((d) => (
+                <SelectItem key={d.id} value={`dataset:${d.id}`}>
+                  Dataset · {d.nome}
+                </SelectItem>
+              ))}
+              {fonteForaDaLista && (
+                <SelectItem value={fonteBanda}>
+                  {fontesDados.find((f) => f.id === fonteBanda)?.label ?? fonteBanda}
+                </SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+          <p className="text-[11px] text-muted-foreground">
+            Sub-relatório: liga esta banda a OUTRA coleção (ex.: medições da licitação no detalhe,
+            itens da proposta em outro detalhe). Vazio = usa a fonte primária ({fonteRotulo(
+              fontePrimaria,
+            )}).
+          </p>
+        </Campo>
+      )}
+
       {banda.tipo === "detalhe" && (
         <p className="text-xs text-muted-foreground">
           Esta banda repete uma vez por linha da coleção da fonte de dados (ex.: disciplinas do
@@ -829,4 +904,11 @@ function Campo({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </div>
   );
+}
+
+/** Rótulo curto da fonte primária para o texto auxiliar da fonte por banda. */
+function fonteRotulo(fonte: string): string {
+  if (!fonte) return "nenhuma";
+  if (fonte.startsWith("dataset:")) return "dataset";
+  return fonteDef(fonte)?.label ?? fonte;
 }

@@ -145,6 +145,17 @@ export const bandaSchema = z.object({
   tipo: z.enum(TIPOS_BANDA),
   altura: z.number().min(8).max(1123),
   elementos: z.array(elementoSchema),
+  /**
+   * MULTI-COLEÇÃO (sub-relatórios): fonte de dados que alimenta ESTA banda de
+   * detalhe (e suas bandas de grupo associadas). `undefined`/"" = usa a fonte
+   * primária do modelo (`modelo.fonte`) — comportamento original.
+   *
+   * Só faz sentido em bandas "detalhe"/"grupoCabecalho"/"grupoRodape" (as que
+   * iteram a coleção). Bandas de cabeçalho/rodapé ignoram este campo e sempre
+   * usam o contexto da fonte primária. Modelos antigos (sem o campo) → undefined
+   * (retrocompat): o conjunto de fontes usadas continua sendo só a primária.
+   */
+  fonteId: z.string().optional(),
 });
 export type Banda = z.infer<typeof bandaSchema>;
 

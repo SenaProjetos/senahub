@@ -6,7 +6,8 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { enviarEmail, smtpConfigurado } from "@/lib/mail";
-import { resolverFonte } from "@/modules/documentos/fontes";
+import { resolverModelo, fontesUsadasNoSchema } from "@/modules/documentos/fontes";
+import { chaveParamFonte, fonteDef } from "@/modules/documentos/fontes-meta";
 import { podeVerFonte } from "@/modules/documentos/fontes-perm";
 import { CHAVE_FONTES } from "@/modules/documentos/fontes-config";
 import { FONTES_TIPOGRAFICAS } from "@/modules/documentos/fontes-tipograficas";
@@ -261,14 +262,47 @@ export const registrarDocumentoGerado = defineAction(
   async (i, { user }) => {
     const modelo = await prisma.documentoModelo.findUnique({ where: { id: i.modeloId } });
     if (!modelo) throw new ActionError("Modelo não encontrado.");
-    // CRÍTICO (segurança): impede gerar/persistir um documento cuja fonte o
-    // usuário não pode ver (ex.: projetista gerando "lancamentos" via API).
-    if (modelo.fonte && !(await podeVerFonte(user.role, modelo.fonte))) {
-      throw new ActionError("Sem permissão para a fonte de dados deste modelo.");
+
+    // MULTI-COLEÇÃO: o conjunto de fontes = primária + fonteId distintos das bandas.
+    const schemaParsed = docSchemaZ.safeParse(modelo.schemaJson);
+    const schema = schemaParsed.success ? schemaParsed.data : null;
+    const usadas = schema ? fontesUsadasNoSchema(modelo.fonte, schema) : modelo.fonte ? [modelo.fonte] : [];
+
+    // CRÍTICO (segurança): impede gerar/persistir um documento se QUALQUER fonte
+    // de sistema usada o usuário não pode ver (datasets não têm gate de módulo).
+    for (const fid of usadas) {
+      if (fid.startsWith("dataset:")) continue;
+      if (!(await podeVerFonte(user.role, fid))) {
+        throw new ActionError("Sem permissão para uma das fontes de dados deste modelo.");
+      }
     }
-    const dados = modelo.fonte
-      ? await resolverFonte(modelo.fonte, i.params)
-      : { escalar: {} as Record<string, unknown>, linhas: [] };
+
+    // Constrói paramsPorFonte a partir dos params recebidos (flat): a primária
+    // usa chaves sem prefixo; as demais `f_<fonteId>_<paramId>`.
+    const primaria = (modelo.fonte ?? "").trim();
+    const paramsPorFonte: Record<string, Record<string, string>> = {};
+    for (const fid of usadas) {
+      const def = fonteDef(fid);
+      if (!def) continue;
+      const ehPrim = fid === primaria;
+      const obj: Record<string, string> = {};
+      for (const p of def.params) {
+        const chave = chaveParamFonte(fid, p.id, ehPrim);
+        if (i.params[chave]) obj[p.id] = i.params[chave];
+      }
+      paramsPorFonte[fid] = obj;
+    }
+
+    // Resolve tudo (com gate por fonte) e monta o snapshot. Mantém o formato
+    // retrocompat (escalar/linhas = fonte primária) + `porFonte` (sub-relatórios).
+    const resolvido = schema
+      ? await resolverModelo(modelo.fonte, schema, paramsPorFonte, user.role)
+      : { escalarPrimaria: {} as Record<string, unknown>, linhasPrimaria: [], porFonte: {} };
+    const dados = {
+      escalar: resolvido.escalarPrimaria as Record<string, unknown>,
+      linhas: resolvido.linhasPrimaria,
+      porFonte: resolvido.porFonte,
+    };
 
     // Numeração automática por série (derivada do tipo do modelo).
     const serie = SERIE_POR_TIPO[modelo.tipo] ?? "DOC";

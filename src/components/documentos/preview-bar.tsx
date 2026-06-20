@@ -25,17 +25,28 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { ParamFonte } from "@/modules/documentos/fontes-meta";
+import { chaveParamFonte } from "@/modules/documentos/fontes-meta";
+
+/** Uma fonte usada pelo modelo na barra de preview (multi-coleção). */
+export type FonteBar = {
+  id: string;
+  label: string;
+  /** É a fonte primária do modelo? (define a convenção de chave dos params na URL). */
+  primaria: boolean;
+  params: ParamFonte[];
+};
 
 export function PreviewBar({
   modeloId,
   nome,
-  fonte,
+  fontes,
   valores,
   opcoes,
 }: {
   modeloId: string;
   nome: string;
-  fonte: { id: string; label: string; params: ParamFonte[] } | null;
+  /** Fontes usadas pelo modelo (primária + sub-relatórios) com seus params. */
+  fontes: FonteBar[];
   valores: Record<string, string>;
   /** Opções dos selects por tipo de parâmetro (projeto, cliente, usuario, proposta, licitacao, holerite). */
   opcoes: Record<string, { id: string; label: string }[]>;
@@ -48,15 +59,21 @@ export function PreviewBar({
   const [assunto, setAssunto] = useState("");
   const [mensagem, setMensagem] = useState("");
 
-  function setParam(id: string, valor: string) {
+  function setParam(chave: string, valor: string) {
     const p = new URLSearchParams(valores);
-    if (valor) p.set(id, valor);
-    else p.delete(id);
+    if (valor) p.set(chave, valor);
+    else p.delete(chave);
     router.push(`/documentos/${modeloId}/preview?${p.toString()}`);
   }
 
-  // Pode salvar a geração quando todos os parâmetros da fonte estão preenchidos.
-  const podeSalvar = !fonte || fonte.params.every((p) => valores[p.id]);
+  // Pode salvar a geração quando TODOS os parâmetros de TODAS as fontes estão
+  // preenchidos (cada fonte com sua convenção de chave: primária sem prefixo).
+  const podeSalvar = fontes.every((f) =>
+    f.params.every((p) => valores[chaveParamFonte(f.id, p.id, f.primaria)]),
+  );
+
+  // Mostra a quais fontes os params pertencem (multi-coleção) no rótulo da barra.
+  const rotuloFontes = fontes.map((f) => f.label).join(" · ");
 
   function salvarGeracao() {
     start(async () => {
@@ -97,38 +114,54 @@ export function PreviewBar({
         <ArrowLeft className="size-4" />
       </Button>
       <h2 className="text-lg font-bold tracking-tight">{nome}</h2>
-      {fonte && <span className="text-xs text-muted-foreground">· {fonte.label}</span>}
+      {rotuloFontes && <span className="text-xs text-muted-foreground">· {rotuloFontes}</span>}
 
       <div className="ml-auto flex flex-wrap items-center gap-2">
-        {fonte?.params.map((p) => {
-          if (p.tipo === "mes") {
-            return (
-              <Input
-                key={p.id}
-                type="month"
-                className="w-44"
-                value={valores[p.id] ?? ""}
-                onChange={(e) => setParam(p.id, e.target.value)}
-                aria-label={p.label}
-              />
-            );
-          }
-          const lista = opcoes[p.tipo] ?? [];
-          return (
-            <Select key={p.id} value={valores[p.id] ?? ""} onValueChange={(v) => setParam(p.id, v ?? "")}>
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder={p.label} />
-              </SelectTrigger>
-              <SelectContent>
-                {lista.map((o) => (
-                  <SelectItem key={o.id} value={o.id}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          );
-        })}
+        {fontes.map((f) =>
+          f.params.length === 0 ? null : (
+            <div
+              key={f.id}
+              className="flex flex-wrap items-center gap-1.5 rounded-sm border bg-muted/30 px-2 py-1"
+            >
+              {/* Rótulo da fonte: deixa claro a qual sub-relatório os params pertencem. */}
+              <span className="text-[11px] font-medium text-muted-foreground">{f.label}</span>
+              {f.params.map((p) => {
+                const chave = chaveParamFonte(f.id, p.id, f.primaria);
+                if (p.tipo === "mes") {
+                  return (
+                    <Input
+                      key={chave}
+                      type="month"
+                      className="w-44"
+                      value={valores[chave] ?? ""}
+                      onChange={(e) => setParam(chave, e.target.value)}
+                      aria-label={`${f.label} — ${p.label}`}
+                    />
+                  );
+                }
+                const lista = opcoes[p.tipo] ?? [];
+                return (
+                  <Select
+                    key={chave}
+                    value={valores[chave] ?? ""}
+                    onValueChange={(v) => setParam(chave, v ?? "")}
+                  >
+                    <SelectTrigger className="w-64">
+                      <SelectValue placeholder={p.label} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {lista.map((o) => (
+                        <SelectItem key={o.id} value={o.id}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                );
+              })}
+            </div>
+          ),
+        )}
 
         <Button variant="ghost" size="sm" render={<Link href="/documentos/gerados" />}>
           Gerados

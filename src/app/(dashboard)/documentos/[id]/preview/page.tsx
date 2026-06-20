@@ -2,12 +2,17 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
 import { obterModelo, opcoesParametros } from "@/modules/documentos/queries";
-import { resolverFonte, isFonteDataset, DATASET_PREFIX, type DadosResolvidos } from "@/modules/documentos/fontes";
+import {
+  resolverModelo,
+  isFonteDataset,
+  DATASET_PREFIX,
+  fontesUsadasNoSchema,
+} from "@/modules/documentos/fontes";
+import { chaveParamFonte, fonteDef } from "@/modules/documentos/fontes-meta";
 import { podeVerFonte } from "@/modules/documentos/fontes-perm";
-import { fonteDef } from "@/modules/documentos/fontes-meta";
 import { colunasDoDataset } from "@/modules/documentos/dataset-queries";
 import { DocRender } from "@/components/documentos/doc-render";
-import { PreviewBar } from "@/components/documentos/preview-bar";
+import { PreviewBar, type FonteBar } from "@/components/documentos/preview-bar";
 
 export const metadata: Metadata = { title: "Preview do documento" };
 
@@ -25,41 +30,84 @@ export default async function PreviewPage({
   const modelo = await obterModelo(id);
   if (!modelo) notFound();
 
-  const ehDataset = isFonteDataset(modelo.fonte);
-  const def = fonteDef(modelo.fonte);
+  // MULTI-COLEÇÃO: conjunto de fontes usadas = primária + fonteId das bandas.
+  const usadas = fontesUsadasNoSchema(modelo.fonte, modelo.schema);
+  const primaria = (modelo.fonte ?? "").trim();
 
-  // CRÍTICO (segurança): bloqueia a resolução de uma fonte de sistema que o
-  // viewer não pode ver — assim ninguém gera doc de "lancamentos"/"dre" etc.
-  // só pela URL. Datasets de CSV não passam por esse gate (sem dados de módulo).
-  const fonteBloqueada = !ehDataset && !(await podeVerFonte(user.role, modelo.fonte));
+  // Constrói paramsPorFonte a partir da URL: a primária usa chaves sem prefixo
+  // (retrocompat); as demais usam `f_<fonteId>_<paramId>`.
+  const paramsPorFonte: Record<string, Record<string, string>> = {};
+  for (const fid of usadas) {
+    const def = fonteDef(fid);
+    if (!def) continue; // dataset (sem params) ou desconhecida
+    const ehPrim = fid === primaria;
+    const obj: Record<string, string> = {};
+    for (const p of def.params) {
+      const chave = chaveParamFonte(fid, p.id, ehPrim);
+      if (sp[chave]) obj[p.id] = sp[chave];
+    }
+    paramsPorFonte[fid] = obj;
+  }
 
-  // Dataset: a coleção é fixa (sem params). Fontes de sistema: resolve por def.
-  const dados: DadosResolvidos = fonteBloqueada
-    ? { escalar: {}, linhas: [] }
-    : ehDataset
-      ? await resolverFonte(modelo.fonte!, {})
-      : def
-        ? await resolverFonte(def.id, sp)
-        : { escalar: {}, linhas: [] };
-  const faltamParams = !fonteBloqueada && !ehDataset && def ? def.params.some((p) => !sp[p.id]) : false;
+  // CRÍTICO (segurança): alguma fonte de SISTEMA usada que o viewer não pode ver?
+  // O resolverModelo já blinda os dados (resolve vazio), mas mostramos o aviso
+  // em vez de um documento "furado". Datasets de CSV não passam por esse gate.
+  const fontesBloqueadas = (
+    await Promise.all(
+      usadas.map(async (fid) =>
+        !isFonteDataset(fid) && !(await podeVerFonte(user.role, fid)) ? fid : null,
+      ),
+    )
+  ).filter((f): f is string => f !== null);
+  const fonteBloqueada = fontesBloqueadas.length > 0;
+
+  // Resolve todas as fontes (com gate de permissão por fonte no server).
+  const resolvido = await resolverModelo(modelo.fonte, modelo.schema, paramsPorFonte, user.role);
+
+  // Faltam parâmetros se ALGUMA fonte de sistema usada tem param não preenchido.
+  const faltamParams = usadas.some((fid) => {
+    const def = fonteDef(fid);
+    if (!def) return false; // datasets não têm params
+    return def.params.some((p) => !(paramsPorFonte[fid] ?? {})[p.id]);
+  });
+
   const opcoes = await opcoesParametros();
 
-  // Para o PreviewBar: datasets aparecem sem params (coleção fixa).
-  const datasetColunas = ehDataset
-    ? await colunasDoDataset(modelo.fonte!.slice(DATASET_PREFIX.length))
-    : [];
-  const fonteBar = ehDataset
-    ? { id: modelo.fonte!, label: `Dataset · ${dados.escalar.DatasetNome ?? modelo.fonte}`, params: [] }
-    : def
-      ? { id: def.id, label: def.label, params: def.params }
-      : null;
+  // Barra de params: uma seção por fonte usada que tenha params (sys) ou seja
+  // dataset (rótulo informativo). A primária mantém chaves sem prefixo.
+  const fontesBar: FonteBar[] = [];
+  for (const fid of usadas) {
+    const ehPrim = fid === primaria;
+    if (isFonteDataset(fid)) {
+      const dataset = resolvido.porFonte[fid];
+      fontesBar.push({
+        id: fid,
+        label: `Dataset · ${dataset?.escalar?.DatasetNome ?? fid}`,
+        primaria: ehPrim,
+        params: [],
+      });
+      continue;
+    }
+    const def = fonteDef(fid);
+    if (!def) continue; // fonte desconhecida → ignora
+    // Inclui mesmo sem params (rótulo no título); a barra só renderiza selects
+    // para fontes com params (params: [] → sem caixa de seleção).
+    fontesBar.push({ id: def.id, label: def.label, primaria: ehPrim, params: def.params });
+  }
+
+  // Colunas de datasets usados (documentação dos tokens) — primária e sub-fontes.
+  const datasetsUsados = usadas.filter(isFonteDataset);
+  const datasetColunas = (
+    await Promise.all(datasetsUsados.map((fid) => colunasDoDataset(fid.slice(DATASET_PREFIX.length))))
+  ).flat();
+  const colunasUnicas = [...new Set(datasetColunas)];
 
   return (
     <div className="space-y-4">
       <PreviewBar
         modeloId={modelo.id}
         nome={modelo.nome}
-        fonte={fonteBar}
+        fontes={fontesBar}
         valores={sp}
         opcoes={{
           projeto: opcoes.projetos.map((p) => ({ id: p.id, label: `${p.codigo} · ${p.nome}` })),
@@ -76,21 +124,26 @@ export default async function PreviewPage({
 
       {fonteBloqueada ? (
         <p className="rounded-sm border bg-card p-6 text-center text-sm text-muted-foreground">
-          Você não tem permissão para ver a fonte de dados deste modelo.
+          Você não tem permissão para ver uma das fontes de dados deste modelo.
         </p>
       ) : faltamParams ? (
         <p className="rounded-sm border bg-card p-6 text-center text-sm text-muted-foreground">
-          Selecione os parâmetros da fonte de dados acima para visualizar com dados reais.
+          Selecione os parâmetros das fontes de dados acima para visualizar com dados reais.
         </p>
       ) : (
         <div className="doc-print-area overflow-auto">
-          <DocRender schema={modelo.schema} escalar={dados.escalar} linhas={dados.linhas} />
+          <DocRender
+            schema={modelo.schema}
+            escalar={resolvido.escalarPrimaria}
+            linhas={resolvido.linhasPrimaria}
+            porFonte={resolvido.porFonte}
+          />
         </div>
       )}
-      {ehDataset && datasetColunas.length > 0 && (
+      {colunasUnicas.length > 0 && (
         <p className="doc-no-print text-xs text-muted-foreground">
-          Colunas disponíveis como tokens:{" "}
-          {datasetColunas.map((c) => `[${c}]`).join(" · ")}
+          Colunas de dataset disponíveis como tokens:{" "}
+          {colunasUnicas.map((c) => `[${c}]`).join(" · ")}
         </p>
       )}
     </div>

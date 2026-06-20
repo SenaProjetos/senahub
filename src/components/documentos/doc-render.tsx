@@ -1,25 +1,51 @@
 import type { DocSchema, Banda } from "@/modules/documentos/schema";
-import { resolverTexto, type ContextoDados, type Linha } from "@/modules/documentos/tokens";
+import { resolverTexto, type ContextoDados, type Escalar, type Linha } from "@/modules/documentos/tokens";
 import { avaliarCondicao } from "@/modules/documentos/condicoes";
 import { ElementoView } from "@/components/documentos/editor/elemento-view";
+
+/** Dados de uma fonte (escalar + linhas) — espelha DadosResolvidos sem server-only. */
+type DadosFonte = { escalar: Escalar; linhas: Linha[] };
 
 /**
  * Render final do documento com dados resolvidos (server-safe).
  * Bandas empilham; a banda detalhe repete por linha da coleção.
  * Página A4 com print CSS — exportação PDF via imprimir do navegador.
+ *
+ * MULTI-COLEÇÃO: `escalar`/`linhas` são da fonte PRIMÁRIA. Quando uma banda de
+ * detalhe/grupo tem `fonteId` próprio, suas linhas/escalar vêm de `porFonte`
+ * (sub-relatório). Sem `porFonte` ou sem `fonteId` nas bandas → idêntico ao
+ * comportamento original (retrocompat).
  */
 export function DocRender({
   schema,
   escalar,
   linhas,
+  porFonte,
 }: {
   schema: DocSchema;
   escalar: ContextoDados["escalar"];
   linhas: Linha[];
+  /** Mapa fonteId → {escalar, linhas} de todas as fontes usadas (opcional). */
+  porFonte?: Record<string, DadosFonte>;
 }) {
   const larguraUtil =
     schema.pagina.largura - schema.pagina.margem.esquerda - schema.pagina.margem.direita;
   const ctxBase: ContextoDados = { escalar, linhas, pagina: 1, paginas: 1 };
+
+  /**
+   * Resolve os dados (escalar + linhas) que alimentam uma banda de detalhe/grupo:
+   * se a banda declara `fonteId` e há dados dessa fonte em `porFonte`, usa-os
+   * (merge do escalar da fonte da banda SOBRE o primário, p/ `[Campo]` resolver
+   * da fonte certa; `[Fonte.Campo]` já tem prefixo). Senão, usa os primários.
+   */
+  const dadosDaBanda = (banda: Banda): { escalar: Escalar; linhas: Linha[] } => {
+    const fid = banda.fonteId?.trim();
+    if (fid && porFonte && porFonte[fid]) {
+      const d = porFonte[fid];
+      return { escalar: { ...escalar, ...d.escalar }, linhas: d.linhas };
+    }
+    return { escalar, linhas };
+  };
 
   const ordem: Banda["tipo"][] = [
     "cabecalho",
@@ -38,8 +64,11 @@ export function DocRender({
   const bandaGrupoCab = bandas.find((b) => b.tipo === "grupoCabecalho");
   const bandaGrupoRod = bandas.find((b) => b.tipo === "grupoRodape");
   const agrupado = !!agruparPor && !!bandaDetalhe;
+  // MULTI-COLEÇÃO: o agrupamento e as bandas de grupo operam sobre as linhas da
+  // FONTE DA BANDA DE DETALHE (sub-relatório), não necessariamente a primária.
+  const dadosDetalhe = bandaDetalhe ? dadosDaBanda(bandaDetalhe) : { escalar, linhas };
   // Grupos por valor da chave, preservando a ordem de primeira aparição.
-  const grupos = agrupado ? agruparLinhas(linhas, agruparPor!) : [];
+  const grupos = agrupado ? agruparLinhas(dadosDetalhe.linhas, agruparPor!) : [];
 
   const marca = schema.pagina.marcaDagua;
   const marcaTexto = marca?.texto?.trim();
@@ -99,14 +128,21 @@ export function DocRender({
           }
 
           if (banda.tipo === "detalhe") {
+            // MULTI-COLEÇÃO: ctx desta banda usa o escalar+linhas da SUA fonte
+            // (merge do escalar da fonte sobre o primário em dadosDaBanda).
+            const ctxDet: ContextoDados = {
+              ...ctxBase,
+              escalar: dadosDetalhe.escalar,
+              linhas: dadosDetalhe.linhas,
+            };
             // Sem agrupamento: comportamento original — detalhe repete por linha.
             if (!agrupado) {
-              return linhas.map((linha, i) => (
+              return dadosDetalhe.linhas.map((linha, i) => (
                 <BandaRender
                   key={`${banda.id}_${i}`}
                   banda={banda}
                   largura={larguraUtil}
-                  ctx={{ ...ctxBase, linha }}
+                  ctx={{ ...ctxDet, linha }}
                 />
               ));
             }
@@ -116,7 +152,7 @@ export function DocRender({
             // e ctx.grupo = valor da chave (token [Grupo]).
             return grupos.map((g) => {
               const ctxGrupo: ContextoDados = {
-                ...ctxBase,
+                ...ctxDet,
                 linhas: g.linhas,
                 grupo: g.chave,
               };
@@ -136,8 +172,8 @@ export function DocRender({
                       banda={banda}
                       largura={larguraUtil}
                       // Detalhe: linha atual + chave do grupo ([Grupo]); agregados na
-                      // detalhe seguem operando sobre a coleção inteira (ctxBase.linhas).
-                      ctx={{ ...ctxBase, linha, grupo: g.chave }}
+                      // detalhe seguem operando sobre a coleção inteira da fonte da banda.
+                      ctx={{ ...ctxDet, linha, grupo: g.chave }}
                     />
                   ))}
                   {bandaGrupoRod && (

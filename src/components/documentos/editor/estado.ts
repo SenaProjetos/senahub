@@ -53,6 +53,7 @@ export type EditorAction =
   | { t: "removeElemento"; bandaId: string; elementoId: string }
   | { t: "duplicarElemento"; bandaId: string; elementoId: string; novoId: string }
   | { t: "alturaBanda"; bandaId: string; altura: number; commit: boolean }
+  | { t: "setBandaFonte"; bandaId: string; fonteId: string }
   | { t: "updatePagina"; patch: Partial<DocSchema["pagina"]> }
   | { t: "setAgrupamento"; campo: string }
   | { t: "addBanda"; tipo: TipoBanda; id: string }
@@ -187,6 +188,14 @@ export function editorReducer(state: EditorState, a: EditorAction): EditorState 
     case "alturaBanda": {
       const novo = mapBanda(state.schema, a.bandaId, (b) => ({ ...b, altura: a.altura }));
       return a.commit ? push(state, novo) : live(state, novo);
+    }
+
+    case "setBandaFonte": {
+      // MULTI-COLEÇÃO: define a fonte da banda de detalhe/grupo. "" = fonte
+      // primária do modelo → grava undefined (retrocompat: banda sem fonteId).
+      const fonteId = a.fonteId.trim() || undefined;
+      const novo = mapBanda(state.schema, a.bandaId, (b) => ({ ...b, fonteId }));
+      return push(state, novo);
     }
 
     case "updatePagina": {

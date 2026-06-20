@@ -458,6 +458,8 @@ export function DocEditor({
           selecao={state.selecao}
           fonte={fonte}
           fontesHabilitadas={fontesHabilitadas}
+          fontesDados={fontesDados}
+          datasets={datasets}
           fonteColunas={fonteColunas}
           dispatch={dispatch}
         />
