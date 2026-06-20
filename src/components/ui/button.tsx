@@ -1,5 +1,6 @@
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
+import { Loader2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -46,8 +47,11 @@ function Button({
   size = "default",
   render,
   nativeButton,
+  loading = false,
+  disabled,
+  children,
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants> & { loading?: boolean }) {
   return (
     <ButtonPrimitive
       data-slot="button"
@@ -55,8 +59,12 @@ function Button({
       render={render}
       // Quando renderizado como outro elemento (ex.: <Link>/<a>), não é um <button> nativo.
       nativeButton={nativeButton ?? !render}
+      disabled={disabled || loading}
       {...props}
-    />
+    >
+      {loading ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
+      {children}
+    </ButtonPrimitive>
   )
 }
 
