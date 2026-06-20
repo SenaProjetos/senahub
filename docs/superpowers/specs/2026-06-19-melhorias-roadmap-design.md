@@ -159,3 +159,23 @@ DocuSign/ClickSign/D4Sign (SaaS), Google Calendar/Outlook OAuth.
 2. Para cada onda: `spec-phase` (ou brainstorming focado) → `writing-plans` → execução com commits atômicos.
 3. Começar por **M0 (bugs)** — menor risco, destrava confiança. Os bugs com "reproduzir" exigem
    `systematic-debugging` antes do fix.
+
+---
+
+## 6. Estado de execução
+
+### M0 — executada em 2026-06-19 (branch `feat/melhorias-m0`)
+
+| Item | Veredito | Commit |
+|---|---|---|
+| 2.3 folha-lote / ruído no audit | corrigido — `ActionError` agora vira `resultado: rejeitado`, não `falha` | `fix(auditoria): classifica ActionError como 'rejeitado'` |
+| 2.4 dashboard previsto zerado | corrigido — `serieReceita` usa previsto original por vencimento | `fix(dashboard): previsto original…` |
+| 3.8 chat presença | corrigido — snapshot inicial de presença ao conectar (histórico já carregava) | `fix(chat): snapshot inicial de presença` |
+| 2.2 404 | corrigido — `app/not-found.tsx` (clientes/[id] já usava `notFound()`) | `feat(app): página 404 personalizada` |
+| 3.4 texto de roadmap na UI | corrigido — removido de `clientes/[id]` | `fix(clientes): remove texto de roadmap interno` |
+| 2.1 `/rh/funcionarios` redirect | **não reproduzido por inspeção** — página/query/view corretas, nav OK; repro interativa (login admin) pendente | — |
+| 3.9 timer de ponto | **não reproduzido por inspeção** — `Cronometro` deriva de `aberta.inicio` do servidor e recalcula no remount; repro interativa pendente | — |
+
+**Verificação:** `tsc --noEmit` limpo + `npm test` (267 testes). Verificações visuais que exigem
+browser/sessão (gráfico de receita, presença com 2 usuários, página 404, chat) e a repro
+interativa de 2.1/3.9 ficam para validação do usuário.
