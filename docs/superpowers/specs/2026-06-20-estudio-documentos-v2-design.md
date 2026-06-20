@@ -138,3 +138,13 @@ D4 (DXF/ABNT) → D5 (colaboração). Cada uma entregue e mergeada antes da pró
 - **Paginação real** (cabeçalho de colunas repetindo por página + `[Pagina]/[Paginas]` reais) — exige iteração no browser; não feito.
 - **Multi-coleção FULL** (sub-relatórios com várias coleções num modelo) — feito o subconjunto (permissão por fonte + dataset + tabela + agrupamento); a arquitetura completa de sub-relatórios é uma fase própria.
 - **Condicionais / campos calculados**, **guias/régua** — nice-to-have, não feitos.
+
+### Waves F (final) — pendências fechadas
+- **F1:** condicionais (ocultar elemento por expressão + teste) · campos calculados `[= fórmula ]` (avaliador aritmético seguro + testes) · guias/régua no editor (snap a guias).
+- **F2:** multi-coleção FULL — `fonteId` por banda + `resolverModelo` (multi-fonte, gate de permissão por fonte) + render por banda + params por fonte no preview (prefixados) + controle no editor. Retrocompat total (DXF mantém fonte primária).
+- **F3:** paginação — numeração real opt-in (`pagina.numerarPaginas` → footer nativo do Puppeteer "Página X/Y" + margem) · cabeçalho de tabela repete por página (thead). Full-bleed intacto quando off.
+
+### Limitação conhecida (documentada)
+- Token `[Pagina]/[Paginas]` em elementos DO CORPO permanece 1/1 (CSS `counter(pages)` só vale no @page margin-box). A numeração real é a do footer opt-in (F3).
+
+> **Estúdio v2 concluído.** Todo o backlog do usuário + as 12 propostas implementados. `master` verde (tsc 0 + 347 testes) em todos os merges. dep adicionada: `qrcode-generator`. Migração v2 aplicada no dev. Sem `git remote`.
