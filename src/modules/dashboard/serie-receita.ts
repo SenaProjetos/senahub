@@ -1,4 +1,5 @@
 export type ItemSerie = { valor: number; data: Date };
+import { formatarMesCurto } from "@/lib/utils";
 export type BucketReceita = {
   ano: number;
   mes: number;
@@ -24,7 +25,7 @@ export function montarSerieReceita(
     buckets.push({
       ano: d.getFullYear(),
       mes: d.getMonth(),
-      rotulo: d.toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""),
+      rotulo: formatarMesCurto(d),
       realizado: 0,
       previsto: 0,
     });

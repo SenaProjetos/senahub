@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { formatarData } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { differenceInCalendarDays } from "date-fns";
@@ -374,7 +375,7 @@ function DocsTab({
                         {i === 0 && " (atual)"}
                       </span>
                       <span className="truncate">{v.arquivoNome}</span>
-                      <span>· {v.autor} · {new Date(v.data).toLocaleDateString("pt-BR")}</span>
+                      <span>· {v.autor} · {formatarData(v.data)}</span>
                       <a href={`/api/juridico/versoes/${v.id}/download`} className="text-primary" aria-label="Baixar">
                         <Download className="size-3.5" />
                       </a>
@@ -485,7 +486,7 @@ function CertidoesTab({
               <span className="font-medium">{c.tipo}</span>
               {c.descricao && <span className="text-muted-foreground">{c.descricao}</span>}
               <span className="ml-auto font-mono text-xs">
-                {new Date(c.validade + "T00:00:00").toLocaleDateString("pt-BR")}
+                {formatarData(c.validade)}
               </span>
               {badgeValidade(c.validade)}
               {c.versoes > 0 && <span className="font-mono text-[10px] text-muted-foreground">{c.versoes} versão(ões)</span>}

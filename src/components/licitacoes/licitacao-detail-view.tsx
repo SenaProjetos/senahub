@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { formatarData } from "@/lib/utils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -428,7 +429,7 @@ export function LicitacaoDetailView({
             </div>
             {lic.medicoes.map((m) => (
               <p key={m.id} className="text-xs text-muted-foreground">
-                Medição {m.numero} · {new Date(m.data + "T00:00:00").toLocaleDateString("pt-BR")} ·{" "}
+                Medição {m.numero} · {formatarData(m.data)} ·{" "}
                 <span className="font-mono">{brl(m.valor)}</span> → receita no financeiro
               </p>
             ))}
@@ -1152,7 +1153,7 @@ function LicHabilitacao({
               {h.certidaoNome && (
                 <span className="text-muted-foreground">
                   {h.certidaoNome}
-                  {h.certidaoValidade && ` · val. ${new Date(h.certidaoValidade + "T00:00:00").toLocaleDateString("pt-BR")}`}
+                  {h.certidaoValidade && ` · val. ${formatarData(h.certidaoValidade)}`}
                 </span>
               )}
               <Badge
@@ -1237,7 +1238,7 @@ function LicHabilitacao({
                   <SelectItem value="__none__">Nenhuma</SelectItem>
                   {certidoes.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
-                      {c.nome} · {new Date(c.validade + "T00:00:00").toLocaleDateString("pt-BR")}
+                      {c.nome} · {formatarData(c.validade)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1480,10 +1481,10 @@ function LicReajuste({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
                   <span className="font-medium text-foreground">{r.indice}</span>
                   <span className="font-mono">{r.percentual > 0 ? "+" : ""}{r.percentual}%</span>
                   <span>{brl(r.valorAnterior)} → {brl(r.valorReajustado)}</span>
-                  <span>{new Date(r.aniversario + "T00:00:00").toLocaleDateString("pt-BR")}</span>
+                  <span>{formatarData(r.aniversario)}</span>
                   {r.aplicado ? (
                     <Badge variant="outline" className="text-[10px] py-0 text-muted-foreground">
-                      aplicado{r.aplicadoEm ? ` em ${new Date(r.aplicadoEm).toLocaleDateString("pt-BR")}` : ""}
+                      aplicado{r.aplicadoEm ? ` em ${formatarData(r.aplicadoEm)}` : ""}
                     </Badge>
                   ) : (
                     <Badge variant="outline" className="text-[10px] py-0 text-warning border-warning/40">
@@ -1694,8 +1695,8 @@ function LicContrato({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
             <p className="text-xs text-muted-foreground">
               {c.numeroContrato && <span>Contrato {c.numeroContrato} </span>}
               {c.numeroEmpenho && <span>· Empenho {c.numeroEmpenho} </span>}
-              {c.vigenciaInicio && <span>· Vigência {new Date(c.vigenciaInicio + "T00:00:00").toLocaleDateString("pt-BR")}</span>}
-              {c.vigenciaFim && <span> – {new Date(c.vigenciaFim + "T00:00:00").toLocaleDateString("pt-BR")}</span>}
+              {c.vigenciaInicio && <span>· Vigência {formatarData(c.vigenciaInicio)}</span>}
+              {c.vigenciaFim && <span> – {formatarData(c.vigenciaFim)}</span>}
             </p>
           )}
 
@@ -1709,7 +1710,7 @@ function LicContrato({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
                 <li key={a.id} className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                   <span className="font-medium text-foreground">{TIPO_ADITIVO_LABEL[a.tipo] ?? a.tipo}</span>
                   {a.valorDelta != null && <span className="font-mono">{brl(a.valorDelta)}</span>}
-                  <span>{new Date(a.data + "T00:00:00").toLocaleDateString("pt-BR")}</span>
+                  <span>{formatarData(a.data)}</span>
                   {a.justificativa && <span className="italic">{a.justificativa}</span>}
                   {podeGerir && (
                     <button type="button" aria-label="Remover aditivo" disabled={pending} onClick={() => removerAditivo(a.id)} className="text-muted-foreground hover:text-destructive">
@@ -1979,7 +1980,7 @@ function LicEventos({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
               ? differenceInCalendarDays(new Date(e.data + "T00:00:00"), new Date())
               : null;
             const label = TIPO_EVENTO_LABEL[e.tipo as TipoEventoLicitacao] ?? e.tipo;
-            const dataBR = new Date(e.data + "T00:00:00").toLocaleDateString("pt-BR");
+            const dataBR = formatarData(e.data);
             return (
               <li key={e.id} className="flex flex-wrap items-center gap-1.5 text-xs">
                 <span className={e.concluido ? "line-through text-muted-foreground" : "font-medium"}>
@@ -2267,7 +2268,7 @@ function LicPNCP({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
         )}
         {lic.publicadoPNCPEm ? (
           <span className="text-success">
-            Publicado em {new Date(lic.publicadoPNCPEm).toLocaleDateString("pt-BR")}
+            Publicado em {formatarData(lic.publicadoPNCPEm)}
           </span>
         ) : (
           <Badge variant="outline" className="text-[10px] py-0 text-warning border-warning/40">
@@ -2369,7 +2370,7 @@ function LicExtras({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
         ) : (
           <ul className="space-y-0.5 text-xs text-muted-foreground">
             {lic.historico.map((h) => (
-              <li key={h.id}><span className="font-mono">{new Date(h.data).toLocaleDateString("pt-BR")}</span> · {h.descricao}</li>
+              <li key={h.id}><span className="font-mono">{formatarData(h.data)}</span> · {h.descricao}</li>
             ))}
           </ul>
         )}

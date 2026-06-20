@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { formatarData } from "@/lib/utils";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, MapPin } from "lucide-react";
@@ -12,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const metadata: Metadata = { title: "Projeto" };
 
-const fmt = (d: string | null) => (d ? new Date(d + "T00:00:00").toLocaleDateString("pt-BR") : "—");
+const fmt = (d: string | null) => (d ? formatarData(d) : "—");
 
 export default async function PortalProjetoPage({
   params,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { formatarData } from "@/lib/utils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -221,7 +222,7 @@ export function LicitacoesView({
                 {l.modalidade && <Badge variant="outline" className="text-muted-foreground">{l.modalidade}</Badge>}
                 {l.numeroEdital && <span className="font-mono text-xs text-muted-foreground">Edital {l.numeroEdital}</span>}
                 {l.valorEstimado != null && <span className="font-mono text-xs text-muted-foreground">{brl(l.valorEstimado)}</span>}
-                {l.prazoProposta && <span className="text-xs text-muted-foreground">prazo {new Date(l.prazoProposta + "T00:00:00").toLocaleDateString("pt-BR")}</span>}
+                {l.prazoProposta && <span className="text-xs text-muted-foreground">prazo {formatarData(l.prazoProposta)}</span>}
                 {l.projeto && <span className="font-mono text-xs text-primary">{l.projeto.codigo}</span>}
                 <span className="ml-auto text-[10px] text-muted-foreground">{l.nDocs} doc · {l.nMedicoes} med</span>
               </CardContent>

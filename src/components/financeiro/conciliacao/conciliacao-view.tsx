@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
 
 export function ConciliacaoView({
   transacoes,
@@ -168,7 +168,7 @@ function TransacaoRow({
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{t.descricao}</p>
           <p className="text-xs text-muted-foreground">
-            {new Date(t.data).toLocaleDateString("pt-BR")} · {t.conta}
+            {formatarData(t.data)} · {t.conta}
           </p>
         </div>
         <span className={`font-mono text-sm ${t.ehReceita ? "text-success" : "text-foreground"}`}>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { formatarData } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Send, Paperclip, FileText } from "lucide-react";
@@ -129,7 +130,7 @@ export function SuporteView({ tickets, ehGestor }: { tickets: Ticket[]; ehGestor
                     {t.status.replace("_", " ")}
                   </Badge>
                   <span className="text-xs text-muted-foreground">
-                    {t.autor} · {new Date(t.criadoEm).toLocaleDateString("pt-BR")}
+                    {t.autor} · {formatarData(t.criadoEm)}
                   </span>
                   {ehGestor && (
                     <div className="ml-auto">

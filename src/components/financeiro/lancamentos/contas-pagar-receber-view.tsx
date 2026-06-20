@@ -26,10 +26,10 @@ import {
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
 
 function dt(d: string | Date | null) {
-  return d ? new Date(d).toLocaleDateString("pt-BR") : "—";
+  return d ? formatarData(d) : "—";
 }
 function meioDia(d: Date) {
   const x = new Date(d);

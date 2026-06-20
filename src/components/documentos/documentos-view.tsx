@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { formatarData } from "@/lib/utils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -130,7 +131,7 @@ export function DocumentosView({ modelos, podeGerir }: { modelos: Modelo[]; pode
                     ? FONTES.find((f) => f.id === m.fonte)?.label ?? m.fonte
                     : "Sem fonte de dados"}
                   <span className="block">
-                    v{m.versoes} · {new Date(m.atualizadoEm).toLocaleDateString("pt-BR")}
+                    v{m.versoes} · {formatarData(m.atualizadoEm)}
                   </span>
                 </CardDescription>
               </CardHeader>

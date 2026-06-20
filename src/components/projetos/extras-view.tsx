@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
 
 type Dados = Awaited<ReturnType<typeof extrasDoProjeto>>;
 const STATUS_REV: Record<string, string> = { pendente: "text-warning border-warning/40", aceita: "text-success border-success/40", recusada: "text-destructive border-destructive/40" };
@@ -252,7 +252,7 @@ export function ExtrasView({
             <ul className="divide-y text-sm">
               {dados.linhasBase.map((l) => (
                 <li key={l.id} className="flex items-center justify-between gap-3 py-2">
-                  <span>{l.nome} <span className="text-xs text-muted-foreground">· {l.tarefas} tarefa(s) · {new Date(l.createdAt).toLocaleDateString("pt-BR")}</span></span>
+                  <span>{l.nome} <span className="text-xs text-muted-foreground">· {l.tarefas} tarefa(s) · {formatarData(l.createdAt)}</span></span>
                   {podeGerir && (
                     <Button size="icon" variant="ghost" aria-label="Excluir" onClick={() => rmLinha(l.id)} disabled={pending}>
                       <Trash2 className="size-3.5" />

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatarData } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { STATUS_LABEL, STATUS_CHIP, brl } from "./_shared";
@@ -54,7 +55,7 @@ export function DashboardLicitacoes({ data }: { data: DashboardLicitacoes }) {
                     {p.titulo}
                   </Link>
                   <span className="font-mono text-xs text-muted-foreground">
-                    {new Date(p.prazoProposta + "T00:00:00").toLocaleDateString("pt-BR")}
+                    {formatarData(p.prazoProposta)}
                   </span>
                 </li>
               ))}

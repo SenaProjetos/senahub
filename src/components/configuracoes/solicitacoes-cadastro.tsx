@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { formatarData } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, X, UserPlus } from "lucide-react";
@@ -38,7 +39,7 @@ export function SolicitacoesCadastro({ pedidos }: { pedidos: Pedido[] }) {
               <div className="min-w-0">
                 <p className="font-medium">{p.nome} <span className="font-mono text-xs text-muted-foreground">{p.email}</span></p>
                 <p className="text-xs text-muted-foreground">
-                  {p.telefone ? `${p.telefone} · ` : ""}{p.mensagem ?? ""} · {new Date(p.createdAt).toLocaleDateString("pt-BR")}
+                  {p.telefone ? `${p.telefone} · ` : ""}{p.mensagem ?? ""} · {formatarData(p.createdAt)}
                 </p>
               </div>
               <span className="flex shrink-0 gap-1">

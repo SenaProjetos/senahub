@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { formatarData } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Trash2, Users, Download, FileText } from "lucide-react";
@@ -165,7 +166,7 @@ function FuncCard({ f }: { f: Func }) {
             <span className="font-mono uppercase tracking-[0.12em] text-muted-foreground">Férias · </span>
             <span className="font-semibold">{f.aquisitivo.diasDisponiveis} dia(s) disponível(is)</span>
             {f.aquisitivo.proximoVencimento && (
-              <span className="text-muted-foreground"> · vence {new Date(f.aquisitivo.proximoVencimento + "T00:00:00").toLocaleDateString("pt-BR")}</span>
+              <span className="text-muted-foreground"> · vence {formatarData(f.aquisitivo.proximoVencimento)}</span>
             )}
             {f.aquisitivo.temVencido && (
               <span className="ml-1 font-semibold text-destructive">· {f.aquisitivo.diasVencidos} dia(s) vencido(s)!</span>
@@ -180,7 +181,7 @@ function FuncCard({ f }: { f: Func }) {
                   {d.nome}
                   {d.nascimento && (
                     <span className="ml-2 font-mono text-xs text-muted-foreground">
-                      {new Date(d.nascimento + "T00:00:00").toLocaleDateString("pt-BR")}
+                      {formatarData(d.nascimento)}
                     </span>
                   )}
                 </span>

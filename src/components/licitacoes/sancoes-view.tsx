@@ -12,7 +12,7 @@ import {
   excluirSancaoConcorrente,
 } from "@/modules/licitacoes/sancoes/actions";
 import { sancaoAtiva } from "@/modules/licitacoes/sancoes/sancoes";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -216,8 +216,8 @@ export function SancoesView({ podeGerir, fornecedores, proprias, concorrentes }:
                     {s.valor != null && <span className="font-mono">{brl(s.valor)}</span>}
                     {s.inicio && (
                       <span>
-                        {new Date(s.inicio + "T00:00:00").toLocaleDateString("pt-BR")}
-                        {s.fim && ` – ${new Date(s.fim + "T00:00:00").toLocaleDateString("pt-BR")}`}
+                        {formatarData(s.inicio)}
+                        {s.fim && ` – ${formatarData(s.fim)}`}
                       </span>
                     )}
                     {s.orgao && <span>{s.orgao}</span>}
@@ -334,8 +334,8 @@ export function SancoesView({ podeGerir, fornecedores, proprias, concorrentes }:
                     {s.valor != null && <span className="font-mono">{brl(s.valor)}</span>}
                     {s.inicio && (
                       <span>
-                        {new Date(s.inicio + "T00:00:00").toLocaleDateString("pt-BR")}
-                        {s.fim && ` – ${new Date(s.fim + "T00:00:00").toLocaleDateString("pt-BR")}`}
+                        {formatarData(s.inicio)}
+                        {s.fim && ` – ${formatarData(s.fim)}`}
                       </span>
                     )}
                     {s.orgao && <span>{s.orgao}</span>}

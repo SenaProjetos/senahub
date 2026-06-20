@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { brl } from "@/lib/utils";
+import { brl, formatarData, formatarDiaMes } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Fluxo de caixa" };
 
@@ -22,7 +22,7 @@ export default async function FluxoCaixaPage() {
   const temGap = projecao.some((p) => p.saldo < 0);
 
   const dataCurta = (iso: string) =>
-    new Date(iso + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+    formatarDiaMes(iso);
 
   return (
     <div className="space-y-6">
@@ -140,7 +140,7 @@ export default async function FluxoCaixaPage() {
                 movimentos.map((m) => (
                   <TableRow key={m.id}>
                     <TableCell className="font-mono text-xs">
-                      {m.dataConfirmacao ? new Date(m.dataConfirmacao).toLocaleDateString("pt-BR") : "—"}
+                      {m.dataConfirmacao ? formatarData(m.dataConfirmacao) : "—"}
                     </TableCell>
                     <TableCell>
                       {m.descricao}

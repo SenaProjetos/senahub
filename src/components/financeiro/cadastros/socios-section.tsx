@@ -10,7 +10,7 @@ import {
   criarRetiradaSocio,
   removerRetiradaSocio,
 } from "@/modules/financeiro/cadastros/actions";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -165,7 +165,7 @@ function SocioRow({ s, onRemover }: { s: Socio; onRemover: (id: string) => void 
               {s.retiradas.map((r) => (
                 <li key={r.id} className="flex items-center justify-between gap-2 py-1">
                   <span className="text-muted-foreground">
-                    {new Date(r.data + "T00:00:00").toLocaleDateString("pt-BR")} · {TIPO_RET[r.tipo] ?? r.tipo}
+                    {formatarData(r.data)} · {TIPO_RET[r.tipo] ?? r.tipo}
                     {r.observacao ? ` · ${r.observacao}` : ""}
                   </span>
                   <span className="flex items-center gap-2">

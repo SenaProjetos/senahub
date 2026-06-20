@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { formatarData } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plane, FileText, Smile } from "lucide-react";
@@ -22,7 +23,7 @@ type Abono = { id: string; dataInicio: string | Date; dataFim: string | Date; st
 type Feria = { id: string; inicio: string | Date; fim: string | Date; status: string };
 
 function dt(d: string | Date) {
-  return new Date(d).toLocaleDateString("pt-BR");
+  return formatarData(d);
 }
 
 export function RhView({

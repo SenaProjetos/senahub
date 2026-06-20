@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { formatarData } from "@/lib/utils";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
@@ -12,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 export const metadata: Metadata = { title: "Meus projetos" };
 
 const fmt = (d: string | null) =>
-  d ? new Date(d + "T00:00:00").toLocaleDateString("pt-BR") : "—";
+  d ? formatarData(d) : "—";
 
 export default async function PortalPage() {
   const user = await requireUser();

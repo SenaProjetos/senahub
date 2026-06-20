@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
 
 const NONE = "__none";
 
@@ -48,7 +48,7 @@ export function PlanejamentoListaView({ planos, opcoes }: { planos: PlanoResumo[
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{p.nome}</p>
                       <p className="text-xs text-muted-foreground">
-                        {p.qtdLinhas} conta(s) · {p.responsavel} · {new Date(p.criadoEm).toLocaleDateString("pt-BR")}
+                        {p.qtdLinhas} conta(s) · {p.responsavel} · {formatarData(p.criadoEm)}
                       </p>
                     </div>
                     <div className="hidden text-right sm:block">

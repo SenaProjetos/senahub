@@ -8,7 +8,7 @@ import { validarNF } from "@/modules/rh/nf/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
 
 type NF = {
   id: string;
@@ -57,7 +57,7 @@ export function NfAdmin({ nfs }: { nfs: NF[] }) {
                     )}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(nf.createdAt).toLocaleDateString("pt-BR")} · {nf.arquivoNome}
+                    {formatarData(nf.createdAt)} · {nf.arquivoNome}
                   </p>
                 </div>
                 <span className="font-mono text-sm">{brl(nf.valor)}</span>

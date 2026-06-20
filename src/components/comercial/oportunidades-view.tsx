@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
 
 const NONE = "__none";
 const ETAPAS = ["qualificacao", "proposta", "negociacao", "fechamento"];
@@ -265,7 +265,7 @@ function OpRow({
             <ul className="space-y-0.5 text-xs text-muted-foreground">
               {o.atividades.map((a) => (
                 <li key={a.id}>
-                  <span className="font-mono">{new Date(a.createdAt).toLocaleDateString("pt-BR")}</span> · {a.autor}: {a.descricao}
+                  <span className="font-mono">{formatarData(a.createdAt)}</span> · {a.autor}: {a.descricao}
                 </li>
               ))}
             </ul>

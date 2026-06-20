@@ -35,12 +35,12 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
 
 const NONE = "__none";
 
 function dt(d: string | null) {
-  return d ? new Date(d + "T00:00:00").toLocaleDateString("pt-BR") : "—";
+  return d ? formatarData(d) : "—";
 }
 
 const COLS = "28px 28px minmax(150px,1fr) 96px 120px 130px 130px 96px 32px";

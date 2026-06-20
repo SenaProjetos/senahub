@@ -1,4 +1,5 @@
 import "server-only";
+import { formatarMesCurto } from "@/lib/utils";
 import { subDays, differenceInCalendarDays } from "date-fns";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -231,7 +232,7 @@ export async function serieMensalResultado(ano: number): Promise<MesResultado[]>
   });
   const meses: MesResultado[] = Array.from({ length: 12 }, (_, i) => ({
     mes: i,
-    rotulo: new Date(ano, i, 1).toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""),
+    rotulo: formatarMesCurto(new Date(ano, i, 1)),
     receita: 0,
     despesa: 0,
     resultado: 0,
@@ -329,7 +330,7 @@ export async function evolucaoMargemMensal(ano: number): Promise<MargemMensal[]>
     const resultado = m.receita - m.despesa;
     return {
       mes: i,
-      rotulo: new Date(ano, i, 1).toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""),
+      rotulo: formatarMesCurto(new Date(ano, i, 1)),
       receita: Math.round(m.receita * 100) / 100,
       resultado: Math.round(resultado * 100) / 100,
       margem: m.receita > 0 ? Math.round((resultado / m.receita) * 1000) / 10 : null,
@@ -381,7 +382,7 @@ export async function evolucaoMensalCategorias(
   }
 
   const meses = Array.from({ length: 12 }, (_, i) =>
-    new Date(ano, i, 1).toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""),
+    formatarMesCurto(new Date(ano, i, 1)),
   );
   return { ano, meses, categorias: principais };
 }

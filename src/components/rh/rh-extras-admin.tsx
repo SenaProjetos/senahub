@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { formatarData } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Trash2, MessageSquare, Clock } from "lucide-react";
@@ -78,7 +79,7 @@ export function FeedbackSection({ feedbacks, colaboradores }: { feedbacks: Feedb
               <li key={f.id} className="flex items-start justify-between gap-2 py-2">
                 <div className="min-w-0">
                   <p className="font-medium">{f.alvo} <Badge variant="outline">{TIPO_LABEL[f.tipo] ?? f.tipo}</Badge></p>
-                  <p className="text-xs text-muted-foreground">{f.autor} · {new Date(f.createdAt).toLocaleDateString("pt-BR")}: {f.conteudo}</p>
+                  <p className="text-xs text-muted-foreground">{f.autor} · {formatarData(f.createdAt)}: {f.conteudo}</p>
                 </div>
                 <Button size="icon" variant="ghost" aria-label="Remover" onClick={() => remover(f.id)} disabled={pending}>
                   <Trash2 className="size-3.5" />

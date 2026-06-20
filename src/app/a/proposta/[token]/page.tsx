@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Proposta — Sena Projetos", robots: { index: false } };
 
@@ -39,7 +39,7 @@ export default async function PropostaPublicaPage({
       <h1 className="text-2xl font-extrabold tracking-tight">{p.titulo}</h1>
       <p className="mb-8 text-sm text-muted-foreground">
         Para: {p.cliente.nome}
-        {p.validade && ` · válida até ${p.validade.toLocaleDateString("pt-BR")}`}
+        {p.validade && ` · válida até ${formatarData(p.validade)}`}
       </p>
 
       <section className="rounded-sm border bg-card">

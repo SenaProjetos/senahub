@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { formatarData } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -153,7 +154,7 @@ function CardTarefa({
             {t.prazo && (
               <span className={`flex items-center gap-1 ${atrasada ? "text-destructive" : ""}`}>
                 <CalendarDays className="size-3" />
-                {new Date(t.prazo + "T00:00:00").toLocaleDateString("pt-BR")}
+                {formatarData(t.prazo)}
               </span>
             )}
             {t.itens.length > 0 && (

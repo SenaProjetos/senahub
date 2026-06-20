@@ -8,7 +8,7 @@ import { baterPonto, trocarProjeto, encerrarJornada } from "@/modules/ponto/acti
 import { fecharRateioMes } from "@/modules/rh/rateio/actions";
 import { fmtHoras } from "@/modules/ponto/format";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -215,7 +215,7 @@ export function PontoView({
                 <CardDescription>
                   Mês atual · custo total {brl(rateio.custoTotal)}
                   {rateio.fechado && rateio.fechadoEm
-                    ? ` · fechado em ${new Date(rateio.fechadoEm).toLocaleDateString("pt-BR")}`
+                    ? ` · fechado em ${formatarData(rateio.fechadoEm)}`
                     : ""}
                 </CardDescription>
               </div>

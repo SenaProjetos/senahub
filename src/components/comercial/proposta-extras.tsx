@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
 
 function fmtBytes(n: number) {
   if (n < 1024) return `${n} B`;
@@ -138,7 +138,7 @@ export function PropostaExtras({
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   {[va, vb].map((v, i) => (
                     <div key={i} className="rounded-sm border p-2">
-                      <p className="mb-1 font-mono uppercase tracking-wide text-muted-foreground">v{v.numero} · {new Date(v.data).toLocaleDateString("pt-BR")}</p>
+                      <p className="mb-1 font-mono uppercase tracking-wide text-muted-foreground">v{v.numero} · {formatarData(v.data)}</p>
                       <ul className="space-y-0.5">
                         {v.itens.map((it, j) => (
                           <li key={j} className="flex justify-between gap-2">

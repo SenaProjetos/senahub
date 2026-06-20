@@ -29,7 +29,7 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
 
 type Conta = { id: string; nome: string; saldoInicial: number };
 type Situacao = "pendente" | "agendado" | "confirmado" | "conciliado" | "aguardando" | "cancelado";
@@ -59,7 +59,7 @@ const SIT_META: Record<Situacao, { label: string; cor: string }> = {
 };
 
 function dt(d: string | Date | null) {
-  return d ? new Date(d).toLocaleDateString("pt-BR") : "—";
+  return d ? formatarData(d) : "—";
 }
 function meioDia(d: Date) {
   const x = new Date(d);

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { formatarData } from "@/lib/utils";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
 import { obterLicitacao } from "@/modules/licitacoes/queries";
@@ -11,7 +12,7 @@ export const metadata: Metadata = { title: "Processo da Licitação" };
 
 function fmt(iso: string | null | undefined) {
   if (!iso) return "—";
-  return new Date(iso + (iso.length === 10 ? "T00:00:00" : "")).toLocaleDateString("pt-BR");
+  return formatarData(iso);
 }
 
 function Sec({ title, children }: { title: string; children: React.ReactNode }) {

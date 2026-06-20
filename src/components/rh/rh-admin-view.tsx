@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { formatarData } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, X, Download, Smile } from "lucide-react";
@@ -11,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 const HUMORES = ["😞", "🙁", "😐", "🙂", "😄"];
 function dt(d: string | Date) {
-  return new Date(d).toLocaleDateString("pt-BR");
+  return formatarData(d);
 }
 
 export function RhAdminView({

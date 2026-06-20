@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { formatarDiaMes } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -13,7 +14,7 @@ import { Gantt, GANTT_PX_DEFAULT } from "@/components/planejamento/gantt";
 import { EapDialog } from "@/components/planejamento/eap-dialog";
 
 const fmt = (iso: string | null) =>
-  iso ? new Date(iso + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "—";
+  iso ? formatarDiaMes(iso) : "—";
 
 const diasDesvio = (t: EapTarefaDTO) => {
   if (!t.fimBaseline) return 0;
