@@ -3,17 +3,25 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Clock } from "lucide-react";
+import { Clock, CalendarClock } from "lucide-react";
 import { fecharBancoMesEquipe } from "@/modules/rh/banco/actions";
 import { fmtHoras } from "@/modules/ponto/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatarData } from "@/lib/utils";
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
 function fmtSaldo(min: number) {
   const sinal = min < 0 ? "−" : "+";
   return `${sinal}${fmtHoras(Math.abs(min))}`;
+}
+
+/** Último dia útil (seg–sex) do mês corrente — prazo de fechamento do banco de horas. */
+function prazoFechamento(ref: Date) {
+  const d = new Date(ref.getFullYear(), ref.getMonth() + 1, 0);
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1);
+  return d;
 }
 
 type Fechamento = { userId: string; nome: string; saldoMinutos: number; acumuladoMinutos: number; fechadoEm: string };
@@ -29,6 +37,20 @@ export function BancoHorasAdmin({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const prazo = prazoFechamento(hoje);
+  const diasRestantes = Math.round((prazo.getTime() - hoje.getTime()) / 86_400_000);
+  const prazoLabel =
+    diasRestantes < 0
+      ? "prazo encerrado"
+      : diasRestantes === 0
+        ? "vence hoje"
+        : diasRestantes === 1
+          ? "falta 1 dia"
+          : `faltam ${diasRestantes} dias`;
+  const prazoUrgente = diasRestantes <= 2;
 
   function fechar() {
     start(async () => {
@@ -56,6 +78,19 @@ export function BancoHorasAdmin({
         </div>
       </CardHeader>
       <CardContent>
+        <div
+          className={`mb-3 flex items-center gap-2 rounded-sm border px-3 py-2 text-xs ${
+            prazoUrgente
+              ? "border-destructive/30 bg-destructive/5 text-destructive"
+              : "bg-muted/40 text-muted-foreground"
+          }`}
+        >
+          <CalendarClock className="size-3.5 shrink-0" />
+          <span>
+            Fechamento do banco de horas até{" "}
+            <strong className="font-semibold">{formatarData(prazo)}</strong> ({prazoLabel}).
+          </span>
+        </div>
         {fechamentos.length === 0 ? (
           <p className="text-sm text-muted-foreground">Mês ainda não fechado.</p>
         ) : (

@@ -115,14 +115,17 @@ export function OnboardingAdmin({
         ) : (
           <div className="space-y-3">
             {processos.map((p) => {
+              const total = p.itens.length;
               const done = p.itens.filter((i) => i.concluido).length;
+              const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+              const completo = total > 0 && done === total;
               return (
                 <div key={p.id} className="space-y-2 rounded-sm border p-3">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-semibold">
                       {p.user.name}{" "}
                       <span className="font-normal text-muted-foreground">
-                        · {done}/{p.itens.length}
+                        · {done}/{total} {total === 1 ? "item" : "itens"}
                       </span>
                     </p>
                     <Button
@@ -133,6 +136,23 @@ export function OnboardingAdmin({
                     >
                       <Trash2 className="size-4" />
                     </Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"
+                      role="progressbar"
+                      aria-valuenow={pct}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
+                      <div
+                        className={`h-full rounded-full transition-[width] ${completo ? "bg-success" : "bg-primary"}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <span className="w-9 text-right font-mono text-[11px] text-muted-foreground">
+                      {pct}%
+                    </span>
                   </div>
                   <ul className="space-y-1">
                     {p.itens.map((it) => (

@@ -8,6 +8,7 @@ import {
   onboardingsAtivos,
   opcoesOnboarding,
   nfsPendentes,
+  nfsValidadas,
 } from "@/modules/rh/queries";
 import { fechamentosDoMes } from "@/modules/rh/banco/queries";
 import { listarFeedbacks, colaboradoresInternos } from "@/modules/rh/feedback/queries";
@@ -27,13 +28,14 @@ export default async function RhAdminPage() {
   const bancoMes = agora.getMonth() === 0 ? 12 : agora.getMonth();
   const bancoAno = agora.getMonth() === 0 ? agora.getFullYear() - 1 : agora.getFullYear();
 
-  const [abonos, ferias, clima, processos, opcoes, nfs, fechamentos, feedbacks, colaboradores, projetos] = await Promise.all([
+  const [abonos, ferias, clima, processos, opcoes, nfs, nfsHistorico, fechamentos, feedbacks, colaboradores, projetos] = await Promise.all([
     abonosPendentes(),
     feriasPendentes(),
     climaResumo(),
     onboardingsAtivos(),
     opcoesOnboarding(),
     nfsPendentes(),
+    nfsValidadas(),
     fechamentosDoMes(bancoAno, bancoMes),
     listarFeedbacks(),
     colaboradoresInternos(),
@@ -66,6 +68,16 @@ export default async function RhAdminPage() {
             valor: Number(n.valor),
             arquivoNome: n.arquivoNome,
             createdAt: n.createdAt.toISOString(),
+          }))}
+          validadas={nfsHistorico.map((n) => ({
+            id: n.id,
+            user: { name: n.user.name },
+            numero: n.numero,
+            valor: Number(n.valor),
+            status: n.status as "aprovada" | "rejeitada",
+            observacao: n.observacao,
+            validadoPor: n.validadoPor?.name ?? null,
+            validadoEm: n.validadoEm?.toISOString() ?? null,
           }))}
         />
       </div>

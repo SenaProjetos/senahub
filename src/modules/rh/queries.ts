@@ -108,3 +108,16 @@ export async function nfsPendentes() {
     include: { user: { select: { name: true } } },
   });
 }
+
+/** NFs já validadas (aprovadas/rejeitadas) — histórico, mais recentes primeiro. */
+export async function nfsValidadas() {
+  return prisma.notaFiscalPJ.findMany({
+    where: { status: { in: ["aprovada", "rejeitada"] } },
+    orderBy: [{ validadoEm: "desc" }, { createdAt: "desc" }],
+    take: 50,
+    include: {
+      user: { select: { name: true } },
+      validadoPor: { select: { name: true } },
+    },
+  });
+}
