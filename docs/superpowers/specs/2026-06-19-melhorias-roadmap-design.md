@@ -241,3 +241,21 @@ motivo-da-perda (Lead) · categoria do cliente · prioridade/categoria de ticket
 **Verificação visual (browser) pendente do usuário** em tudo que é UI (não verificável sem sessão/navegador).
 
 > Toda a execução manteve `master` verde (tsc 0 + `npm test`) a cada merge. Sem `git remote` configurado — nada foi pushado.
+
+---
+
+## 8. Decisões executadas (2026-06-20, branch `feat/decisoes` → master)
+
+Após rodada de decisão com o usuário, implementado:
+- **Schema + migração** `20260620155615_melhorias_...` (campos nullable, aditiva): `Lead.motivoPerda`, `Cliente.categoria`, `TicketSuporte.prioridade`/`categoria`, novo model `AceiteDocumento`.
+- **Motivo da perda** (Comercial): exigido ao mover lead para "Perdido" (drag e select), exibido no detalhe/modal.
+- **Categoria do cliente**: campo no form + filtro server-side na listagem + exibição.
+- **Prioridade/categoria de ticket** (Suporte): selects ao abrir, StatusBadge de prioridade, filtro.
+- **Assinatura on-prem** (Jurídico): action `registrarAceite` (SHA-256 do arquivo + quem/quando), lista de aceites por versão.
+- **Planejamento ↔ Tarefas — link leve:** action `gerarTarefaDeEap` + botão "Gerar tarefa" na EAP (one-way, sem unificar).
+- **M6:** sidebar→drawer no mobile (Sheet) + boards com scroll contido; lazy load do editor de documentos (`next/dynamic`); contraste `--muted-foreground` ajustado p/ AA + foco visível na navegação.
+
+**Ainda pendente / precisa de você:**
+- **PNCP import automático:** a integração atual é manual (nº PNCP + marcar publicado). Auto-importar editais exige (1) **critério de negócio** (quais órgãos/UF/modalidades/palavras-chave vigiar) e (2) confirmar a **API pública vigente do PNCP**. Não construído (evita poller especulativo). Aguarda decisão de critério.
+- **PWA offline para ponto:** não selecionado nesta rodada.
+- **Verificação visual (browser)** de toda a UI continua pendente do usuário. Sem `git remote`.
