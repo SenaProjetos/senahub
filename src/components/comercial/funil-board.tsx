@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useSetParams } from "@/lib/use-set-param";
 import { toast } from "sonner";
 import {
   DndContext,
@@ -19,12 +20,24 @@ import { moverLead } from "@/modules/comercial/actions";
 import type { EtapaFunil, LeadItem } from "@/modules/comercial/queries";
 import { LeadDialog } from "./lead-dialog";
 import { MotivoPerdaDialog, etapaEhPerdido } from "./motivo-perda-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { brlInteiro } from "@/lib/utils";
 
+/** Sentinela para "sem filtro" nos Selects (base-ui não aceita value vazio). */
+const TODOS = "__todos";
+
 export function FunilBoard({ etapas }: { etapas: EtapaFunil[] }) {
   const router = useRouter();
+  const setParams = useSetParams();
+  const searchParams = useSearchParams();
   const [, start] = useTransition();
   const [arrastando, setArrastando] = useState<LeadItem | null>(null);
   const [dialogLead, setDialogLead] = useState<LeadItem | null | "novo">(null);
@@ -33,6 +46,31 @@ export function FunilBoard({ etapas }: { etapas: EtapaFunil[] }) {
     null,
   );
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  const origem = searchParams.get("origem");
+
+  // Origens distintas a partir dos leads carregados.
+  const opcoesOrigem = useMemo(() => {
+    const set = new Set<string>();
+    for (const et of etapas) {
+      for (const lead of et.leads) {
+        if (lead.origem) set.add(lead.origem);
+      }
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [etapas]);
+
+  // Reaplica os filtros mantendo a estrutura de etapas (preserva o dnd-kit).
+  const etapasFiltradas = useMemo<EtapaFunil[]>(
+    () =>
+      etapas.map((et) => ({
+        ...et,
+        leads: origem ? et.leads.filter((l) => l.origem === origem) : et.leads,
+      })),
+    [etapas, origem],
+  );
+
+  const temFiltro = Boolean(origem);
 
   function executarMove(leadId: string, etapaId: string, motivoPerda?: string) {
     start(async () => {
@@ -72,9 +110,39 @@ export function FunilBoard({ etapas }: { etapas: EtapaFunil[] }) {
         </Button>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <Select
+          value={origem ?? TODOS}
+          onValueChange={(v) => setParams({ origem: v && v !== TODOS ? v : null })}
+        >
+          <SelectTrigger className="h-8 w-44">
+            <SelectValue placeholder="Origem" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={TODOS}>Todas as origens</SelectItem>
+            {opcoesOrigem.map((o) => (
+              <SelectItem key={o} value={o}>
+                {o}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {temFiltro && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8"
+            onClick={() => setParams({ origem: null })}
+          >
+            Limpar filtros
+          </Button>
+        )}
+      </div>
+
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
         <div className="flex w-full min-w-0 gap-3 overflow-x-auto pb-2">
-          {etapas.map((etapa) => (
+          {etapasFiltradas.map((etapa) => (
             <Coluna key={etapa.id} etapa={etapa} onAbrir={(l) => setDialogLead(l)} />
           ))}
         </div>
