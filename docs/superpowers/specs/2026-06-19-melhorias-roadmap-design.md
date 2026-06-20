@@ -258,7 +258,17 @@ Após rodada de decisão com o usuário, implementado:
 - **PNCP import automático ✅** (decisão: palavras-chave via config; API verificada diretamente):
   client contra `GET pncp.gov.br/api/consulta/v1/contratacoes/publicacao` (verificado: params `dataInicial`/`dataFinal`/`codigoModalidadeContratacao`/`pagina`; resposta `{data,totalPaginas}` com `numeroControlePNCP`/`objetoCompra`/`dataEncerramentoProposta`/etc.). Job diário (06:00) gated por `pncp.modo="api"` + palavras-chave; filtro acento/caso-insensível no objeto, dedup por `numeroControlePNCP`, cria `Licitacao` `origemPNCP`, loga em `IntegracaoPNCPLog`, notifica gestores. Config (palavras-chave, modalidades, UFs, janela) na tela de Licitações. **OFF por padrão** (modo manual) — ativar definindo modo=api + palavras-chave.
 
-**Ainda pendente / precisa de você:**
-- **PWA offline para ponto:** não selecionado nesta rodada.
-- **Verificação visual (browser)** de toda a UI continua pendente do usuário. Sem `git remote`.
-- **Ativar o PNCP**: em Configurações → Licitações, mude o modo para "api" e defina as palavras-chave para o import diário começar.
+### 9. Rodada "todo o restante" ✅ (2026-06-20, branch `feat/restante` → master)
+- **Projetos:** chips de status → `StatusBadge` (cor+ícone); alerta de atraso de disciplina no detalhe; toggle Tabela/Kanban.
+- **Financeiro:** badges de contagem nos quicklinks (aprovações, contas vencidas, conciliação pendente).
+- **Comercial:** filtro por origem no funil (responsável não existe no model → não feito).
+- **Tarefas:** vista Lista alternativa ao kanban.
+- **Ctrl+K (busca global):** passou a indexar também **tarefas** e **documentos** (além de projetos/clientes/lançamentos).
+- **PWA offline para ponto:** fila local (`localStorage`) de batidas com sync automático no evento `online`; service worker network-first (navegações) + cache-first (assets), sem tocar nos handlers de push. **Exige QA no browser** (comportamento offline não é testável por tsc); recuperação: DevTools → Application → Unregister, ou bump da versão do cache em `public/sw.js`.
+
+**Tudo concluído.** Itens conscientemente NÃO feitos: filtro por responsável no Comercial (não há campo no schema). 
+
+**Pendências do seu lado (não-código):**
+- **Verificação visual (browser)** de toda a UI — reinicie o `dev:server`. PWA/offline e push exigem browser real.
+- **Ativar o PNCP**: Configurações → Licitações → modo "api" + palavras-chave.
+- **Sem `git remote`** → nada pushado; configure se quiser PR/backup.
