@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ACAO_LABEL } from "@/modules/auditoria/labels";
 
 type Row = {
   id: string;
@@ -51,7 +52,7 @@ export function AuditoriaTabela({
     pages: number;
     modulos: string[];
   };
-  filtro: { modulo?: string; resultado?: string; q?: string };
+  filtro: { modulo?: string; resultado?: string; q?: string; de?: string; ate?: string };
 }) {
   const router = useRouter();
 
@@ -65,6 +66,12 @@ export function AuditoriaTabela({
     if (key !== "page") params.delete("page");
     router.push(`/auditoria?${params.toString()}`);
   }
+
+  // URL de export respeita os filtros atuais (exceto paginação).
+  const exportParams = new URLSearchParams(
+    Object.entries(filtro).filter(([k, v]) => v && k !== "page") as [string, string][],
+  );
+  const exportHref = `/api/auditoria/export?${exportParams.toString()}`;
 
   return (
     <div className="space-y-3">
@@ -108,6 +115,37 @@ export function AuditoriaTabela({
             <SelectItem value="rejeitado">Rejeitado</SelectItem>
           </SelectContent>
         </Select>
+        <div className="flex items-center gap-1.5">
+          <label className="text-xs text-muted-foreground" htmlFor="audit-de">
+            De
+          </label>
+          <Input
+            id="audit-de"
+            type="date"
+            value={filtro.de ?? ""}
+            max={filtro.ate || undefined}
+            className="w-40"
+            onChange={(e) => setParam("de", e.target.value || null)}
+          />
+          <label className="text-xs text-muted-foreground" htmlFor="audit-ate">
+            Até
+          </label>
+          <Input
+            id="audit-ate"
+            type="date"
+            value={filtro.ate ?? ""}
+            min={filtro.de || undefined}
+            className="w-40"
+            onChange={(e) => setParam("ate", e.target.value || null)}
+          />
+        </div>
+        <Button
+          variant="outline"
+          className="ml-auto"
+          render={<a href={exportHref} />}
+        >
+          Exportar CSV
+        </Button>
       </div>
 
       <div className="rounded-sm border">
@@ -131,7 +169,10 @@ export function AuditoriaTabela({
               </TableRow>
             ) : (
               data.rows.map((r) => (
-                <TableRow key={r.id}>
+                <TableRow
+                  key={r.id}
+                  className={r.resultado === "falha" ? "bg-destructive/5 hover:bg-destructive/10" : ""}
+                >
                   <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
                     {format(new Date(r.createdAt), "dd/MM/yy HH:mm:ss", { locale: ptBR })}
                   </TableCell>
@@ -140,7 +181,7 @@ export function AuditoriaTabela({
                     <span className="font-mono text-xs">{r.modulo}</span>
                   </TableCell>
                   <TableCell className="text-sm">
-                    {r.acao}
+                    {ACAO_LABEL[r.acao] ?? r.acao}
                     {r.entidade && (
                       <span className="ml-1 text-xs text-muted-foreground">({r.entidade})</span>
                     )}

@@ -6,12 +6,14 @@ export type AuditFiltro = {
   modulo?: string;
   resultado?: string;
   q?: string;
+  de?: string;
+  ate?: string;
   page?: number;
 };
 
 const PAGE_SIZE = 50;
 
-export async function listarAuditoria(filtro: AuditFiltro) {
+function buildWhere(filtro: AuditFiltro): Prisma.AuditLogWhereInput {
   const where: Prisma.AuditLogWhereInput = {};
   if (filtro.modulo) where.modulo = filtro.modulo;
   if (filtro.resultado) where.resultado = filtro.resultado;
@@ -22,6 +24,20 @@ export async function listarAuditoria(filtro: AuditFiltro) {
       { user: { name: { contains: filtro.q, mode: "insensitive" } } },
     ];
   }
+
+  const de = filtro.de ? new Date(`${filtro.de}T00:00:00`) : null;
+  const ate = filtro.ate ? new Date(`${filtro.ate}T23:59:59.999`) : null;
+  if ((de && !isNaN(de.getTime())) || (ate && !isNaN(ate.getTime()))) {
+    where.createdAt = {};
+    if (de && !isNaN(de.getTime())) where.createdAt.gte = de;
+    if (ate && !isNaN(ate.getTime())) where.createdAt.lte = ate;
+  }
+
+  return where;
+}
+
+export async function listarAuditoria(filtro: AuditFiltro) {
+  const where = buildWhere(filtro);
 
   const page = Math.max(1, filtro.page ?? 1);
 
@@ -49,4 +65,18 @@ export async function listarAuditoria(filtro: AuditFiltro) {
     pages: Math.ceil(total / PAGE_SIZE),
     modulos: modulos.map((m) => m.modulo),
   };
+}
+
+const EXPORT_LIMIT = 10000;
+
+export async function auditoriaParaExport(
+  filtro: Omit<AuditFiltro, "page">,
+) {
+  const where = buildWhere(filtro);
+  return prisma.auditLog.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    take: EXPORT_LIMIT,
+    include: { user: { select: { name: true, email: true } } },
+  });
 }

@@ -8,7 +8,14 @@ export const metadata: Metadata = { title: "Auditoria" };
 export default async function AuditoriaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ modulo?: string; resultado?: string; q?: string; page?: string }>;
+  searchParams: Promise<{
+    modulo?: string;
+    resultado?: string;
+    q?: string;
+    de?: string;
+    ate?: string;
+    page?: string;
+  }>;
 }) {
   await requireRole("admin");
   const sp = await searchParams;
@@ -17,6 +24,8 @@ export default async function AuditoriaPage({
     modulo: sp.modulo,
     resultado: sp.resultado,
     q: sp.q,
+    de: sp.de,
+    ate: sp.ate,
     page: sp.page ? Number(sp.page) : 1,
   });
 
