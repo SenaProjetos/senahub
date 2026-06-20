@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, AlertTriangle, Trash2, UserPlus, Users } from "lucide-react";
+import { Plus, AlertTriangle, Trash2, UserPlus, Users, LayoutGrid, CalendarRange, Scale } from "lucide-react";
 import { salvarRecurso, salvarAlocacao, removerAlocacao } from "@/modules/planejamento/actions";
 import { criarHabilidade, alternarHabilidadeUsuario } from "@/modules/rh/habilidades/actions";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
@@ -53,8 +53,101 @@ type Linha = {
 type Projeto = { id: string; codigo: string; nome: string };
 
 const NONE = "__none";
+const TODOS = "__todos";
 
 type Habilidade = { id: string; nome: string };
+
+// ── Heatmap (timeline) ──────────────────────────────────────────────
+// Agrega a alocação de cada pessoa por mês a partir dos períodos das
+// alocações. Sem período definido => conta como vigente em todos os meses
+// da janela (alocação "permanente").
+type MesCell = { ym: string; pct: number };
+
+function ymKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+function ymLabel(ym: string) {
+  const [y, m] = ym.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
+}
+
+/** Lista de chaves YYYY-MM cobrindo [de, ate] inclusive. */
+function mesesEntre(de: Date, ate: Date): string[] {
+  const out: string[] = [];
+  const cur = new Date(de.getFullYear(), de.getMonth(), 1);
+  const end = new Date(ate.getFullYear(), ate.getMonth(), 1);
+  while (cur <= end) {
+    out.push(ymKey(cur));
+    cur.setMonth(cur.getMonth() + 1);
+  }
+  return out;
+}
+
+/**
+ * Constrói a janela de meses visível e a matriz pessoa→(mês→%).
+ * A janela vai do mês mais antigo de início até o mais distante de fim;
+ * com fallback de [mês atual − 1, mês atual + 5] quando não há datas.
+ */
+function montarHeatmap(linhas: Linha[]) {
+  const hoje = new Date();
+  let min: Date | null = null;
+  let max: Date | null = null;
+  const parse = (s: string) => {
+    const [y, m, d] = s.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  };
+  for (const l of linhas) {
+    for (const a of l.alocacoes) {
+      if (a.inicio) {
+        const d = parse(a.inicio);
+        if (!min || d < min) min = d;
+      }
+      if (a.fim) {
+        const d = parse(a.fim);
+        if (!max || d > max) max = d;
+      }
+    }
+  }
+  const inicioJanela = min ?? new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+  const fimJanela = max ?? new Date(hoje.getFullYear(), hoje.getMonth() + 5, 1);
+  // garante pelo menos a janela padrão ao redor de hoje
+  const de = inicioJanela < new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1)
+    ? inicioJanela
+    : new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+  const ate = fimJanela > new Date(hoje.getFullYear(), hoje.getMonth() + 5, 1)
+    ? fimJanela
+    : new Date(hoje.getFullYear(), hoje.getMonth() + 5, 1);
+
+  const meses = mesesEntre(de, ate);
+  const mesSet = new Set(meses);
+
+  const matriz = linhas.map((l) => {
+    const porMes = new Map<string, number>();
+    for (const a of l.alocacoes) {
+      const aDe = a.inicio ? parse(a.inicio) : de;
+      const aAte = a.fim ? parse(a.fim) : ate;
+      if (aAte < aDe) continue;
+      for (const ym of mesesEntre(aDe, aAte)) {
+        if (mesSet.has(ym)) porMes.set(ym, (porMes.get(ym) ?? 0) + a.percentual);
+      }
+    }
+    const cells: MesCell[] = meses.map((ym) => ({ ym, pct: porMes.get(ym) ?? 0 }));
+    return { linha: l, cells };
+  });
+
+  return { meses, matriz };
+}
+
+/** Cor graduada por ocupação: verde (folga) → amarelo (~100%) → vermelho (>100%). */
+function heatColor(pct: number, capacidadePct: number) {
+  if (pct === 0) return "transparent";
+  const ratio = capacidadePct > 0 ? pct / capacidadePct : 0;
+  if (ratio <= 0.5) return "hsl(142 60% 88%)"; // bastante folga
+  if (ratio <= 0.85) return "hsl(142 55% 72%)"; // folga
+  if (ratio <= 1.0) return "hsl(48 90% 70%)"; // ~cheio
+  if (ratio <= 1.25) return "hsl(28 90% 64%)"; // estourando
+  return "hsl(0 75% 60%)"; // superalocado forte
+}
 
 export function RecursosMatrix({
   linhas,
@@ -85,7 +178,24 @@ export function RecursosMatrix({
     aloc: null,
   });
 
-  const totalSuper = linhas.filter((l) => l.superalocado).length;
+  // Filtro por projeto, alternância de visão e rebalanceamento.
+  const [filtroProjeto, setFiltroProjeto] = useState(TODOS);
+  const [vista, setVista] = useState<"matriz" | "heatmap">("matriz");
+  const [rebalDlg, setRebalDlg] = useState<Linha | null>(null);
+
+  // Quando um projeto é escolhido, mantém só as pessoas alocadas nele e
+  // reduz a lista de alocações exibidas a esse projeto (totais/super seguem
+  // sendo os da pessoa, para não mascarar superalocação real).
+  const linhasFiltradas = useMemo(() => {
+    if (filtroProjeto === TODOS) return linhas;
+    return linhas
+      .filter((l) => l.alocacoes.some((a) => a.projetoId === filtroProjeto))
+      .map((l) => ({ ...l, alocacoes: l.alocacoes.filter((a) => a.projetoId === filtroProjeto) }));
+  }, [linhas, filtroProjeto]);
+
+  const heat = useMemo(() => montarHeatmap(linhasFiltradas), [linhasFiltradas]);
+
+  const totalSuper = linhasFiltradas.filter((l) => l.superalocado).length;
 
   return (
     <div className="space-y-5">
@@ -108,6 +218,57 @@ export function RecursosMatrix({
         )}
       </div>
 
+      {/* Controles: filtro por projeto + alternância de visão */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+            Projeto
+          </span>
+          <Select value={filtroProjeto} onValueChange={(v) => setFiltroProjeto(v ?? TODOS)}>
+            <SelectTrigger className="h-8 w-64">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODOS}>Todos os projetos</SelectItem>
+              {projetos.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {formatarCodigo(p.codigo)} · {p.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="ml-auto inline-flex rounded-sm border p-0.5">
+          <button
+            type="button"
+            onClick={() => setVista("matriz")}
+            className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium ${
+              vista === "matriz" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <LayoutGrid className="size-3.5" /> Matriz
+          </button>
+          <button
+            type="button"
+            onClick={() => setVista("heatmap")}
+            className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium ${
+              vista === "heatmap" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <CalendarRange className="size-3.5" /> Heatmap
+          </button>
+        </div>
+      </div>
+
+      {vista === "heatmap" ? (
+        <HeatmapView
+          meses={heat.meses}
+          matriz={heat.matriz}
+          podeGerir={podeGerir}
+          onRebalancear={(l) => setRebalDlg(l)}
+        />
+      ) : (
       <div className="overflow-x-auto rounded-sm border">
         <table className="w-full text-sm">
           <thead className="border-b bg-muted/40 text-left font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
@@ -120,14 +281,21 @@ export function RecursosMatrix({
             </tr>
           </thead>
           <tbody className="divide-y">
-            {linhas.length === 0 ? (
+            {linhasFiltradas.length === 0 ? (
               <tr>
                 <td colSpan={podeGerir ? 5 : 4} className="px-3 py-8">
-                  <EmptyState icon={Users} title="Nenhum recurso cadastrado." />
+                  <EmptyState
+                    icon={Users}
+                    title={
+                      filtroProjeto === TODOS
+                        ? "Nenhum recurso cadastrado."
+                        : "Nenhum recurso alocado neste projeto."
+                    }
+                  />
                 </td>
               </tr>
             ) : (
-              linhas.map((l) => (
+              linhasFiltradas.map((l) => (
                 <tr key={l.recursoId} className={l.superalocado ? "bg-destructive/5" : ""}>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2">
@@ -208,6 +376,15 @@ export function RecursosMatrix({
                       </span>
                       {l.superalocado && <AlertTriangle className="size-3.5 shrink-0 text-destructive" />}
                     </div>
+                    {l.superalocado && (
+                      <button
+                        type="button"
+                        onClick={() => setRebalDlg(l)}
+                        className="mt-1 inline-flex items-center gap-1 rounded-sm border border-destructive/40 px-1.5 py-0.5 text-[10px] font-medium text-destructive hover:bg-destructive/10"
+                      >
+                        <Scale className="size-3" /> Rebalancear
+                      </button>
+                    )}
                   </td>
                   {podeGerir && (
                     <td className="px-3 py-2 text-right">
@@ -226,6 +403,7 @@ export function RecursosMatrix({
           </tbody>
         </table>
       </div>
+      )}
 
       {podeGerir && (
         <>
@@ -312,7 +490,226 @@ export function RecursosMatrix({
           }
         />
       )}
+
+      <RebalancearDialog
+        linha={rebalDlg}
+        onOpenChange={(o) => !o && setRebalDlg(null)}
+        onAbrirAlocacao={
+          podeGerir
+            ? (l, a) => {
+                setRebalDlg(null);
+                setAlocDlg({ open: true, linha: l, aloc: a });
+              }
+            : undefined
+        }
+      />
     </div>
+  );
+}
+
+// ── Heatmap timeline (pessoa × mês) ─────────────────────────────────
+function HeatmapView({
+  meses,
+  matriz,
+  podeGerir,
+  onRebalancear,
+}: {
+  meses: string[];
+  matriz: { linha: Linha; cells: MesCell[] }[];
+  podeGerir: boolean;
+  onRebalancear: (l: Linha) => void;
+}) {
+  if (matriz.length === 0) {
+    return (
+      <div className="rounded-sm border px-3 py-8">
+        <EmptyState icon={Users} title="Nenhum recurso para exibir." />
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      <div className="overflow-x-auto rounded-sm border">
+        <table className="w-full border-collapse text-sm">
+          <thead className="bg-muted/40 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+            <tr>
+              <th className="sticky left-0 z-10 bg-muted/40 px-3 py-2 text-left">Pessoa</th>
+              {meses.map((ym) => (
+                <th key={ym} className="px-1 py-2 text-center font-normal">
+                  {ymLabel(ym)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {matriz.map(({ linha: l, cells }) => (
+              <tr key={l.recursoId}>
+                <td className="sticky left-0 z-10 bg-background px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="size-2.5 shrink-0 rounded-full" style={{ background: l.cor }} />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 truncate font-medium">
+                        {l.nome}
+                        {l.superalocado && (
+                          <button
+                            type="button"
+                            onClick={() => onRebalancear(l)}
+                            title="Pessoa superalocada — ver sugestão de rebalanceamento"
+                            className="inline-flex items-center text-destructive hover:opacity-70"
+                          >
+                            <Scale className="size-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        cap. {l.capacidadePct}%
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                {cells.map((c) => {
+                  const ratio = l.capacidadePct > 0 ? Math.round((c.pct / l.capacidadePct) * 100) : 0;
+                  return (
+                    <td
+                      key={c.ym}
+                      className="border-l px-1 py-2 text-center"
+                      style={{ background: heatColor(c.pct, l.capacidadePct) }}
+                      title={`${l.nome} · ${ymLabel(c.ym)} — ${c.pct}% alocado (${ratio}% da capacidade)`}
+                    >
+                      <span
+                        className={`font-mono text-[10px] ${
+                          c.pct > l.capacidadePct ? "font-bold text-white" : "text-foreground/70"
+                        }`}
+                      >
+                        {c.pct > 0 ? `${c.pct}%` : ""}
+                      </span>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Legenda */}
+      <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+        <span className="font-medium text-foreground">Ocupação:</span>
+        <Legenda cor="hsl(142 55% 72%)" texto="folga (≤85%)" />
+        <Legenda cor="hsl(48 90% 70%)" texto="~cheio (≤100%)" />
+        <Legenda cor="hsl(28 90% 64%)" texto="estourando (≤125%)" />
+        <Legenda cor="hsl(0 75% 60%)" texto="superalocado (>125%)" />
+        {!podeGerir && <span className="italic">visualização somente leitura</span>}
+      </div>
+    </div>
+  );
+}
+
+function Legenda({ cor, texto }: { cor: string; texto: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="size-3 rounded-sm border" style={{ background: cor }} />
+      {texto}
+    </span>
+  );
+}
+
+// ── Sugestão de rebalanceamento (informativo) ───────────────────────
+function RebalancearDialog({
+  linha,
+  onOpenChange,
+  onAbrirAlocacao,
+}: {
+  linha: Linha | null;
+  onOpenChange: (o: boolean) => void;
+  onAbrirAlocacao?: (l: Linha, a: Alocacao) => void;
+}) {
+  if (!linha) return null;
+  const l = linha;
+  const excedente = l.totalAlocado - l.capacidadePct;
+  const ordenadas = [...l.alocacoes].sort((a, b) => b.percentual - a.percentual);
+  const maior = ordenadas[0];
+
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Scale className="size-4 text-destructive" /> Rebalancear · {l.nome}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3 text-sm">
+          <div className="rounded-sm border border-destructive/30 bg-destructive/5 px-3 py-2">
+            <p>
+              Alocado <strong>{l.totalAlocado}%</strong> de uma capacidade de{" "}
+              <strong>{l.capacidadePct}%</strong> —{" "}
+              <span className="font-semibold text-destructive">{excedente}% acima do limite</span>.
+            </p>
+            {maior && (
+              <p className="mt-1 text-muted-foreground">
+                Sugestão: reduzir ou mover parte da maior alocação
+                {" "}(<span className="font-mono">{formatarCodigo(maior.projetoCodigo)}</span>, {maior.percentual}%)
+                {" "}para baixar pelo menos {excedente}% e voltar ao limite.
+              </p>
+            )}
+          </div>
+
+          <div>
+            <p className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+              Alocações (maiores primeiro)
+            </p>
+            <ul className="divide-y rounded-sm border">
+              {ordenadas.map((a) => {
+                const acionavel = !!onAbrirAlocacao;
+                return (
+                  <li
+                    key={a.id}
+                    className="flex items-center justify-between gap-2 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate">
+                        <span className="font-mono text-xs">{formatarCodigo(a.projetoCodigo)}</span>{" "}
+                        {a.projetoNome}
+                      </div>
+                      {(a.inicio || a.fim) && (
+                        <div className="text-[11px] text-muted-foreground">
+                          {a.inicio ?? "—"} → {a.fim ?? "—"}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="font-mono text-sm">{a.percentual}%</span>
+                      {acionavel && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onAbrirAlocacao!(l, a)}
+                        >
+                          Ajustar
+                        </Button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          <p className="text-[11px] text-muted-foreground">
+            Esta é uma sugestão informativa — nenhuma alocação é alterada automaticamente.
+            {onAbrirAlocacao
+              ? " Use “Ajustar” para abrir a alocação e editar o percentual ou período manualmente."
+              : ""}
+          </p>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Fechar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
