@@ -13,7 +13,7 @@ import { resolverTexto, type ContextoDados, type Linha } from "@/modules/documen
  */
 
 const PX_TO_MM = 25.4 / 96;
-const ORDEM: Banda["tipo"][] = ["cabecalho", "cabecalhoPagina", "detalhe", "rodapePagina", "rodape"];
+const ORDEM: Banda["tipo"][] = ["cabecalho", "cabecalhoPagina", "grupoCabecalho", "detalhe", "grupoRodape", "rodapePagina", "rodape"];
 
 function mm(px: number): number {
   return +(px * PX_TO_MM).toFixed(3);

@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
+import { enviarEmail, smtpConfigurado } from "@/lib/mail";
 import { resolverFonte } from "@/modules/documentos/fontes";
 import { podeVerFonte } from "@/modules/documentos/fontes-perm";
 import { CHAVE_FONTES } from "@/modules/documentos/fontes-config";
@@ -301,3 +303,93 @@ export const registrarDocumentoGerado = defineAction(
     return { id: g.id, numero: numeroFmt };
   },
 );
+
+const enviarEmailSchema = z.object({
+  modeloId: z.string().min(1),
+  params: z.record(z.string(), z.string()),
+  para: z.string().email("E-mail inválido."),
+  assunto: z.string().optional(),
+  mensagem: z.string().optional(),
+});
+
+/**
+ * Gera o PDF do documento (mesma lógica da rota /api/documentos/[id]/pdf) e o
+ * envia por e-mail como anexo. A geração reaproveita a rota de PDF via fetch
+ * server-side à URL interna do app, repassando o cookie de sessão atual.
+ */
+export const enviarDocumentoPorEmail = defineAction(
+  {
+    modulo: "documentos",
+    recurso: "documentos",
+    permissao: "ver",
+    acao: "enviar-documento-email",
+    entidade: "DocumentoModelo",
+    schema: enviarEmailSchema,
+    entidadeId: (d) => (d as { modeloId: string }).modeloId,
+    // Não persistir destinatário/mensagem em texto claro na auditoria além do necessário.
+    redact: ["mensagem"],
+  },
+  async (i, { user }) => {
+    if (!process.env.CHROME_PATH) {
+      throw new ActionError("Geração de PDF indisponível: CHROME_PATH não configurado.");
+    }
+    if (!smtpConfigurado()) {
+      throw new ActionError("Envio de e-mail indisponível: SMTP não configurado.");
+    }
+
+    const modelo = await prisma.documentoModelo.findUnique({
+      where: { id: i.modeloId },
+      select: { nome: true, fonte: true },
+    });
+    if (!modelo) throw new ActionError("Modelo não encontrado.");
+    // Mesma checagem de segurança da geração: não vazar fonte que o usuário não pode ver.
+    if (modelo.fonte && !(await podeVerFonte(user.role, modelo.fonte))) {
+      throw new ActionError("Sem permissão para a fonte de dados deste modelo.");
+    }
+
+    // Repassa o cookie de sessão para a rota de PDF reconhecer o mesmo usuário.
+    const cookie = (await headers()).get("cookie") ?? "";
+    const port = process.env.PORT || "3000";
+    const qs = new URLSearchParams(i.params).toString();
+    const pdfUrl = `http://localhost:${port}/api/documentos/${i.modeloId}/pdf${qs ? `?${qs}` : ""}`;
+
+    const resp = await fetch(pdfUrl, {
+      headers: cookie ? { cookie } : undefined,
+      cache: "no-store",
+    });
+    if (resp.status === 503) {
+      throw new ActionError("Geração de PDF indisponível: CHROME_PATH não configurado.");
+    }
+    if (!resp.ok) {
+      throw new ActionError("Falha ao gerar o PDF do documento.");
+    }
+    const pdf = Buffer.from(await resp.arrayBuffer());
+
+    const assunto = i.assunto?.trim() || `Documento: ${modelo.nome}`;
+    const html = i.mensagem?.trim()
+      ? `<p>${escapeHtml(i.mensagem.trim()).replace(/\n/g, "<br>")}</p>`
+      : `<p>Segue em anexo o documento <strong>${escapeHtml(modelo.nome)}</strong>.</p>`;
+
+    const enviado = await enviarEmail({
+      to: i.para,
+      subject: assunto,
+      html,
+      attachments: [
+        { filename: `${modelo.nome}.pdf`, content: pdf, contentType: "application/pdf" },
+      ],
+    });
+    if (!enviado) throw new ActionError("Não foi possível enviar o e-mail.");
+
+    return { para: i.para };
+  },
+);
+
+/** Escapa HTML para uso seguro no corpo do e-mail. */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}

@@ -22,11 +22,19 @@ export function smtpConfigurado(): boolean {
   return !!process.env.SMTP_HOST;
 }
 
+/** Anexo de e-mail (formato aceito pelo nodemailer). */
+export type EmailAnexo = {
+  filename: string;
+  content: Buffer;
+  contentType?: string;
+};
+
 /** Envia e-mail. Retorna false se SMTP não configurado ou falha. */
 export async function enviarEmail(opts: {
   to: string;
   subject: string;
   html: string;
+  attachments?: EmailAnexo[];
 }): Promise<boolean> {
   const t = getTransporter();
   if (!t) return false;
@@ -36,6 +44,7 @@ export async function enviarEmail(opts: {
       to: opts.to,
       subject: opts.subject,
       html: opts.html,
+      attachments: opts.attachments,
     });
     return true;
   } catch (err) {

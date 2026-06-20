@@ -39,6 +39,21 @@ export function Canvas({
 }) {
   const larguraUtil = schema.pagina.largura - schema.pagina.margem.esquerda - schema.pagina.margem.direita;
 
+  // Ordem visual das bandas (report designer): grupoCabecalho antes da detalhe,
+  // grupoRodape logo depois. Mantém o mesmo empilhamento do render final.
+  const ordem: Banda["tipo"][] = [
+    "cabecalho",
+    "cabecalhoPagina",
+    "grupoCabecalho",
+    "detalhe",
+    "grupoRodape",
+    "rodapePagina",
+    "rodape",
+  ];
+  const bandasOrdenadas = [...schema.bandas].sort(
+    (a, b) => ordem.indexOf(a.tipo) - ordem.indexOf(b.tipo),
+  );
+
   return (
     <div className="flex-1 overflow-auto bg-muted/40 p-6">
       <div
@@ -58,7 +73,7 @@ export function Canvas({
           {/* margem do topo */}
           <div style={{ height: schema.pagina.margem.topo }} className="border-b border-dashed border-neutral-200" />
           <div style={{ paddingLeft: schema.pagina.margem.esquerda, paddingRight: schema.pagina.margem.direita }}>
-            {schema.bandas.map((banda) => (
+            {bandasOrdenadas.map((banda) => (
               <BandaView
                 key={banda.id}
                 banda={banda}

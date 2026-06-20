@@ -59,7 +59,9 @@ export function margemAbntPx(): { topo: number; direita: number; baixo: number; 
 export const TIPOS_BANDA = [
   "cabecalho",
   "cabecalhoPagina",
+  "grupoCabecalho",
   "detalhe",
+  "grupoRodape",
   "rodapePagina",
   "rodape",
 ] as const;
@@ -68,7 +70,9 @@ export type TipoBanda = (typeof TIPOS_BANDA)[number];
 export const BANDA_LABEL: Record<TipoBanda, string> = {
   cabecalho: "Cabeçalho do relatório",
   cabecalhoPagina: "Cabeçalho de colunas",
+  grupoCabecalho: "Cabeçalho de grupo",
   detalhe: "Detalhe (repete por linha)",
+  grupoRodape: "Rodapé de grupo (subtotal)",
   rodapePagina: "Rodapé de página",
   rodape: "Rodapé do relatório",
 };
@@ -160,6 +164,14 @@ export const docSchemaZ = z.object({
       .optional(),
   }),
   bandas: z.array(bandaSchema),
+  /**
+   * Agrupamento da coleção (linhas) por uma chave (ex.: "Disciplina"/"Categoria").
+   * Quando definido E houver banda "detalhe", as linhas são agrupadas e cada grupo
+   * renderiza: grupoCabecalho → linhas (detalhe) → grupoRodape (subtotais).
+   * Modelos antigos (sem o campo) ou "" = sem agrupamento (comportamento original).
+   * Opcional p/ retrocompat: literais/JSON antigos sem a chave continuam válidos.
+   */
+  agruparPor: z.string().optional(),
 });
 export type DocSchema = z.infer<typeof docSchemaZ>;
 

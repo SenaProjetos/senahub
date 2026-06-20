@@ -70,7 +70,12 @@ export function Propriedades({
 
       {selecao.tipo !== "multi" && !banda && !elemento && (
         <>
-          <PropsPagina schema={schema} dispatch={dispatch} />
+          <PropsPagina
+            schema={schema}
+            fonte={fonte}
+            fonteColunas={fonteColunas}
+            dispatch={dispatch}
+          />
           <p className="border-t pt-3 text-xs text-muted-foreground">
             Selecione uma banda (faixa à esquerda) ou um elemento no canvas. Use a paleta para
             adicionar elementos à banda selecionada.
@@ -97,12 +102,31 @@ export function Propriedades({
 
 function PropsPagina({
   schema,
+  fonte,
+  fonteColunas = [],
   dispatch,
 }: {
   schema: DocSchema;
+  fonte: string;
+  fonteColunas?: string[];
   dispatch: Dispatch<EditorAction>;
 }) {
   const pg = schema.pagina;
+
+  // Chaves da coleção (linhas) candidatas a agrupamento: campos da coleção da
+  // fonte de sistema, ou colunas do dataset. Lista pode estar vazia (sem fonte).
+  const def = fonteDef(fonte);
+  const chavesColecao: string[] = def?.colecao
+    ? def.colecao.campos.map((c) => c.chave)
+    : fonte.startsWith("dataset:")
+      ? fonteColunas
+      : [];
+  const agruparPor = schema.agruparPor ?? "";
+  // Mantém visível um valor salvo que não esteja na lista (ex.: fonte trocada).
+  const opcoesAgrupar =
+    agruparPor && !chavesColecao.includes(agruparPor)
+      ? [agruparPor, ...chavesColecao]
+      : chavesColecao;
   const aplicarFormato = (formato: string, orientacao: Orientacao) => {
     const dim = dimensoesPx(formato, orientacao);
     dispatch({
@@ -222,6 +246,43 @@ function PropsPagina({
           />
         </Campo>
       </div>
+
+      <div className="space-y-2 border-t pt-3">
+        <p className="text-xs font-semibold text-muted-foreground">Agrupamento (relatório)</p>
+        <Campo label="Agrupar linhas por">
+          {opcoesAgrupar.length > 0 ? (
+            <Select
+              value={agruparPor || "__none"}
+              onValueChange={(v) =>
+                dispatch({ t: "setAgrupamento", campo: !v || v === "__none" ? "" : v })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Sem agrupamento" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none">Sem agrupamento</SelectItem>
+                {opcoesAgrupar.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              value={agruparPor}
+              onChange={(e) => dispatch({ t: "setAgrupamento", campo: e.target.value })}
+              placeholder="Ex.: Disciplina (vazio = sem agrupamento)"
+            />
+          )}
+        </Campo>
+        <p className="text-[11px] text-muted-foreground">
+          Com agrupamento, adicione as bandas “Cabeçalho de grupo” e “Rodapé de grupo
+          (subtotal)”. Use o token <code>[Grupo]</code> para o valor do grupo e{" "}
+          <code>[Sum(Valor)]</code> no rodapé do grupo para subtotais por grupo.
+        </p>
+      </div>
     </div>
   );
 }
@@ -256,6 +317,18 @@ function PropsBanda({
         <p className="text-xs text-muted-foreground">
           Esta banda repete uma vez por linha da coleção da fonte de dados (ex.: disciplinas do
           projeto). Monte aqui a “linha da tabela”.
+        </p>
+      )}
+      {banda.tipo === "grupoCabecalho" && (
+        <p className="text-xs text-muted-foreground">
+          Aparece uma vez no início de cada grupo (precisa de “Agrupar por” na Página). Use o
+          token <code>[Grupo]</code> para o título do grupo.
+        </p>
+      )}
+      {banda.tipo === "grupoRodape" && (
+        <p className="text-xs text-muted-foreground">
+          Aparece uma vez no fim de cada grupo. Agregados como <code>[Sum(Valor)]</code> somam
+          apenas as linhas daquele grupo (subtotal).
         </p>
       )}
       {schema.bandas.length > 1 && (
@@ -303,8 +376,9 @@ function PropsElemento({
             }))
           : []),
         ...(def.colecao
-          ? [{ valor: `[Sum(${def.colecao.campos.find((c) => /valor/i.test(c.chave))?.chave ?? def.colecao.campos[0].chave}):c2]`, label: "Soma da coleção (R$)" }]
+          ? [{ valor: `[Sum(${def.colecao.campos.find((c) => /valor/i.test(c.chave))?.chave ?? def.colecao.campos[0].chave}):c2]`, label: "Soma da coleção / subtotal (R$)" }]
           : []),
+        { valor: "[Grupo]", label: "Valor do grupo (banda de grupo)" },
         { valor: "[Hoje]", label: "Data de hoje" },
         { valor: "[Pagina] de [Paginas]", label: "Página X de Y" },
       ]
@@ -314,6 +388,7 @@ function PropsElemento({
           { valor: "[TotalLinhas]", label: "Total de linhas" },
           ...fonteColunas.map((c) => ({ valor: `[${c}]`, label: `Coluna · ${c}` })),
           { valor: "[Count()]", label: "Quantidade de linhas (Count)" },
+          { valor: "[Grupo]", label: "Valor do grupo (banda de grupo)" },
           { valor: "[Hoje]", label: "Data de hoje" },
           { valor: "[Pagina] de [Paginas]", label: "Página X de Y" },
         ]

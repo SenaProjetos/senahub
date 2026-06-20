@@ -44,6 +44,7 @@ export type EditorAction =
   | { t: "duplicarElemento"; bandaId: string; elementoId: string; novoId: string }
   | { t: "alturaBanda"; bandaId: string; altura: number; commit: boolean }
   | { t: "updatePagina"; patch: Partial<DocSchema["pagina"]> }
+  | { t: "setAgrupamento"; campo: string }
   | { t: "addBanda"; tipo: TipoBanda; id: string }
   | { t: "removeBanda"; bandaId: string }
   | { t: "undo" }
@@ -183,6 +184,11 @@ export function editorReducer(state: EditorState, a: EditorAction): EditorState 
           margem: { ...state.schema.pagina.margem, ...(a.patch.margem ?? {}) },
         },
       };
+      return push(state, novo);
+    }
+
+    case "setAgrupamento": {
+      const novo: DocSchema = { ...state.schema, agruparPor: a.campo };
       return push(state, novo);
     }
 

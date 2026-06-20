@@ -4,8 +4,11 @@
  * Sintaxe nos textos dos elementos:
  *   [Campo]               → valor escalar ou da linha atual (banda detalhe)
  *   [Fonte.Campo]         → idem, com prefixo da fonte (equivalente)
- *   [Sum(Campo)]          → agregado sobre as linhas da coleção
+ *   [Sum(Campo)]          → agregado sobre as linhas da coleção (em bandas de
+ *                           grupo: subtotal das linhas DAQUELE grupo)
  *   [Count()] [Avg(X)] [Min(X)] [Max(X)]
+ *   [Grupo]               → valor da chave de agrupamento do grupo corrente
+ *                           (bandas grupoCabecalho/grupoRodape)
  *   [Pagina] [Paginas] [Hoje]
  *   Sufixo de formato após ':' → [Valor:c2] [Data:d] [Pct:p1] [Qtd:n0]
  *     c2=moeda BRL · d=data pt-BR · p0/p1/p2=percentual · n0/n2=número
@@ -19,6 +22,11 @@ export type ContextoDados = {
   linhas: Linha[];
   /** linha atual (banda detalhe); undefined fora do detalhe */
   linha?: Linha;
+  /**
+   * Valor da chave de agrupamento do grupo corrente. Definido apenas nas bandas
+   * grupoCabecalho/grupoRodape (e nas linhas detalhe de um grupo). Resolve [Grupo].
+   */
+  grupo?: string;
   pagina?: number;
   paginas?: number;
 };
@@ -99,6 +107,7 @@ export function resolverToken(token: string, ctx: ContextoDados): string {
 
   if (/^pagina$/i.test(expr)) return String(ctx.pagina ?? 1);
   if (/^paginas$/i.test(expr)) return String(ctx.paginas ?? 1);
+  if (/^grupo$/i.test(expr)) return formatar(ctx.grupo ?? "", fmt);
   if (/^hoje$/i.test(expr)) return formatar(new Date(), fmt ?? "d");
 
   const agg = expr.match(RE_AGG);
