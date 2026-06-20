@@ -5,6 +5,8 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { resolverFonte } from "@/modules/documentos/fontes";
+import { CHAVE_FONTES } from "@/modules/documentos/fontes-config";
+import { FONTES_TIPOGRAFICAS } from "@/modules/documentos/fontes-tipograficas";
 import {
   criarModeloSchema,
   salvarModeloSchema,
@@ -162,6 +164,24 @@ export const salvarPadraoDocumento = defineAction(
     });
     revalidatePath("/configuracoes/documentos");
     return { fonte: i.fonte };
+  },
+);
+
+const fontesSchema = z.object({ ids: z.array(z.string()) });
+
+/** Define quais famílias do catálogo ficam habilitadas no editor. Requer documentos:gerir. */
+export const salvarFontesHabilitadas = defineAction(
+  { ...base, acao: "salvar-fontes", entidade: "ConfigSistema", schema: fontesSchema },
+  async (i) => {
+    // Mantém só ids válidos do catálogo, na ordem do catálogo (canônico).
+    const validos = FONTES_TIPOGRAFICAS.filter((f) => i.ids.includes(f.id)).map((f) => f.id);
+    await prisma.configSistema.upsert({
+      where: { chave: CHAVE_FONTES },
+      create: { chave: CHAVE_FONTES, valor: validos },
+      update: { valor: validos },
+    });
+    revalidatePath("/configuracoes/documentos");
+    return { ids: validos };
   },
 );
 

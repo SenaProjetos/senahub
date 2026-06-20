@@ -33,6 +33,7 @@ import {
   type TipoElemento,
 } from "@/modules/documentos/schema";
 import { FONTES } from "@/modules/documentos/fontes-meta";
+import type { FonteTipografica } from "@/modules/documentos/fontes-tipograficas";
 import { salvarModelo, restaurarVersao } from "@/modules/documentos/actions";
 import { editorReducer, type EditorState } from "./estado";
 import { Canvas } from "./canvas";
@@ -90,6 +91,7 @@ export function DocEditor({
   tipoInicial,
   fonteInicial,
   schemaInicial,
+  fontesHabilitadas,
   versoes,
 }: {
   modeloId: string;
@@ -97,6 +99,7 @@ export function DocEditor({
   tipoInicial: TipoDoc;
   fonteInicial: string;
   schemaInicial: DocSchema;
+  fontesHabilitadas: FonteTipografica[];
   versoes: VersaoT[];
 }) {
   const router = useRouter();
@@ -288,7 +291,13 @@ export function DocEditor({
 
         <Canvas schema={state.schema} selecao={state.selecao} zoom={zoom} dispatch={dispatch} />
 
-        <Propriedades schema={state.schema} selecao={state.selecao} fonte={fonte} dispatch={dispatch} />
+        <Propriedades
+          schema={state.schema}
+          selecao={state.selecao}
+          fonte={fonte}
+          fontesHabilitadas={fontesHabilitadas}
+          dispatch={dispatch}
+        />
       </div>
     </div>
   );

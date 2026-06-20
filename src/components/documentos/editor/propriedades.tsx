@@ -1,7 +1,8 @@
 "use client";
 
-import type { Dispatch } from "react";
-import { Trash2, Copy } from "lucide-react";
+import { useRef, useState, type Dispatch } from "react";
+import { toast } from "sonner";
+import { Trash2, Copy, Upload, Loader2 } from "lucide-react";
 import {
   BANDA_LABEL,
   FORMATOS_FOLHA,
@@ -15,7 +16,7 @@ import {
   type Orientacao,
 } from "@/modules/documentos/schema";
 import { fonteDef } from "@/modules/documentos/fontes-meta";
-import { FONTES_TIPOGRAFICAS } from "@/modules/documentos/fontes-tipograficas";
+import type { FonteTipografica } from "@/modules/documentos/fontes-tipograficas";
 import type { EditorAction, Selecao } from "./estado";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,11 +33,13 @@ export function Propriedades({
   schema,
   selecao,
   fonte,
+  fontesHabilitadas,
   dispatch,
 }: {
   schema: DocSchema;
   selecao: Selecao;
   fonte: string;
+  fontesHabilitadas: FonteTipografica[];
   dispatch: Dispatch<EditorAction>;
 }) {
   const banda =
@@ -62,7 +65,13 @@ export function Propriedades({
 
       {banda && !elemento && <PropsBanda banda={banda} schema={schema} dispatch={dispatch} />}
       {banda && elemento && (
-        <PropsElemento bandaId={banda.id} el={elemento} fonte={fonte} dispatch={dispatch} />
+        <PropsElemento
+          bandaId={banda.id}
+          el={elemento}
+          fonte={fonte}
+          fontesHabilitadas={fontesHabilitadas}
+          dispatch={dispatch}
+        />
       )}
     </aside>
   );
@@ -217,11 +226,13 @@ function PropsElemento({
   bandaId,
   el,
   fonte,
+  fontesHabilitadas,
   dispatch,
 }: {
   bandaId: string;
   el: Elemento;
   fonte: string;
+  fontesHabilitadas: FonteTipografica[];
   dispatch: Dispatch<EditorAction>;
 }) {
   const def = fonteDef(fonte);
@@ -285,14 +296,11 @@ function PropsElemento({
       )}
 
       {el.tipo === "imagem" && (
-        <Campo label="URL / caminho da imagem">
-          <Input
-            value={el.texto}
-            onChange={(e) => upd({ texto: e.target.value }, false)}
-            onBlur={(e) => upd({ texto: e.target.value })}
-            placeholder="/MARCA/logo_completa_light.svg"
-          />
-        </Campo>
+        <ImagemElemento
+          texto={el.texto}
+          onTextoDigitando={(v) => upd({ texto: v }, false)}
+          onTextoCommit={(v) => upd({ texto: v })}
+        />
       )}
 
       <div className="grid grid-cols-2 gap-2">
@@ -324,7 +332,14 @@ function PropsElemento({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__inherit">Herdar do documento</SelectItem>
-                {FONTES_TIPOGRAFICAS.map((f) => (
+                {/* Fonte selecionada mas não habilitada: mantém visível p/ não perder a escolha. */}
+                {el.estilo.fontFamily &&
+                  !fontesHabilitadas.some((f) => f.id === el.estilo.fontFamily) && (
+                    <SelectItem value={el.estilo.fontFamily}>
+                      {el.estilo.fontFamily} (desabilitada)
+                    </SelectItem>
+                  )}
+                {fontesHabilitadas.map((f) => (
                   <SelectItem key={f.id} value={f.id}>
                     {f.label}
                   </SelectItem>
@@ -465,6 +480,83 @@ function PropsElemento({
           <Trash2 className="size-3.5" /> Excluir
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** Bloco de imagem: caminho manual + upload (lib/storage) + miniatura. */
+function ImagemElemento({
+  texto,
+  onTextoDigitando,
+  onTextoCommit,
+}: {
+  texto: string;
+  onTextoDigitando: (v: string) => void;
+  onTextoCommit: (v: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [enviando, setEnviando] = useState(false);
+
+  async function enviar(file: File) {
+    setEnviando(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/documentos/imagens", { method: "POST", body: form });
+      const json = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+      if (!res.ok || !json.url) {
+        toast.error(json.error ?? "Falha ao enviar a imagem.");
+        return;
+      }
+      onTextoCommit(json.url);
+      toast.success("Imagem enviada.");
+    } catch {
+      toast.error("Falha ao enviar a imagem.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <Campo label="URL / caminho da imagem">
+        <Input
+          value={texto}
+          onChange={(e) => onTextoDigitando(e.target.value)}
+          onBlur={(e) => onTextoCommit(e.target.value)}
+          placeholder="/MARCA/logo_completa_light.svg"
+        />
+      </Campo>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) enviar(f);
+          e.target.value = "";
+        }}
+      />
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full"
+        disabled={enviando}
+        onClick={() => inputRef.current?.click()}
+      >
+        {enviando ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
+        {enviando ? "Enviando…" : "Enviar imagem"}
+      </Button>
+      {texto && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={texto}
+          alt="Pré-visualização"
+          className="max-h-24 w-full rounded-sm border bg-muted object-contain p-1"
+        />
+      )}
+      <p className="text-[11px] text-muted-foreground">PNG, JPG, WEBP ou SVG (máx 8 MB).</p>
     </div>
   );
 }
