@@ -4,12 +4,18 @@ import type { Dispatch } from "react";
 import { Trash2, Copy } from "lucide-react";
 import {
   BANDA_LABEL,
+  FORMATOS_FOLHA,
+  ORIENTACOES,
+  dimensoesPx,
+  margemAbntPx,
   novoId,
   type Banda,
   type DocSchema,
   type Elemento,
+  type Orientacao,
 } from "@/modules/documentos/schema";
 import { fonteDef } from "@/modules/documentos/fontes-meta";
+import { FONTES_TIPOGRAFICAS } from "@/modules/documentos/fontes-tipograficas";
 import type { EditorAction, Selecao } from "./estado";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,11 +50,14 @@ export function Propriedades({
     <aside className="w-72 shrink-0 space-y-4 overflow-y-auto border-l bg-card p-4">
       <h3 className="text-sm font-bold">Propriedades</h3>
 
-      {!banda && (
-        <p className="text-xs text-muted-foreground">
-          Selecione uma banda (faixa à esquerda) ou um elemento no canvas. Use a paleta para
-          adicionar elementos à banda selecionada.
-        </p>
+      {!banda && !elemento && (
+        <>
+          <PropsPagina schema={schema} dispatch={dispatch} />
+          <p className="border-t pt-3 text-xs text-muted-foreground">
+            Selecione uma banda (faixa à esquerda) ou um elemento no canvas. Use a paleta para
+            adicionar elementos à banda selecionada.
+          </p>
+        </>
       )}
 
       {banda && !elemento && <PropsBanda banda={banda} schema={schema} dispatch={dispatch} />}
@@ -56,6 +65,106 @@ export function Propriedades({
         <PropsElemento bandaId={banda.id} el={elemento} fonte={fonte} dispatch={dispatch} />
       )}
     </aside>
+  );
+}
+
+function PropsPagina({
+  schema,
+  dispatch,
+}: {
+  schema: DocSchema;
+  dispatch: Dispatch<EditorAction>;
+}) {
+  const pg = schema.pagina;
+  const aplicarFormato = (formato: string, orientacao: Orientacao) => {
+    const dim = dimensoesPx(formato, orientacao);
+    dispatch({
+      t: "updatePagina",
+      patch: { formato, orientacao, largura: dim.largura, altura: dim.altura },
+    });
+  };
+  const updMargem = (lado: keyof DocSchema["pagina"]["margem"], v: number) =>
+    dispatch({ t: "updatePagina", patch: { margem: { ...pg.margem, [lado]: Math.max(0, v) } } });
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold text-muted-foreground">Página</p>
+      <Campo label="Formato da folha">
+        <Select
+          value={FORMATOS_FOLHA[pg.formato] ? pg.formato : "A4"}
+          onValueChange={(v) => v && aplicarFormato(v, pg.orientacao)}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(FORMATOS_FOLHA).map(([id, f]) => (
+              <SelectItem key={id} value={id}>
+                {f.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Campo>
+      <Campo label="Orientação">
+        <Select
+          value={pg.orientacao}
+          onValueChange={(v) => v && aplicarFormato(pg.formato, v as Orientacao)}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ORIENTACOES.map((o) => (
+              <SelectItem key={o} value={o}>
+                {o === "retrato" ? "Retrato" : "Paisagem"}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Campo>
+      <p className="text-[11px] text-muted-foreground">
+        {pg.largura} × {pg.altura} px @96dpi
+      </p>
+
+      <div className="grid grid-cols-2 gap-2">
+        <Campo label="Margem topo">
+          <Input
+            type="number"
+            value={pg.margem.topo}
+            onChange={(e) => updMargem("topo", Number(e.target.value) || 0)}
+          />
+        </Campo>
+        <Campo label="Margem direita">
+          <Input
+            type="number"
+            value={pg.margem.direita}
+            onChange={(e) => updMargem("direita", Number(e.target.value) || 0)}
+          />
+        </Campo>
+        <Campo label="Margem baixo">
+          <Input
+            type="number"
+            value={pg.margem.baixo}
+            onChange={(e) => updMargem("baixo", Number(e.target.value) || 0)}
+          />
+        </Campo>
+        <Campo label="Margem esquerda">
+          <Input
+            type="number"
+            value={pg.margem.esquerda}
+            onChange={(e) => updMargem("esquerda", Number(e.target.value) || 0)}
+          />
+        </Campo>
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => dispatch({ t: "updatePagina", patch: { margem: margemAbntPx() } })}
+      >
+        Margens ABNT
+      </Button>
+    </div>
   );
 }
 
@@ -142,11 +251,14 @@ function PropsElemento({
     <div className="space-y-3">
       <p className="text-xs font-semibold capitalize text-muted-foreground">{el.tipo}</p>
 
-      {(el.tipo === "label" || el.tipo === "campo") && (
+      {(el.tipo === "label" ||
+        el.tipo === "campo" ||
+        el.tipo === "paragrafo" ||
+        el.tipo === "assinatura") && (
         <>
           <Campo label="Texto">
             <textarea
-              rows={3}
+              rows={el.tipo === "paragrafo" ? 6 : 3}
               className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
               value={el.texto}
               onChange={(e) => upd({ texto: e.target.value }, false)}
@@ -200,6 +312,26 @@ function PropsElemento({
 
       {el.tipo !== "linha" && el.tipo !== "imagem" && (
         <>
+          <Campo label="Família de fonte">
+            <Select
+              value={el.estilo.fontFamily || "__inherit"}
+              onValueChange={(v) =>
+                updEstilo({ fontFamily: !v || v === "__inherit" ? "" : v })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__inherit">Herdar do documento</SelectItem>
+                {FONTES_TIPOGRAFICAS.map((f) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    {f.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Campo>
           <div className="grid grid-cols-2 gap-2">
             <Campo label="Fonte (px)">
               <Input
@@ -274,6 +406,29 @@ function PropsElemento({
           />
         </Campo>
       </div>
+
+      {(el.tipo === "linha" || el.tipo === "retangulo") && (
+        <Campo label="Estilo de linha">
+          <Select
+            value={el.estilo.borderStyle}
+            onValueChange={(v) =>
+              v &&
+              updEstilo({
+                borderStyle: v as "solida" | "tracejada" | "pontilhada",
+              })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="solida">Sólida</SelectItem>
+              <SelectItem value="tracejada">Tracejada</SelectItem>
+              <SelectItem value="pontilhada">Pontilhada</SelectItem>
+            </SelectContent>
+          </Select>
+        </Campo>
+      )}
 
       <div className="flex items-center gap-4 text-sm">
         <label className="flex items-center gap-1.5">

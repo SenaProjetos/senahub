@@ -326,6 +326,8 @@ function modeloExemploProjeto(): DocSchema {
     borderW: 0,
     borderColor: "#1C2D58",
     radius: 0,
+    fontFamily: "",
+    borderStyle: "solida" as const,
     ...extra,
   });
   const el = (

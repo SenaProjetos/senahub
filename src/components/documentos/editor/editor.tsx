@@ -12,6 +12,8 @@ import {
   Redo2,
   Type,
   Braces,
+  Pilcrow,
+  PenLine,
   Minus,
   Square,
   Image as ImageIcon,
@@ -75,6 +77,8 @@ const TIPOS_DOC: { v: TipoDoc; l: string }[] = [
 const PALETA: { tipo: TipoElemento; label: string; icone: React.ElementType }[] = [
   { tipo: "label", label: "Texto / título", icone: Type },
   { tipo: "campo", label: "Campo de dados", icone: Braces },
+  { tipo: "paragrafo", label: "Parágrafo (multilinha)", icone: Pilcrow },
+  { tipo: "assinatura", label: "Assinatura", icone: PenLine },
   { tipo: "linha", label: "Linha", icone: Minus },
   { tipo: "retangulo", label: "Retângulo", icone: Square },
   { tipo: "imagem", label: "Imagem / logo", icone: ImageIcon },

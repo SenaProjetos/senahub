@@ -26,6 +26,7 @@ export type EditorAction =
   | { t: "removeElemento"; bandaId: string; elementoId: string }
   | { t: "duplicarElemento"; bandaId: string; elementoId: string; novoId: string }
   | { t: "alturaBanda"; bandaId: string; altura: number; commit: boolean }
+  | { t: "updatePagina"; patch: Partial<DocSchema["pagina"]> }
   | { t: "addBanda"; tipo: TipoBanda; id: string }
   | { t: "removeBanda"; bandaId: string }
   | { t: "undo" }
@@ -102,6 +103,18 @@ export function editorReducer(state: EditorState, a: EditorAction): EditorState 
     case "alturaBanda": {
       const novo = mapBanda(state.schema, a.bandaId, (b) => ({ ...b, altura: a.altura }));
       return a.commit ? push(state, novo) : live(state, novo);
+    }
+
+    case "updatePagina": {
+      const novo: DocSchema = {
+        ...state.schema,
+        pagina: {
+          ...state.schema.pagina,
+          ...a.patch,
+          margem: { ...state.schema.pagina.margem, ...(a.patch.margem ?? {}) },
+        },
+      };
+      return push(state, novo);
     }
 
     case "addBanda": {
