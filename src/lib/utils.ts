@@ -20,6 +20,11 @@ export function brl(v: number): string {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 }
 
+/** Moeda BRL sem centavos: R$ 81.000 (p/ KPIs/dashboards). */
+export function brlInteiro(v: number): string {
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })
+}
+
 /** Data: 07/06/2026 (vazio se inválida). */
 export function formatarData(d: Date | string | null | undefined): string {
   const date = paraData(d)

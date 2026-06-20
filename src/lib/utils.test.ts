@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { brl, formatarData, formatarDataHora, formatarMesCurto, formatarDiaMes } from "@/lib/utils";
+import { brl, brlInteiro, formatarData, formatarDataHora, formatarMesCurto, formatarDiaMes } from "@/lib/utils";
 
 // normaliza espaço estreito/insecável que o Intl usa em pt-BR
 const norm = (s: string) => s.replace(/ | /g, " ");
@@ -9,6 +9,13 @@ describe("brl", () => {
     expect(norm(brl(81000))).toBe("R$ 81.000,00");
     expect(norm(brl(1234.5))).toBe("R$ 1.234,50");
     expect(norm(brl(0))).toBe("R$ 0,00");
+  });
+});
+
+describe("brlInteiro", () => {
+  it("formata real sem centavos", () => {
+    expect(norm(brlInteiro(81000))).toBe("R$ 81.000");
+    expect(norm(brlInteiro(1234.9))).toBe("R$ 1.235");
   });
 });
 
