@@ -5,12 +5,13 @@ import { formatarDiaMes } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Flag, CheckCheck, ArrowLeft, ZoomIn, ZoomOut, ListChecks } from "lucide-react";
+import { Plus, Flag, CheckCheck, ArrowLeft, ZoomIn, ZoomOut, Rocket } from "lucide-react";
 import { definirLinhaBase, aplicarAoProjeto } from "@/modules/planejamento/actions";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Gantt, GANTT_PX_DEFAULT } from "@/components/planejamento/gantt";
 import { EapDialog } from "@/components/planejamento/eap-dialog";
 
@@ -38,6 +39,7 @@ export function EapWorkspace({
   podeGerir: boolean;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, start] = useTransition();
   const [px, setPx] = useState(GANTT_PX_DEFAULT);
   const [dialog, setDialog] = useState<{ open: boolean; tarefa: EapTarefaDTO | null }>({
@@ -50,6 +52,7 @@ export function EapWorkspace({
     setDialog({ open: true, tarefa });
   };
   const selecionar = (id: string) => abrir(tarefas.find((t) => t.id === id) ?? null);
+  const vazio = tarefas.length === 0;
 
   function linhaBase() {
     start(async () => {
@@ -61,7 +64,36 @@ export function EapWorkspace({
     });
   }
 
-  function aplicar() {
+  // Prévia do que "Aplicar ao projeto" vai gravar: por disciplina vinculada,
+  // o prazo passa a ser o MAIOR fimPrevisto entre as tarefas dessa disciplina.
+  function previaAplicacao() {
+    const porDisciplina = new Map<string, { nome: string; prazo: string }>();
+    for (const t of tarefas) {
+      if (!t.disciplinaId) continue;
+      const atual = porDisciplina.get(t.disciplinaId);
+      if (!atual || t.fimPrevisto > atual.prazo) {
+        porDisciplina.set(t.disciplinaId, {
+          nome: t.disciplinaNome ?? "Disciplina",
+          prazo: t.fimPrevisto,
+        });
+      }
+    }
+    return [...porDisciplina.values()].sort((a, b) => a.nome.localeCompare(b.nome));
+  }
+
+  async function aplicar() {
+    const previa = previaAplicacao();
+    if (previa.length === 0) {
+      toast.error("Nenhuma tarefa vinculada a disciplina. Vincule disciplinas para aplicar.");
+      return;
+    }
+    const linhas = previa.map((d) => `${d.nome} → ${fmt(d.prazo)}`).join("; ");
+    const ok = await confirm({
+      title: `Aplicar prazos a ${previa.length} disciplina(s)?`,
+      description: `Os prazos das disciplinas vinculadas serão sobrescritos pelo fim previsto da EAP: ${linhas}.`,
+      confirmLabel: "Aplicar",
+    });
+    if (!ok) return;
     start(async () => {
       const r = await aplicarAoProjeto({ projetoId: projeto.id });
       if (r.ok) {
@@ -103,93 +135,105 @@ export function EapWorkspace({
         )}
       </div>
 
-      <div className="flex items-center justify-end gap-1">
-        <span className="mr-1 text-xs text-muted-foreground">Zoom</span>
-        <Button size="icon-sm" variant="outline" aria-label="Diminuir zoom" onClick={() => setPx((p) => Math.max(6, p - 4))} disabled={px <= 6}>
-          <ZoomOut className="size-3.5" />
-        </Button>
-        <Button size="icon-sm" variant="outline" aria-label="Aumentar zoom" onClick={() => setPx((p) => Math.min(48, p + 4))} disabled={px >= 48}>
-          <ZoomIn className="size-3.5" />
-        </Button>
-      </div>
-      <Gantt tarefas={tarefas} onSelecionar={podeGerir ? selecionar : undefined} px={px} />
+      {vazio ? (
+        <div className="rounded-sm border border-dashed">
+          <EmptyState
+            icon={Rocket}
+            title="Este projeto ainda não tem planejamento"
+            description={
+              podeGerir
+                ? "Comece criando a primeira tarefa da EAP para montar o cronograma."
+                : "Nenhuma tarefa foi cadastrada ainda."
+            }
+            action={
+              podeGerir ? (
+                <Button onClick={() => abrir(null)}>
+                  <Rocket className="size-3.5" /> Iniciar planejamento
+                </Button>
+              ) : undefined
+            }
+            className="py-14"
+          />
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-end gap-1">
+            <span className="mr-1 text-xs text-muted-foreground">Zoom</span>
+            <Button size="icon-sm" variant="outline" aria-label="Diminuir zoom" onClick={() => setPx((p) => Math.max(6, p - 4))} disabled={px <= 6}>
+              <ZoomOut className="size-3.5" />
+            </Button>
+            <Button size="icon-sm" variant="outline" aria-label="Aumentar zoom" onClick={() => setPx((p) => Math.min(48, p + 4))} disabled={px >= 48}>
+              <ZoomIn className="size-3.5" />
+            </Button>
+          </div>
+          <Gantt tarefas={tarefas} onSelecionar={podeGerir ? selecionar : undefined} px={px} />
 
-      {/* Lista / EAP */}
-      <div className="overflow-x-auto rounded-sm border">
-        <table className="w-full text-sm">
-          <thead className="border-b bg-muted/40 text-left font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2">Tarefa</th>
-              <th className="px-3 py-2">Disciplina</th>
-              <th className="px-3 py-2">Previsto</th>
-              <th className="px-3 py-2">Linha de base</th>
-              <th className="px-3 py-2">Progresso</th>
-              <th className="px-3 py-2 text-right">Desvio</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {tarefas.length === 0 ? (
-              <tr>
-                <td colSpan={6}>
-                  <EmptyState
-                    icon={ListChecks}
-                    title="Nenhuma tarefa"
-                    description={podeGerir ? 'Use "Nova tarefa" para começar.' : undefined}
-                  />
-                </td>
-              </tr>
-            ) : (
-              tarefas.map((t) => {
-                const desvio = diasDesvio(t);
-                return (
-                  <tr
-                    key={t.id}
-                    onClick={() => abrir(t)}
-                    className={podeGerir ? "cursor-pointer hover:bg-muted/40" : ""}
-                  >
-                    <td className="px-3 py-2" style={{ paddingLeft: t.parentId ? 28 : 12 }}>
-                      <span className={t.parentId ? "text-muted-foreground" : "font-medium"}>{t.nome}</span>
-                      {t.predecessoraIds.length > 0 && (
-                        <span className="ml-1 text-[10px] text-warning">↳{t.predecessoraIds.length}</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground">{t.disciplinaNome ?? "—"}</td>
-                    <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">
-                      {fmt(t.inicioPrevisto)} – {fmt(t.fimPrevisto)}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-muted-foreground">
-                      {t.inicioBaseline ? `${fmt(t.inicioBaseline)} – ${fmt(t.fimBaseline)}` : "—"}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-20 overflow-hidden rounded-sm bg-muted">
-                          <div className="h-full bg-primary" style={{ width: `${t.progresso}%` }} />
+          {/* Lista / EAP */}
+          <div className="overflow-x-auto rounded-sm border">
+            <table className="w-full text-sm">
+              <thead className="border-b bg-muted/40 text-left font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2">Tarefa</th>
+                  <th className="px-3 py-2">Disciplina</th>
+                  <th className="px-3 py-2">Previsto</th>
+                  <th className="px-3 py-2">Linha de base</th>
+                  <th className="px-3 py-2">Progresso</th>
+                  <th className="px-3 py-2 text-right">Desvio</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {tarefas.map((t) => {
+                  const desvio = diasDesvio(t);
+                  return (
+                    <tr
+                      key={t.id}
+                      onClick={() => abrir(t)}
+                      className={podeGerir ? "cursor-pointer hover:bg-muted/40" : ""}
+                    >
+                      <td className="px-3 py-2" style={{ paddingLeft: t.parentId ? 28 : 12 }}>
+                        <span className={t.parentId ? "text-muted-foreground" : "font-medium"}>{t.nome}</span>
+                        {t.predecessoraIds.length > 0 && (
+                          <span className="ml-1 text-[10px] text-warning">↳{t.predecessoraIds.length}</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-muted-foreground">{t.disciplinaNome ?? "—"}</td>
+                      <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">
+                        {fmt(t.inicioPrevisto)} – {fmt(t.fimPrevisto)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-muted-foreground">
+                        {t.inicioBaseline ? `${fmt(t.inicioBaseline)} – ${fmt(t.fimBaseline)}` : "—"}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <div className="h-1.5 w-20 overflow-hidden rounded-sm bg-muted">
+                            <div className="h-full bg-primary" style={{ width: `${t.progresso}%` }} />
+                          </div>
+                          <span className="font-mono text-xs text-muted-foreground">{t.progresso}%</span>
                         </div>
-                        <span className="font-mono text-xs text-muted-foreground">{t.progresso}%</span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      {t.fimBaseline == null ? (
-                        <span className="text-muted-foreground">—</span>
-                      ) : desvio > 0 ? (
-                        <Badge variant="outline" className="border-destructive/40 text-destructive">
-                          +{desvio}d
-                        </Badge>
-                      ) : desvio < 0 ? (
-                        <Badge variant="outline" className="border-success/40 text-success">
-                          {desvio}d
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline">no prazo</Badge>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {t.fimBaseline == null ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : desvio > 0 ? (
+                          <Badge variant="outline" className="border-destructive/40 text-destructive">
+                            +{desvio}d
+                          </Badge>
+                        ) : desvio < 0 ? (
+                          <Badge variant="outline" className="border-success/40 text-success">
+                            {desvio}d
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline">no prazo</Badge>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       {podeGerir && (
         <EapDialog

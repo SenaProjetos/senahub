@@ -2,6 +2,7 @@ import { differenceInCalendarDays, addDays, format, startOfMonth, endOfMonth } f
 import { ptBR } from "date-fns/locale";
 import { ListChecks } from "lucide-react";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
+import { calcularCaminhoCritico } from "@/modules/planejamento/caminho-critico";
 import { EmptyState } from "@/components/ui/empty-state";
 
 export const GANTT_PX_DEFAULT = 18; // pixels por dia
@@ -61,8 +62,20 @@ export function Gantt({
   hoje.setHours(0, 0, 0, 0);
   const hojeOffset = hoje >= inicio && hoje <= fim ? offset(hoje) : null;
 
+  // Caminho crítico (CPM): tarefas com folga 0 ganham destaque na barra.
+  const { criticas } = calcularCaminhoCritico(
+    tarefas.map((t) => ({
+      id: t.id,
+      inicioPrevisto: t.inicioPrevisto,
+      fimPrevisto: t.fimPrevisto,
+      predecessoraIds: t.predecessoraIds,
+    })),
+  );
+  const temCritico = tarefas.some((t) => criticas.has(t.id));
+
   return (
-    <div className="overflow-x-auto rounded-sm border">
+    <div className="space-y-1.5">
+      <div className="overflow-x-auto rounded-sm border">
       <div style={{ width: LABEL_W + timelineW }}>
         {/* Cabeçalho de meses */}
         <div className="flex border-b bg-muted/40" style={{ height: 28 }}>
@@ -103,6 +116,7 @@ export function Gantt({
             const bF = t.fimBaseline ? parse(t.fimBaseline) : null;
             const desviado =
               t.fimBaseline != null && differenceInCalendarDays(af, parse(t.fimBaseline)) > 0;
+            const critica = criticas.has(t.id);
             return (
               <div key={t.id} className="flex border-b last:border-b-0" style={{ height: ROW }}>
                 <button
@@ -110,18 +124,29 @@ export function Gantt({
                   onClick={() => onSelecionar?.(t.id)}
                   className="flex shrink-0 items-center gap-1 truncate border-r px-3 text-left text-sm hover:bg-muted/50"
                   style={{ width: LABEL_W, paddingLeft: 12 + (t.parentId ? 16 : 0) }}
-                  title={t.nome}
+                  title={critica ? `${t.nome} (caminho crítico)` : t.nome}
                 >
+                  {critica && (
+                    <span
+                      className="size-1.5 shrink-0 rounded-full bg-destructive"
+                      aria-hidden
+                    />
+                  )}
                   <span className="truncate">{t.nome}</span>
                 </button>
                 <div className="relative" style={{ width: timelineW }}>
                   {/* barra atual (prevista) com preenchimento de progresso */}
                   <div
-                    className="absolute rounded-sm border border-primary/40 bg-primary/25"
+                    className={`absolute rounded-sm border ${
+                      critica
+                        ? "border-destructive ring-1 ring-destructive/60 bg-destructive/20"
+                        : "border-primary/40 bg-primary/25"
+                    }`}
                     style={{ left, width, top: 6, height: 13 }}
+                    title={critica ? "Caminho crítico (folga 0)" : undefined}
                   >
                     <div
-                      className="h-full rounded-l-sm bg-primary"
+                      className={`h-full rounded-l-sm ${critica ? "bg-destructive" : "bg-primary"}`}
                       style={{ width: `${t.progresso}%` }}
                     />
                   </div>
@@ -139,6 +164,13 @@ export function Gantt({
           })}
         </div>
       </div>
+      </div>
+      {temCritico && (
+        <div className="flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground">
+          <span className="inline-block h-2 w-3 rounded-sm border border-destructive bg-destructive/20" aria-hidden />
+          Caminho crítico (tarefas com folga 0)
+        </div>
+      )}
     </div>
   );
 }

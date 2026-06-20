@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { GanttChart } from "lucide-react";
+import { GanttChart, Rocket, ListTree } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { projetosComPlano } from "@/modules/planejamento/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata: Metadata = { title: "Planejamento" };
 
@@ -33,8 +34,12 @@ export default async function PlanejamentoPage() {
 
       {projetos.length === 0 ? (
         <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            Nenhum projeto disponível.
+          <CardContent>
+            <EmptyState
+              icon={ListTree}
+              title="Nenhum projeto disponível"
+              description="Você ainda não participa de projetos com planejamento."
+            />
           </CardContent>
         </Card>
       ) : (
@@ -55,18 +60,29 @@ export default async function PlanejamentoPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>{p.totalTarefas} tarefa(s)</span>
-                    <span className="font-mono">
-                      {fmt(p.inicio)} – {fmt(p.fim)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 flex-1 overflow-hidden rounded-sm bg-muted">
-                      <div className="h-full bg-primary" style={{ width: `${p.progresso}%` }} />
+                  {p.totalTarefas === 0 ? (
+                    <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                      <span>Sem tarefas de EAP.</span>
+                      <span className="inline-flex items-center gap-1 font-medium text-primary group-hover:underline">
+                        <Rocket className="size-3.5" /> Iniciar planejamento
+                      </span>
                     </div>
-                    <span className="w-9 text-right font-mono text-xs">{p.progresso}%</span>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>{p.totalTarefas} tarefa(s)</span>
+                        <span className="font-mono">
+                          {fmt(p.inicio)} – {fmt(p.fim)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 flex-1 overflow-hidden rounded-sm bg-muted">
+                          <div className="h-full bg-primary" style={{ width: `${p.progresso}%` }} />
+                        </div>
+                        <span className="w-9 text-right font-mono text-xs">{p.progresso}%</span>
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </Link>
