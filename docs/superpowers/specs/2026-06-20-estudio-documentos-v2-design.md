@@ -113,3 +113,17 @@ D4 (DXF/ABNT) → D5 (colaboração). Cada uma entregue e mergeada antes da pró
 - **D4 — export DXF** ✅ (writer próprio R12: TEXT/LINE, px→mm, Y invertido; rota `/api/documentos/[id]/dxf` + botão "Baixar DXF"; teste vitest).
 - **Pendente (melhor com subagentes / editor-core):** carimbos ABNT por formato (D4) · datasets CSV (D3) · multi-coleção + permissão por fonte + tabela + agrupamento (D3) · envio por e-mail/anexo + paginação real (D2) · compartilhamento por perfil (D5) · blocos reutilizáveis · multi-seleção/alinhar/guias · condicionais/calculados/QR/marca d'água (D5).
 - `master` verde (tsc 0 + 311 testes) em todos os merges.
+
+### Progresso (continuação — waves E2/E3)
+- **D3:** datasets CSV reutilizáveis (parser+teste, CRUD, tela) · **permissão por fonte** (mapa→recursos reais; bloqueio server em preview/registrar/dxf; editor só lista fontes permitidas) · **dataset como fonte** (`fonte = "dataset:<id>"`) · **elemento tabela** (colunas configuráveis).
+- **D4:** carimbos ABNT por formato (A4–A0, criar→editor) — além do DXF já feito.
+- **D5:** compartilhamento por perfil (visibilidade pessoal/perfis/global + filtro de listagem) · blocos reutilizáveis (salvar/inserir) · multi-seleção (shift+marquee) + alinhar/distribuir · marca d'água de página.
+- `master` verde (tsc 0 + 319 testes) em todos os merges.
+
+### Ainda pendente (itens grandes / dependência / QA de browser)
+- **Multi-coleção FULL** (sub-relatórios: várias fontes/coleções num mesmo modelo) — feito o subconjunto (permissão + dataset + tabela); a arquitetura completa de sub-relatórios é grande e fica para uma fase própria.
+- **Agrupamento + subtotais** (banda de grupo) — não feito.
+- **Paginação real** (cabeçalho de colunas repetindo por página + `[Pagina]/[Paginas]` reais) — depende de QA no browser.
+- **Envio por e-mail / anexar** o PDF gerado — não feito.
+- **QR code / verificação** — precisa de dependência npm (`qrcode`) → decisão.
+- **Condicionais / campos calculados**, guias/régua — nice-to-have, não feitos.
