@@ -108,9 +108,6 @@ export default async function ClienteDetalhePage({
               <span className="text-muted-foreground">Em aberto</span>
               <span className="font-mono text-warning">{brl(fin.emAberto)}</span>
             </div>
-            <p className="pt-2 text-xs text-muted-foreground">
-              Integra com o Financeiro na Onda 2.
-            </p>
           </CardContent>
         </Card>
       </div>
