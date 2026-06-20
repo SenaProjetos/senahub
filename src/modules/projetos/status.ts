@@ -27,3 +27,22 @@ export const SITUACAO_PROJETO_LABEL: Record<string, string> = {
   arquivado: "Arquivado",
   cancelado: "Cancelado",
 };
+
+/**
+ * Peso de progresso por status de disciplina (0–1).
+ * Fonte única usada na barra do detalhe e nos cards do dashboard.
+ */
+export const PESO_STATUS: Record<StatusDisciplina, number> = {
+  aguardando: 0,
+  em_andamento: 0.4,
+  em_revisao: 0.6,
+  entregue: 0.85,
+  aprovado: 1,
+};
+
+/** Progresso 0–100 do projeto: média dos pesos de status das disciplinas. */
+export function progressoProjeto(statuses: StatusDisciplina[]): number {
+  if (statuses.length === 0) return 0;
+  const soma = statuses.reduce((s, st) => s + PESO_STATUS[st], 0);
+  return Math.round((soma / statuses.length) * 100);
+}

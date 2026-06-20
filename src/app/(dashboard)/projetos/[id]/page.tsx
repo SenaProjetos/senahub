@@ -7,11 +7,12 @@ import { can } from "@/lib/permissions";
 import { obterProjeto, usuariosInternos, margemProjeto } from "@/modules/projetos/queries";
 import { listarInputs, linkInput, progressoInputs } from "@/modules/inputs/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { SITUACAO_PROJETO_LABEL } from "@/modules/projetos/status";
+import { SITUACAO_PROJETO_LABEL, progressoProjeto } from "@/modules/projetos/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DisciplinaCard } from "@/components/projetos/disciplina-card";
+import { DuplicarProjetoButton } from "@/components/projetos/duplicar-projeto-button";
 import { EquipeManager } from "@/components/projetos/equipe-manager";
 import { InputsPanel } from "@/components/inputs/inputs-panel";
 import { modelosPorFonte } from "@/modules/documentos/queries";
@@ -84,6 +85,8 @@ export default async function ProjetoDetalhePage({
     };
   });
 
+  const progressoGeral = progressoProjeto(projeto.disciplinas.map((d) => d.status));
+
   // Equipe derivada: responsáveis das disciplinas ∪ membros manuais (papel do membro prevalece).
   const equipeMap = new Map<string, { nome: string; papel: string | null }>();
   for (const d of disciplinas) {
@@ -131,7 +134,30 @@ export default async function ProjetoDetalhePage({
           <Button variant="outline" size="sm" render={<Link href={`/projetos/${projeto.id}/extras`} />}>
             <SlidersHorizontal className="size-4" /> Mais
           </Button>
+          {podeGerir && <DuplicarProjetoButton projetoId={projeto.id} />}
           <GerarDocumentoButton modelos={modelosDoc} paramId="projetoId" valor={projeto.id} />
+        </div>
+      </div>
+
+      <div>
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+            Progresso geral
+          </span>
+          <span className="font-mono text-sm font-bold tabular-nums">{progressoGeral}%</span>
+        </div>
+        <div
+          className="h-2 w-full overflow-hidden rounded-full bg-muted"
+          role="progressbar"
+          aria-valuenow={progressoGeral}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`Progresso geral: ${progressoGeral}%`}
+        >
+          <div
+            className="h-full rounded-full bg-primary transition-all"
+            style={{ width: `${progressoGeral}%` }}
+          />
         </div>
       </div>
 

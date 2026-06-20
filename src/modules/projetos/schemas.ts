@@ -58,5 +58,9 @@ export const membrosProjetoSchema = z.object({
   membrosIds: z.array(z.string()),
 });
 
+export const duplicarProjetoSchema = z.object({
+  id: z.string().min(1),
+});
+
 export type CriarProjetoInput = z.infer<typeof criarProjetoSchema>;
 export type DisciplinaInput = z.infer<typeof disciplinaInputSchema>;

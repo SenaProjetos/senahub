@@ -47,6 +47,8 @@ export function InputsPanel({
   const [pending, start] = useTransition();
   const [novaPergunta, setNovaPergunta] = useState("");
   const [novaDisc, setNovaDisc] = useState("__geral");
+  // Sem perguntas → seção começa colapsada (não ocupa espaço com bloco grande vazio).
+  const [aberto, setAberto] = useState(itens.length > 0);
   const [respostas, setRespostas] = useState<Record<string, string>>(
     Object.fromEntries(itens.map((i) => [i.id, i.resposta])),
   );
@@ -112,6 +114,25 @@ export function InputsPanel({
     if (!linkUrl) return;
     await navigator.clipboard.writeText(linkUrl);
     toast.success("Link copiado.");
+  }
+
+  // Estado vazio + colapsado: card compacto com 1 botão para expandir (ou apenas o aviso).
+  if (itens.length === 0 && !aberto) {
+    return (
+      <Card>
+        <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
+          <div>
+            <CardTitle className="text-base">Inputs do projeto</CardTitle>
+            <CardDescription>Nenhuma pergunta definida ainda.</CardDescription>
+          </div>
+          {podeGerir && (
+            <Button variant="outline" size="sm" onClick={() => setAberto(true)}>
+              <Plus className="size-3.5" /> Adicionar
+            </Button>
+          )}
+        </CardHeader>
+      </Card>
+    );
   }
 
   return (

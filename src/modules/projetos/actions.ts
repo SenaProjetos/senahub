@@ -5,6 +5,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { GLOBAL_ROLES, type Role } from "@/lib/roles";
 import { proximoCodigoProjeto } from "@/modules/projetos/numbering";
+import { ensureCanaisProjeto } from "@/modules/chat/service";
 import {
   criarProjetoSchema,
   editarProjetoSchema,
@@ -12,6 +13,7 @@ import {
   responsaveisDisciplinaSchema,
   registrarRevisaoSchema,
   membrosProjetoSchema,
+  duplicarProjetoSchema,
 } from "@/modules/projetos/schemas";
 
 function isGlobal(role: Role) {
@@ -225,5 +227,74 @@ export const definirMembros = defineAction(
     ]);
     revalidatePath(`/projetos/${input.projetoId}`);
     return { projetoId: input.projetoId };
+  },
+);
+
+/**
+ * Duplica um projeto: novo código AAXXXX, nome + " (cópia)", mesmo cliente/tipo e as
+ * disciplinas (nome/ordem/valor/prazo). NÃO copia uploads, revisões, pagamentos,
+ * responsáveis nem membros — a cópia nasce "limpa" para uma nova execução.
+ */
+export const duplicarProjeto = defineAction(
+  {
+    modulo: "projetos",
+    acao: "duplicar-projeto",
+    recurso: "projetos",
+    permissao: "gerir",
+    entidade: "Projeto",
+    schema: duplicarProjetoSchema,
+    entidadeId: (d) => (d as { id: string }).id,
+  },
+  async (input) => {
+    const origem = await prisma.projeto.findUnique({
+      where: { id: input.id },
+      select: {
+        tipo: true,
+        nome: true,
+        clienteId: true,
+        descricao: true,
+        areaM2: true,
+        endereco: true,
+        prazoFinal: true,
+        disciplinas: {
+          orderBy: { ordem: "asc" },
+          select: { nome: true, valor: true, prazo: true, ordem: true },
+        },
+      },
+    });
+    if (!origem) throw new ActionError("Projeto não encontrado.");
+
+    const novo = await prisma.$transaction(async (tx) => {
+      const { ano, sequencial, codigo } = await proximoCodigoProjeto(tx);
+      return tx.projeto.create({
+        data: {
+          ano,
+          sequencial,
+          codigo,
+          tipo: origem.tipo,
+          nome: `${origem.nome} (cópia)`,
+          clienteId: origem.clienteId,
+          descricao: origem.descricao,
+          areaM2: origem.areaM2,
+          endereco: origem.endereco,
+          prazoFinal: origem.prazoFinal,
+          disciplinas: {
+            create: origem.disciplinas.map((d) => ({
+              nome: d.nome,
+              valor: d.valor,
+              prazo: d.prazo,
+              ordem: d.ordem,
+              // status fica no default (aguardando); sem responsáveis/uploads/revisões.
+            })),
+          },
+        },
+      });
+    });
+
+    // Canais de chat do projeto (idempotente), igual ao fluxo de conversão de lead.
+    await ensureCanaisProjeto(novo.id);
+
+    revalidatePath("/projetos");
+    return { id: novo.id, codigo: novo.codigo };
   },
 );

@@ -4,6 +4,7 @@ import type { Prisma, StatusDisciplina } from "@/generated/prisma/client";
 import { GLOBAL_ROLES, type Role } from "@/lib/roles";
 import { kpisHome } from "@/modules/qualidade/queries";
 import { montarSerieReceita } from "@/modules/dashboard/serie-receita";
+import { PESO_STATUS } from "@/modules/projetos/status";
 
 type Viewer = { id: string; role: Role };
 
@@ -16,15 +17,6 @@ function escopo(viewer: Viewer): Prisma.ProjetoWhereInput {
     ],
   };
 }
-
-/** Peso de progresso por status de disciplina (para a barra do projeto). */
-const PESO: Record<StatusDisciplina, number> = {
-  aguardando: 0,
-  em_andamento: 0.4,
-  em_revisao: 0.6,
-  entregue: 0.85,
-  aprovado: 1,
-};
 
 /** Status "predominante" do projeto: o de menor progresso entre as não concluídas (gargalo). */
 const ORDEM_STATUS: StatusDisciplina[] = ["aguardando", "em_andamento", "em_revisao", "entregue", "aprovado"];
@@ -46,7 +38,7 @@ export async function projetosRecentes(viewer: Viewer, limite = 6) {
   return projetos.map((p) => {
     const ds = p.disciplinas;
     const progresso = ds.length
-      ? Math.round((ds.reduce((s, d) => s + PESO[d.status], 0) / ds.length) * 100)
+      ? Math.round((ds.reduce((s, d) => s + PESO_STATUS[d.status], 0) / ds.length) * 100)
       : 0;
     // status do gargalo = o de menor ordem presente entre as não aprovadas
     const pendentes = ds.filter((d) => d.status !== "aprovado");
