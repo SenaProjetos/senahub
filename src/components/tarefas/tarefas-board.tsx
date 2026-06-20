@@ -17,7 +17,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { Plus, GripVertical, Lock, CalendarDays } from "lucide-react";
+import { Plus, GripVertical, Lock, CalendarDays, LayoutGrid, List } from "lucide-react";
 import { moverTarefa } from "@/modules/tarefas/actions";
 import { TarefaDialog, type TarefaUI, type OpcoesUI } from "./tarefa-dialog";
 import {
@@ -30,6 +30,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type Coluna = {
   id: string;
@@ -98,6 +106,7 @@ export function TarefasBoard({ colunas, opcoes }: { colunas: Coluna[]; opcoes: O
   const projeto = searchParams.get("projeto");
   const responsavel = searchParams.get("responsavel");
   const periodo = searchParams.get("periodo");
+  const vista = searchParams.get("vista") === "lista" ? "lista" : "quadro";
 
   // Input de busca controlado localmente; só escreve na URL no Enter/blur.
   const [busca, setBusca] = useState(q);
@@ -165,9 +174,35 @@ export function TarefasBoard({ colunas, opcoes }: { colunas: Coluna[]; opcoes: O
             Kanban com dependências — tarefas bloqueadas só concluem após as dependências.
           </p>
         </div>
-        <Button onClick={() => setDialog("nova")}>
-          <Plus className="size-4" /> Nova tarefa
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center rounded-sm border p-0.5">
+            <Button
+              type="button"
+              variant={vista === "quadro" ? "secondary" : "ghost"}
+              size="icon"
+              className="size-7"
+              aria-label="Visão em quadro"
+              aria-pressed={vista === "quadro"}
+              onClick={() => setParams({ vista: null })}
+            >
+              <LayoutGrid className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              variant={vista === "lista" ? "secondary" : "ghost"}
+              size="icon"
+              className="size-7"
+              aria-label="Visão em lista"
+              aria-pressed={vista === "lista"}
+              onClick={() => setParams({ vista: "lista" })}
+            >
+              <List className="size-4" />
+            </Button>
+          </div>
+          <Button onClick={() => setDialog("nova")}>
+            <Plus className="size-4" /> Nova tarefa
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -243,14 +278,18 @@ export function TarefasBoard({ colunas, opcoes }: { colunas: Coluna[]; opcoes: O
         )}
       </div>
 
-      <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-        <div className="flex w-full min-w-0 gap-3 overflow-x-auto pb-2">
-          {colunasFiltradas.map((col) => (
-            <ColunaView key={col.id} col={col} onAbrir={(t) => setDialog(t)} />
-          ))}
-        </div>
-        <DragOverlay>{arrastando ? <CardTarefa t={arrastando} overlay /> : null}</DragOverlay>
-      </DndContext>
+      {vista === "lista" ? (
+        <ListaView colunas={colunasFiltradas} onAbrir={(t) => setDialog(t)} />
+      ) : (
+        <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+          <div className="flex w-full min-w-0 gap-3 overflow-x-auto pb-2">
+            {colunasFiltradas.map((col) => (
+              <ColunaView key={col.id} col={col} onAbrir={(t) => setDialog(t)} />
+            ))}
+          </div>
+          <DragOverlay>{arrastando ? <CardTarefa t={arrastando} overlay /> : null}</DragOverlay>
+        </DndContext>
+      )}
 
       <TarefaDialog
         tarefa={dialog === "nova" ? null : dialog}
@@ -259,6 +298,104 @@ export function TarefasBoard({ colunas, opcoes }: { colunas: Coluna[]; opcoes: O
         opcoes={opcoes}
         colunas={colunas.map((c) => ({ id: c.id, nome: c.nome }))}
       />
+    </div>
+  );
+}
+
+/** Visão LISTA: tabela plana das tarefas filtradas, ordenável localmente por prazo. */
+function ListaView({
+  colunas,
+  onAbrir,
+}: {
+  colunas: Coluna[];
+  onAbrir: (t: TarefaUI) => void;
+}) {
+  const [dir, setDir] = useState<"asc" | "desc">("asc");
+
+  // Achata as colunas em linhas, preservando nome/cor do status de cada tarefa.
+  const linhas = useMemo(() => {
+    const flat = colunas.flatMap((c) =>
+      c.tarefas.map((t) => ({ t, statusNome: c.nome, statusCor: c.cor })),
+    );
+    // Ordena por prazo (sem prazo vai para o fim em ambas as direções).
+    flat.sort((a, b) => {
+      const pa = a.t.prazo || "";
+      const pb = b.t.prazo || "";
+      if (!pa && !pb) return 0;
+      if (!pa) return 1;
+      if (!pb) return -1;
+      return dir === "asc" ? pa.localeCompare(pb) : pb.localeCompare(pa);
+    });
+    return flat;
+  }, [colunas, dir]);
+
+  return (
+    <div className="rounded-sm border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Título</TableHead>
+            <TableHead className="w-28">Projeto</TableHead>
+            <TableHead>Responsáveis</TableHead>
+            <TableHead className="w-32">
+              <button
+                type="button"
+                onClick={() => setDir((d) => (d === "asc" ? "desc" : "asc"))}
+                className="inline-flex items-center gap-1 hover:text-foreground"
+                aria-label="Ordenar por prazo"
+              >
+                Prazo
+                <CalendarDays className="size-3.5 text-muted-foreground/60" aria-hidden />
+                <span className="text-xs">{dir === "asc" ? "↑" : "↓"}</span>
+              </button>
+            </TableHead>
+            <TableHead className="w-40">Status</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {linhas.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                Nenhuma tarefa.
+              </TableCell>
+            </TableRow>
+          ) : (
+            linhas.map(({ t, statusNome, statusCor }) => {
+              const atrasada = t.prazo && new Date(t.prazo) < new Date(new Date().toDateString());
+              return (
+                <TableRow key={t.id} className="cursor-pointer" onClick={() => onAbrir(t)}>
+                  <TableCell className="font-medium">
+                    <span className="flex items-center gap-1.5">
+                      {t.bloqueada && <Lock className="size-3.5 text-warning" />}
+                      {t.titulo}
+                    </span>
+                  </TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {t.projetoCodigo ? formatarCodigo(t.projetoCodigo) : "—"}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {t.responsaveis.length > 0
+                      ? t.responsaveis.map((r) => r.nome).join(", ")
+                      : "—"}
+                  </TableCell>
+                  <TableCell className={`text-sm ${atrasada ? "text-destructive" : ""}`}>
+                    {t.prazo ? formatarData(t.prazo) : "—"}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="gap-1.5">
+                      <span
+                        className="size-2 rounded-full"
+                        style={{ background: statusCor ?? "#576980" }}
+                      />
+                      {statusNome}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              );
+            })
+          )}
+        </TableBody>
+      </Table>
     </div>
   );
 }
