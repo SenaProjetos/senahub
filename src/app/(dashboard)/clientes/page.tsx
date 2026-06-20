@@ -12,6 +12,7 @@ type SP = {
   tipo?: string;
   uf?: string;
   cidade?: string;
+  categoria?: string;
   situacao?: string;
   sort?: string;
   dir?: string;
@@ -37,12 +38,14 @@ export default async function ClientesPage({
   const situacao =
     sp.situacao === "ativo" || sp.situacao === "inativo" ? sp.situacao : undefined;
   const uf = sp.uf || undefined;
+  const categoria = sp.categoria || undefined;
 
   const [{ items, total }, filtros, podeGerir] = await Promise.all([
     listarClientesPaginado({
       q,
       tipo,
       uf,
+      categoria,
       situacao,
       // sem filtro de situação, mostra ativos e inativos (comportamento anterior)
       incluirInativos: true,
@@ -65,9 +68,11 @@ export default async function ClientesPage({
       pageCount={pageCount(total, pageSize)}
       pageSize={pageSize}
       ufs={filtros.ufs}
+      categorias={filtros.categorias}
       tipo={tipo ?? ""}
       situacao={situacao ?? ""}
       uf={uf ?? ""}
+      categoria={categoria ?? ""}
     />
   );
 }

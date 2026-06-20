@@ -19,8 +19,19 @@ const base = {
   bairro: z.string().optional(),
   cidade: z.string().optional(),
   uf: z.string().max(2).optional(),
+  categoria: z.string().optional(),
   observacoes: z.string().optional(),
 };
+
+/** Opções comuns de categoria de cliente (campo livre — string?). */
+export const CATEGORIAS_CLIENTE = [
+  "Público",
+  "Privado",
+  "Construtora",
+  "Incorporadora",
+  "Pessoa física",
+  "Outro",
+] as const;
 
 export const criarClienteSchema = z.object(base).refine(docValido, docMsg);
 export const editarClienteSchema = z.object({ id: z.string().min(1), ...base }).refine(docValido, docMsg);

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { criarCliente, editarCliente } from "@/modules/clientes/actions";
-import type { CriarClienteInput } from "@/modules/clientes/schemas";
+import { CATEGORIAS_CLIENTE, type CriarClienteInput } from "@/modules/clientes/schemas";
 import { validarCpfCnpj } from "@/lib/documento";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -152,13 +152,33 @@ export function ClienteForm({
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label>E-mail</Label>
-            <Input
-              type="email"
-              value={form.email ?? ""}
-              onChange={(e) => set("email", e.target.value)}
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>E-mail</Label>
+              <Input
+                type="email"
+                value={form.email ?? ""}
+                onChange={(e) => set("email", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Categoria</Label>
+              <Select
+                value={form.categoria ?? ""}
+                onValueChange={(v) => set("categoria", v || undefined)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIAS_CLIENTE.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="grid grid-cols-3 gap-3">

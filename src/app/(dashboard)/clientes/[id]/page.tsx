@@ -55,6 +55,7 @@ export default async function ClienteDetalhePage({
           <div className="flex items-center gap-2">
             <h2 className="truncate text-2xl font-extrabold tracking-tight">{cliente.nome}</h2>
             <Badge variant="outline">{cliente.tipo}</Badge>
+            {cliente.categoria && <Badge variant="secondary">{cliente.categoria}</Badge>}
             {!cliente.ativo && <Badge variant="outline">Inativo</Badge>}
           </div>
           {cliente.nomeFantasia && (

@@ -14,6 +14,7 @@ export type ListarClientesOpts = {
   tipo?: "PF" | "PJ";
   uf?: string;
   cidade?: string;
+  categoria?: string;
   /** "ativo" | "inativo" — filtra `ativo`. Quando ausente, segue `incluirInativos`. */
   situacao?: "ativo" | "inativo";
   sort?: string | null;
@@ -32,6 +33,7 @@ function buildWhere(opts?: ListarClientesOpts): Prisma.ClienteWhereInput {
   if (opts?.tipo) where.tipo = opts.tipo;
   if (opts?.uf) where.uf = opts.uf;
   if (opts?.cidade) where.cidade = { equals: opts.cidade, mode: "insensitive" };
+  if (opts?.categoria) where.categoria = opts.categoria;
 
   if (opts?.q) {
     where.OR = [
@@ -79,18 +81,23 @@ export async function listarClientesPaginado(opts?: ListarClientesOpts) {
   return { items, total };
 }
 
-/** UFs e cidades distintas (para popular os selects de filtro). */
+/** UFs, cidades e categorias distintas (para popular os selects de filtro). */
 export async function listarFiltrosClientes() {
   const rows = await prisma.cliente.findMany({
-    where: { OR: [{ uf: { not: null } }, { cidade: { not: null } }] },
-    select: { uf: true, cidade: true },
-    distinct: ["uf", "cidade"],
+    where: {
+      OR: [{ uf: { not: null } }, { cidade: { not: null } }, { categoria: { not: null } }],
+    },
+    select: { uf: true, cidade: true, categoria: true },
+    distinct: ["uf", "cidade", "categoria"],
   });
   const ufs = [...new Set(rows.map((r) => r.uf).filter((v): v is string => !!v))].sort();
   const cidades = [...new Set(rows.map((r) => r.cidade).filter((v): v is string => !!v))].sort(
     (a, b) => a.localeCompare(b, "pt-BR"),
   );
-  return { ufs, cidades };
+  const categorias = [
+    ...new Set(rows.map((r) => r.categoria).filter((v): v is string => !!v)),
+  ].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  return { ufs, cidades, categorias };
 }
 
 export async function obterCliente(id: string) {

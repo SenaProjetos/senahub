@@ -52,9 +52,11 @@ export function ClientesView({
   pageCount,
   pageSize,
   ufs,
+  categorias,
   tipo,
   situacao,
   uf,
+  categoria,
 }: {
   clientes: ClienteListItem[];
   podeGerir: boolean;
@@ -64,9 +66,11 @@ export function ClientesView({
   pageCount: number;
   pageSize: number;
   ufs: string[];
+  categorias: string[];
   tipo: string;
   situacao: string;
   uf: string;
+  categoria: string;
 }) {
   const setParams = useSetParams();
   const [q, setQ] = useState(busca);
@@ -99,6 +103,7 @@ export function ClientesView({
       bairro: c.bairro ?? undefined,
       cidade: c.cidade ?? undefined,
       uf: c.uf ?? undefined,
+      categoria: c.categoria ?? undefined,
       observacoes: c.observacoes ?? undefined,
     });
     setFormOpen(true);
@@ -187,6 +192,25 @@ export function ClientesView({
             </SelectContent>
           </Select>
         )}
+
+        {categorias.length > 0 && (
+          <Select
+            value={categoria || TODOS}
+            onValueChange={(v) => setParams({ categoria: v === TODOS ? null : v })}
+          >
+            <SelectTrigger className="h-9 w-[11rem]" aria-label="Filtrar por categoria">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODOS}>Categoria: todas</SelectItem>
+              {categorias.map((cat) => (
+                <SelectItem key={cat} value={cat}>
+                  {cat}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       <div className="rounded-sm border">
@@ -195,6 +219,7 @@ export function ClientesView({
             <TableRow>
               <SortableHead field="nome">Nome</SortableHead>
               <TableHead>Tipo</TableHead>
+              <TableHead>Categoria</TableHead>
               <TableHead>Documento</TableHead>
               <SortableHead field="cidade">Cidade/UF</SortableHead>
               <TableHead>Situação</TableHead>
@@ -204,7 +229,7 @@ export function ClientesView({
           <TableBody>
             {clientes.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
+                <TableCell colSpan={7} className="text-center text-muted-foreground">
                   Nenhum cliente.
                 </TableCell>
               </TableRow>
@@ -221,6 +246,13 @@ export function ClientesView({
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">{c.tipo}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {c.categoria ? (
+                      <Badge variant="secondary">{c.categoria}</Badge>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {c.documento ?? "—"}
