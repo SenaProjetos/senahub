@@ -4,6 +4,7 @@ import { getSession, type SessionUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { logAudit, getClientIp } from "@/lib/audit";
 import type { Role } from "@/lib/roles";
+import { ActionError, resultadoDoErro } from "@/lib/action-error";
 
 export type ActionResult<T> =
   | { ok: true; data: T }
@@ -117,8 +118,11 @@ export function defineAction<S, T>(
       }
       return { ok: true, data };
     } catch (err) {
-      console.error(`[action:${config.modulo}/${config.acao}]`, err);
-      await maybeAudit(config, { user, ip }, "falha", err);
+      const resultado = resultadoDoErro(err);
+      if (resultado === "falha") {
+        console.error(`[action:${config.modulo}/${config.acao}]`, err);
+      }
+      await maybeAudit(config, { user, ip }, resultado, err);
       const message =
         err instanceof ActionError ? err.message : "Erro ao processar a solicitação.";
       return { ok: false, error: message };
@@ -129,7 +133,7 @@ export function defineAction<S, T>(
 async function maybeAudit<S>(
   config: ActionConfig<S>,
   ctx: ActionContext,
-  resultado: "falha" | "bloqueado",
+  resultado: "falha" | "bloqueado" | "rejeitado",
   err?: unknown,
 ) {
   if (config.audit === false) return;
@@ -144,5 +148,4 @@ async function maybeAudit<S>(
   });
 }
 
-/** Erro de negócio cuja mensagem pode ser exibida ao usuário. */
-export class ActionError extends Error {}
+export { ActionError } from "@/lib/action-error";

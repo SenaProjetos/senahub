@@ -33,7 +33,7 @@ export type AuditInput = {
   modulo: string;
   acao: string;
   tipo?: "acao" | "login" | "erro";
-  resultado?: "sucesso" | "falha" | "bloqueado";
+  resultado?: "sucesso" | "falha" | "bloqueado" | "rejeitado";
   entidade?: string;
   entidadeId?: string;
   detalhe?: unknown;

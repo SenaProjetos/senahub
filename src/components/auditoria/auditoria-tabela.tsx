@@ -38,6 +38,7 @@ const RESULTADO_VARIANT: Record<string, string> = {
   sucesso: "bg-success/10 text-success border-success/40",
   falha: "bg-destructive/10 text-destructive border-destructive/40",
   bloqueado: "bg-warning/10 text-warning border-warning/40",
+  rejeitado: "bg-muted text-muted-foreground border-border",
 };
 
 export function AuditoriaTabela({
@@ -104,6 +105,7 @@ export function AuditoriaTabela({
             <SelectItem value="sucesso">Sucesso</SelectItem>
             <SelectItem value="falha">Falha</SelectItem>
             <SelectItem value="bloqueado">Bloqueado</SelectItem>
+            <SelectItem value="rejeitado">Rejeitado</SelectItem>
           </SelectContent>
         </Select>
       </div>
