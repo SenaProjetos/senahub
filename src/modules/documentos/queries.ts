@@ -60,6 +60,8 @@ export async function documentosGerados(limite = 50) {
       modeloNome: true,
       fonte: true,
       params: true,
+      serie: true,
+      numero: true,
       geradoPorNome: true,
       createdAt: true,
     },

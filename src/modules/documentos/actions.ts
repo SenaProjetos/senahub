@@ -190,6 +190,16 @@ const gerarSchema = z.object({
   params: z.record(z.string(), z.string()),
 });
 
+/** Prefixo de série da numeração automática por tipo de documento. */
+const SERIE_POR_TIPO: Record<string, string> = {
+  relatorio: "REL",
+  proposta: "PROP",
+  contrato: "CONT",
+  recibo: "REC",
+  holerite: "HOL",
+  outro: "DOC",
+};
+
 /** Persiste um documento gerado (snapshot imutável do schema + dados resolvidos). */
 export const registrarDocumentoGerado = defineAction(
   { modulo: "documentos", recurso: "documentos", permissao: "ver", acao: "gerar-documento", entidade: "DocumentoGerado", schema: gerarSchema },
@@ -198,20 +208,38 @@ export const registrarDocumentoGerado = defineAction(
     if (!modelo) throw new ActionError("Modelo não encontrado.");
     const dados = modelo.fonte
       ? await resolverFonte(modelo.fonte, i.params)
-      : { escalar: {}, linhas: [] };
+      : { escalar: {} as Record<string, unknown>, linhas: [] };
+
+    // Numeração automática por série (derivada do tipo do modelo).
+    const serie = SERIE_POR_TIPO[modelo.tipo] ?? "DOC";
+    const ultimo = await prisma.documentoGerado.findFirst({
+      where: { serie },
+      orderBy: { numero: "desc" },
+      select: { numero: true },
+    });
+    const numero = (ultimo?.numero ?? 0) + 1;
+    const numeroFmt = `${serie}-${String(new Date().getFullYear()).slice(2)}${String(numero).padStart(4, "0")}`;
+    // Injeta o número no escalar p/ o token [NumeroDocumento] no snapshot/render.
+    const dadosComNumero = {
+      ...dados,
+      escalar: { ...(dados.escalar as Record<string, unknown>), NumeroDocumento: numeroFmt },
+    };
+
     const g = await prisma.documentoGerado.create({
       data: {
         modeloId: modelo.id,
         modeloNome: modelo.nome,
         fonte: modelo.fonte,
         params: i.params,
+        serie,
+        numero,
         schemaSnapshot: modelo.schemaJson as Prisma.InputJsonValue,
-        dadosSnapshot: dados as unknown as Prisma.InputJsonValue,
+        dadosSnapshot: dadosComNumero as unknown as Prisma.InputJsonValue,
         geradoPorId: user.id,
         geradoPorNome: user.name,
       },
     });
     revalidatePath("/documentos/gerados");
-    return { id: g.id };
+    return { id: g.id, numero: numeroFmt };
   },
 );

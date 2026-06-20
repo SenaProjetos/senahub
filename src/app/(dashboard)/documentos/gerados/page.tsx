@@ -53,6 +53,7 @@ export default async function DocumentosGeradosPage() {
               <table className="w-full text-sm">
                 <thead className="border-b bg-muted/40 text-left font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                   <tr>
+                    <th className="px-3 py-2">Número</th>
                     <th className="px-3 py-2">Modelo</th>
                     <th className="px-3 py-2">Fonte</th>
                     <th className="px-3 py-2">Parâmetros</th>
@@ -66,6 +67,11 @@ export default async function DocumentosGeradosPage() {
                     const href = previewHref(g.modeloId, g.params);
                     return (
                       <tr key={g.id} className="hover:bg-muted/40">
+                        <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-primary">
+                          {g.numero != null
+                            ? `${g.serie ?? "DOC"}-${String(g.createdAt.getFullYear()).slice(2)}${String(g.numero).padStart(4, "0")}`
+                            : "—"}
+                        </td>
                         <td className="px-3 py-2 font-medium">{g.modeloNome}</td>
                         <td className="px-3 py-2 text-muted-foreground">{g.fonte ?? "—"}</td>
                         <td className="max-w-[260px] truncate px-3 py-2 font-mono text-xs text-muted-foreground">
