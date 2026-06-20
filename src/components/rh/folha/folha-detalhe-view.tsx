@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { calcularEncargos, type Faixa } from "@/lib/encargos";
+import { brl } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -49,9 +50,6 @@ type HoleriteT = {
 };
 type Rubrica = { id: string; nome: string; tipo: "provento" | "desconto" };
 
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 function liquidoDe(itens: Item[]) {
   return itens.reduce((s, it) => s + (it.tipo === "provento" ? it.valor : -it.valor), 0);
 }

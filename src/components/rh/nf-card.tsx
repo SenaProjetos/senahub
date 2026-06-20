@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { brl } from "@/lib/utils";
 
 type NF = {
   id: string;
@@ -23,10 +24,6 @@ const CHIP: Record<NF["status"], string> = {
   aprovada: "text-success border-success/40",
   rejeitada: "text-destructive border-destructive/40",
 };
-
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 export function NfCard({ nfs }: { nfs: NF[] }) {
   const router = useRouter();

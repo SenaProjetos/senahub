@@ -8,6 +8,7 @@ import { validarNF } from "@/modules/rh/nf/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { brl } from "@/lib/utils";
 
 type NF = {
   id: string;
@@ -17,10 +18,6 @@ type NF = {
   arquivoNome: string;
   createdAt: string;
 };
-
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 export function NfAdmin({ nfs }: { nfs: NF[] }) {
   const router = useRouter();

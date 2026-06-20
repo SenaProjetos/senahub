@@ -18,10 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
+import { brl } from "@/lib/utils";
 
 export function FolhasView({ folhas }: { folhas: FolhaResumo[] }) {
   const router = useRouter();

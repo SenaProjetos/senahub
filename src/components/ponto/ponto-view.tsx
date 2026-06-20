@@ -8,8 +8,7 @@ import { baterPonto, trocarProjeto, encerrarJornada } from "@/modules/ponto/acti
 import { fecharRateioMes } from "@/modules/rh/rateio/actions";
 import { fmtHoras } from "@/modules/ponto/format";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-
-const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+import { brl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
