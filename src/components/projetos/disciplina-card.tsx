@@ -14,6 +14,7 @@ import {
   FileText,
   CheckCircle2,
   ShieldCheck,
+  AlertTriangle,
 } from "lucide-react";
 import {
   atualizarStatusDisciplina,
@@ -21,11 +22,12 @@ import {
   registrarRevisao,
 } from "@/modules/projetos/actions";
 import { validarEntrega } from "@/modules/uploads/actions";
-import { STATUS_CHIP, STATUS_LABEL } from "@/modules/projetos/status";
+import { STATUS_LABEL, STATUS_TONE } from "@/modules/projetos/status";
+import { diasDeAtraso } from "@/modules/projetos/atraso";
 import type { StatusDisciplina } from "@/generated/prisma/client";
 import { STATUS_DISCIPLINA } from "@/modules/projetos/schemas";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -93,6 +95,7 @@ export function DisciplinaCard({
   const [pending, start] = useTransition();
   const podeMexerStatus = podeGerir || disciplina.ehResponsavel;
   const podeEnviar = podeGerir || disciplina.ehResponsavel;
+  const atraso = diasDeAtraso(disciplina.prazo, disciplina.status);
 
   function mudarStatus(status: string | null) {
     if (!status) return;
@@ -116,10 +119,16 @@ export function DisciplinaCard({
               Prazo: {formatarData(disciplina.prazo)}
             </p>
           )}
+          {atraso > 0 && (
+            <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-destructive">
+              <AlertTriangle className="size-3.5" aria-hidden />
+              atrasada {atraso}d
+            </p>
+          )}
         </div>
-        <Badge variant="outline" className={STATUS_CHIP[disciplina.status]}>
+        <StatusBadge tone={STATUS_TONE[disciplina.status] ?? "neutral"}>
           {STATUS_LABEL[disciplina.status]}
-        </Badge>
+        </StatusBadge>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-xs">

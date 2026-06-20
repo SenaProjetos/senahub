@@ -8,6 +8,16 @@ export const STATUS_LABEL: Record<StatusDisciplina, string> = {
   aprovado: "Aprovado",
 };
 
+/** Tom semântico do status (cor + ícone) para o `StatusBadge` — acessível a daltônicos. */
+export type StatusTone = "success" | "warning" | "danger" | "info" | "neutral";
+export const STATUS_TONE: Record<StatusDisciplina, StatusTone> = {
+  aguardando: "neutral",
+  em_andamento: "warning",
+  em_revisao: "info",
+  entregue: "info",
+  aprovado: "success",
+};
+
 /**
  * Classes Tailwind para o chip de status (usa cores semânticas do tema).
  * `DOT` = quadradinho de acento (::before) na cor do status — assinatura do design "Marca Registrada".
