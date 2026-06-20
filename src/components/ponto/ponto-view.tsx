@@ -1,11 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Play, Square, Repeat, Clock, Download, Info } from "lucide-react";
+import { Play, Square, Repeat, Clock, Download, Info, CloudOff } from "lucide-react";
 import { baterPonto, trocarProjeto, encerrarJornada } from "@/modules/ponto/actions";
 import { fecharRateioMes } from "@/modules/rh/rateio/actions";
+import {
+  contarPendentes,
+  enfileirar,
+  estaOffline,
+  sincronizar,
+  type TipoBatida,
+} from "@/lib/ponto-offline";
 import { fmtHoras } from "@/modules/ponto/format";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { brl, formatarData } from "@/lib/utils";
@@ -120,6 +127,7 @@ export function PontoView({
   const router = useRouter();
   const [projetoId, setProjetoId] = useState(aberta?.projeto?.id ?? NONE);
   const [busy, setBusy] = useState(false);
+  const [pendentes, setPendentes] = useState(0);
 
   async function acao(fn: () => Promise<{ ok: boolean; error?: string } | { ok: true; data: unknown }>, msg: string) {
     setBusy(true);
@@ -133,6 +141,67 @@ export function PontoView({
       setBusy(false);
     }
   }
+
+  /**
+   * Bater/trocar/encerrar com suporte offline: se o dispositivo está offline,
+   * enfileira a batida (otimista) sem tentar a rede. Se a action falhar por rede
+   * (Promise rejeita), também enfileira. Erros de aplicação (ok:false) são exibidos.
+   */
+  async function acaoOffline(
+    tipo: TipoBatida,
+    fn: () => Promise<{ ok: boolean; error?: string } | { ok: true; data: unknown }>,
+    payload: { projetoId?: string },
+    msg: string,
+  ) {
+    if (estaOffline()) {
+      enfileirar(tipo, payload);
+      setPendentes(contarPendentes());
+      toast.info("Sem conexão — batida salva e será enviada ao reconectar.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await fn();
+      if (r.ok) {
+        toast.success(msg);
+        router.refresh();
+      } else {
+        toast.error((r as { error: string }).error);
+      }
+    } catch {
+      // Falha de rede no meio do envio — guarda offline para reenviar depois.
+      enfileirar(tipo, payload);
+      setPendentes(contarPendentes());
+      toast.info("Sem conexão — batida salva e será enviada ao reconectar.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Reenvia a fila de batidas pendentes e dá feedback ao usuário. */
+  const sincronizarFila = useCallback(async () => {
+    if (contarPendentes() === 0) return;
+    const { sincronizados, falhas } = await sincronizar({
+      bater: baterPonto,
+      trocar: trocarProjeto,
+      encerrar: encerrarJornada,
+    });
+    setPendentes(contarPendentes());
+    if (sincronizados > 0) {
+      toast.success(`${sincronizados} batida(s) sincronizada(s).`);
+      router.refresh();
+    }
+    for (const f of falhas) toast.error(`Batida offline rejeitada: ${f}`);
+  }, [router]);
+
+  // No mount: reflete pendências e tenta sincronizar. Reage ao voltar a conexão.
+  useEffect(() => {
+    setPendentes(contarPendentes());
+    void sincronizarFila();
+    const onOnline = () => void sincronizarFila();
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [sincronizarFila]);
 
   const proj = (id: string) => (id === NONE ? "" : id);
 
@@ -211,14 +280,21 @@ export function PontoView({
                 <Button
                   variant="outline"
                   disabled={busy}
-                  onClick={() => acao(() => trocarProjeto({ projetoId: proj(projetoId) }), "Projeto trocado.")}
+                  onClick={() =>
+                    acaoOffline(
+                      "trocar",
+                      () => trocarProjeto({ projetoId: proj(projetoId) }),
+                      { projetoId: proj(projetoId) },
+                      "Projeto trocado.",
+                    )
+                  }
                 >
                   <Repeat className="size-4" /> Trocar projeto
                 </Button>
                 <Button
                   variant="destructive"
                   disabled={busy}
-                  onClick={() => acao(() => encerrarJornada({}), "Jornada encerrada.")}
+                  onClick={() => acaoOffline("encerrar", () => encerrarJornada({}), {}, "Jornada encerrada.")}
                 >
                   <Square className="size-4" /> Encerrar
                 </Button>
@@ -243,12 +319,30 @@ export function PontoView({
                 </Select>
                 <Button
                   disabled={busy}
-                  onClick={() => acao(() => baterPonto({ projetoId: proj(projetoId) }), "Jornada iniciada.")}
+                  onClick={() =>
+                    acaoOffline(
+                      "bater",
+                      () => baterPonto({ projetoId: proj(projetoId) }),
+                      { projetoId: proj(projetoId) },
+                      "Jornada iniciada.",
+                    )
+                  }
                 >
                   <Play className="size-4" /> Iniciar jornada
                 </Button>
               </div>
             </>
+          )}
+          {pendentes > 0 && (
+            <button
+              type="button"
+              onClick={() => void sincronizarFila()}
+              className="inline-flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-600 transition-colors hover:bg-amber-500/20 dark:text-amber-400"
+              title="Toque para tentar sincronizar agora"
+            >
+              <CloudOff className="size-4" />
+              {pendentes} batida(s) pendente(s) offline · toque para sincronizar
+            </button>
           )}
         </CardContent>
       </Card>
