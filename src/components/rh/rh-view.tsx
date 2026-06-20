@@ -4,12 +4,13 @@ import { useRef, useState, useTransition } from "react";
 import { formatarData } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plane, FileText, Smile } from "lucide-react";
+import { Plane, FileText, Smile, Paperclip, X, ClipboardList } from "lucide-react";
 import { solicitarFerias, registrarHumor } from "@/modules/rh/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "danger" | "neutral"> = {
@@ -46,10 +47,74 @@ export function RhView({
       <ClimaCard humorAtual={humorAtual} />
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <AbonoCard abonos={abonos} />
-        <FeriasCard ferias={ferias} />
+        <AbonoCard />
+        <FeriasCard />
       </div>
+
+      <MinhasSolicitacoes abonos={abonos} ferias={ferias} />
     </div>
+  );
+}
+
+type Solicitacao = {
+  id: string;
+  tipo: "Abono" | "Férias";
+  inicio: string | Date;
+  fim: string | Date;
+  status: string;
+};
+
+function MinhasSolicitacoes({ abonos, ferias }: { abonos: Abono[]; ferias: Feria[] }) {
+  const itens: Solicitacao[] = [
+    ...abonos.map((a) => ({
+      id: `abono-${a.id}`,
+      tipo: "Abono" as const,
+      inicio: a.dataInicio,
+      fim: a.dataFim,
+      status: a.status,
+    })),
+    ...ferias.map((f) => ({
+      id: `ferias-${f.id}`,
+      tipo: "Férias" as const,
+      inicio: f.inicio,
+      fim: f.fim,
+      status: f.status,
+    })),
+  ].sort((a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime());
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <ClipboardList className="size-4" /> Minhas solicitações
+        </CardTitle>
+        <CardDescription>Histórico de abonos e férias e o status de cada um.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {itens.length === 0 ? (
+          <EmptyState
+            icon={ClipboardList}
+            title="Nenhuma solicitação ainda"
+            description="Seus pedidos de abono e férias aparecerão aqui."
+          />
+        ) : (
+          <ul className="divide-y text-sm">
+            {itens.map((s) => (
+              <li key={s.id} className="flex items-center justify-between gap-3 py-2.5">
+                <div className="min-w-0">
+                  <span className="font-medium">{s.tipo}</span>
+                  <span className="text-muted-foreground">
+                    {" · "}
+                    {dt(s.inicio)} – {dt(s.fim)}
+                  </span>
+                </div>
+                <StatusBadge tone={STATUS_TONE[s.status] ?? "neutral"}>{s.status}</StatusBadge>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -103,13 +168,19 @@ function ClimaCard({ humorAtual }: { humorAtual: number | null }) {
   );
 }
 
-function AbonoCard({ abonos }: { abonos: Abono[] }) {
+function AbonoCard() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [inicio, setInicio] = useState("");
   const [fim, setFim] = useState("");
   const [motivo, setMotivo] = useState("");
+  const [arquivo, setArquivo] = useState<File | null>(null);
   const [enviando, setEnviando] = useState(false);
+
+  function limparArquivo() {
+    setArquivo(null);
+    if (inputRef.current) inputRef.current.value = "";
+  }
 
   async function enviar() {
     if (!inicio || !fim) {
@@ -122,15 +193,14 @@ function AbonoCard({ abonos }: { abonos: Abono[] }) {
       fd.set("dataInicio", inicio);
       fd.set("dataFim", fim);
       fd.set("motivo", motivo);
-      const file = inputRef.current?.files?.[0];
-      if (file) fd.set("atestado", file);
+      if (arquivo) fd.set("atestado", arquivo);
       const res = await fetch("/api/rh/abono", { method: "POST", body: fd });
       if (res.ok) {
         toast.success("Abono solicitado.");
         setInicio("");
         setFim("");
         setMotivo("");
-        if (inputRef.current) inputRef.current.value = "";
+        limparArquivo();
         router.refresh();
       } else {
         toast.error((await res.json()).error ?? "Falha.");
@@ -160,29 +230,50 @@ function AbonoCard({ abonos }: { abonos: Abono[] }) {
           </div>
         </div>
         <Input placeholder="Motivo (opcional)" value={motivo} onChange={(e) => setMotivo(e.target.value)} />
-        <input ref={inputRef} type="file" accept="image/*,.pdf" className="text-sm" />
+
+        <div className="space-y-1.5">
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*,.pdf"
+            className="sr-only"
+            onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={() => inputRef.current?.click()}
+          >
+            <Paperclip className="size-4" />
+            {arquivo ? "Trocar atestado" : "Anexar atestado"}
+          </Button>
+          {arquivo && (
+            <div className="flex items-center justify-between gap-2 rounded-sm border bg-muted/40 px-2.5 py-1.5 text-xs">
+              <span className="min-w-0 truncate text-muted-foreground" title={arquivo.name}>
+                {arquivo.name}
+              </span>
+              <button
+                type="button"
+                onClick={limparArquivo}
+                aria-label="Remover atestado"
+                className="shrink-0 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+
         <Button onClick={enviar} disabled={enviando} className="w-full">
           {enviando ? "Enviando…" : "Solicitar abono"}
         </Button>
-
-        <ul className="divide-y text-sm">
-          {abonos.map((a) => (
-            <li key={a.id} className="flex items-center justify-between py-2">
-              <span>
-                {dt(a.dataInicio)} – {dt(a.dataFim)}
-              </span>
-              <StatusBadge tone={STATUS_TONE[a.status] ?? "neutral"}>
-                {a.status}
-              </StatusBadge>
-            </li>
-          ))}
-        </ul>
       </CardContent>
     </Card>
   );
 }
 
-function FeriasCard({ ferias }: { ferias: Feria[] }) {
+function FeriasCard() {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [inicio, setInicio] = useState("");
@@ -229,19 +320,6 @@ function FeriasCard({ ferias }: { ferias: Feria[] }) {
         <Button onClick={solicitar} disabled={pending} className="w-full">
           {pending ? "Enviando…" : "Solicitar férias"}
         </Button>
-
-        <ul className="divide-y text-sm">
-          {ferias.map((f) => (
-            <li key={f.id} className="flex items-center justify-between py-2">
-              <span>
-                {dt(f.inicio)} – {dt(f.fim)}
-              </span>
-              <StatusBadge tone={STATUS_TONE[f.status] ?? "neutral"}>
-                {f.status}
-              </StatusBadge>
-            </li>
-          ))}
-        </ul>
       </CardContent>
     </Card>
   );
