@@ -30,6 +30,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -50,8 +51,14 @@ type HoleriteT = {
 };
 type Rubrica = { id: string; nome: string; tipo: "provento" | "desconto" };
 
+function proventosDe(itens: Item[]) {
+  return itens.reduce((s, it) => s + (it.tipo === "provento" ? it.valor : 0), 0);
+}
+function descontosDe(itens: Item[]) {
+  return itens.reduce((s, it) => s + (it.tipo === "desconto" ? it.valor : 0), 0);
+}
 function liquidoDe(itens: Item[]) {
-  return itens.reduce((s, it) => s + (it.tipo === "provento" ? it.valor : -it.valor), 0);
+  return proventosDe(itens) - descontosDe(itens);
 }
 
 export function FolhaDetalheView({
@@ -76,6 +83,7 @@ export function FolhaDetalheView({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [editor, setEditor] = useState<{ userId: string; nome: string; itens: Item[] } | null>(null);
+  const [preview, setPreview] = useState(false);
 
   const aberta = folha.status === "aberta";
   const total = folha.holerites.reduce((s, h) => s + liquidoDe(h.itens), 0);
@@ -86,6 +94,7 @@ export function FolhaDetalheView({
       const r = await fecharFolha({ id: folha.id });
       if (r.ok) {
         toast.success(`Folha fechada — ${brl(r.data.liquido)} lançado na DRE.`);
+        setPreview(false);
         router.refresh();
       } else toast.error(r.error);
     });
@@ -152,7 +161,7 @@ export function FolhaDetalheView({
               <Button variant="outline" onClick={gerarAuto} disabled={pending}>
                 <Wand2 className="size-4" /> Gerar automático
               </Button>
-              <Button onClick={fechar} disabled={pending || folha.holerites.length === 0}>
+              <Button onClick={() => setPreview(true)} disabled={pending || folha.holerites.length === 0}>
                 <Lock className="size-4" /> Fechar folha
               </Button>
             </>
@@ -264,7 +273,112 @@ export function FolhaDetalheView({
         deducaoDependentes={editor ? (dependentesPorUser[editor.userId] ?? 0) * deducaoDep : 0}
         onClose={() => setEditor(null)}
       />
+
+      <FecharFolhaPreview
+        open={preview}
+        onClose={() => setPreview(false)}
+        onConfirm={fechar}
+        pending={pending}
+        mes={folha.mes}
+        ano={folha.ano}
+        holerites={folha.holerites}
+        totalLiquido={total}
+      />
     </div>
+  );
+}
+
+/** Pré-visualização dos holerites (proventos, descontos, líquido) antes de fechar a folha. */
+function FecharFolhaPreview({
+  open,
+  onClose,
+  onConfirm,
+  pending,
+  mes,
+  ano,
+  holerites,
+  totalLiquido,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  pending: boolean;
+  mes: number;
+  ano: number;
+  holerites: HoleriteT[];
+  totalLiquido: number;
+}) {
+  const totalProventos = holerites.reduce((s, h) => s + proventosDe(h.itens), 0);
+  const totalDescontos = holerites.reduce((s, h) => s + descontosDe(h.itens), 0);
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>
+            Pré-visualizar folha {String(mes).padStart(2, "0")}/{ano}
+          </DialogTitle>
+          <DialogDescription>
+            Confira os holerites antes de fechar. Ao confirmar, o líquido vira um lançamento de
+            despesa confirmado na DRE (categoria 2.03).
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          {holerites.map((h) => {
+            const proventos = proventosDe(h.itens);
+            const descontos = descontosDe(h.itens);
+            return (
+              <div key={h.id} className="rounded-sm border p-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{h.user.name}</span>
+                  <span className="font-mono text-sm font-semibold">{brl(proventos - descontos)}</span>
+                </div>
+                <ul className="mt-2 space-y-0.5 text-xs">
+                  {h.itens.map((it, i) => (
+                    <li key={it.id ?? i} className="flex items-center justify-between">
+                      <span className="text-muted-foreground">{it.descricao}</span>
+                      <span className={`font-mono ${it.tipo === "desconto" ? "text-destructive" : ""}`}>
+                        {it.tipo === "desconto" ? "-" : ""}
+                        {brl(it.valor)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-2 flex justify-between border-t pt-1 text-xs text-muted-foreground">
+                  <span>
+                    Proventos <span className="font-mono text-success">{brl(proventos)}</span>
+                  </span>
+                  <span>
+                    Descontos <span className="font-mono">{brl(descontos)}</span>
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-sm border bg-muted/40 p-3 text-sm">
+            <span className="text-muted-foreground">
+              {holerites.length} holerite(s) · proventos{" "}
+              <span className="font-mono text-success">{brl(totalProventos)}</span> · descontos{" "}
+              <span className="font-mono">{brl(totalDescontos)}</span>
+            </span>
+            <span className="font-semibold">
+              Líquido a lançar: <span className="font-mono">{brl(totalLiquido)}</span>
+            </span>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={pending}>
+            Cancelar
+          </Button>
+          <Button onClick={onConfirm} disabled={pending || totalLiquido <= 0}>
+            <Lock className="size-4" /> {pending ? "Fechando…" : "Confirmar e fechar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

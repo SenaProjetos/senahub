@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Layers } from "lucide-react";
 import { gerarFolhaDoMes } from "@/modules/financeiro/folha-lote/actions";
@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Pagination } from "@/components/ui/pagination";
+import { PAGE_SIZES, PAGE_SIZE_PADRAO, pageCount as calcPageCount } from "@/lib/list-params";
 import { brl } from "@/lib/utils";
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -20,11 +22,21 @@ type Folha = { id: string; ano: number; mes: number; status: string; total: numb
 
 export function FolhaLotesSection({ folhas }: { folhas: Folha[] }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [pending, start] = useTransition();
   const ref = new Date();
   ref.setMonth(ref.getMonth() - 1);
   const [ano, setAno] = useState(String(ref.getFullYear()));
   const [mes, setMes] = useState(String(ref.getMonth() + 1));
+
+  // Histórico paginado client-side: a query já traz todos os lotes (desc).
+  const total = folhas.length;
+  const psRaw = Number(searchParams.get("pageSize"));
+  const pageSize = (PAGE_SIZES as readonly number[]).includes(psRaw) ? psRaw : PAGE_SIZE_PADRAO;
+  const pageCount = calcPageCount(total, pageSize);
+  const pageRaw = Number(searchParams.get("page"));
+  const page = Number.isInteger(pageRaw) && pageRaw >= 1 ? Math.min(pageRaw, pageCount) : 1;
+  const visiveis = folhas.slice((page - 1) * pageSize, page * pageSize);
 
   function gerar() {
     start(async () => {
@@ -54,21 +66,24 @@ export function FolhaLotesSection({ folhas }: { folhas: Folha[] }) {
         </div>
       </CardHeader>
       <CardContent>
-        {folhas.length === 0 ? (
+        {total === 0 ? (
           <EmptyState icon={Layers} title="Nenhum lote gerado." />
         ) : (
-          <ul className="divide-y text-sm">
-            {folhas.map((f) => (
-              <li key={f.id} className="flex items-center justify-between gap-3 py-2">
-                <span className="font-mono">{MESES[f.mes - 1]}/{f.ano}</span>
-                <span className="text-muted-foreground">{f.pagos}/{f.qtd} pagos</span>
-                <span className="font-mono">{brl(f.total)}</span>
-                <StatusBadge tone={TONE[f.todosPagos ? "paga" : f.status] ?? "neutral"}>
-                  {f.todosPagos ? "paga" : f.status}
-                </StatusBadge>
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className="divide-y text-sm">
+              {visiveis.map((f) => (
+                <li key={f.id} className="flex items-center justify-between gap-3 py-2">
+                  <span className="font-mono">{MESES[f.mes - 1]}/{f.ano}</span>
+                  <span className="text-muted-foreground">{f.pagos}/{f.qtd} pagos</span>
+                  <span className="font-mono">{brl(f.total)}</span>
+                  <StatusBadge tone={TONE[f.todosPagos ? "paga" : f.status] ?? "neutral"}>
+                    {f.todosPagos ? "paga" : f.status}
+                  </StatusBadge>
+                </li>
+              ))}
+            </ul>
+            <Pagination page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
+          </>
         )}
       </CardContent>
     </Card>

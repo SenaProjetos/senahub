@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, FileText } from "lucide-react";
 import { criarFolha } from "@/modules/rh/folha/actions";
@@ -19,14 +19,26 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Pagination } from "@/components/ui/pagination";
+import { PAGE_SIZES, PAGE_SIZE_PADRAO, pageCount as calcPageCount } from "@/lib/list-params";
 import { brl } from "@/lib/utils";
 
 export function FolhasView({ folhas }: { folhas: FolhaResumo[] }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [pending, start] = useTransition();
   const hoje = new Date();
   const [ano, setAno] = useState(String(hoje.getFullYear()));
   const [mes, setMes] = useState(String(hoje.getMonth() + 1));
+
+  // Histórico paginado client-side: a query já traz todos os meses (desc).
+  const total = folhas.length;
+  const psRaw = Number(searchParams.get("pageSize"));
+  const pageSize = (PAGE_SIZES as readonly number[]).includes(psRaw) ? psRaw : PAGE_SIZE_PADRAO;
+  const pageCount = calcPageCount(total, pageSize);
+  const pageRaw = Number(searchParams.get("page"));
+  const page = Number.isInteger(pageRaw) && pageRaw >= 1 ? Math.min(pageRaw, pageCount) : 1;
+  const visiveis = folhas.slice((page - 1) * pageSize, page * pageSize);
 
   function criar() {
     start(async () => {
@@ -44,7 +56,7 @@ export function FolhasView({ folhas }: { folhas: FolhaResumo[] }) {
         <div>
           <h2 className="text-2xl font-extrabold tracking-tight">Folha CLT</h2>
           <p className="text-sm text-muted-foreground">
-            Holerites mensais; fechar gera o custo na DRE (categoria 2.03).
+            Histórico de holerites mensais; fechar gera o custo na DRE (categoria 2.03).
           </p>
         </div>
         <div className="flex items-end gap-2">
@@ -83,14 +95,14 @@ export function FolhasView({ folhas }: { folhas: FolhaResumo[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {folhas.length === 0 ? (
+            {total === 0 ? (
               <TableRow>
                 <TableCell colSpan={6}>
                   <EmptyState icon={FileText} title="Nenhuma folha" />
                 </TableCell>
               </TableRow>
             ) : (
-              folhas.map((f) => (
+              visiveis.map((f) => (
                 <TableRow key={f.id}>
                   <TableCell className="font-mono text-sm">
                     <Link href={`/rh/folha/${f.id}`} className="hover:underline">
@@ -112,6 +124,8 @@ export function FolhasView({ folhas }: { folhas: FolhaResumo[] }) {
           </TableBody>
         </Table>
       </div>
+
+      <Pagination page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
     </div>
   );
 }
