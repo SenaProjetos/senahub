@@ -9,19 +9,29 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 export function AvisoGeralView() {
   const [titulo, setTitulo] = useState("");
   const [corpo, setCorpo] = useState("");
   const [incluirClientes, setIncluirClientes] = useState(false);
   const [pending, start] = useTransition();
+  const confirm = useConfirm();
 
-  function enviar() {
+  async function enviar() {
     if (!titulo.trim()) {
       toast.error("Informe o título.");
       return;
     }
-    if (!window.confirm("Enviar este aviso para todos os usuários?")) return;
+    if (
+      !(await confirm({
+        title: "Enviar aviso geral?",
+        description: "O aviso vai para todos os usuários.",
+        variant: "default",
+        confirmLabel: "Enviar",
+      }))
+    )
+      return;
     start(async () => {
       const r = await enviarAvisoGeral({ titulo, corpo, incluirClientes });
       if (r.ok) {

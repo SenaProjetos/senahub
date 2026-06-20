@@ -35,6 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { brl, formatarData } from "@/lib/utils";
 
 const NONE = "__none";
@@ -55,6 +56,7 @@ type LinhaLocal = {
 
 export function PlanejamentoMesaView({ plano, disponiveis }: { plano: PlanoDetalhe; disponiveis: LancamentoPlano[] }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, start] = useTransition();
   const readOnly = plano.status === "executado" || plano.status === "cancelado";
 
@@ -171,8 +173,16 @@ export function PlanejamentoMesaView({ plano, disponiveis }: { plano: PlanoDetal
       } else toast.error(r.error);
     });
   }
-  function executar() {
-    if (!confirm("Executar o plano? As linhas selecionadas serão pagas pelo valor planejado; saldos restantes ficam em aberto.")) return;
+  async function executar() {
+    if (
+      !(await confirm({
+        title: "Executar plano?",
+        description: "As linhas selecionadas serão pagas pelo valor planejado; saldos restantes ficam em aberto.",
+        variant: "default",
+        confirmLabel: "Executar",
+      }))
+    )
+      return;
     start(async () => {
       const r = await executarPlano({ id: plano.id });
       if (r.ok) {

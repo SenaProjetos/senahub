@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { brl, formatarData } from "@/lib/utils";
 
 const NONE = "__none";
@@ -75,9 +76,18 @@ export function PlanejamentoListaView({ planos, opcoes }: { planos: PlanoResumo[
 
 function ExcluirBtn({ id }: { id: string }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, start] = useTransition();
-  function excluir() {
-    if (!confirm("Excluir este cenário? As linhas do plano serão removidas (os lançamentos não são afetados).")) return;
+  async function excluir() {
+    if (
+      !(await confirm({
+        title: "Excluir cenário?",
+        description: "As linhas do plano serão removidas (os lançamentos não são afetados).",
+        variant: "destructive",
+        confirmLabel: "Excluir",
+      }))
+    )
+      return;
     start(async () => {
       const r = await excluirPlano({ id });
       if (r.ok) {

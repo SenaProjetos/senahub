@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 type Preview = {
   nomeArquivo: string;
@@ -60,6 +61,7 @@ const SEM_COLUNA = "__nenhuma__";
 
 export function ImportadorView({ importacoes }: { importacoes: ImportacaoItem[] }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const inputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [enviando, setEnviando] = useState(false);
@@ -129,8 +131,16 @@ export function ImportadorView({ importacoes }: { importacoes: ImportacaoItem[] 
     });
   }
 
-  function desfazer(loteId: string) {
-    if (!confirm("Desfazer esta importação? Os lançamentos do lote serão removidos (cadastros criados permanecem).")) return;
+  async function desfazer(loteId: string) {
+    if (
+      !(await confirm({
+        title: "Desfazer importação?",
+        description: "Os lançamentos do lote serão removidos (cadastros criados permanecem).",
+        variant: "destructive",
+        confirmLabel: "Desfazer",
+      }))
+    )
+      return;
     start(async () => {
       const r = await desfazerImportacao({ loteId });
       if (r.ok) {
