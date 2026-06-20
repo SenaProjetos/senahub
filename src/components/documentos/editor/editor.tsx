@@ -19,6 +19,7 @@ import {
   ZoomOut,
   History,
   Plus,
+  HelpCircle,
 } from "lucide-react";
 import {
   novoElemento,
@@ -34,6 +35,7 @@ import { salvarModelo, restaurarVersao } from "@/modules/documentos/actions";
 import { editorReducer, type EditorState } from "./estado";
 import { Canvas } from "./canvas";
 import { Propriedades } from "./propriedades";
+import { VariaveisDialog } from "../variaveis-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -224,6 +226,14 @@ export function DocEditor({
           <Button variant="ghost" size="icon" aria-label="Aumentar zoom" onClick={() => setZoom((z) => Math.min(2, +(z + 0.25).toFixed(2)))}>
             <ZoomIn className="size-4" />
           </Button>
+
+          <VariaveisDialog
+            trigger={
+              <Button variant="ghost" size="icon" aria-label="Variáveis disponíveis">
+                <HelpCircle className="size-4" />
+              </Button>
+            }
+          />
 
           <VersoesDialog modeloId={modeloId} versoes={versoes} />
 

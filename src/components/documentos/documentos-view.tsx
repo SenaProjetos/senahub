@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { formatarData } from "@/lib/utils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Copy, Archive, Eye, Pencil, FileText } from "lucide-react";
+import { Plus, Copy, Archive, Eye, Pencil, FileText, Search } from "lucide-react";
 import { criarModelo, duplicarModelo, arquivarModelo } from "@/modules/documentos/actions";
 import { FONTES } from "@/modules/documentos/fontes-meta";
+import { VariaveisDialog } from "./variaveis-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,6 +56,27 @@ export function DocumentosView({ modelos, podeGerir }: { modelos: Modelo[]; pode
   const [nome, setNome] = useState("");
   const [tipo, setTipo] = useState("relatorio");
   const [fonte, setFonte] = useState("projeto");
+
+  // Busca/filtro client-side da lista de modelos
+  const [busca, setBusca] = useState("");
+  const [filtroFonte, setFiltroFonte] = useState("__all");
+  const [previewModelo, setPreviewModelo] = useState<Modelo | null>(null);
+
+  const fontesUsadas = useMemo(
+    () => Array.from(new Set(modelos.map((m) => m.fonte).filter((f): f is string => !!f))).sort(),
+    [modelos],
+  );
+
+  const modelosFiltrados = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+    return modelos.filter((m) => {
+      const okNome = !termo || m.nome.toLowerCase().includes(termo);
+      const okFonte =
+        filtroFonte === "__all" ||
+        (filtroFonte === "__none" ? !m.fonte : m.fonte === filtroFonte);
+      return okNome && okFonte;
+    });
+  }, [modelos, busca, filtroFonte]);
 
   function criar() {
     if (!nome.trim()) {
@@ -104,12 +126,43 @@ export function DocumentosView({ modelos, podeGerir }: { modelos: Modelo[]; pode
             Modelos de relatórios, propostas, contratos e recibos com dados dinâmicos do Hub.
           </p>
         </div>
-        {podeGerir && (
-          <Button onClick={() => setOpen(true)}>
-            <Plus className="size-4" /> Novo modelo
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <VariaveisDialog />
+          {podeGerir && (
+            <Button onClick={() => setOpen(true)}>
+              <Plus className="size-4" /> Novo modelo
+            </Button>
+          )}
+        </div>
       </div>
+
+      {modelos.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-56 flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar por nome…"
+              className="pl-8"
+            />
+          </div>
+          <Select value={filtroFonte} onValueChange={(v) => setFiltroFonte(v ?? "__all")}>
+            <SelectTrigger className="w-56 min-w-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all">Todas as fontes</SelectItem>
+              {modelos.some((m) => !m.fonte) && <SelectItem value="__none">Sem fonte</SelectItem>}
+              {fontesUsadas.map((f) => (
+                <SelectItem key={f} value={f}>
+                  {FONTES.find((x) => x.id === f)?.label ?? f}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {modelos.length === 0 ? (
         <Card>
@@ -121,9 +174,19 @@ export function DocumentosView({ modelos, podeGerir }: { modelos: Modelo[]; pode
             />
           </CardContent>
         </Card>
+      ) : modelosFiltrados.length === 0 ? (
+        <Card>
+          <CardContent>
+            <EmptyState
+              icon={Search}
+              title="Nenhum modelo encontrado"
+              description="Ajuste a busca ou o filtro de fonte."
+            />
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {modelos.map((m) => (
+          {modelosFiltrados.map((m) => (
             <Card key={m.id} className="flex flex-col">
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
@@ -146,8 +209,11 @@ export function DocumentosView({ modelos, podeGerir }: { modelos: Modelo[]; pode
                     <Pencil className="size-3.5" /> Editar
                   </Button>
                 )}
+                <Button size="sm" variant="outline" onClick={() => setPreviewModelo(m)}>
+                  <Eye className="size-3.5" /> Pré-visualizar
+                </Button>
                 <Button size="sm" variant="outline" render={<Link href={`/documentos/${m.id}/preview`} />}>
-                  <Eye className="size-3.5" /> Gerar
+                  <FileText className="size-3.5" /> Gerar
                 </Button>
                 {podeGerir && (
                   <>
@@ -164,6 +230,50 @@ export function DocumentosView({ modelos, podeGerir }: { modelos: Modelo[]; pode
           ))}
         </div>
       )}
+
+      <Dialog open={!!previewModelo} onOpenChange={(o) => !o && setPreviewModelo(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="size-5 text-primary" />
+              {previewModelo?.nome}
+            </DialogTitle>
+            <DialogDescription>Resumo do modelo.</DialogDescription>
+          </DialogHeader>
+          {previewModelo && (
+            <div className="space-y-3">
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+                <dt className="text-muted-foreground">Tipo</dt>
+                <dd>
+                  <Badge variant="outline">
+                    {TIPO_LABEL[previewModelo.tipo] ?? previewModelo.tipo}
+                  </Badge>
+                </dd>
+                <dt className="text-muted-foreground">Fonte de dados</dt>
+                <dd>
+                  {previewModelo.fonte
+                    ? FONTES.find((f) => f.id === previewModelo.fonte)?.label ?? previewModelo.fonte
+                    : "Sem fonte de dados"}
+                </dd>
+                <dt className="text-muted-foreground">Versões</dt>
+                <dd>v{previewModelo.versoes}</dd>
+                <dt className="text-muted-foreground">Atualizado em</dt>
+                <dd>{formatarData(previewModelo.atualizadoEm)}</dd>
+              </dl>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewModelo(null)}>
+              Fechar
+            </Button>
+            {previewModelo && (
+              <Button render={<Link href={`/documentos/${previewModelo.id}/preview`} />}>
+                <Eye className="size-4" /> Gerar documento
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
