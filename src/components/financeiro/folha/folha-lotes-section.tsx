@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl } from "@/lib/utils";
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -53,7 +54,7 @@ export function FolhaLotesSection({ folhas }: { folhas: Folha[] }) {
       </CardHeader>
       <CardContent>
         {folhas.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum lote gerado.</p>
+          <EmptyState icon={Layers} title="Nenhum lote gerado." />
         ) : (
           <ul className="divide-y text-sm">
             {folhas.map((f) => (

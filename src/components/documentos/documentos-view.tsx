@@ -28,6 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type Modelo = {
   id: string;
@@ -112,8 +113,12 @@ export function DocumentosView({ modelos, podeGerir }: { modelos: Modelo[]; pode
 
       {modelos.length === 0 ? (
         <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            Nenhum modelo ainda. Crie o primeiro e monte o layout arrastando elementos.
+          <CardContent>
+            <EmptyState
+              icon={FileText}
+              title="Nenhum modelo ainda"
+              description="Crie o primeiro e monte o layout arrastando elementos."
+            />
           </CardContent>
         </Card>
       ) : (

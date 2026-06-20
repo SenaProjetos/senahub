@@ -3,9 +3,11 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { ArrowLeftRight } from "lucide-react";
 import { classificarDfc } from "@/modules/financeiro/relatorios/actions";
 import type { AtividadeDFC, GrupoDFC } from "@/modules/financeiro/relatorios/queries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Select,
   SelectContent,
@@ -85,7 +87,7 @@ export function DfcView({
             </CardHeader>
             <CardContent>
               {a.linhas.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Sem movimentos.</p>
+                <EmptyState icon={ArrowLeftRight} title="Sem movimentos." />
               ) : (
                 <ul className="space-y-1 text-sm">
                   {a.linhas.map((l) => (

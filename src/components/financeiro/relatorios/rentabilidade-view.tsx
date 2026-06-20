@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, TrendingUp } from "lucide-react";
+import { AlertTriangle, TrendingUp, Users, Wallet } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import type { RentabilidadeRelatorio, MargemMensal, CustoDisciplina } from "@/modules/financeiro/relatorios/queries";
 import type { CoordenadorRentab } from "@/modules/financeiro/relatorios/dre-projeto";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -102,7 +103,7 @@ export function RentabilidadeView({
         </CardHeader>
         <CardContent>
           {dados.projetos.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">Sem movimento confirmado por projeto no período.</p>
+            <EmptyState icon={TrendingUp} title="Sem movimento confirmado por projeto no período." />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -148,7 +149,7 @@ export function RentabilidadeView({
         </CardHeader>
         <CardContent>
           {dados.clientes.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">Sem dados por cliente.</p>
+            <EmptyState icon={Users} title="Sem dados por cliente." />
           ) : (
             <ul className="divide-y text-sm">
               {dados.clientes.map((c) => (
@@ -172,7 +173,7 @@ export function RentabilidadeView({
         </CardHeader>
         <CardContent>
           {porCoordenador.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">Sem dados por coordenador.</p>
+            <EmptyState icon={Users} title="Sem dados por coordenador." />
           ) : (
             <ul className="divide-y text-sm">
               {porCoordenador.map((c) => (
@@ -196,7 +197,7 @@ export function RentabilidadeView({
         </CardHeader>
         <CardContent>
           {custoDisciplina.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">Sem pagamentos de projetistas no período.</p>
+            <EmptyState icon={Wallet} title="Sem pagamentos de projetistas no período." />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

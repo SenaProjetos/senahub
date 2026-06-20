@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Download } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Download, CalendarOff } from "lucide-react";
 import { salvarFeriado, excluirFeriado, importarFeriadosNacionais } from "@/modules/rh/feriados/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type Feriado = { id: string; data: string; nome: string; tipo: string };
 
@@ -111,7 +112,7 @@ export function FeriadosView({ ano, feriados }: { ano: number; feriados: Feriado
         </CardHeader>
         <CardContent>
           {feriados.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum feriado. Importe os nacionais acima.</p>
+            <EmptyState icon={CalendarOff} title="Nenhum feriado" description="Importe os feriados nacionais para começar." />
           ) : (
             <ul className="divide-y text-sm">
               {feriados.map((f) => (

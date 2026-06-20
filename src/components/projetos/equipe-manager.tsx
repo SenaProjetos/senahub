@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { UserPlus } from "lucide-react";
+import { UserPlus, Users } from "lucide-react";
 import { definirMembros } from "@/modules/projetos/actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type Interno = { id: string; name: string; role: string };
 
@@ -74,7 +75,7 @@ export function EquipeManager({
           </DialogHeader>
 
           {internos.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum usuário interno disponível.</p>
+            <EmptyState icon={Users} title="Nenhum usuário interno disponível" />
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {internos.map((u) => {

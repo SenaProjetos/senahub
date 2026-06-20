@@ -1,6 +1,8 @@
 import { differenceInCalendarDays, addDays, format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { ListChecks } from "lucide-react";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const GANTT_PX_DEFAULT = 18; // pixels por dia
 const ROW = 34; // altura da linha (px)
@@ -20,9 +22,7 @@ export function Gantt({
 }) {
   if (tarefas.length === 0) {
     return (
-      <p className="px-4 py-10 text-center text-sm text-muted-foreground">
-        Sem tarefas para exibir no cronograma.
-      </p>
+      <EmptyState icon={ListChecks} title="Sem tarefas para exibir no cronograma" />
     );
   }
 

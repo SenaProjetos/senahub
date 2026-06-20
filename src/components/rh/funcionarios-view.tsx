@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const TIPOS_DOC = ["contrato", "rg", "cpf", "aso", "diploma", "comprovante", "outro"] as const;
@@ -256,8 +257,8 @@ export function FuncionariosView({ funcionarios }: { funcionarios: Func[] }) {
       </div>
       {funcionarios.length === 0 ? (
         <Card>
-          <CardContent className="flex items-center gap-2 py-10 text-center text-sm text-muted-foreground">
-            <Users className="size-4" /> Nenhum funcionário CLT/estagiário ativo.
+          <CardContent>
+            <EmptyState icon={Users} title="Nenhum funcionário CLT/estagiário ativo" />
           </CardContent>
         </Card>
       ) : (

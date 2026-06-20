@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Pencil, Power, PowerOff, ChevronDown, Trash2 } from "lucide-react";
+import { Plus, Pencil, Power, PowerOff, ChevronDown, Trash2, Truck } from "lucide-react";
 import {
   criarFornecedor,
   editarFornecedor,
@@ -12,6 +12,7 @@ import {
   removerFornecedorServico,
 } from "@/modules/financeiro/cadastros/actions";
 import { brl } from "@/lib/utils";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -73,7 +74,7 @@ export function FornecedoresSection({ fornecedores }: { fornecedores: Fornecedor
       </div>
       <ul className="divide-y rounded-sm border">
         {fornecedores.length === 0 ? (
-          <li className="p-3 text-sm text-muted-foreground">Nenhum fornecedor.</li>
+          <li><EmptyState icon={Truck} title="Nenhum fornecedor." /></li>
         ) : (
           fornecedores.map((f) => (
             <FornRow

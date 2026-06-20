@@ -3,12 +3,13 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Download, Trash2, Upload } from "lucide-react";
+import { Download, Trash2, Upload, FileText } from "lucide-react";
 import { adicionarAnexoProposta, removerAnexoProposta } from "@/modules/comercial/propostas-extras/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl, formatarData } from "@/lib/utils";
 
 function fmtBytes(n: number) {
@@ -81,7 +82,7 @@ export function PropostaExtras({
         </CardHeader>
         <CardContent className="space-y-2">
           {anexos.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum anexo.</p>
+            <EmptyState icon={FileText} title="Nenhum anexo" />
           ) : (
             <ul className="divide-y rounded-sm border text-sm">
               {anexos.map((an) => (

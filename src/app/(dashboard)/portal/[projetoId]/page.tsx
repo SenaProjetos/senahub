@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { formatarData } from "@/lib/utils";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, CalendarDays, MapPin } from "lucide-react";
+import { ArrowLeft, CalendarDays, MapPin, FolderOpen } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { projetoDoCliente } from "@/modules/portal/queries";
@@ -10,6 +10,7 @@ import { SITUACAO_PROJETO_LABEL, STATUS_CHIP, STATUS_LABEL } from "@/modules/pro
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata: Metadata = { title: "Projeto" };
 
@@ -63,7 +64,7 @@ export default async function PortalProjetoPage({
         </CardHeader>
         <CardContent>
           {projeto.disciplinas.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma disciplina cadastrada.</p>
+            <EmptyState icon={FolderOpen} title="Nenhuma disciplina cadastrada." />
           ) : (
             <ul className="divide-y text-sm">
               {projeto.disciplinas.map((d) => (

@@ -5,7 +5,7 @@ import { formatarData } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { differenceInCalendarDays } from "date-fns";
-import { Plus, Upload, Download, Trash2, Folder, FolderPlus, X } from "lucide-react";
+import { Plus, Upload, Download, Trash2, Folder, FolderPlus, X, FileText, ShieldCheck } from "lucide-react";
 import {
   criarDocJuridico,
   excluirDocJuridico,
@@ -22,6 +22,7 @@ import {
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -318,7 +319,7 @@ function DocsTab({
       <input ref={uploadRef} type="file" className="hidden" onChange={(e) => enviarVersao(e.target.files?.[0] ?? null)} />
 
       {docsVisiveis.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum documento.</p>
+        <EmptyState icon={FileText} title="Nenhum documento." />
       ) : (
         <div className="space-y-3">
           {docsVisiveis.map((d) => (
@@ -478,7 +479,7 @@ function CertidoesTab({
       )}
 
       {certidoes.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhuma certidão.</p>
+        <EmptyState icon={ShieldCheck} title="Nenhuma certidão." />
       ) : (
         <ul className="divide-y rounded-sm border">
           {certidoes.map((c) => (
@@ -546,7 +547,7 @@ function ModelosTab({ modelos, podeGerir }: { modelos: Modelo[]; podeGerir: bool
         </div>
       )}
       {modelos.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum modelo de contrato.</p>
+        <EmptyState icon={FileText} title="Nenhum modelo de contrato." />
       ) : (
         <ul className="divide-y rounded-sm border">
           {modelos.map((m) => (

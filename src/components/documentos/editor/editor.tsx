@@ -56,6 +56,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type VersaoT = { id: string; numero: number; autor: string; data: string };
 type TipoDoc = "relatorio" | "proposta" | "contrato" | "recibo" | "holerite" | "outro";
@@ -311,7 +312,9 @@ function VersoesDialog({ modeloId, versoes }: { modeloId: string; versoes: Versa
         </DialogHeader>
         <ul className="max-h-72 divide-y overflow-y-auto text-sm">
           {versoes.length === 0 ? (
-            <li className="py-3 text-muted-foreground">Nenhuma versão ainda.</li>
+            <li>
+              <EmptyState icon={History} title="Nenhuma versão ainda" />
+            </li>
           ) : (
             versoes.map((v) => (
               <li key={v.id} className="flex items-center justify-between gap-2 py-2">

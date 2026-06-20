@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl, formatarData } from "@/lib/utils";
 
 const NONE = "__none";
@@ -187,7 +188,7 @@ export function DocumentosFinanceirosView({
       <Card>
         <CardContent className="p-0">
           {docs.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">Nenhum documento financeiro.</p>
+            <EmptyState icon={FileText} title="Nenhum documento financeiro." />
           ) : (
             <table className="w-full text-sm">
               <thead className="border-b text-left font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">

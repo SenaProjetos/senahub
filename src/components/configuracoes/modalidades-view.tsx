@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, RotateCcw, Check, X } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, RotateCcw, Check, X, Tags } from "lucide-react";
 import {
   salvarModalidade,
   alternarModalidade,
@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type Modalidade = { id: string; nome: string; ordem: number; ativo: boolean };
 
@@ -116,7 +117,7 @@ export function ModalidadesView({ modalidades }: { modalidades: Modalidade[] }) 
         </CardHeader>
         <CardContent>
           {modalidades.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma modalidade. Clique em “Restaurar padrão”.</p>
+            <EmptyState icon={Tags} title="Nenhuma modalidade" description="Use “Restaurar padrão” para recriar as modalidades." />
           ) : (
             <ul className="divide-y text-sm">
               {modalidades.map((m) => (

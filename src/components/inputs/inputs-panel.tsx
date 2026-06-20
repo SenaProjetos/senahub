@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2, Link2, Copy, Save } from "lucide-react";
+import { Plus, Trash2, Link2, Copy, Save, Inbox } from "lucide-react";
 import {
   adicionarInput,
   removerInput,
@@ -12,6 +12,7 @@ import {
   aplicarInputsPadrao,
 } from "@/modules/inputs/actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -148,7 +149,7 @@ export function InputsPanel({
         )}
 
         {itens.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhuma pergunta definida.</p>
+          <EmptyState icon={Inbox} title="Nenhuma pergunta definida." />
         ) : (
           <ul className="space-y-3">
             {itens.map((it) => (

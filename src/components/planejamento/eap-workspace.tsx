@@ -5,11 +5,12 @@ import { formatarDiaMes } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Flag, CheckCheck, ArrowLeft, ZoomIn, ZoomOut } from "lucide-react";
+import { Plus, Flag, CheckCheck, ArrowLeft, ZoomIn, ZoomOut, ListChecks } from "lucide-react";
 import { definirLinhaBase, aplicarAoProjeto } from "@/modules/planejamento/actions";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Gantt, GANTT_PX_DEFAULT } from "@/components/planejamento/gantt";
 import { EapDialog } from "@/components/planejamento/eap-dialog";
 
@@ -129,8 +130,12 @@ export function EapWorkspace({
           <tbody className="divide-y">
             {tarefas.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">
-                  Nenhuma tarefa. {podeGerir && 'Use "Nova tarefa" para começar.'}
+                <td colSpan={6}>
+                  <EmptyState
+                    icon={ListChecks}
+                    title="Nenhuma tarefa"
+                    description={podeGerir ? 'Use "Nova tarefa" para começar.' : undefined}
+                  />
                 </td>
               </tr>
             ) : (

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Mail, Phone, MapPin } from "lucide-react";
+import { ArrowLeft, Mail, Phone, MapPin, Users, Building2 } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import {
   obterCliente,
@@ -14,6 +14,7 @@ import { SITUACAO_PROJETO_LABEL } from "@/modules/projetos/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Cliente" };
@@ -115,7 +116,7 @@ export default async function ClienteDetalhePage({
         </CardHeader>
         <CardContent>
           {cliente.contatos.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum contato cadastrado.</p>
+            <EmptyState icon={Users} title="Nenhum contato cadastrado." />
           ) : (
             <ul className="divide-y text-sm">
               {cliente.contatos.map((c: ContatoItem) => (
@@ -144,7 +145,7 @@ export default async function ClienteDetalhePage({
         </CardHeader>
         <CardContent>
           {projetos.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum projeto vinculado.</p>
+            <EmptyState icon={Building2} title="Nenhum projeto vinculado." />
           ) : (
             <ul className="divide-y text-sm">
               {projetos.map((p) => (

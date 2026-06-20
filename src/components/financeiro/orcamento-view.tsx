@@ -3,10 +3,11 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { Plus, Target } from "lucide-react";
 import type { Orcamento, LinhaOrcamento, MesResultado } from "@/modules/financeiro/relatorios/queries";
 import { salvarOrcamentoItem } from "@/modules/financeiro/orcamento/actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ResultadoMensalChart } from "@/components/financeiro/resultado-mensal-chart";
@@ -118,7 +119,7 @@ function Secao({
   return (
     <div className="overflow-x-auto">
       {linhas.length === 0 ? (
-        <p className="py-3 text-sm text-muted-foreground">Sem {titulo.toLowerCase()} em {ano}.</p>
+        <EmptyState icon={Target} title={`Sem ${titulo.toLowerCase()} em ${ano}.`} />
       ) : (
         <table className="w-full text-sm">
           <thead className="border-b text-left font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">

@@ -35,6 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl } from "@/lib/utils";
 
 const NONE = "__none";
@@ -97,8 +98,8 @@ export function FolhaView({
           <TableBody>
             {itens.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
-                  Nenhum pagamento.
+                <TableCell colSpan={6}>
+                  <EmptyState icon={Wallet} title="Nenhum pagamento." />
                 </TableCell>
               </TableRow>
             ) : (

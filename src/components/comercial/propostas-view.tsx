@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Eye } from "lucide-react";
+import { Plus, Eye, FileSignature } from "lucide-react";
 import { criarProposta } from "@/modules/comercial/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl } from "@/lib/utils";
 
 type Proposta = {
@@ -134,8 +135,8 @@ export function PropostasView({
           <TableBody>
             {propostas.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
-                  Nenhuma proposta.
+                <TableCell colSpan={6}>
+                  <EmptyState icon={FileSignature} title="Nenhuma proposta" />
                 </TableCell>
               </TableRow>
             ) : (

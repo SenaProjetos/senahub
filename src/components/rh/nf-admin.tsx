@@ -3,11 +3,12 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, X, Download } from "lucide-react";
+import { Check, X, Download, FileText } from "lucide-react";
 import { validarNF } from "@/modules/rh/nf/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl, formatarData } from "@/lib/utils";
 
 type NF = {
@@ -42,7 +43,7 @@ export function NfAdmin({ nfs }: { nfs: NF[] }) {
       </CardHeader>
       <CardContent className="space-y-2">
         {nfs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhuma NF pendente.</p>
+          <EmptyState icon={FileText} title="Nenhuma NF pendente" />
         ) : (
           nfs.map((nf) => (
             <div key={nf.id} className="space-y-2 rounded-sm border p-3">

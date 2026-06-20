@@ -19,7 +19,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import {
-  ArrowLeft, GripVertical, Plus, Save, Trash2, Check, Send, ShieldCheck, Play, Ban, X, ChevronDown, ChevronRight,
+  ArrowLeft, GripVertical, Plus, Save, Trash2, Check, Send, ShieldCheck, Play, Ban, X, ChevronDown, ChevronRight, Wallet,
 } from "lucide-react";
 import {
   salvarLinhas, atualizarPlano, adicionarLinhas, removerLinha, mudarStatusPlano, executarPlano,
@@ -36,6 +36,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl, formatarData } from "@/lib/utils";
 
 const NONE = "__none";
@@ -297,7 +298,7 @@ export function PlanejamentoMesaView({ plano, disponiveis }: { plano: PlanoDetal
           </div>
 
           {linhas.length === 0 ? (
-            <p className="px-3 py-8 text-center text-sm text-muted-foreground">Nenhuma conta no plano. Use “Adicionar contas”.</p>
+            <EmptyState icon={Wallet} title="Nenhuma conta no plano." description="Use “Adicionar contas”." />
           ) : grupos ? (
             grupos.map((g) => {
               const recolhido = recolhidos.has(g.nome);
@@ -479,7 +480,7 @@ function AdicionarDialog({
           <DialogTitle>Adicionar contas em aberto</DialogTitle>
         </DialogHeader>
         {disponiveis.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma conta em aberto fora do plano.</p>
+          <EmptyState icon={Wallet} title="Nenhuma conta em aberto fora do plano." />
         ) : (
           <ul className="divide-y rounded-sm border text-sm">
             {disponiveis.map((c) => (

@@ -3,11 +3,12 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Upload, Download } from "lucide-react";
+import { Upload, Download, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl } from "@/lib/utils";
 
 type NF = {
@@ -94,7 +95,7 @@ export function NfCard({ nfs }: { nfs: NF[] }) {
         </div>
 
         {nfs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhuma nota enviada.</p>
+          <EmptyState icon={FileText} title="Nenhuma nota enviada" />
         ) : (
           <ul className="divide-y text-sm">
             {nfs.map((nf) => (

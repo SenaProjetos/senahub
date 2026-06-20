@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2, Pencil } from "lucide-react";
+import { Plus, Trash2, Pencil, FileText } from "lucide-react";
 import { criarInputTemplate, editarInputTemplate, excluirInputTemplate } from "@/modules/inputs/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const GERAL = "__geral";
 type Template = { id: string; disciplina: string | null; pergunta: string; ordem: number };
@@ -99,7 +100,7 @@ export function InputsPadraoView({ templates, disciplinas }: { templates: Templa
       </Card>
 
       {templates.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum template cadastrado.</p>
+        <EmptyState icon={FileText} title="Nenhum template cadastrado" />
       ) : (
         <div className="space-y-3">
           {[...grupos.entries()].map(([disc, itens]) => (

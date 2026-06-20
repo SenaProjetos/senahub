@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, ListChecks, FileText } from "lucide-react";
 import {
   salvarChecklistModelo,
   excluirChecklistModelo,
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type ModeloItem = { id: string; exigencia: string; obrigatorio: boolean; ordem: number };
 type Modelo = { id: string; nome: string; ativo: boolean; ordem: number; itens: ModeloItem[] };
@@ -111,7 +112,7 @@ function ModeloEditor({ modelo }: { modelo: Modelo }) {
       </CardHeader>
       <CardContent className="space-y-2">
         {itens.length === 0 && (
-          <p className="text-sm text-muted-foreground">Nenhuma exigência. Adicione abaixo.</p>
+          <EmptyState icon={ListChecks} title="Nenhuma exigência" />
         )}
         {itens.map((it, idx) => (
           <div key={idx} className="flex items-center gap-2">
@@ -204,7 +205,7 @@ export function HabilitacaoView({ modelos }: { modelos: Modelo[] }) {
       </Card>
 
       {modelos.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum modelo. Adicione o primeiro.</p>
+        <EmptyState icon={FileText} title="Nenhum modelo" description="Adicione o primeiro modelo de checklist." />
       ) : (
         <div className="space-y-4">
           {modelos.map((m) => (

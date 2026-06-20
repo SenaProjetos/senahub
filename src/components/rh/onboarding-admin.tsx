@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, UserPlus } from "lucide-react";
 import {
   criarOnboarding,
   toggleOnboardingItem,
@@ -11,6 +11,7 @@ import {
 } from "@/modules/rh/onboarding/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Select,
   SelectContent,
@@ -110,7 +111,7 @@ export function OnboardingAdmin({
         </div>
 
         {processos.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum onboarding em andamento.</p>
+          <EmptyState icon={UserPlus} title="Nenhum onboarding em andamento" />
         ) : (
           <div className="space-y-3">
             {processos.map((p) => {

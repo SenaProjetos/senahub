@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { fluxoCaixa, projecaoCaixa } from "@/modules/financeiro/caixa/queries";
 import { FluxoProjecaoChart } from "@/components/financeiro/fluxo-projecao-chart";
+import { Wallet, ArrowLeftRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -58,7 +60,7 @@ export default async function FluxoCaixaPage() {
         </CardHeader>
         <CardContent>
           {contas.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma conta bancária cadastrada.</p>
+            <EmptyState icon={Wallet} title="Nenhuma conta bancária cadastrada." />
           ) : (
             <ul className="divide-y text-sm">
               {contas.map((c) => (
@@ -132,8 +134,8 @@ export default async function FluxoCaixaPage() {
             <TableBody>
               {movimentos.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground">
-                    Sem movimentos confirmados.
+                  <TableCell colSpan={4}>
+                    <EmptyState icon={ArrowLeftRight} title="Sem movimentos confirmados." />
                   </TableCell>
                 </TableRow>
               ) : (

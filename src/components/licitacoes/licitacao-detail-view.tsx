@@ -16,6 +16,13 @@ import {
   Pencil,
   Check,
   CalendarClock,
+  Users,
+  Building2,
+  ListChecks,
+  AlertTriangle,
+  TrendingUp,
+  ListTree,
+  History,
 } from "lucide-react";
 import {
   editarLicitacao,
@@ -80,6 +87,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Select,
   SelectContent,
@@ -869,7 +877,7 @@ function LicResponsaveis({
       <p className="text-xs font-semibold text-muted-foreground">Responsável técnico</p>
 
       {lic.responsaveisTecnicos.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Nenhum RT vinculado.</p>
+        <EmptyState icon={Users} title="Nenhum RT vinculado" />
       ) : (
         <ul className="space-y-0.5">
           {lic.responsaveisTecnicos.map((r) => (
@@ -1022,7 +1030,7 @@ function LicSubcontratacao({
       )}
 
       {lic.subcontratacoes.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Nenhuma subcontratação.</p>
+        <EmptyState icon={Building2} title="Nenhuma subcontratação" />
       ) : (
         <ul className="space-y-0.5">
           {lic.subcontratacoes.map((s) => (
@@ -1139,7 +1147,7 @@ function LicHabilitacao({
   // Somente leitura
   if (!podeGerir) {
     if (lic.habilitacao.length === 0) {
-      return <p className="text-xs text-muted-foreground">Sem checklist.</p>;
+      return <EmptyState icon={ListChecks} title="Sem checklist" />;
     }
     return (
       <ul className="space-y-0.5">
@@ -1332,7 +1340,7 @@ function LicMatrizRisco({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
         <p className="text-xs text-muted-foreground">Cadastre o contrato para registrar a matriz de risco.</p>
       ) : !podeGerir ? (
         lic.contrato.riscos.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Sem riscos registrados.</p>
+          <EmptyState icon={AlertTriangle} title="Sem riscos registrados" />
         ) : (
           <ul className="space-y-0.5">
             {lic.contrato.riscos.map((r) => (
@@ -1473,7 +1481,7 @@ function LicReajuste({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
       ) : (
         <>
           {lic.contrato.reajustes.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Sem reajustes registrados.</p>
+            <EmptyState icon={TrendingUp} title="Sem reajustes registrados" />
           ) : (
             <ul className="space-y-1">
               {lic.contrato.reajustes.map((r) => (
@@ -1804,7 +1812,7 @@ function LicComposicao({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
       {!podeGerir && (
         <>
           {itens.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Sem composição.</p>
+            <EmptyState icon={ListTree} title="Sem composição" />
           ) : (
             <ul className="space-y-0.5">
               {itens.map((l, i) => (
@@ -1972,7 +1980,7 @@ function LicEventos({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
 
       {/* Lista de eventos */}
       {eventosOrdenados.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Nenhum evento registrado.</p>
+        <EmptyState icon={CalendarClock} title="Nenhum evento registrado" />
       ) : (
         <ul className="space-y-1">
           {eventosOrdenados.map((e) => {
@@ -2366,7 +2374,7 @@ function LicExtras({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
       <div>
         <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Histórico</p>
         {lic.historico.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Sem eventos.</p>
+          <EmptyState icon={History} title="Sem eventos" />
         ) : (
           <ul className="space-y-0.5 text-xs text-muted-foreground">
             {lic.historico.map((h) => (

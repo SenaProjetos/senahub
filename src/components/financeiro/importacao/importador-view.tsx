@@ -8,6 +8,7 @@ import { CAMPOS, CAMPOS_OBRIGATORIOS, type CampoSenaHub } from "@/lib/import/map
 import { validarImportacao, commitImportacao, desfazerImportacao } from "@/modules/financeiro/importacao/actions";
 import type { ImportacaoItem } from "@/modules/financeiro/importacao/queries";
 import { brl } from "@/lib/utils";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -336,7 +337,7 @@ export function ImportadorView({ importacoes }: { importacoes: ImportacaoItem[] 
         </CardHeader>
         <CardContent>
           {importacoes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma importação ainda.</p>
+            <EmptyState icon={FileSpreadsheet} title="Nenhuma importação ainda." />
           ) : (
             <ul className="divide-y text-sm">
               {importacoes.map((imp) => (

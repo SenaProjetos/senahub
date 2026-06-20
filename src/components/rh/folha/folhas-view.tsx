@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { Plus, FileText } from "lucide-react";
 import { criarFolha } from "@/modules/rh/folha/actions";
 import type { FolhaResumo } from "@/modules/rh/folha/queries";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl } from "@/lib/utils";
 
 export function FolhasView({ folhas }: { folhas: FolhaResumo[] }) {
@@ -84,8 +85,8 @@ export function FolhasView({ folhas }: { folhas: FolhaResumo[] }) {
           <TableBody>
             {folhas.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
-                  Nenhuma folha.
+                <TableCell colSpan={6}>
+                  <EmptyState icon={FileText} title="Nenhuma folha" />
                 </TableCell>
               </TableRow>
             ) : (

@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl } from "@/lib/utils";
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -81,7 +82,7 @@ export function FechamentoView({
       </Card>
 
       {fechamentos.length === 0 ? (
-        <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">Nenhum fechamento gerado ainda.</CardContent></Card>
+        <Card><CardContent><EmptyState icon={Lock} title="Nenhum fechamento gerado ainda." /></CardContent></Card>
       ) : (
         <div className="space-y-4">
           {fechamentos.map((f) => <FechamentoCard key={f.id} f={f} />)}

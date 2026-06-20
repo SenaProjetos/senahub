@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Plus, Check, X, Trash2, MapPin } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Check, X, Trash2, MapPin, CalendarDays } from "lucide-react";
 import {
   criarCompromisso,
   confirmarPresenca,
@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Dialog,
   DialogContent,
@@ -148,7 +149,7 @@ export function AgendaView({
         </CardHeader>
         <CardContent className="space-y-2">
           {compromissos.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum compromisso.</p>
+            <EmptyState icon={CalendarDays} title="Nenhum compromisso." />
           ) : (
             compromissos.map((c) => <CompRow key={c.id} c={c} />)
           )}

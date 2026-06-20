@@ -1,4 +1,6 @@
+import { Receipt } from "lucide-react";
 import type { FatiaCategoria } from "@/modules/financeiro/relatorios/queries";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl } from "@/lib/utils";
 
 const CORES = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#a855f7", "#94a3b8"];
@@ -6,7 +8,7 @@ const CORES = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#a855f7",
 /** Rosca de distribuição (SVG, sem dependência). Ex.: despesas por categoria. */
 export function CategoriaDonutChart({ dados, total }: { dados: FatiaCategoria[]; total: number }) {
   if (total <= 0 || dados.length === 0) {
-    return <p className="py-8 text-center text-sm text-muted-foreground">Sem despesas confirmadas no período.</p>;
+    return <EmptyState icon={Receipt} title="Sem despesas confirmadas no período." />;
   }
 
   const r = 15.915; // circunferência = 100 (facilita dasharray em %)

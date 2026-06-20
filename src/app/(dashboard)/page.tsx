@@ -8,6 +8,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Building2 } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { kpisHome } from "@/modules/qualidade/queries";
 import { projetosRecentes, serieReceita, snapshotsDashboard } from "@/modules/dashboard/queries";
@@ -76,7 +78,7 @@ export default async function HomePage() {
           </CardHeader>
           <CardContent>
             {projetos.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">Nenhum projeto ativo.</p>
+              <EmptyState icon={Building2} title="Nenhum projeto ativo." />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">

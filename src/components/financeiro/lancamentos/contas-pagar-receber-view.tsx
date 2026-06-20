@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  Plus, Check, Pencil, Paperclip, MoreHorizontal, Search, Download, Printer, FileSpreadsheet, ChevronLeft, ChevronRight, X,
+  Plus, Check, Pencil, Paperclip, MoreHorizontal, Search, Download, Printer, FileSpreadsheet, ChevronLeft, ChevronRight, X, Wallet,
 } from "lucide-react";
 import type { LancamentoItem, OpcoesLancamento } from "@/modules/financeiro/lancamentos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -26,6 +26,7 @@ import {
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl, formatarData } from "@/lib/utils";
 
 function dt(d: string | Date | null) {
@@ -510,7 +511,7 @@ export function ContasPagarReceberView({
               <span />
             </div>
             {lista.length === 0 ? (
-              <p className="px-3 py-6 text-center text-sm text-muted-foreground">Nada em aberto.</p>
+              <EmptyState icon={Wallet} title="Nada em aberto." />
             ) : grupos ? (
               grupos.map((g) => (
                 <div key={g.nome}>

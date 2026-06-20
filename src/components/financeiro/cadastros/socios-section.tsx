@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2, ChevronDown, Wallet } from "lucide-react";
+import { Plus, Trash2, ChevronDown, Wallet, Users } from "lucide-react";
 import {
   criarSocio,
   removerSocio,
@@ -11,6 +11,7 @@ import {
   removerRetiradaSocio,
 } from "@/modules/financeiro/cadastros/actions";
 import { brl, formatarData } from "@/lib/utils";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -64,7 +65,7 @@ export function SociosSection({ socios, usuarios }: { socios: Socio[]; usuarios:
     <div className="space-y-3">
       <ul className="divide-y rounded-sm border">
         {socios.length === 0 ? (
-          <li className="p-3 text-sm text-muted-foreground">Nenhum sócio.</li>
+          <li><EmptyState icon={Users} title="Nenhum sócio." /></li>
         ) : (
           socios.map((s) => <SocioRow key={s.id} s={s} onRemover={remover} />)
         )}

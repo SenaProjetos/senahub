@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Trash2, ArrowRight } from "lucide-react";
+import { Plus, Trash2, ArrowRight, ClipboardList } from "lucide-react";
 import { criarPlano, excluirPlano } from "@/modules/financeiro/planejamento/actions";
 import type { PlanoResumo, OpcoesPlanejamento } from "@/modules/financeiro/planejamento/queries";
 import { STATUS_META, type StatusPlano } from "./status";
@@ -17,6 +17,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl, formatarData } from "@/lib/utils";
 
 const NONE = "__none";
@@ -35,8 +36,8 @@ export function PlanejamentoListaView({ planos, opcoes }: { planos: PlanoResumo[
 
       {planos.length === 0 ? (
         <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            Nenhum cenário ainda. Crie um para começar a planejar.
+          <CardContent>
+            <EmptyState icon={ClipboardList} title="Nenhum cenário ainda." description="Crie um para começar a planejar." />
           </CardContent>
         </Card>
       ) : (

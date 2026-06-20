@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import { formatarData } from "@/lib/utils";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { FolderOpen } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { projetosDoCliente } from "@/modules/portal/queries";
 import { SITUACAO_PROJETO_LABEL } from "@/modules/projetos/status";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 
 export const metadata: Metadata = { title: "Meus projetos" };
@@ -44,8 +46,8 @@ export default async function PortalPage() {
 
       {projetos.length === 0 ? (
         <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            Nenhum projeto ainda.
+          <CardContent className="py-4">
+            <EmptyState icon={FolderOpen} title="Nenhum projeto ainda." />
           </CardContent>
         </Card>
       ) : (

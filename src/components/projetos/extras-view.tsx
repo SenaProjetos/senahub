@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Check, X, Save, Camera } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Check, X, Save, Camera, GitBranch, FileText } from "lucide-react";
 import {
   solicitarRevisao,
   responderRevisao,
@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl, formatarData } from "@/lib/utils";
 
 type Dados = Awaited<ReturnType<typeof extrasDoProjeto>>;
@@ -131,7 +132,7 @@ export function ExtrasView({
         </CardHeader>
         <CardContent className="space-y-3">
           {dados.solicitacoes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma solicitação.</p>
+            <EmptyState icon={GitBranch} title="Nenhuma solicitação" />
           ) : (
             <ul className="divide-y text-sm">
               {dados.solicitacoes.map((s) => (
@@ -247,7 +248,7 @@ export function ExtrasView({
         </CardHeader>
         <CardContent className="space-y-3">
           {dados.linhasBase.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma linha de base.</p>
+            <EmptyState icon={FileText} title="Nenhuma linha de base" />
           ) : (
             <ul className="divide-y text-sm">
               {dados.linhasBase.map((l) => (

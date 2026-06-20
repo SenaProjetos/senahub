@@ -3,9 +3,10 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type Item = { id: string; nome: string };
 type ActResult = { ok: true; data: unknown } | { ok: false; error: string };
@@ -66,7 +67,7 @@ export function NomeSimplesSection({
       </div>
       <ul className="divide-y rounded-sm border">
         {itens.length === 0 ? (
-          <li className="p-3 text-sm text-muted-foreground">Nenhum item.</li>
+          <li><EmptyState icon={Inbox} title="Nenhum item." /></li>
         ) : (
           itens.map((it) => (
             <li key={it.id} className="flex items-center justify-between gap-2 p-2.5">

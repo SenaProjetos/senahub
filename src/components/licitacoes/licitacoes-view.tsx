@@ -5,7 +5,7 @@ import { formatarData } from "@/lib/utils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Gavel } from "lucide-react";
 import { PAGE_SIZE_PADRAO, PAGE_SIZES } from "@/modules/licitacoes/pagination";
 import { criarLicitacao } from "@/modules/licitacoes/actions";
 import type { ResumoLicitacao } from "@/modules/licitacoes/queries";
@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Select,
   SelectContent,
@@ -231,8 +232,11 @@ export function LicitacoesView({
         ))}
         {licitacoes.length === 0 && (
           <Card>
-            <CardContent className="py-8 text-center text-sm text-muted-foreground">
-              {temFiltro ? "Nenhuma licitação para os filtros." : "Nenhuma licitação."}
+            <CardContent>
+              <EmptyState
+                icon={Gavel}
+                title={temFiltro ? "Nenhuma licitação para os filtros" : "Nenhuma licitação"}
+              />
             </CardContent>
           </Card>
         )}

@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ZoomIn, ZoomOut, Flag } from "lucide-react";
+import { ZoomIn, ZoomOut, Flag, ListTree } from "lucide-react";
 import { Gantt, GANTT_PX_DEFAULT } from "@/components/planejamento/gantt";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type ProjetoCron = { id: string; codigo: string; nome: string; temLinhaBase: boolean; tarefas: EapTarefaDTO[] };
 
@@ -36,7 +37,7 @@ export function CronogramaGeralView({ projetos }: { projetos: ProjetoCron[] }) {
       </div>
 
       {projetos.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum projeto ativo com cronograma.</p>
+        <EmptyState icon={ListTree} title="Nenhum projeto ativo com cronograma" />
       ) : (
         projetos.map((p) => (
           <Card key={p.id}>

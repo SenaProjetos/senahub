@@ -4,13 +4,14 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Layers, FileStack } from "lucide-react";
 import { criarPrancha, editarPrancha, excluirPrancha } from "@/modules/projetos/pranchas/actions";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type Prancha = { id: string; codigo: string; titulo: string; revisao: string | null; escala: string | null };
@@ -68,7 +69,9 @@ export function PranchasView({
 
       {disciplinas.length === 0 ? (
         <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">Nenhuma disciplina.</CardContent>
+          <CardContent className="p-0">
+            <EmptyState icon={Layers} title="Nenhuma disciplina" />
+          </CardContent>
         </Card>
       ) : (
         disciplinas.map((d) => (
@@ -83,7 +86,11 @@ export function PranchasView({
             </CardHeader>
             <CardContent className="p-0">
               {d.pranchas.length === 0 ? (
-                <p className="px-4 py-4 text-sm text-muted-foreground">Sem pranchas.</p>
+                <EmptyState
+                  icon={FileStack}
+                  title="Sem pranchas"
+                  description="Folhas técnicas (plantas) da disciplina por escala e revisão."
+                />
               ) : (
                 <table className="w-full text-sm">
                   <thead className="border-b text-left font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">

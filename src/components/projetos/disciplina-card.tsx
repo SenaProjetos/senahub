@@ -11,6 +11,7 @@ import {
   Upload as UploadIcon,
   Download,
   FileArchive,
+  FileText,
   CheckCircle2,
   ShieldCheck,
 } from "lucide-react";
@@ -43,6 +44,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl, formatarData } from "@/lib/utils";
 
 type UploadItem = {
@@ -298,7 +300,7 @@ function ArquivosDialog({
                   )}
                 </div>
                 {itens.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Nenhum arquivo.</p>
+                  <EmptyState icon={FileText} title="Nenhum arquivo" />
                 ) : (
                   <ul className="space-y-1">
                     {itens.map((u) => (
@@ -395,7 +397,7 @@ function RevisaoDialog({
 
         <div className="max-h-60 space-y-2 overflow-y-auto">
           {disciplina.revisoes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma revisão registrada.</p>
+            <EmptyState icon={GitBranch} title="Nenhuma revisão registrada" />
           ) : (
             disciplina.revisoes.map((rv) => (
               <div key={rv.id} className="rounded-sm border p-2 text-sm">

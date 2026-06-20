@@ -4,9 +4,10 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileText } from "lucide-react";
 import { salvarPadraoDocumento } from "@/modules/documentos/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -57,8 +58,12 @@ export function PadroesDocumentoView({ fontes }: { fontes: Fonte[] }) {
 
       {fontes.length === 0 ? (
         <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            Nenhum modelo vinculado a uma fonte ainda. Crie modelos no Estúdio de Documentos.
+          <CardContent>
+            <EmptyState
+              icon={FileText}
+              title="Nenhum modelo vinculado a uma fonte ainda"
+              description="Crie modelos no Estúdio de Documentos."
+            />
           </CardContent>
         </Card>
       ) : (

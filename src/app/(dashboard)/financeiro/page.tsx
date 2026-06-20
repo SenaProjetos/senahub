@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Settings2, Receipt, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText, Upload, SlidersHorizontal, CalendarClock, TrendingUp, CalendarCheck } from "lucide-react";
+import { Settings2, Receipt, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText, Upload, SlidersHorizontal, CalendarClock, TrendingUp, CalendarCheck, Wallet } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { ShieldCheck, AlertTriangle } from "lucide-react";
@@ -16,6 +16,7 @@ import { ResultadoMensalChart } from "@/components/financeiro/resultado-mensal-c
 import { CategoriaDonutChart } from "@/components/financeiro/categoria-donut-chart";
 import { FluxoProjecaoChart } from "@/components/financeiro/fluxo-projecao-chart";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { brl } from "@/lib/utils";
 
@@ -123,7 +124,7 @@ export default async function FinanceiroPage() {
           <CardContent className="grid gap-6 lg:grid-cols-[260px_1fr]">
             <ul className="space-y-1 text-sm">
               {caixa.contas.length === 0 ? (
-                <li className="text-muted-foreground">Nenhuma conta cadastrada.</li>
+                <li><EmptyState icon={Wallet} title="Nenhuma conta cadastrada." /></li>
               ) : (
                 caixa.contas.map((c) => (
                   <li key={c.id} className="flex items-center justify-between gap-2">
@@ -211,7 +212,7 @@ export default async function FinanceiroPage() {
         </CardHeader>
         <CardContent>
           {pagamentos.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum pagamento ainda.</p>
+            <EmptyState icon={Banknote} title="Nenhum pagamento ainda." />
           ) : (
             <ul className="divide-y text-sm">
               {pagamentos.map((p) => (

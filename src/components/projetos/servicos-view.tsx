@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, FileText } from "lucide-react";
 import { criarServico, editarServico, excluirServico } from "@/modules/projetos/servicos/actions";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl } from "@/lib/utils";
 
 const NONE = "__none";
@@ -94,7 +95,7 @@ export function ServicosView({
       <Card>
         <CardContent className="p-0">
           {servicos.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">Nenhum serviço terceirizado.</p>
+            <EmptyState icon={FileText} title="Nenhum serviço terceirizado" />
           ) : (
             <table className="w-full text-sm">
               <thead className="border-b text-left font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">

@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const CATEGORIAS = ["contrato", "planta", "memorial", "foto", "administrativo", "outro"] as const;
 
@@ -166,7 +167,7 @@ export function ArquivosView({
       <Card>
         <CardContent className="p-0">
           {arquivos.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">Nenhum arquivo.</p>
+            <EmptyState icon={FileText} title="Nenhum arquivo" />
           ) : (
             <table className="w-full text-sm">
               <thead className="border-b text-left font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">

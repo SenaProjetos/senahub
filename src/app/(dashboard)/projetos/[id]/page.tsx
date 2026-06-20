@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, MapPin, Ruler, LayoutGrid, Wrench, FolderOpen, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, CalendarDays, MapPin, Ruler, LayoutGrid, Wrench, FolderOpen, SlidersHorizontal, Users } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { obterProjeto, usuariosInternos, margemProjeto } from "@/modules/projetos/queries";
@@ -16,6 +16,7 @@ import { EquipeManager } from "@/components/projetos/equipe-manager";
 import { InputsPanel } from "@/components/inputs/inputs-panel";
 import { modelosPorFonte } from "@/modules/documentos/queries";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl, formatarData } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Projeto" };
@@ -240,7 +241,7 @@ export default async function ProjetoDetalhePage({
         </CardHeader>
         <CardContent>
           {equipe.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sem membros adicionais.</p>
+            <EmptyState icon={Users} title="Sem membros adicionais" />
           ) : (
             <div className="flex flex-wrap gap-2">
               {equipe.map((m) => (

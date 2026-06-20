@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2, ChevronDown, Trophy, XCircle } from "lucide-react";
+import { Plus, Trash2, ChevronDown, Trophy, XCircle, UserPlus } from "lucide-react";
 import {
   criarOportunidade,
   atualizarOportunidade,
@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { brl, formatarData } from "@/lib/utils";
@@ -97,7 +98,7 @@ export function OportunidadesView({
       <Card>
         <CardContent className="p-0">
           {oportunidades.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">Nenhuma oportunidade.</p>
+            <EmptyState icon={UserPlus} title="Nenhuma oportunidade" />
           ) : (
             <ul className="divide-y">
               {oportunidades.map((o) => (

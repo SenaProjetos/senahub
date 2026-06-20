@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Play, Square, Repeat } from "lucide-react";
+import { Play, Square, Repeat, Clock } from "lucide-react";
 import { baterPonto, trocarProjeto, encerrarJornada } from "@/modules/ponto/actions";
 import { fecharRateioMes } from "@/modules/rh/rateio/actions";
 import { fmtHoras } from "@/modules/ponto/format";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { brl, formatarData } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -192,7 +193,7 @@ export function PontoView({
         </CardHeader>
         <CardContent>
           {espelho.dias.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sem registros este mês.</p>
+            <EmptyState icon={Clock} title="Sem registros este mês." />
           ) : (
             <ul className="divide-y text-sm">
               {espelho.dias.map((d) => (
@@ -236,7 +237,7 @@ export function PontoView({
           </CardHeader>
           <CardContent>
             {rateio.porProjeto.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Sem horas rateadas.</p>
+              <EmptyState icon={Clock} title="Sem horas rateadas." />
             ) : (
               <ul className="divide-y text-sm">
                 {rateio.porProjeto.map((r) => (

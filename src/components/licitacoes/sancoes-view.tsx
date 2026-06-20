@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Gavel } from "lucide-react";
 import {
   salvarSancaoPropria,
   excluirSancaoPropria,
@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Select,
   SelectContent,
@@ -200,7 +201,7 @@ export function SancoesView({ podeGerir, fornecedores, proprias, concorrentes }:
           <p className="text-sm font-semibold">Sanções da empresa (compliance)</p>
 
           {proprias.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Nenhuma sanção registrada.</p>
+            <EmptyState icon={Gavel} title="Nenhuma sanção registrada" />
           ) : (
             <ul className="space-y-1">
               {proprias.map((s) => {
@@ -316,7 +317,7 @@ export function SancoesView({ podeGerir, fornecedores, proprias, concorrentes }:
           <p className="text-sm font-semibold">Sanções de concorrentes (inteligência)</p>
 
           {concorrentes.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Nenhuma sanção de concorrente registrada.</p>
+            <EmptyState icon={Gavel} title="Nenhuma sanção de concorrente registrada" />
           ) : (
             <ul className="space-y-1">
               {concorrentes.map((s) => {

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileSpreadsheet, ArrowUp, ArrowDown } from "lucide-react";
+import { FileSpreadsheet, ArrowUp, ArrowDown, BarChart3, Receipt, ArrowLeftRight } from "lucide-react";
 import type { DREComparativo, LinhaDREAnalise } from "@/modules/financeiro/relatorios/dre";
 import type { FatiaCategoria, ResultadoProjeto, EvolucaoCategorias } from "@/modules/financeiro/relatorios/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl } from "@/lib/utils";
 
 function pct(v: number | null) {
@@ -146,7 +147,7 @@ export function RelatoriosView({
         </CardHeader>
         <CardContent>
           {porProjeto.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">Sem movimentos por projeto no período.</p>
+            <EmptyState icon={BarChart3} title="Sem movimentos por projeto no período." />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -185,7 +186,7 @@ export function RelatoriosView({
         </CardHeader>
         <CardContent>
           {evolucao.categorias.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">Sem despesas confirmadas no ano.</p>
+            <EmptyState icon={Receipt} title="Sem despesas confirmadas no ano." />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
@@ -292,7 +293,7 @@ function Secao({
         <span className={`w-36 text-right font-mono ${cor}`}>{brl(total)}</span>
       </div>
       {linhas.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Sem movimentos.</p>
+        <EmptyState icon={ArrowLeftRight} title="Sem movimentos." />
       ) : (
         <ul className="space-y-1 text-sm">
           {linhas.map((l) => (

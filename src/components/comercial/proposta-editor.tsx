@@ -16,6 +16,7 @@ import {
   Trash2,
   Wand2,
   Eye,
+  ListChecks,
 } from "lucide-react";
 import {
   salvarProposta,
@@ -38,6 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl } from "@/lib/utils";
 
 type Item = { disciplina: string; descricao: string; valor: number };
@@ -262,7 +264,7 @@ export function PropostaEditor({
             )}
 
             {itens.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhum item.</p>
+              <EmptyState icon={ListChecks} title="Nenhum item" />
             ) : (
               <div className="space-y-2">
                 {itens.map((it, i) => (

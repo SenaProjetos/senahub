@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Plus, Check, Ban, Trash2, Paperclip, Pencil, MoreHorizontal, Search, Download, Printer,
-  FileSpreadsheet, ChevronLeft, ChevronRight, X, ArrowLeftRight,
+  FileSpreadsheet, ChevronLeft, ChevronRight, X, ArrowLeftRight, Receipt,
 } from "lucide-react";
 import {
   cancelarLancamento, excluirLancamento, baixarEmLote,
@@ -29,6 +29,7 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl, formatarData } from "@/lib/utils";
 
 type Conta = { id: string; nome: string; saldoInicial: number };
@@ -572,7 +573,7 @@ export function LancamentosView({
                 <span /><span className={`text-right font-mono ${saldoAnterior < 0 ? "text-destructive" : "text-success"}`}>{brl(saldoAnterior)}</span><span />
               </div>
               {lista.length === 0 ? (
-                <p className="px-3 py-6 text-center text-sm text-muted-foreground">Nenhum lançamento no filtro.</p>
+                <EmptyState icon={Receipt} title="Nenhum lançamento no filtro." />
               ) : grupos ? (
                 grupos.map((g) => (
                   <div key={g.nome}>

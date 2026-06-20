@@ -3,12 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, AlertTriangle, Trash2, UserPlus } from "lucide-react";
+import { Plus, AlertTriangle, Trash2, UserPlus, Users } from "lucide-react";
 import { salvarRecurso, salvarAlocacao, removerAlocacao } from "@/modules/planejamento/actions";
 import { criarHabilidade, alternarHabilidadeUsuario } from "@/modules/rh/habilidades/actions";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -121,8 +122,8 @@ export function RecursosMatrix({
           <tbody className="divide-y">
             {linhas.length === 0 ? (
               <tr>
-                <td colSpan={podeGerir ? 5 : 4} className="px-3 py-8 text-center text-muted-foreground">
-                  Nenhum recurso cadastrado.
+                <td colSpan={podeGerir ? 5 : 4} className="px-3 py-8">
+                  <EmptyState icon={Users} title="Nenhum recurso cadastrado." />
                 </td>
               </tr>
             ) : (

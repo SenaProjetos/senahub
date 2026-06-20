@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Pencil, Star } from "lucide-react";
+import { Plus, Pencil, Star, Wallet } from "lucide-react";
 import { criarConta, editarConta } from "@/modules/financeiro/cadastros/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl } from "@/lib/utils";
 
 type Conta = {
@@ -61,7 +62,7 @@ export function ContasSection({ contas }: { contas: Conta[] }) {
       </div>
       <ul className="divide-y rounded-sm border">
         {contas.length === 0 ? (
-          <li className="p-3 text-sm text-muted-foreground">Nenhuma conta.</li>
+          <li><EmptyState icon={Wallet} title="Nenhuma conta." /></li>
         ) : (
           contas.map((c) => (
             <li key={c.id} className="flex items-center justify-between gap-2 p-3">

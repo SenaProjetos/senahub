@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Gauge } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { indiceQualidadeAtual, snapshotsQualidade, slaEntregas } from "@/modules/qualidade/queries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { TrendLine } from "@/components/qualidade/trend-line";
 
@@ -134,7 +136,7 @@ export default async function QualidadePage() {
         </CardHeader>
         <CardContent>
           {atual.porDisciplina.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sem disciplinas ativas.</p>
+            <EmptyState icon={Gauge} title="Sem disciplinas ativas." />
           ) : (
             <ul className="space-y-2">
               {atual.porDisciplina.map((d) => {
@@ -166,7 +168,7 @@ export default async function QualidadePage() {
         </CardHeader>
         <CardContent>
           {snapshots.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum snapshot ainda.</p>
+            <EmptyState icon={Gauge} title="Nenhum snapshot ainda." />
           ) : (
             <>
               <TrendLine

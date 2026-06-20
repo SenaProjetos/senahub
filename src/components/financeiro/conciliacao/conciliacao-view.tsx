@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Upload, Link2, Plus, X } from "lucide-react";
+import { Upload, Link2, Plus, X, ArrowLeftRight } from "lucide-react";
 import {
   conciliarComLancamento,
   criarLancamentoDaTransacao,
@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { EmptyState } from "@/components/ui/empty-state";
 import { brl, formatarData } from "@/lib/utils";
 
 export function ConciliacaoView({
@@ -108,7 +109,7 @@ export function ConciliacaoView({
         </CardHeader>
         <CardContent className="space-y-2">
           {transacoes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma transação pendente.</p>
+            <EmptyState icon={ArrowLeftRight} title="Nenhuma transação pendente." />
           ) : (
             transacoes.map((t) => (
               <TransacaoRow key={t.id} t={t} categorias={categorias} />

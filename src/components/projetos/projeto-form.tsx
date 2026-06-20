@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Layers } from "lucide-react";
 import { criarProjeto } from "@/modules/projetos/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type Interno = { id: string; name: string; role: string };
 type DiscDraft = { nome: string; prazo: string; valor: string; responsaveisIds: string[] };
@@ -178,7 +179,7 @@ export function ProjetoForm({
           </div>
 
           {disciplinas.length === 0 && (
-            <p className="text-sm text-muted-foreground">Nenhuma disciplina ainda.</p>
+            <EmptyState icon={Layers} title="Nenhuma disciplina ainda" />
           )}
 
           <div className="space-y-3">
