@@ -18,8 +18,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   }
 
   const { id } = await params;
-  const modelo = await prisma.documentoModelo.findUnique({ where: { id }, select: { nome: true } });
+  const modelo = await prisma.documentoModelo.findUnique({ where: { id }, select: { nome: true, schemaJson: true } });
   if (!modelo) return new Response("Modelo não encontrado", { status: 404 });
+
+  // Formato/orientação do modelo → opções do page.pdf (puppeteer suporta A0–A5 + Letter + landscape).
+  const pagina = (modelo.schemaJson as { pagina?: { formato?: string; orientacao?: string } } | null)?.pagina;
+  const FORMATO_PDF: Record<string, "A0" | "A1" | "A2" | "A3" | "A4" | "A5" | "Letter"> = {
+    A0: "A0", A1: "A1", A2: "A2", A3: "A3", A4: "A4", A5: "A5", Carta: "Letter",
+  };
+  const formatoPdf = FORMATO_PDF[pagina?.formato ?? "A4"] ?? "A4";
+  const landscape = pagina?.orientacao === "paisagem";
 
   const chrome = process.env.CHROME_PATH;
   if (!chrome) {
@@ -42,7 +50,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     await page.goto(previewUrl, { waitUntil: "networkidle0", timeout: 30000 });
     await page.emulateMediaType("print");
     const pdf = await page.pdf({
-      format: "A4",
+      format: formatoPdf,
+      landscape,
       printBackground: true,
       margin: { top: "0", right: "0", bottom: "0", left: "0" },
     });
