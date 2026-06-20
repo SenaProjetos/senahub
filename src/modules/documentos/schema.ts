@@ -81,8 +81,18 @@ export const TIPOS_ELEMENTO = [
   "linha",
   "retangulo",
   "imagem",
+  "tabela",
 ] as const;
 export type TipoElemento = (typeof TIPOS_ELEMENTO)[number];
+
+/** Coluna de um elemento "tabela". `campo` é um token (ex.: "[Disciplina]"). */
+export const colunaTabelaSchema = z.object({
+  campo: z.string().default(""),
+  titulo: z.string().default(""),
+  largura: z.number().min(1).default(1),
+  align: z.enum(["left", "center", "right"]).default("left"),
+});
+export type ColunaTabela = z.infer<typeof colunaTabelaSchema>;
 
 export const estiloSchema = z.object({
   fontSize: z.number().min(6).max(96).default(12),
@@ -112,6 +122,8 @@ export const elementoSchema = z.object({
   estilo: estiloSchema,
   visivel: z.boolean().default(true),
   travado: z.boolean().default(false),
+  /** Colunas do elemento "tabela" (apenas tipo==="tabela"). Modelos antigos → undefined. */
+  colunas: z.array(colunaTabelaSchema).optional(),
 });
 export type Elemento = z.infer<typeof elementoSchema>;
 
@@ -139,6 +151,13 @@ export const docSchemaZ = z.object({
       baixo: z.number().default(48),
       esquerda: z.number().default(48),
     }),
+    /** Marca d'água da página (texto translúcido rotacionado ao fundo). Opcional/retrocompat. */
+    marcaDagua: z
+      .object({
+        texto: z.string().default(""),
+        opacidade: z.number().min(0).max(1).optional(),
+      })
+      .optional(),
   }),
   bandas: z.array(bandaSchema),
 });
@@ -207,6 +226,17 @@ export function novoElemento(tipo: TipoElemento, x = 0, y = 0): Elemento {
       return { ...base, w: 160, h: 60, estilo: { ...base.estilo, borderW: 1 } };
     case "imagem":
       return { ...base, w: 140, h: 60, texto: "/MARCA/logo_completa_light.svg" };
+    case "tabela":
+      return {
+        ...base,
+        w: 400,
+        h: 120,
+        estilo: { ...base.estilo, fontSize: 10 },
+        colunas: [
+          { campo: "[Disciplina]", titulo: "Disciplina", largura: 2, align: "left" },
+          { campo: "[Valor]", titulo: "Valor", largura: 1, align: "right" },
+        ],
+      };
   }
 }
 

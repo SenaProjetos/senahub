@@ -1,17 +1,23 @@
 import type { CSSProperties } from "react";
-import type { Elemento } from "@/modules/documentos/schema";
+import type { Elemento, ColunaTabela } from "@/modules/documentos/schema";
 import { fonteCss } from "@/modules/documentos/fontes-tipograficas";
+import { resolverTexto, type ContextoDados } from "@/modules/documentos/tokens";
 
 /**
  * Render visual de um elemento (usado no editor — texto cru com tokens —
  * e no preview — com `textoResolvido`). JSX puro, funciona em server e client.
+ *
+ * Para o elemento "tabela", passe `ctx` (contexto de dados) para iterar as
+ * linhas da coleção; sem `ctx` (editor), mostra um preview com os tokens crus.
  */
 export function ElementoView({
   el,
   textoResolvido,
+  ctx,
 }: {
   el: Elemento;
   textoResolvido?: string;
+  ctx?: ContextoDados;
 }) {
   const s = el.estilo;
   const texto = textoResolvido ?? el.texto;
@@ -93,6 +99,8 @@ export function ElementoView({
           <span style={{ fontSize: s.fontSize, textAlign: "center" }}>{texto}</span>
         </div>
       );
+    case "tabela":
+      return <TabelaView el={el} base={base} borderColor={s.borderColor || "#1C2D58"} ctx={ctx} />;
     case "label":
     case "campo":
     default:
@@ -102,6 +110,92 @@ export function ElementoView({
         </div>
       );
   }
+}
+
+/**
+ * Render do elemento tabela: itera as linhas da coleção (`ctx.linhas`) e, para
+ * cada coluna, resolve seu `campo` (token) no contexto daquela linha. Sem `ctx`
+ * (editor), exibe os tokens crus em uma linha de exemplo.
+ */
+function TabelaView({
+  el,
+  base,
+  borderColor,
+  ctx,
+}: {
+  el: Elemento;
+  base: CSSProperties;
+  borderColor: string;
+  ctx?: ContextoDados;
+}) {
+  const colunas: ColunaTabela[] = el.colunas ?? [];
+  const cell: CSSProperties = {
+    border: `0.5px solid ${borderColor}`,
+    padding: "2px 4px",
+    overflow: "hidden",
+    whiteSpace: "nowrap",
+    textOverflow: "ellipsis",
+  };
+
+  if (colunas.length === 0) {
+    return (
+      <div style={{ ...base, display: "flex", alignItems: "center", justifyContent: "center", border: `1px dashed ${borderColor}`, color: "#999" }}>
+        <span>Tabela sem colunas</span>
+      </div>
+    );
+  }
+
+  const totalLargura = colunas.reduce((s, c) => s + (c.largura > 0 ? c.largura : 1), 0);
+  // Sem ctx (editor): mostra uma linha de exemplo com os tokens crus.
+  const linhas = ctx ? ctx.linhas : [null];
+
+  return (
+    <table
+      style={{
+        ...base,
+        display: "table",
+        borderCollapse: "collapse",
+        tableLayout: "fixed",
+        background: el.estilo.bg || undefined,
+      }}
+    >
+      <colgroup>
+        {colunas.map((c, i) => (
+          <col key={i} style={{ width: `${((c.largura > 0 ? c.largura : 1) / totalLargura) * 100}%` }} />
+        ))}
+      </colgroup>
+      <thead>
+        <tr>
+          {colunas.map((c, i) => (
+            <th
+              key={i}
+              style={{
+                ...cell,
+                textAlign: c.align,
+                fontWeight: 700,
+                background: "rgba(28,45,88,0.06)",
+              }}
+            >
+              {c.titulo}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {linhas.map((linha, ri) => (
+          <tr key={ri}>
+            {colunas.map((c, ci) => (
+              <td key={ci} style={{ ...cell, textAlign: c.align, fontWeight: 400 }}>
+                {ctx && linha
+                  ? resolverTexto(c.campo, { ...ctx, linha })
+                  : c.campo}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
 }
 
 function alinhar(a: "left" | "center" | "right") {

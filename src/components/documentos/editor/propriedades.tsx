@@ -2,7 +2,7 @@
 
 import { useRef, useState, type Dispatch } from "react";
 import { toast } from "sonner";
-import { Trash2, Copy, Upload, Loader2 } from "lucide-react";
+import { Trash2, Copy, Upload, Loader2, Plus } from "lucide-react";
 import {
   BANDA_LABEL,
   FORMATOS_FOLHA,
@@ -11,6 +11,7 @@ import {
   margemAbntPx,
   novoId,
   type Banda,
+  type ColunaTabela,
   type DocSchema,
   type Elemento,
   type Orientacao,
@@ -95,6 +96,13 @@ function PropsPagina({
   const updMargem = (lado: keyof DocSchema["pagina"]["margem"], v: number) =>
     dispatch({ t: "updatePagina", patch: { margem: { ...pg.margem, [lado]: Math.max(0, v) } } });
 
+  const marca = pg.marcaDagua;
+  const updMarca = (patch: Partial<NonNullable<DocSchema["pagina"]["marcaDagua"]>>) =>
+    dispatch({
+      t: "updatePagina",
+      patch: { marcaDagua: { texto: marca?.texto ?? "", opacidade: marca?.opacidade, ...patch } },
+    });
+
   return (
     <div className="space-y-3">
       <p className="text-xs font-semibold text-muted-foreground">Página</p>
@@ -173,6 +181,30 @@ function PropsPagina({
       >
         Margens ABNT
       </Button>
+
+      <div className="space-y-2 border-t pt-3">
+        <p className="text-xs font-semibold text-muted-foreground">Marca d&apos;água</p>
+        <Campo label="Texto (vazio = sem marca)">
+          <Input
+            value={marca?.texto ?? ""}
+            onChange={(e) => updMarca({ texto: e.target.value })}
+            placeholder="CONFIDENCIAL"
+          />
+        </Campo>
+        <Campo label="Opacidade (0–1)">
+          <Input
+            type="number"
+            step="0.01"
+            min={0}
+            max={1}
+            value={marca?.opacidade ?? 0.08}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              updMarca({ opacidade: isNaN(v) ? 0.08 : Math.min(1, Math.max(0, v)) });
+            }}
+          />
+        </Campo>
+      </div>
     </div>
   );
 }
@@ -300,6 +332,14 @@ function PropsElemento({
           texto={el.texto}
           onTextoDigitando={(v) => upd({ texto: v }, false)}
           onTextoCommit={(v) => upd({ texto: v })}
+        />
+      )}
+
+      {el.tipo === "tabela" && (
+        <ColunasEditor
+          colunas={el.colunas ?? []}
+          onChange={(colunas) => upd({ colunas })}
+          tokens={tokens}
         />
       )}
 
@@ -480,6 +520,100 @@ function PropsElemento({
           <Trash2 className="size-3.5" /> Excluir
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** Editor de colunas do elemento tabela: adicionar/remover, título, campo (token), largura, alinhamento. */
+function ColunasEditor({
+  colunas,
+  onChange,
+  tokens,
+}: {
+  colunas: ColunaTabela[];
+  onChange: (colunas: ColunaTabela[]) => void;
+  tokens: { valor: string; label: string }[];
+}) {
+  const upd = (i: number, patch: Partial<ColunaTabela>) =>
+    onChange(colunas.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
+  const remove = (i: number) => onChange(colunas.filter((_, idx) => idx !== i));
+  const add = () =>
+    onChange([...colunas, { campo: "[Campo]", titulo: "Coluna", largura: 1, align: "left" }]);
+
+  return (
+    <div className="space-y-3 rounded-sm border p-2">
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-semibold text-muted-foreground">Colunas</p>
+        <Button variant="outline" size="sm" onClick={add}>
+          <Plus className="size-3.5" /> Adicionar
+        </Button>
+      </div>
+      {colunas.length === 0 && (
+        <p className="text-[11px] text-muted-foreground">Sem colunas. Adicione ao menos uma.</p>
+      )}
+      {colunas.map((c, i) => (
+        <div key={i} className="space-y-2 rounded-sm border bg-muted/30 p-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-medium text-muted-foreground">Coluna {i + 1}</span>
+            <Button variant="ghost" size="icon" aria-label="Remover coluna" onClick={() => remove(i)}>
+              <Trash2 className="size-3.5" />
+            </Button>
+          </div>
+          <Campo label="Título">
+            <Input value={c.titulo} onChange={(e) => upd(i, { titulo: e.target.value })} />
+          </Campo>
+          <Campo label="Campo (token)">
+            <Input
+              value={c.campo}
+              onChange={(e) => upd(i, { campo: e.target.value })}
+              placeholder="[Campo]"
+            />
+          </Campo>
+          {tokens.length > 0 && (
+            <Campo label="Inserir campo">
+              <Select value="" onValueChange={(v) => v && upd(i, { campo: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Escolher token…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tokens.map((t) => (
+                    <SelectItem key={t.valor} value={t.valor}>
+                      {t.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Campo>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <Campo label="Largura (peso)">
+              <Input
+                type="number"
+                min={1}
+                value={c.largura}
+                onChange={(e) => upd(i, { largura: Math.max(1, Number(e.target.value) || 1) })}
+              />
+            </Campo>
+            <Campo label="Alinhamento">
+              <Select
+                value={c.align}
+                onValueChange={(v) =>
+                  v && upd(i, { align: v as "left" | "center" | "right" })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="left">Esquerda</SelectItem>
+                  <SelectItem value="center">Centro</SelectItem>
+                  <SelectItem value="right">Direita</SelectItem>
+                </SelectContent>
+              </Select>
+            </Campo>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
