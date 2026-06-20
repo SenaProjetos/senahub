@@ -5,7 +5,7 @@ import { formatarData } from "@/lib/utils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, X, Gavel } from "lucide-react";
+import { Plus, X, Gavel, AlertTriangle } from "lucide-react";
 import { PAGE_SIZE_PADRAO, PAGE_SIZES } from "@/modules/licitacoes/pagination";
 import { criarLicitacao } from "@/modules/licitacoes/actions";
 import type { ResumoLicitacao } from "@/modules/licitacoes/queries";
@@ -224,7 +224,16 @@ export function LicitacoesView({
                 {l.modalidade && <Badge variant="outline" className="text-muted-foreground">{l.modalidade}</Badge>}
                 {l.numeroEdital && <span className="font-mono text-xs text-muted-foreground">Edital {l.numeroEdital}</span>}
                 {l.valorEstimado != null && <span className="font-mono text-xs text-muted-foreground">{brl(l.valorEstimado)}</span>}
-                {l.prazoProposta && <span className="text-xs text-muted-foreground">prazo {formatarData(l.prazoProposta)}</span>}
+                {l.prazoProposta &&
+                  (() => {
+                    const alerta = prazoAlerta(l.prazoProposta, l.status);
+                    if (!alerta) return <span className="text-xs text-muted-foreground">prazo {formatarData(l.prazoProposta)}</span>;
+                    return (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-destructive">
+                        <AlertTriangle className="size-3" /> prazo {formatarData(l.prazoProposta)} ({alerta === "vencido" ? "vencido" : "hoje"})
+                      </span>
+                    );
+                  })()}
                 {l.projeto && <span className="font-mono text-xs text-primary">{l.projeto.codigo}</span>}
                 <span className="ml-auto text-[10px] text-muted-foreground">{l.nDocs} doc · {l.nMedicoes} med</span>
               </CardContent>
@@ -318,4 +327,19 @@ export function LicitacoesView({
       </Dialog>
     </div>
   );
+}
+
+/** Sinaliza prazo de proposta vencido/hoje para licitações em andamento. */
+function prazoAlerta(prazo: string | Date | null, status: string): "vencido" | "hoje" | null {
+  if (!prazo || status !== "em_andamento") return null;
+  const s = typeof prazo === "string" ? prazo : prazo.toISOString().slice(0, 10);
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(s);
+  if (isNaN(d.getTime())) return null;
+  d.setHours(0, 0, 0, 0);
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  if (d < hoje) return "vencido";
+  if (d.getTime() === hoje.getTime()) return "hoje";
+  return null;
 }
