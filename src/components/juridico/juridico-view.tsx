@@ -5,7 +5,7 @@ import { formatarData } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { differenceInCalendarDays } from "date-fns";
-import { Plus, Upload, Download, Trash2, Folder, FolderPlus, X, FileText, ShieldCheck } from "lucide-react";
+import { Plus, Upload, Download, Trash2, Folder, FolderPlus, X, FileText, ShieldCheck, Eye } from "lucide-react";
 import {
   criarDocJuridico,
   excluirDocJuridico,
@@ -51,6 +51,8 @@ type Modelo = { id: string; nome: string; categoria: string | null; conteudo: st
 
 const NONE = "__none";
 const TIPOS_DOC = ["contrato", "aditivo", "proposta", "procuracao", "outro"];
+
+const ehPdf = (nome: string) => nome.toLowerCase().endsWith(".pdf");
 
 export function JuridicoView({
   docs,
@@ -130,6 +132,7 @@ function DocsTab({
   const [novaPasta, setNovaPasta] = useState("");
   const uploadRef = useRef<HTMLInputElement>(null);
   const [uploadDoc, setUploadDoc] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ url: string; nome: string } | null>(null);
 
   const docsVisiveis =
     filtro === null
@@ -377,6 +380,19 @@ function DocsTab({
                       </span>
                       <span className="truncate">{v.arquivoNome}</span>
                       <span>· {v.autor} · {formatarData(v.data)}</span>
+                      {ehPdf(v.arquivoNome) && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPreview({ url: `/api/juridico/versoes/${v.id}/download?inline=1`, nome: v.arquivoNome })
+                          }
+                          className="text-primary hover:text-primary/80"
+                          aria-label="Visualizar"
+                          title="Visualizar"
+                        >
+                          <Eye className="size-3.5" />
+                        </button>
+                      )}
                       <a href={`/api/juridico/versoes/${v.id}/download`} className="text-primary" aria-label="Baixar">
                         <Download className="size-3.5" />
                       </a>
@@ -388,6 +404,17 @@ function DocsTab({
           ))}
         </div>
       )}
+
+      <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
+        <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-5xl">
+          <DialogHeader>
+            <DialogTitle className="truncate">{preview?.nome}</DialogTitle>
+          </DialogHeader>
+          {preview && (
+            <iframe src={preview.url} className="h-[80svh] w-full rounded-sm border" title={preview.nome} />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

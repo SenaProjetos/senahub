@@ -4,7 +4,7 @@ import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { lerArquivo } from "@/lib/storage";
 
-export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   if (!(await can(session.user.role, "juridico", "ver"))) {
@@ -21,10 +21,15 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   } catch {
     return NextResponse.json({ error: "Arquivo indisponível." }, { status: 410 });
   }
+
+  const params = new URL(req.url).searchParams;
+  const ehPdf = v.arquivoNome.toLowerCase().endsWith(".pdf");
+  const inline = params.get("inline") === "1" || params.get("disposition") === "inline";
+  const disposition = inline ? "inline" : "attachment";
   return new NextResponse(new Uint8Array(conteudo), {
     headers: {
-      "Content-Type": "application/octet-stream",
-      "Content-Disposition": `attachment; filename="${encodeURIComponent(v.arquivoNome)}"`,
+      "Content-Type": ehPdf ? "application/pdf" : "application/octet-stream",
+      "Content-Disposition": `${disposition}; filename="${encodeURIComponent(v.arquivoNome)}"`,
     },
   });
 }
