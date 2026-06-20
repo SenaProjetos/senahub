@@ -14,6 +14,4 @@ export const STATUS_CHIP: Record<string, string> = {
   concluida: "text-muted-foreground",
 };
 
-export function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
+export { brl } from "@/lib/utils";

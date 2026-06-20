@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { brl } from "@/lib/utils";
 import { STATUS_LICITACAO_LABEL, type StatusLicitacao } from "./status";
 
 type DB = Prisma.TransactionClient;
@@ -23,7 +24,7 @@ export function textoUploadDoc(titulo: string, numero: number): string {
 }
 
 export function textoMedicao(numero: number, valor: number, data: string): string {
-  const fmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor);
+  const fmt = brl(valor);
   return `Medição nº ${numero} registrada — ${fmt} em ${data}`;
 }
 
@@ -32,7 +33,7 @@ export function textoImportacao(codigo: string): string {
 }
 
 export function textoExclusaoMedicao(numero: number, valor: number): string {
-  const fmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor);
+  const fmt = brl(valor);
   return `Medição nº ${numero} (${fmt}) removida.`;
 }
 

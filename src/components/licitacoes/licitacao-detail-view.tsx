@@ -2329,7 +2329,6 @@ function LicExtras({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
   const [evento, setEvento] = useState("");
   const [disc, setDisc] = useState("");
   const [valor, setValor] = useState("");
-  const brlf = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   const totalDisc = lic.valoresDisciplina.reduce((s, v) => s + v.valor, 0);
 
   function addEvento() {
@@ -2383,7 +2382,7 @@ function LicExtras({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
       </div>
       <div>
         <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-          Valores por disciplina {totalDisc > 0 ? `· ${brlf(totalDisc)}` : ""}
+          Valores por disciplina {totalDisc > 0 ? `· ${brl(totalDisc)}` : ""}
         </p>
         {lic.valoresDisciplina.length > 0 && (
           <ul className="space-y-0.5 text-xs">
@@ -2391,7 +2390,7 @@ function LicExtras({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
               <li key={v.id} className="flex items-center justify-between gap-2">
                 <span>{v.disciplina}</span>
                 <span className="flex items-center gap-1.5">
-                  <span className="font-mono">{brlf(v.valor)}</span>
+                  <span className="font-mono">{brl(v.valor)}</span>
                   {podeGerir && (
                     <button onClick={() => rmValor(v.id)} aria-label="Remover" className="text-muted-foreground hover:text-destructive">
                       <Trash2 className="size-3" />

@@ -4,12 +4,11 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
+import { brl } from "@/lib/utils";
 import { registrarHistorico } from "../historico";
 
 const base = { modulo: "licitacoes", recurso: "licitacoes", permissao: "gerir" } as const;
 const rev = () => revalidatePath("/licitacoes");
-const brl = (v: number) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
 // ── salvarContratoLicitacao (upsert) ──────────────────────────
 export const salvarContratoLicitacao = defineAction(

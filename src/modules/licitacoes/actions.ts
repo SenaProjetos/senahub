@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
+import { brl } from "@/lib/utils";
 import { proximoCodigoProjeto } from "@/modules/projetos/numbering";
 import { ensureCanaisProjeto } from "@/modules/chat/service";
 import { transicaoPermitida, mensagemTransicaoInvalida, type StatusLicitacao } from "./status";
@@ -164,8 +165,7 @@ export const registrarMedicao = defineAction(
       const medidoAntes = lic.medicoes.reduce((s, m) => s + Number(m.valor), 0);
       const saldoAntes = saldoContratual(homologado, deltas, medidoAntes);
       if (i.valor > saldoAntes) {
-        const fmt = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
-        aviso = `Atenção: esta medição (${fmt(i.valor)}) excede o saldo contratual (${fmt(saldoAntes)}).`;
+        aviso = `Atenção: esta medição (${brl(i.valor)}) excede o saldo contratual (${brl(saldoAntes)}).`;
       }
     }
     rev();

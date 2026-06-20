@@ -12,6 +12,7 @@ import {
   excluirSancaoConcorrente,
 } from "@/modules/licitacoes/sancoes/actions";
 import { sancaoAtiva } from "@/modules/licitacoes/sancoes/sancoes";
+import { brl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -77,10 +78,6 @@ type Props = {
 
 function hoje() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 export function SancoesView({ podeGerir, fornecedores, proprias, concorrentes }: Props) {
