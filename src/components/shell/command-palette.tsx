@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, FolderKanban, Users, Wallet, Loader2 } from "lucide-react";
+import { Search, FolderKanban, Users, Wallet, ListChecks, FileText, Loader2 } from "lucide-react";
 import { buscaGlobal, type ResultadoBusca } from "@/modules/busca/actions";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { brl } from "@/lib/utils";
 
-const VAZIO: ResultadoBusca = { projetos: [], clientes: [], lancamentos: [] };
+const VAZIO: ResultadoBusca = { projetos: [], clientes: [], tarefas: [], lancamentos: [], documentos: [] };
 
 export function CommandPalette() {
   const router = useRouter();
@@ -73,7 +73,12 @@ export function CommandPalette() {
     [router],
   );
 
-  const total = res.projetos.length + res.clientes.length + res.lancamentos.length;
+  const total =
+    res.projetos.length +
+    res.clientes.length +
+    res.tarefas.length +
+    res.lancamentos.length +
+    res.documentos.length;
   const curto = termo.trim().length < 2;
 
   return (
@@ -90,7 +95,7 @@ export function CommandPalette() {
             autoFocus
             value={termo}
             onChange={(e) => setTermo(e.target.value)}
-            placeholder="Buscar projetos, clientes, lançamentos…"
+            placeholder="Buscar projetos, clientes, tarefas, lançamentos, documentos…"
             className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
           {carregando && <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />}
@@ -117,6 +122,20 @@ export function CommandPalette() {
                 {res.clientes.map((c) => (
                   <Item key={c.id} onClick={() => ir(`/clientes/${c.id}`)}>
                     <span className="truncate">{c.nome}</span>
+                  </Item>
+                ))}
+              </Grupo>
+              <Grupo titulo="Tarefas" icon={ListChecks}>
+                {res.tarefas.map((t) => (
+                  <Item key={t.id} onClick={() => ir(`/tarefas`)}>
+                    <span className="truncate">{t.titulo}</span>
+                  </Item>
+                ))}
+              </Grupo>
+              <Grupo titulo="Documentos" icon={FileText}>
+                {res.documentos.map((d) => (
+                  <Item key={d.id} onClick={() => ir(`/documentos/${d.id}`)}>
+                    <span className="truncate">{d.nome}</span>
                   </Item>
                 ))}
               </Grupo>
