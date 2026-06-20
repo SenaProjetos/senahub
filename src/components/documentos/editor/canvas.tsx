@@ -1,11 +1,30 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import type { Dispatch } from "react";
 import { cn } from "@/lib/utils";
 import { BANDA_LABEL, type Banda, type DocSchema, type Elemento } from "@/modules/documentos/schema";
 import { snap, type EditorAction, type Selecao } from "./estado";
 import { ElementoView } from "./elemento-view";
+
+/** Retângulo do marquee em coordenadas locais da banda (px, antes do zoom). */
+type Marquee = { x0: number; y0: number; x1: number; y1: number };
+
+function normRect(m: Marquee) {
+  return {
+    left: Math.min(m.x0, m.x1),
+    top: Math.min(m.y0, m.y1),
+    right: Math.max(m.x0, m.x1),
+    bottom: Math.max(m.y0, m.y1),
+  };
+}
+
+/** Ids selecionados nesta banda (suporta seleção simples e múltipla). */
+function idsSelecionados(selecao: Selecao, bandaId: string): string[] {
+  if (selecao.tipo === "elemento" && selecao.bandaId === bandaId) return [selecao.elementoId];
+  if (selecao.tipo === "multi" && selecao.bandaId === bandaId) return selecao.ids;
+  return [];
+}
 
 export function Canvas({
   schema,
@@ -72,6 +91,52 @@ function BandaView({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const bandaSel = selecao.tipo === "banda" && selecao.bandaId === banda.id;
+  const selIds = idsSelecionados(selecao, banda.id);
+  const [marquee, setMarquee] = useState<Marquee | null>(null);
+
+  /** Marquee: arrastar numa área vazia da banda seleciona os elementos contidos. */
+  function iniciarMarquee(e: React.PointerEvent) {
+    if (e.button !== 0) return;
+    const area = ref.current;
+    if (!area) return;
+    const rect = area.getBoundingClientRect();
+    const toLocal = (cx: number, cy: number) => ({
+      x: (cx - rect.left) / zoom,
+      y: (cy - rect.top) / zoom,
+    });
+    const inicio = toLocal(e.clientX, e.clientY);
+    let movido = false;
+    let atual: Marquee = { x0: inicio.x, y0: inicio.y, x1: inicio.x, y1: inicio.y };
+
+    function move(ev: PointerEvent) {
+      const p = toLocal(ev.clientX, ev.clientY);
+      atual = { x0: inicio.x, y0: inicio.y, x1: p.x, y1: p.y };
+      if (Math.abs(p.x - inicio.x) > 3 || Math.abs(p.y - inicio.y) > 3) movido = true;
+      setMarquee({ ...atual });
+    }
+    function up() {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setMarquee(null);
+      if (!movido) {
+        dispatch({ t: "selecionar", selecao: { tipo: "banda", bandaId: banda.id } });
+        return;
+      }
+      const r = normRect(atual);
+      const ids = banda.elementos
+        .filter((el) => el.x < r.right && el.x + el.w > r.left && el.y < r.bottom && el.y + el.h > r.top)
+        .map((el) => el.id);
+      if (ids.length === 0) {
+        dispatch({ t: "selecionar", selecao: { tipo: "banda", bandaId: banda.id } });
+      } else if (ids.length === 1) {
+        dispatch({ t: "selecionar", selecao: { tipo: "elemento", bandaId: banda.id, elementoId: ids[0] } });
+      } else {
+        dispatch({ t: "selecionar", selecao: { tipo: "multi", bandaId: banda.id, ids } });
+      }
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
 
   function iniciarResizeBanda(e: React.PointerEvent) {
     e.preventDefault();
@@ -132,9 +197,7 @@ function BandaView({
           backgroundSize: "8px 8px",
         }}
         onPointerDown={(e) => {
-          if (e.target === e.currentTarget) {
-            dispatch({ t: "selecionar", selecao: { tipo: "banda", bandaId: banda.id } });
-          }
+          if (e.target === e.currentTarget) iniciarMarquee(e);
         }}
       >
         {banda.elementos.map((el) => (
@@ -143,10 +206,22 @@ function BandaView({
             bandaId={banda.id}
             el={el}
             zoom={zoom}
-            selecionado={selecao.tipo === "elemento" && selecao.elementoId === el.id}
+            selecionado={selIds.includes(el.id)}
+            selIds={selIds}
             dispatch={dispatch}
           />
         ))}
+
+        {/* retângulo de marquee (seleção por arrasto) */}
+        {marquee && (
+          <div
+            className="pointer-events-none absolute z-20 border border-blue-500 bg-blue-500/10"
+            style={(() => {
+              const r = normRect(marquee);
+              return { left: r.left, top: r.top, width: r.right - r.left, height: r.bottom - r.top };
+            })()}
+          />
+        )}
       </div>
 
       {/* alça de altura da banda */}
@@ -164,21 +239,75 @@ function ElementoEditavel({
   el,
   zoom,
   selecionado,
+  selIds,
   dispatch,
 }: {
   bandaId: string;
   el: Elemento;
   zoom: number;
   selecionado: boolean;
+  /** Todos os ids selecionados nesta banda (para drag em grupo). */
+  selIds: string[];
   dispatch: Dispatch<EditorAction>;
 }) {
+  /** Shift+clique: adiciona/remove o elemento da seleção (na mesma banda). */
+  function alternarNaSelecao() {
+    const conjunto = new Set(selIds);
+    if (conjunto.has(el.id)) conjunto.delete(el.id);
+    else conjunto.add(el.id);
+    const ids = [...conjunto];
+    if (ids.length === 0) dispatch({ t: "selecionar", selecao: { tipo: "banda", bandaId } });
+    else if (ids.length === 1)
+      dispatch({ t: "selecionar", selecao: { tipo: "elemento", bandaId, elementoId: ids[0] } });
+    else dispatch({ t: "selecionar", selecao: { tipo: "multi", bandaId, ids } });
+  }
+
   function iniciarDrag(e: React.PointerEvent) {
     if (el.travado) return;
     e.preventDefault();
     e.stopPropagation();
-    dispatch({ t: "selecionar", selecao: { tipo: "elemento", bandaId, elementoId: el.id } });
+
+    // Shift+clique não arrasta: alterna a seleção e sai.
+    if (e.shiftKey) {
+      alternarNaSelecao();
+      return;
+    }
+
+    // Se o elemento já faz parte de uma multi-seleção, arrasta o grupo todo.
+    const grupo = selecionado && selIds.length > 1 ? selIds : null;
+    if (!grupo) {
+      dispatch({ t: "selecionar", selecao: { tipo: "elemento", bandaId, elementoId: el.id } });
+    }
+
     const startX = e.clientX;
     const startY = e.clientY;
+
+    if (grupo) {
+      // Drag em grupo: aplica o mesmo delta a todos os selecionados.
+      let ultimo = { dx: 0, dy: 0 };
+      function calc(ev: PointerEvent) {
+        return {
+          dx: snap((ev.clientX - startX) / zoom),
+          dy: snap((ev.clientY - startY) / zoom),
+        };
+      }
+      function move(ev: PointerEvent) {
+        const d = calc(ev);
+        // Aplica o delta incremental (relativo ao último despacho).
+        dispatch({ t: "moverMultiplos", bandaId, ids: grupo!, dx: d.dx - ultimo.dx, dy: d.dy - ultimo.dy, commit: false });
+        ultimo = d;
+      }
+      function up(ev: PointerEvent) {
+        const d = calc(ev);
+        dispatch({ t: "moverMultiplos", bandaId, ids: grupo!, dx: d.dx - ultimo.dx, dy: d.dy - ultimo.dy, commit: true });
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+      }
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+      return;
+    }
+
     const orig = { x: el.x, y: el.y };
     function calc(ev: PointerEvent) {
       return {
@@ -223,19 +352,23 @@ function ElementoEditavel({
     window.addEventListener("pointerup", up);
   }
 
+  // Resize só faz sentido na seleção de UM elemento; em multi-seleção, só destaca.
+  const selecaoUnica = selecionado && selIds.length <= 1;
+
   return (
     <div
       className={cn(
         "absolute",
         el.travado ? "cursor-default" : "cursor-move",
         selecionado && "ring-1 ring-blue-500",
+        selecionado && selIds.length > 1 && "ring-blue-400",
         !el.visivel && "opacity-40",
       )}
       style={{ left: el.x, top: el.y, width: el.w, height: el.h }}
       onPointerDown={iniciarDrag}
     >
       <ElementoView el={el} />
-      {selecionado && !el.travado && (
+      {selecaoUnica && !el.travado && (
         <>
           {/* alças de canto (visual) */}
           {[

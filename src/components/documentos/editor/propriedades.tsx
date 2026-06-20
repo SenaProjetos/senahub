@@ -49,12 +49,23 @@ export function Propriedades({
     selecao.tipo === "elemento" && banda
       ? banda.elementos.find((e) => e.id === selecao.elementoId)
       : undefined;
+  const multi = selecao.tipo === "multi" ? selecao.ids.length : 0;
 
   return (
     <aside className="w-72 shrink-0 space-y-4 overflow-y-auto border-l bg-card p-4">
       <h3 className="text-sm font-bold">Propriedades</h3>
 
-      {!banda && !elemento && (
+      {multi > 0 && (
+        <div className="space-y-2 border-b pb-3">
+          <p className="text-xs font-semibold text-muted-foreground">Multi-seleção</p>
+          <p className="text-xs text-muted-foreground">
+            {multi} elementos selecionados. Use os botões de alinhar/distribuir na barra superior,
+            arraste para mover em grupo ou salve a seleção como bloco.
+          </p>
+        </div>
+      )}
+
+      {selecao.tipo !== "multi" && !banda && !elemento && (
         <>
           <PropsPagina schema={schema} dispatch={dispatch} />
           <p className="border-t pt-3 text-xs text-muted-foreground">
@@ -64,7 +75,9 @@ export function Propriedades({
         </>
       )}
 
-      {banda && !elemento && <PropsBanda banda={banda} schema={schema} dispatch={dispatch} />}
+      {selecao.tipo !== "multi" && banda && !elemento && (
+        <PropsBanda banda={banda} schema={schema} dispatch={dispatch} />
+      )}
       {banda && elemento && (
         <PropsElemento
           bandaId={banda.id}

@@ -23,6 +23,17 @@ import {
   History,
   Plus,
   HelpCircle,
+  AlignStartHorizontal,
+  AlignCenterHorizontal,
+  AlignEndHorizontal,
+  AlignStartVertical,
+  AlignCenterVertical,
+  AlignEndVertical,
+  AlignHorizontalSpaceAround,
+  AlignVerticalSpaceAround,
+  Library,
+  BookmarkPlus,
+  Trash2,
 } from "lucide-react";
 import {
   novoElemento,
@@ -30,13 +41,16 @@ import {
   TIPOS_BANDA,
   BANDA_LABEL,
   type DocSchema,
+  type Elemento,
   type TipoBanda,
   type TipoElemento,
 } from "@/modules/documentos/schema";
 import { FONTES } from "@/modules/documentos/fontes-meta";
 import type { FonteTipografica } from "@/modules/documentos/fontes-tipograficas";
 import { salvarModelo, restaurarVersao } from "@/modules/documentos/actions";
-import { editorReducer, type EditorState } from "./estado";
+import { salvarBloco, excluirBloco } from "@/modules/documentos/bloco-actions";
+import type { BlocoListItem } from "@/modules/documentos/bloco-queries";
+import { editorReducer, type AlinharEixo, type DistribuirEixo, type EditorState } from "./estado";
 import { Canvas } from "./canvas";
 import { Propriedades } from "./propriedades";
 import { VariaveisDialog } from "../variaveis-dialog";
@@ -51,8 +65,10 @@ import {
 } from "@/components/ui/select";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -94,6 +110,7 @@ export function DocEditor({
   fonteInicial,
   schemaInicial,
   fontesHabilitadas,
+  blocos,
   versoes,
 }: {
   modeloId: string;
@@ -102,6 +119,7 @@ export function DocEditor({
   fonteInicial: string;
   schemaInicial: DocSchema;
   fontesHabilitadas: FonteTipografica[];
+  blocos: BlocoListItem[];
   versoes: VersaoT[];
 }) {
   const router = useRouter();
@@ -127,6 +145,55 @@ export function DocEditor({
     const bandaId = bandaAlvo();
     if (!bandaId) return;
     dispatch({ t: "addElemento", bandaId, elemento: novoElemento(tipoEl, 8, 8) });
+  }
+
+  // Ids selecionados na banda corrente (1 = simples; 2+ = multi-seleção).
+  const selBandaId =
+    state.selecao.tipo === "elemento" || state.selecao.tipo === "multi"
+      ? state.selecao.bandaId
+      : null;
+  const selIds: string[] =
+    state.selecao.tipo === "elemento"
+      ? [state.selecao.elementoId]
+      : state.selecao.tipo === "multi"
+        ? state.selecao.ids
+        : [];
+  const temSelecaoElementos = selIds.length >= 1;
+  const temMulti = selIds.length >= 2;
+
+  /** Elementos atualmente selecionados (objetos), para salvar como bloco. */
+  function elementosSelecionados(): Elemento[] {
+    if (!selBandaId) return [];
+    const banda = state.schema.bandas.find((b) => b.id === selBandaId);
+    if (!banda) return [];
+    return banda.elementos.filter((e) => selIds.includes(e.id));
+  }
+
+  function alinhar(eixo: AlinharEixo) {
+    if (selBandaId && temMulti) dispatch({ t: "alinhar", bandaId: selBandaId, ids: selIds, eixo });
+  }
+  function distribuir(eixo: DistribuirEixo) {
+    if (selBandaId && selIds.length >= 3) dispatch({ t: "distribuir", bandaId: selBandaId, ids: selIds, eixo });
+  }
+
+  /**
+   * Insere os elementos de um bloco na banda selecionada (ou na 1ª disponível),
+   * regerando ids e aplicando um pequeno offset para não sobrepor o original.
+   */
+  function inserirBloco(bloco: BlocoListItem) {
+    const bandaId = bandaAlvo();
+    if (!bandaId) {
+      toast.error("Nenhuma banda disponível para inserir.");
+      return;
+    }
+    const elementos: Elemento[] = bloco.conteudo.map((e) => ({
+      ...e,
+      id: novoId(),
+      x: e.x + 16,
+      y: e.y + 16,
+    }));
+    dispatch({ t: "inserirElementos", bandaId, elementos });
+    toast.success(`Bloco "${bloco.nome}" inserido (${elementos.length} elemento(s)).`);
   }
 
   function salvar() {
@@ -159,6 +226,10 @@ export function DocEditor({
         dispatch({ t: "redo" });
       } else if (e.key === "Delete" && state.selecao.tipo === "elemento") {
         dispatch({ t: "removeElemento", bandaId: state.selecao.bandaId, elementoId: state.selecao.elementoId });
+      } else if (e.key === "Delete" && state.selecao.tipo === "multi") {
+        // Remove cada elemento da multi-seleção (cada um empilha no histórico).
+        const sel = state.selecao;
+        for (const id of sel.ids) dispatch({ t: "removeElemento", bandaId: sel.bandaId, elementoId: id });
       } else if (state.selecao.tipo === "elemento" && e.key.startsWith("Arrow")) {
         e.preventDefault();
         const passo = e.shiftKey ? 8 : 1;
@@ -175,6 +246,13 @@ export function DocEditor({
                 ? { y: Math.max(0, el.y - passo) }
                 : { y: el.y + passo };
         dispatch({ t: "updateElemento", bandaId: sel.bandaId, elementoId: sel.elementoId, patch, commit: true });
+      } else if (state.selecao.tipo === "multi" && e.key.startsWith("Arrow")) {
+        e.preventDefault();
+        const passo = e.shiftKey ? 8 : 1;
+        const sel = state.selecao;
+        const dx = e.key === "ArrowLeft" ? -passo : e.key === "ArrowRight" ? passo : 0;
+        const dy = e.key === "ArrowUp" ? -passo : e.key === "ArrowDown" ? passo : 0;
+        dispatch({ t: "moverMultiplos", bandaId: sel.bandaId, ids: sel.ids, dx, dy, commit: true });
       }
     }
     window.addEventListener("keydown", onKey);
@@ -218,6 +296,54 @@ export function DocEditor({
             ))}
           </SelectContent>
         </Select>
+
+        {/* Alinhar / distribuir — só quando há multi-seleção (2+ elementos). */}
+        {temMulti && (
+          <div className="flex items-center gap-0.5 border-l pl-2">
+            <BotaoIcone label="Alinhar à esquerda" onClick={() => alinhar("esquerda")}>
+              <AlignStartVertical className="size-4" />
+            </BotaoIcone>
+            <BotaoIcone label="Centralizar horizontal" onClick={() => alinhar("centroH")}>
+              <AlignCenterVertical className="size-4" />
+            </BotaoIcone>
+            <BotaoIcone label="Alinhar à direita" onClick={() => alinhar("direita")}>
+              <AlignEndVertical className="size-4" />
+            </BotaoIcone>
+            <BotaoIcone label="Alinhar ao topo" onClick={() => alinhar("topo")}>
+              <AlignStartHorizontal className="size-4" />
+            </BotaoIcone>
+            <BotaoIcone label="Centralizar vertical" onClick={() => alinhar("meio")}>
+              <AlignCenterHorizontal className="size-4" />
+            </BotaoIcone>
+            <BotaoIcone label="Alinhar à base" onClick={() => alinhar("base")}>
+              <AlignEndHorizontal className="size-4" />
+            </BotaoIcone>
+            <BotaoIcone
+              label="Distribuir horizontalmente"
+              disabled={selIds.length < 3}
+              onClick={() => distribuir("horizontal")}
+            >
+              <AlignHorizontalSpaceAround className="size-4" />
+            </BotaoIcone>
+            <BotaoIcone
+              label="Distribuir verticalmente"
+              disabled={selIds.length < 3}
+              onClick={() => distribuir("vertical")}
+            >
+              <AlignVerticalSpaceAround className="size-4" />
+            </BotaoIcone>
+          </div>
+        )}
+
+        {/* Blocos reutilizáveis. */}
+        <div className="flex items-center gap-0.5 border-l pl-2">
+          <SalvarBlocoDialog
+            disabled={!temSelecaoElementos}
+            quantidade={selIds.length}
+            obterElementos={elementosSelecionados}
+          />
+          <InserirBlocoDialog blocos={blocos} onInserir={inserirBloco} />
+        </div>
 
         <div className="ml-auto flex items-center gap-1">
           <Button variant="ghost" size="icon" aria-label="Desfazer" disabled={state.past.length === 0} onClick={() => dispatch({ t: "undo" })}>
@@ -352,6 +478,208 @@ function VersoesDialog({ modeloId, versoes }: { modeloId: string; versoes: Versa
                 <Button size="sm" variant="outline" disabled={pending} onClick={() => restaurar(v.id)}>
                   Restaurar
                 </Button>
+              </li>
+            ))
+          )}
+        </ul>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Botão de toolbar com tooltip (ícone). Usado nos controles de alinhar/distribuir. */
+function BotaoIcone({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button variant="ghost" size="icon" aria-label={label} disabled={disabled} onClick={onClick}>
+            {children}
+          </Button>
+        }
+      />
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** Dialog "Salvar como bloco": nome + checkbox de compartilhar. */
+function SalvarBlocoDialog({
+  disabled,
+  quantidade,
+  obterElementos,
+}: {
+  disabled: boolean;
+  quantidade: number;
+  obterElementos: () => Elemento[];
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [nome, setNome] = useState("");
+  const [compartilhado, setCompartilhado] = useState(false);
+  const [pending, start] = useTransition();
+
+  function salvar() {
+    const conteudo = obterElementos();
+    if (conteudo.length === 0) {
+      toast.error("Selecione ao menos um elemento.");
+      return;
+    }
+    if (!nome.trim()) {
+      toast.error("Informe o nome do bloco.");
+      return;
+    }
+    start(async () => {
+      const r = await salvarBloco({ nome: nome.trim(), conteudo, compartilhado });
+      if (r.ok) {
+        toast.success(`Bloco "${r.data.nome}" salvo.`);
+        setOpen(false);
+        setNome("");
+        setCompartilhado(false);
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Salvar seleção como bloco"
+            title="Salvar seleção como bloco"
+            disabled={disabled}
+          >
+            <BookmarkPlus className="size-4" />
+          </Button>
+        }
+      />
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Salvar como bloco</DialogTitle>
+          <DialogDescription>
+            {quantidade} elemento(s) selecionado(s) serão salvos na biblioteca de blocos.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <label className="text-[11px] text-muted-foreground">Nome do bloco</label>
+            <Input
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              placeholder="Cabeçalho padrão"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") salvar();
+              }}
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={compartilhado}
+              onChange={(e) => setCompartilhado(e.target.checked)}
+            />
+            Compartilhar com todos
+          </label>
+        </div>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline">Cancelar</Button>} />
+          <Button onClick={salvar} disabled={pending}>
+            {pending ? "Salvando…" : "Salvar bloco"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Dialog "Inserir bloco": lista os blocos disponíveis; escolher insere na banda. */
+function InserirBlocoDialog({
+  blocos,
+  onInserir,
+}: {
+  blocos: BlocoListItem[];
+  onInserir: (bloco: BlocoListItem) => void;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [pending, start] = useTransition();
+
+  function escolher(bloco: BlocoListItem) {
+    onInserir(bloco);
+    setOpen(false);
+  }
+
+  function remover(id: string) {
+    start(async () => {
+      const r = await excluirBloco({ id });
+      if (r.ok) {
+        toast.success("Bloco excluído.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <Button variant="ghost" size="icon" aria-label="Inserir bloco" title="Inserir bloco">
+            <Library className="size-4" />
+          </Button>
+        }
+      />
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Inserir bloco</DialogTitle>
+          <DialogDescription>
+            Insere os elementos do bloco na banda selecionada (ou na primeira disponível).
+          </DialogDescription>
+        </DialogHeader>
+        <ul className="max-h-80 divide-y overflow-y-auto text-sm">
+          {blocos.length === 0 ? (
+            <li>
+              <EmptyState icon={Library} title="Nenhum bloco salvo ainda" />
+            </li>
+          ) : (
+            blocos.map((b) => (
+              <li key={b.id} className="flex items-center justify-between gap-2 py-2">
+                <button
+                  type="button"
+                  className="flex flex-1 flex-col items-start text-left hover:underline"
+                  onClick={() => escolher(b)}
+                >
+                  <span className="font-medium">{b.nome}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {b.nElementos} elemento(s)
+                    {b.compartilhado ? " · compartilhado" : ""}
+                    {!b.ehDono ? " · de outro usuário" : ""}
+                  </span>
+                </button>
+                {b.ehDono && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Excluir bloco"
+                    disabled={pending}
+                    onClick={() => remover(b.id)}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                )}
               </li>
             ))
           )}
