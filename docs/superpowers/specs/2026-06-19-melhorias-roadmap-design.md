@@ -179,3 +179,34 @@ DocuSign/ClickSign/D4Sign (SaaS), Google Calendar/Outlook OAuth.
 **Verificação:** `tsc --noEmit` limpo + `npm test` (267 testes). Verificações visuais que exigem
 browser/sessão (gráfico de receita, presença com 2 usuários, página 404, chat) e a repro
 interativa de 2.1/3.9 ficam para validação do usuário.
+
+### M1 — Fundação UX ✅ (mergeada em master, 2026-06-19/20)
+- M1.0 primitivos: `EmptyState`, `ConfirmDialog`+`useConfirm`, `StatusBadge`, `Button loading`, formatadores `brl/brlInteiro/formatarData/formatarMesCurto/formatarDiaMes` (com testes).
+- M1.1 moeda: 51 arquivos → `brl`/`brlInteiro`; `licitacoes/_shared` reexporta de utils.
+- M1.2 data: 38 arquivos → helpers; one-offs (weekday/mês-extenso/dia-mês-curto) preservados.
+- M1.3 EmptyState: ~78 estados vazios em 63 arquivos (ícone/título/CTA por tela).
+- M1.4 ConfirmDialog: 4 `window.confirm` → `useConfirm`.
+- M1.5 StatusBadge+aria: 16 arquivos (cor+ícone) + aria-labels no clima RH. **Parcial:** badges de status de `projetos` (disciplina-card, projetos-view) ainda no `<Badge>` antigo (agente caiu por limite) — compila/funciona, adoção incremental.
+
+### M2 — Listagens ✅ núcleo (mergeada)
+- M2.0 primitivos: `parseListParams` (testado) + `useSetParams` + `<SortableHead>` + `<Pagination>` (offset, `PAGE_SIZES`).
+- M2.1 Projetos: filtros (cliente/responsável/disciplina/situação) + sort + paginação server-side.
+- M2.2 Clientes: `listarClientesPaginado` + filtros (tipo/situação/UF) + sort + paginação (mantido `listarClientes` array p/ 5 consumidores).
+- M2.3 Tarefas: filtros (projeto/responsável/período) + busca, client-side no kanban com estado na URL.
+- **Adiado:** M2.4 (Comercial/Recursos filtros, paginar Auditoria/Folha), M2.5 (toggle lista/kanban), verificar Ctrl+K.
+
+### M3 — Dashboard & nav ✅ (mergeada)
+- KPIs clicáveis (filtro pré-aplicado) + card "Contas vencidas" + âncora `#aging`.
+- Citação do dia dispensável (localStorage). Sidebar com grupos colapsáveis (localStorage). Breadcrumb no header. Rótulo no gráfico de tendência.
+
+### M4 — Alertas & badges ✅ parcial (mergeada)
+- **Feito:** alerta vermelho de prazo de proposta (vencido/hoje) em Licitações.
+- **Já existiam (roadmap impreciso):** linhas "Maiores atrasos" da Qualidade já linkam ao projeto; alerta de vencimento de certidões no Jurídico (`badgeValidade`: vencida/vence em Nd/ok); badges de não-lidas no Chat.
+- **Pendente (polish):** badges de contagem em quicklinks do Financeiro e botões Arquivos/Revisões em Projetos; progresso X/Y de onboarding; alerta de atraso de disciplina no detalhe do projeto.
+
+### M5 — Módulos (aprofundamento) ⏳ NÃO INICIADA
+### M6 — Plataforma/técnico ⏳ NÃO INICIADA
+
+> Execução autônoma pausada após M4 por indisponibilidade dos subagentes (limite de conta) e
+> tamanho da sessão. `master` permanece verde (tsc 0 + testes) em todos os merges. Detalhes do
+> pendente e decisões adiadas no resumo final da sessão.
