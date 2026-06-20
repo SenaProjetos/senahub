@@ -43,7 +43,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
 
 type UploadItem = {
   id: string;
@@ -111,7 +111,7 @@ export function DisciplinaCard({
           <h4 className="font-semibold">{disciplina.nome}</h4>
           {disciplina.prazo && (
             <p className="text-xs text-muted-foreground">
-              Prazo: {new Date(disciplina.prazo).toLocaleDateString("pt-BR")}
+              Prazo: {formatarData(disciplina.prazo)}
             </p>
           )}
         </div>
@@ -405,7 +405,7 @@ function RevisaoDialog({
                     RV{String(rv.numero).padStart(2, "0")}
                   </span>
                   <span className="ml-auto text-xs text-muted-foreground">
-                    {new Date(rv.data).toLocaleDateString("pt-BR")} · {rv.autor}
+                    {formatarData(rv.data)} · {rv.autor}
                   </span>
                 </div>
                 {rv.motivo && <p className="mt-1 text-muted-foreground">{rv.motivo}</p>}

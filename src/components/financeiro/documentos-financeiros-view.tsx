@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
 
 const NONE = "__none";
 const TIPOS = [
@@ -209,7 +209,7 @@ export function DocumentosFinanceirosView({
                       {d.temArquivo && <FileText className="ml-1 inline size-3 text-muted-foreground" />}
                     </td>
                     <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
-                      {d.dataEmissao ? new Date(d.dataEmissao + "T00:00:00").toLocaleDateString("pt-BR") : "—"}
+                      {d.dataEmissao ? formatarData(d.dataEmissao + "T00:00:00") : "—"}
                     </td>
                     <td className="px-4 py-2 text-muted-foreground">{d.fornecedor ?? d.cliente ?? "—"}</td>
                     <td className="px-4 py-2 text-right font-mono text-xs">{d.valorDocumento != null ? brl(d.valorDocumento) : "—"}</td>

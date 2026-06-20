@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
 
 type Item = {
   id: string;
@@ -122,7 +122,7 @@ export function AprovacoesView({
                       <span className="block text-xs text-muted-foreground">
                         {l.fornecedor ?? "—"}
                         {l.projeto ? ` · ${formatarCodigo(l.projeto)}` : ""}
-                        {l.vencimento ? ` · vence ${new Date(l.vencimento + "T00:00:00").toLocaleDateString("pt-BR")}` : ""}
+                        {l.vencimento ? ` · vence ${formatarData(l.vencimento + "T00:00:00")}` : ""}
                       </span>
                     </td>
                     <td className="px-4 py-2 text-muted-foreground">{l.categoria}</td>

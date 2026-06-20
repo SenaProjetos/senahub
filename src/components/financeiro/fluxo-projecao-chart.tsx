@@ -1,4 +1,5 @@
 import type { SemanaProjecao } from "@/modules/financeiro/caixa/queries";
+import { formatarDiaMes } from "@/lib/utils";
 
 function brlCurto(v: number) {
   const a = Math.abs(v);
@@ -6,7 +7,7 @@ function brlCurto(v: number) {
   return v.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
 }
 function dataCurta(iso: string) {
-  return new Date(iso + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  return formatarDiaMes(iso + "T00:00:00");
 }
 
 /**

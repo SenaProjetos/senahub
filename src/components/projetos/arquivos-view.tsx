@@ -13,6 +13,7 @@ import {
 } from "@/modules/projetos/arquivos/actions";
 import type { ArquivoProjetoItem } from "@/modules/projetos/arquivos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
+import { formatarData } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -227,7 +228,7 @@ export function ArquivosView({
                                 <span className="font-mono">v{v.numero}</span>
                                 <span className="min-w-0 flex-1 truncate text-muted-foreground">{v.nomeArquivo}</span>
                                 <span className="text-muted-foreground">{v.autor}</span>
-                                <span className="font-mono text-muted-foreground">{new Date(v.criadoEm).toLocaleDateString("pt-BR")}</span>
+                                <span className="font-mono text-muted-foreground">{formatarData(v.criadoEm)}</span>
                                 <a href={`/api/projetos/arquivos/${v.id}/download`} className="inline-flex items-center gap-1 hover:underline">
                                   <Download className="size-3" /> baixar
                                 </a>
