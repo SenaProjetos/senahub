@@ -182,6 +182,18 @@ export const docSchemaZ = z.object({
         opacidade: z.number().min(0).max(1).optional(),
       })
       .optional(),
+    /**
+     * Numeração REAL de páginas no rodapé do PDF (opt-in). Quando `true`, a rota
+     * PDF imprime com o footer nativo do Puppeteer ("Página X / Y") e reserva
+     * margem inferior. Modelos antigos (sem o campo) ou `false` → PDF full-bleed,
+     * idêntico ao atual (sem header/footer, margem 0). Retrocompat.
+     *
+     * Nota: tokens `[Pagina]`/`[Paginas]` em elementos do CORPO da banda
+     * continuam resolvendo 1/1 (limitação conhecida — `counter(pages)` do CSS só
+     * funciona no margin-box do @page, não no body). A numeração real é a do
+     * footer opt-in abaixo.
+     */
+    numerarPaginas: z.boolean().optional(),
   }),
   bandas: z.array(bandaSchema),
   /**

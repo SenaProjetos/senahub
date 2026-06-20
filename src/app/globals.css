@@ -229,6 +229,14 @@
     box-shadow: none !important;
     margin: 0 !important;
   }
+  /* Tabela do Estúdio: repete o cabeçalho (thead) em cada página quando a tabela
+     quebra e evita cortar uma linha (tr) no meio da quebra de página. */
+  .doc-tabela thead {
+    display: table-header-group;
+  }
+  .doc-tabela tr {
+    break-inside: avoid;
+  }
   @page {
     size: A4;
     margin: 0;

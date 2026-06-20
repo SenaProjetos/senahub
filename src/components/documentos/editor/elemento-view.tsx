@@ -153,7 +153,12 @@ function TabelaView({
   const linhas = ctx ? ctx.linhas : [null];
 
   return (
+    // `doc-tabela`: no @media print (globals.css) o <thead> usa
+    // display:table-header-group p/ REPETIR o cabeçalho da tabela em cada página
+    // quando ela quebra, e os <tr> recebem break-inside:avoid p/ não cortar uma
+    // linha no meio da quebra de página.
     <table
+      className="doc-tabela"
       style={{
         ...base,
         display: "table",

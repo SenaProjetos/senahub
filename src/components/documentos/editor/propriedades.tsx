@@ -236,6 +236,22 @@ function PropsPagina({
         Margens ABNT
       </Button>
 
+      <div className="space-y-1.5 border-t pt-3">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={pg.numerarPaginas ?? false}
+            onChange={(e) =>
+              dispatch({ t: "updatePagina", patch: { numerarPaginas: e.target.checked } })
+            }
+          />
+          Numerar páginas (no rodapé do PDF)
+        </label>
+        <p className="text-[11px] text-muted-foreground">
+          A numeração aparece no rodapé do PDF gerado (reserva margem inferior).
+        </p>
+      </div>
+
       <div className="space-y-2 border-t pt-3">
         <p className="text-xs font-semibold text-muted-foreground">Marca d&apos;água</p>
         <Campo label="Texto (vazio = sem marca)">
