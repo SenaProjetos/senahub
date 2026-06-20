@@ -106,3 +106,10 @@ D4 (DXF/ABNT) → D5 (colaboração). Cada uma entregue e mergeada antes da pró
 
 ### D2 — em andamento
 > Descoberta: **PDF server-side via Puppeteer já existia** (`api/documentos/[id]/pdf/route.ts`, gated por `CHROME_PATH`) — porém fixava A4. D2 ajusta + completa: PDF respeita formato/orientação; envio por e-mail/anexo; numeração automática; paginação real.
+
+### Progresso (2026-06-20, continuação)
+- **Schema v2 consolidado** (1 migração aditiva): `DocumentoGerado.serie/numero`, `DatasetDocumento`, `BlocoDocumento`, `DocumentoModelo.donoId/visibilidade/perfis`.
+- **D2 — PDF respeita formato/orientação ABNT** ✅ · **D2 — numeração automática** ✅ (série por tipo + token `[NumeroDocumento]` + coluna em /gerados).
+- **D4 — export DXF** ✅ (writer próprio R12: TEXT/LINE, px→mm, Y invertido; rota `/api/documentos/[id]/dxf` + botão "Baixar DXF"; teste vitest).
+- **Pendente (melhor com subagentes / editor-core):** carimbos ABNT por formato (D4) · datasets CSV (D3) · multi-coleção + permissão por fonte + tabela + agrupamento (D3) · envio por e-mail/anexo + paginação real (D2) · compartilhamento por perfil (D5) · blocos reutilizáveis · multi-seleção/alinhar/guias · condicionais/calculados/QR/marca d'água (D5).
+- `master` verde (tsc 0 + 311 testes) em todos os merges.
