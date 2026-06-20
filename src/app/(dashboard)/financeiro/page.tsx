@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Settings2, Receipt, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText, Upload, SlidersHorizontal, CalendarClock, TrendingUp, CalendarCheck, Wallet } from "lucide-react";
+import { Settings2, Receipt, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText, Upload, SlidersHorizontal, CalendarClock, TrendingUp, CalendarCheck, Wallet, Info } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { ShieldCheck, AlertTriangle } from "lucide-react";
@@ -15,6 +15,7 @@ import { AgingWidget } from "@/components/financeiro/aging-widget";
 import { ResultadoMensalChart } from "@/components/financeiro/resultado-mensal-chart";
 import { CategoriaDonutChart } from "@/components/financeiro/categoria-donut-chart";
 import { FluxoProjecaoChart } from "@/components/financeiro/fluxo-projecao-chart";
+import { PeriodoSelector, type Periodo } from "@/components/financeiro/periodo-selector";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -37,14 +38,46 @@ const ATALHOS = [
   { href: "/financeiro/cadastros", icon: Settings2, titulo: "Cadastros", desc: "Plano de contas, contas, fornecedores" },
 ];
 
-export default async function FinanceiroPage() {
+/** Intervalo [de, ate] e rótulo do período selecionado no dashboard. Default = mês corrente. */
+function intervaloPeriodo(periodo: Periodo, hoje = new Date()) {
+  const ano = hoje.getFullYear();
+  if (periodo === "ano") {
+    return {
+      de: new Date(ano, 0, 1),
+      ate: new Date(ano, 11, 31, 23, 59, 59),
+      rotulo: String(ano),
+    };
+  }
+  if (periodo === "trimestre") {
+    const triIni = Math.floor(hoje.getMonth() / 3) * 3;
+    return {
+      de: new Date(ano, triIni, 1),
+      ate: new Date(ano, triIni + 3, 0, 23, 59, 59),
+      rotulo: `${Math.floor(triIni / 3) + 1}º tri · ${ano}`,
+    };
+  }
+  // mês corrente (default)
+  return {
+    de: new Date(ano, hoje.getMonth(), 1),
+    ate: new Date(ano, hoje.getMonth() + 1, 0, 23, 59, 59),
+    rotulo: hoje.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }),
+  };
+}
+
+export default async function FinanceiroPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ periodo?: string }>;
+}) {
   const user = await requireUser();
   const podeVer = await can(user.role, "financeiro", "ver");
 
   if (podeVer) {
+    const sp = await searchParams;
+    const periodo: Periodo =
+      sp.periodo === "trimestre" || sp.periodo === "ano" ? sp.periodo : "mes";
     const hoje = new Date();
-    const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-    const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59);
+    const { de: inicioMes, ate: fimMes, rotulo: mesRotulo } = intervaloPeriodo(periodo, hoje);
     const [receber, pagar, aguardando, podeGerir, dreMes, serie, despesas, caixa] = await Promise.all([
       agingReport("receita"),
       agingReport("despesa"),
@@ -57,7 +90,6 @@ export default async function FinanceiroPage() {
     ]);
     const projecao = await projecaoCaixa(caixa.saldoTotal);
     const vencidoTotal = receber.totalVencido + pagar.totalVencido;
-    const mesRotulo = hoje.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
     const atalhos = podeGerir
       ? [
           ...ATALHOS,
@@ -69,9 +101,12 @@ export default async function FinanceiroPage() {
       : ATALHOS;
     return (
       <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Financeiro</h2>
-          <p className="text-sm text-muted-foreground">Visão geral · {mesRotulo}.</p>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-extrabold tracking-tight">Financeiro</h2>
+            <p className="text-sm text-muted-foreground">Visão geral · {mesRotulo}.</p>
+          </div>
+          <PeriodoSelector periodo={periodo} />
         </div>
 
         {vencidoTotal > 0 && (
@@ -89,9 +124,9 @@ export default async function FinanceiroPage() {
         )}
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard titulo="Receita do mês" valor={dreMes.totalReceitas} tom="success" />
-          <KpiCard titulo="Despesa do mês" valor={dreMes.totalDespesas} tom="destructive" />
-          <KpiCard titulo="Resultado do mês" valor={dreMes.resultado} colorido />
+          <KpiCard titulo="Receita do período" valor={dreMes.totalReceitas} tom="success" />
+          <KpiCard titulo="Despesa do período" valor={dreMes.totalDespesas} tom="destructive" />
+          <KpiCard titulo="Resultado do período" valor={dreMes.resultado} colorido />
           <KpiCard titulo="Saldo em caixa" valor={caixa.saldoTotal} colorido />
         </div>
 
@@ -107,7 +142,7 @@ export default async function FinanceiroPage() {
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Despesas por categoria</CardTitle>
+              <CardTitle className="text-base">Despesas por subcategoria</CardTitle>
               <CardDescription>Confirmadas em {mesRotulo} · total {brl(despesas.total)}.</CardDescription>
             </CardHeader>
             <CardContent>
@@ -118,7 +153,42 @@ export default async function FinanceiroPage() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Projeção de caixa</CardTitle>
+            <CardTitle className="text-base">DRE do período</CardTitle>
+            <CardDescription>Lançamentos confirmados · {mesRotulo}.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <dl className="divide-y text-sm">
+              <div className="flex items-center justify-between py-2">
+                <dt className="text-muted-foreground">Receitas</dt>
+                <dd className="font-mono text-success">{brl(dreMes.totalReceitas)}</dd>
+              </div>
+              <div className="flex items-center justify-between py-2">
+                <dt className="text-muted-foreground">(−) Despesas</dt>
+                <dd className="font-mono text-destructive">{brl(dreMes.totalDespesas)}</dd>
+              </div>
+              <div className="flex items-center justify-between py-2 font-semibold">
+                <dt>(=) Resultado</dt>
+                <dd className={`font-mono ${dreMes.resultado < 0 ? "text-destructive" : "text-success"}`}>
+                  {brl(dreMes.resultado)}
+                </dd>
+              </div>
+            </dl>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-1.5 text-base">
+              Projeção de caixa
+              <span
+                tabIndex={0}
+                className="text-muted-foreground"
+                title="Projeção = saldo atual + a receber previsto − a pagar previsto, acumulado semana a semana pelo vencimento das contas (próximas 8 semanas)."
+              >
+                <Info className="size-3.5" aria-hidden />
+                <span className="sr-only">Como a projeção é calculada</span>
+              </span>
+            </CardTitle>
             <CardDescription>Saldos por conta e projeção das próximas semanas.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-6 lg:grid-cols-[260px_1fr]">

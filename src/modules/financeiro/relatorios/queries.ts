@@ -269,30 +269,54 @@ export async function indicadores(de: Date, ate: Date) {
 
 export type FatiaCategoria = { nome: string; valor: number };
 
+/** Nível de agrupamento da rosca de categorias. */
+export type NivelCategoria = "raiz" | "subcategoria";
+
 /**
- * Confirmados de um tipo agrupados pela categoria de nível 1 (código antes do 1º ponto)
- * no período. Retorna as `limite` maiores; o restante vira "Outros". Para gráfico de rosca.
+ * Confirmados de um tipo agrupados por categoria no período. `nivel`:
+ * - "raiz": categoria de nível 1 (ex.: "Despesas").
+ * - "subcategoria": categoria de nível 2 (filha direta da raiz, ex.: "Folha CLT"),
+ *   resolvida pela hierarquia `paiId` (lançamentos em sub-subcategorias sobem ao nível 2).
+ * Retorna as `limite` maiores; o restante vira "Outros". Para gráfico de rosca.
  */
 export async function totaisPorCategoria(
   tipo: "receita" | "despesa",
   de: Date,
   ate: Date,
   limite = 6,
+  nivel: NivelCategoria = "raiz",
 ): Promise<{ fatias: FatiaCategoria[]; total: number }> {
   const [lancs, categorias] = await Promise.all([
     prisma.lancamento.findMany({
       where: { tipo, status: "confirmado", dataConfirmacao: { gte: de, lte: ate } },
-      include: { categoria: { select: { codigo: true, nome: true } } },
+      include: { categoria: { select: { id: true, codigo: true, nome: true } } },
     }),
-    prisma.categoriaFinanceira.findMany({ select: { codigo: true, nome: true } }),
+    prisma.categoriaFinanceira.findMany({ select: { id: true, codigo: true, nome: true, paiId: true } }),
   ]);
   const nomePorCodigo = new Map(categorias.map((c) => [c.codigo, c.nome]));
+  // Resolve, para cada categoria, o ancestral de nível 2 (filha direta da raiz):
+  // sobe pela cadeia paiId até que o pai do nó seja a raiz (paiId === null).
+  const porId = new Map(categorias.map((c) => [c.id, c]));
+  const nivel2 = new Map<string, { nome: string }>();
+  for (const c of categorias) {
+    let atual: typeof c | undefined = c;
+    // Sobe enquanto houver avô (o pai tem pai) — ao parar, `atual` é a filha direta da raiz.
+    while (atual?.paiId) {
+      const pai = porId.get(atual.paiId);
+      if (!pai || !pai.paiId) break; // pai é a raiz → `atual` é nível 2
+      atual = pai;
+    }
+    // Se a própria categoria é raiz (sem pai), agrupa por ela mesma.
+    nivel2.set(c.id, { nome: atual ? atual.nome : c.nome });
+  }
 
   const mapa = new Map<string, number>();
   let total = 0;
   for (const l of lancs) {
-    const topo = l.categoria.codigo.split(".")[0];
-    const nome = nomePorCodigo.get(topo) ?? l.categoria.nome;
+    const nome =
+      nivel === "subcategoria"
+        ? (nivel2.get(l.categoria.id)?.nome ?? l.categoria.nome)
+        : (nomePorCodigo.get(l.categoria.codigo.split(".")[0]) ?? l.categoria.nome);
     const v = Number(l.valorEfetivo ?? l.valor);
     mapa.set(nome, (mapa.get(nome) ?? 0) + v);
     total += v;
@@ -306,9 +330,9 @@ export async function totaisPorCategoria(
   return { fatias: principais, total };
 }
 
-/** Despesas confirmadas por categoria (rosca). */
+/** Despesas confirmadas por subcategoria (filhas do plano de despesa) — rosca. */
 export async function despesasPorCategoria(de: Date, ate: Date, limite = 6) {
-  return totaisPorCategoria("despesa", de, ate, limite);
+  return totaisPorCategoria("despesa", de, ate, limite, "subcategoria");
 }
 
 export type MargemMensal = { mes: number; rotulo: string; receita: number; resultado: number; margem: number | null };
