@@ -10,7 +10,14 @@ export async function funilCompleto() {
       leads: {
         where: { arquivado: false },
         orderBy: { updatedAt: "desc" },
-        include: { cliente: { select: { id: true, nome: true } }, _count: { select: { propostas: true } } },
+        include: {
+          cliente: { select: { id: true, nome: true } },
+          atividades: {
+            orderBy: { createdAt: "desc" },
+            include: { autor: { select: { name: true } } },
+          },
+          _count: { select: { propostas: true } },
+        },
       },
     },
   });
@@ -108,6 +115,7 @@ export function totalProposta(itens: { valor: unknown }[]): number {
 
 export type EtapaFunil = Awaited<ReturnType<typeof funilCompleto>>[number];
 export type LeadItem = EtapaFunil["leads"][number];
+export type LeadDetalhe = NonNullable<Awaited<ReturnType<typeof obterLead>>>;
 export type PropostaListItem = Awaited<ReturnType<typeof listarPropostas>>[number];
 export type PropostaDetalhe = NonNullable<Awaited<ReturnType<typeof obterProposta>>>;
 export type TabelaPrecoItem = Awaited<ReturnType<typeof listarTabelasPreco>>[number];

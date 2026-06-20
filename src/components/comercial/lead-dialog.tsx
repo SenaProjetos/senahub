@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
-import { UserCheck, Archive, MessageSquarePlus } from "lucide-react";
+import { UserCheck, Archive, MessageSquarePlus, ExternalLink } from "lucide-react";
 import {
   criarLead,
   editarLead,
@@ -12,6 +13,8 @@ import {
   adicionarNotaLead,
 } from "@/modules/comercial/actions";
 import type { LeadItem } from "@/modules/comercial/queries";
+import { FollowUpDialog } from "./follow-up-dialog";
+import { NotasHistorico } from "./notas-historico";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -148,6 +151,14 @@ export function LeadDialog({
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{lead ? lead.nome : "Novo lead"}</DialogTitle>
+          {lead && (
+            <Link
+              href={`/comercial/${lead.id}`}
+              className="inline-flex w-fit items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              <ExternalLink className="size-3" /> Abrir página
+            </Link>
+          )}
         </DialogHeader>
 
         <div className="space-y-3">
@@ -213,7 +224,10 @@ export function LeadDialog({
 
           {lead && (
             <div className="space-y-2 rounded-sm border border-dashed p-3">
-              <Label className="text-xs text-muted-foreground">Atividades</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">Atividades</Label>
+                <FollowUpDialog leadNome={lead.nome} leadEmail={lead.email} />
+              </div>
               <div className="flex items-center gap-2">
                 <Input
                   placeholder="Nova nota…"
@@ -225,6 +239,7 @@ export function LeadDialog({
                   <MessageSquarePlus className="size-3.5" />
                 </Button>
               </div>
+              <NotasHistorico atividades={lead.atividades} className="max-h-60 overflow-y-auto" />
             </div>
           )}
         </div>
