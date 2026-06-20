@@ -110,6 +110,9 @@ export function DocEditor({
   fonteInicial,
   schemaInicial,
   fontesHabilitadas,
+  fontesDados,
+  datasets,
+  fonteColunas,
   blocos,
   versoes,
 }: {
@@ -119,6 +122,12 @@ export function DocEditor({
   fonteInicial: string;
   schemaInicial: DocSchema;
   fontesHabilitadas: FonteTipografica[];
+  /** Fontes de sistema (id+label) que o usuário pode ver — filtradas no server. */
+  fontesDados: { id: string; label: string }[];
+  /** Datasets de CSV disponíveis como fonte (convenção `dataset:<id>`). */
+  datasets: { id: string; nome: string }[];
+  /** Colunas do dataset quando a fonte salva do modelo é um dataset (tokens). */
+  fonteColunas: string[];
   blocos: BlocoListItem[];
   versoes: VersaoT[];
 }) {
@@ -289,11 +298,27 @@ export function DocEditor({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__none">Sem fonte de dados</SelectItem>
-            {FONTES.map((f) => (
+            {fontesDados.map((f) => (
               <SelectItem key={f.id} value={f.id}>
                 {f.label}
               </SelectItem>
             ))}
+            {datasets.map((d) => (
+              <SelectItem key={d.id} value={`dataset:${d.id}`}>
+                Dataset · {d.nome}
+              </SelectItem>
+            ))}
+            {/* Retrocompat: se a fonte atual não está nas listas acima (ex.: fonte
+                sem permissão para este perfil, ou dataset removido), mostra-a para
+                não perder o valor salvo ao reabrir o editor. */}
+            {fonte &&
+              fonte !== "__none" &&
+              !fontesDados.some((f) => f.id === fonte) &&
+              !datasets.some((d) => `dataset:${d.id}` === fonte) && (
+                <SelectItem value={fonte}>
+                  {FONTES.find((f) => f.id === fonte)?.label ?? fonte}
+                </SelectItem>
+              )}
           </SelectContent>
         </Select>
 
@@ -424,6 +449,7 @@ export function DocEditor({
           selecao={state.selecao}
           fonte={fonte}
           fontesHabilitadas={fontesHabilitadas}
+          fonteColunas={fonteColunas}
           dispatch={dispatch}
         />
       </div>

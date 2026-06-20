@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
 import { obterModelo, opcoesParametros } from "@/modules/documentos/queries";
-import { resolverFonte } from "@/modules/documentos/fontes";
+import { resolverFonte, isFonteDataset, DATASET_PREFIX, type DadosResolvidos } from "@/modules/documentos/fontes";
+import { podeVerFonte } from "@/modules/documentos/fontes-perm";
 import { fonteDef } from "@/modules/documentos/fontes-meta";
+import { colunasDoDataset } from "@/modules/documentos/dataset-queries";
 import { DocRender } from "@/components/documentos/doc-render";
 import { PreviewBar } from "@/components/documentos/preview-bar";
 
@@ -16,24 +18,48 @@ export default async function PreviewPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string>>;
 }) {
-  await requirePermission("documentos", "ver");
+  const user = await requirePermission("documentos", "ver");
   const { id } = await params;
   const sp = await searchParams;
 
   const modelo = await obterModelo(id);
   if (!modelo) notFound();
 
+  const ehDataset = isFonteDataset(modelo.fonte);
   const def = fonteDef(modelo.fonte);
-  const dados = def ? await resolverFonte(def.id, sp) : { escalar: {}, linhas: [] };
-  const faltamParams = def ? def.params.some((p) => !sp[p.id]) : false;
+
+  // CRÍTICO (segurança): bloqueia a resolução de uma fonte de sistema que o
+  // viewer não pode ver — assim ninguém gera doc de "lancamentos"/"dre" etc.
+  // só pela URL. Datasets de CSV não passam por esse gate (sem dados de módulo).
+  const fonteBloqueada = !ehDataset && !(await podeVerFonte(user.role, modelo.fonte));
+
+  // Dataset: a coleção é fixa (sem params). Fontes de sistema: resolve por def.
+  const dados: DadosResolvidos = fonteBloqueada
+    ? { escalar: {}, linhas: [] }
+    : ehDataset
+      ? await resolverFonte(modelo.fonte!, {})
+      : def
+        ? await resolverFonte(def.id, sp)
+        : { escalar: {}, linhas: [] };
+  const faltamParams = !fonteBloqueada && !ehDataset && def ? def.params.some((p) => !sp[p.id]) : false;
   const opcoes = await opcoesParametros();
+
+  // Para o PreviewBar: datasets aparecem sem params (coleção fixa).
+  const datasetColunas = ehDataset
+    ? await colunasDoDataset(modelo.fonte!.slice(DATASET_PREFIX.length))
+    : [];
+  const fonteBar = ehDataset
+    ? { id: modelo.fonte!, label: `Dataset · ${dados.escalar.DatasetNome ?? modelo.fonte}`, params: [] }
+    : def
+      ? { id: def.id, label: def.label, params: def.params }
+      : null;
 
   return (
     <div className="space-y-4">
       <PreviewBar
         modeloId={modelo.id}
         nome={modelo.nome}
-        fonte={def ? { id: def.id, label: def.label, params: def.params } : null}
+        fonte={fonteBar}
         valores={sp}
         opcoes={{
           projeto: opcoes.projetos.map((p) => ({ id: p.id, label: `${p.codigo} · ${p.nome}` })),
@@ -48,7 +74,11 @@ export default async function PreviewPage({
         }}
       />
 
-      {faltamParams ? (
+      {fonteBloqueada ? (
+        <p className="rounded-sm border bg-card p-6 text-center text-sm text-muted-foreground">
+          Você não tem permissão para ver a fonte de dados deste modelo.
+        </p>
+      ) : faltamParams ? (
         <p className="rounded-sm border bg-card p-6 text-center text-sm text-muted-foreground">
           Selecione os parâmetros da fonte de dados acima para visualizar com dados reais.
         </p>
@@ -56,6 +86,12 @@ export default async function PreviewPage({
         <div className="doc-print-area overflow-auto">
           <DocRender schema={modelo.schema} escalar={dados.escalar} linhas={dados.linhas} />
         </div>
+      )}
+      {ehDataset && datasetColunas.length > 0 && (
+        <p className="doc-no-print text-xs text-muted-foreground">
+          Colunas disponíveis como tokens:{" "}
+          {datasetColunas.map((c) => `[${c}]`).join(" · ")}
+        </p>
       )}
     </div>
   );

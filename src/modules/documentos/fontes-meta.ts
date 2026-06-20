@@ -16,6 +16,12 @@ export type FonteDef = {
   params: ParamFonte[];
   escalares: CampoDoc[];
   colecao: { label: string; campos: CampoDoc[] } | null;
+  /**
+   * Permissão (recurso:acao) que o usuário precisa para VER/usar esta fonte.
+   * Ausente = liberada para qualquer um com acesso a documentos.
+   * Aplicada no editor (listagem), no preview e na geração (server).
+   */
+  permissao?: { recurso: string; acao: string };
 };
 
 export const FONTES: FonteDef[] = [
@@ -32,6 +38,7 @@ export const FONTES: FonteDef[] = [
   {
     id: "projeto",
     label: "Projeto (+ disciplinas como linhas)",
+    permissao: { recurso: "projetos", acao: "ver" },
     params: [{ id: "projetoId", label: "Projeto", tipo: "projeto" }],
     escalares: [
       { chave: "Codigo", label: "Código (26-0142)" },
@@ -59,6 +66,7 @@ export const FONTES: FonteDef[] = [
   {
     id: "proposta",
     label: "Proposta comercial (+ itens como linhas)",
+    permissao: { recurso: "comercial", acao: "ver" },
     params: [{ id: "propostaId", label: "Proposta", tipo: "proposta" }],
     escalares: [
       { chave: "Numero", label: "Número (PR-260001)" },
@@ -84,6 +92,7 @@ export const FONTES: FonteDef[] = [
   {
     id: "extrato",
     label: "Extrato do projetista (+ pagamentos como linhas)",
+    permissao: { recurso: "financeiro", acao: "ver" },
     params: [{ id: "userId", label: "Projetista", tipo: "usuario" }],
     escalares: [
       { chave: "ProjetistaNome", label: "Projetista — nome" },
@@ -104,6 +113,7 @@ export const FONTES: FonteDef[] = [
   {
     id: "lancamentos",
     label: "Lançamentos do mês (+ linhas)",
+    permissao: { recurso: "financeiro", acao: "ver" },
     params: [{ id: "mes", label: "Competência (AAAA-MM)", tipo: "mes" }],
     escalares: [
       { chave: "Competencia", label: "Competência" },
@@ -125,6 +135,7 @@ export const FONTES: FonteDef[] = [
   {
     id: "cliente",
     label: "Cliente (+ projetos como linhas)",
+    permissao: { recurso: "clientes", acao: "ver" },
     params: [{ id: "clienteId", label: "Cliente", tipo: "cliente" }],
     escalares: [
       { chave: "Nome", label: "Nome / razão social" },
@@ -147,6 +158,7 @@ export const FONTES: FonteDef[] = [
   {
     id: "licitacao",
     label: "Licitação (+ medições como linhas)",
+    permissao: { recurso: "licitacoes", acao: "ver" },
     params: [{ id: "licitacaoId", label: "Licitação", tipo: "licitacao" }],
     escalares: [
       { chave: "Titulo", label: "Título" },
@@ -181,6 +193,7 @@ export const FONTES: FonteDef[] = [
   {
     id: "dre",
     label: "DRE do mês (+ categorias como linhas)",
+    permissao: { recurso: "financeiro", acao: "ver" },
     params: [{ id: "mes", label: "Competência (AAAA-MM)", tipo: "mes" }],
     escalares: [
       { chave: "Competencia", label: "Competência" },
@@ -201,6 +214,7 @@ export const FONTES: FonteDef[] = [
   {
     id: "holerite",
     label: "Holerite (+ itens como linhas)",
+    permissao: { recurso: "financeiro", acao: "ver" },
     params: [{ id: "holeriteId", label: "Holerite", tipo: "holerite" }],
     escalares: [
       { chave: "Colaborador", label: "Colaborador" },

@@ -35,12 +35,15 @@ export function Propriedades({
   selecao,
   fonte,
   fontesHabilitadas,
+  fonteColunas = [],
   dispatch,
 }: {
   schema: DocSchema;
   selecao: Selecao;
   fonte: string;
   fontesHabilitadas: FonteTipografica[];
+  /** Colunas do dataset (quando a fonte é `dataset:<id>`), para inserir tokens. */
+  fonteColunas?: string[];
   dispatch: Dispatch<EditorAction>;
 }) {
   const banda =
@@ -84,6 +87,7 @@ export function Propriedades({
           el={elemento}
           fonte={fonte}
           fontesHabilitadas={fontesHabilitadas}
+          fonteColunas={fonteColunas}
           dispatch={dispatch}
         />
       )}
@@ -272,15 +276,18 @@ function PropsElemento({
   el,
   fonte,
   fontesHabilitadas,
+  fonteColunas = [],
   dispatch,
 }: {
   bandaId: string;
   el: Elemento;
   fonte: string;
   fontesHabilitadas: FonteTipografica[];
+  fonteColunas?: string[];
   dispatch: Dispatch<EditorAction>;
 }) {
   const def = fonteDef(fonte);
+  const ehDataset = fonte.startsWith("dataset:");
   const upd = (patch: Partial<Elemento>, commit = true) =>
     dispatch({ t: "updateElemento", bandaId, elementoId: el.id, patch, commit });
   const updEstilo = (patch: Partial<Elemento["estilo"]>) =>
@@ -301,7 +308,16 @@ function PropsElemento({
         { valor: "[Hoje]", label: "Data de hoje" },
         { valor: "[Pagina] de [Paginas]", label: "Página X de Y" },
       ]
-    : [];
+    : ehDataset
+      ? [
+          { valor: "[DatasetNome]", label: "Nome do dataset" },
+          { valor: "[TotalLinhas]", label: "Total de linhas" },
+          ...fonteColunas.map((c) => ({ valor: `[${c}]`, label: `Coluna · ${c}` })),
+          { valor: "[Count()]", label: "Quantidade de linhas (Count)" },
+          { valor: "[Hoje]", label: "Data de hoje" },
+          { valor: "[Pagina] de [Paginas]", label: "Página X de Y" },
+        ]
+      : [];
 
   return (
     <div className="space-y-3">

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { resolverFonte } from "@/modules/documentos/fontes";
+import { podeVerFonte } from "@/modules/documentos/fontes-perm";
 import { CHAVE_FONTES } from "@/modules/documentos/fontes-config";
 import { FONTES_TIPOGRAFICAS } from "@/modules/documentos/fontes-tipograficas";
 import {
@@ -258,6 +259,11 @@ export const registrarDocumentoGerado = defineAction(
   async (i, { user }) => {
     const modelo = await prisma.documentoModelo.findUnique({ where: { id: i.modeloId } });
     if (!modelo) throw new ActionError("Modelo não encontrado.");
+    // CRÍTICO (segurança): impede gerar/persistir um documento cuja fonte o
+    // usuário não pode ver (ex.: projetista gerando "lancamentos" via API).
+    if (modelo.fonte && !(await podeVerFonte(user.role, modelo.fonte))) {
+      throw new ActionError("Sem permissão para a fonte de dados deste modelo.");
+    }
     const dados = modelo.fonte
       ? await resolverFonte(modelo.fonte, i.params)
       : { escalar: {} as Record<string, unknown>, linhas: [] };

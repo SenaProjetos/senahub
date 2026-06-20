@@ -14,6 +14,12 @@ import {
 } from "@/modules/documentos/actions";
 import { FONTES } from "@/modules/documentos/fontes-meta";
 import { ROLES, ROLE_LABELS, type Role } from "@/lib/roles";
+
+type FonteOpcao = { id: string; label: string };
+type DatasetOpcao = { id: string; nome: string };
+
+/** Prefixo da convenção de fonte que aponta para um dataset de CSV. */
+const DATASET_PREFIX = "dataset:";
 import { VariaveisDialog } from "./variaveis-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,21 +85,46 @@ function VisibilidadeBadge({ visibilidade }: { visibilidade: string }) {
   );
 }
 
+/** Rótulo amigável de uma fonte (sistema permitida, dataset ou bruta). */
+function rotuloFonte(
+  fonteId: string | null,
+  fontes: FonteOpcao[],
+  datasets: DatasetOpcao[],
+): string {
+  if (!fonteId) return "Sem fonte de dados";
+  if (fonteId.startsWith(DATASET_PREFIX)) {
+    const id = fonteId.slice(DATASET_PREFIX.length);
+    const ds = datasets.find((d) => d.id === id);
+    return ds ? `Dataset · ${ds.nome}` : "Dataset (CSV)";
+  }
+  return (
+    fontes.find((f) => f.id === fonteId)?.label ??
+    FONTES.find((f) => f.id === fonteId)?.label ??
+    fonteId
+  );
+}
+
 export function DocumentosView({
   modelos,
   podeGerir,
   viewer,
+  fontes,
+  datasets,
 }: {
   modelos: Modelo[];
   podeGerir: boolean;
   viewer: Viewer;
+  /** Fontes de sistema que o viewer pode ver (filtradas no server). */
+  fontes: FonteOpcao[];
+  /** Datasets de CSV disponíveis como fonte (só preenchido para quem gere). */
+  datasets: DatasetOpcao[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const [nome, setNome] = useState("");
   const [tipo, setTipo] = useState("relatorio");
-  const [fonte, setFonte] = useState("projeto");
+  const [fonte, setFonte] = useState(fontes[0]?.id ?? "__none");
 
   // Busca/filtro client-side da lista de modelos
   const [busca, setBusca] = useState("");
@@ -244,7 +275,7 @@ export function DocumentosView({
               {modelos.some((m) => !m.fonte) && <SelectItem value="__none">Sem fonte</SelectItem>}
               {fontesUsadas.map((f) => (
                 <SelectItem key={f} value={f}>
-                  {FONTES.find((x) => x.id === f)?.label ?? f}
+                  {rotuloFonte(f, fontes, datasets)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -286,9 +317,7 @@ export function DocumentosView({
                 </div>
                 <CardTitle className="text-base">{m.nome}</CardTitle>
                 <CardDescription>
-                  {m.fonte
-                    ? FONTES.find((f) => f.id === m.fonte)?.label ?? m.fonte
-                    : "Sem fonte de dados"}
+                  {rotuloFonte(m.fonte, fontes, datasets)}
                   <span className="block">
                     v{m.versoes} · {formatarData(m.atualizadoEm)}
                   </span>
@@ -420,11 +449,7 @@ export function DocumentosView({
                   </Badge>
                 </dd>
                 <dt className="text-muted-foreground">Fonte de dados</dt>
-                <dd>
-                  {previewModelo.fonte
-                    ? FONTES.find((f) => f.id === previewModelo.fonte)?.label ?? previewModelo.fonte
-                    : "Sem fonte de dados"}
-                </dd>
+                <dd>{rotuloFonte(previewModelo.fonte, fontes, datasets)}</dd>
                 <dt className="text-muted-foreground">Versões</dt>
                 <dd>v{previewModelo.versoes}</dd>
                 <dt className="text-muted-foreground">Atualizado em</dt>
@@ -480,9 +505,14 @@ export function DocumentosView({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none">Sem fonte</SelectItem>
-                    {FONTES.map((f) => (
+                    {fontes.map((f) => (
                       <SelectItem key={f.id} value={f.id}>
                         {f.label}
+                      </SelectItem>
+                    ))}
+                    {datasets.map((d) => (
+                      <SelectItem key={d.id} value={`${DATASET_PREFIX}${d.id}`}>
+                        Dataset · {d.nome}
                       </SelectItem>
                     ))}
                   </SelectContent>

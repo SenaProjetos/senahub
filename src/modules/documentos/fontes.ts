@@ -15,11 +15,35 @@ export { FONTES, fonteDef, type FonteDef, type CampoDoc, type ParamFonte } from 
 
 export type DadosResolvidos = { escalar: Escalar; linhas: Linha[] };
 
+/** Prefixo da convenção de fonte que aponta para um DatasetDocumento de CSV. */
+export const DATASET_PREFIX = "dataset:";
+
+/** A fonte é um dataset de CSV salvo? (convenção `dataset:<id>`) */
+export function isFonteDataset(fonteId: string | null | undefined): boolean {
+  return typeof fonteId === "string" && fonteId.startsWith(DATASET_PREFIX);
+}
+
 /** Resolve a fonte com os parâmetros → dados prontos para o motor de tokens. */
 export async function resolverFonte(
   fonteId: string,
   params: Record<string, string>,
 ): Promise<DadosResolvidos> {
+  // Dataset de CSV como fonte (convenção: "dataset:<datasetId>").
+  // Cada linha é um objeto coluna→valor; os tokens [Coluna] resolvem direto.
+  if (isFonteDataset(fonteId)) {
+    const datasetId = fonteId.slice(DATASET_PREFIX.length);
+    const d = await prisma.datasetDocumento.findUnique({
+      where: { id: datasetId },
+      select: { nome: true, linhas: true },
+    });
+    if (!d) return { escalar: {}, linhas: [] };
+    const linhas = (Array.isArray(d.linhas) ? d.linhas : []) as Linha[];
+    return {
+      escalar: { DatasetNome: d.nome, TotalLinhas: linhas.length },
+      linhas,
+    };
+  }
+
   switch (fonteId) {
     case "empresa": {
       return { escalar: { EmpresaNome: "Sena Projetos", Hoje: new Date() }, linhas: [] };

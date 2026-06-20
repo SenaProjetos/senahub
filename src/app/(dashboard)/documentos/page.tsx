@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { listarModelos } from "@/modules/documentos/queries";
+import { fontesPermitidasOpcoes } from "@/modules/documentos/fontes-perm";
+import { listarDatasetsParaFonte } from "@/modules/documentos/dataset-queries";
 import { DocumentosView } from "@/components/documentos/documentos-view";
 
 export const metadata: Metadata = { title: "Documentos" };
@@ -9,11 +11,17 @@ export const metadata: Metadata = { title: "Documentos" };
 export default async function DocumentosPage() {
   const user = await requirePermission("documentos", "ver");
   const podeGerir = await can(user.role, "documentos", "gerir");
-  const modelos = await listarModelos({ id: user.id, role: user.role });
+  const [modelos, fontes, datasets] = await Promise.all([
+    listarModelos({ id: user.id, role: user.role }),
+    fontesPermitidasOpcoes(user.role),
+    podeGerir ? listarDatasetsParaFonte() : Promise.resolve([]),
+  ]);
   return (
     <DocumentosView
       podeGerir={podeGerir}
       viewer={{ id: user.id, role: user.role, isAdmin: user.role === "admin" }}
+      fontes={fontes}
+      datasets={datasets}
       modelos={modelos.map((m) => ({
         id: m.id,
         nome: m.nome,

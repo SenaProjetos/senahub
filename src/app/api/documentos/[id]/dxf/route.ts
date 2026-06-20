@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { gerarDxf } from "@/modules/documentos/dxf";
 import { docSchemaZ } from "@/modules/documentos/schema";
 import { resolverFonte } from "@/modules/documentos/fontes";
+import { podeVerFonte } from "@/modules/documentos/fontes-perm";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +29,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const parsed = docSchemaZ.safeParse(modelo.schemaJson);
   if (!parsed.success) return new Response("Schema do modelo inválido", { status: 422 });
 
+  // Segurança: não resolve a fonte se o viewer não pode vê-la (gera só o gabarito).
+  const podeFonte = modelo.fonte ? await podeVerFonte(session.user.role, modelo.fonte) : true;
+
   const sp = Object.fromEntries(new URL(req.url).searchParams.entries());
   const temParams = Object.keys(sp).length > 0;
   const dados =
-    modelo.fonte && temParams ? await resolverFonte(modelo.fonte, sp) : undefined;
+    modelo.fonte && temParams && podeFonte ? await resolverFonte(modelo.fonte, sp) : undefined;
 
   const dxf = gerarDxf(parsed.data, dados);
   return new Response(dxf, {
