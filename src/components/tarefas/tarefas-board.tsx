@@ -244,7 +244,7 @@ export function TarefasBoard({ colunas, opcoes }: { colunas: Coluna[]; opcoes: O
       </div>
 
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-        <div className="flex gap-3 overflow-x-auto pb-2">
+        <div className="flex w-full min-w-0 gap-3 overflow-x-auto pb-2">
           {colunasFiltradas.map((col) => (
             <ColunaView key={col.id} col={col} onAbrir={(t) => setDialog(t)} />
           ))}
@@ -266,7 +266,7 @@ export function TarefasBoard({ colunas, opcoes }: { colunas: Coluna[]; opcoes: O
 function ColunaView({ col, onAbrir }: { col: Coluna; onAbrir: (t: TarefaUI) => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.id });
   return (
-    <div className="w-72 shrink-0">
+    <div className="w-[80vw] min-w-[16rem] max-w-72 shrink-0 sm:w-72">
       <div className="mb-2 flex items-center gap-2">
         <span className="size-2.5 rounded-full" style={{ background: col.cor ?? "#576980" }} />
         <span className="text-sm font-semibold">{col.nome}</span>

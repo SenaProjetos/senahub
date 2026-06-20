@@ -119,7 +119,7 @@ export function NotificationBell() {
                 <li key={n.id}>
                   <button
                     onClick={() => abrir(n)}
-                    className={`w-full px-3 py-2.5 text-left transition-colors hover:bg-muted/60 ${
+                    className={`w-full px-3 py-2.5 text-left outline-none transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${
                       n.lida ? "" : "bg-primary/5"
                     }`}
                   >

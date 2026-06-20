@@ -73,7 +73,7 @@ export function FunilBoard({ etapas }: { etapas: EtapaFunil[] }) {
       </div>
 
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-        <div className="flex gap-3 overflow-x-auto pb-2">
+        <div className="flex w-full min-w-0 gap-3 overflow-x-auto pb-2">
           {etapas.map((etapa) => (
             <Coluna key={etapa.id} etapa={etapa} onAbrir={(l) => setDialogLead(l)} />
           ))}
@@ -109,7 +109,7 @@ function Coluna({ etapa, onAbrir }: { etapa: EtapaFunil; onAbrir: (l: LeadItem) 
   const total = etapa.leads.reduce((s, l) => s + Number(l.valorEstimado ?? 0), 0);
 
   return (
-    <div className="w-64 shrink-0">
+    <div className="w-[78vw] min-w-[15rem] max-w-64 shrink-0 sm:w-64">
       <div className="mb-2 flex items-center gap-2">
         <span className="size-2.5 rounded-full" style={{ background: etapa.cor ?? "#576980" }} />
         <span className="text-sm font-semibold">{etapa.nome}</span>

@@ -24,7 +24,7 @@ export function BottomNav({ role }: { role: Role }) {
               <Link
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium",
+                  "flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                   active ? "text-foreground" : "text-muted-foreground",
                 )}
               >

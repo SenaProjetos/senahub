@@ -74,8 +74,8 @@ export function Gantt({
   const temCritico = tarefas.some((t) => criticas.has(t.id));
 
   return (
-    <div className="space-y-1.5">
-      <div className="overflow-x-auto rounded-sm border">
+    <div className="w-full min-w-0 space-y-1.5">
+      <div className="w-full min-w-0 overflow-x-auto rounded-sm border">
       <div style={{ width: LABEL_W + timelineW }}>
         {/* Cabeçalho de meses */}
         <div className="flex border-b bg-muted/40" style={{ height: 28 }}>

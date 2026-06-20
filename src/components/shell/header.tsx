@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Search } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/shell/user-menu";
+import { MobileNav } from "@/components/shell/mobile-nav";
 import { NotificationBell } from "@/components/notificacoes/notification-bell";
 import { Breadcrumb } from "@/components/shell/breadcrumb";
 import { NAV_GROUPS } from "@/lib/nav-config";
@@ -47,17 +48,20 @@ export function Header({
   const pathname = usePathname();
   const resolved = title ?? titleFromPath(pathname);
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-background/85 px-4 backdrop-blur lg:px-6">
-      <div className="min-w-0">
-        <Breadcrumb />
-        <h1 className="truncate text-lg font-bold tracking-tight">{resolved}</h1>
+    <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-2 border-b border-border bg-background/85 px-4 backdrop-blur lg:px-6">
+      <div className="flex min-w-0 items-center gap-2">
+        <MobileNav role={user.role} />
+        <div className="min-w-0">
+          <Breadcrumb />
+          <h1 className="truncate text-lg font-bold tracking-tight">{resolved}</h1>
+        </div>
       </div>
       <div className="flex items-center gap-1.5">
         <button
           type="button"
           onClick={() => window.dispatchEvent(new Event("open-command"))}
           aria-label="Buscar"
-          className="flex h-8 items-center gap-2 rounded-sm border border-border px-2.5 text-sm text-muted-foreground transition-colors hover:border-ring hover:text-foreground"
+          className="flex h-8 items-center gap-2 rounded-sm border border-border px-2.5 text-sm text-muted-foreground outline-none transition-colors hover:border-ring hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Search className="size-4" />
           <span className="hidden sm:inline">Buscar</span>
