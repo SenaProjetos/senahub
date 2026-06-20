@@ -18,15 +18,20 @@ export function AvisoGeralView() {
   const [pending, start] = useTransition();
   const confirm = useConfirm();
 
+  const tituloTrim = titulo.trim();
+  const corpoTrim = corpo.trim();
+
   async function enviar() {
-    if (!titulo.trim()) {
+    if (!tituloTrim) {
       toast.error("Informe o título.");
       return;
     }
+    const alvo = incluirClientes ? "todos os usuários (equipe + clientes)" : "toda a equipe interna";
+    const textoConfirm = corpoTrim ? `“${tituloTrim}” — ${corpoTrim}` : `“${tituloTrim}”`;
     if (
       !(await confirm({
         title: "Enviar aviso geral?",
-        description: "O aviso vai para todos os usuários.",
+        description: `Será enviado para ${alvo}: ${textoConfirm}`,
         variant: "default",
         confirmLabel: "Enviar",
       }))
@@ -69,6 +74,30 @@ export function AvisoGeralView() {
             </div>
             <Switch checked={incluirClientes} onCheckedChange={(v: boolean) => setIncluirClientes(v)} />
           </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Pré-visualização</Label>
+            <div className="flex items-start gap-3 rounded-sm border bg-muted/40 p-3">
+              <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Megaphone className="size-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium break-words">
+                  {tituloTrim || <span className="text-muted-foreground italic">Título do aviso…</span>}
+                </p>
+                {corpoTrim ? (
+                  <p className="mt-0.5 text-xs break-words text-muted-foreground">{corpoTrim}</p>
+                ) : null}
+                <p className="mt-1 text-[11px] text-muted-foreground/70">
+                  Sino + push · {incluirClientes ? "equipe + clientes" : "equipe interna"}
+                </p>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground/80">
+              É exatamente assim que o aviso aparecerá para os destinatários.
+            </p>
+          </div>
+
           <Button onClick={enviar} disabled={pending}>
             <Megaphone className="size-3.5" /> {pending ? "Enviando…" : "Enviar aviso"}
           </Button>
