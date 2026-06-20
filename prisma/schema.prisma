@@ -2425,6 +2425,12 @@ model DocumentoModelo {
   fonte     String?
   schemaJson Json
   ativo     Boolean       @default(true)
+  /// Dono do modelo (autor). Null = modelo de sistema/legado.
+  donoId    String?
+  /// Visibilidade do modelo: "pessoal" (só o dono) | "perfis" (perfis em `perfis`) | "global" (todos).
+  visibilidade String     @default("global")
+  /// Perfis que enxergam o modelo quando visibilidade = "perfis".
+  perfis    Role[]        @default([])
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
@@ -2461,11 +2467,39 @@ model DocumentoGerado {
   dadosSnapshot  Json
   geradoPorId    String
   geradoPorNome  String
+  /// Numeração automática (sequência por série). Ex.: série "REL", número 142.
+  serie          String?
+  numero         Int?
   createdAt      DateTime @default(now())
 
   @@index([modeloId])
   @@index([createdAt])
   @@map("documento_gerado")
+}
+
+/// Dataset reutilizável importado de CSV — vira uma coleção (linhas) p/ o Estúdio (D3).
+model DatasetDocumento {
+  id        String   @id @default(cuid())
+  nome      String
+  colunas   Json
+  linhas    Json
+  donoId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("dataset_documento")
+}
+
+/// Bloco reutilizável de elementos do Estúdio (cabeçalho, assinatura, carimbo) — biblioteca (D5).
+model BlocoDocumento {
+  id            String   @id @default(cuid())
+  nome          String
+  conteudo      Json
+  donoId        String?
+  compartilhado Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@map("bloco_documento")
 }
 
 // ─────────────────────────────────────────────────────────────
