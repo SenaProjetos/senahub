@@ -24,12 +24,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { brl } from "@/lib/utils";
 
 const NONE = "__none";
-
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 export function ConfirmarDialog({
   lancamento,

@@ -17,9 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-const brl = (v: number) =>
-  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+import { brlInteiro } from "@/lib/utils";
 
 type Categoria = { id: string; codigo: string; nome: string; tipo: string };
 
@@ -61,11 +59,11 @@ function LinhaRow({ ano, l, podeGerir }: { ano: number; l: LinhaOrcamento; podeG
             placeholder="0"
           />
         ) : (
-          <span className="font-mono text-xs">{brl(l.planejado)}</span>
+          <span className="font-mono text-xs">{brlInteiro(l.planejado)}</span>
         )}
       </td>
-      <td className="py-2 pr-3 text-right font-mono text-xs text-muted-foreground">{brl(l.previsto)}</td>
-      <td className="py-2 pr-3 text-right font-mono text-xs">{brl(l.realizado)}</td>
+      <td className="py-2 pr-3 text-right font-mono text-xs text-muted-foreground">{brlInteiro(l.previsto)}</td>
+      <td className="py-2 pr-3 text-right font-mono text-xs">{brlInteiro(l.realizado)}</td>
       <td className="py-2 w-40">
         <div className="flex items-center gap-2">
           <div className="h-1.5 flex-1 overflow-hidden rounded-sm bg-muted">
@@ -192,10 +190,10 @@ export function OrcamentoView({
   const resultadoRealizado = t.receitaRealizada - t.despesaRealizada;
 
   const kpis = [
-    { label: "Despesa planejada", value: brl(t.despesaPlanejada) },
-    { label: "Despesa realizada", value: brl(t.despesaRealizada), destaque: t.despesaRealizada <= t.despesaPlanejada || t.despesaPlanejada === 0 },
-    { label: "Receita realizada", value: brl(t.receitaRealizada) },
-    { label: "Resultado realizado", value: brl(resultadoRealizado), destaque: resultadoRealizado >= 0 },
+    { label: "Despesa planejada", value: brlInteiro(t.despesaPlanejada) },
+    { label: "Despesa realizada", value: brlInteiro(t.despesaRealizada), destaque: t.despesaRealizada <= t.despesaPlanejada || t.despesaPlanejada === 0 },
+    { label: "Receita realizada", value: brlInteiro(t.receitaRealizada) },
+    { label: "Resultado realizado", value: brlInteiro(resultadoRealizado), destaque: resultadoRealizado >= 0 },
   ];
 
   return (

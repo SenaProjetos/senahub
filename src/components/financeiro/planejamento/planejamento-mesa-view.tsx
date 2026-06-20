@@ -35,12 +35,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { brl } from "@/lib/utils";
 
 const NONE = "__none";
 
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 function dt(d: string | null) {
   return d ? new Date(d + "T00:00:00").toLocaleDateString("pt-BR") : "—";
 }

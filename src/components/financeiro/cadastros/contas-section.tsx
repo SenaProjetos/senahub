@@ -23,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { brl } from "@/lib/utils";
 
 type Conta = {
   id: string;
@@ -41,10 +42,6 @@ const TIPO_LABEL: Record<string, string> = {
   caixa: "Caixa",
   investimento: "Investimento",
 };
-
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 export function ContasSection({ contas }: { contas: Conta[] }) {
   const [open, setOpen] = useState(false);

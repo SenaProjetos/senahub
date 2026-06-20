@@ -16,11 +16,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { brl } from "@/lib/utils";
 
 const NONE = "__none";
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 export function PlanejamentoListaView({ planos, opcoes }: { planos: PlanoResumo[]; opcoes: OpcoesPlanejamento }) {
   const [open, setOpen] = useState(false);

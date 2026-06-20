@@ -7,6 +7,7 @@ import { Upload, ArrowRight, ArrowLeft, Check, Undo2, FileSpreadsheet } from "lu
 import { CAMPOS, CAMPOS_OBRIGATORIOS, type CampoSenaHub } from "@/lib/import/mapeamento";
 import { validarImportacao, commitImportacao, desfazerImportacao } from "@/modules/financeiro/importacao/actions";
 import type { ImportacaoItem } from "@/modules/financeiro/importacao/queries";
+import { brl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,10 +57,6 @@ type DryRun = {
 };
 
 const SEM_COLUNA = "__nenhuma__";
-
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 export function ImportadorView({ importacoes }: { importacoes: ImportacaoItem[] }) {
   const router = useRouter();

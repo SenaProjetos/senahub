@@ -1,8 +1,5 @@
 import type { FatiaCategoria } from "@/modules/financeiro/relatorios/queries";
-
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
+import { brl } from "@/lib/utils";
 
 const CORES = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#a855f7", "#94a3b8"];
 

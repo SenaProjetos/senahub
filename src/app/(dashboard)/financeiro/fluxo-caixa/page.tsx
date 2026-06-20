@@ -11,12 +11,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { brl } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Fluxo de caixa" };
-
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 export default async function FluxoCaixaPage() {
   await requirePermission("financeiro", "ver");

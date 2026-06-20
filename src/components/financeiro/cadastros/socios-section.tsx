@@ -10,6 +10,7 @@ import {
   criarRetiradaSocio,
   removerRetiradaSocio,
 } from "@/modules/financeiro/cadastros/actions";
+import { brl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,7 +26,6 @@ type Retirada = { id: string; data: string; valor: number; tipo: string; observa
 type Socio = { id: string; nome: string; percentual: number; retiradas: Retirada[] };
 type Usuario = { id: string; name: string };
 
-const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const TIPO_RET: Record<string, string> = { pro_labore: "Pró-labore", distribuicao: "Distribuição", adiantamento: "Adiantamento" };
 
 export function SociosSection({ socios, usuarios }: { socios: Socio[]; usuarios: Usuario[] }) {

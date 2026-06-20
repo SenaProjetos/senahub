@@ -17,12 +17,9 @@ import { CategoriaDonutChart } from "@/components/financeiro/categoria-donut-cha
 import { FluxoProjecaoChart } from "@/components/financeiro/fluxo-projecao-chart";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { brl } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Financeiro" };
-
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 const ATALHOS = [
   { href: "/financeiro/lancamentos", icon: Receipt, titulo: "Lançamentos", desc: "Receitas e despesas" },

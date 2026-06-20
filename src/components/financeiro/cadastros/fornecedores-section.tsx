@@ -11,6 +11,7 @@ import {
   criarFornecedorServico,
   removerFornecedorServico,
 } from "@/modules/financeiro/cadastros/actions";
+import { brl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,8 +44,6 @@ type Fornecedor = {
   ativo: boolean;
   catalogo: Servico[];
 };
-
-const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export function FornecedoresSection({ fornecedores }: { fornecedores: Fornecedor[] }) {
   const router = useRouter();

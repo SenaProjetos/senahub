@@ -13,9 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-const brl = (v: number) =>
-  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+import { brlInteiro } from "@/lib/utils";
 
 const ROTULO: Record<GrupoDFC, string> = {
   operacional: "Operacional",
@@ -82,7 +80,7 @@ export function DfcView({
                 {ROTULO[a.grupo]}
               </CardDescription>
               <CardTitle className={`text-2xl ${a.liquido < 0 ? "text-destructive" : ""}`}>
-                {brl(a.liquido)}
+                {brlInteiro(a.liquido)}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -96,7 +94,7 @@ export function DfcView({
                         <span className="font-mono text-xs text-muted-foreground">{l.codigo}</span> {l.nome}
                       </span>
                       <span className={`font-mono text-xs ${l.valor < 0 ? "text-warning" : "text-success"}`}>
-                        {brl(l.valor)}
+                        {brlInteiro(l.valor)}
                       </span>
                     </li>
                   ))}
@@ -113,7 +111,7 @@ export function DfcView({
             Variação de caixa no ano
           </span>
           <span className={`text-2xl font-extrabold ${dfc.variacao < 0 ? "text-destructive" : "text-success"}`}>
-            {brl(dfc.variacao)}
+            {brlInteiro(dfc.variacao)}
           </span>
         </CardContent>
       </Card>

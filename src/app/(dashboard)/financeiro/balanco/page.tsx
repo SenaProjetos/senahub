@@ -2,10 +2,9 @@ import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { balancoGerencial } from "@/modules/financeiro/relatorios/queries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { brlInteiro } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Balanço" };
-
-const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
 export default async function BalancoPage() {
   await requirePermission("financeiro", "ver");
@@ -15,7 +14,7 @@ export default async function BalancoPage() {
     <li className="flex items-center justify-between gap-2 py-1.5">
       <span className={forte ? "font-semibold" : "text-muted-foreground"}>{rotulo}</span>
       <span className={`font-mono ${forte ? "font-semibold" : ""} ${valor < 0 ? "text-destructive" : ""}`}>
-        {brl(valor)}
+        {brlInteiro(valor)}
       </span>
     </li>
   );
@@ -33,7 +32,7 @@ export default async function BalancoPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">Ativo</CardDescription>
-            <CardTitle className="text-2xl text-success">{brl(b.ativo)}</CardTitle>
+            <CardTitle className="text-2xl text-success">{brlInteiro(b.ativo)}</CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="divide-y text-sm">
@@ -45,7 +44,7 @@ export default async function BalancoPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">Passivo</CardDescription>
-            <CardTitle className="text-2xl text-warning">{brl(b.passivo)}</CardTitle>
+            <CardTitle className="text-2xl text-warning">{brlInteiro(b.passivo)}</CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="divide-y text-sm">{linha("Contas a pagar", b.aPagar)}</ul>
@@ -56,7 +55,7 @@ export default async function BalancoPage() {
             <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">
               Patrimônio líquido
             </CardDescription>
-            <CardTitle className={`text-2xl ${b.pl < 0 ? "text-destructive" : ""}`}>{brl(b.pl)}</CardTitle>
+            <CardTitle className={`text-2xl ${b.pl < 0 ? "text-destructive" : ""}`}>{brlInteiro(b.pl)}</CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="divide-y text-sm">{linha("Ativo − Passivo", b.pl, true)}</ul>

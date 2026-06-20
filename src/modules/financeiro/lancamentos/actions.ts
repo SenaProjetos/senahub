@@ -20,6 +20,7 @@ import { saldoRestante } from "@/modules/financeiro/lancamentos/parcial";
 import { getConfigFinanceiro, getExclusaoCompleto } from "@/modules/financeiro/config/queries";
 import { obrigatorioFaltando } from "@/modules/financeiro/config/validacao";
 import { verificarSenha } from "@/modules/financeiro/config/senha";
+import { brl } from "@/lib/utils";
 
 const base = { modulo: "financeiro", recurso: "financeiro", permissao: "gerir" } as const;
 
@@ -117,7 +118,7 @@ export const criarLancamento = defineAction(
       const ids = await aprovadoresPorPapeis(papeisAprovadores(i.valor, niveis));
       await notificarMuitos(ids.filter((id) => id !== user.id), {
         titulo: "Despesa aguardando aprovação",
-        corpo: `${i.descricao} — ${i.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`,
+        corpo: `${i.descricao} — ${brl(i.valor)}`,
         href: "/financeiro/aprovacoes",
       });
     }

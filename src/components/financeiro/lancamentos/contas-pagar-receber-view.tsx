@@ -26,10 +26,8 @@ import {
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { brl } from "@/lib/utils";
 
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 function dt(d: string | Date | null) {
   return d ? new Date(d).toLocaleDateString("pt-BR") : "—";
 }

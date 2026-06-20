@@ -29,6 +29,7 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { brl } from "@/lib/utils";
 
 type Conta = { id: string; nome: string; saldoInicial: number };
 type Situacao = "pendente" | "agendado" | "confirmado" | "conciliado" | "aguardando" | "cancelado";
@@ -57,9 +58,6 @@ const SIT_META: Record<Situacao, { label: string; cor: string }> = {
   cancelado: { label: "Cancelados", cor: "bg-muted-foreground" },
 };
 
-function brl(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 function dt(d: string | Date | null) {
   return d ? new Date(d).toLocaleDateString("pt-BR") : "—";
 }

@@ -4,8 +4,7 @@ import type { AgingReport } from "@/modules/financeiro/aging/queries";
 import { FAIXA_COR, type FaixaAging } from "@/lib/aging";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+import { brlInteiro } from "@/lib/utils";
 
 function Painel({ report }: { report: AgingReport }) {
   const max = Math.max(1, ...report.porFaixa.map((f) => f.total));
@@ -14,11 +13,11 @@ function Painel({ report }: { report: AgingReport }) {
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-sm border p-3">
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Total vencido</p>
-          <p className="font-mono text-xl font-bold text-destructive">{brl(report.totalVencido)}</p>
+          <p className="font-mono text-xl font-bold text-destructive">{brlInteiro(report.totalVencido)}</p>
         </div>
         <div className="rounded-sm border p-3">
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">A vencer</p>
-          <p className="font-mono text-xl font-bold">{brl(report.totalAVencer)}</p>
+          <p className="font-mono text-xl font-bold">{brlInteiro(report.totalAVencer)}</p>
         </div>
       </div>
 
@@ -29,7 +28,7 @@ function Painel({ report }: { report: AgingReport }) {
             <div className="h-3 flex-1 overflow-hidden rounded-sm bg-muted">
               <div className={`h-full ${FAIXA_COR[f.faixa as FaixaAging]}`} style={{ width: `${(f.total / max) * 100}%` }} />
             </div>
-            <span className="w-24 shrink-0 text-right font-mono">{brl(f.total)}</span>
+            <span className="w-24 shrink-0 text-right font-mono">{brlInteiro(f.total)}</span>
             <span className="w-6 shrink-0 text-right font-mono text-muted-foreground">{f.qtd}</span>
           </div>
         ))}
@@ -43,7 +42,7 @@ function Painel({ report }: { report: AgingReport }) {
               <li key={t.id} className="flex items-center justify-between gap-2 py-1.5">
                 <span className="min-w-0 flex-1 truncate">{t.descricao}</span>
                 <span className="shrink-0 font-mono text-xs text-destructive">{t.diasAtraso}d</span>
-                <span className="w-24 shrink-0 text-right font-mono text-xs">{brl(t.valor)}</span>
+                <span className="w-24 shrink-0 text-right font-mono text-xs">{brlInteiro(t.valor)}</span>
               </li>
             ))}
           </ul>
