@@ -49,6 +49,45 @@ const editarSchema = z
 const idSchema = z.object({ id: z.string().min(1) });
 const projetoIdSchema = z.object({ projetoId: z.string().min(1) });
 const depSchema = z.object({ tarefaId: z.string().min(1), predecessoraId: z.string().min(1) });
+const gerarTarefaSchema = z.object({ eapTarefaId: z.string().min(1) });
+
+/**
+ * Ponte EAP → Kanban (one-way). Gera uma Tarefa operacional a partir de uma etapa
+ * do cronograma. Mapeamento: nome→titulo, projetoId→projetoId, fimPrevisto→prazo;
+ * status = primeira coluna do Kanban (menor ordem, ativa); criador = usuário atual.
+ * Não copia dependências nem responsáveis. Pode ser chamada várias vezes para a
+ * mesma EapTarefa (não há deduplicação) — cada chamada cria uma nova Tarefa.
+ */
+export const gerarTarefaDeEap = defineAction(
+  { ...plan, acao: "gerar-tarefa-eap", entidade: "Tarefa", schema: gerarTarefaSchema },
+  async (i, { user }) => {
+    const eap = await prisma.eapTarefa.findUnique({
+      where: { id: i.eapTarefaId },
+      select: { nome: true, projetoId: true, fimPrevisto: true },
+    });
+    if (!eap) throw new ActionError("Etapa da EAP não encontrada.");
+
+    const primeira = await prisma.tarefaStatus.findFirst({
+      where: { ativo: true },
+      orderBy: { ordem: "asc" },
+      select: { id: true },
+    });
+    if (!primeira) throw new ActionError("Nenhuma coluna de tarefas configurada.");
+
+    const t = await prisma.tarefa.create({
+      data: {
+        titulo: eap.nome,
+        descricao: "Gerada do planejamento (EAP)",
+        statusId: primeira.id,
+        prazo: eap.fimPrevisto,
+        projetoId: eap.projetoId,
+        criadorId: user.id,
+      },
+    });
+    revalidatePath("/tarefas");
+    return { id: t.id };
+  },
+);
 
 export const criarEapTarefa = defineAction(
   { ...plan, acao: "criar-eap", entidade: "EapTarefa", schema: tarefaSchema },

@@ -5,8 +5,8 @@ import { formatarDiaMes } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Flag, CheckCheck, ArrowLeft, ZoomIn, ZoomOut, Rocket } from "lucide-react";
-import { definirLinhaBase, aplicarAoProjeto } from "@/modules/planejamento/actions";
+import { Plus, Flag, CheckCheck, ArrowLeft, ZoomIn, ZoomOut, Rocket, ListPlus } from "lucide-react";
+import { definirLinhaBase, aplicarAoProjeto, gerarTarefaDeEap } from "@/modules/planejamento/actions";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -103,6 +103,17 @@ export function EapWorkspace({
     });
   }
 
+  function gerarTarefa(eapTarefaId: string) {
+    start(async () => {
+      const r = await gerarTarefaDeEap({ eapTarefaId });
+      if (r.ok) {
+        toast.success("Tarefa criada no kanban", {
+          action: { label: "Ver tarefas", onClick: () => router.push("/tarefas") },
+        });
+      } else toast.error(r.error);
+    });
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -179,6 +190,7 @@ export function EapWorkspace({
                   <th className="px-3 py-2">Linha de base</th>
                   <th className="px-3 py-2">Progresso</th>
                   <th className="px-3 py-2 text-right">Desvio</th>
+                  {podeGerir && <th className="px-3 py-2 text-right">Ações</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -226,6 +238,23 @@ export function EapWorkspace({
                           <Badge variant="outline">no prazo</Badge>
                         )}
                       </td>
+                      {podeGerir && (
+                        <td className="px-3 py-2 text-right">
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            aria-label="Gerar tarefa no kanban"
+                            title="Gerar tarefa no kanban"
+                            disabled={pending}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              gerarTarefa(t.id);
+                            }}
+                          >
+                            <ListPlus className="size-3.5" />
+                          </Button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
