@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import qrcodeGen from "qrcode-generator";
 import type { Elemento, ColunaTabela } from "@/modules/documentos/schema";
 import { fonteCss } from "@/modules/documentos/fontes-tipograficas";
 import { resolverTexto, type ContextoDados } from "@/modules/documentos/tokens";
@@ -101,6 +102,8 @@ export function ElementoView({
       );
     case "tabela":
       return <TabelaView el={el} base={base} borderColor={s.borderColor || "#1C2D58"} ctx={ctx} />;
+    case "qrcode":
+      return <QrCodeView texto={texto} base={base} />;
     case "label":
     case "campo":
     default:
@@ -195,6 +198,69 @@ function TabelaView({
         ))}
       </tbody>
     </table>
+  );
+}
+
+/**
+ * Render de um QR Code a partir do texto já resolvido (tokens). Usa
+ * `qrcode-generator` (JS puro, síncrono) com `createSvgTag` — sem canvas, então
+ * funciona tanto no SSR (doc-render) quanto no client (editor). O SVG é gerado
+ * como `scalable` e injetado via dangerouslySetInnerHTML num quadrado w×h
+ * (usamos o menor lado para manter o aspecto). Texto vazio → placeholder discreto.
+ */
+function QrCodeView({ texto, base }: { texto: string; base: CSSProperties }) {
+  const conteudo = texto.trim();
+  const wrapper: CSSProperties = {
+    ...base,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: base.background || "#fff",
+  };
+
+  if (!conteudo) {
+    return (
+      <div
+        style={{
+          ...wrapper,
+          border: base.border ?? "1px dashed #999",
+          color: "#999",
+          fontSize: 10,
+          textAlign: "center",
+        }}
+      >
+        <span>QR Code</span>
+      </div>
+    );
+  }
+
+  let svg = "";
+  try {
+    const qr = qrcodeGen(0, "M");
+    qr.addData(conteudo);
+    qr.make();
+    // `scalable` faz o SVG escalar via viewBox; margin pequena para "quiet zone".
+    svg = qr.createSvgTag({ cellSize: 4, margin: 1, scalable: true });
+  } catch {
+    return (
+      <div style={{ ...wrapper, border: "1px dashed #c00", color: "#c00", fontSize: 10 }}>
+        <span>QR inválido</span>
+      </div>
+    );
+  }
+
+  // O SVG da lib já traz viewBox + preserveAspectRatio (xMinYMin). Injetamos só
+  // um style p/ preencher o quadrado w×h e trocamos o alinhamento p/ centralizar.
+  const html = svg
+    .replace("<svg", '<svg style="width:100%;height:100%;display:block"')
+    .replace('preserveAspectRatio="xMinYMin meet"', 'preserveAspectRatio="xMidYMid meet"');
+
+  return (
+    <div
+      style={wrapper}
+      // O SVG gerado é estático/sanitizado pela lib (apenas módulos pretos/brancos).
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
   );
 }
 

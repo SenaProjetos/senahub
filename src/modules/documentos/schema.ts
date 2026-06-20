@@ -86,6 +86,7 @@ export const TIPOS_ELEMENTO = [
   "retangulo",
   "imagem",
   "tabela",
+  "qrcode",
 ] as const;
 export type TipoElemento = (typeof TIPOS_ELEMENTO)[number];
 
@@ -249,6 +250,9 @@ export function novoElemento(tipo: TipoElemento, x = 0, y = 0): Elemento {
           { campo: "[Valor]", titulo: "Valor", largura: 1, align: "right" },
         ],
       };
+    case "qrcode":
+      // Conteúdo do QR (pode conter tokens — ex.: URL de verificação ou nº do documento).
+      return { ...base, w: 96, h: 96, texto: "[NumeroDocumento]" };
   }
 }
 

@@ -18,6 +18,7 @@ import {
   Square,
   Image as ImageIcon,
   Table,
+  QrCode,
   ZoomIn,
   ZoomOut,
   History,
@@ -101,6 +102,7 @@ const PALETA: { tipo: TipoElemento; label: string; icone: React.ElementType }[] 
   { tipo: "retangulo", label: "Retângulo", icone: Square },
   { tipo: "imagem", label: "Imagem / logo", icone: ImageIcon },
   { tipo: "tabela", label: "Tabela", icone: Table },
+  { tipo: "qrcode", label: "QR Code", icone: QrCode },
 ];
 
 export function DocEditor({

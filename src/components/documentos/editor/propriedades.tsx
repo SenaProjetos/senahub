@@ -401,9 +401,10 @@ function PropsElemento({
       {(el.tipo === "label" ||
         el.tipo === "campo" ||
         el.tipo === "paragrafo" ||
-        el.tipo === "assinatura") && (
+        el.tipo === "assinatura" ||
+        el.tipo === "qrcode") && (
         <>
-          <Campo label="Texto">
+          <Campo label={el.tipo === "qrcode" ? "Conteúdo do QR" : "Texto"}>
             <textarea
               rows={el.tipo === "paragrafo" ? 6 : 3}
               className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
@@ -412,6 +413,12 @@ function PropsElemento({
               onBlur={(e) => upd({ texto: e.target.value })}
             />
           </Campo>
+          {el.tipo === "qrcode" && (
+            <p className="text-[11px] text-muted-foreground">
+              Conteúdo do QR (aceita tokens, ex.: URL de verificação ou{" "}
+              <code>[NumeroDocumento]</code>).
+            </p>
+          )}
           {tokens.length > 0 && (
             <Campo label="Inserir campo">
               <Select value="" onValueChange={(v) => v && upd({ texto: el.texto + v })}>
