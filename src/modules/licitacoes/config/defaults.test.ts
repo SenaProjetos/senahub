@@ -78,4 +78,82 @@ describe("parseConfigLicitacoes", () => {
     const result = parseConfigLicitacoes({ reajuste: { percentualPadrao: "x" } });
     expect(result.reajuste.percentualPadrao).toBe(0);
   });
+
+  // --- PNCP: import automático (novos campos) -------------------------------
+
+  // Defaults dos novos campos pncp
+  it("undefined → pncp tem defaults de import (palavrasChave [], modalidades [6,4], ufs [], janelaDias 2)", () => {
+    const p = parseConfigLicitacoes(undefined).pncp;
+    expect(p.palavrasChave).toEqual([]);
+    expect(p.modalidades).toEqual([6, 4]);
+    expect(p.ufs).toEqual([]);
+    expect(p.janelaDias).toBe(2);
+  });
+
+  // palavrasChave: aceita strings válidas, descarta vazias e não-strings
+  it("pncp.palavrasChave filtra vazios e não-strings", () => {
+    const result = parseConfigLicitacoes({
+      pncp: { palavrasChave: ["projeto", "  ", 5, null, "engenharia"] },
+    });
+    expect(result.pncp.palavrasChave).toEqual(["projeto", "engenharia"]);
+  });
+
+  // palavrasChave inválido (não-array) → mantém default []
+  it("pncp.palavrasChave string cai no default []", () => {
+    const result = parseConfigLicitacoes({ pncp: { palavrasChave: "projeto" } });
+    expect(result.pncp.palavrasChave).toEqual([]);
+  });
+
+  // modalidades: aceita números válidos, descarta não-números
+  it("pncp.modalidades filtra não-números", () => {
+    const result = parseConfigLicitacoes({ pncp: { modalidades: [6, "4", null, 8] } });
+    expect(result.pncp.modalidades).toEqual([6, 8]);
+  });
+
+  // modalidades inválido (não-array) → mantém default [6,4]
+  it("pncp.modalidades objeto cai no default [6,4]", () => {
+    const result = parseConfigLicitacoes({ pncp: { modalidades: { a: 1 } } });
+    expect(result.pncp.modalidades).toEqual([6, 4]);
+  });
+
+  // modalidades vazio explícito é respeitado
+  it("pncp.modalidades [] explícito é preservado", () => {
+    const result = parseConfigLicitacoes({ pncp: { modalidades: [] } });
+    expect(result.pncp.modalidades).toEqual([]);
+  });
+
+  // ufs: aceita strings, descarta vazios/não-strings
+  it("pncp.ufs filtra vazios e não-strings", () => {
+    const result = parseConfigLicitacoes({ pncp: { ufs: ["SP", " ", 1, "RJ"] } });
+    expect(result.pncp.ufs).toEqual(["SP", "RJ"]);
+  });
+
+  // janelaDias: número válido é aceito
+  it("pncp.janelaDias 5 é aceito", () => {
+    const result = parseConfigLicitacoes({ pncp: { janelaDias: 5 } });
+    expect(result.pncp.janelaDias).toBe(5);
+  });
+
+  // janelaDias inválido (string / negativo) → default 2
+  it("pncp.janelaDias string cai no default 2", () => {
+    const result = parseConfigLicitacoes({ pncp: { janelaDias: "x" } });
+    expect(result.pncp.janelaDias).toBe(2);
+  });
+
+  it("pncp.janelaDias negativo cai no default 2", () => {
+    const result = parseConfigLicitacoes({ pncp: { janelaDias: -3 } });
+    expect(result.pncp.janelaDias).toBe(2);
+  });
+
+  // modo + novos campos coexistem; demais seções intactas
+  it("pncp modo api + palavrasChave preserva outros defaults pncp e demais seções", () => {
+    const result = parseConfigLicitacoes({
+      pncp: { modo: "api", palavrasChave: ["obra"], janelaDias: 7 },
+    });
+    expect(result.pncp.modo).toBe("api");
+    expect(result.pncp.palavrasChave).toEqual(["obra"]);
+    expect(result.pncp.janelaDias).toBe(7);
+    expect(result.pncp.modalidades).toEqual([6, 4]);
+    expect(result.reajuste.modo).toBe("manual");
+  });
 });

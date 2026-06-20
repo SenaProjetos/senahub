@@ -16,6 +16,7 @@ import {
   lembretePontoNaoBatido,
   resumoSemanal,
   rotinasRhDiarias,
+  importarPncpDiario,
 } from "@/lib/jobs-handlers";
 
 let boss: PgBoss | null = null;
@@ -111,6 +112,11 @@ export async function startJobs(): Promise<PgBoss> {
       fila: "resumo-semanal",
       cron: "0 7 * * 1", // segunda 07:00
       handler: resumoSemanal,
+    },
+    {
+      fila: "pncp-import",
+      cron: "0 6 * * *", // diário 06:00 — importa editais do PNCP (no-op se modo != "api" ou sem palavras-chave)
+      handler: importarPncpDiario,
     },
   ];
 

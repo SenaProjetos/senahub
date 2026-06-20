@@ -12,6 +12,7 @@ import { ehRecurso, TIPO_EVENTO_LABEL, type TipoEventoLicitacao } from "@/module
 import { eventosParaNotificar } from "@/modules/licitacoes/eventos/alertas";
 import { acrescimoAcumuladoPct, somaAcrescimos, proximoDoLimite } from "@/modules/licitacoes/contrato/saldo";
 import { ehAniversarioReajuste, valorReajustado } from "@/modules/licitacoes/contrato/reajuste";
+import { importarEditaisPNCP } from "@/modules/licitacoes/pncp/import";
 
 /** Rotinas das automações (chamadas pelos jobs do pg-boss em lib/jobs.ts). */
 
@@ -333,6 +334,16 @@ export async function alertaPncpNaoPublicado(): Promise<number> {
     });
   }
   return lics.length;
+}
+
+/**
+ * Diário: importa editais do PNCP filtrados por palavras-chave configuráveis.
+ * No-op quando o modo PNCP != "api" ou sem palavras-chave (seguro agendar sempre).
+ */
+export async function importarPncpDiario(): Promise<{ importados: number; verificados: number }> {
+  const r = await importarEditaisPNCP();
+  console.log(`[pncp-import] importados=${r.importados} verificados=${r.verificados}`);
+  return r;
 }
 
 /** Aniversário de reajuste do contrato (anual, por vigenciaInicio). Manual → notifica; automático → cria reajuste pendente sugerido. */

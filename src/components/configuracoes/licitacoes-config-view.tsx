@@ -9,6 +9,7 @@ import { salvarConfigLicitacoes } from "@/modules/licitacoes/config/actions";
 import type { ConfigLicitacoes } from "@/modules/licitacoes/config/defaults";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -17,6 +18,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+/** Modalidades do PNCP suportadas no import automático. */
+const MODALIDADES_PNCP = [
+  { codigo: 6, rotulo: "Pregão Eletrônico (6)" },
+  { codigo: 4, rotulo: "Concorrência Eletrônica (4)" },
+] as const;
+
+/** "a, b, c" → ["a","b","c"] (trim + descarta vazios). */
+function parseListaTexto(str: string): string[] {
+  return str
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+/** UFs sempre em maiúsculas. */
+function parseUfs(str: string): string[] {
+  return parseListaTexto(str).map((s) => s.toUpperCase());
+}
 
 function parseDiasAlerta(str: string): number[] {
   return str
@@ -44,6 +64,10 @@ export function LicitacoesConfigView({ config }: { config: ConfigLicitacoes }) {
   );
   const [fatorAviso, setFatorAviso] = useState(String(config.aditivo.fatorAviso));
   const [modoPncp, setModoPncp] = useState<"manual" | "api">(config.pncp.modo);
+  const [palavrasChave, setPalavrasChave] = useState(config.pncp.palavrasChave.join(", "));
+  const [modalidadesPncp, setModalidadesPncp] = useState<number[]>(config.pncp.modalidades);
+  const [ufsPncp, setUfsPncp] = useState(config.pncp.ufs.join(", "));
+  const [janelaDias, setJanelaDias] = useState(String(config.pncp.janelaDias));
   const [modoReajuste, setModoReajuste] = useState<"manual" | "automatico">(
     config.reajuste.modo,
   );
@@ -55,6 +79,14 @@ export function LicitacoesConfigView({ config }: { config: ConfigLicitacoes }) {
     config.datasChave.alertaDiasPadrao.join(", "),
   );
 
+  function toggleModalidade(codigo: number, marcado: boolean) {
+    setModalidadesPncp((atual) =>
+      marcado ? [...new Set([...atual, codigo])] : atual.filter((c) => c !== codigo),
+    );
+  }
+
+  const palavrasChaveVazio = parseListaTexto(palavrasChave).length === 0;
+
   function salvar() {
     start(async () => {
       const r = await salvarConfigLicitacoes({
@@ -63,7 +95,13 @@ export function LicitacoesConfigView({ config }: { config: ConfigLicitacoes }) {
           limiteAcrescimoPctPadrao: parseFloat(limiteAcrescimo) || 0,
           fatorAviso: parseFloat(fatorAviso) || 0,
         },
-        pncp: { modo: modoPncp },
+        pncp: {
+          modo: modoPncp,
+          palavrasChave: parseListaTexto(palavrasChave),
+          modalidades: modalidadesPncp,
+          ufs: parseUfs(ufsPncp),
+          janelaDias: Math.max(0, parseInt(janelaDias, 10) || 0),
+        },
         reajuste: {
           modo: modoReajuste,
           indices: parseIndices(indices),
@@ -162,22 +200,93 @@ export function LicitacoesConfigView({ config }: { config: ConfigLicitacoes }) {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">PNCP — modo de integração</CardTitle>
+          <CardTitle className="text-base">PNCP — integração e import automático</CardTitle>
           <CardDescription>
-            Define se as publicações no Portal Nacional de Contratações Públicas são feitas
-            manualmente ou via API.
+            Define o modo de integração com o Portal Nacional de Contratações Públicas e, no modo
+            API, a importação automática de editais por palavras-chave (job diário às 06:00).
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Select value={modoPncp} onValueChange={(v) => v && setModoPncp(v as "manual" | "api")}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="manual">Manual</SelectItem>
-              <SelectItem value="api">API</SelectItem>
-            </SelectContent>
-          </Select>
+        <CardContent className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Modo</label>
+            <Select value={modoPncp} onValueChange={(v) => v && setModoPncp(v as "manual" | "api")}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="manual">Manual</SelectItem>
+                <SelectItem value="api">API</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Palavras-chave</label>
+            <p className="text-xs text-muted-foreground">
+              Lista separada por vírgula. Um edital é importado quando o objeto contém alguma destas
+              palavras (sem distinção de acento ou maiúsculas). Ex.: projeto, engenharia, BIM
+            </p>
+            <Input
+              value={palavrasChave}
+              onChange={(e) => setPalavrasChave(e.target.value)}
+              placeholder="Ex.: projeto, engenharia, BIM"
+              className="max-w-md"
+            />
+            {(modoPncp !== "api" || palavrasChaveVazio) && (
+              <p className="flex items-center gap-1 text-xs text-warning">
+                <AlertTriangle className="size-3" />
+                {modoPncp !== "api"
+                  ? "O import automático só roda com o modo API."
+                  : "Sem palavras-chave, o import automático não roda."}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Modalidades</label>
+            <p className="text-xs text-muted-foreground">
+              Tipos de contratação consultados no PNCP.
+            </p>
+            <div className="flex flex-col gap-2">
+              {MODALIDADES_PNCP.map((m) => (
+                <label key={m.codigo} className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={modalidadesPncp.includes(m.codigo)}
+                    onCheckedChange={(c) => toggleModalidade(m.codigo, c === true)}
+                  />
+                  {m.rotulo}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">UFs (opcional)</label>
+            <p className="text-xs text-muted-foreground">
+              Lista separada por vírgula para restringir por estado. Vazio = todas. Ex.: SP, RJ, MG
+            </p>
+            <Input
+              value={ufsPncp}
+              onChange={(e) => setUfsPncp(e.target.value)}
+              placeholder="Ex.: SP, RJ, MG"
+              className="max-w-xs"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Janela de busca (dias)</label>
+            <p className="text-xs text-muted-foreground">
+              Quantos dias antes de hoje consultar a cada execução. Ex.: 2
+            </p>
+            <Input
+              type="number"
+              min={0}
+              value={janelaDias}
+              onChange={(e) => setJanelaDias(e.target.value)}
+              placeholder="Ex.: 2"
+              className="max-w-xs"
+            />
+          </div>
         </CardContent>
       </Card>
 

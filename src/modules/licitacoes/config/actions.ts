@@ -21,6 +21,10 @@ const schema = z.object({
   pncp: z
     .object({
       modo: z.enum(["manual", "api"]).optional(),
+      palavrasChave: z.array(z.string()).optional(),
+      modalidades: z.array(z.number().int()).optional(),
+      ufs: z.array(z.string()).optional(),
+      janelaDias: z.number().int().nonnegative().optional(),
     })
     .optional(),
   reajuste: z

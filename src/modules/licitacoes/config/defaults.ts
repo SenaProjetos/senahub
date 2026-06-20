@@ -7,7 +7,17 @@ export type ModoReajuste = "manual" | "automatico";
 export type ConfigLicitacoes = {
   recurso: { alertaDiasPadrao: number[] };
   aditivo: { limiteAcrescimoPctPadrao: number; fatorAviso: number };
-  pncp: { modo: ModoPncp };
+  pncp: {
+    modo: ModoPncp;
+    /** Palavras-chave (sem acento/caixa) para filtrar o objetoCompra. Vazio = import desligado. */
+    palavrasChave: string[];
+    /** Códigos de modalidade do PNCP (6=Pregão Eletrônico, 4=Concorrência Eletrônica). */
+    modalidades: number[];
+    /** Siglas de UF para filtrar (vazio = todas). */
+    ufs: string[];
+    /** Tamanho da janela de busca em dias (dataInicial = hoje - janelaDias). */
+    janelaDias: number;
+  };
   reajuste: { modo: ModoReajuste; indices: string[]; percentualPadrao: number };
   datasChave: { alertaDiasPadrao: number[] };
 };
@@ -17,10 +27,22 @@ export const CHAVE_CONFIG_LICITACOES = "licitacoes.config";
 export const CONFIG_LICITACOES_PADRAO: ConfigLicitacoes = {
   recurso: { alertaDiasPadrao: [3, 1] },
   aditivo: { limiteAcrescimoPctPadrao: 25, fatorAviso: 0.8 },
-  pncp: { modo: "manual" },
+  pncp: { modo: "manual", palavrasChave: [], modalidades: [6, 4], ufs: [], janelaDias: 2 },
   reajuste: { modo: "manual", indices: ["IPCA", "INCC", "IGP-M"], percentualPadrao: 0 },
   datasChave: { alertaDiasPadrao: [15, 7, 1] },
 };
+
+/** Clona o config padrão (arrays inclusos) — usado nos fallbacks defensivos. */
+function clonarPadrao(): ConfigLicitacoes {
+  const p = CONFIG_LICITACOES_PADRAO;
+  return {
+    recurso: { alertaDiasPadrao: [...p.recurso.alertaDiasPadrao] },
+    aditivo: { ...p.aditivo },
+    pncp: { ...p.pncp, palavrasChave: [...p.pncp.palavrasChave], modalidades: [...p.pncp.modalidades], ufs: [...p.pncp.ufs] },
+    reajuste: { ...p.reajuste, indices: [...p.reajuste.indices] },
+    datasChave: { alertaDiasPadrao: [...p.datasChave.alertaDiasPadrao] },
+  };
+}
 
 /**
  * Faz merge profundo por seção com CONFIG_LICITACOES_PADRAO.
@@ -30,7 +52,7 @@ export function parseConfigLicitacoes(valor: unknown): ConfigLicitacoes {
   const padrao = CONFIG_LICITACOES_PADRAO;
 
   if (valor === undefined || valor === null || typeof valor !== "object" || Array.isArray(valor)) {
-    return { ...padrao, recurso: { ...padrao.recurso }, aditivo: { ...padrao.aditivo }, pncp: { ...padrao.pncp }, reajuste: { ...padrao.reajuste, indices: [...padrao.reajuste.indices] }, datasChave: { ...padrao.datasChave, alertaDiasPadrao: [...padrao.datasChave.alertaDiasPadrao] } };
+    return clonarPadrao();
   }
 
   const v = valor as Record<string, unknown>;
@@ -64,10 +86,32 @@ export function parseConfigLicitacoes(valor: unknown): ConfigLicitacoes {
   // --- pncp ---
   const pncpRaw = v.pncp;
   let modoPncp: ModoPncp = padrao.pncp.modo;
+  let palavrasChave = [...padrao.pncp.palavrasChave];
+  let modalidades = [...padrao.pncp.modalidades];
+  let ufs = [...padrao.pncp.ufs];
+  let janelaDias = padrao.pncp.janelaDias;
   if (typeof pncpRaw === "object" && pncpRaw !== null && !Array.isArray(pncpRaw)) {
     const p = pncpRaw as Record<string, unknown>;
     if (p.modo === "manual" || p.modo === "api") {
       modoPncp = p.modo;
+    }
+    if (Array.isArray(p.palavrasChave)) {
+      palavrasChave = (p.palavrasChave as unknown[]).filter(
+        (x): x is string => typeof x === "string" && x.trim().length > 0,
+      );
+    }
+    if (Array.isArray(p.modalidades)) {
+      modalidades = (p.modalidades as unknown[]).filter(
+        (x): x is number => typeof x === "number" && Number.isFinite(x),
+      );
+    }
+    if (Array.isArray(p.ufs)) {
+      ufs = (p.ufs as unknown[]).filter(
+        (x): x is string => typeof x === "string" && x.trim().length > 0,
+      );
+    }
+    if (typeof p.janelaDias === "number" && Number.isFinite(p.janelaDias) && p.janelaDias >= 0) {
+      janelaDias = p.janelaDias;
     }
   }
 
@@ -106,7 +150,7 @@ export function parseConfigLicitacoes(valor: unknown): ConfigLicitacoes {
   return {
     recurso: { alertaDiasPadrao: recursoAlertas },
     aditivo: { limiteAcrescimoPctPadrao: limiteAcrescimo, fatorAviso },
-    pncp: { modo: modoPncp },
+    pncp: { modo: modoPncp, palavrasChave, modalidades, ufs, janelaDias },
     reajuste: { modo: modoReajuste, indices: indicesReajuste, percentualPadrao: percentualPadraoReajuste },
     datasChave: { alertaDiasPadrao: datasChaveAlertas },
   };
