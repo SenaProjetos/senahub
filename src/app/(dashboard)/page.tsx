@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Building2 } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { kpisHome } from "@/modules/qualidade/queries";
+import { agingReport } from "@/modules/financeiro/aging/queries";
 import { projetosRecentes, serieReceita, snapshotsDashboard } from "@/modules/dashboard/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { STATUS_CHIP, STATUS_LABEL } from "@/modules/projetos/status";
@@ -23,20 +24,38 @@ import { brlInteiro as brl } from "@/lib/utils";
 export default async function HomePage() {
   const user = await requireUser();
   if (user.role === "cliente") redirect("/portal");
-  const [kpis, projetos, receita, snapshots] = await Promise.all([
+  const [kpis, projetos, receita, snapshots, agingReceita] = await Promise.all([
     kpisHome(),
     projetosRecentes(user),
     serieReceita(),
     snapshotsDashboard(30),
+    agingReport("receita"),
   ]);
 
   const cards = [
-    { label: "Projetos ativos", value: String(kpis.projetosAtivos), delta: "em andamento" },
-    { label: "Receita prevista", value: brl(kpis.receitaPrevista), delta: "contas a receber em aberto" },
+    {
+      label: "Projetos ativos",
+      value: String(kpis.projetosAtivos),
+      delta: "em andamento",
+      href: "/projetos?situacao=em_andamento",
+    },
+    {
+      label: "Receita prevista",
+      value: brl(kpis.receitaPrevista),
+      delta: "contas a receber em aberto",
+      href: "/financeiro",
+    },
     {
       label: "Entregas pendentes",
       value: String(kpis.entregasPendentes),
       delta: "disciplinas com prazo em 7 dias ou vencido",
+      href: "/projetos",
+    },
+    {
+      label: "Contas vencidas",
+      value: brl(agingReceita.totalVencido),
+      delta: "receitas a receber em atraso",
+      href: "/financeiro#aging",
     },
   ];
 
@@ -44,19 +63,21 @@ export default async function HomePage() {
     <div className="space-y-6">
       <HeroCard nome={user.name} />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((kpi) => (
-          <Card key={kpi.label}>
-            <CardHeader className="pb-2">
-              <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">
-                {kpi.label}
-              </CardDescription>
-              <CardTitle className="text-3xl font-extrabold tracking-tight">{kpi.value}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">{kpi.delta}</p>
-            </CardContent>
-          </Card>
+          <Link key={kpi.label} href={kpi.href}>
+            <Card className="h-full transition-colors hover:bg-muted/40">
+              <CardHeader className="pb-2">
+                <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">
+                  {kpi.label}
+                </CardDescription>
+                <CardTitle className="text-3xl font-extrabold tracking-tight">{kpi.value}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground">{kpi.delta}</p>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
 

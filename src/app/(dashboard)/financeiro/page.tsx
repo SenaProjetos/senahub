@@ -142,7 +142,9 @@ export default async function FinanceiroPage() {
           </CardContent>
         </Card>
 
-        <AgingWidget receber={receber} pagar={pagar} />
+        <section id="aging" className="scroll-mt-24">
+          <AgingWidget receber={receber} pagar={pagar} />
+        </section>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Link href="/financeiro/aprovacoes">
             <Card className={`h-full transition-colors hover:border-primary/50 ${aguardando > 0 ? "border-warning/50" : ""}`}>

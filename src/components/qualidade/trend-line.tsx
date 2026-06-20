@@ -24,7 +24,10 @@ export function TrendLine({ pontos }: { pontos: Ponto[] }) {
   const ticks = [0, maxV / 2, maxV];
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-44 w-full" role="img" aria-label="Tendência do índice">
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-44 w-full" role="img" aria-label="Tendência do índice de retrabalho (%) por mês">
+      <text x={4} y={8} className="fill-muted-foreground font-mono text-[8px]">
+        %
+      </text>
       {ticks.map((t, i) => (
         <g key={i}>
           <line

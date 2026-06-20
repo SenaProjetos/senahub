@@ -1,5 +1,5 @@
-import { Quote } from "lucide-react";
 import { fraseDoDia } from "@/lib/frase-do-dia";
+import { HeroCitacao } from "@/components/dashboard/hero-citacao";
 
 function saudacao(h = new Date().getHours()): string {
   if (h < 12) return "Bom dia";
@@ -19,15 +19,7 @@ export function HeroCard({ nome }: { nome: string }) {
         </p>
         <h2 className="mt-1 text-2xl font-extrabold tracking-tight">{primeiro}</h2>
 
-        <figure className="mt-5 flex max-w-2xl items-start gap-3">
-          <Quote className="mt-0.5 size-5 shrink-0 text-primary/60" />
-          <div>
-            <blockquote className="text-sm leading-relaxed text-foreground/90">
-              {frase.frase}
-            </blockquote>
-            <figcaption className="mt-1 text-xs text-muted-foreground">— {frase.autor}</figcaption>
-          </div>
-        </figure>
+        <HeroCitacao frase={frase.frase} autor={frase.autor} />
       </div>
     </section>
   );

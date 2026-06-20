@@ -6,6 +6,7 @@ import { Search } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/shell/user-menu";
 import { NotificationBell } from "@/components/notificacoes/notification-bell";
+import { Breadcrumb } from "@/components/shell/breadcrumb";
 import { NAV_GROUPS } from "@/lib/nav-config";
 import type { Role } from "@/lib/roles";
 
@@ -47,7 +48,10 @@ export function Header({
   const resolved = title ?? titleFromPath(pathname);
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-background/85 px-4 backdrop-blur lg:px-6">
-      <h1 className="truncate text-lg font-bold tracking-tight">{resolved}</h1>
+      <div className="min-w-0">
+        <Breadcrumb />
+        <h1 className="truncate text-lg font-bold tracking-tight">{resolved}</h1>
+      </div>
       <div className="flex items-center gap-1.5">
         <button
           type="button"
