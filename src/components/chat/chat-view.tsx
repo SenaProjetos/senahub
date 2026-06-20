@@ -196,6 +196,9 @@ export function ChatView({
         return n;
       });
     }
+    function onPresencaInicial(ids: string[]) {
+      setOnline(new Set(ids));
+    }
     function onLeitura(p: { canalId: string; leitorId: string; leitorNome: string }) {
       if (p.canalId !== selRef.current || p.leitorId === meId) return;
       setMensagens((ms) =>
@@ -212,11 +215,13 @@ export function ChatView({
     }
     s.on("mensagem", onMensagem);
     s.on("presenca", onPresenca);
+    s.on("presenca-inicial", onPresencaInicial);
     s.on("entrar-canal-novo", onNovoCanal);
     s.on("leitura", onLeitura);
     return () => {
       s.off("mensagem", onMensagem);
       s.off("presenca", onPresenca);
+      s.off("presenca-inicial", onPresencaInicial);
       s.off("entrar-canal-novo", onNovoCanal);
       s.off("leitura", onLeitura);
     };

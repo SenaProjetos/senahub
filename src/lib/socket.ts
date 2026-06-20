@@ -43,6 +43,9 @@ export function initSocket(server: HttpServer): SocketServer {
 
     // Entra no room próprio e nos rooms dos canais de que é membro.
     socket.join(`user:${userId}`);
+
+    // Snapshot de quem já está online (inclui o próprio, já inserido acima).
+    socket.emit("presenca-inicial", usuariosOnline());
     try {
       const canais = await prisma.canalMembro.findMany({
         where: { userId },
