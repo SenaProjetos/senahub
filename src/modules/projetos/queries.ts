@@ -20,14 +20,47 @@ export function escopoProjeto(viewer: Viewer): Prisma.ProjetoWhereInput {
   };
 }
 
+type Dir = "asc" | "desc";
+
+function orderByProjeto(sort: string | undefined, dir: Dir): Prisma.ProjetoOrderByWithRelationInput[] {
+  switch (sort) {
+    case "codigo":
+      return [{ ano: dir }, { sequencial: dir }];
+    case "nome":
+      return [{ nome: dir }];
+    case "situacao":
+      return [{ situacao: dir }];
+    case "cliente":
+      return [{ cliente: { nome: dir } }];
+    default:
+      return [{ ano: "desc" }, { sequencial: "desc" }];
+  }
+}
+
 export async function listarProjetos(
   viewer: Viewer,
-  opts?: { q?: string; situacao?: string; clienteId?: string },
+  opts?: {
+    q?: string;
+    situacao?: string;
+    clienteId?: string;
+    responsavelId?: string;
+    disciplina?: string;
+    sort?: string;
+    dir?: Dir;
+    skip?: number;
+    take?: number;
+  },
 ) {
   const where: Prisma.ProjetoWhereInput = { AND: [escopoProjeto(viewer)] };
   const and = where.AND as Prisma.ProjetoWhereInput[];
   if (opts?.situacao) and.push({ situacao: opts.situacao as never });
   if (opts?.clienteId) and.push({ clienteId: opts.clienteId });
+  if (opts?.responsavelId) {
+    and.push({ disciplinas: { some: { responsaveis: { some: { userId: opts.responsavelId } } } } });
+  }
+  if (opts?.disciplina) {
+    and.push({ disciplinas: { some: { nome: opts.disciplina } } });
+  }
   if (opts?.q) {
     and.push({
       OR: [
@@ -38,15 +71,24 @@ export async function listarProjetos(
     });
   }
 
-  return prisma.projeto.findMany({
-    where,
-    orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
-    include: {
-      cliente: { select: { id: true, nome: true } },
-      _count: { select: { disciplinas: true } },
-      disciplinas: { select: { status: true } },
-    },
-  });
+  const orderBy = orderByProjeto(opts?.sort, opts?.dir ?? "desc");
+
+  const [items, total] = await prisma.$transaction([
+    prisma.projeto.findMany({
+      where,
+      orderBy,
+      skip: opts?.skip,
+      take: opts?.take,
+      include: {
+        cliente: { select: { id: true, nome: true } },
+        _count: { select: { disciplinas: true } },
+        disciplinas: { select: { status: true } },
+      },
+    }),
+    prisma.projeto.count({ where }),
+  ]);
+
+  return { items, total };
 }
 
 export async function obterProjeto(viewer: Viewer, id: string) {
@@ -160,6 +202,6 @@ export async function margemProjeto(projetoId: string) {
   };
 }
 
-export type ProjetoListItem = Awaited<ReturnType<typeof listarProjetos>>[number];
+export type ProjetoListItem = Awaited<ReturnType<typeof listarProjetos>>["items"][number];
 export type ProjetoDetalhe = NonNullable<Awaited<ReturnType<typeof obterProjeto>>>;
 export type DisciplinaDetalhe = ProjetoDetalhe["disciplinas"][number];

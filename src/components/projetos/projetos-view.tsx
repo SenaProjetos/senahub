@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Search, Plus, FolderOpen } from "lucide-react";
 import type { ProjetoListItem } from "@/modules/projetos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -27,35 +26,47 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SortableHead } from "@/components/ui/sortable-head";
+import { Pagination } from "@/components/ui/pagination";
+import { useSetParams } from "@/lib/use-set-param";
 
 export function ProjetosView({
-  projetos,
+  items,
   podeGerir,
   busca,
   situacao,
+  clienteId,
+  responsavelId,
+  disciplina,
+  page,
+  pageCount,
+  pageSize,
+  total,
   clientes,
   catalogo,
   internos,
 }: {
-  projetos: ProjetoListItem[];
+  items: ProjetoListItem[];
   podeGerir: boolean;
   busca: string;
   situacao: string;
+  clienteId: string;
+  responsavelId: string;
+  disciplina: string;
+  page: number;
+  pageCount: number;
+  pageSize: number;
+  total: number;
   clientes: { id: string; nome: string }[];
   catalogo: string[];
   internos: { id: string; name: string; role: string }[];
 }) {
-  const router = useRouter();
+  const setParams = useSetParams();
   const [q, setQ] = useState(busca);
   const [formOpen, setFormOpen] = useState(false);
 
-  function aplicar(next: { q?: string; situacao?: string }) {
-    const p = new URLSearchParams();
-    const qv = next.q ?? q;
-    const sv = next.situacao ?? situacao;
-    if (qv) p.set("q", qv);
-    if (sv) p.set("situacao", sv);
-    router.push(`/projetos${p.toString() ? `?${p}` : ""}`);
+  function aplicarBusca() {
+    setParams({ q: q || null });
   }
 
   return (
@@ -63,7 +74,7 @@ export function ProjetosView({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-extrabold tracking-tight">Projetos</h2>
-          <p className="text-sm text-muted-foreground">{projetos.length} projeto(s).</p>
+          <p className="text-sm text-muted-foreground">{total} projeto(s).</p>
         </div>
         {podeGerir && (
           <Button onClick={() => setFormOpen(true)}>
@@ -78,15 +89,15 @@ export function ProjetosView({
             placeholder="Buscar por código, nome ou cliente…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && aplicar({})}
+            onKeyDown={(e) => e.key === "Enter" && aplicarBusca()}
           />
-          <Button variant="outline" size="icon" onClick={() => aplicar({})} aria-label="Buscar">
+          <Button variant="outline" size="icon" onClick={aplicarBusca} aria-label="Buscar">
             <Search className="size-4" />
           </Button>
         </div>
         <Select
           value={situacao || "todas"}
-          onValueChange={(v) => aplicar({ situacao: !v || v === "todas" ? "" : v })}
+          onValueChange={(v) => setParams({ situacao: v === "todas" ? null : v })}
         >
           <SelectTrigger className="w-44">
             <SelectValue placeholder="Situação" />
@@ -100,28 +111,82 @@ export function ProjetosView({
             ))}
           </SelectContent>
         </Select>
+        {podeGerir && (
+          <>
+            <Select
+              value={clienteId || "todos"}
+              onValueChange={(v) => setParams({ cliente: v === "todos" ? null : v })}
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Cliente" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os clientes</SelectItem>
+                {clientes.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={responsavelId || "todos"}
+              onValueChange={(v) => setParams({ responsavel: v === "todos" ? null : v })}
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Responsável" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os responsáveis</SelectItem>
+                {internos.map((u) => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={disciplina || "todas"}
+              onValueChange={(v) => setParams({ disciplina: v === "todas" ? null : v })}
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Disciplina" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas as disciplinas</SelectItem>
+                {catalogo.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    {d}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        )}
       </div>
 
       <div className="rounded-sm border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-24">Código</TableHead>
-              <TableHead>Projeto</TableHead>
-              <TableHead>Cliente</TableHead>
+              <SortableHead field="codigo" className="w-24">
+                Código
+              </SortableHead>
+              <SortableHead field="nome">Projeto</SortableHead>
+              <SortableHead field="cliente">Cliente</SortableHead>
               <TableHead>Disciplinas</TableHead>
-              <TableHead>Situação</TableHead>
+              <SortableHead field="situacao">Situação</SortableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {projetos.length === 0 ? (
+            {items.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="p-0">
                   <EmptyState icon={FolderOpen} title="Nenhum projeto" />
                 </TableCell>
               </TableRow>
             ) : (
-              projetos.map((p) => {
+              items.map((p) => {
                 const counts = p.disciplinas.reduce<Record<string, number>>((acc, d) => {
                   acc[d.status] = (acc[d.status] ?? 0) + 1;
                   return acc;
@@ -162,6 +227,8 @@ export function ProjetosView({
           </TableBody>
         </Table>
       </div>
+
+      <Pagination page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
 
       {podeGerir && (
         <ProjetoForm
