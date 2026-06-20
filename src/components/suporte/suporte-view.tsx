@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
@@ -32,43 +33,75 @@ type Ticket = {
   titulo: string;
   descricao: string;
   status: string;
+  prioridade: string | null;
+  categoria: string | null;
   autor: string;
   criadoEm: string;
   atualizadoEm: string;
   mensagens: { id: string; autor: string; texto: string; data: string; anexoMime: string | null; anexoNome: string | null }[];
 };
 
-const STATUS_TONE: Record<string, "success" | "warning" | "danger" | "info" | "neutral"> = {
+type Tone = "success" | "warning" | "danger" | "info" | "neutral";
+
+const STATUS_TONE: Record<string, Tone> = {
   aberto: "warning",
   em_atendimento: "info",
   resolvido: "success",
+};
+
+const PRIORIDADE_TONE: Record<string, Tone> = {
+  urgente: "danger",
+  alta: "warning",
+  media: "info",
+  baixa: "neutral",
+};
+
+const PRIORIDADE_LABEL: Record<string, string> = {
+  urgente: "Urgente",
+  alta: "Alta",
+  media: "Média",
+  baixa: "Baixa",
+};
+
+const CATEGORIA_LABEL: Record<string, string> = {
+  bug: "Bug",
+  duvida: "Dúvida",
+  melhoria: "Melhoria",
+  acesso: "Acesso",
+  outro: "Outro",
 };
 
 export function SuporteView({
   tickets,
   ehGestor,
   escopo,
+  prioridadeFiltro,
 }: {
   tickets: Ticket[];
   ehGestor: boolean;
   escopo: "meus" | "todos";
+  prioridadeFiltro: string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [dialogNovo, setDialogNovo] = useState(false);
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
+  const [prioridade, setPrioridade] = useState<"baixa" | "media" | "alta" | "urgente">("media");
+  const [categoria, setCategoria] = useState<"bug" | "duvida" | "melhoria" | "acesso" | "outro">("outro");
   const [respostas, setRespostas] = useState<Record<string, string>>({});
   const [arquivos, setArquivos] = useState<Record<string, File | null>>({});
 
   function abrir() {
     start(async () => {
-      const r = await abrirTicket({ titulo, descricao });
+      const r = await abrirTicket({ titulo, descricao, prioridade, categoria });
       if (r.ok) {
         toast.success("Ticket aberto.");
         setDialogNovo(false);
         setTitulo("");
         setDescricao("");
+        setPrioridade("media");
+        setCategoria("outro");
         router.refresh();
       } else toast.error(r.error);
     });
@@ -109,9 +142,24 @@ export function SuporteView({
     });
   }
 
+  function navegar(next: { escopo?: string; prioridade?: string }) {
+    const params = new URLSearchParams();
+    const novoEscopo = next.escopo ?? escopo;
+    const novaPrioridade = next.prioridade ?? prioridadeFiltro;
+    if (novoEscopo === "meus") params.set("escopo", "meus");
+    if (novaPrioridade !== "todas") params.set("prioridade", novaPrioridade);
+    const qs = params.toString();
+    router.push(qs ? `/suporte?${qs}` : "/suporte");
+  }
+
   function mudarEscopo(v: string | null) {
     if (!v || v === escopo) return;
-    router.push(v === "todos" ? "/suporte?escopo=todos" : "/suporte?escopo=meus");
+    navegar({ escopo: v });
+  }
+
+  function mudarPrioridadeFiltro(v: string | null) {
+    if (!v || v === prioridadeFiltro) return;
+    navegar({ prioridade: v });
   }
 
   return (
@@ -128,6 +176,22 @@ export function SuporteView({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Select
+            value={prioridadeFiltro}
+            items={{ todas: "Todas", urgente: "Urgente", alta: "Alta", media: "Média", baixa: "Baixa" }}
+            onValueChange={mudarPrioridadeFiltro}
+          >
+            <SelectTrigger className="h-9 w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">Todas prioridades</SelectItem>
+              <SelectItem value="urgente">Urgente</SelectItem>
+              <SelectItem value="alta">Alta</SelectItem>
+              <SelectItem value="media">Média</SelectItem>
+              <SelectItem value="baixa">Baixa</SelectItem>
+            </SelectContent>
+          </Select>
           {ehGestor && (
             <Select value={escopo} items={{ todos: "Todos", meus: "Meus tickets" }} onValueChange={mudarEscopo}>
               <SelectTrigger className="h-9 w-44">
@@ -163,6 +227,12 @@ export function SuporteView({
                   <StatusBadge tone={STATUS_TONE[t.status] ?? "neutral"}>
                     {t.status.replace("_", " ")}
                   </StatusBadge>
+                  <StatusBadge tone={t.prioridade ? PRIORIDADE_TONE[t.prioridade] ?? "neutral" : "neutral"}>
+                    {t.prioridade ? PRIORIDADE_LABEL[t.prioridade] ?? t.prioridade : "—"}
+                  </StatusBadge>
+                  {t.categoria && (
+                    <Badge variant="outline">{CATEGORIA_LABEL[t.categoria] ?? t.categoria}</Badge>
+                  )}
                   <span
                     className={`inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-xs font-medium ${
                       sla.alerta
@@ -243,6 +313,45 @@ export function SuporteView({
             <div className="space-y-1.5">
               <Label>Título</Label>
               <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Prioridade</Label>
+                <Select
+                  value={prioridade}
+                  items={{ baixa: "Baixa", media: "Média", alta: "Alta", urgente: "Urgente" }}
+                  onValueChange={(v) => v && setPrioridade(v as typeof prioridade)}
+                >
+                  <SelectTrigger className="h-9 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="baixa">Baixa</SelectItem>
+                    <SelectItem value="media">Média</SelectItem>
+                    <SelectItem value="alta">Alta</SelectItem>
+                    <SelectItem value="urgente">Urgente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Categoria</Label>
+                <Select
+                  value={categoria}
+                  items={{ bug: "Bug", duvida: "Dúvida", melhoria: "Melhoria", acesso: "Acesso", outro: "Outro" }}
+                  onValueChange={(v) => v && setCategoria(v as typeof categoria)}
+                >
+                  <SelectTrigger className="h-9 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bug">Bug</SelectItem>
+                    <SelectItem value="duvida">Dúvida</SelectItem>
+                    <SelectItem value="melhoria">Melhoria</SelectItem>
+                    <SelectItem value="acesso">Acesso</SelectItem>
+                    <SelectItem value="outro">Outro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label>Descrição</Label>

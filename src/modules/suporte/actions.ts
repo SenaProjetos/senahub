@@ -12,6 +12,8 @@ const rev = () => revalidatePath("/suporte");
 const ticketSchema = z.object({
   titulo: z.string().min(1, "Informe o título."),
   descricao: z.string().min(1, "Descreva o problema."),
+  prioridade: z.enum(["baixa", "media", "alta", "urgente"]).default("media"),
+  categoria: z.enum(["bug", "duvida", "melhoria", "acesso", "outro"]).default("outro"),
 });
 const mensagemSchema = z
   .object({
@@ -32,7 +34,13 @@ export const abrirTicket = defineAction(
   { modulo: "suporte", acao: "abrir-ticket", entidade: "TicketSuporte", schema: ticketSchema },
   async (i, { user }) => {
     const t = await prisma.ticketSuporte.create({
-      data: { titulo: i.titulo, descricao: i.descricao, autorId: user.id },
+      data: {
+        titulo: i.titulo,
+        descricao: i.descricao,
+        prioridade: i.prioridade,
+        categoria: i.categoria,
+        autorId: user.id,
+      },
     });
     const gestores = await prisma.user.findMany({
       where: { ativo: true, role: { in: ["admin", "supervisor"] } },
