@@ -4,8 +4,9 @@ import { useState, useTransition } from "react";
 import { formatarData } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Send, Paperclip, FileText } from "lucide-react";
+import { Plus, Send, Paperclip, FileText, Clock, AlertTriangle } from "lucide-react";
 import { abrirTicket, responderTicket, mudarStatusTicket } from "@/modules/suporte/actions";
+import { calcularSla } from "@/modules/suporte/sla";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +34,7 @@ type Ticket = {
   status: string;
   autor: string;
   criadoEm: string;
+  atualizadoEm: string;
   mensagens: { id: string; autor: string; texto: string; data: string; anexoMime: string | null; anexoNome: string | null }[];
 };
 
@@ -42,7 +44,15 @@ const STATUS_TONE: Record<string, "success" | "warning" | "danger" | "info" | "n
   resolvido: "success",
 };
 
-export function SuporteView({ tickets, ehGestor }: { tickets: Ticket[]; ehGestor: boolean }) {
+export function SuporteView({
+  tickets,
+  ehGestor,
+  escopo,
+}: {
+  tickets: Ticket[];
+  ehGestor: boolean;
+  escopo: "meus" | "todos";
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [dialogNovo, setDialogNovo] = useState(false);
@@ -99,18 +109,40 @@ export function SuporteView({ tickets, ehGestor }: { tickets: Ticket[]; ehGestor
     });
   }
 
+  function mudarEscopo(v: string | null) {
+    if (!v || v === escopo) return;
+    router.push(v === "todos" ? "/suporte?escopo=todos" : "/suporte?escopo=meus");
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-extrabold tracking-tight">Suporte</h2>
           <p className="text-sm text-muted-foreground">
-            {ehGestor ? "Todos os tickets." : "Seus tickets."}
+            {!ehGestor
+              ? "Seus tickets."
+              : escopo === "todos"
+                ? "Todos os tickets."
+                : "Tickets abertos por você."}
           </p>
         </div>
-        <Button onClick={() => setDialogNovo(true)}>
-          <Plus className="size-4" /> Abrir ticket
-        </Button>
+        <div className="flex items-center gap-2">
+          {ehGestor && (
+            <Select value={escopo} items={{ todos: "Todos", meus: "Meus tickets" }} onValueChange={mudarEscopo}>
+              <SelectTrigger className="h-9 w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="meus">Meus tickets</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+          <Button onClick={() => setDialogNovo(true)}>
+            <Plus className="size-4" /> Abrir ticket
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -121,7 +153,9 @@ export function SuporteView({ tickets, ehGestor }: { tickets: Ticket[]; ehGestor
             </CardContent>
           </Card>
         ) : (
-          tickets.map((t) => (
+          tickets.map((t) => {
+            const sla = calcularSla(t.criadoEm, t.atualizadoEm, t.status);
+            return (
             <Card key={t.id}>
               <CardContent className="space-y-2 pt-5">
                 <div className="flex flex-wrap items-center gap-2">
@@ -129,6 +163,17 @@ export function SuporteView({ tickets, ehGestor }: { tickets: Ticket[]; ehGestor
                   <StatusBadge tone={STATUS_TONE[t.status] ?? "neutral"}>
                     {t.status.replace("_", " ")}
                   </StatusBadge>
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-xs font-medium ${
+                      sla.alerta
+                        ? "bg-destructive/10 text-destructive"
+                        : "text-muted-foreground"
+                    }`}
+                    title={sla.alerta ? "Aberto há mais de 3 dias úteis" : undefined}
+                  >
+                    {sla.alerta ? <AlertTriangle className="size-3" /> : <Clock className="size-3" />}
+                    {sla.rotulo}
+                  </span>
                   <span className="text-xs text-muted-foreground">
                     {t.autor} · {formatarData(t.criadoEm)}
                   </span>
@@ -184,7 +229,8 @@ export function SuporteView({ tickets, ehGestor }: { tickets: Ticket[]; ehGestor
                 )}
               </CardContent>
             </Card>
-          ))
+            );
+          })
         )}
       </div>
 

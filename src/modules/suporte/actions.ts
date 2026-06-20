@@ -84,8 +84,26 @@ export const mudarStatusTicket = defineAction(
     entidade: "TicketSuporte",
     schema: statusSchema,
   },
-  async (i) => {
-    await prisma.ticketSuporte.update({ where: { id: i.id }, data: { status: i.status } });
+  async (i, { user }) => {
+    const t = await prisma.ticketSuporte.findUnique({ where: { id: i.id } });
+    if (!t) throw new ActionError("Ticket não encontrado.");
+    if (t.status !== i.status) {
+      await prisma.ticketSuporte.update({ where: { id: i.id }, data: { status: i.status } });
+      // Avisa o autor quando outra pessoa altera o status do ticket.
+      if (t.autorId !== user.id) {
+        const rotulos: Record<string, string> = {
+          aberto: "Aberto",
+          em_atendimento: "Em atendimento",
+          resolvido: "Resolvido",
+        };
+        await notificar(t.autorId, {
+          titulo: "Status do seu ticket atualizado",
+          corpo: `${t.titulo} → ${rotulos[i.status] ?? i.status}`,
+          href: "/suporte",
+          tag: `ticket-${t.id}`,
+        });
+      }
+    }
     rev();
     return { id: i.id };
   },
