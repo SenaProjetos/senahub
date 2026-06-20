@@ -127,3 +127,14 @@ D4 (DXF/ABNT) → D5 (colaboração). Cada uma entregue e mergeada antes da pró
 - **Envio por e-mail / anexar** o PDF gerado — não feito.
 - **QR code / verificação** — precisa de dependência npm (`qrcode`) → decisão.
 - **Condicionais / campos calculados**, guias/régua — nice-to-have, não feitos.
+
+### Progresso (waves E4/E5)
+- **D3:** agrupamento + subtotais (bandas grupoCabecalho/grupoRodape, `agruparPor`, token `[Grupo]`, `[Sum]` por grupo).
+- **D2:** envio do PDF por e-mail com anexo (action + dialog na preview-bar; reusa rota PDF + lib/mail estendido p/ anexos).
+- **D5:** elemento **QR Code** (qrcode-generator, SVG SSR-safe, conteúdo com tokens — ex.: `[NumeroDocumento]` para verificação).
+- dep adicionada: `qrcode-generator`. `master` verde (tsc 0 + 319 testes).
+
+### Pendente final (heavy / browser-QA)
+- **Paginação real** (cabeçalho de colunas repetindo por página + `[Pagina]/[Paginas]` reais) — exige iteração no browser; não feito.
+- **Multi-coleção FULL** (sub-relatórios com várias coleções num modelo) — feito o subconjunto (permissão por fonte + dataset + tabela + agrupamento); a arquitetura completa de sub-relatórios é uma fase própria.
+- **Condicionais / campos calculados**, **guias/régua** — nice-to-have, não feitos.
