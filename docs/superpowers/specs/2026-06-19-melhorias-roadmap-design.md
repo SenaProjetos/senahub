@@ -204,9 +204,40 @@ interativa de 2.1/3.9 ficam para validação do usuário.
 - **Já existiam (roadmap impreciso):** linhas "Maiores atrasos" da Qualidade já linkam ao projeto; alerta de vencimento de certidões no Jurídico (`badgeValidade`: vencida/vence em Nd/ok); badges de não-lidas no Chat.
 - **Pendente (polish):** badges de contagem em quicklinks do Financeiro e botões Arquivos/Revisões em Projetos; progresso X/Y de onboarding; alerta de atraso de disciplina no detalhe do projeto.
 
-### M5 — Módulos (aprofundamento) ⏳ NÃO INICIADA
-### M6 — Plataforma/técnico ⏳ NÃO INICIADA
+### M5 — Módulos (aprofundamento) ✅ (mergeada; via subagentes em 3 batches)
+- **Auditoria:** filtro de período, export CSV (rota), ações legíveis (~200 labels), destaque de falha.
+- **Agenda:** vistas semanal/diária + export `.ics` (helper puro + testes) — on-prem (substitui Google Calendar).
+- **Ponto:** espelho com todos os dias do mês, export CSV, tooltip do banco de horas.
+- **Projetos detalhe:** progresso geral (PESO_STATUS centralizado), duplicar projeto (action), inputs colapsável quando vazio.
+- **Financeiro:** seletor de período, DRE resumido, subcategorias no donut (hierarquia paiId), tooltip de projeção.
+- **Documentos:** busca/filtro de modelos, doc de variáveis/tokens, preview.
+- **Suporte:** filtro meus/todos, SLA visível (date-fns), notifica autor na mudança de status.
+- **Configurações:** grupos, preview do aviso, seção de integrações on-prem (status SMTP/VAPID).
+- **Comercial:** página `/comercial/[id]`, histórico de notas no modal, follow-up → Agenda (`criarCompromisso`).
+- **RH (colaborador):** "Minhas solicitações", upload customizado de atestado.
+- **RH admin:** progresso de onboarding X/Y, histórico de NFs validadas, prazo do banco de horas.
+- **Folha:** histórico paginado (primitivo `Pagination`), preview do holerite antes de fechar.
+- **Planejamento:** CTA "Iniciar planejamento", caminho crítico (CPM, helper + teste) no Gantt, confirmação detalhada ao aplicar.
+- **Recursos:** filtro por projeto, heatmap mensal de carga, sugestão de rebalanceamento.
+- **Jurídico:** preview inline de PDFs (rota com `?inline=1`).
+- **Clientes:** "+ Contato" no detalhe (action `adicionarContato`), timeline de histórico (agrega projetos/propostas/lançamentos).
+- **Adiado (precisa migração de schema):** motivo da perda obrigatório (Lead), categoria do cliente, prioridade/categoria de ticket.
 
-> Execução autônoma pausada após M4 por indisponibilidade dos subagentes (limite de conta) e
-> tamanho da sessão. `master` permanece verde (tsc 0 + testes) em todos os merges. Detalhes do
-> pendente e decisões adiadas no resumo final da sessão.
+### M6 — Plataforma/técnico ✅ parcial (mergeada)
+- **Feito:** error boundaries por módulo (`error.tsx` em 20 segmentos + `ErrorBoundaryCard`) — erro num módulo não derruba o app; shell permanece.
+- **Já existia:** lançamento avulso já referencia projeto (filtro + exibição na view de contas a pagar/receber).
+- **Pendente:** responsividade (sidebar→drawer mobile, scroll contido de kanban/gantt); lazy loading/bundle (dynamic imports do editor/charts); auditoria de acessibilidade WCAG AA + dark mode; completar importação automática de editais do PNCP (job).
+- **Adiado (decisão/risco):** unificar Planejamento ↔ Tarefas (exige investigação + provável migração de schema); assinatura digital on-prem (decisão de negócio); PWA com offline para ponto (escopo grande).
+
+---
+
+## 7. Pendências e decisões para o usuário (resumo)
+
+**Itens que exigem migração de schema** (não feitos para não rodar `prisma migrate` de forma autônoma):
+motivo-da-perda (Lead) · categoria do cliente · prioridade/categoria de ticket · (opcional) reforço de `projetoId` já existe em Lancamento.
+
+**Decisões de negócio/arquitetura adiadas:** unificação Planejamento↔Tarefas (pode mudar modelo de dados); assinatura digital on-prem; PWA offline.
+
+**Verificação visual (browser) pendente do usuário** em tudo que é UI (não verificável sem sessão/navegador).
+
+> Toda a execução manteve `master` verde (tsc 0 + `npm test`) a cada merge. Sem `git remote` configurado — nada foi pushado.
