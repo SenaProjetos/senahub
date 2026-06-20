@@ -275,6 +275,8 @@ model Cliente {
   uf          String?
 
   observacoes String?
+  /// Classificação livre do cliente (ex.: porte/segmento), p/ filtro e relatório.
+  categoria   String?
   ativo       Boolean  @default(true)
 
   // Login externo opcional do cliente (criado sob demanda).
@@ -1455,8 +1457,25 @@ model DocJuridicoVersao {
   autor       User              @relation(fields: [autorId], references: [id])
   createdAt   DateTime          @default(now())
 
+  aceites     AceiteDocumento[]
+
   @@unique([documentoId, numero])
   @@map("doc_juridico_versao")
+}
+
+/// Registro de aceite/assinatura interna (on-prem) de uma versão de documento jurídico:
+/// snapshot de quem assinou, quando, e o hash SHA-256 do arquivo no momento do aceite.
+model AceiteDocumento {
+  id          String            @id @default(cuid())
+  versaoId    String
+  versao      DocJuridicoVersao @relation(fields: [versaoId], references: [id], onDelete: Cascade)
+  userId      String
+  userNome    String
+  hashArquivo String
+  assinadoEm  DateTime          @default(now())
+
+  @@index([versaoId])
+  @@map("aceite_documento")
 }
 
 model CertidaoTipo {
@@ -2065,6 +2084,10 @@ model TicketSuporte {
   titulo    String
   descricao String
   status    StatusTicket @default(aberto)
+  /// Prioridade do ticket (ex.: baixa | media | alta | urgente). Livre p/ não exigir enum.
+  prioridade String?
+  /// Categoria do ticket (ex.: bug | duvida | melhoria | acesso).
+  categoria  String?
   autorId   String
   autor     User         @relation("TicketAutor", fields: [autorId], references: [id])
   createdAt DateTime     @default(now())
@@ -2207,6 +2230,8 @@ model Lead {
   clienteId     String?
   cliente       Cliente?   @relation(fields: [clienteId], references: [id])
   observacoes   String?
+  /// Motivo registrado ao mover o lead para a etapa "Perdido".
+  motivoPerda   String?
   arquivado     Boolean    @default(false)
 
   atividades AtividadeLead[]
