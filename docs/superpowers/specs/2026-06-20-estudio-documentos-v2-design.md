@@ -91,3 +91,18 @@ D4 (DXF/ABNT) → D5 (colaboração). Cada uma entregue e mergeada antes da pró
 - Ordem das fases acima OK? Começar por **D1**?
 - Catálogo de fontes tipográficas (quais famílias liberar)?
 - CSV: só upload manual no momento da geração, ou também salvar datasets reutilizáveis?
+
+---
+
+## 8. Execução
+
+### D1 ✅ (branch `feat/estudio-d1` → master, 2026-06-20)
+- Formatos de folha ABNT A0–A4 + A5/Carta + orientação (mm→px); margens NBR 10068 ("Margens ABNT").
+- Estilo de linha (sólida/tracejada/pontilhada) em linha/retângulo.
+- Família de fonte por elemento; catálogo de ~12 famílias **configurável por admin** (Configurações → Documentos), Google Fonts carregadas no layout.
+- Texto **parágrafo** (multilinha/wrap) e campo de **assinatura**.
+- **Upload de imagem personalizada** (rota multipart + serving inline; picker no editor).
+- Sem migração de banco (tudo em `schemaJson` + `ConfigSistema`). tsc 0 + 307 testes.
+
+### D2 — em andamento
+> Descoberta: **PDF server-side via Puppeteer já existia** (`api/documentos/[id]/pdf/route.ts`, gated por `CHROME_PATH`) — porém fixava A4. D2 ajusta + completa: PDF respeita formato/orientação; envio por e-mail/anexo; numeração automática; paginação real.
