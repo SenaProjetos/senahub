@@ -9,7 +9,7 @@ import { criarProposta } from "@/modules/comercial/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import {
   Select,
   SelectContent,
@@ -46,11 +46,13 @@ type Proposta = {
   atualizadoEm: string;
 };
 
-export const STATUS_PROPOSTA_CHIP: Record<string, string> = {
-  rascunho: "text-muted-foreground",
-  enviada: "text-warning border-warning/40",
-  aceita: "text-success border-success/40",
-  recusada: "text-destructive border-destructive/40",
+type StatusTone = "success" | "warning" | "danger" | "info" | "neutral";
+
+export const STATUS_PROPOSTA_TONE: Record<string, StatusTone> = {
+  rascunho: "neutral",
+  enviada: "warning",
+  aceita: "success",
+  recusada: "danger",
 };
 
 export function PropostasView({
@@ -155,9 +157,9 @@ export function PropostasView({
                   <TableCell className="text-sm text-muted-foreground">{p.cliente}</TableCell>
                   <TableCell className="text-right font-mono">{brl(p.total)}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={STATUS_PROPOSTA_CHIP[p.status]}>
+                    <StatusBadge tone={STATUS_PROPOSTA_TONE[p.status] ?? "neutral"}>
                       {p.status}
-                    </Badge>
+                    </StatusBadge>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{p.visualizacoes}</TableCell>
                 </TableRow>

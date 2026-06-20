@@ -9,7 +9,7 @@ import { criarFolha } from "@/modules/rh/folha/actions";
 import type { FolhaResumo } from "@/modules/rh/folha/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import {
   Table,
   TableBody,
@@ -102,12 +102,9 @@ export function FolhasView({ folhas }: { folhas: FolhaResumo[] }) {
                   <TableCell className="text-right font-mono">{brl(f.descontos)}</TableCell>
                   <TableCell className="text-right font-mono font-semibold">{brl(f.liquido)}</TableCell>
                   <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={f.status === "fechada" ? "text-success border-success/40" : "text-warning border-warning/40"}
-                    >
+                    <StatusBadge tone={f.status === "fechada" ? "success" : "warning"}>
                       {f.status}
-                    </Badge>
+                    </StatusBadge>
                   </TableCell>
                 </TableRow>
               ))

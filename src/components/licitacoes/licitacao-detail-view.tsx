@@ -86,6 +86,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -104,7 +105,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import type { LicitacaoListItem } from "@/modules/licitacoes/queries";
-import { STATUS_LABEL, STATUS_CHIP, brl } from "./_shared";
+import { STATUS_LABEL, STATUS_TONE, brl } from "./_shared";
 
 type Lic = LicitacaoListItem;
 
@@ -276,9 +277,9 @@ export function LicitacaoDetailView({
       <CardContent className="space-y-3 pt-5">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-semibold">{lic.titulo}</span>
-          <Badge variant="outline" className={STATUS_CHIP[lic.status]}>
+          <StatusBadge tone={STATUS_TONE[lic.status] ?? "neutral"}>
             {STATUS_LABEL[lic.status]}
-          </Badge>
+          </StatusBadge>
           {lic.orgao && <span className="text-xs text-muted-foreground">{lic.orgao}</span>}
           {lic.modalidade && (
             <Badge variant="outline" className="text-muted-foreground">{lic.modalidade}</Badge>
@@ -623,10 +624,10 @@ function LicViabilidade({
     });
   }
 
-  const DECISAO_CHIP: Record<string, string> = {
-    pendente: "text-muted-foreground",
-    go: "text-success border-success/40",
-    no_go: "text-destructive border-destructive/40",
+  const DECISAO_TONE: Record<string, "success" | "danger" | "neutral"> = {
+    pendente: "neutral",
+    go: "success",
+    no_go: "danger",
   };
   const DECISAO_LABEL: Record<string, string> = { pendente: "Pendente", go: "GO", no_go: "NO-GO" };
 
@@ -643,9 +644,9 @@ function LicViabilidade({
 
       {/* Current decision badge */}
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="outline" className={`${DECISAO_CHIP[decisaoAtual] ?? ""}`}>
+        <StatusBadge tone={DECISAO_TONE[decisaoAtual] ?? "neutral"}>
           {DECISAO_LABEL[decisaoAtual] ?? decisaoAtual}
-        </Badge>
+        </StatusBadge>
         {v?.decididoPorNome && (
           <span className="text-xs text-muted-foreground">
             por {v.decididoPorNome}

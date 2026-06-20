@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { formatarData } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { STATUS_LABEL, STATUS_CHIP, brl } from "./_shared";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { STATUS_LABEL, STATUS_TONE, brl } from "./_shared";
 import type { DashboardLicitacoes } from "@/modules/licitacoes/dashboard/queries";
 
 export function DashboardLicitacoes({ data }: { data: DashboardLicitacoes }) {
@@ -24,9 +24,9 @@ export function DashboardLicitacoes({ data }: { data: DashboardLicitacoes }) {
         <CardContent className="flex flex-wrap gap-3">
           {data.porStatus.map((s) => (
             <div key={s.status} className="flex items-center gap-2">
-              <Badge variant="outline" className={STATUS_CHIP[s.status]}>
+              <StatusBadge tone={STATUS_TONE[s.status] ?? "neutral"}>
                 {STATUS_LABEL[s.status]}
-              </Badge>
+              </StatusBadge>
               <span className="text-sm font-semibold">{s.count}</span>
               {s.valor > 0 && (
                 <span className="font-mono text-xs text-muted-foreground">

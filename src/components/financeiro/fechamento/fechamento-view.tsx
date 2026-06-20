@@ -8,7 +8,7 @@ import { gerarFechamento, fecharMes, reabrirFechamento, excluirFechamento } from
 import type { FechamentoItem } from "@/modules/financeiro/fechamento/queries";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -132,9 +132,9 @@ function FechamentoCard({ f }: { f: FechamentoItem }) {
       <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
         <CardTitle className="text-base">
           {MESES[f.mes - 1]}/{f.ano}
-          <Badge variant="outline" className={`ml-2 ${fechado ? "text-success border-success/40" : "text-warning border-warning/40"}`}>
+          <StatusBadge tone={fechado ? "success" : "warning"} className="ml-2">
             {fechado ? "Fechado" : "Aberto"}
-          </Badge>
+          </StatusBadge>
         </CardTitle>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" aria-label="Imprimir" onClick={imprimir}><Printer className="size-4" /></Button>

@@ -9,15 +9,16 @@ import { solicitarFerias, registrarHumor } from "@/modules/rh/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-const STATUS_CHIP: Record<string, string> = {
-  pendente: "text-warning border-warning/40",
-  aprovado: "text-success border-success/40",
-  rejeitado: "text-destructive border-destructive/40",
+const STATUS_TONE: Record<string, "success" | "warning" | "danger" | "neutral"> = {
+  pendente: "warning",
+  aprovado: "success",
+  rejeitado: "danger",
 };
 const HUMORES = ["😞", "🙁", "😐", "🙂", "😄"];
+const HUMOR_LABELS = ["Muito insatisfeito", "Insatisfeito", "Neutro", "Satisfeito", "Muito satisfeito"];
 
 type Abono = { id: string; dataInicio: string | Date; dataFim: string | Date; status: string; atestadoPath: string | null };
 type Feria = { id: string; inicio: string | Date; fim: string | Date; status: string };
@@ -83,6 +84,7 @@ function ClimaCard({ humorAtual }: { humorAtual: number | null }) {
               key={i}
               onClick={() => registrar(i + 1)}
               disabled={pending}
+              aria-label={HUMOR_LABELS[i]}
               className={`flex-1 rounded-sm border py-3 text-2xl transition-colors ${
                 sel === i + 1 ? "border-primary bg-primary/10" : "hover:border-primary/40"
               }`}
@@ -169,9 +171,9 @@ function AbonoCard({ abonos }: { abonos: Abono[] }) {
               <span>
                 {dt(a.dataInicio)} – {dt(a.dataFim)}
               </span>
-              <Badge variant="outline" className={STATUS_CHIP[a.status]}>
+              <StatusBadge tone={STATUS_TONE[a.status] ?? "neutral"}>
                 {a.status}
-              </Badge>
+              </StatusBadge>
             </li>
           ))}
         </ul>
@@ -234,9 +236,9 @@ function FeriasCard({ ferias }: { ferias: Feria[] }) {
               <span>
                 {dt(f.inicio)} – {dt(f.fim)}
               </span>
-              <Badge variant="outline" className={STATUS_CHIP[f.status]}>
+              <StatusBadge tone={STATUS_TONE[f.status] ?? "neutral"}>
                 {f.status}
-              </Badge>
+              </StatusBadge>
             </li>
           ))}
         </ul>

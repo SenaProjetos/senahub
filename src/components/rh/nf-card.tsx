@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Upload, Download, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { brl } from "@/lib/utils";
@@ -20,10 +20,10 @@ type NF = {
   createdAt: string;
 };
 
-const CHIP: Record<NF["status"], string> = {
-  enviada: "text-warning border-warning/40",
-  aprovada: "text-success border-success/40",
-  rejeitada: "text-destructive border-destructive/40",
+const TONE: Record<NF["status"], "success" | "danger" | "info"> = {
+  enviada: "info",
+  aprovada: "success",
+  rejeitada: "danger",
 };
 
 export function NfCard({ nfs }: { nfs: NF[] }) {
@@ -110,9 +110,9 @@ export function NfCard({ nfs }: { nfs: NF[] }) {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className={CHIP[nf.status]}>
+                  <StatusBadge tone={TONE[nf.status]}>
                     {nf.status}
-                  </Badge>
+                  </StatusBadge>
                   <a
                     href={`/api/rh/nf/${nf.id}/download`}
                     className="text-primary"

@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -23,7 +23,7 @@ import { brl, formatarData } from "@/lib/utils";
 const NONE = "__none";
 const ETAPAS = ["qualificacao", "proposta", "negociacao", "fechamento"];
 const ETAPA_LABEL: Record<string, string> = { qualificacao: "Qualificação", proposta: "Proposta", negociacao: "Negociação", fechamento: "Fechamento" };
-const STATUS_COR: Record<string, string> = { aberta: "text-info border-info/40", ganha: "text-success border-success/40", perdida: "text-destructive border-destructive/40" };
+const STATUS_TONE: Record<string, "success" | "warning" | "danger" | "info" | "neutral"> = { aberta: "info", ganha: "success", perdida: "danger" };
 
 type Atividade = { id: string; tipo: string; descricao: string; autor: string; createdAt: string };
 type Op = {
@@ -224,7 +224,7 @@ function OpRow({
           <p className="flex items-center gap-2 text-sm font-medium">
             <ChevronDown className={`size-3.5 text-muted-foreground transition-transform ${aberto ? "rotate-180" : ""}`} />
             {o.titulo}
-            <Badge variant="outline" className={STATUS_COR[o.status]}>{o.status}</Badge>
+            <StatusBadge tone={STATUS_TONE[o.status] ?? "neutral"}>{o.status}</StatusBadge>
           </p>
           <p className="pl-5 text-xs text-muted-foreground">
             {o.cliente ?? "—"} · {ETAPA_LABEL[o.etapa] ?? o.etapa}

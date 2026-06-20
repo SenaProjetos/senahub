@@ -9,7 +9,7 @@ import { abrirTicket, responderTicket, mudarStatusTicket } from "@/modules/supor
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
@@ -36,10 +36,10 @@ type Ticket = {
   mensagens: { id: string; autor: string; texto: string; data: string; anexoMime: string | null; anexoNome: string | null }[];
 };
 
-const STATUS_CHIP: Record<string, string> = {
-  aberto: "text-warning border-warning/40",
-  em_atendimento: "text-status-andamento border-status-andamento/40",
-  resolvido: "text-success border-success/40",
+const STATUS_TONE: Record<string, "success" | "warning" | "danger" | "info" | "neutral"> = {
+  aberto: "warning",
+  em_atendimento: "info",
+  resolvido: "success",
 };
 
 export function SuporteView({ tickets, ehGestor }: { tickets: Ticket[]; ehGestor: boolean }) {
@@ -126,9 +126,9 @@ export function SuporteView({ tickets, ehGestor }: { tickets: Ticket[]; ehGestor
               <CardContent className="space-y-2 pt-5">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-semibold">{t.titulo}</span>
-                  <Badge variant="outline" className={STATUS_CHIP[t.status]}>
+                  <StatusBadge tone={STATUS_TONE[t.status] ?? "neutral"}>
                     {t.status.replace("_", " ")}
-                  </Badge>
+                  </StatusBadge>
                   <span className="text-xs text-muted-foreground">
                     {t.autor} · {formatarData(t.criadoEm)}
                   </span>

@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -29,7 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { STATUS_LABEL, STATUS_CHIP, brl } from "./_shared";
+import { STATUS_LABEL, STATUS_CHIP, STATUS_TONE, brl } from "./_shared";
 
 type Filtro = { status: string[]; orgao: string; q: string };
 
@@ -218,7 +219,7 @@ export function LicitacoesView({
             <Card className="transition-colors hover:border-primary/50">
               <CardContent className="flex flex-wrap items-center gap-2 py-3">
                 <span className="font-semibold">{l.titulo}</span>
-                <Badge variant="outline" className={STATUS_CHIP[l.status]}>{STATUS_LABEL[l.status]}</Badge>
+                <StatusBadge tone={STATUS_TONE[l.status] ?? "neutral"}>{STATUS_LABEL[l.status]}</StatusBadge>
                 {l.orgao && <span className="text-xs text-muted-foreground">{l.orgao}</span>}
                 {l.modalidade && <Badge variant="outline" className="text-muted-foreground">{l.modalidade}</Badge>}
                 {l.numeroEdital && <span className="font-mono text-xs text-muted-foreground">Edital {l.numeroEdital}</span>}

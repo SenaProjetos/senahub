@@ -25,12 +25,13 @@ import {
   aceitarProposta,
   enviarPropostaEmail,
 } from "@/modules/comercial/actions";
-import { STATUS_PROPOSTA_CHIP } from "./propostas-view";
+import { STATUS_PROPOSTA_TONE } from "./propostas-view";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -190,9 +191,9 @@ export function PropostaEditor({
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-sm text-muted-foreground">{proposta.numero}</span>
             <h2 className="truncate text-xl font-extrabold tracking-tight">{titulo}</h2>
-            <Badge variant="outline" className={STATUS_PROPOSTA_CHIP[proposta.status]}>
+            <StatusBadge tone={STATUS_PROPOSTA_TONE[proposta.status] ?? "neutral"}>
               {proposta.status}
-            </Badge>
+            </StatusBadge>
             {proposta.visualizacoes.length > 0 && (
               <Badge variant="outline" className="gap-1">
                 <Eye className="size-3" /> {proposta.visualizacoes.length} abertura(s)

@@ -7,13 +7,14 @@ import { Layers } from "lucide-react";
 import { gerarFolhaDoMes } from "@/modules/financeiro/folha-lote/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { brl } from "@/lib/utils";
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-const COR: Record<string, string> = { aberta: "text-warning border-warning/40", fechada: "text-info border-info/40", paga: "text-success border-success/40" };
+// "fechada" = fechada aguardando pagamento → warning; "paga" → success
+const TONE: Record<string, "success" | "warning"> = { aberta: "warning", fechada: "warning", paga: "success" };
 
 type Folha = { id: string; ano: number; mes: number; status: string; total: number; qtd: number; pagos: number; todosPagos: boolean };
 
@@ -62,9 +63,9 @@ export function FolhaLotesSection({ folhas }: { folhas: Folha[] }) {
                 <span className="font-mono">{MESES[f.mes - 1]}/{f.ano}</span>
                 <span className="text-muted-foreground">{f.pagos}/{f.qtd} pagos</span>
                 <span className="font-mono">{brl(f.total)}</span>
-                <Badge variant="outline" className={COR[f.todosPagos ? "paga" : f.status] ?? ""}>
+                <StatusBadge tone={TONE[f.todosPagos ? "paga" : f.status] ?? "neutral"}>
                   {f.todosPagos ? "paga" : f.status}
-                </Badge>
+                </StatusBadge>
               </li>
             ))}
           </ul>

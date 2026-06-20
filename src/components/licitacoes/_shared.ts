@@ -14,4 +14,13 @@ export const STATUS_CHIP: Record<string, string> = {
   concluida: "text-muted-foreground",
 };
 
+// Mapa status → tone do <StatusBadge> (cor + ícone, acessível p/ daltonismo).
+export const STATUS_TONE: Record<string, "success" | "warning" | "danger" | "info" | "neutral"> = {
+  em_andamento: "warning",
+  ganha: "success",
+  perdida: "danger",
+  em_execucao: "warning",
+  concluida: "success",
+};
+
 export { brl } from "@/lib/utils";

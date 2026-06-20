@@ -8,7 +8,7 @@ import { pagarProjetista } from "@/modules/financeiro/folha/actions";
 import type { FolhaItem } from "@/modules/financeiro/folha/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -115,18 +115,17 @@ export function FolhaView({
                   <TableCell className="text-xs text-muted-foreground">{p.tipoProfissional}</TableCell>
                   <TableCell className="text-right font-mono">{brl(Number(p.valor))}</TableCell>
                   <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={
+                    <StatusBadge
+                      tone={
                         p.status === "pago"
-                          ? "text-success border-success/40"
+                          ? "success"
                           : p.status === "pendente"
-                            ? "text-warning border-warning/40"
-                            : ""
+                            ? "warning"
+                            : "neutral"
                       }
                     >
                       {p.status}
-                    </Badge>
+                    </StatusBadge>
                   </TableCell>
                   <TableCell>
                     {p.status === "pendente" && (

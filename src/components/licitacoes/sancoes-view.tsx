@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -212,7 +213,7 @@ export function SancoesView({ podeGerir, fornecedores, proprias, concorrentes }:
                       {TIPO_LABEL[s.tipo as TipoSancao] ?? s.tipo}
                     </Badge>
                     {ativa && (
-                      <Badge variant="destructive" className="text-[10px] py-0">ativa</Badge>
+                      <StatusBadge tone="danger" className="text-[10px] py-0">ativa</StatusBadge>
                     )}
                     {s.valor != null && <span className="font-mono">{brl(s.valor)}</span>}
                     {s.inicio && (
@@ -330,7 +331,7 @@ export function SancoesView({ podeGerir, fornecedores, proprias, concorrentes }:
                       {TIPO_LABEL[s.tipo as TipoSancao] ?? s.tipo}
                     </Badge>
                     {ativa && (
-                      <Badge variant="destructive" className="text-[10px] py-0">ativa</Badge>
+                      <StatusBadge tone="danger" className="text-[10px] py-0">ativa</StatusBadge>
                     )}
                     {s.valor != null && <span className="font-mono">{brl(s.valor)}</span>}
                     {s.inicio && (

@@ -15,7 +15,7 @@ import {
 } from "@/modules/rh/folha/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { calcularEncargos, type Faixa } from "@/lib/encargos";
@@ -142,12 +142,9 @@ export function FolhaDetalheView({
               {folha.holerites.length} holerite(s) · líquido {brl(total)}
             </p>
           </div>
-          <Badge
-            variant="outline"
-            className={aberta ? "text-warning border-warning/40" : "text-success border-success/40"}
-          >
+          <StatusBadge tone={aberta ? "warning" : "success"}>
             {folha.status}
-          </Badge>
+          </StatusBadge>
         </div>
         <div className="flex flex-wrap gap-2">
           {aberta ? (
@@ -210,9 +207,7 @@ export function FolhaDetalheView({
                 <div className="flex items-center gap-1">
                   <GerarDocumentoButton modelos={modelosDoc} paramId="holeriteId" valor={h.id} variant="ghost" />
                   {h.enviadoEm && (
-                    <Badge variant="outline" className="text-success border-success/40">
-                      enviado
-                    </Badge>
+                    <StatusBadge tone="success">enviado</StatusBadge>
                   )}
                   {aberta && (
                     <>
