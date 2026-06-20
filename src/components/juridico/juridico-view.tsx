@@ -5,7 +5,7 @@ import { formatarData } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { differenceInCalendarDays } from "date-fns";
-import { Plus, Upload, Download, Trash2, Folder, FolderPlus, X, FileText, ShieldCheck, Eye } from "lucide-react";
+import { Plus, Upload, Download, Trash2, Folder, FolderPlus, X, FileText, ShieldCheck, Eye, PenLine } from "lucide-react";
 import {
   criarDocJuridico,
   excluirDocJuridico,
@@ -18,7 +18,9 @@ import {
   editarModeloContrato,
   excluirModeloContrato,
   novaVersaoCertidao,
+  registrarAceite,
 } from "@/modules/juridico/actions";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
+type Aceite = { id: string; userId: string; userNome: string; hashArquivo: string; assinadoEm: string };
 type Doc = {
   id: string;
   titulo: string;
@@ -43,7 +46,7 @@ type Doc = {
   pastaId: string | null;
   projeto: string | null;
   cliente: string | null;
-  versoes: { id: string; numero: number; arquivoNome: string; autor: string; data: string }[];
+  versoes: { id: string; numero: number; arquivoNome: string; autor: string; data: string; aceites: Aceite[] }[];
 };
 type Cert = { id: string; tipo: string; descricao: string | null; validade: string; versoes: number };
 type Pasta = { id: string; nome: string; total: number };
@@ -122,6 +125,7 @@ function DocsTab({
   podeGerir: boolean;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, start] = useTransition();
   const [titulo, setTitulo] = useState("");
   const [tipo, setTipo] = useState("contrato");
@@ -208,6 +212,22 @@ function DocsTab({
       const r = await excluirDocJuridico({ id });
       if (r.ok) {
         toast.success("Documento excluído.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  async function assinar(versaoId: string, label: string) {
+    const ok = await confirm({
+      title: "Registrar aceite desta versão?",
+      description: `Será registrado o seu aceite de ${label} com a data/hora atual e o hash SHA-256 do arquivo (prova de integridade).`,
+      confirmLabel: "Assinar",
+    });
+    if (!ok) return;
+    start(async () => {
+      const r = await registrarAceite({ versaoId });
+      if (r.ok) {
+        toast.success(r.data.jaAssinado ? "Você já havia assinado esta versão." : "Aceite registrado.");
         router.refresh();
       } else toast.error(r.error);
     });
@@ -371,31 +391,61 @@ function DocsTab({
                 </div>
               </div>
               {d.versoes.length > 0 && (
-                <ul className="mt-2 space-y-1 text-xs">
+                <ul className="mt-2 space-y-2 text-xs">
                   {d.versoes.map((v, i) => (
-                    <li key={v.id} className="flex items-center gap-2 text-muted-foreground">
-                      <span className={`font-mono ${i === 0 ? "font-bold text-foreground" : ""}`}>
-                        v{v.numero}
-                        {i === 0 && " (atual)"}
-                      </span>
-                      <span className="truncate">{v.arquivoNome}</span>
-                      <span>· {v.autor} · {formatarData(v.data)}</span>
-                      {ehPdf(v.arquivoNome) && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setPreview({ url: `/api/juridico/versoes/${v.id}/download?inline=1`, nome: v.arquivoNome })
-                          }
-                          className="text-primary hover:text-primary/80"
-                          aria-label="Visualizar"
-                          title="Visualizar"
-                        >
-                          <Eye className="size-3.5" />
-                        </button>
+                    <li key={v.id} className="space-y-1">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <span className={`font-mono ${i === 0 ? "font-bold text-foreground" : ""}`}>
+                          v{v.numero}
+                          {i === 0 && " (atual)"}
+                        </span>
+                        <span className="truncate">{v.arquivoNome}</span>
+                        <span>· {v.autor} · {formatarData(v.data)}</span>
+                        {ehPdf(v.arquivoNome) && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPreview({ url: `/api/juridico/versoes/${v.id}/download?inline=1`, nome: v.arquivoNome })
+                            }
+                            className="text-primary hover:text-primary/80"
+                            aria-label="Visualizar"
+                            title="Visualizar"
+                          >
+                            <Eye className="size-3.5" />
+                          </button>
+                        )}
+                        <a href={`/api/juridico/versoes/${v.id}/download`} className="text-primary" aria-label="Baixar">
+                          <Download className="size-3.5" />
+                        </a>
+                        {podeGerir && (
+                          <button
+                            type="button"
+                            onClick={() => assinar(v.id, `v${v.numero}`)}
+                            disabled={pending}
+                            className="inline-flex items-center gap-1 text-primary hover:text-primary/80 disabled:opacity-50"
+                            aria-label="Assinar / registrar aceite"
+                            title="Assinar / registrar aceite"
+                          >
+                            <PenLine className="size-3.5" /> Assinar
+                          </button>
+                        )}
+                      </div>
+                      {v.aceites.length > 0 && (
+                        <ul className="ml-4 space-y-0.5 border-l pl-2 text-[11px] text-muted-foreground">
+                          {v.aceites.map((a) => (
+                            <li key={a.id} className="flex items-center gap-2">
+                              <PenLine className="size-3 shrink-0 text-success" />
+                              <span>
+                                Assinado por <span className="font-medium text-foreground">{a.userNome}</span> em{" "}
+                                {formatarData(a.assinadoEm)}
+                              </span>
+                              <span className="font-mono text-muted-foreground/70" title={a.hashArquivo}>
+                                · {a.hashArquivo.slice(0, 12)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
                       )}
-                      <a href={`/api/juridico/versoes/${v.id}/download`} className="text-primary" aria-label="Baixar">
-                        <Download className="size-3.5" />
-                      </a>
                     </li>
                   ))}
                 </ul>

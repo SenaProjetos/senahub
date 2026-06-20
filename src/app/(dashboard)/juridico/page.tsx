@@ -17,7 +17,13 @@ export default async function JuridicoPage() {
       include: {
         projeto: { select: { codigo: true } },
         cliente: { select: { nome: true } },
-        versoes: { orderBy: { numero: "desc" }, include: { autor: { select: { name: true } } } },
+        versoes: {
+          orderBy: { numero: "desc" },
+          include: {
+            autor: { select: { name: true } },
+            aceites: { orderBy: { assinadoEm: "desc" }, select: { id: true, userId: true, userNome: true, hashArquivo: true, assinadoEm: true } },
+          },
+        },
       },
     }),
     prisma.certidao.findMany({ orderBy: { validade: "asc" }, include: { tipo: true, _count: { select: { versoes: true } } } }),
@@ -51,6 +57,13 @@ export default async function JuridicoPage() {
           arquivoNome: v.arquivoNome,
           autor: v.autor.name,
           data: v.createdAt.toISOString(),
+          aceites: v.aceites.map((a) => ({
+            id: a.id,
+            userId: a.userId,
+            userNome: a.userNome,
+            hashArquivo: a.hashArquivo,
+            assinadoEm: a.assinadoEm.toISOString(),
+          })),
         })),
       }))}
       certidoes={certidoes.map((c) => ({

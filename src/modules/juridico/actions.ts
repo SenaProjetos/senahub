@@ -1,9 +1,11 @@
 "use server";
 
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
+import { lerArquivo } from "@/lib/storage";
 
 const base = { modulo: "juridico", recurso: "juridico", permissao: "gerir" } as const;
 const rev = () => revalidatePath("/juridico");
@@ -138,6 +140,44 @@ export const excluirModeloContrato = defineAction(
     await prisma.modeloContrato.delete({ where: { id: i.id } });
     rev();
     return { id: i.id };
+  },
+);
+
+// ── Assinatura on-prem: registro de aceite de versão ──────────
+// "Assinatura" interna (sem provedor externo): registra quem aceitou a versão,
+// com timestamp e o hash SHA-256 do arquivo NAQUELE momento (prova de integridade).
+export const registrarAceite = defineAction(
+  { ...base, acao: "registrar-aceite", entidade: "AceiteDocumento", schema: z.object({ versaoId: z.string().min(1) }) },
+  async (i, ctx) => {
+    const versao = await prisma.docJuridicoVersao.findUnique({ where: { id: i.versaoId } });
+    if (!versao) throw new ActionError("Versão não encontrada.");
+
+    // Idempotência: um aceite por (usuário, versão). Se já assinou, retorna o existente.
+    const existente = await prisma.aceiteDocumento.findFirst({
+      where: { versaoId: i.versaoId, userId: ctx.user.id },
+    });
+    if (existente) return { id: existente.id, jaAssinado: true };
+
+    // Lê o arquivo da versão pelo mesmo helper de storage usado no download.
+    let conteudo: Buffer;
+    try {
+      conteudo = await lerArquivo(versao.arquivoPath);
+    } catch {
+      throw new ActionError("Arquivo da versão indisponível para assinatura.");
+    }
+    const hashArquivo = createHash("sha256").update(conteudo).digest("hex");
+
+    const aceite = await prisma.aceiteDocumento.create({
+      data: {
+        versaoId: i.versaoId,
+        userId: ctx.user.id,
+        userNome: ctx.user.name,
+        hashArquivo,
+        assinadoEm: new Date(),
+      },
+    });
+    rev();
+    return { id: aceite.id, jaAssinado: false };
   },
 );
 
