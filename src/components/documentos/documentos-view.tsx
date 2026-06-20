@@ -5,14 +5,21 @@ import { formatarData } from "@/lib/utils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Copy, Archive, Eye, Pencil, FileText, Search } from "lucide-react";
-import { criarModelo, duplicarModelo, arquivarModelo } from "@/modules/documentos/actions";
+import { Plus, Copy, Archive, Eye, Pencil, FileText, Search, Globe, Lock, Users, Share2 } from "lucide-react";
+import {
+  criarModelo,
+  duplicarModelo,
+  arquivarModelo,
+  definirVisibilidadeModelo,
+} from "@/modules/documentos/actions";
 import { FONTES } from "@/modules/documentos/fontes-meta";
+import { ROLES, ROLE_LABELS, type Role } from "@/lib/roles";
 import { VariaveisDialog } from "./variaveis-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -31,6 +38,8 @@ import {
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 
+type Visibilidade = "pessoal" | "perfis" | "global";
+
 type Modelo = {
   id: string;
   nome: string;
@@ -38,7 +47,12 @@ type Modelo = {
   fonte: string | null;
   versoes: number;
   atualizadoEm: string;
+  donoId: string | null;
+  visibilidade: string;
+  perfis: Role[];
 };
+
+type Viewer = { id: string; role: Role; isAdmin: boolean };
 
 const TIPO_LABEL: Record<string, string> = {
   relatorio: "Relatório",
@@ -49,7 +63,31 @@ const TIPO_LABEL: Record<string, string> = {
   outro: "Outro",
 };
 
-export function DocumentosView({ modelos, podeGerir }: { modelos: Modelo[]; podeGerir: boolean }) {
+const VIS_META: Record<Visibilidade, { label: string; icon: typeof Globe }> = {
+  global: { label: "Global", icon: Globe },
+  pessoal: { label: "Pessoal", icon: Lock },
+  perfis: { label: "Perfis", icon: Users },
+};
+
+function VisibilidadeBadge({ visibilidade }: { visibilidade: string }) {
+  const meta = VIS_META[visibilidade as Visibilidade] ?? VIS_META.global;
+  const Icon = meta.icon;
+  return (
+    <Badge variant="secondary" className="gap-1">
+      <Icon className="size-3" /> {meta.label}
+    </Badge>
+  );
+}
+
+export function DocumentosView({
+  modelos,
+  podeGerir,
+  viewer,
+}: {
+  modelos: Modelo[];
+  podeGerir: boolean;
+  viewer: Viewer;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
@@ -61,6 +99,48 @@ export function DocumentosView({ modelos, podeGerir }: { modelos: Modelo[]; pode
   const [busca, setBusca] = useState("");
   const [filtroFonte, setFiltroFonte] = useState("__all");
   const [previewModelo, setPreviewModelo] = useState<Modelo | null>(null);
+
+  // Compartilhamento / visibilidade
+  const [shareModelo, setShareModelo] = useState<Modelo | null>(null);
+  const [shareVis, setShareVis] = useState<Visibilidade>("global");
+  const [sharePerfis, setSharePerfis] = useState<Role[]>([]);
+
+  // Só o dono ou um admin pode alterar a visibilidade.
+  function podeCompartilhar(m: Modelo) {
+    return viewer.isAdmin || (m.donoId != null && m.donoId === viewer.id);
+  }
+
+  function abrirCompartilhar(m: Modelo) {
+    setShareModelo(m);
+    setShareVis((m.visibilidade as Visibilidade) ?? "global");
+    setSharePerfis(m.perfis ?? []);
+  }
+
+  function togglePerfil(role: Role, on: boolean) {
+    setSharePerfis((atual) =>
+      on ? Array.from(new Set([...atual, role])) : atual.filter((r) => r !== role),
+    );
+  }
+
+  function salvarCompartilhamento() {
+    if (!shareModelo) return;
+    if (shareVis === "perfis" && sharePerfis.length === 0) {
+      toast.error("Selecione ao menos um perfil.");
+      return;
+    }
+    start(async () => {
+      const r = await definirVisibilidadeModelo({
+        id: shareModelo.id,
+        visibilidade: shareVis,
+        perfis: shareVis === "perfis" ? sharePerfis : [],
+      });
+      if (r.ok) {
+        toast.success("Visibilidade atualizada.");
+        setShareModelo(null);
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
 
   const fontesUsadas = useMemo(
     () => Array.from(new Set(modelos.map((m) => m.fonte).filter((f): f is string => !!f))).sort(),
@@ -126,12 +206,20 @@ export function DocumentosView({ modelos, podeGerir }: { modelos: Modelo[]; pode
             Modelos de relatórios, propostas, contratos e recibos com dados dinâmicos do Hub.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <VariaveisDialog />
           {podeGerir && (
-            <Button onClick={() => setOpen(true)}>
-              <Plus className="size-4" /> Novo modelo
-            </Button>
+            <>
+              <Button variant="ghost" size="sm" render={<Link href="/documentos/carimbos" />}>
+                Carimbos
+              </Button>
+              <Button variant="ghost" size="sm" render={<Link href="/documentos/datasets" />}>
+                Datasets
+              </Button>
+              <Button onClick={() => setOpen(true)}>
+                <Plus className="size-4" /> Novo modelo
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -191,7 +279,10 @@ export function DocumentosView({ modelos, podeGerir }: { modelos: Modelo[]; pode
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
                   <FileText className="size-5 text-primary" />
-                  <Badge variant="outline">{TIPO_LABEL[m.tipo] ?? m.tipo}</Badge>
+                  <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    <VisibilidadeBadge visibilidade={m.visibilidade} />
+                    <Badge variant="outline">{TIPO_LABEL[m.tipo] ?? m.tipo}</Badge>
+                  </div>
                 </div>
                 <CardTitle className="text-base">{m.nome}</CardTitle>
                 <CardDescription>
@@ -215,6 +306,16 @@ export function DocumentosView({ modelos, podeGerir }: { modelos: Modelo[]; pode
                 <Button size="sm" variant="outline" render={<Link href={`/documentos/${m.id}/preview`} />}>
                   <FileText className="size-3.5" /> Gerar
                 </Button>
+                {podeCompartilhar(m) && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => abrirCompartilhar(m)}
+                    aria-label="Compartilhar"
+                  >
+                    <Share2 className="size-3.5" />
+                  </Button>
+                )}
                 {podeGerir && (
                   <>
                     <Button size="sm" variant="ghost" disabled={pending} onClick={() => duplicar(m.id)} aria-label="Duplicar">
@@ -230,6 +331,75 @@ export function DocumentosView({ modelos, podeGerir }: { modelos: Modelo[]; pode
           ))}
         </div>
       )}
+
+      <Dialog open={!!shareModelo} onOpenChange={(o) => !o && setShareModelo(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Share2 className="size-5 text-primary" />
+              Compartilhar modelo
+            </DialogTitle>
+            <DialogDescription>
+              Defina quem pode ver “{shareModelo?.nome}”.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Visibilidade</Label>
+              <Select
+                value={shareVis}
+                onValueChange={(v) => setShareVis((v as Visibilidade) ?? "global")}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pessoal">Pessoal — só eu</SelectItem>
+                  <SelectItem value="perfis">Perfis — perfis selecionados</SelectItem>
+                  <SelectItem value="global">Global — todos</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {shareVis === "pessoal"
+                  ? "Apenas você verá este modelo na lista."
+                  : shareVis === "perfis"
+                    ? "Você e os perfis marcados verão este modelo."
+                    : "Qualquer pessoa com acesso aos documentos verá este modelo."}
+              </p>
+            </div>
+            {shareVis === "perfis" && (
+              <div className="space-y-2">
+                <Label>Perfis com acesso</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {ROLES.map((role) => {
+                    const checked = sharePerfis.includes(role);
+                    return (
+                      <label
+                        key={role}
+                        className="flex items-center gap-2 text-sm cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(c) => togglePerfil(role, c as boolean)}
+                        />
+                        {ROLE_LABELS[role]}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShareModelo(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={salvarCompartilhamento} disabled={pending}>
+              {pending ? "Salvando…" : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!previewModelo} onOpenChange={(o) => !o && setPreviewModelo(null)}>
         <DialogContent className="sm:max-w-md">

@@ -1,10 +1,34 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { docSchemaZ, docVazio, type DocSchema } from "@/modules/documentos/schema";
+import type { Role } from "@/lib/roles";
+import type { Prisma } from "@/generated/prisma/client";
 
-export async function listarModelos() {
+export type Viewer = { id: string; role: Role };
+
+/**
+ * Filtro de visibilidade aplicado no `where` do Prisma. O viewer pode ver um modelo se:
+ * - visibilidade "global"; OU
+ * - é o dono (donoId === viewer.id); OU
+ * - visibilidade "perfis" e o perfil do viewer está em `perfis`; OU
+ * - não tem dono (donoId == null → legado/sistema, visível a todos).
+ * Admin enxerga tudo (sem filtro).
+ */
+export function visibilidadeWhere(viewer: Viewer): Prisma.DocumentoModeloWhereInput {
+  if (viewer.role === "admin") return {};
+  return {
+    OR: [
+      { visibilidade: "global" },
+      { donoId: null },
+      { donoId: viewer.id },
+      { visibilidade: "perfis", perfis: { has: viewer.role } },
+    ],
+  };
+}
+
+export async function listarModelos(viewer: Viewer) {
   return prisma.documentoModelo.findMany({
-    where: { ativo: true },
+    where: { ativo: true, ...visibilidadeWhere(viewer) },
     orderBy: { updatedAt: "desc" },
     include: { _count: { select: { versoes: true } } },
   });

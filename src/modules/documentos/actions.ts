@@ -16,23 +16,75 @@ import {
   docSchemaZ,
 } from "@/modules/documentos/schema";
 import type { Prisma } from "@/generated/prisma/client";
+import { ROLES } from "@/lib/roles";
 
 const base = { modulo: "documentos", recurso: "documentos", permissao: "gerir" } as const;
 const PATH = "/documentos";
 
 export const criarModelo = defineAction(
   { ...base, acao: "criar-modelo", entidade: "DocumentoModelo", schema: criarModeloSchema },
-  async (i) => {
+  async (i, { user }) => {
     const m = await prisma.documentoModelo.create({
       data: {
         nome: i.nome,
         tipo: i.tipo,
         fonte: i.fonte || null,
         schemaJson: docVazio() as unknown as Prisma.InputJsonValue,
+        // Grava o autor. Mantemos a visibilidade default "global" para não
+        // esconder o que já é visível; o dono pode restringir depois.
+        donoId: user.id,
       },
     });
     revalidatePath(PATH);
     return { id: m.id };
+  },
+);
+
+const visibilidadeSchema = z
+  .object({
+    id: z.string().min(1),
+    visibilidade: z.enum(["pessoal", "perfis", "global"]),
+    perfis: z.array(z.enum(ROLES)).default([]),
+  })
+  .refine((v) => v.visibilidade !== "perfis" || v.perfis.length > 0, {
+    message: "Selecione ao menos um perfil.",
+    path: ["perfis"],
+  });
+
+/**
+ * Define a visibilidade de um modelo (pessoal | perfis | global).
+ * Só o dono ou um admin pode alterar. Quando "perfis", grava a lista de perfis;
+ * caso contrário, zera os perfis.
+ */
+export const definirVisibilidadeModelo = defineAction(
+  {
+    ...base,
+    acao: "definir-visibilidade-modelo",
+    entidade: "DocumentoModelo",
+    schema: visibilidadeSchema,
+    entidadeId: (d) => (d as { id: string }).id,
+  },
+  async (i, { user }) => {
+    const m = await prisma.documentoModelo.findUnique({
+      where: { id: i.id },
+      select: { id: true, donoId: true },
+    });
+    if (!m) throw new ActionError("Modelo não encontrado.");
+    const ehDono = m.donoId != null && m.donoId === user.id;
+    if (!ehDono && user.role !== "admin") {
+      throw new ActionError("Apenas o dono ou um administrador pode alterar a visibilidade.");
+    }
+
+    await prisma.documentoModelo.update({
+      where: { id: i.id },
+      data: {
+        visibilidade: i.visibilidade,
+        perfis: i.visibilidade === "perfis" ? i.perfis : [],
+      },
+    });
+    revalidatePath(PATH);
+    revalidatePath(`${PATH}/${i.id}`);
+    return { id: i.id, visibilidade: i.visibilidade };
   },
 );
 
