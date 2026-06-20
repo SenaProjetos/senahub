@@ -10,6 +10,7 @@ import { agingReport } from "@/modules/financeiro/aging/queries";
 import { totalAguardando } from "@/modules/financeiro/aprovacao/queries";
 import { relatorioDRE, serieMensalResultado, despesasPorCategoria } from "@/modules/financeiro/relatorios/queries";
 import { fluxoCaixa, projecaoCaixa } from "@/modules/financeiro/caixa/queries";
+import { totalTransacoesPendentes } from "@/modules/financeiro/conciliacao/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { AgingWidget } from "@/components/financeiro/aging-widget";
 import { ResultadoMensalChart } from "@/components/financeiro/resultado-mensal-chart";
@@ -78,10 +79,11 @@ export default async function FinanceiroPage({
       sp.periodo === "trimestre" || sp.periodo === "ano" ? sp.periodo : "mes";
     const hoje = new Date();
     const { de: inicioMes, ate: fimMes, rotulo: mesRotulo } = intervaloPeriodo(periodo, hoje);
-    const [receber, pagar, aguardando, podeGerir, dreMes, serie, despesas, caixa] = await Promise.all([
+    const [receber, pagar, aguardando, conciliacaoPendente, podeGerir, dreMes, serie, despesas, caixa] = await Promise.all([
       agingReport("receita"),
       agingReport("despesa"),
       totalAguardando(),
+      totalTransacoesPendentes(),
       can(user.role, "financeiro", "gerir"),
       relatorioDRE(inicioMes, fimMes),
       serieMensalResultado(hoje.getFullYear()),
@@ -90,6 +92,16 @@ export default async function FinanceiroPage({
     ]);
     const projecao = await projecaoCaixa(caixa.saldoTotal);
     const vencidoTotal = receber.totalVencido + pagar.totalVencido;
+    // Qtd de contas vencidas (todas as faixas de aging exceto "a_vencer"), receber + pagar.
+    const qtdVencidas = [receber, pagar].reduce(
+      (s, r) => s + r.porFaixa.filter((f) => f.faixa !== "a_vencer").reduce((a, f) => a + f.qtd, 0),
+      0,
+    );
+    // Contagens por href dos atalhos (badge só quando > 0).
+    const contagensAtalho: Record<string, number> = {
+      "/financeiro/contas": qtdVencidas,
+      "/financeiro/conciliacao": conciliacaoPendente,
+    };
     const atalhos = podeGerir
       ? [
           ...ATALHOS,
@@ -228,17 +240,23 @@ export default async function FinanceiroPage({
               </CardHeader>
             </Card>
           </Link>
-          {atalhos.map((a) => (
-            <Link key={a.href} href={a.href}>
-              <Card className="h-full transition-colors hover:border-primary/50">
-                <CardHeader>
-                  <a.icon className="size-5 text-primary" />
-                  <CardTitle className="text-base">{a.titulo}</CardTitle>
-                  <CardDescription>{a.desc}</CardDescription>
-                </CardHeader>
-              </Card>
-            </Link>
-          ))}
+          {atalhos.map((a) => {
+            const count = contagensAtalho[a.href] ?? 0;
+            return (
+              <Link key={a.href} href={a.href}>
+                <Card className={`h-full transition-colors hover:border-primary/50 ${count > 0 ? "border-warning/50" : ""}`}>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <a.icon className="size-5 text-primary" />
+                      {count > 0 && <Badge variant="outline" className="border-warning/40 text-warning">{count}</Badge>}
+                    </div>
+                    <CardTitle className="text-base">{a.titulo}</CardTitle>
+                    <CardDescription>{a.desc}</CardDescription>
+                  </CardHeader>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       </div>
     );

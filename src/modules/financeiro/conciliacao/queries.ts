@@ -1,6 +1,11 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 
+/** Quantidade de transações bancárias ainda não conciliadas (badge do dashboard). */
+export async function totalTransacoesPendentes(): Promise<number> {
+  return prisma.transacaoBancaria.count({ where: { conciliado: false } });
+}
+
 /** Transações ainda não conciliadas, com sugestões de lançamento previsto. */
 export async function transacoesPendentes(contaId?: string) {
   const transacoes = await prisma.transacaoBancaria.findMany({
