@@ -60,6 +60,7 @@ model User {
   lancamentosAutor     Lancamento[]          @relation("LancamentoAutor")
   importacoesFinanceiras ImportacaoFinanceira[] @relation("ImportacaoFinanceiraAutor")
   canaisMembro         CanalMembro[]
+  canaisCriados        Canal[]               @relation("CanaisCriados")
   mensagens            Mensagem[]
   sessoes              SessaoTrabalho[]
   escala               EscalaTrabalho?
@@ -93,6 +94,7 @@ model User {
   bancoHoras           BancoHorasMensal[]
   feedbacksRecebidos   FeedbackRH[]           @relation("FeedbackAlvo")
   mensagensLidas       MensagemLeitura[]
+  reacoes              MensagemReacao[]
   preference           UserPreference?
   planejamentos        PlanejamentoPagamento[]
   fechamentos          FechamentoMensal[]
@@ -818,6 +820,8 @@ enum TipoCanal {
   projeto
   disciplina
   dm
+  grupo
+  socios
 }
 
 enum ChatStatus {
@@ -830,6 +834,10 @@ model Canal {
   id           String      @id @default(cuid())
   tipo         TipoCanal
   nome         String?
+  icone        String?     // emoji da galeria (capa quando não há imagem)
+  imagemCapa   String?     // caminho relativo da imagem de capa (storage)
+  criadoPorId  String?
+  criadoPor    User?       @relation("CanaisCriados", fields: [criadoPorId], references: [id], onDelete: SetNull)
   projetoId    String?
   projeto      Projeto?    @relation(fields: [projetoId], references: [id], onDelete: Cascade)
   disciplinaId String?
@@ -842,6 +850,7 @@ model Canal {
   @@index([tipo])
   @@index([projetoId])
   @@index([disciplinaId])
+  @@index([criadoPorId])
   @@map("canal")
 }
 
@@ -852,6 +861,7 @@ model CanalMembro {
   userId     String
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   lastReadAt DateTime?
+  silenciado Boolean  @default(false)
 
   @@unique([canalId, userId])
   @@index([userId])
@@ -866,14 +876,21 @@ model Mensagem {
   autor     User     @relation(fields: [autorId], references: [id])
   conteudo  String
   fixada    Boolean  @default(false)
+  encaminhada Boolean @default(false)
   anexoPath String?
   anexoNome String?
   anexoMime String?
-  createdAt DateTime @default(now())
-  editedAt  DateTime?
-  leituras  MensagemLeitura[]
+  createdAt   DateTime @default(now())
+  editedAt    DateTime?
+  excluidaEm  DateTime?
+  respostaAId String?
+  respostaA   Mensagem?          @relation("MensagemResposta", fields: [respostaAId], references: [id], onDelete: SetNull)
+  respostas   Mensagem[]         @relation("MensagemResposta")
+  leituras    MensagemLeitura[]
+  reacoes     MensagemReacao[]
 
   @@index([canalId, createdAt])
+  @@index([respostaAId])
   @@map("mensagem")
 }
 
@@ -889,6 +906,20 @@ model MensagemLeitura {
   @@unique([mensagemId, userId])
   @@index([mensagemId])
   @@map("mensagem_leitura")
+}
+
+model MensagemReacao {
+  id         String   @id @default(cuid())
+  mensagemId String
+  mensagem   Mensagem @relation(fields: [mensagemId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji      String
+  createdAt  DateTime @default(now())
+
+  @@unique([mensagemId, userId, emoji])
+  @@index([mensagemId])
+  @@map("mensagem_reacao")
 }
 
 /// Biblioteca de modelos de contrato (texto base) (E2).

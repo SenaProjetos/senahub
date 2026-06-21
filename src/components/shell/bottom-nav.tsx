@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { navItemsForRole } from "@/lib/nav-config";
+import { ChatBadge } from "@/components/chat/chat-badge";
 import type { Role } from "@/lib/roles";
 
 export function BottomNav({ role }: { role: Role }) {
@@ -28,7 +29,12 @@ export function BottomNav({ role }: { role: Role }) {
                   active ? "text-foreground" : "text-muted-foreground",
                 )}
               >
-                <item.icon className="size-5" />
+                <span className="relative">
+                  <item.icon className="size-5" />
+                  {item.href === "/chat" && (
+                    <ChatBadge className="absolute -right-2 -top-1.5 h-4" />
+                  )}
+                </span>
                 <span className="truncate">{item.title}</span>
               </Link>
             </li>

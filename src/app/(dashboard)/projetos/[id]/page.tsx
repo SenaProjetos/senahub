@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, MapPin, Ruler, LayoutGrid, Wrench, FolderOpen, SlidersHorizontal, Users } from "lucide-react";
+import { ArrowLeft, CalendarDays, MapPin, Ruler, LayoutGrid, Wrench, FolderOpen, SlidersHorizontal, Users, MessageSquare } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { obterProjeto, usuariosInternos, margemProjeto } from "@/modules/projetos/queries";
@@ -16,6 +16,7 @@ import { DuplicarProjetoButton } from "@/components/projetos/duplicar-projeto-bu
 import { EquipeManager } from "@/components/projetos/equipe-manager";
 import { InputsPanel } from "@/components/inputs/inputs-panel";
 import { modelosPorFonte } from "@/modules/documentos/queries";
+import { canalDoProjeto } from "@/modules/chat/queries";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { brl, formatarData } from "@/lib/utils";
@@ -44,11 +45,12 @@ export default async function ProjetoDetalhePage({
   const internos = podeGerir ? await usuariosInternos() : [];
   const margem = podeVerFinanceiro ? await margemProjeto(projeto.id) : null;
 
-  const [inputs, link, progresso, modelosDoc] = await Promise.all([
+  const [inputs, link, progresso, modelosDoc, canalChat] = await Promise.all([
     listarInputs(projeto.id),
     linkInput(projeto.id),
     progressoInputs(projeto.id),
     modelosPorFonte("projeto"),
+    canalDoProjeto(projeto.id),
   ]);
   const baseUrl = process.env.APP_URL ?? "";
 
@@ -134,6 +136,11 @@ export default async function ProjetoDetalhePage({
           <Button variant="outline" size="sm" render={<Link href={`/projetos/${projeto.id}/extras`} />}>
             <SlidersHorizontal className="size-4" /> Mais
           </Button>
+          {canalChat && (
+            <Button variant="outline" size="sm" render={<Link href={`/chat?c=${canalChat.id}`} />}>
+              <MessageSquare className="size-4" /> Chat
+            </Button>
+          )}
           {podeGerir && <DuplicarProjetoButton projetoId={projeto.id} />}
           <GerarDocumentoButton modelos={modelosDoc} paramId="projetoId" valor={projeto.id} />
         </div>

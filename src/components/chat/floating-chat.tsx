@@ -4,6 +4,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { MessageSquare } from "lucide-react";
 import { ChatView } from "@/components/chat/chat-view";
+import { ChatBadge } from "@/components/chat/chat-badge";
 import type { CanalListItem } from "@/modules/chat/queries";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -48,6 +49,7 @@ export function FloatingChat() {
         className="fixed bottom-20 right-4 z-40 flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 lg:bottom-6"
       >
         <MessageSquare className="size-5" />
+        <ChatBadge className="absolute -right-0.5 -top-0.5 ring-2 ring-background" />
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>

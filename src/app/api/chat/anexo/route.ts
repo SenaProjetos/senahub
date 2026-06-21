@@ -6,6 +6,17 @@ import { salvarArquivo, nomeArquivoLimpo } from "@/lib/storage";
 
 const MAX = 15 * 1024 * 1024; // 15 MB
 
+// Extensões permitidas no chat — imagens, documentos Office, PDF, CAD e compactados (C5-4).
+const EXTENSOES_PERMITIDAS = new Set([
+  "jpg", "jpeg", "png", "gif", "webp", "svg",
+  "pdf",
+  "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp",
+  "txt", "csv", "rtf",
+  "zip", "rar", "7z",
+  "dwg", "dxf", "ifc", "rvt", "skp", "dwf",
+  "mp4", "mp3", "webm", "ogg", "oga", "opus", "m4a", "wav", "aac",
+]);
+
 /** Upload de anexo de chat. Retorna metadados p/ enviarMensagem persistir. */
 export async function POST(req: Request) {
   const session = await getSession();
@@ -21,7 +32,14 @@ export async function POST(req: Request) {
   if (!canalId || !(file instanceof File)) {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
   }
-  if (file.size > MAX) return NextResponse.json({ error: "Arquivo muito grande (máx 15 MB)." }, { status: 400 });
+  if (file.size > MAX) return NextResponse.json({ error: "Arquivo muito grande (máximo 15 MB)." }, { status: 400 });
+  const ext = (file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".") + 1) : "").toLowerCase();
+  if (!EXTENSOES_PERMITIDAS.has(ext)) {
+    return NextResponse.json(
+      { error: `Tipo de arquivo não permitido (.${ext || "sem extensão"}). São aceitos: imagens, PDF, Office, CAD (DWG/DXF/IFC/RVT) e compactados.` },
+      { status: 400 },
+    );
+  }
 
   const membro = await prisma.canalMembro.findUnique({
     where: { canalId_userId: { canalId, userId: user.id } },
@@ -29,8 +47,8 @@ export async function POST(req: Request) {
   if (!membro) return NextResponse.json({ error: "Você não participa deste canal." }, { status: 403 });
 
   const nome = nomeArquivoLimpo(file.name || "arquivo");
-  const ext = nome.includes(".") ? nome.slice(nome.lastIndexOf(".")) : "";
-  const rel = `chat/${canalId}/${randomBytes(12).toString("hex")}${ext}`;
+  const sufixo = nome.includes(".") ? nome.slice(nome.lastIndexOf(".")) : "";
+  const rel = `chat/${canalId}/${randomBytes(12).toString("hex")}${sufixo}`;
   const buf = Buffer.from(await file.arrayBuffer());
   await salvarArquivo(rel, buf);
 

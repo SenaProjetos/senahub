@@ -11,7 +11,7 @@
 // Para "resetar" o SW em caso de problema: DevTools → Application → Service Workers
 // → Unregister (ou marque "Update on reload"); ou faça bump do CACHE abaixo.
 
-const CACHE = "senahub-v1";
+const CACHE = "senahub-v2";
 
 // App shell mínimo a precachear no install. Mantido curto de propósito.
 const PRECACHE = [
@@ -88,8 +88,33 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // 2) Assets estáticos versionados/imutáveis: CACHE-FIRST.
-  if (url.pathname.startsWith("/_next/static") || url.pathname.startsWith("/icons/")) {
+  // 2) Chunks do Next (/_next/static): CACHE-FIRST, mas só guardamos no cache
+  //    respostas REALMENTE imutáveis (Cache-Control: immutable). Em produção os
+  //    chunks têm hash no nome e vêm `immutable` → cacheamos. Em DEV (custom
+  //    server webpack) a MESMA URL muda de conteúdo a cada recompilação e NÃO
+  //    vem `immutable` → nunca cacheamos, evitando servir chunk obsoleto que
+  //    quebra a hidratação ("Cannot read properties of undefined (reading 'call')").
+  if (url.pathname.startsWith("/_next/static")) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(CACHE);
+        const cached = await cache.match(req);
+        if (cached) return cached;
+        try {
+          const fresh = await fetch(req);
+          const imutavel = /immutable/i.test(fresh.headers.get("Cache-Control") || "");
+          if (fresh && fresh.ok && imutavel) cache.put(req, fresh.clone()).catch(() => undefined);
+          return fresh;
+        } catch {
+          return cached || Response.error();
+        }
+      })(),
+    );
+    return;
+  }
+
+  // 2b) Ícones do app: cache-first (arquivos estáticos de verdade, não versionados).
+  if (url.pathname.startsWith("/icons/")) {
     event.respondWith(
       (async () => {
         const cache = await caches.open(CACHE);
@@ -100,7 +125,6 @@ self.addEventListener("fetch", (event) => {
           if (fresh && fresh.ok) cache.put(req, fresh.clone()).catch(() => undefined);
           return fresh;
         } catch {
-          // Sem rede e sem cache — deixa falhar como o browser faria.
           return cached || Response.error();
         }
       })(),

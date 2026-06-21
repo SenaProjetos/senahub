@@ -30,3 +30,24 @@ export async function marcarTodasLidas() {
   });
   return { ok: true };
 }
+
+/** Marca como NÃO lida (volta a contar no badge). */
+export async function marcarNaoLida(id: string) {
+  const session = await getSession();
+  if (!session) return { ok: false };
+  await prisma.notificacao.updateMany({
+    where: { id, userId: session.user.id },
+    data: { lida: false },
+  });
+  return { ok: true };
+}
+
+/** Exclui uma notificação do usuário atual. */
+export async function excluirNotificacao(id: string) {
+  const session = await getSession();
+  if (!session) return { ok: false };
+  await prisma.notificacao.deleteMany({
+    where: { id, userId: session.user.id },
+  });
+  return { ok: true };
+}

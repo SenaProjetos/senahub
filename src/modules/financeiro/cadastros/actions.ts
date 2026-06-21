@@ -5,6 +5,8 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { validarCpfCnpj } from "@/lib/documento";
+import { ensureCanalSocios, type SincroniaCanal } from "@/modules/chat/service";
+import { notificarNovosMembros, emitParaUsuario } from "@/lib/socket";
 import {
   categoriaSchema,
   categoriaEditSchema,
@@ -136,6 +138,13 @@ export const alternarFornecedor = defineAction(
 );
 
 // ── Sócios ────────────────────────────────────────────────────
+
+/** Reflete ao vivo no chat as entradas/saídas do grupo "Sócios" (C: grupo de sócios). */
+function propagarGrupoSocios(s: SincroniaCanal) {
+  notificarNovosMembros(s.adicionados);
+  for (const r of s.removidos) emitParaUsuario(r.userId, "sair-canal", { canalId: r.canalId });
+}
+
 export const criarSocio = defineAction(
   { ...base, acao: "criar-socio", entidade: "Socio", schema: socioSchema },
   async (i) => {
@@ -143,6 +152,7 @@ export const criarSocio = defineAction(
     if (existe) throw new ActionError("Usuário já é sócio.");
     const c = await prisma.socio.create({ data: { userId: i.userId, percentual: i.percentual } });
     rev();
+    propagarGrupoSocios(await ensureCanalSocios());
     return { id: c.id };
   },
 );
@@ -159,6 +169,7 @@ export const removerSocio = defineAction(
   async (i) => {
     await prisma.socio.delete({ where: { id: i.id } });
     rev();
+    propagarGrupoSocios(await ensureCanalSocios());
     return { id: i.id };
   },
 );

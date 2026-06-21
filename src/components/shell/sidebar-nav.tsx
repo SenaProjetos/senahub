@@ -11,6 +11,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { navItemsForRole, type NavGroup, type NavItem } from "@/lib/nav-config";
+import { ChatBadge } from "@/components/chat/chat-badge";
 import type { Role } from "@/lib/roles";
 
 const GROUP_KEY = (title: string) => `navGroups:${title}`;
@@ -36,6 +37,7 @@ function NavList({
     <ul className="space-y-1">
       {items.map((item) => {
         const active = isItemActive(item, pathname);
+        const isChat = item.href === "/chat";
         const link = (
           <Link
             href={item.href}
@@ -48,8 +50,12 @@ function NavList({
                 : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
             )}
           >
-            <item.icon className="size-[18px] shrink-0" />
+            <span className="relative shrink-0">
+              <item.icon className="size-[18px]" />
+              {isChat && collapsed && <ChatBadge dot className="absolute -right-1 -top-1" />}
+            </span>
             {!collapsed && <span className="truncate">{item.title}</span>}
+            {isChat && !collapsed && <ChatBadge className="ml-auto" />}
           </Link>
         );
         return (

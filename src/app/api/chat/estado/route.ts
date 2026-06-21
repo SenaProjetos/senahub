@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { listarCanais, usuariosParaDM } from "@/modules/chat/queries";
+import { contarNaoLidasTotal, listarCanaisSilenciados } from "@/modules/chat/queries";
 import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
 import { CHAT_ROLES } from "@/modules/chat/roles";
 
-/** Dados do chat carregados sob demanda (ao abrir o chat flutuante) — não pesa cada navegação. */
+/**
+ * Estado leve do chat para o provider global (badge + som + não perturbe).
+ * Não traz canais/usuários — é chamado em toda navegação do dashboard.
+ */
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
@@ -13,18 +16,17 @@ export async function GET() {
     return NextResponse.json({ error: "Sem acesso ao chat." }, { status: 403 });
   }
   const userId = session.user.id;
-  const [canais, usuarios, eu, prefs] = await Promise.all([
-    listarCanais(userId, session.user.role),
-    usuariosParaDM(userId),
+  const [total, eu, prefs, silenciados] = await Promise.all([
+    contarNaoLidasTotal(userId),
     prisma.user.findUnique({ where: { id: userId }, select: { chatStatus: true } }),
     getPreferencias(userId),
+    listarCanaisSilenciados(userId),
   ]);
   return NextResponse.json({
-    canais,
-    usuarios,
     meId: userId,
-    status: eu?.chatStatus ?? "disponivel",
+    total,
     somChat: prefs.somChat !== false,
-    mostrarRecibos: prefs.mostrarRecibos !== false,
+    chatStatus: eu?.chatStatus ?? "disponivel",
+    silenciados,
   });
 }

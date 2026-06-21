@@ -2,11 +2,10 @@ import { Shell } from "@/components/shell/shell";
 import { requireUser } from "@/lib/session";
 import { PushManager } from "@/components/notificacoes/push-manager";
 import { FloatingChat } from "@/components/chat/floating-chat";
+import { ChatPresenceProvider } from "@/components/chat/chat-presence-provider";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { GOOGLE_FONTS_HREF } from "@/modules/documentos/fontes-tipograficas";
-
-// Perfis que participam do chat (cliente e freelancer ficam de fora — regra de negócio).
-const CHAT_ROLES = ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj"];
+import { CHAT_ROLES } from "@/modules/chat/roles";
 
 export default async function DashboardLayout({
   children,
@@ -14,7 +13,9 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
-  return (
+  const participaDoChat = (CHAT_ROLES as readonly string[]).includes(user.role);
+
+  const conteudo = (
     <Shell role={user.role} user={user}>
       {/* Google Fonts do catálogo de documentos: carregam no editor e no preview/PDF
           (o Puppeteer imprime a própria página de preview, que vive neste layout). */}
@@ -24,7 +25,10 @@ export default async function DashboardLayout({
       <PushManager />
       <ConfirmProvider>{children}</ConfirmProvider>
       {/* Chat flutuante: dados carregados sob demanda (ao abrir) — não pesa a navegação. */}
-      {CHAT_ROLES.includes(user.role) && <FloatingChat />}
+      {participaDoChat && <FloatingChat />}
     </Shell>
   );
+
+  // Provider global do chat (socket único + badge de não lidas) só para perfis de chat.
+  return participaDoChat ? <ChatPresenceProvider>{conteudo}</ChatPresenceProvider> : conteudo;
 }

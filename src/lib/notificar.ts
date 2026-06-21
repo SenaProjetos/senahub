@@ -9,16 +9,31 @@ export type NotificacaoInput = {
   tag?: string;
 };
 
+export type NotificarOpts = {
+  /** Quando false, cria só a notificação interna (sino) sem Web Push — ex.: "não perturbe". */
+  push?: boolean;
+};
+
 /** Cria a notificação interna (sino) e dispara Web Push para um usuário. */
-export async function notificar(userId: string, n: NotificacaoInput): Promise<void> {
+export async function notificar(
+  userId: string,
+  n: NotificacaoInput,
+  opts?: NotificarOpts,
+): Promise<void> {
   await prisma.notificacao.create({
     data: { userId, titulo: n.titulo, corpo: n.corpo, href: n.href },
   });
-  await enviarPush(userId, { title: n.titulo, body: n.corpo, url: n.href, tag: n.tag });
+  if (opts?.push !== false) {
+    await enviarPush(userId, { title: n.titulo, body: n.corpo, url: n.href, tag: n.tag });
+  }
 }
 
 /** Notifica vários usuários (deduplicados). */
-export async function notificarMuitos(userIds: string[], n: NotificacaoInput): Promise<void> {
+export async function notificarMuitos(
+  userIds: string[],
+  n: NotificacaoInput,
+  opts?: NotificarOpts,
+): Promise<void> {
   const unicos = [...new Set(userIds)];
-  await Promise.all(unicos.map((id) => notificar(id, n)));
+  await Promise.all(unicos.map((id) => notificar(id, n, opts)));
 }

@@ -5,23 +5,16 @@ import { sincronizarCanaisDoUsuario } from "@/modules/chat/service";
 import { listarCanais, usuariosParaDM } from "@/modules/chat/queries";
 import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
 import { ChatView } from "@/components/chat/chat-view";
+import { CHAT_ROLES } from "@/modules/chat/roles";
 
 export const metadata: Metadata = { title: "Chat" };
 
 export default async function ChatPage() {
-  // Freelancer e cliente não entram no chat (regra de negócio).
-  const user = await requireRole(
-    "admin",
-    "supervisor",
-    "administrativo",
-    "clt",
-    "estagiario",
-    "projetista_pj",
-  );
+  const user = await requireRole(...CHAT_ROLES);
 
   await sincronizarCanaisDoUsuario();
   const [canais, usuarios, eu, prefs] = await Promise.all([
-    listarCanais(user.id),
+    listarCanais(user.id, user.role),
     usuariosParaDM(user.id),
     prisma.user.findUnique({ where: { id: user.id }, select: { chatStatus: true } }),
     getPreferencias(user.id),
@@ -32,6 +25,7 @@ export default async function ChatPage() {
       canais={canais}
       usuarios={usuarios}
       meId={user.id}
+      meRole={user.role}
       status={eu?.chatStatus ?? "disponivel"}
       somChat={prefs.somChat !== false}
       mostrarRecibos={prefs.mostrarRecibos !== false}

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { GLOBAL_ROLES, type Role } from "@/lib/roles";
 import { proximoCodigoProjeto } from "@/modules/projetos/numbering";
 import { ensureCanaisProjeto } from "@/modules/chat/service";
+import { notificarNovosMembros } from "@/lib/socket";
 import {
   criarProjetoSchema,
   editarProjetoSchema,
@@ -162,6 +163,8 @@ export const definirResponsaveis = defineAction(
     ]);
     // Equipe é derivada (responsáveis das disciplinas ∪ membros manuais), então não escrevemos
     // ProjetoMembro aqui — a exibição reflete a mudança automaticamente.
+    // C3-2: sincroniza os canais e faz os novos responsáveis entrarem no room ao vivo.
+    notificarNovosMembros(await ensureCanaisProjeto(disciplina.projetoId));
     revalidatePath(`/projetos/${disciplina.projetoId}`);
     return { disciplinaId: input.disciplinaId };
   },
@@ -225,6 +228,8 @@ export const definirMembros = defineAction(
         skipDuplicates: true,
       }),
     ]);
+    // C3-2: sincroniza os canais e faz os novos membros entrarem no room ao vivo.
+    notificarNovosMembros(await ensureCanaisProjeto(input.projetoId));
     revalidatePath(`/projetos/${input.projetoId}`);
     return { projetoId: input.projetoId };
   },
@@ -292,7 +297,7 @@ export const duplicarProjeto = defineAction(
     });
 
     // Canais de chat do projeto (idempotente), igual ao fluxo de conversão de lead.
-    await ensureCanaisProjeto(novo.id);
+    notificarNovosMembros(await ensureCanaisProjeto(novo.id));
 
     revalidatePath("/projetos");
     return { id: novo.id, codigo: novo.codigo };

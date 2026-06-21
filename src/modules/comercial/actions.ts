@@ -8,6 +8,7 @@ import { notificarMuitos } from "@/lib/notificar";
 import { enviarEmail, smtpConfigurado } from "@/lib/mail";
 import { proximoCodigoProjeto } from "@/modules/projetos/numbering";
 import { ensureCanaisProjeto } from "@/modules/chat/service";
+import { notificarNovosMembros } from "@/lib/socket";
 import {
   criarLeadSchema,
   editarLeadSchema,
@@ -438,7 +439,7 @@ export const aceitarProposta = defineAction(
     });
 
     // Canais de chat do projeto (idempotente).
-    await ensureCanaisProjeto(projeto.id);
+    notificarNovosMembros(await ensureCanaisProjeto(projeto.id));
 
     const gestores = await prisma.user.findMany({
       where: { ativo: true, role: { in: ["admin", "supervisor", "administrativo"] } },
