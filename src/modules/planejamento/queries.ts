@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@/generated/prisma/client";
 import { GLOBAL_ROLES, type Role } from "@/lib/roles";
+import { escopoProjeto } from "@/modules/projetos/queries";
 
 type Viewer = { id: string; role: Role };
 
@@ -9,23 +9,12 @@ function isGlobal(role: Role) {
   return role === "admin" || GLOBAL_ROLES.includes(role);
 }
 
-/** Escopo: global vê todos os projetos; demais só onde participam (membro ou responsável). */
-function escopo(viewer: Viewer): Prisma.ProjetoWhereInput {
-  if (isGlobal(viewer.role)) return {};
-  return {
-    OR: [
-      { membros: { some: { userId: viewer.id } } },
-      { disciplinas: { some: { responsaveis: { some: { userId: viewer.id } } } } },
-    ],
-  };
-}
-
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 /** Projetos visíveis ao viewer + resumo do plano (página índice de Planejamento). */
 export async function projetosComPlano(viewer: Viewer) {
   const projetos = await prisma.projeto.findMany({
-    where: { AND: [escopo(viewer), { situacao: { in: ["em_andamento", "concluido"] } }] },
+    where: escopoProjeto(viewer),
     orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
     select: {
       id: true,
@@ -61,7 +50,7 @@ export async function projetoVisivel(viewer: Viewer, projetoId: string) {
     return prisma.projeto.findUnique({ where: { id: projetoId }, select: { id: true, codigo: true, nome: true } });
   }
   return prisma.projeto.findFirst({
-    where: { AND: [{ id: projetoId }, escopo(viewer)] },
+    where: { AND: [{ id: projetoId }, escopoProjeto(viewer)] },
     select: { id: true, codigo: true, nome: true },
   });
 }
@@ -103,15 +92,16 @@ export async function eapDoProjeto(projetoId: string) {
 
 export type EapTarefaDTO = Awaited<ReturnType<typeof eapDoProjeto>>["tarefas"][number];
 
-/** Cronograma consolidado: projetos ativos (com EAP) + suas tarefas/linha de base (#7). */
+/** Cronograma consolidado: projetos com EAP (qualquer situação) + suas tarefas/linha de base. */
 export async function cronogramaProjetosAtivos() {
   const projetos = await prisma.projeto.findMany({
-    where: { situacao: "em_andamento", eapTarefas: { some: {} } },
+    where: { eapTarefas: { some: {} } },
     orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
     select: {
       id: true,
       codigo: true,
       nome: true,
+      situacao: true,
       eapTarefas: {
         orderBy: { ordem: "asc" },
         include: {
@@ -125,6 +115,7 @@ export async function cronogramaProjetosAtivos() {
     id: p.id,
     codigo: p.codigo,
     nome: p.nome,
+    situacao: p.situacao,
     temLinhaBase: p.eapTarefas.some((t) => t.inicioBaseline != null),
     tarefas: p.eapTarefas.map((t) => ({
       id: t.id,

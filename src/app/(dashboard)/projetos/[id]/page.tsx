@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, CalendarDays, MapPin, Ruler, LayoutGrid, Wrench, FolderOpen, SlidersHorizontal, Users, MessageSquare } from "lucide-react";
+import { usuariosOnline } from "@/lib/socket";
+import { ROLE_LABELS } from "@/lib/roles";
+import { Avatar, AvatarFallback, AvatarBadge } from "@/components/ui/avatar";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { obterProjeto, usuariosInternos, margemProjeto } from "@/modules/projetos/queries";
@@ -89,18 +92,37 @@ export default async function ProjetoDetalhePage({
 
   const progressoGeral = progressoProjeto(projeto.disciplinas.map((d) => d.status));
 
+  const diasAtraso = (() => {
+    if (!projeto.prazoFinal || projeto.situacao !== "em_andamento") return 0;
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const venc = new Date(projeto.prazoFinal);
+    venc.setHours(0, 0, 0, 0);
+    return Math.max(0, Math.floor((hoje.getTime() - venc.getTime()) / 86_400_000));
+  })();
+
   // Equipe derivada: responsáveis das disciplinas ∪ membros manuais (papel do membro prevalece).
-  const equipeMap = new Map<string, { nome: string; papel: string | null }>();
-  for (const d of disciplinas) {
+  const equipeMap = new Map<string, { nome: string; role: string; papel: string | null }>();
+  for (const d of projeto.disciplinas) {
     for (const r of d.responsaveis) {
-      if (!equipeMap.has(r.userId)) equipeMap.set(r.userId, { nome: r.name, papel: "projetista" });
+      if (!equipeMap.has(r.userId))
+        equipeMap.set(r.userId, { nome: r.user.name, role: r.user.role, papel: "projetista" });
     }
   }
   for (const m of projeto.membros) {
     const cur = equipeMap.get(m.userId);
-    equipeMap.set(m.userId, { nome: m.user.name, papel: m.papel ?? cur?.papel ?? null });
+    equipeMap.set(m.userId, {
+      nome: m.user.name,
+      role: m.user.role,
+      papel: m.papel ?? cur?.papel ?? null,
+    });
   }
-  const equipe = [...equipeMap.entries()].map(([userId, v]) => ({ userId, ...v }));
+  const onlineIds = new Set(usuariosOnline());
+  const equipe = [...equipeMap.entries()].map(([userId, v]) => ({
+    userId,
+    ...v,
+    online: onlineIds.has(userId),
+  }));
 
   return (
     <div className="space-y-6">
@@ -116,6 +138,11 @@ export default async function ProjetoDetalhePage({
             <h2 className="truncate text-2xl font-extrabold tracking-tight">{projeto.nome}</h2>
             <Badge variant="outline">{projeto.tipo === "licitacao" ? "Licitação" : "Particular"}</Badge>
             <Badge variant="outline">{SITUACAO_PROJETO_LABEL[projeto.situacao]}</Badge>
+            {diasAtraso > 0 && (
+              <Badge variant="destructive">
+                {diasAtraso} {diasAtraso === 1 ? "dia" : "dias"} de atraso
+              </Badge>
+            )}
           </div>
           <p className="text-sm text-muted-foreground">
             <Link href={`/clientes/${projeto.clienteId}`} className="hover:underline">
@@ -276,13 +303,29 @@ export default async function ProjetoDetalhePage({
           {equipe.length === 0 ? (
             <EmptyState icon={Users} title="Sem membros adicionais" />
           ) : (
-            <div className="flex flex-wrap gap-2">
-              {equipe.map((m) => (
-                <Badge key={m.userId} variant="outline">
-                  {m.nome}
-                  {m.papel ? ` · ${m.papel}` : ""}
-                </Badge>
-              ))}
+            <div className="flex flex-wrap gap-4">
+              {equipe.map((m) => {
+                const iniciais = m.nome
+                  .split(" ")
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((p) => p[0].toUpperCase())
+                  .join("");
+                return (
+                  <div key={m.userId} className="flex flex-col items-center gap-1 text-center">
+                    <Avatar>
+                      <AvatarFallback>{iniciais}</AvatarFallback>
+                      {m.online && (
+                        <AvatarBadge className="bg-success" title="Online" />
+                      )}
+                    </Avatar>
+                    <span className="max-w-[80px] truncate text-xs font-medium leading-tight">{m.nome.split(" ")[0]}</span>
+                    <span className="text-[10px] text-muted-foreground leading-none">
+                      {m.papel ?? ROLE_LABELS[m.role as keyof typeof ROLE_LABELS] ?? m.role}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>

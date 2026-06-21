@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
-import { GLOBAL_ROLES, type Role } from "@/lib/roles";
+import { GLOBAL_ROLES, INTERNAL_ROLES, type Role } from "@/lib/roles";
 
 type Viewer = { id: string; role: Role };
 
@@ -62,10 +62,11 @@ export async function listarProjetos(
     and.push({ disciplinas: { some: { nome: opts.disciplina } } });
   }
   if (opts?.q) {
+    const digits = opts.q.replace(/\D/g, "");
     and.push({
       OR: [
         { nome: { contains: opts.q, mode: "insensitive" } },
-        { codigo: { contains: opts.q.replace(/\D/g, "") } },
+        ...(digits ? [{ codigo: { contains: digits } }] : []),
         { cliente: { nome: { contains: opts.q, mode: "insensitive" } } },
       ],
     });
@@ -100,7 +101,7 @@ export async function obterProjeto(viewer: Viewer, id: string) {
       disciplinas: {
         orderBy: { ordem: "asc" },
         include: {
-          responsaveis: { include: { user: { select: { id: true, name: true } } } },
+          responsaveis: { include: { user: { select: { id: true, name: true, role: true } } } },
           revisoes: { orderBy: { numero: "desc" }, include: { autor: { select: { name: true } } } },
           uploads: {
             orderBy: [{ pacote: "asc" }, { createdAt: "desc" }],
@@ -148,10 +149,10 @@ export async function catalogoDisciplinas() {
   });
 }
 
-/** Usuários internos que podem ser membros/responsáveis. */
+/** Usuários elegíveis como membros/responsáveis de projeto (todos exceto cliente). */
 export async function usuariosInternos() {
   return prisma.user.findMany({
-    where: { ativo: true, role: { not: "cliente" } },
+    where: { ativo: true, role: { in: INTERNAL_ROLES } },
     select: { id: true, name: true, role: true },
     orderBy: { name: "asc" },
   });

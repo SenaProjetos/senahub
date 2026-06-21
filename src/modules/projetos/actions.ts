@@ -67,7 +67,9 @@ export const criarProjeto = defineAction(
         },
       });
     });
+    notificarNovosMembros(await ensureCanaisProjeto(projeto.id));
     revalidatePath("/projetos");
+    revalidatePath("/planejamento");
     return { id: projeto.id, codigo: projeto.codigo };
   },
 );
@@ -98,6 +100,7 @@ export const editarProjeto = defineAction(
     });
     revalidatePath("/projetos");
     revalidatePath(`/projetos/${id}`);
+    revalidatePath("/planejamento");
     return { id };
   },
 );
@@ -107,6 +110,8 @@ export const atualizarStatusDisciplina = defineAction(
   {
     modulo: "projetos",
     acao: "atualizar-status-disciplina",
+    recurso: "projetos",
+    permissao: "visualizar",
     entidade: "Disciplina",
     schema: atualizarStatusDisciplinaSchema,
     entidadeId: (d) => (d as { disciplinaId: string }).disciplinaId,
@@ -175,6 +180,8 @@ export const registrarRevisao = defineAction(
   {
     modulo: "projetos",
     acao: "registrar-revisao",
+    recurso: "projetos",
+    permissao: "visualizar",
     entidade: "RevisaoDisciplina",
     schema: registrarRevisaoSchema,
     entidadeId: (d) => (d as { id: string }).id,
@@ -300,6 +307,7 @@ export const duplicarProjeto = defineAction(
     notificarNovosMembros(await ensureCanaisProjeto(novo.id));
 
     revalidatePath("/projetos");
+    revalidatePath("/planejamento");
     return { id: novo.id, codigo: novo.codigo };
   },
 );
