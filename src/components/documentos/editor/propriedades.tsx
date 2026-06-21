@@ -102,6 +102,7 @@ export function Propriedades({
       {banda && elemento && (
         <PropsElemento
           bandaId={banda.id}
+          bandaTipo={banda.tipo}
           el={elemento}
           fonte={fonte}
           fontesHabilitadas={fontesHabilitadas}
@@ -437,6 +438,7 @@ function PropsBanda({
 
 function PropsElemento({
   bandaId,
+  bandaTipo,
   el,
   fonte,
   fontesHabilitadas,
@@ -444,6 +446,7 @@ function PropsElemento({
   dispatch,
 }: {
   bandaId: string;
+  bandaTipo: Banda["tipo"];
   el: Elemento;
   fonte: string;
   fontesHabilitadas: FonteTipografica[];
@@ -452,6 +455,9 @@ function PropsElemento({
 }) {
   const def = fonteDef(fonte);
   const ehDataset = fonte.startsWith("dataset:");
+  // [Pagina]/[Paginas] só fazem sentido nas bandas de rodapé (numeração via footer do PDF);
+  // no corpo o valor seria sempre 1/1, então o token só é oferecido em rodapePagina/rodape.
+  const ehRodape = bandaTipo === "rodapePagina" || bandaTipo === "rodape";
   const upd = (patch: Partial<Elemento>, commit = true) =>
     dispatch({ t: "updateElemento", bandaId, elementoId: el.id, patch, commit });
   const updEstilo = (patch: Partial<Elemento["estilo"]>) =>
@@ -487,6 +493,9 @@ function PropsElemento({
         ]
       : [];
 
+  // Restringe [Pagina]/[Paginas] às bandas de rodapé (não permitir no corpo).
+  const tokensVisiveis = ehRodape ? tokens : tokens.filter((t) => !t.valor.includes("[Pagina]"));
+
   return (
     <div className="space-y-3">
       <p className="text-xs font-semibold capitalize text-muted-foreground">{el.tipo}</p>
@@ -512,14 +521,14 @@ function PropsElemento({
               <code>[NumeroDocumento]</code>).
             </p>
           )}
-          {tokens.length > 0 && (
+          {tokensVisiveis.length > 0 && (
             <Campo label="Inserir campo">
               <Select value="" onValueChange={(v) => v && upd({ texto: el.texto + v })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Escolher token…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {tokens.map((t) => (
+                  {tokensVisiveis.map((t) => (
                     <SelectItem key={t.valor} value={t.valor}>
                       {t.label}
                     </SelectItem>
@@ -543,7 +552,7 @@ function PropsElemento({
         <ColunasEditor
           colunas={el.colunas ?? []}
           onChange={(colunas) => upd({ colunas })}
-          tokens={tokens}
+          tokens={tokensVisiveis}
         />
       )}
 

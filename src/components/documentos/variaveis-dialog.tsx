@@ -72,12 +72,12 @@ const ESPECIAIS: Token[] = [
   },
   {
     sintaxe: "[Pagina]",
-    descricao: "Número da página atual na geração do documento.",
+    descricao: "Número da página atual. Só pode ser inserido em bandas de rodapé (rodapé de página / rodapé do relatório), não no corpo.",
     exemplo: "[Pagina] de [Paginas]",
   },
   {
     sintaxe: "[Paginas]",
-    descricao: "Total de páginas do documento gerado.",
+    descricao: "Total de páginas. Disponível apenas nas bandas de rodapé.",
   },
 ];
 
