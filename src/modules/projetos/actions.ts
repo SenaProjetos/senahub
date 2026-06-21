@@ -243,9 +243,9 @@ export const definirMembros = defineAction(
 );
 
 /**
- * Duplica um projeto: novo código AAXXXX, nome + " (cópia)", mesmo cliente/tipo e as
- * disciplinas (nome/ordem/valor/prazo). NÃO copia uploads, revisões, pagamentos,
- * responsáveis nem membros — a cópia nasce "limpa" para uma nova execução.
+ * Duplica um projeto: novo código AAXXXX, nome + " (cópia)", mesmo cliente/tipo e
+ * disciplinas (nome/ordem/valor/prazo). Copia responsáveis, membros, EAP e composição
+ * de preço conforme as flags recebidas. Uploads/revisões/pagamentos nunca são copiados.
  */
 export const duplicarProjeto = defineAction(
   {
@@ -268,9 +268,39 @@ export const duplicarProjeto = defineAction(
         areaM2: true,
         endereco: true,
         prazoFinal: true,
+        membros: { select: { userId: true } },
         disciplinas: {
           orderBy: { ordem: "asc" },
-          select: { nome: true, valor: true, prazo: true, ordem: true },
+          select: {
+            id: true,
+            nome: true,
+            valor: true,
+            prazo: true,
+            ordem: true,
+            responsaveis: { select: { userId: true } },
+          },
+        },
+        eapTarefas: {
+          orderBy: { ordem: "asc" },
+          select: {
+            id: true,
+            parentId: true,
+            disciplinaId: true,
+            nome: true,
+            ordem: true,
+            inicioPrevisto: true,
+            fimPrevisto: true,
+            predecessoras: { select: { predecessoraId: true } },
+          },
+        },
+        composicaoPreco: {
+          select: {
+            observacao: true,
+            itens: {
+              orderBy: { ordem: "asc" },
+              select: { descricao: true, quantidade: true, valorUnitario: true, ordem: true },
+            },
+          },
         },
       },
     });
@@ -278,7 +308,7 @@ export const duplicarProjeto = defineAction(
 
     const novo = await prisma.$transaction(async (tx) => {
       const { ano, sequencial, codigo } = await proximoCodigoProjeto(tx);
-      return tx.projeto.create({
+      const criado = await tx.projeto.create({
         data: {
           ano,
           sequencial,
@@ -296,16 +326,88 @@ export const duplicarProjeto = defineAction(
               valor: d.valor,
               prazo: d.prazo,
               ordem: d.ordem,
-              // status fica no default (aguardando); sem responsáveis/uploads/revisões.
             })),
           },
         },
       });
+
+      // Mapa oldDisciplinaId → newDisciplinaId (por ordem, que é preservada).
+      const novasDisciplinas = await tx.disciplina.findMany({
+        where: { projetoId: criado.id },
+        orderBy: { ordem: "asc" },
+        select: { id: true, ordem: true },
+      });
+      const dMap = new Map<string, string>();
+      for (const orig of origem.disciplinas) {
+        const nova = novasDisciplinas.find((d) => d.ordem === orig.ordem);
+        if (nova) dMap.set(orig.id, nova.id);
+      }
+
+      if (input.copiarResponsaveis) {
+        const rows: { disciplinaId: string; userId: string }[] = [];
+        for (const d of origem.disciplinas) {
+          const newDId = dMap.get(d.id);
+          if (!newDId) continue;
+          for (const r of d.responsaveis) rows.push({ disciplinaId: newDId, userId: r.userId });
+        }
+        if (rows.length > 0) await tx.disciplinaResponsavel.createMany({ data: rows, skipDuplicates: true });
+      }
+
+      if (input.copiarMembros && origem.membros.length > 0) {
+        await tx.projetoMembro.createMany({
+          data: origem.membros.map((m) => ({ projetoId: criado.id, userId: m.userId })),
+          skipDuplicates: true,
+        });
+      }
+
+      if (input.copiarEap && origem.eapTarefas.length > 0) {
+        const tMap = new Map<string, string>();
+        for (const t of origem.eapTarefas) tMap.set(t.id, crypto.randomUUID());
+        await tx.eapTarefa.createMany({
+          data: origem.eapTarefas.map((t) => ({
+            id: tMap.get(t.id)!,
+            projetoId: criado.id,
+            parentId: t.parentId ? (tMap.get(t.parentId) ?? null) : null,
+            disciplinaId: t.disciplinaId ? (dMap.get(t.disciplinaId) ?? null) : null,
+            nome: t.nome,
+            ordem: t.ordem,
+            progresso: 0,
+            inicioPrevisto: t.inicioPrevisto,
+            fimPrevisto: t.fimPrevisto,
+          })),
+        });
+        const deps: { tarefaId: string; predecessoraId: string }[] = [];
+        for (const t of origem.eapTarefas) {
+          for (const dep of t.predecessoras) {
+            const newT = tMap.get(t.id);
+            const newP = tMap.get(dep.predecessoraId);
+            if (newT && newP) deps.push({ tarefaId: newT, predecessoraId: newP });
+          }
+        }
+        if (deps.length > 0) await tx.eapDependencia.createMany({ data: deps, skipDuplicates: true });
+      }
+
+      if (input.copiarComposicao && origem.composicaoPreco) {
+        await tx.projetoComposicaoPreco.create({
+          data: {
+            projetoId: criado.id,
+            observacao: origem.composicaoPreco.observacao,
+            itens: {
+              create: origem.composicaoPreco.itens.map((item) => ({
+                descricao: item.descricao,
+                quantidade: item.quantidade,
+                valorUnitario: item.valorUnitario,
+                ordem: item.ordem,
+              })),
+            },
+          },
+        });
+      }
+
+      return criado;
     });
 
-    // Canais de chat do projeto (idempotente), igual ao fluxo de conversão de lead.
     notificarNovosMembros(await ensureCanaisProjeto(novo.id));
-
     revalidatePath("/projetos");
     revalidatePath("/planejamento");
     return { id: novo.id, codigo: novo.codigo };

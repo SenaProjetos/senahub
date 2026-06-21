@@ -60,6 +60,10 @@ export const membrosProjetoSchema = z.object({
 
 export const duplicarProjetoSchema = z.object({
   id: z.string().min(1),
+  copiarResponsaveis: z.boolean().default(true),
+  copiarMembros: z.boolean().default(true),
+  copiarEap: z.boolean().default(false),
+  copiarComposicao: z.boolean().default(false),
 });
 
 export type CriarProjetoInput = z.infer<typeof criarProjetoSchema>;
