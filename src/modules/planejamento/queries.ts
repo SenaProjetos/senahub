@@ -220,7 +220,7 @@ export async function matrizRecursos() {
       },
     }),
     prisma.projeto.findMany({
-      where: { situacao: "em_andamento" },
+      where: { situacao: { in: ["em_andamento", "concluido"] } },
       orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
       select: { id: true, codigo: true, nome: true },
     }),
