@@ -17,6 +17,7 @@ export default async function PreferenciasPage() {
       notifCertidao={prefs.notif_certidao !== false}
       notifLicitacao={prefs.notif_licitacao !== false}
       notifDigestSemanal={prefs.notif_digest_semanal !== false}
+      notifRiscoProjeto={prefs.notif_risco_projeto !== false}
     />
   );
 }

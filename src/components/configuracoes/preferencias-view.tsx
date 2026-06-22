@@ -15,6 +15,7 @@ export function PreferenciasView({
   notifCertidao: notifCertidaoInicial,
   notifLicitacao: notifLicitacaoInicial,
   notifDigestSemanal: notifDigestSemanalInicial,
+  notifRiscoProjeto: notifRiscoProjetoInicial,
 }: {
   somChat: boolean;
   mostrarRecibos: boolean;
@@ -23,6 +24,7 @@ export function PreferenciasView({
   notifCertidao: boolean;
   notifLicitacao: boolean;
   notifDigestSemanal: boolean;
+  notifRiscoProjeto: boolean;
 }) {
   const [somChat, setSomChat] = useState(somChatInicial);
   const [mostrarRecibos, setMostrarRecibos] = useState(recibosInicial);
@@ -31,6 +33,7 @@ export function PreferenciasView({
   const [notifCertidao, setNotifCertidao] = useState(notifCertidaoInicial);
   const [notifLicitacao, setNotifLicitacao] = useState(notifLicitacaoInicial);
   const [notifDigestSemanal, setNotifDigestSemanal] = useState(notifDigestSemanalInicial);
+  const [notifRiscoProjeto, setNotifRiscoProjeto] = useState(notifRiscoProjetoInicial);
   const [, start] = useTransition();
 
   function salvar(chave: string, valor: boolean) {
@@ -93,6 +96,13 @@ export function PreferenciasView({
       descricao: "Notificação toda segunda com entregas, a receber e a pagar.",
       valor: notifDigestSemanal,
       set: setNotifDigestSemanal,
+    },
+    {
+      chave: "notif_risco_projeto",
+      titulo: "Projetos em atraso",
+      descricao: "Alertas semanais sobre projetos com prazo vencido.",
+      valor: notifRiscoProjeto,
+      set: setNotifRiscoProjeto,
     },
   ];
 

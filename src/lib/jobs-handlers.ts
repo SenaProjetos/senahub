@@ -527,12 +527,16 @@ export async function alertaRiscoProjeto(): Promise<number> {
   let enviados = 0;
   for (const p of atrasados) {
     const diasAtraso = differenceInCalendarDays(hoje, p.prazoFinal!);
-    await notificarMuitos(gestoresIds, {
-      titulo: "Projeto em atraso",
-      corpo: `${p.codigo} — ${p.nome} está ${diasAtraso} dia(s) acima do prazo.`,
-      href: `/projetos/${p.id}`,
-      tag: `risco-prazo-${p.id}-${hoje.toISOString().slice(0, 10)}`,
-    });
+    await notificarMuitos(
+      gestoresIds,
+      {
+        titulo: "Projeto em atraso",
+        corpo: `${p.codigo} — ${p.nome} está ${diasAtraso} dia(s) acima do prazo.`,
+        href: `/projetos/${p.id}`,
+        tag: `risco-prazo-${p.id}-${hoje.toISOString().slice(0, 10)}`,
+      },
+      { categoria: "risco_projeto" },
+    );
     enviados++;
   }
   return enviados;
@@ -594,12 +598,16 @@ export async function statusReportSemanal(): Promise<number> {
         ? ` Atrasadas: ${atrasadas.map((d) => d.nome).join(", ")}.`
         : " Sem atrasos.");
 
-    await notificarMuitos([...uids], {
-      titulo: "Resumo semanal do projeto",
-      corpo,
-      href: `/projetos/${p.id}`,
-      tag: `report-${p.id}-${hoje.toISOString().slice(0, 10)}`,
-    });
+    await notificarMuitos(
+      [...uids],
+      {
+        titulo: "Resumo semanal do projeto",
+        corpo,
+        href: `/projetos/${p.id}`,
+        tag: `report-${p.id}-${hoje.toISOString().slice(0, 10)}`,
+      },
+      { categoria: "digest_semanal" },
+    );
     enviados++;
   }
   return enviados;
