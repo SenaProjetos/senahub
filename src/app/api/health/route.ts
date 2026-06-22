@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { smtpConfigurado } from "@/lib/mail";
+import fs from "fs";
 
 export const dynamic = "force-dynamic";
 
@@ -9,18 +11,32 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   const inicio = Date.now();
+  let dbStatus: "ok" | "erro" = "ok";
+
   try {
     await prisma.$queryRaw`SELECT 1`;
-    return NextResponse.json({
-      status: "ok",
-      db: "ok",
+  } catch {
+    dbStatus = "erro";
+  }
+
+  const storagePath = process.env.STORAGE_BASE_PATH ?? "";
+  const storageOk = storagePath ? fs.existsSync(storagePath) : false;
+
+  const chromePath = process.env.CHROME_PATH ?? "";
+  const chromeOk = chromePath ? fs.existsSync(chromePath) : false;
+
+  const status = dbStatus === "ok" ? "ok" : "degraded";
+
+  return NextResponse.json(
+    {
+      status,
+      db: dbStatus,
+      storage: storagePath ? (storageOk ? "ok" : "erro") : "não configurado",
+      chrome: chromePath ? (chromeOk ? "ok" : "erro") : "não configurado",
+      smtp: smtpConfigurado() ? "configurado" : "não configurado",
       latenciaMs: Date.now() - inicio,
       timestamp: new Date().toISOString(),
-    });
-  } catch {
-    return NextResponse.json(
-      { status: "degraded", db: "erro", timestamp: new Date().toISOString() },
-      { status: 503 },
-    );
-  }
+    },
+    { status: status === "ok" ? 200 : 503 },
+  );
 }

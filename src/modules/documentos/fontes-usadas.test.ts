@@ -5,7 +5,7 @@ import type { DocSchema } from "./schema";
 function schema(bandas: Partial<DocSchema["bandas"][number]>[] = []): DocSchema {
   return {
     versao: 1,
-    pagina: { formato: "A4", orientacao: "retrato", margem: { topo: 0, baixo: 0, esquerda: 0, direita: 0 } },
+    pagina: { formato: "A4", orientacao: "retrato", largura: 794, altura: 1123, margem: { topo: 0, baixo: 0, esquerda: 0, direita: 0 } },
     bandas: bandas.map((b) => ({
       id: "b1",
       tipo: "detalhe",
