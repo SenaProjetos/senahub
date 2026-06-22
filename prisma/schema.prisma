@@ -2657,6 +2657,8 @@ model ServicoTerceirizado {
   descricao    String
   valor        Decimal?    @db.Decimal(14, 2)
   status       String      @default("contratado") // contratado | concluido | cancelado
+  /// Vínculo com o Financeiro: despesa prevista (contratado) / confirmada (concluido).
+  lancamentoId String?     @unique
   createdAt    DateTime    @default(now())
 
   @@index([projetoId])

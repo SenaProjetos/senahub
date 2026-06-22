@@ -5,14 +5,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificar } from "@/lib/notificar";
-
-/** Código do plano de contas por tipo de profissional (ver seed). */
-const CATEGORIA_POR_TIPO: Record<string, string> = {
-  projetista_pj: "2.01",
-  freelancer: "2.02",
-  clt: "2.03",
-  estagiario: "2.04",
-};
+import { CATEGORIA_POR_TIPO } from "@/modules/financeiro/custo/lancamento-custo";
 
 const pagarSchema = z.object({
   id: z.string().min(1),
@@ -22,9 +15,9 @@ const pagarSchema = z.object({
 });
 
 /**
- * Efetiva o pagamento ao projetista: marca pago e cria um Lançamento
- * (despesa CONFIRMADA) na categoria correta → entra no caixa e na DRE.
- * Fluxo B da regra de ouro (continuação).
+ * Efetiva o pagamento ao projetista: marca pago e CONFIRMA o lançamento de despesa
+ * previsto criado na validação da entrega → entra no caixa e na DRE. Se (por dado
+ * legado) não houver lançamento previsto, cria um já confirmado. Sem duplicação.
  */
 export const pagarProjetista = defineAction(
   {
@@ -47,32 +40,53 @@ export const pagarProjetista = defineAction(
     if (!pag) throw new ActionError("Pagamento não encontrado.");
     if (pag.status === "pago") throw new ActionError("Pagamento já efetivado.");
 
-    const codigo = CATEGORIA_POR_TIPO[pag.tipoProfissional] ?? "2.01";
-    const categoria = await prisma.categoriaFinanceira.findUnique({ where: { codigo } });
-    if (!categoria) throw new ActionError(`Categoria ${codigo} ausente no plano de contas.`);
-
     const quando = i.data ? new Date(i.data) : new Date();
 
     await prisma.$transaction(async (tx) => {
-      const lanc = await tx.lancamento.create({
-        data: {
-          tipo: "despesa",
-          descricao: `Projetista ${pag.projetista.name} — ${pag.disciplina.nome} (${pag.disciplina.projeto.codigo})`,
-          valor: pag.valor,
-          status: "confirmado",
-          data: quando,
-          dataConfirmacao: quando,
-          categoriaId: categoria.id,
-          contaId: i.contaId || null,
-          formaId: i.formaId || null,
-          projetoId: pag.disciplina.projetoId,
-          pagamentoProjetistaId: pag.id,
-          autorId: user.id,
-        },
-      });
+      // Lançamento previsto criado na validação da entrega.
+      const previsto = pag.lancamentoId
+        ? await tx.lancamento.findUnique({ where: { id: pag.lancamentoId } })
+        : await tx.lancamento.findUnique({ where: { pagamentoProjetistaId: pag.id } });
+
+      let lancamentoId: string;
+      if (previsto && previsto.status !== "cancelado") {
+        // Confirma o previsto existente (sem criar um segundo).
+        await tx.lancamento.update({
+          where: { id: previsto.id },
+          data: {
+            status: "confirmado",
+            dataConfirmacao: quando,
+            contaId: i.contaId || previsto.contaId,
+            formaId: i.formaId || previsto.formaId,
+          },
+        });
+        lancamentoId = previsto.id;
+      } else {
+        // Fallback (dado legado sem previsto): cria já confirmado.
+        const codigo = CATEGORIA_POR_TIPO[pag.tipoProfissional] ?? CATEGORIA_POR_TIPO.projetista_pj;
+        const categoria = await tx.categoriaFinanceira.findUnique({ where: { codigo } });
+        if (!categoria) throw new ActionError(`Categoria ${codigo} ausente no plano de contas.`);
+        const lanc = await tx.lancamento.create({
+          data: {
+            tipo: "despesa",
+            descricao: `Projetista ${pag.projetista.name} — ${pag.disciplina.nome} (${pag.disciplina.projeto.codigo})`,
+            valor: pag.valor,
+            status: "confirmado",
+            data: quando,
+            dataConfirmacao: quando,
+            categoriaId: categoria.id,
+            contaId: i.contaId || null,
+            formaId: i.formaId || null,
+            projetoId: pag.disciplina.projetoId,
+            pagamentoProjetistaId: pag.id,
+            autorId: user.id,
+          },
+        });
+        lancamentoId = lanc.id;
+      }
       await tx.pagamentoProjetista.update({
         where: { id: pag.id },
-        data: { status: "pago", pagoEm: quando, lancamentoId: lanc.id },
+        data: { status: "pago", pagoEm: quando, lancamentoId },
       });
     });
 

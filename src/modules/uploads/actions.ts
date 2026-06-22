@@ -6,6 +6,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
+import { criarDespesaProjetistaPrevista } from "@/modules/financeiro/custo/lancamento-custo";
 
 const validarSchema = z.object({ disciplinaId: z.string().min(1) });
 
@@ -70,7 +71,7 @@ export const validarEntrega = defineAction(
         const r = disciplina.responsaveis[i];
         // Sobra de centavos vai para o primeiro responsável.
         const valor = i === 0 ? Number((valorTotal - valorBase * (n - 1)).toFixed(2)) : valorBase;
-        await tx.pagamentoProjetista.create({
+        const pag = await tx.pagamentoProjetista.create({
           data: {
             disciplinaId: disciplina.id,
             projetistaId: r.userId,
@@ -80,6 +81,21 @@ export const validarEntrega = defineAction(
             liberadoEm: agora,
           },
         });
+        // Custo entra no financeiro como despesa PREVISTA já na liberação (pagar = confirmar).
+        if (valor > 0) {
+          const lancamentoId = await criarDespesaProjetistaPrevista(tx, {
+            pagamentoId: pag.id,
+            valor,
+            tipoProfissional: r.user.role,
+            projetistaNome: r.user.name,
+            disciplinaNome: disciplina.nome,
+            projetoId: disciplina.projeto.id,
+            projetoCodigo: disciplina.projeto.codigo,
+            autorId: user.id,
+            quando: agora,
+          });
+          await tx.pagamentoProjetista.update({ where: { id: pag.id }, data: { lancamentoId } });
+        }
       }
     });
 
@@ -110,6 +126,8 @@ export const validarEntrega = defineAction(
     );
 
     revalidatePath(href);
+    revalidatePath("/financeiro/lancamentos");
+    revalidatePath("/financeiro/contas-a-pagar");
     return { disciplinaId: disciplina.id, pagamentos: n };
   },
 );
