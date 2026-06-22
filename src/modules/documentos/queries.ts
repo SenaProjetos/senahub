@@ -92,6 +92,26 @@ export async function documentosGerados(limite = 50) {
   });
 }
 
+/** Carrega um DocumentoGerado pelo id (snapshot imutável para reabrir). */
+export async function obterDocumentoGerado(id: string) {
+  return prisma.documentoGerado.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      modeloId: true,
+      modeloNome: true,
+      fonte: true,
+      params: true,
+      serie: true,
+      numero: true,
+      geradoPorNome: true,
+      createdAt: true,
+      schemaSnapshot: true,
+      dadosSnapshot: true,
+    },
+  });
+}
+
 /** Opções para os parâmetros das fontes (selects do preview). */
 export async function opcoesParametros() {
   const [projetos, usuarios, propostas, clientes, licitacoes, holerites] = await Promise.all([

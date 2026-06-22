@@ -14,15 +14,6 @@ function paramsResumo(params: unknown): string {
   return e.map(([k, v]) => `${k}=${v}`).join(" · ");
 }
 
-function previewHref(modeloId: string | null, params: unknown): string | null {
-  if (!modeloId) return null;
-  const qs =
-    params && typeof params === "object"
-      ? new URLSearchParams(params as Record<string, string>).toString()
-      : "";
-  return `/documentos/${modeloId}/preview${qs ? `?${qs}` : ""}`;
-}
-
 export default async function DocumentosGeradosPage() {
   await requirePermission("documentos", "ver");
   const gerados = await documentosGerados();
@@ -63,42 +54,38 @@ export default async function DocumentosGeradosPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {gerados.map((g) => {
-                    const href = previewHref(g.modeloId, g.params);
-                    return (
-                      <tr key={g.id} className="hover:bg-muted/40">
-                        <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-primary">
-                          {g.numero != null
-                            ? `${g.serie ?? "DOC"}-${String(g.createdAt.getFullYear()).slice(2)}${String(g.numero).padStart(4, "0")}`
-                            : "—"}
-                        </td>
-                        <td className="px-3 py-2 font-medium">{g.modeloNome}</td>
-                        <td className="px-3 py-2 text-muted-foreground">{g.fonte ?? "—"}</td>
-                        <td className="max-w-[260px] truncate px-3 py-2 font-mono text-xs text-muted-foreground">
-                          {paramsResumo(g.params)}
-                        </td>
-                        <td className="px-3 py-2 text-muted-foreground">{g.geradoPorNome}</td>
-                        <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-muted-foreground">
-                          {g.createdAt.toLocaleString("pt-BR", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          {href ? (
-                            <Link href={href} className="text-xs text-primary hover:underline">
-                              Reabrir
-                            </Link>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">modelo removido</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {gerados.map((g) => (
+                    <tr key={g.id} className="hover:bg-muted/40">
+                      <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-primary">
+                        {g.numero != null
+                          ? `${g.serie ?? "DOC"}-${String(g.createdAt.getFullYear()).slice(2)}${String(g.numero).padStart(4, "0")}`
+                          : "—"}
+                      </td>
+                      <td className="px-3 py-2 font-medium">{g.modeloNome}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{g.fonte ?? "—"}</td>
+                      <td className="max-w-[260px] truncate px-3 py-2 font-mono text-xs text-muted-foreground">
+                        {paramsResumo(g.params)}
+                      </td>
+                      <td className="px-3 py-2 text-muted-foreground">{g.geradoPorNome}</td>
+                      <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-muted-foreground">
+                        {g.createdAt.toLocaleString("pt-BR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <Link
+                          href={`/documentos/gerados/${g.id}`}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          Reabrir
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
