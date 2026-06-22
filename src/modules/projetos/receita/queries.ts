@@ -4,12 +4,15 @@ import { prisma } from "@/lib/prisma";
 /** Tag que identifica os lançamentos de receita gerados como parcelas de contrato. */
 export const TAG_PARCELA_CONTRATO = "contrato";
 
+/** Prefixo de tag que vincula um recebível a uma disciplina faturada por entrega. */
+export const TAG_ENTREGA_PREFIXO = "entrega:";
+
 /**
  * Resumo de receita/contrato de um projeto: valor de contrato, total da composição
  * de preço e as parcelas (recebíveis = lançamentos de receita marcados como contrato).
  */
 export async function receitaProjeto(projetoId: string) {
-  const [projeto, composicao, parcelas] = await Promise.all([
+  const [projeto, composicao, parcelas, disciplinas] = await Promise.all([
     prisma.projeto.findUnique({ where: { id: projetoId }, select: { valorContrato: true, tipo: true } }),
     prisma.projetoComposicaoPreco.findUnique({
       where: { projetoId },
@@ -18,7 +21,12 @@ export async function receitaProjeto(projetoId: string) {
     prisma.lancamento.findMany({
       where: { projetoId, tipo: "receita", tags: { has: TAG_PARCELA_CONTRATO }, status: { not: "cancelado" } },
       orderBy: [{ vencimento: "asc" }, { data: "asc" }],
-      select: { id: true, descricao: true, valor: true, valorEfetivo: true, status: true, vencimento: true, data: true },
+      select: { id: true, descricao: true, valor: true, valorEfetivo: true, status: true, vencimento: true, data: true, tags: true },
+    }),
+    prisma.disciplina.findMany({
+      where: { projetoId },
+      orderBy: { ordem: "asc" },
+      select: { id: true, nome: true, valor: true, status: true },
     }),
   ]);
 
@@ -37,6 +45,12 @@ export async function receitaProjeto(projetoId: string) {
   const valorContrato = projeto?.valorContrato != null ? Number(projeto.valorContrato) : null;
   const faturadoTotal = previsto + confirmado;
 
+  // Disciplinas já faturadas por entrega (tag entrega:<disciplinaId> em algum recebível).
+  const faturadas = new Set<string>();
+  for (const p of parcelas) {
+    for (const t of p.tags) if (t.startsWith(TAG_ENTREGA_PREFIXO)) faturadas.add(t.slice(TAG_ENTREGA_PREFIXO.length));
+  }
+
   return {
     valorContrato,
     tipo: projeto?.tipo ?? "particular",
@@ -53,5 +67,15 @@ export async function receitaProjeto(projetoId: string) {
     faturadoTotal,
     // Quanto do contrato ainda não virou parcela (recebível).
     aFaturar: valorContrato != null ? Math.round((valorContrato - faturadoTotal) * 100) / 100 : null,
+    // Disciplinas faturáveis por entrega (com valor), marcando as já faturadas.
+    disciplinas: disciplinas
+      .filter((d) => d.valor != null && Number(d.valor) > 0)
+      .map((d) => ({
+        id: d.id,
+        nome: d.nome,
+        valor: Number(d.valor),
+        status: d.status,
+        faturada: faturadas.has(d.id),
+      })),
   };
 }

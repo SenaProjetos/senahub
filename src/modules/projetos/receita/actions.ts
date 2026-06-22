@@ -5,7 +5,7 @@ import { z } from "zod";
 import { addMonths } from "date-fns";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { TAG_PARCELA_CONTRATO } from "@/modules/projetos/receita/queries";
+import { TAG_PARCELA_CONTRATO, TAG_ENTREGA_PREFIXO } from "@/modules/projetos/receita/queries";
 import { dividirEmParcelas } from "@/modules/projetos/receita/parcelas";
 
 /** Categoria de receita por tipo de projeto (ver seed PLANO_CONTAS). */
@@ -106,6 +106,60 @@ export const gerarParcelas = defineAction(
 
     rev(i.projetoId);
     return { projetoId: i.projetoId, parcelas: n };
+  },
+);
+
+/**
+ * N-26: fatura uma disciplina entregue, criando uma receita PREVISTA com o valor da
+ * disciplina (recebível). Idempotente por disciplina (tag entrega:<id> evita duplicar).
+ */
+export const faturarEntrega = defineAction(
+  {
+    modulo: "financeiro",
+    acao: "faturar-entrega",
+    recurso: "financeiro",
+    permissao: "gerir",
+    entidade: "Lancamento",
+    schema: z.object({ disciplinaId: z.string().min(1) }),
+    entidadeId: (d) => (d as { disciplinaId: string }).disciplinaId,
+  },
+  async (i, { user }) => {
+    const disciplina = await prisma.disciplina.findUnique({
+      where: { id: i.disciplinaId },
+      select: { nome: true, valor: true, projeto: { select: { id: true, tipo: true, codigo: true } } },
+    });
+    if (!disciplina) throw new ActionError("Disciplina não encontrada.");
+    const valor = disciplina.valor != null ? Number(disciplina.valor) : 0;
+    if (valor <= 0) throw new ActionError("Disciplina sem valor para faturar.");
+
+    const tagEntrega = `${TAG_ENTREGA_PREFIXO}${i.disciplinaId}`;
+    const jaFaturada = await prisma.lancamento.findFirst({
+      where: { tipo: "receita", status: { not: "cancelado" }, tags: { has: tagEntrega } },
+      select: { id: true },
+    });
+    if (jaFaturada) throw new ActionError("Esta disciplina já foi faturada.");
+
+    const codigoCat = CATEGORIA_RECEITA[disciplina.projeto.tipo] ?? CATEGORIA_RECEITA.particular;
+    const categoria = await prisma.categoriaFinanceira.findUnique({ where: { codigo: codigoCat } });
+    if (!categoria) throw new ActionError(`Categoria ${codigoCat} ausente no plano de contas.`);
+
+    const agora = new Date();
+    await prisma.lancamento.create({
+      data: {
+        tipo: "receita",
+        descricao: `Faturamento — ${disciplina.nome} (${disciplina.projeto.codigo})`,
+        valor,
+        status: "previsto",
+        data: agora,
+        vencimento: agora,
+        categoriaId: categoria.id,
+        projetoId: disciplina.projeto.id,
+        tags: [TAG_PARCELA_CONTRATO, tagEntrega],
+        autorId: user.id,
+      },
+    });
+    rev(disciplina.projeto.id);
+    return { disciplinaId: i.disciplinaId };
   },
 );
 

@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Receipt, Wand2, Trash2 } from "lucide-react";
-import { definirValorContrato, gerarParcelas, limparParcelas } from "@/modules/projetos/receita/actions";
+import { definirValorContrato, gerarParcelas, limparParcelas, faturarEntrega } from "@/modules/projetos/receita/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +22,7 @@ import {
 import { brl } from "@/lib/utils";
 
 type Parcela = { id: string; descricao: string; valor: number; status: string; vencimento: string };
+type DisciplinaFaturavel = { id: string; nome: string; valor: number; status: string; faturada: boolean };
 type Receita = {
   valorContrato: number | null;
   totalComposicao: number;
@@ -30,6 +31,7 @@ type Receita = {
   faturadoConfirmado: number;
   faturadoTotal: number;
   aFaturar: number | null;
+  disciplinas: DisciplinaFaturavel[];
 };
 
 export function ReceitaContratoCard({ projetoId, receita }: { projetoId: string; receita: Receita }) {
@@ -55,6 +57,16 @@ export function ReceitaContratoCard({ projetoId, receita }: { projetoId: string;
       const r = await limparParcelas({ projetoId });
       if (r.ok) {
         toast.success(`${r.data.removidas} parcela(s) prevista(s) removida(s).`);
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  function faturar(disciplinaId: string) {
+    start(async () => {
+      const r = await faturarEntrega({ disciplinaId });
+      if (r.ok) {
+        toast.success("Entrega faturada — recebível previsto criado.");
         router.refresh();
       } else toast.error(r.error);
     });
@@ -142,6 +154,32 @@ export function ReceitaContratoCard({ projetoId, receita }: { projetoId: string;
               </li>
             ))}
           </ul>
+        )}
+
+        {/* N-26: faturar por entrega (alternativa às parcelas) */}
+        {r.disciplinas.length > 0 && (
+          <div className="space-y-1.5 border-t pt-3">
+            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+              Faturar por entrega
+            </p>
+            <ul className="divide-y text-sm">
+              {r.disciplinas.map((d) => (
+                <li key={d.id} className="flex items-center justify-between gap-3 py-1.5">
+                  <span className="truncate">
+                    {d.nome}
+                    <span className="ml-2 font-mono text-xs text-muted-foreground">{brl(d.valor)}</span>
+                  </span>
+                  {d.faturada ? (
+                    <StatusBadge tone="success">faturada</StatusBadge>
+                  ) : (
+                    <Button variant="ghost" size="sm" onClick={() => faturar(d.id)} disabled={pending}>
+                      <Receipt className="size-3.5" /> Faturar
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </CardContent>
 
