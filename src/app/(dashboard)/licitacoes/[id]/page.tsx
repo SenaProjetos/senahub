@@ -12,7 +12,9 @@ import { listarChecklistModelos } from "@/modules/licitacoes/habilitacao/queries
 import { listarResponsaveisTecnicos } from "@/modules/licitacoes/tecnico/queries";
 import { listarSancoesProprias } from "@/modules/licitacoes/sancoes/queries";
 import { sancaoAtiva } from "@/modules/licitacoes/sancoes/sancoes";
+import { modelosPorFonte } from "@/modules/documentos/queries";
 import { LicitacaoDetailView } from "@/components/licitacoes/licitacao-detail-view";
+import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 
 export const metadata: Metadata = { title: "Licitação" };
 
@@ -28,7 +30,7 @@ export default async function LicitacaoDetalhePage({
   const lic = await obterLicitacao(id);
   if (!lic) notFound();
 
-  const [clientes, modalidades, modelos, certidoes, rts, fornecedores, proprias] =
+  const [clientes, modalidades, modelos, certidoes, rts, fornecedores, proprias, modelosDoc] =
     await Promise.all([
       listarClientes({ incluirInativos: false }),
       nomesModalidadesAtivas(),
@@ -41,6 +43,7 @@ export default async function LicitacaoDetalhePage({
         select: { id: true, nome: true },
       }),
       listarSancoesProprias(),
+      modelosPorFonte("licitacao"),
     ]);
 
   const hojeISO = new Date().toISOString().slice(0, 10);
@@ -56,12 +59,15 @@ export default async function LicitacaoDetalhePage({
 
   return (
     <div className="space-y-4">
-      <Link
-        href="/licitacoes"
-        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-3" /> Licitações
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          href="/licitacoes"
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="size-3" /> Licitações
+        </Link>
+        <GerarDocumentoButton modelos={modelosDoc} paramId="licitacaoId" valor={id} />
+      </div>
       <LicitacaoDetailView
         lic={lic}
         podeGerir={podeGerir}
