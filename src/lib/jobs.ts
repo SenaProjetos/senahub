@@ -21,6 +21,7 @@ import {
   lembreteInputsCliente,
   alertaRiscoProjeto,
   statusReportSemanal,
+  fecharBancoHorasMesAnterior,
 } from "@/lib/jobs-handlers";
 
 let boss: PgBoss | null = null;
@@ -149,6 +150,14 @@ export async function startJobs(): Promise<PgBoss> {
       fila: "pncp-import",
       cron: "0 6 * * *", // diário 06:00 — importa editais do PNCP (no-op se modo != "api" ou sem palavras-chave)
       handler: importarPncpDiario,
+    },
+    {
+      fila: "fechar-banco-horas",
+      cron: "0 2 1 * *", // dia 1 às 02:00 — fecha banco de horas do mês anterior
+      handler: async () => {
+        const n = await fecharBancoHorasMesAnterior();
+        if (n > 0) console.log(`[banco-horas] fechamento automático: ${n} colaborador(es).`);
+      },
     },
   ];
 
