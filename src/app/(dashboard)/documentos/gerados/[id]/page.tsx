@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { obterDocumentoGerado } from "@/modules/documentos/queries";
 import { docSchemaZ, docVazio } from "@/modules/documentos/schema";
 import { DocRender } from "@/components/documentos/doc-render";
+import { Button } from "@/components/ui/button";
 import { formatarData } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Documento gerado" };
@@ -67,6 +68,15 @@ export default async function DocumentoGeradoPage({
             Gerado por {g.geradoPorNome} em {formatarData(g.createdAt)} · snapshot imutável
           </p>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          render={
+            <Link href={`/api/documentos/gerados/${id}/pdf`} target="_blank" aria-label="Baixar PDF" />
+          }
+        >
+          <Download className="size-4" /> PDF
+        </Button>
       </div>
 
       <div className="doc-print-area overflow-auto">
