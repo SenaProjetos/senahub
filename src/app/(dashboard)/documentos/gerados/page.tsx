@@ -77,12 +77,22 @@ export default async function DocumentosGeradosPage() {
                         })}
                       </td>
                       <td className="px-3 py-2 text-right">
-                        <Link
-                          href={`/documentos/gerados/${g.id}`}
-                          className="text-xs text-primary hover:underline"
-                        >
-                          Reabrir
-                        </Link>
+                        <div className="flex items-center justify-end gap-3">
+                          <Link
+                            href={`/api/documentos/gerados/${g.id}/pdf`}
+                            target="_blank"
+                            className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+                            title={g.arquivoPath ? "PDF em cache" : "Gerar PDF"}
+                          >
+                            PDF
+                          </Link>
+                          <Link
+                            href={`/documentos/gerados/${g.id}`}
+                            className="text-xs text-primary hover:underline"
+                          >
+                            Reabrir
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   ))}

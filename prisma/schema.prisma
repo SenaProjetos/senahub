@@ -2544,6 +2544,8 @@ model DocumentoGerado {
   /// Numeração automática (sequência por série). Ex.: série "REL", número 142.
   serie          String?
   numero         Int?
+  /// Caminho do PDF salvo em storage (opcional; setado quando PDF é gerado e salvo automaticamente).
+  arquivoPath    String?
   createdAt      DateTime @default(now())
 
   @@index([modeloId])

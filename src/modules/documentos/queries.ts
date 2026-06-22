@@ -88,6 +88,7 @@ export async function documentosGerados(limite = 50) {
       numero: true,
       geradoPorNome: true,
       createdAt: true,
+      arquivoPath: true,
     },
   });
 }
@@ -108,6 +109,7 @@ export async function obterDocumentoGerado(id: string) {
       createdAt: true,
       schemaSnapshot: true,
       dadosSnapshot: true,
+      arquivoPath: true,
     },
   });
 }

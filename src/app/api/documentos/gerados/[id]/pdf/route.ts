@@ -1,4 +1,6 @@
 import puppeteer from "puppeteer-core";
+import path from "path";
+import fs from "fs";
 import { getSession } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -18,9 +20,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const { id } = await params;
   const g = await prisma.documentoGerado.findUnique({
     where: { id },
-    select: { modeloNome: true, schemaSnapshot: true },
+    select: { modeloNome: true, schemaSnapshot: true, arquivoPath: true },
   });
   if (!g) return new Response("Documento não encontrado", { status: 404 });
+
+  // Se o PDF já foi salvo anteriormente, servir direto do storage.
+  if (g.arquivoPath && fs.existsSync(g.arquivoPath)) {
+    const buf = fs.readFileSync(g.arquivoPath);
+    return new Response(buf, {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `inline; filename="${encodeURIComponent(g.modeloNome)}.pdf"`,
+      },
+    });
+  }
 
   const schemaParsed = docSchemaZ.safeParse(g.schemaSnapshot);
   const pagina = schemaParsed.success ? schemaParsed.data.pagina : null;
@@ -65,6 +78,24 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           }
         : { margin: { top: "0", right: "0", bottom: "0", left: "0" } }),
     });
+
+    // Salvar no storage se configurado.
+    const storageBase = process.env.STORAGE_BASE_PATH;
+    if (storageBase) {
+      try {
+        const dir = path.join(storageBase, "documentos", "gerados");
+        fs.mkdirSync(dir, { recursive: true });
+        const filePath = path.join(dir, `${id}.pdf`);
+        fs.writeFileSync(filePath, pdf);
+        await prisma.documentoGerado.update({
+          where: { id },
+          data: { arquivoPath: filePath },
+        });
+      } catch {
+        // Falha ao salvar não impede download
+      }
+    }
+
     return new Response(new Uint8Array(pdf), {
       headers: {
         "Content-Type": "application/pdf",
