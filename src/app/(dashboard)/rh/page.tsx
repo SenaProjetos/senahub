@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { requireRole } from "@/lib/session";
 import { minhasSolicitacoes, humorHoje, meuOnboarding, minhasNFs } from "@/modules/rh/queries";
+import { modelosPorFonte } from "@/modules/documentos/queries";
 import { RhView } from "@/components/rh/rh-view";
 import { NfCard } from "@/components/rh/nf-card";
+import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, Circle } from "lucide-react";
 
@@ -19,11 +21,12 @@ export default async function RhPage() {
     "freelancer",
   );
   const ehPJ = user.role === "projetista_pj" || user.role === "freelancer";
-  const [{ abonos, ferias }, humor, onboarding, nfs] = await Promise.all([
+  const [{ abonos, ferias }, humor, onboarding, nfs, modelosExtrato] = await Promise.all([
     minhasSolicitacoes(user.id),
     humorHoje(user.id),
     meuOnboarding(user.id),
     ehPJ ? minhasNFs(user.id) : Promise.resolve([]),
+    ehPJ ? modelosPorFonte("extrato") : Promise.resolve([]),
   ]);
   return (
     <div className="space-y-6">
@@ -68,16 +71,21 @@ export default async function RhPage() {
       )}
 
       {ehPJ && (
-        <NfCard
-          nfs={nfs.map((n) => ({
-            id: n.id,
-            numero: n.numero,
-            valor: Number(n.valor),
-            status: n.status,
-            observacao: n.observacao,
-            createdAt: n.createdAt.toISOString(),
-          }))}
-        />
+        <>
+          {modelosExtrato.length > 0 && (
+            <GerarDocumentoButton modelos={modelosExtrato} paramId="userId" valor={user.id} />
+          )}
+          <NfCard
+            nfs={nfs.map((n) => ({
+              id: n.id,
+              numero: n.numero,
+              valor: Number(n.valor),
+              status: n.status,
+              observacao: n.observacao,
+              createdAt: n.createdAt.toISOString(),
+            }))}
+          />
+        </>
       )}
     </div>
   );
