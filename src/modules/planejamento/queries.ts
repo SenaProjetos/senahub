@@ -90,6 +90,7 @@ export async function eapDoProjeto(projetoId: string) {
       disciplinaId: t.disciplinaId,
       disciplinaNome: t.disciplina?.nome ?? null,
       predecessoraIds: t.predecessoras.map((p) => p.predecessoraId),
+      marco: t.marco,
     })),
     disciplinas,
     temLinhaBase: tarefas.some((t) => t.inicioBaseline != null),
@@ -137,6 +138,7 @@ export async function cronogramaProjetosAtivos() {
       disciplinaId: t.disciplinaId,
       disciplinaNome: t.disciplina?.nome ?? null,
       predecessoraIds: t.predecessoras.map((pp) => pp.predecessoraId),
+      marco: t.marco,
     })),
   }));
 }
@@ -198,6 +200,63 @@ export async function planoVsRealProjeto(projetoId: string) {
   linhas.sort((a, b) => b.horasReais - a.horasReais || a.nome.localeCompare(b.nome));
   const totalHoras = Math.round(linhas.reduce((s, l) => s + l.horasReais, 0) * 10) / 10;
   return { ano, mes, linhas, totalHoras };
+}
+
+/**
+ * N-33: Horas reais trabalhadas por pessoa × semana (SessaoTrabalho).
+ * Retorna as últimas `semanas` semanas + nomes dos recursos.
+ * Cada semana = chave ISO "YYYY-Www". Horas arredondadas a 1 decimal.
+ */
+export async function cargaSemanalPorRecurso(semanas = 12) {
+  const hoje = new Date();
+  const ini = new Date(hoje);
+  ini.setDate(hoje.getDate() - semanas * 7);
+
+  const sessoes = await prisma.sessaoTrabalho.findMany({
+    where: { inicio: { gte: ini }, fim: { not: null } },
+    select: { userId: true, inicio: true, fim: true },
+    orderBy: { inicio: "asc" },
+  });
+
+  if (sessoes.length === 0) return { semanas: [] as string[], linhas: [] as { userId: string; nome: string; porSemana: Record<string, number> }[] };
+
+  const minutosPorUserSemana = new Map<string, Map<string, number>>();
+  const isoWeek = (d: Date): string => {
+    const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const jan4 = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 4));
+    const startOfWeek1 = new Date(jan4);
+    startOfWeek1.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() + 6) % 7));
+    const weekNum = Math.ceil(((tmp.getTime() - startOfWeek1.getTime()) / 86_400_000 + 1) / 7);
+    return `${tmp.getUTCFullYear()}-W${String(weekNum).padStart(2, "0")}`;
+  };
+
+  const semanasSet = new Set<string>();
+  for (const s of sessoes) {
+    const mins = minutosSessao(s.inicio, s.fim);
+    if (mins <= 0) continue;
+    const wk = isoWeek(s.inicio);
+    semanasSet.add(wk);
+    if (!minutosPorUserSemana.has(s.userId)) minutosPorUserSemana.set(s.userId, new Map());
+    const m = minutosPorUserSemana.get(s.userId)!;
+    m.set(wk, (m.get(wk) ?? 0) + mins);
+  }
+
+  const semanasOrdenadas = [...semanasSet].sort();
+  const userIds = [...minutosPorUserSemana.keys()];
+  const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } });
+  const nome = new Map(users.map((u) => [u.id, u.name]));
+
+  const linhas = userIds.map((uid) => {
+    const porSemana: Record<string, number> = {};
+    const mapa = minutosPorUserSemana.get(uid)!;
+    for (const wk of semanasOrdenadas) {
+      const mins = mapa.get(wk) ?? 0;
+      porSemana[wk] = Math.round((mins / 60) * 10) / 10;
+    }
+    return { userId: uid, nome: nome.get(uid) ?? "—", porSemana };
+  }).sort((a, b) => a.nome.localeCompare(b.nome));
+
+  return { semanas: semanasOrdenadas, linhas };
 }
 
 /**

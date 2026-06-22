@@ -1,6 +1,6 @@
 import { differenceInCalendarDays, addDays, format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ListChecks } from "lucide-react";
+import { ListChecks, Flag } from "lucide-react";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import { calcularCaminhoCritico } from "@/modules/planejamento/caminho-critico";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 export const GANTT_PX_DEFAULT = 18; // pixels por dia
 const ROW = 34; // altura da linha (px)
 const LABEL_W = 220;
+const ARROW_ELBOW = 8; // margem horizontal do cotovelo das setas de dependência
 
 const parse = (iso: string) => new Date(iso + "T00:00:00");
 
@@ -73,6 +74,28 @@ export function Gantt({
   );
   const temCritico = tarefas.some((t) => criticas.has(t.id));
 
+  // Setas de dependência Finish-to-Start: da borda direita do predecessor à borda esquerda da tarefa.
+  const taskMeta = new Map(
+    tarefas.map((t, idx) => [t.id, { idx, af: parse(t.fimPrevisto) }]),
+  );
+  const arrows: { d: string; key: string }[] = [];
+  tarefas.forEach((task, tIdx) => {
+    if (!task.predecessoraIds.length) return;
+    const taskY = tIdx * ROW + ROW / 2;
+    const taskLeft = LABEL_W + offset(parse(task.inicioPrevisto));
+    for (const predId of task.predecessoraIds) {
+      const pred = taskMeta.get(predId);
+      if (!pred) continue;
+      const predY = pred.idx * ROW + ROW / 2;
+      const predRight = LABEL_W + offset(pred.af) + px;
+      const elbowX = predRight + ARROW_ELBOW;
+      arrows.push({
+        key: `${predId}->${task.id}`,
+        d: `M ${predRight} ${predY} H ${elbowX} V ${taskY} H ${taskLeft}`,
+      });
+    }
+  });
+
   return (
     <div className="w-full min-w-0 space-y-1.5">
       <div className="w-full min-w-0 overflow-x-auto rounded-sm border">
@@ -107,6 +130,29 @@ export function Gantt({
               title="Hoje"
             />
           )}
+          {/* Setas de dependência (SVG overlay) */}
+          {arrows.length > 0 && (
+            <svg
+              className="pointer-events-none absolute inset-0 z-20 overflow-visible text-muted-foreground/50"
+              style={{ width: LABEL_W + timelineW, height: tarefas.length * ROW }}
+            >
+              <defs>
+                <marker id="gantt-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                  <path d="M 0 0 L 6 3 L 0 6 Z" fill="currentColor" />
+                </marker>
+              </defs>
+              {arrows.map(({ d, key }) => (
+                <path
+                  key={key}
+                  d={d}
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  fill="none"
+                  markerEnd="url(#gantt-arrow)"
+                />
+              ))}
+            </svg>
+          )}
           {tarefas.map((t) => {
             const ai = parse(t.inicioPrevisto);
             const af = parse(t.fimPrevisto);
@@ -126,16 +172,24 @@ export function Gantt({
                   style={{ width: LABEL_W, paddingLeft: 12 + (t.parentId ? 16 : 0) }}
                   title={critica ? `${t.nome} (caminho crítico)` : t.nome}
                 >
-                  {critica && (
-                    <span
-                      className="size-1.5 shrink-0 rounded-full bg-destructive"
-                      aria-hidden
-                    />
-                  )}
+                  {t.marco ? (
+                    <Flag className="size-3 shrink-0 text-primary" aria-label="Marco" />
+                  ) : critica ? (
+                    <span className="size-1.5 shrink-0 rounded-full bg-destructive" aria-hidden />
+                  ) : null}
                   <span className="truncate">{t.nome}</span>
                 </button>
                 <div className="relative" style={{ width: timelineW }}>
-                  {/* barra atual (prevista) com preenchimento de progresso */}
+                  {/* barra atual (prevista) com preenchimento de progresso — ou diamante se marco */}
+                  {t.marco ? (
+                    <div
+                      className={`absolute size-3.5 rotate-45 border ${
+                        critica ? "border-destructive bg-destructive/60" : "border-primary bg-primary/60"
+                      }`}
+                      style={{ left: left + px / 2 - 7, top: ROW / 2 - 7 }}
+                      title={`Marco: ${t.nome}`}
+                    />
+                  ) : (
                   <div
                     className={`absolute rounded-sm border ${
                       critica
@@ -150,6 +204,7 @@ export function Gantt({
                       style={{ width: `${t.progresso}%` }}
                     />
                   </div>
+                  )}
                   {/* barra de linha de base */}
                   {bI && bF && (
                     <div

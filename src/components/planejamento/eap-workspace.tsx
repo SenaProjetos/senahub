@@ -5,7 +5,7 @@ import { formatarDiaMes } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Flag, CheckCheck, ArrowLeft, ZoomIn, ZoomOut, Rocket, ListPlus, ListTree, CalendarClock } from "lucide-react";
+import { Plus, Flag, CheckCheck, ArrowLeft, ZoomIn, ZoomOut, Rocket, ListPlus, ListTree, CalendarClock, Download, FileText } from "lucide-react";
 import {
   definirLinhaBase,
   aplicarAoProjeto,
@@ -103,7 +103,12 @@ export function EapWorkspace({
     start(async () => {
       const r = await aplicarAoProjeto({ projetoId: projeto.id });
       if (r.ok) {
-        toast.success("Prazos aplicados às disciplinas vinculadas.");
+        toast.success(`Prazos aplicados a ${r.data.aplicadas} disciplina(s).`);
+        if (r.data.semEap.length > 0) {
+          toast.warning(
+            `${r.data.semEap.length} disciplina(s) sem tarefa na EAP (ignoradas): ${r.data.semEap.join(", ")}.`,
+          );
+        }
         router.refresh();
       } else toast.error(r.error);
     });
@@ -161,28 +166,76 @@ export function EapWorkspace({
             EAP e cronograma. {temLinhaBase ? "Linha de base definida." : "Sem linha de base."}
           </p>
         </div>
-        {podeGerir && (
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={() => abrir(null)}>
-              <Plus className="size-3.5" /> Nova tarefa
-            </Button>
-            {disciplinas.length > 0 && (
-              <Button size="sm" variant="outline" onClick={gerarEap} disabled={pending}>
-                <ListTree className="size-3.5" /> Gerar EAP das disciplinas
+        <div className="flex flex-wrap gap-2">
+          {tarefas.length > 0 && (
+            <>
+              <a href={`/api/planejamento/${projeto.id}/eap-export`} download>
+                <Button size="sm" variant="outline" type="button">
+                  <Download className="size-3.5" /> Exportar Excel
+                </Button>
+              </a>
+              <a href={`/api/planejamento/${projeto.id}/pdf`} download>
+                <Button size="sm" variant="outline" type="button">
+                  <FileText className="size-3.5" /> Exportar PDF
+                </Button>
+              </a>
+            </>
+          )}
+          {podeGerir && (
+            <>
+              <Button size="sm" onClick={() => abrir(null)}>
+                <Plus className="size-3.5" /> Nova tarefa
               </Button>
-            )}
-            <Button size="sm" variant="outline" onClick={reagendar} disabled={pending || tarefas.length === 0}>
-              <CalendarClock className="size-3.5" /> Reagendar
-            </Button>
-            <Button size="sm" variant="outline" onClick={linhaBase} disabled={pending || tarefas.length === 0}>
-              <Flag className="size-3.5" /> {temLinhaBase ? "Atualizar linha de base" : "Definir linha de base"}
-            </Button>
-            <Button size="sm" variant="outline" onClick={aplicar} disabled={pending || tarefas.length === 0}>
-              <CheckCheck className="size-3.5" /> Aplicar ao projeto
-            </Button>
-          </div>
-        )}
+              {disciplinas.length > 0 && (
+                <Button size="sm" variant="outline" onClick={gerarEap} disabled={pending}>
+                  <ListTree className="size-3.5" /> Gerar EAP das disciplinas
+                </Button>
+              )}
+              <Button size="sm" variant="outline" onClick={reagendar} disabled={pending || tarefas.length === 0}>
+                <CalendarClock className="size-3.5" /> Reagendar
+              </Button>
+              <Button size="sm" variant="outline" onClick={linhaBase} disabled={pending || tarefas.length === 0}>
+                <Flag className="size-3.5" /> {temLinhaBase ? "Atualizar linha de base" : "Definir linha de base"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={aplicar} disabled={pending || tarefas.length === 0}>
+                <CheckCheck className="size-3.5" /> Aplicar ao projeto
+              </Button>
+            </>
+          )}
+        </div>
       </div>
+
+      {/* N-47: resumo comparativo baseline vs atual */}
+      {temLinhaBase && tarefas.some((t) => t.inicioBaseline) && (() => {
+        const comBase = tarefas.filter((t) => t.fimBaseline);
+        const atrasadas = comBase.filter((t) => diasDesvio(t) > 0);
+        const adiantadas = comBase.filter((t) => diasDesvio(t) < 0);
+        const noP = comBase.filter((t) => diasDesvio(t) === 0);
+        const avgAtraso = atrasadas.length
+          ? Math.round(atrasadas.reduce((s, t) => s + diasDesvio(t), 0) / atrasadas.length)
+          : 0;
+        return (
+          <div className="flex flex-wrap gap-4 rounded-sm border bg-muted/30 px-4 py-3 text-sm">
+            <div>
+              <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Com baseline</span>
+              <span className="font-bold tabular-nums">{comBase.length}</span> tarefas
+            </div>
+            <div>
+              <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">No prazo</span>
+              <span className="font-bold tabular-nums text-success">{noP.length}</span>
+            </div>
+            <div>
+              <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Adiantadas</span>
+              <span className="font-bold tabular-nums text-primary">{adiantadas.length}</span>
+            </div>
+            <div>
+              <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Atrasadas</span>
+              <span className={`font-bold tabular-nums ${atrasadas.length > 0 ? "text-destructive" : ""}`}>{atrasadas.length}</span>
+              {avgAtraso > 0 && <span className="ml-1 text-xs text-muted-foreground">· média +{avgAtraso}d</span>}
+            </div>
+          </div>
+        );
+      })()}
 
       {vazio ? (
         <div className="rounded-sm border border-dashed">

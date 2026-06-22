@@ -19,6 +19,26 @@ const revRecursos = () => revalidatePath("/recursos");
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
 const dia = z.string().min(1, "Informe a data.");
 
+// ── Roll-up: propaga datas e progresso do filho ao pai ───────
+// Tarefas-resumo (com filhas) derivam inicioPrevisto, fimPrevisto e progresso dos filhos.
+async function rollupPai(tarefaId: string) {
+  const t = await prisma.eapTarefa.findUnique({ where: { id: tarefaId }, select: { parentId: true } });
+  if (!t?.parentId) return;
+  const irmaos = await prisma.eapTarefa.findMany({
+    where: { parentId: t.parentId },
+    select: { inicioPrevisto: true, fimPrevisto: true, progresso: true },
+  });
+  if (irmaos.length === 0) return;
+  const minInicio = irmaos.reduce((m, s) => (s.inicioPrevisto < m ? s.inicioPrevisto : m), irmaos[0].inicioPrevisto);
+  const maxFim = irmaos.reduce((m, s) => (s.fimPrevisto > m ? s.fimPrevisto : m), irmaos[0].fimPrevisto);
+  const avgProgresso = Math.round(irmaos.reduce((sum, s) => sum + s.progresso, 0) / irmaos.length);
+  await prisma.eapTarefa.update({
+    where: { id: t.parentId },
+    data: { inicioPrevisto: minInicio, fimPrevisto: maxFim, progresso: avgProgresso },
+  });
+  await rollupPai(t.parentId); // propaga hierarquia acima
+}
+
 // ── EAP ──────────────────────────────────────────────────────
 
 const tarefaSchema = z
@@ -30,6 +50,7 @@ const tarefaSchema = z
     inicioPrevisto: dia,
     fimPrevisto: dia,
     progresso: z.number().int().min(0).max(100).default(0),
+    marco: z.boolean().default(false),
   })
   .refine((v) => new Date(v.fimPrevisto) >= new Date(v.inicioPrevisto), {
     message: "Fim não pode ser antes do início.",
@@ -43,6 +64,7 @@ const editarSchema = z
     inicioPrevisto: dia,
     fimPrevisto: dia,
     progresso: z.number().int().min(0).max(100),
+    marco: z.boolean().default(false),
   })
   .refine((v) => new Date(v.fimPrevisto) >= new Date(v.inicioPrevisto), {
     message: "Fim não pode ser antes do início.",
@@ -112,11 +134,13 @@ export const criarEapTarefa = defineAction(
         disciplinaId: i.disciplinaId || null,
         nome: i.nome,
         inicioPrevisto: new Date(i.inicioPrevisto),
-        fimPrevisto: new Date(i.fimPrevisto),
+        fimPrevisto: i.marco ? new Date(i.inicioPrevisto) : new Date(i.fimPrevisto),
         progresso: i.progresso,
+        marco: i.marco,
         ordem: (max._max.ordem ?? -1) + 1,
       },
     });
+    await rollupPai(t.id);
     revProjeto(i.projetoId);
     return { id: t.id };
   },
@@ -131,11 +155,13 @@ export const editarEapTarefa = defineAction(
         nome: i.nome,
         disciplinaId: i.disciplinaId || null,
         inicioPrevisto: new Date(i.inicioPrevisto),
-        fimPrevisto: new Date(i.fimPrevisto),
+        fimPrevisto: i.marco ? new Date(i.inicioPrevisto) : new Date(i.fimPrevisto),
         progresso: i.progresso,
+        marco: i.marco,
       },
       select: { projetoId: true },
     });
+    await rollupPai(i.id);
     revProjeto(t.projetoId);
     return { id: i.id };
   },
@@ -144,8 +170,15 @@ export const editarEapTarefa = defineAction(
 export const excluirEapTarefa = defineAction(
   { ...plan, acao: "excluir-eap", entidade: "EapTarefa", schema: idSchema },
   async (i) => {
-    const t = await prisma.eapTarefa.delete({ where: { id: i.id }, select: { projetoId: true } });
-    revProjeto(t.projetoId);
+    // Capture parentId before deletion so we can roll up afterward.
+    const pre = await prisma.eapTarefa.findUnique({ where: { id: i.id }, select: { parentId: true, projetoId: true } });
+    await prisma.eapTarefa.delete({ where: { id: i.id } });
+    // Roll up from a sibling to update parent summary (pass parentId itself as anchor).
+    if (pre?.parentId) {
+      const sibling = await prisma.eapTarefa.findFirst({ where: { parentId: pre.parentId }, select: { id: true } });
+      if (sibling) await rollupPai(sibling.id);
+    }
+    revProjeto(pre!.projetoId);
     return { id: i.id };
   },
 );
@@ -176,13 +209,21 @@ export const definirLinhaBase = defineAction(
 export const aplicarAoProjeto = defineAction(
   { ...plan, acao: "aplicar-plano", entidade: "Disciplina", schema: projetoIdSchema },
   async (i) => {
-    const tarefas = await prisma.eapTarefa.findMany({
-      where: { projetoId: i.projetoId, disciplinaId: { not: null } },
-      select: { disciplinaId: true, fimPrevisto: true },
-    });
+    const [tarefas, todasDiscs] = await Promise.all([
+      prisma.eapTarefa.findMany({
+        where: { projetoId: i.projetoId, disciplinaId: { not: null } },
+        select: { disciplinaId: true, fimPrevisto: true },
+      }),
+      prisma.disciplina.findMany({
+        where: { projetoId: i.projetoId },
+        select: { id: true, nome: true },
+      }),
+    ]);
     if (tarefas.length === 0) {
       throw new ActionError("Nenhuma tarefa vinculada a disciplina. Vincule disciplinas para aplicar.");
     }
+    const comEap = new Set(tarefas.map((t) => t.disciplinaId));
+    const semEap = todasDiscs.filter((d) => !comEap.has(d.id)).map((d) => d.nome);
     await prisma.$transaction(
       tarefas.map((t) =>
         prisma.disciplina.update({
@@ -193,7 +234,7 @@ export const aplicarAoProjeto = defineAction(
     );
     revProjeto(i.projetoId);
     revalidatePath(`/projetos/${i.projetoId}`);
-    return { aplicadas: tarefas.length };
+    return { aplicadas: tarefas.length, semEap };
   },
 );
 

@@ -15,6 +15,7 @@ import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -58,6 +59,7 @@ export function EapDialog({
     inicioPrevisto: hoje,
     fimPrevisto: hoje,
     progresso: 0,
+    marco: false,
   };
   const de = (t: EapTarefaDTO) => ({
     nome: t.nome,
@@ -66,6 +68,7 @@ export function EapDialog({
     inicioPrevisto: t.inicioPrevisto,
     fimPrevisto: t.fimPrevisto,
     progresso: t.progresso,
+    marco: t.marco,
   });
   const [form, setForm] = useState(tarefa ? de(tarefa) : vazio);
   const key = tarefa?.id ?? "nova";
@@ -84,8 +87,9 @@ export function EapDialog({
             nome: form.nome,
             disciplinaId: form.disciplinaId === NONE ? "" : form.disciplinaId,
             inicioPrevisto: form.inicioPrevisto,
-            fimPrevisto: form.fimPrevisto,
+            fimPrevisto: form.marco ? form.inicioPrevisto : form.fimPrevisto,
             progresso: Number(form.progresso),
+            marco: form.marco,
           })
         : await criarEapTarefa({
             projetoId,
@@ -93,8 +97,9 @@ export function EapDialog({
             disciplinaId: form.disciplinaId === NONE ? "" : form.disciplinaId,
             nome: form.nome,
             inicioPrevisto: form.inicioPrevisto,
-            fimPrevisto: form.fimPrevisto,
+            fimPrevisto: form.marco ? form.inicioPrevisto : form.fimPrevisto,
             progresso: Number(form.progresso),
+            marco: form.marco,
           });
       if (r.ok) {
         toast.success(tarefa ? "Tarefa atualizada." : "Tarefa criada.");
@@ -129,7 +134,7 @@ export function EapDialog({
   }
 
   const outras = tarefas.filter((t) => t.id !== tarefa?.id);
-  const possiveisPais = outras; // qualquer outra tarefa pode ser pai (v1)
+  const possiveisPais = outras;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -144,23 +149,36 @@ export function EapDialog({
             <Input value={form.nome} onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))} />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="marco"
+              checked={form.marco}
+              onCheckedChange={(v) => setForm((f) => ({ ...f, marco: v === true }))}
+            />
+            <Label htmlFor="marco" className="cursor-pointer font-normal">
+              Marco (milestone — data pontual, sem duração)
+            </Label>
+          </div>
+
+          <div className={`grid gap-3 ${form.marco ? "grid-cols-1" : "grid-cols-2"}`}>
             <div className="space-y-1.5">
-              <Label>Início previsto</Label>
+              <Label>{form.marco ? "Data do marco" : "Início previsto"}</Label>
               <Input
                 type="date"
                 value={form.inicioPrevisto}
                 onChange={(e) => setForm((f) => ({ ...f, inicioPrevisto: e.target.value }))}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label>Fim previsto</Label>
-              <Input
-                type="date"
-                value={form.fimPrevisto}
-                onChange={(e) => setForm((f) => ({ ...f, fimPrevisto: e.target.value }))}
-              />
-            </div>
+            {!form.marco && (
+              <div className="space-y-1.5">
+                <Label>Fim previsto</Label>
+                <Input
+                  type="date"
+                  value={form.fimPrevisto}
+                  onChange={(e) => setForm((f) => ({ ...f, fimPrevisto: e.target.value }))}
+                />
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -183,18 +201,20 @@ export function EapDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label>Progresso: {form.progresso}%</Label>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={5}
-                value={form.progresso}
-                onChange={(e) => setForm((f) => ({ ...f, progresso: Number(e.target.value) }))}
-                className="w-full accent-primary"
-              />
-            </div>
+            {!form.marco && (
+              <div className="space-y-1.5">
+                <Label>Progresso: {form.progresso}%</Label>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={form.progresso}
+                  onChange={(e) => setForm((f) => ({ ...f, progresso: Number(e.target.value) }))}
+                  className="w-full accent-primary"
+                />
+              </div>
+            )}
           </div>
 
           {!tarefa && possiveisPais.length > 0 && (

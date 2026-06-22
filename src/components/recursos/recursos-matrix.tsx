@@ -143,6 +143,26 @@ function montarHeatmap(linhas: Linha[]) {
   return { meses, matriz };
 }
 
+/** N-31: Verifica superalocação durante uma janela: qualquer mês com carga > capacidade. */
+function superalocadoNaJanela(l: Linha, janelaIni: Date, janelaFim: Date): boolean {
+  const parse = (s: string) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+  const jIni = ymKey(janelaIni);
+  const jFim = ymKey(janelaFim);
+  const porMes = new Map<string, number>();
+  for (const a of l.alocacoes) {
+    const aIni = a.inicio ? ymKey(parse(a.inicio)) : jIni;
+    const aFim = a.fim ? ymKey(parse(a.fim)) : jFim;
+    for (const ym of mesesEntre(
+      parse(aIni + "-01"),
+      parse(aFim + "-01"),
+    )) {
+      if (ym >= jIni && ym <= jFim) porMes.set(ym, (porMes.get(ym) ?? 0) + a.percentual);
+    }
+  }
+  for (const pct of porMes.values()) if (pct > l.capacidadePct) return true;
+  return false;
+}
+
 /** Cor graduada por ocupação: verde (folga) → amarelo (~100%) → vermelho (>100%). */
 function heatColor(pct: number, capacidadePct: number) {
   if (pct === 0) return "transparent";
@@ -161,6 +181,7 @@ export function RecursosMatrix({
   podeGerir,
   catalogoHabilidades,
   habilidadesPorUser,
+  cargaSemanal,
 }: {
   linhas: Linha[];
   projetos: Projeto[];
@@ -168,6 +189,7 @@ export function RecursosMatrix({
   podeGerir: boolean;
   catalogoHabilidades: Habilidade[];
   habilidadesPorUser: Record<string, Habilidade[]>;
+  cargaSemanal: CargaSemanal;
 }) {
   const router = useRouter();
   const [habDlg, setHabDlg] = useState<{ userId: string; nome: string } | null>(null);
@@ -183,24 +205,49 @@ export function RecursosMatrix({
     aloc: null,
   });
 
-  // Filtro por projeto, alternância de visão e rebalanceamento.
+  // Filtro por projeto, habilidade, alternância de visão e rebalanceamento.
   const [filtroProjeto, setFiltroProjeto] = useState(TODOS);
-  const [vista, setVista] = useState<"matriz" | "heatmap">("matriz");
+  const [filtroHabilidade, setFiltroHabilidade] = useState(TODOS);
+  const [vista, setVista] = useState<"matriz" | "heatmap" | "carga">("matriz");
   const [rebalDlg, setRebalDlg] = useState<Linha | null>(null);
 
-  // Quando um projeto é escolhido, mantém só as pessoas alocadas nele e
-  // reduz a lista de alocações exibidas a esse projeto (totais/super seguem
-  // sendo os da pessoa, para não mascarar superalocação real).
+  // N-31: Janela de análise para superalocação futura (padrão: hoje + 90 dias).
+  const hojeIso = new Date().toISOString().slice(0, 10);
+  const daqui90 = new Date(Date.now() + 90 * 86_400_000).toISOString().slice(0, 10);
+  const [janelaIni, setJanelaIni] = useState(hojeIso);
+  const [janelaFim, setJanelaFim] = useState(daqui90);
+
+  // N-32: catálogo de habilidades únicas dos recursos exibidos.
+  const habilidadesUnicas = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const habs of Object.values(habilidadesPorUser)) {
+      for (const h of habs) if (!map.has(h.id)) map.set(h.id, h.nome);
+    }
+    return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [habilidadesPorUser]);
+
+  // Quando um projeto ou habilidade é escolhida, filtra a lista.
   const linhasFiltradas = useMemo(() => {
-    if (filtroProjeto === TODOS) return linhas;
-    return linhas
-      .filter((l) => l.alocacoes.some((a) => a.projetoId === filtroProjeto))
-      .map((l) => ({ ...l, alocacoes: l.alocacoes.filter((a) => a.projetoId === filtroProjeto) }));
-  }, [linhas, filtroProjeto]);
+    let base = linhas;
+    if (filtroProjeto !== TODOS) {
+      base = base
+        .filter((l) => l.alocacoes.some((a) => a.projetoId === filtroProjeto))
+        .map((l) => ({ ...l, alocacoes: l.alocacoes.filter((a) => a.projetoId === filtroProjeto) }));
+    }
+    if (filtroHabilidade !== TODOS) {
+      base = base.filter((l) => (habilidadesPorUser[l.userId] ?? []).some((h) => h.id === filtroHabilidade));
+    }
+    return base;
+  }, [linhas, filtroProjeto, filtroHabilidade, habilidadesPorUser]);
 
   const heat = useMemo(() => montarHeatmap(linhasFiltradas), [linhasFiltradas]);
 
   const totalSuper = linhasFiltradas.filter((l) => l.superalocado).length;
+  const totalSuperJanela = useMemo(() => {
+    const ini = new Date(janelaIni + "T00:00:00");
+    const fim = new Date(janelaFim + "T00:00:00");
+    return linhasFiltradas.filter((l) => superalocadoNaJanela(l, ini, fim)).length;
+  }, [linhasFiltradas, janelaIni, janelaFim]);
 
   return (
     <div className="space-y-5">
@@ -211,7 +258,12 @@ export function RecursosMatrix({
             Alocação por pessoa × projeto. Capacidade é o multiplicador (1,0 = jornada cheia).
             {totalSuper > 0 && (
               <span className="ml-1 text-destructive">
-                {totalSuper} recurso(s) superalocado(s).
+                {totalSuper} superalocado(s) hoje.
+              </span>
+            )}
+            {totalSuperJanela > 0 && (
+              <span className="ml-1 text-warning">
+                {totalSuperJanela} na janela de análise.
               </span>
             )}
           </p>
@@ -223,7 +275,7 @@ export function RecursosMatrix({
         )}
       </div>
 
-      {/* Controles: filtro por projeto + alternância de visão */}
+      {/* Controles: filtro por projeto + janela de análise + alternância de visão */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
           <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
@@ -242,6 +294,46 @@ export function RecursosMatrix({
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        {/* N-32: filtro por habilidade */}
+        {habilidadesUnicas.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+              Habilidade
+            </span>
+            <Select value={filtroHabilidade} onValueChange={(v) => setFiltroHabilidade(v ?? TODOS)}>
+              <SelectTrigger className="h-8 w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TODOS}>Todas</SelectItem>
+                {habilidadesUnicas.map(([id, nome]) => (
+                  <SelectItem key={id} value={id}>{nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* N-31: Janela de análise */}
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+            Janela
+          </span>
+          <input
+            type="date"
+            value={janelaIni}
+            onChange={(e) => setJanelaIni(e.target.value)}
+            className="h-8 rounded-sm border bg-background px-2 text-xs"
+          />
+          <span className="text-muted-foreground">—</span>
+          <input
+            type="date"
+            value={janelaFim}
+            onChange={(e) => setJanelaFim(e.target.value)}
+            className="h-8 rounded-sm border bg-background px-2 text-xs"
+          />
         </div>
 
         <div className="ml-auto inline-flex rounded-sm border p-0.5">
@@ -263,10 +355,21 @@ export function RecursosMatrix({
           >
             <CalendarRange className="size-3.5" /> Heatmap
           </button>
+          <button
+            type="button"
+            onClick={() => setVista("carga")}
+            className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium ${
+              vista === "carga" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <CalendarRange className="size-3.5" /> Carga real
+          </button>
         </div>
       </div>
 
-      {vista === "heatmap" ? (
+      {vista === "carga" ? (
+        <CargaRealView cargaSemanal={cargaSemanal} />
+      ) : vista === "heatmap" ? (
         <HeatmapView
           meses={heat.meses}
           matriz={heat.matriz}
@@ -300,8 +403,10 @@ export function RecursosMatrix({
                 </td>
               </tr>
             ) : (
-              linhasFiltradas.map((l) => (
-                <tr key={l.recursoId} className={l.superalocado ? "bg-destructive/5" : ""}>
+              linhasFiltradas.map((l) => {
+                const superJanela = superalocadoNaJanela(l, new Date(janelaIni + "T00:00:00"), new Date(janelaFim + "T00:00:00"));
+                return (
+                <tr key={l.recursoId} className={l.superalocado ? "bg-destructive/5" : superJanela ? "bg-warning/5" : ""}>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2">
                       <span className="size-2.5 shrink-0 rounded-full" style={{ background: l.cor }} />
@@ -404,6 +509,11 @@ export function RecursosMatrix({
                         <Scale className="size-3" /> Rebalancear
                       </button>
                     )}
+                    {!l.superalocado && superJanela && (
+                      <span className="mt-0.5 block font-mono text-[10px] text-warning">
+                        superalocado na janela
+                      </span>
+                    )}
                   </td>
                   {podeGerir && (
                     <td className="px-3 py-2 text-right">
@@ -417,7 +527,8 @@ export function RecursosMatrix({
                     </td>
                   )}
                 </tr>
-              ))
+              );
+              })
             )}
           </tbody>
         </table>
@@ -618,6 +729,80 @@ function HeatmapView({
         <Legenda cor="hsl(28 90% 64%)" texto="estourando (≤125%)" />
         <Legenda cor="hsl(0 75% 60%)" texto="superalocado (>125%)" />
         {!podeGerir && <span className="italic">visualização somente leitura</span>}
+      </div>
+    </div>
+  );
+}
+
+// ── Heatmap de carga real semanal (N-33) ────────────────────────────
+type CargaSemanal = { semanas: string[]; linhas: { userId: string; nome: string; porSemana: Record<string, number> }[] };
+
+function wkLabel(wk: string) {
+  // "2026-W23" → "Sem 23/26"
+  const [y, w] = wk.split("-W");
+  return `Sem ${w}/${y.slice(2)}`;
+}
+
+function heatCarga(horas: number) {
+  if (horas === 0) return "transparent";
+  if (horas < 8) return "hsl(210 60% 85%)";   // pouco
+  if (horas < 20) return "hsl(210 60% 68%)";  // moderado
+  if (horas < 36) return "hsl(210 70% 52%)";  // normal
+  if (horas < 44) return "hsl(28 90% 64%)";   // intenso
+  return "hsl(0 75% 60%)";                     // muito intenso
+}
+
+function CargaRealView({ cargaSemanal }: { cargaSemanal: CargaSemanal }) {
+  if (cargaSemanal.linhas.length === 0) {
+    return (
+      <div className="rounded-sm border px-3 py-8">
+        <EmptyState icon={Users} title="Nenhum registro de sessão nos últimos 3 meses." />
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      <div className="overflow-x-auto rounded-sm border">
+        <table className="w-full border-collapse text-sm">
+          <thead className="bg-muted/40 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+            <tr>
+              <th className="sticky left-0 z-10 bg-muted/40 px-3 py-2 text-left">Pessoa</th>
+              {cargaSemanal.semanas.map((wk) => (
+                <th key={wk} className="px-1 py-2 text-center font-normal">{wkLabel(wk)}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {cargaSemanal.linhas.map((l) => (
+              <tr key={l.userId}>
+                <td className="sticky left-0 z-10 bg-background px-3 py-2 font-medium">{l.nome}</td>
+                {cargaSemanal.semanas.map((wk) => {
+                  const h = l.porSemana[wk] ?? 0;
+                  return (
+                    <td
+                      key={wk}
+                      className="border-l px-1 py-2 text-center"
+                      style={{ background: heatCarga(h) }}
+                      title={`${l.nome} · ${wkLabel(wk)} — ${h}h`}
+                    >
+                      <span className={`font-mono text-[10px] ${h >= 44 ? "font-bold text-white" : "text-foreground/70"}`}>
+                        {h > 0 ? `${h}h` : ""}
+                      </span>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+        <span className="font-medium text-foreground">Horas/semana:</span>
+        <Legenda cor="hsl(210 60% 85%)" texto="<8h" />
+        <Legenda cor="hsl(210 60% 68%)" texto="8–20h" />
+        <Legenda cor="hsl(210 70% 52%)" texto="20–36h" />
+        <Legenda cor="hsl(28 90% 64%)" texto="36–44h (intenso)" />
+        <Legenda cor="hsl(0 75% 60%)" texto=">44h (muito intenso)" />
       </div>
     </div>
   );
