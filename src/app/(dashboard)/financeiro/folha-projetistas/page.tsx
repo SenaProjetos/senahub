@@ -17,7 +17,7 @@ export default async function FolhaProjetistasPage() {
   ]);
   return (
     <div className="space-y-5">
-      <FolhaLotesSection folhas={lotes} />
+      <FolhaLotesSection folhas={lotes} contas={opcoes.contas} formas={opcoes.formas} />
       <FolhaView
         itens={itens}
         pendente={pendente}

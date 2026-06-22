@@ -3,27 +3,46 @@
 import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Layers } from "lucide-react";
-import { gerarFolhaDoMes } from "@/modules/financeiro/folha-lote/actions";
+import { Layers, Wallet } from "lucide-react";
+import { gerarFolhaDoMes, pagarFolhaProjetista } from "@/modules/financeiro/folha-lote/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
 import { PAGE_SIZES, PAGE_SIZE_PADRAO, pageCount as calcPageCount } from "@/lib/list-params";
 import { brl } from "@/lib/utils";
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const NONE = "__none";
 // "fechada" = fechada aguardando pagamento → warning; "paga" → success
 const TONE: Record<string, "success" | "warning"> = { aberta: "warning", fechada: "warning", paga: "success" };
 
 type Folha = { id: string; ano: number; mes: number; status: string; total: number; qtd: number; pagos: number; todosPagos: boolean };
+type Opcao = { id: string; nome: string };
 
-export function FolhaLotesSection({ folhas }: { folhas: Folha[] }) {
+export function FolhaLotesSection({ folhas, contas, formas }: { folhas: Folha[]; contas: Opcao[]; formas: Opcao[] }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pending, start] = useTransition();
+  const [pagarLote, setPagarLote] = useState<Folha | null>(null);
   const ref = new Date();
   ref.setMonth(ref.getMonth() - 1);
   const [ano, setAno] = useState(String(ref.getFullYear()));
@@ -79,6 +98,13 @@ export function FolhaLotesSection({ folhas }: { folhas: Folha[] }) {
                   <StatusBadge tone={TONE[f.todosPagos ? "paga" : f.status] ?? "neutral"}>
                     {f.todosPagos ? "paga" : f.status}
                   </StatusBadge>
+                  {f.qtd > f.pagos ? (
+                    <Button size="sm" variant="outline" onClick={() => setPagarLote(f)}>
+                      <Wallet className="size-3.5" /> Pagar lote
+                    </Button>
+                  ) : (
+                    <span className="w-[104px]" aria-hidden />
+                  )}
                 </li>
               ))}
             </ul>
@@ -86,6 +112,107 @@ export function FolhaLotesSection({ folhas }: { folhas: Folha[] }) {
           </>
         )}
       </CardContent>
+
+      <PagarLoteDialog folha={pagarLote} onClose={() => setPagarLote(null)} contas={contas} formas={formas} />
     </Card>
+  );
+}
+
+function PagarLoteDialog({
+  folha,
+  onClose,
+  contas,
+  formas,
+}: {
+  folha: Folha | null;
+  onClose: () => void;
+  contas: Opcao[];
+  formas: Opcao[];
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const hoje = new Date().toISOString().slice(0, 10);
+  const [contaId, setContaId] = useState(NONE);
+  const [formaId, setFormaId] = useState(NONE);
+  const [data, setData] = useState(hoje);
+
+  function efetivar() {
+    if (!folha) return;
+    start(async () => {
+      const r = await pagarFolhaProjetista({
+        id: folha.id,
+        contaId: contaId === NONE ? "" : contaId,
+        formaId: formaId === NONE ? "" : formaId,
+        data,
+      });
+      if (r.ok) {
+        toast.success(`Lote pago — ${r.data.pagos} pagamento(s) confirmado(s) no caixa.`);
+        onClose();
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  const pendentes = folha ? folha.qtd - folha.pagos : 0;
+
+  return (
+    <Dialog open={!!folha} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Pagar lote inteiro</DialogTitle>
+          <DialogDescription>
+            {folha && `${MESES[folha.mes - 1]}/${folha.ano}`} — {pendentes} pagamento(s) pendente(s), {brl(folha?.total ?? 0)}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Conta</Label>
+              <Select value={contaId} onValueChange={(v) => setContaId(v ?? NONE)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="—" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>—</SelectItem>
+                  {contas.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Forma</Label>
+              <Select value={formaId} onValueChange={(v) => setFormaId(v ?? NONE)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="—" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>—</SelectItem>
+                  {formas.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Data do pagamento</Label>
+            <Input type="date" value={data} onChange={(e) => setData(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button onClick={efetivar} disabled={pending}>
+            {pending ? "Pagando…" : "Pagar lote"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

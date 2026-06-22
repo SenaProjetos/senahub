@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
+import { notificarMuitos } from "@/lib/notificar";
+import { confirmarDespesaProjetista } from "@/modules/financeiro/custo/lancamento-custo";
 
 const base = { modulo: "financeiro", recurso: "financeiro", permissao: "gerir" } as const;
 
@@ -39,5 +41,83 @@ export const gerarFolhaDoMes = defineAction(
     });
     revalidatePath("/financeiro/folha-projetistas");
     return { id: folha.id, vinculados: pend.length };
+  },
+);
+
+/**
+ * Paga um lote inteiro: confirma os lançamentos previstos de todos os pagamentos
+ * pendentes do lote (conta/forma/data informados uma vez), marca-os como pagos e o
+ * lote como 'paga'. Reutiliza a mesma lógica do pagamento individual (sem duplicar).
+ */
+export const pagarFolhaProjetista = defineAction(
+  {
+    ...base,
+    acao: "pagar-folha-lote",
+    entidade: "FolhaProjetista",
+    schema: z.object({
+      id: z.string().min(1),
+      contaId: z.string().optional().or(z.literal("")),
+      formaId: z.string().optional().or(z.literal("")),
+      data: z.string().optional().or(z.literal("")),
+    }),
+    entidadeId: (d) => (d as { id: string }).id,
+  },
+  async (i, { user }) => {
+    const folha = await prisma.folhaProjetista.findUnique({
+      where: { id: i.id },
+      include: {
+        pagamentos: {
+          where: { status: { not: "pago" } },
+          include: {
+            projetista: { select: { id: true, name: true } },
+            disciplina: { select: { nome: true, projetoId: true, projeto: { select: { codigo: true } } } },
+          },
+        },
+      },
+    });
+    if (!folha) throw new ActionError("Lote não encontrado.");
+    if (folha.pagamentos.length === 0) throw new ActionError("Nenhum pagamento pendente neste lote.");
+
+    const quando = i.data ? new Date(i.data) : new Date();
+
+    await prisma.$transaction(async (tx) => {
+      for (const pag of folha.pagamentos) {
+        const lancamentoId = await confirmarDespesaProjetista(
+          tx,
+          {
+            id: pag.id,
+            lancamentoId: pag.lancamentoId,
+            valor: pag.valor,
+            tipoProfissional: pag.tipoProfissional,
+            projetistaNome: pag.projetista.name,
+            disciplinaNome: pag.disciplina.nome,
+            projetoId: pag.disciplina.projetoId,
+            projetoCodigo: pag.disciplina.projeto.codigo,
+          },
+          { contaId: i.contaId || null, formaId: i.formaId || null, quando, autorId: user.id },
+        );
+        await tx.pagamentoProjetista.update({
+          where: { id: pag.id },
+          data: { status: "pago", pagoEm: quando, lancamentoId },
+        });
+      }
+      await tx.folhaProjetista.update({
+        where: { id: folha.id },
+        data: { status: "paga", pagaEm: quando },
+      });
+    });
+
+    const projetistas = [...new Set(folha.pagamentos.map((p) => p.projetista.id))];
+    await notificarMuitos(projetistas, {
+      titulo: "Pagamento efetivado",
+      corpo: `Seu pagamento da folha ${String(folha.mes).padStart(2, "0")}/${folha.ano} foi efetivado.`,
+      href: "/financeiro",
+      tag: `folha-paga-${folha.id}`,
+    });
+
+    revalidatePath("/financeiro/folha-projetistas");
+    revalidatePath("/financeiro/lancamentos");
+    revalidatePath("/financeiro/fluxo-caixa");
+    return { id: folha.id, pagos: folha.pagamentos.length };
   },
 );

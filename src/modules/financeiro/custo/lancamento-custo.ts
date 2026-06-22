@@ -66,6 +66,64 @@ export async function criarDespesaProjetistaPrevista(
   return lanc.id;
 }
 
+/**
+ * Confirma a despesa de um pagamento de projetista: confirma o lançamento previsto
+ * existente (criado na validação) ou, em dado legado sem previsto, cria já confirmado.
+ * Devolve o lancamentoId. Compartilhado por pagarProjetista (individual) e pagarFolha (lote).
+ */
+export async function confirmarDespesaProjetista(
+  tx: Prisma.TransactionClient,
+  pag: {
+    id: string;
+    lancamentoId: string | null;
+    valor: Prisma.Decimal | number;
+    tipoProfissional: string;
+    projetistaNome: string;
+    disciplinaNome: string;
+    projetoId: string;
+    projetoCodigo: string;
+  },
+  opts: { contaId: string | null; formaId: string | null; quando: Date; autorId: string },
+): Promise<string> {
+  const previsto = pag.lancamentoId
+    ? await tx.lancamento.findUnique({ where: { id: pag.lancamentoId } })
+    : await tx.lancamento.findUnique({ where: { pagamentoProjetistaId: pag.id } });
+
+  if (previsto && previsto.status !== "cancelado") {
+    await tx.lancamento.update({
+      where: { id: previsto.id },
+      data: {
+        status: "confirmado",
+        dataConfirmacao: opts.quando,
+        contaId: opts.contaId || previsto.contaId,
+        formaId: opts.formaId || previsto.formaId,
+      },
+    });
+    return previsto.id;
+  }
+
+  const codigo = CATEGORIA_POR_TIPO[pag.tipoProfissional] ?? CATEGORIA_POR_TIPO.projetista_pj;
+  const categoria = await tx.categoriaFinanceira.findUnique({ where: { codigo } });
+  if (!categoria) throw new ActionError(`Categoria ${codigo} ausente no plano de contas.`);
+  const lanc = await tx.lancamento.create({
+    data: {
+      tipo: "despesa",
+      descricao: `Projetista ${pag.projetistaNome} — ${pag.disciplinaNome} (${formatarCodigo(pag.projetoCodigo)})`,
+      valor: pag.valor,
+      status: "confirmado",
+      data: opts.quando,
+      dataConfirmacao: opts.quando,
+      categoriaId: categoria.id,
+      contaId: opts.contaId,
+      formaId: opts.formaId,
+      projetoId: pag.projetoId,
+      pagamentoProjetistaId: pag.id,
+      autorId: opts.autorId,
+    },
+  });
+  return lanc.id;
+}
+
 /** Status financeiro derivado do status do serviço terceirizado. null = não deve haver lançamento. */
 export function statusLancamentoServico(status: string): "previsto" | "confirmado" | null {
   if (status === "contratado") return "previsto";
