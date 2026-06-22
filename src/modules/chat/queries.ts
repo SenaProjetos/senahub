@@ -295,5 +295,14 @@ export async function canalDoProjeto(projetoId: string) {
   });
 }
 
+/** Mapa disciplinaId → canalId para todos os canais de disciplina do projeto. */
+export async function canaisDasDisciplinas(projetoId: string): Promise<Map<string, string>> {
+  const canais = await prisma.canal.findMany({
+    where: { tipo: "disciplina", projetoId, disciplinaId: { not: null } },
+    select: { disciplinaId: true, id: true },
+  });
+  return new Map(canais.filter((c) => c.disciplinaId).map((c) => [c.disciplinaId!, c.id]));
+}
+
 export type CanalListItem = Awaited<ReturnType<typeof listarCanais>>[number];
 export type MensagemItem = NonNullable<Awaited<ReturnType<typeof mensagensCanal>>>["itens"][number];

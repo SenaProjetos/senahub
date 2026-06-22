@@ -596,6 +596,7 @@ export const criarDisciplina = defineAction(
       return d;
     });
 
+    notificarNovosMembros(await ensureCanaisProjeto(input.projetoId));
     revalidatePath(`/projetos/${input.projetoId}`);
     return { disciplinaId: disciplina.id };
   },

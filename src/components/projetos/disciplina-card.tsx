@@ -142,10 +142,10 @@ export function DisciplinaCard({
               variant="ghost"
               size="icon"
               className="size-7"
-              title="Abrir chat do projeto"
+              title="Abrir chat da disciplina"
               render={
                 <Link
-                  href={`/chat?c=${canalChatId}&ref=${disciplina.nome}`}
+                  href={`/chat?c=${canalChatId}`}
                   target="_blank"
                   rel="noopener noreferrer"
                 />
