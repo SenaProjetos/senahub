@@ -48,12 +48,16 @@ export async function alertasPrazoDisciplina(): Promise<number> {
     });
     for (const d of discs) {
       const alvo = [...d.responsaveis.map((r) => r.userId), ...(await gestores(["admin", "supervisor"]))];
-      await notificarMuitos(alvo, {
-        titulo: `Prazo em ${dias} dia(s): ${d.nome}`,
-        corpo: `${formatarCodigo(d.projeto.codigo)} — entrega em ${dias} dia(s).`,
-        href: `/projetos/${d.projeto.id}`,
-        tag: `prazo-${d.id}-${dias}`,
-      });
+      await notificarMuitos(
+        alvo,
+        {
+          titulo: `Prazo em ${dias} dia(s): ${d.nome}`,
+          corpo: `${formatarCodigo(d.projeto.codigo)} — entrega em ${dias} dia(s).`,
+          href: `/projetos/${d.projeto.id}`,
+          tag: `prazo-${d.id}-${dias}`,
+        },
+        { categoria: "prazo_disciplina" },
+      );
       enviados++;
     }
   }
@@ -71,12 +75,16 @@ export async function alertaInadimplencia(): Promise<number> {
   const ids = await gestores();
   const comEmail = smtpConfigurado();
   for (const l of vencidos) {
-    await notificarMuitos(ids, {
-      titulo: "Recebimento vencido (D+1)",
-      corpo: `${l.descricao}${l.cliente ? ` — ${l.cliente.nome}` : ""} · R$ ${Number(l.valor).toLocaleString("pt-BR")}`,
-      href: "/financeiro/contas-a-receber",
-      tag: `inad-${l.id}`,
-    });
+    await notificarMuitos(
+      ids,
+      {
+        titulo: "Recebimento vencido (D+1)",
+        corpo: `${l.descricao}${l.cliente ? ` — ${l.cliente.nome}` : ""} · R$ ${Number(l.valor).toLocaleString("pt-BR")}`,
+        href: "/financeiro/contas-a-receber",
+        tag: `inad-${l.id}`,
+      },
+      { categoria: "inadimplencia" },
+    );
     if (comEmail && l.cliente?.email) {
       const valor = Number(l.valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
       const venc = l.vencimento ? l.vencimento.toLocaleDateString("pt-BR") : "—";
@@ -134,12 +142,16 @@ export async function alertaCertidoes(): Promise<number> {
       include: { tipo: true },
     });
     for (const c of certs) {
-      await notificarMuitos(ids, {
-        titulo: `Certidão vence em ${dias} dia(s)`,
-        corpo: `${c.tipo.nome}${c.descricao ? ` — ${c.descricao}` : ""}`,
-        href: "/juridico",
-        tag: `cert-${c.id}-${dias}`,
-      });
+      await notificarMuitos(
+        ids,
+        {
+          titulo: `Certidão vence em ${dias} dia(s)`,
+          corpo: `${c.tipo.nome}${c.descricao ? ` — ${c.descricao}` : ""}`,
+          href: "/juridico",
+          tag: `cert-${c.id}-${dias}`,
+        },
+        { categoria: "certidao" },
+      );
       n++;
     }
   }
@@ -155,12 +167,16 @@ export async function alertaLicitacoes(): Promise<number> {
       where: { status: "em_andamento", prazoProposta: diaAlvo(dias) },
     });
     for (const l of lics) {
-      await notificarMuitos(ids, {
-        titulo: `Licitação: prazo em ${dias} dia(s)`,
-        corpo: l.titulo,
-        href: "/licitacoes",
-        tag: `lic-${l.id}-${dias}`,
-      });
+      await notificarMuitos(
+        ids,
+        {
+          titulo: `Licitação: prazo em ${dias} dia(s)`,
+          corpo: l.titulo,
+          href: "/licitacoes",
+          tag: `lic-${l.id}-${dias}`,
+        },
+        { categoria: "licitacao" },
+      );
       n++;
     }
   }
@@ -318,7 +334,7 @@ export async function resumoSemanal(): Promise<void> {
   const corpo = `Semana: ${entregas} entrega(s) com prazo · a receber R$ ${somaR.toLocaleString("pt-BR")} · a pagar R$ ${somaP.toLocaleString("pt-BR")}.`;
 
   const ids = await gestores(["admin", "supervisor"]);
-  await notificarMuitos(ids, { titulo: "Resumo semanal", corpo, href: "/", tag: `resumo-${Date.now()}` });
+  await notificarMuitos(ids, { titulo: "Resumo semanal", corpo, href: "/", tag: `resumo-${Date.now()}` }, { categoria: "digest_semanal" });
 
   if (smtpConfigurado()) {
     const admins = await prisma.user.findMany({
