@@ -17,6 +17,9 @@ import {
   ShieldCheck,
   AlertTriangle,
   MessageSquare,
+  Link2,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 import {
   atualizarStatusDisciplina,
@@ -24,7 +27,7 @@ import {
   registrarRevisao,
 } from "@/modules/projetos/actions";
 import { DisciplinaEditDialog, DisciplinaDeleteButton } from "@/components/projetos/disciplina-edit-dialog";
-import { validarEntrega } from "@/modules/uploads/actions";
+import { validarEntrega, gerarAceiteCliente } from "@/modules/uploads/actions";
 import { STATUS_LABEL, STATUS_TONE } from "@/modules/projetos/status";
 import { diasDeAtraso } from "@/modules/projetos/atraso";
 import type { StatusDisciplina } from "@/generated/prisma/client";
@@ -61,6 +64,8 @@ type UploadItem = {
   validado: boolean;
   autor: string;
   data: string;
+  aceiteToken: string | null;
+  aceiteSituacao: string | null;
 };
 
 type Disc = {
@@ -244,6 +249,26 @@ function ArquivosDialog({
     (!disciplina.exigePacoteB || disciplina.temB) &&
     !disciplina.jaValidado;
 
+  // Primeiro upload validado — âncora do aceite digital
+  const uploadValidado = disciplina.uploads.find((u) => u.validado);
+  const aceiteToken = uploadValidado?.aceiteToken ?? null;
+  const aceiteSituacao = uploadValidado?.aceiteSituacao ?? null;
+
+  function gerarLinkAceite() {
+    if (!uploadValidado) return;
+    start(async () => {
+      const res = await gerarAceiteCliente({ uploadId: uploadValidado.id });
+      if (res.ok) {
+        const url = `${window.location.origin}/p/aceite/${res.data.token}`;
+        await navigator.clipboard.writeText(url);
+        toast.success("Link de aceite copiado para a área de transferência.");
+        router.refresh();
+      } else {
+        toast.error(res.error);
+      }
+    });
+  }
+
   async function enviar(files: FileList | null) {
     if (!files || files.length === 0) return;
     setEnviando(true);
@@ -275,7 +300,11 @@ function ArquivosDialog({
     start(async () => {
       const res = await validarEntrega({ disciplinaId: disciplina.id });
       if (res.ok) {
-        toast.success(`Entrega validada. ${res.data.pagamentos} pagamento(s) liberado(s).`);
+        toast.success(
+          res.data.pagamentos > 0
+            ? `Entrega validada. ${res.data.pagamentos} pagamento(s) liberado(s).`
+            : "Entrega validada. Sem pagamento (equipe CLT/estágio).",
+        );
         setOpen(false);
         router.refresh();
       } else {
@@ -390,11 +419,46 @@ function ArquivosDialog({
         </div>
 
         <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
-          {disciplina.uploads.length > 0 && (
-            <Button variant="outline" size="sm" render={<a href={`/api/uploads/disciplina/${disciplina.id}/zip`} />}>
-              <FileArchive className="size-3.5" /> Baixar tudo (.zip)
-            </Button>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {disciplina.uploads.length > 0 && (
+              <Button variant="outline" size="sm" render={<a href={`/api/uploads/disciplina/${disciplina.id}/zip`} />}>
+                <FileArchive className="size-3.5" /> Baixar tudo (.zip)
+              </Button>
+            )}
+            {podeValidar && disciplina.jaValidado && (
+              aceiteToken ? (
+                <div className="flex items-center gap-2">
+                  {aceiteSituacao === "aceito" && (
+                    <span className="flex items-center gap-1 text-xs text-success">
+                      <CheckCircle className="size-3.5" /> Aceito pelo cliente
+                    </span>
+                  )}
+                  {aceiteSituacao === "revisao" && (
+                    <span className="flex items-center gap-1 text-xs text-warning">
+                      <XCircle className="size-3.5" /> Revisão solicitada
+                    </span>
+                  )}
+                  {aceiteSituacao === "pendente" && (
+                    <span className="text-xs text-muted-foreground">Aguardando aceite</span>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    onClick={gerarLinkAceite}
+                    disabled={validando}
+                    title="Copiar link de aceite"
+                  >
+                    <Link2 className="size-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <Button variant="outline" size="sm" onClick={gerarLinkAceite} disabled={validando}>
+                  <Link2 className="size-3.5" /> Link de aceite
+                </Button>
+              )
+            )}
+          </div>
           {podeValidar && (
             <Button onClick={validar} disabled={!completoParaValidar || validando}>
               <ShieldCheck className="size-4" />

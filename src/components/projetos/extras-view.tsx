@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Check, X, Save, Camera, GitBranch, FileText, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Check, X, Save, Camera, GitBranch, FileText, ShieldAlert, TrendingDown } from "lucide-react";
 import {
   solicitarRevisao,
   responderRevisao,
@@ -178,6 +178,11 @@ export function ExtrasView({
     });
   }
 
+  // N-37: índice de qualidade do projeto
+  const discComRevisao = new Set(dados.solicitacoes.map((s) => s.disciplinaId));
+  const totalDisc = dados.disciplinas.length;
+  const retrabalho = totalDisc > 0 ? Math.round((discComRevisao.size / totalDisc) * 100) : 0;
+
   return (
     <div className="space-y-5">
       <div>
@@ -186,6 +191,40 @@ export function ExtrasView({
         </Link>
         <h2 className="text-2xl font-extrabold tracking-tight">Mais funções do projeto</h2>
       </div>
+
+      {/* N-37: Índice de qualidade do projeto */}
+      {totalDisc > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <TrendingDown className="size-4" /> Índice de qualidade
+            </CardTitle>
+            <CardDescription>Retrabalho = % de disciplinas com ao menos uma revisão solicitada.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <span
+                className={`text-3xl font-extrabold tabular-nums ${
+                  retrabalho > 30 ? "text-destructive" : retrabalho > 15 ? "text-warning" : "text-success"
+                }`}
+              >
+                {retrabalho}%
+              </span>
+              <div className="flex-1">
+                <div className="h-2 overflow-hidden rounded-sm bg-muted">
+                  <div
+                    className={`h-full ${retrabalho > 30 ? "bg-destructive" : retrabalho > 15 ? "bg-warning" : "bg-success"}`}
+                    style={{ width: `${retrabalho}%` }}
+                  />
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {discComRevisao.size} de {totalDisc} disciplinas revisadas
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* B2 — Solicitações de revisão */}
       <Card>

@@ -1,8 +1,9 @@
-import { CheckCircle2, Clock, AlertCircle, TrendingUp } from "lucide-react";
+import { CheckCircle2, Clock, AlertCircle, TrendingUp, ShieldCheck, ShieldAlert, ShieldX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { StatusDisciplina } from "@/generated/prisma/client";
 import { PESO_STATUS } from "@/modules/projetos/status";
 import { brl } from "@/lib/utils";
+import { saudeProjeto } from "@/modules/projetos/health";
 
 interface ProjetoKpisProps {
   disciplinas: { status: StatusDisciplina; prazo: string | null }[];
@@ -85,7 +86,24 @@ export function ProjetoKpis({ disciplinas, prazoFinal, situacao, margemPct }: Pr
     return p < hoje;
   }).length;
 
+  const saude = saudeProjeto(disciplinas, prazoFinal, situacao);
+  const saudeConfig = {
+    ok: { Icon: ShieldCheck, label: "Saudável", cls: "text-success" },
+    atencao: { Icon: ShieldAlert, label: "Atenção", cls: "text-warning" },
+    critico: { Icon: ShieldX, label: "Crítico", cls: "text-destructive" },
+  } as const;
+
   return (
+    <div className="space-y-2">
+    {saude && (() => {
+      const { Icon, label, cls } = saudeConfig[saude];
+      return (
+        <div className={cn("flex items-center gap-1.5 text-sm font-medium", cls)}>
+          <Icon className="size-4" aria-hidden />
+          Saúde do projeto: {label}
+        </div>
+      );
+    })()}
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <KpiCard
         icon={CheckCircle2}
@@ -140,6 +158,7 @@ export function ProjetoKpis({ disciplinas, prazoFinal, situacao, margemPct }: Pr
                 : "danger"
         }
       />
+    </div>
     </div>
   );
 }

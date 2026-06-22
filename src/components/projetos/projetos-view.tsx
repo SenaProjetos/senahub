@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Search, Plus, FolderOpen, Table as TableIcon, LayoutGrid, Download } from "lucide-react";
 import type { ProjetoListItem } from "@/modules/projetos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { SITUACAO_PROJETO_LABEL, STATUS_LABEL, STATUS_TONE } from "@/modules/projetos/status";
+import { SITUACAO_PROJETO_LABEL, STATUS_LABEL, STATUS_TONE, progressoProjeto } from "@/modules/projetos/status";
 import type { StatusDisciplina } from "@/generated/prisma/client";
 import { ProjetoForm } from "@/components/projetos/projeto-form";
 import { Button } from "@/components/ui/button";
@@ -46,7 +46,7 @@ const SAUDE_CLASS: Record<NivelSaude, string> = {
 };
 
 export function ProjetosView({
-  items,
+  items: itemsOriginais,
   podeGerir,
   busca,
   situacao,
@@ -62,7 +62,7 @@ export function ProjetosView({
   catalogo,
   internos,
 }: {
-  items: ProjetoListItem[];
+  items: ProjetoListItem[];  // recebido como itemsOriginais internamente
   podeGerir: boolean;
   busca: string;
   situacao: string;
@@ -83,6 +83,16 @@ export function ProjetosView({
   const vista = searchParams.get("vista") === "kanban" ? "kanban" : "tabela";
   const [q, setQ] = useState(busca);
   const [formOpen, setFormOpen] = useState(false);
+  const [sortRisco, setSortRisco] = useState(false);
+
+  const SAUDE_ORDEM: Record<NivelSaude, number> = { critico: 0, atencao: 1, ok: 2 };
+  const items = sortRisco
+    ? [...itemsOriginais].sort((a, b) => {
+        const sa = saudeProjeto(a.disciplinas, a.prazoFinal, a.situacao) ?? "ok";
+        const sb = saudeProjeto(b.disciplinas, b.prazoFinal, b.situacao) ?? "ok";
+        return SAUDE_ORDEM[sa] - SAUDE_ORDEM[sb];
+      })
+    : itemsOriginais;
 
   function aplicarBusca() {
     setParams({ q: q || null });
@@ -169,6 +179,14 @@ export function ProjetosView({
           onClick={() => setParams({ meu: meusProjetos ? null : "1" })}
         >
           Meus projetos
+        </Button>
+        <Button
+          variant={sortRisco ? "secondary" : "outline"}
+          size="sm"
+          onClick={() => setSortRisco((v) => !v)}
+          title="Ordenar por nível de saúde (crítico primeiro)"
+        >
+          Ordenar por risco
         </Button>
         {podeGerir && (
           <>
@@ -342,17 +360,34 @@ function ProjetosKanban({ items }: { items: ProjetoListItem[] }) {
             </Badge>
           </div>
           <div className="min-h-40 space-y-2 rounded-sm border border-dashed p-2">
-            {g.projetos.map((p) => (
-              <Link
-                key={p.id}
-                href={`/projetos/${p.id}`}
-                className="block rounded-sm border bg-card p-2.5 text-sm shadow-sm transition-colors hover:border-primary"
-              >
-                <p className="font-mono text-xs text-muted-foreground">{formatarCodigo(p.codigo)}</p>
-                <p className="mt-0.5 font-medium">{p.nome}</p>
-                <p className="mt-1 truncate text-xs text-muted-foreground">{p.cliente.nome}</p>
-              </Link>
-            ))}
+            {g.projetos.map((p) => {
+              const prog = progressoProjeto(p.disciplinas.map((d) => d.status));
+              const diasAtraso = p.prazoFinal && p.situacao === "em_andamento"
+                ? Math.max(0, Math.round((Date.now() - new Date(p.prazoFinal).getTime()) / 86400000))
+                : 0;
+              return (
+                <Link
+                  key={p.id}
+                  href={`/projetos/${p.id}`}
+                  className="block rounded-sm border bg-card p-2.5 text-sm shadow-sm transition-colors hover:border-primary"
+                >
+                  <div className="flex items-start justify-between gap-1">
+                    <p className="font-mono text-xs text-muted-foreground">{formatarCodigo(p.codigo)}</p>
+                    {diasAtraso > 0 && (
+                      <Badge variant="destructive" className="text-[9px] leading-tight">+{diasAtraso}d</Badge>
+                    )}
+                  </div>
+                  <p className="mt-0.5 font-medium leading-tight">{p.nome}</p>
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">{p.cliente.nome}</p>
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
+                      <div className="h-full bg-primary transition-all" style={{ width: `${prog}%` }} />
+                    </div>
+                    <span className="font-mono text-[10px] text-muted-foreground">{prog}%</span>
+                  </div>
+                </Link>
+              );
+            })}
             {g.projetos.length === 0 && (
               <p className="py-4 text-center text-xs text-muted-foreground">vazio</p>
             )}

@@ -28,6 +28,7 @@ export async function extrasDoProjeto(projetoId: string) {
     disciplinas,
     solicitacoes: solic.map((s) => ({
       id: s.id,
+      disciplinaId: s.disciplinaId,
       disciplina: s.disciplina.nome,
       solicitante: nome.get(s.solicitanteId) ?? "—",
       motivo: s.motivo,

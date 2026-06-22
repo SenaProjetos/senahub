@@ -129,6 +129,7 @@ export async function obterProjeto(viewer: Viewer, id: string) {
               validado: true,
               createdAt: true,
               autor: { select: { name: true } },
+              aceite: { select: { token: true, situacao: true } },
             },
           },
           _count: { select: { pagamentos: true } },
@@ -308,6 +309,48 @@ export async function obterProjetoMinimo(viewer: Viewer, id: string) {
       prazoFinal: true,
       cliente: { select: { id: true, nome: true } },
     },
+  });
+}
+
+/** N-07: eventos de mudança de status das disciplinas de um projeto, via AuditLog. */
+export async function timelineStatusProjeto(projetoId: string) {
+  const discIds = await prisma.disciplina.findMany({
+    where: { projetoId },
+    select: { id: true, nome: true },
+  });
+  if (discIds.length === 0) return [];
+  const idMap = new Map(discIds.map((d) => [d.id, d.nome]));
+  const logs = await prisma.auditLog.findMany({
+    where: {
+      modulo: "projetos",
+      acao: { in: ["atualizar-status-disciplina", "validar-entrega"] },
+      entidade: "Disciplina",
+      entidadeId: { in: [...idMap.keys()] },
+      resultado: "sucesso",
+    },
+    orderBy: { createdAt: "desc" },
+    take: 40,
+    select: {
+      id: true,
+      acao: true,
+      entidadeId: true,
+      detalhe: true,
+      createdAt: true,
+      user: { select: { name: true } },
+    },
+  });
+  return logs.map((l) => {
+    const det = l.detalhe as Record<string, unknown> | null;
+    const detNovo = det?.novo as Record<string, unknown> | undefined;
+    const status = (det?.status ?? detNovo?.status ?? null) as string | null;
+    return {
+      id: l.id,
+      disciplinaNome: l.entidadeId ? (idMap.get(l.entidadeId) ?? "Disciplina") : "Disciplina",
+      acao: l.acao,
+      status,
+      userName: l.user?.name ?? "Sistema",
+      createdAt: l.createdAt.toISOString(),
+    };
   });
 }
 

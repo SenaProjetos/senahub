@@ -31,9 +31,17 @@ export function PranchasView({
   const [dlg, setDlg] = useState<{ disciplinaId: string; p: Prancha | null } | null>(null);
   const [form, setForm] = useState({ codigo: "", titulo: "", revisao: "", escala: "" });
 
+  function sugerirCodigo(d: Disciplina): string {
+    const abr = d.nome.slice(0, 3).toUpperCase().replace(/\s/g, "");
+    const n = d.pranchas.length + 1;
+    return `${projeto.codigo}-${abr}-${n.toString().padStart(2, "0")}`;
+  }
+
   function abrir(disciplinaId: string, p: Prancha | null) {
     if (!podeGerir) return;
-    setForm({ codigo: p?.codigo ?? "", titulo: p?.titulo ?? "", revisao: p?.revisao ?? "", escala: p?.escala ?? "" });
+    const d = disciplinas.find((x) => x.id === disciplinaId);
+    const codigoDefault = p ? p.codigo : d ? sugerirCodigo(d) : "";
+    setForm({ codigo: codigoDefault, titulo: p?.titulo ?? "", revisao: p?.revisao ?? "", escala: p?.escala ?? "" });
     setDlg({ disciplinaId, p });
   }
   function salvar() {
@@ -136,8 +144,8 @@ export function PranchasView({
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Código</Label>
-              <Input value={form.codigo} onChange={(e) => setForm({ ...form, codigo: e.target.value })} placeholder="EST-01" />
+              <Label>Código <span className="text-muted-foreground">(opcional — auto)</span></Label>
+              <Input value={form.codigo} onChange={(e) => setForm({ ...form, codigo: e.target.value })} placeholder="001 (gerado automaticamente)" />
             </div>
             <div className="space-y-1.5">
               <Label>Revisão</Label>

@@ -59,7 +59,7 @@ export const registrarRevisaoSchema = z.object({
 
 export const membrosProjetoSchema = z.object({
   projetoId: z.string().min(1),
-  membrosIds: z.array(z.string()),
+  membros: z.array(z.object({ userId: z.string().min(1), papel: z.string().optional().nullable() })),
 });
 
 export const duplicarProjetoSchema = z.object({

@@ -15,7 +15,7 @@ async function revProjetoDaDisciplina(disciplinaId: string) {
 
 const pranchaSchema = z.object({
   disciplinaId: z.string().min(1),
-  codigo: z.string().min(1, "Informe o código."),
+  codigo: opt(z.string()),
   titulo: z.string().min(1, "Informe o título."),
   revisao: opt(z.string()),
   escala: opt(z.string()),
@@ -25,14 +25,17 @@ export const criarPrancha = defineAction(
   { ...base, acao: "criar-prancha", entidade: "Prancha", schema: pranchaSchema },
   async (i) => {
     const max = await prisma.prancha.aggregate({ where: { disciplinaId: i.disciplinaId }, _max: { ordem: true } });
+    const proxOrdem = (max._max.ordem ?? -1) + 1;
+    // N-36: código auto-gerado quando não informado (sequencial por disciplina, formato 001).
+    const codigo = i.codigo?.trim() || String(proxOrdem + 1).padStart(3, "0");
     const p = await prisma.prancha.create({
       data: {
         disciplinaId: i.disciplinaId,
-        codigo: i.codigo,
+        codigo,
         titulo: i.titulo,
         revisao: i.revisao || null,
         escala: i.escala || null,
-        ordem: (max._max.ordem ?? -1) + 1,
+        ordem: proxOrdem,
       },
     });
     await revProjetoDaDisciplina(i.disciplinaId);

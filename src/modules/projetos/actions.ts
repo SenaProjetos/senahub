@@ -142,6 +142,8 @@ export const atualizarStatusDisciplina = defineAction(
       throw new ActionError("Status 'aprovado' só pode ser definido via validação de entrega.");
     }
 
+    // P-14: permissao "visualizar" garante login; gate fino abaixo separa responsável vs. gestor
+    // (além da matriz global de permissões, pois acesso é por vínculo, não por role).
     const ehGerir = isGlobal(user.role) || ["admin", "supervisor"].includes(user.role);
     const ehResp = disciplina.responsaveis.some((r) => r.userId === user.id);
     if (!ehGerir && !ehResp) {
@@ -275,6 +277,7 @@ export const registrarRevisao = defineAction(
       include: { responsaveis: true },
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
+    // P-14: permissao "visualizar" garante login; gate fino por vínculo de responsável.
     const ehResp = disciplina.responsaveis.some((r) => r.userId === user.id);
     if (!isGlobal(user.role) && !ehResp) {
       throw new ActionError("Apenas responsáveis ou gestores registram revisões.");
@@ -295,6 +298,18 @@ export const registrarRevisao = defineAction(
         },
       });
     });
+
+    // P-16: notificar responsáveis (exceto quem registrou) sobre nova revisão.
+    const respIds = disciplina.responsaveis.map((r) => r.userId).filter((id) => id !== user.id);
+    if (respIds.length > 0) {
+      await notificarMuitos(respIds, {
+        titulo: `Revisão R${revisao.numero} registrada`,
+        corpo: `${disciplina.nome}: ${input.motivo || "sem motivo informado"}.`,
+        href: `/projetos/${disciplina.projetoId}`,
+        tag: `revisao-${revisao.id}`,
+      });
+    }
+
     revalidatePath(`/projetos/${disciplina.projetoId}`);
     return { id: revisao.id, numero: revisao.numero };
   },
@@ -311,10 +326,11 @@ export const definirMembros = defineAction(
     entidadeId: (d) => (d as { projetoId: string }).projetoId,
   },
   async (input) => {
+    // P-04: grava papel por membro.
     await prisma.$transaction([
       prisma.projetoMembro.deleteMany({ where: { projetoId: input.projetoId } }),
       prisma.projetoMembro.createMany({
-        data: input.membrosIds.map((userId) => ({ projetoId: input.projetoId, userId })),
+        data: input.membros.map((m) => ({ projetoId: input.projetoId, userId: m.userId, papel: m.papel ?? null })),
         skipDuplicates: true,
       }),
     ]);

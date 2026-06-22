@@ -6,7 +6,8 @@ import { ROLE_LABELS } from "@/lib/roles";
 import { Avatar, AvatarFallback, AvatarBadge } from "@/components/ui/avatar";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
-import { obterProjeto, usuariosInternos, margemProjeto, catalogoDisciplinas, disciplinasForaDeSLA, SLA_VALIDACAO_DIAS } from "@/modules/projetos/queries";
+import { obterProjeto, usuariosInternos, margemProjeto, catalogoDisciplinas, disciplinasForaDeSLA, SLA_VALIDACAO_DIAS, timelineStatusProjeto } from "@/modules/projetos/queries";
+import { StatusTimeline } from "@/components/projetos/status-timeline";
 import { formatarData } from "@/lib/utils";
 import { SITUACAO_PROJETO_LABEL, progressoProjeto } from "@/modules/projetos/status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +23,8 @@ import { AdicionarDisciplinaButton } from "@/components/projetos/adicionar-disci
 import { AdicionarDoCatalogoButton } from "@/components/projetos/adicionar-do-catalogo-button";
 import { DisciplinaEditDialog, DisciplinaDeleteButton } from "@/components/projetos/disciplina-edit-dialog";
 import { canalDoProjeto, canaisDasDisciplinas } from "@/modules/chat/queries";
+import { sessaoAberta } from "@/modules/ponto/queries";
+import { CronometroProjeto } from "@/components/ponto/cronometro-projeto";
 
 function fmtData(d: Date | null) {
   return d ? formatarData(d) : null;
@@ -43,13 +46,15 @@ export default async function ProjetoDetalhePage({
     can(user.role, "financeiro", "ver"),
   ]);
 
-  const [internos, margem, catalogo, slaFora, canalChat, canaisDisc] = await Promise.all([
+  const [internos, margem, catalogo, slaFora, canalChat, canaisDisc, sessaoPonto, timelineStatus] = await Promise.all([
     podeGerir ? usuariosInternos() : Promise.resolve([]),
     podeVerFinanceiro ? margemProjeto(projeto.id) : Promise.resolve(null),
     podeGerir ? catalogoDisciplinas() : Promise.resolve([]),
     podeValidar ? disciplinasForaDeSLA(user) : Promise.resolve([]),
     canalDoProjeto(projeto.id),
     canaisDasDisciplinas(projeto.id),
+    user.role !== "cliente" ? sessaoAberta(user.id) : Promise.resolve(null),
+    timelineStatusProjeto(projeto.id),
   ]);
 
   const disciplinas = projeto.disciplinas.map((d) => {
@@ -62,6 +67,8 @@ export default async function ProjetoDetalhePage({
       validado: u.validado,
       autor: u.autor.name,
       data: new Date(u.createdAt).toISOString(),
+      aceiteToken: u.aceite?.token ?? null,
+      aceiteSituacao: u.aceite?.situacao ?? null,
     }));
     return {
       id: d.id,
@@ -139,12 +146,20 @@ export default async function ProjetoDetalhePage({
       {/* Meta */}
       {(projeto.prazoFinal || projeto.areaM2 != null || projeto.endereco) && (
         <div className="flex flex-wrap gap-4 text-sm">
-          {projeto.prazoFinal && (
-            <div className="flex items-center gap-2">
-              <CalendarDays className="size-4 text-muted-foreground" />
-              Prazo final: {fmtData(projeto.prazoFinal)}
-            </div>
-          )}
+          {projeto.prazoFinal && (() => {
+            const diasAtraso = projeto.situacao === "em_andamento"
+              ? Math.max(0, Math.round((Date.now() - new Date(projeto.prazoFinal).getTime()) / 86400000))
+              : 0;
+            return (
+              <div className="flex items-center gap-2">
+                <CalendarDays className="size-4 text-muted-foreground" />
+                Prazo final: {fmtData(projeto.prazoFinal)}
+                {diasAtraso > 0 && (
+                  <Badge variant="destructive" className="text-[10px]">Atrasado {diasAtraso}d</Badge>
+                )}
+              </div>
+            );
+          })()}
           {projeto.areaM2 != null && (
             <div className="flex items-center gap-2">
               <Ruler className="size-4 text-muted-foreground" /> {Number(projeto.areaM2)} m²
@@ -156,6 +171,14 @@ export default async function ProjetoDetalhePage({
             </div>
           )}
         </div>
+      )}
+
+      {/* N-29: Cronômetro de sessão de trabalho */}
+      {user.role !== "cliente" && (
+        <CronometroProjeto
+          projetoId={projeto.id}
+          sessaoAtiva={sessaoPonto ? { id: sessaoPonto.id, projetoId: sessaoPonto.projetoId, inicio: sessaoPonto.inicio } : null}
+        />
       )}
 
       {/* P-43: KPIs */}
@@ -262,7 +285,7 @@ export default async function ProjetoDetalhePage({
             <EquipeManager
               projetoId={projeto.id}
               internos={internos}
-              membrosAtuais={projeto.membros.map((m) => m.userId)}
+              membrosAtuais={projeto.membros.map((m) => ({ userId: m.userId, papel: m.papel ?? null }))}
             />
           )}
         </CardHeader>
@@ -297,6 +320,9 @@ export default async function ProjetoDetalhePage({
           )}
         </CardContent>
       </Card>
+
+      {/* N-07: linha do tempo de status */}
+      <StatusTimeline eventos={timelineStatus} />
     </div>
   );
 }
