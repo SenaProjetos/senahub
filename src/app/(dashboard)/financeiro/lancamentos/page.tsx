@@ -7,8 +7,13 @@ import { LancamentosView } from "@/components/financeiro/lancamentos/lancamentos
 
 export const metadata: Metadata = { title: "Lançamentos de caixa" };
 
-export default async function LancamentosPage() {
+export default async function LancamentosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ projetoId?: string }>;
+}) {
   await requirePermission("financeiro", "ver");
+  const { projetoId } = await searchParams;
   const [dados, opcoes, exclusao, modelosDoc] = await Promise.all([
     dadosLivroCaixa(),
     opcoesLancamento(),
@@ -22,6 +27,7 @@ export default async function LancamentosPage() {
       opcoes={opcoes}
       exigeSenhaExclusao={exclusao.exigir}
       modelosDoc={modelosDoc}
+      defaultProjetoId={projetoId}
     />
   );
 }

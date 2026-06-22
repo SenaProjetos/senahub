@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
@@ -50,6 +51,14 @@ export default async function ProjetoFinanceiroPage({
       <MargemCard margem={margem} />
       {evm && <EvmCard evm={evm} />}
       {planoReal && planoReal.linhas.length > 0 && <PlanoRealCard planoReal={planoReal} />}
+      <div className="flex gap-4 text-xs">
+        <Link
+          href={`/financeiro/lancamentos?projetoId=${id}`}
+          className="text-muted-foreground hover:text-foreground hover:underline"
+        >
+          Ver lançamentos deste projeto →
+        </Link>
+      </div>
     </div>
   );
 }

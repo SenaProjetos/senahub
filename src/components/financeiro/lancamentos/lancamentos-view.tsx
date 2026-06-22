@@ -93,12 +93,14 @@ export function LancamentosView({
   opcoes,
   exigeSenhaExclusao = false,
   modelosDoc = [],
+  defaultProjetoId,
 }: {
   itens: LivroCaixaItem[];
   contas: Conta[];
   opcoes: OpcoesLancamento;
   exigeSenhaExclusao?: boolean;
   modelosDoc?: { id: string; nome: string }[];
+  defaultProjetoId?: string;
 }) {
   const router = useRouter();
   const [, start] = useTransition();
@@ -113,7 +115,7 @@ export function LancamentosView({
   const [categoriaId, setCategoriaId] = useState(NONE);
   const [centroId, setCentroId] = useState(NONE);
   const [formaId, setFormaId] = useState(NONE);
-  const [projetoId, setProjetoId] = useState(NONE);
+  const [projetoId, setProjetoId] = useState(defaultProjetoId ?? NONE);
   const [valorMin, setValorMin] = useState("");
   const [valorMax, setValorMax] = useState("");
   const [agruparPor, setAgruparPor] = useState("");
