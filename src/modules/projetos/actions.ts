@@ -174,6 +174,8 @@ export const atualizarStatusDisciplina = defineAction(
       },
     });
     revalidatePath(`/projetos/${disciplina.projetoId}`);
+    revalidatePath("/planejamento/cronograma");
+    revalidatePath("/");
 
     // P-52: notificações por mudança de status.
     const href = `/projetos/${disciplina.projetoId}`;

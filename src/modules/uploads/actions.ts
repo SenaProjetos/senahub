@@ -131,6 +131,8 @@ export const validarEntrega = defineAction(
     );
 
     revalidatePath(href);
+    revalidatePath("/planejamento/cronograma");
+    revalidatePath("/");
     revalidatePath("/financeiro/lancamentos");
     revalidatePath("/financeiro/contas-a-pagar");
     return { disciplinaId: disciplina.id, pagamentos: n };

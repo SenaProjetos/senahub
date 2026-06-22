@@ -32,6 +32,18 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SortableHead } from "@/components/ui/sortable-head";
 import { Pagination } from "@/components/ui/pagination";
 import { useSetParams } from "@/lib/use-set-param";
+import { saudeProjeto, type NivelSaude } from "@/modules/projetos/health";
+
+const SAUDE_LABEL: Record<NivelSaude, string> = {
+  ok: "OK",
+  atencao: "Atenção",
+  critico: "Crítico",
+};
+const SAUDE_CLASS: Record<NivelSaude, string> = {
+  ok: "text-success",
+  atencao: "text-warning",
+  critico: "text-destructive",
+};
 
 export function ProjetosView({
   items,
@@ -226,12 +238,13 @@ export function ProjetosView({
               <SortableHead field="cliente">Cliente</SortableHead>
               <TableHead>Disciplinas</TableHead>
               <SortableHead field="situacao">Situação</SortableHead>
+              <TableHead>Saúde</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="p-0">
+                <TableCell colSpan={6} className="p-0">
                   <EmptyState icon={FolderOpen} title="Nenhum projeto" />
                 </TableCell>
               </TableRow>
@@ -241,6 +254,7 @@ export function ProjetosView({
                   acc[d.status] = (acc[d.status] ?? 0) + 1;
                   return acc;
                 }, {});
+                const saude = saudeProjeto(p.disciplinas, p.prazoFinal, p.situacao);
                 return (
                   <TableRow key={p.id}>
                     <TableCell className="font-mono text-xs">
@@ -272,6 +286,15 @@ export function ProjetosView({
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">{SITUACAO_PROJETO_LABEL[p.situacao]}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {saude ? (
+                        <span className={`text-xs font-medium ${SAUDE_CLASS[saude]}`}>
+                          {SAUDE_LABEL[saude]}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 );

@@ -98,7 +98,7 @@ export async function listarProjetos(
       include: {
         cliente: { select: { id: true, nome: true } },
         _count: { select: { disciplinas: true } },
-        disciplinas: { select: { status: true } },
+        disciplinas: { select: { status: true, prazo: true } },
       },
     }),
     prisma.projeto.count({ where }),
