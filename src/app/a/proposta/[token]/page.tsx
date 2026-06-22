@@ -94,9 +94,19 @@ export default async function PropostaPublicaPage({
         <p className="mt-6 whitespace-pre-wrap text-sm text-muted-foreground">{p.observacoes}</p>
       )}
 
-      <p className="mt-10 text-xs text-muted-foreground">
-        Dúvidas? Responda o e-mail desta proposta. — Sena Projetos
-      </p>
+      <div className="mt-10 flex items-center justify-between gap-4">
+        <p className="text-xs text-muted-foreground">
+          Dúvidas? Responda o e-mail desta proposta. — Sena Projetos
+        </p>
+        <a
+          href={`/api/t/proposta/${token}/pdf`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0 rounded-sm border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+        >
+          Baixar PDF
+        </a>
+      </div>
 
       {/* pixel de abertura */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
