@@ -44,6 +44,10 @@ export async function receitaProjeto(projetoId: string) {
 
   const valorContrato = projeto?.valorContrato != null ? Number(projeto.valorContrato) : null;
   const faturadoTotal = previsto + confirmado;
+  // P-23/N-22: a composição de preço substitui o contrato como referência de receita
+  // prevista quando existir (é o detalhamento dos itens). Sem composição, usa o contrato.
+  const usandoComposicao = totalComposicao > 0;
+  const valorReferencia = usandoComposicao ? totalComposicao : valorContrato;
 
   // Disciplinas já faturadas por entrega (tag entrega:<disciplinaId> em algum recebível).
   const faturadas = new Set<string>();
@@ -53,6 +57,8 @@ export async function receitaProjeto(projetoId: string) {
 
   return {
     valorContrato,
+    valorReferencia,
+    usandoComposicao,
     tipo: projeto?.tipo ?? "particular",
     totalComposicao,
     parcelas: parcelas.map((p) => ({
@@ -65,8 +71,8 @@ export async function receitaProjeto(projetoId: string) {
     faturadoPrevisto: previsto,
     faturadoConfirmado: confirmado,
     faturadoTotal,
-    // Quanto do contrato ainda não virou parcela (recebível).
-    aFaturar: valorContrato != null ? Math.round((valorContrato - faturadoTotal) * 100) / 100 : null,
+    // Quanto da referência (composição ou contrato) ainda não virou parcela (recebível).
+    aFaturar: valorReferencia != null ? Math.round((valorReferencia - faturadoTotal) * 100) / 100 : null,
     // Disciplinas faturáveis por entrega (com valor), marcando as já faturadas.
     disciplinas: disciplinas
       .filter((d) => d.valor != null && Number(d.valor) > 0)

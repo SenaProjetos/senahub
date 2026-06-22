@@ -25,6 +25,8 @@ type Parcela = { id: string; descricao: string; valor: number; status: string; v
 type DisciplinaFaturavel = { id: string; nome: string; valor: number; status: string; faturada: boolean };
 type Receita = {
   valorContrato: number | null;
+  valorReferencia: number | null;
+  usandoComposicao: boolean;
   totalComposicao: number;
   parcelas: Parcela[];
   faturadoPrevisto: number;
@@ -122,9 +124,12 @@ export function ReceitaContratoCard({ projetoId, receita }: { projetoId: string;
           )}
         </div>
 
-        {/* Comparativo contrato × faturado */}
+        {/* Comparativo referência × faturado (P-23: composição substitui contrato) */}
         <div className="grid gap-3 sm:grid-cols-4">
-          <Kpi label="Contratado" valor={r.valorContrato != null ? brl(r.valorContrato) : "—"} />
+          <Kpi
+            label={r.usandoComposicao ? "Composição (ref.)" : "Contratado"}
+            valor={r.valorReferencia != null ? brl(r.valorReferencia) : "—"}
+          />
           <Kpi label="Faturado (previsto)" valor={brl(r.faturadoPrevisto)} />
           <Kpi label="Recebido" valor={brl(r.faturadoConfirmado)} cor="text-success" />
           <Kpi
@@ -187,7 +192,7 @@ export function ReceitaContratoCard({ projetoId, receita }: { projetoId: string;
         open={gerar}
         onClose={() => setGerar(false)}
         projetoId={projetoId}
-        valorSugerido={r.valorContrato ?? r.totalComposicao ?? 0}
+        valorSugerido={r.valorReferencia ?? 0}
       />
     </Card>
   );
