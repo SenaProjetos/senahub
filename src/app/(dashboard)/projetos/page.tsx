@@ -21,6 +21,7 @@ export default async function ProjetosPage({
     cliente?: string;
     responsavel?: string;
     disciplina?: string;
+    meu?: string;
     sort?: string;
     dir?: string;
     page?: string;
@@ -40,6 +41,7 @@ export default async function ProjetosPage({
     situacao: sp.situacao,
     clienteId: sp.cliente,
     responsavelId: sp.responsavel,
+    membroId: sp.meu === "1" ? user.id : undefined,
     disciplina: sp.disciplina,
     sort: sort ?? undefined,
     dir,
@@ -66,6 +68,7 @@ export default async function ProjetosPage({
       clienteId={sp.cliente ?? ""}
       responsavelId={sp.responsavel ?? ""}
       disciplina={sp.disciplina ?? ""}
+      meusProjetos={sp.meu === "1"}
       page={page}
       pageCount={pc}
       pageSize={pageSize}

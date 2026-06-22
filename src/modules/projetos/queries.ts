@@ -50,6 +50,7 @@ export async function listarProjetos(
     situacao?: string;
     clienteId?: string;
     responsavelId?: string;
+    membroId?: string;
     disciplina?: string;
     sort?: string;
     dir?: Dir;
@@ -63,6 +64,14 @@ export async function listarProjetos(
   if (opts?.clienteId) and.push({ clienteId: opts.clienteId });
   if (opts?.responsavelId) {
     and.push({ disciplinas: { some: { responsaveis: { some: { userId: opts.responsavelId } } } } });
+  }
+  if (opts?.membroId) {
+    and.push({
+      OR: [
+        { membros: { some: { userId: opts.membroId } } },
+        { disciplinas: { some: { responsaveis: { some: { userId: opts.membroId } } } } },
+      ],
+    });
   }
   if (opts?.disciplina) {
     and.push({ disciplinas: { some: { nome: opts.disciplina } } });

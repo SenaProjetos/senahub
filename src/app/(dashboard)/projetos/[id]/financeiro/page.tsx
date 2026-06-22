@@ -51,12 +51,19 @@ export default async function ProjetoFinanceiroPage({
       <MargemCard margem={margem} />
       {evm && <EvmCard evm={evm} />}
       {planoReal && planoReal.linhas.length > 0 && <PlanoRealCard planoReal={planoReal} />}
-      <div className="flex gap-4 text-xs">
+      <div className="flex gap-3 text-xs">
+        <Link
+          href={`/financeiro/lancamentos?projetoId=${id}&novo=1`}
+          className="text-muted-foreground hover:text-foreground hover:underline"
+        >
+          + Novo lançamento neste projeto
+        </Link>
+        <span className="text-border">·</span>
         <Link
           href={`/financeiro/lancamentos?projetoId=${id}`}
           className="text-muted-foreground hover:text-foreground hover:underline"
         >
-          Ver lançamentos deste projeto →
+          Ver lançamentos →
         </Link>
       </div>
     </div>

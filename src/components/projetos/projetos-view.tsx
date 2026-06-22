@@ -41,6 +41,7 @@ export function ProjetosView({
   clienteId,
   responsavelId,
   disciplina,
+  meusProjetos,
   page,
   pageCount,
   pageSize,
@@ -56,6 +57,7 @@ export function ProjetosView({
   clienteId: string;
   responsavelId: string;
   disciplina: string;
+  meusProjetos: boolean;
   page: number;
   pageCount: number;
   pageSize: number;
@@ -149,6 +151,13 @@ export function ProjetosView({
             ))}
           </SelectContent>
         </Select>
+        <Button
+          variant={meusProjetos ? "secondary" : "outline"}
+          size="sm"
+          onClick={() => setParams({ meu: meusProjetos ? null : "1" })}
+        >
+          Meus projetos
+        </Button>
         {podeGerir && (
           <>
             <Select

@@ -94,6 +94,7 @@ export function LancamentosView({
   exigeSenhaExclusao = false,
   modelosDoc = [],
   defaultProjetoId,
+  defaultFormOpen = false,
 }: {
   itens: LivroCaixaItem[];
   contas: Conta[];
@@ -101,6 +102,7 @@ export function LancamentosView({
   exigeSenhaExclusao?: boolean;
   modelosDoc?: { id: string; nome: string }[];
   defaultProjetoId?: string;
+  defaultFormOpen?: boolean;
 }) {
   const router = useRouter();
   const [, start] = useTransition();
@@ -152,7 +154,7 @@ export function LancamentosView({
   const resetCol = (key: ColKey) => setLarguras((p) => ({ ...p, [key]: LARGURAS_PADRAO[key] }));
 
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
-  const [formOpen, setFormOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(defaultFormOpen);
   const [editar, setEditar] = useState<LivroCaixaItem | null>(null);
   const [confirmar, setConfirmar] = useState<LivroCaixaItem | null>(null);
   const [detalhe, setDetalhe] = useState<LivroCaixaItem | null>(null);
