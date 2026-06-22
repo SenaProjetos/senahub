@@ -1335,6 +1335,8 @@ model Tarefa {
   criadorId String
   criador   User         @relation("TarefaCriador", fields: [criadorId], references: [id])
   arquivada Boolean      @default(false)
+  /// Origem na EAP (P-32): evita gerar a mesma Tarefa operacional duas vezes.
+  eapTarefaId String?    @unique
 
   responsaveis TarefaResponsavel[]
   itens        TarefaItem[]

@@ -56,3 +56,8 @@ export function progressoProjeto(statuses: StatusDisciplina[]): number {
   const soma = statuses.reduce((s, st) => s + PESO_STATUS[st], 0);
   return Math.round((soma / statuses.length) * 100);
 }
+
+/** Progresso 0–100 derivado do status de uma disciplina (P-33). */
+export function progressoDoStatus(status: StatusDisciplina): number {
+  return Math.round(PESO_STATUS[status] * 100);
+}

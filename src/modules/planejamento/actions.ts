@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { addDays } from "date-fns";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
+import { reagendarPorDependencias } from "@/modules/planejamento/caminho-critico";
 
 const plan = { modulo: "planejamento", recurso: "planejamento", permissao: "gerir" } as const;
 const rec = { modulo: "recursos", recurso: "recursos", permissao: "gerir" } as const;
@@ -55,12 +57,18 @@ const gerarTarefaSchema = z.object({ eapTarefaId: z.string().min(1) });
  * Ponte EAP → Kanban (one-way). Gera uma Tarefa operacional a partir de uma etapa
  * do cronograma. Mapeamento: nome→titulo, projetoId→projetoId, fimPrevisto→prazo;
  * status = primeira coluna do Kanban (menor ordem, ativa); criador = usuário atual.
- * Não copia dependências nem responsáveis. Pode ser chamada várias vezes para a
- * mesma EapTarefa (não há deduplicação) — cada chamada cria uma nova Tarefa.
+ * Não copia dependências nem responsáveis. Idempotente (P-32): se já existe uma
+ * Tarefa gerada desta EapTarefa, devolve-a em vez de criar outra.
  */
 export const gerarTarefaDeEap = defineAction(
   { ...plan, acao: "gerar-tarefa-eap", entidade: "Tarefa", schema: gerarTarefaSchema },
   async (i, { user }) => {
+    const existente = await prisma.tarefa.findUnique({
+      where: { eapTarefaId: i.eapTarefaId },
+      select: { id: true },
+    });
+    if (existente) return { id: existente.id, jaExistia: true };
+
     const eap = await prisma.eapTarefa.findUnique({
       where: { id: i.eapTarefaId },
       select: { nome: true, projetoId: true, fimPrevisto: true },
@@ -82,10 +90,11 @@ export const gerarTarefaDeEap = defineAction(
         prazo: eap.fimPrevisto,
         projetoId: eap.projetoId,
         criadorId: user.id,
+        eapTarefaId: i.eapTarefaId,
       },
     });
     revalidatePath("/tarefas");
-    return { id: t.id };
+    return { id: t.id, jaExistia: false };
   },
 );
 
@@ -185,6 +194,101 @@ export const aplicarAoProjeto = defineAction(
     revProjeto(i.projetoId);
     revalidatePath(`/projetos/${i.projetoId}`);
     return { aplicadas: tarefas.length };
+  },
+);
+
+/**
+ * P-36: cria uma tarefa de EAP por disciplina que ainda não tem uma (vínculo
+ * disciplinaId). Datas: fim = prazo da disciplina (ou prazo final do projeto, ou
+ * hoje+14); início = hoje. Bootstrap rápido para sair do "Sem tarefas de EAP".
+ */
+export const gerarEapDasDisciplinas = defineAction(
+  { ...plan, acao: "gerar-eap-disciplinas", entidade: "EapTarefa", schema: projetoIdSchema },
+  async (i) => {
+    const [disciplinas, existentes, projeto, maxOrdem] = await Promise.all([
+      prisma.disciplina.findMany({
+        where: { projetoId: i.projetoId },
+        orderBy: { ordem: "asc" },
+        select: { id: true, nome: true, prazo: true },
+      }),
+      prisma.eapTarefa.findMany({
+        where: { projetoId: i.projetoId, disciplinaId: { not: null } },
+        select: { disciplinaId: true },
+      }),
+      prisma.projeto.findUnique({ where: { id: i.projetoId }, select: { prazoFinal: true } }),
+      prisma.eapTarefa.aggregate({ where: { projetoId: i.projetoId }, _max: { ordem: true } }),
+    ]);
+    const jaComEap = new Set(existentes.map((e) => e.disciplinaId));
+    const novas = disciplinas.filter((d) => !jaComEap.has(d.id));
+    if (novas.length === 0) throw new ActionError("Todas as disciplinas já têm tarefa na EAP.");
+
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    let ordem = (maxOrdem._max.ordem ?? -1) + 1;
+    await prisma.$transaction(
+      novas.map((d) => {
+        const fim =
+          d.prazo && d.prazo > hoje
+            ? d.prazo
+            : projeto?.prazoFinal && projeto.prazoFinal > hoje
+              ? projeto.prazoFinal
+              : addDays(hoje, 14);
+        return prisma.eapTarefa.create({
+          data: {
+            projetoId: i.projetoId,
+            disciplinaId: d.id,
+            nome: d.nome,
+            inicioPrevisto: hoje,
+            fimPrevisto: fim,
+            ordem: ordem++,
+          },
+        });
+      }),
+    );
+    revProjeto(i.projetoId);
+    return { criadas: novas.length };
+  },
+);
+
+/**
+ * P-34: reagenda as tarefas pelas dependências FS (forward pass do CPM), preservando
+ * a duração de cada uma. Não-destrutivo: só altera as que mudam de data.
+ */
+export const reagendarPlano = defineAction(
+  { ...plan, acao: "reagendar-plano", entidade: "EapTarefa", schema: projetoIdSchema },
+  async (i) => {
+    const tarefas = await prisma.eapTarefa.findMany({
+      where: { projetoId: i.projetoId },
+      select: {
+        id: true,
+        inicioPrevisto: true,
+        fimPrevisto: true,
+        predecessoras: { select: { predecessoraId: true } },
+      },
+    });
+    if (tarefas.length === 0) throw new ActionError("Sem tarefas para reagendar.");
+
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    const mudancas = reagendarPorDependencias(
+      tarefas.map((t) => ({
+        id: t.id,
+        inicioPrevisto: iso(t.inicioPrevisto),
+        fimPrevisto: iso(t.fimPrevisto),
+        predecessoraIds: t.predecessoras.map((p) => p.predecessoraId),
+      })),
+    );
+    if (mudancas.size > 0) {
+      await prisma.$transaction(
+        [...mudancas.entries()].map(([id, d]) =>
+          prisma.eapTarefa.update({
+            where: { id },
+            data: { inicioPrevisto: new Date(d.inicioPrevisto), fimPrevisto: new Date(d.fimPrevisto) },
+          }),
+        ),
+      );
+      revProjeto(i.projetoId);
+    }
+    return { reagendadas: mudancas.size };
   },
 );
 

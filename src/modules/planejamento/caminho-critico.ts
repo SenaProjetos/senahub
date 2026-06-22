@@ -139,3 +139,69 @@ export function calcularCaminhoCritico(tarefas: TarefaCPM[]): ResultadoCPM {
 
   return { criticas, folgaPorId };
 }
+
+const parseDiaUTC = (iso: string) => Date.parse(iso + "T00:00:00Z");
+const toISODia = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+
+/**
+ * Reagenda as tarefas pelas dependências FS (forward pass), preservando a duração
+ * de cada uma. A sucessora passa a iniciar no dia seguinte ao maior fim das
+ * predecessoras; tarefas sem predecessora mantêm o início atual (âncora).
+ * Retorna apenas as tarefas cuja data mudou. Datas ISO `YYYY-MM-DD`.
+ */
+export function reagendarPorDependencias(
+  tarefas: TarefaCPM[],
+): Map<string, { inicioPrevisto: string; fimPrevisto: string }> {
+  const mudancas = new Map<string, { inicioPrevisto: string; fimPrevisto: string }>();
+  if (tarefas.length === 0) return mudancas;
+
+  const ids = new Set(tarefas.map((t) => t.id));
+  const preds = new Map<string, string[]>();
+  const sucs = new Map<string, string[]>();
+  const durMs = new Map<string, number>(); // (duração-1) em ms — para preservar a duração
+  const inicioOrig = new Map<string, number>();
+  for (const t of tarefas) {
+    preds.set(t.id, []);
+    sucs.set(t.id, []);
+    durMs.set(t.id, (duracaoDias(t) - 1) * MS_DIA);
+    inicioOrig.set(t.id, parseDiaUTC(t.inicioPrevisto));
+  }
+  for (const t of tarefas) {
+    for (const p of t.predecessoraIds) {
+      if (!ids.has(p) || p === t.id) continue;
+      preds.get(t.id)!.push(p);
+      sucs.get(p)!.push(t.id);
+    }
+  }
+
+  // Ordenação topológica (Kahn), defensiva contra ciclos.
+  const grau = new Map<string, number>();
+  for (const t of tarefas) grau.set(t.id, preds.get(t.id)!.length);
+  const fila: string[] = [];
+  for (const t of tarefas) if (grau.get(t.id) === 0) fila.push(t.id);
+  const ordem: string[] = [];
+  while (fila.length > 0) {
+    const id = fila.shift()!;
+    ordem.push(id);
+    for (const s of sucs.get(id)!) {
+      grau.set(s, grau.get(s)! - 1);
+      if (grau.get(s) === 0) fila.push(s);
+    }
+  }
+  if (ordem.length < tarefas.length) {
+    const vistos = new Set(ordem);
+    for (const t of tarefas) if (!vistos.has(t.id)) ordem.push(t.id);
+  }
+
+  const novoFim = new Map<string, number>();
+  for (const id of ordem) {
+    const ps = preds.get(id)!;
+    const inicio = ps.length === 0 ? inicioOrig.get(id)! : Math.max(...ps.map((p) => novoFim.get(p)! + MS_DIA));
+    const fim = inicio + durMs.get(id)!;
+    novoFim.set(id, fim);
+    if (inicio !== inicioOrig.get(id)!) {
+      mudancas.set(id, { inicioPrevisto: toISODia(inicio), fimPrevisto: toISODia(fim) });
+    }
+  }
+  return mudancas;
+}

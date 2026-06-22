@@ -5,8 +5,14 @@ import { formatarDiaMes } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Flag, CheckCheck, ArrowLeft, ZoomIn, ZoomOut, Rocket, ListPlus } from "lucide-react";
-import { definirLinhaBase, aplicarAoProjeto, gerarTarefaDeEap } from "@/modules/planejamento/actions";
+import { Plus, Flag, CheckCheck, ArrowLeft, ZoomIn, ZoomOut, Rocket, ListPlus, ListTree, CalendarClock } from "lucide-react";
+import {
+  definirLinhaBase,
+  aplicarAoProjeto,
+  gerarTarefaDeEap,
+  gerarEapDasDisciplinas,
+  reagendarPlano,
+} from "@/modules/planejamento/actions";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -107,9 +113,33 @@ export function EapWorkspace({
     start(async () => {
       const r = await gerarTarefaDeEap({ eapTarefaId });
       if (r.ok) {
-        toast.success("Tarefa criada no kanban", {
+        toast.success(r.data.jaExistia ? "Tarefa já existia no kanban" : "Tarefa criada no kanban", {
           action: { label: "Ver tarefas", onClick: () => router.push("/tarefas") },
         });
+      } else toast.error(r.error);
+    });
+  }
+
+  function gerarEap() {
+    start(async () => {
+      const r = await gerarEapDasDisciplinas({ projetoId: projeto.id });
+      if (r.ok) {
+        toast.success(`${r.data.criadas} tarefa(s) criada(s) a partir das disciplinas.`);
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  function reagendar() {
+    start(async () => {
+      const r = await reagendarPlano({ projetoId: projeto.id });
+      if (r.ok) {
+        toast.success(
+          r.data.reagendadas > 0
+            ? `${r.data.reagendadas} tarefa(s) reagendada(s) pelas dependências.`
+            : "Cronograma já coerente com as dependências.",
+        );
+        router.refresh();
       } else toast.error(r.error);
     });
   }
@@ -136,6 +166,14 @@ export function EapWorkspace({
             <Button size="sm" onClick={() => abrir(null)}>
               <Plus className="size-3.5" /> Nova tarefa
             </Button>
+            {disciplinas.length > 0 && (
+              <Button size="sm" variant="outline" onClick={gerarEap} disabled={pending}>
+                <ListTree className="size-3.5" /> Gerar EAP das disciplinas
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={reagendar} disabled={pending || tarefas.length === 0}>
+              <CalendarClock className="size-3.5" /> Reagendar
+            </Button>
             <Button size="sm" variant="outline" onClick={linhaBase} disabled={pending || tarefas.length === 0}>
               <Flag className="size-3.5" /> {temLinhaBase ? "Atualizar linha de base" : "Definir linha de base"}
             </Button>
@@ -158,9 +196,16 @@ export function EapWorkspace({
             }
             action={
               podeGerir ? (
-                <Button onClick={() => abrir(null)}>
-                  <Rocket className="size-3.5" /> Iniciar planejamento
-                </Button>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {disciplinas.length > 0 && (
+                    <Button onClick={gerarEap} disabled={pending}>
+                      <ListTree className="size-3.5" /> Gerar EAP das disciplinas
+                    </Button>
+                  )}
+                  <Button variant={disciplinas.length > 0 ? "outline" : "default"} onClick={() => abrir(null)}>
+                    <Rocket className="size-3.5" /> Criar tarefa manual
+                  </Button>
+                </div>
               ) : undefined
             }
             className="py-14"
@@ -221,6 +266,11 @@ export function EapWorkspace({
                             <div className="h-full bg-primary" style={{ width: `${t.progresso}%` }} />
                           </div>
                           <span className="font-mono text-xs text-muted-foreground">{t.progresso}%</span>
+                          {t.progressoDerivado && (
+                            <span className="text-[9px] uppercase text-muted-foreground" title="Progresso derivado do status da disciplina">
+                              auto
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-3 py-2 text-right">

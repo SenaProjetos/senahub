@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { GLOBAL_ROLES, type Role } from "@/lib/roles";
 import { escopoProjeto } from "@/modules/projetos/queries";
+import { progressoDoStatus } from "@/modules/projetos/status";
 
 type Viewer = { id: string; role: Role };
 
@@ -21,7 +22,9 @@ export async function projetosComPlano(viewer: Viewer) {
       codigo: true,
       nome: true,
       situacao: true,
-      eapTarefas: { select: { inicioPrevisto: true, fimPrevisto: true, progresso: true } },
+      eapTarefas: {
+        select: { inicioPrevisto: true, fimPrevisto: true, progresso: true, disciplina: { select: { status: true } } },
+      },
     },
   });
   return projetos.map((p) => {
@@ -29,7 +32,7 @@ export async function projetosComPlano(viewer: Viewer) {
     const inicio = t.length ? new Date(Math.min(...t.map((x) => x.inicioPrevisto.getTime()))) : null;
     const fim = t.length ? new Date(Math.max(...t.map((x) => x.fimPrevisto.getTime()))) : null;
     const progresso = t.length
-      ? Math.round(t.reduce((s, x) => s + x.progresso, 0) / t.length)
+      ? Math.round(t.reduce((s, x) => s + (x.disciplina ? progressoDoStatus(x.disciplina.status) : x.progresso), 0) / t.length)
       : 0;
     return {
       id: p.id,
@@ -61,7 +64,7 @@ export async function eapDoProjeto(projetoId: string) {
     where: { projetoId },
     orderBy: { ordem: "asc" },
     include: {
-      disciplina: { select: { id: true, nome: true } },
+      disciplina: { select: { id: true, nome: true, status: true } },
       predecessoras: { select: { predecessoraId: true } },
     },
   });
@@ -76,7 +79,9 @@ export async function eapDoProjeto(projetoId: string) {
       parentId: t.parentId,
       nome: t.nome,
       ordem: t.ordem,
-      progresso: t.progresso,
+      // P-33: progresso derivado do status da disciplina vinculada; manual quando sem disciplina.
+      progresso: t.disciplina ? progressoDoStatus(t.disciplina.status) : t.progresso,
+      progressoDerivado: t.disciplina != null,
       inicioPrevisto: iso(t.inicioPrevisto),
       fimPrevisto: iso(t.fimPrevisto),
       inicioBaseline: t.inicioBaseline ? iso(t.inicioBaseline) : null,
@@ -105,7 +110,7 @@ export async function cronogramaProjetosAtivos() {
       eapTarefas: {
         orderBy: { ordem: "asc" },
         include: {
-          disciplina: { select: { id: true, nome: true } },
+          disciplina: { select: { id: true, nome: true, status: true } },
           predecessoras: { select: { predecessoraId: true } },
         },
       },
@@ -122,7 +127,8 @@ export async function cronogramaProjetosAtivos() {
       parentId: t.parentId,
       nome: t.nome,
       ordem: t.ordem,
-      progresso: t.progresso,
+      progresso: t.disciplina ? progressoDoStatus(t.disciplina.status) : t.progresso,
+      progressoDerivado: t.disciplina != null,
       inicioPrevisto: iso(t.inicioPrevisto),
       fimPrevisto: iso(t.fimPrevisto),
       inicioBaseline: t.inicioBaseline ? iso(t.inicioBaseline) : null,
