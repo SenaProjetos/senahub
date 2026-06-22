@@ -1,10 +1,10 @@
 # SenaHub Remake — Handoff / Estado do Projeto
 
 > Documento de continuidade. Permite a qualquer dev/IA retomar o trabalho do ponto exato.
-> Atualizado em 2026-06-13. Ondas 0–4 + **Onda D (Estúdio de Documentos v1)** + **Onda 5
-> completa** (tarefas, agenda, jurídico, licitações, qualidade, suporte, **planejamento/recursos**
-> + 7 automações pg-boss). Verificadas (tsc limpo, 41 testes, smokes O1–O5). Próximo:
-> evoluções do Estúdio (§5.4b), restos opcionais (§5.2) e deploy (§5.4).
+> **Atualizado em 2026-06-22.** Ondas 0–5 + OD (Estúdio) + auditorias completas de **Chat (C0–C5)**
+> e **Projetos/Planejamento (P0–P6)** + evolução estrutural de **Licitações (Fases 0–10)** +
+> melhorias **M0–M1** (bugs + primitivos + rollout de moeda/data). 49 arquivos de teste, 391 testes
+> passando, tsc limpo. Próximo: deploy (§5.4), Estúdio evoluções (§5.4b), licitações Fase 11 (relatórios).
 
 ---
 
@@ -79,9 +79,17 @@ Matriz fina configurável em Configurações→Permissões (catálogo em `lib/pe
 
 | **O4** | **Comercial/CRM** (`/comercial`, `modules/comercial`): funil Kanban com **@dnd-kit** (etapas semeadas: Orçamento→Em negociação→Proposta enviada→Contratado→Perdido; arrastar move etapa), leads (atividades/notas, **converter→cliente**), meta mensal editável com barra de progresso (realizado = propostas aceitas no mês). **Propostas** `PR-AAXXXX` (sequência atômica): itens por disciplina, condições **% ou R$**, copiar ("— cópia"), **versões snapshot** a cada salvar, **tabela de preço R$/m² × área** (`/comercial/tabelas`, botão "Aplicar"), status rascunho/enviada/aceita/recusada. **Página pública** `/a/proposta/[token]` (só totais, sem unitários) com **pixel** `/api/t/proposta/[token]/pixel` (grava ip/UA, badge de aberturas), **envio por e-mail** com link. Fonte **"proposta"** no Estúdio de Documentos. **Aceitar → cria projeto AAXXXX + disciplinas (valores) + canais de chat (`ensureCanaisProjeto`) + notifica** — zero redigitação. Permissões `comercial:ver\|gerir`. | `smoke:onda4` |
 
-| **O5** (parcial) | **Complementares** (commits `fix(auth)` + `feat(onda-5)`): **Tarefas** (`/tarefas`, dnd-kit, colunas configuráveis `TarefaStatus`, **dependências com bloqueio de conclusão**, checklist, multi-responsáveis, prazos, notifica). **Agenda** (`/agenda`, compromissos+convites+confirmação, **prazos de projeto/disciplina no calendário marcação única**, notifica convidados). **Jurídico** (`/juridico`, docs por projeto/cliente **versionados** upload/download, certidões tipo+validade, `juridico:ver\|gerir`). **Licitações** (`/licitacoes`, processos+docs versionados, **medição→Lancamento receita previsto cat 1.02**, **importar ganha→projeto+canais+docs ao Jurídico**, `licitacoes:ver\|gerir`). **Qualidade** (`/qualidade`, índice de retrabalho por disciplina, snapshots mensais, **KPIs reais da home**). **Suporte** (`/suporte`, tickets+mensagens+status). **7 automações pg-boss** (`lib/jobs-handlers.ts`): prazo disciplina D-7/3/1, inadimplência D+1, certidões 30/15/7, licitações 15/7/1, lembrete ponto, snapshot qualidade mensal, resumo semanal e-mail. | tsc limpo, 41 testes, rotas compilam (307) |
+| **O5** | **Complementares** (commits `fix(auth)` + `feat(onda-5)`): **Tarefas** (`/tarefas`, dnd-kit, colunas configuráveis `TarefaStatus`, **dependências com bloqueio de conclusão**, checklist, multi-responsáveis, prazos, notifica). **Agenda** (`/agenda`, compromissos+convites+confirmação, **prazos de projeto/disciplina no calendário marcação única**, notifica convidados). **Jurídico** (`/juridico`, docs por projeto/cliente **versionados** upload/download, certidões tipo+validade, `juridico:ver\|gerir`). **Licitações** (`/licitacoes`, processos+docs versionados, **medição→Lancamento receita previsto cat 1.02**, **importar ganha→projeto+canais+docs ao Jurídico**, `licitacoes:ver\|gerir`). **Qualidade** (`/qualidade`, índice de retrabalho por disciplina, snapshots mensais, **KPIs reais da home**). **Suporte** (`/suporte`, tickets+mensagens+status). **7 automações pg-boss** (`lib/jobs-handlers.ts`): prazo disciplina D-7/3/1, inadimplência D+1, certidões 30/15/7, licitações 15/7/1, lembrete ponto, snapshot qualidade mensal, resumo semanal e-mail. | tsc limpo, 41 testes |
 
-| **O5b** | **Planejamento & Recursos** (commit `feat(onda-5): planejamento/recursos`). **Planejamento** (`/planejamento`, `modules/planejamento`): índice de projetos com resumo do plano; por projeto (`/planejamento/[id]`) **EAP hierárquica** (tarefa/subtarefa), **gantt de linha dupla** (`components/planejamento/gantt.tsx`: barra prevista + progresso × barra de linha de base, eixo por mês, marcador de hoje), **dependências FS** com detecção de ciclo, **definir/atualizar linha de base** (snapshot previsto→baseline na própria tarefa), **aplicar ao projeto** (grava prazo das disciplinas vinculadas), tabela WBS com coluna de desvio (±dias vs baseline). `planejamento:ver` (internos exceto freelancer, escopo de projeto) / `gerir` (gestores); **projetista vê read-only**. **Recursos** (`/recursos`): matriz pessoa × projeto com **multiplicador de capacidade** por pessoa, alocação %/período, **detecção de superalocação** (Σ% > capacidade×100, linha destacada), custo/hora e cor. `recursos:ver\|gerir` (gestores). Models: `EapTarefa`, `EapDependencia`, `Recurso`, `Alocacao`. | `smoke:onda5` (8/8) |
+| **O5b** | **Planejamento & Recursos**: **EAP hierárquica** + gantt de linha dupla (prevista + progresso × baseline, eixo mês, hoje), dependências FS com detecção de ciclo, definir/atualizar baseline, aplicar ao projeto, tabela WBS com desvio ±dias. Recursos: matriz pessoa×projeto, alocação %/período, superalocação (Σ%>capacidade), custo/hora. Models: `EapTarefa`, `EapDependencia`, `Recurso`, `Alocacao`. | `smoke:onda5` (8/8) |
+
+| **Licitações estrutural** | **Fases 0–10** (plano `docs/superpowers/plans/2026-06-18-licitacoes-estrutural.md`): config editável (prazos/limites/toggles), eventos/datas-chave+alertas, composição de preço, contrato+aditivos (saldo acumulado+alerta 80%), matriz de risco, reajuste (manual/auto), habilitação (modelo+instância), responsável técnico+detecção conflito, subcontratação, sanções (própria/concorrente), viabilidade, dashboard on-the-fly+snapshot, PNCP (manual+API import automático). 49 testes (lógica pura: saldo, reajuste, conflito, sanções, composição). | tsc limpo, testes |
+
+| **Chat C0–C5** | **Auditoria completa do chat** (plano `docs/superpowers/plans/2026-06-21-chat-auditoria.md`, 32 achados): C0 performance (pg_trgm, índices GIN), C1 menções/ações (notifica, badge canalId), C2 arquivos (validação MIME+tamanho), C3 moderação (DM ban, silenciar), C4 busca (FTS, resultado clicável), C5 UX/PWA (SW cacheia só `immutable`, toast de nova mensagem, `presenca-inicial` socket, scroll inteligente). | tsc limpo, 391 testes |
+
+| **Projetos P0–P6** | **Auditoria completa projetos+planejamento** (plano `docs/superpowers/plans/2026-06-21-projetos-planejamento-auditoria.md`, 115 intervenções): P0 índices+quick wins, P1 custo real (PagamentoProjetista+Servico→Lancamento), P2 receita/contrato (Projeto.valorContrato+parcelas), P3 plano×execução (EAP progresso derivado, reagendar, superalocação ciente), P4 visão geral/UX (7 abas, KPIs, kanban, gantt, donut), P5 entregas/qualidade (CRUD disciplinas, máquina de estados, catálogo, checklist, riscos, carteira CSV), P6 colaboração (notificações status, portal cliente, EVM básico, deep-link chat). | 391 testes |
+
+| **M0–M1** | **Melhorias de produto**: M0 bugs (ActionError→rejeitado na auditoria, dashboard previsto original, chat snapshot presença, 404 personalizado), M1.0 primitivos UX (brl/formatarData/formatarDiaMes/brlInteiro, EmptyState, ConfirmDialog, StatusBadge, Button.loading), M1.2 rollout formatadores de data. | tsc limpo, 391 testes |
 
 Fluxo crítico completo já funciona: lead→proposta→aceite→projeto→upload→validação→pagamento→folha→lançamento→caixa/DRE.
 
@@ -93,19 +101,10 @@ Fluxo crítico completo já funciona: lead→proposta→aceite→projeto→uploa
 
 ## 5. O QUE FALTA
 
-### 5.1 Onda 4 — Comercial/CRM ✅ ENTREGUE (ver tabela §4)
-Restos opcionais da O4 (não bloqueiam): anexos em proposta; criar proposta direto do lead
-(pré-preenchendo cliente); etapas do funil configuráveis por UI (hoje só seed);
-gerar PDF da proposta pelo Estúdio com modelo padrão por tipo (ver §5.4b).
+### 5.1–5.2 Ondas 4–5 ✅ ENTREGUES + auditorias/melhorias ✅ ENTREGUES
+Ver tabela §4. Todo o backlog funcional das ondas 4–5 foi implementado e auditado.
 
-### 5.2 Onda 5 — Complementares ✅ ENTREGUE (ver tabela §4, linhas O5 e O5b)
-Jurídico, Licitações, Tarefas, Agenda, Qualidade, Suporte, Planejamento/Recursos + 7 automações pg-boss.
-
-Restos opcionais (não bloqueiam): comentários/anexos em Tarefas; anexos em Suporte;
-gauge de qualidade com `recharts` (hoje barras); SLA de entregas e produtividade
-(horas × valor) no Dashboard. **Planejamento** (evoluções): reordenar/indentar tarefas por
-drag na EAP; setas de dependência no gantt; superalocação ciente do período (hoje soma total);
-exportar cronograma (Excel/PDF); workspace de rascunho separado antes de aplicar.
+**Restos opcionais (baixa prioridade):** anexos em proposta/suporte; etapas do funil configuráveis por UI; comentários em Tarefas; gauge de qualidade com recharts; setas de dependência no gantt; exportar EAP (Excel/PDF); workspace de rascunho no planejamento; aceite digital de cliente (N-43); command palette (N-49); preferências de notificação (N-55); canal por disciplina (N-54). Licitações Fase 11 (relatórios PDF/Excel configuráveis pelo Estúdio).
 
 ### 5.3 Automações (jobs pg-boss — `lib/jobs.ts` + `lib/jobs-handlers.ts`)
 | Job | Regra | Estado |
@@ -116,8 +115,10 @@ exportar cronograma (Excel/PDF); workspace de rascunho separado antes de aplicar
 | Certidões | vencimento 30/15/7 → gestores | ✅ |
 | Licitações | prazo de proposta 15/7/1 → gestores | ✅ |
 | Snapshot qualidade | dia 1º 02:00, grava índice do mês anterior | ✅ |
-| Resumo semanal | seg 07h: entregas/a receber/a pagar → notificação + e-mail | ✅ |
+| Resumo semanal | seg 07:00: entregas/a receber/a pagar → notificação + e-mail + status report por projeto | ✅ |
 | Snapshot dashboard | diário 23:30, série histórica de KPIs (home: card "Evolução") | ✅ |
+| Alerta risco projeto | seg 08:00: projetos em andamento acima do prazo → gestores | ✅ |
+| Lembrete inputs cliente | qua 09:00: inputs sem resposta → notifica usuários cliente | ✅ |
 | E-mail de cobrança | inadimplência → e-mail ao cliente (hoje só notificação interna) | ⬜ opcional |
 Existente: backup diário (pg_dump → pasta; conferir destino/retenção no deploy).
 
