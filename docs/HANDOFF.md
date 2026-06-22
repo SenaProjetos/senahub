@@ -1,10 +1,11 @@
 # SenaHub Remake — Handoff / Estado do Projeto
 
 > Documento de continuidade. Permite a qualquer dev/IA retomar o trabalho do ponto exato.
-> **Atualizado em 2026-06-22.** Ondas 0–5 + OD (Estúdio) + auditorias completas de **Chat (C0–C5)**
-> e **Projetos/Planejamento (P0–P6)** + evolução estrutural de **Licitações (Fases 0–10)** +
-> melhorias **M0–M1** (bugs + primitivos + rollout de moeda/data). 49 arquivos de teste, 391 testes
-> passando, tsc limpo. Próximo: deploy (§5.4), Estúdio evoluções (§5.4b), licitações Fase 11 (relatórios).
+> **Atualizado em 2026-06-22 (sessão 2).** Ondas 0–5 + OD + auditorias Chat C0–C5, Projetos P0–P6,
+> Licitações F0–F11 + melhorias M0–M1. 49 arquivos de teste, 391 testes passando, tsc limpo.
+> Licitações F11 concluído: GerarDocumentoButton no detalhe + modelo exemplo no seed.
+> Estúdio: Ctrl+C/V/D no editor; GerarDocumentoButton em /clientes/[id]; estimativa [Paginas].
+> Próximo: deploy (§5.4), paginação real do Estúdio (§5.4b).
 
 ---
 
@@ -83,7 +84,7 @@ Matriz fina configurável em Configurações→Permissões (catálogo em `lib/pe
 
 | **O5b** | **Planejamento & Recursos**: **EAP hierárquica** + gantt de linha dupla (prevista + progresso × baseline, eixo mês, hoje), dependências FS com detecção de ciclo, definir/atualizar baseline, aplicar ao projeto, tabela WBS com desvio ±dias. Recursos: matriz pessoa×projeto, alocação %/período, superalocação (Σ%>capacidade), custo/hora. Models: `EapTarefa`, `EapDependencia`, `Recurso`, `Alocacao`. | `smoke:onda5` (8/8) |
 
-| **Licitações estrutural** | **Fases 0–10** (plano `docs/superpowers/plans/2026-06-18-licitacoes-estrutural.md`): config editável (prazos/limites/toggles), eventos/datas-chave+alertas, composição de preço, contrato+aditivos (saldo acumulado+alerta 80%), matriz de risco, reajuste (manual/auto), habilitação (modelo+instância), responsável técnico+detecção conflito, subcontratação, sanções (própria/concorrente), viabilidade, dashboard on-the-fly+snapshot, PNCP (manual+API import automático). 49 testes (lógica pura: saldo, reajuste, conflito, sanções, composição). | tsc limpo, testes |
+| **Licitações F0–F11** | **Fases 0–10** (plano `docs/superpowers/plans/2026-06-18-licitacoes-estrutural.md`): config editável, eventos/datas, composição de preço, contrato+aditivos, matriz de risco, reajuste, habilitação, RT+conflito, subcontratação, sanções, viabilidade, dashboard, PNCP automático. **Fase 11**: `GerarDocumentoButton` no detalhe da licitação + modelo exemplo no seed (fonte "licitacao" já existia em fontes-meta+fontes.ts). 49 testes. | tsc limpo, testes |
 
 | **Chat C0–C5** | **Auditoria completa do chat** (plano `docs/superpowers/plans/2026-06-21-chat-auditoria.md`, 32 achados): C0 performance (pg_trgm, índices GIN), C1 menções/ações (notifica, badge canalId), C2 arquivos (validação MIME+tamanho), C3 moderação (DM ban, silenciar), C4 busca (FTS, resultado clicável), C5 UX/PWA (SW cacheia só `immutable`, toast de nova mensagem, `presenca-inicial` socket, scroll inteligente). | tsc limpo, 391 testes |
 
@@ -104,7 +105,7 @@ Fluxo crítico completo já funciona: lead→proposta→aceite→projeto→uploa
 ### 5.1–5.2 Ondas 4–5 ✅ ENTREGUES + auditorias/melhorias ✅ ENTREGUES
 Ver tabela §4. Todo o backlog funcional das ondas 4–5 foi implementado e auditado.
 
-**Restos opcionais (baixa prioridade):** anexos em proposta/suporte; etapas do funil configuráveis por UI; comentários em Tarefas; gauge de qualidade com recharts; setas de dependência no gantt; exportar EAP (Excel/PDF); workspace de rascunho no planejamento; aceite digital de cliente (N-43); command palette (N-49); preferências de notificação (N-55); canal por disciplina (N-54). Licitações Fase 11 (relatórios PDF/Excel configuráveis pelo Estúdio).
+**Restos opcionais (baixa prioridade):** anexos em proposta/suporte; etapas do funil configuráveis por UI; comentários em Tarefas; gauge de qualidade com recharts; setas de dependência no gantt; exportar EAP (Excel/PDF); workspace de rascunho no planejamento; aceite digital de cliente (N-43); preferências de notificação (N-55); canal por disciplina (N-54). Paginação real do Estúdio (engine de layout server-side — hoje é estimativa CSS-print); PDF salvo no storage após geração; régua px/mm no editor.
 
 ### 5.3 Automações (jobs pg-boss — `lib/jobs.ts` + `lib/jobs-handlers.ts`)
 | Job | Regra | Estado |
@@ -133,32 +134,26 @@ Existente: backup diário (pg_dump → pasta; conferir destino/retenção no dep
 8. Security pass: rate-limit login ok; revisar CSP/headers (`next.config.ts`); `robots` já noindex.
 
 ### 5.4b Estúdio de Documentos — evoluções (roadmap do módulo)
-A v1 está funcional; a visão é ser O gerador de TODO documento do escritório
-(propostas O4, contratos, holerites, relatórios gerenciais). Próximos passos:
-- **Novas fontes de dados**: ✅ proposta (O4), ✅ **cliente isolado** (+projetos), ✅ **licitação/medições**
-  (O5), ✅ **holerite** (folha CLT, +itens), ✅ **DRE do mês** (reusa `relatorioDRE`). Adicionar fonte = `fontes-meta.ts` (metadados)
-  + `fontes.ts` (resolução); o seletor de parâmetro é genérico por `tipo` em `preview-bar.tsx`
-  (mes = input month; resto = select de `opcoesParametros`) — o editor pega a fonte automático.
-- **Integração nos módulos**: ✅ botão "Gerar documento" no projeto/proposta/holerite
-  (`GerarDocumentoButton` + `modelosPorFonte`) abre o preview com parâmetro pré-preenchido;
-  ✅ **modelo padrão por tipo** em Configurações → Documentos padrão (`ConfigSistema 'documentos.padroes'`;
-  o padrão aparece primeiro no dropdown). Sem modelo da fonte → botão oculto.
-- ✅ **PDF server-side** (puppeteer-core): `GET /api/documentos/[id]/pdf` — Chrome headless (`CHROME_PATH`)
-  navega no preview com o cookie de sessão e gera A4; botão "Baixar PDF". **Configurar `CHROME_PATH`
-  no servidor** (caminho do chrome.exe) e validar a geração. Falta: anexar automaticamente ao e-mail da proposta.
-- **Paginação real**: quebra por altura de página, rodapé de página repetido em cada página,
-  `[Pagina]/[Paginas]` reais (hoje render é fluxo único; rodapePagina renderiza 1×).
-- **Novos elementos**: tabela rica (colunas configuráveis, zebra), gráfico (recharts→SVG estático),
-  KPI/cartão, código de barras/QR (qrcode), quebra de página manual, campo de assinatura,
-  numerador automático de páginas, imagem por upload (storage) além de URL.
-- **UX**: arrastar da paleta direto pro canvas, multi-seleção, alinhar/distribuir,
-  guias inteligentes (smart guides), copiar/colar entre bandas e modelos, réguas (px/mm),
-  grade configurável, modo mm (impressão técnica).
-- **Documentos gerados persistidos**: ✅ model `DocumentoGerado` (snapshot schema+dados+params, nomes
-  guardados), botão "Salvar geração" no preview, histórico em `/documentos/gerados` ("Reabrir" no preview).
-  Falta: anexar o PDF no storage (depende do PDF server-side).
-- **Condicionais**: visibilidade de elemento por expressão (ex.: só mostra se [Valor]>0);
-  blocos repetidos aninhados (grupos com subtotal).
+A v2 está funcional (todos os elementos D1-D5 implementados); a visão é ser O gerador de TODO documento
+do escritório (propostas O4, contratos, holerites, relatórios gerenciais).
+- **Novas fontes de dados**: ✅ proposta, ✅ cliente, ✅ licitação/medições, ✅ holerite, ✅ DRE do mês,
+  ✅ extrato projetista, ✅ empresa, ✅ CSV (datasets). Adicionar fonte = `fontes-meta.ts` + `fontes.ts`.
+- **Integração nos módulos**: ✅ `GerarDocumentoButton` em projeto/proposta/holerite/licitação/cliente;
+  ✅ modelo padrão por tipo (Configurações → Documentos). Sem modelo da fonte → botão oculto.
+- ✅ **PDF server-side** (puppeteer-core): `GET /api/documentos/[id]/pdf` — Chrome headless.
+  Falta: anexar automaticamente ao e-mail da proposta; salvar PDF no storage.
+- **Paginação real**: o `doc-render.tsx` usa `alturaFixa + detalhe × nLinhas` para estimar `[Paginas]`
+  (aproximação; não quebra páginas de verdade). Quebra real exigiria uma engine de layout server-side.
+  Contorno: tabelas (`doc-tabela`) já repetem thead e evitam corte de linha via CSS print.
+  `numerarPaginas: true` no schema usa footer nativo do Puppeteer (números exatos no PDF).
+- ✅ **Todos os elementos**: label, campo, paragrafo, assinatura, linha, retangulo, imagem (upload),
+  tabela (colunas, zebra, thead repete), qrcode, condicional (`condicao`).
+- ✅ **UX**: multi-seleção, alinhar/distribuir (Ctrl+A*), guias, undo/redo, Ctrl+C/V/D (copiar/colar/duplicar).
+- ✅ **Compartilhamento**: `visibilidade` (pessoal/perfis/global) + `donoId` + perfis autorizados.
+- ✅ **DocumentoGerado** com `serie`/`numero` automático (DOC-AAXXXX), histórico, "Reabrir".
+- ✅ **DXF export** (`GET /api/documentos/[id]/dxf`): carimbo ABNT, px→mm, origem CAD.
+- ✅ **ABNT A0–A4**: `FORMATOS_FOLHA`, `dimensoesPx`, `margemAbntPx` em `schema.ts`.
+- ✅ **Condicionais** de visibilidade de elemento por expressão.
 
 ### 5.5 Melhorias e ferramentas sugeridas (backlog futuro)
 - ✅ **Busca global** (Ctrl+K): `CommandPalette` próprio (sem cmdk) sobre o Dialog base-ui — projetos/clientes/lançamentos, escopado por viewer; gatilho no header.
