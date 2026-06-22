@@ -14,7 +14,13 @@ const TABS = [
   { label: "Extras", suffix: "/extras" },
 ] as const;
 
-export function ProjetoTabNav({ projetoId }: { projetoId: string }) {
+export function ProjetoTabNav({
+  projetoId,
+  abasVisiveis = TABS.map((t) => t.suffix),
+}: {
+  projetoId: string;
+  abasVisiveis?: readonly string[];
+}) {
   const pathname = usePathname();
   const base = `/projetos/${projetoId}`;
 
@@ -23,7 +29,7 @@ export function ProjetoTabNav({ projetoId }: { projetoId: string }) {
       className="flex gap-0 overflow-x-auto border-b scrollbar-none"
       aria-label="Seções do projeto"
     >
-      {TABS.map(({ label, suffix }) => {
+      {TABS.filter((t) => abasVisiveis.includes(t.suffix)).map(({ label, suffix }) => {
         const href = `${base}${suffix}`;
         const isActive = suffix === "" ? pathname === base : pathname === href;
         return (

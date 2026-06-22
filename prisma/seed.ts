@@ -66,6 +66,8 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "estagiario", recurso: "projetos", acao: "ver" },
   { role: "projetista_pj", recurso: "projetos", acao: "ver" },
   { role: "freelancer", recurso: "projetos", acao: "ver" },
+  // P-60: cliente vê os próprios projetos (escopo via clienteId no escopoProjeto).
+  { role: "cliente", recurso: "projetos", acao: "ver" },
   // Extrato próprio (sem ver o financeiro completo)
   { role: "clt", recurso: "financeiro", acao: "extrato" },
   { role: "projetista_pj", recurso: "financeiro", acao: "extrato" },

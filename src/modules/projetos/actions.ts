@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { GLOBAL_ROLES, type Role } from "@/lib/roles";
-import { proximoCodigoProjeto } from "@/modules/projetos/numbering";
+import { proximoCodigoProjeto, formatarCodigo } from "@/modules/projetos/numbering";
 import { ensureCanaisProjeto } from "@/modules/chat/service";
 import { notificarNovosMembros } from "@/lib/socket";
 import {
@@ -130,7 +130,10 @@ export const atualizarStatusDisciplina = defineAction(
   async (input, { user }) => {
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: input.disciplinaId },
-      include: { responsaveis: true },
+      include: {
+        responsaveis: true,
+        projeto: { select: { id: true, codigo: true } },
+      },
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
 
@@ -171,6 +174,38 @@ export const atualizarStatusDisciplina = defineAction(
       },
     });
     revalidatePath(`/projetos/${disciplina.projetoId}`);
+
+    // P-52: notificações por mudança de status.
+    const href = `/projetos/${disciplina.projetoId}`;
+    const codigo = formatarCodigo(disciplina.projeto.codigo);
+    if (input.status === "entregue") {
+      // Avisa gestores/supervisores que há uma entrega aguardando validação.
+      const validadores = await prisma.user.findMany({
+        where: { ativo: true, role: { in: ["admin", "supervisor", "administrativo"] } },
+        select: { id: true },
+      });
+      await notificarMuitos(
+        validadores.map((v) => v.id),
+        {
+          titulo: "Entrega aguardando validação",
+          corpo: `${disciplina.nome} (${codigo}) marcada como entregue.`,
+          href,
+          tag: `entregue-${disciplina.id}`,
+        },
+      );
+    } else if (input.status === "em_revisao") {
+      // Avisa responsáveis que revisão foi solicitada.
+      const respIds = disciplina.responsaveis.map((r) => r.userId).filter((id) => id !== user.id);
+      if (respIds.length > 0) {
+        await notificarMuitos(respIds, {
+          titulo: "Revisão solicitada",
+          corpo: `${disciplina.nome} (${codigo}) requer revisão.`,
+          href,
+          tag: `revisao-${disciplina.id}`,
+        });
+      }
+    }
+
     return { disciplinaId: input.disciplinaId, status: input.status };
   },
 );

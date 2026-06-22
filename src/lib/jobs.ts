@@ -18,6 +18,9 @@ import {
   resumoSemanal,
   rotinasRhDiarias,
   importarPncpDiario,
+  lembreteInputsCliente,
+  alertaRiscoProjeto,
+  statusReportSemanal,
 } from "@/lib/jobs-handlers";
 
 let boss: PgBoss | null = null;
@@ -120,7 +123,27 @@ export async function startJobs(): Promise<PgBoss> {
     {
       fila: "resumo-semanal",
       cron: "0 7 * * 1", // segunda 07:00
-      handler: resumoSemanal,
+      handler: async () => {
+        const [r, s] = await Promise.all([resumoSemanal(), statusReportSemanal()]);
+        if (s > 0) console.log(`[projetos] status report enviado para ${s} projeto(s).`);
+        return r;
+      },
+    },
+    {
+      fila: "lembrete-inputs-cliente",
+      cron: "0 9 * * 3", // quarta 09:00 — lembrete semanal de inputs pendentes
+      handler: async () => {
+        const n = await lembreteInputsCliente();
+        if (n > 0) console.log(`[inputs] ${n} lembrete(s) enviado(s) ao(s) cliente(s).`);
+      },
+    },
+    {
+      fila: "alerta-risco-projeto",
+      cron: "0 8 * * 1", // segunda 08:00 — junto com alertas diários
+      handler: async () => {
+        const n = await alertaRiscoProjeto();
+        if (n > 0) console.log(`[projetos] ${n} alerta(s) de risco enviado(s).`);
+      },
     },
     {
       fila: "pncp-import",

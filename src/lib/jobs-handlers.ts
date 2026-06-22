@@ -428,3 +428,150 @@ export async function alertaReajusteContrato(): Promise<number> {
   }
   return n;
 }
+
+// ── P6: jobs de projeto ──────────────────────────────────────────────────────
+
+/**
+ * P-53/N-41: Lembrete semanal ao cliente para preencher inputs pendentes.
+ * Dispara para usuários com role "cliente" cujo projeto tem link público ativo e inputs sem resposta.
+ */
+export async function lembreteInputsCliente(): Promise<number> {
+  const projetos = await prisma.projeto.findMany({
+    where: {
+      situacao: "em_andamento",
+      linkInput: { isNot: null },
+    },
+    select: {
+      id: true,
+      codigo: true,
+      nome: true,
+      linkInput: { select: { token: true } },
+      cliente: {
+        select: {
+          usuarios: {
+            where: { ativo: true, role: "cliente" },
+            select: { id: true },
+          },
+        },
+      },
+      inputs: { where: { resposta: null }, select: { id: true } },
+    },
+  });
+
+  let enviados = 0;
+  for (const p of projetos) {
+    const pendentes = p.inputs.length;
+    if (pendentes === 0) continue;
+    const clienteIds = p.cliente.usuarios.map((u) => u.id);
+    if (clienteIds.length === 0) continue;
+
+    await notificarMuitos(clienteIds, {
+      titulo: "Inputs pendentes no seu projeto",
+      corpo: `O projeto ${p.codigo} — ${p.nome} tem ${pendentes} input(s) aguardando resposta.`,
+      href: `/inputs/${p.linkInput!.token}`,
+      tag: `inputs-${p.id}`,
+    });
+    enviados += clienteIds.length;
+  }
+  return enviados;
+}
+
+/**
+ * P-54: Alerta proativo de risco — projetos em andamento com prazo vencido ou margem negativa.
+ * Notifica admin e supervisor.
+ */
+export async function alertaRiscoProjeto(): Promise<number> {
+  const hoje = new Date();
+  const gestoresIds = await gestores(["admin", "supervisor"]);
+  if (gestoresIds.length === 0) return 0;
+
+  // Projetos com prazo vencido.
+  const atrasados = await prisma.projeto.findMany({
+    where: {
+      situacao: "em_andamento",
+      prazoFinal: { lt: hoje },
+      disciplinas: { some: { status: { notIn: ["aprovado"] } } },
+    },
+    select: { id: true, codigo: true, nome: true, prazoFinal: true },
+  });
+
+  let enviados = 0;
+  for (const p of atrasados) {
+    const diasAtraso = differenceInCalendarDays(hoje, p.prazoFinal!);
+    await notificarMuitos(gestoresIds, {
+      titulo: "Projeto em atraso",
+      corpo: `${p.codigo} — ${p.nome} está ${diasAtraso} dia(s) acima do prazo.`,
+      href: `/projetos/${p.id}`,
+      tag: `risco-prazo-${p.id}-${hoje.toISOString().slice(0, 10)}`,
+    });
+    enviados++;
+  }
+  return enviados;
+}
+
+/**
+ * N-46: Status report semanal por projeto — resumo de disciplinas enviado aos membros da equipe.
+ * Corre toda segunda-feira junto com o resumo semanal geral.
+ */
+export async function statusReportSemanal(): Promise<number> {
+  const projetos = await prisma.projeto.findMany({
+    where: { situacao: "em_andamento" },
+    select: {
+      id: true,
+      codigo: true,
+      nome: true,
+      membros: { select: { userId: true } },
+      disciplinas: {
+        select: {
+          nome: true,
+          status: true,
+          prazo: true,
+          responsaveis: { select: { userId: true } },
+        },
+        orderBy: { ordem: "asc" },
+      },
+    },
+  });
+
+  const STATUS_PT: Record<string, string> = {
+    aguardando: "Aguardando",
+    em_andamento: "Em andamento",
+    em_revisao: "Em revisão",
+    entregue: "Entregue",
+    aprovado: "Aprovado",
+  };
+
+  const hoje = new Date();
+  let enviados = 0;
+
+  for (const p of projetos) {
+    if (p.disciplinas.length === 0) continue;
+
+    // Coleta todos os usuários envolvidos (membros + responsáveis).
+    const uids = new Set<string>();
+    p.membros.forEach((m) => uids.add(m.userId));
+    p.disciplinas.forEach((d) => d.responsaveis.forEach((r) => uids.add(r.userId)));
+    if (uids.size === 0) continue;
+
+    const atrasadas = p.disciplinas.filter(
+      (d) => d.prazo && new Date(d.prazo) < hoje && d.status !== "aprovado",
+    );
+    const aprovadas = p.disciplinas.filter((d) => d.status === "aprovado").length;
+    const total = p.disciplinas.length;
+
+    const corpo =
+      `${p.codigo} — ${aprovadas}/${total} disciplina(s) aprovada(s).` +
+      (atrasadas.length > 0
+        ? ` Atrasadas: ${atrasadas.map((d) => d.nome).join(", ")}.`
+        : " Sem atrasos.");
+
+    await notificarMuitos([...uids], {
+      titulo: "Resumo semanal do projeto",
+      corpo,
+      href: `/projetos/${p.id}`,
+      tag: `report-${p.id}-${hoje.toISOString().slice(0, 10)}`,
+    });
+    enviados++;
+  }
+  return enviados;
+}

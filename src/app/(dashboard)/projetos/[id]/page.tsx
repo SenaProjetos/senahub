@@ -21,6 +21,7 @@ import { MargemDonut } from "@/components/projetos/margem-donut";
 import { AdicionarDisciplinaButton } from "@/components/projetos/adicionar-disciplina-button";
 import { AdicionarDoCatalogoButton } from "@/components/projetos/adicionar-do-catalogo-button";
 import { DisciplinaEditDialog, DisciplinaDeleteButton } from "@/components/projetos/disciplina-edit-dialog";
+import { canalDoProjeto } from "@/modules/chat/queries";
 
 function fmtData(d: Date | null) {
   return d ? formatarData(d) : null;
@@ -42,11 +43,12 @@ export default async function ProjetoDetalhePage({
     can(user.role, "financeiro", "ver"),
   ]);
 
-  const [internos, margem, catalogo, slaFora] = await Promise.all([
+  const [internos, margem, catalogo, slaFora, canalChat] = await Promise.all([
     podeGerir ? usuariosInternos() : Promise.resolve([]),
     podeVerFinanceiro ? margemProjeto(projeto.id) : Promise.resolve(null),
     podeGerir ? catalogoDisciplinas() : Promise.resolve([]),
     podeValidar ? disciplinasForaDeSLA(user) : Promise.resolve([]),
+    canalDoProjeto(projeto.id),
   ]);
 
   const disciplinas = projeto.disciplinas.map((d) => {
@@ -220,6 +222,7 @@ export default async function ProjetoDetalhePage({
             podeGerir={podeGerir}
             podeValidar={podeValidar}
             internos={internos}
+            canalChatId={canalChat?.id}
           />
         ))}
       </div>

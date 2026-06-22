@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import Link from "next/link";
 import {
   History,
   Users,
@@ -15,6 +16,7 @@ import {
   CheckCircle2,
   ShieldCheck,
   AlertTriangle,
+  MessageSquare,
 } from "lucide-react";
 import {
   atualizarStatusDisciplina,
@@ -89,11 +91,13 @@ export function DisciplinaCard({
   podeGerir,
   podeValidar,
   internos,
+  canalChatId,
 }: {
   disciplina: Disc;
   podeGerir: boolean;
   podeValidar: boolean;
   internos: { id: string; name: string; role: string }[];
+  canalChatId?: string;
 }) {
   const [pending, start] = useTransition();
   const podeMexerStatus = podeGerir || disciplina.ehResponsavel;
@@ -133,6 +137,23 @@ export function DisciplinaCard({
           <StatusBadge tone={STATUS_TONE[disciplina.status] ?? "neutral"}>
             {STATUS_LABEL[disciplina.status]}
           </StatusBadge>
+          {canalChatId && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              title="Abrir chat do projeto"
+              render={
+                <Link
+                  href={`/chat?c=${canalChatId}&ref=${disciplina.nome}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                />
+              }
+            >
+              <MessageSquare className="size-3.5" />
+            </Button>
+          )}
           {podeGerir && (
             <>
               <DisciplinaEditDialog

@@ -11,9 +11,13 @@ function isGlobal(role: Role) {
   return role === "admin" || GLOBAL_ROLES.includes(role);
 }
 
-/** Filtro de escopo: global vê tudo; demais veem só onde participam. */
+/** Filtro de escopo: global vê tudo; cliente vê seus projetos; demais veem só onde participam. */
 export function escopoProjeto(viewer: Viewer): Prisma.ProjetoWhereInput {
   if (isGlobal(viewer.role)) return {};
+  // P-60: role "cliente" vê projetos vinculados ao seu Cliente (via User.clienteId).
+  if (viewer.role === "cliente") {
+    return { cliente: { usuarios: { some: { id: viewer.id } } } };
+  }
   return {
     OR: [
       { membros: { some: { userId: viewer.id } } },
