@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { TrendLine } from "@/components/qualidade/trend-line";
+import { IndiceGauge } from "@/components/qualidade/indice-gauge";
 
 export const metadata: Metadata = { title: "Qualidade" };
 
@@ -39,13 +40,8 @@ export default async function QualidadePage() {
               {atual.indice.toFixed(1)}%
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="h-2 overflow-hidden rounded-sm bg-muted">
-              <div
-                className={`h-full ${atual.indice > 30 ? "bg-destructive" : atual.indice > 15 ? "bg-warning" : "bg-success"}`}
-                style={{ width: `${Math.min(100, atual.indice)}%` }}
-              />
-            </div>
+          <CardContent className="flex justify-center pt-0">
+            <IndiceGauge indice={atual.indice} />
           </CardContent>
         </Card>
         <Card>

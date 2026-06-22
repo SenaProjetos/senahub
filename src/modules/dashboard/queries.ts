@@ -57,6 +57,44 @@ export async function projetosRecentes(viewer: Viewer, limite = 6) {
   });
 }
 
+/** N-09: Carteira de projetos em andamento para o dashboard do admin (todos — sem escopo). */
+export async function carteiraProjetosDashboard() {
+  const projetos = await prisma.projeto.findMany({
+    where: { situacao: "em_andamento" },
+    orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
+    select: {
+      id: true,
+      codigo: true,
+      nome: true,
+      prazoFinal: true,
+      situacao: true,
+      cliente: { select: { nome: true } },
+      disciplinas: {
+        select: {
+          status: true,
+          prazo: true,
+        },
+      },
+    },
+  });
+  return projetos.map((p) => ({
+    id: p.id,
+    codigo: p.codigo,
+    nome: p.nome,
+    cliente: p.cliente.nome,
+    prazoFinal: p.prazoFinal?.toISOString().slice(0, 10) ?? null,
+    progresso: p.disciplinas.length
+      ? Math.round(
+          (p.disciplinas.reduce((s, d) => s + PESO_STATUS[d.status], 0) / p.disciplinas.length) * 100,
+        )
+      : 0,
+    disciplinas: p.disciplinas.map((d) => ({
+      status: d.status,
+      prazo: d.prazo?.toISOString().slice(0, 10) ?? null,
+    })),
+  }));
+}
+
 /** Grava a foto diária dos KPIs (idempotente por dia; chamado pelo job). */
 export async function gravarSnapshotDashboard() {
   const hoje = new Date();

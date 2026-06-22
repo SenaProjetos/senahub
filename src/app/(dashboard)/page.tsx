@@ -13,23 +13,27 @@ import { Building2 } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { kpisHome } from "@/modules/qualidade/queries";
 import { agingReport } from "@/modules/financeiro/aging/queries";
-import { projetosRecentes, serieReceita, snapshotsDashboard } from "@/modules/dashboard/queries";
+import { projetosRecentes, serieReceita, snapshotsDashboard, carteiraProjetosDashboard } from "@/modules/dashboard/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { STATUS_CHIP, STATUS_LABEL } from "@/modules/projetos/status";
 import { HeroCard } from "@/components/dashboard/hero-card";
 import { ReceitaChart } from "@/components/dashboard/receita-chart";
 import { TrendLine } from "@/components/qualidade/trend-line";
+import { CarteiraDashboard } from "@/components/dashboard/carteira-dashboard";
 import { brlInteiro as brl } from "@/lib/utils";
+import { GLOBAL_ROLES } from "@/lib/roles";
 
 export default async function HomePage() {
   const user = await requireUser();
   if (user.role === "cliente") redirect("/portal");
-  const [kpis, projetos, receita, snapshots, agingReceita] = await Promise.all([
+  const isGlobal = GLOBAL_ROLES.includes(user.role);
+  const [kpis, projetos, receita, snapshots, agingReceita, carteira] = await Promise.all([
     kpisHome(),
     projetosRecentes(user),
     serieReceita(),
     snapshotsDashboard(30),
     agingReport("receita"),
+    isGlobal ? carteiraProjetosDashboard() : Promise.resolve([]),
   ]);
 
   const cards = [
@@ -147,6 +151,10 @@ export default async function HomePage() {
           </CardContent>
         </Card>
       </div>
+
+      {isGlobal && carteira.length > 0 && (
+        <CarteiraDashboard projetos={carteira} />
+      )}
 
       {snapshots.length >= 2 && (
         <Card>
