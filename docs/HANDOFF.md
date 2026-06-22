@@ -120,7 +120,7 @@ Ver tabela §4. Todo o backlog funcional das ondas 4–5 foi implementado e audi
 | Snapshot dashboard | diário 23:30, série histórica de KPIs (home: card "Evolução") | ✅ |
 | Alerta risco projeto | seg 08:00: projetos em andamento acima do prazo → gestores | ✅ |
 | Lembrete inputs cliente | qua 09:00: inputs sem resposta → notifica usuários cliente | ✅ |
-| E-mail de cobrança | inadimplência → e-mail ao cliente (hoje só notificação interna) | ⬜ opcional |
+| E-mail de cobrança | inadimplência → e-mail ao cliente (SMTP opt-in, `smtpConfigurado()`) | ✅ |
 Existente: backup diário (pg_dump → pasta; conferir destino/retenção no deploy).
 
 ### 5.4 Deploy / Cutover (produção no mesmo servidor Windows 11)
@@ -161,7 +161,7 @@ do escritório (propostas O4, contratos, holerites, relatórios gerenciais).
 - ✅ **Dashboard executivo**: KPIs reais + gráfico de receita + tabela "Projetos recentes" (estilo mockup) + card "Evolução" (snapshots).
 - ✅ **/api/health** (ping de banco; rota pública; Uptime Kuma/LB).
 - ✅ **Orçamento anual** (`/financeiro/orcamento`): previsto×realizado por categoria + KPIs + gráfico de resultado mensal.
-- ✅ **DFC/Balanço**: ⬜ ainda falta (além da DRE). **Paginação**: auditoria ✅ pagina; lançamentos faz filtro client-side (paginar exigiria mover filtros p/ server — quando o volume crescer).
+- ✅ **DFC/Balanço**: `/financeiro/dfc` (DfcView, categorias editáveis) e `/financeiro/balanco` (balanço gerencial base caixa). **Paginação**: auditoria ✅ pagina; lançamentos faz filtro client-side.
 - **@dnd-kit**: funil comercial (O4) e Kanban de tarefas (O5).
 - **react-hook-form + @hookform/resolvers**: formulários grandes (proposta) — hoje forms são useState manual.
 - ✅ **Avatares**: upload `POST /api/avatar` (sharp 256²) + serve `/api/avatar/[id]` + "Alterar foto" no menu; exibe no header/chat via `user.image`. **Validar upload no navegador.**
