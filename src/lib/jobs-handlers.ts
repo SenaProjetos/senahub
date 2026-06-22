@@ -60,15 +60,16 @@ export async function alertasPrazoDisciplina(): Promise<number> {
   return enviados;
 }
 
-/** D+1: receitas previstas vencidas ontem → gestores (inadimplência). */
+/** D+1: receitas previstas vencidas ontem → gestores (inadimplência) + e-mail ao cliente. */
 export async function alertaInadimplencia(): Promise<number> {
   const ontem = diaAlvo(-1);
   const vencidos = await prisma.lancamento.findMany({
     where: { tipo: "receita", status: "previsto", vencimento: ontem },
-    include: { cliente: { select: { nome: true } } },
+    include: { cliente: { select: { nome: true, email: true } } },
   });
   if (vencidos.length === 0) return 0;
   const ids = await gestores();
+  const comEmail = smtpConfigurado();
   for (const l of vencidos) {
     await notificarMuitos(ids, {
       titulo: "Recebimento vencido (D+1)",
@@ -76,6 +77,18 @@ export async function alertaInadimplencia(): Promise<number> {
       href: "/financeiro/contas-a-receber",
       tag: `inad-${l.id}`,
     });
+    if (comEmail && l.cliente?.email) {
+      const valor = Number(l.valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+      const venc = l.vencimento ? l.vencimento.toLocaleDateString("pt-BR") : "—";
+      await enviarEmail({
+        to: l.cliente.email,
+        subject: `Lembrete de pagamento — ${l.descricao}`,
+        html: `<p>Olá, ${l.cliente.nome}.</p>
+<p>Identificamos que o pagamento referente a <strong>${l.descricao}</strong> no valor de <strong>${valor}</strong>, com vencimento em ${venc}, ainda não foi registrado.</p>
+<p>Caso já tenha efetuado o pagamento, desconsidere este aviso.</p>
+<p>Em caso de dúvidas, entre em contato com nossa equipe.</p>`,
+      });
+    }
   }
   return vencidos.length;
 }
