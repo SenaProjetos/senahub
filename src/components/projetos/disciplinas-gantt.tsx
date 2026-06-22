@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn, formatarDiaMes } from "@/lib/utils";
 import { STATUS_LABEL } from "@/modules/projetos/status";
 import type { StatusDisciplina } from "@/generated/prisma/client";
 
@@ -24,7 +24,7 @@ function addDaysStr(base: Date, days: number): Date {
 }
 
 function fmtShort(d: Date) {
-  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  return formatarDiaMes(d);
 }
 
 export function DisciplinasGantt({ disciplinas }: { disciplinas: DisciplinaGantt[] }) {

@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
 
 type Parcela = { id: string; descricao: string; valor: number; status: string; vencimento: string };
 type DisciplinaFaturavel = { id: string; nome: string; valor: number; status: string; faturada: boolean };
@@ -144,7 +144,7 @@ export function ReceitaContratoCard({ projetoId, receita }: { projetoId: string;
                 <span className="truncate">{p.descricao}</span>
                 <span className="flex items-center gap-3">
                   <span className="font-mono text-xs text-muted-foreground">
-                    {new Date(p.vencimento + "T00:00:00").toLocaleDateString("pt-BR")}
+                    {formatarData(p.vencimento)}
                   </span>
                   <span className="font-mono">{brl(p.valor)}</span>
                   <StatusBadge tone={p.status === "confirmado" ? "success" : "warning"}>

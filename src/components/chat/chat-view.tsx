@@ -37,7 +37,7 @@ import {
   encaminharMensagem,
 } from "@/modules/chat/actions";
 import type { CanalListItem, ReacaoAgregada } from "@/modules/chat/queries";
-import { cn } from "@/lib/utils";
+import { cn, formatarDiaMes } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -1277,7 +1277,7 @@ export function ChatView({
                     <span className="font-medium">{r.autorNome}</span>
                     <span className="truncate text-muted-foreground">· {canalNomePorId(r.canalId)}</span>
                     <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
-                      {new Date(r.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+                      {formatarDiaMes(r.createdAt)}
                     </span>
                   </span>
                   <span className="line-clamp-2 text-xs text-muted-foreground">{r.conteudo}</span>
