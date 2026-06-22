@@ -18,19 +18,29 @@ type ProjetoCron = { id: string; codigo: string; nome: string; situacao: Situaca
 
 const SITUACOES: Situacao[] = ["em_andamento", "concluido", "arquivado", "cancelado"];
 
+const hoje = new Date().toISOString().slice(0, 10);
+
+function temAtraso(p: ProjetoCron) {
+  return p.tarefas.some(
+    (t) => t.fimPrevisto && t.fimPrevisto < hoje && (t.progresso ?? 0) < 100,
+  );
+}
+
 export function CronogramaGeralView({ projetos }: { projetos: ProjetoCron[] }) {
   const [px, setPx] = useState(Math.max(6, GANTT_PX_DEFAULT - 6));
   const [busca, setBusca] = useState("");
   const [situacoes, setSituacoes] = useState<Set<Situacao>>(new Set(["em_andamento"]));
+  const [soAtrasados, setSoAtrasados] = useState(false);
 
   const visiveis = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return projetos.filter((p) => {
       if (!situacoes.has(p.situacao)) return false;
+      if (soAtrasados && !temAtraso(p)) return false;
       if (!q) return true;
       return p.nome.toLowerCase().includes(q) || p.codigo.includes(q.replace(/\D/g, ""));
     });
-  }, [projetos, busca, situacoes]);
+  }, [projetos, busca, situacoes, soAtrasados]);
 
   function toggleSituacao(s: Situacao) {
     setSituacoes((prev) => {
@@ -86,6 +96,17 @@ export function CronogramaGeralView({ projetos }: { projetos: ProjetoCron[] }) {
               {SITUACAO_PROJETO_LABEL[s]}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => setSoAtrasados((v) => !v)}
+            className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
+              soAtrasados
+                ? "border-destructive bg-destructive text-destructive-foreground"
+                : "border-input bg-background text-muted-foreground hover:border-destructive/50"
+            }`}
+          >
+            Com atraso
+          </button>
         </div>
       </div>
 
