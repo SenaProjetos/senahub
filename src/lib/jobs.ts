@@ -10,6 +10,7 @@ import {
   alertaLimiteAditivo,
   alertaReajusteContrato,
   alertaPncpNaoPublicado,
+  alertaRateioAberto,
   snapshotQualidadeMensal,
   snapshotLicitacaoMensal,
   snapshotDashboardDiario,
@@ -93,6 +94,14 @@ export async function startJobs(): Promise<PgBoss> {
       handler: async () => {
         await snapshotQualidadeMensal();
         await snapshotLicitacaoMensal();
+      },
+    },
+    {
+      fila: "alerta-rateio",
+      cron: "0 8 3 * *", // dia 3 às 08:00 — rateio do mês anterior ainda aberto
+      handler: async () => {
+        const n = await alertaRateioAberto();
+        if (n > 0) console.log(`[rateio] mês anterior aberto: ${n} sessão(ões) a ratear.`);
       },
     },
     {

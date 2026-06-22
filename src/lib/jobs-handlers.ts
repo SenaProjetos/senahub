@@ -80,6 +80,37 @@ export async function alertaInadimplencia(): Promise<number> {
   return vencidos.length;
 }
 
+/**
+ * Mensal: mês anterior tem sessões de trabalho com projeto mas o rateio NÃO foi
+ * fechado → custo de horas ausente nas margens. Lembra os gestores de fechar.
+ */
+export async function alertaRateioAberto(): Promise<number> {
+  const ref = subMonths(new Date(), 1);
+  const ano = ref.getFullYear();
+  const mes = ref.getMonth() + 1;
+  const ini = new Date(ano, mes - 1, 1);
+  const fim = new Date(ano, mes, 1);
+
+  // Já fechado? (existe ao menos um RateioHora do mês)
+  const fechado = await prisma.rateioHora.findFirst({ where: { ano, mes }, select: { id: true } });
+  if (fechado) return 0;
+
+  // Há sessões com projeto a ratear no mês?
+  const sessoes = await prisma.sessaoTrabalho.count({
+    where: { inicio: { gte: ini, lt: fim }, projetoId: { not: null } },
+  });
+  if (sessoes === 0) return 0;
+
+  const ids = await gestores(["admin", "supervisor", "administrativo"]);
+  await notificarMuitos(ids, {
+    titulo: "Rateio de horas em aberto",
+    corpo: `${String(mes).padStart(2, "0")}/${ano}: ${sessoes} sessão(ões) com projeto ainda não rateadas. Feche o rateio para refletir o custo de horas nas margens.`,
+    href: "/ponto",
+    tag: `rateio-aberto-${ano}-${mes}`,
+  });
+  return sessoes;
+}
+
 /** Certidões vencendo em 30/15/7 dias → gestores do jurídico. */
 export async function alertaCertidoes(): Promise<number> {
   let n = 0;
