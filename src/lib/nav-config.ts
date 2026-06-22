@@ -19,6 +19,7 @@ import {
   LifeBuoy,
   Settings,
   ScrollText,
+  Briefcase,
   type LucideIcon,
 } from "lucide-react";
 import type { Role } from "@/lib/roles";
@@ -58,6 +59,13 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/projetos",
         icon: FolderKanban,
         roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"],
+        mobile: true,
+      },
+      {
+        title: "Meu trabalho",
+        href: "/projetos/meu-trabalho",
+        icon: Briefcase,
+        roles: ["clt", "estagiario", "projetista_pj", "freelancer"],
         mobile: true,
       },
       {
