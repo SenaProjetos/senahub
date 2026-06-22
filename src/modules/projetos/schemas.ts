@@ -68,5 +68,14 @@ export const duplicarProjetoSchema = z.object({
   copiarComposicao: z.boolean().default(false),
 });
 
+/** P-48: edição em massa de disciplinas (status, prazo, responsável único). */
+export const editarDisciplinasEmMassaSchema = z.object({
+  projetoId: z.string().min(1),
+  disciplinaIds: z.array(z.string().min(1)).min(1),
+  status: z.enum(STATUS_DISCIPLINA).optional(),
+  prazo: z.string().date().nullable().optional(),
+  responsavelId: z.string().nullable().optional(),
+});
+
 export type CriarProjetoInput = z.infer<typeof criarProjetoSchema>;
 export type DisciplinaInput = z.infer<typeof disciplinaInputSchema>;

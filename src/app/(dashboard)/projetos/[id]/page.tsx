@@ -1,50 +1,26 @@
-import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, MapPin, Ruler, LayoutGrid, Wrench, FolderOpen, SlidersHorizontal, Users, MessageSquare } from "lucide-react";
+import { CalendarDays, MapPin, Ruler, Users } from "lucide-react";
 import { usuariosOnline } from "@/lib/socket";
 import { ROLE_LABELS } from "@/lib/roles";
 import { Avatar, AvatarFallback, AvatarBadge } from "@/components/ui/avatar";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { obterProjeto, usuariosInternos, margemProjeto } from "@/modules/projetos/queries";
-import { receitaProjeto } from "@/modules/projetos/receita/queries";
-import { ReceitaContratoCard } from "@/components/projetos/receita-contrato-card";
-import { planoVsRealProjeto } from "@/modules/planejamento/queries";
-import { listarInputs, linkInput, progressoInputs } from "@/modules/inputs/queries";
-import { formatarCodigo } from "@/modules/projetos/numbering";
+import { formatarData } from "@/lib/utils";
 import { SITUACAO_PROJETO_LABEL, progressoProjeto } from "@/modules/projetos/status";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { DisciplinaCard } from "@/components/projetos/disciplina-card";
-import { DuplicarProjetoButton } from "@/components/projetos/duplicar-projeto-button";
 import { EquipeManager } from "@/components/projetos/equipe-manager";
-import { InputsPanel } from "@/components/inputs/inputs-panel";
-import { modelosPorFonte } from "@/modules/documentos/queries";
-import { canalDoProjeto } from "@/modules/chat/queries";
-import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { brl, formatarData } from "@/lib/utils";
-
-export const metadata: Metadata = { title: "Projeto" };
+import { ProjetoKpis } from "@/components/projetos/projeto-kpis";
+import { DisciplinasKanban } from "@/components/projetos/disciplinas-kanban";
+import { DisciplinasGantt } from "@/components/projetos/disciplinas-gantt";
+import { MargemDonut } from "@/components/projetos/margem-donut";
 
 function fmtData(d: Date | null) {
   return d ? formatarData(d) : null;
-}
-
-/** Linha da composição de custo: oculta se confirmado e previsto forem zero. */
-function CustoLinha({ label, conf, prev }: { label: string; conf: number; prev: number }) {
-  if (conf === 0 && prev === 0) return null;
-  return (
-    <div className="flex items-baseline justify-between gap-2">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-mono">
-        {brl(conf)}
-        {prev > 0 && <span className="text-muted-foreground"> + {brl(prev)} prev.</span>}
-      </span>
-    </div>
-  );
 }
 
 export default async function ProjetoDetalhePage({
@@ -62,20 +38,9 @@ export default async function ProjetoDetalhePage({
     can(user.role, "uploads", "validar"),
     can(user.role, "financeiro", "ver"),
   ]);
-  const internos = podeGerir ? await usuariosInternos() : [];
-  const [margem, receita] = podeVerFinanceiro
-    ? await Promise.all([margemProjeto(projeto.id), receitaProjeto(projeto.id)])
-    : [null, null];
-  const planoReal = podeGerir ? await planoVsRealProjeto(projeto.id) : null;
 
-  const [inputs, link, progresso, modelosDoc, canalChat] = await Promise.all([
-    listarInputs(projeto.id),
-    linkInput(projeto.id),
-    progressoInputs(projeto.id),
-    modelosPorFonte("projeto"),
-    canalDoProjeto(projeto.id),
-  ]);
-  const baseUrl = process.env.APP_URL ?? "";
+  const internos = podeGerir ? await usuariosInternos() : [];
+  const margem = podeVerFinanceiro ? await margemProjeto(projeto.id) : null;
 
   const disciplinas = projeto.disciplinas.map((d) => {
     const uploads = d.uploads.map((u) => ({
@@ -112,16 +77,6 @@ export default async function ProjetoDetalhePage({
 
   const progressoGeral = progressoProjeto(projeto.disciplinas.map((d) => d.status));
 
-  const diasAtraso = (() => {
-    if (!projeto.prazoFinal || projeto.situacao !== "em_andamento") return 0;
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    const venc = new Date(projeto.prazoFinal);
-    venc.setHours(0, 0, 0, 0);
-    return Math.max(0, Math.floor((hoje.getTime() - venc.getTime()) / 86_400_000));
-  })();
-
-  // Equipe derivada: responsáveis das disciplinas ∪ membros manuais (papel do membro prevalece).
   const equipeMap = new Map<string, { nome: string; role: string; papel: string | null }>();
   for (const d of projeto.disciplinas) {
     for (const r of d.responsaveis) {
@@ -146,53 +101,7 @@ export default async function ProjetoDetalhePage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start gap-3">
-        <Button variant="ghost" size="icon" render={<Link href="/projetos" aria-label="Voltar" />}>
-          <ArrowLeft className="size-4" />
-        </Button>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-sm text-muted-foreground">
-              {formatarCodigo(projeto.codigo)}
-            </span>
-            <h2 className="truncate text-2xl font-extrabold tracking-tight">{projeto.nome}</h2>
-            <Badge variant="outline">{projeto.tipo === "licitacao" ? "Licitação" : "Particular"}</Badge>
-            <Badge variant="outline">{SITUACAO_PROJETO_LABEL[projeto.situacao]}</Badge>
-            {diasAtraso > 0 && (
-              <Badge variant="destructive">
-                {diasAtraso} {diasAtraso === 1 ? "dia" : "dias"} de atraso
-              </Badge>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground">
-            <Link href={`/clientes/${projeto.clienteId}`} className="hover:underline">
-              {projeto.cliente.nome}
-            </Link>
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" render={<Link href={`/projetos/${projeto.id}/pranchas`} />}>
-            <LayoutGrid className="size-4" /> Pranchas
-          </Button>
-          <Button variant="outline" size="sm" render={<Link href={`/projetos/${projeto.id}/servicos`} />}>
-            <Wrench className="size-4" /> Serviços
-          </Button>
-          <Button variant="outline" size="sm" render={<Link href={`/projetos/${projeto.id}/arquivos`} />}>
-            <FolderOpen className="size-4" /> Arquivos
-          </Button>
-          <Button variant="outline" size="sm" render={<Link href={`/projetos/${projeto.id}/extras`} />}>
-            <SlidersHorizontal className="size-4" /> Mais
-          </Button>
-          {canalChat && (
-            <Button variant="outline" size="sm" render={<Link href={`/chat?c=${canalChat.id}`} />}>
-              <MessageSquare className="size-4" /> Chat
-            </Button>
-          )}
-          {podeGerir && <DuplicarProjetoButton projetoId={projeto.id} />}
-          <GerarDocumentoButton modelos={modelosDoc} paramId="projetoId" valor={projeto.id} />
-        </div>
-      </div>
-
+      {/* Barra de progresso + meta */}
       <div>
         <div className="mb-1.5 flex items-center justify-between gap-2">
           <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
@@ -215,140 +124,99 @@ export default async function ProjetoDetalhePage({
         </div>
       </div>
 
-      <div className="grid gap-4 text-sm sm:grid-cols-3">
-        {projeto.prazoFinal && (
-          <div className="flex items-center gap-2">
-            <CalendarDays className="size-4 text-muted-foreground" /> Prazo final:{" "}
-            {fmtData(projeto.prazoFinal)}
-          </div>
-        )}
-        {projeto.areaM2 != null && (
-          <div className="flex items-center gap-2">
-            <Ruler className="size-4 text-muted-foreground" /> {Number(projeto.areaM2)} m²
-          </div>
-        )}
-        {projeto.endereco && (
-          <div className="flex items-center gap-2">
-            <MapPin className="size-4 text-muted-foreground" /> {projeto.endereco}
-          </div>
-        )}
-      </div>
-
-      <div>
-        <h3 className="mb-3 text-lg font-bold tracking-tight">Disciplinas</h3>
-        <div className="grid gap-3 md:grid-cols-2">
-          {disciplinas.map((d) => (
-            <DisciplinaCard
-              key={d.id}
-              disciplina={d}
-              podeGerir={podeGerir}
-              podeValidar={podeValidar}
-              internos={internos}
-            />
-          ))}
+      {/* Meta */}
+      {(projeto.prazoFinal || projeto.areaM2 != null || projeto.endereco) && (
+        <div className="flex flex-wrap gap-4 text-sm">
+          {projeto.prazoFinal && (
+            <div className="flex items-center gap-2">
+              <CalendarDays className="size-4 text-muted-foreground" />
+              Prazo final: {fmtData(projeto.prazoFinal)}
+            </div>
+          )}
+          {projeto.areaM2 != null && (
+            <div className="flex items-center gap-2">
+              <Ruler className="size-4 text-muted-foreground" /> {Number(projeto.areaM2)} m²
+            </div>
+          )}
+          {projeto.endereco && (
+            <div className="flex items-center gap-2">
+              <MapPin className="size-4 text-muted-foreground" /> {projeto.endereco}
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
-      <InputsPanel
-        projetoId={projeto.id}
-        podeGerir={podeGerir}
-        disciplinas={projeto.disciplinas.map((d) => d.nome)}
-        itens={inputs.map((i) => ({
-          id: i.id,
-          disciplina: i.disciplina,
-          pergunta: i.pergunta,
-          resposta: i.resposta ?? "",
-        }))}
-        progresso={progresso}
-        token={link?.ativo ? link.token : null}
-        baseUrl={baseUrl}
+      {/* P-43: KPIs */}
+      <ProjetoKpis
+        disciplinas={disciplinas.map((d) => ({ status: d.status, prazo: d.prazo }))}
+        prazoFinal={projeto.prazoFinal}
+        situacao={projeto.situacao}
+        margemPct={margem?.margemPct ?? null}
       />
 
-      {receita && <ReceitaContratoCard projetoId={projeto.id} receita={receita} />}
-
-      {margem && (
+      {/* P-44: Mini-gantt de disciplinas */}
+      {disciplinas.some((d) => d.prazo) && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Margem do projeto</CardTitle>
+            <CardTitle className="text-base">Linha do tempo</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 sm:grid-cols-4">
-              <div>
-                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Receitas</p>
-                <p className="font-mono text-lg font-bold text-success">{brl(margem.receitaConfirmada)}</p>
-                {margem.receitaPrevista > 0 && (
-                  <p className="text-xs text-muted-foreground">+ {brl(margem.receitaPrevista)} previsto</p>
-                )}
-              </div>
-              <div>
-                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Despesas diretas</p>
-                <p className="font-mono text-lg font-bold text-destructive">{brl(margem.despesaDireta)}</p>
-                {margem.despesaDiretaPrevista > 0 && (
-                  <p className="text-xs text-muted-foreground">+ {brl(margem.despesaDiretaPrevista)} previsto</p>
-                )}
-              </div>
-              <div>
-                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Custo de horas</p>
-                <p className="font-mono text-lg font-bold text-destructive">{brl(margem.custoHoras)}</p>
-                <p className="text-xs text-muted-foreground">rateio fechado</p>
-              </div>
-              <div>
-                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Margem</p>
-                <p className={`font-mono text-lg font-bold ${margem.margem >= 0 ? "text-success" : "text-destructive"}`}>
-                  {brl(margem.margem)}
-                </p>
-                {margem.margemPct != null && (
-                  <p className="text-xs text-muted-foreground">{margem.margemPct.toFixed(1)}%</p>
-                )}
-              </div>
-            </div>
-            <div className="mt-4 space-y-1.5 border-t pt-3 text-xs">
-              <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                Composição do custo
-              </p>
-              <CustoLinha
-                label="Pagamentos a projetistas"
-                conf={margem.custo.projetistasConfirmado}
-                prev={margem.custo.projetistasPrevisto}
-              />
-              <CustoLinha
-                label="Serviços terceirizados"
-                conf={margem.custo.servicosConfirmado}
-                prev={margem.custo.servicosPrevisto}
-              />
-              <CustoLinha
-                label="Outras despesas diretas"
-                conf={margem.custo.outrasConfirmado}
-                prev={margem.custo.outrasPrevisto}
-              />
-              {margem.custoHoras > 0 && (
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-muted-foreground">Custo de horas (rateio fechado)</span>
-                  <span className="font-mono">{brl(margem.custoHoras)}</span>
-                </div>
-              )}
-              {margem.custoHorasMesCorrente > 0 && (
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-muted-foreground">Custo de horas (mês corrente, estimado)</span>
-                  <span className="font-mono text-muted-foreground">~ {brl(margem.custoHorasMesCorrente)}</span>
-                </div>
-              )}
-              <div className="flex items-baseline justify-between gap-2 border-t pt-1.5 font-medium">
-                <span>Margem projetada (inclui previstos)</span>
-                <span className={`font-mono ${margem.margemProjetada >= 0 ? "text-success" : "text-destructive"}`}>
-                  {brl(margem.margemProjetada)}
-                </span>
-              </div>
-            </div>
+            <DisciplinasGantt disciplinas={disciplinas} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* P-47: Kanban + P-48: ações em massa */}
+      <div>
+        <h3 className="mb-3 text-lg font-bold tracking-tight">Disciplinas</h3>
+        <DisciplinasKanban
+          projetoId={projeto.id}
+          disciplinas={disciplinas}
+          podeGerir={podeGerir}
+          internos={internos.map((u) => ({ id: u.id, name: u.name }))}
+        />
+      </div>
+
+      {/* Grade detalhada (upload, revisão, validação) */}
+      <div className="grid gap-3 md:grid-cols-2">
+        {disciplinas.map((d) => (
+          <DisciplinaCard
+            key={d.id}
+            disciplina={d}
+            podeGerir={podeGerir}
+            podeValidar={podeValidar}
+            internos={internos}
+          />
+        ))}
+      </div>
+
+      {/* P-45: Donut financeiro */}
+      {margem && margem.receitaConfirmada > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Resultado financeiro</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MargemDonut
+              receitaConfirmada={margem.receitaConfirmada}
+              despesaDireta={margem.despesaDireta}
+              custoHoras={margem.custoHoras}
+              margem={margem.margem}
+              margemPct={margem.margemPct}
+            />
             <p className="mt-3 text-xs text-muted-foreground">
-              Margem realizada = receitas confirmadas − despesas diretas confirmadas − custo de horas rateado.
-              A margem projetada considera também receitas e despesas previstas. O custo de horas reflete os
-              meses com rateio fechado.
+              Dados confirmados. Para o detalhamento completo (previstos, composição, plano×real),
+              acesse a aba{" "}
+              <Link href={`/projetos/${projeto.id}/financeiro`} className="underline">
+                Financeiro
+              </Link>
+              .
             </p>
           </CardContent>
         </Card>
       )}
 
+      {/* Equipe */}
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
           <CardTitle className="text-base">Equipe do projeto</CardTitle>
@@ -376,12 +244,12 @@ export default async function ProjetoDetalhePage({
                   <div key={m.userId} className="flex flex-col items-center gap-1 text-center">
                     <Avatar>
                       <AvatarFallback>{iniciais}</AvatarFallback>
-                      {m.online && (
-                        <AvatarBadge className="bg-success" title="Online" />
-                      )}
+                      {m.online && <AvatarBadge className="bg-success" title="Online" />}
                     </Avatar>
-                    <span className="max-w-[80px] truncate text-xs font-medium leading-tight">{m.nome.split(" ")[0]}</span>
-                    <span className="text-[10px] text-muted-foreground leading-none">
+                    <span className="max-w-[80px] truncate text-xs font-medium leading-tight">
+                      {m.nome.split(" ")[0]}
+                    </span>
+                    <span className="text-[10px] leading-none text-muted-foreground">
                       {m.papel ?? ROLE_LABELS[m.role as keyof typeof ROLE_LABELS] ?? m.role}
                     </span>
                   </div>
@@ -391,46 +259,6 @@ export default async function ProjetoDetalhePage({
           )}
         </CardContent>
       </Card>
-
-      {planoReal && planoReal.linhas.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              Plano × real ·{" "}
-              {new Date(planoReal.ano, planoReal.mes - 1, 1).toLocaleDateString("pt-BR", {
-                month: "long",
-                year: "numeric",
-              })}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-[10px] uppercase tracking-wider text-muted-foreground">
-                  <th className="py-1.5 font-medium">Pessoa</th>
-                  <th className="py-1.5 text-right font-medium">Alocado</th>
-                  <th className="py-1.5 text-right font-medium">Horas reais (mês)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {planoReal.linhas.map((l) => (
-                  <tr key={l.userId} className="border-b last:border-0">
-                    <td className="py-1.5">{l.nome}</td>
-                    <td className="py-1.5 text-right font-mono">
-                      {l.percentual > 0 ? `${l.percentual}%` : <span className="text-warning">sem alocação</span>}
-                    </td>
-                    <td className="py-1.5 text-right font-mono">{l.horasReais.toLocaleString("pt-BR")} h</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Total de {planoReal.totalHoras.toLocaleString("pt-BR")} h lançadas no projeto neste mês. Alocação
-              planejada vs. horas reais de ponto — “sem alocação” indica esforço não planejado.
-            </p>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

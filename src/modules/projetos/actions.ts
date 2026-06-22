@@ -15,6 +15,7 @@ import {
   registrarRevisaoSchema,
   membrosProjetoSchema,
   duplicarProjetoSchema,
+  editarDisciplinasEmMassaSchema,
 } from "@/modules/projetos/schemas";
 
 function isGlobal(role: Role) {
@@ -415,5 +416,45 @@ export const duplicarProjeto = defineAction(
     revalidatePath("/projetos");
     revalidatePath("/planejamento");
     return { id: novo.id, codigo: novo.codigo };
+  },
+);
+
+/** P-48: editar várias disciplinas de uma só vez (status, prazo, responsável único). */
+export const editarDisciplinasEmMassa = defineAction(
+  { modulo: "projetos", acao: "editar-disciplinas-em-massa", recurso: "projetos", permissao: "gerir", schema: editarDisciplinasEmMassaSchema },
+  async (input, ctx) => {
+    const projeto = await prisma.projeto.findFirst({
+      where: { id: input.projetoId, AND: [isGlobal(ctx.user.role) ? {} : { OR: [
+        { membros: { some: { userId: ctx.user.id } } },
+        { disciplinas: { some: { responsaveis: { some: { userId: ctx.user.id } } } } },
+      ] }] },
+      select: { id: true },
+    });
+    if (!projeto) throw new ActionError("Projeto não encontrado.");
+
+    const data: Record<string, unknown> = {};
+    if (input.status !== undefined) data.status = input.status;
+    if (input.prazo !== undefined) data.prazo = input.prazo ? new Date(input.prazo) : null;
+
+    if (Object.keys(data).length > 0) {
+      await prisma.disciplina.updateMany({
+        where: { id: { in: input.disciplinaIds }, projetoId: input.projetoId },
+        data: data as Parameters<typeof prisma.disciplina.updateMany>[0]["data"],
+      });
+    }
+
+    // Substituir responsável de cada disciplina selecionada.
+    if (input.responsavelId !== undefined) {
+      for (const disciplinaId of input.disciplinaIds) {
+        await prisma.disciplinaResponsavel.deleteMany({ where: { disciplinaId } });
+        if (input.responsavelId) {
+          await prisma.disciplinaResponsavel.create({
+            data: { disciplinaId, userId: input.responsavelId },
+          });
+        }
+      }
+    }
+
+    revalidatePath(`/projetos/${input.projetoId}`);
   },
 );

@@ -258,6 +258,22 @@ export async function margemProjeto(projetoId: string) {
   };
 }
 
+/** Dados mínimos do projeto para o layout (cabeçalho + tabs) — evita repetir obterProjeto completo. */
+export async function obterProjetoMinimo(viewer: Viewer, id: string) {
+  return prisma.projeto.findFirst({
+    where: { id, AND: [escopoProjeto(viewer)] },
+    select: {
+      id: true,
+      codigo: true,
+      nome: true,
+      situacao: true,
+      tipo: true,
+      prazoFinal: true,
+      cliente: { select: { id: true, nome: true } },
+    },
+  });
+}
+
 export type ProjetoListItem = Awaited<ReturnType<typeof listarProjetos>>["items"][number];
 export type ProjetoDetalhe = NonNullable<Awaited<ReturnType<typeof obterProjeto>>>;
 export type DisciplinaDetalhe = ProjetoDetalhe["disciplinas"][number];
