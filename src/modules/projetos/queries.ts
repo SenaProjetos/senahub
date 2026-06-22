@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { GLOBAL_ROLES, INTERNAL_ROLES, type Role } from "@/lib/roles";
+import { CATEGORIA_TERCEIRIZADO } from "@/modules/financeiro/custo/lancamento-custo";
 
 type Viewer = { id: string; role: Role };
 
@@ -167,7 +168,14 @@ export async function margemProjeto(projetoId: string) {
   const [lancs, rateio] = await Promise.all([
     prisma.lancamento.findMany({
       where: { projetoId, status: { not: "cancelado" } },
-      select: { tipo: true, status: true, valor: true, valorEfetivo: true },
+      select: {
+        tipo: true,
+        status: true,
+        valor: true,
+        valorEfetivo: true,
+        pagamentoProjetistaId: true,
+        categoria: { select: { codigo: true } },
+      },
     }),
     prisma.rateioHora.aggregate({ where: { projetoId }, _sum: { custo: true } }),
   ]);
@@ -176,21 +184,45 @@ export async function margemProjeto(projetoId: string) {
   let receitaPrevista = 0;
   let despesaConfirmada = 0;
   let despesaPrevista = 0;
+  // Composição do custo direto por origem (confirmado + previsto).
+  const custo = {
+    projetistasConfirmado: 0,
+    projetistasPrevisto: 0,
+    servicosConfirmado: 0,
+    servicosPrevisto: 0,
+    outrasConfirmado: 0,
+    outrasPrevisto: 0,
+  };
+
   for (const l of lancs) {
     const realizado = Number(l.valorEfetivo ?? l.valor);
     const previsto = Number(l.valor);
     if (l.tipo === "receita") {
       if (l.status === "confirmado") receitaConfirmada += realizado;
       else receitaPrevista += previsto;
+      continue;
+    }
+    // Despesa: classifica por origem.
+    const origem = l.pagamentoProjetistaId
+      ? "projetistas"
+      : l.categoria?.codigo === CATEGORIA_TERCEIRIZADO
+        ? "servicos"
+        : "outras";
+    if (l.status === "confirmado") {
+      despesaConfirmada += realizado;
+      custo[`${origem}Confirmado` as const] += realizado;
     } else {
-      if (l.status === "confirmado") despesaConfirmada += realizado;
-      else despesaPrevista += previsto;
+      despesaPrevista += previsto;
+      custo[`${origem}Previsto` as const] += previsto;
     }
   }
 
   const custoHoras = Number(rateio._sum.custo ?? 0);
   const margem = receitaConfirmada - despesaConfirmada - custoHoras;
   const margemPct = receitaConfirmada > 0 ? (margem / receitaConfirmada) * 100 : null;
+  // Resultado projetado: considera também receita e despesa previstas.
+  const margemProjetada =
+    receitaConfirmada + receitaPrevista - despesaConfirmada - despesaPrevista - custoHoras;
 
   return {
     receitaConfirmada,
@@ -198,8 +230,10 @@ export async function margemProjeto(projetoId: string) {
     despesaDireta: despesaConfirmada,
     despesaDiretaPrevista: despesaPrevista,
     custoHoras,
+    custo,
     margem,
     margemPct,
+    margemProjetada,
   };
 }
 
