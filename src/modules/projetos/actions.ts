@@ -52,6 +52,7 @@ export const criarProjeto = defineAction(
           areaM2: input.areaM2,
           endereco: input.endereco,
           prazoFinal: parseData(input.prazoFinal),
+          valorContrato: input.valorContrato,
           membros: {
             create: input.membrosIds.map((userId) => ({ userId })),
           },
@@ -96,6 +97,7 @@ export const editarProjeto = defineAction(
         areaM2: rest.areaM2,
         endereco: rest.endereco,
         prazoFinal: parseData(rest.prazoFinal),
+        valorContrato: rest.valorContrato,
       },
     });
     revalidatePath("/projetos");
@@ -268,6 +270,7 @@ export const duplicarProjeto = defineAction(
         areaM2: true,
         endereco: true,
         prazoFinal: true,
+        valorContrato: true,
         membros: { select: { userId: true } },
         disciplinas: {
           orderBy: { ordem: "asc" },
@@ -320,6 +323,7 @@ export const duplicarProjeto = defineAction(
           areaM2: origem.areaM2,
           endereco: origem.endereco,
           prazoFinal: origem.prazoFinal,
+          valorContrato: origem.valorContrato,
           disciplinas: {
             create: origem.disciplinas.map((d) => ({
               nome: d.nome,

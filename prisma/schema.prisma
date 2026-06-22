@@ -370,6 +370,8 @@ model Projeto {
   areaM2      Decimal?        @db.Decimal(12, 2)
   endereco    String?
   prazoFinal  DateTime?
+  /// Valor de contrato (referência de receita). Base para gerar parcelas/recebíveis.
+  valorContrato Decimal?      @db.Decimal(14, 2)
 
   disciplinas Disciplina[]
   membros     ProjetoMembro[]

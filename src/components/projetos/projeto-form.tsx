@@ -48,6 +48,7 @@ export function ProjetoForm({
   const [clienteId, setClienteId] = useState("");
   const [areaM2, setAreaM2] = useState("");
   const [prazoFinal, setPrazoFinal] = useState("");
+  const [valorContrato, setValorContrato] = useState("");
   const [disciplinas, setDisciplinas] = useState<DiscDraft[]>([]);
 
   function addDisciplina() {
@@ -91,6 +92,7 @@ export function ProjetoForm({
         clienteId,
         areaM2: areaM2 ? Number(areaM2) : undefined,
         prazoFinal: prazoFinal || undefined,
+        valorContrato: valorContrato ? Number(valorContrato) : undefined,
         membrosIds: [],
         disciplinas: disciplinas.map((d) => ({
           nome: d.nome,
@@ -106,6 +108,7 @@ export function ProjetoForm({
         setClienteId("");
         setAreaM2("");
         setPrazoFinal("");
+        setValorContrato("");
         setDisciplinas([]);
         router.push(`/projetos/${res.data.id}`);
       } else {
@@ -169,6 +172,16 @@ export function ProjetoForm({
               <Label>Prazo final</Label>
               <Input type="date" value={prazoFinal} onChange={(e) => setPrazoFinal(e.target.value)} />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Valor de contrato (R$)</Label>
+            <Input
+              type="number"
+              value={valorContrato}
+              onChange={(e) => setValorContrato(e.target.value)}
+              placeholder="Receita contratada — base para gerar parcelas"
+            />
           </div>
 
           <div className="flex items-center justify-between pt-2">

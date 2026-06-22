@@ -23,6 +23,7 @@ export const criarProjetoSchema = z.object({
   areaM2: z.number().nonnegative().optional(),
   endereco: z.string().optional(),
   prazoFinal: z.string().optional(),
+  valorContrato: z.number().nonnegative().optional(),
   disciplinas: z.array(disciplinaInputSchema).min(1, "Adicione ao menos uma disciplina."),
   membrosIds: z.array(z.string()).default([]),
 });
@@ -36,6 +37,7 @@ export const editarProjetoSchema = z.object({
   areaM2: z.number().nonnegative().optional(),
   endereco: z.string().optional(),
   prazoFinal: z.string().optional(),
+  valorContrato: z.number().nonnegative().optional(),
 });
 
 export const atualizarStatusDisciplinaSchema = z.object({

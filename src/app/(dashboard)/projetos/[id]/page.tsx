@@ -8,6 +8,8 @@ import { Avatar, AvatarFallback, AvatarBadge } from "@/components/ui/avatar";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { obterProjeto, usuariosInternos, margemProjeto } from "@/modules/projetos/queries";
+import { receitaProjeto } from "@/modules/projetos/receita/queries";
+import { ReceitaContratoCard } from "@/components/projetos/receita-contrato-card";
 import { listarInputs, linkInput, progressoInputs } from "@/modules/inputs/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { SITUACAO_PROJETO_LABEL, progressoProjeto } from "@/modules/projetos/status";
@@ -60,7 +62,9 @@ export default async function ProjetoDetalhePage({
     can(user.role, "financeiro", "ver"),
   ]);
   const internos = podeGerir ? await usuariosInternos() : [];
-  const margem = podeVerFinanceiro ? await margemProjeto(projeto.id) : null;
+  const [margem, receita] = podeVerFinanceiro
+    ? await Promise.all([margemProjeto(projeto.id), receitaProjeto(projeto.id)])
+    : [null, null];
 
   const [inputs, link, progresso, modelosDoc, canalChat] = await Promise.all([
     listarInputs(projeto.id),
@@ -257,6 +261,8 @@ export default async function ProjetoDetalhePage({
         token={link?.ativo ? link.token : null}
         baseUrl={baseUrl}
       />
+
+      {receita && <ReceitaContratoCard projetoId={projeto.id} receita={receita} />}
 
       {margem && (
         <Card>
