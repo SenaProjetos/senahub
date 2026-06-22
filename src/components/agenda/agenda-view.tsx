@@ -4,9 +4,10 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Plus, Check, X, Trash2, MapPin, CalendarDays, Download } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Check, X, Trash2, MapPin, CalendarDays, Download, Pencil } from "lucide-react";
 import {
   criarCompromisso,
+  editarCompromisso,
   confirmarPresenca,
   excluirCompromisso,
 } from "@/modules/agenda/actions";
@@ -35,6 +36,7 @@ type Comp = {
   criador: string;
   minhaConfirmacao: boolean | null;
   participantes: { nome: string; confirmado: boolean | null }[];
+  participantesIds: string[];
 };
 type Prazo = { data: string; rotulo: string; href: string; tipo: "projeto" | "disciplina" };
 type Vista = "mes" | "semana" | "dia";
@@ -142,6 +144,7 @@ export function AgendaView({
   }, [refData]);
 
   const hoje = new Date();
+  const [editando, setEditando] = useState<Comp | null>(null);
 
   return (
     <div className="space-y-4">
@@ -167,6 +170,7 @@ export function AgendaView({
           compromissos={compromissos}
           prazos={prazos}
           onNav={navMes}
+          onEditar={setEditando}
         />
       )}
       {vista === "semana" && (
@@ -185,10 +189,18 @@ export function AgendaView({
           ehHoje={chaveDia(refData) === chaveDia(hoje)}
           onNav={(delta) => setRefData((d) => addDias(d, delta))}
           onHoje={() => setRefData(new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()))}
+          onEditar={setEditando}
         />
       )}
 
       <NovoCompromissoDialog open={dialogNovo} onOpenChange={setDialogNovo} internos={internos} />
+      {editando && (
+        <EditarCompromissoDialog
+          comp={editando}
+          internos={internos}
+          onOpenChange={(o) => { if (!o) setEditando(null); }}
+        />
+      )}
     </div>
   );
 }
@@ -247,12 +259,14 @@ function VistaMes({
   compromissos,
   prazos,
   onNav,
+  onEditar,
 }: {
   ano: number;
   mes: number;
   compromissos: Comp[];
   prazos: Prazo[];
   onNav: (delta: number) => void;
+  onEditar: (c: Comp) => void;
 }) {
   const primeiro = new Date(ano, mes - 1, 1);
   const diasNoMes = new Date(ano, mes, 0).getDate();
@@ -340,7 +354,7 @@ function VistaMes({
           {compsDoMes.length === 0 ? (
             <EmptyState icon={CalendarDays} title="Nenhum compromisso." />
           ) : (
-            compsDoMes.map((c) => <CompRow key={c.id} c={c} />)
+            compsDoMes.map((c) => <CompRow key={c.id} c={c} onEditar={onEditar} />)
           )}
         </CardContent>
       </Card>
@@ -429,12 +443,14 @@ function VistaDia({
   ehHoje,
   onNav,
   onHoje,
+  onEditar,
 }: {
   dia: Date;
   comps: Comp[];
   ehHoje: boolean;
   onNav: (delta: number) => void;
   onHoje: () => void;
+  onEditar: (c: Comp) => void;
 }) {
   const ordenados = comps.slice().sort((a, b) => a.inicio.localeCompare(b.inicio));
   const titulo = dia.toLocaleDateString("pt-BR", {
@@ -466,7 +482,7 @@ function VistaDia({
           {ordenados.length === 0 ? (
             <EmptyState icon={CalendarDays} title="Nenhum compromisso neste dia." />
           ) : (
-            ordenados.map((c) => <CompRow key={c.id} c={c} />)
+            ordenados.map((c) => <CompRow key={c.id} c={c} onEditar={onEditar} />)
           )}
         </CardContent>
       </Card>
@@ -474,7 +490,7 @@ function VistaDia({
   );
 }
 
-function CompRow({ c }: { c: Comp }) {
+function CompRow({ c, onEditar }: { c: Comp; onEditar: (c: Comp) => void }) {
   const router = useRouter();
   const [pending, start] = useTransition();
 
@@ -528,6 +544,9 @@ function CompRow({ c }: { c: Comp }) {
         {c.minhaConfirmacao === false && (
           <Badge variant="outline" className="text-muted-foreground">recusado</Badge>
         )}
+        <Button size="icon" variant="ghost" aria-label="Editar" onClick={() => onEditar(c)}>
+          <Pencil className="size-4" />
+        </Button>
         <Button size="icon" variant="ghost" aria-label="Excluir" onClick={excluir}>
           <Trash2 className="size-4" />
         </Button>
@@ -630,6 +649,110 @@ function NovoCompromissoDialog({
           </Button>
           <Button onClick={criar} disabled={pending || !titulo || !inicio}>
             {pending ? "Criando…" : "Criar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditarCompromissoDialog({
+  comp,
+  internos,
+  onOpenChange,
+}: {
+  comp: Comp;
+  internos: { id: string; name: string }[];
+  onOpenChange: (o: boolean) => void;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+
+  function toLocalDT(iso: string) {
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  const [titulo, setTitulo] = useState(comp.titulo);
+  const [local, setLocal] = useState(comp.local ?? "");
+  const [inicio, setInicio] = useState(toLocalDT(comp.inicio));
+  const [fim, setFim] = useState(comp.fim ? toLocalDT(comp.fim) : "");
+  const [participantes, setParticipantes] = useState<string[]>(comp.participantesIds);
+
+  function salvar() {
+    start(async () => {
+      const r = await editarCompromisso({
+        id: comp.id,
+        titulo,
+        descricao: comp.descricao ?? "",
+        local,
+        inicio,
+        fim,
+        participantesIds: participantes,
+      });
+      if (r.ok) {
+        toast.success("Compromisso atualizado.");
+        onOpenChange(false);
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Editar compromisso</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Título</Label>
+            <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Início</Label>
+              <Input type="datetime-local" value={inicio} onChange={(e) => setInicio(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Fim</Label>
+              <Input type="datetime-local" value={fim} onChange={(e) => setFim(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Local</Label>
+            <Input value={local} onChange={(e) => setLocal(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Convidados</Label>
+            <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
+              {internos.map((u) => {
+                const sel = participantes.includes(u.id);
+                return (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() =>
+                      setParticipantes((p) => (sel ? p.filter((x) => x !== u.id) : [...p, u.id]))
+                    }
+                    className={`rounded-sm border px-2 py-1 text-xs transition-colors ${
+                      sel ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:border-primary/50"
+                    }`}
+                  >
+                    {u.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={salvar} disabled={pending || !titulo || !inicio}>
+            {pending ? "Salvando…" : "Salvar"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -211,10 +211,11 @@ Auditoria do remake × spec do sistema antigo. Núcleo (§4.1–4.14, fluxos §5
 - ✅ **Geração automática de folha CLT** (salário base + INSS/IRRF) e ✅ **cron RH noturno** (propostas vencidas, férias do dia).
 - ✅ **Comentários/anexos em Tarefas**, ✅ **anexos em Suporte**, ✅ **Habilidades** (matriz de recursos), ✅ **Serviços terceirizados** por projeto.
 
-**Restos do antigo ainda não portados (menores/opcionais):** fechamento automático de banco de horas e
-geração automática de folha de projetistas (hoje manuais); composição de preço detalhada (remake usa
-tabela R$/m²); transição de ciclo de férias (status é só aprovação); `LmConfig` (lista de material BIM);
-"comparar versões" de proposta. Diferenças intencionais (stack/design) não são lacunas — ver §1.
+**Restos do antigo ainda não portados (menores/opcionais):** geração automática de folha de projetistas
+(hoje manual); composição de preço detalhada (remake usa tabela R$/m²); transição de ciclo de férias
+(status é só aprovação); `LmConfig` (lista de material BIM). Diferenças intencionais (stack/design) não
+são lacunas — ver §1. ✅ fechamento automático de banco de horas (pg-boss job dia 1), ✅ comparar versões
+de proposta — ambos portados.
 
 ## 6. Gotchas técnicos (economizam horas)
 

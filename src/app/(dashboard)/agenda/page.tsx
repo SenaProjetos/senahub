@@ -73,6 +73,7 @@ export default async function AgendaPage({
           nome: p.user.name,
           confirmado: p.confirmado,
         })),
+        participantesIds: c.participantes.map((p) => p.user.id),
       }))}
       prazos={[
         ...prazosProjeto.map((p) => ({
