@@ -1,10 +1,9 @@
 # SenaHub Remake — Handoff / Estado do Projeto
 
 > Documento de continuidade. Permite a qualquer dev/IA retomar o trabalho do ponto exato.
-> **Atualizado em 2026-06-22 (sessão 2).** Ondas 0–5 + OD + auditorias Chat C0–C5, Projetos P0–P6,
-> Licitações F0–F11 + melhorias M0–M1. 49 arquivos de teste, 391 testes passando, tsc limpo.
-> Licitações F11 concluído: GerarDocumentoButton no detalhe + modelo exemplo no seed.
-> Estúdio: Ctrl+C/V/D no editor; GerarDocumentoButton em /clientes/[id]; estimativa [Paginas].
+> **Atualizado em 2026-06-22 (sessão 3).** Ondas 0–5 + OD + auditorias Chat C0–C5, Projetos P0–P6,
+> Licitações F0–F11 + melhorias M0–M1 + infra/UX. 49 arquivos de teste, 391 testes passando, tsc limpo.
+> Security headers, email cobrança, preferências notificação, snapshot Estúdio com PDF.
 > Próximo: deploy (§5.4), paginação real do Estúdio (§5.4b).
 
 ---
@@ -165,7 +164,10 @@ do escritório (propostas O4, contratos, holerites, relatórios gerenciais).
 - **@dnd-kit**: funil comercial (O4) e Kanban de tarefas (O5).
 - **react-hook-form + @hookform/resolvers**: formulários grandes (proposta) — hoje forms são useState manual.
 - ✅ **Avatares**: upload `POST /api/avatar` (sharp 256²) + serve `/api/avatar/[id]` + "Alterar foto" no menu; exibe no header/chat via `user.image`. **Validar upload no navegador.**
-- **Holerite/Relatórios em PDF** (jspdf, além do Excel).
+- ✅ **Holerite/Relatórios em PDF**: via Estúdio (fonte "holerite") + PDF server-side.
+- ✅ **Preferências de notificação**: toggles por categoria (prazo_disciplina, inadimplencia, certidao, licitacao, digest_semanal, risco_projeto) em `/preferencias`; `filtrarPorCategoria` respeita opt-out em `notificar.ts`.
+- ✅ **Segurança**: X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy em `next.config.ts`.
+- ✅ **Estúdio — snapshot**: "Reabrir" usa `DocRender` com snapshot imutável (`/documentos/gerados/[id]`); PDF do snapshot via `/api/documentos/gerados/[id]/pdf`; toast "Salvar geração" tem link direto ao snapshot.
 - ✅ **DFC** (`/financeiro/dfc`, método direto por atividade, classificação de categoria) e ✅ **Balanço gerencial** (`/financeiro/balanco`, posição base caixa — não é Balanço contábil formal).
 - ✅ **Encargos folha (INSS/IRRF)**: motor progressivo (`lib/encargos.ts`, testado) + faixas configuráveis (Configurações → Encargos) + botão "Calcular INSS/IRRF" no holerite. **Estrutura pronta — informar os valores vigentes em Configurações.**
 - **Logs estruturados** (pino) + rotação de arquivos. (`/api/health` ✅ já existe.)
