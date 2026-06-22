@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, TrendingUp, Users, Wallet } from "lucide-react";
+import { toast } from "sonner";
+import { AlertTriangle, TrendingUp, Users, Wallet, FileSpreadsheet, Download } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { RentabilidadeRelatorio, MargemMensal, CustoDisciplina } from "@/modules/financeiro/relatorios/queries";
 import type { CoordenadorRentab } from "@/modules/financeiro/relatorios/dre-projeto";
@@ -34,9 +35,42 @@ export function RentabilidadeView({
   const [de, setDe] = useState(dados.de);
   const [ate, setAte] = useState(dados.ate);
   const [margem, setMargem] = useState(String(dados.margemMinima));
+  const [exportando, startExport] = useTransition();
 
   function aplicar() {
     router.push(`/financeiro/rentabilidade?de=${de}&ate=${ate}&margem=${margem || 0}`);
+  }
+
+  function exportar(formato: "xlsx" | "csv") {
+    const linhas = dados.projetos.map((p) => ({
+      codigo: formatarCodigo(p.codigo),
+      projeto: p.nome,
+      cliente: p.cliente ?? "",
+      receita: p.receita,
+      diretos: p.diretos,
+      indireto: p.indiretoRateado,
+      lucroLiquido: p.lucroLiquido,
+      margemLiquida: p.margemLiquida,
+      roi: p.roi,
+    }));
+    startExport(async () => {
+      const res = await fetch("/api/financeiro/relatorios/rentabilidade/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ formato, titulo: `Rentabilidade_${dados.de}_${dados.ate}`, linhas }),
+      });
+      if (!res.ok) {
+        toast.error("Falha ao exportar.");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `rentabilidade-${dados.de}_${dados.ate}.${formato}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
   }
 
   const t = dados.totais;
@@ -64,6 +98,12 @@ export function RentabilidadeView({
             <Input type="number" value={margem} onChange={(e) => setMargem(e.target.value)} className="w-24" />
           </div>
           <Button onClick={aplicar}>Aplicar</Button>
+          <Button variant="outline" onClick={() => exportar("xlsx")} disabled={exportando || dados.projetos.length === 0}>
+            <FileSpreadsheet className="size-4" /> XLSX
+          </Button>
+          <Button variant="outline" onClick={() => exportar("csv")} disabled={exportando || dados.projetos.length === 0}>
+            <Download className="size-4" /> CSV
+          </Button>
         </div>
       </div>
 
