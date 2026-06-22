@@ -30,6 +30,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
+import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { brl, formatarData } from "@/lib/utils";
 
 type Conta = { id: string; nome: string; saldoInicial: number };
@@ -91,11 +92,13 @@ export function LancamentosView({
   contas,
   opcoes,
   exigeSenhaExclusao = false,
+  modelosDoc = [],
 }: {
   itens: LivroCaixaItem[];
   contas: Conta[];
   opcoes: OpcoesLancamento;
   exigeSenhaExclusao?: boolean;
+  modelosDoc?: { id: string; nome: string }[];
 }) {
   const router = useRouter();
   const [, start] = useTransition();
@@ -503,6 +506,11 @@ export function LancamentosView({
             <Button variant="outline" size="sm" onClick={() => exportar("xlsx")}><FileSpreadsheet className="size-4" /> XLSX</Button>
             <Button variant="outline" size="sm" onClick={() => exportar("csv")}><Download className="size-4" /> CSV</Button>
             <Button variant="outline" size="sm" onClick={imprimir}><Printer className="size-4" /> PDF</Button>
+            <GerarDocumentoButton
+              modelos={modelosDoc}
+              paramId="mes"
+              valor={`${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, "0")}`}
+            />
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
