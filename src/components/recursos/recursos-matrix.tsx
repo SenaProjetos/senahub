@@ -35,6 +35,7 @@ type Alocacao = {
   percentual: number;
   inicio: string | null;
   fim: string | null;
+  ativaHoje?: boolean;
   observacao: string | null;
 };
 type Linha = {
@@ -44,9 +45,13 @@ type Linha = {
   role: string;
   capacidade: number;
   capacidadePct: number;
+  capacidadeEfetivaPct: number;
+  ausente: boolean;
+  motivoAusencia: string | null;
   cor: string;
   custoHora: number | null;
   totalAlocado: number;
+  alocadoHoje: number;
   superalocado: boolean;
   alocacoes: Alocacao[];
 };
@@ -301,9 +306,20 @@ export function RecursosMatrix({
                     <div className="flex items-center gap-2">
                       <span className="size-2.5 shrink-0 rounded-full" style={{ background: l.cor }} />
                       <div>
-                        <div className="font-medium">{l.nome}</div>
+                        <div className="flex items-center gap-1.5 font-medium">
+                          {l.nome}
+                          {l.ausente && (
+                            <span
+                              className="rounded-sm bg-warning/15 px-1.5 py-0.5 text-[9px] font-medium uppercase text-warning"
+                              title={`Ausente hoje — ${l.motivoAusencia}`}
+                            >
+                              ausente
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[11px] text-muted-foreground">
                           {ROLE_LABELS[l.role as Role] ?? l.role}
+                          {l.ausente && l.motivoAusencia && <span className="ml-1">· {l.motivoAusencia}</span>}
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-1">
                           {(habilidadesPorUser[l.userId] ?? []).map((h) => (
@@ -375,6 +391,9 @@ export function RecursosMatrix({
                         {l.totalAlocado}/{l.capacidadePct}%
                       </span>
                       {l.superalocado && <AlertTriangle className="size-3.5 shrink-0 text-destructive" />}
+                    </div>
+                    <div className="mt-0.5 text-right font-mono text-[10px] text-muted-foreground">
+                      hoje: {l.alocadoHoje}%{l.ausente && " · capacidade 0 (ausente)"}
                     </div>
                     {l.superalocado && (
                       <button

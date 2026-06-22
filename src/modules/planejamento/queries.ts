@@ -141,11 +141,15 @@ export async function cronogramaProjetosAtivos() {
 }
 
 /**
- * Matriz de recursos: pessoas (recursos) × projetos, com total de alocação vs capacidade.
- * Superalocado = soma dos percentuais > capacidade × 100.
+ * Matriz de recursos: pessoas (recursos) × projetos.
+ * P-29: superalocação considera só as alocações ATIVAS hoje (respeita inicio/fim).
+ * P-30: capacidade efetiva desconta ausências de hoje (férias/abono aprovados, feriado).
  */
 export async function matrizRecursos() {
-  const [recursos, projetos, usuariosSemRecurso] = await Promise.all([
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+
+  const [recursos, projetos, usuariosSemRecurso, ferias, abonos, feriado] = await Promise.all([
     prisma.recurso.findMany({
       where: { ativo: true },
       include: {
@@ -165,12 +169,34 @@ export async function matrizRecursos() {
       select: { id: true, name: true, role: true },
       orderBy: { name: "asc" },
     }),
+    prisma.ferias.findMany({
+      where: { status: "aprovado", inicio: { lte: hoje }, fim: { gte: hoje } },
+      select: { userId: true },
+    }),
+    prisma.abonoFalta.findMany({
+      where: { status: "aprovado", dataInicio: { lte: hoje }, dataFim: { gte: hoje } },
+      select: { userId: true },
+    }),
+    prisma.feriado.findFirst({ where: { data: hoje }, select: { nome: true } }),
   ]);
+
+  // Motivo de ausência de hoje por usuário (feriado afeta todos).
+  const ausenciaPorUser = new Map<string, string>();
+  for (const f of ferias) ausenciaPorUser.set(f.userId, "férias");
+  for (const a of abonos) if (!ausenciaPorUser.has(a.userId)) ausenciaPorUser.set(a.userId, "abono");
+  const feriadoHoje = feriado?.nome ?? null;
+
+  const ativaHoje = (a: { inicio: Date | null; fim: Date | null }) =>
+    (!a.inicio || a.inicio <= hoje) && (!a.fim || a.fim >= hoje);
 
   const linhas = recursos
     .map((r) => {
       const capacidadePct = Math.round(Number(r.capacidade) * 100);
       const total = r.alocacoes.reduce((s, a) => s + a.percentual, 0);
+      const alocadoHoje = r.alocacoes.filter(ativaHoje).reduce((s, a) => s + a.percentual, 0);
+      const motivoAusencia = feriadoHoje ? `feriado (${feriadoHoje})` : (ausenciaPorUser.get(r.user.id) ?? null);
+      const ausente = motivoAusencia != null;
+      const capacidadeEfetivaPct = ausente ? 0 : capacidadePct;
       return {
         recursoId: r.id,
         userId: r.user.id,
@@ -178,10 +204,15 @@ export async function matrizRecursos() {
         role: r.user.role,
         capacidade: Number(r.capacidade),
         capacidadePct,
+        capacidadeEfetivaPct,
+        ausente,
+        motivoAusencia,
         cor: r.cor,
         custoHora: r.custoHora != null ? Number(r.custoHora) : null,
         totalAlocado: total,
-        superalocado: total > capacidadePct,
+        alocadoHoje,
+        // P-29: superalocação avalia a carga de HOJE contra a capacidade efetiva.
+        superalocado: alocadoHoje > capacidadeEfetivaPct,
         alocacoes: r.alocacoes.map((a) => ({
           id: a.id,
           projetoId: a.projetoId,
@@ -190,11 +221,12 @@ export async function matrizRecursos() {
           percentual: a.percentual,
           inicio: a.inicio ? iso(a.inicio) : null,
           fim: a.fim ? iso(a.fim) : null,
+          ativaHoje: ativaHoje(a),
           observacao: a.observacao,
         })),
       };
     })
     .sort((a, b) => a.nome.localeCompare(b.nome));
 
-  return { linhas, projetos, usuariosSemRecurso };
+  return { linhas, projetos, usuariosSemRecurso, feriadoHoje };
 }
