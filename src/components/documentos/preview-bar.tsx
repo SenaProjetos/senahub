@@ -78,8 +78,14 @@ export function PreviewBar({
   function salvarGeracao() {
     start(async () => {
       const r = await registrarDocumentoGerado({ modeloId, params: valores });
-      if (r.ok) toast.success("Documento gerado salvo no histórico.");
-      else toast.error(r.error);
+      if (r.ok) {
+        toast.success("Documento salvo no histórico.", {
+          action: {
+            label: "Ver snapshot",
+            onClick: () => router.push(`/documentos/gerados/${r.data.id}`),
+          },
+        });
+      } else toast.error(r.error);
     });
   }
 
