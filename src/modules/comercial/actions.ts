@@ -22,6 +22,9 @@ import {
   criarPropostaSchema,
   salvarPropostaSchema,
   statusPropostaSchema,
+  criarEtapaSchema,
+  editarEtapaSchema,
+  alternarEtapaSchema,
 } from "@/modules/comercial/schemas";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -150,6 +153,50 @@ export const definirMeta = defineAction(
     });
     rev();
     return { ano: i.ano, mes: i.mes };
+  },
+);
+
+// ── Etapas do funil ───────────────────────────────────────────
+
+const revFunil = () => {
+  revalidatePath("/comercial");
+  revalidatePath("/configuracoes/funil-etapas");
+};
+
+export const criarEtapaFunil = defineAction(
+  { ...base, acao: "criar-etapa-funil", entidade: "FunilEtapa", schema: criarEtapaSchema },
+  async (i) => {
+    const maxOrdem = await prisma.funilEtapa.aggregate({ _max: { ordem: true } });
+    const etapa = await prisma.funilEtapa.create({
+      data: { nome: i.nome, cor: i.cor || null, ordem: (maxOrdem._max.ordem ?? 0) + 1 },
+    });
+    revFunil();
+    return { id: etapa.id };
+  },
+);
+
+export const editarEtapaFunil = defineAction(
+  { ...base, acao: "editar-etapa-funil", entidade: "FunilEtapa", schema: editarEtapaSchema },
+  async (i) => {
+    const existe = await prisma.funilEtapa.findUnique({ where: { id: i.id } });
+    if (!existe) throw new ActionError("Etapa não encontrada.");
+    await prisma.funilEtapa.update({
+      where: { id: i.id },
+      data: { nome: i.nome, cor: i.cor || null },
+    });
+    revFunil();
+    return { id: i.id };
+  },
+);
+
+export const alternarEtapaFunil = defineAction(
+  { ...base, acao: "alternar-etapa-funil", entidade: "FunilEtapa", schema: alternarEtapaSchema },
+  async (i) => {
+    const etapa = await prisma.funilEtapa.findUnique({ where: { id: i.id } });
+    if (!etapa) throw new ActionError("Etapa não encontrada.");
+    await prisma.funilEtapa.update({ where: { id: i.id }, data: { ativo: !etapa.ativo } });
+    revFunil();
+    return { id: i.id };
   },
 );
 

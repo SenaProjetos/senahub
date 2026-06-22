@@ -14,6 +14,7 @@ import {
   Plug,
   Mail,
   Bell,
+  Funnel,
 } from "lucide-react";
 import { requireRole } from "@/lib/session";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -104,6 +105,12 @@ const GRUPOS: Grupo[] = [
         icon: ListChecks,
         titulo: "Checklist de habilitação",
         descricao: "Modelos de exigências de habilitação usados nas licitações.",
+      },
+      {
+        href: "/configuracoes/funil-etapas",
+        icon: Funnel,
+        titulo: "Etapas do funil",
+        descricao: "Estágios do pipeline comercial (criar, editar, ativar/desativar).",
       },
     ],
   },

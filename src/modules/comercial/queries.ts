@@ -113,6 +113,15 @@ export function totalProposta(itens: { valor: unknown }[]): number {
   return itens.reduce((s, i) => s + Number(i.valor), 0);
 }
 
+/** Todas as etapas (ativas e inativas), para tela de configuração. */
+export async function listarEtapasFunil() {
+  return prisma.funilEtapa.findMany({
+    orderBy: { ordem: "asc" },
+    select: { id: true, nome: true, ordem: true, cor: true, ativo: true, _count: { select: { leads: true } } },
+  });
+}
+export type EtapaFunilConfig = Awaited<ReturnType<typeof listarEtapasFunil>>[number];
+
 export type EtapaFunil = Awaited<ReturnType<typeof funilCompleto>>[number];
 export type LeadItem = EtapaFunil["leads"][number];
 export type LeadDetalhe = NonNullable<Awaited<ReturnType<typeof obterLead>>>;

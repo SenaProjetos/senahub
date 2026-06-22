@@ -30,6 +30,12 @@ export const metaSchema = z.object({
   valor: z.number().nonnegative(),
 });
 
+// ── Etapas do funil ───────────────────────────────────────────
+const corHex = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Cor inválida.").optional().or(z.literal(""));
+export const criarEtapaSchema = z.object({ nome: z.string().min(1, "Informe o nome."), cor: corHex });
+export const editarEtapaSchema = z.object({ id: z.string().min(1), nome: z.string().min(1), cor: corHex });
+export const alternarEtapaSchema = z.object({ id: z.string().min(1) });
+
 // ── Tabelas de preço ──────────────────────────────────────────
 export const tabelaPrecoSchema = z.object({
   nome: z.string().min(1),
