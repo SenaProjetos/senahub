@@ -51,6 +51,14 @@ src/
   components/ui/         # shadcn — but on base-ui, NOT Radix (see gotcha below)
   lib/                   # cross-cutting: auth, session, permissions, with-action, audit, storage,
                          #   notificar/push, mail, jobs(+jobs-handlers), socket, cache, cep, ofx
+                         #   utils.ts: cn() (Tailwind merge), brl/brlInteiro/formatarData/formatarDataHora
+                         #   roles.ts: GLOBAL_ROLES, HR_ADMIN_ROLES, INTERNAL_ROLES, PROJETO_MEMBRO_ROLES, etc.
+                         #   import/: csv.ts, planilha.ts (ExcelJS), mapeamento.ts, valores.ts — bulk import engine
+                         #   storage.ts: resolverCaminho() anti-traversal (Windows STORAGE_BASE_PATH guard)
+                         #   nav-config.ts: NAV_GROUPS with per-item roles[] + mobile flags
+                         #   encargos.ts: INSS/IRRF progressive payroll calculator (pure, tested)
+                         #   ofx.ts: OFX bank statement parser with dedup+auto-match (tested)
+                         #   aprovacao.ts: devePassarPorAprovacao(tipo, valor, limite) for finance workflows
   generated/prisma/      # Prisma client output (import from here, NOT @prisma/client)
 server.ts                # Next + Socket.io + pg-boss in ONE process
 prisma/schema.prisma     # + prisma.config.ts (Prisma 7: datasource URL lives in the config, not the schema)
@@ -74,6 +82,10 @@ To capture before/after diffs in the audit log, pass `capturarAntes` returning t
 async (input, ctx) => { /* ... */ },
 { capturarAntes: async (input) => prisma.licitacao.findUnique({ where: { id: input.id } }) }
 ```
+
+**Component naming convention:** `*-view.tsx` = full page component (owns filters/title/actions), `*-dialog.tsx` = modal form, `*-form.tsx` = reusable form, `*-button.tsx` = contextual action button. `components/ui/` has all shadcn primitives; don't re-add anything already there (confirm-dialog, empty-state, sortable-head, status-badge, etc.).
+
+**Modules (25 total):** agenda, auditoria, auth, busca, chat, clientes, comercial, dashboard, documentos, financeiro, inputs, juridico, licitacoes, notificacoes, permissoes, planejamento, ponto, portal, projetos, qualidade, rh, suporte, tarefas, uploads, usuarios. The `portal` module is the read-only external client view scoped to `User.clienteId`; `inputs` handles public client intake forms (token-gated).
 
 **List views:** Use `parseListParams(searchParams)` (`lib/list-params.ts`) to get `{page, skip, take, sort, dir, q}` ready for Prisma `skip/take/orderBy`. On the client, `useSetParams` updates URL search params and automatically resets `page` when any other filter changes.
 
@@ -104,6 +116,16 @@ async (input, ctx) => { /* ... */ },
 **Soft delete:** `Lancamento` reads are auto-filtered to `excluidoEm: null` via a Prisma client extension
 in `lib/prisma.ts`. To see deleted rows, pass `excluidoEm` explicitly in the `where`.
 
+**Estúdio (documentos) token system** (`modules/documentos/tokens.ts`) — pure engine, no I/O, tested heavily:
+- Syntax: `[Campo]`, `[Fonte.Campo]`, `[Sum/Avg/Count/Min/Max(X)]`, `[= expr]`, `[Pagina]`, `[Grupo]`
+- Format suffixes: `:c2` (currency), `:d` (date), `:p1` (percent), `:n0` (integer)
+- `ContextoDados` shape: `{ escalar, linhas, linha, grupo, pagina }` — line-repeating sections use `linhas`
+- Data source metadata lives in `modules/documentos/fontes-meta.ts` (pure, client-safe); server resolution in `fontes.ts`
+
+**Planejamento CPM** (`modules/planejamento/caminho-critico.ts`) — pure forward/backward-pass critical-path algorithm on tarefas graph (predecessoras + datas). No Prisma dependency; WBS codes (1.2.3 format) and desvio/baseline exported to Excel via `GET /api/planejamento/[id]/eap-export`.
+
+**Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`.
+
 ## Gotchas
 
 - **Prisma 7:** client is generated to `src/generated/prisma` — import `{ PrismaClient }` from `@/generated/prisma/client`,
@@ -114,4 +136,6 @@ in `lib/prisma.ts`. To see deleted rows, pass `excluidoEm` explicitly in the `wh
   health. Everything else is a Server Action — don't add CRUD REST endpoints.
 - Convention: code/identifiers in English, all user-facing strings in Portuguese, commits semantic + pt-BR.
 - **`Select` `onValueChange`** returns `string | null`, not `string` (base-ui diverges from Radix here).
-- **Required env vars beyond DATABASE_URL:** `STORAGE_BASE_PATH` (Windows path for file uploads — must exist, anti-traversal enforced), `CHROME_PATH` (Chrome exe for PDF rendering via puppeteer-core). Optional: `ENABLE_BACKUP=1`, `BACKUP_PATH`, `PG_DUMP_PATH`, VAPID keys, SMTP vars.
+- **Env vars:**
+  - Required: `DATABASE_URL`, `BETTER_AUTH_SECRET` (32+ bytes), `BETTER_AUTH_URL` (origin for CSRF), `APP_URL` (base URL for links in notifications/emails), `STORAGE_BASE_PATH` (Windows upload path, must exist), `CHROME_PATH` (Chrome exe for puppeteer-core PDF)
+  - Optional: `ENABLE_BACKUP=1` + `BACKUP_PATH` + `PG_DUMP_PATH` (pg_dump.exe path), `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` (web push), `SMTP_HOST` + `SMTP_PORT` + `SMTP_USER` + `SMTP_PASS` + `SMTP_FROM` (email)

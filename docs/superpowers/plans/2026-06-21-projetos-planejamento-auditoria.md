@@ -362,36 +362,36 @@ Reconstrói a experiência do detalhe do projeto.
 > Sugestão de corte inicial: **toda a P0–P4** (lacunas estruturais + UX) e os itens ★★★ de P5–P6.
 
 ### Correções
-- [ ] P-01 criar canal no `criarProjeto`  · [ ] P-02 CRUD de disciplina  · [ ] P-03 editar cliente/valor
-- [ ] P-04 papel do membro  · [ ] P-05 cancelar/excluir projeto  · [ ] P-06 duplicar com opções
-- [ ] P-07 busca por código  · [ ] P-08 prazo ≤ projeto  · [ ] P-09 template de disciplinas
-- [ ] P-10 roles unificadas  · [ ] P-11 máquina de estados  · [ ] P-12 separar validado/pago
-- [ ] P-13 A/B configurável  · [ ] P-14 uniformizar gate  · [ ] P-15 notificar responsável
-- [ ] P-16 revisão linkada  · [ ] P-17 SLA de entrega  · [ ] P-18 atraso no detalhe
-- [ ] **P-19 folha projetista → Lançamento**  · [ ] **P-20 projetista na margem**  · [ ] **P-21 serviço → despesa**
-- [ ] **P-22 valor de contrato**  · [ ] **P-23 composição → receita**  · [ ] P-24 anti-dupla-contagem  · [ ] P-25 lançar do projeto
-- [ ] **P-26 custo mês aberto**  · [ ] P-27 horas no detalhe  · [ ] **P-28 plan×real**  · [ ] P-29 superalocação por período
-- [ ] P-30 ausências na capacidade  · [ ] P-31 horas sem projeto  · [ ] P-32 dedup gerarTarefa  · [ ] **P-33 progresso roll-up**
-- [ ] **P-34 auto-schedule**  · [ ] P-35 aplicar bidirecional  · [ ] **P-36 gerar EAP**  · [ ] P-37 datas do pai
-- [ ] P-38 alocação por disciplina  · [ ] P-39 consolidar linha de base  · [ ] P-40 drag no gantt  · [ ] P-41 planos arquivados
-- [ ] **P-42 abas**  · [ ] **P-43 KPI cards**  · [ ] P-44 mini-gantt  · [ ] P-45 donut  · [ ] P-46 sub-recursos no contexto
-- [ ] P-47 kanban disciplinas  · [ ] P-48 ações em massa  · [ ] P-49 filtros cronograma  · [ ] P-50 equipe enriquecida
-- [ ] P-51 painel da disciplina  · [ ] P-52 notificar status  · [ ] P-53 lembrete inputs  · [ ] P-54 alerta de risco
-- [ ] P-55 over-fetch  · [ ] P-56 índice de busca  · [ ] P-57 revalidate  · [ ] P-58 visibilidade financeira
-- [ ] P-59 escopo único  · [ ] P-60 visão do cliente
+- [x] P-01 criar canal no `criarProjeto`  · [x] P-02 CRUD de disciplina  · [x] P-03 editar cliente/valor
+- [x] P-04 papel do membro (EquipeManager)  · [x] P-05 cancelar/excluir projeto  · [x] P-06 duplicar com opções
+- [x] P-07 busca por código  · [x] P-08 prazo ≤ projeto  · [x] P-09 template de disciplinas
+- [ ] P-10 roles unificadas  · [x] P-11 máquina de estados  · [ ] P-12 separar validado/pago
+- [x] P-13 A/B configurável  · [x] P-14 uniformizar gate (documentado)  · [x] P-15 notificar responsável
+- [x] P-16 revisão notifica responsáveis  · [x] P-17 SLA de entrega  · [x] P-18 atraso no detalhe
+- [x] **P-19 folha projetista → Lançamento**  · [x] **P-20 projetista na margem**  · [x] **P-21 serviço → despesa**
+- [x] **P-22 valor de contrato**  · [x] **P-23 composição → receita (referência)**  · [x] P-24 anti-dupla-contagem (CLT fora)  · [x] P-25 lançar do projeto
+- [x] **P-26 custo mês aberto**  · [x] P-27 horas no detalhe  · [x] **P-28 plan×real**  · [x] P-29 superalocação por período
+- [x] P-30 ausências na capacidade  · [ ] P-31 horas sem projeto  · [x] P-32 dedup gerarTarefa  · [x] **P-33 progresso roll-up**
+- [x] **P-34 auto-schedule**  · [x] P-35 aplicar avisa semEap  · [x] **P-36 gerar EAP**  · [x] P-37 datas do pai
+- [ ] P-38 alocação por disciplina  · [ ] P-39 consolidar linha de base  · [ ] P-40 drag no gantt  · [x] P-41 planos em cronograma
+- [x] **P-42 abas**  · [x] **P-43 KPI cards**  · [x] P-44 mini-gantt  · [x] P-45 donut  · [x] P-46 sub-recursos no contexto
+- [x] P-47 kanban disciplinas  · [x] P-48 ações em massa  · [x] P-49 filtros cronograma  · [ ] P-50 equipe enriquecida
+- [ ] P-51 painel da disciplina  · [x] P-52 notificar status  · [x] P-53 lembrete inputs  · [x] P-54 alerta de risco
+- [ ] P-55 over-fetch  · [ ] P-56 índice de busca  · [x] P-57 revalidate  · [ ] P-58 visibilidade financeira
+- [x] P-59 escopo único  · [x] P-60 visão do cliente
 
 ### Novos itens / automações
-- [ ] **N-01 saúde do projeto**  · [ ] **N-02 KPIs**  · [ ] **N-03 health score**  · [ ] N-04 mini-gantt  · [ ] N-05 donut
-- [ ] N-06 explorer  · [ ] N-07 timeline  · [ ] **N-08 meu trabalho**  · [ ] N-09 carteira
-- [ ] **N-10 gerar EAP**  · [ ] **N-11 auto-schedule**  · [ ] **N-12 roll-up**  · [ ] N-13 drag  · [ ] N-14 datas do pai
-- [ ] N-15 SS/FF+lag  · [ ] N-16 templates cronograma  · [ ] N-17 calendário/feriados  · [ ] N-18 marcos
-- [ ] **N-19 auto-lançamento folha**  · [ ] **N-20 custo projetista margem**  · [ ] **N-21 contrato+parcelas**  · [ ] N-22 receita da composição
-- [ ] N-23 serviço→despesa  · [ ] N-24 margem ao vivo  · [ ] N-25 EVM  · [ ] N-26 faturar por entrega  · [ ] N-27 lançar do projeto
-- [ ] **N-28 plan×real horas**  · [ ] N-29 cronômetro  · [ ] N-30 ausências  · [ ] N-31 alocação por janela  · [ ] N-32 sugestão por habilidade  · [ ] N-33 heatmap carga
-- [ ] N-34 checklist entregáveis  · [ ] N-35 workflow revisão  · [ ] N-36 pranchas numeradas  · [ ] N-37 índice qualidade  · [ ] N-38 SLA  · [ ] N-39 riscos
-- [ ] N-40 portal cliente  · [ ] N-41 lembrete inputs  · [ ] N-42 comentários disciplina  · [ ] N-43 aceite cliente
-- [ ] N-44 PDF cronograma  · [ ] N-45 carteira CSV  · [ ] N-46 status report  · [ ] N-47 comparativo baseline
-- [ ] N-48 ações em massa  · [ ] N-49 busca global  · [ ] N-50 filtros salvos  · [ ] N-51 cards mobile  · [ ] N-52 kanban arrastável  · [ ] N-53 duplicar com opções  · [ ] N-54 chat por disciplina  · [ ] N-55 notificações configuráveis
+- [x] **N-01 saúde do projeto**  · [x] **N-02 KPIs**  · [x] **N-03 health score + sort risco**  · [x] N-04 mini-gantt  · [x] N-05 donut
+- [x] N-06 explorer  · [x] N-07 timeline status  · [x] **N-08 meu trabalho**  · [x] N-09 carteira
+- [x] **N-10 gerar EAP**  · [x] **N-11 auto-schedule (reagendar)**  · [x] **N-12 roll-up**  · [ ] N-13 drag  · [x] N-14 datas do pai
+- [ ] N-15 SS/FF+lag  · [ ] N-16 templates cronograma  · [ ] N-17 calendário/feriados  · [x] N-18 marcos
+- [x] **N-19 auto-lançamento folha**  · [x] **N-20 custo projetista margem**  · [x] **N-21 contrato+parcelas**  · [x] N-22 receita da composição
+- [x] N-23 serviço→despesa  · [x] N-24 margem ao vivo  · [x] N-25 EVM  · [x] N-26 faturar por entrega  · [x] N-27 lançar do projeto
+- [x] **N-28 plan×real horas**  · [x] N-29 cronômetro  · [x] N-30 ausências (capacidade efetiva)  · [x] N-31 alocação por janela  · [x] N-32 filtro habilidade  · [x] N-33 heatmap carga
+- [x] N-34 checklist entregáveis  · [ ] N-35 workflow revisão  · [x] N-36 pranchas numeradas auto  · [x] N-37 índice qualidade  · [x] N-38 SLA  · [x] N-39 riscos
+- [x] N-40 portal cliente  · [x] N-41 lembrete inputs  · [x] N-42 comentários disciplina  · [x] N-43 aceite cliente
+- [x] N-44 PDF cronograma  · [x] N-45 carteira CSV  · [x] N-46 status report  · [x] N-47 comparativo baseline
+- [x] N-48 ações em massa  · [x] N-49 busca global  · [x] N-50 filtros salvos / meus projetos  · [x] N-51 cards mobile (progresso+atraso)  · [x] N-52 kanban arrastável  · [x] N-53 duplicar com opções  · [x] N-54 chat por disciplina (deep-link)  · [x] N-55 notificações configuráveis
 
 ---
 

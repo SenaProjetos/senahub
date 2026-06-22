@@ -1,14 +1,27 @@
 # SenaHub Remake — Handoff / Estado do Projeto
 
 > Documento de continuidade. Permite a qualquer dev/IA retomar o trabalho do ponto exato.
-> **Atualizado em 2026-06-22 (sessão 3d).** Ondas 0–5 + OD + auditorias + infra + testes.
+> **Atualizado em 2026-06-22 (sessão 3f).** Ondas 0–5 + OD + auditorias + infra + testes.
 > 57 arquivos de teste, 463 testes passando, tsc limpo.
 > Novidades (sessão 3d): tarefaBloqueada testes (4); editarCompromisso action+dialog+label;
 > N-03 saúde do projeto (health.ts puro, 9 testes, coluna "Saúde" na lista de projetos);
 > fix P-57 revalidação de /planejamento/cronograma e / ao mudar status disciplina;
 > N-54 canal por disciplina no card (canaisDasDisciplinas, fallback ao projeto);
 > criarDisciplina agora chama ensureCanaisProjeto para garantir canal imediato.
-> Próximo: deploy (§5.4), etapas do funil configuráveis, paginação real do Estúdio (§5.4b).
+> Novidades (sessão 3e): etapas do funil configuráveis por UI (criarEtapaFunil, editarEtapaFunil,
+> alternarEtapaFunil actions; listarEtapasFunil query; /configuracoes/funil-etapas page+view);
+> exportar EAP (GET /api/planejamento/[id]/eap-export → xlsx com WBS, baseline, desvio);
+> N-43 aceite digital do cliente (AceiteCliente model; gerarAceiteCliente action; /p/aceite/[token]
+> public page; /api/p/aceite/[token] REST endpoint; Link de aceite no DisciplinaCard).
+> Novidades (sessão 3f): N-09 carteira de projetos no dashboard admin (carteiraProjetosDashboard +
+> CarteiraDashboard component — grid health-coded de todos projetos em_andamento);
+> N-18 marcos/milestones na EAP (campo marco Boolean na EapTarefa; prisma db push; diamond no
+> gantt; Flag icon no label; EapDialog com checkbox + data-única);
+> N-29 cronômetro start/stop na página do projeto (CronometroProjeto client widget);
+> N-31 alocação por janela temporal (controles ini/fim na matriz; superalocadoNaJanela() client-side;
+> highlight amarelo na janela; contador no cabeçalho);
+> N-33 heatmap de carga semanal (cargaSemanalPorRecurso query; CargaRealView tab na matriz;
+> heatColor por intensidade de horas/semana — azul→laranja→vermelho).
 
 ---
 
@@ -108,7 +121,7 @@ Fluxo crítico completo já funciona: lead→proposta→aceite→projeto→uploa
 ### 5.1–5.2 Ondas 4–5 ✅ ENTREGUES + auditorias/melhorias ✅ ENTREGUES
 Ver tabela §4. Todo o backlog funcional das ondas 4–5 foi implementado e auditado.
 
-**Restos opcionais (baixa prioridade):** anexos em proposta/suporte; etapas do funil configuráveis por UI; comentários em Tarefas; gauge de qualidade com recharts; setas de dependência no gantt; exportar EAP (Excel/PDF); workspace de rascunho no planejamento; aceite digital de cliente (N-43); preferências de notificação (N-55); canal por disciplina (N-54). Paginação real do Estúdio (engine de layout server-side — hoje é estimativa CSS-print); PDF salvo no storage após geração; régua px/mm no editor.
+**Restos opcionais (baixa prioridade):** ~~anexos em proposta/suporte~~ ✅ (PropostaAnexo + TicketMensagem.anexoPath já existem); ~~etapas do funil configuráveis por UI~~ ✅; ~~comentários em Tarefas~~ ✅ (já existia); ~~gauge de qualidade~~ ✅ (SVG semi-circular sem recharts — IndiceGauge); ~~setas de dependência no gantt~~ ✅ (SVG overlay FS arrows); ~~exportar EAP (Excel)~~ ✅; workspace de rascunho no planejamento; ~~aceite digital de cliente (N-43)~~ ✅; ~~preferências de notificação (N-55)~~ ✅ (já existia em /preferencias); ~~canal por disciplina (N-54)~~ ✅. ~~PDF salvo no storage após geração~~ ✅ (/api/documentos/gerados/[id]/pdf já salva). ~~N-12/N-14 roll-up de progresso e datas pai~~ ✅ (rollupPai() em planejamento/actions.ts). ~~N-36 numeração auto de pranchas~~ ✅ (sugerirCodigo() client-side, sem schema). ~~N-37 índice de qualidade do projeto~~ ✅ (card no extras view). Paginação real do Estúdio (engine de layout server-side — hoje é estimativa CSS-print); régua px/mm no editor.
 
 ### 5.3 Automações (jobs pg-boss — `lib/jobs.ts` + `lib/jobs-handlers.ts`)
 | Job | Regra | Estado |
