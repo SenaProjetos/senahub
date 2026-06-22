@@ -30,7 +30,6 @@ export function DocRender({
 }) {
   const larguraUtil =
     schema.pagina.largura - schema.pagina.margem.esquerda - schema.pagina.margem.direita;
-  const ctxBase: ContextoDados = { escalar, linhas, pagina: 1, paginas: 1 };
 
   /**
    * Resolve os dados (escalar + linhas) que alimentam uma banda de detalhe/grupo:
@@ -69,6 +68,20 @@ export function DocRender({
   const dadosDetalhe = bandaDetalhe ? dadosDaBanda(bandaDetalhe) : { escalar, linhas };
   // Grupos por valor da chave, preservando a ordem de primeira aparição.
   const grupos = agrupado ? agruparLinhas(dadosDetalhe.linhas, agruparPor!) : [];
+
+  // Estimativa de total de páginas para o token [Paginas].
+  // Soma a altura das bandas fixas + (detalhe × linhas) e divide pela área útil.
+  const alturaUtil =
+    schema.pagina.altura - schema.pagina.margem.topo - schema.pagina.margem.baixo;
+  const totalPaginas = (() => {
+    const nLinhas = dadosDetalhe.linhas.length;
+    const alturaFixa = bandas
+      .filter((b) => b.tipo !== "detalhe")
+      .reduce((s, b) => s + b.altura, 0);
+    const alturaDetalhe = (bandaDetalhe?.altura ?? 0) * nLinhas;
+    return Math.max(1, Math.ceil((alturaFixa + alturaDetalhe) / alturaUtil));
+  })();
+  const ctxBase: ContextoDados = { escalar, linhas, pagina: 1, paginas: totalPaginas };
 
   const marca = schema.pagina.marcaDagua;
   const marcaTexto = marca?.texto?.trim();
