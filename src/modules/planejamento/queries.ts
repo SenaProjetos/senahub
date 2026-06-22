@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { GLOBAL_ROLES, type Role } from "@/lib/roles";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { progressoDoStatus } from "@/modules/projetos/status";
+import { minutosSessao } from "@/modules/ponto/format";
 
 type Viewer = { id: string; role: Role };
 
@@ -138,6 +139,65 @@ export async function cronogramaProjetosAtivos() {
       predecessoraIds: t.predecessoras.map((pp) => pp.predecessoraId),
     })),
   }));
+}
+
+/**
+ * P-28: plano × real do projeto no mês corrente — alocação planejada (%) por pessoa
+ * vs. horas reais lançadas no projeto (SessaoTrabalho). Inclui quem trabalhou sem
+ * alocação (percentual 0) para revelar esforço não planejado.
+ */
+export async function planoVsRealProjeto(projetoId: string) {
+  const agora = new Date();
+  const ano = agora.getFullYear();
+  const mes = agora.getMonth() + 1;
+  const ini = new Date(ano, mes - 1, 1);
+  const fim = new Date(ano, mes, 1);
+
+  const [alocacoes, sessoes] = await Promise.all([
+    prisma.alocacao.findMany({
+      where: {
+        projetoId,
+        AND: [{ OR: [{ inicio: null }, { inicio: { lt: fim } }] }, { OR: [{ fim: null }, { fim: { gte: ini } }] }],
+      },
+      include: { recurso: { include: { user: { select: { id: true, name: true } } } } },
+    }),
+    prisma.sessaoTrabalho.findMany({
+      where: { projetoId, inicio: { gte: ini, lt: fim } },
+      select: { userId: true, inicio: true, fim: true },
+    }),
+  ]);
+
+  const horasPorUser = new Map<string, number>();
+  for (const s of sessoes) {
+    horasPorUser.set(s.userId, (horasPorUser.get(s.userId) ?? 0) + minutosSessao(s.inicio, s.fim));
+  }
+
+  const linhas = alocacoes.map((a) => ({
+    userId: a.recurso.user.id,
+    nome: a.recurso.user.name,
+    percentual: a.percentual,
+    horasReais: Math.round(((horasPorUser.get(a.recurso.user.id) ?? 0) / 60) * 10) / 10,
+  }));
+
+  // Quem trabalhou no projeto sem alocação planejada.
+  const comAloc = new Set(linhas.map((l) => l.userId));
+  const semAloc = [...horasPorUser.keys()].filter((id) => !comAloc.has(id));
+  if (semAloc.length > 0) {
+    const users = await prisma.user.findMany({ where: { id: { in: semAloc } }, select: { id: true, name: true } });
+    const nome = new Map(users.map((u) => [u.id, u.name]));
+    for (const id of semAloc) {
+      linhas.push({
+        userId: id,
+        nome: nome.get(id) ?? "—",
+        percentual: 0,
+        horasReais: Math.round(((horasPorUser.get(id) ?? 0) / 60) * 10) / 10,
+      });
+    }
+  }
+
+  linhas.sort((a, b) => b.horasReais - a.horasReais || a.nome.localeCompare(b.nome));
+  const totalHoras = Math.round(linhas.reduce((s, l) => s + l.horasReais, 0) * 10) / 10;
+  return { ano, mes, linhas, totalHoras };
 }
 
 /**

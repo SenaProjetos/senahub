@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { GLOBAL_ROLES, INTERNAL_ROLES, type Role } from "@/lib/roles";
 import { CATEGORIA_TERCEIRIZADO } from "@/modules/financeiro/custo/lancamento-custo";
+import { calcularRateioDetalhado } from "@/modules/rh/rateio/queries";
 
 type Viewer = { id: string; role: Role };
 
@@ -218,11 +219,30 @@ export async function margemProjeto(projetoId: string) {
   }
 
   const custoHoras = Number(rateio._sum.custo ?? 0);
+
+  // P-26: estimativa do custo de horas do mês corrente (ainda não fechado).
+  // Só conta se o mês ainda não tem RateioHora (senão já está em `custoHoras`).
+  const agora = new Date();
+  const anoAtual = agora.getFullYear();
+  const mesAtual = agora.getMonth() + 1;
+  const mesFechado = await prisma.rateioHora.findFirst({
+    where: { projetoId, ano: anoAtual, mes: mesAtual },
+    select: { id: true },
+  });
+  let custoHorasMesCorrente = 0;
+  if (!mesFechado) {
+    const rows = await calcularRateioDetalhado(anoAtual, mesAtual);
+    custoHorasMesCorrente = rows
+      .filter((r) => r.projetoId === projetoId)
+      .reduce((s, r) => s + r.custo, 0);
+    custoHorasMesCorrente = Math.round(custoHorasMesCorrente * 100) / 100;
+  }
+
   const margem = receitaConfirmada - despesaConfirmada - custoHoras;
   const margemPct = receitaConfirmada > 0 ? (margem / receitaConfirmada) * 100 : null;
-  // Resultado projetado: considera também receita e despesa previstas.
+  // Resultado projetado: considera receita/despesa previstas + horas do mês corrente.
   const margemProjetada =
-    receitaConfirmada + receitaPrevista - despesaConfirmada - despesaPrevista - custoHoras;
+    receitaConfirmada + receitaPrevista - despesaConfirmada - despesaPrevista - custoHoras - custoHorasMesCorrente;
 
   return {
     receitaConfirmada,
@@ -230,6 +250,7 @@ export async function margemProjeto(projetoId: string) {
     despesaDireta: despesaConfirmada,
     despesaDiretaPrevista: despesaPrevista,
     custoHoras,
+    custoHorasMesCorrente,
     custo,
     margem,
     margemPct,

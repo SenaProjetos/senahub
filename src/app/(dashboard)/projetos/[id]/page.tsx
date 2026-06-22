@@ -10,6 +10,7 @@ import { can } from "@/lib/permissions";
 import { obterProjeto, usuariosInternos, margemProjeto } from "@/modules/projetos/queries";
 import { receitaProjeto } from "@/modules/projetos/receita/queries";
 import { ReceitaContratoCard } from "@/components/projetos/receita-contrato-card";
+import { planoVsRealProjeto } from "@/modules/planejamento/queries";
 import { listarInputs, linkInput, progressoInputs } from "@/modules/inputs/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { SITUACAO_PROJETO_LABEL, progressoProjeto } from "@/modules/projetos/status";
@@ -65,6 +66,7 @@ export default async function ProjetoDetalhePage({
   const [margem, receita] = podeVerFinanceiro
     ? await Promise.all([margemProjeto(projeto.id), receitaProjeto(projeto.id)])
     : [null, null];
+  const planoReal = podeGerir ? await planoVsRealProjeto(projeto.id) : null;
 
   const [inputs, link, progresso, modelosDoc, canalChat] = await Promise.all([
     listarInputs(projeto.id),
@@ -325,6 +327,12 @@ export default async function ProjetoDetalhePage({
                   <span className="font-mono">{brl(margem.custoHoras)}</span>
                 </div>
               )}
+              {margem.custoHorasMesCorrente > 0 && (
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-muted-foreground">Custo de horas (mês corrente, estimado)</span>
+                  <span className="font-mono text-muted-foreground">~ {brl(margem.custoHorasMesCorrente)}</span>
+                </div>
+              )}
               <div className="flex items-baseline justify-between gap-2 border-t pt-1.5 font-medium">
                 <span>Margem projetada (inclui previstos)</span>
                 <span className={`font-mono ${margem.margemProjetada >= 0 ? "text-success" : "text-destructive"}`}>
@@ -383,6 +391,46 @@ export default async function ProjetoDetalhePage({
           )}
         </CardContent>
       </Card>
+
+      {planoReal && planoReal.linhas.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              Plano × real ·{" "}
+              {new Date(planoReal.ano, planoReal.mes - 1, 1).toLocaleDateString("pt-BR", {
+                month: "long",
+                year: "numeric",
+              })}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <th className="py-1.5 font-medium">Pessoa</th>
+                  <th className="py-1.5 text-right font-medium">Alocado</th>
+                  <th className="py-1.5 text-right font-medium">Horas reais (mês)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {planoReal.linhas.map((l) => (
+                  <tr key={l.userId} className="border-b last:border-0">
+                    <td className="py-1.5">{l.nome}</td>
+                    <td className="py-1.5 text-right font-mono">
+                      {l.percentual > 0 ? `${l.percentual}%` : <span className="text-warning">sem alocação</span>}
+                    </td>
+                    <td className="py-1.5 text-right font-mono">{l.horasReais.toLocaleString("pt-BR")} h</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Total de {planoReal.totalHoras.toLocaleString("pt-BR")} h lançadas no projeto neste mês. Alocação
+              planejada vs. horas reais de ponto — “sem alocação” indica esforço não planejado.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
