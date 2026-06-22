@@ -13,7 +13,9 @@ import {
 import { projetosDoCliente } from "@/modules/projetos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { SITUACAO_PROJETO_LABEL } from "@/modules/projetos/status";
+import { modelosPorFonte } from "@/modules/documentos/queries";
 import { ContatoDialog } from "@/components/clientes/contato-dialog";
+import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,9 +35,12 @@ export default async function ClienteDetalhePage({
   const cliente = await obterCliente(id);
   if (!cliente) notFound();
 
-  const fin = await resumoFinanceiroCliente(id);
-  const projetos = await projetosDoCliente(id);
-  const historico = await historicoCliente(id);
+  const [fin, projetos, historico, modelosDoc] = await Promise.all([
+    resumoFinanceiroCliente(id),
+    projetosDoCliente(id),
+    historicoCliente(id),
+    modelosPorFonte("cliente"),
+  ]);
   const endereco = [
     cliente.logradouro,
     cliente.numero,
@@ -51,8 +56,8 @@ export default async function ClienteDetalhePage({
         <Button variant="ghost" size="icon" render={<Link href="/clientes" aria-label="Voltar" />}>
           <ArrowLeft className="size-4" />
         </Button>
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
             <h2 className="truncate text-2xl font-extrabold tracking-tight">{cliente.nome}</h2>
             <Badge variant="outline">{cliente.tipo}</Badge>
             {cliente.categoria && <Badge variant="secondary">{cliente.categoria}</Badge>}
@@ -62,6 +67,7 @@ export default async function ClienteDetalhePage({
             <p className="text-sm text-muted-foreground">{cliente.nomeFantasia}</p>
           )}
         </div>
+        <GerarDocumentoButton modelos={modelosDoc} paramId="clienteId" valor={id} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
