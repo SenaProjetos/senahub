@@ -6,6 +6,7 @@ import { enviarEmail, smtpConfigurado } from "@/lib/mail";
 import { gravarSnapshotQualidade } from "@/modules/qualidade/queries";
 import { gravarSnapshotDashboard } from "@/modules/dashboard/queries";
 import { gravarSnapshotLicitacaoMensal } from "@/modules/licitacoes/dashboard/queries";
+import { CLT_ROLES } from "@/lib/roles";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { getConfigLicitacoes } from "@/modules/licitacoes/config/queries";
 import { ehRecurso, TIPO_EVENTO_LABEL, type TipoEventoLicitacao } from "@/modules/licitacoes/eventos/eventos";
@@ -243,7 +244,7 @@ export async function lembretePontoNaoBatido(): Promise<number> {
   const hoje = new Date();
   const ini = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
   const clts = await prisma.user.findMany({
-    where: { ativo: true, role: { in: ["clt", "estagiario"] } },
+    where: { ativo: true, role: { in: CLT_ROLES } },
     select: { id: true },
   });
   let n = 0;

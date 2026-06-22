@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, FolderKanban, Users, Wallet, ListChecks, FileText, Loader2 } from "lucide-react";
+import { Search, FolderKanban, Users, Wallet, ListChecks, FileText, Loader2, Gavel, TrendingUp } from "lucide-react";
 import { buscaGlobal, type ResultadoBusca } from "@/modules/busca/actions";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { brl } from "@/lib/utils";
 
-const VAZIO: ResultadoBusca = { projetos: [], clientes: [], tarefas: [], lancamentos: [], documentos: [] };
+const VAZIO: ResultadoBusca = { projetos: [], clientes: [], tarefas: [], lancamentos: [], documentos: [], licitacoes: [], propostas: [] };
 
 export function CommandPalette() {
   const router = useRouter();
@@ -78,7 +78,9 @@ export function CommandPalette() {
     res.clientes.length +
     res.tarefas.length +
     res.lancamentos.length +
-    res.documentos.length;
+    res.documentos.length +
+    res.licitacoes.length +
+    res.propostas.length;
   const curto = termo.trim().length < 2;
 
   return (
@@ -95,7 +97,7 @@ export function CommandPalette() {
             autoFocus
             value={termo}
             onChange={(e) => setTermo(e.target.value)}
-            placeholder="Buscar projetos, clientes, tarefas, lançamentos, documentos…"
+            placeholder="Buscar projetos, clientes, tarefas, licitações, propostas…"
             className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
           {carregando && <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />}
@@ -148,6 +150,21 @@ export function CommandPalette() {
                     >
                       {brl(l.valor)}
                     </span>
+                  </Item>
+                ))}
+              </Grupo>
+              <Grupo titulo="Licitações" icon={Gavel}>
+                {res.licitacoes.map((l) => (
+                  <Item key={l.id} onClick={() => ir(`/licitacoes/${l.id}`)}>
+                    <span className="truncate">{l.titulo}</span>
+                  </Item>
+                ))}
+              </Grupo>
+              <Grupo titulo="Propostas" icon={TrendingUp}>
+                {res.propostas.map((p) => (
+                  <Item key={p.id} onClick={() => ir(`/comercial/propostas/${p.id}`)}>
+                    <span className="font-mono text-xs text-primary">{p.numero}</span>
+                    <span className="truncate">{p.titulo}</span>
                   </Item>
                 ))}
               </Grupo>

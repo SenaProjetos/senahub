@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { CLT_ROLES } from "@/lib/roles";
 
 export async function listarFolhas() {
   const folhas = await prisma.folhaPagamento.findMany({
@@ -47,7 +48,7 @@ export async function obterFolha(id: string) {
   const [rubricas, elegiveis] = await Promise.all([
     prisma.rubricaFolha.findMany({ where: { ativo: true }, orderBy: { ordem: "asc" } }),
     prisma.user.findMany({
-      where: { ativo: true, role: { in: ["clt", "estagiario"] } },
+      where: { ativo: true, role: { in: CLT_ROLES } },
       select: { id: true, name: true, role: true },
       orderBy: { name: "asc" },
     }),

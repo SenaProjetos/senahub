@@ -1,11 +1,12 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { CLT_ROLES } from "@/lib/roles";
 import { periodosAquisitivos, resumoAquisitivo } from "@/lib/aquisitivo";
 
 /** Funcionários (CLT/estagiário) com seus dependentes — base p/ folha e dedução de IRRF. */
 export async function listarFuncionarios() {
   const us = await prisma.user.findMany({
-    where: { ativo: true, role: { in: ["clt", "estagiario"] } },
+    where: { ativo: true, role: { in: CLT_ROLES } },
     orderBy: { name: "asc" },
     select: {
       id: true,

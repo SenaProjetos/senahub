@@ -38,3 +38,12 @@ export const INTERNAL_ROLES: Role[] = [
   "projetista_pj",
   "freelancer",
 ];
+
+/** Colaboradores CLT/estágio — sujeitos a holerite, banco de horas e ponto. */
+export const CLT_ROLES: Role[] = ["clt", "estagiario"];
+
+/** Perfis que podem ser responsáveis/membros de projeto. */
+export const PROJETO_MEMBRO_ROLES: Role[] = ["clt", "estagiario", "projetista_pj", "freelancer"];
+
+/** Perfis PJ — recebem NF, não têm holerite CLT. */
+export const PJ_ROLES: Role[] = ["projetista_pj", "freelancer"];

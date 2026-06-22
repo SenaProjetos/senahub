@@ -11,6 +11,8 @@ export type ResultadoBusca = {
   tarefas: { id: string; titulo: string }[];
   lancamentos: { id: string; descricao: string; valor: number; tipo: string }[];
   documentos: { id: string; nome: string }[];
+  licitacoes: { id: string; titulo: string }[];
+  propostas: { id: string; numero: string; titulo: string }[];
 };
 
 const VAZIO: ResultadoBusca = {
@@ -19,6 +21,8 @@ const VAZIO: ResultadoBusca = {
   tarefas: [],
   lancamentos: [],
   documentos: [],
+  licitacoes: [],
+  propostas: [],
 };
 
 /** Busca global (Ctrl+K): projetos (escopo), clientes, tarefas, lançamentos e modelos de documento (por permissão). */
@@ -28,14 +32,16 @@ export async function buscaGlobal(termo: string): Promise<ResultadoBusca> {
 
   const user = await requireUser();
   const digits = t.replace(/\D/g, "");
-  const [podeClientes, podeTarefas, podeFin, podeDocs] = await Promise.all([
+  const [podeClientes, podeTarefas, podeFin, podeDocs, podeLic, podeCom] = await Promise.all([
     can(user.role, "clientes", "ver"),
     can(user.role, "tarefas", "ver"),
     can(user.role, "financeiro", "ver"),
     can(user.role, "documentos", "ver"),
+    can(user.role, "licitacoes", "ver"),
+    can(user.role, "comercial", "ver"),
   ]);
 
-  const [projetos, clientes, tarefas, lancamentos, documentos] = await Promise.all([
+  const [projetos, clientes, tarefas, lancamentos, documentos, licitacoes, propostas] = await Promise.all([
     prisma.projeto.findMany({
       where: {
         AND: [
@@ -85,6 +91,27 @@ export async function buscaGlobal(termo: string): Promise<ResultadoBusca> {
           select: { id: true, nome: true },
         })
       : Promise.resolve([]),
+    podeLic
+      ? prisma.licitacao.findMany({
+          where: { titulo: { contains: t, mode: "insensitive" } },
+          take: 6,
+          orderBy: { updatedAt: "desc" },
+          select: { id: true, titulo: true },
+        })
+      : Promise.resolve([]),
+    podeCom
+      ? prisma.proposta.findMany({
+          where: {
+            OR: [
+              { titulo: { contains: t, mode: "insensitive" } },
+              ...(digits ? [{ numero: { contains: digits } }] : []),
+            ],
+          },
+          take: 6,
+          orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
+          select: { id: true, numero: true, titulo: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   return {
@@ -98,5 +125,7 @@ export async function buscaGlobal(termo: string): Promise<ResultadoBusca> {
       valor: Number(l.valor),
       tipo: l.tipo,
     })),
+    licitacoes,
+    propostas,
   };
 }

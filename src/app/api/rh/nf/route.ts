@@ -4,15 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { salvarArquivo, slug, nomeArquivoLimpo } from "@/lib/storage";
 import { notificarMuitos } from "@/lib/notificar";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
-
-const ROLES_PJ = ["projetista_pj", "freelancer"];
+import { HR_ADMIN_ROLES, PJ_ROLES } from "@/lib/roles";
 
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   const user = session.user;
-  if (!ROLES_PJ.includes(user.role) && user.role !== "admin") {
+  if (!PJ_ROLES.includes(user.role as (typeof PJ_ROLES)[number]) && user.role !== "admin") {
     return NextResponse.json({ error: "Apenas PJ/freelancer enviam notas." }, { status: 403 });
   }
 

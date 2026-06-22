@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+import { HR_ADMIN_ROLES, CLT_ROLES } from "@/lib/roles";
 import { enviarEmail, smtpConfigurado } from "@/lib/mail";
 import { calcularEncargos } from "@/lib/encargos";
 import { faixasPorTipo, deducaoDependente } from "@/modules/rh/encargos/queries";
@@ -59,7 +59,7 @@ export const gerarHoleritesAutomatico = defineAction(
 
     const jaTem = folha.holerites.map((h) => h.userId);
     const funcionarios = await prisma.user.findMany({
-      where: { ativo: true, role: { in: ["clt", "estagiario"] }, salarioBase: { not: null }, id: { notIn: jaTem } },
+      where: { ativo: true, role: { in: CLT_ROLES }, salarioBase: { not: null }, id: { notIn: jaTem } },
       select: { id: true, salarioBase: true },
     });
     if (funcionarios.length === 0) {

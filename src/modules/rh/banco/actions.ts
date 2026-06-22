@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+import { HR_ADMIN_ROLES, CLT_ROLES } from "@/lib/roles";
 import { espelhoMes } from "@/modules/ponto/queries";
 
 /**
@@ -24,7 +24,7 @@ export const fecharBancoMesEquipe = defineAction(
   },
   async ({ ano, mes }) => {
     const users = await prisma.user.findMany({
-      where: { ativo: true, role: { in: ["clt", "estagiario"] } },
+      where: { ativo: true, role: { in: CLT_ROLES } },
       select: { id: true },
     });
     const prevMes = mes === 1 ? 12 : mes - 1;
