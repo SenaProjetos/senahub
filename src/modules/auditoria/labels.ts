@@ -21,6 +21,7 @@ export const ACAO_LABEL: Record<string, string> = {
 
   // Agenda
   "criar-compromisso": "Criou compromisso",
+  "editar-compromisso": "Editou compromisso",
   "excluir-compromisso": "Excluiu compromisso",
   "confirmar-presenca": "Confirmou presença",
 
