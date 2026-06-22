@@ -1,9 +1,11 @@
 # SenaHub Remake — Handoff / Estado do Projeto
 
 > Documento de continuidade. Permite a qualquer dev/IA retomar o trabalho do ponto exato.
-> **Atualizado em 2026-06-22 (sessão 3).** Ondas 0–5 + OD + auditorias Chat C0–C5, Projetos P0–P6,
-> Licitações F0–F11 + melhorias M0–M1 + infra/UX. 49 arquivos de teste, 391 testes passando, tsc limpo.
-> Security headers, email cobrança, preferências notificação, snapshot Estúdio com PDF.
+> **Atualizado em 2026-06-22 (sessão 3b).** Ondas 0–5 + OD + auditorias + infra + testes.
+> 52 arquivos de teste, 425 testes passando, tsc limpo.
+> Novidades: GerarDoc extrato RH PJ, GerarDoc lancamentos mensais, PDF público proposta,
+> health route, PDF salvo no storage (DocumentoGerado.arquivoPath, migração 20260622070000).
+> 70 migrações; prisma generate executado.
 > Próximo: deploy (§5.4), paginação real do Estúdio (§5.4b).
 
 ---
@@ -137,10 +139,12 @@ A v2 está funcional (todos os elementos D1-D5 implementados); a visão é ser O
 do escritório (propostas O4, contratos, holerites, relatórios gerenciais).
 - **Novas fontes de dados**: ✅ proposta, ✅ cliente, ✅ licitação/medições, ✅ holerite, ✅ DRE do mês,
   ✅ extrato projetista, ✅ empresa, ✅ CSV (datasets). Adicionar fonte = `fontes-meta.ts` + `fontes.ts`.
-- **Integração nos módulos**: ✅ `GerarDocumentoButton` em projeto/proposta/holerite/licitação/cliente;
+- **Integração nos módulos**: ✅ `GerarDocumentoButton` em projeto/proposta/holerite/licitação/cliente/RH-PJ/lançamentos mensais;
   ✅ modelo padrão por tipo (Configurações → Documentos). Sem modelo da fonte → botão oculto.
-- ✅ **PDF server-side** (puppeteer-core): `GET /api/documentos/[id]/pdf` — Chrome headless.
-  Falta: anexar automaticamente ao e-mail da proposta; salvar PDF no storage.
+- ✅ **PDF server-side** (puppeteer-core): `GET /api/documentos/[id]/pdf` e `/api/documentos/gerados/[id]/pdf` — Chrome headless.
+  ✅ **PDF salvo no storage**: `DocumentoGerado.arquivoPath` (migração 20260622070000); PDF cacheado é servido do disco.
+  Falta: anexar automaticamente ao e-mail da proposta.
+- ✅ **PDF público da proposta**: `GET /api/t/proposta/[token]/pdf` + botão "Baixar PDF" na página pública.
 - **Paginação real**: o `doc-render.tsx` usa `alturaFixa + detalhe × nLinhas` para estimar `[Paginas]`
   (aproximação; não quebra páginas de verdade). Quebra real exigiria uma engine de layout server-side.
   Contorno: tabelas (`doc-tabela`) já repetem thead e evitam corte de linha via CSS print.
