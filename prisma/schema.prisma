@@ -100,6 +100,7 @@ model User {
   fechamentos          FechamentoMensal[]
   responsavelTecnico   ResponsavelTecnico?
   viabilidadesDecididas ViabilidadeLicitacao[] @relation("ViabilidadeDecisor")
+  aceitesGerados        AceiteCliente[]        @relation("AceiteGerador")
 
   @@index([role])
   @@map("user")
@@ -2211,6 +2212,7 @@ model EapTarefa {
   inicioBaseline DateTime?   @db.Date
   fimBaseline    DateTime?   @db.Date
   progresso      Int         @default(0)
+  marco          Boolean     @default(false)
 
   predecessoras EapDependencia[] @relation("EapDependente")
   sucessoras    EapDependencia[] @relation("EapPredecessora")
@@ -2895,9 +2897,28 @@ model Upload {
   autor     User     @relation("UploadAutor", fields: [autorId], references: [id])
   createdAt DateTime @default(now())
 
+  aceite AceiteCliente?
+
   @@index([disciplinaId, pacote])
   @@index([autorId])
   @@map("upload")
+}
+
+/// N-43: Aceite digital do cliente para uma entrega validada.
+model AceiteCliente {
+  id           String    @id @default(cuid())
+  uploadId     String    @unique
+  upload       Upload    @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  token        String    @unique
+  /// pendente | aceito | revisao
+  situacao     String    @default("pendente")
+  respondidoEm DateTime?
+  observacao   String?
+  geradoPorId  String
+  geradoPor    User      @relation("AceiteGerador", fields: [geradoPorId], references: [id])
+  createdAt    DateTime  @default(now())
+
+  @@map("aceite_cliente")
 }
 
 enum StatusPagamento {
