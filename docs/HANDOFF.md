@@ -1,12 +1,13 @@
 # SenaHub Remake — Handoff / Estado do Projeto
 
 > Documento de continuidade. Permite a qualquer dev/IA retomar o trabalho do ponto exato.
-> **Atualizado em 2026-06-22 (sessão 3b).** Ondas 0–5 + OD + auditorias + infra + testes.
-> 52 arquivos de teste, 425 testes passando, tsc limpo.
-> Novidades: GerarDoc extrato RH PJ, GerarDoc lancamentos mensais, PDF público proposta,
-> health route, PDF salvo no storage (DocumentoGerado.arquivoPath, migração 20260622070000).
+> **Atualizado em 2026-06-22 (sessão 3c).** Ondas 0–5 + OD + auditorias + infra + testes.
+> 55 arquivos de teste, 450 testes passando, tsc limpo.
+> Novidades (sessão 3c): busca global inclui licitações e propostas; CLT_ROLES/PROJETO_MEMBRO_ROLES/PJ_ROLES
+> centralizados em lib/roles.ts (P-10); N-27 atalho "Novo lançamento" no projeto; N-50 filtro "Meus projetos";
+> P-49 filtro "com atraso" no cronograma geral; fechamento automático de banco de horas (dia 1 do mês, job pg-boss).
 > 70 migrações; prisma generate executado.
-> Próximo: deploy (§5.4), paginação real do Estúdio (§5.4b).
+> Próximo: deploy (§5.4), P1 (custo real — Opus 4.8), paginação real do Estúdio (§5.4b).
 
 ---
 
@@ -30,7 +31,7 @@ npm install                # postinstall roda prisma generate
 npm run dev                # Next só (sem socket/jobs) — chat NÃO funciona aqui
 npm run dev:server         # server.ts completo (Next + Socket.io + pg-boss) — usar p/ chat
 npm run build              # next build --turbopack
-npm test                   # vitest (41 testes)
+npm test                   # vitest (55 arquivos, 450 testes)
 npm run db:migrate         # prisma migrate dev
 npm run db:seed            # admin + permissões + catálogos (idempotente)
 npm run seed:demo          # dataset de demonstração (uso corrente) — limpa dados de negócio e recria; usuários demo senha Demo@2026
