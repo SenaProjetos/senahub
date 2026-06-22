@@ -16,7 +16,13 @@ import {
   membrosProjetoSchema,
   duplicarProjetoSchema,
   editarDisciplinasEmMassaSchema,
+  criarDisciplinaSchema,
+  editarDisciplinaSchema,
+  excluirDisciplinaSchema,
+  cancelarProjetoSchema,
+  adicionarDoCatalogoSchema,
 } from "@/modules/projetos/schemas";
+import { notificar, notificarMuitos } from "@/lib/notificar";
 
 function isGlobal(role: Role) {
   return role === "admin" || GLOBAL_ROLES.includes(role);
@@ -99,6 +105,8 @@ export const editarProjeto = defineAction(
         endereco: rest.endereco,
         prazoFinal: parseData(rest.prazoFinal),
         valorContrato: rest.valorContrato,
+        // P-03: troca de cliente.
+        ...(rest.clienteId ? { clienteId: rest.clienteId } : {}),
       },
     });
     revalidatePath("/projetos");
@@ -126,18 +134,40 @@ export const atualizarStatusDisciplina = defineAction(
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
 
+    // P-11: aprovado é terminal — só via validarEntrega.
+    if (input.status === "aprovado") {
+      throw new ActionError("Status 'aprovado' só pode ser definido via validação de entrega.");
+    }
+
+    const ehGerir = isGlobal(user.role) || ["admin", "supervisor"].includes(user.role);
     const ehResp = disciplina.responsaveis.some((r) => r.userId === user.id);
-    if (!isGlobal(user.role) && !ehResp) {
+    if (!ehGerir && !ehResp) {
       throw new ActionError("Apenas responsáveis ou gestores alteram o status.");
     }
 
-    const entregue = input.status === "entregue" || input.status === "aprovado";
+    // P-11: transições permitidas para não-gestores.
+    if (!ehGerir) {
+      const permitidas: Record<string, string[]> = {
+        aguardando: ["em_andamento"],
+        em_andamento: ["entregue", "em_revisao"],
+        em_revisao: ["em_andamento", "entregue"],
+        entregue: ["em_revisao"],
+      };
+      const atual = disciplina.status;
+      if (!(permitidas[atual] ?? []).includes(input.status)) {
+        throw new ActionError(
+          `Transição de "${atual}" para "${input.status}" não permitida.`,
+        );
+      }
+    }
+
+    const marcaEntregue = input.status === "entregue";
     await prisma.disciplina.update({
       where: { id: input.disciplinaId },
       data: {
         status: input.status,
-        // marca a entrega (preserva a 1ª data); limpa se voltar a um status não-entregue.
-        entregueEm: entregue ? (disciplina.entregueEm ?? new Date()) : null,
+        // preserva a 1ª data de entrega; limpa se voltar a status pré-entrega.
+        entregueEm: marcaEntregue ? (disciplina.entregueEm ?? new Date()) : null,
       },
     });
     revalidatePath(`/projetos/${disciplina.projetoId}`);
@@ -158,9 +188,16 @@ export const definirResponsaveis = defineAction(
   async (input) => {
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: input.disciplinaId },
-      select: { projetoId: true },
+      select: { projetoId: true, nome: true, projeto: { select: { codigo: true } } },
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
+
+    const anteriores = await prisma.disciplinaResponsavel.findMany({
+      where: { disciplinaId: input.disciplinaId },
+      select: { userId: true },
+    });
+    const anteriorIds = new Set(anteriores.map((r) => r.userId));
+    const novosIds = input.responsaveisIds.filter((id) => !anteriorIds.has(id));
 
     await prisma.$transaction([
       prisma.disciplinaResponsavel.deleteMany({ where: { disciplinaId: input.disciplinaId } }),
@@ -169,9 +206,15 @@ export const definirResponsaveis = defineAction(
         skipDuplicates: true,
       }),
     ]);
-    // Equipe é derivada (responsáveis das disciplinas ∪ membros manuais), então não escrevemos
-    // ProjetoMembro aqui — a exibição reflete a mudança automaticamente.
-    // C3-2: sincroniza os canais e faz os novos responsáveis entrarem no room ao vivo.
+    // P-15: notificar novos responsáveis atribuídos.
+    if (novosIds.length > 0) {
+      await notificarMuitos(novosIds, {
+        titulo: "Você foi atribuído a uma disciplina",
+        corpo: `${disciplina.nome} — projeto ${disciplina.projeto.codigo}`,
+        href: `/projetos/${disciplina.projetoId}`,
+        tag: `resp-${input.disciplinaId}`,
+      });
+    }
     notificarNovosMembros(await ensureCanaisProjeto(disciplina.projetoId));
     revalidatePath(`/projetos/${disciplina.projetoId}`);
     return { disciplinaId: input.disciplinaId };
@@ -456,5 +499,253 @@ export const editarDisciplinasEmMassa = defineAction(
     }
 
     revalidatePath(`/projetos/${input.projetoId}`);
+  },
+);
+
+// ─── P-02: CRUD de disciplina pós-criação ────────────────────────────────────
+
+export const criarDisciplina = defineAction(
+  {
+    modulo: "projetos",
+    acao: "criar-disciplina",
+    recurso: "projetos",
+    permissao: "gerir",
+    schema: criarDisciplinaSchema,
+  },
+  async (input) => {
+    const projeto = await prisma.projeto.findUnique({
+      where: { id: input.projetoId },
+      select: { id: true, prazoFinal: true },
+    });
+    if (!projeto) throw new ActionError("Projeto não encontrado.");
+
+    // P-08: prazo da disciplina ≤ prazo do projeto.
+    if (input.prazo && projeto.prazoFinal) {
+      const prazoD = new Date(input.prazo);
+      if (prazoD > projeto.prazoFinal) {
+        throw new ActionError(
+          `O prazo da disciplina (${input.prazo}) não pode ultrapassar o prazo do projeto (${projeto.prazoFinal.toISOString().slice(0, 10)}).`,
+        );
+      }
+    }
+
+    const maxOrdem = await prisma.disciplina.aggregate({
+      where: { projetoId: input.projetoId },
+      _max: { ordem: true },
+    });
+
+    const disciplina = await prisma.$transaction(async (tx) => {
+      const d = await tx.disciplina.create({
+        data: {
+          projetoId: input.projetoId,
+          nome: input.nome,
+          prazo: input.prazo ? new Date(input.prazo) : undefined,
+          valor: input.valor,
+          ordem: (maxOrdem._max.ordem ?? 0) + 1,
+        },
+      });
+      if (input.responsaveisIds.length > 0) {
+        await tx.disciplinaResponsavel.createMany({
+          data: input.responsaveisIds.map((userId) => ({ disciplinaId: d.id, userId })),
+          skipDuplicates: true,
+        });
+        await notificarMuitos(input.responsaveisIds, {
+          titulo: "Você foi atribuído a uma disciplina",
+          corpo: `${input.nome} — projeto ${input.projetoId}`,
+          href: `/projetos/${input.projetoId}`,
+          tag: `resp-${d.id}`,
+        });
+      }
+      return d;
+    });
+
+    revalidatePath(`/projetos/${input.projetoId}`);
+    return { disciplinaId: disciplina.id };
+  },
+);
+
+export const editarDisciplina = defineAction(
+  {
+    modulo: "projetos",
+    acao: "editar-disciplina",
+    recurso: "projetos",
+    permissao: "gerir",
+    entidade: "Disciplina",
+    schema: editarDisciplinaSchema,
+    entidadeId: (d) => (d as { disciplinaId: string }).disciplinaId,
+  },
+  async (input) => {
+    const disciplina = await prisma.disciplina.findUnique({
+      where: { id: input.disciplinaId },
+      select: { projetoId: true, projeto: { select: { prazoFinal: true } } },
+    });
+    if (!disciplina) throw new ActionError("Disciplina não encontrada.");
+
+    // P-08: prazo da disciplina ≤ prazo do projeto.
+    if (input.prazo && disciplina.projeto.prazoFinal) {
+      if (new Date(input.prazo) > disciplina.projeto.prazoFinal) {
+        throw new ActionError(
+          `O prazo da disciplina não pode ultrapassar o prazo do projeto.`,
+        );
+      }
+    }
+
+    const anteriorResp = await prisma.disciplinaResponsavel.findMany({
+      where: { disciplinaId: input.disciplinaId },
+      select: { userId: true },
+    });
+    const anteriorIds = new Set(anteriorResp.map((r) => r.userId));
+    const novosIds = input.responsaveisIds.filter((id) => !anteriorIds.has(id));
+
+    await prisma.$transaction(async (tx) => {
+      await tx.disciplina.update({
+        where: { id: input.disciplinaId },
+        data: {
+          nome: input.nome,
+          prazo: input.prazo === null ? null : input.prazo ? new Date(input.prazo) : undefined,
+          valor: input.valor === null ? null : input.valor,
+          ...(input.exigePacoteA !== undefined ? { exigePacoteA: input.exigePacoteA } : {}),
+          ...(input.exigePacoteB !== undefined ? { exigePacoteB: input.exigePacoteB } : {}),
+        },
+      });
+      await tx.disciplinaResponsavel.deleteMany({ where: { disciplinaId: input.disciplinaId } });
+      if (input.responsaveisIds.length > 0) {
+        await tx.disciplinaResponsavel.createMany({
+          data: input.responsaveisIds.map((userId) => ({
+            disciplinaId: input.disciplinaId,
+            userId,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    });
+
+    if (novosIds.length > 0) {
+      await notificarMuitos(novosIds, {
+        titulo: "Você foi atribuído a uma disciplina",
+        corpo: `${input.nome}`,
+        href: `/projetos/${disciplina.projetoId}`,
+        tag: `resp-${input.disciplinaId}`,
+      });
+    }
+
+    revalidatePath(`/projetos/${disciplina.projetoId}`);
+    return { disciplinaId: input.disciplinaId };
+  },
+);
+
+export const excluirDisciplina = defineAction(
+  {
+    modulo: "projetos",
+    acao: "excluir-disciplina",
+    recurso: "projetos",
+    permissao: "gerir",
+    entidade: "Disciplina",
+    schema: excluirDisciplinaSchema,
+    entidadeId: (d) => (d as { disciplinaId: string }).disciplinaId,
+  },
+  async (input) => {
+    const disciplina = await prisma.disciplina.findUnique({
+      where: { id: input.disciplinaId },
+      select: {
+        projetoId: true,
+        _count: { select: { uploads: true, pagamentos: true } },
+      },
+    });
+    if (!disciplina) throw new ActionError("Disciplina não encontrada.");
+    if (disciplina._count.uploads > 0)
+      throw new ActionError("Não é possível excluir uma disciplina com arquivos enviados.");
+    if (disciplina._count.pagamentos > 0)
+      throw new ActionError("Não é possível excluir uma disciplina com pagamentos liberados.");
+
+    await prisma.disciplina.delete({ where: { id: input.disciplinaId } });
+    revalidatePath(`/projetos/${disciplina.projetoId}`);
+  },
+);
+
+// ─── P-05: cancelar / arquivar projeto ────────────────────────────────────────
+
+export const cancelarOuArquivarProjeto = defineAction(
+  {
+    modulo: "projetos",
+    acao: "cancelar-projeto",
+    recurso: "projetos",
+    permissao: "gerir",
+    entidade: "Projeto",
+    schema: cancelarProjetoSchema,
+    entidadeId: (d) => (d as { projetoId: string }).projetoId,
+  },
+  async (input) => {
+    const projeto = await prisma.projeto.findUnique({
+      where: { id: input.projetoId },
+      select: { id: true, membros: { select: { userId: true } } },
+    });
+    if (!projeto) throw new ActionError("Projeto não encontrado.");
+
+    await prisma.projeto.update({
+      where: { id: input.projetoId },
+      data: {
+        situacao: input.situacao,
+        descricao: input.motivo
+          ? `[${input.situacao === "cancelado" ? "CANCELADO" : "ARQUIVADO"}] ${input.motivo}`
+          : undefined,
+      },
+    });
+
+    // Notifica membros do projeto.
+    const verbo = input.situacao === "cancelado" ? "cancelado" : "arquivado";
+    if (projeto.membros.length > 0) {
+      await notificarMuitos(
+        projeto.membros.map((m) => m.userId),
+        {
+          titulo: `Projeto ${verbo}`,
+          corpo: input.motivo ?? `O projeto foi ${verbo}.`,
+          href: `/projetos/${input.projetoId}`,
+          tag: `proj-${verbo}-${input.projetoId}`,
+        },
+      );
+    }
+
+    revalidatePath(`/projetos/${input.projetoId}`);
+    revalidatePath("/projetos");
+  },
+);
+
+/** P-09: adiciona disciplinas do catálogo a um projeto, ignorando nomes já existentes. */
+export const adicionarDisciplinasDoCatalogo = defineAction(
+  {
+    modulo: "projetos",
+    acao: "adicionar-disciplinas-catalogo",
+    recurso: "projetos",
+    permissao: "gerir",
+    entidade: "Projeto",
+    schema: adicionarDoCatalogoSchema,
+    entidadeId: (d) => (d as { projetoId: string }).projetoId,
+  },
+  async (input) => {
+    const projeto = await prisma.projeto.findUnique({
+      where: { id: input.projetoId },
+      select: {
+        id: true,
+        disciplinas: { select: { nome: true, ordem: true } },
+      },
+    });
+    if (!projeto) throw new ActionError("Projeto não encontrado.");
+
+    const nomesExistentes = new Set(projeto.disciplinas.map((d) => d.nome.toLowerCase()));
+    const novas = input.nomes.filter((n) => !nomesExistentes.has(n.toLowerCase()));
+    if (novas.length === 0) throw new ActionError("Todas as disciplinas selecionadas já existem no projeto.");
+
+    const maxOrdem = Math.max(0, ...projeto.disciplinas.map((d) => d.ordem));
+    await prisma.disciplina.createMany({
+      data: novas.map((nome, i) => ({
+        projetoId: input.projetoId,
+        nome,
+        ordem: maxOrdem + i + 1,
+      })),
+    });
+
+    revalidatePath(`/projetos/${input.projetoId}`);
+    return { criadas: novas.length };
   },
 );

@@ -11,7 +11,7 @@ import { criarDespesaProjetistaPrevista } from "@/modules/financeiro/custo/lanca
 const validarSchema = z.object({ disciplinaId: z.string().min(1) });
 
 /**
- * REGRA DE OURO: valida a entrega da disciplina (exige Pacote A e B).
+ * REGRA DE OURO: valida a entrega da disciplina (exige pacotes configurados em exigePacoteA/B).
  * Marca uploads como validados e LIBERA o pagamento ao(s) projetista(s),
  * criando um PagamentoProjetista pendente por responsável. Notifica todos.
  * Idempotente: recusa se já houver pagamentos liberados.
@@ -42,10 +42,14 @@ export const validarEntrega = defineAction(
       throw new ActionError("Esta entrega já foi validada e o pagamento já foi liberado.");
     }
 
-    const temA = disciplina.uploads.some((u) => u.pacote === "A");
-    const temB = disciplina.uploads.some((u) => u.pacote === "B");
-    if (!temA || !temB) {
-      throw new ActionError("Envie o Pacote A e o Pacote B antes de validar.");
+    const temA = !disciplina.exigePacoteA || disciplina.uploads.some((u) => u.pacote === "A");
+    const temB = !disciplina.exigePacoteB || disciplina.uploads.some((u) => u.pacote === "B");
+    const faltam = [
+      !temA ? "Pranchas e arquivos" : null,
+      !temB ? "Backup do modelo" : null,
+    ].filter(Boolean);
+    if (faltam.length > 0) {
+      throw new ActionError(`Envie os pacotes obrigatórios antes de validar: ${faltam.join(", ")}.`);
     }
     if (disciplina.responsaveis.length === 0) {
       throw new ActionError("Defina ao menos um responsável antes de validar.");
@@ -65,7 +69,8 @@ export const validarEntrega = defineAction(
       });
       await tx.disciplina.update({
         where: { id: disciplina.id },
-        data: { status: "aprovado" },
+        // P-12: entregueEm marca a data da validação formal (separado do status manual).
+        data: { status: "aprovado", entregueEm: agora },
       });
       for (let i = 0; i < disciplina.responsaveis.length; i++) {
         const r = disciplina.responsaveis[i];

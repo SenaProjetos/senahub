@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Search, Plus, FolderOpen, Table as TableIcon, LayoutGrid } from "lucide-react";
+import { Search, Plus, FolderOpen, Table as TableIcon, LayoutGrid, Download } from "lucide-react";
 import type { ProjetoListItem } from "@/modules/projetos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { SITUACAO_PROJETO_LABEL, STATUS_LABEL, STATUS_TONE } from "@/modules/projetos/status";
@@ -106,6 +106,13 @@ export function ProjetosView({
               <LayoutGrid className="size-4" />
             </Button>
           </div>
+          <a
+            href="/api/projetos/carteira"
+            download
+            className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-background px-3 py-2 text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground"
+          >
+            <Download className="size-4" /> Exportar CSV
+          </a>
           {podeGerir && (
             <Button onClick={() => setFormOpen(true)}>
               <Plus className="size-4" /> Novo projeto

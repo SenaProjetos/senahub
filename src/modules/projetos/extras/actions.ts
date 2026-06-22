@@ -129,3 +129,114 @@ export const excluirLinhaBase = defineAction(
     return { id: i.id };
   },
 );
+
+// ── N-34: Checklist de projeto ──────────────────────────────────────────────
+
+const checklistItemSchema = z.object({
+  projetoId: z.string().min(1),
+  descricao: z.string().min(1, "Informe a descrição."),
+});
+
+export const criarChecklistItem = defineAction(
+  { ...gerir, acao: "criar-checklist-item", entidade: "Projeto", schema: checklistItemSchema },
+  async (input) => {
+    const max = await prisma.checklistItemProjeto.aggregate({
+      where: { projetoId: input.projetoId },
+      _max: { ordem: true },
+    });
+    const item = await prisma.checklistItemProjeto.create({
+      data: { projetoId: input.projetoId, descricao: input.descricao, ordem: (max._max.ordem ?? 0) + 1 },
+    });
+    rev(input.projetoId);
+    return { id: item.id };
+  },
+);
+
+const toggleChecklistSchema = z.object({ itemId: z.string().min(1), concluido: z.boolean() });
+
+export const toggleChecklistItem = defineAction(
+  { ...gerir, acao: "toggle-checklist-item", entidade: "ChecklistItemProjeto", schema: toggleChecklistSchema, entidadeId: (d) => (d as { itemId: string }).itemId },
+  async (input) => {
+    const item = await prisma.checklistItemProjeto.findUnique({ where: { id: input.itemId }, select: { projetoId: true } });
+    if (!item) throw new ActionError("Item não encontrado.");
+    await prisma.checklistItemProjeto.update({
+      where: { id: input.itemId },
+      data: { concluido: input.concluido, concluidoEm: input.concluido ? new Date() : null },
+    });
+    rev(item.projetoId);
+    return { itemId: input.itemId };
+  },
+);
+
+const deleteChecklistSchema = z.object({ itemId: z.string().min(1) });
+
+export const excluirChecklistItem = defineAction(
+  { ...gerir, acao: "excluir-checklist-item", entidade: "ChecklistItemProjeto", schema: deleteChecklistSchema, entidadeId: (d) => (d as { itemId: string }).itemId },
+  async (input) => {
+    const item = await prisma.checklistItemProjeto.findUnique({ where: { id: input.itemId }, select: { projetoId: true } });
+    if (!item) throw new ActionError("Item não encontrado.");
+    await prisma.checklistItemProjeto.delete({ where: { id: input.itemId } });
+    rev(item.projetoId);
+    return { itemId: input.itemId };
+  },
+);
+
+// ── N-39: Registro de riscos ────────────────────────────────────────────────
+
+const criarRiscoSchema = z.object({
+  projetoId: z.string().min(1),
+  descricao: z.string().min(1, "Informe a descrição."),
+  probabilidade: z.number().int().min(1).max(3).default(1),
+  impacto: z.number().int().min(1).max(3).default(1),
+  mitigacao: z.string().optional(),
+});
+
+export const criarRisco = defineAction(
+  { ...gerir, acao: "criar-risco-projeto", entidade: "Projeto", schema: criarRiscoSchema },
+  async (input) => {
+    const risco = await prisma.riscoProjeto.create({
+      data: {
+        projetoId: input.projetoId,
+        descricao: input.descricao,
+        probabilidade: input.probabilidade,
+        impacto: input.impacto,
+        mitigacao: input.mitigacao,
+      },
+    });
+    rev(input.projetoId);
+    return { id: risco.id };
+  },
+);
+
+const atualizarRiscoSchema = z.object({
+  riscoId: z.string().min(1),
+  status: z.enum(["aberto", "mitigado", "aceito"]),
+  mitigacao: z.string().optional(),
+});
+
+export const atualizarRisco = defineAction(
+  { ...gerir, acao: "atualizar-risco-projeto", entidade: "RiscoProjeto", schema: atualizarRiscoSchema, entidadeId: (d) => (d as { riscoId: string }).riscoId },
+  async (input) => {
+    const risco = await prisma.riscoProjeto.findUnique({ where: { id: input.riscoId }, select: { projetoId: true } });
+    if (!risco) throw new ActionError("Risco não encontrado.");
+    await prisma.riscoProjeto.update({
+      where: { id: input.riscoId },
+      data: { status: input.status, ...(input.mitigacao !== undefined ? { mitigacao: input.mitigacao } : {}) },
+    });
+    rev(risco.projetoId);
+    return { riscoId: input.riscoId };
+  },
+);
+
+const excluirRiscoSchema = z.object({ riscoId: z.string().min(1) });
+
+export const excluirRisco = defineAction(
+  { ...gerir, acao: "excluir-risco-projeto", entidade: "RiscoProjeto", schema: excluirRiscoSchema, entidadeId: (d) => (d as { riscoId: string }).riscoId },
+  async (input) => {
+    const risco = await prisma.riscoProjeto.findUnique({ where: { id: input.riscoId }, select: { projetoId: true } });
+    if (!risco) throw new ActionError("Risco não encontrado.");
+    await prisma.riscoProjeto.delete({ where: { id: input.riscoId } });
+    rev(risco.projetoId);
+    return { riscoId: input.riscoId };
+  },
+);

@@ -7,24 +7,24 @@ describe("classificação de upload por pacote", () => {
     expect(extensao("backup")).toBe("");
   });
 
-  it("Pacote A aceita formatos de planta/memorial", () => {
+  it("Pranchas e arquivos (A) aceita formatos de planta/memorial", () => {
     expect(destinoArquivo("planta.dwg", "A")).toBe("A");
     expect(destinoArquivo("memorial.pdf", "A")).toBe("A");
     expect(destinoArquivo("modelo.ifc", "A")).toBe("A");
   });
 
-  it("formato não suportado no Pacote A vai para OUTROS (não falha o lote)", () => {
+  it("formato não suportado em Pranchas e arquivos vai para OUTROS (não falha o lote)", () => {
     expect(destinoArquivo("arquivo.zip", "A")).toBe("OUTROS");
     expect(destinoArquivo("notas.txt", "A")).toBe("OUTROS");
   });
 
-  it("Pacote B (backup) aceita qualquer formato", () => {
+  it("Backup do modelo (B) aceita qualquer formato", () => {
     expect(destinoArquivo("backup.zip", "B")).toBe("B");
     expect(destinoArquivo("dump.bak", "B")).toBe("B");
     expect(destinoArquivo("qualquer.xyz", "B")).toBe("B");
   });
 
-  it("catálogo de extensões do Pacote A inclui os principais formatos BIM", () => {
+  it("catálogo de extensões de Pranchas e arquivos inclui os principais formatos BIM", () => {
     for (const ext of ["pdf", "dwg", "dxf", "ifc", "rvt"]) {
       expect(EXT_PACOTE_A.has(ext)).toBe(true);
     }

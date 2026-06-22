@@ -1,6 +1,6 @@
 import "server-only";
 
-/** Extensões aceitas no Pacote A (plantas e memoriais). */
+/** Extensões aceitas em Pranchas e arquivos (pacote A). */
 export const EXT_PACOTE_A = new Set([
   "pdf",
   "dwg",
@@ -26,8 +26,8 @@ export function extensao(nome: string): string {
 }
 
 /**
- * Decide o destino real do arquivo. Pacote B (backup) aceita qualquer formato.
- * No Pacote A, formato não suportado é roteado para OUTROS (não falha o lote).
+ * Decide o destino real do arquivo. Backup do modelo (B) aceita qualquer formato.
+ * Em Pranchas e arquivos (A), formato não suportado é roteado para OUTROS (não falha o lote).
  */
 export function destinoArquivo(nome: string, alvo: PacoteAlvo): PacoteDestino {
   if (alvo === "B") return "B";

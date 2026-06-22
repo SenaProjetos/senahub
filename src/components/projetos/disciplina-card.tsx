@@ -21,6 +21,7 @@ import {
   definirResponsaveis,
   registrarRevisao,
 } from "@/modules/projetos/actions";
+import { DisciplinaEditDialog, DisciplinaDeleteButton } from "@/components/projetos/disciplina-edit-dialog";
 import { validarEntrega } from "@/modules/uploads/actions";
 import { STATUS_LABEL, STATUS_TONE } from "@/modules/projetos/status";
 import { diasDeAtraso } from "@/modules/projetos/atraso";
@@ -73,6 +74,8 @@ type Disc = {
   temA: boolean;
   temB: boolean;
   jaValidado: boolean;
+  exigePacoteA: boolean;
+  exigePacoteB: boolean;
 };
 
 function tamanhoLegivel(bytes: number) {
@@ -126,9 +129,28 @@ export function DisciplinaCard({
             </p>
           )}
         </div>
-        <StatusBadge tone={STATUS_TONE[disciplina.status] ?? "neutral"}>
-          {STATUS_LABEL[disciplina.status]}
-        </StatusBadge>
+        <div className="flex items-center gap-1">
+          <StatusBadge tone={STATUS_TONE[disciplina.status] ?? "neutral"}>
+            {STATUS_LABEL[disciplina.status]}
+          </StatusBadge>
+          {podeGerir && (
+            <>
+              <DisciplinaEditDialog
+                disciplinaId={disciplina.id}
+                nome={disciplina.nome}
+                prazo={disciplina.prazo}
+                valor={disciplina.valor}
+                responsaveisIds={disciplina.responsaveis.map((r) => r.userId)}
+                internos={internos}
+                exigePacoteA={disciplina.exigePacoteA}
+                exigePacoteB={disciplina.exigePacoteB}
+              />
+              {!disciplina.jaValidado && (
+                <DisciplinaDeleteButton disciplinaId={disciplina.id} nome={disciplina.nome} />
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -196,7 +218,10 @@ function ArquivosDialog({
   const [validando, start] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const completoParaValidar = disciplina.temA && disciplina.temB && !disciplina.jaValidado;
+  const completoParaValidar =
+    (!disciplina.exigePacoteA || disciplina.temA) &&
+    (!disciplina.exigePacoteB || disciplina.temB) &&
+    !disciplina.jaValidado;
 
   async function enviar(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -253,7 +278,7 @@ function ArquivosDialog({
         <DialogHeader>
           <DialogTitle>{disciplina.nome} — arquivos</DialogTitle>
           <DialogDescription>
-            Pacote A: plantas e memoriais · Pacote B: backup do software.
+            Pranchas e arquivos (A) · Backup do modelo (B)
           </DialogDescription>
         </DialogHeader>
 
@@ -265,8 +290,8 @@ function ArquivosDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="A">Pacote A</SelectItem>
-                  <SelectItem value="B">Pacote B</SelectItem>
+                  <SelectItem value="A">Pranchas e arquivos</SelectItem>
+                  <SelectItem value="B">Backup do modelo</SelectItem>
                 </SelectContent>
               </Select>
               <Button
@@ -285,7 +310,7 @@ function ArquivosDialog({
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Formatos não suportados no Pacote A vão automaticamente para &quot;outros&quot;.
+              Formatos não suportados em Pranchas e arquivos vão automaticamente para &quot;outros&quot;.
             </p>
           </div>
         )}
@@ -298,7 +323,7 @@ function ArquivosDialog({
               <div key={p}>
                 <div className="mb-1 flex items-center justify-between">
                   <span className="text-xs font-semibold text-muted-foreground">
-                    {p === "OUTROS" ? "Outros (não suportados)" : `Pacote ${p}`}
+                    {p === "A" ? "Pranchas e arquivos" : p === "B" ? "Backup do modelo" : "Outros (não suportados)"}
                   </span>
                   {itens.length > 0 && (
                     <a

@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { DuplicarProjetoButton } from "@/components/projetos/duplicar-projeto-button";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { ProjetoTabNav } from "@/components/projetos/projeto-tab-nav";
+import { ProjetoAcoesMenu } from "@/components/projetos/projeto-acoes-menu";
 
 export const metadata: Metadata = { title: "Projeto" };
 
@@ -81,6 +82,7 @@ export default async function ProjetoLayout({
           )}
           {podeGerir && <DuplicarProjetoButton projetoId={id} />}
           <GerarDocumentoButton modelos={modelosDoc} paramId="projetoId" valor={id} />
+          {podeGerir && <ProjetoAcoesMenu projetoId={id} situacao={projeto.situacao} />}
         </div>
       </div>
 

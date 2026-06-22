@@ -151,6 +151,30 @@ export async function catalogoDisciplinas() {
   });
 }
 
+/** P-17/N-38: Disciplinas aguardando validação além do SLA (padrão 5 dias úteis ≈ 7 dias). */
+export const SLA_VALIDACAO_DIAS = 7;
+
+export async function disciplinasForaDeSLA(viewer: Viewer) {
+  const limite = new Date();
+  limite.setDate(limite.getDate() - SLA_VALIDACAO_DIAS);
+  return prisma.disciplina.findMany({
+    where: {
+      status: "entregue",
+      entregueEm: { lte: limite, not: null },
+      pagamentos: { none: {} },
+      projeto: { AND: [escopoProjeto(viewer)] },
+    },
+    select: {
+      id: true,
+      nome: true,
+      entregueEm: true,
+      projetoId: true,
+      projeto: { select: { id: true, codigo: true, nome: true } },
+    },
+    orderBy: { entregueEm: "asc" },
+  });
+}
+
 /** Usuários elegíveis como membros/responsáveis de projeto (todos exceto cliente). */
 export async function usuariosInternos() {
   return prisma.user.findMany({

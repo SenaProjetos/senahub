@@ -30,6 +30,8 @@ export const criarProjetoSchema = z.object({
 
 export const editarProjetoSchema = z.object({
   id: z.string().min(1),
+  /** P-03: permite trocar o cliente. */
+  clienteId: z.string().min(1).optional(),
   nome: z.string().min(2),
   tipo: z.enum(["particular", "licitacao"]),
   situacao: z.enum(["em_andamento", "concluido", "arquivado", "cancelado"]),
@@ -75,6 +77,44 @@ export const editarDisciplinasEmMassaSchema = z.object({
   status: z.enum(STATUS_DISCIPLINA).optional(),
   prazo: z.string().date().nullable().optional(),
   responsavelId: z.string().nullable().optional(),
+});
+
+/** P-02: adicionar disciplina a um projeto existente. */
+export const criarDisciplinaSchema = z.object({
+  projetoId: z.string().min(1),
+  nome: z.string().min(1, "Informe o nome da disciplina."),
+  prazo: z.string().date().optional(),
+  valor: z.number().nonnegative().optional(),
+  responsaveisIds: z.array(z.string()).default([]),
+});
+
+/** P-02/P-13: editar disciplina existente. */
+export const editarDisciplinaSchema = z.object({
+  disciplinaId: z.string().min(1),
+  nome: z.string().min(1, "Informe o nome da disciplina."),
+  prazo: z.string().date().nullable().optional(),
+  valor: z.number().nonnegative().nullable().optional(),
+  responsaveisIds: z.array(z.string()).default([]),
+  exigePacoteA: z.boolean().optional(),
+  exigePacoteB: z.boolean().optional(),
+});
+
+/** P-02: excluir disciplina (bloqueado se houver uploads ou pagamentos). */
+export const excluirDisciplinaSchema = z.object({
+  disciplinaId: z.string().min(1),
+});
+
+/** P-05: cancelar/arquivar/reativar projeto. */
+export const cancelarProjetoSchema = z.object({
+  projetoId: z.string().min(1),
+  situacao: z.enum(["em_andamento", "cancelado", "arquivado"]),
+  motivo: z.string().optional(),
+});
+
+/** P-09: adicionar disciplinas do catálogo a um projeto existente. */
+export const adicionarDoCatalogoSchema = z.object({
+  projetoId: z.string().min(1),
+  nomes: z.array(z.string().min(1)).min(1),
 });
 
 export type CriarProjetoInput = z.infer<typeof criarProjetoSchema>;

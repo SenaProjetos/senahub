@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Check, X, Save, Camera, GitBranch, FileText } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Check, X, Save, Camera, GitBranch, FileText, ShieldAlert } from "lucide-react";
 import {
   solicitarRevisao,
   responderRevisao,
@@ -12,6 +12,12 @@ import {
   salvarLmConfig,
   salvarLinhaBase,
   excluirLinhaBase,
+  criarChecklistItem,
+  toggleChecklistItem,
+  excluirChecklistItem,
+  criarRisco,
+  atualizarRisco,
+  excluirRisco,
 } from "@/modules/projetos/extras/actions";
 import type { extrasDoProjeto } from "@/modules/projetos/extras/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -37,6 +43,63 @@ export function ExtrasView({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+
+  // N-34: checklist
+  const [novoItem, setNovoItem] = useState("");
+  function adicionarItem() {
+    if (!novoItem.trim()) return;
+    start(async () => {
+      const r = await criarChecklistItem({ projetoId: projeto.id, descricao: novoItem.trim() });
+      if (r.ok) { toast.success("Item adicionado."); setNovoItem(""); router.refresh(); }
+      else toast.error(r.ok === false ? r.error : "Erro");
+    });
+  }
+  function toggleItem(itemId: string, concluido: boolean) {
+    start(async () => {
+      const r = await toggleChecklistItem({ itemId, concluido });
+      if (r.ok) router.refresh();
+      else toast.error(r.ok === false ? r.error : "Erro");
+    });
+  }
+  function rmItem(itemId: string) {
+    start(async () => {
+      const r = await excluirChecklistItem({ itemId });
+      if (r.ok) { toast.success("Item removido."); router.refresh(); }
+      else toast.error(r.ok === false ? r.error : "Erro");
+    });
+  }
+
+  // N-39: riscos
+  const [riscoDesc, setRiscoDesc] = useState("");
+  const [riscoProb, setRiscoProb] = useState<string | null>("1");
+  const [riscoImp, setRiscoImp] = useState<string | null>("1");
+  const GRAU = ["", "Baixo", "Médio", "Alto"];
+  function adicionarRisco() {
+    if (!riscoDesc.trim()) return;
+    start(async () => {
+      const r = await criarRisco({
+        projetoId: projeto.id,
+        descricao: riscoDesc.trim(),
+        probabilidade: Number(riscoProb ?? "1"),
+        impacto: Number(riscoImp ?? "1"),
+      });
+      if (r.ok) { toast.success("Risco registrado."); setRiscoDesc(""); setRiscoProb("1"); setRiscoImp("1"); router.refresh(); }
+      else toast.error(r.ok === false ? r.error : "Erro");
+    });
+  }
+  function mudarStatusRisco(riscoId: string, status: "aberto" | "mitigado" | "aceito") {
+    start(async () => {
+      const r = await atualizarRisco({ riscoId, status });
+      if (r.ok) router.refresh(); else toast.error(r.ok === false ? r.error : "Erro");
+    });
+  }
+  function rmRisco(riscoId: string) {
+    start(async () => {
+      const r = await excluirRisco({ riscoId });
+      if (r.ok) { toast.success("Risco removido."); router.refresh(); }
+      else toast.error(r.ok === false ? r.error : "Erro");
+    });
+  }
 
   // B2
   const [discId, setDiscId] = useState("");
@@ -267,6 +330,132 @@ export function ExtrasView({
             <div className="flex flex-wrap items-end gap-2 border-t pt-3">
               <Input placeholder="Nome (ex.: Baseline contratual)" value={lbNome} onChange={(e) => setLbNome(e.target.value)} className="min-w-48 flex-1" />
               <Button size="sm" variant="outline" onClick={fotografar} disabled={pending}><Camera className="size-3.5" /> Salvar linha de base</Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* N-34: Checklist */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Check className="size-4" /> Checklist
+          </CardTitle>
+          <CardDescription>Itens de ação livres para controle do projeto.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {dados.checklist.length === 0 && <p className="text-sm text-muted-foreground">Nenhum item.</p>}
+          <ul className="space-y-1.5">
+            {dados.checklist.map((c) => (
+              <li key={c.id} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={c.concluido}
+                  onChange={(e) => toggleItem(c.id, e.target.checked)}
+                  disabled={!podeGerir || pending}
+                  className="size-4 accent-primary"
+                />
+                <span className={c.concluido ? "line-through text-muted-foreground" : ""}>{c.descricao}</span>
+                {podeGerir && (
+                  <Button size="icon" variant="ghost" className="ml-auto size-6" onClick={() => rmItem(c.id)} disabled={pending}>
+                    <Trash2 className="size-3" />
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+          {podeGerir && (
+            <div className="flex gap-2 border-t pt-3">
+              <Input
+                placeholder="Novo item..."
+                value={novoItem}
+                onChange={(e) => setNovoItem(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && adicionarItem()}
+                className="flex-1"
+              />
+              <Button size="sm" onClick={adicionarItem} disabled={pending || !novoItem.trim()}>
+                <Plus className="size-4" /> Adicionar
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* N-39: Riscos */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ShieldAlert className="size-4" /> Riscos
+          </CardTitle>
+          <CardDescription>Registro de riscos identificados e plano de mitigação.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {dados.riscos.length === 0 && <p className="text-sm text-muted-foreground">Nenhum risco registrado.</p>}
+          <div className="space-y-2">
+            {dados.riscos.map((r) => {
+              const nivel = r.probabilidade * r.impacto;
+              const corNivel = nivel >= 6 ? "text-destructive" : nivel >= 3 ? "text-warning" : "text-muted-foreground";
+              return (
+                <div key={r.id} className="rounded-md border p-3 text-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className={r.status !== "aberto" ? "text-muted-foreground line-through" : ""}>{r.descricao}</p>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <span className={`text-xs font-medium ${corNivel}`}>
+                        P{r.probabilidade}×I{r.impacto}
+                      </span>
+                      {podeGerir && (
+                        <>
+                          <Select<string> value={r.status} onValueChange={(v: string | null) => v && mudarStatusRisco(r.id, v as "aberto" | "mitigado" | "aceito")}>
+                            <SelectTrigger className="h-7 w-28 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="aberto">Aberto</SelectItem>
+                              <SelectItem value="mitigado">Mitigado</SelectItem>
+                              <SelectItem value="aceito">Aceito</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button size="icon" variant="ghost" className="size-6" onClick={() => rmRisco(r.id)} disabled={pending}>
+                            <Trash2 className="size-3" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  {r.mitigacao && <p className="mt-1 text-xs text-muted-foreground">Mitigação: {r.mitigacao}</p>}
+                </div>
+              );
+            })}
+          </div>
+          {podeGerir && (
+            <div className="space-y-2 border-t pt-3">
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  placeholder="Descreva o risco..."
+                  value={riscoDesc}
+                  onChange={(e) => setRiscoDesc(e.target.value)}
+                  className="min-w-48 flex-1"
+                />
+                <Select<string> value={riscoProb} onValueChange={(v) => setRiscoProb(v)}>
+                  <SelectTrigger className="w-28">
+                    <SelectValue placeholder="Prob." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3].map((n) => <SelectItem key={n} value={String(n)}>P: {GRAU[n]}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select<string> value={riscoImp} onValueChange={(v) => setRiscoImp(v)}>
+                  <SelectTrigger className="w-28">
+                    <SelectValue placeholder="Impacto" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3].map((n) => <SelectItem key={n} value={String(n)}>I: {GRAU[n]}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Button size="sm" onClick={adicionarRisco} disabled={pending || !riscoDesc.trim()}>
+                  <Plus className="size-4" /> Registrar
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

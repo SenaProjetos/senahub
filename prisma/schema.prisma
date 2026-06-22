@@ -393,6 +393,8 @@ model Projeto {
   lmConfig    LmConfig?
   linhasBase  LinhaBase[]
   planejamentos PlanejamentoPagamento[]
+  checklist     ChecklistItemProjeto[]
+  riscos        RiscoProjeto[]
 
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -401,6 +403,40 @@ model Projeto {
   @@index([clienteId])
   @@index([situacao])
   @@map("projeto")
+}
+
+/// N-34: item de checklist livre por projeto.
+model ChecklistItemProjeto {
+  id          String    @id @default(cuid())
+  projetoId   String
+  descricao   String
+  concluido   Boolean   @default(false)
+  concluidoEm DateTime?
+  ordem       Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  projeto     Projeto   @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+
+  @@index([projetoId])
+  @@map("checklist_item_projeto")
+}
+
+/// N-39: risco identificado para um projeto.
+model RiscoProjeto {
+  id            String   @id @default(cuid())
+  projetoId     String
+  descricao     String
+  probabilidade Int      @default(1) // 1=baixa 2=média 3=alta
+  impacto       Int      @default(1) // 1=baixo 2=médio 3=alto
+  mitigacao     String?
+  status        String   @default("aberto") // aberto | mitigado | aceito
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  projeto       Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+
+  @@index([projetoId])
+  @@map("risco_projeto")
 }
 
 /// Campo de input do projeto (pergunta + resposta do cliente).
@@ -1128,6 +1164,9 @@ model Disciplina {
   /// Valor a pagar ao(s) projetista(s) por esta entrega.
   valor     Decimal?         @db.Decimal(12, 2)
   ordem     Int              @default(0)
+  /// P-13: configura quais pacotes são obrigatórios para validação desta disciplina.
+  exigePacoteA Boolean       @default(true)
+  exigePacoteB Boolean       @default(true)
 
   responsaveis DisciplinaResponsavel[]
   revisoes     RevisaoDisciplina[]

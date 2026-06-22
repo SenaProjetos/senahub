@@ -6,7 +6,7 @@ import { ROLE_LABELS } from "@/lib/roles";
 import { Avatar, AvatarFallback, AvatarBadge } from "@/components/ui/avatar";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
-import { obterProjeto, usuariosInternos, margemProjeto } from "@/modules/projetos/queries";
+import { obterProjeto, usuariosInternos, margemProjeto, catalogoDisciplinas, disciplinasForaDeSLA, SLA_VALIDACAO_DIAS } from "@/modules/projetos/queries";
 import { formatarData } from "@/lib/utils";
 import { SITUACAO_PROJETO_LABEL, progressoProjeto } from "@/modules/projetos/status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +18,9 @@ import { ProjetoKpis } from "@/components/projetos/projeto-kpis";
 import { DisciplinasKanban } from "@/components/projetos/disciplinas-kanban";
 import { DisciplinasGantt } from "@/components/projetos/disciplinas-gantt";
 import { MargemDonut } from "@/components/projetos/margem-donut";
+import { AdicionarDisciplinaButton } from "@/components/projetos/adicionar-disciplina-button";
+import { AdicionarDoCatalogoButton } from "@/components/projetos/adicionar-do-catalogo-button";
+import { DisciplinaEditDialog, DisciplinaDeleteButton } from "@/components/projetos/disciplina-edit-dialog";
 
 function fmtData(d: Date | null) {
   return d ? formatarData(d) : null;
@@ -39,8 +42,12 @@ export default async function ProjetoDetalhePage({
     can(user.role, "financeiro", "ver"),
   ]);
 
-  const internos = podeGerir ? await usuariosInternos() : [];
-  const margem = podeVerFinanceiro ? await margemProjeto(projeto.id) : null;
+  const [internos, margem, catalogo, slaFora] = await Promise.all([
+    podeGerir ? usuariosInternos() : Promise.resolve([]),
+    podeVerFinanceiro ? margemProjeto(projeto.id) : Promise.resolve(null),
+    podeGerir ? catalogoDisciplinas() : Promise.resolve([]),
+    podeValidar ? disciplinasForaDeSLA(user) : Promise.resolve([]),
+  ]);
 
   const disciplinas = projeto.disciplinas.map((d) => {
     const uploads = d.uploads.map((u) => ({
@@ -72,6 +79,8 @@ export default async function ProjetoDetalhePage({
       temA: uploads.some((u) => u.pacote === "A"),
       temB: uploads.some((u) => u.pacote === "B"),
       jaValidado: d._count.pagamentos > 0,
+      exigePacoteA: d.exigePacoteA,
+      exigePacoteB: d.exigePacoteB,
     };
   });
 
@@ -166,9 +175,34 @@ export default async function ProjetoDetalhePage({
         </Card>
       )}
 
+      {/* N-38/P-17: banner de SLA — disciplinas aguardando validação */}
+      {slaFora.filter((d) => d.projetoId === projeto.id).length > 0 && (
+        <div className="rounded-md border border-warning/40 bg-warning/10 px-4 py-2.5 text-sm text-warning-foreground">
+          <span className="font-medium">Validação pendente há mais de {SLA_VALIDACAO_DIAS} dias:</span>{" "}
+          {slaFora
+            .filter((d) => d.projetoId === projeto.id)
+            .map((d) => d.nome)
+            .join(", ")}
+        </div>
+      )}
+
       {/* P-47: Kanban + P-48: ações em massa */}
       <div>
-        <h3 className="mb-3 text-lg font-bold tracking-tight">Disciplinas</h3>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h3 className="text-lg font-bold tracking-tight">Disciplinas</h3>
+          {podeGerir && (
+            <div className="flex items-center gap-1">
+              <AdicionarDisciplinaButton
+                projetoId={projeto.id}
+                internos={internos.map((u) => ({ id: u.id, name: u.name }))}
+                prazoFinal={projeto.prazoFinal?.toISOString() ?? null}
+              />
+              {catalogo.length > 0 && (
+                <AdicionarDoCatalogoButton projetoId={projeto.id} catalogo={catalogo} />
+              )}
+            </div>
+          )}
+        </div>
         <DisciplinasKanban
           projetoId={projeto.id}
           disciplinas={disciplinas}
