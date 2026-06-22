@@ -1,6 +1,6 @@
 "use client";
 
-import { useReducer, useState, useTransition, useEffect, useCallback } from "react";
+import { useReducer, useState, useTransition, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -147,6 +147,7 @@ export function DocEditor({
   const [tipo, setTipo] = useState<TipoDoc>(tipoInicial);
   const [fonte, setFonte] = useState(fonteInicial);
   const [zoom, setZoom] = useState(1);
+  const clipboardRef = useRef<Elemento | null>(null);
 
   const bandaAlvo = useCallback((): string | null => {
     if (state.selecao.tipo !== "nenhuma") return state.selecao.bandaId;
@@ -225,7 +226,7 @@ export function DocEditor({
     });
   }
 
-  // Atalhos: Delete, Ctrl+Z/Y, Ctrl+S, setas
+  // Atalhos: Delete, Ctrl+Z/Y/C/V/D, setas
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const alvo = e.target as HTMLElement;
@@ -236,6 +237,26 @@ export function DocEditor({
       } else if (e.ctrlKey && (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase() === "z"))) {
         e.preventDefault();
         dispatch({ t: "redo" });
+      } else if (e.ctrlKey && e.key.toLowerCase() === "c" && state.selecao.tipo === "elemento") {
+        // Copia o elemento selecionado para o clipboard interno.
+        const sel = state.selecao;
+        const banda = state.schema.bandas.find((b) => b.id === sel.bandaId);
+        const el = banda?.elementos.find((x) => x.id === sel.elementoId);
+        if (el) clipboardRef.current = el;
+      } else if (e.ctrlKey && e.key.toLowerCase() === "v" && clipboardRef.current) {
+        // Cola o elemento copiado na banda alvo, deslocado 8px.
+        e.preventDefault();
+        const bandaId = bandaAlvo();
+        if (!bandaId) return;
+        const base = clipboardRef.current;
+        dispatch({ t: "addElemento", bandaId, elemento: { ...base, id: novoId(), x: base.x + 8, y: base.y + 8 } });
+      } else if (e.ctrlKey && e.key.toLowerCase() === "d" && state.selecao.tipo === "elemento") {
+        // Duplica o elemento selecionado na mesma banda.
+        e.preventDefault();
+        const sel = state.selecao;
+        const banda = state.schema.bandas.find((b) => b.id === sel.bandaId);
+        const el = banda?.elementos.find((x) => x.id === sel.elementoId);
+        if (el) dispatch({ t: "addElemento", bandaId: sel.bandaId, elemento: { ...el, id: novoId(), x: el.x + 8, y: el.y + 8 } });
       } else if (e.key === "Delete" && state.selecao.tipo === "elemento") {
         dispatch({ t: "removeElemento", bandaId: state.selecao.bandaId, elementoId: state.selecao.elementoId });
       } else if (e.key === "Delete" && state.selecao.tipo === "multi") {
@@ -269,7 +290,7 @@ export function DocEditor({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [state.selecao, state.schema.bandas]);
+  }, [state.selecao, state.schema.bandas, bandaAlvo]);
 
   const bandasFaltantes = TIPOS_BANDA.filter(
     (t) => !state.schema.bandas.some((b) => b.tipo === t),
