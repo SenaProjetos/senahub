@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Clock, PackageCheck, ListChecks, TriangleAlert, TrendingDown, Users } from "lucide-react";
+import { Clock, PackageCheck, ListChecks, TriangleAlert, TrendingDown, Users, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
@@ -35,16 +35,24 @@ export function ProdutividadeView({
             Comparação de cada projetista com a <strong>própria média</strong> do período — destaca quedas de produção.
           </p>
         </div>
-        <div className="flex rounded-sm border p-0.5 text-sm">
-          {(["semana", "mes"] as const).map((g) => (
-            <Link
-              key={g}
-              href={`/rh/produtividade?g=${g}`}
-              className={`rounded-sm px-3 py-1 ${granularidade === g ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              {g === "semana" ? "Semanal" : "Mensal"}
-            </Link>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-sm border p-0.5 text-sm">
+            {(["semana", "mes"] as const).map((g) => (
+              <Link
+                key={g}
+                href={`/rh/produtividade?g=${g}`}
+                className={`rounded-sm px-3 py-1 ${granularidade === g ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {g === "semana" ? "Semanal" : "Mensal"}
+              </Link>
+            ))}
+          </div>
+          <a
+            href={`/api/rh/produtividade/export?g=${granularidade}`}
+            className="inline-flex items-center gap-1.5 rounded-sm border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <Download className="size-4" /> CSV
+          </a>
         </div>
       </div>
 

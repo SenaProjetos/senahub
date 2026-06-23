@@ -8,9 +8,9 @@ import { PROJETO_MEMBRO_ROLES } from "@/lib/roles";
  * MÉTRICA (somente dados realmente coletados hoje — nada inventado):
  *  - horas:    soma da duração de `SessaoTrabalho` (ponto) com fim preenchido.
  *  - entregas: nº de `PagamentoProjetista` liberados (`liberadoEm`) — entregas validadas.
- *  - tarefas:  nº de `Tarefa` em status final (`TarefaStatus.concluido`) por responsável.
- *              Conclusão é aproximada por `Tarefa.updatedAt` (não há campo `concluidaEm`).
- *  - atrasos:  nº de disciplinas do projetista entregues COM atraso (`entregueEm > prazo`).
+ *  - tarefas:  nº de `Tarefa` concluídas (`concluidaEm`) por responsável.
+ *  - atrasos:  disciplinas entregues COM atraso (`entregueEm > prazo`) + tarefas da EAP
+ *              (cronograma) vencidas e não concluídas (`fimPrevisto < hoje` e `progresso < 100`).
  *
  *  output (produção do período) = entregas + tarefas → throughput positivo.
  *
@@ -99,7 +99,8 @@ export async function produtividadeProjetistas(
   if (projetistas.length === 0) return { periodos, granularidade, projetistas: [] };
   const ids = projetistas.map((p) => p.id);
 
-  const [sessoes, pagamentos, tarefas, disciplinas] = await Promise.all([
+  const agora = new Date();
+  const [sessoes, pagamentos, tarefas, disciplinas, eapAtrasadas] = await Promise.all([
     prisma.sessaoTrabalho.findMany({
       where: { userId: { in: ids }, inicio: { gte: inicio }, fim: { not: null } },
       select: { userId: true, inicio: true, fim: true },
@@ -109,12 +110,21 @@ export async function produtividadeProjetistas(
       select: { projetistaId: true, liberadoEm: true },
     }),
     prisma.tarefa.findMany({
-      where: { arquivada: false, status: { concluido: true }, updatedAt: { gte: inicio }, responsaveis: { some: { userId: { in: ids } } } },
-      select: { updatedAt: true, responsaveis: { select: { userId: true } } },
+      where: { arquivada: false, concluidaEm: { gte: inicio }, responsaveis: { some: { userId: { in: ids } } } },
+      select: { concluidaEm: true, responsaveis: { select: { userId: true } } },
     }),
     prisma.disciplina.findMany({
       where: { entregueEm: { gte: inicio, not: null }, prazo: { not: null }, responsaveis: { some: { userId: { in: ids } } } },
       select: { entregueEm: true, prazo: true, responsaveis: { select: { userId: true } } },
+    }),
+    // Tarefas da EAP vencidas e não concluídas (atraso de cronograma), por responsável da disciplina.
+    prisma.eapTarefa.findMany({
+      where: {
+        progresso: { lt: 100 },
+        fimPrevisto: { gte: inicio, lt: agora },
+        disciplina: { is: { responsaveis: { some: { userId: { in: ids } } } } },
+      },
+      select: { fimPrevisto: true, disciplina: { select: { responsaveis: { select: { userId: true } } } } },
     }),
   ]);
 
@@ -133,7 +143,8 @@ export async function produtividadeProjetistas(
     incr(entregas, p.projetistaId, chaveDe(p.liberadoEm), 1);
   }
   for (const t of tarefas) {
-    const chave = chaveDe(t.updatedAt);
+    if (!t.concluidaEm) continue;
+    const chave = chaveDe(t.concluidaEm);
     for (const r of t.responsaveis) if (ids.includes(r.userId)) incr(tarefasMap, r.userId, chave, 1);
   }
   for (const d of disciplinas) {
@@ -141,6 +152,11 @@ export async function produtividadeProjetistas(
     const chave = chaveDe(d.entregueEm);
     if (!periodosValidos.has(chave)) continue;
     for (const r of d.responsaveis) if (ids.includes(r.userId)) incr(atrasos, r.userId, chave, 1);
+  }
+  for (const e of eapAtrasadas) {
+    const chave = chaveDe(e.fimPrevisto);
+    if (!periodosValidos.has(chave)) continue;
+    for (const r of e.disciplina?.responsaveis ?? []) if (ids.includes(r.userId)) incr(atrasos, r.userId, chave, 1);
   }
 
   const round1 = (n: number) => Math.round(n * 10) / 10;
