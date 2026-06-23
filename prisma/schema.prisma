@@ -1428,6 +1428,8 @@ model Tarefa {
   criadorId String
   criador   User         @relation("TarefaCriador", fields: [criadorId], references: [id])
   arquivada Boolean      @default(false)
+  /// Item 7: data em que a tarefa entrou num status final (concluída). Métrica de produtividade.
+  concluidaEm DateTime?
   /// Origem na EAP (P-32): evita gerar a mesma Tarefa operacional duas vezes.
   eapTarefaId String?    @unique
 

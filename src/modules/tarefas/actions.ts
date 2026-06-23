@@ -30,11 +30,14 @@ const toggleItemSchema = z.object({ id: z.string().min(1), concluido: z.boolean(
 export const criarTarefa = defineAction(
   { ...base, acao: "criar-tarefa", entidade: "Tarefa", schema: tarefaSchema },
   async (i, { user }) => {
+    // Item 7: se já nasce num status final, registra a conclusão.
+    const statusInicial = await prisma.tarefaStatus.findUnique({ where: { id: i.statusId }, select: { concluido: true } });
     const t = await prisma.tarefa.create({
       data: {
         titulo: i.titulo,
         descricao: i.descricao || null,
         statusId: i.statusId,
+        concluidaEm: statusInicial?.concluido ? new Date() : null,
         prazo: i.prazo ? new Date(i.prazo) : null,
         projetoId: i.projetoId || null,
         criadorId: user.id,
@@ -61,6 +64,12 @@ export const editarTarefa = defineAction(
   async (i) => {
     const { id, ...r } = i;
     if (r.dependeDeIds.includes(id)) throw new ActionError("Tarefa não pode depender dela mesma.");
+    // Item 7: mantém concluidaEm coerente com o status escolhido na edição.
+    const [destino, atual] = await Promise.all([
+      prisma.tarefaStatus.findUnique({ where: { id: r.statusId }, select: { concluido: true } }),
+      prisma.tarefa.findUnique({ where: { id }, select: { concluidaEm: true } }),
+    ]);
+    const concluidaEm = destino?.concluido ? (atual?.concluidaEm ?? new Date()) : null;
     await prisma.$transaction([
       prisma.tarefa.update({
         where: { id },
@@ -68,6 +77,7 @@ export const editarTarefa = defineAction(
           titulo: r.titulo,
           descricao: r.descricao || null,
           statusId: r.statusId,
+          concluidaEm,
           prazo: r.prazo ? new Date(r.prazo) : null,
           projetoId: r.projetoId || null,
         },
@@ -107,7 +117,16 @@ export const moverTarefa = defineAction(
         throw new ActionError("Tarefa bloqueada: conclua as dependências primeiro.");
       }
     }
-    await prisma.tarefa.update({ where: { id: i.id }, data: { statusId: i.statusId } });
+    // Item 7: marca a data de conclusão ao entrar num status final (preserva a 1ª);
+    // limpa ao reabrir (sair de um status concluído).
+    const atual = await prisma.tarefa.findUnique({ where: { id: i.id }, select: { concluidaEm: true } });
+    await prisma.tarefa.update({
+      where: { id: i.id },
+      data: {
+        statusId: i.statusId,
+        concluidaEm: destino.concluido ? (atual?.concluidaEm ?? new Date()) : null,
+      },
+    });
     rev();
     return { id: i.id };
   },
