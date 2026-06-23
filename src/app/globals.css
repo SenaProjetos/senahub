@@ -242,3 +242,30 @@
     margin: 0;
   }
 }
+
+/*
+ * HeroSky — animação do "céu do dia" do herocard (sol/lua/estrelas/nuvens).
+ * Portado do sistema anterior; puro CSS/SVG, sem biblioteca externa.
+ * As nuvens usam `animation: drift ...` inline (duração por nuvem).
+ */
+@keyframes sunglow {
+  0%, 100% { transform: scale(1); opacity: 0.55; }
+  50% { transform: scale(1.08); opacity: 0.8; }
+}
+@keyframes twinkle {
+  0%, 100% { opacity: var(--s, 0.8); transform: scale(1); }
+  50% { opacity: calc(var(--s, 0.8) * 0.25); transform: scale(0.7); }
+}
+@keyframes drift {
+  0% { transform: translateX(0px); }
+  100% { transform: translateX(24px); }
+}
+.animate-sunglow { animation: sunglow 5s ease-in-out infinite; }
+.animate-twinkle { animation: twinkle 3.2s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-sunglow,
+  .animate-twinkle {
+    animation: none !important;
+  }
+}
