@@ -136,6 +136,12 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: UserCog,
         roles: ["admin", "supervisor", "administrativo"],
       },
+      {
+        title: "Produtividade",
+        href: "/rh/produtividade",
+        icon: TrendingUp,
+        roles: ["admin", "supervisor", "administrativo"],
+      },
     ],
   },
   {
