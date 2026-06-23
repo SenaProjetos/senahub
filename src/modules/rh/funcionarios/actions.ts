@@ -9,6 +9,7 @@ import { removerArquivo } from "@/lib/storage";
 import { criarUsuarioComCredencial } from "@/lib/auth-admin";
 import { buscarCep } from "@/lib/cep";
 import { getSession } from "@/lib/session";
+import { PJ_ROLES, type Role } from "@/lib/roles";
 
 const base = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
 const rev = () => revalidatePath("/rh/funcionarios");
@@ -139,6 +140,81 @@ export const cadastrarFuncionario = defineAction(
     revalidatePath("/configuracoes/usuarios");
     revalidatePath("/rh/admin");
     return { id, senhaTemporaria };
+  },
+);
+
+const editarCadastroSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(2, "Informe o nome."),
+  cpf: opt(z.string()),
+  rg: opt(z.string()),
+  dataNascimento: opt(z.string()),
+  sexo: opt(z.string()),
+  estadoCivil: opt(z.string()),
+  nacionalidade: opt(z.string()),
+  enderecoCep: opt(z.string()),
+  enderecoLogradouro: opt(z.string()),
+  enderecoNumero: opt(z.string()),
+  enderecoComplemento: opt(z.string()),
+  enderecoBairro: opt(z.string()),
+  enderecoCidade: opt(z.string()),
+  enderecoUf: opt(z.string()),
+  telefone: opt(z.string()),
+  telefoneEmergencia: opt(z.string()),
+  contatoEmergenciaNome: opt(z.string()),
+  emailPessoal: opt(z.string()),
+  banco: opt(z.string()),
+  agencia: opt(z.string()),
+  conta: opt(z.string()),
+  tipoContaBancaria: opt(z.string()),
+  cargo: opt(z.string()),
+  departamento: opt(z.string()),
+  dataAdmissao: opt(z.string()),
+  salarioBase: z.number().min(0).optional().nullable(),
+  pjId: opt(z.string()),
+});
+
+/** Item 4: edita o cadastro completo de um colaborador existente (não altera conta/e-mail/role). */
+export const editarCadastroFuncionario = defineAction(
+  { ...base, acao: "editar-cadastro-funcionario", entidade: "User", schema: editarCadastroSchema },
+  async (i) => {
+    const u = await prisma.user.findUnique({ where: { id: i.id }, select: { role: true } });
+    if (!u) throw new ActionError("Colaborador não encontrado.");
+    await prisma.user.update({
+      where: { id: i.id },
+      data: {
+        name: i.name,
+        cpf: i.cpf || null,
+        rg: i.rg || null,
+        dataNascimento: dataOuNull(i.dataNascimento),
+        sexo: i.sexo || null,
+        estadoCivil: i.estadoCivil || null,
+        nacionalidade: i.nacionalidade || null,
+        enderecoCep: i.enderecoCep || null,
+        enderecoLogradouro: i.enderecoLogradouro || null,
+        enderecoNumero: i.enderecoNumero || null,
+        enderecoComplemento: i.enderecoComplemento || null,
+        enderecoBairro: i.enderecoBairro || null,
+        enderecoCidade: i.enderecoCidade || null,
+        enderecoUf: i.enderecoUf || null,
+        telefone: i.telefone || null,
+        telefoneEmergencia: i.telefoneEmergencia || null,
+        contatoEmergenciaNome: i.contatoEmergenciaNome || null,
+        emailPessoal: i.emailPessoal || null,
+        banco: i.banco || null,
+        agencia: i.agencia || null,
+        conta: i.conta || null,
+        tipoContaBancaria: i.tipoContaBancaria || null,
+        cargo: i.cargo || null,
+        departamento: i.departamento || null,
+        dataAdmissao: dataOuNull(i.dataAdmissao),
+        salarioBase: i.salarioBase ?? null,
+        // pjId só para projetistas PJ/freelancer.
+        pjId: PJ_ROLES.includes(u.role as Role) ? i.pjId || null : null,
+      },
+    });
+    rev();
+    return { id: i.id };
   },
 );
 

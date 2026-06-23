@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { User, MapPin, CreditCard, Briefcase, Check, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { cadastrarFuncionario, consultarCep } from "@/modules/rh/funcionarios/actions";
 import { ROLE_LABELS } from "@/lib/roles";
+import { maskCpf, maskTelefone, maskCep } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -172,7 +173,7 @@ export function WizardCadastroFuncionario({
                       ))}
                     </select>
                   </Campo>
-                  <Campo label="CPF"><Input value={f.cpf} onChange={(e) => set("cpf", e.target.value)} placeholder="000.000.000-00" /></Campo>
+                  <Campo label="CPF"><Input value={f.cpf} onChange={(e) => set("cpf", maskCpf(e.target.value))} placeholder="000.000.000-00" /></Campo>
                   <Campo label="RG"><Input value={f.rg} onChange={(e) => set("rg", e.target.value)} /></Campo>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-3">
@@ -205,7 +206,7 @@ export function WizardCadastroFuncionario({
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Campo label="CEP">
                     <div className="relative">
-                      <Input value={f.enderecoCep} onChange={(e) => set("enderecoCep", e.target.value)} onBlur={onCepBlur} placeholder="00000-000" />
+                      <Input value={f.enderecoCep} onChange={(e) => set("enderecoCep", maskCep(e.target.value))} onBlur={onCepBlur} placeholder="00000-000" />
                       {cepStatus === "loading" && <Loader2 className="absolute right-2 top-2.5 size-4 animate-spin text-muted-foreground" />}
                       {cepStatus === "ok" && <Check className="absolute right-2 top-2.5 size-4 text-success" />}
                     </div>
@@ -221,9 +222,9 @@ export function WizardCadastroFuncionario({
                   <Campo label="Bairro"><Input value={f.enderecoBairro} onChange={(e) => set("enderecoBairro", e.target.value)} /></Campo>
                 </div>
                 <div className="grid gap-3 border-t pt-3 sm:grid-cols-2">
-                  <Campo label="Telefone"><Input value={f.telefone} onChange={(e) => set("telefone", e.target.value)} placeholder="(00) 00000-0000" /></Campo>
+                  <Campo label="Telefone"><Input value={f.telefone} onChange={(e) => set("telefone", maskTelefone(e.target.value))} placeholder="(00) 00000-0000" /></Campo>
                   <Campo label="E-mail pessoal"><Input type="email" value={f.emailPessoal} onChange={(e) => set("emailPessoal", e.target.value)} /></Campo>
-                  <Campo label="Tel. emergência"><Input value={f.telefoneEmergencia} onChange={(e) => set("telefoneEmergencia", e.target.value)} /></Campo>
+                  <Campo label="Tel. emergência"><Input value={f.telefoneEmergencia} onChange={(e) => set("telefoneEmergencia", maskTelefone(e.target.value))} /></Campo>
                   <Campo label="Contato emergência"><Input value={f.contatoEmergenciaNome} onChange={(e) => set("contatoEmergenciaNome", e.target.value)} /></Campo>
                 </div>
               </>

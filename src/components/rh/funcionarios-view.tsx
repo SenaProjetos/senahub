@@ -22,6 +22,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { EmptyState } from "@/components/ui/empty-state";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { WizardCadastroFuncionario } from "@/components/rh/wizard-cadastro-funcionario";
+import { EditarCadastroDialog, type Cadastro } from "@/components/rh/editar-cadastro-dialog";
 
 const TIPOS_DOC = ["contrato", "rg", "cpf", "aso", "diploma", "comprovante", "outro"] as const;
 
@@ -38,14 +39,16 @@ type Func = {
   id: string;
   name: string;
   role: string;
+  email: string | null;
   salarioBase: number | null;
   dataAdmissao: string | null;
   aquisitivo: Aquisitivo | null;
+  cadastro: Cadastro;
   dependentes: Dep[];
   documentos: Doc[];
 };
 
-function FuncCard({ f }: { f: Func }) {
+function FuncCard({ f, pessoasJuridicas }: { f: Func; pessoasJuridicas: { id: string; label: string }[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [nome, setNome] = useState("");
@@ -139,13 +142,29 @@ function FuncCard({ f }: { f: Func }) {
 
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">{f.name}</CardTitle>
-        <CardDescription>
-          {ROLE_LABELS[f.role as Role] ?? f.role} · {f.dependentes.length} dependente(s) · {f.documentos.length} documento(s)
-        </CardDescription>
+      <CardHeader className="flex-row items-start justify-between gap-2 space-y-0 pb-2">
+        <div className="min-w-0">
+          <CardTitle className="text-base">{f.name}</CardTitle>
+          <CardDescription>
+            {ROLE_LABELS[f.role as Role] ?? f.role}
+            {f.cadastro.cargo ? ` · ${f.cadastro.cargo}` : ""} · {f.dependentes.length} dep. · {f.documentos.length} doc.
+          </CardDescription>
+        </div>
+        <EditarCadastroDialog
+          funcionario={{ id: f.id, name: f.name, role: f.role, salarioBase: f.salarioBase, dataAdmissao: f.dataAdmissao, cadastro: f.cadastro }}
+          pessoasJuridicas={pessoasJuridicas}
+        />
       </CardHeader>
       <CardContent className="space-y-3">
+        {(f.cadastro.cpf || f.cadastro.telefone || f.cadastro.enderecoCidade || f.cadastro.pjLabel) && (
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 rounded-sm border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+            {f.cadastro.cpf && <span>CPF {f.cadastro.cpf}</span>}
+            {f.cadastro.telefone && <span>{f.cadastro.telefone}</span>}
+            {(f.cadastro.enderecoCidade || f.cadastro.enderecoUf) && <span>{[f.cadastro.enderecoCidade, f.cadastro.enderecoUf].filter(Boolean).join("/")}</span>}
+            {f.cadastro.banco && <span>{f.cadastro.banco}</span>}
+            {f.cadastro.pjLabel && <span>PJ: {f.cadastro.pjLabel}</span>}
+          </div>
+        )}
         <div className="flex flex-wrap items-end gap-2">
           <div className="space-y-1.5">
             <Label className="text-xs">Salário base (R$)</Label>
@@ -276,7 +295,7 @@ export function FuncionariosView({
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           {funcionarios.map((f) => (
-            <FuncCard key={f.id} f={f} />
+            <FuncCard key={f.id} f={f} pessoasJuridicas={pessoasJuridicas} />
           ))}
         </div>
       )}

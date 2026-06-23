@@ -52,3 +52,39 @@ export function formatarDiaMes(d: Date | string | null | undefined): string {
   const date = paraData(d)
   return date ? date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : ""
 }
+
+// ── Máscaras de entrada (item 4: cadastro de colaborador) ─────────────
+/** 000.000.000-00 */
+export function maskCpf(v: string): string {
+  return v
+    .replace(/\D/g, "")
+    .slice(0, 11)
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})$/, "$1-$2")
+}
+
+/** (00) 00000-0000 */
+export function maskTelefone(v: string): string {
+  const d = v.replace(/\D/g, "").slice(0, 11)
+  if (d.length <= 10) {
+    return d.replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{4})(\d{1,4})$/, "$1-$2")
+  }
+  return d.replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d{1,4})$/, "$1-$2")
+}
+
+/** 00000-000 */
+export function maskCep(v: string): string {
+  return v.replace(/\D/g, "").slice(0, 8).replace(/(\d{5})(\d{1,3})$/, "$1-$2")
+}
+
+/** 00.000.000/0000-00 */
+export function maskCnpj(v: string): string {
+  return v
+    .replace(/\D/g, "")
+    .slice(0, 14)
+    .replace(/(\d{2})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1/$2")
+    .replace(/(\d{4})(\d{1,2})$/, "$1-$2")
+}
