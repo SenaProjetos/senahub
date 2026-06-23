@@ -47,18 +47,17 @@ com a conferência e a responsabilidade técnica (ART/RRT) sempre do engenheiro.
 **Resolvidas (ver §2):** Word=`docx` · persistência (nome + recentes-10 + arquivo de salvamento +
 associação a projeto/disciplina + auto-store pacotes A/B) · escopo da Viga · normas = edição mais recente.
 
-**Ainda abertas (não assumidas):**
+**Resolvidas em 2026-06-23 (defaults aprovados pelo usuário):**
 
-1. **DXF:** estender o **writer próprio R12 ASCII** (já existe p/ carimbo) com novas entidades
-   (CIRCLE, ARC, LWPOLYLINE, layers, cotas). **Sem DWG nativo** (sem SDK pago), igual à decisão do Estúdio.
-   *Default proposto: sim.* Confirmar.
+1. **DXF:** estender o **writer próprio R12 ASCII** com novas entidades (CIRCLE, ARC, LWPOLYLINE, layers,
+   cotas). **Sem DWG nativo** (sem SDK pago), igual à decisão do Estúdio. ✅
 2. **Perfis com acesso:** internos (`admin, supervisor, administrativo, clt, estagiario, projetista_pj,
-   freelancer`); **`cliente` fora**. *Default proposto: estagiário pode usar/salvar.* Confirmar.
-3. **Auto-store × validação de entrega:** ao gravar arquivos do cálculo como `Upload` nos pacotes A/B, eles
-   **passam a contar** na checagem de `validarEntrega` (que exige "tem pacote A/B"). Marcar esses uploads como
-   **origem=ferramenta** (não conta como entrega formal) ou aceitar que contem? *Default proposto: marcar e não contar.* Confirmar.
-4. **Responsabilidade técnica:** disclaimer fixo na memória ("ferramenta de apoio; conferência e ART/RRT do
-   engenheiro responsável"). Confirmar texto/posição.
+   freelancer`) podem usar/salvar (estagiário incluído); **`cliente` fora**. ✅
+3. **Auto-store × validação:** uploads auto-gerados pela ferramenta recebem **`origem=ferramenta`** e **não
+   contam** como entrega formal em `validarEntrega`. ✅ (requer campo `Upload.origem`)
+4. **Responsabilidade técnica:** disclaimer fixo no rodapé de toda memória (PDF/Word) e nota no Excel:
+   *"Memória gerada por ferramenta de apoio do SenaHub. Resultados devem ser conferidos pelo engenheiro
+   responsável, a quem cabe a responsabilidade técnica (ART/RRT)."* ✅
 
 ## 4. Infra reutilizável (já existe no código)
 
