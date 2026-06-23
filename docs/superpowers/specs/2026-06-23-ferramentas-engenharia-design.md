@@ -298,6 +298,25 @@ Cada fase = `spec → plano → execução` própria. `master` (na branch) verde
 ### Onda F3+ — Demais disciplinas
 - Hidrossanitário · Elétrico/SPDA · Incêndio/AVAC — cada uma com spec própria.
 
+### Modelo de IA recomendado (Sonnet × Opus)
+
+**Regra geral:**
+- **Opus 4.8** — onde a *correção de lógica nova* importa ou há *decisão de projeto*: engines de cálculo com
+  lógica normativa (NBR 6118/8800/6122…), **detalhamento DXF** (geometria/cotas), algoritmos de fundação,
+  arquitetura/modelagem de dados, depuração difícil e **revisão** de lógica de cálculo.
+- **Sonnet 4.6** — trabalho *mecânico que segue padrão já existente no repo*: scaffolding, `defineAction`/
+  `queries.ts`/forms CRUD, fiação de nav/permissões, componentes de UI no padrão, testes a partir de spec
+  clara, edição de documentação.
+- **Heurística:** "isto repete um padrão que já existe?" → **Sonnet**. "isto cria lógica cuja correção importa
+  (cálculo/norma/geometria) ou decide arquitetura?" → **Opus**. Em passo de cálculo de engenharia, na dúvida, **Opus**.
+
+**Por onda:**
+- **F0 (fundação):** majoritariamente **Sonnet**; **Opus** só no `lib/dxf.ts` (geometria/formato, base reusada)
+  e na conferência dos fatores do conversor.
+- **F1 (memória/export):** **Sonnet** nas rotas/renderers; **Opus** no modelo `MemoriaDoc` e nos builders DXF.
+- **F2 (Viga E01 + fundações):** **Opus** nos engines normativos e no detalhamento; **Sonnet** na UI/forms e testes-rascunho.
+- **Revisão de qualquer engine de cálculo:** **Opus** (ou `/code-review`).
+
 ## 8. Restrições (herdadas do projeto)
 
 - Server Actions + Zod no `defineAction`; leituras em `queries.ts`/Server Components. REST só p/

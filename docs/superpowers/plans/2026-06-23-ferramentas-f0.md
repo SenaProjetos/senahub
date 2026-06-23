@@ -27,6 +27,11 @@ shadcn-on-base-ui · sonner.
 
 **Legendas — Status:** ⬜ pendente · 🟡 em andamento · ✅ concluído · ⛔ descartado
 
+**Modelo por passo (Sonnet × Opus)** — critério em [design §"Modelo de IA recomendado"]:
+F0.1–F0.3 **Sonnet** · F0.4 **Sonnet** (conferir os fatores em **Opus**) · F0.5–F0.10 **Sonnet** ·
+**F0.11 Opus** (primitivas DXF: geometria/formato, base reusada na F1) · F0.12 **Sonnet** (**Opus** se precisar depurar).
+Resumo: F0 é quase todo scaffolding no padrão do repo → Sonnet; o único ponto de lógica nova sensível é o DXF → Opus.
+
 ---
 
 ## Pré-requisitos
