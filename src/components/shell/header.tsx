@@ -1,34 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Search } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/shell/user-menu";
 import { MobileNav } from "@/components/shell/mobile-nav";
 import { NotificationBell } from "@/components/notificacoes/notification-bell";
+import { AgendaResumo } from "@/components/agenda/agenda-resumo";
 import { Breadcrumb } from "@/components/shell/breadcrumb";
 import { NAV_GROUPS } from "@/lib/nav-config";
 import type { Role } from "@/lib/roles";
-
-function Clock() {
-  const [now, setNow] = useState<Date | null>(null);
-
-  useEffect(() => {
-    setNow(new Date());
-    const id = setInterval(() => setNow(new Date()), 1000 * 30);
-    return () => clearInterval(id);
-  }, []);
-
-  if (!now) return <span className="font-mono text-xs text-muted-foreground">--:--</span>;
-
-  return (
-    <span className="font-mono text-xs tabular-nums text-muted-foreground">
-      {now.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}{" "}
-      {now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-    </span>
-  );
-}
 
 function titleFromPath(pathname: string): string {
   const items = NAV_GROUPS.flatMap((g) => g.items);
@@ -67,7 +48,7 @@ export function Header({
           <span className="hidden sm:inline">Buscar</span>
           <kbd className="hidden font-mono text-[10px] text-muted-foreground sm:inline">Ctrl K</kbd>
         </button>
-        <Clock />
+        <AgendaResumo />
         <NotificationBell />
         <ThemeToggle />
         <UserMenu user={user} />

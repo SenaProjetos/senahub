@@ -6,6 +6,15 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { INTERNAL_ROLES } from "@/lib/roles";
 import { notificarMuitos } from "@/lib/notificar";
+import { getSession } from "@/lib/session";
+import { resumoAgendaHoje } from "@/modules/agenda/queries";
+
+/** Compromissos de hoje do usuário atual — usado pelo resumo da agenda no header. */
+export async function buscarAgendaHoje() {
+  const session = await getSession();
+  if (!session) return [];
+  return resumoAgendaHoje(session.user.id);
+}
 
 const base = { modulo: "agenda", roles: INTERNAL_ROLES } as const;
 const rev = () => revalidatePath("/agenda");
