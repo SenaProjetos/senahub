@@ -32,3 +32,14 @@ export async function can(role: Role, recurso: string, acao: string): Promise<bo
   const map = await loadRole(role);
   return map.get(`${recurso}:${acao}`) ?? false;
 }
+
+/**
+ * Visibilidade de informações financeiras (margem, custo, valor de contrato, faturamento).
+ * Permitido a quem tem a permissão `financeiro:ver` OU é sócio ativo (registro `Socio`).
+ * Centraliza a regra para uso consistente nas páginas/queries financeiras.
+ */
+export async function podeVerFinanceiro(user: { id: string; role: Role }): Promise<boolean> {
+  if (await can(user.role, "financeiro", "ver")) return true;
+  const socio = await prisma.socio.findUnique({ where: { userId: user.id }, select: { ativo: true } });
+  return socio?.ativo === true;
+}

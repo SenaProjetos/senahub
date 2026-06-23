@@ -8,6 +8,44 @@ import { PESO_STATUS } from "@/modules/projetos/status";
 
 type Viewer = { id: string; role: Role };
 
+export type Aniversariante = {
+  id: string;
+  name: string;
+  cargo: string | null;
+  dia: number;
+  mes: number;
+  /** true quando o aniversário é hoje */
+  hoje: boolean;
+};
+
+/**
+ * Item 4: aniversariantes do mês corrente (e do dia), a partir de `User.dataNascimento`.
+ * Considera colaboradores ativos não-clientes. Compara apenas dia/mês (ignora o ano).
+ */
+export async function aniversariantesDoMes(): Promise<{ doDia: Aniversariante[]; doMes: Aniversariante[] }> {
+  const agora = new Date();
+  const mesAtual = agora.getMonth() + 1;
+  const diaAtual = agora.getDate();
+
+  const users = await prisma.user.findMany({
+    where: { ativo: true, dataNascimento: { not: null }, role: { not: "cliente" } },
+    select: { id: true, name: true, cargo: true, dataNascimento: true },
+  });
+
+  const doMes = users
+    .map((u) => {
+      const d = u.dataNascimento!;
+      // @db.Date vem em UTC à meia-noite — usa getUTC* p/ não deslocar o dia por fuso.
+      const dia = d.getUTCDate();
+      const mes = d.getUTCMonth() + 1;
+      return { id: u.id, name: u.name, cargo: u.cargo, dia, mes, hoje: mes === mesAtual && dia === diaAtual };
+    })
+    .filter((u) => u.mes === mesAtual)
+    .sort((a, b) => a.dia - b.dia);
+
+  return { doDia: doMes.filter((u) => u.hoje), doMes };
+}
+
 function escopo(viewer: Viewer): Prisma.ProjetoWhereInput {
   if (viewer.role === "admin" || GLOBAL_ROLES.includes(viewer.role)) return {};
   return {

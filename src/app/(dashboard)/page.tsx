@@ -13,27 +13,32 @@ import { Building2 } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { kpisHome } from "@/modules/qualidade/queries";
 import { agingReport } from "@/modules/financeiro/aging/queries";
-import { projetosRecentes, serieReceita, snapshotsDashboard, carteiraProjetosDashboard } from "@/modules/dashboard/queries";
+import { projetosRecentes, serieReceita, snapshotsDashboard, carteiraProjetosDashboard, aniversariantesDoMes } from "@/modules/dashboard/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { STATUS_CHIP, STATUS_LABEL } from "@/modules/projetos/status";
 import { HeroCard } from "@/components/dashboard/hero-card";
 import { ReceitaChart } from "@/components/dashboard/receita-chart";
 import { TrendLine } from "@/components/qualidade/trend-line";
 import { CarteiraDashboard } from "@/components/dashboard/carteira-dashboard";
+import { AniversariantesCards } from "@/components/dashboard/aniversariantes-card";
 import { brlInteiro as brl } from "@/lib/utils";
 import { GLOBAL_ROLES } from "@/lib/roles";
+import { podeVerFinanceiro } from "@/lib/permissions";
 
 export default async function HomePage() {
   const user = await requireUser();
   if (user.role === "cliente") redirect("/portal");
   const isGlobal = GLOBAL_ROLES.includes(user.role);
-  const [kpis, projetos, receita, snapshots, agingReceita, carteira] = await Promise.all([
+  // Item 5: só busca/expõe dado financeiro a quem pode ver (financeiro:ver ou sócio ativo).
+  const verFin = await podeVerFinanceiro(user);
+  const [kpis, projetos, snapshots, receita, agingReceita, carteira, aniversarios] = await Promise.all([
     kpisHome(),
     projetosRecentes(user),
-    serieReceita(),
     snapshotsDashboard(30),
-    agingReport("receita"),
-    isGlobal ? carteiraProjetosDashboard() : Promise.resolve([]),
+    verFin ? serieReceita() : Promise.resolve([]),
+    verFin ? agingReport("receita") : Promise.resolve(null),
+    isGlobal && verFin ? carteiraProjetosDashboard() : Promise.resolve([]),
+    aniversariantesDoMes(),
   ]);
 
   const cards = [
@@ -43,24 +48,33 @@ export default async function HomePage() {
       delta: "em andamento",
       href: "/projetos?situacao=em_andamento",
     },
-    {
-      label: "Receita prevista",
-      value: brl(kpis.receitaPrevista),
-      delta: "contas a receber em aberto",
-      href: "/financeiro",
-    },
+    // Cards financeiros: apenas quando há permissão.
+    ...(verFin
+      ? [
+          {
+            label: "Receita prevista",
+            value: brl(kpis.receitaPrevista),
+            delta: "contas a receber em aberto",
+            href: "/financeiro",
+          },
+        ]
+      : []),
     {
       label: "Entregas pendentes",
       value: String(kpis.entregasPendentes),
       delta: "disciplinas com prazo em 7 dias ou vencido",
       href: "/projetos",
     },
-    {
-      label: "Contas vencidas",
-      value: brl(agingReceita.totalVencido),
-      delta: "receitas a receber em atraso",
-      href: "/financeiro#aging",
-    },
+    ...(verFin && agingReceita
+      ? [
+          {
+            label: "Contas vencidas",
+            value: brl(agingReceita.totalVencido),
+            delta: "receitas a receber em atraso",
+            href: "/financeiro#aging",
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -85,16 +99,18 @@ export default async function HomePage() {
         ))}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_1.4fr]">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Receita — 6 meses</CardTitle>
-            <CardDescription>Realizado (caixa) × previsto (a receber).</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ReceitaChart dados={receita} />
-          </CardContent>
-        </Card>
+      <div className={verFin ? "grid gap-4 lg:grid-cols-[1fr_1.4fr]" : "grid gap-4"}>
+        {verFin && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Receita — 6 meses</CardTitle>
+              <CardDescription>Realizado (caixa) × previsto (a receber).</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ReceitaChart dados={receita} />
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader className="pb-2">
@@ -151,6 +167,8 @@ export default async function HomePage() {
           </CardContent>
         </Card>
       </div>
+
+      <AniversariantesCards doDia={aniversarios.doDia} doMes={aniversarios.doMes} />
 
       {isGlobal && carteira.length > 0 && (
         <CarteiraDashboard projetos={carteira} />

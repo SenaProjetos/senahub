@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
-import { can } from "@/lib/permissions";
+import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { projetoVisivel } from "@/modules/planejamento/queries";
 import { margemProjeto } from "@/modules/projetos/queries";
 import { receitaProjeto } from "@/modules/projetos/receita/queries";
@@ -25,12 +25,12 @@ export default async function ProjetoFinanceiroPage({
   const projeto = await projetoVisivel(user, id);
   if (!projeto) notFound();
 
-  const [podeGerir, podeVerFinanceiro] = await Promise.all([
+  const [podeGerir, verFinanceiro] = await Promise.all([
     can(user.role, "projetos", "gerir"),
-    can(user.role, "financeiro", "ver"),
+    podeVerFinanceiro(user),
   ]);
 
-  if (!podeVerFinanceiro) {
+  if (!verFinanceiro) {
     return (
       <p className="text-sm text-muted-foreground">
         Você não tem permissão para ver as informações financeiras deste projeto.

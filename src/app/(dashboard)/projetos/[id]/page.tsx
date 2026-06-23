@@ -5,7 +5,7 @@ import { usuariosOnline } from "@/lib/socket";
 import { ROLE_LABELS } from "@/lib/roles";
 import { Avatar, AvatarFallback, AvatarBadge } from "@/components/ui/avatar";
 import { requirePermission } from "@/lib/session";
-import { can } from "@/lib/permissions";
+import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { obterProjeto, usuariosInternos, margemProjeto, catalogoDisciplinas, disciplinasForaDeSLA, SLA_VALIDACAO_DIAS, timelineStatusProjeto } from "@/modules/projetos/queries";
 import { StatusTimeline } from "@/components/projetos/status-timeline";
 import { formatarData } from "@/lib/utils";
@@ -40,15 +40,15 @@ export default async function ProjetoDetalhePage({
   const projeto = await obterProjeto(user, id);
   if (!projeto) notFound();
 
-  const [podeGerir, podeValidar, podeVerFinanceiro] = await Promise.all([
+  const [podeGerir, podeValidar, verFinanceiro] = await Promise.all([
     can(user.role, "projetos", "gerir"),
     can(user.role, "uploads", "validar"),
-    can(user.role, "financeiro", "ver"),
+    podeVerFinanceiro(user),
   ]);
 
   const [internos, margem, catalogo, slaFora, canalChat, canaisDisc, sessaoPonto, timelineStatus] = await Promise.all([
     podeGerir ? usuariosInternos() : Promise.resolve([]),
-    podeVerFinanceiro ? margemProjeto(projeto.id) : Promise.resolve(null),
+    verFinanceiro ? margemProjeto(projeto.id) : Promise.resolve(null),
     podeGerir ? catalogoDisciplinas() : Promise.resolve([]),
     podeValidar ? disciplinasForaDeSLA(user) : Promise.resolve([]),
     canalDoProjeto(projeto.id),
