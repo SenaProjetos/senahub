@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Settings2, Receipt, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText, Upload, SlidersHorizontal, CalendarClock, TrendingUp, CalendarCheck, Wallet, Info } from "lucide-react";
 import { requireUser } from "@/lib/session";
-import { can } from "@/lib/permissions";
+import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { ShieldCheck, AlertTriangle } from "lucide-react";
 import { meuExtrato } from "@/modules/financeiro/queries";
 import { agingReport } from "@/modules/financeiro/aging/queries";
@@ -71,7 +71,7 @@ export default async function FinanceiroPage({
   searchParams: Promise<{ periodo?: string }>;
 }) {
   const user = await requireUser();
-  const podeVer = await can(user.role, "financeiro", "ver");
+  const podeVer = await podeVerFinanceiro(user);
 
   if (podeVer) {
     const sp = await searchParams;
