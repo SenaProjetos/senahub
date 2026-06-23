@@ -3,6 +3,18 @@ import { prisma } from "@/lib/prisma";
 import { CLT_ROLES } from "@/lib/roles";
 import { periodosAquisitivos, resumoAquisitivo } from "@/lib/aquisitivo";
 
+/** Opções para o wizard de cadastro de funcionário: templates de onboarding + PJs ativas. */
+export async function opcoesCadastroFuncionario() {
+  const [templates, pjs] = await Promise.all([
+    prisma.onboardingTemplate.findMany({ where: { ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
+    prisma.pessoaJuridica.findMany({ where: { ativo: true }, orderBy: { razaoSocial: "asc" }, select: { id: true, cnpj: true, razaoSocial: true } }),
+  ]);
+  return {
+    templates,
+    pessoasJuridicas: pjs.map((p) => ({ id: p.id, label: `${p.razaoSocial} (${p.cnpj})` })),
+  };
+}
+
 /** Funcionários (CLT/estagiário) com seus dependentes — base p/ folha e dedução de IRRF. */
 export async function listarFuncionarios() {
   const us = await prisma.user.findMany({

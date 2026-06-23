@@ -6,10 +6,141 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { HR_ADMIN_ROLES } from "@/lib/roles";
 import { removerArquivo } from "@/lib/storage";
+import { criarUsuarioComCredencial } from "@/lib/auth-admin";
+import { buscarCep } from "@/lib/cep";
+import { getSession } from "@/lib/session";
 
 const base = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
 const rev = () => revalidatePath("/rh/funcionarios");
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
+
+/** Consulta CEP (autofill do endereço no wizard). Apenas para usuários logados. */
+export async function consultarCep(cep: string) {
+  const session = await getSession();
+  if (!session) return null;
+  return buscarCep(cep);
+}
+
+// Item 4 — papéis elegíveis ao cadastro completo (exclui freelancer e cliente).
+const CADASTRO_ROLES = ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj"] as const;
+
+const cadastrarFuncionarioSchema = z.object({
+  // Conta de acesso
+  name: z.string().min(2, "Informe o nome."),
+  email: z.string().email("E-mail de acesso inválido."),
+  role: z.enum(CADASTRO_ROLES),
+  // Dados pessoais
+  cpf: opt(z.string()),
+  rg: opt(z.string()),
+  dataNascimento: opt(z.string()),
+  sexo: opt(z.string()),
+  estadoCivil: opt(z.string()),
+  nacionalidade: opt(z.string()),
+  // Endereço / contato
+  enderecoCep: opt(z.string()),
+  enderecoLogradouro: opt(z.string()),
+  enderecoNumero: opt(z.string()),
+  enderecoComplemento: opt(z.string()),
+  enderecoBairro: opt(z.string()),
+  enderecoCidade: opt(z.string()),
+  enderecoUf: opt(z.string()),
+  telefone: opt(z.string()),
+  telefoneEmergencia: opt(z.string()),
+  contatoEmergenciaNome: opt(z.string()),
+  emailPessoal: opt(z.string()),
+  // Dados bancários
+  banco: opt(z.string()),
+  agencia: opt(z.string()),
+  conta: opt(z.string()),
+  tipoContaBancaria: opt(z.string()),
+  // Profissional
+  cargo: opt(z.string()),
+  departamento: opt(z.string()),
+  dataAdmissao: opt(z.string()),
+  salarioBase: z.number().min(0).optional().nullable(),
+  pjId: opt(z.string()),
+  // Onboarding (etapa final)
+  iniciarOnboarding: z.boolean().default(false),
+  templateId: opt(z.string()),
+});
+
+const dataOuNull = (s?: string | null) => (s ? new Date(s + "T00:00:00Z") : null);
+
+/**
+ * Item 4: cadastro completo de colaborador — cria a conta de acesso (better-auth),
+ * grava os dados pessoais/endereço/bancários/contratuais e, opcionalmente, inicia o
+ * onboarding a partir de um template. Não quebra o fluxo de Usuários (conta/role).
+ */
+export const cadastrarFuncionario = defineAction(
+  { ...base, acao: "cadastrar-funcionario", entidade: "User", schema: cadastrarFuncionarioSchema },
+  async (i) => {
+    const email = i.email.toLowerCase().trim();
+    if (await prisma.user.findUnique({ where: { email } })) {
+      throw new ActionError("Já existe um usuário com esse e-mail de acesso.");
+    }
+
+    const { id, senhaTemporaria } = await criarUsuarioComCredencial({
+      name: i.name,
+      email,
+      role: i.role,
+      clienteId: "",
+    });
+
+    await prisma.user.update({
+      where: { id },
+      data: {
+        cpf: i.cpf || null,
+        rg: i.rg || null,
+        dataNascimento: dataOuNull(i.dataNascimento),
+        sexo: i.sexo || null,
+        estadoCivil: i.estadoCivil || null,
+        nacionalidade: i.nacionalidade || null,
+        enderecoCep: i.enderecoCep || null,
+        enderecoLogradouro: i.enderecoLogradouro || null,
+        enderecoNumero: i.enderecoNumero || null,
+        enderecoComplemento: i.enderecoComplemento || null,
+        enderecoBairro: i.enderecoBairro || null,
+        enderecoCidade: i.enderecoCidade || null,
+        enderecoUf: i.enderecoUf || null,
+        telefone: i.telefone || null,
+        telefoneEmergencia: i.telefoneEmergencia || null,
+        contatoEmergenciaNome: i.contatoEmergenciaNome || null,
+        emailPessoal: i.emailPessoal || null,
+        banco: i.banco || null,
+        agencia: i.agencia || null,
+        conta: i.conta || null,
+        tipoContaBancaria: i.tipoContaBancaria || null,
+        cargo: i.cargo || null,
+        departamento: i.departamento || null,
+        dataAdmissao: dataOuNull(i.dataAdmissao),
+        salarioBase: i.salarioBase ?? null,
+        pjId: i.pjId || null,
+      },
+    });
+
+    // Item 4: integra o disparo de onboarding (copia os itens do template).
+    if (i.iniciarOnboarding && i.templateId) {
+      const tpl = await prisma.onboardingTemplate.findUnique({
+        where: { id: i.templateId },
+        include: { itens: { orderBy: { ordem: "asc" } } },
+      });
+      if (tpl) {
+        await prisma.onboardingProcesso.create({
+          data: {
+            userId: id,
+            templateId: tpl.id,
+            itens: { create: tpl.itens.map((it) => ({ descricao: it.descricao, ordem: it.ordem })) },
+          },
+        });
+      }
+    }
+
+    rev();
+    revalidatePath("/configuracoes/usuarios");
+    revalidatePath("/rh/admin");
+    return { id, senhaTemporaria };
+  },
+);
 
 const docMeta = z.object({
   caminho: z.string().min(1),

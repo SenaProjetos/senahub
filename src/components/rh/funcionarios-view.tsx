@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { WizardCadastroFuncionario } from "@/components/rh/wizard-cadastro-funcionario";
 
 const TIPOS_DOC = ["contrato", "rg", "cpf", "aso", "diploma", "comprovante", "outro"] as const;
 
@@ -246,14 +247,25 @@ function FuncCard({ f }: { f: Func }) {
   );
 }
 
-export function FuncionariosView({ funcionarios }: { funcionarios: Func[] }) {
+export function FuncionariosView({
+  funcionarios,
+  templates,
+  pessoasJuridicas,
+}: {
+  funcionarios: Func[];
+  templates: { id: string; nome: string }[];
+  pessoasJuridicas: { id: string; label: string }[];
+}) {
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Funcionários</h2>
-        <p className="text-sm text-muted-foreground">
-          Dependentes dos colaboradores CLT/estagiário (usados na dedução de IRRF da folha).
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-extrabold tracking-tight">Funcionários</h2>
+          <p className="text-sm text-muted-foreground">
+            Cadastro completo de colaboradores, dependentes e documentos.
+          </p>
+        </div>
+        <WizardCadastroFuncionario templates={templates} pessoasJuridicas={pessoasJuridicas} />
       </div>
       {funcionarios.length === 0 ? (
         <Card>
