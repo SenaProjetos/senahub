@@ -59,6 +59,9 @@ src/
                          #   encargos.ts: INSS/IRRF progressive payroll calculator (pure, tested)
                          #   ofx.ts: OFX bank statement parser with dedup+auto-match (tested)
                          #   aprovacao.ts: devePassarPorAprovacao(tipo, valor, limite) for finance workflows
+                         #   aging.ts: receivables/payables aging buckets (a_vencer…d120_mais, pure/tested)
+                         #   aquisitivo.ts: CLT vacation accrual/concessive-window status (pure, tested)
+                         #   ponto-offline.ts: localStorage queue for batidas made while online drops (client)
   generated/prisma/      # Prisma client output (import from here, NOT @prisma/client)
 server.ts                # Next + Socket.io + pg-boss in ONE process
 prisma/schema.prisma     # + prisma.config.ts (Prisma 7: datasource URL lives in the config, not the schema)
@@ -124,6 +127,8 @@ in `lib/prisma.ts`. To see deleted rows, pass `excluidoEm` explicitly in the `wh
 
 **Planejamento CPM** (`modules/planejamento/caminho-critico.ts`) — pure forward/backward-pass critical-path algorithm on tarefas graph (predecessoras + datas). No Prisma dependency; WBS codes (1.2.3 format) and desvio/baseline exported to Excel via `GET /api/planejamento/[id]/eap-export`.
 
+**Project health** (`modules/projetos/health.ts`) — pure `saudeProjeto(disciplinas, prazoFinal)` → `ok | atencao | critico` (returns `null` for non-`em_andamento`). Feeds the "Saúde" column in the projects list and the admin dashboard `CarteiraDashboard`. Same pattern as CPM/tokens: no I/O, unit-tested.
+
 **Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`.
 
 ## Gotchas
@@ -134,6 +139,11 @@ in `lib/prisma.ts`. To see deleted rows, pass `excluidoEm` explicitly in the `wh
   style is `base-nova`. Don't reach for Radix patterns.
 - REST routes under `src/app/api/` exist only for multipart uploads, public-token endpoints, streaming, and
   health. Everything else is a Server Action — don't add CRUD REST endpoints.
+- **PWA service worker (`public/sw.js`):** HTML/navigations are network-first (never serve stale pages);
+  `/_next/static` is cache-first but **only stores responses with `Cache-Control: immutable`** — in `dev:server`
+  (webpack) the same chunk URL changes content per rebuild and is *not* immutable, so caching it would serve a
+  stale chunk and break hydration (`Cannot read properties of undefined (reading 'call')`). Bump `CACHE` to force
+  a reset.
 - Convention: code/identifiers in English, all user-facing strings in Portuguese, commits semantic + pt-BR.
 - **`Select` `onValueChange`** returns `string | null`, not `string` (base-ui diverges from Radix here).
 - **Env vars:**
