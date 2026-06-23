@@ -73,6 +73,15 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "projetista_pj", recurso: "financeiro", acao: "extrato" },
   { role: "freelancer", recurso: "financeiro", acao: "extrato" },
   { role: "cliente", recurso: "financeiro", acao: "extrato" },
+  // Ferramentas de engenharia: internos usam; gestores também administram
+  { role: "supervisor", recurso: "ferramentas", acao: "usar" },
+  { role: "supervisor", recurso: "ferramentas", acao: "gerir" },
+  { role: "administrativo", recurso: "ferramentas", acao: "usar" },
+  { role: "administrativo", recurso: "ferramentas", acao: "gerir" },
+  { role: "clt", recurso: "ferramentas", acao: "usar" },
+  { role: "estagiario", recurso: "ferramentas", acao: "usar" },
+  { role: "projetista_pj", recurso: "ferramentas", acao: "usar" },
+  { role: "freelancer", recurso: "ferramentas", acao: "usar" },
 ];
 
 /** Plano de contas inicial. Códigos usados na auto-categorização de pagamentos. */

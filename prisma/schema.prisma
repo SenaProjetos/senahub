@@ -135,9 +135,36 @@ model User {
   responsavelTecnico   ResponsavelTecnico?
   viabilidadesDecididas ViabilidadeLicitacao[] @relation("ViabilidadeDecisor")
   aceitesGerados        AceiteCliente[]        @relation("AceiteGerador")
+  calculosFerramenta    CalculoFerramenta[]
+  aceitesTermo          AceiteTermo[]
 
   @@index([role])
   @@map("user")
+}
+
+enum TipoTermo {
+  colaborador
+  cliente
+}
+
+/// Registro append-only do aceite do Termo de Uso por usuário/tipo/versão.
+/// Prova legal da manifestação: versão aceita, data/hora, IP, user-agent e
+/// hash SHA-256 do conteúdo exibido (não-repúdio mesmo que o texto mude depois).
+/// O texto e a versão vigente vivem em src/modules/legal/termos.ts.
+model AceiteTermo {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tipo         TipoTermo
+  versao       String
+  conteudoHash String
+  ip           String?
+  userAgent    String?
+  aceitoEm     DateTime  @default(now())
+
+  @@unique([userId, tipo, versao])
+  @@index([userId, tipo])
+  @@map("aceite_termo")
 }
 
 model Session {
@@ -430,6 +457,7 @@ model Projeto {
   planejamentos PlanejamentoPagamento[]
   checklist     ChecklistItemProjeto[]
   riscos        RiscoProjeto[]
+  calculosFerramenta CalculoFerramenta[]
 
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -1230,6 +1258,7 @@ model Disciplina {
   eapTarefas   EapTarefa[]
   pranchas     Prancha[]
   solicitacoesRevisao SolicitacaoRevisao[]
+  calculosFerramenta  CalculoFerramenta[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2924,6 +2953,11 @@ model FeedbackRH {
   @@map("feedback_rh")
 }
 
+enum OrigemUpload {
+  manual
+  ferramenta
+}
+
 enum PacoteUpload {
   A // plantas / memoriais
   B // backup do software
@@ -2942,6 +2976,7 @@ model Upload {
   tamanho      Int
   mimeType     String?
   versao       Int          @default(1)
+  origem       OrigemUpload @default(manual)
 
   validado     Boolean   @default(false)
   validadoPorId String?
@@ -3177,4 +3212,37 @@ model LicitacaoMetricaMensal {
 
   @@unique([ano, mes])
   @@map("licitacao_metrica_mensal")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Ferramentas de Engenharia (F0)
+// ─────────────────────────────────────────────────────────────
+
+/// Snapshot persistido de um cálculo de ferramenta de engenharia.
+/// entradasJson e resultadoJson são o input/output do engine no momento do salvamento.
+model CalculoFerramenta {
+  id            String      @id @default(cuid())
+  /// Chave estável da ferramenta (ex.: "U01", "E01") — igual ao registry.ts.
+  ferramenta    String
+  titulo        String
+  /// Norma de referência aplicada (ex.: "NBR 6118:2023"). Nulo para ferramentas sem norma.
+  norma         String?
+  /// Versão do engine de cálculo (incrementada quando a lógica muda e salva incompatibilidades).
+  versaoCalc    Int         @default(1)
+  entradasJson  Json
+  resultadoJson Json
+
+  autorId      String
+  autor        User        @relation(fields: [autorId], references: [id])
+  projetoId    String?
+  projeto      Projeto?    @relation(fields: [projetoId], references: [id], onDelete: SetNull)
+  disciplinaId String?
+  disciplina   Disciplina? @relation(fields: [disciplinaId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([autorId, ferramenta, createdAt])
+  @@index([projetoId])
+  @@map("calculo_ferramenta")
 }

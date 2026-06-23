@@ -16,7 +16,7 @@ Persistência = `CalculoFerramenta`. UI em `src/app/(dashboard)/ferramentas` + `
 **Tech Stack:** Next 15 (App Router) · React 19 · TS · Prisma 7 (`@/generated/prisma/client`) · Zod · vitest ·
 shadcn-on-base-ui · sonner.
 
-**Status:** ⬜ não iniciada
+**Status:** ✅ concluída (2026-06-23) — tsc/lint/test limpos (529 testes); falta verificação manual no navegador.
 
 ## Global Constraints (herdadas)
 
@@ -40,84 +40,67 @@ Resumo: F0 é quase todo scaffolding no padrão do repo → Sonnet; o único pon
 
 ## Passos
 
-### F0.1 — Schema Prisma  ⬜  ◼ migração
-- [ ] Adicionar `model CalculoFerramenta` (campos da spec §5.1: `ferramenta, titulo, norma?, versaoCalc,
-      entradasJson, resultadoJson, autorId, projetoId?, disciplinaId?, createdAt, updatedAt`; índice
-      `@@index([autorId, ferramenta, createdAt])`; `@@map("calculo_ferramenta")`).
-- [ ] Adicionar relação inversa `calculosFerramenta CalculoFerramenta[]` em `User` (e opcional em `Projeto`/`Disciplina`).
-- [ ] Adicionar enum `OrigemUpload { manual ferramenta }` e campo `origem OrigemUpload @default(manual)` em `model Upload`
-      (decisão #3 — usado só na F2, mas a coluna entra agora p/ evitar 2ª migração).
-- [ ] `npm run db:migrate -- --name ferramentas_calculo` + `npm run db:generate`.
-- **Aceite:** `npx tsc --noEmit` limpo; Prisma Studio mostra a tabela.
+### F0.1 — Schema Prisma  ✅  ◼ migração
+- [x] `model CalculoFerramenta` adicionado (campos da spec §5.1; índices `@@index([autorId, ferramenta, createdAt])`
+      e `@@index([projetoId])`; `@@map("calculo_ferramenta")`).
+- [x] Relação inversa `calculosFerramenta CalculoFerramenta[]` em `User`, `Projeto` e `Disciplina`.
+- [x] Enum `OrigemUpload { manual ferramenta }` + campo `origem OrigemUpload @default(manual)` em `model Upload`.
+- [x] Migration `20260623114345_ferramentas_calculo` aplicada + `db:generate`. (Exigiu `migrate reset` por drift do dev DB.)
+- **Aceite:** `npx tsc --noEmit` limpo. ✅
 
-### F0.2 — Permissões  ⬜
-- [ ] Em `src/lib/permissions-catalog.ts`, recurso `ferramentas` (label "Ferramentas") com ações
-      `usar` ("Usar ferramentas e salvar cálculos") e `gerir` ("Ver cálculos de todos / administrar").
-- [ ] No seed (`prisma/seed.ts`, bloco de permissões base): conceder `ferramentas:usar` aos perfis internos
-      (`supervisor, administrativo, clt, estagiario, projetista_pj, freelancer`) e `ferramentas:gerir` a
-      `supervisor`/`administrativo` (admin faz bypass). `cliente` fica de fora.
-- **Aceite:** matriz em Configurações → Permissões lista o recurso; seed idempotente roda sem erro.
+### F0.2 — Permissões  ✅
+- [x] Recurso `ferramentas` (label "Ferramentas de Engenharia") com ações `usar` e `gerir` em `permissions-catalog.ts`.
+- [x] Seed concede `ferramentas:usar` aos internos e `ferramentas:gerir` a supervisor/administrativo. `cliente` fora.
+- **Aceite:** seed idempotente rodou (60 permissões base). ✅
 
-### F0.3 — Registry + tipos base  ⬜
-- [ ] `src/modules/ferramentas/registry.ts` (client-safe): `type FerramentaMeta { key, nome, descricao,
-      disciplina, tipo: "rapida"|"completa", norma?, exportaveis: ("pdf"|"docx"|"xlsx"|"dxf")[], icon }` +
-      `FERRAMENTAS: FerramentaMeta[]` (no F0, só `U01`) + helpers `getFerramenta(key)`, `porDisciplina()`.
-- [ ] `src/modules/ferramentas/types.ts`: tipos compartilhados (resultado base, `MemoriaDoc` virá na F1).
-- **Aceite:** importável em client component sem puxar `server-only`.
+### F0.3 — Registry + tipos base  ✅
+- [x] `registry.ts` (client-safe): `FerramentaMeta` + `FERRAMENTAS` (só `U01`) + `getFerramenta`/`porDisciplina`.
+- [x] `types.ts`: `Disciplina`, `TipoFerramenta`, `FormatoExport`, `ResultadoBase`, `SnapshotCalculo`, `RecenteCalculo`.
+- **Aceite:** importado pela galeria/forms (client) sem puxar `server-only`. ✅
 
-### F0.4 — Engine U01 (Conversor de unidades)  ⬜  🧪 puro+testes
-- [ ] `src/modules/ferramentas/calc/unit-convert.ts`: dimensões (comprimento, área, volume, massa, força,
-      tensão/pressão, momento, vazão, ângulo) com fatores p/ unidade-base SI; `entradaSchema` (Zod:
-      dimensao, valor, de, para) + `converter(input): { valor, de, para, fator }` (puro).
-- [ ] `unit-convert.test.ts`: casos por dimensão (ex.: 1 tf = 9.80665 kN; 1 MPa = 10.1972 kgf/cm²; round-trip).
-- **Aceite:** `npx vitest run src/modules/ferramentas/calc/unit-convert.test.ts` verde.
+### F0.4 — Engine U01 (Conversor de unidades)  ✅  🧪 puro+testes
+- [x] `calc/unit-convert.ts`: 9 dimensões com fatores SI; `entradaSchema` (Zod) + `converter()` puro.
+- [x] `unit-convert.test.ts`: **32 casos** (tf=9.80665 kN, MPa↔kgf/cm², round-trips, erros). Fatores conferidos.
+- **Aceite:** vitest verde. ✅
 
-### F0.5 — Arquivo de salvamento (.shcalc) — serialização pura  ⬜  🧪
-- [ ] `src/modules/ferramentas/savefile.ts` (puro): `serializar(calc) → {app:"senahub", kind:"shcalc",
-      ferramenta, versaoCalc, titulo, entradas, norma?, geradoEm}` e `parse(json)` validando `app/kind/ferramenta`
-      + Zod das entradas da ferramenta-alvo (erro amigável se incompatível). Extensão sugerida `.shcalc.json`.
-- [ ] `savefile.test.ts`: round-trip serializar→parse; rejeita arquivo de outra ferramenta/sem header.
-- **Aceite:** testes verdes. (Export/import roda **client-side** na F0; auto-store em pacotes é F2.)
+### F0.5 — Arquivo de salvamento (.shcalc)  ✅  🧪
+- [x] `savefile.ts`: `serializar()` + `parse()` (valida header app/kind/ferramenta + Zod das entradas-alvo).
+- [x] `savefile.test.ts`: **8 casos** (round-trip, rejeita outra ferramenta/sem header/entradas incompatíveis).
+- **Aceite:** testes verdes. ✅
 
-### F0.6 — service.ts  ⬜
-- [ ] `montarResultado(ferramenta, entradas)` — chama o engine certo (no F0, `unit-convert`) e devolve o snapshot.
-- [ ] `snapshotParaSalvar(...)` — monta `{ ferramenta, titulo, norma, versaoCalc, entradasJson, resultadoJson }`.
-- [ ] Sem dependência de Next/HTTP (reutilizável por actions e, futuramente, jobs/rotas de export).
+### F0.6 — service.ts  ✅
+- [x] `calcular(ferramenta, entradas)` (dispatch p/ engine) + `snapshotParaSalvar(...)`. Sem Next/HTTP.
 
-### F0.7 — actions.ts (`defineAction`, audita)  ⬜
-- [ ] `salvarCalculo` (`{ recurso:"ferramentas", permissao:"usar", schema }`) — valida entradas pela ferramenta,
-      recalcula no servidor (não confia no resultado do cliente), persiste com `autorId = ctx.user.id`.
-- [ ] `renomearCalculo` / `excluirCalculo` — escopo: autor (ou `ferramentas:gerir`). `capturarAntes` na exclusão/edição.
-- **Aceite:** `AuditLog` registra cada mutação; usuário sem `usar` recebe negação.
+### F0.7 — actions.ts (`defineAction`, audita)  ✅
+- [x] `salvarCalculo` (recalcula no servidor, `autorId=ctx.user.id`), `renomearCalculo`, `excluirCalculo`
+      (escopo autor ou `ferramentas:gerir`, `capturarAntes`). Extra: `buscarCalculo` (leitura p/ reabrir, `audit:false`).
+- **Aceite:** auditoria via `defineAction`; sem `usar` → negação. ✅
 
-### F0.8 — queries.ts  ⬜
-- [ ] `recentesDoUsuario(ferramenta, userId)` → últimos **10** (`orderBy createdAt desc take 10`).
-- [ ] `abrirCalculo(id)` (escopo: autor ou `gerir`), `listarCalculos(params)` com `parseListParams`.
-- **Aceite:** server-only; respeita escopo (autor vs. global).
+### F0.8 — queries.ts  ✅
+- [x] `recentesDoUsuario` (top 10), `abrirCalculo` (escopo), `listarCalculos` (`parseListParams` + escopo gerir/autor).
 
-### F0.9 — Navegação  ⬜
-- [ ] `src/lib/nav-config.ts`: item **"Ferramentas"** (ícone `Calculator`), grupo "Gestão" (ou novo "Engenharia"),
-      `roles` = internos (sem `cliente`), `mobile: true`.
-- **Aceite:** item aparece p/ perfil interno e some p/ `cliente`.
+### F0.9 — Navegação  ✅
+- [x] Item **"Ferramentas"** (ícone `Calculator`) em grupo novo **"Engenharia"**, internos, `mobile:true`.
 
-### F0.10 — Páginas + componentes  ⬜
-- [ ] `src/app/(dashboard)/ferramentas/page.tsx` — galeria por disciplina (cards do `registry`), com guarda `requirePermission("ferramentas","usar")`.
-- [ ] `src/app/(dashboard)/ferramentas/[key]/page.tsx` — resolve `registry`, renderiza a ferramenta.
-- [ ] `src/components/ferramentas/`: `galeria-view.tsx`, `ferramenta-view.tsx` (layout form+resultado+recentes),
-      `unit-convert-form.tsx`, `salvar-dialog.tsx` (nome), `recentes-list.tsx`, `savefile-buttons.tsx`
-      (exportar/importar `.shcalc` client-side: download via Blob, import via `<input type=file>` → `parse` → repovoa).
-- **Aceite:** fluxo manual: converter → salvar com nome → ver em recentes → reabrir (repovoa) → exportar `.shcalc` →
-      importar em aba nova (repovoa). Toasts via sonner.
+### F0.10 — Páginas + componentes  ✅
+- [x] `ferramentas/page.tsx` (galeria, guarda `requirePermission`) + `ferramentas/[key]/page.tsx`.
+- [x] Componentes: `galeria-view`, `ferramenta-view`, `unit-convert-form`, `salvar-dialog`, `recentes-list`, `savefile-buttons`.
+      (Reabrir usa Server Action `buscarCalculo`, não REST.)
+- **Aceite:** ⚠️ **falta verificação manual no navegador** (fluxo converter→salvar→recentes→reabrir→exportar/importar).
 
-### F0.11 — Primitivas DXF (base p/ F1)  ⬜  🧪
-- [ ] `src/lib/dxf.ts` (puro, sem `server-only`): writer R12 ASCII com `text, line, circle, arc, polyline(LWPOLYLINE),
-      layer`, montagem de documento (SECTION/ENTITIES/EOF) e helper de cota linear simples. Unidades em mm.
-- [ ] `src/lib/dxf.test.ts`: gera entidades esperadas; círculo/arco/polyline com grupos corretos.
-- **Aceite:** testes verdes. (Sem UI; consumido na F1.) *Não* refatorar `modules/documentos/dxf.ts` agora.
+### F0.11 — Primitivas DXF (base p/ F1)  ✅  🧪
+- [x] `lib/dxf.ts` (puro): `entidadeTexto/Linha/Circulo/Arco/Polilinha`, `geometriaCotaLinear`, builder `DxfDocumento`
+      (HEADER+TABLES LTYPE/LAYER+ENTITIES+EOF). **Decisão:** polilinha = `POLYLINE/VERTEX/SEQEND` (R12), não LWPOLYLINE
+      (R14+); cota linear desenhada por primitivas, não entidade DIMENSION.
+- [x] `lib/dxf.test.ts`: **26 casos** (entidades, grupos, tabela de camadas, cota, formatação).
+- **Aceite:** testes verdes. Não refatorou `modules/documentos/dxf.ts`. ✅
 
-### F0.12 — Verificação final  ⬜
-- [ ] `npx tsc --noEmit` · `npm run lint` · `npm test` (novos testes verdes) · verificação manual (F0.10).
-- [ ] Commit semântico: `feat(ferramentas): fundação do módulo + conversor de unidades (F0)`.
+### F0.12 — Verificação final  ✅ (parcial)
+- [x] `npx tsc --noEmit` limpo · `npm test` **529 testes verdes** (60 arquivos) · lint dos arquivos novos limpo.
+- [x] `next build`: **compila com sucesso** (RSC/boundary OK); o gate de lint do build falha apenas nos **4 erros
+      pré-existentes** (`projetos/plano-real-card.tsx`, `uploads/aceite-publico-form.tsx`) — fora do escopo F0.
+- [ ] ⚠️ Verificação manual no navegador (F0.10).
+- [ ] Commit semântico.
 
 ## Definition of Done (F0)
 Módulo navegável; Conversor de unidades calcula, salva com nome, lista os 10 recentes, reabre e
