@@ -142,6 +142,12 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: TrendingUp,
         roles: ["admin", "supervisor", "administrativo"],
       },
+      {
+        title: "Pessoas Jurídicas",
+        href: "/rh/pessoas-juridicas",
+        icon: Briefcase,
+        roles: ["admin", "supervisor", "administrativo"],
+      },
     ],
   },
   {
