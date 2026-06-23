@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import type { FerramentaMeta } from "@/modules/ferramentas/registry";
+import { getFerramenta } from "@/modules/ferramentas/registry";
 import type { RecenteCalculo } from "@/modules/ferramentas/types";
 import { buscarCalculo } from "@/modules/ferramentas/actions";
 import { Badge } from "@/components/ui/badge";
@@ -15,12 +15,13 @@ import { RecentesList } from "./recentes-list";
 type RecenteSerializado = Omit<RecenteCalculo, "createdAt"> & { createdAt: string };
 
 type Props = {
-  meta: FerramentaMeta;
+  /** Chave da ferramenta (string serializável); o `meta` é resolvido aqui no cliente. */
+  ferramentaKey: string;
   recentes: RecenteSerializado[];
 };
 
-function renderForm(meta: FerramentaMeta, initialEntradas: Record<string, unknown> | undefined, onSalvo: (id: string) => void) {
-  switch (meta.key) {
+function renderForm(key: string, initialEntradas: Record<string, unknown> | undefined, onSalvo: (id: string) => void) {
+  switch (key) {
     case "U01":
       return <UnitConvertForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     default:
@@ -28,9 +29,10 @@ function renderForm(meta: FerramentaMeta, initialEntradas: Record<string, unknow
   }
 }
 
-export function FerramentaView({ meta, recentes }: Props) {
+export function FerramentaView({ ferramentaKey, recentes }: Props) {
   const router = useRouter();
   const [initialEntradas, setInitialEntradas] = useState<Record<string, unknown> | undefined>();
+  const meta = getFerramenta(ferramentaKey);
 
   const handleSalvo = useCallback(
     (id: string) => {
@@ -47,6 +49,10 @@ export function FerramentaView({ meta, recentes }: Props) {
       setInitialEntradas(r.data.entradasJson);
     }
   }, []);
+
+  if (!meta) {
+    return <div className="p-6 text-sm text-muted-foreground">Ferramenta não encontrada.</div>;
+  }
 
   const Icon = meta.icon;
 
@@ -82,7 +88,7 @@ export function FerramentaView({ meta, recentes }: Props) {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-6">
         {/* Formulário da ferramenta */}
         <div className="rounded-lg border bg-card p-6">
-          {renderForm(meta, initialEntradas, handleSalvo)}
+          {renderForm(meta.key, initialEntradas, handleSalvo)}
         </div>
 
         {/* Painel lateral: Recentes */}

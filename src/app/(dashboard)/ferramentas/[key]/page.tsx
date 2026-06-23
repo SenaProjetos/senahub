@@ -21,9 +21,11 @@ export default async function FerramentaPage({ params }: Props) {
 
   const recentes = await recentesDoUsuario(key, user.id);
 
+  // Passa só a chave (string) + dados serializáveis; o FerramentaView resolve o `meta`
+  // (que contém o ícone-componente) a partir do registry no cliente.
   return (
     <FerramentaView
-      meta={meta}
+      ferramentaKey={meta.key}
       recentes={recentes.map((r) => ({
         id: r.id,
         titulo: r.titulo,

@@ -1,18 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import type { FerramentaMeta } from "@/modules/ferramentas/registry";
+import { porDisciplina } from "@/modules/ferramentas/registry";
 import type { Disciplina } from "@/modules/ferramentas/types";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Zap, Wrench } from "lucide-react";
 
-type Props = {
-  ferramentas: FerramentaMeta[];
-  grupos: Partial<Record<Disciplina, FerramentaMeta[]>>;
-};
-
-export function GaleriaView({ grupos }: Props) {
+// Catálogo (com ícones-componente) é resolvido no cliente — não pode cruzar o boundary RSC.
+export function GaleriaView() {
+  const grupos = porDisciplina();
   const disciplinas = Object.keys(grupos) as Disciplina[];
 
   if (disciplinas.length === 0) {
