@@ -28,28 +28,37 @@ com a conferência e a responsabilidade técnica (ART/RRT) sempre do engenheiro.
 - **Profundidade do Lote 1:** **misto** — várias calculadoras rápidas + **1 ferramenta completa
   end-to-end** (Viga de concreto à flexão) exercitando todo o pipeline.
 - **Exportação no Lote 1:** **PDF, Excel, DXF e Word (.docx)** — os quatro.
-- **Base normativa:** **ABNT / NBR**.
+- **Base normativa:** **ABNT / NBR**, sempre a **edição vigente mais recente** (ex.: NBR 6118:**2023**).
+- **Word:** usar a lib **`docx`** (JS puro).
+- **Persistência (confirmada, com requisitos):**
+  - Salvar cálculo **com nome** (título do usuário).
+  - **Recentes:** manter a **lista dos últimos 10 cálculos** por **ferramenta** (por usuário).
+  - **Arquivo de salvamento** exportável e **recarregável** no futuro (reabre os inputs na ferramenta).
+  - **Associar** um cálculo a **projeto + disciplina**; quando associado, **armazenar automaticamente**:
+    - o **arquivo de salvamento** → **Pacote B** (backups) da disciplina;
+    - os **demais arquivos** (memória PDF/Word/Excel + DXF) → **Pacote A** (Arquivos do projeto).
+- **Escopo da Viga (E01):** flexão + cisalhamento (estribos) + flecha (ELS) + ancoragem; seções
+  retangular/T; viga isolada. Complementos (vigas contínuas etc.) entram depois, se necessário.
 
-## 3. Decisões a confirmar (NÃO assumidas — pendentes de aval)
+## 3. Decisões — resolvidas e ainda abertas
 
-> Diretriz do usuário: *sempre confirmar antes de assumir*. Estes pontos ficam abertos.
+> Diretriz do usuário: *sempre confirmar antes de assumir*.
 
-1. **Biblioteca de Word (.docx):** proponho `docx` (npm, JS puro, sem binário externo — combina com
-   "nativo Windows"). Alternativa hacky (HTML→`.doc`) tem fidelidade ruim. → **Adicionar dependência `docx`?**
-2. **DXF:** estender o **writer próprio R12 ASCII** (já existe p/ carimbo) com novas entidades
-   (CIRCLE, ARC, LWPOLYLINE, layers, cotas). **Sem DWG nativo** (sem SDK pago), igual à decisão do Estúdio. OK?
-3. **Persistência:** salvar cálculos (`CalculoFerramenta`) com **histórico** e vínculo opcional a
-   **projeto/disciplina**? (vs. uso efêmero sem salvar). Recomendo salvar — habilita memória reproduzível e auditoria.
-4. **Fluxo de exportação:** exportar sempre **a partir de um cálculo salvo** (memória reproduzível e
-   auditada) vs. exportar direto de inputs não salvos. Recomendo "salvar → exportar".
-5. **Perfis com acesso:** todos os internos (`admin, supervisor, administrativo, clt, estagiario,
-   projetista_pj, freelancer`); **`cliente` fora**. Estagiário pode usar/salvar? Confirmar.
-6. **Escopo da Viga (F2):** flexão simples + cisalhamento (estribos) + flecha (ELS) + ancoragem;
-   seções **retangular e T**; viga isolada (não pórtico). Vigas contínuas/multi-vão entram depois? Confirmar.
-7. **Edições das normas:** NBR 6118:2014, NBR 6122:2022, NBR 7480 (aço), NBR 8681 (ações/combinações).
-   Confirmar edições vigentes que o escritório adota.
-8. **Responsabilidade técnica:** incluir disclaimer fixo na memória ("ferramenta de apoio; conferência e
-   ART do engenheiro responsável"). Confirmar texto/posição.
+**Resolvidas (ver §2):** Word=`docx` · persistência (nome + recentes-10 + arquivo de salvamento +
+associação a projeto/disciplina + auto-store pacotes A/B) · escopo da Viga · normas = edição mais recente.
+
+**Ainda abertas (não assumidas):**
+
+1. **DXF:** estender o **writer próprio R12 ASCII** (já existe p/ carimbo) com novas entidades
+   (CIRCLE, ARC, LWPOLYLINE, layers, cotas). **Sem DWG nativo** (sem SDK pago), igual à decisão do Estúdio.
+   *Default proposto: sim.* Confirmar.
+2. **Perfis com acesso:** internos (`admin, supervisor, administrativo, clt, estagiario, projetista_pj,
+   freelancer`); **`cliente` fora**. *Default proposto: estagiário pode usar/salvar.* Confirmar.
+3. **Auto-store × validação de entrega:** ao gravar arquivos do cálculo como `Upload` nos pacotes A/B, eles
+   **passam a contar** na checagem de `validarEntrega` (que exige "tem pacote A/B"). Marcar esses uploads como
+   **origem=ferramenta** (não conta como entrega formal) ou aceitar que contem? *Default proposto: marcar e não contar.* Confirmar.
+4. **Responsabilidade técnica:** disclaimer fixo na memória ("ferramenta de apoio; conferência e ART/RRT do
+   engenheiro responsável"). Confirmar texto/posição.
 
 ## 4. Infra reutilizável (já existe no código)
 
@@ -101,9 +110,10 @@ salvos** do usuário (entradas + snapshot de saída), p/ histórico, memória re
 model CalculoFerramenta {
   id            String      @id @default(cuid())
   ferramenta    String      // chave do registry (ex.: "concrete-beam-flexure")
-  titulo        String
-  norma         String?     // ex.: "NBR 6118:2014"
-  entradasJson  Json        // inputs validados (Zod)
+  titulo        String      // nome dado pelo usuário ao salvar
+  norma         String?     // edição vigente usada no cálculo (ex.: "NBR 6118:2023")
+  versaoCalc    Int         @default(1)  // versão do engine que gerou o snapshot (compat. de recarga)
+  entradasJson  Json        // inputs validados (Zod) — base do arquivo de salvamento recarregável
   resultadoJson Json        // snapshot de saída (memória reproduzível)
   autorId       String
   autor         User        @relation(fields: [autorId], references: [id])
@@ -114,9 +124,8 @@ model CalculoFerramenta {
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
-  @@index([autorId])
+  @@index([autorId, ferramenta, createdAt])  // p/ "últimos 10 por ferramenta do usuário"
   @@index([projetoId])
-  @@index([ferramenta])
   @@map("calculo_ferramenta")
 }
 ```
@@ -133,9 +142,26 @@ model CalculoFerramenta {
 
 `MemoriaDoc` (puro) → renderizadores:
 - **PDF:** HTML (template da memória) → puppeteer (reusa padrão das rotas `/api/**/pdf`).
-- **Word:** `MemoriaDoc` → `docx` (decisão #1).
+- **Word:** `MemoriaDoc` → `docx`.
 - **Excel:** `exceljs` (quadros/quantitativos).
 - **DXF:** builders em `dxf/` sobre `lib/dxf` (seção cotada, corte, armadura).
+
+### 5.4 Persistência, salvamento e integração com pacotes A/B
+
+- **Salvar com nome:** `salvarCalculo` (`defineAction`, audita) grava `CalculoFerramenta` com `titulo`,
+  `entradasJson`, `resultadoJson`, `norma`, `versaoCalc`.
+- **Recentes (últimos 10 por ferramenta):** `queries.ts` → `where { autorId, ferramenta } orderBy createdAt
+  desc take 10` (índice composto). Exibidos na própria tela da ferramenta; abrir um recente recarrega os inputs.
+- **Arquivo de salvamento (recarregável):** export `.shcalc.json` = `{ app:"senahub", ferramenta, versaoCalc,
+  titulo, entradas, norma, geradoEm }`. Import valida `ferramenta`+`versaoCalc` e **repovoa o formulário**
+  (migração leve se `versaoCalc` antiga). É um arquivo **portável** (não depende do banco).
+- **Associação a projeto + disciplina:** campos `projetoId`/`disciplinaId` no cálculo (opcionais). Ao associar,
+  **auto-store** via módulo `uploads` (cria registros `Upload` apontando para `STORAGE_BASE_PATH`):
+  - **Pacote B** (`pacote: "B"`, "Backup do modelo" — aceita qualquer formato): o **arquivo de salvamento** `.shcalc.json`.
+  - **Pacote A** (`pacote: "A"`, "Pranchas e arquivos" — já aceita pdf/dxf/doc/docx/xls/xlsx): **memória + DXF**.
+  - Reusa `lib/storage.salvarArquivo` (hash/anti-traversal) e a convenção de caminho de `Upload`.
+  - **Cuidado (decisão aberta #3):** marcar esses uploads com **origem=ferramenta** para **não** contarem como
+    entrega formal em `validarEntrega` (que checa presença de pacote A/B). → schema `Upload.origem`?
 
 ## 6. Catálogo enumerado (backlog de implementação)
 
@@ -249,8 +275,10 @@ Cada fase = `spec → plano → execução` própria. `master` (na branch) verde
 - Prisma `CalculoFerramenta` + `npm run db:migrate` (nome semântico) + `db:generate`.
 - Esqueleto: `registry.ts`, `service.ts`, `actions.ts` (salvar/editar/excluir via `defineAction`,
   audita), `queries.ts` (escopo: autor vê os seus; global vê tudo).
+- **Salvar com nome** + **recentes (últimos 10 por ferramenta)** + **arquivo de salvamento** `.shcalc.json`
+  (export/import que repovoa o formulário) — §5.4.
 - Permissões (`ferramentas:usar|gerir`) + item de nav + página `/ferramentas` (galeria por disciplina).
-- **Prova de pipeline:** ⚡ **Conversor de unidades** (`U01`) end-to-end (form → resultado → salvar), **sem** export ainda.
+- **Prova de pipeline:** ⚡ **Conversor de unidades** (`U01`) end-to-end (form → resultado → salvar/recarregar), **sem** export ainda.
 - `lib/dxf.ts` primitivas (puras, testadas) — base para F1.
 
 ### Onda F1 — Memória + exportação (genérico)  ⬛
@@ -265,7 +293,8 @@ Cada fase = `spec → plano → execução` própria. `master` (na branch) verde
 - ⚡ **Resumo/quantitativo de aço** (`E11`, Excel) standalone.
 - ⚡ **Ancoragem e traspasse** (`E10`, NBR 6118).
 - ⚡ **Estaca por SPT** (`E23`, Aoki-Velloso / Décourt-Quaresma).
-- Vínculo opcional a projeto/disciplina + anexar memória ao projeto (reusa `uploads`).
+- **Associação a projeto + disciplina** + **auto-store** (§5.4): arquivo de salvamento → **Pacote B**;
+  memória (PDF/Word/Excel) + DXF → **Pacote A** — via `uploads` (marcar `origem=ferramenta`).
 
 ### Onda F3+ — Demais disciplinas
 - Hidrossanitário · Elétrico/SPDA · Incêndio/AVAC — cada uma com spec própria.
