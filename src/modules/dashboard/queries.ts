@@ -1,12 +1,12 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma, StatusDisciplina } from "@/generated/prisma/client";
-import { GLOBAL_ROLES, type Role } from "@/lib/roles";
+import { acessoGlobal, type Role } from "@/lib/roles";
 import { kpisHome } from "@/modules/qualidade/queries";
 import { montarSerieReceita } from "@/modules/dashboard/serie-receita";
 import { PESO_STATUS } from "@/modules/projetos/status";
 
-type Viewer = { id: string; role: Role };
+type Viewer = { id: string; role: Role; ehSocio?: boolean };
 
 export type Aniversariante = {
   id: string;
@@ -47,7 +47,7 @@ export async function aniversariantesDoMes(): Promise<{ doDia: Aniversariante[];
 }
 
 function escopo(viewer: Viewer): Prisma.ProjetoWhereInput {
-  if (viewer.role === "admin" || GLOBAL_ROLES.includes(viewer.role)) return {};
+  if (acessoGlobal(viewer)) return {};
   return {
     OR: [
       { membros: { some: { userId: viewer.id } } },

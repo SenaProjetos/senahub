@@ -1,15 +1,11 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { GLOBAL_ROLES, type Role } from "@/lib/roles";
+import { acessoGlobal, type Role } from "@/lib/roles";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { progressoDoStatus } from "@/modules/projetos/status";
 import { minutosSessao } from "@/modules/ponto/format";
 
-type Viewer = { id: string; role: Role };
-
-function isGlobal(role: Role) {
-  return role === "admin" || GLOBAL_ROLES.includes(role);
-}
+type Viewer = { id: string; role: Role; ehSocio?: boolean };
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -50,7 +46,7 @@ export async function projetosComPlano(viewer: Viewer) {
 
 /** Um projeto pode ser visto pelo viewer? (escopo). */
 export async function projetoVisivel(viewer: Viewer, projetoId: string) {
-  if (isGlobal(viewer.role)) {
+  if (acessoGlobal(viewer)) {
     return prisma.projeto.findUnique({ where: { id: projetoId }, select: { id: true, codigo: true, nome: true } });
   }
   return prisma.projeto.findFirst({

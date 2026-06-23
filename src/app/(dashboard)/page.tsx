@@ -22,13 +22,13 @@ import { TrendLine } from "@/components/qualidade/trend-line";
 import { CarteiraDashboard } from "@/components/dashboard/carteira-dashboard";
 import { AniversariantesCards } from "@/components/dashboard/aniversariantes-card";
 import { brlInteiro as brl } from "@/lib/utils";
-import { GLOBAL_ROLES } from "@/lib/roles";
+import { acessoGlobal } from "@/lib/roles";
 import { podeVerFinanceiro } from "@/lib/permissions";
 
 export default async function HomePage() {
   const user = await requireUser();
   if (user.role === "cliente") redirect("/portal");
-  const isGlobal = GLOBAL_ROLES.includes(user.role);
+  const isGlobal = acessoGlobal(user);
   // Item 5: só busca/expõe dado financeiro a quem pode ver (financeiro:ver ou sócio ativo).
   const verFin = await podeVerFinanceiro(user);
   const [kpis, projetos, snapshots, receita, agingReceita, carteira, aniversarios] = await Promise.all([

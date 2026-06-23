@@ -47,3 +47,14 @@ export const PROJETO_MEMBRO_ROLES: Role[] = ["clt", "estagiario", "projetista_pj
 
 /** Perfis PJ — recebem NF, não têm holerite CLT. */
 export const PJ_ROLES: Role[] = ["projetista_pj", "freelancer"];
+
+/** Item 4: perfis elegíveis ao cadastro completo de colaborador (exclui freelancer e cliente). */
+export const CADASTRO_ROLES: Role[] = ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj"];
+
+/**
+ * Acesso GLOBAL de LEITURA (vê todos os projetos/dados): perfis globais OU sócio ativo.
+ * Sócio = piso de supervisor para visualização — não usar para gates de escrita/destrutivos.
+ */
+export function acessoGlobal(u: { role: Role; ehSocio?: boolean }): boolean {
+  return u.role === "admin" || GLOBAL_ROLES.includes(u.role) || u.ehSocio === true;
+}

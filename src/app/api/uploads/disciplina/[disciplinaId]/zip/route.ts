@@ -9,7 +9,7 @@ const archiver = require("archiver") as (
 ) => import("archiver").Archiver;
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { GLOBAL_ROLES } from "@/lib/roles";
+import { acessoGlobal } from "@/lib/roles";
 import { resolverCaminho } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 
@@ -29,7 +29,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ disciplinaId: 
   });
   if (!disciplina) return NextResponse.json({ error: "Disciplina não encontrada." }, { status: 404 });
 
-  const ehGlobal = user.role === "admin" || GLOBAL_ROLES.includes(user.role);
+  const ehGlobal = acessoGlobal(user);
   const ehResp = disciplina.responsaveis.some((r) => r.userId === user.id);
   const ehMembro = disciplina.projeto.membros.some((m) => m.userId === user.id);
   if (!ehGlobal && !ehResp && !ehMembro) {

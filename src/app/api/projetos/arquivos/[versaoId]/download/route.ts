@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { GLOBAL_ROLES } from "@/lib/roles";
+import { acessoGlobal } from "@/lib/roles";
 import { lerArquivo } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 
@@ -29,7 +29,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ versaoId: stri
   if (!versao) return NextResponse.json({ error: "Arquivo não encontrado." }, { status: 404 });
 
   const proj = versao.arquivo.projeto;
-  const ehGlobal = user.role === "admin" || GLOBAL_ROLES.includes(user.role);
+  const ehGlobal = acessoGlobal(user);
   const ehMembro = proj.membros.some((m) => m.userId === user.id);
   const ehResp = proj.disciplinas.some((d) => d.responsaveis.some((r) => r.userId === user.id));
   if (!ehGlobal && !ehMembro && !ehResp) {

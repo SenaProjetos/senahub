@@ -1,19 +1,15 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
-import { GLOBAL_ROLES, INTERNAL_ROLES, type Role } from "@/lib/roles";
+import { INTERNAL_ROLES, acessoGlobal, type Role } from "@/lib/roles";
 import { CATEGORIA_TERCEIRIZADO } from "@/modules/financeiro/custo/lancamento-custo";
 import { calcularRateioDetalhado } from "@/modules/rh/rateio/queries";
 
-type Viewer = { id: string; role: Role };
+type Viewer = { id: string; role: Role; ehSocio?: boolean };
 
-function isGlobal(role: Role) {
-  return role === "admin" || GLOBAL_ROLES.includes(role);
-}
-
-/** Filtro de escopo: global vê tudo; cliente vê seus projetos; demais veem só onde participam. */
+/** Filtro de escopo: global (inclui sócio) vê tudo; cliente vê seus projetos; demais só onde participam. */
 export function escopoProjeto(viewer: Viewer): Prisma.ProjetoWhereInput {
-  if (isGlobal(viewer.role)) return {};
+  if (acessoGlobal(viewer)) return {};
   // P-60: role "cliente" vê projetos vinculados ao seu Cliente (via User.clienteId).
   if (viewer.role === "cliente") {
     return { cliente: { usuarios: { some: { id: viewer.id } } } };
@@ -140,7 +136,7 @@ export async function obterProjeto(viewer: Viewer, id: string) {
   if (!projeto) return null;
 
   // Oculta valores de disciplinas das quais o usuário não é responsável (não-global).
-  if (!isGlobal(viewer.role)) {
+  if (!acessoGlobal(viewer)) {
     projeto.disciplinas = projeto.disciplinas.map((d) => {
       const ehResp = d.responsaveis.some((r) => r.userId === viewer.id);
       return ehResp ? d : { ...d, valor: null };
