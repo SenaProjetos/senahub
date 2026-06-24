@@ -7,8 +7,10 @@ import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
 import { INTERNAL_ROLES } from "@/lib/roles";
 import type { Prisma } from "@/generated/prisma/client";
+import { escopoProjeto } from "@/modules/projetos/queries";
 import { calcular, snapshotParaSalvar } from "./service";
 import { getFerramenta } from "./registry";
+import { autoStore } from "./auto-store";
 
 const base = { modulo: "ferramentas", roles: INTERNAL_ROLES, recurso: "ferramentas" } as const;
 const rev = () => revalidatePath("/ferramentas");
@@ -69,6 +71,22 @@ export const salvarCalculo = defineAction(
         disciplinaId: i.disciplinaId || null,
       },
     });
+
+    // Auto-store: gera arquivos e os registra na disciplina.
+    // void = fire-and-forget; não bloqueia o retorno da action
+    // (PDF com puppeteer pode ser lento — o salvamento aparece imediato para o usuário).
+    if (i.projetoId && i.disciplinaId) {
+      void autoStore({
+        ferramenta: i.ferramenta,
+        titulo: i.titulo,
+        entradas: i.entradas,
+        projetoId: i.projetoId,
+        disciplinaId: i.disciplinaId,
+        autorId: user.id,
+        autorNome: user.name,
+        userRole: user.role,
+      }).catch((err) => console.error("[ferramentas] auto-store falhou:", err));
+    }
 
     rev();
     return { id: registro.id };
@@ -148,5 +166,43 @@ export const excluirCalculo = defineAction(
     await prisma.calculoFerramenta.delete({ where: { id: i.id } });
     rev();
     return { id: i.id };
+  },
+);
+
+// ── Leituras para os selects do salvar-dialog ─────────────────────────────
+
+/** Projetos visíveis ao usuário (para o select de associação). */
+export const listarProjetosParaFerramenta = defineAction(
+  { ...base, acao: "listar-projetos", permissao: "usar", schema: z.object({}), audit: false },
+  async (_, { user }) => {
+    const projetos = await prisma.projeto.findMany({
+      where: escopoProjeto(user),
+      orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
+      select: { id: true, codigo: true, nome: true },
+    });
+    return projetos;
+  },
+);
+
+/** Disciplinas de um projeto (para o select em cascata). */
+export const listarDisciplinasParaFerramenta = defineAction(
+  {
+    ...base,
+    acao: "listar-disciplinas",
+    permissao: "usar",
+    schema: z.object({ projetoId: z.string().min(1) }),
+    audit: false,
+  },
+  async ({ projetoId }, { user }) => {
+    const projetoAcessivel = await prisma.projeto.findFirst({
+      where: { id: projetoId, AND: [escopoProjeto(user)] },
+      select: { id: true },
+    });
+    if (!projetoAcessivel) return [];
+    return prisma.disciplina.findMany({
+      where: { projetoId },
+      orderBy: { ordem: "asc" },
+      select: { id: true, nome: true },
+    });
   },
 );
