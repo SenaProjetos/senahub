@@ -23,6 +23,7 @@ import { calcular as calcularEstaca, entradaSchema as estacaSchema, SOLOS as SOL
 import { calcular as calcularDescida, entradaSchema as descidaSchema } from "./calc/load-descent";
 import { calcular as calcularVento, entradaSchema as ventoSchema, GRUPOS_S3, CATEGORIAS, CLASSES } from "./calc/wind-force";
 import { calcular as calcularCombos, entradaSchema as combosSchema, TIPOS_VARIAVEL } from "./calc/action-combos";
+import { calcular as calcularPilar, entradaSchema as pilarSchema } from "./calc/concrete-column";
 import { getFerramenta } from "./registry";
 
 /** Largura da alma (bw) usada no cisalhamento: b (retangular) ou bw (T). */
@@ -159,6 +160,19 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
         },
       };
     }
+    case "E04": {
+      const r = calcularPilar(pilarSchema.parse(entradas));
+      return {
+        campos: {
+          As: fmtNum(r.As, 2),
+          "taxa (%)": fmtNum(r.taxaGeom, 2),
+          arranjo: `${r.nBarras}ø${r.phi}`,
+          interação: fmtNum(r.interacao, 2),
+          situação: r.situacao,
+        },
+        alertas: r.alertas,
+      };
+    }
     default:
       throw new Error(`Ferramenta desconhecida: "${ferramenta}"`);
   }
@@ -224,6 +238,8 @@ export function montarMemoria(
       return memoriaE13(entradas, base);
     case "E14":
       return memoriaE14(entradas, base);
+    case "E04":
+      return memoriaE04(entradas, base);
     default:
       throw new Error(`Ferramenta sem memória: "${ferramenta}"`);
   }
@@ -703,6 +719,69 @@ function memoriaE14(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
         notas: [
           "Quase-permanente: ΣGk + Σψ2·Qk. Frequente: ΣGk + ψ1·Q1 + Σψ2·Qj. Rara: ΣGk + Q1 + Σψ1·Qj.",
         ],
+      },
+    ],
+  });
+}
+
+function memoriaE04(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+  const e = pilarSchema.parse(entradas);
+  const r = calcularPilar(e);
+  const kNm = (kNcm: number) => fmtNum(kNcm / 100, 2);
+
+  return montarMemoriaBase({
+    ...base,
+    secoes: [
+      {
+        titulo: "Dados de entrada",
+        tabelas: [
+          {
+            colunas: ["Parâmetro", "Valor"],
+            linhas: [
+              ["Seção b × h (cm)", `${e.b} × ${e.h}`],
+              ["fck (MPa)", e.fck],
+              ["Aço", e.aco],
+              ["d' (cm)", e.dLinha ?? 4],
+              ["Nd (kN)", e.Nd],
+              ["Mdx, Mdy (kN·m)", `${e.Mdx ?? 0} ; ${e.Mdy ?? 0}`],
+              ["le,x / le,y (cm)", `${e.lex} / ${e.ley}`],
+              ["αb / α (interação)", `${e.alphaB ?? 1} / ${e.alphaInteracao ?? 1}`],
+            ],
+          },
+        ],
+      },
+      {
+        titulo: "Esbeltez e 2ª ordem (NBR 6118:2023)",
+        tabelas: [
+          {
+            colunas: ["Direção", "λ", "λ1", "Esbelto?", "M1d,mín (kN·m)", "M2d (kN·m)", "Md,tot (kN·m)"],
+            linhas: [
+              ["x (prof. h)", fmtNum(r.dirX.lambda, 1), fmtNum(r.dirX.lambda1, 1), r.dirX.esbelto ? "sim" : "não", kNm(r.dirX.m1dMin), kNm(r.dirX.m2d), kNm(r.dirX.mdTot)],
+              ["y (prof. b)", fmtNum(r.dirY.lambda, 1), fmtNum(r.dirY.lambda1, 1), r.dirY.esbelto ? "sim" : "não", kNm(r.dirY.m1dMin), kNm(r.dirY.m2d), kNm(r.dirY.mdTot)],
+            ],
+          },
+        ],
+        valores: [
+          { simbolo: "ν", descricao: "Força normal adimensional", valor: fmtNum(r.nu, 3), formula: "Nd/(Ac·fcd)" },
+        ],
+        notas: [
+          "2ª ordem pelo método do pilar-padrão com curvatura aproximada (1/r = 0,005/[h(ν+0,5)] ≤ 0,005/h), válido para λ ≤ 90.",
+        ],
+      },
+      {
+        titulo: "Dimensionamento à flexo-compressão oblíqua",
+        valores: [
+          { simbolo: "As,nec", descricao: "Armadura necessária", valor: fmtNum(r.AsNec, 2), unidade: "cm²" },
+          { simbolo: "As,mín", descricao: "Armadura mínima", valor: fmtNum(r.AsMin, 2), unidade: "cm²", formula: "máx(0,4%·Ac ; 0,15·Nd/fyd)" },
+          { simbolo: "As", descricao: "Armadura adotada", valor: fmtNum(r.As, 2), unidade: "cm²" },
+          { simbolo: "ρ", descricao: "Taxa geométrica", valor: fmtNum(r.taxaGeom, 2), unidade: "%" },
+          { simbolo: "Σ", descricao: "Interação biaxial no As adotado", valor: fmtNum(r.interacao, 3), formula: "(Mdx/Mxr)^α + (Mdy/Myr)^α ≤ 1" },
+          { simbolo: "Arranjo", descricao: "Sugestão de barras", valor: `${r.nBarras} ø${r.phi} mm` },
+        ],
+        notas:
+          r.alertas.length > 0
+            ? r.alertas
+            : ["Verificação à flexo-compressão oblíqua atendida (interação ≤ 1)."],
       },
     ],
   });

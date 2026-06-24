@@ -15,6 +15,7 @@ import {
   ArrowDownToLine,
   Wind,
   Sigma,
+  RectangleVertical,
   type LucideIcon,
 } from "lucide-react";
 
@@ -60,6 +61,16 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     norma: "NBR 6118:2023",
     exportaveis: ["pdf", "docx", "xlsx", "dxf"],
     icon: RectangleHorizontal,
+  },
+  {
+    key: "E04",
+    nome: "Pilar de Concreto",
+    descricao: "Flexo-compressão oblíqua (NBR 6118:2023): esbeltez, 2ª ordem (pilar-padrão), dimensionamento de As por interação biaxial e detalhamento da seção.",
+    disciplina: "Estrutural",
+    tipo: "completa",
+    norma: "NBR 6118:2023",
+    exportaveis: ["pdf", "docx", "xlsx", "dxf"],
+    icon: RectangleVertical,
   },
   {
     key: "E10",

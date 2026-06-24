@@ -13,6 +13,7 @@ import { entradaSchema as pileSptSchema } from "./calc/pile-spt";
 import { entradaSchema as loadDescentSchema } from "./calc/load-descent";
 import { entradaSchema as windForceSchema } from "./calc/wind-force";
 import { entradaSchema as actionCombosSchema } from "./calc/action-combos";
+import { entradaSchema as concreteColumnSchema } from "./calc/concrete-column";
 
 export const SAVEFILE_APP = "senahub" as const;
 export const SAVEFILE_KIND = "shcalc" as const;
@@ -33,6 +34,7 @@ const ENTRADAS_SCHEMAS: Record<string, z.ZodTypeAny> = {
   U01: unitConvertSchema,
   U02: sectionSchema,
   E01: beamFlexureSchema,
+  E04: concreteColumnSchema,
   E10: anchorageSchema,
   E11: steelSummarySchema,
   E12: loadDescentSchema,

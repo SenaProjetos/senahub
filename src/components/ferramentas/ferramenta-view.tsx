@@ -18,6 +18,7 @@ import { PileSptForm } from "./pile-spt-form";
 import { LoadDescentForm } from "./load-descent-form";
 import { WindForceForm } from "./wind-force-form";
 import { ActionCombosForm } from "./action-combos-form";
+import { ConcreteColumnForm } from "./concrete-column-form";
 import { RecentesList } from "./recentes-list";
 
 type RecenteSerializado = Omit<RecenteCalculo, "createdAt"> & { createdAt: string };
@@ -48,6 +49,8 @@ function renderForm(key: string, initialEntradas: Record<string, unknown> | unde
       return <WindForceForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     case "E14":
       return <ActionCombosForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
+    case "E04":
+      return <ConcreteColumnForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     default:
       return <p className="text-muted-foreground text-sm">Ferramenta em desenvolvimento.</p>;
   }
