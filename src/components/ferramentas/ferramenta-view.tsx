@@ -10,6 +10,7 @@ import { buscarCalculo } from "@/modules/ferramentas/actions";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { UnitConvertForm } from "./unit-convert-form";
+import { SectionPropertiesForm } from "./section-properties-form";
 import { RecentesList } from "./recentes-list";
 
 type RecenteSerializado = Omit<RecenteCalculo, "createdAt"> & { createdAt: string };
@@ -24,6 +25,8 @@ function renderForm(key: string, initialEntradas: Record<string, unknown> | unde
   switch (key) {
     case "U01":
       return <UnitConvertForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
+    case "U02":
+      return <SectionPropertiesForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     default:
       return <p className="text-muted-foreground text-sm">Ferramenta em desenvolvimento.</p>;
   }
@@ -95,7 +98,7 @@ export function FerramentaView({ ferramentaKey, recentes }: Props) {
         <aside className="space-y-3">
           <h2 className="text-sm font-medium">Recentes</h2>
           <Separator />
-          <RecentesList recentes={recentes} onAbrir={handleAbrir} />
+          <RecentesList recentes={recentes} onAbrir={handleAbrir} exportaveis={meta.exportaveis} />
         </aside>
       </div>
     </div>

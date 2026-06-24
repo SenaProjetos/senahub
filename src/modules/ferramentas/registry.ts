@@ -7,6 +7,7 @@
 import type { Disciplina, TipoFerramenta, FormatoExport } from "./types";
 import {
   ArrowLeftRight,
+  Shapes,
   type LucideIcon,
 } from "lucide-react";
 
@@ -31,8 +32,17 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     descricao: "Converte valores entre unidades de engenharia: comprimento, área, volume, massa, força, tensão, momento, vazão e ângulo.",
     disciplina: "Universal",
     tipo: "rapida",
-    exportaveis: [],
+    exportaveis: ["pdf"],
     icon: ArrowLeftRight,
+  },
+  {
+    key: "U02",
+    nome: "Propriedades de Seção",
+    descricao: "Área, centroide, momentos de inércia, módulos resistentes e raios de giração para seções retangular, circular, T e poligonal.",
+    disciplina: "Universal",
+    tipo: "rapida",
+    exportaveis: ["pdf", "docx", "xlsx", "dxf"],
+    icon: Shapes,
   },
 ];
 

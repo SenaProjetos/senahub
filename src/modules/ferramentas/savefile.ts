@@ -5,6 +5,7 @@
 
 import { z } from "zod";
 import { entradaSchema as unitConvertSchema } from "./calc/unit-convert";
+import { entradaSchema as sectionSchema } from "./calc/section-properties";
 
 export const SAVEFILE_APP = "senahub" as const;
 export const SAVEFILE_KIND = "shcalc" as const;
@@ -23,6 +24,7 @@ const headerSchema = z.object({
 /** Schemas de entradas por ferramenta (adicionar aqui à medida que novas ferramentas forem criadas). */
 const ENTRADAS_SCHEMAS: Record<string, z.ZodTypeAny> = {
   U01: unitConvertSchema,
+  U02: sectionSchema,
 };
 
 const savefileSchema = headerSchema.extend({
