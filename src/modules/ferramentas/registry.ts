@@ -9,6 +9,9 @@ import {
   ArrowLeftRight,
   Shapes,
   RectangleHorizontal,
+  Anchor,
+  Table2,
+  Layers,
   type LucideIcon,
 } from "lucide-react";
 
@@ -54,6 +57,36 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     norma: "NBR 6118:2023",
     exportaveis: ["pdf", "docx", "xlsx", "dxf"],
     icon: RectangleHorizontal,
+  },
+  {
+    key: "E10",
+    nome: "Ancoragem e Traspasse",
+    descricao: "Comprimento de ancoragem (lb, lb,nec, lb,mín) e de traspasse de barras, com/sem gancho e por zona de aderência.",
+    disciplina: "Estrutural",
+    tipo: "rapida",
+    norma: "NBR 6118:2023",
+    exportaveis: ["pdf"],
+    icon: Anchor,
+  },
+  {
+    key: "E11",
+    nome: "Resumo de Aço",
+    descricao: "Quantitativo de aço (corte e dobra): peso por bitola e total com perda, a partir da lista de barras.",
+    disciplina: "Estrutural",
+    tipo: "rapida",
+    norma: "NBR 7480",
+    exportaveis: ["xlsx", "pdf"],
+    icon: Table2,
+  },
+  {
+    key: "E23",
+    nome: "Estaca por SPT",
+    descricao: "Capacidade de carga de estaca por Aoki-Velloso e Décourt-Quaresma, a partir do perfil de sondagem (SPT).",
+    disciplina: "Fundações",
+    tipo: "rapida",
+    norma: "NBR 6122",
+    exportaveis: ["pdf", "xlsx"],
+    icon: Layers,
   },
 ];
 

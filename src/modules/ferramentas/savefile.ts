@@ -7,6 +7,9 @@ import { z } from "zod";
 import { entradaSchema as unitConvertSchema } from "./calc/unit-convert";
 import { entradaSchema as sectionSchema } from "./calc/section-properties";
 import { entradaSchema as beamFlexureSchema } from "./calc/concrete-beam-flexure";
+import { entradaSchema as anchorageSchema } from "./calc/rebar-anchorage";
+import { entradaSchema as steelSummarySchema } from "./calc/steel-summary";
+import { entradaSchema as pileSptSchema } from "./calc/pile-spt";
 
 export const SAVEFILE_APP = "senahub" as const;
 export const SAVEFILE_KIND = "shcalc" as const;
@@ -27,6 +30,9 @@ const ENTRADAS_SCHEMAS: Record<string, z.ZodTypeAny> = {
   U01: unitConvertSchema,
   U02: sectionSchema,
   E01: beamFlexureSchema,
+  E10: anchorageSchema,
+  E11: steelSummarySchema,
+  E23: pileSptSchema,
 };
 
 const savefileSchema = headerSchema.extend({

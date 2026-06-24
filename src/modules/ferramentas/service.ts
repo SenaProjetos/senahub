@@ -17,6 +17,9 @@ import {
 import { calcularCisalhamento } from "./calc/concrete-beam-shear";
 import { calcularFlecha } from "./calc/concrete-beam-deflection";
 import { selecionarBarras } from "./calc/bitolas";
+import { calcular as calcularAncoragem, entradaSchema as ancoragemSchema } from "./calc/rebar-anchorage";
+import { calcular as calcularResumoAco, entradaSchema as resumoAcoSchema } from "./calc/steel-summary";
+import { calcular as calcularEstaca, entradaSchema as estacaSchema, SOLOS as SOLOS_ESTACA, ESTACAS } from "./calc/pile-spt";
 import { getFerramenta } from "./registry";
 
 /** Largura da alma (bw) usada no cisalhamento: b (retangular) ou bw (T). */
@@ -90,6 +93,38 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
       }
       return { campos, alertas };
     }
+    case "E10": {
+      const r = calcularAncoragem(ancoragemSchema.parse(entradas));
+      return {
+        campos: {
+          fbd: fmtNum(r.fbd, 3),
+          lb: fmtNum(r.lb, 1),
+          "lb,nec": fmtNum(r.lbNec, 1),
+          "lb,mín": fmtNum(r.lbMin, 1),
+          l0t: fmtNum(r.l0t, 1),
+        },
+      };
+    }
+    case "E11": {
+      const r = calcularResumoAco(resumoAcoSchema.parse(entradas));
+      return {
+        campos: {
+          peso_total: fmtNum(r.pesoTotalKg, 1),
+          com_perda: fmtNum(r.pesoComPerdaKg, 1),
+          bitolas: r.porBitola.length,
+        },
+      };
+    }
+    case "E23": {
+      const r = calcularEstaca(estacaSchema.parse(entradas));
+      return {
+        campos: {
+          "Radm (Aoki)": fmtNum(r.aoki.radm, 0),
+          "Radm (Décourt)": fmtNum(r.decourt.radm, 0),
+          L: fmtNum(r.comprimento, 1),
+        },
+      };
+    }
     default:
       throw new Error(`Ferramenta desconhecida: "${ferramenta}"`);
   }
@@ -143,6 +178,12 @@ export function montarMemoria(
       return memoriaU02(entradas, base);
     case "E01":
       return memoriaE01(entradas, base);
+    case "E10":
+      return memoriaE10(entradas, base);
+    case "E11":
+      return memoriaE11(entradas, base);
+    case "E23":
+      return memoriaE23(entradas, base);
     default:
       throw new Error(`Ferramenta sem memória: "${ferramenta}"`);
   }
@@ -320,4 +361,111 @@ function memoriaE01(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
   }
 
   return montarMemoriaBase({ ...base, secoes });
+}
+
+function memoriaE10(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+  const e = ancoragemSchema.parse(entradas);
+  const r = calcularAncoragem(e);
+  return montarMemoriaBase({
+    ...base,
+    secoes: [
+      {
+        titulo: "Dados de entrada",
+        tabelas: [
+          {
+            colunas: ["Parâmetro", "Valor"],
+            linhas: [
+              ["Bitola (mm)", e.phiMm],
+              ["Aço", e.aco],
+              ["fck (MPa)", e.fck],
+              ["Aderência", e.aderencia === "boa" ? "Boa" : "Má"],
+              ["Gancho", e.gancho ? "Sim" : "Não"],
+              ["As,calc/As,ef", e.razaoAs],
+              ["% emendadas", e.pctEmendadas],
+            ],
+          },
+        ],
+      },
+      {
+        titulo: "Ancoragem (NBR 6118, 9.4)",
+        valores: [
+          { simbolo: "fbd", descricao: "Tensão de aderência de cálculo", valor: fmtNum(r.fbd, 3), unidade: "MPa", formula: "η1·η2·η3·fctd" },
+          { simbolo: "lb", descricao: "Comprimento de ancoragem básico", valor: fmtNum(r.lb, 1), unidade: "cm", formula: "(φ/4)·(fyd/fbd)" },
+          { simbolo: "lb,nec", descricao: "Comprimento de ancoragem necessário", valor: fmtNum(r.lbNec, 1), unidade: "cm" },
+          { simbolo: "lb,mín", descricao: "Comprimento mínimo", valor: fmtNum(r.lbMin, 1), unidade: "cm" },
+        ],
+      },
+      {
+        titulo: "Traspasse (NBR 6118, 9.5)",
+        valores: [
+          { simbolo: "α0t", descricao: "Coeficiente de traspasse", valor: fmtNum(r.alpha0t, 2) },
+          { simbolo: "l0t", descricao: "Comprimento de traspasse", valor: fmtNum(r.l0t, 1), unidade: "cm" },
+          { simbolo: "l0t,mín", descricao: "Traspasse mínimo", valor: fmtNum(r.l0tMin, 1), unidade: "cm" },
+        ],
+      },
+    ],
+  });
+}
+
+function memoriaE11(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+  const e = resumoAcoSchema.parse(entradas);
+  const r = calcularResumoAco(e);
+  return montarMemoriaBase({
+    ...base,
+    secoes: [
+      {
+        titulo: "Resumo de aço por bitola (NBR 7480)",
+        tabelas: [
+          {
+            colunas: ["Bitola (mm)", "Qtde", "Comp. total (m)", "Peso (kg)"],
+            linhas: r.porBitola.map((l) => [l.bitolaMm, l.quantidade, fmtNum(l.comprimentoTotalM, 2), fmtNum(l.pesoKg, 2)]),
+          },
+        ],
+        valores: [
+          { simbolo: "Peso total", descricao: "Peso de aço (sem perda)", valor: fmtNum(r.pesoTotalKg, 2), unidade: "kg" },
+          { simbolo: "Perda", descricao: "Acréscimo de perda/ponta", valor: fmtNum(r.perdaPct, 0), unidade: "%" },
+          { simbolo: "Peso c/ perda", descricao: "Peso total considerando perda", valor: fmtNum(r.pesoComPerdaKg, 2), unidade: "kg" },
+        ],
+      },
+    ],
+  });
+}
+
+function memoriaE23(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+  const e = estacaSchema.parse(entradas);
+  const r = calcularEstaca(e);
+  return montarMemoriaBase({
+    ...base,
+    secoes: [
+      {
+        titulo: "Dados de entrada",
+        tabelas: [
+          { colunas: ["Estaca", "Diâmetro (cm)"], linhas: [[ESTACAS[e.estaca].label, e.diametroCm]] },
+          {
+            titulo: "Perfil de sondagem (SPT)",
+            colunas: ["Camada", "Solo", "NSPT", "Espessura (m)"],
+            linhas: e.camadas.map((c, i) => [i + 1, SOLOS_ESTACA[c.solo].label, c.nspt, c.espessuraM]),
+          },
+        ],
+      },
+      {
+        titulo: "Aoki-Velloso (1975)",
+        valores: [
+          { simbolo: "Rp", descricao: "Resistência de ponta", valor: fmtNum(r.aoki.rp, 1), unidade: "kN" },
+          { simbolo: "Rl", descricao: "Resistência por atrito lateral", valor: fmtNum(r.aoki.rl, 1), unidade: "kN" },
+          { simbolo: "Rult", descricao: "Carga última", valor: fmtNum(r.aoki.rult, 1), unidade: "kN" },
+          { simbolo: "Radm", descricao: "Carga admissível (FS=2)", valor: fmtNum(r.aoki.radm, 1), unidade: "kN" },
+        ],
+      },
+      {
+        titulo: "Décourt-Quaresma",
+        valores: [
+          { simbolo: "Rp", descricao: "Resistência de ponta", valor: fmtNum(r.decourt.rp, 1), unidade: "kN" },
+          { simbolo: "Rl", descricao: "Resistência por atrito lateral", valor: fmtNum(r.decourt.rl, 1), unidade: "kN" },
+          { simbolo: "Radm", descricao: "Carga admissível (Rp/4 + Rl/1,3)", valor: fmtNum(r.decourt.radm, 1), unidade: "kN" },
+        ],
+        notas: ["Coeficientes empíricos — conferir contra o relatório de sondagem e a prática local."],
+      },
+    ],
+  });
 }

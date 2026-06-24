@@ -12,6 +12,9 @@ import { Separator } from "@/components/ui/separator";
 import { UnitConvertForm } from "./unit-convert-form";
 import { SectionPropertiesForm } from "./section-properties-form";
 import { ConcreteBeamForm } from "./concrete-beam-form";
+import { AnchorageForm } from "./anchorage-form";
+import { SteelSummaryForm } from "./steel-summary-form";
+import { PileSptForm } from "./pile-spt-form";
 import { RecentesList } from "./recentes-list";
 
 type RecenteSerializado = Omit<RecenteCalculo, "createdAt"> & { createdAt: string };
@@ -30,6 +33,12 @@ function renderForm(key: string, initialEntradas: Record<string, unknown> | unde
       return <SectionPropertiesForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     case "E01":
       return <ConcreteBeamForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
+    case "E10":
+      return <AnchorageForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
+    case "E11":
+      return <SteelSummaryForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
+    case "E23":
+      return <PileSptForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     default:
       return <p className="text-muted-foreground text-sm">Ferramenta em desenvolvimento.</p>;
   }

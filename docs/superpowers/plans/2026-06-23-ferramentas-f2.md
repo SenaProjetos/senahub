@@ -36,11 +36,14 @@ projeto/disciplina com auto-store** nos pacotes A/B (§5.4).
       (Ecs≈24150, x_II≈14,78, δ∞≈2,24). Integrado ao E01 via `vao`+`mServ` opcionais (As efetiva ø16). **E01 COMPLETA.**
 - [ ] Ancoragem (lb, lb,nec, ganchos) → será o tool **E10** (F2c), reaproveitável pelo E01.
 
-## Sub-onda F2c — Rápidas normativas  ⬜  **Opus** (engines) / Sonnet (forms)
-- [ ] **E10** Ancoragem e traspasse (NBR 6118): lb, lb,nec, lb,min, traspasse l0t; com/sem gancho; zonas boa/má aderência.
-- [ ] **E11** Resumo/quantitativo de aço (corte e dobra, NBR 7480): tabela de barras → peso por bitola + total (Excel).
-- [ ] **E23** Estaca por SPT: **Aoki-Velloso** e **Décourt-Quaresma** (carga admissível por atrito+ponta).
-- [ ] engines + testes + forms + registry + export (PDF/XLS conforme catálogo).
+## Sub-onda F2c — Rápidas normativas  ✅  **Opus** (engines) / Sonnet (forms)
+- [x] **E10** `calc/rebar-anchorage.ts` (NBR 6118 9.4/9.5): fbd (η1·η2·η3·fctd), lb, lb,nec, lb,mín, traspasse l0t/α0t;
+      com/sem gancho; aderência boa/má. 9 testes hand-check (fbd≈2,886; lb≈60,3; gancho 42,2).
+- [x] **E11** `calc/steel-summary.ts` (NBR 7480): agrupa lista de barras → peso por bitola + total + perda. 4 testes.
+- [x] **E23** `calc/pile-spt.ts` (NBR 6122): **Aoki-Velloso** + **Décourt-Quaresma** (Rp/Rl/Radm) com tabelas de solo e
+      fatores de estaca; 7 testes hand-check (Aoki Radm≈630, Décourt≈489). Simplificações documentadas + nota de conferência.
+- [x] Fiação: registry (E10 Estrutural/Anchor, E11 Estrutural/Table2, E23 Fundações/Layers), savefile, service.calcular +
+      montarMemoria, forms (anchorage/steel-summary/pile-spt c/ `Footer` reusável), ferramenta-view. 618 testes verdes.
 
 ## Sub-onda F2d — Associação a projeto/disciplina + AUTO-STORE  ⬜  Sonnet
 - [ ] `salvarCalculo` aceita `projetoId`/`disciplinaId` (já no schema) — UI no salvar-dialog (selects de projeto+disciplina).
