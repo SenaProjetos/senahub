@@ -47,6 +47,8 @@ function renderForm(key: string, initialEntradas: Record<string, unknown> | unde
 export function FerramentaView({ ferramentaKey, recentes }: Props) {
   const router = useRouter();
   const [initialEntradas, setInitialEntradas] = useState<Record<string, unknown> | undefined>();
+  // Incrementado a cada recente aberto → força re-mount do form, reinicializando os campos.
+  const [formKey, setFormKey] = useState(0);
   const meta = getFerramenta(ferramentaKey);
 
   const handleSalvo = useCallback(
@@ -62,6 +64,7 @@ export function FerramentaView({ ferramentaKey, recentes }: Props) {
     const r = await buscarCalculo({ id });
     if (r.ok) {
       setInitialEntradas(r.data.entradasJson);
+      setFormKey((k) => k + 1);
     }
   }, []);
 
@@ -101,8 +104,8 @@ export function FerramentaView({ ferramentaKey, recentes }: Props) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-6">
-        {/* Formulário da ferramenta */}
-        <div className="rounded-lg border bg-card p-6">
+        {/* Formulário da ferramenta — key muda ao abrir recente, reinicializando os campos */}
+        <div key={formKey} className="rounded-lg border bg-card p-6">
           {renderForm(meta.key, initialEntradas, handleSalvo)}
         </div>
 
