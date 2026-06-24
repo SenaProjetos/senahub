@@ -21,6 +21,7 @@ import { calcular as calcularAncoragem, entradaSchema as ancoragemSchema } from 
 import { calcular as calcularResumoAco, entradaSchema as resumoAcoSchema } from "./calc/steel-summary";
 import { calcular as calcularEstaca, entradaSchema as estacaSchema, SOLOS as SOLOS_ESTACA, ESTACAS } from "./calc/pile-spt";
 import { calcular as calcularDescida, entradaSchema as descidaSchema } from "./calc/load-descent";
+import { calcular as calcularVento, entradaSchema as ventoSchema, GRUPOS_S3, CATEGORIAS, CLASSES } from "./calc/wind-force";
 import { getFerramenta } from "./registry";
 
 /** Largura da alma (bw) usada no cisalhamento: b (retangular) ou bw (T). */
@@ -137,6 +138,16 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
         },
       };
     }
+    case "E13": {
+      const r = calcularVento(ventoSchema.parse(entradas));
+      const campos: Record<string, string | number> = {
+        Vk: fmtNum(r.vk, 1),
+        q: fmtNum(r.qkN, 3),
+        S2: fmtNum(r.s2, 3),
+      };
+      if (r.forca) campos["F arrasto"] = fmtNum(r.forca.f, 1);
+      return { campos };
+    }
     default:
       throw new Error(`Ferramenta desconhecida: "${ferramenta}"`);
   }
@@ -198,6 +209,8 @@ export function montarMemoria(
       return memoriaE23(entradas, base);
     case "E12":
       return memoriaE12(entradas, base);
+    case "E13":
+      return memoriaE13(entradas, base);
     default:
       throw new Error(`Ferramenta sem memória: "${ferramenta}"`);
   }
@@ -529,4 +542,63 @@ function memoriaE12(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
       },
     ],
   });
+}
+
+function memoriaE13(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+  const e = ventoSchema.parse(entradas);
+  const r = calcularVento(e);
+
+  const secoes: MemoriaDoc["secoes"] = [
+    {
+      titulo: "Dados de entrada",
+      tabelas: [
+        {
+          colunas: ["Parâmetro", "Valor"],
+          linhas: [
+            ["V0 (m/s)", e.v0],
+            ["S1 (topográfico)", e.s1],
+            ["Categoria", CATEGORIAS[e.categoria]],
+            ["Classe", CLASSES[e.classe]],
+            ["Cota z (m)", e.z],
+            ["S3", GRUPOS_S3[e.grupoS3].label],
+          ],
+        },
+      ],
+    },
+    {
+      titulo: "Fatores e velocidade característica (NBR 6123:1988)",
+      valores: [
+        { simbolo: "S1", descricao: "Fator topográfico", valor: fmtNum(r.s1, 3) },
+        { simbolo: "b", descricao: "Parâmetro de rugosidade (Tab. 1)", valor: fmtNum(r.b, 3) },
+        { simbolo: "Fr", descricao: "Fator de rajada (cat. II)", valor: fmtNum(r.fr, 3) },
+        { simbolo: "p", descricao: "Expoente do perfil (Tab. 1)", valor: fmtNum(r.p, 3) },
+        { simbolo: "S2", descricao: "Fator de rugosidade/altura", valor: fmtNum(r.s2, 3), formula: "b·Fr·(z/10)^p" },
+        { simbolo: "S3", descricao: "Fator estatístico", valor: fmtNum(r.s3, 3) },
+        { simbolo: "Vk", descricao: "Velocidade característica", valor: fmtNum(r.vk, 2), unidade: "m/s", formula: "V0·S1·S2·S3" },
+        { simbolo: "q", descricao: "Pressão dinâmica", valor: fmtNum(r.q, 1), unidade: "N/m²", formula: "0,613·Vk²" },
+        { simbolo: "q", descricao: "Pressão dinâmica", valor: fmtNum(r.qkN, 3), unidade: "kN/m²" },
+      ],
+    },
+  ];
+
+  if (r.forca) {
+    secoes.push({
+      titulo: "Força de arrasto global",
+      valores: [
+        { simbolo: "Ae", descricao: "Área frontal efetiva", valor: fmtNum(r.forca.ae, 2), unidade: "m²", formula: "l1·h" },
+        { simbolo: "h/l1", descricao: "Razão para o ábaco de Ca", valor: fmtNum(r.forca.razaoHL1, 3) },
+        ...(r.forca.razaoL1L2 != null
+          ? [{ simbolo: "l1/l2", descricao: "Razão para o ábaco de Ca", valor: fmtNum(r.forca.razaoL1L2, 3) }]
+          : []),
+        { simbolo: "Ca", descricao: "Coeficiente de arrasto (Fig. 4/5)", valor: fmtNum(r.forca.ca, 3) },
+        { simbolo: "Fa", descricao: "Força de arrasto", valor: fmtNum(r.forca.f, 1), unidade: "kN", formula: "Ca·q·Ae" },
+      ],
+      notas: [
+        "Ca lido das Figuras 4 (baixa turbulência) ou 5 (alta turbulência) da NBR 6123:1988, em função de h/l1 e l1/l2.",
+        "q avaliado na cota z informada — para a força global, usar z no topo da edificação (a favor da segurança).",
+      ],
+    });
+  }
+
+  return montarMemoriaBase({ ...base, secoes });
 }

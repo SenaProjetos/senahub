@@ -13,6 +13,7 @@ import {
   Table2,
   Layers,
   ArrowDownToLine,
+  Wind,
   type LucideIcon,
 } from "lucide-react";
 
@@ -88,6 +89,16 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     norma: "NBR 6120:2019",
     exportaveis: ["pdf", "xlsx"],
     icon: ArrowDownToLine,
+  },
+  {
+    key: "E13",
+    nome: "Ação do Vento",
+    descricao: "Velocidade característica e pressão dinâmica do vento (Vk, q) e força de arrasto global (F = Ca·q·Ae), com fatores S1, S2 e S3.",
+    disciplina: "Estrutural",
+    tipo: "rapida",
+    norma: "NBR 6123:1988",
+    exportaveis: ["pdf"],
+    icon: Wind,
   },
   {
     key: "E23",

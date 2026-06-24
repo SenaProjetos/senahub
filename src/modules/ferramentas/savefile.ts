@@ -11,6 +11,7 @@ import { entradaSchema as anchorageSchema } from "./calc/rebar-anchorage";
 import { entradaSchema as steelSummarySchema } from "./calc/steel-summary";
 import { entradaSchema as pileSptSchema } from "./calc/pile-spt";
 import { entradaSchema as loadDescentSchema } from "./calc/load-descent";
+import { entradaSchema as windForceSchema } from "./calc/wind-force";
 
 export const SAVEFILE_APP = "senahub" as const;
 export const SAVEFILE_KIND = "shcalc" as const;
@@ -34,6 +35,7 @@ const ENTRADAS_SCHEMAS: Record<string, z.ZodTypeAny> = {
   E10: anchorageSchema,
   E11: steelSummarySchema,
   E12: loadDescentSchema,
+  E13: windForceSchema,
   E23: pileSptSchema,
 };
 
