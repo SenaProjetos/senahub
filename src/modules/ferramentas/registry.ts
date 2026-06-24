@@ -16,6 +16,7 @@ import {
   Wind,
   Sigma,
   RectangleVertical,
+  Grid2x2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -71,6 +72,16 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     norma: "NBR 6118:2023",
     exportaveis: ["pdf", "docx", "xlsx", "dxf"],
     icon: RectangleVertical,
+  },
+  {
+    key: "E05",
+    nome: "Laje Maciça",
+    descricao: "Laje retangular armada em cruz (tabelas de Bares, NBR 6118): momentos por direção, armadura e flecha elástica, para 9 casos de vinculação.",
+    disciplina: "Estrutural",
+    tipo: "completa",
+    norma: "NBR 6118:2023",
+    exportaveis: ["pdf", "docx", "xlsx", "dxf"],
+    icon: Grid2x2,
   },
   {
     key: "E10",

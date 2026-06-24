@@ -24,6 +24,7 @@ import { calcular as calcularDescida, entradaSchema as descidaSchema } from "./c
 import { calcular as calcularVento, entradaSchema as ventoSchema, GRUPOS_S3, CATEGORIAS, CLASSES } from "./calc/wind-force";
 import { calcular as calcularCombos, entradaSchema as combosSchema, TIPOS_VARIAVEL } from "./calc/action-combos";
 import { calcular as calcularPilar, entradaSchema as pilarSchema } from "./calc/concrete-column";
+import { calcular as calcularLaje, entradaSchema as lajeSchema, CASOS as CASOS_LAJE } from "./calc/slab-bares";
 import { getFerramenta } from "./registry";
 
 /** Largura da alma (bw) usada no cisalhamento: b (retangular) ou bw (T). */
@@ -173,6 +174,14 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
         alertas: r.alertas,
       };
     }
+    case "E05": {
+      const r = calcularLaje(lajeSchema.parse(entradas));
+      const campos: Record<string, string | number> = { λ: fmtNum(r.lambda, 2) };
+      for (const m of r.momentos) campos[`As ${m.simbolo}`] = fmtNum(m.as, 2);
+      campos["flecha"] = fmtNum(r.flechaTotal, 2);
+      campos["L/250"] = fmtNum(r.flechaLimite, 2);
+      return { campos, alertas: r.alertas };
+    }
     default:
       throw new Error(`Ferramenta desconhecida: "${ferramenta}"`);
   }
@@ -240,6 +249,8 @@ export function montarMemoria(
       return memoriaE14(entradas, base);
     case "E04":
       return memoriaE04(entradas, base);
+    case "E05":
+      return memoriaE05(entradas, base);
     default:
       throw new Error(`Ferramenta sem memória: "${ferramenta}"`);
   }
@@ -782,6 +793,62 @@ function memoriaE04(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
           r.alertas.length > 0
             ? r.alertas
             : ["Verificação à flexo-compressão oblíqua atendida (interação ≤ 1)."],
+      },
+    ],
+  });
+}
+
+function memoriaE05(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+  const e = lajeSchema.parse(entradas);
+  const r = calcularLaje(e);
+
+  return montarMemoriaBase({
+    ...base,
+    secoes: [
+      {
+        titulo: "Dados de entrada",
+        tabelas: [
+          {
+            colunas: ["Parâmetro", "Valor"],
+            linhas: [
+              ["Vinculação", CASOS_LAJE[e.caso]],
+              ["lx × ly (cm)", `${Math.min(e.lx, e.ly)} × ${Math.max(e.lx, e.ly)}`],
+              ["λ = ly/lx", fmtNum(r.lambda, 3)],
+              ["Espessura h (cm)", e.h],
+              ["Carga p (kN/m²)", e.p],
+              ["fck (MPa) / Aço", `${e.fck} / ${e.aco}`],
+            ],
+          },
+        ],
+      },
+      {
+        titulo: "Momentos e armaduras por direção (tabelas de Bares)",
+        tabelas: [
+          {
+            colunas: ["Esforço", "M (kN·m/m)", "As (cm²/m)"],
+            linhas: r.momentos.map((m) => [m.simbolo, fmtNum(m.m, 2), fmtNum(m.as, 2)]),
+          },
+        ],
+        valores: [
+          { simbolo: "As,mín", descricao: "Armadura mínima de laje (0,67·ρmín)", valor: fmtNum(r.asMin, 2), unidade: "cm²/m" },
+        ],
+        notas: [
+          "M = μ · p · lx² / 100 (μ das tabelas de Bares–Pinheiro, carga uniforme, laje armada em cruz).",
+          "As por flexão simples de faixa de 1 m; adota-se o maior entre o calculado e As,mín.",
+        ],
+      },
+      {
+        titulo: "Flecha (ELS, Tabela de Bares — seção bruta)",
+        valores: [
+          { simbolo: "Ecs", descricao: "Módulo de elasticidade secante", valor: fmtNum(r.ecs, 0), unidade: "MPa" },
+          { simbolo: "a_i", descricao: "Flecha imediata", valor: fmtNum(r.flechaImediata, 3), unidade: "cm", formula: "(α/100)·p·lx⁴/(Ecs·h³)" },
+          { simbolo: "a_∞", descricao: "Flecha total (diferida)", valor: fmtNum(r.flechaTotal, 3), unidade: "cm", formula: "a_i·(1+αf)" },
+          { simbolo: "a_lim", descricao: "Limite L/250", valor: fmtNum(r.flechaLimite, 3), unidade: "cm" },
+        ],
+        notas:
+          r.alertas.length > 0
+            ? r.alertas
+            : ["Flecha estimada com seção bruta (Tabela de Bares); conferir fissuração (estádio II) e fluência conforme o caso."],
       },
     ],
   });
