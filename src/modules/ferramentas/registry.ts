@@ -14,6 +14,7 @@ import {
   Layers,
   ArrowDownToLine,
   Wind,
+  Sigma,
   type LucideIcon,
 } from "lucide-react";
 
@@ -99,6 +100,16 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     norma: "NBR 6123:1988",
     exportaveis: ["pdf"],
     icon: Wind,
+  },
+  {
+    key: "E14",
+    nome: "Combinações de Ações",
+    descricao: "Combinações últimas (normal, especial, excepcional) e de serviço (quase-permanente, frequente, rara) a partir das ações permanentes e variáveis.",
+    disciplina: "Estrutural",
+    tipo: "rapida",
+    norma: "NBR 8681:2003",
+    exportaveis: ["pdf", "xlsx"],
+    icon: Sigma,
   },
   {
     key: "E23",

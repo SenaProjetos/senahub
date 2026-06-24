@@ -22,6 +22,7 @@ import { calcular as calcularResumoAco, entradaSchema as resumoAcoSchema } from 
 import { calcular as calcularEstaca, entradaSchema as estacaSchema, SOLOS as SOLOS_ESTACA, ESTACAS } from "./calc/pile-spt";
 import { calcular as calcularDescida, entradaSchema as descidaSchema } from "./calc/load-descent";
 import { calcular as calcularVento, entradaSchema as ventoSchema, GRUPOS_S3, CATEGORIAS, CLASSES } from "./calc/wind-force";
+import { calcular as calcularCombos, entradaSchema as combosSchema, TIPOS_VARIAVEL } from "./calc/action-combos";
 import { getFerramenta } from "./registry";
 
 /** Largura da alma (bw) usada no cisalhamento: b (retangular) ou bw (T). */
@@ -148,6 +149,16 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
       if (r.forca) campos["F arrasto"] = fmtNum(r.forca.f, 1);
       return { campos };
     }
+    case "E14": {
+      const r = calcularCombos(combosSchema.parse(entradas));
+      return {
+        campos: {
+          "Fd,ELU normal": fmtNum(r.elu.normal.governante.fd, 1),
+          "Fd,ELS rara": fmtNum(r.els.rara.governante.fd, 1),
+          "Fd,ELS q.perm.": fmtNum(r.els.quasePermanente.fd, 1),
+        },
+      };
+    }
     default:
       throw new Error(`Ferramenta desconhecida: "${ferramenta}"`);
   }
@@ -211,6 +222,8 @@ export function montarMemoria(
       return memoriaE12(entradas, base);
     case "E13":
       return memoriaE13(entradas, base);
+    case "E14":
+      return memoriaE14(entradas, base);
     default:
       throw new Error(`Ferramenta sem memória: "${ferramenta}"`);
   }
@@ -601,4 +614,96 @@ function memoriaE13(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
   }
 
   return montarMemoriaBase({ ...base, secoes });
+}
+
+const ROTULO_ELU: Record<string, string> = {
+  normal: "Última normal",
+  especial: "Última especial / de construção",
+  excepcional: "Última excepcional",
+};
+
+function memoriaE14(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+  const e = combosSchema.parse(entradas);
+  const r = calcularCombos(e);
+
+  const linhasELU = (Object.keys(r.elu) as (keyof typeof r.elu)[]).flatMap((tipo) =>
+    r.elu[tipo].combinacoes.map((c) => [
+      ROTULO_ELU[tipo],
+      c.principal ?? "—",
+      fmtNum(c.fd, 1),
+      c === r.elu[tipo].governante ? "★" : "",
+    ]),
+  );
+
+  const linhasELS = [
+    ["Quase-permanente", r.els.quasePermanente.principal ?? "—", fmtNum(r.els.quasePermanente.fd, 1), "★"],
+    ...r.els.frequente.combinacoes.map((c) => [
+      "Frequente",
+      c.principal ?? "—",
+      fmtNum(c.fd, 1),
+      c === r.els.frequente.governante ? "★" : "",
+    ]),
+    ...r.els.rara.combinacoes.map((c) => [
+      "Rara",
+      c.principal ?? "—",
+      fmtNum(c.fd, 1),
+      c === r.els.rara.governante ? "★" : "",
+    ]),
+  ];
+
+  return montarMemoriaBase({
+    ...base,
+    secoes: [
+      {
+        titulo: "Ações",
+        tabelas: [
+          {
+            titulo: "Permanentes (Gk)",
+            colunas: ["Ação", "Gk", "Situação"],
+            linhas: e.permanentes.map((p) => [p.nome, p.gk, p.favoravel ? "Favorável" : "Desfavorável"]),
+          },
+          ...(e.variaveis.length > 0
+            ? [
+                {
+                  titulo: "Variáveis (Qk)",
+                  colunas: ["Ação", "Qk", "Tipo (ψ0 / ψ1 / ψ2)"],
+                  linhas: e.variaveis.map((q) => {
+                    const t = TIPOS_VARIAVEL[q.tipo];
+                    return [q.nome, q.qk, `${t.label} (${t.psi0} / ${t.psi1} / ${t.psi2})`];
+                  }),
+                },
+              ]
+            : []),
+        ],
+      },
+      {
+        titulo: "Combinações últimas — ELU (NBR 8681:2003)",
+        tabelas: [
+          {
+            colunas: ["Combinação", "Ação principal", "Fd", "Gov."],
+            linhas: linhasELU,
+          },
+        ],
+        valores: [
+          { simbolo: "Fd,ELU", descricao: "Governante (última normal)", valor: fmtNum(r.elu.normal.governante.fd, 1) },
+        ],
+        notas: [
+          "γ por tipo: normal 1,4/1,0 (perm.) e 1,4 (var.); especial 1,3/1,0 e 1,2; excepcional 1,2/1,0 e 1,0 (NBR 6118:2014 Tab. 11.1).",
+          "A combinação excepcional usa aqui a estrutura da normal (ψ0 nas secundárias); a NBR 8681 (5.1.5) admite ψ0,ef e o valor próprio da ação excepcional.",
+        ],
+      },
+      {
+        titulo: "Combinações de serviço — ELS",
+        tabelas: [
+          {
+            colunas: ["Combinação", "Ação principal", "Fd", "Gov."],
+            linhas: linhasELS,
+          },
+        ],
+        notas: [
+          "Quase-permanente: ΣGk + Σψ2·Qk. Frequente: ΣGk + ψ1·Q1 + Σψ2·Qj. Rara: ΣGk + Q1 + Σψ1·Qj.",
+        ],
+      },
+    ],
+  });
 }

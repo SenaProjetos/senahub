@@ -12,6 +12,7 @@ import { entradaSchema as steelSummarySchema } from "./calc/steel-summary";
 import { entradaSchema as pileSptSchema } from "./calc/pile-spt";
 import { entradaSchema as loadDescentSchema } from "./calc/load-descent";
 import { entradaSchema as windForceSchema } from "./calc/wind-force";
+import { entradaSchema as actionCombosSchema } from "./calc/action-combos";
 
 export const SAVEFILE_APP = "senahub" as const;
 export const SAVEFILE_KIND = "shcalc" as const;
@@ -36,6 +37,7 @@ const ENTRADAS_SCHEMAS: Record<string, z.ZodTypeAny> = {
   E11: steelSummarySchema,
   E12: loadDescentSchema,
   E13: windForceSchema,
+  E14: actionCombosSchema,
   E23: pileSptSchema,
 };
 
