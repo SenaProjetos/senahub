@@ -52,7 +52,7 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     disciplina: "Estrutural",
     tipo: "completa",
     norma: "NBR 6118:2023",
-    exportaveis: ["pdf", "docx", "xlsx"],
+    exportaveis: ["pdf", "docx", "xlsx", "dxf"],
     icon: RectangleHorizontal,
   },
 ];

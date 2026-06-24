@@ -32,6 +32,7 @@ export const entradaSchema = z
     aco: z.enum(["CA-25", "CA-50", "CA-60"]),
     Mk: z.number().positive(), // momento característico (kN·m)
     gamaF: z.number().positive().default(1.4),
+    Vk: z.number().positive().optional(), // cortante característico (kN) — habilita o check de cisalhamento
   })
   .refine((v) => v.d < alturaTotal(v.secao), { message: "d deve ser menor que a altura total da seção.", path: ["d"] });
 

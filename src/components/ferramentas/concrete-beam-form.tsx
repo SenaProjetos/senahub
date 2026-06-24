@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { calcular, type EntradaFlexaoInput } from "@/modules/ferramentas/calc/concrete-beam-flexure";
+import { calcularCisalhamento } from "@/modules/ferramentas/calc/concrete-beam-shear";
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { SalvarDialog } from "./salvar-dialog";
 import { SavefileButtons } from "./savefile-buttons";
@@ -41,7 +42,7 @@ function dimsIniciais(e?: Record<string, unknown>): Dims {
   const d: Dims = {};
   const sec = e?.secao as Record<string, unknown> | undefined;
   if (sec) for (const k of ["b", "h", "bf", "hf", "bw"]) if (typeof sec[k] === "number") d[k] = String(sec[k]);
-  for (const k of ["d", "fck", "Mk", "dLinha"]) if (typeof e?.[k] === "number") d[k] = String(e[k]);
+  for (const k of ["d", "fck", "Mk", "dLinha", "Vk"]) if (typeof e?.[k] === "number") d[k] = String(e[k]);
   return d;
 }
 
@@ -65,6 +66,7 @@ function montarEntrada(forma: Forma, dims: Dims, aco: string): EntradaFlexaoInpu
     fck: n("fck"),
     aco: aco as "CA-25" | "CA-50" | "CA-60",
     Mk: n("Mk"),
+    Vk: dims.Vk && n("Vk") > 0 ? n("Vk") : undefined,
   };
 }
 
@@ -87,6 +89,15 @@ export function ConcreteBeamForm({ initialEntradas, onSalvo }: Props) {
     if (!entrada) return null;
     try {
       return calcular(entrada);
+    } catch {
+      return null;
+    }
+  }, [entrada]);
+  const cisalhamento = useMemo(() => {
+    if (!entrada || entrada.Vk == null) return null;
+    const bw = entrada.secao.forma === "retangular" ? entrada.secao.b : entrada.secao.bw;
+    try {
+      return calcularCisalhamento({ bw, d: entrada.d, fck: entrada.fck, Vk: entrada.Vk });
     } catch {
       return null;
     }
@@ -137,10 +148,11 @@ export function ConcreteBeamForm({ initialEntradas, onSalvo }: Props) {
         ))}
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Campo id="d" label="Altura útil d (cm)" value={dims.d ?? ""} onChange={(v) => setDim("d", v)} />
         <Campo id="fck" label="fck (MPa)" value={dims.fck ?? ""} onChange={(v) => setDim("fck", v)} />
         <Campo id="Mk" label="Mk (kN·m)" value={dims.Mk ?? ""} onChange={(v) => setDim("Mk", v)} />
+        <Campo id="Vk" label="Vk (kN) — opc." value={dims.Vk ?? ""} onChange={(v) => setDim("Vk", v)} />
       </div>
 
       {resultado && (
@@ -153,9 +165,16 @@ export function ConcreteBeamForm({ initialEntradas, onSalvo }: Props) {
             <Prop simbolo="As,mín" valor={fmtNum(resultado.AsMin, 2)} un="cm²" />
             <Prop simbolo="Situação" valor={resultado.situacao === "ok" ? "OK" : "Revisar"} un="" />
           </div>
-          {resultado.alertas.length > 0 && (
+          {cisalhamento && (
+            <div className="border-t pt-3 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">
+              <Prop simbolo="Asw/s" valor={fmtNum(cisalhamento.aswSadotar, 2)} un="cm²/m" destaque />
+              <Prop simbolo="s,máx" valor={fmtNum(cisalhamento.sMax, 1)} un="cm" />
+              <Prop simbolo="VRd2" valor={fmtNum(cisalhamento.vRd2, 0)} un="kN" />
+            </div>
+          )}
+          {[...resultado.alertas, ...(cisalhamento?.alertas ?? [])].length > 0 && (
             <ul className="text-xs text-amber-700 dark:text-amber-500 space-y-1 list-disc pl-4">
-              {resultado.alertas.map((a, i) => (
+              {[...resultado.alertas, ...(cisalhamento?.alertas ?? [])].map((a, i) => (
                 <li key={i}>{a}</li>
               ))}
             </ul>

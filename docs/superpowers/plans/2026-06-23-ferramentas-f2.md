@@ -26,12 +26,13 @@ projeto/disciplina com auto-store** nos pacotes A/B (§5.4).
       `concrete-beam-form.tsx`, savefile. **DXF de armadura deferido p/ F2b.**
 - [x] Commit. tsc/lint limpos; 574 testes verdes.
 
-## Sub-onda F2b — Viga E01: CISALHAMENTO + FLECHA + ANCORAGEM  ⬜  **Opus**
-- [ ] Cisalhamento (Modelo I, NBR 6118): VRd2 (biela), Vc, Vsw → área de estribos Asw/s, s,máx.
-- [ ] Flecha (ELS): inércia de Branson (estádio II), flecha imediata + diferida (αf); verificação vs. L/250.
-- [ ] Ancoragem (lb, lb,nec, ganchos) — reusa E10.
-- [ ] Memória completa (PDF/Word) + Excel (resumo de aço) + **DXF: seção cotada + corte com armadura longitudinal/estribos**.
-- [ ] `registry` E01 (🔧 completa, exportaveis pdf/docx/xlsx/dxf) + form + integração F1.
+## Sub-onda F2b — Viga E01: CISALHAMENTO + DXF (+ flecha pendente)  🟡  **Opus**
+- [x] **Cisalhamento** (Modelo I, NBR 6118): `calc/concrete-beam-shear.ts` — VRd2 (biela), Vc, Vsw → Asw/s, Asw/s,mín,
+      s,máx; 9 testes hand-check (VRd2≈399, Vc≈70,8, Asw/s≈5,40). Integrado ao E01 via `Vk` opcional (painel+memória+form).
+- [x] **DXF de armadura**: `calc/bitolas.ts` (NBR 7480) + `dxf/beam-section.ts` (contorno/alma, estribo, barras tração/
+      compressão, cotas, legenda) + `dxf/index.ts` (dispatcher); rota DXF generalizada; E01 exportaveis += dxf. 5 testes.
+- [ ] **Flecha (ELS)** — inércia de Branson (estádio II), flecha imediata + diferida (αf), verificação L/250. **PENDENTE.**
+- [ ] Ancoragem (lb, lb,nec, ganchos) → será o tool **E10** (F2c), reaproveitável pelo E01.
 
 ## Sub-onda F2c — Rápidas normativas  ⬜  **Opus** (engines) / Sonnet (forms)
 - [ ] **E10** Ancoragem e traspasse (NBR 6118): lb, lb,nec, lb,min, traspasse l0t; com/sem gancho; zonas boa/má aderência.

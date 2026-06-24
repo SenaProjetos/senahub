@@ -14,7 +14,13 @@ import {
   entradaSchema as vigaSchema,
   type EntradaFlexao,
 } from "./calc/concrete-beam-flexure";
+import { calcularCisalhamento } from "./calc/concrete-beam-shear";
 import { getFerramenta } from "./registry";
+
+/** Largura da alma (bw) usada no cisalhamento: b (retangular) ou bw (T). */
+function larguraAlma(secao: EntradaFlexao["secao"]): number {
+  return secao.forma === "retangular" ? secao.b : secao.bw;
+}
 import { montarMemoriaBase, fmtNum, type MemoriaDoc } from "./memoria";
 import type { ResultadoBase, SnapshotCalculo } from "./types";
 
@@ -40,18 +46,24 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
       };
     }
     case "E01": {
-      const r = calcularViga(vigaSchema.parse(entradas));
-      return {
-        campos: {
-          As: fmtNum(r.As, 2),
-          "As'": fmtNum(r.AsLinha, 2),
-          "x/d": fmtNum(r.xd, 3),
-          dominio: r.dominio,
-          As_min: fmtNum(r.AsMin, 2),
-          situacao: r.situacao,
-        },
-        alertas: r.alertas,
+      const e = vigaSchema.parse(entradas);
+      const r = calcularViga(e);
+      const campos: Record<string, string | number> = {
+        As: fmtNum(r.As, 2),
+        "As'": fmtNum(r.AsLinha, 2),
+        "x/d": fmtNum(r.xd, 3),
+        dominio: r.dominio,
+        As_min: fmtNum(r.AsMin, 2),
+        situacao: r.situacao,
       };
+      const alertas = [...r.alertas];
+      if (e.Vk != null) {
+        const c = calcularCisalhamento({ bw: larguraAlma(e.secao), d: e.d, fck: e.fck, Vk: e.Vk, gamaF: e.gamaF });
+        campos["Asw/s"] = fmtNum(c.aswSadotar, 2);
+        campos["s_max"] = fmtNum(c.sMax, 1);
+        alertas.push(...c.alertas);
+      }
+      return { campos, alertas };
     }
     default:
       throw new Error(`Ferramenta desconhecida: "${ferramenta}"`);
@@ -202,6 +214,7 @@ function descricaoViga(e: EntradaFlexao): { colunas: string[]; linhas: (string |
     ["Mk (kN·m)", e.Mk],
     ["γf", e.gamaF],
   ];
+  if (e.Vk != null) linhas.push(["Vk (kN)", e.Vk]);
   return { colunas: ["Parâmetro", "Valor"], linhas };
 }
 
@@ -210,37 +223,54 @@ function memoriaE01(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
   const r = calcularViga(e);
   const desc = descricaoViga(e);
 
-  return montarMemoriaBase({
-    ...base,
-    secoes: [
-      {
-        titulo: "Dados de entrada",
-        tabelas: [{ titulo: "Geometria e materiais", colunas: desc.colunas, linhas: desc.linhas }],
-      },
-      {
-        titulo: "Parâmetros de cálculo (NBR 6118:2023)",
-        valores: [
-          { simbolo: "λ", descricao: "Coeficiente do bloco retangular", valor: fmtNum(r.params.lambda, 3) },
-          { simbolo: "αc", descricao: "Coeficiente de redução do concreto", valor: fmtNum(r.params.alphaC, 4) },
-          { simbolo: "fcd", descricao: "Resistência de cálculo do concreto", valor: fmtNum(r.params.fcd * 10, 2), unidade: "MPa", formula: "fck / γc" },
-          { simbolo: "fyd", descricao: "Resistência de cálculo do aço", valor: fmtNum(r.params.fyd * 10, 1), unidade: "MPa", formula: "fyk / γs" },
-          { simbolo: "Md", descricao: "Momento de cálculo", valor: fmtNum(r.md / 100, 2), unidade: "kN·m", formula: "γf · Mk" },
-          { simbolo: "(x/d)lim", descricao: "Limite de ductilidade", valor: fmtNum(r.xLimRatio, 2) },
-        ],
-      },
-      {
-        titulo: "Dimensionamento à flexão (ELU)",
-        valores: [
-          { simbolo: "x", descricao: "Profundidade da linha neutra", valor: fmtNum(r.x, 2), unidade: "cm" },
-          { simbolo: "x/d", descricao: "Posição relativa da LN", valor: fmtNum(r.xd, 3) },
-          { simbolo: "Domínio", descricao: "Domínio de deformação", valor: r.dominio },
-          { simbolo: "As", descricao: "Armadura de tração", valor: fmtNum(r.As, 2), unidade: "cm²" },
-          { simbolo: "As'", descricao: "Armadura de compressão", valor: fmtNum(r.AsLinha, 2), unidade: "cm²" },
-          { simbolo: "As,mín", descricao: "Armadura mínima", valor: fmtNum(r.AsMin, 2), unidade: "cm²" },
-          { simbolo: "As,máx", descricao: "Armadura máxima (4% Ac)", valor: fmtNum(r.AsMax, 2), unidade: "cm²" },
-        ],
-        notas: r.alertas.length > 0 ? r.alertas : ["Verificação de flexão simples atendida."],
-      },
-    ],
-  });
+  const secoes: MemoriaDoc["secoes"] = [
+    {
+      titulo: "Dados de entrada",
+      tabelas: [{ titulo: "Geometria e materiais", colunas: desc.colunas, linhas: desc.linhas }],
+    },
+    {
+      titulo: "Parâmetros de cálculo (NBR 6118:2023)",
+      valores: [
+        { simbolo: "λ", descricao: "Coeficiente do bloco retangular", valor: fmtNum(r.params.lambda, 3) },
+        { simbolo: "αc", descricao: "Coeficiente de redução do concreto", valor: fmtNum(r.params.alphaC, 4) },
+        { simbolo: "fcd", descricao: "Resistência de cálculo do concreto", valor: fmtNum(r.params.fcd * 10, 2), unidade: "MPa", formula: "fck / γc" },
+        { simbolo: "fyd", descricao: "Resistência de cálculo do aço", valor: fmtNum(r.params.fyd * 10, 1), unidade: "MPa", formula: "fyk / γs" },
+        { simbolo: "Md", descricao: "Momento de cálculo", valor: fmtNum(r.md / 100, 2), unidade: "kN·m", formula: "γf · Mk" },
+        { simbolo: "(x/d)lim", descricao: "Limite de ductilidade", valor: fmtNum(r.xLimRatio, 2) },
+      ],
+    },
+    {
+      titulo: "Dimensionamento à flexão (ELU)",
+      valores: [
+        { simbolo: "x", descricao: "Profundidade da linha neutra", valor: fmtNum(r.x, 2), unidade: "cm" },
+        { simbolo: "x/d", descricao: "Posição relativa da LN", valor: fmtNum(r.xd, 3) },
+        { simbolo: "Domínio", descricao: "Domínio de deformação", valor: r.dominio },
+        { simbolo: "As", descricao: "Armadura de tração", valor: fmtNum(r.As, 2), unidade: "cm²" },
+        { simbolo: "As'", descricao: "Armadura de compressão", valor: fmtNum(r.AsLinha, 2), unidade: "cm²" },
+        { simbolo: "As,mín", descricao: "Armadura mínima", valor: fmtNum(r.AsMin, 2), unidade: "cm²" },
+        { simbolo: "As,máx", descricao: "Armadura máxima (4% Ac)", valor: fmtNum(r.AsMax, 2), unidade: "cm²" },
+      ],
+      notas: r.alertas.length > 0 ? r.alertas : ["Verificação de flexão simples atendida."],
+    },
+  ];
+
+  // Seção de cisalhamento (quando Vk informado).
+  if (e.Vk != null) {
+    const c = calcularCisalhamento({ bw: larguraAlma(e.secao), d: e.d, fck: e.fck, Vk: e.Vk, gamaF: e.gamaF });
+    secoes.push({
+      titulo: "Cisalhamento (NBR 6118, Modelo I)",
+      valores: [
+        { simbolo: "VSd", descricao: "Cortante de cálculo", valor: fmtNum(c.vsd, 1), unidade: "kN", formula: "γf · Vk" },
+        { simbolo: "VRd2", descricao: "Resistência da biela comprimida", valor: fmtNum(c.vRd2, 1), unidade: "kN" },
+        { simbolo: "Vc", descricao: "Parcela do concreto", valor: fmtNum(c.vc, 1), unidade: "kN" },
+        { simbolo: "Vsw", descricao: "Parcela dos estribos", valor: fmtNum(c.vsw, 1), unidade: "kN", formula: "VSd − Vc" },
+        { simbolo: "Asw/s", descricao: "Armadura transversal", valor: fmtNum(c.aswSadotar, 2), unidade: "cm²/m" },
+        { simbolo: "Asw/s,mín", descricao: "Armadura transversal mínima", valor: fmtNum(c.aswSmin, 2), unidade: "cm²/m" },
+        { simbolo: "s,máx", descricao: "Espaçamento longitudinal máximo", valor: fmtNum(c.sMax, 1), unidade: "cm" },
+      ],
+      notas: c.alertas.length > 0 ? c.alertas : ["Verificação ao cisalhamento atendida."],
+    });
+  }
+
+  return montarMemoriaBase({ ...base, secoes });
 }
