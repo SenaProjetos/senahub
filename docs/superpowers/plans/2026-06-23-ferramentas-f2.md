@@ -31,7 +31,9 @@ projeto/disciplina com auto-store** nos pacotes A/B (§5.4).
       s,máx; 9 testes hand-check (VRd2≈399, Vc≈70,8, Asw/s≈5,40). Integrado ao E01 via `Vk` opcional (painel+memória+form).
 - [x] **DXF de armadura**: `calc/bitolas.ts` (NBR 7480) + `dxf/beam-section.ts` (contorno/alma, estribo, barras tração/
       compressão, cotas, legenda) + `dxf/index.ts` (dispatcher); rota DXF generalizada; E01 exportaveis += dxf. 5 testes.
-- [ ] **Flecha (ELS)** — inércia de Branson (estádio II), flecha imediata + diferida (αf), verificação L/250. **PENDENTE.**
+- [x] **Flecha (ELS)** — `calc/concrete-beam-deflection.ts`: Ecs, Mr, LN estádio II (bisseção, ret/T), I_II, Ieq Branson,
+      flecha imediata (5/48·Ma·L²/EI, biapoiada+carga uniforme) + diferida (αf), verificação L/250. 10 testes hand-check
+      (Ecs≈24150, x_II≈14,78, δ∞≈2,24). Integrado ao E01 via `vao`+`mServ` opcionais (As efetiva ø16). **E01 COMPLETA.**
 - [ ] Ancoragem (lb, lb,nec, ganchos) → será o tool **E10** (F2c), reaproveitável pelo E01.
 
 ## Sub-onda F2c — Rápidas normativas  ⬜  **Opus** (engines) / Sonnet (forms)

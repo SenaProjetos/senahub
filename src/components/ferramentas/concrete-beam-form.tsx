@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/select";
 import { calcular, type EntradaFlexaoInput } from "@/modules/ferramentas/calc/concrete-beam-flexure";
 import { calcularCisalhamento } from "@/modules/ferramentas/calc/concrete-beam-shear";
+import { calcularFlecha } from "@/modules/ferramentas/calc/concrete-beam-deflection";
+import { selecionarBarras } from "@/modules/ferramentas/calc/bitolas";
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { SalvarDialog } from "./salvar-dialog";
 import { SavefileButtons } from "./savefile-buttons";
@@ -42,7 +44,7 @@ function dimsIniciais(e?: Record<string, unknown>): Dims {
   const d: Dims = {};
   const sec = e?.secao as Record<string, unknown> | undefined;
   if (sec) for (const k of ["b", "h", "bf", "hf", "bw"]) if (typeof sec[k] === "number") d[k] = String(sec[k]);
-  for (const k of ["d", "fck", "Mk", "dLinha", "Vk"]) if (typeof e?.[k] === "number") d[k] = String(e[k]);
+  for (const k of ["d", "fck", "Mk", "dLinha", "Vk", "vao", "mServ"]) if (typeof e?.[k] === "number") d[k] = String(e[k]);
   return d;
 }
 
@@ -67,6 +69,8 @@ function montarEntrada(forma: Forma, dims: Dims, aco: string): EntradaFlexaoInpu
     aco: aco as "CA-25" | "CA-50" | "CA-60",
     Mk: n("Mk"),
     Vk: dims.Vk && n("Vk") > 0 ? n("Vk") : undefined,
+    vao: dims.vao && n("vao") > 0 ? n("vao") : undefined,
+    mServ: dims.mServ && n("mServ") > 0 ? n("mServ") : undefined,
   };
 }
 
@@ -102,6 +106,23 @@ export function ConcreteBeamForm({ initialEntradas, onSalvo }: Props) {
       return null;
     }
   }, [entrada]);
+  const flecha = useMemo(() => {
+    if (!entrada || !resultado || entrada.vao == null || entrada.mServ == null) return null;
+    try {
+      return calcularFlecha({
+        secao: entrada.secao,
+        d: entrada.d,
+        dLinha: entrada.dLinha ?? 4,
+        fck: entrada.fck,
+        As: selecionarBarras(resultado.As, 16).asEf,
+        AsLinha: resultado.AsLinha > 0 ? selecionarBarras(resultado.AsLinha, 16).asEf : 0,
+        vao: entrada.vao * 100,
+        mServ: entrada.mServ,
+      });
+    } catch {
+      return null;
+    }
+  }, [entrada, resultado]);
 
   const setDim = (k: string, v: string) => setDims((d) => ({ ...d, [k]: v }));
   const tituloSugerido = `Viga ${forma === "T" ? "T" : "retangular"} à flexão`;
@@ -155,6 +176,11 @@ export function ConcreteBeamForm({ initialEntradas, onSalvo }: Props) {
         <Campo id="Vk" label="Vk (kN) — opc." value={dims.Vk ?? ""} onChange={(v) => setDim("Vk", v)} />
       </div>
 
+      <div className="grid grid-cols-2 gap-3">
+        <Campo id="vao" label="Vão (m) — opc. flecha" value={dims.vao ?? ""} onChange={(v) => setDim("vao", v)} />
+        <Campo id="mServ" label="M serviço (kN·m) — opc." value={dims.mServ ?? ""} onChange={(v) => setDim("mServ", v)} />
+      </div>
+
       {resultado && (
         <div className="rounded-lg border bg-muted/40 p-4 space-y-3">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">
@@ -172,9 +198,16 @@ export function ConcreteBeamForm({ initialEntradas, onSalvo }: Props) {
               <Prop simbolo="VRd2" valor={fmtNum(cisalhamento.vRd2, 0)} un="kN" />
             </div>
           )}
-          {[...resultado.alertas, ...(cisalhamento?.alertas ?? [])].length > 0 && (
+          {flecha && (
+            <div className="border-t pt-3 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">
+              <Prop simbolo="δ∞" valor={fmtNum(flecha.flechaTotal, 2)} un="cm" destaque />
+              <Prop simbolo="L/250" valor={fmtNum(flecha.limite, 2)} un="cm" />
+              <Prop simbolo="ELS" valor={flecha.situacao === "ok" ? "OK" : "Revisar"} un="" />
+            </div>
+          )}
+          {[...resultado.alertas, ...(cisalhamento?.alertas ?? []), ...(flecha?.alertas ?? [])].length > 0 && (
             <ul className="text-xs text-amber-700 dark:text-amber-500 space-y-1 list-disc pl-4">
-              {[...resultado.alertas, ...(cisalhamento?.alertas ?? [])].map((a, i) => (
+              {[...resultado.alertas, ...(cisalhamento?.alertas ?? []), ...(flecha?.alertas ?? [])].map((a, i) => (
                 <li key={i}>{a}</li>
               ))}
             </ul>

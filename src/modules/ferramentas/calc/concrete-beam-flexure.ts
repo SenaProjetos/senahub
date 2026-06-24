@@ -33,6 +33,8 @@ export const entradaSchema = z
     Mk: z.number().positive(), // momento característico (kN·m)
     gamaF: z.number().positive().default(1.4),
     Vk: z.number().positive().optional(), // cortante característico (kN) — habilita o check de cisalhamento
+    vao: z.number().positive().optional(), // vão (m) — habilita o check de flecha (ELS)
+    mServ: z.number().positive().optional(), // momento de serviço quase permanente (kN·m)
   })
   .refine((v) => v.d < alturaTotal(v.secao), { message: "d deve ser menor que a altura total da seção.", path: ["d"] });
 

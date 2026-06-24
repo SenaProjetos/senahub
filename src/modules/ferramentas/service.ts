@@ -15,11 +15,30 @@ import {
   type EntradaFlexao,
 } from "./calc/concrete-beam-flexure";
 import { calcularCisalhamento } from "./calc/concrete-beam-shear";
+import { calcularFlecha } from "./calc/concrete-beam-deflection";
+import { selecionarBarras } from "./calc/bitolas";
 import { getFerramenta } from "./registry";
 
 /** Largura da alma (bw) usada no cisalhamento: b (retangular) ou bw (T). */
 function larguraAlma(secao: EntradaFlexao["secao"]): number {
   return secao.forma === "retangular" ? secao.b : secao.bw;
+}
+
+/** Flecha do E01 (quando vão e momento de serviço informados). Usa As efetiva (barras ø16). */
+function flechaE01(e: EntradaFlexao, As: number, AsLinha: number) {
+  if (e.vao == null || e.mServ == null) return null;
+  const asEf = selecionarBarras(As, 16).asEf;
+  const asLinhaEf = AsLinha > 0 ? selecionarBarras(AsLinha, 16).asEf : 0;
+  return calcularFlecha({
+    secao: e.secao,
+    d: e.d,
+    dLinha: e.dLinha,
+    fck: e.fck,
+    As: asEf,
+    AsLinha: asLinhaEf,
+    vao: e.vao * 100, // m → cm
+    mServ: e.mServ,
+  });
 }
 import { montarMemoriaBase, fmtNum, type MemoriaDoc } from "./memoria";
 import type { ResultadoBase, SnapshotCalculo } from "./types";
@@ -62,6 +81,12 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
         campos["Asw/s"] = fmtNum(c.aswSadotar, 2);
         campos["s_max"] = fmtNum(c.sMax, 1);
         alertas.push(...c.alertas);
+      }
+      const f = flechaE01(e, r.As, r.AsLinha);
+      if (f) {
+        campos["flecha"] = fmtNum(f.flechaTotal, 2);
+        campos["L/250"] = fmtNum(f.limite, 2);
+        alertas.push(...f.alertas);
       }
       return { campos, alertas };
     }
@@ -215,6 +240,8 @@ function descricaoViga(e: EntradaFlexao): { colunas: string[]; linhas: (string |
     ["γf", e.gamaF],
   ];
   if (e.Vk != null) linhas.push(["Vk (kN)", e.Vk]);
+  if (e.vao != null) linhas.push(["Vão (m)", e.vao]);
+  if (e.mServ != null) linhas.push(["M serviço (kN·m)", e.mServ]);
   return { colunas: ["Parâmetro", "Valor"], linhas };
 }
 
@@ -269,6 +296,26 @@ function memoriaE01(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
         { simbolo: "s,máx", descricao: "Espaçamento longitudinal máximo", valor: fmtNum(c.sMax, 1), unidade: "cm" },
       ],
       notas: c.alertas.length > 0 ? c.alertas : ["Verificação ao cisalhamento atendida."],
+    });
+  }
+
+  // Seção de flecha (quando vão e momento de serviço informados).
+  const f = flechaE01(e, r.As, r.AsLinha);
+  if (f) {
+    secoes.push({
+      titulo: "Flecha (ELS — inércia de Branson)",
+      paragrafos: ["Hipótese: viga biapoiada com carga uniformemente distribuída."],
+      valores: [
+        { simbolo: "Ecs", descricao: "Módulo de elasticidade secante", valor: fmtNum(f.ecs, 0), unidade: "MPa" },
+        { simbolo: "Mr", descricao: "Momento de fissuração", valor: fmtNum(f.mr, 2), unidade: "kN·m" },
+        { simbolo: "Ma", descricao: "Momento de serviço (quase permanente)", valor: fmtNum(f.ma, 2), unidade: "kN·m" },
+        { simbolo: "I_eq", descricao: "Inércia equivalente (Branson)", valor: fmtNum(f.ieq, 0), unidade: "cm⁴" },
+        { simbolo: "δ_i", descricao: "Flecha imediata", valor: fmtNum(f.flechaImediata, 3), unidade: "cm" },
+        { simbolo: "αf", descricao: "Fator de fluência", valor: fmtNum(f.alphaF, 3) },
+        { simbolo: "δ_∞", descricao: "Flecha total (diferida)", valor: fmtNum(f.flechaTotal, 3), unidade: "cm", formula: "δ_i·(1+αf)" },
+        { simbolo: "δ_lim", descricao: "Limite L/250", valor: fmtNum(f.limite, 3), unidade: "cm" },
+      ],
+      notas: f.alertas.length > 0 ? f.alertas : ["Flecha dentro do limite L/250."],
     });
   }
 
