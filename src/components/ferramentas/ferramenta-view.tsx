@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { UnitConvertForm } from "./unit-convert-form";
 import { SectionPropertiesForm } from "./section-properties-form";
+import { ConcreteBeamForm } from "./concrete-beam-form";
 import { RecentesList } from "./recentes-list";
 
 type RecenteSerializado = Omit<RecenteCalculo, "createdAt"> & { createdAt: string };
@@ -27,6 +28,8 @@ function renderForm(key: string, initialEntradas: Record<string, unknown> | unde
       return <UnitConvertForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     case "U02":
       return <SectionPropertiesForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
+    case "E01":
+      return <ConcreteBeamForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     default:
       return <p className="text-muted-foreground text-sm">Ferramenta em desenvolvimento.</p>;
   }

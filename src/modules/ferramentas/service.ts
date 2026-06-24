@@ -9,6 +9,11 @@ import {
   entradaSchema as secaoSchema,
   type EntradaSecao,
 } from "./calc/section-properties";
+import {
+  calcular as calcularViga,
+  entradaSchema as vigaSchema,
+  type EntradaFlexao,
+} from "./calc/concrete-beam-flexure";
 import { getFerramenta } from "./registry";
 import { montarMemoriaBase, fmtNum, type MemoriaDoc } from "./memoria";
 import type { ResultadoBase, SnapshotCalculo } from "./types";
@@ -32,6 +37,20 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
           ix: fmtNum(r.ix, 3),
           iy: fmtNum(r.iy, 3),
         },
+      };
+    }
+    case "E01": {
+      const r = calcularViga(vigaSchema.parse(entradas));
+      return {
+        campos: {
+          As: fmtNum(r.As, 2),
+          "As'": fmtNum(r.AsLinha, 2),
+          "x/d": fmtNum(r.xd, 3),
+          dominio: r.dominio,
+          As_min: fmtNum(r.AsMin, 2),
+          situacao: r.situacao,
+        },
+        alertas: r.alertas,
       };
     }
     default:
@@ -85,6 +104,8 @@ export function montarMemoria(
       return memoriaU01(entradas, base);
     case "U02":
       return memoriaU02(entradas, base);
+    case "E01":
+      return memoriaE01(entradas, base);
     default:
       throw new Error(`Ferramenta sem memória: "${ferramenta}"`);
   }
@@ -163,6 +184,62 @@ function memoriaU02(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
         notas: [
           `Fibras extremas em relação ao centroide: superior = ${fmtNum(r.fibras.ySup, 3)} cm; inferior = ${fmtNum(r.fibras.yInf, 3)} cm.`,
         ],
+      },
+    ],
+  });
+}
+
+function descricaoViga(e: EntradaFlexao): { colunas: string[]; linhas: (string | number)[][] } {
+  const sec =
+    e.secao.forma === "retangular"
+      ? [["Seção", "Retangular"], ["b (cm)", e.secao.b], ["h (cm)", e.secao.h]]
+      : [["Seção", "T"], ["bf (cm)", e.secao.bf], ["hf (cm)", e.secao.hf], ["bw (cm)", e.secao.bw], ["h (cm)", e.secao.h]];
+  const linhas: (string | number)[][] = [
+    ...sec,
+    ["d (cm)", e.d],
+    ["fck (MPa)", e.fck],
+    ["Aço", e.aco],
+    ["Mk (kN·m)", e.Mk],
+    ["γf", e.gamaF],
+  ];
+  return { colunas: ["Parâmetro", "Valor"], linhas };
+}
+
+function memoriaE01(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+  const e = vigaSchema.parse(entradas);
+  const r = calcularViga(e);
+  const desc = descricaoViga(e);
+
+  return montarMemoriaBase({
+    ...base,
+    secoes: [
+      {
+        titulo: "Dados de entrada",
+        tabelas: [{ titulo: "Geometria e materiais", colunas: desc.colunas, linhas: desc.linhas }],
+      },
+      {
+        titulo: "Parâmetros de cálculo (NBR 6118:2023)",
+        valores: [
+          { simbolo: "λ", descricao: "Coeficiente do bloco retangular", valor: fmtNum(r.params.lambda, 3) },
+          { simbolo: "αc", descricao: "Coeficiente de redução do concreto", valor: fmtNum(r.params.alphaC, 4) },
+          { simbolo: "fcd", descricao: "Resistência de cálculo do concreto", valor: fmtNum(r.params.fcd * 10, 2), unidade: "MPa", formula: "fck / γc" },
+          { simbolo: "fyd", descricao: "Resistência de cálculo do aço", valor: fmtNum(r.params.fyd * 10, 1), unidade: "MPa", formula: "fyk / γs" },
+          { simbolo: "Md", descricao: "Momento de cálculo", valor: fmtNum(r.md / 100, 2), unidade: "kN·m", formula: "γf · Mk" },
+          { simbolo: "(x/d)lim", descricao: "Limite de ductilidade", valor: fmtNum(r.xLimRatio, 2) },
+        ],
+      },
+      {
+        titulo: "Dimensionamento à flexão (ELU)",
+        valores: [
+          { simbolo: "x", descricao: "Profundidade da linha neutra", valor: fmtNum(r.x, 2), unidade: "cm" },
+          { simbolo: "x/d", descricao: "Posição relativa da LN", valor: fmtNum(r.xd, 3) },
+          { simbolo: "Domínio", descricao: "Domínio de deformação", valor: r.dominio },
+          { simbolo: "As", descricao: "Armadura de tração", valor: fmtNum(r.As, 2), unidade: "cm²" },
+          { simbolo: "As'", descricao: "Armadura de compressão", valor: fmtNum(r.AsLinha, 2), unidade: "cm²" },
+          { simbolo: "As,mín", descricao: "Armadura mínima", valor: fmtNum(r.AsMin, 2), unidade: "cm²" },
+          { simbolo: "As,máx", descricao: "Armadura máxima (4% Ac)", valor: fmtNum(r.AsMax, 2), unidade: "cm²" },
+        ],
+        notas: r.alertas.length > 0 ? r.alertas : ["Verificação de flexão simples atendida."],
       },
     ],
   });

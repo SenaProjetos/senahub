@@ -8,6 +8,7 @@ import type { Disciplina, TipoFerramenta, FormatoExport } from "./types";
 import {
   ArrowLeftRight,
   Shapes,
+  RectangleHorizontal,
   type LucideIcon,
 } from "lucide-react";
 
@@ -43,6 +44,16 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     tipo: "rapida",
     exportaveis: ["pdf", "docx", "xlsx", "dxf"],
     icon: Shapes,
+  },
+  {
+    key: "E01",
+    nome: "Viga de Concreto à Flexão",
+    descricao: "Dimensionamento à flexão simples (ELU): armadura de tração e compressão, domínios e armadura mínima/máxima, para seções retangular e T.",
+    disciplina: "Estrutural",
+    tipo: "completa",
+    norma: "NBR 6118:2023",
+    exportaveis: ["pdf", "docx", "xlsx"],
+    icon: RectangleHorizontal,
   },
 ];
 

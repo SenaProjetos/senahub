@@ -6,6 +6,7 @@
 import { z } from "zod";
 import { entradaSchema as unitConvertSchema } from "./calc/unit-convert";
 import { entradaSchema as sectionSchema } from "./calc/section-properties";
+import { entradaSchema as beamFlexureSchema } from "./calc/concrete-beam-flexure";
 
 export const SAVEFILE_APP = "senahub" as const;
 export const SAVEFILE_KIND = "shcalc" as const;
@@ -25,6 +26,7 @@ const headerSchema = z.object({
 const ENTRADAS_SCHEMAS: Record<string, z.ZodTypeAny> = {
   U01: unitConvertSchema,
   U02: sectionSchema,
+  E01: beamFlexureSchema,
 };
 
 const savefileSchema = headerSchema.extend({
