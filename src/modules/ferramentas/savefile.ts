@@ -10,6 +10,7 @@ import { entradaSchema as beamFlexureSchema } from "./calc/concrete-beam-flexure
 import { entradaSchema as anchorageSchema } from "./calc/rebar-anchorage";
 import { entradaSchema as steelSummarySchema } from "./calc/steel-summary";
 import { entradaSchema as pileSptSchema } from "./calc/pile-spt";
+import { entradaSchema as loadDescentSchema } from "./calc/load-descent";
 
 export const SAVEFILE_APP = "senahub" as const;
 export const SAVEFILE_KIND = "shcalc" as const;
@@ -32,6 +33,7 @@ const ENTRADAS_SCHEMAS: Record<string, z.ZodTypeAny> = {
   E01: beamFlexureSchema,
   E10: anchorageSchema,
   E11: steelSummarySchema,
+  E12: loadDescentSchema,
   E23: pileSptSchema,
 };
 

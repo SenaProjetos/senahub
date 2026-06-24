@@ -20,6 +20,7 @@ import { selecionarBarras } from "./calc/bitolas";
 import { calcular as calcularAncoragem, entradaSchema as ancoragemSchema } from "./calc/rebar-anchorage";
 import { calcular as calcularResumoAco, entradaSchema as resumoAcoSchema } from "./calc/steel-summary";
 import { calcular as calcularEstaca, entradaSchema as estacaSchema, SOLOS as SOLOS_ESTACA, ESTACAS } from "./calc/pile-spt";
+import { calcular as calcularDescida, entradaSchema as descidaSchema } from "./calc/load-descent";
 import { getFerramenta } from "./registry";
 
 /** Largura da alma (bw) usada no cisalhamento: b (retangular) ou bw (T). */
@@ -125,6 +126,17 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
         },
       };
     }
+    case "E12": {
+      const r = calcularDescida(descidaSchema.parse(entradas));
+      return {
+        campos: {
+          "N base": fmtNum(r.nTotal, 1),
+          Permanente: fmtNum(r.ngTotal, 1),
+          Acidental: fmtNum(r.nqReduzido, 1),
+          pavimentos: r.niveis.length,
+        },
+      };
+    }
     default:
       throw new Error(`Ferramenta desconhecida: "${ferramenta}"`);
   }
@@ -184,6 +196,8 @@ export function montarMemoria(
       return memoriaE11(entradas, base);
     case "E23":
       return memoriaE23(entradas, base);
+    case "E12":
+      return memoriaE12(entradas, base);
     default:
       throw new Error(`Ferramenta sem memória: "${ferramenta}"`);
   }
@@ -465,6 +479,53 @@ function memoriaE23(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
           { simbolo: "Radm", descricao: "Carga admissível (Rp/4 + Rl/1,3)", valor: fmtNum(r.decourt.radm, 1), unidade: "kN" },
         ],
         notas: ["Coeficientes empíricos — conferir contra o relatório de sondagem e a prática local."],
+      },
+    ],
+  });
+}
+
+function memoriaE12(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+  const e = descidaSchema.parse(entradas);
+  const r = calcularDescida(e);
+  return montarMemoriaBase({
+    ...base,
+    secoes: [
+      {
+        titulo: "Pavimentos (do topo à base)",
+        tabelas: [
+          {
+            colunas: ["Pavimento", "Área (m²)", "g (kN/m²)", "q (kN/m²)", "Extra (kN)"],
+            linhas: e.pavimentos.map((p) => [p.nome, p.area, p.g, p.q, p.extra ?? 0]),
+          },
+        ],
+      },
+      {
+        titulo: "Acúmulo de cargas (NBR 6120:2019)",
+        tabelas: [
+          {
+            titulo: "Carga acumulada por nível",
+            colunas: ["Nível", "N perm. acum. (kN)", "N acid. acum. (kN)", "N total acum. (kN)"],
+            linhas: r.niveis.map((n) => [
+              n.nome,
+              fmtNum(n.ngAcum, 1),
+              fmtNum(n.nqAcum, 1),
+              fmtNum(n.nAcum, 1),
+            ]),
+          },
+        ],
+        valores: [
+          { simbolo: "Ng", descricao: "Carga permanente acumulada (base)", valor: fmtNum(r.ngTotal, 1), unidade: "kN" },
+          { simbolo: "Nq", descricao: "Carga acidental acumulada (base)", valor: fmtNum(r.nqTotal, 1), unidade: "kN" },
+          { simbolo: "ξ", descricao: "Fator de redução da acidental", valor: fmtNum(r.fator, 2) },
+          { simbolo: "Nq,red", descricao: "Acidental reduzida", valor: fmtNum(r.nqReduzido, 1), unidade: "kN", formula: "ξ · Nq" },
+          { simbolo: "N", descricao: "Carga vertical de projeto (base)", valor: fmtNum(r.nTotal, 1), unidade: "kN", formula: "Ng + Nq,red" },
+        ],
+        notas: [
+          "Sobrecargas de uso (q) conforme Tabela 10 da NBR 6120:2019.",
+          r.fator < 1
+            ? `Redução da acidental aplicada (ξ = ${fmtNum(r.fator, 2)}), conforme NBR 6120:2019 (6.2.2).`
+            : "Sem redução da carga acidental (ξ = 1,00). Verificar a aplicabilidade da redução por nº de pavimentos (NBR 6120:2019, 6.2.2).",
+        ],
       },
     ],
   });

@@ -12,6 +12,7 @@ import {
   Anchor,
   Table2,
   Layers,
+  ArrowDownToLine,
   type LucideIcon,
 } from "lucide-react";
 
@@ -77,6 +78,16 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     norma: "NBR 7480",
     exportaveis: ["xlsx", "pdf"],
     icon: Table2,
+  },
+  {
+    key: "E12",
+    nome: "Descida de Cargas",
+    descricao: "Acúmulo de cargas verticais em pilar por área de influência, do topo à base, separando permanente e acidental (com fator de redução opcional).",
+    disciplina: "Estrutural",
+    tipo: "rapida",
+    norma: "NBR 6120:2019",
+    exportaveis: ["pdf", "xlsx"],
+    icon: ArrowDownToLine,
   },
   {
     key: "E23",

@@ -15,6 +15,7 @@ import { ConcreteBeamForm } from "./concrete-beam-form";
 import { AnchorageForm } from "./anchorage-form";
 import { SteelSummaryForm } from "./steel-summary-form";
 import { PileSptForm } from "./pile-spt-form";
+import { LoadDescentForm } from "./load-descent-form";
 import { RecentesList } from "./recentes-list";
 
 type RecenteSerializado = Omit<RecenteCalculo, "createdAt"> & { createdAt: string };
@@ -39,6 +40,8 @@ function renderForm(key: string, initialEntradas: Record<string, unknown> | unde
       return <SteelSummaryForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     case "E23":
       return <PileSptForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
+    case "E12":
+      return <LoadDescentForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     default:
       return <p className="text-muted-foreground text-sm">Ferramenta em desenvolvimento.</p>;
   }
