@@ -15,6 +15,8 @@ import {
 import { UNIDADES, DIMENSOES, converter, type Dimensao } from "@/modules/ferramentas/calc/unit-convert";
 import { SalvarDialog } from "./salvar-dialog";
 import { SavefileButtons } from "./savefile-buttons";
+import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
+import { UnitConvertSchematic } from "./guia/schematics/conversor-unidades";
 
 const DIMENSAO_LABELS: Record<Dimensao, string> = {
   comprimento: "Comprimento",
@@ -113,81 +115,86 @@ export function UnitConvertForm({ initialEntradas, onSalvo }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Dimensão */}
-      <div className="space-y-1.5">
-        <Label>Grandeza</Label>
-        <Select value={dimensao} onValueChange={(v) => v && setDimensao(v as Dimensao)}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {DIMENSOES.map((d) => (
-              <SelectItem key={d} value={d}>
-                {DIMENSAO_LABELS[d]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <GuiaFerramenta slug="conversor-unidades" desenho={<UnitConvertSchematic />}>
+        <GuiaGrupo n={1}>
+          <div className="space-y-1.5">
+            <Label>Grandeza</Label>
+            <Select value={dimensao} onValueChange={(v) => v && setDimensao(v as Dimensao)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DIMENSOES.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    {DIMENSAO_LABELS[d]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </GuiaGrupo>
 
-      {/* Valor + unidades */}
-      <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-end">
-        <div className="space-y-1.5">
-          <Label>De</Label>
-          <Select value={de} onValueChange={(v) => v && setDe(v)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {opcoesUnidade.map((u) => (
-                <SelectItem key={u.key} value={u.key}>
-                  {u.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <GuiaGrupo n={2}>
+          <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-end">
+            <div className="space-y-1.5">
+              <Label>De</Label>
+              <Select value={de} onValueChange={(v) => v && setDe(v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {opcoesUnidade.map((u) => (
+                    <SelectItem key={u.key} value={u.key}>
+                      {u.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={trocarUnidades}
-          className="mb-0.5"
-          title="Trocar unidades"
-        >
-          <ArrowLeftRight className="h-4 w-4" />
-        </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={trocarUnidades}
+              className="mb-0.5"
+              title="Trocar unidades"
+            >
+              <ArrowLeftRight className="h-4 w-4" />
+            </Button>
 
-        <div className="space-y-1.5">
-          <Label>Para</Label>
-          <Select value={para} onValueChange={(v) => v && setPara(v)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {opcoesUnidade.map((u) => (
-                <SelectItem key={u.key} value={u.key}>
-                  {u.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+            <div className="space-y-1.5">
+              <Label>Para</Label>
+              <Select value={para} onValueChange={(v) => v && setPara(v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {opcoesUnidade.map((u) => (
+                    <SelectItem key={u.key} value={u.key}>
+                      {u.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </GuiaGrupo>
 
-      {/* Valor */}
-      <div className="space-y-1.5">
-        <Label htmlFor="valor-input">Valor</Label>
-        <Input
-          id="valor-input"
-          type="number"
-          value={valor}
-          onChange={(e) => setValor(e.target.value)}
-          placeholder="0"
-          className="text-lg font-mono"
-        />
-      </div>
+        <GuiaGrupo n={3}>
+          <div className="space-y-1.5">
+            <Label htmlFor="valor-input">Valor</Label>
+            <Input
+              id="valor-input"
+              type="number"
+              value={valor}
+              onChange={(e) => setValor(e.target.value)}
+              placeholder="0"
+              className="text-lg font-mono"
+            />
+          </div>
+        </GuiaGrupo>
+      </GuiaFerramenta>
 
       {/* Resultado */}
       {temResultado && resultado && (

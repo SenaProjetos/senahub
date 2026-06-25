@@ -20,6 +20,8 @@ import {
 } from "@/modules/ferramentas/calc/wind-force";
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
+import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
+import { WindForceSchematic } from "./guia/schematics/acao-vento";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
@@ -84,75 +86,88 @@ export function WindForceForm({ initialEntradas, onSalvo }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="e13-v0">V0 (m/s)</Label>
-          <Input id="e13-v0" type="number" value={v0} onChange={(e) => setV0(e.target.value)} className="font-mono" />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="e13-s1">S1 (topográfico)</Label>
-          <Input id="e13-s1" type="number" step="0.05" value={s1} onChange={(e) => setS1(e.target.value)} className="font-mono" />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="e13-z">Cota z (m)</Label>
-          <Input id="e13-z" type="number" value={z} onChange={(e) => setZ(e.target.value)} className="font-mono" placeholder="altura" />
-        </div>
-        <div className="space-y-1.5 col-span-2 sm:col-span-3">
-          <Label>Categoria (rugosidade)</Label>
-          <Select value={categoria} onValueChange={(v) => v && setCategoria(v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {CAT_KEYS.map((k) => <SelectItem key={k} value={k}>{CATEGORIAS[k]}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5 col-span-2 sm:col-span-3">
-          <Label>Classe (dimensões)</Label>
-          <Select value={classe} onValueChange={(v) => v && setClasse(v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {CLASSE_KEYS.map((k) => <SelectItem key={k} value={k}>{CLASSES[k]}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5 col-span-2 sm:col-span-3">
-          <Label>S3 (grupo estatístico)</Label>
-          <Select value={grupoS3} onValueChange={(v) => v && setGrupoS3(v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {GRUPO_KEYS.map((k) => <SelectItem key={k} value={k}>{GRUPOS_S3[k].label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <GuiaFerramenta slug="acao-vento" desenho={<WindForceSchematic />}>
+        <GuiaGrupo n={1}>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="e13-v0">V0 (m/s)</Label>
+              <Input id="e13-v0" type="number" value={v0} onChange={(e) => setV0(e.target.value)} className="font-mono" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="e13-s1">S1 (topográfico)</Label>
+              <Input id="e13-s1" type="number" step="0.05" value={s1} onChange={(e) => setS1(e.target.value)} className="font-mono" />
+            </div>
+          </div>
+        </GuiaGrupo>
 
-      <div className="space-y-2">
-        <Label className="text-sm font-medium">Força de arrasto (opcional)</Label>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="e13-l1" className="text-xs">l1 — frontal (m)</Label>
-            <Input id="e13-l1" type="number" value={l1} onChange={(e) => setL1(e.target.value)} className="font-mono" />
+        <GuiaGrupo n={2}>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="e13-z">Cota z (m)</Label>
+              <Input id="e13-z" type="number" value={z} onChange={(e) => setZ(e.target.value)} className="font-mono" placeholder="altura" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Categoria (rugosidade)</Label>
+              <Select value={categoria} onValueChange={(v) => v && setCategoria(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CAT_KEYS.map((k) => <SelectItem key={k} value={k}>{CATEGORIAS[k]}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Classe (dimensões)</Label>
+              <Select value={classe} onValueChange={(v) => v && setClasse(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CLASSE_KEYS.map((k) => <SelectItem key={k} value={k}>{CLASSES[k]}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+        </GuiaGrupo>
+
+        <GuiaGrupo n={3}>
           <div className="space-y-1.5">
-            <Label htmlFor="e13-l2" className="text-xs">l2 — profund. (m)</Label>
-            <Input id="e13-l2" type="number" value={l2} onChange={(e) => setL2(e.target.value)} className="font-mono" />
+            <Label>S3 (grupo estatístico)</Label>
+            <Select value={grupoS3} onValueChange={(v) => v && setGrupoS3(v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {GRUPO_KEYS.map((k) => <SelectItem key={k} value={k}>{GRUPOS_S3[k].label}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="e13-h" className="text-xs">h — altura (m)</Label>
-            <Input id="e13-h" type="number" value={h} onChange={(e) => setH(e.target.value)} className="font-mono" />
+        </GuiaGrupo>
+
+        <GuiaGrupo n={4}>
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="e13-l1" className="text-xs">l1 — frontal (m)</Label>
+                <Input id="e13-l1" type="number" value={l1} onChange={(e) => setL1(e.target.value)} className="font-mono" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="e13-l2" className="text-xs">l2 — profund. (m)</Label>
+                <Input id="e13-l2" type="number" value={l2} onChange={(e) => setL2(e.target.value)} className="font-mono" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="e13-h" className="text-xs">h — altura (m)</Label>
+                <Input id="e13-h" type="number" value={h} onChange={(e) => setH(e.target.value)} className="font-mono" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="e13-ca" className="text-xs">Ca (Fig. 4/5)</Label>
+                <Input id="e13-ca" type="number" step="0.1" value={ca} onChange={(e) => setCa(e.target.value)} className="font-mono" />
+              </div>
+            </div>
+            {resultado?.forca && (
+              <p className="text-xs text-muted-foreground">
+                Para o ábaco de Ca: h/l1 = {fmtNum(resultado.forca.razaoHL1, 2)}
+                {resultado.forca.razaoL1L2 != null && <> · l1/l2 = {fmtNum(resultado.forca.razaoL1L2, 2)}</>}
+              </p>
+            )}
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="e13-ca" className="text-xs">Ca (Fig. 4/5)</Label>
-            <Input id="e13-ca" type="number" step="0.1" value={ca} onChange={(e) => setCa(e.target.value)} className="font-mono" />
-          </div>
-        </div>
-        {resultado?.forca && (
-          <p className="text-xs text-muted-foreground">
-            Para o ábaco de Ca: h/l1 = {fmtNum(resultado.forca.razaoHL1, 2)}
-            {resultado.forca.razaoL1L2 != null && <> · l1/l2 = {fmtNum(resultado.forca.razaoL1L2, 2)}</>}
-          </p>
-        )}
-      </div>
+        </GuiaGrupo>
+      </GuiaFerramenta>
 
       {resultado && (
         <div className="rounded-lg border bg-muted/40 p-4 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">

@@ -177,6 +177,69 @@ export const GUIAS: Record<string, GuiaMeta> = {
     ],
     dica: "A carga extra é uma carga permanente concentrada (peso próprio de pilar, vigas, alvenaria). Fator 1,00 = sem redução da sobrecarga (NBR 6120, 6.2.2).",
   },
+  "conversor-unidades": {
+    subtitulo: "Guia dos dados de entrada para a conversão entre unidades técnicas.",
+    grupos: [
+      { n: 1, titulo: "Grandeza", descricao: "Tipo de grandeza física a converter (força, tensão, momento, vazão, ângulo…)." },
+      { n: 2, titulo: "Unidades", descricao: "Unidade de origem (De) e unidade de destino (Para) da conversão." },
+      { n: 3, titulo: "Valor", descricao: "Valor numérico, na unidade de origem, a ser convertido." },
+    ],
+    unidades: [
+      "Depende da grandeza escolhida",
+      "Conversão exata por fator",
+    ],
+    dica: "Selecione primeiro a grandeza; as listas De/Para se ajustam às unidades compatíveis. O fator de conversão aparece junto ao resultado.",
+  },
+  "propriedades-secao": {
+    subtitulo: "Guia dos dados de entrada para as propriedades geométricas da seção.",
+    grupos: [
+      { n: 1, titulo: "Tipo de seção", descricao: "Forma da seção: retangular, circular, T ou poligonal (por coordenadas)." },
+      { n: 2, titulo: "Dimensões", descricao: "Dimensões da forma escolhida; na poligonal, os vértices (x, y) um por linha." },
+    ],
+    unidades: [
+      "Comprimentos: cm",
+      "Áreas: cm² · Inércias: cm⁴ · Módulos: cm³",
+    ],
+    dica: "Calcula área, centroide, momentos de inércia, módulos resistentes e raios de giração. Na poligonal, informe os vértices em ordem (horário ou anti-horário).",
+  },
+  "resumo-aco": {
+    subtitulo: "Guia dos dados de entrada para o quantitativo de aço (corte e dobra).",
+    grupos: [
+      { n: 1, titulo: "Barras", descricao: "Uma linha por bitola: diâmetro, quantidade de barras e comprimento unitário." },
+      { n: 2, titulo: "Perdas", descricao: "Percentual de perda aplicado ao peso total (corte, dobra e sobras)." },
+    ],
+    unidades: [
+      "Bitola: mm · Comprimento: m",
+      "Peso: kg · Perda: %",
+    ],
+    dica: "O peso por metro de cada bitola segue a NBR 7480. O total com perda inclui o acréscimo informado.",
+  },
+  "acao-vento": {
+    subtitulo: "Guia dos dados de entrada para a velocidade, pressão e força do vento.",
+    grupos: [
+      { n: 1, titulo: "Velocidade básica", descricao: "Velocidade básica do vento (V0) da isopleta e fator topográfico S1." },
+      { n: 2, titulo: "Terreno e edificação", descricao: "Categoria de rugosidade do terreno, classe (dimensões da edificação) e cota z considerada." },
+      { n: 3, titulo: "Fator estatístico", descricao: "Grupo S3 conforme a importância e a vida útil da edificação." },
+      { n: 4, titulo: "Força de arrasto (opcional)", descricao: "Dimensões em planta (l1, l2), altura (h) e coeficiente de arrasto (Ca) para a força global." },
+    ],
+    unidades: [
+      "Velocidade: m/s · Comprimentos: m",
+      "Pressão: kN/m² · Força: kN",
+    ],
+    dica: "S2 é calculado a partir de categoria, classe e cota z. A força de arrasto é opcional: preencha l1, l2, h e Ca apenas se quiser a força global.",
+  },
+  "combinacoes-acoes": {
+    subtitulo: "Guia dos dados de entrada para as combinações de ações (ELU e ELS).",
+    grupos: [
+      { n: 1, titulo: "Ações permanentes (G)", descricao: "Uma por linha: nome, valor característico (Gk) e se o efeito é favorável." },
+      { n: 2, titulo: "Ações variáveis (Q)", descricao: "Uma por linha: nome, valor característico (Qk) e tipo de utilização (define ψ0/ψ1/ψ2)." },
+    ],
+    unidades: [
+      "Valores na mesma unidade (kN, kN/m, kN·m…)",
+      "Coeficientes γ e ψ: adimensionais",
+    ],
+    dica: "Os coeficientes γ e ψ seguem a NBR 8681 / NBR 6118 conforme o tipo de cada ação variável. Marque uma permanente como favorável só quando ela alivia o efeito.",
+  },
 };
 
 export function getGuia(slug: string): GuiaMeta | undefined {

@@ -16,6 +16,8 @@ import { fmtNum } from "@/modules/ferramentas/memoria";
 import { SalvarDialog } from "./salvar-dialog";
 import { SavefileButtons } from "./savefile-buttons";
 import { DxfPreview } from "./dxf-preview";
+import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
+import { SectionPropertiesSchematic } from "./guia/schematics/propriedades-secao";
 
 type TipoSecao = "retangular" | "circular" | "T" | "poligonal";
 
@@ -119,50 +121,56 @@ export function SectionPropertiesForm({ initialEntradas, onSalvo }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1.5">
-        <Label>Tipo de seção</Label>
-        <Select value={tipo} onValueChange={(v) => v && setTipo(v as TipoSecao)}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(Object.keys(TIPO_LABEL) as TipoSecao[]).map((t) => (
-              <SelectItem key={t} value={t}>
-                {TIPO_LABEL[t]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <GuiaFerramenta slug="propriedades-secao" desenho={<SectionPropertiesSchematic />}>
+        <GuiaGrupo n={1}>
+          <div className="space-y-1.5">
+            <Label>Tipo de seção</Label>
+            <Select value={tipo} onValueChange={(v) => v && setTipo(v as TipoSecao)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(TIPO_LABEL) as TipoSecao[]).map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {TIPO_LABEL[t]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </GuiaGrupo>
 
-      {tipo === "poligonal" ? (
-        <div className="space-y-1.5">
-          <Label htmlFor="pontos">Vértices (um por linha: x, y em cm)</Label>
-          <textarea
-            id="pontos"
-            value={pontosText}
-            onChange={(e) => setPontosText(e.target.value)}
-            rows={6}
-            placeholder={"0, 0\n20, 0\n20, 50\n0, 50"}
-            className="w-full rounded-md border bg-transparent px-3 py-2 text-sm font-mono"
-          />
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-3">
-          {CAMPOS[tipo].map((c) => (
-            <div key={c.key} className="space-y-1.5">
-              <Label htmlFor={`dim-${c.key}`}>{c.label}</Label>
-              <Input
-                id={`dim-${c.key}`}
-                type="number"
-                value={dims[c.key] ?? ""}
-                onChange={(e) => setDim(c.key, e.target.value)}
-                className="font-mono"
+        <GuiaGrupo n={2}>
+          {tipo === "poligonal" ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="pontos">Vértices (um por linha: x, y em cm)</Label>
+              <textarea
+                id="pontos"
+                value={pontosText}
+                onChange={(e) => setPontosText(e.target.value)}
+                rows={6}
+                placeholder={"0, 0\n20, 0\n20, 50\n0, 50"}
+                className="w-full rounded-md border bg-transparent px-3 py-2 text-sm font-mono"
               />
             </div>
-          ))}
-        </div>
-      )}
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {CAMPOS[tipo].map((c) => (
+                <div key={c.key} className="space-y-1.5">
+                  <Label htmlFor={`dim-${c.key}`}>{c.label}</Label>
+                  <Input
+                    id={`dim-${c.key}`}
+                    type="number"
+                    value={dims[c.key] ?? ""}
+                    onChange={(e) => setDim(c.key, e.target.value)}
+                    className="font-mono"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </GuiaGrupo>
+      </GuiaFerramenta>
 
       {resultado && (
         <div className="rounded-lg border bg-muted/40 p-4 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">

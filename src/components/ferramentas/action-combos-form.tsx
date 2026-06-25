@@ -21,6 +21,8 @@ import {
 } from "@/modules/ferramentas/calc/action-combos";
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
+import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
+import { ActionCombosSchematic } from "./guia/schematics/combinacoes-acoes";
 
 type Perm = { nome: string; gk: string; favoravel: boolean };
 type Var = { nome: string; qk: string; tipo: string };
@@ -84,57 +86,59 @@ export function ActionCombosForm({ initialEntradas, onSalvo }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Permanentes */}
-      <div className="space-y-2">
-        <Label>Ações permanentes (Gk)</Label>
-        <div className="grid grid-cols-[2fr_1fr_auto_auto] gap-2 text-xs text-muted-foreground px-1">
-          <span>Ação</span><span>Gk</span><span>Favorável</span><span></span>
-        </div>
-        {perms.map((p, i) => (
-          <div key={i} className="grid grid-cols-[2fr_1fr_auto_auto] gap-2 items-center">
-            <Input value={p.nome} onChange={(e) => setPerm(i, "nome", e.target.value)} placeholder="Peso próprio" />
-            <Input type="number" value={p.gk} onChange={(e) => setPerm(i, "gk", e.target.value)} className="font-mono" />
-            <div className="flex justify-center px-2">
-              <Switch checked={p.favoravel} onCheckedChange={(v) => setPerm(i, "favoravel", v)} />
+      <GuiaFerramenta slug="combinacoes-acoes" desenho={<ActionCombosSchematic />}>
+        <GuiaGrupo n={1}>
+          <div className="space-y-2">
+            <div className="grid grid-cols-[2fr_1fr_auto_auto] gap-2 text-xs text-muted-foreground px-1">
+              <span>Ação</span><span>Gk</span><span>Favorável</span><span></span>
             </div>
-            <Button type="button" variant="ghost" size="icon" onClick={() => setPerms((a) => (a.length > 1 ? a.filter((_, j) => j !== i) : a))}>
-              <Trash2 className="h-4 w-4" />
+            {perms.map((p, i) => (
+              <div key={i} className="grid grid-cols-[2fr_1fr_auto_auto] gap-2 items-center">
+                <Input value={p.nome} onChange={(e) => setPerm(i, "nome", e.target.value)} placeholder="Peso próprio" />
+                <Input type="number" value={p.gk} onChange={(e) => setPerm(i, "gk", e.target.value)} className="font-mono" />
+                <div className="flex justify-center px-2">
+                  <Switch checked={p.favoravel} onCheckedChange={(v) => setPerm(i, "favoravel", v)} />
+                </div>
+                <Button type="button" variant="ghost" size="icon" onClick={() => setPerms((a) => (a.length > 1 ? a.filter((_, j) => j !== i) : a))}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            <Button type="button" variant="outline" size="sm" onClick={() => setPerms((a) => [...a, { nome: "", gk: "", favoravel: false }])}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" /> Adicionar permanente
             </Button>
           </div>
-        ))}
-        <Button type="button" variant="outline" size="sm" onClick={() => setPerms((a) => [...a, { nome: "", gk: "", favoravel: false }])}>
-          <Plus className="h-3.5 w-3.5 mr-1.5" /> Adicionar permanente
-        </Button>
-      </div>
+        </GuiaGrupo>
 
-      {/* Variáveis */}
-      <div className="space-y-2">
-        <Label>Ações variáveis (Qk)</Label>
-        <div className="grid grid-cols-[1.5fr_1fr_2fr_auto] gap-2 text-xs text-muted-foreground px-1">
-          <span>Ação</span><span>Qk</span><span>Tipo</span><span></span>
-        </div>
-        {vars.map((v, i) => (
-          <div key={i} className="grid grid-cols-[1.5fr_1fr_2fr_auto] gap-2 items-center">
-            <Input value={v.nome} onChange={(e) => setVar(i, "nome", e.target.value)} placeholder="Sobrecarga" />
-            <Input type="number" value={v.qk} onChange={(e) => setVar(i, "qk", e.target.value)} className="font-mono" />
-            <Select value={v.tipo} onValueChange={(val) => val && setVar(i, "tipo", val)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {TIPO_KEYS.map((k) => <SelectItem key={k} value={k}>{TIPOS_VARIAVEL[k].label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Button type="button" variant="ghost" size="icon" onClick={() => setVars((a) => a.filter((_, j) => j !== i))}>
-              <Trash2 className="h-4 w-4" />
+        <GuiaGrupo n={2}>
+          <div className="space-y-2">
+            <div className="grid grid-cols-[1.5fr_1fr_2fr_auto] gap-2 text-xs text-muted-foreground px-1">
+              <span>Ação</span><span>Qk</span><span>Tipo</span><span></span>
+            </div>
+            {vars.map((v, i) => (
+              <div key={i} className="grid grid-cols-[1.5fr_1fr_2fr_auto] gap-2 items-center">
+                <Input value={v.nome} onChange={(e) => setVar(i, "nome", e.target.value)} placeholder="Sobrecarga" />
+                <Input type="number" value={v.qk} onChange={(e) => setVar(i, "qk", e.target.value)} className="font-mono" />
+                <Select value={v.tipo} onValueChange={(val) => val && setVar(i, "tipo", val)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {TIPO_KEYS.map((k) => <SelectItem key={k} value={k}>{TIPOS_VARIAVEL[k].label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Button type="button" variant="ghost" size="icon" onClick={() => setVars((a) => a.filter((_, j) => j !== i))}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            <Button type="button" variant="outline" size="sm" onClick={() => setVars((a) => [...a, { nome: "", qk: "", tipo: "comercial" }])}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" /> Adicionar variável
             </Button>
+            <p className="text-xs text-muted-foreground">
+              ψ0/ψ1/ψ2 por tipo conforme NBR 8681 (Tab. 6) / NBR 6118 (Tab. 11.2).
+            </p>
           </div>
-        ))}
-        <Button type="button" variant="outline" size="sm" onClick={() => setVars((a) => [...a, { nome: "", qk: "", tipo: "comercial" }])}>
-          <Plus className="h-3.5 w-3.5 mr-1.5" /> Adicionar variável
-        </Button>
-        <p className="text-xs text-muted-foreground">
-          ψ0/ψ1/ψ2 por tipo conforme NBR 8681 (Tab. 6) / NBR 6118 (Tab. 11.2).
-        </p>
-      </div>
+        </GuiaGrupo>
+      </GuiaFerramenta>
 
       {resultado && (
         <div className="rounded-lg border bg-muted/40 p-4 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">

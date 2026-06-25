@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { calcular, type EntradaResumoAcoInput } from "@/modules/ferramentas/calc/steel-summary";
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
+import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
+import { SteelSummarySchematic } from "./guia/schematics/resumo-aco";
 
 type Item = { bitolaMm: string; quantidade: string; comprimentoM: string };
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
@@ -57,34 +59,40 @@ export function SteelSummaryForm({ initialEntradas, onSalvo }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 text-xs text-muted-foreground px-1">
-          <span>Bitola (mm)</span>
-          <span>Quantidade</span>
-          <span>Comp. (m)</span>
-          <span></span>
-        </div>
-        {itens.map((it, i) => (
-          <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center">
-            <Input type="number" value={it.bitolaMm} onChange={(e) => setItem(i, "bitolaMm", e.target.value)} className="font-mono" />
-            <Input type="number" value={it.quantidade} onChange={(e) => setItem(i, "quantidade", e.target.value)} className="font-mono" />
-            <Input type="number" value={it.comprimentoM} onChange={(e) => setItem(i, "comprimentoM", e.target.value)} className="font-mono" />
-            <Button type="button" variant="ghost" size="icon" onClick={() => setItens((a) => (a.length > 1 ? a.filter((_, j) => j !== i) : a))}>
-              <Trash2 className="h-4 w-4" />
+      <GuiaFerramenta slug="resumo-aco" desenho={<SteelSummarySchematic />}>
+        <GuiaGrupo n={1}>
+          <div className="space-y-2">
+            <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 text-xs text-muted-foreground px-1">
+              <span>Bitola (mm)</span>
+              <span>Quantidade</span>
+              <span>Comp. (m)</span>
+              <span></span>
+            </div>
+            {itens.map((it, i) => (
+              <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center">
+                <Input type="number" value={it.bitolaMm} onChange={(e) => setItem(i, "bitolaMm", e.target.value)} className="font-mono" />
+                <Input type="number" value={it.quantidade} onChange={(e) => setItem(i, "quantidade", e.target.value)} className="font-mono" />
+                <Input type="number" value={it.comprimentoM} onChange={(e) => setItem(i, "comprimentoM", e.target.value)} className="font-mono" />
+                <Button type="button" variant="ghost" size="icon" onClick={() => setItens((a) => (a.length > 1 ? a.filter((_, j) => j !== i) : a))}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            <Button type="button" variant="outline" size="sm" onClick={() => setItens((a) => [...a, { ...VAZIO }])}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" /> Adicionar barra
             </Button>
           </div>
-        ))}
-        <Button type="button" variant="outline" size="sm" onClick={() => setItens((a) => [...a, { ...VAZIO }])}>
-          <Plus className="h-3.5 w-3.5 mr-1.5" /> Adicionar barra
-        </Button>
-      </div>
+        </GuiaGrupo>
 
-      <div className="flex items-end gap-3">
-        <div className="space-y-1.5 w-32">
-          <Label htmlFor="e11-perda">Perda (%)</Label>
-          <Input id="e11-perda" type="number" value={perda} onChange={(e) => setPerda(e.target.value)} className="font-mono" />
-        </div>
-      </div>
+        <GuiaGrupo n={2}>
+          <div className="flex items-end gap-3">
+            <div className="space-y-1.5 w-32">
+              <Label htmlFor="e11-perda">Perda (%)</Label>
+              <Input id="e11-perda" type="number" value={perda} onChange={(e) => setPerda(e.target.value)} className="font-mono" />
+            </div>
+          </div>
+        </GuiaGrupo>
+      </GuiaFerramenta>
 
       {resultado && (
         <div className="rounded-lg border bg-muted/40 p-4 space-y-3">
