@@ -25,6 +25,7 @@ import { calcular as calcularVento, entradaSchema as ventoSchema, GRUPOS_S3, CAT
 import { calcular as calcularCombos, entradaSchema as combosSchema, TIPOS_VARIAVEL } from "./calc/action-combos";
 import { calcular as calcularPilar, entradaSchema as pilarSchema } from "./calc/concrete-column";
 import { calcular as calcularLaje, entradaSchema as lajeSchema, CASOS as CASOS_LAJE } from "./calc/slab-bares";
+import { calcular as calcularEscada, entradaSchema as escadaSchema, VINCULACOES } from "./calc/stair";
 import { getFerramenta } from "./registry";
 
 /** Largura da alma (bw) usada no cisalhamento: b (retangular) ou bw (T). */
@@ -182,6 +183,19 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
       campos["L/250"] = fmtNum(r.flechaLimite, 2);
       return { campos, alertas: r.alertas };
     }
+    case "E08": {
+      const r = calcularEscada(escadaSchema.parse(entradas));
+      return {
+        campos: {
+          "M vão": fmtNum(r.mVaoMax, 2),
+          "M apoio": fmtNum(r.mApoioMax, 2),
+          "As vão": fmtNum(r.asVao, 2),
+          "As apoio": fmtNum(r.asApoio, 2),
+          flecha: fmtNum(r.flechaTotal, 2),
+        },
+        alertas: r.alertas,
+      };
+    }
     default:
       throw new Error(`Ferramenta desconhecida: "${ferramenta}"`);
   }
@@ -251,6 +265,8 @@ export function montarMemoria(
       return memoriaE04(entradas, base);
     case "E05":
       return memoriaE05(entradas, base);
+    case "E08":
+      return memoriaE08(entradas, base);
     default:
       throw new Error(`Ferramenta sem memória: "${ferramenta}"`);
   }
@@ -855,6 +871,58 @@ function memoriaE05(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
           r.alertas.length > 0
             ? r.alertas
             : [`Seção não fissurada (Ma ≤ Mr): flecha pela seção bruta. Fluência por αf = ${fmtNum(e.alphaF ?? 1.32, 2)}.`],
+      },
+    ],
+  });
+}
+
+function memoriaE08(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+  const e = escadaSchema.parse(entradas);
+  const r = calcularEscada(e);
+  return montarMemoriaBase({
+    ...base,
+    secoes: [
+      {
+        titulo: "Dados e cargas",
+        tabelas: [
+          {
+            colunas: ["Parâmetro", "Valor"],
+            linhas: [
+              ["Degrau (piso × espelho)", `${e.piso} × ${e.espelho} cm`],
+              ["Inclinação α", `${fmtNum(r.alphaGraus, 1)}°`],
+              ["Lance + patamar", `${e.aLance} + ${e.aPatamar ?? 0} cm (L = ${fmtNum(r.L, 2)} m)`],
+              ["Espessura hl", `${e.hLaje} cm`],
+              ["Vinculação", VINCULACOES[e.vinculacao ?? "biapoiado"]],
+              ["Sobrecarga q", `${e.q ?? 3} kN/m²`],
+            ],
+          },
+        ],
+        valores: [
+          { simbolo: "g_lance", descricao: "Permanente do lance", valor: fmtNum(r.gLance, 2), unidade: "kN/m²" },
+          { simbolo: "g_patamar", descricao: "Permanente do patamar", valor: fmtNum(r.gPatamar, 2), unidade: "kN/m²" },
+          { simbolo: "w_lance", descricao: "Carga total do lance", valor: fmtNum(r.wLance, 2), unidade: "kN/m" },
+        ],
+      },
+      {
+        titulo: "Esforços e armadura (faixa de 1 m)",
+        valores: [
+          { simbolo: "RA / RB", descricao: "Reações de apoio", valor: `${fmtNum(r.ra, 1)} / ${fmtNum(r.rb, 1)}`, unidade: "kN/m" },
+          { simbolo: "M_vão", descricao: "Momento positivo máximo", valor: fmtNum(r.mVaoMax, 2), unidade: "kN·m/m" },
+          { simbolo: "M_apoio", descricao: "Momento negativo de apoio", valor: fmtNum(r.mApoioMax, 2), unidade: "kN·m/m" },
+          { simbolo: "As_vão", descricao: "Armadura positiva", valor: fmtNum(r.asVao, 2), unidade: "cm²/m" },
+          { simbolo: "As_apoio", descricao: "Armadura negativa", valor: fmtNum(r.asApoio, 2), unidade: "cm²/m" },
+          { simbolo: "As,mín", descricao: "Armadura mínima", valor: fmtNum(r.asMin, 2), unidade: "cm²/m" },
+        ],
+        notas: ["Momentos pela vinculação escolhida (método das forças, EI constante). As por flexão simples."],
+      },
+      {
+        titulo: "Flecha (ELS, com fissuração de Branson)",
+        valores: [
+          { simbolo: "a_i", descricao: "Flecha imediata", valor: fmtNum(r.flechaImediata, 3), unidade: "cm" },
+          { simbolo: "a_∞", descricao: "Flecha total (diferida)", valor: fmtNum(r.flechaTotal, 3), unidade: "cm" },
+          { simbolo: "a_lim", descricao: "Limite L/250", valor: fmtNum(r.flechaLimite, 3), unidade: "cm" },
+        ],
+        notas: ["Flecha por carga uniforme equivalente, coeficiente da vinculação, com Ieq de Branson na seção de vão."],
       },
     ],
   });

@@ -179,7 +179,7 @@ function inerciaEstadioII(as: number, d: number, alphaE: number): { xII: number;
 }
 
 /** Armadura de flexão simples por faixa de 1 m. Md em kN·cm; retorna As (cm²/m) e x/d. */
-function armaduraFaixa(
+export function armaduraFaixa(
   mKNm: number,
   d: number,
   fck: number,

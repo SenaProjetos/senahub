@@ -17,6 +17,7 @@ import {
   Sigma,
   RectangleVertical,
   Grid2x2,
+  Footprints,
   type LucideIcon,
 } from "lucide-react";
 
@@ -82,6 +83,16 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     norma: "NBR 6118:2023",
     exportaveis: ["pdf", "docx", "xlsx", "dxf"],
     icon: Grid2x2,
+  },
+  {
+    key: "E08",
+    nome: "Escada (lance reto)",
+    descricao: "Escada de lance reto com patamar (NBR 6118): cargas, momentos por vinculação (biapoiado/engastado), armadura e flecha com fissuração.",
+    disciplina: "Estrutural",
+    tipo: "completa",
+    norma: "NBR 6118:2023",
+    exportaveis: ["pdf", "docx", "xlsx", "dxf"],
+    icon: Footprints,
   },
   {
     key: "E10",
