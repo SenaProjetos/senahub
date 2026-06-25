@@ -100,6 +100,7 @@ export function SlabBaresForm({ initialEntradas, onSalvo }: Props) {
             <Prop simbolo="As,mín" valor={fmtNum(resultado.asMin, 2)} un="cm²/m" />
             <Prop simbolo="flecha" valor={fmtNum(resultado.flechaTotal, 2)} un="cm" destaque />
             <Prop simbolo="L/250" valor={fmtNum(resultado.flechaLimite, 2)} un="cm" />
+            <Prop simbolo={resultado.fissura ? "fissurada" : "não fissurada"} valor={`Ieq/Ic ${fmtNum(resultado.ieq / resultado.ic, 2)}`} un="" />
           </div>
           <table className="w-full text-xs">
             <thead className="text-muted-foreground">

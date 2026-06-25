@@ -838,17 +838,23 @@ function memoriaE05(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
         ],
       },
       {
-        titulo: "Flecha (ELS, Tabela de Bares — seção bruta)",
+        titulo: "Flecha (ELS, Tabela de Bares + fissuração de Branson)",
         valores: [
           { simbolo: "Ecs", descricao: "Módulo de elasticidade secante", valor: fmtNum(r.ecs, 0), unidade: "MPa" },
-          { simbolo: "a_i", descricao: "Flecha imediata", valor: fmtNum(r.flechaImediata, 3), unidade: "cm", formula: "(α/100)·p·lx⁴/(Ecs·h³)" },
+          { simbolo: "Mr", descricao: "Momento de fissuração (dir. lx)", valor: fmtNum(r.mr, 2), unidade: "kN·m/m", formula: "1,5·fctm·Ic/yt" },
+          { simbolo: "Ma", descricao: "Momento de serviço (dir. lx)", valor: fmtNum(r.maServ, 2), unidade: "kN·m/m" },
+          { simbolo: "Ic", descricao: "Inércia bruta (faixa 1 m)", valor: fmtNum(r.ic, 0), unidade: "cm⁴" },
+          { simbolo: "I_II", descricao: "Inércia no estádio II", valor: fmtNum(r.iII, 0), unidade: "cm⁴" },
+          { simbolo: "I_eq", descricao: "Inércia equivalente (Branson)", valor: fmtNum(r.ieq, 0), unidade: "cm⁴" },
+          { simbolo: "a_i,br", descricao: "Flecha imediata (seção bruta)", valor: fmtNum(r.flechaImediataBruta, 3), unidade: "cm", formula: "(α/100)·p·lx⁴/(Ecs·h³)" },
+          { simbolo: "a_i", descricao: "Flecha imediata (fissurada)", valor: fmtNum(r.flechaImediata, 3), unidade: "cm", formula: "a_i,br·Ic/Ieq" },
           { simbolo: "a_∞", descricao: "Flecha total (diferida)", valor: fmtNum(r.flechaTotal, 3), unidade: "cm", formula: "a_i·(1+αf)" },
           { simbolo: "a_lim", descricao: "Limite L/250", valor: fmtNum(r.flechaLimite, 3), unidade: "cm" },
         ],
         notas:
           r.alertas.length > 0
             ? r.alertas
-            : ["Flecha estimada com seção bruta (Tabela de Bares); conferir fissuração (estádio II) e fluência conforme o caso."],
+            : [`Seção não fissurada (Ma ≤ Mr): flecha pela seção bruta. Fluência por αf = ${fmtNum(e.alphaF ?? 1.32, 2)}.`],
       },
     ],
   });

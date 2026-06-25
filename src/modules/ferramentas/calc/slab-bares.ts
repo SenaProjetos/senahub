@@ -16,6 +16,9 @@
 
 import { z } from "zod";
 import { parametrosConcreto, ACOS } from "./concrete-beam-flexure";
+import { moduloSecante } from "./concrete-beam-deflection";
+
+const ES = 21000; // kN/cm² (210 GPa)
 
 export const CASOS = {
   "1": "Caso 1 — 4 bordas apoiadas",
@@ -151,11 +154,29 @@ export type ResultadoLaje = {
   momentos: MomentoLaje[];
   asMin: number; // cm²/m
   ecs: number; // MPa
-  flechaImediata: number; // cm
-  flechaTotal: number; // cm
+  // Fissuração (estádio II, Branson) na direção de menor vão:
+  ic: number; // cm⁴ (inércia bruta da faixa de 1 m)
+  mr: number; // kN·m/m (momento de fissuração)
+  maServ: number; // kN·m/m (momento de serviço, dir. lx)
+  iII: number; // cm⁴ (inércia fissurada)
+  ieq: number; // cm⁴ (Branson)
+  fissura: boolean;
+  flechaImediataBruta: number; // cm (seção bruta, Tabela de Bares)
+  flechaImediata: number; // cm (corrigida pela fissuração: ×Ic/Ieq)
+  flechaTotal: number; // cm (imediata fissurada × (1+αf))
   flechaLimite: number; // cm (lx/250)
   alertas: string[];
 };
+
+/** Inércia no estádio II (faixa de 1 m, armadura simples) — LN e I_II transformados. */
+function inerciaEstadioII(as: number, d: number, alphaE: number): { xII: number; iII: number } {
+  const b = 100;
+  // (b/2)x² + αe·As·x − αe·As·d = 0
+  const aAs = alphaE * as;
+  const xII = (-aAs + Math.sqrt(aAs * aAs + 2 * b * aAs * d)) / b;
+  const iII = (b * xII ** 3) / 3 + aAs * (d - xII) ** 2;
+  return { xII, iII };
+}
 
 /** Armadura de flexão simples por faixa de 1 m. Md em kN·cm; retorna As (cm²/m) e x/d. */
 function armaduraFaixa(
@@ -215,18 +236,32 @@ export function calcular(input: EntradaLajeInput): ResultadoLaje {
   const asMin = asMinLaje(v.fck, v.h);
   for (const mo of momentos) mo.as = Math.max(mo.as, asMin);
 
-  // Flecha elástica (Tabela 2.5a): a = (α/100)·p·lx⁴/(Ecs·h³).
+  // Flecha elástica bruta (Tabela 2.5a): a = (α/100)·p·lx⁴/(Ecs·h³).
   const fl = FLECHA[v.caso];
   const alpha = umaDirecao ? fl.inf : interp(fl.alpha, lambda);
-  const eci = v.alphaE * 5600 * Math.sqrt(v.fck); // MPa
-  const ecs = Math.min(0.8 + 0.2 * (v.fck / 80), 1) * eci; // MPa
+  const ecs = moduloSecante(v.fck, v.alphaE); // MPa
   const ecsKNm2 = ecs * 1000; // kN/m²
   const pServ = v.pServ ?? v.p;
   const hM = v.h / 100;
-  const flechaImediataM = (alpha / 100) * (pServ * Math.pow(lxM, 4)) / (ecsKNm2 * Math.pow(hM, 3));
-  const flechaImediata = flechaImediataM * 100; // cm
+  const flechaImediataBruta = ((alpha / 100) * (pServ * Math.pow(lxM, 4))) / (ecsKNm2 * Math.pow(hM, 3)) * 100; // cm
+
+  // Fissuração (estádio II, Branson) na direção de menor vão (lx → Mx positivo).
+  const ic = (100 * v.h ** 3) / 12; // cm⁴ (faixa de 1 m)
+  const fctm = (v.fck <= 50 ? 0.3 * Math.pow(v.fck, 2 / 3) : 2.12 * Math.log(1 + 0.11 * v.fck)) / 10; // kN/cm²
+  const mr = (1.5 * fctm * ic) / (v.h / 2) / 100; // kN·m/m
+  const muMx = coef(tab.mx, tab.maior.mx) ?? 0;
+  const maServ = muMx * ((pServ * lxM * lxM) / 100); // kN·m/m (serviço, dir. lx)
+  const asMx = momentos.find((m) => m.simbolo === "Mx")?.as ?? asMin;
+  const alphaEs = ES / (ecs / 10); // Es/Ecs (Ecs em kN/cm²)
+  const { iII } = inerciaEstadioII(asMx, d, alphaEs);
+  const fissura = maServ > mr;
+  const razao = maServ > 0 ? Math.min(mr / maServ, 1) : 1;
+  const ieq = fissura ? Math.min(razao ** 3 * ic + (1 - razao ** 3) * iII, ic) : ic;
+
+  const flechaImediata = flechaImediataBruta * (ic / ieq);
   const flechaTotal = flechaImediata * (1 + v.alphaF);
   const flechaLimite = lx / 250; // cm
+  if (fissura) alertas.push(`Seção fissurada (Ma=${maServ.toFixed(2)} > Mr=${mr.toFixed(2)} kN·m/m): flecha corrigida por Branson (Ieq).`);
   if (flechaTotal > flechaLimite) alertas.push(`Flecha total (${flechaTotal.toFixed(2)} cm) excede o limite L/250 (${flechaLimite.toFixed(2)} cm).`);
 
   return {
@@ -236,6 +271,13 @@ export function calcular(input: EntradaLajeInput): ResultadoLaje {
     momentos,
     asMin,
     ecs,
+    ic,
+    mr,
+    maServ,
+    iII,
+    ieq,
+    fissura,
+    flechaImediataBruta,
     flechaImediata,
     flechaTotal,
     flechaLimite,
