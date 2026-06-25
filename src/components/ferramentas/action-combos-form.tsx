@@ -148,7 +148,7 @@ export function ActionCombosForm({ initialEntradas, onSalvo }: Props) {
       )}
 
       <Footer
-        ferramenta="E14"
+        ferramenta="combinacoes-acoes"
         titulo={`Combinações — ${perms.length}G + ${vars.length}Q`}
         entradas={(entrada ?? {}) as Record<string, unknown>}
         habilitado={!!resultado}

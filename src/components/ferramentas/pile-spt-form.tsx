@@ -120,7 +120,7 @@ export function PileSptForm({ initialEntradas, onSalvo }: Props) {
       )}
 
       <Footer
-        ferramenta="E23"
+        ferramenta="estaca-spt"
         titulo={`Estaca ${ESTACAS[estaca as keyof typeof ESTACAS]?.label ?? ""} ø${diam}`}
         entradas={(entrada ?? {}) as Record<string, unknown>}
         habilitado={!!resultado}

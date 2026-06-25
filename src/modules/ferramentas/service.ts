@@ -58,11 +58,11 @@ import type { ResultadoBase, SnapshotCalculo } from "./types";
 /** Calcula o resultado para a ferramenta informada e retorna ResultadoBase (painel). */
 export function calcular(ferramenta: string, entradas: Record<string, unknown>): ResultadoBase {
   switch (ferramenta) {
-    case "U01": {
+    case "conversor-unidades": {
       const r = converter(unitConvertSchema.parse(entradas));
       return { campos: { valor: r.valor, de: r.de, para: r.para, fator: r.fator } };
     }
-    case "U02": {
+    case "propriedades-secao": {
       const r = calcularSecao(secaoSchema.parse(entradas));
       return {
         campos: {
@@ -76,7 +76,7 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
         },
       };
     }
-    case "E01": {
+    case "viga-concreto": {
       const e = vigaSchema.parse(entradas);
       const r = calcularViga(e);
       const campos: Record<string, string | number> = {
@@ -102,7 +102,7 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
       }
       return { campos, alertas };
     }
-    case "E10": {
+    case "ancoragem": {
       const r = calcularAncoragem(ancoragemSchema.parse(entradas));
       return {
         campos: {
@@ -114,7 +114,7 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
         },
       };
     }
-    case "E11": {
+    case "resumo-aco": {
       const r = calcularResumoAco(resumoAcoSchema.parse(entradas));
       return {
         campos: {
@@ -124,7 +124,7 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
         },
       };
     }
-    case "E23": {
+    case "estaca-spt": {
       const r = calcularEstaca(estacaSchema.parse(entradas));
       return {
         campos: {
@@ -134,7 +134,7 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
         },
       };
     }
-    case "E12": {
+    case "descida-cargas": {
       const r = calcularDescida(descidaSchema.parse(entradas));
       return {
         campos: {
@@ -145,7 +145,7 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
         },
       };
     }
-    case "E13": {
+    case "acao-vento": {
       const r = calcularVento(ventoSchema.parse(entradas));
       const campos: Record<string, string | number> = {
         Vk: fmtNum(r.vk, 1),
@@ -155,7 +155,7 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
       if (r.forca) campos["F arrasto"] = fmtNum(r.forca.f, 1);
       return { campos };
     }
-    case "E14": {
+    case "combinacoes-acoes": {
       const r = calcularCombos(combosSchema.parse(entradas));
       return {
         campos: {
@@ -165,7 +165,7 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
         },
       };
     }
-    case "E04": {
+    case "pilar-concreto": {
       const r = calcularPilar(pilarSchema.parse(entradas));
       return {
         campos: {
@@ -178,7 +178,7 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
         alertas: r.alertas,
       };
     }
-    case "E05": {
+    case "laje-macica": {
       const r = calcularLaje(lajeSchema.parse(entradas));
       const campos: Record<string, string | number> = { λ: fmtNum(r.lambda, 2) };
       for (const m of r.momentos) campos[`As ${m.simbolo}`] = fmtNum(m.as, 2);
@@ -186,7 +186,7 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
       campos["L/250"] = fmtNum(r.flechaLimite, 2);
       return { campos, alertas: r.alertas };
     }
-    case "E08": {
+    case "escada": {
       const r = calcularEscada(escadaSchema.parse(entradas));
       return {
         campos: {
@@ -199,7 +199,7 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
         alertas: r.alertas,
       };
     }
-    case "E07": {
+    case "puncao": {
       const r = calcularPuncao(puncaoSchema.parse(entradas));
       const campos: Record<string, string | number> = {
         β: fmtNum(r.beta, 3),
@@ -212,7 +212,7 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
       if (r.precisaArmadura) campos["Asw/perím."] = fmtNum(r.asw, 2);
       return { campos, alertas: r.alertas };
     }
-    case "E21": {
+    case "sapata-isolada": {
       const r = calcularSapata(sapataSchema.parse(entradas));
       return {
         campos: {
@@ -226,7 +226,7 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
         alertas: r.alertas,
       };
     }
-    case "E22": {
+    case "sapata-excentrica": {
       const r = calcularSapataExc(sapataExcSchema.parse(entradas));
       if (r.modo === "isolada") {
         return {
@@ -299,36 +299,36 @@ export function montarMemoria(
   };
 
   switch (ferramenta) {
-    case "U01":
-      return memoriaU01(entradas, base);
-    case "U02":
-      return memoriaU02(entradas, base);
-    case "E01":
-      return memoriaE01(entradas, base);
-    case "E10":
-      return memoriaE10(entradas, base);
-    case "E11":
-      return memoriaE11(entradas, base);
-    case "E23":
-      return memoriaE23(entradas, base);
-    case "E12":
-      return memoriaE12(entradas, base);
-    case "E13":
-      return memoriaE13(entradas, base);
-    case "E14":
-      return memoriaE14(entradas, base);
-    case "E04":
-      return memoriaE04(entradas, base);
-    case "E05":
-      return memoriaE05(entradas, base);
-    case "E08":
-      return memoriaE08(entradas, base);
-    case "E07":
-      return memoriaE07(entradas, base);
-    case "E21":
-      return memoriaE21(entradas, base);
-    case "E22":
-      return memoriaE22(entradas, base);
+    case "conversor-unidades":
+      return memoriaConversorUnidades(entradas, base);
+    case "propriedades-secao":
+      return memoriaPropriedadesSecao(entradas, base);
+    case "viga-concreto":
+      return memoriaVigaConcreto(entradas, base);
+    case "ancoragem":
+      return memoriaAncoragem(entradas, base);
+    case "resumo-aco":
+      return memoriaResumoAco(entradas, base);
+    case "estaca-spt":
+      return memoriaEstacaSpt(entradas, base);
+    case "descida-cargas":
+      return memoriaDescidaCargas(entradas, base);
+    case "acao-vento":
+      return memoriaAcaoVento(entradas, base);
+    case "combinacoes-acoes":
+      return memoriaCombinacoesAcoes(entradas, base);
+    case "pilar-concreto":
+      return memoriaPilarConcreto(entradas, base);
+    case "laje-macica":
+      return memoriaLajeMacica(entradas, base);
+    case "escada":
+      return memoriaEscada(entradas, base);
+    case "puncao":
+      return memoriaPuncao(entradas, base);
+    case "sapata-isolada":
+      return memoriaSapataIsolada(entradas, base);
+    case "sapata-excentrica":
+      return memoriaSapataExcentrica(entradas, base);
     default:
       throw new Error(`Ferramenta sem memória: "${ferramenta}"`);
   }
@@ -340,7 +340,7 @@ function labelUnidade(dimensao: Dimensao, chave: string): string {
   return UNIDADES[dimensao]?.[chave]?.label ?? chave;
 }
 
-function memoriaU01(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+function memoriaConversorUnidades(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
   const e = unitConvertSchema.parse(entradas);
   const r = converter(e);
   const uDe = labelUnidade(e.dimensao, e.de);
@@ -380,7 +380,7 @@ function descricaoSecao(e: EntradaSecao): { colunas: string[]; linhas: (string |
   }
 }
 
-function memoriaU02(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+function memoriaPropriedadesSecao(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
   const e = secaoSchema.parse(entradas);
   const r = calcularSecao(e);
   const desc = descricaoSecao(e);
@@ -431,7 +431,7 @@ function descricaoViga(e: EntradaFlexao): { colunas: string[]; linhas: (string |
   return { colunas: ["Parâmetro", "Valor"], linhas };
 }
 
-function memoriaE01(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+function memoriaVigaConcreto(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
   const e = vigaSchema.parse(entradas);
   const r = calcularViga(e);
   const desc = descricaoViga(e);
@@ -508,7 +508,7 @@ function memoriaE01(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
   return montarMemoriaBase({ ...base, secoes });
 }
 
-function memoriaE10(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+function memoriaAncoragem(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
   const e = ancoragemSchema.parse(entradas);
   const r = calcularAncoragem(e);
   return montarMemoriaBase({
@@ -552,7 +552,7 @@ function memoriaE10(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
   });
 }
 
-function memoriaE11(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+function memoriaResumoAco(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
   const e = resumoAcoSchema.parse(entradas);
   const r = calcularResumoAco(e);
   return montarMemoriaBase({
@@ -576,7 +576,7 @@ function memoriaE11(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
   });
 }
 
-function memoriaE23(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+function memoriaEstacaSpt(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
   const e = estacaSchema.parse(entradas);
   const r = calcularEstaca(e);
   return montarMemoriaBase({
@@ -615,7 +615,7 @@ function memoriaE23(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
   });
 }
 
-function memoriaE12(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+function memoriaDescidaCargas(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
   const e = descidaSchema.parse(entradas);
   const r = calcularDescida(e);
   return montarMemoriaBase({
@@ -662,7 +662,7 @@ function memoriaE12(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
   });
 }
 
-function memoriaE13(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+function memoriaAcaoVento(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
   const e = ventoSchema.parse(entradas);
   const r = calcularVento(e);
 
@@ -727,7 +727,7 @@ const ROTULO_ELU: Record<string, string> = {
   excepcional: "Última excepcional",
 };
 
-function memoriaE14(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+function memoriaCombinacoesAcoes(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
   const e = combosSchema.parse(entradas);
   const r = calcularCombos(e);
 
@@ -813,7 +813,7 @@ function memoriaE14(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
   });
 }
 
-function memoriaE04(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+function memoriaPilarConcreto(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
   const e = pilarSchema.parse(entradas);
   const r = calcularPilar(e);
   const kNm = (kNcm: number) => fmtNum(kNcm / 100, 2);
@@ -876,7 +876,7 @@ function memoriaE04(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
   });
 }
 
-function memoriaE05(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+function memoriaLajeMacica(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
   const e = lajeSchema.parse(entradas);
   const r = calcularLaje(e);
 
@@ -938,7 +938,7 @@ function memoriaE05(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
   });
 }
 
-function memoriaE08(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+function memoriaEscada(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
   const e = escadaSchema.parse(entradas);
   const r = calcularEscada(e);
   return montarMemoriaBase({
@@ -990,7 +990,7 @@ function memoriaE08(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
   });
 }
 
-function memoriaE07(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+function memoriaPuncao(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
   const e = puncaoSchema.parse(entradas);
   const r = calcularPuncao(e);
   const secoes: MemoriaDoc["secoes"] = [
@@ -1050,7 +1050,7 @@ function memoriaE07(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
   return montarMemoriaBase({ ...base, secoes });
 }
 
-function memoriaE21(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+function memoriaSapataIsolada(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
   const e = sapataSchema.parse(entradas);
   const r = calcularSapata(e);
   const secoes: MemoriaDoc["secoes"] = [
@@ -1113,7 +1113,7 @@ function memoriaE21(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
   return montarMemoriaBase({ ...base, secoes });
 }
 
-function memoriaE22(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+function memoriaSapataExcentrica(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
   const e = sapataExcSchema.parse(entradas);
   const r = calcularSapataExc(e);
 

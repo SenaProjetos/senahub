@@ -177,14 +177,14 @@ export function SectionPropertiesForm({ initialEntradas, onSalvo }: Props) {
         </div>
       )}
 
-      {resultado && <DxfPreview ferramenta="U02" entradas={entrada as Record<string, unknown> | null} />}
+      {resultado && <DxfPreview ferramenta="propriedades-secao" entradas={entrada as Record<string, unknown> | null} />}
 
       <div className="flex flex-wrap items-center gap-2 pt-2">
         <Button type="button" disabled={!resultado} onClick={() => setSalvarOpen(true)}>
           Salvar cálculo
         </Button>
         <SavefileButtons
-          ferramenta="U02"
+          ferramenta="propriedades-secao"
           versaoCalc={1}
           titulo={tituloSugerido}
           entradas={(entrada ?? {}) as Record<string, unknown>}
@@ -196,7 +196,7 @@ export function SectionPropertiesForm({ initialEntradas, onSalvo }: Props) {
       <SalvarDialog
         open={salvarOpen}
         onOpenChange={setSalvarOpen}
-        ferramenta="U02"
+        ferramenta="propriedades-secao"
         tituloSugerido={tituloSugerido}
         entradas={(entrada ?? {}) as Record<string, unknown>}
         onSalvo={onSalvo}

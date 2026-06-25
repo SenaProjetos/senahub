@@ -217,7 +217,7 @@ export function UnitConvertForm({ initialEntradas, onSalvo }: Props) {
           Salvar cálculo
         </Button>
         <SavefileButtons
-          ferramenta="U01"
+          ferramenta="conversor-unidades"
           versaoCalc={1}
           titulo={tituloSugerido}
           entradas={entradas}
@@ -229,7 +229,7 @@ export function UnitConvertForm({ initialEntradas, onSalvo }: Props) {
       <SalvarDialog
         open={salvarOpen}
         onOpenChange={setSalvarOpen}
-        ferramenta="U01"
+        ferramenta="conversor-unidades"
         tituloSugerido={tituloSugerido}
         entradas={entradas}
         onSalvo={onSalvo}

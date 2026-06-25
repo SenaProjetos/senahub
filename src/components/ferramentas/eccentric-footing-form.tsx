@@ -159,10 +159,10 @@ export function EccentricFootingForm({ initialEntradas, onSalvo }: Props) {
         </div>
       )}
 
-      {r && <DxfPreview ferramenta="E22" entradas={entrada as Record<string, unknown> | null} />}
+      {r && <DxfPreview ferramenta="sapata-excentrica" entradas={entrada as Record<string, unknown> | null} />}
 
       <Footer
-        ferramenta="E22"
+        ferramenta="sapata-excentrica"
         titulo={modo === "isolada" ? `Sapata exc. ${a}×${b}` : `Viga equilíbrio P1=${p1}`}
         entradas={(entrada ?? {}) as Record<string, unknown>}
         habilitado={!!r}

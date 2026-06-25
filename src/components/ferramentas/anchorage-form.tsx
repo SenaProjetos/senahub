@@ -128,7 +128,7 @@ export function AnchorageForm({ initialEntradas, onSalvo }: Props) {
       )}
 
       <Footer
-        ferramenta="E10"
+        ferramenta="ancoragem"
         titulo={`Ancoragem ø${phi} ${aco}`}
         entradas={(entrada ?? {}) as Record<string, unknown>}
         habilitado={!!resultado}

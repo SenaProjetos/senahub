@@ -112,10 +112,10 @@ export function StairForm({ initialEntradas, onSalvo }: Props) {
         </div>
       )}
 
-      {resultado && <DxfPreview ferramenta="E08" entradas={entrada as Record<string, unknown> | null} />}
+      {resultado && <DxfPreview ferramenta="escada" entradas={entrada as Record<string, unknown> | null} />}
 
       <Footer
-        ferramenta="E08"
+        ferramenta="escada"
         titulo={`Escada ${piso}×${espelho} — ${VINCULACOES[vinc as Vinculacao]?.split(" ")[0] ?? ""}`}
         entradas={(entrada ?? {}) as Record<string, unknown>}
         habilitado={!!resultado}

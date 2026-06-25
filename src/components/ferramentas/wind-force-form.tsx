@@ -169,7 +169,7 @@ export function WindForceForm({ initialEntradas, onSalvo }: Props) {
       )}
 
       <Footer
-        ferramenta="E13"
+        ferramenta="acao-vento"
         titulo={`Vento V0=${v0} m/s — Cat ${categoria}/${classe}`}
         entradas={(entrada ?? {}) as Record<string, unknown>}
         habilitado={!!resultado}

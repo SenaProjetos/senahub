@@ -35,8 +35,8 @@ describe("DXF da viga (E01)", () => {
   });
 
   it("dispatcher: E01 gera DXF; ferramenta sem desenho → null", () => {
-    const dxf = desenharDxf("E01", { secao: { forma: "retangular", b: 20, h: 50 }, d: 46, fck: 25, aco: "CA-50", Mk: 100 });
+    const dxf = desenharDxf("viga-concreto", { secao: { forma: "retangular", b: 20, h: 50 }, d: 46, fck: 25, aco: "CA-50", Mk: 100 });
     expect(dxf).toContain("EOF");
-    expect(desenharDxf("U01", { dimensao: "forca", valor: 1, de: "kN", para: "N" })).toBeNull();
+    expect(desenharDxf("conversor-unidades", { dimensao: "forca", valor: 1, de: "kN", para: "N" })).toBeNull();
   });
 });

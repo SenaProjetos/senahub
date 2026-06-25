@@ -119,7 +119,7 @@ export function PunchingForm({ initialEntradas, onSalvo }: Props) {
       )}
 
       <Footer
-        ferramenta="E07"
+        ferramenta="puncao"
         titulo={`Punção ${POSICOES[posicao as Posicao]?.split(" ").pop() ?? ""} ${c1}×${c2}`}
         entradas={(entrada ?? {}) as Record<string, unknown>}
         habilitado={!!r}

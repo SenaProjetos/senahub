@@ -216,14 +216,14 @@ export function ConcreteBeamForm({ initialEntradas, onSalvo }: Props) {
         </div>
       )}
 
-      {resultado && <DxfPreview ferramenta="E01" entradas={entrada as Record<string, unknown> | null} />}
+      {resultado && <DxfPreview ferramenta="viga-concreto" entradas={entrada as Record<string, unknown> | null} />}
 
       <div className="flex flex-wrap items-center gap-2 pt-2">
         <Button type="button" disabled={!resultado} onClick={() => setSalvarOpen(true)}>
           Salvar cálculo
         </Button>
         <SavefileButtons
-          ferramenta="E01"
+          ferramenta="viga-concreto"
           versaoCalc={1}
           titulo={tituloSugerido}
           entradas={(entrada ?? {}) as Record<string, unknown>}
@@ -235,7 +235,7 @@ export function ConcreteBeamForm({ initialEntradas, onSalvo }: Props) {
       <SalvarDialog
         open={salvarOpen}
         onOpenChange={setSalvarOpen}
-        ferramenta="E01"
+        ferramenta="viga-concreto"
         tituloSugerido={tituloSugerido}
         entradas={(entrada ?? {}) as Record<string, unknown>}
         onSalvo={onSalvo}

@@ -100,10 +100,10 @@ export function FootingForm({ initialEntradas, onSalvo }: Props) {
         </div>
       )}
 
-      {r && <DxfPreview ferramenta="E21" entradas={entrada as Record<string, unknown> | null} />}
+      {r && <DxfPreview ferramenta="sapata-isolada" entradas={entrada as Record<string, unknown> | null} />}
 
       <Footer
-        ferramenta="E21"
+        ferramenta="sapata-isolada"
         titulo={`Sapata ${ap}×${bp} — Nk ${nk || "?"} kN`}
         entradas={(entrada ?? {}) as Record<string, unknown>}
         habilitado={!!r}

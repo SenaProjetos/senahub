@@ -125,10 +125,10 @@ export function ConcreteColumnForm({ initialEntradas, onSalvo }: Props) {
         </div>
       )}
 
-      {resultado && <DxfPreview ferramenta="E04" entradas={entrada as Record<string, unknown> | null} />}
+      {resultado && <DxfPreview ferramenta="pilar-concreto" entradas={entrada as Record<string, unknown> | null} />}
 
       <Footer
-        ferramenta="E04"
+        ferramenta="pilar-concreto"
         titulo={`Pilar ${b}×${h} — Nd ${nd || "?"} kN`}
         entradas={(entrada ?? {}) as Record<string, unknown>}
         habilitado={!!resultado}

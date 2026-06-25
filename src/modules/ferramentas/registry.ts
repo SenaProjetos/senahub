@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 
 export type FerramentaMeta = {
-  /** Chave estável da ferramenta (ex.: "U01"). Igual ao entradasJson.ferramenta. */
+  /** Chave estável da ferramenta (ex.: "conversor-unidades"). Igual ao entradasJson.ferramenta. */
   key: string;
   nome: string;
   descricao: string;
@@ -40,7 +40,7 @@ export type FerramentaMeta = {
 
 export const FERRAMENTAS: FerramentaMeta[] = [
   {
-    key: "U01",
+    key: "conversor-unidades",
     nome: "Conversor de Unidades",
     descricao: "Converte valores entre unidades de engenharia: comprimento, área, volume, massa, força, tensão, momento, vazão e ângulo.",
     disciplina: "Universal",
@@ -49,7 +49,7 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     icon: ArrowLeftRight,
   },
   {
-    key: "U02",
+    key: "propriedades-secao",
     nome: "Propriedades de Seção",
     descricao: "Área, centroide, momentos de inércia, módulos resistentes e raios de giração para seções retangular, circular, T e poligonal.",
     disciplina: "Universal",
@@ -58,7 +58,7 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     icon: Shapes,
   },
   {
-    key: "E01",
+    key: "viga-concreto",
     nome: "Viga de Concreto à Flexão",
     descricao: "Dimensionamento à flexão simples (ELU): armadura de tração e compressão, domínios e armadura mínima/máxima, para seções retangular e T.",
     disciplina: "Estrutural",
@@ -68,7 +68,7 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     icon: RectangleHorizontal,
   },
   {
-    key: "E04",
+    key: "pilar-concreto",
     nome: "Pilar de Concreto",
     descricao: "Flexo-compressão oblíqua (NBR 6118:2023): esbeltez, 2ª ordem (pilar-padrão), dimensionamento de As por interação biaxial e detalhamento da seção.",
     disciplina: "Estrutural",
@@ -78,7 +78,7 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     icon: RectangleVertical,
   },
   {
-    key: "E05",
+    key: "laje-macica",
     nome: "Laje Maciça",
     descricao: "Laje retangular armada em cruz (tabelas de Bares, NBR 6118): momentos por direção, armadura e flecha elástica, para 9 casos de vinculação.",
     disciplina: "Estrutural",
@@ -88,7 +88,7 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     icon: Grid2x2,
   },
   {
-    key: "E07",
+    key: "puncao",
     nome: "Punção em Laje Lisa",
     descricao: "Verificação à punção (NBR 6118 §19.5) em pilar interno, de borda e de canto: perímetros C/C', coeficiente β (Wp), armadura de punção e perímetro C''.",
     disciplina: "Estrutural",
@@ -98,7 +98,7 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     icon: Crosshair,
   },
   {
-    key: "E08",
+    key: "escada",
     nome: "Escada (lance reto)",
     descricao: "Escada de lance reto com patamar (NBR 6118): cargas, momentos por vinculação (biapoiado/engastado), armadura e flecha com fissuração.",
     disciplina: "Estrutural",
@@ -108,7 +108,7 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     icon: Footprints,
   },
   {
-    key: "E10",
+    key: "ancoragem",
     nome: "Ancoragem e Traspasse",
     descricao: "Comprimento de ancoragem (lb, lb,nec, lb,mín) e de traspasse de barras, com/sem gancho e por zona de aderência.",
     disciplina: "Estrutural",
@@ -118,7 +118,7 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     icon: Anchor,
   },
   {
-    key: "E11",
+    key: "resumo-aco",
     nome: "Resumo de Aço",
     descricao: "Quantitativo de aço (corte e dobra): peso por bitola e total com perda, a partir da lista de barras.",
     disciplina: "Estrutural",
@@ -128,7 +128,7 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     icon: Table2,
   },
   {
-    key: "E12",
+    key: "descida-cargas",
     nome: "Descida de Cargas",
     descricao: "Acúmulo de cargas verticais em pilar por área de influência, do topo à base, separando permanente e acidental (com fator de redução opcional).",
     disciplina: "Estrutural",
@@ -138,7 +138,7 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     icon: ArrowDownToLine,
   },
   {
-    key: "E13",
+    key: "acao-vento",
     nome: "Ação do Vento",
     descricao: "Velocidade característica e pressão dinâmica do vento (Vk, q) e força de arrasto global (F = Ca·q·Ae), com fatores S1, S2 e S3.",
     disciplina: "Estrutural",
@@ -148,7 +148,7 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     icon: Wind,
   },
   {
-    key: "E14",
+    key: "combinacoes-acoes",
     nome: "Combinações de Ações",
     descricao: "Combinações últimas (normal, especial, excepcional) e de serviço (quase-permanente, frequente, rara) a partir das ações permanentes e variáveis.",
     disciplina: "Estrutural",
@@ -158,7 +158,7 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     icon: Sigma,
   },
   {
-    key: "E21",
+    key: "sapata-isolada",
     nome: "Sapata Isolada",
     descricao: "Sapata isolada centrada (NBR 6118/6122): área pela σadm, rigidez, armadura por bielas-tirantes (rígida) ou flexão + punção (flexível), com detalhamento.",
     disciplina: "Fundações",
@@ -168,7 +168,7 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     icon: Square,
   },
   {
-    key: "E22",
+    key: "sapata-excentrica",
     nome: "Sapatas Excêntricas",
     descricao: "Sapata excêntrica isolada (tensões no solo, trapezoidal/triangular) e sapata de divisa com viga de equilíbrio (alavanca), com dimensionamento e detalhamento.",
     disciplina: "Fundações",
@@ -178,7 +178,7 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     icon: SquareStack,
   },
   {
-    key: "E23",
+    key: "estaca-spt",
     nome: "Estaca por SPT",
     descricao: "Capacidade de carga de estaca por Aoki-Velloso e Décourt-Quaresma, a partir do perfil de sondagem (SPT).",
     disciplina: "Fundações",

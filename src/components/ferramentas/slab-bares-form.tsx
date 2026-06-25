@@ -125,10 +125,10 @@ export function SlabBaresForm({ initialEntradas, onSalvo }: Props) {
         </div>
       )}
 
-      {resultado && <DxfPreview ferramenta="E05" entradas={entrada as Record<string, unknown> | null} />}
+      {resultado && <DxfPreview ferramenta="laje-macica" entradas={entrada as Record<string, unknown> | null} />}
 
       <Footer
-        ferramenta="E05"
+        ferramenta="laje-macica"
         titulo={`Laje ${CASOS[caso as CasoLaje]?.split(" — ")[0] ?? ""} ${lx}×${ly}`}
         entradas={(entrada ?? {}) as Record<string, unknown>}
         habilitado={!!resultado}

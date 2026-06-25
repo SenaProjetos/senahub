@@ -116,7 +116,7 @@ export function SteelSummaryForm({ initialEntradas, onSalvo }: Props) {
       )}
 
       <Footer
-        ferramenta="E11"
+        ferramenta="resumo-aco"
         titulo="Resumo de aço"
         entradas={(entrada ?? {}) as Record<string, unknown>}
         habilitado={!!resultado}

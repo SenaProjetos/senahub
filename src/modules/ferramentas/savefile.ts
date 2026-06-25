@@ -36,21 +36,21 @@ const headerSchema = z.object({
 
 /** Schemas de entradas por ferramenta (adicionar aqui à medida que novas ferramentas forem criadas). */
 const ENTRADAS_SCHEMAS: Record<string, z.ZodTypeAny> = {
-  U01: unitConvertSchema,
-  U02: sectionSchema,
-  E01: beamFlexureSchema,
-  E04: concreteColumnSchema,
-  E05: slabBaresSchema,
-  E07: punchingSchema,
-  E08: stairSchema,
-  E21: footingSchema,
-  E22: eccentricFootingSchema,
-  E10: anchorageSchema,
-  E11: steelSummarySchema,
-  E12: loadDescentSchema,
-  E13: windForceSchema,
-  E14: actionCombosSchema,
-  E23: pileSptSchema,
+  "conversor-unidades": unitConvertSchema,
+  "propriedades-secao": sectionSchema,
+  "viga-concreto": beamFlexureSchema,
+  "pilar-concreto": concreteColumnSchema,
+  "laje-macica": slabBaresSchema,
+  "puncao": punchingSchema,
+  "escada": stairSchema,
+  "sapata-isolada": footingSchema,
+  "sapata-excentrica": eccentricFootingSchema,
+  "ancoragem": anchorageSchema,
+  "resumo-aco": steelSummarySchema,
+  "descida-cargas": loadDescentSchema,
+  "acao-vento": windForceSchema,
+  "combinacoes-acoes": actionCombosSchema,
+  "estaca-spt": pileSptSchema,
 };
 
 const savefileSchema = headerSchema.extend({

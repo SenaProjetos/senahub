@@ -36,35 +36,35 @@ type Props = {
 
 function renderForm(key: string, initialEntradas: Record<string, unknown> | undefined, onSalvo: (id: string) => void) {
   switch (key) {
-    case "U01":
+    case "conversor-unidades":
       return <UnitConvertForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
-    case "U02":
+    case "propriedades-secao":
       return <SectionPropertiesForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
-    case "E01":
+    case "viga-concreto":
       return <ConcreteBeamForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
-    case "E10":
+    case "ancoragem":
       return <AnchorageForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
-    case "E11":
+    case "resumo-aco":
       return <SteelSummaryForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
-    case "E23":
+    case "estaca-spt":
       return <PileSptForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
-    case "E12":
+    case "descida-cargas":
       return <LoadDescentForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
-    case "E13":
+    case "acao-vento":
       return <WindForceForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
-    case "E14":
+    case "combinacoes-acoes":
       return <ActionCombosForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
-    case "E04":
+    case "pilar-concreto":
       return <ConcreteColumnForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
-    case "E05":
+    case "laje-macica":
       return <SlabBaresForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
-    case "E08":
+    case "escada":
       return <StairForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
-    case "E07":
+    case "puncao":
       return <PunchingForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
-    case "E21":
+    case "sapata-isolada":
       return <FootingForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
-    case "E22":
+    case "sapata-excentrica":
       return <EccentricFootingForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     default:
       return <p className="text-muted-foreground text-sm">Ferramenta em desenvolvimento.</p>;

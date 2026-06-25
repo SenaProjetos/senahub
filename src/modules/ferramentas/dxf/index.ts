@@ -23,19 +23,19 @@ import { desenharSapataExc } from "./eccentric-footing";
 /** Monta o documento DXF (geometria) da ferramenta, ou null. Lança se as entradas forem inválidas. */
 export function documentoDxf(ferramenta: string, entradas: unknown): DxfDocumento | null {
   switch (ferramenta) {
-    case "U02":
+    case "propriedades-secao":
       return desenharSecao(calcularSecao(secaoSchema.parse(entradas)));
-    case "E01":
+    case "viga-concreto":
       return desenharVigaSecao(vigaSchema.parse(entradas));
-    case "E04":
+    case "pilar-concreto":
       return desenharPilarSecao(pilarSchema.parse(entradas));
-    case "E05":
+    case "laje-macica":
       return desenharLajePainel(lajeSchema.parse(entradas));
-    case "E08":
+    case "escada":
       return desenharEscadaPerfil(escadaSchema.parse(entradas));
-    case "E21":
+    case "sapata-isolada":
       return desenharSapata(sapataSchema.parse(entradas));
-    case "E22":
+    case "sapata-excentrica":
       return desenharSapataExc(sapataExcSchema.parse(entradas));
     default:
       return null;

@@ -6,7 +6,7 @@ const entradasValidas = { dimensao: "forca", valor: 1, de: "tf", para: "kN" };
 describe("savefile — round-trip e validações", () => {
   it("serializa e devolve JSON válido com header correto", () => {
     const json = serializar({
-      ferramenta: "U01",
+      ferramenta: "conversor-unidades",
       versaoCalc: 1,
       titulo: "Teste TF→kN",
       entradas: entradasValidas,
@@ -14,14 +14,14 @@ describe("savefile — round-trip e validações", () => {
     const parsed = JSON.parse(json);
     expect(parsed.app).toBe("senahub");
     expect(parsed.kind).toBe("shcalc");
-    expect(parsed.ferramenta).toBe("U01");
+    expect(parsed.ferramenta).toBe("conversor-unidades");
     expect(parsed.titulo).toBe("Teste TF→kN");
     expect(parsed.entradas).toEqual(entradasValidas);
   });
 
   it("round-trip: serializar → parse retorna os mesmos dados", () => {
     const json = serializar({
-      ferramenta: "U01",
+      ferramenta: "conversor-unidades",
       versaoCalc: 1,
       titulo: "Meu cálculo",
       norma: undefined,
@@ -30,23 +30,23 @@ describe("savefile — round-trip e validações", () => {
     const result = parse(json);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.data.ferramenta).toBe("U01");
+    expect(result.data.ferramenta).toBe("conversor-unidades");
     expect(result.data.versaoCalc).toBe(1);
     expect(result.data.entradas).toEqual(entradasValidas);
   });
 
   it("round-trip com ferramenta esperada correta", () => {
-    const json = serializar({ ferramenta: "U01", versaoCalc: 1, titulo: "t", entradas: entradasValidas });
-    const result = parse(json, "U01");
+    const json = serializar({ ferramenta: "conversor-unidades", versaoCalc: 1, titulo: "t", entradas: entradasValidas });
+    const result = parse(json, "conversor-unidades");
     expect(result.ok).toBe(true);
   });
 
   it("rejeita arquivo de outra ferramenta quando ferramentaEsperada está definida", () => {
-    const json = serializar({ ferramenta: "U01", versaoCalc: 1, titulo: "t", entradas: entradasValidas });
-    const result = parse(json, "E01");
+    const json = serializar({ ferramenta: "conversor-unidades", versaoCalc: 1, titulo: "t", entradas: entradasValidas });
+    const result = parse(json, "viga-concreto");
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.erro).toMatch(/E01/);
+    expect(result.erro).toMatch(/viga-concreto/);
   });
 
   it("rejeita JSON inválido", () => {
@@ -65,7 +65,7 @@ describe("savefile — round-trip e validações", () => {
 
   it("rejeita entradas incompatíveis com o schema da ferramenta", () => {
     const json = serializar({
-      ferramenta: "U01",
+      ferramenta: "conversor-unidades",
       versaoCalc: 1,
       titulo: "inválido",
       entradas: { dimensao: "DIMENSAO_INEXISTENTE", valor: "nao_numero", de: "kN", para: "N" },
@@ -78,7 +78,7 @@ describe("savefile — round-trip e validações", () => {
 
   it("inclui norma quando fornecida", () => {
     const json = serializar({
-      ferramenta: "U01",
+      ferramenta: "conversor-unidades",
       versaoCalc: 1,
       titulo: "t",
       norma: "NBR 6118:2023",

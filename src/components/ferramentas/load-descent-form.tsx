@@ -137,7 +137,7 @@ export function LoadDescentForm({ initialEntradas, onSalvo }: Props) {
       )}
 
       <Footer
-        ferramenta="E12"
+        ferramenta="descida-cargas"
         titulo={`Descida de cargas — ${pavs.length} pav.`}
         entradas={(entrada ?? {}) as Record<string, unknown>}
         habilitado={!!resultado}

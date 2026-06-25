@@ -33,7 +33,7 @@ export type MemoriaSecao = {
 };
 
 export type MemoriaDoc = {
-  /** Chave da ferramenta (ex.: "U02"). */
+  /** Chave da ferramenta (ex.: "propriedades-secao"). */
   ferramenta: string;
   /** Título dado pelo usuário ao cálculo. */
   titulo: string;
