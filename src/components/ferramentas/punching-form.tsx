@@ -13,6 +13,8 @@ import {
 import { calcular, POSICOES, type EntradaPuncaoInput, type Posicao } from "@/modules/ferramentas/calc/punching";
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
+import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
+import { PuncaoSchematic } from "./guia/schematics/puncao";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
@@ -59,33 +61,45 @@ export function PunchingForm({ initialEntradas, onSalvo }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1.5">
-        <Label>Posição do pilar</Label>
-        <Select value={posicao} onValueChange={(v) => v && setPosicao(v)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {POS_KEYS.map((k) => <SelectItem key={k} value={k}>{POSICOES[k]}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
+      <GuiaFerramenta slug="puncao" desenho={<PuncaoSchematic />}>
+        <GuiaGrupo n={1}>
+          <div className="space-y-1.5">
+            <Label>Posição do pilar</Label>
+            <Select value={posicao} onValueChange={(v) => v && setPosicao(v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {POS_KEYS.map((k) => <SelectItem key={k} value={k}>{POSICOES[k]}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </GuiaGrupo>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <Campo id="e07-c1" label="c1 (cm)" value={c1} onChange={setC1} placeholder="dir. momento" />
-        <Campo id="e07-c2" label="c2 (cm)" value={c2} onChange={setC2} />
-        <Campo id="e07-d" label="d (cm)" value={d} onChange={setD} />
-        <Campo id="e07-fsd" label="FSd (kN)" value={fSd} onChange={setFSd} />
-        <Campo id="e07-msd" label="MSd (kN·m)" value={mSd} onChange={setMSd} />
-        <div className="space-y-1.5">
-          <Label htmlFor="e07-fck">fck (MPa)</Label>
-          <Input id="e07-fck" type="number" value={fck} onChange={(e) => setFck(e.target.value)} className="font-mono" />
-        </div>
-        <Campo id="e07-rx" label="ρx (%)" value={rhoX} onChange={setRhoX} />
-        <Campo id="e07-ry" label="ρy (%)" value={rhoY} onChange={setRhoY} />
-      </div>
-      <p className="text-xs text-muted-foreground">
-        c1 = dimensão na direção do momento (perpendicular à borda, p/ borda/canto). ρ = taxa de
-        armadura de flexão. β = 1 + K·MSd·u1/(Wp·FSd).
-      </p>
+        <GuiaGrupo n={2}>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <Campo id="e07-c1" label="c1 (cm)" value={c1} onChange={setC1} placeholder="dir. momento" />
+            <Campo id="e07-c2" label="c2 (cm)" value={c2} onChange={setC2} />
+            <Campo id="e07-d" label="d (cm)" value={d} onChange={setD} />
+          </div>
+        </GuiaGrupo>
+
+        <GuiaGrupo n={3}>
+          <div className="grid grid-cols-2 gap-3">
+            <Campo id="e07-fsd" label="FSd (kN)" value={fSd} onChange={setFSd} />
+            <Campo id="e07-msd" label="MSd (kN·m)" value={mSd} onChange={setMSd} />
+          </div>
+        </GuiaGrupo>
+
+        <GuiaGrupo n={4}>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="e07-fck">fck (MPa)</Label>
+              <Input id="e07-fck" type="number" value={fck} onChange={(e) => setFck(e.target.value)} className="font-mono" />
+            </div>
+            <Campo id="e07-rx" label="ρx (%)" value={rhoX} onChange={setRhoX} />
+            <Campo id="e07-ry" label="ρy (%)" value={rhoY} onChange={setRhoY} />
+          </div>
+        </GuiaGrupo>
+      </GuiaFerramenta>
 
       {r && (
         <div className="rounded-lg border bg-muted/40 p-4 space-y-2 text-sm">

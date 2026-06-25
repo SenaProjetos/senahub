@@ -15,6 +15,8 @@ import { calcular, type EntradaPilarInput } from "@/modules/ferramentas/calc/con
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
 import { DxfPreview } from "./dxf-preview";
+import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
+import { PilarSchematic } from "./guia/schematics/pilar";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
@@ -68,46 +70,61 @@ export function ConcreteColumnForm({ initialEntradas, onSalvo }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Campo id="e04-b" label="b (cm)" value={b} onChange={setB} />
-        <Campo id="e04-h" label="h (cm)" value={h} onChange={setH} />
-        <div className="space-y-1.5">
-          <Label htmlFor="e04-fck">fck (MPa)</Label>
-          <Input id="e04-fck" type="number" value={fck} onChange={(e) => setFck(e.target.value)} className="font-mono" />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Aço</Label>
-          <Select value={aco} onValueChange={(v) => v && setAco(v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="CA-25">CA-25</SelectItem>
-              <SelectItem value="CA-50">CA-50</SelectItem>
-              <SelectItem value="CA-60">CA-60</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <Campo id="e04-nd" label="Nd (kN)" value={nd} onChange={setNd} placeholder="de cálculo" />
-        <Campo id="e04-mdx" label="Mdx (kN·m)" value={mdx} onChange={setMdx} />
-        <Campo id="e04-mdy" label="Mdy (kN·m)" value={mdy} onChange={setMdy} />
-        <Campo id="e04-dl" label="d' (cm)" value={dLinha} onChange={setDLinha} />
-        <Campo id="e04-lex" label="le,x (cm)" value={lex} onChange={setLex} />
-        <Campo id="e04-ley" label="le,y (cm)" value={ley} onChange={setLey} />
-        <Campo id="e04-ab" label="αb" value={alphaB} onChange={setAlphaB} step="0.1" />
-        <Campo id="e04-ai" label="α interação" value={alphaInt} onChange={setAlphaInt} step="0.1" />
-        <div className="space-y-1.5">
-          <Label>Bitola arranjo</Label>
-          <Select value={phi} onValueChange={(v) => v && setPhi(v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {[10, 12.5, 16, 20, 25].map((p) => <SelectItem key={p} value={String(p)}>ø{p} mm</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Mdx = flexão em torno de x (profundidade h); Mdy = em torno de y (profundidade b). Nd e M são
-        valores de cálculo. α=1 é conservador (NBR admite 1 a 2).
-      </p>
+      <GuiaFerramenta slug="pilar-concreto" desenho={<PilarSchematic />}>
+        <GuiaGrupo n={1}>
+          <div className="grid grid-cols-2 gap-3">
+            <Campo id="e04-b" label="b (cm)" value={b} onChange={setB} />
+            <Campo id="e04-h" label="h (cm)" value={h} onChange={setH} />
+          </div>
+        </GuiaGrupo>
+
+        <GuiaGrupo n={2}>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="e04-fck">fck (MPa)</Label>
+              <Input id="e04-fck" type="number" value={fck} onChange={(e) => setFck(e.target.value)} className="font-mono" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Aço</Label>
+              <Select value={aco} onValueChange={(v) => v && setAco(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CA-25">CA-25</SelectItem>
+                  <SelectItem value="CA-50">CA-50</SelectItem>
+                  <SelectItem value="CA-60">CA-60</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Campo id="e04-dl" label="d' (cm)" value={dLinha} onChange={setDLinha} />
+            <div className="space-y-1.5">
+              <Label>Bitola arranjo</Label>
+              <Select value={phi} onValueChange={(v) => v && setPhi(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {[10, 12.5, 16, 20, 25].map((p) => <SelectItem key={p} value={String(p)}>ø{p} mm</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </GuiaGrupo>
+
+        <GuiaGrupo n={3}>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <Campo id="e04-nd" label="Nd (kN)" value={nd} onChange={setNd} placeholder="de cálculo" />
+            <Campo id="e04-mdx" label="Mdx (kN·m)" value={mdx} onChange={setMdx} />
+            <Campo id="e04-mdy" label="Mdy (kN·m)" value={mdy} onChange={setMdy} />
+          </div>
+        </GuiaGrupo>
+
+        <GuiaGrupo n={4}>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Campo id="e04-lex" label="le,x (cm)" value={lex} onChange={setLex} />
+            <Campo id="e04-ley" label="le,y (cm)" value={ley} onChange={setLey} />
+            <Campo id="e04-ab" label="αb" value={alphaB} onChange={setAlphaB} step="0.1" />
+            <Campo id="e04-ai" label="α interação" value={alphaInt} onChange={setAlphaInt} step="0.1" />
+          </div>
+        </GuiaGrupo>
+      </GuiaFerramenta>
 
       {resultado && (
         <div className="rounded-lg border bg-muted/40 p-4 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">

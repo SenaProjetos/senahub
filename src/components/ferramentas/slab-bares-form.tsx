@@ -15,6 +15,8 @@ import { calcular, CASOS, type EntradaLajeInput, type CasoLaje } from "@/modules
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
 import { DxfPreview } from "./dxf-preview";
+import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
+import { LajeSchematic } from "./guia/schematics/laje";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
@@ -58,41 +60,53 @@ export function SlabBaresForm({ initialEntradas, onSalvo }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1.5">
-        <Label>Vinculação (caso)</Label>
-        <Select value={caso} onValueChange={(v) => v && setCaso(v)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {CASO_KEYS.map((k) => <SelectItem key={k} value={k}>{CASOS[k]}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
+      <GuiaFerramenta slug="laje-macica" desenho={<LajeSchematic />}>
+        <GuiaGrupo n={1}>
+          <div className="space-y-1.5">
+            <Label>Vinculação (caso)</Label>
+            <Select value={caso} onValueChange={(v) => v && setCaso(v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {CASO_KEYS.map((k) => <SelectItem key={k} value={k}>{CASOS[k]}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </GuiaGrupo>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <Campo id="e05-lx" label="lx (cm)" value={lx} onChange={setLx} placeholder="menor vão" />
-        <Campo id="e05-ly" label="ly (cm)" value={ly} onChange={setLy} placeholder="maior vão" />
-        <Campo id="e05-h" label="h (cm)" value={h} onChange={setH} />
-        <Campo id="e05-p" label="p (kN/m²)" value={p} onChange={setP} placeholder="carga total" />
-        <div className="space-y-1.5">
-          <Label htmlFor="e05-fck">fck (MPa)</Label>
-          <Input id="e05-fck" type="number" value={fck} onChange={(e) => setFck(e.target.value)} className="font-mono" />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Aço</Label>
-          <Select value={aco} onValueChange={(v) => v && setAco(v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="CA-25">CA-25</SelectItem>
-              <SelectItem value="CA-50">CA-50</SelectItem>
-              <SelectItem value="CA-60">CA-60</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        lx = menor vão (o engine usa o mínimo). p = carga total característica. Momentos pelas tabelas de
-        Bares–Pinheiro; flecha com seção bruta.
-      </p>
+        <GuiaGrupo n={2}>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <Campo id="e05-lx" label="lx (cm)" value={lx} onChange={setLx} placeholder="menor vão" />
+            <Campo id="e05-ly" label="ly (cm)" value={ly} onChange={setLy} placeholder="maior vão" />
+            <Campo id="e05-h" label="h (cm)" value={h} onChange={setH} />
+          </div>
+        </GuiaGrupo>
+
+        <GuiaGrupo n={3}>
+          <div className="grid grid-cols-2 gap-3">
+            <Campo id="e05-p" label="p (kN/m²)" value={p} onChange={setP} placeholder="carga total" />
+          </div>
+        </GuiaGrupo>
+
+        <GuiaGrupo n={4}>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="e05-fck">fck (MPa)</Label>
+              <Input id="e05-fck" type="number" value={fck} onChange={(e) => setFck(e.target.value)} className="font-mono" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Aço</Label>
+              <Select value={aco} onValueChange={(v) => v && setAco(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CA-25">CA-25</SelectItem>
+                  <SelectItem value="CA-50">CA-50</SelectItem>
+                  <SelectItem value="CA-60">CA-60</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </GuiaGrupo>
+      </GuiaFerramenta>
 
       {resultado && (
         <div className="rounded-lg border bg-muted/40 p-4 space-y-3 text-sm">

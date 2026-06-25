@@ -14,6 +14,8 @@ import { calcular, VINCULACOES, type EntradaEscadaInput, type Vinculacao } from 
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
 import { DxfPreview } from "./dxf-preview";
+import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
+import { EscadaSchematic } from "./guia/schematics/escada";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
@@ -61,40 +63,56 @@ export function StairForm({ initialEntradas, onSalvo }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1.5">
-        <Label>Vinculação</Label>
-        <Select value={vinc} onValueChange={(v) => v && setVinc(v)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {VINC_KEYS.map((k) => <SelectItem key={k} value={k}>{VINCULACOES[k]}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
+      <GuiaFerramenta slug="escada" desenho={<EscadaSchematic />}>
+        <GuiaGrupo n={1}>
+          <div className="space-y-1.5">
+            <Label>Vinculação</Label>
+            <Select value={vinc} onValueChange={(v) => v && setVinc(v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {VINC_KEYS.map((k) => <SelectItem key={k} value={k}>{VINCULACOES[k]}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </GuiaGrupo>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <Campo id="e08-piso" label="Piso g (cm)" value={piso} onChange={setPiso} />
-        <Campo id="e08-esp" label="Espelho e (cm)" value={espelho} onChange={setEspelho} />
-        <Campo id="e08-al" label="Lance horiz. (cm)" value={aLance} onChange={setALance} placeholder="projeção" />
-        <Campo id="e08-ap" label="Patamar (cm)" value={aPatamar} onChange={setAPatamar} />
-        <Campo id="e08-hl" label="Espessura hl (cm)" value={hLaje} onChange={setHLaje} />
-        <Campo id="e08-rev" label="Revest. (kN/m²)" value={revest} onChange={setRevest} />
-        <Campo id="e08-q" label="Sobrecarga q (kN/m²)" value={q} onChange={setQ} />
-        <div className="space-y-1.5">
-          <Label htmlFor="e08-fck">fck (MPa)</Label>
-          <Input id="e08-fck" type="number" value={fck} onChange={(e) => setFck(e.target.value)} className="font-mono" />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Aço</Label>
-          <Select value={aco} onValueChange={(v) => v && setAco(v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="CA-25">CA-25</SelectItem>
-              <SelectItem value="CA-50">CA-50</SelectItem>
-              <SelectItem value="CA-60">CA-60</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+        <GuiaGrupo n={2}>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <Campo id="e08-piso" label="Piso g (cm)" value={piso} onChange={setPiso} />
+            <Campo id="e08-esp" label="Espelho e (cm)" value={espelho} onChange={setEspelho} />
+            <Campo id="e08-al" label="Lance horiz. (cm)" value={aLance} onChange={setALance} placeholder="projeção" />
+            <Campo id="e08-ap" label="Patamar (cm)" value={aPatamar} onChange={setAPatamar} />
+            <Campo id="e08-hl" label="Espessura hl (cm)" value={hLaje} onChange={setHLaje} />
+          </div>
+        </GuiaGrupo>
+
+        <GuiaGrupo n={3}>
+          <div className="grid grid-cols-2 gap-3">
+            <Campo id="e08-rev" label="Revest. (kN/m²)" value={revest} onChange={setRevest} />
+            <Campo id="e08-q" label="Sobrecarga q (kN/m²)" value={q} onChange={setQ} />
+          </div>
+        </GuiaGrupo>
+
+        <GuiaGrupo n={4}>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="e08-fck">fck (MPa)</Label>
+              <Input id="e08-fck" type="number" value={fck} onChange={(e) => setFck(e.target.value)} className="font-mono" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Aço</Label>
+              <Select value={aco} onValueChange={(v) => v && setAco(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CA-25">CA-25</SelectItem>
+                  <SelectItem value="CA-50">CA-50</SelectItem>
+                  <SelectItem value="CA-60">CA-60</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </GuiaGrupo>
+      </GuiaFerramenta>
 
       {resultado && (
         <div className="rounded-lg border bg-muted/40 p-4 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">
