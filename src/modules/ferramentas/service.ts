@@ -26,6 +26,7 @@ import { calcular as calcularCombos, entradaSchema as combosSchema, TIPOS_VARIAV
 import { calcular as calcularPilar, entradaSchema as pilarSchema } from "./calc/concrete-column";
 import { calcular as calcularLaje, entradaSchema as lajeSchema, CASOS as CASOS_LAJE } from "./calc/slab-bares";
 import { calcular as calcularEscada, entradaSchema as escadaSchema, VINCULACOES } from "./calc/stair";
+import { calcular as calcularPuncao, entradaSchema as puncaoSchema, POSICOES } from "./calc/punching";
 import { getFerramenta } from "./registry";
 
 /** Largura da alma (bw) usada no cisalhamento: b (retangular) ou bw (T). */
@@ -196,6 +197,19 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
         alertas: r.alertas,
       };
     }
+    case "E07": {
+      const r = calcularPuncao(puncaoSchema.parse(entradas));
+      const campos: Record<string, string | number> = {
+        β: fmtNum(r.beta, 3),
+        "τSd,C": fmtNum(r.tauSd0, 2),
+        "τRd2": fmtNum(r.tauRd2, 2),
+        "τSd,C'": fmtNum(r.tauSd1, 2),
+        "τRd1": fmtNum(r.tauRd1, 2),
+        situação: r.situacao,
+      };
+      if (r.precisaArmadura) campos["Asw/perím."] = fmtNum(r.asw, 2);
+      return { campos, alertas: r.alertas };
+    }
     default:
       throw new Error(`Ferramenta desconhecida: "${ferramenta}"`);
   }
@@ -267,6 +281,8 @@ export function montarMemoria(
       return memoriaE05(entradas, base);
     case "E08":
       return memoriaE08(entradas, base);
+    case "E07":
+      return memoriaE07(entradas, base);
     default:
       throw new Error(`Ferramenta sem memória: "${ferramenta}"`);
   }
@@ -926,4 +942,64 @@ function memoriaE08(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
       },
     ],
   });
+}
+
+function memoriaE07(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+  const e = puncaoSchema.parse(entradas);
+  const r = calcularPuncao(e);
+  const secoes: MemoriaDoc["secoes"] = [
+    {
+      titulo: "Dados de entrada",
+      tabelas: [
+        {
+          colunas: ["Parâmetro", "Valor"],
+          linhas: [
+            ["Posição do pilar", POSICOES[e.posicao]],
+            ["Seção do pilar c1 × c2", `${e.c1} × ${e.c2} cm`],
+            ["Altura útil d", `${e.d} cm`],
+            ["fck", `${e.fck} MPa`],
+            ["FSd", `${e.fSd} kN`],
+            ["MSd", `${e.mSd ?? 0} kN·m`],
+            ["ρx / ρy (flexão)", `${e.rhoX ?? 0.5}% / ${e.rhoY ?? 0.5}%`],
+          ],
+        },
+      ],
+    },
+    {
+      titulo: "Perímetros e coeficiente β (NBR 6118 19.5.2.2)",
+      valores: [
+        { simbolo: "u0", descricao: "Perímetro do contorno C (pilar)", valor: fmtNum(r.u0, 1), unidade: "cm" },
+        { simbolo: "u1", descricao: "Perímetro do contorno C' (2d)", valor: fmtNum(r.u1, 1), unidade: "cm" },
+        { simbolo: "Wp", descricao: "Módulo plástico do perímetro", valor: fmtNum(r.wp, 0), unidade: "cm²" },
+        { simbolo: "K", descricao: "Coeficiente (Tabela 19.2, c1/c2)", valor: fmtNum(r.k, 2) },
+        { simbolo: "β", descricao: "Amplificação por excentricidade", valor: fmtNum(r.beta, 3), formula: "1 + K·MSd·u1/(Wp·FSd)" },
+      ],
+    },
+    {
+      titulo: "Verificações de tensão (NBR 6118 19.5.3)",
+      valores: [
+        { simbolo: "τSd,C", descricao: "Tensão no contorno C", valor: fmtNum(r.tauSd0, 3), unidade: "MPa", formula: "β·FSd/(u0·d)" },
+        { simbolo: "τRd2", descricao: "Resistência da biela", valor: fmtNum(r.tauRd2, 3), unidade: "MPa", formula: "0,27·αv·fcd" },
+        { simbolo: "τSd,C'", descricao: "Tensão no contorno C'", valor: fmtNum(r.tauSd1, 3), unidade: "MPa", formula: "β·FSd/(u1·d)" },
+        { simbolo: "τRd1", descricao: "Resistência sem armadura", valor: fmtNum(r.tauRd1, 3), unidade: "MPa", formula: "0,13·(1+√(20/d))·(100ρfck)^⅓" },
+      ],
+      notas: [
+        r.okBiela ? "Biela comprimida OK (τSd,C ≤ τRd2)." : "Biela comprimida NÃO atende — aumentar pilar/altura/fck.",
+        r.precisaArmadura ? "τSd,C' > τRd1: necessária armadura de punção." : "τSd,C' ≤ τRd1: dispensa armadura de punção.",
+      ],
+    },
+  ];
+  if (r.precisaArmadura) {
+    secoes.push({
+      titulo: "Armadura de punção (NBR 6118 19.5.3.3)",
+      valores: [
+        { simbolo: "Asw", descricao: "Armadura por perímetro", valor: fmtNum(r.asw, 2), unidade: "cm²" },
+        { simbolo: "sr", descricao: "Espaçamento radial adotado", valor: fmtNum(r.sr, 1), unidade: "cm" },
+        { simbolo: "uout", descricao: "Perímetro onde dispensa armadura (C'')", valor: fmtNum(r.uout, 1), unidade: "cm" },
+        { simbolo: "dist C''", descricao: "Distância do pilar até C''", valor: fmtNum(r.distC2, 1), unidade: "cm" },
+      ],
+      notas: ["Estender a armadura de punção até o contorno C'' (≥ 2d além da última linha de conectores)."],
+    });
+  }
+  return montarMemoriaBase({ ...base, secoes });
 }

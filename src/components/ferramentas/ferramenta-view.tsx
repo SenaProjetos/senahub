@@ -21,6 +21,7 @@ import { ActionCombosForm } from "./action-combos-form";
 import { ConcreteColumnForm } from "./concrete-column-form";
 import { SlabBaresForm } from "./slab-bares-form";
 import { StairForm } from "./stair-form";
+import { PunchingForm } from "./punching-form";
 import { RecentesList } from "./recentes-list";
 
 type RecenteSerializado = Omit<RecenteCalculo, "createdAt"> & { createdAt: string };
@@ -57,6 +58,8 @@ function renderForm(key: string, initialEntradas: Record<string, unknown> | unde
       return <SlabBaresForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     case "E08":
       return <StairForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
+    case "E07":
+      return <PunchingForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     default:
       return <p className="text-muted-foreground text-sm">Ferramenta em desenvolvimento.</p>;
   }

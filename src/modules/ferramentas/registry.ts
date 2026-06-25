@@ -18,6 +18,7 @@ import {
   RectangleVertical,
   Grid2x2,
   Footprints,
+  Crosshair,
   type LucideIcon,
 } from "lucide-react";
 
@@ -83,6 +84,16 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     norma: "NBR 6118:2023",
     exportaveis: ["pdf", "docx", "xlsx", "dxf"],
     icon: Grid2x2,
+  },
+  {
+    key: "E07",
+    nome: "Punção em Laje Lisa",
+    descricao: "Verificação à punção (NBR 6118 §19.5) em pilar interno, de borda e de canto: perímetros C/C', coeficiente β (Wp), armadura de punção e perímetro C''.",
+    disciplina: "Estrutural",
+    tipo: "rapida",
+    norma: "NBR 6118:2023",
+    exportaveis: ["pdf", "xlsx"],
+    icon: Crosshair,
   },
   {
     key: "E08",

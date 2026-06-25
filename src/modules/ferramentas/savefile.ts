@@ -16,6 +16,7 @@ import { entradaSchema as actionCombosSchema } from "./calc/action-combos";
 import { entradaSchema as concreteColumnSchema } from "./calc/concrete-column";
 import { entradaSchema as slabBaresSchema } from "./calc/slab-bares";
 import { entradaSchema as stairSchema } from "./calc/stair";
+import { entradaSchema as punchingSchema } from "./calc/punching";
 
 export const SAVEFILE_APP = "senahub" as const;
 export const SAVEFILE_KIND = "shcalc" as const;
@@ -38,6 +39,7 @@ const ENTRADAS_SCHEMAS: Record<string, z.ZodTypeAny> = {
   E01: beamFlexureSchema,
   E04: concreteColumnSchema,
   E05: slabBaresSchema,
+  E07: punchingSchema,
   E08: stairSchema,
   E10: anchorageSchema,
   E11: steelSummarySchema,
