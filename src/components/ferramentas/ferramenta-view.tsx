@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { getFerramenta } from "@/modules/ferramentas/registry";
+import { getGuia } from "@/modules/ferramentas/guia-meta";
 import type { RecenteCalculo } from "@/modules/ferramentas/types";
 import { buscarCalculo } from "@/modules/ferramentas/actions";
 import { Badge } from "@/components/ui/badge";
@@ -100,49 +101,52 @@ export function FerramentaView({ ferramentaKey, recentes }: Props) {
   }
 
   const Icon = meta.icon;
+  // Ferramentas com guia já renderizam o próprio cabeçalho (no shell); evita duplicar.
+  const temGuia = !!getGuia(meta.key);
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-      {/* Cabeçalho */}
-      <div className="flex items-start gap-4">
-        <Link
-          href="/ferramentas"
-          className="mt-1 text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <div className="flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="rounded-md bg-primary/10 p-1.5">
-              <Icon className="h-5 w-5 text-primary" />
-            </div>
-            <h1 className="text-xl font-semibold">{meta.nome}</h1>
-            <Badge variant="outline" className="text-xs">
-              {meta.disciplina}
-            </Badge>
-            {meta.norma && (
-              <Badge variant="secondary" className="text-xs">
-                {meta.norma}
-              </Badge>
-            )}
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <Link
+        href="/ferramentas"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Ferramentas
+      </Link>
+
+      {!temGuia && (
+        <div className="flex items-start gap-3">
+          <div className="rounded-md bg-primary/10 p-1.5">
+            <Icon className="h-5 w-5 text-primary" />
           </div>
-          <p className="text-sm text-muted-foreground mt-1">{meta.descricao}</p>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-semibold">{meta.nome}</h1>
+              <Badge variant="outline" className="text-xs">
+                {meta.disciplina}
+              </Badge>
+              {meta.norma && (
+                <Badge variant="secondary" className="text-xs">
+                  {meta.norma}
+                </Badge>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">{meta.descricao}</p>
+          </div>
         </div>
+      )}
+
+      {/* Formulário da ferramenta — key muda ao abrir recente, reinicializando os campos */}
+      <div key={formKey} className="rounded-lg border bg-card p-6">
+        {renderForm(meta.key, initialEntradas, handleSalvo)}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-6">
-        {/* Formulário da ferramenta — key muda ao abrir recente, reinicializando os campos */}
-        <div key={formKey} className="rounded-lg border bg-card p-6">
-          {renderForm(meta.key, initialEntradas, handleSalvo)}
-        </div>
-
-        {/* Painel lateral: Recentes */}
-        <aside className="space-y-3">
-          <h2 className="text-sm font-medium">Recentes</h2>
-          <Separator />
-          <RecentesList recentes={recentes} onAbrir={handleAbrir} exportaveis={meta.exportaveis} />
-        </aside>
-      </div>
+      {/* Recentes (largura total, abaixo do guia) */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium">Recentes</h2>
+        <Separator />
+        <RecentesList recentes={recentes} onAbrir={handleAbrir} exportaveis={meta.exportaveis} />
+      </section>
     </div>
   );
 }

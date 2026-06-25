@@ -19,6 +19,8 @@ import { fmtNum } from "@/modules/ferramentas/memoria";
 import { SalvarDialog } from "./salvar-dialog";
 import { SavefileButtons } from "./savefile-buttons";
 import { DxfPreview } from "./dxf-preview";
+import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
+import { VigaSchematic } from "./guia/schematics/viga";
 
 type Forma = "retangular" | "T";
 type Dims = Record<string, string>;
@@ -127,6 +129,9 @@ export function ConcreteBeamForm({ initialEntradas, onSalvo }: Props) {
 
   const setDim = (k: string, v: string) => setDims((d) => ({ ...d, [k]: v }));
   const tituloSugerido = `Viga ${forma === "T" ? "T" : "retangular"} à flexão`;
+  // Grupo 1 (Geometria) recebe forma + larguras; a altura total (h) vai p/ o grupo 2.
+  const camposGeometria = CAMPOS_SECAO[forma].filter((c) => c.key !== "h");
+  const campoAltura = CAMPOS_SECAO[forma].find((c) => c.key === "h");
 
   function handleImport(novas: Record<string, unknown>) {
     setForma(((novas.secao as { forma?: Forma })?.forma) ?? "retangular");
@@ -136,51 +141,69 @@ export function ConcreteBeamForm({ initialEntradas, onSalvo }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label>Forma da seção</Label>
-          <Select value={forma} onValueChange={(v) => v && setForma(v as Forma)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="retangular">Retangular</SelectItem>
-              <SelectItem value="T">Seção T</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label>Aço</Label>
-          <Select value={aco} onValueChange={(v) => v && setAco(v)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="CA-25">CA-25</SelectItem>
-              <SelectItem value="CA-50">CA-50</SelectItem>
-              <SelectItem value="CA-60">CA-60</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <GuiaFerramenta slug="viga-concreto" desenho={<VigaSchematic />}>
+        <GuiaGrupo n={1}>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Forma da seção</Label>
+              <Select value={forma} onValueChange={(v) => v && setForma(v as Forma)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="retangular">Retangular</SelectItem>
+                  <SelectItem value="T">Seção T</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {camposGeometria.map((c) => (
+              <Campo key={c.key} id={c.key} label={c.label} value={dims[c.key] ?? ""} onChange={(v) => setDim(c.key, v)} />
+            ))}
+          </div>
+        </GuiaGrupo>
 
-      <div className="grid grid-cols-2 gap-3">
-        {CAMPOS_SECAO[forma].map((c) => (
-          <Campo key={c.key} id={c.key} label={c.label} value={dims[c.key] ?? ""} onChange={(v) => setDim(c.key, v)} />
-        ))}
-      </div>
+        <GuiaGrupo n={2}>
+          <div className="grid grid-cols-2 gap-3">
+            {campoAltura && (
+              <Campo id="h" label={campoAltura.label} value={dims.h ?? ""} onChange={(v) => setDim("h", v)} />
+            )}
+            <Campo id="d" label="Altura útil d (cm)" value={dims.d ?? ""} onChange={(v) => setDim("d", v)} />
+          </div>
+        </GuiaGrupo>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Campo id="d" label="Altura útil d (cm)" value={dims.d ?? ""} onChange={(v) => setDim("d", v)} />
-        <Campo id="fck" label="fck (MPa)" value={dims.fck ?? ""} onChange={(v) => setDim("fck", v)} />
-        <Campo id="Mk" label="Mk (kN·m)" value={dims.Mk ?? ""} onChange={(v) => setDim("Mk", v)} />
-        <Campo id="Vk" label="Vk (kN) — opc." value={dims.Vk ?? ""} onChange={(v) => setDim("Vk", v)} />
-      </div>
+        <GuiaGrupo n={3}>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Aço</Label>
+              <Select value={aco} onValueChange={(v) => v && setAco(v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CA-25">CA-25</SelectItem>
+                  <SelectItem value="CA-50">CA-50</SelectItem>
+                  <SelectItem value="CA-60">CA-60</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Campo id="fck" label="fck (MPa)" value={dims.fck ?? ""} onChange={(v) => setDim("fck", v)} />
+          </div>
+        </GuiaGrupo>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Campo id="vao" label="Vão (m) — opc. flecha" value={dims.vao ?? ""} onChange={(v) => setDim("vao", v)} />
-        <Campo id="mServ" label="M serviço (kN·m) — opc." value={dims.mServ ?? ""} onChange={(v) => setDim("mServ", v)} />
-      </div>
+        <GuiaGrupo n={4}>
+          <div className="grid grid-cols-2 gap-3">
+            <Campo id="Mk" label="Mk (kN·m)" value={dims.Mk ?? ""} onChange={(v) => setDim("Mk", v)} />
+            <Campo id="Vk" label="Vk (kN) — opcional" value={dims.Vk ?? ""} onChange={(v) => setDim("Vk", v)} />
+          </div>
+        </GuiaGrupo>
+
+        <GuiaGrupo n={5}>
+          <div className="grid grid-cols-2 gap-3">
+            <Campo id="vao" label="Vão (m) — opc. flecha" value={dims.vao ?? ""} onChange={(v) => setDim("vao", v)} />
+            <Campo id="mServ" label="M serviço (kN·m) — opc." value={dims.mServ ?? ""} onChange={(v) => setDim("mServ", v)} />
+          </div>
+        </GuiaGrupo>
+      </GuiaFerramenta>
 
       {resultado && (
         <div className="rounded-lg border bg-muted/40 p-4 space-y-3">
