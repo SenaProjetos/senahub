@@ -27,6 +27,7 @@ import { calcular as calcularPilar, entradaSchema as pilarSchema } from "./calc/
 import { calcular as calcularLaje, entradaSchema as lajeSchema, CASOS as CASOS_LAJE } from "./calc/slab-bares";
 import { calcular as calcularEscada, entradaSchema as escadaSchema, VINCULACOES } from "./calc/stair";
 import { calcular as calcularPuncao, entradaSchema as puncaoSchema, POSICOES } from "./calc/punching";
+import { calcular as calcularSapata, entradaSchema as sapataSchema } from "./calc/footing";
 import { getFerramenta } from "./registry";
 
 /** Largura da alma (bw) usada no cisalhamento: b (retangular) ou bw (T). */
@@ -210,6 +211,20 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
       if (r.precisaArmadura) campos["Asw/perím."] = fmtNum(r.asw, 2);
       return { campos, alertas: r.alertas };
     }
+    case "E21": {
+      const r = calcularSapata(sapataSchema.parse(entradas));
+      return {
+        campos: {
+          base: `${r.a}×${r.b} cm`,
+          "σ solo": fmtNum(r.sigmaSolo, 0),
+          método: r.metodo === "bielas" ? "rígida" : "flexível",
+          "As(a)": fmtNum(r.asAporM, 2),
+          "As(b)": fmtNum(r.asBporM, 2),
+          situação: r.situacao,
+        },
+        alertas: r.alertas,
+      };
+    }
     default:
       throw new Error(`Ferramenta desconhecida: "${ferramenta}"`);
   }
@@ -283,6 +298,8 @@ export function montarMemoria(
       return memoriaE08(entradas, base);
     case "E07":
       return memoriaE07(entradas, base);
+    case "E21":
+      return memoriaE21(entradas, base);
     default:
       throw new Error(`Ferramenta sem memória: "${ferramenta}"`);
   }
@@ -999,6 +1016,69 @@ function memoriaE07(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
         { simbolo: "dist C''", descricao: "Distância do pilar até C''", valor: fmtNum(r.distC2, 1), unidade: "cm" },
       ],
       notas: ["Estender a armadura de punção até o contorno C'' (≥ 2d além da última linha de conectores)."],
+    });
+  }
+  return montarMemoriaBase({ ...base, secoes });
+}
+
+function memoriaE21(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+  const e = sapataSchema.parse(entradas);
+  const r = calcularSapata(e);
+  const secoes: MemoriaDoc["secoes"] = [
+    {
+      titulo: "Dados e dimensionamento da base (NBR 6122)",
+      tabelas: [
+        {
+          colunas: ["Parâmetro", "Valor"],
+          linhas: [
+            ["Carga Nk", `${e.nk} kN`],
+            ["σadm do solo", `${e.sigmaAdm} kPa`],
+            ["Pilar", `${e.ap} × ${e.bp} cm`],
+            ["Peso próprio estimado", `${e.pesoProprioPct ?? 5}%`],
+          ],
+        },
+      ],
+      valores: [
+        { simbolo: "A", descricao: "Área da base", valor: fmtNum(r.area, 2), unidade: "m²", formula: "Nk·(1+pp)/σadm" },
+        { simbolo: "a × b", descricao: "Dimensões adotadas (abas iguais)", valor: `${r.a} × ${r.b}`, unidade: "cm" },
+        { simbolo: "σsolo", descricao: "Tensão no solo", valor: fmtNum(r.sigmaSolo, 0), unidade: "kPa" },
+      ],
+      notas: [r.sigmaOk ? "σsolo ≤ σadm — OK." : "σsolo > σadm — aumentar a base."],
+    },
+    {
+      titulo: "Rigidez e método (NBR 6118 22.6)",
+      valores: [
+        { simbolo: "h", descricao: "Altura da sapata", valor: `${e.h}`, unidade: "cm" },
+        { simbolo: "h,rígida", descricao: "h mínimo para rígida", valor: fmtNum(r.hMinRigida, 1), unidade: "cm", formula: "(a−ap)/3" },
+        { simbolo: "Classificação", descricao: "Comportamento", valor: r.rigida ? "Rígida (bielas-tirantes)" : "Flexível (flexão + punção)" },
+      ],
+    },
+    {
+      titulo: r.metodo === "bielas" ? "Armadura por bielas-tirantes (22.6.2)" : "Armadura por flexão (22.6.3)",
+      valores: [
+        { simbolo: "balanço a/b", descricao: "Abas", valor: `${fmtNum(r.balancoA, 1)} / ${fmtNum(r.balancoB, 1)}`, unidade: "cm" },
+        { simbolo: "As(a) calc", descricao: "Armadura calculada, dir. a", valor: fmtNum(r.asACalcPorM, 2), unidade: "cm²/m", formula: r.metodo === "bielas" ? "Nd·(a−ap)/(8d·fyd)" : "Md/(fyd·z)" },
+        { simbolo: "As(b) calc", descricao: "Armadura calculada, dir. b", valor: fmtNum(r.asBCalcPorM, 2), unidade: "cm²/m" },
+        { simbolo: "As,mín", descricao: "Armadura mínima", valor: fmtNum(r.asMin, 2), unidade: "cm²/m" },
+        { simbolo: "As(a) adot", descricao: "Adotada, dir. a", valor: fmtNum(r.asAporM, 2), unidade: "cm²/m" },
+        { simbolo: "As(b) adot", descricao: "Adotada, dir. b", valor: fmtNum(r.asBporM, 2), unidade: "cm²/m" },
+      ],
+      notas: r.alertas.length > 0 ? r.alertas : ["Verificações atendidas."],
+    },
+  ];
+  if (r.puncao) {
+    secoes.push({
+      titulo: "Verificação à punção (NBR 6118 19.5)",
+      valores: [
+        { simbolo: "τSd,C'", descricao: "Tensão no contorno C'", valor: fmtNum(r.puncao.tauSd1, 3), unidade: "MPa" },
+        { simbolo: "τRd1", descricao: "Resistência sem armadura", valor: fmtNum(r.puncao.tauRd1, 3), unidade: "MPa" },
+        { simbolo: "τSd,C", descricao: "Tensão na biela", valor: fmtNum(r.puncao.tauSd0, 3), unidade: "MPa" },
+        { simbolo: "τRd2", descricao: "Resistência da biela", valor: fmtNum(r.puncao.tauRd2, 3), unidade: "MPa" },
+      ],
+      notas: [
+        r.puncao.okBiela ? "Biela OK." : "Biela esmaga — aumentar h.",
+        r.puncao.precisaArmadura ? "Necessita armadura de punção." : "Dispensa armadura de punção.",
+      ],
     });
   }
   return montarMemoriaBase({ ...base, secoes });

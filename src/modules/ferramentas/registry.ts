@@ -19,6 +19,7 @@ import {
   Grid2x2,
   Footprints,
   Crosshair,
+  Square,
   type LucideIcon,
 } from "lucide-react";
 
@@ -154,6 +155,16 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     norma: "NBR 8681:2003",
     exportaveis: ["pdf", "xlsx"],
     icon: Sigma,
+  },
+  {
+    key: "E21",
+    nome: "Sapata Isolada",
+    descricao: "Sapata isolada centrada (NBR 6118/6122): área pela σadm, rigidez, armadura por bielas-tirantes (rígida) ou flexão + punção (flexível), com detalhamento.",
+    disciplina: "Fundações",
+    tipo: "completa",
+    norma: "NBR 6118/6122",
+    exportaveis: ["pdf", "docx", "xlsx", "dxf"],
+    icon: Square,
   },
   {
     key: "E23",

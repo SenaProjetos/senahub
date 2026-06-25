@@ -10,11 +10,13 @@ import { entradaSchema as vigaSchema } from "../calc/concrete-beam-flexure";
 import { entradaSchema as pilarSchema } from "../calc/concrete-column";
 import { entradaSchema as lajeSchema } from "../calc/slab-bares";
 import { entradaSchema as escadaSchema } from "../calc/stair";
+import { entradaSchema as sapataSchema } from "../calc/footing";
 import { desenharSecao } from "./section";
 import { desenharVigaSecao } from "./beam-section";
 import { desenharPilarSecao } from "./column-section";
 import { desenharLajePainel } from "./slab-panel";
 import { desenharEscadaPerfil } from "./stair-section";
+import { desenharSapata } from "./footing";
 
 /** Monta o documento DXF (geometria) da ferramenta, ou null. Lança se as entradas forem inválidas. */
 export function documentoDxf(ferramenta: string, entradas: unknown): DxfDocumento | null {
@@ -29,6 +31,8 @@ export function documentoDxf(ferramenta: string, entradas: unknown): DxfDocument
       return desenharLajePainel(lajeSchema.parse(entradas));
     case "E08":
       return desenharEscadaPerfil(escadaSchema.parse(entradas));
+    case "E21":
+      return desenharSapata(sapataSchema.parse(entradas));
     default:
       return null;
   }
