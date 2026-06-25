@@ -15,6 +15,8 @@ import {
 import { calcular, SOLOS, ESTACAS, type EntradaEstacaInput, type TipoSolo } from "@/modules/ferramentas/calc/pile-spt";
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
+import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
+import { PileSptSchematic } from "./guia/schematics/estaca-spt";
 
 type Camada = { solo: string; nspt: string; espessuraM: string };
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
@@ -68,46 +70,51 @@ export function PileSptForm({ initialEntradas, onSalvo }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label>Tipo de estaca</Label>
-          <Select value={estaca} onValueChange={(v) => v && setEstaca(v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {ESTACA_KEYS.map((k) => <SelectItem key={k} value={k}>{ESTACAS[k].label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="e23-diam">Diâmetro (cm)</Label>
-          <Input id="e23-diam" type="number" value={diam} onChange={(e) => setDiam(e.target.value)} className="font-mono" />
-        </div>
-      </div>
+      <GuiaFerramenta slug="estaca-spt" desenho={<PileSptSchematic />}>
+        <GuiaGrupo n={1}>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Tipo de estaca</Label>
+              <Select value={estaca} onValueChange={(v) => v && setEstaca(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ESTACA_KEYS.map((k) => <SelectItem key={k} value={k}>{ESTACAS[k].label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="e23-diam">Diâmetro (cm)</Label>
+              <Input id="e23-diam" type="number" value={diam} onChange={(e) => setDiam(e.target.value)} className="font-mono" />
+            </div>
+          </div>
+        </GuiaGrupo>
 
-      <div className="space-y-2">
-        <Label>Perfil de sondagem (do topo à ponta)</Label>
-        <div className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2 text-xs text-muted-foreground px-1">
-          <span>Solo</span><span>NSPT</span><span>Espessura (m)</span><span></span>
-        </div>
-        {camadas.map((c, i) => (
-          <div key={i} className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2 items-center">
-            <Select value={c.solo} onValueChange={(v) => v && setCamada(i, "solo", v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {SOLO_KEYS.map((k) => <SelectItem key={k} value={k}>{SOLOS[k].label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Input type="number" value={c.nspt} onChange={(e) => setCamada(i, "nspt", e.target.value)} className="font-mono" />
-            <Input type="number" value={c.espessuraM} onChange={(e) => setCamada(i, "espessuraM", e.target.value)} className="font-mono" />
-            <Button type="button" variant="ghost" size="icon" onClick={() => setCamadas((a) => (a.length > 1 ? a.filter((_, j) => j !== i) : a))}>
-              <Trash2 className="h-4 w-4" />
+        <GuiaGrupo n={2}>
+          <div className="space-y-2">
+            <div className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2 text-xs text-muted-foreground px-1">
+              <span>Solo</span><span>NSPT</span><span>Espessura (m)</span><span></span>
+            </div>
+            {camadas.map((c, i) => (
+              <div key={i} className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2 items-center">
+                <Select value={c.solo} onValueChange={(v) => v && setCamada(i, "solo", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SOLO_KEYS.map((k) => <SelectItem key={k} value={k}>{SOLOS[k].label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Input type="number" value={c.nspt} onChange={(e) => setCamada(i, "nspt", e.target.value)} className="font-mono" />
+                <Input type="number" value={c.espessuraM} onChange={(e) => setCamada(i, "espessuraM", e.target.value)} className="font-mono" />
+                <Button type="button" variant="ghost" size="icon" onClick={() => setCamadas((a) => (a.length > 1 ? a.filter((_, j) => j !== i) : a))}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            <Button type="button" variant="outline" size="sm" onClick={() => setCamadas((a) => [...a, { ...VAZIA }])}>
+              <Plus className="h-3.5 w-3.5 mr-1.5" /> Adicionar camada
             </Button>
           </div>
-        ))}
-        <Button type="button" variant="outline" size="sm" onClick={() => setCamadas((a) => [...a, { ...VAZIA }])}>
-          <Plus className="h-3.5 w-3.5 mr-1.5" /> Adicionar camada
-        </Button>
-      </div>
+        </GuiaGrupo>
+      </GuiaFerramenta>
 
       {resultado && (
         <div className="rounded-lg border bg-muted/40 p-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">

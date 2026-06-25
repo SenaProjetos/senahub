@@ -107,6 +107,76 @@ export const GUIAS: Record<string, GuiaMeta> = {
     ],
     dica: "O lance horizontal é a projeção em planta (não a medida inclinada). Deixe o patamar em 0 quando não houver. A sobrecarga q segue a NBR 6120.",
   },
+  "sapata-isolada": {
+    subtitulo: "Guia dos dados de entrada para o dimensionamento da sapata isolada centrada.",
+    grupos: [
+      { n: 1, titulo: "Carga", descricao: "Carga vertical característica do pilar (Nk) que chega à fundação." },
+      { n: 2, titulo: "Solo", descricao: "Tensão admissível do solo (σadm) e acréscimo estimado de peso próprio da sapata." },
+      { n: 3, titulo: "Pilar", descricao: "Dimensões da seção do pilar (ap, bp) apoiado sobre a sapata." },
+      { n: 4, titulo: "Sapata e materiais", descricao: "Altura da sapata (h), resistência do concreto (fck) e tipo de aço." },
+    ],
+    unidades: [
+      "Comprimentos: cm",
+      "Carga: kN · Tensão do solo: kPa",
+      "Resistências: MPa · Peso próprio: %",
+    ],
+    dica: "Nk é a carga característica (sem majorar). A área em planta é dimensionada pela σadm; o % de peso próprio cobre o peso da própria sapata. A altura h define se a sapata é rígida ou flexível.",
+  },
+  "sapata-excentrica": {
+    subtitulo: "Guia dos dados de entrada para sapata excêntrica isolada ou de divisa com viga de equilíbrio.",
+    grupos: [
+      { n: 1, titulo: "Tipo de cálculo", descricao: "Sapata excêntrica isolada (tensões no solo) ou de divisa com viga de equilíbrio (alavanca)." },
+      { n: 2, titulo: "Cargas", descricao: "Isolada: carga (Nk) e momento (Mk). Divisa: cargas dos pilares (P1, P2) e distância entre eixos (ℓ)." },
+      { n: 3, titulo: "Geometria", descricao: "Dimensões da sapata e dos pilares; na divisa, também a seção da viga de equilíbrio." },
+      { n: 4, titulo: "Solo e materiais", descricao: "Tensão admissível do solo (σadm), resistência do concreto (fck) e tipo de aço." },
+    ],
+    unidades: [
+      "Comprimentos: cm",
+      "Cargas: kN · Momento: kN·m",
+      "Tensão do solo: kPa · Resistências: MPa",
+    ],
+    dica: "Na sapata isolada, a excentricidade e = Mk/Nk define o diagrama de tensões (trapezoidal ou triangular). Na divisa, a viga de equilíbrio transfere a excentricidade ao pilar interno.",
+  },
+  "ancoragem": {
+    subtitulo: "Guia dos dados de entrada para o comprimento de ancoragem e de traspasse de barras.",
+    grupos: [
+      { n: 1, titulo: "Barra", descricao: "Bitola (ø) e categoria do aço da barra a ancorar." },
+      { n: 2, titulo: "Concreto e aderência", descricao: "Resistência do concreto (fck) e zona de aderência (boa ou má) da barra." },
+      { n: 3, titulo: "Ancoragem", descricao: "Presença de gancho na extremidade e percentual de barras emendadas na mesma seção." },
+    ],
+    unidades: [
+      "Bitola: mm",
+      "Resistências: MPa",
+      "Barras emendadas: %",
+    ],
+    dica: "A zona de aderência ruim (topo de peças altas concretadas de uma vez) reduz a aderência e aumenta lb. O gancho reduz o comprimento necessário de ancoragem.",
+  },
+  "estaca-spt": {
+    subtitulo: "Guia dos dados de entrada para a capacidade de carga de estaca a partir do SPT.",
+    grupos: [
+      { n: 1, titulo: "Estaca", descricao: "Tipo de estaca (pré-moldada, hélice, escavada…) e diâmetro." },
+      { n: 2, titulo: "Perfil de sondagem (SPT)", descricao: "Camadas do topo à ponta: tipo de solo, NSPT e espessura de cada camada." },
+    ],
+    unidades: [
+      "Diâmetro: cm · Espessura: m",
+      "NSPT: número de golpes",
+      "Capacidade: kN",
+    ],
+    dica: "Liste as camadas na ordem real, do topo à ponta. A capacidade é estimada por Aoki-Velloso e Décourt-Quaresma; compare os dois métodos.",
+  },
+  "descida-cargas": {
+    subtitulo: "Guia dos dados de entrada para o acúmulo de cargas verticais em um pilar.",
+    grupos: [
+      { n: 1, titulo: "Pavimentos", descricao: "Um por linha (do topo à base): nome, área de influência, carga permanente (g), sobrecarga (q) e carga extra concentrada." },
+      { n: 2, titulo: "Redução da sobrecarga", descricao: "Fator de redução da carga acidental acumulada conforme o número de pavimentos." },
+    ],
+    unidades: [
+      "Área: m² · Cargas distribuídas: kN/m²",
+      "Carga extra: kN",
+      "Fator de redução: 0 a 1",
+    ],
+    dica: "A carga extra é uma carga permanente concentrada (peso próprio de pilar, vigas, alvenaria). Fator 1,00 = sem redução da sobrecarga (NBR 6120, 6.2.2).",
+  },
 };
 
 export function getGuia(slug: string): GuiaMeta | undefined {

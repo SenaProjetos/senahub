@@ -14,6 +14,8 @@ import { calcular, type EntradaExcInput } from "@/modules/ferramentas/calc/eccen
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
 import { DxfPreview } from "./dxf-preview";
+import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
+import { EccentricFootingSchematic } from "./guia/schematics/sapata-excentrica";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 const s = (v: unknown, d: string) => (v != null ? String(v) : d);
@@ -84,49 +86,77 @@ export function EccentricFootingForm({ initialEntradas, onSalvo }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1.5">
-        <Label>Modo</Label>
-        <Select value={modo} onValueChange={(v) => v && setModo(v)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="isolada">Sapata excêntrica isolada (tensões no solo)</SelectItem>
-            <SelectItem value="viga_equilibrio">Divisa + viga de equilíbrio (alavanca)</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      <GuiaFerramenta slug="sapata-excentrica" desenho={<EccentricFootingSchematic />}>
+        <GuiaGrupo n={1}>
+          <div className="space-y-1.5">
+            <Label>Modo</Label>
+            <Select value={modo} onValueChange={(v) => v && setModo(v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="isolada">Sapata excêntrica isolada (tensões no solo)</SelectItem>
+                <SelectItem value="viga_equilibrio">Divisa + viga de equilíbrio (alavanca)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </GuiaGrupo>
 
-      {modo === "isolada" ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <Campo id="e22-nk" label="Nk (kN)" value={nk} onChange={setNk} />
-          <Campo id="e22-mk" label="Mk (kN·m)" value={mk} onChange={setMk} />
-          <Campo id="e22-sa" label="σadm (kPa)" value={sigmaAdm} onChange={setSigmaAdm} />
-          <Campo id="e22-a" label="Base a (cm)" value={a} onChange={setA} />
-          <Campo id="e22-b" label="Base b (cm)" value={b} onChange={setB} />
-          <Campo id="e22-ap" label="Pilar ap (cm)" value={ap} onChange={setAp} />
-          <Campo id="e22-h" label="Altura h (cm)" value={h} onChange={setH} />
-          <div className="space-y-1.5">
-            <Label htmlFor="e22-fck">fck (MPa)</Label>
-            <Input id="e22-fck" type="number" value={fck} onChange={(e) => setFck(e.target.value)} className="font-mono" />
-          </div>
-          {acoSelect}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <Campo id="e22-p1" label="P1 divisa (kN)" value={p1} onChange={setP1} />
-          <Campo id="e22-p2" label="P2 interno (kN)" value={p2} onChange={setP2} />
-          <Campo id="e22-ell" label="ℓ entre eixos (cm)" value={ell} onChange={setEll} />
-          <Campo id="e22-ap1" label="Pilar divisa ap1 (cm)" value={ap1} onChange={setAp1} />
-          <Campo id="e22-a1" label="Sapata divisa a1 (cm)" value={a1} onChange={setA1} />
-          <Campo id="e22-sa2" label="σadm (kPa)" value={sigmaAdm} onChange={setSigmaAdm} />
-          <Campo id="e22-bw" label="Viga bw (cm)" value={bwViga} onChange={setBwViga} />
-          <Campo id="e22-hv" label="Viga h (cm)" value={hViga} onChange={setHViga} />
-          <div className="space-y-1.5">
-            <Label htmlFor="e22-fck2">fck (MPa)</Label>
-            <Input id="e22-fck2" type="number" value={fck} onChange={(e) => setFck(e.target.value)} className="font-mono" />
-          </div>
-          {acoSelect}
-        </div>
-      )}
+        {modo === "isolada" ? (
+          <>
+            <GuiaGrupo n={2}>
+              <div className="grid grid-cols-2 gap-3">
+                <Campo id="e22-nk" label="Nk (kN)" value={nk} onChange={setNk} />
+                <Campo id="e22-mk" label="Mk (kN·m)" value={mk} onChange={setMk} />
+              </div>
+            </GuiaGrupo>
+            <GuiaGrupo n={3}>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <Campo id="e22-a" label="Base a (cm)" value={a} onChange={setA} />
+                <Campo id="e22-b" label="Base b (cm)" value={b} onChange={setB} />
+                <Campo id="e22-ap" label="Pilar ap (cm)" value={ap} onChange={setAp} />
+                <Campo id="e22-h" label="Altura h (cm)" value={h} onChange={setH} />
+              </div>
+            </GuiaGrupo>
+            <GuiaGrupo n={4}>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <Campo id="e22-sa" label="σadm (kPa)" value={sigmaAdm} onChange={setSigmaAdm} />
+                <div className="space-y-1.5">
+                  <Label htmlFor="e22-fck">fck (MPa)</Label>
+                  <Input id="e22-fck" type="number" value={fck} onChange={(e) => setFck(e.target.value)} className="font-mono" />
+                </div>
+                {acoSelect}
+              </div>
+            </GuiaGrupo>
+          </>
+        ) : (
+          <>
+            <GuiaGrupo n={2}>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <Campo id="e22-p1" label="P1 divisa (kN)" value={p1} onChange={setP1} />
+                <Campo id="e22-p2" label="P2 interno (kN)" value={p2} onChange={setP2} />
+                <Campo id="e22-ell" label="ℓ entre eixos (cm)" value={ell} onChange={setEll} />
+              </div>
+            </GuiaGrupo>
+            <GuiaGrupo n={3}>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <Campo id="e22-ap1" label="Pilar divisa ap1 (cm)" value={ap1} onChange={setAp1} />
+                <Campo id="e22-a1" label="Sapata divisa a1 (cm)" value={a1} onChange={setA1} />
+                <Campo id="e22-bw" label="Viga bw (cm)" value={bwViga} onChange={setBwViga} />
+                <Campo id="e22-hv" label="Viga h (cm)" value={hViga} onChange={setHViga} />
+              </div>
+            </GuiaGrupo>
+            <GuiaGrupo n={4}>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <Campo id="e22-sa2" label="σadm (kPa)" value={sigmaAdm} onChange={setSigmaAdm} />
+                <div className="space-y-1.5">
+                  <Label htmlFor="e22-fck2">fck (MPa)</Label>
+                  <Input id="e22-fck2" type="number" value={fck} onChange={(e) => setFck(e.target.value)} className="font-mono" />
+                </div>
+                {acoSelect}
+              </div>
+            </GuiaGrupo>
+          </>
+        )}
+      </GuiaFerramenta>
 
       {r && r.modo === "isolada" && (
         <div className="rounded-lg border bg-muted/40 p-4 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">

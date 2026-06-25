@@ -14,6 +14,8 @@ import { calcular, type EntradaSapataInput } from "@/modules/ferramentas/calc/fo
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
 import { DxfPreview } from "./dxf-preview";
+import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
+import { FootingSchematic } from "./guia/schematics/sapata-isolada";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
@@ -56,33 +58,48 @@ export function FootingForm({ initialEntradas, onSalvo }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <Campo id="e21-nk" label="Nk (kN)" value={nk} onChange={setNk} placeholder="carga do pilar" />
-        <Campo id="e21-sa" label="σadm (kPa)" value={sigmaAdm} onChange={setSigmaAdm} />
-        <Campo id="e21-pp" label="Peso próprio (%)" value={pp} onChange={setPp} />
-        <Campo id="e21-ap" label="Pilar ap (cm)" value={ap} onChange={setAp} />
-        <Campo id="e21-bp" label="Pilar bp (cm)" value={bp} onChange={setBp} />
-        <Campo id="e21-h" label="Altura h (cm)" value={h} onChange={setH} />
-        <div className="space-y-1.5">
-          <Label htmlFor="e21-fck">fck (MPa)</Label>
-          <Input id="e21-fck" type="number" value={fck} onChange={(e) => setFck(e.target.value)} className="font-mono" />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Aço</Label>
-          <Select value={aco} onValueChange={(v) => v && setAco(v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="CA-25">CA-25</SelectItem>
-              <SelectItem value="CA-50">CA-50</SelectItem>
-              <SelectItem value="CA-60">CA-60</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Sapata centrada (sem momento). σadm em kPa. h define rígida × flexível. Excêntricas/viga de
-        equilíbrio → ferramenta E22.
-      </p>
+      <GuiaFerramenta slug="sapata-isolada" desenho={<FootingSchematic />}>
+        <GuiaGrupo n={1}>
+          <div className="grid grid-cols-2 gap-3">
+            <Campo id="e21-nk" label="Nk (kN)" value={nk} onChange={setNk} placeholder="carga do pilar" />
+          </div>
+        </GuiaGrupo>
+
+        <GuiaGrupo n={2}>
+          <div className="grid grid-cols-2 gap-3">
+            <Campo id="e21-sa" label="σadm (kPa)" value={sigmaAdm} onChange={setSigmaAdm} />
+            <Campo id="e21-pp" label="Peso próprio (%)" value={pp} onChange={setPp} />
+          </div>
+        </GuiaGrupo>
+
+        <GuiaGrupo n={3}>
+          <div className="grid grid-cols-2 gap-3">
+            <Campo id="e21-ap" label="Pilar ap (cm)" value={ap} onChange={setAp} />
+            <Campo id="e21-bp" label="Pilar bp (cm)" value={bp} onChange={setBp} />
+          </div>
+        </GuiaGrupo>
+
+        <GuiaGrupo n={4}>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <Campo id="e21-h" label="Altura h (cm)" value={h} onChange={setH} />
+            <div className="space-y-1.5">
+              <Label htmlFor="e21-fck">fck (MPa)</Label>
+              <Input id="e21-fck" type="number" value={fck} onChange={(e) => setFck(e.target.value)} className="font-mono" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Aço</Label>
+              <Select value={aco} onValueChange={(v) => v && setAco(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CA-25">CA-25</SelectItem>
+                  <SelectItem value="CA-50">CA-50</SelectItem>
+                  <SelectItem value="CA-60">CA-60</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </GuiaGrupo>
+      </GuiaFerramenta>
 
       {r && (
         <div className="rounded-lg border bg-muted/40 p-4 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">

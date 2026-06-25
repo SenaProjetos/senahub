@@ -17,6 +17,8 @@ import { BITOLAS_MM } from "@/modules/ferramentas/calc/bitolas";
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { SalvarDialog } from "./salvar-dialog";
 import { SavefileButtons } from "./savefile-buttons";
+import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
+import { AnchorageSchematic } from "./guia/schematics/ancoragem";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
@@ -71,50 +73,64 @@ export function AnchorageForm({ initialEntradas, onSalvo }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <div className="space-y-1.5">
-          <Label>Bitola (mm)</Label>
-          <Select value={phi} onValueChange={(v) => v && setPhi(v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {BITOLAS_MM.map((b) => <SelectItem key={b} value={String(b)}>{b}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label>Aço</Label>
-          <Select value={aco} onValueChange={(v) => v && setAco(v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="CA-25">CA-25</SelectItem>
-              <SelectItem value="CA-50">CA-50</SelectItem>
-              <SelectItem value="CA-60">CA-60</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="anc-fck">fck (MPa)</Label>
-          <Input id="anc-fck" type="number" value={fck} onChange={(e) => setFck(e.target.value)} className="font-mono" />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Aderência</Label>
-          <Select value={aderencia} onValueChange={(v) => v && setAderencia(v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="boa">Boa</SelectItem>
-              <SelectItem value="ma">Má</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="anc-pct">% emendadas</Label>
-          <Input id="anc-pct" type="number" value={pct} onChange={(e) => setPct(e.target.value)} className="font-mono" />
-        </div>
-        <div className="flex items-center gap-2 pt-6">
-          <Switch checked={gancho} onCheckedChange={setGancho} id="anc-gancho" />
-          <Label htmlFor="anc-gancho">Com gancho</Label>
-        </div>
-      </div>
+      <GuiaFerramenta slug="ancoragem" desenho={<AnchorageSchematic />}>
+        <GuiaGrupo n={1}>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Bitola (mm)</Label>
+              <Select value={phi} onValueChange={(v) => v && setPhi(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {BITOLAS_MM.map((b) => <SelectItem key={b} value={String(b)}>{b}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Aço</Label>
+              <Select value={aco} onValueChange={(v) => v && setAco(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CA-25">CA-25</SelectItem>
+                  <SelectItem value="CA-50">CA-50</SelectItem>
+                  <SelectItem value="CA-60">CA-60</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </GuiaGrupo>
+
+        <GuiaGrupo n={2}>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="anc-fck">fck (MPa)</Label>
+              <Input id="anc-fck" type="number" value={fck} onChange={(e) => setFck(e.target.value)} className="font-mono" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Aderência</Label>
+              <Select value={aderencia} onValueChange={(v) => v && setAderencia(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="boa">Boa</SelectItem>
+                  <SelectItem value="ma">Má</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </GuiaGrupo>
+
+        <GuiaGrupo n={3}>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="anc-pct">% emendadas</Label>
+              <Input id="anc-pct" type="number" value={pct} onChange={(e) => setPct(e.target.value)} className="font-mono" />
+            </div>
+            <div className="flex items-center gap-2 pt-6">
+              <Switch checked={gancho} onCheckedChange={setGancho} id="anc-gancho" />
+              <Label htmlFor="anc-gancho">Com gancho</Label>
+            </div>
+          </div>
+        </GuiaGrupo>
+      </GuiaFerramenta>
 
       {resultado && (
         <div className="rounded-lg border bg-muted/40 p-4 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">
