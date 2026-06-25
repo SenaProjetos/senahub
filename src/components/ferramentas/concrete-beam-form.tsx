@@ -18,6 +18,7 @@ import { selecionarBarras } from "@/modules/ferramentas/calc/bitolas";
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { SalvarDialog } from "./salvar-dialog";
 import { SavefileButtons } from "./savefile-buttons";
+import { DxfPreview } from "./dxf-preview";
 
 type Forma = "retangular" | "T";
 type Dims = Record<string, string>;
@@ -214,6 +215,8 @@ export function ConcreteBeamForm({ initialEntradas, onSalvo }: Props) {
           )}
         </div>
       )}
+
+      {resultado && <DxfPreview ferramenta="E01" entradas={entrada as Record<string, unknown> | null} />}
 
       <div className="flex flex-wrap items-center gap-2 pt-2">
         <Button type="button" disabled={!resultado} onClick={() => setSalvarOpen(true)}>

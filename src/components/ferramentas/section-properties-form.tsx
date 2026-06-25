@@ -15,6 +15,7 @@ import { calcular, type EntradaSecao } from "@/modules/ferramentas/calc/section-
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { SalvarDialog } from "./salvar-dialog";
 import { SavefileButtons } from "./savefile-buttons";
+import { DxfPreview } from "./dxf-preview";
 
 type TipoSecao = "retangular" | "circular" | "T" | "poligonal";
 
@@ -175,6 +176,8 @@ export function SectionPropertiesForm({ initialEntradas, onSalvo }: Props) {
           <Prop simbolo="i_y" valor={fmtNum(resultado.iy, 3)} un="cm" />
         </div>
       )}
+
+      {resultado && <DxfPreview ferramenta="U02" entradas={entrada as Record<string, unknown> | null} />}
 
       <div className="flex flex-wrap items-center gap-2 pt-2">
         <Button type="button" disabled={!resultado} onClick={() => setSalvarOpen(true)}>

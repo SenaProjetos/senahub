@@ -1,8 +1,10 @@
 /**
  * Dispatcher de desenho DXF por ferramenta. Puro (sem server-only).
- * Retorna a string DXF ou null se a ferramenta não gera desenho.
+ * `documentoDxf` retorna o DxfDocumento (geometria estruturada, reusável p/ preview SVG);
+ * `desenharDxf` serializa em string DXF (ou null se a ferramenta não gera desenho).
  */
 
+import type { DxfDocumento } from "@/lib/dxf";
 import { calcular as calcularSecao, entradaSchema as secaoSchema } from "../calc/section-properties";
 import { entradaSchema as vigaSchema } from "../calc/concrete-beam-flexure";
 import { entradaSchema as pilarSchema } from "../calc/concrete-column";
@@ -12,17 +14,22 @@ import { desenharVigaSecao } from "./beam-section";
 import { desenharPilarSecao } from "./column-section";
 import { desenharLajePainel } from "./slab-panel";
 
-export function desenharDxf(ferramenta: string, entradas: unknown): string | null {
+/** Monta o documento DXF (geometria) da ferramenta, ou null. Lança se as entradas forem inválidas. */
+export function documentoDxf(ferramenta: string, entradas: unknown): DxfDocumento | null {
   switch (ferramenta) {
     case "U02":
-      return desenharSecao(calcularSecao(secaoSchema.parse(entradas))).toString();
+      return desenharSecao(calcularSecao(secaoSchema.parse(entradas)));
     case "E01":
-      return desenharVigaSecao(vigaSchema.parse(entradas)).toString();
+      return desenharVigaSecao(vigaSchema.parse(entradas));
     case "E04":
-      return desenharPilarSecao(pilarSchema.parse(entradas)).toString();
+      return desenharPilarSecao(pilarSchema.parse(entradas));
     case "E05":
-      return desenharLajePainel(lajeSchema.parse(entradas)).toString();
+      return desenharLajePainel(lajeSchema.parse(entradas));
     default:
       return null;
   }
+}
+
+export function desenharDxf(ferramenta: string, entradas: unknown): string | null {
+  return documentoDxf(ferramenta, entradas)?.toString() ?? null;
 }

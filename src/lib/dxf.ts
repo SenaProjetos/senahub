@@ -42,6 +42,18 @@ type OpcoesCota = OpcoesBase & {
   casas?: number;
 };
 
+/**
+ * Primitiva geométrica estruturada (coordenadas em mm, Y para cima). Capturada em paralelo à
+ * serialização DXF para permitir renderização em outros formatos (ex.: SVG/preview em tela).
+ */
+export type Primitiva =
+  | { tipo: "linha"; p1: Ponto; p2: Ponto; camada: string }
+  | { tipo: "circulo"; centro: Ponto; raio: number; camada: string }
+  | { tipo: "arco"; centro: Ponto; raio: number; a0: number; a1: number; camada: string }
+  | { tipo: "polilinha"; pontos: Ponto[]; fechada: boolean; camada: string }
+  | { tipo: "texto"; p: Ponto; altura: number; conteudo: string; rotacao: number; camada: string }
+  | { tipo: "cota"; p1: Ponto; p2: Ponto; afastamento: number; rotulo: string; altura: number; camada: string };
+
 const CAMADA_PADRAO = "0";
 
 /** Formata número para o DXF: sem notação científica, sem zeros à direita supérfluos, sem `-0`. */
@@ -251,6 +263,8 @@ export function geometriaCotaLinear(
  */
 export class DxfDocumento {
   private entidades: string[] = [];
+  /** Primitivas estruturadas (paralelas às entidades), p/ renderização SVG/preview. */
+  private prims: Primitiva[] = [];
   /** nome → cor ACI (1–255; 7 = padrão preto/branco). Ordem de inserção preservada. */
   private camadas = new Map<string, number>();
 
@@ -269,39 +283,57 @@ export class DxfDocumento {
     if (!this.camadas.has(c)) this.camadas.set(c, 7);
   }
 
+  /** Primitivas geométricas acumuladas (para preview SVG). */
+  cena(): readonly Primitiva[] {
+    return this.prims;
+  }
+
+  /** Mapa camada → cor ACI. */
+  getCamadas(): ReadonlyMap<string, number> {
+    return this.camadas;
+  }
+
   texto(p: Ponto, altura: number, conteudo: string, opts: OpcoesTexto = {}): this {
     this.registrar(opts.camada);
     this.entidades.push(...entidadeTexto(p, altura, conteudo, opts));
+    this.prims.push({ tipo: "texto", p, altura, conteudo, rotacao: opts.rotacao ?? 0, camada: sanitizarCamada(opts.camada ?? CAMADA_PADRAO) });
     return this;
   }
 
   linha(p1: Ponto, p2: Ponto, opts: OpcoesBase = {}): this {
     this.registrar(opts.camada);
     this.entidades.push(...entidadeLinha(p1, p2, opts));
+    this.prims.push({ tipo: "linha", p1, p2, camada: sanitizarCamada(opts.camada ?? CAMADA_PADRAO) });
     return this;
   }
 
   circulo(centro: Ponto, raio: number, opts: OpcoesBase = {}): this {
     this.registrar(opts.camada);
     this.entidades.push(...entidadeCirculo(centro, raio, opts));
+    this.prims.push({ tipo: "circulo", centro, raio, camada: sanitizarCamada(opts.camada ?? CAMADA_PADRAO) });
     return this;
   }
 
   arco(centro: Ponto, raio: number, anguloInicial: number, anguloFinal: number, opts: OpcoesBase = {}): this {
     this.registrar(opts.camada);
     this.entidades.push(...entidadeArco(centro, raio, anguloInicial, anguloFinal, opts));
+    this.prims.push({ tipo: "arco", centro, raio, a0: anguloInicial, a1: anguloFinal, camada: sanitizarCamada(opts.camada ?? CAMADA_PADRAO) });
     return this;
   }
 
   polilinha(pontos: Ponto[], opts: OpcoesPolilinha = {}): this {
     this.registrar(opts.camada);
     this.entidades.push(...entidadePolilinha(pontos, opts));
+    this.prims.push({ tipo: "polilinha", pontos, fechada: opts.fechada ?? false, camada: sanitizarCamada(opts.camada ?? CAMADA_PADRAO) });
     return this;
   }
 
   cotaLinear(p1: Ponto, p2: Ponto, afastamento: number, opts: OpcoesCota = {}): this {
     this.registrar(opts.camada ?? "COTAS");
     this.entidades.push(...geometriaCotaLinear(p1, p2, afastamento, opts));
+    const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    const rotulo = opts.texto ?? fmt(dist, opts.casas ?? 1);
+    this.prims.push({ tipo: "cota", p1, p2, afastamento, rotulo, altura: opts.altura ?? 2.5, camada: sanitizarCamada(opts.camada ?? "COTAS") });
     return this;
   }
 

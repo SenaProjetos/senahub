@@ -14,6 +14,7 @@ import {
 import { calcular, type EntradaPilarInput } from "@/modules/ferramentas/calc/concrete-column";
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
+import { DxfPreview } from "./dxf-preview";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
@@ -123,6 +124,8 @@ export function ConcreteColumnForm({ initialEntradas, onSalvo }: Props) {
           )}
         </div>
       )}
+
+      {resultado && <DxfPreview ferramenta="E04" entradas={entrada as Record<string, unknown> | null} />}
 
       <Footer
         ferramenta="E04"

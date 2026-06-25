@@ -14,6 +14,7 @@ import {
 import { calcular, CASOS, type EntradaLajeInput, type CasoLaje } from "@/modules/ferramentas/calc/slab-bares";
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
+import { DxfPreview } from "./dxf-preview";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
@@ -123,6 +124,8 @@ export function SlabBaresForm({ initialEntradas, onSalvo }: Props) {
           )}
         </div>
       )}
+
+      {resultado && <DxfPreview ferramenta="E05" entradas={entrada as Record<string, unknown> | null} />}
 
       <Footer
         ferramenta="E05"
