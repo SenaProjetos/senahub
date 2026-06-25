@@ -28,6 +28,7 @@ import { calcular as calcularLaje, entradaSchema as lajeSchema, CASOS as CASOS_L
 import { calcular as calcularEscada, entradaSchema as escadaSchema, VINCULACOES } from "./calc/stair";
 import { calcular as calcularPuncao, entradaSchema as puncaoSchema, POSICOES } from "./calc/punching";
 import { calcular as calcularSapata, entradaSchema as sapataSchema } from "./calc/footing";
+import { calcular as calcularSapataExc, entradaSchema as sapataExcSchema } from "./calc/eccentric-footing";
 import { getFerramenta } from "./registry";
 
 /** Largura da alma (bw) usada no cisalhamento: b (retangular) ou bw (T). */
@@ -225,6 +226,32 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
         alertas: r.alertas,
       };
     }
+    case "E22": {
+      const r = calcularSapataExc(sapataExcSchema.parse(entradas));
+      if (r.modo === "isolada") {
+        return {
+          campos: {
+            e: fmtNum(r.e, 1),
+            "a/6": fmtNum(r.emax, 1),
+            "σmax": fmtNum(r.sigmaMax, 0),
+            "σmin": fmtNum(r.sigmaMin, 0),
+            descola: r.descola ? "sim" : "não",
+            "As(a)": fmtNum(r.asA, 2),
+          },
+          alertas: r.alertas,
+        };
+      }
+      return {
+        campos: {
+          R1: fmtNum(r.r1, 0),
+          R2: fmtNum(r.r2, 0),
+          "M viga": fmtNum(r.mViga, 0),
+          "As viga": fmtNum(r.asViga, 2),
+          situação: r.situacao,
+        },
+        alertas: r.alertas,
+      };
+    }
     default:
       throw new Error(`Ferramenta desconhecida: "${ferramenta}"`);
   }
@@ -300,6 +327,8 @@ export function montarMemoria(
       return memoriaE07(entradas, base);
     case "E21":
       return memoriaE21(entradas, base);
+    case "E22":
+      return memoriaE22(entradas, base);
     default:
       throw new Error(`Ferramenta sem memória: "${ferramenta}"`);
   }
@@ -1082,4 +1111,88 @@ function memoriaE21(entradas: Record<string, unknown>, base: BaseArgs): MemoriaD
     });
   }
   return montarMemoriaBase({ ...base, secoes });
+}
+
+function memoriaE22(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+  const e = sapataExcSchema.parse(entradas);
+  const r = calcularSapataExc(e);
+
+  if (r.modo === "isolada" && e.modo === "isolada") {
+    return montarMemoriaBase({
+      ...base,
+      secoes: [
+        {
+          titulo: "Sapata excêntrica isolada — tensões no solo",
+          tabelas: [
+            {
+              colunas: ["Parâmetro", "Valor"],
+              linhas: [
+                ["Nk / Mk", `${e.nk} kN / ${e.mk ?? 0} kN·m`],
+                ["Base a × b", `${e.a} × ${e.b} cm`],
+                ["e = M/N", `${fmtNum(r.e, 1)} cm`],
+                ["a/6 (limite do núcleo)", `${fmtNum(r.emax, 1)} cm`],
+                ["Comportamento", r.descola ? "Triangular (descolamento)" : "Trapezoidal"],
+              ],
+            },
+          ],
+          valores: [
+            { simbolo: "σmax", descricao: "Tensão máxima no solo", valor: fmtNum(r.sigmaMax, 0), unidade: "kPa", formula: r.descola ? "2N/(b·3(a/2−e))" : "N/A·(1+6e/a)" },
+            { simbolo: "σmin", descricao: "Tensão mínima no solo", valor: fmtNum(r.sigmaMin, 0), unidade: "kPa" },
+            { simbolo: "As", descricao: "Armadura (flexão no balanço)", valor: fmtNum(r.asA, 2), unidade: "cm²/m" },
+          ],
+          notas: r.alertas.length > 0 ? r.alertas : ["σmax ≤ σadm — verificação atendida."],
+        },
+      ],
+    });
+  }
+
+  if (r.modo !== "viga_equilibrio" || e.modo !== "viga_equilibrio") {
+    throw new Error("Modo E22 inconsistente.");
+  }
+  return montarMemoriaBase({
+    ...base,
+    secoes: [
+      {
+        titulo: "Viga de equilíbrio (alavanca) — reações",
+        tabelas: [
+          {
+            colunas: ["Parâmetro", "Valor"],
+            linhas: [
+              ["Pilar de divisa P1", `${e.p1} kN`],
+              ["Pilar interno P2", `${e.p2} kN`],
+              ["Distância entre eixos ℓ", `${e.ell} cm`],
+              ["Sapata de divisa a1 (× ap1)", `${e.a1} (${e.ap1}) cm`],
+            ],
+          },
+        ],
+        valores: [
+          { simbolo: "e", descricao: "Excentricidade do centroide da sapata de divisa", valor: fmtNum(r.e, 1), unidade: "cm", formula: "(a1−ap1)/2" },
+          { simbolo: "R1", descricao: "Reação na sapata de divisa (majorada)", valor: fmtNum(r.r1, 1), unidade: "kN", formula: "P1·ℓ/(ℓ−e)" },
+          { simbolo: "R2", descricao: "Reação na sapata interna (aliviada)", valor: fmtNum(r.r2, 1), unidade: "kN", formula: "P2−(R1−P1)" },
+        ],
+      },
+      {
+        titulo: "Viga de equilíbrio — esforços e armadura",
+        valores: [
+          { simbolo: "M", descricao: "Momento de cálculo da viga", valor: fmtNum(r.mViga, 1), unidade: "kN·m", formula: "R1·e" },
+          { simbolo: "V", descricao: "Força transferida (cortante)", valor: fmtNum(r.vViga, 1), unidade: "kN" },
+          { simbolo: "As,viga", descricao: "Armadura de flexão da viga", valor: fmtNum(r.asViga, 2), unidade: "cm²" },
+        ],
+        notas: ["Viga dimensionada à flexão (E01) para a seção bw × h informada."],
+      },
+      {
+        titulo: "Sapatas",
+        tabelas: [
+          {
+            colunas: ["Sapata", "Dimensões (cm)", "σsolo (kPa)", "As (cm²/m)"],
+            linhas: [
+              ["Divisa", `${e.a1} × ${r.b1}`, fmtNum(r.sigma1, 0), "—"],
+              ["Interna", `${r.a2} × ${r.b2}`, fmtNum(r.sigma2, 0), fmtNum(r.as2porM, 2)],
+            ],
+          },
+        ],
+        notas: r.alertas.length > 0 ? r.alertas : ["Sapata interna dimensionada como isolada (E21) para R2."],
+      },
+    ],
+  });
 }

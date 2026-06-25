@@ -20,6 +20,7 @@ import {
   Footprints,
   Crosshair,
   Square,
+  SquareStack,
   type LucideIcon,
 } from "lucide-react";
 
@@ -165,6 +166,16 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     norma: "NBR 6118/6122",
     exportaveis: ["pdf", "docx", "xlsx", "dxf"],
     icon: Square,
+  },
+  {
+    key: "E22",
+    nome: "Sapatas Excêntricas",
+    descricao: "Sapata excêntrica isolada (tensões no solo, trapezoidal/triangular) e sapata de divisa com viga de equilíbrio (alavanca), com dimensionamento e detalhamento.",
+    disciplina: "Fundações",
+    tipo: "completa",
+    norma: "NBR 6118/6122",
+    exportaveis: ["pdf", "docx", "xlsx", "dxf"],
+    icon: SquareStack,
   },
   {
     key: "E23",

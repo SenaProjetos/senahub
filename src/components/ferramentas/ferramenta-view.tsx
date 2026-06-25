@@ -23,6 +23,7 @@ import { SlabBaresForm } from "./slab-bares-form";
 import { StairForm } from "./stair-form";
 import { PunchingForm } from "./punching-form";
 import { FootingForm } from "./footing-form";
+import { EccentricFootingForm } from "./eccentric-footing-form";
 import { RecentesList } from "./recentes-list";
 
 type RecenteSerializado = Omit<RecenteCalculo, "createdAt"> & { createdAt: string };
@@ -63,6 +64,8 @@ function renderForm(key: string, initialEntradas: Record<string, unknown> | unde
       return <PunchingForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     case "E21":
       return <FootingForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
+    case "E22":
+      return <EccentricFootingForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     default:
       return <p className="text-muted-foreground text-sm">Ferramenta em desenvolvimento.</p>;
   }

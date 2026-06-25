@@ -18,6 +18,7 @@ import { entradaSchema as slabBaresSchema } from "./calc/slab-bares";
 import { entradaSchema as stairSchema } from "./calc/stair";
 import { entradaSchema as punchingSchema } from "./calc/punching";
 import { entradaSchema as footingSchema } from "./calc/footing";
+import { entradaSchema as eccentricFootingSchema } from "./calc/eccentric-footing";
 
 export const SAVEFILE_APP = "senahub" as const;
 export const SAVEFILE_KIND = "shcalc" as const;
@@ -43,6 +44,7 @@ const ENTRADAS_SCHEMAS: Record<string, z.ZodTypeAny> = {
   E07: punchingSchema,
   E08: stairSchema,
   E21: footingSchema,
+  E22: eccentricFootingSchema,
   E10: anchorageSchema,
   E11: steelSummarySchema,
   E12: loadDescentSchema,
