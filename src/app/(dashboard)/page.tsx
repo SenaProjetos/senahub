@@ -20,7 +20,6 @@ import { HeroCard } from "@/components/dashboard/hero-card";
 import { ReceitaChart } from "@/components/dashboard/receita-chart";
 import { TrendLine } from "@/components/qualidade/trend-line";
 import { CarteiraDashboard } from "@/components/dashboard/carteira-dashboard";
-import { AniversariantesCards } from "@/components/dashboard/aniversariantes-card";
 import { brlInteiro as brl } from "@/lib/utils";
 import { acessoGlobal } from "@/lib/roles";
 import { podeVerFinanceiro } from "@/lib/permissions";
@@ -79,7 +78,7 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-6">
-      <HeroCard nome={user.name} />
+      <HeroCard nome={user.name} aniversariantes={aniversarios} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((kpi) => (
@@ -167,8 +166,6 @@ export default async function HomePage() {
           </CardContent>
         </Card>
       </div>
-
-      <AniversariantesCards doDia={aniversarios.doDia} doMes={aniversarios.doMes} />
 
       {isGlobal && carteira.length > 0 && (
         <CarteiraDashboard projetos={carteira} />
