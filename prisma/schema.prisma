@@ -270,6 +270,22 @@ model AuditLog {
   @@map("audit_log")
 }
 
+/// Registro de acesso (page-view) a uma seção, para a análise de uso (admin).
+/// Dado interno de colaboradores; `userId` escalar (sem relação). Alimentado
+/// pelo beacon de navegação do dashboard. Complementa o AuditLog (que mede ações).
+model AcessoPagina {
+  id        String   @id @default(cuid())
+  userId    String
+  secao     String
+  path      String
+  createdAt DateTime @default(now())
+
+  @@index([secao, createdAt])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("acesso_pagina")
+}
+
 // ─────────────────────────────────────────────────────────────
 // Notificações (sininho interno) + Web Push
 // ─────────────────────────────────────────────────────────────

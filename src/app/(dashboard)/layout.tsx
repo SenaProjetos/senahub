@@ -3,6 +3,7 @@ import { Shell } from "@/components/shell/shell";
 import { requireUser } from "@/lib/session";
 import { precisaAceitarTermo } from "@/modules/legal/queries";
 import { PushManager } from "@/components/notificacoes/push-manager";
+import { AcessoTracker } from "@/components/uso/acesso-tracker";
 import { FloatingChat } from "@/components/chat/floating-chat";
 import { ChatPresenceProvider } from "@/components/chat/chat-presence-provider";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
@@ -31,6 +32,7 @@ export default async function DashboardLayout({
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       <link rel="stylesheet" href={GOOGLE_FONTS_HREF} />
       <PushManager />
+      <AcessoTracker />
       <ConfirmProvider>{children}</ConfirmProvider>
       {/* Chat flutuante: dados carregados sob demanda (ao abrir) — não pesa a navegação. */}
       {participaDoChat && <FloatingChat />}

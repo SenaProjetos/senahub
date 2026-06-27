@@ -280,6 +280,7 @@ export const ACAO_LABEL: Record<string, string> = {
 
 /** Rótulos legíveis (pt-BR) para os módulos/seções registrados em AuditLog.modulo. */
 export const MODULO_LABEL: Record<string, string> = {
+  inicio: "Início",
   auth: "Autenticação",
   usuarios: "Usuários",
   permissoes: "Permissões",
