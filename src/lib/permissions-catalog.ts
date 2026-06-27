@@ -108,4 +108,12 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     label: "Permissões",
     acoes: [{ acao: "gerir", label: "Editar matriz de permissões" }],
   },
+  {
+    recurso: "ferramentas",
+    label: "Ferramentas de Engenharia",
+    acoes: [
+      { acao: "usar", label: "Usar ferramentas e salvar cálculos" },
+      { acao: "gerir", label: "Ver cálculos de todos / administrar" },
+    ],
+  },
 ];

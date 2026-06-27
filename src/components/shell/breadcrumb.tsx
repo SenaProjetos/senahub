@@ -5,6 +5,7 @@ import { Fragment } from "react";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { NAV_GROUPS } from "@/lib/nav-config";
+import { getFerramenta } from "@/modules/ferramentas/registry";
 
 /** Mapa href -> título, montado a partir do NAV_GROUPS (1º segmento). */
 const HREF_TO_TITLE: Record<string, string> = (() => {
@@ -47,6 +48,9 @@ function buildCrumbs(pathname: string): Crumb[] {
     let label: string;
     if (index === 0 && HREF_TO_TITLE[acc]) {
       label = HREF_TO_TITLE[acc];
+    } else if (index === 1 && segments[0] === "ferramentas") {
+      // Slug da ferramenta → nome amigável do registry (nunca expor a chave crua).
+      label = getFerramenta(segment)?.nome ?? capitalize(segment);
     } else if (looksLikeId(segment)) {
       label = "Detalhe";
     } else {

@@ -25,6 +25,14 @@ const dataDate = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(
 
 async function limpar() {
   // Ordem FK-safe (filhos → pais). Preserva catálogos do seed e o admin.
+  // Ponto/banco/rateio + PJ (antes dos pais projeto/disciplina/user).
+  await prisma.rateioHora.deleteMany({});
+  await prisma.bancoHorasMensal.deleteMany({});
+  await prisma.sessaoTrabalho.deleteMany({});
+  await prisma.escalaTrabalho.deleteMany({});
+  await prisma.notaFiscalPJHistorico.deleteMany({});
+  await prisma.notaFiscalPJ.deleteMany({});
+  await prisma.folhaProjetista.deleteMany({});
   await prisma.mensagem.deleteMany({});
   await prisma.canalMembro.deleteMany({});
   await prisma.canal.deleteMany({});
@@ -75,6 +83,26 @@ async function limpar() {
   await prisma.contaBancaria.deleteMany({});
   // Usuários demo (tudo que não é o admin). Sessions/accounts caem por cascade.
   await prisma.user.deleteMany({ where: { role: { not: "admin" } } });
+  // PessoaJuridica só após remover os users que a referenciam (User.pjId).
+  await prisma.pessoaJuridica.deleteMany({});
+}
+
+/** Gerador pseudoaleatório determinístico (LCG) — dados reprodutíveis entre execuções. */
+function rng(seed: number): () => number {
+  let s = seed % 2147483647;
+  if (s <= 0) s += 2147483646;
+  return () => (s = (s * 16807) % 2147483647) / 2147483647;
+}
+
+/** Dias úteis (seg–sex) de um mês (mes0 = 0–11). */
+function diasUteisMes(ano: number, mes0: number): number {
+  let n = 0;
+  const dias = new Date(ano, mes0 + 1, 0).getDate();
+  for (let d = 1; d <= dias; d++) {
+    const wd = new Date(ano, mes0, d).getDay();
+    if (wd >= 1 && wd <= 5) n++;
+  }
+  return n;
 }
 
 async function criarUsuario(name: string, email: string, role: string, clienteId?: string) {
@@ -533,8 +561,155 @@ async function main() {
     }
   }
 
+  // ── Ponto (6 meses) + banco de horas + rateio de custo ──────
+  const recursosMap = new Map<string, number>();
+  for (const rec of await prisma.recurso.findMany()) recursosMap.set(rec.userId, Number(rec.custoHora));
+
+  const equipePonto = [
+    { u: supervisor, horas: 8, projs: [0, 1, 4] },
+    { u: ana, horas: 8, projs: [0, 2] },
+    { u: bruno, horas: 8, projs: [1, 3] },
+    { u: carla, horas: 8, projs: [4, 5] },
+    { u: diego, horas: 6, projs: [0, 1] },
+    { u: elis, horas: 4, projs: [2, 5] },
+  ];
+  for (const e of equipePonto) {
+    await prisma.escalaTrabalho.create({ data: { userId: e.u.id, horasDia: e.horas } });
+  }
+
+  const sessoes: { userId: string; projetoId: string; inicio: Date; fim: Date }[] = [];
+  const workByUserMonth = new Map<string, Map<string, number>>();
+  const workByUserProjMonth = new Map<string, Map<string, Map<string, number>>>();
+  const acc = (m: Map<string, number>, k: string, v: number) => m.set(k, (m.get(k) ?? 0) + v);
+  const inicioPonto = new Date(hoje.getFullYear(), hoje.getMonth() - 5, 1);
+
+  equipePonto.forEach((e, ei) => {
+    const rand = rng(1000 + ei * 97);
+    workByUserMonth.set(e.u.id, new Map());
+    workByUserProjMonth.set(e.u.id, new Map());
+    let cursor = new Date(inicioPonto);
+    let dayIdx = 0;
+    while (cursor <= hoje) {
+      const wd = cursor.getDay();
+      if (wd >= 1 && wd <= 5) {
+        const r = rand();
+        let worked = e.horas * 60;
+        if (r < 0.05) worked = 0; // falta/folga
+        else if (r < 0.22) worked -= 30 + Math.floor(rand() * 60); // saiu cedo
+        else if (r < 0.42) worked += 30 + Math.floor(rand() * 90); // hora extra
+        if (worked > 0) {
+          const proj = projetos[e.projs[dayIdx % e.projs.length]];
+          const ym = `${cursor.getFullYear()}-${cursor.getMonth()}`;
+          const manha = Math.min(4 * 60, Math.round(worked * 0.55));
+          const tarde = worked - manha;
+          const dM0 = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate(), 8, 0);
+          sessoes.push({ userId: e.u.id, projetoId: proj.id, inicio: dM0, fim: new Date(dM0.getTime() + manha * 60000) });
+          if (tarde > 0) {
+            const dT0 = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate(), 13, 0);
+            sessoes.push({ userId: e.u.id, projetoId: proj.id, inicio: dT0, fim: new Date(dT0.getTime() + tarde * 60000) });
+          }
+          acc(workByUserMonth.get(e.u.id)!, ym, worked);
+          const pm = workByUserProjMonth.get(e.u.id)!;
+          if (!pm.has(proj.id)) pm.set(proj.id, new Map());
+          acc(pm.get(proj.id)!, ym, worked);
+        }
+        dayIdx++;
+      }
+      cursor = addDays(cursor, 1);
+    }
+  });
+  for (let i = 0; i < sessoes.length; i += 500) {
+    await prisma.sessaoTrabalho.createMany({ data: sessoes.slice(i, i + 500) });
+  }
+
+  // Banco de horas (meses fechados 5..1) + rateio de custo por projeto.
+  let nBanco = 0;
+  let nRateio = 0;
+  for (const e of equipePonto) {
+    let acumulado = 0;
+    for (let m = 5; m >= 1; m--) {
+      const base = subMonths(hoje, m);
+      const ano = base.getFullYear();
+      const mes0 = base.getMonth();
+      const worked = workByUserMonth.get(e.u.id)?.get(`${ano}-${mes0}`) ?? 0;
+      const esperado = diasUteisMes(ano, mes0) * e.horas * 60;
+      const saldo = worked - esperado;
+      acumulado += saldo;
+      await prisma.bancoHorasMensal.create({
+        data: { userId: e.u.id, ano, mes: mes0 + 1, saldoMinutos: saldo, acumuladoMinutos: acumulado, fechadoEm: new Date(ano, mes0 + 1, 1) },
+      });
+      nBanco++;
+    }
+    const custoHora = recursosMap.get(e.u.id) ?? 100;
+    const pm = workByUserProjMonth.get(e.u.id);
+    if (pm) {
+      for (const [projId, byMonth] of pm) {
+        for (const [ym, min] of byMonth) {
+          const [ano, mes0] = ym.split("-").map(Number);
+          if ((hoje.getFullYear() - ano) * 12 + (hoje.getMonth() - mes0) < 1) continue; // só fechados
+          await prisma.rateioHora.create({
+            data: { userId: e.u.id, projetoId: projId, ano, mes: mes0 + 1, minutos: min, custoHora, custo: (min / 60) * custoHora, fechadoEm: new Date(ano, mes0 + 1, 1) },
+          });
+          nRateio++;
+        }
+      }
+    }
+  }
+
+  // ── PJ: PessoaJuridica + pagamentos de projetistas + notas fiscais ──
+  const pj1 = await prisma.pessoaJuridica.create({ data: { cnpj: "21.222.333/0001-01", razaoSocial: "Ana Silva Engenharia ME", nomeFantasia: "AS Estrutural", email: "financeiro@asestrutural.com", telefone: "(62) 99100-0001" } });
+  const pj2 = await prisma.pessoaJuridica.create({ data: { cnpj: "33.444.555/0001-02", razaoSocial: "Bruno Costa Projetos EIRELI", nomeFantasia: "BC Projetos", email: "nf@bcprojetos.com", telefone: "(62) 99100-0002" } });
+  await prisma.user.update({ where: { id: ana.id }, data: { pjId: pj1.id } });
+  await prisma.user.update({ where: { id: bruno.id }, data: { pjId: pj2.id } });
+
+  const respPJ = await prisma.disciplinaResponsavel.findMany({
+    where: { disciplina: { status: { in: ["entregue", "aprovado"] } }, user: { role: { in: ["projetista_pj", "freelancer"] } } },
+    include: { disciplina: true, user: true },
+  });
+  let nPag = 0;
+  for (let i = 0; i < respPJ.length; i++) {
+    const r = respPJ[i];
+    const valor = r.disciplina.valor ? Number(r.disciplina.valor) : 5000;
+    const pago = i % 2 === 0;
+    const lib = dia(-100 + i * 6);
+    await prisma.pagamentoProjetista.create({
+      data: {
+        disciplinaId: r.disciplinaId,
+        projetistaId: r.userId,
+        valor,
+        tipoProfissional: r.user.role,
+        status: pago ? "pago" : "pendente",
+        liberadoEm: lib,
+        pagoEm: pago ? addDays(lib, 10) : null,
+      },
+    });
+    nPag++;
+  }
+
+  const statusNF = ["aprovada", "enviada", "aprovada", "enviada"] as const;
+  let nNF = 0;
+  for (const u of [ana, bruno, elis]) {
+    for (let m = 4; m >= 1; m--) {
+      const base = subMonths(hoje, m);
+      await prisma.notaFiscalPJ.create({
+        data: {
+          userId: u.id,
+          numero: `NF-${base.getFullYear()}${String(base.getMonth() + 1).padStart(2, "0")}-${u.id.slice(0, 4)}`,
+          valor: 4000 + (m % 3) * 1500,
+          arquivoPath: `pj/${u.id}/nf-${base.getFullYear()}-${base.getMonth() + 1}.pdf`,
+          arquivoNome: `NF ${String(base.getMonth() + 1).padStart(2, "0")}-${base.getFullYear()}.pdf`,
+          status: statusNF[(m - 1) % statusNF.length],
+          createdAt: dataDate(new Date(base.getFullYear(), base.getMonth(), 5)),
+        },
+      });
+      nNF++;
+    }
+  }
+
   // ── Resumo ──────────────────────────────────────────────────
   console.log("\n✔ Dados de demonstração criados:");
+  console.log(`  ponto: ${sessoes.length} sessões (6 meses) · ${nBanco} fechamentos de banco · ${nRateio} rateios de custo`);
+  console.log(`  PJ: 2 pessoas jurídicas · ${nPag} pagamentos de projetistas · ${nNF} notas fiscais`);
   console.log(`  ${internos.length} usuários internos + 2 de portal (cliente)`);
   console.log(`  ${clientes.length} clientes, ${projetos.length} projetos, ${nLanc} lançamentos`);
   console.log(`  6 propostas, 8 leads, folha + EAP + recursos + tarefas + agenda + jurídico + licitações + suporte + snapshots + chat`);

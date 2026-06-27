@@ -1,5 +1,7 @@
+import { redirect } from "next/navigation";
 import { Shell } from "@/components/shell/shell";
 import { requireUser } from "@/lib/session";
+import { precisaAceitarTermo } from "@/modules/legal/queries";
 import { PushManager } from "@/components/notificacoes/push-manager";
 import { FloatingChat } from "@/components/chat/floating-chat";
 import { ChatPresenceProvider } from "@/components/chat/chat-presence-provider";
@@ -13,6 +15,12 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
+
+  // Gate do Termo de Uso: bloqueia o sistema até o aceite da versão vigente.
+  // requireUser já tratou a troca de senha pendente; o termo vem na sequência.
+  // A tela /termo vive no grupo (auth), fora deste layout — sem loop de redirect.
+  if (await precisaAceitarTermo(user)) redirect("/termo");
+
   const participaDoChat = (CHAT_ROLES as readonly string[]).includes(user.role);
 
   const conteudo = (
