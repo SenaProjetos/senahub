@@ -21,6 +21,7 @@ import {
   ScrollText,
   Briefcase,
   Calculator,
+  Activity,
   type LucideIcon,
 } from "lucide-react";
 import type { Role } from "@/lib/roles";
@@ -240,6 +241,12 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Auditoria",
         href: "/auditoria",
         icon: ScrollText,
+        roles: ["admin"],
+      },
+      {
+        title: "Uso por seção",
+        href: "/auditoria/uso",
+        icon: Activity,
         roles: ["admin"],
       },
     ],

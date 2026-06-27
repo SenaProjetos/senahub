@@ -1,6 +1,27 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
+import { montarHeatmap } from "./heatmap";
+
+/**
+ * Heatmap de uso por seção (módulo): conta eventos de auditoria por módulo × dia
+ * na janela de `dias` (inclui hoje). Admin-only (chamado de página protegida).
+ */
+export async function heatmapUso(dias = 14) {
+  const hoje = new Date();
+  const desde = new Date(hoje);
+  desde.setDate(hoje.getDate() - (dias - 1));
+  desde.setHours(0, 0, 0, 0);
+  const eventos = await prisma.auditLog.findMany({
+    where: { createdAt: { gte: desde } },
+    select: { modulo: true, createdAt: true },
+    take: 50000,
+  });
+  return montarHeatmap(
+    eventos.map((e) => ({ modulo: e.modulo, em: e.createdAt })),
+    { dias, hoje },
+  );
+}
 
 export type AuditFiltro = {
   modulo?: string;

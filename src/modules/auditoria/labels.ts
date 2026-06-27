@@ -277,3 +277,36 @@ export const ACAO_LABEL: Record<string, string> = {
   "salvar-linhas-plano": "Salvou linhas do plano",
   "aplicar-plano": "Aplicou plano",
 };
+
+/** Rótulos legíveis (pt-BR) para os módulos/seções registrados em AuditLog.modulo. */
+export const MODULO_LABEL: Record<string, string> = {
+  auth: "Autenticação",
+  usuarios: "Usuários",
+  permissoes: "Permissões",
+  clientes: "Clientes",
+  comercial: "Comercial",
+  projetos: "Projetos",
+  planejamento: "Planejamento",
+  tarefas: "Tarefas",
+  agenda: "Agenda",
+  financeiro: "Financeiro",
+  rh: "RH",
+  ponto: "Ponto",
+  chat: "Chat",
+  documentos: "Documentos",
+  qualidade: "Qualidade",
+  licitacoes: "Licitações",
+  juridico: "Jurídico",
+  suporte: "Suporte",
+  notificacoes: "Notificações",
+  uploads: "Uploads",
+  portal: "Portal do cliente",
+  inputs: "Inputs",
+  busca: "Busca",
+  dashboard: "Dashboard",
+  ferramentas: "Ferramentas",
+};
+
+export function moduloLabel(modulo: string): string {
+  return MODULO_LABEL[modulo] ?? modulo.charAt(0).toUpperCase() + modulo.slice(1);
+}
