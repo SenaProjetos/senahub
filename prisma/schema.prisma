@@ -20,6 +20,7 @@ enum Role {
   projetista_pj
   freelancer
   cliente
+  ti
 }
 
 model User {
@@ -103,6 +104,7 @@ model User {
   ferias               Ferias[]              @relation("FeriasUser")
   feriasValidadas      Ferias[]              @relation("FeriasValidador")
   emocoes              RegistroEmocao[]
+  feedbacksHumor       FeedbackHumor[]
   holerites            Holerite[]
   onboarding           OnboardingProcesso?
   notasFiscais         NotaFiscalPJ[]        @relation("NfUser")
@@ -137,6 +139,8 @@ model User {
   aceitesGerados        AceiteCliente[]        @relation("AceiteGerador")
   calculosFerramenta    CalculoFerramenta[]
   aceitesTermo          AceiteTermo[]
+  ativosResponsavel     Ativo[]                @relation("AtivoResponsavel")
+  maquinasResponsavel   MaquinaTI[]            @relation("MaquinaResponsavel")
 
   @@index([role])
   @@map("user")
@@ -454,6 +458,7 @@ model Projeto {
   disciplinas Disciplina[]
   membros     ProjetoMembro[]
   inputs      InputProjeto[]
+  briefing    BriefingProjeto?
   linkInput   LinkPublicoInput?
   lancamentos Lancamento[]
   canais      Canal[]
@@ -545,6 +550,23 @@ model InputProjeto {
 
   @@index([projetoId])
   @@map("input_projeto")
+}
+
+/// Briefing de Start (Mód 3): respostas do formulário multi-etapas (schema em
+/// modules/inputs/briefing-schema.ts). 1:1 com o projeto; respostas como JSON.
+model BriefingProjeto {
+  id           String    @id @default(cuid())
+  projetoId    String    @unique
+  projeto      Projeto   @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  respostasJson Json     @default("{}")
+  /// nao_iniciado | em_preenchimento | completo (derivado, persistido p/ listagem rápida).
+  status       String    @default("nao_iniciado")
+  preenchidoPor String?
+  preenchidoEm DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("briefing_projeto")
 }
 
 /// Link público (por token) para o cliente preencher os inputs sem login.
@@ -1237,6 +1259,21 @@ model RegistroEmocao {
   @@map("registro_emocao")
 }
 
+/// Feedback livre à empresa (Mód 1/9) enviado pelo herocard. Pode ser ANÔNIMO
+/// (userId nulo → a RH não vê o autor). A action grava com `audit: false` p/ não
+/// criar trilha que vincule o autor ao conteúdo quando anônimo.
+model FeedbackHumor {
+  id        String   @id @default(cuid())
+  conteudo  String
+  anonimo   Boolean  @default(false)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("feedback_humor")
+}
+
 model ProjetoMembro {
   id        String  @id @default(cuid())
   projetoId String
@@ -1468,6 +1505,8 @@ model Tarefa {
   statusId  String
   status    TarefaStatus @relation(fields: [statusId], references: [id])
   prazo     DateTime?    @db.Date
+  /// Prioridade (baixa|media|alta|urgente). String livre p/ não exigir enum (igual a TicketSuporte).
+  prioridade String?
   projetoId String?
   projeto   Projeto?     @relation(fields: [projetoId], references: [id])
   criadorId String
@@ -3261,4 +3300,83 @@ model CalculoFerramenta {
   @@index([autorId, ferramenta, createdAt])
   @@index([projetoId])
   @@map("calculo_ferramenta")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Patrimônio / Ativos (Mód 16 do CONSELHO1)
+// ─────────────────────────────────────────────────────────────
+
+/// Item do inventário do escritório (equipamentos, mobiliário, veículos…).
+model Ativo {
+  id            String     @id @default(cuid())
+  nome          String
+  categoria     String? // ex.: Computador, Mobiliário, Veículo, Periférico…
+  localizacao   String?
+  responsavelId String?
+  responsavel   User?      @relation("AtivoResponsavel", fields: [responsavelId], references: [id], onDelete: SetNull)
+  dataAquisicao DateTime?  @db.Date
+  valor         Decimal?   @db.Decimal(12, 2)
+  /// ativo | manutencao | baixado
+  status        String     @default("ativo")
+  observacao    String?
+  /// Se este ativo é uma máquina de TI gerenciada (1:1 opcional).
+  maquina       MaquinaTI?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([categoria])
+  @@index([status])
+  @@map("ativo")
+}
+
+/// PC/estação gerenciada pela TI — specs + peças + histórico de manutenção.
+model MaquinaTI {
+  id            String   @id @default(cuid())
+  nome          String
+  /// Vínculo opcional ao item de inventário correspondente.
+  patrimonioId  String?  @unique
+  patrimonio    Ativo?   @relation(fields: [patrimonioId], references: [id], onDelete: SetNull)
+  responsavelId String?
+  responsavel   User?    @relation("MaquinaResponsavel", fields: [responsavelId], references: [id], onDelete: SetNull)
+  // Specs livres (texto)
+  cpu           String?
+  ram           String?
+  armazenamento String?
+  so            String? // sistema operacional
+  observacao    String?
+  componentes   ComponenteMaquina[]
+  manutencoes   ManutencaoMaquina[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([responsavelId])
+  @@map("maquina_ti")
+}
+
+/// Peça/componente instalado numa máquina.
+model ComponenteMaquina {
+  id         String    @id @default(cuid())
+  maquinaId  String
+  maquina    MaquinaTI @relation(fields: [maquinaId], references: [id], onDelete: Cascade)
+  tipo       String // ex.: Memória, SSD, GPU, Fonte, Placa-mãe
+  descricao  String
+  quantidade Int       @default(1)
+  createdAt  DateTime  @default(now())
+
+  @@index([maquinaId])
+  @@map("componente_maquina")
+}
+
+/// Registro de manutenção/troca de uma máquina.
+model ManutencaoMaquina {
+  id        String    @id @default(cuid())
+  maquinaId String
+  maquina   MaquinaTI @relation(fields: [maquinaId], references: [id], onDelete: Cascade)
+  data      DateTime  @db.Date
+  descricao String
+  custo     Decimal?  @db.Decimal(12, 2)
+  createdAt DateTime  @default(now())
+
+  @@index([maquinaId])
+  @@map("manutencao_maquina")
 }

@@ -82,6 +82,15 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "estagiario", recurso: "ferramentas", acao: "usar" },
   { role: "projetista_pj", recurso: "ferramentas", acao: "usar" },
   { role: "freelancer", recurso: "ferramentas", acao: "usar" },
+  // Patrimônio (Mód 16): inventário p/ gestão; TI p/ papel `ti` + gestores.
+  { role: "supervisor", recurso: "patrimonio", acao: "ver" },
+  { role: "supervisor", recurso: "patrimonio", acao: "gerir" },
+  { role: "supervisor", recurso: "patrimonio", acao: "ti" },
+  { role: "administrativo", recurso: "patrimonio", acao: "ver" },
+  { role: "administrativo", recurso: "patrimonio", acao: "gerir" },
+  { role: "ti", recurso: "patrimonio", acao: "ver" },
+  { role: "ti", recurso: "patrimonio", acao: "gerir" },
+  { role: "ti", recurso: "patrimonio", acao: "ti" },
 ];
 
 /** Plano de contas inicial. Códigos usados na auto-categorização de pagamentos. */
@@ -118,7 +127,10 @@ const RUBRICAS: { nome: string; tipo: "provento" | "desconto" }[] = [
 const TAREFA_STATUS = [
   { nome: "A fazer", cor: "#8B7FC7", concluido: false },
   { nome: "Em andamento", cor: "#4E9BB0", concluido: false },
+  { nome: "Em revisão", cor: "#B0507A", concluido: false },
   { nome: "Concluído", cor: "#5FA083", concluido: true },
+  // Terminal, mas NÃO conta como concluída (não libera dependentes nem entra em métrica de conclusão).
+  { nome: "Cancelada", cor: "#6E838B", concluido: false },
 ];
 
 const CERTIDAO_TIPOS = ["CND Federal", "CND Estadual", "CND Municipal", "FGTS", "Trabalhista", "ART/RRT"];
