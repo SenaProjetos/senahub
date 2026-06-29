@@ -116,4 +116,13 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
       { acao: "gerir", label: "Ver cálculos de todos / administrar" },
     ],
   },
+  {
+    recurso: "patrimonio",
+    label: "Patrimônio / Ativos",
+    acoes: [
+      { acao: "ver", label: "Ver inventário de ativos" },
+      { acao: "gerir", label: "Criar/editar ativos do inventário" },
+      { acao: "ti", label: "Gerenciar TI (máquinas, peças, manutenção)" },
+    ],
+  },
 ];
