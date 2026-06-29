@@ -62,6 +62,8 @@ src/
                          #   aging.ts: receivables/payables aging buckets (a_vencer…d120_mais, pure/tested)
                          #   aquisitivo.ts: CLT vacation accrual/concessive-window status (pure, tested)
                          #   ponto-offline.ts: localStorage queue for batidas made while online drops (client)
+                         #   dxf.ts: pure R12 (AC1009) DXF writer — mm units, Y-up CAD axes; base for ferramentas drawings (tested)
+                         #   frase-do-dia.ts: deterministic daily quote (day-of-year → public/frases.json)
   generated/prisma/      # Prisma client output (import from here, NOT @prisma/client)
 server.ts                # Next + Socket.io + pg-boss in ONE process
 prisma/schema.prisma     # + prisma.config.ts (Prisma 7: datasource URL lives in the config, not the schema)
@@ -88,7 +90,7 @@ async (input, ctx) => { /* ... */ },
 
 **Component naming convention:** `*-view.tsx` = full page component (owns filters/title/actions), `*-dialog.tsx` = modal form, `*-form.tsx` = reusable form, `*-button.tsx` = contextual action button. `components/ui/` has all shadcn primitives; don't re-add anything already there (confirm-dialog, empty-state, sortable-head, status-badge, etc.).
 
-**Modules (25 total):** agenda, auditoria, auth, busca, chat, clientes, comercial, dashboard, documentos, financeiro, inputs, juridico, licitacoes, notificacoes, permissoes, planejamento, ponto, portal, projetos, qualidade, rh, suporte, tarefas, uploads, usuarios. The `portal` module is the read-only external client view scoped to `User.clienteId`; `inputs` handles public client intake forms (token-gated).
+**Modules (27 total):** agenda, auditoria, auth, busca, chat, clientes, comercial, dashboard, documentos, ferramentas, financeiro, inputs, juridico, legal, licitacoes, notificacoes, permissoes, planejamento, ponto, portal, projetos, qualidade, rh, suporte, tarefas, uploads, usuarios. The `portal` module is the read-only external client view scoped to `User.clienteId`; `inputs` handles public client intake forms (token-gated). `legal` (Termos de Uso, see below) is where the real work lives; `juridico` is a thin placeholder (`actions.ts` only) — don't confuse them.
 
 **List views:** Use `parseListParams(searchParams)` (`lib/list-params.ts`) to get `{page, skip, take, sort, dir, q}` ready for Prisma `skip/take/orderBy`. On the client, `useSetParams` updates URL search params and automatically resets `page` when any other filter changes.
 
@@ -128,6 +130,14 @@ in `lib/prisma.ts`. To see deleted rows, pass `excluidoEm` explicitly in the `wh
 **Planejamento CPM** (`modules/planejamento/caminho-critico.ts`) — pure forward/backward-pass critical-path algorithm on tarefas graph (predecessoras + datas). No Prisma dependency; WBS codes (1.2.3 format) and desvio/baseline exported to Excel via `GET /api/planejamento/[id]/eap-export`.
 
 **Project health** (`modules/projetos/health.ts`) — pure `saudeProjeto(disciplinas, prazoFinal)` → `ok | atencao | critico` (returns `null` for non-`em_andamento`). Feeds the "Saúde" column in the projects list and the admin dashboard `CarteiraDashboard`. Same pattern as CPM/tokens: no I/O, unit-tested.
+
+**Ferramentas (engenharia)** (`modules/ferramentas/`) — calculators + drawing/memory generators following NBR norms. Layered, mostly pure:
+- `registry.ts` — client-safe catalog (`FerramentaMeta[]`). **Keys are stable — never rename a published key** (breaks historic saves; `entradasJson.ferramenta` references it). `types.ts` holds shared `Disciplina`/`TipoFerramenta`/`FormatoExport`/`ResultadoBase`.
+- `calc/` — one pure engine per tool (beam flexure/shear/deflection, column, footing, pile-SPT, punching, rebar-anchorage, wind-force, unit-convert, …), each `*.test.ts`-covered. No I/O.
+- `dxf/` — per-tool drawing builders on top of `lib/dxf.ts`. `memoria/` — calc-memory renderers (`render-docx|html|xlsx`).
+- `service.ts` (shared logic), `savefile.ts`/`auto-store.ts` (persisting snapshots), `export-util.ts`, `guia-meta.ts` (illustrated guide). Design/rollout specs under `docs/superpowers/` (`ferramentas-f0/f1/f2`).
+
+**Termos de uso (legal)** (`modules/legal/termos.ts`) — single source of truth for the on-screen acceptance text, by `TipoTermo` (`colaborador | cliente`). Pure (no `server-only`): RSC reads it, passes text to a client form; the server hashes (SHA-256) the accepted text as proof in `actions.ts`. Bump `versao` to force everyone to re-accept. `docs/legal/*.md` is the rich/print version for legal review — keep both in sync. (Spec: `docs/superpowers/plans/2026-06-23-termo-aceite.md`.)
 
 **Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`.
 
