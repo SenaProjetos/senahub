@@ -1,0 +1,19 @@
+# Config do Cloudflare Tunnel para o SenaHub.
+# Copie para o diretório .cloudflared do servidor e substitua <<...>>.
+#
+# Local do arquivo:
+#   - Rodando manual  (cloudflared tunnel run):   %USERPROFILE%\.cloudflared\config.yml
+#   - Rodando como serviço (cloudflared service install):
+#       C:\Windows\System32\config\systemprofile\.cloudflared\config.yml
+#   O credentials-file (UUID.json) é gerado por `cloudflared tunnel create senahub`
+#   e fica no MESMO diretório .cloudflared usado.
+
+tunnel: <<TUNNEL_UUID>>
+credentials-file: C:\Windows\System32\config\systemprofile\.cloudflared\<<TUNNEL_UUID>>.json
+
+# Roteamento de entrada. WebSocket (Socket.io/chat) passa automaticamente — sem config extra.
+ingress:
+  - hostname: <<hub.seudominio.com.br>>
+    service: http://localhost:3000
+  # Regra final obrigatória (catch-all):
+  - service: http_status:404
