@@ -8,6 +8,69 @@ import { PESO_STATUS } from "@/modules/projetos/status";
 
 type Viewer = { id: string; role: Role; ehSocio?: boolean };
 
+export type KpiProjetista = {
+  emRevisao: number;
+  aprovadosMes: number;
+  validacoesPendentes: number;
+  serieEmRevisao: number[];
+  serieAprovados: number[];
+  serieValidacoes: number[];
+};
+
+/**
+ * KPIs do colaborador (Mód 1): disciplinas sob sua responsabilidade.
+ * As séries são contagens REAIS de eventos por dia (últimos 14 dias) — não snapshots inventados:
+ * aprovados/validações por `entregueEm`, ida-a-revisão por `updatedAt`.
+ */
+export async function kpisProjetista(userId: string): Promise<KpiProjetista> {
+  const minhas = await prisma.disciplina.findMany({
+    where: { responsaveis: { some: { userId } } },
+    select: { status: true, entregueEm: true, updatedAt: true },
+  });
+  const agora = new Date();
+  const mesIni = new Date(agora.getFullYear(), agora.getMonth(), 1);
+
+  const emRevisao = minhas.filter((d) => d.status === "em_revisao").length;
+  const validacoesPendentes = minhas.filter((d) => d.status === "entregue").length;
+  const aprovadosMes = minhas.filter((d) => d.status === "aprovado" && d.entregueEm && d.entregueEm >= mesIni).length;
+
+  const DIAS = 14;
+  const base = new Date(agora);
+  base.setHours(0, 0, 0, 0);
+  const buckets = (pegarData: (d: (typeof minhas)[number]) => Date | null): number[] => {
+    const arr = new Array(DIAS).fill(0) as number[];
+    for (const d of minhas) {
+      const data = pegarData(d);
+      if (!data) continue;
+      const dia = new Date(data);
+      dia.setHours(0, 0, 0, 0);
+      const diff = Math.round((base.getTime() - dia.getTime()) / 86_400_000);
+      if (diff >= 0 && diff < DIAS) arr[DIAS - 1 - diff] += 1;
+    }
+    return arr;
+  };
+
+  return {
+    emRevisao,
+    aprovadosMes,
+    validacoesPendentes,
+    serieEmRevisao: buckets((d) => (d.status === "em_revisao" ? d.updatedAt : null)),
+    serieAprovados: buckets((d) => (d.status === "aprovado" ? d.entregueEm : null)),
+    serieValidacoes: buckets((d) => (d.status === "entregue" ? d.entregueEm : null)),
+  };
+}
+
+/** Humor (1–5) que o usuário registrou hoje, ou null. Para o seletor no herocard. */
+export async function humorDeHoje(userId: string): Promise<number | null> {
+  const dia = new Date();
+  dia.setHours(0, 0, 0, 0);
+  const reg = await prisma.registroEmocao.findUnique({
+    where: { userId_dia: { userId, dia } },
+    select: { humor: true },
+  });
+  return reg?.humor ?? null;
+}
+
 export type Aniversariante = {
   id: string;
   name: string;

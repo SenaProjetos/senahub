@@ -71,11 +71,15 @@ export function CronometroProjeto({ projetoId, sessaoAtiva }: Props) {
   const elapsed = sessao ? agora - new Date(sessao.inicio).getTime() : 0;
 
   return (
-    <div className="flex items-center gap-2 rounded-md border bg-card px-3 py-1.5 text-sm">
+    <div
+      className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${
+        nesteProj ? "border-success/40 bg-success/5" : "bg-card"
+      }`}
+    >
       {nesteProj ? (
         <>
-          <span className="animate-pulse size-2 rounded-full bg-success" aria-hidden />
-          <span className="font-mono tabular-nums text-success">{formatarTempo(elapsed)}</span>
+          <span className="animate-pulse size-2.5 rounded-full bg-success" aria-hidden />
+          <span className="font-mono text-base font-semibold tabular-nums text-success">{formatarTempo(elapsed)}</span>
           <span className="text-muted-foreground">em andamento</span>
           <Button size="sm" variant="ghost" onClick={parar} disabled={pending} className="ml-1 h-6 px-2 text-xs">
             <Square className="size-3" /> Parar

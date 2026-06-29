@@ -17,6 +17,11 @@ export async function linkInput(projetoId: string) {
   return prisma.linkPublicoInput.findUnique({ where: { projetoId } });
 }
 
+/** Briefing de Start do projeto (ou null se ainda não iniciado). */
+export async function obterBriefing(projetoId: string) {
+  return prisma.briefingProjeto.findUnique({ where: { projetoId } });
+}
+
 /** Progresso de preenchimento (respondidas / total). */
 export async function progressoInputs(projetoId: string) {
   const [total, respondidas] = await Promise.all([
@@ -26,7 +31,7 @@ export async function progressoInputs(projetoId: string) {
   return { total, respondidas };
 }
 
-/** Carrega o projeto + inputs pelo token público (somente links ativos). */
+/** Carrega o projeto + inputs + briefing pelo token público (somente links ativos). */
 export async function inputsPorToken(token: string) {
   const link = await prisma.linkPublicoInput.findUnique({
     where: { token },
@@ -36,7 +41,11 @@ export async function inputsPorToken(token: string) {
           id: true,
           nome: true,
           codigo: true,
+          endereco: true,
           inputs: { orderBy: [{ disciplina: "asc" }, { ordem: "asc" }, { createdAt: "asc" }] },
+          disciplinas: { select: { nome: true } },
+          briefing: { select: { respostasJson: true, status: true } },
+          cliente: { select: { nome: true, email: true, telefone: true } },
         },
       },
     },

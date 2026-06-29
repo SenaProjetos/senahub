@@ -5,6 +5,7 @@ import {
   abonosPendentes,
   feriasPendentes,
   climaResumo,
+  listarFeedbackHumor,
   onboardingsAtivos,
   opcoesOnboarding,
   nfsPendentes,
@@ -28,10 +29,11 @@ export default async function RhAdminPage() {
   const bancoMes = agora.getMonth() === 0 ? 12 : agora.getMonth();
   const bancoAno = agora.getMonth() === 0 ? agora.getFullYear() - 1 : agora.getFullYear();
 
-  const [abonos, ferias, clima, processos, opcoes, nfs, nfsHistorico, fechamentos, feedbacks, colaboradores, projetos] = await Promise.all([
+  const [abonos, ferias, clima, feedbacksHumor, processos, opcoes, nfs, nfsHistorico, fechamentos, feedbacks, colaboradores, projetos] = await Promise.all([
     abonosPendentes(),
     feriasPendentes(),
     climaResumo(),
+    listarFeedbackHumor(),
     onboardingsAtivos(),
     opcoesOnboarding(),
     nfsPendentes(),
@@ -44,7 +46,7 @@ export default async function RhAdminPage() {
   const projetoOpts = projetos.map((p) => ({ id: p.id, label: `${p.codigo} · ${p.nome}` }));
   return (
     <div className="space-y-6">
-      <RhAdminView abonos={abonos} ferias={ferias} clima={clima} />
+      <RhAdminView abonos={abonos} ferias={ferias} clima={clima} feedbacksHumor={feedbacksHumor} />
       <BancoHorasAdmin ano={bancoAno} mes={bancoMes} fechamentos={fechamentos} />
       <div className="grid gap-4 lg:grid-cols-2">
         <FeedbackSection feedbacks={feedbacks} colaboradores={colaboradores} />

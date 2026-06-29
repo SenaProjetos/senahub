@@ -167,7 +167,18 @@ export function ArquivosView({
       <Card>
         <CardContent className="p-0">
           {arquivos.length === 0 ? (
-            <EmptyState icon={FileText} title="Nenhum arquivo" />
+            <EmptyState
+              icon={FileText}
+              title="Nenhum arquivo"
+              description="Documentos e entregas anexados ao projeto (contratos, plantas, memoriais, fotos…)."
+              action={
+                podeGerir ? (
+                  <Button size="sm" onClick={abrirNovo}>
+                    <Plus className="size-3.5" /> Adicionar arquivo
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : (
             <table className="w-full text-sm">
               <thead className="border-b text-left font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">

@@ -122,8 +122,8 @@ export function InputsPanel({
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
           <div>
-            <CardTitle className="text-base">Inputs do projeto</CardTitle>
-            <CardDescription>Nenhuma pergunta definida ainda.</CardDescription>
+            <CardTitle className="text-base">Perguntas extras</CardTitle>
+            <CardDescription>Perguntas avulsas além do briefing — nenhuma definida ainda.</CardDescription>
           </div>
           {podeGerir && (
             <Button variant="outline" size="sm" onClick={() => setAberto(true)}>
@@ -140,9 +140,9 @@ export function InputsPanel({
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <CardTitle className="text-base">Inputs do projeto</CardTitle>
+            <CardTitle className="text-base">Perguntas extras</CardTitle>
             <CardDescription>
-              {progresso.respondidas}/{progresso.total} respondida(s)
+              Perguntas avulsas (além do briefing) · {progresso.respondidas}/{progresso.total} respondida(s)
             </CardDescription>
           </div>
           {podeGerir && (

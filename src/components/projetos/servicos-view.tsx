@@ -95,7 +95,18 @@ export function ServicosView({
       <Card>
         <CardContent className="p-0">
           {servicos.length === 0 ? (
-            <EmptyState icon={FileText} title="Nenhum serviço terceirizado" />
+            <EmptyState
+              icon={FileText}
+              title="Nenhum serviço terceirizado"
+              description="Serviços contratados de terceiros para este projeto (sondagem, topografia, laudos…)."
+              action={
+                podeGerir ? (
+                  <Button size="sm" onClick={() => abrir("novo")}>
+                    <Plus className="size-3.5" /> Adicionar serviço
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : (
             <table className="w-full text-sm">
               <thead className="border-b text-left font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">

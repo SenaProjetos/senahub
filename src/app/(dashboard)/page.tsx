@@ -9,11 +9,12 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Building2 } from "lucide-react";
+import { Sparkline } from "@/components/ui/sparkline";
+import { Building2, Upload, MessageSquare, Clock, KanbanSquare, type LucideIcon } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { kpisHome } from "@/modules/qualidade/queries";
 import { agingReport } from "@/modules/financeiro/aging/queries";
-import { projetosRecentes, serieReceita, snapshotsDashboard, carteiraProjetosDashboard, aniversariantesDoMes } from "@/modules/dashboard/queries";
+import { projetosRecentes, serieReceita, snapshotsDashboard, carteiraProjetosDashboard, aniversariantesDoMes, humorDeHoje, kpisProjetista } from "@/modules/dashboard/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { STATUS_CHIP, STATUS_LABEL } from "@/modules/projetos/status";
 import { HeroCard } from "@/components/dashboard/hero-card";
@@ -24,13 +25,38 @@ import { brlInteiro as brl } from "@/lib/utils";
 import { acessoGlobal } from "@/lib/roles";
 import { podeVerFinanceiro } from "@/lib/permissions";
 
+const ACOES_RAPIDAS: { label: string; href: string; icon: LucideIcon }[] = [
+  { label: "Enviar entrega", href: "/projetos/meu-trabalho", icon: Upload },
+  { label: "Abrir chat", href: "/chat", icon: MessageSquare },
+  { label: "Registrar ponto", href: "/ponto", icon: Clock },
+  { label: "Nova tarefa", href: "/tarefas", icon: KanbanSquare },
+];
+
+/** Card de KPI do colaborador com mini-sparkline (série de eventos dos últimos 14 dias). */
+function KpiSpark({ label, valor, serie, href }: { label: string; valor: number; serie: number[]; href: string }) {
+  return (
+    <Link href={href}>
+      <Card className="h-full transition-colors hover:bg-muted/40">
+        <CardHeader className="pb-2">
+          <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">{label}</CardDescription>
+          <CardTitle className="text-3xl font-extrabold tracking-tight">{valor}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Sparkline serie={serie} />
+          <p className="mt-1 text-[10px] text-muted-foreground">últimos 14 dias</p>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
 export default async function HomePage() {
   const user = await requireUser();
   if (user.role === "cliente") redirect("/portal");
   const isGlobal = acessoGlobal(user);
   // Item 5: só busca/expõe dado financeiro a quem pode ver (financeiro:ver ou sócio ativo).
   const verFin = await podeVerFinanceiro(user);
-  const [kpis, projetos, snapshots, receita, agingReceita, carteira, aniversarios] = await Promise.all([
+  const [kpis, projetos, snapshots, receita, agingReceita, carteira, aniversarios, humorHoje] = await Promise.all([
     kpisHome(),
     projetosRecentes(user),
     snapshotsDashboard(30),
@@ -38,7 +64,9 @@ export default async function HomePage() {
     verFin ? agingReport("receita") : Promise.resolve(null),
     isGlobal && verFin ? carteiraProjetosDashboard() : Promise.resolve([]),
     aniversariantesDoMes(),
+    humorDeHoje(user.id),
   ]);
+  const kpisMeu = await kpisProjetista(user.id);
 
   const cards = [
     {
@@ -78,7 +106,27 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-6">
-      <HeroCard nome={user.name} aniversariantes={aniversarios} />
+      <HeroCard nome={user.name} aniversariantes={aniversarios} humorAtual={humorHoje} />
+
+      {/* Ações rápidas (porte da versão antiga) */}
+      <div className="flex flex-wrap gap-2">
+        {ACOES_RAPIDAS.map((a) => (
+          <Link
+            key={a.href}
+            href={a.href}
+            className="inline-flex items-center gap-2 rounded-sm border bg-card px-3 py-2 text-sm font-medium shadow-sm transition-colors hover:border-primary hover:text-primary"
+          >
+            <a.icon className="size-4" aria-hidden /> {a.label}
+          </Link>
+        ))}
+      </div>
+
+      {/* KPIs do colaborador + sparkline (Mód 1) */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <KpiSpark label="Projetos em revisão" valor={kpisMeu.emRevisao} serie={kpisMeu.serieEmRevisao} href="/projetos/meu-trabalho" />
+        <KpiSpark label="Aprovados no mês" valor={kpisMeu.aprovadosMes} serie={kpisMeu.serieAprovados} href="/projetos/meu-trabalho" />
+        <KpiSpark label="Validações pendentes" valor={kpisMeu.validacoesPendentes} serie={kpisMeu.serieValidacoes} href="/projetos/meu-trabalho" />
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((kpi) => (
@@ -179,6 +227,7 @@ export default async function HomePage() {
           </CardHeader>
           <CardContent>
             <TrendLine
+              descricao="Evolução de projetos ativos por dia"
               pontos={snapshots.map((s) => ({
                 rotulo: s.dia.slice(8, 10) + "/" + s.dia.slice(5, 7),
                 valor: s.projetosAtivos,

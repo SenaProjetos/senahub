@@ -1,7 +1,18 @@
 type Ponto = { rotulo: string; valor: number };
 
-/** Linha de tendência (SVG puro, sem dependência) do índice de retrabalho mensal. */
-export function TrendLine({ pontos }: { pontos: Ponto[] }) {
+/**
+ * Linha de tendência (SVG puro, sem dependência).
+ * `unidade` é o sufixo do eixo Y (ex.: "%" → "11%"); vazio para contagens (projetos, acessos).
+ */
+export function TrendLine({
+  pontos,
+  unidade = "",
+  descricao = "Linha de tendência",
+}: {
+  pontos: Ponto[];
+  unidade?: string;
+  descricao?: string;
+}) {
   if (pontos.length < 2) {
     return (
       <p className="py-6 text-center text-sm text-muted-foreground">
@@ -24,10 +35,7 @@ export function TrendLine({ pontos }: { pontos: Ponto[] }) {
   const ticks = [0, maxV / 2, maxV];
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-44 w-full" role="img" aria-label="Tendência do índice de retrabalho (%) por mês">
-      <text x={4} y={8} className="fill-muted-foreground font-mono text-[8px]">
-        %
-      </text>
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-44 w-full" role="img" aria-label={descricao}>
       {ticks.map((t, i) => (
         <g key={i}>
           <line
@@ -39,7 +47,7 @@ export function TrendLine({ pontos }: { pontos: Ponto[] }) {
             strokeWidth={1}
           />
           <text x={4} y={y(t) + 3} className="fill-muted-foreground font-mono text-[8px]">
-            {Math.round(t)}
+            {Math.round(t)}{unidade}
           </text>
         </g>
       ))}

@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import { formatarData } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, X, Download, Smile } from "lucide-react";
+import { Check, X, Download, Smile, MessageSquare } from "lucide-react";
 import { validarAbono, validarFerias } from "@/modules/rh/actions";
 import type { AbonoPendente, FeriasPendente } from "@/modules/rh/queries";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ export function RhAdminView({
   abonos,
   ferias,
   clima,
+  feedbacksHumor,
 }: {
   abonos: AbonoPendente[];
   ferias: FeriasPendente[];
@@ -28,6 +29,7 @@ export function RhAdminView({
     distribuicao: { humor: number; qtd: number }[];
     comentarios: { comentario: string; humor: number; createdAt: string | Date }[];
   };
+  feedbacksHumor: { id: string; conteudo: string; autor: string | null; createdAt: string }[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -94,6 +96,31 @@ export function RhAdminView({
                 </p>
               ))}
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <MessageSquare className="size-4" /> Feedback à empresa ({feedbacksHumor.length})
+          </CardTitle>
+          <CardDescription>Comentários enviados pelo herocard. Anônimos não exibem o autor.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {feedbacksHumor.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum feedback ainda.</p>
+          ) : (
+            <ul className="divide-y">
+              {feedbacksHumor.map((f) => (
+                <li key={f.id} className="space-y-0.5 py-2">
+                  <p className="text-sm">{f.conteudo}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {f.autor ?? "Anônimo"} · {dt(f.createdAt)}
+                  </p>
+                </li>
+              ))}
+            </ul>
           )}
         </CardContent>
       </Card>

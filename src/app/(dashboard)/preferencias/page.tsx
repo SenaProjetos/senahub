@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
+import { ROLE_LABELS } from "@/lib/roles";
 import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
 import { PreferenciasView } from "@/components/configuracoes/preferencias-view";
 
@@ -7,9 +9,28 @@ export const metadata: Metadata = { title: "Preferências" };
 
 export default async function PreferenciasPage() {
   const user = await requireUser();
-  const prefs = await getPreferencias(user.id);
+  const [prefs, perfilDb] = await Promise.all([
+    getPreferencias(user.id),
+    prisma.user.findUnique({
+      where: { id: user.id },
+      select: { name: true, email: true, image: true, telefone: true, cargo: true, departamento: true, dataAdmissao: true, role: true },
+    }),
+  ]);
+
+  const perfil = {
+    name: perfilDb?.name ?? user.name,
+    email: perfilDb?.email ?? user.email,
+    image: perfilDb?.image ?? null,
+    telefone: perfilDb?.telefone ?? "",
+    cargo: perfilDb?.cargo ?? null,
+    departamento: perfilDb?.departamento ?? null,
+    dataAdmissao: perfilDb?.dataAdmissao ? perfilDb.dataAdmissao.toISOString().slice(0, 10) : null,
+    papel: ROLE_LABELS[perfilDb?.role ?? user.role],
+  };
+
   return (
     <PreferenciasView
+      perfil={perfil}
       somChat={prefs.somChat !== false}
       mostrarRecibos={prefs.mostrarRecibos !== false}
       notifPrazoDisciplina={prefs.notif_prazo_disciplina !== false}

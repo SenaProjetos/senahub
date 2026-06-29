@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Cake, PartyPopper } from "lucide-react";
 import { HeroSky, computeSky, getTodLabel } from "@/components/dashboard/hero-sky";
 import { HeroCitacao } from "@/components/dashboard/hero-citacao";
+import { HeroHumor } from "@/components/dashboard/hero-humor";
 import type { Aniversariante } from "@/modules/dashboard/queries";
 
 // Cores adaptadas ao fundo do céu, para contraste/leitura (WCAG) por horário.
@@ -37,11 +38,13 @@ export function HeroCardAnimado({
   frase,
   autor,
   aniversariantes,
+  humorAtual,
 }: {
   nome: string;
   frase: string;
   autor: string;
   aniversariantes: { doDia: Aniversariante[]; doMes: Aniversariante[] };
+  humorAtual: number | null;
 }) {
   const [hora, setHora] = useState<number | null>(null);
 
@@ -92,6 +95,8 @@ export function HeroCardAnimado({
           </div>
 
           <HeroCitacao frase={frase} autor={autor} light={sky.textIsLight} />
+
+          {montado && <HeroHumor humorAtual={humorAtual} light={sky.textIsLight} />}
         </div>
 
         {/* Aniversariantes — do dia (destaque) + do mês, no lado direito do herocard */}

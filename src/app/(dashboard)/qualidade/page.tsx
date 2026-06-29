@@ -168,6 +168,8 @@ export default async function QualidadePage() {
           ) : (
             <>
               <TrendLine
+                unidade="%"
+                descricao="Tendência do índice de retrabalho (%) por mês"
                 pontos={[...snapshots]
                   .reverse()
                   .map((s) => ({

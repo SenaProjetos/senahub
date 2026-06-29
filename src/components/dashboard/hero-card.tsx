@@ -10,14 +10,22 @@ import type { Aniversariante } from "@/modules/dashboard/queries";
 export function HeroCard({
   nome,
   aniversariantes,
+  humorAtual,
 }: {
   nome: string;
   aniversariantes: { doDia: Aniversariante[]; doMes: Aniversariante[] };
+  humorAtual: number | null;
 }) {
   const frase = fraseDoDia();
   const primeiro = nome.split(" ")[0];
 
   return (
-    <HeroCardAnimado nome={primeiro} frase={frase.frase} autor={frase.autor} aniversariantes={aniversariantes} />
+    <HeroCardAnimado
+      nome={primeiro}
+      frase={frase.frase}
+      autor={frase.autor}
+      aniversariantes={aniversariantes}
+      humorAtual={humorAtual}
+    />
   );
 }

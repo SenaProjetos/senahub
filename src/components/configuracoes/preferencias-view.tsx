@@ -1,13 +1,31 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 import { toast } from "sonner";
-import { salvarPreferencia } from "@/modules/usuarios/preferencias/actions";
+import { Camera, Sun, Moon, Monitor } from "lucide-react";
+import { salvarPreferencia, atualizarMeuPerfil } from "@/modules/usuarios/preferencias/actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
+type Perfil = {
+  name: string;
+  email: string;
+  image: string | null;
+  telefone: string;
+  cargo: string | null;
+  departamento: string | null;
+  dataAdmissao: string | null;
+  papel: string;
+};
 
 export function PreferenciasView({
+  perfil,
   somChat: somChatInicial,
   mostrarRecibos: recibosInicial,
   notifPrazoDisciplina: notifPrazoDisciplinaInicial,
@@ -17,6 +35,7 @@ export function PreferenciasView({
   notifDigestSemanal: notifDigestSemanalInicial,
   notifRiscoProjeto: notifRiscoProjetoInicial,
 }: {
+  perfil: Perfil;
   somChat: boolean;
   mostrarRecibos: boolean;
   notifPrazoDisciplina: boolean;
@@ -131,6 +150,9 @@ export function PreferenciasView({
         <p className="text-sm text-muted-foreground">Ajustes pessoais — salvos na sua conta.</p>
       </div>
 
+      <MeuPerfilCard perfil={perfil} />
+      <AparenciaCard />
+
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Chat</CardTitle>
@@ -150,5 +172,147 @@ export function PreferenciasView({
         <CardContent className="divide-y">{renderOpcoes(opcoesNotifItems)}</CardContent>
       </Card>
     </div>
+  );
+}
+
+function iniciais(nome: string): string {
+  return nome.split(" ").filter(Boolean).slice(0, 2).map((p) => p[0]!.toUpperCase()).join("");
+}
+
+/** Meu Perfil (porte da versão antiga): foto + nome/telefone editáveis, e-mail bloqueado, ficha RH read-only. */
+function MeuPerfilCard({ perfil }: { perfil: Perfil }) {
+  const router = useRouter();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [nome, setNome] = useState(perfil.name);
+  const [telefone, setTelefone] = useState(perfil.telefone);
+  const [enviandoFoto, setEnviandoFoto] = useState(false);
+  const [pending, start] = useTransition();
+  const sujo = nome.trim() !== perfil.name || (telefone ?? "") !== (perfil.telefone ?? "");
+
+  async function enviarFoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setEnviandoFoto(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+      const res = await fetch("/api/avatar", { method: "POST", body: fd });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) {
+        toast.success("Foto atualizada.");
+        router.refresh();
+      } else toast.error(j.error ?? "Falha ao enviar a foto.");
+    } finally {
+      setEnviandoFoto(false);
+    }
+  }
+
+  function salvar() {
+    start(async () => {
+      const r = await atualizarMeuPerfil({ name: nome.trim(), telefone });
+      if (r.ok) {
+        toast.success("Perfil atualizado.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  const fichaRh: { label: string; valor: string | null }[] = [
+    { label: "Função", valor: perfil.papel },
+    { label: "Cargo", valor: perfil.cargo },
+    { label: "Departamento", valor: perfil.departamento },
+    { label: "Admissão", valor: perfil.dataAdmissao },
+  ];
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Meu perfil</CardTitle>
+        <CardDescription>Foto, nome e contato. E-mail e dados de RH são geridos pela administração.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center gap-4">
+          <Avatar className="size-16">
+            {perfil.image && <AvatarImage src={perfil.image} alt={perfil.name} />}
+            <AvatarFallback>{iniciais(perfil.name)}</AvatarFallback>
+          </Avatar>
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={enviarFoto} />
+          <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={enviandoFoto}>
+            <Camera className="size-4" /> {enviandoFoto ? "Enviando…" : "Alterar foto"}
+          </Button>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="perfil-nome">Nome</Label>
+            <Input id="perfil-nome" value={nome} onChange={(e) => setNome(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="perfil-tel">Telefone</Label>
+            <Input id="perfil-tel" value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(99) 99999-9999" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="perfil-email">E-mail</Label>
+            <Input id="perfil-email" value={perfil.email} disabled readOnly />
+          </div>
+        </div>
+
+        <div className="rounded-sm border bg-muted/30 p-3">
+          <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Ficha RH (somente leitura)</p>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm sm:grid-cols-4">
+            {fichaRh.map((f) => (
+              <div key={f.label}>
+                <dt className="text-xs text-muted-foreground">{f.label}</dt>
+                <dd className="font-medium">{f.valor ?? "—"}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
+        <div className="flex justify-end">
+          <Button onClick={salvar} disabled={pending || !sujo || !nome.trim()}>
+            {pending ? "Salvando…" : "Salvar perfil"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Aparência: tema claro/escuro/sistema (porte da versão antiga). */
+function AparenciaCard() {
+  const { theme, setTheme } = useTheme();
+  const opcoes = [
+    { v: "light", label: "Claro", icon: Sun },
+    { v: "dark", label: "Escuro", icon: Moon },
+    { v: "system", label: "Sistema", icon: Monitor },
+  ];
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Aparência</CardTitle>
+        <CardDescription>Tema da interface — salvo neste dispositivo.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-wrap gap-2">
+          {opcoes.map((o) => {
+            const ativo = (theme ?? "system") === o.v;
+            return (
+              <Button
+                key={o.v}
+                type="button"
+                variant={ativo ? "secondary" : "outline"}
+                size="sm"
+                aria-pressed={ativo}
+                onClick={() => setTheme(o.v)}
+              >
+                <o.icon className="size-4" /> {o.label}
+              </Button>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
+import { calcularStatusBriefing } from "@/modules/inputs/briefing-schema";
 import {
   adicionarInputSchema,
   removerInputSchema,
@@ -96,6 +98,33 @@ export const responderInputs = defineAction(
     );
     revalidatePath(`/projetos/${input.projetoId}`);
     return { projetoId: input.projetoId };
+  },
+);
+
+/** Salva (upsert) as respostas do briefing de Start e recalcula o status. */
+export const salvarBriefing = defineAction(
+  {
+    modulo: "projetos",
+    acao: "salvar-briefing",
+    recurso: "projetos",
+    permissao: "gerir",
+    entidade: "BriefingProjeto",
+    schema: z.object({
+      projetoId: z.string().min(1),
+      respostas: z.record(z.string(), z.unknown()).default({}),
+    }),
+    entidadeId: (d) => (d as { projetoId: string }).projetoId,
+  },
+  async (input, { user }) => {
+    const status = calcularStatusBriefing(input.respostas);
+    const respostasJson = input.respostas as unknown as Prisma.InputJsonValue;
+    await prisma.briefingProjeto.upsert({
+      where: { projetoId: input.projetoId },
+      create: { projetoId: input.projetoId, respostasJson, status, preenchidoPor: user.name, preenchidoEm: new Date() },
+      update: { respostasJson, status, preenchidoPor: user.name, preenchidoEm: new Date() },
+    });
+    revalidatePath(`/projetos/${input.projetoId}`);
+    return { projetoId: input.projetoId, status };
   },
 );
 

@@ -31,6 +31,22 @@ export async function humorHoje(userId: string) {
   return prisma.registroEmocao.findUnique({ where: { userId_dia: { userId, dia } } });
 }
 
+/** Feedbacks livres à empresa (Mód 1/9). Autor = null quando anônimo. */
+export async function listarFeedbackHumor(limite = 30) {
+  const rows = await prisma.feedbackHumor.findMany({
+    orderBy: { createdAt: "desc" },
+    take: limite,
+    select: { id: true, conteudo: true, anonimo: true, createdAt: true, user: { select: { name: true } } },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    conteudo: r.conteudo,
+    autor: r.anonimo ? null : r.user?.name ?? null,
+    createdAt: r.createdAt.toISOString(),
+  }));
+}
+export type FeedbackHumorItem = Awaited<ReturnType<typeof listarFeedbackHumor>>[number];
+
 /** Clima agregado dos últimos 30 dias — ANÔNIMO (sem nomes). */
 export async function climaResumo() {
   const desde = new Date();

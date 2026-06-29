@@ -53,6 +53,26 @@ export const registrarHumor = defineAction(
   },
 );
 
+/**
+ * Feedback livre à empresa (do herocard). `anonimo` → não grava userId (RH não vê o autor).
+ * `audit: false` p/ que, quando anônimo, não exista trilha ligando autor ↔ conteúdo.
+ */
+export const registrarHumorFeedback = defineAction(
+  {
+    ...base,
+    acao: "registrar-humor-feedback",
+    entidade: "FeedbackHumor",
+    schema: z.object({ conteudo: z.string().min(1, "Escreva algo.").max(2000), anonimo: z.boolean().default(false) }),
+    audit: false,
+  },
+  async (i, { user }) => {
+    await prisma.feedbackHumor.create({
+      data: { conteudo: i.conteudo, anonimo: i.anonimo, userId: i.anonimo ? null : user.id },
+    });
+    return { ok: true };
+  },
+);
+
 // ── Validação (gestores) ──────────────────────────────────────
 const validarSchema = z.object({ id: z.string().min(1), aprovar: z.boolean() });
 
