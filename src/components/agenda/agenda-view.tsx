@@ -38,7 +38,7 @@ type Comp = {
   participantes: { nome: string; confirmado: boolean | null }[];
   participantesIds: string[];
 };
-type Prazo = { data: string; rotulo: string; href: string; tipo: "projeto" | "disciplina" };
+type Prazo = { data: string; rotulo: string; href: string; tipo: "projeto" | "disciplina" | "tarefa" };
 type Vista = "mes" | "semana" | "dia";
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];

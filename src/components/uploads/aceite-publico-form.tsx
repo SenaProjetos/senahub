@@ -94,7 +94,7 @@ export function AceitePublicoForm({
             <p className="text-sm opacity-80">em {formatarData(respondidoEm)}</p>
           )}
           {observacaoAnterior && (
-            <p className="mt-2 text-sm italic">"{observacaoAnterior}"</p>
+            <p className="mt-2 text-sm italic">&ldquo;{observacaoAnterior}&rdquo;</p>
           )}
         </div>
       ) : (

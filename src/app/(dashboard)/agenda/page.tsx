@@ -22,7 +22,7 @@ export default async function AgendaPage({
   const iniQuery = new Date(ano, mes - 1, 1 - 7);
   const fimQuery = new Date(ano, mes, 0 + 7, 23, 59, 59);
 
-  const [compromissos, prazosProjeto, prazosDisciplina, internos] = await Promise.all([
+  const [compromissos, prazosProjeto, prazosDisciplina, prazosTarefa, internos] = await Promise.all([
     prisma.compromisso.findMany({
       where: {
         inicio: { gte: iniQuery, lte: fimQuery },
@@ -45,6 +45,16 @@ export default async function AgendaPage({
         projeto: { situacao: "em_andamento" },
       },
       select: { id: true, nome: true, prazo: true, projeto: { select: { id: true, codigo: true } } },
+    }),
+    // Tarefas do usuário (responsável ou criador) com prazo no intervalo e ainda não concluídas.
+    prisma.tarefa.findMany({
+      where: {
+        prazo: { gte: iniQuery, lte: fimQuery },
+        arquivada: false,
+        status: { concluido: false },
+        OR: [{ criadorId: user.id }, { responsaveis: { some: { userId: user.id } } }],
+      },
+      select: { id: true, titulo: true, prazo: true },
     }),
     prisma.user.findMany({
       where: { ativo: true, role: { not: "cliente" }, id: { not: user.id } },
@@ -87,6 +97,12 @@ export default async function AgendaPage({
           rotulo: `${d.projeto.codigo} · ${d.nome}`,
           href: `/projetos/${d.projeto.id}`,
           tipo: "disciplina" as const,
+        })),
+        ...prazosTarefa.map((t) => ({
+          data: t.prazo!.toISOString().slice(0, 10),
+          rotulo: `Tarefa: ${t.titulo}`,
+          href: "/tarefas",
+          tipo: "tarefa" as const,
         })),
       ]}
     />

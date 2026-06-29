@@ -43,7 +43,7 @@ export function PlanoRealCard({ planoReal }: { planoReal: PlanoReal }) {
         </table>
         <p className="mt-2 text-xs text-muted-foreground">
           Total de {planoReal.totalHoras.toLocaleString("pt-BR")} h lançadas no projeto neste mês.
-          "Sem alocação" indica esforço não planejado.
+          &ldquo;Sem alocação&rdquo; indica esforço não planejado.
         </p>
       </CardContent>
     </Card>
