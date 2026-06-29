@@ -31,6 +31,19 @@ export const STATUS_CHIP: Record<StatusDisciplina, string> = {
   aprovado: `${DOT} text-status-aprovado border-status-aprovado/40 bg-status-aprovado/10`,
 };
 
+/**
+ * Classe de COR de texto por status — para tingir ícones de disciplina pela cor do status
+ * (Mód 2/15). Usar junto de `iconeDisciplina()` (lib/disciplinas) + tooltip/aria-label do status,
+ * nunca cor isolada.
+ */
+export const STATUS_TEXT: Record<StatusDisciplina, string> = {
+  aguardando: "text-status-aguardando",
+  em_andamento: "text-status-andamento",
+  em_revisao: "text-status-revisao",
+  entregue: "text-status-entregue",
+  aprovado: "text-status-aprovado",
+};
+
 export const SITUACAO_PROJETO_LABEL: Record<string, string> = {
   em_andamento: "Em andamento",
   concluido: "Concluído",
