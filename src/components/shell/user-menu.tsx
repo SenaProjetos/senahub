@@ -68,11 +68,18 @@ export function UserMenu({
       <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="ghost" size="icon" aria-label="Conta" className="rounded-full">
-            <Avatar className="size-8">
+          <Button variant="ghost" aria-label="Conta" className="h-9 gap-2 rounded-full px-1 sm:rounded-sm sm:pr-2.5">
+            <Avatar className="size-8 shrink-0">
               {user.image && <AvatarImage src={user.image} alt={user.name} />}
               <AvatarFallback className="text-xs">{initials(user.name)}</AvatarFallback>
             </Avatar>
+            {/* Nome + função visíveis em telas largas (Mód 14); só avatar no mobile. */}
+            <span className="hidden min-w-0 flex-col items-start leading-tight sm:flex">
+              <span className="max-w-[9rem] truncate text-xs font-medium">{user.name}</span>
+              <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                {ROLE_LABELS[user.role]}
+              </span>
+            </span>
           </Button>
         }
       />

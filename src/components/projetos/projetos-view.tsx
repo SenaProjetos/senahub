@@ -1,18 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Search, Plus, FolderOpen, Table as TableIcon, LayoutGrid, Download } from "lucide-react";
+import {
+  Search,
+  Plus,
+  FolderOpen,
+  Table as TableIcon,
+  LayoutGrid,
+  KanbanSquare,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  CalendarClock,
+} from "lucide-react";
 import type { ProjetoListItem } from "@/modules/projetos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { SITUACAO_PROJETO_LABEL, STATUS_LABEL, STATUS_TONE, progressoProjeto } from "@/modules/projetos/status";
-import type { StatusDisciplina } from "@/generated/prisma/client";
+import {
+  SITUACAO_PROJETO_LABEL,
+  progressoProjeto,
+} from "@/modules/projetos/status";
 import { ProjetoForm } from "@/components/projetos/projeto-form";
+import { DisciplinaIcones } from "@/components/projetos/disciplina-icones";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { StatusBadge } from "@/components/ui/status-badge";
 import {
   Select,
   SelectContent,
@@ -28,10 +40,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SortableHead } from "@/components/ui/sortable-head";
 import { Pagination } from "@/components/ui/pagination";
 import { useSetParams } from "@/lib/use-set-param";
+import { formatarData } from "@/lib/utils";
 import { saudeProjeto, type NivelSaude } from "@/modules/projetos/health";
 
 const SAUDE_LABEL: Record<NivelSaude, string> = {
@@ -45,9 +64,29 @@ const SAUDE_CLASS: Record<NivelSaude, string> = {
   critico: "text-destructive",
 };
 
+const TIPO_LABEL: Record<string, string> = { particular: "Particular", licitacao: "Licitação" };
+
+type Vista = "cards" | "tabela" | "kanban";
+const VISTA_KEY = "projetos:vista";
+const SAUDE_ORDEM: Record<NivelSaude, number> = { critico: 0, atencao: 1, ok: 2 };
+
+/** Dias de atraso de um projeto em andamento (0 se sem prazo ou no prazo). */
+function diasAtraso(p: ProjetoListItem): number {
+  if (!p.prazoFinal || p.situacao !== "em_andamento") return 0;
+  return Math.max(0, Math.round((Date.now() - new Date(p.prazoFinal).getTime()) / 86400000));
+}
+
+/** Cor do texto do prazo conforme a saúde do projeto. */
+function corPrazo(saude: NivelSaude | null): string {
+  if (saude === "critico") return "text-destructive";
+  if (saude === "atencao") return "text-warning";
+  return "text-muted-foreground";
+}
+
 export function ProjetosView({
   items: itemsOriginais,
   podeGerir,
+  podeVerTodos,
   busca,
   situacao,
   clienteId,
@@ -62,8 +101,9 @@ export function ProjetosView({
   catalogo,
   internos,
 }: {
-  items: ProjetoListItem[];  // recebido como itemsOriginais internamente
+  items: ProjetoListItem[];
   podeGerir: boolean;
+  podeVerTodos: boolean;
   busca: string;
   situacao: string;
   clienteId: string;
@@ -79,13 +119,21 @@ export function ProjetosView({
   internos: { id: string; name: string; role: string }[];
 }) {
   const setParams = useSetParams();
-  const searchParams = useSearchParams();
-  const vista = searchParams.get("vista") === "kanban" ? "kanban" : "tabela";
   const [q, setQ] = useState(busca);
   const [formOpen, setFormOpen] = useState(false);
   const [sortRisco, setSortRisco] = useState(false);
+  // Visão é preferência pessoal (não filtro compartilhável): estado local persistido em localStorage.
+  // Render inicial determinístico ("cards") evita mismatch de hidratação; useEffect restaura a escolha.
+  const [vista, setVista] = useState<Vista>("cards");
+  useEffect(() => {
+    const salvo = localStorage.getItem(VISTA_KEY);
+    if (salvo === "cards" || salvo === "tabela" || salvo === "kanban") setVista(salvo);
+  }, []);
+  function mudarVista(v: Vista) {
+    setVista(v);
+    localStorage.setItem(VISTA_KEY, v);
+  }
 
-  const SAUDE_ORDEM: Record<NivelSaude, number> = { critico: 0, atencao: 1, ok: 2 };
   const items = sortRisco
     ? [...itemsOriginais].sort((a, b) => {
         const sa = saudeProjeto(a.disciplinas, a.prazoFinal, a.situacao) ?? "ok";
@@ -98,6 +146,12 @@ export function ProjetosView({
     setParams({ q: q || null });
   }
 
+  const TOGGLES: { v: Vista; icon: typeof LayoutGrid; label: string }[] = [
+    { v: "cards", icon: LayoutGrid, label: "Visão em cards" },
+    { v: "tabela", icon: TableIcon, label: "Visão em lista" },
+    { v: "kanban", icon: KanbanSquare, label: "Visão em kanban" },
+  ];
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -107,36 +161,38 @@ export function ProjetosView({
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center rounded-sm border p-0.5">
-            <Button
-              type="button"
-              variant={vista === "tabela" ? "secondary" : "ghost"}
-              size="icon"
-              className="size-7"
-              aria-label="Visão em tabela"
-              aria-pressed={vista === "tabela"}
-              onClick={() => setParams({ vista: null })}
-            >
-              <TableIcon className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant={vista === "kanban" ? "secondary" : "ghost"}
-              size="icon"
-              className="size-7"
-              aria-label="Visão em kanban"
-              aria-pressed={vista === "kanban"}
-              onClick={() => setParams({ vista: "kanban" })}
-            >
-              <LayoutGrid className="size-4" />
-            </Button>
+            {TOGGLES.map((t) => (
+              <Button
+                key={t.v}
+                type="button"
+                variant={vista === t.v ? "secondary" : "ghost"}
+                size="icon"
+                className="size-7"
+                aria-label={t.label}
+                aria-pressed={vista === t.v}
+                onClick={() => mudarVista(t.v)}
+              >
+                <t.icon className="size-4" />
+              </Button>
+            ))}
           </div>
-          <a
-            href="/api/projetos/carteira"
-            download
-            className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-background px-3 py-2 text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground"
-          >
-            <Download className="size-4" /> Exportar CSV
-          </a>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="outline" size="sm" aria-label="Exportar carteira">
+                  <Download className="size-4" /> Exportar
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem render={<a href="/api/projetos/carteira?formato=xlsx" download />}>
+                <FileSpreadsheet className="size-4" /> Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem render={<a href="/api/projetos/carteira?formato=csv" download />}>
+                <FileText className="size-4" /> CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {podeGerir && (
             <Button onClick={() => setFormOpen(true)}>
               <Plus className="size-4" /> Novo projeto
@@ -173,13 +229,15 @@ export function ProjetosView({
             ))}
           </SelectContent>
         </Select>
-        <Button
-          variant={meusProjetos ? "secondary" : "outline"}
-          size="sm"
-          onClick={() => setParams({ meu: meusProjetos ? null : "1" })}
-        >
-          Meus projetos
-        </Button>
+        {podeVerTodos && (
+          <Button
+            variant={meusProjetos ? "secondary" : "outline"}
+            size="sm"
+            onClick={() => setParams({ meu: meusProjetos ? null : "1" })}
+          >
+            Meus projetos
+          </Button>
+        )}
         <Button
           variant={sortRisco ? "secondary" : "outline"}
           size="sm"
@@ -242,85 +300,20 @@ export function ProjetosView({
         )}
       </div>
 
-      {vista === "kanban" ? (
+      {items.length === 0 ? (
+        <div className="rounded-sm border">
+          <EmptyState
+            icon={FolderOpen}
+            title="Nenhum projeto"
+            description={podeGerir ? "Crie o primeiro projeto para começar." : "Nenhum projeto designado a você ainda."}
+          />
+        </div>
+      ) : vista === "kanban" ? (
         <ProjetosKanban items={items} />
+      ) : vista === "cards" ? (
+        <ProjetosCards items={items} />
       ) : (
-      <div className="rounded-sm border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <SortableHead field="codigo" className="w-24">
-                Código
-              </SortableHead>
-              <SortableHead field="nome">Projeto</SortableHead>
-              <SortableHead field="cliente">Cliente</SortableHead>
-              <TableHead>Disciplinas</TableHead>
-              <SortableHead field="situacao">Situação</SortableHead>
-              <TableHead>Saúde</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="p-0">
-                  <EmptyState icon={FolderOpen} title="Nenhum projeto" />
-                </TableCell>
-              </TableRow>
-            ) : (
-              items.map((p) => {
-                const counts = p.disciplinas.reduce<Record<string, number>>((acc, d) => {
-                  acc[d.status] = (acc[d.status] ?? 0) + 1;
-                  return acc;
-                }, {});
-                const saude = saudeProjeto(p.disciplinas, p.prazoFinal, p.situacao);
-                return (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-mono text-xs">
-                      <Link href={`/projetos/${p.id}`} className="hover:underline">
-                        {formatarCodigo(p.codigo)}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      <Link href={`/projetos/${p.id}`} className="hover:underline">
-                        {p.nome}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{p.cliente.nome}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {Object.entries(counts).map(([st, n]) => {
-                          const status = st as StatusDisciplina;
-                          return (
-                            <StatusBadge
-                              key={st}
-                              tone={STATUS_TONE[status] ?? "neutral"}
-                              className="text-[10px]"
-                            >
-                              {n} {STATUS_LABEL[status]}
-                            </StatusBadge>
-                          );
-                        })}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{SITUACAO_PROJETO_LABEL[p.situacao]}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      {saude ? (
-                        <span className={`text-xs font-medium ${SAUDE_CLASS[saude]}`}>
-                          {SAUDE_LABEL[saude]}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+        <ProjetosTabela items={items} />
       )}
 
       <Pagination page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
@@ -334,6 +327,144 @@ export function ProjetosView({
           internos={internos}
         />
       )}
+    </div>
+  );
+}
+
+/** Visão LISTA responsiva: colunas prioritárias sempre visíveis; secundárias colapsam em telas estreitas. */
+function ProjetosTabela({ items }: { items: ProjetoListItem[] }) {
+  return (
+    <div className="rounded-sm border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <SortableHead field="codigo" className="w-24">
+              Código
+            </SortableHead>
+            <SortableHead field="nome">Projeto</SortableHead>
+            <SortableHead field="cliente" className="hidden md:table-cell">
+              Cliente
+            </SortableHead>
+            <TableHead className="hidden sm:table-cell">Disciplinas</TableHead>
+            <TableHead className="hidden lg:table-cell">Prazo</TableHead>
+            <SortableHead field="situacao" className="hidden xl:table-cell">
+              Situação
+            </SortableHead>
+            <TableHead>Saúde</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.map((p) => {
+            const saude = saudeProjeto(p.disciplinas, p.prazoFinal, p.situacao);
+            const atraso = diasAtraso(p);
+            return (
+              <TableRow key={p.id}>
+                <TableCell className="font-mono text-xs">
+                  <Link href={`/projetos/${p.id}`} className="hover:underline">
+                    {formatarCodigo(p.codigo)}
+                  </Link>
+                </TableCell>
+                <TableCell className="font-medium">
+                  <Link href={`/projetos/${p.id}`} className="hover:underline">
+                    {p.nome}
+                  </Link>
+                  <span className="block text-xs font-normal text-muted-foreground md:hidden">
+                    {p.cliente.nome}
+                  </span>
+                </TableCell>
+                <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
+                  {p.cliente.nome}
+                </TableCell>
+                <TableCell className="hidden sm:table-cell">
+                  <DisciplinaIcones disciplinas={p.disciplinas} />
+                </TableCell>
+                <TableCell className="hidden lg:table-cell">
+                  {p.prazoFinal ? (
+                    <span className={`inline-flex items-center gap-1 text-xs ${corPrazo(saude)}`}>
+                      {formatarData(p.prazoFinal)}
+                      {atraso > 0 && (
+                        <Badge variant="destructive" className="text-[9px] leading-tight">
+                          +{atraso}d
+                        </Badge>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="hidden xl:table-cell">
+                  <Badge variant="outline">{SITUACAO_PROJETO_LABEL[p.situacao]}</Badge>
+                </TableCell>
+                <TableCell>
+                  {saude ? (
+                    <span className={`text-xs font-medium ${SAUDE_CLASS[saude]}`}>
+                      {SAUDE_LABEL[saude]}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+/** Visão CARDS (padrão): grade responsiva com tipo, prazo+risco, ícones de disciplina e progresso. */
+function ProjetosCards({ items }: { items: ProjetoListItem[] }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {items.map((p) => {
+        const prog = progressoProjeto(p.disciplinas.map((d) => d.status));
+        const saude = saudeProjeto(p.disciplinas, p.prazoFinal, p.situacao);
+        const atraso = diasAtraso(p);
+        return (
+          <Link
+            key={p.id}
+            href={`/projetos/${p.id}`}
+            className="flex flex-col gap-2 rounded-sm border bg-card p-3 shadow-sm transition-colors hover:border-primary"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-mono text-xs text-muted-foreground">{formatarCodigo(p.codigo)}</span>
+              <Badge variant="outline" className="text-[10px]">
+                {TIPO_LABEL[p.tipo] ?? p.tipo}
+              </Badge>
+            </div>
+            <div>
+              <p className="font-medium leading-tight">{p.nome}</p>
+              <p className="truncate text-xs text-muted-foreground">{p.cliente.nome}</p>
+            </div>
+            <DisciplinaIcones disciplinas={p.disciplinas} />
+            <div className="mt-auto flex items-center justify-between gap-2 pt-1 text-xs">
+              {p.prazoFinal ? (
+                <span className={`inline-flex items-center gap-1 ${corPrazo(saude)}`}>
+                  <CalendarClock className="size-3.5" aria-hidden />
+                  {formatarData(p.prazoFinal)}
+                  {atraso > 0 && (
+                    <Badge variant="destructive" className="text-[9px] leading-tight">
+                      +{atraso}d
+                    </Badge>
+                  )}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">Sem prazo</span>
+              )}
+              {saude && (
+                <span className={`font-medium ${SAUDE_CLASS[saude]}`}>{SAUDE_LABEL[saude]}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
+                <div className="h-full bg-primary transition-all" style={{ width: `${prog}%` }} />
+              </div>
+              <span className="font-mono text-[10px] text-muted-foreground">{prog}%</span>
+            </div>
+          </Link>
+        );
+      })}
     </div>
   );
 }
@@ -362,9 +493,7 @@ function ProjetosKanban({ items }: { items: ProjetoListItem[] }) {
           <div className="min-h-40 space-y-2 rounded-sm border border-dashed p-2">
             {g.projetos.map((p) => {
               const prog = progressoProjeto(p.disciplinas.map((d) => d.status));
-              const diasAtraso = p.prazoFinal && p.situacao === "em_andamento"
-                ? Math.max(0, Math.round((Date.now() - new Date(p.prazoFinal).getTime()) / 86400000))
-                : 0;
+              const atraso = diasAtraso(p);
               return (
                 <Link
                   key={p.id}
@@ -373,12 +502,15 @@ function ProjetosKanban({ items }: { items: ProjetoListItem[] }) {
                 >
                   <div className="flex items-start justify-between gap-1">
                     <p className="font-mono text-xs text-muted-foreground">{formatarCodigo(p.codigo)}</p>
-                    {diasAtraso > 0 && (
-                      <Badge variant="destructive" className="text-[9px] leading-tight">+{diasAtraso}d</Badge>
+                    {atraso > 0 && (
+                      <Badge variant="destructive" className="text-[9px] leading-tight">+{atraso}d</Badge>
                     )}
                   </div>
                   <p className="mt-0.5 font-medium leading-tight">{p.nome}</p>
                   <p className="mt-0.5 truncate text-xs text-muted-foreground">{p.cliente.nome}</p>
+                  <div className="mt-2">
+                    <DisciplinaIcones disciplinas={p.disciplinas} size="size-3.5" />
+                  </div>
                   <div className="mt-2 flex items-center gap-1.5">
                     <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
                       <div className="h-full bg-primary transition-all" style={{ width: `${prog}%` }} />

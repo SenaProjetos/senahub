@@ -6,6 +6,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { INTERNAL_ROLES } from "@/lib/roles";
 import { notificarMuitos } from "@/lib/notificar";
+import { PRIORIDADES } from "@/modules/tarefas/prioridade";
 
 const base = { modulo: "tarefas", roles: INTERNAL_ROLES } as const;
 const rev = () => revalidatePath("/tarefas");
@@ -17,6 +18,7 @@ const tarefaSchema = z.object({
   descricao: opt(z.string()),
   statusId: z.string().min(1),
   prazo: opt(z.string()),
+  prioridade: z.enum(PRIORIDADES).or(z.literal("")).optional(),
   projetoId: opt(z.string()),
   responsaveisIds: z.array(z.string()).default([]),
   itens: z.array(z.object({ descricao: z.string().min(1), concluido: z.boolean() })).default([]),
@@ -39,6 +41,7 @@ export const criarTarefa = defineAction(
         statusId: i.statusId,
         concluidaEm: statusInicial?.concluido ? new Date() : null,
         prazo: i.prazo ? new Date(i.prazo) : null,
+        prioridade: i.prioridade || null,
         projetoId: i.projetoId || null,
         criadorId: user.id,
         responsaveis: { create: i.responsaveisIds.map((userId) => ({ userId })) },
@@ -79,6 +82,7 @@ export const editarTarefa = defineAction(
           statusId: r.statusId,
           concluidaEm,
           prazo: r.prazo ? new Date(r.prazo) : null,
+          prioridade: r.prioridade || null,
           projetoId: r.projetoId || null,
         },
       }),

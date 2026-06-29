@@ -19,6 +19,7 @@ import {
 } from "@dnd-kit/core";
 import { Plus, GripVertical, Lock, CalendarDays, LayoutGrid, List } from "lucide-react";
 import { moverTarefa } from "@/modules/tarefas/actions";
+import { PRIORIDADES, PRIORIDADE_LABEL, PRIORIDADE_CLASS, ehPrioridade } from "@/modules/tarefas/prioridade";
 import { TarefaDialog, type TarefaUI, type OpcoesUI } from "./tarefa-dialog";
 import {
   Select,
@@ -55,9 +56,9 @@ type Periodo = "atrasadas" | "semana" | "mes";
 function filtrarTarefa(
   t: TarefaUI,
   concluida: boolean,
-  filtros: { q: string; projeto: string | null; responsavel: string | null; periodo: string | null },
+  filtros: { q: string; projeto: string | null; responsavel: string | null; periodo: string | null; prioridade: string | null },
 ): boolean {
-  const { q, projeto, responsavel, periodo } = filtros;
+  const { q, projeto, responsavel, periodo, prioridade } = filtros;
 
   if (q) {
     const termo = q.toLowerCase();
@@ -68,6 +69,8 @@ function filtrarTarefa(
   if (projeto && t.projetoId !== projeto) return false;
 
   if (responsavel && !t.responsaveis.some((r) => r.id === responsavel)) return false;
+
+  if (prioridade && t.prioridade !== prioridade) return false;
 
   if (periodo) {
     if (!t.prazo) return false;
@@ -106,6 +109,7 @@ export function TarefasBoard({ colunas, opcoes }: { colunas: Coluna[]; opcoes: O
   const projeto = searchParams.get("projeto");
   const responsavel = searchParams.get("responsavel");
   const periodo = searchParams.get("periodo");
+  const prioridade = searchParams.get("prioridade");
   const vista = searchParams.get("vista") === "lista" ? "lista" : "quadro";
 
   // Input de busca controlado localmente; só escreve na URL no Enter/blur.
@@ -130,7 +134,7 @@ export function TarefasBoard({ colunas, opcoes }: { colunas: Coluna[]; opcoes: O
     };
   }, [colunas, opcoes.projetos]);
 
-  const filtros = { q, projeto, responsavel, periodo };
+  const filtros = { q, projeto, responsavel, periodo, prioridade };
   // Reaplica os filtros mantendo a estrutura de colunas (preserva o dnd-kit).
   const colunasFiltradas = useMemo<Coluna[]>(
     () =>
@@ -139,10 +143,10 @@ export function TarefasBoard({ colunas, opcoes }: { colunas: Coluna[]; opcoes: O
         tarefas: c.tarefas.filter((t) => filtrarTarefa(t, c.concluido, filtros)),
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [colunas, q, projeto, responsavel, periodo],
+    [colunas, q, projeto, responsavel, periodo, prioridade],
   );
 
-  const temFiltro = Boolean(q || projeto || responsavel || periodo);
+  const temFiltro = Boolean(q || projeto || responsavel || periodo || prioridade);
 
   function aplicarBusca() {
     setParams({ q: busca.trim() || null });
@@ -266,12 +270,29 @@ export function TarefasBoard({ colunas, opcoes }: { colunas: Coluna[]; opcoes: O
           </SelectContent>
         </Select>
 
+        <Select
+          value={prioridade ?? TODOS}
+          onValueChange={(v) => setParams({ prioridade: v && v !== TODOS ? v : null })}
+        >
+          <SelectTrigger className="h-8 w-36">
+            <SelectValue placeholder="Prioridade" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={TODOS}>Qualquer prioridade</SelectItem>
+            {PRIORIDADES.map((p) => (
+              <SelectItem key={p} value={p}>
+                {PRIORIDADE_LABEL[p]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         {temFiltro && (
           <Button
             variant="ghost"
             size="sm"
             className="h-8"
-            onClick={() => setParams({ q: null, projeto: null, responsavel: null, periodo: null })}
+            onClick={() => setParams({ q: null, projeto: null, responsavel: null, periodo: null, prioridade: null })}
           >
             Limpar filtros
           </Button>
@@ -282,7 +303,8 @@ export function TarefasBoard({ colunas, opcoes }: { colunas: Coluna[]; opcoes: O
         <ListaView colunas={colunasFiltradas} onAbrir={(t) => setDialog(t)} />
       ) : (
         <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-          <div className="flex w-full min-w-0 gap-3 overflow-x-auto pb-2">
+          {/* Grid responsivo: colunas preenchem a largura e quebram em telas estreitas (sem scroll-h / corte). */}
+          <div className="grid grid-cols-1 gap-3 pb-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {colunasFiltradas.map((col) => (
               <ColunaView key={col.id} col={col} onAbrir={(t) => setDialog(t)} />
             ))}
@@ -403,7 +425,7 @@ function ListaView({
 function ColunaView({ col, onAbrir }: { col: Coluna; onAbrir: (t: TarefaUI) => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.id });
   return (
-    <div className="w-[80vw] min-w-[16rem] max-w-72 shrink-0 sm:w-72">
+    <div className="min-w-0">
       <div className="mb-2 flex items-center gap-2">
         <span className="size-2.5 rounded-full" style={{ background: col.cor ?? "#576980" }} />
         <span className="text-sm font-semibold">{col.nome}</span>
@@ -413,7 +435,7 @@ function ColunaView({ col, onAbrir }: { col: Coluna; onAbrir: (t: TarefaUI) => v
       </div>
       <div
         ref={setNodeRef}
-        className={`min-h-40 space-y-2 rounded-sm border p-2 transition-colors ${
+        className={`min-h-[16rem] space-y-2 rounded-sm border p-2 transition-colors ${
           isOver ? "border-primary bg-primary/5" : "border-dashed"
         }`}
       >
@@ -462,6 +484,11 @@ function CardTarefa({
             <span className="truncate">{t.titulo}</span>
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            {ehPrioridade(t.prioridade) && (
+              <Badge variant="outline" className={`h-4 px-1 text-[9px] leading-none ${PRIORIDADE_CLASS[t.prioridade]}`}>
+                {PRIORIDADE_LABEL[t.prioridade]}
+              </Badge>
+            )}
             {t.projetoCodigo && <span className="font-mono">{formatarCodigo(t.projetoCodigo)}</span>}
             {t.prazo && (
               <span className={`flex items-center gap-1 ${atrasada ? "text-destructive" : ""}`}>

@@ -13,6 +13,7 @@ import {
   comentarTarefa,
   removerComentario,
 } from "@/modules/tarefas/actions";
+import { PRIORIDADES, PRIORIDADE_LABEL, type Prioridade } from "@/modules/tarefas/prioridade";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +38,7 @@ export type TarefaUI = {
   descricao: string;
   statusId: string;
   prazo: string;
+  prioridade: string;
   projetoId: string;
   projetoCodigo: string | null;
   responsaveis: { id: string; nome: string }[];
@@ -53,6 +55,17 @@ export type OpcoesUI = {
 };
 
 const NONE = "__none";
+
+/** Data local → "YYYY-MM-DD" (sem deslocamento de fuso). */
+function ymd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+const PRESETS_PRAZO: { label: string; calc: () => string }[] = [
+  { label: "Hoje", calc: () => ymd(new Date()) },
+  { label: "Amanhã", calc: () => { const d = new Date(); d.setDate(d.getDate() + 1); return ymd(d); } },
+  { label: "+7 dias", calc: () => { const d = new Date(); d.setDate(d.getDate() + 7); return ymd(d); } },
+  { label: "Fim do mês", calc: () => { const d = new Date(); return ymd(new Date(d.getFullYear(), d.getMonth() + 1, 0)); } },
+];
 
 export function TarefaDialog({
   tarefa,
@@ -74,6 +87,7 @@ export function TarefaDialog({
     descricao: "",
     statusId: colunas[0]?.id ?? "",
     prazo: "",
+    prioridade: "",
     projetoId: NONE,
     responsaveisIds: [] as string[],
     itens: [] as { id?: string; descricao: string; concluido: boolean }[],
@@ -84,6 +98,7 @@ export function TarefaDialog({
     descricao: t.descricao,
     statusId: t.statusId,
     prazo: t.prazo,
+    prioridade: t.prioridade,
     projetoId: t.projetoId || NONE,
     responsaveisIds: t.responsaveis.map((r) => r.id),
     itens: [...t.itens],
@@ -169,6 +184,7 @@ export function TarefaDialog({
       descricao: form.descricao,
       statusId: form.statusId,
       prazo: form.prazo,
+      prioridade: (form.prioridade || "") as Prioridade | "",
       projetoId: form.projetoId === NONE ? "" : form.projetoId,
       responsaveisIds: form.responsaveisIds,
       itens: form.itens.map((i) => ({ descricao: i.descricao, concluido: i.concluido })),
@@ -254,6 +270,45 @@ export function TarefaDialog({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Prioridade</Label>
+              <Select
+                value={form.prioridade || NONE}
+                onValueChange={(v) => setForm((f) => ({ ...f, prioridade: v === NONE ? "" : (v ?? "") }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="—" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>—</SelectItem>
+                  {PRIORIDADES.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {PRIORIDADE_LABEL[p]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Atalhos de prazo</Label>
+              <div className="flex flex-wrap gap-1">
+                {PRESETS_PRAZO.map((p) => (
+                  <Button
+                    key={p.label}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setForm((f) => ({ ...f, prazo: p.calc() }))}
+                  >
+                    {p.label}
+                  </Button>
+                ))}
+              </div>
             </div>
           </div>
 

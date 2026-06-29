@@ -111,7 +111,7 @@
   --sidebar-border: #cacac8;
   --sidebar-ring: #576980;
   --brand-backdrop: url("/MARCA/background_L2.svg");
-  --brand-backdrop-opacity: 0.55;
+  --brand-backdrop-opacity: 0.32;
   /* Assinatura do card: borda-esquerda de acento (Navy) + sombra de elevação */
   --card-edge: #1c2d58;
   --card-shadow: 0 4px 18px rgba(28, 45, 88, 0.1);
@@ -161,7 +161,7 @@
   --sidebar-border: #2a3d6b;
   --sidebar-ring: #576980;
   --brand-backdrop: url("/MARCA/background_M2.svg");
-  --brand-backdrop-opacity: 0.38;
+  --brand-backdrop-opacity: 0.20;
   --card-edge: #1c2d58;
   --card-shadow: 0 8px 28px rgba(7, 12, 26, 0.45);
 }

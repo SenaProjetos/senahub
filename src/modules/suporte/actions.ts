@@ -13,7 +13,8 @@ const ticketSchema = z.object({
   titulo: z.string().min(1, "Informe o título."),
   descricao: z.string().min(1, "Descreva o problema."),
   prioridade: z.enum(["baixa", "media", "alta", "urgente"]).default("media"),
-  categoria: z.enum(["bug", "duvida", "melhoria", "acesso", "outro"]).default("outro"),
+  // "Tipo" do ticket (Mód 13): Sugestão/Erro vindos do sistema antigo + legados mantidos p/ compatibilidade.
+  categoria: z.enum(["sugestao", "erro", "duvida", "melhoria", "acesso", "outro"]).default("outro"),
 });
 const mensagemSchema = z
   .object({

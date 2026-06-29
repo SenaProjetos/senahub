@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
+import { acessoGlobal } from "@/lib/roles";
 import {
   listarProjetos,
   catalogoDisciplinas,
@@ -63,6 +64,7 @@ export default async function ProjetosPage({
     <ProjetosView
       items={items}
       podeGerir={podeGerir}
+      podeVerTodos={acessoGlobal(user)}
       busca={q}
       situacao={sp.situacao ?? ""}
       clienteId={sp.cliente ?? ""}

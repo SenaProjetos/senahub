@@ -24,6 +24,7 @@ export default async function TarefasPage() {
           descricao: t.descricao ?? "",
           statusId: t.statusId,
           prazo: t.prazo ? t.prazo.toISOString().slice(0, 10) : "",
+          prioridade: t.prioridade ?? "",
           projetoId: t.projetoId ?? "",
           projetoCodigo: t.projeto?.codigo ?? null,
           responsaveis: t.responsaveis.map((r) => ({ id: r.user.id, nome: r.user.name })),

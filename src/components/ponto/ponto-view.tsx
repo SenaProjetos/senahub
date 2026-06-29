@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Play, Square, Repeat, Clock, Download, Info, CloudOff } from "lucide-react";
+import { Play, Square, Repeat, Clock, Download, Info, CloudOff, FileSpreadsheet, FileText } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { baterPonto, trocarProjeto, encerrarJornada } from "@/modules/ponto/actions";
 import { fecharRateioMes } from "@/modules/rh/rateio/actions";
 import {
@@ -207,11 +213,12 @@ export function PontoView({
 
   const linhas = gradeDoMes(ano, mes, espelho.dias);
 
-  function exportarCsv() {
+  /** Matriz do espelho (cabeçalho + linhas) compartilhada pelo export CSV e XLSX. */
+  function matrizExport(): { cabecalho: string[]; linhasExport: string[][] } {
     const cabecalho = ["Data", "Entrada", "Saída", "Horas", "Projeto", "Saldo"];
     const jornadaDia =
       espelho.dias.length > 0 ? espelho.esperadoMinutos / espelho.dias.length : 0;
-    const linhasCsv = linhas.map((l) => {
+    const linhasExport = linhas.map((l) => {
       const r = l.registro;
       if (!r) {
         return [dataPtBr(l.iso), "—", "—", "—", "—", "—"];
@@ -234,18 +241,46 @@ export function PontoView({
         fmtHoras(Math.round(saldoDia)),
       ];
     });
-    const conteudo = [cabecalho, ...linhasCsv]
-      .map((cols) => cols.map(csvCampo).join(";"))
-      .join("\r\n");
-    const blob = new Blob(["﻿" + conteudo], { type: "text/csv;charset=utf-8" });
+    return { cabecalho, linhasExport };
+  }
+
+  function baixar(blob: Blob, nome: string) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `espelho-ponto-${ano}-${String(mes).padStart(2, "0")}.csv`;
+    a.download = nome;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  }
+
+  const baseNome = `espelho-ponto-${ano}-${String(mes).padStart(2, "0")}`;
+
+  function exportarCsv() {
+    const { cabecalho, linhasExport } = matrizExport();
+    const conteudo = [cabecalho, ...linhasExport]
+      .map((cols) => cols.map(csvCampo).join(";"))
+      .join("\r\n");
+    baixar(new Blob(["﻿" + conteudo], { type: "text/csv;charset=utf-8" }), `${baseNome}.csv`);
+  }
+
+  async function exportarXlsx() {
+    const { cabecalho, linhasExport } = matrizExport();
+    // Import dinâmico: mantém o exceljs fora do chunk principal (só carrega ao exportar).
+    const ExcelJS = await import("exceljs");
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Espelho");
+    ws.addRow(cabecalho).font = { bold: true };
+    for (const r of linhasExport) ws.addRow(r);
+    ws.columns.forEach((c) => { c.width = 14; });
+    const buf = await wb.xlsx.writeBuffer();
+    baixar(
+      new Blob([buf as ArrayBuffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      }),
+      `${baseNome}.xlsx`,
+    );
   }
 
   return (
@@ -393,9 +428,23 @@ export function PontoView({
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-base">Espelho do mês</CardTitle>
-            <Button size="sm" variant="outline" onClick={exportarCsv}>
-              <Download className="size-4" /> Exportar CSV
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button size="sm" variant="outline" aria-label="Exportar espelho">
+                    <Download className="size-4" /> Exportar
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => void exportarXlsx()}>
+                  <FileSpreadsheet className="size-4" /> Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportarCsv}>
+                  <FileText className="size-4" /> CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </CardHeader>
         <CardContent>

@@ -64,10 +64,12 @@ const PRIORIDADE_LABEL: Record<string, string> = {
 };
 
 const CATEGORIA_LABEL: Record<string, string> = {
-  bug: "Bug",
+  sugestao: "Sugestão",
+  erro: "Erro",
   duvida: "Dúvida",
   melhoria: "Melhoria",
   acesso: "Acesso",
+  bug: "Bug",
   outro: "Outro",
 };
 
@@ -88,9 +90,11 @@ export function SuporteView({
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
   const [prioridade, setPrioridade] = useState<"baixa" | "media" | "alta" | "urgente">("media");
-  const [categoria, setCategoria] = useState<"bug" | "duvida" | "melhoria" | "acesso" | "outro">("outro");
+  const [categoria, setCategoria] = useState<"sugestao" | "erro" | "duvida" | "outro">("sugestao");
   const [respostas, setRespostas] = useState<Record<string, string>>({});
   const [arquivos, setArquivos] = useState<Record<string, File | null>>({});
+  // Ticket sob arraste de arquivo (realce visual do drop zone).
+  const [dragSobre, setDragSobre] = useState<string | null>(null);
 
   function abrir() {
     start(async () => {
@@ -281,13 +285,28 @@ export function SuporteView({
                 )}
 
                 {t.status !== "resolvido" && (
-                  <div className="flex items-center gap-2">
+                  <div
+                    className={`flex items-center gap-2 rounded-sm p-0.5 transition-colors ${
+                      dragSobre === t.id ? "bg-primary/5 ring-1 ring-primary" : ""
+                    }`}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (dragSobre !== t.id) setDragSobre(t.id);
+                    }}
+                    onDragLeave={() => setDragSobre((d) => (d === t.id ? null : d))}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragSobre(null);
+                      const f = e.dataTransfer.files?.[0];
+                      if (f) setArquivos((s) => ({ ...s, [t.id]: f }));
+                    }}
+                  >
                     <label className="cursor-pointer text-muted-foreground hover:text-foreground" aria-label="Anexar">
                       <Paperclip className={`size-4 ${arquivos[t.id] ? "text-primary" : ""}`} />
                       <input type="file" hidden onChange={(e) => { setArquivos((s) => ({ ...s, [t.id]: e.target.files?.[0] ?? null })); e.target.value = ""; }} />
                     </label>
                     <Input
-                      placeholder={arquivos[t.id] ? `Anexo: ${arquivos[t.id]?.name}` : "Responder…"}
+                      placeholder={arquivos[t.id] ? `Anexo: ${arquivos[t.id]?.name}` : "Responder… (ou arraste um arquivo)"}
                       value={respostas[t.id] ?? ""}
                       onChange={(e) => setRespostas((s) => ({ ...s, [t.id]: e.target.value }))}
                       onKeyDown={(e) => e.key === "Enter" && responder(t.id)}
@@ -334,20 +353,19 @@ export function SuporteView({
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label>Categoria</Label>
+                <Label>Tipo</Label>
                 <Select
                   value={categoria}
-                  items={{ bug: "Bug", duvida: "Dúvida", melhoria: "Melhoria", acesso: "Acesso", outro: "Outro" }}
+                  items={{ sugestao: "Sugestão", erro: "Erro", duvida: "Dúvida", outro: "Outro" }}
                   onValueChange={(v) => v && setCategoria(v as typeof categoria)}
                 >
                   <SelectTrigger className="h-9 w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="bug">Bug</SelectItem>
+                    <SelectItem value="sugestao">Sugestão</SelectItem>
+                    <SelectItem value="erro">Erro</SelectItem>
                     <SelectItem value="duvida">Dúvida</SelectItem>
-                    <SelectItem value="melhoria">Melhoria</SelectItem>
-                    <SelectItem value="acesso">Acesso</SelectItem>
                     <SelectItem value="outro">Outro</SelectItem>
                   </SelectContent>
                 </Select>

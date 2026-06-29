@@ -161,8 +161,8 @@ export function SidebarNav({
   return (
     <nav className="flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-3 py-4">
       {groups.map((group, gi) => {
-        // Sem título OU sidebar colapsada (icon-only): sempre visível, não colapsável.
-        if (!group.title || collapsed) {
+        // Sem título, sidebar colapsada (icon-only) OU grupo de item único: estático, sem seta de expandir.
+        if (!group.title || collapsed || group.items.length === 1) {
           return (
             <div key={group.title ?? gi}>
               {group.title && !collapsed && (
