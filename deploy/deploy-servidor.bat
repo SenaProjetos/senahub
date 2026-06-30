@@ -14,7 +14,7 @@ REM ===================== CONFIG (ajuste) ======================
 set "REPO_URL=https://github.com/SenaProjetos/senahub.git"
 REM IMPORTANTE: use a branch que voce JA fez push para o GitHub.
 set "BRANCH=master"
-set "APP_DIR=C:\SenaHub\app"
+set "APP_DIR=F:\SenaHub\app"
 set "SERVICE_PORT=3000"
 set "SERVICE_NAME=SenaHub"
 REM ============================================================

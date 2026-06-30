@@ -4,7 +4,7 @@ Runbook para a **primeira subida** no servidor. App roda nativo no Windows (Next
 pg-boss no mesmo processo, via `server.ts`), exposto pela internet por um **Cloudflare Tunnel**
 (sem abrir portas no firewall). O banco **vem vazio** — os dados não acompanham o código.
 
-> Convenções: `C:\SenaHub\app` = pasta do projeto. `hub.seudominio.com.br` = domínio público.
+> Convenções: `F:\SenaHub\app` = pasta do projeto. `hub.seudominio.com.br` = domínio público.
 > Troque pelos seus valores.
 
 ---
@@ -27,8 +27,8 @@ Conta Cloudflare com o domínio (`seudominio.com.br`) já adicionado como zona.
 ## 1. Copiar o código
 
 ```powershell
-git clone <URL_DO_REPO> C:\SenaHub\app
-cd C:\SenaHub\app
+git clone <URL_DO_REPO> F:\SenaHub\app
+cd F:\SenaHub\app
 git checkout main   # ou a branch publicada
 ```
 > Não copie `.env`, `node_modules` nem `.next` da máquina de dev — serão recriados aqui.
@@ -58,7 +58,7 @@ Preencha (ver [.env.production.example](../.env.production.example)):
 - `DATABASE_URL` = `postgresql://senahub:SENHA_FORTE@localhost:5432/senahub`
 - `APP_URL` **e** `BETTER_AUTH_URL` = `https://hub.seudominio.com.br` (exatamente a origem pública)
 - `BETTER_AUTH_SECRET` = segredo **novo**: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
-- `STORAGE_BASE_PATH` = pasta existente (ex.: `D:\SenaHub\storage`)
+- `STORAGE_BASE_PATH` = pasta existente (ex.: `F:\SenaHub\storage`)
 - `CHROME_PATH` = `C:\Program Files\Google\Chrome\Application\chrome.exe`
 - Backup (recomendado): `ENABLE_BACKUP=1`, `BACKUP_PATH`, `PG_DUMP_PATH` (`...\PostgreSQL\17\bin\pg_dump.exe`)
 
@@ -86,11 +86,11 @@ npm run db:seed              # admin + permissões + catálogos (idempotente)
 Em um PowerShell **como Administrador**:
 
 ```powershell
-cd C:\SenaHub\app
+cd F:\SenaHub\app
 .\scripts\instalar-servico.ps1 -Port 3000        # use -NssmPath "C:\nssm\nssm.exe" se não estiver no PATH
 Start-Service SenaHub
 ```
-Teste local: abra `http://localhost:3000` no servidor. Logs em `C:\SenaHub\app\logs`.
+Teste local: abra `http://localhost:3000` no servidor. Logs em `F:\SenaHub\app\logs`.
 
 ---
 
@@ -141,7 +141,7 @@ versão 17 está no `PG_DUMP_PATH` e que a pasta existe.
 ## 9. Atualizações futuras (nova versão)
 
 ```powershell
-cd C:\SenaHub\app
+cd F:\SenaHub\app
 Stop-Service SenaHub
 git pull
 npm ci
