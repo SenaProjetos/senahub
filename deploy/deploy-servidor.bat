@@ -66,11 +66,22 @@ echo(
 REM ============== 2) CLONE / PULL ==============
 echo [2/7] Obtendo o codigo (%BRANCH%)...
 if exist "%APP_DIR%\.git" (
+  REM Repositorio ja existe -> atualiza.
   pushd "%APP_DIR%"
   call git fetch origin || goto :erro
   call git checkout %BRANCH% || goto :erro
   call git pull --ff-only origin %BRANCH% || goto :erro
+) else if exist "%APP_DIR%\" (
+  REM Pasta existe mas SEM .git (ex.: extraiu um ZIP) -> adota e sincroniza com o remote.
+  echo   Pasta existente sem .git; adotando como repositorio e sincronizando...
+  pushd "%APP_DIR%"
+  call git init -b %BRANCH% || goto :erro
+  call git remote add origin "%REPO_URL%" 2>nul
+  call git remote set-url origin "%REPO_URL%"
+  call git fetch origin %BRANCH% || goto :erro
+  call git reset --hard origin/%BRANCH% || goto :erro
 ) else (
+  REM Pasta nao existe -> clone limpo.
   call git clone -b %BRANCH% "%REPO_URL%" "%APP_DIR%" || goto :erro
   pushd "%APP_DIR%"
 )
