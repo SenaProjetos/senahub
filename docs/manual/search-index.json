@@ -1,0 +1,366 @@
+{
+  "versao": 1,
+  "geradoPor": "Conselho Permanente de Documentação",
+  "paginas": [
+    {
+      "titulo": "Manual do SenaHub — Início",
+      "path": "README.md",
+      "descricao": "Portal da documentação oficial do SenaHub para usuários do sistema.",
+      "resumo": "Página inicial da base de conhecimento. Índice por seção, busca e como começar.",
+      "tags": ["manual", "documentação", "índice", "início", "ajuda"],
+      "palavrasChave": ["manual", "ajuda", "documentação", "guia", "suporte", "como usar", "índice"],
+      "sinonimos": ["help", "docs", "central de ajuda", "base de conhecimento", "wiki"]
+    },
+    {
+      "titulo": "Guia de Início Rápido",
+      "path": "quick-start.md",
+      "descricao": "O essencial para começar a usar o SenaHub — acessar, navegar, cadastrar, editar, excluir, pesquisar e filtrar.",
+      "resumo": "Em poucos minutos você acessa a plataforma, entende os menus, faz o primeiro cadastro e domina busca, filtros e atalhos.",
+      "tags": ["início rápido", "primeiros passos", "login", "navegação", "cadastro", "busca", "filtros", "atalhos"],
+      "palavrasChave": ["quick start", "começar", "primeiro acesso", "entrar", "login", "senha", "menu", "pesquisar", "atalho", "Ctrl K"],
+      "sinonimos": ["getting started", "onboarding", "tutorial inicial", "guia básico", "passo a passo"]
+    },
+    {
+      "titulo": "Perguntas Frequentes (FAQ)",
+      "path": "faq.md",
+      "descricao": "Dúvidas e erros comuns do SenaHub com solução objetiva.",
+      "resumo": "Respostas rápidas para acesso, senha, permissões, busca e problemas do dia a dia.",
+      "tags": ["faq", "dúvidas", "erros", "problemas", "suporte", "ajuda"],
+      "palavrasChave": ["faq", "perguntas", "dúvida", "erro", "não consigo", "esqueci a senha", "permissão", "acesso negado"],
+      "sinonimos": ["perguntas frequentes", "troubleshooting", "solução de problemas", "ajuda comum"]
+    },
+    {
+      "titulo": "Glossário",
+      "path": "glossary.md",
+      "descricao": "Termos do SenaHub explicados em linguagem simples.",
+      "resumo": "Significado dos termos, perfis, módulos e conceitos usados no sistema e neste manual.",
+      "tags": ["glossário", "termos", "definições", "conceitos", "perfis", "módulos"],
+      "palavrasChave": ["glossário", "significado", "o que é", "definição", "termo", "sigla"],
+      "sinonimos": ["dicionário", "vocabulário", "terminologia"]
+    },
+    {
+      "titulo": "Início (Dashboard)",
+      "path": "inicio/dashboard.md",
+      "descricao": "Página inicial do colaborador — saudação, KPIs, projetos recentes, receita e evolução.",
+      "resumo": "O painel de abertura mostra indicadores pessoais e do escritório, ações rápidas, projetos recentes e gráficos; o que aparece depende do perfil e da permissão financeira.",
+      "tags": ["início", "dashboard", "painel", "kpi", "indicadores", "home", "aniversariantes", "humor", "ações rápidas"],
+      "palavrasChave": ["início", "dashboard", "painel inicial", "kpi", "indicador", "receita prevista", "projetos ativos", "sparkline", "aniversário", "humor"],
+      "sinonimos": ["home", "tela inicial", "painel", "página inicial"]
+    },
+    {
+      "titulo": "Portal do cliente (Meus projetos)",
+      "path": "inicio/portal-cliente.md",
+      "descricao": "Visão externa, somente leitura, onde o cliente acompanha seus projetos.",
+      "resumo": "O cliente vê os projetos do seu cadastro em cartões com situação, prazo e progresso, e abre cada um para detalhes.",
+      "tags": ["portal", "cliente", "meus projetos", "acompanhamento", "externo", "somente leitura"],
+      "palavrasChave": ["portal", "cliente", "meus projetos", "acompanhar projeto", "progresso", "prazo", "situação"],
+      "sinonimos": ["área do cliente", "portal externo", "acompanhamento de projeto"]
+    },
+    {
+      "titulo": "Projetos",
+      "path": "projetos/projetos.md",
+      "descricao": "Cadastro e acompanhamento de projetos, disciplinas, responsáveis, revisões e ciclo de vida.",
+      "resumo": "Liste e filtre projetos, crie/edite, gerencie disciplinas e seus status, responsáveis, membros, revisões, duplicação e cancelamento/arquivamento.",
+      "tags": ["projetos", "disciplinas", "status", "responsáveis", "membros", "revisões", "duplicar", "cancelar", "arquivar", "progresso"],
+      "palavrasChave": ["projeto", "disciplina", "status", "em andamento", "em revisão", "entregue", "aprovado", "responsável", "membro", "revisão", "duplicar projeto", "cancelar projeto", "prazo"],
+      "sinonimos": ["obras", "jobs", "contratos de projeto"]
+    },
+    {
+      "titulo": "Meu trabalho",
+      "path": "projetos/meu-trabalho.md",
+      "descricao": "Lista pessoal das disciplinas pelas quais você é responsável em projetos ativos.",
+      "resumo": "Mostra suas disciplinas em projetos em andamento, separando as atrasadas das em dia, com prazo e status.",
+      "tags": ["meu trabalho", "disciplinas", "responsável", "atrasadas", "prazo", "pessoal"],
+      "palavrasChave": ["meu trabalho", "minhas disciplinas", "atrasada", "prazo", "status", "responsável"],
+      "sinonimos": ["minhas tarefas de projeto", "minhas entregas", "minha carga"]
+    },
+    {
+      "titulo": "Tarefas",
+      "path": "projetos/tarefas.md",
+      "descricao": "Quadro de tarefas (kanban) em colunas por status, com checklist, dependências e comentários.",
+      "resumo": "Organize tarefas em colunas, atribua responsáveis, defina prazo e prioridade, vincule a projetos, use checklists, dependências e comentários com anexo.",
+      "tags": ["tarefas", "kanban", "quadro", "checklist", "dependências", "comentários", "prioridade", "prazo"],
+      "palavrasChave": ["tarefa", "kanban", "quadro", "coluna", "status", "checklist", "dependência", "bloqueada", "comentário", "anexo", "prioridade"],
+      "sinonimos": ["to-do", "board", "atividades", "cartões"]
+    },
+    {
+      "titulo": "Agenda",
+      "path": "projetos/agenda.md",
+      "descricao": "Calendário mensal com compromissos (e confirmação de participantes) e os prazos de projetos, disciplinas e tarefas.",
+      "resumo": "Veja por mês seus compromissos e prazos. Compromissos têm participantes e confirmação; prazos de projeto/disciplina/tarefa aparecem sobrepostos no calendário.",
+      "tags": ["agenda", "calendário", "compromissos", "prazos", "participantes", "confirmação", "mês"],
+      "palavrasChave": ["agenda", "calendário", "compromisso", "reunião", "prazo", "participante", "confirmar presença", "evento"],
+      "sinonimos": ["calendário", "eventos", "compromissos"]
+    },
+    {
+      "titulo": "Planejamento (EAP e Cronograma)",
+      "path": "projetos/planejamento.md",
+      "descricao": "EAP e cronograma (gantt) por projeto, com linha de base e caminho crítico, além do cronograma geral.",
+      "resumo": "Selecione um projeto para montar a EAP e o gantt com linha de base; veja progresso, datas e o cronograma geral do escritório.",
+      "tags": ["planejamento", "eap", "cronograma", "gantt", "linha de base", "caminho crítico", "cpm"],
+      "palavrasChave": ["planejamento", "eap", "cronograma", "gantt", "baseline", "linha de base", "caminho crítico", "cpm", "tarefa de projeto"],
+      "sinonimos": ["cronograma de projeto", "gantt", "wbs"]
+    },
+    {
+      "titulo": "Recursos (alocação da equipe)",
+      "path": "projetos/recursos.md",
+      "descricao": "Matriz de alocação de pessoas em projetos, com carga semanal e habilidades.",
+      "resumo": "Veja quem está alocado em quais projetos, a carga de trabalho por semana e as habilidades de cada pessoa.",
+      "tags": ["recursos", "alocação", "carga", "equipe", "habilidades", "capacidade"],
+      "palavrasChave": ["recursos", "alocação", "carga semanal", "capacidade", "equipe", "habilidade", "competência"],
+      "sinonimos": ["alocação de equipe", "capacity", "planejamento de recursos"]
+    },
+    {
+      "titulo": "Clientes",
+      "path": "clientes-comercial/clientes.md",
+      "descricao": "Cadastro de clientes (PF/PJ), contatos, filtros e ativação/desativação.",
+      "resumo": "Liste e filtre clientes, cadastre PF ou PJ, adicione contatos e ative/desative cadastros sem apagar o histórico.",
+      "tags": ["clientes", "cadastro", "contatos", "pf", "pj", "desativar", "reativar", "categoria", "uf"],
+      "palavrasChave": ["cliente", "cadastro", "pessoa física", "pessoa jurídica", "contato", "desativar", "reativar", "categoria", "cidade", "uf"],
+      "sinonimos": ["clientela", "contatos", "cadastro de clientes"]
+    },
+    {
+      "titulo": "Comercial (funil, propostas, tabelas, metas)",
+      "path": "clientes-comercial/comercial.md",
+      "descricao": "Funil de vendas com leads/oportunidades, propostas, tabelas de preço e meta mensal.",
+      "resumo": "Acompanhe leads no funil, registre oportunidades, monte propostas (itens e condições), gerencie tabelas de preço por m² e a meta mensal de vendas.",
+      "tags": ["comercial", "funil", "leads", "oportunidades", "propostas", "tabelas de preço", "meta", "vendas"],
+      "palavrasChave": ["comercial", "funil", "lead", "oportunidade", "proposta", "tabela de preço", "valor por m2", "meta", "realizado", "etapa", "perdido"],
+      "sinonimos": ["crm", "vendas", "pipeline", "pré-venda"]
+    },
+    {
+      "titulo": "Financeiro — Visão geral e Meu extrato",
+      "path": "financeiro/visao-geral.md",
+      "descricao": "Painel gerencial do financeiro (KPIs, DRE, projeção de caixa, aging) e o extrato pessoal de pagamentos.",
+      "resumo": "O /financeiro mostra um painel completo para quem tem visão financeira ou o 'Meu extrato' para prestadores e clientes.",
+      "tags": ["financeiro", "painel", "dashboard", "dre", "projeção de caixa", "aging", "extrato", "kpi"],
+      "palavrasChave": ["financeiro", "visão geral", "painel", "resultado", "saldo em caixa", "projeção", "contas vencidas", "meu extrato", "pagamentos"],
+      "sinonimos": ["dashboard financeiro", "painel financeiro", "extrato"]
+    },
+    {
+      "titulo": "Lançamentos (receitas e despesas)",
+      "path": "financeiro/lancamentos.md",
+      "descricao": "Cadastro de receitas e despesas, com previsto/confirmado, recorrência, campos obrigatórios e exclusão reversível.",
+      "resumo": "Registre receitas e despesas (previstas ou confirmadas), confirme o realizado, use recorrência mensal e exclua com soft delete.",
+      "tags": ["lançamentos", "receita", "despesa", "previsto", "confirmado", "recorrência", "categoria", "conta", "forma de pagamento", "soft delete"],
+      "palavrasChave": ["lançamento", "receita", "despesa", "previsto", "confirmado", "realizado", "recorrência", "vencimento", "competência", "categoria", "fornecedor", "cliente"],
+      "sinonimos": ["movimentações", "entradas e saídas", "transações"]
+    },
+    {
+      "titulo": "Contas a pagar e receber (e Aging)",
+      "path": "financeiro/contas-e-aging.md",
+      "descricao": "Pendências financeiras por tipo, com filtros, e a análise de atraso (aging) por faixas.",
+      "resumo": "Veja contas a pagar e a receber pendentes em abas, filtre e exporte; o aging agrupa os previstos por faixa de atraso.",
+      "tags": ["contas a pagar", "contas a receber", "aging", "atraso", "vencido", "a vencer", "pendências"],
+      "palavrasChave": ["conta a pagar", "conta a receber", "aging", "atraso", "vencido", "a vencer", "faixa", "inadimplência", "pendência"],
+      "sinonimos": ["pendências financeiras", "AR", "AP", "cobranças"]
+    },
+    {
+      "titulo": "Conciliação bancária (OFX) e Importação",
+      "path": "financeiro/conciliacao-ofx.md",
+      "descricao": "Importar extrato OFX, conciliar transações com lançamentos e migrar planilhas para o financeiro.",
+      "resumo": "Importe o OFX do banco, concilie as transações pendentes e use o importador para migrar dados de planilha.",
+      "tags": ["conciliação", "ofx", "banco", "extrato bancário", "importar", "migração", "planilha", "meu dinheiro"],
+      "palavrasChave": ["conciliação", "ofx", "extrato bancário", "conciliar", "transação", "importar", "migrar", "planilha", "meu dinheiro"],
+      "sinonimos": ["conciliação bancária", "importação de extrato", "reconciliação"]
+    },
+    {
+      "titulo": "Aprovações de despesas (alçadas)",
+      "path": "financeiro/aprovacoes.md",
+      "descricao": "Fila de despesas que exigem aprovação por faixa de valor, com papéis aprovadores.",
+      "resumo": "Despesas acima de uma faixa de valor entram numa fila de aprovação; só papéis aprovadores liberam.",
+      "tags": ["aprovações", "alçada", "despesa", "aprovar", "faixa de valor", "fluxo de aprovação"],
+      "palavrasChave": ["aprovação", "alçada", "despesa", "aprovar", "rejeitar", "faixa de valor", "limite", "aprovador"],
+      "sinonimos": ["workflow de aprovação", "autorização de despesa", "alçadas"]
+    },
+    {
+      "titulo": "Relatórios gerenciais do financeiro",
+      "path": "financeiro/relatorios.md",
+      "descricao": "DRE, DFC, fluxo de caixa, balanço gerencial, rentabilidade por projeto e orçamento anual.",
+      "resumo": "Conjunto de relatórios gerenciais — DRE, DFC por atividade, fluxo de caixa, balanço (base caixa), rentabilidade por projeto e orçamento planejado × realizado.",
+      "tags": ["relatórios", "dre", "dfc", "fluxo de caixa", "balanço", "rentabilidade", "orçamento"],
+      "palavrasChave": ["relatório", "dre", "dfc", "fluxo de caixa", "balanço gerencial", "rentabilidade", "margem", "orçamento", "planejado", "realizado"],
+      "sinonimos": ["demonstrativos", "indicadores financeiros", "gerenciais"]
+    },
+    {
+      "titulo": "Estúdio de Documentos",
+      "path": "financeiro/estudio-documentos.md",
+      "descricao": "Modelos de documento com campos dinâmicos (tokens) que puxam dados do sistema e geram PDF.",
+      "resumo": "Crie modelos reutilizáveis com tokens que se preenchem com dados de uma fonte, pré-visualize e gere o documento final; controle visibilidade e versões.",
+      "tags": ["documentos", "estúdio", "modelo", "template", "token", "campo dinâmico", "pdf", "carimbo", "dataset", "versão"],
+      "palavrasChave": ["documento", "estúdio", "modelo", "template", "token", "campo", "fonte de dados", "pdf", "gerar documento", "carimbo", "dataset", "visibilidade"],
+      "sinonimos": ["gerador de documentos", "modelos de documento", "templates", "mala direta"]
+    },
+    {
+      "titulo": "Ponto (registro de jornada)",
+      "path": "rh-ponto/ponto.md",
+      "descricao": "Autoatendimento de ponto — iniciar/encerrar sessão por projeto e ver o espelho do mês.",
+      "resumo": "Cada colaborador registra a jornada iniciando/encerrando sessões vinculadas a um projeto; gestores veem o rateio por projeto.",
+      "tags": ["ponto", "jornada", "batida", "sessão", "espelho", "banco de horas", "rateio"],
+      "palavrasChave": ["ponto", "registrar ponto", "bater ponto", "jornada", "sessão", "projeto", "espelho", "banco de horas", "rateio"],
+      "sinonimos": ["registro de jornada", "controle de horas", "timesheet", "folha de ponto"]
+    },
+    {
+      "titulo": "RH (autoatendimento do colaborador)",
+      "path": "rh-ponto/rh-autoatendimento.md",
+      "descricao": "Solicitações de abono/atestado e férias, onboarding, humor e, para PJ, envio de NF.",
+      "resumo": "O colaborador solicita abonos e férias, acompanha o onboarding, registra humor e, se PJ, envia notas fiscais e gera o extrato.",
+      "tags": ["rh", "abono", "atestado", "férias", "onboarding", "humor", "nota fiscal", "pj"],
+      "palavrasChave": ["rh", "abono", "atestado", "férias", "onboarding", "humor", "nota fiscal", "nf", "extrato", "prestador"],
+      "sinonimos": ["autoatendimento rh", "solicitações rh", "minhas solicitações"]
+    },
+    {
+      "titulo": "RH — administração",
+      "path": "rh-ponto/rh-admin.md",
+      "descricao": "Aprovação de abonos/férias, banco de horas, feedback, ponto manual, onboarding e validação de NFs.",
+      "resumo": "Central administrativa do RH — aprova solicitações, fecha banco de horas, dá feedback, lança ponto manual, gerencia onboarding e valida NFs de PJ.",
+      "tags": ["rh admin", "abonos", "férias", "banco de horas", "clima", "feedback", "ponto manual", "onboarding", "nota fiscal"],
+      "palavrasChave": ["rh administração", "aprovar abono", "aprovar férias", "banco de horas", "fechamento", "clima", "feedback", "ponto manual", "onboarding", "validar nf"],
+      "sinonimos": ["administração de rh", "gestão de pessoas", "dp"]
+    },
+    {
+      "titulo": "Folha CLT",
+      "path": "rh-ponto/folha-clt.md",
+      "descricao": "Folhas de pagamento dos colaboradores CLT, com cálculo de encargos (INSS/IRRF).",
+      "resumo": "Gere e acompanhe as folhas de pagamento dos CLT; o sistema calcula encargos progressivos (INSS e IRRF).",
+      "tags": ["folha", "clt", "holerite", "encargos", "inss", "irrf", "pagamento"],
+      "palavrasChave": ["folha", "clt", "holerite", "salário", "encargos", "inss", "irrf", "desconto", "pagamento"],
+      "sinonimos": ["folha de pagamento", "holerite", "payroll"]
+    },
+    {
+      "titulo": "Funcionários",
+      "path": "rh-ponto/funcionarios.md",
+      "descricao": "Cadastro completo dos colaboradores, com templates de onboarding e vínculo a PJ.",
+      "resumo": "Mantenha o cadastro dos funcionários, associe templates de onboarding e vincule prestadores às suas pessoas jurídicas.",
+      "tags": ["funcionários", "cadastro", "colaborador", "onboarding", "pj"],
+      "palavrasChave": ["funcionário", "colaborador", "cadastro", "dados pessoais", "onboarding", "pessoa jurídica"],
+      "sinonimos": ["colaboradores", "equipe", "quadro de pessoal"]
+    },
+    {
+      "titulo": "Produtividade — Projetistas",
+      "path": "rh-ponto/produtividade.md",
+      "descricao": "Acompanhamento da produtividade dos projetistas por semana ou mês.",
+      "resumo": "Painel que mostra a produtividade dos projetistas ao longo do tempo, com granularidade semanal ou mensal.",
+      "tags": ["produtividade", "projetistas", "desempenho", "semana", "mês"],
+      "palavrasChave": ["produtividade", "projetista", "desempenho", "entregas", "semana", "mês", "granularidade"],
+      "sinonimos": ["desempenho", "rendimento", "performance"]
+    },
+    {
+      "titulo": "Pessoas Jurídicas",
+      "path": "rh-ponto/pessoas-juridicas.md",
+      "descricao": "Cadastro das empresas (PJ) dos prestadores e vínculo com os projetistas.",
+      "resumo": "Cadastre as pessoas jurídicas dos prestadores PJ e vincule-as aos projetistas correspondentes.",
+      "tags": ["pessoas jurídicas", "pj", "prestadores", "empresa", "cnpj"],
+      "palavrasChave": ["pessoa jurídica", "pj", "prestador", "empresa", "cnpj", "projetista"],
+      "sinonimos": ["empresas dos prestadores", "cadastro pj"]
+    },
+    {
+      "titulo": "Ferramentas de Engenharia",
+      "path": "engenharia/ferramentas.md",
+      "descricao": "Galeria de calculadoras de engenharia (normas NBR) com geração de memória de cálculo, desenho e exportação.",
+      "resumo": "16 ferramentas por disciplina (Universal, Estrutural, Fundações) para dimensionar e verificar elementos conforme NBR, com exportação em PDF/DOCX/XLSX/DXF.",
+      "tags": ["ferramentas", "engenharia", "cálculo", "nbr", "viga", "pilar", "laje", "sapata", "estaca", "vento", "dxf", "memória de cálculo"],
+      "palavrasChave": ["ferramenta", "cálculo", "dimensionamento", "nbr 6118", "viga", "pilar", "laje", "punção", "escada", "ancoragem", "sapata", "estaca spt", "vento", "conversor", "exportar"],
+      "sinonimos": ["calculadoras", "dimensionamento estrutural", "ferramentas técnicas"]
+    },
+    {
+      "titulo": "Licitações",
+      "path": "gestao/licitacoes.md",
+      "descricao": "Acompanhamento de licitações com painel, filtros por status/órgão e gestão dos processos.",
+      "resumo": "Liste e filtre licitações por status e órgão, veja o painel-resumo e gerencie os processos.",
+      "tags": ["licitações", "edital", "órgão", "status", "processo", "pregão"],
+      "palavrasChave": ["licitação", "edital", "órgão", "status", "pregão", "habilitação", "modalidade", "proposta pública"],
+      "sinonimos": ["editais", "certames", "processos licitatórios"]
+    },
+    {
+      "titulo": "Jurídico",
+      "path": "gestao/juridico.md",
+      "descricao": "Documentos jurídicos com versões e aceite assinado, certidões com validade, pastas e modelos de contrato.",
+      "resumo": "Organize documentos jurídicos em pastas (com versões e aceite por hash), controle certidões e vencimentos e use modelos de contrato.",
+      "tags": ["jurídico", "documentos", "contrato", "certidão", "validade", "versão", "aceite", "assinatura", "pasta"],
+      "palavrasChave": ["jurídico", "documento jurídico", "contrato", "certidão", "validade", "vencimento", "versão", "aceite", "assinatura", "hash", "pasta", "modelo de contrato"],
+      "sinonimos": ["legal", "contratos", "documentação jurídica"]
+    },
+    {
+      "titulo": "Qualidade (retrabalho e SLA)",
+      "path": "gestao/qualidade.md",
+      "descricao": "Índice de retrabalho (revisões), SLA de entregas e histórico mensal da qualidade.",
+      "resumo": "Mede a qualidade pelo retrabalho (% de disciplinas com revisão) e pelo SLA de entregas, com revisões por disciplina e tendência mensal.",
+      "tags": ["qualidade", "retrabalho", "revisão", "sla", "prazo", "indicador", "snapshot"],
+      "palavrasChave": ["qualidade", "retrabalho", "revisão", "sla", "no prazo", "atraso", "índice", "indicador", "tendência"],
+      "sinonimos": ["indicadores de qualidade", "kpi de qualidade", "desempenho de entregas"]
+    },
+    {
+      "titulo": "Patrimônio (ativos)",
+      "path": "gestao/patrimonio.md",
+      "descricao": "Cadastro e alocação de bens/ativos do escritório por categoria e responsável.",
+      "resumo": "Liste e gerencie os ativos (bens) do escritório, classificados por categoria e alocados a colaboradores.",
+      "tags": ["patrimônio", "ativos", "bens", "categoria", "alocação", "responsável"],
+      "palavrasChave": ["patrimônio", "ativo", "bem", "categoria", "alocação", "responsável", "inventário"],
+      "sinonimos": ["bens", "inventário", "ativos fixos"]
+    },
+    {
+      "titulo": "TI (gerenciamento de máquinas)",
+      "path": "gestao/ti.md",
+      "descricao": "Submódulo de TI para gerenciar máquinas/computadores e sua alocação a colaboradores.",
+      "resumo": "Gerencie as máquinas (computadores) do escritório, sua alocação a colaboradores e identifique ativos ainda sem máquina associada.",
+      "tags": ["ti", "máquinas", "computadores", "equipamentos", "alocação"],
+      "palavrasChave": ["ti", "máquina", "computador", "equipamento", "hardware", "alocação", "colaborador"],
+      "sinonimos": ["informática", "equipamentos de ti", "parque de máquinas"]
+    },
+    {
+      "titulo": "Chat",
+      "path": "comunicacao/chat.md",
+      "descricao": "Comunicação interna em tempo real — canais de projeto e mensagens diretas, com status e recibos.",
+      "resumo": "Converse em tempo real por canais (inclusive os criados automaticamente por projeto) e mensagens diretas; defina status, som e recibos de leitura.",
+      "tags": ["chat", "mensagens", "canais", "dm", "tempo real", "status", "recibos", "menções"],
+      "palavrasChave": ["chat", "mensagem", "canal", "conversa", "direta", "dm", "tempo real", "status", "online", "recibo", "menção", "notificação"],
+      "sinonimos": ["mensageria", "comunicador", "conversas"]
+    },
+    {
+      "titulo": "Suporte (chamados)",
+      "path": "comunicacao/suporte.md",
+      "descricao": "Abertura e acompanhamento de chamados de suporte, com prioridade, categoria e mensagens.",
+      "resumo": "Qualquer usuário abre e acompanha seus chamados; gestores veem todos os tickets e podem filtrar por prioridade.",
+      "tags": ["suporte", "chamado", "ticket", "prioridade", "categoria", "atendimento"],
+      "palavrasChave": ["suporte", "chamado", "ticket", "abrir chamado", "prioridade", "urgente", "categoria", "atendimento", "ajuda"],
+      "sinonimos": ["help desk", "atendimento", "chamados", "tickets"]
+    },
+    {
+      "titulo": "Notificações",
+      "path": "comunicacao/notificacoes.md",
+      "descricao": "Central de avisos (sino), notificações push e opt-out por categoria.",
+      "resumo": "O sino no topo concentra os avisos do sistema; é possível receber push no navegador e desativar categorias específicas nas preferências.",
+      "tags": ["notificações", "sino", "push", "avisos", "alertas", "categorias", "preferências"],
+      "palavrasChave": ["notificação", "sino", "push", "aviso", "alerta", "lembrete", "categoria", "opt-out", "prazo", "inadimplência"],
+      "sinonimos": ["avisos", "alertas", "central de notificações"]
+    },
+    {
+      "titulo": "Preferências",
+      "path": "sistema/preferencias.md",
+      "descricao": "Dados do seu perfil, ajustes de chat (som/recibos) e opt-out de notificações por categoria.",
+      "resumo": "Veja seu perfil, ligue/desligue som e recibos do chat e escolha quais categorias de notificação deseja receber.",
+      "tags": ["preferências", "perfil", "conta", "chat", "som", "recibos", "notificações", "opt-out"],
+      "palavrasChave": ["preferências", "perfil", "conta", "som do chat", "recibos de leitura", "notificação", "categoria", "desativar aviso"],
+      "sinonimos": ["ajustes", "configurações pessoais", "minha conta"]
+    },
+    {
+      "titulo": "Configurações (administração)",
+      "path": "sistema/configuracoes.md",
+      "descricao": "Central de administração — usuários, permissões, parâmetros de folha, projetos, licitações, funil e avisos, além do status das integrações.",
+      "resumo": "Hub administrativo com cadastros e parâmetros do sistema e o status das integrações on-premise (SMTP/push).",
+      "tags": ["configurações", "administração", "usuários", "permissões", "encargos", "feriados", "licitações", "funil", "avisos", "integrações"],
+      "palavrasChave": ["configurações", "administração", "usuários", "permissões", "matriz", "encargos", "inss", "irrf", "feriados", "modalidades", "habilitação", "funil", "aviso geral", "smtp", "push"],
+      "sinonimos": ["admin", "ajustes do sistema", "parâmetros", "settings"]
+    },
+    {
+      "titulo": "Auditoria",
+      "path": "sistema/auditoria.md",
+      "descricao": "Registro imutável de toda atividade do sistema, com filtros, e o uso por seção.",
+      "resumo": "Consulta ao log de auditoria (quem fez o quê, quando e com qual resultado), com filtros por módulo, resultado, texto e data; inclui o uso por seção.",
+      "tags": ["auditoria", "log", "registro", "atividade", "rastreabilidade", "uso"],
+      "palavrasChave": ["auditoria", "log", "registro", "atividade", "quem fez", "evento", "resultado", "módulo", "uso por seção"],
+      "sinonimos": ["logs", "trilha de auditoria", "histórico de ações"]
+    }
+  ]
+}
