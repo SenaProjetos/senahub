@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, FolderKanban, Users, Wallet, ListChecks, FileText, Loader2, Gavel, TrendingUp } from "lucide-react";
+import { Search, FolderKanban, Users, Wallet, ListChecks, FileText, Loader2, Gavel, TrendingUp, BookOpen } from "lucide-react";
 import { buscaGlobal, type ResultadoBusca } from "@/modules/busca/actions";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { brl } from "@/lib/utils";
 
-const VAZIO: ResultadoBusca = { projetos: [], clientes: [], tarefas: [], lancamentos: [], documentos: [], licitacoes: [], propostas: [] };
+const VAZIO: ResultadoBusca = { projetos: [], clientes: [], tarefas: [], lancamentos: [], documentos: [], licitacoes: [], propostas: [], ajuda: [] };
 
 export function CommandPalette() {
   const router = useRouter();
@@ -80,7 +80,8 @@ export function CommandPalette() {
     res.lancamentos.length +
     res.documentos.length +
     res.licitacoes.length +
-    res.propostas.length;
+    res.propostas.length +
+    res.ajuda.length;
   const curto = termo.trim().length < 2;
 
   return (
@@ -165,6 +166,17 @@ export function CommandPalette() {
                   <Item key={p.id} onClick={() => ir(`/comercial/propostas/${p.id}`)}>
                     <span className="font-mono text-xs text-primary">{p.numero}</span>
                     <span className="truncate">{p.titulo}</span>
+                  </Item>
+                ))}
+              </Grupo>
+              {/* Ajuda/Manual: documentação, não registros do sistema — grupo destacado. */}
+              <Grupo titulo="Ajuda · Documentação" icon={BookOpen}>
+                {res.ajuda.map((a) => (
+                  <Item key={a.path} onClick={() => ir(`/ajuda/${a.path}`)}>
+                    <span className="truncate">{a.titulo}</span>
+                    <span className="ml-auto shrink-0 rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                      doc
+                    </span>
                   </Item>
                 ))}
               </Grupo>

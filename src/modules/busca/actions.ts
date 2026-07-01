@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { escopoProjeto } from "@/modules/projetos/queries";
+import { buscarManual } from "@/lib/manual";
 
 export type ResultadoBusca = {
   projetos: { id: string; codigo: string; nome: string }[];
@@ -13,6 +14,8 @@ export type ResultadoBusca = {
   documentos: { id: string; nome: string }[];
   licitacoes: { id: string; titulo: string }[];
   propostas: { id: string; numero: string; titulo: string }[];
+  /** Páginas do Manual/Ajuda (documentação, não registros do sistema). */
+  ajuda: { path: string; titulo: string; descricao: string }[];
 };
 
 const VAZIO: ResultadoBusca = {
@@ -23,6 +26,7 @@ const VAZIO: ResultadoBusca = {
   documentos: [],
   licitacoes: [],
   propostas: [],
+  ajuda: [],
 };
 
 /** Busca global (Ctrl+K): projetos (escopo), clientes, tarefas, lançamentos e modelos de documento (por permissão). */
@@ -41,7 +45,7 @@ export async function buscaGlobal(termo: string): Promise<ResultadoBusca> {
     can(user.role, "comercial", "ver"),
   ]);
 
-  const [projetos, clientes, tarefas, lancamentos, documentos, licitacoes, propostas] = await Promise.all([
+  const [projetos, clientes, tarefas, lancamentos, documentos, licitacoes, propostas, ajuda] = await Promise.all([
     prisma.projeto.findMany({
       where: {
         AND: [
@@ -112,6 +116,8 @@ export async function buscaGlobal(termo: string): Promise<ResultadoBusca> {
           select: { id: true, numero: true, titulo: true },
         })
       : Promise.resolve([]),
+    // Manual/Ajuda: público a logados (sem gate de permissão).
+    buscarManual(t),
   ]);
 
   return {
@@ -127,5 +133,6 @@ export async function buscaGlobal(termo: string): Promise<ResultadoBusca> {
     })),
     licitacoes,
     propostas,
+    ajuda,
   };
 }
