@@ -38,9 +38,10 @@ export async function enviarEmail(opts: {
 }): Promise<boolean> {
   const t = getTransporter();
   if (!t) return false;
+  const remetente = process.env.SMTP_FROM || process.env.SMTP_USER;
   try {
     await t.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      from: remetente && !remetente.includes("<") ? `"SenaHub" <${remetente}>` : remetente,
       to: opts.to,
       subject: opts.subject,
       html: opts.html,
