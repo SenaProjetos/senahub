@@ -534,6 +534,70 @@ function Invoke-DeployAutomatico {
     }
 }
 
+function Invoke-IniciarTodos {
+    if (-not (Assert-Admin)) { return }
+    Write-Host ""
+    Write-Host "Iniciando servicos (Postgres -> SenaHub -> cloudflared)..." -ForegroundColor Cyan
+    try {
+        Start-Service -Name "postgresql-x64-17"
+        Start-Service -Name "SenaHub"
+        Start-Service -Name "cloudflared"
+        Write-Host "[OK] Servicos iniciados." -ForegroundColor Green
+        Write-Audit -AcaoNome "IniciarTodos" -Detalhe "OK"
+    } catch {
+        Write-Host "[ERRO] Falha ao iniciar servicos: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Audit -AcaoNome "IniciarTodos" -Detalhe "FALHOU: $($_.Exception.Message)"
+        throw
+    }
+}
+
+function Invoke-PararTodos {
+    if (-not (Assert-Admin)) { return }
+    Write-Host ""
+    Write-Host "Parando servicos (cloudflared -> SenaHub -> Postgres)..." -ForegroundColor Cyan
+    try {
+        Stop-Service -Name "cloudflared" -ErrorAction SilentlyContinue
+        Stop-Service -Name "SenaHub" -ErrorAction SilentlyContinue
+        Stop-Service -Name "postgresql-x64-17" -ErrorAction SilentlyContinue
+        Write-Host "[OK] Servicos parados." -ForegroundColor Green
+        Write-Audit -AcaoNome "PararTodos" -Detalhe "OK"
+    } catch {
+        Write-Host "[ERRO] Falha ao parar servicos: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Audit -AcaoNome "PararTodos" -Detalhe "FALHOU: $($_.Exception.Message)"
+        throw
+    }
+}
+
+function Invoke-ReiniciarApp {
+    if (-not (Assert-Admin)) { return }
+    Write-Host ""
+    Write-Host "Reiniciando SenaHub..." -ForegroundColor Cyan
+    try {
+        Restart-Service -Name "SenaHub" -Force
+        Write-Host "[OK] SenaHub reiniciado." -ForegroundColor Green
+        Write-Audit -AcaoNome "ReiniciarApp" -Detalhe "OK"
+    } catch {
+        Write-Host "[ERRO] Falha ao reiniciar SenaHub: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Audit -AcaoNome "ReiniciarApp" -Detalhe "FALHOU: $($_.Exception.Message)"
+        throw
+    }
+}
+
+function Invoke-ReiniciarTunel {
+    if (-not (Assert-Admin)) { return }
+    Write-Host ""
+    Write-Host "Reiniciando cloudflared..." -ForegroundColor Cyan
+    try {
+        Restart-Service -Name "cloudflared" -Force
+        Write-Host "[OK] Tunel reiniciado." -ForegroundColor Green
+        Write-Audit -AcaoNome "ReiniciarTunel" -Detalhe "OK"
+    } catch {
+        Write-Host "[ERRO] Falha ao reiniciar tunel: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Audit -AcaoNome "ReiniciarTunel" -Detalhe "FALHOU: $($_.Exception.Message)"
+        throw
+    }
+}
+
 function Invoke-Migrations {
     Push-Location $AppRoot
     try {
@@ -688,6 +752,10 @@ switch ($Acao) {
     "ProcessosPortas"    { Invoke-ProcessosPortas }
     "CorrigirNext"       { Invoke-CorrigirNext }
     "Reboot"             { Invoke-Reboot }
+    "IniciarTodos"       { Invoke-IniciarTodos }
+    "PararTodos"         { Invoke-PararTodos }
+    "ReiniciarApp"       { Invoke-ReiniciarApp }
+    "ReiniciarTunel"     { Invoke-ReiniciarTunel }
     default {
         Write-Host "Acao desconhecida: $Acao" -ForegroundColor Red
     }
