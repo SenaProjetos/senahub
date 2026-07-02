@@ -19,6 +19,3 @@ internal static class Program
         Application.Run(new TrayApplicationContext());
     }
 }
-
-// arquivo temporario - sera substituido pelo real na Task 10
-internal class TrayApplicationContext : ApplicationContext { }
