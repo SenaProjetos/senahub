@@ -400,6 +400,11 @@ function Invoke-DeployCompleto {
         Write-Host "---- Backup de seguranca antes da migration ----" -ForegroundColor Cyan
         $backupOk = Invoke-Backup
         if (-not $backupOk) {
+            if ($Confirmar) {
+                Write-Host "[ERRO] Backup falhou. Chamado com -Confirmar (GUI/automatizado) - abortando por seguranca, NAO prossegue com migration sem backup. O SenaHub continua PARADO." -ForegroundColor Red
+                Write-Audit -AcaoNome "DeployCompleto" -Detalhe "ABORTADO: backup falhou com -Confirmar"
+                return
+            }
             if (-not (Confirm-Typed -Palavra "CONTINUAR")) {
                 Write-Host "Cancelado pelo operador. O SenaHub continua PARADO - inicie com a opcao 4 quando quiser." -ForegroundColor Yellow
                 return
