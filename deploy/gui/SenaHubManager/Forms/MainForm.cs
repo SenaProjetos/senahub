@@ -7,6 +7,7 @@ public class MainForm : Form
     private readonly ServicoStatus _servicoStatus;
     private readonly ProcessoMonitor _processoMonitor;
     private readonly string _envPath;
+    private readonly string _logsDir;
 
     private readonly TabControl _tabs = new() { Dock = DockStyle.Fill };
     private readonly ListView _listaStatus = new() { View = View.Details, Dock = DockStyle.Fill, FullRowSelect = true };
@@ -14,12 +15,22 @@ public class MainForm : Form
     private readonly Button _botaoEncerrarProcesso = new() { Text = "Encerrar processo selecionado", Dock = DockStyle.Bottom, Height = 32 };
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 4000 };
 
+    private readonly ComboBox _seletorLog = new() { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly RichTextBox _textoLog = new() { Dock = DockStyle.Fill, ReadOnly = true, Font = new Font(FontFamily.GenericMonospace, 9) };
+    private readonly Dictionary<string, LogTailer> _tailers = new();
+
+    private readonly Label _labelGit = new() { Dock = DockStyle.Top, Height = 60, Font = new Font(FontFamily.GenericSansSerif, 10) };
+    private readonly ListView _listaHistoricoDeploy = new() { View = View.Details, Dock = DockStyle.Fill, FullRowSelect = true };
+    private readonly Button _botaoAtualizarAgora = new() { Text = "Atualizar agora (git pull + build + restart)", Dock = DockStyle.Bottom, Height = 36 };
+    private readonly RichTextBox _saidaDeploy = new() { Dock = DockStyle.Bottom, Height = 150, ReadOnly = true, Font = new Font(FontFamily.GenericMonospace, 9) };
+
     private static readonly string[] NomesProcessos = { "node", "cloudflared", "postgres" };
     private static readonly int[] Portas = { 3000, 5432 };
 
     public MainForm(string envPath)
     {
         _envPath = envPath;
+        _logsDir = Path.Combine(Path.GetDirectoryName(envPath)!, "logs");
         _servicoStatus = new ServicoStatus(envPath);
         _processoMonitor = new ProcessoMonitor();
 
@@ -31,6 +42,8 @@ public class MainForm : Form
         Controls.Add(_tabs);
         _tabs.TabPages.Add(CriarAbaStatus());
         _tabs.TabPages.Add(CriarAbaProcessos());
+        _tabs.TabPages.Add(CriarAbaLogs());
+        _tabs.TabPages.Add(CriarAbaGitDeploy());
 
         _timer.Tick += (_, _) => AtualizarTudo();
         _timer.Start();
@@ -79,10 +92,175 @@ public class MainForm : Form
         return aba;
     }
 
+    private static readonly (string Rotulo, string Arquivo)[] ArquivosDeLog =
+    {
+        ("SenaHub (saida)", "senahub.out.log"),
+        ("SenaHub (erro)", "senahub.err.log"),
+        ("Cloudflared (saida)", "cloudflared-nssm.out.log"),
+        ("Cloudflared (erro)", "cloudflared-nssm.err.log"),
+        ("Deploy automatico", "deploy-automatico.log"),
+        ("Auditoria do menu", "menu-audit.log"),
+    };
+
+    private TabPage CriarAbaLogs()
+    {
+        foreach (var (rotulo, _) in ArquivosDeLog) _seletorLog.Items.Add(rotulo);
+        _seletorLog.SelectedIndexChanged += (_, _) => TrocarArquivoDeLogSelecionado();
+
+        var painel = new Panel { Dock = DockStyle.Fill };
+        painel.Controls.Add(_textoLog);
+        painel.Controls.Add(_seletorLog);
+
+        var aba = new TabPage("Logs");
+        aba.Controls.Add(painel);
+
+        _seletorLog.SelectedIndex = 0;
+        return aba;
+    }
+
+    private void TrocarArquivoDeLogSelecionado()
+    {
+        var (_, arquivo) = ArquivosDeLog[_seletorLog.SelectedIndex];
+        var caminho = Path.Combine(_logsDir, arquivo);
+
+        _textoLog.Clear();
+        if (File.Exists(caminho))
+        {
+            var linhas = File.ReadAllLines(caminho, System.Text.Encoding.UTF8);
+            _textoLog.Text = string.Join(Environment.NewLine, linhas.TakeLast(200));
+        }
+        else
+        {
+            _textoLog.Text = "(arquivo ainda nao existe)";
+        }
+
+        if (!_tailers.ContainsKey(arquivo))
+        {
+            var tailer = new LogTailer(caminho);
+            tailer.NovaLinha += texto => AnexarTextoDeLog(arquivo, texto);
+            _tailers[arquivo] = tailer;
+        }
+    }
+
+    private void AnexarTextoDeLog(string arquivo, string texto)
+    {
+        var (_, arquivoSelecionado) = ArquivosDeLog[_seletorLog.SelectedIndex];
+        if (arquivo != arquivoSelecionado) return; // so atualiza a tela se for o log que esta sendo exibido agora
+
+        if (InvokeRequired)
+        {
+            BeginInvoke(() => AnexarTextoNaTela(texto));
+        }
+        else
+        {
+            AnexarTextoNaTela(texto);
+        }
+    }
+
+    private void AnexarTextoNaTela(string texto)
+    {
+        _textoLog.AppendText(texto);
+        _textoLog.SelectionStart = _textoLog.TextLength;
+        _textoLog.ScrollToCaret();
+    }
+
+    private TabPage CriarAbaGitDeploy()
+    {
+        _listaHistoricoDeploy.Columns.Add("Data/hora", 150);
+        _listaHistoricoDeploy.Columns.Add("Mensagem", 500);
+
+        _botaoAtualizarAgora.Click += async (_, _) => await AtualizarAgoraAsync();
+
+        var painel = new Panel { Dock = DockStyle.Fill };
+        painel.Controls.Add(_listaHistoricoDeploy);
+        painel.Controls.Add(_saidaDeploy);
+        painel.Controls.Add(_botaoAtualizarAgora);
+        painel.Controls.Add(_labelGit);
+
+        var aba = new TabPage("Git / Deploy");
+        aba.Controls.Add(painel);
+        return aba;
+    }
+
+    private static readonly string[] AcoesDeDeploy = { "DeployAutomatico", "DeployCompleto" };
+
+    private void AtualizarAbaGitDeploy()
+    {
+        var git = new GitInfo(Path.GetDirectoryName(_envPath)!).Obter();
+        var proximaExecucao = ObterProximaExecucaoAgendada();
+
+        _labelGit.Text =
+            $"Branch: {git.Branch}    Commit: {git.CommitHash} - {git.CommitMessage}\n" +
+            $"Ahead: {git.Ahead}    Behind: {git.Behind}    {(git.Sujo ? "Ha mudancas locais nao commitadas" : "Sem mudancas locais")}\n" +
+            $"Proxima execucao agendada: {(proximaExecucao is null ? "tarefa nao instalada (rode deploy\\instalar-tarefa-atualizacao.ps1)" : proximaExecucao.Value.ToString("dd/MM/yyyy HH:mm:ss"))}";
+
+        // Historico: uma linha-resumo por execucao (Write-Audit grava exatamente isso), filtrado
+        // as acoes de deploy - deploy-automatico.log (saida bruta e verbosa) fica so na aba Logs.
+        var caminhoAuditoria = Path.Combine(_logsDir, "menu-audit.log");
+        _listaHistoricoDeploy.Items.Clear();
+        if (File.Exists(caminhoAuditoria))
+        {
+            var entradas = File.ReadAllLines(caminhoAuditoria, System.Text.Encoding.UTF8)
+                .Select(AuditLogParser.ParseLinha)
+                .Where(e => e is not null && AcoesDeDeploy.Contains(e.Acao))
+                .Select(e => e!)
+                .TakeLast(50)
+                .Reverse();
+            foreach (var entrada in entradas)
+            {
+                _listaHistoricoDeploy.Items.Add(new ListViewItem(new[] { entrada.Timestamp.ToString("dd/MM HH:mm:ss"), entrada.Detalhe }));
+            }
+        }
+    }
+
+    private static DateTime? ObterProximaExecucaoAgendada()
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe",
+            "-NoProfile -Command \"(Get-ScheduledTaskInfo -TaskName 'SenaHub - Deploy Automatico' -ErrorAction SilentlyContinue).NextRunTime.ToString('o')\"")
+        {
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        using var processo = System.Diagnostics.Process.Start(psi)!;
+        var saida = processo.StandardOutput.ReadToEnd();
+        processo.WaitForExit();
+        return ScheduledTaskInfoParser.ParseProximaExecucao(saida);
+    }
+
+    private async Task AtualizarAgoraAsync()
+    {
+        _botaoAtualizarAgora.Enabled = false;
+        _saidaDeploy.Clear();
+
+        var runner = new PowerShellActionRunner(PowerShellActionRunner.ResolverCaminhoScript());
+        runner.LinhaRecebida += linha =>
+        {
+            if (InvokeRequired) BeginInvoke(() => { _saidaDeploy.AppendText(linha + Environment.NewLine); });
+            else _saidaDeploy.AppendText(linha + Environment.NewLine);
+        };
+
+        await runner.ExecutarAsync("DeployCompleto");
+
+        _botaoAtualizarAgora.Enabled = true;
+        AtualizarAbaGitDeploy();
+    }
+
     private void AtualizarTudo()
     {
-        AtualizarAbaStatus();
-        AtualizarAbaProcessos();
+        try
+        {
+            AtualizarAbaStatus();
+            AtualizarAbaProcessos();
+            AtualizarAbaGitDeploy();
+        }
+        catch
+        {
+            // Falha ao atualizar uma aba nao deve derrubar o app inteiro - a bandeja
+            // (TrayIconManager) ja tem seu proprio try/catch e mostra icone cinza/vermelho
+            // em caso de falha, entao o usuario ainda tem visibilidade de saude mesmo se
+            // este tick da janela principal falhar silenciosamente.
+        }
     }
 
     private void AtualizarAbaStatus()
