@@ -9,6 +9,16 @@ public class TrayApplicationContext : ApplicationContext
     private readonly ServicoStatus _servicoStatus;
     private Form? _mainForm;
 
+    // Icones sao criados uma unica vez e reaproveitados a cada tick do timer (Task 10):
+    // CriarIcone() usa Bitmap.GetHicon(), que aloca um handle GDI nativo que Icon.FromHandle
+    // NAO assume a posse. Recriar o icone a cada 5s sem destruir o handle antigo esgota a
+    // quota de handles GDI do processo (10.000 por padrao no Windows) em poucas semanas de
+    // uptime continuo, ja que este app roda 24/7 na bandeja.
+    private readonly Icon _iconeVerde = CriarIcone(Color.Green);
+    private readonly Icon _iconeAmarelo = CriarIcone(Color.Gold);
+    private readonly Icon _iconeVermelho = CriarIcone(Color.Red);
+    private readonly Icon _iconeCinza = CriarIcone(Color.Gray);
+
     private static readonly string EnvPath = Path.Combine(ResolverRaizProjeto(), ".env");
 
     public TrayApplicationContext()
@@ -23,7 +33,7 @@ public class TrayApplicationContext : ApplicationContext
 
         _trayIcon = new NotifyIcon
         {
-            Icon = CriarIcone(Color.Gray),
+            Icon = _iconeCinza,
             Text = "SenaHub Manager - verificando...",
             ContextMenuStrip = menu,
             Visible = true,
@@ -57,25 +67,25 @@ public class TrayApplicationContext : ApplicationContext
 
             if (snapshot.TudoOk)
             {
-                _trayIcon.Icon = CriarIcone(Color.Green);
+                _trayIcon.Icon = _iconeVerde;
                 _trayIcon.Text = "SenaHub Manager - tudo OK";
             }
             else if (falhaCritica)
             {
-                _trayIcon.Icon = CriarIcone(Color.Red);
+                _trayIcon.Icon = _iconeVermelho;
                 var problema = snapshot.Itens.First(i => !i.Ok && criticos.Contains(i.Nome));
                 _trayIcon.Text = $"SenaHub Manager - CRITICO: {problema.Nome}";
             }
             else
             {
-                _trayIcon.Icon = CriarIcone(Color.Gold);
+                _trayIcon.Icon = _iconeAmarelo;
                 var problema = snapshot.Itens.First(i => !i.Ok);
                 _trayIcon.Text = $"SenaHub Manager - atencao: {problema.Nome}";
             }
         }
         catch (Exception ex)
         {
-            _trayIcon.Icon = CriarIcone(Color.Gray);
+            _trayIcon.Icon = _iconeCinza;
             _trayIcon.Text = $"SenaHub Manager - erro ao verificar: {ex.Message}";
         }
     }
@@ -112,6 +122,10 @@ public class TrayApplicationContext : ApplicationContext
     {
         _timer.Stop();
         _trayIcon.Visible = false;
+        _iconeVerde.Dispose();
+        _iconeAmarelo.Dispose();
+        _iconeVermelho.Dispose();
+        _iconeCinza.Dispose();
         Application.Exit();
     }
 }
