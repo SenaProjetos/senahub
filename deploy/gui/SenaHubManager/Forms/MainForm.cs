@@ -202,9 +202,9 @@ public class MainForm : Form
         painel.Controls.Add(CriarBotaoAcao("Corrigir build corrompido (.next)", "CorrigirNext", precisaConfirmar: true,
             mensagemConfirmacao: "Isso para o SenaHub, apaga a pasta .next e reconstroi o build. O site fica fora do ar durante o processo.", palavraConfirmacao: "CONFIRMAR"));
         painel.Controls.Add(CriarBotaoAcao("Forcar encerramento - SenaHub travado", "ForcarEncerramento", precisaConfirmar: true,
-            mensagemConfirmacao: "Isso mata a força o processo do servico SenaHub (uso quando ele trava em STOP_PENDING).", palavraConfirmacao: "CONFIRMAR", sub: "SenaHub"));
+            mensagemConfirmacao: "Isso forca o encerramento do processo do servico SenaHub (uso quando ele trava em STOP_PENDING).", palavraConfirmacao: "CONFIRMAR", sub: "SenaHub"));
         painel.Controls.Add(CriarBotaoAcao("Forcar encerramento - cloudflared travado", "ForcarEncerramento", precisaConfirmar: true,
-            mensagemConfirmacao: "Isso mata a força o processo do servico cloudflared (uso quando ele trava em STOP_PENDING).", palavraConfirmacao: "CONFIRMAR", sub: "cloudflared"));
+            mensagemConfirmacao: "Isso forca o encerramento do processo do servico cloudflared (uso quando ele trava em STOP_PENDING).", palavraConfirmacao: "CONFIRMAR", sub: "cloudflared"));
         painel.Controls.Add(CriarBotaoAcao("Reiniciar o servidor Windows (reboot)", "Reboot", precisaConfirmar: true,
             mensagemConfirmacao: "Isso vai REINICIAR O WINDOWS deste servidor em 60 segundos.", palavraConfirmacao: "REINICIAR"));
 

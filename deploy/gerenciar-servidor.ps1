@@ -554,6 +554,12 @@ function Invoke-IniciarTodos {
 function Invoke-PararTodos {
     if (-not (Assert-Admin)) { return }
     Write-Host ""
+    Write-Host "Isso vai TIRAR O SITE DO AR." -ForegroundColor Yellow
+    if (-not (Confirm-Typed -Palavra "PARAR")) {
+        Write-Host "Cancelado." -ForegroundColor Yellow
+        return
+    }
+    Write-Host ""
     Write-Host "Parando servicos (cloudflared -> SenaHub -> Postgres)..." -ForegroundColor Cyan
     try {
         Stop-Service -Name "cloudflared" -ErrorAction SilentlyContinue
@@ -570,6 +576,12 @@ function Invoke-PararTodos {
 
 function Invoke-ReiniciarApp {
     if (-not (Assert-Admin)) { return }
+    Write-Host ""
+    Write-Host "Isso vai desconectar os usuarios conectados por alguns segundos." -ForegroundColor Yellow
+    if (-not (Confirm-Typed -Palavra "REINICIAR")) {
+        Write-Host "Cancelado." -ForegroundColor Yellow
+        return
+    }
     Write-Host ""
     Write-Host "Reiniciando SenaHub..." -ForegroundColor Cyan
     try {
