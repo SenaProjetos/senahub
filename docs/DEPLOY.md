@@ -19,6 +19,7 @@ Já instalado: **Google Chrome**. Falta instalar:
 | **PostgreSQL 17** | instalador do postgresql.org. Anote a senha do `postgres` e a porta (**5432**). |
 | **NSSM** | https://nssm.cc → coloque `nssm.exe` no PATH (ou passe `-NssmPath` no script) |
 | **cloudflared** | `winget install --id Cloudflare.cloudflared` (ou download da Cloudflare) |
+| **.NET 8 SDK** | `winget install Microsoft.DotNet.SDK.8` (necessario pra compilar o SenaHub Manager, seção 11) |
 
 Conta Cloudflare com o domínio (`seudominio.com.br`) já adicionado como zona.
 
@@ -151,7 +152,7 @@ Start-Service SenaHub
 ```
 Nunca `migrate dev`/`seed:demo` em produção. `migrate deploy` só aplica o que já foi commitado.
 
-> No dia a dia, prefira o menu de gerenciamento (seção 12) — a opção 10 faz exatamente esse
+> No dia a dia, prefira o menu de gerenciamento (seção 13) — a opção 10 faz exatamente esse
 > fluxo (com backup automático antes da migration), ou automatize com a seção 10.
 
 ---
@@ -198,7 +199,33 @@ Configuração (direto no GitHub, manual — não automatizável daqui):
 
 ---
 
-## 11. Troubleshooting
+## 11. SenaHub Manager (GUI de gerenciamento)
+
+Alternativa em janela/bandeja ao `gerenciar-servidor.bat` — mesmas ações (status, logs,
+processos, git/deploy, iniciar/parar/reiniciar, backup, reset de senha, reboot), com
+indicador de saúde ao vivo na bandeja do Windows. Não substitui `gerenciar-servidor.ps1`:
+toda ação que muda estado continua chamando esse script — o app é só a interface.
+
+**Compilar (uma vez, ou sempre que o código do SenaHub Manager mudar):**
+```powershell
+cd F:\SenaHub\app\deploy\gui\SenaHubManager
+dotnet publish -c Release -r win-x64 --self-contained false -o publish
+```
+
+**Instalar o início automático (uma vez, como Administrador):**
+```powershell
+cd F:\SenaHub\app
+.\deploy\instalar-monitor-bandeja.ps1
+```
+
+Depois disso, o SenaHub Manager sobe sozinho (elevado, sem UAC) toda vez que o
+administrador fizer logon no servidor. Ícone verde = tudo OK; amarelo = atenção;
+vermelho = SenaHub ou banco fora do ar. O `.bat` continua funcionando como alternativa
+(ex.: problema de sessão gráfica via RDP).
+
+---
+
+## 12. Troubleshooting
 
 | Sintoma | Causa provável |
 |---|---|
@@ -208,14 +235,14 @@ Configuração (direto no GitHub, manual — não automatizável daqui):
 | PDF não gera | `CHROME_PATH` errado/ausente. |
 | Upload falha | `STORAGE_BASE_PATH` não existe ou sem permissão de escrita. |
 | `.next` corrompido | Nunca rode `npm run dev` no servidor de produção; se ocorrer, apague `.next` e refaça `npm run build`. |
-| Serviço preso em `STOP_PENDING` | `Get-CimInstance Win32_Service -Filter "Name='SenaHub'"` para achar o PID, depois `Stop-Process -Id <pid> -Force`. O menu (seção 12, Ferramentas avançadas) automatiza isso. |
+| Serviço preso em `STOP_PENDING` | `Get-CimInstance Win32_Service -Filter "Name='SenaHub'"` para achar o PID, depois `Stop-Process -Id <pid> -Force`. O menu (seção 13, Ferramentas avançadas) automatiza isso. |
 | Túnel cloudflared sobe mas o site retorna erro Cloudflare 1033/530 | DNS do hostname aponta para outro tunnel. Confira com `cloudflared tunnel list` (conexões ativas) e reaponte com `cloudflared tunnel route dns --overwrite-dns <tunnel> <hostname>`. |
 | `cloudflared service install` nativo crasha silenciosamente (exit 1067, log vazio) | Reinstale o serviço via NSSM chamando `cloudflared.exe tunnel --config <config.yml> run` explicitamente (veja `deploy/gerenciar-servidor.ps1` como referência) em vez do modo nativo sem argumentos. |
 | Esqueceu a senha do `postgres` (superusuário) | Procedimento manual de "quebrar o vidro": editar `pg_hba.conf` (trocar `scram-sha-256` para `trust` nas linhas `local`/`host ... 127.0.0.1`/`host ... ::1`), reiniciar o serviço `postgresql-x64-17`, resetar a senha via `ALTER USER`, reverter o `pg_hba.conf` e reiniciar de novo. **Não automatize isso** — desliga a autenticação por senha do cluster inteiro enquanto ativo. |
 
 ---
 
-## 12. Menu de gerenciamento do dia a dia
+## 13. Menu de gerenciamento do dia a dia
 
 Para operar o servidor no dia a dia (ligar/desligar/reiniciar, ver status, ver logs, diagnosticar
 problemas comuns, backup manual, atualizar/deploy, testes de fumaça, recuperação de serviço
