@@ -58,3 +58,8 @@ next-env.d.ts
 # amostras de importação (dados reais — não commitar)
 /docs/samples/
 .superpowers/
+
+# .NET (deploy/gui/SenaHubManager — gerenciador com GUI)
+deploy/gui/**/bin/
+deploy/gui/**/obj/
+deploy/gui/**/*.csproj.user
