@@ -10,7 +10,8 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$Acao,
-    [string]$Sub = ""
+    [string]$Sub = "",
+    [switch]$Confirmar
 )
 
 $ErrorActionPreference = "Stop"
@@ -57,6 +58,7 @@ function Write-Audit {
 
 function Confirm-Typed {
     param([string]$Palavra = "CONFIRMAR")
+    if ($Confirmar) { return $true }
     Write-Host ""
     Write-Host "Digite '$Palavra' para confirmar (qualquer outra coisa cancela):" -ForegroundColor Yellow
     $resp = Read-Host ">"
