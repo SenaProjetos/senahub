@@ -7,7 +7,7 @@ public class TrayApplicationContext : ApplicationContext
     private readonly NotifyIcon _trayIcon;
     private readonly System.Windows.Forms.Timer _timer;
     private readonly ServicoStatus _servicoStatus;
-    private Form? _mainForm;
+    private Forms.MainForm? _mainForm;
 
     // Icones sao criados uma unica vez e reaproveitados a cada tick do timer (Task 10):
     // CriarIcone() usa Bitmap.GetHicon(), que aloca um handle GDI nativo que Icon.FromHandle
@@ -47,15 +47,19 @@ public class TrayApplicationContext : ApplicationContext
         AtualizarStatus();
     }
 
-    public event Action? AbrirSolicitado;
-
-    private void AbrirJanelaPrincipal() => AbrirSolicitado?.Invoke();
-
-    /// <summary>Permite que quem criou a janela principal (Task 13) a registre aqui, pra reaproveitar
-    /// a mesma instancia em vez de abrir varias ao clicar repetidamente na bandeja.</summary>
-    public void RegistrarJanelaPrincipal(Form form) => _mainForm = form;
-
     public Form? JanelaPrincipal => _mainForm;
+
+    private void AbrirJanelaPrincipal()
+    {
+        if (_mainForm is null || _mainForm.IsDisposed)
+        {
+            _mainForm = new Forms.MainForm(EnvPath);
+        }
+
+        if (!_mainForm.Visible) _mainForm.Show();
+        _mainForm.WindowState = FormWindowState.Normal;
+        _mainForm.Activate();
+    }
 
     private void AtualizarStatus()
     {
