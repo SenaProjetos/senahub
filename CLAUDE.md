@@ -90,15 +90,15 @@ async (input, ctx) => { /* ... */ },
 
 **Component naming convention:** `*-view.tsx` = full page component (owns filters/title/actions), `*-dialog.tsx` = modal form, `*-form.tsx` = reusable form, `*-button.tsx` = contextual action button. `components/ui/` has all shadcn primitives; don't re-add anything already there (confirm-dialog, empty-state, sortable-head, status-badge, etc.).
 
-**Modules (27 total):** agenda, auditoria, auth, busca, chat, clientes, comercial, dashboard, documentos, ferramentas, financeiro, inputs, juridico, legal, licitacoes, notificacoes, permissoes, planejamento, ponto, portal, projetos, qualidade, rh, suporte, tarefas, uploads, usuarios. The `portal` module is the read-only external client view scoped to `User.clienteId`; `inputs` handles public client intake forms (token-gated). `legal` (Termos de Uso, see below) is where the real work lives; `juridico` is a thin placeholder (`actions.ts` only) — don't confuse them.
+**Modules (28 total):** agenda, auditoria, auth, busca, chat, clientes, comercial, dashboard, documentos, ferramentas, financeiro, inputs, juridico, legal, licitacoes, notificacoes, patrimonio, permissoes, planejamento, ponto, portal, projetos, qualidade, rh, suporte, tarefas, uploads, usuarios. The `portal` module is the read-only external client view scoped to `User.clienteId`; `inputs` handles public client intake forms (token-gated). `patrimonio` covers both Patrimônio (assets, `/patrimonio`) and the TI submodule (machines, `/patrimonio/ti`, gated `patrimonio:ti`). `legal` (Termos de Uso, see below) is a separate concern from `juridico` — don't confuse them. Note: the `juridico` *module folder* is `actions.ts`-only, but the `/juridico` **route is a full feature** (DocumentoJuridico + versões/aceites, Certidao, ModeloContrato) whose reads live inline in `page.tsx` + `components/juridico/`, not in a `modules/juridico/queries.ts`.
 
 **List views:** Use `parseListParams(searchParams)` (`lib/list-params.ts`) to get `{page, skip, take, sort, dir, q}` ready for Prisma `skip/take/orderBy`. On the client, `useSetParams` updates URL search params and automatically resets `page` when any other filter changes.
 
 **Auth & access control:**
 - `better-auth` for sessions. `middleware.ts` does an *optimistic cookie check* only; real enforcement is in
   Server Components / actions via `requireUser` / `requireRole` / `requirePermission` (`lib/session.ts`).
-- 8 roles (`admin, supervisor, administrativo, clt, estagiario, projetista_pj, freelancer, cliente`).
-  `admin` bypasses all permission checks. Fine-grained matrix is data (`Permissao` table), cached per-role
+- 9 roles (`admin, supervisor, administrativo, clt, estagiario, projetista_pj, freelancer, cliente, ti`).
+  `ti` is the IT role gated to `patrimonio:ti` (machines). `admin` bypasses all permission checks. Fine-grained matrix is data (`Permissao` table), cached per-role
   in an LRU for 10 min — call `invalidatePermissions(role)` after editing permissions. Catalog seed in
   `lib/permissions-catalog.ts`.
 - Data scope: global roles (`admin`, `supervisor`) see everything; others are filtered (e.g. `escopoProjeto`

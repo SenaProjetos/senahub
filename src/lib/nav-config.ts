@@ -24,6 +24,7 @@ import {
   Activity,
   Package,
   HardDrive,
+  BookOpen,
   type LucideIcon,
 } from "lucide-react";
 import type { Role } from "@/lib/roles";
@@ -104,6 +105,8 @@ export const NAV_GROUPS: NavGroup[] = [
         roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj"],
         mobile: true,
       },
+      // Ajuda/Manual — sem `roles`: visível a todos os perfis (inclusive cliente).
+      { title: "Ajuda", href: "/ajuda", icon: BookOpen, mobile: true },
     ],
   },
   {
