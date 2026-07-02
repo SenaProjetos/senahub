@@ -31,6 +31,9 @@ describe("formatarData", () => {
     expect(formatarData(undefined)).toBe("");
     expect(formatarData("x</")).toBe("");
   });
+  it("não perde um dia com Date em meia-noite UTC (retorno de campo @db.Date do Prisma)", () => {
+    expect(formatarData(new Date(Date.UTC(2026, 6, 9)))).toBe("09/07/2026");
+  });
 });
 
 describe("formatarDataHora", () => {
