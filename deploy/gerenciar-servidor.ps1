@@ -426,6 +426,112 @@ function Invoke-DeployCompleto {
     }
 }
 
+function Write-DeployLog {
+    param([string]$Linha)
+    $logPath = Join-Path $LogsDir "deploy-automatico.log"
+    $linhaComData = "{0} | {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Linha
+    Add-Content -Path $logPath -Value $linhaComData -Encoding UTF8
+}
+
+function Invoke-Notificacao {
+    param([string]$Status, [string]$Detalhe)
+    $logPath = Join-Path $LogsDir "deploy-automatico.log"
+    try {
+        & npx tsx --tsconfig tsconfig.server.json scripts/notificar-deploy.ts --status $Status --detalhe $Detalhe *>> $logPath
+    } catch {
+        Write-DeployLog "[aviso] falha ao notificar por e-mail (nao bloqueia o resultado do deploy): $($_.Exception.Message)"
+    }
+}
+
+function Invoke-DeployAutomatico {
+    # Variante NAO INTERATIVA de Invoke-DeployCompleto, para rodar via Windows Task
+    # Scheduler (sem ninguem para responder Confirm-Typed). Roda todo santo dia, mas
+    # so para/rebuilda/reinicia o servico se houver commit novo em origin/master - nas
+    # noites sem mudanca, sai cedo sem downtime nenhum.
+    Push-Location $AppRoot
+    $inicio = Get-Date
+    $logPath = Join-Path $LogsDir "deploy-automatico.log"
+    try {
+        Write-DeployLog "===== INICIO deploy automatico ====="
+
+        $commitAntes = (git rev-parse HEAD).Trim()
+
+        $statusGit = git status --porcelain
+        if ($statusGit) {
+            Write-DeployLog "ABORTADO: ha mudancas locais nao commitadas."
+            Invoke-Notificacao -Status "falhou" -Detalhe "Mudancas locais nao commitadas impediram o deploy automatico. Servico NAO foi tocado."
+            Write-Audit -AcaoNome "DeployAutomatico" -Detalhe "ABORTADO: git status sujo"
+            return
+        }
+
+        git pull *>> $logPath
+        if ($LASTEXITCODE -ne 0) {
+            Write-DeployLog "ABORTADO: git pull falhou."
+            Invoke-Notificacao -Status "falhou" -Detalhe "git pull falhou. Servico NAO foi tocado."
+            Write-Audit -AcaoNome "DeployAutomatico" -Detalhe "FALHOU: git pull"
+            return
+        }
+
+        $commitDepois = (git rev-parse HEAD).Trim()
+        if ($commitAntes -eq $commitDepois) {
+            Write-DeployLog "Nada a fazer: nenhum commit novo (HEAD=$commitDepois)."
+            Write-Audit -AcaoNome "DeployAutomatico" -Detalhe "SEM MUDANCAS ($commitDepois)"
+            return
+        }
+
+        Write-DeployLog "Commits novos detectados: $commitAntes -> $commitDepois. Parando SenaHub..."
+        Stop-Service -Name "SenaHub" -Force
+        Start-Sleep -Seconds 2
+
+        npm ci *>> $logPath
+        if ($LASTEXITCODE -ne 0) {
+            Write-DeployLog "FALHOU: npm ci. Servico continua PARADO."
+            Invoke-Notificacao -Status "falhou" -Detalhe "npm ci falhou no commit $commitDepois. Site FORA DO AR ate correcao manual (menu opcao 4 ou 12)."
+            Write-Audit -AcaoNome "DeployAutomatico" -Detalhe "FALHOU: npm ci ($commitDepois)"
+            return
+        }
+
+        npm run build *>> $logPath
+        if ($LASTEXITCODE -ne 0) {
+            Write-DeployLog "FALHOU: npm run build. Servico continua PARADO."
+            Invoke-Notificacao -Status "falhou" -Detalhe "Build falhou no commit $commitDepois. Site FORA DO AR ate correcao manual (veja 'Corrigir build corrompido' na opcao 12)."
+            Write-Audit -AcaoNome "DeployAutomatico" -Detalhe "FALHOU: build ($commitDepois)"
+            return
+        }
+
+        $backupOk = Invoke-Backup
+        if (-not $backupOk) {
+            Write-DeployLog "FALHOU: backup pre-migration. Abortado por seguranca. Servico continua PARADO."
+            Invoke-Notificacao -Status "falhou" -Detalhe "Backup pre-migration falhou no commit $commitDepois. Deploy abortado por seguranca - servico PARADO."
+            Write-Audit -AcaoNome "DeployAutomatico" -Detalhe "FALHOU: backup ($commitDepois)"
+            return
+        }
+
+        npx prisma migrate deploy *>> $logPath
+        if ($LASTEXITCODE -ne 0) {
+            Write-DeployLog "FALHOU: migration. Servico continua PARADO."
+            Invoke-Notificacao -Status "falhou" -Detalhe "Migration falhou no commit $commitDepois. Avalie restaurar o backup. Servico PARADO - URGENTE."
+            Write-Audit -AcaoNome "DeployAutomatico" -Detalhe "FALHOU: migration ($commitDepois)"
+            return
+        }
+
+        Start-Service -Name "SenaHub"
+        Start-Sleep -Seconds 8
+        Invoke-Status *>> $logPath
+
+        $duracaoMin = [math]::Round(((Get-Date) - $inicio).TotalMinutes, 1)
+        Write-DeployLog "OK: deploy automatico concluido ($commitAntes -> $commitDepois, $duracaoMin min)."
+        Invoke-Notificacao -Status "ok" -Detalhe "Deploy automatico concluido: $commitAntes -> $commitDepois ($duracaoMin min)."
+        Write-Audit -AcaoNome "DeployAutomatico" -Detalhe "OK ($commitDepois, $duracaoMin min)"
+    } catch {
+        Write-DeployLog "ERRO NAO TRATADO: $($_.Exception.Message)"
+        Invoke-Notificacao -Status "falhou" -Detalhe "Erro inesperado no deploy automatico: $($_.Exception.Message)"
+        Write-Audit -AcaoNome "DeployAutomatico" -Detalhe "ERRO NAO TRATADO"
+    } finally {
+        Pop-Location
+    }
+}
+
 function Invoke-Migrations {
     Push-Location $AppRoot
     try {
@@ -570,6 +676,7 @@ switch ($Acao) {
     "Backup"             { Invoke-Backup | Out-Null }
     "ListarBackups"      { Invoke-ListarBackups }
     "DeployCompleto"     { Invoke-DeployCompleto }
+    "DeployAutomatico"   { Invoke-DeployAutomatico }
     "SmokeTests"         { Invoke-SmokeTests }
     "Migrations"         { Invoke-Migrations }
     "ReaplicarSeed"      { Invoke-ReaplicarSeed }

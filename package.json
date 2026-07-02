@@ -14,6 +14,7 @@
     "db:seed": "tsx --tsconfig tsconfig.server.json prisma/seed.ts",
     "seed:demo": "tsx --tsconfig tsconfig.server.json scripts/seed-demo.ts",
     "admin:reset-senha": "tsx --tsconfig tsconfig.server.json scripts/reset-admin-senha.ts",
+    "notificar-deploy": "tsx --tsconfig tsconfig.server.json scripts/notificar-deploy.ts",
     "smoke:onda1": "tsx --tsconfig tsconfig.server.json scripts/smoke-onda1.ts",
     "smoke:onda2": "tsx --tsconfig tsconfig.server.json scripts/smoke-onda2.ts",
     "smoke:onda3efg": "tsx --tsconfig tsconfig.server.json scripts/smoke-onda3efg.ts",
