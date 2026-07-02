@@ -250,9 +250,10 @@ exit /b
 
 :acao_deploy
 echo(
-echo Isso vai: baixar codigo novo, instalar dependencias, rebuildar, fazer
-echo backup, aplicar migrations e reiniciar o SenaHub. Pode demorar alguns
-echo minutos. Precisa estar sem alteracoes locais pendentes no git.
+echo Isso vai: parar o SenaHub, baixar codigo novo, instalar dependencias,
+echo rebuildar, fazer backup, aplicar migrations e iniciar de novo. O SITE FICA
+echo FORA DO AR durante todo o processo (nao so no restart final) - pode demorar
+echo alguns minutos. Precisa estar sem alteracoes locais pendentes no git.
 echo(
 set /p confirma="Continuar? (S/N): "
 if /i not "%confirma%"=="S" (

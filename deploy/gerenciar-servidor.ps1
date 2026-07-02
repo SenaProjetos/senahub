@@ -370,15 +370,27 @@ function Invoke-DeployCompleto {
         if ($LASTEXITCODE -ne 0) { Write-Host "[ERRO] git pull falhou." -ForegroundColor Red; return }
 
         Write-Host ""
+        Write-Host "---- Parando SenaHub ----" -ForegroundColor Cyan
+        Write-Host "No Windows, node_modules/.next ficam travados (arquivos em uso) enquanto" -ForegroundColor Yellow
+        Write-Host "o servico esta rodando - por isso ele para aqui, antes de mexer no codigo." -ForegroundColor Yellow
+        Stop-Service -Name "SenaHub" -Force
+        Start-Sleep -Seconds 2
+
+        Write-Host ""
         Write-Host "---- npm ci ----" -ForegroundColor Cyan
         npm ci
-        if ($LASTEXITCODE -ne 0) { Write-Host "[ERRO] npm ci falhou." -ForegroundColor Red; return }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[ERRO] npm ci falhou. O SenaHub continua PARADO (site fora do ar)." -ForegroundColor Red
+            Write-Host "Corrija o erro acima e rode esta opcao de novo, ou use a opcao 4 para so reiniciar com o que ja esta no disco." -ForegroundColor Yellow
+            return
+        }
 
         Write-Host ""
         Write-Host "---- npm run build ----" -ForegroundColor Cyan
         npm run build
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "[ERRO] Build falhou. Servico NAO foi reiniciado (versao anterior continua no ar)." -ForegroundColor Red
+            Write-Host "[ERRO] Build falhou. O SenaHub continua PARADO (site fora do ar)." -ForegroundColor Red
+            Write-Host "Corrija o erro acima; se o build ficou corrompido, use a opcao 12 -> 'Corrigir build corrompido'." -ForegroundColor Yellow
             return
         }
 
@@ -387,7 +399,7 @@ function Invoke-DeployCompleto {
         $backupOk = Invoke-Backup
         if (-not $backupOk) {
             if (-not (Confirm-Typed -Palavra "CONTINUAR")) {
-                Write-Host "Cancelado pelo operador." -ForegroundColor Yellow
+                Write-Host "Cancelado pelo operador. O SenaHub continua PARADO - inicie com a opcao 4 quando quiser." -ForegroundColor Yellow
                 return
             }
         }
@@ -396,13 +408,13 @@ function Invoke-DeployCompleto {
         Write-Host "---- prisma migrate deploy ----" -ForegroundColor Cyan
         npx prisma migrate deploy
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "[ERRO] Migration falhou. Avalie restaurar o backup se necessario." -ForegroundColor Red
+            Write-Host "[ERRO] Migration falhou. O SenaHub continua PARADO. Avalie restaurar o backup se necessario." -ForegroundColor Red
             return
         }
 
         Write-Host ""
-        Write-Host "---- Reiniciando servico SenaHub ----" -ForegroundColor Cyan
-        Restart-Service -Name "SenaHub" -Force
+        Write-Host "---- Iniciando servico SenaHub ----" -ForegroundColor Cyan
+        Start-Service -Name "SenaHub"
         Start-Sleep -Seconds 8
 
         Write-Host ""
