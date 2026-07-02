@@ -44,6 +44,7 @@ public class MainForm : Form
         _tabs.TabPages.Add(CriarAbaProcessos());
         _tabs.TabPages.Add(CriarAbaLogs());
         _tabs.TabPages.Add(CriarAbaGitDeploy());
+        _tabs.TabPages.Add(CriarAbaAcoes());
 
         _timer.Tick += (_, _) => AtualizarTudo();
         _timer.Start();
@@ -180,6 +181,56 @@ public class MainForm : Form
         var aba = new TabPage("Git / Deploy");
         aba.Controls.Add(painel);
         return aba;
+    }
+
+    private TabPage CriarAbaAcoes()
+    {
+        var painel = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
+
+        painel.Controls.Add(CriarBotaoAcao("Iniciar todos os servicos", "IniciarTodos", precisaConfirmar: false));
+        painel.Controls.Add(CriarBotaoAcao("Parar todos os servicos", "PararTodos", precisaConfirmar: true,
+            mensagemConfirmacao: "Isso vai TIRAR O SITE DO AR.", palavraConfirmacao: "PARAR"));
+        painel.Controls.Add(CriarBotaoAcao("Reiniciar SenaHub (aplicacao)", "ReiniciarApp", precisaConfirmar: true,
+            mensagemConfirmacao: "Isso vai desconectar os usuarios conectados por alguns segundos.", palavraConfirmacao: "REINICIAR"));
+        painel.Controls.Add(CriarBotaoAcao("Reiniciar tunel Cloudflare", "ReiniciarTunel", precisaConfirmar: false));
+        painel.Controls.Add(CriarBotaoAcao("Backup manual do banco agora", "Backup", precisaConfirmar: false));
+        painel.Controls.Add(CriarBotaoAcao("Rodar testes de fumaca", "SmokeTests", precisaConfirmar: true,
+            mensagemConfirmacao: "Isso roda testes contra o banco REAL (idempotentes, mas geram e limpam dados de teste).", palavraConfirmacao: "CONFIRMAR"));
+        painel.Controls.Add(CriarBotaoAcao("Aplicar so as migrations", "Migrations", precisaConfirmar: false));
+        painel.Controls.Add(CriarBotaoAcao("Resetar senha do admin (emergencia)", "ResetAdminSenha", precisaConfirmar: true,
+            mensagemConfirmacao: "Isso reseta a senha do admin para a senha padrao do sistema.", palavraConfirmacao: "CONFIRMAR"));
+        painel.Controls.Add(CriarBotaoAcao("Corrigir build corrompido (.next)", "CorrigirNext", precisaConfirmar: true,
+            mensagemConfirmacao: "Isso para o SenaHub, apaga a pasta .next e reconstroi o build. O site fica fora do ar durante o processo.", palavraConfirmacao: "CONFIRMAR"));
+        painel.Controls.Add(CriarBotaoAcao("Forcar encerramento - SenaHub travado", "ForcarEncerramento", precisaConfirmar: true,
+            mensagemConfirmacao: "Isso mata a força o processo do servico SenaHub (uso quando ele trava em STOP_PENDING).", palavraConfirmacao: "CONFIRMAR", sub: "SenaHub"));
+        painel.Controls.Add(CriarBotaoAcao("Forcar encerramento - cloudflared travado", "ForcarEncerramento", precisaConfirmar: true,
+            mensagemConfirmacao: "Isso mata a força o processo do servico cloudflared (uso quando ele trava em STOP_PENDING).", palavraConfirmacao: "CONFIRMAR", sub: "cloudflared"));
+        painel.Controls.Add(CriarBotaoAcao("Reiniciar o servidor Windows (reboot)", "Reboot", precisaConfirmar: true,
+            mensagemConfirmacao: "Isso vai REINICIAR O WINDOWS deste servidor em 60 segundos.", palavraConfirmacao: "REINICIAR"));
+
+        var aba = new TabPage("Acoes");
+        aba.Controls.Add(painel);
+        return aba;
+    }
+
+    private Button CriarBotaoAcao(string rotulo, string acao, bool precisaConfirmar, string mensagemConfirmacao = "", string palavraConfirmacao = "", string? sub = null)
+    {
+        var botao = new Button { Text = rotulo, Width = 350, Height = 32, Margin = new Padding(8) };
+        botao.Click += async (_, _) =>
+        {
+            if (precisaConfirmar && !ConfirmDialog.Confirmar(mensagemConfirmacao, palavraConfirmacao)) return;
+
+            botao.Enabled = false;
+            var runner = new PowerShellActionRunner(PowerShellActionRunner.ResolverCaminhoScript());
+            var codigo = await runner.ExecutarAsync(acao, sub);
+            botao.Enabled = true;
+
+            MessageBox.Show(codigo == 0 ? $"'{rotulo}' concluido." : $"'{rotulo}' terminou com codigo {codigo} - veja os logs.",
+                "SenaHub Manager", MessageBoxButtons.OK, codigo == 0 ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+
+            AtualizarTudo();
+        };
+        return botao;
     }
 
     private static readonly string[] AcoesDeDeploy = { "DeployAutomatico", "DeployCompleto" };
