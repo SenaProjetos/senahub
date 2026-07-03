@@ -16,6 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { BrandLogo } from "@/components/auth/brand-logo";
+import { AuthLoadingOverlay } from "@/components/auth/auth-loading-overlay";
 import { RecuperarSenhaDialog } from "@/components/auth/recuperar-senha-dialog";
 
 export function LoginForm() {
@@ -25,14 +26,15 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [entrando, setEntrando] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     const { error } = await signIn.email({ email, password });
-    setLoading(false);
 
     if (error) {
+      setLoading(false);
       toast.error(
         error.status === 401 || error.status === 403
           ? "E-mail ou senha incorretos."
@@ -40,8 +42,13 @@ export function LoginForm() {
       );
       return;
     }
+    setEntrando(true);
     router.push(params.get("from") ?? "/");
     router.refresh();
+  }
+
+  if (entrando) {
+    return <AuthLoadingOverlay label="Entrando…" />;
   }
 
   return (

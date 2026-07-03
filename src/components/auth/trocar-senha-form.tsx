@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { BrandLogo } from "@/components/auth/brand-logo";
+import { AuthLoadingOverlay } from "@/components/auth/auth-loading-overlay";
 
 /** Campo de senha com botão de exibir/ocultar próprio. */
 function CampoSenha({ id, name, label }: { id: string; name: string; label: string }) {
@@ -57,6 +58,10 @@ export function TrocarSenhaForm({ primeiroAcesso }: { primeiroAcesso: boolean })
       // Em sucesso a action redireciona; só chega aqui em erro.
       if (res && !res.ok) toast.error(res.message);
     });
+  }
+
+  if (pending) {
+    return <AuthLoadingOverlay label="Um instante…" />;
   }
 
   return (
