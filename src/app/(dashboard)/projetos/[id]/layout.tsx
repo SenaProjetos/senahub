@@ -9,7 +9,7 @@ import { listarClientes } from "@/modules/clientes/queries";
 import { canalDoProjeto } from "@/modules/chat/queries";
 import { modelosPorFonte } from "@/modules/documentos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { SITUACAO_PROJETO_LABEL } from "@/modules/projetos/status";
+import { SITUACAO_PROJETO_LABEL, TIPO_PROJETO_LABEL } from "@/modules/projetos/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DuplicarProjetoButton } from "@/components/projetos/duplicar-projeto-button";
@@ -63,9 +63,7 @@ export default async function ProjetoLayout({
               {formatarCodigo(projeto.codigo)}
             </span>
             <h2 className="truncate text-2xl font-extrabold tracking-tight">{projeto.nome}</h2>
-            <Badge variant="outline">
-              {projeto.tipo === "licitacao" ? "Licitação" : "Particular"}
-            </Badge>
+            <Badge variant="outline">{TIPO_PROJETO_LABEL[projeto.tipo] ?? projeto.tipo}</Badge>
             <Badge variant="outline">{SITUACAO_PROJETO_LABEL[projeto.situacao]}</Badge>
             {diasAtraso > 0 && (
               <Badge variant="destructive">

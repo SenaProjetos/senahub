@@ -35,7 +35,7 @@ export async function POST(req: Request) {
   }
   const disciplinaId = String(form.get("disciplinaId") ?? "");
   const alvo = String(form.get("pacote") ?? "") as PacoteAlvo;
-  if (!disciplinaId || (alvo !== "A" && alvo !== "B")) {
+  if (!disciplinaId || (alvo !== "A" && alvo !== "B" && alvo !== "RECEBIDOS")) {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
   }
 

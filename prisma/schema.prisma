@@ -402,6 +402,8 @@ model ContatoCliente {
 enum TipoProjeto {
   particular
   licitacao
+  /// Item 16 (beta): projeto de aprovação (só protocolo/aprovação em órgão, sem execução).
+  aprovacao
 }
 
 enum SituacaoProjeto {
@@ -3017,6 +3019,7 @@ enum PacoteUpload {
   A // plantas / memoriais
   B // backup do software
   OUTROS // formatos não suportados
+  RECEBIDOS // Item 17 (beta): arquivos recebidos do cliente
 }
 
 model Upload {

@@ -165,6 +165,10 @@ const DISCIPLINAS_CATALOGO = [
   "Climatização (AVAC)",
   "Fundações",
   "Terraplenagem",
+  // Item 14 (beta): novas disciplinas do catálogo.
+  "Lógica",
+  "CFTV",
+  "Drenagem",
 ];
 
 async function main() {

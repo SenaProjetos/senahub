@@ -17,8 +17,8 @@ export const EXT_PACOTE_A = new Set([
   "jpeg",
 ]);
 
-export type PacoteAlvo = "A" | "B";
-export type PacoteDestino = "A" | "B" | "OUTROS";
+export type PacoteAlvo = "A" | "B" | "RECEBIDOS";
+export type PacoteDestino = "A" | "B" | "OUTROS" | "RECEBIDOS";
 
 export function extensao(nome: string): string {
   const i = nome.lastIndexOf(".");
@@ -26,11 +26,12 @@ export function extensao(nome: string): string {
 }
 
 /**
- * Decide o destino real do arquivo. Backup do modelo (B) aceita qualquer formato.
- * Em Pranchas e arquivos (A), formato não suportado é roteado para OUTROS (não falha o lote).
+ * Decide o destino real do arquivo. Backup do modelo (B) e Recebidos (item 17, beta)
+ * aceitam qualquer formato, sem roteamento. Em Pranchas e arquivos (A), formato não
+ * suportado é roteado para OUTROS (não falha o lote).
  */
 export function destinoArquivo(nome: string, alvo: PacoteAlvo): PacoteDestino {
-  if (alvo === "B") return "B";
+  if (alvo === "B" || alvo === "RECEBIDOS") return alvo;
   return EXT_PACOTE_A.has(extensao(nome)) ? "A" : "OUTROS";
 }
 

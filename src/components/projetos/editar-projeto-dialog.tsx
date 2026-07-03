@@ -28,7 +28,7 @@ import {
 type ProjetoEditavel = {
   id: string;
   nome: string;
-  tipo: "particular" | "licitacao";
+  tipo: "particular" | "licitacao" | "aprovacao";
   situacao: "em_andamento" | "concluido" | "arquivado" | "cancelado";
   descricao: string | null;
   areaM2: number | null;
@@ -128,6 +128,7 @@ export function EditarProjetoDialog({
                   <SelectContent>
                     <SelectItem value="particular">Particular</SelectItem>
                     <SelectItem value="licitacao">Licitação</SelectItem>
+                    <SelectItem value="aprovacao">Aprovação</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

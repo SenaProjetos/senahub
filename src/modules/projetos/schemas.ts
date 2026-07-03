@@ -16,7 +16,7 @@ export const disciplinaInputSchema = z.object({
 });
 
 export const criarProjetoSchema = z.object({
-  tipo: z.enum(["particular", "licitacao"]),
+  tipo: z.enum(["particular", "licitacao", "aprovacao"]),
   nome: z.string().min(2, "Informe o nome do projeto."),
   clienteId: z.string().min(1, "Selecione o cliente."),
   descricao: z.string().optional(),
@@ -33,7 +33,7 @@ export const editarProjetoSchema = z.object({
   /** P-03: permite trocar o cliente. */
   clienteId: z.string().min(1).optional(),
   nome: z.string().min(2),
-  tipo: z.enum(["particular", "licitacao"]),
+  tipo: z.enum(["particular", "licitacao", "aprovacao"]),
   situacao: z.enum(["em_andamento", "concluido", "arquivado", "cancelado"]),
   descricao: z.string().optional(),
   areaM2: z.number().nonnegative().optional(),

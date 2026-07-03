@@ -13,6 +13,9 @@ describe("keyDisciplina", () => {
     ["Incêndio (PPCI)", "incendio"],
     ["Climatização (AVAC)", "climatizacao"],
     ["Terraplenagem", "terraplenagem"],
+    ["Lógica", "telecom"],
+    ["Drenagem", "hidrossanitario"],
+    ["CFTV", "seguranca"],
   ])("mapeia %s (tolerante a acento/caixa)", (nome, key) => {
     expect(keyDisciplina(nome)).toBe(key);
     expect(keyDisciplina(nome.toUpperCase())).toBe(key);

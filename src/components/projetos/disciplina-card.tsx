@@ -58,7 +58,7 @@ import { brl, formatarData } from "@/lib/utils";
 
 type UploadItem = {
   id: string;
-  pacote: "A" | "B" | "OUTROS";
+  pacote: "A" | "B" | "OUTROS" | "RECEBIDOS";
   nomeArquivo: string;
   versao: number;
   tamanho: number;
@@ -241,7 +241,7 @@ function ArquivosDialog({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  const [pacote, setPacote] = useState<"A" | "B">("A");
+  const [pacote, setPacote] = useState<"A" | "B" | "RECEBIDOS">("A");
   const [validando, start] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -339,7 +339,8 @@ function ArquivosDialog({
     });
   }
 
-  const porPacote = (p: "A" | "B" | "OUTROS") => disciplina.uploads.filter((u) => u.pacote === p);
+  const porPacote = (p: "A" | "B" | "OUTROS" | "RECEBIDOS") =>
+    disciplina.uploads.filter((u) => u.pacote === p);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -361,13 +362,14 @@ function ArquivosDialog({
         {podeEnviar && !disciplina.jaValidado && (
           <div className="space-y-2 rounded-sm border p-3">
             <div className="flex items-center gap-2">
-              <Select value={pacote} onValueChange={(v) => setPacote((v as "A" | "B") ?? "A")}>
+              <Select value={pacote} onValueChange={(v) => setPacote((v as typeof pacote) ?? "A")}>
                 <SelectTrigger className="w-40">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="A">Pranchas e arquivos</SelectItem>
                   <SelectItem value="B">Backup do modelo</SelectItem>
+                  <SelectItem value="RECEBIDOS">Recebidos do cliente</SelectItem>
                 </SelectContent>
               </Select>
               <Button
@@ -392,14 +394,20 @@ function ArquivosDialog({
         )}
 
         <div className="space-y-3">
-          {(["A", "B", "OUTROS"] as const).map((p) => {
+          {(["A", "B", "RECEBIDOS", "OUTROS"] as const).map((p) => {
             const itens = porPacote(p);
-            if (itens.length === 0 && p === "OUTROS") return null;
+            if (itens.length === 0 && (p === "OUTROS" || p === "RECEBIDOS")) return null;
             return (
               <div key={p}>
                 <div className="mb-1 flex items-center justify-between">
                   <span className="text-xs font-semibold text-muted-foreground">
-                    {p === "A" ? "Pranchas e arquivos" : p === "B" ? "Backup do modelo" : "Outros (não suportados)"}
+                    {p === "A"
+                      ? "Pranchas e arquivos"
+                      : p === "B"
+                        ? "Backup do modelo"
+                        : p === "RECEBIDOS"
+                          ? "Recebidos do cliente"
+                          : "Outros (não suportados)"}
                   </span>
                   {itens.length > 0 && (
                     <a

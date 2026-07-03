@@ -18,6 +18,7 @@ import type { ProjetoListItem } from "@/modules/projetos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
   SITUACAO_PROJETO_LABEL,
+  TIPO_PROJETO_LABEL,
   progressoProjeto,
 } from "@/modules/projetos/status";
 import { ProjetoForm } from "@/components/projetos/projeto-form";
@@ -64,7 +65,6 @@ const SAUDE_CLASS: Record<NivelSaude, string> = {
   critico: "text-destructive",
 };
 
-const TIPO_LABEL: Record<string, string> = { particular: "Particular", licitacao: "Licitação" };
 
 type Vista = "cards" | "tabela" | "kanban";
 const VISTA_KEY = "projetos:vista";
@@ -430,7 +430,7 @@ function ProjetosCards({ items }: { items: ProjetoListItem[] }) {
             <div className="flex items-center justify-between gap-2">
               <span className="font-mono text-xs text-muted-foreground">{formatarCodigo(p.codigo)}</span>
               <Badge variant="outline" className="shrink-0 text-[10px]">
-                {TIPO_LABEL[p.tipo] ?? p.tipo}
+                {TIPO_PROJETO_LABEL[p.tipo] ?? p.tipo}
               </Badge>
             </div>
             <div className="min-w-0">
