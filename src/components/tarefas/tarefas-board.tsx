@@ -392,8 +392,15 @@ function ListaView({
                       {t.titulo}
                     </span>
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {t.projetoCodigo ? formatarCodigo(t.projetoCodigo) : "—"}
+                  <TableCell className="text-xs text-muted-foreground">
+                    {t.projetoCodigo ? (
+                      <>
+                        <span className="font-mono">{formatarCodigo(t.projetoCodigo)}</span>
+                        {t.projetoNome && <span className="ml-1">{t.projetoNome}</span>}
+                      </>
+                    ) : (
+                      "—"
+                    )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {t.responsaveis.length > 0
@@ -489,7 +496,12 @@ function CardTarefa({
                 {PRIORIDADE_LABEL[t.prioridade]}
               </Badge>
             )}
-            {t.projetoCodigo && <span className="font-mono">{formatarCodigo(t.projetoCodigo)}</span>}
+            {t.projetoCodigo && (
+              <span className="truncate">
+                <span className="font-mono">{formatarCodigo(t.projetoCodigo)}</span>
+                {t.projetoNome && ` ${t.projetoNome}`}
+              </span>
+            )}
             {t.prazo && (
               <span className={`flex items-center gap-1 ${atrasada ? "text-destructive" : ""}`}>
                 <CalendarDays className="size-3" />

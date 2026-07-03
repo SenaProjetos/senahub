@@ -27,6 +27,7 @@ export default async function TarefasPage() {
           prioridade: t.prioridade ?? "",
           projetoId: t.projetoId ?? "",
           projetoCodigo: t.projeto?.codigo ?? null,
+          projetoNome: t.projeto?.nome ?? null,
           responsaveis: t.responsaveis.map((r) => ({ id: r.user.id, nome: r.user.name })),
           itens: t.itens.map((it) => ({ id: it.id, descricao: it.descricao, concluido: it.concluido })),
           dependeDeIds: t.dependeDe.map((d) => d.dependeDe.id),

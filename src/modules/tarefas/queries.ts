@@ -11,7 +11,7 @@ export async function quadroTarefas() {
         where: { arquivada: false },
         orderBy: { updatedAt: "desc" },
         include: {
-          projeto: { select: { codigo: true } },
+          projeto: { select: { codigo: true, nome: true } },
           responsaveis: { include: { user: { select: { id: true, name: true } } } },
           itens: { orderBy: { ordem: "asc" } },
           dependeDe: {

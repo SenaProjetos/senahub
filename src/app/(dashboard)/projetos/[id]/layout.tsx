@@ -5,6 +5,7 @@ import { ArrowLeft, MessageSquare } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { obterProjetoMinimo } from "@/modules/projetos/queries";
+import { listarClientes } from "@/modules/clientes/queries";
 import { canalDoProjeto } from "@/modules/chat/queries";
 import { modelosPorFonte } from "@/modules/documentos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -15,6 +16,7 @@ import { DuplicarProjetoButton } from "@/components/projetos/duplicar-projeto-bu
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { ProjetoTabNav } from "@/components/projetos/projeto-tab-nav";
 import { ProjetoAcoesMenu } from "@/components/projetos/projeto-acoes-menu";
+import { EditarProjetoDialog } from "@/components/projetos/editar-projeto-dialog";
 
 export const metadata: Metadata = { title: "Projeto" };
 
@@ -36,6 +38,8 @@ export default async function ProjetoLayout({
     canalDoProjeto(id),
     modelosPorFonte("projeto"),
   ]);
+  // Item 12 (beta): editar todos os campos do projeto — só busca clientes se puder editar.
+  const clientes = podeGerir ? await listarClientes({ incluirInativos: false }) : [];
 
   const diasAtraso = (() => {
     if (!projeto.prazoFinal || projeto.situacao !== "em_andamento") return 0;
@@ -80,6 +84,23 @@ export default async function ProjetoLayout({
             <Button variant="outline" size="sm" render={<Link href={`/chat?c=${canalChat.id}`} />}>
               <MessageSquare className="size-4" /> Chat
             </Button>
+          )}
+          {podeGerir && (
+            <EditarProjetoDialog
+              projeto={{
+                id: projeto.id,
+                nome: projeto.nome,
+                tipo: projeto.tipo,
+                situacao: projeto.situacao,
+                descricao: projeto.descricao,
+                areaM2: projeto.areaM2 != null ? Number(projeto.areaM2) : null,
+                endereco: projeto.endereco,
+                prazoFinal: projeto.prazoFinal ? projeto.prazoFinal.toISOString().slice(0, 10) : null,
+                valorContrato: projeto.valorContrato != null ? Number(projeto.valorContrato) : null,
+                clienteId: projeto.cliente.id,
+              }}
+              clientes={clientes.map((c) => ({ id: c.id, nome: c.nome }))}
+            />
           )}
           {podeGerir && <DuplicarProjetoButton projetoId={id} />}
           <GerarDocumentoButton modelos={modelosDoc} paramId="projetoId" valor={id} />

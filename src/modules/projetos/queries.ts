@@ -303,6 +303,11 @@ export async function obterProjetoMinimo(viewer: Viewer, id: string) {
       situacao: true,
       tipo: true,
       prazoFinal: true,
+      // Item 12 (beta): editar todos os campos do projeto — o header precisa deles p/ o dialog.
+      descricao: true,
+      areaM2: true,
+      endereco: true,
+      valorContrato: true,
       cliente: { select: { id: true, nome: true } },
     },
   });

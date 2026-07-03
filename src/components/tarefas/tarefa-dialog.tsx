@@ -41,6 +41,7 @@ export type TarefaUI = {
   prioridade: string;
   projetoId: string;
   projetoCodigo: string | null;
+  projetoNome: string | null;
   responsaveis: { id: string; nome: string }[];
   itens: { id?: string; descricao: string; concluido: boolean }[];
   dependeDeIds: string[];
@@ -265,7 +266,7 @@ export function TarefaDialog({
                   <SelectItem value={NONE}>—</SelectItem>
                   {opcoes.projetos.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {formatarCodigo(p.codigo)}
+                      {formatarCodigo(p.codigo)} — {p.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>
