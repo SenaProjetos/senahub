@@ -224,7 +224,7 @@ export async function mensagensCanal(
     take: limite + 1, // +1 sentinela: se vier a mais, existe página anterior
     ...(opts.antesDe ? { cursor: { id: opts.antesDe }, skip: 1 } : {}),
     include: {
-      autor: { select: { id: true, name: true } },
+      autor: { select: { id: true, name: true, image: true } },
       reacoes: { select: { emoji: true, userId: true, user: { select: { name: true } } } },
       respostaA: {
         select: {

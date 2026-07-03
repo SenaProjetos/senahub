@@ -106,7 +106,7 @@ export const enviarMensagem = defineAction(
         respostaAId: i.respostaAId || null,
       },
       include: {
-        autor: { select: { id: true, name: true } },
+        autor: { select: { id: true, name: true, image: true } },
         respostaA: {
           select: { id: true, conteudo: true, excluidaEm: true, autor: { select: { name: true } } },
         },
@@ -123,7 +123,7 @@ export const enviarMensagem = defineAction(
       encaminhada: false,
       anexoMime: msg.anexoMime,
       anexoNome: msg.anexoNome,
-      autor: { id: msg.autor.id, name: msg.autor.name },
+      autor: { id: msg.autor.id, name: msg.autor.name, image: msg.autor.image },
       createdAt: msg.createdAt,
       reacoes: [] as ReturnType<typeof agregarReacoes>,
       respostaA: msg.respostaA
@@ -188,7 +188,7 @@ export const encaminharMensagem = defineAction(
         anexoNome: anexoPath ? origem.anexoNome : null,
         anexoMime: anexoPath ? origem.anexoMime : null,
       },
-      include: { autor: { select: { id: true, name: true } } },
+      include: { autor: { select: { id: true, name: true, image: true } } },
     });
 
     const payload = {
@@ -201,7 +201,7 @@ export const encaminharMensagem = defineAction(
       encaminhada: true,
       anexoMime: msg.anexoMime,
       anexoNome: msg.anexoNome,
-      autor: { id: msg.autor.id, name: msg.autor.name },
+      autor: { id: msg.autor.id, name: msg.autor.name, image: msg.autor.image },
       createdAt: msg.createdAt,
       reacoes: [] as ReturnType<typeof agregarReacoes>,
       respostaA: null,

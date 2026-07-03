@@ -39,6 +39,8 @@ import {
 import type { CanalListItem, ReacaoAgregada } from "@/modules/chat/queries";
 import { cn, formatarDiaMes } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   Select,
   SelectContent,
@@ -63,12 +65,22 @@ type Msg = {
   encaminhada?: boolean;
   editedAt?: string | Date | null;
   excluidaEm?: string | Date | null;
-  autor: { id: string; name: string };
+  autor: { id: string; name: string; image?: string | null };
   createdAt: string | Date;
   leituras?: { userId: string; user: { name: string } }[];
   reacoes?: ReacaoAgregada[];
   respostaA?: { id: string; conteudo: string | null; autor: { name: string } } | null;
 };
+
+/** Item 31 (beta): iniciais para o avatar do autor no chat, quando não há foto. */
+function iniciaisAutor(nome: string): string {
+  return nome
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]!.toUpperCase())
+    .join("");
+}
 type Fixada = { id: string; conteudo: string; autor: { name: string } };
 type ResultadoBusca = { id: string; canalId: string; conteudo: string; autorNome: string; createdAt: string };
 type Usuario = { id: string; name: string; role: string; chatStatus: string };
@@ -383,6 +395,7 @@ export function ChatView({
   const router = useRouter();
   const sp = useSearchParams();
   const { setChatAtivo, refetch: refetchBadge } = useChatBadge();
+  const confirm = useConfirm();
 
   const [canais, setCanais] = useState(canaisIniciais);
   const [sel, setSel] = useState<string | null>(sp.get("c") ?? canaisIniciais[0]?.id ?? null);
@@ -433,7 +446,6 @@ export function ChatView({
   // C2 states
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [editTexto, setEditTexto] = useState("");
-  const [deletandoId, setDeletandoId] = useState<string | null>(null);
   const [reactionPickerMsgId, setReactionPickerMsgId] = useState<string | null>(null);
   const [respondendoA, setRespondendoA] = useState<Msg | null>(null);
   const [encaminhandoMsg, setEncaminhandoMsg] = useState<Msg | null>(null);
@@ -500,7 +512,6 @@ export function ChatView({
     if (!sel) return;
     let vivo = true;
     setEditandoId(null);
-    setDeletandoId(null);
     setRespondendoA(null);
     setReactionPickerMsgId(null);
     setPainelFixadasAberto(false);
@@ -918,10 +929,18 @@ export function ChatView({
     else toast.error(r.error);
   }
 
+  // Item 30 (beta): confirmação em modal — antes ficava sob o mesmo hover que abre a
+  // barra de ações, então mover o mouse escondia o "Sim/Não" antes de dar tempo de clicar.
   async function confirmarExclusao(msgId: string) {
+    const ok = await confirm({
+      title: "Excluir mensagem?",
+      description: "A mensagem será substituída por \"[Mensagem removida]\" para todos no canal.",
+      confirmLabel: "Excluir",
+      variant: "destructive",
+    });
+    if (!ok) return;
     const r = await excluirMensagem({ mensagemId: msgId });
     if (!r.ok) toast.error(r.error);
-    setDeletandoId(null);
   }
 
   async function toggleReacao(msgId: string, emoji: string) {
@@ -1558,7 +1577,6 @@ export function ChatView({
                 const meu = m.autor.id === meId;
                 const excluida = !!m.excluidaEm;
                 const editando = editandoId === m.id;
-                const deletando = deletandoId === m.id;
                 const podeAgir = podeModerarMsg(m);
 
                 return (
@@ -1566,11 +1584,17 @@ export function ChatView({
                     key={m.id}
                     id={`msg-${m.id}`}
                     className={cn(
-                      "group flex rounded-md transition-colors",
+                      "group flex items-end gap-2 rounded-md transition-colors",
                       meu ? "justify-end" : "justify-start",
                       destaqueId === m.id && "bg-primary/10 ring-1 ring-primary/30",
                     )}
                   >
+                    {!meu && (
+                      <Avatar size="sm" className="mb-0.5 shrink-0">
+                        <AvatarImage src={m.autor.image ?? undefined} alt={m.autor.name} />
+                        <AvatarFallback>{iniciaisAutor(m.autor.name)}</AvatarFallback>
+                      </Avatar>
+                    )}
                     <div className="relative max-w-[75%]">
                     {/* Barra de ações (hover) — flutua ancorada ao balão */}
                     {!excluida && !editando && (
@@ -1638,7 +1662,7 @@ export function ChatView({
                             </button>
                             <button
                               title="Excluir"
-                              onClick={() => setDeletandoId(m.id)}
+                              onClick={() => void confirmarExclusao(m.id)}
                               className="rounded-sm p-1 hover:bg-muted"
                             >
                               <Trash2 className="size-3.5 text-muted-foreground" />
@@ -1735,24 +1759,8 @@ export function ChatView({
                         </>
                       )}
 
-                      {/* Rodapé: horário + editada + recibos + confirm delete */}
+                      {/* Rodapé: horário + editada + recibos */}
                       <div className="mt-0.5 flex flex-wrap items-center justify-between gap-1">
-                        <div className="flex items-center gap-1">
-                          {deletando && !excluida ? (
-                            <span className="flex items-center gap-1 text-[10px]">
-                              <span className="text-destructive font-medium">Excluir?</span>
-                              <button
-                                onClick={() => void confirmarExclusao(m.id)}
-                                className="font-semibold text-destructive hover:underline"
-                              >Sim</button>
-                              <span>/</span>
-                              <button
-                                onClick={() => setDeletandoId(null)}
-                                className="hover:underline opacity-70"
-                              >Não</button>
-                            </span>
-                          ) : null}
-                        </div>
                         <p className="flex items-center gap-1 text-[10px] opacity-60 ml-auto">
                           {m.editedAt && !excluida && (
                             <span className="italic">(editada)</span>
