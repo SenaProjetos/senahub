@@ -41,6 +41,7 @@ import { cn, formatarDiaMes } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { CATEGORIAS_EMOJI } from "@/lib/emoji-catalogo";
 import {
   Select,
   SelectContent,
@@ -99,7 +100,6 @@ const STATUS_COR: Record<string, string> = {
 
 const SITUACOES_ARQUIVADAS = new Set(["concluido", "arquivado", "cancelado"]);
 
-const EMOJIS = ["👍","🙏","✅","🔥","🎉","😀","😅","😂","🤔","👀","💪","🚀","❤️","👏","🙌","📌","⚠️","✏️","📎","💡","✔️","❌","⏰","📅","💰","📈","🏗️","📐"];
 const EMOJIS_REACAO = ["👍","❤️","😂","😮","😢","🔥","🎉","✅","👏","🙌"];
 
 /** Realça @menções no texto da mensagem (suporta acentos via Unicode). */
@@ -436,6 +436,7 @@ export function ChatView({
   const [anexo, setAnexo] = useState<File | null>(null);
   const [enviandoAnexo, setEnviandoAnexo] = useState(false);
   const [emojiAberto, setEmojiAberto] = useState(false);
+  const [emojiCategoria, setEmojiCategoria] = useState(0);
   // Gravação de áudio (microfone)
   const [gravando, setGravando] = useState(false);
   const [gravSegundos, setGravSegundos] = useState(0);
@@ -1873,21 +1874,39 @@ export function ChatView({
                 </div>
               )}
               {emojiAberto && (
-                <div className="absolute bottom-full left-2 z-10 mb-1 grid w-64 grid-cols-8 gap-1 rounded-sm border bg-popover p-2 shadow-md">
-                  {EMOJIS.map((e) => (
-                    <button
-                      key={e}
-                      type="button"
-                      onClick={() => {
-                        setTexto((t) => t + e);
-                        setEmojiAberto(false);
-                        textareaRef.current?.focus();
-                      }}
-                      className="rounded-sm p-1 text-lg hover:bg-muted"
-                    >
-                      {e}
-                    </button>
-                  ))}
+                <div className="absolute bottom-full left-2 z-10 mb-1 w-72 rounded-sm border bg-popover shadow-md">
+                  {/* Item 32 (beta): catálogo completo por categoria (antes eram 28 emojis fixos). */}
+                  <div className="flex gap-0.5 overflow-x-auto border-b p-1">
+                    {CATEGORIAS_EMOJI.map((c, i) => (
+                      <button
+                        key={c.titulo}
+                        type="button"
+                        title={c.titulo}
+                        onClick={() => setEmojiCategoria(i)}
+                        className={cn(
+                          "shrink-0 rounded-sm px-1.5 py-1 text-base hover:bg-muted",
+                          emojiCategoria === i && "bg-muted",
+                        )}
+                      >
+                        {c.emojis[0]}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="grid max-h-56 grid-cols-8 gap-0.5 overflow-y-auto p-2">
+                    {CATEGORIAS_EMOJI[emojiCategoria].emojis.map((e, i) => (
+                      <button
+                        key={`${e}-${i}`}
+                        type="button"
+                        onClick={() => {
+                          setTexto((t) => t + e);
+                          textareaRef.current?.focus();
+                        }}
+                        className="rounded-sm p-1 text-lg hover:bg-muted"
+                      >
+                        {e}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
               {gravando ? (
