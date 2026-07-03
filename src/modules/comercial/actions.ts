@@ -272,7 +272,7 @@ export const salvarProposta = defineAction(
     acao: "salvar-proposta",
     entidade: "Proposta",
     schema: salvarPropostaSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (i, { user }) => {
     const p = await prisma.proposta.findUnique({
@@ -447,7 +447,7 @@ export const aceitarProposta = defineAction(
     acao: "aceitar-proposta",
     entidade: "Proposta",
     schema: idSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (i) => {
     const p = await prisma.proposta.findUnique({

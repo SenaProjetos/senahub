@@ -155,7 +155,7 @@ export const criarChecklistItem = defineAction(
 const toggleChecklistSchema = z.object({ itemId: z.string().min(1), concluido: z.boolean() });
 
 export const toggleChecklistItem = defineAction(
-  { ...gerir, acao: "toggle-checklist-item", entidade: "ChecklistItemProjeto", schema: toggleChecklistSchema, entidadeId: (d) => (d as { itemId: string }).itemId },
+  { ...gerir, acao: "toggle-checklist-item", entidade: "ChecklistItemProjeto", schema: toggleChecklistSchema, entidadeId: (d, i) => ((d ?? i) as { itemId: string }).itemId },
   async (input) => {
     const item = await prisma.checklistItemProjeto.findUnique({ where: { id: input.itemId }, select: { projetoId: true } });
     if (!item) throw new ActionError("Item não encontrado.");
@@ -171,7 +171,7 @@ export const toggleChecklistItem = defineAction(
 const deleteChecklistSchema = z.object({ itemId: z.string().min(1) });
 
 export const excluirChecklistItem = defineAction(
-  { ...gerir, acao: "excluir-checklist-item", entidade: "ChecklistItemProjeto", schema: deleteChecklistSchema, entidadeId: (d) => (d as { itemId: string }).itemId },
+  { ...gerir, acao: "excluir-checklist-item", entidade: "ChecklistItemProjeto", schema: deleteChecklistSchema, entidadeId: (d, i) => ((d ?? i) as { itemId: string }).itemId },
   async (input) => {
     const item = await prisma.checklistItemProjeto.findUnique({ where: { id: input.itemId }, select: { projetoId: true } });
     if (!item) throw new ActionError("Item não encontrado.");
@@ -215,7 +215,7 @@ const atualizarRiscoSchema = z.object({
 });
 
 export const atualizarRisco = defineAction(
-  { ...gerir, acao: "atualizar-risco-projeto", entidade: "RiscoProjeto", schema: atualizarRiscoSchema, entidadeId: (d) => (d as { riscoId: string }).riscoId },
+  { ...gerir, acao: "atualizar-risco-projeto", entidade: "RiscoProjeto", schema: atualizarRiscoSchema, entidadeId: (d, i) => ((d ?? i) as { riscoId: string }).riscoId },
   async (input) => {
     const risco = await prisma.riscoProjeto.findUnique({ where: { id: input.riscoId }, select: { projetoId: true } });
     if (!risco) throw new ActionError("Risco não encontrado.");
@@ -231,7 +231,7 @@ export const atualizarRisco = defineAction(
 const excluirRiscoSchema = z.object({ riscoId: z.string().min(1) });
 
 export const excluirRisco = defineAction(
-  { ...gerir, acao: "excluir-risco-projeto", entidade: "RiscoProjeto", schema: excluirRiscoSchema, entidadeId: (d) => (d as { riscoId: string }).riscoId },
+  { ...gerir, acao: "excluir-risco-projeto", entidade: "RiscoProjeto", schema: excluirRiscoSchema, entidadeId: (d, i) => ((d ?? i) as { riscoId: string }).riscoId },
   async (input) => {
     const risco = await prisma.riscoProjeto.findUnique({ where: { id: input.riscoId }, select: { projetoId: true } });
     if (!risco) throw new ActionError("Risco não encontrado.");

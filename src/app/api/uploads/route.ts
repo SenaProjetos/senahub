@@ -22,7 +22,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
   }
 
-  const form = await req.formData();
+  // Corpo multipart pode falhar (payload gigante / conexão abortada) — responde JSON, nunca corpo vazio.
+  let form: FormData;
+  try {
+    form = await req.formData();
+  } catch (err) {
+    console.error("[upload] falha ao ler multipart:", err);
+    return NextResponse.json(
+      { error: "Falha ao receber o arquivo — payload muito grande ou conexão interrompida." },
+      { status: 413 },
+    );
+  }
   const disciplinaId = String(form.get("disciplinaId") ?? "");
   const alvo = String(form.get("pacote") ?? "") as PacoteAlvo;
   if (!disciplinaId || (alvo !== "A" && alvo !== "B")) {

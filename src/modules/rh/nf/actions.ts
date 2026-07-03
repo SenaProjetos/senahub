@@ -21,7 +21,7 @@ export const validarNF = defineAction(
     acao: "validar-nf",
     entidade: "NotaFiscalPJ",
     schema: validarSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (i, { user }) => {
     const nf = await prisma.notaFiscalPJ.findUnique({ where: { id: i.id } });

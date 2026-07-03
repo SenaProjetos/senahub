@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 import { GLOBAL_ROLES, type Role } from "@/lib/roles";
 import { proximoCodigoProjeto, formatarCodigo } from "@/modules/projetos/numbering";
 import { ensureCanaisProjeto } from "@/modules/chat/service";
@@ -28,6 +29,30 @@ function isGlobal(role: Role) {
   return role === "admin" || GLOBAL_ROLES.includes(role);
 }
 
+/**
+ * Após remover responsáveis de uma disciplina, tira da "Equipe do projeto" (ProjetoMembro)
+ * quem não responde por nenhuma outra disciplina do projeto — exceto membros com papel
+ * explícito, que foram adicionados deliberadamente pelo EquipeManager.
+ */
+async function podarMembrosSemVinculo(
+  tx: Prisma.TransactionClient,
+  projetoId: string,
+  removidosIds: string[],
+) {
+  if (removidosIds.length === 0) return;
+  const aindaResp = await tx.disciplinaResponsavel.findMany({
+    where: { userId: { in: removidosIds }, disciplina: { projetoId } },
+    select: { userId: true },
+  });
+  const aindaSet = new Set(aindaResp.map((r) => r.userId));
+  const podar = removidosIds.filter((id) => !aindaSet.has(id));
+  if (podar.length > 0) {
+    await tx.projetoMembro.deleteMany({
+      where: { projetoId, userId: { in: podar }, papel: null },
+    });
+  }
+}
+
 function parseData(s?: string): Date | undefined {
   if (!s) return undefined;
   const d = new Date(s);
@@ -42,7 +67,7 @@ export const criarProjeto = defineAction(
     permissao: "gerir",
     entidade: "Projeto",
     schema: criarProjetoSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
     const projeto = await prisma.$transaction(async (tx) => {
@@ -90,7 +115,7 @@ export const editarProjeto = defineAction(
     permissao: "gerir",
     entidade: "Projeto",
     schema: editarProjetoSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
     const { id, ...rest } = input;
@@ -125,7 +150,7 @@ export const atualizarStatusDisciplina = defineAction(
     permissao: "visualizar",
     entidade: "Disciplina",
     schema: atualizarStatusDisciplinaSchema,
-    entidadeId: (d) => (d as { disciplinaId: string }).disciplinaId,
+    entidadeId: (d, i) => ((d ?? i) as { disciplinaId: string }).disciplinaId,
   },
   async (input, { user }) => {
     const disciplina = await prisma.disciplina.findUnique({
@@ -222,7 +247,7 @@ export const definirResponsaveis = defineAction(
     permissao: "gerir",
     entidade: "Disciplina",
     schema: responsaveisDisciplinaSchema,
-    entidadeId: (d) => (d as { disciplinaId: string }).disciplinaId,
+    entidadeId: (d, i) => ((d ?? i) as { disciplinaId: string }).disciplinaId,
   },
   async (input) => {
     const disciplina = await prisma.disciplina.findUnique({
@@ -238,13 +263,15 @@ export const definirResponsaveis = defineAction(
     const anteriorIds = new Set(anteriores.map((r) => r.userId));
     const novosIds = input.responsaveisIds.filter((id) => !anteriorIds.has(id));
 
-    await prisma.$transaction([
-      prisma.disciplinaResponsavel.deleteMany({ where: { disciplinaId: input.disciplinaId } }),
-      prisma.disciplinaResponsavel.createMany({
+    await prisma.$transaction(async (tx) => {
+      await tx.disciplinaResponsavel.deleteMany({ where: { disciplinaId: input.disciplinaId } });
+      await tx.disciplinaResponsavel.createMany({
         data: input.responsaveisIds.map((userId) => ({ disciplinaId: input.disciplinaId, userId })),
         skipDuplicates: true,
-      }),
-    ]);
+      });
+      const removidosIds = [...anteriorIds].filter((id) => !input.responsaveisIds.includes(id));
+      await podarMembrosSemVinculo(tx, disciplina.projetoId, removidosIds);
+    });
     // P-15: notificar novos responsáveis atribuídos.
     if (novosIds.length > 0) {
       await notificarMuitos(novosIds, {
@@ -269,7 +296,7 @@ export const registrarRevisao = defineAction(
     permissao: "visualizar",
     entidade: "RevisaoDisciplina",
     schema: registrarRevisaoSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input, { user }) => {
     const disciplina = await prisma.disciplina.findUnique({
@@ -323,7 +350,7 @@ export const definirMembros = defineAction(
     permissao: "gerir",
     entidade: "ProjetoMembro",
     schema: membrosProjetoSchema,
-    entidadeId: (d) => (d as { projetoId: string }).projetoId,
+    entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
   },
   async (input) => {
     // P-04: grava papel por membro.
@@ -354,7 +381,7 @@ export const duplicarProjeto = defineAction(
     permissao: "gerir",
     entidade: "Projeto",
     schema: duplicarProjetoSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
     const origem = await prisma.projeto.findUnique({
@@ -626,7 +653,7 @@ export const editarDisciplina = defineAction(
     permissao: "gerir",
     entidade: "Disciplina",
     schema: editarDisciplinaSchema,
-    entidadeId: (d) => (d as { disciplinaId: string }).disciplinaId,
+    entidadeId: (d, i) => ((d ?? i) as { disciplinaId: string }).disciplinaId,
   },
   async (input) => {
     const disciplina = await prisma.disciplina.findUnique({
@@ -672,6 +699,8 @@ export const editarDisciplina = defineAction(
           skipDuplicates: true,
         });
       }
+      const removidosIds = [...anteriorIds].filter((id) => !input.responsaveisIds.includes(id));
+      await podarMembrosSemVinculo(tx, disciplina.projetoId, removidosIds);
     });
 
     if (novosIds.length > 0) {
@@ -696,13 +725,14 @@ export const excluirDisciplina = defineAction(
     permissao: "gerir",
     entidade: "Disciplina",
     schema: excluirDisciplinaSchema,
-    entidadeId: (d) => (d as { disciplinaId: string }).disciplinaId,
+    entidadeId: (d, i) => ((d ?? i) as { disciplinaId: string }).disciplinaId,
   },
   async (input) => {
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: input.disciplinaId },
       select: {
         projetoId: true,
+        responsaveis: { select: { userId: true } },
         _count: { select: { uploads: true, pagamentos: true } },
       },
     });
@@ -712,7 +742,16 @@ export const excluirDisciplina = defineAction(
     if (disciplina._count.pagamentos > 0)
       throw new ActionError("Não é possível excluir uma disciplina com pagamentos liberados.");
 
-    await prisma.disciplina.delete({ where: { id: input.disciplinaId } });
+    await prisma.$transaction(async (tx) => {
+      await tx.disciplina.delete({ where: { id: input.disciplinaId } });
+      // Mesma poda do editarDisciplina: responsáveis que só existiam nesta disciplina
+      // saem da equipe (ProjetoMembro sem papel explícito).
+      await podarMembrosSemVinculo(
+        tx,
+        disciplina.projetoId,
+        disciplina.responsaveis.map((r) => r.userId),
+      );
+    });
     revalidatePath(`/projetos/${disciplina.projetoId}`);
   },
 );
@@ -727,7 +766,7 @@ export const cancelarOuArquivarProjeto = defineAction(
     permissao: "gerir",
     entidade: "Projeto",
     schema: cancelarProjetoSchema,
-    entidadeId: (d) => (d as { projetoId: string }).projetoId,
+    entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
   },
   async (input) => {
     const projeto = await prisma.projeto.findUnique({
@@ -774,7 +813,7 @@ export const adicionarDisciplinasDoCatalogo = defineAction(
     permissao: "gerir",
     entidade: "Projeto",
     schema: adicionarDoCatalogoSchema,
-    entidadeId: (d) => (d as { projetoId: string }).projetoId,
+    entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
   },
   async (input) => {
     const projeto = await prisma.projeto.findUnique({

@@ -25,7 +25,7 @@ export const gerarFechamento = defineAction(
     acao: "gerar-fechamento",
     entidade: "FechamentoMensal",
     schema: z.object({ ano: z.number().int().min(2000).max(2100), mes: z.number().int().min(1).max(12) }),
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (i, { user }) => {
     const existente = await prisma.fechamentoMensal.findUnique({ where: { ano_mes: { ano: i.ano, mes: i.mes } }, select: { id: true, status: true } });

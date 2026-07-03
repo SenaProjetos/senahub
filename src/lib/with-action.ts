@@ -30,8 +30,8 @@ type ActionConfig<S> = {
   schema?: ZodType<S>;
   /** Nome do model Prisma para auditoria. */
   entidade?: string;
-  /** Extrai o id da entidade do resultado, para auditoria. */
-  entidadeId?: (data: unknown) => string | undefined;
+  /** Extrai o id da entidade para auditoria, a partir do resultado e/ou do input validado. */
+  entidadeId?: (data: unknown, input: S) => string | undefined;
   /** Auditar (default true). */
   audit?: boolean;
   /**
@@ -99,22 +99,28 @@ export function defineAction<S, T>(
       const antes = config.capturarAntes ? await config.capturarAntes(input) : undefined;
       const data = await handler(input, { user, ip });
       if (config.audit !== false) {
-        const inputLog =
-          config.redact && input && typeof input === "object"
-            ? Object.fromEntries(
-                Object.entries(input as Record<string, unknown>).filter(([k]) => !config.redact!.includes(k)),
-              )
-            : input;
-        await logAudit({
-          userId: user.id,
-          modulo: config.modulo,
-          acao: config.acao,
-          resultado: "sucesso",
-          entidade: config.entidade,
-          entidadeId: config.entidadeId?.(data),
-          detalhe: antes !== undefined ? { antes, novo: inputLog } : inputLog,
-          ip,
-        });
+        // Falha na auditoria do SUCESSO não pode reverter o resultado para o usuário
+        // (a mutação já aconteceu) — loga e segue.
+        try {
+          const inputLog =
+            config.redact && input && typeof input === "object"
+              ? Object.fromEntries(
+                  Object.entries(input as Record<string, unknown>).filter(([k]) => !config.redact!.includes(k)),
+                )
+              : input;
+          await logAudit({
+            userId: user.id,
+            modulo: config.modulo,
+            acao: config.acao,
+            resultado: "sucesso",
+            entidade: config.entidade,
+            entidadeId: config.entidadeId?.(data, input),
+            detalhe: antes !== undefined ? { antes, novo: inputLog } : inputLog,
+            ip,
+          });
+        } catch (auditErr) {
+          console.error(`[action:${config.modulo}/${config.acao}] auditoria falhou:`, auditErr);
+        }
       }
       return { ok: true, data };
     } catch (err) {

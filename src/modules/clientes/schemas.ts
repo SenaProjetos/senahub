@@ -29,6 +29,7 @@ export const CATEGORIAS_CLIENTE = [
   "Privado",
   "Construtora",
   "Incorporadora",
+  "Franquia",
   "Pessoa física",
   "Outro",
 ] as const;

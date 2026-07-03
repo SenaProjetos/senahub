@@ -38,7 +38,7 @@ export const criarPlano = defineAction(
       projetoId: opt(z.string()),
       observacoes: opt(z.string()),
     }),
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (i, { user }) => {
     const periodoIni = data(i.periodoIni) ?? null;

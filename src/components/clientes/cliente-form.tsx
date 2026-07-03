@@ -41,12 +41,15 @@ export function ClienteForm({
   const [pending, startTransition] = useTransition();
   const [buscandoCep, setBuscandoCep] = useState(false);
 
-  // Reinicia o form quando muda o cliente em edição.
+  // Reinicia o form quando muda o cliente em edição OU quando o dialog reabre
+  // (sem isso, "novo cliente" reaproveitava o estado do cadastro anterior).
   const key = cliente?.id ?? "novo";
   const [lastKey, setLastKey] = useState(key);
-  if (lastKey !== key) {
+  const [lastOpen, setLastOpen] = useState(open);
+  if (lastKey !== key || lastOpen !== open) {
     setLastKey(key);
-    setForm(cliente ?? VAZIO);
+    setLastOpen(open);
+    if (lastKey !== key || open) setForm(cliente ?? VAZIO);
   }
 
   function set<K extends keyof Cliente>(campo: K, valor: Cliente[K]) {
@@ -108,7 +111,14 @@ export function ClienteForm({
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <Label>Tipo</Label>
-              <Select value={form.tipo} onValueChange={(v) => set("tipo", v as "PF" | "PJ")}>
+              <Select
+                value={form.tipo}
+                onValueChange={(v) => {
+                  if (v !== "PF" && v !== "PJ") return;
+                  // PF não tem nome fantasia — limpa para não persistir valor de quando era PJ.
+                  setForm((f) => ({ ...f, tipo: v, ...(v === "PF" ? { nomeFantasia: undefined } : {}) }));
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>

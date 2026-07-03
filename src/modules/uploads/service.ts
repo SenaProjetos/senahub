@@ -34,4 +34,4 @@ export function destinoArquivo(nome: string, alvo: PacoteAlvo): PacoteDestino {
   return EXT_PACOTE_A.has(extensao(nome)) ? "A" : "OUTROS";
 }
 
-export const TAMANHO_MAX = 500 * 1024 * 1024; // 500 MB por arquivo
+export { TAMANHO_MAX, TAMANHO_MAX_LABEL } from "./limites";

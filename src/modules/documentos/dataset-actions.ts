@@ -48,7 +48,7 @@ export const renomearDataset = defineAction(
     acao: "renomear-dataset",
     entidade: "DatasetDocumento",
     schema: renomearSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (i) => {
     await prisma.datasetDocumento.update({ where: { id: i.id }, data: { nome: i.nome } });
@@ -63,7 +63,7 @@ export const excluirDataset = defineAction(
     acao: "excluir-dataset",
     entidade: "DatasetDocumento",
     schema: idSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (i) => {
     await prisma.datasetDocumento.delete({ where: { id: i.id } });

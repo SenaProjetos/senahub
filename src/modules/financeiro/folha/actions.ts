@@ -27,7 +27,7 @@ export const pagarProjetista = defineAction(
     permissao: "gerir",
     entidade: "PagamentoProjetista",
     schema: pagarSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (i, { user }) => {
     const pag = await prisma.pagamentoProjetista.findUnique({

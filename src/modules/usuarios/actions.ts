@@ -23,7 +23,7 @@ export const criarUsuario = defineAction(
     permissao: "gerir",
     entidade: "User",
     schema: criarUsuarioSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
     const existing = await prisma.user.findUnique({
@@ -45,7 +45,7 @@ export const editarUsuario = defineAction(
     permissao: "gerir",
     entidade: "User",
     schema: editarUsuarioSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
     await prisma.user.update({
@@ -69,7 +69,7 @@ export const desativarUsuario = defineAction(
     permissao: "gerir",
     entidade: "User",
     schema: usuarioIdSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input, ctx) => {
     if (input.id === ctx.user.id) {
@@ -92,7 +92,7 @@ export const reativarUsuario = defineAction(
     permissao: "gerir",
     entidade: "User",
     schema: usuarioIdSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
     await prisma.user.update({ where: { id: input.id }, data: { ativo: true } });
@@ -109,7 +109,7 @@ export const resetarSenhaUsuario = defineAction(
     permissao: "gerir",
     entidade: "User",
     schema: usuarioIdSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
     const senhaTemporaria = await resetarSenha(input.id);

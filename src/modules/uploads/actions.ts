@@ -26,7 +26,7 @@ export const validarEntrega = defineAction(
     permissao: "validar",
     entidade: "Disciplina",
     schema: validarSchema,
-    entidadeId: (d) => (d as { disciplinaId: string }).disciplinaId,
+    entidadeId: (d, i) => ((d ?? i) as { disciplinaId: string }).disciplinaId,
   },
   async (input, { user }) => {
     const disciplina = await prisma.disciplina.findUnique({
@@ -180,7 +180,7 @@ export const gerarAceiteCliente = defineAction(
     permissao: "validar",
     entidade: "AceiteCliente",
     schema: gerarAceiteSchema,
-    entidadeId: (d) => (d as { uploadId: string }).uploadId,
+    entidadeId: (d, i) => ((d ?? i) as { uploadId: string }).uploadId,
   },
   async (input, { user }) => {
     const upload = await prisma.upload.findUnique({

@@ -28,6 +28,7 @@ import {
 } from "@/modules/projetos/actions";
 import { DisciplinaEditDialog, DisciplinaDeleteButton } from "@/components/projetos/disciplina-edit-dialog";
 import { validarEntrega, gerarAceiteCliente } from "@/modules/uploads/actions";
+import { TAMANHO_MAX, TAMANHO_MAX_LABEL } from "@/modules/uploads/limites";
 import { STATUS_LABEL, STATUS_TONE } from "@/modules/projetos/status";
 import { diasDeAtraso } from "@/modules/projetos/atraso";
 import type { StatusDisciplina } from "@/generated/prisma/client";
@@ -271,16 +272,41 @@ function ArquivosDialog({
 
   async function enviar(files: FileList | null) {
     if (!files || files.length === 0) return;
+    // Valida o tamanho ANTES de enviar — evita estourar o corpo da requisição no servidor.
+    const aceitos: File[] = [];
+    for (const f of Array.from(files)) {
+      if (f.size > TAMANHO_MAX) toast.error(`${f.name}: excede o limite de ${TAMANHO_MAX_LABEL}.`);
+      else aceitos.push(f);
+    }
+    if (aceitos.length === 0) return;
     setEnviando(true);
     try {
       const fd = new FormData();
       fd.set("disciplinaId", disciplina.id);
       fd.set("pacote", pacote);
-      for (const f of Array.from(files)) fd.append("files", f);
-      const res = await fetch("/api/uploads", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error ?? "Falha no envio.");
+      for (const f of aceitos) fd.append("files", f);
+      let res: Response;
+      try {
+        res = await fetch("/api/uploads", { method: "POST", body: fd });
+      } catch {
+        // Conexão abortada no meio do corpo (arquivo grande) cai aqui, não no .json().
+        toast.error("Falha de rede durante o envio — verifique a conexão e o tamanho do arquivo.");
+        return;
+      }
+      // Corpo pode não ser JSON (ex.: 413 do servidor) — parse defensivo.
+      let data: { error?: string; resultados?: { nome: string; ok: boolean; realocado?: boolean; motivo?: string }[] } | null = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+      if (!res.ok || !data?.resultados) {
+        toast.error(
+          data?.error ??
+            (res.status === 413
+              ? `Arquivo muito grande — limite de ${TAMANHO_MAX_LABEL}.`
+              : `Falha no envio (HTTP ${res.status}).`),
+        );
         return;
       }
       const ok = data.resultados.filter((r: { ok: boolean }) => r.ok).length;
