@@ -26,8 +26,8 @@ describe("numeração de projeto AAXXXX", () => {
     expect(r.codigo).toBe("300007");
   });
 
-  it("formatarCodigo insere o traço para exibição", () => {
-    expect(formatarCodigo("260142")).toBe("26-0142");
+  it("formatarCodigo exibe o código cru, sem hífen (item 25)", () => {
+    expect(formatarCodigo("260142")).toBe("260142");
     expect(formatarCodigo("abc")).toBe("abc");
   });
 });

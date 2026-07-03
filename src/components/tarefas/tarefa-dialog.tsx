@@ -42,6 +42,7 @@ export type TarefaUI = {
   projetoId: string;
   projetoCodigo: string | null;
   projetoNome: string | null;
+  criadorId: string;
   responsaveis: { id: string; nome: string }[];
   itens: { id?: string; descricao: string; concluido: boolean }[];
   dependeDeIds: string[];
@@ -74,13 +75,21 @@ export function TarefaDialog({
   onOpenChange,
   opcoes,
   colunas,
+  meId,
+  meRole,
 }: {
   tarefa: TarefaUI | null;
   open: boolean;
   onOpenChange: (o: boolean) => void;
   opcoes: OpcoesUI;
   colunas: { id: string; nome: string }[];
+  meId: string;
+  meRole: string;
 }) {
+  // Item 27 (beta): só quem criou a tarefa (ou admin/supervisor) edita/arquiva. Tarefa nova
+  // (tarefa === null) é sempre editável — quem cria ainda não tem criadorId atribuído.
+  const podeEditar =
+    !tarefa || tarefa.criadorId === meId || meRole === "admin" || meRole === "supervisor";
   const router = useRouter();
   const [pending, start] = useTransition();
   const vazio = {
@@ -223,6 +232,12 @@ export function TarefaDialog({
         </DialogHeader>
 
         <div className="space-y-3">
+          {!podeEditar && (
+            <p className="rounded-sm border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning-foreground">
+              Só quem criou esta tarefa (ou admin/supervisor) pode editá-la.
+            </p>
+          )}
+          <fieldset disabled={!podeEditar} className="contents">
           <div className="space-y-1.5">
             <Label>Título</Label>
             <Input value={form.titulo} onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))} />
@@ -400,6 +415,7 @@ export function TarefaDialog({
               </div>
             </div>
           )}
+          </fieldset>
 
           {tarefa && (
             <div className="space-y-1.5 border-t pt-3">
@@ -453,7 +469,7 @@ export function TarefaDialog({
         </div>
 
         <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
-          {tarefa ? (
+          {tarefa && podeEditar ? (
             <Button variant="ghost" size="sm" onClick={arquivar} disabled={pending}>
               <Archive className="size-3.5" /> Arquivar
             </Button>
@@ -464,7 +480,7 @@ export function TarefaDialog({
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button onClick={salvar} disabled={pending || !form.titulo}>
+            <Button onClick={salvar} disabled={pending || !form.titulo || !podeEditar}>
               {pending ? "Salvando…" : "Salvar"}
             </Button>
           </div>

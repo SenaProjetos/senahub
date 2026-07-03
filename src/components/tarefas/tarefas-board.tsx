@@ -96,7 +96,17 @@ function filtrarTarefa(
   return true;
 }
 
-export function TarefasBoard({ colunas, opcoes }: { colunas: Coluna[]; opcoes: OpcoesUI }) {
+export function TarefasBoard({
+  colunas,
+  opcoes,
+  meId,
+  meRole,
+}: {
+  colunas: Coluna[];
+  opcoes: OpcoesUI;
+  meId: string;
+  meRole: string;
+}) {
   const router = useRouter();
   const setParams = useSetParams();
   const searchParams = useSearchParams();
@@ -319,6 +329,8 @@ export function TarefasBoard({ colunas, opcoes }: { colunas: Coluna[]; opcoes: O
         onOpenChange={(o) => !o && setDialog(null)}
         opcoes={opcoes}
         colunas={colunas.map((c) => ({ id: c.id, nome: c.nome }))}
+        meId={meId}
+        meRole={meRole}
       />
     </div>
   );

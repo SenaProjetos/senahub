@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { CalendarDays, MapPin, Ruler, Users } from "lucide-react";
 import { usuariosOnline } from "@/lib/socket";
-import { ROLE_LABELS } from "@/lib/roles";
+import { ROLE_LABELS, CLT_ROLES } from "@/lib/roles";
 import { Avatar, AvatarFallback, AvatarBadge } from "@/components/ui/avatar";
 import { requirePermission } from "@/lib/session";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
@@ -57,6 +57,9 @@ export default async function ProjetoDetalhePage({
     timelineStatusProjeto(projeto.id),
   ]);
 
+  // Item 26 (beta): CLT/estagiário são remunerados por salário/bolsa (RH), não por
+  // disciplina — o valor pago ao projetista PJ/freelancer não deve aparecer para eles.
+  const ocultarValorDisciplina = CLT_ROLES.includes(user.role);
   const disciplinas = projeto.disciplinas.map((d) => {
     const uploads = d.uploads.map((u) => ({
       id: u.id,
@@ -75,7 +78,7 @@ export default async function ProjetoDetalhePage({
       nome: d.nome,
       status: d.status,
       prazo: d.prazo ? new Date(d.prazo).toISOString() : null,
-      valor: d.valor != null ? Number(d.valor) : null,
+      valor: ocultarValorDisciplina ? null : d.valor != null ? Number(d.valor) : null,
       responsaveis: d.responsaveis.map((r) => ({ userId: r.userId, name: r.user.name })),
       ehResponsavel: d.responsaveis.some((r) => r.userId === user.id),
       revisoes: d.revisoes.map((rv) => ({

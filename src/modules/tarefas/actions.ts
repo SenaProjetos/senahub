@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { INTERNAL_ROLES } from "@/lib/roles";
+import { INTERNAL_ROLES, GLOBAL_ROLES } from "@/lib/roles";
 import { notificarMuitos } from "@/lib/notificar";
 import { PRIORIDADES } from "@/modules/tarefas/prioridade";
 
@@ -62,10 +62,19 @@ export const criarTarefa = defineAction(
   },
 );
 
+/** Item 27 (beta): só o criador da tarefa ou um perfil global (admin/supervisor) edita/arquiva. */
+async function exigirCriadorOuGlobal(tarefaId: string, user: { id: string; role: string }) {
+  if (GLOBAL_ROLES.includes(user.role as never)) return;
+  const t = await prisma.tarefa.findUnique({ where: { id: tarefaId }, select: { criadorId: true } });
+  if (!t) throw new ActionError("Tarefa não encontrada.");
+  if (t.criadorId !== user.id) throw new ActionError("Só quem criou a tarefa (ou admin/supervisor) pode editá-la.");
+}
+
 export const editarTarefa = defineAction(
   { ...base, acao: "editar-tarefa", entidade: "Tarefa", schema: editarSchema },
-  async (i) => {
+  async (i, { user }) => {
     const { id, ...r } = i;
+    await exigirCriadorOuGlobal(id, user);
     if (r.dependeDeIds.includes(id)) throw new ActionError("Tarefa não pode depender dela mesma.");
     // Item 7: mantém concluidaEm coerente com o status escolhido na edição.
     const [destino, atual] = await Promise.all([
@@ -147,7 +156,8 @@ export const toggleItemTarefa = defineAction(
 
 export const arquivarTarefa = defineAction(
   { ...base, acao: "arquivar-tarefa", entidade: "Tarefa", schema: idSchema },
-  async (i) => {
+  async (i, { user }) => {
+    await exigirCriadorOuGlobal(i.id, user);
     await prisma.tarefa.update({ where: { id: i.id }, data: { arquivada: true } });
     rev();
     return { id: i.id };
