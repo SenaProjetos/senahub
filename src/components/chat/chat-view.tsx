@@ -594,7 +594,21 @@ export function ChatView({
     }
     function onNovoCanal(p: { canalId: string }) {
       s.emit("entrar-canal", p.canalId);
-      router.refresh();
+      // Mescla o canal novo (DM/grupo/adição) vindo do servidor no estado local.
+      // NÃO usa router.refresh(): no chat flutuante os dados vêm de um fetch client,
+      // não de props RSC, então o refresh é no-op e o canal só apareceria após F5.
+      // O fetch de bootstrap reaproveita listarCanais → item completo (nome, membros, status).
+      void fetch("/api/chat/bootstrap")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (!d || !Array.isArray(d.canais)) return;
+          setCanais((prev) => {
+            const existentes = new Set(prev.map((c) => c.id));
+            const novos = (d.canais as CanalListItem[]).filter((c) => !existentes.has(c.id));
+            return novos.length > 0 ? [...prev, ...novos] : prev;
+          });
+        })
+        .catch(() => {});
     }
     function onMensagemEditada(p: { id: string; canalId: string; conteudo: string; editedAt: string }) {
       if (p.canalId !== selRef.current) return;
@@ -967,10 +981,37 @@ export function ChatView({
 
   async function novaDM(usuarioId: string) {
     const r = await abrirDM({ usuarioId });
-    if (r.ok) {
-      router.refresh();
-      setSel(r.data.canalId);
-    } else toast.error(r.error);
+    if (!r.ok) { toast.error(r.error); return; }
+    const canalId = r.data.canalId;
+    // Insere o canal localmente na hora — não depende de router.refresh() (que é no-op
+    // no chat flutuante, cujos dados vêm de um fetch client, não de props RSC). Assim a
+    // conversa abre sem F5. O merge effect dedup se o refresh trouxer o mesmo canal.
+    setCanais((cs) => {
+      if (cs.some((c) => c.id === canalId)) return cs;
+      const u = usuarios.find((x) => x.id === usuarioId);
+      const novo: CanalListItem = {
+        id: canalId,
+        tipo: "dm",
+        nome: u?.name ?? "Conversa",
+        icone: null,
+        imagemCapa: null,
+        criadoPorId: null,
+        grupoMembros: null,
+        projetoId: null,
+        projetoCodigo: null,
+        projetoSituacao: null,
+        disciplinaId: null,
+        outroUserId: usuarioId,
+        outroUserStatus: (u?.chatStatus ?? null) as CanalListItem["outroUserStatus"],
+        ultima: null,
+        naoLidas: 0,
+        silenciado: false,
+        observador: false,
+      };
+      return [...cs, novo];
+    });
+    router.refresh();
+    setSel(canalId);
   }
 
   // C5-2: handlers de grupo ad-hoc
@@ -1047,11 +1088,14 @@ export function ChatView({
   }
 
   const gerais = canais.filter((c) => c.tipo === "geral" && !c.observador);
-  const socios = canais.filter((c) => c.tipo === "socios" && !c.observador);
+  // Item beta #7: admin/supervisor não-sócio vê "Sócios" na lista principal (moderação
+  // continua só-leitura — envio é barrado no servidor por `exigirMembro`, não por aqui).
+  const socios = canais.filter((c) => c.tipo === "socios");
   const grupos = canais.filter((c) => c.tipo === "grupo" && !c.observador);
   const dms = canais.filter((c) => c.tipo === "dm" && !c.observador);
   // Admin/supervisor: canais que observa (não participa) — somente leitura.
-  const observados = canais.filter((c) => c.observador);
+  // "Sócios" já entrou na seção própria acima, não duplica aqui.
+  const observados = canais.filter((c) => c.observador && c.tipo !== "socios");
 
   // C5-5: reseta o índice de menção quando as opções mudam de quantidade
   useEffect(() => { setMencaoIndice(-1); }, [mencaoOpcoes.length]);

@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 
 /** Índice de retrabalho atual: % de disciplinas (não arquivadas) com ≥1 revisão. */
 export async function indiceQualidadeAtual() {
@@ -116,11 +117,16 @@ export async function gravarSnapshotQualidade(ano: number, mes: number) {
 }
 
 /** KPIs reais da home. */
-export async function kpisHome() {
+/**
+ * KPIs da home. `escopo` (Prisma where de Projeto) restringe projetos ativos e entregas
+ * pendentes ao que o viewer participa — sem ele, totais globais (perfis com acesso global).
+ * A receita prevista segue global: só é exibida a quem pode ver financeiro.
+ */
+export async function kpisHome(escopo: Prisma.ProjetoWhereInput = {}) {
   const seteDias = new Date();
   seteDias.setDate(seteDias.getDate() + 7);
   const [projetosAtivos, receitaPrevista, entregasPendentes] = await Promise.all([
-    prisma.projeto.count({ where: { situacao: "em_andamento" } }),
+    prisma.projeto.count({ where: { situacao: "em_andamento", AND: [escopo] } }),
     prisma.lancamento.aggregate({
       where: { tipo: "receita", status: "previsto" },
       _sum: { valor: true },
@@ -129,7 +135,7 @@ export async function kpisHome() {
       where: {
         status: { notIn: ["aprovado", "entregue"] },
         prazo: { lte: seteDias },
-        projeto: { situacao: "em_andamento" },
+        projeto: { situacao: "em_andamento", AND: [escopo] },
       },
     }),
   ]);
