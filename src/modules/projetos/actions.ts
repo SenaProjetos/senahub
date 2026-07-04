@@ -22,8 +22,12 @@ import {
   excluirDisciplinaSchema,
   cancelarProjetoSchema,
   adicionarDoCatalogoSchema,
+  criarDisciplinaCatalogoSchema,
+  editarDisciplinaCatalogoSchema,
+  idDisciplinaCatalogoSchema,
 } from "@/modules/projetos/schemas";
 import { notificar, notificarMuitos } from "@/lib/notificar";
+import { sanitizeSvg } from "@/lib/sanitize-svg";
 
 function isGlobal(role: Role) {
   return role === "admin" || GLOBAL_ROLES.includes(role);
@@ -840,5 +844,129 @@ export const adicionarDisciplinasDoCatalogo = defineAction(
 
     revalidatePath(`/projetos/${input.projetoId}`);
     return { criadas: novas.length };
+  },
+);
+
+// ─── Item 15: catálogo de disciplinas (Configurações → Disciplinas) ────────────
+
+const catalogoBase = { modulo: "projetos", recurso: "projetos", permissao: "gerir" } as const;
+
+function revCatalogo() {
+  revalidatePath("/configuracoes/disciplinas");
+  revalidatePath("/projetos");
+}
+
+/** Normaliza os campos vindos do form: código A-Z0-9, categoria/ícone opcionais, SVG sanitizado. */
+function normalizarCatalogo(i: {
+  nome: string;
+  codigo?: string;
+  categoria?: string;
+  icone?: string;
+  iconeSvg?: string;
+}) {
+  const codigo = (i.codigo ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "") || null;
+  const iconeSvg = i.iconeSvg ? sanitizeSvg(i.iconeSvg) : null;
+  if (i.iconeSvg && !iconeSvg) throw new ActionError("SVG inválido ou acima de 20 KB.");
+  return {
+    nome: i.nome.trim(),
+    codigo,
+    categoria: i.categoria?.trim() || null,
+    // ícone custom (SVG) tem prioridade; ao enviar SVG, zera a chave da galeria.
+    icone: iconeSvg ? null : i.icone?.trim() || null,
+    iconeSvg,
+  };
+}
+
+/** Garante nome e código únicos no catálogo (ignora a própria linha ao editar). */
+async function garantirUnicosCatalogo(nome: string, codigo: string | null, ignoreId: string | null) {
+  const naoEu = ignoreId ? { id: { not: ignoreId } } : {};
+  if (await prisma.disciplinaCatalogo.findFirst({ where: { nome, ...naoEu }, select: { id: true } })) {
+    throw new ActionError("Já existe uma disciplina com esse nome.");
+  }
+  if (
+    codigo &&
+    (await prisma.disciplinaCatalogo.findFirst({ where: { codigo, ...naoEu }, select: { id: true } }))
+  ) {
+    throw new ActionError("Já existe uma disciplina com esse código.");
+  }
+}
+
+export const criarDisciplinaCatalogo = defineAction(
+  {
+    ...catalogoBase,
+    acao: "criar-disciplina-catalogo",
+    entidade: "DisciplinaCatalogo",
+    schema: criarDisciplinaCatalogoSchema,
+    entidadeId: (d) => (d as { id: string }).id,
+  },
+  async (i) => {
+    const dados = normalizarCatalogo(i);
+    await garantirUnicosCatalogo(dados.nome, dados.codigo, null);
+    const max = await prisma.disciplinaCatalogo.aggregate({ _max: { ordem: true } });
+    const criada = await prisma.disciplinaCatalogo.create({
+      data: { ...dados, ordem: (max._max.ordem ?? 0) + 1 },
+    });
+    revCatalogo();
+    return { id: criada.id };
+  },
+);
+
+export const editarDisciplinaCatalogo = defineAction(
+  {
+    ...catalogoBase,
+    acao: "editar-disciplina-catalogo",
+    entidade: "DisciplinaCatalogo",
+    schema: editarDisciplinaCatalogoSchema,
+    entidadeId: (_d, i) => i.id,
+    capturarAntes: (i) => prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } }),
+  },
+  async (i) => {
+    const existe = await prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } });
+    if (!existe) throw new ActionError("Disciplina não encontrada.");
+    const dados = normalizarCatalogo(i);
+    await garantirUnicosCatalogo(dados.nome, dados.codigo, i.id);
+    await prisma.disciplinaCatalogo.update({ where: { id: i.id }, data: dados });
+    revCatalogo();
+    return { id: i.id };
+  },
+);
+
+/** Arquiva/desarquiva (alterna `ativo`): some do seletor sem apagar; projetos mantêm o nome. */
+export const arquivarDisciplinaCatalogo = defineAction(
+  {
+    ...catalogoBase,
+    acao: "arquivar-disciplina-catalogo",
+    entidade: "DisciplinaCatalogo",
+    schema: idDisciplinaCatalogoSchema,
+    entidadeId: (_d, i) => i.id,
+  },
+  async (i) => {
+    const c = await prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } });
+    if (!c) throw new ActionError("Disciplina não encontrada.");
+    await prisma.disciplinaCatalogo.update({ where: { id: i.id }, data: { ativo: !c.ativo } });
+    revCatalogo();
+    return { id: i.id, ativo: !c.ativo };
+  },
+);
+
+/** Exclusão definitiva — bloqueada se a disciplina estiver em uso em algum projeto. */
+export const excluirDisciplinaCatalogo = defineAction(
+  {
+    ...catalogoBase,
+    acao: "excluir-disciplina-catalogo",
+    entidade: "DisciplinaCatalogo",
+    schema: idDisciplinaCatalogoSchema,
+    entidadeId: (_d, i) => i.id,
+  },
+  async (i) => {
+    const c = await prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } });
+    if (!c) throw new ActionError("Disciplina não encontrada.");
+    const uso = await prisma.disciplina.count({ where: { nome: c.nome } });
+    if (uso > 0) {
+      throw new ActionError(`Em uso em ${uso} projeto(s) — arquive em vez de excluir.`);
+    }
+    await prisma.disciplinaCatalogo.delete({ where: { id: i.id } });
+    revCatalogo();
+    return { id: i.id };
   },
 );

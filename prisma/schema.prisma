@@ -423,10 +423,18 @@ enum StatusDisciplina {
 
 /// Catálogo configurável de disciplinas (Estrutural, Hidráulica…).
 model DisciplinaCatalogo {
-  id    String  @id @default(cuid())
-  nome  String  @unique
-  ativo Boolean @default(true)
-  ordem Int     @default(0)
+  id        String  @id @default(cuid())
+  nome      String  @unique
+  /// Sigla usada na nomenclatura de arquivos (ex.: ELE, ARQ). Opcional/única.
+  codigo    String? @unique
+  /// Grupo de exibição no catálogo (CIVIL, ELÉTRICA…). null = "Outras".
+  categoria String?
+  /// Chave da galeria de ícones (lucide, ex.: "Zap"). null = derivar do nome.
+  icone     String?
+  /// SVG custom já sanitizado (upload). Precede `icone` na resolução do ícone.
+  iconeSvg  String?
+  ativo     Boolean @default(true)
+  ordem     Int     @default(0)
 
   @@map("disciplina_catalogo")
 }

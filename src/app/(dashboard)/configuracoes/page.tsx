@@ -15,6 +15,7 @@ import {
   Mail,
   Bell,
   Funnel,
+  Shapes,
 } from "lucide-react";
 import { requireRole } from "@/lib/session";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -70,6 +71,12 @@ const GRUPOS: Grupo[] = [
     titulo: "Projetos & Operação",
     descricao: "Modelos e parâmetros do dia a dia de projetos e licitações.",
     itens: [
+      {
+        href: "/configuracoes/disciplinas",
+        icon: Shapes,
+        titulo: "Disciplinas",
+        descricao: "Catálogo de disciplinas (sigla, ícone, categoria) usado em projetos e propostas.",
+      },
       {
         href: "/configuracoes/documentos",
         icon: FileText,

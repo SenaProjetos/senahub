@@ -156,19 +156,19 @@ const ONBOARDING_PADRAO = {
   ],
 };
 
-const DISCIPLINAS_CATALOGO = [
-  "Arquitetura",
-  "Estrutural",
-  "Hidrossanitário",
-  "Elétrico",
-  "Incêndio (PPCI)",
-  "Climatização (AVAC)",
-  "Fundações",
-  "Terraplenagem",
-  // Item 14 (beta): novas disciplinas do catálogo.
-  "Lógica",
-  "CFTV",
-  "Drenagem",
+// Item 15: catálogo com sigla (nomenclatura de arquivos) + categoria (agrupamento na UI).
+const DISCIPLINAS_CATALOGO: { nome: string; codigo: string; categoria: string }[] = [
+  { nome: "Terraplenagem", codigo: "TER", categoria: "CIVIL" },
+  { nome: "Arquitetura", codigo: "ARQ", categoria: "ARQUITETURA" },
+  { nome: "Estrutural", codigo: "EST", categoria: "ESTRUTURAL" },
+  { nome: "Fundações", codigo: "FUN", categoria: "ESTRUTURAL" },
+  { nome: "Elétrico", codigo: "ELE", categoria: "ELÉTRICA" },
+  { nome: "Lógica", codigo: "LOG", categoria: "ELÉTRICA" },
+  { nome: "CFTV", codigo: "CFT", categoria: "ELÉTRICA" },
+  { nome: "Hidrossanitário", codigo: "HID", categoria: "HIDRÁULICA" },
+  { nome: "Drenagem", codigo: "DRE", categoria: "HIDRÁULICA" },
+  { nome: "Incêndio (PPCI)", codigo: "PCI", categoria: "SEGURANÇA" },
+  { nome: "Climatização (AVAC)", codigo: "CLI", categoria: "MECÂNICA" },
 ];
 
 async function main() {
@@ -216,10 +216,11 @@ async function main() {
 
   // 3) Catálogo de disciplinas
   for (let i = 0; i < DISCIPLINAS_CATALOGO.length; i++) {
+    const d = DISCIPLINAS_CATALOGO[i];
     await prisma.disciplinaCatalogo.upsert({
-      where: { nome: DISCIPLINAS_CATALOGO[i] },
-      create: { nome: DISCIPLINAS_CATALOGO[i], ordem: i },
-      update: { ordem: i },
+      where: { nome: d.nome },
+      create: { nome: d.nome, codigo: d.codigo, categoria: d.categoria, ordem: i },
+      update: { codigo: d.codigo, categoria: d.categoria, ordem: i },
     });
   }
   console.log(`✔ ${DISCIPLINAS_CATALOGO.length} disciplinas no catálogo.`);

@@ -117,5 +117,23 @@ export const adicionarDoCatalogoSchema = z.object({
   nomes: z.array(z.string().min(1)).min(1),
 });
 
+/** Item 15: CRUD do catálogo de disciplinas (Configurações → Disciplinas). */
+export const criarDisciplinaCatalogoSchema = z.object({
+  nome: z.string().trim().min(2, "Informe o nome da disciplina."),
+  /** Sigla p/ nomenclatura; normalizada (uppercase, só A-Z0-9) na action. */
+  codigo: z.string().trim().max(6, "Código de até 6 caracteres.").optional(),
+  categoria: z.string().trim().max(40).optional(),
+  /** Chave da galeria lucide. */
+  icone: z.string().trim().max(60).optional(),
+  /** SVG bruto do upload; sanitizado na action. */
+  iconeSvg: z.string().max(40000, "SVG muito grande.").optional(),
+});
+
+export const editarDisciplinaCatalogoSchema = criarDisciplinaCatalogoSchema.extend({
+  id: z.string().min(1),
+});
+
+export const idDisciplinaCatalogoSchema = z.object({ id: z.string().min(1) });
+
 export type CriarProjetoInput = z.infer<typeof criarProjetoSchema>;
 export type DisciplinaInput = z.infer<typeof disciplinaInputSchema>;

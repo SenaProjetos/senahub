@@ -64,11 +64,17 @@ export async function POST(req: Request) {
   }
 
   const { projeto } = disciplina;
+  // Item 15: nomenclatura usa a sigla do catálogo (ex.: ELE) quando existir; senão, o nome.
+  const cat = await prisma.disciplinaCatalogo.findFirst({
+    where: { nome: disciplina.nome },
+    select: { codigo: true },
+  });
+  const codDisc = cat?.codigo ?? null;
   const baseDir = [
     String(projeto.ano),
     slug(projeto.cliente.nome),
     `${projeto.codigo}_${slug(projeto.nome)}`,
-    slug(disciplina.nome),
+    codDisc ? slug(codDisc) : slug(disciplina.nome),
   ].join("/");
 
   const resultados: Resultado[] = [];
@@ -93,7 +99,9 @@ export async function POST(req: Request) {
 
       const ext = extensao(nome);
       const baseNome = ext ? nome.slice(0, -(ext.length + 1)) : nome;
-      const nomeVersionado = versao > 1 ? `${slug(baseNome)}__v${versao}${ext ? "." + ext : ""}` : `${slug(baseNome)}${ext ? "." + ext : ""}`;
+      // Prefixa o arquivo com a sigla da disciplina (ex.: ELE-planta.dwg) quando houver código.
+      const nomeBase = codDisc ? `${codDisc}-${slug(baseNome)}` : slug(baseNome);
+      const nomeVersionado = versao > 1 ? `${nomeBase}__v${versao}${ext ? "." + ext : ""}` : `${nomeBase}${ext ? "." + ext : ""}`;
       const relativo = `${baseDir}/${destino}/${nomeVersionado}`;
 
       const buffer = Buffer.from(await file.arrayBuffer());

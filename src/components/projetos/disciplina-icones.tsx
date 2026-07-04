@@ -1,5 +1,5 @@
 import type { StatusDisciplina } from "@/generated/prisma/client";
-import { iconeDisciplina } from "@/lib/disciplinas";
+import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { STATUS_TEXT, STATUS_LABEL } from "@/modules/projetos/status";
 
 /**
@@ -24,7 +24,6 @@ export function DisciplinaIcones({
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {visiveis.map((d, i) => {
-        const Icone = iconeDisciplina(d.nome);
         const rotulo = `${d.nome} — ${STATUS_LABEL[d.status]}`;
         return (
           <span
@@ -32,7 +31,7 @@ export function DisciplinaIcones({
             title={rotulo}
             className={`inline-flex items-center ${STATUS_TEXT[d.status]}`}
           >
-            <Icone className={size} aria-hidden />
+            <DisciplinaIcone nome={d.nome} className={size} />
             <span className="sr-only">{rotulo}</span>
           </span>
         );
