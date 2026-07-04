@@ -76,19 +76,19 @@ export function ProjetoAcoesMenu({
         <DropdownMenuContent align="end">
           {ativo ? (
             <>
-              <DropdownMenuItem onSelect={() => setDialog("arquivar")} className="gap-2">
+              <DropdownMenuItem onClick={() => setDialog("arquivar")} className="gap-2">
                 <Archive className="size-4" /> Arquivar
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onSelect={() => setDialog("cancelar")}
+                onClick={() => setDialog("cancelar")}
                 className="gap-2 text-destructive"
               >
                 <XCircle className="size-4" /> Cancelar projeto
               </DropdownMenuItem>
             </>
           ) : (
-            <DropdownMenuItem onSelect={handleReativar} className="gap-2" disabled={pending}>
+            <DropdownMenuItem onClick={handleReativar} className="gap-2" disabled={pending}>
               <RefreshCw className="size-4" /> Reativar projeto
             </DropdownMenuItem>
           )}
