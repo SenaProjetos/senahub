@@ -1601,7 +1601,9 @@ export function ChatView({
                     {!excluida && !editando && (
                       <div className={cn(
                         "absolute -bottom-3 z-10 flex items-center gap-0.5 rounded-md border bg-popover px-0.5 py-0.5 opacity-0 shadow-sm transition-opacity group-hover:opacity-100",
-                        meu ? "left-1" : "right-1",
+                        // Ancora pelo lado que a bolha já encosta — cresce para o lado com espaço,
+                        // nunca ultrapassando a margem oposta (mensagem própria é curta e fica à direita).
+                        meu ? "right-1" : "left-1",
                       )}>
                         <button
                           title="Responder"
