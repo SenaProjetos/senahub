@@ -339,7 +339,8 @@ function CanalBtn({
               )}
             </span>
             {c.naoLidas > 0 && (
-              <span className="ml-1 shrink-0 rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">
+              // Some no hover para não colidir com as ações (marcar lido / silenciar).
+              <span className="ml-1 shrink-0 rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground group-hover:invisible">
                 {c.naoLidas}
               </span>
             )}
@@ -351,8 +352,8 @@ function CanalBtn({
           )}
         </div>
       </button>
-      {/* Ações de canal no hover */}
-      <div className="absolute right-1 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 group-hover:flex">
+      {/* Ações de canal no hover (fundo próprio p/ não se misturar com o texto/badge) */}
+      <div className="absolute right-1 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 rounded-md bg-card px-0.5 shadow-sm group-hover:flex">
         {onMarcarLido && (
           <button
             onClick={(e) => { e.stopPropagation(); onMarcarLido(); }}
@@ -1196,6 +1197,9 @@ export function ChatView({
 
   function renderProjetoGrupo(pid: string, g: ProjetoGrupo) {
     const recolhido = recolhidos.has(pid);
+    // Diferencia a origem das não lidas: canal principal do projeto × subcanais de disciplina.
+    const naoLidasPrincipal = g.principal?.naoLidas ?? 0;
+    const naoLidasSubs = g.subs.reduce((s, c) => s + c.naoLidas, 0);
     return (
       <div key={pid}>
         <div className="flex items-center border-b bg-muted/30">
@@ -1217,11 +1221,26 @@ export function ChatView({
             {g.principal?.nome && g.codigo && (
               <span className="truncate text-xs text-muted-foreground">· {g.principal.nome}</span>
             )}
-            {g.naoLidas > 0 && (
-              <span className="ml-auto shrink-0 rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">
-                {g.naoLidas}
-              </span>
-            )}
+            <span className="ml-auto flex shrink-0 items-center gap-1">
+              {/* Preenchido = não lidas no canal PRINCIPAL do projeto. */}
+              {naoLidasPrincipal > 0 && (
+                <span
+                  title="Não lidas no canal do projeto"
+                  className="rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground"
+                >
+                  {naoLidasPrincipal}
+                </span>
+              )}
+              {/* Contornado = não lidas em subcanais de DISCIPLINA. */}
+              {naoLidasSubs > 0 && (
+                <span
+                  title="Não lidas em disciplinas"
+                  className="rounded-full border border-primary bg-transparent px-1.5 text-[10px] font-medium text-primary"
+                >
+                  {naoLidasSubs}
+                </span>
+              )}
+            </span>
           </button>
         </div>
         {!recolhido && g.subs.map((c) => (
