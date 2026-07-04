@@ -307,6 +307,12 @@ function CanalBtn({
           sel === c.id && "bg-muted",
         )}
       >
+        {/* Indicador de não lidas: ponto colorido à esquerda (visível mesmo com nome longo). */}
+        <span
+          className={cn("size-2 shrink-0 rounded-full", c.naoLidas > 0 ? "bg-primary" : "bg-transparent")}
+          aria-hidden={c.naoLidas === 0}
+          aria-label={c.naoLidas > 0 ? "Mensagens não lidas" : undefined}
+        />
         {c.tipo === "dm" ? (
           <div className="relative shrink-0">
             <AtSign className="size-4 text-muted-foreground" />
@@ -323,7 +329,7 @@ function CanalBtn({
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-1">
-            <span className="truncate font-medium">
+            <span className={cn("truncate", c.naoLidas > 0 ? "font-bold" : "font-medium")}>
               {c.nome}
               {mostrarCodigo && c.projetoCodigo ? (
                 <span className="ml-1 font-mono text-xs text-muted-foreground">{formatarCodigo(c.projetoCodigo)}</span>
@@ -428,7 +434,19 @@ export function ChatView({
   const [texto, setTexto] = useState("");
   const [status, setStatus] = useState(statusInicial);
   const [online, setOnline] = useState<Set<string>>(new Set());
-  const [recolhidos, setRecolhidos] = useState<Set<string>>(new Set());
+  // Ao abrir: projetos vêm recolhidos por padrão, EXCETO os que têm mensagem não lida
+  // em algum subcanal de disciplina (aí abre já mostrando onde há novidade).
+  const [recolhidos, setRecolhidos] = useState<Set<string>>(() => {
+    const todos = new Set<string>();
+    const comUnreadDisc = new Set<string>();
+    for (const c of canaisIniciais) {
+      if (c.tipo !== "projeto" && c.tipo !== "disciplina") continue;
+      const pid = c.projetoId ?? c.id;
+      todos.add(pid);
+      if (c.tipo === "disciplina" && c.naoLidas > 0) comUnreadDisc.add(pid);
+    }
+    return new Set([...todos].filter((pid) => !comUnreadDisc.has(pid)));
+  });
   const [arquivadosAberto, setArquivadosAberto] = useState(false);
   const [observadosAberto, setObservadosAberto] = useState(false);
   // Lista de membros: 0 = todos · 1 = só online · 2 = oculto (só o título).
