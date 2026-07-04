@@ -16,8 +16,9 @@ export const auth = betterAuth({
     maxPasswordLength: 128,
   },
   session: {
-    // Sessão de 8 horas (regra do sistema).
-    expiresIn: 60 * 60 * 8,
+    // Sessão de 16 horas (regra do sistema). Renovação deslizante: usuário
+    // ativo não cai; só expira após 16h de inatividade.
+    expiresIn: 60 * 60 * 16,
     updateAge: 60 * 60,
   },
   user: {
