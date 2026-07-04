@@ -1591,8 +1591,11 @@ export function ChatView({
                     )}
                   >
                     {!meu && (
+                      // base-ui Avatar.Image com src vazio fica "carregando" e NUNCA cai no
+                      // Fallback — então só renderiza a <img> quando há foto (padrão do app);
+                      // sem foto, aparecem as iniciais.
                       <Avatar size="sm" className="mb-0.5 shrink-0">
-                        <AvatarImage src={m.autor.image ?? undefined} alt={m.autor.name} />
+                        {m.autor.image && <AvatarImage src={m.autor.image} alt={m.autor.name} />}
                         <AvatarFallback>{iniciaisAutor(m.autor.name)}</AvatarFallback>
                       </Avatar>
                     )}
