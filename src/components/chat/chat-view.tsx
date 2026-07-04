@@ -405,7 +405,9 @@ export function ChatView({
   const confirm = useConfirm();
 
   const [canais, setCanais] = useState(canaisIniciais);
-  const [sel, setSel] = useState<string | null>(sp.get("c") ?? canaisIniciais[0]?.id ?? null);
+  // Por padrão nenhuma conversa aberta (só o empty state); `?c=` continua abrindo
+  // um canal específico via deep-link (ex.: botão "Chat" de um projeto).
+  const [sel, setSel] = useState<string | null>(sp.get("c") ?? null);
 
   // Mescla canais que vieram de um router.refresh() (ex.: grupo recém-criado ou
   // sincronização do "Sócios") no estado local, sem perder os updates ao vivo de
