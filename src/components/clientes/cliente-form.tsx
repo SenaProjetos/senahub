@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 import { criarCliente, editarCliente } from "@/modules/clientes/actions";
 import { CATEGORIAS_CLIENTE, type CriarClienteInput } from "@/modules/clientes/schemas";
 import { validarCpfCnpj } from "@/lib/documento";
@@ -115,8 +116,10 @@ export function ClienteForm({
                 value={form.tipo}
                 onValueChange={(v) => {
                   if (v !== "PF" && v !== "PJ") return;
-                  // PF não tem nome fantasia — limpa para não persistir valor de quando era PJ.
-                  setForm((f) => ({ ...f, tipo: v, ...(v === "PF" ? { nomeFantasia: undefined } : {}) }));
+                  if (v === form.tipo) return; // sem troca real, não mexe
+                  // Troca PF/PJ muda o significado de nome (razão social↔nome) e documento (CNPJ↔CPF);
+                  // limpa pra não reaproveitar dado do tipo anterior.
+                  setForm((f) => ({ ...f, tipo: v, nome: "", documento: undefined, nomeFantasia: undefined }));
                 }}
               >
                 <SelectTrigger>
@@ -194,18 +197,29 @@ export function ClienteForm({
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <Label>CEP</Label>
-              <Input
-                value={form.cep ?? ""}
-                onChange={(e) => set("cep", e.target.value)}
-                onBlur={preencherPorCep}
-                placeholder={buscandoCep ? "buscando…" : "00000-000"}
-              />
+              <div className="relative">
+                <Input
+                  value={form.cep ?? ""}
+                  onChange={(e) => set("cep", e.target.value)}
+                  onBlur={preencherPorCep}
+                  placeholder="00000-000"
+                  className={buscandoCep ? "pr-9" : undefined}
+                  aria-busy={buscandoCep}
+                />
+                {buscandoCep && (
+                  <Loader2 className="absolute inset-y-0 right-0 my-auto mr-2.5 size-4 animate-spin text-muted-foreground" />
+                )}
+              </div>
+              {buscandoCep && (
+                <p className="text-xs text-muted-foreground">Buscando endereço…</p>
+              )}
             </div>
             <div className="col-span-2 space-y-1.5">
               <Label>Logradouro</Label>
               <Input
                 value={form.logradouro ?? ""}
                 onChange={(e) => set("logradouro", e.target.value)}
+                placeholder={buscandoCep ? "Carregando…" : undefined}
               />
             </div>
           </div>
@@ -227,11 +241,19 @@ export function ClienteForm({
           <div className="grid grid-cols-6 gap-3">
             <div className="col-span-3 space-y-1.5">
               <Label>Bairro</Label>
-              <Input value={form.bairro ?? ""} onChange={(e) => set("bairro", e.target.value)} />
+              <Input
+                value={form.bairro ?? ""}
+                onChange={(e) => set("bairro", e.target.value)}
+                placeholder={buscandoCep ? "Carregando…" : undefined}
+              />
             </div>
             <div className="col-span-2 space-y-1.5">
               <Label>Cidade</Label>
-              <Input value={form.cidade ?? ""} onChange={(e) => set("cidade", e.target.value)} />
+              <Input
+                value={form.cidade ?? ""}
+                onChange={(e) => set("cidade", e.target.value)}
+                placeholder={buscandoCep ? "Carregando…" : undefined}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>UF</Label>
@@ -239,6 +261,7 @@ export function ClienteForm({
                 maxLength={2}
                 value={form.uf ?? ""}
                 onChange={(e) => set("uf", e.target.value.toUpperCase())}
+                placeholder={buscandoCep ? "…" : undefined}
               />
             </div>
           </div>
