@@ -64,6 +64,7 @@ src/
                          #   ponto-offline.ts: localStorage queue for batidas made while online drops (client)
                          #   dxf.ts: pure R12 (AC1009) DXF writer — mm units, Y-up CAD axes; base for ferramentas drawings (tested)
                          #   frase-do-dia.ts: deterministic daily quote (day-of-year → public/frases.json)
+                         #   manual.ts: reads docs/manual/** (lerManifesto/listarSecoes/pathParaSlug) → in-app Ajuda
   generated/prisma/      # Prisma client output (import from here, NOT @prisma/client)
 server.ts                # Next + Socket.io + pg-boss in ONE process
 prisma/schema.prisma     # + prisma.config.ts (Prisma 7: datasource URL lives in the config, not the schema)
@@ -103,6 +104,8 @@ async (input, ctx) => { /* ... */ },
   `lib/permissions-catalog.ts`.
 - Data scope: global roles (`admin`, `supervisor`) see everything; others are filtered (e.g. `escopoProjeto`
   in `modules/projetos/queries.ts`). RH actions gate on `HR_ADMIN_ROLES` (admin + supervisor + administrativo).
+  `podeVerTudo(u)` (`roles.ts`) also lets a **sócio** (`User.ehSocio`) read like a supervisor — read-only floor,
+  never use it for write/destructive gates.
 - **Auditing is mandatory on every mutation** — it's free via `defineAction`; don't bypass it.
 
 **Realtime & jobs (only under `dev:server` / prod):**
@@ -138,6 +141,10 @@ in `lib/prisma.ts`. To see deleted rows, pass `excluidoEm` explicitly in the `wh
 - `service.ts` (shared logic), `savefile.ts`/`auto-store.ts` (persisting snapshots), `export-util.ts`, `guia-meta.ts` (illustrated guide). Design/rollout specs under `docs/superpowers/` (`ferramentas-f0/f1/f2`).
 
 **Termos de uso (legal)** (`modules/legal/termos.ts`) — single source of truth for the on-screen acceptance text, by `TipoTermo` (`colaborador | cliente`). Pure (no `server-only`): RSC reads it, passes text to a client form; the server hashes (SHA-256) the accepted text as proof in `actions.ts`. Bump `versao` to force everyone to re-accept. `docs/legal/*.md` is the rich/print version for legal review — keep both in sync. (Spec: `docs/superpowers/plans/2026-06-23-termo-aceite.md`.)
+
+**Ajuda / Manual (in-app):** the `/ajuda` route (+ `[...slug]` catch-all) renders the user manual straight from `docs/manual/**` markdown via `lib/manual.ts` (`lerManifesto`/`listarSecoes`/`pathParaSlug`) + `react-markdown`. No DB — edit the markdown to change the docs. Visible to **all** roles (no `roles[]` on the nav item, cliente included). Keep `docs/manual/` current when features change.
+
+**Cross-module pages (not their own module folder):** `/recursos` = resource-allocation matrix built from `modules/planejamento/queries.ts` (`matrizRecursos`, `cargaSemanalPorRecurso`) + `modules/rh/habilidades/queries.ts`, gated `recursos:ver`/`recursos:gerir`.
 
 **Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`.
 
