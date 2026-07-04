@@ -85,7 +85,7 @@
   (inconsistência menor). Bloco "Evolução" só aparece com ≥2 snapshots (some em base nova — ok). · **Apont.:**
 - **Projetos `/projetos`** _(revisado)_ — Kanban é **read-only** (sem arrastar p/ mudar situação, ao contrário de Tarefas);
   "Ordenar por risco" só na página (0.B-5); muitos selects de filtro (0.B-10). · **Apont.:**
-- **Projeto detalhe `/projetos/[id]` + abas** _(herda 0.B)_ — revisar abas Pranchas/Serviços/Arquivos/Extras/Inputs/Financeiro. · **Apont.:**
+- **Projeto detalhe `/projetos/[id]` + abas** _(herda 0.B)_ — revisar abas Lista Mestre/Serviços/Arquivos/Extras/Inputs/Financeiro. · **Apont.:**
 - **Clientes `/clientes`** _(revisado)_ — empty-state plano (0.B-4); desativar sem confirm (0.B-3); sem ação em massa. · **Apont.:**
 - **Tarefas `/tarefas`** _(revisado — referência boa)_ — tem "Limpar filtros", drag-drop e toggle quadro/lista;
   só ajustar empty-state da lista (0.B-4). · **Apont.:**
@@ -109,7 +109,7 @@
 - `/` — Início (dashboard gestor: carteira, KPIs financeiros, aniversariantes) · **Apont.:**
 - `/projetos` — Lista de projetos (filtros, saúde, exportação) · **Apont.:**
 - `/projetos/[id]` — Detalhe do projeto (visão geral) · **Apont.:**
-  - `/projetos/[id]/pranchas` — Aba Pranchas · **Apont.:**
+  - `/projetos/[id]/lista-mestre` — Aba Lista Mestre (ex-Pranchas) · **Apont.:**
   - `/projetos/[id]/servicos` — Aba Serviços terceirizados · **Apont.:**
   - `/projetos/[id]/arquivos` — Aba Arquivos · **Apont.:**
   - `/projetos/[id]/extras` — Aba Extras · **Apont.:**
@@ -286,7 +286,7 @@
 
 - `/` — Início (versão colaborador) · **Apont.:**
 - `/projetos` — Lista (escopo: projetos onde participa) · **Apont.:**
-  - `/projetos/[id]` — Detalhe (abas Pranchas/Serviços/Arquivos/Extras/Inputs; **sem** aba Financeiro) · **Apont.:**
+  - `/projetos/[id]` — Detalhe (abas Lista Mestre/Serviços/Arquivos/Extras/Inputs; **sem** aba Financeiro) · **Apont.:**
 - `/projetos/meu-trabalho` — Minhas disciplinas em projetos ativos · **Apont.:**
 - `/tarefas` — Quadro de tarefas · **Apont.:**
 - `/agenda` — Agenda pessoal · **Apont.:**

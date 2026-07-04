@@ -20,7 +20,7 @@ Documentação de projetos e do trabalho operacional.
 | [Planejamento (EAP/CPM)](planejamento.md) | `/planejamento` | ✅ documentado |
 | [Recursos](recursos.md) | `/recursos` | ✅ documentado |
 
-> Abas do detalhe do projeto (Pranchas, Serviços, Arquivos, Extras, Financeiro do
+> Abas do detalhe do projeto (Lista Mestre, Serviços, Arquivos, Extras, Financeiro do
 > projeto, Inputs) serão documentadas em páginas próprias numa próxima rodada.
 
 [← Índice do manual](../README.md)

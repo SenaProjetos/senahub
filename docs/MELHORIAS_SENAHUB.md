@@ -14,7 +14,7 @@ O **SenaHub** é um ERP para escritórios de arquitetura/engenharia com os segui
 |---|---|---|
 | Dashboard | `/` | KPIs, receita, projetos recentes |
 | Projetos | `/projetos` | Listagem e detalhe com disciplinas |
-| Pranchas | `/projetos/:id/pranchas` | Folhas técnicas por disciplina |
+| Lista Mestre | `/projetos/:id/lista-mestre` | Folhas técnicas por disciplina (ex-"Pranchas") |
 | Clientes | `/clientes` | Cadastro de PF e PJ |
 | Comercial | `/comercial` | Funil de vendas (Kanban) |
 | Tarefas | `/tarefas` | Kanban com dependências |
@@ -102,7 +102,10 @@ O **SenaHub** é um ERP para escritórios de arquitetura/engenharia com os segui
 - Adicionar badge com contagem em "Arquivos (0)" e "Revisões (0)"
 - Colapsar "Inputs do projeto" quando vazia
 
-### 3.3 Pranchas (`/projetos/:id/pranchas`)
+### 3.3 Pranchas → Lista Mestre (`/projetos/:id/lista-mestre`)
+
+> Reestruturada como **Lista Mestre** (catálogo de siglas folha/tipo/fase + código composto).
+> Os pontos abaixo referem-se à versão antiga "Pranchas".
 
 **Problemas:**
 - Estado vazio apenas com texto "Sem pranchas." sem orientação visual

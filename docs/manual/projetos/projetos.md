@@ -106,9 +106,10 @@ Cada disciplina passa por um ciclo de status:
 
 ## Abas do detalhe do projeto
 
-Ao abrir um projeto, além da visão geral há abas para: **Pranchas**, **Serviços**,
+Ao abrir um projeto, além da visão geral há abas para: **Lista Mestre**, **Serviços**,
 **Arquivos**, **Extras**, **Financeiro** e **Inputs** (formulários de start). Cada uma
-será detalhada em sua própria página do manual.
+será detalhada em sua própria página do manual. (A aba **Lista Mestre** organiza as folhas
+técnicas por disciplina — substitui a antiga aba "Pranchas".)
 
 ## Permissões (resumo)
 

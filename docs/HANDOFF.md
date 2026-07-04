@@ -221,7 +221,7 @@ Auditoria do remake × spec do sistema antigo. Núcleo (§4.1–4.14, fluxos §5
 **Lacunas fechadas (4 blocos):**
 - ✅ **Dependentes** + dedução de IRRF por dependente (`/rh/funcionarios`, config em Encargos).
 - ✅ **Feriados** (`/configuracoes/feriados`, importar nacionais via Páscoa) — descontam no banco de horas.
-- ✅ **Pranchas** por disciplina (`/projetos/[id]/pranchas`) e ✅ **SLA de entregas** (Qualidade, `Disciplina.entregueEm`).
+- ✅ **Lista Mestre** — folhas técnicas por disciplina (`/projetos/[id]/lista-mestre`; reestruturada a partir da antiga aba "Pranchas", com catálogo de siglas folha/tipo/fase e código composto) e ✅ **SLA de entregas** (Qualidade, `Disciplina.entregueEm`).
 - ✅ **Geração automática de folha CLT** (salário base + INSS/IRRF) e ✅ **cron RH noturno** (propostas vencidas, férias do dia).
 - ✅ **Comentários/anexos em Tarefas**, ✅ **anexos em Suporte**, ✅ **Habilidades** (matriz de recursos), ✅ **Serviços terceirizados** por projeto.
 
