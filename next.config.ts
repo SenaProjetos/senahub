@@ -7,8 +7,9 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-XSS-Protection", value: "1; mode=block" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // Desabilita features de browser que o ERP não usa.
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+  // Desabilita features de browser que o ERP não usa. Microfone fica liberado
+  // para o próprio site (self) — usado no áudio do chat (MediaRecorder).
+  { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=(), payment=()" },
 ];
 
 const nextConfig: NextConfig = {
