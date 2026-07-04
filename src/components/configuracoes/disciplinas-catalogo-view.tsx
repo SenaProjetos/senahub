@@ -16,12 +16,15 @@ import {
   Search,
   MoreHorizontal,
   TriangleAlert,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import {
   criarDisciplinaCatalogo,
   editarDisciplinaCatalogo,
   arquivarDisciplinaCatalogo,
   excluirDisciplinaCatalogo,
+  moverDisciplinaCatalogo,
 } from "@/modules/projetos/actions";
 import type { DisciplinaCatalogoAdmin } from "@/modules/projetos/queries";
 import { normalizar } from "@/lib/disciplinas-core";
@@ -172,6 +175,14 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
     });
   }
 
+  function mover(item: DisciplinaCatalogoAdmin, vizinhoId: string) {
+    start(async () => {
+      const r = await moverDisciplinaCatalogo({ id: item.id, vizinhoId });
+      if (r.ok) router.refresh();
+      else toast.error(r.error);
+    });
+  }
+
   async function excluir(item: DisciplinaCatalogoAdmin) {
     // Em uso → exclusão bloqueada; comunica no confirm e oferece arquivar (se ainda ativa).
     if (item.uso > 0) {
@@ -275,17 +286,21 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
                   <TableHead>Disciplina</TableHead>
                   <TableHead className="w-24">Código</TableHead>
                   <TableHead className="w-24">Uso</TableHead>
-                  <TableHead className="w-20 text-right">Ações</TableHead>
+                  <TableHead className="w-28 text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {grupos.map(([categoria, lista]) => (
                   <GrupoCategoria key={categoria} categoria={categoria} lista={lista}>
-                    {lista.map((item) => (
+                    {lista.map((item, idx) => (
                       <ItemLinha
                         key={item.id}
                         item={item}
                         pending={pending}
+                        podeReordenar={!busca}
+                        vizinhoCimaId={idx > 0 ? lista[idx - 1].id : null}
+                        vizinhoBaixoId={idx < lista.length - 1 ? lista[idx + 1].id : null}
+                        onMover={(vizinhoId) => mover(item, vizinhoId)}
                         onEditar={() => setDialogo(paraForm(item))}
                         onArquivar={() => arquivar(item)}
                         onExcluir={() => excluir(item)}
@@ -355,12 +370,20 @@ function GrupoCategoria({
 function ItemLinha({
   item,
   pending,
+  podeReordenar,
+  vizinhoCimaId,
+  vizinhoBaixoId,
+  onMover,
   onEditar,
   onArquivar,
   onExcluir,
 }: {
   item: DisciplinaCatalogoAdmin;
   pending: boolean;
+  podeReordenar: boolean;
+  vizinhoCimaId: string | null;
+  vizinhoBaixoId: string | null;
+  onMover: (vizinhoId: string) => void;
   onEditar: () => void;
   onArquivar: () => void;
   onExcluir: () => void;
@@ -412,6 +435,28 @@ function ItemLinha({
       </TableCell>
       <TableCell className="text-right">
         <div className="flex items-center justify-end">
+          {podeReordenar && (
+            <div className="mr-0.5 flex flex-col">
+              <button
+                type="button"
+                aria-label="Mover para cima"
+                disabled={pending || !vizinhoCimaId}
+                onClick={() => vizinhoCimaId && onMover(vizinhoCimaId)}
+                className="text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+              >
+                <ChevronUp className="size-3.5" />
+              </button>
+              <button
+                type="button"
+                aria-label="Mover para baixo"
+                disabled={pending || !vizinhoBaixoId}
+                onClick={() => vizinhoBaixoId && onMover(vizinhoBaixoId)}
+                className="text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+              >
+                <ChevronDown className="size-3.5" />
+              </button>
+            </div>
+          )}
           <Button size="icon" variant="ghost" className="size-8" aria-label="Editar" onClick={onEditar} disabled={pending}>
             <Pencil className="size-4" />
           </Button>

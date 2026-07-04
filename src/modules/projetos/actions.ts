@@ -25,9 +25,11 @@ import {
   criarDisciplinaCatalogoSchema,
   editarDisciplinaCatalogoSchema,
   idDisciplinaCatalogoSchema,
+  moverDisciplinaCatalogoSchema,
 } from "@/modules/projetos/schemas";
 import { notificar, notificarMuitos } from "@/lib/notificar";
 import { sanitizeSvg } from "@/lib/sanitize-svg";
+import { normalizar } from "@/lib/disciplinas-core";
 
 function isGlobal(role: Role) {
   return role === "admin" || GLOBAL_ROLES.includes(role);
@@ -877,6 +879,23 @@ function normalizarCatalogo(i: {
   };
 }
 
+/**
+ * Governança leve da categoria (Fase B do conselho): se a categoria digitada casar com uma já
+ * existente ignorando caixa/acento, reusa a grafia canônica — evita grupos duplicados
+ * (ex.: "CIVIL" vs "Civil"). Categoria nova entra como digitada.
+ */
+async function canonizarCategoria(cat: string | null): Promise<string | null> {
+  if (!cat) return null;
+  const existentes = await prisma.disciplinaCatalogo.findMany({
+    where: { categoria: { not: null } },
+    select: { categoria: true },
+    distinct: ["categoria"],
+  });
+  const alvo = normalizar(cat);
+  const match = existentes.find((e) => normalizar(e.categoria!) === alvo);
+  return match?.categoria ?? cat;
+}
+
 /** Garante nome e código únicos no catálogo (ignora a própria linha ao editar). */
 async function garantirUnicosCatalogo(nome: string, codigo: string | null, ignoreId: string | null) {
   const naoEu = ignoreId ? { id: { not: ignoreId } } : {};
@@ -901,6 +920,7 @@ export const criarDisciplinaCatalogo = defineAction(
   },
   async (i) => {
     const dados = normalizarCatalogo(i);
+    dados.categoria = await canonizarCategoria(dados.categoria);
     await garantirUnicosCatalogo(dados.nome, dados.codigo, null);
     const max = await prisma.disciplinaCatalogo.aggregate({ _max: { ordem: true } });
     const criada = await prisma.disciplinaCatalogo.create({
@@ -924,6 +944,7 @@ export const editarDisciplinaCatalogo = defineAction(
     const existe = await prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } });
     if (!existe) throw new ActionError("Disciplina não encontrada.");
     const dados = normalizarCatalogo(i);
+    dados.categoria = await canonizarCategoria(dados.categoria);
     await garantirUnicosCatalogo(dados.nome, dados.codigo, i.id);
     await prisma.disciplinaCatalogo.update({ where: { id: i.id }, data: dados });
     revCatalogo();
@@ -968,5 +989,32 @@ export const excluirDisciplinaCatalogo = defineAction(
     await prisma.disciplinaCatalogo.delete({ where: { id: i.id } });
     revCatalogo();
     return { id: i.id };
+  },
+);
+
+/** Reordena trocando a `ordem` de duas disciplinas (setas ↑↓ na UI). */
+export const moverDisciplinaCatalogo = defineAction(
+  {
+    ...catalogoBase,
+    acao: "mover-disciplina-catalogo",
+    entidade: "DisciplinaCatalogo",
+    schema: moverDisciplinaCatalogoSchema,
+    entidadeId: (_d, i) => i.id,
+    audit: false, // reordenação é ruído no log; a ordem final fica no próprio catálogo.
+  },
+  async (i) => {
+    const [a, b] = await Promise.all([
+      prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } }),
+      prisma.disciplinaCatalogo.findUnique({ where: { id: i.vizinhoId } }),
+    ]);
+    if (!a || !b) throw new ActionError("Disciplina não encontrada.");
+    // Empate de ordem (dados antigos): desempata dando ao alvo ordem-1 do vizinho.
+    const [ordemA, ordemB] = a.ordem === b.ordem ? [b.ordem - 1, b.ordem] : [b.ordem, a.ordem];
+    await prisma.$transaction([
+      prisma.disciplinaCatalogo.update({ where: { id: a.id }, data: { ordem: ordemA } }),
+      prisma.disciplinaCatalogo.update({ where: { id: b.id }, data: { ordem: ordemB } }),
+    ]);
+    revCatalogo();
+    return { id: a.id };
   },
 );

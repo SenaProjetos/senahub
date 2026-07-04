@@ -135,5 +135,11 @@ export const editarDisciplinaCatalogoSchema = criarDisciplinaCatalogoSchema.exte
 
 export const idDisciplinaCatalogoSchema = z.object({ id: z.string().min(1) });
 
+/** Reordena trocando a `ordem` com um vizinho específico (setas ↑↓ na UI). */
+export const moverDisciplinaCatalogoSchema = z.object({
+  id: z.string().min(1),
+  vizinhoId: z.string().min(1),
+});
+
 export type CriarProjetoInput = z.infer<typeof criarProjetoSchema>;
 export type DisciplinaInput = z.infer<typeof disciplinaInputSchema>;
