@@ -25,18 +25,20 @@ export default async function DashboardLayout({
   const participaDoChat = (CHAT_ROLES as readonly string[]).includes(user.role);
 
   const conteudo = (
-    <Shell role={user.role} user={user}>
-      {/* Google Fonts do catálogo de documentos: carregam no editor e no preview/PDF
-          (o Puppeteer imprime a própria página de preview, que vive neste layout). */}
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      <link rel="stylesheet" href={GOOGLE_FONTS_HREF} />
-      <PushManager />
-      <AcessoTracker />
-      <ConfirmProvider>{children}</ConfirmProvider>
-      {/* Chat flutuante: dados carregados sob demanda (ao abrir) — não pesa a navegação. */}
-      {participaDoChat && <FloatingChat />}
-    </Shell>
+    <ConfirmProvider>
+      <Shell role={user.role} user={user}>
+        {/* Google Fonts do catálogo de documentos: carregam no editor e no preview/PDF
+            (o Puppeteer imprime a própria página de preview, que vive neste layout). */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="stylesheet" href={GOOGLE_FONTS_HREF} />
+        <PushManager />
+        <AcessoTracker />
+        {children}
+        {/* Chat flutuante: dados carregados sob demanda (ao abrir) — não pesa a navegação. */}
+        {participaDoChat && <FloatingChat />}
+      </Shell>
+    </ConfirmProvider>
   );
 
   // Provider global do chat (socket único + badge de não lidas) só para perfis de chat.
