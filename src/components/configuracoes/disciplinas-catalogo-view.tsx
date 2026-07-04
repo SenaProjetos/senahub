@@ -4,7 +4,19 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Pencil, Archive, ArchiveRestore, Trash2, Upload, Shapes } from "lucide-react";
+import {
+  ArrowLeft,
+  Plus,
+  Pencil,
+  Archive,
+  ArchiveRestore,
+  Trash2,
+  Upload,
+  Shapes,
+  Search,
+  MoreHorizontal,
+  TriangleAlert,
+} from "lucide-react";
 import {
   criarDisciplinaCatalogo,
   editarDisciplinaCatalogo,
@@ -12,6 +24,7 @@ import {
   excluirDisciplinaCatalogo,
 } from "@/modules/projetos/actions";
 import type { DisciplinaCatalogoAdmin } from "@/modules/projetos/queries";
+import { normalizar } from "@/lib/disciplinas-core";
 import { iconeDisciplina } from "@/lib/disciplinas";
 import { GALERIA_ICONES, CHAVES_GALERIA } from "@/lib/disciplinas-galeria";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -19,10 +32,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +62,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const SEM_CATEGORIA = "Outras";
+const TODAS = "__todas__";
 const SVG_MAX = 20 * 1024;
 
 type FormState = {
@@ -73,26 +102,44 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
   const [pending, start] = useTransition();
   const [dialogo, setDialogo] = useState<FormState | null>(null);
 
-  const ativas = itens.filter((i) => i.ativo);
-  const arquivadas = itens.filter((i) => !i.ativo);
+  const [busca, setBusca] = useState("");
+  const [filtroCat, setFiltroCat] = useState<string>(TODAS);
+  const [mostrarArquivadas, setMostrarArquivadas] = useState(false);
 
-  // Categorias existentes (para o datalist do form).
   const categorias = useMemo(
     () => [...new Set(itens.map((i) => i.categoria).filter((c): c is string => !!c))].sort(),
     [itens],
   );
 
-  // Agrupa ativas por categoria; "Outras" por último.
+  // Filtro: arquivadas (toggle) → busca (nome/sigla/categoria) → categoria.
+  const filtradas = useMemo(() => {
+    const q = normalizar(busca);
+    return itens.filter((i) => {
+      if (!mostrarArquivadas && !i.ativo) return false;
+      if (filtroCat !== TODAS && (i.categoria || SEM_CATEGORIA) !== filtroCat) return false;
+      if (!q) return true;
+      return (
+        normalizar(i.nome).includes(q) ||
+        normalizar(i.codigo ?? "").includes(q) ||
+        normalizar(i.categoria ?? "").includes(q)
+      );
+    });
+  }, [itens, busca, filtroCat, mostrarArquivadas]);
+
+  // Agrupa por categoria; "Outras" por último.
   const grupos = useMemo(() => {
     const mapa = new Map<string, DisciplinaCatalogoAdmin[]>();
-    for (const i of ativas) {
+    for (const i of filtradas) {
       const k = i.categoria || SEM_CATEGORIA;
       (mapa.get(k) ?? mapa.set(k, []).get(k)!).push(i);
     }
     return [...mapa.entries()].sort(([a], [b]) =>
       a === SEM_CATEGORIA ? 1 : b === SEM_CATEGORIA ? -1 : a.localeCompare(b),
     );
-  }, [ativas]);
+  }, [filtradas]);
+
+  const totalAtivas = itens.filter((i) => i.ativo).length;
+  const totalArquivadas = itens.length - totalAtivas;
 
   function salvar(form: FormState) {
     if (!form.nome.trim()) return;
@@ -126,6 +173,17 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
   }
 
   async function excluir(item: DisciplinaCatalogoAdmin) {
+    // Em uso → exclusão bloqueada; comunica no confirm e oferece arquivar (se ainda ativa).
+    if (item.uso > 0) {
+      const ok = await confirm({
+        title: "Não é possível excluir",
+        description: `“${item.nome}” está em uso em ${item.uso} projeto(s). Arquive em vez de excluir — some dos seletores sem apagar os projetos.`,
+        confirmLabel: item.ativo ? "Arquivar" : "Entendi",
+        cancelLabel: "Fechar",
+      });
+      if (ok && item.ativo) arquivar(item);
+      return;
+    }
     const ok = await confirm({
       title: `Excluir “${item.nome}”?`,
       description: "A disciplina será removida em definitivo do catálogo. Esta ação não pode ser desfeita.",
@@ -164,74 +222,86 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
         </Button>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* Ativas, agrupadas por categoria */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-bold uppercase tracking-tight text-foreground/80">
-              Ativas ({ativas.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {ativas.length === 0 ? (
-              <EmptyState icon={Shapes} title="Nenhuma disciplina ativa" description="Adicione a primeira disciplina." />
-            ) : (
-              <div className="space-y-4">
-                {grupos.map(([categoria, lista]) => (
-                  <div key={categoria}>
-                    <div className="mb-1 flex items-center justify-between border-b pb-1">
-                      <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                        {categoria}
-                      </span>
-                      <span className="text-xs text-muted-foreground">{lista.length}</span>
-                    </div>
-                    <ul className="divide-y">
-                      {lista.map((item) => (
-                        <ItemLinha
-                          key={item.id}
-                          item={item}
-                          pending={pending}
-                          onEditar={() => setDialogo(paraForm(item))}
-                          onArquivar={() => arquivar(item)}
-                          onExcluir={() => excluir(item)}
-                        />
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Arquivadas */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-bold uppercase tracking-tight text-foreground/80">
-              Arquivadas ({arquivadas.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {arquivadas.length === 0 ? (
-              <EmptyState icon={Archive} title="Nenhuma disciplina arquivada" description="Disciplinas arquivadas somem dos seletores, mas não apagam projetos." />
-            ) : (
-              <ul className="divide-y">
-                {arquivadas.map((item) => (
-                  <ItemLinha
-                    key={item.id}
-                    item={item}
-                    arquivada
-                    pending={pending}
-                    onEditar={() => setDialogo(paraForm(item))}
-                    onArquivar={() => arquivar(item)}
-                    onExcluir={() => excluir(item)}
-                  />
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+      {/* Barra de ferramentas: busca · categoria · arquivadas */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative min-w-56 flex-1">
+          <Search className="pointer-events-none absolute inset-y-0 left-0 my-auto ml-2.5 size-4 text-muted-foreground" />
+          <Input
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar por nome, sigla ou categoria…"
+            className="pl-8"
+          />
+        </div>
+        <Select value={filtroCat} onValueChange={(v) => setFiltroCat(v ?? TODAS)}>
+          <SelectTrigger className="w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={TODAS}>Todas as categorias</SelectItem>
+            {categorias.map((c) => (
+              <SelectItem key={c} value={c}>
+                {c}
+              </SelectItem>
+            ))}
+            {itens.some((i) => !i.categoria) && <SelectItem value={SEM_CATEGORIA}>{SEM_CATEGORIA}</SelectItem>}
+          </SelectContent>
+        </Select>
+        <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-muted-foreground">
+          <Switch checked={mostrarArquivadas} onCheckedChange={setMostrarArquivadas} />
+          Arquivadas ({totalArquivadas})
+        </label>
       </div>
+
+      <Card>
+        <CardContent className="p-0">
+          {filtradas.length === 0 ? (
+            <div className="p-6">
+              <EmptyState
+                icon={Shapes}
+                title={busca || filtroCat !== TODAS ? "Nada encontrado" : "Nenhuma disciplina"}
+                description={
+                  busca || filtroCat !== TODAS
+                    ? "Ajuste a busca ou o filtro de categoria."
+                    : "Adicione a primeira disciplina do catálogo."
+                }
+              />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-9" />
+                  <TableHead>Disciplina</TableHead>
+                  <TableHead className="w-24">Código</TableHead>
+                  <TableHead className="w-24">Uso</TableHead>
+                  <TableHead className="w-20 text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {grupos.map(([categoria, lista]) => (
+                  <GrupoCategoria key={categoria} categoria={categoria} lista={lista}>
+                    {lista.map((item) => (
+                      <ItemLinha
+                        key={item.id}
+                        item={item}
+                        pending={pending}
+                        onEditar={() => setDialogo(paraForm(item))}
+                        onArquivar={() => arquivar(item)}
+                        onExcluir={() => excluir(item)}
+                      />
+                    ))}
+                  </GrupoCategoria>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <p className="text-xs text-muted-foreground">
+        {totalAtivas} ativa(s){totalArquivadas > 0 && ` · ${totalArquivadas} arquivada(s)`}.
+      </p>
 
       {dialogo && (
         <DisciplinaDialog
@@ -257,77 +327,116 @@ function paraForm(item: DisciplinaCatalogoAdmin): FormState {
   };
 }
 
+/** Linha-cabeçalho da categoria + suas linhas. */
+function GrupoCategoria({
+  categoria,
+  lista,
+  children,
+}: {
+  categoria: string;
+  lista: DisciplinaCatalogoAdmin[];
+  children: React.ReactNode;
+}) {
+  return (
+    <>
+      <TableRow className="bg-muted/40 hover:bg-muted/40">
+        <TableCell colSpan={5} className="py-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{categoria}</span>
+            <span className="text-xs text-muted-foreground">{lista.length}</span>
+          </div>
+        </TableCell>
+      </TableRow>
+      {children}
+    </>
+  );
+}
+
 function ItemLinha({
   item,
-  arquivada,
   pending,
   onEditar,
   onArquivar,
   onExcluir,
 }: {
   item: DisciplinaCatalogoAdmin;
-  arquivada?: boolean;
   pending: boolean;
   onEditar: () => void;
   onArquivar: () => void;
   onExcluir: () => void;
 }) {
-  const emUso = item.uso > 0;
   return (
-    <li className="flex items-center gap-2 py-2">
-      <IconeDisc icone={item.icone} iconeSvg={item.iconeSvg} nome={item.nome} className="size-4 shrink-0 text-muted-foreground" />
-      {item.codigo && (
-        <Badge variant="outline" className="font-mono text-[10px] uppercase">
-          {item.codigo}
-        </Badge>
-      )}
-      <span className={cn("flex-1 truncate text-sm font-medium", arquivada && "text-muted-foreground line-through")}>
-        {item.nome}
-      </span>
-      <span className="shrink-0 text-xs text-muted-foreground" title={`Em uso em ${item.uso} projeto(s)`}>
-        {emUso ? `${item.uso}p` : "—"}
-      </span>
-      <div className="flex shrink-0 items-center">
-        <Button size="icon" variant="ghost" className="size-8" aria-label="Editar" onClick={onEditar} disabled={pending}>
-          <Pencil className="size-4" />
-        </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="size-8"
-          aria-label={arquivada ? "Desarquivar" : "Arquivar"}
-          onClick={onArquivar}
-          disabled={pending}
-        >
-          {arquivada ? <ArchiveRestore className="size-4" /> : <Archive className="size-4" />}
-        </Button>
-        {emUso ? (
-          <Tooltip>
-            <TooltipTrigger
+    <TableRow className={cn(!item.ativo && "opacity-60")}>
+      <TableCell>
+        <IconeDisc icone={item.icone} iconeSvg={item.iconeSvg} nome={item.nome} className="size-5 text-muted-foreground" />
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <span className={cn("font-medium", !item.ativo && "line-through")}>{item.nome}</span>
+          {!item.ativo && (
+            <Badge variant="outline" className="text-[10px] text-muted-foreground">
+              arquivada
+            </Badge>
+          )}
+          {!item.codigo && (
+            <span
+              className="inline-flex items-center gap-1 text-[10px] text-muted-foreground"
+              title="Sem sigla — a nomenclatura de arquivos usará o nome inteiro."
+            >
+              <TriangleAlert className="size-3" /> sem sigla
+            </span>
+          )}
+        </div>
+      </TableCell>
+      <TableCell>
+        {item.codigo ? (
+          <Badge variant="outline" className="font-mono text-[10px] uppercase">
+            {item.codigo}
+          </Badge>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
+      </TableCell>
+      <TableCell>
+        {item.uso > 0 ? (
+          <Link
+            href={`/projetos?disciplina=${encodeURIComponent(item.nome)}`}
+            className="text-xs text-primary hover:underline"
+            title={`Ver ${item.uso} projeto(s) que usam esta disciplina`}
+          >
+            {item.uso} proj.
+          </Link>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
+      </TableCell>
+      <TableCell className="text-right">
+        <div className="flex items-center justify-end">
+          <Button size="icon" variant="ghost" className="size-8" aria-label="Editar" onClick={onEditar} disabled={pending}>
+            <Pencil className="size-4" />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
               render={
-                <span className="inline-flex">
-                  <Button size="icon" variant="ghost" className="size-8 text-muted-foreground" aria-label="Excluir" disabled>
-                    <Trash2 className="size-4" />
-                  </Button>
-                </span>
+                <Button size="icon" variant="ghost" className="size-8" aria-label="Mais ações" disabled={pending}>
+                  <MoreHorizontal className="size-4" />
+                </Button>
               }
             />
-            <TooltipContent>Em uso — arquive em vez de excluir.</TooltipContent>
-          </Tooltip>
-        ) : (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="size-8 text-destructive hover:text-destructive"
-            aria-label="Excluir"
-            onClick={onExcluir}
-            disabled={pending}
-          >
-            <Trash2 className="size-4" />
-          </Button>
-        )}
-      </div>
-    </li>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onArquivar}>
+                {item.ativo ? <Archive className="size-4" /> : <ArchiveRestore className="size-4" />}
+                {item.ativo ? "Arquivar" : "Desarquivar"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={onExcluir}>
+                <Trash2 className="size-4" /> Excluir
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </TableCell>
+    </TableRow>
   );
 }
 
