@@ -22,7 +22,17 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
   manifest: "/manifest.json",
   appleWebApp: { capable: true, title: "SenaHub", statusBarStyle: "black-translucent" },
-  icons: { icon: "/icons/icon-192.png", apple: "/icons/icon-192.png" },
+  icons: {
+    icon: [
+      // Favicon transparente que acompanha o tema do navegador (símbolo da marca)
+      { url: "/MARCA/logo_light.svg", type: "image/svg+xml", media: "(prefers-color-scheme: light)" },
+      { url: "/MARCA/logo_dark.svg", type: "image/svg+xml", media: "(prefers-color-scheme: dark)" },
+      // Fallback para navegadores sem suporte a favicon SVG
+      { url: "/icons/icon-192.png", type: "image/png" },
+    ],
+    // iOS espera ícone opaco (mantém o fundo Navy)
+    apple: "/icons/icon-192.png",
+  },
 };
 
 export const viewport: Viewport = {
