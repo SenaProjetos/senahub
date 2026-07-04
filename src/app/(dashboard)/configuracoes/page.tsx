@@ -16,6 +16,7 @@ import {
   Bell,
   Funnel,
   Shapes,
+  LayoutList,
 } from "lucide-react";
 import { requireRole } from "@/lib/session";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -76,6 +77,12 @@ const GRUPOS: Grupo[] = [
         icon: Shapes,
         titulo: "Disciplinas",
         descricao: "Catálogo de disciplinas (sigla, ícone, categoria) usado em projetos e propostas.",
+      },
+      {
+        href: "/configuracoes/lista-mestre",
+        icon: LayoutList,
+        titulo: "Lista Mestre",
+        descricao: "Siglas de folha, tipo e fase que compõem o código das folhas técnicas.",
       },
       {
         href: "/configuracoes/documentos",

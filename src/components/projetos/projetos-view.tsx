@@ -214,13 +214,14 @@ export function ProjetosView({
           </Button>
         </div>
         <Select
-          value={situacao || "todas"}
-          onValueChange={(v) => setParams({ situacao: v === "todas" ? null : v })}
+          value={situacao || "ativos"}
+          onValueChange={(v) => setParams({ situacao: v === "ativos" ? null : v })}
         >
-          <SelectTrigger className="w-44">
+          <SelectTrigger className="w-52">
             <SelectValue placeholder="Situação" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="ativos">Ativos (padrão)</SelectItem>
             <SelectItem value="todas">Todas as situações</SelectItem>
             {Object.entries(SITUACAO_PROJETO_LABEL).map(([k, v]) => (
               <SelectItem key={k} value={k}>

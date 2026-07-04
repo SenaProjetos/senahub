@@ -57,7 +57,15 @@ export async function listarProjetos(
 ) {
   const where: Prisma.ProjetoWhereInput = { AND: [escopoProjeto(viewer)] };
   const and = where.AND as Prisma.ProjetoWhereInput[];
-  if (opts?.situacao) and.push({ situacao: opts.situacao as never });
+  // Situação: sem filtro explícito → oculta encerrados (cancelado/arquivado) por padrão.
+  // "todas" → mostra tudo (inclusive encerrados). Valor específico → filtra por ele.
+  if (opts?.situacao === "todas") {
+    // sem filtro — inclui cancelado/arquivado
+  } else if (opts?.situacao) {
+    and.push({ situacao: opts.situacao as never });
+  } else {
+    and.push({ situacao: { notIn: ["cancelado", "arquivado"] } as never });
+  }
   if (opts?.clienteId) and.push({ clienteId: opts.clienteId });
   if (opts?.responsavelId) {
     and.push({ disciplinas: { some: { responsaveis: { some: { userId: opts.responsavelId } } } } });

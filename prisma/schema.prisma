@@ -484,6 +484,8 @@ model Projeto {
   arquivos    ArquivoProjeto[]
   composicaoPreco ProjetoComposicaoPreco?
   lmConfig    LmConfig?
+  pranchaCatalogos PranchaCatalogo[]
+  nomenclaturaConfig NomenclaturaConfig?
   linhasBase  LinhaBase[]
   planejamentos PlanejamentoPagamento[]
   checklist     ChecklistItemProjeto[]
@@ -2779,19 +2781,62 @@ model Dependente {
 }
 
 /// Prancha (folha técnica) de uma disciplina — código, título, revisão, escala.
+/// Lista Mestre de Documentos: uma folha técnica por disciplina.
+/// Código composto (não persistido): {projeto}-{sigla disciplina}-{fase}-{numeracao4}-{tipo}[-Rnn].
 model Prancha {
   id           String     @id @default(cuid())
   disciplinaId String
   disciplina   Disciplina @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
-  codigo       String
-  titulo       String
-  revisao      String?
-  escala       String?
+  folha        String
+  tipo         String
+  fase         String
+  numeracao    Int
+  revisao      Int        @default(0)
+  conteudo     String?    @db.Text
   ordem        Int        @default(0)
   createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   @@index([disciplinaId])
   @@map("prancha")
+}
+
+enum CategoriaPranchaCatalogo {
+  folha
+  tipo
+  fase
+}
+
+/// Configuração de nomenclatura da Lista Mestre. Linha global = projetoId null (singleton);
+/// linha por projeto sobrescreve. `exigir` liga/desliga o alerta de nome fora do padrão;
+/// `padrao` é um regex custom (opcional) — vazio usa o padrão embutido.
+model NomenclaturaConfig {
+  id        String   @id @default(cuid())
+  projetoId String?  @unique
+  projeto   Projeto? @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  exigir    Boolean  @default(true)
+  padrao    String?
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@map("nomenclatura_config")
+}
+
+/// Catálogo de siglas da Lista Mestre (folha/tipo/fase). Global (projetoId null)
+/// ou específico de um projeto. A sigla é usada na composição do código da prancha.
+model PranchaCatalogo {
+  id        String                   @id @default(cuid())
+  categoria CategoriaPranchaCatalogo
+  sigla     String
+  nome      String
+  ativo     Boolean                  @default(true)
+  ordem     Int                      @default(0)
+  projetoId String?
+  projeto   Projeto?                 @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  createdAt DateTime                 @default(now())
+
+  @@index([categoria, projetoId])
+  @@map("prancha_catalogo")
 }
 
 /// Feriado (cadastro p/ ponto/escala/banco de horas). Data única.

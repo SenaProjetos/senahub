@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
+import { GLOBAL_ROLES } from "@/lib/roles";
 import { projetoVisivel } from "@/modules/planejamento/queries";
-import { arquivosDoProjeto } from "@/modules/projetos/arquivos/queries";
-import { ArquivosView } from "@/components/projetos/arquivos-view";
+import { arvoreArquivosProjeto, arquivosDoProjeto } from "@/modules/projetos/arquivos/queries";
+import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
+import { ArquivosExplorer } from "@/components/projetos/arquivos-explorer";
 
 export const metadata: Metadata = { title: "Arquivos" };
 
@@ -13,9 +15,24 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
   const { id } = await params;
   const projeto = await projetoVisivel(user, id);
   if (!projeto) notFound();
-  const [arquivos, podeGerir] = await Promise.all([
-    arquivosDoProjeto(id),
-    can(user.role, "projetos", "gerir"),
+
+  const ehGlobal = user.role === "admin" || GLOBAL_ROLES.includes(user.role);
+  const [arvore, podeVerGeral, podeGerirGeral, nomenclatura] = await Promise.all([
+    arvoreArquivosProjeto(id, user.id, ehGlobal),
+    can(user.role, "arquivos_gerais", "ver"),
+    can(user.role, "arquivos_gerais", "gerir"),
+    resolverNomenclatura(id),
   ]);
-  return <ArquivosView projeto={projeto} arquivos={arquivos} podeGerir={podeGerir} />;
+  // Pasta "Geral" só é carregada para quem tem a permissão de visualização.
+  const geral = podeVerGeral ? await arquivosDoProjeto(id) : [];
+
+  return (
+    <ArquivosExplorer
+      projeto={projeto}
+      disciplinas={arvore.disciplinas}
+      geral={geral}
+      podeGerirGeral={podeGerirGeral}
+      nomenclatura={nomenclatura}
+    />
+  );
 }

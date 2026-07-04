@@ -24,12 +24,21 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     acoes: [
       { acao: "ver", label: "Ver projetos" },
       { acao: "gerir", label: "Criar/editar projetos e disciplinas" },
+      { acao: "historico", label: "Ver o histórico (CDE) de documentos do projeto" },
     ],
   },
   {
     recurso: "uploads",
     label: "Uploads & Validação",
     acoes: [{ acao: "validar", label: "Validar entregas (libera pagamento)" }],
+  },
+  {
+    recurso: "arquivos_gerais",
+    label: "Arquivos gerais do projeto",
+    acoes: [
+      { acao: "ver", label: 'Ver a pasta "Geral" do projeto' },
+      { acao: "gerir", label: 'Adicionar/editar/excluir arquivos gerais' },
+    ],
   },
   {
     recurso: "financeiro",

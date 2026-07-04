@@ -8,10 +8,11 @@ const TABS = [
   { label: "Visão Geral", suffix: "" },
   { label: "Inputs", suffix: "/inputs" },
   { label: "Financeiro", suffix: "/financeiro" },
-  { label: "Pranchas", suffix: "/pranchas" },
+  { label: "Lista Mestre", suffix: "/lista-mestre" },
   { label: "Serviços", suffix: "/servicos" },
   { label: "Arquivos", suffix: "/arquivos" },
   { label: "Extras", suffix: "/extras" },
+  { label: "Histórico", suffix: "/historico" },
 ] as const;
 
 export function ProjetoTabNav({

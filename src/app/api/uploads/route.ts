@@ -62,6 +62,8 @@ export async function POST(req: Request) {
   if (arquivos.length === 0) {
     return NextResponse.json({ error: "Nenhum arquivo enviado." }, { status: 400 });
   }
+  // Renomear no ato do upload: nome desejado por arquivo (mesma ordem de "files"). Vazio = usa file.name.
+  const nomesDesejados = form.getAll("nomes").map((n) => (typeof n === "string" ? n : ""));
 
   const { projeto } = disciplina;
   // Item 15: nomenclatura usa a sigla do catálogo (ex.: ELE) quando existir; senão, o nome.
@@ -80,8 +82,9 @@ export async function POST(req: Request) {
   const resultados: Resultado[] = [];
 
   // Processa arquivo a arquivo — uma falha não derruba o lote.
-  for (const file of arquivos) {
-    const nome = nomeArquivoLimpo(file.name);
+  for (let idx = 0; idx < arquivos.length; idx++) {
+    const file = arquivos[idx];
+    const nome = nomeArquivoLimpo((nomesDesejados[idx] ?? "").trim() || file.name);
     try {
       if (file.size > TAMANHO_MAX) {
         resultados.push({ nome, ok: false, motivo: "Arquivo excede 500 MB." });

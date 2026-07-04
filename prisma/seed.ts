@@ -33,6 +33,11 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "administrativo", recurso: "projetos", acao: "gerir" },
   { role: "administrativo", recurso: "financeiro", acao: "ver" },
   { role: "administrativo", recurso: "financeiro", acao: "gerir" },
+  // Arquivos gerais do projeto (pasta "Geral"): gestores administrativos por padrão.
+  { role: "supervisor", recurso: "arquivos_gerais", acao: "ver" },
+  { role: "supervisor", recurso: "arquivos_gerais", acao: "gerir" },
+  { role: "administrativo", recurso: "arquivos_gerais", acao: "ver" },
+  { role: "administrativo", recurso: "arquivos_gerais", acao: "gerir" },
   { role: "supervisor", recurso: "documentos", acao: "ver" },
   { role: "supervisor", recurso: "documentos", acao: "gerir" },
   { role: "administrativo", recurso: "documentos", acao: "ver" },
@@ -224,6 +229,45 @@ async function main() {
     });
   }
   console.log(`✔ ${DISCIPLINAS_CATALOGO.length} disciplinas no catálogo.`);
+
+  // 3b) Catálogo da Lista Mestre (folha/tipo/fase) — siglas globais padrão.
+  const LM_CATALOGO: { categoria: "folha" | "tipo" | "fase"; sigla: string; nome: string }[] = [
+    { categoria: "folha", sigla: "A0", nome: "A0 (841×1189)" },
+    { categoria: "folha", sigla: "A1", nome: "A1 (594×841)" },
+    { categoria: "folha", sigla: "A2", nome: "A2 (420×594)" },
+    { categoria: "folha", sigla: "A3", nome: "A3 (297×420)" },
+    { categoria: "folha", sigla: "A4", nome: "A4 (210×297)" },
+    { categoria: "fase", sigla: "EP", nome: "Estudo Preliminar" },
+    { categoria: "fase", sigla: "AP", nome: "Anteprojeto" },
+    { categoria: "fase", sigla: "PB", nome: "Projeto Básico" },
+    { categoria: "fase", sigla: "PE", nome: "Projeto Executivo" },
+    { categoria: "fase", sigla: "PL", nome: "Projeto Legal" },
+    { categoria: "fase", sigla: "AB", nome: "As Built" },
+    { categoria: "tipo", sigla: "PL", nome: "Planta" },
+    { categoria: "tipo", sigla: "CO", nome: "Corte" },
+    { categoria: "tipo", sigla: "VI", nome: "Vista" },
+    { categoria: "tipo", sigla: "DE", nome: "Detalhe" },
+    { categoria: "tipo", sigla: "ES", nome: "Esquema" },
+    { categoria: "tipo", sigla: "DI", nome: "Diagrama" },
+    { categoria: "tipo", sigla: "LC", nome: "Locação" },
+    { categoria: "tipo", sigla: "MC", nome: "Memorial de Cálculo" },
+  ];
+  let lmCriados = 0;
+  for (let i = 0; i < LM_CATALOGO.length; i++) {
+    const c = LM_CATALOGO[i];
+    // Sem unique com projetoId null; guarda por findFirst para manter idempotência.
+    const existe = await prisma.pranchaCatalogo.findFirst({
+      where: { categoria: c.categoria, sigla: c.sigla, projetoId: null },
+      select: { id: true },
+    });
+    if (!existe) {
+      await prisma.pranchaCatalogo.create({
+        data: { categoria: c.categoria, sigla: c.sigla, nome: c.nome, ordem: i },
+      });
+      lmCriados++;
+    }
+  }
+  console.log(`✔ Catálogo Lista Mestre: ${lmCriados} sigla(s) global(is) criada(s).`);
 
   // 4) Plano de contas (cria pais antes das filhas — array já ordenado)
   const idsPorCodigo = new Map<string, string>();

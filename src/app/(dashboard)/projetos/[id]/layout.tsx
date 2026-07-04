@@ -32,9 +32,10 @@ export default async function ProjetoLayout({
   const projeto = await obterProjetoMinimo(user, id);
   if (!projeto) notFound();
 
-  const [podeGerir, podeVerFinanceiro, canalChat, modelosDoc] = await Promise.all([
+  const [podeGerir, podeVerFinanceiro, podeHistorico, canalChat, modelosDoc] = await Promise.all([
     can(user.role, "projetos", "gerir"),
     can(user.role, "financeiro", "ver"),
+    can(user.role, "projetos", "historico"),
     canalDoProjeto(id),
     modelosPorFonte("projeto"),
   ]);
@@ -109,11 +110,17 @@ export default async function ProjetoLayout({
       {/* Navegação por abas */}
       <ProjetoTabNav
         projetoId={id}
-        abasVisiveis={
-          podeVerFinanceiro
-            ? undefined // todas
-            : ["", "/inputs", "/pranchas", "/servicos", "/arquivos", "/extras"]
-        }
+        abasVisiveis={[
+          "",
+          "/inputs",
+          ...(podeVerFinanceiro ? ["/financeiro"] : []),
+          "/lista-mestre",
+          "/servicos",
+          "/arquivos",
+          "/extras",
+          // Histórico (CDE) só para admin ou cargos autorizados em Configurações.
+          ...(podeHistorico ? ["/historico"] : []),
+        ]}
       />
 
       {/* Conteúdo da aba ativa */}

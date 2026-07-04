@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { criarDespesaProjetistaPrevista } from "@/modules/financeiro/custo/lancamento-custo";
-import { PJ_ROLES, type Role } from "@/lib/roles";
+import { PJ_ROLES, GLOBAL_ROLES, type Role } from "@/lib/roles";
 
 const validarSchema = z.object({ disciplinaId: z.string().min(1) });
 
@@ -165,6 +165,52 @@ export const validarEntrega = defineAction(
     revalidatePath("/financeiro/lancamentos");
     revalidatePath("/financeiro/contas-a-pagar");
     return { disciplinaId: disciplina.id, pagamentos: pagaveis.length };
+  },
+);
+
+// ── Renomear arquivo de disciplina (nome exibido) ──────────────
+
+const renomearSchema = z.object({
+  uploadId: z.string().min(1),
+  nome: z.string().trim().min(1, "Informe o novo nome.").max(255),
+});
+
+/**
+ * Renomeia o nome exibido de um upload (não altera o arquivo físico nem a versão).
+ * Permitido ao responsável da disciplina ou perfil global. Auditado (de → para),
+ * com `entidadeId = disciplinaId` para correlação no histórico do projeto.
+ */
+export const renomearUpload = defineAction(
+  {
+    modulo: "uploads",
+    acao: "renomear-arquivo",
+    recurso: "projetos",
+    permissao: "ver",
+    entidade: "Upload",
+    schema: renomearSchema,
+    entidadeId: (d) => (d as { disciplinaId?: string } | undefined)?.disciplinaId,
+    capturarAntes: (input) =>
+      prisma.upload.findUnique({ where: { id: input.uploadId }, select: { nomeArquivo: true } }),
+  },
+  async (input, { user }) => {
+    const up = await prisma.upload.findUnique({
+      where: { id: input.uploadId },
+      select: {
+        id: true,
+        nomeArquivo: true,
+        disciplinaId: true,
+        disciplina: { select: { projetoId: true, responsaveis: { select: { userId: true } } } },
+      },
+    });
+    if (!up) throw new ActionError("Arquivo não encontrado.");
+
+    const ehGlobal = user.role === "admin" || GLOBAL_ROLES.includes(user.role as Role);
+    const ehResp = up.disciplina.responsaveis.some((r) => r.userId === user.id);
+    if (!ehGlobal && !ehResp) throw new ActionError("Sem permissão para renomear este arquivo.");
+
+    await prisma.upload.update({ where: { id: up.id }, data: { nomeArquivo: input.nome } });
+    revalidatePath(`/projetos/${up.disciplina.projetoId}/arquivos`);
+    return { disciplinaId: up.disciplinaId, de: up.nomeArquivo, para: input.nome };
   },
 );
 

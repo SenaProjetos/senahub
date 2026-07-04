@@ -6,7 +6,14 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { removerArquivo } from "@/lib/storage";
 
-const base = { modulo: "projetos", recurso: "projetos", permissao: "gerir" } as const;
+const base = {
+  modulo: "projetos",
+  recurso: "arquivos_gerais",
+  permissao: "gerir",
+  // Correlação do histórico: toda ação do repo geral carrega o projetoId.
+  entidadeId: (d: unknown, i: unknown) =>
+    (i as { projetoId?: string })?.projetoId ?? (d as { projetoId?: string } | undefined)?.projetoId,
+} as const;
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
 
 const meta = z.object({
@@ -86,7 +93,7 @@ export const adicionarVersaoArquivo = defineAction(
     });
     await prisma.arquivoProjeto.update({ where: { id: i.arquivoId }, data: { updatedAt: new Date() } });
     rev(arq.projetoId);
-    return { numero };
+    return { numero, projetoId: arq.projetoId };
   },
 );
 
@@ -109,7 +116,7 @@ export const editarArquivo = defineAction(
       select: { projetoId: true },
     });
     rev(a.projetoId);
-    return { id: i.id };
+    return { id: i.id, projetoId: a.projetoId };
   },
 );
 
@@ -124,6 +131,6 @@ export const excluirArquivo = defineAction(
     await prisma.arquivoProjeto.delete({ where: { id: i.id } });
     for (const v of a.versoes) await removerArquivo(v.caminho);
     rev(a.projetoId);
-    return { id: i.id };
+    return { id: i.id, projetoId: a.projetoId };
   },
 );
