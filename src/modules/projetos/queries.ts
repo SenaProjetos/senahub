@@ -91,7 +91,16 @@ export async function listarProjetos(
       orderBy,
       skip: opts?.skip,
       take: opts?.take,
-      include: {
+      // `select` (não `include`): a lista só usa estes campos. Evita mandar Decimal
+      // (areaM2/valorContrato) cru para o client component — Prisma Decimal não é
+      // serializável e disparava "Only plain objects can be passed…" a cada projeto.
+      select: {
+        id: true,
+        codigo: true,
+        nome: true,
+        tipo: true,
+        situacao: true,
+        prazoFinal: true,
         cliente: { select: { id: true, nome: true } },
         _count: { select: { disciplinas: true } },
         disciplinas: { select: { nome: true, status: true, prazo: true } },
