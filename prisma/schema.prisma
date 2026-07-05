@@ -91,6 +91,7 @@ model User {
   uploadsAutor         Upload[]              @relation("UploadAutor")
   uploadsValidados     Upload[]              @relation("UploadValidador")
   uploadsRevisados     Upload[]              @relation("UploadRevisor")
+  documentosAutor      Documento[]           @relation("DocumentoAutor")
   pagamentos           PagamentoProjetista[] @relation("PagamentoProjetista")
   socio                Socio?
   lancamentosAutor     Lancamento[]          @relation("LancamentoAutor")
@@ -374,6 +375,7 @@ model Cliente {
   propostas   Proposta[]
   usuarios    User[]             @relation("ClienteUsuarios")
   docsJuridicos DocumentoJuridico[]
+  documentos  Documento[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -476,6 +478,7 @@ model Projeto {
   proposta    Proposta?
   tarefas     Tarefa[]
   docsJuridicos DocumentoJuridico[]
+  documentos  Documento[]
   licitacao   Licitacao?
   sessoes     SessaoTrabalho[]
   eapTarefas  EapTarefa[]
@@ -1446,20 +1449,8 @@ model AtividadeOportunidade {
   @@map("atividade_oportunidade")
 }
 
-/// Anexo de uma proposta comercial (C2). `propostaId` escalar (sem relação).
-model PropostaAnexo {
-  id         String   @id @default(cuid())
-  propostaId String
-  caminho    String
-  nome       String
-  mime       String
-  tamanho    Int
-  autorId    String
-  createdAt  DateTime @default(now())
-
-  @@index([propostaId])
-  @@map("proposta_anexo")
-}
+// PropostaAnexo (C2) foi absorvido por `Documento` (docs do cliente, §Documentos do cliente).
+// Os anexos existentes são migrados na migration `documentos_cliente`.
 
 model DisciplinaResponsavel {
   id           String     @id @default(cuid())
@@ -1651,6 +1642,72 @@ model ArquivoProjetoVersao {
   @@unique([arquivoId, numero])
   @@index([arquivoId])
   @@map("arquivo_projeto_versao")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Documentos do cliente (Cliente → Proposta → Projeto)
+// Material recebido de externos + docs que seguem o cliente. Ancora na Proposta
+// (comercial) e/ou no Projeto; o Cliente é o dono. O Projeto gerado no aceite
+// herda os docs da sua Proposta por consulta (join Proposta.projetoId) — sem cópia,
+// sem mistura entre projetos irmãos. Absorve o antigo PropostaAnexo.
+// Spec: docs/superpowers/plans/2026-07-05-recebidos-documentos-cliente.md
+// ─────────────────────────────────────────────────────────────
+
+enum OrigemDocumento {
+  recebido_cliente // externo enviou (proposta/portal/link)
+  interno // equipe subiu p/ compartilhar
+  contrato
+  comercial
+}
+
+enum CanalDocumento {
+  interno
+  portal
+  link
+}
+
+model Documento {
+  id         String          @id @default(cuid())
+  clienteId  String // dono (denormalizado p/ ficha do cliente + escopo do portal)
+  cliente    Cliente         @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  propostaId String? // âncora comercial
+  proposta   Proposta?       @relation(fields: [propostaId], references: [id], onDelete: SetNull)
+  projetoId  String? // âncora de projeto (docs criados já na fase de projeto)
+  projeto    Projeto?        @relation(fields: [projetoId], references: [id], onDelete: SetNull)
+  origem     OrigemDocumento @default(recebido_cliente)
+  canal      CanalDocumento  @default(interno)
+  nome       String
+  categoria  String?
+  descricao  String?
+  autorId    String? // null quando veio de link público sem user interno
+  autor      User?           @relation("DocumentoAutor", fields: [autorId], references: [id])
+  enviadoPor String? // nome digitado no link/portal (proveniência externa)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  versoes    DocumentoVersao[]
+
+  @@index([clienteId])
+  @@index([propostaId])
+  @@index([projetoId])
+  @@map("documento")
+}
+
+model DocumentoVersao {
+  id          String    @id @default(cuid())
+  documentoId String
+  documento   Documento @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  numero      Int
+  caminho     String
+  nomeArquivo String
+  mime        String
+  tamanho     Int
+  hashSha256  String
+  autorId     String?
+  createdAt   DateTime  @default(now())
+
+  @@unique([documentoId, numero])
+  @@index([documentoId])
+  @@map("documento_versao")
 }
 
 /// Documento de RH de um colaborador (contrato, RG, ASO, diploma…).
@@ -2561,6 +2618,7 @@ model Proposta {
   condicoes     PropostaCondicao[]
   versoes       PropostaVersao[]
   visualizacoes PropostaVisualizacao[]
+  documentos    Documento[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
