@@ -1,6 +1,21 @@
 # Plano técnico — Documentos do cliente ao longo de Cliente → Proposta → Projeto
 
-**Data:** 2026-07-05 · **Status:** 🔨 Fases 1–2 implementadas · Fases 3–5 pendentes
+**Data:** 2026-07-05 · **Status:** 🔨 Fases 1–3 implementadas · Fases 4–5 pendentes
+
+## Status de implementação (Fase 3 — Link tokenizado)
+
+Entregue (branch `dev`):
+- `src/app/api/t/proposta/[token]/documentos/route.ts`: upload público (sem login) por token da
+  proposta → cria `Documento(origem=recebido_cliente, canal=link, enviadoPor)` ancorado na proposta
+  (autorId null). Limite de tamanho (`TAMANHO_MAX`) + teto de 100 arquivos por link (anti-flood).
+- `src/components/comercial/proposta-publica-upload.tsx`: formulário público (nome opcional + envio
+  multi-arquivo com status por arquivo), plano (sem providers do dashboard).
+- `src/app/a/proposta/[token]/page.tsx`: seção "Enviar arquivos" na página pública.
+- O projeto gerado no aceite herda esses arquivos (Fase 2). Autor exibido cai em `enviadoPor` quando
+  não há user. Verificado: `tsc`+`eslint` limpos, runtime confirma create/mapeamento.
+
+---
+
 
 ## Status de implementação (Fase 2 — Projeto herda da Proposta)
 
