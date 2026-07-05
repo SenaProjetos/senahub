@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Mail, Phone, MapPin, Users, Building2, History } from "lucide-react";
+import { ArrowLeft, Mail, Phone, MapPin, Users, Building2, History, FileText, Download } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import {
@@ -10,6 +10,7 @@ import {
   historicoCliente,
   type ContatoItem,
 } from "@/modules/clientes/queries";
+import { documentosDoCliente } from "@/modules/documentos-cliente/queries";
 import { projetosDoCliente } from "@/modules/projetos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { SITUACAO_PROJETO_LABEL } from "@/modules/projetos/status";
@@ -35,12 +36,14 @@ export default async function ClienteDetalhePage({
   const cliente = await obterCliente(id);
   if (!cliente) notFound();
 
-  const [fin, projetos, historico, modelosDoc] = await Promise.all([
+  const [fin, projetos, historico, modelosDoc, gruposDoc] = await Promise.all([
     resumoFinanceiroCliente(id),
     projetosDoCliente(id),
     historicoCliente(id),
     modelosPorFonte("cliente"),
+    documentosDoCliente(id),
   ]);
+  const totalDocs = gruposDoc.reduce((s, g) => s + g.documentos.length, 0);
   const endereco = [
     cliente.logradouro,
     cliente.numero,
@@ -176,6 +179,50 @@ export default async function ClienteDetalhePage({
                 </li>
               ))}
             </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Documentos ({totalDocs})</CardTitle>
+          <CardDescription>Material do cliente (proposta e projetos) — segue o cliente.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {totalDocs === 0 ? (
+            <EmptyState icon={FileText} title="Nenhum documento." description="Anexos de proposta e material recebido do cliente aparecem aqui." />
+          ) : (
+            <div className="space-y-4">
+              {gruposDoc.map((g) => (
+                <div key={g.chave}>
+                  <div className="mb-1.5">
+                    <p className="text-sm font-semibold">{g.titulo}</p>
+                    {g.subtitulo && <p className="text-xs text-muted-foreground">{g.subtitulo}</p>}
+                  </div>
+                  <ul className="divide-y rounded-sm border text-sm">
+                    {g.documentos.map((d) => (
+                      <li key={d.id} className="flex items-center justify-between gap-2 px-2 py-1.5">
+                        <span className="flex min-w-0 items-center gap-2">
+                          <FileText className="size-4 shrink-0 text-muted-foreground" />
+                          <span className="min-w-0 truncate">{d.nome}</span>
+                          {d.canal !== "interno" && <Badge variant="outline" className="shrink-0 capitalize">{d.canal}</Badge>}
+                        </span>
+                        <span className="flex shrink-0 items-center gap-2">
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {d.atual ? `${(d.atual.tamanho / 1024).toFixed(0)} KB` : "—"}
+                          </span>
+                          {d.atual && (
+                            <Button size="icon" variant="ghost" aria-label={`Baixar ${d.nome}`} render={<a href={d.atual.downloadUrl} />}>
+                              <Download className="size-3.5" />
+                            </Button>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>

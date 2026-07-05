@@ -1,6 +1,21 @@
 # Plano técnico — Documentos do cliente ao longo de Cliente → Proposta → Projeto
 
-**Data:** 2026-07-05 · **Status:** 🔨 Fases 1–3 implementadas · Fases 4–5 pendentes
+**Data:** 2026-07-05 · **Status:** 🔨 Fases 1–4 implementadas · Fase 5 (futura) pendente
+
+## Status de implementação (Fase 4 — Portal + ficha do Cliente)
+
+Entregue (branch `dev`):
+- `acesso.ts`: `podeLerDocumento` também libera quem tem `clientes:ver` (equipe vê os docs na ficha
+  do cliente). `AncoraDocumento` ganhou `clienteId`.
+- `queries.ts`: `documentosDoCliente(clienteId)` **agrupado por proposta → projeto** (+ grupo "gerais").
+- Ficha do cliente (`clientes/[id]`): card **"Documentos"** com os grupos + download (read-only).
+- Portal do cliente logado: `api/portal/documentos` (upload no projeto do PRÓPRIO cliente →
+  `Documento(canal=portal)`, escopo estrito por `clienteId`) + card `PortalDocumentos`
+  (lista + envio) na página do projeto.
+- Verificado: `tsc` (arquivos da fase limpos) + `eslint` limpos; runtime confirma agrupamento e escopo.
+
+---
+
 
 ## Status de implementação (Fase 3 — Link tokenizado)
 

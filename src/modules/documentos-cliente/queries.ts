@@ -45,6 +45,57 @@ export async function clienteDoProjeto(projetoId: string): Promise<string | null
   return p?.clienteId ?? null;
 }
 
+export type GrupoDocumentos = {
+  chave: string;
+  tipo: "proposta" | "projeto" | "geral";
+  titulo: string;
+  subtitulo: string | null;
+  documentos: DocumentoItem[];
+};
+
+/**
+ * Todos os documentos de um cliente, **agrupados por proposta → projeto** (+ grupo
+ * "gerais" p/ os sem vínculo). É a visão "segue o cliente" da ficha do cliente.
+ */
+export async function documentosDoCliente(clienteId: string): Promise<GrupoDocumentos[]> {
+  const docs = await prisma.documento.findMany({
+    where: { clienteId },
+    orderBy: { createdAt: "desc" },
+    include: {
+      ...incluir,
+      proposta: { select: { numero: true, titulo: true, projeto: { select: { codigo: true, nome: true } } } },
+      projeto: { select: { codigo: true, nome: true } },
+    },
+  });
+
+  const grupos = new Map<string, GrupoDocumentos>();
+  for (const d of docs) {
+    let chave: string, tipo: GrupoDocumentos["tipo"], titulo: string, subtitulo: string | null;
+    if (d.propostaId && d.proposta) {
+      chave = `prop:${d.propostaId}`;
+      tipo = "proposta";
+      titulo = `${d.proposta.numero} · ${d.proposta.titulo}`;
+      subtitulo = d.proposta.projeto ? `Projeto ${d.proposta.projeto.codigo} · ${d.proposta.projeto.nome}` : "Sem projeto ainda";
+    } else if (d.projetoId && d.projeto) {
+      chave = `proj:${d.projetoId}`;
+      tipo = "projeto";
+      titulo = `Projeto ${d.projeto.codigo} · ${d.projeto.nome}`;
+      subtitulo = null;
+    } else {
+      chave = "geral";
+      tipo = "geral";
+      titulo = "Gerais do cliente";
+      subtitulo = null;
+    }
+    const g = grupos.get(chave) ?? { chave, tipo, titulo, subtitulo, documentos: [] };
+    g.documentos.push(mapear(d));
+    grupos.set(chave, g);
+  }
+  // Ordem: propostas, depois projetos, depois gerais.
+  const ordem = { proposta: 0, projeto: 1, geral: 2 } as const;
+  return [...grupos.values()].sort((a, b) => ordem[a.tipo] - ordem[b.tipo]);
+}
+
 /** Documentos anexados a uma proposta (âncora comercial). */
 export async function documentosDaProposta(propostaId: string): Promise<DocumentoItem[]> {
   const docs = await prisma.documento.findMany({

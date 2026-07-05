@@ -6,6 +6,8 @@ import { ArrowLeft, CalendarDays, MapPin, FolderOpen } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { projetoDoCliente } from "@/modules/portal/queries";
+import { recebidosDoProjeto } from "@/modules/documentos-cliente/queries";
+import { PortalDocumentos } from "@/components/portal/portal-documentos";
 import { SITUACAO_PROJETO_LABEL, STATUS_CHIP, STATUS_LABEL } from "@/modules/projetos/status";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +31,7 @@ export default async function PortalProjetoPage({
   const { projetoId } = await params;
   const projeto = await projetoDoCliente(u.clienteId, projetoId);
   if (!projeto) notFound();
+  const recebidos = await recebidosDoProjeto(projetoId);
 
   return (
     <div className="space-y-6">
@@ -82,6 +85,8 @@ export default async function PortalProjetoPage({
           )}
         </CardContent>
       </Card>
+
+      <PortalDocumentos projetoId={projeto.id} docs={recebidos} />
     </div>
   );
 }

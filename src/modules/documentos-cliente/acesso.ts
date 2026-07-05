@@ -5,7 +5,7 @@ import { acessoGlobal, INTERNAL_ROLES, type Role } from "@/lib/roles";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import type { SessionUser } from "@/lib/session";
 
-export type AncoraDocumento = { propostaId?: string | null; projetoId?: string | null };
+export type AncoraDocumento = { propostaId?: string | null; projetoId?: string | null; clienteId?: string | null };
 
 /**
  * Projeto "efetivo" do documento: o próprio `projetoId`, ou o projeto gerado pela
@@ -38,6 +38,8 @@ async function veProjeto(user: SessionUser, projetoId: string): Promise<boolean>
 export async function podeLerDocumento(user: SessionUser, ancora: AncoraDocumento): Promise<boolean> {
   const projetoId = await projetoEfetivo(ancora);
   if (projetoId && (await veProjeto(user, projetoId))) return true;
+  // Equipe que administra clientes vê os documentos na ficha do cliente ("segue o cliente").
+  if (await can(user.role, "clientes", "ver")) return true;
   return can(user.role, "comercial", "ver");
 }
 
