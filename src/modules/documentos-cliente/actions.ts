@@ -6,15 +6,19 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { removerArquivo } from "@/lib/storage";
 import { metaDocumento, ORIGENS_DOCUMENTO } from "./schemas";
+import { podeGerirDocumento, type AncoraDocumento } from "./acesso";
+import type { SessionUser } from "@/lib/session";
 
-// Fase 1 ancora na proposta (comercial). Gate reusa o recurso `comercial` para não
-// abrir lacuna de permissão (mesma regra dos antigos anexos). Fase 2+ (projeto/portal)
-// revisita o gate — ver spec 2026-07-05-recebidos-documentos-cliente.md §4.
+// Gate por sessão + verificação de acesso por âncora dentro de cada handler
+// (proposta → comercial; projeto → membro interno/global). Ver `acesso.ts` e o
+// spec 2026-07-05-recebidos-documentos-cliente.md §4.
 const base = {
   modulo: "documentos_cliente",
-  recurso: "comercial",
-  permissao: "gerir",
 } as const;
+
+async function exigirEscrita(user: SessionUser, ancora: AncoraDocumento) {
+  if (!(await podeGerirDocumento(user, ancora))) throw new ActionError("Sem permissão para este documento.");
+}
 
 function revalidar(propostaId: string | null, projetoId: string | null) {
   if (propostaId) revalidatePath(`/comercial/propostas/${propostaId}`);
@@ -53,6 +57,7 @@ export const criarDocumento = defineAction(
     }),
   },
   async (i, ctx) => {
+    await exigirEscrita(ctx.user, { propostaId: i.propostaId, projetoId: i.projetoId });
     const clienteId = await resolverCliente(i.propostaId, i.projetoId);
     const doc = await prisma.documento.create({
       data: {
@@ -97,6 +102,7 @@ export const adicionarVersaoDocumento = defineAction(
       select: { propostaId: true, projetoId: true, versoes: { orderBy: { numero: "desc" }, take: 1, select: { numero: true } } },
     });
     if (!doc) throw new ActionError("Documento não encontrado.");
+    await exigirEscrita(ctx.user, doc);
     const numero = (doc.versoes[0]?.numero ?? 0) + 1;
     await prisma.documentoVersao.create({
       data: {
@@ -129,7 +135,10 @@ export const editarDocumento = defineAction(
       descricao: z.string().trim().optional().or(z.literal("")),
     }),
   },
-  async (i) => {
+  async (i, ctx) => {
+    const alvo = await prisma.documento.findUnique({ where: { id: i.id }, select: { propostaId: true, projetoId: true } });
+    if (!alvo) throw new ActionError("Documento não encontrado.");
+    await exigirEscrita(ctx.user, alvo);
     const doc = await prisma.documento.update({
       where: { id: i.id },
       data: { nome: i.nome, categoria: i.categoria || null, descricao: i.descricao || null },
@@ -148,12 +157,13 @@ export const excluirDocumento = defineAction(
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
     schema: z.object({ id: z.string().min(1) }),
   },
-  async (i) => {
+  async (i, ctx) => {
     const doc = await prisma.documento.findUnique({
       where: { id: i.id },
       select: { propostaId: true, projetoId: true, versoes: { select: { caminho: true } } },
     });
     if (!doc) throw new ActionError("Documento não encontrado.");
+    await exigirEscrita(ctx.user, doc);
     await prisma.documento.delete({ where: { id: i.id } });
     for (const v of doc.versoes) await removerArquivo(v.caminho);
     revalidar(doc.propostaId, doc.projetoId);

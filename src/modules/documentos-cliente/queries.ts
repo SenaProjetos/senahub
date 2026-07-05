@@ -39,6 +39,12 @@ function mapear(d: DocumentoComVersoes) {
 
 export type DocumentoItem = ReturnType<typeof mapear>;
 
+/** Cliente-dono de um projeto (p/ ancorar uploads de documentos no projeto). */
+export async function clienteDoProjeto(projetoId: string): Promise<string | null> {
+  const p = await prisma.projeto.findUnique({ where: { id: projetoId }, select: { clienteId: true } });
+  return p?.clienteId ?? null;
+}
+
 /** Documentos anexados a uma proposta (âncora comercial). */
 export async function documentosDaProposta(propostaId: string): Promise<DocumentoItem[]> {
   const docs = await prisma.documento.findMany({

@@ -16,6 +16,7 @@ import {
   FileArchive,
   Image as ImageIcon,
   Download,
+  Eye,
   Upload as UploadIcon,
   Plus,
   Pencil,
@@ -39,6 +40,9 @@ import {
   adicionarVersaoArquivo,
 } from "@/modules/projetos/arquivos/actions";
 import { renomearUpload } from "@/modules/uploads/actions";
+import { criarDocumento, adicionarVersaoDocumento, excluirDocumento } from "@/modules/documentos-cliente/actions";
+import type { DocumentoItem } from "@/modules/documentos-cliente/queries";
+import type { MetaDocumento } from "@/modules/documentos-cliente/schemas";
 import { entregaveisAtuais } from "@/modules/uploads/validacao";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -71,19 +75,19 @@ const EXT_SUBPASTA: Record<string, Subpasta> = {
   rvt: "BACKUP", skp: "BACKUP", tqs: "BACKUP", zip: "BACKUP", rar: "BACKUP", "7z": "BACKUP", qibzip: "BACKUP",
 };
 
-// ── Pacotes (mesma ordem/rótulos do painel da disciplina) ──
-const PACOTES = ["A", "B", "RECEBIDOS", "OUTROS"] as const;
+// ── Pacotes por disciplina. "Recebidos do cliente" saiu daqui: virou repositório
+// de Documento ancorado no cliente/projeto (ver RecebidosPasta). ──
+const PACOTES = ["A", "B", "OUTROS"] as const;
 type Pacote = (typeof PACOTES)[number];
 const PACOTE_LABEL: Record<Pacote, string> = {
   A: "Pranchas e arquivos",
   B: "Backup do modelo",
-  RECEBIDOS: "Recebidos do cliente",
   OUTROS: "Outros (não suportados)",
 };
 
 const CATEGORIAS_GERAL = ["contrato", "planta", "memorial", "foto", "administrativo", "outro"] as const;
 
-function extDe(nome: string): string {
+export function extDe(nome: string): string {
   const i = nome.lastIndexOf(".");
   return i >= 0 ? nome.slice(i + 1).toLowerCase() : "";
 }
@@ -100,7 +104,7 @@ function fmtBytes(n: number) {
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
-function IconeArquivo({ nome }: { nome: string }) {
+export function IconeArquivo({ nome }: { nome: string }) {
   const ext = extDe(nome);
   if (ext === "pdf") return <FileText className="size-4 shrink-0 text-destructive" />;
   if (["dwg", "dxf", "dwf"].includes(ext)) return <FileCode className="size-4 shrink-0 text-primary" />;
@@ -109,6 +113,40 @@ function IconeArquivo({ nome }: { nome: string }) {
   if (["zip", "rar", "7z", "tqs", "rvt", "skp", "qibzip"].includes(ext)) return <FileArchive className="size-4 shrink-0 text-warning" />;
   if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) return <ImageIcon className="size-4 shrink-0 text-pink-500" />;
   return <FileIcon className="size-4 shrink-0 text-muted-foreground" />;
+}
+
+/** Status de validação de um entregável (aprovado / ajuste solicitado / pendente). Compartilhado com o card da disciplina. */
+export function StatusArquivo({
+  aprovado,
+  ajusteObs,
+  dataAprovacao,
+}: {
+  aprovado: boolean;
+  ajusteObs?: string | null;
+  dataAprovacao?: string | null;
+}) {
+  if (aprovado) {
+    return (
+      <span
+        className="flex shrink-0 items-center gap-1 text-xs text-status-aprovado"
+        title={dataAprovacao ? `Aprovado · ${formatarData(dataAprovacao)}` : "Aprovado"}
+      >
+        <CheckCircle2 className="size-3.5" /> aprovado
+      </span>
+    );
+  }
+  if (ajusteObs) {
+    return (
+      <span className="flex shrink-0 items-center gap-1 text-xs text-warning" title={`Ajuste solicitado: ${ajusteObs}`}>
+        <AlertTriangle className="size-3.5" /> ajuste
+      </span>
+    );
+  }
+  return (
+    <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground" title="Aguardando validação">
+      <Clock className="size-3.5" /> pendente
+    </span>
+  );
 }
 
 // ── Download zipado (subpasta / seleção) — dispara GET streaming em /api/uploads/zip ──
@@ -196,17 +234,20 @@ function Pasta({
 function LinhaArquivo({
   a,
   nivel,
+  projetoId,
   onRenomear,
   podeValidar,
   foraPadrao,
 }: {
   a: ArvoreArquivoItem;
   nivel: number;
+  projetoId: string;
   onRenomear?: (a: ArvoreArquivoItem) => void;
   podeValidar?: boolean;
   foraPadrao?: boolean;
 }) {
   const selecao = useContext(SelecaoCtx);
+  const ehPdf = extDe(a.nome) === "pdf";
   return (
     <div
       className="flex items-center gap-2 rounded-sm py-1 pr-2 text-sm hover:bg-muted/40"
@@ -221,10 +262,23 @@ function LinhaArquivo({
         />
       )}
       <IconeArquivo nome={a.nome} />
-      <span className="min-w-0 flex-1 truncate" title={a.nome}>
-        {a.nome}
-        {a.versao > 1 && <span className="ml-1 font-mono text-xs text-muted-foreground">v{a.versao}</span>}
-      </span>
+      {ehPdf ? (
+        <a
+          href={`/projetos/${projetoId}/arquivos/${a.id}/visualizar`}
+          target="_blank"
+          rel="noopener"
+          className="min-w-0 flex-1 truncate hover:text-primary hover:underline"
+          title={`Visualizar ${a.nome}`}
+        >
+          {a.nome}
+          {a.versao > 1 && <span className="ml-1 font-mono text-xs text-muted-foreground">v{a.versao}</span>}
+        </a>
+      ) : (
+        <span className="min-w-0 flex-1 truncate" title={a.nome}>
+          {a.nome}
+          {a.versao > 1 && <span className="ml-1 font-mono text-xs text-muted-foreground">v{a.versao}</span>}
+        </span>
+      )}
       {foraPadrao && (
         <span
           className="flex shrink-0 items-center gap-1 text-xs text-warning"
@@ -233,19 +287,7 @@ function LinhaArquivo({
           <AlertTriangle className="size-3.5" /> fora do padrão
         </span>
       )}
-      {a.aprovado ? (
-        <span className="flex shrink-0 items-center gap-1 text-xs text-status-aprovado" title={`Aprovado · ${formatarData(a.data)}`}>
-          <CheckCircle2 className="size-3.5" /> aprovado
-        </span>
-      ) : a.ajusteObs ? (
-        <span className="flex shrink-0 items-center gap-1 text-xs text-warning" title={`Ajuste solicitado: ${a.ajusteObs}`}>
-          <AlertTriangle className="size-3.5" /> ajuste
-        </span>
-      ) : (
-        <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground" title="Aguardando validação">
-          <Clock className="size-3.5" /> pendente
-        </span>
-      )}
+      <StatusArquivo aprovado={a.aprovado} ajusteObs={a.ajusteObs} dataAprovacao={a.data} />
       {podeValidar && (
         <AcoesValidacaoArquivo uploadId={a.id} nomeArquivo={a.nome} validado={a.aprovado} />
       )}
@@ -260,6 +302,18 @@ function LinhaArquivo({
         >
           <Pencil className="size-3.5" />
         </button>
+      )}
+      {ehPdf && (
+        <a
+          href={`/projetos/${projetoId}/arquivos/${a.id}/visualizar`}
+          target="_blank"
+          rel="noopener"
+          className="shrink-0 text-primary hover:text-primary/80"
+          aria-label={`Visualizar ${a.nome}`}
+          title="Visualizar prancha"
+        >
+          <Eye className="size-3.5" />
+        </a>
       )}
       <a href={a.downloadUrl} className="shrink-0 text-primary hover:text-primary/80" aria-label={`Baixar ${a.nome}`}>
         <Download className="size-3.5" />
@@ -349,6 +403,9 @@ export function ArquivosExplorer({
   podeGerirGeral,
   podeValidar,
   nomenclatura,
+  recebidos,
+  clienteId,
+  podeGerirRecebidos,
 }: {
   projeto: { id: string; codigo: string; nome: string };
   disciplinas: ArvoreDisciplina[];
@@ -356,6 +413,9 @@ export function ArquivosExplorer({
   podeGerirGeral: boolean;
   podeValidar: boolean;
   nomenclatura: { exigir: boolean; padrao: string | null };
+  recebidos: DocumentoItem[];
+  clienteId: string | null;
+  podeGerirRecebidos: boolean;
 }) {
   const [renomeando, setRenomeando] = useState<ArvoreArquivoItem | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
@@ -376,7 +436,8 @@ export function ArquivosExplorer({
 
   const enviaveis = disciplinas.filter((d) => d.podeEnviar);
   const temGeral = geral.length > 0 || podeGerirGeral;
-  const vazio = totais.total === 0 && !podeGerirGeral && disciplinas.length === 0;
+  const temRecebidos = recebidos.length > 0 || podeGerirRecebidos;
+  const vazio = totais.total === 0 && !podeGerirGeral && !temRecebidos && disciplinas.length === 0;
 
   return (
     <div className="space-y-5">
@@ -417,6 +478,14 @@ export function ArquivosExplorer({
               />
             ) : (
               <div className="divide-y">
+                {temRecebidos && (
+                  <RecebidosPasta
+                    projetoId={projeto.id}
+                    clienteId={clienteId}
+                    recebidos={recebidos}
+                    podeGerir={podeGerirRecebidos}
+                  />
+                )}
                 {temGeral && <PastaGeral projetoId={projeto.id} geral={geral} podeGerir={podeGerirGeral} />}
 
                 {disciplinas.map((d) => {
@@ -508,6 +577,7 @@ export function ArquivosExplorer({
                                       key={a.id}
                                       a={a}
                                       nivel={3}
+                                      projetoId={projeto.id}
                                       onRenomear={d.podeEnviar ? setRenomeando : undefined}
                                       podeValidar={podeValidarDisc && idsValidaveis.has(a.id)}
                                       foraPadrao={
@@ -532,6 +602,184 @@ export function ArquivosExplorer({
 
       <RenomearDialog item={renomeando} onClose={() => setRenomeando(null)} />
     </div>
+  );
+}
+
+// ── Pasta "Recebidos do cliente": Documentos ancorados no projeto + herdados da proposta ──
+
+async function subirDocumento(file: File, projetoId: string, clienteId: string | null): Promise<MetaDocumento> {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("projetoId", projetoId);
+  if (clienteId) fd.append("clienteId", clienteId);
+  const res = await fetch("/api/documentos", { method: "POST", body: fd });
+  const meta = await res.json();
+  if (!res.ok) throw new Error(meta.error ?? "Falha no upload.");
+  return meta as MetaDocumento;
+}
+
+function RecebidosPasta({
+  projetoId,
+  clienteId,
+  recebidos,
+  podeGerir,
+}: {
+  projetoId: string;
+  clienteId: string | null;
+  recebidos: DocumentoItem[];
+  podeGerir: boolean;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [busy, setBusy] = useState(false);
+  const fileNovo = useRef<HTMLInputElement>(null);
+  const fileVersao = useRef<HTMLInputElement>(null);
+  const [alvoVersao, setAlvoVersao] = useState<string | null>(null);
+
+  async function enviarNovos(files: File[]) {
+    if (files.length === 0) return;
+    setBusy(true);
+    try {
+      let ok = 0;
+      for (const file of files) {
+        try {
+          const meta = await subirDocumento(file, projetoId, clienteId);
+          const r = await criarDocumento({ projetoId, nome: file.name, origem: "recebido_cliente", meta });
+          if (r.ok) ok += 1;
+          else toast.error(`${file.name}: ${r.error}`);
+        } catch (e) {
+          toast.error(`${file.name}: ${(e as Error).message}`);
+        }
+      }
+      if (ok > 0) toast.success(`${ok} documento(s) recebido(s).`);
+      router.refresh();
+    } finally {
+      setBusy(false);
+      if (fileNovo.current) fileNovo.current.value = "";
+    }
+  }
+
+  async function enviarVersao(documentoId: string, file: File) {
+    setBusy(true);
+    try {
+      const meta = await subirDocumento(file, projetoId, clienteId);
+      const r = await adicionarVersaoDocumento({ documentoId, meta });
+      if (r.ok) {
+        toast.success(`Versão ${r.data.numero} adicionada.`);
+        router.refresh();
+      } else toast.error(r.error);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+      setAlvoVersao(null);
+    }
+  }
+
+  function excluir(id: string) {
+    start(async () => {
+      const r = await excluirDocumento({ id });
+      if (r.ok) router.refresh();
+      else toast.error(r.error);
+    });
+  }
+
+  return (
+    <>
+      <input
+        ref={fileVersao}
+        type="file"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f && alvoVersao) enviarVersao(alvoVersao, f);
+          e.target.value = "";
+        }}
+      />
+      <Pasta
+        nome="Recebidos do cliente"
+        contagem={recebidos.length}
+        nivel={0}
+        abertoInicial
+        acao={
+          podeGerir ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 gap-1 px-2 text-xs"
+              disabled={busy}
+              onClick={() => fileNovo.current?.click()}
+            >
+              <UploadIcon className="size-3.5" /> {busy ? "Enviando…" : "Enviar"}
+            </Button>
+          ) : undefined
+        }
+      >
+        <input
+          ref={fileNovo}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => enviarNovos(Array.from(e.target.files ?? []))}
+        />
+        {recebidos.length === 0 ? (
+          <p className="py-1.5 pl-10 text-xs text-muted-foreground">
+            Material enviado pelo cliente (proposta/projeto). Nada recebido ainda.
+          </p>
+        ) : (
+          recebidos.map((d) => (
+            <div
+              key={d.id}
+              className="flex items-center gap-2 rounded-sm py-1 pr-2 text-sm hover:bg-muted/40"
+              style={{ paddingLeft: "1.75rem" }}
+            >
+              <IconeArquivo nome={d.atual?.nomeArquivo ?? d.nome} />
+              <span className="min-w-0 flex-1 truncate" title={d.nome}>
+                {d.nome}
+                {d.totalVersoes > 1 && <span className="ml-1 font-mono text-xs text-muted-foreground">v{d.atual?.numero}</span>}
+              </span>
+              {d.canal !== "interno" && (
+                <Badge variant="outline" className="shrink-0 capitalize">{d.canal}</Badge>
+              )}
+              <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                {d.atual ? fmtBytes(d.atual.tamanho) : "—"}
+              </span>
+              {d.atual && (
+                <a href={d.atual.downloadUrl} className="shrink-0 text-primary hover:text-primary/80" aria-label={`Baixar ${d.nome}`}>
+                  <Download className="size-3.5" />
+                </a>
+              )}
+              {podeGerir && (
+                <>
+                  <button
+                    type="button"
+                    className="shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                    aria-label="Nova versão"
+                    title="Enviar nova versão"
+                    disabled={busy}
+                    onClick={() => {
+                      setAlvoVersao(d.id);
+                      fileVersao.current?.click();
+                    }}
+                  >
+                    <UploadIcon className="size-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-50"
+                    aria-label="Excluir"
+                    disabled={pending}
+                    onClick={() => excluir(d.id)}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </>
+              )}
+            </div>
+          ))
+        )}
+      </Pasta>
+    </>
   );
 }
 
@@ -809,8 +1057,7 @@ function PastaGeral({
 
 // ── Uploader: pasta inteira / múltiplos / arrastar, 1 disciplina por envio ──
 
-type PacoteEnvio = "A" | "B" | "RECEBIDOS";
-const REGEX_CLIENTE = /^(clientes?|recebidos?|do[-_ ]?cliente)$/i;
+type PacoteEnvio = "A" | "B";
 
 type ItemEnvio = { file: File; nome: string; alvo: PacoteEnvio; fora: boolean };
 
@@ -891,7 +1138,8 @@ function Uploader({
   nomenclatura: { exigir: boolean; padrao: string | null };
 }) {
   const router = useRouter();
-  const [disciplinaId, setDisciplinaId] = useState(disciplinas[0]?.id ?? "");
+  // Sem disciplina pré-selecionada: força a escolha consciente e evita envio no alvo errado.
+  const [disciplinaId, setDisciplinaId] = useState("");
   const [pacote, setPacote] = useState<PacoteEnvio>("A");
   const [enviando, setEnviando] = useState(false);
   const [arrastando, setArrastando] = useState(false);
@@ -899,12 +1147,6 @@ function Uploader({
   const [progresso, setProgresso] = useState<LinhaEnvio[] | null>(null);
   const inputArquivos = useRef<HTMLInputElement>(null);
   const inputPasta = useRef<HTMLInputElement>(null);
-
-  function alvoDe(f: File): PacoteEnvio {
-    const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath ?? "";
-    const ehCliente = rel.split("/").slice(0, -1).some((s) => REGEX_CLIENTE.test(s.trim()));
-    return ehCliente ? "RECEBIDOS" : pacote;
-  }
 
   function enviar(lista: FileList | File[] | null) {
     if (!disciplinaId) {
@@ -914,11 +1156,11 @@ function Uploader({
     const files = lista ? Array.from(lista) : [];
     if (files.length === 0) return;
 
-    // Define o pacote-alvo de cada arquivo e filtra por tamanho conforme o limite
-    // desse pacote (B/backup = 1,5 GB; demais = 500 MB) antes de enviar.
+    // Todos os arquivos vão para o pacote escolhido. Filtra por tamanho conforme o
+    // limite desse pacote (B/backup = 1,5 GB; demais = 500 MB) antes de enviar.
     const itens: ItemEnvio[] = [];
     for (const f of files) {
-      const alvo = alvoDe(f);
+      const alvo = pacote;
       if (f.size > limiteDoPacote(alvo)) {
         toast.error(`${f.name}: excede o limite de ${limiteLabelDoPacote(alvo)}.`);
         continue;
@@ -1001,10 +1243,21 @@ function Uploader({
         onChange={setPendentes}
         onConfirm={() => pendentes && uploadFinal(pendentes)}
       />
+
+      <div className="flex items-center gap-2">
+        <UploadIcon className="size-4 text-primary" />
+        <div>
+          <h3 className="text-sm font-semibold leading-none">Enviar arquivos</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Escolha a disciplina e o tipo, depois selecione os arquivos ou a pasta.
+          </p>
+        </div>
+      </div>
+
       <div className="flex flex-wrap items-center gap-2">
         <Select value={disciplinaId} onValueChange={(v) => v && setDisciplinaId(v)}>
-          <SelectTrigger className="w-52">
-            <SelectValue placeholder="Disciplina" />
+          <SelectTrigger className={cn("w-52", !disciplinaId && "text-muted-foreground")}>
+            <SelectValue placeholder="Selecione a disciplina…" />
           </SelectTrigger>
           <SelectContent>
             {disciplinas.map((d) => (
@@ -1022,14 +1275,13 @@ function Uploader({
           <SelectContent>
             <SelectItem value="A">Pranchas e arquivos</SelectItem>
             <SelectItem value="B">Backup do modelo</SelectItem>
-            <SelectItem value="RECEBIDOS">Recebidos do cliente</SelectItem>
           </SelectContent>
         </Select>
 
-        <Button size="sm" variant="outline" disabled={enviando} onClick={() => inputArquivos.current?.click()}>
+        <Button size="sm" variant="outline" disabled={enviando || !disciplinaId} onClick={() => inputArquivos.current?.click()}>
           <UploadIcon className="size-3.5" /> Arquivos
         </Button>
-        <Button size="sm" variant="outline" disabled={enviando} onClick={() => inputPasta.current?.click()}>
+        <Button size="sm" variant="outline" disabled={enviando || !disciplinaId} onClick={() => inputPasta.current?.click()}>
           <FolderOpen className="size-3.5" /> Pasta
         </Button>
 
@@ -1055,9 +1307,9 @@ function Uploader({
       )}
 
       <p className="text-xs text-muted-foreground">
-        Envie arquivos soltos ou uma pasta inteira (ou arraste aqui). Vai para a disciplina escolhida; subpastas
-        chamadas <span className="font-medium">Cliente</span>/<span className="font-medium">Recebidos</span> vão para
-        &quot;Recebidos do cliente&quot;. Formatos não suportados em Pranchas vão para &quot;Outros&quot;.
+        Envie arquivos soltos ou uma pasta inteira (ou arraste aqui). Vai para a disciplina escolhida.
+        Formatos não suportados em Pranchas vão para &quot;Outros&quot;. Material enviado pelo cliente fica em
+        &quot;Recebidos do cliente&quot; (pasta de topo).
         {" "}Limite por arquivo: {TAMANHO_MAX_BACKUP_LABEL} em Backup do modelo, {TAMANHO_MAX_LABEL} nos demais.
         {nomenclatura.exigir && " Nomes fora do padrão em Pranchas pedem revisão antes do envio."}
       </p>

@@ -1,6 +1,22 @@
 # Plano técnico — Documentos do cliente ao longo de Cliente → Proposta → Projeto
 
-**Data:** 2026-07-05 · **Status:** 🔨 Fase 1 implementada · Fases 2–5 pendentes
+**Data:** 2026-07-05 · **Status:** 🔨 Fases 1–2 implementadas · Fases 3–5 pendentes
+
+## Status de implementação (Fase 2 — Projeto herda da Proposta)
+
+Entregue (branch `dev`):
+- `modules/documentos-cliente/acesso.ts`: `podeLerDocumento`/`podeGerirDocumento` por **âncora**
+  (proposta → `comercial`; projeto → membro interno/global via `escopoProjeto`). Actions e endpoints
+  passaram a gatear por sessão + verificação de âncora (fim do gate fixo em `comercial`).
+- `queries.ts`: `recebidosDoProjeto` (join `Proposta.projetoId`) + `clienteDoProjeto`.
+- Projeto → aba Arquivos: pasta de topo **"Recebidos do cliente"** (`RecebidosPasta`) = docs do
+  projeto **+ herdados da proposta de origem**, com upload interno (cria `Documento(projetoId)`),
+  versão e exclusão. O pacote `RECEBIDOS` saiu do uploader e do agrupamento por disciplina.
+- Verificado: `tsc` (src limpo), `eslint` limpo, e runtime — `recebidosDoProjeto` retorna o doc do
+  projeto **e** o herdado da proposta (sem misturar projetos irmãos).
+
+---
+
 
 ## Status de implementação (Fase 1 — Fundação/Proposta)
 

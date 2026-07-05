@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { getSession } from "@/lib/session";
-import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { salvarArquivo, nomeArquivoLimpo } from "@/lib/storage";
 import { TAMANHO_MAX, TAMANHO_MAX_LABEL } from "@/modules/uploads/limites";
+import { podeGerirDocumento } from "@/modules/documentos-cliente/acesso";
 
 /**
  * Upload multipart de um documento do cliente. Grava em disco e devolve `meta`
@@ -14,10 +14,6 @@ import { TAMANHO_MAX, TAMANHO_MAX_LABEL } from "@/modules/uploads/limites";
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  // Fase 1: gate reusa `comercial:gerir` (mesma regra dos antigos anexos de proposta).
-  if (!(await can(session.user.role, "comercial", "gerir"))) {
-    return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
-  }
 
   let form: FormData;
   try {
@@ -25,6 +21,14 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "Falha ao receber o arquivo." }, { status: 413 });
   }
+
+  // Acesso por âncora (proposta → comercial; projeto → membro interno/global).
+  const propostaId = String(form.get("propostaId") ?? "");
+  const projetoId = String(form.get("projetoId") ?? "");
+  if (!(await podeGerirDocumento(session.user, { propostaId: propostaId || null, projetoId: projetoId || null }))) {
+    return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+  }
+
   const file = form.get("file");
   if (!(file instanceof File)) return NextResponse.json({ error: "Arquivo ausente." }, { status: 400 });
   if (file.size > TAMANHO_MAX) {
@@ -32,8 +36,6 @@ export async function POST(req: Request) {
   }
 
   // Resolve o cliente (p/ agrupar em disco) a partir da âncora, se veio.
-  const propostaId = String(form.get("propostaId") ?? "");
-  const projetoId = String(form.get("projetoId") ?? "");
   let clienteId = String(form.get("clienteId") ?? "");
   if (!clienteId && propostaId) {
     clienteId = (await prisma.proposta.findUnique({ where: { id: propostaId }, select: { clienteId: true } }))?.clienteId ?? "";
