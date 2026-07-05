@@ -35,4 +35,11 @@ export function destinoArquivo(nome: string, alvo: PacoteAlvo): PacoteDestino {
   return EXT_PACOTE_A.has(extensao(nome)) ? "A" : "OUTROS";
 }
 
-export { TAMANHO_MAX, TAMANHO_MAX_LABEL } from "./limites";
+export {
+  TAMANHO_MAX,
+  TAMANHO_MAX_LABEL,
+  TAMANHO_MAX_BACKUP,
+  TAMANHO_MAX_BACKUP_LABEL,
+  limiteDoPacote,
+  limiteLabelDoPacote,
+} from "./limites";

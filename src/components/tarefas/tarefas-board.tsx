@@ -56,9 +56,9 @@ type Periodo = "atrasadas" | "semana" | "mes";
 function filtrarTarefa(
   t: TarefaUI,
   concluida: boolean,
-  filtros: { q: string; projeto: string | null; responsavel: string | null; periodo: string | null; prioridade: string | null },
+  filtros: { q: string; projeto: string | null; disciplina: string | null; responsavel: string | null; periodo: string | null; prioridade: string | null },
 ): boolean {
-  const { q, projeto, responsavel, periodo, prioridade } = filtros;
+  const { q, projeto, disciplina, responsavel, periodo, prioridade } = filtros;
 
   if (q) {
     const termo = q.toLowerCase();
@@ -67,6 +67,8 @@ function filtrarTarefa(
   }
 
   if (projeto && t.projetoId !== projeto) return false;
+
+  if (disciplina && t.disciplinaId !== disciplina) return false;
 
   if (responsavel && !t.responsaveis.some((r) => r.id === responsavel)) return false;
 
@@ -117,6 +119,7 @@ export function TarefasBoard({
 
   const q = searchParams.get("q") ?? "";
   const projeto = searchParams.get("projeto");
+  const disciplina = searchParams.get("disciplina");
   const responsavel = searchParams.get("responsavel");
   const periodo = searchParams.get("periodo");
   const prioridade = searchParams.get("prioridade");
@@ -127,24 +130,31 @@ export function TarefasBoard({
   useEffect(() => setBusca(q), [q]);
 
   // Opções distintas a partir das tarefas carregadas (com fallback nos rótulos via opcoes).
-  const { opcoesProjeto, opcoesResponsavel } = useMemo(() => {
+  const { opcoesProjeto, opcoesResponsavel, opcoesDisciplina } = useMemo(() => {
     const todas = colunas.flatMap((c) => c.tarefas);
     const projMap = new Map<string, string>();
     const respMap = new Map<string, string>();
+    const discMap = new Map<string, string>();
     for (const t of todas) {
       if (t.projetoId) {
         const rotulo = opcoes.projetos.find((p) => p.id === t.projetoId)?.codigo ?? t.projetoCodigo ?? t.projetoId;
         projMap.set(t.projetoId, rotulo);
+      }
+      // Disciplinas do projeto filtrado (ou de todos, se nenhum projeto selecionado).
+      if (t.disciplinaId && (!projeto || t.projetoId === projeto)) {
+        const nome = opcoes.disciplinas.find((d) => d.id === t.disciplinaId)?.nome ?? t.disciplinaId;
+        discMap.set(t.disciplinaId, nome);
       }
       for (const r of t.responsaveis) respMap.set(r.id, r.nome);
     }
     return {
       opcoesProjeto: [...projMap].map(([id, rotulo]) => ({ id, rotulo })).sort((a, b) => a.rotulo.localeCompare(b.rotulo)),
       opcoesResponsavel: [...respMap].map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome)),
+      opcoesDisciplina: [...discMap].map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome)),
     };
-  }, [colunas, opcoes.projetos]);
+  }, [colunas, opcoes.projetos, opcoes.disciplinas, projeto]);
 
-  const filtros = { q, projeto, responsavel, periodo, prioridade };
+  const filtros = { q, projeto, disciplina, responsavel, periodo, prioridade };
   // Reaplica os filtros mantendo a estrutura de colunas (preserva o dnd-kit).
   const colunasFiltradas = useMemo<Coluna[]>(
     () =>
@@ -153,10 +163,10 @@ export function TarefasBoard({
         tarefas: c.tarefas.filter((t) => filtrarTarefa(t, c.concluido, filtros)),
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [colunas, q, projeto, responsavel, periodo, prioridade],
+    [colunas, q, projeto, disciplina, responsavel, periodo, prioridade],
   );
 
-  const temFiltro = Boolean(q || projeto || responsavel || periodo || prioridade);
+  const temFiltro = Boolean(q || projeto || disciplina || responsavel || periodo || prioridade);
 
   function aplicarBusca() {
     setParams({ q: busca.trim() || null });
@@ -233,7 +243,7 @@ export function TarefasBoard({
 
         <Select
           value={projeto ?? TODOS}
-          onValueChange={(v) => setParams({ projeto: v && v !== TODOS ? v : null })}
+          onValueChange={(v) => setParams({ projeto: v && v !== TODOS ? v : null, disciplina: null })}
         >
           <SelectTrigger className="h-8 w-44">
             <SelectValue placeholder="Projeto" />
@@ -247,6 +257,25 @@ export function TarefasBoard({
             ))}
           </SelectContent>
         </Select>
+
+        {opcoesDisciplina.length > 0 && (
+          <Select
+            value={disciplina ?? TODOS}
+            onValueChange={(v) => setParams({ disciplina: v && v !== TODOS ? v : null })}
+          >
+            <SelectTrigger className="h-8 w-44">
+              <SelectValue placeholder="Disciplina" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODOS}>Todas as disciplinas</SelectItem>
+              {opcoesDisciplina.map((d) => (
+                <SelectItem key={d.id} value={d.id}>
+                  {d.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         <Select
           value={responsavel ?? TODOS}
@@ -302,7 +331,7 @@ export function TarefasBoard({
             variant="ghost"
             size="sm"
             className="h-8"
-            onClick={() => setParams({ q: null, projeto: null, responsavel: null, periodo: null, prioridade: null })}
+            onClick={() => setParams({ q: null, projeto: null, disciplina: null, responsavel: null, periodo: null, prioridade: null })}
           >
             Limpar filtros
           </Button>

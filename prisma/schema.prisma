@@ -1328,6 +1328,7 @@ model Disciplina {
   pranchas     Prancha[]
   solicitacoesRevisao SolicitacaoRevisao[]
   calculosFerramenta  CalculoFerramenta[]
+  tarefas      Tarefa[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1513,6 +1514,9 @@ model Tarefa {
   prioridade String?
   projetoId String?
   projeto   Projeto?     @relation(fields: [projetoId], references: [id])
+  /// Disciplina do projeto à qual a tarefa pertence (aparece dentro dela na ficha do projeto).
+  disciplinaId String?
+  disciplina   Disciplina? @relation(fields: [disciplinaId], references: [id], onDelete: SetNull)
   criadorId String
   criador   User         @relation("TarefaCriador", fields: [criadorId], references: [id])
   arquivada Boolean      @default(false)
@@ -1531,6 +1535,8 @@ model Tarefa {
   updatedAt DateTime @updatedAt
 
   @@index([statusId, arquivada])
+  @@index([projetoId])
+  @@index([disciplinaId])
   @@map("tarefa")
 }
 
@@ -3163,11 +3169,46 @@ model Upload {
   autor     User     @relation("UploadAutor", fields: [autorId], references: [id])
   createdAt DateTime @default(now())
 
-  aceite AceiteCliente?
+  aceite     AceiteCliente?
+  pendencias Pendencia[]    @relation("UploadPendencias")
 
   @@index([disciplinaId, pacote])
   @@index([autorId])
   @@map("upload")
+}
+
+/// Apontamento posicional (pendência) sobre uma prancha PDF, na tela de visualização.
+/// Amarra à VERSÃO do arquivo (uploadId) — congela na revisão em que foi feito.
+/// Numeração sequencial por prancha/rodada (escopo uploadId). Vira item de checklist
+/// de UMA tarefa por prancha. Refs de disciplina/projeto/usuário são denormalizadas
+/// (resolvidas por query), sem FK, para manter a migração enxuta.
+model Pendencia {
+  id           String    @id @default(cuid())
+  uploadId     String
+  upload       Upload    @relation("UploadPendencias", fields: [uploadId], references: [id], onDelete: Cascade)
+  disciplinaId String
+  projetoId    String
+  numero       Int
+  pagina       Int
+  /// Âncora normalizada (0..1) relativa à página — sobrevive a zoom/DPI.
+  x            Float
+  y            Float
+  texto        String
+  /// aberta | resolvida | fechada | descartada
+  status       String    @default("aberta")
+  autorId      String
+  tarefaId     String?
+  tarefaItemId String?
+  resolvidoPorId String?
+  resolvidoEm    DateTime?
+  fechadoPorId   String?
+  fechadoEm      DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([uploadId, numero])
+  @@index([disciplinaId])
+  @@index([projetoId, status])
+  @@map("pendencia")
 }
 
 /// N-43: Aceite digital do cliente para uma entrega validada.

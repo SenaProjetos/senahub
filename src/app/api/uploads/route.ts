@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { GLOBAL_ROLES } from "@/lib/roles";
 import { salvarArquivo, slug, nomeArquivoLimpo } from "@/lib/storage";
-import { destinoArquivo, extensao, TAMANHO_MAX, type PacoteAlvo } from "@/modules/uploads/service";
+import { destinoArquivo, extensao, limiteDoPacote, limiteLabelDoPacote, type PacoteAlvo } from "@/modules/uploads/service";
 
 type Resultado = {
   nome: string;
@@ -86,8 +86,8 @@ export async function POST(req: Request) {
     const file = arquivos[idx];
     const nome = nomeArquivoLimpo((nomesDesejados[idx] ?? "").trim() || file.name);
     try {
-      if (file.size > TAMANHO_MAX) {
-        resultados.push({ nome, ok: false, motivo: "Arquivo excede 500 MB." });
+      if (file.size > limiteDoPacote(alvo)) {
+        resultados.push({ nome, ok: false, motivo: `Arquivo excede ${limiteLabelDoPacote(alvo)}.` });
         continue;
       }
       const destino = destinoArquivo(nome, alvo);

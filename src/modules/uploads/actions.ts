@@ -47,13 +47,18 @@ export const validarEntrega = defineAction(
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
 
-    if (disciplina.pagamentos.length > 0) {
-      throw new ActionError("Esta entrega já foi validada e o pagamento já foi liberado.");
-    }
     // P-24: status "aprovado" só é alcançável por esta ação (P-11) → guarda de idempotência
-    // mesmo quando a disciplina é 100% CLT (sem pagamento criado para o check acima cobrir).
+    // mesmo quando a disciplina é 100% CLT (sem pagamento criado para o check abaixo cobrir).
     if (disciplina.status === "aprovado") {
       throw new ActionError("Esta entrega já foi validada.");
+    }
+    // Reaprovação pós-revisão: se a disciplina voltou para "em_revisao" (apontamentos numa
+    // entrega já validada), ela já tem pagamento. Reaprovar NÃO gera pagamento novo — a
+    // validação financeira é mantida. Fora desse caso, pagamento existente = já validada.
+    const emRevisao = disciplina.status === "em_revisao";
+    const jaTemPagamento = disciplina.pagamentos.length > 0;
+    if (jaTemPagamento && !emRevisao) {
+      throw new ActionError("Esta entrega já foi validada e o pagamento já foi liberado.");
     }
 
     const temA = !disciplina.exigePacoteA || disciplina.uploads.some((u) => u.pacote === "A");
@@ -81,12 +86,38 @@ export const validarEntrega = defineAction(
       );
     }
 
+    const agora = new Date();
+    const href = `/projetos/${disciplina.projeto.id}`;
+    const codigoDisc = formatarCodigo(disciplina.projeto.codigo);
+
+    // Reaprovação pós-revisão: fecha a revisão de volta para "aprovado" sem gerar pagamento.
+    if (emRevisao && jaTemPagamento) {
+      await prisma.disciplina.update({
+        where: { id: disciplina.id },
+        data: { status: "aprovado", entregueEm: agora },
+      });
+      const avisar = [
+        ...disciplina.responsaveis.map((r) => r.userId),
+        ...(await prisma.user.findMany({
+          where: { ativo: true, role: { in: ["admin", "supervisor", "administrativo"] } },
+          select: { id: true },
+        })).map((g) => g.id),
+      ];
+      await notificarMuitos([...new Set(avisar)].filter((id) => id !== user.id), {
+        titulo: "Revisão concluída",
+        corpo: `Revisão de ${disciplina.nome} (${codigoDisc}) revalidada — sem novo pagamento.`,
+        href,
+        tag: `revalidacao-${disciplina.id}`,
+      });
+      revalidatePath(href);
+      revalidatePath("/planejamento/cronograma");
+      revalidatePath("/");
+      return { disciplinaId: disciplina.id, pagamentos: 0 };
+    }
+
     const valorTotal = disciplina.valor ? Number(disciplina.valor) : 0;
     const n = disciplina.responsaveis.length;
     const valorBase = Math.floor((valorTotal / n) * 100) / 100;
-
-    const agora = new Date();
-    const href = `/projetos/${disciplina.projeto.id}`;
 
     await prisma.$transaction(async (tx) => {
       await tx.disciplina.update({

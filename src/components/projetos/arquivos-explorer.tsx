@@ -371,9 +371,6 @@ function RenomearDialog({ item, onClose }: { item: ArvoreArquivoItem | null; onC
               </span>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">
-            A extensão {ext ? <span className="font-mono">{ext}</span> : "do arquivo"} não pode ser alterada.
-          </p>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>

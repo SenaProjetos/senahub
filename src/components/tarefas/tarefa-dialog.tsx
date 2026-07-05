@@ -42,6 +42,7 @@ export type TarefaUI = {
   projetoId: string;
   projetoCodigo: string | null;
   projetoNome: string | null;
+  disciplinaId: string;
   criadorId: string;
   responsaveis: { id: string; nome: string }[];
   itens: { id?: string; descricao: string; concluido: boolean }[];
@@ -54,6 +55,7 @@ export type OpcoesUI = {
   internos: { id: string; name: string }[];
   projetos: { id: string; codigo: string; nome: string }[];
   tarefas: { id: string; titulo: string }[];
+  disciplinas: { id: string; nome: string; projetoId: string }[];
 };
 
 const NONE = "__none";
@@ -69,6 +71,19 @@ const PRESETS_PRAZO: { label: string; calc: () => string }[] = [
   { label: "Fim do mês", calc: () => { const d = new Date(); return ymd(new Date(d.getFullYear(), d.getMonth() + 1, 0)); } },
 ];
 
+type FormTarefa = {
+  titulo: string;
+  descricao: string;
+  statusId: string;
+  prazo: string;
+  prioridade: string;
+  projetoId: string;
+  disciplinaId: string;
+  responsaveisIds: string[];
+  itens: { id?: string; descricao: string; concluido: boolean }[];
+  dependeDeIds: string[];
+};
+
 export function TarefaDialog({
   tarefa,
   open,
@@ -77,6 +92,10 @@ export function TarefaDialog({
   colunas,
   meId,
   meRole,
+  valoresIniciais,
+  onSubmit,
+  itensReadonly,
+  tituloDialog,
 }: {
   tarefa: TarefaUI | null;
   open: boolean;
@@ -85,6 +104,14 @@ export function TarefaDialog({
   colunas: { id: string; nome: string }[];
   meId: string;
   meRole: string;
+  /** Pré-preenche o formulário ao CRIAR (tarefa === null). */
+  valoresIniciais?: Partial<FormTarefa>;
+  /** Se definido, substitui criar/editar: recebe o payload e retorna se deu certo (fecha ao true). */
+  onSubmit?: (payload: Omit<FormTarefa, "itens"> & { itens: { descricao: string; concluido: boolean }[] }) => Promise<boolean>;
+  /** Checklist só-leitura (ex.: itens gerados por apontamentos). */
+  itensReadonly?: boolean;
+  /** Título do diálogo (sobrepõe o padrão). */
+  tituloDialog?: string;
 }) {
   // Item 27 (beta): só quem criou a tarefa (ou admin/supervisor) edita/arquiva. Tarefa nova
   // (tarefa === null) é sempre editável — quem cria ainda não tem criadorId atribuído.
@@ -99,6 +126,7 @@ export function TarefaDialog({
     prazo: "",
     prioridade: "",
     projetoId: NONE,
+    disciplinaId: NONE,
     responsaveisIds: [] as string[],
     itens: [] as { id?: string; descricao: string; concluido: boolean }[],
     dependeDeIds: [] as string[],
@@ -110,11 +138,13 @@ export function TarefaDialog({
     prazo: t.prazo,
     prioridade: t.prioridade,
     projetoId: t.projetoId || NONE,
+    disciplinaId: t.disciplinaId || NONE,
     responsaveisIds: t.responsaveis.map((r) => r.id),
     itens: [...t.itens],
     dependeDeIds: [...t.dependeDeIds],
   });
-  const [form, setForm] = useState(tarefa ? deTarefa(tarefa) : vazio);
+  const inicial = () => (tarefa ? deTarefa(tarefa) : { ...vazio, ...valoresIniciais });
+  const [form, setForm] = useState(inicial);
   const [novoItem, setNovoItem] = useState("");
   const [comentarios, setComentarios] = useState(tarefa?.comentarios ?? []);
   const [novoComent, setNovoComent] = useState("");
@@ -124,7 +154,7 @@ export function TarefaDialog({
   const [lastKey, setLastKey] = useState(key);
   if (lastKey !== key) {
     setLastKey(key);
-    setForm(tarefa ? deTarefa(tarefa) : vazio);
+    setForm(inicial());
     setNovoItem("");
     setComentarios(tarefa?.comentarios ?? []);
     setNovoComent("");
@@ -196,10 +226,19 @@ export function TarefaDialog({
       prazo: form.prazo,
       prioridade: (form.prioridade || "") as Prioridade | "",
       projetoId: form.projetoId === NONE ? "" : form.projetoId,
+      disciplinaId: form.disciplinaId === NONE ? "" : form.disciplinaId,
       responsaveisIds: form.responsaveisIds,
       itens: form.itens.map((i) => ({ descricao: i.descricao, concluido: i.concluido })),
       dependeDeIds: form.dependeDeIds,
     };
+    if (onSubmit) {
+      // Fluxo customizado (ex.: enviar apontamentos): o chamador cria a tarefa.
+      start(async () => {
+        const ok = await onSubmit(payload);
+        if (ok) onOpenChange(false);
+      });
+      return;
+    }
     start(async () => {
       const r = tarefa ? await editarTarefa({ ...payload, id: tarefa.id }) : await criarTarefa(payload);
       if (r.ok) {
@@ -223,12 +262,14 @@ export function TarefaDialog({
   }
 
   const tarefasDep = opcoes.tarefas.filter((t) => t.id !== tarefa?.id);
+  const disciplinasProjeto =
+    form.projetoId === NONE ? [] : opcoes.disciplinas.filter((d) => d.projetoId === form.projetoId);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{tarefa ? tarefa.titulo : "Nova tarefa"}</DialogTitle>
+          <DialogTitle>{tituloDialog ?? (tarefa ? tarefa.titulo : "Nova tarefa")}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
@@ -273,7 +314,10 @@ export function TarefaDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Projeto</Label>
-              <Select value={form.projetoId} onValueChange={(v) => setForm((f) => ({ ...f, projetoId: v ?? NONE }))}>
+              <Select
+                value={form.projetoId}
+                onValueChange={(v) => setForm((f) => ({ ...f, projetoId: v ?? NONE, disciplinaId: NONE }))}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -288,6 +332,28 @@ export function TarefaDialog({
               </Select>
             </div>
           </div>
+
+          {disciplinasProjeto.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Disciplina</Label>
+              <Select
+                value={form.disciplinaId}
+                onValueChange={(v) => setForm((f) => ({ ...f, disciplinaId: v ?? NONE }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>— (sem disciplina)</SelectItem>
+                  {disciplinasProjeto.map((d) => (
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -350,47 +416,51 @@ export function TarefaDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label>Checklist</Label>
+            <Label>Checklist{itensReadonly && " (apontamentos)"}</Label>
             {form.itens.map((it, i) => (
               <div key={i} className="flex items-center gap-2">
-                <input type="checkbox" checked={it.concluido} onChange={() => toggleChecklist(i)} />
+                <input type="checkbox" checked={it.concluido} onChange={() => toggleChecklist(i)} disabled={itensReadonly} />
                 <span className={`flex-1 text-sm ${it.concluido ? "text-muted-foreground line-through" : ""}`}>
                   {it.descricao}
                 </span>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  aria-label="Remover item"
-                  onClick={() => setForm((f) => ({ ...f, itens: f.itens.filter((_, idx) => idx !== i) }))}
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
+                {!itensReadonly && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label="Remover item"
+                    onClick={() => setForm((f) => ({ ...f, itens: f.itens.filter((_, idx) => idx !== i) }))}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                )}
               </div>
             ))}
-            <div className="flex items-center gap-2">
-              <Input
-                placeholder="Novo item…"
-                value={novoItem}
-                onChange={(e) => setNovoItem(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && novoItem.trim()) {
+            {!itensReadonly && (
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Novo item…"
+                  value={novoItem}
+                  onChange={(e) => setNovoItem(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && novoItem.trim()) {
+                      setForm((f) => ({ ...f, itens: [...f.itens, { descricao: novoItem, concluido: false }] }));
+                      setNovoItem("");
+                    }
+                  }}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (!novoItem.trim()) return;
                     setForm((f) => ({ ...f, itens: [...f.itens, { descricao: novoItem, concluido: false }] }));
                     setNovoItem("");
-                  }
-                }}
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  if (!novoItem.trim()) return;
-                  setForm((f) => ({ ...f, itens: [...f.itens, { descricao: novoItem, concluido: false }] }));
-                  setNovoItem("");
-                }}
-              >
-                <Plus className="size-3.5" />
-              </Button>
-            </div>
+                  }}
+                >
+                  <Plus className="size-3.5" />
+                </Button>
+              </div>
+            )}
           </div>
 
           {tarefasDep.length > 0 && (

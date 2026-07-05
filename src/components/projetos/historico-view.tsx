@@ -14,6 +14,7 @@ const ACAO_LABEL: Record<string, string> = {
   "validar-arquivo": "Validou arquivo",
   "reverter-validacao-arquivo": "Desfez validação de arquivo",
   "solicitar-ajuste-arquivo": "Solicitou ajuste em arquivo",
+  "enviar-apontamentos": "Enviou apontamentos (pendências)",
   "gerar-aceite-cliente": "Gerou link de aceite",
   "renomear-arquivo": "Renomeou arquivo",
   "criar-prancha": "Criou folha (lista mestre)",

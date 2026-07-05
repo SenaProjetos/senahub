@@ -5,7 +5,7 @@ import { acessoGlobal } from "@/lib/roles";
 import { lerArquivo } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 
-export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   const user = session.user;
@@ -48,10 +48,14 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     ip: await getClientIp(),
   });
 
+  // Visualizador online (pdf.js) precisa do PDF servido inline, não como anexo.
+  const inline = new URL(req.url).searchParams.get("disposition") === "inline";
+  const disposition = inline ? "inline" : "attachment";
+
   return new NextResponse(new Uint8Array(conteudo), {
     headers: {
       "Content-Type": upload.mimeType || "application/octet-stream",
-      "Content-Disposition": `attachment; filename="${encodeURIComponent(upload.nomeArquivo)}"`,
+      "Content-Disposition": `${disposition}; filename="${encodeURIComponent(upload.nomeArquivo)}"`,
     },
   });
 }

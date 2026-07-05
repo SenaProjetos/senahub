@@ -11,15 +11,18 @@ import {
   FolderUp,
   Upload as UploadIcon,
   Download,
+  Eye,
   FileArchive,
   FileText,
-  CheckCircle2,
   ShieldCheck,
   AlertTriangle,
   MessageSquare,
   Link2,
   CheckCircle,
   XCircle,
+  ListTodo,
+  Plus,
+  CalendarDays,
 } from "lucide-react";
 import {
   atualizarStatusDisciplina,
@@ -30,6 +33,7 @@ import { DisciplinaEditDialog, DisciplinaDeleteButton } from "@/components/proje
 import { validarEntrega, gerarAceiteCliente } from "@/modules/uploads/actions";
 import { statusValidacao, entregaveisAtuais } from "@/modules/uploads/validacao";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
+import { IconeArquivo, StatusArquivo } from "@/components/projetos/arquivos-explorer";
 import { TAMANHO_MAX, TAMANHO_MAX_LABEL } from "@/modules/uploads/limites";
 import { STATUS_LABEL, STATUS_TONE } from "@/modules/projetos/status";
 import { diasDeAtraso } from "@/modules/projetos/atraso";
@@ -56,7 +60,19 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { TarefaDialog, type TarefaUI, type OpcoesUI } from "@/components/tarefas/tarefa-dialog";
+import { PRIORIDADE_LABEL, PRIORIDADE_CLASS, ehPrioridade } from "@/modules/tarefas/prioridade";
+import { Badge } from "@/components/ui/badge";
 import { brl, formatarData } from "@/lib/utils";
+
+/** Tarefa da disciplina para a lista (formato do board + nome/cor/concluído do status). */
+export type TarefaDaDisciplina = TarefaUI & { statusNome: string; statusCor: string | null; concluido: boolean };
+
+/** Tarefa atrasada = tem prazo passado e não está numa coluna final. */
+function tarefaAtrasada(t: TarefaDaDisciplina): boolean {
+  if (!t.prazo || t.concluido) return false;
+  return new Date(t.prazo) < new Date(new Date().toDateString());
+}
 
 type UploadItem = {
   id: string;
@@ -98,22 +114,37 @@ function tamanhoLegivel(bytes: number) {
 }
 
 export function DisciplinaCard({
+  projetoId,
   disciplina,
   podeGerir,
   podeValidar,
   internos,
   canalChatId,
+  tarefas,
+  tarefaOpcoes,
+  tarefaColunas,
+  meId,
+  meRole,
 }: {
+  projetoId: string;
   disciplina: Disc;
   podeGerir: boolean;
   podeValidar: boolean;
   internos: { id: string; name: string; role: string }[];
   canalChatId?: string;
+  /** Tarefas desta disciplina (só p/ usuários internos); habilita o botão "Tarefas". */
+  tarefas?: TarefaDaDisciplina[];
+  tarefaOpcoes?: OpcoesUI;
+  tarefaColunas?: { id: string; nome: string }[];
+  meId?: string;
+  meRole?: string;
 }) {
   const [pending, start] = useTransition();
   const podeMexerStatus = podeGerir || disciplina.ehResponsavel;
   const podeEnviar = podeGerir || disciplina.ehResponsavel;
   const atraso = diasDeAtraso(disciplina.prazo, disciplina.status);
+  const qtdTarefas = tarefas?.length ?? 0;
+  const qtdAtrasadas = tarefas?.filter(tarefaAtrasada).length ?? 0;
 
   function mudarStatus(status: string | null) {
     if (!status) return;
@@ -141,6 +172,17 @@ export function DisciplinaCard({
             <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-destructive">
               <AlertTriangle className="size-3.5" aria-hidden />
               atrasada {atraso}d
+            </p>
+          )}
+          {qtdTarefas > 0 && (
+            <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+              <ListTodo className="size-3.5" aria-hidden />
+              {qtdTarefas} tarefa{qtdTarefas > 1 ? "s" : ""}
+              {qtdAtrasadas > 0 && (
+                <span className="font-medium text-destructive">
+                  {" "}· {qtdAtrasadas} atrasada{qtdAtrasadas > 1 ? "s" : ""}
+                </span>
+              )}
             </p>
           )}
         </div>
@@ -178,7 +220,7 @@ export function DisciplinaCard({
                 exigePacoteB={disciplina.exigePacoteB}
               />
               {!disciplina.jaValidado && (
-                <DisciplinaDeleteButton disciplinaId={disciplina.id} nome={disciplina.nome} />
+                <DisciplinaDeleteButton disciplinaId={disciplina.id} nome={disciplina.nome} qtdTarefas={qtdTarefas} />
               )}
             </>
           )}
@@ -223,22 +265,37 @@ export function DisciplinaCard({
 
       <div className="flex flex-wrap gap-1.5">
         <ArquivosDialog
+          projetoId={projetoId}
           disciplina={disciplina}
           podeEnviar={podeEnviar}
           podeValidar={podeValidar}
         />
         <RevisaoDialog disciplina={disciplina} podeRegistrar={podeMexerStatus} />
         {podeGerir && <ResponsaveisDialog disciplina={disciplina} internos={internos} />}
+        {tarefaOpcoes && tarefaColunas && meId && meRole && (
+          <TarefasDisciplinaDialog
+            projetoId={projetoId}
+            disciplinaId={disciplina.id}
+            disciplinaNome={disciplina.nome}
+            tarefas={tarefas ?? []}
+            opcoes={tarefaOpcoes}
+            colunas={tarefaColunas}
+            meId={meId}
+            meRole={meRole}
+          />
+        )}
       </div>
     </div>
   );
 }
 
 function ArquivosDialog({
+  projetoId,
   disciplina,
   podeEnviar,
   podeValidar,
 }: {
+  projetoId: string;
   disciplina: Disc;
   podeEnviar: boolean;
   podeValidar: boolean;
@@ -246,7 +303,7 @@ function ArquivosDialog({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  const [pacote, setPacote] = useState<"A" | "B" | "RECEBIDOS">("A");
+  const [pacote, setPacote] = useState<"A" | "B">("A");
   const [validando, start] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -359,7 +416,7 @@ function ArquivosDialog({
           </Button>
         }
       />
-      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="max-h-[90svh] overflow-y-auto [scrollbar-gutter:stable] sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{disciplina.nome} — arquivos</DialogTitle>
           <DialogDescription>
@@ -377,7 +434,6 @@ function ArquivosDialog({
                 <SelectContent>
                   <SelectItem value="A">Pranchas e arquivos</SelectItem>
                   <SelectItem value="B">Backup do modelo</SelectItem>
-                  <SelectItem value="RECEBIDOS">Recebidos do cliente</SelectItem>
                 </SelectContent>
               </Select>
               <Button
@@ -409,9 +465,9 @@ function ArquivosDialog({
         )}
 
         <div className="space-y-3">
-          {(["A", "B", "RECEBIDOS", "OUTROS"] as const).map((p) => {
+          {(["A", "B", "OUTROS"] as const).map((p) => {
             const itens = porPacote(p);
-            if (itens.length === 0 && (p === "OUTROS" || p === "RECEBIDOS")) return null;
+            if (itens.length === 0 && p === "OUTROS") return null;
             return (
               <div key={p}>
                 <div className="mb-1 flex items-center justify-between">
@@ -420,9 +476,7 @@ function ArquivosDialog({
                       ? "Pranchas e arquivos"
                       : p === "B"
                         ? "Backup do modelo"
-                        : p === "RECEBIDOS"
-                          ? "Recebidos do cliente"
-                          : "Outros (não suportados)"}
+                        : "Outros (não suportados)"}
                   </span>
                   {itens.length > 0 && (
                     <a
@@ -439,32 +493,50 @@ function ArquivosDialog({
                     {itens.map((u) => (
                       <li
                         key={u.id}
-                        className="flex items-center justify-between gap-2 rounded-sm border px-2 py-1 text-xs"
+                        className="flex items-center gap-2 rounded-sm border px-2 py-1 text-xs"
                       >
-                        <span className="min-w-0 flex-1 truncate">
-                          {u.nomeArquivo}
-                          {u.versao > 1 && (
-                            <span className="ml-1 font-mono text-muted-foreground">v{u.versao}</span>
-                          )}
-                          {u.validado && (
-                            <CheckCircle2 className="ml-1 inline size-3 text-status-aprovado" />
-                          )}
-                          {!u.validado && u.ajusteObs && (
-                            <span
-                              className="ml-1 inline-flex items-center gap-0.5 align-middle text-warning"
-                              title={u.ajusteObs}
-                            >
-                              <AlertTriangle className="size-3" /> ajuste
-                            </span>
-                          )}
-                        </span>
-                        <span className="shrink-0 text-muted-foreground">{tamanhoLegivel(u.tamanho)}</span>
+                        <IconeArquivo nome={u.nomeArquivo} />
+                        {u.nomeArquivo.toLowerCase().endsWith(".pdf") ? (
+                          <a
+                            href={`/projetos/${projetoId}/arquivos/${u.id}/visualizar`}
+                            target="_blank"
+                            rel="noopener"
+                            className="min-w-0 flex-1 truncate hover:text-primary hover:underline"
+                            title={`Visualizar ${u.nomeArquivo}`}
+                          >
+                            {u.nomeArquivo}
+                            {u.versao > 1 && (
+                              <span className="ml-1 font-mono text-muted-foreground">v{u.versao}</span>
+                            )}
+                          </a>
+                        ) : (
+                          <span className="min-w-0 flex-1 truncate" title={u.nomeArquivo}>
+                            {u.nomeArquivo}
+                            {u.versao > 1 && (
+                              <span className="ml-1 font-mono text-muted-foreground">v{u.versao}</span>
+                            )}
+                          </span>
+                        )}
+                        <StatusArquivo aprovado={u.validado} ajusteObs={u.ajusteObs} dataAprovacao={u.data} />
                         {podeValidar && !disciplina.jaValidado && idsValidaveis.has(u.id) && (
                           <AcoesValidacaoArquivo
                             uploadId={u.id}
                             nomeArquivo={u.nomeArquivo}
                             validado={u.validado}
                           />
+                        )}
+                        <span className="shrink-0 font-mono text-muted-foreground">{tamanhoLegivel(u.tamanho)}</span>
+                        {u.nomeArquivo.toLowerCase().endsWith(".pdf") && (
+                          <a
+                            href={`/projetos/${projetoId}/arquivos/${u.id}/visualizar`}
+                            target="_blank"
+                            rel="noopener"
+                            className="shrink-0 text-primary hover:underline"
+                            aria-label="Visualizar prancha"
+                            title="Visualizar prancha"
+                          >
+                            <Eye className="size-3.5" />
+                          </a>
                         )}
                         <a
                           href={`/api/uploads/${u.id}/download`}
@@ -685,5 +757,124 @@ function ResponsaveisDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Lista as tarefas da disciplina e permite criar/editar (reaproveita o TarefaDialog do módulo). */
+function TarefasDisciplinaDialog({
+  projetoId,
+  disciplinaId,
+  disciplinaNome,
+  tarefas,
+  opcoes,
+  colunas,
+  meId,
+  meRole,
+}: {
+  projetoId: string;
+  disciplinaId: string;
+  disciplinaNome: string;
+  tarefas: TarefaDaDisciplina[];
+  opcoes: OpcoesUI;
+  colunas: { id: string; nome: string }[];
+  meId: string;
+  meRole: string;
+}) {
+  const [openLista, setOpenLista] = useState(false);
+  const [editar, setEditar] = useState<TarefaDaDisciplina | "nova" | null>(null);
+
+  return (
+    <>
+      <Dialog open={openLista} onOpenChange={setOpenLista}>
+        <DialogTrigger
+          render={
+            <Button variant="outline" size="sm">
+              <ListTodo className="size-3.5" /> Tarefas ({tarefas.length})
+            </Button>
+          }
+        />
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{disciplinaNome} — tarefas</DialogTitle>
+            <DialogDescription>Tarefas vinculadas a esta disciplina.</DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-72 space-y-1.5 overflow-y-auto">
+            {tarefas.length === 0 ? (
+              <EmptyState icon={ListTodo} title="Nenhuma tarefa" />
+            ) : (
+              tarefas.map((t) => {
+                const feitos = t.itens.filter((i) => i.concluido).length;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => {
+                      setOpenLista(false);
+                      setEditar(t);
+                    }}
+                    className="flex w-full flex-col gap-1 rounded-sm border p-2 text-left text-sm transition-colors hover:border-primary/50"
+                  >
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <span
+                        className="size-2 shrink-0 rounded-full"
+                        style={{ background: t.statusCor ?? "#576980" }}
+                      />
+                      <span className="min-w-0 flex-1 truncate">{t.titulo}</span>
+                      {ehPrioridade(t.prioridade) && (
+                        <Badge
+                          variant="outline"
+                          className={`h-4 px-1 text-[9px] leading-none ${PRIORIDADE_CLASS[t.prioridade]}`}
+                        >
+                          {PRIORIDADE_LABEL[t.prioridade]}
+                        </Badge>
+                      )}
+                    </span>
+                    <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <span>{t.statusNome}</span>
+                      {t.prazo && (
+                        <span className="flex items-center gap-1">
+                          <CalendarDays className="size-3" /> {formatarData(t.prazo)}
+                        </span>
+                      )}
+                      {t.itens.length > 0 && (
+                        <span>
+                          ☑ {feitos}/{t.itens.length}
+                        </span>
+                      )}
+                      {t.responsaveis.length > 0 && (
+                        <span className="truncate">{t.responsaveis.map((r) => r.nome).join(", ")}</span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setOpenLista(false);
+                setEditar("nova");
+              }}
+            >
+              <Plus className="size-4" /> Nova tarefa
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <TarefaDialog
+        tarefa={editar === "nova" ? null : editar}
+        open={editar !== null}
+        onOpenChange={(o) => !o && setEditar(null)}
+        opcoes={opcoes}
+        colunas={colunas}
+        meId={meId}
+        meRole={meRole}
+        valoresIniciais={editar === "nova" ? { projetoId, disciplinaId } : undefined}
+      />
+    </>
   );
 }

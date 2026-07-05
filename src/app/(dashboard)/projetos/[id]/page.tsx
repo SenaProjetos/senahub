@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { CalendarDays, MapPin, Ruler, Users } from "lucide-react";
 import { usuariosOnline } from "@/lib/socket";
-import { ROLE_LABELS, CLT_ROLES } from "@/lib/roles";
+import { ROLE_LABELS, CLT_ROLES, INTERNAL_ROLES } from "@/lib/roles";
 import { Avatar, AvatarFallback, AvatarBadge } from "@/components/ui/avatar";
 import { requirePermission } from "@/lib/session";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
@@ -12,7 +12,8 @@ import { formatarData } from "@/lib/utils";
 import { SITUACAO_PROJETO_LABEL, progressoProjeto } from "@/modules/projetos/status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { DisciplinaCard } from "@/components/projetos/disciplina-card";
+import { DisciplinaCard, type TarefaDaDisciplina } from "@/components/projetos/disciplina-card";
+import { tarefasDoProjeto, opcoesTarefa, colunasTarefaAtivas, tarefaBloqueada } from "@/modules/tarefas/queries";
 import { EquipeManager } from "@/components/projetos/equipe-manager";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ProjetoKpis } from "@/components/projetos/projeto-kpis";
@@ -99,6 +100,62 @@ export default async function ProjetoDetalhePage({
       exigePacoteB: d.exigePacoteB,
     };
   });
+
+  // Tarefas por disciplina (só usuários internos; escopadas ao viewer: admin/supervisor veem
+  // todas, os demais só as atribuídas a eles ou que criaram).
+  const podeVerTarefas = INTERNAL_ROLES.includes(user.role);
+  let tarefaColunas: { id: string; nome: string }[] | null = null;
+  let tarefaOpcoes: Awaited<ReturnType<typeof opcoesTarefa>> | null = null;
+  let tarefasProjeto: Awaited<ReturnType<typeof tarefasDoProjeto>> = [];
+  if (podeVerTarefas) {
+    [tarefaColunas, tarefaOpcoes, tarefasProjeto] = await Promise.all([
+      colunasTarefaAtivas(),
+      opcoesTarefa(),
+      tarefasDoProjeto(user, projeto.id),
+    ]);
+    // Garante o projeto atual + suas disciplinas nas opções do diálogo (mesmo fora de "em_andamento").
+    if (!tarefaOpcoes.projetos.some((p) => p.id === projeto.id))
+      tarefaOpcoes.projetos.unshift({ id: projeto.id, codigo: projeto.codigo, nome: projeto.nome });
+    for (const d of projeto.disciplinas) {
+      if (!tarefaOpcoes.disciplinas.some((x) => x.id === d.id))
+        tarefaOpcoes.disciplinas.push({ id: d.id, nome: d.nome, projetoId: projeto.id });
+    }
+  }
+  const tarefasPorDisciplina = new Map<string, TarefaDaDisciplina[]>();
+  for (const t of tarefasProjeto) {
+    if (!t.disciplinaId) continue;
+    const ui: TarefaDaDisciplina = {
+      id: t.id,
+      titulo: t.titulo,
+      descricao: t.descricao ?? "",
+      statusId: t.statusId,
+      prazo: t.prazo ? new Date(t.prazo).toISOString().slice(0, 10) : "",
+      prioridade: t.prioridade ?? "",
+      projetoId: t.projetoId ?? "",
+      projetoCodigo: t.projeto?.codigo ?? null,
+      projetoNome: t.projeto?.nome ?? null,
+      disciplinaId: t.disciplinaId,
+      criadorId: t.criadorId,
+      responsaveis: t.responsaveis.map((r) => ({ id: r.user.id, nome: r.user.name })),
+      itens: t.itens.map((it) => ({ id: it.id, descricao: it.descricao, concluido: it.concluido })),
+      dependeDeIds: t.dependeDe.map((d) => d.dependeDe.id),
+      bloqueada: tarefaBloqueada(t),
+      comentarios: t.comentarios.map((c) => ({
+        id: c.id,
+        texto: c.texto,
+        autor: c.autor.name,
+        data: c.createdAt.toISOString(),
+        anexoMime: c.anexoMime,
+        anexoNome: c.anexoNome,
+      })),
+      statusNome: t.status.nome,
+      statusCor: t.status.cor,
+      concluido: t.status.concluido,
+    };
+    const lista = tarefasPorDisciplina.get(t.disciplinaId);
+    if (lista) lista.push(ui);
+    else tarefasPorDisciplina.set(t.disciplinaId, [ui]);
+  }
 
   const progressoGeral = progressoProjeto(projeto.disciplinas.map((d) => d.status));
 
@@ -248,11 +305,17 @@ export default async function ProjetoDetalhePage({
         {disciplinas.map((d) => (
           <DisciplinaCard
             key={d.id}
+            projetoId={projeto.id}
             disciplina={d}
             podeGerir={podeGerir}
             podeValidar={podeValidar}
             internos={internos}
             canalChatId={canaisDisc.get(d.id) ?? canalChat?.id}
+            tarefas={tarefasPorDisciplina.get(d.id) ?? []}
+            tarefaOpcoes={tarefaOpcoes ?? undefined}
+            tarefaColunas={tarefaColunas ?? undefined}
+            meId={user.id}
+            meRole={user.role}
           />
         ))}
       </div>

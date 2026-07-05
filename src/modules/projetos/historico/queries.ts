@@ -9,6 +9,7 @@ const ACOES_DOCUMENTO = [
   "validar-arquivo",
   "reverter-validacao-arquivo",
   "solicitar-ajuste-arquivo",
+  "enviar-apontamentos",
   "gerar-aceite-cliente",
   "renomear-arquivo",
   "criar-prancha",

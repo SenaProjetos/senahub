@@ -1,12 +1,5 @@
 import { NextResponse } from "next/server";
-import { createRequire } from "node:module";
-import { PassThrough } from "node:stream";
-
-const require = createRequire(import.meta.url);
-const archiver = require("archiver") as (
-  format: string,
-  options?: { zlib?: { level?: number } },
-) => import("archiver").Archiver;
+import { ZipArchive } from "archiver";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { acessoGlobal } from "@/lib/roles";
@@ -39,19 +32,6 @@ export async function GET(_req: Request, ctx: { params: Promise<{ disciplinaId: 
     return NextResponse.json({ error: "Sem arquivos." }, { status: 404 });
   }
 
-  const archive = archiver("zip", { zlib: { level: 6 } });
-  const pass = new PassThrough();
-  archive.pipe(pass);
-
-  for (const u of disciplina.uploads) {
-    try {
-      archive.file(resolverCaminho(u.caminho), { name: `${u.pacote}/${u.nomeArquivo}` });
-    } catch {
-      // arquivo ausente no disco — ignora
-    }
-  }
-  archive.finalize();
-
   await logAudit({
     userId: user.id,
     modulo: "uploads",
@@ -62,8 +42,35 @@ export async function GET(_req: Request, ctx: { params: Promise<{ disciplinaId: 
     ip: await getClientIp(),
   });
 
+  const entradas = disciplina.uploads.map((u) => ({
+    caminho: u.caminho,
+    nome: `${u.pacote}/${u.nomeArquivo}`,
+  }));
+
+  // ReadableStream Web nativo alimentado pelo archiver (App Router aceita direto).
+  const archive = new ZipArchive({ zlib: { level: 6 } });
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      archive.on("data", (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)));
+      archive.on("end", () => controller.close());
+      archive.on("warning", (err) => console.warn("[zip] warning:", err));
+      archive.on("error", (err) => {
+        console.error("[zip] erro no archiver:", err);
+        controller.error(err);
+      });
+      for (const e of entradas) {
+        try {
+          archive.file(resolverCaminho(e.caminho), { name: e.nome });
+        } catch {
+          // arquivo ausente no disco — ignora
+        }
+      }
+      void archive.finalize();
+    },
+  });
+
   const nome = `${disciplina.projeto.codigo}_${disciplina.nome}.zip`;
-  return new NextResponse(pass as unknown as ReadableStream, {
+  return new NextResponse(stream, {
     headers: {
       "Content-Type": "application/zip",
       "Content-Disposition": `attachment; filename="${encodeURIComponent(nome)}"`,

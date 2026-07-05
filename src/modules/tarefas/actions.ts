@@ -13,6 +13,20 @@ const rev = () => revalidatePath("/tarefas");
 
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
 
+/**
+ * Resolve o vínculo tarefa→disciplina: só vale se houver projeto e a disciplina pertencer a ele.
+ * Sem projeto, ou disciplina de outro projeto, a tarefa fica sem disciplina.
+ */
+async function resolverDisciplina(projetoId: string, disciplinaId: string): Promise<string | null> {
+  if (!projetoId || !disciplinaId) return null;
+  const d = await prisma.disciplina.findUnique({
+    where: { id: disciplinaId },
+    select: { projetoId: true },
+  });
+  if (!d || d.projetoId !== projetoId) throw new ActionError("Disciplina não pertence ao projeto.");
+  return disciplinaId;
+}
+
 const tarefaSchema = z.object({
   titulo: z.string().min(1, "Informe o título."),
   descricao: opt(z.string()),
@@ -20,6 +34,7 @@ const tarefaSchema = z.object({
   prazo: opt(z.string()),
   prioridade: z.enum(PRIORIDADES).or(z.literal("")).optional(),
   projetoId: opt(z.string()),
+  disciplinaId: opt(z.string()),
   responsaveisIds: z.array(z.string()).default([]),
   itens: z.array(z.object({ descricao: z.string().min(1), concluido: z.boolean() })).default([]),
   dependeDeIds: z.array(z.string()).default([]),
@@ -34,6 +49,7 @@ export const criarTarefa = defineAction(
   async (i, { user }) => {
     // Item 7: se já nasce num status final, registra a conclusão.
     const statusInicial = await prisma.tarefaStatus.findUnique({ where: { id: i.statusId }, select: { concluido: true } });
+    const disciplinaId = await resolverDisciplina(i.projetoId ?? "", i.disciplinaId ?? "");
     const t = await prisma.tarefa.create({
       data: {
         titulo: i.titulo,
@@ -43,6 +59,7 @@ export const criarTarefa = defineAction(
         prazo: i.prazo ? new Date(i.prazo) : null,
         prioridade: i.prioridade || null,
         projetoId: i.projetoId || null,
+        disciplinaId,
         criadorId: user.id,
         responsaveis: { create: i.responsaveisIds.map((userId) => ({ userId })) },
         itens: { create: i.itens.map((it, idx) => ({ ...it, ordem: idx })) },
@@ -77,11 +94,13 @@ export const editarTarefa = defineAction(
     await exigirCriadorOuGlobal(id, user);
     if (r.dependeDeIds.includes(id)) throw new ActionError("Tarefa não pode depender dela mesma.");
     // Item 7: mantém concluidaEm coerente com o status escolhido na edição.
-    const [destino, atual] = await Promise.all([
+    const [destino, atual, antigosResp] = await Promise.all([
       prisma.tarefaStatus.findUnique({ where: { id: r.statusId }, select: { concluido: true } }),
       prisma.tarefa.findUnique({ where: { id }, select: { concluidaEm: true } }),
+      prisma.tarefaResponsavel.findMany({ where: { tarefaId: id }, select: { userId: true } }),
     ]);
     const concluidaEm = destino?.concluido ? (atual?.concluidaEm ?? new Date()) : null;
+    const disciplinaId = await resolverDisciplina(r.projetoId ?? "", r.disciplinaId ?? "");
     await prisma.$transaction([
       prisma.tarefa.update({
         where: { id },
@@ -93,6 +112,7 @@ export const editarTarefa = defineAction(
           prazo: r.prazo ? new Date(r.prazo) : null,
           prioridade: r.prioridade || null,
           projetoId: r.projetoId || null,
+          disciplinaId,
         },
       }),
       prisma.tarefaResponsavel.deleteMany({ where: { tarefaId: id } }),
@@ -110,6 +130,17 @@ export const editarTarefa = defineAction(
         skipDuplicates: true,
       }),
     ]);
+    // Notifica só quem foi ADICIONADO agora como responsável (exceto o próprio editor).
+    const jaResp = new Set(antigosResp.map((a) => a.userId));
+    const novosResp = r.responsaveisIds.filter((uid) => !jaResp.has(uid) && uid !== user.id);
+    if (novosResp.length > 0) {
+      await notificarMuitos(novosResp, {
+        titulo: "Tarefa atribuída a você",
+        corpo: r.titulo,
+        href: "/tarefas",
+        tag: `tarefa-${id}`,
+      });
+    }
     rev();
     return { id };
   },

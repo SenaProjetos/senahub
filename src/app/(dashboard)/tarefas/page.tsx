@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Tarefas" };
 
 export default async function TarefasPage() {
   const user = await requireRole(...INTERNAL_ROLES);
-  const [colunas, opcoes] = await Promise.all([quadroTarefas(), opcoesTarefa()]);
+  const [colunas, opcoes] = await Promise.all([quadroTarefas(user), opcoesTarefa()]);
 
   return (
     <TarefasBoard
@@ -30,6 +30,7 @@ export default async function TarefasPage() {
           projetoId: t.projetoId ?? "",
           projetoCodigo: t.projeto?.codigo ?? null,
           projetoNome: t.projeto?.nome ?? null,
+          disciplinaId: t.disciplinaId ?? "",
           criadorId: t.criadorId,
           responsaveis: t.responsaveis.map((r) => ({ id: r.user.id, nome: r.user.name })),
           itens: t.itens.map((it) => ({ id: it.id, descricao: it.descricao, concluido: it.concluido })),
