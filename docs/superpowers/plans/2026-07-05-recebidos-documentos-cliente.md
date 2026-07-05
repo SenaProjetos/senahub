@@ -234,7 +234,8 @@ repositório do **cliente/comercial** (unifica o que hoje é `PropostaAnexo`).
 | **2 — Projeto herda** | Pasta de topo "Recebidos do cliente" no projeto = próprios + herdados da proposta (join `Proposta.projetoId`); sai o pacote `RECEBIDOS`; envio interno no projeto | 1 |
 | **3 — Link tokenizado** | Upload público reusando o token da proposta (`/a/proposta/[token]`): página + endpoint público com rate-limit | 1 |
 | **4 — Portal / Cliente** | Upload no portal do cliente logado + aba "Documentos" na ficha do cliente (agrupado por proposta→projeto) | 1 |
-| **5 (futuro)** | Consolidar contratos/jurídico no mesmo repositório; avaliar absorver o "Geral" interno | 1–4 |
+| **5a (futuro)** | Absorver o "Geral" interno (`ArquivoProjeto`) → `Documento(origem=interno)`. Baixo risco. Plano: [documentos-fase5a-geral.md](2026-07-05-documentos-fase5a-geral.md) | 1–4 |
+| **5b (futuro)** | Consolidar contratos/jurídico (`DocumentoJuridico`) preservando aceite/assinatura. Alto risco. Plano: [documentos-fase5b-juridico.md](2026-07-05-documentos-fase5b-juridico.md) | 1–4, 5a |
 
 ---
 
