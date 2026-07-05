@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { statusValidacao } from "@/modules/uploads/validacao";
 
 /** Arquivos do projeto (repositório geral) com versões e autores resolvidos. */
 export async function arquivosDoProjeto(projetoId: string) {
@@ -71,6 +72,7 @@ export async function arvoreArquivosProjeto(
     select: {
       id: true,
       nome: true,
+      status: true,
       responsaveis: { select: { userId: true } },
       uploads: {
         orderBy: [{ pacote: "asc" }, { nomeArquivo: "asc" }, { versao: "desc" }],
@@ -82,10 +84,15 @@ export async function arvoreArquivosProjeto(
           tamanho: true,
           validado: true,
           validadoEm: true,
+          origem: true,
+          revisaoObs: true,
+          revisaoEm: true,
           autorId: true,
           createdAt: true,
         },
       },
+      exigePacoteA: true,
+      exigePacoteB: true,
     },
   });
 
@@ -99,7 +106,19 @@ export async function arvoreArquivosProjeto(
     disciplinas: disciplinas.map((d) => ({
       id: d.id,
       nome: d.nome,
+      finalizado: d.status === "aprovado",
       podeEnviar: ehGlobal || d.responsaveis.some((r) => r.userId === userId),
+      // Progresso da validação parcial (só entregáveis: pacote A/B, versão atual).
+      resumo: statusValidacao(
+        d.uploads.map((u) => ({
+          pacote: u.pacote as "A" | "B" | "OUTROS" | "RECEBIDOS",
+          nomeArquivo: u.nomeArquivo,
+          versao: u.versao,
+          validado: u.validado,
+          origem: u.origem as "manual" | "ferramenta",
+        })),
+        { exigePacoteA: d.exigePacoteA, exigePacoteB: d.exigePacoteB },
+      ),
       arquivos: d.uploads.map((u) => ({
         id: u.id,
         nome: u.nomeArquivo,
@@ -107,6 +126,9 @@ export async function arvoreArquivosProjeto(
         versao: u.versao,
         tamanho: u.tamanho,
         aprovado: u.validado,
+        origem: u.origem as "manual" | "ferramenta",
+        ajusteObs: u.revisaoObs,
+        ajusteEm: u.revisaoEm ? u.revisaoEm.toISOString() : null,
         autor: nomeAutor.get(u.autorId) ?? "—",
         data: (u.validadoEm ?? u.createdAt).toISOString(),
         downloadUrl: `/api/uploads/${u.id}/download`,

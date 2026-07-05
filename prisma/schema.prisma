@@ -90,6 +90,7 @@ model User {
   revisoes             RevisaoDisciplina[]
   uploadsAutor         Upload[]              @relation("UploadAutor")
   uploadsValidados     Upload[]              @relation("UploadValidador")
+  uploadsRevisados     Upload[]              @relation("UploadRevisor")
   pagamentos           PagamentoProjetista[] @relation("PagamentoProjetista")
   socio                Socio?
   lancamentosAutor     Lancamento[]          @relation("LancamentoAutor")
@@ -3093,6 +3094,12 @@ model Upload {
   validadoPorId String?
   validadoPor   User?    @relation("UploadValidador", fields: [validadoPorId], references: [id])
   validadoEm   DateTime?
+
+  /// Ajuste solicitado pelo validador (validação parcial): motivo + quem/quando.
+  revisaoObs   String?
+  revisaoEm    DateTime?
+  revisaoPorId String?
+  revisaoPor   User?     @relation("UploadRevisor", fields: [revisaoPorId], references: [id])
 
   autorId   String
   autor     User     @relation("UploadAutor", fields: [autorId], references: [id])

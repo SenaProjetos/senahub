@@ -17,10 +17,11 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
   if (!projeto) notFound();
 
   const ehGlobal = user.role === "admin" || GLOBAL_ROLES.includes(user.role);
-  const [arvore, podeVerGeral, podeGerirGeral, nomenclatura] = await Promise.all([
+  const [arvore, podeVerGeral, podeGerirGeral, podeValidar, nomenclatura] = await Promise.all([
     arvoreArquivosProjeto(id, user.id, ehGlobal),
     can(user.role, "arquivos_gerais", "ver"),
     can(user.role, "arquivos_gerais", "gerir"),
+    can(user.role, "uploads", "validar"),
     resolverNomenclatura(id),
   ]);
   // Pasta "Geral" só é carregada para quem tem a permissão de visualização.
@@ -32,6 +33,7 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
       disciplinas={arvore.disciplinas}
       geral={geral}
       podeGerirGeral={podeGerirGeral}
+      podeValidar={podeValidar}
       nomenclatura={nomenclatura}
     />
   );

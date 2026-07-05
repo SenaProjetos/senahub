@@ -6,6 +6,9 @@ import { prisma } from "@/lib/prisma";
 const ACOES_DOCUMENTO = [
   "enviar-arquivos",
   "validar-entrega",
+  "validar-arquivo",
+  "reverter-validacao-arquivo",
+  "solicitar-ajuste-arquivo",
   "gerar-aceite-cliente",
   "renomear-arquivo",
   "criar-prancha",

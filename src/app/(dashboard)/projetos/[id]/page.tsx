@@ -68,6 +68,9 @@ export default async function ProjetoDetalhePage({
       versao: u.versao,
       tamanho: u.tamanho,
       validado: u.validado,
+      origem: u.origem,
+      ajusteObs: u.revisaoObs,
+      ajusteEm: u.revisaoEm ? new Date(u.revisaoEm).toISOString() : null,
       autor: u.autor.name,
       data: new Date(u.createdAt).toISOString(),
       aceiteToken: u.aceite?.token ?? null,
@@ -91,7 +94,7 @@ export default async function ProjetoDetalhePage({
       uploads,
       temA: uploads.some((u) => u.pacote === "A"),
       temB: uploads.some((u) => u.pacote === "B"),
-      jaValidado: d._count.pagamentos > 0,
+      jaValidado: d.status === "aprovado",
       exigePacoteA: d.exigePacoteA,
       exigePacoteB: d.exigePacoteB,
     };
@@ -217,7 +220,7 @@ export default async function ProjetoDetalhePage({
 
       {/* P-47: Kanban + P-48: ações em massa */}
       <div>
-        <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
           <h3 className="text-lg font-bold tracking-tight">Disciplinas</h3>
           {podeGerir && (
             <div className="flex items-center gap-1">

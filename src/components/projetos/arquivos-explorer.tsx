@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -39,14 +39,22 @@ import {
   adicionarVersaoArquivo,
 } from "@/modules/projetos/arquivos/actions";
 import { renomearUpload } from "@/modules/uploads/actions";
+import { entregaveisAtuais } from "@/modules/uploads/validacao";
+import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { TAMANHO_MAX, TAMANHO_MAX_LABEL } from "@/modules/uploads/limites";
+import {
+  TAMANHO_MAX_LABEL,
+  TAMANHO_MAX_BACKUP_LABEL,
+  limiteDoPacote,
+  limiteLabelDoPacote,
+} from "@/modules/uploads/limites";
 import { cn, formatarData } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -79,6 +87,11 @@ function extDe(nome: string): string {
   const i = nome.lastIndexOf(".");
   return i >= 0 ? nome.slice(i + 1).toLowerCase() : "";
 }
+/** Separa nome em base + extensão (com o ponto, no case original). `.env`/sem ponto → sem extensão. */
+function separarExt(nome: string): { base: string; ext: string } {
+  const i = nome.lastIndexOf(".");
+  return i > 0 ? { base: nome.slice(0, i), ext: nome.slice(i) } : { base: nome, ext: "" };
+}
 function subpastaDe(nome: string): Subpasta {
   return EXT_SUBPASTA[extDe(nome)] ?? "Outros arquivos";
 }
@@ -96,6 +109,41 @@ function IconeArquivo({ nome }: { nome: string }) {
   if (["zip", "rar", "7z", "tqs", "rvt", "skp", "qibzip"].includes(ext)) return <FileArchive className="size-4 shrink-0 text-warning" />;
   if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) return <ImageIcon className="size-4 shrink-0 text-pink-500" />;
   return <FileIcon className="size-4 shrink-0 text-muted-foreground" />;
+}
+
+// ── Download zipado (subpasta / seleção) — dispara GET streaming em /api/uploads/zip ──
+function baixarZipIds(ids: string[], nome: string) {
+  if (ids.length === 0) return;
+  const qs = new URLSearchParams({ ids: ids.join(","), nome });
+  const a = document.createElement("a");
+  a.href = `/api/uploads/zip?${qs.toString()}`;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+/** Seleção múltipla de arquivos (por upload id), compartilhada via contexto. */
+const SelecaoCtx = createContext<{ sel: Set<string>; alternar: (id: string) => void } | null>(null);
+
+/** Botão de download zipado para uma pasta/subpasta (recebe os ids que contém). */
+function ZipButton({ ids, nome, title }: { ids: string[]; nome: string; title: string }) {
+  if (ids.length === 0) return null;
+  return (
+    <Button
+      size="icon"
+      variant="ghost"
+      className="size-7"
+      aria-label={title}
+      title={title}
+      onClick={(e) => {
+        e.stopPropagation();
+        baixarZipIds(ids, nome);
+      }}
+    >
+      <FileArchive className="size-3.5" />
+    </Button>
+  );
 }
 
 /** Nó de pasta genérico e colapsável. */
@@ -149,18 +197,29 @@ function LinhaArquivo({
   a,
   nivel,
   onRenomear,
+  podeValidar,
   foraPadrao,
 }: {
   a: ArvoreArquivoItem;
   nivel: number;
   onRenomear?: (a: ArvoreArquivoItem) => void;
+  podeValidar?: boolean;
   foraPadrao?: boolean;
 }) {
+  const selecao = useContext(SelecaoCtx);
   return (
     <div
       className="flex items-center gap-2 rounded-sm py-1 pr-2 text-sm hover:bg-muted/40"
       style={{ paddingLeft: `${nivel * 1.25 + 0.75}rem` }}
     >
+      {selecao && (
+        <Checkbox
+          className="shrink-0"
+          checked={selecao.sel.has(a.id)}
+          onCheckedChange={() => selecao.alternar(a.id)}
+          aria-label={`Selecionar ${a.nome}`}
+        />
+      )}
       <IconeArquivo nome={a.nome} />
       <span className="min-w-0 flex-1 truncate" title={a.nome}>
         {a.nome}
@@ -178,10 +237,17 @@ function LinhaArquivo({
         <span className="flex shrink-0 items-center gap-1 text-xs text-status-aprovado" title={`Aprovado · ${formatarData(a.data)}`}>
           <CheckCircle2 className="size-3.5" /> aprovado
         </span>
+      ) : a.ajusteObs ? (
+        <span className="flex shrink-0 items-center gap-1 text-xs text-warning" title={`Ajuste solicitado: ${a.ajusteObs}`}>
+          <AlertTriangle className="size-3.5" /> ajuste
+        </span>
       ) : (
         <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground" title="Aguardando validação">
           <Clock className="size-3.5" /> pendente
         </span>
+      )}
+      {podeValidar && (
+        <AcoesValidacaoArquivo uploadId={a.id} nomeArquivo={a.nome} validado={a.aprovado} />
       )}
       <span className="shrink-0 font-mono text-xs text-muted-foreground">{fmtBytes(a.tamanho)}</span>
       {onRenomear && (
@@ -204,19 +270,23 @@ function LinhaArquivo({
 
 function RenomearDialog({ item, onClose }: { item: ArvoreArquivoItem | null; onClose: () => void }) {
   const router = useRouter();
-  const [nome, setNome] = useState("");
+  const [base, setBase] = useState("");
+  const [ext, setExt] = useState("");
   const [lastId, setLastId] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
   if (item && item.id !== lastId) {
     setLastId(item.id);
-    setNome(item.nome);
+    const s = separarExt(item.nome);
+    setBase(s.base);
+    setExt(s.ext);
   }
 
   function salvar() {
-    if (!item || !nome.trim()) return;
+    if (!item || !base.trim()) return;
+    const nome = base.trim() + ext; // extensão preservada
     start(async () => {
-      const r = await renomearUpload({ uploadId: item.id, nome: nome.trim() });
+      const r = await renomearUpload({ uploadId: item.id, nome });
       if (r.ok) {
         toast.success("Arquivo renomeado.");
         onClose();
@@ -233,7 +303,23 @@ function RenomearDialog({ item, onClose }: { item: ArvoreArquivoItem | null; onC
         </DialogHeader>
         <div className="space-y-1.5">
           <Label>Novo nome</Label>
-          <Input value={nome} onChange={(e) => setNome(e.target.value)} onKeyDown={(e) => e.key === "Enter" && salvar()} />
+          <div className="flex items-center gap-1">
+            <Input
+              value={base}
+              onChange={(e) => setBase(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && salvar()}
+              className="flex-1"
+              autoFocus
+            />
+            {ext && (
+              <span className="shrink-0 rounded-sm border bg-muted px-2 py-2 font-mono text-sm text-muted-foreground">
+                {ext}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            A extensão {ext ? <span className="font-mono">{ext}</span> : "do arquivo"} não pode ser alterada.
+          </p>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
@@ -261,19 +347,32 @@ export function ArquivosExplorer({
   disciplinas,
   geral,
   podeGerirGeral,
+  podeValidar,
   nomenclatura,
 }: {
   projeto: { id: string; codigo: string; nome: string };
   disciplinas: ArvoreDisciplina[];
   geral: ArquivoProjetoItem[];
   podeGerirGeral: boolean;
+  podeValidar: boolean;
   nomenclatura: { exigir: boolean; padrao: string | null };
 }) {
   const [renomeando, setRenomeando] = useState<ArvoreArquivoItem | null>(null);
+  const [sel, setSel] = useState<Set<string>>(new Set());
   const totais = useMemo(() => {
     const todos = disciplinas.flatMap((d) => d.arquivos);
     return { total: todos.length + geral.length, aprovados: todos.filter((a) => a.aprovado).length };
   }, [disciplinas, geral]);
+
+  const alternar = useCallback((id: string) => {
+    setSel((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }, []);
+  const ctxSelecao = useMemo(() => ({ sel, alternar }), [sel, alternar]);
 
   const enviaveis = disciplinas.filter((d) => d.podeEnviar);
   const temGeral = geral.length > 0 || podeGerirGeral;
@@ -295,71 +394,141 @@ export function ArquivosExplorer({
 
       {enviaveis.length > 0 && <Uploader disciplinas={enviaveis} nomenclatura={nomenclatura} />}
 
-      <Card>
-        <CardContent className="p-2">
-          {vazio ? (
-            <EmptyState
-              icon={FolderOpen}
-              title="Nenhum arquivo"
-              description="Envie arquivos pelo painel da disciplina ou pelo formulário acima."
-            />
-          ) : (
-            <div className="divide-y">
-              {temGeral && <PastaGeral projetoId={projeto.id} geral={geral} podeGerir={podeGerirGeral} />}
+      {sel.size > 0 && (
+        <div className="sticky top-2 z-10 flex flex-wrap items-center gap-3 rounded-sm border bg-background/95 px-3 py-2 shadow-sm backdrop-blur">
+          <span className="text-sm font-medium">{sel.size} arquivo(s) selecionado(s)</span>
+          <Button size="sm" onClick={() => baixarZipIds([...sel], `${projeto.codigo}-selecao`)}>
+            <Download className="size-3.5" /> Baixar .zip
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSel(new Set())}>
+            Limpar seleção
+          </Button>
+        </div>
+      )}
 
-              {disciplinas.map((d) => {
-                const grupos = agruparPorPacote(d.arquivos);
-                return (
-                  <Pasta
-                    key={d.id}
-                    nome={d.nome}
-                    contagem={d.arquivos.length}
-                    nivel={0}
-                    acao={
-                      d.arquivos.length > 0 ? (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="size-7"
-                          aria-label={`Baixar ${d.nome} como .zip`}
-                          title="Baixar pasta (.zip)"
-                          render={<a href={`/api/uploads/disciplina/${d.id}/zip`} />}
-                        >
-                          <FileArchive className="size-3.5" />
-                        </Button>
-                      ) : undefined
-                    }
-                  >
-                    {grupos.length === 0 ? (
-                      <p className="py-1.5 pl-10 text-xs text-muted-foreground">Sem arquivos.</p>
-                    ) : (
-                      grupos.map((g) => (
-                        <Pasta key={g.pacote} nome={PACOTE_LABEL[g.pacote]} contagem={g.total} nivel={1}>
-                          {g.subpastas.map((s) => (
-                            <Pasta key={s.nome} nome={s.nome} contagem={s.arquivos.length} nivel={2} abertoInicial>
-                              {s.arquivos.map((a) => (
-                                <LinhaArquivo
-                                  key={a.id}
-                                  a={a}
-                                  nivel={3}
-                                  onRenomear={d.podeEnviar ? setRenomeando : undefined}
-                                  foraPadrao={
-                                    nomenclatura.exigir && a.pacote === "A" && foraDoPadrao(a.nome, nomenclatura.padrao)
-                                  }
+      <SelecaoCtx.Provider value={ctxSelecao}>
+        <Card>
+          <CardContent className="p-2">
+            {vazio ? (
+              <EmptyState
+                icon={FolderOpen}
+                title="Nenhum arquivo"
+                description="Envie arquivos pelo painel da disciplina ou pelo formulário acima."
+              />
+            ) : (
+              <div className="divide-y">
+                {temGeral && <PastaGeral projetoId={projeto.id} geral={geral} podeGerir={podeGerirGeral} />}
+
+                {disciplinas.map((d) => {
+                  const grupos = agruparPorPacote(d.arquivos);
+                  // Entregáveis na versão atual (pacote A/B, origem manual) → só eles validam.
+                  const idsValidaveis = new Set(
+                    entregaveisAtuais(
+                      d.arquivos.map((a) => ({
+                        id: a.id,
+                        pacote: a.pacote,
+                        nomeArquivo: a.nome,
+                        versao: a.versao,
+                        validado: a.aprovado,
+                        origem: a.origem,
+                      })),
+                    ).map((u) => u.id),
+                  );
+                  const podeValidarDisc = podeValidar && !d.finalizado;
+                  return (
+                    <Pasta
+                      key={d.id}
+                      nome={d.nome}
+                      contagem={d.arquivos.length}
+                      nivel={0}
+                      acao={
+                        <div className="flex items-center gap-2">
+                          {podeValidar && d.resumo.total > 0 && (
+                            <span
+                              className={cn(
+                                "font-mono text-[10px]",
+                                d.resumo.completo ? "text-status-aprovado" : "text-muted-foreground",
+                              )}
+                              title={`${d.resumo.validados} de ${d.resumo.total} arquivo(s) validado(s)`}
+                            >
+                              {d.resumo.validados}/{d.resumo.total} val.
+                            </span>
+                          )}
+                          {d.arquivos.length > 0 && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-7"
+                              aria-label={`Baixar ${d.nome} como .zip`}
+                              title="Baixar pasta (.zip)"
+                              render={<a href={`/api/uploads/disciplina/${d.id}/zip`} />}
+                            >
+                              <FileArchive className="size-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      }
+                    >
+                      {grupos.length === 0 ? (
+                        <p className="py-1.5 pl-10 text-xs text-muted-foreground">Sem arquivos.</p>
+                      ) : (
+                        grupos.map((g) => {
+                          const idsPacote = g.subpastas.flatMap((s) => s.arquivos.map((a) => a.id));
+                          return (
+                            <Pasta
+                              key={g.pacote}
+                              nome={PACOTE_LABEL[g.pacote]}
+                              contagem={g.total}
+                              nivel={1}
+                              acao={
+                                <ZipButton
+                                  ids={idsPacote}
+                                  nome={`${projeto.codigo}-${d.nome}-${PACOTE_LABEL[g.pacote]}`}
+                                  title={`Baixar "${PACOTE_LABEL[g.pacote]}" (.zip)`}
                                 />
+                              }
+                            >
+                              {g.subpastas.map((s) => (
+                                <Pasta
+                                  key={s.nome}
+                                  nome={s.nome}
+                                  contagem={s.arquivos.length}
+                                  nivel={2}
+                                  abertoInicial
+                                  acao={
+                                    <ZipButton
+                                      ids={s.arquivos.map((a) => a.id)}
+                                      nome={`${projeto.codigo}-${d.nome}-${s.nome}`}
+                                      title={`Baixar "${s.nome}" (.zip)`}
+                                    />
+                                  }
+                                >
+                                  {s.arquivos.map((a) => (
+                                    <LinhaArquivo
+                                      key={a.id}
+                                      a={a}
+                                      nivel={3}
+                                      onRenomear={d.podeEnviar ? setRenomeando : undefined}
+                                      podeValidar={podeValidarDisc && idsValidaveis.has(a.id)}
+                                      foraPadrao={
+                                        nomenclatura.exigir && a.pacote === "A" && foraDoPadrao(a.nome, nomenclatura.padrao)
+                                      }
+                                    />
+                                  ))}
+                                </Pasta>
                               ))}
                             </Pasta>
-                          ))}
-                        </Pasta>
-                      ))
-                    )}
-                  </Pasta>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                          );
+                        })
+                      )}
+                    </Pasta>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </SelecaoCtx.Provider>
 
       <RenomearDialog item={renomeando} onClose={() => setRenomeando(null)} />
     </div>
@@ -692,7 +861,7 @@ function enviarUm(
           new Error(
             data?.error ??
               (xhr.status === 413
-                ? `Arquivo muito grande — limite de ${TAMANHO_MAX_LABEL}.`
+                ? `Arquivo muito grande — limite de ${limiteLabelDoPacote(item.alvo)}.`
                 : `Falha no envio (HTTP ${xhr.status}).`),
           ),
         );
@@ -745,21 +914,19 @@ function Uploader({
     const files = lista ? Array.from(lista) : [];
     if (files.length === 0) return;
 
-    // Filtra tamanho antes de enviar (evita estourar o corpo da requisição).
-    const aceitos = files.filter((f) => {
-      if (f.size > TAMANHO_MAX) {
-        toast.error(`${f.name}: excede o limite de ${TAMANHO_MAX_LABEL}.`);
-        return false;
-      }
-      return true;
-    });
-    if (aceitos.length === 0) return;
-
-    const itens: ItemEnvio[] = aceitos.map((f) => {
+    // Define o pacote-alvo de cada arquivo e filtra por tamanho conforme o limite
+    // desse pacote (B/backup = 1,5 GB; demais = 500 MB) antes de enviar.
+    const itens: ItemEnvio[] = [];
+    for (const f of files) {
       const alvo = alvoDe(f);
+      if (f.size > limiteDoPacote(alvo)) {
+        toast.error(`${f.name}: excede o limite de ${limiteLabelDoPacote(alvo)}.`);
+        continue;
+      }
       const fora = nomenclatura.exigir && alvo === "A" && foraDoPadrao(f.name, nomenclatura.padrao);
-      return { file: f, nome: f.name, alvo, fora };
-    });
+      itens.push({ file: f, nome: f.name, alvo, fora });
+    }
+    if (itens.length === 0) return;
 
     // Nome fora do padrão em Pranchas → revisa antes (renomear no ato ou manter).
     if (itens.some((i) => i.fora)) {
@@ -891,6 +1058,7 @@ function Uploader({
         Envie arquivos soltos ou uma pasta inteira (ou arraste aqui). Vai para a disciplina escolhida; subpastas
         chamadas <span className="font-medium">Cliente</span>/<span className="font-medium">Recebidos</span> vão para
         &quot;Recebidos do cliente&quot;. Formatos não suportados em Pranchas vão para &quot;Outros&quot;.
+        {" "}Limite por arquivo: {TAMANHO_MAX_BACKUP_LABEL} em Backup do modelo, {TAMANHO_MAX_LABEL} nos demais.
         {nomenclatura.exigir && " Nomes fora do padrão em Pranchas pedem revisão antes do envio."}
       </p>
     </div>
@@ -983,38 +1151,86 @@ function RevisarNomesDialog({
   onChange: (itens: ItemEnvio[]) => void;
   onConfirm: () => void;
 }) {
-  const fora = itens ? itens.map((it, i) => ({ it, i })).filter((x) => x.it.fora) : [];
+  const foraCount = itens ? itens.filter((it) => it.fora).length : 0;
+
+  function renomear(i: number, nome: string) {
+    if (!itens) return;
+    const copia = itens.slice();
+    copia[i] = { ...copia[i], nome };
+    onChange(copia);
+  }
+  function remover(i: number) {
+    if (!itens) return;
+    const copia = itens.slice();
+    copia.splice(i, 1);
+    if (copia.length === 0) onCancel(); // nada a enviar → fecha
+    else onChange(copia);
+  }
+
   return (
     <Dialog open={!!itens} onOpenChange={(o) => !o && onCancel()}>
       <DialogContent className="max-h-[85svh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nomes fora do padrão</DialogTitle>
+          <DialogTitle>Revisar envio</DialogTitle>
           <DialogDescription>
-            {fora.length} arquivo(s) de Pranchas fora do padrão{" "}
-            <span className="font-mono">{"{proj}-{disc}-{fase}-{nº}-{tipo}[-Rnn]"}</span>. Renomeie agora ou envie
-            assim (ficam com alerta na lista).
+            {foraCount} arquivo(s) de Pranchas fora do padrão{" "}
+            <span className="font-mono">{"{proj}-{disc}-{fase}-{nº}-{tipo}[-Rnn]"}</span>. Renomeie, remova o que não
+            quiser enviar, ou envie assim (fora do padrão fica com alerta na lista).
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
-          {fora.map(({ it, i }) => (
-            <div key={i} className="space-y-1">
-              <Label className="truncate text-xs text-muted-foreground">{it.file.name}</Label>
-              <Input
-                value={it.nome}
-                className="font-mono text-xs"
-                onChange={(e) => {
-                  if (!itens) return;
-                  const copia = itens.slice();
-                  copia[i] = { ...copia[i], nome: e.target.value };
-                  onChange(copia);
-                }}
-              />
+          {itens?.map((it, i) => (
+            <div key={i} className="flex items-start gap-2 rounded-sm border p-2">
+              <IconeArquivo nome={it.nome} />
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={it.file.name}>
+                    {it.file.name}
+                  </span>
+                  {it.fora && (
+                    <span className="flex shrink-0 items-center gap-1 text-xs text-warning">
+                      <AlertTriangle className="size-3" /> fora do padrão
+                    </span>
+                  )}
+                </div>
+                {it.fora &&
+                  (() => {
+                    // Extensão vem do arquivo original (imutável) → base editável, sufixo fixo.
+                    const ext = separarExt(it.file.name).ext;
+                    const base = it.nome.endsWith(ext) ? it.nome.slice(0, it.nome.length - ext.length) : it.nome;
+                    return (
+                      <div className="flex items-center gap-1">
+                        <Input
+                          value={base}
+                          className="flex-1 font-mono text-xs"
+                          onChange={(e) => renomear(i, e.target.value + ext)}
+                        />
+                        {ext && (
+                          <span className="shrink-0 rounded-sm border bg-muted px-1.5 py-1 font-mono text-xs text-muted-foreground">
+                            {ext}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
+              </div>
+              <button
+                type="button"
+                className="shrink-0 text-muted-foreground hover:text-destructive"
+                aria-label={`Remover ${it.file.name} do envio`}
+                title="Remover deste envio"
+                onClick={() => remover(i)}
+              >
+                <Trash2 className="size-3.5" />
+              </button>
             </div>
           ))}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>Cancelar</Button>
-          <Button onClick={onConfirm}>Enviar {itens?.length ?? 0} arquivo(s)</Button>
+          <Button onClick={onConfirm} disabled={!itens || itens.length === 0}>
+            Enviar {itens?.length ?? 0} arquivo(s)
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

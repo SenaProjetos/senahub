@@ -11,6 +11,9 @@ import { Pagination } from "@/components/ui/pagination";
 const ACAO_LABEL: Record<string, string> = {
   "enviar-arquivos": "Enviou arquivo(s)",
   "validar-entrega": "Validou a entrega",
+  "validar-arquivo": "Validou arquivo",
+  "reverter-validacao-arquivo": "Desfez validação de arquivo",
+  "solicitar-ajuste-arquivo": "Solicitou ajuste em arquivo",
   "gerar-aceite-cliente": "Gerou link de aceite",
   "renomear-arquivo": "Renomeou arquivo",
   "criar-prancha": "Criou folha (lista mestre)",

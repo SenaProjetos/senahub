@@ -28,6 +28,8 @@ import {
 } from "@/modules/projetos/actions";
 import { DisciplinaEditDialog, DisciplinaDeleteButton } from "@/components/projetos/disciplina-edit-dialog";
 import { validarEntrega, gerarAceiteCliente } from "@/modules/uploads/actions";
+import { statusValidacao, entregaveisAtuais } from "@/modules/uploads/validacao";
+import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
 import { TAMANHO_MAX, TAMANHO_MAX_LABEL } from "@/modules/uploads/limites";
 import { STATUS_LABEL, STATUS_TONE } from "@/modules/projetos/status";
 import { diasDeAtraso } from "@/modules/projetos/atraso";
@@ -63,6 +65,9 @@ type UploadItem = {
   versao: number;
   tamanho: number;
   validado: boolean;
+  origem: "manual" | "ferramenta";
+  ajusteObs: string | null;
+  ajusteEm: string | null;
   autor: string;
   data: string;
   aceiteToken: string | null;
@@ -245,10 +250,13 @@ function ArquivosDialog({
   const [validando, start] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const completoParaValidar =
-    (!disciplina.exigePacoteA || disciplina.temA) &&
-    (!disciplina.exigePacoteB || disciplina.temB) &&
-    !disciplina.jaValidado;
+  const stVal = statusValidacao(disciplina.uploads, {
+    exigePacoteA: disciplina.exigePacoteA,
+    exigePacoteB: disciplina.exigePacoteB,
+  });
+  const completoParaValidar = stVal.completo && !disciplina.jaValidado;
+  // Ids dos entregáveis na versão atual — só eles ganham controles de validação.
+  const idsValidaveis = new Set(entregaveisAtuais(disciplina.uploads).map((u) => u.id));
 
   // Primeiro upload validado — âncora do aceite digital
   const uploadValidado = disciplina.uploads.find((u) => u.validado);
@@ -393,6 +401,13 @@ function ArquivosDialog({
           </div>
         )}
 
+        {podeValidar && stVal.total > 0 && !disciplina.jaValidado && (
+          <p className="text-xs text-muted-foreground">
+            {stVal.validados} de {stVal.total} arquivo(s) validado(s)
+            {stVal.pendentes > 0 ? ` · ${stVal.pendentes} pendente(s)` : " · pronto para finalizar"}.
+          </p>
+        )}
+
         <div className="space-y-3">
           {(["A", "B", "RECEBIDOS", "OUTROS"] as const).map((p) => {
             const itens = porPacote(p);
@@ -434,11 +449,26 @@ function ArquivosDialog({
                           {u.validado && (
                             <CheckCircle2 className="ml-1 inline size-3 text-status-aprovado" />
                           )}
+                          {!u.validado && u.ajusteObs && (
+                            <span
+                              className="ml-1 inline-flex items-center gap-0.5 align-middle text-warning"
+                              title={u.ajusteObs}
+                            >
+                              <AlertTriangle className="size-3" /> ajuste
+                            </span>
+                          )}
                         </span>
-                        <span className="text-muted-foreground">{tamanhoLegivel(u.tamanho)}</span>
+                        <span className="shrink-0 text-muted-foreground">{tamanhoLegivel(u.tamanho)}</span>
+                        {podeValidar && !disciplina.jaValidado && idsValidaveis.has(u.id) && (
+                          <AcoesValidacaoArquivo
+                            uploadId={u.id}
+                            nomeArquivo={u.nomeArquivo}
+                            validado={u.validado}
+                          />
+                        )}
                         <a
                           href={`/api/uploads/${u.id}/download`}
-                          className="text-primary hover:underline"
+                          className="shrink-0 text-primary hover:underline"
                           aria-label="Baixar"
                         >
                           <Download className="size-3.5" />

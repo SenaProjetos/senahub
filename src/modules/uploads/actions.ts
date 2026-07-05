@@ -9,6 +9,13 @@ import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { criarDespesaProjetistaPrevista } from "@/modules/financeiro/custo/lancamento-custo";
 import { PJ_ROLES, GLOBAL_ROLES, type Role } from "@/lib/roles";
+import { statusValidacao } from "@/modules/uploads/validacao";
+
+/** Extensão com o ponto, no case original (`.pdf`). Sem ponto (ou dotfile) → vazio. */
+function extComPonto(nome: string): string {
+  const i = nome.lastIndexOf(".");
+  return i > 0 ? nome.slice(i) : "";
+}
 
 const validarSchema = z.object({ disciplinaId: z.string().min(1) });
 
@@ -62,6 +69,18 @@ export const validarEntrega = defineAction(
       throw new ActionError("Defina ao menos um responsável antes de validar.");
     }
 
+    // Validação parcial: só finaliza quando TODOS os entregáveis (versão atual) já
+    // foram validados um a um. Os efeitos financeiros/conclusão vêm só aqui.
+    const st = statusValidacao(disciplina.uploads, {
+      exigePacoteA: disciplina.exigePacoteA,
+      exigePacoteB: disciplina.exigePacoteB,
+    });
+    if (st.pendentes > 0) {
+      throw new ActionError(
+        `Valide todos os arquivos antes de finalizar: ${st.pendentes} pendente(s) de ${st.total}.`,
+      );
+    }
+
     const valorTotal = disciplina.valor ? Number(disciplina.valor) : 0;
     const n = disciplina.responsaveis.length;
     const valorBase = Math.floor((valorTotal / n) * 100) / 100;
@@ -70,10 +89,6 @@ export const validarEntrega = defineAction(
     const href = `/projetos/${disciplina.projeto.id}`;
 
     await prisma.$transaction(async (tx) => {
-      await tx.upload.updateMany({
-        where: { disciplinaId: disciplina.id, validado: false },
-        data: { validado: true, validadoPorId: user.id, validadoEm: agora },
-      });
       await tx.disciplina.update({
         where: { id: disciplina.id },
         // P-12: entregueEm marca a data da validação formal (separado do status manual).
@@ -168,6 +183,126 @@ export const validarEntrega = defineAction(
   },
 );
 
+// ── Validação parcial (arquivo a arquivo) ──────────────────────
+
+const uploadIdSchema = z.object({ uploadId: z.string().min(1) });
+const ajusteSchema = z.object({
+  uploadId: z.string().min(1),
+  motivo: z.string().trim().min(1, "Descreva o ajuste necessário.").max(500),
+});
+
+const baseValidacao = {
+  modulo: "uploads",
+  recurso: "uploads",
+  permissao: "validar",
+  entidade: "Upload",
+  // Correlação no histórico do projeto: o uploadId cai no conjunto de ids da disciplina.
+  entidadeId: (d: unknown, i: unknown) =>
+    (i as { uploadId?: string })?.uploadId ?? (d as { uploadId?: string } | undefined)?.uploadId,
+} as const;
+
+/** Carrega o upload + disciplina e recusa se a entrega já foi finalizada (status aprovado). */
+async function carregarUploadEditavel(uploadId: string) {
+  const upload = await prisma.upload.findUnique({
+    where: { id: uploadId },
+    select: {
+      id: true,
+      nomeArquivo: true,
+      autorId: true,
+      disciplinaId: true,
+      disciplina: {
+        select: {
+          status: true,
+          projetoId: true,
+          nome: true,
+          projeto: { select: { codigo: true } },
+          responsaveis: { select: { userId: true } },
+        },
+      },
+    },
+  });
+  if (!upload) throw new ActionError("Arquivo não encontrado.");
+  if (upload.disciplina.status === "aprovado") {
+    throw new ActionError("Entrega já finalizada — não é possível alterar a validação dos arquivos.");
+  }
+  return upload;
+}
+
+function revalidarArquivos(projetoId: string) {
+  revalidatePath(`/projetos/${projetoId}`);
+  revalidatePath(`/projetos/${projetoId}/arquivos`);
+}
+
+/** Valida um único arquivo (validação parcial). Limpa qualquer ajuste pendente nele. */
+export const validarArquivo = defineAction(
+  { ...baseValidacao, acao: "validar-arquivo", schema: uploadIdSchema },
+  async (input, { user }) => {
+    const upload = await carregarUploadEditavel(input.uploadId);
+    await prisma.upload.update({
+      where: { id: upload.id },
+      data: {
+        validado: true,
+        validadoPorId: user.id,
+        validadoEm: new Date(),
+        revisaoObs: null,
+        revisaoEm: null,
+        revisaoPorId: null,
+      },
+    });
+    revalidarArquivos(upload.disciplina.projetoId);
+    return { uploadId: upload.id, nome: upload.nomeArquivo };
+  },
+);
+
+/** Desfaz a validação de um arquivo (antes de finalizar a entrega). */
+export const reverterValidacaoArquivo = defineAction(
+  { ...baseValidacao, acao: "reverter-validacao-arquivo", schema: uploadIdSchema },
+  async (input) => {
+    const upload = await carregarUploadEditavel(input.uploadId);
+    await prisma.upload.update({
+      where: { id: upload.id },
+      data: { validado: false, validadoPorId: null, validadoEm: null },
+    });
+    revalidarArquivos(upload.disciplina.projetoId);
+    return { uploadId: upload.id, nome: upload.nomeArquivo };
+  },
+);
+
+/** Solicita ajuste em um arquivo (com motivo) e notifica autor + responsáveis. */
+export const solicitarAjusteArquivo = defineAction(
+  { ...baseValidacao, acao: "solicitar-ajuste-arquivo", schema: ajusteSchema },
+  async (input, { user }) => {
+    const upload = await carregarUploadEditavel(input.uploadId);
+    await prisma.upload.update({
+      where: { id: upload.id },
+      data: {
+        validado: false,
+        validadoPorId: null,
+        validadoEm: null,
+        revisaoObs: input.motivo,
+        revisaoEm: new Date(),
+        revisaoPorId: user.id,
+      },
+    });
+
+    const { disciplina } = upload;
+    const codigo = formatarCodigo(disciplina.projeto.codigo);
+    const destinatarios = [upload.autorId, ...disciplina.responsaveis.map((r) => r.userId)]
+      .filter((id) => id !== user.id);
+    if (destinatarios.length > 0) {
+      await notificarMuitos(destinatarios, {
+        titulo: "Ajuste solicitado em arquivo",
+        corpo: `${upload.nomeArquivo} (${disciplina.nome} · ${codigo}): ${input.motivo}`,
+        href: `/projetos/${disciplina.projetoId}/arquivos`,
+        tag: `ajuste-${upload.id}`,
+      });
+    }
+
+    revalidarArquivos(disciplina.projetoId);
+    return { uploadId: upload.id, nome: upload.nomeArquivo };
+  },
+);
+
 // ── Renomear arquivo de disciplina (nome exibido) ──────────────
 
 const renomearSchema = z.object({
@@ -208,9 +343,24 @@ export const renomearUpload = defineAction(
     const ehResp = up.disciplina.responsaveis.some((r) => r.userId === user.id);
     if (!ehGlobal && !ehResp) throw new ActionError("Sem permissão para renomear este arquivo.");
 
-    await prisma.upload.update({ where: { id: up.id }, data: { nomeArquivo: input.nome } });
+    // A extensão do arquivo não pode ser alterada: força a extensão original,
+    // trocando o que o cliente eventualmente tenha enviado (case-insensitive).
+    const extOriginal = extComPonto(up.nomeArquivo);
+    let nomeFinal = input.nome;
+    if (extOriginal) {
+      const extNova = extComPonto(nomeFinal);
+      if (extNova.toLowerCase() !== extOriginal.toLowerCase()) {
+        const base = extNova ? nomeFinal.slice(0, nomeFinal.length - extNova.length) : nomeFinal;
+        nomeFinal = `${base}${extOriginal}`;
+      }
+    }
+    if (!nomeFinal.trim() || nomeFinal.trim() === extOriginal) {
+      throw new ActionError("Informe um nome antes da extensão.");
+    }
+
+    await prisma.upload.update({ where: { id: up.id }, data: { nomeArquivo: nomeFinal } });
     revalidatePath(`/projetos/${up.disciplina.projetoId}/arquivos`);
-    return { disciplinaId: up.disciplinaId, de: up.nomeArquivo, para: input.nome };
+    return { disciplinaId: up.disciplinaId, de: up.nomeArquivo, para: nomeFinal };
   },
 );
 
