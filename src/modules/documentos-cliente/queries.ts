@@ -21,6 +21,7 @@ function mapear(d: DocumentoComVersoes) {
     canal: d.canal,
     enviadoPor: d.enviadoPor,
     categoria: d.categoria,
+    descricao: d.descricao,
     autor: d.autor?.name ?? d.enviadoPor ?? "—",
     criadoEm: d.createdAt.toISOString(),
     totalVersoes: d.versoes.length,
@@ -110,6 +111,7 @@ export async function documentosDaProposta(propostaId: string): Promise<Document
  * "Recebidos do cliente" de um projeto = documentos do próprio projeto **+** os
  * herdados da proposta que gerou este projeto (join `Proposta.projetoId`). Sem
  * mistura: cada projeto herda só da sua proposta de origem. (Usado na Fase 2.)
+ * Exclui `origem=interno` — esses são o repositório "Geral" (ver `geralDoProjeto`).
  */
 export async function recebidosDoProjeto(projetoId: string): Promise<DocumentoItem[]> {
   const proposta = await prisma.proposta.findUnique({
@@ -118,8 +120,23 @@ export async function recebidosDoProjeto(projetoId: string): Promise<DocumentoIt
   });
   const docs = await prisma.documento.findMany({
     where: {
+      origem: { not: "interno" },
       OR: [{ projetoId }, ...(proposta ? [{ propostaId: proposta.id }] : [])],
     },
+    orderBy: { createdAt: "desc" },
+    include: incluir,
+  });
+  return docs.map(mapear);
+}
+
+/**
+ * Repositório "Geral" do projeto (Fase 5a): documentos internos da equipe
+ * (`origem=interno`), ancorados direto no projeto. Substitui o antigo `ArquivoProjeto`.
+ * Gated por `arquivos_gerais` (ver `acesso.ts`), não herda de proposta.
+ */
+export async function geralDoProjeto(projetoId: string): Promise<DocumentoItem[]> {
+  const docs = await prisma.documento.findMany({
+    where: { projetoId, origem: "interno" },
     orderBy: { createdAt: "desc" },
     include: incluir,
   });

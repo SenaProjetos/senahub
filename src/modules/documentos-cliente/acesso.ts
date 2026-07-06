@@ -33,9 +33,18 @@ async function veProjeto(user: SessionUser, projetoId: string): Promise<boolean>
 /**
  * Leitura: quem enxerga o projeto efetivo do documento, ou quem tem `comercial:ver`
  * (documentos ainda na fase de proposta). Assim um membro do projeto vê os docs
- * herdados da proposta de origem.
+ * herdados da proposta de origem. Para `origem=interno` (repositório "Geral", Fase 5a)
+ * a regra é a antiga: ver o projeto **e** ter `arquivos_gerais:ver`.
  */
-export async function podeLerDocumento(user: SessionUser, ancora: AncoraDocumento): Promise<boolean> {
+export async function podeLerDocumento(
+  user: SessionUser,
+  ancora: AncoraDocumento,
+  origem?: string | null,
+): Promise<boolean> {
+  if (origem === "interno") {
+    const projetoId = await projetoEfetivo(ancora);
+    return !!projetoId && (await veProjeto(user, projetoId)) && (await can(user.role, "arquivos_gerais", "ver"));
+  }
   const projetoId = await projetoEfetivo(ancora);
   if (projetoId && (await veProjeto(user, projetoId))) return true;
   // Equipe que administra clientes vê os documentos na ficha do cliente ("segue o cliente").
@@ -46,9 +55,18 @@ export async function podeLerDocumento(user: SessionUser, ancora: AncoraDocument
 /**
  * Escrita: perfil global; ou `comercial:gerir` (contexto de proposta); ou membro
  * interno do projeto efetivo. `cliente` não gerencia por aqui (o upload do cliente
- * é o portal/link das fases seguintes).
+ * é o portal/link das fases seguintes). Para `origem=interno` (Geral) exige ver o
+ * projeto **e** `arquivos_gerais:gerir` — mesma permissão do antigo ArquivoProjeto.
  */
-export async function podeGerirDocumento(user: SessionUser, ancora: AncoraDocumento): Promise<boolean> {
+export async function podeGerirDocumento(
+  user: SessionUser,
+  ancora: AncoraDocumento,
+  origem?: string | null,
+): Promise<boolean> {
+  if (origem === "interno") {
+    const projetoId = await projetoEfetivo(ancora);
+    return !!projetoId && (await veProjeto(user, projetoId)) && (await can(user.role, "arquivos_gerais", "gerir"));
+  }
   if (acessoGlobal(user)) return true;
   if (await can(user.role, "comercial", "gerir")) return true;
   const projetoId = await projetoEfetivo(ancora);

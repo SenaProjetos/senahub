@@ -17,13 +17,14 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       nomeArquivo: true,
       mime: true,
       documentoId: true,
-      documento: { select: { propostaId: true, projetoId: true } },
+      documento: { select: { propostaId: true, projetoId: true, origem: true } },
     },
   });
   if (!versao) return NextResponse.json({ error: "Arquivo não encontrado." }, { status: 404 });
 
   // Acesso por âncora: quem vê o projeto efetivo do doc, ou comercial:ver (proposta).
-  if (!(await podeLerDocumento(session.user, versao.documento))) {
+  // `origem=interno` (Geral) exige `arquivos_gerais:ver` — ver acesso.ts.
+  if (!(await podeLerDocumento(session.user, versao.documento, versao.documento.origem))) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 

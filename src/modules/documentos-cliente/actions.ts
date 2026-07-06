@@ -16,8 +16,8 @@ const base = {
   modulo: "documentos_cliente",
 } as const;
 
-async function exigirEscrita(user: SessionUser, ancora: AncoraDocumento) {
-  if (!(await podeGerirDocumento(user, ancora))) throw new ActionError("Sem permissão para este documento.");
+async function exigirEscrita(user: SessionUser, ancora: AncoraDocumento, origem?: string | null) {
+  if (!(await podeGerirDocumento(user, ancora, origem))) throw new ActionError("Sem permissão para este documento.");
 }
 
 function revalidar(propostaId: string | null, projetoId: string | null) {
@@ -57,7 +57,7 @@ export const criarDocumento = defineAction(
     }),
   },
   async (i, ctx) => {
-    await exigirEscrita(ctx.user, { propostaId: i.propostaId, projetoId: i.projetoId });
+    await exigirEscrita(ctx.user, { propostaId: i.propostaId, projetoId: i.projetoId }, i.origem);
     const clienteId = await resolverCliente(i.propostaId, i.projetoId);
     const doc = await prisma.documento.create({
       data: {
@@ -99,10 +99,10 @@ export const adicionarVersaoDocumento = defineAction(
   async (i, ctx) => {
     const doc = await prisma.documento.findUnique({
       where: { id: i.documentoId },
-      select: { propostaId: true, projetoId: true, versoes: { orderBy: { numero: "desc" }, take: 1, select: { numero: true } } },
+      select: { propostaId: true, projetoId: true, origem: true, versoes: { orderBy: { numero: "desc" }, take: 1, select: { numero: true } } },
     });
     if (!doc) throw new ActionError("Documento não encontrado.");
-    await exigirEscrita(ctx.user, doc);
+    await exigirEscrita(ctx.user, doc, doc.origem);
     const numero = (doc.versoes[0]?.numero ?? 0) + 1;
     await prisma.documentoVersao.create({
       data: {
@@ -136,9 +136,9 @@ export const editarDocumento = defineAction(
     }),
   },
   async (i, ctx) => {
-    const alvo = await prisma.documento.findUnique({ where: { id: i.id }, select: { propostaId: true, projetoId: true } });
+    const alvo = await prisma.documento.findUnique({ where: { id: i.id }, select: { propostaId: true, projetoId: true, origem: true } });
     if (!alvo) throw new ActionError("Documento não encontrado.");
-    await exigirEscrita(ctx.user, alvo);
+    await exigirEscrita(ctx.user, alvo, alvo.origem);
     const doc = await prisma.documento.update({
       where: { id: i.id },
       data: { nome: i.nome, categoria: i.categoria || null, descricao: i.descricao || null },
@@ -160,10 +160,10 @@ export const excluirDocumento = defineAction(
   async (i, ctx) => {
     const doc = await prisma.documento.findUnique({
       where: { id: i.id },
-      select: { propostaId: true, projetoId: true, versoes: { select: { caminho: true } } },
+      select: { propostaId: true, projetoId: true, origem: true, versoes: { select: { caminho: true } } },
     });
     if (!doc) throw new ActionError("Documento não encontrado.");
-    await exigirEscrita(ctx.user, doc);
+    await exigirEscrita(ctx.user, doc, doc.origem);
     await prisma.documento.delete({ where: { id: i.id } });
     for (const v of doc.versoes) await removerArquivo(v.caminho);
     revalidar(doc.propostaId, doc.projetoId);

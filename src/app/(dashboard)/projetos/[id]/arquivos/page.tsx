@@ -4,9 +4,9 @@ import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { GLOBAL_ROLES } from "@/lib/roles";
 import { projetoVisivel } from "@/modules/planejamento/queries";
-import { arvoreArquivosProjeto, arquivosDoProjeto } from "@/modules/projetos/arquivos/queries";
+import { arvoreArquivosProjeto } from "@/modules/projetos/arquivos/queries";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
-import { recebidosDoProjeto, clienteDoProjeto } from "@/modules/documentos-cliente/queries";
+import { recebidosDoProjeto, geralDoProjeto, clienteDoProjeto } from "@/modules/documentos-cliente/queries";
 import { podeGerirDocumento } from "@/modules/documentos-cliente/acesso";
 import { ArquivosExplorer } from "@/components/projetos/arquivos-explorer";
 
@@ -30,8 +30,8 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
       clienteDoProjeto(id),
       podeGerirDocumento(user, { projetoId: id }),
     ]);
-  // Pasta "Geral" só é carregada para quem tem a permissão de visualização.
-  const geral = podeVerGeral ? await arquivosDoProjeto(id) : [];
+  // Pasta "Geral" (Documento origem=interno) só é carregada p/ quem tem `arquivos_gerais:ver`.
+  const geral = podeVerGeral ? await geralDoProjeto(id) : [];
 
   return (
     <ArquivosExplorer

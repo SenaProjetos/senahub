@@ -23,9 +23,11 @@ export async function POST(req: Request) {
   }
 
   // Acesso por âncora (proposta → comercial; projeto → membro interno/global).
+  // `origem=interno` (repositório "Geral") gateia por `arquivos_gerais` — ver acesso.ts.
   const propostaId = String(form.get("propostaId") ?? "");
   const projetoId = String(form.get("projetoId") ?? "");
-  if (!(await podeGerirDocumento(session.user, { propostaId: propostaId || null, projetoId: projetoId || null }))) {
+  const origem = String(form.get("origem") ?? "") || undefined;
+  if (!(await podeGerirDocumento(session.user, { propostaId: propostaId || null, projetoId: projetoId || null }, origem))) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 

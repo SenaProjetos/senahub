@@ -31,16 +31,14 @@ import { foraDoPadrao } from "@/modules/projetos/pranchas/codigo";
 import type {
   ArvoreDisciplina,
   ArvoreArquivoItem,
-  ArquivoProjetoItem,
 } from "@/modules/projetos/arquivos/queries";
-import {
-  criarArquivo,
-  editarArquivo,
-  excluirArquivo,
-  adicionarVersaoArquivo,
-} from "@/modules/projetos/arquivos/actions";
 import { renomearUpload } from "@/modules/uploads/actions";
-import { criarDocumento, adicionarVersaoDocumento, excluirDocumento } from "@/modules/documentos-cliente/actions";
+import {
+  criarDocumento,
+  editarDocumento,
+  adicionarVersaoDocumento,
+  excluirDocumento,
+} from "@/modules/documentos-cliente/actions";
 import type { DocumentoItem } from "@/modules/documentos-cliente/queries";
 import type { MetaDocumento } from "@/modules/documentos-cliente/schemas";
 import { entregaveisAtuais } from "@/modules/uploads/validacao";
@@ -406,7 +404,7 @@ export function ArquivosExplorer({
 }: {
   projeto: { id: string; codigo: string; nome: string };
   disciplinas: ArvoreDisciplina[];
-  geral: ArquivoProjetoItem[];
+  geral: DocumentoItem[];
   podeGerirGeral: boolean;
   podeValidar: boolean;
   nomenclatura: { exigir: boolean; padrao: string | null };
@@ -483,7 +481,9 @@ export function ArquivosExplorer({
                     podeGerir={podeGerirRecebidos}
                   />
                 )}
-                {temGeral && <PastaGeral projetoId={projeto.id} geral={geral} podeGerir={podeGerirGeral} />}
+                {temGeral && (
+                  <PastaGeral projetoId={projeto.id} clienteId={clienteId} geral={geral} podeGerir={podeGerirGeral} />
+                )}
 
                 {disciplinas.map((d) => {
                   const grupos = agruparPorPacote(d.arquivos);
@@ -604,11 +604,17 @@ export function ArquivosExplorer({
 
 // ── Pasta "Recebidos do cliente": Documentos ancorados no projeto + herdados da proposta ──
 
-async function subirDocumento(file: File, projetoId: string, clienteId: string | null): Promise<MetaDocumento> {
+async function subirDocumento(
+  file: File,
+  projetoId: string,
+  clienteId: string | null,
+  origem?: "recebido_cliente" | "interno",
+): Promise<MetaDocumento> {
   const fd = new FormData();
   fd.append("file", file);
   fd.append("projetoId", projetoId);
   if (clienteId) fd.append("clienteId", clienteId);
+  if (origem) fd.append("origem", origem);
   const res = await fetch("/api/documentos", { method: "POST", body: fd });
   const meta = await res.json();
   if (!res.ok) throw new Error(meta.error ?? "Falha no upload.");
@@ -780,32 +786,23 @@ function RecebidosPasta({
   );
 }
 
-// ── Pasta "Geral": repositório ArquivoProjeto (gated por permissão arquivos_gerais) ──
-
-type Meta = { caminho: string; nomeArquivo: string; mime: string; tamanho: number; hashSha256: string };
-
-async function enviarArquivoGeral(file: File): Promise<Meta> {
-  const fd = new FormData();
-  fd.append("file", file);
-  const res = await fetch("/api/projetos/arquivos", { method: "POST", body: fd });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error ?? "Falha no upload.");
-  return json as Meta;
-}
+// ── Pasta "Geral": Documento(origem=interno), gated por `arquivos_gerais` (Fase 5a) ──
 
 function PastaGeral({
   projetoId,
+  clienteId,
   geral,
   podeGerir,
 }: {
   projetoId: string;
-  geral: ArquivoProjetoItem[];
+  clienteId: string | null;
+  geral: DocumentoItem[];
   podeGerir: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [novo, setNovo] = useState(false);
-  const [editar, setEditar] = useState<ArquivoProjetoItem | null>(null);
+  const [editar, setEditar] = useState<DocumentoItem | null>(null);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ nome: "", categoria: "outro", descricao: "" });
   const fileNovo = useRef<HTMLInputElement>(null);
@@ -816,7 +813,7 @@ function PastaGeral({
     setForm({ nome: "", categoria: "outro", descricao: "" });
     setNovo(true);
   }
-  function abrirEditar(a: ArquivoProjetoItem) {
+  function abrirEditar(a: DocumentoItem) {
     setForm({ nome: a.nome, categoria: a.categoria ?? "outro", descricao: a.descricao ?? "" });
     setEditar(a);
   }
@@ -829,8 +826,8 @@ function PastaGeral({
     }
     setBusy(true);
     try {
-      const meta = await enviarArquivoGeral(file);
-      const r = await criarArquivo({ projetoId, nome: form.nome, categoria: form.categoria, descricao: form.descricao, meta });
+      const meta = await subirDocumento(file, projetoId, clienteId, "interno");
+      const r = await criarDocumento({ projetoId, nome: form.nome, categoria: form.categoria, descricao: form.descricao, origem: "interno", meta });
       if (r.ok) {
         toast.success("Arquivo enviado.");
         setNovo(false);
@@ -846,7 +843,7 @@ function PastaGeral({
   function salvarEdicao() {
     if (!editar || !form.nome.trim()) return;
     start(async () => {
-      const r = await editarArquivo({ id: editar.id, nome: form.nome, categoria: form.categoria, descricao: form.descricao });
+      const r = await editarDocumento({ id: editar.id, nome: form.nome, categoria: form.categoria, descricao: form.descricao });
       if (r.ok) {
         toast.success("Arquivo atualizado.");
         setEditar(null);
@@ -855,11 +852,11 @@ function PastaGeral({
     });
   }
 
-  async function enviarVersao(arquivoId: string, file: File) {
+  async function enviarVersao(documentoId: string, file: File) {
     setBusy(true);
     try {
-      const meta = await enviarArquivoGeral(file);
-      const r = await adicionarVersaoArquivo({ arquivoId, meta });
+      const meta = await subirDocumento(file, projetoId, clienteId, "interno");
+      const r = await adicionarVersaoDocumento({ documentoId, meta });
       if (r.ok) {
         toast.success(`Versão ${r.data.numero} adicionada.`);
         router.refresh();
@@ -874,7 +871,7 @@ function PastaGeral({
 
   function excluir(id: string) {
     start(async () => {
-      const r = await excluirArquivo({ id });
+      const r = await excluirDocumento({ id });
       if (r.ok) router.refresh();
       else toast.error(r.error);
     });
@@ -931,7 +928,7 @@ function PastaGeral({
               </span>
               {a.atual && (
                 <a
-                  href={`/api/projetos/arquivos/${a.atual.id}/download`}
+                  href={a.atual.downloadUrl}
                   className="shrink-0 text-primary hover:text-primary/80"
                   aria-label={`Baixar ${a.nome}`}
                 >

@@ -1,7 +1,14 @@
 # Plano técnico — Fase 5a: absorver o "Geral" do projeto no repositório `Documento`
 
-**Data:** 2026-07-05 · **Status:** 📋 planejamento (continuação de
+**Data:** 2026-07-05 · **Status:** ✅ **IMPLEMENTADA** (continuação de
 [2026-07-05-recebidos-documentos-cliente.md](2026-07-05-recebidos-documentos-cliente.md))
+
+> **Decisão D-5a-1 travada: opção conservadora** (não a literal (a) do §3). Docs `origem=interno`
+> exigem **ver o projeto E `arquivos_gerais:ver`** (leitura) / **`arquivos_gerais:gerir`** (escrita) —
+> preserva exatamente quem via/geria o antigo `ArquivoProjeto`, sem alargar visibilidade. A permissão
+> `arquivos_gerais` **fica** no catálogo/seed. Migração `20260705120000_documentos_geral` preserva os
+> IDs (logs de auditoria antigos continuam batendo). Verificada com linha sintética: id/origem/canal/
+> categoria/autor/versão/hash preservados; tabelas antigas dropadas; `tsc`+`eslint` limpos.
 
 Pré-requisito: Fases 1–4 do plano-mãe (model `Documento` client-anchored já existe e em uso).
 Esta é a sub-fase de **baixo risco** da Fase 5: unificar o repositório "Geral" interno do projeto

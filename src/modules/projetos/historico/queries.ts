@@ -16,10 +16,16 @@ const ACOES_DOCUMENTO = [
   "editar-prancha",
   "excluir-prancha",
   "importar-pranchas",
+  // Repositório "Geral" antigo (ArquivoProjeto) — logs históricos.
   "criar-arquivo",
   "editar-arquivo",
   "excluir-arquivo",
   "adicionar-versao-arquivo",
+  // Repositório unificado `Documento` (Fase 5a: Geral + recebidos do cliente).
+  "criar-documento",
+  "editar-documento",
+  "excluir-documento",
+  "adicionar-versao-documento",
 ];
 
 /**
@@ -36,7 +42,12 @@ export async function historicoDocumentosProjeto(
 
   const [disciplinas, arquivos] = await Promise.all([
     prisma.disciplina.findMany({ where: { projetoId }, select: { id: true } }),
-    prisma.arquivoProjeto.findMany({ where: { projetoId }, select: { id: true, versoes: { select: { id: true } } } }),
+    // Geral = Documento(origem=interno) do projeto (Fase 5a); IDs preservados na
+    // migração, então logs antigos (entidade ArquivoProjeto) ainda batem.
+    prisma.documento.findMany({
+      where: { projetoId, origem: "interno" },
+      select: { id: true, versoes: { select: { id: true } } },
+    }),
   ]);
   const disciplinaIds = disciplinas.map((d) => d.id);
   const uploads = disciplinaIds.length
@@ -52,7 +63,7 @@ export async function historicoDocumentosProjeto(
   ];
 
   const where: Prisma.AuditLogWhereInput = {
-    modulo: { in: ["uploads", "projetos"] },
+    modulo: { in: ["uploads", "projetos", "documentos_cliente"] },
     acao: { in: ACOES_DOCUMENTO },
     entidadeId: { in: ids },
   };

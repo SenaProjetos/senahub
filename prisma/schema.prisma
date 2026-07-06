@@ -485,7 +485,6 @@ model Projeto {
   alocacoes   Alocacao[]
   servicos    ServicoTerceirizado[]
   rateios     RateioHora[]
-  arquivos    ArquivoProjeto[]
   composicaoPreco ProjetoComposicaoPreco?
   lmConfig    LmConfig?
   pranchaCatalogos PranchaCatalogo[]
@@ -1615,40 +1614,9 @@ model PastaJuridica {
 }
 
 /// Documento (com versões) de um projeto — repositório geral, separado dos pacotes A/B de Upload.
-model ArquivoProjeto {
-  id        String                 @id @default(cuid())
-  projetoId String
-  projeto   Projeto                @relation(fields: [projetoId], references: [id], onDelete: Cascade)
-  nome      String
-  /// contrato | planta | memorial | foto | administrativo | outro
-  categoria String?
-  descricao String?
-  autorId   String
-  createdAt DateTime               @default(now())
-  updatedAt DateTime               @updatedAt
-  versoes   ArquivoProjetoVersao[]
-
-  @@index([projetoId])
-  @@map("arquivo_projeto")
-}
-
-model ArquivoProjetoVersao {
-  id          String         @id @default(cuid())
-  arquivoId   String
-  arquivo     ArquivoProjeto @relation(fields: [arquivoId], references: [id], onDelete: Cascade)
-  numero      Int
-  caminho     String
-  nomeArquivo String
-  mime        String
-  tamanho     Int
-  hashSha256  String
-  autorId     String
-  createdAt   DateTime       @default(now())
-
-  @@unique([arquivoId, numero])
-  @@index([arquivoId])
-  @@map("arquivo_projeto_versao")
-}
+// Repositório "Geral" do projeto (antigo ArquivoProjeto/ArquivoProjetoVersao) foi
+// absorvido pelo model Documento (origem=interno) na Fase 5a — ver migração
+// 20260705_documentos_geral e o plano 2026-07-05-documentos-fase5a-geral.md.
 
 // ─────────────────────────────────────────────────────────────
 // Documentos do cliente (Cliente → Proposta → Projeto)
