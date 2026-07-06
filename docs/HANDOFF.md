@@ -1,8 +1,19 @@
 # SenaHub Remake — Handoff / Estado do Projeto
 
 > Documento de continuidade. Permite a qualquer dev/IA retomar o trabalho do ponto exato.
-> **Atualizado em 2026-06-22 (sessão 3f).** Ondas 0–5 + OD + auditorias + infra + testes.
-> 57 arquivos de teste, 463 testes passando, tsc limpo.
+> **Atualizado em 2026-07-06 (sessão Ponto v2 F0-F7).** Ondas 0–5 + OD + auditorias + infra + Ponto v2 completo.
+> 89 arquivos de teste, 819 testes passando, tsc limpo, `npm run build` OK.
+
+## Ponto v2 — Resumo F0-F7 (jul/2026)
+
+**Completado:** Reforma da jornada de _cronômetro_ → _batidas fixas_ (entrada → múltiplos descansos → saída).
+Escalas configuráveis por role (padrão) + override por usuário; espelho mensal com aceite digital SHA-256; 
+ajustes com justificativa (próprio sem ciência, admin com ciência); alertas informativos de jornada 
+(entrada/descanso/saída próximas, jornada cumprida) com e-mail tri-state (todos/resumo diário/nenhum); 
+job auto-encerrador de jornadas esquecidas (>16h). Invariante preservada: Σ sessões do dia ≡ trabalhado. 
+Hub antigo regredido no dia local (não UTC). `EscalaTrabalho` removida em F7; `definirEscala` ação removida.
+
+---
 > Novidades (sessão 3d): tarefaBloqueada testes (4); editarCompromisso action+dialog+label;
 > N-03 saúde do projeto (health.ts puro, 9 testes, coluna "Saúde" na lista de projetos);
 > fix P-57 revalidação de /planejamento/cronograma e / ao mudar status disciplina;

@@ -149,8 +149,11 @@ export const criarSocio = defineAction(
   { ...base, acao: "criar-socio", entidade: "Socio", schema: socioSchema },
   async (i) => {
     const existe = await prisma.socio.findUnique({ where: { userId: i.userId } });
-    if (existe) throw new ActionError("Usuário já é sócio.");
-    const c = await prisma.socio.create({ data: { userId: i.userId, percentual: i.percentual } });
+    if (existe?.ativo) throw new ActionError("Usuário já é sócio.");
+    // Registro inativo (desativado no cadastro de usuários): reativa preservando retiradas.
+    const c = existe
+      ? await prisma.socio.update({ where: { id: existe.id }, data: { ativo: true, percentual: i.percentual } })
+      : await prisma.socio.create({ data: { userId: i.userId, percentual: i.percentual } });
     rev();
     propagarGrupoSocios(await ensureCanalSocios());
     return { id: c.id };

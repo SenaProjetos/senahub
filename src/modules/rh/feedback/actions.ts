@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { defineAction, ActionError } from "@/lib/with-action";
+import { defineAction } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { HR_ADMIN_ROLES } from "@/lib/roles";
 
@@ -36,30 +36,6 @@ export const removerFeedback = defineAction(
     return { id: i.id };
   },
 );
-
-// ── D7 Ponto manual (lançamento/correção de sessão) ───────────
-export const registrarPontoManual = defineAction(
-  {
-    ...base,
-    acao: "registrar-ponto-manual",
-    entidade: "SessaoTrabalho",
-    schema: z.object({
-      userId: z.string().min(1),
-      projetoId: z.string().optional().or(z.literal("")),
-      inicio: z.string().min(1, "Informe o início."),
-      fim: z.string().min(1, "Informe o fim."),
-    }),
-  },
-  async (i) => {
-    const inicio = new Date(i.inicio);
-    const fim = new Date(i.fim);
-    if (isNaN(inicio.getTime()) || isNaN(fim.getTime())) throw new ActionError("Datas inválidas.");
-    if (fim <= inicio) throw new ActionError("O fim deve ser após o início.");
-    const s = await prisma.sessaoTrabalho.create({
-      data: { userId: i.userId, projetoId: i.projetoId || null, inicio, fim },
-    });
-    revalidatePath("/rh/admin");
-    revalidatePath("/ponto");
-    return { id: s.id };
-  },
-);
+// Ponto manual (registrarPontoManual) foi substituído pelo ajuste de dia com
+// reconciliação de sessões e ciência do colaborador — ver
+// modules/ponto/actions.ts (ajustarPontoEquipe) e a tela /ponto/espelho.

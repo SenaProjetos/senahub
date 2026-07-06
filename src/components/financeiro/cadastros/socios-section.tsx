@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 
 type Retirada = { id: string; data: string; valor: number; tipo: string; observacao: string | null };
-type Socio = { id: string; nome: string; percentual: number; retiradas: Retirada[] };
+type Socio = { id: string; nome: string; ativo: boolean; percentual: number; retiradas: Retirada[] };
 type Usuario = { id: string; name: string };
 
 const TIPO_RET: Record<string, string> = { pro_labore: "Pró-labore", distribuicao: "Distribuição", adiantamento: "Adiantamento" };
@@ -35,7 +35,8 @@ export function SociosSection({ socios, usuarios }: { socios: Socio[]; usuarios:
   const [userId, setUserId] = useState("");
   const [percentual, setPercentual] = useState("");
 
-  const total = socios.reduce((s, x) => s + x.percentual, 0);
+  // Participação só conta sócios ativos (inativos ficam visíveis pelo histórico de retiradas).
+  const total = socios.filter((x) => x.ativo).reduce((s, x) => s + x.percentual, 0);
 
   function adicionar() {
     if (!userId || !percentual) {
@@ -147,6 +148,11 @@ function SocioRow({ s, onRemover }: { s: Socio; onRemover: (id: string) => void 
         <button className="inline-flex items-center gap-1.5 text-left" onClick={() => setAberto(!aberto)}>
           <ChevronDown className={`size-3.5 text-muted-foreground transition-transform ${aberto ? "rotate-180" : ""}`} />
           <span className="text-sm font-medium">{s.nome}</span>
+          {!s.ativo && (
+            <span className="rounded-sm border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+              Inativo
+            </span>
+          )}
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
             <Wallet className="size-3" /> {s.retiradas.length} · {brl(totalRet)}
           </span>

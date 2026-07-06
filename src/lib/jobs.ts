@@ -22,6 +22,9 @@ import {
   alertaRiscoProjeto,
   statusReportSemanal,
   fecharBancoHorasMesAnterior,
+  alertasPontoTick,
+  resumoPontoEmailDiario,
+  encerrarJornadasEsquecidas,
 } from "@/lib/jobs-handlers";
 
 let boss: PgBoss | null = null;
@@ -157,6 +160,30 @@ export async function startJobs(): Promise<PgBoss> {
       handler: async () => {
         const n = await fecharBancoHorasMesAnterior();
         if (n > 0) console.log(`[banco-horas] fechamento automático: ${n} colaborador(es).`);
+      },
+    },
+    {
+      fila: "alertas-ponto",
+      cron: "*/5 * * * *", // a cada 5 min (a função já filtra a janela 05h–23h)
+      handler: async () => {
+        const n = await alertasPontoTick();
+        if (n > 0) console.log(`[ponto] ${n} alerta(s) de jornada enviado(s).`);
+      },
+    },
+    {
+      fila: "resumo-ponto-email",
+      cron: "30 19 * * 1-5", // dias úteis 19:30 — resumo diário p/ quem escolheu esse modo
+      handler: async () => {
+        const n = await resumoPontoEmailDiario();
+        if (n > 0) console.log(`[ponto] resumo diário enviado a ${n} colaborador(es).`);
+      },
+    },
+    {
+      fila: "encerrar-jornadas-esquecidas",
+      cron: "30 3 * * *", // diário 03:30 — jornadas abertas há >16h
+      handler: async () => {
+        const n = await encerrarJornadasEsquecidas();
+        if (n > 0) console.log(`[ponto] ${n} jornada(s) esquecida(s) encerrada(s).`);
       },
     },
   ];

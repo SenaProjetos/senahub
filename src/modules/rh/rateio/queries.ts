@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { minutosSessao } from "@/modules/ponto/format";
 import { formatarCodigo } from "@/modules/projetos/numbering";
+import { horasDiaPadraoEmLote } from "@/modules/rh/escalas/queries";
 
 function diasUteis(ano: number, mes: number): number {
   let n = 0;
@@ -24,14 +25,13 @@ async function custoHoraPorUsuario(
   mes: number,
 ): Promise<Map<string, number>> {
   if (userIds.length === 0) return new Map();
-  const [recursos, users, escalas] = await Promise.all([
+  const [recursos, users] = await Promise.all([
     prisma.recurso.findMany({ where: { userId: { in: userIds } }, select: { userId: true, custoHora: true } }),
-    prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, salarioBase: true } }),
-    prisma.escalaTrabalho.findMany({ where: { userId: { in: userIds } }, select: { userId: true, horasDia: true } }),
+    prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, role: true, salarioBase: true } }),
   ]);
   const rec = new Map(recursos.map((r) => [r.userId, r.custoHora != null ? Number(r.custoHora) : null]));
   const sal = new Map(users.map((u) => [u.id, u.salarioBase != null ? Number(u.salarioBase) : null]));
-  const esc = new Map(escalas.map((e) => [e.userId, Number(e.horasDia)]));
+  const esc = await horasDiaPadraoEmLote(users.map((u) => ({ id: u.id, role: u.role ?? "freelancer" })));
   const horasMes = diasUteis(ano, mes); // dias úteis; × horasDia abaixo
 
   const out = new Map<string, number>();

@@ -35,9 +35,9 @@ export async function listarSocios() {
   });
 }
 
-/** Usuários internos elegíveis a sócio (ainda não cadastrados). */
+/** Usuários internos elegíveis a sócio (sem registro ativo — inativos podem ser reativados). */
 export async function usuariosParaSocio() {
-  const socios = await prisma.socio.findMany({ select: { userId: true } });
+  const socios = await prisma.socio.findMany({ where: { ativo: true }, select: { userId: true } });
   const ids = socios.map((s) => s.userId);
   return prisma.user.findMany({
     where: { ativo: true, role: { not: "cliente" }, id: { notIn: ids } },

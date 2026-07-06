@@ -96,6 +96,16 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "ti", recurso: "patrimonio", acao: "ver" },
   { role: "ti", recurso: "patrimonio", acao: "gerir" },
   { role: "ti", recurso: "patrimonio", acao: "ti" },
+  // Ponto v2: supervisor mantém visão completa (equipe + rateio de custo).
+  // administrativo perde `rateio` por padrão (dado de custo/margem) — decisão do
+  // usuário; segue com espelho/escalas/ajustes (tarefas de RH do dia a dia).
+  { role: "supervisor", recurso: "ponto", acao: "rateio" },
+  { role: "supervisor", recurso: "ponto", acao: "espelho_equipe" },
+  { role: "supervisor", recurso: "ponto", acao: "gerir_escalas" },
+  { role: "supervisor", recurso: "ponto", acao: "ajustar" },
+  { role: "administrativo", recurso: "ponto", acao: "espelho_equipe" },
+  { role: "administrativo", recurso: "ponto", acao: "gerir_escalas" },
+  { role: "administrativo", recurso: "ponto", acao: "ajustar" },
 ];
 
 /** Plano de contas inicial. Códigos usados na auto-categorização de pagamentos. */

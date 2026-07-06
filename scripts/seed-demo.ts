@@ -29,7 +29,13 @@ async function limpar() {
   await prisma.rateioHora.deleteMany({});
   await prisma.bancoHorasMensal.deleteMany({});
   await prisma.sessaoTrabalho.deleteMany({});
-  await prisma.escalaTrabalho.deleteMany({});
+  // Ponto v2: batidas + workflow de ajuste + aceites + escalas de usuário
+  // (EscalaRole é catálogo por perfil, preservado como os demais catálogos).
+  await prisma.ajustePonto.deleteMany({});
+  await prisma.espelhoAceite.deleteMany({});
+  await prisma.alertaPontoEnviado.deleteMany({});
+  await prisma.batida.deleteMany({});
+  await prisma.escalaUsuario.deleteMany({});
   await prisma.notaFiscalPJHistorico.deleteMany({});
   await prisma.notaFiscalPJ.deleteMany({});
   await prisma.folhaProjetista.deleteMany({});
@@ -573,8 +579,24 @@ async function main() {
     { u: diego, horas: 6, projs: [0, 1] },
     { u: elis, horas: 4, projs: [2, 5] },
   ];
+  // Ponto v2: escala por usuário (seg–sex ativas com as horas do demo; fds folga).
   for (const e of equipePonto) {
-    await prisma.escalaTrabalho.create({ data: { userId: e.u.id, horasDia: e.horas } });
+    const almoco = e.horas >= 6;
+    const fim = 8 + e.horas + (almoco ? 1 : 0); // entrada 08:00 + jornada (+1h almoço)
+    for (let ds = 1; ds <= 5; ds++) {
+      await prisma.escalaUsuario.create({
+        data: {
+          userId: e.u.id,
+          diaSemana: ds,
+          ativo: true,
+          entrada: "08:00",
+          saida: `${String(fim).padStart(2, "0")}:00`,
+          descansos: almoco ? [{ inicio: "12:00", fim: "13:00" }] : [],
+          horasDia: e.horas,
+          toleranciaMin: 10,
+        },
+      });
+    }
   }
 
   const sessoes: { userId: string; projetoId: string; inicio: Date; fim: Date }[] = [];

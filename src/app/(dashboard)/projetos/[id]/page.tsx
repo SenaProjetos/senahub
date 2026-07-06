@@ -25,7 +25,7 @@ import { AdicionarDoCatalogoButton } from "@/components/projetos/adicionar-do-ca
 import { DisciplinaEditDialog, DisciplinaDeleteButton } from "@/components/projetos/disciplina-edit-dialog";
 import { canalDoProjeto, canaisDasDisciplinas } from "@/modules/chat/queries";
 import { sessaoAberta } from "@/modules/ponto/queries";
-import { CronometroProjeto } from "@/components/ponto/cronometro-projeto";
+import { PontoProjeto } from "@/components/ponto/ponto-projeto";
 
 function fmtData(d: Date | null) {
   return d ? formatarData(d) : null;
@@ -236,9 +236,9 @@ export default async function ProjetoDetalhePage({
         </div>
       )}
 
-      {/* N-29: Cronômetro de sessão de trabalho */}
+      {/* N-29: Ponto por projeto — direciona a jornada aberta a este projeto */}
       {user.role !== "cliente" && (
-        <CronometroProjeto
+        <PontoProjeto
           projetoId={projeto.id}
           sessaoAtiva={sessaoPonto ? { id: sessaoPonto.id, projetoId: sessaoPonto.projetoId, inicio: sessaoPonto.inicio } : null}
         />

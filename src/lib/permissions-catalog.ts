@@ -134,4 +134,14 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
       { acao: "ti", label: "Gerenciar TI (máquinas, peças, manutenção)" },
     ],
   },
+  {
+    recurso: "ponto",
+    label: "Ponto",
+    acoes: [
+      { acao: "rateio", label: "Ver rateio de horas da equipe por projeto" },
+      { acao: "espelho_equipe", label: "Ver espelho de ponto de outros usuários" },
+      { acao: "gerir_escalas", label: "Configurar escalas de trabalho (por perfil e por usuário)" },
+      { acao: "ajustar", label: "Editar batidas de ponto de outros usuários (com ciência)" },
+    ],
+  },
 ];
