@@ -33,19 +33,28 @@ function montarNotificacaoMensagem(
   };
 }
 
+const anexoSchema = z.object({
+  path: z.string().min(1),
+  nome: z.string().min(1),
+  mime: z.string().min(1),
+});
+
 const enviarSchema = z
   .object({
     canalId: z.string().min(1),
     conteudo: z.string().max(4000).default(""),
+    // Legado: 1 anexo por colunas na Mensagem (áudio de gravação ainda usa isso).
     anexoPath: z.string().optional(),
     anexoNome: z.string().optional(),
     anexoMime: z.string().optional(),
+    // Múltiplos anexos (colar/anexar vários) → tabela MensagemAnexo.
+    anexos: z.array(anexoSchema).max(10).optional(),
     respostaAId: z.string().optional(),
   })
-  .refine((v) => v.conteudo.trim().length > 0 || !!v.anexoPath, {
-    message: "Escreva uma mensagem ou anexe um arquivo.",
-    path: ["conteudo"],
-  });
+  .refine(
+    (v) => v.conteudo.trim().length > 0 || !!v.anexoPath || (v.anexos?.length ?? 0) > 0,
+    { message: "Escreva uma mensagem ou anexe um arquivo.", path: ["conteudo"] },
+  );
 
 async function exigirMembro(canalId: string, userId: string) {
   const m = await prisma.canalMembro.findUnique({
@@ -104,9 +113,13 @@ export const enviarMensagem = defineAction(
         anexoNome: i.anexoNome || null,
         anexoMime: i.anexoMime || null,
         respostaAId: i.respostaAId || null,
+        ...(i.anexos && i.anexos.length > 0
+          ? { anexos: { create: i.anexos.map((a, ordem) => ({ ...a, ordem })) } }
+          : {}),
       },
       include: {
         autor: { select: { id: true, name: true, image: true } },
+        anexos: { select: { id: true, nome: true, mime: true }, orderBy: { ordem: "asc" } },
         respostaA: {
           select: { id: true, conteudo: true, excluidaEm: true, autor: { select: { name: true } } },
         },
@@ -123,6 +136,7 @@ export const enviarMensagem = defineAction(
       encaminhada: false,
       anexoMime: msg.anexoMime,
       anexoNome: msg.anexoNome,
+      anexos: msg.anexos,
       autor: { id: msg.autor.id, name: msg.autor.name, image: msg.autor.image },
       createdAt: msg.createdAt,
       reacoes: [] as ReturnType<typeof agregarReacoes>,
@@ -151,7 +165,10 @@ export const encaminharMensagem = defineAction(
     schema: z.object({ mensagemId: z.string().min(1), canalId: z.string().min(1) }),
   },
   async (i, { user }) => {
-    const origem = await prisma.mensagem.findUnique({ where: { id: i.mensagemId } });
+    const origem = await prisma.mensagem.findUnique({
+      where: { id: i.mensagemId },
+      include: { anexos: { orderBy: { ordem: "asc" } } },
+    });
     if (!origem || origem.excluidaEm) throw new ActionError("Mensagem não encontrada.");
 
     // Pode ler a origem? (membro do canal de origem ou perfil global)
@@ -165,17 +182,27 @@ export const encaminharMensagem = defineAction(
     // Precisa participar do destino para encaminhar.
     await exigirMembro(i.canalId, user.id);
 
-    // Copia o anexo para um arquivo próprio (lifecycle independente da origem).
-    let anexoPath: string | null = null;
-    if (origem.anexoPath) {
+    // Copia cada anexo para um arquivo próprio (lifecycle independente da origem).
+    async function copiarAnexo(origPath: string): Promise<string | null> {
       try {
-        const ext = origem.anexoPath.includes(".") ? origem.anexoPath.slice(origem.anexoPath.lastIndexOf(".")) : "";
+        const ext = origPath.includes(".") ? origPath.slice(origPath.lastIndexOf(".")) : "";
         const novo = `chat/${i.canalId}/${randomBytes(12).toString("hex")}${ext}`;
-        await salvarArquivo(novo, await lerArquivo(origem.anexoPath));
-        anexoPath = novo;
+        await salvarArquivo(novo, await lerArquivo(origPath));
+        return novo;
       } catch {
-        anexoPath = null; // se a cópia falhar, encaminha só o texto
+        return null; // se a cópia falhar, ignora este anexo
       }
+    }
+
+    // Mensagem multi-anexo (nova) copia via tabela; mensagem legada copia via colunas.
+    const novosAnexos: { path: string; nome: string; mime: string; ordem: number }[] = [];
+    for (const [idx, a] of origem.anexos.entries()) {
+      const np = await copiarAnexo(a.path);
+      if (np) novosAnexos.push({ path: np, nome: a.nome, mime: a.mime, ordem: idx });
+    }
+    let anexoPath: string | null = null;
+    if (origem.anexos.length === 0 && origem.anexoPath) {
+      anexoPath = await copiarAnexo(origem.anexoPath);
     }
 
     const msg = await prisma.mensagem.create({
@@ -187,8 +214,12 @@ export const encaminharMensagem = defineAction(
         anexoPath,
         anexoNome: anexoPath ? origem.anexoNome : null,
         anexoMime: anexoPath ? origem.anexoMime : null,
+        ...(novosAnexos.length > 0 ? { anexos: { create: novosAnexos } } : {}),
       },
-      include: { autor: { select: { id: true, name: true, image: true } } },
+      include: {
+        autor: { select: { id: true, name: true, image: true } },
+        anexos: { select: { id: true, nome: true, mime: true }, orderBy: { ordem: "asc" } },
+      },
     });
 
     const payload = {
@@ -201,6 +232,7 @@ export const encaminharMensagem = defineAction(
       encaminhada: true,
       anexoMime: msg.anexoMime,
       anexoNome: msg.anexoNome,
+      anexos: msg.anexos,
       autor: { id: msg.autor.id, name: msg.autor.name, image: msg.autor.image },
       createdAt: msg.createdAt,
       reacoes: [] as ReturnType<typeof agregarReacoes>,
@@ -247,7 +279,10 @@ export const excluirMensagem = defineAction(
     schema: z.object({ mensagemId: z.string().min(1) }),
   },
   async (i, { user }) => {
-    const msg = await prisma.mensagem.findUnique({ where: { id: i.mensagemId } });
+    const msg = await prisma.mensagem.findUnique({
+      where: { id: i.mensagemId },
+      include: { anexos: { select: { path: true } } },
+    });
     if (!msg || msg.excluidaEm) throw new ActionError("Mensagem não encontrada.");
     const podeExcluir =
       msg.autorId === user.id || (PODE_MODERAR as readonly string[]).includes(user.role);
@@ -256,8 +291,9 @@ export const excluirMensagem = defineAction(
       where: { id: i.mensagemId },
       data: { excluidaEm: new Date() },
     });
-    // Remove o arquivo do disco ao excluir a mensagem (C5-3).
+    // Remove os arquivos do disco ao excluir a mensagem (C5-3): legado + múltiplos.
     if (msg.anexoPath) void removerArquivo(msg.anexoPath);
+    for (const a of msg.anexos) void removerArquivo(a.path);
     emitParaCanal(msg.canalId, "mensagem-excluida", { id: i.mensagemId, canalId: msg.canalId });
     return { id: i.mensagemId };
   },

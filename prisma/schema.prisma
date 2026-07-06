@@ -1042,29 +1042,46 @@ model CanalMembro {
 }
 
 model Mensagem {
-  id        String   @id @default(cuid())
-  canalId   String
-  canal     Canal    @relation(fields: [canalId], references: [id], onDelete: Cascade)
-  autorId   String
-  autor     User     @relation(fields: [autorId], references: [id])
-  conteudo  String
-  fixada    Boolean  @default(false)
-  encaminhada Boolean @default(false)
-  anexoPath String?
-  anexoNome String?
-  anexoMime String?
-  createdAt   DateTime @default(now())
+  id          String            @id @default(cuid())
+  canalId     String
+  canal       Canal             @relation(fields: [canalId], references: [id], onDelete: Cascade)
+  autorId     String
+  autor       User              @relation(fields: [autorId], references: [id])
+  conteudo    String
+  fixada      Boolean           @default(false)
+  encaminhada Boolean           @default(false)
+  anexoPath   String?
+  anexoNome   String?
+  anexoMime   String?
+  createdAt   DateTime          @default(now())
   editedAt    DateTime?
   excluidaEm  DateTime?
   respostaAId String?
-  respostaA   Mensagem?          @relation("MensagemResposta", fields: [respostaAId], references: [id], onDelete: SetNull)
-  respostas   Mensagem[]         @relation("MensagemResposta")
+  respostaA   Mensagem?         @relation("MensagemResposta", fields: [respostaAId], references: [id], onDelete: SetNull)
+  respostas   Mensagem[]        @relation("MensagemResposta")
   leituras    MensagemLeitura[]
   reacoes     MensagemReacao[]
+  anexos      MensagemAnexo[]
 
   @@index([canalId, createdAt])
   @@index([respostaAId])
   @@map("mensagem")
+}
+
+/// Anexo de mensagem de chat — permite múltiplos arquivos por mensagem (colar/anexar vários).
+/// As colunas legadas anexoPath/Nome/Mime em Mensagem seguem para mensagens antigas (fallback).
+model MensagemAnexo {
+  id         String   @id @default(cuid())
+  mensagemId String
+  mensagem   Mensagem @relation(fields: [mensagemId], references: [id], onDelete: Cascade)
+  path       String
+  nome       String
+  mime       String
+  ordem      Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([mensagemId])
+  @@map("mensagem_anexo")
 }
 
 /// Confirmação de leitura de uma mensagem por um usuário (E6).

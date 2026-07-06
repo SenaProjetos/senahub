@@ -225,6 +225,7 @@ export async function mensagensCanal(
     ...(opts.antesDe ? { cursor: { id: opts.antesDe }, skip: 1 } : {}),
     include: {
       autor: { select: { id: true, name: true, image: true } },
+      anexos: { select: { id: true, nome: true, mime: true }, orderBy: { ordem: "asc" } },
       reacoes: { select: { emoji: true, userId: true, user: { select: { name: true } } } },
       respostaA: {
         select: {
