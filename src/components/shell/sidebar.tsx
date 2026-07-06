@@ -6,6 +6,7 @@ import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SidebarNav } from "@/components/shell/sidebar-nav";
+import { APP_VERSION, VERSION_LABEL } from "@/lib/version";
 import type { Role } from "@/lib/roles";
 
 const COLLAPSED_KEY = "senahub:sidebar-collapsed";
@@ -72,6 +73,19 @@ export function Sidebar({ role }: { role: Role }) {
             </>
           )}
         </Button>
+        {!collapsed && (
+          <p
+            className="mt-1 px-2 text-center text-[10px] tracking-wide text-muted-foreground/70 select-all"
+            title={VERSION_LABEL}
+          >
+            {VERSION_LABEL}
+          </p>
+        )}
+        {collapsed && (
+          <span className="sr-only" title={VERSION_LABEL}>
+            {APP_VERSION}
+          </span>
+        )}
       </div>
     </aside>
   );

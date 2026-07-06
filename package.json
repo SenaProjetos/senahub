@@ -1,6 +1,6 @@
 {
   "name": "senahub",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
@@ -20,6 +20,10 @@
     "smoke:onda4": "tsx --tsconfig tsconfig.server.json scripts/smoke-onda4.ts",
     "smoke:onda5": "tsx --tsconfig tsconfig.server.json scripts/smoke-onda5.ts",
     "smoke:onda3": "tsx --tsconfig tsconfig.server.json scripts/smoke-onda3.ts",
+    "release": "commit-and-tag-version",
+    "release:minor": "commit-and-tag-version --release-as minor",
+    "release:major": "commit-and-tag-version --release-as major",
+    "release:dry": "commit-and-tag-version --dry-run",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -72,6 +76,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/web-push": "^3.6.4",
+    "commit-and-tag-version": "^12.7.3",
     "eslint": "^9",
     "eslint-config-next": "15.5.19",
     "prisma": "^7.8.0",

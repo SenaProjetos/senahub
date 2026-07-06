@@ -1,0 +1,18 @@
+{
+  "header": "# Changelog\n\nTodas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.\n",
+  "types": [
+    { "type": "feat", "section": "✨ Funcionalidades" },
+    { "type": "fix", "section": "🐛 Correções" },
+    { "type": "perf", "section": "⚡ Performance" },
+    { "type": "refactor", "section": "♻️ Refatorações" },
+    { "type": "revert", "section": "⏪ Revertidos" },
+    { "type": "docs", "hidden": true },
+    { "type": "style", "hidden": true },
+    { "type": "chore", "hidden": true },
+    { "type": "test", "hidden": true },
+    { "type": "build", "hidden": true },
+    { "type": "ci", "hidden": true }
+  ],
+  "commitUrlFormat": "{{host}}/{{owner}}/{{repo}}/commit/{{hash}}",
+  "compareUrlFormat": "{{host}}/{{owner}}/{{repo}}/compare/{{previousTag}}...{{currentTag}}"
+}

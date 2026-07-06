@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { smtpConfigurado } from "@/lib/mail";
+import { APP_VERSION, GIT_SHA } from "@/lib/version";
 import fs from "fs";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,8 @@ export async function GET() {
   return NextResponse.json(
     {
       status,
+      versao: APP_VERSION,
+      commit: GIT_SHA || null,
       db: dbStatus,
       storage: storagePath ? (storageOk ? "ok" : "erro") : "não configurado",
       chrome: chromePath ? (chromeOk ? "ok" : "erro") : "não configurado",
