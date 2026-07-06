@@ -9,7 +9,7 @@ import { SolicitacoesCadastro } from "@/components/configuracoes/solicitacoes-ca
 export const metadata: Metadata = { title: "Usuários" };
 
 export default async function UsuariosPage() {
-  await requireRole("admin", "supervisor", "administrativo");
+  const user = await requireRole("admin", "supervisor", "administrativo");
   const [usuarios, clientes, pedidos] = await Promise.all([
     listarUsuarios({ incluirInativos: true }),
     listarClientes({ incluirInativos: false }),
@@ -18,7 +18,12 @@ export default async function UsuariosPage() {
   return (
     <div className="space-y-5">
       <SolicitacoesCadastro pedidos={pedidos} />
-      <UsuariosView usuarios={usuarios} clientes={clientes.map((c) => ({ id: c.id, nome: c.nome }))} />
+      <UsuariosView
+        usuarios={usuarios}
+        clientes={clientes.map((c) => ({ id: c.id, nome: c.nome }))}
+        podeDefinirSocio={user.role === "admin"}
+        podeExcluir={user.role === "admin"}
+      />
     </div>
   );
 }
