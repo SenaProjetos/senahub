@@ -39,7 +39,7 @@ type Fornecedor = {
   catalogo: Servico[];
 };
 type Retirada = { id: string; data: string; valor: number; tipo: string; observacao: string | null };
-type SocioRow = { id: string; nome: string; percentual: number; retiradas: Retirada[] };
+type SocioRow = { id: string; nome: string; ativo: boolean; percentual: number; retiradas: Retirada[] };
 
 export function CadastrosView({
   categorias,

@@ -16,6 +16,7 @@ import {
   Layers,
   Mountain,
   Network,
+  Camera,
   Shapes,
   type LucideIcon,
 } from "lucide-react";
@@ -33,6 +34,7 @@ const ICONE_POR_KEY: Record<DisciplinaKey, LucideIcon> = {
   climatizacao: AirVent,
   terraplenagem: Mountain,
   telecom: Network,
+  seguranca: Camera,
   outra: Shapes,
 };
 

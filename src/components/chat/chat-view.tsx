@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -8,7 +8,7 @@ import {
   Send, Hash, AtSign, Plus, Circle, Paperclip, X, FileText, Smile,
   Check, CheckCheck, ChevronDown, Pin, PinOff, Pencil, Trash2, Reply,
   Bell, BellOff, ExternalLink, Search, Users, Settings2, Briefcase, Eye,
-  ChevronsDownUp, ChevronsUpDown, Mic, Play, Pause, Forward,
+  ChevronsDownUp, ChevronsUpDown, Mic, Play, Pause, Forward, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
@@ -39,6 +39,9 @@ import {
 import type { CanalListItem, ReacaoAgregada } from "@/modules/chat/queries";
 import { cn, formatarDiaMes } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { CATEGORIAS_EMOJI } from "@/lib/emoji-catalogo";
 import {
   Select,
   SelectContent,
@@ -54,21 +57,33 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
+type AnexoMsg = { id: string; nome: string; mime: string };
 type Msg = {
   id: string;
   conteudo: string;
   anexoMime?: string | null;
   anexoNome?: string | null;
+  anexos?: AnexoMsg[];
   fixada?: boolean;
   encaminhada?: boolean;
   editedAt?: string | Date | null;
   excluidaEm?: string | Date | null;
-  autor: { id: string; name: string };
+  autor: { id: string; name: string; image?: string | null };
   createdAt: string | Date;
   leituras?: { userId: string; user: { name: string } }[];
   reacoes?: ReacaoAgregada[];
   respostaA?: { id: string; conteudo: string | null; autor: { name: string } } | null;
 };
+
+/** Item 31 (beta): iniciais para o avatar do autor no chat, quando não há foto. */
+function iniciaisAutor(nome: string): string {
+  return nome
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]!.toUpperCase())
+    .join("");
+}
 type Fixada = { id: string; conteudo: string; autor: { name: string } };
 type ResultadoBusca = { id: string; canalId: string; conteudo: string; autorNome: string; createdAt: string };
 type Usuario = { id: string; name: string; role: string; chatStatus: string };
@@ -87,8 +102,44 @@ const STATUS_COR: Record<string, string> = {
 
 const SITUACOES_ARQUIVADAS = new Set(["concluido", "arquivado", "cancelado"]);
 
-const EMOJIS = ["👍","🙏","✅","🔥","🎉","😀","😅","😂","🤔","👀","💪","🚀","❤️","👏","🙌","📌","⚠️","✏️","📎","💡","✔️","❌","⏰","📅","💰","📈","🏗️","📐"];
 const EMOJIS_REACAO = ["👍","❤️","😂","😮","😢","🔥","🎉","✅","👏","🙌"];
+
+const MAX_ANEXOS = 10;
+
+/** Timestamp da última mensagem do canal (0 se nunca teve). Aceita string (fetch) ou Date (socket). */
+function tsUltima(c: CanalListItem): number {
+  return c.ultima ? new Date(c.ultima.createdAt).getTime() : 0;
+}
+
+/** Ordena canais: não-lidas primeiro, depois mais recente no topo (recência ao vivo). */
+function cmpCanal(a: CanalListItem, b: CanalListItem): number {
+  const au = a.naoLidas > 0 ? 0 : 1;
+  const bu = b.naoLidas > 0 ? 0 : 1;
+  if (au !== bu) return au - bu;
+  return tsUltima(b) - tsUltima(a);
+}
+
+/** Rótulo de divisor de data na conversa: "Hoje" / "Ontem" / data por extenso (pt-BR). */
+function rotuloDiaConversa(data: string | Date): string {
+  const d = new Date(data);
+  const hoje = new Date();
+  const ymd = (x: Date) => `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`;
+  if (ymd(d) === ymd(hoje)) return "Hoje";
+  const ontem = new Date(hoje);
+  ontem.setDate(hoje.getDate() - 1);
+  if (ymd(d) === ymd(ontem)) return "Ontem";
+  return d.toLocaleDateString("pt-BR", {
+    day: "numeric",
+    month: "long",
+    ...(d.getFullYear() !== hoje.getFullYear() ? { year: "numeric" } : {}),
+  });
+}
+
+/** Lê o estado (aberto/recolhido) de uma categoria persistido em localStorage (default aberto). */
+function lerCategoria(chave: string): boolean {
+  if (typeof window === "undefined") return true;
+  return window.localStorage.getItem(chave) !== "0";
+}
 
 /** Realça @menções no texto da mensagem (suporta acentos via Unicode). */
 function renderConteudo(txt: string) {
@@ -295,6 +346,12 @@ function CanalBtn({
           sel === c.id && "bg-muted",
         )}
       >
+        {/* Indicador de não lidas: ponto colorido à esquerda (visível mesmo com nome longo). */}
+        <span
+          className={cn("size-2 shrink-0 rounded-full", c.naoLidas > 0 ? "bg-primary" : "bg-transparent")}
+          aria-hidden={c.naoLidas === 0}
+          aria-label={c.naoLidas > 0 ? "Mensagens não lidas" : undefined}
+        />
         {c.tipo === "dm" ? (
           <div className="relative shrink-0">
             <AtSign className="size-4 text-muted-foreground" />
@@ -311,7 +368,7 @@ function CanalBtn({
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-1">
-            <span className="truncate font-medium">
+            <span className={cn("truncate", c.naoLidas > 0 ? "font-bold" : "font-medium")}>
               {c.nome}
               {mostrarCodigo && c.projetoCodigo ? (
                 <span className="ml-1 font-mono text-xs text-muted-foreground">{formatarCodigo(c.projetoCodigo)}</span>
@@ -321,7 +378,8 @@ function CanalBtn({
               )}
             </span>
             {c.naoLidas > 0 && (
-              <span className="ml-1 shrink-0 rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">
+              // Some no hover para não colidir com as ações (marcar lido / silenciar).
+              <span className="ml-1 shrink-0 rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground group-hover:invisible">
                 {c.naoLidas}
               </span>
             )}
@@ -333,8 +391,8 @@ function CanalBtn({
           )}
         </div>
       </button>
-      {/* Ações de canal no hover */}
-      <div className="absolute right-1 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 group-hover:flex">
+      {/* Ações de canal no hover (fundo próprio p/ não se misturar com o texto/badge) */}
+      <div className="absolute right-1 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 rounded-md bg-card px-0.5 shadow-sm group-hover:flex">
         {onMarcarLido && (
           <button
             onClick={(e) => { e.stopPropagation(); onMarcarLido(); }}
@@ -383,9 +441,12 @@ export function ChatView({
   const router = useRouter();
   const sp = useSearchParams();
   const { setChatAtivo, refetch: refetchBadge } = useChatBadge();
+  const confirm = useConfirm();
 
   const [canais, setCanais] = useState(canaisIniciais);
-  const [sel, setSel] = useState<string | null>(sp.get("c") ?? canaisIniciais[0]?.id ?? null);
+  // Por padrão nenhuma conversa aberta (só o empty state); `?c=` continua abrindo
+  // um canal específico via deep-link (ex.: botão "Chat" de um projeto).
+  const [sel, setSel] = useState<string | null>(sp.get("c") ?? null);
 
   // Mescla canais que vieram de um router.refresh() (ex.: grupo recém-criado ou
   // sincronização do "Sócios") no estado local, sem perder os updates ao vivo de
@@ -415,14 +476,33 @@ export function ChatView({
   const [texto, setTexto] = useState("");
   const [status, setStatus] = useState(statusInicial);
   const [online, setOnline] = useState<Set<string>>(new Set());
-  const [recolhidos, setRecolhidos] = useState<Set<string>>(new Set());
+  // Ao abrir: projetos vêm recolhidos por padrão, EXCETO os que têm mensagem não lida
+  // em algum subcanal de disciplina (aí abre já mostrando onde há novidade).
+  const [recolhidos, setRecolhidos] = useState<Set<string>>(() => {
+    const todos = new Set<string>();
+    const comUnreadDisc = new Set<string>();
+    for (const c of canaisIniciais) {
+      if (c.tipo !== "projeto" && c.tipo !== "disciplina") continue;
+      const pid = c.projetoId ?? c.id;
+      todos.add(pid);
+      if (c.tipo === "disciplina" && c.naoLidas > 0) comUnreadDisc.add(pid);
+    }
+    return new Set([...todos].filter((pid) => !comUnreadDisc.has(pid)));
+  });
   const [arquivadosAberto, setArquivadosAberto] = useState(false);
   const [observadosAberto, setObservadosAberto] = useState(false);
   // Lista de membros: 0 = todos · 1 = só online · 2 = oculto (só o título).
   const [membrosNivel, setMembrosNivel] = useState(0);
-  const [anexo, setAnexo] = useState<File | null>(null);
+  const [anexos, setAnexos] = useState<File[]>([]);
   const [enviandoAnexo, setEnviandoAnexo] = useState(false);
+  // Lightbox de imagem (modal na mesma janela) — lista de imagens da mensagem + índice atual.
+  const [lightbox, setLightbox] = useState<{ imagens: { src: string; nome: string }[]; atual: number } | null>(null);
+  // Categorias minimizáveis (persistidas em localStorage).
+  const [projetosAberto, setProjetosAberto] = useState(() => lerCategoria("chat-cat-projetos"));
+  const [gruposAberto, setGruposAberto] = useState(() => lerCategoria("chat-cat-grupos"));
+  const [dmsAberto, setDmsAberto] = useState(() => lerCategoria("chat-cat-dms"));
   const [emojiAberto, setEmojiAberto] = useState(false);
+  const [emojiCategoria, setEmojiCategoria] = useState(0);
   // Gravação de áudio (microfone)
   const [gravando, setGravando] = useState(false);
   const [gravSegundos, setGravSegundos] = useState(0);
@@ -433,7 +513,6 @@ export function ChatView({
   // C2 states
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [editTexto, setEditTexto] = useState("");
-  const [deletandoId, setDeletandoId] = useState<string | null>(null);
   const [reactionPickerMsgId, setReactionPickerMsgId] = useState<string | null>(null);
   const [respondendoA, setRespondendoA] = useState<Msg | null>(null);
   const [encaminhandoMsg, setEncaminhandoMsg] = useState<Msg | null>(null);
@@ -495,12 +574,50 @@ export function ChatView({
     }
   }, [texto]);
 
+  // Prévia dos anexos: cria object URLs só para imagens; revoga ao trocar a lista/desmontar.
+  const previewUrls = useMemo(
+    () => anexos.map((f) => (f.type.startsWith("image/") ? URL.createObjectURL(f) : null)),
+    [anexos],
+  );
+  useEffect(() => {
+    return () => previewUrls.forEach((u) => u && URL.revokeObjectURL(u));
+  }, [previewUrls]);
+
+  // Persiste o estado das categorias minimizáveis.
+  useEffect(() => { localStorage.setItem("chat-cat-projetos", projetosAberto ? "1" : "0"); }, [projetosAberto]);
+  useEffect(() => { localStorage.setItem("chat-cat-grupos", gruposAberto ? "1" : "0"); }, [gruposAberto]);
+  useEffect(() => { localStorage.setItem("chat-cat-dms", dmsAberto ? "1" : "0"); }, [dmsAberto]);
+
+  // Adiciona arquivos ao composer (respeitando o teto), sintetizando nome p/ imagem colada sem nome.
+  function adicionarAnexos(novos: File[]) {
+    if (novos.length === 0) return;
+    setAnexos((prev) => {
+      const out = [...prev];
+      for (const f of novos) {
+        if (out.length >= MAX_ANEXOS) {
+          toast.error(`Máximo de ${MAX_ANEXOS} anexos por mensagem.`);
+          break;
+        }
+        const generico = !f.name || f.name === "image.png" || f.name === "blob";
+        if (generico) {
+          const ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg");
+          out.push(new File([f], `imagem-${Date.now()}-${out.length}.${ext}`, { type: f.type }));
+        } else {
+          out.push(f);
+        }
+      }
+      return out;
+    });
+  }
+  function removerAnexo(indice: number) {
+    setAnexos((prev) => prev.filter((_, i) => i !== indice));
+  }
+
   // Carrega mensagens ao trocar de canal + marca lido.
   useEffect(() => {
     if (!sel) return;
     let vivo = true;
     setEditandoId(null);
-    setDeletandoId(null);
     setRespondendoA(null);
     setReactionPickerMsgId(null);
     setPainelFixadasAberto(false);
@@ -555,6 +672,15 @@ export function ChatView({
       if (p.autor.id !== meId && somChat && statusRef.current !== "reuniao" && !silenciado) tocarSom();
       if (p.canalId === selRef.current) {
         setMensagens((m) => [...m, p]);
+        // Reordena a lista ao vivo: atualiza a última mensagem do canal aberto também
+        // (naoLidas fica 0 porque está sendo lido). Sem isso o canal aberto só subia ao sair.
+        setCanais((cs) =>
+          cs.map((c) =>
+            c.id === p.canalId
+              ? { ...c, ultima: { conteudo: p.conteudo, autor: p.autor.name, createdAt: new Date(p.createdAt) } }
+              : c,
+          ),
+        );
         // Debounce: agrupa os recibos de uma rajada num único marcarLido (C4-2).
         pendenteLidoRef.current = p.canalId;
         if (marcarLidoTimerRef.current) clearTimeout(marcarLidoTimerRef.current);
@@ -594,7 +720,21 @@ export function ChatView({
     }
     function onNovoCanal(p: { canalId: string }) {
       s.emit("entrar-canal", p.canalId);
-      router.refresh();
+      // Mescla o canal novo (DM/grupo/adição) vindo do servidor no estado local.
+      // NÃO usa router.refresh(): no chat flutuante os dados vêm de um fetch client,
+      // não de props RSC, então o refresh é no-op e o canal só apareceria após F5.
+      // O fetch de bootstrap reaproveita listarCanais → item completo (nome, membros, status).
+      void fetch("/api/chat/bootstrap")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (!d || !Array.isArray(d.canais)) return;
+          setCanais((prev) => {
+            const existentes = new Set(prev.map((c) => c.id));
+            const novos = (d.canais as CanalListItem[]).filter((c) => !existentes.has(c.id));
+            return novos.length > 0 ? [...prev, ...novos] : prev;
+          });
+        })
+        .catch(() => {});
     }
     function onMensagemEditada(p: { id: string; canalId: string; conteudo: string; editedAt: string }) {
       if (p.canalId !== selRef.current) return;
@@ -859,12 +999,12 @@ export function ChatView({
 
   async function enviar() {
     if (!sel || enviandoAnexo) return;
-    if (!texto.trim() && !anexo) return;
+    if (!texto.trim() && anexos.length === 0) return;
     const conteudo = texto;
-    const arquivo = anexo;
+    const arquivos = anexos;
     const replyId = respondendoA?.id;
     setTexto("");
-    setAnexo(null);
+    setAnexos([]);
     setRespondendoA(null);
     // Para de digitar ao enviar (C5-1)
     if (estaDigitandoRef.current) {
@@ -873,27 +1013,28 @@ export function ChatView({
       getSocket().emit("digitando", { canalId: sel, digitando: false });
     }
 
-    let meta: { anexoPath: string; anexoNome: string; anexoMime: string } | undefined;
-    if (arquivo) {
+    // Sobe cada arquivo e coleta os metadados p/ um único enviarMensagem multi-anexo.
+    let metas: { path: string; nome: string; mime: string }[] | undefined;
+    if (arquivos.length > 0) {
       setEnviandoAnexo(true);
       try {
-        const fd = new FormData();
-        fd.append("canalId", sel);
-        fd.append("file", arquivo);
-        const res = await fetch("/api/chat/anexo", { method: "POST", body: fd });
-        const j = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          toast.error(j.error ?? "Falha ao enviar o anexo.");
-          setEnviandoAnexo(false);
-          return;
+        const enviados: { path: string; nome: string; mime: string }[] = [];
+        for (const arquivo of arquivos) {
+          const fd = new FormData();
+          fd.append("canalId", sel);
+          fd.append("file", arquivo);
+          const res = await fetch("/api/chat/anexo", { method: "POST", body: fd });
+          const j = await res.json().catch(() => ({}));
+          if (!res.ok) { toast.error(j.error ?? "Falha ao enviar o anexo."); return; }
+          enviados.push({ path: j.anexoPath, nome: j.anexoNome, mime: j.anexoMime });
         }
-        meta = j;
+        metas = enviados;
       } finally {
         setEnviandoAnexo(false);
       }
     }
 
-    const r = await enviarMensagem({ canalId: sel, conteudo, respostaAId: replyId, ...meta });
+    const r = await enviarMensagem({ canalId: sel, conteudo, respostaAId: replyId, anexos: metas });
     if (!r.ok) toast.error(r.error);
   }
 
@@ -904,10 +1045,18 @@ export function ChatView({
     else toast.error(r.error);
   }
 
+  // Item 30 (beta): confirmação em modal — antes ficava sob o mesmo hover que abre a
+  // barra de ações, então mover o mouse escondia o "Sim/Não" antes de dar tempo de clicar.
   async function confirmarExclusao(msgId: string) {
+    const ok = await confirm({
+      title: "Excluir mensagem?",
+      description: "A mensagem será substituída por \"[Mensagem removida]\" para todos no canal.",
+      confirmLabel: "Excluir",
+      variant: "destructive",
+    });
+    if (!ok) return;
     const r = await excluirMensagem({ mensagemId: msgId });
     if (!r.ok) toast.error(r.error);
-    setDeletandoId(null);
   }
 
   async function toggleReacao(msgId: string, emoji: string) {
@@ -967,10 +1116,37 @@ export function ChatView({
 
   async function novaDM(usuarioId: string) {
     const r = await abrirDM({ usuarioId });
-    if (r.ok) {
-      router.refresh();
-      setSel(r.data.canalId);
-    } else toast.error(r.error);
+    if (!r.ok) { toast.error(r.error); return; }
+    const canalId = r.data.canalId;
+    // Insere o canal localmente na hora — não depende de router.refresh() (que é no-op
+    // no chat flutuante, cujos dados vêm de um fetch client, não de props RSC). Assim a
+    // conversa abre sem F5. O merge effect dedup se o refresh trouxer o mesmo canal.
+    setCanais((cs) => {
+      if (cs.some((c) => c.id === canalId)) return cs;
+      const u = usuarios.find((x) => x.id === usuarioId);
+      const novo: CanalListItem = {
+        id: canalId,
+        tipo: "dm",
+        nome: u?.name ?? "Conversa",
+        icone: null,
+        imagemCapa: null,
+        criadoPorId: null,
+        grupoMembros: null,
+        projetoId: null,
+        projetoCodigo: null,
+        projetoSituacao: null,
+        disciplinaId: null,
+        outroUserId: usuarioId,
+        outroUserStatus: (u?.chatStatus ?? null) as CanalListItem["outroUserStatus"],
+        ultima: null,
+        naoLidas: 0,
+        silenciado: false,
+        observador: false,
+      };
+      return [...cs, novo];
+    });
+    router.refresh();
+    setSel(canalId);
   }
 
   // C5-2: handlers de grupo ad-hoc
@@ -1046,12 +1222,16 @@ export function ChatView({
     });
   }
 
-  const gerais = canais.filter((c) => c.tipo === "geral" && !c.observador);
-  const socios = canais.filter((c) => c.tipo === "socios" && !c.observador);
-  const grupos = canais.filter((c) => c.tipo === "grupo" && !c.observador);
-  const dms = canais.filter((c) => c.tipo === "dm" && !c.observador);
+  // Ordenação por recência ao vivo (não-lidas primeiro, depois mais recente no topo — cmpCanal).
+  const gerais = canais.filter((c) => c.tipo === "geral" && !c.observador).sort(cmpCanal);
+  // Item beta #7: admin/supervisor não-sócio vê "Sócios" na lista principal (moderação
+  // continua só-leitura — envio é barrado no servidor por `exigirMembro`, não por aqui).
+  const socios = canais.filter((c) => c.tipo === "socios").sort(cmpCanal);
+  const grupos = canais.filter((c) => c.tipo === "grupo" && !c.observador).sort(cmpCanal);
+  const dms = canais.filter((c) => c.tipo === "dm" && !c.observador).sort(cmpCanal);
   // Admin/supervisor: canais que observa (não participa) — somente leitura.
-  const observados = canais.filter((c) => c.observador);
+  // "Sócios" já entrou na seção própria acima, não duplica aqui.
+  const observados = canais.filter((c) => c.observador && c.tipo !== "socios");
 
   // C5-5: reseta o índice de menção quando as opções mudam de quantidade
   useEffect(() => { setMencaoIndice(-1); }, [mencaoOpcoes.length]);
@@ -1084,22 +1264,48 @@ export function ChatView({
     mapa.set(pid, g);
   }
 
+  // Ordena grupos de projeto por recência ao vivo (não-lidas primeiro), como os demais canais.
+  function tsGrupo(g: ProjetoGrupo): number {
+    let t = g.principal ? tsUltima(g.principal) : 0;
+    for (const s of g.subs) t = Math.max(t, tsUltima(s));
+    return t;
+  }
+  function cmpGrupo(a: [string, ProjetoGrupo], b: [string, ProjetoGrupo]): number {
+    const au = a[1].naoLidas > 0 ? 0 : 1;
+    const bu = b[1].naoLidas > 0 ? 0 : 1;
+    if (au !== bu) return au - bu;
+    return tsGrupo(b[1]) - tsGrupo(a[1]);
+  }
+  const projetosAtivosOrd = [...projetosAtivos.entries()].sort(cmpGrupo);
+  const projetosArquivadosOrd = [...projetosArquivados.entries()].sort(cmpGrupo);
+  const projetosNaoLidas = [...projetosAtivos.values(), ...projetosArquivados.values()].reduce((s, g) => s + g.naoLidas, 0);
+  const gruposNaoLidas = grupos.reduce((s, c) => s + c.naoLidas, 0);
+  const dmsNaoLidas = dms.reduce((s, c) => s + c.naoLidas, 0);
+
   // Expandir/recolher todos os grupos de projeto (e seções colapsáveis).
   const idsProjetos = [...projetosAtivos.keys(), ...projetosArquivados.keys()];
   const tudoRecolhido =
-    idsProjetos.length > 0 &&
     idsProjetos.every((id) => recolhidos.has(id)) &&
     !arquivadosAberto &&
-    (observados.length === 0 || !observadosAberto);
+    (observados.length === 0 || !observadosAberto) &&
+    !projetosAberto &&
+    !gruposAberto &&
+    !dmsAberto;
   function alternarTudo() {
     if (tudoRecolhido) {
       setRecolhidos(new Set());
       setArquivadosAberto(true);
       setObservadosAberto(true);
+      setProjetosAberto(true);
+      setGruposAberto(true);
+      setDmsAberto(true);
     } else {
       setRecolhidos(new Set(idsProjetos));
       setArquivadosAberto(false);
       setObservadosAberto(false);
+      setProjetosAberto(false);
+      setGruposAberto(false);
+      setDmsAberto(false);
     }
   }
 
@@ -1114,6 +1320,9 @@ export function ChatView({
 
   function renderProjetoGrupo(pid: string, g: ProjetoGrupo) {
     const recolhido = recolhidos.has(pid);
+    // Diferencia a origem das não lidas: canal principal do projeto × subcanais de disciplina.
+    const naoLidasPrincipal = g.principal?.naoLidas ?? 0;
+    const naoLidasSubs = g.subs.reduce((s, c) => s + c.naoLidas, 0);
     return (
       <div key={pid}>
         <div className="flex items-center border-b bg-muted/30">
@@ -1135,14 +1344,29 @@ export function ChatView({
             {g.principal?.nome && g.codigo && (
               <span className="truncate text-xs text-muted-foreground">· {g.principal.nome}</span>
             )}
-            {g.naoLidas > 0 && (
-              <span className="ml-auto shrink-0 rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">
-                {g.naoLidas}
-              </span>
-            )}
+            <span className="ml-auto flex shrink-0 items-center gap-1">
+              {/* Preenchido = não lidas no canal PRINCIPAL do projeto. */}
+              {naoLidasPrincipal > 0 && (
+                <span
+                  title="Não lidas no canal do projeto"
+                  className="rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground"
+                >
+                  {naoLidasPrincipal}
+                </span>
+              )}
+              {/* Contornado = não lidas em subcanais de DISCIPLINA. */}
+              {naoLidasSubs > 0 && (
+                <span
+                  title="Não lidas em disciplinas"
+                  className="rounded-full border border-primary bg-transparent px-1.5 text-[10px] font-medium text-primary"
+                >
+                  {naoLidasSubs}
+                </span>
+              )}
+            </span>
           </button>
         </div>
-        {!recolhido && g.subs.map((c) => (
+        {!recolhido && g.subs.slice().sort(cmpCanal).map((c) => (
           <CanalBtn
             key={c.id}
             c={c}
@@ -1311,36 +1535,61 @@ export function ChatView({
             />
           ))}
 
-          {[...projetosAtivos.entries()].map(([pid, g]) => renderProjetoGrupo(pid, g))}
-
-          {/* C3-4: Arquivados */}
-          {projetosArquivados.size > 0 && (
-            <div>
+          {/* Categoria: Projetos (minimizável) — engloba projetos ativos + arquivados. */}
+          {(projetosAtivos.size > 0 || projetosArquivados.size > 0) && (
+            <>
               <button
-                onClick={() => setArquivadosAberto((v) => !v)}
-                className="flex w-full items-center gap-1.5 border-b bg-muted/20 px-2.5 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setProjetosAberto((v) => !v)}
+                className="flex w-full items-center gap-1.5 border-b bg-muted/10 px-2.5 py-1.5 text-left hover:bg-muted/30"
               >
-                <ChevronDown className={cn("size-3.5 transition-transform", !arquivadosAberto && "-rotate-90")} />
-                Arquivados ({projetosArquivados.size})
+                <ChevronDown className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", !projetosAberto && "-rotate-90")} />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Projetos</span>
+                {projetosNaoLidas > 0 && (
+                  <span className="ml-auto shrink-0 rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">{projetosNaoLidas}</span>
+                )}
               </button>
-              {arquivadosAberto && [...projetosArquivados.entries()].map(([pid, g]) => renderProjetoGrupo(pid, g))}
-            </div>
+              {projetosAberto && (
+                <>
+                  {projetosAtivosOrd.map(([pid, g]) => renderProjetoGrupo(pid, g))}
+                  {/* C3-4: Arquivados (dentro da categoria Projetos) */}
+                  {projetosArquivados.size > 0 && (
+                    <div>
+                      <button
+                        onClick={() => setArquivadosAberto((v) => !v)}
+                        className="flex w-full items-center gap-1.5 border-b bg-muted/20 px-2.5 py-1.5 pl-6 text-left text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        <ChevronDown className={cn("size-3.5 transition-transform", !arquivadosAberto && "-rotate-90")} />
+                        Arquivados ({projetosArquivados.size})
+                      </button>
+                      {arquivadosAberto && projetosArquivadosOrd.map(([pid, g]) => renderProjetoGrupo(pid, g))}
+                    </div>
+                  )}
+                </>
+              )}
+            </>
           )}
 
-          {/* C5-2: canais de grupo ad-hoc */}
-          <div className="flex items-center justify-between border-b bg-muted/10 px-2.5 py-1">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Grupos
-            </p>
+          {/* Categoria: Grupos ad-hoc (minimizável) */}
+          <div className="flex items-center border-b bg-muted/10">
+            <button
+              onClick={() => setGruposAberto((v) => !v)}
+              className="flex flex-1 items-center gap-1.5 px-2.5 py-1.5 text-left hover:bg-muted/30"
+            >
+              <ChevronDown className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", !gruposAberto && "-rotate-90")} />
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Grupos</span>
+              {gruposNaoLidas > 0 && (
+                <span className="ml-auto shrink-0 rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">{gruposNaoLidas}</span>
+              )}
+            </button>
             <button
               onClick={() => setCriarGrupoAberto(true)}
               title="Criar grupo"
-              className="rounded-sm p-0.5 hover:bg-muted"
+              className="mr-1 rounded-sm p-0.5 hover:bg-muted"
             >
               <Plus className="size-3 text-muted-foreground" />
             </button>
           </div>
-          {grupos.map((c) => (
+          {gruposAberto && grupos.map((c) => (
             <CanalBtn
               key={c.id}
               c={c}
@@ -1352,23 +1601,33 @@ export function ChatView({
             />
           ))}
 
+          {/* Categoria: Mensagens diretas (minimizável) */}
           {dms.length > 0 && (
-            <p className="border-b px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Mensagens diretas
-            </p>
+            <>
+              <button
+                onClick={() => setDmsAberto((v) => !v)}
+                className="flex w-full items-center gap-1.5 border-b bg-muted/10 px-2.5 py-1.5 text-left hover:bg-muted/30"
+              >
+                <ChevronDown className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", !dmsAberto && "-rotate-90")} />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Mensagens diretas</span>
+                {dmsNaoLidas > 0 && (
+                  <span className="ml-auto shrink-0 rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">{dmsNaoLidas}</span>
+                )}
+              </button>
+              {dmsAberto && dms.map((c) => (
+                <CanalBtn
+                  key={c.id}
+                  c={c}
+                  sel={sel}
+                  onSelect={setSel}
+                  isSilenciado={silenciados.has(c.id)}
+                  statusAtual={c.outroUserId ? (statusUsuarios.get(c.outroUserId) ?? c.outroUserStatus ?? undefined) : undefined}
+                  onSilenciar={() => toggleSilenciar(c.id)}
+                  onMarcarLido={() => marcarTudoLidoCanal(c.id)}
+                />
+              ))}
+            </>
           )}
-          {dms.map((c) => (
-            <CanalBtn
-              key={c.id}
-              c={c}
-              sel={sel}
-              onSelect={setSel}
-              isSilenciado={silenciados.has(c.id)}
-              statusAtual={c.outroUserId ? (statusUsuarios.get(c.outroUserId) ?? c.outroUserStatus ?? undefined) : undefined}
-              onSilenciar={() => toggleSilenciar(c.id)}
-              onMarcarLido={() => marcarTudoLidoCanal(c.id)}
-            />
-          ))}
 
           {/* Admin/supervisor: canais observados (somente leitura) */}
           {observados.length > 0 && (
@@ -1510,29 +1769,51 @@ export function ChatView({
                   Início da conversa
                 </p>
               )}
-              {mensagens.map((m) => {
+              {mensagens.map((m, idx) => {
                 const meu = m.autor.id === meId;
                 const excluida = !!m.excluidaEm;
                 const editando = editandoId === m.id;
-                const deletando = deletandoId === m.id;
                 const podeAgir = podeModerarMsg(m);
+                // Divisor de data (estilo WhatsApp): mostra quando muda o dia em relação à anterior.
+                const anterior = idx > 0 ? mensagens[idx - 1] : null;
+                const mostrarData =
+                  !anterior ||
+                  new Date(anterior.createdAt).toDateString() !== new Date(m.createdAt).toDateString();
 
                 return (
+                  <Fragment key={m.id}>
+                  {mostrarData && (
+                    <div className="flex justify-center py-2">
+                      <span className="rounded-full bg-muted px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                        {rotuloDiaConversa(m.createdAt)}
+                      </span>
+                    </div>
+                  )}
                   <div
-                    key={m.id}
                     id={`msg-${m.id}`}
                     className={cn(
-                      "group flex rounded-md transition-colors",
+                      "group flex items-end gap-2 rounded-md transition-colors",
                       meu ? "justify-end" : "justify-start",
                       destaqueId === m.id && "bg-primary/10 ring-1 ring-primary/30",
                     )}
                   >
+                    {!meu && (
+                      // base-ui Avatar.Image com src vazio fica "carregando" e NUNCA cai no
+                      // Fallback — então só renderiza a <img> quando há foto (padrão do app);
+                      // sem foto, aparecem as iniciais.
+                      <Avatar size="sm" className="mb-0.5 shrink-0">
+                        {m.autor.image && <AvatarImage src={m.autor.image} alt={m.autor.name} />}
+                        <AvatarFallback>{iniciaisAutor(m.autor.name)}</AvatarFallback>
+                      </Avatar>
+                    )}
                     <div className="relative max-w-[75%]">
                     {/* Barra de ações (hover) — flutua ancorada ao balão */}
                     {!excluida && !editando && (
                       <div className={cn(
                         "absolute -bottom-3 z-10 flex items-center gap-0.5 rounded-md border bg-popover px-0.5 py-0.5 opacity-0 shadow-sm transition-opacity group-hover:opacity-100",
-                        meu ? "left-1" : "right-1",
+                        // Ancora pelo lado que a bolha já encosta — cresce para o lado com espaço,
+                        // nunca ultrapassando a margem oposta (mensagem própria é curta e fica à direita).
+                        meu ? "right-1" : "left-1",
                       )}>
                         <button
                           title="Responder"
@@ -1594,7 +1875,7 @@ export function ChatView({
                             </button>
                             <button
                               title="Excluir"
-                              onClick={() => setDeletandoId(m.id)}
+                              onClick={() => void confirmarExclusao(m.id)}
                               className="rounded-sm p-1 hover:bg-muted"
                             >
                               <Trash2 className="size-3.5 text-muted-foreground" />
@@ -1661,54 +1942,18 @@ export function ChatView({
                         </div>
                       ) : (
                         <>
-                          {m.anexoMime && (
-                            m.anexoMime.startsWith("image/") ? (
-                              <a href={`/api/chat/anexo/${m.id}`} target="_blank" rel="noreferrer">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={`/api/chat/anexo/${m.id}`}
-                                  alt={m.anexoNome ?? "anexo"}
-                                  className="mb-1 max-h-48 rounded-sm border border-current/10 object-cover"
-                                />
-                              </a>
-                            ) : m.anexoMime.startsWith("audio/") ? (
-                              <AudioPlayer src={`/api/chat/anexo/${m.id}`} autorId={m.autor.id} />
-                            ) : (
-                              <a
-                                href={`/api/chat/anexo/${m.id}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="mb-1 flex items-center gap-1.5 rounded-sm bg-background/20 px-2 py-1 text-xs underline-offset-2 hover:underline"
-                              >
-                                <FileText className="size-3.5 shrink-0" />
-                                <span className="truncate">{m.anexoNome ?? "Arquivo"}</span>
-                              </a>
-                            )
-                          )}
+                          <AnexosMensagem
+                            m={m}
+                            onAbrirImagem={(imagens, indice) => setLightbox({ imagens, atual: indice })}
+                          />
                           {m.conteudo && (
                             <p className="whitespace-pre-wrap break-words">{renderConteudo(m.conteudo)}</p>
                           )}
                         </>
                       )}
 
-                      {/* Rodapé: horário + editada + recibos + confirm delete */}
+                      {/* Rodapé: horário + editada + recibos */}
                       <div className="mt-0.5 flex flex-wrap items-center justify-between gap-1">
-                        <div className="flex items-center gap-1">
-                          {deletando && !excluida ? (
-                            <span className="flex items-center gap-1 text-[10px]">
-                              <span className="text-destructive font-medium">Excluir?</span>
-                              <button
-                                onClick={() => void confirmarExclusao(m.id)}
-                                className="font-semibold text-destructive hover:underline"
-                              >Sim</button>
-                              <span>/</span>
-                              <button
-                                onClick={() => setDeletandoId(null)}
-                                className="hover:underline opacity-70"
-                              >Não</button>
-                            </span>
-                          ) : null}
-                        </div>
                         <p className="flex items-center gap-1 text-[10px] opacity-60 ml-auto">
                           {m.editedAt && !excluida && (
                             <span className="italic">(editada)</span>
@@ -1756,6 +2001,7 @@ export function ChatView({
                     </div>
                     </div>
                   </div>
+                  </Fragment>
                 );
               })}
               {digitandoUsuarios.size > 0 && (
@@ -1787,13 +2033,33 @@ export function ChatView({
                 </div>
               )}
 
-              {anexo && (
-                <div className="mb-2 flex items-center gap-2 rounded-sm border bg-muted/40 px-2 py-1 text-xs">
-                  <Paperclip className="size-3 shrink-0" />
-                  <span className="flex-1 truncate">{anexo.name}</span>
-                  <button type="button" onClick={() => setAnexo(null)} aria-label="Remover anexo">
-                    <X className="size-3.5 text-muted-foreground hover:text-foreground" />
-                  </button>
+              {anexos.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {anexos.map((f, i) => (
+                    <div key={`${f.name}-${i}`} className="relative">
+                      {previewUrls[i] ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={previewUrls[i]!}
+                          alt={f.name}
+                          className="size-16 rounded-sm border object-cover"
+                        />
+                      ) : (
+                        <div className="flex size-16 flex-col items-center justify-center gap-1 rounded-sm border bg-muted/40 p-1 text-center">
+                          <FileText className="size-5 shrink-0 text-muted-foreground" />
+                          <span className="line-clamp-2 text-[9px] leading-tight text-muted-foreground">{f.name}</span>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removerAnexo(i)}
+                        aria-label={`Remover ${f.name}`}
+                        className="absolute -right-1.5 -top-1.5 rounded-full border bg-background p-0.5 shadow-sm hover:bg-muted"
+                      >
+                        <X className="size-3 text-muted-foreground hover:text-foreground" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
               {mencaoOpcoes.length > 0 && (
@@ -1821,21 +2087,39 @@ export function ChatView({
                 </div>
               )}
               {emojiAberto && (
-                <div className="absolute bottom-full left-2 z-10 mb-1 grid w-64 grid-cols-8 gap-1 rounded-sm border bg-popover p-2 shadow-md">
-                  {EMOJIS.map((e) => (
-                    <button
-                      key={e}
-                      type="button"
-                      onClick={() => {
-                        setTexto((t) => t + e);
-                        setEmojiAberto(false);
-                        textareaRef.current?.focus();
-                      }}
-                      className="rounded-sm p-1 text-lg hover:bg-muted"
-                    >
-                      {e}
-                    </button>
-                  ))}
+                <div className="absolute bottom-full left-2 z-10 mb-1 w-72 rounded-sm border bg-popover shadow-md">
+                  {/* Item 32 (beta): catálogo completo por categoria (antes eram 28 emojis fixos). */}
+                  <div className="flex gap-0.5 overflow-x-auto border-b p-1">
+                    {CATEGORIAS_EMOJI.map((c, i) => (
+                      <button
+                        key={c.titulo}
+                        type="button"
+                        title={c.titulo}
+                        onClick={() => setEmojiCategoria(i)}
+                        className={cn(
+                          "shrink-0 rounded-sm px-1.5 py-1 text-base hover:bg-muted",
+                          emojiCategoria === i && "bg-muted",
+                        )}
+                      >
+                        {c.emojis[0]}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="grid max-h-56 grid-cols-8 gap-0.5 overflow-y-auto p-2">
+                    {CATEGORIAS_EMOJI[emojiCategoria].emojis.map((e, i) => (
+                      <button
+                        key={`${e}-${i}`}
+                        type="button"
+                        onClick={() => {
+                          setTexto((t) => t + e);
+                          textareaRef.current?.focus();
+                        }}
+                        className="rounded-sm p-1 text-lg hover:bg-muted"
+                      >
+                        {e}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
               {gravando ? (
@@ -1859,8 +2143,9 @@ export function ChatView({
                   ref={anexoRef}
                   type="file"
                   hidden
+                  multiple
                   onChange={(e) => {
-                    setAnexo(e.target.files?.[0] ?? null);
+                    adicionarAnexos(Array.from(e.target.files ?? []));
                     e.target.value = "";
                   }}
                 />
@@ -1870,7 +2155,7 @@ export function ChatView({
                 <Button size="icon" variant="ghost" onClick={() => setEmojiAberto((v) => !v)} aria-label="Emoji">
                   <Smile className="size-4" />
                 </Button>
-                {!anexo && (
+                {anexos.length === 0 && (
                   <Button size="icon" variant="ghost" onClick={iniciarGravacao} aria-label="Gravar áudio">
                     <Mic className="size-4" />
                   </Button>
@@ -1899,6 +2184,14 @@ export function ChatView({
                         }
                         if (digitandoTimerRef.current) { clearTimeout(digitandoTimerRef.current); digitandoTimerRef.current = null; }
                       }
+                    }
+                  }}
+                  onPaste={(e) => {
+                    // Colar (Ctrl+V) imagens/arquivos da área de transferência → vira anexo.
+                    const arquivos = Array.from(e.clipboardData.files);
+                    if (arquivos.length > 0) {
+                      e.preventDefault();
+                      adicionarAnexos(arquivos);
                     }
                   }}
                   onKeyDown={(e) => {
@@ -1947,6 +2240,183 @@ export function ChatView({
           </div>
         )}
       </div>
+
+      {lightbox && (
+        <ImageLightbox
+          imagens={lightbox.imagens}
+          atual={lightbox.atual}
+          onFechar={() => setLightbox(null)}
+          onNavegar={(i) => setLightbox((lb) => (lb ? { ...lb, atual: i } : lb))}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Renderiza os anexos de uma mensagem: galeria (múltiplos) ou fallback legado (1 anexo). */
+function AnexosMensagem({
+  m,
+  onAbrirImagem,
+}: {
+  m: Msg;
+  onAbrirImagem: (imagens: { src: string; nome: string }[], idx: number) => void;
+}) {
+  // Modelo novo: múltiplos anexos via tabela.
+  if (m.anexos && m.anexos.length > 0) {
+    const imagens = m.anexos
+      .filter((a) => a.mime.startsWith("image/"))
+      .map((a) => ({ src: `/api/chat/anexo/item/${a.id}`, nome: a.nome }));
+    const soImagens = m.anexos.length > 1 && m.anexos.every((a) => a.mime.startsWith("image/"));
+    if (soImagens) {
+      return (
+        <div className={cn("mb-1 grid gap-1", m.anexos.length === 2 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3")}>
+          {m.anexos.map((a, i) => (
+            <button key={a.id} type="button" onClick={() => onAbrirImagem(imagens, i)} className="block">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`/api/chat/anexo/item/${a.id}`}
+                alt={a.nome}
+                className="aspect-square w-full rounded-sm border border-current/10 object-cover"
+              />
+            </button>
+          ))}
+        </div>
+      );
+    }
+    return (
+      <div className="mb-1 space-y-1">
+        {m.anexos.map((a) => {
+          const src = `/api/chat/anexo/item/${a.id}`;
+          if (a.mime.startsWith("image/")) {
+            const idx = imagens.findIndex((im) => im.src === src);
+            return (
+              <button key={a.id} type="button" onClick={() => onAbrirImagem(imagens, idx)} className="block">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={src} alt={a.nome} className="max-h-48 rounded-sm border border-current/10 object-cover" />
+              </button>
+            );
+          }
+          if (a.mime.startsWith("audio/")) return <AudioPlayer key={a.id} src={src} autorId={m.autor.id} />;
+          return (
+            <a
+              key={a.id}
+              href={src}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 rounded-sm bg-background/20 px-2 py-1 text-xs underline-offset-2 hover:underline"
+            >
+              <FileText className="size-3.5 shrink-0" />
+              <span className="truncate">{a.nome}</span>
+            </a>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Fallback legado: 1 anexo nas colunas da Mensagem (mensagens antigas + áudio de gravação).
+  if (!m.anexoMime) return null;
+  const src = `/api/chat/anexo/${m.id}`;
+  if (m.anexoMime.startsWith("image/")) {
+    return (
+      <button
+        type="button"
+        onClick={() => onAbrirImagem([{ src, nome: m.anexoNome ?? "anexo" }], 0)}
+        className="block"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt={m.anexoNome ?? "anexo"} className="mb-1 max-h-48 rounded-sm border border-current/10 object-cover" />
+      </button>
+    );
+  }
+  if (m.anexoMime.startsWith("audio/")) return <AudioPlayer src={src} autorId={m.autor.id} />;
+  return (
+    <a
+      href={src}
+      target="_blank"
+      rel="noreferrer"
+      className="mb-1 flex items-center gap-1.5 rounded-sm bg-background/20 px-2 py-1 text-xs underline-offset-2 hover:underline"
+    >
+      <FileText className="size-3.5 shrink-0" />
+      <span className="truncate">{m.anexoNome ?? "Arquivo"}</span>
+    </a>
+  );
+}
+
+/** Lightbox: abre a imagem num modal na mesma janela (Esc fecha, ←/→ navegam entre imagens). */
+function ImageLightbox({
+  imagens,
+  atual,
+  onFechar,
+  onNavegar,
+}: {
+  imagens: { src: string; nome: string }[];
+  atual: number;
+  onFechar: () => void;
+  onNavegar: (indice: number) => void;
+}) {
+  const temAnterior = atual > 0;
+  const temProxima = atual < imagens.length - 1;
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onFechar();
+      else if (e.key === "ArrowLeft" && atual > 0) onNavegar(atual - 1);
+      else if (e.key === "ArrowRight" && atual < imagens.length - 1) onNavegar(atual + 1);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [atual, imagens.length, onFechar, onNavegar]);
+
+  const img = imagens[atual];
+  if (!img) return null;
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4"
+      onClick={onFechar}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Visualizar imagem"
+    >
+      <button
+        type="button"
+        onClick={onFechar}
+        aria-label="Fechar"
+        className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+      >
+        <X className="size-5" />
+      </button>
+      {temAnterior && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onNavegar(atual - 1); }}
+          aria-label="Imagem anterior"
+          className="absolute left-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+        >
+          <ChevronLeft className="size-6" />
+        </button>
+      )}
+      {temProxima && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onNavegar(atual + 1); }}
+          aria-label="Próxima imagem"
+          className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+        >
+          <ChevronRight className="size-6" />
+        </button>
+      )}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={img.src}
+        alt={img.nome}
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[90vh] max-w-[90vw] rounded-sm object-contain"
+      />
+      {imagens.length > 1 && (
+        <span className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-xs text-white/80">
+          {atual + 1} / {imagens.length}
+        </span>
+      )}
     </div>
   );
 }

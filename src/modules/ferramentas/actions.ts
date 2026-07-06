@@ -40,7 +40,7 @@ export const salvarCalculo = defineAction(
     acao: "salvar-calculo",
     permissao: "usar",
     entidade: "CalculoFerramenta",
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
     schema: salvarSchema,
   },
   async (i, { user }) => {

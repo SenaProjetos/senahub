@@ -49,7 +49,7 @@ export const excluirBloco = defineAction(
     acao: "excluir-bloco",
     entidade: "BlocoDocumento",
     schema: excluirBlocoSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (i, { user }) => {
     const b = await prisma.blocoDocumento.findUnique({

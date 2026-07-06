@@ -13,12 +13,11 @@ import {
 } from "@/modules/rh/queries";
 import { fechamentosDoMes } from "@/modules/rh/banco/queries";
 import { listarFeedbacks, colaboradoresInternos } from "@/modules/rh/feedback/queries";
-import { prisma } from "@/lib/prisma";
 import { RhAdminView } from "@/components/rh/rh-admin-view";
 import { OnboardingAdmin } from "@/components/rh/onboarding-admin";
 import { NfAdmin } from "@/components/rh/nf-admin";
 import { BancoHorasAdmin } from "@/components/rh/banco-horas-admin";
-import { FeedbackSection, PontoManualSection } from "@/components/rh/rh-extras-admin";
+import { FeedbackSection } from "@/components/rh/rh-extras-admin";
 
 export const metadata: Metadata = { title: "RH — administração" };
 
@@ -29,7 +28,7 @@ export default async function RhAdminPage() {
   const bancoMes = agora.getMonth() === 0 ? 12 : agora.getMonth();
   const bancoAno = agora.getMonth() === 0 ? agora.getFullYear() - 1 : agora.getFullYear();
 
-  const [abonos, ferias, clima, feedbacksHumor, processos, opcoes, nfs, nfsHistorico, fechamentos, feedbacks, colaboradores, projetos] = await Promise.all([
+  const [abonos, ferias, clima, feedbacksHumor, processos, opcoes, nfs, nfsHistorico, fechamentos, feedbacks, colaboradores] = await Promise.all([
     abonosPendentes(),
     feriasPendentes(),
     climaResumo(),
@@ -41,16 +40,13 @@ export default async function RhAdminPage() {
     fechamentosDoMes(bancoAno, bancoMes),
     listarFeedbacks(),
     colaboradoresInternos(),
-    prisma.projeto.findMany({ orderBy: [{ ano: "desc" }, { sequencial: "desc" }], select: { id: true, codigo: true, nome: true } }),
   ]);
-  const projetoOpts = projetos.map((p) => ({ id: p.id, label: `${p.codigo} · ${p.nome}` }));
   return (
     <div className="space-y-6">
       <RhAdminView abonos={abonos} ferias={ferias} clima={clima} feedbacksHumor={feedbacksHumor} />
       <BancoHorasAdmin ano={bancoAno} mes={bancoMes} fechamentos={fechamentos} />
       <div className="grid gap-4 lg:grid-cols-2">
         <FeedbackSection feedbacks={feedbacks} colaboradores={colaboradores} />
-        <PontoManualSection colaboradores={colaboradores} projetos={projetoOpts} />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <OnboardingAdmin

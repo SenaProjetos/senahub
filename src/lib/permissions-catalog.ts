@@ -24,12 +24,21 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     acoes: [
       { acao: "ver", label: "Ver projetos" },
       { acao: "gerir", label: "Criar/editar projetos e disciplinas" },
+      { acao: "historico", label: "Ver o histórico (CDE) de documentos do projeto" },
     ],
   },
   {
     recurso: "uploads",
     label: "Uploads & Validação",
     acoes: [{ acao: "validar", label: "Validar entregas (libera pagamento)" }],
+  },
+  {
+    recurso: "arquivos_gerais",
+    label: "Arquivos gerais do projeto",
+    acoes: [
+      { acao: "ver", label: 'Ver a pasta "Geral" do projeto' },
+      { acao: "gerir", label: 'Adicionar/editar/excluir arquivos gerais' },
+    ],
   },
   {
     recurso: "financeiro",
@@ -123,6 +132,16 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
       { acao: "ver", label: "Ver inventário de ativos" },
       { acao: "gerir", label: "Criar/editar ativos do inventário" },
       { acao: "ti", label: "Gerenciar TI (máquinas, peças, manutenção)" },
+    ],
+  },
+  {
+    recurso: "ponto",
+    label: "Ponto",
+    acoes: [
+      { acao: "rateio", label: "Ver rateio de horas da equipe por projeto" },
+      { acao: "espelho_equipe", label: "Ver espelho de ponto de outros usuários" },
+      { acao: "gerir_escalas", label: "Configurar escalas de trabalho (por perfil e por usuário)" },
+      { acao: "ajustar", label: "Editar batidas de ponto de outros usuários (com ciência)" },
     ],
   },
 ];

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { GLOBAL_ROLES } from "@/lib/roles";
 import { salvarArquivo, slug, nomeArquivoLimpo } from "@/lib/storage";
-import { destinoArquivo, extensao, TAMANHO_MAX, type PacoteAlvo } from "@/modules/uploads/service";
+import { destinoArquivo, extensao, limiteDoPacote, limiteLabelDoPacote, type PacoteAlvo } from "@/modules/uploads/service";
 
 type Resultado = {
   nome: string;
@@ -22,10 +22,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
   }
 
-  const form = await req.formData();
+  // Corpo multipart pode falhar (payload gigante / conexão abortada) — responde JSON, nunca corpo vazio.
+  let form: FormData;
+  try {
+    form = await req.formData();
+  } catch (err) {
+    console.error("[upload] falha ao ler multipart:", err);
+    return NextResponse.json(
+      { error: "Falha ao receber o arquivo — payload muito grande ou conexão interrompida." },
+      { status: 413 },
+    );
+  }
   const disciplinaId = String(form.get("disciplinaId") ?? "");
   const alvo = String(form.get("pacote") ?? "") as PacoteAlvo;
-  if (!disciplinaId || (alvo !== "A" && alvo !== "B")) {
+  if (!disciplinaId || (alvo !== "A" && alvo !== "B" && alvo !== "RECEBIDOS")) {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
   }
 
@@ -52,23 +62,32 @@ export async function POST(req: Request) {
   if (arquivos.length === 0) {
     return NextResponse.json({ error: "Nenhum arquivo enviado." }, { status: 400 });
   }
+  // Renomear no ato do upload: nome desejado por arquivo (mesma ordem de "files"). Vazio = usa file.name.
+  const nomesDesejados = form.getAll("nomes").map((n) => (typeof n === "string" ? n : ""));
 
   const { projeto } = disciplina;
+  // Item 15: nomenclatura usa a sigla do catálogo (ex.: ELE) quando existir; senão, o nome.
+  const cat = await prisma.disciplinaCatalogo.findFirst({
+    where: { nome: disciplina.nome },
+    select: { codigo: true },
+  });
+  const codDisc = cat?.codigo ?? null;
   const baseDir = [
     String(projeto.ano),
     slug(projeto.cliente.nome),
     `${projeto.codigo}_${slug(projeto.nome)}`,
-    slug(disciplina.nome),
+    codDisc ? slug(codDisc) : slug(disciplina.nome),
   ].join("/");
 
   const resultados: Resultado[] = [];
 
   // Processa arquivo a arquivo — uma falha não derruba o lote.
-  for (const file of arquivos) {
-    const nome = nomeArquivoLimpo(file.name);
+  for (let idx = 0; idx < arquivos.length; idx++) {
+    const file = arquivos[idx];
+    const nome = nomeArquivoLimpo((nomesDesejados[idx] ?? "").trim() || file.name);
     try {
-      if (file.size > TAMANHO_MAX) {
-        resultados.push({ nome, ok: false, motivo: "Arquivo excede 500 MB." });
+      if (file.size > limiteDoPacote(alvo)) {
+        resultados.push({ nome, ok: false, motivo: `Arquivo excede ${limiteLabelDoPacote(alvo)}.` });
         continue;
       }
       const destino = destinoArquivo(nome, alvo);
@@ -83,7 +102,9 @@ export async function POST(req: Request) {
 
       const ext = extensao(nome);
       const baseNome = ext ? nome.slice(0, -(ext.length + 1)) : nome;
-      const nomeVersionado = versao > 1 ? `${slug(baseNome)}__v${versao}${ext ? "." + ext : ""}` : `${slug(baseNome)}${ext ? "." + ext : ""}`;
+      // Prefixa o arquivo com a sigla da disciplina (ex.: ELE-planta.dwg) quando houver código.
+      const nomeBase = codDisc ? `${codDisc}-${slug(baseNome)}` : slug(baseNome);
+      const nomeVersionado = versao > 1 ? `${nomeBase}__v${versao}${ext ? "." + ext : ""}` : `${nomeBase}${ext ? "." + ext : ""}`;
       const relativo = `${baseDir}/${destino}/${nomeVersionado}`;
 
       const buffer = Buffer.from(await file.arrayBuffer());

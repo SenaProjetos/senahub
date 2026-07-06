@@ -1,47 +1,58 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { Play, Square, Repeat, Clock, Download, Info, CloudOff, FileSpreadsheet, FileText } from "lucide-react";
+import Link from "next/link";
+import { Clock, Download, Info, FileSpreadsheet, FileText, CalendarClock } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { baterPonto, trocarProjeto, encerrarJornada } from "@/modules/ponto/actions";
 import { fecharRateioMes } from "@/modules/rh/rateio/actions";
-import {
-  contarPendentes,
-  enfileirar,
-  estaOffline,
-  sincronizar,
-  type TipoBatida,
-} from "@/lib/ponto-offline";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { fmtHoras } from "@/modules/ponto/format";
-import { formatarCodigo } from "@/modules/projetos/numbering";
 import { brl, formatarData } from "@/lib/utils";
+import { RegistroPonto, type EstadoDiaProp, type AjustePendenteProp } from "@/components/ponto/registro-view";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
-const NONE = "__none";
 type Projeto = { id: string; codigo: string; nome: string };
 type Espelho = {
   dias: { dia: string; minutos: number; sessoes: { inicio: string | Date; fim: string | Date | null; minutos: number; projeto: string | null }[] }[];
   totalMinutos: number;
   esperadoMinutos: number;
   saldoMinutos: number;
+  /** Esperado por dia (ISO → minutos) — base do filtro por período. */
+  esperadoPorDia: Record<string, number>;
 };
+
+type Periodo = "dia" | "semana" | "mes";
+const PERIODO_LABEL: Record<Periodo, string> = { dia: "hoje", semana: "semana", mes: "mês" };
+
+const isoLocal = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** Intervalo [ini,fim] em ISO do período selecionado (semana = segunda a domingo de hoje). */
+function rangePeriodo(periodo: Periodo, ano: number, mes: number): { ini: string; fim: string } {
+  const hoje = new Date();
+  const hojeIso = isoLocal(hoje);
+  if (periodo === "dia") return { ini: hojeIso, fim: hojeIso };
+  if (periodo === "mes") {
+    const mm = String(mes).padStart(2, "0");
+    const ultimo = new Date(ano, mes, 0).getDate();
+    return { ini: `${ano}-${mm}-01`, fim: `${ano}-${mm}-${String(ultimo).padStart(2, "0")}` };
+  }
+  const dow = (hoje.getDay() + 6) % 7; // 0 = segunda
+  const seg = new Date(hoje);
+  seg.setDate(hoje.getDate() - dow);
+  const dom = new Date(seg);
+  dom.setDate(seg.getDate() + 6);
+  return { ini: isoLocal(seg), fim: isoLocal(dom) };
+}
 
 type EspelhoDia = Espelho["dias"][number];
 type LinhaEspelho = {
@@ -88,25 +99,6 @@ function dataPtBr(iso: string): string {
   });
 }
 
-function Cronometro({ inicio }: { inicio: string | Date }) {
-  const [seg, setSeg] = useState(0);
-  useEffect(() => {
-    const base = new Date(inicio).getTime();
-    const tick = () => setSeg(Math.floor((Date.now() - base) / 1000));
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [inicio]);
-  const h = Math.floor(seg / 3600);
-  const m = Math.floor((seg % 3600) / 60);
-  const s = seg % 60;
-  return (
-    <span className="font-mono text-4xl font-bold tabular-nums">
-      {String(h).padStart(2, "0")}:{String(m).padStart(2, "0")}:{String(s).padStart(2, "0")}
-    </span>
-  );
-}
-
 type Rateio = {
   porProjeto: { projeto: string; minutos: number; custo: number }[];
   semProjeto: number;
@@ -116,25 +108,26 @@ type Rateio = {
 };
 
 export function PontoView({
-  aberta,
+  estadoDia,
   projetos,
   espelho,
   rateio,
   ano,
   mes,
+  pendencias,
 }: {
-  aberta: { inicio: string | Date; projeto: { id: string; codigo: string; nome: string } | null } | null;
+  estadoDia: EstadoDiaProp;
   projetos: Projeto[];
   espelho: Espelho;
   rateio: Rateio | null;
   ano: number;
   mes: number;
+  pendencias: AjustePendenteProp[];
 }) {
   const router = useRouter();
-  const [projetoId, setProjetoId] = useState(aberta?.projeto?.id ?? NONE);
   const [busy, setBusy] = useState(false);
-  const [pendentes, setPendentes] = useState(0);
 
+  /** Ação simples (usada pelo fechamento de rateio) — feedback + refresh. */
   async function acao(fn: () => Promise<{ ok: boolean; error?: string } | { ok: true; data: unknown }>, msg: string) {
     setBusy(true);
     try {
@@ -148,70 +141,20 @@ export function PontoView({
     }
   }
 
-  /**
-   * Bater/trocar/encerrar com suporte offline: se o dispositivo está offline,
-   * enfileira a batida (otimista) sem tentar a rede. Se a action falhar por rede
-   * (Promise rejeita), também enfileira. Erros de aplicação (ok:false) são exibidos.
-   */
-  async function acaoOffline(
-    tipo: TipoBatida,
-    fn: () => Promise<{ ok: boolean; error?: string } | { ok: true; data: unknown }>,
-    payload: { projetoId?: string },
-    msg: string,
-  ) {
-    if (estaOffline()) {
-      enfileirar(tipo, payload);
-      setPendentes(contarPendentes());
-      toast.info("Sem conexão — batida salva e será enviada ao reconectar.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const r = await fn();
-      if (r.ok) {
-        toast.success(msg);
-        router.refresh();
-      } else {
-        toast.error((r as { error: string }).error);
-      }
-    } catch {
-      // Falha de rede no meio do envio — guarda offline para reenviar depois.
-      enfileirar(tipo, payload);
-      setPendentes(contarPendentes());
-      toast.info("Sem conexão — batida salva e será enviada ao reconectar.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  /** Reenvia a fila de batidas pendentes e dá feedback ao usuário. */
-  const sincronizarFila = useCallback(async () => {
-    if (contarPendentes() === 0) return;
-    const { sincronizados, falhas } = await sincronizar({
-      bater: baterPonto,
-      trocar: trocarProjeto,
-      encerrar: encerrarJornada,
-    });
-    setPendentes(contarPendentes());
-    if (sincronizados > 0) {
-      toast.success(`${sincronizados} batida(s) sincronizada(s).`);
-      router.refresh();
-    }
-    for (const f of falhas) toast.error(`Batida offline rejeitada: ${f}`);
-  }, [router]);
-
-  // No mount: reflete pendências e tenta sincronizar. Reage ao voltar a conexão.
-  useEffect(() => {
-    setPendentes(contarPendentes());
-    void sincronizarFila();
-    const onOnline = () => void sincronizarFila();
-    window.addEventListener("online", onOnline);
-    return () => window.removeEventListener("online", onOnline);
-  }, [sincronizarFila]);
-
-  const proj = (id: string) => (id === NONE ? "" : id);
-
   const linhas = gradeDoMes(ano, mes, espelho.dias);
+
+  // Filtro temporal do resumo (dia/semana/mês) — padrão semana.
+  const [periodo, setPeriodo] = useState<Periodo>("semana");
+  const { ini: pIni, fim: pFim } = rangePeriodo(periodo, ano, mes);
+  const hojeIso = isoLocal(new Date());
+  const linhasPeriodo = linhas.filter((l) => l.iso >= pIni && l.iso <= pFim);
+  const trabalhadoPeriodo = linhasPeriodo.reduce((a, l) => a + (l.registro?.minutos ?? 0), 0);
+  // Esperado só conta dias já decorridos (≤ hoje) — evita saldo negativo assustador.
+  const esperadoPeriodo = linhasPeriodo.reduce(
+    (a, l) => a + (l.iso <= hojeIso ? espelho.esperadoPorDia[l.iso] ?? 0 : 0),
+    0,
+  );
+  const saldoPeriodo = trabalhadoPeriodo - esperadoPeriodo;
 
   /** Matriz do espelho (cabeçalho + linhas) compartilhada pelo export CSV e XLSX. */
   function matrizExport(): { cabecalho: string[]; linhasExport: string[][] } {
@@ -287,124 +230,62 @@ export function PontoView({
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-extrabold tracking-tight">Ponto</h2>
-        <p className="text-sm text-muted-foreground">Registre sua jornada e troque de projeto sem perder tempo.</p>
+        <p className="text-sm text-muted-foreground">
+          Registre sua jornada: entrada, descansos e saída. Troque de projeto sem perder tempo.
+        </p>
       </div>
 
-      <Card>
-        <CardContent className="flex flex-col items-center gap-4 py-8">
-          {aberta ? (
-            <>
-              <Cronometro inicio={aberta.inicio} />
-              <p className="text-sm text-muted-foreground">
-                {aberta.projeto ? `Trabalhando em ${aberta.projeto.codigo} · ${aberta.projeto.nome}` : "Sem projeto"}
-              </p>
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                <Select value={projetoId} onValueChange={(v) => setProjetoId(v ?? NONE)}>
-                  <SelectTrigger className="w-64">
-                    <SelectValue placeholder="Trocar para projeto…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NONE}>Sem projeto</SelectItem>
-                    {projetos.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {formatarCodigo(p.codigo)} · {p.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() =>
-                    acaoOffline(
-                      "trocar",
-                      () => trocarProjeto({ projetoId: proj(projetoId) }),
-                      { projetoId: proj(projetoId) },
-                      "Projeto trocado.",
-                    )
-                  }
-                >
-                  <Repeat className="size-4" /> Trocar projeto
-                </Button>
-                <Button
-                  variant="destructive"
-                  disabled={busy}
-                  onClick={() => acaoOffline("encerrar", () => encerrarJornada({}), {}, "Jornada encerrada.")}
-                >
-                  <Square className="size-4" /> Encerrar
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <span className="font-mono text-4xl font-bold text-muted-foreground">00:00:00</span>
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                <Select value={projetoId} onValueChange={(v) => setProjetoId(v ?? NONE)}>
-                  <SelectTrigger className="w-64">
-                    <SelectValue placeholder="Projeto (opcional)…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NONE}>Sem projeto</SelectItem>
-                    {projetos.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {formatarCodigo(p.codigo)} · {p.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  disabled={busy}
-                  onClick={() =>
-                    acaoOffline(
-                      "bater",
-                      () => baterPonto({ projetoId: proj(projetoId) }),
-                      { projetoId: proj(projetoId) },
-                      "Jornada iniciada.",
-                    )
-                  }
-                >
-                  <Play className="size-4" /> Iniciar jornada
-                </Button>
-              </div>
-            </>
-          )}
-          {pendentes > 0 && (
+      <RegistroPonto estadoDia={estadoDia} projetos={projetos} pendencias={pendencias} />
+
+      {/* Filtro temporal do resumo — dia / semana (padrão) / mês. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-muted-foreground">Resumo</h3>
+        <div className="inline-flex rounded-lg border p-0.5" role="group" aria-label="Período do resumo">
+          {(["dia", "semana", "mes"] as Periodo[]).map((p) => (
             <button
+              key={p}
               type="button"
-              onClick={() => void sincronizarFila()}
-              className="inline-flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-600 transition-colors hover:bg-amber-500/20 dark:text-amber-400"
-              title="Toque para tentar sincronizar agora"
+              onClick={() => setPeriodo(p)}
+              aria-pressed={periodo === p}
+              className={`rounded-md px-3 py-1 text-sm font-medium capitalize transition-colors ${
+                periodo === p
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
             >
-              <CloudOff className="size-4" />
-              {pendentes} batida(s) pendente(s) offline · toque para sincronizar
+              {p === "mes" ? "Mês" : p}
             </button>
-          )}
-        </CardContent>
-      </Card>
+          ))}
+        </div>
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">Trabalhado (mês)</CardDescription>
-            <CardTitle className="text-2xl">{fmtHoras(espelho.totalMinutos)}</CardTitle>
+            <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">
+              Trabalhado ({PERIODO_LABEL[periodo]})
+            </CardDescription>
+            <CardTitle className="text-2xl">{fmtHoras(trabalhadoPeriodo)}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">Esperado</CardDescription>
-            <CardTitle className="text-2xl text-muted-foreground">{fmtHoras(espelho.esperadoMinutos)}</CardTitle>
+            <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">
+              Esperado ({PERIODO_LABEL[periodo]})
+            </CardDescription>
+            <CardTitle className="text-2xl text-muted-foreground">{fmtHoras(esperadoPeriodo)}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.16em]">
-              Saldo (banco)
+              Saldo ({PERIODO_LABEL[periodo]})
               <Tooltip>
                 <TooltipTrigger
                   render={
                     <button
                       type="button"
-                      aria-label="Como o banco de horas é calculado"
+                      aria-label="Como o saldo é calculado"
                       className="inline-flex text-muted-foreground hover:text-foreground"
                     >
                       <Info className="size-3" />
@@ -412,13 +293,13 @@ export function PontoView({
                   }
                 />
                 <TooltipContent>
-                  Banco de horas = soma (horas trabalhadas − jornada prevista) de todos os dias.
-                  Negativo = horas a compensar.
+                  Saldo = horas trabalhadas − jornada prevista, contando só os dias já decorridos
+                  (até hoje). Negativo = horas a compensar.
                 </TooltipContent>
               </Tooltip>
             </CardDescription>
-            <CardTitle className={`text-2xl ${espelho.saldoMinutos < 0 ? "text-destructive" : "text-success"}`}>
-              {fmtHoras(espelho.saldoMinutos)}
+            <CardTitle className={`text-2xl ${saldoPeriodo < 0 ? "text-destructive" : "text-success"}`}>
+              {fmtHoras(saldoPeriodo)}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -427,7 +308,13 @@ export function PontoView({
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle className="text-base">Espelho do mês</CardTitle>
+            <CardTitle className="text-base">
+              Espelho {periodo === "dia" ? "do dia" : periodo === "semana" ? "da semana" : "do mês"}
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" render={<Link href="/ponto/espelho" />}>
+                <CalendarClock className="size-4" /> Espelho detalhado
+              </Button>
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={
@@ -445,11 +332,12 @@ export function PontoView({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
           <ul className="divide-y text-sm">
-            {linhas.map((l) => {
+            {linhasPeriodo.map((l) => {
               const r = l.registro;
               return (
                 <li

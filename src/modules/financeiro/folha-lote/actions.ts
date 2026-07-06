@@ -60,7 +60,7 @@ export const pagarFolhaProjetista = defineAction(
       formaId: z.string().optional().or(z.literal("")),
       data: z.string().optional().or(z.literal("")),
     }),
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (i, { user }) => {
     const folha = await prisma.folhaProjetista.findUnique({

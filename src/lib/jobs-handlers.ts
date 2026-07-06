@@ -1,7 +1,7 @@
 import "server-only";
 import { addDays, differenceInCalendarDays, subMonths } from "date-fns";
 import { prisma } from "@/lib/prisma";
-import { notificarMuitos } from "@/lib/notificar";
+import { notificar, notificarMuitos } from "@/lib/notificar";
 import { enviarEmail, smtpConfigurado } from "@/lib/mail";
 import { gravarSnapshotQualidade } from "@/modules/qualidade/queries";
 import { gravarSnapshotDashboard } from "@/modules/dashboard/queries";
@@ -15,6 +15,10 @@ import { acrescimoAcumuladoPct, somaAcrescimos, proximoDoLimite } from "@/module
 import { ehAniversarioReajuste, valorReajustado } from "@/modules/licitacoes/contrato/reajuste";
 import { importarEditaisPNCP } from "@/modules/licitacoes/pncp/import";
 import { espelhoMes } from "@/modules/ponto/queries";
+import { resolverEscala } from "@/modules/ponto/service";
+import { avaliarAlertasDoDia } from "@/modules/ponto/alertas";
+import { diaLocalDate, diaLocal, horaLocal, minutosDoDia } from "@/modules/ponto/engine";
+import { Prisma } from "@/generated/prisma/client";
 
 /** Rotinas das automações (chamadas pelos jobs do pg-boss em lib/jobs.ts). */
 
@@ -240,28 +244,183 @@ export async function snapshotDashboardDiario() {
   await gravarSnapshotDashboard();
 }
 
-/** Dias úteis 09:15: CLT/estagiário sem ponto aberto hoje → lembrete. */
+/** Dias úteis 09:15: CLT/estagiário sem batida de entrada hoje → lembrete. */
 export async function lembretePontoNaoBatido(): Promise<number> {
-  const hoje = new Date();
-  const ini = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  const hoje = diaLocalDate(new Date());
+  const hojeISO = diaLocal(new Date());
   const clts = await prisma.user.findMany({
     where: { ativo: true, role: { in: CLT_ROLES } },
     select: { id: true },
   });
   let n = 0;
   for (const u of clts) {
-    const sessao = await prisma.sessaoTrabalho.findFirst({
-      where: { userId: u.id, inicio: { gte: ini } },
+    const entrada = await prisma.batida.findFirst({
+      where: { userId: u.id, dia: hoje, tipo: "entrada" },
     });
-    if (!sessao) {
-      await notificarMuitos([u.id], {
-        titulo: "Lembrete: bater o ponto",
-        corpo: "Você ainda não iniciou a jornada de hoje.",
-        href: "/ponto",
-        tag: `ponto-${u.id}-${ini.toISOString().slice(0, 10)}`,
-      });
+    if (!entrada) {
+      await notificarMuitos(
+        [u.id],
+        {
+          titulo: "Lembrete: bater o ponto",
+          corpo: "Você ainda não iniciou a jornada de hoje.",
+          href: "/ponto",
+          tag: `ponto-${u.id}-${hojeISO}`,
+        },
+        { categoria: "lembrete_ponto" },
+      );
       n++;
     }
+  }
+  return n;
+}
+
+// ── Ponto v2 — alertas de jornada (S1-S8/S10) ───────────────────────────────
+
+type EmailModo = "todos" | "resumo_diario" | "nenhum";
+
+/** Preferência de e-mail dos alertas de ponto por usuário (default "todos"). */
+async function emailModosPorUsuario(userIds: string[]): Promise<Map<string, EmailModo>> {
+  const prefs = await prisma.userPreference.findMany({
+    where: { userId: { in: userIds } },
+    select: { userId: true, dados: true },
+  });
+  const mapa = new Map<string, EmailModo>();
+  for (const p of prefs) {
+    const modo = (p.dados as Record<string, unknown>)?.ponto_email_modo;
+    if (modo === "resumo_diario" || modo === "nenhum") mapa.set(p.userId, modo);
+  }
+  return mapa;
+}
+
+/**
+ * Tick de 5 em 5 minutos (janela 05h–23h): avalia alertas de jornada para
+ * CLT/estagiário (entrada/descansos/saída próximos ou atingidos, jornada
+ * cumprida). Sino+push sempre; e-mail conforme preferência (`ponto_email_modo`).
+ * Dedup via `AlertaPontoEnviado` (unique userId+dia+chave) — cria ANTES de
+ * enviar; se a criação falhar (já existe), o alerta já foi mandado nesta tick
+ * ou numa anterior e é pulado.
+ */
+export async function alertasPontoTick(): Promise<number> {
+  const agora = new Date();
+  const agoraMin = minutosDoDia(horaLocal(agora));
+  if (agoraMin < 5 * 60 || agoraMin > 23 * 60) return 0; // fora da janela 05h–23h
+
+  const usuarios = await prisma.user.findMany({
+    where: { ativo: true, role: { in: CLT_ROLES } },
+    select: { id: true, role: true, name: true, email: true },
+  });
+  if (usuarios.length === 0) return 0;
+
+  const hoje = diaLocalDate(agora);
+  const ids = usuarios.map((u) => u.id);
+
+  const [batidasHoje, emailModos] = await Promise.all([
+    prisma.batida.findMany({
+      where: { userId: { in: ids }, dia: hoje },
+      orderBy: { horario: "asc" },
+      select: { userId: true, tipo: true, horario: true },
+    }),
+    emailModosPorUsuario(ids),
+  ]);
+  const batidasPorUser = new Map<string, { tipo: (typeof batidasHoje)[number]["tipo"]; horario: Date }[]>();
+  for (const b of batidasHoje) {
+    const arr = batidasPorUser.get(b.userId) ?? [];
+    arr.push({ tipo: b.tipo, horario: b.horario });
+    batidasPorUser.set(b.userId, arr);
+  }
+
+  let enviados = 0;
+  for (const u of usuarios) {
+    const grade = await resolverEscala(u.id, u.role, agora);
+    const eventos = avaliarAlertasDoDia({ agora, grade, batidasHoje: batidasPorUser.get(u.id) ?? [] });
+    if (eventos.length === 0) continue;
+
+    const modo = emailModos.get(u.id) ?? "todos";
+    for (const evento of eventos) {
+      try {
+        await prisma.alertaPontoEnviado.create({ data: { userId: u.id, dia: hoje, chave: evento.chave } });
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") continue; // já enviado
+        console.error(`[alertas-ponto] falha ao registrar dedup (${u.id}/${evento.chave}):`, err);
+        continue;
+      }
+
+      await notificar(u.id, {
+        titulo: evento.titulo,
+        corpo: evento.corpo,
+        href: "/ponto",
+        tag: `ponto-${evento.chave}-${diaLocal(agora)}`,
+      });
+      if (modo === "todos" && u.email && smtpConfigurado()) {
+        await enviarEmail({ to: u.email, subject: evento.titulo, html: `<p>${evento.corpo}</p>` });
+      }
+      enviados++;
+    }
+  }
+  return enviados;
+}
+
+/**
+ * Dias úteis 19:30: para quem escolheu resumo diário (`ponto_email_modo` =
+ * "resumo_diario"), envia 1 e-mail com os alertas de ponto do dia (se houver).
+ */
+export async function resumoPontoEmailDiario(): Promise<number> {
+  if (!smtpConfigurado()) return 0;
+  const hoje = diaLocalDate(new Date());
+
+  const usuarios = await prisma.user.findMany({
+    where: { ativo: true, role: { in: CLT_ROLES }, email: { not: "" } },
+    select: { id: true, email: true },
+  });
+  const modos = await emailModosPorUsuario(usuarios.map((u) => u.id));
+  const alvo = usuarios.filter((u) => modos.get(u.id) === "resumo_diario");
+  if (alvo.length === 0) return 0;
+
+  let enviados = 0;
+  for (const u of alvo) {
+    const alertas = await prisma.alertaPontoEnviado.findMany({
+      where: { userId: u.id, dia: hoje },
+      orderBy: { enviadoEm: "asc" },
+    });
+    if (alertas.length === 0) continue;
+    const linhas = alertas
+      .map((a) => `<li>${a.enviadoEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} — ${a.chave}</li>`)
+      .join("");
+    const ok = await enviarEmail({
+      to: u.email,
+      subject: "Resumo dos alertas de ponto de hoje",
+      html: `<p>Alertas de jornada de hoje:</p><ul>${linhas}</ul>`,
+    });
+    if (ok) enviados++;
+  }
+  return enviados;
+}
+
+/** Jornada aberta há mais de este limite sem batida nova = considerada esquecida. */
+const LIMITE_JORNADA_ESQUECIDA_MS = 16 * 60 * 60 * 1000;
+
+/**
+ * Diário 03:30: SessaoTrabalho aberta há mais de 16h → fecha com fim=início
+ * (contribui 0, coerente com o motor que não extrapola dia incompleto) e avisa
+ * o colaborador para corrigir via ajuste. Backstop para quem nunca mais bate
+ * ponto depois de esquecer a saída (aplicarBatida só resolve isso reativamente,
+ * na PRÓXIMA batida — este job cobre quem não volta a bater).
+ */
+export async function encerrarJornadasEsquecidas(): Promise<number> {
+  const limite = new Date(Date.now() - LIMITE_JORNADA_ESQUECIDA_MS);
+  const abertas = await prisma.sessaoTrabalho.findMany({
+    where: { fim: null, inicio: { lt: limite } },
+  });
+  let n = 0;
+  for (const s of abertas) {
+    await prisma.sessaoTrabalho.update({ where: { id: s.id }, data: { fim: s.inicio } });
+    await notificar(s.userId, {
+      titulo: "Jornada não encerrada",
+      corpo: "Detectamos uma jornada aberta há muito tempo. Corrija os horários em Ponto → Espelho.",
+      href: "/ponto/espelho",
+      tag: `jornada-esquecida-${s.id}`,
+    });
+    n++;
   }
   return n;
 }

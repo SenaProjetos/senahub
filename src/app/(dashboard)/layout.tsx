@@ -7,6 +7,8 @@ import { AcessoTracker } from "@/components/uso/acesso-tracker";
 import { FloatingChat } from "@/components/chat/floating-chat";
 import { ChatPresenceProvider } from "@/components/chat/chat-presence-provider";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
+import { DisciplinasIconeProvider } from "@/components/projetos/disciplina-icone";
+import { mapaIconesDisciplina } from "@/modules/projetos/queries";
 import { GOOGLE_FONTS_HREF } from "@/modules/documentos/fontes-tipograficas";
 import { CHAT_ROLES } from "@/modules/chat/roles";
 
@@ -23,20 +25,25 @@ export default async function DashboardLayout({
   if (await precisaAceitarTermo(user)) redirect("/termo");
 
   const participaDoChat = (CHAT_ROLES as readonly string[]).includes(user.role);
+  const iconesDisciplina = await mapaIconesDisciplina();
 
   const conteudo = (
-    <Shell role={user.role} user={user}>
-      {/* Google Fonts do catálogo de documentos: carregam no editor e no preview/PDF
-          (o Puppeteer imprime a própria página de preview, que vive neste layout). */}
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      <link rel="stylesheet" href={GOOGLE_FONTS_HREF} />
-      <PushManager />
-      <AcessoTracker />
-      <ConfirmProvider>{children}</ConfirmProvider>
-      {/* Chat flutuante: dados carregados sob demanda (ao abrir) — não pesa a navegação. */}
-      {participaDoChat && <FloatingChat />}
-    </Shell>
+    <ConfirmProvider>
+     <DisciplinasIconeProvider mapa={iconesDisciplina}>
+      <Shell role={user.role} user={user}>
+        {/* Google Fonts do catálogo de documentos: carregam no editor e no preview/PDF
+            (o Puppeteer imprime a própria página de preview, que vive neste layout). */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="stylesheet" href={GOOGLE_FONTS_HREF} />
+        <PushManager />
+        <AcessoTracker />
+        {children}
+        {/* Chat flutuante: dados carregados sob demanda (ao abrir) — não pesa a navegação. */}
+        {participaDoChat && <FloatingChat />}
+      </Shell>
+     </DisciplinasIconeProvider>
+    </ConfirmProvider>
   );
 
   // Provider global do chat (socket único + badge de não lidas) só para perfis de chat.

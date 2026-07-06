@@ -69,7 +69,7 @@ export const commitImportacao = defineAction(
     ...base,
     acao: "importar-financeiro",
     entidade: "ImportacaoFinanceira",
-    entidadeId: (d) => (d as { loteId: string }).loteId,
+    entidadeId: (d, i) => ((d ?? i) as { loteId: string }).loteId,
     schema: commitImportSchema,
   },
   async (i, { user }) => {

@@ -1,7 +1,6 @@
 import "@/lib/polyfill-als";
 import "dotenv/config";
 import { createServer } from "node:http";
-import { parse } from "node:url";
 import next from "next";
 import { initSocket } from "@/lib/socket";
 import { startJobs, stopJobs } from "@/lib/jobs";
@@ -16,8 +15,19 @@ async function main() {
   await app.prepare();
 
   const server = createServer((req, res) => {
-    handle(req, res, parse(req.url!, true));
+    // Sem 3º argumento: Next.js analisa req.url internamente (DEP0169 — evita
+    // url.parse() legado aqui; parsedUrl explícito só é necessário para
+    // rewrites/roteamento custom, que este server não faz).
+    handle(req, res);
   });
+
+  // Uploads grandes (arquivos BIM até 500 MB) podem levar vários minutos em
+  // links lentos. O requestTimeout padrão do Node (5 min) abortaria a conexão
+  // no meio do corpo → req.formData() lança e o cliente recebe "Falha ao
+  // receber o arquivo". Desliga o teto por requisição (0 = sem limite);
+  // headersTimeout continua protegendo contra slowloris no cabeçalho.
+  server.requestTimeout = 0;
+  server.headersTimeout = 60_000;
 
   // Realtime (Socket.io) e jobs (pg-boss) no mesmo processo.
   initSocket(server);

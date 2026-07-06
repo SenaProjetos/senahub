@@ -590,7 +590,7 @@ São **212 modelos e tipos** no Prisma. Agrupados por domínio:
   DisciplinaValorLicitacao, MedicaoLicitacao, FornecedorServico, ServicoFornecedor(+Anexo),
   TabelaPreco, ItemTabelaPreco, ProjetoComposicaoPreco, ItemComposicaoPreco
 - **RH:** Funcionario(+Documento, Dependente), Onboarding (Template, ItemTemplate, Processo,
-  ProcessoItem), PeriodoAquisitivo, Ferias, EscalaTrabalho, RegistroPonto, BancoHorasMensal,
+  ProcessoItem), PeriodoAquisitivo, Ferias, EscalaRole, EscalaUsuario, Batida, RegistroPonto, BancoHorasMensal,
   Feriado, SessaoTrabalho, RateioHora, Habilidade, UserHabilidade, FeedbackRH, AbonoFalta(+Registro),
   RubricaFolha, FolhaPagamento, Holerite(+Item, EnvioEmail), NotaFiscalPJ(+Historico),
   IndiceQualidadeSnapshot, RegistroEmocao

@@ -14,6 +14,7 @@ export async function listarUsuarios(opts?: { incluirInativos?: boolean }) {
       mustChangePassword: true,
       clienteId: true,
       createdAt: true,
+      socio: { select: { ativo: true } },
     },
   });
 }

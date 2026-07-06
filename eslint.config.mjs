@@ -18,6 +18,7 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      "public/**", // assets estáticos (ex.: worker minificado do pdf.js) não são código-fonte
     ],
   },
 ];

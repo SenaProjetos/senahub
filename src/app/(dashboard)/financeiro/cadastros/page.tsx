@@ -43,6 +43,7 @@ export default async function CadastrosFinanceirosPage() {
       socios={socios.map((s) => ({
         id: s.id,
         nome: s.user.name,
+        ativo: s.ativo,
         percentual: Number(s.percentual),
         retiradas: s.retiradas.map((r) => ({
           id: r.id,

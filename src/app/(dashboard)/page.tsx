@@ -16,6 +16,7 @@ import { kpisHome } from "@/modules/qualidade/queries";
 import { agingReport } from "@/modules/financeiro/aging/queries";
 import { projetosRecentes, serieReceita, snapshotsDashboard, carteiraProjetosDashboard, aniversariantesDoMes, humorDeHoje, kpisProjetista } from "@/modules/dashboard/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
+import { escopoProjeto } from "@/modules/projetos/queries";
 import { STATUS_CHIP, STATUS_LABEL } from "@/modules/projetos/status";
 import { HeroCard } from "@/components/dashboard/hero-card";
 import { ReceitaChart } from "@/components/dashboard/receita-chart";
@@ -56,17 +57,18 @@ export default async function HomePage() {
   const isGlobal = acessoGlobal(user);
   // Item 5: só busca/expõe dado financeiro a quem pode ver (financeiro:ver ou sócio ativo).
   const verFin = await podeVerFinanceiro(user);
-  const [kpis, projetos, snapshots, receita, agingReceita, carteira, aniversarios, humorHoje] = await Promise.all([
-    kpisHome(),
-    projetosRecentes(user),
+  const [kpis, projetos, snapshots, receita, agingReceita, carteira, aniversarios, humorHoje, kpisMeu] = await Promise.all([
+    // Perfis sem acesso global veem os KPIs restritos aos SEUS projetos (bug beta #9).
+    kpisHome(isGlobal ? {} : escopoProjeto(user)),
+    projetosRecentes(user, 15),
     snapshotsDashboard(30),
     verFin ? serieReceita() : Promise.resolve([]),
     verFin ? agingReport("receita") : Promise.resolve(null),
     isGlobal && verFin ? carteiraProjetosDashboard() : Promise.resolve([]),
     aniversariantesDoMes(),
     humorDeHoje(user.id),
+    kpisProjetista(user.id),
   ]);
-  const kpisMeu = await kpisProjetista(user.id);
 
   const cards = [
     {
@@ -168,7 +170,8 @@ export default async function HomePage() {
             {projetos.length === 0 ? (
               <EmptyState icon={Building2} title="Nenhum projeto ativo." />
             ) : (
-              <div className="overflow-x-auto">
+              // Item 20 (beta): lista rolável — mais projetos sem esticar o card.
+              <div className="max-h-80 overflow-y-auto overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">

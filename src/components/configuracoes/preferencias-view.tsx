@@ -12,6 +12,13 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type Perfil = {
   name: string;
@@ -24,6 +31,8 @@ type Perfil = {
   papel: string;
 };
 
+type PontoEmailModo = "todos" | "resumo_diario" | "nenhum";
+
 export function PreferenciasView({
   perfil,
   somChat: somChatInicial,
@@ -34,6 +43,9 @@ export function PreferenciasView({
   notifLicitacao: notifLicitacaoInicial,
   notifDigestSemanal: notifDigestSemanalInicial,
   notifRiscoProjeto: notifRiscoProjetoInicial,
+  notifLembretePonto: notifLembretePontoInicial,
+  pontoEmailModo: pontoEmailModoInicial,
+  mostrarAlertasPonto,
 }: {
   perfil: Perfil;
   somChat: boolean;
@@ -44,6 +56,10 @@ export function PreferenciasView({
   notifLicitacao: boolean;
   notifDigestSemanal: boolean;
   notifRiscoProjeto: boolean;
+  notifLembretePonto: boolean;
+  pontoEmailModo: PontoEmailModo;
+  /** Alertas de jornada por horário são só p/ CLT/estagiário — controla a seção de e-mail. */
+  mostrarAlertasPonto: boolean;
 }) {
   const [somChat, setSomChat] = useState(somChatInicial);
   const [mostrarRecibos, setMostrarRecibos] = useState(recibosInicial);
@@ -53,9 +69,11 @@ export function PreferenciasView({
   const [notifLicitacao, setNotifLicitacao] = useState(notifLicitacaoInicial);
   const [notifDigestSemanal, setNotifDigestSemanal] = useState(notifDigestSemanalInicial);
   const [notifRiscoProjeto, setNotifRiscoProjeto] = useState(notifRiscoProjetoInicial);
+  const [notifLembretePonto, setNotifLembretePonto] = useState(notifLembretePontoInicial);
+  const [pontoEmailModo, setPontoEmailModo] = useState<PontoEmailModo>(pontoEmailModoInicial);
   const [, start] = useTransition();
 
-  function salvar(chave: string, valor: boolean) {
+  function salvar(chave: string, valor: boolean | string) {
     start(async () => {
       const r = await salvarPreferencia({ chave, valor });
       if (r.ok) toast.success("Preferência salva.");
@@ -123,6 +141,13 @@ export function PreferenciasView({
       valor: notifRiscoProjeto,
       set: setNotifRiscoProjeto,
     },
+    {
+      chave: "notif_lembrete_ponto",
+      titulo: "Lembrete de ponto não batido",
+      descricao: "Aviso às 09:15 (dias úteis) se você ainda não iniciou a jornada.",
+      valor: notifLembretePonto,
+      set: setNotifLembretePonto,
+    },
   ];
 
   function renderOpcoes(opcoes: typeof opcoesChatItems) {
@@ -171,6 +196,46 @@ export function PreferenciasView({
         </CardHeader>
         <CardContent className="divide-y">{renderOpcoes(opcoesNotifItems)}</CardContent>
       </Card>
+
+      {mostrarAlertasPonto && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Lembretes de ponto</CardTitle>
+            <CardDescription>
+              Avisos de entrada, descanso, saída e jornada cumprida aparecem sempre no sino e no
+              Push. Escolha só o que recebe também por e-mail.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between gap-4 py-1">
+              <div className="min-w-0">
+                <Label className="text-sm font-medium">E-mail dos alertas de jornada</Label>
+                <p className="text-xs text-muted-foreground">
+                  Sino e Push continuam ativos independente desta escolha.
+                </p>
+              </div>
+              <Select
+                value={pontoEmailModo}
+                onValueChange={(v) => {
+                  if (!v) return;
+                  const modo = v as PontoEmailModo;
+                  setPontoEmailModo(modo);
+                  salvar("ponto_email_modo", modo);
+                }}
+              >
+                <SelectTrigger className="w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os alertas</SelectItem>
+                  <SelectItem value="resumo_diario">Resumo diário</SelectItem>
+                  <SelectItem value="nenhum">Nenhum e-mail</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -16,7 +16,7 @@ export const disciplinaInputSchema = z.object({
 });
 
 export const criarProjetoSchema = z.object({
-  tipo: z.enum(["particular", "licitacao"]),
+  tipo: z.enum(["particular", "licitacao", "aprovacao"]),
   nome: z.string().min(2, "Informe o nome do projeto."),
   clienteId: z.string().min(1, "Selecione o cliente."),
   descricao: z.string().optional(),
@@ -33,7 +33,7 @@ export const editarProjetoSchema = z.object({
   /** P-03: permite trocar o cliente. */
   clienteId: z.string().min(1).optional(),
   nome: z.string().min(2),
-  tipo: z.enum(["particular", "licitacao"]),
+  tipo: z.enum(["particular", "licitacao", "aprovacao"]),
   situacao: z.enum(["em_andamento", "concluido", "arquivado", "cancelado"]),
   descricao: z.string().optional(),
   areaM2: z.number().nonnegative().optional(),
@@ -115,6 +115,30 @@ export const cancelarProjetoSchema = z.object({
 export const adicionarDoCatalogoSchema = z.object({
   projetoId: z.string().min(1),
   nomes: z.array(z.string().min(1)).min(1),
+});
+
+/** Item 15: CRUD do catálogo de disciplinas (Configurações → Disciplinas). */
+export const criarDisciplinaCatalogoSchema = z.object({
+  nome: z.string().trim().min(2, "Informe o nome da disciplina."),
+  /** Sigla p/ nomenclatura; normalizada (uppercase, só A-Z0-9) na action. */
+  codigo: z.string().trim().max(6, "Código de até 6 caracteres.").optional(),
+  categoria: z.string().trim().max(40).optional(),
+  /** Chave da galeria lucide. */
+  icone: z.string().trim().max(60).optional(),
+  /** SVG bruto do upload; sanitizado na action. */
+  iconeSvg: z.string().max(40000, "SVG muito grande.").optional(),
+});
+
+export const editarDisciplinaCatalogoSchema = criarDisciplinaCatalogoSchema.extend({
+  id: z.string().min(1),
+});
+
+export const idDisciplinaCatalogoSchema = z.object({ id: z.string().min(1) });
+
+/** Reordena trocando a `ordem` com um vizinho específico (setas ↑↓ na UI). */
+export const moverDisciplinaCatalogoSchema = z.object({
+  id: z.string().min(1),
+  vizinhoId: z.string().min(1),
 });
 
 export type CriarProjetoInput = z.infer<typeof criarProjetoSchema>;

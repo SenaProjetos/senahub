@@ -179,9 +179,12 @@ export function DisciplinaEditDialog({
 export function DisciplinaDeleteButton({
   disciplinaId,
   nome,
+  qtdTarefas = 0,
 }: {
   disciplinaId: string;
   nome: string;
+  /** Tarefas vinculadas — avisadas como "serão desvinculadas" (onDelete: SetNull). */
+  qtdTarefas?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -215,6 +218,13 @@ export function DisciplinaDeleteButton({
           Tem certeza que deseja excluir <strong>{nome}</strong>? Esta ação não pode ser desfeita.
           Disciplinas com arquivos ou pagamentos não podem ser excluídas.
         </DialogDescription>
+        {qtdTarefas > 0 && (
+          <p className="rounded-sm border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning-foreground">
+            {qtdTarefas} tarefa{qtdTarefas > 1 ? "s" : ""} vinculada{qtdTarefas > 1 ? "s" : ""} a esta
+            disciplina {qtdTarefas > 1 ? "serão desvinculadas" : "será desvinculada"} (a tarefa
+            permanece no projeto, sem disciplina).
+          </p>
+        )}
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={pending}>
             Cancelar

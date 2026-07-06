@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 import { GLOBAL_ROLES, type Role } from "@/lib/roles";
 import { proximoCodigoProjeto, formatarCodigo } from "@/modules/projetos/numbering";
 import { ensureCanaisProjeto } from "@/modules/chat/service";
@@ -21,11 +22,41 @@ import {
   excluirDisciplinaSchema,
   cancelarProjetoSchema,
   adicionarDoCatalogoSchema,
+  criarDisciplinaCatalogoSchema,
+  editarDisciplinaCatalogoSchema,
+  idDisciplinaCatalogoSchema,
+  moverDisciplinaCatalogoSchema,
 } from "@/modules/projetos/schemas";
 import { notificar, notificarMuitos } from "@/lib/notificar";
+import { sanitizeSvg } from "@/lib/sanitize-svg";
+import { normalizar } from "@/lib/disciplinas-core";
 
 function isGlobal(role: Role) {
   return role === "admin" || GLOBAL_ROLES.includes(role);
+}
+
+/**
+ * Após remover responsáveis de uma disciplina, tira da "Equipe do projeto" (ProjetoMembro)
+ * quem não responde por nenhuma outra disciplina do projeto — exceto membros com papel
+ * explícito, que foram adicionados deliberadamente pelo EquipeManager.
+ */
+async function podarMembrosSemVinculo(
+  tx: Prisma.TransactionClient,
+  projetoId: string,
+  removidosIds: string[],
+) {
+  if (removidosIds.length === 0) return;
+  const aindaResp = await tx.disciplinaResponsavel.findMany({
+    where: { userId: { in: removidosIds }, disciplina: { projetoId } },
+    select: { userId: true },
+  });
+  const aindaSet = new Set(aindaResp.map((r) => r.userId));
+  const podar = removidosIds.filter((id) => !aindaSet.has(id));
+  if (podar.length > 0) {
+    await tx.projetoMembro.deleteMany({
+      where: { projetoId, userId: { in: podar }, papel: null },
+    });
+  }
 }
 
 function parseData(s?: string): Date | undefined {
@@ -42,7 +73,7 @@ export const criarProjeto = defineAction(
     permissao: "gerir",
     entidade: "Projeto",
     schema: criarProjetoSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
     const projeto = await prisma.$transaction(async (tx) => {
@@ -90,7 +121,7 @@ export const editarProjeto = defineAction(
     permissao: "gerir",
     entidade: "Projeto",
     schema: editarProjetoSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
     const { id, ...rest } = input;
@@ -125,7 +156,7 @@ export const atualizarStatusDisciplina = defineAction(
     permissao: "visualizar",
     entidade: "Disciplina",
     schema: atualizarStatusDisciplinaSchema,
-    entidadeId: (d) => (d as { disciplinaId: string }).disciplinaId,
+    entidadeId: (d, i) => ((d ?? i) as { disciplinaId: string }).disciplinaId,
   },
   async (input, { user }) => {
     const disciplina = await prisma.disciplina.findUnique({
@@ -222,7 +253,7 @@ export const definirResponsaveis = defineAction(
     permissao: "gerir",
     entidade: "Disciplina",
     schema: responsaveisDisciplinaSchema,
-    entidadeId: (d) => (d as { disciplinaId: string }).disciplinaId,
+    entidadeId: (d, i) => ((d ?? i) as { disciplinaId: string }).disciplinaId,
   },
   async (input) => {
     const disciplina = await prisma.disciplina.findUnique({
@@ -238,13 +269,15 @@ export const definirResponsaveis = defineAction(
     const anteriorIds = new Set(anteriores.map((r) => r.userId));
     const novosIds = input.responsaveisIds.filter((id) => !anteriorIds.has(id));
 
-    await prisma.$transaction([
-      prisma.disciplinaResponsavel.deleteMany({ where: { disciplinaId: input.disciplinaId } }),
-      prisma.disciplinaResponsavel.createMany({
+    await prisma.$transaction(async (tx) => {
+      await tx.disciplinaResponsavel.deleteMany({ where: { disciplinaId: input.disciplinaId } });
+      await tx.disciplinaResponsavel.createMany({
         data: input.responsaveisIds.map((userId) => ({ disciplinaId: input.disciplinaId, userId })),
         skipDuplicates: true,
-      }),
-    ]);
+      });
+      const removidosIds = [...anteriorIds].filter((id) => !input.responsaveisIds.includes(id));
+      await podarMembrosSemVinculo(tx, disciplina.projetoId, removidosIds);
+    });
     // P-15: notificar novos responsáveis atribuídos.
     if (novosIds.length > 0) {
       await notificarMuitos(novosIds, {
@@ -269,7 +302,7 @@ export const registrarRevisao = defineAction(
     permissao: "visualizar",
     entidade: "RevisaoDisciplina",
     schema: registrarRevisaoSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input, { user }) => {
     const disciplina = await prisma.disciplina.findUnique({
@@ -323,7 +356,7 @@ export const definirMembros = defineAction(
     permissao: "gerir",
     entidade: "ProjetoMembro",
     schema: membrosProjetoSchema,
-    entidadeId: (d) => (d as { projetoId: string }).projetoId,
+    entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
   },
   async (input) => {
     // P-04: grava papel por membro.
@@ -354,7 +387,7 @@ export const duplicarProjeto = defineAction(
     permissao: "gerir",
     entidade: "Projeto",
     schema: duplicarProjetoSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
     const origem = await prisma.projeto.findUnique({
@@ -626,7 +659,7 @@ export const editarDisciplina = defineAction(
     permissao: "gerir",
     entidade: "Disciplina",
     schema: editarDisciplinaSchema,
-    entidadeId: (d) => (d as { disciplinaId: string }).disciplinaId,
+    entidadeId: (d, i) => ((d ?? i) as { disciplinaId: string }).disciplinaId,
   },
   async (input) => {
     const disciplina = await prisma.disciplina.findUnique({
@@ -672,6 +705,8 @@ export const editarDisciplina = defineAction(
           skipDuplicates: true,
         });
       }
+      const removidosIds = [...anteriorIds].filter((id) => !input.responsaveisIds.includes(id));
+      await podarMembrosSemVinculo(tx, disciplina.projetoId, removidosIds);
     });
 
     if (novosIds.length > 0) {
@@ -696,13 +731,14 @@ export const excluirDisciplina = defineAction(
     permissao: "gerir",
     entidade: "Disciplina",
     schema: excluirDisciplinaSchema,
-    entidadeId: (d) => (d as { disciplinaId: string }).disciplinaId,
+    entidadeId: (d, i) => ((d ?? i) as { disciplinaId: string }).disciplinaId,
   },
   async (input) => {
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: input.disciplinaId },
       select: {
         projetoId: true,
+        responsaveis: { select: { userId: true } },
         _count: { select: { uploads: true, pagamentos: true } },
       },
     });
@@ -712,7 +748,16 @@ export const excluirDisciplina = defineAction(
     if (disciplina._count.pagamentos > 0)
       throw new ActionError("Não é possível excluir uma disciplina com pagamentos liberados.");
 
-    await prisma.disciplina.delete({ where: { id: input.disciplinaId } });
+    await prisma.$transaction(async (tx) => {
+      await tx.disciplina.delete({ where: { id: input.disciplinaId } });
+      // Mesma poda do editarDisciplina: responsáveis que só existiam nesta disciplina
+      // saem da equipe (ProjetoMembro sem papel explícito).
+      await podarMembrosSemVinculo(
+        tx,
+        disciplina.projetoId,
+        disciplina.responsaveis.map((r) => r.userId),
+      );
+    });
     revalidatePath(`/projetos/${disciplina.projetoId}`);
   },
 );
@@ -727,7 +772,7 @@ export const cancelarOuArquivarProjeto = defineAction(
     permissao: "gerir",
     entidade: "Projeto",
     schema: cancelarProjetoSchema,
-    entidadeId: (d) => (d as { projetoId: string }).projetoId,
+    entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
   },
   async (input) => {
     const projeto = await prisma.projeto.findUnique({
@@ -774,7 +819,7 @@ export const adicionarDisciplinasDoCatalogo = defineAction(
     permissao: "gerir",
     entidade: "Projeto",
     schema: adicionarDoCatalogoSchema,
-    entidadeId: (d) => (d as { projetoId: string }).projetoId,
+    entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
   },
   async (input) => {
     const projeto = await prisma.projeto.findUnique({
@@ -801,5 +846,175 @@ export const adicionarDisciplinasDoCatalogo = defineAction(
 
     revalidatePath(`/projetos/${input.projetoId}`);
     return { criadas: novas.length };
+  },
+);
+
+// ─── Item 15: catálogo de disciplinas (Configurações → Disciplinas) ────────────
+
+const catalogoBase = { modulo: "projetos", recurso: "projetos", permissao: "gerir" } as const;
+
+function revCatalogo() {
+  revalidatePath("/configuracoes/disciplinas");
+  revalidatePath("/projetos");
+}
+
+/** Normaliza os campos vindos do form: código A-Z0-9, categoria/ícone opcionais, SVG sanitizado. */
+function normalizarCatalogo(i: {
+  nome: string;
+  codigo?: string;
+  categoria?: string;
+  icone?: string;
+  iconeSvg?: string;
+}) {
+  const codigo = (i.codigo ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "") || null;
+  const iconeSvg = i.iconeSvg ? sanitizeSvg(i.iconeSvg) : null;
+  if (i.iconeSvg && !iconeSvg) throw new ActionError("SVG inválido ou acima de 20 KB.");
+  return {
+    nome: i.nome.trim(),
+    codigo,
+    categoria: i.categoria?.trim() || null,
+    // ícone custom (SVG) tem prioridade; ao enviar SVG, zera a chave da galeria.
+    icone: iconeSvg ? null : i.icone?.trim() || null,
+    iconeSvg,
+  };
+}
+
+/**
+ * Governança leve da categoria (Fase B do conselho): se a categoria digitada casar com uma já
+ * existente ignorando caixa/acento, reusa a grafia canônica — evita grupos duplicados
+ * (ex.: "CIVIL" vs "Civil"). Categoria nova entra como digitada.
+ */
+async function canonizarCategoria(cat: string | null): Promise<string | null> {
+  if (!cat) return null;
+  const existentes = await prisma.disciplinaCatalogo.findMany({
+    where: { categoria: { not: null } },
+    select: { categoria: true },
+    distinct: ["categoria"],
+  });
+  const alvo = normalizar(cat);
+  const match = existentes.find((e) => normalizar(e.categoria!) === alvo);
+  return match?.categoria ?? cat;
+}
+
+/** Garante nome e código únicos no catálogo (ignora a própria linha ao editar). */
+async function garantirUnicosCatalogo(nome: string, codigo: string | null, ignoreId: string | null) {
+  const naoEu = ignoreId ? { id: { not: ignoreId } } : {};
+  if (await prisma.disciplinaCatalogo.findFirst({ where: { nome, ...naoEu }, select: { id: true } })) {
+    throw new ActionError("Já existe uma disciplina com esse nome.");
+  }
+  if (
+    codigo &&
+    (await prisma.disciplinaCatalogo.findFirst({ where: { codigo, ...naoEu }, select: { id: true } }))
+  ) {
+    throw new ActionError("Já existe uma disciplina com esse código.");
+  }
+}
+
+export const criarDisciplinaCatalogo = defineAction(
+  {
+    ...catalogoBase,
+    acao: "criar-disciplina-catalogo",
+    entidade: "DisciplinaCatalogo",
+    schema: criarDisciplinaCatalogoSchema,
+    entidadeId: (d) => (d as { id: string }).id,
+  },
+  async (i) => {
+    const dados = normalizarCatalogo(i);
+    dados.categoria = await canonizarCategoria(dados.categoria);
+    await garantirUnicosCatalogo(dados.nome, dados.codigo, null);
+    const max = await prisma.disciplinaCatalogo.aggregate({ _max: { ordem: true } });
+    const criada = await prisma.disciplinaCatalogo.create({
+      data: { ...dados, ordem: (max._max.ordem ?? 0) + 1 },
+    });
+    revCatalogo();
+    return { id: criada.id };
+  },
+);
+
+export const editarDisciplinaCatalogo = defineAction(
+  {
+    ...catalogoBase,
+    acao: "editar-disciplina-catalogo",
+    entidade: "DisciplinaCatalogo",
+    schema: editarDisciplinaCatalogoSchema,
+    entidadeId: (_d, i) => i.id,
+    capturarAntes: (i) => prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } }),
+  },
+  async (i) => {
+    const existe = await prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } });
+    if (!existe) throw new ActionError("Disciplina não encontrada.");
+    const dados = normalizarCatalogo(i);
+    dados.categoria = await canonizarCategoria(dados.categoria);
+    await garantirUnicosCatalogo(dados.nome, dados.codigo, i.id);
+    await prisma.disciplinaCatalogo.update({ where: { id: i.id }, data: dados });
+    revCatalogo();
+    return { id: i.id };
+  },
+);
+
+/** Arquiva/desarquiva (alterna `ativo`): some do seletor sem apagar; projetos mantêm o nome. */
+export const arquivarDisciplinaCatalogo = defineAction(
+  {
+    ...catalogoBase,
+    acao: "arquivar-disciplina-catalogo",
+    entidade: "DisciplinaCatalogo",
+    schema: idDisciplinaCatalogoSchema,
+    entidadeId: (_d, i) => i.id,
+  },
+  async (i) => {
+    const c = await prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } });
+    if (!c) throw new ActionError("Disciplina não encontrada.");
+    await prisma.disciplinaCatalogo.update({ where: { id: i.id }, data: { ativo: !c.ativo } });
+    revCatalogo();
+    return { id: i.id, ativo: !c.ativo };
+  },
+);
+
+/** Exclusão definitiva — bloqueada se a disciplina estiver em uso em algum projeto. */
+export const excluirDisciplinaCatalogo = defineAction(
+  {
+    ...catalogoBase,
+    acao: "excluir-disciplina-catalogo",
+    entidade: "DisciplinaCatalogo",
+    schema: idDisciplinaCatalogoSchema,
+    entidadeId: (_d, i) => i.id,
+  },
+  async (i) => {
+    const c = await prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } });
+    if (!c) throw new ActionError("Disciplina não encontrada.");
+    const uso = await prisma.disciplina.count({ where: { nome: c.nome } });
+    if (uso > 0) {
+      throw new ActionError(`Em uso em ${uso} projeto(s) — arquive em vez de excluir.`);
+    }
+    await prisma.disciplinaCatalogo.delete({ where: { id: i.id } });
+    revCatalogo();
+    return { id: i.id };
+  },
+);
+
+/** Reordena trocando a `ordem` de duas disciplinas (setas ↑↓ na UI). */
+export const moverDisciplinaCatalogo = defineAction(
+  {
+    ...catalogoBase,
+    acao: "mover-disciplina-catalogo",
+    entidade: "DisciplinaCatalogo",
+    schema: moverDisciplinaCatalogoSchema,
+    entidadeId: (_d, i) => i.id,
+    audit: false, // reordenação é ruído no log; a ordem final fica no próprio catálogo.
+  },
+  async (i) => {
+    const [a, b] = await Promise.all([
+      prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } }),
+      prisma.disciplinaCatalogo.findUnique({ where: { id: i.vizinhoId } }),
+    ]);
+    if (!a || !b) throw new ActionError("Disciplina não encontrada.");
+    // Empate de ordem (dados antigos): desempata dando ao alvo ordem-1 do vizinho.
+    const [ordemA, ordemB] = a.ordem === b.ordem ? [b.ordem - 1, b.ordem] : [b.ordem, a.ordem];
+    await prisma.$transaction([
+      prisma.disciplinaCatalogo.update({ where: { id: a.id }, data: { ordem: ordemA } }),
+      prisma.disciplinaCatalogo.update({ where: { id: b.id }, data: { ordem: ordemB } }),
+    ]);
+    revCatalogo();
+    return { id: a.id };
   },
 );

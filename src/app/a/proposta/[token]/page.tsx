@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { brl, formatarData } from "@/lib/utils";
+import { PropostaPublicaUpload } from "@/components/comercial/proposta-publica-upload";
 
 export const metadata: Metadata = { title: "Proposta — Sena Projetos", robots: { index: false } };
 
@@ -93,6 +94,8 @@ export default async function PropostaPublicaPage({
       {p.observacoes && (
         <p className="mt-6 whitespace-pre-wrap text-sm text-muted-foreground">{p.observacoes}</p>
       )}
+
+      <PropostaPublicaUpload token={token} />
 
       <div className="mt-10 flex items-center justify-between gap-4">
         <p className="text-xs text-muted-foreground">

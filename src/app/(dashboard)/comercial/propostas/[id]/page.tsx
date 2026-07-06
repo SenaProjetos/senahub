@@ -6,7 +6,8 @@ import { obterProposta } from "@/modules/comercial/queries";
 import { listarTabelasPreco } from "@/modules/comercial/queries";
 import { catalogoDisciplinas } from "@/modules/projetos/queries";
 import { modelosPorFonte } from "@/modules/documentos/queries";
-import { anexosDaProposta, versoesComparaveis } from "@/modules/comercial/propostas-extras/queries";
+import { versoesComparaveis } from "@/modules/comercial/propostas-extras/queries";
+import { documentosDaProposta } from "@/modules/documentos-cliente/queries";
 import { PropostaEditor } from "@/components/comercial/proposta-editor";
 import { PropostaExtras } from "@/components/comercial/proposta-extras";
 
@@ -16,12 +17,12 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
   const user = await requirePermission("comercial", "ver");
   const podeGerir = await can(user.role, "comercial", "gerir");
   const { id } = await params;
-  const [p, catalogo, tabelas, modelosDoc, anexos, versoesComp] = await Promise.all([
+  const [p, catalogo, tabelas, modelosDoc, documentos, versoesComp] = await Promise.all([
     obterProposta(id),
     catalogoDisciplinas(),
     listarTabelasPreco(),
     modelosPorFonte("proposta"),
-    anexosDaProposta(id),
+    documentosDaProposta(id),
     versoesComparaveis(id),
   ]);
   if (!p) notFound();
@@ -63,7 +64,7 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
         itens: t.itens.map((it) => ({ disciplina: it.disciplina, valorM2: Number(it.valorM2) })),
       }))}
     />
-    <PropostaExtras propostaId={p.id} anexos={anexos} versoes={versoesComp} podeGerir={podeGerir} />
+    <PropostaExtras propostaId={p.id} clienteId={p.clienteId} documentos={documentos} versoes={versoesComp} podeGerir={podeGerir} />
     </div>
   );
 }

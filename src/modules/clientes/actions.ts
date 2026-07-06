@@ -12,8 +12,14 @@ import {
 
 const REVALIDATE = "/clientes";
 
-function normalizar<T extends { email?: string }>(input: T): T {
-  return { ...input, email: input.email || undefined };
+function normalizar<T extends { email?: string; tipo?: "PF" | "PJ"; nomeFantasia?: string | null }>(input: T): T {
+  return {
+    ...input,
+    email: input.email || undefined,
+    // Defesa no servidor: PF não tem nome fantasia. `null` explícito limpa o campo
+    // no update (undefined significaria "não mexe" e o valor de quando era PJ ficaria).
+    ...(input.tipo === "PF" ? { nomeFantasia: null } : {}),
+  };
 }
 
 export const criarCliente = defineAction(
@@ -24,7 +30,7 @@ export const criarCliente = defineAction(
     permissao: "gerir",
     entidade: "Cliente",
     schema: criarClienteSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
     const cliente = await prisma.cliente.create({ data: normalizar(input) });
@@ -41,7 +47,7 @@ export const editarCliente = defineAction(
     permissao: "gerir",
     entidade: "Cliente",
     schema: editarClienteSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
     const { id, ...rest } = normalizar(input);
@@ -60,7 +66,7 @@ export const desativarCliente = defineAction(
     permissao: "gerir",
     entidade: "Cliente",
     schema: clienteIdSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
     await prisma.cliente.update({ where: { id: input.id }, data: { ativo: false } });
@@ -77,7 +83,7 @@ export const adicionarContato = defineAction(
     permissao: "gerir",
     entidade: "ContatoCliente",
     schema: adicionarContatoSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
     const { clienteId, email, ...rest } = input;
@@ -97,7 +103,7 @@ export const reativarCliente = defineAction(
     permissao: "gerir",
     entidade: "Cliente",
     schema: clienteIdSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
     await prisma.cliente.update({ where: { id: input.id }, data: { ativo: true } });

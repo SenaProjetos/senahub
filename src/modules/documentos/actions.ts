@@ -66,7 +66,7 @@ export const definirVisibilidadeModelo = defineAction(
     acao: "definir-visibilidade-modelo",
     entidade: "DocumentoModelo",
     schema: visibilidadeSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (i, { user }) => {
     const m = await prisma.documentoModelo.findUnique({
@@ -99,7 +99,7 @@ export const salvarModelo = defineAction(
     acao: "salvar-modelo",
     entidade: "DocumentoModelo",
     schema: salvarModeloSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (i, { user }) => {
     const m = await prisma.documentoModelo.findUnique({
@@ -168,7 +168,7 @@ export const restaurarVersao = defineAction(
     acao: "restaurar-versao",
     entidade: "DocumentoModelo",
     schema: restaurarVersaoSchema,
-    entidadeId: (d) => (d as { modeloId: string }).modeloId,
+    entidadeId: (d, i) => ((d ?? i) as { modeloId: string }).modeloId,
   },
   async (i, { user }) => {
     const v = await prisma.documentoModeloVersao.findUnique({ where: { id: i.versaoId } });
@@ -359,7 +359,7 @@ export const enviarDocumentoPorEmail = defineAction(
     acao: "enviar-documento-email",
     entidade: "DocumentoModelo",
     schema: enviarEmailSchema,
-    entidadeId: (d) => (d as { modeloId: string }).modeloId,
+    entidadeId: (d, i) => ((d ?? i) as { modeloId: string }).modeloId,
     // Não persistir destinatário/mensagem em texto claro na auditoria além do necessário.
     redact: ["mensagem"],
   },

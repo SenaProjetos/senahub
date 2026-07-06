@@ -17,6 +17,7 @@ export type DisciplinaKey =
   | "climatizacao"
   | "terraplenagem"
   | "telecom"
+  | "seguranca"
   | "outra";
 
 /** Remove acentos e baixa a caixa para casar nomes de forma tolerante. */
@@ -39,6 +40,7 @@ const REGRAS: { match: RegExp; key: DisciplinaKey }[] = [
   { match: /climatiz|avac|hvac|ar.?condicionado|termic/, key: "climatizacao" },
   { match: /terraplan|terraplen|movimento de terra/, key: "terraplenagem" },
   { match: /telecom|logic|rede|dados|cabeamento/, key: "telecom" },
+  { match: /cftv|camera|vigilanc|seguranca eletronic/, key: "seguranca" },
 ];
 
 /** Chave estável da disciplina pelo nome (tolerante a variações e acentos). */

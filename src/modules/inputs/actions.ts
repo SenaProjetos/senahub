@@ -45,7 +45,7 @@ export const adicionarInput = defineAction(
     permissao: "gerir",
     entidade: "InputProjeto",
     schema: adicionarInputSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
     const ordem = await prisma.inputProjeto.count({ where: { projetoId: input.projetoId } });
@@ -70,7 +70,7 @@ export const removerInput = defineAction(
     permissao: "gerir",
     entidade: "InputProjeto",
     schema: removerInputSchema,
-    entidadeId: (d) => (d as { id: string }).id,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
     const item = await prisma.inputProjeto.delete({ where: { id: input.id } });
@@ -88,7 +88,7 @@ export const responderInputs = defineAction(
     permissao: "gerir",
     entidade: "InputProjeto",
     schema: responderInputsSchema,
-    entidadeId: (d) => (d as { projetoId: string }).projetoId,
+    entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
   },
   async (input) => {
     await prisma.$transaction(
@@ -113,7 +113,7 @@ export const salvarBriefing = defineAction(
       projetoId: z.string().min(1),
       respostas: z.record(z.string(), z.unknown()).default({}),
     }),
-    entidadeId: (d) => (d as { projetoId: string }).projetoId,
+    entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
   },
   async (input, { user }) => {
     const status = calcularStatusBriefing(input.respostas);
@@ -137,7 +137,7 @@ export const gerarLinkInput = defineAction(
     permissao: "gerir",
     entidade: "LinkPublicoInput",
     schema: gerarLinkSchema,
-    entidadeId: (d) => (d as { projetoId: string }).projetoId,
+    entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
   },
   async (input) => {
     // Garante que os inputs padrão das disciplinas estejam no projeto antes de liberar o link.

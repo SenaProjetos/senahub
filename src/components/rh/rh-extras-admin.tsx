@@ -4,16 +4,14 @@ import { useState, useTransition } from "react";
 import { formatarData } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2, MessageSquare, Clock } from "lucide-react";
-import { registrarFeedback, removerFeedback, registrarPontoManual } from "@/modules/rh/feedback/actions";
+import { Plus, Trash2, MessageSquare } from "lucide-react";
+import { registrarFeedback, removerFeedback } from "@/modules/rh/feedback/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const NONE = "__none";
 const TIPOS = [
   { v: "feedback", l: "Feedback" },
   { v: "reuniao_1a1", l: "Reunião 1:1" },
@@ -93,66 +91,3 @@ export function FeedbackSection({ feedbacks, colaboradores }: { feedbacks: Feedb
   );
 }
 
-export function PontoManualSection({ colaboradores, projetos }: { colaboradores: User[]; projetos: { id: string; label: string }[] }) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const [userId, setUserId] = useState("");
-  const [projetoId, setProjetoId] = useState(NONE);
-  const [inicio, setInicio] = useState("");
-  const [fim, setFim] = useState("");
-
-  function registrar() {
-    if (!userId || !inicio || !fim) {
-      toast.error("Colaborador, início e fim são obrigatórios.");
-      return;
-    }
-    start(async () => {
-      const r = await registrarPontoManual({ userId, projetoId: projetoId === NONE ? "" : projetoId, inicio, fim });
-      if (r.ok) {
-        toast.success("Ponto manual registrado.");
-        setInicio("");
-        setFim("");
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
-
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-base"><Clock className="size-4" /> Ponto manual</CardTitle>
-        <CardDescription>Lançamento/correção de sessão de trabalho.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Colaborador</Label>
-            <Select value={userId} onValueChange={(v) => setUserId(v ?? "")}>
-              <SelectTrigger className="w-44"><SelectValue placeholder="Selecione…" /></SelectTrigger>
-              <SelectContent>{colaboradores.map((u) => (<SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>))}</SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Projeto</Label>
-            <Select value={projetoId} onValueChange={(v) => setProjetoId(v ?? NONE)}>
-              <SelectTrigger className="w-44"><SelectValue placeholder="—" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>—</SelectItem>
-                {projetos.map((p) => (<SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Início</Label>
-            <Input type="datetime-local" value={inicio} onChange={(e) => setInicio(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Fim</Label>
-            <Input type="datetime-local" value={fim} onChange={(e) => setFim(e.target.value)} />
-          </div>
-          <Button size="sm" variant="outline" onClick={registrar} disabled={pending}><Plus className="size-3.5" /> Lançar</Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}

@@ -4,6 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { INTERNAL_ROLES, acessoGlobal, type Role } from "@/lib/roles";
 import { CATEGORIA_TERCEIRIZADO } from "@/modules/financeiro/custo/lancamento-custo";
 import { calcularRateioDetalhado } from "@/modules/rh/rateio/queries";
+import { normalizar } from "@/lib/disciplinas-core";
 
 type Viewer = { id: string; role: Role; ehSocio?: boolean };
 
@@ -56,7 +57,15 @@ export async function listarProjetos(
 ) {
   const where: Prisma.ProjetoWhereInput = { AND: [escopoProjeto(viewer)] };
   const and = where.AND as Prisma.ProjetoWhereInput[];
-  if (opts?.situacao) and.push({ situacao: opts.situacao as never });
+  // Situação: sem filtro explícito → oculta encerrados (cancelado/arquivado) por padrão.
+  // "todas" → mostra tudo (inclusive encerrados). Valor específico → filtra por ele.
+  if (opts?.situacao === "todas") {
+    // sem filtro — inclui cancelado/arquivado
+  } else if (opts?.situacao) {
+    and.push({ situacao: opts.situacao as never });
+  } else {
+    and.push({ situacao: { notIn: ["cancelado", "arquivado"] } as never });
+  }
   if (opts?.clienteId) and.push({ clienteId: opts.clienteId });
   if (opts?.responsavelId) {
     and.push({ disciplinas: { some: { responsaveis: { some: { userId: opts.responsavelId } } } } });
@@ -91,7 +100,16 @@ export async function listarProjetos(
       orderBy,
       skip: opts?.skip,
       take: opts?.take,
-      include: {
+      // `select` (não `include`): a lista só usa estes campos. Evita mandar Decimal
+      // (areaM2/valorContrato) cru para o client component — Prisma Decimal não é
+      // serializável e disparava "Only plain objects can be passed…" a cada projeto.
+      select: {
+        id: true,
+        codigo: true,
+        nome: true,
+        tipo: true,
+        situacao: true,
+        prazoFinal: true,
         cliente: { select: { id: true, nome: true } },
         _count: { select: { disciplinas: true } },
         disciplinas: { select: { nome: true, status: true, prazo: true } },
@@ -123,6 +141,10 @@ export async function obterProjeto(viewer: Viewer, id: string) {
               versao: true,
               tamanho: true,
               validado: true,
+              validadoEm: true,
+              origem: true,
+              revisaoObs: true,
+              revisaoEm: true,
               createdAt: true,
               autor: { select: { name: true } },
               aceite: { select: { token: true, situacao: true } },
@@ -157,8 +179,47 @@ export async function projetosDoCliente(clienteId: string) {
 export async function catalogoDisciplinas() {
   return prisma.disciplinaCatalogo.findMany({
     where: { ativo: true },
-    orderBy: { ordem: "asc" },
+    orderBy: [{ ordem: "asc" }, { nome: "asc" }],
   });
+}
+
+/**
+ * Catálogo completo (ativas + arquivadas) com contagem de uso, para a tela de admin.
+ * Uso = nº de projetos distintos que têm uma disciplina com aquele nome (case/acento-insensível,
+ * já que `Disciplina.nome` é texto livre e não uma FK ao catálogo).
+ */
+export async function catalogoDisciplinasAdmin() {
+  const [itens, disciplinas] = await Promise.all([
+    prisma.disciplinaCatalogo.findMany({ orderBy: [{ ordem: "asc" }, { nome: "asc" }] }),
+    prisma.disciplina.findMany({ select: { nome: true, projetoId: true } }),
+  ]);
+  const usoPorNome = new Map<string, Set<string>>();
+  for (const d of disciplinas) {
+    const k = normalizar(d.nome);
+    let set = usoPorNome.get(k);
+    if (!set) usoPorNome.set(k, (set = new Set()));
+    set.add(d.projetoId);
+  }
+  return itens.map((c) => ({ ...c, uso: usoPorNome.get(normalizar(c.nome))?.size ?? 0 }));
+}
+
+export type DisciplinaCatalogoAdmin = Awaited<ReturnType<typeof catalogoDisciplinasAdmin>>[number];
+
+/**
+ * Mapa `nome normalizado → ícone custom` do catálogo (só entradas com `icone`/`iconeSvg`).
+ * Alimenta o `DisciplinasIconeProvider` para render em todo o sistema; disciplinas sem ícone
+ * custom caem no ícone derivado do nome (`lib/disciplinas.ts`).
+ */
+export async function mapaIconesDisciplina(): Promise<
+  Record<string, { icone: string | null; iconeSvg: string | null }>
+> {
+  const itens = await prisma.disciplinaCatalogo.findMany({
+    where: { OR: [{ icone: { not: null } }, { iconeSvg: { not: null } }] },
+    select: { nome: true, icone: true, iconeSvg: true },
+  });
+  const mapa: Record<string, { icone: string | null; iconeSvg: string | null }> = {};
+  for (const c of itens) mapa[normalizar(c.nome)] = { icone: c.icone, iconeSvg: c.iconeSvg };
+  return mapa;
 }
 
 /** P-17/N-38: Disciplinas aguardando validação além do SLA (padrão 5 dias úteis ≈ 7 dias). */
@@ -303,6 +364,11 @@ export async function obterProjetoMinimo(viewer: Viewer, id: string) {
       situacao: true,
       tipo: true,
       prazoFinal: true,
+      // Item 12 (beta): editar todos os campos do projeto — o header precisa deles p/ o dialog.
+      descricao: true,
+      areaM2: true,
+      endereco: true,
+      valorContrato: true,
       cliente: { select: { id: true, nome: true } },
     },
   });

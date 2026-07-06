@@ -118,23 +118,7 @@ export const validarFerias = defineAction(
   },
 );
 
-export const definirEscala = defineAction(
-  {
-    ...adminBase,
-    acao: "definir-escala",
-    entidade: "EscalaTrabalho",
-    schema: z.object({ userId: z.string().min(1), horasDia: z.number().min(0).max(24) }),
-  },
-  async (i) => {
-    await prisma.escalaTrabalho.upsert({
-      where: { userId: i.userId },
-      create: { userId: i.userId, horasDia: i.horasDia },
-      update: { horasDia: i.horasDia },
-    });
-    revalidatePath("/rh/admin");
-    return { userId: i.userId };
-  },
-);
+// definirEscala removido em F7 (substituído por EscalaRole/EscalaUsuario no módulo escalas)
 
 async function notificarGestores(titulo: string, corpo: string, href: string) {
   const gestores = await prisma.user.findMany({

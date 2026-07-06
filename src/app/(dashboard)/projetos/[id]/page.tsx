@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { CalendarDays, MapPin, Ruler, Users } from "lucide-react";
 import { usuariosOnline } from "@/lib/socket";
-import { ROLE_LABELS } from "@/lib/roles";
+import { ROLE_LABELS, CLT_ROLES, INTERNAL_ROLES } from "@/lib/roles";
 import { Avatar, AvatarFallback, AvatarBadge } from "@/components/ui/avatar";
 import { requirePermission } from "@/lib/session";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
@@ -12,7 +12,8 @@ import { formatarData } from "@/lib/utils";
 import { SITUACAO_PROJETO_LABEL, progressoProjeto } from "@/modules/projetos/status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { DisciplinaCard } from "@/components/projetos/disciplina-card";
+import { DisciplinaCard, type TarefaDaDisciplina } from "@/components/projetos/disciplina-card";
+import { tarefasDoProjeto, opcoesTarefa, colunasTarefaAtivas, tarefaBloqueada } from "@/modules/tarefas/queries";
 import { EquipeManager } from "@/components/projetos/equipe-manager";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ProjetoKpis } from "@/components/projetos/projeto-kpis";
@@ -24,7 +25,7 @@ import { AdicionarDoCatalogoButton } from "@/components/projetos/adicionar-do-ca
 import { DisciplinaEditDialog, DisciplinaDeleteButton } from "@/components/projetos/disciplina-edit-dialog";
 import { canalDoProjeto, canaisDasDisciplinas } from "@/modules/chat/queries";
 import { sessaoAberta } from "@/modules/ponto/queries";
-import { CronometroProjeto } from "@/components/ponto/cronometro-projeto";
+import { PontoProjeto } from "@/components/ponto/ponto-projeto";
 
 function fmtData(d: Date | null) {
   return d ? formatarData(d) : null;
@@ -57,6 +58,9 @@ export default async function ProjetoDetalhePage({
     timelineStatusProjeto(projeto.id),
   ]);
 
+  // Item 26 (beta): CLT/estagiário são remunerados por salário/bolsa (RH), não por
+  // disciplina — o valor pago ao projetista PJ/freelancer não deve aparecer para eles.
+  const ocultarValorDisciplina = CLT_ROLES.includes(user.role);
   const disciplinas = projeto.disciplinas.map((d) => {
     const uploads = d.uploads.map((u) => ({
       id: u.id,
@@ -65,6 +69,9 @@ export default async function ProjetoDetalhePage({
       versao: u.versao,
       tamanho: u.tamanho,
       validado: u.validado,
+      origem: u.origem,
+      ajusteObs: u.revisaoObs,
+      ajusteEm: u.revisaoEm ? new Date(u.revisaoEm).toISOString() : null,
       autor: u.autor.name,
       data: new Date(u.createdAt).toISOString(),
       aceiteToken: u.aceite?.token ?? null,
@@ -75,7 +82,7 @@ export default async function ProjetoDetalhePage({
       nome: d.nome,
       status: d.status,
       prazo: d.prazo ? new Date(d.prazo).toISOString() : null,
-      valor: d.valor != null ? Number(d.valor) : null,
+      valor: ocultarValorDisciplina ? null : d.valor != null ? Number(d.valor) : null,
       responsaveis: d.responsaveis.map((r) => ({ userId: r.userId, name: r.user.name })),
       ehResponsavel: d.responsaveis.some((r) => r.userId === user.id),
       revisoes: d.revisoes.map((rv) => ({
@@ -88,11 +95,67 @@ export default async function ProjetoDetalhePage({
       uploads,
       temA: uploads.some((u) => u.pacote === "A"),
       temB: uploads.some((u) => u.pacote === "B"),
-      jaValidado: d._count.pagamentos > 0,
+      jaValidado: d.status === "aprovado",
       exigePacoteA: d.exigePacoteA,
       exigePacoteB: d.exigePacoteB,
     };
   });
+
+  // Tarefas por disciplina (só usuários internos; escopadas ao viewer: admin/supervisor veem
+  // todas, os demais só as atribuídas a eles ou que criaram).
+  const podeVerTarefas = INTERNAL_ROLES.includes(user.role);
+  let tarefaColunas: { id: string; nome: string }[] | null = null;
+  let tarefaOpcoes: Awaited<ReturnType<typeof opcoesTarefa>> | null = null;
+  let tarefasProjeto: Awaited<ReturnType<typeof tarefasDoProjeto>> = [];
+  if (podeVerTarefas) {
+    [tarefaColunas, tarefaOpcoes, tarefasProjeto] = await Promise.all([
+      colunasTarefaAtivas(),
+      opcoesTarefa(),
+      tarefasDoProjeto(user, projeto.id),
+    ]);
+    // Garante o projeto atual + suas disciplinas nas opções do diálogo (mesmo fora de "em_andamento").
+    if (!tarefaOpcoes.projetos.some((p) => p.id === projeto.id))
+      tarefaOpcoes.projetos.unshift({ id: projeto.id, codigo: projeto.codigo, nome: projeto.nome });
+    for (const d of projeto.disciplinas) {
+      if (!tarefaOpcoes.disciplinas.some((x) => x.id === d.id))
+        tarefaOpcoes.disciplinas.push({ id: d.id, nome: d.nome, projetoId: projeto.id });
+    }
+  }
+  const tarefasPorDisciplina = new Map<string, TarefaDaDisciplina[]>();
+  for (const t of tarefasProjeto) {
+    if (!t.disciplinaId) continue;
+    const ui: TarefaDaDisciplina = {
+      id: t.id,
+      titulo: t.titulo,
+      descricao: t.descricao ?? "",
+      statusId: t.statusId,
+      prazo: t.prazo ? new Date(t.prazo).toISOString().slice(0, 10) : "",
+      prioridade: t.prioridade ?? "",
+      projetoId: t.projetoId ?? "",
+      projetoCodigo: t.projeto?.codigo ?? null,
+      projetoNome: t.projeto?.nome ?? null,
+      disciplinaId: t.disciplinaId,
+      criadorId: t.criadorId,
+      responsaveis: t.responsaveis.map((r) => ({ id: r.user.id, nome: r.user.name })),
+      itens: t.itens.map((it) => ({ id: it.id, descricao: it.descricao, concluido: it.concluido })),
+      dependeDeIds: t.dependeDe.map((d) => d.dependeDe.id),
+      bloqueada: tarefaBloqueada(t),
+      comentarios: t.comentarios.map((c) => ({
+        id: c.id,
+        texto: c.texto,
+        autor: c.autor.name,
+        data: c.createdAt.toISOString(),
+        anexoMime: c.anexoMime,
+        anexoNome: c.anexoNome,
+      })),
+      statusNome: t.status.nome,
+      statusCor: t.status.cor,
+      concluido: t.status.concluido,
+    };
+    const lista = tarefasPorDisciplina.get(t.disciplinaId);
+    if (lista) lista.push(ui);
+    else tarefasPorDisciplina.set(t.disciplinaId, [ui]);
+  }
 
   const progressoGeral = progressoProjeto(projeto.disciplinas.map((d) => d.status));
 
@@ -173,9 +236,9 @@ export default async function ProjetoDetalhePage({
         </div>
       )}
 
-      {/* N-29: Cronômetro de sessão de trabalho */}
+      {/* N-29: Ponto por projeto — direciona a jornada aberta a este projeto */}
       {user.role !== "cliente" && (
-        <CronometroProjeto
+        <PontoProjeto
           projetoId={projeto.id}
           sessaoAtiva={sessaoPonto ? { id: sessaoPonto.id, projetoId: sessaoPonto.projetoId, inicio: sessaoPonto.inicio } : null}
         />
@@ -214,7 +277,7 @@ export default async function ProjetoDetalhePage({
 
       {/* P-47: Kanban + P-48: ações em massa */}
       <div>
-        <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
           <h3 className="text-lg font-bold tracking-tight">Disciplinas</h3>
           {podeGerir && (
             <div className="flex items-center gap-1">
@@ -242,11 +305,17 @@ export default async function ProjetoDetalhePage({
         {disciplinas.map((d) => (
           <DisciplinaCard
             key={d.id}
+            projetoId={projeto.id}
             disciplina={d}
             podeGerir={podeGerir}
             podeValidar={podeValidar}
             internos={internos}
             canalChatId={canaisDisc.get(d.id) ?? canalChat?.id}
+            tarefas={tarefasPorDisciplina.get(d.id) ?? []}
+            tarefaOpcoes={tarefaOpcoes ?? undefined}
+            tarefaColunas={tarefaColunas ?? undefined}
+            meId={user.id}
+            meRole={user.role}
           />
         ))}
       </div>

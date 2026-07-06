@@ -93,7 +93,7 @@ export const gerarTarefaDeEap = defineAction(
 
     const eap = await prisma.eapTarefa.findUnique({
       where: { id: i.eapTarefaId },
-      select: { nome: true, projetoId: true, fimPrevisto: true },
+      select: { nome: true, projetoId: true, disciplinaId: true, fimPrevisto: true },
     });
     if (!eap) throw new ActionError("Etapa da EAP não encontrada.");
 
@@ -111,6 +111,7 @@ export const gerarTarefaDeEap = defineAction(
         statusId: primeira.id,
         prazo: eap.fimPrevisto,
         projetoId: eap.projetoId,
+        disciplinaId: eap.disciplinaId,
         criadorId: user.id,
         eapTarefaId: i.eapTarefaId,
       },

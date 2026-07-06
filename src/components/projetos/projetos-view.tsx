@@ -18,6 +18,7 @@ import type { ProjetoListItem } from "@/modules/projetos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
   SITUACAO_PROJETO_LABEL,
+  TIPO_PROJETO_LABEL,
   progressoProjeto,
 } from "@/modules/projetos/status";
 import { ProjetoForm } from "@/components/projetos/projeto-form";
@@ -64,7 +65,6 @@ const SAUDE_CLASS: Record<NivelSaude, string> = {
   critico: "text-destructive",
 };
 
-const TIPO_LABEL: Record<string, string> = { particular: "Particular", licitacao: "Licitação" };
 
 type Vista = "cards" | "tabela" | "kanban";
 const VISTA_KEY = "projetos:vista";
@@ -214,13 +214,14 @@ export function ProjetosView({
           </Button>
         </div>
         <Select
-          value={situacao || "todas"}
-          onValueChange={(v) => setParams({ situacao: v === "todas" ? null : v })}
+          value={situacao || "ativos"}
+          onValueChange={(v) => setParams({ situacao: v === "ativos" ? null : v })}
         >
-          <SelectTrigger className="w-44">
+          <SelectTrigger className="w-52">
             <SelectValue placeholder="Situação" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="ativos">Ativos (padrão)</SelectItem>
             <SelectItem value="todas">Todas as situações</SelectItem>
             {Object.entries(SITUACAO_PROJETO_LABEL).map(([k, v]) => (
               <SelectItem key={k} value={k}>
@@ -425,17 +426,17 @@ function ProjetosCards({ items }: { items: ProjetoListItem[] }) {
           <Link
             key={p.id}
             href={`/projetos/${p.id}`}
-            className="flex flex-col gap-2 rounded-sm border bg-card p-3 shadow-sm transition-colors hover:border-primary"
+            className="flex min-w-0 flex-col gap-2 rounded-sm border bg-card p-3 shadow-sm transition-colors hover:border-primary"
           >
             <div className="flex items-center justify-between gap-2">
               <span className="font-mono text-xs text-muted-foreground">{formatarCodigo(p.codigo)}</span>
-              <Badge variant="outline" className="text-[10px]">
-                {TIPO_LABEL[p.tipo] ?? p.tipo}
+              <Badge variant="outline" className="shrink-0 text-[10px]">
+                {TIPO_PROJETO_LABEL[p.tipo] ?? p.tipo}
               </Badge>
             </div>
-            <div>
-              <p className="font-medium leading-tight">{p.nome}</p>
-              <p className="truncate text-xs text-muted-foreground">{p.cliente.nome}</p>
+            <div className="min-w-0">
+              <p className="truncate font-medium leading-tight" title={p.nome}>{p.nome}</p>
+              <p className="truncate text-xs text-muted-foreground" title={p.cliente.nome}>{p.cliente.nome}</p>
             </div>
             <DisciplinaIcones disciplinas={p.disciplinas} />
             <div className="mt-auto flex items-center justify-between gap-2 pt-1 text-xs">
@@ -498,16 +499,16 @@ function ProjetosKanban({ items }: { items: ProjetoListItem[] }) {
                 <Link
                   key={p.id}
                   href={`/projetos/${p.id}`}
-                  className="block rounded-sm border bg-card p-2.5 text-sm shadow-sm transition-colors hover:border-primary"
+                  className="block min-w-0 rounded-sm border bg-card p-2.5 text-sm shadow-sm transition-colors hover:border-primary"
                 >
                   <div className="flex items-start justify-between gap-1">
                     <p className="font-mono text-xs text-muted-foreground">{formatarCodigo(p.codigo)}</p>
                     {atraso > 0 && (
-                      <Badge variant="destructive" className="text-[9px] leading-tight">+{atraso}d</Badge>
+                      <Badge variant="destructive" className="shrink-0 text-[9px] leading-tight">+{atraso}d</Badge>
                     )}
                   </div>
-                  <p className="mt-0.5 font-medium leading-tight">{p.nome}</p>
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">{p.cliente.nome}</p>
+                  <p className="mt-0.5 truncate font-medium leading-tight" title={p.nome}>{p.nome}</p>
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground" title={p.cliente.nome}>{p.cliente.nome}</p>
                   <div className="mt-2">
                     <DisciplinaIcones disciplinas={p.disciplinas} size="size-3.5" />
                   </div>

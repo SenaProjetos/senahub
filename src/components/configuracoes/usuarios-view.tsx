@@ -10,6 +10,7 @@ import {
   UserX,
   UserCheck,
   Copy,
+  Trash2,
 } from "lucide-react";
 import {
   criarUsuario,
@@ -17,7 +18,9 @@ import {
   desativarUsuario,
   reativarUsuario,
   resetarSenhaUsuario,
+  excluirUsuario,
 } from "@/modules/usuarios/actions";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ROLES, ROLE_LABELS, type Role } from "@/lib/roles";
 import type { UsuarioListItem } from "@/modules/usuarios/queries";
 import { Button } from "@/components/ui/button";
@@ -55,21 +58,49 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-type FormState = { id?: string; name: string; email: string; role: Role; clienteId: string };
+type FormState = {
+  id?: string;
+  name: string;
+  email: string;
+  role: Role;
+  clienteId: string;
+  ehSocio: boolean;
+};
 
-const EMPTY: FormState = { name: "", email: "", role: "projetista_pj", clienteId: "" };
+const EMPTY: FormState = { name: "", email: "", role: "projetista_pj", clienteId: "", ehSocio: false };
 
 export function UsuariosView({
   usuarios,
   clientes,
+  podeDefinirSocio,
+  podeExcluir,
 }: {
   usuarios: UsuarioListItem[];
   clientes: { id: string; nome: string }[];
+  podeDefinirSocio: boolean;
+  podeExcluir: boolean;
 }) {
   const [mostrarInativos, setMostrarInativos] = useState(true);
   const [form, setForm] = useState<FormState | null>(null);
   const [credencial, setCredencial] = useState<{ email: string; senha: string } | null>(null);
   const [pending, startTransition] = useTransition();
+  const confirm = useConfirm();
+
+  async function excluir(u: UsuarioListItem) {
+    const ok = await confirm({
+      title: `Excluir ${u.name}?`,
+      description:
+        "Remove o usuário definitivamente. Só é possível para contas desativadas e sem histórico de atividade. Esta ação não pode ser desfeita.",
+      confirmLabel: "Excluir",
+      variant: "destructive",
+    });
+    if (!ok) return;
+    startTransition(async () => {
+      const res = await excluirUsuario({ id: u.id });
+      if (res.ok) toast.success("Usuário excluído.");
+      else toast.error(res.error ?? "Falha ao excluir.");
+    });
+  }
 
   const visiveis = usuarios.filter((u) => mostrarInativos || u.ativo);
 
@@ -77,7 +108,13 @@ export function UsuariosView({
     if (!form) return;
     startTransition(async () => {
       if (form.id) {
-        const res = await editarUsuario({ id: form.id, name: form.name, role: form.role, clienteId: form.clienteId });
+        const res = await editarUsuario({
+          id: form.id,
+          name: form.name,
+          role: form.role,
+          clienteId: form.clienteId,
+          ...(podeDefinirSocio ? { ehSocio: form.ehSocio } : {}),
+        });
         if (res.ok) {
           toast.success("Usuário atualizado.");
           setForm(null);
@@ -114,7 +151,8 @@ export function UsuariosView({
         <div>
           <h2 className="text-2xl font-extrabold tracking-tight">Usuários</h2>
           <p className="text-sm text-muted-foreground">
-            {visiveis.length} usuário(s). Usuários nunca são excluídos, apenas desativados.
+            {visiveis.length} usuário(s). Usuários com histórico são apenas desativados; contas
+            desativadas sem atividade podem ser excluídas pelo admin.
           </p>
         </div>
         <Button onClick={() => setForm({ ...EMPTY })}>
@@ -144,7 +182,10 @@ export function UsuariosView({
                 <TableCell className="font-medium">{u.name}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">{u.email}</TableCell>
                 <TableCell>
-                  <Badge variant="outline">{ROLE_LABELS[u.role as Role]}</Badge>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Badge variant="outline">{ROLE_LABELS[u.role as Role]}</Badge>
+                    {u.socio?.ativo && <Badge variant="secondary">Sócio</Badge>}
+                  </span>
                 </TableCell>
                 <TableCell>
                   {u.ativo ? (
@@ -174,6 +215,7 @@ export function UsuariosView({
                             email: u.email,
                             role: u.role as Role,
                             clienteId: u.clienteId ?? "",
+                            ehSocio: u.socio?.ativo === true,
                           })
                         }
                       >
@@ -198,6 +240,11 @@ export function UsuariosView({
                           }
                         >
                           <UserCheck className="size-4" /> Reativar
+                        </DropdownMenuItem>
+                      )}
+                      {podeExcluir && !u.ativo && (
+                        <DropdownMenuItem variant="destructive" onClick={() => excluir(u)}>
+                          <Trash2 className="size-4" /> Excluir
                         </DropdownMenuItem>
                       )}
                     </DropdownMenuContent>
@@ -258,6 +305,22 @@ export function UsuariosView({
                   </SelectContent>
                 </Select>
               </div>
+              {form.id && podeDefinirSocio && form.role !== "cliente" && (
+                <div className="flex items-start justify-between gap-3 rounded-sm border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="u-socio">Sócio</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Acesso de leitura ampliado (piso de supervisor) e canal Sócios no chat.
+                      Percentual de participação é gerido em Financeiro → Cadastros.
+                    </p>
+                  </div>
+                  <Switch
+                    id="u-socio"
+                    checked={form.ehSocio}
+                    onCheckedChange={(v) => setForm({ ...form, ehSocio: v })}
+                  />
+                </div>
+              )}
               {form.role === "cliente" && (
                 <div className="space-y-1.5">
                   <Label>Cliente vinculado (portal)</Label>

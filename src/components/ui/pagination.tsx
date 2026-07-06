@@ -24,8 +24,9 @@ export function Pagination({
     <div className="flex flex-wrap items-center justify-end gap-2 pt-2 text-xs text-muted-foreground">
       {total != null && <span className="mr-auto">{total} item(ns)</span>}
       {pageSize != null && (
-        <Select value={String(pageSize)} onValueChange={(v) => setParams({ pageSize: v, page: null })}>
-          <SelectTrigger className="h-7 w-[4.5rem]">
+        // base-ui: onValueChange pode entregar null — ignora para não zerar o param.
+        <Select value={String(pageSize)} onValueChange={(v) => v && setParams({ pageSize: v, page: null })}>
+          <SelectTrigger className="h-7 w-fit min-w-[5.5rem] gap-1 px-2 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

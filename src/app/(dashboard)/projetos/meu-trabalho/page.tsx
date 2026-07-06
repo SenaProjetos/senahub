@@ -4,7 +4,7 @@ import { Briefcase } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { minhasDisciplinas } from "@/modules/projetos/meu-trabalho/queries";
 import { STATUS_LABEL, STATUS_CHIP, STATUS_TEXT } from "@/modules/projetos/status";
-import { iconeDisciplina } from "@/lib/disciplinas";
+import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { formatarData } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,13 +21,12 @@ export default async function MeuTrabalhoPage() {
   const nosPrazos = disciplinas.filter((d) => d.atraso === 0);
 
   function DisciplinaRow({ d }: { d: (typeof disciplinas)[number] }) {
-    const Icone = iconeDisciplina(d.nome);
     return (
       <Link
         href={`/projetos/${d.projetoId}`}
         className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors"
       >
-        <Icone className={cn("size-4 shrink-0", STATUS_TEXT[d.status])} aria-hidden />
+        <DisciplinaIcone nome={d.nome} className={cn("size-4 shrink-0", STATUS_TEXT[d.status])} />
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium text-sm">{d.nome}</p>
           <p className="truncate text-xs text-muted-foreground">

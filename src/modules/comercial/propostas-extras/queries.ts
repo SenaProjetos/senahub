@@ -1,10 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 
-export async function anexosDaProposta(propostaId: string) {
-  const as = await prisma.propostaAnexo.findMany({ where: { propostaId }, orderBy: { createdAt: "desc" } });
-  return as.map((a) => ({ id: a.id, nome: a.nome, tamanho: a.tamanho, createdAt: a.createdAt.toISOString() }));
-}
+// anexosDaProposta migrou para `modules/documentos-cliente/queries.ts` (documentosDaProposta),
+// pois os anexos viraram Documento (ancorado no cliente). Aqui fica só a comparação de versões.
 
 type SnapItem = { disciplina?: string; valor?: number | string };
 

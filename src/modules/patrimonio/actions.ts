@@ -41,7 +41,7 @@ export const criarAtivo = defineAction(
 );
 
 export const editarAtivo = defineAction(
-  { modulo: "patrimonio", recurso: "patrimonio", permissao: "gerir", acao: "editar-ativo", entidade: "Ativo", schema: ativoEditarSchema, entidadeId: (d) => (d as { id: string }).id },
+  { modulo: "patrimonio", recurso: "patrimonio", permissao: "gerir", acao: "editar-ativo", entidade: "Ativo", schema: ativoEditarSchema, entidadeId: (d, i) => ((d ?? i) as { id: string }).id },
   async (i) => {
     await prisma.ativo.update({
       where: { id: i.id },
@@ -62,7 +62,7 @@ export const editarAtivo = defineAction(
 );
 
 export const excluirAtivo = defineAction(
-  { modulo: "patrimonio", recurso: "patrimonio", permissao: "gerir", acao: "excluir-ativo", entidade: "Ativo", schema: idSchema, entidadeId: (d) => (d as { id: string }).id },
+  { modulo: "patrimonio", recurso: "patrimonio", permissao: "gerir", acao: "excluir-ativo", entidade: "Ativo", schema: idSchema, entidadeId: (d, i) => ((d ?? i) as { id: string }).id },
   async (i) => {
     await prisma.ativo.delete({ where: { id: i.id } });
     revInv();
@@ -92,7 +92,7 @@ export const criarMaquina = defineAction(
 );
 
 export const editarMaquina = defineAction(
-  { modulo: "patrimonio", recurso: "patrimonio", permissao: "ti", acao: "editar-maquina", entidade: "MaquinaTI", schema: maquinaEditarSchema, entidadeId: (d) => (d as { id: string }).id },
+  { modulo: "patrimonio", recurso: "patrimonio", permissao: "ti", acao: "editar-maquina", entidade: "MaquinaTI", schema: maquinaEditarSchema, entidadeId: (d, i) => ((d ?? i) as { id: string }).id },
   async (i) => {
     await prisma.maquinaTI.update({
       where: { id: i.id },
@@ -113,7 +113,7 @@ export const editarMaquina = defineAction(
 );
 
 export const excluirMaquina = defineAction(
-  { modulo: "patrimonio", recurso: "patrimonio", permissao: "ti", acao: "excluir-maquina", entidade: "MaquinaTI", schema: idSchema, entidadeId: (d) => (d as { id: string }).id },
+  { modulo: "patrimonio", recurso: "patrimonio", permissao: "ti", acao: "excluir-maquina", entidade: "MaquinaTI", schema: idSchema, entidadeId: (d, i) => ((d ?? i) as { id: string }).id },
   async (i) => {
     await prisma.maquinaTI.delete({ where: { id: i.id } });
     revTi();
@@ -133,7 +133,7 @@ export const adicionarComponente = defineAction(
 );
 
 export const removerComponente = defineAction(
-  { modulo: "patrimonio", recurso: "patrimonio", permissao: "ti", acao: "rm-componente", entidade: "ComponenteMaquina", schema: idSchema, entidadeId: (d) => (d as { id: string }).id },
+  { modulo: "patrimonio", recurso: "patrimonio", permissao: "ti", acao: "rm-componente", entidade: "ComponenteMaquina", schema: idSchema, entidadeId: (d, i) => ((d ?? i) as { id: string }).id },
   async (i) => {
     await prisma.componenteMaquina.delete({ where: { id: i.id } });
     revTi();
@@ -153,7 +153,7 @@ export const adicionarManutencao = defineAction(
 );
 
 export const removerManutencao = defineAction(
-  { modulo: "patrimonio", recurso: "patrimonio", permissao: "ti", acao: "rm-manutencao", entidade: "ManutencaoMaquina", schema: idSchema, entidadeId: (d) => (d as { id: string }).id },
+  { modulo: "patrimonio", recurso: "patrimonio", permissao: "ti", acao: "rm-manutencao", entidade: "ManutencaoMaquina", schema: idSchema, entidadeId: (d, i) => ((d ?? i) as { id: string }).id },
   async (i) => {
     await prisma.manutencaoMaquina.delete({ where: { id: i.id } });
     revTi();

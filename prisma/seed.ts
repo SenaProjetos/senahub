@@ -33,6 +33,11 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "administrativo", recurso: "projetos", acao: "gerir" },
   { role: "administrativo", recurso: "financeiro", acao: "ver" },
   { role: "administrativo", recurso: "financeiro", acao: "gerir" },
+  // Arquivos gerais do projeto (pasta "Geral"): gestores administrativos por padrão.
+  { role: "supervisor", recurso: "arquivos_gerais", acao: "ver" },
+  { role: "supervisor", recurso: "arquivos_gerais", acao: "gerir" },
+  { role: "administrativo", recurso: "arquivos_gerais", acao: "ver" },
+  { role: "administrativo", recurso: "arquivos_gerais", acao: "gerir" },
   { role: "supervisor", recurso: "documentos", acao: "ver" },
   { role: "supervisor", recurso: "documentos", acao: "gerir" },
   { role: "administrativo", recurso: "documentos", acao: "ver" },
@@ -91,6 +96,16 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "ti", recurso: "patrimonio", acao: "ver" },
   { role: "ti", recurso: "patrimonio", acao: "gerir" },
   { role: "ti", recurso: "patrimonio", acao: "ti" },
+  // Ponto v2: supervisor mantém visão completa (equipe + rateio de custo).
+  // administrativo perde `rateio` por padrão (dado de custo/margem) — decisão do
+  // usuário; segue com espelho/escalas/ajustes (tarefas de RH do dia a dia).
+  { role: "supervisor", recurso: "ponto", acao: "rateio" },
+  { role: "supervisor", recurso: "ponto", acao: "espelho_equipe" },
+  { role: "supervisor", recurso: "ponto", acao: "gerir_escalas" },
+  { role: "supervisor", recurso: "ponto", acao: "ajustar" },
+  { role: "administrativo", recurso: "ponto", acao: "espelho_equipe" },
+  { role: "administrativo", recurso: "ponto", acao: "gerir_escalas" },
+  { role: "administrativo", recurso: "ponto", acao: "ajustar" },
 ];
 
 /** Plano de contas inicial. Códigos usados na auto-categorização de pagamentos. */
@@ -156,15 +171,19 @@ const ONBOARDING_PADRAO = {
   ],
 };
 
-const DISCIPLINAS_CATALOGO = [
-  "Arquitetura",
-  "Estrutural",
-  "Hidrossanitário",
-  "Elétrico",
-  "Incêndio (PPCI)",
-  "Climatização (AVAC)",
-  "Fundações",
-  "Terraplenagem",
+// Item 15: catálogo com sigla (nomenclatura de arquivos) + categoria (agrupamento na UI).
+const DISCIPLINAS_CATALOGO: { nome: string; codigo: string; categoria: string }[] = [
+  { nome: "Terraplenagem", codigo: "TER", categoria: "CIVIL" },
+  { nome: "Arquitetura", codigo: "ARQ", categoria: "ARQUITETURA" },
+  { nome: "Estrutural", codigo: "EST", categoria: "ESTRUTURAL" },
+  { nome: "Fundações", codigo: "FUN", categoria: "ESTRUTURAL" },
+  { nome: "Elétrico", codigo: "ELE", categoria: "ELÉTRICA" },
+  { nome: "Lógica", codigo: "LOG", categoria: "ELÉTRICA" },
+  { nome: "CFTV", codigo: "CFT", categoria: "ELÉTRICA" },
+  { nome: "Hidrossanitário", codigo: "HID", categoria: "HIDRÁULICA" },
+  { nome: "Drenagem", codigo: "DRE", categoria: "HIDRÁULICA" },
+  { nome: "Incêndio (PPCI)", codigo: "PCI", categoria: "SEGURANÇA" },
+  { nome: "Climatização (AVAC)", codigo: "CLI", categoria: "MECÂNICA" },
 ];
 
 async function main() {
@@ -212,13 +231,53 @@ async function main() {
 
   // 3) Catálogo de disciplinas
   for (let i = 0; i < DISCIPLINAS_CATALOGO.length; i++) {
+    const d = DISCIPLINAS_CATALOGO[i];
     await prisma.disciplinaCatalogo.upsert({
-      where: { nome: DISCIPLINAS_CATALOGO[i] },
-      create: { nome: DISCIPLINAS_CATALOGO[i], ordem: i },
-      update: { ordem: i },
+      where: { nome: d.nome },
+      create: { nome: d.nome, codigo: d.codigo, categoria: d.categoria, ordem: i },
+      update: { codigo: d.codigo, categoria: d.categoria, ordem: i },
     });
   }
   console.log(`✔ ${DISCIPLINAS_CATALOGO.length} disciplinas no catálogo.`);
+
+  // 3b) Catálogo da Lista Mestre (folha/tipo/fase) — siglas globais padrão.
+  const LM_CATALOGO: { categoria: "folha" | "tipo" | "fase"; sigla: string; nome: string }[] = [
+    { categoria: "folha", sigla: "A0", nome: "A0 (841×1189)" },
+    { categoria: "folha", sigla: "A1", nome: "A1 (594×841)" },
+    { categoria: "folha", sigla: "A2", nome: "A2 (420×594)" },
+    { categoria: "folha", sigla: "A3", nome: "A3 (297×420)" },
+    { categoria: "folha", sigla: "A4", nome: "A4 (210×297)" },
+    { categoria: "fase", sigla: "EP", nome: "Estudo Preliminar" },
+    { categoria: "fase", sigla: "AP", nome: "Anteprojeto" },
+    { categoria: "fase", sigla: "PB", nome: "Projeto Básico" },
+    { categoria: "fase", sigla: "PE", nome: "Projeto Executivo" },
+    { categoria: "fase", sigla: "PL", nome: "Projeto Legal" },
+    { categoria: "fase", sigla: "AB", nome: "As Built" },
+    { categoria: "tipo", sigla: "PL", nome: "Planta" },
+    { categoria: "tipo", sigla: "CO", nome: "Corte" },
+    { categoria: "tipo", sigla: "VI", nome: "Vista" },
+    { categoria: "tipo", sigla: "DE", nome: "Detalhe" },
+    { categoria: "tipo", sigla: "ES", nome: "Esquema" },
+    { categoria: "tipo", sigla: "DI", nome: "Diagrama" },
+    { categoria: "tipo", sigla: "LC", nome: "Locação" },
+    { categoria: "tipo", sigla: "MC", nome: "Memorial de Cálculo" },
+  ];
+  let lmCriados = 0;
+  for (let i = 0; i < LM_CATALOGO.length; i++) {
+    const c = LM_CATALOGO[i];
+    // Sem unique com projetoId null; guarda por findFirst para manter idempotência.
+    const existe = await prisma.pranchaCatalogo.findFirst({
+      where: { categoria: c.categoria, sigla: c.sigla, projetoId: null },
+      select: { id: true },
+    });
+    if (!existe) {
+      await prisma.pranchaCatalogo.create({
+        data: { categoria: c.categoria, sigla: c.sigla, nome: c.nome, ordem: i },
+      });
+      lmCriados++;
+    }
+  }
+  console.log(`✔ Catálogo Lista Mestre: ${lmCriados} sigla(s) global(is) criada(s).`);
 
   // 4) Plano de contas (cria pais antes das filhas — array já ordenado)
   const idsPorCodigo = new Map<string, string>();

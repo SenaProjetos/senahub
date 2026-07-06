@@ -43,7 +43,7 @@ export function ProjetoForm({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [tipo, setTipo] = useState<"particular" | "licitacao">("particular");
+  const [tipo, setTipo] = useState<"particular" | "licitacao" | "aprovacao">("particular");
   const [nome, setNome] = useState("");
   const [clienteId, setClienteId] = useState("");
   const [areaM2, setAreaM2] = useState("");
@@ -131,13 +131,14 @@ export function ProjetoForm({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Tipo</Label>
-              <Select value={tipo} onValueChange={(v) => setTipo(v as "particular" | "licitacao")}>
+              <Select value={tipo} onValueChange={(v) => v && setTipo(v as typeof tipo)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="particular">Particular</SelectItem>
                   <SelectItem value="licitacao">Licitação</SelectItem>
+                  <SelectItem value="aprovacao">Aprovação</SelectItem>
                 </SelectContent>
               </Select>
             </div>

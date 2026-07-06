@@ -29,7 +29,7 @@ export const definirValorContrato = defineAction(
     permissao: "gerir",
     entidade: "Projeto",
     schema: z.object({ projetoId: z.string().min(1), valorContrato: z.number().nonnegative().nullable() }),
-    entidadeId: (d) => (d as { projetoId: string }).projetoId,
+    entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
   },
   async (i) => {
     await prisma.projeto.update({ where: { id: i.projetoId }, data: { valorContrato: i.valorContrato } });
@@ -57,7 +57,7 @@ export const gerarParcelas = defineAction(
       dataPrimeira: z.string().min(1, "Informe a data da primeira parcela."),
       intervaloMeses: z.number().int().min(0).max(12).default(1),
     }),
-    entidadeId: (d) => (d as { projetoId: string }).projetoId,
+    entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
   },
   async (i, { user }) => {
     const projeto = await prisma.projeto.findUnique({
@@ -121,7 +121,7 @@ export const faturarEntrega = defineAction(
     permissao: "gerir",
     entidade: "Lancamento",
     schema: z.object({ disciplinaId: z.string().min(1) }),
-    entidadeId: (d) => (d as { disciplinaId: string }).disciplinaId,
+    entidadeId: (d, i) => ((d ?? i) as { disciplinaId: string }).disciplinaId,
   },
   async (i, { user }) => {
     const disciplina = await prisma.disciplina.findUnique({
@@ -172,7 +172,7 @@ export const limparParcelas = defineAction(
     permissao: "gerir",
     entidade: "Lancamento",
     schema: z.object({ projetoId: z.string().min(1) }),
-    entidadeId: (d) => (d as { projetoId: string }).projetoId,
+    entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
   },
   async (i) => {
     const { count } = await prisma.lancamento.deleteMany({

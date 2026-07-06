@@ -19,7 +19,7 @@ export async function proximoCodigoProjeto(
   return { ano, sequencial, codigo };
 }
 
-/** Formata 260142 → "26-0142" para exibição. */
+/** Item 25 (beta): exibe o código cru (260142), sem o hífen do formato antigo. */
 export function formatarCodigo(codigo: string): string {
-  return codigo.length === 6 ? `${codigo.slice(0, 2)}-${codigo.slice(2)}` : codigo;
+  return codigo;
 }

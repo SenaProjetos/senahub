@@ -115,6 +115,9 @@
   /* Assinatura do card: borda-esquerda de acento (Navy) + sombra de elevação */
   --card-edge: #1c2d58;
   --card-shadow: 0 4px 18px rgba(28, 45, 88, 0.1);
+  /* LogoLoader (símbolo animado Sena→SenaHub) — cores do kit de marca (public/MARCA) */
+  --loader-navy: #072959;
+  --loader-slate: #64818a;
 }
 
 .dark {
@@ -164,6 +167,9 @@
   --brand-backdrop-opacity: 0.20;
   --card-edge: #1c2d58;
   --card-shadow: 0 8px 28px rgba(7, 12, 26, 0.45);
+  /* LogoLoader — navy do kit vira quase invisível no dark; usa o tom claro do logo_hub_v_dark.svg */
+  --loader-navy: #ccccca;
+  --loader-slate: #64818a;
 }
 
 @layer base {

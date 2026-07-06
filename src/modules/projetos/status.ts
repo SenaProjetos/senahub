@@ -44,6 +44,12 @@ export const STATUS_TEXT: Record<StatusDisciplina, string> = {
   aprovado: "text-status-aprovado",
 };
 
+export const TIPO_PROJETO_LABEL: Record<string, string> = {
+  particular: "Particular",
+  licitacao: "Licitação",
+  aprovacao: "Aprovação",
+};
+
 export const SITUACAO_PROJETO_LABEL: Record<string, string> = {
   em_andamento: "Em andamento",
   concluido: "Concluído",

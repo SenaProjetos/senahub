@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tarefaBloqueada } from "./queries";
+import { tarefaBloqueada, escopoTarefa } from "./queries";
 import type { TarefaItemBoard } from "./queries";
 
 type Dep = TarefaItemBoard["dependeDe"][number];
@@ -33,5 +33,24 @@ describe("tarefaBloqueada", () => {
 
   it("bloqueada quando a única dependência não está concluída", () => {
     expect(tarefaBloqueada(tarefa([dep(false)]))).toBe(true);
+  });
+});
+
+describe("escopoTarefa", () => {
+  it("admin e supervisor não têm filtro (veem todas)", () => {
+    expect(escopoTarefa({ id: "u1", role: "admin" })).toEqual({});
+    expect(escopoTarefa({ id: "u1", role: "supervisor" })).toEqual({});
+  });
+
+  it("demais perfis só veem tarefas onde são responsáveis ou criadores", () => {
+    expect(escopoTarefa({ id: "u9", role: "projetista_pj" })).toEqual({
+      OR: [{ responsaveis: { some: { userId: "u9" } } }, { criadorId: "u9" }],
+    });
+  });
+
+  it("clt/estagiário/freelancer/ti também são escopados", () => {
+    for (const role of ["clt", "estagiario", "freelancer", "ti"] as const) {
+      expect(escopoTarefa({ id: "x", role }).OR).toBeDefined();
+    }
   });
 });
