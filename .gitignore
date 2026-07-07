@@ -51,6 +51,7 @@ next-env.d.ts
 /dev-err.log
 /.devpid
 /storage
+/logs/
 
 # logs de servico (NSSM: SenaHub + cloudflared, gerenciar-servidor.ps1)
 /logs
