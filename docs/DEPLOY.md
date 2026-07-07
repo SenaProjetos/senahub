@@ -261,3 +261,19 @@ tela de ajuda explicando cada item. A lógica mais pesada fica em `deploy/gerenc
 Diferente do `deploy-servidor.bat` (que é só para a primeira subida do servidor), este menu é
 para ser usado repetidamente. Ele **não** expõe `npm run seed:demo` (apaga dados de negócio) nem
 automatiza a recuperação de senha do Postgres — esses dois ficam de fora de propósito.
+
+---
+
+## 14. Mover o app para SSD (dados no HDD)
+
+Se o servidor tiver o app num **HDD** e o `next build` ficar lento (preso na fase
+`checking validity of types`, com `⚠ Slow filesystem detected`), a solução é rodar o app a partir
+do **SSD** mantendo uploads/backups no HDD (mais espaço). Runbook one-time dedicado, pensado para
+ser executado por Claude Code **no próprio servidor**:
+
+**[docs/migracao-ssd-storage.md](migracao-ssd-storage.md)**
+
+Resumo: código + `node_modules` + `.next` → SSD; `STORAGE_BASE_PATH` + `BACKUP_PATH` → HDD (mesma
+pasta de storage atual, para os uploads existentes resolverem). Recria o serviço NSSM no novo path;
+`cloudflared` não muda. ⚠️ `BACKUP_PATH` tem que ser setado explícito (default cai no cwd/SSD) e o
+`BETTER_AUTH_SECRET` deve ser reaproveitado (não gerar novo).
