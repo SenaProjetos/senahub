@@ -1,0 +1,6 @@
+# Scripts nativos do Windows precisam de CRLF: com LF puro o cmd.exe pode nao achar
+# labels (goto), quebrar blocos if(...) multi-linha e for/f, e o menu para de funcionar.
+# Forca a copia de trabalho a ter CRLF em qualquer checkout (Windows, WSL, zip, etc).
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

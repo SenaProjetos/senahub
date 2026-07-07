@@ -111,8 +111,12 @@ function Stop-DevServer {
             }
         }
     } catch {}
-    Get-Process -Name "esbuild" -ErrorAction SilentlyContinue | ForEach-Object {
-        try { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue; $encontrou = $true } catch {}
+    # So mata os esbuild DESTE projeto (exe fica em node_modules do AppRoot) - nao os de outros projetos.
+    # foreach statement (nao ForEach-Object) para o $encontrou ser atualizado no escopo da funcao.
+    $esbuilds = Get-CimInstance Win32_Process -Filter "Name='esbuild.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($AppRoot, [System.StringComparison]::OrdinalIgnoreCase) }
+    foreach ($esb in $esbuilds) {
+        try { Stop-Process -Id $esb.ProcessId -Force -ErrorAction SilentlyContinue; $encontrou = $true } catch {}
     }
     Start-Sleep -Seconds 1
     if ($encontrou) { Write-Host "[OK] Dev server encerrado." -ForegroundColor Green }
@@ -128,8 +132,30 @@ function Invoke-Passo {
     }
     Write-Host ""
     Write-Host "-> $Descricao" -ForegroundColor Cyan
-    & $Bloco
+    # | Out-Host: manda o stdout do comando para o console em vez de deixar vazar para o
+    # valor de retorno da funcao (que assim fica sendo SO o int do exit code). Sem isso,
+    # git pull/merge/push imprimem no stdout e "$rc = Invoke-Passo" virava @('texto', 0),
+    # fazendo "$rc -ne 0" dar truthy e abortar a promocao mesmo com exit 0.
+    & $Bloco | Out-Host
     return $LASTEXITCODE
+}
+
+# Teste de porta rapido (TcpClient + timeout) - Test-NetConnection trava alguns segundos quando fechada.
+function Test-Porta {
+    param([string]$Alvo = "127.0.0.1", [int]$Porta, [int]$TimeoutMs = 1000)
+    $cliente = New-Object System.Net.Sockets.TcpClient
+    try {
+        $iar = $cliente.BeginConnect($Alvo, $Porta, $null, $null)
+        if ($iar.AsyncWaitHandle.WaitOne($TimeoutMs)) {
+            $cliente.EndConnect($iar)
+            return $true
+        }
+        return $false
+    } catch {
+        return $false
+    } finally {
+        $cliente.Close()
+    }
 }
 
 # ======================== DESENVOLVIMENTO ========================
@@ -227,7 +253,8 @@ function Invoke-TestesArquivo {
 
 function Invoke-CorrigirAmbiente {
     Write-Host ""
-    Write-Host "Isso para o dev server, apaga .next e repara as dependencias (npm install)." -ForegroundColor Yellow
+    Write-Host "Isso PARA o dev server, apaga .next e repara as dependencias (npm install)." -ForegroundColor Yellow
+    if (-not (Confirm-SN "Continuar")) { Write-Host "Cancelado." -ForegroundColor Yellow; return }
     Stop-DevServer
     Push-Location $AppRoot
     try {
@@ -256,6 +283,9 @@ function Invoke-StatusRepo {
     try {
         Write-Host ""
         Write-Host "==================== STATUS DO REPOSITORIO ====================" -ForegroundColor Cyan
+        # fetch silencioso para o ahead/behind refletir o estado REAL de origin (best-effort/offline-safe).
+        Write-Host "  (atualizando refs: git fetch)" -ForegroundColor DarkGray
+        git fetch --quiet 2>$null
         $branch = (git rev-parse --abbrev-ref HEAD).Trim()
         $commit = (git rev-parse --short HEAD).Trim()
         $subject = (git log -1 --pretty=%s).Trim()
@@ -281,6 +311,14 @@ function Invoke-StatusRepo {
             if ($ahead -gt 0) { Write-Host ("  -> Faltam {0} commit(s) para push." -f $ahead) -ForegroundColor Yellow }
             if ($behind -gt 0) { Write-Host ("  -> {0} commit(s) novos no servidor: rode 'git pull'." -f $behind) -ForegroundColor Yellow }
             if ($ahead -eq 0 -and $behind -eq 0) { Write-Host "  -> Sincronizado com origin." -ForegroundColor Green }
+        }
+
+        $ver = ""
+        try { $ver = (Get-Content (Join-Path $AppRoot "package.json") -Raw | ConvertFrom-Json).version } catch {}
+        $tag = (git describe --tags --abbrev=0 2>$null | Select-Object -First 1)
+        if ($ver) {
+            $tagTxt = if ($tag) { "  (ultima tag: $tag)" } else { "  (sem tag ainda)" }
+            Write-Host ("  Versao       : {0}{1}" -f $ver, $tagTxt)
         }
         Write-Host "===============================================================" -ForegroundColor Cyan
     } finally {
@@ -377,11 +415,19 @@ function Invoke-Promover {
             $rc = Invoke-Passo "git push -u origin dev" { git push -u origin dev }
             if ($rc -ne 0 -and -not $DryRun) { Write-Host "[ERRO] Push da dev falhou." -ForegroundColor Red; return }
 
+            $url = "$RepoWeb/compare/master...dev?expand=1"
             $temGh = Get-Command gh -ErrorAction SilentlyContinue
             if ($temGh) {
-                Invoke-Passo "gh pr create --base master --head dev --fill" { gh pr create --base master --head dev --fill } | Out-Null
+                $rcGh = Invoke-Passo "gh pr create --base master --head dev --fill" { gh pr create --base master --head dev --fill }
+                if (-not $DryRun -and $rcGh -ne 0) {
+                    Write-Host ""
+                    Write-Host "[ATENCAO] 'gh pr create' falhou (nao autenticado? PR ja existe? sem permissao?)." -ForegroundColor Yellow
+                    Write-Host "          Abra o PR manualmente neste link:" -ForegroundColor Yellow
+                    Write-Host "  $url" -ForegroundColor Cyan
+                    Write-Audit -AcaoNome "PromoverPR" -Detalhe "gh falhou"
+                    return
+                }
             } else {
-                $url = "$RepoWeb/compare/master...dev?expand=1"
                 Write-Host ""
                 Write-Host "gh (GitHub CLI) nao instalado. Abra este link para criar o PR:" -ForegroundColor Yellow
                 Write-Host "  $url" -ForegroundColor Cyan
@@ -405,7 +451,18 @@ function Invoke-Promover {
         if ($rc -ne 0 -and -not $DryRun) { Write-Host "[ERRO] checkout master falhou." -ForegroundColor Red; return }
 
         $rc = Invoke-Passo "git pull --ff-only" { git pull --ff-only }
-        if ($rc -ne 0 -and -not $DryRun) { Write-Host "[ERRO] pull do master falhou. Voce esta em master - resolva e volte para dev." -ForegroundColor Red; return }
+        if ($rc -ne 0 -and -not $DryRun) {
+            Write-Host "[ERRO] pull do master falhou. Voltando para dev..." -ForegroundColor Red
+            git checkout dev | Out-Host
+            return
+        }
+
+        # Se o master tem commits que a dev NAO tem (ex: hotfix direto no master), o resultado
+        # do merge sera diferente do que a verificacao (rodada na dev) validou -> avisa e oferece rebuild.
+        $masterExtra = 0
+        if (-not $DryRun) {
+            $masterExtra = [int]((git rev-list --count "dev..HEAD" 2>$null) | Select-Object -First 1)
+        }
 
         if ($DryRun) {
             Write-Host "  [dry-run] git merge dev --no-edit" -ForegroundColor DarkGray
@@ -414,9 +471,25 @@ function Invoke-Promover {
             Write-Host "-> git merge dev --no-edit" -ForegroundColor Cyan
             git merge dev --no-edit
             if ($LASTEXITCODE -ne 0) {
-                Write-Host "[ERRO] CONFLITO no merge. Resolva manualmente (git status), commite o merge e rode 'Promover' de novo." -ForegroundColor Red
-                Write-Host "       Voce esta na branch master com merge em andamento." -ForegroundColor Yellow
+                Write-Host "[ERRO] CONFLITO ao mesclar dev em master." -ForegroundColor Red
+                Write-Host "       Recupere: resolva os conflitos -> git commit -> git push origin master" -ForegroundColor Yellow
+                Write-Host "       depois: git checkout dev -> menu 'Sincronizar dev com master'." -ForegroundColor Yellow
+                Write-Host "       (ou desfaca com 'git merge --abort' + 'git checkout dev' para NAO publicar)" -ForegroundColor Yellow
                 return
+            }
+            if ($masterExtra -gt 0) {
+                Write-Host ""
+                Write-Host "[ATENCAO] O master tinha $masterExtra commit(s) que a dev nao tem;" -ForegroundColor Yellow
+                Write-Host "          o resultado mesclado NAO foi verificado (a verificacao rodou so na dev)." -ForegroundColor Yellow
+                if (Confirm-SN "Rodar 'npm run build' no master mesclado antes de publicar") {
+                    npm run build 2>&1 | Tee-Object -FilePath $VerificacaoLog -Append | Out-Host
+                    if ($LASTEXITCODE -ne 0) {
+                        Write-Host "[ERRO] Build do master mesclado falhou. Publicacao abortada." -ForegroundColor Red
+                        Write-Host "       Volte para dev com 'git checkout dev' apos avaliar." -ForegroundColor Yellow
+                        return
+                    }
+                    Write-Host "[OK] Build do master mesclado" -ForegroundColor Green
+                }
             }
         }
 
@@ -446,13 +519,29 @@ function Invoke-Promover {
             }
         }
 
-        # sincroniza de volta: dev fica com o merge commit
-        Invoke-Passo "git checkout dev" { git checkout dev } | Out-Null
+        # sincroniza de volta: dev fica com o merge commit. Producao JA foi publicada aqui -
+        # entao falhas neste ponto sao [ATENCAO] (nao [ERRO]) e nao desfazem o deploy.
         if ($DryRun) {
-            Write-Host "  [dry-run] git merge master --no-edit ; git push origin dev" -ForegroundColor DarkGray
+            Write-Host "  [dry-run] git checkout dev ; git merge master --no-edit ; git push origin dev" -ForegroundColor DarkGray
         } else {
+            $rcCk = Invoke-Passo "git checkout dev" { git checkout dev }
+            if ($rcCk -ne 0) {
+                Write-Host "[ATENCAO] Producao publicada, mas 'git checkout dev' falhou - voce ainda esta em MASTER. Troque manualmente." -ForegroundColor Yellow
+                Write-Audit -AcaoNome "PromoverDireto" -Detalhe "publicado; checkout dev falhou"
+                return
+            }
             git merge master --no-edit
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "[ATENCAO] Producao publicada, mas o merge master->dev falhou. Rode 'Sincronizar dev com master'." -ForegroundColor Yellow
+                Write-Audit -AcaoNome "PromoverDireto" -Detalhe "publicado; syncback merge falhou"
+                return
+            }
             git push origin dev
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "[ATENCAO] Producao publicada, mas 'git push origin dev' falhou. Rode 'Push' quando puder." -ForegroundColor Yellow
+                Write-Audit -AcaoNome "PromoverDireto" -Detalhe "publicado; push dev falhou"
+                return
+            }
         }
 
         Write-Host ""
@@ -469,12 +558,17 @@ function Invoke-Sincronizar {
     try {
         $rc = Invoke-Passo "git checkout dev" { git checkout dev }
         if ($rc -ne 0) { Write-Host "[ERRO] checkout dev falhou." -ForegroundColor Red; return }
+        # fetch antes: mescla o origin/master REAL (o master local pode estar velho, ja que
+        # em producao o master costuma avancar remoto via PR/deploy).
+        $rc = Invoke-Passo "git fetch origin" { git fetch origin }
+        if ($rc -ne 0) { Write-Host "[ATENCAO] git fetch falhou; mesclando o master local (pode estar desatualizado)." -ForegroundColor Yellow }
         Write-Host ""
-        Write-Host "-> git merge master --no-edit" -ForegroundColor Cyan
-        git merge master --no-edit
-        if ($LASTEXITCODE -ne 0) { Write-Host "[ERRO] Conflito ao mesclar master em dev. Resolva manualmente." -ForegroundColor Red; return }
-        Invoke-Passo "git push origin dev" { git push origin dev } | Out-Null
-        Write-Host "[OK] dev sincronizada com master." -ForegroundColor Green
+        Write-Host "-> git merge origin/master --no-edit" -ForegroundColor Cyan
+        git merge origin/master --no-edit
+        if ($LASTEXITCODE -ne 0) { Write-Host "[ERRO] Conflito ao mesclar origin/master em dev. Resolva manualmente." -ForegroundColor Red; return }
+        $rc = Invoke-Passo "git push origin dev" { git push origin dev }
+        if ($rc -ne 0) { Write-Host "[ERRO] 'git push origin dev' falhou (veja acima)." -ForegroundColor Red; return }
+        Write-Host "[OK] dev sincronizada com origin/master." -ForegroundColor Green
         Write-Audit -AcaoNome "Sincronizar" -Detalhe "OK"
     } finally {
         Pop-Location
@@ -508,6 +602,27 @@ function Invoke-SeedDemo {
     Write-Host ""
     Write-Host "[ATENCAO] seed:demo APAGA todos os dados de negocio do banco de dev e recria dados ficticios." -ForegroundColor Yellow
     if (-not (Confirm-Typed -Palavra "APAGAR")) { Write-Host "Cancelado." -ForegroundColor Yellow; return }
+    # snapshot opcional antes do wipe - so quando o .env de dev tiver PG_DUMP_PATH + BACKUP_PATH
+    # (normalmente ausente em dev; nesse caso, pula em silencio).
+    $pgDump = Get-EnvValue -Key "PG_DUMP_PATH"
+    $backupDir = Get-EnvValue -Key "BACKUP_PATH"
+    $dbUrl = Get-EnvValue -Key "DATABASE_URL"
+    if ($pgDump -and (Test-Path $pgDump) -and $backupDir -and $dbUrl -match "postgresql://([^:]+):([^@]+)@([^:/]+):(\d+)/([\w-]+)") {
+        if (Confirm-SN "Fazer um snapshot (pg_dump) do banco de dev antes de apagar") {
+            if (-not (Test-Path $backupDir)) { New-Item -ItemType Directory -Force -Path $backupDir | Out-Null }
+            $u = $Matches[1]; $pw = $Matches[2]; $h = $Matches[3]; $pt = $Matches[4]; $n = $Matches[5]
+            $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
+            $arq = Join-Path $backupDir "dev-antes-demo-$stamp.backup"
+            $env:PGPASSWORD = $pw
+            try {
+                & $pgDump -h $h -p $pt -U $u -d $n -Fc -f $arq
+                if ($LASTEXITCODE -eq 0) { Write-Host "[OK] Snapshot: $arq" -ForegroundColor Green }
+                else { Write-Host "[ATENCAO] pg_dump falhou; seguindo sem snapshot." -ForegroundColor Yellow }
+            } finally {
+                Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue
+            }
+        }
+    }
     Push-Location $AppRoot
     try { npm run seed:demo; Write-Audit -AcaoNome "SeedDemo" -Detalhe "exit=$LASTEXITCODE" } finally { Pop-Location }
 }
@@ -551,8 +666,7 @@ function Invoke-DbStatus {
     }
     $dbHost = $Matches[3]; $dbPort = $Matches[4]; $dbName = $Matches[5]
     Write-Host ("Banco: {0} em {1}:{2}" -f $dbName, $dbHost, $dbPort) -ForegroundColor Cyan
-    $portaOk = $false
-    try { $portaOk = [bool](Test-NetConnection -ComputerName $dbHost -Port $dbPort -WarningAction SilentlyContinue -InformationLevel Quiet) } catch {}
+    $portaOk = Test-Porta -Alvo $dbHost -Porta ([int]$dbPort)
     if ($portaOk) {
         Write-Host "[OK] Porta $dbPort aceitando conexoes." -ForegroundColor Green
     } else {
@@ -671,10 +785,11 @@ function Invoke-Doctor {
     $dbUrl = Get-EnvValue -Key "DATABASE_URL"
     if ($dbUrl -match "postgresql://([^:]+):([^@]+)@([^:/]+):(\d+)/([\w-]+)") {
         $h = $Matches[3]; $p = $Matches[4]
-        $ok = $false
-        try { $ok = [bool](Test-NetConnection -ComputerName $h -Port $p -WarningAction SilentlyContinue -InformationLevel Quiet) } catch {}
-        if ($ok) { Write-Host ("  [OK]   Banco alcancavel em {0}:{1}" -f $h, $p) -ForegroundColor Green }
+        if (Test-Porta -Alvo $h -Porta ([int]$p)) { Write-Host ("  [OK]   Banco alcancavel em {0}:{1}" -f $h, $p) -ForegroundColor Green }
         else { Write-Host ("  [FALHA] Banco nao responde em {0}:{1}" -f $h, $p) -ForegroundColor Red; $problemas += "DB inacessivel" }
+        # dev deve usar :5433; :5432 e o Postgres Docker do sistema ANTIGO (CLAUDE.md: nao mexer).
+        if ($p -ne "5433") { Write-Host ("  [ATENCAO] DATABASE_URL aponta para :{0} (dev esperado :5433)" -f $p) -ForegroundColor Yellow; $problemas += "porta do banco != 5433" }
+        if (Test-Porta -Alvo "127.0.0.1" -Porta 5432 -TimeoutMs 500) { Write-Host "  [ATENCAO] Algo escuta na :5432 (Postgres do sistema ANTIGO) - nao rode migrate/seed contra ele." -ForegroundColor Yellow }
     }
 
     if (Test-DevServerRodando) { Write-Host "  [INFO] Porta 3000 em uso (dev server rodando)" -ForegroundColor Yellow }
@@ -694,6 +809,10 @@ function Invoke-Doctor {
         $dirty = git status --porcelain
         if ($dirty) { Write-Host "  [INFO] Git: branch $branch (arvore SUJA)" -ForegroundColor Yellow }
         else { Write-Host "  [OK]   Git: branch $branch (arvore limpa)" -ForegroundColor Green }
+        $ver = (Get-Content (Join-Path $AppRoot "package.json") -Raw | ConvertFrom-Json).version
+        $tag = (git describe --tags --abbrev=0 2>$null | Select-Object -First 1)
+        $tagTxt = if ($tag) { "ultima tag: $tag" } else { "sem tag ainda" }
+        Write-Host ("  [INFO] Versao {0} ({1})" -f $ver, $tagTxt) -ForegroundColor DarkGray
     } catch {}
 
     Write-Host ""
@@ -722,6 +841,9 @@ function Invoke-ProcessosPortas {
 }
 
 function Invoke-LimparCaches {
+    Write-Host ""
+    Write-Host "Isso PARA o dev server e apaga .next + node_modules\.cache." -ForegroundColor Yellow
+    if (-not (Confirm-SN "Continuar")) { Write-Host "Cancelado." -ForegroundColor Yellow; return }
     Push-Location $AppRoot
     try {
         Stop-DevServer
