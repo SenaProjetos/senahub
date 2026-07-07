@@ -27,7 +27,7 @@ import {
   idDisciplinaCatalogoSchema,
   moverDisciplinaCatalogoSchema,
 } from "@/modules/projetos/schemas";
-import { notificar, notificarMuitos } from "@/lib/notificar";
+import { notificarMuitos } from "@/lib/notificar";
 import { sanitizeSvg } from "@/lib/sanitize-svg";
 import { normalizar } from "@/lib/disciplinas-core";
 

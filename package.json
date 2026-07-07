@@ -1,6 +1,6 @@
 {
   "name": "senahub",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
@@ -45,7 +45,7 @@
     "lucide-react": "^1.17.0",
     "next": "15.5.19",
     "next-themes": "^0.4.6",
-    "nodemailer": "^8.0.11",
+    "nodemailer": "^9.0.3",
     "pdfjs-dist": "^6.1.200",
     "pg": "^8.21.0",
     "pg-boss": "^12.18.3",
@@ -85,5 +85,8 @@
     "tsx": "^4.22.4",
     "typescript": "^5",
     "vitest": "^4.1.8"
+  },
+  "overrides": {
+    "postcss": "^8.5.10"
   }
 }

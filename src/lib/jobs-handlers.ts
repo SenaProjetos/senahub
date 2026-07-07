@@ -727,14 +727,6 @@ export async function statusReportSemanal(): Promise<number> {
     },
   });
 
-  const STATUS_PT: Record<string, string> = {
-    aguardando: "Aguardando",
-    em_andamento: "Em andamento",
-    em_revisao: "Em revisão",
-    entregue: "Entregue",
-    aprovado: "Aprovado",
-  };
-
   const hoje = new Date();
   let enviados = 0;
 

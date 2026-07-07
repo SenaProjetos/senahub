@@ -52,7 +52,7 @@ export default async function UsoPage({ searchParams }: { searchParams: Promise<
 
       <section className="space-y-1.5">
         <h3 className="text-sm font-semibold">Intensidade por dia (acessos por seção)</h3>
-        <HeatmapUsoView data={data.heatmapSecaoDia} dias={dias} />
+        <HeatmapUsoView data={data.heatmapSecaoDia} />
       </section>
 
       <section className="space-y-1.5">
