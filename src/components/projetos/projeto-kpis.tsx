@@ -2,7 +2,6 @@ import { CheckCircle2, Clock, AlertCircle, TrendingUp, ShieldCheck, ShieldAlert,
 import { cn } from "@/lib/utils";
 import type { StatusDisciplina } from "@/generated/prisma/client";
 import { PESO_STATUS } from "@/modules/projetos/status";
-import { brl } from "@/lib/utils";
 import { saudeProjeto } from "@/modules/projetos/health";
 
 interface ProjetoKpisProps {

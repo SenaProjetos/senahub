@@ -20,7 +20,7 @@ function corCelula(v: number, max: number): string {
  * Heatmap de uso por seção: matriz seção (linhas) × dia (colunas), célula
  * colorida pela intensidade de ações. Componente de servidor (sem interação).
  */
-export function HeatmapUsoView({ data, dias }: { data: HeatmapUso; dias: number }) {
+export function HeatmapUsoView({ data }: { data: HeatmapUso }) {
   if (data.totalGeral === 0) {
     return (
       <Card>

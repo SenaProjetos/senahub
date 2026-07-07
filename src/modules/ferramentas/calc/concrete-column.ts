@@ -17,7 +17,7 @@
  */
 
 import { z } from "zod";
-import { parametrosConcreto, ACOS, type Aco } from "./concrete-beam-flexure";
+import { parametrosConcreto, ACOS } from "./concrete-beam-flexure";
 
 const ES = 21000; // kN/cm² (210 GPa)
 
