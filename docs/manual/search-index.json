@@ -12,6 +12,15 @@
       "sinonimos": ["help", "docs", "central de ajuda", "base de conhecimento", "wiki"]
     },
     {
+      "titulo": "Novidades e Notas de Versão",
+      "path": "novidades.md",
+      "descricao": "O que mudou em cada atualização do SenaHub, em linguagem para o dia a dia.",
+      "resumo": "Histórico das novidades entregues a cada versão do sistema — funcionalidades novas e melhorias visíveis para quem usa.",
+      "tags": ["novidades", "notas de versão", "changelog", "atualizações", "versão", "o que mudou"],
+      "palavrasChave": ["novidades", "notas de versão", "changelog", "atualização", "versão", "lançamento", "o que há de novo", "release"],
+      "sinonimos": ["release notes", "changelog", "o que mudou", "atualizações do sistema"]
+    },
+    {
       "titulo": "Guia de Início Rápido",
       "path": "quick-start.md",
       "descricao": "O essencial para começar a usar o SenaHub — acessar, navegar, cadastrar, editar, excluir, pesquisar e filtrar.",

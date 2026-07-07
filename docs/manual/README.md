@@ -22,6 +22,8 @@ sistema — não suposições.
 
 ## Comece por aqui
 
+- **[Novidades e Notas de Versão](novidades.md)** — o que mudou nas últimas atualizações
+  do sistema.
 - **[Guia de Início Rápido](quick-start.md)** — o essencial para usar o sistema em
   poucos minutos: acessar, navegar, cadastrar, editar, excluir, pesquisar e filtrar.
 - **[Perguntas Frequentes (FAQ)](faq.md)** — dúvidas e erros comuns com solução.
