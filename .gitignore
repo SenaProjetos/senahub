@@ -53,6 +53,15 @@ next-env.d.ts
 /storage
 /logs/
 
+# logs de servico (NSSM: SenaHub + cloudflared, gerenciar-servidor.ps1)
+/logs
+
 # amostras de importação (dados reais — não commitar)
 /docs/samples/
 .superpowers/
+
+# .NET (deploy/gui/SenaHubManager — gerenciador com GUI)
+deploy/gui/**/bin/
+deploy/gui/**/obj/
+deploy/gui/**/publish/
+deploy/gui/**/*.csproj.user

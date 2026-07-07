@@ -12,8 +12,16 @@ tunnel: <<TUNNEL_UUID>>
 credentials-file: C:\Windows\System32\config\systemprofile\.cloudflared\<<TUNNEL_UUID>>.json
 
 # Roteamento de entrada. WebSocket (Socket.io/chat) passa automaticamente — sem config extra.
+#
+# IMPORTANTE: sem "httpHostHeader", o cloudflared manda para a origem o Host
+# "localhost:3000" (o endereço em "service:"), não o domínio público. Isso quebra
+# qualquer redirect absoluto construído a partir do header Host (ex.: middleware.ts
+# usando req.nextUrl.clone() para mandar usuário não-autenticado para /login) —
+# o navegador acaba indo parar em "https://localhost:3000/login" (ERR_SSL_PROTOCOL_ERROR).
 ingress:
   - hostname: <<hub.seudominio.com.br>>
     service: http://localhost:3000
+    originRequest:
+      httpHostHeader: <<hub.seudominio.com.br>>
   # Regra final obrigatória (catch-all):
   - service: http_status:404

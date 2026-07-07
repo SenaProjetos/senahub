@@ -12,21 +12,23 @@ function isPublic(pathname: string): boolean {
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const hasSession = getSessionCookie(req);
+  // server.ts roda um HTTP server customizado (não "next start"), então
+  // req.nextUrl.origin reflete o hostname/porta internos do bind (ex.:
+  // localhost:3000), não o domínio público por trás do Cloudflare Tunnel.
+  // APP_URL é a origem pública correta em todo ambiente (dev e produção).
+  const base = process.env.APP_URL || req.nextUrl.origin;
 
   // Verificação otimista por cookie. A checagem real (perfil, mustChangePassword,
   // ativo) ocorre nos Server Components via requireUser/requireRole.
   if (!isPublic(pathname) && !hasSession) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/login";
+    const url = new URL("/login", base);
     url.searchParams.set("from", pathname);
     return NextResponse.redirect(url);
   }
 
   // Usuário logado tentando abrir /login → manda pra home.
   if (pathname === "/login" && hasSession) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/";
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(new URL("/", base));
   }
 
   return NextResponse.next();

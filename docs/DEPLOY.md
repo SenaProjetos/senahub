@@ -19,6 +19,7 @@ Já instalado: **Google Chrome**. Falta instalar:
 | **PostgreSQL 17** | instalador do postgresql.org. Anote a senha do `postgres` e a porta (**5432**). |
 | **NSSM** | https://nssm.cc → coloque `nssm.exe` no PATH (ou passe `-NssmPath` no script) |
 | **cloudflared** | `winget install --id Cloudflare.cloudflared` (ou download da Cloudflare) |
+| **.NET 8 SDK** | `winget install Microsoft.DotNet.SDK.8` (necessario pra compilar o SenaHub Manager, seção 11) |
 
 Conta Cloudflare com o domínio (`seudominio.com.br`) já adicionado como zona.
 
@@ -151,9 +152,80 @@ Start-Service SenaHub
 ```
 Nunca `migrate dev`/`seed:demo` em produção. `migrate deploy` só aplica o que já foi commitado.
 
+> No dia a dia, prefira o menu de gerenciamento (seção 13) — a opção 10 faz exatamente esse
+> fluxo (com backup automático antes da migration), ou automatize com a seção 10.
+
 ---
 
-## 10. Troubleshooting
+## 10. Deploy automático noturno (opcional)
+
+Depois que o backup diário (seção 8, agendado internamente para as 03:00) estiver confiável, dá
+pra automatizar a atualização: `deploy/gerenciar-servidor.ps1 -Acao DeployAutomatico` roda a
+mesma sequência da opção 10 do menu (git pull → build → backup → migrate → restart), mas sem
+nenhuma pergunta interativa — pensado pra rodar sozinho via Windows Task Scheduler. Só mexe no
+serviço se houver commit novo em `master`; em noites sem mudança, sai sem downtime nenhum.
+
+**Instalar (uma vez, como Administrador):**
+```powershell
+cd F:\SenaHub\app
+.\deploy\instalar-tarefa-atualizacao.ps1        # agenda para 03:30; use -Hora "04:00" p/ outro horário
+```
+
+**Testar antes de confiar (não espere o horário agendado):**
+```powershell
+Start-ScheduledTask -TaskName "SenaHub - Deploy Automatico"
+Get-ScheduledTaskInfo -TaskName "SenaHub - Deploy Automatico"   # LastTaskResult deve ser 0
+```
+Depois, confira `logs\deploy-automatico.log` (saída completa de cada passo) e
+`logs\menu-audit.log` (uma linha-resumo por execução).
+
+**Aviso por e-mail:** se `SMTP_HOST` estiver preenchido no `.env`, cada execução manda um e-mail
+(sucesso ou falha) para `DEPLOY_NOTIFY_EMAIL` (ou o admin padrão, se vazio) via
+`scripts/notificar-deploy.ts`. Sem SMTP configurado, ele só loga e segue em frente — nunca trava
+o deploy.
+
+**Fluxo de PR (opcional, recomendado se for automatizar sem supervisão):** o GitHub não deixa o
+autor de um PR aprovar o próprio PR, e este repositório é mantido por uma única pessoa — então o
+gate de "aprovação" pede uma segunda conta do GitHub (ex.: uma conta separada "servidor"/"deploy")
+com acesso de escrita, usada só pra revisar e mesclar PRs abertos pela conta de desenvolvimento.
+Configuração (direto no GitHub, manual — não automatizável daqui):
+1. Crie a segunda conta e adicione como colaboradora do repositório (permissão *Write*).
+2. GitHub → *Settings → Branches → Branch protection rules* → regra para `master`: marque
+   *Require a pull request before merging* (+ *Require approvals: 1* se quiser aprovação formal
+   e não só revisão a olho antes de mesclar).
+3. Daí em diante: todo trabalho vai para uma branch, abre PR pela conta de dev, revisão e merge
+   pela conta "servidor". O deploy automático não muda nada — ele continua só puxando `master`,
+   que passa a só receber código que já passou por esse fluxo.
+
+---
+
+## 11. SenaHub Manager (GUI de gerenciamento)
+
+Alternativa em janela/bandeja ao `gerenciar-servidor.bat` — mesmas ações (status, logs,
+processos, git/deploy, iniciar/parar/reiniciar, backup, reset de senha, reboot), com
+indicador de saúde ao vivo na bandeja do Windows. Não substitui `gerenciar-servidor.ps1`:
+toda ação que muda estado continua chamando esse script — o app é só a interface.
+
+**Compilar (uma vez, ou sempre que o código do SenaHub Manager mudar):**
+```powershell
+cd F:\SenaHub\app\deploy\gui\SenaHubManager
+dotnet publish -c Release -r win-x64 --self-contained false -o publish
+```
+
+**Instalar o início automático (uma vez, como Administrador):**
+```powershell
+cd F:\SenaHub\app
+.\deploy\instalar-monitor-bandeja.ps1
+```
+
+Depois disso, o SenaHub Manager sobe sozinho (elevado, sem UAC) toda vez que o
+administrador fizer logon no servidor. Ícone verde = tudo OK; amarelo = atenção;
+vermelho = SenaHub ou banco fora do ar. O `.bat` continua funcionando como alternativa
+(ex.: problema de sessão gráfica via RDP).
+
+---
+
+## 12. Troubleshooting
 
 | Sintoma | Causa provável |
 |---|---|
@@ -163,3 +235,29 @@ Nunca `migrate dev`/`seed:demo` em produção. `migrate deploy` só aplica o que
 | PDF não gera | `CHROME_PATH` errado/ausente. |
 | Upload falha | `STORAGE_BASE_PATH` não existe ou sem permissão de escrita. |
 | `.next` corrompido | Nunca rode `npm run dev` no servidor de produção; se ocorrer, apague `.next` e refaça `npm run build`. |
+| Serviço preso em `STOP_PENDING` | `Get-CimInstance Win32_Service -Filter "Name='SenaHub'"` para achar o PID, depois `Stop-Process -Id <pid> -Force`. O menu (seção 13, Ferramentas avançadas) automatiza isso. |
+| Túnel cloudflared sobe mas o site retorna erro Cloudflare 1033/530 | DNS do hostname aponta para outro tunnel. Confira com `cloudflared tunnel list` (conexões ativas) e reaponte com `cloudflared tunnel route dns --overwrite-dns <tunnel> <hostname>`. |
+| `cloudflared service install` nativo crasha silenciosamente (exit 1067, log vazio) | Reinstale o serviço via NSSM chamando `cloudflared.exe tunnel --config <config.yml> run` explicitamente (veja `deploy/gerenciar-servidor.ps1` como referência) em vez do modo nativo sem argumentos. |
+| Esqueceu a senha do `postgres` (superusuário) | Procedimento manual de "quebrar o vidro": editar `pg_hba.conf` (trocar `scram-sha-256` para `trust` nas linhas `local`/`host ... 127.0.0.1`/`host ... ::1`), reiniciar o serviço `postgresql-x64-17`, resetar a senha via `ALTER USER`, reverter o `pg_hba.conf` e reiniciar de novo. **Não automatize isso** — desliga a autenticação por senha do cluster inteiro enquanto ativo. |
+
+---
+
+## 13. Menu de gerenciamento do dia a dia
+
+Para operar o servidor no dia a dia (ligar/desligar/reiniciar, ver status, ver logs, diagnosticar
+problemas comuns, backup manual, atualizar/deploy, testes de fumaça, recuperação de serviço
+travado, reset de senha do admin, reboot), use:
+
+```powershell
+deploy\gerenciar-servidor.bat
+```
+
+É um menu interativo — as opções de leitura (status, logs, ajuda) funcionam sem admin; ações que
+mexem em serviços do Windows pedem para rodar como Administrador. A opção **13** do menu tem uma
+tela de ajuda explicando cada item. A lógica mais pesada fica em `deploy/gerenciar-servidor.ps1`
+(chamado pelo `.bat`) — todas as ações que alteram estado ficam registradas em
+`logs\menu-audit.log`.
+
+Diferente do `deploy-servidor.bat` (que é só para a primeira subida do servidor), este menu é
+para ser usado repetidamente. Ele **não** expõe `npm run seed:demo` (apaga dados de negócio) nem
+automatiza a recuperação de senha do Postgres — esses dois ficam de fora de propósito.

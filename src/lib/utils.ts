@@ -8,7 +8,16 @@ export function cn(...inputs: ClassValue[]) {
 /** Converte Date | string (ISO ou yyyy-mm-dd) em Date local; null se inválido. */
 function paraData(d: Date | string | null | undefined): Date | null {
   if (d == null) return null
-  if (d instanceof Date) return isNaN(d.getTime()) ? null : d
+  if (d instanceof Date) {
+    if (isNaN(d.getTime())) return null
+    // Campos @db.Date do Prisma chegam como meia-noite UTC; reconstrói em
+    // horário local com o mesmo ano/mês/dia para não exibir um dia a menos
+    // em fusos atrás de UTC (ex.: America/Sao_Paulo).
+    if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0) {
+      return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+    }
+    return d
+  }
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d)
   if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
   const parsed = new Date(d)

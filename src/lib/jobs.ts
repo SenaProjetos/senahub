@@ -41,6 +41,7 @@ export async function startJobs(): Promise<PgBoss> {
   boss = new PgBoss({
     connectionString: process.env.DATABASE_URL,
     schema: "pgboss",
+    connectionTimeoutMillis: 30000,
   });
 
   boss.on("error", (err) => console.error("[pg-boss]", err));
