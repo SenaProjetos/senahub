@@ -2,6 +2,22 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.1.0](https://github.com/SenaProjetos//compare/v1.0.0...v1.1.0) (2026-07-07)
+
+
+### ✨ Funcionalidades
+
+* **auth:** animacao da marca como sinal de "entrando" no login e troca de senha ([77068a6](https://github.com/SenaProjetos//commit/77068a6eb5d75338e72ea43fc5ba8ec5a16bb369))
+* **chat:** múltiplos anexos com colar, ordenação ao vivo, categorias, divisor de data e lightbox ([0b740c5](https://github.com/SenaProjetos//commit/0b740c58dc288e61e84ce3fc1fa37471f87d61d2))
+* **dev:** Central do Desenvolvedor — menu .bat/.ps1 para o fluxo diário ([1f7b357](https://github.com/SenaProjetos//commit/1f7b35732d71d4be19b93f6c053a4eb3221a5a79))
+* **ponto:** reforma Ponto v2 — batidas, escalas, espelho, ajustes e alertas ([8da0816](https://github.com/SenaProjetos//commit/8da0816b8c5432b178a1870e594d0e17f729d44f))
+* **usuarios:** admin exclui usuários desativados sem histórico ([a7e7877](https://github.com/SenaProjetos//commit/a7e7877a8b2ea5731913ff1f2bb6db02f9c75b65))
+
+
+### 🐛 Correções
+
+* **dev:** corrige bugs da Central do Desenvolvedor + atalhos CLI e melhorias ([d798f2e](https://github.com/SenaProjetos//commit/d798f2e0ad9adbf0c49292a5334245c9f3ca83a9))
+
 ## 1.0.0 (2026-07-06)
 
 
