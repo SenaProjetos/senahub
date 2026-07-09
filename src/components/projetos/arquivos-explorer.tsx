@@ -45,6 +45,7 @@ import type { DocumentoItem } from "@/modules/documentos-cliente/queries";
 import type { MetaDocumento } from "@/modules/documentos-cliente/schemas";
 import { entregaveisAtuais } from "@/modules/uploads/validacao";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
+import { DocumentoViewer } from "@/components/projetos/documento-viewer";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
   TAMANHO_MAX_LABEL,
@@ -91,6 +92,37 @@ const CATEGORIAS_GERAL = ["contrato", "planta", "memorial", "foto", "administrat
 export function extDe(nome: string): string {
   const i = nome.lastIndexOf(".");
   return i >= 0 ? nome.slice(i + 1).toLowerCase() : "";
+}
+
+/**
+ * Botão de pré-visualização (só PDF): abre o documento num visualizador
+ * somente-leitura (zoom, sem apontamentos). Nada para arquivos não-PDF.
+ */
+function PreviewPdfButton({ nomeArquivo, url, titulo }: { nomeArquivo: string; url: string; titulo: string }) {
+  const [aberto, setAberto] = useState(false);
+  if (extDe(nomeArquivo) !== "pdf") return null;
+  return (
+    <>
+      <button
+        type="button"
+        className="shrink-0 text-muted-foreground hover:text-foreground"
+        aria-label={`Visualizar ${titulo}`}
+        title="Visualizar (PDF)"
+        onClick={() => setAberto(true)}
+      >
+        <Eye className="size-3.5" />
+      </button>
+      <Dialog open={aberto} onOpenChange={setAberto}>
+        <DialogContent className="flex h-[92svh] max-w-5xl flex-col gap-0 overflow-hidden p-0">
+          <DialogHeader className="border-b px-4 py-2">
+            <DialogTitle className="truncate text-sm">{titulo}</DialogTitle>
+            <DialogDescription className="sr-only">Pré-visualização somente leitura do PDF.</DialogDescription>
+          </DialogHeader>
+          {aberto && <DocumentoViewer url={url} />}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 /** Separa nome em base + extensão (com o ponto, no case original). `.env`/sem ponto → sem extensão. */
 function separarExt(nome: string): { base: string; ext: string } {
@@ -779,6 +811,9 @@ function RecebidosPasta({
                 {d.atual ? fmtBytes(d.atual.tamanho) : "—"}
               </span>
               {d.atual && (
+                <PreviewPdfButton nomeArquivo={d.atual.nomeArquivo} url={d.atual.downloadUrl} titulo={d.nome} />
+              )}
+              {d.atual && (
                 <a href={d.atual.downloadUrl} className="shrink-0 text-primary hover:text-primary/80" aria-label={`Baixar ${d.nome}`}>
                   <Download className="size-3.5" />
                 </a>
@@ -970,6 +1005,9 @@ function PastaGeral({
               <span className="shrink-0 font-mono text-xs text-muted-foreground">
                 {a.atual ? fmtBytes(a.atual.tamanho) : "—"}
               </span>
+              {a.atual && (
+                <PreviewPdfButton nomeArquivo={a.atual.nomeArquivo} url={a.atual.downloadUrl} titulo={a.nome} />
+              )}
               {a.atual && (
                 <a
                   href={a.atual.downloadUrl}
