@@ -11,6 +11,7 @@ const TABS = [
   { label: "Lista Mestre", suffix: "/lista-mestre" },
   { label: "Serviços", suffix: "/servicos" },
   { label: "Arquivos", suffix: "/arquivos" },
+  { label: "Diário", suffix: "/diario" },
   { label: "Extras", suffix: "/extras" },
   { label: "Histórico", suffix: "/historico" },
 ] as const;

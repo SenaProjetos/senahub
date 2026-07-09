@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, MessageSquare } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
+import { INTERNAL_ROLES } from "@/lib/roles";
 import { obterProjetoMinimo } from "@/modules/projetos/queries";
 import { listarClientes } from "@/modules/clientes/queries";
 import { canalDoProjeto } from "@/modules/chat/queries";
@@ -39,6 +40,8 @@ export default async function ProjetoLayout({
     canalDoProjeto(id),
     modelosPorFonte("projeto"),
   ]);
+  // Diário de projeto: equipe interna lê/escreve; cliente nunca vê (gate fino de escrita fica no módulo).
+  const podeDiario = INTERNAL_ROLES.includes(user.role as never);
   // Item 12 (beta): editar todos os campos do projeto — só busca clientes se puder editar.
   const clientes = podeGerir ? await listarClientes({ incluirInativos: false }) : [];
 
@@ -117,6 +120,7 @@ export default async function ProjetoLayout({
           "/lista-mestre",
           "/servicos",
           "/arquivos",
+          ...(podeDiario ? ["/diario"] : []),
           "/extras",
           // Histórico (CDE) só para admin ou cargos autorizados em Configurações.
           ...(podeHistorico ? ["/historico"] : []),
