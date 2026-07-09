@@ -52,6 +52,11 @@ type Coluna = {
 const TODOS = "__todos";
 type Periodo = "atrasadas" | "semana" | "mes";
 
+/** Movimentação no kanban = edição de status: só o criador ou admin/supervisor. Espelha `exigirCriadorOuGlobal` do servidor. */
+function podeMoverTarefa(t: TarefaUI, meId: string, meRole: string): boolean {
+  return t.criadorId === meId || meRole === "admin" || meRole === "supervisor";
+}
+
 /** Aplica os filtros de URL ao conjunto plano de tarefas (cliente-side). */
 function filtrarTarefa(
   t: TarefaUI,
@@ -182,6 +187,11 @@ export function TarefasBoard({
     if (!statusId) return;
     const origem = colunas.find((c) => c.tarefas.some((t) => t.id === tarefaId));
     if (!origem || origem.id === statusId) return;
+    const tarefa = origem.tarefas.find((t) => t.id === tarefaId);
+    if (!tarefa || !podeMoverTarefa(tarefa, meId, meRole)) {
+      toast.error("Só quem criou a tarefa (ou admin/supervisor) pode movê-la.");
+      return;
+    }
     start(async () => {
       const r = await moverTarefa({ id: tarefaId, statusId });
       if (r.ok) router.refresh();
@@ -345,7 +355,7 @@ export function TarefasBoard({
           {/* Grid responsivo: colunas preenchem a largura e quebram em telas estreitas (sem scroll-h / corte). */}
           <div className="grid grid-cols-1 gap-3 pb-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {colunasFiltradas.map((col) => (
-              <ColunaView key={col.id} col={col} onAbrir={(t) => setDialog(t)} />
+              <ColunaView key={col.id} col={col} onAbrir={(t) => setDialog(t)} meId={meId} meRole={meRole} />
             ))}
           </div>
           <DragOverlay>{arrastando ? <CardTarefa t={arrastando} overlay /> : null}</DragOverlay>
@@ -470,7 +480,7 @@ function ListaView({
   );
 }
 
-function ColunaView({ col, onAbrir }: { col: Coluna; onAbrir: (t: TarefaUI) => void }) {
+function ColunaView({ col, onAbrir, meId, meRole }: { col: Coluna; onAbrir: (t: TarefaUI) => void; meId: string; meRole: string }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.id });
   return (
     <div className="min-w-0">
@@ -488,7 +498,7 @@ function ColunaView({ col, onAbrir }: { col: Coluna; onAbrir: (t: TarefaUI) => v
         }`}
       >
         {col.tarefas.map((t) => (
-          <DraggableTarefa key={t.id} t={t} onAbrir={onAbrir} />
+          <DraggableTarefa key={t.id} t={t} onAbrir={onAbrir} podeMover={podeMoverTarefa(t, meId, meRole)} />
         ))}
         {col.tarefas.length === 0 && (
           <p className="py-4 text-center text-xs text-muted-foreground">vazio</p>
@@ -498,11 +508,11 @@ function ColunaView({ col, onAbrir }: { col: Coluna; onAbrir: (t: TarefaUI) => v
   );
 }
 
-function DraggableTarefa({ t, onAbrir }: { t: TarefaUI; onAbrir: (t: TarefaUI) => void }) {
-  const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id: t.id });
+function DraggableTarefa({ t, onAbrir, podeMover }: { t: TarefaUI; onAbrir: (t: TarefaUI) => void; podeMover: boolean }) {
+  const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id: t.id, disabled: !podeMover });
   return (
     <div ref={setNodeRef} className={isDragging ? "opacity-40" : ""}>
-      <CardTarefa t={t} onAbrir={onAbrir} dragProps={{ ...attributes, ...listeners }} />
+      <CardTarefa t={t} onAbrir={onAbrir} dragProps={podeMover ? { ...attributes, ...listeners } : undefined} podeMover={podeMover} />
     </div>
   );
 }
@@ -511,11 +521,13 @@ function CardTarefa({
   t,
   onAbrir,
   dragProps,
+  podeMover = true,
   overlay,
 }: {
   t: TarefaUI;
   onAbrir?: (t: TarefaUI) => void;
   dragProps?: Record<string, unknown>;
+  podeMover?: boolean;
   overlay?: boolean;
 }) {
   const feitos = t.itens.filter((i) => i.concluido).length;
@@ -523,7 +535,14 @@ function CardTarefa({
   return (
     <div className={`rounded-sm border bg-card p-2.5 text-sm shadow-sm ${overlay ? "rotate-2" : ""}`}>
       <div className="flex items-start gap-1.5">
-        <button type="button" className="mt-0.5 cursor-grab text-muted-foreground" aria-label="Arrastar" {...dragProps}>
+        <button
+          type="button"
+          className={podeMover ? "mt-0.5 cursor-grab text-muted-foreground" : "mt-0.5 cursor-not-allowed text-muted-foreground/30"}
+          aria-label={podeMover ? "Arrastar" : "Só quem criou a tarefa (ou admin/supervisor) pode movê-la"}
+          title={podeMover ? undefined : "Só quem criou a tarefa (ou admin/supervisor) pode movê-la"}
+          disabled={!podeMover}
+          {...dragProps}
+        >
           <GripVertical className="size-3.5" />
         </button>
         <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onAbrir?.(t)}>
