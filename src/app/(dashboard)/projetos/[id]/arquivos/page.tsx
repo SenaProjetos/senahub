@@ -44,6 +44,7 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
       recebidos={recebidos}
       clienteId={clienteId}
       podeGerirRecebidos={podeGerirRecebidos}
+      podeExcluirDocumento={ehGlobal}
     />
   );
 }

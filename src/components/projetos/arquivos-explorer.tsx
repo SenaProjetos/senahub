@@ -401,6 +401,7 @@ export function ArquivosExplorer({
   recebidos,
   clienteId,
   podeGerirRecebidos,
+  podeExcluirDocumento,
 }: {
   projeto: { id: string; codigo: string; nome: string };
   disciplinas: ArvoreDisciplina[];
@@ -411,6 +412,8 @@ export function ArquivosExplorer({
   recebidos: DocumentoItem[];
   clienteId: string | null;
   podeGerirRecebidos: boolean;
+  /** Excluir Documento (Recebidos/Geral) é restrito a admin/supervisor — mais estreito que podeGerir (upload/nova versão). */
+  podeExcluirDocumento: boolean;
 }) {
   const [renomeando, setRenomeando] = useState<ArvoreArquivoItem | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
@@ -479,10 +482,17 @@ export function ArquivosExplorer({
                     clienteId={clienteId}
                     recebidos={recebidos}
                     podeGerir={podeGerirRecebidos}
+                    podeExcluir={podeExcluirDocumento}
                   />
                 )}
                 {temGeral && (
-                  <PastaGeral projetoId={projeto.id} clienteId={clienteId} geral={geral} podeGerir={podeGerirGeral} />
+                  <PastaGeral
+                    projetoId={projeto.id}
+                    clienteId={clienteId}
+                    geral={geral}
+                    podeGerir={podeGerirGeral}
+                    podeExcluir={podeExcluirDocumento}
+                  />
                 )}
 
                 {disciplinas.map((d) => {
@@ -626,11 +636,13 @@ function RecebidosPasta({
   clienteId,
   recebidos,
   podeGerir,
+  podeExcluir,
 }: {
   projetoId: string;
   clienteId: string | null;
   recebidos: DocumentoItem[];
   podeGerir: boolean;
+  podeExcluir: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -753,30 +765,30 @@ function RecebidosPasta({
                 </a>
               )}
               {podeGerir && (
-                <>
-                  <button
-                    type="button"
-                    className="shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50"
-                    aria-label="Nova versão"
-                    title="Enviar nova versão"
-                    disabled={busy}
-                    onClick={() => {
-                      setAlvoVersao(d.id);
-                      fileVersao.current?.click();
-                    }}
-                  >
-                    <UploadIcon className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-50"
-                    aria-label="Excluir"
-                    disabled={pending}
-                    onClick={() => excluir(d.id)}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
-                </>
+                <button
+                  type="button"
+                  className="shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                  aria-label="Nova versão"
+                  title="Enviar nova versão"
+                  disabled={busy}
+                  onClick={() => {
+                    setAlvoVersao(d.id);
+                    fileVersao.current?.click();
+                  }}
+                >
+                  <UploadIcon className="size-3.5" />
+                </button>
+              )}
+              {podeExcluir && (
+                <button
+                  type="button"
+                  className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-50"
+                  aria-label="Excluir"
+                  disabled={pending}
+                  onClick={() => excluir(d.id)}
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
               )}
             </div>
           ))
@@ -793,11 +805,13 @@ function PastaGeral({
   clienteId,
   geral,
   podeGerir,
+  podeExcluir,
 }: {
   projetoId: string;
   clienteId: string | null;
   geral: DocumentoItem[];
   podeGerir: boolean;
+  podeExcluir: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -958,16 +972,18 @@ function PastaGeral({
                   >
                     <Pencil className="size-3.5" />
                   </button>
-                  <button
-                    type="button"
-                    className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-50"
-                    aria-label="Excluir"
-                    disabled={pending}
-                    onClick={() => excluir(a.id)}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
                 </>
+              )}
+              {podeExcluir && (
+                <button
+                  type="button"
+                  className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-50"
+                  aria-label="Excluir"
+                  disabled={pending}
+                  onClick={() => excluir(a.id)}
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
               )}
             </div>
           ))
