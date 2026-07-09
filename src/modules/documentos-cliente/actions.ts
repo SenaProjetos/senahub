@@ -150,6 +150,29 @@ export const editarDocumento = defineAction(
   },
 );
 
+export const alternarExibicaoRecebidos = defineAction(
+  {
+    ...base,
+    acao: "alternar-exibicao-recebidos",
+    entidade: "Documento",
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
+    schema: z.object({ id: z.string().min(1), exibir: z.boolean() }),
+  },
+  async (i, ctx) => {
+    const doc = await prisma.documento.findUnique({
+      where: { id: i.id },
+      select: { propostaId: true, projetoId: true, origem: true },
+    });
+    if (!doc) throw new ActionError("Documento não encontrado.");
+    if (doc.origem !== "interno") throw new ActionError("Só documentos do Geral podem ser compartilhados em Recebidos.");
+    // Gate = mesmo de gerir o Geral (arquivos_gerais:gerir + ver o projeto).
+    await exigirEscrita(ctx.user, doc, doc.origem);
+    await prisma.documento.update({ where: { id: i.id }, data: { exibirEmRecebidos: i.exibir } });
+    revalidar(doc.propostaId, doc.projetoId);
+    return { id: i.id, exibir: i.exibir };
+  },
+);
+
 export const excluirDocumento = defineAction(
   {
     ...base,

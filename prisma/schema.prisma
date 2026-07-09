@@ -1944,6 +1944,10 @@ model Documento {
   nome       String
   categoria  String?
   descricao  String?
+  /// Documento do "Geral" (origem=interno) marcado p/ também aparecer em "Recebidos
+  /// do cliente" — assim projetistas sem `arquivos_gerais:ver` conseguem visualizar,
+  /// sem copiar o arquivo em disco. Só faz efeito quando origem=interno.
+  exibirEmRecebidos Boolean     @default(false)
   autorId    String? // null quando veio de link público sem user interno
   autor      User?             @relation("DocumentoAutor", fields: [autorId], references: [id])
   enviadoPor String? // nome digitado no link/portal (proveniência externa)

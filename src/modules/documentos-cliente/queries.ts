@@ -22,6 +22,7 @@ function mapear(d: DocumentoComVersoes) {
     enviadoPor: d.enviadoPor,
     categoria: d.categoria,
     descricao: d.descricao,
+    exibirEmRecebidos: d.exibirEmRecebidos,
     autor: d.autor?.name ?? d.enviadoPor ?? "—",
     criadoEm: d.createdAt.toISOString(),
     totalVersoes: d.versoes.length,
@@ -118,10 +119,15 @@ export async function recebidosDoProjeto(projetoId: string): Promise<DocumentoIt
     where: { projetoId },
     select: { id: true },
   });
+  const ancoras = [{ projetoId }, ...(proposta ? [{ propostaId: proposta.id }] : [])];
   const docs = await prisma.documento.findMany({
     where: {
-      origem: { not: "interno" },
-      OR: [{ projetoId }, ...(proposta ? [{ propostaId: proposta.id }] : [])],
+      OR: [
+        // Recebidos "de verdade": material externo (não interno) ancorado no projeto/proposta.
+        { origem: { not: "interno" }, OR: ancoras },
+        // Docs do "Geral" (interno) marcados p/ também aparecer em Recebidos (não duplica arquivo).
+        { origem: "interno", exibirEmRecebidos: true, projetoId },
+      ],
     },
     orderBy: { createdAt: "desc" },
     include: incluir,

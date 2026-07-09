@@ -40,10 +40,15 @@ export async function podeLerDocumento(
   user: SessionUser,
   ancora: AncoraDocumento,
   origem?: string | null,
+  exibirEmRecebidos = false,
 ): Promise<boolean> {
   if (origem === "interno") {
     const projetoId = await projetoEfetivo(ancora);
-    return !!projetoId && (await veProjeto(user, projetoId)) && (await can(user.role, "arquivos_gerais", "ver"));
+    if (!projetoId || !(await veProjeto(user, projetoId))) return false;
+    // Doc do Geral marcado p/ aparecer em "Recebidos": membro do projeto lê,
+    // mesmo sem `arquivos_gerais:ver` (é o objetivo da flag). Senão, regra antiga.
+    if (exibirEmRecebidos) return true;
+    return can(user.role, "arquivos_gerais", "ver");
   }
   const projetoId = await projetoEfetivo(ancora);
   if (projetoId && (await veProjeto(user, projetoId))) return true;

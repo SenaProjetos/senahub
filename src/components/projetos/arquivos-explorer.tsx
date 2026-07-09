@@ -21,6 +21,7 @@ import {
   Plus,
   Pencil,
   Trash2,
+  Share2,
   CheckCircle2,
   Clock,
   AlertTriangle,
@@ -38,6 +39,7 @@ import {
   editarDocumento,
   adicionarVersaoDocumento,
   excluirDocumento,
+  alternarExibicaoRecebidos,
 } from "@/modules/documentos-cliente/actions";
 import type { DocumentoItem } from "@/modules/documentos-cliente/queries";
 import type { MetaDocumento } from "@/modules/documentos-cliente/schemas";
@@ -764,8 +766,14 @@ function RecebidosPasta({
                 {d.nome}
                 {d.totalVersoes > 1 && <span className="ml-1 font-mono text-xs text-muted-foreground">v{d.atual?.numero}</span>}
               </span>
-              {d.canal !== "interno" && (
-                <Badge variant="outline" className="shrink-0 capitalize">{d.canal}</Badge>
+              {d.origem === "interno" ? (
+                <Badge variant="secondary" className="shrink-0 gap-1" title="Compartilhado da pasta Geral (gerido lá)">
+                  <Share2 className="size-3" /> do Geral
+                </Badge>
+              ) : (
+                d.canal !== "interno" && (
+                  <Badge variant="outline" className="shrink-0 capitalize">{d.canal}</Badge>
+                )
               )}
               <span className="shrink-0 font-mono text-xs text-muted-foreground">
                 {d.atual ? fmtBytes(d.atual.tamanho) : "—"}
@@ -775,7 +783,8 @@ function RecebidosPasta({
                   <Download className="size-3.5" />
                 </a>
               )}
-              {podeGerir && (
+              {/* Docs compartilhados do Geral (origem=interno) são geridos na pasta Geral, não aqui. */}
+              {podeGerir && d.origem !== "interno" && (
                 <button
                   type="button"
                   className="shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50"
@@ -790,7 +799,7 @@ function RecebidosPasta({
                   <UploadIcon className="size-3.5" />
                 </button>
               )}
-              {podeExcluir && (
+              {podeExcluir && d.origem !== "interno" && (
                 <button
                   type="button"
                   className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-50"
@@ -902,6 +911,16 @@ function PastaGeral({
     });
   }
 
+  function alternarRecebidos(a: DocumentoItem) {
+    start(async () => {
+      const r = await alternarExibicaoRecebidos({ id: a.id, exibir: !a.exibirEmRecebidos });
+      if (r.ok) {
+        toast.success(r.data.exibir ? "Compartilhado em Recebidos do cliente." : "Removido de Recebidos do cliente.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
   return (
     <>
       <input
@@ -960,8 +979,26 @@ function PastaGeral({
                   <Download className="size-3.5" />
                 </a>
               )}
+              {a.exibirEmRecebidos && (
+                <Badge variant="secondary" className="shrink-0 gap-1">
+                  <Share2 className="size-3" /> em Recebidos
+                </Badge>
+              )}
               {podeGerir && (
                 <>
+                  <button
+                    type="button"
+                    className={cn(
+                      "shrink-0 disabled:opacity-50",
+                      a.exibirEmRecebidos ? "text-primary hover:text-primary/80" : "text-muted-foreground hover:text-foreground",
+                    )}
+                    aria-label={a.exibirEmRecebidos ? "Parar de exibir em Recebidos do cliente" : "Exibir também em Recebidos do cliente"}
+                    title={a.exibirEmRecebidos ? "Parar de exibir em Recebidos do cliente" : "Exibir também em Recebidos do cliente (sem duplicar o arquivo)"}
+                    disabled={pending}
+                    onClick={() => alternarRecebidos(a)}
+                  >
+                    <Share2 className="size-3.5" />
+                  </button>
                   <button
                     type="button"
                     className="shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50"
