@@ -141,6 +141,8 @@ model User {
   bancoHoras             BancoHorasMensal[]
   feedbacksRecebidos     FeedbackRH[]              @relation("FeedbackAlvo")
   mensagensLidas         MensagemLeitura[]
+  mensagensEntregues     MensagemEntrega[]
+  mensagensOuvidas       MensagemAudicao[]
   reacoes                MensagemReacao[]
   preference             UserPreference?
   planejamentos          PlanejamentoPagamento[]
@@ -1140,6 +1142,8 @@ model Mensagem {
   respostaA   Mensagem?         @relation("MensagemResposta", fields: [respostaAId], references: [id], onDelete: SetNull)
   respostas   Mensagem[]        @relation("MensagemResposta")
   leituras    MensagemLeitura[]
+  entregas    MensagemEntrega[]
+  audicoes    MensagemAudicao[]
   reacoes     MensagemReacao[]
   anexos      MensagemAnexo[]
 
@@ -1176,6 +1180,36 @@ model MensagemLeitura {
   @@unique([mensagemId, userId])
   @@index([mensagemId])
   @@map("mensagem_leitura")
+}
+
+/// Confirmação de ENTREGA (recebimento no dispositivo) de uma mensagem a um usuário.
+/// Análogo a MensagemLeitura, mas registrado quando a mensagem chega ao cliente
+/// (via socket/abertura do canal), antes da leitura efetiva — habilita ✓✓ "entregue".
+model MensagemEntrega {
+  id         String   @id @default(cuid())
+  mensagemId String
+  mensagem   Mensagem @relation(fields: [mensagemId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entregueEm DateTime @default(now())
+
+  @@unique([mensagemId, userId])
+  @@index([mensagemId])
+  @@map("mensagem_entrega")
+}
+
+/// Registro de que um usuário OUVIU (reproduziu) um anexo de áudio de uma mensagem.
+model MensagemAudicao {
+  id         String   @id @default(cuid())
+  mensagemId String
+  mensagem   Mensagem @relation(fields: [mensagemId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ouvidaEm   DateTime @default(now())
+
+  @@unique([mensagemId, userId])
+  @@index([mensagemId])
+  @@map("mensagem_audicao")
 }
 
 model MensagemReacao {

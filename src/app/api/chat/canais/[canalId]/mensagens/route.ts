@@ -24,6 +24,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ canalId: string
     autor: { id: m.autor.id, name: m.autor.name, image: m.autor.image },
     createdAt: m.createdAt,
     leituras: m.leituras.map((l) => ({ userId: l.userId, user: { name: l.user.name } })),
+    entreguesIds: m.entreguesIds,
+    ouvidasIds: m.ouvidasIds,
     reacoes: agregarReacoes(m.reacoes),
     respostaA: m.respostaA
       ? {

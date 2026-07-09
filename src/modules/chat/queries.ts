@@ -24,6 +24,14 @@ export function agregarReacoes(
 
 const SITUACOES_ARQUIVADAS = ["concluido", "arquivado", "cancelado"] as const;
 
+/** Tipo de anexo da última mensagem, p/ prévia na lista quando o texto é vazio (só anexo). */
+export type TipoAnexoPreview = "imagem" | "arquivo" | null;
+function tipoAnexoUltima(anexoMime: string | null, anexosMimes: string[]): TipoAnexoPreview {
+  const mimes = [anexoMime, ...anexosMimes].filter(Boolean) as string[];
+  if (mimes.length === 0) return null;
+  return mimes.some((m) => m.startsWith("image/")) ? "imagem" : "arquivo";
+}
+
 /**
  * Não lidas por canal do usuário em UMA única consulta (elimina o N+1 — C4-1).
  * Conta mensagens de outros autores, não excluídas, posteriores ao `lastReadAt`
@@ -55,7 +63,11 @@ export async function listarCanais(userId: string, role?: string) {
       include: {
         canal: {
           include: {
-            mensagens: { orderBy: { createdAt: "desc" }, take: 1, include: { autor: { select: { name: true } } } },
+            mensagens: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              include: { autor: { select: { name: true } }, anexos: { select: { mime: true } } },
+            },
             membros: {
               where: { userId: { not: userId } },
               include: { user: { select: { id: true, name: true, chatStatus: true } } },
@@ -111,7 +123,12 @@ export async function listarCanais(userId: string, role?: string) {
       outroUserId: m.canal.tipo === "dm" ? (outro?.id ?? null) : null,
       outroUserStatus: m.canal.tipo === "dm" ? (outro?.chatStatus ?? null) : null,
       ultima: ultima
-        ? { conteudo: ultima.conteudo, autor: ultima.autor.name, createdAt: ultima.createdAt }
+        ? {
+            conteudo: ultima.conteudo,
+            autor: ultima.autor.name,
+            createdAt: ultima.createdAt,
+            anexoTipo: tipoAnexoUltima(ultima.anexoMime, ultima.anexos.map((a) => a.mime)),
+          }
         : null,
       naoLidas,
       silenciado: m.silenciado,
@@ -138,7 +155,11 @@ export async function listarCanais(userId: string, role?: string) {
   const observaveis = await prisma.canal.findMany({
     where: { tipo: { in: ["grupo", "dm", "socios"] }, id: { notIn: [...meusIds] } },
     include: {
-      mensagens: { orderBy: { createdAt: "desc" }, take: 1, include: { autor: { select: { name: true } } } },
+      mensagens: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        include: { autor: { select: { name: true } }, anexos: { select: { mime: true } } },
+      },
       membros: { include: { user: { select: { id: true, name: true } } } },
     },
     orderBy: { createdAt: "desc" },
@@ -162,7 +183,12 @@ export async function listarCanais(userId: string, role?: string) {
       outroUserId: null,
       outroUserStatus: null,
       ultima: ultima
-        ? { conteudo: ultima.conteudo, autor: ultima.autor.name, createdAt: ultima.createdAt }
+        ? {
+            conteudo: ultima.conteudo,
+            autor: ultima.autor.name,
+            createdAt: ultima.createdAt,
+            anexoTipo: tipoAnexoUltima(ultima.anexoMime, ultima.anexos.map((a) => a.mime)),
+          }
         : null,
       naoLidas: 0,
       silenciado: false,
@@ -241,22 +267,126 @@ export async function mensagensCanal(
   const pagina = temMais ? msgs.slice(0, limite) : msgs;
   const ordenadas = pagina.reverse();
 
+  // Recibos (leitura + entrega + audição) SÓ para as mensagens do próprio usuário —
+  // são as únicas que exibem os indicadores ✓/✓✓ e o painel "Informações".
   const idsProprias = ordenadas.filter((m) => m.autorId === userId).map((m) => m.id);
   const leiturasPorMsg = new Map<string, { userId: string; user: { name: string } }[]>();
+  const entreguesPorMsg = new Map<string, string[]>();
+  const ouvidasPorMsg = new Map<string, string[]>();
   if (idsProprias.length > 0) {
-    const leituras = await prisma.mensagemLeitura.findMany({
-      where: { mensagemId: { in: idsProprias } },
-      select: { mensagemId: true, userId: true, user: { select: { name: true } } },
-    });
+    const [leituras, entregas, audicoes] = await Promise.all([
+      prisma.mensagemLeitura.findMany({
+        where: { mensagemId: { in: idsProprias } },
+        select: { mensagemId: true, userId: true, user: { select: { name: true } } },
+      }),
+      prisma.mensagemEntrega.findMany({
+        where: { mensagemId: { in: idsProprias } },
+        select: { mensagemId: true, userId: true },
+      }),
+      prisma.mensagemAudicao.findMany({
+        where: { mensagemId: { in: idsProprias } },
+        select: { mensagemId: true, userId: true },
+      }),
+    ]);
     for (const l of leituras) {
       const arr = leiturasPorMsg.get(l.mensagemId) ?? [];
       arr.push({ userId: l.userId, user: { name: l.user.name } });
       leiturasPorMsg.set(l.mensagemId, arr);
     }
+    for (const e of entregas) {
+      const arr = entreguesPorMsg.get(e.mensagemId) ?? [];
+      arr.push(e.userId);
+      entreguesPorMsg.set(e.mensagemId, arr);
+    }
+    for (const a of audicoes) {
+      const arr = ouvidasPorMsg.get(a.mensagemId) ?? [];
+      arr.push(a.userId);
+      ouvidasPorMsg.set(a.mensagemId, arr);
+    }
   }
 
-  const itens = ordenadas.map((m) => ({ ...m, leituras: leiturasPorMsg.get(m.id) ?? [] }));
+  const itens = ordenadas.map((m) => ({
+    ...m,
+    leituras: leiturasPorMsg.get(m.id) ?? [],
+    entreguesIds: entreguesPorMsg.get(m.id) ?? [],
+    ouvidasIds: ouvidasPorMsg.get(m.id) ?? [],
+  }));
   return { itens, temMais };
+}
+
+/**
+ * Detalhe completo de recibos de UMA mensagem, para o painel "Informações da
+ * mensagem" (quem leu/recebeu/ouviu + reações, com nomes e horários). Só o autor
+ * da mensagem (ou perfil global) pode ver. Retorna também os membros do canal
+ * para inferir quem AINDA não leu/recebeu. `temAudio` habilita a seção "Ouviram".
+ */
+export async function detalhesMensagem(mensagemId: string, userId: string, role?: string) {
+  const msg = await prisma.mensagem.findUnique({
+    where: { id: mensagemId },
+    select: {
+      id: true,
+      autorId: true,
+      canalId: true,
+      createdAt: true,
+      anexoMime: true,
+      anexos: { select: { mime: true } },
+    },
+  });
+  if (!msg) return null;
+  const ehGlobal = role === "admin" || role === "supervisor";
+  if (msg.autorId !== userId && !ehGlobal) return null;
+
+  const [leituras, entregas, audicoes, reacoes, membros] = await Promise.all([
+    prisma.mensagemLeitura.findMany({
+      where: { mensagemId },
+      select: { userId: true, lidaEm: true, user: { select: { name: true } } },
+      orderBy: { lidaEm: "asc" },
+    }),
+    prisma.mensagemEntrega.findMany({
+      where: { mensagemId },
+      select: { userId: true, entregueEm: true, user: { select: { name: true } } },
+      orderBy: { entregueEm: "asc" },
+    }),
+    prisma.mensagemAudicao.findMany({
+      where: { mensagemId },
+      select: { userId: true, ouvidaEm: true, user: { select: { name: true } } },
+      orderBy: { ouvidaEm: "asc" },
+    }),
+    prisma.mensagemReacao.findMany({
+      where: { mensagemId },
+      select: { emoji: true, userId: true, createdAt: true, user: { select: { name: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.canalMembro.findMany({
+      where: { canalId: msg.canalId, userId: { not: msg.autorId } },
+      select: { userId: true, user: { select: { name: true } } },
+    }),
+  ]);
+
+  const temAudio =
+    (msg.anexoMime?.startsWith("audio/") ?? false) || msg.anexos.some((a) => a.mime.startsWith("audio/"));
+
+  const nomePorId = new Map(membros.map((m) => [m.userId, m.user.name]));
+  const leuIds = new Set(leituras.map((l) => l.userId));
+  const recebeuIds = new Set(entregas.map((e) => e.userId));
+  // Ninguém do canal que ainda não recebeu (nem leu — leitura implica entrega).
+  const pendentes = membros
+    .filter((m) => !recebeuIds.has(m.userId) && !leuIds.has(m.userId))
+    .map((m) => ({ userId: m.userId, nome: m.user.name }));
+
+  return {
+    mensagemId,
+    temAudio,
+    totalDestinatarios: membros.length,
+    leram: leituras.map((l) => ({ userId: l.userId, nome: l.user.name, em: l.lidaEm })),
+    // "Entregue mas não lido": recebeu e ainda não leu.
+    receberam: entregas
+      .filter((e) => !leuIds.has(e.userId))
+      .map((e) => ({ userId: e.userId, nome: e.user.name, em: e.entregueEm })),
+    ouviram: audicoes.map((a) => ({ userId: a.userId, nome: a.user.name, em: a.ouvidaEm })),
+    reacoes: reacoes.map((r) => ({ emoji: r.emoji, userId: r.userId, nome: r.user.name })),
+    pendentes: pendentes.map((p) => ({ userId: p.userId, nome: nomePorId.get(p.userId) ?? p.nome })),
+  };
 }
 
 /** Mensagens fixadas do canal (não excluídas). */

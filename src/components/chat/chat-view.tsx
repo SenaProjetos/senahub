@@ -1,6 +1,7 @@
 "use client";
 
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -9,6 +10,7 @@ import {
   Check, CheckCheck, ChevronDown, Pin, PinOff, Pencil, Trash2, Reply,
   Bell, BellOff, ExternalLink, Search, Users, Settings2, Briefcase, Eye,
   ChevronsDownUp, ChevronsUpDown, Mic, Play, Pause, Forward, ChevronLeft, ChevronRight,
+  ZoomIn, ZoomOut, Info,
 } from "lucide-react";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
@@ -35,6 +37,9 @@ import {
   renomearGrupo,
   definirIconeGrupo,
   encaminharMensagem,
+  registrarEntregas,
+  registrarAudicao,
+  infoMensagem,
 } from "@/modules/chat/actions";
 import type { CanalListItem, ReacaoAgregada } from "@/modules/chat/queries";
 import { cn, formatarDiaMes } from "@/lib/utils";
@@ -71,9 +76,25 @@ type Msg = {
   autor: { id: string; name: string; image?: string | null };
   createdAt: string | Date;
   leituras?: { userId: string; user: { name: string } }[];
+  entreguesIds?: string[];
+  ouvidasIds?: string[];
   reacoes?: ReacaoAgregada[];
   respostaA?: { id: string; conteudo: string | null; autor: { name: string } } | null;
 };
+
+/** Tipo de anexo de uma mensagem (para prévia na lista quando não há texto). */
+function tipoAnexoMsg(m: { anexoMime?: string | null; anexos?: { mime: string }[] }): "imagem" | "arquivo" | null {
+  const mimes = [m.anexoMime, ...((m.anexos ?? []).map((a) => a.mime))].filter(Boolean) as string[];
+  if (mimes.length === 0) return null;
+  return mimes.some((x) => x.startsWith("image/")) ? "imagem" : "arquivo";
+}
+/** Texto da prévia da última mensagem: usa o conteúdo ou um rótulo do anexo. */
+function previewUltima(ultima: { conteudo: string; anexoTipo?: "imagem" | "arquivo" | null }): string {
+  if (ultima.conteudo && ultima.conteudo.trim()) return ultima.conteudo;
+  if (ultima.anexoTipo === "imagem") return "🖼️ Imagem";
+  if (ultima.anexoTipo === "arquivo") return "📎 Anexo";
+  return "";
+}
 
 /** Item 31 (beta): iniciais para o avatar do autor no chat, quando não há foto. */
 function iniciaisAutor(nome: string): string {
@@ -184,12 +205,30 @@ function ondasDeAudio(seed: string): number[] {
  * `currentColor`, então adapta às cores do balão (próprio vs. dos outros). Waveform
  * clicável para buscar; mostra o tempo decorrido (ou a duração quando parado).
  */
-function AudioPlayer({ src, autorId }: { src: string; autorId: string }) {
+function AudioPlayer({
+  src,
+  autorId,
+  mensagemId,
+  meId,
+}: {
+  src: string;
+  autorId: string;
+  mensagemId?: string;
+  meId?: string;
+}) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [tocando, setTocando] = useState(false);
   const [atual, setAtual] = useState(0);
   const [duracao, setDuracao] = useState(0);
   const barras = useMemo(() => ondasDeAudio(src), [src]);
+  // #2: registra "ouviu" uma única vez ao reproduzir áudio de OUTRO usuário.
+  const audicaoRegistradaRef = useRef(false);
+  function registrarOuviu() {
+    if (audicaoRegistradaRef.current) return;
+    if (!mensagemId || !meId || autorId === meId) return;
+    audicaoRegistradaRef.current = true;
+    void registrarAudicao({ mensagemId });
+  }
 
   // Progresso fluido: `timeupdate` dispara ~4x/s (trava em áudios curtos). Enquanto
   // toca, lemos currentTime a cada frame (~60fps) para um movimento suave.
@@ -229,7 +268,7 @@ function AudioPlayer({ src, autorId }: { src: string; autorId: string }) {
         ref={audioRef}
         src={src}
         preload="metadata"
-        onPlay={() => setTocando(true)}
+        onPlay={() => { setTocando(true); registrarOuviu(); }}
         onPause={() => setTocando(false)}
         onEnded={() => { setTocando(false); setAtual(0); }}
         onTimeUpdate={(e) => setAtual(e.currentTarget.currentTime)}
@@ -386,7 +425,7 @@ function CanalBtn({
           </div>
           {c.ultima && (
             <p className="truncate text-xs text-muted-foreground">
-              {c.ultima.autor}: {c.ultima.conteudo}
+              {c.ultima.autor}: {previewUltima(c.ultima)}
             </p>
           )}
         </div>
@@ -497,6 +536,8 @@ export function ChatView({
   const [enviandoAnexo, setEnviandoAnexo] = useState(false);
   // Lightbox de imagem (modal na mesma janela) — lista de imagens da mensagem + índice atual.
   const [lightbox, setLightbox] = useState<{ imagens: { src: string; nome: string }[]; atual: number } | null>(null);
+  // #2: painel "Informações da mensagem" (recibos detalhados) — id da mensagem aberta.
+  const [infoMsgId, setInfoMsgId] = useState<string | null>(null);
   // Categorias minimizáveis (persistidas em localStorage).
   const [projetosAberto, setProjetosAberto] = useState(() => lerCategoria("chat-cat-projetos"));
   const [gruposAberto, setGruposAberto] = useState(() => lerCategoria("chat-cat-grupos"));
@@ -552,6 +593,9 @@ export function ChatView({
   // C4-2: debounce de marcarLido para mensagens ao vivo no canal aberto (agrupa rajadas).
   const marcarLidoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendenteLidoRef = useRef<string | null>(null);
+  // #2: buffer de confirmações de ENTREGA (canalId → set de mensagemIds) com flush debounced.
+  const entregasBufferRef = useRef<Map<string, Set<string>>>(new Map());
+  const entregasTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // C5-1: throttle do emit "eu estou digitando" + auto-expire dos indicadores recebidos
   const digitandoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const estaDigitandoRef = useRef(false);
@@ -559,6 +603,23 @@ export function ChatView({
 
   const podeModerarMsg = (msg: Msg) =>
     msg.autor.id === meId || ["admin", "supervisor"].includes(meRole);
+
+  // #2: confirma ENTREGA das mensagens recebidas (agrupadas por canal, flush debounced).
+  // useCallback (deps vazias — só refs/import) para manter estável no effect do socket.
+  const bufferEntrega = useCallback((canalId: string, mensagemId: string) => {
+    const set = entregasBufferRef.current.get(canalId) ?? new Set<string>();
+    set.add(mensagemId);
+    entregasBufferRef.current.set(canalId, set);
+    if (entregasTimerRef.current) clearTimeout(entregasTimerRef.current);
+    entregasTimerRef.current = setTimeout(() => {
+      entregasTimerRef.current = null;
+      const buffer = entregasBufferRef.current;
+      entregasBufferRef.current = new Map();
+      for (const [cid, ids] of buffer) {
+        if (ids.size > 0) void registrarEntregas({ canalId: cid, mensagemIds: [...ids] });
+      }
+    }, 800);
+  }, []);
 
   // Sinaliza ao provider global que o chat está visível (evita som/toast duplicado).
   useEffect(() => {
@@ -639,6 +700,9 @@ export function ChatView({
           setFixadas(d.fixadas ?? []);
           setTemMais(!!d.temMais);
           setMembrosCanalAtual(d.membros ?? []);
+          // #2: confirma entrega das mensagens de outros carregadas (cobre offline → abrir canal).
+          const idsEntrega = (d.mensagens as Msg[]).filter((m) => m.autor.id !== meId).map((m) => m.id);
+          if (idsEntrega.length > 0) void registrarEntregas({ canalId: sel, mensagemIds: idsEntrega });
         }
       });
     void marcarLido({ canalId: sel });
@@ -661,7 +725,7 @@ export function ChatView({
       pendenteLidoRef.current = null;
       if (pend) void marcarLido({ canalId: pend });
     };
-  }, [sel]);
+  }, [sel, meId]);
 
   // Socket: mensagens ao vivo, presença, novos canais, edições, exclusões, reações, fixadas, status.
   useEffect(() => {
@@ -670,6 +734,8 @@ export function ChatView({
     function onMensagem(p: Msg & { canalId: string }) {
       const silenciado = silenciadosRef.current.has(p.canalId);
       if (p.autor.id !== meId && somChat && statusRef.current !== "reuniao" && !silenciado) tocarSom();
+      // #2: confirma entrega (recebeu no dispositivo) de mensagens de outros — em qualquer canal.
+      if (p.autor.id !== meId) bufferEntrega(p.canalId, p.id);
       if (p.canalId === selRef.current) {
         setMensagens((m) => [...m, p]);
         // Reordena a lista ao vivo: atualiza a última mensagem do canal aberto também
@@ -677,7 +743,7 @@ export function ChatView({
         setCanais((cs) =>
           cs.map((c) =>
             c.id === p.canalId
-              ? { ...c, ultima: { conteudo: p.conteudo, autor: p.autor.name, createdAt: new Date(p.createdAt) } }
+              ? { ...c, ultima: { conteudo: p.conteudo, autor: p.autor.name, createdAt: new Date(p.createdAt), anexoTipo: tipoAnexoMsg(p) } }
               : c,
           ),
         );
@@ -693,7 +759,7 @@ export function ChatView({
         setCanais((cs) =>
           cs.map((c) =>
             c.id === p.canalId
-              ? { ...c, naoLidas: c.naoLidas + (p.autor.id !== meId ? 1 : 0), ultima: { conteudo: p.conteudo, autor: p.autor.name, createdAt: new Date(p.createdAt) } }
+              ? { ...c, naoLidas: c.naoLidas + (p.autor.id !== meId ? 1 : 0), ultima: { conteudo: p.conteudo, autor: p.autor.name, createdAt: new Date(p.createdAt), anexoTipo: tipoAnexoMsg(p) } }
               : c,
           ),
         );
@@ -752,6 +818,29 @@ export function ChatView({
     function onReacao(p: { mensagemId: string; reacoes: ReacaoAgregada[] }) {
       setMensagens((ms) =>
         ms.map((m) => (m.id === p.mensagemId ? { ...m, reacoes: p.reacoes } : m)),
+      );
+    }
+    // #2: um destinatário confirmou ENTREGA das minhas mensagens (✓✓) ao vivo.
+    function onEntrega(p: { canalId: string; mensagemIds: string[]; userId: string }) {
+      if (p.canalId !== selRef.current || p.userId === meId) return;
+      const alvo = new Set(p.mensagemIds);
+      setMensagens((ms) =>
+        ms.map((m) =>
+          m.autor.id === meId && alvo.has(m.id) && !(m.entreguesIds ?? []).includes(p.userId)
+            ? { ...m, entreguesIds: [...(m.entreguesIds ?? []), p.userId] }
+            : m,
+        ),
+      );
+    }
+    // #2: um destinatário OUVIU o áudio de uma mensagem minha, ao vivo.
+    function onAudicao(p: { canalId: string; mensagemId: string; userId: string }) {
+      if (p.canalId !== selRef.current || p.userId === meId) return;
+      setMensagens((ms) =>
+        ms.map((m) =>
+          m.id === p.mensagemId && m.autor.id === meId && !(m.ouvidasIds ?? []).includes(p.userId)
+            ? { ...m, ouvidasIds: [...(m.ouvidasIds ?? []), p.userId] }
+            : m,
+        ),
       );
     }
     function onFixada(p: { mensagemId: string; canalId: string; fixada: boolean; conteudo: string; autorNome: string }) {
@@ -816,6 +905,8 @@ export function ChatView({
     s.on("mensagem-editada", onMensagemEditada);
     s.on("mensagem-excluida", onMensagemExcluida);
     s.on("reacao", onReacao);
+    s.on("entrega", onEntrega);
+    s.on("audicao", onAudicao);
     s.on("fixada", onFixada);
     s.on("status-chat", onStatusChat);
     s.on("digitando", onDigitando);
@@ -831,6 +922,8 @@ export function ChatView({
       s.off("mensagem-editada", onMensagemEditada);
       s.off("mensagem-excluida", onMensagemExcluida);
       s.off("reacao", onReacao);
+      s.off("entrega", onEntrega);
+      s.off("audicao", onAudicao);
       s.off("fixada", onFixada);
       s.off("status-chat", onStatusChat);
       s.off("digitando", onDigitando);
@@ -838,7 +931,7 @@ export function ChatView({
       s.off("grupo-renomeado", onGrupoRenomeado);
       s.off("grupo-atualizado", onGrupoAtualizado);
     };
-  }, [meId, router, somChat]);
+  }, [meId, router, somChat, bufferEntrega]);
 
   useLayoutEffect(() => {
     // Ao pré-carregar histórico antigo, restaura a posição: compensa o crescimento do conteúdo
@@ -1365,6 +1458,20 @@ export function ChatView({
               )}
             </span>
           </button>
+          {/* Mutar/desmutar o canal PRINCIPAL do projeto (antes só disciplinas tinham). */}
+          {g.principal && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); toggleSilenciar(g.principal!.id); }}
+              title={silenciados.has(g.principal.id) ? "Desmutar canal do projeto" : "Mutar canal do projeto"}
+              aria-label={silenciados.has(g.principal.id) ? "Desmutar canal do projeto" : "Mutar canal do projeto"}
+              className="mr-1 shrink-0 rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              {silenciados.has(g.principal.id)
+                ? <BellOff className="size-3.5" />
+                : <Bell className="size-3.5" />}
+            </button>
+          )}
         </div>
         {!recolhido && g.subs.slice().sort(cmpCanal).map((c) => (
           <CanalBtn
@@ -1864,6 +1971,17 @@ export function ChatView({
                             : <Pin className="size-3.5 text-muted-foreground" />
                           }
                         </button>
+                        {/* #2: Informações da mensagem (quem recebeu/leu/ouviu/reagiu) —
+                            nas minhas OU para admin/supervisor em qualquer mensagem. */}
+                        {podeAgir && (
+                          <button
+                            title="Informações da mensagem"
+                            onClick={() => setInfoMsgId(m.id)}
+                            className="rounded-sm p-1 hover:bg-muted"
+                          >
+                            <Info className="size-3.5 text-muted-foreground" />
+                          </button>
+                        )}
                         {podeAgir && (
                           <>
                             <button
@@ -1944,6 +2062,7 @@ export function ChatView({
                         <>
                           <AnexosMensagem
                             m={m}
+                            meId={meId}
                             onAbrirImagem={(imagens, indice) => setLightbox({ imagens, atual: indice })}
                           />
                           {m.conteudo && (
@@ -1961,17 +2080,34 @@ export function ChatView({
                           <span>
                             {new Date(m.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                           </span>
-                          {meu && mostrarRecibos && (
-                            (m.leituras && m.leituras.length > 0) ? (
-                              <span title={`Lido por ${m.leituras.map((l) => l.user.name).join(", ")}`} className="inline-flex">
-                                <CheckCheck className="size-3 text-info" aria-label="Lido" />
-                              </span>
-                            ) : (
-                              <span title="Enviado" className="inline-flex">
-                                <Check className="size-3" aria-label="Enviado" />
-                              </span>
-                            )
-                          )}
+                          {meu && mostrarRecibos && (() => {
+                            const nLeu = m.leituras?.length ?? 0;
+                            const nEntregue = m.entreguesIds?.length ?? 0;
+                            // 3 estados: lido (✓✓ azul) > entregue (✓✓ cinza) > enviado (✓).
+                            const estado = nLeu > 0 ? "lido" : nEntregue > 0 ? "entregue" : "enviado";
+                            const titulo =
+                              estado === "lido"
+                                ? `Lido por ${m.leituras!.map((l) => l.user.name).join(", ")}`
+                                : estado === "entregue"
+                                  ? "Entregue"
+                                  : "Enviado";
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => setInfoMsgId(m.id)}
+                                title={`${titulo} — clique para detalhes`}
+                                className="inline-flex hover:opacity-100"
+                              >
+                                {estado === "lido" ? (
+                                  <CheckCheck className="size-3 text-info" aria-label="Lido" />
+                                ) : estado === "entregue" ? (
+                                  <CheckCheck className="size-3" aria-label="Entregue" />
+                                ) : (
+                                  <Check className="size-3" aria-label="Enviado" />
+                                )}
+                              </button>
+                            );
+                          })()}
                         </p>
                       </div>
 
@@ -2249,16 +2385,140 @@ export function ChatView({
           onNavegar={(i) => setLightbox((lb) => (lb ? { ...lb, atual: i } : lb))}
         />
       )}
+
+      {/* #2: painel Informações da mensagem (recibos detalhados). */}
+      {infoMsgId && (
+        <InfoMensagemDialog mensagemId={infoMsgId} onClose={() => setInfoMsgId(null)} />
+      )}
     </div>
+  );
+}
+
+/** #2: painel "Informações da mensagem" — quem recebeu, leu, ouviu e reagiu. */
+type InfoMensagemDados = Extract<Awaited<ReturnType<typeof infoMensagem>>, { ok: true }>["data"];
+function InfoMensagemDialog({ mensagemId, onClose }: { mensagemId: string; onClose: () => void }) {
+  const [dados, setDados] = useState<InfoMensagemDados | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    setDados(null);
+    setErro(null);
+    infoMensagem({ mensagemId })
+      .then((r) => {
+        if (!vivo) return;
+        if (r.ok) setDados(r.data);
+        else setErro(r.error ?? "Falha ao carregar.");
+      })
+      .catch(() => vivo && setErro("Falha ao carregar."));
+    return () => { vivo = false; };
+  }, [mensagemId]);
+
+  function quando(em: string | Date) {
+    return new Date(em).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  }
+
+  function Secao({ icone, titulo, cor, pessoas }: {
+    icone: React.ReactNode;
+    titulo: string;
+    cor?: string;
+    pessoas: { userId: string; nome: string; em?: string | Date }[];
+  }) {
+    return (
+      <div>
+        <p className={cn("mb-1 flex items-center gap-1.5 text-xs font-semibold", cor)}>
+          {icone} {titulo} <span className="text-muted-foreground">({pessoas.length})</span>
+        </p>
+        {pessoas.length === 0 ? (
+          <p className="px-1 text-xs text-muted-foreground">Ninguém ainda.</p>
+        ) : (
+          <ul className="space-y-0.5">
+            {pessoas.map((p) => (
+              <li key={p.userId} className="flex items-center justify-between gap-2 px-1 text-sm">
+                <span className="truncate">{p.nome}</span>
+                {p.em && <span className="shrink-0 text-[11px] text-muted-foreground">{quando(p.em)}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  }
+
+  // Agrupa reações por emoji.
+  const reacoesPorEmoji = new Map<string, string[]>();
+  for (const r of dados?.reacoes ?? []) {
+    const arr = reacoesPorEmoji.get(r.emoji) ?? [];
+    arr.push(r.nome);
+    reacoesPorEmoji.set(r.emoji, arr);
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader><DialogTitle>Informações da mensagem</DialogTitle></DialogHeader>
+        {erro ? (
+          <p className="py-4 text-center text-sm text-muted-foreground">{erro}</p>
+        ) : !dados ? (
+          <p className="py-4 text-center text-sm text-muted-foreground">Carregando…</p>
+        ) : (
+          <div className="max-h-[70vh] space-y-4 overflow-y-auto">
+            <Secao
+              icone={<CheckCheck className="size-3.5" />}
+              titulo="Lido por"
+              cor="text-info"
+              pessoas={dados.leram}
+            />
+            <Secao
+              icone={<CheckCheck className="size-3.5" />}
+              titulo="Entregue (não lido)"
+              pessoas={dados.receberam}
+            />
+            {dados.temAudio && (
+              <Secao
+                icone={<Play className="size-3.5" />}
+                titulo="Ouviram o áudio"
+                pessoas={dados.ouviram}
+              />
+            )}
+            {dados.pendentes.length > 0 && (
+              <Secao
+                icone={<Check className="size-3.5" />}
+                titulo="Ainda não recebeu"
+                cor="text-muted-foreground"
+                pessoas={dados.pendentes}
+              />
+            )}
+            {reacoesPorEmoji.size > 0 && (
+              <div>
+                <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold">
+                  <Smile className="size-3.5" /> Reações
+                </p>
+                <ul className="space-y-0.5">
+                  {[...reacoesPorEmoji.entries()].map(([emoji, nomes]) => (
+                    <li key={emoji} className="flex items-start gap-2 px-1 text-sm">
+                      <span className="text-base">{emoji}</span>
+                      <span className="text-muted-foreground">{nomes.join(", ")}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
 /** Renderiza os anexos de uma mensagem: galeria (múltiplos) ou fallback legado (1 anexo). */
 function AnexosMensagem({
   m,
+  meId,
   onAbrirImagem,
 }: {
   m: Msg;
+  meId: string;
   onAbrirImagem: (imagens: { src: string; nome: string }[], idx: number) => void;
 }) {
   // Modelo novo: múltiplos anexos via tabela.
@@ -2296,7 +2556,7 @@ function AnexosMensagem({
               </button>
             );
           }
-          if (a.mime.startsWith("audio/")) return <AudioPlayer key={a.id} src={src} autorId={m.autor.id} />;
+          if (a.mime.startsWith("audio/")) return <AudioPlayer key={a.id} src={src} autorId={m.autor.id} mensagemId={m.id} meId={meId} />;
           return (
             <a
               key={a.id}
@@ -2329,7 +2589,7 @@ function AnexosMensagem({
       </button>
     );
   }
-  if (m.anexoMime.startsWith("audio/")) return <AudioPlayer src={src} autorId={m.autor.id} />;
+  if (m.anexoMime.startsWith("audio/")) return <AudioPlayer src={src} autorId={m.autor.id} mensagemId={m.id} meId={meId} />;
   return (
     <a
       href={src}
@@ -2357,50 +2617,95 @@ function ImageLightbox({
 }) {
   const temAnterior = atual > 0;
   const temProxima = atual < imagens.length - 1;
+  // Zoom/pan: escala 1..5; posição em px do arraste. Resetam ao trocar de imagem.
+  const [escala, setEscala] = useState(1);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const arraste = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+  const [arrastando, setArrastando] = useState(false);
+  const [montado, setMontado] = useState(false);
+
+  useEffect(() => { setMontado(true); }, []);
+  // Reset ao navegar entre imagens.
+  useEffect(() => { setEscala(1); setPos({ x: 0, y: 0 }); }, [atual]);
+
+  const ajustarZoom = (delta: number) =>
+    setEscala((s) => {
+      const nova = Math.min(5, Math.max(1, +(s + delta).toFixed(2)));
+      if (nova === 1) setPos({ x: 0, y: 0 });
+      return nova;
+    });
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onFechar();
-      else if (e.key === "ArrowLeft" && atual > 0) onNavegar(atual - 1);
-      else if (e.key === "ArrowRight" && atual < imagens.length - 1) onNavegar(atual + 1);
+      else if (e.key === "ArrowLeft" && atual > 0 && escala === 1) onNavegar(atual - 1);
+      else if (e.key === "ArrowRight" && atual < imagens.length - 1 && escala === 1) onNavegar(atual + 1);
+      else if (e.key === "+" || e.key === "=") ajustarZoom(0.5);
+      else if (e.key === "-") ajustarZoom(-0.5);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [atual, imagens.length, onFechar, onNavegar]);
+  }, [atual, imagens.length, onFechar, onNavegar, escala]);
 
   const img = imagens[atual];
-  if (!img) return null;
-  return (
+  if (!img || !montado) return null;
+
+  function onPointerDown(e: React.PointerEvent) {
+    if (escala === 1) return;
+    e.stopPropagation();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    arraste.current = { x: e.clientX, y: e.clientY, ox: pos.x, oy: pos.y };
+    setArrastando(true);
+  }
+  function onPointerMove(e: React.PointerEvent) {
+    if (!arraste.current) return;
+    setPos({ x: arraste.current.ox + (e.clientX - arraste.current.x), y: arraste.current.oy + (e.clientY - arraste.current.y) });
+  }
+  function onPointerUp() { arraste.current = null; setArrastando(false); }
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-black/85 p-4"
       onClick={onFechar}
+      onWheel={(e) => { ajustarZoom(e.deltaY < 0 ? 0.3 : -0.3); }}
       role="dialog"
       aria-modal="true"
       aria-label="Visualizar imagem"
     >
+      {/* Controles de zoom */}
+      <div className="absolute left-1/2 top-4 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full bg-white/10 p-1" onClick={(e) => e.stopPropagation()}>
+        <button type="button" onClick={() => ajustarZoom(-0.5)} disabled={escala <= 1} aria-label="Diminuir zoom" className="rounded-full p-1.5 text-white hover:bg-white/20 disabled:opacity-40">
+          <ZoomOut className="size-4" />
+        </button>
+        <span className="min-w-10 text-center text-xs text-white/80">{Math.round(escala * 100)}%</span>
+        <button type="button" onClick={() => ajustarZoom(0.5)} disabled={escala >= 5} aria-label="Aumentar zoom" className="rounded-full p-1.5 text-white hover:bg-white/20 disabled:opacity-40">
+          <ZoomIn className="size-4" />
+        </button>
+      </div>
       <button
         type="button"
         onClick={onFechar}
         aria-label="Fechar"
-        className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+        className="absolute right-4 top-4 z-10 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
       >
         <X className="size-5" />
       </button>
-      {temAnterior && (
+      {temAnterior && escala === 1 && (
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onNavegar(atual - 1); }}
           aria-label="Imagem anterior"
-          className="absolute left-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+          className="absolute left-4 z-10 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
         >
           <ChevronLeft className="size-6" />
         </button>
       )}
-      {temProxima && (
+      {temProxima && escala === 1 && (
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onNavegar(atual + 1); }}
           aria-label="Próxima imagem"
-          className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+          className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
         >
           <ChevronRight className="size-6" />
         </button>
@@ -2409,15 +2714,26 @@ function ImageLightbox({
       <img
         src={img.src}
         alt={img.nome}
+        draggable={false}
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[90vh] max-w-[90vw] rounded-sm object-contain"
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          if (escala === 1) { setEscala(2); } else { setEscala(1); setPos({ x: 0, y: 0 }); }
+        }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        style={{ transform: `translate(${pos.x}px, ${pos.y}px) scale(${escala})`, cursor: escala > 1 ? (arrastando ? "grabbing" : "grab") : "zoom-in" }}
+        className="max-h-[92vh] max-w-[92vw] select-none rounded-sm object-contain transition-transform duration-75"
       />
       {imagens.length > 1 && (
         <span className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-xs text-white/80">
           {atual + 1} / {imagens.length}
         </span>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
 

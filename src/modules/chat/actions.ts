@@ -10,7 +10,7 @@ import { DM_ROLES_EXCLUIDAS } from "@/modules/chat/roles";
 import { randomBytes } from "node:crypto";
 import { removerArquivo, salvarArquivo, lerArquivo } from "@/lib/storage";
 import { extrairMencoes, mencionouTodos } from "@/modules/chat/mencoes";
-import { agregarReacoes } from "@/modules/chat/queries";
+import { agregarReacoes, detalhesMensagem } from "@/modules/chat/queries";
 
 const base = { modulo: "chat" } as const;
 
@@ -99,6 +99,28 @@ async function notificarMembros(canalId: string, autorId: string, autorNome: str
   }
 }
 
+/**
+ * #2: marca ENTREGA imediata de uma mensagem nova para os membros ONLINE agora
+ * (exceto o autor). "Entregue" = chegou ao dispositivo conectado — não depende de
+ * o destinatário ter a tela de chat aberta. Emite "entrega" ao canal para o autor
+ * ver ✓✓ ao vivo. Quem estava offline confirma ao abrir o canal (catch-up no cliente).
+ */
+async function marcarEntreguesOnline(canalId: string, mensagemId: string, autorId: string) {
+  const membros = await prisma.canalMembro.findMany({
+    where: { canalId, userId: { not: autorId } },
+    select: { userId: true },
+  });
+  const online = membros.map((m) => m.userId).filter((uid) => usuarioOnline(uid));
+  if (online.length === 0) return;
+  await prisma.mensagemEntrega.createMany({
+    data: online.map((userId) => ({ mensagemId, userId })),
+    skipDuplicates: true,
+  });
+  for (const userId of online) {
+    emitParaCanal(canalId, "entrega", { canalId, mensagemIds: [mensagemId], userId });
+  }
+}
+
 export const enviarMensagem = defineAction(
   { ...base, acao: "enviar-mensagem", entidade: "Mensagem", schema: enviarSchema, audit: false },
   async (i, { user }) => {
@@ -150,6 +172,7 @@ export const enviarMensagem = defineAction(
     };
     // Live (todos no room do canal).
     emitParaCanal(i.canalId, "mensagem", payload);
+    await marcarEntreguesOnline(i.canalId, msg.id, user.id);
     await notificarMembros(i.canalId, user.id, msg.autor.name, i.conteudo);
 
     return payload;
@@ -239,6 +262,7 @@ export const encaminharMensagem = defineAction(
       respostaA: null,
     };
     emitParaCanal(i.canalId, "mensagem", payload);
+    await marcarEntreguesOnline(i.canalId, msg.id, user.id);
     await notificarMembros(i.canalId, user.id, msg.autor.name, msg.conteudo);
     return { canalId: i.canalId };
   },
@@ -384,6 +408,91 @@ export const marcarLido = defineAction(
   async (i, { user }) => {
     await marcarCanalLido(i.canalId, user, 200);
     return { canalId: i.canalId };
+  },
+);
+
+/**
+ * Registra ENTREGA (recebimento) das mensagens indicadas para o usuário — chamado
+ * pelo cliente quando as mensagens chegam (socket) ou ao abrir o canal. Ignora as
+ * mensagens do próprio usuário. Emite "entrega" ao canal para o autor atualizar ✓✓
+ * ao vivo. No-op se não for membro.
+ */
+export const registrarEntregas = defineAction(
+  {
+    ...base,
+    acao: "registrar-entregas",
+    schema: z.object({ canalId: z.string().min(1), mensagemIds: z.array(z.string().min(1)).min(1).max(500) }),
+    audit: false,
+  },
+  async (i, { user }) => {
+    const membro = await prisma.canalMembro.findUnique({
+      where: { canalId_userId: { canalId: i.canalId, userId: user.id } },
+      select: { id: true },
+    });
+    if (!membro) return { entregues: [] as string[] };
+
+    // Só mensagens do canal, de OUTROS autores, ainda sem entrega deste usuário.
+    const alvo = await prisma.mensagem.findMany({
+      where: {
+        id: { in: i.mensagemIds },
+        canalId: i.canalId,
+        autorId: { not: user.id },
+        entregas: { none: { userId: user.id } },
+      },
+      select: { id: true },
+    });
+    if (alvo.length === 0) return { entregues: [] as string[] };
+
+    await prisma.mensagemEntrega.createMany({
+      data: alvo.map((m) => ({ mensagemId: m.id, userId: user.id })),
+      skipDuplicates: true,
+    });
+    const ids = alvo.map((m) => m.id);
+    emitParaCanal(i.canalId, "entrega", { canalId: i.canalId, mensagemIds: ids, userId: user.id });
+    return { entregues: ids };
+  },
+);
+
+/**
+ * Registra que o usuário OUVIU (reproduziu) o áudio de uma mensagem. Emite "audicao"
+ * ao canal para o autor ver ao vivo. Idempotente (unique mensagemId+userId).
+ */
+export const registrarAudicao = defineAction(
+  {
+    ...base,
+    acao: "registrar-audicao",
+    schema: z.object({ mensagemId: z.string().min(1) }),
+    audit: false,
+  },
+  async (i, { user }) => {
+    const msg = await prisma.mensagem.findUnique({
+      where: { id: i.mensagemId },
+      select: { canalId: true, autorId: true },
+    });
+    if (!msg || msg.autorId === user.id) return { ok: true };
+    await exigirMembro(msg.canalId, user.id);
+    await prisma.mensagemAudicao.upsert({
+      where: { mensagemId_userId: { mensagemId: i.mensagemId, userId: user.id } },
+      create: { mensagemId: i.mensagemId, userId: user.id },
+      update: {},
+    });
+    emitParaCanal(msg.canalId, "audicao", { canalId: msg.canalId, mensagemId: i.mensagemId, userId: user.id });
+    return { ok: true };
+  },
+);
+
+/** Detalhe de recibos de uma mensagem para o painel "Informações" (só o autor/global). */
+export const infoMensagem = defineAction(
+  {
+    ...base,
+    acao: "info-mensagem",
+    schema: z.object({ mensagemId: z.string().min(1) }),
+    audit: false,
+  },
+  async (i, { user }) => {
+    const info = await detalhesMensagem(i.mensagemId, user.id, user.role);
+    if (!info) throw new ActionError("Mensagem não encontrada.");
+    return info;
   },
 );
 

@@ -73,6 +73,9 @@ export function initSocket(server: HttpServer): SocketServer {
         select: { canalId: true },
       });
       for (const c of canais) socket.join(`canal:${c.canalId}`);
+      // #2: confirma ENTREGA das mensagens recebidas enquanto o usuário estava offline
+      // (cobre logar DEPOIS do envio). Sem esperar, para não atrasar a conexão.
+      void marcarEntregasAoConectar(userId, canais.map((c) => c.canalId)).catch(() => {});
     } catch {
       // sem DB no contexto → ignora (live cai para refresh)
     }
@@ -113,6 +116,44 @@ export function initSocket(server: HttpServer): SocketServer {
 
   console.log("[socket.io] iniciado.");
   return io;
+}
+
+/**
+ * #2: marca ENTREGA das mensagens pendentes de um usuário ao (re)conectar — as que
+ * chegaram enquanto ele estava offline. Resolve o caso "logou depois do envio":
+ * antes só marcávamos quem estava online no instante do envio. Idempotente
+ * (unique mensagemId+userId). Limitado por janela + take para evitar backfill gigante
+ * no primeiro login. Emite "entrega" agrupado por canal para os autores online verem ✓✓.
+ */
+async function marcarEntregasAoConectar(userId: string, canalIds: string[]) {
+  if (canalIds.length === 0) return;
+  const CUTOFF = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const pendentes = await prisma.mensagem.findMany({
+    where: {
+      canalId: { in: canalIds },
+      autorId: { not: userId },
+      excluidaEm: null,
+      createdAt: { gte: CUTOFF },
+      entregas: { none: { userId } },
+    },
+    select: { id: true, canalId: true },
+    orderBy: { createdAt: "desc" },
+    take: 2000,
+  });
+  if (pendentes.length === 0) return;
+  await prisma.mensagemEntrega.createMany({
+    data: pendentes.map((m) => ({ mensagemId: m.id, userId })),
+    skipDuplicates: true,
+  });
+  const porCanal = new Map<string, string[]>();
+  for (const m of pendentes) {
+    const arr = porCanal.get(m.canalId) ?? [];
+    arr.push(m.id);
+    porCanal.set(m.canalId, arr);
+  }
+  for (const [canalId, ids] of porCanal) {
+    emitParaCanal(canalId, "entrega", { canalId, mensagemIds: ids, userId });
+  }
 }
 
 export function getIo(): SocketServer | null {
