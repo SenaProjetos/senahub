@@ -34,7 +34,7 @@ import { validarEntrega, gerarAceiteCliente } from "@/modules/uploads/actions";
 import { statusValidacao, entregaveisAtuais } from "@/modules/uploads/validacao";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
 import { IconeArquivo, StatusArquivo } from "@/components/projetos/arquivos-explorer";
-import { TAMANHO_MAX, TAMANHO_MAX_LABEL } from "@/modules/uploads/limites";
+import { limiteDoPacote, limiteLabelDoPacote } from "@/modules/uploads/limites";
 import { STATUS_LABEL, STATUS_TONE } from "@/modules/projetos/status";
 import { diasDeAtraso } from "@/modules/projetos/atraso";
 import type { StatusDisciplina } from "@/generated/prisma/client";
@@ -338,9 +338,11 @@ function ArquivosDialog({
   async function enviar(files: FileList | null) {
     if (!files || files.length === 0) return;
     // Valida o tamanho ANTES de enviar — evita estourar o corpo da requisição no servidor.
+    // O limite depende do pacote (B/backup = 1,5 GB; demais = 500 MB), igual ao servidor.
+    const limite = limiteDoPacote(pacote);
     const aceitos: File[] = [];
     for (const f of Array.from(files)) {
-      if (f.size > TAMANHO_MAX) toast.error(`${f.name}: excede o limite de ${TAMANHO_MAX_LABEL}.`);
+      if (f.size > limite) toast.error(`${f.name}: excede o limite de ${limiteLabelDoPacote(pacote)}.`);
       else aceitos.push(f);
     }
     if (aceitos.length === 0) return;
@@ -369,7 +371,7 @@ function ArquivosDialog({
         toast.error(
           data?.error ??
             (res.status === 413
-              ? `Arquivo muito grande — limite de ${TAMANHO_MAX_LABEL}.`
+              ? `Arquivo muito grande — limite de ${limiteLabelDoPacote(pacote)}.`
               : `Falha no envio (HTTP ${res.status}).`),
         );
         return;
