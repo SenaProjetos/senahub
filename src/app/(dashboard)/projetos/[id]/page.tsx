@@ -6,7 +6,7 @@ import { ROLE_LABELS, CLT_ROLES, INTERNAL_ROLES } from "@/lib/roles";
 import { Avatar, AvatarFallback, AvatarBadge } from "@/components/ui/avatar";
 import { requirePermission } from "@/lib/session";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
-import { obterProjeto, usuariosInternos, margemProjeto, catalogoDisciplinas, disciplinasForaDeSLA, SLA_VALIDACAO_DIAS, timelineStatusProjeto } from "@/modules/projetos/queries";
+import { obterProjeto, usuariosInternos, papeisUsados, margemProjeto, catalogoDisciplinas, disciplinasForaDeSLA, SLA_VALIDACAO_DIAS, timelineStatusProjeto } from "@/modules/projetos/queries";
 import { StatusTimeline } from "@/components/projetos/status-timeline";
 import { formatarData } from "@/lib/utils";
 import { progressoProjeto } from "@/modules/projetos/status";
@@ -46,8 +46,9 @@ export default async function ProjetoDetalhePage({
     podeVerFinanceiro(user),
   ]);
 
-  const [internos, margem, catalogo, slaFora, canalChat, canaisDisc, sessaoPonto, timelineStatus] = await Promise.all([
+  const [internos, papeis, margem, catalogo, slaFora, canalChat, canaisDisc, sessaoPonto, timelineStatus] = await Promise.all([
     podeGerir ? usuariosInternos() : Promise.resolve([]),
+    podeGerir ? papeisUsados() : Promise.resolve([]),
     verFinanceiro ? margemProjeto(projeto.id) : Promise.resolve(null),
     podeGerir ? catalogoDisciplinas() : Promise.resolve([]),
     podeValidar ? disciplinasForaDeSLA(user) : Promise.resolve([]),
@@ -353,6 +354,7 @@ export default async function ProjetoDetalhePage({
             <EquipeManager
               projetoId={projeto.id}
               internos={internos}
+              papeisSugeridos={papeis}
               membrosAtuais={projeto.membros.map((m) => ({ userId: m.userId, papel: m.papel ?? null }))}
             />
           )}

@@ -250,9 +250,19 @@ export async function disciplinasForaDeSLA(viewer: Viewer) {
 export async function usuariosInternos() {
   return prisma.user.findMany({
     where: { ativo: true, role: { in: INTERNAL_ROLES } },
-    select: { id: true, name: true, role: true },
+    select: { id: true, name: true, role: true, cargo: true },
     orderBy: { name: "asc" },
   });
+}
+
+/** Papéis já usados em equipes de outros projetos — sugestões p/ o autocomplete do "Papel". */
+export async function papeisUsados(): Promise<string[]> {
+  const rows = await prisma.projetoMembro.findMany({
+    where: { papel: { not: null } },
+    select: { papel: true },
+    distinct: ["papel"],
+  });
+  return rows.map((r) => r.papel!).filter(Boolean).sort();
 }
 
 /**

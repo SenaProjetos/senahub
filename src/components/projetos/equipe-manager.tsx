@@ -17,34 +17,44 @@ import {
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 
-type Interno = { id: string; name: string; role: string };
+type Interno = { id: string; name: string; role: string; cargo: string | null };
 type MembroLocal = { userId: string; papel: string };
 
 export function EquipeManager({
   projetoId,
   internos,
+  papeisSugeridos,
   membrosAtuais,
 }: {
   projetoId: string;
   internos: Interno[];
+  papeisSugeridos: string[];
   membrosAtuais: { userId: string; papel: string | null }[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const [membros, setMembros] = useState<MembroLocal[]>([]);
+  const [busca, setBusca] = useState("");
+
+  // Sugestões do datalist: cargos cadastrados dos internos + papéis já usados em outros projetos.
+  const sugestoesPapel = Array.from(
+    new Set([...internos.map((u) => u.cargo).filter((c): c is string => !!c), ...papeisSugeridos]),
+  ).sort((a, b) => a.localeCompare(b));
 
   function abrir() {
     setMembros(membrosAtuais.map((m) => ({ userId: m.userId, papel: m.papel ?? "" })));
+    setBusca("");
     setOpen(true);
   }
 
   function toggle(userId: string) {
-    setMembros((prev) =>
-      prev.some((m) => m.userId === userId)
-        ? prev.filter((m) => m.userId !== userId)
-        : [...prev, { userId, papel: "" }],
-    );
+    setMembros((prev) => {
+      if (prev.some((m) => m.userId === userId)) return prev.filter((m) => m.userId !== userId);
+      // Pré-preenche com o cargo cadastrado do usuário; segue editável (lista + texto livre).
+      const cargo = internos.find((u) => u.id === userId)?.cargo ?? "";
+      return [...prev, { userId, papel: cargo }];
+    });
   }
 
   function setPapel(userId: string, papel: string) {
@@ -89,21 +99,30 @@ export function EquipeManager({
             <EmptyState icon={Users} title="Nenhum usuário interno disponível" />
           ) : (
             <div className="space-y-2">
-              <div className="flex flex-wrap gap-1.5">
+              <Input
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Buscar por nome…"
+                className="h-8 text-sm"
+              />
+              <div className="max-h-40 divide-y overflow-y-auto rounded-sm border">
                 {internos
-                  .filter((u) => !selecionados.has(u.id))
+                  .filter((u) => !selecionados.has(u.id) && u.name.toLowerCase().includes(busca.trim().toLowerCase()))
                   .map((u) => (
                     <button
                       type="button"
                       key={u.id}
                       onClick={() => toggle(u.id)}
-                      className="rounded-sm border px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+                      className="flex w-full items-center justify-between px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
                     >
-                      + {u.name}
+                      <span>{u.name}</span>
+                      <span className="text-primary">+ adicionar</span>
                     </button>
                   ))}
-                {internos.filter((u) => !selecionados.has(u.id)).length === 0 && membros.length > 0 && (
-                  <p className="text-xs text-muted-foreground">Todos os internos adicionados.</p>
+                {internos.filter((u) => !selecionados.has(u.id) && u.name.toLowerCase().includes(busca.trim().toLowerCase())).length === 0 && (
+                  <p className="px-2 py-2 text-xs text-muted-foreground">
+                    {membros.length > 0 ? "Todos os internos adicionados." : "Nenhum usuário encontrado."}
+                  </p>
                 )}
               </div>
 
@@ -119,6 +138,7 @@ export function EquipeManager({
                           onChange={(e) => setPapel(m.userId, e.target.value)}
                           placeholder="Papel (ex.: BIM Manager)"
                           className="h-7 w-40 text-xs"
+                          list="papeis-equipe"
                         />
                         <button type="button" onClick={() => toggle(m.userId)} className="text-muted-foreground hover:text-destructive">
                           <X className="size-3.5" />
@@ -128,6 +148,11 @@ export function EquipeManager({
                   })}
                 </div>
               )}
+              <datalist id="papeis-equipe">
+                {sugestoesPapel.map((p) => (
+                  <option key={p} value={p} />
+                ))}
+              </datalist>
             </div>
           )}
 

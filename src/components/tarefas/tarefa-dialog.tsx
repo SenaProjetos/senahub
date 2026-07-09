@@ -150,6 +150,7 @@ export function TarefaDialog({
   const [novoComent, setNovoComent] = useState("");
   const [comentFile, setComentFile] = useState<File | null>(null);
   const comentFileRef = useRef<HTMLInputElement>(null);
+  const [buscaResp, setBuscaResp] = useState("");
   const key = tarefa?.id ?? "nova";
   const [lastKey, setLastKey] = useState(key);
   if (lastKey !== key) {
@@ -159,6 +160,7 @@ export function TarefaDialog({
     setComentarios(tarefa?.comentarios ?? []);
     setNovoComent("");
     setComentFile(null);
+    setBuscaResp("");
   }
 
   function enviarComentario() {
@@ -396,22 +398,49 @@ export function TarefaDialog({
 
           <div className="space-y-1.5">
             <Label>Responsáveis</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {opcoes.internos.map((u) => {
-                const sel = form.responsaveisIds.includes(u.id);
-                return (
+            {form.responsaveisIds.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {form.responsaveisIds.map((id) => {
+                  const u = opcoes.internos.find((x) => x.id === id);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => toggleArr("responsaveisIds", id)}
+                      className="inline-flex items-center gap-1 rounded-sm border border-primary bg-primary px-2 py-1 text-xs text-primary-foreground"
+                    >
+                      {u?.name ?? id}
+                      <X className="size-3" />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <Input
+              value={buscaResp}
+              onChange={(e) => setBuscaResp(e.target.value)}
+              placeholder="Buscar por nome…"
+              className="h-8 text-sm"
+            />
+            <div className="max-h-36 divide-y overflow-y-auto rounded-sm border">
+              {opcoes.internos
+                .filter((u) => !form.responsaveisIds.includes(u.id) && u.name.toLowerCase().includes(buscaResp.trim().toLowerCase()))
+                .map((u) => (
                   <button
                     key={u.id}
                     type="button"
                     onClick={() => toggleArr("responsaveisIds", u.id)}
-                    className={`rounded-sm border px-2 py-1 text-xs transition-colors ${
-                      sel ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:border-primary/50"
-                    }`}
+                    className="flex w-full items-center justify-between px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
                   >
-                    {u.name}
+                    <span>{u.name}</span>
+                    <span className="text-primary">+ adicionar</span>
                   </button>
-                );
-              })}
+                ))}
+              {opcoes.internos.filter((u) => !form.responsaveisIds.includes(u.id) && u.name.toLowerCase().includes(buscaResp.trim().toLowerCase())).length === 0 && (
+                <p className="px-2 py-2 text-xs text-muted-foreground">
+                  {form.responsaveisIds.length > 0 ? "Todos os internos adicionados." : "Nenhum usuário encontrado."}
+                </p>
+              )}
             </div>
           </div>
 
