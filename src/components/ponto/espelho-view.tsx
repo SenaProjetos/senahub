@@ -15,11 +15,13 @@ import {
   MapPin,
   Users,
   Coffee,
+  History,
 } from "lucide-react";
 import { aceitarEspelhoMes } from "@/modules/ponto/actions";
 import type { EspelhoDetalhado, DiaEspelhoDetalhe, StatusDiaEspelho, EquipeAgoraItem } from "@/modules/ponto/queries";
 import { EditarDiaDialog } from "@/components/ponto/editar-dia-dialog";
 import { fmtHoras } from "@/modules/ponto/format";
+import { formatarDataHora } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -115,7 +117,7 @@ function LinhaDia({
   const [aberto, setAberto] = useState(false);
   const primeiro = dia.descansos[0];
   const meta = STATUS_META[dia.status];
-  const podeExpandir = dia.temMultiplosDescansos || dia.batidas.length > 0;
+  const podeExpandir = dia.temMultiplosDescansos || dia.batidas.length > 0 || !!dia.ajuste;
   // Dias futuros (agendados) não são editáveis.
   const editavel = podeEditar && dia.status !== "agendado";
 
@@ -161,7 +163,18 @@ function LinhaDia({
           {dia.extrasMin > 0 ? <span className="text-success">{fmtHoras(dia.extrasMin)}</span> : "—"}
         </td>
         <td className="px-2 py-1.5 text-center">
-          <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
+          <span className="inline-flex items-center gap-1">
+            <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
+            {dia.ajuste && (
+              <span
+                role="img"
+                aria-label={`Ajustado por ${dia.ajuste.editorNome} em ${formatarDataHora(dia.ajuste.em)} — Motivo: ${dia.ajuste.justificativa}`}
+                title={`Ajustado por ${dia.ajuste.editorNome} em ${formatarDataHora(dia.ajuste.em)}\nMotivo: ${dia.ajuste.justificativa}`}
+              >
+                <History className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+              </span>
+            )}
+          </span>
         </td>
         <td className="px-2 py-1.5 text-center print:hidden">
           {editavel && (
@@ -177,6 +190,18 @@ function LinhaDia({
         <tr className="bg-muted/20">
           <td colSpan={11} className="px-4 py-2">
             <div className="flex flex-col gap-2 text-xs">
+              {dia.ajuste && (
+                <div className="flex items-start gap-1.5 rounded-sm border border-info/30 bg-info/5 px-2 py-1.5 text-info">
+                  <History className="mt-0.5 size-3.5 shrink-0" />
+                  <div>
+                    <span className="font-medium">
+                      {dia.ajuste.proprio ? "Ajuste próprio" : `Ajustado por ${dia.ajuste.editorNome}`} em{" "}
+                      {formatarDataHora(dia.ajuste.em)}
+                    </span>
+                    <p className="text-muted-foreground">Motivo: {dia.ajuste.justificativa}</p>
+                  </div>
+                </div>
+              )}
               {dia.descansos.length > 0 && (
                 <div>
                   <span className="font-medium">Descansos:</span>{" "}

@@ -417,6 +417,13 @@ export type BatidaDetalhe = {
   editada: boolean;
 };
 
+export type AjusteDiaInfo = {
+  editorNome: string;
+  justificativa: string;
+  proprio: boolean;
+  em: string; // ISO datetime
+};
+
 export type DiaEspelhoDetalhe = {
   dia: string; // ISO local YYYY-MM-DD
   diaSemana: number;
@@ -434,6 +441,8 @@ export type DiaEspelhoDetalhe = {
   atrasoMin: number;
   status: StatusDiaEspelho;
   batidas: BatidaDetalhe[];
+  /** Último ajuste registrado no dia (motivo + autor) — histórico completo, não só pendências de ciência. */
+  ajuste: AjusteDiaInfo | null;
 };
 
 export type EspelhoDetalhado = {
@@ -516,9 +525,24 @@ export async function espelhoDetalhado(
 
   const ajustes = await prisma.ajustePonto.findMany({
     where: { userId, dia: { gte: diaIni, lt: diaFim } },
-    select: { dia: true, status: true },
+    orderBy: { createdAt: "asc" },
+    select: {
+      dia: true,
+      status: true,
+      justificativa: true,
+      proprio: true,
+      createdAt: true,
+      editor: { select: { name: true } },
+    },
   });
+  // Mais de um ajuste no mesmo dia é possível — mantém o status/motivo do MAIS RECENTE (createdAt asc + overwrite no Map).
   const ajustePorDia = new Map(ajustes.map((a) => [a.dia.toISOString().slice(0, 10), a.status]));
+  const ajusteInfoPorDia = new Map<string, AjusteDiaInfo>(
+    ajustes.map((a) => [
+      a.dia.toISOString().slice(0, 10),
+      { editorNome: a.editor.name, justificativa: a.justificativa, proprio: a.proprio, em: a.createdAt.toISOString() },
+    ]),
+  );
 
   const feriadosAno = await listarFeriados(ano);
   const prefixo = `${ano}-${pad2(mes)}-`;
@@ -583,6 +607,7 @@ export async function espelhoDetalhado(
         geo: b.geo,
         editada: b.editada,
       })),
+      ajuste: ajusteInfoPorDia.get(iso) ?? null,
     });
   }
 
