@@ -20,6 +20,7 @@ import {
 } from "@/modules/chat/mencoes";
 import { getSocket, tocarSom } from "@/lib/chat-client";
 import { useChatBadge } from "@/components/chat/chat-badge-context";
+import { EditorImagem } from "@/components/chat/editor-imagem";
 import {
   enviarMensagem,
   marcarLido,
@@ -673,6 +674,12 @@ export function ChatView({
   }
   function removerAnexo(indice: number) {
     setAnexos((prev) => prev.filter((_, i) => i !== indice));
+  }
+  // Editor de imagem (cortar/girar/desenhar/texto): substitui o anexo pelo PNG editado.
+  const [editandoAnexoIdx, setEditandoAnexoIdx] = useState<number | null>(null);
+  function substituirAnexo(indice: number, novo: File) {
+    setAnexos((prev) => prev.map((f, i) => (i === indice ? novo : f)));
+    setEditandoAnexoIdx(null);
   }
 
   // Carrega mensagens ao trocar de canal + marca lido.
@@ -2188,6 +2195,17 @@ export function ChatView({
                           <span className="line-clamp-2 text-[9px] leading-tight text-muted-foreground">{f.name}</span>
                         </div>
                       )}
+                      {previewUrls[i] && (
+                        <button
+                          type="button"
+                          onClick={() => setEditandoAnexoIdx(i)}
+                          aria-label={`Editar ${f.name}`}
+                          title="Editar imagem (cortar, desenhar, texto)"
+                          className="absolute -left-1.5 -top-1.5 rounded-full border bg-background p-0.5 shadow-sm hover:bg-muted"
+                        >
+                          <Pencil className="size-3 text-muted-foreground hover:text-foreground" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => removerAnexo(i)}
@@ -2397,6 +2415,15 @@ export function ChatView({
           atual={lightbox.atual}
           onFechar={() => setLightbox(null)}
           onNavegar={(i) => setLightbox((lb) => (lb ? { ...lb, atual: i } : lb))}
+        />
+      )}
+
+      {/* Editor de imagem do anexo pendente (cortar, girar, caneta, setas, formas, texto). */}
+      {editandoAnexoIdx !== null && anexos[editandoAnexoIdx] && (
+        <EditorImagem
+          file={anexos[editandoAnexoIdx]}
+          onSalvar={(novo) => substituirAnexo(editandoAnexoIdx, novo)}
+          onFechar={() => setEditandoAnexoIdx(null)}
         />
       )}
 
