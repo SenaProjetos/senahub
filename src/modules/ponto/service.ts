@@ -56,6 +56,7 @@ async function jornadaCorrente(
   tx: Prisma.TransactionClient,
   userId: string,
   horario: Date,
+  tipo: TipoBatida,
 ): Promise<{ diaJornada: Date; batidas: BatidaRow[]; estado: EstadoJornada; abandonou: boolean }> {
   const ultima = await tx.batida.findFirst({
     where: { userId },
@@ -79,9 +80,12 @@ async function jornadaCorrente(
     return { diaJornada: diaLocalDate(horario), batidas: [], estado: "fora", abandonou: false };
   }
 
-  // Jornada aberta há mais de 16h → abandonada: fecha a sessão aberta com fim =
-  // início (contribui 0) e libera uma nova jornada no dia de agora.
-  if (horario.getTime() - ultima.horario.getTime() > LIMITE_ABANDONO_MS) {
+  // Jornada aberta há mais de 16h → abandonada. Só descartamos ao INICIAR uma
+  // nova jornada (entrada): aí a antiga dangling é fechada contribuindo 0 e a
+  // nova começa no dia de agora. Para saida/descanso, honramos o estado real
+  // para que o usuário CONSIGA encerrar a jornada presa (senão ficaria em loop
+  // infinito: encerrar rejeitado para sempre, cronômetro subindo 24h+).
+  if (tipo === "entrada" && horario.getTime() - ultima.horario.getTime() > LIMITE_ABANDONO_MS) {
     await fecharSessaoAbertaContribuindoZero(tx, userId);
     return { diaJornada: diaLocalDate(horario), batidas: [], estado: "fora", abandonou: true };
   }
@@ -135,7 +139,7 @@ export async function aplicarBatida(params: {
   const { userId, tipo, horario, projetoId, geo, origem, criadoPorId } = params;
 
   return prisma.$transaction(async (tx) => {
-    const { diaJornada, batidas, estado } = await jornadaCorrente(tx, userId, horario);
+    const { diaJornada, batidas, estado } = await jornadaCorrente(tx, userId, horario, tipo);
 
     // Idempotência (S8): batida do mesmo tipo, mesmo usuário, < 30s → no-op.
     const ultima = batidas[batidas.length - 1];
