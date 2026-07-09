@@ -1,6 +1,7 @@
 import { PgBoss } from "pg-boss";
 import { executarBackup } from "@/lib/backup";
 import { notificarAdmins } from "@/lib/notifications";
+import { limparChunksOrfaos } from "@/lib/upload-chunks";
 import {
   alertasPrazoDisciplina,
   alertaInadimplencia,
@@ -185,6 +186,14 @@ export async function startJobs(): Promise<PgBoss> {
       handler: async () => {
         const n = await encerrarJornadasEsquecidas();
         if (n > 0) console.log(`[ponto] ${n} jornada(s) esquecida(s) encerrada(s).`);
+      },
+    },
+    {
+      fila: "limpar-chunks-orfaos",
+      cron: "0 4 * * *", // diário 04:00 — remove pedaços de uploads abandonados (> 6h)
+      handler: async () => {
+        const n = await limparChunksOrfaos();
+        if (n > 0) console.log(`[uploads] ${n} sessão(ões) de chunks órfã(s) removida(s).`);
       },
     },
   ];

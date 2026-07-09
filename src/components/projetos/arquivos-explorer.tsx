@@ -50,6 +50,7 @@ import {
   limiteDoPacote,
   limiteLabelDoPacote,
 } from "@/modules/uploads/limites";
+import { precisaChunk, enviarEmChunks } from "@/lib/upload-grande";
 import { cn, formatarData } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -621,10 +622,20 @@ async function subirDocumento(
   origem?: "recebido_cliente" | "interno",
 ): Promise<MetaDocumento> {
   const fd = new FormData();
-  fd.append("file", file);
   fd.append("projetoId", projetoId);
   if (clienteId) fd.append("clienteId", clienteId);
   if (origem) fd.append("origem", origem);
+  // Arquivos grandes vão em pedaços (Cloudflare corta em ~100 MB); os pequenos, direto.
+  if (precisaChunk(file)) {
+    const meta = await enviarEmChunks(file);
+    fd.append("sessaoId", meta.sessaoId);
+    fd.append("nome", file.name);
+    fd.append("total", String(meta.total));
+    fd.append("tamanho", String(meta.tamanho));
+    fd.append("mime", file.type || "");
+  } else {
+    fd.append("file", file);
+  }
   const res = await fetch("/api/documentos", { method: "POST", body: fd });
   const meta = await res.json();
   if (!res.ok) throw new Error(meta.error ?? "Falha no upload.");
@@ -1085,13 +1096,30 @@ type ResultadoUpload = { nome: string; ok: boolean; realocado?: boolean; motivo?
 /**
  * Envia UM arquivo via XHR para expor `upload.onprogress` (fetch não reporta
  * progresso de upload). Resolve com o resultado do servidor; rejeita em falha
- * de rede/HTTP com mensagem amigável.
+ * de rede/HTTP com mensagem amigável. Arquivos grandes (> limite direto) vão em
+ * pedaços para contornar o teto de 100 MB do Cloudflare Tunnel.
  */
-function enviarUm(
+async function enviarUm(
   item: ItemEnvio,
   disciplinaId: string,
   onProgress: (pct: number) => void,
 ): Promise<ResultadoUpload> {
+  if (precisaChunk(item.file)) {
+    const meta = await enviarEmChunks(item.file, onProgress);
+    const fd = new FormData();
+    fd.set("disciplinaId", disciplinaId);
+    fd.set("pacote", item.alvo);
+    fd.set("sessaoId", meta.sessaoId);
+    fd.set("nome", item.nome);
+    fd.set("total", String(meta.total));
+    fd.set("tamanho", String(meta.tamanho));
+    fd.set("mime", item.file.type || "");
+    const res = await fetch("/api/uploads", { method: "POST", body: fd });
+    const data = (await res.json().catch(() => null)) as { error?: string; resultados?: ResultadoUpload[] } | null;
+    if (res.ok && data?.resultados?.[0]) return data.resultados[0];
+    throw new Error(data?.error ?? `Falha ao finalizar o envio (HTTP ${res.status}).`);
+  }
+
   return new Promise((resolve, reject) => {
     const fd = new FormData();
     fd.set("disciplinaId", disciplinaId);

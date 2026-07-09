@@ -35,6 +35,7 @@ import { statusValidacao, entregaveisAtuais } from "@/modules/uploads/validacao"
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
 import { IconeArquivo, StatusArquivo } from "@/components/projetos/arquivos-explorer";
 import { limiteDoPacote, limiteLabelDoPacote } from "@/modules/uploads/limites";
+import { precisaChunk, enviarEmChunks } from "@/lib/upload-grande";
 import { STATUS_LABEL, STATUS_TONE } from "@/modules/projetos/status";
 import { diasDeAtraso } from "@/modules/projetos/atraso";
 import type { StatusDisciplina } from "@/generated/prisma/client";
@@ -346,40 +347,68 @@ function ArquivosDialog({
       else aceitos.push(f);
     }
     if (aceitos.length === 0) return;
+    // Grandes (> limite direto) vão em pedaços p/ contornar o teto de 100 MB do Cloudflare;
+    // pequenos seguem no lote multipart de sempre.
+    const grandes = aceitos.filter((f) => precisaChunk(f));
+    const pequenos = aceitos.filter((f) => !precisaChunk(f));
     setEnviando(true);
+    type ResUp = { nome: string; ok: boolean; realocado?: boolean; motivo?: string };
+    const resultados: ResUp[] = [];
     try {
-      const fd = new FormData();
-      fd.set("disciplinaId", disciplina.id);
-      fd.set("pacote", pacote);
-      for (const f of aceitos) fd.append("files", f);
-      let res: Response;
-      try {
-        res = await fetch("/api/uploads", { method: "POST", body: fd });
-      } catch {
-        // Conexão abortada no meio do corpo (arquivo grande) cai aqui, não no .json().
-        toast.error("Falha de rede durante o envio — verifique a conexão e o tamanho do arquivo.");
-        return;
+      if (pequenos.length > 0) {
+        const fd = new FormData();
+        fd.set("disciplinaId", disciplina.id);
+        fd.set("pacote", pacote);
+        for (const f of pequenos) fd.append("files", f);
+        let res: Response;
+        try {
+          res = await fetch("/api/uploads", { method: "POST", body: fd });
+        } catch {
+          toast.error("Falha de rede durante o envio — verifique a conexão e o tamanho do arquivo.");
+          return;
+        }
+        let data: { error?: string; resultados?: ResUp[] } | null = null;
+        try {
+          data = await res.json();
+        } catch {
+          data = null;
+        }
+        if (!res.ok || !data?.resultados) {
+          toast.error(
+            data?.error ??
+              (res.status === 413
+                ? `Arquivo muito grande — limite de ${limiteLabelDoPacote(pacote)}.`
+                : `Falha no envio (HTTP ${res.status}).`),
+          );
+        } else {
+          resultados.push(...data.resultados);
+        }
       }
-      // Corpo pode não ser JSON (ex.: 413 do servidor) — parse defensivo.
-      let data: { error?: string; resultados?: { nome: string; ok: boolean; realocado?: boolean; motivo?: string }[] } | null = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
+
+      for (const f of grandes) {
+        try {
+          const meta = await enviarEmChunks(f);
+          const fd = new FormData();
+          fd.set("disciplinaId", disciplina.id);
+          fd.set("pacote", pacote);
+          fd.set("sessaoId", meta.sessaoId);
+          fd.set("nome", f.name);
+          fd.set("total", String(meta.total));
+          fd.set("tamanho", String(meta.tamanho));
+          fd.set("mime", f.type || "");
+          const res = await fetch("/api/uploads", { method: "POST", body: fd });
+          const data = (await res.json().catch(() => null)) as { error?: string; resultados?: ResUp[] } | null;
+          if (res.ok && data?.resultados) resultados.push(...data.resultados);
+          else resultados.push({ nome: f.name, ok: false, motivo: data?.error ?? `HTTP ${res.status}` });
+        } catch (e) {
+          resultados.push({ nome: f.name, ok: false, motivo: (e as Error).message });
+        }
       }
-      if (!res.ok || !data?.resultados) {
-        toast.error(
-          data?.error ??
-            (res.status === 413
-              ? `Arquivo muito grande — limite de ${limiteLabelDoPacote(pacote)}.`
-              : `Falha no envio (HTTP ${res.status}).`),
-        );
-        return;
-      }
-      const ok = data.resultados.filter((r: { ok: boolean }) => r.ok).length;
-      const real = data.resultados.filter((r: { realocado?: boolean }) => r.realocado).length;
-      const falhas = data.resultados.filter((r: { ok: boolean }) => !r.ok);
-      toast.success(`${ok} arquivo(s) enviado(s).`);
+
+      const ok = resultados.filter((r) => r.ok).length;
+      const real = resultados.filter((r) => r.realocado).length;
+      const falhas = resultados.filter((r) => !r.ok);
+      if (ok > 0) toast.success(`${ok} arquivo(s) enviado(s).`);
       if (real > 0) toast.info(`${real} arquivo(s) não suportado(s) foram para a pasta "outros".`);
       for (const f of falhas) toast.error(`${f.nome}: ${f.motivo}`);
       router.refresh();

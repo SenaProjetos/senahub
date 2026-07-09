@@ -3,7 +3,8 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { GLOBAL_ROLES } from "@/lib/roles";
-import { salvarArquivo, slug, nomeArquivoLimpo } from "@/lib/storage";
+import { salvarArquivo, slug, nomeArquivoLimpo, type ArquivoSalvo } from "@/lib/storage";
+import { montarChunksEm, limparChunks } from "@/lib/upload-chunks";
 import { destinoArquivo, extensao, limiteDoPacote, limiteLabelDoPacote, type PacoteAlvo } from "@/modules/uploads/service";
 
 type Resultado = {
@@ -58,13 +59,6 @@ export async function POST(req: Request) {
     );
   }
 
-  const arquivos = form.getAll("files").filter((f): f is File => f instanceof File);
-  if (arquivos.length === 0) {
-    return NextResponse.json({ error: "Nenhum arquivo enviado." }, { status: 400 });
-  }
-  // Renomear no ato do upload: nome desejado por arquivo (mesma ordem de "files"). Vazio = usa file.name.
-  const nomesDesejados = form.getAll("nomes").map((n) => (typeof n === "string" ? n : ""));
-
   const { projeto } = disciplina;
   // Item 15: nomenclatura usa a sigla do catálogo (ex.: ELE) quando existir; senão, o nome.
   const cat = await prisma.disciplinaCatalogo.findFirst({
@@ -79,7 +73,92 @@ export async function POST(req: Request) {
     codDisc ? slug(codDisc) : slug(disciplina.nome),
   ].join("/");
 
+  /**
+   * Persiste UM arquivo já validado por tamanho: resolve destino (roteamento/versão),
+   * chama `gravar(relativo)` (buffer direto OU montagem de chunks) e cria o registro.
+   */
+  async function persistir(nome: string, gravar: (relativo: string) => Promise<ArquivoSalvo>, mime: string | null): Promise<Resultado> {
+    const destino = destinoArquivo(nome, alvo);
+    const realocado = destino === "OUTROS" && alvo === "A";
+
+    // Versionamento: mesma disciplina + pacote + nome → incrementa versão.
+    const anterior = await prisma.upload.findFirst({
+      where: { disciplinaId, pacote: destino, nomeArquivo: nome },
+      orderBy: { versao: "desc" },
+    });
+    const versao = anterior ? anterior.versao + 1 : 1;
+
+    const ext = extensao(nome);
+    const baseNome = ext ? nome.slice(0, -(ext.length + 1)) : nome;
+    // Prefixa o arquivo com a sigla da disciplina (ex.: ELE-planta.dwg) quando houver código.
+    const nomeBase = codDisc ? `${codDisc}-${slug(baseNome)}` : slug(baseNome);
+    const nomeVersionado = versao > 1 ? `${nomeBase}__v${versao}${ext ? "." + ext : ""}` : `${nomeBase}${ext ? "." + ext : ""}`;
+    const relativo = `${baseDir}/${destino}/${nomeVersionado}`;
+
+    const salvo = await gravar(relativo);
+
+    await prisma.upload.create({
+      data: {
+        disciplinaId,
+        pacote: destino,
+        nomeArquivo: nome,
+        caminho: salvo.caminho,
+        hashSha256: salvo.hashSha256,
+        tamanho: salvo.tamanho,
+        mimeType: mime,
+        versao,
+        autorId: user.id,
+      },
+    });
+    return { nome, ok: true, pacote: destino, realocado };
+  }
+
   const resultados: Resultado[] = [];
+
+  // ── Modo chunked (arquivos grandes p/ contornar o limite de 100 MB do Cloudflare) ──
+  const sessaoId = String(form.get("sessaoId") ?? "");
+  if (sessaoId) {
+    const nome = nomeArquivoLimpo(String(form.get("nome") ?? "").trim() || "arquivo");
+    const total = Number(form.get("total"));
+    const tamanhoDeclarado = Number(form.get("tamanho"));
+    const mime = String(form.get("mime") ?? "") || null;
+    try {
+      if (Number.isFinite(tamanhoDeclarado) && tamanhoDeclarado > limiteDoPacote(alvo)) {
+        await limparChunks(user.id, sessaoId);
+        resultados.push({ nome, ok: false, motivo: `Arquivo excede ${limiteLabelDoPacote(alvo)}.` });
+      } else {
+        const r = await persistir(
+          nome,
+          (relativo) => montarChunksEm(relativo, { userId: user.id, sessaoId, total }),
+          mime,
+        );
+        resultados.push(r);
+      }
+    } catch (err) {
+      console.error("[upload] falha ao montar chunks:", err);
+      await limparChunks(user.id, sessaoId);
+      resultados.push({ nome, ok: false, motivo: "Falha ao montar o arquivo enviado." });
+    }
+    await logAudit({
+      userId: user.id,
+      modulo: "uploads",
+      acao: "enviar-arquivos",
+      resultado: resultados.some((r) => r.ok) ? "sucesso" : "falha",
+      entidade: "Upload",
+      entidadeId: disciplinaId,
+      detalhe: { pacote: alvo, total: 1, ok: resultados.filter((r) => r.ok).length, chunked: true },
+      ip: await getClientIp(),
+    });
+    return NextResponse.json({ resultados });
+  }
+
+  // ── Modo direto (multipart) ──
+  const arquivos = form.getAll("files").filter((f): f is File => f instanceof File);
+  if (arquivos.length === 0) {
+    return NextResponse.json({ error: "Nenhum arquivo enviado." }, { status: 400 });
+  }
+  // Renomear no ato do upload: nome desejado por arquivo (mesma ordem de "files"). Vazio = usa file.name.
+  const nomesDesejados = form.getAll("nomes").map((n) => (typeof n === "string" ? n : ""));
 
   // Processa arquivo a arquivo — uma falha não derruba o lote.
   for (let idx = 0; idx < arquivos.length; idx++) {
@@ -90,41 +169,9 @@ export async function POST(req: Request) {
         resultados.push({ nome, ok: false, motivo: `Arquivo excede ${limiteLabelDoPacote(alvo)}.` });
         continue;
       }
-      const destino = destinoArquivo(nome, alvo);
-      const realocado = destino === "OUTROS" && alvo === "A";
-
-      // Versionamento: mesma disciplina + pacote + nome → incrementa versão.
-      const anterior = await prisma.upload.findFirst({
-        where: { disciplinaId, pacote: destino, nomeArquivo: nome },
-        orderBy: { versao: "desc" },
-      });
-      const versao = anterior ? anterior.versao + 1 : 1;
-
-      const ext = extensao(nome);
-      const baseNome = ext ? nome.slice(0, -(ext.length + 1)) : nome;
-      // Prefixa o arquivo com a sigla da disciplina (ex.: ELE-planta.dwg) quando houver código.
-      const nomeBase = codDisc ? `${codDisc}-${slug(baseNome)}` : slug(baseNome);
-      const nomeVersionado = versao > 1 ? `${nomeBase}__v${versao}${ext ? "." + ext : ""}` : `${nomeBase}${ext ? "." + ext : ""}`;
-      const relativo = `${baseDir}/${destino}/${nomeVersionado}`;
-
       const buffer = Buffer.from(await file.arrayBuffer());
-      const salvo = await salvarArquivo(relativo, buffer);
-
-      await prisma.upload.create({
-        data: {
-          disciplinaId,
-          pacote: destino,
-          nomeArquivo: nome,
-          caminho: salvo.caminho,
-          hashSha256: salvo.hashSha256,
-          tamanho: salvo.tamanho,
-          mimeType: file.type || null,
-          versao,
-          autorId: user.id,
-        },
-      });
-
-      resultados.push({ nome, ok: true, pacote: destino, realocado });
+      const r = await persistir(nome, (relativo) => salvarArquivo(relativo, buffer), file.type || null);
+      resultados.push(r);
     } catch (err) {
       console.error("[upload] falha:", err);
       resultados.push({ nome, ok: false, motivo: "Falha ao salvar." });
