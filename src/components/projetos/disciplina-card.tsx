@@ -447,7 +447,7 @@ function ArquivosDialog({
           </Button>
         }
       />
-      <DialogContent className="max-h-[90svh] overflow-y-auto [scrollbar-gutter:stable] sm:max-w-2xl">
+      <DialogContent className="max-h-[90svh] overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{disciplina.nome} — arquivos</DialogTitle>
           <DialogDescription>
@@ -495,7 +495,7 @@ function ArquivosDialog({
           </p>
         )}
 
-        <div className="space-y-3">
+        <div className="min-w-0 space-y-3">
           {(["A", "B", "OUTROS"] as const).map((p) => {
             const itens = porPacote(p);
             if (itens.length === 0 && p === "OUTROS") return null;
@@ -520,11 +520,11 @@ function ArquivosDialog({
                 {itens.length === 0 ? (
                   <EmptyState icon={FileText} title="Nenhum arquivo" />
                 ) : (
-                  <ul className="space-y-1">
+                  <ul className="min-w-0 space-y-1">
                     {itens.map((u) => (
                       <li
                         key={u.id}
-                        className="flex items-center gap-2 rounded-sm border px-2 py-1 text-xs"
+                        className="flex min-w-0 items-center gap-2 rounded-sm border px-2 py-1 text-xs"
                       >
                         <IconeArquivo nome={u.nomeArquivo} />
                         {u.nomeArquivo.toLowerCase().endsWith(".pdf") ? (
