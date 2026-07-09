@@ -109,6 +109,7 @@ model User {
   espelhoAceites         EspelhoAceite[]
   ajustesPonto           AjustePonto[]             @relation("AjustePontoUsuario")
   ajustesPontoEditados   AjustePonto[]             @relation("AjustePontoEditor")
+  diarioEntradas         DiarioEntrada[]           @relation("DiarioAutor")
   alertasPontoEnviados   AlertaPontoEnviado[]
   abonos                 AbonoFalta[]              @relation("AbonoUser")
   abonosValidados        AbonoFalta[]              @relation("AbonoValidador")
@@ -576,6 +577,7 @@ model Projeto {
   checklist          ChecklistItemProjeto[]
   riscos             RiscoProjeto[]
   calculosFerramenta CalculoFerramenta[]
+  diarioEntradas     DiarioEntrada[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1619,6 +1621,7 @@ model Disciplina {
   solicitacoesRevisao SolicitacaoRevisao[]
   calculosFerramenta  CalculoFerramenta[]
   tarefas             Tarefa[]
+  diarioEntradas      DiarioEntrada[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1626,6 +1629,28 @@ model Disciplina {
   @@index([projetoId])
   @@index([status])
   @@map("disciplina")
+}
+
+/// Diário de projeto por disciplina: projetistas registram a evolução diária dos
+/// trabalhos. Escrita = responsável da disciplina (ou admin/supervisor); leitura =
+/// equipe interna do projeto (cliente nunca vê). Autor edita/exclui a própria entrada.
+model DiarioEntrada {
+  id           String     @id @default(cuid())
+  projetoId    String
+  projeto      Projeto    @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  disciplinaId String
+  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+  autorId      String
+  autor        User       @relation("DiarioAutor", fields: [autorId], references: [id])
+  /// Dia a que a entrada se refere (o autor pode registrar um dia anterior).
+  data         DateTime   @db.Date
+  texto        String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([disciplinaId, data])
+  @@index([projetoId, data])
+  @@map("diario_entrada")
 }
 
 enum StatusSolicRevisao {
