@@ -5,6 +5,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { removerArquivo } from "@/lib/storage";
+import { GLOBAL_ROLES } from "@/lib/roles";
 import { metaDocumento, ORIGENS_DOCUMENTO } from "./schemas";
 import { podeGerirDocumento, type AncoraDocumento } from "./acesso";
 import type { SessionUser } from "@/lib/session";
@@ -158,6 +159,9 @@ export const excluirDocumento = defineAction(
     schema: z.object({ id: z.string().min(1) }),
   },
   async (i, ctx) => {
+    if (!GLOBAL_ROLES.includes(ctx.user.role as never)) {
+      throw new ActionError("Apenas admins e supervisores podem excluir documentos.");
+    }
     const doc = await prisma.documento.findUnique({
       where: { id: i.id },
       select: { propostaId: true, projetoId: true, origem: true, versoes: { select: { caminho: true } } },

@@ -1221,7 +1221,7 @@ model MensagemReacao {
   emoji      String
   createdAt  DateTime @default(now())
 
-  @@unique([mensagemId, userId, emoji])
+  @@unique([mensagemId, userId])
   @@index([mensagemId])
   @@map("mensagem_reacao")
 }

@@ -336,12 +336,16 @@ export const reagir = defineAction(
     await exigirMembro(msg.canalId, user.id);
 
     const existente = await prisma.mensagemReacao.findUnique({
-      where: {
-        mensagemId_userId_emoji: { mensagemId: i.mensagemId, userId: user.id, emoji: i.emoji },
-      },
+      where: { mensagemId_userId: { mensagemId: i.mensagemId, userId: user.id } },
     });
     if (existente) {
-      await prisma.mensagemReacao.delete({ where: { id: existente.id } });
+      if (existente.emoji === i.emoji) {
+        // Mesmo emoji: remover reação.
+        await prisma.mensagemReacao.delete({ where: { id: existente.id } });
+      } else {
+        // Emoji diferente: substituir a reação anterior.
+        await prisma.mensagemReacao.update({ where: { id: existente.id }, data: { emoji: i.emoji } });
+      }
     } else {
       await prisma.mensagemReacao.create({
         data: { mensagemId: i.mensagemId, userId: user.id, emoji: i.emoji },

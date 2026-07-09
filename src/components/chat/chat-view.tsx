@@ -573,6 +573,7 @@ export function ChatView({
   const [gerenciarGrupoId, setGerenciarGrupoId] = useState<string | null>(null);
   // C5-5: índice do item focado no popup de menção (-1 = nenhum)
   const [mencaoIndice, setMencaoIndice] = useState(-1);
+  const [textoLen, setTextoLen] = useState(0);
 
   const anexoRef = useRef<HTMLInputElement>(null);
   const fimRef = useRef<HTMLDivElement>(null);
@@ -2035,6 +2036,7 @@ export function ChatView({
                         <div className="space-y-1">
                           <textarea
                             value={editTexto}
+                            maxLength={4000}
                             onChange={(e) => setEditTexto(e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void salvarEdicao(m.id); }
@@ -2299,8 +2301,10 @@ export function ChatView({
                 <textarea
                   ref={textareaRef}
                   value={texto}
+                  maxLength={4000}
                   onChange={(e) => {
                     setTexto(e.target.value);
+                    setTextoLen(e.target.value.length);
                     if (sel) {
                       if (e.target.value) {
                         if (!estaDigitandoRef.current) {
@@ -2328,6 +2332,11 @@ export function ChatView({
                     if (arquivos.length > 0) {
                       e.preventDefault();
                       adicionarAnexos(arquivos);
+                    } else {
+                      const textoCola = e.clipboardData.getData("text");
+                      if (texto.length + textoCola.length > 4000) {
+                        toast.warning(`Texto truncado: máximo 4000 caracteres (você tem ${texto.length + textoCola.length})`);
+                      }
                     }
                   }}
                   onKeyDown={(e) => {
@@ -2362,6 +2371,11 @@ export function ChatView({
                   rows={1}
                   className="flex-1 resize-none rounded-sm border border-input bg-background px-3 py-2 text-sm leading-snug placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                 />
+                {textoLen > 3500 && (
+                  <span className={cn("text-xs font-medium", textoLen >= 4000 ? "text-destructive" : "text-warning")}>
+                    {textoLen}/4000
+                  </span>
+                )}
                 <Button size="icon" onClick={enviar} disabled={enviandoAnexo} aria-label="Enviar">
                   <Send className="size-4" />
                 </Button>
