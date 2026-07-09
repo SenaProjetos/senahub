@@ -8,6 +8,7 @@ export async function listarUsuarios(opts?: { incluirInativos?: boolean }) {
     select: {
       id: true,
       name: true,
+      nomeCompleto: true,
       email: true,
       role: true,
       ativo: true,

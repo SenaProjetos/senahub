@@ -149,4 +149,12 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
       { acao: "ajustar", label: "Editar batidas de ponto de outros usuários (com ciência)" },
     ],
   },
+  {
+    recurso: "rh",
+    label: "RH — Pessoas",
+    acoes: [
+      { acao: "cadastro", label: "Ver a ficha de pessoas (cadastro, ausências, escala)" },
+      { acao: "folha", label: "Ver dados de folha/salário na ficha da pessoa" },
+    ],
+  },
 ];

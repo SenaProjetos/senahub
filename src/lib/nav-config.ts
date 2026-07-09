@@ -127,10 +127,22 @@ export const NAV_GROUPS: NavGroup[] = [
         roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"],
       },
       {
+        title: "Minha escala",
+        href: "/minha-escala",
+        icon: CalendarDays,
+        roles: ["clt", "estagiario"],
+      },
+      {
         title: "RH",
         href: "/rh",
         icon: HeartPulse,
         roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"],
+      },
+      {
+        title: "Pessoas",
+        href: "/rh/pessoas",
+        icon: Users,
+        roles: ["admin", "supervisor", "administrativo"],
       },
       {
         title: "RH — admin",

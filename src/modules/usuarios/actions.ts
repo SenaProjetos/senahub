@@ -12,6 +12,7 @@ import {
 import {
   criarUsuarioSchema,
   editarUsuarioSchema,
+  nomeExibicaoSchema,
   usuarioIdSchema,
 } from "@/modules/usuarios/schemas";
 
@@ -34,6 +35,23 @@ export const criarUsuario = defineAction(
     if (existing) throw new ActionError("Já existe um usuário com esse e-mail.");
 
     const { id, senhaTemporaria } = await criarUsuarioComCredencial(input);
+
+    // Fase 2: preenche o cadastro inicial no mesmo ato (só o que veio) — evita "pessoa pela metade".
+    const cadastro: {
+      nomeCompleto?: string; cpf?: string; telefone?: string; cargo?: string;
+      dataAdmissao?: Date; salarioBase?: number; pjId?: string;
+    } = {};
+    if (input.nomeCompleto?.trim()) cadastro.nomeCompleto = input.nomeCompleto.trim();
+    if (input.cpf?.trim()) cadastro.cpf = input.cpf.trim();
+    if (input.telefone?.trim()) cadastro.telefone = input.telefone.trim();
+    if (input.cargo?.trim()) cadastro.cargo = input.cargo.trim();
+    if (input.dataAdmissao) cadastro.dataAdmissao = new Date(input.dataAdmissao);
+    if (input.salarioBase != null) cadastro.salarioBase = input.salarioBase;
+    if (input.pjId?.trim()) cadastro.pjId = input.pjId.trim();
+    if (Object.keys(cadastro).length > 0) {
+      await prisma.user.update({ where: { id }, data: cadastro });
+    }
+
     revalidatePath(REVALIDATE);
     return { id, email: input.email, senhaTemporaria };
   },
@@ -53,6 +71,7 @@ export const editarUsuario = defineAction(
         where: { id: input.id },
         select: {
           name: true,
+          nomeCompleto: true,
           role: true,
           clienteId: true,
           socio: { select: { ativo: true } },
@@ -81,6 +100,7 @@ export const editarUsuario = defineAction(
       where: { id: input.id },
       data: {
         name: input.name,
+        nomeCompleto: input.nomeCompleto?.trim() || null,
         role: input.role,
         clienteId: input.role === "cliente" ? input.clienteId || null : null,
       },
@@ -202,6 +222,26 @@ export const reativarUsuario = defineAction(
     await prisma.user.update({ where: { id: input.id }, data: { ativo: true } });
     revalidatePath(REVALIDATE);
     return { id: input.id };
+  },
+);
+
+/**
+ * Auto-serviço: o próprio usuário define seu nome de EXIBIÇÃO (`name`), mostrado nas telas.
+ * Não sensível → sem validação de admin. O nome completo (cadastro) é editado separadamente pelo RH.
+ */
+export const atualizarNomeExibicao = defineAction(
+  {
+    modulo: "conta",
+    acao: "atualizar-nome-exibicao",
+    entidade: "User",
+    schema: nomeExibicaoSchema,
+  },
+  async (input, ctx) => {
+    const name = input.name.trim();
+    await prisma.user.update({ where: { id: ctx.user.id }, data: { name } });
+    // Atualiza o layout do servidor (topbar / user-menu) e telas que exibem o nome.
+    revalidatePath("/", "layout");
+    return { name };
   },
 );
 

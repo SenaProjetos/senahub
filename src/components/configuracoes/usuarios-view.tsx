@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   MoreHorizontal,
@@ -20,9 +21,12 @@ import {
   resetarSenhaUsuario,
   excluirUsuario,
 } from "@/modules/usuarios/actions";
+import { avaliarSolicitacaoCadastro } from "@/modules/auth/cadastro/actions";
+import { criarOnboarding } from "@/modules/rh/onboarding/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { ROLES, ROLE_LABELS, type Role } from "@/lib/roles";
+import { ROLES, ROLE_LABELS, CLT_ROLES, PJ_ROLES, type Role } from "@/lib/roles";
 import type { UsuarioListItem } from "@/modules/usuarios/queries";
+import { SolicitacoesCadastro, type PedidoCadastro } from "@/components/configuracoes/solicitacoes-cadastro";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,22 +65,40 @@ import {
 type FormState = {
   id?: string;
   name: string;
+  nomeCompleto: string;
   email: string;
   role: Role;
   clienteId: string;
   ehSocio: boolean;
+  // Fase 2 — cadastro inicial (só na criação)
+  cpf: string;
+  telefone: string;
+  cargo: string;
+  dataAdmissao: string;
+  salarioBase: string;
+  pjId: string;
+  onboardingTemplateId: string;
 };
 
-const EMPTY: FormState = { name: "", email: "", role: "projetista_pj", clienteId: "", ehSocio: false };
+const EMPTY: FormState = {
+  name: "", nomeCompleto: "", email: "", role: "projetista_pj", clienteId: "", ehSocio: false,
+  cpf: "", telefone: "", cargo: "", dataAdmissao: "", salarioBase: "", pjId: "", onboardingTemplateId: "",
+};
 
 export function UsuariosView({
   usuarios,
   clientes,
+  pedidos,
+  pessoasJuridicas,
+  templates,
   podeDefinirSocio,
   podeExcluir,
 }: {
   usuarios: UsuarioListItem[];
   clientes: { id: string; nome: string }[];
+  pedidos: PedidoCadastro[];
+  pessoasJuridicas: { id: string; label: string }[];
+  templates: { id: string; nome: string }[];
   podeDefinirSocio: boolean;
   podeExcluir: boolean;
 }) {
@@ -85,6 +107,26 @@ export function UsuariosView({
   const [credencial, setCredencial] = useState<{ email: string; senha: string } | null>(null);
   const [pending, startTransition] = useTransition();
   const confirm = useConfirm();
+  const router = useRouter();
+
+  // Item 6a: aprovar um pedido de acesso abre a criação já preenchida (nome/e-mail),
+  // em vez de redigitar. O admin revisa e define o vínculo antes de criar.
+  function avaliarPedido(id: string, aprovar: boolean) {
+    startTransition(async () => {
+      const res = await avaliarSolicitacaoCadastro({ id, aprovar });
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      if (aprovar && res.data.prefill) {
+        setForm({ ...EMPTY, name: res.data.prefill.name, email: res.data.prefill.email });
+        toast.success("Pedido aprovado — confira o vínculo e crie o usuário.");
+      } else {
+        toast.success(aprovar ? "Pedido aprovado." : "Pedido recusado.");
+      }
+      router.refresh();
+    });
+  }
 
   async function excluir(u: UsuarioListItem) {
     const ok = await confirm({
@@ -111,6 +153,7 @@ export function UsuariosView({
         const res = await editarUsuario({
           id: form.id,
           name: form.name,
+          nomeCompleto: form.nomeCompleto,
           role: form.role,
           clienteId: form.clienteId,
           ...(podeDefinirSocio ? { ehSocio: form.ehSocio } : {}),
@@ -120,8 +163,37 @@ export function UsuariosView({
           setForm(null);
         } else toast.error(res.error);
       } else {
-        const res = await criarUsuario({ name: form.name, email: form.email, role: form.role, clienteId: form.clienteId });
+        const ehColaborador = form.role !== "cliente";
+        const ehClt = CLT_ROLES.includes(form.role);
+        const ehPj = PJ_ROLES.includes(form.role);
+        const res = await criarUsuario({
+          name: form.name,
+          email: form.email,
+          role: form.role,
+          clienteId: form.clienteId,
+          // Cadastro inicial (só o relevante ao vínculo).
+          ...(ehColaborador
+            ? {
+                nomeCompleto: form.nomeCompleto,
+                cpf: form.cpf,
+                telefone: form.telefone,
+                cargo: form.cargo,
+                ...(ehClt
+                  ? {
+                      dataAdmissao: form.dataAdmissao,
+                      salarioBase: form.salarioBase ? Number(form.salarioBase) : undefined,
+                    }
+                  : {}),
+                ...(ehPj ? { pjId: form.pjId } : {}),
+              }
+            : {}),
+        });
         if (res.ok) {
+          // Fase 2: dispara o onboarding (se um template foi escolhido) já na criação.
+          if (form.onboardingTemplateId) {
+            const ob = await criarOnboarding({ userId: res.data.id, templateId: form.onboardingTemplateId });
+            if (!ob.ok) toast.error(`Usuário criado, mas o onboarding falhou: ${ob.error}`);
+          }
           setForm(null);
           setCredencial({ email: res.data.email, senha: res.data.senhaTemporaria });
         } else toast.error(res.error);
@@ -147,6 +219,8 @@ export function UsuariosView({
 
   return (
     <div className="space-y-4">
+      <SolicitacoesCadastro pedidos={pedidos} onAvaliar={avaliarPedido} pending={pending} />
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-extrabold tracking-tight">Usuários</h2>
@@ -156,7 +230,7 @@ export function UsuariosView({
           </p>
         </div>
         <Button onClick={() => setForm({ ...EMPTY })}>
-          <UserPlus className="size-4" /> Novo usuário
+          <UserPlus className="size-4" /> Nova pessoa
         </Button>
       </div>
 
@@ -210,8 +284,10 @@ export function UsuariosView({
                       <DropdownMenuItem
                         onClick={() =>
                           setForm({
+                            ...EMPTY,
                             id: u.id,
                             name: u.name,
+                            nomeCompleto: u.nomeCompleto ?? "",
                             email: u.email,
                             role: u.role as Role,
                             clienteId: u.clienteId ?? "",
@@ -260,23 +336,36 @@ export function UsuariosView({
       <Dialog open={!!form} onOpenChange={(o) => !o && setForm(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{form?.id ? "Editar usuário" : "Novo usuário"}</DialogTitle>
+            <DialogTitle>{form?.id ? "Editar usuário" : "Nova pessoa"}</DialogTitle>
             <DialogDescription>
               {form?.id
                 ? "Atualize o nome e o perfil de acesso."
-                : "O usuário recebe uma senha temporária e troca no primeiro acesso."}
+                : "Cria o acesso (senha temporária, troca no 1º acesso) e já registra o cadastro inicial."}
             </DialogDescription>
           </DialogHeader>
           {form && (
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label htmlFor="u-name">Nome</Label>
+                <Label htmlFor="u-name">Nome de exibição</Label>
                 <Input
                   id="u-name"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                 />
+                <p className="text-xs text-muted-foreground">Mostrado nas telas. O próprio usuário também pode alterá-lo.</p>
               </div>
+              {form.id && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="u-nome-completo">Nome completo (cadastro)</Label>
+                  <Input
+                    id="u-nome-completo"
+                    value={form.nomeCompleto}
+                    placeholder="Como consta em documentos formais"
+                    onChange={(e) => setForm({ ...form, nomeCompleto: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">Usado em holerite/contrato/NF. Vazio = usa o nome de exibição.</p>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label htmlFor="u-email">E-mail</Label>
                 <Input
@@ -305,6 +394,69 @@ export function UsuariosView({
                   </SelectContent>
                 </Select>
               </div>
+              {!form.id && form.role !== "cliente" && (
+                <div className="space-y-3 rounded-sm border p-3">
+                  <p className="text-xs font-medium text-muted-foreground">Cadastro inicial (opcional) — evita deixar a pessoa cadastrada pela metade.</p>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="u-nc-novo">Nome completo</Label>
+                    <Input id="u-nc-novo" value={form.nomeCompleto} placeholder="Como em documentos formais" onChange={(e) => setForm({ ...form, nomeCompleto: e.target.value })} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="u-cpf">CPF</Label>
+                      <Input id="u-cpf" value={form.cpf} onChange={(e) => setForm({ ...form, cpf: e.target.value })} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="u-tel">Telefone</Label>
+                      <Input id="u-tel" value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="u-cargo">Cargo</Label>
+                    <Input id="u-cargo" value={form.cargo} onChange={(e) => setForm({ ...form, cargo: e.target.value })} />
+                  </div>
+                  {CLT_ROLES.includes(form.role) && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="u-adm">Admissão</Label>
+                        <Input id="u-adm" type="date" value={form.dataAdmissao} onChange={(e) => setForm({ ...form, dataAdmissao: e.target.value })} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="u-sal">Salário base</Label>
+                        <Input id="u-sal" type="number" min="0" step="0.01" value={form.salarioBase} onChange={(e) => setForm({ ...form, salarioBase: e.target.value })} />
+                      </div>
+                    </div>
+                  )}
+                  {PJ_ROLES.includes(form.role) && pessoasJuridicas.length > 0 && (
+                    <div className="space-y-1.5">
+                      <Label>Pessoa Jurídica (CNPJ)</Label>
+                      <Select value={form.pjId || "__none"} onValueChange={(v) => setForm({ ...form, pjId: v === "__none" ? "" : (v ?? "") })}>
+                        <SelectTrigger><SelectValue placeholder="Selecione a PJ" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none">— não vinculada</SelectItem>
+                          {pessoasJuridicas.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {templates.length > 0 && (
+                    <div className="space-y-1.5">
+                      <Label>Iniciar onboarding (opcional)</Label>
+                      <Select value={form.onboardingTemplateId || "__none"} onValueChange={(v) => setForm({ ...form, onboardingTemplateId: v === "__none" ? "" : (v ?? "") })}>
+                        <SelectTrigger><SelectValue placeholder="Sem onboarding" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none">— sem onboarding</SelectItem>
+                          {templates.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              )}
               {form.id && podeDefinirSocio && form.role !== "cliente" && (
                 <div className="flex items-start justify-between gap-3 rounded-sm border p-3">
                   <div className="space-y-0.5">

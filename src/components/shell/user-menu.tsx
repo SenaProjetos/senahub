@@ -1,13 +1,24 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { LogOut, KeyRound, Camera } from "lucide-react";
+import { LogOut, KeyRound, Camera, Pencil } from "lucide-react";
 import { signOut } from "@/lib/auth-client";
+import { atualizarNomeExibicao } from "@/modules/usuarios/actions";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +45,27 @@ export function UserMenu({
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [enviando, setEnviando] = useState(false);
+  const [nomeAberto, setNomeAberto] = useState(false);
+  const [nome, setNome] = useState(user.name);
+  const [salvando, startSalvar] = useTransition();
+
+  function salvarNome() {
+    const n = nome.trim();
+    if (n.length < 2) {
+      toast.error("Informe o nome.");
+      return;
+    }
+    startSalvar(async () => {
+      const res = await atualizarNomeExibicao({ name: n });
+      if (res.ok) {
+        toast.success("Nome de exibição atualizado.");
+        setNomeAberto(false);
+        router.refresh();
+      } else {
+        toast.error(res.error);
+      }
+    });
+  }
 
   async function logout() {
     await signOut();
@@ -96,6 +128,10 @@ export function UserMenu({
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => { setNome(user.name); setNomeAberto(true); }}>
+          <Pencil className="size-4" />
+          Nome de exibição
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => fileRef.current?.click()} disabled={enviando}>
           <Camera className="size-4" />
           {enviando ? "Enviando…" : "Alterar foto"}
@@ -110,6 +146,31 @@ export function UserMenu({
         </DropdownMenuItem>
       </DropdownMenuContent>
       </DropdownMenu>
+
+      <Dialog open={nomeAberto} onOpenChange={setNomeAberto}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Nome de exibição</DialogTitle>
+            <DialogDescription>
+              Como seu nome aparece nas telas do sistema. Não altera seu nome completo de cadastro.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="nome-exibicao">Nome</Label>
+            <Input
+              id="nome-exibicao"
+              value={nome}
+              autoFocus
+              onChange={(e) => setNome(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") salvarNome(); }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNomeAberto(false)}>Cancelar</Button>
+            <Button onClick={salvarNome} disabled={salvando}>{salvando ? "Salvando…" : "Salvar"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
