@@ -18,8 +18,10 @@ export const carregarPontoPessoa = defineAction(
     audit: false,
   },
   async (input, ctx) => {
+    // RH/sócio veem de qualquer pessoa; qualquer usuário vê o PRÓPRIO (minha-ficha).
     const podeRH = HR_ADMIN_ROLES.includes(ctx.user.role) || ctx.user.ehSocio === true;
-    if (!podeRH) throw new ActionError("Sem permissão.");
+    const ehProprio = input.id === ctx.user.id;
+    if (!podeRH && !ehProprio) throw new ActionError("Sem permissão.");
     return pontoDoMes(input.id);
   },
 );

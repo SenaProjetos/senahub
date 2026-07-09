@@ -26,6 +26,7 @@ import {
   Package,
   HardDrive,
   BookOpen,
+  IdCard,
   type LucideIcon,
 } from "lucide-react";
 import type { Role } from "@/lib/roles";
@@ -125,6 +126,12 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/ponto/espelho",
         icon: CalendarClock,
         roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"],
+      },
+      {
+        title: "Minha ficha",
+        href: "/minha-ficha",
+        icon: IdCard,
+        roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer", "ti"],
       },
       {
         title: "Minha escala",

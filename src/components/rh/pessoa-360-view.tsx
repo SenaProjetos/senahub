@@ -28,6 +28,8 @@ export type Pessoa360Props = {
   banco: BancoRow[] | null;
   temPonto: boolean;
   nf: NotasUsuario | null;
+  /** Modo auto-serviço (o próprio usuário vendo sua ficha): esconde links de gestão que ele não acessa. */
+  self?: boolean;
 };
 
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -70,7 +72,7 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
   );
 }
 
-export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, nf }: Pessoa360Props) {
+export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, nf, self = false }: Pessoa360Props) {
   const abas: { value: string; label: string; icon: React.ElementType; show: boolean }[] = [
     { value: "cadastro", label: "Cadastro", icon: UserRound, show: !!cadastro },
     { value: "ponto", label: "Ponto", icon: Clock, show: temPonto },
@@ -346,7 +348,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                 <Campo label="Razão social" valor={pessoa.pj.razaoSocial} />
                 <Campo label="CNPJ" valor={pessoa.pj.cnpj} />
               </Secao>
-              <Link href="/rh/pessoas-juridicas" className="text-sm text-primary hover:underline">Gerir Pessoas Jurídicas →</Link>
+              {!self && <Link href="/rh/pessoas-juridicas" className="text-sm text-primary hover:underline">Gerir Pessoas Jurídicas →</Link>}
             </CardContent></Card>
           </TabsContent>
         )}
@@ -381,7 +383,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                   </table>
                 </div>
               )}
-              <Link href="/rh/admin" className="mt-3 inline-block text-sm text-primary hover:underline">Gerir notas em RH — admin →</Link>
+              {!self && <Link href="/rh/admin" className="mt-3 inline-block text-sm text-primary hover:underline">Gerir notas em RH — admin →</Link>}
             </CardContent></Card>
           </TabsContent>
         )}
@@ -394,7 +396,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                 <Campo label="Salário base" valor={pessoa.salarioBase != null ? brl(pessoa.salarioBase) : null} />
                 <Campo label="Admissão" valor={pessoa.dataAdmissao ? formatarData(pessoa.dataAdmissao) : null} />
               </Secao>
-              <Link href="/rh/folha" className="text-sm text-primary hover:underline">Ver holerites em Folha CLT →</Link>
+              {!self && <Link href="/rh/folha" className="text-sm text-primary hover:underline">Ver holerites em Folha CLT →</Link>}
             </CardContent></Card>
           </TabsContent>
         )}
@@ -408,7 +410,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                 <Campo label="Tipo" valor={pessoa.cliente.tipo} />
                 <Campo label="Documento" valor={pessoa.cliente.documento} />
               </Secao>
-              <Link href={`/clientes/${pessoa.cliente.id}`} className="text-sm text-primary hover:underline">Abrir ficha do cliente →</Link>
+              {!self && <Link href={`/clientes/${pessoa.cliente.id}`} className="text-sm text-primary hover:underline">Abrir ficha do cliente →</Link>}
             </CardContent></Card>
           </TabsContent>
         )}
@@ -422,7 +424,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
               <Campo label="Troca de senha" valor={pessoa.mustChangePassword ? "Pendente" : "—"} />
               <Campo label="Criado em" valor={formatarData(pessoa.criadoEm)} />
             </Secao>
-            <Link href="/configuracoes/usuarios" className="text-sm text-primary hover:underline">Gerir acesso em Usuários →</Link>
+            {!self && <Link href="/configuracoes/usuarios" className="text-sm text-primary hover:underline">Gerir acesso em Usuários →</Link>}
           </CardContent></Card>
         </TabsContent>
       </Tabs>
