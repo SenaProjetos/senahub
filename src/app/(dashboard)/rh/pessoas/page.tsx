@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import { requireRole } from "@/lib/session";
 import { listarPessoas } from "@/modules/rh/pessoas/queries";
+import { alteracoesPendentes } from "@/modules/rh/cadastro/queries";
 import { PessoasLista } from "@/components/rh/pessoas-lista";
+import { PendenciasCadastro } from "@/components/rh/pendencias-cadastro";
 
 export const metadata: Metadata = { title: "Pessoas" };
 
 export default async function PessoasPage() {
   await requireRole("admin", "supervisor", "administrativo");
-  const pessoas = await listarPessoas();
+  const [pessoas, pendencias] = await Promise.all([listarPessoas(), alteracoesPendentes()]);
   return (
     <div className="space-y-5">
       <div>
@@ -16,6 +18,7 @@ export default async function PessoasPage() {
           Ficha única de cada pessoa — cadastro, ausências, escala, banco de horas e acesso num só lugar.
         </p>
       </div>
+      <PendenciasCadastro pendencias={pendencias} />
       <PessoasLista pessoas={pessoas} />
     </div>
   );
