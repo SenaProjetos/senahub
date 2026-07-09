@@ -5,7 +5,8 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { HR_ADMIN_ROLES, CLT_ROLES } from "@/lib/roles";
-import { enviarEmail, smtpConfigurado } from "@/lib/mail";
+import { smtpConfigurado } from "@/lib/mail";
+import { enviarEmailTemplate } from "@/lib/email-templates";
 import { calcularEncargos } from "@/lib/encargos";
 import { faixasPorTipo, deducaoDependente } from "@/modules/rh/encargos/queries";
 import { dependentesPorUsuario } from "@/modules/rh/funcionarios/queries";
@@ -235,20 +236,19 @@ export const enviarHolerites = defineAction(
       const linhas = h.itens
         .map(
           (it) =>
-            `<tr><td>${it.descricao}</td><td style="text-align:right">${it.tipo === "desconto" ? "-" : ""}R$ ${Number(it.valor).toFixed(2)}</td></tr>`,
+            `| ${it.descricao} | ${it.tipo === "desconto" ? "-" : ""}R$ ${Number(it.valor).toFixed(2)} |`,
         )
-        .join("");
+        .join("\n");
       const liquido = h.itens.reduce(
         (s, it) => s + (it.tipo === "provento" ? Number(it.valor) : -Number(it.valor)),
         0,
       );
-      const ok = await enviarEmail({
-        to: h.user.email,
-        subject: `Holerite ${String(folha.mes).padStart(2, "0")}/${folha.ano} — SenaHub`,
-        html: `<h2>Holerite ${String(folha.mes).padStart(2, "0")}/${folha.ano}</h2>
-<p>${h.user.name}</p>
-<table border="0" cellpadding="6" style="border-collapse:collapse">${linhas}
-<tr><td><b>Líquido</b></td><td style="text-align:right"><b>R$ ${liquido.toFixed(2)}</b></td></tr></table>`,
+      const ok = await enviarEmailTemplate(h.user.email, "holerite", {
+        competencia: `${String(folha.mes).padStart(2, "0")}/${folha.ano}`,
+        // Documento formal: usa o nome completo de cadastro; cai no de exibição se vazio.
+        nome: h.user.nomeCompleto?.trim() || h.user.name,
+        linhas,
+        liquido: `R$ ${liquido.toFixed(2)}`,
       });
       if (ok) {
         await prisma.holerite.update({ where: { id: h.id }, data: { enviadoEm: new Date() } });

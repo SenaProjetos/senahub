@@ -18,6 +18,8 @@ export type AlertaEvento = {
   chave: string;
   titulo: string;
   corpo: string;
+  /** Horário previsto (ou duração, na jornada cumprida) — usado no e-mail como {{hora}}. */
+  hora: string;
 };
 
 const JANELA_PROX_MIN = 10;
@@ -55,12 +57,14 @@ export function avaliarAlertasDoDia(params: {
         chave: "entrada:prox",
         titulo: "Hora de bater o ponto",
         corpo: `Sua entrada está prevista para ${grade.entrada}.`,
+        hora: grade.entrada ?? "",
       });
     } else if (j === "atingido") {
       eventos.push({
         chave: "entrada:atingido",
         titulo: "Você ainda não bateu a entrada",
         corpo: `Horário previsto: ${grade.entrada}.`,
+        hora: grade.entrada ?? "",
       });
     }
   }
@@ -72,12 +76,14 @@ export function avaliarAlertasDoDia(params: {
         chave: "descanso_inicio:prox",
         titulo: "Descanso se aproximando",
         corpo: `Seu descanso está previsto para começar às ${primeiroDescanso.inicio}.`,
+        hora: primeiroDescanso.inicio,
       });
     } else if (j === "atingido") {
       eventos.push({
         chave: "descanso_inicio:atingido",
         titulo: "Hora do descanso",
         corpo: `Horário previsto: ${primeiroDescanso.inicio}.`,
+        hora: primeiroDescanso.inicio,
       });
     }
   }
@@ -89,12 +95,14 @@ export function avaliarAlertasDoDia(params: {
         chave: "descanso_fim:prox",
         titulo: "Fim do descanso se aproximando",
         corpo: `Previsão de retorno: ${primeiroDescanso.fim}.`,
+        hora: primeiroDescanso.fim,
       });
     } else if (j === "atingido") {
       eventos.push({
         chave: "descanso_fim:atingido",
         titulo: "Hora de voltar do descanso",
         corpo: `Horário previsto: ${primeiroDescanso.fim}.`,
+        hora: primeiroDescanso.fim,
       });
     }
   }
@@ -106,12 +114,14 @@ export function avaliarAlertasDoDia(params: {
         chave: "saida:prox",
         titulo: "Fim da jornada se aproximando",
         corpo: `Sua saída está prevista para ${grade.saida}.`,
+        hora: grade.saida ?? "",
       });
     } else if (j === "atingido") {
       eventos.push({
         chave: "saida:atingido",
         titulo: "Já passou do horário de saída",
         corpo: `Horário previsto: ${grade.saida}.`,
+        hora: grade.saida ?? "",
       });
     }
   }
@@ -122,6 +132,7 @@ export function avaliarAlertasDoDia(params: {
       chave: "jornada_cumprida",
       titulo: "Jornada do dia cumprida",
       corpo: `Você completou ${fmtHoras(limiarMin)} hoje. Aviso informativo — não é cálculo de hora extra.`,
+      hora: fmtHoras(limiarMin),
     });
   }
 

@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificarMuitos } from "@/lib/notificar";
-import { enviarEmail, smtpConfigurado } from "@/lib/mail";
+import { smtpConfigurado } from "@/lib/mail";
+import { enviarEmailTemplate } from "@/lib/email-templates";
 import { proximoCodigoProjeto } from "@/modules/projetos/numbering";
 import { ensureCanaisProjeto } from "@/modules/chat/service";
 import { notificarNovosMembros } from "@/lib/socket";
@@ -416,14 +417,12 @@ export const enviarPropostaEmail = defineAction(
 
     const url = `${process.env.APP_URL ?? ""}/a/proposta/${p.token}`;
     const total = p.itens.reduce((s, it) => s + Number(it.valor), 0);
-    const ok = await enviarEmail({
-      to: p.cliente.email,
-      subject: `Proposta ${p.numero} — ${p.titulo}`,
-      html: `<p>Olá, ${p.cliente.nome}.</p>
-<p>Segue a proposta <b>${p.numero} — ${p.titulo}</b>, no valor total de
-<b>R$ ${total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</b>.</p>
-<p><a href="${url}">Clique aqui para visualizar a proposta</a></p>
-<p>Sena Projetos</p>`,
+    const ok = await enviarEmailTemplate(p.cliente.email, "proposta-cliente", {
+      nomeCliente: p.cliente.nome,
+      numero: p.numero,
+      titulo: p.titulo,
+      valorTotal: `R$ ${total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+      url,
     });
     if (!ok) throw new ActionError("Falha ao enviar o e-mail.");
 

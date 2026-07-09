@@ -25,7 +25,10 @@ enum Role {
 
 model User {
   id            String  @id @default(cuid())
+  /// Nome de EXIBIÇÃO — mostrado nas telas (o usuário pode escolher/encurtar o próprio).
   name          String
+  /// Nome COMPLETO (cadastro/documentos formais: holerite, contrato, NF). Cai em `name` quando vazio.
+  nomeCompleto  String?
   email         String  @unique
   emailVerified Boolean @default(false)
   image         String?
@@ -149,6 +152,8 @@ model User {
   aceitesTermo           AceiteTermo[]
   ativosResponsavel      Ativo[]                   @relation("AtivoResponsavel")
   maquinasResponsavel    MaquinaTI[]               @relation("MaquinaResponsavel")
+  avisosCriados          Aviso[]                   @relation("AvisosCriados")
+  avisosRecebidos        AvisoDestinatario[]       @relation("AvisosRecebidos")
 
   @@index([role])
   @@map("user")
@@ -325,6 +330,75 @@ model PushSubscription {
 
   @@index([userId])
   @@map("push_subscription")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Avisos gerais (comunicados com confirmação de leitura)
+// ─────────────────────────────────────────────────────────────
+
+enum AvisoAlvoTipo {
+  todos
+  categoria
+  usuarios
+}
+
+/// Comunicado direcionado que surge como modal bloqueante para o destinatário.
+/// Registro de envio; a leitura é confirmada por destinatário em AvisoDestinatario.
+model Aviso {
+  id               String              @id @default(cuid())
+  titulo           String
+  corpo            String?
+  criadoPorId      String
+  criadoPor        User                @relation("AvisosCriados", fields: [criadoPorId], references: [id])
+  alvoTipo         AvisoAlvoTipo
+  alvoRoles        String[] // preenchido quando alvoTipo=categoria
+  exigeConfirmacao Boolean             @default(true)
+  enviouEmail      Boolean             @default(false)
+  criadoEm         DateTime            @default(now())
+  destinatarios    AvisoDestinatario[]
+
+  @@index([criadoEm])
+  @@map("aviso")
+}
+
+/// Um destinatário de um aviso: registro de entrega (modal exibido) e de
+/// confirmação de leitura (lidoEm). @@unique garante 1 linha por (aviso, user).
+model AvisoDestinatario {
+  id         String    @id @default(cuid())
+  avisoId    String
+  aviso      Aviso     @relation(fields: [avisoId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User      @relation("AvisosRecebidos", fields: [userId], references: [id])
+  entregueEm DateTime? // quando o modal foi exibido ao usuário
+  lidoEm     DateTime? // confirmação de leitura (o registro pedido)
+  criadoEm   DateTime  @default(now())
+
+  @@unique([avisoId, userId])
+  @@index([userId, lidoEm])
+  @@map("aviso_destinatario")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Templates de e-mail (override editável pelo admin; default no código)
+// ─────────────────────────────────────────────────────────────
+
+/// Modelo (variante) de um tipo de e-mail. Vários por `slug` (categoria).
+/// No envio, sorteia-se entre os `ativo:true`; 1 ativo = fixo; nenhum ativo =
+/// usa o padrão do catálogo (src/lib/email-templates-meta.ts).
+/// `corpoHtml` guarda o texto em **Markdown** (convertido em HTML no envio).
+model EmailTemplateVariante {
+  id          String   @id @default(cuid())
+  slug        String
+  nome        String
+  assunto     String
+  corpoHtml   String
+  ativo       Boolean  @default(true)
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+  criadoEm    DateTime @default(now())
+
+  @@index([slug])
+  @@map("email_template_variante")
 }
 
 // ─────────────────────────────────────────────────────────────

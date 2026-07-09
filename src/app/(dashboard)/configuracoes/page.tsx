@@ -135,8 +135,14 @@ const GRUPOS: Grupo[] = [
       {
         href: "/configuracoes/avisos",
         icon: Megaphone,
-        titulo: "Aviso geral",
-        descricao: "Enviar comunicado (sino + push) para todos os usuários.",
+        titulo: "Avisos gerais",
+        descricao: "Comunicados com confirmação de leitura, direcionados por categoria ou nome.",
+      },
+      {
+        href: "/configuracoes/emails",
+        icon: Mail,
+        titulo: "Modelos de e-mail",
+        descricao: "Personalizar assunto e corpo dos e-mails automáticos do sistema.",
       },
     ],
   },

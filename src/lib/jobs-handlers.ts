@@ -3,6 +3,8 @@ import { addDays, differenceInCalendarDays, subMonths } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { notificar, notificarMuitos } from "@/lib/notificar";
 import { enviarEmail, smtpConfigurado } from "@/lib/mail";
+import { enviarEmailTemplate, resolverTemplate, markdownParaHtml } from "@/lib/email-templates";
+import { slugAlertaPonto } from "@/lib/email-templates-meta";
 import { gravarSnapshotQualidade } from "@/modules/qualidade/queries";
 import { gravarSnapshotDashboard } from "@/modules/dashboard/queries";
 import { gravarSnapshotLicitacaoMensal } from "@/modules/licitacoes/dashboard/queries";
@@ -94,13 +96,11 @@ export async function alertaInadimplencia(): Promise<number> {
     if (comEmail && l.cliente?.email) {
       const valor = Number(l.valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
       const venc = l.vencimento ? l.vencimento.toLocaleDateString("pt-BR") : "—";
-      await enviarEmail({
-        to: l.cliente.email,
-        subject: `Lembrete de pagamento — ${l.descricao}`,
-        html: `<p>Olá, ${l.cliente.nome}.</p>
-<p>Identificamos que o pagamento referente a <strong>${l.descricao}</strong> no valor de <strong>${valor}</strong>, com vencimento em ${venc}, ainda não foi registrado.</p>
-<p>Caso já tenha efetuado o pagamento, desconsidere este aviso.</p>
-<p>Em caso de dúvidas, entre em contato com nossa equipe.</p>`,
+      await enviarEmailTemplate(l.cliente.email, "lembrete-pagamento", {
+        nomeCliente: l.cliente.nome,
+        descricao: l.descricao,
+        valor,
+        vencimento: venc,
       });
     }
   }
@@ -345,14 +345,21 @@ export async function alertasPontoTick(): Promise<number> {
         continue;
       }
 
+      // Resolve o modelo UMA vez (sorteio entre ativos) e usa o MESMO conteúdo
+      // no sino/push e no e-mail — texto editável idêntico nos dois canais.
+      const slug = slugAlertaPonto(evento.chave);
+      const modelo = slug ? await resolverTemplate(slug, { hora: evento.hora }) : null;
+      const titulo = modelo?.assunto ?? evento.titulo;
+      const corpo = modelo?.corpo ?? evento.corpo;
+
       await notificar(u.id, {
-        titulo: evento.titulo,
-        corpo: evento.corpo,
+        titulo,
+        corpo,
         href: "/ponto",
         tag: `ponto-${evento.chave}-${diaLocal(agora)}`,
       });
       if (modo === "todos" && u.email && smtpConfigurado()) {
-        await enviarEmail({ to: u.email, subject: evento.titulo, html: `<p>${evento.corpo}</p>` });
+        await enviarEmail({ to: u.email, subject: titulo, html: markdownParaHtml(corpo) });
       }
       enviados++;
     }
@@ -384,13 +391,9 @@ export async function resumoPontoEmailDiario(): Promise<number> {
     });
     if (alertas.length === 0) continue;
     const linhas = alertas
-      .map((a) => `<li>${a.enviadoEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} — ${a.chave}</li>`)
-      .join("");
-    const ok = await enviarEmail({
-      to: u.email,
-      subject: "Resumo dos alertas de ponto de hoje",
-      html: `<p>Alertas de jornada de hoje:</p><ul>${linhas}</ul>`,
-    });
+      .map((a) => `- ${a.enviadoEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} — ${a.chave}`)
+      .join("\n");
+    const ok = await enviarEmailTemplate(u.email, "resumo-ponto-diario", { linhas });
     if (ok) enviados++;
   }
   return enviados;
@@ -503,7 +506,7 @@ export async function resumoSemanal(): Promise<void> {
       select: { email: true },
     });
     for (const a of admins) {
-      await enviarEmail({ to: a.email, subject: "SenaHub — resumo semanal", html: `<p>${corpo}</p>` });
+      await enviarEmailTemplate(a.email, "resumo-semanal", { corpo });
     }
   }
 

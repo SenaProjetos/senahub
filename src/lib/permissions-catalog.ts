@@ -113,6 +113,11 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     acoes: [{ acao: "gerir", label: "Gerir configurações" }],
   },
   {
+    recurso: "avisos",
+    label: "Avisos gerais",
+    acoes: [{ acao: "enviar", label: "Enviar avisos e ver confirmações de leitura" }],
+  },
+  {
     recurso: "permissoes",
     label: "Permissões",
     acoes: [{ acao: "gerir", label: "Editar matriz de permissões" }],
