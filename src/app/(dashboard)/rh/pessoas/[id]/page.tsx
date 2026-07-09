@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { requireRole } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
+import { can } from "@/lib/permissions";
+import { logAudit, getClientIp } from "@/lib/audit";
 import { CLT_ROLES, CADASTRO_ROLES, INTERNAL_ROLES, PJ_ROLES } from "@/lib/roles";
 import { fichaPessoa, cadastroDaPessoa, solicitacoesDoUsuario, notasDoUsuario } from "@/modules/rh/pessoas/queries";
 import { bancoHorasDe } from "@/modules/rh/banco/queries";
@@ -10,16 +12,33 @@ import { Pessoa360View } from "@/components/rh/pessoa-360-view";
 export const metadata: Metadata = { title: "Ficha da pessoa" };
 
 export default async function PessoaFichaPage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await requireRole("admin", "supervisor", "administrativo");
+  // Gate fino: acesso à ficha exige `rh:cadastro` (admin bypassa; sócio herda de supervisor).
+  const user = await requirePermission("rh", "cadastro");
   const { id } = await params;
 
   const pessoa = await fichaPessoa(id);
   if (!pessoa) notFound();
 
-  // Folha/salário: quem administra RH (admin/supervisor/administrativo — já acessa /rh/folha) ou sócio.
+  // Folha/salário: permissão fina `rh:folha` (admin bypassa; sócio herda de supervisor).
   // Minimização: se não puder, o salário nem chega ao cliente (ver `pessoaView`).
   const podeFolha =
-    user.role === "admin" || user.role === "supervisor" || user.role === "administrativo" || user.ehSocio === true;
+    (await can(user.role, "rh", "folha")) || (user.ehSocio === true && (await can("supervisor", "rh", "folha")));
+
+  // Log de LEITURA sensível (o conselho pediu): quem abriu a ficha de QUEM (e se viu a folha).
+  // Só quando é ficha de terceiro — o próprio (minha-ficha) não gera log.
+  if (user.id !== id) {
+    const ip = await getClientIp();
+    await logAudit({
+      userId: user.id,
+      modulo: "rh",
+      acao: "ler-ficha-pessoa",
+      resultado: "sucesso",
+      entidade: "User",
+      entidadeId: id,
+      detalhe: { alvo: pessoa.name, folhaVisivel: podeFolha },
+      ip,
+    });
+  }
 
   const isCadastro = CADASTRO_ROLES.includes(pessoa.role);
   const isCLT = CLT_ROLES.includes(pessoa.role);

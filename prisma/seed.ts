@@ -33,6 +33,11 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "administrativo", recurso: "projetos", acao: "gerir" },
   { role: "administrativo", recurso: "financeiro", acao: "ver" },
   { role: "administrativo", recurso: "financeiro", acao: "gerir" },
+  // RH — Pessoas (ficha 360): cadastro p/ gestores de RH; folha (salário) idem.
+  { role: "supervisor", recurso: "rh", acao: "cadastro" },
+  { role: "supervisor", recurso: "rh", acao: "folha" },
+  { role: "administrativo", recurso: "rh", acao: "cadastro" },
+  { role: "administrativo", recurso: "rh", acao: "folha" },
   // Arquivos gerais do projeto (pasta "Geral"): gestores administrativos por padrão.
   { role: "supervisor", recurso: "arquivos_gerais", acao: "ver" },
   { role: "supervisor", recurso: "arquivos_gerais", acao: "gerir" },
