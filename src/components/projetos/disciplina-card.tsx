@@ -23,12 +23,15 @@ import {
   ListTodo,
   Plus,
   CalendarDays,
+  NotebookPen,
 } from "lucide-react";
 import {
   atualizarStatusDisciplina,
   definirResponsaveis,
   registrarRevisao,
 } from "@/modules/projetos/actions";
+import { ehGlobal } from "@/modules/projetos/diario/acesso";
+import { DiarioEntradaDialog } from "@/components/projetos/diario-entrada-dialog";
 import { DisciplinaEditDialog, DisciplinaDeleteButton } from "@/components/projetos/disciplina-edit-dialog";
 import { validarEntrega, gerarAceiteCliente } from "@/modules/uploads/actions";
 import { statusValidacao, entregaveisAtuais } from "@/modules/uploads/validacao";
@@ -143,6 +146,7 @@ export function DisciplinaCard({
   const [pending, start] = useTransition();
   const podeMexerStatus = podeGerir || disciplina.ehResponsavel;
   const podeEnviar = podeGerir || disciplina.ehResponsavel;
+  const podeDiario = !!meRole && (ehGlobal(meRole) || disciplina.ehResponsavel);
   const atraso = diasDeAtraso(disciplina.prazo, disciplina.status);
   const qtdTarefas = tarefas?.length ?? 0;
   const qtdAtrasadas = tarefas?.filter(tarefaAtrasada).length ?? 0;
@@ -273,6 +277,7 @@ export function DisciplinaCard({
         />
         <RevisaoDialog disciplina={disciplina} podeRegistrar={podeMexerStatus} />
         {podeGerir && <ResponsaveisDialog disciplina={disciplina} internos={internos} />}
+        {podeDiario && <DiarioAtalhoButton projetoId={projetoId} disciplina={disciplina} />}
         {tarefaOpcoes && tarefaColunas && meId && meRole && (
           <TarefasDisciplinaDialog
             projetoId={projetoId}
@@ -287,6 +292,25 @@ export function DisciplinaCard({
         )}
       </div>
     </div>
+  );
+}
+
+/** Atalho do diário no card (visão geral): abre o modal compartilhado já fixado nesta disciplina. */
+function DiarioAtalhoButton({ projetoId, disciplina }: { projetoId: string; disciplina: Disc }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        <NotebookPen className="size-3.5" /> Diário
+      </Button>
+      <DiarioEntradaDialog
+        open={open}
+        onOpenChange={setOpen}
+        disciplinas={[{ id: disciplina.id, nome: disciplina.nome }]}
+        projetoId={projetoId}
+        linkParaPainel
+      />
+    </>
   );
 }
 

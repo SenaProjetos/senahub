@@ -413,6 +413,7 @@ export type BatidaDetalhe = {
   tipo: TipoBatida;
   horario: Date;
   projeto: string | null;
+  projetoId: string | null;
   geo: unknown;
   editada: boolean;
 };
@@ -604,6 +605,7 @@ export async function espelhoDetalhado(
         tipo: b.tipo,
         horario: b.horario,
         projeto: b.projetoId ? (projMap.get(b.projetoId) ?? null) : null,
+        projetoId: b.projetoId,
         geo: b.geo,
         editada: b.editada,
       })),

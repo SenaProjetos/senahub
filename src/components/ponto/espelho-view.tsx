@@ -16,9 +16,12 @@ import {
   Users,
   Coffee,
   History,
+  NotebookPen,
 } from "lucide-react";
 import { aceitarEspelhoMes } from "@/modules/ponto/actions";
 import type { EspelhoDetalhado, DiaEspelhoDetalhe, StatusDiaEspelho, EquipeAgoraItem } from "@/modules/ponto/queries";
+import type { DisciplinaEscrevivel } from "@/modules/projetos/diario/queries";
+import { DiarioEntradaDialog } from "@/components/projetos/diario-entrada-dialog";
 import { EditarDiaDialog } from "@/components/ponto/editar-dia-dialog";
 import { fmtHoras } from "@/modules/ponto/format";
 import { formatarDataHora } from "@/lib/utils";
@@ -108,11 +111,13 @@ function LinhaDia({
   projetos,
   userIdAlvo,
   podeEditar,
+  diarioPorProjeto,
 }: {
   dia: DiaEspelhoDetalhe;
   projetos: Projeto[];
   userIdAlvo?: string;
   podeEditar: boolean;
+  diarioPorProjeto: Record<string, DisciplinaEscrevivel[]>;
 }) {
   const [aberto, setAberto] = useState(false);
   const primeiro = dia.descansos[0];
@@ -223,6 +228,15 @@ function LinhaDia({
                       <span>{b.tipo}</span>
                       {b.projeto && <span className="font-mono">{b.projeto}</span>}
                       {b.editada && <Badge variant="secondary">editada</Badge>}
+                      {(b.tipo === "entrada" || b.tipo === "fim_descanso") &&
+                        b.projetoId &&
+                        diarioPorProjeto[b.projetoId] && (
+                          <RegistrarDiarioBotao
+                            projetoId={b.projetoId}
+                            disciplinas={diarioPorProjeto[b.projetoId]}
+                            dia={dia.dia}
+                          />
+                        )}
                       {geo && (
                         <a
                           href={`https://www.google.com/maps?q=${geo.lat},${geo.lng}`}
@@ -245,6 +259,39 @@ function LinhaDia({
   );
 }
 
+/** Atalho "registrar no diário" por bloco de jornada com projeto marcado (só no próprio espelho). */
+function RegistrarDiarioBotao({
+  projetoId,
+  disciplinas,
+  dia,
+}: {
+  projetoId: string;
+  disciplinas: DisciplinaEscrevivel[];
+  dia: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-0.5 text-info hover:underline print:hidden"
+        title="Registrar no diário do projeto"
+      >
+        <NotebookPen className="size-3" /> diário
+      </button>
+      <DiarioEntradaDialog
+        open={open}
+        onOpenChange={setOpen}
+        disciplinas={disciplinas}
+        projetoId={projetoId}
+        dataInicial={dia}
+        linkParaPainel
+      />
+    </>
+  );
+}
+
 export function EspelhoView({
   detalhe,
   ano,
@@ -255,6 +302,7 @@ export function EspelhoView({
   souEuMesmo,
   projetos,
   podeEditar,
+  diarioPorProjeto,
 }: {
   detalhe: EspelhoDetalhado;
   ano: number;
@@ -265,6 +313,7 @@ export function EspelhoView({
   souEuMesmo: boolean;
   projetos: Projeto[];
   podeEditar: boolean;
+  diarioPorProjeto: Record<string, DisciplinaEscrevivel[]>;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -462,6 +511,7 @@ export function EspelhoView({
                   projetos={projetos}
                   userIdAlvo={userIdAlvo}
                   podeEditar={podeEditar}
+                  diarioPorProjeto={diarioPorProjeto}
                 />
               ))}
             </tbody>

@@ -5,6 +5,8 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { criarEntradaDiarioSchema, editarEntradaDiarioSchema } from "./schemas";
 import { podeEscreverNoDiario, podeGerirEntrada } from "./acesso";
+import { ultimasEntradasDisciplina, disciplinasEscreviveisNoProjeto } from "./queries";
+import { escopoProjeto } from "@/modules/projetos/queries";
 import { z } from "zod";
 
 // Gate grosso = acesso ao projeto (projetos:ver); o gate fino (responsável da
@@ -69,5 +71,33 @@ export const excluirEntradaDiario = defineAction(
     await prisma.diarioEntrada.delete({ where: { id: i.id } });
     revalidatePath(`/projetos/${entrada.projetoId}/diario`);
     return { id: i.id };
+  },
+);
+
+// ── Leituras para os atalhos (card disciplina + ponto) ──────────────────────
+
+/** Últimas 5 entradas de uma disciplina, para o modal do atalho (fora do painel). */
+export const buscarUltimasEntradasDiario = defineAction(
+  { ...base, acao: "buscar-ultimas-entradas-diario", schema: z.object({ disciplinaId: z.string().min(1) }), audit: false },
+  async ({ disciplinaId }, { user }) => {
+    const disciplina = await prisma.disciplina.findFirst({
+      where: { id: disciplinaId, projeto: { AND: [escopoProjeto(user)] } },
+      select: { id: true },
+    });
+    if (!disciplina) throw new ActionError("Disciplina não encontrada.");
+    return ultimasEntradasDisciplina(disciplinaId);
+  },
+);
+
+/** Disciplinas do projeto em que o usuário pode escrever — atalho do ponto (seletor quando houver mais de uma). */
+export const buscarDisciplinasEscreviveis = defineAction(
+  { ...base, acao: "buscar-disciplinas-escreviveis", schema: z.object({ projetoId: z.string().min(1) }), audit: false },
+  async ({ projetoId }, { user }) => {
+    const projeto = await prisma.projeto.findFirst({
+      where: { id: projetoId, AND: [escopoProjeto(user)] },
+      select: { id: true },
+    });
+    if (!projeto) throw new ActionError("Projeto não encontrado.");
+    return disciplinasEscreviveisNoProjeto(user, projetoId);
   },
 );

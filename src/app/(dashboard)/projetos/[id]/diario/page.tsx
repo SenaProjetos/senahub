@@ -18,5 +18,5 @@ export default async function DiarioProjetoPage({ params }: { params: Promise<{ 
 
   const disciplinas = await diarioDoProjeto(user, id);
 
-  return <DiarioView disciplinas={disciplinas} />;
+  return <DiarioView disciplinas={disciplinas} projetoId={id} />;
 }

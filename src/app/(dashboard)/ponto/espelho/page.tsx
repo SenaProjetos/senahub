@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { espelhoDetalhado, equipeAgora, projetosDoUsuario } from "@/modules/ponto/queries";
 import { usuariosParaEscala } from "@/modules/rh/escalas/queries";
+import { disciplinasEscreviveisNoProjeto, type DisciplinaEscrevivel } from "@/modules/projetos/diario/queries";
 import { EspelhoView } from "@/components/ponto/espelho-view";
 
 export const metadata: Metadata = { title: "Espelho de ponto" };
@@ -45,6 +46,23 @@ export default async function EspelhoPontoPage({
   // Pode editar: o próprio ponto (sempre) ou o de terceiro com permissão `ajustar`.
   const podeEditar = souEuMesmo || podeAjustar;
 
+  // Atalho "registrar no diário" (só no PRÓPRIO espelho — a entrada seria
+  // atribuída a quem está logado, então não faz sentido ao olhar terceiro).
+  // Um lookup por projeto distinto que apareceu em alguma abertura de bloco no mês.
+  const diarioPorProjeto: Record<string, DisciplinaEscrevivel[]> = {};
+  if (souEuMesmo) {
+    const projetoIds = new Set<string>();
+    for (const dia of detalhe.dias) {
+      for (const b of dia.batidas) {
+        if ((b.tipo === "entrada" || b.tipo === "fim_descanso") && b.projetoId) projetoIds.add(b.projetoId);
+      }
+    }
+    const entradas = await Promise.all(
+      [...projetoIds].map(async (pid) => [pid, await disciplinasEscreviveisNoProjeto(user, pid)] as const),
+    );
+    for (const [pid, discs] of entradas) if (discs.length > 0) diarioPorProjeto[pid] = discs;
+  }
+
   return (
     <EspelhoView
       detalhe={detalhe}
@@ -56,6 +74,7 @@ export default async function EspelhoPontoPage({
       souEuMesmo={souEuMesmo}
       projetos={projetos}
       podeEditar={podeEditar}
+      diarioPorProjeto={diarioPorProjeto}
     />
   );
 }

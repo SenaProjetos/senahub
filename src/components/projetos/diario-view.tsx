@@ -4,8 +4,9 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Pencil, Trash2, X, Check, NotebookPen } from "lucide-react";
-import { criarEntradaDiario, editarEntradaDiario, excluirEntradaDiario } from "@/modules/projetos/diario/actions";
+import { editarEntradaDiario, excluirEntradaDiario } from "@/modules/projetos/diario/actions";
 import type { diarioDoProjeto } from "@/modules/projetos/diario/queries";
+import { DiarioEntradaDialog } from "@/components/projetos/diario-entrada-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -19,12 +20,7 @@ function dataLabel(iso: string): string {
   return new Date(a, m - 1, d).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-function hojeISO(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-export function DiarioView({ disciplinas }: { disciplinas: Disciplinas }) {
+export function DiarioView({ disciplinas, projetoId }: { disciplinas: Disciplinas; projetoId: string }) {
   return (
     <div className="space-y-4">
       <div>
@@ -39,7 +35,7 @@ export function DiarioView({ disciplinas }: { disciplinas: Disciplinas }) {
       ) : (
         <div className="space-y-4">
           {disciplinas.map((d) => (
-            <DisciplinaDiario key={d.disciplinaId} disciplina={d} />
+            <DisciplinaDiario key={d.disciplinaId} disciplina={d} projetoId={projetoId} />
           ))}
         </div>
       )}
@@ -47,27 +43,13 @@ export function DiarioView({ disciplinas }: { disciplinas: Disciplinas }) {
   );
 }
 
-function DisciplinaDiario({ disciplina }: { disciplina: Disciplinas[number] }) {
+function DisciplinaDiario({ disciplina, projetoId }: { disciplina: Disciplinas[number]; projetoId: string }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [pending, start] = useTransition();
-  const [novoTexto, setNovoTexto] = useState("");
-  const [novaData, setNovaData] = useState(hojeISO());
+  const [novaEntradaAberta, setNovaEntradaAberta] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [editTexto, setEditTexto] = useState("");
-
-  function registrar() {
-    if (!novoTexto.trim()) return;
-    start(async () => {
-      const r = await criarEntradaDiario({ disciplinaId: disciplina.disciplinaId, data: novaData, texto: novoTexto.trim() });
-      if (r.ok) {
-        toast.success("Entrada registrada.");
-        setNovoTexto("");
-        setNovaData(hojeISO());
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
 
   function iniciarEdicao(id: string, texto: string) {
     setEditandoId(id);
@@ -105,33 +87,22 @@ function DisciplinaDiario({ disciplina }: { disciplina: Disciplinas[number] }) {
 
   return (
     <Card>
-      <CardHeader className="pb-3">
+      <CardHeader className="flex-row items-center justify-between pb-3">
         <CardTitle className="text-base">{disciplina.disciplinaNome}</CardTitle>
+        {disciplina.podeEscrever && (
+          <Button size="sm" variant="outline" onClick={() => setNovaEntradaAberta(true)}>
+            <NotebookPen className="size-3.5" /> Registrar entrada
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="space-y-3">
         {disciplina.podeEscrever && (
-          <div className="space-y-2 rounded-sm border bg-muted/20 p-2.5">
-            <textarea
-              rows={2}
-              placeholder="Descreva a evolução do dia…"
-              className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
-              value={novoTexto}
-              onChange={(e) => setNovoTexto(e.target.value)}
-              maxLength={5000}
-            />
-            <div className="flex items-center justify-between gap-2">
-              <input
-                type="date"
-                value={novaData}
-                max={hojeISO()}
-                onChange={(e) => setNovaData(e.target.value)}
-                className="rounded-sm border bg-background px-2 py-1 text-xs"
-              />
-              <Button size="sm" onClick={registrar} disabled={pending || !novoTexto.trim()}>
-                Registrar
-              </Button>
-            </div>
-          </div>
+          <DiarioEntradaDialog
+            open={novaEntradaAberta}
+            onOpenChange={setNovaEntradaAberta}
+            disciplinas={[{ id: disciplina.disciplinaId, nome: disciplina.disciplinaNome }]}
+            projetoId={projetoId}
+          />
         )}
 
         {disciplina.entradas.length === 0 ? (
