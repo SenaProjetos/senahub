@@ -6,12 +6,15 @@ import {
   Check,
   Circle,
   Crop,
+  Hand,
+  Maximize2,
   Pencil,
   RotateCw,
   Square,
-  Type,
   Undo2,
   X,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -37,7 +40,7 @@ import {
  * rasa das shapes (barato). O export redesenha base + shapes em escala 1:1 → PNG.
  */
 
-type Ferramenta = "caneta" | "seta" | "retangulo" | "elipse" | "texto" | "cortar";
+type Ferramenta = "caneta" | "seta" | "retangulo" | "elipse" | "texto" | "cortar" | "mover";
 
 type Snapshot = { base: HTMLCanvasElement; shapes: Shape[] };
 
@@ -153,11 +156,16 @@ export function EditorImagem({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const areaRef = useRef<HTMLDivElement | null>(null);
   const arrastandoRef = useRef(false);
+  // Pan (ferramenta "mover"): posição inicial do ponteiro + scroll da área ao começar o arraste.
+  const panRef = useRef<{ x: number; y: number; sl: number; st: number } | null>(null);
   // Enter confirma o texto E desmonta o input focado → o blur do unmount dispara
   // com a closure antiga (textoDraft ainda preenchido) e confirmaria de novo.
   // A ref torna a confirmação/cancelamento idempotente por rascunho.
   const textoResolvidoRef = useRef(false);
-  const [scale, setScale] = useState(1);
+  const [fitScale, setFitScale] = useState(1);
+  // null = acompanha o fit automático; número = usuário assumiu controle via zoom manual.
+  const [zoomManual, setZoomManual] = useState<number | null>(null);
+  const scale = zoomManual ?? fitScale;
 
   // ── Carrega o arquivo no canvas base (respeita orientação EXIF) ──
   useEffect(() => {
@@ -172,6 +180,7 @@ export function EditorImagem({
         c.getContext("2d")!.drawImage(bmp, 0, 0);
         bmp.close();
         setBase(c);
+        setZoomManual(null);
       } catch {
         if (vivo) setErro("Não foi possível abrir a imagem.");
       }
@@ -187,13 +196,38 @@ export function EditorImagem({
     if (!area || !base) return;
     const medir = () => {
       const k = Math.min((area.clientWidth - 16) / base.width, (area.clientHeight - 16) / base.height, 2);
-      setScale(Math.max(0.05, k));
+      setFitScale(Math.max(0.05, k));
     };
     medir();
     const ro = new ResizeObserver(medir);
     ro.observe(area);
     return () => ro.disconnect();
   }, [base]);
+
+  // ── Zoom manual (botões, atalhos e Ctrl+roda) ──
+  const ZOOM_MIN = 0.05;
+  const ZOOM_MAX = 6;
+  const aplicarZoom = useCallback(
+    (mult: number) => {
+      setZoomManual((atual) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +((atual ?? fitScale) * mult).toFixed(3))));
+    },
+    [fitScale],
+  );
+  const ajustarNaTela = useCallback(() => setZoomManual(null), []);
+
+  // React marca wheel como passivo no listener raiz — preventDefault ali é ignorado
+  // (bloquearia o zoom nativo da página no Ctrl+roda). Por isso o listener é nativo aqui.
+  useEffect(() => {
+    const area = areaRef.current;
+    if (!area) return;
+    function onWheel(e: WheelEvent) {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      aplicarZoom(e.deltaY < 0 ? 1.1 : 1 / 1.1);
+    }
+    area.addEventListener("wheel", onWheel, { passive: false });
+    return () => area.removeEventListener("wheel", onWheel);
+  }, [aplicarZoom]);
 
   // ── Redesenha o canvas de exibição ──
   useEffect(() => {
@@ -259,15 +293,26 @@ export function EditorImagem({
 
   function onPointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
     if (!base || textoDraft) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
+    if (ferramenta === "mover") {
+      const area = areaRef.current;
+      if (!area) return;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      panRef.current = { x: e.clientX, y: e.clientY, sl: area.scrollLeft, st: area.scrollTop };
+      return;
+    }
     const p = coordImg(e);
-    arrastandoRef.current = true;
     if (ferramenta === "texto") {
-      arrastandoRef.current = false;
+      // NÃO capturar o ponteiro aqui: o texto é clique-para-posicionar (sem arrasto).
+      // Capturar o ponteiro no canvas (não-focável) faz o clique resolver o foco no
+      // canvas → o input recém-montado leva blur → confirmarTexto vazio → o texto some.
+      // Era essa a causa de "a ferramenta de texto não funciona".
       textoResolvidoRef.current = false;
       setTextoDraft({ x: p.x, y: p.y, valor: "" });
       return;
     }
+    // Ferramentas de arrasto capturam o ponteiro para seguir o traço fora do canvas.
+    e.currentTarget.setPointerCapture(e.pointerId);
+    arrastandoRef.current = true;
     if (ferramenta === "cortar") {
       setCropDraft({ x1: p.x, y1: p.y, x2: p.x, y2: p.y });
       return;
@@ -278,6 +323,15 @@ export function EditorImagem({
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (ferramenta === "mover") {
+      const area = areaRef.current;
+      const p0 = panRef.current;
+      if (area && p0) {
+        area.scrollLeft = p0.sl - (e.clientX - p0.x);
+        area.scrollTop = p0.st - (e.clientY - p0.y);
+      }
+      return;
+    }
     if (!arrastandoRef.current || !base) return;
     const p = coordImg(e);
     if (ferramenta === "cortar") {
@@ -293,6 +347,10 @@ export function EditorImagem({
   }
 
   function onPointerUp() {
+    if (ferramenta === "mover") {
+      panRef.current = null;
+      return;
+    }
     if (!arrastandoRef.current) return;
     arrastandoRef.current = false;
     if (ferramenta === "cortar") return; // recorte confirma no botão "Aplicar corte"
@@ -373,13 +431,20 @@ export function EditorImagem({
     { id: "seta", icone: <ArrowUpRight className="size-4" />, rotulo: "Seta" },
     { id: "retangulo", icone: <Square className="size-4" />, rotulo: "Retângulo" },
     { id: "elipse", icone: <Circle className="size-4" />, rotulo: "Elipse" },
-    { id: "texto", icone: <Type className="size-4" />, rotulo: "Texto" },
+    // Ferramenta "texto" temporariamente desativada: em navegador real o input de
+    // digitação não aparece/perde foco ao clicar (provável roubo de foco pelo Dialog).
+    // O caminho de código (branch em onPointerDown, input, confirmarTexto) fica dormente
+    // e pronto p/ reativar — basta reintroduzir a entrada abaixo e o import de `Type`.
+    // { id: "texto", icone: <Type className="size-4" />, rotulo: "Texto" },
     { id: "cortar", icone: <Crop className="size-4" />, rotulo: "Cortar" },
+    { id: "mover", icone: <Hand className="size-4" />, rotulo: "Mover (arrastar imagem)" },
   ];
+
+  const corContraste = cor === "#ffffff" ? "#111111" : "#ffffff";
 
   return (
     <Dialog open onOpenChange={(o) => !o && onFechar()}>
-      <DialogContent className="flex h-[92svh] max-w-4xl flex-col gap-0 overflow-hidden p-0" showCloseButton={false}>
+      <DialogContent className="flex h-[97svh] w-[98vw] max-w-[98vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-[1900px]" showCloseButton={false}>
         <DialogHeader className="border-b px-4 py-2">
           <div className="flex items-center justify-between gap-2">
             <DialogTitle className="truncate text-sm">Editar imagem — {file.name}</DialogTitle>
@@ -458,6 +523,25 @@ export function EditorImagem({
               <span className="rounded-full bg-foreground" style={{ width: 4 + e.fator * 2, height: 4 + e.fator * 2 }} />
             </button>
           ))}
+          <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+          <Button size="icon" variant="ghost" className="size-8" aria-label="Diminuir zoom" title="Diminuir zoom" onClick={() => aplicarZoom(1 / 1.25)}>
+            <ZoomOut className="size-4" />
+          </Button>
+          <span className="w-11 text-center text-xs tabular-nums text-muted-foreground">{Math.round(scale * 100)}%</span>
+          <Button size="icon" variant="ghost" className="size-8" aria-label="Aumentar zoom" title="Aumentar zoom" onClick={() => aplicarZoom(1.25)}>
+            <ZoomIn className="size-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="size-8"
+            aria-label="Ajustar à tela"
+            title="Ajustar à tela"
+            onClick={ajustarNaTela}
+            disabled={zoomManual === null}
+          >
+            <Maximize2 className="size-4" />
+          </Button>
           {ferramenta === "cortar" && cropDraft && (
             <Button size="sm" className="ml-auto h-8" onClick={aplicarCorte}>
               <Check className="size-3.5" /> Aplicar corte
@@ -466,7 +550,13 @@ export function EditorImagem({
         </div>
 
         {/* Área do canvas */}
-        <div ref={areaRef} className="relative flex flex-1 items-center justify-center overflow-hidden bg-muted/60 p-2">
+        <div
+          ref={areaRef}
+          className={cn(
+            "relative flex flex-1 overflow-auto bg-muted/60 p-2",
+            zoomManual !== null && zoomManual > fitScale ? "items-start justify-start" : "items-center justify-center",
+          )}
+        >
           {erro ? (
             <p className="text-sm text-destructive">{erro}</p>
           ) : !base ? (
@@ -475,7 +565,10 @@ export function EditorImagem({
             <div className="relative">
               <canvas
                 ref={canvasRef}
-                className={cn("max-h-full rounded-sm shadow", ferramenta === "cortar" ? "cursor-crosshair" : ferramenta === "texto" ? "cursor-text" : "cursor-crosshair")}
+                className={cn(
+                  "rounded-sm shadow",
+                  ferramenta === "mover" ? "cursor-grab active:cursor-grabbing" : ferramenta === "texto" ? "cursor-text" : "cursor-crosshair",
+                )}
                 style={{ touchAction: "none" }}
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
@@ -484,7 +577,10 @@ export function EditorImagem({
               />
               {textoDraft && (
                 <input
+                  // Callback ref: foca ao montar (reforça o autoFocus, sem efeito/deps).
+                  ref={(el) => el?.focus()}
                   autoFocus
+                  size={Math.max(4, textoDraft.valor.length + 1)}
                   value={textoDraft.valor}
                   onChange={(e) => setTextoDraft((t) => (t ? { ...t, valor: e.target.value } : t))}
                   onKeyDown={(e) => {
@@ -493,11 +589,19 @@ export function EditorImagem({
                   }}
                   onBlur={confirmarTexto}
                   placeholder="Texto…"
-                  className="absolute z-10 rounded-sm border bg-background/95 px-1.5 py-0.5 text-sm font-bold outline-none ring-1 ring-primary"
+                  className="absolute z-10 w-auto rounded-sm px-1 py-0.5 font-bold leading-tight outline-none ring-2 ring-primary"
                   style={{
                     left: textoDraft.x * scale,
                     top: textoDraft.y * scale,
+                    maxWidth: `calc(100% - ${textoDraft.x * scale}px)`,
                     color: cor,
+                    // Caixa de fundo contrastante enquanto digita → texto SEMPRE legível, seja qual for
+                    // a cor escolhida ou o que está por baixo na imagem. O resultado final (canvas) usa contorno.
+                    background: corContraste,
+                    // Fonte do preview limitada (a caixa de digitação não vira um monstro em imagens grandes);
+                    // o texto final no canvas usa o tamanho real proporcional à imagem.
+                    fontSize: Math.min(44, Math.max(14, tamanhoTextoPx(base, espFator) * scale)),
+                    caretColor: cor,
                   }}
                 />
               )}
