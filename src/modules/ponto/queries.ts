@@ -44,6 +44,7 @@ export type LinhaTimeline = {
   horario: Date;
   editada: boolean;
   projeto: { codigo: string; nome: string } | null;
+  projetoId: string | null;
   /** Minutos deste trecho (sessão aberta usa `agora`). */
   adicionadoMin: number | null;
   /** Total do projeto no DIA. */
@@ -215,6 +216,7 @@ async function montarTimeline(
       horario: b.horario,
       editada: b.editada,
       projeto: met?.projetoId ? projMap.get(met.projetoId) ?? null : null,
+      projetoId: met?.projetoId ?? null,
       adicionadoMin: met?.adicionadoMin ?? null,
       totalDiaProjMin: met?.totalDiaProjMin ?? null,
       historicoProjMin: met?.historicoProjMin ?? null,
@@ -231,6 +233,7 @@ async function montarTimeline(
         horario: s.inicio,
         editada: false,
         projeto: s.projetoId ? projMap.get(s.projetoId) ?? null : null,
+        projetoId: s.projetoId,
         adicionadoMin: met.adicionadoMin,
         totalDiaProjMin: met.totalDiaProjMin,
         historicoProjMin: met.historicoProjMin,

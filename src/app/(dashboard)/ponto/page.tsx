@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { estadoDoDia, projetosDoUsuario, espelhoMes, ajustesPendentesCiencia } from "@/modules/ponto/queries";
 import { rateioMesGestor } from "@/modules/rh/rateio/queries";
+import { disciplinasEscreviveisNoProjeto, type DisciplinaEscrevivel } from "@/modules/projetos/diario/queries";
 import { PontoView } from "@/components/ponto/ponto-view";
 
 export const metadata: Metadata = { title: "Ponto" };
@@ -33,6 +34,20 @@ export default async function PontoPage() {
 
   const rateio = podeRatear ? await rateioMesGestor(ano, mes) : null;
 
+  // Atalho "registrar no diário" — um lookup por projeto distinto que aparece
+  // em alguma abertura de bloco na timeline de hoje (é sempre o próprio ponto).
+  const diarioPorProjeto: Record<string, DisciplinaEscrevivel[]> = {};
+  const projetoIds = new Set<string>();
+  for (const item of estadoDia.timeline) {
+    if ((item.kind === "entrada" || item.kind === "fim_descanso" || item.kind === "troca") && item.projetoId) {
+      projetoIds.add(item.projetoId);
+    }
+  }
+  const entradasDiario = await Promise.all(
+    [...projetoIds].map(async (pid) => [pid, await disciplinasEscreviveisNoProjeto(user, pid)] as const),
+  );
+  for (const [pid, discs] of entradasDiario) if (discs.length > 0) diarioPorProjeto[pid] = discs;
+
   return (
     <PontoView
       estadoDia={estadoDia}
@@ -42,6 +57,7 @@ export default async function PontoPage() {
       ano={ano}
       mes={mes}
       pendencias={pendencias}
+      diarioPorProjeto={diarioPorProjeto}
     />
   );
 }

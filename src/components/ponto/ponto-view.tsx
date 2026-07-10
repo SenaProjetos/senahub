@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { fmtHoras } from "@/modules/ponto/format";
 import { brl, formatarData } from "@/lib/utils";
 import { RegistroPonto, type EstadoDiaProp, type AjustePendenteProp } from "@/components/ponto/registro-view";
+import type { DisciplinaEscrevivel } from "@/modules/projetos/diario/queries";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -115,6 +116,7 @@ export function PontoView({
   ano,
   mes,
   pendencias,
+  diarioPorProjeto,
 }: {
   estadoDia: EstadoDiaProp;
   projetos: Projeto[];
@@ -123,6 +125,7 @@ export function PontoView({
   ano: number;
   mes: number;
   pendencias: AjustePendenteProp[];
+  diarioPorProjeto: Record<string, DisciplinaEscrevivel[]>;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -235,7 +238,7 @@ export function PontoView({
         </p>
       </div>
 
-      <RegistroPonto estadoDia={estadoDia} projetos={projetos} pendencias={pendencias} />
+      <RegistroPonto estadoDia={estadoDia} projetos={projetos} pendencias={pendencias} diarioPorProjeto={diarioPorProjeto} />
 
       {/* Filtro temporal do resumo — dia / semana (padrão) / mês. */}
       <div className="flex flex-wrap items-center justify-between gap-2">

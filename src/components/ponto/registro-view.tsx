@@ -15,6 +15,7 @@ import {
   ChevronDown,
   Check,
   AlertTriangle,
+  NotebookPen,
 } from "lucide-react";
 import {
   registrarBatida,
@@ -34,6 +35,8 @@ import {
 import { transicoesPermitidas, type EstadoJornada } from "@/modules/ponto/engine";
 import { fmtHoras } from "@/modules/ponto/format";
 import { formatarCodigo } from "@/modules/projetos/numbering";
+import type { DisciplinaEscrevivel } from "@/modules/projetos/diario/queries";
+import { DiarioEntradaDialog } from "@/components/projetos/diario-entrada-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -65,6 +68,7 @@ type LinhaTimeline = {
   horario: string | Date;
   editada: boolean;
   projeto: { codigo: string; nome: string } | null;
+  projetoId: string | null;
   adicionadoMin: number | null;
   totalDiaProjMin: number | null;
   historicoProjMin: number | null;
@@ -273,14 +277,47 @@ function CienciaBanner({ ajuste }: { ajuste: AjustePendenteProp }) {
   );
 }
 
+/** Atalho "registrar no diário" por bloco de jornada com projeto marcado, na timeline de hoje. */
+function RegistrarDiarioBotao({
+  projetoId,
+  disciplinas,
+}: {
+  projetoId: string;
+  disciplinas: DisciplinaEscrevivel[];
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex shrink-0 items-center gap-0.5 text-info hover:underline"
+        title="Registrar no diário do projeto"
+      >
+        <NotebookPen className="size-3" /> diário
+      </button>
+      <DiarioEntradaDialog
+        open={open}
+        onOpenChange={setOpen}
+        disciplinas={disciplinas}
+        projetoId={projetoId}
+        linkParaPainel
+      />
+    </>
+  );
+}
+
 export function RegistroPonto({
   estadoDia,
   projetos,
   pendencias,
+  diarioPorProjeto,
 }: {
   estadoDia: EstadoDiaProp;
   projetos: Projeto[];
   pendencias: AjustePendenteProp[];
+  /** Disciplinas em que o usuário pode escrever no diário, por projeto — projeto sem nenhuma não entra aqui (atalho some). */
+  diarioPorProjeto: Record<string, DisciplinaEscrevivel[]>;
 }) {
   const router = useRouter();
   const [projetoId, setProjetoId] = useState(estadoDia.projetoAtivo?.id ?? NONE);
@@ -485,6 +522,12 @@ export function RegistroPonto({
                               ? `${formatarCodigo(item.projeto.codigo)} ${item.projeto.nome}`
                               : "Sem projeto"}
                           </span>
+                        )}
+                        {abertura && item.projetoId && diarioPorProjeto[item.projetoId] && (
+                          <RegistrarDiarioBotao
+                            projetoId={item.projetoId}
+                            disciplinas={diarioPorProjeto[item.projetoId]}
+                          />
                         )}
                         {item.editada && (
                           <Badge variant="secondary" className="ml-1">
