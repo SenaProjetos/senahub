@@ -26,7 +26,7 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
       can(user.role, "arquivos_gerais", "gerir"),
       can(user.role, "uploads", "validar"),
       resolverNomenclatura(id),
-      recebidosDoProjeto(id),
+      recebidosDoProjeto(id, { incluirCompartilhadosDoGeral: true }),
       clienteDoProjeto(id),
       podeGerirDocumento(user, { projetoId: id }),
     ]);

@@ -3,7 +3,7 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { GLOBAL_ROLES } from "@/lib/roles";
-import { salvarArquivo, slug, nomeArquivoLimpo, type ArquivoSalvo } from "@/lib/storage";
+import { salvarArquivo, removerArquivo, slug, nomeArquivoLimpo, type ArquivoSalvo } from "@/lib/storage";
 import { montarChunksEm, limparChunks } from "@/lib/upload-chunks";
 import { destinoArquivo, extensao, limiteDoPacote, limiteLabelDoPacote, type PacoteAlvo } from "@/modules/uploads/service";
 
@@ -14,6 +14,9 @@ type Resultado = {
   motivo?: string;
   realocado?: boolean;
 };
+
+/** Arquivo remontado maior que o teto do pacote — mensagem segura p/ o cliente. */
+class LimiteExcedidoError extends Error {}
 
 export async function POST(req: Request) {
   const session = await getSession();
@@ -129,7 +132,16 @@ export async function POST(req: Request) {
       } else {
         const r = await persistir(
           nome,
-          (relativo) => montarChunksEm(relativo, { userId: user.id, sessaoId, total }),
+          async (relativo) => {
+            const salvo = await montarChunksEm(relativo, { userId: user.id, sessaoId, total });
+            // O "tamanho" declarado vem do cliente — o limite de verdade é checado
+            // aqui, contra o tamanho REAL remontado, antes de criar o registro.
+            if (salvo.tamanho > limiteDoPacote(alvo)) {
+              await removerArquivo(salvo.caminho);
+              throw new LimiteExcedidoError(`Arquivo excede ${limiteLabelDoPacote(alvo)}.`);
+            }
+            return salvo;
+          },
           mime,
         );
         resultados.push(r);
@@ -137,7 +149,11 @@ export async function POST(req: Request) {
     } catch (err) {
       console.error("[upload] falha ao montar chunks:", err);
       await limparChunks(user.id, sessaoId);
-      resultados.push({ nome, ok: false, motivo: "Falha ao montar o arquivo enviado." });
+      resultados.push({
+        nome,
+        ok: false,
+        motivo: err instanceof LimiteExcedidoError ? err.message : "Falha ao montar o arquivo enviado.",
+      });
     }
     await logAudit({
       userId: user.id,

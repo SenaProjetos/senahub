@@ -574,7 +574,6 @@ export function ChatView({
   const [gerenciarGrupoId, setGerenciarGrupoId] = useState<string | null>(null);
   // C5-5: índice do item focado no popup de menção (-1 = nenhum)
   const [mencaoIndice, setMencaoIndice] = useState(-1);
-  const [textoLen, setTextoLen] = useState(0);
 
   const anexoRef = useRef<HTMLInputElement>(null);
   const fimRef = useRef<HTMLDivElement>(null);
@@ -2322,7 +2321,6 @@ export function ChatView({
                   maxLength={4000}
                   onChange={(e) => {
                     setTexto(e.target.value);
-                    setTextoLen(e.target.value.length);
                     if (sel) {
                       if (e.target.value) {
                         if (!estaDigitandoRef.current) {
@@ -2389,9 +2387,9 @@ export function ChatView({
                   rows={1}
                   className="flex-1 resize-none rounded-sm border border-input bg-background px-3 py-2 text-sm leading-snug placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                 />
-                {textoLen > 3500 && (
-                  <span className={cn("text-xs font-medium", textoLen >= 4000 ? "text-destructive" : "text-warning")}>
-                    {textoLen}/4000
+                {texto.length > 3500 && (
+                  <span className={cn("text-xs font-medium", texto.length >= 4000 ? "text-destructive" : "text-warning")}>
+                    {texto.length}/4000
                   </span>
                 )}
                 <Button size="icon" onClick={enviar} disabled={enviandoAnexo} aria-label="Enviar">

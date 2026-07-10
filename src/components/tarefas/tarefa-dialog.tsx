@@ -14,6 +14,7 @@ import {
   removerComentario,
 } from "@/modules/tarefas/actions";
 import { PRIORIDADES, PRIORIDADE_LABEL, type Prioridade } from "@/modules/tarefas/prioridade";
+import { GLOBAL_ROLES } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -113,10 +114,10 @@ export function TarefaDialog({
   /** Título do diálogo (sobrepõe o padrão). */
   tituloDialog?: string;
 }) {
-  // Item 27 (beta): só quem criou a tarefa (ou admin/supervisor) edita/arquiva. Tarefa nova
+  // Item 27 (beta): só quem criou a tarefa (ou perfil global) edita/arquiva. Tarefa nova
   // (tarefa === null) é sempre editável — quem cria ainda não tem criadorId atribuído.
   const podeEditar =
-    !tarefa || tarefa.criadorId === meId || meRole === "admin" || meRole === "supervisor";
+    !tarefa || tarefa.criadorId === meId || GLOBAL_ROLES.includes(meRole as never);
   const router = useRouter();
   const [pending, start] = useTransition();
   const vazio = {

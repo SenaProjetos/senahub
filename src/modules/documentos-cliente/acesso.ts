@@ -43,9 +43,11 @@ export async function podeLerDocumento(
   exibirEmRecebidos = false,
 ): Promise<boolean> {
   if (origem === "interno") {
+    // Material interno da equipe: cliente externo NUNCA lê, nem com a flag de Recebidos.
+    if (!INTERNAL_ROLES.includes(user.role as Role)) return false;
     const projetoId = await projetoEfetivo(ancora);
     if (!projetoId || !(await veProjeto(user, projetoId))) return false;
-    // Doc do Geral marcado p/ aparecer em "Recebidos": membro do projeto lê,
+    // Doc do Geral marcado p/ aparecer em "Recebidos": membro interno do projeto lê,
     // mesmo sem `arquivos_gerais:ver` (é o objetivo da flag). Senão, regra antiga.
     if (exibirEmRecebidos) return true;
     return can(user.role, "arquivos_gerais", "ver");

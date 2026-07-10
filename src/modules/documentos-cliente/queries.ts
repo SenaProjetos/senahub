@@ -114,7 +114,17 @@ export async function documentosDaProposta(propostaId: string): Promise<Document
  * mistura: cada projeto herda só da sua proposta de origem. (Usado na Fase 2.)
  * Exclui `origem=interno` — esses são o repositório "Geral" (ver `geralDoProjeto`).
  */
-export async function recebidosDoProjeto(projetoId: string): Promise<DocumentoItem[]> {
+export async function recebidosDoProjeto(
+  projetoId: string,
+  opts?: {
+    /**
+     * Inclui os docs do "Geral" (origem=interno) marcados `exibirEmRecebidos`.
+     * SÓ para telas da equipe interna (aba Arquivos) — o portal do cliente NUNCA
+     * deve passar true: esses docs continuam sendo material interno da equipe.
+     */
+    incluirCompartilhadosDoGeral?: boolean;
+  },
+): Promise<DocumentoItem[]> {
   const proposta = await prisma.proposta.findUnique({
     where: { projetoId },
     select: { id: true },
@@ -126,7 +136,9 @@ export async function recebidosDoProjeto(projetoId: string): Promise<DocumentoIt
         // Recebidos "de verdade": material externo (não interno) ancorado no projeto/proposta.
         { origem: { not: "interno" }, OR: ancoras },
         // Docs do "Geral" (interno) marcados p/ também aparecer em Recebidos (não duplica arquivo).
-        { origem: "interno", exibirEmRecebidos: true, projetoId },
+        ...(opts?.incluirCompartilhadosDoGeral
+          ? [{ origem: "interno" as const, exibirEmRecebidos: true, projetoId }]
+          : []),
       ],
     },
     orderBy: { createdAt: "desc" },

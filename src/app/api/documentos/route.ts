@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { salvarArquivo, nomeArquivoLimpo } from "@/lib/storage";
+import { salvarArquivo, removerArquivo, nomeArquivoLimpo } from "@/lib/storage";
 import { montarChunksEm, limparChunks } from "@/lib/upload-chunks";
 import { TAMANHO_MAX, TAMANHO_MAX_LABEL } from "@/modules/uploads/limites";
 import { podeGerirDocumento } from "@/modules/documentos-cliente/acesso";
@@ -68,6 +68,11 @@ export async function POST(req: Request) {
     console.error("[documentos] falha ao gravar:", err);
     if (chunked) await limparChunks(session.user.id, sessaoId);
     return NextResponse.json({ error: "Falha ao gravar o arquivo enviado." }, { status: 500 });
+  }
+  // O "tamanho" declarado vem do cliente — revalida contra o tamanho REAL remontado.
+  if (salvo.tamanho > TAMANHO_MAX) {
+    await removerArquivo(salvo.caminho);
+    return NextResponse.json({ error: `Arquivo excede ${TAMANHO_MAX_LABEL}.` }, { status: 413 });
   }
 
   return NextResponse.json({

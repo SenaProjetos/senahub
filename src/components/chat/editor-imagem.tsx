@@ -153,6 +153,10 @@ export function EditorImagem({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const areaRef = useRef<HTMLDivElement | null>(null);
   const arrastandoRef = useRef(false);
+  // Enter confirma o texto E desmonta o input focado → o blur do unmount dispara
+  // com a closure antiga (textoDraft ainda preenchido) e confirmaria de novo.
+  // A ref torna a confirmação/cancelamento idempotente por rascunho.
+  const textoResolvidoRef = useRef(false);
   const [scale, setScale] = useState(1);
 
   // ── Carrega o arquivo no canvas base (respeita orientação EXIF) ──
@@ -227,9 +231,11 @@ export function EditorImagem({
     }
   }, [base, shapes, draft, cropDraft, scale]);
 
+  // Cada girar/cortar cria um canvas NOVO que fica retido pela pilha — sem teto,
+  // fotos grandes acumulariam centenas de MB. 20 passos de undo bastam.
   const pushUndo = useCallback(() => {
     if (!base) return;
-    setUndoStack((prev) => [...prev, { base, shapes }]);
+    setUndoStack((prev) => [...prev, { base, shapes }].slice(-20));
   }, [base, shapes]);
 
   function desfazer() {
@@ -258,6 +264,7 @@ export function EditorImagem({
     arrastandoRef.current = true;
     if (ferramenta === "texto") {
       arrastandoRef.current = false;
+      textoResolvidoRef.current = false;
       setTextoDraft({ x: p.x, y: p.y, valor: "" });
       return;
     }
@@ -305,12 +312,18 @@ export function EditorImagem({
   }
 
   function confirmarTexto() {
-    if (!base || !textoDraft) return;
+    if (!base || !textoDraft || textoResolvidoRef.current) return;
+    textoResolvidoRef.current = true;
     const valor = textoDraft.valor.trim();
     if (valor) {
       pushUndo();
       setShapes((prev) => [...prev, { tipo: "texto", x: textoDraft.x, y: textoDraft.y, texto: valor, cor, tam: tamanhoTextoPx(base, espFator) }]);
     }
+    setTextoDraft(null);
+  }
+
+  function cancelarTexto() {
+    textoResolvidoRef.current = true;
     setTextoDraft(null);
   }
 
@@ -476,7 +489,7 @@ export function EditorImagem({
                   onChange={(e) => setTextoDraft((t) => (t ? { ...t, valor: e.target.value } : t))}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") confirmarTexto();
-                    if (e.key === "Escape") setTextoDraft(null);
+                    if (e.key === "Escape") cancelarTexto();
                   }}
                   onBlur={confirmarTexto}
                   placeholder="Texto…"

@@ -19,6 +19,7 @@ import {
 } from "@dnd-kit/core";
 import { Plus, GripVertical, Lock, CalendarDays, LayoutGrid, List } from "lucide-react";
 import { moverTarefa } from "@/modules/tarefas/actions";
+import { GLOBAL_ROLES } from "@/lib/roles";
 import { PRIORIDADES, PRIORIDADE_LABEL, PRIORIDADE_CLASS, ehPrioridade } from "@/modules/tarefas/prioridade";
 import { TarefaDialog, type TarefaUI, type OpcoesUI } from "./tarefa-dialog";
 import {
@@ -52,9 +53,9 @@ type Coluna = {
 const TODOS = "__todos";
 type Periodo = "atrasadas" | "semana" | "mes";
 
-/** Movimentação no kanban = edição de status: só o criador ou admin/supervisor. Espelha `exigirCriadorOuGlobal` do servidor. */
+/** Movimentação no kanban = edição de status: só o criador ou perfil global. Espelha `exigirCriadorOuGlobal` do servidor. */
 function podeMoverTarefa(t: TarefaUI, meId: string, meRole: string): boolean {
-  return t.criadorId === meId || meRole === "admin" || meRole === "supervisor";
+  return t.criadorId === meId || GLOBAL_ROLES.includes(meRole as never);
 }
 
 /** Aplica os filtros de URL ao conjunto plano de tarefas (cliente-side). */
