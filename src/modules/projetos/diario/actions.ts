@@ -5,8 +5,9 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { criarEntradaDiarioSchema, editarEntradaDiarioSchema } from "./schemas";
 import { podeEscreverNoDiario, podeGerirEntrada } from "./acesso";
-import { ultimasEntradasDisciplina, disciplinasEscreviveisNoProjeto } from "./queries";
+import { ultimasEntradasDisciplina } from "./queries";
 import { escopoProjeto } from "@/modules/projetos/queries";
+import { INTERNAL_ROLES } from "@/lib/roles";
 import { z } from "zod";
 
 // Gate grosso = acesso ao projeto (projetos:ver); o gate fino (responsável da
@@ -74,11 +75,16 @@ export const excluirEntradaDiario = defineAction(
   },
 );
 
-// ── Leituras para os atalhos (card disciplina + ponto) ──────────────────────
+// ── Leitura para o atalho do diário (card disciplina + ponto) ───────────────
 
-/** Últimas 5 entradas de uma disciplina, para o modal do atalho (fora do painel). */
+/**
+ * Últimas 5 entradas de uma disciplina, para o modal do atalho (fora do painel).
+ * `roles: INTERNAL_ROLES` = mesmo piso da página `/diario`: o diário é da equipe
+ * interna, cliente NUNCA lê (escopoProjeto sozinho deixaria o cliente ver o
+ * diário do próprio projeto, pois ele tem `projetos:ver`).
+ */
 export const buscarUltimasEntradasDiario = defineAction(
-  { ...base, acao: "buscar-ultimas-entradas-diario", schema: z.object({ disciplinaId: z.string().min(1) }), audit: false },
+  { ...base, acao: "buscar-ultimas-entradas-diario", roles: INTERNAL_ROLES, schema: z.object({ disciplinaId: z.string().min(1) }), audit: false },
   async ({ disciplinaId }, { user }) => {
     const disciplina = await prisma.disciplina.findFirst({
       where: { id: disciplinaId, projeto: { AND: [escopoProjeto(user)] } },
@@ -86,18 +92,5 @@ export const buscarUltimasEntradasDiario = defineAction(
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
     return ultimasEntradasDisciplina(disciplinaId);
-  },
-);
-
-/** Disciplinas do projeto em que o usuário pode escrever — atalho do ponto (seletor quando houver mais de uma). */
-export const buscarDisciplinasEscreviveis = defineAction(
-  { ...base, acao: "buscar-disciplinas-escreviveis", schema: z.object({ projetoId: z.string().min(1) }), audit: false },
-  async ({ projetoId }, { user }) => {
-    const projeto = await prisma.projeto.findFirst({
-      where: { id: projetoId, AND: [escopoProjeto(user)] },
-      select: { id: true },
-    });
-    if (!projeto) throw new ActionError("Projeto não encontrado.");
-    return disciplinasEscreviveisNoProjeto(user, projetoId);
   },
 );
