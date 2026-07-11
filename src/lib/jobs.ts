@@ -2,6 +2,8 @@ import { PgBoss } from "pg-boss";
 import { executarBackup } from "@/lib/backup";
 import { notificarAdmins } from "@/lib/notifications";
 import { limparChunksOrfaos } from "@/lib/upload-chunks";
+import { FILA_CONVERTER_IFC } from "@/modules/coordenacao/conversao-estado";
+import { processarConversaoIfc, limparFragsOrfaos } from "@/lib/jobs-handlers";
 import {
   alertasPrazoDisciplina,
   alertaInadimplencia,
@@ -28,7 +30,15 @@ import {
   encerrarJornadasEsquecidas,
 } from "@/lib/jobs-handlers";
 
-let boss: PgBoss | null = null;
+/**
+ * IMPORTANTE: `server.ts` (tsx) e o código Next-bundled (Server Actions, rotas —
+ * webpack) carregam ESTE módulo em instâncias SEPARADAS. Uma `let boss` de módulo
+ * seria populada só no contexto tsx (onde `startJobs` roda) e ficaria SEMPRE null
+ * ao chamar `getBoss()` de uma Server Action/rota → `enfileirarConversao` viraria
+ * no-op silencioso. A ponte entre os dois contextos é o `globalThis` (mesmo
+ * processo Node) — mesmo motivo do `io`/presença em lib/socket.ts.
+ */
+const estadoGlobal = globalThis as unknown as { __senahubBoss?: PgBoss | null };
 
 const FILA_BACKUP = "backup-diario";
 
@@ -37,13 +47,14 @@ const FILA_BACKUP = "backup-diario";
  * Substitui Redis-filas, Windows Task Scheduler e as rotas cron/* com CRON_SECRET.
  */
 export async function startJobs(): Promise<PgBoss> {
-  if (boss) return boss;
+  if (estadoGlobal.__senahubBoss) return estadoGlobal.__senahubBoss;
 
-  boss = new PgBoss({
+  const boss = new PgBoss({
     connectionString: process.env.DATABASE_URL,
     schema: "pgboss",
     connectionTimeoutMillis: 30000,
   });
+  estadoGlobal.__senahubBoss = boss;
 
   boss.on("error", (err) => console.error("[pg-boss]", err));
   await boss.start();
@@ -68,6 +79,16 @@ export async function startJobs(): Promise<PgBoss> {
     await boss.schedule(FILA_BACKUP, "0 3 * * *", {}, { tz: "America/Sao_Paulo" });
     console.log("[pg-boss] backup diário agendado (03:00).");
   }
+
+  // ── Coordenação BIM: conversão IFC → Fragments (ON-DEMAND, não agendada) ──
+  // Primeira fila enfileirada sob demanda (boss.send em enfileirarConversao).
+  // Defaults do pg-boss (batchSize 1, localConcurrency 1) = uma conversão por vez —
+  // a conversão é CPU/RAM-bound e roda em child process (não pode competir com o Next).
+  await boss.createQueue(FILA_CONVERTER_IFC);
+  await boss.work(FILA_CONVERTER_IFC, async ([job]) => {
+    const { conversaoId } = job.data as { conversaoId: string };
+    await processarConversaoIfc(conversaoId);
+  });
 
   // ── Automações (Onda 5g) ───────────────────────────────────
   const TZ = { tz: "America/Sao_Paulo" };
@@ -196,6 +217,14 @@ export async function startJobs(): Promise<PgBoss> {
         if (n > 0) console.log(`[uploads] ${n} sessão(ões) de chunks órfã(s) removida(s).`);
       },
     },
+    {
+      fila: "limpar-frags-orfaos",
+      cron: "20 4 * * *", // diário 04:20 — remove .frag sem ConversaoModelo (upload excluído)
+      handler: async () => {
+        const n = await limparFragsOrfaos();
+        if (n > 0) console.log(`[coordenacao] ${n} .frag órfão(s) removido(s).`);
+      },
+    },
   ];
 
   for (const a of automacoes) {
@@ -217,12 +246,16 @@ export async function startJobs(): Promise<PgBoss> {
 }
 
 export async function stopJobs(): Promise<void> {
-  if (boss) {
-    await boss.stop({ graceful: true });
-    boss = null;
+  if (estadoGlobal.__senahubBoss) {
+    await estadoGlobal.__senahubBoss.stop({ graceful: true });
+    estadoGlobal.__senahubBoss = null;
   }
 }
 
+/**
+ * Acessa o pg-boss vivo (globalThis). Retorna null quando os jobs não subiram
+ * (ex.: `npm run dev` sem server.ts) — o chamador deve tratar o no-op.
+ */
 export function getBoss(): PgBoss | null {
-  return boss;
+  return estadoGlobal.__senahubBoss ?? null;
 }

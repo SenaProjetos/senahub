@@ -20,6 +20,7 @@ import { espelhoMes } from "@/modules/ponto/queries";
 import { resolverEscala } from "@/modules/ponto/service";
 import { avaliarAlertasDoDia } from "@/modules/ponto/alertas";
 import { diaLocalDate, diaLocal, horaLocal, minutosDoDia } from "@/modules/ponto/engine";
+import { executarConversao } from "@/modules/coordenacao/conversao";
 import { Prisma } from "@/generated/prisma/client";
 
 /** Rotinas das automações (chamadas pelos jobs do pg-boss em lib/jobs.ts). */
@@ -802,4 +803,88 @@ export async function fecharBancoHorasMesAnterior(): Promise<number> {
     fechados++;
   }
   return fechados;
+}
+
+// ── Coordenação BIM ────────────────────────────────────────────
+
+/**
+ * Handler da fila on-demand `converter-ifc` (lib/jobs.ts). Roda a conversão em
+ * child process (executarConversao) e notifica autor + responsáveis da disciplina
+ * quando conclui ou falha. Erros propagam para o pg-boss registrar a falha do job.
+ */
+export async function processarConversaoIfc(conversaoId: string): Promise<void> {
+  const ctx = await executarConversao(conversaoId);
+  const ok = ctx.status === "concluido";
+  const alvo = ctx.destinatariosIds;
+  if (alvo.length > 0) {
+    await notificarMuitos(
+      alvo,
+      {
+        titulo: ok ? "Modelo 3D pronto" : "Falha ao converter modelo 3D",
+        corpo: ok
+          ? `${ctx.disciplinaNome}: ${ctx.nomeArquivo} já pode ser aberto na maquete federada.`
+          : `${ctx.disciplinaNome}: ${ctx.nomeArquivo} — ${ctx.erro ?? "erro na conversão"}.`,
+        href: `/projetos/${ctx.projetoId}/coordenacao`,
+        tag: `conversao-${ctx.uploadId}`,
+      },
+      { categoria: "coordenacao" },
+    );
+  }
+  if (!ok) throw new Error(`Conversão ${conversaoId} falhou: ${ctx.erro ?? "erro desconhecido"}`);
+}
+
+/**
+ * Diário: remove arquivos .frag órfãos em disco (upload/ConversaoModelo já excluídos
+ * — a linha some por cascade, mas o .frag em disco fica). Varre as pastas COORDENACAO
+ * sob STORAGE_BASE_PATH; apaga os .frag cujo uploadId (nome do arquivo) não tem mais
+ * ConversaoModelo. Retorna quantos removeu.
+ */
+export async function limparFragsOrfaos(): Promise<number> {
+  const base = process.env.STORAGE_BASE_PATH;
+  if (!base) return 0;
+  const { readdir, stat, unlink } = await import("node:fs/promises");
+  const path = await import("node:path");
+
+  // Encontra todos os .frag sob pastas chamadas COORDENACAO (varredura recursiva).
+  const fragsNoDisco: { abs: string; uploadId: string }[] = [];
+  async function varrer(dir: string) {
+    let entradas;
+    try {
+      entradas = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entradas) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        await varrer(full);
+      } else if (e.name.toLowerCase().endsWith(".frag") && path.basename(dir) === "COORDENACAO") {
+        fragsNoDisco.push({ abs: full, uploadId: e.name.replace(/\.frag$/i, "") });
+      }
+    }
+  }
+  await varrer(path.resolve(base));
+  if (fragsNoDisco.length === 0) return 0;
+
+  const vivos = await prisma.conversaoModelo.findMany({
+    where: { uploadId: { in: fragsNoDisco.map((f) => f.uploadId) } },
+    select: { uploadId: true },
+  });
+  const vivoSet = new Set(vivos.map((v) => v.uploadId));
+
+  let removidos = 0;
+  const agora = Date.now();
+  for (const f of fragsNoDisco) {
+    if (vivoSet.has(f.uploadId)) continue;
+    // Só apaga se o arquivo tem >1h (evita corrida com uma conversão gravando agora).
+    try {
+      const info = await stat(f.abs);
+      if (agora - info.mtimeMs < 60 * 60 * 1000) continue;
+      await unlink(f.abs);
+      removidos++;
+    } catch {
+      /* já removido / inacessível */
+    }
+  }
+  return removidos;
 }

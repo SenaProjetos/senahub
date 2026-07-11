@@ -87,6 +87,14 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     ],
   },
   {
+    recurso: "coordenacao",
+    label: "Coordenação BIM",
+    acoes: [
+      { acao: "ver", label: "Ver maquete federada e apontamentos" },
+      { acao: "gerir", label: "Criar apontamentos, converter modelos e exportar BCF" },
+    ],
+  },
+  {
     recurso: "recursos",
     label: "Recursos",
     acoes: [

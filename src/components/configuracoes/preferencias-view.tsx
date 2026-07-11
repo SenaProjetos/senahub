@@ -44,6 +44,7 @@ export function PreferenciasView({
   notifDigestSemanal: notifDigestSemanalInicial,
   notifRiscoProjeto: notifRiscoProjetoInicial,
   notifLembretePonto: notifLembretePontoInicial,
+  notifCoordenacao: notifCoordenacaoInicial,
   pontoEmailModo: pontoEmailModoInicial,
   mostrarAlertasPonto,
 }: {
@@ -57,6 +58,7 @@ export function PreferenciasView({
   notifDigestSemanal: boolean;
   notifRiscoProjeto: boolean;
   notifLembretePonto: boolean;
+  notifCoordenacao: boolean;
   pontoEmailModo: PontoEmailModo;
   /** Alertas de jornada por horário são só p/ CLT/estagiário — controla a seção de e-mail. */
   mostrarAlertasPonto: boolean;
@@ -70,6 +72,7 @@ export function PreferenciasView({
   const [notifDigestSemanal, setNotifDigestSemanal] = useState(notifDigestSemanalInicial);
   const [notifRiscoProjeto, setNotifRiscoProjeto] = useState(notifRiscoProjetoInicial);
   const [notifLembretePonto, setNotifLembretePonto] = useState(notifLembretePontoInicial);
+  const [notifCoordenacao, setNotifCoordenacao] = useState(notifCoordenacaoInicial);
   const [pontoEmailModo, setPontoEmailModo] = useState<PontoEmailModo>(pontoEmailModoInicial);
   const [, start] = useTransition();
 
@@ -147,6 +150,13 @@ export function PreferenciasView({
       descricao: "Aviso às 09:15 (dias úteis) se você ainda não iniciou a jornada.",
       valor: notifLembretePonto,
       set: setNotifLembretePonto,
+    },
+    {
+      chave: "notif_coordenacao",
+      titulo: "Coordenação BIM",
+      descricao: "Conversão de modelos IFC e apontamentos de compatibilização.",
+      valor: notifCoordenacao,
+      set: setNotifCoordenacao,
     },
   ];
 

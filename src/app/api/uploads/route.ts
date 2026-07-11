@@ -6,6 +6,7 @@ import { GLOBAL_ROLES } from "@/lib/roles";
 import { salvarArquivo, removerArquivo, slug, nomeArquivoLimpo, type ArquivoSalvo } from "@/lib/storage";
 import { montarChunksEm, limparChunks } from "@/lib/upload-chunks";
 import { destinoArquivo, extensao, limiteDoPacote, limiteLabelDoPacote, type PacoteAlvo } from "@/modules/uploads/service";
+import { enfileirarConversao } from "@/modules/coordenacao/service";
 
 type Resultado = {
   nome: string;
@@ -100,7 +101,7 @@ export async function POST(req: Request) {
 
     const salvo = await gravar(relativo);
 
-    await prisma.upload.create({
+    const criado = await prisma.upload.create({
       data: {
         disciplinaId,
         pacote: destino,
@@ -113,6 +114,14 @@ export async function POST(req: Request) {
         autorId: user.id,
       },
     });
+
+    // Coordenação BIM: cada IFC enviado (inclusive nova versão) entra na fila de
+    // conversão p/ Fragments. Fire-and-forget — não bloqueia nem derruba o upload.
+    if (extensao(nome) === "ifc") {
+      void enfileirarConversao(criado.id).catch((err) =>
+        console.error("[upload] falha ao enfileirar conversão IFC:", err),
+      );
+    }
     return { nome, ok: true, pacote: destino, realocado };
   }
 

@@ -3458,7 +3458,8 @@ model Upload {
   createdAt DateTime @default(now())
 
   aceite     AceiteCliente?
-  pendencias Pendencia[]    @relation("UploadPendencias")
+  pendencias Pendencia[]      @relation("UploadPendencias")
+  conversao  ConversaoModelo?
 
   @@index([disciplinaId, pacote])
   @@index([autorId])
@@ -3514,6 +3515,70 @@ model AceiteCliente {
   createdAt    DateTime  @default(now())
 
   @@map("aceite_cliente")
+}
+
+/// Coordenação BIM: estado da conversão IFC → Fragments (.frag) de um Upload.
+/// 1:1 com o Upload (cada versão de IFC tem a sua). O .frag fica em disco
+/// (caminho relativo a STORAGE_BASE_PATH), gerado por job pg-boss em child process.
+model ConversaoModelo {
+  id          String    @id @default(cuid())
+  uploadId    String    @unique
+  upload      Upload    @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  /// fila | processando | concluido | erro
+  status      String    @default("fila")
+  /// Caminho relativo a STORAGE_BASE_PATH (nunca absoluto).
+  caminhoFrag String?
+  tamanhoFrag Int?
+  erro        String?
+  duracaoMs   Int?
+  tentativas  Int       @default(0)
+  iniciadoEm  DateTime?
+  concluidoEm DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status])
+  @@map("conversao_modelo")
+}
+
+/// Coordenação BIM: apontamento 3D (nota de compatibilização) ancorado em
+/// elementos IFC (GUIDs) + câmera, no viewer federado. Espelha a Pendencia:
+/// congela na versão (uploadId) do modelo em que nasceu, numeração sequencial
+/// por PROJETO (nota é transversal a disciplinas), workflow
+/// aberta|resolvida|fechada|descartada, pode virar item de Tarefa.
+/// Câmera persistida já em espaço IFC (Z-up, metros) — viewer converte na borda.
+/// Refs denormalizadas sem FK (como Pendencia), exceto o upload âncora.
+model ApontamentoCoordenacao {
+  id             String    @id @default(cuid())
+  projetoId      String
+  disciplinaId   String
+  uploadId       String
+  numero         Int
+  titulo         String
+  texto          String
+  /// IfcGuids dos elementos selecionados (string[]).
+  guids          Json
+  /// Posição/direção/up da câmera, fov/escala, projeção e planos de corte.
+  camera         Json
+  snapshotPath   String?
+  /// aberta | resolvida | fechada | descartada
+  status         String    @default("aberta")
+  prioridade     String?
+  /// Guid do Topic gerado no export BCF (habilita round-trip futuro).
+  bcfGuid        String?
+  autorId        String
+  tarefaId       String?
+  tarefaItemId   String?
+  resolvidoPorId String?
+  resolvidoEm    DateTime?
+  fechadoPorId   String?
+  fechadoEm      DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([projetoId, status])
+  @@index([projetoId, numero])
+  @@index([disciplinaId])
+  @@map("apontamento_coordenacao")
 }
 
 enum StatusPagamento {

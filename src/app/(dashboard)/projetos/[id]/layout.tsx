@@ -33,13 +33,15 @@ export default async function ProjetoLayout({
   const projeto = await obterProjetoMinimo(user, id);
   if (!projeto) notFound();
 
-  const [podeGerir, podeVerFinanceiro, podeHistorico, canalChat, modelosDoc] = await Promise.all([
-    can(user.role, "projetos", "gerir"),
-    can(user.role, "financeiro", "ver"),
-    can(user.role, "projetos", "historico"),
-    canalDoProjeto(id),
-    modelosPorFonte("projeto"),
-  ]);
+  const [podeGerir, podeVerFinanceiro, podeHistorico, podeCoordenacao, canalChat, modelosDoc] =
+    await Promise.all([
+      can(user.role, "projetos", "gerir"),
+      can(user.role, "financeiro", "ver"),
+      can(user.role, "projetos", "historico"),
+      can(user.role, "coordenacao", "ver"),
+      canalDoProjeto(id),
+      modelosPorFonte("projeto"),
+    ]);
   // Diário de projeto: equipe interna lê/escreve; cliente nunca vê (gate fino de escrita fica no módulo).
   const podeDiario = INTERNAL_ROLES.includes(user.role as never);
   // Item 12 (beta): editar todos os campos do projeto — só busca clientes se puder editar.
@@ -120,6 +122,7 @@ export default async function ProjetoLayout({
           "/lista-mestre",
           "/servicos",
           "/arquivos",
+          ...(podeCoordenacao ? ["/coordenacao"] : []),
           ...(podeDiario ? ["/diario"] : []),
           "/extras",
           // Histórico (CDE) só para admin ou cargos autorizados em Configurações.

@@ -15,7 +15,8 @@ export type NotificarOpts = {
   push?: boolean;
   /**
    * Categoria da notificação — usada para respeitar preferências de opt-out.
-   * Ex.: "prazo_disciplina", "inadimplencia", "digest_semanal", "certidao", "licitacao".
+   * Ex.: "prazo_disciplina", "inadimplencia", "digest_semanal", "certidao", "licitacao",
+   * "coordenacao".
    * Quando ausente, a notificação é sempre enviada.
    */
   categoria?: string;

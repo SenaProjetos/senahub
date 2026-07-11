@@ -111,6 +111,16 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "administrativo", recurso: "ponto", acao: "espelho_equipe" },
   { role: "administrativo", recurso: "ponto", acao: "gerir_escalas" },
   { role: "administrativo", recurso: "ponto", acao: "ajustar" },
+  // Coordenação BIM: internos veem a maquete federada (escopo de projeto filtra);
+  // gestores gerem (apontamentos, conversão, BCF). Cliente fora no v1 (portal é F7).
+  { role: "supervisor", recurso: "coordenacao", acao: "ver" },
+  { role: "supervisor", recurso: "coordenacao", acao: "gerir" },
+  { role: "administrativo", recurso: "coordenacao", acao: "ver" },
+  { role: "administrativo", recurso: "coordenacao", acao: "gerir" },
+  { role: "clt", recurso: "coordenacao", acao: "ver" },
+  { role: "estagiario", recurso: "coordenacao", acao: "ver" },
+  { role: "projetista_pj", recurso: "coordenacao", acao: "ver" },
+  { role: "freelancer", recurso: "coordenacao", acao: "ver" },
 ];
 
 /** Plano de contas inicial. Códigos usados na auto-categorização de pagamentos. */
