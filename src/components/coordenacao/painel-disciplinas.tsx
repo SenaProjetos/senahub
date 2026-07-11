@@ -1,26 +1,32 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Loader2, Lightbulb } from "lucide-react";
 import type { ModeloRow } from "@/components/coordenacao/conversao-status-view";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 
 /**
  * Painel de disciplinas da maquete: liga/desliga cada modelo convertido
  * (carregamento lazy — nada baixa até ligar). Não convertidos aparecem
- * desabilitados com o motivo.
+ * desabilitados com o motivo. O botão de destaque deixa as demais translúcidas.
  */
 export function PainelDisciplinas({
   modelos,
   carregados,
   carregando,
+  foco,
   onToggle,
+  onFocar,
 }: {
   modelos: ModeloRow[];
   carregados: Set<string>;
   carregando: Set<string>;
+  foco: string | null;
   onToggle: (uploadId: string, ligar: boolean) => void;
+  onFocar: (uploadId: string) => void;
 }) {
   return (
     <Card>
@@ -48,11 +54,25 @@ export function PainelDisciplinas({
                 estaCarregando ? (
                   <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
                 ) : (
-                  <Switch
-                    checked={carregados.has(m.uploadId)}
-                    onCheckedChange={(v: boolean) => onToggle(m.uploadId, v)}
-                    aria-label={`Exibir ${m.disciplinaNome}`}
-                  />
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {carregados.has(m.uploadId) && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className={cn("size-7", foco === m.uploadId && "text-primary")}
+                        aria-label={foco === m.uploadId ? `Remover destaque de ${m.disciplinaNome}` : `Destacar ${m.disciplinaNome}`}
+                        title="Destacar esta disciplina (deixa as outras translúcidas)"
+                        onClick={() => onFocar(m.uploadId)}
+                      >
+                        <Lightbulb className="size-4" />
+                      </Button>
+                    )}
+                    <Switch
+                      checked={carregados.has(m.uploadId)}
+                      onCheckedChange={(v: boolean) => onToggle(m.uploadId, v)}
+                      aria-label={`Exibir ${m.disciplinaNome}`}
+                    />
+                  </div>
                 )
               ) : (
                 <Badge variant="outline" className="shrink-0">

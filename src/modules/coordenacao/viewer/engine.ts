@@ -293,6 +293,39 @@ export class ViewerEngine {
     await this.fragments.update(true);
   }
 
+  /**
+   * Destaca UMA disciplina (uploadId): deixa as demais translúcidas ("ghost"),
+   * mantendo a cor original. `null` remove o destaque. A seleção (azul) é
+   * reaplicada por cima para não sumir no fantasma.
+   */
+  async destacarModelo(focoId: string | null): Promise<void> {
+    for (const [id, model] of this.modelos) {
+      await model.resetHighlight();
+      if (focoId && id !== focoId) {
+        await model.highlight(undefined, {
+          color: new THREE.Color(0xffffff),
+          renderedFaces: RenderedFaces.TWO,
+          opacity: 0.12,
+          transparent: true,
+          preserveOriginalMaterial: true,
+        });
+      }
+    }
+    // Reaplica a seleção por cima do ghost.
+    for (const [id, ids] of this.selecao) {
+      const model = this.modelos.get(id);
+      if (model && ids.size > 0) {
+        await model.highlight([...ids], {
+          color: new THREE.Color(COR_SELECAO),
+          renderedFaces: RenderedFaces.TWO,
+          opacity: 1,
+          transparent: false,
+        });
+      }
+    }
+    await this.fragments.update(true);
+  }
+
   // ── Corte ──────────────────────────────────────────────────
 
   /** Bbox união de todos os modelos carregados. */
@@ -387,10 +420,18 @@ export class ViewerEngine {
     if (!model || guids.length === 0) return null;
     const localIds = (await model.getLocalIdsByGuids(guids)).filter((id): id is number => id != null);
     if (localIds.length === 0) return null;
+    // getBoxes multiplica pela model.object.matrixWorld — que só é atualizada no
+    // render. Se a âncora for calculada logo após o load (antes do 1º frame), a
+    // matriz estaria desatualizada e o box viria em coordenadas IFC cruas (pin
+    // parava longe do modelo). Forçar a atualização aqui garante espaço-mundo.
+    model.object.updateWorldMatrix(true, true);
     const boxes = await model.getBoxes(localIds);
     if (!boxes || boxes.length === 0) return null;
-    const uniao = boxes.reduce((acc, b) => acc.union(b), boxes[0].clone());
+    const uniao = new THREE.Box3();
+    for (const b of boxes) if (!b.isEmpty()) uniao.union(b);
+    if (uniao.isEmpty()) return null;
     const centro = uniao.getCenter(new THREE.Vector3());
+    if (!Number.isFinite(centro.x) || !Number.isFinite(centro.y) || !Number.isFinite(centro.z)) return null;
     return { x: centro.x, y: centro.y, z: centro.z };
   }
 

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requireRole } from "@/lib/session";
 import { INTERNAL_ROLES } from "@/lib/roles";
 import { quadroTarefas, opcoesTarefa, tarefaBloqueada } from "@/modules/tarefas/queries";
+import { hrefsApontamentoPorItem } from "@/modules/coordenacao/queries";
 import { TarefasBoard } from "@/components/tarefas/tarefas-board";
 
 export const metadata: Metadata = { title: "Tarefas" };
@@ -9,6 +10,10 @@ export const metadata: Metadata = { title: "Tarefas" };
 export default async function TarefasPage() {
   const user = await requireRole(...INTERNAL_ROLES);
   const [colunas, opcoes] = await Promise.all([quadroTarefas(user), opcoesTarefa()]);
+
+  // Atalho "ver no 3D" nos itens de checklist gerados por apontamentos de coordenação.
+  const itemIds = colunas.flatMap((c) => c.tarefas.flatMap((t) => t.itens.map((it) => it.id)));
+  const hrefApontamento = await hrefsApontamentoPorItem(itemIds);
 
   return (
     <TarefasBoard
@@ -33,7 +38,12 @@ export default async function TarefasPage() {
           disciplinaId: t.disciplinaId ?? "",
           criadorId: t.criadorId,
           responsaveis: t.responsaveis.map((r) => ({ id: r.user.id, nome: r.user.name })),
-          itens: t.itens.map((it) => ({ id: it.id, descricao: it.descricao, concluido: it.concluido })),
+          itens: t.itens.map((it) => ({
+            id: it.id,
+            descricao: it.descricao,
+            concluido: it.concluido,
+            apontamentoHref: hrefApontamento.get(it.id),
+          })),
           dependeDeIds: t.dependeDe.map((d) => d.dependeDe.id),
           bloqueada: tarefaBloqueada(t),
           comentarios: t.comentarios.map((c) => ({

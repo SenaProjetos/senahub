@@ -3,7 +3,8 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2, Archive, Paperclip, Send, FileText, X } from "lucide-react";
+import Link from "next/link";
+import { Plus, Trash2, Archive, Paperclip, Send, FileText, X, Box } from "lucide-react";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
   criarTarefa,
@@ -46,7 +47,7 @@ export type TarefaUI = {
   disciplinaId: string;
   criadorId: string;
   responsaveis: { id: string; nome: string }[];
-  itens: { id?: string; descricao: string; concluido: boolean }[];
+  itens: { id?: string; descricao: string; concluido: boolean; apontamentoHref?: string }[];
   dependeDeIds: string[];
   bloqueada: boolean;
   comentarios?: { id: string; texto: string; autor: string; data: string; anexoMime: string | null; anexoNome: string | null }[];
@@ -81,7 +82,7 @@ type FormTarefa = {
   projetoId: string;
   disciplinaId: string;
   responsaveisIds: string[];
-  itens: { id?: string; descricao: string; concluido: boolean }[];
+  itens: { id?: string; descricao: string; concluido: boolean; apontamentoHref?: string }[];
   dependeDeIds: string[];
 };
 
@@ -129,7 +130,7 @@ export function TarefaDialog({
     projetoId: NONE,
     disciplinaId: NONE,
     responsaveisIds: [] as string[],
-    itens: [] as { id?: string; descricao: string; concluido: boolean }[],
+    itens: [] as { id?: string; descricao: string; concluido: boolean; apontamentoHref?: string }[],
     dependeDeIds: [] as string[],
   };
   const deTarefa = (t: TarefaUI) => ({
@@ -453,6 +454,18 @@ export function TarefaDialog({
                 <span className={`flex-1 text-sm ${it.concluido ? "text-muted-foreground line-through" : ""}`}>
                   {it.descricao}
                 </span>
+                {it.apontamentoHref && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7 text-primary"
+                    aria-label="Ver o apontamento na maquete 3D"
+                    title="Abrir o apontamento na maquete 3D"
+                    render={<Link href={it.apontamentoHref} target="_blank" rel="noreferrer" />}
+                  >
+                    <Box className="size-3.5" />
+                  </Button>
+                )}
                 {!itensReadonly && (
                   <Button
                     size="icon"

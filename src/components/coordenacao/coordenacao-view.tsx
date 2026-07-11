@@ -85,6 +85,7 @@ export function CoordenacaoView({
   const [enviarAberto, setEnviarAberto] = useState(false);
   const [selecaoExport, setSelecaoExport] = useState<Set<string>>(new Set());
   const [exportando, setExportando] = useState(false);
+  const [foco, setFoco] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const minhasDisciplinasSet = useMemo(() => new Set(minhasDisciplinas), [minhasDisciplinas]);
 
@@ -113,6 +114,11 @@ export function CoordenacaoView({
         n.delete(uploadId);
         return n;
       });
+      // Desligou a disciplina em destaque → limpa o destaque.
+      if (foco === uploadId) {
+        setFoco(null);
+        void engine.destacarModelo(null);
+      }
       return;
     }
     if (carregados.has(uploadId)) return;
@@ -120,6 +126,8 @@ export function CoordenacaoView({
     try {
       await engine.carregarModelo(uploadId, `/api/coordenacao/frag/${uploadId}`);
       setCarregados((s) => new Set(s).add(uploadId));
+      // Modelo novo entrando com um destaque ativo → aplica o ghost nele também.
+      if (foco) void engine.destacarModelo(foco);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao carregar o modelo.");
     } finally {
@@ -129,12 +137,21 @@ export function CoordenacaoView({
         return n;
       });
     }
-  }, [carregados]);
+  }, [carregados, foco]);
 
   const aplicarCorte = useCallback((config: CorteConfig) => {
     setCorte(config);
     engineRef.current?.definirCorte(config);
   }, []);
+
+  const focar = useCallback(
+    (uploadId: string) => {
+      const novo = foco === uploadId ? null : uploadId;
+      setFoco(novo);
+      void engineRef.current?.destacarModelo(novo);
+    },
+    [foco],
+  );
 
   // ── Criar apontamento (a partir da seleção atual do viewer) ──
 
@@ -403,7 +420,9 @@ export function CoordenacaoView({
           modelos={modelos}
           carregados={carregados}
           carregando={carregando}
+          foco={foco}
           onToggle={onToggle}
+          onFocar={focar}
         />
         <ApontamentosLista
           apontamentos={apontamentos}

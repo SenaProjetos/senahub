@@ -133,3 +133,21 @@ export async function apontamentosDoProjeto(projetoId: string): Promise<Apontame
     createdAt: r.createdAt.toISOString(),
   }));
 }
+
+/**
+ * Para um conjunto de TarefaItem, resolve o deep-link do apontamento de
+ * coordenação vinculado (via `tarefaItemId`). Usado para pôr um atalho "ver no
+ * 3D" em cada item de checklist de tarefas geradas por apontamentos.
+ */
+export async function hrefsApontamentoPorItem(itemIds: string[]): Promise<Map<string, string>> {
+  if (itemIds.length === 0) return new Map();
+  const rows = await prisma.apontamentoCoordenacao.findMany({
+    where: { tarefaItemId: { in: itemIds } },
+    select: { tarefaItemId: true, projetoId: true, numero: true },
+  });
+  const m = new Map<string, string>();
+  for (const r of rows) {
+    if (r.tarefaItemId) m.set(r.tarefaItemId, `/projetos/${r.projetoId}/coordenacao?apontamento=${r.numero}`);
+  }
+  return m;
+}
