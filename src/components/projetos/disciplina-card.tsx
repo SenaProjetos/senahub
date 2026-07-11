@@ -38,7 +38,12 @@ import { statusValidacao, entregaveisAtuais } from "@/modules/uploads/validacao"
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
 import { IconeArquivo, StatusArquivo } from "@/components/projetos/arquivos-explorer";
 import { limiteDoPacote, limiteLabelDoPacote } from "@/modules/uploads/limites";
-import { precisaChunk, enviarEmChunks } from "@/lib/upload-grande";
+import {
+  enviarArquivoComProgresso,
+  patchLinhaEnvio,
+  PainelProgressoEnvio,
+  type LinhaEnvio,
+} from "@/components/projetos/upload-progresso";
 import { STATUS_LABEL, STATUS_TONE } from "@/modules/projetos/status";
 import { diasDeAtraso } from "@/modules/projetos/atraso";
 import type { StatusDisciplina } from "@/generated/prisma/client";
@@ -328,6 +333,7 @@ function ArquivosDialog({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [progresso, setProgresso] = useState<LinhaEnvio[] | null>(null);
   const [pacote, setPacote] = useState<"A" | "B">("A");
   const [validando, start] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -371,70 +377,40 @@ function ArquivosDialog({
       else aceitos.push(f);
     }
     if (aceitos.length === 0) return;
-    // Grandes (> limite direto) vão em pedaços p/ contornar o teto de 100 MB do Cloudflare;
-    // pequenos seguem no lote multipart de sempre.
-    const grandes = aceitos.filter((f) => precisaChunk(f));
-    const pequenos = aceitos.filter((f) => !precisaChunk(f));
+    // Envia arquivo a arquivo (XHR) para mostrar a barra e o status de cada um —
+    // uploads longos ou de vários arquivos não parecem mais "travados". Mesma
+    // indicação visual da aba Arquivos (módulo compartilhado upload-progresso).
     setEnviando(true);
-    type ResUp = { nome: string; ok: boolean; realocado?: boolean; motivo?: string };
-    const resultados: ResUp[] = [];
+    const linhas: LinhaEnvio[] = aceitos.map((f) => ({
+      nome: f.name,
+      tamanho: f.size,
+      status: "pendente",
+      progresso: 0,
+    }));
+    setProgresso(linhas);
+    let ok = 0;
+    let real = 0;
     try {
-      if (pequenos.length > 0) {
-        const fd = new FormData();
-        fd.set("disciplinaId", disciplina.id);
-        fd.set("pacote", pacote);
-        for (const f of pequenos) fd.append("files", f);
-        let res: Response;
+      for (let i = 0; i < aceitos.length; i++) {
+        const f = aceitos[i];
+        setProgresso((prev) => (prev ? patchLinhaEnvio(prev, i, { status: "enviando" }) : prev));
         try {
-          res = await fetch("/api/uploads", { method: "POST", body: fd });
-        } catch {
-          toast.error("Falha de rede durante o envio — verifique a conexão e o tamanho do arquivo.");
-          return;
-        }
-        let data: { error?: string; resultados?: ResUp[] } | null = null;
-        try {
-          data = await res.json();
-        } catch {
-          data = null;
-        }
-        if (!res.ok || !data?.resultados) {
-          toast.error(
-            data?.error ??
-              (res.status === 413
-                ? `Arquivo muito grande — limite de ${limiteLabelDoPacote(pacote)}.`
-                : `Falha no envio (HTTP ${res.status}).`),
+          const r = await enviarArquivoComProgresso(
+            f,
+            { nome: f.name, disciplinaId: disciplina.id, pacote },
+            (pct) => setProgresso((prev) => (prev ? patchLinhaEnvio(prev, i, { progresso: pct }) : prev)),
           );
-        } else {
-          resultados.push(...data.resultados);
-        }
-      }
-
-      for (const f of grandes) {
-        try {
-          const meta = await enviarEmChunks(f);
-          const fd = new FormData();
-          fd.set("disciplinaId", disciplina.id);
-          fd.set("pacote", pacote);
-          fd.set("sessaoId", meta.sessaoId);
-          fd.set("nome", f.name);
-          fd.set("total", String(meta.total));
-          fd.set("tamanho", String(meta.tamanho));
-          fd.set("mime", f.type || "");
-          const res = await fetch("/api/uploads", { method: "POST", body: fd });
-          const data = (await res.json().catch(() => null)) as { error?: string; resultados?: ResUp[] } | null;
-          if (res.ok && data?.resultados) resultados.push(...data.resultados);
-          else resultados.push({ nome: f.name, ok: false, motivo: data?.error ?? `HTTP ${res.status}` });
+          if (r.ok) ok++;
+          if (r.realocado) real++;
+          setProgresso((prev) =>
+            prev ? patchLinhaEnvio(prev, i, { status: r.ok ? "ok" : "erro", progresso: 100, realocado: r.realocado, motivo: r.motivo }) : prev,
+          );
         } catch (e) {
-          resultados.push({ nome: f.name, ok: false, motivo: (e as Error).message });
+          setProgresso((prev) => (prev ? patchLinhaEnvio(prev, i, { status: "erro", motivo: (e as Error).message }) : prev));
         }
       }
-
-      const ok = resultados.filter((r) => r.ok).length;
-      const real = resultados.filter((r) => r.realocado).length;
-      const falhas = resultados.filter((r) => !r.ok);
       if (ok > 0) toast.success(`${ok} arquivo(s) enviado(s).`);
       if (real > 0) toast.info(`${real} arquivo(s) não suportado(s) foram para a pasta "outros".`);
-      for (const f of falhas) toast.error(`${f.nome}: ${f.motivo}`);
       router.refresh();
     } finally {
       setEnviando(false);
@@ -509,6 +485,13 @@ function ArquivosDialog({
             <p className="text-xs text-muted-foreground">
               Formatos não suportados em Pranchas e arquivos vão automaticamente para &quot;outros&quot;.
             </p>
+            {progresso && progresso.length > 0 && (
+              <PainelProgressoEnvio
+                linhas={progresso}
+                enviando={enviando}
+                onFechar={() => setProgresso(null)}
+              />
+            )}
           </div>
         )}
 

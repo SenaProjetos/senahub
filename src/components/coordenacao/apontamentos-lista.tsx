@@ -1,11 +1,13 @@
 "use client";
 
-import { Check, Download, Pencil, RotateCcw, Trash2, Undo2 } from "lucide-react";
+import { useState } from "react";
+import { Check, ChevronDown, Download, Pencil, RotateCcw, Trash2, Undo2 } from "lucide-react";
 import type { ApontamentoView } from "@/modules/coordenacao/queries";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
@@ -26,6 +28,7 @@ export function ApontamentosLista({
   selecaoExport,
   exportando,
   onToggleExport,
+  onSelecionarTodos,
   onExportar,
   onSelecionar,
   onEditar,
@@ -45,6 +48,7 @@ export function ApontamentosLista({
   selecaoExport: Set<string>;
   exportando: boolean;
   onToggleExport: (id: string) => void;
+  onSelecionarTodos: (marcar: boolean) => void;
   onExportar: () => void;
   onSelecionar: (a: ApontamentoView) => void;
   onEditar: (a: ApontamentoView) => void;
@@ -54,15 +58,25 @@ export function ApontamentosLista({
   onFechar: (id: string) => void;
   onDescartar: (id: string) => void;
 }) {
+  const [aberto, setAberto] = useState(true);
   const ordenados = apontamentos.slice().sort((a, b) => a.numero - b.numero);
+  const todosMarcados = apontamentos.length > 0 && selecaoExport.size === apontamentos.length;
 
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between gap-2 pb-3">
-        <CardTitle className="text-sm">
-          Apontamentos
-          <span className="ml-2 font-normal text-muted-foreground">{apontamentos.length}</span>
-        </CardTitle>
+        <button
+          type="button"
+          onClick={() => setAberto((v) => !v)}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          aria-expanded={aberto}
+        >
+          <ChevronDown className={cn("size-4 shrink-0 transition-transform", !aberto && "-rotate-90")} />
+          <CardTitle className="text-sm">
+            Apontamentos
+            <span className="ml-2 font-normal text-muted-foreground">{apontamentos.length}</span>
+          </CardTitle>
+        </button>
         {apontamentos.length > 0 && (
           <Button
             size="sm"
@@ -76,12 +90,23 @@ export function ApontamentosLista({
           </Button>
         )}
       </CardHeader>
-      <CardContent className="max-h-[45vh] overflow-y-auto p-0">
+      <CardContent className={cn("max-h-[45vh] overflow-y-auto p-0", !aberto && "hidden")}>
         {ordenados.length === 0 ? (
           <p className="px-3 py-6 text-center text-xs text-muted-foreground">
             Selecione elementos na maquete e crie o primeiro apontamento.
           </p>
         ) : (
+          <>
+          <label className="flex cursor-pointer items-center gap-2 border-b bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground">
+            <Checkbox
+              checked={todosMarcados}
+              onCheckedChange={(v: boolean) => onSelecionarTodos(v)}
+              aria-label="Selecionar todos para exportar"
+            />
+            <Label className="cursor-pointer text-xs font-normal text-muted-foreground">
+              Selecionar todos ({selecaoExport.size}/{apontamentos.length})
+            </Label>
+          </label>
           <ul className="divide-y">
             {ordenados.map((a) => {
               const meta = STATUS_META[a.status] ?? STATUS_META.aberta;
@@ -148,6 +173,7 @@ export function ApontamentosLista({
               );
             })}
           </ul>
+          </>
         )}
       </CardContent>
     </Card>

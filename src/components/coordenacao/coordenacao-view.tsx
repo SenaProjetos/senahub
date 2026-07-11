@@ -348,6 +348,10 @@ export function CoordenacaoView({
     });
   }
 
+  function selecionarTodosExport(marcar: boolean) {
+    setSelecaoExport(marcar ? new Set(apontamentos.map((a) => a.id)) : new Set());
+  }
+
   function exportarBcf() {
     if (selecaoExport.size === 0) return;
     setExportando(true);
@@ -435,6 +439,7 @@ export function CoordenacaoView({
           selecaoExport={selecaoExport}
           exportando={exportando}
           onToggleExport={toggleExport}
+          onSelecionarTodos={selecionarTodosExport}
           onExportar={exportarBcf}
           onSelecionar={(a) => void abrirApontamento(a)}
           onEditar={setEditando}

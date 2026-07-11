@@ -1,6 +1,7 @@
 "use client";
 
-import { Loader2, Lightbulb } from "lucide-react";
+import { useState } from "react";
+import { Loader2, Lightbulb, ChevronDown } from "lucide-react";
 import type { ModeloRow } from "@/components/coordenacao/conversao-status-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,17 +29,26 @@ export function PainelDisciplinas({
   onToggle: (uploadId: string, ligar: boolean) => void;
   onFocar: (uploadId: string) => void;
 }) {
+  const [aberto, setAberto] = useState(true);
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm">
-          Disciplinas
-          <span className="ml-2 font-normal text-muted-foreground">
-            {carregados.size} de {modelos.filter((m) => m.conversao?.status === "concluido").length} na cena
-          </span>
-        </CardTitle>
+        <button
+          type="button"
+          onClick={() => setAberto((v) => !v)}
+          className="flex w-full items-center gap-2 text-left"
+          aria-expanded={aberto}
+        >
+          <ChevronDown className={cn("size-4 shrink-0 transition-transform", !aberto && "-rotate-90")} />
+          <CardTitle className="text-sm">
+            Disciplinas
+            <span className="ml-2 font-normal text-muted-foreground">
+              {carregados.size} de {modelos.filter((m) => m.conversao?.status === "concluido").length} na cena
+            </span>
+          </CardTitle>
+        </button>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className={cn("space-y-3", !aberto && "hidden")}>
         {modelos.map((m) => {
           const convertido = m.conversao?.status === "concluido";
           const estaCarregando = carregando.has(m.uploadId);
