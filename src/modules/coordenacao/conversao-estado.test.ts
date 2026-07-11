@@ -3,6 +3,9 @@ import {
   podeEnfileirar,
   resultadoConversao,
   caminhoFragDeUpload,
+  validarHeaderIfc,
+  schemaProvavelmenteNaoSuportado,
+  explicarErroConversao,
   MAX_TENTATIVAS,
 } from "@/modules/coordenacao/conversao-estado";
 
@@ -74,5 +77,62 @@ describe("caminhoFragDeUpload", () => {
   it("normaliza separadores do Windows para posix", () => {
     const c = caminhoFragDeUpload("2026\\Cliente\\260007_Proj\\HID\\A\\arq.ifc", "id9");
     expect(c).toBe("2026/Cliente/260007_Proj/HID/COORDENACAO/id9.frag");
+  });
+});
+
+describe("validarHeaderIfc", () => {
+  it("aceita IFC válido e extrai o schema", () => {
+    const header = "ISO-10303-21;\nHEADER;\nFILE_SCHEMA(('IFC4'));\n";
+    expect(validarHeaderIfc(header)).toEqual({ ok: true, schema: "IFC4" });
+  });
+
+  it("aceita sem FILE_SCHEMA (schema null, deixa tentar)", () => {
+    expect(validarHeaderIfc("ISO-10303-21; foo")).toEqual({ ok: true, schema: null });
+  });
+
+  it("recusa arquivo sem cabeçalho ISO-10303-21", () => {
+    const r = validarHeaderIfc("%PDF-1.7 blah");
+    expect(r.ok).toBe(false);
+    expect(r.motivo).toMatch(/não é um IFC/i);
+  });
+});
+
+describe("schemaProvavelmenteNaoSuportado", () => {
+  it("suporta IFC2X3 / IFC4 / IFC4X3", () => {
+    expect(schemaProvavelmenteNaoSuportado("IFC4")).toBe(false);
+    expect(schemaProvavelmenteNaoSuportado("IFC2X3")).toBe(false);
+    expect(schemaProvavelmenteNaoSuportado("IFC4X3_ADD2")).toBe(false);
+  });
+  it("marca schemas exóticos e não bloqueia quando ausente", () => {
+    expect(schemaProvavelmenteNaoSuportado("IFC2X2")).toBe(true);
+    expect(schemaProvavelmenteNaoSuportado(null)).toBe(false);
+  });
+});
+
+describe("explicarErroConversao", () => {
+  it("memória", () => {
+    expect(explicarErroConversao("Out of memory: allocation failed")).toMatch(/memória insuficiente/i);
+  });
+  it("não-IFC / header", () => {
+    expect(explicarErroConversao("missing ISO-10303-21 header")).toMatch(/não é um IFC/i);
+  });
+  it("schema não suportado", () => {
+    expect(explicarErroConversao("unsupported schema IFC2X2")).toMatch(/schema IFC não suportad/i);
+  });
+  it("arquivo mal formado", () => {
+    expect(explicarErroConversao("Unexpected token at line 4")).toMatch(/mal formado ou incompleto/i);
+  });
+  it("timeout", () => {
+    expect(explicarErroConversao("Conversão excedeu 45 min e foi abortada.")).toMatch(/tempo limite/i);
+  });
+  it("preserva o teto de tamanho já amigável", () => {
+    const msg = "IFC de 3000 MB excede o limite de conversão (2 GB). Exporte por pavimento/setor no Revit.";
+    expect(explicarErroConversao(msg)).toBe(msg);
+  });
+  it("desconhecido preserva o texto cru", () => {
+    expect(explicarErroConversao("weird glitch 42")).toMatch(/Falha na conversão: weird glitch 42/);
+  });
+  it("vazio", () => {
+    expect(explicarErroConversao("")).toMatch(/desconhecido/i);
   });
 });

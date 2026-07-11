@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Boxes, RefreshCw, Loader2 } from "lucide-react";
+import { Boxes, RefreshCw, Loader2, AlertCircle } from "lucide-react";
 import { converterModelo } from "@/modules/coordenacao/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ export type ModeloRow = {
   enviadoEm: string;
   conversao: {
     status: string;
+    progresso?: number | null;
     tamanhoFrag: number | null;
     erro: string | null;
   } | null;
@@ -56,6 +57,17 @@ export function ConversaoStatusView({
   const router = useRouter();
   const [pendente, setPendente] = useState<string | null>(null);
   const [, start] = useTransition();
+
+  // Enquanto houver conversão em andamento, faz polling do estado (o job roda em
+  // background; a UI não é notificada). Para assim que tudo sai de fila/processando.
+  const emAndamentoGlobal = modelos.some(
+    (m) => m.conversao?.status === "fila" || m.conversao?.status === "processando",
+  );
+  useEffect(() => {
+    if (!emAndamentoGlobal) return;
+    const t = setInterval(() => router.refresh(), 2500);
+    return () => clearInterval(t);
+  }, [emAndamentoGlobal, router]);
 
   function converter(uploadId: string) {
     setPendente(uploadId);
@@ -103,18 +115,37 @@ export function ConversaoStatusView({
               </TableCell>
               <TableCell className="text-right">v{m.versao}</TableCell>
               <TableCell className="text-right font-mono text-xs">{tamanhoLegivel(m.tamanho)}</TableCell>
-              <TableCell>
+              <TableCell className="min-w-[220px]">
                 {st ? (
-                  <span className="flex items-center gap-2">
-                    <Badge variant={st.variant} title={m.conversao?.erro ?? undefined}>
-                      {st.label}
-                    </Badge>
-                    {m.conversao?.status === "concluido" && m.conversao.tamanhoFrag != null && (
-                      <span className="font-mono text-xs text-muted-foreground">
-                        {tamanhoLegivel(m.conversao.tamanhoFrag)}
-                      </span>
+                  <div className="space-y-1.5">
+                    <span className="flex items-center gap-2">
+                      <Badge variant={st.variant}>{st.label}</Badge>
+                      {m.conversao?.status === "processando" && m.conversao.progresso != null && (
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {m.conversao.progresso}%
+                        </span>
+                      )}
+                      {m.conversao?.status === "concluido" && m.conversao.tamanhoFrag != null && (
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {tamanhoLegivel(m.conversao.tamanhoFrag)}
+                        </span>
+                      )}
+                    </span>
+                    {m.conversao?.status === "processando" && (
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full bg-primary transition-all"
+                          style={{ width: `${m.conversao.progresso ?? 0}%` }}
+                        />
+                      </div>
                     )}
-                  </span>
+                    {m.conversao?.status === "erro" && m.conversao.erro && (
+                      <p className="flex items-start gap-1 text-xs text-destructive">
+                        <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+                        <span>{m.conversao.erro}</span>
+                      </p>
+                    )}
+                  </div>
                 ) : (
                   <Badge variant="outline">Não convertido</Badge>
                 )}

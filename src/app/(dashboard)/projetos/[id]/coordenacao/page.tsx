@@ -58,6 +58,7 @@ export default async function CoordenacaoPage({
     conversao: m.conversao
       ? {
           status: m.conversao.status,
+          progresso: m.conversao.progresso,
           tamanhoFrag: m.conversao.tamanhoFrag,
           erro: m.conversao.erro,
         }

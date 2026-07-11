@@ -12,6 +12,7 @@ export type ModeloCoordenacao = {
   enviadoEm: Date;
   conversao: {
     status: string;
+    progresso: number | null;
     caminhoFrag: string | null;
     tamanhoFrag: number | null;
     erro: string | null;
@@ -41,6 +42,7 @@ export async function modelosCoordenacao(projetoId: string): Promise<ModeloCoord
       conversao: {
         select: {
           status: true,
+          progresso: true,
           caminhoFrag: true,
           tamanhoFrag: true,
           erro: true,

@@ -3526,6 +3526,8 @@ model ConversaoModelo {
   upload      Upload    @relation(fields: [uploadId], references: [id], onDelete: Cascade)
   /// fila | processando | concluido | erro
   status      String    @default("fila")
+  /// Progresso 0–100 durante `processando` (reportado pelo converter). Barra na UI.
+  progresso   Int?
   /// Caminho relativo a STORAGE_BASE_PATH (nunca absoluto).
   caminhoFrag String?
   tamanhoFrag Int?
