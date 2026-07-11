@@ -142,8 +142,19 @@ export function explicarErroConversao(raw: string): string {
   if (/no geometry|sem geometria|empty model|no meshes|zero/.test(r)) {
     return "O IFC não tem geometria conversível (modelo vazio ou só com dados). Confira o que foi marcado na exportação IFC.";
   }
-  if (/excedeu.*min|timeout|abortada/.test(r)) {
+  if (/excedeu.*min|timeout|passou do tempo/.test(r)) {
     return "A conversão passou do tempo limite e foi abortada — o modelo é muito pesado. Exporte por disciplina/setor e reenvie.";
+  }
+  // Abort do WASM do web-ifc (Emscripten): o motor não conseguiu processar o IFC.
+  // Mensagem crua típica: "Aborted(). Build with -sASSERTIONS for more info."
+  if (/\baborted\b|assertions|sassertions|emscripten|wasm|unreachable/.test(r)) {
+    return (
+      "O motor de conversão não conseguiu processar este IFC. Costuma ser geometria " +
+      "não suportada, coordenadas absolutas muito distantes da origem, ou o arquivo " +
+      "grande/incompleto. Tente reexportar do Revit como IFC 2x3 (mais compatível) ou " +
+      "IFC 4 com a opção de coordenadas na origem/base do projeto; se for grande, " +
+      "exporte por pavimento/setor. Se persistir, envie o arquivo ao suporte."
+    );
   }
   // Desconhecido: preserva o texto cru para o suporte investigar.
   return `Falha na conversão: ${texto}`;

@@ -125,6 +125,11 @@ describe("explicarErroConversao", () => {
   it("timeout", () => {
     expect(explicarErroConversao("Conversão excedeu 45 min e foi abortada.")).toMatch(/tempo limite/i);
   });
+  it("abort do WASM (web-ifc)", () => {
+    const msg = explicarErroConversao("Aborted(). Build with -sASSERTIONS for more info.");
+    expect(msg).toMatch(/não conseguiu processar este IFC/i);
+    expect(msg).toMatch(/IFC 2x3/i);
+  });
   it("preserva o teto de tamanho já amigável", () => {
     const msg = "IFC de 3000 MB excede o limite de conversão (2 GB). Exporte por pavimento/setor no Revit.";
     expect(explicarErroConversao(msg)).toBe(msg);

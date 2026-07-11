@@ -157,7 +157,17 @@ export async function executarConversao(
   });
 
   // Erro depois de gravar parcial: garante que não sobra .frag pela metade.
-  if (final.status === "erro") await removerArquivo(fragRel);
+  if (final.status === "erro") {
+    await removerArquivo(fragRel);
+    // O banco guarda a mensagem amigável; o texto CRU (ex.: "Aborted()" +
+    // saída do Emscripten) fica no log do servidor para o suporte diagnosticar
+    // o arquivo específico que falhou.
+    console.error(
+      `[coordenacao] conversão ${conv.id} (upload ${upload.id}) falhou — bruto:`,
+      bruto,
+      saida.stderr ? `\nstderr: ${saida.stderr.slice(0, 2000)}` : "",
+    );
+  }
 
   await prisma.conversaoModelo.update({
     where: { id: conv.id },
