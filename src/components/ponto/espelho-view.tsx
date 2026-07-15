@@ -122,7 +122,7 @@ function LinhaDia({
   const [aberto, setAberto] = useState(false);
   const primeiro = dia.descansos[0];
   const meta = STATUS_META[dia.status];
-  const podeExpandir = dia.temMultiplosDescansos || dia.batidas.length > 0 || !!dia.ajuste;
+  const podeExpandir = dia.temMultiplosDescansos || dia.batidas.length > 0 || dia.ajustes.length > 0;
   // Dias futuros (agendados) não são editáveis.
   const editavel = podeEditar && dia.status !== "agendado";
 
@@ -170,11 +170,11 @@ function LinhaDia({
         <td className="px-2 py-1.5 text-center">
           <span className="inline-flex items-center gap-1">
             <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
-            {dia.ajuste && (
+            {dia.ajustes.length > 0 && (
               <span
                 role="img"
-                aria-label={`Ajustado por ${dia.ajuste.editorNome} em ${formatarDataHora(dia.ajuste.em)} — Motivo: ${dia.ajuste.justificativa}`}
-                title={`Ajustado por ${dia.ajuste.editorNome} em ${formatarDataHora(dia.ajuste.em)}\nMotivo: ${dia.ajuste.justificativa}`}
+                aria-label={`Ajustado por ${dia.ajustes[0].editorNome} em ${formatarDataHora(dia.ajustes[0].em)}${dia.ajustes.length > 1 ? ` (${dia.ajustes.length} ajustes)` : ""} — Motivo: ${dia.ajustes[0].justificativa}`}
+                title={`Ajustado por ${dia.ajustes[0].editorNome} em ${formatarDataHora(dia.ajustes[0].em)}${dia.ajustes.length > 1 ? ` (${dia.ajustes.length} ajustes)` : ""}\nMotivo: ${dia.ajustes[0].justificativa}`}
               >
                 <History className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
               </span>
@@ -195,16 +195,31 @@ function LinhaDia({
         <tr className="bg-muted/20">
           <td colSpan={11} className="px-4 py-2">
             <div className="flex flex-col gap-2 text-xs">
-              {dia.ajuste && (
-                <div className="flex items-start gap-1.5 rounded-sm border border-info/30 bg-info/5 px-2 py-1.5 text-info">
-                  <History className="mt-0.5 size-3.5 shrink-0" />
-                  <div>
-                    <span className="font-medium">
-                      {dia.ajuste.proprio ? "Ajuste próprio" : `Ajustado por ${dia.ajuste.editorNome}`} em{" "}
-                      {formatarDataHora(dia.ajuste.em)}
+              {dia.ajustes.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  {dia.ajustes.length > 1 && (
+                    <span className="font-medium text-info">
+                      Histórico de ajustes ({dia.ajustes.length})
                     </span>
-                    <p className="text-muted-foreground">Motivo: {dia.ajuste.justificativa}</p>
-                  </div>
+                  )}
+                  {dia.ajustes.map((aj, i) => (
+                    <div
+                      key={i}
+                      className="flex items-start gap-1.5 rounded-sm border border-info/30 bg-info/5 px-2 py-1.5 text-info"
+                    >
+                      <History className="mt-0.5 size-3.5 shrink-0" />
+                      <div>
+                        <span className="font-medium">
+                          {aj.proprio ? "Ajuste próprio" : `Ajustado por ${aj.editorNome}`} em{" "}
+                          {formatarDataHora(aj.em)}
+                        </span>
+                        <p className="text-muted-foreground">Motivo: {aj.justificativa}</p>
+                        <p className="font-mono text-muted-foreground">
+                          {aj.antes} → {aj.depois}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
               {dia.descansos.length > 0 && (

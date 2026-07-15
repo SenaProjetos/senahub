@@ -426,6 +426,8 @@ export type AjusteDiaInfo = {
   justificativa: string;
   proprio: boolean;
   em: string; // ISO datetime
+  antes: string; // resumo dos horários antes da edição ("04:00–12:00")
+  depois: string; // resumo dos horários depois da edição
 };
 
 export type DiaEspelhoDetalhe = {
@@ -445,8 +447,8 @@ export type DiaEspelhoDetalhe = {
   atrasoMin: number;
   status: StatusDiaEspelho;
   batidas: BatidaDetalhe[];
-  /** Último ajuste registrado no dia (motivo + autor) — histórico completo, não só pendências de ciência. */
-  ajuste: AjusteDiaInfo | null;
+  /** TODOS os ajustes do dia (mais recente primeiro) — histórico completo de edições. */
+  ajustes: AjusteDiaInfo[];
 };
 
 export type EspelhoDetalhado = {
@@ -484,6 +486,22 @@ function resumoBatidasDia(bat: { tipo: TipoBatida; horario: Date }[]): {
     }
   }
   return { entrada, saida, descansos };
+}
+
+/** Resume um snapshot de batidas (JSON do AjustePonto) em "entrada–saída (· N desc.)". */
+function resumoSnapshot(snap: unknown): string {
+  if (!Array.isArray(snap) || snap.length === 0) return "sem batidas";
+  const bat = snap
+    .filter(
+      (x): x is { tipo: TipoBatida; horario: string } =>
+        !!x && typeof x === "object" && "tipo" in x && "horario" in x,
+    )
+    .map((x) => ({ tipo: x.tipo, horario: new Date(x.horario) }));
+  const r = resumoBatidasDia(bat);
+  const ent = r.entrada ? horaLocal(r.entrada) : "—";
+  const sai = r.saida ? horaLocal(r.saida) : "—";
+  const desc = r.descansos.length > 0 ? ` · ${r.descansos.length} desc.` : "";
+  return `${ent}–${sai}${desc}`;
 }
 
 /**
@@ -536,17 +554,28 @@ export async function espelhoDetalhado(
       justificativa: true,
       proprio: true,
       createdAt: true,
+      snapshotAntes: true,
+      snapshotDepois: true,
       editor: { select: { name: true } },
     },
   });
-  // Mais de um ajuste no mesmo dia é possível — mantém o status/motivo do MAIS RECENTE (createdAt asc + overwrite no Map).
+  // Mais de um ajuste no mesmo dia é possível — status do dia usa o MAIS RECENTE (createdAt asc + overwrite no Map).
   const ajustePorDia = new Map(ajustes.map((a) => [a.dia.toISOString().slice(0, 10), a.status]));
-  const ajusteInfoPorDia = new Map<string, AjusteDiaInfo>(
-    ajustes.map((a) => [
-      a.dia.toISOString().slice(0, 10),
-      { editorNome: a.editor.name, justificativa: a.justificativa, proprio: a.proprio, em: a.createdAt.toISOString() },
-    ]),
-  );
+  // Histórico COMPLETO por dia: mais recente primeiro (ajustes vêm asc → unshift).
+  const ajusteInfoPorDia = new Map<string, AjusteDiaInfo[]>();
+  for (const a of ajustes) {
+    const iso = a.dia.toISOString().slice(0, 10);
+    const arr = ajusteInfoPorDia.get(iso) ?? [];
+    arr.unshift({
+      editorNome: a.editor.name,
+      justificativa: a.justificativa,
+      proprio: a.proprio,
+      em: a.createdAt.toISOString(),
+      antes: resumoSnapshot(a.snapshotAntes),
+      depois: resumoSnapshot(a.snapshotDepois),
+    });
+    ajusteInfoPorDia.set(iso, arr);
+  }
 
   const feriadosAno = await listarFeriados(ano);
   const prefixo = `${ano}-${pad2(mes)}-`;
@@ -612,7 +641,7 @@ export async function espelhoDetalhado(
         geo: b.geo,
         editada: b.editada,
       })),
-      ajuste: ajusteInfoPorDia.get(iso) ?? null,
+      ajustes: ajusteInfoPorDia.get(iso) ?? [],
     });
   }
 
