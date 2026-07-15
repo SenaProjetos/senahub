@@ -34,6 +34,10 @@ describe("formatarData", () => {
   it("não perde um dia com Date em meia-noite UTC (retorno de campo @db.Date do Prisma)", () => {
     expect(formatarData(new Date(Date.UTC(2026, 6, 9)))).toBe("09/07/2026");
   });
+  it("não perde um dia com string ISO em meia-noite UTC (@db.Date serializado com toISOString)", () => {
+    // Ex.: prazo de disciplina emitido como new Date(prazo).toISOString().
+    expect(formatarData("2026-07-15T00:00:00.000Z")).toBe("15/07/2026");
+  });
 });
 
 describe("formatarDataHora", () => {

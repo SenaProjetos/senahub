@@ -10,6 +10,7 @@ import { gravarSnapshotDashboard } from "@/modules/dashboard/queries";
 import { gravarSnapshotLicitacaoMensal } from "@/modules/licitacoes/dashboard/queries";
 import { CLT_ROLES } from "@/lib/roles";
 import { formatarCodigo } from "@/modules/projetos/numbering";
+import { formatarData } from "@/lib/utils";
 import { getConfigLicitacoes } from "@/modules/licitacoes/config/queries";
 import { ehRecurso, TIPO_EVENTO_LABEL, type TipoEventoLicitacao } from "@/modules/licitacoes/eventos/eventos";
 import { eventosParaNotificar } from "@/modules/licitacoes/eventos/alertas";
@@ -96,7 +97,7 @@ export async function alertaInadimplencia(): Promise<number> {
     );
     if (comEmail && l.cliente?.email) {
       const valor = Number(l.valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-      const venc = l.vencimento ? l.vencimento.toLocaleDateString("pt-BR") : "—";
+      const venc = l.vencimento ? formatarData(l.vencimento) : "—";
       await enviarEmailTemplate(l.cliente.email, "lembrete-pagamento", {
         nomeCliente: l.cliente.nome,
         descricao: l.descricao,

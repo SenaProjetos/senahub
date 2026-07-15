@@ -45,6 +45,9 @@ describe("motor de tokens dos documentos", () => {
     expect(formatar(1234.5, "n0")).toBe("1.235");
     expect(formatar(12.345, "p1")).toBe("12,3%");
     expect(formatar(new Date(2026, 5, 9), "d")).toBe("09/06/2026");
+    // @db.Date chega como meia-noite UTC — não pode recuar um dia em fusos atrás de UTC.
+    expect(formatar(new Date(Date.UTC(2026, 6, 15)), "d")).toBe("15/07/2026");
+    expect(formatar(new Date(Date.UTC(2026, 6, 15)))).toBe("15/07/2026");
   });
 
   it("Pagina/Paginas/Hoje", () => {

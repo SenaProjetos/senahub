@@ -18,6 +18,8 @@
  *     c2=moeda BRL · d=data pt-BR · p0/p1/p2=percentual · n0/n2=número
  */
 
+import { formatarData } from "@/lib/utils";
+
 export type Escalar = Record<string, unknown>;
 export type Linha = Record<string, unknown>;
 
@@ -40,13 +42,14 @@ const RE_AGG = /^(Sum|Count|Avg|Min|Max)\(([^)]*)\)$/i;
 export function formatar(valor: unknown, fmt?: string): string {
   if (valor === null || valor === undefined) return "";
   if (!fmt) {
-    if (valor instanceof Date) return valor.toLocaleDateString("pt-BR");
+    // formatarData normaliza @db.Date (meia-noite UTC) p/ o dia local — sem shift de fuso.
+    if (valor instanceof Date) return formatarData(valor);
     return String(valor);
   }
   const f = fmt.toLowerCase();
   if (f === "d") {
-    const d = valor instanceof Date ? valor : new Date(String(valor));
-    return isNaN(d.getTime()) ? String(valor) : d.toLocaleDateString("pt-BR");
+    const s = valor instanceof Date ? formatarData(valor) : formatarData(String(valor));
+    return s || String(valor);
   }
   const n = typeof valor === "number" ? valor : Number(valor);
   if (isNaN(n)) return String(valor);
