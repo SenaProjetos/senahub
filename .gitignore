@@ -65,3 +65,8 @@ deploy/gui/**/bin/
 deploy/gui/**/obj/
 deploy/gui/**/publish/
 deploy/gui/**/*.csproj.user
+
+# design-sync (ferramenta externa de sync do design system — artefatos locais, node_modules)
+/.design-sync/
+/.ds-sync/
+/ds-bundle/
