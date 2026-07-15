@@ -124,10 +124,12 @@ export async function listarCanais(userId: string, role?: string) {
       outroUserStatus: m.canal.tipo === "dm" ? (outro?.chatStatus ?? null) : null,
       ultima: ultima
         ? {
+            id: ultima.id,
             conteudo: ultima.conteudo,
             autor: ultima.autor.name,
             createdAt: ultima.createdAt,
             anexoTipo: tipoAnexoUltima(ultima.anexoMime, ultima.anexos.map((a) => a.mime)),
+            excluida: ultima.excluidaEm != null,
           }
         : null,
       naoLidas,
@@ -184,10 +186,12 @@ export async function listarCanais(userId: string, role?: string) {
       outroUserStatus: null,
       ultima: ultima
         ? {
+            id: ultima.id,
             conteudo: ultima.conteudo,
             autor: ultima.autor.name,
             createdAt: ultima.createdAt,
             anexoTipo: tipoAnexoUltima(ultima.anexoMime, ultima.anexos.map((a) => a.mime)),
+            excluida: ultima.excluidaEm != null,
           }
         : null,
       naoLidas: 0,

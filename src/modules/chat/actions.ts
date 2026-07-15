@@ -4,12 +4,16 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificar, type NotificacaoInput } from "@/lib/notificar";
+import { enviarPush } from "@/lib/push";
 import { emitParaCanal, emitParaUsuario, usuarioOnline } from "@/lib/socket";
 import { getOrCreateDM } from "@/modules/chat/service";
 import { DM_ROLES_EXCLUIDAS } from "@/modules/chat/roles";
 import { randomBytes } from "node:crypto";
 import { removerArquivo, salvarArquivo, lerArquivo } from "@/lib/storage";
 import { extrairMencoes, mencionouTodos } from "@/modules/chat/mencoes";
+import { textoParaPreview } from "@/modules/chat/formatacao";
+import { FILA_MENSAGEM_AGENDADA, validarAgendamento, type MensagemAgendadaJob } from "@/modules/chat/agendamento";
+import { getBoss } from "@/lib/jobs";
 import { agregarReacoes, detalhesMensagem } from "@/modules/chat/queries";
 
 const base = { modulo: "chat" } as const;
@@ -27,7 +31,7 @@ function montarNotificacaoMensagem(
     titulo: opcoes?.mencao
       ? `Você foi mencionado por ${autorNome}`
       : `Mensagem de ${autorNome}`,
-    corpo: conteudo ? conteudo.slice(0, 120) : "📎 Anexo",
+    corpo: conteudo ? textoParaPreview(conteudo).slice(0, 120) : "📎 Anexo",
     href: `/chat?c=${canalId}`,
     tag: `chat-${canalId}`,
   };
@@ -72,31 +76,34 @@ async function notificarMembros(canalId: string, autorId: string, autorNome: str
     },
   });
   const membros = canal?.membros ?? [];
-  const offline = membros.filter((m) => m.userId !== autorId && !usuarioOnline(m.userId));
+  const destinatarios = membros.filter((m) => m.userId !== autorId);
 
   // @todos / @all notificam todos os membros do canal (exceto o autor).
   const mencionadosNomes = extrairMencoes(conteudo).map((t) => t.slice(1).toLowerCase());
   const todos = mencionouTodos(conteudo);
   const mencionadosIds = new Set(
-    membros
-      .filter((m) => m.userId !== autorId && (todos || mencionadosNomes.includes(m.user.name.split(" ")[0].toLowerCase())))
+    destinatarios
+      .filter((m) => todos || mencionadosNomes.includes(m.user.name.split(" ")[0].toLowerCase()))
       .map((m) => m.userId),
   );
 
+  // Push vai para TODOS os destinatários, mesmo online em outro dispositivo (ex.:
+  // desktop aberto, celular no bolso) — o SW suprime a notificação quando há uma
+  // janela do app focada. O sino mantém a regra antiga: offline sempre; online só
+  // quando mencionado (o socket já cuida do badge/toast ao vivo).
   await Promise.all(
-    offline.map((m) => {
-      const opcoes = mencionadosIds.has(m.userId) ? { mencao: true } : undefined;
-      return notificar(m.userId, montarNotificacaoMensagem(autorNome, conteudo, canalId, opcoes), {
-        push: !m.silenciado && m.user.chatStatus !== "reuniao",
-      });
+    destinatarios.map(async (m) => {
+      const mencao = mencionadosIds.has(m.userId);
+      const n = montarNotificacaoMensagem(autorNome, conteudo, canalId, mencao ? { mencao: true } : undefined);
+      const push = !m.silenciado && m.user.chatStatus !== "reuniao";
+      if (!usuarioOnline(m.userId)) {
+        await notificar(m.userId, n, { push });
+        return;
+      }
+      if (mencao) await notificar(m.userId, n, { push: false });
+      if (push) await enviarPush(m.userId, { title: n.titulo, body: n.corpo, url: n.href, tag: n.tag });
     }),
   );
-  // Mencionados online: só sino (sem push — o socket já cuida do badge/toast).
-  for (const uid of mencionadosIds) {
-    if (usuarioOnline(uid)) {
-      void notificar(uid, montarNotificacaoMensagem(autorNome, conteudo, canalId, { mencao: true }), { push: false });
-    }
-  }
 }
 
 /**
@@ -176,6 +183,121 @@ export const enviarMensagem = defineAction(
     await notificarMembros(i.canalId, user.id, msg.autor.name, i.conteudo);
 
     return payload;
+  },
+);
+
+/**
+ * Anexa um arquivo JÁ existente do projeto do canal, sem reupload. COPIA o arquivo
+ * para a área do chat (arquivo independente) — assim excluir a mensagem nunca apaga
+ * o upload original do projeto. Só permite anexar arquivos do próprio projeto do canal.
+ */
+export const anexarUploadDoProjeto = defineAction(
+  {
+    ...base,
+    acao: "anexar-upload-projeto",
+    entidade: "Mensagem",
+    audit: false,
+    schema: z.object({
+      canalId: z.string().min(1),
+      uploadId: z.string().min(1),
+      conteudo: z.string().max(4000).optional(),
+    }),
+  },
+  async (i, { user }) => {
+    await exigirMembro(i.canalId, user.id);
+
+    const canal = await prisma.canal.findUnique({
+      where: { id: i.canalId },
+      select: { projetoId: true, disciplina: { select: { projetoId: true } } },
+    });
+    const projetoIdCanal = canal?.projetoId ?? canal?.disciplina?.projetoId ?? null;
+    if (!projetoIdCanal) throw new ActionError("Este canal não está vinculado a um projeto.");
+
+    const upload = await prisma.upload.findFirst({
+      where: { id: i.uploadId, excluidoEm: null },
+      select: {
+        nomeArquivo: true,
+        caminho: true,
+        mimeType: true,
+        disciplina: { select: { projetoId: true } },
+      },
+    });
+    if (!upload) throw new ActionError("Arquivo não encontrado.");
+    if (upload.disciplina.projetoId !== projetoIdCanal) {
+      throw new ActionError("Só é possível anexar arquivos do projeto deste canal.");
+    }
+
+    // Copia o arquivo para a área do chat (independente do original).
+    const sufixo = upload.nomeArquivo.includes(".")
+      ? upload.nomeArquivo.slice(upload.nomeArquivo.lastIndexOf("."))
+      : "";
+    const rel = `chat/${i.canalId}/${randomBytes(12).toString("hex")}${sufixo}`;
+    const buf = await lerArquivo(upload.caminho);
+    await salvarArquivo(rel, buf);
+
+    const conteudo = i.conteudo?.trim() ?? "";
+    const msg = await prisma.mensagem.create({
+      data: {
+        canalId: i.canalId,
+        autorId: user.id,
+        conteudo,
+        anexos: {
+          create: [{ path: rel, nome: upload.nomeArquivo, mime: upload.mimeType ?? "application/octet-stream", ordem: 0 }],
+        },
+      },
+      include: {
+        autor: { select: { id: true, name: true, image: true } },
+        anexos: { select: { id: true, nome: true, mime: true }, orderBy: { ordem: "asc" } },
+      },
+    });
+
+    const payload = {
+      id: msg.id,
+      canalId: i.canalId,
+      conteudo: msg.conteudo,
+      fixada: false,
+      editedAt: null,
+      excluidaEm: null,
+      encaminhada: false,
+      anexoMime: null,
+      anexoNome: null,
+      anexos: msg.anexos,
+      autor: { id: msg.autor.id, name: msg.autor.name, image: msg.autor.image },
+      createdAt: msg.createdAt,
+      reacoes: [] as ReturnType<typeof agregarReacoes>,
+      respostaA: null,
+    };
+    emitParaCanal(i.canalId, "mensagem", payload);
+    await marcarEntreguesOnline(i.canalId, msg.id, user.id);
+    await notificarMembros(i.canalId, user.id, msg.autor.name, conteudo || `📎 ${upload.nomeArquivo}`);
+    return payload;
+  },
+);
+
+/**
+ * Agenda o envio de uma mensagem para um horário futuro (via pg-boss `startAfter`).
+ * Requer o servidor de jobs ativo (`dev:server`/produção) — em `npm run dev` retorna erro.
+ */
+export const agendarMensagem = defineAction(
+  {
+    ...base,
+    acao: "agendar-mensagem",
+    entidade: "Mensagem",
+    schema: z.object({
+      canalId: z.string().min(1),
+      conteudo: z.string().min(1).max(4000),
+      quando: z.string().min(1),
+    }),
+  },
+  async (i, { user }) => {
+    await exigirMembro(i.canalId, user.id);
+    const v = validarAgendamento(i.quando);
+    if (!v.ok) throw new ActionError(v.erro);
+    const boss = getBoss();
+    if (!boss) throw new ActionError("Agendamento indisponível: o servidor de tarefas não está ativo.");
+    const dados: MensagemAgendadaJob = { canalId: i.canalId, autorId: user.id, conteudo: i.conteudo };
+    await boss.send(FILA_MENSAGEM_AGENDADA, dados, { startAfter: v.date });
+    return { quando: v.date.toISOString() };
   },
 );
 
