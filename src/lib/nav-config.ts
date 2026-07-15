@@ -29,6 +29,8 @@ import {
   IdCard,
   FolderArchive,
   ClipboardCheck,
+  Library,
+  BookMarked,
   type LucideIcon,
 } from "lucide-react";
 import type { Role } from "@/lib/roles";
@@ -229,6 +231,18 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Calculator,
         roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"],
         mobile: true,
+      },
+      {
+        title: "Padrões Técnicos",
+        href: "/engenharia/padroes",
+        icon: Library,
+        roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"],
+      },
+      {
+        title: "Normas Técnicas",
+        href: "/engenharia/normas",
+        icon: BookMarked,
+        roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"],
       },
     ],
   },

@@ -152,6 +152,15 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     ],
   },
   {
+    recurso: "biblioteca_tecnica",
+    label: "Biblioteca técnica (Padrões e Normas)",
+    acoes: [
+      { acao: "ver", label: "Ver padrões técnicos e normas catalogadas" },
+      { acao: "incluir", label: "Incluir novos padrões e normas" },
+      { acao: "gerir", label: "Editar/excluir padrões e normas de qualquer autor" },
+    ],
+  },
+  {
     recurso: "patrimonio",
     label: "Patrimônio / Ativos",
     acoes: [

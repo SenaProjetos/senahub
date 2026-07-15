@@ -522,7 +522,55 @@ model DisciplinaCatalogo {
   ativo     Boolean @default(true)
   ordem     Int     @default(0)
 
+  padroes PadraoTecnico[]
+
   @@map("disciplina_catalogo")
+}
+
+/// Biblioteca de padrões técnicos por disciplina (pranchas, carimbos, detalhes, notas).
+/// Reaproveita o storage de arquivos (arquivoPath relativo ao STORAGE_BASE_PATH).
+model PadraoTecnico {
+  id           String              @id @default(cuid())
+  titulo       String
+  descricao    String?
+  /// Tipo do padrão: prancha | carimbo | detalhe | nota | outro (texto livre).
+  tipo         String?
+  disciplinaId String?
+  disciplina   DisciplinaCatalogo? @relation(fields: [disciplinaId], references: [id])
+  arquivoPath  String
+  arquivoNome  String
+  mime         String?
+  tamanho      Int
+  hashSha256   String?
+  autorId      String
+  ativo        Boolean             @default(true)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([disciplinaId])
+  @@map("padrao_tecnico")
+}
+
+/// Catálogo de normas técnicas (upload de PDF + número/título/ano da versão).
+model NormaTecnica {
+  id          String   @id @default(cuid())
+  /// Número da norma (ex.: "NBR 6118").
+  numero      String
+  titulo      String
+  /// Ano da versão vigente enviada.
+  ano         Int
+  arquivoPath String
+  arquivoNome String
+  mime        String?
+  tamanho     Int
+  hashSha256  String?
+  autorId     String
+  ativo       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([numero])
+  @@map("norma_tecnica")
 }
 
 /// Sequência atômica do número AAXXXX por ano.

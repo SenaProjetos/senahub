@@ -146,6 +146,21 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "estagiario", recurso: "coordenacao", acao: "ver" },
   { role: "projetista_pj", recurso: "coordenacao", acao: "ver" },
   { role: "freelancer", recurso: "coordenacao", acao: "ver" },
+  // Biblioteca técnica (Engenharia): todos internos veem e incluem padrões/normas;
+  // editar/excluir de terceiros (`gerir`) fica com admin (bypass) + supervisor.
+  { role: "supervisor", recurso: "biblioteca_tecnica", acao: "ver" },
+  { role: "supervisor", recurso: "biblioteca_tecnica", acao: "incluir" },
+  { role: "supervisor", recurso: "biblioteca_tecnica", acao: "gerir" },
+  { role: "administrativo", recurso: "biblioteca_tecnica", acao: "ver" },
+  { role: "administrativo", recurso: "biblioteca_tecnica", acao: "incluir" },
+  { role: "clt", recurso: "biblioteca_tecnica", acao: "ver" },
+  { role: "clt", recurso: "biblioteca_tecnica", acao: "incluir" },
+  { role: "estagiario", recurso: "biblioteca_tecnica", acao: "ver" },
+  { role: "estagiario", recurso: "biblioteca_tecnica", acao: "incluir" },
+  { role: "projetista_pj", recurso: "biblioteca_tecnica", acao: "ver" },
+  { role: "projetista_pj", recurso: "biblioteca_tecnica", acao: "incluir" },
+  { role: "freelancer", recurso: "biblioteca_tecnica", acao: "ver" },
+  { role: "freelancer", recurso: "biblioteca_tecnica", acao: "incluir" },
 ];
 
 /** Plano de contas inicial. Códigos usados na auto-categorização de pagamentos. */
