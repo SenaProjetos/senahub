@@ -8,15 +8,23 @@ import { statusValidacao } from "@/modules/uploads/validacao";
  * coluna no banco). A pasta "Geral" foi absorvida pelo repositório unificado
  * `Documento` (origem=interno) na Fase 5a — ver `geralDoProjeto` em
  * `modules/documentos-cliente/queries.ts`.
- * `podeEnviar` por disciplina reflete a regra do /api/uploads (responsável ou global).
+ * `podeEnviar` por disciplina reflete a regra do /api/uploads (responsável ou global,
+ * E capability `arquivos:enviar`).
+ *
+ * Muralha por disciplina (recurso `arquivos`): quando `veTodas` é false, o usuário só
+ * enxerga as disciplinas onde é responsável — mesma regra da rota de download. Global
+ * e quem tem `arquivos:ver_todas_disciplinas` recebem `veTodas=true`.
  */
 export async function arvoreArquivosProjeto(
   projetoId: string,
   userId: string,
   ehGlobal: boolean,
+  opts: { veTodas?: boolean; podeEnviarCap?: boolean } = {},
 ) {
+  const veTodas = opts.veTodas ?? ehGlobal;
+  const podeEnviarCap = opts.podeEnviarCap ?? ehGlobal;
   const disciplinas = await prisma.disciplina.findMany({
-    where: { projetoId },
+    where: veTodas ? { projetoId } : { projetoId, responsaveis: { some: { userId } } },
     orderBy: { ordem: "asc" },
     select: {
       id: true,
@@ -58,7 +66,7 @@ export async function arvoreArquivosProjeto(
       id: d.id,
       nome: d.nome,
       finalizado: d.status === "aprovado",
-      podeEnviar: ehGlobal || d.responsaveis.some((r) => r.userId === userId),
+      podeEnviar: podeEnviarCap && (ehGlobal || d.responsaveis.some((r) => r.userId === userId)),
       // Progresso da validação parcial (só entregáveis: pacote A/B, versão atual).
       resumo: statusValidacao(
         d.uploads.map((u) => ({

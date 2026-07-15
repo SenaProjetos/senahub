@@ -9,6 +9,7 @@ import { lixeiraDoProjeto } from "@/modules/uploads/queries";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import { recebidosDoProjeto, geralDoProjeto, clienteDoProjeto } from "@/modules/documentos-cliente/queries";
 import { podeGerirDocumento } from "@/modules/documentos-cliente/acesso";
+import { podeVerTodasDisciplinas, podeEnviarArquivo } from "@/modules/arquivos/acesso";
 import { ArquivosExplorer } from "@/components/projetos/arquivos-explorer";
 
 export const metadata: Metadata = { title: "Arquivos" };
@@ -20,9 +21,13 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
   if (!projeto) notFound();
 
   const ehGlobal = user.role === "admin" || GLOBAL_ROLES.includes(user.role);
+  const [veTodas, podeEnviarCap] = await Promise.all([
+    podeVerTodasDisciplinas(user),
+    podeEnviarArquivo(user.role),
+  ]);
   const [arvore, podeVerGeral, podeGerirGeral, podeValidar, nomenclatura, recebidos, clienteId, podeGerirRecebidos] =
     await Promise.all([
-      arvoreArquivosProjeto(id, user.id, ehGlobal),
+      arvoreArquivosProjeto(id, user.id, ehGlobal, { veTodas, podeEnviarCap }),
       can(user.role, "arquivos_gerais", "ver"),
       can(user.role, "arquivos_gerais", "gerir"),
       can(user.role, "uploads", "validar"),

@@ -3,6 +3,9 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { GLOBAL_ROLES } from "@/lib/roles";
+import { podeEnviarArquivo } from "@/modules/arquivos/acesso";
+import { notificarMuitos } from "@/lib/notificar";
+import { formatarCodigo } from "@/modules/projetos/numbering";
 import { salvarArquivo, removerArquivo, slug, nomeArquivoLimpo, type ArquivoSalvo } from "@/lib/storage";
 import { montarChunksEm, limparChunks } from "@/lib/upload-chunks";
 import { destinoArquivo, extensao, limiteDoPacote, limiteLabelDoPacote, type PacoteAlvo } from "@/modules/uploads/service";
@@ -62,8 +65,18 @@ export async function POST(req: Request) {
       { status: 403 },
     );
   }
+  // Capability de envio (recurso `arquivos`). Global passa direto; os demais precisam de
+  // `arquivos:enviar` (configurável na matriz de permissões).
+  if (!ehGlobal && !(await podeEnviarArquivo(user.role))) {
+    return NextResponse.json(
+      { error: "Sem permissão para enviar arquivos." },
+      { status: 403 },
+    );
+  }
 
-  const { projeto } = disciplina;
+  // Refs não-nulas p/ uso dentro de closures (o narrowing do guard `!disciplina` não
+  // atravessa funções aninhadas como `avisarValidadores`).
+  const { projeto, nome: disciplinaNome } = disciplina;
   // Item 15: nomenclatura usa a sigla do catálogo (ex.: ELE) quando existir; senão, o nome.
   const cat = await prisma.disciplinaCatalogo.findFirst({
     where: { nome: disciplina.nome },
@@ -125,6 +138,32 @@ export async function POST(req: Request) {
     return { nome, ok: true, pacote: destino, realocado };
   }
 
+  /**
+   * Avisa os validadores (admin/supervisor) quando entregáveis novos (pacote A/B)
+   * entram na fila de aprovação. RECEBIDOS/OUTROS não passam por validação, logo não
+   * notificam. Respeita opt-out (categoria `aprovacao_arquivo`). Nunca derruba o upload.
+   */
+  async function avisarValidadores(rs: Resultado[]) {
+    const novos = rs.filter((r) => r.ok && (r.pacote === "A" || r.pacote === "B")).length;
+    if (novos <= 0) return;
+    const validadores = await prisma.user.findMany({
+      where: { ativo: true, role: { in: ["admin", "supervisor"] }, id: { not: user.id } },
+      select: { id: true },
+    });
+    if (validadores.length === 0) return;
+    const codigo = formatarCodigo(projeto.codigo);
+    await notificarMuitos(
+      validadores.map((v) => v.id),
+      {
+        titulo: "Arquivo aguardando validação",
+        corpo: `${disciplinaNome} (${codigo}): ${novos} arquivo(s) novo(s) para validar.`,
+        href: `/projetos/${projeto.id}/arquivos`,
+        tag: `aprovacao-${disciplinaId}`,
+      },
+      { categoria: "aprovacao_arquivo" },
+    );
+  }
+
   const resultados: Resultado[] = [];
 
   // ── Modo chunked (arquivos grandes p/ contornar o limite de 100 MB do Cloudflare) ──
@@ -174,6 +213,9 @@ export async function POST(req: Request) {
       detalhe: { pacote: alvo, total: 1, ok: resultados.filter((r) => r.ok).length, chunked: true },
       ip: await getClientIp(),
     });
+    await avisarValidadores(resultados).catch((e) =>
+      console.error("[upload] falha ao notificar validadores:", e),
+    );
     return NextResponse.json({ resultados });
   }
 
@@ -213,6 +255,10 @@ export async function POST(req: Request) {
     detalhe: { pacote: alvo, total: arquivos.length, ok: resultados.filter((r) => r.ok).length },
     ip: await getClientIp(),
   });
+
+  await avisarValidadores(resultados).catch((e) =>
+    console.error("[upload] falha ao notificar validadores:", e),
+  );
 
   return NextResponse.json({ resultados });
 }

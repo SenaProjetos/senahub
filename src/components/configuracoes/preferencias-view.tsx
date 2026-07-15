@@ -46,6 +46,7 @@ export function PreferenciasView({
   notifRiscoProjeto: notifRiscoProjetoInicial,
   notifLembretePonto: notifLembretePontoInicial,
   notifCoordenacao: notifCoordenacaoInicial,
+  notifAprovacaoArquivo: notifAprovacaoArquivoInicial,
   pontoEmailModo: pontoEmailModoInicial,
   mostrarAlertasPonto,
 }: {
@@ -60,6 +61,7 @@ export function PreferenciasView({
   notifRiscoProjeto: boolean;
   notifLembretePonto: boolean;
   notifCoordenacao: boolean;
+  notifAprovacaoArquivo: boolean;
   pontoEmailModo: PontoEmailModo;
   /** Alertas de jornada por horário são só p/ CLT/estagiário — controla a seção de e-mail. */
   mostrarAlertasPonto: boolean;
@@ -74,6 +76,7 @@ export function PreferenciasView({
   const [notifRiscoProjeto, setNotifRiscoProjeto] = useState(notifRiscoProjetoInicial);
   const [notifLembretePonto, setNotifLembretePonto] = useState(notifLembretePontoInicial);
   const [notifCoordenacao, setNotifCoordenacao] = useState(notifCoordenacaoInicial);
+  const [notifAprovacaoArquivo, setNotifAprovacaoArquivo] = useState(notifAprovacaoArquivoInicial);
   const [pontoEmailModo, setPontoEmailModo] = useState<PontoEmailModo>(pontoEmailModoInicial);
   const [, start] = useTransition();
 
@@ -158,6 +161,13 @@ export function PreferenciasView({
       descricao: "Conversão de modelos IFC e apontamentos de compatibilização.",
       valor: notifCoordenacao,
       set: setNotifCoordenacao,
+    },
+    {
+      chave: "notif_aprovacao_arquivo",
+      titulo: "Arquivos para validação",
+      descricao: "Aviso quando um novo entregável é enviado e aguarda sua aprovação.",
+      valor: notifAprovacaoArquivo,
+      set: setNotifAprovacaoArquivo,
     },
   ];
 

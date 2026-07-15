@@ -41,6 +41,19 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     ],
   },
   {
+    recurso: "arquivos",
+    label: "Arquivos do projeto (Diretório)",
+    acoes: [
+      { acao: "ver", label: "Ver o Diretório de arquivos" },
+      { acao: "baixar", label: "Baixar/abrir arquivos" },
+      {
+        acao: "ver_todas_disciplinas",
+        label: "Ver arquivos de todas as disciplinas do projeto (senão, só as próprias)",
+      },
+      { acao: "enviar", label: "Enviar arquivos (pelo projeto)" },
+    ],
+  },
+  {
     recurso: "financeiro",
     label: "Financeiro",
     acoes: [

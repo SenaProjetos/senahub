@@ -17,13 +17,14 @@ import { agingReport } from "@/modules/financeiro/aging/queries";
 import { projetosRecentes, serieReceita, snapshotsDashboard, carteiraProjetosDashboard, aniversariantesDoMes, humorDeHoje, kpisProjetista } from "@/modules/dashboard/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { escopoProjeto } from "@/modules/projetos/queries";
+import { contarPendentesAprovacao } from "@/modules/arquivos/queries";
 import { STATUS_CHIP, STATUS_LABEL } from "@/modules/projetos/status";
 import { HeroCard } from "@/components/dashboard/hero-card";
 import { ReceitaChart } from "@/components/dashboard/receita-chart";
 import { TrendLine } from "@/components/qualidade/trend-line";
 import { CarteiraDashboard } from "@/components/dashboard/carteira-dashboard";
 import { brlInteiro as brl } from "@/lib/utils";
-import { acessoGlobal } from "@/lib/roles";
+import { acessoGlobal, GLOBAL_ROLES } from "@/lib/roles";
 import { podeVerFinanceiro } from "@/lib/permissions";
 
 const ACOES_RAPIDAS: { label: string; href: string; icon: LucideIcon }[] = [
@@ -55,9 +56,11 @@ export default async function HomePage() {
   const user = await requireUser();
   if (user.role === "cliente") redirect("/portal");
   const isGlobal = acessoGlobal(user);
+  // Aprovações = validação (escrita): só admin/supervisor (exclui sócio, que é leitura).
+  const podeAprovar = GLOBAL_ROLES.includes(user.role);
   // Item 5: só busca/expõe dado financeiro a quem pode ver (financeiro:ver ou sócio ativo).
   const verFin = await podeVerFinanceiro(user);
-  const [kpis, projetos, snapshots, receita, agingReceita, carteira, aniversarios, humorHoje, kpisMeu] = await Promise.all([
+  const [kpis, projetos, snapshots, receita, agingReceita, carteira, aniversarios, humorHoje, kpisMeu, pendentesAprov] = await Promise.all([
     // Perfis sem acesso global veem os KPIs restritos aos SEUS projetos (bug beta #9).
     kpisHome(isGlobal ? {} : escopoProjeto(user)),
     projetosRecentes(user, 15),
@@ -68,6 +71,7 @@ export default async function HomePage() {
     aniversariantesDoMes(),
     humorDeHoje(user.id),
     kpisProjetista(user.id),
+    podeAprovar ? contarPendentesAprovacao() : Promise.resolve(0),
   ]);
 
   const cards = [
@@ -94,6 +98,17 @@ export default async function HomePage() {
       delta: "disciplinas com prazo em 7 dias ou vencido",
       href: "/projetos",
     },
+    // Fila de validação de arquivos (admin/supervisor).
+    ...(podeAprovar
+      ? [
+          {
+            label: "Aprovações pendentes",
+            value: String(pendentesAprov),
+            delta: "arquivos aguardando validação",
+            href: "/aprovacoes",
+          },
+        ]
+      : []),
     ...(verFin && agingReceita
       ? [
           {

@@ -43,6 +43,7 @@ export default async function PreferenciasPage() {
       notifRiscoProjeto={prefs.notif_risco_projeto !== false}
       notifLembretePonto={prefs.notif_lembrete_ponto !== false}
       notifCoordenacao={prefs.notif_coordenacao !== false}
+      notifAprovacaoArquivo={prefs.notif_aprovacao_arquivo !== false}
       pontoEmailModo={modoValido ? (prefs.ponto_email_modo as "resumo_diario" | "nenhum") : "todos"}
       mostrarAlertasPonto={CLT_ROLES.includes(perfilDb?.role ?? user.role)}
     />

@@ -27,6 +27,8 @@ import {
   HardDrive,
   BookOpen,
   IdCard,
+  FolderArchive,
+  ClipboardCheck,
   type LucideIcon,
 } from "lucide-react";
 import type { Role } from "@/lib/roles";
@@ -74,6 +76,18 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Briefcase,
         roles: ["clt", "estagiario", "projetista_pj", "freelancer"],
         mobile: true,
+      },
+      {
+        title: "Arquivos",
+        href: "/arquivos",
+        icon: FolderArchive,
+        roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"],
+      },
+      {
+        title: "Aprovações",
+        href: "/aprovacoes",
+        icon: ClipboardCheck,
+        roles: ["admin", "supervisor"],
       },
       {
         title: "Clientes",
