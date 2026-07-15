@@ -2,6 +2,9 @@ import "server-only";
 import { addDays, differenceInCalendarDays, subMonths } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { notificar, notificarMuitos } from "@/lib/notificar";
+import { emitParaCanal, usuarioOnline } from "@/lib/socket";
+import { textoParaPreview } from "@/modules/chat/formatacao";
+import type { MensagemAgendadaJob } from "@/modules/chat/agendamento";
 import { enviarEmail, smtpConfigurado } from "@/lib/mail";
 import { enviarEmailTemplate, resolverTemplate, markdownParaHtml } from "@/lib/email-templates";
 import { slugAlertaPonto } from "@/lib/email-templates-meta";
@@ -22,6 +25,8 @@ import { resolverEscala } from "@/modules/ponto/service";
 import { avaliarAlertasDoDia } from "@/modules/ponto/alertas";
 import { diaLocalDate, diaLocal, horaLocal, minutosDoDia } from "@/modules/ponto/engine";
 import { executarConversao } from "@/modules/coordenacao/conversao";
+import { removerArquivo } from "@/lib/storage";
+import { limitePurga } from "@/modules/uploads/lixeira";
 import { Prisma } from "@/generated/prisma/client";
 
 /** Rotinas das automações (chamadas pelos jobs do pg-boss em lib/jobs.ts). */
@@ -840,6 +845,33 @@ export async function processarConversaoIfc(conversaoId: string): Promise<void> 
  * sob STORAGE_BASE_PATH; apaga os .frag cujo uploadId (nome do arquivo) não tem mais
  * ConversaoModelo. Retorna quantos removeu.
  */
+/**
+ * Purga a lixeira do projeto: apaga EM DEFINITIVO os Uploads na lixeira há mais de
+ * DIAS_LIXEIRA dias. Bypassa o filtro global via `excluidoEm: { not: null, lt }`.
+ * Remove o registro (cascata: Pendencia/AceiteCliente/ConversaoModelo) e os arquivos
+ * físicos (o próprio + o `.frag` da conversão IFC). Devolve quantos foram purgados.
+ */
+export async function purgarLixeiraArquivos(): Promise<number> {
+  const vencidos = await prisma.upload.findMany({
+    where: { excluidoEm: { not: null, lt: limitePurga() } },
+    select: { id: true, caminho: true, conversao: { select: { caminhoFrag: true } } },
+  });
+  if (vencidos.length === 0) return 0;
+
+  let removidos = 0;
+  for (const u of vencidos) {
+    try {
+      await prisma.upload.delete({ where: { id: u.id } });
+      await removerArquivo(u.caminho);
+      if (u.conversao?.caminhoFrag) await removerArquivo(u.conversao.caminhoFrag);
+      removidos++;
+    } catch (err) {
+      console.error(`[lixeira] falha ao purgar upload ${u.id}:`, err);
+    }
+  }
+  return removidos;
+}
+
 export async function limparFragsOrfaos(): Promise<number> {
   const base = process.env.STORAGE_BASE_PATH;
   if (!base) return 0;
@@ -888,4 +920,59 @@ export async function limparFragsOrfaos(): Promise<number> {
     }
   }
   return removidos;
+}
+
+/**
+ * Envia uma mensagem de chat agendada (fila `chat-mensagem-agendada`). Cria a
+ * mensagem, emite ao vivo para o canal e notifica os membros offline. Descarta
+ * silenciosamente se o autor não é mais membro do canal.
+ */
+export async function processarMensagemAgendada(data: unknown): Promise<void> {
+  const { canalId, autorId, conteudo } = (data ?? {}) as Partial<MensagemAgendadaJob>;
+  if (!canalId || !autorId || !conteudo) return;
+
+  const membro = await prisma.canalMembro.findUnique({
+    where: { canalId_userId: { canalId, userId: autorId } },
+  });
+  if (!membro) return; // autor saiu do canal → descarta
+
+  const msg = await prisma.mensagem.create({
+    data: { canalId, autorId, conteudo },
+    include: { autor: { select: { id: true, name: true, image: true } } },
+  });
+
+  emitParaCanal(canalId, "mensagem", {
+    id: msg.id,
+    canalId,
+    conteudo: msg.conteudo,
+    fixada: false,
+    editedAt: null,
+    excluidaEm: null,
+    encaminhada: false,
+    anexoMime: null,
+    anexoNome: null,
+    anexos: [],
+    autor: { id: msg.autor.id, name: msg.autor.name, image: msg.autor.image },
+    createdAt: msg.createdAt,
+    reacoes: [],
+    respostaA: null,
+  });
+
+  // Notifica membros offline (os online já recebem via socket). Silenciados recebem
+  // só o sino (sem push), honrando a preferência — igual ao envio ao vivo.
+  const membros = await prisma.canalMembro.findMany({
+    where: { canalId, userId: { not: autorId } },
+    select: { userId: true, silenciado: true },
+  });
+  const offline = membros.filter((m) => !usuarioOnline(m.userId));
+  const notif = {
+    titulo: `Mensagem de ${msg.autor.name}`,
+    corpo: textoParaPreview(conteudo).slice(0, 120),
+    href: `/chat?c=${canalId}`,
+    tag: `chat-${canalId}`,
+  };
+  const comPush = offline.filter((m) => !m.silenciado).map((m) => m.userId);
+  const semPush = offline.filter((m) => m.silenciado).map((m) => m.userId);
+  if (comPush.length > 0) await notificarMuitos(comPush, notif);
+  if (semPush.length > 0) await notificarMuitos(semPush, notif, { push: false });
 }

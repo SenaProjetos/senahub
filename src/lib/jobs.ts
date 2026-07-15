@@ -3,7 +3,8 @@ import { executarBackup } from "@/lib/backup";
 import { notificarAdmins } from "@/lib/notifications";
 import { limparChunksOrfaos } from "@/lib/upload-chunks";
 import { FILA_CONVERTER_IFC } from "@/modules/coordenacao/conversao-estado";
-import { processarConversaoIfc, limparFragsOrfaos } from "@/lib/jobs-handlers";
+import { FILA_MENSAGEM_AGENDADA } from "@/modules/chat/agendamento";
+import { processarConversaoIfc, limparFragsOrfaos, purgarLixeiraArquivos, processarMensagemAgendada } from "@/lib/jobs-handlers";
 import {
   alertasPrazoDisciplina,
   alertaInadimplencia,
@@ -88,6 +89,12 @@ export async function startJobs(): Promise<PgBoss> {
   await boss.work(FILA_CONVERTER_IFC, async ([job]) => {
     const { conversaoId } = job.data as { conversaoId: string };
     await processarConversaoIfc(conversaoId);
+  });
+
+  // ── Chat: envio de mensagem agendada (ON-DEMAND via boss.send startAfter) ──
+  await boss.createQueue(FILA_MENSAGEM_AGENDADA);
+  await boss.work(FILA_MENSAGEM_AGENDADA, async ([job]) => {
+    await processarMensagemAgendada(job.data);
   });
 
   // ── Automações (Onda 5g) ───────────────────────────────────
@@ -223,6 +230,14 @@ export async function startJobs(): Promise<PgBoss> {
       handler: async () => {
         const n = await limparFragsOrfaos();
         if (n > 0) console.log(`[coordenacao] ${n} .frag órfão(s) removido(s).`);
+      },
+    },
+    {
+      fila: "purgar-lixeira-arquivos",
+      cron: "40 4 * * *", // diário 04:40 — purga arquivos na lixeira há >30 dias
+      handler: async () => {
+        const n = await purgarLixeiraArquivos();
+        if (n > 0) console.log(`[lixeira] ${n} arquivo(s) purgado(s) (retenção esgotada).`);
       },
     },
   ];
