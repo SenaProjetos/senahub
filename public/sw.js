@@ -146,16 +146,23 @@ self.addEventListener("push", (event) => {
   const title = data.title || "SenaHub";
   event.waitUntil(
     (async () => {
-      await self.registration.showNotification(title, {
-        body: data.body || "",
-        icon: data.icon || "/icons/icon-192.png",
-        badge: "/icons/icon-192.png",
-        tag: data.tag,
-        data: { url: data.url || "/" },
-        vibrate: [80, 40, 80],
-      });
-      // Avisa as abas abertas para tocarem o som de notificação.
       const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      // Estilo WhatsApp: o servidor envia push para todos os dispositivos; cada um
+      // decide localmente. Se há uma janela do app FOCADA aqui, o usuário já está
+      // vendo (toast/som da página via socket) → sem notificação do sistema.
+      // Dispositivo com app fechado/em segundo plano notifica normalmente.
+      const focado = list.some((c) => c.focused);
+      if (!focado) {
+        await self.registration.showNotification(title, {
+          body: data.body || "",
+          icon: data.icon || "/icons/icon-192.png",
+          badge: "/icons/icon-192.png",
+          tag: data.tag,
+          data: { url: data.url || "/" },
+          vibrate: [80, 40, 80],
+        });
+      }
+      // Avisa as abas abertas (ex.: recarregar o sino de notificações).
       for (const c of list) c.postMessage({ type: "notificacao", payload: data });
     })(),
   );

@@ -6,6 +6,7 @@ import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { Camera, Sun, Moon, Monitor } from "lucide-react";
 import { salvarPreferencia, atualizarMeuPerfil } from "@/modules/usuarios/preferencias/actions";
+import { PushDispositivoCard } from "@/components/notificacoes/push-ativar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -206,6 +207,8 @@ export function PreferenciasView({
         </CardHeader>
         <CardContent className="divide-y">{renderOpcoes(opcoesNotifItems)}</CardContent>
       </Card>
+
+      <PushDispositivoCard />
 
       {mostrarAlertasPonto && (
         <Card>
