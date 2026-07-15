@@ -5,6 +5,7 @@ import { can } from "@/lib/permissions";
 import { GLOBAL_ROLES } from "@/lib/roles";
 import { projetoVisivel } from "@/modules/planejamento/queries";
 import { arvoreArquivosProjeto } from "@/modules/projetos/arquivos/queries";
+import { lixeiraDoProjeto } from "@/modules/uploads/queries";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import { recebidosDoProjeto, geralDoProjeto, clienteDoProjeto } from "@/modules/documentos-cliente/queries";
 import { podeGerirDocumento } from "@/modules/documentos-cliente/acesso";
@@ -32,6 +33,9 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
     ]);
   // Pasta "Geral" (Documento origem=interno) só é carregada p/ quem tem `arquivos_gerais:ver`.
   const geral = podeVerGeral ? await geralDoProjeto(id) : [];
+  // Lixeira do projeto: só admin (gate da action) — os demais recebem lista vazia.
+  const ehAdmin = user.role === "admin";
+  const lixeira = ehAdmin ? await lixeiraDoProjeto(id) : [];
 
   return (
     <ArquivosExplorer
@@ -45,6 +49,8 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
       clienteId={clienteId}
       podeGerirRecebidos={podeGerirRecebidos}
       podeExcluirDocumento={ehGlobal}
+      podeExcluirArquivo={ehAdmin}
+      lixeira={lixeira}
     />
   );
 }

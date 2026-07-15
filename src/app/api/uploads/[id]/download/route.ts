@@ -23,6 +23,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     },
   });
   if (!upload) return NextResponse.json({ error: "Arquivo não encontrado." }, { status: 404 });
+  // Lixeira: findUnique não passa pelo filtro global — não sirva arquivo na lixeira.
+  if (upload.excluidoEm) return NextResponse.json({ error: "Arquivo não encontrado." }, { status: 404 });
 
   const ehGlobal = acessoGlobal(user);
   const ehResp = upload.disciplina.responsaveis.some((r) => r.userId === user.id);

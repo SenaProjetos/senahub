@@ -3457,12 +3457,19 @@ model Upload {
   autor     User     @relation("UploadAutor", fields: [autorId], references: [id])
   createdAt DateTime @default(now())
 
+  /// Lixeira (soft delete): quando != null, o arquivo está na lixeira do projeto e
+  /// some das listagens/downloads (filtro global em lib/prisma.ts + filtros explícitos
+  /// nas leituras aninhadas). Purga automática após 30 dias (job purgar-lixeira).
+  excluidoEm    DateTime?
+  excluidoPorId String?
+
   aceite     AceiteCliente?
   pendencias Pendencia[]      @relation("UploadPendencias")
   conversao  ConversaoModelo?
 
   @@index([disciplinaId, pacote])
   @@index([autorId])
+  @@index([excluidoEm])
   @@map("upload")
 }
 

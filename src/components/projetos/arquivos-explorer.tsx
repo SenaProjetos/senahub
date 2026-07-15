@@ -27,13 +27,16 @@ import {
   AlertTriangle,
   Loader2,
   XCircle,
+  RotateCcw,
 } from "lucide-react";
 import { foraDoPadrao } from "@/modules/projetos/pranchas/codigo";
 import type {
   ArvoreDisciplina,
   ArvoreArquivoItem,
 } from "@/modules/projetos/arquivos/queries";
-import { renomearUpload } from "@/modules/uploads/actions";
+import { renomearUpload, excluirUpload, restaurarUpload, excluirUploadDefinitivo } from "@/modules/uploads/actions";
+import type { LixeiraItem } from "@/modules/uploads/queries";
+import { DIAS_LIXEIRA } from "@/modules/uploads/lixeira";
 import {
   criarDocumento,
   editarDocumento,
@@ -64,6 +67,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 // ── Subpasta por extensão (paridade com o explorer do hub anterior) ──
 const SUBPASTAS = ["PDF", "DWG", "DOCs", "IFC", "BACKUP", "Outros arquivos"] as const;
@@ -269,6 +273,7 @@ function LinhaArquivo({
   nivel,
   projetoId,
   onRenomear,
+  onExcluir,
   podeValidar,
   foraPadrao,
 }: {
@@ -276,6 +281,7 @@ function LinhaArquivo({
   nivel: number;
   projetoId: string;
   onRenomear?: (a: ArvoreArquivoItem) => void;
+  onExcluir?: (a: ArvoreArquivoItem) => void;
   podeValidar?: boolean;
   foraPadrao?: boolean;
 }) {
@@ -351,6 +357,17 @@ function LinhaArquivo({
       <a href={a.downloadUrl} className="shrink-0 text-primary hover:text-primary/80" aria-label={`Baixar ${a.nome}`}>
         <Download className="size-3.5" />
       </a>
+      {onExcluir && (
+        <button
+          type="button"
+          className="shrink-0 text-muted-foreground hover:text-destructive"
+          aria-label={`Excluir ${a.nome}`}
+          title="Excluir arquivo"
+          onClick={() => onExcluir(a)}
+        >
+          <Trash2 className="size-3.5" />
+        </button>
+      )}
     </div>
   );
 }
@@ -437,6 +454,8 @@ export function ArquivosExplorer({
   clienteId,
   podeGerirRecebidos,
   podeExcluirDocumento,
+  podeExcluirArquivo,
+  lixeira,
 }: {
   projeto: { id: string; codigo: string; nome: string };
   disciplinas: ArvoreDisciplina[];
@@ -449,9 +468,38 @@ export function ArquivosExplorer({
   podeGerirRecebidos: boolean;
   /** Excluir Documento (Recebidos/Geral) é restrito a admin/supervisor — mais estreito que podeGerir (upload/nova versão). */
   podeExcluirDocumento: boolean;
+  /** Excluir arquivo de disciplina (Upload) é override só-admin, com confirmação. */
+  podeExcluirArquivo: boolean;
+  /** Arquivos na lixeira do projeto (só admin recebe; vazio p/ os demais). */
+  lixeira: LixeiraItem[];
 }) {
+  const router = useRouter();
+  const confirm = useConfirm();
+  const [, excluindo] = useTransition();
   const [renomeando, setRenomeando] = useState<ArvoreArquivoItem | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
+
+  const excluirArquivo = useCallback(
+    (a: ArvoreArquivoItem) => {
+      void (async () => {
+        const ok = await confirm({
+          title: "Mover para a lixeira?",
+          description: `"${a.nome}" vai para a lixeira do projeto e pode ser restaurado por até ${DIAS_LIXEIRA} dias. Depois disso é excluído em definitivo.`,
+          confirmLabel: "Mover para a lixeira",
+          variant: "destructive",
+        });
+        if (!ok) return;
+        excluindo(async () => {
+          const r = await excluirUpload({ uploadId: a.id });
+          if (r.ok) {
+            toast.success("Arquivo movido para a lixeira.");
+            router.refresh();
+          } else toast.error(r.error);
+        });
+      })();
+    },
+    [confirm, router],
+  );
   const totais = useMemo(() => {
     const todos = disciplinas.flatMap((d) => d.arquivos);
     return { total: todos.length + geral.length, aprovados: todos.filter((a) => a.aprovado).length };
@@ -470,7 +518,10 @@ export function ArquivosExplorer({
   const enviaveis = disciplinas.filter((d) => d.podeEnviar);
   const temGeral = geral.length > 0 || podeGerirGeral;
   const temRecebidos = recebidos.length > 0 || podeGerirRecebidos;
-  const vazio = totais.total === 0 && !podeGerirGeral && !temRecebidos && disciplinas.length === 0;
+  // Admin sempre vê a lixeira (mesmo vazia) — é onde os excluídos ficam por 30 dias.
+  const mostrarLixeira = podeExcluirArquivo;
+  const vazio =
+    totais.total === 0 && !podeGerirGeral && !temRecebidos && !mostrarLixeira && disciplinas.length === 0;
 
   return (
     <div className="space-y-5">
@@ -621,6 +672,7 @@ export function ArquivosExplorer({
                                       nivel={3}
                                       projetoId={projeto.id}
                                       onRenomear={d.podeEnviar ? setRenomeando : undefined}
+                                      onExcluir={podeExcluirArquivo ? excluirArquivo : undefined}
                                       podeValidar={podeValidarDisc && idsValidaveis.has(a.id)}
                                       foraPadrao={
                                         nomenclatura.exigir && a.pacote === "A" && foraDoPadrao(a.nome, nomenclatura.padrao)
@@ -636,6 +688,8 @@ export function ArquivosExplorer({
                     </Pasta>
                   );
                 })}
+
+                {mostrarLixeira && <LixeiraPasta itens={lixeira} />}
               </div>
             )}
           </CardContent>
@@ -1148,6 +1202,104 @@ function PastaGeral({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+// ── Pasta "Lixeira": arquivos de disciplina na lixeira (soft delete), só admin ──
+
+function LixeiraPasta({ itens }: { itens: LixeiraItem[] }) {
+  const router = useRouter();
+  const confirm = useConfirm();
+  const [pending, start] = useTransition();
+
+  function restaurar(item: LixeiraItem) {
+    start(async () => {
+      const r = await restaurarUpload({ uploadId: item.id });
+      if (r.ok) {
+        toast.success("Arquivo restaurado.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  function excluirDefinitivo(item: LixeiraItem) {
+    void (async () => {
+      const ok = await confirm({
+        title: "Excluir em definitivo?",
+        description: `"${item.nome}" será apagado permanentemente do disco e não poderá ser recuperado.`,
+        confirmLabel: "Excluir em definitivo",
+        variant: "destructive",
+      });
+      if (!ok) return;
+      start(async () => {
+        const r = await excluirUploadDefinitivo({ uploadId: item.id });
+        if (r.ok) {
+          toast.success("Arquivo excluído em definitivo.");
+          router.refresh();
+        } else toast.error(r.error);
+      });
+    })();
+  }
+
+  return (
+    <Pasta nome="Lixeira" contagem={itens.length} nivel={0}>
+      {itens.length === 0 ? (
+        <p className="py-1.5 pl-10 text-xs text-muted-foreground">
+          Arquivos excluídos ficam aqui por até {DIAS_LIXEIRA} dias antes da remoção definitiva. Lixeira vazia.
+        </p>
+      ) : (
+        itens.map((it) => (
+          <div
+            key={it.id}
+            className="flex items-center gap-2 rounded-sm py-1 pr-2 text-sm hover:bg-muted/40"
+            style={{ paddingLeft: "1.75rem" }}
+          >
+            <IconeArquivo nome={it.nome} />
+            <span className="min-w-0 flex-1 truncate" title={it.nome}>
+              {it.nome}
+            </span>
+            <Badge variant="outline" className="hidden shrink-0 sm:inline-flex">{it.disciplina}</Badge>
+            <span
+              className="hidden shrink-0 text-xs text-muted-foreground md:inline"
+              title={`Excluído em ${formatarData(it.excluidoEm)}${it.excluidoPor ? ` por ${it.excluidoPor}` : ""}`}
+            >
+              {it.excluidoPor ? `por ${it.excluidoPor} · ` : ""}
+              {formatarData(it.excluidoEm)}
+            </span>
+            <span
+              className={cn(
+                "shrink-0 font-mono text-[10px]",
+                it.diasRestantes <= 3 ? "text-destructive" : "text-muted-foreground",
+              )}
+              title="Dias até a remoção definitiva"
+            >
+              expira em {it.diasRestantes}d
+            </span>
+            <span className="shrink-0 font-mono text-xs text-muted-foreground">{fmtBytes(it.tamanho)}</span>
+            <button
+              type="button"
+              className="shrink-0 text-muted-foreground hover:text-primary disabled:opacity-50"
+              aria-label={`Restaurar ${it.nome}`}
+              title="Restaurar"
+              disabled={pending}
+              onClick={() => restaurar(it)}
+            >
+              <RotateCcw className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-50"
+              aria-label={`Excluir ${it.nome} em definitivo`}
+              title="Excluir em definitivo"
+              disabled={pending}
+              onClick={() => excluirDefinitivo(it)}
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+          </div>
+        ))
+      )}
+    </Pasta>
   );
 }
 

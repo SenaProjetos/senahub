@@ -20,6 +20,8 @@ const ACOES_DOCUMENTO = [
   "criar-arquivo",
   "editar-arquivo",
   "excluir-arquivo",
+  "restaurar-arquivo",
+  "excluir-arquivo-definitivo",
   "adicionar-versao-arquivo",
   // Repositório unificado `Documento` (Fase 5a: Geral + recebidos do cliente).
   "criar-documento",

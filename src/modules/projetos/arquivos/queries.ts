@@ -24,6 +24,8 @@ export async function arvoreArquivosProjeto(
       status: true,
       responsaveis: { select: { userId: true } },
       uploads: {
+        // Lixeira: leitura aninhada NÃO passa pelo filtro global (lib/prisma.ts) → explícito.
+        where: { excluidoEm: null },
         orderBy: [{ pacote: "asc" }, { nomeArquivo: "asc" }, { versao: "desc" }],
         select: {
           id: true,

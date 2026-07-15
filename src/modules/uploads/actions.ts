@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
+import { removerArquivo } from "@/lib/storage";
 import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { criarDespesaProjetistaPrevista } from "@/modules/financeiro/custo/lancamento-custo";
@@ -40,7 +41,9 @@ export const validarEntrega = defineAction(
       where: { id: input.disciplinaId },
       include: {
         responsaveis: { include: { user: { select: { id: true, name: true, role: true } } } },
-        uploads: true,
+        // Lixeira: leitura aninhada não passa pelo filtro global → arquivos na lixeira
+        // não contam para completude de pacote nem para validação.
+        uploads: { where: { excluidoEm: null } },
         pagamentos: { select: { id: true } },
         projeto: { select: { id: true, codigo: true, nome: true } },
       },
@@ -392,6 +395,154 @@ export const renomearUpload = defineAction(
     await prisma.upload.update({ where: { id: up.id }, data: { nomeArquivo: nomeFinal } });
     revalidatePath(`/projetos/${up.disciplina.projetoId}/arquivos`);
     return { disciplinaId: up.disciplinaId, de: up.nomeArquivo, para: nomeFinal };
+  },
+);
+
+// ── Lixeira do projeto: excluir / restaurar / purgar (só admin) ──
+
+const excluirSchema = z.object({ uploadId: z.string().min(1) });
+
+/** Gate comum: só admin mexe na lixeira. */
+function exigirAdmin(role: string) {
+  if (role !== "admin") {
+    throw new ActionError("Apenas administradores podem gerir a lixeira do projeto.");
+  }
+}
+
+/**
+ * Manda um arquivo (Upload) para a LIXEIRA do projeto (soft delete). RESTRITO A ADMIN,
+ * override total (mesmo entregas já validadas). Não apaga nada do disco — o arquivo some
+ * das listagens/downloads (filtro `excluidoEm` em lib/prisma.ts + leituras aninhadas) e
+ * pode ser restaurado por até `DIAS_LIXEIRA` dias, quando o job de purga o remove em
+ * definitivo. Auditado (entidadeId = disciplinaId p/ correlação no histórico do projeto).
+ */
+export const excluirUpload = defineAction(
+  {
+    modulo: "uploads",
+    acao: "excluir-arquivo",
+    recurso: "projetos",
+    permissao: "ver",
+    entidade: "Upload",
+    schema: excluirSchema,
+    entidadeId: (d) => (d as { disciplinaId?: string } | undefined)?.disciplinaId,
+    capturarAntes: (input) =>
+      prisma.upload.findUnique({
+        where: { id: input.uploadId },
+        select: { nomeArquivo: true, disciplinaId: true, pacote: true, versao: true },
+      }),
+  },
+  async (input, { user }) => {
+    exigirAdmin(user.role);
+    const upload = await prisma.upload.findUnique({
+      where: { id: input.uploadId },
+      select: {
+        id: true,
+        nomeArquivo: true,
+        excluidoEm: true,
+        disciplinaId: true,
+        disciplina: { select: { projetoId: true } },
+      },
+    });
+    if (!upload) throw new ActionError("Arquivo não encontrado.");
+    if (upload.excluidoEm) throw new ActionError("Arquivo já está na lixeira.");
+
+    await prisma.upload.update({
+      where: { id: upload.id },
+      data: { excluidoEm: new Date(), excluidoPorId: user.id },
+    });
+    revalidarArquivos(upload.disciplina.projetoId);
+    return { disciplinaId: upload.disciplinaId, nome: upload.nomeArquivo };
+  },
+);
+
+/**
+ * Restaura um arquivo da lixeira (limpa `excluidoEm`). Só admin. Auditado.
+ */
+export const restaurarUpload = defineAction(
+  {
+    modulo: "uploads",
+    acao: "restaurar-arquivo",
+    recurso: "projetos",
+    permissao: "ver",
+    entidade: "Upload",
+    schema: excluirSchema,
+    entidadeId: (d) => (d as { disciplinaId?: string } | undefined)?.disciplinaId,
+    capturarAntes: (input) =>
+      prisma.upload.findUnique({
+        where: { id: input.uploadId },
+        select: { nomeArquivo: true, disciplinaId: true, excluidoEm: true },
+      }),
+  },
+  async (input, { user }) => {
+    exigirAdmin(user.role);
+    const upload = await prisma.upload.findUnique({
+      where: { id: input.uploadId },
+      select: {
+        id: true,
+        nomeArquivo: true,
+        excluidoEm: true,
+        disciplinaId: true,
+        disciplina: { select: { projetoId: true } },
+      },
+    });
+    if (!upload) throw new ActionError("Arquivo não encontrado.");
+    if (!upload.excluidoEm) throw new ActionError("Este arquivo não está na lixeira.");
+
+    await prisma.upload.update({
+      where: { id: upload.id },
+      data: { excluidoEm: null, excluidoPorId: null },
+    });
+    revalidarArquivos(upload.disciplina.projetoId);
+    return { disciplinaId: upload.disciplinaId, nome: upload.nomeArquivo };
+  },
+);
+
+/**
+ * Exclui EM DEFINITIVO um arquivo que já está na lixeira ("excluir agora" / esvaziar).
+ * Só admin. Remove o registro (cascata: Pendencia/AceiteCliente/ConversaoModelo) e os
+ * arquivos físicos (o próprio + o `.frag` da conversão IFC, se houver). Auditado.
+ */
+export const excluirUploadDefinitivo = defineAction(
+  {
+    modulo: "uploads",
+    acao: "excluir-arquivo-definitivo",
+    recurso: "projetos",
+    permissao: "ver",
+    entidade: "Upload",
+    schema: excluirSchema,
+    entidadeId: (d) => (d as { disciplinaId?: string } | undefined)?.disciplinaId,
+    capturarAntes: (input) =>
+      prisma.upload.findUnique({
+        where: { id: input.uploadId },
+        select: { nomeArquivo: true, disciplinaId: true, pacote: true, versao: true },
+      }),
+  },
+  async (input, { user }) => {
+    exigirAdmin(user.role);
+    const upload = await prisma.upload.findUnique({
+      where: { id: input.uploadId },
+      select: {
+        id: true,
+        nomeArquivo: true,
+        caminho: true,
+        excluidoEm: true,
+        disciplinaId: true,
+        disciplina: { select: { projetoId: true } },
+        conversao: { select: { caminhoFrag: true } },
+      },
+    });
+    if (!upload) throw new ActionError("Arquivo não encontrado.");
+    if (!upload.excluidoEm) {
+      throw new ActionError("Só é possível excluir em definitivo arquivos que estão na lixeira.");
+    }
+
+    // Cascata (schema): remove Pendencia, AceiteCliente e ConversaoModelo vinculados.
+    await prisma.upload.delete({ where: { id: upload.id } });
+    await removerArquivo(upload.caminho);
+    if (upload.conversao?.caminhoFrag) await removerArquivo(upload.conversao.caminhoFrag);
+
+    revalidarArquivos(upload.disciplina.projetoId);
+    return { disciplinaId: upload.disciplinaId, nome: upload.nomeArquivo };
   },
 );
 
