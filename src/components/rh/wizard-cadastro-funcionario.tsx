@@ -20,7 +20,9 @@ const ETAPAS = [
   { num: 4 as const, label: "Contrato", icon: Briefcase },
 ];
 
-const CADASTRO_ROLES = ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj"] as const;
+const CADASTRO_ROLES = ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"] as const;
+// Projetistas contratados como prestador/PJ (têm PJ/CNPJ e honorário, não salário CLT).
+const ROLES_PROJETISTA: readonly Form["role"][] = ["projetista_pj", "freelancer"];
 const selectCls =
   "h-9 w-full rounded-sm border border-input bg-background px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
@@ -103,8 +105,11 @@ export function WizardCadastroFuncionario({
     if (etapa < 4) setEtapa((p) => (p + 1) as Etapa);
   }
 
+  const ehProjetista = ROLES_PROJETISTA.includes(f.role);
+
   function salvar() {
-    if (!f.dataAdmissao) {
+    // CLT/interno: admissão obrigatória (base do período aquisitivo). Projetista/PJ: opcional.
+    if (!ehProjetista && !f.dataAdmissao) {
       setErro("Data de admissão é obrigatória.");
       return;
     }
@@ -113,7 +118,7 @@ export function WizardCadastroFuncionario({
       const res = await cadastrarFuncionario({
         ...f,
         salarioBase: f.salarioBase ? Number(f.salarioBase.replace(",", ".")) : null,
-        pjId: f.role === "projetista_pj" ? f.pjId : "",
+        pjId: ehProjetista ? f.pjId : "",
         templateId: f.iniciarOnboarding ? f.templateId : "",
       });
       if (res.ok) {
@@ -251,22 +256,40 @@ export function WizardCadastroFuncionario({
 
             {etapa === 4 && (
               <>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Campo label="Cargo"><Input value={f.cargo} onChange={(e) => set("cargo", e.target.value)} /></Campo>
-                  <Campo label="Departamento"><Input value={f.departamento} onChange={(e) => set("departamento", e.target.value)} /></Campo>
-                  <Campo label="Data de admissão *"><Input type="date" value={f.dataAdmissao} onChange={(e) => set("dataAdmissao", e.target.value)} /></Campo>
-                  <Campo label="Salário base (R$)"><Input value={f.salarioBase} onChange={(e) => set("salarioBase", e.target.value)} inputMode="decimal" placeholder="0,00" /></Campo>
+                <div className={`flex items-center gap-2 rounded-sm border px-3 py-2 text-xs ${ehProjetista ? "border-primary/30 bg-primary/5 text-primary" : "border-success/30 bg-success/5 text-success"}`}>
+                  <Briefcase className="size-3.5" />
+                  {ehProjetista
+                    ? "Vínculo Projetista / PJ — prestador de serviço (PJ/CNPJ e honorário; sem folha CLT)."
+                    : "Vínculo CLT / Interno — folha e período aquisitivo (salário e admissão)."}
                 </div>
-                {f.role === "projetista_pj" && (
-                  <Campo label="Pessoa Jurídica (CNPJ)">
-                    <select className={selectCls} value={f.pjId} onChange={(e) => set("pjId", e.target.value)}>
-                      <option value="">— sem PJ vinculado —</option>
-                      {pessoasJuridicas.map((p) => (
-                        <option key={p.id} value={p.id}>{p.label}</option>
-                      ))}
-                    </select>
-                  </Campo>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Campo label="Cargo / função"><Input value={f.cargo} onChange={(e) => set("cargo", e.target.value)} /></Campo>
+                  <Campo label="Departamento"><Input value={f.departamento} onChange={(e) => set("departamento", e.target.value)} /></Campo>
+                </div>
+
+                {ehProjetista ? (
+                  <>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Campo label="Início do contrato"><Input type="date" value={f.dataAdmissao} onChange={(e) => set("dataAdmissao", e.target.value)} /></Campo>
+                      <Campo label="Honorário / valor base (R$)"><Input value={f.salarioBase} onChange={(e) => set("salarioBase", e.target.value)} inputMode="decimal" placeholder="0,00" /></Campo>
+                    </div>
+                    <Campo label={f.role === "freelancer" ? "Pessoa Jurídica (CNPJ) — opcional" : "Pessoa Jurídica (CNPJ)"}>
+                      <select className={selectCls} value={f.pjId} onChange={(e) => set("pjId", e.target.value)}>
+                        <option value="">— sem PJ vinculado —</option>
+                        {pessoasJuridicas.map((p) => (
+                          <option key={p.id} value={p.id}>{p.label}</option>
+                        ))}
+                      </select>
+                    </Campo>
+                  </>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Campo label="Data de admissão *"><Input type="date" value={f.dataAdmissao} onChange={(e) => set("dataAdmissao", e.target.value)} /></Campo>
+                    <Campo label="Salário base (R$)"><Input value={f.salarioBase} onChange={(e) => set("salarioBase", e.target.value)} inputMode="decimal" placeholder="0,00" /></Campo>
+                  </div>
                 )}
+
                 {templates.length > 0 && (
                   <div className="space-y-2 border-t pt-3">
                     <label className="flex cursor-pointer items-center gap-2 text-sm">

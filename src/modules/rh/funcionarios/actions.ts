@@ -22,8 +22,8 @@ export async function consultarCep(cep: string) {
   return buscarCep(cep);
 }
 
-// Item 4 — papéis elegíveis ao cadastro completo (exclui freelancer e cliente).
-const CADASTRO_ROLES = ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj"] as const;
+// Item 4 — papéis elegíveis ao cadastro completo (exclui cliente/ti). Projetistas: PJ + freelancer.
+const CADASTRO_ROLES = ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"] as const;
 
 const cadastrarFuncionarioSchema = z.object({
   // Conta de acesso

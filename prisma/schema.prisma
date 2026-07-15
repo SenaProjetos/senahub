@@ -3240,7 +3240,7 @@ model PranchaCatalogo {
   @@map("prancha_catalogo")
 }
 
-/// Feriado (cadastro p/ ponto/escala/banco de horas). Data única.
+/// Feriado (cadastro p/ ponto/escala/banco de horas). Data única (ocorrência de um ano).
 model Feriado {
   id        String   @id @default(cuid())
   data      DateTime @unique @db.Date
@@ -3249,6 +3249,19 @@ model Feriado {
   createdAt DateTime @default(now())
 
   @@map("feriado")
+}
+
+/// Feriado recorrente de data fixa (repete todo ano por dia/mês). Móveis (Páscoa) NÃO entram aqui.
+model FeriadoRecorrente {
+  id        String   @id @default(cuid())
+  dia       Int // 1..31
+  mes       Int // 1..12
+  nome      String
+  tipo      String   @default("nacional") // nacional | estadual | municipal (esfera)
+  createdAt DateTime @default(now())
+
+  @@unique([dia, mes, nome])
+  @@map("feriado_recorrente")
 }
 
 /// Comentário de tarefa (texto e/ou anexo).

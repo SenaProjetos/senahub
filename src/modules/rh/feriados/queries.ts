@@ -1,22 +1,68 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 
-export async function listarFeriados(ano?: number) {
+const pad = (n: number) => String(n).padStart(2, "0");
+
+export type FeriadoDia = {
+  id: string;
+  data: string; // YYYY-MM-DD
+  nome: string;
+  tipo: string; // nacional | estadual | municipal (esfera)
+  origem: "unico" | "recorrente";
+};
+
+export type FeriadoRecorrenteItem = {
+  id: string;
+  dia: number;
+  mes: number;
+  nome: string;
+  tipo: string;
+};
+
+/** Feriados recorrentes cadastrados (data fixa, repetem todo ano). */
+export async function listarFeriadosRecorrentes(): Promise<FeriadoRecorrenteItem[]> {
+  const rs = await prisma.feriadoRecorrente.findMany({ orderBy: [{ mes: "asc" }, { dia: "asc" }] });
+  return rs.map((r) => ({ id: r.id, dia: r.dia, mes: r.mes, nome: r.nome, tipo: r.tipo }));
+}
+
+/**
+ * Feriados concretos de um ano: une os avulsos (`Feriado`, ocorrência única) com os
+ * recorrentes expandidos para aquele ano. Dedup por data — o avulso vence o recorrente.
+ * Contrato `{ data, nome, tipo }` mantido (ponto/escala consomem sem alteração).
+ * Sem `ano` retorna só os avulsos (comportamento antigo).
+ */
+export async function listarFeriados(ano?: number): Promise<FeriadoDia[]> {
   const where = ano
     ? { data: { gte: new Date(Date.UTC(ano, 0, 1)), lte: new Date(Date.UTC(ano, 11, 31)) } }
     : {};
-  const fs = await prisma.feriado.findMany({ where, orderBy: { data: "asc" } });
-  return fs.map((f) => ({ id: f.id, data: f.data.toISOString().slice(0, 10), nome: f.nome, tipo: f.tipo }));
+  const avulsos = await prisma.feriado.findMany({ where, orderBy: { data: "asc" } });
+
+  const porData = new Map<string, FeriadoDia>();
+  for (const f of avulsos) {
+    const data = f.data.toISOString().slice(0, 10);
+    porData.set(data, { id: f.id, data, nome: f.nome, tipo: f.tipo, origem: "unico" });
+  }
+
+  if (ano) {
+    const recorrentes = await prisma.feriadoRecorrente.findMany();
+    for (const r of recorrentes) {
+      const data = `${ano}-${pad(r.mes)}-${pad(r.dia)}`;
+      // Avulso na mesma data tem prioridade (permite sobrescrever/ajustar um ano específico).
+      if (!porData.has(data)) {
+        porData.set(data, { id: r.id, data, nome: r.nome, tipo: r.tipo, origem: "recorrente" });
+      }
+    }
+  }
+
+  return [...porData.values()].sort((a, b) => a.data.localeCompare(b.data));
 }
 
 /** Nº de feriados que caem em dia útil (seg–sex) no mês — desconta do esperado do ponto. */
 export async function feriadosUteisNoMes(ano: number, mes: number): Promise<number> {
-  const fs = await prisma.feriado.findMany({
-    where: { data: { gte: new Date(Date.UTC(ano, mes - 1, 1)), lt: new Date(Date.UTC(ano, mes, 1)) } },
-    select: { data: true },
-  });
-  return fs.filter((f) => {
-    const wd = f.data.getUTCDay();
+  const prefixo = `${ano}-${pad(mes)}`;
+  const doMes = (await listarFeriados(ano)).filter((f) => f.data.startsWith(prefixo));
+  return doMes.filter((f) => {
+    const wd = new Date(f.data + "T00:00:00Z").getUTCDay();
     return wd !== 0 && wd !== 6;
   }).length;
 }

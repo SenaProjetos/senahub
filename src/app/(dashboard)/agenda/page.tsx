@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requireRole } from "@/lib/session";
 import { INTERNAL_ROLES } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
+import { listarFeriados } from "@/modules/rh/feriados/queries";
 import { AgendaView } from "@/components/agenda/agenda-view";
 
 export const metadata: Metadata = { title: "Agenda" };
@@ -22,7 +23,7 @@ export default async function AgendaPage({
   const iniQuery = new Date(ano, mes - 1, 1 - 7);
   const fimQuery = new Date(ano, mes, 0 + 7, 23, 59, 59);
 
-  const [compromissos, prazosProjeto, prazosDisciplina, prazosTarefa, internos] = await Promise.all([
+  const [compromissos, prazosProjeto, prazosDisciplina, prazosTarefa, internos, feriados] = await Promise.all([
     prisma.compromisso.findMany({
       where: {
         inicio: { gte: iniQuery, lte: fimQuery },
@@ -61,6 +62,7 @@ export default async function AgendaPage({
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
+    listarFeriados(ano),
   ]);
 
   return (
@@ -69,6 +71,7 @@ export default async function AgendaPage({
       mes={mes}
       meuId={user.id}
       internos={internos}
+      feriados={feriados.map((f) => ({ data: f.data, nome: f.nome, tipo: f.tipo }))}
       compromissos={compromissos.map((c) => ({
         id: c.id,
         titulo: c.titulo,

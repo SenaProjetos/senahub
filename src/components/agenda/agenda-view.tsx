@@ -39,6 +39,7 @@ type Comp = {
   participantesIds: string[];
 };
 type Prazo = { data: string; rotulo: string; href: string; tipo: "projeto" | "disciplina" | "tarefa" };
+type Feriado = { data: string; nome: string; tipo: string };
 type Vista = "mes" | "semana" | "dia";
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -98,6 +99,7 @@ export function AgendaView({
   mes,
   compromissos,
   prazos,
+  feriados,
   internos,
   meuId,
 }: {
@@ -105,6 +107,7 @@ export function AgendaView({
   mes: number;
   compromissos: Comp[];
   prazos: Prazo[];
+  feriados: Feriado[];
   internos: { id: string; name: string }[];
   meuId: string;
 }) {
@@ -136,6 +139,17 @@ export function AgendaView({
     }
     return m;
   }, [compromissos]);
+
+  // feriados agrupados por data (YYYY-MM-DD) — mesma chave usada nas vistas
+  const feriadosPorChave = useMemo(() => {
+    const m = new Map<string, Feriado[]>();
+    for (const f of feriados) {
+      const lista = m.get(f.data);
+      if (lista) lista.push(f);
+      else m.set(f.data, [f]);
+    }
+    return m;
+  }, [feriados]);
 
   // dias da semana corrente (segunda → domingo)
   const diasDaSemana = useMemo(() => {
@@ -169,6 +183,7 @@ export function AgendaView({
           mes={mes}
           compromissos={compromissos}
           prazos={prazos}
+          feriados={feriados}
           onNav={navMes}
           onEditar={setEditando}
         />
@@ -177,6 +192,7 @@ export function AgendaView({
         <VistaSemana
           dias={diasDaSemana}
           compsPorChave={compsPorChave}
+          feriadosPorChave={feriadosPorChave}
           hoje={hoje}
           onNav={(delta) => setRefData((d) => addDias(d, delta * 7))}
           onHoje={() => setRefData(new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()))}
@@ -186,6 +202,7 @@ export function AgendaView({
         <VistaDia
           dia={refData}
           comps={compsPorChave.get(chaveDia(refData)) ?? []}
+          feriados={feriadosPorChave.get(chaveDia(refData)) ?? []}
           ehHoje={chaveDia(refData) === chaveDia(hoje)}
           onNav={(delta) => setRefData((d) => addDias(d, delta))}
           onHoje={() => setRefData(new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()))}
@@ -258,6 +275,7 @@ function VistaMes({
   mes,
   compromissos,
   prazos,
+  feriados,
   onNav,
   onEditar,
 }: {
@@ -265,6 +283,7 @@ function VistaMes({
   mes: number;
   compromissos: Comp[];
   prazos: Prazo[];
+  feriados: Feriado[];
   onNav: (delta: number) => void;
   onEditar: (c: Comp) => void;
 }) {
@@ -281,8 +300,8 @@ function VistaMes({
     return d.getFullYear() === ano && d.getMonth() + 1 === mes;
   });
 
-  const porDia = new Map<number, { comps: Comp[]; prazos: Prazo[] }>();
-  for (let d = 1; d <= diasNoMes; d++) porDia.set(d, { comps: [], prazos: [] });
+  const porDia = new Map<number, { comps: Comp[]; prazos: Prazo[]; feriados: Feriado[] }>();
+  for (let d = 1; d <= diasNoMes; d++) porDia.set(d, { comps: [], prazos: [], feriados: [] });
   for (const c of compsDoMes) {
     const d = new Date(c.inicio).getDate();
     porDia.get(d)?.comps.push(c);
@@ -290,6 +309,10 @@ function VistaMes({
   for (const p of prazos) {
     const [py, pm, pd] = p.data.split("-").map(Number);
     if (py === ano && pm === mes) porDia.get(pd)?.prazos.push(p);
+  }
+  for (const f of feriados) {
+    const [fy, fm, fd] = f.data.split("-").map(Number);
+    if (fy === ano && fm === mes) porDia.get(fd)?.feriados.push(f);
   }
 
   return (
@@ -318,13 +341,29 @@ function VistaMes({
         {Array.from({ length: diasNoMes }).map((_, i) => {
           const d = i + 1;
           const info = porDia.get(d)!;
+          const temFeriado = info.feriados.length > 0;
           return (
             <div
               key={d}
-              className={`min-h-20 rounded-sm border p-1 text-xs ${ehHoje(d) ? "border-primary bg-primary/5" : "border-border/60"}`}
+              className={`min-h-20 rounded-sm border p-1 text-xs ${
+                ehHoje(d)
+                  ? "border-primary bg-primary/5"
+                  : temFeriado
+                    ? "border-success/40 bg-success/5"
+                    : "border-border/60"
+              }`}
             >
               <span className={`font-mono ${ehHoje(d) ? "font-bold text-primary" : "text-muted-foreground"}`}>{d}</span>
               <div className="mt-0.5 space-y-0.5">
+                {info.feriados.map((f, j) => (
+                  <p
+                    key={`f${j}`}
+                    className="truncate rounded-sm bg-success/15 px-1 text-[10px] text-success"
+                    title={`Feriado ${f.tipo}: ${f.nome}`}
+                  >
+                    🏖 {f.nome}
+                  </p>
+                ))}
                 {info.prazos.map((p, j) => (
                   <Link
                     key={j}
@@ -366,12 +405,14 @@ function VistaMes({
 function VistaSemana({
   dias,
   compsPorChave,
+  feriadosPorChave,
   hoje,
   onNav,
   onHoje,
 }: {
   dias: Date[];
   compsPorChave: Map<string, Comp[]>;
+  feriadosPorChave: Map<string, Feriado[]>;
   hoje: Date;
   onNav: (delta: number) => void;
   onHoje: () => void;
@@ -402,18 +443,26 @@ function VistaSemana({
           const comps = (compsPorChave.get(k) ?? [])
             .slice()
             .sort((a, b) => a.inicio.localeCompare(b.inicio));
+          const fers = feriadosPorChave.get(k) ?? [];
           const ehHoje = k === chaveHoje;
           return (
             <div
               key={k}
-              className={`min-h-32 rounded-sm border p-1.5 ${ehHoje ? "border-primary bg-primary/5" : "border-border/60"}`}
+              className={`min-h-32 rounded-sm border p-1.5 ${
+                ehHoje ? "border-primary bg-primary/5" : fers.length > 0 ? "border-success/40 bg-success/5" : "border-border/60"
+              }`}
             >
               <div className={`mb-1 text-xs font-semibold ${ehHoje ? "text-primary" : "text-muted-foreground"}`}>
                 <span className="uppercase">{DIAS_SEMANA[i].slice(0, 3)}</span>{" "}
                 <span className="font-mono">{dia.getDate()}</span>
               </div>
               <div className="space-y-1">
-                {comps.length === 0 ? (
+                {fers.map((f, j) => (
+                  <div key={`f${j}`} className="rounded-sm bg-success/15 px-1.5 py-1 text-[11px] text-success" title={`Feriado ${f.tipo}`}>
+                    🏖 {f.nome}
+                  </div>
+                ))}
+                {comps.length === 0 && fers.length === 0 ? (
                   <p className="text-[10px] text-muted-foreground/60">—</p>
                 ) : (
                   comps.map((c) => (
@@ -440,6 +489,7 @@ function VistaSemana({
 function VistaDia({
   dia,
   comps,
+  feriados,
   ehHoje,
   onNav,
   onHoje,
@@ -447,6 +497,7 @@ function VistaDia({
 }: {
   dia: Date;
   comps: Comp[];
+  feriados: Feriado[];
   ehHoje: boolean;
   onNav: (delta: number) => void;
   onHoje: () => void;
@@ -476,6 +527,16 @@ function VistaDia({
           Hoje
         </Button>
       </div>
+
+      {feriados.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {feriados.map((f, j) => (
+            <Badge key={j} variant="outline" className="gap-1 border-success/40 text-success">
+              🏖 {f.nome} <span className="capitalize text-muted-foreground">· {f.tipo}</span>
+            </Badge>
+          ))}
+        </div>
+      )}
 
       <Card>
         <CardContent className="space-y-2 pt-5">

@@ -38,6 +38,39 @@ export const excluirFeriado = defineAction(
   },
 );
 
+/** Cria/atualiza um feriado recorrente de data fixa (repete todo ano por dia/mês). */
+export const salvarFeriadoRecorrente = defineAction(
+  {
+    ...base,
+    acao: "salvar-feriado-recorrente",
+    entidade: "FeriadoRecorrente",
+    schema: z.object({
+      dia: z.coerce.number().int().min(1).max(31),
+      mes: z.coerce.number().int().min(1).max(12),
+      nome: z.string().min(1),
+      tipo: z.string().default("nacional"),
+    }),
+  },
+  async (i) => {
+    const f = await prisma.feriadoRecorrente.upsert({
+      where: { dia_mes_nome: { dia: i.dia, mes: i.mes, nome: i.nome } },
+      create: { dia: i.dia, mes: i.mes, nome: i.nome, tipo: i.tipo },
+      update: { tipo: i.tipo },
+    });
+    rev();
+    return { id: f.id };
+  },
+);
+
+export const excluirFeriadoRecorrente = defineAction(
+  { ...base, acao: "excluir-feriado-recorrente", entidade: "FeriadoRecorrente", schema: z.object({ id: z.string().min(1) }) },
+  async (i) => {
+    await prisma.feriadoRecorrente.delete({ where: { id: i.id } });
+    rev();
+    return { id: i.id };
+  },
+);
+
 /** Importa os feriados nacionais do ano (fixos + móveis). Idempotente (upsert por data). */
 export const importarFeriadosNacionais = defineAction(
   { ...base, acao: "importar-feriados", entidade: "Feriado", schema: z.object({ ano: z.number().int() }) },
