@@ -42,6 +42,7 @@ export async function GET(req: Request) {
       disciplina: {
         select: {
           nome: true,
+          projetoId: true,
           responsaveis: { select: { userId: true } },
           projeto: { select: { membros: { select: { userId: true } } } },
         },
@@ -52,13 +53,25 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Arquivos não encontrados." }, { status: 404 });
   }
 
-  // Mesma regra dos demais endpoints de arquivo: global, responsável ou membro do projeto.
+  // Mesma regra da aba Arquivos (escopoProjeto): global, membro do projeto, responsável
+  // da disciplina OU responsável de QUALQUER disciplina do mesmo projeto.
   const ehGlobal = acessoGlobal(user);
+  // Projetos (dentre os da seleção) em que o usuário é responsável de alguma disciplina.
+  let projetosComResp = new Set<string>();
+  if (!ehGlobal) {
+    const projetoIds = [...new Set(uploads.map((u) => u.disciplina.projetoId))];
+    const discs = await prisma.disciplina.findMany({
+      where: { projetoId: { in: projetoIds }, responsaveis: { some: { userId: user.id } } },
+      select: { projetoId: true },
+    });
+    projetosComResp = new Set(discs.map((d) => d.projetoId));
+  }
   const acessiveis = uploads.filter(
     (u) =>
       ehGlobal ||
       u.disciplina.responsaveis.some((r) => r.userId === user.id) ||
-      u.disciplina.projeto.membros.some((m) => m.userId === user.id),
+      u.disciplina.projeto.membros.some((m) => m.userId === user.id) ||
+      projetosComResp.has(u.disciplina.projetoId),
   );
   if (acessiveis.length === 0) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });

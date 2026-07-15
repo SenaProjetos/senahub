@@ -25,7 +25,16 @@ export async function GET(_req: Request, ctx: { params: Promise<{ disciplinaId: 
   const ehGlobal = acessoGlobal(user);
   const ehResp = disciplina.responsaveis.some((r) => r.userId === user.id);
   const ehMembro = disciplina.projeto.membros.some((m) => m.userId === user.id);
+  // Mesmo escopo da aba Arquivos (escopoProjeto): responsável de QUALQUER disciplina
+  // do projeto enxerga e baixa as demais disciplinas — não só a que responde.
+  let ehRespProjeto = false;
   if (!ehGlobal && !ehResp && !ehMembro) {
+    ehRespProjeto =
+      (await prisma.disciplina.count({
+        where: { projetoId: disciplina.projetoId, responsaveis: { some: { userId: user.id } } },
+      })) > 0;
+  }
+  if (!ehGlobal && !ehResp && !ehMembro && !ehRespProjeto) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
   if (disciplina.uploads.length === 0) {
