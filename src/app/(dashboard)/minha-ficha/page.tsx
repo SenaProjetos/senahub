@@ -6,10 +6,12 @@ import { fichaPessoa, cadastroDaPessoa, solicitacoesDoUsuario, notasDoUsuario } 
 import { bancoHorasDe } from "@/modules/rh/banco/queries";
 import { escalaUsuarioGrade, escalaRoleGrade } from "@/modules/rh/escalas/queries";
 import { minhaAlteracaoPendente } from "@/modules/rh/cadastro/queries";
+import { carregarPreferenciasDaConta } from "@/modules/usuarios/preferencias/queries";
 import { Pessoa360View } from "@/components/rh/pessoa-360-view";
 import { EditarMeusDados } from "@/components/rh/editar-meus-dados";
+import { PreferenciasView } from "@/components/configuracoes/preferencias-view";
 
-export const metadata: Metadata = { title: "Minha ficha" };
+export const metadata: Metadata = { title: "Minha conta" };
 
 export default async function MinhaFichaPage() {
   const user = await requireUser();
@@ -25,7 +27,7 @@ export default async function MinhaFichaPage() {
   const temEscala = isCLT || INTERNAL_ROLES.includes(pessoa.role);
   const batePonto = isColaborador;
 
-  const [cadastro, ausencias, banco, escalaUsuario, escalaRole, nf, pendente] = await Promise.all([
+  const [cadastro, ausencias, banco, escalaUsuario, escalaRole, nf, pendente, prefsConta] = await Promise.all([
     isColaborador ? cadastroDaPessoa(id) : Promise.resolve(null),
     isCLT ? solicitacoesDoUsuario(id) : Promise.resolve(null),
     isCLT ? bancoHorasDe(id) : Promise.resolve(null),
@@ -33,6 +35,7 @@ export default async function MinhaFichaPage() {
     temEscala ? escalaRoleGrade(pessoa.role) : Promise.resolve(null),
     isPJ ? notasDoUsuario(id) : Promise.resolve(null),
     isColaborador ? minhaAlteracaoPendente(id) : Promise.resolve(null),
+    carregarPreferenciasDaConta(id),
   ]);
 
   const escala = escalaUsuario && escalaRole
@@ -42,15 +45,16 @@ export default async function MinhaFichaPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">Minha ficha</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight">Minha conta</h1>
         <p className="text-sm text-muted-foreground">
-          Seus dados de cadastro, ponto, ausências e escala. Contato, endereço e dados bancários você mesmo pode
-          alterar — as mudanças passam por validação do RH.
+          Seus dados de cadastro, ponto, ausências, escala e preferências num só lugar. Contato, endereço e dados
+          bancários você mesmo pode alterar — as mudanças passam por validação do RH.
         </p>
       </div>
 
       {cadastro && <EditarMeusDados atual={cadastro} pendente={pendente} />}
-      {/* Auto-serviço: própria ficha, com salário próprio visível e sem links de gestão. */}
+      {/* Auto-serviço: própria ficha, com salário próprio visível e sem links de gestão.
+          A aba Preferências recebe a PreferenciasView (foto/tema/notificações). */}
       <Pessoa360View
         pessoa={pessoa}
         podeFolha
@@ -61,6 +65,7 @@ export default async function MinhaFichaPage() {
         banco={banco}
         temPonto={batePonto}
         nf={nf}
+        preferenciasSlot={<PreferenciasView {...prefsConta} />}
       />
     </div>
   );

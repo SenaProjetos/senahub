@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CalendarClock, Landmark, Building2, KeyRound, UserRound, ClipboardList, CalendarRange, Clock, Receipt } from "lucide-react";
+import { CalendarClock, Landmark, Building2, KeyRound, UserRound, ClipboardList, CalendarRange, Clock, Receipt, SlidersHorizontal } from "lucide-react";
 import { brl, formatarData } from "@/lib/utils";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { carregarPontoPessoa } from "@/modules/rh/pessoas/actions";
@@ -37,6 +37,8 @@ export type Pessoa360Props = {
   podeEditarCadastro?: boolean;
   /** PJs para o seletor de CNPJ do cadastro (usado só quando `podeEditarCadastro`). */
   pessoasJuridicas?: { id: string; label: string }[];
+  /** Conteúdo da aba Preferências (auto-serviço) — só a própria conta o recebe. */
+  preferenciasSlot?: React.ReactNode;
 };
 
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -79,7 +81,7 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
   );
 }
 
-export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [] }: Pessoa360Props) {
+export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [], preferenciasSlot }: Pessoa360Props) {
   // Cadastro no formato do EditarCadastroDialog (junta os escalares + o vínculo PJ do cabeçalho).
   const cadastroDialog: Cadastro | null = cadastro
     ? {
@@ -106,6 +108,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
     { value: "folha", label: "Folha", icon: Landmark, show: podeFolha },
     { value: "cliente", label: "Cliente", icon: Building2, show: !!pessoa.cliente },
     { value: "acesso", label: "Acesso", icon: KeyRound, show: true },
+    { value: "preferencias", label: "Preferências", icon: SlidersHorizontal, show: !!preferenciasSlot },
   ].filter((a) => a.show);
   const primeira = abas[0]?.value ?? "acesso";
 
@@ -437,6 +440,8 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
             {!self && <Link href="/configuracoes/usuarios" className="text-sm text-primary hover:underline">Gerir acesso em Usuários →</Link>}
           </CardContent></Card>
         </TabsContent>
+
+        {preferenciasSlot && <TabsContent value="preferencias">{preferenciasSlot}</TabsContent>}
       </Tabs>
     </div>
   );
