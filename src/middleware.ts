@@ -36,7 +36,16 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    // Tudo exceto assets estáticos, imagens e a API de auth.
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|MARCA|manifest.json|sw.js|robots.txt).*)",
+    // Tudo exceto assets estáticos, imagens, a API de auth e as rotas de upload.
+    //
+    // Rotas de upload (api/uploads, api/documentos, api/chat/anexo) ficam FORA do
+    // middleware de propósito: o Next 15.5 bufferiza o body em memória quando a rota
+    // passa pelo middleware, com teto de 10 MB (middlewareClientMaxBodySize) — bodies
+    // maiores são truncados e o multipart quebra ("expected boundary after body").
+    // Envios diretos chegam a 70 MB e chunks a 45 MB (lib/upload-grande.ts), então
+    // excluir do matcher evita o truncamento E o custo de RAM por request.
+    // ATENÇÃO: toda rota sob esses prefixos DEVE se auto-autenticar (getSession +
+    // mustChangePassword + ativo) — não há mais checagem otimista de cookie aqui.
+    "/((?!api/auth|api/uploads|api/documentos|api/chat/anexo|_next/static|_next/image|favicon.ico|MARCA|manifest.json|sw.js|robots.txt).*)",
   ],
 };
