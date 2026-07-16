@@ -2,6 +2,13 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.2.1](https://github.com/SenaProjetos//compare/v1.2.0...v1.2.1) (2026-07-16)
+
+
+### 🐛 Correções
+
+* **uploads:** exclui rotas de upload do middleware (teto 10 MB do Next 15.5) ([cb3327d](https://github.com/SenaProjetos//commit/cb3327d35b9e6381c4704f7c9008bda2dba744ec))
+
 ## [1.2.0](https://github.com/SenaProjetos//compare/v1.1.0...v1.2.0) (2026-07-16)
 
 
