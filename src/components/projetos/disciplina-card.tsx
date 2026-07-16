@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { Fragment, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -36,7 +36,7 @@ import { DisciplinaEditDialog, DisciplinaDeleteButton } from "@/components/proje
 import { validarEntrega, gerarAceiteCliente } from "@/modules/uploads/actions";
 import { statusValidacao, entregaveisAtuais } from "@/modules/uploads/validacao";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
-import { IconeArquivo, StatusArquivo } from "@/components/projetos/arquivos-explorer";
+import { IconeArquivo, StatusArquivo, VersaoToggle } from "@/components/projetos/arquivos-explorer";
 import { limiteDoPacote, limiteLabelDoPacote } from "@/modules/uploads/limites";
 import {
   enviarArquivoComProgresso,
@@ -337,6 +337,14 @@ function ArquivosDialog({
   const [pacote, setPacote] = useState<"A" | "B">("A");
   const [validando, start] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [versoesAbertas, setVersoesAbertas] = useState<Set<string>>(new Set());
+  const alternarVersoes = (id: string) =>
+    setVersoesAbertas((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
 
   const stVal = statusValidacao(disciplina.uploads, {
     exigePacoteA: disciplina.exigePacoteA,
@@ -438,12 +446,31 @@ function ArquivosDialog({
   const porPacote = (p: "A" | "B" | "OUTROS" | "RECEBIDOS") =>
     disciplina.uploads.filter((u) => u.pacote === p);
 
+  // Conta arquivos lógicos (sem versões) e agrupa versões do mesmo arquivo
+  // (mesma `(pacote, nome)`) — a mais recente é a "atual", as demais vão no acordeão.
+  const contarLogicos = (itens: UploadItem[]) => new Set(itens.map((u) => `${u.pacote}/${u.nomeArquivo}`)).size;
+  const agruparVersoes = (itens: UploadItem[]) => {
+    const grupos = new Map<string, UploadItem[]>();
+    const ordem: string[] = [];
+    for (const u of itens) {
+      if (!grupos.has(u.nomeArquivo)) {
+        grupos.set(u.nomeArquivo, []);
+        ordem.push(u.nomeArquivo);
+      }
+      grupos.get(u.nomeArquivo)!.push(u);
+    }
+    return ordem.map((nome) => {
+      const vs = grupos.get(nome)!.slice().sort((a, b) => b.versao - a.versao);
+      return { atual: vs[0], anteriores: vs.slice(1) };
+    });
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
           <Button variant="outline" size="sm">
-            <FolderUp className="size-3.5" /> Arquivos ({disciplina.uploads.length})
+            <FolderUp className="size-3.5" /> Arquivos ({contarLogicos(disciplina.uploads)})
           </Button>
         }
       />
@@ -528,63 +555,123 @@ function ArquivosDialog({
                   <EmptyState icon={FileText} title="Nenhum arquivo" />
                 ) : (
                   <ul className="min-w-0 space-y-1">
-                    {itens.map((u) => (
-                      <li
-                        key={u.id}
-                        className="flex min-w-0 items-center gap-2 rounded-sm border px-2 py-1 text-xs"
-                      >
-                        <IconeArquivo nome={u.nomeArquivo} />
-                        {u.nomeArquivo.toLowerCase().endsWith(".pdf") ? (
-                          <a
-                            href={`/projetos/${projetoId}/arquivos/${u.id}/visualizar`}
-                            target="_blank"
-                            rel="noopener"
-                            className="min-w-0 flex-1 truncate hover:text-primary hover:underline"
-                            title={`Visualizar ${u.nomeArquivo}`}
-                          >
-                            {u.nomeArquivo}
-                            {u.versao > 1 && (
-                              <span className="ml-1 font-mono text-muted-foreground">v{u.versao}</span>
+                    {agruparVersoes(itens).map(({ atual: u, anteriores }) => {
+                      const aberto = versoesAbertas.has(u.id);
+                      return (
+                        <Fragment key={u.id}>
+                          <li className="flex min-w-0 items-center gap-2 rounded-sm border px-2 py-1 text-xs">
+                            <IconeArquivo nome={u.nomeArquivo} />
+                            {u.nomeArquivo.toLowerCase().endsWith(".pdf") ? (
+                              <a
+                                href={`/projetos/${projetoId}/arquivos/${u.id}/visualizar`}
+                                target="_blank"
+                                rel="noopener"
+                                className="min-w-0 flex-1 truncate hover:text-primary hover:underline"
+                                title={`Visualizar ${u.nomeArquivo}`}
+                              >
+                                {u.nomeArquivo}
+                                {u.versao > 1 && (
+                                  <span className="ml-1 font-mono text-muted-foreground">v{u.versao}</span>
+                                )}
+                              </a>
+                            ) : (
+                              <span className="min-w-0 flex-1 truncate" title={u.nomeArquivo}>
+                                {u.nomeArquivo}
+                                {u.versao > 1 && (
+                                  <span className="ml-1 font-mono text-muted-foreground">v{u.versao}</span>
+                                )}
+                              </span>
                             )}
-                          </a>
-                        ) : (
-                          <span className="min-w-0 flex-1 truncate" title={u.nomeArquivo}>
-                            {u.nomeArquivo}
-                            {u.versao > 1 && (
-                              <span className="ml-1 font-mono text-muted-foreground">v{u.versao}</span>
+                            <StatusArquivo aprovado={u.validado} ajusteObs={u.ajusteObs} dataAprovacao={u.data} />
+                            {podeValidar && !disciplina.jaValidado && idsValidaveis.has(u.id) && (
+                              <AcoesValidacaoArquivo
+                                uploadId={u.id}
+                                nomeArquivo={u.nomeArquivo}
+                                validado={u.validado}
+                              />
                             )}
-                          </span>
-                        )}
-                        <StatusArquivo aprovado={u.validado} ajusteObs={u.ajusteObs} dataAprovacao={u.data} />
-                        {podeValidar && !disciplina.jaValidado && idsValidaveis.has(u.id) && (
-                          <AcoesValidacaoArquivo
-                            uploadId={u.id}
-                            nomeArquivo={u.nomeArquivo}
-                            validado={u.validado}
-                          />
-                        )}
-                        <span className="shrink-0 font-mono text-muted-foreground">{tamanhoLegivel(u.tamanho)}</span>
-                        {u.nomeArquivo.toLowerCase().endsWith(".pdf") && (
-                          <a
-                            href={`/projetos/${projetoId}/arquivos/${u.id}/visualizar`}
-                            target="_blank"
-                            rel="noopener"
-                            className="shrink-0 text-primary hover:underline"
-                            aria-label="Visualizar prancha"
-                            title="Visualizar prancha"
-                          >
-                            <Eye className="size-3.5" />
-                          </a>
-                        )}
-                        <a
-                          href={`/api/uploads/${u.id}/download`}
-                          className="shrink-0 text-primary hover:underline"
-                          aria-label="Baixar"
-                        >
-                          <Download className="size-3.5" />
-                        </a>
-                      </li>
-                    ))}
+                            {anteriores.length > 0 && (
+                              <VersaoToggle
+                                n={anteriores.length}
+                                aberto={aberto}
+                                onClick={() => alternarVersoes(u.id)}
+                                nome={u.nomeArquivo}
+                              />
+                            )}
+                            <span className="shrink-0 font-mono text-muted-foreground">{tamanhoLegivel(u.tamanho)}</span>
+                            {u.nomeArquivo.toLowerCase().endsWith(".pdf") && (
+                              <a
+                                href={`/projetos/${projetoId}/arquivos/${u.id}/visualizar`}
+                                target="_blank"
+                                rel="noopener"
+                                className="shrink-0 text-primary hover:underline"
+                                aria-label="Visualizar prancha"
+                                title="Visualizar prancha"
+                              >
+                                <Eye className="size-3.5" />
+                              </a>
+                            )}
+                            <a
+                              href={`/api/uploads/${u.id}/download`}
+                              className="shrink-0 text-primary hover:underline"
+                              aria-label="Baixar"
+                            >
+                              <Download className="size-3.5" />
+                            </a>
+                          </li>
+                          {aberto &&
+                            anteriores.map((v) => {
+                              const ehPdf = v.nomeArquivo.toLowerCase().endsWith(".pdf");
+                              return (
+                                <li
+                                  key={v.id}
+                                  className="ml-5 flex min-w-0 items-center gap-2 rounded-sm border border-dashed px-2 py-1 text-xs text-muted-foreground"
+                                >
+                                  <IconeArquivo nome={v.nomeArquivo} />
+                                  {ehPdf ? (
+                                    <a
+                                      href={`/projetos/${projetoId}/arquivos/${v.id}/visualizar`}
+                                      target="_blank"
+                                      rel="noopener"
+                                      className="min-w-0 flex-1 truncate hover:text-primary hover:underline"
+                                      title={`Visualizar ${v.nomeArquivo}`}
+                                    >
+                                      {v.nomeArquivo}
+                                      <span className="ml-1 font-mono">v{v.versao}</span>
+                                    </a>
+                                  ) : (
+                                    <span className="min-w-0 flex-1 truncate" title={v.nomeArquivo}>
+                                      {v.nomeArquivo}
+                                      <span className="ml-1 font-mono">v{v.versao}</span>
+                                    </span>
+                                  )}
+                                  <StatusArquivo aprovado={v.validado} ajusteObs={v.ajusteObs} dataAprovacao={v.data} />
+                                  <span className="shrink-0 font-mono">{tamanhoLegivel(v.tamanho)}</span>
+                                  {ehPdf && (
+                                    <a
+                                      href={`/projetos/${projetoId}/arquivos/${v.id}/visualizar`}
+                                      target="_blank"
+                                      rel="noopener"
+                                      className="shrink-0 text-primary hover:underline"
+                                      aria-label={`Visualizar ${v.nomeArquivo} v${v.versao}`}
+                                      title="Visualizar prancha"
+                                    >
+                                      <Eye className="size-3.5" />
+                                    </a>
+                                  )}
+                                  <a
+                                    href={`/api/uploads/${v.id}/download`}
+                                    className="shrink-0 text-primary hover:underline"
+                                    aria-label={`Baixar ${v.nomeArquivo} v${v.versao}`}
+                                  >
+                                    <Download className="size-3.5" />
+                                  </a>
+                                </li>
+                              );
+                            })}
+                        </Fragment>
+                      );
+                    })}
                   </ul>
                 )}
               </div>

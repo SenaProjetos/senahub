@@ -36,10 +36,20 @@ function mapear(d: DocumentoComVersoes) {
           downloadUrl: `/api/documentos/${atual.id}/download`,
         }
       : null,
+    // Histórico completo (numero desc → [0] = atual). Alimenta o acordeão "ver versões".
+    versoes: d.versoes.map((v) => ({
+      id: v.id,
+      numero: v.numero,
+      nomeArquivo: v.nomeArquivo,
+      tamanho: v.tamanho,
+      criadoEm: v.createdAt.toISOString(),
+      downloadUrl: `/api/documentos/${v.id}/download`,
+    })),
   };
 }
 
 export type DocumentoItem = ReturnType<typeof mapear>;
+export type DocumentoVersaoItem = DocumentoItem["versoes"][number];
 
 /** Cliente-dono de um projeto (p/ ancorar uploads de documentos no projeto). */
 export async function clienteDoProjeto(projetoId: string): Promise<string | null> {

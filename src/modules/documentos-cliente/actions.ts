@@ -173,6 +173,41 @@ export const alternarExibicaoRecebidos = defineAction(
   },
 );
 
+export const excluirVersaoDocumento = defineAction(
+  {
+    ...base,
+    acao: "excluir-versao-documento",
+    entidade: "DocumentoVersao",
+    entidadeId: (d, i) => ((d ?? i) as { versaoId: string }).versaoId,
+    schema: z.object({ versaoId: z.string().min(1) }),
+  },
+  async (i, ctx) => {
+    if (!GLOBAL_ROLES.includes(ctx.user.role as never)) {
+      throw new ActionError("Apenas admins e supervisores podem excluir versões.");
+    }
+    const versao = await prisma.documentoVersao.findUnique({
+      where: { id: i.versaoId },
+      select: {
+        caminho: true,
+        documentoId: true,
+        documento: {
+          select: { propostaId: true, projetoId: true, origem: true, _count: { select: { versoes: true } } },
+        },
+      },
+    });
+    if (!versao) throw new ActionError("Versão não encontrada.");
+    await exigirEscrita(ctx.user, versao.documento, versao.documento.origem);
+    // Não deixar o documento sem nenhuma versão — para apagar a última, exclua o documento.
+    if (versao.documento._count.versoes <= 1) {
+      throw new ActionError("Esta é a única versão. Exclua o documento inteiro.");
+    }
+    await prisma.documentoVersao.delete({ where: { id: i.versaoId } });
+    await removerArquivo(versao.caminho);
+    revalidar(versao.documento.propostaId, versao.documento.projetoId);
+    return { versaoId: i.versaoId };
+  },
+);
+
 export const excluirDocumento = defineAction(
   {
     ...base,

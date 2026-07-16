@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useRef, useState, useTransition } from "react";
+import { createContext, Fragment, useCallback, useContext, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -28,6 +28,7 @@ import {
   Loader2,
   XCircle,
   RotateCcw,
+  History,
 } from "lucide-react";
 import { foraDoPadrao } from "@/modules/projetos/pranchas/codigo";
 import type {
@@ -42,9 +43,10 @@ import {
   editarDocumento,
   adicionarVersaoDocumento,
   excluirDocumento,
+  excluirVersaoDocumento,
   alternarExibicaoRecebidos,
 } from "@/modules/documentos-cliente/actions";
-import type { DocumentoItem } from "@/modules/documentos-cliente/queries";
+import type { DocumentoItem, DocumentoVersaoItem } from "@/modules/documentos-cliente/queries";
 import type { MetaDocumento } from "@/modules/documentos-cliente/schemas";
 import { entregaveisAtuais } from "@/modules/uploads/validacao";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
@@ -268,6 +270,38 @@ function Pasta({
   );
 }
 
+/**
+ * Botão que expande/colapsa as versões anteriores de um arquivo (acordeão). Só
+ * aparece quando há histórico (>0 versões antigas). Compartilhado por disciplina,
+ * Geral e Recebidos.
+ */
+export function VersaoToggle({
+  n,
+  aberto,
+  onClick,
+  nome,
+}: {
+  n: number;
+  aberto: boolean;
+  onClick: () => void;
+  nome: string;
+}) {
+  return (
+    <button
+      type="button"
+      className="flex shrink-0 items-center gap-0.5 rounded-sm px-1 text-xs text-muted-foreground hover:text-foreground"
+      aria-expanded={aberto}
+      aria-label={`${n} versão(ões) anterior(es) de ${nome}`}
+      title={aberto ? "Ocultar versões anteriores" : `Ver ${n} versão(ões) anterior(es)`}
+      onClick={onClick}
+    >
+      <History className="size-3.5" />
+      <span className="font-mono">{n}</span>
+      <ChevronRight className={cn("size-3 transition-transform", aberto && "rotate-90")} />
+    </button>
+  );
+}
+
 function LinhaArquivo({
   a,
   nivel,
@@ -276,6 +310,8 @@ function LinhaArquivo({
   onExcluir,
   podeValidar,
   foraPadrao,
+  anteriores,
+  historico,
 }: {
   a: ArvoreArquivoItem;
   nivel: number;
@@ -284,91 +320,123 @@ function LinhaArquivo({
   onExcluir?: (a: ArvoreArquivoItem) => void;
   podeValidar?: boolean;
   foraPadrao?: boolean;
+  /** Versões anteriores deste arquivo (só na linha "atual"); expandidas no acordeão. */
+  anteriores?: ArvoreArquivoItem[];
+  /** Renderiza como uma versão antiga: recuada, sem checkbox/renomear/validar. */
+  historico?: boolean;
 }) {
   const selecao = useContext(SelecaoCtx);
+  const [verVersoes, setVerVersoes] = useState(false);
   const ehPdf = extDe(a.nome) === "pdf";
+  const temVersoes = (anteriores?.length ?? 0) > 0;
+  const mostrarVersao = a.versao > 1 || historico;
   return (
-    <div
-      className="flex items-center gap-2 rounded-sm py-1 pr-2 text-sm hover:bg-muted/40"
-      style={{ paddingLeft: `${nivel * 1.25 + 0.75}rem` }}
-    >
-      {selecao && (
-        <Checkbox
-          className="shrink-0"
-          checked={selecao.sel.has(a.id)}
-          onCheckedChange={() => selecao.alternar(a.id)}
-          aria-label={`Selecionar ${a.nome}`}
-        />
-      )}
-      <IconeArquivo nome={a.nome} />
-      {ehPdf ? (
-        <a
-          href={`/projetos/${projetoId}/arquivos/${a.id}/visualizar`}
-          target="_blank"
-          rel="noopener"
-          className="min-w-0 flex-1 truncate hover:text-primary hover:underline"
-          title={`Visualizar ${a.nome}`}
-        >
-          {a.nome}
-          {a.versao > 1 && <span className="ml-1 font-mono text-xs text-muted-foreground">v{a.versao}</span>}
+    <>
+      <div
+        className={cn(
+          "flex items-center gap-2 rounded-sm py-1 pr-2 text-sm hover:bg-muted/40",
+          historico && "text-muted-foreground",
+        )}
+        style={{ paddingLeft: `${nivel * 1.25 + 0.75}rem` }}
+      >
+        {selecao && !historico && (
+          <Checkbox
+            className="shrink-0"
+            checked={selecao.sel.has(a.id)}
+            onCheckedChange={() => selecao.alternar(a.id)}
+            aria-label={`Selecionar ${a.nome}`}
+          />
+        )}
+        <IconeArquivo nome={a.nome} />
+        {ehPdf ? (
+          <a
+            href={`/projetos/${projetoId}/arquivos/${a.id}/visualizar`}
+            target="_blank"
+            rel="noopener"
+            className="min-w-0 flex-1 truncate hover:text-primary hover:underline"
+            title={`Visualizar ${a.nome}`}
+          >
+            {a.nome}
+            {mostrarVersao && <span className="ml-1 font-mono text-xs text-muted-foreground">v{a.versao}</span>}
+          </a>
+        ) : (
+          <span className="min-w-0 flex-1 truncate" title={a.nome}>
+            {a.nome}
+            {mostrarVersao && <span className="ml-1 font-mono text-xs text-muted-foreground">v{a.versao}</span>}
+          </span>
+        )}
+        {foraPadrao && !historico && (
+          <span
+            className="flex shrink-0 items-center gap-1 text-xs text-warning"
+            title="Nome fora do padrão da Lista Mestre — renomeie para o padrão {proj}-{disc}-{fase}-{nº}-{tipo}."
+          >
+            <AlertTriangle className="size-3.5" /> fora do padrão
+          </span>
+        )}
+        <StatusArquivo aprovado={a.aprovado} ajusteObs={a.ajusteObs} dataAprovacao={a.data} />
+        {podeValidar && !historico && (
+          <AcoesValidacaoArquivo uploadId={a.id} nomeArquivo={a.nome} validado={a.aprovado} />
+        )}
+        {temVersoes && (
+          <VersaoToggle
+            n={anteriores!.length}
+            aberto={verVersoes}
+            onClick={() => setVerVersoes((v) => !v)}
+            nome={a.nome}
+          />
+        )}
+        <span className="shrink-0 font-mono text-xs text-muted-foreground">{fmtBytes(a.tamanho)}</span>
+        {onRenomear && !historico && (
+          <button
+            type="button"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label={`Renomear ${a.nome}`}
+            title="Renomear"
+            onClick={() => onRenomear(a)}
+          >
+            <Pencil className="size-3.5" />
+          </button>
+        )}
+        {ehPdf && (
+          <a
+            href={`/projetos/${projetoId}/arquivos/${a.id}/visualizar`}
+            target="_blank"
+            rel="noopener"
+            className="shrink-0 text-primary hover:text-primary/80"
+            aria-label={`Visualizar ${a.nome}`}
+            title="Visualizar prancha"
+          >
+            <Eye className="size-3.5" />
+          </a>
+        )}
+        <a href={a.downloadUrl} className="shrink-0 text-primary hover:text-primary/80" aria-label={`Baixar ${a.nome}`}>
+          <Download className="size-3.5" />
         </a>
-      ) : (
-        <span className="min-w-0 flex-1 truncate" title={a.nome}>
-          {a.nome}
-          {a.versao > 1 && <span className="ml-1 font-mono text-xs text-muted-foreground">v{a.versao}</span>}
-        </span>
-      )}
-      {foraPadrao && (
-        <span
-          className="flex shrink-0 items-center gap-1 text-xs text-warning"
-          title="Nome fora do padrão da Lista Mestre — renomeie para o padrão {proj}-{disc}-{fase}-{nº}-{tipo}."
-        >
-          <AlertTriangle className="size-3.5" /> fora do padrão
-        </span>
-      )}
-      <StatusArquivo aprovado={a.aprovado} ajusteObs={a.ajusteObs} dataAprovacao={a.data} />
-      {podeValidar && (
-        <AcoesValidacaoArquivo uploadId={a.id} nomeArquivo={a.nome} validado={a.aprovado} />
-      )}
-      <span className="shrink-0 font-mono text-xs text-muted-foreground">{fmtBytes(a.tamanho)}</span>
-      {onRenomear && (
-        <button
-          type="button"
-          className="shrink-0 text-muted-foreground hover:text-foreground"
-          aria-label={`Renomear ${a.nome}`}
-          title="Renomear"
-          onClick={() => onRenomear(a)}
-        >
-          <Pencil className="size-3.5" />
-        </button>
-      )}
-      {ehPdf && (
-        <a
-          href={`/projetos/${projetoId}/arquivos/${a.id}/visualizar`}
-          target="_blank"
-          rel="noopener"
-          className="shrink-0 text-primary hover:text-primary/80"
-          aria-label={`Visualizar ${a.nome}`}
-          title="Visualizar prancha"
-        >
-          <Eye className="size-3.5" />
-        </a>
-      )}
-      <a href={a.downloadUrl} className="shrink-0 text-primary hover:text-primary/80" aria-label={`Baixar ${a.nome}`}>
-        <Download className="size-3.5" />
-      </a>
-      {onExcluir && (
-        <button
-          type="button"
-          className="shrink-0 text-muted-foreground hover:text-destructive"
-          aria-label={`Excluir ${a.nome}`}
-          title="Excluir arquivo"
-          onClick={() => onExcluir(a)}
-        >
-          <Trash2 className="size-3.5" />
-        </button>
-      )}
-    </div>
+        {onExcluir && (
+          <button
+            type="button"
+            className="shrink-0 text-muted-foreground hover:text-destructive"
+            aria-label={historico ? `Excluir versão ${a.versao} de ${a.nome}` : `Excluir ${a.nome}`}
+            title={historico ? "Excluir esta versão" : "Excluir arquivo"}
+            onClick={() => onExcluir(a)}
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+        )}
+      </div>
+      {temVersoes &&
+        verVersoes &&
+        anteriores!.map((v) => (
+          <LinhaArquivo
+            key={v.id}
+            a={v}
+            nivel={nivel + 1}
+            projetoId={projetoId}
+            onExcluir={onExcluir}
+            historico
+          />
+        ))}
+    </>
   );
 }
 
@@ -431,6 +499,34 @@ function RenomearDialog({ item, onClose }: { item: ArvoreArquivoItem | null; onC
   );
 }
 
+/** Conta arquivos lógicos (distintos), ignorando versões — mesma `(pacote, nome)` = um arquivo. */
+function contarArquivos(arquivos: ArvoreArquivoItem[]): number {
+  return new Set(arquivos.map((a) => `${a.pacote}/${a.nome}`)).size;
+}
+
+/**
+ * Agrupa versões de um mesmo arquivo (dentro de uma subpasta, mesmo pacote+extensão):
+ * a versão mais recente vira a linha "atual"; as demais ficam em `anteriores` (desc).
+ * O explorer só lista a atual e revela as anteriores no acordeão.
+ */
+function agruparVersoes(
+  arquivos: ArvoreArquivoItem[],
+): { atual: ArvoreArquivoItem; anteriores: ArvoreArquivoItem[] }[] {
+  const grupos = new Map<string, ArvoreArquivoItem[]>();
+  const ordem: string[] = [];
+  for (const a of arquivos) {
+    if (!grupos.has(a.nome)) {
+      grupos.set(a.nome, []);
+      ordem.push(a.nome);
+    }
+    grupos.get(a.nome)!.push(a);
+  }
+  return ordem.map((nome) => {
+    const versoes = grupos.get(nome)!.slice().sort((x, y) => y.versao - x.versao);
+    return { atual: versoes[0], anteriores: versoes.slice(1) };
+  });
+}
+
 /** Agrupa os arquivos de uma disciplina em pacote → subpasta(extensão). */
 function agruparPorPacote(arquivos: ArvoreArquivoItem[]) {
   return PACOTES.map((p) => {
@@ -439,7 +535,8 @@ function agruparPorPacote(arquivos: ArvoreArquivoItem[]) {
       nome: s,
       arquivos: doPacote.filter((a) => subpastaDe(a.nome) === s),
     })).filter((s) => s.arquivos.length > 0);
-    return { pacote: p, total: doPacote.length, subpastas };
+    // `total` conta arquivos lógicos (sem versões), casando com as linhas visíveis.
+    return { pacote: p, total: contarArquivos(doPacote), subpastas };
   }).filter((g) => g.total > 0);
 }
 
@@ -601,7 +698,7 @@ export function ArquivosExplorer({
                     <Pasta
                       key={d.id}
                       nome={d.nome}
-                      contagem={d.arquivos.length}
+                      contagem={contarArquivos(d.arquivos)}
                       nivel={0}
                       acao={
                         <div className="flex items-center gap-2">
@@ -654,7 +751,7 @@ export function ArquivosExplorer({
                                 <Pasta
                                   key={s.nome}
                                   nome={s.nome}
-                                  contagem={s.arquivos.length}
+                                  contagem={contarArquivos(s.arquivos)}
                                   nivel={2}
                                   abertoInicial
                                   acao={
@@ -665,17 +762,20 @@ export function ArquivosExplorer({
                                     />
                                   }
                                 >
-                                  {s.arquivos.map((a) => (
+                                  {agruparVersoes(s.arquivos).map(({ atual, anteriores }) => (
                                     <LinhaArquivo
-                                      key={a.id}
-                                      a={a}
+                                      key={atual.id}
+                                      a={atual}
+                                      anteriores={anteriores}
                                       nivel={3}
                                       projetoId={projeto.id}
                                       onRenomear={d.podeEnviar ? setRenomeando : undefined}
                                       onExcluir={podeExcluirArquivo ? excluirArquivo : undefined}
-                                      podeValidar={podeValidarDisc && idsValidaveis.has(a.id)}
+                                      podeValidar={podeValidarDisc && idsValidaveis.has(atual.id)}
                                       foraPadrao={
-                                        nomenclatura.exigir && a.pacote === "A" && foraDoPadrao(a.nome, nomenclatura.padrao)
+                                        nomenclatura.exigir &&
+                                        atual.pacote === "A" &&
+                                        foraDoPadrao(atual.nome, nomenclatura.padrao)
                                       }
                                     />
                                   ))}
@@ -730,6 +830,61 @@ async function subirDocumento(
   return meta as MetaDocumento;
 }
 
+/**
+ * Linha de uma versão ANTIGA de um Documento (Geral/Recebidos), no acordeão de versões.
+ * Recuada e apagada; só baixar/pré-visualizar (+ excluir versão avulsa p/ admin).
+ */
+function LinhaVersaoDocumento({
+  v,
+  nome,
+  podeExcluir,
+  pending,
+  onExcluir,
+}: {
+  v: DocumentoVersaoItem;
+  nome: string;
+  podeExcluir: boolean;
+  pending: boolean;
+  onExcluir: () => void;
+}) {
+  return (
+    <div
+      className="flex items-center gap-2 rounded-sm py-1 pr-2 text-sm text-muted-foreground hover:bg-muted/40"
+      style={{ paddingLeft: "3rem" }}
+    >
+      <IconeArquivo nome={v.nomeArquivo} />
+      <span className="min-w-0 flex-1 truncate" title={v.nomeArquivo}>
+        {nome}
+        <span className="ml-1 font-mono text-xs">v{v.numero}</span>
+      </span>
+      <span className="hidden shrink-0 text-xs md:inline" title={`Enviada em ${formatarData(v.criadoEm)}`}>
+        {formatarData(v.criadoEm)}
+      </span>
+      <span className="shrink-0 font-mono text-xs">{fmtBytes(v.tamanho)}</span>
+      <PreviewPdfButton nomeArquivo={v.nomeArquivo} url={v.downloadUrl} titulo={`${nome} v${v.numero}`} />
+      <a
+        href={v.downloadUrl}
+        className="shrink-0 text-primary hover:text-primary/80"
+        aria-label={`Baixar ${nome} v${v.numero}`}
+      >
+        <Download className="size-3.5" />
+      </a>
+      {podeExcluir && (
+        <button
+          type="button"
+          className="shrink-0 hover:text-destructive disabled:opacity-50"
+          aria-label={`Excluir versão ${v.numero} de ${nome}`}
+          title="Excluir esta versão"
+          disabled={pending}
+          onClick={onExcluir}
+        >
+          <Trash2 className="size-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 function RecebidosPasta({
   projetoId,
   clienteId,
@@ -749,6 +904,24 @@ function RecebidosPasta({
   const fileNovo = useRef<HTMLInputElement>(null);
   const fileVersao = useRef<HTMLInputElement>(null);
   const [alvoVersao, setAlvoVersao] = useState<string | null>(null);
+  const [versoesAbertas, setVersoesAbertas] = useState<Set<string>>(new Set());
+  const alternarVersoes = (id: string) =>
+    setVersoesAbertas((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+
+  function excluirVersao(versaoId: string) {
+    start(async () => {
+      const r = await excluirVersaoDocumento({ versaoId });
+      if (r.ok) {
+        toast.success("Versão excluída.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
 
   async function enviarNovos(files: File[]) {
     if (files.length === 0) return;
@@ -841,66 +1014,90 @@ function RecebidosPasta({
             Material enviado pelo cliente (proposta/projeto). Nada recebido ainda.
           </p>
         ) : (
-          recebidos.map((d) => (
-            <div
-              key={d.id}
-              className="flex items-center gap-2 rounded-sm py-1 pr-2 text-sm hover:bg-muted/40"
-              style={{ paddingLeft: "1.75rem" }}
-            >
-              <IconeArquivo nome={d.atual?.nomeArquivo ?? d.nome} />
-              <span className="min-w-0 flex-1 truncate" title={d.nome}>
-                {d.nome}
-                {d.totalVersoes > 1 && <span className="ml-1 font-mono text-xs text-muted-foreground">v{d.atual?.numero}</span>}
-              </span>
-              {d.origem === "interno" ? (
-                <Badge variant="secondary" className="shrink-0 gap-1" title="Compartilhado da pasta Geral (gerido lá)">
-                  <Share2 className="size-3" /> do Geral
-                </Badge>
-              ) : (
-                d.canal !== "interno" && (
-                  <Badge variant="outline" className="shrink-0 capitalize">{d.canal}</Badge>
-                )
-              )}
-              <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                {d.atual ? fmtBytes(d.atual.tamanho) : "—"}
-              </span>
-              {d.atual && (
-                <PreviewPdfButton nomeArquivo={d.atual.nomeArquivo} url={d.atual.downloadUrl} titulo={d.nome} />
-              )}
-              {d.atual && (
-                <a href={d.atual.downloadUrl} className="shrink-0 text-primary hover:text-primary/80" aria-label={`Baixar ${d.nome}`}>
-                  <Download className="size-3.5" />
-                </a>
-              )}
-              {/* Docs compartilhados do Geral (origem=interno) são geridos na pasta Geral, não aqui. */}
-              {podeGerir && d.origem !== "interno" && (
-                <button
-                  type="button"
-                  className="shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50"
-                  aria-label="Nova versão"
-                  title="Enviar nova versão"
-                  disabled={busy}
-                  onClick={() => {
-                    setAlvoVersao(d.id);
-                    fileVersao.current?.click();
-                  }}
+          recebidos.map((d) => {
+            const anteriores = d.versoes.slice(1);
+            const aberto = versoesAbertas.has(d.id);
+            return (
+              <Fragment key={d.id}>
+                <div
+                  className="flex items-center gap-2 rounded-sm py-1 pr-2 text-sm hover:bg-muted/40"
+                  style={{ paddingLeft: "1.75rem" }}
                 >
-                  <UploadIcon className="size-3.5" />
-                </button>
-              )}
-              {podeExcluir && d.origem !== "interno" && (
-                <button
-                  type="button"
-                  className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-50"
-                  aria-label="Excluir"
-                  disabled={pending}
-                  onClick={() => excluir(d.id)}
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
-              )}
-            </div>
-          ))
+                  <IconeArquivo nome={d.atual?.nomeArquivo ?? d.nome} />
+                  <span className="min-w-0 flex-1 truncate" title={d.nome}>
+                    {d.nome}
+                    {d.totalVersoes > 1 && <span className="ml-1 font-mono text-xs text-muted-foreground">v{d.atual?.numero}</span>}
+                  </span>
+                  {d.origem === "interno" ? (
+                    <Badge variant="secondary" className="shrink-0 gap-1" title="Compartilhado da pasta Geral (gerido lá)">
+                      <Share2 className="size-3" /> do Geral
+                    </Badge>
+                  ) : (
+                    d.canal !== "interno" && (
+                      <Badge variant="outline" className="shrink-0 capitalize">{d.canal}</Badge>
+                    )
+                  )}
+                  {anteriores.length > 0 && (
+                    <VersaoToggle
+                      n={anteriores.length}
+                      aberto={aberto}
+                      onClick={() => alternarVersoes(d.id)}
+                      nome={d.nome}
+                    />
+                  )}
+                  <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                    {d.atual ? fmtBytes(d.atual.tamanho) : "—"}
+                  </span>
+                  {d.atual && (
+                    <PreviewPdfButton nomeArquivo={d.atual.nomeArquivo} url={d.atual.downloadUrl} titulo={d.nome} />
+                  )}
+                  {d.atual && (
+                    <a href={d.atual.downloadUrl} className="shrink-0 text-primary hover:text-primary/80" aria-label={`Baixar ${d.nome}`}>
+                      <Download className="size-3.5" />
+                    </a>
+                  )}
+                  {/* Docs compartilhados do Geral (origem=interno) são geridos na pasta Geral, não aqui. */}
+                  {podeGerir && d.origem !== "interno" && (
+                    <button
+                      type="button"
+                      className="shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                      aria-label="Nova versão"
+                      title="Enviar nova versão"
+                      disabled={busy}
+                      onClick={() => {
+                        setAlvoVersao(d.id);
+                        fileVersao.current?.click();
+                      }}
+                    >
+                      <UploadIcon className="size-3.5" />
+                    </button>
+                  )}
+                  {podeExcluir && d.origem !== "interno" && (
+                    <button
+                      type="button"
+                      className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-50"
+                      aria-label="Excluir"
+                      disabled={pending}
+                      onClick={() => excluir(d.id)}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  )}
+                </div>
+                {aberto &&
+                  anteriores.map((v) => (
+                    <LinhaVersaoDocumento
+                      key={v.id}
+                      v={v}
+                      nome={d.nome}
+                      podeExcluir={podeExcluir && d.origem !== "interno"}
+                      pending={pending}
+                      onExcluir={() => excluirVersao(v.id)}
+                    />
+                  ))}
+              </Fragment>
+            );
+          })
         )}
       </Pasta>
     </>
@@ -931,6 +1128,14 @@ function PastaGeral({
   const fileNovo = useRef<HTMLInputElement>(null);
   const fileVersao = useRef<HTMLInputElement>(null);
   const [alvoVersao, setAlvoVersao] = useState<string | null>(null);
+  const [versoesAbertas, setVersoesAbertas] = useState<Set<string>>(new Set());
+  const alternarVersoes = (id: string) =>
+    setVersoesAbertas((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
 
   function abrirNovo() {
     setForm({ nome: "", categoria: "outro", descricao: "" });
@@ -1000,6 +1205,16 @@ function PastaGeral({
     });
   }
 
+  function excluirVersao(versaoId: string) {
+    start(async () => {
+      const r = await excluirVersaoDocumento({ versaoId });
+      if (r.ok) {
+        toast.success("Versão excluída.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
   function alternarRecebidos(a: DocumentoItem) {
     start(async () => {
       const r = await alternarExibicaoRecebidos({ id: a.id, exibir: !a.exibirEmRecebidos });
@@ -1038,95 +1253,119 @@ function PastaGeral({
         {geral.length === 0 ? (
           <p className="py-1.5 pl-10 text-xs text-muted-foreground">Sem arquivos gerais.</p>
         ) : (
-          geral.map((a) => (
-            <div
-              key={a.id}
-              className="flex items-center gap-2 rounded-sm py-1 pr-2 text-sm hover:bg-muted/40"
-              style={{ paddingLeft: "1.75rem" }}
-            >
-              <IconeArquivo nome={a.atual?.nomeArquivo ?? a.nome} />
-              <span className="min-w-0 flex-1 truncate" title={a.nome}>
-                {a.nome}
-                {a.atual && a.atual.numero > 1 && (
-                  <span className="ml-1 font-mono text-xs text-muted-foreground">v{a.atual.numero}</span>
-                )}
-              </span>
-              {a.categoria && (
-                <Badge variant="outline" className="shrink-0 capitalize">
-                  {a.categoria}
-                </Badge>
-              )}
-              <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                {a.atual ? fmtBytes(a.atual.tamanho) : "—"}
-              </span>
-              {a.atual && (
-                <PreviewPdfButton nomeArquivo={a.atual.nomeArquivo} url={a.atual.downloadUrl} titulo={a.nome} />
-              )}
-              {a.atual && (
-                <a
-                  href={a.atual.downloadUrl}
-                  className="shrink-0 text-primary hover:text-primary/80"
-                  aria-label={`Baixar ${a.nome}`}
+          geral.map((a) => {
+            const anteriores = a.versoes.slice(1);
+            const aberto = versoesAbertas.has(a.id);
+            return (
+              <Fragment key={a.id}>
+                <div
+                  className="flex items-center gap-2 rounded-sm py-1 pr-2 text-sm hover:bg-muted/40"
+                  style={{ paddingLeft: "1.75rem" }}
                 >
-                  <Download className="size-3.5" />
-                </a>
-              )}
-              {a.exibirEmRecebidos && (
-                <Badge variant="secondary" className="shrink-0 gap-1">
-                  <Share2 className="size-3" /> em Recebidos
-                </Badge>
-              )}
-              {podeGerir && (
-                <>
-                  <button
-                    type="button"
-                    className={cn(
-                      "shrink-0 disabled:opacity-50",
-                      a.exibirEmRecebidos ? "text-primary hover:text-primary/80" : "text-muted-foreground hover:text-foreground",
+                  <IconeArquivo nome={a.atual?.nomeArquivo ?? a.nome} />
+                  <span className="min-w-0 flex-1 truncate" title={a.nome}>
+                    {a.nome}
+                    {a.atual && a.atual.numero > 1 && (
+                      <span className="ml-1 font-mono text-xs text-muted-foreground">v{a.atual.numero}</span>
                     )}
-                    aria-label={a.exibirEmRecebidos ? "Parar de exibir em Recebidos do cliente" : "Exibir também em Recebidos do cliente"}
-                    title={a.exibirEmRecebidos ? "Parar de exibir em Recebidos do cliente" : "Exibir também em Recebidos do cliente (sem duplicar o arquivo)"}
-                    disabled={pending}
-                    onClick={() => alternarRecebidos(a)}
-                  >
-                    <Share2 className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    className="shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50"
-                    aria-label="Nova versão"
-                    title="Enviar nova versão"
-                    disabled={busy}
-                    onClick={() => {
-                      setAlvoVersao(a.id);
-                      fileVersao.current?.click();
-                    }}
-                  >
-                    <UploadIcon className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    className="shrink-0 text-muted-foreground hover:text-foreground"
-                    aria-label="Editar"
-                    onClick={() => abrirEditar(a)}
-                  >
-                    <Pencil className="size-3.5" />
-                  </button>
-                </>
-              )}
-              {podeExcluir && (
-                <button
-                  type="button"
-                  className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-50"
-                  aria-label="Excluir"
-                  disabled={pending}
-                  onClick={() => excluir(a.id)}
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
-              )}
-            </div>
-          ))
+                  </span>
+                  {a.categoria && (
+                    <Badge variant="outline" className="shrink-0 capitalize">
+                      {a.categoria}
+                    </Badge>
+                  )}
+                  {anteriores.length > 0 && (
+                    <VersaoToggle
+                      n={anteriores.length}
+                      aberto={aberto}
+                      onClick={() => alternarVersoes(a.id)}
+                      nome={a.nome}
+                    />
+                  )}
+                  <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                    {a.atual ? fmtBytes(a.atual.tamanho) : "—"}
+                  </span>
+                  {a.atual && (
+                    <PreviewPdfButton nomeArquivo={a.atual.nomeArquivo} url={a.atual.downloadUrl} titulo={a.nome} />
+                  )}
+                  {a.atual && (
+                    <a
+                      href={a.atual.downloadUrl}
+                      className="shrink-0 text-primary hover:text-primary/80"
+                      aria-label={`Baixar ${a.nome}`}
+                    >
+                      <Download className="size-3.5" />
+                    </a>
+                  )}
+                  {a.exibirEmRecebidos && (
+                    <Badge variant="secondary" className="shrink-0 gap-1">
+                      <Share2 className="size-3" /> em Recebidos
+                    </Badge>
+                  )}
+                  {podeGerir && (
+                    <>
+                      <button
+                        type="button"
+                        className={cn(
+                          "shrink-0 disabled:opacity-50",
+                          a.exibirEmRecebidos ? "text-primary hover:text-primary/80" : "text-muted-foreground hover:text-foreground",
+                        )}
+                        aria-label={a.exibirEmRecebidos ? "Parar de exibir em Recebidos do cliente" : "Exibir também em Recebidos do cliente"}
+                        title={a.exibirEmRecebidos ? "Parar de exibir em Recebidos do cliente" : "Exibir também em Recebidos do cliente (sem duplicar o arquivo)"}
+                        disabled={pending}
+                        onClick={() => alternarRecebidos(a)}
+                      >
+                        <Share2 className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        className="shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                        aria-label="Nova versão"
+                        title="Enviar nova versão"
+                        disabled={busy}
+                        onClick={() => {
+                          setAlvoVersao(a.id);
+                          fileVersao.current?.click();
+                        }}
+                      >
+                        <UploadIcon className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        className="shrink-0 text-muted-foreground hover:text-foreground"
+                        aria-label="Editar"
+                        onClick={() => abrirEditar(a)}
+                      >
+                        <Pencil className="size-3.5" />
+                      </button>
+                    </>
+                  )}
+                  {podeExcluir && (
+                    <button
+                      type="button"
+                      className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-50"
+                      aria-label="Excluir"
+                      disabled={pending}
+                      onClick={() => excluir(a.id)}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  )}
+                </div>
+                {aberto &&
+                  anteriores.map((v) => (
+                    <LinhaVersaoDocumento
+                      key={v.id}
+                      v={v}
+                      nome={a.nome}
+                      podeExcluir={podeExcluir}
+                      pending={pending}
+                      onExcluir={() => excluirVersao(v.id)}
+                    />
+                  ))}
+              </Fragment>
+            );
+          })
         )}
       </Pasta>
 
