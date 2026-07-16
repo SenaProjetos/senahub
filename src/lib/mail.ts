@@ -27,6 +27,8 @@ export type EmailAnexo = {
   filename: string;
   content: Buffer;
   contentType?: string;
+  /** Content-ID para imagem inline: referenciada no HTML por `src="cid:<cid>"`. */
+  cid?: string;
 };
 
 /** Envia e-mail. Retorna false se SMTP não configurado ou falha. */

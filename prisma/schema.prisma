@@ -351,6 +351,7 @@ model Aviso {
   id               String              @id @default(cuid())
   titulo           String
   corpo            String?
+  imagemPath       String? // caminho relativo no storage (avisos/<id>.<ext>); imagem opcional do comunicado
   criadoPorId      String
   criadoPor        User                @relation("AvisosCriados", fields: [criadoPorId], references: [id])
   alvoTipo         AvisoAlvoTipo

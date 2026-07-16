@@ -8,6 +8,8 @@ import { AcessoTracker } from "@/components/uso/acesso-tracker";
 import { FloatingChat } from "@/components/chat/floating-chat";
 import { ChatPresenceProvider } from "@/components/chat/chat-presence-provider";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
+import { OnboardingProvider } from "@/components/onboarding/onboarding-provider";
+import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
 import { DisciplinasIconeProvider } from "@/components/projetos/disciplina-icone";
 import { mapaIconesDisciplina } from "@/modules/projetos/queries";
 import { GOOGLE_FONTS_HREF } from "@/modules/documentos/fontes-tipograficas";
@@ -26,10 +28,18 @@ export default async function DashboardLayout({
   if (await precisaAceitarTermo(user)) redirect("/termo");
 
   const participaDoChat = (CHAT_ROLES as readonly string[]).includes(user.role);
-  const iconesDisciplina = await mapaIconesDisciplina();
+  const [iconesDisciplina, prefs] = await Promise.all([
+    mapaIconesDisciplina(),
+    getPreferencias(user.id),
+  ]);
+  // Chaves `tour_visto:*` já concluídas — evita reabrir guias que o usuário já viu.
+  const toursVistos = Object.entries(prefs)
+    .filter(([k, v]) => k.startsWith("tour_visto:") && v === true)
+    .map(([k]) => k);
 
   const conteudo = (
     <ConfirmProvider>
+     <OnboardingProvider vistosIniciais={toursVistos}>
      <DisciplinasIconeProvider mapa={iconesDisciplina}>
       <Shell role={user.role} user={user}>
         {/* Google Fonts do catálogo de documentos: carregam no editor e no preview/PDF
@@ -45,6 +55,7 @@ export default async function DashboardLayout({
         {participaDoChat && <FloatingChat />}
       </Shell>
      </DisciplinasIconeProvider>
+     </OnboardingProvider>
     </ConfirmProvider>
   );
 

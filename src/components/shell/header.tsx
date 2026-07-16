@@ -40,6 +40,7 @@ export function Header({
       <div className="flex items-center gap-1.5">
         <button
           type="button"
+          data-tour="busca"
           onClick={() => window.dispatchEvent(new Event("open-command"))}
           aria-label="Buscar"
           className="flex h-8 items-center gap-2 rounded-sm border border-border px-2.5 text-sm text-muted-foreground outline-none transition-colors hover:border-ring hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
@@ -49,9 +50,13 @@ export function Header({
           <kbd className="hidden font-mono text-[10px] text-muted-foreground sm:inline">Ctrl K</kbd>
         </button>
         <AgendaResumo />
-        <NotificationBell />
+        <span data-tour="notificacoes" className="flex">
+          <NotificationBell />
+        </span>
         <ThemeToggle />
-        <UserMenu user={user} />
+        <span data-tour="conta" className="flex">
+          <UserMenu user={user} />
+        </span>
       </div>
     </header>
   );

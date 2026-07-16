@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Camera, Sun, Moon, Monitor } from "lucide-react";
 import { salvarPreferencia, atualizarMeuPerfil } from "@/modules/usuarios/preferencias/actions";
 import { PushDispositivoCard } from "@/components/notificacoes/push-ativar";
+import { AvatarCropper } from "@/components/configuracoes/avatar-cropper";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -207,7 +208,7 @@ export function PreferenciasView({
         <CardContent className="divide-y">{renderOpcoes(opcoesChatItems)}</CardContent>
       </Card>
 
-      <Card>
+      <Card data-tour="notificacoes-pref">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Notificações automáticas</CardTitle>
           <CardDescription>
@@ -274,17 +275,26 @@ function MeuPerfilCard({ perfil }: { perfil: Perfil }) {
   const [nome, setNome] = useState(perfil.name);
   const [telefone, setTelefone] = useState(perfil.telefone);
   const [enviandoFoto, setEnviandoFoto] = useState(false);
+  // Arquivo escolhido aguardando ajuste no cropper (null = cropper fechado).
+  const [fotoParaAjustar, setFotoParaAjustar] = useState<File | null>(null);
   const [pending, start] = useTransition();
   const sujo = nome.trim() !== perfil.name || (telefone ?? "") !== (perfil.telefone ?? "");
 
-  async function enviarFoto(e: React.ChangeEvent<HTMLInputElement>) {
+  // Só abre o cropper; o upload acontece após o ajuste (onConfirmar).
+  function escolherFoto(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     e.target.value = "";
     if (!f) return;
+    if (!f.type.startsWith("image/")) return toast.error("Envie uma imagem.");
+    setFotoParaAjustar(f);
+  }
+
+  async function enviarFoto(recortada: File) {
+    setFotoParaAjustar(null);
     setEnviandoFoto(true);
     try {
       const fd = new FormData();
-      fd.append("file", f);
+      fd.append("file", recortada);
       const res = await fetch("/api/avatar", { method: "POST", body: fd });
       const j = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -320,15 +330,22 @@ function MeuPerfilCard({ perfil }: { perfil: Perfil }) {
         <CardDescription>Foto, nome e contato. E-mail e dados de RH são geridos pela administração.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center gap-4">
+        <div data-tour="perfil-foto" className="flex items-center gap-4">
           <Avatar className="size-16">
             {perfil.image && <AvatarImage src={perfil.image} alt={perfil.name} />}
             <AvatarFallback>{iniciais(perfil.name)}</AvatarFallback>
           </Avatar>
-          <input ref={fileRef} type="file" accept="image/*" hidden onChange={enviarFoto} />
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={escolherFoto} />
           <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={enviandoFoto}>
             <Camera className="size-4" /> {enviandoFoto ? "Enviando…" : "Alterar foto"}
           </Button>
+          {fotoParaAjustar && (
+            <AvatarCropper
+              file={fotoParaAjustar}
+              onConfirmar={(recortada) => void enviarFoto(recortada)}
+              onFechar={() => setFotoParaAjustar(null)}
+            />
+          )}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -377,7 +394,7 @@ function AparenciaCard() {
     { v: "system", label: "Sistema", icon: Monitor },
   ];
   return (
-    <Card>
+    <Card data-tour="aparencia">
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Aparência</CardTitle>
         <CardDescription>Tema da interface — salvo neste dispositivo.</CardDescription>

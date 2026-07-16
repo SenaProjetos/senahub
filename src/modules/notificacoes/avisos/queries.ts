@@ -5,6 +5,7 @@ export type AvisoPendente = {
   avisoId: string;
   titulo: string;
   corpo: string | null;
+  temImagem: boolean;
   exigeConfirmacao: boolean;
   criadoEm: Date;
 };
@@ -32,6 +33,7 @@ export async function avisosPendentes(userId: string): Promise<AvisoPendente[]> 
     avisoId: r.avisoId,
     titulo: r.aviso.titulo,
     corpo: r.aviso.corpo,
+    temImagem: !!r.aviso.imagemPath,
     exigeConfirmacao: r.aviso.exigeConfirmacao,
     criadoEm: r.criadoEm,
   }));

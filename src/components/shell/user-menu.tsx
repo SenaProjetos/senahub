@@ -3,9 +3,11 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { LogOut, KeyRound, Camera, Pencil } from "lucide-react";
+import { LogOut, KeyRound, Camera, Pencil, HelpCircle } from "lucide-react";
 import { signOut } from "@/lib/auth-client";
 import { atualizarNomeExibicao } from "@/modules/usuarios/actions";
+import { useOnboarding } from "@/components/onboarding/onboarding-provider";
+import { AvatarCropper } from "@/components/configuracoes/avatar-cropper";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -43,8 +45,10 @@ export function UserMenu({
   user: { name: string; email: string; role: Role; image?: string | null };
 }) {
   const router = useRouter();
+  const { temGuia, reverGuiaDaTela } = useOnboarding();
   const fileRef = useRef<HTMLInputElement>(null);
   const [enviando, setEnviando] = useState(false);
+  const [fotoParaAjustar, setFotoParaAjustar] = useState<File | null>(null);
   const [nomeAberto, setNomeAberto] = useState(false);
   const [nome, setNome] = useState(user.name);
   const [salvando, startSalvar] = useTransition();
@@ -73,14 +77,20 @@ export function UserMenu({
     router.refresh();
   }
 
-  async function onArquivo(e: React.ChangeEvent<HTMLInputElement>) {
+  function onArquivo(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     e.target.value = "";
     if (!f) return;
+    if (!f.type.startsWith("image/")) return toast.error("Envie uma imagem.");
+    setFotoParaAjustar(f);
+  }
+
+  async function enviarFoto(recortada: File) {
+    setFotoParaAjustar(null);
     setEnviando(true);
     try {
       const fd = new FormData();
-      fd.append("file", f);
+      fd.append("file", recortada);
       const res = await fetch("/api/avatar", { method: "POST", body: fd });
       const j = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -97,6 +107,13 @@ export function UserMenu({
   return (
     <>
       <input ref={fileRef} type="file" accept="image/*" hidden onChange={onArquivo} />
+      {fotoParaAjustar && (
+        <AvatarCropper
+          file={fotoParaAjustar}
+          onConfirmar={(recortada) => void enviarFoto(recortada)}
+          onFechar={() => setFotoParaAjustar(null)}
+        />
+      )}
       <DropdownMenu>
       <DropdownMenuTrigger
         render={
@@ -140,6 +157,12 @@ export function UserMenu({
           <KeyRound className="size-4" />
           Trocar senha
         </DropdownMenuItem>
+        {temGuia && (
+          <DropdownMenuItem onClick={reverGuiaDaTela}>
+            <HelpCircle className="size-4" />
+            Rever guia da tela
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={logout} variant="destructive">
           <LogOut className="size-4" />
           Sair

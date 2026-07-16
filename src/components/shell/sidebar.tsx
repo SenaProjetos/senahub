@@ -28,6 +28,7 @@ export function Sidebar({ role }: { role: Role }) {
 
   return (
     <aside
+      data-tour="nav"
       className={cn(
         "sticky top-0 hidden h-svh shrink-0 flex-col overflow-x-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 lg:flex",
         collapsed ? "w-16" : "w-64",

@@ -5,8 +5,9 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { notificarMuitos } from "@/lib/notificar";
 import { emitParaUsuario } from "@/lib/socket";
-import { enviarEmail, smtpConfigurado } from "@/lib/mail";
+import { enviarEmail, smtpConfigurado, type EmailAnexo } from "@/lib/mail";
 import { renderTemplate } from "@/lib/email-templates";
+import { lerArquivo, existeArquivo } from "@/lib/storage";
 import { criarAvisoSchema } from "./schemas";
 import { resolverDestinatarios, rolesValidas } from "./service";
 import { avisosPendentes } from "./queries";
@@ -36,6 +37,7 @@ export const criarAviso = defineAction(
       data: {
         titulo: i.titulo,
         corpo: i.corpo || null,
+        imagemPath: i.imagemPath || null,
         criadoPorId: ctx.user.id,
         alvoTipo: i.alvoTipo,
         alvoRoles: i.alvoTipo === "categoria" ? rolesValidas(i.alvoRoles) : [],
@@ -68,8 +70,19 @@ export const criarAviso = defineAction(
         titulo: i.titulo,
         corpo: i.corpo || "",
       });
+
+      // Imagem inline (CID): anexo referenciado no HTML — funciona em qualquer cliente,
+      // sem depender de URL pública. Lida uma vez e reusada em todos os destinatários.
+      let html = tpl.html;
+      let anexos: EmailAnexo[] | undefined;
+      if (i.imagemPath && (await existeArquivo(i.imagemPath))) {
+        const buf = await lerArquivo(i.imagemPath);
+        anexos = [{ filename: "aviso.jpg", content: buf, contentType: "image/jpeg", cid: "aviso-imagem" }];
+        html += `<p style="margin-top:16px"><img src="cid:aviso-imagem" alt="" style="max-width:100%;height:auto;border-radius:8px" /></p>`;
+      }
+
       for (const u of users) {
-        const ok = await enviarEmail({ to: u.email, subject: tpl.assunto, html: tpl.html });
+        const ok = await enviarEmail({ to: u.email, subject: tpl.assunto, html, attachments: anexos });
         if (ok) comEmail++;
       }
       if (comEmail > 0) {

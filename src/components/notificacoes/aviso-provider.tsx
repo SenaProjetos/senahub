@@ -21,6 +21,7 @@ type Pendente = {
   avisoId: string;
   titulo: string;
   corpo: string | null;
+  temImagem: boolean;
   exigeConfirmacao: boolean;
   criadoEm: string | Date;
 };
@@ -101,6 +102,14 @@ export function AvisoProvider() {
             <DialogDescription className="whitespace-pre-wrap">{atual.corpo}</DialogDescription>
           ) : null}
         </DialogHeader>
+        {atual.temImagem ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`/api/avisos/${atual.avisoId}/imagem`}
+            alt=""
+            className="max-h-[50vh] w-full rounded-md object-contain"
+          />
+        ) : null}
         {fila.length > 1 ? (
           <p className="text-xs text-muted-foreground">
             +{fila.length - 1} outro(s) aviso(s) aguardando.

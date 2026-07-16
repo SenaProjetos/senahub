@@ -19,6 +19,7 @@ export const criarAvisoSchema = z
     incluirClientes: z.boolean().default(false),
     exigeConfirmacao: z.boolean().default(true),
     enviarEmail: z.boolean().default(false),
+    imagemPath: z.string().optional(),
   })
   .refine((v) => v.alvoTipo !== "categoria" || v.alvoRoles.length > 0, {
     message: "Selecione ao menos uma categoria.",
