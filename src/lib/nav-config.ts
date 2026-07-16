@@ -180,12 +180,6 @@ export const NAV_GROUPS: NavGroup[] = [
         roles: ["admin", "supervisor", "administrativo"],
       },
       {
-        title: "Funcionários",
-        href: "/rh/funcionarios",
-        icon: UserCog,
-        roles: ["admin", "supervisor", "administrativo"],
-      },
-      {
         title: "Produtividade",
         href: "/rh/produtividade",
         icon: TrendingUp,

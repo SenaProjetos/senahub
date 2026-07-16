@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { logAudit, getClientIp } from "@/lib/audit";
-import { CLT_ROLES, CADASTRO_ROLES, INTERNAL_ROLES, PJ_ROLES } from "@/lib/roles";
+import { CLT_ROLES, CADASTRO_ROLES, INTERNAL_ROLES, PJ_ROLES, HR_ADMIN_ROLES } from "@/lib/roles";
 import { fichaPessoa, cadastroDaPessoa, solicitacoesDoUsuario, notasDoUsuario } from "@/modules/rh/pessoas/queries";
+import { opcoesCadastroFuncionario } from "@/modules/rh/funcionarios/queries";
 import { bancoHorasDe } from "@/modules/rh/banco/queries";
 import { escalaUsuarioGrade, escalaRoleGrade } from "@/modules/rh/escalas/queries";
 import { Pessoa360View } from "@/components/rh/pessoa-360-view";
@@ -46,14 +47,18 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
   const temEscala = isCLT || INTERNAL_ROLES.includes(pessoa.role);
   const batePonto = pessoa.role !== "cliente"; // internos + PJ têm espelho de ponto
 
+  // Edição do cadastro trabalhista: só HR-admin, só p/ papéis com cadastro (nunca cliente/ti).
+  const podeEditarCadastro = isCadastro && HR_ADMIN_ROLES.includes(user.role);
+
   // Ponto (espelhoMes) é a leitura mais cara → carregada sob demanda pela aba (lazy client).
-  const [cadastro, ausencias, banco, escalaUsuario, escalaRole, nf] = await Promise.all([
+  const [cadastro, ausencias, banco, escalaUsuario, escalaRole, nf, opcoes] = await Promise.all([
     isCadastro ? cadastroDaPessoa(id) : Promise.resolve(null),
     isCLT ? solicitacoesDoUsuario(id) : Promise.resolve(null),
     isCLT ? bancoHorasDe(id) : Promise.resolve(null),
     temEscala ? escalaUsuarioGrade(id) : Promise.resolve(null),
     temEscala ? escalaRoleGrade(pessoa.role) : Promise.resolve(null),
     isPJ ? notasDoUsuario(id) : Promise.resolve(null),
+    podeEditarCadastro ? opcoesCadastroFuncionario() : Promise.resolve(null),
   ]);
 
   const escala = escalaUsuario && escalaRole
@@ -72,6 +77,8 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
       banco={banco}
       temPonto={batePonto}
       nf={nf}
+      podeEditarCadastro={podeEditarCadastro}
+      pessoasJuridicas={opcoes?.pessoasJuridicas ?? []}
     />
   );
 }

@@ -1,19 +1,10 @@
-import type { Metadata } from "next";
-import { requireRole } from "@/lib/session";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
-import { listarFuncionarios, opcoesCadastroFuncionario } from "@/modules/rh/funcionarios/queries";
-import { FuncionariosView } from "@/components/rh/funcionarios-view";
+import { permanentRedirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Funcionários" };
-
-export default async function FuncionariosPage() {
-  await requireRole(...HR_ADMIN_ROLES);
-  const [funcionarios, opcoes] = await Promise.all([listarFuncionarios(), opcoesCadastroFuncionario()]);
-  return (
-    <FuncionariosView
-      funcionarios={funcionarios}
-      templates={opcoes.templates}
-      pessoasJuridicas={opcoes.pessoasJuridicas}
-    />
-  );
+/**
+ * Rota aposentada: o cadastro de funcionários foi unificado na ficha única de Pessoas
+ * (/rh/pessoas → ficha 360, aba Cadastro editável + criação pelo wizard). Mantido como
+ * redirect 308 para não quebrar links/atalhos salvos.
+ */
+export default function FuncionariosPage() {
+  permanentRedirect("/rh/pessoas");
 }

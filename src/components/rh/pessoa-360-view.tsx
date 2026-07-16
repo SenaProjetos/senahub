@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CalendarClock, FileText, Landmark, Building2, KeyRound, UserRound, ClipboardList, CalendarRange, Clock, Receipt } from "lucide-react";
+import { CalendarClock, Landmark, Building2, KeyRound, UserRound, ClipboardList, CalendarRange, Clock, Receipt } from "lucide-react";
 import { brl, formatarData } from "@/lib/utils";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { carregarPontoPessoa } from "@/modules/rh/pessoas/actions";
 import { EscalaGrade } from "@/components/rh/escala-grade";
+import { EditarCadastroDialog, type Cadastro } from "@/components/rh/editar-cadastro-dialog";
+import { DependentesEditor } from "@/components/rh/dependentes-editor";
+import { DocumentosEditor } from "@/components/rh/documentos-editor";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -30,6 +33,10 @@ export type Pessoa360Props = {
   nf: NotasUsuario | null;
   /** Modo auto-serviço (o próprio usuário vendo sua ficha): esconde links de gestão que ele não acessa. */
   self?: boolean;
+  /** Habilita a edição do cadastro trabalhista (dialog + dependentes + documentos) — só HR-admin, nunca self. */
+  podeEditarCadastro?: boolean;
+  /** PJs para o seletor de CNPJ do cadastro (usado só quando `podeEditarCadastro`). */
+  pessoasJuridicas?: { id: string; label: string }[];
 };
 
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -72,7 +79,22 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
   );
 }
 
-export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, nf, self = false }: Pessoa360Props) {
+export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [] }: Pessoa360Props) {
+  // Cadastro no formato do EditarCadastroDialog (junta os escalares + o vínculo PJ do cabeçalho).
+  const cadastroDialog: Cadastro | null = cadastro
+    ? {
+        cpf: cadastro.cpf, rg: cadastro.rg, dataNascimento: cadastro.dataNascimento, sexo: cadastro.sexo,
+        estadoCivil: cadastro.estadoCivil, nacionalidade: cadastro.nacionalidade,
+        enderecoCep: cadastro.enderecoCep, enderecoLogradouro: cadastro.enderecoLogradouro, enderecoNumero: cadastro.enderecoNumero,
+        enderecoComplemento: cadastro.enderecoComplemento, enderecoBairro: cadastro.enderecoBairro,
+        enderecoCidade: cadastro.enderecoCidade, enderecoUf: cadastro.enderecoUf,
+        telefone: cadastro.telefone, telefoneEmergencia: cadastro.telefoneEmergencia,
+        contatoEmergenciaNome: cadastro.contatoEmergenciaNome, emailPessoal: cadastro.emailPessoal,
+        banco: cadastro.banco, agencia: cadastro.agencia, conta: cadastro.conta, tipoContaBancaria: cadastro.tipoContaBancaria,
+        cargo: cadastro.cargo, departamento: cadastro.departamento,
+        pjId: pessoa.pj?.id ?? null, pjLabel: pessoa.pj ? `${pessoa.pj.razaoSocial}${pessoa.pj.cnpj ? " · " + pessoa.pj.cnpj : ""}` : null,
+      }
+    : null;
   const abas: { value: string; label: string; icon: React.ElementType; show: boolean }[] = [
     { value: "cadastro", label: "Cadastro", icon: UserRound, show: !!cadastro },
     { value: "ponto", label: "Ponto", icon: Clock, show: temPonto },
@@ -155,6 +177,22 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
         {cadastro && (
           <TabsContent value="cadastro">
             <Card><CardContent className="space-y-5 pt-6">
+              {podeEditarCadastro && cadastroDialog && (
+                <div className="flex justify-end">
+                  <EditarCadastroDialog
+                    funcionario={{
+                      id: pessoa.id,
+                      // O dialog grava em User.name (nome de exibição) — passa o próprio p/ não sobrescrever.
+                      name: pessoa.name,
+                      role: pessoa.role,
+                      salarioBase: pessoa.salarioBase,
+                      dataAdmissao: pessoa.dataAdmissao,
+                      cadastro: cadastroDialog,
+                    }}
+                    pessoasJuridicas={pessoasJuridicas}
+                  />
+                </div>
+              )}
               <Secao titulo="Dados pessoais">
                 <Campo label="CPF" valor={cadastro.cpf} />
                 <Campo label="RG" valor={cadastro.rg} />
@@ -182,36 +220,8 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                   <Campo label="Tipo" valor={cadastro.tipoContaBancaria} />
                 </Secao>
               )}
-              <div className="space-y-2">
-                <h4 className="text-sm font-semibold">Dependentes ({cadastro.dependentes.length})</h4>
-                {cadastro.dependentes.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhum dependente.</p>
-                ) : (
-                  <ul className="divide-y text-sm">
-                    {cadastro.dependentes.map((d) => (
-                      <li key={d.id} className="flex justify-between py-1.5">
-                        <span>{d.nome} <span className="text-muted-foreground">· {d.parentesco ?? "—"}</span></span>
-                        <span className="text-muted-foreground">{d.nascimento ? formatarData(d.nascimento) : ""}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <div className="space-y-2">
-                <h4 className="text-sm font-semibold">Documentos ({cadastro.documentos.length})</h4>
-                {cadastro.documentos.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhum documento anexado.</p>
-                ) : (
-                  <ul className="divide-y text-sm">
-                    {cadastro.documentos.map((d) => (
-                      <li key={d.id} className="flex justify-between py-1.5">
-                        <span><FileText className="mr-1 inline size-3.5 text-muted-foreground" />{d.nome} <span className="text-muted-foreground">· {d.tipo}</span></span>
-                        <span className="text-muted-foreground">{formatarData(d.criadoEm)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+              <DependentesEditor pessoaId={pessoa.id} dependentes={cadastro.dependentes} podeEditar={podeEditarCadastro} />
+              <DocumentosEditor pessoaId={pessoa.id} documentos={cadastro.documentos} podeEditar={podeEditarCadastro} />
             </CardContent></Card>
           </TabsContent>
         )}
