@@ -5,7 +5,6 @@ import {
   Wallet,
   MessageSquare,
   Clock,
-  CalendarClock,
   HeartPulse,
   UserCog,
   Banknote,
@@ -138,12 +137,6 @@ export const NAV_GROUPS: NavGroup[] = [
         mobile: true,
       },
       {
-        title: "Espelho de ponto",
-        href: "/ponto/espelho",
-        icon: CalendarClock,
-        roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"],
-      },
-      {
         title: "Minha conta",
         href: "/minha-ficha",
         icon: IdCard,
@@ -203,7 +196,7 @@ export const NAV_GROUPS: NavGroup[] = [
         roles: ["admin", "supervisor", "administrativo", "clt", "projetista_pj", "freelancer", "cliente"],
       },
       {
-        title: "Documentos",
+        title: "Doc Studio",
         href: "/documentos",
         icon: FileText,
         roles: ["admin", "supervisor", "administrativo"],

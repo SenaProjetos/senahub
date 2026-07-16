@@ -5,6 +5,7 @@ import { espelhoDetalhado, equipeAgora, projetosDoUsuario } from "@/modules/pont
 import { usuariosParaEscala } from "@/modules/rh/escalas/queries";
 import { disciplinasEscreviveisNoProjeto, type DisciplinaEscrevivel } from "@/modules/projetos/diario/queries";
 import { EspelhoView } from "@/components/ponto/espelho-view";
+import { PontoSubnav } from "@/components/ponto/ponto-subnav";
 
 export const metadata: Metadata = { title: "Espelho de ponto" };
 
@@ -64,17 +65,20 @@ export default async function EspelhoPontoPage({
   }
 
   return (
-    <EspelhoView
-      detalhe={detalhe}
-      ano={ano}
-      mes={mes}
-      usuarios={usuarios ? usuarios.map((u) => ({ id: u.id, name: u.name })) : null}
-      usuarioSelecionadoId={targetId}
-      equipe={equipe}
-      souEuMesmo={souEuMesmo}
-      projetos={projetos}
-      podeEditar={podeEditar}
-      diarioPorProjeto={diarioPorProjeto}
-    />
+    <div className="space-y-4">
+      <PontoSubnav />
+      <EspelhoView
+        detalhe={detalhe}
+        ano={ano}
+        mes={mes}
+        usuarios={usuarios ? usuarios.map((u) => ({ id: u.id, name: u.name })) : null}
+        usuarioSelecionadoId={targetId}
+        equipe={equipe}
+        souEuMesmo={souEuMesmo}
+        projetos={projetos}
+        podeEditar={podeEditar}
+        diarioPorProjeto={diarioPorProjeto}
+      />
+    </div>
   );
 }

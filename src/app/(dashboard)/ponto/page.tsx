@@ -5,6 +5,7 @@ import { estadoDoDia, projetosDoUsuario, espelhoMes, ajustesPendentesCiencia } f
 import { rateioMesGestor } from "@/modules/rh/rateio/queries";
 import { disciplinasEscreviveisNoProjeto, type DisciplinaEscrevivel } from "@/modules/projetos/diario/queries";
 import { PontoView } from "@/components/ponto/ponto-view";
+import { PontoSubnav } from "@/components/ponto/ponto-subnav";
 
 export const metadata: Metadata = { title: "Ponto" };
 
@@ -49,15 +50,18 @@ export default async function PontoPage() {
   for (const [pid, discs] of entradasDiario) if (discs.length > 0) diarioPorProjeto[pid] = discs;
 
   return (
-    <PontoView
-      estadoDia={estadoDia}
-      projetos={projetos}
-      espelho={espelho}
-      rateio={rateio}
-      ano={ano}
-      mes={mes}
-      pendencias={pendencias}
-      diarioPorProjeto={diarioPorProjeto}
-    />
+    <div className="space-y-4">
+      <PontoSubnav />
+      <PontoView
+        estadoDia={estadoDia}
+        projetos={projetos}
+        espelho={espelho}
+        rateio={rateio}
+        ano={ano}
+        mes={mes}
+        pendencias={pendencias}
+        diarioPorProjeto={diarioPorProjeto}
+      />
+    </div>
   );
 }
