@@ -19,6 +19,8 @@ const eslintConfig = [
       "build/**",
       "next-env.d.ts",
       "public/**", // assets estáticos (ex.: worker minificado do pdf.js) não são código-fonte
+      ".ds-sync/**", // artefatos gerados do sync de design-system, não código-fonte
+      "ds-bundle/**", // bundle vendorizado (React interno etc.), não código-fonte
     ],
   },
 ];
