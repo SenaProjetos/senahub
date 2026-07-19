@@ -22,6 +22,7 @@ import {
 } from "@/modules/chat/mencoes";
 import { parseFormatacao, partesComLink, textoParaPreview } from "@/modules/chat/formatacao";
 import { getSocket, tocarSom } from "@/lib/chat-client";
+import { precisaChunk, enviarEmChunks } from "@/lib/upload-grande";
 import { PushBanner } from "@/components/notificacoes/push-ativar";
 import { useChatBadge } from "@/components/chat/chat-badge-context";
 import { EditorImagem } from "@/components/chat/editor-imagem";
@@ -618,6 +619,8 @@ export function ChatView({
   const [membrosNivel, setMembrosNivel] = useState(0);
   const [anexos, setAnexos] = useState<File[]>([]);
   const [enviandoAnexo, setEnviandoAnexo] = useState(false);
+  // Progresso de envio de anexo grande (chunked). null = nenhum envio em curso.
+  const [anexoProgresso, setAnexoProgresso] = useState<{ nome: string; pct: number } | null>(null);
   // Lightbox de imagem (modal na mesma janela) — lista de imagens da mensagem + índice atual.
   const [lightbox, setLightbox] = useState<{ imagens: { src: string; nome: string }[]; atual: number } | null>(null);
   // #2: painel "Informações da mensagem" (recibos detalhados) — id da mensagem aberta.
@@ -1142,28 +1145,52 @@ export function ChatView({
     else setSel(canalId);
   }
 
+  // Sobe um anexo do chat e devolve os metadados. Arquivos acima de LIMITE_ENVIO_DIRETO
+  // vão em pedaços (chunked) p/ contornar o teto de ~100 MB do Cloudflare Tunnel; abaixo
+  // disso, um único POST multipart. Lança Error com a mensagem do servidor em caso de falha.
+  async function subirAnexoChat(
+    canalId: string,
+    arquivo: File,
+    onProgress?: (pct: number) => void,
+  ): Promise<{ anexoPath: string; anexoNome: string; anexoMime: string }> {
+    const fd = new FormData();
+    fd.append("canalId", canalId);
+    if (precisaChunk(arquivo)) {
+      const meta = await enviarEmChunks(arquivo, onProgress);
+      fd.append("sessaoId", meta.sessaoId);
+      fd.append("total", String(meta.total));
+      fd.append("tamanho", String(meta.tamanho));
+      fd.append("nome", arquivo.name);
+      fd.append("mime", arquivo.type || "application/octet-stream");
+    } else {
+      fd.append("file", arquivo);
+    }
+    const res = await fetch("/api/chat/anexo", { method: "POST", body: fd });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(j.error ?? "Falha ao enviar o anexo.");
+    return { anexoPath: j.anexoPath, anexoNome: j.anexoNome, anexoMime: j.anexoMime };
+  }
+
   // Faz upload de um arquivo e envia como mensagem (sem texto) no canal aberto.
   async function enviarAnexoDireto(arquivo: File) {
     const canalId = selRef.current;
     if (!canalId) return;
     setEnviandoAnexo(true);
     try {
-      const fd = new FormData();
-      fd.append("canalId", canalId);
-      fd.append("file", arquivo);
-      const res = await fetch("/api/chat/anexo", { method: "POST", body: fd });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) { toast.error(j.error ?? "Falha ao enviar o áudio."); return; }
-      const r = await enviarMensagem({ canalId, conteudo: "", anexoPath: j.anexoPath, anexoNome: j.anexoNome, anexoMime: j.anexoMime });
+      const meta = await subirAnexoChat(canalId, arquivo, (pct) => setAnexoProgresso({ nome: arquivo.name, pct }));
+      const r = await enviarMensagem({ canalId, conteudo: "", anexoPath: meta.anexoPath, anexoNome: meta.anexoNome, anexoMime: meta.anexoMime });
       if (!r.ok) toast.error(r.error);
+    } catch (e) {
+      toast.error((e as Error).message);
     } finally {
+      setAnexoProgresso(null);
       setEnviandoAnexo(false);
     }
   }
 
   // Gravação de áudio pelo microfone (MediaRecorder). Ao concluir (ou bater o limite
   // de tempo/tamanho), o áudio é ENVIADO automaticamente. Cancelar descarta.
-  const LIMITE_AUDIO = 14 * 1024 * 1024; // margem sob o teto de 15 MB do upload
+  const LIMITE_AUDIO = 14 * 1024 * 1024; // teto de nota de voz (~5 min); bem abaixo do limite de upload
   async function iniciarGravacao() {
     if (gravando) return;
     try {
@@ -1234,16 +1261,15 @@ export function ChatView({
       try {
         const enviados: { path: string; nome: string; mime: string }[] = [];
         for (const arquivo of arquivos) {
-          const fd = new FormData();
-          fd.append("canalId", sel);
-          fd.append("file", arquivo);
-          const res = await fetch("/api/chat/anexo", { method: "POST", body: fd });
-          const j = await res.json().catch(() => ({}));
-          if (!res.ok) { toast.error(j.error ?? "Falha ao enviar o anexo."); return; }
-          enviados.push({ path: j.anexoPath, nome: j.anexoNome, mime: j.anexoMime });
+          const meta = await subirAnexoChat(sel, arquivo, (pct) => setAnexoProgresso({ nome: arquivo.name, pct }));
+          enviados.push({ path: meta.anexoPath, nome: meta.anexoNome, mime: meta.anexoMime });
         }
         metas = enviados;
+      } catch (e) {
+        toast.error((e as Error).message);
+        return;
       } finally {
+        setAnexoProgresso(null);
         setEnviandoAnexo(false);
       }
     }
@@ -2594,6 +2620,17 @@ export function ChatView({
                       </button>
                     </div>
                   ))}
+                </div>
+              )}
+              {anexoProgresso && (
+                <div className="mb-2">
+                  <div className="mb-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                    <span className="line-clamp-1">Enviando {anexoProgresso.nome}…</span>
+                    <span className="shrink-0 tabular-nums">{anexoProgresso.pct}%</span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${anexoProgresso.pct}%` }} />
+                  </div>
                 </div>
               )}
               {mencaoOpcoes.length > 0 && (
