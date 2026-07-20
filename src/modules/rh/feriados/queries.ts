@@ -57,6 +57,17 @@ export async function listarFeriados(ano?: number): Promise<FeriadoDia[]> {
   return [...porData.values()].sort((a, b) => a.data.localeCompare(b.data));
 }
 
+/**
+ * É feriado (avulso ou recorrente) no dia local `diaISO` (formato YYYY-MM-DD)?
+ * Usado pelos avisos de ponto para não disparar em dia não útil.
+ */
+export async function ehFeriado(diaISO: string): Promise<boolean> {
+  const ano = Number(diaISO.slice(0, 4));
+  if (!Number.isFinite(ano)) return false;
+  const feriados = await listarFeriados(ano);
+  return feriados.some((f) => f.data === diaISO);
+}
+
 /** Nº de feriados que caem em dia útil (seg–sex) no mês — desconta do esperado do ponto. */
 export async function feriadosUteisNoMes(ano: number, mes: number): Promise<number> {
   const prefixo = `${ano}-${pad(mes)}`;

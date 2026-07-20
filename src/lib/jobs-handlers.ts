@@ -21,6 +21,7 @@ import { acrescimoAcumuladoPct, somaAcrescimos, proximoDoLimite } from "@/module
 import { ehAniversarioReajuste, valorReajustado } from "@/modules/licitacoes/contrato/reajuste";
 import { importarEditaisPNCP } from "@/modules/licitacoes/pncp/import";
 import { espelhoMes } from "@/modules/ponto/queries";
+import { ehFeriado } from "@/modules/rh/feriados/queries";
 import { resolverEscala } from "@/modules/ponto/service";
 import { avaliarAlertasDoDia } from "@/modules/ponto/alertas";
 import { diaLocalDate, diaLocal, horaLocal, minutosDoDia } from "@/modules/ponto/engine";
@@ -251,16 +252,31 @@ export async function snapshotDashboardDiario() {
   await gravarSnapshotDashboard();
 }
 
-/** Dias úteis 09:15: CLT/estagiário sem batida de entrada hoje → lembrete. */
+/**
+ * Dias úteis 09:15: CLT/estagiário sem batida de entrada hoje → lembrete.
+ * Não dispara em feriado, nem para quem está de folga (escala inativa) ou em
+ * férias aprovadas hoje — só faz sentido cobrar ponto em dia útil de trabalho.
+ */
 export async function lembretePontoNaoBatido(): Promise<number> {
-  const hoje = diaLocalDate(new Date());
-  const hojeISO = diaLocal(new Date());
+  const agora = new Date();
+  const hoje = diaLocalDate(agora);
+  const hojeISO = diaLocal(agora);
+  if (await ehFeriado(hojeISO)) return 0; // feriado → dia não útil
   const clts = await prisma.user.findMany({
     where: { ativo: true, role: { in: CLT_ROLES } },
-    select: { id: true },
+    select: { id: true, role: true },
   });
   let n = 0;
   for (const u of clts) {
+    // Folga (escala do dia inativa) → sem lembrete.
+    const grade = await resolverEscala(u.id, u.role, agora);
+    if (!grade.ativo) continue;
+    // Férias aprovadas cobrindo hoje → sem lembrete.
+    const ferias = await prisma.ferias.findFirst({
+      where: { userId: u.id, status: "aprovado", inicio: { lte: hoje }, fim: { gte: hoje } },
+      select: { id: true },
+    });
+    if (ferias) continue;
     const entrada = await prisma.batida.findFirst({
       where: { userId: u.id, dia: hoje, tipo: "entrada" },
     });
@@ -311,6 +327,7 @@ export async function alertasPontoTick(): Promise<number> {
   const agora = new Date();
   const agoraMin = minutosDoDia(horaLocal(agora));
   if (agoraMin < 5 * 60 || agoraMin > 23 * 60) return 0; // fora da janela 05h–23h
+  if (await ehFeriado(diaLocal(agora))) return 0; // feriado → sem alerta de ponto
 
   const usuarios = await prisma.user.findMany({
     where: { ativo: true, role: { in: CLT_ROLES } },
@@ -380,6 +397,7 @@ export async function alertasPontoTick(): Promise<number> {
  */
 export async function resumoPontoEmailDiario(): Promise<number> {
   if (!smtpConfigurado()) return 0;
+  if (await ehFeriado(diaLocal(new Date()))) return 0; // feriado → sem resumo de ponto
   const hoje = diaLocalDate(new Date());
 
   const usuarios = await prisma.user.findMany({
