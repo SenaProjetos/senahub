@@ -227,18 +227,32 @@ const ONBOARDING_PADRAO = {
 };
 
 // Item 15: catálogo com sigla (nomenclatura de arquivos) + categoria (agrupamento na UI).
-const DISCIPLINAS_CATALOGO: { nome: string; codigo: string; categoria: string }[] = [
-  { nome: "Terraplenagem", codigo: "TER", categoria: "CIVIL" },
+// Catálogo-base pré-criado. `categoria: null` cai no grupo "Outras" (ver schema/nota da view).
+// O ícone deriva do nome (lib/disciplinas.ts) — não fixamos `icone` aqui.
+const DISCIPLINAS_CATALOGO: { nome: string; codigo: string; categoria: string | null }[] = [
+  // ARQUITETURA
   { nome: "Arquitetura", codigo: "ARQ", categoria: "ARQUITETURA" },
-  { nome: "Estrutural", codigo: "EST", categoria: "ESTRUTURAL" },
-  { nome: "Fundações", codigo: "FUN", categoria: "ESTRUTURAL" },
+  { nome: "Acústica", codigo: "ACU", categoria: "ARQUITETURA" },
+  // CIVIL
+  { nome: "Estrutural", codigo: "EST", categoria: "CIVIL" },
+  { nome: "Hidrossanitário", codigo: "HID", categoria: "CIVIL" },
+  { nome: "Incêndio (PPCI)", codigo: "PCI", categoria: "CIVIL" },
+  { nome: "Fundações", codigo: "FUN", categoria: "CIVIL" },
+  { nome: "Terraplenagem", codigo: "TER", categoria: "CIVIL" },
+  { nome: "Topografia", codigo: "TOP", categoria: "CIVIL" },
+  { nome: "Pavimentação", codigo: "PAV", categoria: "CIVIL" },
+  { nome: "Drenagem", codigo: "DRE", categoria: "CIVIL" },
+  // ELÉTRICA
   { nome: "Elétrico", codigo: "ELE", categoria: "ELÉTRICA" },
-  { nome: "Lógica", codigo: "LOG", categoria: "ELÉTRICA" },
-  { nome: "CFTV", codigo: "CFT", categoria: "ELÉTRICA" },
-  { nome: "Hidrossanitário", codigo: "HID", categoria: "HIDRÁULICA" },
-  { nome: "Drenagem", codigo: "DRE", categoria: "HIDRÁULICA" },
-  { nome: "Incêndio (PPCI)", codigo: "PCI", categoria: "SEGURANÇA" },
+  { nome: "Cabeamento", codigo: "LOG", categoria: "ELÉTRICA" },
+  { nome: "CFTV", codigo: "SEG", categoria: "ELÉTRICA" },
+  { nome: "SPDA", codigo: "SPD", categoria: "ELÉTRICA" },
+  { nome: "Subestação", codigo: "SUB", categoria: "ELÉTRICA" },
+  // MECÂNICA
   { nome: "Climatização (AVAC)", codigo: "CLI", categoria: "MECÂNICA" },
+  { nome: "Gás", codigo: "GAS", categoria: "MECÂNICA" },
+  // OUTRAS
+  { nome: "Orçamento", codigo: "ORC", categoria: null },
 ];
 
 async function main() {
@@ -285,6 +299,17 @@ async function main() {
   console.log(`✔ ${PERMISSOES_BASE.length} permissões base garantidas.`);
 
   // 3) Catálogo de disciplinas
+  // Reconciliação de renomeações (mantém id/relações/`codigo` → evita colisão de `codigo` @unique
+  // no upsert por `nome`). Só renomeia se o nome antigo existir e o novo ainda não.
+  const RENOMES: { de: string; para: string }[] = [{ de: "Lógica", para: "Cabeamento" }];
+  for (const r of RENOMES) {
+    const antigo = await prisma.disciplinaCatalogo.findUnique({ where: { nome: r.de } });
+    const novoExiste = await prisma.disciplinaCatalogo.findUnique({ where: { nome: r.para } });
+    if (antigo && !novoExiste) {
+      await prisma.disciplinaCatalogo.update({ where: { id: antigo.id }, data: { nome: r.para } });
+      console.log(`  ↻ disciplina renomeada: "${r.de}" → "${r.para}"`);
+    }
+  }
   for (let i = 0; i < DISCIPLINAS_CATALOGO.length; i++) {
     const d = DISCIPLINAS_CATALOGO[i];
     await prisma.disciplinaCatalogo.upsert({

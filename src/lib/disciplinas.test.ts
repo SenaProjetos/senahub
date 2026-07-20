@@ -14,7 +14,16 @@ describe("keyDisciplina", () => {
     ["Climatização (AVAC)", "climatizacao"],
     ["Terraplenagem", "terraplenagem"],
     ["Lógica", "telecom"],
-    ["Drenagem", "hidrossanitario"],
+    ["Drenagem", "drenagem"],
+    ["Drenagem Pluvial", "drenagem"],
+    ["SPDA", "spda"],
+    ["Para-raios", "spda"],
+    ["Subestação", "subestacao"],
+    ["Gás", "gas"],
+    ["Topografia", "topografia"],
+    ["Pavimentação", "pavimentacao"],
+    ["Acústica", "acustica"],
+    ["Orçamento", "orcamento"],
     ["CFTV", "seguranca"],
   ])("mapeia %s (tolerante a acento/caixa)", (nome, key) => {
     expect(keyDisciplina(nome)).toBe(key);

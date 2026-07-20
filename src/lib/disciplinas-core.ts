@@ -12,10 +12,18 @@ export type DisciplinaKey =
   | "estrutural"
   | "fundacoes"
   | "hidrossanitario"
+  | "drenagem"
   | "eletrico"
+  | "spda"
+  | "subestacao"
   | "incendio"
   | "climatizacao"
+  | "gas"
   | "terraplenagem"
+  | "topografia"
+  | "pavimentacao"
+  | "acustica"
+  | "orcamento"
   | "telecom"
   | "seguranca"
   | "outra";
@@ -33,12 +41,22 @@ export function normalizar(nome: string): string {
 const REGRAS: { match: RegExp; key: DisciplinaKey }[] = [
   { match: /arquitet/, key: "arquitetura" },
   { match: /estrutur/, key: "estrutural" },
-  { match: /fundac|geotec|estaca|sapata/, key: "fundacoes" },
-  { match: /hidro|sanit|hidraul|drenag|agua/, key: "hidrossanitario" },
-  { match: /eletric|spda|energia/, key: "eletrico" },
+  { match: /fundac|geotec|\bestaca|sapata/, key: "fundacoes" },
+  // drenagem antes de hidro (senão /hidro/ e afins engoliriam o pluvial)
+  { match: /drenag|pluvial/, key: "drenagem" },
+  { match: /hidro|sanit|hidraul|agua/, key: "hidrossanitario" },
+  // spda/subestacao antes de eletrico (senão /energia/ e afins os engoliriam)
+  { match: /spda|para.?raio|descarga atmosf/, key: "spda" },
+  { match: /subestac|trafo|transformador/, key: "subestacao" },
+  { match: /eletric|energia/, key: "eletrico" },
   { match: /incendi|ppci|combate|sprinkler/, key: "incendio" },
   { match: /climatiz|avac|hvac|ar.?condicionado|termic/, key: "climatizacao" },
+  { match: /\bgas\b|glp|gnv|gasoduto/, key: "gas" },
   { match: /terraplan|terraplen|movimento de terra/, key: "terraplenagem" },
+  { match: /topograf|planialtim|geodes/, key: "topografia" },
+  { match: /paviment|asfalt|cbuq/, key: "pavimentacao" },
+  { match: /acustic/, key: "acustica" },
+  { match: /orcament/, key: "orcamento" },
   { match: /telecom|logic|rede|dados|cabeamento/, key: "telecom" },
   { match: /cftv|camera|vigilanc|seguranca eletronic/, key: "seguranca" },
 ];
