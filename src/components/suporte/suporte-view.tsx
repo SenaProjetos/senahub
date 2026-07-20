@@ -93,12 +93,26 @@ export function SuporteView({
   const [categoria, setCategoria] = useState<"sugestao" | "erro" | "duvida" | "outro">("sugestao");
   const [respostas, setRespostas] = useState<Record<string, string>>({});
   const [arquivos, setArquivos] = useState<Record<string, File | null>>({});
+  // Anexo (imagem/vídeo) do ticket sendo aberto.
+  const [arquivoNovo, setArquivoNovo] = useState<File | null>(null);
   // Ticket sob arraste de arquivo (realce visual do drop zone).
   const [dragSobre, setDragSobre] = useState<string | null>(null);
 
   function abrir() {
     start(async () => {
-      const r = await abrirTicket({ titulo, descricao, prioridade, categoria });
+      let meta: { anexoPath?: string; anexoNome?: string; anexoMime?: string } = {};
+      if (arquivoNovo) {
+        const fd = new FormData();
+        fd.append("file", arquivoNovo);
+        const res = await fetch("/api/suporte/anexo", { method: "POST", body: fd });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          toast.error(j.error ?? "Falha no anexo.");
+          return;
+        }
+        meta = j;
+      }
+      const r = await abrirTicket({ titulo, descricao, prioridade, categoria, ...meta });
       if (r.ok) {
         toast.success("Ticket aberto.");
         setDialogNovo(false);
@@ -106,6 +120,7 @@ export function SuporteView({
         setDescricao("");
         setPrioridade("media");
         setCategoria("outro");
+        setArquivoNovo(null);
         router.refresh();
       } else toast.error(r.error);
     });
@@ -379,6 +394,37 @@ export function SuporteView({
                 value={descricao}
                 onChange={(e) => setDescricao(e.target.value)}
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Anexo (opcional)</Label>
+              <div className="flex items-center gap-2">
+                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-sm border bg-background px-2.5 py-1.5 text-sm hover:bg-muted">
+                  <Paperclip className={`size-4 ${arquivoNovo ? "text-primary" : ""}`} />
+                  {arquivoNovo ? "Trocar arquivo" : "Imagem ou vídeo"}
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*,video/*"
+                    onChange={(e) => {
+                      setArquivoNovo(e.target.files?.[0] ?? null);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                {arquivoNovo && (
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <FileText className="size-3" /> {arquivoNovo.name}
+                    <button
+                      type="button"
+                      className="text-destructive hover:underline"
+                      onClick={() => setArquivoNovo(null)}
+                    >
+                      remover
+                    </button>
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">Imagem ou vídeo demonstrando o problema (até 100 MB).</p>
             </div>
           </div>
           <DialogFooter>

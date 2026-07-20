@@ -23,7 +23,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ mensage
   return new Response(new Uint8Array(buf), {
     headers: {
       "Content-Type": mime,
-      "Content-Disposition": `${mime.startsWith("image/") ? "inline" : "attachment"}; filename="${encodeURIComponent(m.anexoNome ?? "anexo")}"`,
+      "Content-Disposition": `${mime.startsWith("image/") || mime.startsWith("video/") ? "inline" : "attachment"}; filename="${encodeURIComponent(m.anexoNome ?? "anexo")}"`,
       "Cache-Control": "private, max-age=300",
     },
   });

@@ -46,6 +46,6 @@ export const config = {
     // excluir do matcher evita o truncamento E o custo de RAM por request.
     // ATENÇÃO: toda rota sob esses prefixos DEVE se auto-autenticar (getSession +
     // mustChangePassword + ativo) — não há mais checagem otimista de cookie aqui.
-    "/((?!api/auth|api/uploads|api/documentos|api/chat/anexo|_next/static|_next/image|favicon.ico|MARCA|manifest.json|sw.js|robots.txt).*)",
+    "/((?!api/auth|api/uploads|api/documentos|api/chat/anexo|api/suporte/anexo|_next/static|_next/image|favicon.ico|MARCA|manifest.json|sw.js|robots.txt).*)",
   ],
 };

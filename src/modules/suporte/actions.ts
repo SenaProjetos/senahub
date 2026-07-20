@@ -15,6 +15,10 @@ const ticketSchema = z.object({
   prioridade: z.enum(["baixa", "media", "alta", "urgente"]).default("media"),
   // "Tipo" do ticket (Mód 13): Sugestão/Erro vindos do sistema antigo + legados mantidos p/ compatibilidade.
   categoria: z.enum(["sugestao", "erro", "duvida", "melhoria", "acesso", "outro"]).default("outro"),
+  // Anexo opcional (imagem/vídeo demonstrando o problema) — vira a 1ª mensagem do ticket.
+  anexoPath: z.string().optional(),
+  anexoNome: z.string().optional(),
+  anexoMime: z.string().optional(),
 });
 const mensagemSchema = z
   .object({
@@ -43,6 +47,19 @@ export const abrirTicket = defineAction(
         autorId: user.id,
       },
     });
+    // Anexo demonstrando o problema → 1ª mensagem do ticket (reusa render/serve de mensagens).
+    if (i.anexoPath) {
+      await prisma.ticketMensagem.create({
+        data: {
+          ticketId: t.id,
+          autorId: user.id,
+          texto: "",
+          anexoPath: i.anexoPath,
+          anexoNome: i.anexoNome || null,
+          anexoMime: i.anexoMime || null,
+        },
+      });
+    }
     const gestores = await prisma.user.findMany({
       where: { ativo: true, role: { in: ["admin", "supervisor"] } },
       select: { id: true },
