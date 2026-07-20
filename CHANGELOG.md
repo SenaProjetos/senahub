@@ -2,6 +2,23 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.3.0](https://github.com/SenaProjetos//compare/v1.2.1...v1.3.0) (2026-07-20)
+
+
+### ✨ Funcionalidades
+
+* **chat:** anexos até 500 MB com upload chunked e barra de progresso ([44cac39](https://github.com/SenaProjetos//commit/44cac399c916e783e1d44ebbf876216008d85606))
+* **disciplinas:** amplia catálogo pré-criado com novas disciplinas e ícones ([27feb74](https://github.com/SenaProjetos//commit/27feb7465e05036a2fc20bbb43e8f02cc504cbe2))
+* **disciplinas:** numeração-base no catálogo e nomenclatura por bloco ([91396c1](https://github.com/SenaProjetos//commit/91396c182f83386f32d75dacac267f81e8f430ea))
+* **ferias:** espelho, agenda, regra CLT e dupla aprovação ([1dcee0f](https://github.com/SenaProjetos//commit/1dcee0f0c4d9b5a8c0abc2b1508ce3a37d485da9))
+* **suporte:** anexo de imagem/vídeo ao abrir ticket ([ef8faf0](https://github.com/SenaProjetos//commit/ef8faf05d22338d0518d8d9d12280fb4f1e0c59f))
+
+
+### 🐛 Correções
+
+* **avisos:** rolagem no modal para manter botão de confirmação visível ([0509610](https://github.com/SenaProjetos//commit/0509610c304a90520bb1e42ef436bfc7196cc12b))
+* **ponto:** avisos só em dia útil (pula feriado, folga e férias) ([6f314d6](https://github.com/SenaProjetos//commit/6f314d6c11561bae21c8954c73a4f05ea6a5d332))
+
 ## [1.2.1](https://github.com/SenaProjetos//compare/v1.2.0...v1.2.1) (2026-07-16)
 
 
