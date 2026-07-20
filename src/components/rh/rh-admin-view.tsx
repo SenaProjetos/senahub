@@ -1,12 +1,13 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { formatarData } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, X, Download, Smile, MessageSquare } from "lucide-react";
-import { validarAbono, validarFerias } from "@/modules/rh/actions";
-import type { AbonoPendente, FeriasPendente } from "@/modules/rh/queries";
+import { Check, X, Download, Smile, MessageSquare, CalendarSync } from "lucide-react";
+import { validarAbono, validarFerias, responderAlteracaoFerias, proporAlteracaoFerias } from "@/modules/rh/actions";
+import type { AbonoPendente, FeriasPendente, AlteracaoFeriasPendente, FeriasVigente } from "@/modules/rh/queries";
+import { FeriasDatasDialog } from "@/components/rh/ferias-acoes";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -18,11 +19,15 @@ function dt(d: string | Date) {
 export function RhAdminView({
   abonos,
   ferias,
+  alteracoesFerias,
+  feriasVigentes,
   clima,
   feedbacksHumor,
 }: {
   abonos: AbonoPendente[];
   ferias: FeriasPendente[];
+  alteracoesFerias: AlteracaoFeriasPendente[];
+  feriasVigentes: FeriasVigente[];
   clima: {
     total: number;
     media: number;
@@ -48,6 +53,15 @@ export function RhAdminView({
       const r = await validarFerias({ id, aprovar });
       if (r.ok) {
         toast.success(aprovar ? "Férias aprovadas." : "Férias rejeitadas.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+  function decidirAlteracao(id: string, aprovar: boolean) {
+    start(async () => {
+      const r = await responderAlteracaoFerias({ id, aprovar });
+      if (r.ok) {
+        toast.success(aprovar ? "Nova data de férias aprovada." : "Alteração recusada.");
         router.refresh();
       } else toast.error(r.error);
     });
@@ -195,7 +209,111 @@ export function RhAdminView({
             )}
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <CalendarSync className="size-4" /> Alterações de férias ({alteracoesFerias.length})
+            </CardTitle>
+            <CardDescription>
+              Mudanças de data em férias já aprovadas. Só valem após a sua aprovação.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {alteracoesFerias.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nada pendente.</p>
+            ) : (
+              <ul className="divide-y">
+                {alteracoesFerias.map((f) => (
+                  <li key={f.id} className="space-y-1 py-2.5">
+                    <span className="text-sm font-medium">{f.user.name}</span>
+                    <p className="text-xs text-muted-foreground">
+                      <span className="line-through">
+                        {dt(f.inicio)} – {dt(f.fim)}
+                      </span>{" "}
+                      <span className="text-info">
+                        → {dt(f.altInicio!)} – {dt(f.altFim!)}
+                      </span>
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" disabled={pending} onClick={() => decidirAlteracao(f.id, true)}>
+                        <Check className="size-3.5" /> Aprovar
+                      </Button>
+                      <Button size="sm" variant="ghost" disabled={pending} onClick={() => decidirAlteracao(f.id, false)}>
+                        <X className="size-3.5" /> Recusar
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Férias aprovadas ({feriasVigentes.length})</CardTitle>
+            <CardDescription>
+              Em curso ou futuras. Ao propor uma nova data, ela só vale após o funcionário aprovar.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {feriasVigentes.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma férias aprovada em aberto.</p>
+            ) : (
+              <ul className="divide-y">
+                {feriasVigentes.map((f) => (
+                  <li key={f.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium">{f.user.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {" · "}
+                        {dt(f.inicio)} – {dt(f.fim)}
+                      </span>
+                    </div>
+                    {f.altInicio ? (
+                      <span className="text-xs text-muted-foreground">Alteração em andamento</span>
+                    ) : (
+                      <ProporAlteracaoBotao id={f.id} inicio={f.inicio} fim={f.fim} />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
+  );
+}
+
+/** RH propõe nova data para férias já aprovadas — depende do aceite do funcionário. */
+function ProporAlteracaoBotao({
+  id,
+  inicio,
+  fim,
+}: {
+  id: string;
+  inicio: string | Date;
+  fim: string | Date;
+}) {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <>
+      <Button size="sm" variant="outline" onClick={() => setAberto(true)}>
+        <CalendarSync className="size-3.5" /> Propor alteração
+      </Button>
+      {aberto && (
+        <FeriasDatasDialog
+          titulo="Propor alteração de férias"
+          descricao="A nova data só passa a valer depois que o funcionário aprovar."
+          inicio={inicio}
+          fim={fim}
+          onOpenChange={setAberto}
+          onSalvar={(i, f) => proporAlteracaoFerias({ id, inicio: i, fim: f })}
+          msgOk="Alteração proposta — aguardando o funcionário."
+        />
+      )}
+    </>
   );
 }

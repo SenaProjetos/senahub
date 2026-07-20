@@ -4,6 +4,8 @@ import { HR_ADMIN_ROLES } from "@/lib/roles";
 import {
   abonosPendentes,
   feriasPendentes,
+  alteracoesFeriasPendentes,
+  feriasAprovadasVigentes,
   climaResumo,
   listarFeedbackHumor,
   onboardingsAtivos,
@@ -28,9 +30,11 @@ export default async function RhAdminPage() {
   const bancoMes = agora.getMonth() === 0 ? 12 : agora.getMonth();
   const bancoAno = agora.getMonth() === 0 ? agora.getFullYear() - 1 : agora.getFullYear();
 
-  const [abonos, ferias, clima, feedbacksHumor, processos, opcoes, nfs, nfsHistorico, fechamentos, feedbacks, colaboradores] = await Promise.all([
+  const [abonos, ferias, alteracoesFerias, feriasVigentes, clima, feedbacksHumor, processos, opcoes, nfs, nfsHistorico, fechamentos, feedbacks, colaboradores] = await Promise.all([
     abonosPendentes(),
     feriasPendentes(),
+    alteracoesFeriasPendentes(),
+    feriasAprovadasVigentes(),
     climaResumo(),
     listarFeedbackHumor(),
     onboardingsAtivos(),
@@ -43,7 +47,14 @@ export default async function RhAdminPage() {
   ]);
   return (
     <div className="space-y-6">
-      <RhAdminView abonos={abonos} ferias={ferias} clima={clima} feedbacksHumor={feedbacksHumor} />
+      <RhAdminView
+        abonos={abonos}
+        ferias={ferias}
+        alteracoesFerias={alteracoesFerias}
+        feriasVigentes={feriasVigentes}
+        clima={clima}
+        feedbacksHumor={feedbacksHumor}
+      />
       <BancoHorasAdmin ano={bancoAno} mes={bancoMes} fechamentos={fechamentos} />
       <div className="grid gap-4 lg:grid-cols-2">
         <FeedbackSection feedbacks={feedbacks} colaboradores={colaboradores} />

@@ -23,7 +23,7 @@ export default async function AgendaPage({
   const iniQuery = new Date(ano, mes - 1, 1 - 7);
   const fimQuery = new Date(ano, mes, 0 + 7, 23, 59, 59);
 
-  const [compromissos, prazosProjeto, prazosDisciplina, prazosTarefa, internos, feriados] = await Promise.all([
+  const [compromissos, prazosProjeto, prazosDisciplina, prazosTarefa, internos, feriados, feriasRows] = await Promise.all([
     prisma.compromisso.findMany({
       where: {
         inicio: { gte: iniQuery, lte: fimQuery },
@@ -63,6 +63,11 @@ export default async function AgendaPage({
       orderBy: { name: "asc" },
     }),
     listarFeriados(ano),
+    // Férias APROVADAS do próprio usuário que tocam a janela exibida.
+    prisma.ferias.findMany({
+      where: { userId: user.id, status: "aprovado", inicio: { lte: fimQuery }, fim: { gte: iniQuery } },
+      select: { id: true, inicio: true, fim: true },
+    }),
   ]);
 
   return (
@@ -72,6 +77,11 @@ export default async function AgendaPage({
       meuId={user.id}
       internos={internos}
       feriados={feriados.map((f) => ({ data: f.data, nome: f.nome, tipo: f.tipo }))}
+      ferias={feriasRows.map((f) => ({
+        id: f.id,
+        inicio: f.inicio.toISOString().slice(0, 10),
+        fim: f.fim.toISOString().slice(0, 10),
+      }))}
       compromissos={compromissos.map((c) => ({
         id: c.id,
         titulo: c.titulo,

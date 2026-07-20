@@ -271,6 +271,30 @@ export async function projetosDoUsuario(userId: string) {
 
 
 /**
+ * Dias (ISO YYYY-MM-DD) cobertos por férias APROVADAS que caem no mês.
+ * Base para marcar "Férias" no espelho e para NÃO cobrar horas devidas/esperadas
+ * em dias de férias (evita saldo negativo indevido no banco de horas).
+ */
+async function diasFeriasNoMes(userId: string, ano: number, mes: number): Promise<Set<string>> {
+  const ini = new Date(Date.UTC(ano, mes - 1, 1));
+  const fimExcl = new Date(Date.UTC(ano, mes, 1)); // 1º dia do mês seguinte (exclusivo)
+  const rows = await prisma.ferias.findMany({
+    where: { userId, status: "aprovado", inicio: { lt: fimExcl }, fim: { gte: ini } },
+    select: { inicio: true, fim: true },
+  });
+  const set = new Set<string>();
+  for (const f of rows) {
+    // Itera dia a dia em UTC, recortando ao mês. `inicio`/`fim` são @db.Date (fim inclusivo).
+    let cur = f.inicio < ini ? new Date(ini) : new Date(f.inicio);
+    while (cur < fimExcl && cur <= f.fim) {
+      set.add(cur.toISOString().slice(0, 10));
+      cur = new Date(cur.getTime() + 86_400_000);
+    }
+  }
+  return set;
+}
+
+/**
  * Espelho de ponto do mês: minutos por dia, total e saldo de banco de horas.
  *
  * HÍBRIDO: um dia que tem Batida usa o motor (fonte de verdade da jornada, trata
@@ -282,7 +306,8 @@ export async function projetosDoUsuario(userId: string) {
  * (rh/banco/actions.ts, jobs-handlers.ts). `totalMinutos`/`saldoMinutos` para um
  * mês legado são idênticos ao cálculo anterior (agrupar por dia não muda o total);
  * a correção de fuso (`diaLocal` no lugar de `toISOString`) só reposiciona o
- * bucket de sessões noturnas.
+ * bucket de sessões noturnas. Dias de férias aprovadas passam a NÃO gerar horas
+ * esperadas (não debitam o banco).
  */
 export async function espelhoMes(userId: string, ano: number, mes: number) {
   const ini = new Date(ano, mes - 1, 1);
@@ -342,13 +367,17 @@ export async function espelhoMes(userId: string, ano: number, mes: number) {
   const feriadoSet = new Set(
     feriadosAno.filter((f) => f.data.startsWith(prefixoMes)).map((f) => f.data),
   );
+  const feriasSet = await diasFeriasNoMes(userId, ano, mes);
   const ultimoDiaMes = new Date(ano, mes, 0).getDate();
   const esperadoDiaMin = Math.round(horasDia * 60);
   const esperadoPorDia: Record<string, number> = {};
   for (let d = 1; d <= ultimoDiaMes; d++) {
     const iso = `${prefixoMes}${String(d).padStart(2, "0")}`;
     const wd = new Date(ano, mes - 1, d).getDay();
-    esperadoPorDia[iso] = wd !== 0 && wd !== 6 && !feriadoSet.has(iso) ? esperadoDiaMin : 0;
+    // Dia útil, não-feriado e fora de férias → horas esperadas; senão 0 (férias
+    // não geram débito de banco de horas).
+    esperadoPorDia[iso] =
+      wd !== 0 && wd !== 6 && !feriadoSet.has(iso) && !feriasSet.has(iso) ? esperadoDiaMin : 0;
   }
 
   // Esperado do mês SÓ até HOJE (inclusive): evita saldo negativo gigante e
@@ -407,6 +436,7 @@ export type StatusDiaEspelho =
   | "falta"
   | "folga"
   | "feriado"
+  | "ferias"
   | "agendado"
   | "ajustado"
   | "contestado";
@@ -582,6 +612,7 @@ export async function espelhoDetalhado(
   const feriadoPorDia = new Map(
     feriadosAno.filter((f) => f.data.startsWith(prefixo)).map((f) => [f.data, f.nome]),
   );
+  const feriasSet = await diasFeriasNoMes(userId, ano, mes);
 
   const hojeISO = diaLocal(new Date());
   const ultimoDia = new Date(ano, mes, 0).getDate();
@@ -591,6 +622,7 @@ export async function espelhoDetalhado(
     const iso = `${prefixo}${pad2(d)}`;
     const ds = new Date(Date.UTC(ano, mes - 1, d)).getUTCDay();
     const feriado = feriadoPorDia.get(iso) ?? null;
+    const ferias = feriasSet.has(iso);
     const grade = gradeDe(ds);
     const bat = batPorDia.get(iso) ?? [];
     const temBatidas = bat.length > 0;
@@ -600,7 +632,8 @@ export async function espelhoDetalhado(
       : null;
     const resumo = resumoBatidasDia(bat);
     const trabalhadoMin = calc?.trabalhadoMin ?? 0;
-    const devidasMin = grade.ativo && !feriado ? Math.round(grade.horasDia * 60) : 0;
+    // Férias não geram horas devidas (dia pago sem jornada esperada).
+    const devidasMin = grade.ativo && !feriado && !ferias ? Math.round(grade.horasDia * 60) : 0;
     const extrasMin = Math.max(0, trabalhadoMin - devidasMin);
     const atraso = avaliarAtraso(resumo.entrada, grade.ativo ? grade.entrada : null, grade.toleranciaMin);
 
@@ -611,7 +644,8 @@ export async function espelhoDetalhado(
       else if (aj === "ciente" || aj === "pendente_ciencia") status = "ajustado";
       else if (calc?.incompleto) status = "incompleto";
       else status = "ok";
-    } else if (feriado) status = "feriado";
+    } else if (ferias) status = "ferias";
+    else if (feriado) status = "feriado";
     else if (!grade.ativo) status = "folga";
     else if (iso > hojeISO) status = "agendado";
     else status = "falta";

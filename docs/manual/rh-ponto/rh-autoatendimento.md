@@ -22,6 +22,16 @@ Centralizar as solicitações e acompanhamentos pessoais de RH de cada colaborad
 - **Abonos / atestados:** solicitar abono de ausência, anexando atestado quando houver;
   acompanhar o **status** (pendente/aprovado/recusado).
 - **Férias:** solicitar período de férias e acompanhar o status.
+  - Enquanto a solicitação está **pendente**, você pode **editar** as datas livremente.
+  - Depois de **aprovada**, use **Propor alteração**: a nova data só passa a valer quando o
+    **RH também aprovar** (dupla aprovação). Se o RH propuser a mudança, você recebe uma
+    notificação e decide **Aprovar** ou **Recusar** — recusando, valem as datas originais.
+  - **Regra da CLT (só para CLT):** as férias **não podem começar** nos dois dias que
+    antecedem um feriado ou o descanso semanal (domingo) — art. 134, §3º da CLT. Na prática,
+    não é possível iniciar férias na **sexta** nem no **sábado**, nem na véspera/antevéspera
+    de feriado. O sistema bloqueia a data e explica o motivo.
+  - Os dias de férias aprovados aparecem no **espelho de ponto** (status *Férias*, sem horas
+    devidas, portanto sem descontar do banco de horas) e na **agenda** (faixa 🌴 *Férias*).
 - **Onboarding:** ver o seu checklist de integração e o que falta concluir.
 - **Humor:** registrar como está se sentindo (feedback de clima).
 

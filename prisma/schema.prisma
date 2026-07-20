@@ -1597,6 +1597,14 @@ model Ferias {
   status        StatusSolicitacao @default(pendente)
   validadoPorId String?
   validadoPor   User?             @relation("FeriasValidador", fields: [validadoPorId], references: [id])
+  // Proposta de alteração de datas em férias JÁ APROVADAS — dupla aprovação
+  // (admin/RH + funcionário). Aplica-se quando altOkAdmin && altOkFunc; ao aplicar,
+  // move alt* → inicio/fim e zera os campos. Enquanto pendente, altPorId marca quem propôs.
+  altInicio     DateTime?         @db.Date
+  altFim        DateTime?         @db.Date
+  altPorId      String? // quem propôs a alteração (denormalizado, sem FK)
+  altOkAdmin    Boolean           @default(false)
+  altOkFunc     Boolean           @default(false)
   createdAt     DateTime          @default(now())
 
   @@index([userId])

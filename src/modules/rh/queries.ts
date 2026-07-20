@@ -25,6 +25,33 @@ export async function feriasPendentes() {
   });
 }
 
+/**
+ * Propostas de alteração de férias aguardando decisão do RH. Só entram as propostas
+ * feitas pelo funcionário (as propostas do RH já vêm com `altOkAdmin` e esperam o
+ * funcionário responder).
+ */
+export async function alteracoesFeriasPendentes() {
+  return prisma.ferias.findMany({
+    where: { altInicio: { not: null }, altOkAdmin: false },
+    orderBy: { createdAt: "asc" },
+    include: { user: { select: { name: true } } },
+  });
+}
+
+/**
+ * Férias aprovadas ainda em curso ou futuras — base para o RH propor alteração de datas.
+ * Já passadas ficam de fora (não faz sentido remarcar).
+ */
+export async function feriasAprovadasVigentes() {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  return prisma.ferias.findMany({
+    where: { status: "aprovado", fim: { gte: hoje } },
+    orderBy: { inicio: "asc" },
+    include: { user: { select: { name: true } } },
+  });
+}
+
 export async function humorHoje(userId: string) {
   const dia = new Date();
   dia.setHours(0, 0, 0, 0);
@@ -74,6 +101,8 @@ export async function climaResumo() {
 
 export type AbonoPendente = Awaited<ReturnType<typeof abonosPendentes>>[number];
 export type FeriasPendente = Awaited<ReturnType<typeof feriasPendentes>>[number];
+export type AlteracaoFeriasPendente = Awaited<ReturnType<typeof alteracoesFeriasPendentes>>[number];
+export type FeriasVigente = Awaited<ReturnType<typeof feriasAprovadasVigentes>>[number];
 
 // ── Onboarding (Onda 3f) ──────────────────────────────────────
 

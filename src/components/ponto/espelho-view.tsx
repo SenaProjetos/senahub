@@ -57,6 +57,7 @@ const STATUS_META: Record<StatusDiaEspelho, { tone: "success" | "warning" | "dan
   falta: { tone: "danger", label: "Falta" },
   folga: { tone: "neutral", label: "Folga" },
   feriado: { tone: "info", label: "Feriado" },
+  ferias: { tone: "info", label: "Férias" },
   agendado: { tone: "neutral", label: "—" },
   ajustado: { tone: "info", label: "Ajustado" },
   contestado: { tone: "danger", label: "Contestado" },

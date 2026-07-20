@@ -21,6 +21,11 @@ Reunir as rotinas administrativas de RH em um só lugar.
 ## O que a tela oferece
 
 - **Aprovações:** abonos e férias **pendentes** (aprovar/recusar).
+- **Alterações de férias:** mudanças de data em férias **já aprovadas**. Valem por **dupla
+  aprovação** — o card lista as propostas feitas pelos colaboradores, mostrando as datas
+  originais riscadas e as novas ao lado; ao **Aprovar**, a nova data entra em vigor na hora.
+  O RH também pode **propor** uma alteração pela ficha do colaborador; nesse caso quem
+  precisa aprovar é o **funcionário**. Recusar mantém as datas originais.
 - **Clima e humor:** resumo do clima e os feedbacks de humor dos colaboradores.
 - **Banco de horas:** fechamento do mês (por padrão, o **mês anterior** ao atual).
 - **Feedback:** registrar feedback para colaboradores internos.

@@ -38,7 +38,17 @@ export default async function RhPage() {
           status: a.status,
           atestadoPath: a.atestadoPath,
         }))}
-        ferias={ferias.map((f) => ({ id: f.id, inicio: f.inicio, fim: f.fim, status: f.status }))}
+        ferias={ferias.map((f) => ({
+          id: f.id,
+          inicio: f.inicio,
+          fim: f.fim,
+          status: f.status,
+          altInicio: f.altInicio,
+          altFim: f.altFim,
+          altOkAdmin: f.altOkAdmin,
+          altOkFunc: f.altOkFunc,
+          altPorMim: f.altPorId === user.id,
+        }))}
         humorAtual={humor?.humor ?? null}
       />
 

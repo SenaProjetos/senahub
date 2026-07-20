@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { FeriasAcoes, type FeriaItem } from "@/components/rh/ferias-acoes";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "danger" | "neutral"> = {
   pendente: "warning",
@@ -22,7 +23,7 @@ const HUMORES = ["😞", "🙁", "😐", "🙂", "😄"];
 const HUMOR_LABELS = ["Muito insatisfeito", "Insatisfeito", "Neutro", "Satisfeito", "Muito satisfeito"];
 
 type Abono = { id: string; dataInicio: string | Date; dataFim: string | Date; status: string; atestadoPath: string | null };
-type Feria = { id: string; inicio: string | Date; fim: string | Date; status: string };
+type Feria = FeriaItem;
 
 function dt(d: string | Date) {
   return formatarData(d);
@@ -62,6 +63,8 @@ type Solicitacao = {
   inicio: string | Date;
   fim: string | Date;
   status: string;
+  /** Só nas férias — habilita editar / propor alteração / responder proposta. */
+  feria?: Feria;
 };
 
 function MinhasSolicitacoes({ abonos, ferias }: { abonos: Abono[]; ferias: Feria[] }) {
@@ -79,6 +82,7 @@ function MinhasSolicitacoes({ abonos, ferias }: { abonos: Abono[]; ferias: Feria
       inicio: f.inicio,
       fim: f.fim,
       status: f.status,
+      feria: f,
     })),
   ].sort((a, b) => new Date(b.inicio).getTime() - new Date(a.inicio).getTime());
 
@@ -100,7 +104,7 @@ function MinhasSolicitacoes({ abonos, ferias }: { abonos: Abono[]; ferias: Feria
         ) : (
           <ul className="divide-y text-sm">
             {itens.map((s) => (
-              <li key={s.id} className="flex items-center justify-between gap-3 py-2.5">
+              <li key={s.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
                 <div className="min-w-0">
                   <span className="font-medium">{s.tipo}</span>
                   <span className="text-muted-foreground">
@@ -108,7 +112,10 @@ function MinhasSolicitacoes({ abonos, ferias }: { abonos: Abono[]; ferias: Feria
                     {dt(s.inicio)} – {dt(s.fim)}
                   </span>
                 </div>
-                <StatusBadge tone={STATUS_TONE[s.status] ?? "neutral"}>{s.status}</StatusBadge>
+                <div className="flex flex-wrap items-center gap-2">
+                  {s.feria && <FeriasAcoes feria={s.feria} />}
+                  <StatusBadge tone={STATUS_TONE[s.status] ?? "neutral"}>{s.status}</StatusBadge>
+                </div>
               </li>
             ))}
           </ul>
