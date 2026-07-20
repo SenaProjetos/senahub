@@ -93,29 +93,32 @@ export function AvisoProvider() {
         if (!aberto && !atual.exigeConfirmacao) setFila((f) => f.slice(1));
       }}
     >
-      <DialogContent showCloseButton={false} className="sm:max-w-md">
-        <DialogHeader>
+      {/* flex + max-h: corpo/imagem rolam e o rodapé (confirmação) fica sempre visível */}
+      <DialogContent showCloseButton={false} className="flex max-h-[85dvh] flex-col sm:max-w-md">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Megaphone className="size-4 text-primary" /> {atual.titulo}
           </DialogTitle>
+        </DialogHeader>
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
           {atual.corpo ? (
             <DialogDescription className="whitespace-pre-wrap">{atual.corpo}</DialogDescription>
           ) : null}
-        </DialogHeader>
-        {atual.temImagem ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={`/api/avisos/${atual.avisoId}/imagem`}
-            alt=""
-            className="max-h-[50vh] w-full rounded-md object-contain"
-          />
-        ) : null}
-        {fila.length > 1 ? (
-          <p className="text-xs text-muted-foreground">
-            +{fila.length - 1} outro(s) aviso(s) aguardando.
-          </p>
-        ) : null}
-        <DialogFooter>
+          {atual.temImagem ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={`/api/avisos/${atual.avisoId}/imagem`}
+              alt=""
+              className="w-full rounded-md object-contain"
+            />
+          ) : null}
+          {fila.length > 1 ? (
+            <p className="text-xs text-muted-foreground">
+              +{fila.length - 1} outro(s) aviso(s) aguardando.
+            </p>
+          ) : null}
+        </div>
+        <DialogFooter className="shrink-0">
           <Button onClick={confirmar} disabled={confirmando}>
             {confirmando ? "Confirmando…" : "Li e entendi"}
           </Button>
