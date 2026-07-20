@@ -21,6 +21,7 @@ import {
   tabelaPrecoSchema,
   tabelaPrecoEditSchema,
   criarPropostaSchema,
+  criarPropostaDeLeadSchema,
   salvarPropostaSchema,
   statusPropostaSchema,
   criarEtapaSchema,
@@ -262,6 +263,58 @@ export const criarProposta = defineAction(
       });
     });
     rev();
+    return { id: proposta.id, numero: proposta.numero };
+  },
+);
+
+/**
+ * Cria uma proposta partindo de um lead. Garante o cliente (converte o lead
+ * se ainda não tiver um) e vincula a proposta ao lead — assim o funil e a
+ * ficha do lead passam a listar suas propostas.
+ */
+export const criarPropostaDeLead = defineAction(
+  { ...base, acao: "criar-proposta-lead", entidade: "Proposta", schema: criarPropostaDeLeadSchema },
+  async (i, { user }) => {
+    const lead = await prisma.lead.findUnique({ where: { id: i.leadId } });
+    if (!lead) throw new ActionError("Lead não encontrado.");
+
+    const { proposta, criouCliente } = await prisma.$transaction(async (tx) => {
+      // Garante um cliente: converte o lead se ainda não tiver.
+      let clienteId = lead.clienteId;
+      let criouCliente = false;
+      if (!clienteId) {
+        const cliente = await tx.cliente.create({
+          data: {
+            tipo: "PJ",
+            nome: lead.nome,
+            email: lead.email,
+            telefone: lead.telefone,
+            observacoes: lead.observacoes,
+          },
+        });
+        clienteId = cliente.id;
+        criouCliente = true;
+        await tx.lead.update({ where: { id: lead.id }, data: { clienteId } });
+      }
+      const { ano, sequencial, numero } = await proximoNumeroProposta(tx);
+      const proposta = await tx.proposta.create({
+        data: {
+          ano,
+          sequencial,
+          numero,
+          titulo: i.titulo,
+          clienteId,
+          leadId: lead.id,
+          token: randomBytes(18).toString("hex"),
+          autorId: user.id,
+        },
+      });
+      return { proposta, criouCliente };
+    });
+
+    rev();
+    revalidatePath(`/comercial/${lead.id}`);
+    if (criouCliente) revalidatePath("/clientes");
     return { id: proposta.id, numero: proposta.numero };
   },
 );

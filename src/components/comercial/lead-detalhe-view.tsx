@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, type ComponentType } from "react";
+import { useState, useTransition, type ComponentType } from "react";
 import Link from "next/link";
-import { ArrowLeft, Pencil, Mail, Phone, User2, FileText, XCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { ArrowLeft, Pencil, Mail, Phone, User2, FileText, FilePlus2, XCircle } from "lucide-react";
 import type { LeadItem } from "@/modules/comercial/queries";
+import { criarPropostaDeLead } from "@/modules/comercial/actions";
 import { LeadDialog } from "./lead-dialog";
 import { etapaEhPerdido } from "./motivo-perda-dialog";
 import { FollowUpDialog } from "./follow-up-dialog";
@@ -27,8 +30,20 @@ export function LeadDetalheView({
   etapas: { id: string; nome: string }[];
   propostas: PropostaResumo[];
 }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
   const [editar, setEditar] = useState(false);
   const perdido = etapaEhPerdido(etapaAtual.nome);
+
+  function novaProposta() {
+    start(async () => {
+      const r = await criarPropostaDeLead({ leadId: lead.id, titulo: lead.nome });
+      if (r.ok) {
+        toast.success(`Proposta ${r.data.numero} criada.`);
+        router.push(`/comercial/propostas/${r.data.id}`);
+      } else toast.error(r.error);
+    });
+  }
 
   return (
     <div className="space-y-5">
@@ -56,6 +71,9 @@ export function LeadDetalheView({
         </div>
         <div className="flex gap-2">
           <FollowUpDialog leadNome={lead.nome} leadEmail={lead.email} />
+          <Button size="sm" variant="outline" onClick={novaProposta} disabled={pending}>
+            <FilePlus2 className="size-3.5" /> Nova proposta
+          </Button>
           <Button size="sm" onClick={() => setEditar(true)}>
             <Pencil className="size-3.5" /> Editar
           </Button>

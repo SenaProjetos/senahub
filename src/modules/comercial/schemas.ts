@@ -61,6 +61,12 @@ export const criarPropostaSchema = z.object({
   leadId: opt(z.string()),
 });
 
+/** Cria a proposta a partir de um lead (deriva/gera o cliente e vincula o lead). */
+export const criarPropostaDeLeadSchema = z.object({
+  leadId: z.string().min(1),
+  titulo: z.string().min(1, "Informe o título."),
+});
+
 export const salvarPropostaSchema = z.object({
   id: z.string().min(1),
   titulo: z.string().min(1),
