@@ -122,6 +122,8 @@ export const criarDisciplinaCatalogoSchema = z.object({
   nome: z.string().trim().min(2, "Informe o nome da disciplina."),
   /** Sigla p/ nomenclatura; normalizada (uppercase, só A-Z0-9) na action. */
   codigo: z.string().trim().max(6, "Código de até 6 caracteres.").optional(),
+  /** Número-base p/ a nomenclatura (ex.: 4000 → folhas 4001…). Vazio = sem bloco. */
+  numeracao: z.number().int().min(0).max(999999).nullable().optional(),
   categoria: z.string().trim().max(40).optional(),
   /** Chave da galeria lucide. */
   icone: z.string().trim().max(60).optional(),

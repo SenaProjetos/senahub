@@ -145,7 +145,13 @@ function DisciplinaListaMestre({
             folha: primeira(catalogos.folha),
             tipo: primeira(catalogos.tipo),
             fase: primeira(catalogos.fase),
-            numeracao: String((disciplina.pranchas.at(-1)?.numeracao ?? 0) + 1),
+            // Numeração obedece o bloco da disciplina (catálogo): 1ª folha = base+1
+            // (ex.: Estrutural base 4000 → 4001); depois segue a última + 1.
+            numeracao: String(
+              disciplina.pranchas.length
+                ? (disciplina.pranchas.at(-1)?.numeracao ?? 0) + 1
+                : (disciplina.numeracaoBase ?? 0) + 1,
+            ),
           },
     );
     setDlg({ p });

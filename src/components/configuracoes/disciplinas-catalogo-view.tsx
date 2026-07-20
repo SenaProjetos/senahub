@@ -72,12 +72,13 @@ type FormState = {
   id?: string;
   nome: string;
   codigo: string;
+  numeracao: string;
   categoria: string;
   icone: string | null;
   iconeSvg: string | null;
 };
 
-const VAZIO: FormState = { nome: "", codigo: "", categoria: "", icone: null, iconeSvg: null };
+const VAZIO: FormState = { nome: "", codigo: "", numeracao: "", categoria: "", icone: null, iconeSvg: null };
 
 /** Ícone de um item do catálogo, resolvido pelos próprios campos (svg → galeria → derivado). */
 function IconeDisc({
@@ -150,6 +151,7 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
       const payload = {
         nome: form.nome.trim(),
         codigo: form.codigo.trim() || undefined,
+        numeracao: form.numeracao.trim() === "" ? null : Number(form.numeracao),
         categoria: form.categoria.trim() || undefined,
         icone: form.icone || undefined,
         iconeSvg: form.iconeSvg || undefined,
@@ -284,6 +286,7 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
                 <TableRow>
                   <TableHead className="w-9" />
                   <TableHead>Disciplina</TableHead>
+                  <TableHead className="w-16 text-center">Nº</TableHead>
                   <TableHead className="w-24">Código</TableHead>
                   <TableHead className="w-24">Uso</TableHead>
                   <TableHead className="w-28 text-right">Ações</TableHead>
@@ -336,6 +339,7 @@ function paraForm(item: DisciplinaCatalogoAdmin): FormState {
     id: item.id,
     nome: item.nome,
     codigo: item.codigo ?? "",
+    numeracao: item.numeracao != null ? String(item.numeracao) : "",
     categoria: item.categoria ?? "",
     icone: item.icone,
     iconeSvg: item.iconeSvg,
@@ -355,7 +359,7 @@ function GrupoCategoria({
   return (
     <>
       <TableRow className="bg-muted/40 hover:bg-muted/40">
-        <TableCell colSpan={5} className="py-1.5">
+        <TableCell colSpan={6} className="py-1.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{categoria}</span>
             <span className="text-xs text-muted-foreground">{lista.length}</span>
@@ -410,6 +414,13 @@ function ItemLinha({
             </span>
           )}
         </div>
+      </TableCell>
+      <TableCell className="text-center">
+        {item.numeracao != null ? (
+          <span className="font-mono text-xs tabular-nums">{item.numeracao}</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
       </TableCell>
       <TableCell>
         {item.codigo ? (
@@ -525,11 +536,12 @@ function DisciplinaDialog({
         </DialogHeader>
 
         <div className="space-y-3">
-          <div className="grid grid-cols-3 gap-3">
-            <div className="col-span-2 space-y-1.5">
-              <Label>Nome</Label>
-              <Input value={form.nome} onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))} />
-            </div>
+          <div className="space-y-1.5">
+            <Label>Nome</Label>
+            <Input value={form.nome} onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Código</Label>
               <Input
@@ -539,6 +551,18 @@ function DisciplinaDialog({
                 className="font-mono uppercase"
                 onChange={(e) => setForm((f) => ({ ...f, codigo: e.target.value.toUpperCase() }))}
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Numeração</Label>
+              <Input
+                type="number"
+                min={0}
+                value={form.numeracao}
+                placeholder="4000"
+                className="font-mono tabular-nums"
+                onChange={(e) => setForm((f) => ({ ...f, numeracao: e.target.value }))}
+              />
+              <p className="text-[11px] text-muted-foreground">Bloco na nomenclatura (ex.: 4000 → folhas 4001, 4002…).</p>
             </div>
           </div>
 

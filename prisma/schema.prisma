@@ -514,6 +514,9 @@ model DisciplinaCatalogo {
   nome      String  @unique
   /// Sigla usada na nomenclatura de arquivos (ex.: ELE, ARQ). Opcional/única.
   codigo    String? @unique
+  /// Número-base da disciplina para a nomenclatura de arquivos (ex.: Estrutural = 4000 →
+  /// folhas 4001, 4002…). null = sem bloco; a numeração da folha começa em 1.
+  numeracao Int?
   /// Grupo de exibição no catálogo (CIVIL, ELÉTRICA…). null = "Outras".
   categoria String?
   /// Chave da galeria de ícones (lucide, ex.: "Zap"). null = derivar do nome.

@@ -862,6 +862,7 @@ function revCatalogo() {
 function normalizarCatalogo(i: {
   nome: string;
   codigo?: string;
+  numeracao?: number | null;
   categoria?: string;
   icone?: string;
   iconeSvg?: string;
@@ -872,6 +873,7 @@ function normalizarCatalogo(i: {
   return {
     nome: i.nome.trim(),
     codigo,
+    numeracao: i.numeracao ?? null,
     categoria: i.categoria?.trim() || null,
     // ícone custom (SVG) tem prioridade; ao enviar SVG, zera a chave da galeria.
     icone: iconeSvg ? null : i.icone?.trim() || null,

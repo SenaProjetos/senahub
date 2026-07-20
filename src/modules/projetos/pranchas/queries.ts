@@ -21,12 +21,16 @@ export async function pranchasDoProjeto(projetoId: string) {
     },
   });
 
-  // Sigla da disciplina vem do catálogo (por nome) — usada no código composto.
+  // Sigla e número-base da disciplina vêm do catálogo (por nome) — usados na nomenclatura.
   const nomes = [...new Set(discs.map((d) => d.nome))];
   const cats = nomes.length
-    ? await prisma.disciplinaCatalogo.findMany({ where: { nome: { in: nomes } }, select: { nome: true, codigo: true } })
+    ? await prisma.disciplinaCatalogo.findMany({
+        where: { nome: { in: nomes } },
+        select: { nome: true, codigo: true, numeracao: true },
+      })
     : [];
   const siglaDe = new Map(cats.map((c) => [c.nome, c.codigo]));
+  const baseDe = new Map(cats.map((c) => [c.nome, c.numeracao]));
 
   return discs.map((d) => {
     const sigla = siglaDe.get(d.nome) ?? null;
@@ -34,6 +38,7 @@ export async function pranchasDoProjeto(projetoId: string) {
       id: d.id,
       nome: d.nome,
       sigla,
+      numeracaoBase: baseDe.get(d.nome) ?? null,
       pranchas: d.pranchas.map((p) => ({
         ...p,
         codigo: codigoPrancha({
