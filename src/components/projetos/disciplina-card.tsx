@@ -72,7 +72,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { TarefaDialog, type TarefaUI, type OpcoesUI } from "@/components/tarefas/tarefa-dialog";
 import { PRIORIDADE_LABEL, PRIORIDADE_CLASS, ehPrioridade } from "@/modules/tarefas/prioridade";
 import { Badge } from "@/components/ui/badge";
-import { brl, formatarData } from "@/lib/utils";
+import { brl, formatarData, rotuloRevisao } from "@/lib/utils";
 
 /** Tarefa da disciplina para a lista (formato do board + nome/cor/concluído do status). */
 export type TarefaDaDisciplina = TarefaUI & { statusNome: string; statusCor: string | null; concluido: boolean };
@@ -571,14 +571,14 @@ function ArquivosDialog({
                               >
                                 {u.nomeArquivo}
                                 {u.versao > 1 && (
-                                  <span className="ml-1 font-mono text-muted-foreground">v{u.versao}</span>
+                                  <span className="ml-1 font-mono text-muted-foreground">{rotuloRevisao(u.versao)}</span>
                                 )}
                               </a>
                             ) : (
                               <span className="min-w-0 flex-1 truncate" title={u.nomeArquivo}>
                                 {u.nomeArquivo}
                                 {u.versao > 1 && (
-                                  <span className="ml-1 font-mono text-muted-foreground">v{u.versao}</span>
+                                  <span className="ml-1 font-mono text-muted-foreground">{rotuloRevisao(u.versao)}</span>
                                 )}
                               </span>
                             )}
@@ -637,12 +637,12 @@ function ArquivosDialog({
                                       title={`Visualizar ${v.nomeArquivo}`}
                                     >
                                       {v.nomeArquivo}
-                                      <span className="ml-1 font-mono">v{v.versao}</span>
+                                      <span className="ml-1 font-mono">{rotuloRevisao(v.versao)}</span>
                                     </a>
                                   ) : (
                                     <span className="min-w-0 flex-1 truncate" title={v.nomeArquivo}>
                                       {v.nomeArquivo}
-                                      <span className="ml-1 font-mono">v{v.versao}</span>
+                                      <span className="ml-1 font-mono">{rotuloRevisao(v.versao)}</span>
                                     </span>
                                   )}
                                   <StatusArquivo aprovado={v.validado} ajusteObs={v.ajusteObs} dataAprovacao={v.data} />
@@ -653,7 +653,7 @@ function ArquivosDialog({
                                       target="_blank"
                                       rel="noopener"
                                       className="shrink-0 text-primary hover:underline"
-                                      aria-label={`Visualizar ${v.nomeArquivo} v${v.versao}`}
+                                      aria-label={`Visualizar ${v.nomeArquivo} ${rotuloRevisao(v.versao)}`}
                                       title="Visualizar prancha"
                                     >
                                       <Eye className="size-3.5" />
@@ -662,7 +662,7 @@ function ArquivosDialog({
                                   <a
                                     href={`/api/uploads/${v.id}/download`}
                                     className="shrink-0 text-primary hover:underline"
-                                    aria-label={`Baixar ${v.nomeArquivo} v${v.versao}`}
+                                    aria-label={`Baixar ${v.nomeArquivo} ${rotuloRevisao(v.versao)}`}
                                   >
                                     <Download className="size-3.5" />
                                   </a>

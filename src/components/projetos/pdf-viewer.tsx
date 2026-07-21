@@ -28,7 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
+import { cn, rotuloRevisao } from "@/lib/utils";
 
 // pdf.js é carregado dinamicamente no cliente (evita SSR e mantém o chunk fora do bundle inicial).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -350,7 +350,7 @@ export function PdfViewer(props: Props) {
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-lg font-bold leading-tight">{nomeArquivo}</h1>
           <p className="truncate text-xs text-muted-foreground">
-            {codigo} · {projetoNome} · {disciplinaNome} · v{versao}
+            {codigo} · {projetoNome} · {disciplinaNome} · {rotuloRevisao(versao)}
             {!versaoAtual && " (versão anterior)"}
           </p>
         </div>

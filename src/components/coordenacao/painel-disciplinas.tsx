@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
+import { cn, rotuloRevisao } from "@/lib/utils";
 
 /**
  * Painel de disciplinas da maquete: liga/desliga cada modelo convertido
@@ -57,7 +57,7 @@ export function PainelDisciplinas({
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{m.disciplinaNome}</p>
                 <p className="truncate font-mono text-xs text-muted-foreground" title={m.nomeArquivo}>
-                  {m.nomeArquivo} · v{m.versao}
+                  {m.nomeArquivo} · {rotuloRevisao(m.versao)}
                 </p>
               </div>
               {convertido ? (

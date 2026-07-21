@@ -4,6 +4,7 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { acessoGlobal } from "@/lib/roles";
 import { resolverCaminho, slug } from "@/lib/storage";
+import { caminhoNoZip } from "@/modules/uploads/estrutura";
 import { logAudit, getClientIp } from "@/lib/audit";
 
 // Teto de segurança para evitar zips absurdos por requisição.
@@ -93,7 +94,7 @@ export async function GET(req: Request) {
   // Resolve nomes ANTES do stream (dedup de caminhos idênticos no zip).
   const usados = new Set<string>();
   const entradas = acessiveis.map((u) => {
-    let nome = `${multiDisc ? `${slug(u.disciplina.nome)}/` : ""}${u.pacote}/${u.nomeArquivo}`;
+    let nome = `${multiDisc ? `${slug(u.disciplina.nome)}/` : ""}${caminhoNoZip(u.pacote, u.nomeArquivo)}`;
     if (usados.has(nome)) {
       const i = nome.lastIndexOf(".");
       const raiz = i > 0 ? nome.slice(0, i) : nome;

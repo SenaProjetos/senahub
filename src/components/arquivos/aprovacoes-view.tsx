@@ -6,7 +6,7 @@ import { FolderKanban, ExternalLink, Download, Eye, ClipboardCheck, AlertTriangl
 import type { PendenteAprovacao } from "@/modules/arquivos/queries";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { formatarDataHora } from "@/lib/utils";
+import { formatarDataHora, rotuloRevisao } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -80,7 +80,7 @@ export function AprovacoesView({ pendentes }: { pendentes: PendenteAprovacao[] }
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="truncate text-sm font-medium">{a.nome}</span>
-                      {a.versao > 1 && <span className="shrink-0 text-[10px] text-muted-foreground">v{a.versao}</span>}
+                      {a.versao > 1 && <span className="shrink-0 text-[10px] text-muted-foreground">{rotuloRevisao(a.versao)}</span>}
                       {a.ajusteObs && (
                         <Badge variant="outline" className="shrink-0 gap-1 text-warning" title={a.ajusteObs}>
                           <AlertTriangle className="size-3" /> reenvio pós-ajuste

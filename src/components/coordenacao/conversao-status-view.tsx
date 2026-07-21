@@ -7,6 +7,7 @@ import { Boxes, RefreshCw, Loader2, AlertCircle } from "lucide-react";
 import { converterModelo } from "@/modules/coordenacao/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { rotuloRevisao } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -113,7 +114,7 @@ export function ConversaoStatusView({
               <TableCell className="max-w-[300px] truncate font-mono text-xs" title={m.nomeArquivo}>
                 {m.nomeArquivo}
               </TableCell>
-              <TableCell className="text-right">v{m.versao}</TableCell>
+              <TableCell className="text-right">{rotuloRevisao(m.versao)}</TableCell>
               <TableCell className="text-right font-mono text-xs">{tamanhoLegivel(m.tamanho)}</TableCell>
               <TableCell className="min-w-[220px]">
                 {st ? (

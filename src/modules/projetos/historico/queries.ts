@@ -20,6 +20,7 @@ const ACOES_DOCUMENTO = [
   "criar-arquivo",
   "editar-arquivo",
   "excluir-arquivo",
+  "excluir-arquivos-lote",
   "restaurar-arquivo",
   "excluir-arquivo-definitivo",
   "adicionar-versao-arquivo",

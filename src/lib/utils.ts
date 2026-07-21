@@ -5,6 +5,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * Rótulo de revisão de arquivo: 1 → R01, 2 → R02, 10 → R10 (convenção de engenharia,
+ * substitui o antigo v1/v2). Zero-padded a 2 dígitos; a partir de 100 usa o tamanho real.
+ */
+export function rotuloRevisao(n: number): string {
+  return `R${String(n).padStart(2, "0")}`
+}
+
 /** Converte Date | string (ISO ou yyyy-mm-dd) em Date local; null se inválido. */
 function paraData(d: Date | string | null | undefined): Date | null {
   if (d == null) return null

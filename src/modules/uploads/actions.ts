@@ -346,6 +346,10 @@ const renomearSchema = z.object({
 
 /**
  * Renomeia o nome exibido de um upload (não altera o arquivo físico nem a versão).
+ * A cadeia de versões é derivada por (disciplinaId, pacote, nomeArquivo) — sem FK —,
+ * então renomeamos TODAS as versões do arquivo em bloco. Renomear só a versão atual
+ * quebraria a cadeia: a versão renomeada viraria um "arquivo cópia" e o histórico
+ * (versões anteriores) ficaria órfão sob o nome antigo.
  * Permitido ao responsável da disciplina ou perfil global. Auditado (de → para),
  * com `entidadeId = disciplinaId` para correlação no histórico do projeto.
  */
@@ -367,6 +371,7 @@ export const renomearUpload = defineAction(
       select: {
         id: true,
         nomeArquivo: true,
+        pacote: true,
         disciplinaId: true,
         disciplina: { select: { projetoId: true, responsaveis: { select: { userId: true } } } },
       },
@@ -392,9 +397,20 @@ export const renomearUpload = defineAction(
       throw new ActionError("Informe um nome antes da extensão.");
     }
 
-    await prisma.upload.update({ where: { id: up.id }, data: { nomeArquivo: nomeFinal } });
+    // Renomeia a cadeia inteira (todas as versões deste arquivo lógico), não só a
+    // versão-alvo — assim o agrupamento por nome não se quebra e o histórico se mantém.
+    // Sem filtro de excluidoEm: versões na lixeira também migram (nenhuma fica órfã
+    // sob o nome antigo, o que reiniciaria a numeração num futuro re-upload).
+    const { count } = await prisma.upload.updateMany({
+      where: {
+        disciplinaId: up.disciplinaId,
+        pacote: up.pacote,
+        nomeArquivo: up.nomeArquivo,
+      },
+      data: { nomeArquivo: nomeFinal },
+    });
     revalidatePath(`/projetos/${up.disciplina.projetoId}/arquivos`);
-    return { disciplinaId: up.disciplinaId, de: up.nomeArquivo, para: nomeFinal };
+    return { disciplinaId: up.disciplinaId, de: up.nomeArquivo, para: nomeFinal, versoes: count };
   },
 );
 
@@ -452,6 +468,52 @@ export const excluirUpload = defineAction(
     });
     revalidarArquivos(upload.disciplina.projetoId);
     return { disciplinaId: upload.disciplinaId, nome: upload.nomeArquivo };
+  },
+);
+
+const excluirLoteSchema = z.object({
+  projetoId: z.string().min(1),
+  uploadIds: z.array(z.string().min(1)).min(1, "Selecione ao menos um arquivo.").max(500),
+});
+
+/**
+ * Move VÁRIOS arquivos (Upload) para a lixeira de uma vez (seleção múltipla no explorer).
+ * Mesma regra do single: RESTRITO A ADMIN, soft delete (não apaga do disco), restaurável.
+ * O escopo é travado ao `projetoId` informado — ids fora dele (ou já na lixeira) são
+ * ignorados, não removidos. Auditado uma vez (entidadeId = projetoId → cai no histórico
+ * do projeto). O `detalhe` guarda quantos/quais ids foram movidos.
+ */
+export const excluirUploadsLote = defineAction(
+  {
+    modulo: "uploads",
+    acao: "excluir-arquivos-lote",
+    recurso: "projetos",
+    permissao: "ver",
+    entidade: "Upload",
+    schema: excluirLoteSchema,
+    entidadeId: (d) => (d as { projetoId?: string } | undefined)?.projetoId,
+  },
+  async (input, { user }) => {
+    exigirAdmin(user.role);
+    // Só arquivos DESTE projeto e ainda fora da lixeira (escopo + idempotência).
+    const uploads = await prisma.upload.findMany({
+      where: {
+        id: { in: input.uploadIds },
+        excluidoEm: null,
+        disciplina: { projetoId: input.projetoId },
+      },
+      select: { id: true },
+    });
+    if (uploads.length === 0) {
+      throw new ActionError("Nenhum arquivo válido para mover à lixeira.");
+    }
+
+    await prisma.upload.updateMany({
+      where: { id: { in: uploads.map((u) => u.id) } },
+      data: { excluidoEm: new Date(), excluidoPorId: user.id },
+    });
+    revalidarArquivos(input.projetoId);
+    return { total: uploads.length, ids: uploads.map((u) => u.id) };
   },
 );
 

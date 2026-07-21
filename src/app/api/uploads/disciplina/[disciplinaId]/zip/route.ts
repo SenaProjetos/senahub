@@ -4,6 +4,7 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { acessoGlobal } from "@/lib/roles";
 import { resolverCaminho } from "@/lib/storage";
+import { caminhoNoZip } from "@/modules/uploads/estrutura";
 import { logAudit, getClientIp } from "@/lib/audit";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ disciplinaId: string }> }) {
@@ -15,7 +16,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ disciplinaId: 
   const disciplina = await prisma.disciplina.findUnique({
     where: { id: disciplinaId },
     include: {
-      uploads: true,
+      // Não zipa arquivos na lixeira (excluidoEm) — só o que aparece no navegador.
+      uploads: { where: { excluidoEm: null } },
       responsaveis: { select: { userId: true } },
       projeto: { select: { codigo: true, membros: { select: { userId: true } } } },
     },
@@ -51,10 +53,22 @@ export async function GET(_req: Request, ctx: { params: Promise<{ disciplinaId: 
     ip: await getClientIp(),
   });
 
-  const entradas = disciplina.uploads.map((u) => ({
-    caminho: u.caminho,
-    nome: `${u.pacote}/${u.nomeArquivo}`,
-  }));
+  // Espelha a árvore do navegador: "{Pacote}/{Subpasta}/{arquivo}". Dedup de nomes
+  // idênticos (ex.: versões anteriores do mesmo arquivo) com sufixo " (2)".
+  const usados = new Set<string>();
+  const entradas = disciplina.uploads.map((u) => {
+    let nome = caminhoNoZip(u.pacote, u.nomeArquivo);
+    if (usados.has(nome)) {
+      const i = nome.lastIndexOf(".");
+      const raiz = i > 0 ? nome.slice(0, i) : nome;
+      const ext = i > 0 ? nome.slice(i) : "";
+      let n = 2;
+      while (usados.has(`${raiz} (${n})${ext}`)) n++;
+      nome = `${raiz} (${n})${ext}`;
+    }
+    usados.add(nome);
+    return { caminho: u.caminho, nome };
+  });
 
   // ReadableStream Web nativo alimentado pelo archiver (App Router aceita direto).
   const archive = new ZipArchive({ zlib: { level: 6 } });

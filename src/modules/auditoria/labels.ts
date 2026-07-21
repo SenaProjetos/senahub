@@ -41,6 +41,7 @@ export const ACAO_LABEL: Record<string, string> = {
   "criar-arquivo": "Criou arquivo",
   "editar-arquivo": "Editou arquivo",
   "excluir-arquivo": "Moveu arquivo para a lixeira",
+  "excluir-arquivos-lote": "Moveu arquivos para a lixeira (em lote)",
   "restaurar-arquivo": "Restaurou arquivo da lixeira",
   "excluir-arquivo-definitivo": "Excluiu arquivo em definitivo",
   "adicionar-versao-arquivo": "Adicionou versão de arquivo",

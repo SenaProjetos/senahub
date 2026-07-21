@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import type { DiretorioProjeto } from "@/modules/arquivos/queries";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
-import { cn, formatarData } from "@/lib/utils";
+import { cn, formatarData, rotuloRevisao } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -230,7 +230,7 @@ function DisciplinaNode({
                   <div className="flex items-center gap-1.5">
                     <span className="truncate text-sm">{a.nome}</span>
                     {a.versao > 1 && (
-                      <span className="shrink-0 text-[10px] text-muted-foreground">v{a.versao}</span>
+                      <span className="shrink-0 text-[10px] text-muted-foreground">{rotuloRevisao(a.versao)}</span>
                     )}
                     {a.ajusteObs ? (
                       <Badge variant="outline" className="shrink-0 gap-1 text-warning" title={a.ajusteObs}>

@@ -35,7 +35,7 @@ import type {
   ArvoreDisciplina,
   ArvoreArquivoItem,
 } from "@/modules/projetos/arquivos/queries";
-import { renomearUpload, excluirUpload, restaurarUpload, excluirUploadDefinitivo } from "@/modules/uploads/actions";
+import { renomearUpload, excluirUpload, excluirUploadsLote, restaurarUpload, excluirUploadDefinitivo } from "@/modules/uploads/actions";
 import type { LixeiraItem } from "@/modules/uploads/queries";
 import { DIAS_LIXEIRA } from "@/modules/uploads/lixeira";
 import {
@@ -49,6 +49,9 @@ import {
 import type { DocumentoItem, DocumentoVersaoItem } from "@/modules/documentos-cliente/queries";
 import type { MetaDocumento } from "@/modules/documentos-cliente/schemas";
 import { entregaveisAtuais } from "@/modules/uploads/validacao";
+// Estrutura de pastas (subpastas por extensão + rótulos de pacote) — fonte única
+// compartilhada com a geração de .zip, para o zip espelhar a árvore desta tela.
+import { SUBPASTAS, PACOTES, PACOTE_LABEL, extDe, subpastaDe } from "@/modules/uploads/estrutura";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
 import { DocumentoViewer } from "@/components/projetos/documento-viewer";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -59,7 +62,7 @@ import {
   limiteLabelDoPacote,
 } from "@/modules/uploads/limites";
 import { precisaChunk, enviarEmChunks } from "@/lib/upload-grande";
-import { cn, formatarData } from "@/lib/utils";
+import { cn, formatarData, rotuloRevisao } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -71,34 +74,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
-// ── Subpasta por extensão (paridade com o explorer do hub anterior) ──
-const SUBPASTAS = ["PDF", "DWG", "DOCs", "IFC", "BACKUP", "Outros arquivos"] as const;
-type Subpasta = (typeof SUBPASTAS)[number];
-
-const EXT_SUBPASTA: Record<string, Subpasta> = {
-  pdf: "PDF",
-  dwg: "DWG", dxf: "DWG", dwf: "DWG",
-  doc: "DOCs", docx: "DOCs", xls: "DOCs", xlsx: "DOCs", txt: "DOCs",
-  ifc: "IFC", ifcxml: "IFC", ifczip: "IFC",
-  rvt: "BACKUP", skp: "BACKUP", tqs: "BACKUP", zip: "BACKUP", rar: "BACKUP", "7z": "BACKUP", qibzip: "BACKUP",
-};
-
-// ── Pacotes por disciplina. "Recebidos do cliente" saiu daqui: virou repositório
-// de Documento ancorado no cliente/projeto (ver RecebidosPasta). ──
-const PACOTES = ["A", "B", "OUTROS"] as const;
-type Pacote = (typeof PACOTES)[number];
-const PACOTE_LABEL: Record<Pacote, string> = {
-  A: "Pranchas e arquivos",
-  B: "Backup do modelo",
-  OUTROS: "Outros (não suportados)",
-};
+// Subpastas por extensão + pacotes de disciplina vêm de `@/modules/uploads/estrutura`
+// (fonte única, também usada pelas rotas de .zip). "Recebidos do cliente" virou
+// repositório Documento (ver RecebidosPasta).
 
 const CATEGORIAS_GERAL = ["contrato", "planta", "memorial", "foto", "administrativo", "outro"] as const;
 
-export function extDe(nome: string): string {
-  const i = nome.lastIndexOf(".");
-  return i >= 0 ? nome.slice(i + 1).toLowerCase() : "";
-}
+// `extDe` reexportado para compatibilidade com quem importava daqui.
+export { extDe };
 
 /**
  * Botão de pré-visualização (só PDF): abre o documento num visualizador
@@ -134,9 +117,6 @@ function PreviewPdfButton({ nomeArquivo, url, titulo }: { nomeArquivo: string; u
 function separarExt(nome: string): { base: string; ext: string } {
   const i = nome.lastIndexOf(".");
   return i > 0 ? { base: nome.slice(0, i), ext: nome.slice(i) } : { base: nome, ext: "" };
-}
-function subpastaDe(nome: string): Subpasta {
-  return EXT_SUBPASTA[extDe(nome)] ?? "Outros arquivos";
 }
 function fmtBytes(n: number) {
   if (n < 1024) return `${n} B`;
@@ -357,12 +337,12 @@ function LinhaArquivo({
             title={`Visualizar ${a.nome}`}
           >
             {a.nome}
-            {mostrarVersao && <span className="ml-1 font-mono text-xs text-muted-foreground">v{a.versao}</span>}
+            {mostrarVersao && <span className="ml-1 font-mono text-xs text-muted-foreground">{rotuloRevisao(a.versao)}</span>}
           </a>
         ) : (
           <span className="min-w-0 flex-1 truncate" title={a.nome}>
             {a.nome}
-            {mostrarVersao && <span className="ml-1 font-mono text-xs text-muted-foreground">v{a.versao}</span>}
+            {mostrarVersao && <span className="ml-1 font-mono text-xs text-muted-foreground">{rotuloRevisao(a.versao)}</span>}
           </span>
         )}
         {foraPadrao && !historico && (
@@ -572,7 +552,7 @@ export function ArquivosExplorer({
 }) {
   const router = useRouter();
   const confirm = useConfirm();
-  const [, excluindo] = useTransition();
+  const [excluindoPend, excluindo] = useTransition();
   const [renomeando, setRenomeando] = useState<ArvoreArquivoItem | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
 
@@ -597,6 +577,28 @@ export function ArquivosExplorer({
     },
     [confirm, router],
   );
+  // Envio em lote da seleção para a lixeira (só admin — botão gateado por podeExcluirArquivo).
+  const excluirSelecionados = useCallback(() => {
+    void (async () => {
+      const n = sel.size;
+      if (n === 0) return;
+      const ok = await confirm({
+        title: `Mover ${n} arquivo(s) para a lixeira?`,
+        description: `Os arquivos selecionados vão para a lixeira do projeto e podem ser restaurados por até ${DIAS_LIXEIRA} dias. Depois disso são excluídos em definitivo.`,
+        confirmLabel: "Mover para a lixeira",
+        variant: "destructive",
+      });
+      if (!ok) return;
+      excluindo(async () => {
+        const r = await excluirUploadsLote({ projetoId: projeto.id, uploadIds: [...sel] });
+        if (r.ok) {
+          toast.success(`${r.data.total} arquivo(s) movido(s) para a lixeira.`);
+          setSel(new Set());
+          router.refresh();
+        } else toast.error(r.error);
+      });
+    })();
+  }, [confirm, sel, projeto.id, router]);
   const totais = useMemo(() => {
     const todos = disciplinas.flatMap((d) => d.arquivos);
     return { total: todos.length + geral.length, aprovados: todos.filter((a) => a.aprovado).length };
@@ -642,6 +644,11 @@ export function ArquivosExplorer({
           <Button size="sm" onClick={() => baixarZipIds([...sel], `${projeto.codigo}-selecao`)}>
             <Download className="size-3.5" /> Baixar .zip
           </Button>
+          {podeExcluirArquivo && (
+            <Button size="sm" variant="destructive" disabled={excluindoPend} onClick={excluirSelecionados}>
+              <Trash2 className="size-3.5" /> {excluindoPend ? "Movendo…" : "Mover para a lixeira"}
+            </Button>
+          )}
           <Button size="sm" variant="ghost" onClick={() => setSel(new Set())}>
             Limpar seleção
           </Button>
