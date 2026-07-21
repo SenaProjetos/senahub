@@ -420,6 +420,13 @@ function Invoke-DeployCompleto {
         }
 
         Write-Host ""
+        Write-Host "---- db:seed (permissoes + catalogos; idempotente) ----" -ForegroundColor Cyan
+        npm run db:seed
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[AVISO] Seed falhou. O servico VAI SUBIR mesmo assim, mas permissoes/catalogos novos podem faltar (ex.: erro 'Sem permissao para enviar arquivos'). Reaplique pela opcao 'Reaplicar seed'." -ForegroundColor Yellow
+        }
+
+        Write-Host ""
         Write-Host "---- Iniciando servico SenaHub ----" -ForegroundColor Cyan
         Start-Service -Name "SenaHub"
         Start-Sleep -Seconds 8
@@ -520,6 +527,15 @@ function Invoke-DeployAutomatico {
             Invoke-Notificacao -Status "falhou" -Detalhe "Migration falhou no commit $commitDepois. Avalie restaurar o backup. Servico PARADO - URGENTE."
             Write-Audit -AcaoNome "DeployAutomatico" -Detalhe "FALHOU: migration ($commitDepois)"
             return
+        }
+
+        # Seed idempotente: garante permissoes/catalogos novos (ex.: `arquivos:enviar`).
+        # NAO bloqueia o deploy - se falhar, o servico sobe mesmo assim (so avisa).
+        npm run db:seed *>> $logPath
+        if ($LASTEXITCODE -ne 0) {
+            Write-DeployLog "AVISO: db:seed falhou (nao bloqueia). Permissoes/catalogos novos podem faltar ate reaplicar o seed."
+            Invoke-Notificacao -Status "falhou" -Detalhe "db:seed falhou no commit $commitDepois. Servico VAI SUBIR, mas permissoes/catalogos novos podem faltar (ex.: erro 'Sem permissao para enviar arquivos'). Reaplique o seed manualmente (menu -> Reaplicar seed)."
+            Write-Audit -AcaoNome "DeployAutomatico" -Detalhe "AVISO: seed falhou ($commitDepois)"
         }
 
         Start-Service -Name "SenaHub"
