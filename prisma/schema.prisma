@@ -608,6 +608,7 @@ model Projeto {
   inputs             InputProjeto[]
   briefing           BriefingProjeto?
   linkInput          LinkPublicoInput?
+  linkArquivos       LinkPublicoArquivos?
   lancamentos        Lancamento[]
   canais             Canal[]
   proposta           Proposta?
@@ -730,6 +731,27 @@ model LinkPublicoInput {
   createdAt DateTime @default(now())
 
   @@map("link_publico_input")
+}
+
+/// Link público (sem login) para o cliente ver e BAIXAR os arquivos do projeto.
+/// Somente leitura: expõe apenas uploads validados (validado=true) das disciplinas
+/// listadas em `disciplinaIds` (whitelist editável — alterar a seleção reflete no
+/// MESMO token). `ativo=false` revoga na hora; `expiraEm` desliga após a data.
+model LinkPublicoArquivos {
+  id            String    @id @default(cuid())
+  projetoId     String    @unique
+  projeto       Projeto   @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  token         String    @unique
+  ativo         Boolean   @default(true)
+  /// Data/hora de expiração (opcional). Nulo = não expira.
+  expiraEm      DateTime?
+  /// IDs das disciplinas liberadas no link. Vazio = nenhuma disciplina exposta.
+  disciplinaIds String[]  @default([])
+  criadoPorId   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("link_publico_arquivos")
 }
 
 // ─────────────────────────────────────────────────────────────

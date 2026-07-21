@@ -54,6 +54,7 @@ import { entregaveisAtuais } from "@/modules/uploads/validacao";
 import { SUBPASTAS, PACOTES, PACOTE_LABEL, extDe, subpastaDe } from "@/modules/uploads/estrutura";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
 import { DocumentoViewer } from "@/components/projetos/documento-viewer";
+import { LinkPublicoArquivosButton } from "@/components/projetos/link-publico-arquivos-dialog";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
   TAMANHO_MAX_LABEL,
@@ -533,6 +534,9 @@ export function ArquivosExplorer({
   podeExcluirDocumento,
   podeExcluirArquivo,
   lixeira,
+  podeGerirLink,
+  baseUrl,
+  linkPublico,
 }: {
   projeto: { id: string; codigo: string; nome: string };
   disciplinas: ArvoreDisciplina[];
@@ -549,6 +553,17 @@ export function ArquivosExplorer({
   podeExcluirArquivo: boolean;
   /** Arquivos na lixeira do projeto (só admin recebe; vazio p/ os demais). */
   lixeira: LixeiraItem[];
+  /** Pode gerir o link público de arquivos (projetos:gerir). */
+  podeGerirLink: boolean;
+  /** Base URL (APP_URL) para montar o endereço do link público. */
+  baseUrl: string;
+  /** Link público de arquivos já configurado no projeto (ou null). */
+  linkPublico: {
+    token: string;
+    ativo: boolean;
+    expiraEm: string | null;
+    disciplinaIds: string[];
+  } | null;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -634,6 +649,14 @@ export function ArquivosExplorer({
             Organizados por disciplina e tipo de arquivo. {totais.aprovados} de {totais.total} aprovado(s).
           </p>
         </div>
+        {podeGerirLink && (
+          <LinkPublicoArquivosButton
+            projetoId={projeto.id}
+            baseUrl={baseUrl}
+            disciplinas={disciplinas.map((d) => ({ id: d.id, nome: d.nome }))}
+            link={linkPublico}
+          />
+        )}
       </div>
 
       {enviaveis.length > 0 && <Uploader disciplinas={enviaveis} nomenclatura={nomenclatura} />}

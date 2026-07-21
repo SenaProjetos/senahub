@@ -10,6 +10,7 @@ import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import { recebidosDoProjeto, geralDoProjeto, clienteDoProjeto } from "@/modules/documentos-cliente/queries";
 import { podeGerirDocumento } from "@/modules/documentos-cliente/acesso";
 import { podeVerTodasDisciplinas, podeEnviarArquivo } from "@/modules/arquivos/acesso";
+import { linkArquivosDoProjeto } from "@/modules/projetos/arquivos/link-publico";
 import { ArquivosExplorer } from "@/components/projetos/arquivos-explorer";
 
 export const metadata: Metadata = { title: "Arquivos" };
@@ -25,7 +26,7 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
     podeVerTodasDisciplinas(user),
     podeEnviarArquivo(user.role),
   ]);
-  const [arvore, podeVerGeral, podeGerirGeral, podeValidar, nomenclatura, recebidos, clienteId, podeGerirRecebidos] =
+  const [arvore, podeVerGeral, podeGerirGeral, podeValidar, nomenclatura, recebidos, clienteId, podeGerirRecebidos, podeGerirLink, linkPublico] =
     await Promise.all([
       arvoreArquivosProjeto(id, user.id, ehGlobal, { veTodas, podeEnviarCap }),
       can(user.role, "arquivos_gerais", "ver"),
@@ -35,7 +36,10 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
       recebidosDoProjeto(id, { incluirCompartilhadosDoGeral: true }),
       clienteDoProjeto(id),
       podeGerirDocumento(user, { projetoId: id }),
+      can(user.role, "projetos", "gerir"),
+      linkArquivosDoProjeto(id),
     ]);
+  const baseUrl = process.env.APP_URL ?? "";
   // Pasta "Geral" (Documento origem=interno) só é carregada p/ quem tem `arquivos_gerais:ver`.
   const geral = podeVerGeral ? await geralDoProjeto(id) : [];
   // Lixeira do projeto: só admin (gate da action) — os demais recebem lista vazia.
@@ -56,6 +60,18 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
       podeExcluirDocumento={ehGlobal}
       podeExcluirArquivo={ehAdmin}
       lixeira={lixeira}
+      podeGerirLink={podeGerirLink}
+      baseUrl={baseUrl}
+      linkPublico={
+        linkPublico
+          ? {
+              token: linkPublico.token,
+              ativo: linkPublico.ativo,
+              expiraEm: linkPublico.expiraEm ? linkPublico.expiraEm.toISOString() : null,
+              disciplinaIds: linkPublico.disciplinaIds,
+            }
+          : null
+      }
     />
   );
 }
