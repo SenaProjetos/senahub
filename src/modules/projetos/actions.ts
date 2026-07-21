@@ -153,7 +153,7 @@ export const atualizarStatusDisciplina = defineAction(
     modulo: "projetos",
     acao: "atualizar-status-disciplina",
     recurso: "projetos",
-    permissao: "visualizar",
+    permissao: "ver",
     entidade: "Disciplina",
     schema: atualizarStatusDisciplinaSchema,
     entidadeId: (d, i) => ((d ?? i) as { disciplinaId: string }).disciplinaId,
@@ -173,8 +173,9 @@ export const atualizarStatusDisciplina = defineAction(
       throw new ActionError("Status 'aprovado' só pode ser definido via validação de entrega.");
     }
 
-    // P-14: permissao "visualizar" garante login; gate fino abaixo separa responsável vs. gestor
-    // (além da matriz global de permissões, pois acesso é por vínculo, não por role).
+    // P-14: permissao "ver" (todo perfil interno tem projetos:ver) só garante que está logado;
+    // o gate fino abaixo separa responsável vs. gestor — acesso é por vínculo à disciplina, não por role.
+    // Projetista responsável muda o status da SUA disciplina; nunca o status/situação do projeto.
     const ehGerir = isGlobal(user.role) || ["admin", "supervisor"].includes(user.role);
     const ehResp = disciplina.responsaveis.some((r) => r.userId === user.id);
     if (!ehGerir && !ehResp) {
@@ -299,7 +300,7 @@ export const registrarRevisao = defineAction(
     modulo: "projetos",
     acao: "registrar-revisao",
     recurso: "projetos",
-    permissao: "visualizar",
+    permissao: "ver",
     entidade: "RevisaoDisciplina",
     schema: registrarRevisaoSchema,
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
@@ -310,7 +311,7 @@ export const registrarRevisao = defineAction(
       include: { responsaveis: true },
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
-    // P-14: permissao "visualizar" garante login; gate fino por vínculo de responsável.
+    // P-14: permissao "ver" só garante login; gate fino por vínculo de responsável.
     const ehResp = disciplina.responsaveis.some((r) => r.userId === user.id);
     if (!isGlobal(user.role) && !ehResp) {
       throw new ActionError("Apenas responsáveis ou gestores registram revisões.");
