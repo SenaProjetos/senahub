@@ -5,7 +5,12 @@ import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { projetoVisivel } from "@/modules/planejamento/queries";
-import { modelosCoordenacao, apontamentosDoProjeto, dashboardApontamentos } from "@/modules/coordenacao/queries";
+import {
+  modelosCoordenacao,
+  apontamentosDoProjeto,
+  dashboardApontamentos,
+  vistasDoProjeto,
+} from "@/modules/coordenacao/queries";
 import { contarPorStatus, contarPorDisciplina, semanasCriadosEncerrados } from "@/modules/coordenacao/dashboard";
 import { opcoesTarefa } from "@/modules/tarefas/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -29,7 +34,7 @@ export default async function CoordenacaoPage({
   const projeto = await projetoVisivel(user, id);
   if (!projeto) notFound();
 
-  const [modelos, podeGerir, apontamentos, minhasDisciplinas, resumoDashboard] = await Promise.all([
+  const [modelos, podeGerir, apontamentos, minhasDisciplinas, resumoDashboard, vistas] = await Promise.all([
     modelosCoordenacao(id),
     can(user.role, "coordenacao", "gerir"),
     apontamentosDoProjeto(id),
@@ -38,6 +43,7 @@ export default async function CoordenacaoPage({
       select: { disciplinaId: true },
     }),
     dashboardApontamentos(id),
+    vistasDoProjeto(id),
   ]);
 
   if (modelos.length === 0) {
@@ -88,6 +94,7 @@ export default async function CoordenacaoPage({
         <CoordenacaoView
           modelos={rows}
           apontamentosIniciais={apontamentos}
+          vistasIniciais={vistas}
           projetoId={id}
           projetoCodigo={formatarCodigo(projeto.codigo)}
           projetoNome={projeto.nome}

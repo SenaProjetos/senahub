@@ -9,9 +9,11 @@ import { Badge } from "@/components/ui/badge";
 
 /**
  * Barra flutuante de medição: inicia/para modo, mostra progresso e resultado.
- * Self-contained — recebe engine, gerencia estado local de UI.
+ * Self-contained — recebe engine, gerencia estado local de UI. Visibilidade é
+ * controlada pelo menu do viewer (`aberto`), mas nunca some no meio de uma medição
+ * em andamento — mesmo que o usuário feche o menu, `engine.medindo` mantém o painel.
  */
-export function MedicaoToolbar({ engine }: { engine: ViewerEngine | null }) {
+export function MedicaoToolbar({ engine, aberto }: { engine: ViewerEngine | null; aberto: boolean }) {
   const [estado, setEstado] = useState<ResultadoMedicaoView | null>(null);
 
   useEffect(() => {
@@ -30,6 +32,8 @@ export function MedicaoToolbar({ engine }: { engine: ViewerEngine | null }) {
   function reiniciar() {
     engine?.reiniciarMedicao();
   }
+
+  if (!aberto && !engine?.medindo) return null;
 
   if (!engine?.medindo) {
     return (

@@ -1,8 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { Maximize, Scissors, Focus, EyeOff, Eye, X } from "lucide-react";
+import {
+  Maximize,
+  Scissors,
+  Focus,
+  EyeOff,
+  Eye,
+  X,
+  Layers,
+  ListTree,
+  AlertTriangle,
+  GitCompare,
+  ClipboardList,
+  Info,
+  Bookmark,
+  Ruler,
+} from "lucide-react";
 import type { CorteConfig, EixoCorte } from "@/modules/coordenacao/viewer/engine";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -22,23 +38,43 @@ const EIXO_LABEL: Record<EixoCorte, string> = {
   z: "Eixo Z",
 };
 
+/** Painéis que abrem no dock flutuante do viewer, um de cada vez. */
+export type PainelId = "disciplinas" | "elementos" | "clash" | "diff" | "apontamentos" | "propriedades" | "vistas";
+
 function BotaoTool({
   label,
   onClick,
   disabled,
+  ativo,
+  badge,
   children,
 }: {
   label: string;
   onClick?: () => void;
   disabled?: boolean;
+  ativo?: boolean;
+  badge?: number;
   children: React.ReactNode;
 }) {
   return (
     <Tooltip>
       <TooltipTrigger
         render={
-          <Button variant="secondary" size="icon" onClick={onClick} disabled={disabled} aria-label={label}>
+          <Button
+            variant={ativo ? "default" : "secondary"}
+            size="icon"
+            onClick={onClick}
+            disabled={disabled}
+            aria-label={label}
+            aria-pressed={ativo}
+            className="relative"
+          >
             {children}
+            {!!badge && badge > 0 && (
+              <Badge className="absolute -right-1.5 -top-1.5 h-4 min-w-4 justify-center rounded-full px-1 text-[10px]">
+                {badge}
+              </Badge>
+            )}
           </Button>
         }
       />
@@ -47,7 +83,12 @@ function BotaoTool({
   );
 }
 
-/** Toolbar flutuante do viewer: enquadrar, corte, isolar/ocultar/mostrar, limpar seleção. */
+/**
+ * Toolbar flutuante do viewer (canto superior esquerdo): enquadrar, corte,
+ * isolar/ocultar/mostrar, limpar seleção — e o menu que abre os painéis (Disciplinas,
+ * Elementos, Clash, Diff, Apontamentos, Propriedades, Vistas) no dock flutuante, mais
+ * o toggle da medição. Só um painel fica ativo por vez (estilo abas).
+ */
 export function ViewerToolbar({
   temSelecao,
   corte,
@@ -57,6 +98,12 @@ export function ViewerToolbar({
   onOcultar,
   onMostrarTudo,
   onLimparSelecao,
+  painelAtivo,
+  onTogglePainel,
+  painelDesabilitado,
+  apontamentosAbertos = 0,
+  medicaoAberta,
+  onToggleMedicao,
 }: {
   temSelecao: boolean;
   corte: CorteConfig;
@@ -66,6 +113,12 @@ export function ViewerToolbar({
   onOcultar: () => void;
   onMostrarTudo: () => void;
   onLimparSelecao: () => void;
+  painelAtivo: PainelId | null;
+  onTogglePainel: (id: PainelId) => void;
+  painelDesabilitado?: Partial<Record<PainelId, boolean>>;
+  apontamentosAbertos?: number;
+  medicaoAberta: boolean;
+  onToggleMedicao: () => void;
 }) {
   const [aberto, setAberto] = useState(false);
 
@@ -149,6 +202,65 @@ export function ViewerToolbar({
       </BotaoTool>
       <BotaoTool label="Limpar seleção" onClick={onLimparSelecao} disabled={!temSelecao}>
         <X className="size-4" />
+      </BotaoTool>
+
+      <div className="mx-1 h-5 w-px bg-border" />
+
+      <BotaoTool
+        label="Disciplinas"
+        ativo={painelAtivo === "disciplinas"}
+        onClick={() => onTogglePainel("disciplinas")}
+      >
+        <Layers className="size-4" />
+      </BotaoTool>
+      <BotaoTool
+        label="Elementos"
+        ativo={painelAtivo === "elementos"}
+        disabled={painelDesabilitado?.elementos}
+        onClick={() => onTogglePainel("elementos")}
+      >
+        <ListTree className="size-4" />
+      </BotaoTool>
+      <BotaoTool
+        label="Detecção de conflitos"
+        ativo={painelAtivo === "clash"}
+        disabled={painelDesabilitado?.clash}
+        onClick={() => onTogglePainel("clash")}
+      >
+        <AlertTriangle className="size-4" />
+      </BotaoTool>
+      <BotaoTool
+        label="Comparar versões"
+        ativo={painelAtivo === "diff"}
+        disabled={painelDesabilitado?.diff}
+        onClick={() => onTogglePainel("diff")}
+      >
+        <GitCompare className="size-4" />
+      </BotaoTool>
+      <BotaoTool
+        label="Apontamentos"
+        ativo={painelAtivo === "apontamentos"}
+        badge={apontamentosAbertos}
+        onClick={() => onTogglePainel("apontamentos")}
+      >
+        <ClipboardList className="size-4" />
+      </BotaoTool>
+      <BotaoTool
+        label="Propriedades do elemento"
+        ativo={painelAtivo === "propriedades"}
+        disabled={painelDesabilitado?.propriedades}
+        onClick={() => onTogglePainel("propriedades")}
+      >
+        <Info className="size-4" />
+      </BotaoTool>
+      <BotaoTool label="Vistas salvas" ativo={painelAtivo === "vistas"} onClick={() => onTogglePainel("vistas")}>
+        <Bookmark className="size-4" />
+      </BotaoTool>
+
+      <div className="mx-1 h-5 w-px bg-border" />
+
+      <BotaoTool label="Medição" ativo={medicaoAberta} onClick={onToggleMedicao}>
+        <Ruler className="size-4" />
       </BotaoTool>
     </div>
   );

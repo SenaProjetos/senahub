@@ -11,7 +11,7 @@ import type {
   CorteConfig,
   CameraApontamento,
 } from "@/modules/coordenacao/viewer/engine";
-import type { ApontamentoView } from "@/modules/coordenacao/queries";
+import type { ApontamentoView, VistaView } from "@/modules/coordenacao/queries";
 import {
   criarApontamentoCoordenacao,
   editarApontamentoCoordenacao,
@@ -22,6 +22,7 @@ import {
   descartarApontamentoCoordenacao,
   enviarApontamentosCoordenacao,
   realinharModeloIfc,
+  criarVistaCoordenacao,
 } from "@/modules/coordenacao/actions";
 import { enviaveis as apontamentosEnviaveis } from "@/modules/coordenacao/helpers";
 import { type ModeloRow } from "@/components/coordenacao/conversao-status-view";
@@ -35,12 +36,14 @@ import { MedicaoToolbar } from "@/components/coordenacao/medicao-toolbar";
 import { PainelDisciplinas } from "@/components/coordenacao/painel-disciplinas";
 import { PainelPropriedades } from "@/components/coordenacao/painel-propriedades";
 import { RealinharIfcDialog } from "@/components/coordenacao/realinhar-ifc-dialog";
-import { ViewerToolbar } from "@/components/coordenacao/viewer-toolbar";
+import { ViewerToolbar, type PainelId } from "@/components/coordenacao/viewer-toolbar";
+import { VistasPanel } from "@/components/coordenacao/vistas-painel";
 import { ApontamentoPins } from "@/components/coordenacao/apontamento-pins";
 import { ApontamentosLista } from "@/components/coordenacao/apontamentos-lista";
 import { ApontamentoForm, type ApontamentoDraft } from "@/components/coordenacao/apontamento-form";
 import { TarefaDialog, type OpcoesUI } from "@/components/tarefas/tarefa-dialog";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { rotuloRevisao } from "@/lib/utils";
 
@@ -57,6 +60,7 @@ type DraftInfo = { uploadId: string; disciplinaId: string | null; guids: string[
 export function CoordenacaoView({
   modelos,
   apontamentosIniciais,
+  vistasIniciais,
   projetoId,
   projetoCodigo,
   projetoNome,
@@ -70,6 +74,7 @@ export function CoordenacaoView({
 }: {
   modelos: ModeloRow[];
   apontamentosIniciais: ApontamentoView[];
+  vistasIniciais: VistaView[];
   projetoId: string;
   projetoCodigo: string;
   projetoNome: string;
@@ -100,6 +105,11 @@ export function CoordenacaoView({
   const [foco, setFoco] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const minhasDisciplinasSet = useMemo(() => new Set(minhasDisciplinas), [minhasDisciplinas]);
+
+  // ── Dock de painéis (menu do viewer) + medição + vistas salvas ──
+  const [painelAtivo, setPainelAtivo] = useState<PainelId | null>(null);
+  const [medicaoAberta, setMedicaoAberta] = useState(false);
+  const [vistas, setVistas] = useState<VistaView[]>(vistasIniciais);
 
   // ── Realinhamento (offset de IFC) ──
   const [realinharAberto, setRealinharAberto] = useState(false);
@@ -175,6 +185,16 @@ export function CoordenacaoView({
     [modelos],
   );
 
+  // Ícones do dock desabilitados quando o painel correspondente não tem o que mostrar.
+  const painelDesabilitado = useMemo(
+    () => ({
+      elementos: modelosCarregadosInfo.length === 0,
+      clash: modelosClash.length < 2,
+      diff: modelosDiff.length < 2,
+    }),
+    [modelosCarregadosInfo, modelosClash, modelosDiff],
+  );
+
   const onReady = useCallback((engine: ViewerEngine) => {
     engineRef.current = engine;
   }, []);
@@ -182,6 +202,14 @@ export function CoordenacaoView({
   const onSelecionarViewer = useCallback((info: SelecaoInfo | null) => {
     setSelecao(info);
     setTemSelecao(engineRef.current?.temSelecao ?? false);
+    // Selecionar um elemento no viewer troca o dock pra Propriedades automaticamente
+    // (mesmo comportamento de sempre — só que agora move o dock em vez de aparecer
+    // numa coluna lateral fixa).
+    if (info) setPainelAtivo("propriedades");
+  }, []);
+
+  const alternarPainel = useCallback((id: PainelId) => {
+    setPainelAtivo((atual) => (atual === id ? null : id));
   }, []);
 
   const onToggle = useCallback(async (uploadId: string, ligar: boolean) => {
@@ -356,6 +384,31 @@ export function CoordenacaoView({
         setEnviandoAvulso(false);
       }
     })();
+  }
+
+  // ── Vistas salvas (câmera + disciplinas visíveis + corte) ──
+
+  async function salvarVistaAtual(nome: string): Promise<boolean> {
+    const engine = engineRef.current;
+    if (!engine) return false;
+    const camera = engine.capturarCamera();
+    const r = await criarVistaCoordenacao({
+      projetoId,
+      nome,
+      camera,
+      modelosVisiveis: [...carregados],
+      corte,
+    });
+    if (!r.ok) {
+      toast.error(r.error);
+      return false;
+    }
+    setVistas((vs) => [
+      { id: r.data.id, nome, camera, modelosVisiveis: [...carregados], corte, autorId: currentUserId, autor: "Você", createdAt: new Date().toISOString() },
+      ...vs,
+    ]);
+    toast.success(`Vista "${nome}" salva.`);
+    return true;
   }
 
   // ── Criar apontamento (a partir da seleção atual do viewer) ──
@@ -590,8 +643,8 @@ export function CoordenacaoView({
   }));
 
   return (
-    <div className="flex flex-col gap-4 lg:flex-row">
-      <div className="relative h-[70vh] min-h-[420px] flex-1 overflow-hidden rounded-lg border bg-muted/20">
+    <>
+    <div className="relative h-[calc(100vh-160px)] min-h-[560px] overflow-hidden rounded-lg border bg-muted/20">
         <ViewerToolbar
           temSelecao={temSelecao}
           corte={corte}
@@ -601,6 +654,12 @@ export function CoordenacaoView({
           onOcultar={() => void engineRef.current?.ocultarSelecao()}
           onMostrarTudo={() => void engineRef.current?.mostrarTudo()}
           onLimparSelecao={() => void engineRef.current?.limparSelecao()}
+          painelAtivo={painelAtivo}
+          onTogglePainel={alternarPainel}
+          painelDesabilitado={painelDesabilitado}
+          apontamentosAbertos={listaEnviaveis.length}
+          medicaoAberta={medicaoAberta}
+          onToggleMedicao={() => setMedicaoAberta((v) => !v)}
         />
         {podeGerir && (
           <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
@@ -635,7 +694,7 @@ export function CoordenacaoView({
         {carregados.size === 0 && carregando.size === 0 && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <p className="rounded-md bg-background/80 px-4 py-2 text-sm text-muted-foreground backdrop-blur">
-              Ligue uma disciplina no painel ao lado para carregar a maquete.
+              Abra &ldquo;Disciplinas&rdquo; no menu (canto superior esquerdo) para ligar uma e carregar a maquete.
             </p>
           </div>
         )}
@@ -656,49 +715,82 @@ export function CoordenacaoView({
             enviandoAvulso={enviandoAvulso}
           />
         )}
-        <MedicaoToolbar engine={engineRef.current} />
-      </div>
-      <aside className="w-full shrink-0 space-y-4 lg:w-80">
-        <PainelDisciplinas
-          modelos={modelos}
-          carregados={carregados}
-          carregando={carregando}
-          foco={foco}
-          onToggle={onToggle}
-          onFocar={focar}
-        />
-        <ArvoreModelo engine={engineRef.current} modelos={modelosCarregadosInfo} />
-        <ClashPainel
-          engine={engineRef.current}
-          modelos={modelosClash}
-          projetoId={projetoId}
-          projetoCodigo={projetoCodigo}
-          projetoNome={projetoNome}
-        />
-        <DiffPainel engine={engineRef.current} modelos={modelosDiff} />
-        <ApontamentosLista
-          apontamentos={apontamentos}
-          selecionadoId={apontamentoSelecionadoId}
-          currentUserId={currentUserId}
-          ehAdmin={ehAdmin}
-          podeGerir={podeGerir}
-          minhasDisciplinas={minhasDisciplinasSet}
-          pending={pending}
-          selecaoExport={selecaoExport}
-          exportando={exportando}
-          onToggleExport={toggleExport}
-          onSelecionarTodos={selecionarTodosExport}
-          onExportar={exportarBcf}
-          onSelecionar={(a) => void abrirApontamento(a)}
-          onEditar={setEditando}
-          onExcluir={excluir}
-          onResolver={(id) => mudarStatus(id, resolverApontamentoCoordenacao, "resolvida", "Marcado como resolvido.")}
-          onReabrir={(id) => mudarStatus(id, reabrirApontamentoCoordenacao, "aberta", "Reaberto.")}
-          onFechar={(id) => mudarStatus(id, fecharApontamentoCoordenacao, "fechada", "Apontamento fechado.")}
-          onDescartar={(id) => mudarStatus(id, descartarApontamentoCoordenacao, "descartada", "Apontamento descartado.")}
-        />
-        {selecao && <PainelPropriedades selecao={selecao} />}
-      </aside>
+        <MedicaoToolbar engine={engineRef.current} aberto={medicaoAberta} />
+
+        {/* Dock de painéis: um por vez, aberto pelos ícones-aba do ViewerToolbar — vive
+            dentro da janela do viewer (overlay), não numa coluna lateral fixa. */}
+        {painelAtivo && (
+          <div className="absolute right-3 top-16 z-10 max-h-[calc(100%-5rem)] w-80 overflow-y-auto">
+            {painelAtivo === "disciplinas" && (
+              <PainelDisciplinas
+                modelos={modelos}
+                carregados={carregados}
+                carregando={carregando}
+                foco={foco}
+                onToggle={onToggle}
+                onFocar={focar}
+              />
+            )}
+            {painelAtivo === "elementos" && (
+              <ArvoreModelo engine={engineRef.current} modelos={modelosCarregadosInfo} />
+            )}
+            {painelAtivo === "clash" && (
+              <ClashPainel
+                engine={engineRef.current}
+                modelos={modelosClash}
+                projetoId={projetoId}
+                projetoCodigo={projetoCodigo}
+                projetoNome={projetoNome}
+              />
+            )}
+            {painelAtivo === "diff" && <DiffPainel engine={engineRef.current} modelos={modelosDiff} />}
+            {painelAtivo === "apontamentos" && (
+              <ApontamentosLista
+                apontamentos={apontamentos}
+                selecionadoId={apontamentoSelecionadoId}
+                currentUserId={currentUserId}
+                ehAdmin={ehAdmin}
+                podeGerir={podeGerir}
+                minhasDisciplinas={minhasDisciplinasSet}
+                pending={pending}
+                selecaoExport={selecaoExport}
+                exportando={exportando}
+                onToggleExport={toggleExport}
+                onSelecionarTodos={selecionarTodosExport}
+                onExportar={exportarBcf}
+                onSelecionar={(a) => void abrirApontamento(a)}
+                onEditar={setEditando}
+                onExcluir={excluir}
+                onResolver={(id) => mudarStatus(id, resolverApontamentoCoordenacao, "resolvida", "Marcado como resolvido.")}
+                onReabrir={(id) => mudarStatus(id, reabrirApontamentoCoordenacao, "aberta", "Reaberto.")}
+                onFechar={(id) => mudarStatus(id, fecharApontamentoCoordenacao, "fechada", "Apontamento fechado.")}
+                onDescartar={(id) => mudarStatus(id, descartarApontamentoCoordenacao, "descartada", "Apontamento descartado.")}
+              />
+            )}
+            {painelAtivo === "propriedades" &&
+              (selecao ? (
+                <PainelPropriedades selecao={selecao} />
+              ) : (
+                <Card>
+                  <CardContent className="py-4 text-xs text-muted-foreground">
+                    Selecione um elemento no modelo para ver as propriedades.
+                  </CardContent>
+                </Card>
+              ))}
+            {painelAtivo === "vistas" && (
+              <VistasPanel
+                engine={engineRef.current}
+                vistas={vistas}
+                carregados={carregados}
+                onToggleModelo={onToggle}
+                onAplicarCorte={aplicarCorte}
+                currentUserId={currentUserId}
+                onSalvarAtual={salvarVistaAtual}
+              />
+            )}
+          </div>
+        )}
+    </div>
 
       <ApontamentoForm
         open={draftAberto}
@@ -752,6 +844,6 @@ export function CoordenacaoView({
           onSubmit={submeterEnvio}
         />
       )}
-    </div>
+    </>
   );
 }

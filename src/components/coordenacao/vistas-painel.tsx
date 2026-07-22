@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { Eye, Trash2, ChevronDown } from "lucide-react";
+import { useState, useTransition } from "react";
+import { Eye, Trash2, ChevronDown, Save } from "lucide-react";
 import type { ViewerEngine } from "@/modules/coordenacao/viewer/engine";
 import type { VistaView } from "@/modules/coordenacao/queries";
 import { excluirVistaCoordenacao } from "@/modules/coordenacao/actions";
-import { useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,7 @@ export function VistasPanel({
   onToggleModelo,
   onAplicarCorte,
   currentUserId,
+  onSalvarAtual,
 }: {
   engine: ViewerEngine | null;
   vistas: VistaView[];
@@ -26,9 +28,29 @@ export function VistasPanel({
   onToggleModelo: (uploadId: string, ligar: boolean) => void;
   onAplicarCorte: (config: { eixo: "x" | "y" | "z"; posicao: number; invertido: boolean } | null) => void;
   currentUserId: string;
+  /** Salva a câmera + modelos visíveis + corte atuais como uma nova vista nomeada. */
+  onSalvarAtual: (nome: string) => Promise<boolean>;
 }) {
   const [aberto, setAberto] = useState(true);
   const [, start] = useTransition();
+  const [salvarAberto, setSalvarAberto] = useState(false);
+  const [nomeNovo, setNomeNovo] = useState("");
+  const [salvando, setSalvando] = useState(false);
+
+  async function salvarAtual() {
+    const nome = nomeNovo.trim();
+    if (!nome) return;
+    setSalvando(true);
+    try {
+      const ok = await onSalvarAtual(nome);
+      if (ok) {
+        setNomeNovo("");
+        setSalvarAberto(false);
+      }
+    } finally {
+      setSalvando(false);
+    }
+  }
 
   async function aplicarVista(vista: VistaView) {
     if (!engine) return;
@@ -65,15 +87,13 @@ export function VistasPanel({
     });
   }
 
-  if (vistas.length === 0) return null;
-
   return (
     <Card>
-      <CardHeader className="pb-3">
+      <CardHeader className="flex-row items-center justify-between gap-2 pb-3">
         <button
           type="button"
           onClick={() => setAberto((v) => !v)}
-          className="flex w-full items-center gap-2 text-left"
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
           aria-expanded={aberto}
         >
           <ChevronDown className={cn("size-4 shrink-0 transition-transform", !aberto && "-rotate-90")} />
@@ -82,9 +102,36 @@ export function VistasPanel({
             <span className="ml-2 font-normal text-muted-foreground">({vistas.length})</span>
           </CardTitle>
         </button>
+        <Popover open={salvarAberto} onOpenChange={setSalvarAberto}>
+          <PopoverTrigger
+            render={
+              <Button size="icon" variant="ghost" className="size-7 shrink-0" title="Salvar vista atual" disabled={!engine}>
+                <Save className="size-4" />
+              </Button>
+            }
+          />
+          <PopoverContent align="end" className="w-64 space-y-2">
+            <p className="text-sm font-medium">Salvar vista atual</p>
+            <p className="text-xs text-muted-foreground">Guarda câmera, disciplinas visíveis e corte.</p>
+            <Input
+              placeholder="Nome da vista"
+              value={nomeNovo}
+              onChange={(e) => setNomeNovo(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && void salvarAtual()}
+              maxLength={120}
+              autoFocus
+            />
+            <Button size="sm" className="w-full" disabled={!nomeNovo.trim() || salvando} onClick={() => void salvarAtual()}>
+              {salvando ? "Salvando…" : "Salvar"}
+            </Button>
+          </PopoverContent>
+        </Popover>
       </CardHeader>
       {aberto && (
         <CardContent>
+          {vistas.length === 0 ? (
+            <p className="py-2 text-xs text-muted-foreground">Nenhuma vista salva ainda.</p>
+          ) : (
           <ScrollArea className="max-h-[40vh]">
             <div className="space-y-2 pr-3">
               {vistas.map((v) => (
@@ -118,6 +165,7 @@ export function VistasPanel({
               ))}
             </div>
           </ScrollArea>
+          )}
         </CardContent>
       )}
     </Card>

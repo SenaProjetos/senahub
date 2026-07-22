@@ -142,6 +142,13 @@ export class ViewerEngine {
   private destruido = false;
   private opts: EngineOpts;
   private frameCallbacks = new Set<() => void>();
+  /** UploadIds que o próprio rodarDiff trouxe à cena (não estavam carregados) — descarregados de verdade ao sair do diff. */
+  private diffCarregados = new Set<string>();
+  // Gizmo de eixos (canto inferior-direito) — cena/câmera próprias, rotulado em
+  // convenção IFC (Z para cima), como no AutoCAD. Ver criarGizmoEixos/renderGizmo.
+  private gizmoScene: THREE.Scene | null = null;
+  private gizmoCamera: THREE.OrthographicCamera | null = null;
+  private gizmoRoot: THREE.Group | null = null;
 
   constructor(container: HTMLElement, opts: EngineOpts = {}) {
     this.container = container;
@@ -174,6 +181,8 @@ export class ViewerEngine {
     this.resizeObs = new ResizeObserver(() => this.redimensionar());
     this.resizeObs.observe(container);
 
+    this.criarGizmoEixos();
+
     const loop = () => {
       if (this.destruido) return;
       this.raf = requestAnimationFrame(loop);
@@ -181,6 +190,7 @@ export class ViewerEngine {
       this.controls.update(delta);
       void this.fragments.update(); // a lib limita a taxa internamente (maxUpdateRate)
       this.renderer.render(this.scene, this.camera);
+      this.renderGizmo();
       for (const cb of this.frameCallbacks) cb();
     };
     loop();
@@ -727,11 +737,15 @@ export class ViewerEngine {
    * carrega as 2 (se preciso), compara por guid+centro e coloriza a cena.
    */
   async rodarDiff(uploadIdAntigo: string, uploadIdNovo: string): Promise<ResultadoDiff> {
+    // Marca quem NÃO estava na cena: foi o diff que trouxe → descarregar de verdade ao sair
+    // (senão a versão fica sobreposta à atual — o "modelo duplicado").
     if (!this.modelos.has(uploadIdAntigo)) {
       await this.carregarModelo(uploadIdAntigo, `/api/coordenacao/frag/${uploadIdAntigo}`);
+      this.diffCarregados.add(uploadIdAntigo);
     }
     if (!this.modelos.has(uploadIdNovo)) {
       await this.carregarModelo(uploadIdNovo, `/api/coordenacao/frag/${uploadIdNovo}`);
+      this.diffCarregados.add(uploadIdNovo);
     }
     const [centrosAntigo, centrosNovo] = await Promise.all([
       this.centrosPorGuid(uploadIdAntigo),
@@ -753,15 +767,24 @@ export class ViewerEngine {
     await this.controls.fitToBox(box, true, { paddingLeft: 1, paddingRight: 1, paddingTop: 1, paddingBottom: 1 });
   }
 
-  /** Sai do diff: restaura highlight/visibilidade da versão antiga e highlight da nova. */
+  /**
+   * Sai do diff. Para cada versão: se foi o próprio diff que a trouxe à cena,
+   * descarrega de verdade (era só para comparar — evita duplicata na cena); se já
+   * estava carregada como disciplina do usuário, só restaura highlight/visibilidade.
+   */
   async sairDiff(uploadIdAntigo: string, uploadIdNovo: string): Promise<void> {
-    const modelAntigo = this.modelos.get(uploadIdAntigo);
-    if (modelAntigo) {
-      await modelAntigo.resetHighlight();
-      await modelAntigo.resetVisible();
+    for (const id of [uploadIdAntigo, uploadIdNovo]) {
+      if (this.diffCarregados.has(id)) {
+        this.diffCarregados.delete(id);
+        await this.descarregarModelo(id);
+        continue;
+      }
+      const model = this.modelos.get(id);
+      if (model) {
+        await model.resetHighlight();
+        await model.resetVisible();
+      }
     }
-    const modelNovo = this.modelos.get(uploadIdNovo);
-    if (modelNovo) await modelNovo.resetHighlight();
     await this.fragments.update(true);
   }
 
@@ -1151,6 +1174,93 @@ export class ViewerEngine {
     return { x: (v.x * 0.5 + 0.5) * w, y: (-v.y * 0.5 + 0.5) * h, dentro: v.z > -1 && v.z < 1 };
   }
 
+  // ── Gizmo de eixos (guia X/Y/Z, canto inferior-direito) ─────
+  //
+  // Cena/câmera próprias renderizadas num viewport 96px no canto, girando com a
+  // orientação da câmera (mesma técnica do ViewHelper do three). Rotulado em
+  // convenção IFC (Z para cima) — o fragments importa IFC Z-up como three Y-up,
+  // então mapeamos: three +X→"X", three +Y(cima)→"Z", three −Z→"Y".
+
+  private criarGizmoEixos() {
+    const scene = new THREE.Scene();
+    const root = new THREE.Group();
+    scene.add(root);
+
+    const L = 1;
+    const origem = new THREE.Vector3(0, 0, 0);
+    const eixos: { dir: THREE.Vector3; cor: number; letra: string }[] = [
+      { dir: new THREE.Vector3(1, 0, 0), cor: 0xef4444, letra: "X" },
+      { dir: new THREE.Vector3(0, 0, -1), cor: 0x22c55e, letra: "Y" },
+      { dir: new THREE.Vector3(0, 1, 0), cor: 0x3b82f6, letra: "Z" },
+    ];
+    for (const { dir, cor, letra } of eixos) {
+      root.add(new THREE.ArrowHelper(dir, origem, L, cor, 0.3, 0.18));
+      const sprite = this.criarSpriteLetra(letra, cor);
+      sprite.position.copy(dir).multiplyScalar(L + 0.28);
+      root.add(sprite);
+    }
+
+    const cam = new THREE.OrthographicCamera(-2, 2, 2, -2, 0, 4);
+    cam.position.set(0, 0, 2);
+
+    this.gizmoScene = scene;
+    this.gizmoCamera = cam;
+    this.gizmoRoot = root;
+  }
+
+  private criarSpriteLetra(letra: string, cor: number): THREE.Sprite {
+    const size = 64;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = `#${cor.toString(16).padStart(6, "0")}`;
+    ctx.font = "bold 46px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(letra, size / 2, size / 2);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+    sprite.scale.setScalar(0.55);
+    return sprite;
+  }
+
+  /** Renderiza o gizmo num viewport pequeno no canto, por cima da cena (chamado no fim do loop). */
+  private renderGizmo() {
+    if (!this.gizmoScene || !this.gizmoCamera || !this.gizmoRoot) return;
+    // Gira o gizmo com a orientação atual da câmera (inverso do quaternion da câmera).
+    this.gizmoRoot.quaternion.copy(this.camera.quaternion).invert();
+    this.gizmoRoot.updateMatrixWorld();
+
+    const dim = 96;
+    const w = this.renderer.domElement.offsetWidth || this.container.clientWidth;
+    const vp = new THREE.Vector4();
+    this.renderer.getViewport(vp);
+    // autoClear off só nesta passada: preserva a cor da cena principal já renderizada;
+    // clearDepth garante que o gizmo fique por cima. Restaura tudo ao final.
+    this.renderer.autoClear = false;
+    this.renderer.clearDepth();
+    this.renderer.setViewport(w - dim, 0, dim, dim); // canto inferior-direito (y=0 é o fundo em WebGL)
+    this.renderer.render(this.gizmoScene, this.gizmoCamera);
+    this.renderer.setViewport(vp.x, vp.y, vp.z, vp.w);
+    this.renderer.autoClear = true;
+  }
+
+  private descartarGizmo() {
+    this.gizmoScene?.traverse((o) => {
+      const alvo = o as Partial<THREE.Mesh> & { material?: THREE.Material & { map?: THREE.Texture } };
+      alvo.geometry?.dispose();
+      if (alvo.material) {
+        alvo.material.map?.dispose();
+        alvo.material.dispose();
+      }
+    });
+    this.gizmoScene = null;
+    this.gizmoCamera = null;
+    this.gizmoRoot = null;
+  }
+
   // ── Ciclo de vida ──────────────────────────────────────────
 
   private redimensionar() {
@@ -1173,12 +1283,14 @@ export class ViewerEngine {
     cancelAnimationFrame(this.raf);
     this.resizeObs.disconnect();
     this.controls.dispose();
+    this.descartarGizmo();
     await this.fragments.dispose().catch(() => {});
     this.renderer.dispose();
     this.renderer.domElement.remove();
     this.modelos.clear();
     this.selecao.clear();
     this.indiceCache.clear();
+    this.diffCarregados.clear();
   }
 
   // ── Dados do item ──────────────────────────────────────────
