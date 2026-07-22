@@ -9,6 +9,7 @@ export async function solicitacoesCadastroPendentes() {
     nome: s.nome,
     email: s.email,
     telefone: s.telefone,
+    role: s.role,
     mensagem: s.mensagem,
     createdAt: s.createdAt.toISOString(),
   }));

@@ -128,6 +128,34 @@ Segue a proposta **{{numero}} — {{titulo}}**, no valor total de **{{valorTotal
 Sena Projetos`,
   },
   {
+    slug: "projeto-disponivel",
+    grupo: "Projetos",
+    label: "Projeto disponível (link ao cliente)",
+    descricao:
+      "Enviado ao cliente pelo modal de link público de arquivos. Avisa que o projeto está disponível. O bloco de acesso ({{blocoAcesso}}) é montado pelo sistema conforme o destinatário: já é usuário → link de login; ainda não é → link público + convite para solicitar cadastro.",
+    variaveis: [
+      { nome: "nomeCliente", descricao: "Nome do cliente/destinatário", exemplo: "Construtora Alfa" },
+      { nome: "projeto", descricao: "Nome do projeto", exemplo: "Residencial Villa Verde" },
+      {
+        nome: "blocoAcesso",
+        descricao:
+          "Bloco de acesso gerado automaticamente (login OU link público + vantagens + convite de cadastro). Não editável — varia por destinatário.",
+        exemplo:
+          "[Ver os arquivos do projeto](https://app/p/arquivos/xyz)\n\nQuer acompanhar tudo pelo sistema? [Solicite seu cadastro](https://app/solicitar-cadastro).",
+      },
+    ],
+    assuntoPadrao: "Seu projeto {{projeto}} está disponível — SenaHub",
+    corpoPadrao: `Olá, {{nomeCliente}}.
+
+O projeto **{{projeto}}** está disponível para acompanhamento.
+
+{{blocoAcesso}}
+
+Qualquer dúvida, é só falar com a nossa equipe.
+
+Sena Projetos`,
+  },
+  {
     slug: "holerite",
     grupo: "RH",
     label: "Holerite",

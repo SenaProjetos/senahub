@@ -8,9 +8,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SOLICITACAO_CADASTRO_ROLES, ROLE_LABELS, type Role } from "@/lib/roles";
 
 export default function SolicitarCadastroPage() {
-  const [form, setForm] = useState({ nome: "", email: "", telefone: "", mensagem: "" });
+  const [form, setForm] = useState<{ nome: string; email: string; telefone: string; role: Role; mensagem: string }>({
+    nome: "",
+    email: "",
+    telefone: "",
+    role: "cliente",
+    mensagem: "",
+  });
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
 
@@ -51,6 +59,22 @@ export default function SolicitarCadastroPage() {
               <div className="space-y-1.5">
                 <Label>E-mail</Label>
                 <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Cargo / vínculo</Label>
+                <Select value={form.role} onValueChange={(v) => v && setForm({ ...form, role: v as Role })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SOLICITACAO_CADASTRO_ROLES.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {ROLE_LABELS[r]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Como você pretende usar o sistema. O administrador confirma o vínculo ao aprovar.</p>
               </div>
               <div className="space-y-1.5">
                 <Label>Telefone (opcional)</Label>

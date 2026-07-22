@@ -1328,6 +1328,8 @@ model SolicitacaoCadastro {
   email     String
   telefone  String?
   mensagem  String?
+  /// Cargo/vínculo pretendido informado pela pessoa (palpite — o admin decide na criação).
+  role      Role                @default(cliente)
   status    StatusSolicCadastro @default(pendente)
   createdAt DateTime            @default(now())
 

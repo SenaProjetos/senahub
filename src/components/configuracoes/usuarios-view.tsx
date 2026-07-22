@@ -119,7 +119,8 @@ export function UsuariosView({
         return;
       }
       if (aprovar && res.data.prefill) {
-        setForm({ ...EMPTY, name: res.data.prefill.name, email: res.data.prefill.email });
+        const pf = res.data.prefill;
+        setForm({ ...EMPTY, name: pf.name, email: pf.email, telefone: pf.telefone ?? "", role: pf.role as Role });
         toast.success("Pedido aprovado — confira o vínculo e crie o usuário.");
       } else {
         toast.success(aprovar ? "Pedido aprovado." : "Pedido recusado.");

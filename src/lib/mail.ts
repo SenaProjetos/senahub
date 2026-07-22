@@ -1,5 +1,6 @@
 import "server-only";
 import nodemailer from "nodemailer";
+import { wrapEmail } from "@/lib/email-layout";
 
 let transporter: nodemailer.Transporter | null = null;
 
@@ -31,22 +32,37 @@ export type EmailAnexo = {
   cid?: string;
 };
 
-/** Envia e-mail. Retorna false se SMTP não configurado ou falha. */
+/** Detecta um documento HTML já completo (evita moldura dupla). */
+function jaEhDocumento(html: string): boolean {
+  return /^\s*<(!doctype|html)/i.test(html);
+}
+
+/**
+ * Envia e-mail. Retorna false se SMTP não configurado ou falha.
+ *
+ * O `html` recebido é um FRAGMENTO (corpo) — aqui ele é envolvido na moldura branded
+ * do sistema (`wrapEmail`), garantindo visual consistente em TODOS os e-mails. Passe
+ * `wrap: false` (ou um documento já completo) para escapar da moldura.
+ */
 export async function enviarEmail(opts: {
   to: string;
   subject: string;
   html: string;
   attachments?: EmailAnexo[];
+  /** Desliga a moldura branded (padrão: liga, exceto se `html` já for um documento). */
+  wrap?: boolean;
 }): Promise<boolean> {
   const t = getTransporter();
   if (!t) return false;
   const remetente = process.env.SMTP_FROM || process.env.SMTP_USER;
+  const html =
+    opts.wrap === false || jaEhDocumento(opts.html) ? opts.html : wrapEmail(opts.html, { preheader: opts.subject });
   try {
     await t.sendMail({
       from: remetente && !remetente.includes("<") ? `"SenaHub" <${remetente}>` : remetente,
       to: opts.to,
       subject: opts.subject,
-      html: opts.html,
+      html,
       attachments: opts.attachments,
     });
     return true;

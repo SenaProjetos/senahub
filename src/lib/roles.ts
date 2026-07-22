@@ -55,6 +55,13 @@ export const PJ_ROLES: Role[] = ["projetista_pj", "freelancer"];
 export const CADASTRO_ROLES: Role[] = ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "ti"];
 
 /**
+ * Perfis que a própria pessoa pode PEDIR no auto-cadastro público (/solicitar-cadastro).
+ * Exclui perfis privilegiados/internos (admin, supervisor, administrativo, ti) — o pedido
+ * é só um palpite; o admin decide o vínculo real na criação.
+ */
+export const SOLICITACAO_CADASTRO_ROLES: Role[] = ["cliente", "clt", "estagiario", "projetista_pj", "freelancer"];
+
+/**
  * Acesso GLOBAL de LEITURA (vê todos os projetos/dados): perfis globais OU sócio ativo.
  * Sócio = piso de supervisor para visualização — não usar para gates de escrita/destrutivos.
  */

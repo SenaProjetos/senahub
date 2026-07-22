@@ -536,6 +536,7 @@ export function ArquivosExplorer({
   lixeira,
   podeGerirLink,
   baseUrl,
+  clienteEmail,
   linkPublico,
 }: {
   projeto: { id: string; codigo: string; nome: string };
@@ -557,6 +558,8 @@ export function ArquivosExplorer({
   podeGerirLink: boolean;
   /** Base URL (APP_URL) para montar o endereço do link público. */
   baseUrl: string;
+  /** E-mail do cliente do projeto — pré-preenche o envio do link (editável). */
+  clienteEmail: string | null;
   /** Link público de arquivos já configurado no projeto (ou null). */
   linkPublico: {
     token: string;
@@ -655,6 +658,7 @@ export function ArquivosExplorer({
             baseUrl={baseUrl}
             disciplinas={disciplinas.map((d) => ({ id: d.id, nome: d.nome }))}
             link={linkPublico}
+            clienteEmail={clienteEmail}
           />
         )}
       </div>

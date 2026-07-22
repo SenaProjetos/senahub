@@ -5,12 +5,14 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { notificarMuitos } from "@/lib/notificar";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+import { HR_ADMIN_ROLES, SOLICITACAO_CADASTRO_ROLES, ROLE_LABELS, type Role } from "@/lib/roles";
 
 const publicSchema = z.object({
   nome: z.string().min(1, "Informe o nome."),
   email: z.string().email("E-mail inválido."),
   telefone: z.string().optional(),
+  // Só perfis não-privilegiados podem ser pedidos publicamente; o admin decide o vínculo real.
+  role: z.enum(SOLICITACAO_CADASTRO_ROLES as [string, ...string[]]).default("cliente"),
   mensagem: z.string().optional(),
 });
 
@@ -24,7 +26,13 @@ export async function solicitarCadastro(raw: unknown): Promise<{ ok: true } | { 
   if (existe) return { ok: true };
 
   await prisma.solicitacaoCadastro.create({
-    data: { nome: p.data.nome, email: p.data.email, telefone: p.data.telefone || null, mensagem: p.data.mensagem || null },
+    data: {
+      nome: p.data.nome,
+      email: p.data.email,
+      telefone: p.data.telefone || null,
+      role: p.data.role as Role,
+      mensagem: p.data.mensagem || null,
+    },
   });
 
   // Avisa quem processa pedidos (admin/supervisor/administrativo). Falha de push não
@@ -38,7 +46,7 @@ export async function solicitarCadastro(raw: unknown): Promise<{ ok: true } | { 
       gestores.map((g) => g.id),
       {
         titulo: "Novo pedido de acesso",
-        corpo: `${p.data.nome} (${p.data.email}) solicitou cadastro.`,
+        corpo: `${p.data.nome} (${p.data.email}) solicitou cadastro como ${ROLE_LABELS[p.data.role as Role]}.`,
         href: "/configuracoes/usuarios",
         tag: "solicitacao-cadastro",
       },
@@ -66,7 +74,10 @@ export const avaliarSolicitacaoCadastro = defineAction(
     revalidatePath("/configuracoes/usuarios");
     return {
       id: i.id,
-      prefill: i.aprovar ? { name: pedido.nome, email: pedido.email } : null,
+      // Reaproveita tudo que a pessoa informou (nome/e-mail/telefone/cargo pretendido).
+      prefill: i.aprovar
+        ? { name: pedido.nome, email: pedido.email, telefone: pedido.telefone ?? "", role: pedido.role }
+        : null,
     };
   },
 );

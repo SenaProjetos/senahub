@@ -57,6 +57,15 @@ export async function clienteDoProjeto(projetoId: string): Promise<string | null
   return p?.clienteId ?? null;
 }
 
+/** E-mail do cliente do projeto — pré-preenche o envio do link por e-mail (editável). */
+export async function emailClienteDoProjeto(projetoId: string): Promise<string | null> {
+  const p = await prisma.projeto.findUnique({
+    where: { id: projetoId },
+    select: { cliente: { select: { email: true } } },
+  });
+  return p?.cliente?.email ?? null;
+}
+
 export type GrupoDocumentos = {
   chave: string;
   tipo: "proposta" | "projeto" | "geral";

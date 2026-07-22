@@ -7,7 +7,7 @@ import { projetoVisivel } from "@/modules/planejamento/queries";
 import { arvoreArquivosProjeto } from "@/modules/projetos/arquivos/queries";
 import { lixeiraDoProjeto } from "@/modules/uploads/queries";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
-import { recebidosDoProjeto, geralDoProjeto, clienteDoProjeto } from "@/modules/documentos-cliente/queries";
+import { recebidosDoProjeto, geralDoProjeto, clienteDoProjeto, emailClienteDoProjeto } from "@/modules/documentos-cliente/queries";
 import { podeGerirDocumento } from "@/modules/documentos-cliente/acesso";
 import { podeVerTodasDisciplinas, podeEnviarArquivo } from "@/modules/arquivos/acesso";
 import { linkArquivosDoProjeto } from "@/modules/projetos/arquivos/link-publico";
@@ -26,7 +26,7 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
     podeVerTodasDisciplinas(user),
     podeEnviarArquivo(user.role),
   ]);
-  const [arvore, podeVerGeral, podeGerirGeral, podeValidar, nomenclatura, recebidos, clienteId, podeGerirRecebidos, podeGerirLink, linkPublico] =
+  const [arvore, podeVerGeral, podeGerirGeral, podeValidar, nomenclatura, recebidos, clienteId, podeGerirRecebidos, podeGerirLink, linkPublico, clienteEmail] =
     await Promise.all([
       arvoreArquivosProjeto(id, user.id, ehGlobal, { veTodas, podeEnviarCap }),
       can(user.role, "arquivos_gerais", "ver"),
@@ -38,6 +38,7 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
       podeGerirDocumento(user, { projetoId: id }),
       can(user.role, "projetos", "gerir"),
       linkArquivosDoProjeto(id),
+      emailClienteDoProjeto(id),
     ]);
   const baseUrl = process.env.APP_URL ?? "";
   // Pasta "Geral" (Documento origem=interno) só é carregada p/ quem tem `arquivos_gerais:ver`.
@@ -62,6 +63,7 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
       lixeira={lixeira}
       podeGerirLink={podeGerirLink}
       baseUrl={baseUrl}
+      clienteEmail={clienteEmail}
       linkPublico={
         linkPublico
           ? {

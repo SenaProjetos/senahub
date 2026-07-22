@@ -3,8 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Copy, Link2, RefreshCw, Share2, ExternalLink } from "lucide-react";
-import { gerarLinkArquivos, atualizarLinkArquivos } from "@/modules/projetos/arquivos/link-publico-actions";
+import { Copy, Link2, RefreshCw, Share2, ExternalLink, Mail } from "lucide-react";
+import { gerarLinkArquivos, atualizarLinkArquivos, enviarLinkProjetoEmail } from "@/modules/projetos/arquivos/link-publico-actions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -40,11 +40,14 @@ export function LinkPublicoArquivosButton({
   baseUrl,
   disciplinas,
   link,
+  clienteEmail,
 }: {
   projetoId: string;
   baseUrl: string;
   disciplinas: { id: string; nome: string }[];
   link: LinkData | null;
+  /** E-mail do cliente do projeto — pré-preenche o envio (editável). */
+  clienteEmail?: string | null;
 }) {
   const router = useRouter();
   const [aberto, setAberto] = useState(false);
@@ -53,6 +56,8 @@ export function LinkPublicoArquivosButton({
   const [ativo, setAtivo] = useState(link?.ativo ?? true);
   const [expira, setExpira] = useState(isoParaLocal(link?.expiraEm ?? null));
   const [sel, setSel] = useState<Set<string>>(new Set(link?.disciplinaIds ?? []));
+  const [emailDest, setEmailDest] = useState(clienteEmail ?? "");
+  const [enviando, setEnviando] = useState(false);
 
   // Sincroniza o estado local quando o link muda (após gerar/regerar via router.refresh).
   const [snap, setSnap] = useState(link?.token ?? "");
@@ -105,6 +110,26 @@ export function LinkPublicoArquivosButton({
     toast.success("Link copiado.");
   }
 
+  function enviarEmail() {
+    const to = emailDest.trim();
+    if (!to) {
+      toast.error("Informe o e-mail do destinatário.");
+      return;
+    }
+    setEnviando(true);
+    start(async () => {
+      const r = await enviarLinkProjetoEmail({ projetoId, email: to });
+      setEnviando(false);
+      if (r.ok) {
+        toast.success(
+          r.data.convite
+            ? "E-mail enviado com o link e o convite para se cadastrar."
+            : "E-mail enviado ao cliente.",
+        );
+      } else toast.error(r.error);
+    });
+  }
+
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>
       <DialogTrigger
@@ -148,6 +173,29 @@ export function LinkPublicoArquivosButton({
                   <ExternalLink className="size-4" />
                 </Button>
               </div>
+            </div>
+
+            <div className="space-y-1.5 rounded-sm border p-3">
+              <Label htmlFor="email-dest" className="text-xs font-medium">
+                Enviar por e-mail ao cliente
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="email-dest"
+                  type="email"
+                  placeholder="cliente@exemplo.com"
+                  value={emailDest}
+                  onChange={(e) => setEmailDest(e.target.value)}
+                  className="flex-1"
+                />
+                <Button onClick={enviarEmail} disabled={pending || enviando || !link.ativo}>
+                  <Mail className="size-4" /> {enviando ? "Enviando…" : "Enviar"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Avisa que o projeto está disponível e envia o link. Se o e-mail não for de um usuário, inclui um
+                convite para solicitar cadastro. {!link.ativo && "Ative o link para poder enviar."}
+              </p>
             </div>
 
             <div className="flex items-center justify-between rounded-sm border p-3">
