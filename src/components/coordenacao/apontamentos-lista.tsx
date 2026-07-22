@@ -112,7 +112,7 @@ export function ApontamentosLista({
               const meta = STATUS_META[a.status] ?? STATUS_META.aberta;
               const sel = selecionadoId === a.id;
               const editavel = (a.autorId === currentUserId || ehAdmin) && a.status === "aberta" && !a.tarefaId;
-              const podeResolver = podeGerir || minhasDisciplinas.has(a.disciplinaId) || ehAdmin;
+              const podeResolver = podeGerir || (!!a.disciplinaId && minhasDisciplinas.has(a.disciplinaId)) || ehAdmin;
               return (
                 <li
                   key={a.id}

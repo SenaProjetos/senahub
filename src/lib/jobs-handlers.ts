@@ -917,11 +917,18 @@ export async function limparFragsOrfaos(): Promise<number> {
   await varrer(path.resolve(base));
   if (fragsNoDisco.length === 0) return 0;
 
+  // O nome do .frag é o uploadId (IFC de disciplina) OU o documentoVersaoId (IFC
+  // recebido do cliente). Um .frag está "vivo" se casar com QUALQUER dos dois.
+  const nomes = fragsNoDisco.map((f) => f.uploadId);
   const vivos = await prisma.conversaoModelo.findMany({
-    where: { uploadId: { in: fragsNoDisco.map((f) => f.uploadId) } },
-    select: { uploadId: true },
+    where: { OR: [{ uploadId: { in: nomes } }, { documentoVersaoId: { in: nomes } }] },
+    select: { uploadId: true, documentoVersaoId: true },
   });
-  const vivoSet = new Set(vivos.map((v) => v.uploadId));
+  const vivoSet = new Set<string>();
+  for (const v of vivos) {
+    if (v.uploadId) vivoSet.add(v.uploadId);
+    if (v.documentoVersaoId) vivoSet.add(v.documentoVersaoId);
+  }
 
   let removidos = 0;
   const agora = Date.now();

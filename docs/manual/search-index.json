@@ -138,6 +138,15 @@
       "sinonimos": ["crm", "vendas", "pipeline", "pré-venda"]
     },
     {
+      "titulo": "Guia do Comercial para iniciantes",
+      "path": "clientes-comercial/guia-iniciante.md",
+      "descricao": "Explicação para quem nunca trabalhou com vendas — vocabulário, telas e o caminho natural do lead ao projeto.",
+      "resumo": "Guia de formação para quem é leigo em processo comercial: o que são lead, cliente, funil, proposta e disciplina, como as telas se encadeiam e o caminho típico do primeiro contato até o projeto criado.",
+      "tags": ["comercial", "guia iniciante", "formação", "lead", "funil", "proposta", "glossário"],
+      "palavrasChave": ["guia iniciante", "comercial para leigos", "o que é lead", "o que é proposta", "como funciona o funil", "treinamento comercial"],
+      "sinonimos": ["tutorial comercial", "onboarding comercial", "primeiros passos no comercial"]
+    },
+    {
       "titulo": "Financeiro — Visão geral e Meu extrato",
       "path": "financeiro/visao-geral.md",
       "descricao": "Painel gerencial do financeiro (KPIs, DRE, projeção de caixa, aging) e o extrato pessoal de pagamentos.",

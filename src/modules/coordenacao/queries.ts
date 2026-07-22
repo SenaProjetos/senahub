@@ -1,10 +1,18 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { refDocumento } from "@/modules/coordenacao/modelo-ref";
+
+/** Rótulo do "grupo" onde os IFCs recebidos do cliente aparecem no painel. */
+export const GRUPO_RECEBIDOS = "Recebido do cliente";
 
 export type ModeloCoordenacao = {
+  /** Origem: `upload` (IFC de disciplina) ou `documento` (IFC recebido do cliente). */
+  tipo: "upload" | "documento";
+  /** Vazio para recebidos (não têm disciplina). */
   disciplinaId: string;
   disciplinaNome: string;
+  /** Chave do modelo: uploadId cru (disciplina) ou `d:<documentoVersaoId>` (recebido). */
   uploadId: string;
   nomeArquivo: string;
   versao: number;
@@ -60,6 +68,7 @@ export async function modelosCoordenacao(projetoId: string): Promise<ModeloCoord
     if (vistos.has(chave)) continue;
     vistos.add(chave);
     modelos.push({
+      tipo: "upload",
       disciplinaId: u.disciplina.id,
       disciplinaNome: u.disciplina.nome,
       uploadId: u.id,
@@ -70,6 +79,11 @@ export async function modelosCoordenacao(projetoId: string): Promise<ModeloCoord
       conversao: u.conversao,
     });
   }
+
+  // IFCs recebidos do cliente (repositório Documento, origem != interno) ancorados ao
+  // projeto ou à sua proposta. Cada Documento entra com a versão MAIS RECENTE.
+  modelos.push(...(await recebidosIfc(projetoId)));
+
   return modelos.sort(
     (a, b) =>
       a.disciplinaNome.localeCompare(b.disciplinaNome, "pt-BR") ||
@@ -77,10 +91,65 @@ export async function modelosCoordenacao(projetoId: string): Promise<ModeloCoord
   );
 }
 
+/**
+ * IFCs recebidos do cliente (Documento origem != interno) do projeto/proposta, com a
+ * versão mais recente e o estado da conversão para Fragments. Cada um vira um
+ * ModeloCoordenacao com chave `d:<versaoId>` e sem disciplina.
+ */
+async function recebidosIfc(projetoId: string): Promise<ModeloCoordenacao[]> {
+  const proposta = await prisma.proposta.findUnique({ where: { projetoId }, select: { id: true } });
+  const ancoras = [{ projetoId }, ...(proposta ? [{ propostaId: proposta.id }] : [])];
+  const docs = await prisma.documento.findMany({
+    where: { origem: { not: "interno" }, OR: ancoras },
+    select: {
+      versoes: {
+        orderBy: { numero: "desc" },
+        take: 1,
+        select: {
+          id: true,
+          numero: true,
+          nomeArquivo: true,
+          tamanho: true,
+          createdAt: true,
+          conversao: {
+            select: {
+              status: true,
+              progresso: true,
+              caminhoFrag: true,
+              tamanhoFrag: true,
+              erro: true,
+              concluidoEm: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const modelos: ModeloCoordenacao[] = [];
+  for (const d of docs) {
+    const v = d.versoes[0];
+    if (!v || !/\.ifc$/i.test(v.nomeArquivo)) continue;
+    modelos.push({
+      tipo: "documento",
+      disciplinaId: "",
+      disciplinaNome: GRUPO_RECEBIDOS,
+      uploadId: refDocumento(v.id),
+      nomeArquivo: v.nomeArquivo,
+      versao: v.numero,
+      tamanho: v.tamanho,
+      enviadoEm: v.createdAt,
+      conversao: v.conversao,
+    });
+  }
+  return modelos;
+}
+
 export type ApontamentoView = {
   id: string;
   numero: number;
-  disciplinaId: string;
+  /** Null quando o apontamento é sobre um IFC recebido do cliente (sem disciplina). */
+  disciplinaId: string | null;
   disciplinaNome: string;
   uploadId: string;
   titulo: string;
@@ -106,7 +175,7 @@ export async function apontamentosDoProjeto(projetoId: string): Promise<Apontame
     orderBy: { numero: "asc" },
   });
   const autorIds = [...new Set(rows.map((r) => r.autorId))];
-  const disciplinaIds = [...new Set(rows.map((r) => r.disciplinaId))];
+  const disciplinaIds = [...new Set(rows.map((r) => r.disciplinaId).filter((x): x is string => !!x))];
   const [users, disciplinas] = await Promise.all([
     autorIds.length
       ? prisma.user.findMany({ where: { id: { in: autorIds } }, select: { id: true, name: true } })
@@ -121,7 +190,7 @@ export async function apontamentosDoProjeto(projetoId: string): Promise<Apontame
     id: r.id,
     numero: r.numero,
     disciplinaId: r.disciplinaId,
-    disciplinaNome: nomeDisciplina.get(r.disciplinaId) ?? "—",
+    disciplinaNome: r.disciplinaId ? (nomeDisciplina.get(r.disciplinaId) ?? "—") : GRUPO_RECEBIDOS,
     uploadId: r.uploadId,
     titulo: r.titulo,
     texto: r.texto,
@@ -152,4 +221,42 @@ export async function hrefsApontamentoPorItem(itemIds: string[]): Promise<Map<st
     if (r.tarefaItemId) m.set(r.tarefaItemId, `/projetos/${r.projetoId}/coordenacao?apontamento=${r.numero}`);
   }
   return m;
+}
+
+// ── Vistas salvas ─────────────────────────────────────────────
+// Shapes de câmera/corte espelham CameraApontamento/CorteConfig do viewer/engine.ts,
+// mas NÃO importam de lá — engine.ts é client-only (three/@thatopen/fragments).
+
+export type VistaView = {
+  id: string;
+  nome: string;
+  camera: { position: [number, number, number]; target: [number, number, number] };
+  modelosVisiveis: string[];
+  corte: { eixo: "x" | "y" | "z"; posicao: number; invertido: boolean } | null;
+  autorId: string;
+  autor: string;
+  createdAt: string;
+};
+
+/** Vistas salvas de um projeto (câmera + modelos visíveis + corte), mais recentes primeiro. */
+export async function vistasDoProjeto(projetoId: string): Promise<VistaView[]> {
+  const rows = await prisma.vistaCoordenacao.findMany({
+    where: { projetoId },
+    orderBy: { createdAt: "desc" },
+  });
+  const autorIds = [...new Set(rows.map((r) => r.autorId))];
+  const users = autorIds.length
+    ? await prisma.user.findMany({ where: { id: { in: autorIds } }, select: { id: true, name: true } })
+    : [];
+  const nome = new Map(users.map((u) => [u.id, u.name]));
+  return rows.map((r) => ({
+    id: r.id,
+    nome: r.nome,
+    camera: r.camera as VistaView["camera"],
+    modelosVisiveis: r.modelosVisiveis as string[],
+    corte: (r.corte as VistaView["corte"]) ?? null,
+    autorId: r.autorId,
+    autor: nome.get(r.autorId) ?? "—",
+    createdAt: r.createdAt.toISOString(),
+  }));
 }

@@ -2081,6 +2081,10 @@ model DocumentoVersao {
   autorId     String?
   createdAt   DateTime  @default(now())
 
+  /// Coordenação BIM: quando esta versão é um IFC (recebido do cliente), guarda o
+  /// estado da conversão para Fragments (.frag) — mesma tabela dos IFCs de disciplina.
+  conversao   ConversaoModelo?
+
   @@unique([documentoId, numero])
   @@index([documentoId])
   @@map("documento_versao")
@@ -3619,13 +3623,37 @@ model AceiteCliente {
   @@map("aceite_cliente")
 }
 
+/// Coordenação BIM: vista salva (câmera + visibilidade de modelos + corte).
+/// Compartilhada por projeto; pode ser restaurada por qualquer membro.
+model VistaCoordenacao {
+  id              String   @id @default(cuid())
+  projetoId       String
+  nome            String
+  /// { position, target } em espaço IFC (Z-up) — mesmo shape de CameraApontamento.
+  camera          Json
+  /// uploadId[] dos modelos visíveis quando a vista foi salva (prefixo d: p/ recebidos).
+  modelosVisiveis Json
+  /// CorteConfig (eixo/posicao/invertido) ou null.
+  corte           Json?
+  autorId         String
+  createdAt       DateTime @default(now())
+
+  @@index([projetoId])
+  @@map("vista_coordenacao")
+}
+
 /// Coordenação BIM: estado da conversão IFC → Fragments (.frag) de um Upload.
 /// 1:1 com o Upload (cada versão de IFC tem a sua). O .frag fica em disco
 /// (caminho relativo a STORAGE_BASE_PATH), gerado por job pg-boss em child process.
 model ConversaoModelo {
   id          String    @id @default(cuid())
-  uploadId    String    @unique
-  upload      Upload    @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  /// Origem do modelo: EXATAMENTE um de `uploadId` (IFC de disciplina) ou
+  /// `documentoVersaoId` (IFC recebido do cliente, repositório Documento). A regra
+  /// "exatamente um" é garantida em código (enfileirarConversao / …Documento).
+  uploadId          String?   @unique
+  upload            Upload?   @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  documentoVersaoId String?   @unique
+  documentoVersao   DocumentoVersao? @relation(fields: [documentoVersaoId], references: [id], onDelete: Cascade)
   /// fila | processando | concluido | erro
   status      String    @default("fila")
   /// Progresso 0–100 durante `processando` (reportado pelo converter). Barra na UI.
@@ -3655,7 +3683,10 @@ model ConversaoModelo {
 model ApontamentoCoordenacao {
   id             String    @id @default(cuid())
   projetoId      String
-  disciplinaId   String
+  /// Disciplina do modelo apontado. NULL quando o apontamento é sobre um IFC
+  /// recebido do cliente (repositório Documento), que não pertence a disciplina.
+  disciplinaId   String?
+  /// Referência ao modelo: uploadId cru (disciplina) ou `d:<documentoVersaoId>` (recebido).
   uploadId       String
   numero         Int
   titulo         String

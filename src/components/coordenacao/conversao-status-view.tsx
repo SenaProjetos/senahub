@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table";
 
 export type ModeloRow = {
+  tipo: "upload" | "documento";
   uploadId: string;
   disciplinaId: string;
   disciplinaNome: string;
@@ -70,10 +71,10 @@ export function ConversaoStatusView({
     return () => clearInterval(t);
   }, [emAndamentoGlobal, router]);
 
-  function converter(uploadId: string) {
-    setPendente(uploadId);
+  function converter(modeloId: string) {
+    setPendente(modeloId);
     start(async () => {
-      const r = await converterModelo({ uploadId });
+      const r = await converterModelo({ modeloId });
       if (r.ok) {
         if (r.data.semWorker) {
           toast.warning("Conversão enfileirada, mas os jobs não estão rodando (exige o servidor completo / dev:server).");

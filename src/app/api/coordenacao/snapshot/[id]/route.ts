@@ -27,11 +27,14 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   const ehGlobal = acessoGlobal(user);
   if (!ehGlobal) {
+    // Apontamento de IFC recebido não tem disciplina → acesso só pela membresia do projeto.
     const [ehResp, ehMembro] = await Promise.all([
-      prisma.disciplinaResponsavel.findFirst({
-        where: { disciplinaId: apontamento.disciplinaId, userId: user.id },
-        select: { id: true },
-      }),
+      apontamento.disciplinaId
+        ? prisma.disciplinaResponsavel.findFirst({
+            where: { disciplinaId: apontamento.disciplinaId, userId: user.id },
+            select: { id: true },
+          })
+        : Promise.resolve(null),
       prisma.projetoMembro.findFirst({
         where: { projetoId: apontamento.projetoId, userId: user.id },
         select: { id: true },

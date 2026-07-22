@@ -65,3 +65,46 @@ export async function enfileirarConversao(
   await boss.send(FILA_CONVERTER_IFC, { conversaoId: conv.id }, { singletonKey: uploadId });
   return { enfileirado: true };
 }
+
+/**
+ * (Re)enfileira a conversão de um IFC RECEBIDO do cliente (DocumentoVersao). Espelha
+ * `enfileirarConversao`, mas o vínculo é a versão de documento (não Upload). A linha
+ * ConversaoModelo tem `documentoVersaoId` no lugar de `uploadId`.
+ */
+export async function enfileirarConversaoDocumento(
+  versaoId: string,
+  opts: { forcar?: boolean } = {},
+): Promise<ResultadoEnfileiramento> {
+  const versao = await prisma.documentoVersao.findUnique({
+    where: { id: versaoId },
+    select: {
+      id: true,
+      nomeArquivo: true,
+      conversao: { select: { status: true, tentativas: true } },
+    },
+  });
+  if (!versao) return { enfileirado: false, motivo: "upload_inexistente" };
+  if (!/\.ifc$/i.test(versao.nomeArquivo)) return { enfileirado: false, motivo: "nao_ifc" };
+
+  const atual = versao.conversao
+    ? { status: versao.conversao.status as StatusConversao, tentativas: versao.conversao.tentativas }
+    : undefined;
+  if (!podeEnfileirar(atual, opts)) {
+    if (atual?.status === "processando" || atual?.status === "fila") {
+      return { enfileirado: false, motivo: "em_andamento" };
+    }
+    return { enfileirado: false, motivo: "tentativas_esgotadas" };
+  }
+
+  const conv = await prisma.conversaoModelo.upsert({
+    where: { documentoVersaoId: versaoId },
+    create: { documentoVersaoId: versaoId, status: "fila" },
+    update: { status: "fila", erro: null, ...(opts.forcar ? { tentativas: 0 } : {}) },
+  });
+
+  const boss = bossVivo();
+  if (!boss) return { enfileirado: false, motivo: "sem_worker" };
+
+  await boss.send(FILA_CONVERTER_IFC, { conversaoId: conv.id }, { singletonKey: `doc:${versaoId}` });
+  return { enfileirado: true };
+}

@@ -86,6 +86,17 @@ export function caminhoFragDeUpload(uploadCaminho: string, uploadId: string): st
 }
 
 /**
+ * Caminho relativo do .frag de um IFC RECEBIDO do cliente (DocumentoVersao). O
+ * repositório de documentos tem estrutura de pastas própria; o .frag vai numa pasta
+ * `COORDENACAO` irmã do arquivo, nomeada pelo id da versão (um .frag por versão).
+ */
+export function caminhoFragDeDocumento(versaoCaminho: string, versaoId: string): string {
+  const posix = path.posix;
+  const normal = versaoCaminho.replace(/\\/g, "/");
+  return posix.join(posix.dirname(normal), "COORDENACAO", `${versaoId}.frag`);
+}
+
+/**
  * Valida o cabeçalho de um IFC (texto dos primeiros KB do arquivo). Todo IFC STEP
  * começa com `ISO-10303-21;` e declara o schema em `FILE_SCHEMA(('IFC4'))`.
  * Retorna o schema declarado (para contexto) ou o motivo amigável da recusa.

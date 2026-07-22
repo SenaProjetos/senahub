@@ -4,17 +4,22 @@ import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificarMuitos } from "@/lib/notificar";
-import { enfileirarConversao } from "@/modules/coordenacao/service";
+import { enfileirarConversao, enfileirarConversaoDocumento } from "@/modules/coordenacao/service";
+import { realinharModelo } from "@/modules/coordenacao/deslocamento";
+import { parseModeloId } from "@/modules/coordenacao/modelo-ref";
 import { rotuloItemApontamento } from "@/modules/coordenacao/helpers";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { GLOBAL_ROLES, type Role } from "@/lib/roles";
 import type { SessionUser } from "@/lib/session";
 import {
   converterModeloSchema,
+  realinharModeloSchema,
   criarApontamentoSchema,
   editarApontamentoSchema,
   idApontamentoSchema,
   enviarApontamentosSchema,
+  criarVistaSchema,
+  idVistaSchema,
 } from "@/modules/coordenacao/schemas";
 
 const MOTIVO_LABEL: Record<string, string> = {
@@ -36,23 +41,94 @@ export const converterModelo = defineAction(
     acao: "converter-modelo",
     entidade: "ConversaoModelo",
     schema: converterModeloSchema,
-    entidadeId: (_d, i) => i.uploadId,
+    entidadeId: (_d, i) => i.modeloId,
   },
   async (input) => {
-    const upload = await prisma.upload.findUnique({
-      where: { id: input.uploadId },
-      select: { disciplina: { select: { projetoId: true } } },
-    });
-    if (!upload) throw new ActionError("Arquivo não encontrado.");
+    const ref = parseModeloId(input.modeloId);
+    let projetoId: string | null;
+    let r: Awaited<ReturnType<typeof enfileirarConversao>>;
+    if (ref.tipo === "documento") {
+      const versao = await prisma.documentoVersao.findUnique({
+        where: { id: ref.id },
+        select: { documento: { select: { projetoId: true, proposta: { select: { projetoId: true } } } } },
+      });
+      if (!versao) throw new ActionError("Arquivo não encontrado.");
+      projetoId = versao.documento.projetoId ?? versao.documento.proposta?.projetoId ?? null;
+      r = await enfileirarConversaoDocumento(ref.id, { forcar: true });
+    } else {
+      const upload = await prisma.upload.findUnique({
+        where: { id: ref.id },
+        select: { disciplina: { select: { projetoId: true } } },
+      });
+      if (!upload) throw new ActionError("Arquivo não encontrado.");
+      projetoId = upload.disciplina.projetoId;
+      r = await enfileirarConversao(ref.id, { forcar: true });
+    }
 
-    const r = await enfileirarConversao(input.uploadId, { forcar: true });
     if (!r.enfileirado && r.motivo !== "sem_worker" && r.motivo !== "em_andamento") {
       throw new ActionError(MOTIVO_LABEL[r.motivo] ?? "Não foi possível enfileirar a conversão.");
     }
 
-    revalidatePath(`/projetos/${upload.disciplina.projetoId}/coordenacao`);
+    if (projetoId) revalidatePath(`/projetos/${projetoId}/coordenacao`);
     // `sem_worker`: a linha ficou em `fila` mas não há dev:server/prod rodando os jobs.
     return { enfileirado: r.enfileirado, semWorker: !r.enfileirado && r.motivo === "sem_worker" };
+  },
+);
+
+/**
+ * Realinha (desloca) um IFC por um vetor (dx,dy,dz) em metros, gerando uma NOVA versão
+ * do arquivo com todos os placements deslocados — o original nunca é sobrescrito. O
+ * trabalho pesado (web-ifc) roda em child process. Só responsáveis da disciplina (ou
+ * perfil global) podem realinhar, mesmo bar do upload.
+ */
+export const realinharModeloIfc = defineAction(
+  {
+    modulo: "coordenacao",
+    recurso: "coordenacao",
+    permissao: "gerir",
+    acao: "realinhar-ifc",
+    entidade: "Upload",
+    schema: realinharModeloSchema,
+    entidadeId: (d) => (d as { uploadId: string }).uploadId,
+  },
+  async (input, { user }) => {
+    const ref = parseModeloId(input.uploadId);
+    if (ref.tipo === "documento") {
+      const versao = await prisma.documentoVersao.findUnique({
+        where: { id: ref.id },
+        select: {
+          nomeArquivo: true,
+          documento: { select: { projetoId: true, proposta: { select: { projetoId: true } } } },
+        },
+      });
+      if (!versao) throw new ActionError("Arquivo não encontrado.");
+      if (!/\.ifc$/i.test(versao.nomeArquivo)) throw new ActionError("O arquivo não é um modelo IFC.");
+      const projetoId = versao.documento.projetoId ?? versao.documento.proposta?.projetoId ?? null;
+      if (!projetoId) throw new ActionError("Documento recebido sem projeto vinculado.");
+      await exigirMembroOuGlobal(projetoId, user);
+    } else {
+      const upload = await prisma.upload.findUnique({
+        where: { id: ref.id },
+        select: { disciplinaId: true, nomeArquivo: true },
+      });
+      if (!upload) throw new ActionError("Arquivo não encontrado.");
+      if (!/\.ifc$/i.test(upload.nomeArquivo)) throw new ActionError("O arquivo não é um modelo IFC.");
+      await exigirResponsavelOuGlobal(upload.disciplinaId, user);
+    }
+
+    let r;
+    try {
+      r = await realinharModelo(
+        { uploadId: input.uploadId, vetor: [input.dx, input.dy, input.dz], autorId: user.id },
+      );
+    } catch (e) {
+      // A mensagem do orquestrador/child já é amigável (validação, header, sem raízes…).
+      throw new ActionError(e instanceof Error ? e.message : "Falha ao realinhar o IFC.");
+    }
+
+    revalidarCoordenacao(r.projetoId);
+    revalidatePath(`/projetos/${r.projetoId}/arquivos`);
+    return r;
   },
 );
 
@@ -71,6 +147,16 @@ async function exigirResponsavelOuGlobal(disciplinaId: string, user: SessionUser
     select: { id: true },
   });
   if (!resp) throw new ActionError("Só um responsável da disciplina pode alterar este apontamento.");
+}
+
+/** Exige que o usuário seja membro do projeto (ou perfil global) — usado p/ IFC recebido, que não tem disciplina. */
+async function exigirMembroOuGlobal(projetoId: string, user: SessionUser) {
+  if (ehGlobal(user)) return;
+  const membro = await prisma.projetoMembro.findFirst({
+    where: { projetoId, userId: user.id },
+    select: { id: true },
+  });
+  if (!membro) throw new ActionError("Só membros do projeto (ou perfil global) podem fazer isto.");
 }
 
 function revalidarCoordenacao(projetoId: string) {
@@ -94,7 +180,7 @@ export const criarApontamentoCoordenacao = defineAction(
       return tx.apontamentoCoordenacao.create({
         data: {
           projetoId: input.projetoId,
-          disciplinaId: input.disciplinaId,
+          disciplinaId: input.disciplinaId ?? null,
           uploadId: input.uploadId,
           numero: (max._max.numero ?? 0) + 1,
           titulo: input.titulo,
@@ -149,7 +235,8 @@ export const resolverApontamentoCoordenacao = defineAction(
   async (input, { user }) => {
     const a = await prisma.apontamentoCoordenacao.findUnique({ where: { id: input.id } });
     if (!a) throw new ActionError("Apontamento não encontrado.");
-    await exigirResponsavelOuGlobal(a.disciplinaId, user);
+    if (a.disciplinaId) await exigirResponsavelOuGlobal(a.disciplinaId, user);
+    else await exigirMembroOuGlobal(a.projetoId, user); // IFC recebido: gate por membro do projeto
     if (a.status === "fechada" || a.status === "descartada") {
       throw new ActionError("Apontamento já encerrado.");
     }
@@ -172,7 +259,8 @@ export const reabrirApontamentoCoordenacao = defineAction(
   async (input, { user }) => {
     const a = await prisma.apontamentoCoordenacao.findUnique({ where: { id: input.id } });
     if (!a) throw new ActionError("Apontamento não encontrado.");
-    await exigirResponsavelOuGlobal(a.disciplinaId, user);
+    if (a.disciplinaId) await exigirResponsavelOuGlobal(a.disciplinaId, user);
+    else await exigirMembroOuGlobal(a.projetoId, user); // IFC recebido: gate por membro do projeto
     if (a.status !== "resolvida") throw new ActionError("Só apontamentos resolvidos podem ser reabertos.");
     await prisma.$transaction(async (tx) => {
       await tx.apontamentoCoordenacao.update({
@@ -249,7 +337,8 @@ export const enviarApontamentosCoordenacao = defineAction(
     if (apontamentos.length === 0) throw new ActionError("Nenhum apontamento novo para enviar.");
 
     const codigo = formatarCodigo(projeto.codigo);
-    const disciplinaIds = [...new Set(apontamentos.map((a) => a.disciplinaId))];
+    // Apontamentos de IFC recebido não têm disciplina (null) — ignorados na notificação por disciplina.
+    const disciplinaIds = [...new Set(apontamentos.map((a) => a.disciplinaId).filter((x): x is string => !!x))];
     const responsaveisDisciplinas = await prisma.disciplinaResponsavel.findMany({
       where: { disciplinaId: { in: disciplinaIds } },
       select: { userId: true },
@@ -315,5 +404,42 @@ export const enviarApontamentosCoordenacao = defineAction(
     revalidarCoordenacao(input.projetoId);
     revalidatePath("/tarefas");
     return { tarefaId, total: apontamentos.length };
+  },
+);
+
+// ── Vistas salvas (câmera + visibilidade + corte) ────────────────────────────
+const baseVista = { modulo: "coordenacao", recurso: "coordenacao", entidade: "VistaCoordenacao" } as const;
+
+/** Salva a câmera + modelos visíveis + corte atuais como uma vista nomeada, compartilhada no projeto. */
+export const criarVistaCoordenacao = defineAction(
+  { ...baseVista, permissao: "ver", acao: "criar-vista", schema: criarVistaSchema, entidadeId: (d) => (d as { id: string }).id },
+  async (input, { user }) => {
+    const vista = await prisma.vistaCoordenacao.create({
+      data: {
+        projetoId: input.projetoId,
+        nome: input.nome,
+        camera: input.camera,
+        modelosVisiveis: input.modelosVisiveis,
+        corte: input.corte ?? undefined,
+        autorId: user.id,
+      },
+    });
+    revalidarCoordenacao(input.projetoId);
+    return { id: vista.id };
+  },
+);
+
+/** Exclui uma vista salva (autor ou perfil global/gerir). */
+export const excluirVistaCoordenacao = defineAction(
+  { ...baseVista, permissao: "ver", acao: "excluir-vista", schema: idVistaSchema, entidadeId: (_d, i) => i.id },
+  async (input, { user }) => {
+    const vista = await prisma.vistaCoordenacao.findUnique({ where: { id: input.id } });
+    if (!vista) throw new ActionError("Vista não encontrada.");
+    if (vista.autorId !== user.id && !ehGlobal(user)) {
+      throw new ActionError("Só quem criou a vista (ou perfil global) pode excluí-la.");
+    }
+    await prisma.vistaCoordenacao.delete({ where: { id: input.id } });
+    revalidarCoordenacao(vista.projetoId);
+    return { id: input.id };
   },
 );

@@ -48,6 +48,7 @@ export default async function CoordenacaoPage({
   }
 
   const rows = modelos.map((m) => ({
+    tipo: m.tipo,
     uploadId: m.uploadId,
     disciplinaId: m.disciplinaId,
     disciplinaNome: m.disciplinaNome,

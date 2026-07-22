@@ -6,10 +6,12 @@ import { prisma } from "@/lib/prisma";
 import { removerArquivo } from "@/lib/storage";
 import {
   caminhoFragDeUpload,
+  caminhoFragDeDocumento,
   resultadoConversao,
   explicarErroConversao,
   type StatusConversao,
 } from "@/modules/coordenacao/conversao-estado";
+import { refDocumento } from "@/modules/coordenacao/modelo-ref";
 
 /** Resultado bruto do processo converter (stdout JSON + exit code). */
 export type SaidaProcesso = { code: number | null; stdout: string; stderr: string };
@@ -110,21 +112,65 @@ export async function executarConversao(
           },
         },
       },
+      documentoVersao: {
+        select: {
+          id: true,
+          caminho: true,
+          nomeArquivo: true,
+          autorId: true,
+          documento: {
+            select: { nome: true, projetoId: true, autorId: true, proposta: { select: { projetoId: true } } },
+          },
+        },
+      },
     },
   });
   if (!conv) throw new Error(`ConversaoModelo ${conversaoId} não encontrada.`);
-  const { upload } = conv;
 
-  const destinatariosIds = [
-    ...new Set([upload.autorId, ...upload.disciplina.responsaveis.map((r) => r.userId)]),
-  ];
+  // Normaliza o alvo: a conversão é a MESMA (IFC → .frag em child process); só muda a
+  // origem (Upload de disciplina vs. DocumentoVersao recebida do cliente).
+  let alvo: {
+    caminhoIfc: string;
+    fragRel: string;
+    nomeArquivo: string;
+    projetoId: string;
+    disciplinaNome: string;
+    destinatariosIds: string[];
+    modeloKey: string;
+  };
+  if (conv.upload) {
+    const u = conv.upload;
+    alvo = {
+      caminhoIfc: u.caminho,
+      fragRel: caminhoFragDeUpload(u.caminho, u.id),
+      nomeArquivo: u.nomeArquivo,
+      projetoId: u.disciplina.projetoId,
+      disciplinaNome: u.disciplina.nome,
+      destinatariosIds: [...new Set([u.autorId, ...u.disciplina.responsaveis.map((r) => r.userId)])],
+      modeloKey: u.id,
+    };
+  } else if (conv.documentoVersao) {
+    const v = conv.documentoVersao;
+    const projetoId = v.documento.projetoId ?? v.documento.proposta?.projetoId ?? "";
+    alvo = {
+      caminhoIfc: v.caminho,
+      fragRel: caminhoFragDeDocumento(v.caminho, v.id),
+      nomeArquivo: v.nomeArquivo,
+      projetoId,
+      disciplinaNome: "Recebido do cliente",
+      destinatariosIds: [...new Set([v.autorId, v.documento.autorId].filter((x): x is string => !!x))],
+      modeloKey: refDocumento(v.id),
+    };
+  } else {
+    throw new Error(`ConversaoModelo ${conversaoId} sem upload nem documentoVersao.`);
+  }
 
   await prisma.conversaoModelo.update({
     where: { id: conv.id },
     data: { status: "processando", iniciadoEm: new Date(), tentativas: { increment: 1 }, erro: null, progresso: 0 },
   });
 
-  const fragRel = caminhoFragDeUpload(upload.caminho, upload.id);
+  const fragRel = alvo.fragRel;
 
   // Progresso ao vivo → banco, com throttle (no máx. 1 escrita/~800 ms) para não
   // martelar o Postgres numa conversão de vários minutos. A UI faz polling.
@@ -140,7 +186,7 @@ export async function executarConversao(
 
   let saida: SaidaProcesso;
   try {
-    saida = await spawnFn({ ifcRel: upload.caminho, fragRel, onProgress });
+    saida = await spawnFn({ ifcRel: alvo.caminhoIfc, fragRel, onProgress });
   } catch (err) {
     // Falha do próprio spawn (timeout / processo não iniciou).
     saida = { code: null, stdout: "", stderr: err instanceof Error ? err.message : String(err) };
@@ -163,7 +209,7 @@ export async function executarConversao(
     // saída do Emscripten) fica no log do servidor para o suporte diagnosticar
     // o arquivo específico que falhou.
     console.error(
-      `[coordenacao] conversão ${conv.id} (upload ${upload.id}) falhou — bruto:`,
+      `[coordenacao] conversão ${conv.id} (modelo ${alvo.modeloKey}) falhou — bruto:`,
       bruto,
       saida.stderr ? `\nstderr: ${saida.stderr.slice(0, 2000)}` : "",
     );
@@ -185,11 +231,11 @@ export async function executarConversao(
   return {
     status: final.status,
     erro: final.erro,
-    uploadId: upload.id,
-    nomeArquivo: upload.nomeArquivo,
-    projetoId: upload.disciplina.projetoId,
-    disciplinaNome: upload.disciplina.nome,
-    destinatariosIds,
+    uploadId: alvo.modeloKey,
+    nomeArquivo: alvo.nomeArquivo,
+    projetoId: alvo.projetoId,
+    disciplinaNome: alvo.disciplinaNome,
+    destinatariosIds: alvo.destinatariosIds,
   };
 }
 

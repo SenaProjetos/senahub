@@ -37,9 +37,21 @@ preço** e acompanhamento de **meta** mensal.
   observações.
 - **Mover lead** entre etapas. Ao mover para uma etapa de **"Perdido"**, o **motivo da
   perda é obrigatório**.
-- É possível adicionar **notas** ao lead e **convertê-lo** (vira cliente/projeto/proposta
-  conforme o fluxo).
+- É possível adicionar **notas** ao lead, **agendar follow-up** (cria compromisso na
+  Agenda), **virar cliente** e **criar proposta** direto da ficha do lead.
 - **Etapas do funil** são configuráveis (nome e cor) — em Configurações.
+
+### Criar proposta a partir do lead
+
+Na ficha do lead (`/comercial/{id}`), o botão **Nova proposta** cria a proposta já
+**vinculada ao lead** (`leadId`). Se o lead ainda não tiver um cliente associado, o
+sistema **cria o cliente automaticamente** (copiando nome, e-mail, telefone e
+observações do lead) antes de criar a proposta — equivalente a converter o lead. Por
+causa desse vínculo, a ficha do lead lista suas propostas e o cartão do funil mostra a
+contagem de propostas.
+
+Propostas criadas em `/comercial/propostas` (fora da ficha do lead) exigem escolher o
+cliente manualmente e **não** ficam vinculadas a nenhum lead.
 
 ## Oportunidades
 
@@ -82,6 +94,8 @@ preço** e acompanhamento de **meta** mensal.
 
 ## Funcionalidades relacionadas
 
+- [Guia do Comercial para iniciantes](guia-iniciante.md) — vocabulário e caminho natural,
+  para quem nunca trabalhou com vendas.
 - [Clientes](clientes.md) · [Projetos](../projetos/projetos.md) · [Configurações](../sistema/README.md) (etapas do funil)
 
 ## FAQ
@@ -91,3 +105,7 @@ preço** e acompanhamento de **meta** mensal.
 
 **O cliente vê quando abro o link da proposta?** O sistema conta as **visualizações** da
 proposta enviada.
+
+**Toda proposta fica ligada a um lead?** Não. Só as criadas pelo botão **Nova proposta**
+na ficha do lead. Propostas criadas em `/comercial/propostas` ficam ligadas só ao
+cliente, sem lead.

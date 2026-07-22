@@ -38,7 +38,10 @@ export default function Viewer3D({
       if (e.button !== 0 || !inicio) return;
       const moveu = Math.hypot(e.clientX - inicio.x, e.clientY - inicio.y);
       inicio = null;
-      if (moveu < 5) void engine.selecionarEm(e.clientX, e.clientY, e.shiftKey);
+      if (moveu >= 5) return;
+      // Em modo medição, o clique marca um ponto em vez de selecionar um elemento.
+      if (engine.medindo) void engine.registrarPontoMedicao(e.clientX, e.clientY);
+      else void engine.selecionarEm(e.clientX, e.clientY, e.shiftKey);
     };
     container.addEventListener("pointerdown", onDown);
     container.addEventListener("pointerup", onUp);

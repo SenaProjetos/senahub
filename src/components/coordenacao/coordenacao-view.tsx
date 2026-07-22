@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { MapPin, Send } from "lucide-react";
+import { MapPin, Send, Move3d } from "lucide-react";
 import type {
   ViewerEngine,
   SelecaoInfo,
@@ -20,11 +21,15 @@ import {
   fecharApontamentoCoordenacao,
   descartarApontamentoCoordenacao,
   enviarApontamentosCoordenacao,
+  realinharModeloIfc,
 } from "@/modules/coordenacao/actions";
 import { enviaveis as apontamentosEnviaveis } from "@/modules/coordenacao/helpers";
 import { type ModeloRow } from "@/components/coordenacao/conversao-status-view";
+import { ArvoreModelo } from "@/components/coordenacao/arvore-modelo";
+import { MedicaoToolbar } from "@/components/coordenacao/medicao-toolbar";
 import { PainelDisciplinas } from "@/components/coordenacao/painel-disciplinas";
 import { PainelPropriedades } from "@/components/coordenacao/painel-propriedades";
+import { RealinharIfcDialog } from "@/components/coordenacao/realinhar-ifc-dialog";
 import { ViewerToolbar } from "@/components/coordenacao/viewer-toolbar";
 import { ApontamentoPins } from "@/components/coordenacao/apontamento-pins";
 import { ApontamentosLista } from "@/components/coordenacao/apontamentos-lista";
@@ -40,7 +45,7 @@ const Viewer3D = dynamic(() => import("@/components/coordenacao/viewer-3d"), {
   loading: () => <Skeleton className="size-full" />,
 });
 
-type DraftInfo = { uploadId: string; disciplinaId: string; guids: string[]; camera: CameraApontamento };
+type DraftInfo = { uploadId: string; disciplinaId: string | null; guids: string[]; camera: CameraApontamento };
 
 /** Viewer federado + apontamentos de compatibilização. Nada carrega por padrão. */
 export function CoordenacaoView({
@@ -70,6 +75,7 @@ export function CoordenacaoView({
   opcoesTarefa: OpcoesUI | null;
   apontamentoInicialNumero: number | null;
 }) {
+  const router = useRouter();
   const engineRef = useRef<ViewerEngine | null>(null);
   const [carregados, setCarregados] = useState<Set<string>>(new Set());
   const [carregando, setCarregando] = useState<Set<string>>(new Set());
@@ -89,11 +95,52 @@ export function CoordenacaoView({
   const [pending, start] = useTransition();
   const minhasDisciplinasSet = useMemo(() => new Set(minhasDisciplinas), [minhasDisciplinas]);
 
+  // ── Realinhamento (offset de IFC) ──
+  const [realinharAberto, setRealinharAberto] = useState(false);
+  const [realinharUploadId, setRealinharUploadId] = useState<string | null>(null);
+  const [vetorRealinhar, setVetorRealinhar] = useState<[number, number, number]>([0, 0, 0]);
+  const [enviandoAvulso, setEnviandoAvulso] = useState(false);
+  // Após aplicar: espera a nova versão converter e a troca na cena (novo entra, antigo sai).
+  const [trocaPendente, setTrocaPendente] = useState<{ antigo: string; novo: string } | null>(null);
+
+  // Só modelos já convertidos (têm .frag) entram em realinhamento — precisam da prévia.
+  const modelosRealinhaveis = useMemo(
+    () =>
+      modelos
+        .filter((m) => m.conversao?.status === "concluido")
+        .map((m) => ({
+          uploadId: m.uploadId,
+          nomeArquivo: m.nomeArquivo,
+          disciplinaNome: m.disciplinaNome,
+          versao: m.versao,
+        })),
+    [modelos],
+  );
+
+  // Disciplinas onde o usuário pode enviar um IFC avulso (responsável, ou admin em todas).
+  const disciplinasUpload = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const row of modelos) {
+      if (!row.disciplinaId) continue; // recebidos (sem disciplina) não são destino de upload avulso
+      if (ehAdmin || minhasDisciplinasSet.has(row.disciplinaId)) m.set(row.disciplinaId, row.disciplinaNome);
+    }
+    return [...m].map(([id, nome]) => ({ id, nome }));
+  }, [modelos, ehAdmin, minhasDisciplinasSet]);
+
   const disciplinaDoUpload = useMemo(() => {
     const m = new Map<string, { id: string; nome: string }>();
     for (const row of modelos) m.set(row.uploadId, { id: row.disciplinaId, nome: row.disciplinaNome });
     return m;
   }, [modelos]);
+
+  // Modelos carregados na cena, com rótulo — alimenta a árvore de elementos (Onda 0).
+  const modelosCarregadosInfo = useMemo(
+    () =>
+      modelos
+        .filter((m) => carregados.has(m.uploadId))
+        .map((m) => ({ uploadId: m.uploadId, label: `${m.disciplinaNome} · ${m.nomeArquivo}` })),
+    [modelos, carregados],
+  );
 
   const onReady = useCallback((engine: ViewerEngine) => {
     engineRef.current = engine;
@@ -153,6 +200,131 @@ export function CoordenacaoView({
     [foco],
   );
 
+  // ── Realinhamento: escolher modelo, mexer no vetor, aplicar ──
+
+  const escolherRealinhar = useCallback(
+    async (uploadId: string) => {
+      if (!carregados.has(uploadId)) await onToggle(uploadId, true);
+      const engine = engineRef.current;
+      if (!engine) return;
+      const inicial: [number, number, number] = [0, 0, 0];
+      setVetorRealinhar(inicial);
+      setRealinharUploadId(uploadId);
+      engine.entrarRealinhamento(uploadId, inicial, (v) => setVetorRealinhar(v));
+    },
+    [carregados, onToggle],
+  );
+
+  const mudarVetorRealinhar = useCallback((v: [number, number, number]) => {
+    setVetorRealinhar(v);
+    engineRef.current?.definirVetorRealinhamento(v);
+  }, []);
+
+  // Volta ao seletor de modelo (sai do modo do engine) mantendo o painel aberto.
+  const trocarRealinhar = useCallback(() => {
+    engineRef.current?.sairRealinhamento();
+    setRealinharUploadId(null);
+    setVetorRealinhar([0, 0, 0]);
+  }, []);
+
+  const fecharRealinhar = useCallback(() => {
+    engineRef.current?.sairRealinhamento();
+    setRealinharUploadId(null);
+    setVetorRealinhar([0, 0, 0]);
+    setRealinharAberto(false);
+  }, []);
+
+  function aplicarRealinhar() {
+    if (!realinharUploadId) return;
+    const antigo = realinharUploadId;
+    const [dx, dy, dz] = vetorRealinhar;
+    start(async () => {
+      const r = await realinharModeloIfc({ uploadId: antigo, dx, dy, dz });
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
+      toast.success(
+        `IFC realinhado — nova versão v${r.data.versao} gerada. Assim que a prévia converter, ela troca sozinha na cena.`,
+      );
+      // Marca a troca: quando a nova versão terminar de converter (o painel de status
+      // faz polling e revalida), o efeito abaixo carrega a nova e descarrega a antiga.
+      setTrocaPendente({ antigo, novo: r.data.uploadId });
+      fecharRealinhar();
+      router.refresh();
+    });
+  }
+
+  // Troca automática pós-realinhamento: assim que a nova versão aparecer convertida na
+  // lista (via polling/revalidação do painel de status), carrega-a na cena e remove a
+  // versão antiga — sem o usuário precisar atualizar a página nem religar o modelo.
+  useEffect(() => {
+    if (!trocaPendente) return;
+    const novoRow = modelos.find((m) => m.uploadId === trocaPendente.novo);
+    if (novoRow?.conversao?.status !== "concluido") return; // ainda na fila/processando
+    const engine = engineRef.current;
+    if (!engine) return;
+
+    let cancelado = false;
+    void (async () => {
+      try {
+        if (!carregados.has(trocaPendente.novo)) {
+          await engine.carregarModelo(trocaPendente.novo, `/api/coordenacao/frag/${trocaPendente.novo}`);
+          if (cancelado) return;
+          setCarregados((s) => new Set(s).add(trocaPendente.novo));
+        }
+        if (carregados.has(trocaPendente.antigo)) {
+          await engine.descarregarModelo(trocaPendente.antigo);
+          setCarregados((s) => {
+            const n = new Set(s);
+            n.delete(trocaPendente.antigo);
+            return n;
+          });
+          if (foco === trocaPendente.antigo) setFoco(null);
+        }
+        if (!cancelado) {
+          toast.success("Nova versão realinhada carregada na cena.");
+          setTrocaPendente(null);
+        }
+      } catch (err) {
+        if (!cancelado) {
+          toast.error(err instanceof Error ? err.message : "Falha ao carregar a nova versão.");
+          setTrocaPendente(null);
+        }
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [modelos, trocaPendente, carregados, foco]);
+
+  function enviarAvulso(file: File, disciplinaId: string) {
+    setEnviandoAvulso(true);
+    void (async () => {
+      try {
+        const fd = new FormData();
+        fd.append("disciplinaId", disciplinaId);
+        fd.append("pacote", "RECEBIDOS");
+        fd.append("files", file, file.name);
+        const resp = await fetch("/api/uploads", { method: "POST", body: fd });
+        const j = (await resp.json().catch(() => null)) as
+          | { error?: string; resultados?: { ok: boolean; motivo?: string }[] }
+          | null;
+        const res0 = j?.resultados?.[0];
+        if (!resp.ok || res0?.ok === false) {
+          toast.error(res0?.motivo ?? j?.error ?? "Falha ao enviar o IFC.");
+          return;
+        }
+        toast.success("IFC enviado. Quando a conversão terminar, ligue a disciplina e selecione o modelo para realinhar.");
+        router.refresh();
+      } catch {
+        toast.error("Falha ao enviar o IFC.");
+      } finally {
+        setEnviandoAvulso(false);
+      }
+    })();
+  }
+
   // ── Criar apontamento (a partir da seleção atual do viewer) ──
 
   function abrirNovoApontamento() {
@@ -161,13 +333,14 @@ export function CoordenacaoView({
     const modeloId = engine.modeloPrimarioDaSelecao();
     const disciplina = modeloId ? disciplinaDoUpload.get(modeloId) : null;
     if (!modeloId || !disciplina) {
-      toast.error("Não foi possível identificar a disciplina da seleção.");
+      toast.error("Não foi possível identificar o modelo da seleção.");
       return;
     }
     start(async () => {
       const guids = await engine.guidsDaSelecao();
       const camera = engine.capturarCamera();
-      setDraftInfo({ uploadId: modeloId, disciplinaId: disciplina.id, guids, camera });
+      // Recebido do cliente não tem disciplina (id vazio) → apontamento sem disciplina.
+      setDraftInfo({ uploadId: modeloId, disciplinaId: disciplina.id || null, guids, camera });
       setDraftAberto(true);
     });
   }
@@ -177,7 +350,7 @@ export function CoordenacaoView({
     start(async () => {
       const r = await criarApontamentoCoordenacao({
         projetoId,
-        disciplinaId: draftInfo.disciplinaId,
+        disciplinaId: draftInfo.disciplinaId ?? undefined,
         uploadId: draftInfo.uploadId,
         titulo: draft.titulo,
         texto: draft.texto,
@@ -392,6 +565,9 @@ export function CoordenacaoView({
         />
         {podeGerir && (
           <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
+            <Button size="sm" variant="secondary" disabled={realinharAberto || pending} onClick={() => setRealinharAberto(true)} className="gap-1">
+              <Move3d className="size-4" /> Realinhar
+            </Button>
             <Button size="sm" variant="secondary" disabled={!temSelecao || pending} onClick={abrirNovoApontamento} className="gap-1">
               <MapPin className="size-4" /> Novo apontamento
             </Button>
@@ -418,6 +594,24 @@ export function CoordenacaoView({
             </p>
           </div>
         )}
+        {podeGerir && (
+          <RealinharIfcDialog
+            aberto={realinharAberto}
+            onFechar={fecharRealinhar}
+            onTrocar={trocarRealinhar}
+            modelos={modelosRealinhaveis}
+            uploadIdAtivo={realinharUploadId}
+            onEscolher={(id) => void escolherRealinhar(id)}
+            vetor={vetorRealinhar}
+            onVetor={mudarVetorRealinhar}
+            onAplicar={aplicarRealinhar}
+            pending={pending}
+            disciplinasUpload={disciplinasUpload}
+            onEnviarAvulso={enviarAvulso}
+            enviandoAvulso={enviandoAvulso}
+          />
+        )}
+        <MedicaoToolbar engine={engineRef.current} />
       </div>
       <aside className="w-full shrink-0 space-y-4 lg:w-80">
         <PainelDisciplinas
@@ -428,6 +622,7 @@ export function CoordenacaoView({
           onToggle={onToggle}
           onFocar={focar}
         />
+        <ArvoreModelo engine={engineRef.current} modelos={modelosCarregadosInfo} />
         <ApontamentosLista
           apontamentos={apontamentos}
           selecionadoId={apontamentoSelecionadoId}

@@ -3,6 +3,7 @@ import {
   podeEnfileirar,
   resultadoConversao,
   caminhoFragDeUpload,
+  caminhoFragDeDocumento,
   validarHeaderIfc,
   schemaProvavelmenteNaoSuportado,
   explicarErroConversao,
@@ -77,6 +78,18 @@ describe("caminhoFragDeUpload", () => {
   it("normaliza separadores do Windows para posix", () => {
     const c = caminhoFragDeUpload("2026\\Cliente\\260007_Proj\\HID\\A\\arq.ifc", "id9");
     expect(c).toBe("2026/Cliente/260007_Proj/HID/COORDENACAO/id9.frag");
+  });
+});
+
+describe("caminhoFragDeDocumento", () => {
+  it("põe o .frag numa pasta COORDENACAO irmã do arquivo, por versaoId", () => {
+    const c = caminhoFragDeDocumento("clientes/ACME/recebidos/modelo.ifc", "ver1");
+    expect(c).toBe("clientes/ACME/recebidos/COORDENACAO/ver1.frag");
+  });
+
+  it("normaliza separadores do Windows", () => {
+    const c = caminhoFragDeDocumento("clientes\\ACME\\m.ifc", "v2");
+    expect(c).toBe("clientes/ACME/COORDENACAO/v2.frag");
   });
 });
 
