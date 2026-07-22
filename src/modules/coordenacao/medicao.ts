@@ -27,6 +27,11 @@ export function distancia(a: Ponto3D, b: Ponto3D): number {
   return norma(subtrair(b, a));
 }
 
+/** Componentes dx,dy,dz entre dois pontos (mesmo referencial dos pontos recebidos). */
+export function deltaComponentes(a: Ponto3D, b: Ponto3D): Ponto3D {
+  return subtrair(b, a);
+}
+
 /**
  * Ângulo (graus, 0–180) no vértice `b`, formado pelos segmentos b→a e b→c.
  * Retorna null se algum dos segmentos tiver comprimento zero (pontos coincidentes).

@@ -43,12 +43,22 @@ export default function Viewer3D({
       if (engine.medindo) void engine.registrarPontoMedicao(e.clientX, e.clientY);
       else void engine.selecionarEm(e.clientX, e.clientY, e.shiftKey);
     };
+    const onMove = (e: PointerEvent) => {
+      // Indicador visual de snap (vértice/aresta) — só custa o raycast em modo medição;
+      // durante o arraste de realinhamento o próprio engine já cuida disso.
+      if (engine.medindo) void engine.atualizarSnapHover(e.clientX, e.clientY);
+    };
+    const onLeave = () => engine.ocultarSnapHover();
     container.addEventListener("pointerdown", onDown);
     container.addEventListener("pointerup", onUp);
+    container.addEventListener("pointermove", onMove);
+    container.addEventListener("pointerleave", onLeave);
 
     return () => {
       container.removeEventListener("pointerdown", onDown);
       container.removeEventListener("pointerup", onUp);
+      container.removeEventListener("pointermove", onMove);
+      container.removeEventListener("pointerleave", onLeave);
       engineRef.current = null;
       void engine.dispose();
     };

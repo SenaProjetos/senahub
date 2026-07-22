@@ -53,6 +53,20 @@ function refId(x: unknown): number | null {
   return typeof x === "number" ? x : null;
 }
 
+/**
+ * Clona um NumberHandle (ex.: IfcLengthMeasure) com um novo valor, preservando a
+ * classe/protótipo original. `.value` é um getter/setter (não uma prop própria) que
+ * sincroniza campos internos (_internalValue/_representationValue) — um spread
+ * `{...obj, value}` perde o protótipo e vira objeto plano, e o setter nunca roda:
+ * os campos internos ficam com o valor ANTIGO e o WriteLine escreve NaN.
+ */
+function clonarComValor<T extends object>(obj: T, valor: number): T {
+  const clone = Object.create(Object.getPrototypeOf(obj)) as T;
+  Object.assign(clone, obj);
+  (clone as unknown as { value: number }).value = valor; // roda o setter real da classe
+  return clone;
+}
+
 /** Valor textual de um enum do web-ifc ({type,value:'MILLI'} ou string crua). */
 function enumVal(x: unknown): string | null {
   if (x == null) return null;
@@ -122,10 +136,11 @@ async function main() {
     const fator = fatorMetros(prefixo);
     const offset = metrosParaUnidadeArquivo(vetor, fator);
 
-    // 1) Coleta os IfcCartesianPoint que são a ORIGEM dos placements RAIZ (PlacementRelTo
-    //    nulo). Um Set dedupe pontos compartilhados por >1 raiz — offset uma vez só.
+    // 1) Coleta os AXIS (Axis2Placement3D) dos placements RAIZ (PlacementRelTo nulo),
+    //    agrupados pelo IfcCartesianPoint que cada um usa como origem. Vários axis raiz
+    //    podem apontar pro MESMO ponto — agrupa para clonar (passo 2) uma vez só.
     const placementIds = api.GetLineIDsWithType(modelID, IFCLOCALPLACEMENT);
-    const pontosRaiz = new Set<number>();
+    const axisPorPonto = new Map<number, number[]>();
     for (let i = 0; i < placementIds.size(); i++) {
       const lp = api.GetLine(modelID, placementIds.get(i));
       if (refId(lp?.PlacementRelTo) != null) continue; // não é raiz
@@ -133,20 +148,43 @@ async function main() {
       if (axisId == null) continue;
       const axis = api.GetLine(modelID, axisId);
       const pontoId = refId(axis?.Location);
-      if (pontoId != null) pontosRaiz.add(pontoId);
+      if (pontoId == null) continue;
+      const lista = axisPorPonto.get(pontoId) ?? [];
+      lista.push(axisId);
+      axisPorPonto.set(pontoId, lista);
     }
 
-    // 2) Aplica o offset em cada ponto raiz único e reescreve a linha.
+    // 2) Para cada ponto-origem único, CLONA a linha (nunca muta o ponto original) —
+    //    exportadores IFC costumam REUSAR o mesmo IfcCartesianPoint (ex.: "0.,0.,0.")
+    //    como origem de MUITOS placements não-raiz. Mutar o ponto compartilhado in-place
+    //    deslocaria também esses elementos não-raiz junto com a raiz, distorcendo a
+    //    árvore inteira ("explodindo" o modelo). Clonar com um novo expressID e
+    //    repontar só os axis raiz pro clone deixa o ponto original (e quem mais o usa)
+    //    intocado.
     let deslocados = 0;
-    for (const pid of pontosRaiz) {
-      const ponto = api.GetLine(modelID, pid);
+    let proximoExpressId = api.GetMaxExpressID(modelID) + 1;
+    for (const [pontoId, axisIds] of axisPorPonto) {
+      const ponto = api.GetLine(modelID, pontoId);
       const coords = ponto?.Coordinates;
       if (!Array.isArray(coords) || coords.length === 0) continue;
-      // Cada coordenada é um NumberHandle (IfcLengthMeasure) com .value mutável.
       const atuais = coords.map((c: { value: number }) => c.value);
       const novas = somarOffset(atuais, offset);
-      for (let i = 0; i < coords.length; i++) coords[i].value = novas[i];
-      api.WriteLine(modelID, ponto);
+
+      const novoId = proximoExpressId++;
+      const pontoNovo = {
+        ...ponto,
+        expressID: novoId,
+        Coordinates: coords.map((c: { value: number }, i: number) => clonarComValor(c, novas[i])),
+      };
+      api.WriteLine(modelID, pontoNovo);
+
+      for (const axisId of axisIds) {
+        const axis = api.GetLine(modelID, axisId);
+        if (axis?.Location && typeof axis.Location === "object") {
+          axis.Location = { ...axis.Location, value: novoId };
+          api.WriteLine(modelID, axis);
+        }
+      }
       deslocados++;
     }
 

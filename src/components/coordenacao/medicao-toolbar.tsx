@@ -69,8 +69,24 @@ export function MedicaoToolbar({ engine }: { engine: ViewerEngine | null }) {
         </div>
 
         {estado?.rotulo && (
-          <div className="rounded bg-primary/10 px-2.5 py-1.5">
+          <div className="space-y-1.5 rounded bg-primary/10 px-2.5 py-1.5">
             <p className="font-mono text-sm font-semibold text-primary">{estado.rotulo}</p>
+            {estado.componentes && (
+              <div className="grid grid-cols-3 gap-1 border-t border-primary/20 pt-1.5 text-center">
+                <div>
+                  <p className="text-[10px] text-muted-foreground">ΔX</p>
+                  <p className="font-mono text-xs">{estado.componentes.dx}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground">ΔY</p>
+                  <p className="font-mono text-xs">{estado.componentes.dy}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground">ΔZ</p>
+                  <p className="font-mono text-xs">{estado.componentes.dz}</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -18,6 +18,7 @@ import CameraControls from "camera-controls";
 import {
   FragmentsModels,
   RenderedFaces,
+  SnappingClass,
   type FragmentsModel,
   type ItemData,
 } from "@thatopen/fragments";
@@ -38,6 +39,7 @@ import {
   distancia,
   angulo,
   areaPoligono,
+  deltaComponentes,
   formatarMetros,
   formatarAngulo,
   formatarArea,
@@ -88,6 +90,8 @@ export type ResultadoMedicaoView = {
   completo: boolean;
   /** Valor formatado pt-BR (metros/graus/m²), ou null se ainda não dá pra calcular. */
   rotulo: string | null;
+  /** Componentes ΔX/ΔY/ΔZ (espaço IFC, Z-up) — só para "distancia" completa; senão null. */
+  componentes: { dx: string; dy: string; dz: string } | null;
 };
 
 type EstadoMedicao = {
@@ -110,6 +114,10 @@ export class ViewerEngine {
   /** Índice de elementos por modelo (Onda 0) — computado sob demanda, invalidado ao descarregar. */
   private indiceCache = new Map<string, ElementoIndex[]>();
   private medicao: EstadoMedicao | null = null;
+  /** Marcador visual do snap (vértice/aresta) sob o mouse — medição e arraste de realinhamento. */
+  private snapMarker: THREE.Mesh | null = null;
+  /** Evita raycasts de snap concorrentes (pointermove dispara mais rápido que a resposta assíncrona). */
+  private snapHoverOcupado = false;
   private selecao = new Map<string, Set<number>>(); // modeloId → localIds
   private planosCorte: THREE.Plane[] = [];
   private raf = 0;
@@ -350,6 +358,9 @@ export class ViewerEngine {
           opacity: 0.12,
           transparent: true,
           preserveOriginalMaterial: true,
+          // Sem isto, preserveOriginalMaterial ignora TODOS os campos abaixo (a lib só
+          // aplica os listados aqui) e o ghost nunca aparece — mantém o material original.
+          _explicitProps: ["color", "opacity", "transparent", "renderedFaces"],
         });
       }
     }
@@ -531,9 +542,13 @@ export class ViewerEngine {
     const m = this.medicao!;
     const completo = m.tipo === "area" ? m.finalizado : m.pontos.length >= this.pontosNecessarios(m.tipo);
     let rotulo: string | null = null;
+    let componentes: ResultadoMedicaoView["componentes"] = null;
     if (completo) {
       if (m.tipo === "distancia" && m.pontos.length >= 2) {
         rotulo = formatarMetros(distancia(m.pontos[0], m.pontos[1]));
+        // Componentes em espaço IFC (Z-up) — mesmo referencial do vetor de realinhamento.
+        const [dx, dy, dz] = threeParaIfc(deltaComponentes(m.pontos[0], m.pontos[1]));
+        componentes = { dx: formatarMetros(dx), dy: formatarMetros(dy), dz: formatarMetros(dz) };
       } else if (m.tipo === "angulo" && m.pontos.length >= 3) {
         const a = angulo(m.pontos[0], m.pontos[1], m.pontos[2]);
         rotulo = a != null ? formatarAngulo(a) : null;
@@ -541,7 +556,7 @@ export class ViewerEngine {
         rotulo = formatarArea(areaPoligono(m.pontos));
       }
     }
-    return { tipo: m.tipo, pontos: m.pontos.length, completo, rotulo };
+    return { tipo: m.tipo, pontos: m.pontos.length, completo, rotulo, componentes };
   }
 
   /** Descarta e recria o grupo de marcadores/linhas da medição atual, a partir de `m.pontos`. */
@@ -575,8 +590,14 @@ export class ViewerEngine {
     this.scene.add(grupo);
   }
 
-  /** Raycast (ponto 3D exato, não o item) contra todos os modelos carregados; mais próximo vence. */
+  /**
+   * Raycast (ponto 3D exato) contra todos os modelos carregados; mais próximo vence.
+   * Prioriza SNAP em vértice/aresta (mesma precisão que o indicador visual mostra) —
+   * só cai pro raycast puro na face se não houver vértice/aresta perto o bastante.
+   */
   private async raycastPonto(clientX: number, clientY: number): Promise<THREE.Vector3 | null> {
+    const snap = await this.raycastSnap(clientX, clientY);
+    if (snap) return snap;
     const mouse = new THREE.Vector2(clientX, clientY);
     const dom = this.renderer.domElement;
     let melhor: { point: THREE.Vector3; distance: number } | null = null;
@@ -587,6 +608,62 @@ export class ViewerEngine {
       }
     }
     return melhor?.point ?? null;
+  }
+
+  /** Raycast só de SNAP (vértice/aresta) contra todos os modelos; mais próximo vence, ou null. */
+  private async raycastSnap(clientX: number, clientY: number): Promise<THREE.Vector3 | null> {
+    const mouse = new THREE.Vector2(clientX, clientY);
+    const dom = this.renderer.domElement;
+    let melhor: { point: THREE.Vector3; distance: number } | null = null;
+    for (const model of this.modelos.values()) {
+      const hits = await model.raycastWithSnapping({
+        camera: this.camera,
+        mouse,
+        dom,
+        snappingClasses: [SnappingClass.POINT, SnappingClass.LINE],
+      });
+      const hit = hits?.[0];
+      if (hit && (melhor === null || hit.distance < melhor.distance)) {
+        melhor = { point: hit.point, distance: hit.distance };
+      }
+    }
+    return melhor?.point ?? null;
+  }
+
+  private garantirSnapMarker(): THREE.Mesh {
+    if (!this.snapMarker) {
+      const geo = new THREE.SphereGeometry(0.06, 12, 12);
+      const mat = new THREE.MeshBasicMaterial({ color: 0x22d3ee, depthTest: false }); // ciano — distinto do laranja da medição
+      this.snapMarker = new THREE.Mesh(geo, mat);
+      this.snapMarker.renderOrder = 1000;
+      this.snapMarker.visible = false;
+      this.scene.add(this.snapMarker);
+    }
+    return this.snapMarker;
+  }
+
+  /**
+   * Mostra/atualiza o indicador visual de snap (vértice/aresta mais próximo do mouse);
+   * some se não houver nenhum por perto. Chamado em pointermove durante medição e
+   * durante o arraste de realinhamento — puramente visual (não altera a matemática
+   * do deslocamento por plano do realinhamento).
+   */
+  async atualizarSnapHover(clientX: number, clientY: number): Promise<void> {
+    if (this.snapHoverOcupado) return; // evita respostas fora de ordem sobrescreverem uma mais nova
+    this.snapHoverOcupado = true;
+    try {
+      const ponto = await this.raycastSnap(clientX, clientY);
+      const marker = this.garantirSnapMarker();
+      marker.visible = ponto != null;
+      if (ponto) marker.position.copy(ponto);
+    } finally {
+      this.snapHoverOcupado = false;
+    }
+  }
+
+  /** Esconde o indicador de snap (saída de modo medição/realinhamento). */
+  ocultarSnapHover(): void {
+    if (this.snapMarker) this.snapMarker.visible = false;
   }
 
   /** Entra em modo medição (`tipo`). `onAtualizar` é chamado a cada ponto capturado. */
@@ -648,6 +725,7 @@ export class ViewerEngine {
       (item.material as THREE.Material).dispose();
     }
     this.medicao = null;
+    this.ocultarSnapHover();
   }
 
   // ── Realinhamento (offset) — prévia ao vivo ─────────────────
@@ -721,6 +799,7 @@ export class ViewerEngine {
       dom.setPointerCapture(e.pointerId);
     };
     const move = (e: PointerEvent) => {
+      void this.atualizarSnapHover(e.clientX, e.clientY); // indicador visual, sempre (arrastando ou não)
       const r = this.realinhar;
       if (!r?.arrastando || !r.origem) return;
       const p = this.pontoNoPlano(e.clientX, e.clientY, r.planeY);
@@ -789,6 +868,7 @@ export class ViewerEngine {
     this.controls.mouseButtons.right = r.rightAcaoAntes;
     this.aplicarPreview(r.modeloId, [0, 0, 0]); // volta o modelo à posição original
     this.realinhar = null;
+    this.ocultarSnapHover();
   }
 
   // ── Pins (marcadores 3D dos apontamentos) ───────────────────
@@ -842,6 +922,10 @@ export class ViewerEngine {
     if (this.destruido) return;
     if (this.realinhar) this.sairRealinhamento();
     if (this.medicao) this.sairMedicao();
+    if (this.snapMarker) {
+      this.snapMarker.geometry.dispose();
+      (this.snapMarker.material as THREE.Material).dispose();
+    }
     this.destruido = true;
     cancelAnimationFrame(this.raf);
     this.resizeObs.disconnect();

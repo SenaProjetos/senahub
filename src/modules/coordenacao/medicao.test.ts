@@ -3,6 +3,7 @@ import {
   angulo,
   areaPoligono,
   distancia,
+  deltaComponentes,
   formatarAngulo,
   formatarArea,
   formatarMetros,
@@ -20,6 +21,15 @@ describe("distancia", () => {
 
   it("pontos coincidentes → 0", () => {
     expect(distancia([1, 1, 1], [1, 1, 1])).toBe(0);
+  });
+});
+
+describe("deltaComponentes", () => {
+  it("componentes com sinal (b - a)", () => {
+    expect(deltaComponentes([1, 2, 3], [4, 0, 10])).toEqual([3, -2, 7]);
+  });
+  it("pontos coincidentes → [0,0,0]", () => {
+    expect(deltaComponentes([1, 1, 1], [1, 1, 1])).toEqual([0, 0, 0]);
   });
 });
 
