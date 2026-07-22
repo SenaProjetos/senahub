@@ -10,7 +10,9 @@ import { parseModeloId } from "@/modules/coordenacao/modelo-ref";
 import { rotuloItemApontamento } from "@/modules/coordenacao/helpers";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { GLOBAL_ROLES, type Role } from "@/lib/roles";
-import type { SessionUser } from "@/lib/session";
+import { getSession, type SessionUser } from "@/lib/session";
+import { can } from "@/lib/permissions";
+import { versoesConvertidasDoUpload } from "@/modules/coordenacao/queries";
 import {
   converterModeloSchema,
   realinharModeloSchema,
@@ -443,3 +445,12 @@ export const excluirVistaCoordenacao = defineAction(
     return { id: input.id };
   },
 );
+
+// ── Diff de versões (#4) — leitura sob demanda, mesmo padrão de buscarAgendaHoje ──
+
+/** Versões convertidas do mesmo grupo (disciplina+pacote+nomeArquivo) — escolha "antiga"×"nova" no diff. */
+export async function buscarVersoesConvertidas(uploadId: string) {
+  const session = await getSession();
+  if (!session || !(await can(session.user.role, "coordenacao", "ver"))) return [];
+  return versoesConvertidasDoUpload(uploadId);
+}

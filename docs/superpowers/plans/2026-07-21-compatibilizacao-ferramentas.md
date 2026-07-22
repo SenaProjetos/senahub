@@ -146,12 +146,16 @@ Objetivo: isolar/ocultar por pavimento, IfcClass ou valor de propriedade.
 
 Objetivo: entre 2 versões da mesma disciplina — adicionados/removidos/movidos por IfcGuid.
 
-| Fase | Entregável | Modelo | Motivo |
+**Decisões do F0 (2026-07-22, aprovadas):** identidade = IfcGuid; "movido" = centro do
+bbox deslocou > 1cm (sem parsing de placement; "redimensionado" fica pra v2); dual-load
+client-side (antiga+nova), removidos aparecem em vermelho na antiga (descarrega ao sair).
+
+| Fase | Entregável | Modelo | Status |
 |---|---|---|---|
-| F0 | Decisão: chave de identidade (GUID) + como detectar "movido" (delta de bbox/placement além de tolerância) + custo de carregar 2 modelos | **Opus 4.8** | Semântica de diff + performance |
-| F1 | `diff.ts` puro: conjuntos add/remove + "movido" por comparação de âncoras + testes | **Sonnet 5** |
-| F3 | Modo diff no viewer (verde/vermelho/amarelo por status) + carregar 2 versões | **Sonnet 5** |
-| F3 | `diff-painel.tsx` (resumo + lista navegável) | **Haiku 4.5** |
+| F0 | Decisões acima | **Opus 4.8** | ✅ feito |
+| F1 | `diff.ts` puro: conjuntos add/remove + "movido" por delta de centro + testes | **Sonnet 5** | ✅ feito (8 testes) |
+| F2 | `queries.ts`/`actions.ts` (versões convertidas do grupo) + `engine.ts` (`rodarDiff` dual-load, `centrosPorGuid`, coloriza verde/âmbar/vermelho, `focarGuid`, `sairDiff`) | **Sonnet 5** | ✅ feito |
+| F3 | `diff-painel.tsx` (escolher versões, 3 listas clicáveis, foca no 3D) | **Sonnet 5** | ✅ feito |
 
 **Depende de:** Onda 0 + versionamento existente (que o realinhar já usa).
 

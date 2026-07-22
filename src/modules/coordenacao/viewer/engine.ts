@@ -46,11 +46,14 @@ import {
   type Ponto3D,
 } from "@/modules/coordenacao/medicao";
 import { detectarConflitos, type Caixa, type Conflito } from "@/modules/coordenacao/clash";
+import { diffVersoes, type CentroPorGuid, type ResultadoDiff } from "@/modules/coordenacao/diff";
 
 CameraControls.install({ THREE });
 
 const COR_SELECAO = 0x2563eb; // primário (azul) — highlight de seleção
 const COR_CONFLITO = 0xdc2626; // destrutivo (vermelho) — realce dos 2 elementos em conflito
+const COR_DIFF_ADICIONADO = 0x22c55e; // verde — elemento novo na versão atual
+const COR_DIFF_MOVIDO = 0xeab308; // âmbar — mesmo guid, centro deslocou > tolerância
 
 export type { AtributoItem, PsetItem };
 
@@ -621,6 +624,126 @@ export class ViewerEngine {
     if (boxesB[0]) box.union(boxesB[0]);
     if (box.isEmpty()) return;
     await this.controls.fitToBox(box, true, { paddingLeft: 1, paddingRight: 1, paddingTop: 1, paddingBottom: 1 });
+  }
+
+  // ── Diff de versões (#4) ─────────────────────────────────────
+  //
+  // v1 = por IfcGuid + centro do bbox (decisão do F0). Dual-load client-side: carrega
+  // as 2 versões (se ainda não estiverem), compara pelo núcleo puro (diff.ts), e
+  // coloriza — nova: adicionados (verde) + movidos (âmbar); antiga: escondida exceto
+  // os removidos (vermelho, mesma cor do clash). `sairDiff` reverte tudo.
+
+  /** guid → centro do bbox (espaço-mundo) de todo elemento "de obra" do modelo (via índice da Onda 0). */
+  private async centrosPorGuid(modeloId: string): Promise<CentroPorGuid> {
+    const mapa: CentroPorGuid = new Map();
+    const model = this.modelos.get(modeloId);
+    if (!model) return mapa;
+    const elementos = await this.indiceDoModelo(modeloId);
+    const localIds = elementos.map((e) => e.localId);
+    if (localIds.length === 0) return mapa;
+    const [guids, boxes] = await Promise.all([
+      model.getGuidsByLocalIds(localIds),
+      this.bboxesDoModelo(modeloId, localIds),
+    ]);
+    localIds.forEach((_, i) => {
+      const guid = guids[i];
+      const box = boxes[i];
+      if (!guid || !box) return;
+      mapa.set(guid, [(box.min.x + box.max.x) / 2, (box.min.y + box.max.y) / 2, (box.min.z + box.max.z) / 2]);
+    });
+    return mapa;
+  }
+
+  private async colorirDiff(uploadIdAntigo: string, uploadIdNovo: string, resultado: ResultadoDiff): Promise<void> {
+    const modelNovo = this.modelos.get(uploadIdNovo);
+    if (modelNovo) {
+      await modelNovo.resetHighlight();
+      const idsAdicionados = (await modelNovo.getLocalIdsByGuids(resultado.adicionados)).filter(
+        (id): id is number => id != null,
+      );
+      const idsMovidos = (await modelNovo.getLocalIdsByGuids(resultado.movidos.map((m) => m.guid))).filter(
+        (id): id is number => id != null,
+      );
+      if (idsAdicionados.length > 0) {
+        await modelNovo.highlight(idsAdicionados, {
+          color: new THREE.Color(COR_DIFF_ADICIONADO),
+          renderedFaces: RenderedFaces.TWO,
+          opacity: 1,
+          transparent: false,
+        });
+      }
+      if (idsMovidos.length > 0) {
+        await modelNovo.highlight(idsMovidos, {
+          color: new THREE.Color(COR_DIFF_MOVIDO),
+          renderedFaces: RenderedFaces.TWO,
+          opacity: 1,
+          transparent: false,
+        });
+      }
+    }
+
+    const modelAntigo = this.modelos.get(uploadIdAntigo);
+    if (modelAntigo) {
+      await modelAntigo.resetHighlight();
+      const idsRemovidos = (await modelAntigo.getLocalIdsByGuids(resultado.removidos)).filter(
+        (id): id is number => id != null,
+      );
+      // Versão antiga: some tudo, mostra só os removidos (o que ela tinha e a nova não tem mais).
+      await modelAntigo.setVisible(undefined, false);
+      if (idsRemovidos.length > 0) {
+        await modelAntigo.setVisible(idsRemovidos, true);
+        await modelAntigo.highlight(idsRemovidos, {
+          color: new THREE.Color(COR_CONFLITO),
+          renderedFaces: RenderedFaces.TWO,
+          opacity: 1,
+          transparent: false,
+        });
+      }
+    }
+    await this.fragments.update(true);
+  }
+
+  /**
+   * Roda o diff entre duas versões (uploadId antigo × novo, ambas já convertidas):
+   * carrega as 2 (se preciso), compara por guid+centro e coloriza a cena.
+   */
+  async rodarDiff(uploadIdAntigo: string, uploadIdNovo: string): Promise<ResultadoDiff> {
+    if (!this.modelos.has(uploadIdAntigo)) {
+      await this.carregarModelo(uploadIdAntigo, `/api/coordenacao/frag/${uploadIdAntigo}`);
+    }
+    if (!this.modelos.has(uploadIdNovo)) {
+      await this.carregarModelo(uploadIdNovo, `/api/coordenacao/frag/${uploadIdNovo}`);
+    }
+    const [centrosAntigo, centrosNovo] = await Promise.all([
+      this.centrosPorGuid(uploadIdAntigo),
+      this.centrosPorGuid(uploadIdNovo),
+    ]);
+    const resultado = diffVersoes(centrosAntigo, centrosNovo);
+    await this.colorirDiff(uploadIdAntigo, uploadIdNovo, resultado);
+    return resultado;
+  }
+
+  /** Enquadra a câmera num guid específico de um modelo carregado (item da lista de diff/clash). */
+  async focarGuid(modeloId: string, guid: string): Promise<void> {
+    const model = this.modelos.get(modeloId);
+    if (!model) return;
+    const [localId] = await model.getLocalIdsByGuids([guid]);
+    if (localId == null) return;
+    const [box] = await this.bboxesDoModelo(modeloId, [localId]);
+    if (!box) return;
+    await this.controls.fitToBox(box, true, { paddingLeft: 1, paddingRight: 1, paddingTop: 1, paddingBottom: 1 });
+  }
+
+  /** Sai do diff: restaura highlight/visibilidade da versão antiga e highlight da nova. */
+  async sairDiff(uploadIdAntigo: string, uploadIdNovo: string): Promise<void> {
+    const modelAntigo = this.modelos.get(uploadIdAntigo);
+    if (modelAntigo) {
+      await modelAntigo.resetHighlight();
+      await modelAntigo.resetVisible();
+    }
+    const modelNovo = this.modelos.get(uploadIdNovo);
+    if (modelNovo) await modelNovo.resetHighlight();
+    await this.fragments.update(true);
   }
 
   // ── Medição (distância/ângulo/área) ─────────────────────────

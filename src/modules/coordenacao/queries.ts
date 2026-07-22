@@ -285,3 +285,29 @@ export async function vistasDoProjeto(projetoId: string): Promise<VistaView[]> {
     createdAt: r.createdAt.toISOString(),
   }));
 }
+
+// ── Diff de versões (#4) ─────────────────────────────────────
+// v1 = só uploads de disciplina (o grupo é disciplinaId+pacote+nomeArquivo, mesmo
+// agrupamento do realinhar); recebidos do cliente ficam de fora por ora.
+
+export type VersaoConvertida = { uploadId: string; versao: number; createdAt: string };
+
+/** Versões CONVERTIDAS (.frag pronto) do mesmo grupo de um upload — escolha de "antiga"×"nova" no diff. */
+export async function versoesConvertidasDoUpload(uploadId: string): Promise<VersaoConvertida[]> {
+  const upload = await prisma.upload.findUnique({
+    where: { id: uploadId },
+    select: { disciplinaId: true, pacote: true, nomeArquivo: true },
+  });
+  if (!upload) return [];
+  const rows = await prisma.upload.findMany({
+    where: {
+      disciplinaId: upload.disciplinaId,
+      pacote: upload.pacote,
+      nomeArquivo: upload.nomeArquivo,
+      conversao: { status: "concluido" },
+    },
+    orderBy: { versao: "desc" },
+    select: { id: true, versao: true, createdAt: true },
+  });
+  return rows.map((r) => ({ uploadId: r.id, versao: r.versao, createdAt: r.createdAt.toISOString() }));
+}

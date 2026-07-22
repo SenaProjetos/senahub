@@ -27,6 +27,7 @@ import { enviaveis as apontamentosEnviaveis } from "@/modules/coordenacao/helper
 import { type ModeloRow } from "@/components/coordenacao/conversao-status-view";
 import { ArvoreModelo } from "@/components/coordenacao/arvore-modelo";
 import { ClashPainel } from "@/components/coordenacao/clash-painel";
+import { DiffPainel } from "@/components/coordenacao/diff-painel";
 import { MarkupEditor } from "@/components/coordenacao/markup-editor";
 import { MedicaoToolbar } from "@/components/coordenacao/medicao-toolbar";
 import { PainelDisciplinas } from "@/components/coordenacao/painel-disciplinas";
@@ -39,6 +40,7 @@ import { ApontamentoForm, type ApontamentoDraft } from "@/components/coordenacao
 import { TarefaDialog, type OpcoesUI } from "@/components/tarefas/tarefa-dialog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { rotuloRevisao } from "@/lib/utils";
 
 // Todo o stack 3D (three + @thatopen/fragments) fica atrás deste dynamic import:
 // só baixa ao abrir a aba Coordenação, e nunca roda no servidor.
@@ -157,6 +159,16 @@ export function CoordenacaoView({
           label: `${m.disciplinaNome} · ${m.nomeArquivo}`,
         })),
     [modelos, carregados],
+  );
+
+  // Modelos convertidos p/ o diff (#4) — só uploads de disciplina (v1), não precisam
+  // estar carregados (rodarDiff carrega sob demanda).
+  const modelosDiff = useMemo(
+    () =>
+      modelos
+        .filter((m) => m.tipo === "upload" && m.conversao?.status === "concluido")
+        .map((m) => ({ uploadId: m.uploadId, label: `${m.disciplinaNome} · ${m.nomeArquivo} (${rotuloRevisao(m.versao)})` })),
+    [modelos],
   );
 
   const onReady = useCallback((engine: ViewerEngine) => {
@@ -653,6 +665,7 @@ export function CoordenacaoView({
           projetoCodigo={projetoCodigo}
           projetoNome={projetoNome}
         />
+        <DiffPainel engine={engineRef.current} modelos={modelosDiff} />
         <ApontamentosLista
           apontamentos={apontamentos}
           selecionadoId={apontamentoSelecionadoId}
