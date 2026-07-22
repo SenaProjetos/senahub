@@ -223,6 +223,31 @@ export async function hrefsApontamentoPorItem(itemIds: string[]): Promise<Map<st
   return m;
 }
 
+// ── Dashboard de coordenação ─────────────────────────────────
+// Agregação pura fica em dashboard.ts; aqui só a I/O (busca + resolve nomes de
+// disciplina em lote, mesmo padrão de apontamentosDoProjeto).
+
+export async function dashboardApontamentos(
+  projetoId: string,
+): Promise<{ createdAt: string; resolvidoEm: string | null; fechadoEm: string | null; status: string; disciplinaNome: string }[]> {
+  const rows = await prisma.apontamentoCoordenacao.findMany({
+    where: { projetoId },
+    select: { createdAt: true, resolvidoEm: true, fechadoEm: true, status: true, disciplinaId: true },
+  });
+  const disciplinaIds = [...new Set(rows.map((r) => r.disciplinaId).filter((x): x is string => !!x))];
+  const disciplinas = disciplinaIds.length
+    ? await prisma.disciplina.findMany({ where: { id: { in: disciplinaIds } }, select: { id: true, nome: true } })
+    : [];
+  const nomeDisciplina = new Map(disciplinas.map((d) => [d.id, d.nome]));
+  return rows.map((r) => ({
+    createdAt: r.createdAt.toISOString(),
+    resolvidoEm: r.resolvidoEm?.toISOString() ?? null,
+    fechadoEm: r.fechadoEm?.toISOString() ?? null,
+    status: r.status,
+    disciplinaNome: r.disciplinaId ? (nomeDisciplina.get(r.disciplinaId) ?? "—") : GRUPO_RECEBIDOS,
+  }));
+}
+
 // ── Vistas salvas ─────────────────────────────────────────────
 // Shapes de câmera/corte espelham CameraApontamento/CorteConfig do viewer/engine.ts,
 // mas NÃO importam de lá — engine.ts é client-only (three/@thatopen/fragments).

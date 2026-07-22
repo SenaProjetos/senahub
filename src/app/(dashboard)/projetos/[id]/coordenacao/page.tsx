@@ -5,12 +5,14 @@ import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { projetoVisivel } from "@/modules/planejamento/queries";
-import { modelosCoordenacao, apontamentosDoProjeto } from "@/modules/coordenacao/queries";
+import { modelosCoordenacao, apontamentosDoProjeto, dashboardApontamentos } from "@/modules/coordenacao/queries";
+import { contarPorStatus, contarPorDisciplina, semanasCriadosEncerrados } from "@/modules/coordenacao/dashboard";
 import { opcoesTarefa } from "@/modules/tarefas/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConversaoStatusView } from "@/components/coordenacao/conversao-status-view";
 import { CoordenacaoView } from "@/components/coordenacao/coordenacao-view";
+import { DashboardCoordenacao } from "@/components/coordenacao/dashboard-coordenacao";
 
 export const metadata: Metadata = { title: "Coordenação" };
 
@@ -27,7 +29,7 @@ export default async function CoordenacaoPage({
   const projeto = await projetoVisivel(user, id);
   if (!projeto) notFound();
 
-  const [modelos, podeGerir, apontamentos, minhasDisciplinas] = await Promise.all([
+  const [modelos, podeGerir, apontamentos, minhasDisciplinas, resumoDashboard] = await Promise.all([
     modelosCoordenacao(id),
     can(user.role, "coordenacao", "gerir"),
     apontamentosDoProjeto(id),
@@ -35,6 +37,7 @@ export default async function CoordenacaoPage({
       where: { userId: user.id, disciplina: { projetoId: id } },
       select: { disciplinaId: true },
     }),
+    dashboardApontamentos(id),
   ]);
 
   if (modelos.length === 0) {
@@ -102,6 +105,19 @@ export default async function CoordenacaoPage({
           title="Nenhum modelo convertido ainda"
           description="Converta os IFCs abaixo para montar a maquete federada 3D."
         />
+      )}
+      {resumoDashboard.length > 0 && (
+        <div className="space-y-3">
+          <div>
+            <h3 className="text-lg font-semibold">Painel de apontamentos</h3>
+            <p className="text-sm text-muted-foreground">Status, disciplina e evolução semanal.</p>
+          </div>
+          <DashboardCoordenacao
+            status={contarPorStatus(resumoDashboard)}
+            disciplinas={contarPorDisciplina(resumoDashboard)}
+            semanas={semanasCriadosEncerrados(resumoDashboard)}
+          />
+        </div>
       )}
       <div className="space-y-3">
         <div>
