@@ -602,6 +602,10 @@ model Projeto {
   prazoFinal    DateTime?
   /// Valor de contrato (referência de receita). Base para gerar parcelas/recebíveis.
   valorContrato Decimal?        @db.Decimal(14, 2)
+  /// Personalização da navegação por abas deste projeto: `[{ suffix, oculta }]` na ordem
+  /// desejada. Abas ausentes da lista (novas, ou nunca configuradas) usam a ordem padrão
+  /// e ficam visíveis. Editado em EditarProjetoDialog; aplicado em ProjetoTabNav.
+  abasConfig    Json?
 
   disciplinas        Disciplina[]
   membros            ProjetoMembro[]

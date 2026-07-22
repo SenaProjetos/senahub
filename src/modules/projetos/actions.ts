@@ -136,6 +136,7 @@ export const editarProjeto = defineAction(
         endereco: rest.endereco,
         prazoFinal: parseData(rest.prazoFinal),
         valorContrato: rest.valorContrato,
+        abasConfig: rest.abasConfig,
         // P-03: troca de cliente.
         ...(rest.clienteId ? { clienteId: rest.clienteId } : {}),
       },

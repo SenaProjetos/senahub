@@ -379,9 +379,54 @@ export async function obterProjetoMinimo(viewer: Viewer, id: string) {
       areaM2: true,
       endereco: true,
       valorContrato: true,
+      abasConfig: true,
       cliente: { select: { id: true, nome: true } },
     },
   });
+}
+
+/**
+ * Quais abas secundárias do projeto têm alguma entrada registrada — usado pela navegação
+ * para deixar claro quando um "módulo" (aba) ainda não foi utilizado neste projeto.
+ * Visão Geral e Histórico ficam fora: sempre relevantes.
+ */
+export async function abasComConteudo(projetoId: string) {
+  const [inputs, financeiro, listaMestre, servicos, arquivos, coordenacao, diario, extras] =
+    await Promise.all([
+      prisma.inputProjeto.count({ where: { projetoId } }),
+      prisma.lancamento.count({ where: { projetoId } }),
+      prisma.prancha.count({ where: { disciplina: { projetoId } } }),
+      prisma.servicoTerceirizado.count({ where: { projetoId } }),
+      prisma.upload.count({ where: { disciplina: { projetoId }, excluidoEm: null } }),
+      prisma.upload.count({
+        where: { disciplina: { projetoId }, nomeArquivo: { endsWith: ".ifc", mode: "insensitive" } },
+      }),
+      prisma.diarioEntrada.count({ where: { projetoId } }),
+      contarExtras(projetoId),
+    ]);
+  return {
+    "/inputs": inputs > 0,
+    "/financeiro": financeiro > 0,
+    "/lista-mestre": listaMestre > 0,
+    "/servicos": servicos > 0,
+    "/arquivos": arquivos > 0,
+    "/coordenacao": coordenacao > 0,
+    "/diario": diario > 0,
+    "/extras": extras > 0,
+  } as Record<string, boolean>;
+}
+
+/** "Extras" reúne 6 sub-recursos independentes — conta como usada se qualquer um tiver dado. */
+async function contarExtras(projetoId: string): Promise<number> {
+  const [solic, composicao, lm, linhas, checklist, riscos] = await Promise.all([
+    prisma.solicitacaoRevisao.count({ where: { disciplina: { projetoId } } }),
+    prisma.projetoComposicaoPreco.count({ where: { projetoId, itens: { some: {} } } }),
+    prisma.lmConfig.count({ where: { projetoId, conteudo: { not: "" } } }),
+    prisma.linhaBase.count({ where: { projetoId } }),
+    prisma.checklistItemProjeto.count({ where: { projetoId } }),
+    prisma.riscoProjeto.count({ where: { projetoId } }),
+  ]);
+  return solic + composicao + lm + linhas + checklist + riscos;
 }
 
 /** N-07: eventos de mudança de status das disciplinas de um projeto, via AuditLog. */

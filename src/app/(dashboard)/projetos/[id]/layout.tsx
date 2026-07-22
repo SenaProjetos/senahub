@@ -5,7 +5,8 @@ import { ArrowLeft, MessageSquare } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { INTERNAL_ROLES } from "@/lib/roles";
-import { obterProjetoMinimo } from "@/modules/projetos/queries";
+import { obterProjetoMinimo, abasComConteudo } from "@/modules/projetos/queries";
+import type { AbaConfigItem } from "@/modules/projetos/abas";
 import { listarClientes } from "@/modules/clientes/queries";
 import { canalDoProjeto } from "@/modules/chat/queries";
 import { modelosPorFonte } from "@/modules/documentos/queries";
@@ -33,7 +34,7 @@ export default async function ProjetoLayout({
   const projeto = await obterProjetoMinimo(user, id);
   if (!projeto) notFound();
 
-  const [podeGerir, podeVerFinanceiro, podeHistorico, podeCoordenacao, canalChat, modelosDoc] =
+  const [podeGerir, podeVerFinanceiro, podeHistorico, podeCoordenacao, canalChat, modelosDoc, conteudoPorAba] =
     await Promise.all([
       can(user.role, "projetos", "gerir"),
       can(user.role, "financeiro", "ver"),
@@ -41,6 +42,7 @@ export default async function ProjetoLayout({
       can(user.role, "coordenacao", "ver"),
       canalDoProjeto(id),
       modelosPorFonte("projeto"),
+      abasComConteudo(id),
     ]);
   // Diário de projeto: equipe interna lê/escreve; cliente nunca vê (gate fino de escrita fica no módulo).
   const podeDiario = INTERNAL_ROLES.includes(user.role as never);
@@ -102,6 +104,7 @@ export default async function ProjetoLayout({
                 prazoFinal: projeto.prazoFinal ? projeto.prazoFinal.toISOString().slice(0, 10) : null,
                 valorContrato: projeto.valorContrato != null ? Number(projeto.valorContrato) : null,
                 clienteId: projeto.cliente.id,
+                abasConfig: (projeto.abasConfig as AbaConfigItem[] | null) ?? null,
               }}
               clientes={clientes.map((c) => ({ id: c.id, nome: c.nome }))}
             />
@@ -115,6 +118,8 @@ export default async function ProjetoLayout({
       {/* Navegação por abas */}
       <ProjetoTabNav
         projetoId={id}
+        conteudoPorAba={conteudoPorAba}
+        abasConfig={projeto.abasConfig as AbaConfigItem[] | null}
         abasVisiveis={[
           "",
           "/inputs",

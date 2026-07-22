@@ -16,6 +16,7 @@ import {
   descartarPendencia,
 } from "@/modules/projetos/pendencias/actions";
 import { TarefaDialog, type OpcoesUI } from "@/components/tarefas/tarefa-dialog";
+import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
 import { rotuloItemPendencia } from "@/modules/projetos/pendencias/helpers";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +45,7 @@ type Props = {
   disciplinaNome: string;
   versao: number;
   versaoAtual: boolean;
+  validado: boolean;
   finalizada: boolean;
   podeValidar: boolean;
   ehResponsavel: boolean;
@@ -65,7 +67,7 @@ const STATUS_META: Record<string, { label: string; cls: string; pin: string }> =
 };
 
 export function PdfViewer(props: Props) {
-  const { uploadId, projetoId, disciplinaId, nomeArquivo, codigo, projetoNome, disciplinaNome, versao, versaoAtual, finalizada, podeValidar, ehResponsavel, ehAdmin, colunasTarefa, opcoesTarefa, responsaveisPadrao, pinInicial, paginaInicial } = props;
+  const { uploadId, projetoId, disciplinaId, nomeArquivo, codigo, projetoNome, disciplinaNome, versao, versaoAtual, validado, finalizada, podeValidar, ehResponsavel, ehAdmin, colunasTarefa, opcoesTarefa, responsaveisPadrao, pinInicial, paginaInicial } = props;
 
   const downloadUrl = `/api/uploads/${uploadId}/download?disposition=inline`;
   // Apontar é permitido mesmo com a entrega já validada — nesse caso o envio abre revisão
@@ -87,6 +89,10 @@ export function PdfViewer(props: Props) {
   }, []);
 
   const [pendencias, setPendencias] = useState<PendenciaView[]>(props.pendenciasIniciais);
+  const temApontamentoAberto = pendencias.some((p) => p.status === "aberta");
+  // Validar a prancha: só a versão vigente, entrega não finalizada, e sem apontamento
+  // aberto (força resolver/fechar as pendências antes de dar por validada).
+  const podeValidarArquivo = podeValidar && versaoAtual && !finalizada && !temApontamentoAberto;
   const [selecionadaId, setSelecionadaId] = useState<string | null>(null);
   const [modoApontar, setModoApontar] = useState(false);
   const [tarefaDialogAberto, setTarefaDialogAberto] = useState(false);
@@ -398,6 +404,19 @@ export function PdfViewer(props: Props) {
               <Maximize2 className="size-4" />
             </Button>
           </div>
+        )}
+        {podeValidarArquivo ? (
+          <AcoesValidacaoArquivo uploadId={uploadId} nomeArquivo={nomeArquivo} validado={validado} />
+        ) : (
+          podeValidar &&
+          versaoAtual &&
+          !finalizada &&
+          !validado &&
+          temApontamentoAberto && (
+            <span className="text-xs text-warning" title="Resolva ou feche os apontamentos abertos para validar a prancha">
+              Apontamento(s) em aberto — não é possível validar.
+            </span>
+          )
         )}
         {podeApontar ? (
           <>

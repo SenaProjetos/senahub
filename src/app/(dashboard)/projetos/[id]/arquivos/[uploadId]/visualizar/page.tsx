@@ -30,6 +30,7 @@ export default async function VisualizarPage({
       mimeType: true,
       pacote: true,
       versao: true,
+      validado: true,
       disciplinaId: true,
       disciplina: {
         select: {
@@ -93,6 +94,7 @@ export default async function VisualizarPage({
       disciplinaNome={upload.disciplina.nome}
       versao={upload.versao}
       versaoAtual={!maisNova}
+      validado={upload.validado}
       finalizada={upload.disciplina.status === "aprovado"}
       podeValidar={podeValidar}
       ehResponsavel={ehResp}

@@ -1,4 +1,10 @@
 import { z } from "zod";
+import { ABAS_CONFIGURAVEIS } from "@/modules/projetos/abas";
+
+export const abaConfigItemSchema = z.object({
+  suffix: z.enum(ABAS_CONFIGURAVEIS),
+  oculta: z.boolean(),
+});
 
 export const STATUS_DISCIPLINA = [
   "aguardando",
@@ -40,6 +46,7 @@ export const editarProjetoSchema = z.object({
   endereco: z.string().optional(),
   prazoFinal: z.string().optional(),
   valorContrato: z.number().nonnegative().optional(),
+  abasConfig: z.array(abaConfigItemSchema).optional(),
 });
 
 export const atualizarStatusDisciplinaSchema = z.object({

@@ -3,12 +3,14 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Pencil } from "lucide-react";
+import { Pencil, ChevronUp, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { editarProjeto } from "@/modules/projetos/actions";
 import { SITUACAO_PROJETO_LABEL } from "@/modules/projetos/status";
+import { ABA_LABEL, abasParaEdicao, type AbaConfigItem } from "@/modules/projetos/abas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -36,6 +38,7 @@ type ProjetoEditavel = {
   prazoFinal: string | null; // ISO date (yyyy-mm-dd)
   valorContrato: number | null;
   clienteId: string;
+  abasConfig: AbaConfigItem[] | null;
 };
 
 /** Item 12 (beta): editar todas as informações do projeto, não só o nome. */
@@ -61,6 +64,21 @@ export function EditarProjetoDialog({
   const [valorContrato, setValorContrato] = useState(
     projeto.valorContrato != null ? String(projeto.valorContrato) : "",
   );
+  const [abas, setAbas] = useState<AbaConfigItem[]>(() => abasParaEdicao(projeto.abasConfig));
+
+  function moverAba(i: number, direcao: -1 | 1) {
+    setAbas((atual) => {
+      const j = i + direcao;
+      if (j < 0 || j >= atual.length) return atual;
+      const nova = atual.slice();
+      [nova[i], nova[j]] = [nova[j], nova[i]];
+      return nova;
+    });
+  }
+
+  function alternarOculta(i: number) {
+    setAbas((atual) => atual.map((a, idx) => (idx === i ? { ...a, oculta: !a.oculta } : a)));
+  }
 
   function abrir() {
     // Reseta para os valores atuais do projeto a cada abertura.
@@ -73,6 +91,7 @@ export function EditarProjetoDialog({
     setEndereco(projeto.endereco ?? "");
     setPrazoFinal(projeto.prazoFinal ?? "");
     setValorContrato(projeto.valorContrato != null ? String(projeto.valorContrato) : "");
+    setAbas(abasParaEdicao(projeto.abasConfig));
     setOpen(true);
   }
 
@@ -93,6 +112,7 @@ export function EditarProjetoDialog({
         endereco: endereco || undefined,
         prazoFinal: prazoFinal || undefined,
         valorContrato: valorContrato ? Number(valorContrato) : undefined,
+        abasConfig: abas,
       });
       if (res.ok) {
         toast.success("Projeto atualizado.");
@@ -202,6 +222,67 @@ export function EditarProjetoDialog({
                   onChange={(e) => setValorContrato(e.target.value)}
                 />
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Abas do projeto</Label>
+              <p className="text-xs text-muted-foreground">
+                Ordem de exibição e visibilidade das abas — Visão Geral fica sempre fixa primeiro.
+              </p>
+              <ul className="divide-y rounded-lg border">
+                {abas.map((a, i) => (
+                  <li
+                    key={a.suffix}
+                    className={cn(
+                      "flex items-center gap-2 px-2.5 py-1.5 text-sm",
+                      a.oculta && "text-muted-foreground",
+                    )}
+                  >
+                    <div className="flex flex-col">
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="size-5"
+                        disabled={i === 0}
+                        onClick={() => moverAba(i, -1)}
+                        aria-label={`Mover ${ABA_LABEL[a.suffix]} para cima`}
+                      >
+                        <ChevronUp className="size-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="size-5"
+                        disabled={i === abas.length - 1}
+                        onClick={() => moverAba(i, 1)}
+                        aria-label={`Mover ${ABA_LABEL[a.suffix]} para baixo`}
+                      >
+                        <ChevronDown className="size-3.5" />
+                      </Button>
+                    </div>
+                    <span className={cn("flex-1", a.oculta && "italic")}>{ABA_LABEL[a.suffix]}</span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 gap-1 px-2 text-xs"
+                      onClick={() => alternarOculta(i)}
+                    >
+                      {a.oculta ? (
+                        <>
+                          <EyeOff className="size-3.5" /> Oculta
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="size-3.5" /> Visível
+                        </>
+                      )}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
 

@@ -272,6 +272,12 @@ export const validarArquivo = defineAction(
   { ...baseValidacao, acao: "validar-arquivo", schema: uploadIdSchema },
   async (input, { user }) => {
     const upload = await carregarUploadEditavel(input.uploadId);
+    const apontamentoAberto = await prisma.pendencia.count({
+      where: { uploadId: upload.id, status: "aberta" },
+    });
+    if (apontamentoAberto > 0) {
+      throw new ActionError("Há apontamento(s) em aberto nesta prancha — resolva-os antes de validar.");
+    }
     await prisma.upload.update({
       where: { id: upload.id },
       data: {
