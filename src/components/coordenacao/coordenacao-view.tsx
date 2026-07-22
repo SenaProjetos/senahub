@@ -26,6 +26,7 @@ import {
 import { enviaveis as apontamentosEnviaveis } from "@/modules/coordenacao/helpers";
 import { type ModeloRow } from "@/components/coordenacao/conversao-status-view";
 import { ArvoreModelo } from "@/components/coordenacao/arvore-modelo";
+import { MarkupEditor } from "@/components/coordenacao/markup-editor";
 import { MedicaoToolbar } from "@/components/coordenacao/medicao-toolbar";
 import { PainelDisciplinas } from "@/components/coordenacao/painel-disciplinas";
 import { PainelPropriedades } from "@/components/coordenacao/painel-propriedades";
@@ -102,6 +103,8 @@ export function CoordenacaoView({
   const [enviandoAvulso, setEnviandoAvulso] = useState(false);
   // Após aplicar: espera a nova versão converter e a troca na cena (novo entra, antigo sai).
   const [trocaPendente, setTrocaPendente] = useState<{ antigo: string; novo: string } | null>(null);
+  // Snapshot recém-capturado aguardando marcação (seta/círculo/texto) antes de anexar.
+  const [snapshotEditor, setSnapshotEditor] = useState<{ apontamentoId: string; blob: Blob } | null>(null);
 
   // Só modelos já convertidos (têm .frag) entram em realinhamento — precisam da prévia.
   const modelosRealinhaveis = useMemo(
@@ -386,14 +389,20 @@ export function CoordenacaoView({
       toast.success(`Apontamento #${novo.numero} criado.`);
 
       // Snapshot: melhor esforço — falha aqui não invalida o apontamento já criado.
+      // Abre o editor de marcações com o snapshot capturado; usuário pode desenhar
+      // seta/círculo/texto antes de anexar (ou cancelar e não anexar snapshot algum).
       const blob = await engineRef.current?.capturarSnapshot().catch(() => null);
-      if (blob) {
-        const fd = new FormData();
-        fd.append("apontamentoId", r.data.id);
-        fd.append("file", blob, "snapshot.png");
-        await fetch("/api/coordenacao/snapshot", { method: "POST", body: fd }).catch(() => {});
-      }
+      if (blob) setSnapshotEditor({ apontamentoId: r.data.id, blob });
     });
+  }
+
+  async function salvarSnapshotMarcado(blobFinal: Blob) {
+    if (!snapshotEditor) return;
+    const fd = new FormData();
+    fd.append("apontamentoId", snapshotEditor.apontamentoId);
+    fd.append("file", blobFinal, "snapshot.png");
+    await fetch("/api/coordenacao/snapshot", { method: "POST", body: fd }).catch(() => {});
+    setSnapshotEditor(null);
   }
 
   function salvarEdicao(draft: ApontamentoDraft) {
@@ -665,6 +674,12 @@ export function CoordenacaoView({
         valorInicial={editando ? { titulo: editando.titulo, texto: editando.texto } : undefined}
         pending={pending}
         onSalvar={salvarEdicao}
+      />
+      <MarkupEditor
+        aberto={snapshotEditor != null}
+        imagem={snapshotEditor?.blob ?? null}
+        onSalvar={(blob) => void salvarSnapshotMarcado(blob)}
+        onCancelar={() => setSnapshotEditor(null)}
       />
 
       {opcoesTarefa && enviarAberto && (
