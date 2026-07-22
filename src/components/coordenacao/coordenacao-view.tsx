@@ -26,6 +26,7 @@ import {
 import { enviaveis as apontamentosEnviaveis } from "@/modules/coordenacao/helpers";
 import { type ModeloRow } from "@/components/coordenacao/conversao-status-view";
 import { ArvoreModelo } from "@/components/coordenacao/arvore-modelo";
+import { ClashPainel } from "@/components/coordenacao/clash-painel";
 import { MarkupEditor } from "@/components/coordenacao/markup-editor";
 import { MedicaoToolbar } from "@/components/coordenacao/medicao-toolbar";
 import { PainelDisciplinas } from "@/components/coordenacao/painel-disciplinas";
@@ -142,6 +143,19 @@ export function CoordenacaoView({
       modelos
         .filter((m) => carregados.has(m.uploadId))
         .map((m) => ({ uploadId: m.uploadId, label: `${m.disciplinaNome} · ${m.nomeArquivo}` })),
+    [modelos, carregados],
+  );
+
+  // Modelos carregados p/ o clash (#1) — precisa do disciplinaId p/ virar apontamento.
+  const modelosClash = useMemo(
+    () =>
+      modelos
+        .filter((m) => carregados.has(m.uploadId))
+        .map((m) => ({
+          uploadId: m.uploadId,
+          disciplinaId: m.disciplinaId || null,
+          label: `${m.disciplinaNome} · ${m.nomeArquivo}`,
+        })),
     [modelos, carregados],
   );
 
@@ -632,6 +646,13 @@ export function CoordenacaoView({
           onFocar={focar}
         />
         <ArvoreModelo engine={engineRef.current} modelos={modelosCarregadosInfo} />
+        <ClashPainel
+          engine={engineRef.current}
+          modelos={modelosClash}
+          projetoId={projetoId}
+          projetoCodigo={projetoCodigo}
+          projetoNome={projetoNome}
+        />
         <ApontamentosLista
           apontamentos={apontamentos}
           selecionadoId={apontamentoSelecionadoId}

@@ -104,19 +104,27 @@ Objetivo: salvar câmera + visibilidade + corte como vista nomeada, reabrir/comp
 
 ## #1 Detecção automática de conflitos (Clash) — NÚCLEO DO MÓDULO
 
-Objetivo: achar interseções entre elementos de 2+ disciplinas, listar, virar apontamentos.
+Objetivo: achar interseções entre elementos de 2+ disciplinas, listar, virar apontamentos,
+e gerar **relatório com imagem de cada clash** (câmera no conflito + os 2 elementos realçados).
 
-| Fase | Entregável | Modelo | Motivo |
-|---|---|---|---|
-| F0 | **Spike + decisão**: broadphase (grade/BVH de bounding boxes) + narrowphase (interseção de malha triangular ou só bbox no v1); onde roda (child process, como conversão); orçamento de tempo/memória; tolerância (hard/clearance clash) | **Opus 4.8** | Geometria + performance, decisão cara |
-| F1 | `clash/broadphase.ts` (grade uniforme/AABB sweep) + `clash/narrowphase.ts` (SAT/triângulo-triângulo) — **puros, muito testados** | **Opus 4.8** | Algoritmo geométrico crítico |
-| F1 | `clash/estado.ts` (agrupamento, dedup, severidade) puro + testes | **Sonnet 5** | Especificado após F1 geo |
-| F2 | `scripts/detectar-clash.ts` (child process, lê `.frag`/geometria) + job pg-boss `detectar-clash` + `clash.ts` (orquestrador, injetável) | **Opus 4.8** | Performance + isolamento de processo |
-| F2 | `ConflitoCoordenacao` (schema + migração) + `actions.ts` (rodar clash, converter conflito→apontamento) | **Sonnet 5** | Padrão de action/schema |
-| F3 | `clash-painel.tsx` (matriz disciplina×disciplina, lista de conflitos, deep-link 3D) + realce dos pares no viewer | **Sonnet 5** | Componente + adapter |
-| F4 | Fixtures sintéticas (2 IFCs que colidem), testes e2e, tuning de tolerância | **Haiku 4.5** | Boilerplate/fixtures |
+**Decisões do F0 (2026-07-22, aprovadas):**
+- **Roda client-side** nos modelos já carregados — geometria (boxes + malhas) toda disponível
+  via fragments (`getBoxes`, `getItemsGeometry`). SEM child process, SEM web-ifc, SEM job.
+- **Narrowphase v1 = AABB + tolerância** (encoste não conta); triângulo-a-triângulo (Möller,
+  via `getItemsGeometry`) documentado como **v2** (`clash-malha.ts`, refina os pares do v1).
+- **Efêmero** — clash recomputa sob demanda; SEM schema/migração. Conflito que importa →
+  **1 clique vira apontamento** (o apontamento já persiste, tem status, vira tarefa).
 
-**Depende de:** Onda 0 (índice/geometria). Maior valor, maior risco → **começar pelo F0/F1 em Opus**.
+| Fase | Entregável | Modelo | Motivo | Status |
+|---|---|---|---|---|
+| F0 | Spike + decisões acima | **Opus 4.8** | Geometria + performance, decisão cara | ✅ feito |
+| F1 | `clash.ts` (sweep-and-prune X + AABB c/ tolerância), puro, testado | **Opus 4.8** | Algoritmo geométrico crítico | ✅ feito (11 testes) |
+| F2 | Adapter no `engine.ts` (junta boxes por disciplina via `getBoxes`, roda `detectarConflitos`, mapeia → view) + realce dos 2 elementos no viewer + câmera no conflito | **Sonnet 5** | Orquestração no engine (client) | ✅ feito |
+| F3 | `clash-painel.tsx` (escolher 2 disciplinas, lista, focar no 3D, "virar apontamento") | **Sonnet 5** | Componente + adapter | ✅ feito |
+| F3 | **Relatório de clashes**: p/ cada conflito, câmera no centro + realce dos 2 elementos → snapshot; compila HTML (abre em aba, print-to-PDF nativo do navegador — SEM puppeteer/dependência nova) | **Sonnet 5** | Geração de relatório + snapshot | ✅ feito (`relatorio-clash.ts`, 4 testes) |
+| F4 | Tuning de tolerância + (opcional) v2 narrowphase triângulo | **Opus 4.8** (v2 geo) | Refino geométrico | pendente |
+
+**Depende de:** Onda 0 (índice/geometria). **v1 sem persistência** (decisão F0).
 
 ---
 

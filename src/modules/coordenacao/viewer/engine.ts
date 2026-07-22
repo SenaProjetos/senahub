@@ -45,10 +45,12 @@ import {
   formatarArea,
   type Ponto3D,
 } from "@/modules/coordenacao/medicao";
+import { detectarConflitos, type Caixa, type Conflito } from "@/modules/coordenacao/clash";
 
 CameraControls.install({ THREE });
 
 const COR_SELECAO = 0x2563eb; // primário (azul) — highlight de seleção
+const COR_CONFLITO = 0xdc2626; // destrutivo (vermelho) — realce dos 2 elementos em conflito
 
 export type { AtributoItem, PsetItem };
 
@@ -77,6 +79,18 @@ export type EngineOpts = {
 
 /** Câmera do Apontamento — persistida em espaço IFC (Z-up, metros). */
 export type CameraApontamento = { position: Vec3; target: Vec3 };
+
+/** Um conflito (clash) entre um elemento do modelo A e um do modelo B. */
+export type ConflitoView = {
+  modeloIdA: string;
+  localIdA: number;
+  modeloIdB: string;
+  localIdB: number;
+  /** Menor penetração entre os 3 eixos (metros). */
+  profundidade: number;
+  /** Centro do volume de interseção, espaço three (mundo) — âncora de câmera/pin. */
+  centro: { x: number; y: number; z: number };
+};
 
 // ── Medição ──────────────────────────────────────────────────
 export type TipoMedicao = "distancia" | "angulo" | "area";
@@ -264,6 +278,14 @@ export class ViewerEngine {
   get temSelecao(): boolean {
     for (const ids of this.selecao.values()) if (ids.size > 0) return true;
     return false;
+  }
+
+  /** GUIDs IFC de localIds explícitos de UM modelo — usado pelo clash (#1) pra virar apontamento. */
+  async guidsPorLocalIds(modeloId: string, localIds: number[]): Promise<string[]> {
+    const model = this.modelos.get(modeloId);
+    if (!model || localIds.length === 0) return [];
+    const res = await model.getGuidsByLocalIds(localIds);
+    return res.filter((g): g is string => g != null);
   }
 
   /** GUIDs IFC da seleção atual (âncora dos apontamentos, F3). */
@@ -520,6 +542,85 @@ export class ViewerEngine {
     const model = this.modelos.get(modeloId);
     if (model && localIds.length > 0) await model.setVisible(localIds, true);
     await this.fragments.update(true);
+  }
+
+  // ── Clash (detecção de conflitos) ────────────────────────────
+  //
+  // v1 = AABB + tolerância, client-side (decisão do F0, ver docs/superpowers/plans/
+  // 2026-07-21-…). Junta índice+boxes de cada modelo (Onda 0) e roda o núcleo puro
+  // de clash.ts. Efêmero — não persiste; o chamador decide o que virar apontamento.
+
+  /** Detecta conflitos (AABB+tolerância) entre TODOS os elementos de dois modelos carregados. */
+  async detectarConflitos(modeloIdA: string, modeloIdB: string, tolerancia?: number): Promise<ConflitoView[]> {
+    const [elementosA, elementosB] = await Promise.all([
+      this.indiceDoModelo(modeloIdA),
+      this.indiceDoModelo(modeloIdB),
+    ]);
+    const localIdsA = elementosA.map((e) => e.localId);
+    const localIdsB = elementosB.map((e) => e.localId);
+    const [boxesA, boxesB] = await Promise.all([
+      this.bboxesDoModelo(modeloIdA, localIdsA),
+      this.bboxesDoModelo(modeloIdB, localIdsB),
+    ]);
+
+    const caixasA: Caixa[] = localIdsA.map((localId, i) => ({
+      localId,
+      min: [boxesA[i].min.x, boxesA[i].min.y, boxesA[i].min.z],
+      max: [boxesA[i].max.x, boxesA[i].max.y, boxesA[i].max.z],
+    }));
+    const caixasB: Caixa[] = localIdsB.map((localId, i) => ({
+      localId,
+      min: [boxesB[i].min.x, boxesB[i].min.y, boxesB[i].min.z],
+      max: [boxesB[i].max.x, boxesB[i].max.y, boxesB[i].max.z],
+    }));
+
+    const conflitos: Conflito[] = detectarConflitos(caixasA, caixasB, tolerancia);
+    return conflitos.map((c) => ({
+      modeloIdA,
+      localIdA: c.localIdA,
+      modeloIdB,
+      localIdB: c.localIdB,
+      profundidade: c.profundidade,
+      centro: { x: c.centro[0], y: c.centro[1], z: c.centro[2] },
+    }));
+  }
+
+  /**
+   * Realça os 2 elementos de um conflito (vermelho, opaco) — some qualquer realce
+   * anterior de conflito primeiro. Independente de `this.selecao`/destaque de disciplina.
+   */
+  async realcarConflito(c: ConflitoView): Promise<void> {
+    await this.limparRealceConflito();
+    const modelA = this.modelos.get(c.modeloIdA);
+    const modelB = this.modelos.get(c.modeloIdB);
+    const material = {
+      color: new THREE.Color(COR_CONFLITO),
+      renderedFaces: RenderedFaces.TWO,
+      opacity: 1,
+      transparent: false,
+    };
+    if (modelA) await modelA.highlight([c.localIdA], material);
+    if (modelB) await modelB.highlight([c.localIdB], material);
+    await this.fragments.update(true);
+  }
+
+  /** Remove o realce de conflito — reset total é barato (1 par por vez, poucos modelos). */
+  async limparRealceConflito(): Promise<void> {
+    for (const model of this.modelos.values()) await model.resetHighlight();
+    await this.fragments.update(true);
+  }
+
+  /** Enquadra a câmera no centro do conflito (usa o bbox dos 2 elementos, com folga). */
+  async focarConflito(c: ConflitoView): Promise<void> {
+    const box = new THREE.Box3();
+    const [boxesA, boxesB] = await Promise.all([
+      this.bboxesDoModelo(c.modeloIdA, [c.localIdA]),
+      this.bboxesDoModelo(c.modeloIdB, [c.localIdB]),
+    ]);
+    if (boxesA[0]) box.union(boxesA[0]);
+    if (boxesB[0]) box.union(boxesB[0]);
+    if (box.isEmpty()) return;
+    await this.controls.fitToBox(box, true, { paddingLeft: 1, paddingRight: 1, paddingTop: 1, paddingBottom: 1 });
   }
 
   // ── Medição (distância/ângulo/área) ─────────────────────────
