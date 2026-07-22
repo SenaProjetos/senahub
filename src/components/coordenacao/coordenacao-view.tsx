@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { MapPin, Send, Move3d } from "lucide-react";
+import { MapPin, Send, Move3d, FileUp } from "lucide-react";
 import type {
   ViewerEngine,
   SelecaoInfo,
@@ -26,6 +26,7 @@ import {
 import { enviaveis as apontamentosEnviaveis } from "@/modules/coordenacao/helpers";
 import { type ModeloRow } from "@/components/coordenacao/conversao-status-view";
 import { ArvoreModelo } from "@/components/coordenacao/arvore-modelo";
+import { BcfImportDialog } from "@/components/coordenacao/bcf-import-dialog";
 import { ClashPainel } from "@/components/coordenacao/clash-painel";
 import { DiffPainel } from "@/components/coordenacao/diff-painel";
 import { MarkupEditor } from "@/components/coordenacao/markup-editor";
@@ -101,6 +102,7 @@ export function CoordenacaoView({
 
   // ── Realinhamento (offset de IFC) ──
   const [realinharAberto, setRealinharAberto] = useState(false);
+  const [bcfImportAberto, setBcfImportAberto] = useState(false);
   const [realinharUploadId, setRealinharUploadId] = useState<string | null>(null);
   const [vetorRealinhar, setVetorRealinhar] = useState<[number, number, number]>([0, 0, 0]);
   const [enviandoAvulso, setEnviandoAvulso] = useState(false);
@@ -603,6 +605,9 @@ export function CoordenacaoView({
             <Button size="sm" variant="secondary" disabled={realinharAberto || pending} onClick={() => setRealinharAberto(true)} className="gap-1">
               <Move3d className="size-4" /> Realinhar
             </Button>
+            <Button size="sm" variant="secondary" disabled={pending} onClick={() => setBcfImportAberto(true)} className="gap-1">
+              <FileUp className="size-4" /> Importar BCF
+            </Button>
             <Button size="sm" variant="secondary" disabled={!temSelecao || pending} onClick={abrirNovoApontamento} className="gap-1">
               <MapPin className="size-4" /> Novo apontamento
             </Button>
@@ -714,6 +719,13 @@ export function CoordenacaoView({
         imagem={snapshotEditor?.blob ?? null}
         onSalvar={(blob) => void salvarSnapshotMarcado(blob)}
         onCancelar={() => setSnapshotEditor(null)}
+      />
+      <BcfImportDialog
+        aberto={bcfImportAberto}
+        onFechar={() => setBcfImportAberto(false)}
+        engine={engineRef.current}
+        modelos={modelosClash}
+        projetoId={projetoId}
       />
 
       {opcoesTarefa && enviarAberto && (

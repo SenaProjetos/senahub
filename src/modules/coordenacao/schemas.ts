@@ -31,6 +31,19 @@ export const criarApontamentoSchema = z.object({
   camera: cameraSchema,
 });
 
+// Importação de tópico BCF (#3) — quase igual ao criar apontamento, mas com bcfGuid
+// (dedup) e texto/título mais tolerantes (BCF de terceiros nem sempre tem descrição).
+export const importarTopicoBcfSchema = z.object({
+  projetoId: z.string().min(1),
+  disciplinaId: z.string().min(1).nullish(),
+  uploadId: z.string().min(1),
+  bcfGuid: z.string().min(1),
+  titulo: z.string().trim().max(200),
+  texto: z.string().trim().max(1000),
+  guids: z.array(z.string()).max(500),
+  camera: cameraSchema,
+});
+
 export const editarApontamentoSchema = z.object({
   id: z.string().min(1),
   titulo: z.string().trim().min(1, "Dê um título ao apontamento.").max(200),

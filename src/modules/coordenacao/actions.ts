@@ -22,6 +22,7 @@ import {
   enviarApontamentosSchema,
   criarVistaSchema,
   idVistaSchema,
+  importarTopicoBcfSchema,
 } from "@/modules/coordenacao/schemas";
 
 const MOTIVO_LABEL: Record<string, string> = {
@@ -169,6 +170,46 @@ const baseGerir = { modulo: "coordenacao", recurso: "coordenacao", permissao: "g
 // Resolver/reabrir: qualquer um com acesso à maquete (coordenacao:ver) pode tentar; o
 // vínculo fino (responsável da disciplina, ou perfil global) é checado no handler.
 const baseVer = { modulo: "coordenacao", recurso: "coordenacao", permissao: "ver", entidade: "ApontamentoCoordenacao" } as const;
+
+/**
+ * Importa 1 tópico BCF como apontamento — dedup por `bcfGuid` (reimportar o mesmo
+ * .bcfzip não duplica). O chamador (dialog de import) já resolveu qual modelo/
+ * disciplina ancora o tópico (por guids, ou fallback escolhido pelo usuário).
+ */
+export const importarTopicoBcf = defineAction(
+  { ...baseGerir, acao: "importar-topico-bcf", schema: importarTopicoBcfSchema, entidadeId: (d) => (d as { id: string }).id },
+  async (input, { user }) => {
+    const existente = await prisma.apontamentoCoordenacao.findFirst({
+      where: { projetoId: input.projetoId, bcfGuid: input.bcfGuid },
+      select: { id: true, numero: true },
+    });
+    if (existente) return { id: existente.id, numero: existente.numero, duplicado: true };
+
+    const apontamento = await prisma.$transaction(async (tx) => {
+      const max = await tx.apontamentoCoordenacao.aggregate({
+        where: { projetoId: input.projetoId },
+        _max: { numero: true },
+      });
+      return tx.apontamentoCoordenacao.create({
+        data: {
+          projetoId: input.projetoId,
+          disciplinaId: input.disciplinaId ?? null,
+          uploadId: input.uploadId,
+          numero: (max._max.numero ?? 0) + 1,
+          titulo: input.titulo || "(Sem título)",
+          texto: input.texto || "Importado de BCF.",
+          guids: input.guids,
+          camera: input.camera,
+          status: "aberta",
+          autorId: user.id,
+          bcfGuid: input.bcfGuid,
+        },
+      });
+    });
+    revalidarCoordenacao(input.projetoId);
+    return { id: apontamento.id, numero: apontamento.numero, duplicado: false };
+  },
+);
 
 /** Cria um apontamento 3D: elementos (GUIDs) + câmera capturados no viewer. Numeração por projeto. */
 export const criarApontamentoCoordenacao = defineAction(

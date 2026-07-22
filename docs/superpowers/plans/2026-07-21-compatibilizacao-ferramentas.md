@@ -165,14 +165,19 @@ client-side (antiga+nova), removidos aparecem em vermelho na antiga (descarrega 
 
 Objetivo: importar `.bcfzip` (Navisworks/Solibri/Revit) → apontamentos; fecha interoperabilidade.
 
-| Fase | Entregável | Modelo | Motivo |
-|---|---|---|---|
-| F0 | Mapear BCF 2.1 (markup/viewpoint) → `ApontamentoCoordenacao`; casar `bcfGuid` p/ não duplicar; câmera BCF→IFC | **Opus 4.8** | Compatibilidade + conversão de câmera (risco) |
-| F1 | `bcf/reader.ts` puro (parse XML + viewpoint), espelho do `writer.ts`, muito testado | **Sonnet 5** |
-| F2 | Rota multipart `/api/coordenacao/bcf/import` + action de ingestão (dedup por `bcfGuid`) | **Sonnet 5** |
-| F3 | Dialog de import + prévia do que será criado | **Haiku 4.5** |
+**Decisões do F0 (2026-07-22, aprovadas):** leitura CLIENT-SIDE (resolver guid→modelo
+exige o fragments carregado); dep nova `fflate` (unzip isomórfico, sem binário nativo);
+parser XML hand-rolled puro (espelha o writer); ancoragem automática por guids +
+fallback escolhido pelo usuário quando não bate com nenhum modelo carregado.
 
-**Depende de:** `bcf/writer.ts` (metade pronta). **Habilita:** melhor #8.
+| Fase | Entregável | Modelo | Status |
+|---|---|---|---|
+| F0 | Decisões acima | **Opus 4.8** | ✅ feito |
+| F1 | `bcf/reader.ts` puro (parse XML tolerante + viewpoint→câmera), espelho do `writer.ts`; round-trip testado com o writer | **Opus 4.8** | ✅ feito (8 testes) |
+| F2 | `fflate` instalado; `bcf/importar.ts` (agrupa zip por pasta, puro); `importarTopicoBcf` action (dedup `bcfGuid`); `resolverModeloPorGuids` no engine | **Sonnet 5** | ✅ feito (5 testes) |
+| F3 | `bcf-import-dialog.tsx` (escolhe .bcfzip, resolve modelo por guid ou fallback, importa em lote + snapshot) | **Sonnet 5** | ✅ feito |
+
+**Depende de:** `bcf/writer.ts` (já existia). **Habilita:** melhor #8.
 
 ---
 

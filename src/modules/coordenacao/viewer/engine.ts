@@ -291,6 +291,25 @@ export class ViewerEngine {
     return res.filter((g): g is string => g != null);
   }
 
+  /**
+   * Resolve, entre os modelos CARREGADOS, qual contém mais dos guids informados —
+   * usado pelo import BCF (#3) pra ancorar cada tópico automaticamente. Null se
+   * nenhum modelo carregado tiver ao menos 1 guid em comum (o chamador cai pro
+   * fallback escolhido pelo usuário).
+   */
+  async resolverModeloPorGuids(guids: string[]): Promise<{ modeloId: string; encontrados: number } | null> {
+    if (guids.length === 0) return null;
+    let melhor: { modeloId: string; encontrados: number } | null = null;
+    for (const [modeloId, model] of this.modelos) {
+      const ids = await model.getLocalIdsByGuids(guids);
+      const encontrados = ids.filter((id) => id != null).length;
+      if (encontrados > 0 && (!melhor || encontrados > melhor.encontrados)) {
+        melhor = { modeloId, encontrados };
+      }
+    }
+    return melhor;
+  }
+
   /** GUIDs IFC da seleção atual (âncora dos apontamentos, F3). */
   async guidsDaSelecao(): Promise<string[]> {
     const guids: string[] = [];
