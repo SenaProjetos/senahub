@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, CheckCheck, Check, Mail, X } from "lucide-react";
+import { Bell, CheckCheck, Check, Mail, X, ArrowRight } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -32,6 +32,7 @@ const POLL_MS = 30_000;
 
 export function NotificationBell() {
   const router = useRouter();
+  const [aberto, setAberto] = useState(false);
   const [itens, setItens] = useState<Notif[]>([]);
   const [naoLidas, setNaoLidas] = useState(0);
   const anterior = useRef(0);
@@ -78,7 +79,15 @@ export function NotificationBell() {
       await marcarLida(n.id);
       void carregar(false);
     }
-    if (n.href) router.push(n.href);
+    if (n.href) {
+      setAberto(false);
+      router.push(n.href);
+    }
+  }
+
+  function verTudo() {
+    setAberto(false);
+    router.push("/notificacoes");
   }
 
   async function lerTodas() {
@@ -98,7 +107,7 @@ export function NotificationBell() {
   }
 
   return (
-    <Popover>
+    <Popover open={aberto} onOpenChange={setAberto}>
       <PopoverTrigger
         render={
           <Button variant="ghost" size="icon" aria-label="Notificações" className="relative">
@@ -113,7 +122,12 @@ export function NotificationBell() {
       />
       <PopoverContent align="end" className="w-80 p-0">
         <div className="flex items-center justify-between border-b px-3 py-2">
-          <span className="text-sm font-semibold">Notificações</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-semibold">Notificações</span>
+            <Button variant="link" size="xs" className="h-auto px-1 py-0" onClick={verTudo}>
+              Ver tudo <ArrowRight className="size-3" />
+            </Button>
+          </div>
           {naoLidas > 0 && (
             <Button variant="ghost" size="xs" onClick={lerTodas}>
               <CheckCheck className="size-3.5" /> Ler todas
