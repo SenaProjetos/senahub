@@ -103,7 +103,7 @@ function PreviewPdfButton({ nomeArquivo, url, titulo }: { nomeArquivo: string; u
         <Eye className="size-3.5" />
       </button>
       <Dialog open={aberto} onOpenChange={setAberto}>
-        <DialogContent className="flex h-[92svh] max-w-5xl flex-col gap-0 overflow-hidden p-0">
+        <DialogContent className="flex h-[92svh] w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">
           <DialogHeader className="border-b px-4 py-2">
             <DialogTitle className="truncate text-sm">{titulo}</DialogTitle>
             <DialogDescription className="sr-only">Pré-visualização somente leitura do PDF.</DialogDescription>
