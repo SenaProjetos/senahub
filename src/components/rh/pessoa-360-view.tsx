@@ -30,6 +30,8 @@ export type Pessoa360Props = {
   escala: { temOverride: boolean; dias: DiaGrade[]; roleDias: DiaGrade[] } | null;
   banco: BancoRow[] | null;
   temPonto: boolean;
+  /** Só CLT/estagiário têm jornada controlada (esperado/saldo); demais cargos veem só o trabalhado. */
+  controlaJornada?: boolean;
   nf: NotasUsuario | null;
   /** Modo auto-serviço (o próprio usuário vendo sua ficha): esconde links de gestão que ele não acessa. */
   self?: boolean;
@@ -81,7 +83,7 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
   );
 }
 
-export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [], preferenciasSlot }: Pessoa360Props) {
+export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, controlaJornada = false, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [], preferenciasSlot }: Pessoa360Props) {
   // Cadastro no formato do EditarCadastroDialog (junta os escalares + o vínculo PJ do cabeçalho).
   const cadastroDialog: Cadastro | null = cadastro
     ? {
@@ -246,19 +248,23 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
               {pontoEstado === "pronto" && ponto && (
                 <>
                   <p className="text-sm text-muted-foreground">Mês {String(ponto.mes).padStart(2, "0")}/{ponto.ano}</p>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className={`grid gap-3 ${controlaJornada ? "grid-cols-3" : "grid-cols-1"}`}>
                     <div className="rounded-lg border p-3">
                       <div className="text-xs uppercase tracking-wide text-muted-foreground">Trabalhado</div>
                       <div className="text-lg font-semibold tabular-nums">{minutosParaHoras(ponto.totalMinutos)}</div>
                     </div>
-                    <div className="rounded-lg border p-3">
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Esperado (até hoje)</div>
-                      <div className="text-lg font-semibold tabular-nums">{minutosParaHoras(ponto.esperadoMinutos)}</div>
-                    </div>
-                    <div className="rounded-lg border p-3">
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Saldo</div>
-                      <div className={`text-lg font-semibold tabular-nums ${ponto.saldoMinutos < 0 ? "text-destructive" : "text-success"}`}>{minutosParaHoras(ponto.saldoMinutos)}</div>
-                    </div>
+                    {controlaJornada && (
+                      <>
+                        <div className="rounded-lg border p-3">
+                          <div className="text-xs uppercase tracking-wide text-muted-foreground">Esperado (até hoje)</div>
+                          <div className="text-lg font-semibold tabular-nums">{minutosParaHoras(ponto.esperadoMinutos)}</div>
+                        </div>
+                        <div className="rounded-lg border p-3">
+                          <div className="text-xs uppercase tracking-wide text-muted-foreground">Saldo</div>
+                          <div className={`text-lg font-semibold tabular-nums ${ponto.saldoMinutos < 0 ? "text-destructive" : "text-success"}`}>{minutosParaHoras(ponto.saldoMinutos)}</div>
+                        </div>
+                      </>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {ponto.dias.length === 0 ? "Sem batidas neste mês." : `${ponto.dias.length} dia(s) com registro.`}

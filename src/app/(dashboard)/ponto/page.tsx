@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { estadoDoDia, projetosDoUsuario, espelhoMes, ajustesPendentesCiencia } from "@/modules/ponto/queries";
 import { rateioMesGestor } from "@/modules/rh/rateio/queries";
+import { CLT_ROLES } from "@/lib/roles";
 import { disciplinasEscreviveisNoProjeto, type DisciplinaEscrevivel } from "@/modules/projetos/diario/queries";
 import { PontoView } from "@/components/ponto/ponto-view";
 import { PontoSubnav } from "@/components/ponto/ponto-subnav";
@@ -61,6 +62,7 @@ export default async function PontoPage() {
         mes={mes}
         pendencias={pendencias}
         diarioPorProjeto={diarioPorProjeto}
+        controlaJornada={CLT_ROLES.includes(user.role)}
       />
     </div>
   );

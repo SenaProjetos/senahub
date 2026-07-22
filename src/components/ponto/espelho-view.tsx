@@ -112,12 +112,14 @@ function LinhaDia({
   projetos,
   userIdAlvo,
   podeEditar,
+  controlaJornada,
   diarioPorProjeto,
 }: {
   dia: DiaEspelhoDetalhe;
   projetos: Projeto[];
   userIdAlvo?: string;
   podeEditar: boolean;
+  controlaJornada: boolean;
   diarioPorProjeto: Record<string, DisciplinaEscrevivel[]>;
 }) {
   const [aberto, setAberto] = useState(false);
@@ -126,6 +128,7 @@ function LinhaDia({
   const podeExpandir = dia.temMultiplosDescansos || dia.batidas.length > 0 || dia.ajustes.length > 0;
   // Dias futuros (agendados) não são editáveis.
   const editavel = podeEditar && dia.status !== "agendado";
+  const colunas = controlaJornada ? 11 : 9;
 
   return (
     <>
@@ -162,12 +165,16 @@ function LinhaDia({
         <td className="px-2 py-1.5 text-center font-mono font-medium">
           {dia.trabalhadoMin > 0 ? fmtHoras(dia.trabalhadoMin) : "—"}
         </td>
-        <td className="px-2 py-1.5 text-center font-mono text-muted-foreground">
-          {dia.devidasMin > 0 ? fmtHoras(dia.devidasMin) : "—"}
-        </td>
-        <td className="px-2 py-1.5 text-center font-mono">
-          {dia.extrasMin > 0 ? <span className="text-success">{fmtHoras(dia.extrasMin)}</span> : "—"}
-        </td>
+        {controlaJornada && (
+          <td className="px-2 py-1.5 text-center font-mono text-muted-foreground">
+            {dia.devidasMin > 0 ? fmtHoras(dia.devidasMin) : "—"}
+          </td>
+        )}
+        {controlaJornada && (
+          <td className="px-2 py-1.5 text-center font-mono">
+            {dia.extrasMin > 0 ? <span className="text-success">{fmtHoras(dia.extrasMin)}</span> : "—"}
+          </td>
+        )}
         <td className="px-2 py-1.5 text-center">
           <span className="inline-flex items-center gap-1">
             <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
@@ -194,7 +201,7 @@ function LinhaDia({
       </tr>
       {aberto && (
         <tr className="bg-muted/20">
-          <td colSpan={11} className="px-4 py-2">
+          <td colSpan={colunas} className="px-4 py-2">
             <div className="flex flex-col gap-2 text-xs">
               {dia.ajustes.length > 0 && (
                 <div className="flex flex-col gap-1">
@@ -361,10 +368,13 @@ export function EspelhoView({
     const ExcelJS = await import("exceljs");
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("Espelho");
-    ws.addRow(["Data", "Entrada", "S.Desc", "V.Desc", "Saída", "Descanso", "Trabalhado", "Devidas", "Extras", "Status"]).font = { bold: true };
+    const cabecalho = ["Data", "Entrada", "S.Desc", "V.Desc", "Saída", "Descanso", "Trabalhado"];
+    if (detalhe.controlaJornada) cabecalho.push("Devidas", "Extras");
+    cabecalho.push("Status");
+    ws.addRow(cabecalho).font = { bold: true };
     for (const d of detalhe.dias) {
       const p = d.descansos[0];
-      ws.addRow([
+      const linha = [
         dataLabel(d.dia),
         d.entrada ?? "—",
         p?.inicio ?? "—",
@@ -372,10 +382,15 @@ export function EspelhoView({
         d.saida ?? "—",
         d.descansoMin > 0 ? fmtHoras(d.descansoMin) : "—",
         d.trabalhadoMin > 0 ? fmtHoras(d.trabalhadoMin) : "—",
-        d.devidasMin > 0 ? fmtHoras(d.devidasMin) : "—",
-        d.extrasMin > 0 ? fmtHoras(d.extrasMin) : "—",
-        STATUS_META[d.status].label,
-      ]);
+      ];
+      if (detalhe.controlaJornada) {
+        linha.push(
+          d.devidasMin > 0 ? fmtHoras(d.devidasMin) : "—",
+          d.extrasMin > 0 ? fmtHoras(d.extrasMin) : "—",
+        );
+      }
+      linha.push(STATUS_META[d.status].label);
+      ws.addRow(linha);
     }
     ws.columns.forEach((c) => { c.width = 13; });
     const buf = await wb.xlsx.writeBuffer();
@@ -446,35 +461,39 @@ export function EspelhoView({
 
       {equipe && <EquipeAgoraCard equipe={equipe} />}
 
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className={`grid gap-3 ${detalhe.controlaJornada ? "sm:grid-cols-4" : "sm:grid-cols-1"}`}>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">Trabalhado</CardDescription>
             <CardTitle className="text-xl">{fmtHoras(detalhe.totalMinutos)}</CardTitle>
           </CardHeader>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">Esperado</CardDescription>
-            <CardTitle className="text-xl text-muted-foreground">{fmtHoras(detalhe.esperadoMinutos)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">Saldo do mês</CardDescription>
-            <CardTitle className={`text-xl ${detalhe.saldoMinutos < 0 ? "text-destructive" : "text-success"}`}>
-              {fmtHoras(detalhe.saldoMinutos)}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">Acumulado (banco)</CardDescription>
-            <CardTitle className={`text-xl ${(detalhe.acumuladoMinutos ?? 0) < 0 ? "text-destructive" : ""}`}>
-              {detalhe.acumuladoMinutos != null ? fmtHoras(detalhe.acumuladoMinutos) : "—"}
-            </CardTitle>
-          </CardHeader>
-        </Card>
+        {detalhe.controlaJornada && (
+          <>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">Esperado</CardDescription>
+                <CardTitle className="text-xl text-muted-foreground">{fmtHoras(detalhe.esperadoMinutos)}</CardTitle>
+              </CardHeader>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">Saldo do mês</CardDescription>
+                <CardTitle className={`text-xl ${detalhe.saldoMinutos < 0 ? "text-destructive" : "text-success"}`}>
+                  {fmtHoras(detalhe.saldoMinutos)}
+                </CardTitle>
+              </CardHeader>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">Acumulado (banco)</CardDescription>
+                <CardTitle className={`text-xl ${(detalhe.acumuladoMinutos ?? 0) < 0 ? "text-destructive" : ""}`}>
+                  {detalhe.acumuladoMinutos != null ? fmtHoras(detalhe.acumuladoMinutos) : "—"}
+                </CardTitle>
+              </CardHeader>
+            </Card>
+          </>
+        )}
       </div>
 
       {/* Aceite mensal (S2) — só no próprio espelho de mês encerrado. */}
@@ -513,8 +532,12 @@ export function EspelhoView({
                 <th className="px-2 py-2 text-center font-medium">Saída</th>
                 <th className="px-2 py-2 text-center font-medium">Descanso</th>
                 <th className="px-2 py-2 text-center font-medium">Trabalhado</th>
-                <th className="px-2 py-2 text-center font-medium">Devidas</th>
-                <th className="px-2 py-2 text-center font-medium">Extras</th>
+                {detalhe.controlaJornada && (
+                  <>
+                    <th className="px-2 py-2 text-center font-medium">Devidas</th>
+                    <th className="px-2 py-2 text-center font-medium">Extras</th>
+                  </>
+                )}
                 <th className="px-2 py-2 text-center font-medium">Status</th>
                 <th className="px-2 py-2 text-center font-medium print:hidden"></th>
               </tr>
@@ -527,6 +550,7 @@ export function EspelhoView({
                   projetos={projetos}
                   userIdAlvo={userIdAlvo}
                   podeEditar={podeEditar}
+                  controlaJornada={detalhe.controlaJornada}
                   diarioPorProjeto={diarioPorProjeto}
                 />
               ))}

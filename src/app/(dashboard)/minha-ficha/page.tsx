@@ -64,6 +64,7 @@ export default async function MinhaFichaPage() {
         escala={escala}
         banco={banco}
         temPonto={batePonto}
+        controlaJornada={isCLT}
         nf={nf}
         preferenciasSlot={<PreferenciasView {...prefsConta} />}
       />

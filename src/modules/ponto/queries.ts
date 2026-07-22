@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { minutosSessao } from "@/modules/ponto/format";
 import { listarFeriados } from "@/modules/rh/feriados/queries";
 import { escalaRoleGrade, escalaUsuarioGrade, horasDiaPadrao, type DiaGrade } from "@/modules/rh/escalas/queries";
+import { CLT_ROLES } from "@/lib/roles";
 import { acumuladoAte } from "@/modules/rh/banco/queries";
 import {
   calcularDia,
@@ -492,6 +493,8 @@ export type EspelhoDetalhado = {
   acumuladoMinutos: number | null;
   aceite: { hash: string; aceitoEm: string } | null;
   podeAceitar: boolean;
+  /** Só CLT/estagiário têm jornada controlada (devidas/extras/saldo/banco); demais cargos são informativos. */
+  controlaJornada: boolean;
 };
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -700,6 +703,7 @@ export async function espelhoDetalhado(
     acumuladoMinutos: acumulado?.acumuladoMinutos ?? null,
     aceite: aceiteRow ? { hash: aceiteRow.hash, aceitoEm: aceiteRow.aceitoEm.toISOString() } : null,
     podeAceitar,
+    controlaJornada: CLT_ROLES.includes(user.role),
   };
 }
 

@@ -76,6 +76,7 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
       escala={escala}
       banco={banco}
       temPonto={batePonto}
+      controlaJornada={isCLT}
       nf={nf}
       podeEditarCadastro={podeEditarCadastro}
       pessoasJuridicas={opcoes?.pessoasJuridicas ?? []}

@@ -117,6 +117,7 @@ export function PontoView({
   mes,
   pendencias,
   diarioPorProjeto,
+  controlaJornada,
 }: {
   estadoDia: EstadoDiaProp;
   projetos: Projeto[];
@@ -126,6 +127,8 @@ export function PontoView({
   mes: number;
   pendencias: AjustePendenteProp[];
   diarioPorProjeto: Record<string, DisciplinaEscrevivel[]>;
+  /** Só CLT/estagiário têm controle de jornada (esperado/saldo); demais cargos são informativos. */
+  controlaJornada: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -161,13 +164,16 @@ export function PontoView({
 
   /** Matriz do espelho (cabeçalho + linhas) compartilhada pelo export CSV e XLSX. */
   function matrizExport(): { cabecalho: string[]; linhasExport: string[][] } {
-    const cabecalho = ["Data", "Entrada", "Saída", "Horas", "Projeto", "Saldo"];
+    const cabecalho = ["Data", "Entrada", "Saída", "Horas", "Projeto"];
+    if (controlaJornada) cabecalho.push("Saldo");
     const jornadaDia =
       espelho.dias.length > 0 ? espelho.esperadoMinutos / espelho.dias.length : 0;
     const linhasExport = linhas.map((l) => {
       const r = l.registro;
       if (!r) {
-        return [dataPtBr(l.iso), "—", "—", "—", "—", "—"];
+        return controlaJornada
+          ? [dataPtBr(l.iso), "—", "—", "—", "—", "—"]
+          : [dataPtBr(l.iso), "—", "—", "—", "—"];
       }
       // Entrada = início da 1ª sessão; Saída = fim da última (— se ainda aberta).
       const primeira = r.sessoes[0];
@@ -177,15 +183,12 @@ export function PontoView({
       const projetos = [
         ...new Set(r.sessoes.map((s) => s.projeto).filter((p): p is string => !!p)),
       ].join(" / ");
-      const saldoDia = jornadaDia > 0 && !l.fimDeSemana ? r.minutos - jornadaDia : r.minutos;
-      return [
-        dataPtBr(l.iso),
-        entrada,
-        saida,
-        fmtHoras(r.minutos),
-        projetos || "—",
-        fmtHoras(Math.round(saldoDia)),
-      ];
+      const linha = [dataPtBr(l.iso), entrada, saida, fmtHoras(r.minutos), projetos || "—"];
+      if (controlaJornada) {
+        const saldoDia = jornadaDia > 0 && !l.fimDeSemana ? r.minutos - jornadaDia : r.minutos;
+        linha.push(fmtHoras(Math.round(saldoDia)));
+      }
+      return linha;
     });
     return { cabecalho, linhasExport };
   }
@@ -262,7 +265,7 @@ export function PontoView({
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className={`grid gap-4 ${controlaJornada ? "sm:grid-cols-3" : "sm:grid-cols-1"}`}>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">
@@ -271,41 +274,45 @@ export function PontoView({
             <CardTitle className="text-2xl">{fmtHoras(trabalhadoPeriodo)}</CardTitle>
           </CardHeader>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">
-              Esperado ({PERIODO_LABEL[periodo]})
-            </CardDescription>
-            <CardTitle className="text-2xl text-muted-foreground">{fmtHoras(esperadoPeriodo)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.16em]">
-              Saldo ({PERIODO_LABEL[periodo]})
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <button
-                      type="button"
-                      aria-label="Como o saldo é calculado"
-                      className="inline-flex text-muted-foreground hover:text-foreground"
-                    >
-                      <Info className="size-3" />
-                    </button>
-                  }
-                />
-                <TooltipContent>
-                  Saldo = horas trabalhadas − jornada prevista, contando só os dias já decorridos
-                  (até hoje). Negativo = horas a compensar.
-                </TooltipContent>
-              </Tooltip>
-            </CardDescription>
-            <CardTitle className={`text-2xl ${saldoPeriodo < 0 ? "text-destructive" : "text-success"}`}>
-              {fmtHoras(saldoPeriodo)}
-            </CardTitle>
-          </CardHeader>
-        </Card>
+        {controlaJornada && (
+          <>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">
+                  Esperado ({PERIODO_LABEL[periodo]})
+                </CardDescription>
+                <CardTitle className="text-2xl text-muted-foreground">{fmtHoras(esperadoPeriodo)}</CardTitle>
+              </CardHeader>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.16em]">
+                  Saldo ({PERIODO_LABEL[periodo]})
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          type="button"
+                          aria-label="Como o saldo é calculado"
+                          className="inline-flex text-muted-foreground hover:text-foreground"
+                        >
+                          <Info className="size-3" />
+                        </button>
+                      }
+                    />
+                    <TooltipContent>
+                      Saldo = horas trabalhadas − jornada prevista, contando só os dias já decorridos
+                      (até hoje). Negativo = horas a compensar.
+                    </TooltipContent>
+                  </Tooltip>
+                </CardDescription>
+                <CardTitle className={`text-2xl ${saldoPeriodo < 0 ? "text-destructive" : "text-success"}`}>
+                  {fmtHoras(saldoPeriodo)}
+                </CardTitle>
+              </CardHeader>
+            </Card>
+          </>
+        )}
       </div>
 
       <Card>
