@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { MapPin, Send, Move3d, FileUp } from "lucide-react";
+import { MapPin, Send, Move3d, FileUp, Globe2 } from "lucide-react";
 import type {
   ViewerEngine,
   SelecaoInfo,
@@ -29,6 +29,7 @@ import { ArvoreModelo } from "@/components/coordenacao/arvore-modelo";
 import { BcfImportDialog } from "@/components/coordenacao/bcf-import-dialog";
 import { ClashPainel } from "@/components/coordenacao/clash-painel";
 import { DiffPainel } from "@/components/coordenacao/diff-painel";
+import { GeorrefDialog } from "@/components/coordenacao/georref-dialog";
 import { MarkupEditor } from "@/components/coordenacao/markup-editor";
 import { MedicaoToolbar } from "@/components/coordenacao/medicao-toolbar";
 import { PainelDisciplinas } from "@/components/coordenacao/painel-disciplinas";
@@ -103,6 +104,7 @@ export function CoordenacaoView({
   // ── Realinhamento (offset de IFC) ──
   const [realinharAberto, setRealinharAberto] = useState(false);
   const [bcfImportAberto, setBcfImportAberto] = useState(false);
+  const [georrefAberto, setGeorrefAberto] = useState(false);
   const [realinharUploadId, setRealinharUploadId] = useState<string | null>(null);
   const [vetorRealinhar, setVetorRealinhar] = useState<[number, number, number]>([0, 0, 0]);
   const [enviandoAvulso, setEnviandoAvulso] = useState(false);
@@ -608,6 +610,9 @@ export function CoordenacaoView({
             <Button size="sm" variant="secondary" disabled={pending} onClick={() => setBcfImportAberto(true)} className="gap-1">
               <FileUp className="size-4" /> Importar BCF
             </Button>
+            <Button size="sm" variant="secondary" disabled={pending} onClick={() => setGeorrefAberto(true)} className="gap-1">
+              <Globe2 className="size-4" /> Georreferenciar
+            </Button>
             <Button size="sm" variant="secondary" disabled={!temSelecao || pending} onClick={abrirNovoApontamento} className="gap-1">
               <MapPin className="size-4" /> Novo apontamento
             </Button>
@@ -727,6 +732,7 @@ export function CoordenacaoView({
         modelos={modelosClash}
         projetoId={projetoId}
       />
+      <GeorrefDialog aberto={georrefAberto} onFechar={() => setGeorrefAberto(false)} modelos={modelosDiff} />
 
       {opcoesTarefa && enviarAberto && (
         <TarefaDialog

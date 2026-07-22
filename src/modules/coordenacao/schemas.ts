@@ -15,6 +15,20 @@ export const realinharModeloSchema = z.object({
   dz: componenteVetor,
 });
 
+// Georreferenciamento (#9) — IfcMapConversion, IFC4-only. Alcance revalidado no
+// núcleo puro (validarGeorref); aqui só barra NaN/Infinity/tipo cedo.
+export const lerGeorrefSchema = z.object({ uploadId: z.string().min(1) });
+
+export const gravarGeorrefSchema = z.object({
+  uploadId: z.string().min(1),
+  crsName: z.string().trim().min(1, "Informe o CRS de destino.").max(120),
+  eastings: z.number().finite(),
+  northings: z.number().finite(),
+  orthogonalHeight: z.number().finite(),
+  rotacaoGraus: z.number().finite(),
+  escala: z.number().positive().finite().nullish(),
+});
+
 const cameraSchema = z.object({
   position: z.tuple([z.number(), z.number(), z.number()]),
   target: z.tuple([z.number(), z.number(), z.number()]),

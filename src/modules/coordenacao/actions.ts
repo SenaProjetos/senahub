@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { notificarMuitos } from "@/lib/notificar";
 import { enfileirarConversao, enfileirarConversaoDocumento } from "@/modules/coordenacao/service";
 import { realinharModelo } from "@/modules/coordenacao/deslocamento";
+import { lerGeorrefUpload, gravarGeorrefUpload } from "@/modules/coordenacao/georreferenciamento";
 import { parseModeloId } from "@/modules/coordenacao/modelo-ref";
 import { rotuloItemApontamento } from "@/modules/coordenacao/helpers";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -23,6 +24,8 @@ import {
   criarVistaSchema,
   idVistaSchema,
   importarTopicoBcfSchema,
+  lerGeorrefSchema,
+  gravarGeorrefSchema,
 } from "@/modules/coordenacao/schemas";
 
 const MOTIVO_LABEL: Record<string, string> = {
@@ -127,6 +130,70 @@ export const realinharModeloIfc = defineAction(
     } catch (e) {
       // A mensagem do orquestrador/child já é amigável (validação, header, sem raízes…).
       throw new ActionError(e instanceof Error ? e.message : "Falha ao realinhar o IFC.");
+    }
+
+    revalidarCoordenacao(r.projetoId);
+    revalidatePath(`/projetos/${r.projetoId}/arquivos`);
+    return r;
+  },
+);
+
+/** Lê o georreferenciamento ATUAL (IfcMapConversion) de um upload — v1 = só disciplina, não recebidos. */
+export const lerGeorreferenciamento = defineAction(
+  {
+    modulo: "coordenacao",
+    recurso: "coordenacao",
+    permissao: "ver",
+    acao: "ler-georreferenciamento",
+    entidade: "Upload",
+    schema: lerGeorrefSchema,
+    entidadeId: (d) => (d as { uploadId: string }).uploadId,
+  },
+  async (input) => {
+    try {
+      return await lerGeorrefUpload(input.uploadId);
+    } catch (e) {
+      throw new ActionError(e instanceof Error ? e.message : "Falha ao ler o georreferenciamento.");
+    }
+  },
+);
+
+/** Cria ou edita o IfcMapConversion — grava como NOVA VERSÃO do upload (v1 = só disciplina). */
+export const gravarGeorreferenciamento = defineAction(
+  {
+    modulo: "coordenacao",
+    recurso: "coordenacao",
+    permissao: "gerir",
+    acao: "gravar-georreferenciamento",
+    entidade: "Upload",
+    schema: gravarGeorrefSchema,
+    entidadeId: (d) => (d as { uploadId: string }).uploadId,
+  },
+  async (input, { user }) => {
+    const upload = await prisma.upload.findUnique({
+      where: { id: input.uploadId },
+      select: { disciplinaId: true, nomeArquivo: true },
+    });
+    if (!upload) throw new ActionError("Arquivo não encontrado.");
+    if (!/\.ifc$/i.test(upload.nomeArquivo)) throw new ActionError("O arquivo não é um modelo IFC.");
+    await exigirResponsavelOuGlobal(upload.disciplinaId, user);
+
+    let r;
+    try {
+      r = await gravarGeorrefUpload({
+        uploadId: input.uploadId,
+        params: {
+          crsName: input.crsName,
+          eastings: input.eastings,
+          northings: input.northings,
+          orthogonalHeight: input.orthogonalHeight,
+          rotacaoGraus: input.rotacaoGraus,
+          escala: input.escala ?? null,
+        },
+        autorId: user.id,
+      });
+    } catch (e) {
+      throw new ActionError(e instanceof Error ? e.message : "Falha ao gravar o georreferenciamento.");
     }
 
     revalidarCoordenacao(r.projetoId);

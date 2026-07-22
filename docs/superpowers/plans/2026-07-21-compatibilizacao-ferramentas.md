@@ -213,13 +213,19 @@ Objetivo: desenhar seta/círculo/texto sobre o snapshot ao criar apontamento.
 
 Objetivo: complementa o realinhar — definir/editar georref em vez de deslocar placements.
 
-| Fase | Entregável | Modelo | Motivo |
-|---|---|---|---|
-| F0 | Decidir: editar/criar `IfcMapConversion` (Eastings/Northings/Height/rotação) sem mexer nos placements; interação com o offset existente | **Opus 4.8** | Semântica IFC + risco de corromper coordenadas |
-| F1 | Estender `deslocar-ifc.ts`/child com modo georref (web-ifc: `IfcMapConversion`/`IfcProjectedCRS`), testado em IFC sintético | **Opus 4.8** | Escrita IFC de baixo nível |
-| F3 | Aba/modo no painel de realinhar existente | **Sonnet 5** |
+**Decisões do F0 (2026-07-22, aprovadas):** editar E criar (não só editar); IFC4-only
+(IfcMapConversion não existe em IFC2X3 — arquivo IFC2X3 é rejeitado com erro claro);
+child dedicado `georref-ifc.ts` (não estende deslocar-ifc.ts — operações e validação
+diferentes); NÃO mexe em placements (independente/complementar ao offset físico).
 
-**Depende de:** realinhar (pronto). **Não** commitar IFC de cliente em fixture.
+| Fase | Entregável | Modelo | Status |
+|---|---|---|---|
+| F0 | Decisões acima + spike de construção de entidades (web-ifc `IFC4.IfcMapConversion`/`IfcProjectedCRS`) | **Opus 4.8** | ✅ feito |
+| F1 | `georref.ts` puro (validação + rotação↔eixo); `scripts/georref-ifc.ts` (ler/gravar, cria OU edita) — validado empiricamente (criar+ler+editar, round-trip de rotação, edição in-place sem duplicar entidades) | **Opus 4.8** | ✅ feito (14 testes) |
+| F2 | `georreferenciamento.ts` (orquestrador, espelha `deslocamento.ts`) + `lerGeorreferenciamento`/`gravarGeorreferenciamento` actions | **Sonnet 5** | ✅ feito |
+| F3 | `georref-dialog.tsx` (dialog dedicado — sem preview 3D/drag, não se encaixa no painel de realinhar) | **Sonnet 5** | ✅ feito |
+
+**Depende de:** realinhar (pronto). **v1 = só uploads de disciplina** (mesmo escopo do diff #4; recebidos ficam de fora). **Não** commitar IFC de cliente em fixture.
 
 ---
 
