@@ -135,7 +135,7 @@ export const criarPendencia = defineAction(
 
 /** Edita o texto de um apontamento (autor, enquanto aberto e sem tarefa). */
 export const editarPendencia = defineAction(
-  { ...baseValidador, acao: "editar-pendencia", schema: editarSchema, entidadeId: (_d, i) => i.id },
+  { ...baseValidador, acao: "editar-pendencia", schema: editarSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId },
   async (input, { user }) => {
     const p = await prisma.pendencia.findUnique({ where: { id: input.id } });
     if (!p) throw new ActionError("Pendência não encontrada.");
@@ -144,13 +144,13 @@ export const editarPendencia = defineAction(
     if (p.status !== "aberta") throw new ActionError("Só pendências abertas podem ser editadas.");
     await prisma.pendencia.update({ where: { id: p.id }, data: { texto: input.texto } });
     revalidarViewer(p.projetoId, p.uploadId);
-    return { id: p.id };
+    return { id: p.id, projetoId: p.projetoId };
   },
 );
 
 /** Exclui um apontamento (autor, enquanto aberto e sem tarefa). */
 export const excluirPendencia = defineAction(
-  { ...baseValidador, acao: "excluir-pendencia", schema: idSchema, entidadeId: (_d, i) => i.id },
+  { ...baseValidador, acao: "excluir-pendencia", schema: idSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId },
   async (input, { user }) => {
     const p = await prisma.pendencia.findUnique({ where: { id: input.id } });
     if (!p) throw new ActionError("Pendência não encontrada.");
@@ -158,7 +158,7 @@ export const excluirPendencia = defineAction(
     if (p.tarefaId) throw new ActionError("Pendência já vinculada a uma tarefa — não pode ser excluída.");
     await prisma.pendencia.delete({ where: { id: p.id } });
     revalidarViewer(p.projetoId, p.uploadId);
-    return { id: p.id };
+    return { id: p.id, projetoId: p.projetoId };
   },
 );
 
@@ -269,7 +269,7 @@ export const enviarApontamentos = defineAction(
 
 /** Projetista marca a pendência como resolvida; sincroniza o item de checklist. */
 export const resolverPendencia = defineAction(
-  { ...baseProjetista, acao: "resolver-pendencia", schema: idSchema, entidadeId: (_d, i) => i.id },
+  { ...baseProjetista, acao: "resolver-pendencia", schema: idSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId },
   async (input, { user }) => {
     const p = await prisma.pendencia.findUnique({ where: { id: input.id } });
     if (!p) throw new ActionError("Pendência não encontrada.");
@@ -286,13 +286,13 @@ export const resolverPendencia = defineAction(
     });
     revalidarViewer(p.projetoId, p.uploadId);
     revalidatePath("/tarefas");
-    return { id: p.id };
+    return { id: p.id, projetoId: p.projetoId };
   },
 );
 
 /** Projetista reabre uma pendência resolvida (volta a aberta); sincroniza o item de checklist. */
 export const reabrirPendencia = defineAction(
-  { ...baseProjetista, acao: "reabrir-pendencia", schema: idSchema, entidadeId: (_d, i) => i.id },
+  { ...baseProjetista, acao: "reabrir-pendencia", schema: idSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId },
   async (input, { user }) => {
     const p = await prisma.pendencia.findUnique({ where: { id: input.id } });
     if (!p) throw new ActionError("Pendência não encontrada.");
@@ -307,17 +307,17 @@ export const reabrirPendencia = defineAction(
     });
     revalidarViewer(p.projetoId, p.uploadId);
     revalidatePath("/tarefas");
-    return { id: p.id };
+    return { id: p.id, projetoId: p.projetoId };
   },
 );
 
 /** Validador encerra a pendência (aceita a resolução). Marca o item de checklist concluído. */
 export const fecharPendencia = defineAction(
-  { ...baseValidador, acao: "fechar-pendencia", schema: idSchema, entidadeId: (_d, i) => i.id },
+  { ...baseValidador, acao: "fechar-pendencia", schema: idSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId },
   async (input, { user }) => {
     const p = await prisma.pendencia.findUnique({ where: { id: input.id } });
     if (!p) throw new ActionError("Pendência não encontrada.");
-    if (p.status === "fechada") return { id: p.id };
+    if (p.status === "fechada") return { id: p.id, projetoId: p.projetoId };
     await prisma.$transaction(async (tx) => {
       await tx.pendencia.update({
         where: { id: p.id },
@@ -327,17 +327,17 @@ export const fecharPendencia = defineAction(
     });
     revalidarViewer(p.projetoId, p.uploadId);
     revalidatePath("/tarefas");
-    return { id: p.id };
+    return { id: p.id, projetoId: p.projetoId };
   },
 );
 
 /** Validador descarta a pendência (não procede). Marca o item de checklist concluído (sai do trabalho ativo). */
 export const descartarPendencia = defineAction(
-  { ...baseValidador, acao: "descartar-pendencia", schema: idSchema, entidadeId: (_d, i) => i.id },
+  { ...baseValidador, acao: "descartar-pendencia", schema: idSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId },
   async (input, { user }) => {
     const p = await prisma.pendencia.findUnique({ where: { id: input.id } });
     if (!p) throw new ActionError("Pendência não encontrada.");
-    if (p.status === "descartada") return { id: p.id };
+    if (p.status === "descartada") return { id: p.id, projetoId: p.projetoId };
     await prisma.$transaction(async (tx) => {
       await tx.pendencia.update({
         where: { id: p.id },
@@ -347,6 +347,6 @@ export const descartarPendencia = defineAction(
     });
     revalidarViewer(p.projetoId, p.uploadId);
     revalidatePath("/tarefas");
-    return { id: p.id };
+    return { id: p.id, projetoId: p.projetoId };
   },
 );

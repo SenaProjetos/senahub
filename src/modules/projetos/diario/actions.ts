@@ -15,7 +15,7 @@ import { z } from "zod";
 const base = { modulo: "projetos", recurso: "projetos", permissao: "ver", entidade: "DiarioEntrada" } as const;
 
 export const criarEntradaDiario = defineAction(
-  { ...base, acao: "criar-entrada-diario", schema: criarEntradaDiarioSchema },
+  { ...base, acao: "criar-entrada-diario", schema: criarEntradaDiarioSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId },
   async (i, { user }) => {
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: i.disciplinaId },
@@ -37,12 +37,12 @@ export const criarEntradaDiario = defineAction(
       select: { id: true },
     });
     revalidatePath(`/projetos/${disciplina.projetoId}/diario`);
-    return { id: entrada.id };
+    return { id: entrada.id, projetoId: disciplina.projetoId };
   },
 );
 
 export const editarEntradaDiario = defineAction(
-  { ...base, acao: "editar-entrada-diario", schema: editarEntradaDiarioSchema },
+  { ...base, acao: "editar-entrada-diario", schema: editarEntradaDiarioSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId },
   async (i, { user }) => {
     const entrada = await prisma.diarioEntrada.findUnique({
       where: { id: i.id },
@@ -54,12 +54,12 @@ export const editarEntradaDiario = defineAction(
     }
     await prisma.diarioEntrada.update({ where: { id: i.id }, data: { texto: i.texto } });
     revalidatePath(`/projetos/${entrada.projetoId}/diario`);
-    return { id: i.id };
+    return { id: i.id, projetoId: entrada.projetoId };
   },
 );
 
 export const excluirEntradaDiario = defineAction(
-  { ...base, acao: "excluir-entrada-diario", schema: z.object({ id: z.string().min(1) }) },
+  { ...base, acao: "excluir-entrada-diario", schema: z.object({ id: z.string().min(1) }), entidadeId: (d) => (d as { projetoId: string }).projetoId },
   async (i, { user }) => {
     const entrada = await prisma.diarioEntrada.findUnique({
       where: { id: i.id },
@@ -71,7 +71,7 @@ export const excluirEntradaDiario = defineAction(
     }
     await prisma.diarioEntrada.delete({ where: { id: i.id } });
     revalidatePath(`/projetos/${entrada.projetoId}/diario`);
-    return { id: i.id };
+    return { id: i.id, projetoId: entrada.projetoId };
   },
 );
 

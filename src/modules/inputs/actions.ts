@@ -45,7 +45,7 @@ export const adicionarInput = defineAction(
     permissao: "gerir",
     entidade: "InputProjeto",
     schema: adicionarInputSchema,
-    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
+    entidadeId: (_d, i) => (i as { projetoId: string }).projetoId,
   },
   async (input) => {
     const ordem = await prisma.inputProjeto.count({ where: { projetoId: input.projetoId } });
@@ -70,12 +70,13 @@ export const removerInput = defineAction(
     permissao: "gerir",
     entidade: "InputProjeto",
     schema: removerInputSchema,
-    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
+    // Correlação no histórico pelo projeto (o input é deletado — id sai do id-set).
+    entidadeId: (d) => (d as { projetoId: string }).projetoId,
   },
   async (input) => {
     const item = await prisma.inputProjeto.delete({ where: { id: input.id } });
     revalidatePath(`/projetos/${item.projetoId}`);
-    return { id: input.id };
+    return { id: input.id, projetoId: item.projetoId };
   },
 );
 
@@ -155,7 +156,7 @@ export const gerarLinkInput = defineAction(
 
 // ── Inputs padrão por disciplina (#3) ─────────────────────────
 export const aplicarInputsPadrao = defineAction(
-  { ...projBase, acao: "aplicar-inputs-padrao", entidade: "InputProjeto", schema: z.object({ projetoId: z.string().min(1) }) },
+  { ...projBase, acao: "aplicar-inputs-padrao", entidade: "InputProjeto", schema: z.object({ projetoId: z.string().min(1) }), entidadeId: (_d, i) => (i as { projetoId: string }).projetoId },
   async (i) => {
     const criados = await aplicarInputsPadraoCore(i.projetoId);
     revalidatePath(`/projetos/${i.projetoId}`);

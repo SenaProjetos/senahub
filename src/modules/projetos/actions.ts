@@ -157,6 +157,12 @@ export const atualizarStatusDisciplina = defineAction(
     entidade: "Disciplina",
     schema: atualizarStatusDisciplinaSchema,
     entidadeId: (d, i) => ((d ?? i) as { disciplinaId: string }).disciplinaId,
+    // Histórico "de → para": registra o status/nome anteriores à mudança.
+    capturarAntes: (input) =>
+      prisma.disciplina.findUnique({
+        where: { id: input.disciplinaId },
+        select: { nome: true, status: true },
+      }),
   },
   async (input, { user }) => {
     const disciplina = await prisma.disciplina.findUnique({
@@ -255,6 +261,15 @@ export const definirResponsaveis = defineAction(
     entidade: "Disciplina",
     schema: responsaveisDisciplinaSchema,
     entidadeId: (d, i) => ((d ?? i) as { disciplinaId: string }).disciplinaId,
+    // Histórico: guarda os responsáveis anteriores para o diff (+/−) no log.
+    capturarAntes: async (input) => ({
+      responsaveisIds: (
+        await prisma.disciplinaResponsavel.findMany({
+          where: { disciplinaId: input.disciplinaId },
+          select: { userId: true },
+        })
+      ).map((r) => r.userId),
+    }),
   },
   async (input) => {
     const disciplina = await prisma.disciplina.findUnique({
@@ -303,7 +318,8 @@ export const registrarRevisao = defineAction(
     permissao: "ver",
     entidade: "RevisaoDisciplina",
     schema: registrarRevisaoSchema,
-    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
+    // Correlação no histórico pela disciplina — o id da revisão não está no id-set.
+    entidadeId: (d, i) => (i as { disciplinaId: string }).disciplinaId,
   },
   async (input, { user }) => {
     const disciplina = await prisma.disciplina.findUnique({
@@ -551,7 +567,7 @@ export const duplicarProjeto = defineAction(
 
 /** P-48: editar várias disciplinas de uma só vez (status, prazo, responsável único). */
 export const editarDisciplinasEmMassa = defineAction(
-  { modulo: "projetos", acao: "editar-disciplinas-em-massa", recurso: "projetos", permissao: "gerir", schema: editarDisciplinasEmMassaSchema },
+  { modulo: "projetos", acao: "editar-disciplinas-em-massa", recurso: "projetos", permissao: "gerir", entidade: "Disciplina", schema: editarDisciplinasEmMassaSchema, entidadeId: (d, i) => (i as { projetoId: string }).projetoId },
   async (input, ctx) => {
     const projeto = await prisma.projeto.findFirst({
       where: { id: input.projetoId, AND: [isGlobal(ctx.user.role) ? {} : { OR: [
@@ -597,7 +613,10 @@ export const criarDisciplina = defineAction(
     acao: "criar-disciplina",
     recurso: "projetos",
     permissao: "gerir",
+    entidade: "Disciplina",
     schema: criarDisciplinaSchema,
+    // Correlação no histórico: a disciplina recém-criada entra no id-set do projeto.
+    entidadeId: (d) => (d as { disciplinaId: string }).disciplinaId,
   },
   async (input) => {
     const projeto = await prisma.projeto.findUnique({
@@ -661,6 +680,24 @@ export const editarDisciplina = defineAction(
     entidade: "Disciplina",
     schema: editarDisciplinaSchema,
     entidadeId: (d, i) => ((d ?? i) as { disciplinaId: string }).disciplinaId,
+    // Histórico: estado anterior (nome/valor/prazo + responsáveis) para o diff.
+    capturarAntes: async (input) => {
+      const d = await prisma.disciplina.findUnique({
+        where: { id: input.disciplinaId },
+        select: { nome: true, valor: true, prazo: true },
+      });
+      if (!d) return null;
+      const resp = await prisma.disciplinaResponsavel.findMany({
+        where: { disciplinaId: input.disciplinaId },
+        select: { userId: true },
+      });
+      return {
+        nome: d.nome,
+        valor: d.valor == null ? null : Number(d.valor),
+        prazo: d.prazo?.toISOString() ?? null,
+        responsaveisIds: resp.map((r) => r.userId),
+      };
+    },
   },
   async (input) => {
     const disciplina = await prisma.disciplina.findUnique({
@@ -732,7 +769,14 @@ export const excluirDisciplina = defineAction(
     permissao: "gerir",
     entidade: "Disciplina",
     schema: excluirDisciplinaSchema,
-    entidadeId: (d, i) => ((d ?? i) as { disciplinaId: string }).disciplinaId,
+    // Correlação pelo projeto: após excluir, o disciplinaId some do id-set do histórico.
+    entidadeId: (d) => (d as { projetoId: string }).projetoId,
+    // Histórico: nome da disciplina removida (para exibir no log após a exclusão).
+    capturarAntes: (input) =>
+      prisma.disciplina.findUnique({
+        where: { id: input.disciplinaId },
+        select: { nome: true, projetoId: true },
+      }),
   },
   async (input) => {
     const disciplina = await prisma.disciplina.findUnique({
@@ -760,6 +804,7 @@ export const excluirDisciplina = defineAction(
       );
     });
     revalidatePath(`/projetos/${disciplina.projetoId}`);
+    return { projetoId: disciplina.projetoId };
   },
 );
 

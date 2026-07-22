@@ -24,7 +24,7 @@ const servicoSchema = z.object({
 });
 
 export const criarServico = defineAction(
-  { ...base, acao: "criar-servico", entidade: "ServicoTerceirizado", schema: servicoSchema },
+  { ...base, acao: "criar-servico", entidade: "ServicoTerceirizado", schema: servicoSchema, entidadeId: (_d, i) => (i as { projetoId: string }).projetoId },
   async (i, { user }) => {
     const projeto = await prisma.projeto.findUnique({
       where: { id: i.projetoId },
@@ -65,7 +65,7 @@ export const criarServico = defineAction(
 );
 
 export const editarServico = defineAction(
-  { ...base, acao: "editar-servico", entidade: "ServicoTerceirizado", schema: servicoSchema.extend({ id: z.string().min(1) }) },
+  { ...base, acao: "editar-servico", entidade: "ServicoTerceirizado", schema: servicoSchema.extend({ id: z.string().min(1) }), entidadeId: (_d, i) => (i as { projetoId: string }).projetoId },
   async (i, { user }) => {
     const atual = await prisma.servicoTerceirizado.findUnique({
       where: { id: i.id },
@@ -105,7 +105,7 @@ export const editarServico = defineAction(
 );
 
 export const excluirServico = defineAction(
-  { ...base, acao: "excluir-servico", entidade: "ServicoTerceirizado", schema: z.object({ id: z.string().min(1) }) },
+  { ...base, acao: "excluir-servico", entidade: "ServicoTerceirizado", schema: z.object({ id: z.string().min(1) }), entidadeId: (d) => (d as { projetoId: string }).projetoId },
   async (i) => {
     const s = await prisma.servicoTerceirizado.findUnique({
       where: { id: i.id },
@@ -125,6 +125,6 @@ export const excluirServico = defineAction(
     });
 
     rev(s.projetoId);
-    return { id: i.id };
+    return { id: i.id, projetoId: s.projetoId };
   },
 );
