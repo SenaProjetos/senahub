@@ -2,6 +2,31 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.4.0](https://github.com/SenaProjetos//compare/v1.3.0...v1.4.0) (2026-07-22)
+
+
+### ✨ Funcionalidades
+
+* **comercial:** criar proposta direto do lead ([8ad0ff4](https://github.com/SenaProjetos//commit/8ad0ff4d052e37163c45a0b0d1ee676a54e7f9bc))
+* **coordenacao:** Filtros ([#5](https://github.com/SenaProjetos/senahub/issues/5)) e Dashboard ([#8](https://github.com/SenaProjetos/senahub/issues/8)) de apontamentos ([9209c9c](https://github.com/SenaProjetos//commit/9209c9c165fed6c0075d15b53629dd1a18efbf0d))
+* **coordenacao:** markup 2D no snapshot de apontamentos ([#7](https://github.com/SenaProjetos/senahub/issues/7)) ([81846c8](https://github.com/SenaProjetos//commit/81846c8f81f58197c49333df833ff4765d8764bc))
+* **coordenacao:** Onda 0 (índice), Medição ([#2](https://github.com/SenaProjetos/senahub/issues/2)), Vistas salvas ([#6](https://github.com/SenaProjetos/senahub/issues/6)), Realinhamento IFC + Recebidos ([4541513](https://github.com/SenaProjetos//commit/4541513452c5ab5ec46dd20e83b824b6043f2d3b)), closes [#5](https://github.com/SenaProjetos/senahub/issues/5) [#8](https://github.com/SenaProjetos/senahub/issues/8) [#7](https://github.com/SenaProjetos/senahub/issues/7)
+* **projetos:** histórico completo de todas as ações da aba de projetos ([bfa5a31](https://github.com/SenaProjetos//commit/bfa5a31bddb89471eb6e50d5c89da57e8657fe98))
+* **projetos:** link público de arquivos (ver e baixar) ([39165a4](https://github.com/SenaProjetos//commit/39165a45b35c015dad8c450bcebe5e277bc9c49a))
+
+
+### 🐛 Correções
+
+* **deploy:** rodar db:seed nos fluxos de deploy do gerenciador ([85543d2](https://github.com/SenaProjetos//commit/85543d2b02762547f889d081978c09fa0cc2870f))
+* **ponto:** esconder horas devidas/extras/saldo para não-CLT ([0f4bfc4](https://github.com/SenaProjetos//commit/0f4bfc4b71aa22dc5e60aec1b39d6dc411a9545f))
+* **projetos:** corrigir largura do preview de PDF nos arquivos ([6f2e77d](https://github.com/SenaProjetos//commit/6f2e77d5c36ac7ee27070d553854b5cf72eedf38))
+* **projetos:** projetista responsável muda status/revisão da disciplina ([f25c70a](https://github.com/SenaProjetos//commit/f25c70a719d0088ad3b1900b7ec1b31568cc6f70))
+
+
+### ♻️ Refatorações
+
+* **uploads:** extrair estrutura de pastas e exclusão em lote ([b71dd6b](https://github.com/SenaProjetos//commit/b71dd6b0bba294a260be4a277c69f263d20f678e))
+
 ## [1.3.0](https://github.com/SenaProjetos//compare/v1.2.1...v1.3.0) (2026-07-20)
 
 
