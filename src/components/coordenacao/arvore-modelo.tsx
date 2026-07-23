@@ -99,7 +99,7 @@ export function ArvoreModelo({
         </CardTitle>
         <div className="flex items-center gap-2 pt-1">
           <Select value={modeloId ?? ""} onValueChange={(v) => setModeloId(v || null)}>
-            <SelectTrigger className="h-8 text-xs">
+            <SelectTrigger className="h-8 w-full text-xs">
               <SelectValue placeholder="Escolha um modelo" />
             </SelectTrigger>
             <SelectContent>

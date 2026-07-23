@@ -57,12 +57,15 @@ export function VistasPanel({
     try {
       // Restaura câmera.
       await engine.restaurarCamera(vista.camera);
-      // Religar modelos (desligar todos, religar só os da vista).
+      // Só mexe no que precisa mudar: desliga quem não está na vista, liga quem falta.
+      // Desligar+religar o mesmo modelo na mesma leva não funciona — onToggleModelo(id, true)
+      // ainda vê `carregados` com o id presente (o desligar é assíncrono) e não faz nada.
+      const desejados = new Set(vista.modelosVisiveis);
       for (const carregadoId of carregados) {
-        onToggleModelo(carregadoId, false);
+        if (!desejados.has(carregadoId)) onToggleModelo(carregadoId, false);
       }
       for (const modeloId of vista.modelosVisiveis) {
-        onToggleModelo(modeloId, true);
+        if (!carregados.has(modeloId)) onToggleModelo(modeloId, true);
       }
       // Reaplicar corte.
       onAplicarCorte(vista.corte);

@@ -173,9 +173,9 @@ export function ClashPainel({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2">
           <Select value={modeloAId ?? ""} onValueChange={(v) => setModeloAId(v || null)}>
-            <SelectTrigger className="h-8 text-xs">
+            <SelectTrigger className="h-8 w-full text-xs">
               <SelectValue placeholder="Disciplina A" />
             </SelectTrigger>
             <SelectContent>
@@ -187,7 +187,7 @@ export function ClashPainel({
             </SelectContent>
           </Select>
           <Select value={modeloBId ?? ""} onValueChange={(v) => setModeloBId(v || null)}>
-            <SelectTrigger className="h-8 text-xs">
+            <SelectTrigger className="h-8 w-full text-xs">
               <SelectValue placeholder="Disciplina B" />
             </SelectTrigger>
             <SelectContent>

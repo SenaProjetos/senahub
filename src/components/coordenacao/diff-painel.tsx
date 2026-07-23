@@ -97,7 +97,7 @@ export function DiffPainel({ engine, modelos }: { engine: ViewerEngine | null; m
           <>
             <div className="space-y-2">
               <Select value={modeloNovoId ?? ""} onValueChange={(v) => setModeloNovoId(v || null)}>
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="h-8 w-full text-xs">
                   <SelectValue placeholder="Versão nova" />
                 </SelectTrigger>
                 <SelectContent>
@@ -113,7 +113,7 @@ export function DiffPainel({ engine, modelos }: { engine: ViewerEngine | null; m
                 onValueChange={(v) => setModeloAntigoId(v || null)}
                 disabled={!modeloNovoId || carregandoVersoes}
               >
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="h-8 w-full text-xs">
                   <SelectValue placeholder={carregandoVersoes ? "Carregando…" : "Versão antiga"} />
                 </SelectTrigger>
                 <SelectContent>
