@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -72,7 +73,7 @@ function dataLabel(iso: string): string {
   });
 }
 
-function EquipeAgoraCard({ equipe }: { equipe: EquipeAgoraItem[] }) {
+function EquipeAgoraCard({ equipe, ano, mes }: { equipe: EquipeAgoraItem[]; ano: number; mes: number }) {
   return (
     <Card className="print:hidden">
       <CardHeader className="pb-2">
@@ -87,17 +88,19 @@ function EquipeAgoraCard({ equipe }: { equipe: EquipeAgoraItem[] }) {
         ) : (
           <ul className="flex flex-wrap gap-2">
             {equipe.map((e) => (
-              <li
-                key={e.userId}
-                className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm"
-              >
-                {e.estado === "trabalhando" ? (
-                  <span className="size-2 animate-pulse rounded-full bg-success" aria-hidden />
-                ) : (
-                  <Coffee className="size-3.5 text-warning" aria-hidden />
-                )}
-                <span>{e.nome}</span>
-                {e.projeto && <span className="font-mono text-xs text-muted-foreground">{e.projeto}</span>}
+              <li key={e.userId}>
+                <Link
+                  href={`/ponto/espelho?a=${ano}&m=${mes}&u=${e.userId}`}
+                  className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm hover:bg-muted"
+                >
+                  {e.estado === "trabalhando" ? (
+                    <span className="size-2 animate-pulse rounded-full bg-success" aria-hidden />
+                  ) : (
+                    <Coffee className="size-3.5 text-warning" aria-hidden />
+                  )}
+                  <span className="hover:underline">{e.nome}</span>
+                  {e.projeto && <span className="font-mono text-xs text-muted-foreground">{e.projeto}</span>}
+                </Link>
               </li>
             ))}
           </ul>
@@ -459,7 +462,7 @@ export function EspelhoView({
         </div>
       </div>
 
-      {equipe && <EquipeAgoraCard equipe={equipe} />}
+      {equipe && <EquipeAgoraCard equipe={equipe} ano={ano} mes={mes} />}
 
       <div className={`grid gap-3 ${detalhe.controlaJornada ? "sm:grid-cols-4" : "sm:grid-cols-1"}`}>
         <Card>

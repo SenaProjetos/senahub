@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Mail, ChevronRight } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { formatarDataHora } from "@/lib/utils";
@@ -26,6 +26,8 @@ function alvoTexto(a: AvisoRegistro): string {
 }
 
 export function AvisosRegistro({ avisos }: { avisos: AvisoRegistro[] }) {
+  const router = useRouter();
+
   if (avisos.length === 0) {
     return (
       <EmptyState
@@ -52,12 +54,14 @@ export function AvisosRegistro({ avisos }: { avisos: AvisoRegistro[] }) {
           {avisos.map((a) => {
             const pct = a.total > 0 ? Math.round((a.confirmados / a.total) * 100) : 0;
             return (
-              <TableRow key={a.id} className="cursor-pointer">
+              <TableRow
+                key={a.id}
+                className="cursor-pointer"
+                onClick={() => router.push(`/configuracoes/avisos/${a.id}`)}
+              >
                 <TableCell>
-                  <Link href={`/configuracoes/avisos/${a.id}`} className="block">
-                    <span className="font-medium">{a.titulo}</span>
-                    <span className="block text-xs text-muted-foreground">por {a.autor}</span>
-                  </Link>
+                  <span className="font-medium">{a.titulo}</span>
+                  <span className="block text-xs text-muted-foreground">por {a.autor}</span>
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {alvoTexto(a)}
@@ -75,9 +79,7 @@ export function AvisosRegistro({ avisos }: { avisos: AvisoRegistro[] }) {
                   {formatarDataHora(new Date(a.criadoEm))}
                 </TableCell>
                 <TableCell>
-                  <Link href={`/configuracoes/avisos/${a.id}`} aria-label="Ver detalhes">
-                    <ChevronRight className="size-4 text-muted-foreground" />
-                  </Link>
+                  <ChevronRight className="size-4 text-muted-foreground" />
                 </TableCell>
               </TableRow>
             );
