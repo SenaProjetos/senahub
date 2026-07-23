@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import type { DiretorioProjeto } from "@/modules/arquivos/queries";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
+import { VisualizarDwgButton } from "@/components/dwg/visualizar-dwg-button";
 import { cn, formatarData, rotuloRevisao } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -261,6 +262,7 @@ function DisciplinaNode({
                     <Eye className="size-4" />
                   </Link>
                 )}
+                <VisualizarDwgButton desenhoId={a.id} nomeArquivo={a.nome} titulo={a.nome} />
                 <Link
                   href={a.downloadUrl}
                   className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"

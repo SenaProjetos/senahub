@@ -3,8 +3,16 @@ import { executarBackup } from "@/lib/backup";
 import { notificarAdmins } from "@/lib/notifications";
 import { limparChunksOrfaos } from "@/lib/upload-chunks";
 import { FILA_CONVERTER_IFC } from "@/modules/coordenacao/conversao-estado";
+import { FILA_CONVERTER_DWG } from "@/modules/dwg/conversao-estado";
 import { FILA_MENSAGEM_AGENDADA } from "@/modules/chat/agendamento";
-import { processarConversaoIfc, limparFragsOrfaos, purgarLixeiraArquivos, processarMensagemAgendada } from "@/lib/jobs-handlers";
+import {
+  processarConversaoIfc,
+  processarConversaoDwg,
+  limparFragsOrfaos,
+  limparDxfOrfaos,
+  purgarLixeiraArquivos,
+  processarMensagemAgendada,
+} from "@/lib/jobs-handlers";
 import {
   alertasPrazoDisciplina,
   alertaInadimplencia,
@@ -89,6 +97,15 @@ export async function startJobs(): Promise<PgBoss> {
   await boss.work(FILA_CONVERTER_IFC, async ([job]) => {
     const { conversaoId } = job.data as { conversaoId: string };
     await processarConversaoIfc(conversaoId);
+  });
+
+  // ── Visualizador DWG: conversão DWG → DXF (ON-DEMAND, não agendada) ──────
+  // Mesmo raciocínio do converter-ifc: subprocesso externo (ODA File Converter),
+  // concorrência-1 padrão do pg-boss serializa as conversões.
+  await boss.createQueue(FILA_CONVERTER_DWG);
+  await boss.work(FILA_CONVERTER_DWG, async ([job]) => {
+    const { conversaoId } = job.data as { conversaoId: string };
+    await processarConversaoDwg(conversaoId);
   });
 
   // ── Chat: envio de mensagem agendada (ON-DEMAND via boss.send startAfter) ──
@@ -230,6 +247,14 @@ export async function startJobs(): Promise<PgBoss> {
       handler: async () => {
         const n = await limparFragsOrfaos();
         if (n > 0) console.log(`[coordenacao] ${n} .frag órfão(s) removido(s).`);
+      },
+    },
+    {
+      fila: "limpar-dxf-orfaos",
+      cron: "25 4 * * *", // diário 04:25 — remove .dxf sem ConversaoDesenho (upload excluído)
+      handler: async () => {
+        const n = await limparDxfOrfaos();
+        if (n > 0) console.log(`[dwg] ${n} .dxf órfão(s) removido(s).`);
       },
     },
     {

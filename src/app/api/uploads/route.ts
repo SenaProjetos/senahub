@@ -10,6 +10,7 @@ import { salvarArquivo, removerArquivo, slug, nomeArquivoLimpo, type ArquivoSalv
 import { montarChunksEm, limparChunks } from "@/lib/upload-chunks";
 import { destinoArquivo, extensao, limiteDoPacote, limiteLabelDoPacote, type PacoteAlvo } from "@/modules/uploads/service";
 import { enfileirarConversao } from "@/modules/coordenacao/service";
+import { enfileirarConversaoDwg } from "@/modules/dwg/service";
 
 type Resultado = {
   nome: string;
@@ -154,6 +155,13 @@ export async function POST(req: Request) {
     if (extensao(nome) === "ifc") {
       void enfileirarConversao(criado.id).catch((err) =>
         console.error("[upload] falha ao enfileirar conversão IFC:", err),
+      );
+    }
+    // Visualizador DWG: cada DWG enviado (inclusive nova versão) entra na fila de
+    // conversão p/ DXF. Fire-and-forget — não bloqueia nem derruba o upload.
+    if (extensao(nome) === "dwg") {
+      void enfileirarConversaoDwg(criado.id).catch((err) =>
+        console.error("[upload] falha ao enfileirar conversão DWG:", err),
       );
     }
     return pastaAlvo ? { nome, ok: true, realocado: false } : { nome, ok: true, pacote: destino!, realocado };

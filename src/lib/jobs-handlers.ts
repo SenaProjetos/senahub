@@ -26,6 +26,7 @@ import { resolverEscala } from "@/modules/ponto/service";
 import { avaliarAlertasDoDia } from "@/modules/ponto/alertas";
 import { diaLocalDate, diaLocal, horaLocal, minutosDoDia } from "@/modules/ponto/engine";
 import { executarConversao } from "@/modules/coordenacao/conversao";
+import { executarConversaoDwg } from "@/modules/dwg/conversao";
 import { removerArquivo } from "@/lib/storage";
 import { limitePurga } from "@/modules/uploads/lixeira";
 import { Prisma } from "@/generated/prisma/client";
@@ -857,6 +858,96 @@ export async function processarConversaoIfc(conversaoId: string): Promise<void> 
   if (!ok) throw new Error(`Conversão ${conversaoId} falhou: ${ctx.erro ?? "erro desconhecido"}`);
 }
 
+// ── Visualizador DWG ───────────────────────────────────────────
+
+/**
+ * Handler da fila on-demand `converter-dwg` (lib/jobs.ts). Roda a conversão em
+ * child process (executarConversaoDwg, subprocesso ODA File Converter) e notifica
+ * autor + responsáveis (Upload) ou autor do documento (DocumentoVersao) quando
+ * conclui ou falha. Erros propagam para o pg-boss registrar a falha do job.
+ */
+export async function processarConversaoDwg(conversaoId: string): Promise<void> {
+  const ctx = await executarConversaoDwg(conversaoId);
+  const ok = ctx.status === "concluido";
+  const alvo = ctx.destinatariosIds;
+  if (alvo.length > 0) {
+    await notificarMuitos(
+      alvo,
+      {
+        titulo: ok ? "Desenho DWG pronto" : "Falha ao converter DWG",
+        corpo: ok
+          ? `${ctx.disciplinaNome}: ${ctx.nomeArquivo} já pode ser visualizado.`
+          : `${ctx.disciplinaNome}: ${ctx.nomeArquivo} — ${ctx.erro ?? "erro na conversão"}.`,
+        href: ctx.href,
+        tag: `conversao-dwg-${ctx.desenhoKey}`,
+      },
+      { categoria: "coordenacao" },
+    );
+  }
+  if (!ok) throw new Error(`Conversão ${conversaoId} falhou: ${ctx.erro ?? "erro desconhecido"}`);
+}
+
+/**
+ * Diário: remove arquivos .dxf órfãos em disco (upload/DocumentoVersao/
+ * ConversaoDesenho já excluídos — a linha some por cascade, mas o .dxf em disco
+ * fica). Varre as pastas `DWG` sob STORAGE_BASE_PATH; apaga os .dxf cujo nome
+ * (uploadId ou documentoVersaoId) não tem mais ConversaoDesenho. Espelha
+ * `limparFragsOrfaos`. Retorna quantos removeu.
+ */
+export async function limparDxfOrfaos(): Promise<number> {
+  const base = process.env.STORAGE_BASE_PATH;
+  if (!base) return 0;
+  const { readdir, stat, unlink } = await import("node:fs/promises");
+  const path = await import("node:path");
+
+  const dxfsNoDisco: { abs: string; chave: string }[] = [];
+  async function varrer(dir: string) {
+    let entradas;
+    try {
+      entradas = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entradas) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        await varrer(full);
+      } else if (e.name.toLowerCase().endsWith(".dxf") && path.basename(dir) === "DWG") {
+        dxfsNoDisco.push({ abs: full, chave: e.name.replace(/\.dxf$/i, "") });
+      }
+    }
+  }
+  await varrer(path.resolve(base));
+  if (dxfsNoDisco.length === 0) return 0;
+
+  const nomes = dxfsNoDisco.map((f) => f.chave);
+  const vivos = await prisma.conversaoDesenho.findMany({
+    where: { OR: [{ uploadId: { in: nomes } }, { documentoVersaoId: { in: nomes } }] },
+    select: { uploadId: true, documentoVersaoId: true },
+  });
+  const vivoSet = new Set<string>();
+  for (const v of vivos) {
+    if (v.uploadId) vivoSet.add(v.uploadId);
+    if (v.documentoVersaoId) vivoSet.add(v.documentoVersaoId);
+  }
+
+  let removidos = 0;
+  const agora = Date.now();
+  for (const f of dxfsNoDisco) {
+    if (vivoSet.has(f.chave)) continue;
+    // Só apaga se o arquivo tem >1h (evita corrida com uma conversão gravando agora).
+    try {
+      const info = await stat(f.abs);
+      if (agora - info.mtimeMs < 60 * 60 * 1000) continue;
+      await unlink(f.abs);
+      removidos++;
+    } catch {
+      /* já removido / inacessível */
+    }
+  }
+  return removidos;
+}
+
 /**
  * Diário: remove arquivos .frag órfãos em disco (upload/ConversaoModelo já excluídos
  * — a linha some por cascade, mas o .frag em disco fica). Varre as pastas COORDENACAO
@@ -872,7 +963,12 @@ export async function processarConversaoIfc(conversaoId: string): Promise<void> 
 export async function purgarLixeiraArquivos(): Promise<number> {
   const vencidos = await prisma.upload.findMany({
     where: { excluidoEm: { not: null, lt: limitePurga() } },
-    select: { id: true, caminho: true, conversao: { select: { caminhoFrag: true } } },
+    select: {
+      id: true,
+      caminho: true,
+      conversao: { select: { caminhoFrag: true } },
+      conversaoDesenho: { select: { caminhoDxf: true } },
+    },
   });
   if (vencidos.length === 0) return 0;
 
@@ -882,6 +978,7 @@ export async function purgarLixeiraArquivos(): Promise<number> {
       await prisma.upload.delete({ where: { id: u.id } });
       await removerArquivo(u.caminho);
       if (u.conversao?.caminhoFrag) await removerArquivo(u.conversao.caminhoFrag);
+      if (u.conversaoDesenho?.caminhoDxf) await removerArquivo(u.conversaoDesenho.caminhoDxf);
       removidos++;
     } catch (err) {
       console.error(`[lixeira] falha ao purgar upload ${u.id}:`, err);

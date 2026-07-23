@@ -9,6 +9,16 @@ import { GLOBAL_ROLES } from "@/lib/roles";
 import { metaDocumento, ORIGENS_DOCUMENTO } from "./schemas";
 import { podeGerirDocumento, type AncoraDocumento } from "./acesso";
 import type { SessionUser } from "@/lib/session";
+import { enfileirarConversaoDwgDocumento } from "@/modules/dwg/service";
+
+/** Visualizador DWG: nova versão de documento .dwg entra na fila de conversão p/
+ * DXF. Fire-and-forget — não bloqueia nem derruba a action. */
+function enfileirarSeDwg(versaoId: string, nomeArquivo: string): void {
+  if (!/\.dwg$/i.test(nomeArquivo)) return;
+  void enfileirarConversaoDwgDocumento(versaoId).catch((err) =>
+    console.error("[documentos-cliente] falha ao enfileirar conversão DWG:", err),
+  );
+}
 
 // Gate por sessão + verificação de acesso por âncora dentro de cada handler
 // (proposta → comercial; projeto → membro interno/global). Ver `acesso.ts` e o
@@ -83,7 +93,9 @@ export const criarDocumento = defineAction(
           },
         },
       },
+      include: { versoes: { select: { id: true } } },
     });
+    enfileirarSeDwg(doc.versoes[0].id, i.meta.nomeArquivo);
     revalidar(i.propostaId ?? null, i.projetoId ?? null);
     return { id: doc.id };
   },
@@ -105,7 +117,7 @@ export const adicionarVersaoDocumento = defineAction(
     if (!doc) throw new ActionError("Documento não encontrado.");
     await exigirEscrita(ctx.user, doc, doc.origem);
     const numero = (doc.versoes[0]?.numero ?? 0) + 1;
-    await prisma.documentoVersao.create({
+    const versao = await prisma.documentoVersao.create({
       data: {
         documentoId: i.documentoId,
         numero,
@@ -117,6 +129,7 @@ export const adicionarVersaoDocumento = defineAction(
         autorId: ctx.user.id,
       },
     });
+    enfileirarSeDwg(versao.id, i.meta.nomeArquivo);
     await prisma.documento.update({ where: { id: i.documentoId }, data: { updatedAt: new Date() } });
     revalidar(doc.propostaId, doc.projetoId);
     return { numero };

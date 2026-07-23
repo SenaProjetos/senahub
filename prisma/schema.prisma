@@ -2099,6 +2099,9 @@ model DocumentoVersao {
   /// Coordenação BIM: quando esta versão é um IFC (recebido do cliente), guarda o
   /// estado da conversão para Fragments (.frag) — mesma tabela dos IFCs de disciplina.
   conversao   ConversaoModelo?
+  /// Visualizador DWG: quando esta versão é um DWG (recebido do cliente), guarda o
+  /// estado da conversão para DXF — mesma tabela dos DWGs de disciplina.
+  conversaoDesenho ConversaoDesenho?
 
   @@unique([documentoId, numero])
   @@index([documentoId])
@@ -3586,6 +3589,7 @@ model Upload {
   aceite     AceiteCliente?
   pendencias Pendencia[]      @relation("UploadPendencias")
   conversao  ConversaoModelo?
+  conversaoDesenho ConversaoDesenho?
 
   @@index([disciplinaId, pacote])
   @@index([pastaId])
@@ -3718,6 +3722,39 @@ model ConversaoModelo {
 
   @@index([status])
   @@map("conversao_modelo")
+}
+
+/// Visualizador DWG: estado da conversão DWG → DXF (via ODA File Converter,
+/// subprocesso externo — ver modules/dwg/). Mesmo desenho de `ConversaoModelo`,
+/// tabela própria (não reaproveita a do IFC: job de limpeza/rota de streaming
+/// são específicos de cada fluxo).
+model ConversaoDesenho {
+  id          String    @id @default(cuid())
+  /// Origem do desenho: EXATAMENTE um de `uploadId` (DWG de disciplina) ou
+  /// `documentoVersaoId` (DWG recebido do cliente, repositório Documento). A regra
+  /// "exatamente um" é garantida em código (enfileirarConversaoDwg).
+  uploadId          String?   @unique
+  upload            Upload?   @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  documentoVersaoId String?   @unique
+  documentoVersao   DocumentoVersao? @relation(fields: [documentoVersaoId], references: [id], onDelete: Cascade)
+  /// fila | processando | concluido | erro
+  status      String    @default("fila")
+  /// Progresso 0–100 durante `processando` (grosseiro — ODA não reporta progresso
+  /// fino, ver spike F0.1). Barra na UI.
+  progresso   Int?
+  /// Caminho relativo a STORAGE_BASE_PATH (nunca absoluto).
+  caminhoDxf String?
+  tamanhoDxf Int?
+  erro        String?
+  duracaoMs   Int?
+  tentativas  Int       @default(0)
+  iniciadoEm  DateTime?
+  concluidoEm DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status])
+  @@map("conversao_desenho")
 }
 
 /// Coordenação BIM: apontamento 3D (nota de compatibilização) ancorado em

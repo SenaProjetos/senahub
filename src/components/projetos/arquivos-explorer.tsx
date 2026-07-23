@@ -45,12 +45,15 @@ import type { DocumentoItem, DocumentoVersaoItem } from "@/modules/documentos-cl
 import type { MetaDocumento } from "@/modules/documentos-cliente/schemas";
 import { entregaveisAtuais } from "@/modules/uploads/validacao";
 import { IconeArquivo } from "@/components/projetos/icone-arquivo";
-import { PastaTreeView } from "@/components/projetos/pasta-tree-view";
+import { PastaTreeView, SeletorPasta } from "@/components/projetos/pasta-tree-view";
+import type { PastaFlat } from "@/modules/projetos/pastas/arvore";
 // Estrutura de pastas (subpastas por extensão + rótulos de pacote) — fonte única
 // compartilhada com a geração de .zip, para o zip espelhar a árvore desta tela.
 import { SUBPASTAS, PACOTES, PACOTE_LABEL, extDe, subpastaDe } from "@/modules/uploads/estrutura";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
 import { DocumentoViewer } from "@/components/projetos/documento-viewer";
+import { VisualizarDwgButton } from "@/components/dwg/visualizar-dwg-button";
+import { refDocumentoDwg } from "@/modules/dwg/desenho-ref";
 import { LinkPublicoArquivosButton } from "@/components/projetos/link-publico-arquivos-dialog";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
@@ -378,6 +381,7 @@ function LinhaArquivo({
             <Eye className="size-3.5" />
           </a>
         )}
+        {!historico && <VisualizarDwgButton desenhoId={a.id} nomeArquivo={a.nome} titulo={a.nome} />}
         <a href={a.downloadUrl} className="shrink-0 text-primary hover:text-primary/80" aria-label={`Baixar ${a.nome}`}>
           <Download className="size-3.5" />
         </a>
@@ -895,6 +899,7 @@ function LinhaVersaoDocumento({
       </span>
       <span className="shrink-0 font-mono text-xs">{fmtBytes(v.tamanho)}</span>
       <PreviewPdfButton nomeArquivo={v.nomeArquivo} url={v.downloadUrl} titulo={`${nome} v${v.numero}`} />
+      <VisualizarDwgButton desenhoId={refDocumentoDwg(v.id)} nomeArquivo={v.nomeArquivo} titulo={`${nome} v${v.numero}`} />
       <a
         href={v.downloadUrl}
         className="shrink-0 text-primary hover:text-primary/80"
@@ -1083,6 +1088,9 @@ function RecebidosPasta({
                   </span>
                   {d.atual && (
                     <PreviewPdfButton nomeArquivo={d.atual.nomeArquivo} url={d.atual.downloadUrl} titulo={d.nome} />
+                  )}
+                  {d.atual && (
+                    <VisualizarDwgButton desenhoId={refDocumentoDwg(d.atual.id)} nomeArquivo={d.atual.nomeArquivo} titulo={d.nome} />
                   )}
                   {d.atual && (
                     <a href={d.atual.downloadUrl} className="shrink-0 text-primary hover:text-primary/80" aria-label={`Baixar ${d.nome}`}>
@@ -1320,6 +1328,9 @@ function PastaGeral({
                   </span>
                   {a.atual && (
                     <PreviewPdfButton nomeArquivo={a.atual.nomeArquivo} url={a.atual.downloadUrl} titulo={a.nome} />
+                  )}
+                  {a.atual && (
+                    <VisualizarDwgButton desenhoId={refDocumentoDwg(a.atual.id)} nomeArquivo={a.atual.nomeArquivo} titulo={a.nome} />
                   )}
                   {a.atual && (
                     <a
@@ -1579,7 +1590,8 @@ function LixeiraPasta({ itens }: { itens: LixeiraItem[] }) {
 
 type PacoteEnvio = "A" | "B";
 
-type ItemEnvio = { file: File; nome: string; alvo: PacoteEnvio; fora: boolean };
+/** `pastaId` presente = disciplina usa árvore de pastas (aprovação/laudo) — `alvo` é ignorado nesse caso. */
+type ItemEnvio = { file: File; nome: string; alvo: PacoteEnvio; pastaId?: string; fora: boolean };
 
 // ── Estado de progresso por arquivo (feedback visual do envio) ──
 type StatusEnvio = "pendente" | "enviando" | "ok" | "erro";
@@ -1607,7 +1619,8 @@ async function enviarUm(
     const meta = await enviarEmChunks(item.file, onProgress);
     const fd = new FormData();
     fd.set("disciplinaId", disciplinaId);
-    fd.set("pacote", item.alvo);
+    if (item.pastaId) fd.set("pastaId", item.pastaId);
+    else fd.set("pacote", item.alvo);
     fd.set("sessaoId", meta.sessaoId);
     fd.set("nome", item.nome);
     fd.set("total", String(meta.total));
@@ -1622,7 +1635,8 @@ async function enviarUm(
   return new Promise((resolve, reject) => {
     const fd = new FormData();
     fd.set("disciplinaId", disciplinaId);
-    fd.set("pacote", item.alvo);
+    if (item.pastaId) fd.set("pastaId", item.pastaId);
+    else fd.set("pacote", item.alvo);
     fd.append("files", item.file);
     fd.append("nomes", item.nome); // renomeia no ato do upload
 
@@ -1645,7 +1659,7 @@ async function enviarUm(
           new Error(
             data?.error ??
               (xhr.status === 413
-                ? `Arquivo muito grande — limite de ${limiteLabelDoPacote(item.alvo)}.`
+                ? `Arquivo muito grande — limite de ${limiteLabelDoPacote(item.pastaId ? "" : item.alvo)}.`
                 : `Falha no envio (HTTP ${xhr.status}).`),
           ),
         );
@@ -1671,13 +1685,14 @@ function Uploader({
   disciplinas,
   nomenclatura,
 }: {
-  disciplinas: { id: string; nome: string }[];
+  disciplinas: { id: string; nome: string; usaPastas: boolean; pastas: PastaFlat[] }[];
   nomenclatura: { exigir: boolean; padrao: string | null };
 }) {
   const router = useRouter();
   // Sem disciplina pré-selecionada: força a escolha consciente e evita envio no alvo errado.
   const [disciplinaId, setDisciplinaId] = useState("");
   const [pacote, setPacote] = useState<PacoteEnvio>("A");
+  const [pastaId, setPastaId] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [arrastando, setArrastando] = useState(false);
   const [pendentes, setPendentes] = useState<ItemEnvio[] | null>(null);
@@ -1685,13 +1700,41 @@ function Uploader({
   const inputArquivos = useRef<HTMLInputElement>(null);
   const inputPasta = useRef<HTMLInputElement>(null);
 
+  const discSel = disciplinas.find((d) => d.id === disciplinaId);
+  const usaPastas = discSel?.usaPastas ?? false;
+
+  function selecionarDisciplina(id: string) {
+    setDisciplinaId(id);
+    setPastaId("");
+  }
+
   function enviar(lista: FileList | File[] | null) {
     if (!disciplinaId) {
       toast.error("Selecione a disciplina.");
       return;
     }
+    if (usaPastas && !pastaId) {
+      toast.error("Selecione a pasta de destino.");
+      return;
+    }
     const files = lista ? Array.from(lista) : [];
     if (files.length === 0) return;
+
+    // Aprovação/laudo: destino é a pasta escolhida, sem roteamento/limite por pacote.
+    if (usaPastas) {
+      const limite = limiteDoPacote("");
+      const itens: ItemEnvio[] = [];
+      for (const f of files) {
+        if (f.size > limite) {
+          toast.error(`${f.name}: excede o limite de ${limiteLabelDoPacote("")}.`);
+          continue;
+        }
+        itens.push({ file: f, nome: f.name, alvo: "A", pastaId, fora: false });
+      }
+      if (itens.length === 0) return;
+      void uploadFinal(itens);
+      return;
+    }
 
     // Todos os arquivos vão para o pacote escolhido. Filtra por tamanho conforme o
     // limite desse pacote (B/backup = 1,5 GB; demais = 500 MB) antes de enviar.
@@ -1792,7 +1835,7 @@ function Uploader({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={disciplinaId} onValueChange={(v) => v && setDisciplinaId(v)}>
+        <Select value={disciplinaId} onValueChange={(v) => v && selecionarDisciplina(v)}>
           <SelectTrigger className={cn("w-52", !disciplinaId && "text-muted-foreground")}>
             <SelectValue placeholder="Selecione a disciplina…" />
           </SelectTrigger>
@@ -1805,20 +1848,34 @@ function Uploader({
           </SelectContent>
         </Select>
 
-        <Select value={pacote} onValueChange={(v) => v && setPacote(v as PacoteEnvio)}>
-          <SelectTrigger className="w-44">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="A">Pranchas e arquivos</SelectItem>
-            <SelectItem value="B">Backup do modelo</SelectItem>
-          </SelectContent>
-        </Select>
+        {usaPastas ? (
+          <SeletorPasta pastas={discSel!.pastas} value={pastaId} onChange={setPastaId} />
+        ) : (
+          <Select value={pacote} onValueChange={(v) => v && setPacote(v as PacoteEnvio)}>
+            <SelectTrigger className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="A">Pranchas e arquivos</SelectItem>
+              <SelectItem value="B">Backup do modelo</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
 
-        <Button size="sm" variant="outline" disabled={enviando || !disciplinaId} onClick={() => inputArquivos.current?.click()}>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={enviando || !disciplinaId || (usaPastas && !pastaId)}
+          onClick={() => inputArquivos.current?.click()}
+        >
           <UploadIcon className="size-3.5" /> Arquivos
         </Button>
-        <Button size="sm" variant="outline" disabled={enviando || !disciplinaId} onClick={() => inputPasta.current?.click()}>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={enviando || !disciplinaId || (usaPastas && !pastaId)}
+          onClick={() => inputPasta.current?.click()}
+        >
           <FolderOpen className="size-3.5" /> Pasta
         </Button>
 
@@ -1844,11 +1901,17 @@ function Uploader({
       )}
 
       <p className="text-xs text-muted-foreground">
-        Envie arquivos soltos ou uma pasta inteira (ou arraste aqui). Vai para a disciplina escolhida.
-        Formatos não suportados em Pranchas vão para &quot;Outros&quot;. Material enviado pelo cliente fica em
-        &quot;Recebidos do cliente&quot; (pasta de topo).
-        {" "}Limite por arquivo: {TAMANHO_MAX_BACKUP_LABEL} em Backup do modelo, {TAMANHO_MAX_LABEL} nos demais.
-        {nomenclatura.exigir && " Nomes fora do padrão em Pranchas pedem revisão antes do envio."}
+        {usaPastas ? (
+          <>Envie arquivos soltos ou uma pasta inteira (ou arraste aqui) para a pasta escolhida. Limite por arquivo: {TAMANHO_MAX_LABEL}.</>
+        ) : (
+          <>
+            Envie arquivos soltos ou uma pasta inteira (ou arraste aqui). Vai para a disciplina escolhida.
+            Formatos não suportados em Pranchas vão para &quot;Outros&quot;. Material enviado pelo cliente fica em
+            &quot;Recebidos do cliente&quot; (pasta de topo).
+            {" "}Limite por arquivo: {TAMANHO_MAX_BACKUP_LABEL} em Backup do modelo, {TAMANHO_MAX_LABEL} nos demais.
+            {nomenclatura.exigir && " Nomes fora do padrão em Pranchas pedem revisão antes do envio."}
+          </>
+        )}
       </p>
     </div>
   );
