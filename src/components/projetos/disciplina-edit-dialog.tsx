@@ -24,6 +24,8 @@ interface EditProps {
   internos: { id: string; name: string }[];
   exigePacoteA?: boolean;
   exigePacoteB?: boolean;
+  /** Aprovação/laudo: usa a árvore de pastas própria, sem pacote A/B — esconde os checkboxes. */
+  usaEstruturaPastas?: boolean;
 }
 
 export function DisciplinaEditDialog({
@@ -35,6 +37,7 @@ export function DisciplinaEditDialog({
   internos,
   exigePacoteA: exigeAInicial = true,
   exigePacoteB: exigeBInicial = true,
+  usaEstruturaPastas = false,
 }: EditProps) {
   const [open, setOpen] = useState(false);
   const [nome, setNome] = useState(nomeInicial);
@@ -139,29 +142,31 @@ export function DisciplinaEditDialog({
               </div>
             </div>
           )}
-          <div className="space-y-1.5">
-            <Label>Pacotes obrigatórios para validação</Label>
-            <div className="flex flex-wrap gap-3">
-              <label className="flex cursor-pointer items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={exigeA}
-                  onChange={(e) => setExigeA(e.target.checked)}
-                  className="size-4 rounded border-input accent-primary"
-                />
-                Pranchas e arquivos
-              </label>
-              <label className="flex cursor-pointer items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={exigeB}
-                  onChange={(e) => setExigeB(e.target.checked)}
-                  className="size-4 rounded border-input accent-primary"
-                />
-                Backup do modelo
-              </label>
+          {!usaEstruturaPastas && (
+            <div className="space-y-1.5">
+              <Label>Pacotes obrigatórios para validação</Label>
+              <div className="flex flex-wrap gap-3">
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={exigeA}
+                    onChange={(e) => setExigeA(e.target.checked)}
+                    className="size-4 rounded border-input accent-primary"
+                  />
+                  Pranchas e arquivos
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={exigeB}
+                    onChange={(e) => setExigeB(e.target.checked)}
+                    className="size-4 rounded border-input accent-primary"
+                  />
+                  Backup do modelo
+                </label>
+              </div>
             </div>
-          </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={pending}>

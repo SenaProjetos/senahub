@@ -43,7 +43,8 @@ export async function POST(req: Request) {
   }
   const disciplinaId = String(form.get("disciplinaId") ?? "");
   const alvo = String(form.get("pacote") ?? "") as PacoteAlvo;
-  if (!disciplinaId || (alvo !== "A" && alvo !== "B" && alvo !== "RECEBIDOS")) {
+  const pastaId = String(form.get("pastaId") ?? "") || null;
+  if (!disciplinaId || (!pastaId && alvo !== "A" && alvo !== "B" && alvo !== "RECEBIDOS")) {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
   }
 
@@ -55,6 +56,19 @@ export async function POST(req: Request) {
     },
   });
   if (!disciplina) return NextResponse.json({ error: "Disciplina não encontrada." }, { status: 404 });
+
+  // Aprovação/laudo (e pastas personalizadas): destino é uma PastaProjeto, não um pacote.
+  let pastaAlvo: { id: string; caminho: string } | null = null;
+  if (pastaId) {
+    const pasta = await prisma.pastaProjeto.findUnique({
+      where: { id: pastaId },
+      select: { id: true, disciplinaId: true, caminho: true },
+    });
+    if (!pasta || pasta.disciplinaId !== disciplinaId) {
+      return NextResponse.json({ error: "Pasta inválida para esta disciplina." }, { status: 400 });
+    }
+    pastaAlvo = pasta;
+  }
 
   // Regra: só o responsável da disciplina (ou perfil global) envia arquivos.
   const ehGlobal = user.role === "admin" || GLOBAL_ROLES.includes(user.role);
@@ -95,12 +109,16 @@ export async function POST(req: Request) {
    * chama `gravar(relativo)` (buffer direto OU montagem de chunks) e cria o registro.
    */
   async function persistir(nome: string, gravar: (relativo: string) => Promise<ArquivoSalvo>, mime: string | null): Promise<Resultado> {
-    const destino = destinoArquivo(nome, alvo);
+    // Pasta-mode (aprovação/laudo, pasta personalizada): sem roteamento por extensão nem
+    // pacote — o destino já é a pasta escolhida no client.
+    const destino = pastaAlvo ? null : destinoArquivo(nome, alvo);
     const realocado = destino === "OUTROS" && alvo === "A";
 
-    // Versionamento: mesma disciplina + pacote + nome → incrementa versão.
+    // Versionamento: mesma disciplina + (pacote OU pasta) + nome → incrementa versão.
     const anterior = await prisma.upload.findFirst({
-      where: { disciplinaId, pacote: destino, nomeArquivo: nome },
+      where: pastaAlvo
+        ? { disciplinaId, pastaId: pastaAlvo.id, nomeArquivo: nome }
+        : { disciplinaId, pacote: destino, nomeArquivo: nome },
       orderBy: { versao: "desc" },
     });
     const versao = anterior ? anterior.versao + 1 : 1;
@@ -110,14 +128,17 @@ export async function POST(req: Request) {
     // Prefixa o arquivo com a sigla da disciplina (ex.: ELE-planta.dwg) quando houver código.
     const nomeBase = codDisc ? `${codDisc}-${slug(baseNome)}` : slug(baseNome);
     const nomeVersionado = versao > 1 ? `${nomeBase}__v${versao}${ext ? "." + ext : ""}` : `${nomeBase}${ext ? "." + ext : ""}`;
-    const relativo = `${baseDir}/${destino}/${nomeVersionado}`;
+    const relativo = pastaAlvo
+      ? `${baseDir}/${pastaAlvo.caminho}/${nomeVersionado}`
+      : `${baseDir}/${destino}/${nomeVersionado}`;
 
     const salvo = await gravar(relativo);
 
     const criado = await prisma.upload.create({
       data: {
         disciplinaId,
-        pacote: destino,
+        pacote: pastaAlvo ? null : destino,
+        pastaId: pastaAlvo?.id,
         nomeArquivo: nome,
         caminho: salvo.caminho,
         hashSha256: salvo.hashSha256,
@@ -135,7 +156,7 @@ export async function POST(req: Request) {
         console.error("[upload] falha ao enfileirar conversão IFC:", err),
       );
     }
-    return { nome, ok: true, pacote: destino, realocado };
+    return pastaAlvo ? { nome, ok: true, realocado: false } : { nome, ok: true, pacote: destino!, realocado };
   }
 
   /**

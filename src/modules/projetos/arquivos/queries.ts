@@ -30,6 +30,7 @@ export async function arvoreArquivosProjeto(
       id: true,
       nome: true,
       status: true,
+      aprovacaoSolicitadaEm: true,
       responsaveis: { select: { userId: true } },
       uploads: {
         // Lixeira: leitura aninhada NÃO passa pelo filtro global (lib/prisma.ts) → explícito.
@@ -38,6 +39,7 @@ export async function arvoreArquivosProjeto(
         select: {
           id: true,
           pacote: true,
+          pastaId: true,
           nomeArquivo: true,
           versao: true,
           tamanho: true,
@@ -49,6 +51,10 @@ export async function arvoreArquivosProjeto(
           autorId: true,
           createdAt: true,
         },
+      },
+      pastas: {
+        orderBy: { ordem: "asc" },
+        select: { id: true, parentId: true, nome: true, caminho: true, origem: true, ordem: true },
       },
       exigePacoteA: true,
       exigePacoteB: true,
@@ -62,37 +68,63 @@ export async function arvoreArquivosProjeto(
   const nomeAutor = new Map(autores.map((u) => [u.id, u.name]));
 
   return {
-    disciplinas: disciplinas.map((d) => ({
-      id: d.id,
-      nome: d.nome,
-      finalizado: d.status === "aprovado",
-      podeEnviar: podeEnviarCap && (ehGlobal || d.responsaveis.some((r) => r.userId === userId)),
-      // Progresso da validação parcial (só entregáveis: pacote A/B, versão atual).
-      resumo: statusValidacao(
-        d.uploads.map((u) => ({
+    disciplinas: disciplinas.map((d) => {
+      // Aprovação/laudo (só projetos NOVOS): árvore própria (PastaProjeto) no lugar do
+      // pacote A/B. Sinal por disciplina, não por tipo de projeto — projetos aprovação
+      // beta (pré-feature) nunca têm pasta "template", então continuam na árvore legada.
+      const usaPastas = d.pastas.some((p) => p.origem === "template");
+      // Uploads legados (pacote) vs. uploads na árvore nova (pastaId) — nunca os dois
+      // ao mesmo tempo por upload (invariante do schema).
+      const uploadsPacote = d.uploads.filter((u) => u.pastaId == null);
+      const uploadsPasta = d.uploads.filter((u) => u.pastaId != null);
+      return {
+        id: d.id,
+        nome: d.nome,
+        finalizado: d.status === "aprovado",
+        podeEnviar: podeEnviarCap && (ehGlobal || d.responsaveis.some((r) => r.userId === userId)),
+        usaPastas,
+        pastas: d.pastas,
+        aprovacaoSolicitadaEm: d.aprovacaoSolicitadaEm ? d.aprovacaoSolicitadaEm.toISOString() : null,
+        // Progresso da validação parcial (só entregáveis: pacote A/B, versão atual) — n/a
+        // para disciplinas com árvore de pastas (sem validação por-arquivo).
+        resumo: usaPastas
+          ? null
+          : statusValidacao(
+              uploadsPacote.map((u) => ({
+                pacote: u.pacote as "A" | "B" | "OUTROS" | "RECEBIDOS",
+                nomeArquivo: u.nomeArquivo,
+                versao: u.versao,
+                validado: u.validado,
+                origem: u.origem as "manual" | "ferramenta",
+              })),
+              { exigePacoteA: d.exigePacoteA, exigePacoteB: d.exigePacoteB },
+            ),
+        arquivos: uploadsPacote.map((u) => ({
+          id: u.id,
+          nome: u.nomeArquivo,
           pacote: u.pacote as "A" | "B" | "OUTROS" | "RECEBIDOS",
-          nomeArquivo: u.nomeArquivo,
           versao: u.versao,
-          validado: u.validado,
+          tamanho: u.tamanho,
+          aprovado: u.validado,
           origem: u.origem as "manual" | "ferramenta",
+          ajusteObs: u.revisaoObs,
+          ajusteEm: u.revisaoEm ? u.revisaoEm.toISOString() : null,
+          autor: nomeAutor.get(u.autorId) ?? "—",
+          data: (u.validadoEm ?? u.createdAt).toISOString(),
+          downloadUrl: `/api/uploads/${u.id}/download`,
         })),
-        { exigePacoteA: d.exigePacoteA, exigePacoteB: d.exigePacoteB },
-      ),
-      arquivos: d.uploads.map((u) => ({
-        id: u.id,
-        nome: u.nomeArquivo,
-        pacote: u.pacote as "A" | "B" | "OUTROS" | "RECEBIDOS",
-        versao: u.versao,
-        tamanho: u.tamanho,
-        aprovado: u.validado,
-        origem: u.origem as "manual" | "ferramenta",
-        ajusteObs: u.revisaoObs,
-        ajusteEm: u.revisaoEm ? u.revisaoEm.toISOString() : null,
-        autor: nomeAutor.get(u.autorId) ?? "—",
-        data: (u.validadoEm ?? u.createdAt).toISOString(),
-        downloadUrl: `/api/uploads/${u.id}/download`,
-      })),
-    })),
+        arquivosPasta: uploadsPasta.map((u) => ({
+          id: u.id,
+          nome: u.nomeArquivo,
+          pastaId: u.pastaId!,
+          versao: u.versao,
+          tamanho: u.tamanho,
+          autor: nomeAutor.get(u.autorId) ?? "—",
+          data: u.createdAt.toISOString(),
+          downloadUrl: `/api/uploads/${u.id}/download`,
+        })),
+      };
+    }),
   };
 }
 

@@ -30,6 +30,8 @@ import {
 import { notificarMuitos } from "@/lib/notificar";
 import { sanitizeSvg } from "@/lib/sanitize-svg";
 import { normalizar } from "@/lib/disciplinas-core";
+import { usaEstruturaCustom } from "@/modules/projetos/estrutura-tipo";
+import { semearPastasTemplate, projetoUsaTemplate } from "@/modules/projetos/pastas/seed";
 
 function isGlobal(role: Role) {
   return role === "admin" || GLOBAL_ROLES.includes(role);
@@ -78,7 +80,7 @@ export const criarProjeto = defineAction(
   async (input) => {
     const projeto = await prisma.$transaction(async (tx) => {
       const { ano, sequencial, codigo } = await proximoCodigoProjeto(tx);
-      return tx.projeto.create({
+      const p = await tx.projeto.create({
         data: {
           ano,
           sequencial,
@@ -94,17 +96,24 @@ export const criarProjeto = defineAction(
           membros: {
             create: input.membrosIds.map((userId) => ({ userId })),
           },
-          disciplinas: {
-            create: input.disciplinas.map((d, i) => ({
-              nome: d.nome,
-              prazo: parseData(d.prazo),
-              valor: d.valor,
-              ordem: i,
-              responsaveis: { create: d.responsaveisIds.map((userId) => ({ userId })) },
-            })),
-          },
         },
       });
+      for (const [i, d] of input.disciplinas.entries()) {
+        const disc = await tx.disciplina.create({
+          data: {
+            projetoId: p.id,
+            nome: d.nome,
+            prazo: parseData(d.prazo),
+            valor: d.valor,
+            ordem: i,
+            responsaveis: { create: d.responsaveisIds.map((userId) => ({ userId })) },
+          },
+        });
+        if (usaEstruturaCustom(input.tipo)) {
+          await semearPastasTemplate(tx, disc.id, input.tipo);
+        }
+      }
+      return p;
     });
     notificarNovosMembros(await ensureCanaisProjeto(projeto.id));
     revalidatePath("/projetos");
@@ -170,7 +179,7 @@ export const atualizarStatusDisciplina = defineAction(
       where: { id: input.disciplinaId },
       include: {
         responsaveis: true,
-        projeto: { select: { id: true, codigo: true } },
+        projeto: { select: { id: true, codigo: true, tipo: true } },
       },
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
@@ -178,6 +187,12 @@ export const atualizarStatusDisciplina = defineAction(
     // P-11: aprovado é terminal — só via validarEntrega.
     if (input.status === "aprovado") {
       throw new ActionError("Status 'aprovado' só pode ser definido via validação de entrega.");
+    }
+    // Aprovação/laudo: "entregue" só via solicitarAprovacaoDisciplina (fluxo em 2 etapas).
+    if (input.status === "entregue" && usaEstruturaCustom(disciplina.projeto.tipo)) {
+      throw new ActionError(
+        "Este tipo de projeto usa o fluxo de aprovação em 2 etapas — use \"Marcar projeto aprovado\".",
+      );
     }
 
     // P-14: permissao "ver" (todo perfil interno tem projetos:ver) só garante que está logado;
@@ -495,6 +510,14 @@ export const duplicarProjeto = defineAction(
         if (nova) dMap.set(orig.id, nova.id);
       }
 
+      // Duplicar é criar um projeto novo: se o tipo usa árvore-template, semeia em todas
+      // as disciplinas do clone (mesma regra de "só projetos novos" da criação normal).
+      if (usaEstruturaCustom(origem.tipo)) {
+        for (const nova of novasDisciplinas) {
+          await semearPastasTemplate(tx, nova.id, origem.tipo);
+        }
+      }
+
       if (input.copiarResponsaveis) {
         const rows: { disciplinaId: string; userId: string }[] = [];
         for (const d of origem.disciplinas) {
@@ -575,9 +598,20 @@ export const editarDisciplinasEmMassa = defineAction(
         { membros: { some: { userId: ctx.user.id } } },
         { disciplinas: { some: { responsaveis: { some: { userId: ctx.user.id } } } } },
       ] }] },
-      select: { id: true },
+      select: { id: true, tipo: true },
     });
     if (!projeto) throw new ActionError("Projeto não encontrado.");
+
+    // "aprovado" é terminal — só via validarEntrega/confirmarAprovacaoDisciplina, nunca em massa.
+    if (input.status === "aprovado") {
+      throw new ActionError("Status \"aprovado\" só pode ser definido individualmente, na validação de entrega.");
+    }
+    // Aprovação/laudo: "entregue" só via solicitarAprovacaoDisciplina (fluxo em 2 etapas).
+    if (input.status === "entregue" && usaEstruturaCustom(projeto.tipo)) {
+      throw new ActionError(
+        "Este tipo de projeto usa o fluxo de aprovação em 2 etapas — não é possível marcar \"entregue\" em massa.",
+      );
+    }
 
     const data: Record<string, unknown> = {};
     if (input.status !== undefined) data.status = input.status;
@@ -622,7 +656,7 @@ export const criarDisciplina = defineAction(
   async (input) => {
     const projeto = await prisma.projeto.findUnique({
       where: { id: input.projetoId },
-      select: { id: true, prazoFinal: true },
+      select: { id: true, tipo: true, prazoFinal: true },
     });
     if (!projeto) throw new ActionError("Projeto não encontrado.");
 
@@ -662,6 +696,11 @@ export const criarDisciplina = defineAction(
           href: `/projetos/${input.projetoId}`,
           tag: `resp-${d.id}`,
         });
+      }
+      // Só semeia o template se o projeto já usa a árvore nova (nasceu com ela) — projetos
+      // beta pré-existentes nunca ganham o template numa disciplina adicionada depois.
+      if (usaEstruturaCustom(projeto.tipo) && (await projetoUsaTemplate(tx, input.projetoId))) {
+        await semearPastasTemplate(tx, d.id, projeto.tipo);
       }
       return d;
     });
@@ -873,6 +912,7 @@ export const adicionarDisciplinasDoCatalogo = defineAction(
       where: { id: input.projetoId },
       select: {
         id: true,
+        tipo: true,
         disciplinas: { select: { nome: true, ordem: true } },
       },
     });
@@ -883,12 +923,17 @@ export const adicionarDisciplinasDoCatalogo = defineAction(
     if (novas.length === 0) throw new ActionError("Todas as disciplinas selecionadas já existem no projeto.");
 
     const maxOrdem = Math.max(0, ...projeto.disciplinas.map((d) => d.ordem));
-    await prisma.disciplina.createMany({
-      data: novas.map((nome, i) => ({
-        projetoId: input.projetoId,
-        nome,
-        ordem: maxOrdem + i + 1,
-      })),
+    await prisma.$transaction(async (tx) => {
+      // Só semeia o template se o projeto já usa a árvore nova — mesma regra de
+      // criarDisciplina, checada uma vez fora do loop (não muda entre as disciplinas criadas aqui).
+      const semear =
+        usaEstruturaCustom(projeto.tipo) && (await projetoUsaTemplate(tx, input.projetoId));
+      for (const [i, nome] of novas.entries()) {
+        const d = await tx.disciplina.create({
+          data: { projetoId: input.projetoId, nome, ordem: maxOrdem + i + 1 },
+        });
+        if (semear) await semearPastasTemplate(tx, d.id, projeto.tipo);
+      }
     });
 
     revalidatePath(`/projetos/${input.projetoId}`);

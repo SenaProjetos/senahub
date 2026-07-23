@@ -75,3 +75,11 @@ export async function removerArquivo(relativo: string): Promise<void> {
     /* já removido */
   }
 }
+
+/** Move um arquivo entre dois caminhos relativos (cria diretórios do destino). */
+export async function moverArquivo(relativoDe: string, relativoPara: string): Promise<void> {
+  const de = resolverCaminho(relativoDe);
+  const para = resolverCaminho(relativoPara);
+  await fs.mkdir(path.dirname(para), { recursive: true });
+  await fs.rename(de, para);
+}

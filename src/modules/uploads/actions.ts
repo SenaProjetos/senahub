@@ -8,9 +8,10 @@ import { prisma } from "@/lib/prisma";
 import { removerArquivo } from "@/lib/storage";
 import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { criarDespesaProjetistaPrevista } from "@/modules/financeiro/custo/lancamento-custo";
-import { PJ_ROLES, GLOBAL_ROLES, type Role } from "@/lib/roles";
+import { GLOBAL_ROLES, type Role } from "@/lib/roles";
 import { statusValidacao } from "@/modules/uploads/validacao";
+import { liberarPagamentosProjetista } from "@/modules/uploads/pagamento";
+import { usaEstruturaCustom } from "@/modules/projetos/estrutura-tipo";
 
 /** Extensão com o ponto, no case original (`.pdf`). Sem ponto (ou dotfile) → vazio. */
 function extComPonto(nome: string): string {
@@ -45,10 +46,19 @@ export const validarEntrega = defineAction(
         // não contam para completude de pacote nem para validação.
         uploads: { where: { excluidoEm: null } },
         pagamentos: { select: { id: true } },
-        projeto: { select: { id: true, codigo: true, nome: true } },
+        projeto: { select: { id: true, codigo: true, nome: true, tipo: true } },
       },
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
+
+    // Aprovação/laudo: sem validação por-arquivo — a conclusão é só via fluxo de 2 etapas
+    // (solicitarAprovacaoDisciplina/confirmarAprovacaoDisciplina). Fecha o bypass que um
+    // admin abriria ao desmarcar exigePacoteA/B manualmente nesses tipos.
+    if (usaEstruturaCustom(disciplina.projeto.tipo)) {
+      throw new ActionError(
+        "Este tipo de projeto usa o fluxo de aprovação em 2 etapas, não a validação por arquivo.",
+      );
+    }
 
     // P-24: status "aprovado" só é alcançável por esta ação (P-11) → guarda de idempotência
     // mesmo quando a disciplina é 100% CLT (sem pagamento criado para o check abaixo cobrir).
@@ -78,8 +88,13 @@ export const validarEntrega = defineAction(
     }
 
     // Validação parcial: só finaliza quando TODOS os entregáveis (versão atual) já
-    // foram validados um a um. Os efeitos financeiros/conclusão vêm só aqui.
-    const st = statusValidacao(disciplina.uploads, {
+    // foram validados um a um. Os efeitos financeiros/conclusão vêm só aqui. Uploads
+    // que vivem numa PastaProjeto (pasta personalizada, admin) não são pacote A/B —
+    // ficam fora da validação por-arquivo, igual RECEBIDOS/OUTROS.
+    const uploadsPacote = disciplina.uploads.filter(
+      (u): u is typeof u & { pacote: NonNullable<typeof u.pacote> } => u.pacote != null,
+    );
+    const st = statusValidacao(uploadsPacote, {
       exigePacoteA: disciplina.exigePacoteA,
       exigePacoteB: disciplina.exigePacoteB,
     });
@@ -118,55 +133,17 @@ export const validarEntrega = defineAction(
       return { disciplinaId: disciplina.id, pagamentos: 0 };
     }
 
-    const valorTotal = disciplina.valor ? Number(disciplina.valor) : 0;
-    const n = disciplina.responsaveis.length;
-    const valorBase = Math.floor((valorTotal / n) * 100) / 100;
-
-    await prisma.$transaction(async (tx) => {
+    const { pagaveis, salariados } = await prisma.$transaction(async (tx) => {
       await tx.disciplina.update({
         where: { id: disciplina.id },
         // P-12: entregueEm marca a data da validação formal (separado do status manual).
         data: { status: "aprovado", entregueEm: agora },
       });
-      for (let i = 0; i < disciplina.responsaveis.length; i++) {
-        const r = disciplina.responsaveis[i];
-        // P-24: salariados (CLT/estagiário) não recebem por entrega — seu custo já entra
-        // na margem via ponto/rateio de horas. Pular evita a dupla contagem.
-        if (!PJ_ROLES.includes(r.user.role as Role)) continue;
-        // Sobra de centavos vai para o primeiro responsável.
-        const valor = i === 0 ? Number((valorTotal - valorBase * (n - 1)).toFixed(2)) : valorBase;
-        const pag = await tx.pagamentoProjetista.create({
-          data: {
-            disciplinaId: disciplina.id,
-            projetistaId: r.userId,
-            valor,
-            tipoProfissional: r.user.role,
-            status: "pendente",
-            liberadoEm: agora,
-          },
-        });
-        // Custo entra no financeiro como despesa PREVISTA já na liberação (pagar = confirmar).
-        if (valor > 0) {
-          const lancamentoId = await criarDespesaProjetistaPrevista(tx, {
-            pagamentoId: pag.id,
-            valor,
-            tipoProfissional: r.user.role,
-            projetistaNome: r.user.name,
-            disciplinaNome: disciplina.nome,
-            projetoId: disciplina.projeto.id,
-            projetoCodigo: disciplina.projeto.codigo,
-            autorId: user.id,
-            quando: agora,
-          });
-          await tx.pagamentoProjetista.update({ where: { id: pag.id }, data: { lancamentoId } });
-        }
-      }
+      return liberarPagamentosProjetista(tx, { disciplina, autorId: user.id, agora });
     });
 
     // Notifica projetistas (pagamento liberado) e gestores/financeiro.
     const codigo = formatarCodigo(disciplina.projeto.codigo);
-    const pagaveis = disciplina.responsaveis.filter((r) => PJ_ROLES.includes(r.user.role as Role));
-    const salariados = disciplina.responsaveis.filter((r) => !PJ_ROLES.includes(r.user.role as Role));
     if (pagaveis.length > 0) {
       await notificarMuitos(
         pagaveis.map((r) => r.userId),

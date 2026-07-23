@@ -137,6 +137,7 @@ export async function obterProjeto(viewer: Viewer, id: string) {
             select: {
               id: true,
               pacote: true,
+              pastaId: true,
               nomeArquivo: true,
               versao: true,
               tamanho: true,
@@ -149,6 +150,10 @@ export async function obterProjeto(viewer: Viewer, id: string) {
               autor: { select: { name: true } },
               aceite: { select: { token: true, situacao: true } },
             },
+          },
+          pastas: {
+            orderBy: { ordem: "asc" },
+            select: { id: true, parentId: true, nome: true, caminho: true, origem: true, ordem: true },
           },
           _count: { select: { pagamentos: true } },
         },
@@ -253,6 +258,15 @@ export async function usuariosInternos() {
     select: { id: true, name: true, role: true, cargo: true },
     orderBy: { name: "asc" },
   });
+}
+
+/**
+ * Nomes de usuários por id — usado para resolver FKs sem `@relation` (ex.:
+ * `Disciplina.aprovacaoSolicitadaPorId`) sem precisar de outro include na query principal.
+ */
+export async function nomesUsuarios(ids: string[]) {
+  if (ids.length === 0) return [];
+  return prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
 }
 
 /** Papéis já usados em equipes de outros projetos — sugestões p/ o autocomplete do "Papel". */

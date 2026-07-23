@@ -43,7 +43,7 @@ export function ProjetoForm({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [tipo, setTipo] = useState<"particular" | "licitacao" | "aprovacao">("particular");
+  const [tipo, setTipo] = useState<"particular" | "licitacao" | "aprovacao" | "laudo">("particular");
   const [nome, setNome] = useState("");
   const [clienteId, setClienteId] = useState("");
   const [areaM2, setAreaM2] = useState("");
@@ -139,6 +139,7 @@ export function ProjetoForm({
                   <SelectItem value="particular">Particular</SelectItem>
                   <SelectItem value="licitacao">Licitação</SelectItem>
                   <SelectItem value="aprovacao">Aprovação</SelectItem>
+                  <SelectItem value="laudo">Laudo</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -47,11 +47,11 @@ export async function projetosComPlano(viewer: Viewer) {
 /** Um projeto pode ser visto pelo viewer? (escopo). */
 export async function projetoVisivel(viewer: Viewer, projetoId: string) {
   if (acessoGlobal(viewer)) {
-    return prisma.projeto.findUnique({ where: { id: projetoId }, select: { id: true, codigo: true, nome: true } });
+    return prisma.projeto.findUnique({ where: { id: projetoId }, select: { id: true, codigo: true, nome: true, tipo: true } });
   }
   return prisma.projeto.findFirst({
     where: { AND: [{ id: projetoId }, escopoProjeto(viewer)] },
-    select: { id: true, codigo: true, nome: true },
+    select: { id: true, codigo: true, nome: true, tipo: true },
   });
 }
 

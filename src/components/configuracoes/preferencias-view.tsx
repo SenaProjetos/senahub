@@ -48,6 +48,7 @@ export function PreferenciasView({
   notifLembretePonto: notifLembretePontoInicial,
   notifCoordenacao: notifCoordenacaoInicial,
   notifAprovacaoArquivo: notifAprovacaoArquivoInicial,
+  notifAprovacaoDisciplina: notifAprovacaoDisciplinaInicial,
   pontoEmailModo: pontoEmailModoInicial,
   mostrarAlertasPonto,
 }: {
@@ -63,6 +64,7 @@ export function PreferenciasView({
   notifLembretePonto: boolean;
   notifCoordenacao: boolean;
   notifAprovacaoArquivo: boolean;
+  notifAprovacaoDisciplina: boolean;
   pontoEmailModo: PontoEmailModo;
   /** Alertas de jornada por horário são só p/ CLT/estagiário — controla a seção de e-mail. */
   mostrarAlertasPonto: boolean;
@@ -78,6 +80,7 @@ export function PreferenciasView({
   const [notifLembretePonto, setNotifLembretePonto] = useState(notifLembretePontoInicial);
   const [notifCoordenacao, setNotifCoordenacao] = useState(notifCoordenacaoInicial);
   const [notifAprovacaoArquivo, setNotifAprovacaoArquivo] = useState(notifAprovacaoArquivoInicial);
+  const [notifAprovacaoDisciplina, setNotifAprovacaoDisciplina] = useState(notifAprovacaoDisciplinaInicial);
   const [pontoEmailModo, setPontoEmailModo] = useState<PontoEmailModo>(pontoEmailModoInicial);
   const [, start] = useTransition();
 
@@ -169,6 +172,13 @@ export function PreferenciasView({
       descricao: "Aviso quando um novo entregável é enviado e aguarda sua aprovação.",
       valor: notifAprovacaoArquivo,
       set: setNotifAprovacaoArquivo,
+    },
+    {
+      chave: "notif_aprovacao_disciplina",
+      titulo: "Aprovação de disciplina (projetos aprovação/laudo)",
+      descricao: "Solicitação de aprovação de disciplina, e confirmação/recusa por um superior.",
+      valor: notifAprovacaoDisciplina,
+      set: setNotifAprovacaoDisciplina,
     },
   ];
 

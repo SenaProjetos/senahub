@@ -4,7 +4,7 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { acessoGlobal } from "@/lib/roles";
 import { resolverCaminho } from "@/lib/storage";
-import { caminhoNoZip } from "@/modules/uploads/estrutura";
+import { caminhoNoZip, caminhoNoZipPasta } from "@/modules/uploads/estrutura";
 import { logAudit, getClientIp } from "@/lib/audit";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ disciplinaId: string }> }) {
@@ -17,7 +17,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ disciplinaId: 
     where: { id: disciplinaId },
     include: {
       // Não zipa arquivos na lixeira (excluidoEm) — só o que aparece no navegador.
-      uploads: { where: { excluidoEm: null } },
+      uploads: {
+        where: { excluidoEm: null },
+        include: { pasta: { select: { caminho: true } } },
+      },
       responsaveis: { select: { userId: true } },
       projeto: { select: { codigo: true, membros: { select: { userId: true } } } },
     },
@@ -57,7 +60,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ disciplinaId: 
   // idênticos (ex.: versões anteriores do mesmo arquivo) com sufixo " (2)".
   const usados = new Set<string>();
   const entradas = disciplina.uploads.map((u) => {
-    let nome = caminhoNoZip(u.pacote, u.nomeArquivo);
+    let nome =
+      u.pastaId && u.pasta
+        ? caminhoNoZipPasta(u.pasta.caminho, u.nomeArquivo)
+        : caminhoNoZip(u.pacote!, u.nomeArquivo);
     if (usados.has(nome)) {
       const i = nome.lastIndexOf(".");
       const raiz = i > 0 ? nome.slice(0, i) : nome;

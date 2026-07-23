@@ -491,6 +491,8 @@ enum TipoProjeto {
   licitacao
   /// Item 16 (beta): projeto de aprovação (só protocolo/aprovação em órgão, sem execução).
   aprovacao
+  /// Laudo técnico: estrutura de pastas própria por disciplina, sem pacote de modelo.
+  laudo
 }
 
 enum SituacaoProjeto {
@@ -1699,9 +1701,16 @@ model Disciplina {
   exigePacoteA Boolean          @default(true)
   exigePacoteB Boolean          @default(true)
 
+  /// Fluxo de conclusão em 2 passos (projetos aprovação/laudo): responsável marca
+  /// "projeto aprovado" (seta estes campos + status entregue); superior confirma
+  /// (status aprovado) ou recusa (limpa). Substitui a validação por-arquivo nesses tipos.
+  aprovacaoSolicitadaEm   DateTime?
+  aprovacaoSolicitadaPorId String?
+
   responsaveis        DisciplinaResponsavel[]
   revisoes            RevisaoDisciplina[]
   uploads             Upload[]
+  pastas              PastaProjeto[]
   pagamentos          PagamentoProjetista[]
   canais              Canal[]
   eapTarefas          EapTarefa[]
@@ -3537,7 +3546,13 @@ model Upload {
   id           String       @id @default(cuid())
   disciplinaId String
   disciplina   Disciplina   @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
-  pacote       PacoteUpload
+  /// Localização legada (particular/licitacao): pacote A/B/OUTROS/RECEBIDOS + subpasta por
+  /// extensão. Nulo quando o arquivo vive numa PastaProjeto (pastaId setado) — tipos
+  /// aprovação/laudo e pastas personalizadas. Sempre um dos dois (pacote XOR pastaId).
+  pacote       PacoteUpload?
+  /// Pasta da árvore PastaProjeto onde o arquivo vive (template ou custom). Nulo = legado (pacote).
+  pastaId      String?
+  pasta        PastaProjeto? @relation(fields: [pastaId], references: [id], onDelete: Cascade)
   nomeArquivo  String
   /// Caminho relativo a STORAGE_BASE_PATH (nunca absoluto).
   caminho      String
@@ -3573,9 +3588,35 @@ model Upload {
   conversao  ConversaoModelo?
 
   @@index([disciplinaId, pacote])
+  @@index([pastaId])
   @@index([autorId])
   @@index([excluidoEm])
   @@map("upload")
+}
+
+/// Árvore de pastas por disciplina (auto-referente). Semeada por template conforme o tipo
+/// do projeto (aprovação/laudo) e/ou criada livremente por admin (pastas personalizadas).
+/// Substitui, nesses casos, a árvore derivada de PacoteUpload + extensão. Um Upload aponta
+/// para uma folha desta árvore via Upload.pastaId.
+model PastaProjeto {
+  id           String        @id @default(cuid())
+  disciplinaId String
+  disciplina   Disciplina    @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+  parentId     String?
+  parent       PastaProjeto? @relation("PastaFilhos", fields: [parentId], references: [id], onDelete: Cascade)
+  filhos       PastaProjeto[] @relation("PastaFilhos")
+  /// Rótulo exibido na árvore e no .zip (ex.: "Laudos").
+  nome         String
+  /// Slug-path relativo à disciplina, para o armazenamento físico (ex.: "aprovacao/laudos").
+  caminho      String
+  /// "template" (semeada pelo tipo do projeto) | "custom" (criada por admin).
+  origem       String        @default("custom")
+  ordem        Int           @default(0)
+  uploads      Upload[]
+  createdAt    DateTime      @default(now())
+
+  @@index([disciplinaId, parentId])
+  @@map("pasta_projeto")
 }
 
 /// Apontamento posicional (pendência) sobre uma prancha PDF, na tela de visualização.

@@ -30,6 +30,16 @@ import {
   definirResponsaveis,
   registrarRevisao,
 } from "@/modules/projetos/actions";
+import {
+  solicitarAprovacaoDisciplina,
+  confirmarAprovacaoDisciplina,
+  recusarAprovacaoDisciplina,
+} from "@/modules/projetos/aprovacao-disciplina/actions";
+import {
+  podeSolicitarAprovacao,
+  podeConfirmarOuRecusarAprovacao,
+  rotuloStatusDisciplina,
+} from "@/modules/projetos/aprovacao-disciplina/regras";
 import { ehGlobal } from "@/modules/projetos/diario/acesso";
 import { DiarioEntradaDialog } from "@/components/projetos/diario-entrada-dialog";
 import { DisciplinaEditDialog, DisciplinaDeleteButton } from "@/components/projetos/disciplina-edit-dialog";
@@ -37,6 +47,8 @@ import { validarEntrega, gerarAceiteCliente } from "@/modules/uploads/actions";
 import { statusValidacao, entregaveisAtuais } from "@/modules/uploads/validacao";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
 import { IconeArquivo, StatusArquivo, VersaoToggle } from "@/components/projetos/arquivos-explorer";
+import { PastaTreeView, SeletorPasta, type ArquivoPasta } from "@/components/projetos/pasta-tree-view";
+import type { PastaFlat } from "@/modules/projetos/pastas/arvore";
 import { limiteDoPacote, limiteLabelDoPacote } from "@/modules/uploads/limites";
 import {
   enviarArquivoComProgresso,
@@ -114,6 +126,12 @@ type Disc = {
   jaValidado: boolean;
   exigePacoteA: boolean;
   exigePacoteB: boolean;
+  /** Aprovação/laudo (só projetos novos): árvore de pastas própria no lugar do pacote A/B. */
+  usaPastas: boolean;
+  pastas: PastaFlat[];
+  arquivosPasta: ArquivoPasta[];
+  aprovacaoSolicitadaEm: string | null;
+  aprovacaoSolicitadaPorNome: string | null;
 };
 
 function tamanhoLegivel(bytes: number) {
@@ -198,7 +216,10 @@ export function DisciplinaCard({
         </div>
         <div className="flex items-center gap-1">
           <StatusBadge tone={STATUS_TONE[disciplina.status] ?? "neutral"}>
-            {STATUS_LABEL[disciplina.status]}
+            {rotuloStatusDisciplina({
+              status: disciplina.status,
+              aprovacaoSolicitadaEm: disciplina.aprovacaoSolicitadaEm,
+            })}
           </StatusBadge>
           {canalChatId && (
             <Button
@@ -228,6 +249,7 @@ export function DisciplinaCard({
                 internos={internos}
                 exigePacoteA={disciplina.exigePacoteA}
                 exigePacoteB={disciplina.exigePacoteB}
+                usaEstruturaPastas={disciplina.usaPastas}
               />
               {!disciplina.jaValidado && (
                 <DisciplinaDeleteButton disciplinaId={disciplina.id} nome={disciplina.nome} qtdTarefas={qtdTarefas} />
@@ -271,6 +293,10 @@ export function DisciplinaCard({
         <div className="flex items-center gap-1.5 rounded-sm bg-status-aprovado/10 px-2 py-1 text-xs text-status-aprovado">
           <ShieldCheck className="size-3.5" /> Entrega validada · pagamento liberado
         </div>
+      )}
+
+      {disciplina.usaPastas && (
+        <FluxoAprovacaoDisciplina disciplina={disciplina} meRole={meRole} />
       )}
 
       <div className="flex flex-wrap gap-1.5">
@@ -319,6 +345,110 @@ function DiarioAtalhoButton({ projetoId, disciplina }: { projetoId: string; disc
   );
 }
 
+/**
+ * Fluxo de aprovação em 2 etapas (aprovação/laudo): responsável marca "projeto aprovado";
+ * admin/supervisor confirma (terminal) ou recusa (volta pra em_andamento, com motivo).
+ */
+function FluxoAprovacaoDisciplina({
+  disciplina,
+  meRole,
+}: {
+  disciplina: Disc;
+  meRole?: string;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [recusando, setRecusando] = useState(false);
+  const [motivo, setMotivo] = useState("");
+
+  const podeSolicitar = podeSolicitarAprovacao({
+    ehResponsavel: disciplina.ehResponsavel,
+    status: disciplina.status,
+  });
+  const podeConfirmar = !!meRole && podeConfirmarOuRecusarAprovacao(meRole);
+  const aguardando = disciplina.aprovacaoSolicitadaEm != null;
+
+  function solicitar() {
+    start(async () => {
+      const res = await solicitarAprovacaoDisciplina({ disciplinaId: disciplina.id });
+      if (res.ok) {
+        toast.success("Projeto marcado como aprovado — aguardando confirmação.");
+        router.refresh();
+      } else toast.error(res.error);
+    });
+  }
+
+  function confirmar() {
+    start(async () => {
+      const res = await confirmarAprovacaoDisciplina({ disciplinaId: disciplina.id });
+      if (res.ok) {
+        toast.success("Aprovação confirmada.");
+        router.refresh();
+      } else toast.error(res.error);
+    });
+  }
+
+  function recusar() {
+    if (!motivo.trim()) return;
+    start(async () => {
+      const res = await recusarAprovacaoDisciplina({ disciplinaId: disciplina.id, motivo });
+      if (res.ok) {
+        toast.success("Aprovação recusada.");
+        setRecusando(false);
+        setMotivo("");
+        router.refresh();
+      } else toast.error(res.error);
+    });
+  }
+
+  if (!podeSolicitar && !aguardando) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-sm border border-status-entregue/40 bg-status-entregue/10 px-2.5 py-1.5 text-xs">
+      {aguardando ? (
+        <>
+          <span className="text-status-entregue">
+            Aguardando confirmação
+            {disciplina.aprovacaoSolicitadaPorNome ? ` · solicitado por ${disciplina.aprovacaoSolicitadaPorNome}` : ""}
+          </span>
+          {podeConfirmar && (
+            <div className="ml-auto flex gap-1.5">
+              <Button size="sm" className="h-7 px-2" onClick={confirmar} disabled={pending}>
+                <CheckCircle className="size-3.5" /> Confirmar
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => setRecusando(true)} disabled={pending}>
+                <XCircle className="size-3.5" /> Recusar
+              </Button>
+            </div>
+          )}
+        </>
+      ) : (
+        <Button size="sm" className="h-7 px-2" onClick={solicitar} disabled={pending}>
+          <CheckCircle className="size-3.5" /> Marcar projeto aprovado
+        </Button>
+      )}
+
+      <Dialog open={recusando} onOpenChange={setRecusando}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Recusar aprovação</DialogTitle>
+            <DialogDescription>Explique o motivo — o responsável será notificado.</DialogDescription>
+          </DialogHeader>
+          <Input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Motivo da recusa" />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRecusando(false)} disabled={pending}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={recusar} disabled={pending || !motivo.trim()}>
+              Recusar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 function ArquivosDialog({
   projetoId,
   disciplina,
@@ -335,6 +465,7 @@ function ArquivosDialog({
   const [enviando, setEnviando] = useState(false);
   const [progresso, setProgresso] = useState<LinhaEnvio[] | null>(null);
   const [pacote, setPacote] = useState<"A" | "B">("A");
+  const [pastaId, setPastaId] = useState("");
   const [validando, start] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
   const [versoesAbertas, setVersoesAbertas] = useState<Set<string>>(new Set());
@@ -376,6 +507,10 @@ function ArquivosDialog({
 
   async function enviar(files: FileList | null) {
     if (!files || files.length === 0) return;
+    if (disciplina.usaPastas && !pastaId) {
+      toast.error("Selecione a pasta de destino.");
+      return;
+    }
     // Valida o tamanho ANTES de enviar — evita estourar o corpo da requisição no servidor.
     // O limite depende do pacote (B/backup = 1,5 GB; demais = 500 MB), igual ao servidor.
     const limite = limiteDoPacote(pacote);
@@ -405,7 +540,9 @@ function ArquivosDialog({
         try {
           const r = await enviarArquivoComProgresso(
             f,
-            { nome: f.name, disciplinaId: disciplina.id, pacote },
+            disciplina.usaPastas
+              ? { nome: f.name, disciplinaId: disciplina.id, pastaId }
+              : { nome: f.name, disciplinaId: disciplina.id, pacote },
             (pct) => setProgresso((prev) => (prev ? patchLinhaEnvio(prev, i, { progresso: pct }) : prev)),
           );
           if (r.ok) ok++;
@@ -470,7 +607,8 @@ function ArquivosDialog({
       <DialogTrigger
         render={
           <Button variant="outline" size="sm">
-            <FolderUp className="size-3.5" /> Arquivos ({contarLogicos(disciplina.uploads)})
+            <FolderUp className="size-3.5" />{" "}
+            Arquivos ({disciplina.usaPastas ? disciplina.arquivosPasta.length : contarLogicos(disciplina.uploads)})
           </Button>
         }
       />
@@ -478,10 +616,48 @@ function ArquivosDialog({
         <DialogHeader>
           <DialogTitle>{disciplina.nome} — arquivos</DialogTitle>
           <DialogDescription>
-            Pranchas e arquivos (A) · Backup do modelo (B)
+            {disciplina.usaPastas ? "Árvore de pastas própria deste tipo de projeto." : "Pranchas e arquivos (A) · Backup do modelo (B)"}
           </DialogDescription>
         </DialogHeader>
 
+        {disciplina.usaPastas ? (
+          <>
+            {podeEnviar && (
+              <div className="space-y-2 rounded-sm border p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <SeletorPasta pastas={disciplina.pastas} value={pastaId} onChange={setPastaId} />
+                  <Button size="sm" onClick={() => inputRef.current?.click()} disabled={enviando || !pastaId}>
+                    <UploadIcon className="size-3.5" /> {enviando ? "Enviando…" : "Enviar arquivos"}
+                  </Button>
+                  <input
+                    ref={inputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => enviar(e.target.files)}
+                  />
+                </div>
+                {progresso && progresso.length > 0 && (
+                  <PainelProgressoEnvio
+                    linhas={progresso}
+                    enviando={enviando}
+                    onFechar={() => setProgresso(null)}
+                  />
+                )}
+              </div>
+            )}
+            <div className="min-w-0">
+              <PastaTreeView
+                disciplinaId={disciplina.id}
+                projetoId={projetoId}
+                pastas={disciplina.pastas}
+                arquivos={disciplina.arquivosPasta}
+                podeAdmin={podeValidar}
+              />
+            </div>
+          </>
+        ) : (
+        <>
         {podeEnviar && !disciplina.jaValidado && (
           <div className="space-y-2 rounded-sm border p-3">
             <div className="flex items-center gap-2">
@@ -678,15 +854,17 @@ function ArquivosDialog({
             );
           })}
         </div>
+        </>
+        )}
 
         <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
           <div className="flex flex-wrap gap-2">
-            {disciplina.uploads.length > 0 && (
+            {(disciplina.uploads.length > 0 || disciplina.arquivosPasta.length > 0) && (
               <Button variant="outline" size="sm" render={<a href={`/api/uploads/disciplina/${disciplina.id}/zip`} />}>
                 <FileArchive className="size-3.5" /> Baixar tudo (.zip)
               </Button>
             )}
-            {podeValidar && disciplina.jaValidado && (
+            {podeValidar && disciplina.jaValidado && !disciplina.usaPastas && (
               aceiteToken ? (
                 <div className="flex items-center gap-2">
                   {aceiteSituacao === "aceito" && (
@@ -720,7 +898,7 @@ function ArquivosDialog({
               )
             )}
           </div>
-          {podeValidar && (
+          {podeValidar && !disciplina.usaPastas && (
             <Button onClick={validar} disabled={!completoParaValidar || validando}>
               <ShieldCheck className="size-4" />
               {disciplina.jaValidado

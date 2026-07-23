@@ -6,7 +6,7 @@ import { ROLE_LABELS, CLT_ROLES, INTERNAL_ROLES } from "@/lib/roles";
 import { Avatar, AvatarFallback, AvatarBadge } from "@/components/ui/avatar";
 import { requirePermission } from "@/lib/session";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
-import { obterProjeto, usuariosInternos, papeisUsados, margemProjeto, catalogoDisciplinas, disciplinasForaDeSLA, SLA_VALIDACAO_DIAS, timelineStatusProjeto } from "@/modules/projetos/queries";
+import { obterProjeto, usuariosInternos, papeisUsados, margemProjeto, catalogoDisciplinas, disciplinasForaDeSLA, SLA_VALIDACAO_DIAS, timelineStatusProjeto, nomesUsuarios } from "@/modules/projetos/queries";
 import { StatusTimeline } from "@/components/projetos/status-timeline";
 import { formatarData } from "@/lib/utils";
 import { progressoProjeto } from "@/modules/projetos/status";
@@ -61,10 +61,23 @@ export default async function ProjetoDetalhePage({
   // Item 26 (beta): CLT/estagiário são remunerados por salário/bolsa (RH), não por
   // disciplina — o valor pago ao projetista PJ/freelancer não deve aparecer para eles.
   const ocultarValorDisciplina = CLT_ROLES.includes(user.role);
+
+  // Nome de quem solicitou aprovação (aprovação/laudo) — FK sem relation no schema,
+  // resolvida à parte (mesmo padrão de `nomeAutor` em `arquivos/queries.ts`).
+  const solicitantesIds = [
+    ...new Set(projeto.disciplinas.map((d) => d.aprovacaoSolicitadaPorId).filter((id): id is string => !!id)),
+  ];
+  const solicitantes = await nomesUsuarios(solicitantesIds);
+  const nomeSolicitante = new Map(solicitantes.map((u) => [u.id, u.name]));
+
   const disciplinas = projeto.disciplinas.map((d) => {
-    const uploads = d.uploads.map((u) => ({
+    // Aprovação/laudo (só projetos novos): árvore de PastaProjeto no lugar do pacote A/B.
+    const usaPastas = d.pastas.some((p) => p.origem === "template");
+    const uploadsPacote = d.uploads.filter((u) => u.pastaId == null);
+    const uploadsPasta = d.uploads.filter((u) => u.pastaId != null);
+    const uploads = uploadsPacote.map((u) => ({
       id: u.id,
-      pacote: u.pacote,
+      pacote: u.pacote as "A" | "B" | "OUTROS" | "RECEBIDOS",
       nomeArquivo: u.nomeArquivo,
       versao: u.versao,
       tamanho: u.tamanho,
@@ -98,6 +111,22 @@ export default async function ProjetoDetalhePage({
       jaValidado: d.status === "aprovado",
       exigePacoteA: d.exigePacoteA,
       exigePacoteB: d.exigePacoteB,
+      usaPastas,
+      pastas: d.pastas,
+      arquivosPasta: uploadsPasta.map((u) => ({
+        id: u.id,
+        nome: u.nomeArquivo,
+        pastaId: u.pastaId!,
+        versao: u.versao,
+        tamanho: u.tamanho,
+        autor: u.autor.name,
+        data: new Date(u.createdAt).toISOString(),
+        downloadUrl: `/api/uploads/${u.id}/download`,
+      })),
+      aprovacaoSolicitadaEm: d.aprovacaoSolicitadaEm ? d.aprovacaoSolicitadaEm.toISOString() : null,
+      aprovacaoSolicitadaPorNome: d.aprovacaoSolicitadaPorId
+        ? (nomeSolicitante.get(d.aprovacaoSolicitadaPorId) ?? null)
+        : null,
     };
   });
 

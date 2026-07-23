@@ -22,18 +22,23 @@ export type LinhaEnvio = {
   realocado?: boolean;
 };
 
-/** Envia um arquivo (renomeando para `nome`) reportando o progresso 0–100. */
+/**
+ * Envia um arquivo (renomeando para `nome`) reportando o progresso 0–100.
+ * Destino é `pacote` (A/B/RECEBIDOS, tipos legados) OU `pastaId` (árvore de pastas —
+ * aprovação/laudo ou pasta personalizada) — nunca os dois.
+ */
 export async function enviarArquivoComProgresso(
   file: File,
-  opts: { nome: string; disciplinaId: string; pacote: string },
+  opts: { nome: string; disciplinaId: string; pacote?: string; pastaId?: string },
   onProgress: (pct: number) => void,
 ): Promise<ResultadoUpload> {
-  const { nome, disciplinaId, pacote } = opts;
+  const { nome, disciplinaId, pacote, pastaId } = opts;
   if (precisaChunk(file)) {
     const meta = await enviarEmChunks(file, onProgress);
     const fd = new FormData();
     fd.set("disciplinaId", disciplinaId);
-    fd.set("pacote", pacote);
+    if (pastaId) fd.set("pastaId", pastaId);
+    else fd.set("pacote", pacote ?? "");
     fd.set("sessaoId", meta.sessaoId);
     fd.set("nome", nome);
     fd.set("total", String(meta.total));
@@ -48,7 +53,8 @@ export async function enviarArquivoComProgresso(
   return new Promise((resolve, reject) => {
     const fd = new FormData();
     fd.set("disciplinaId", disciplinaId);
-    fd.set("pacote", pacote);
+    if (pastaId) fd.set("pastaId", pastaId);
+    else fd.set("pacote", pacote ?? "");
     fd.append("files", file);
     fd.append("nomes", nome);
 
@@ -71,7 +77,7 @@ export async function enviarArquivoComProgresso(
           new Error(
             data?.error ??
               (xhr.status === 413
-                ? `Arquivo muito grande — limite de ${limiteLabelDoPacote(pacote)}.`
+                ? `Arquivo muito grande — limite de ${limiteLabelDoPacote(pacote ?? "")}.`
                 : `Falha no envio (HTTP ${xhr.status}).`),
           ),
         );

@@ -49,3 +49,12 @@ export function caminhoNoZip(pacote: string, nomeArquivo: string): string {
   const pastaPacote = PACOTE_LABEL[pacote as Pacote] ?? String(pacote);
   return `${pastaPacote}/${subpastaDe(nomeArquivo)}/${nomeArquivo}`;
 }
+
+/**
+ * Caminho de um arquivo dentro do .zip quando ele vive numa `PastaProjeto` (tipos
+ * aprovação/laudo, ou pasta personalizada) em vez de um pacote — o `caminho` da
+ * própria pasta já encodeia a hierarquia, sem subpasta por extensão.
+ */
+export function caminhoNoZipPasta(pastaCaminho: string, nomeArquivo: string): string {
+  return `${pastaCaminho}/${nomeArquivo}`;
+}

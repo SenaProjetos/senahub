@@ -35,6 +35,10 @@ export default async function AceitePublicoPage({
   if (!aceite) notFound();
 
   const { upload } = aceite;
+  // Aceite só existe p/ upload validado (gerarAceiteCliente exige validado=true), e só
+  // uploads de pacote A/B passam pela validação — pastaId nunca chega aqui, mas o tipo
+  // de `pacote` é nullable no schema (Upload de PastaProjeto), daí a guarda.
+  if (!upload.pacote) notFound();
   return (
     <main className="mx-auto max-w-xl px-4 py-10">
       <div className="mb-6">

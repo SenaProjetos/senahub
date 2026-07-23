@@ -9,12 +9,7 @@ import {
   ChevronRight,
   Folder,
   FolderOpen,
-  File as FileIcon,
-  FileText,
-  FileCode,
-  FileSpreadsheet,
   FileArchive,
-  Image as ImageIcon,
   Download,
   Eye,
   Upload as UploadIcon,
@@ -49,6 +44,8 @@ import {
 import type { DocumentoItem, DocumentoVersaoItem } from "@/modules/documentos-cliente/queries";
 import type { MetaDocumento } from "@/modules/documentos-cliente/schemas";
 import { entregaveisAtuais } from "@/modules/uploads/validacao";
+import { IconeArquivo } from "@/components/projetos/icone-arquivo";
+import { PastaTreeView } from "@/components/projetos/pasta-tree-view";
 // Estrutura de pastas (subpastas por extensão + rótulos de pacote) — fonte única
 // compartilhada com a geração de .zip, para o zip espelhar a árvore desta tela.
 import { SUBPASTAS, PACOTES, PACOTE_LABEL, extDe, subpastaDe } from "@/modules/uploads/estrutura";
@@ -124,16 +121,7 @@ function fmtBytes(n: number) {
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
-export function IconeArquivo({ nome }: { nome: string }) {
-  const ext = extDe(nome);
-  if (ext === "pdf") return <FileText className="size-4 shrink-0 text-destructive" />;
-  if (["dwg", "dxf", "dwf"].includes(ext)) return <FileCode className="size-4 shrink-0 text-primary" />;
-  if (["xls", "xlsx", "doc", "docx", "txt"].includes(ext)) return <FileSpreadsheet className="size-4 shrink-0 text-success" />;
-  if (["ifc", "ifcxml", "ifczip"].includes(ext)) return <FileCode className="size-4 shrink-0 text-violet-500" />;
-  if (["zip", "rar", "7z", "tqs", "rvt", "skp", "qibzip"].includes(ext)) return <FileArchive className="size-4 shrink-0 text-warning" />;
-  if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) return <ImageIcon className="size-4 shrink-0 text-pink-500" />;
-  return <FileIcon className="size-4 shrink-0 text-muted-foreground" />;
-}
+export { IconeArquivo };
 
 /** Status de validação de um entregável (aprovado / ajuste solicitado / pendente). Compartilhado com o card da disciplina. */
 export function StatusArquivo({
@@ -728,15 +716,16 @@ export function ArquivosExplorer({
                     ).map((u) => u.id),
                   );
                   const podeValidarDisc = podeValidar && !d.finalizado;
+                  const totalArquivos = d.usaPastas ? d.arquivosPasta.length : contarArquivos(d.arquivos);
                   return (
                     <Pasta
                       key={d.id}
                       nome={d.nome}
-                      contagem={contarArquivos(d.arquivos)}
+                      contagem={totalArquivos}
                       nivel={0}
                       acao={
                         <div className="flex items-center gap-2">
-                          {podeValidar && d.resumo.total > 0 && (
+                          {podeValidar && d.resumo && d.resumo.total > 0 && (
                             <span
                               className={cn(
                                 "font-mono text-[10px]",
@@ -747,7 +736,7 @@ export function ArquivosExplorer({
                               {d.resumo.validados}/{d.resumo.total} val.
                             </span>
                           )}
-                          {d.arquivos.length > 0 && (
+                          {totalArquivos > 0 && (
                             <Button
                               size="icon"
                               variant="ghost"
@@ -762,7 +751,17 @@ export function ArquivosExplorer({
                         </div>
                       }
                     >
-                      {grupos.length === 0 ? (
+                      {d.usaPastas ? (
+                        <div className="pl-5">
+                          <PastaTreeView
+                            disciplinaId={d.id}
+                            projetoId={projeto.id}
+                            pastas={d.pastas}
+                            arquivos={d.arquivosPasta}
+                            podeAdmin={podeExcluirArquivo}
+                          />
+                        </div>
+                      ) : grupos.length === 0 ? (
                         <p className="py-1.5 pl-10 text-xs text-muted-foreground">Sem arquivos.</p>
                       ) : (
                         grupos.map((g) => {

@@ -48,6 +48,7 @@ export const TIPO_PROJETO_LABEL: Record<string, string> = {
   particular: "Particular",
   licitacao: "Licitação",
   aprovacao: "Aprovação",
+  laudo: "Laudo",
 };
 
 export const SITUACAO_PROJETO_LABEL: Record<string, string> = {

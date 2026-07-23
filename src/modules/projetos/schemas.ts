@@ -22,7 +22,7 @@ export const disciplinaInputSchema = z.object({
 });
 
 export const criarProjetoSchema = z.object({
-  tipo: z.enum(["particular", "licitacao", "aprovacao"]),
+  tipo: z.enum(["particular", "licitacao", "aprovacao", "laudo"]),
   nome: z.string().min(2, "Informe o nome do projeto."),
   clienteId: z.string().min(1, "Selecione o cliente."),
   descricao: z.string().optional(),
@@ -39,7 +39,7 @@ export const editarProjetoSchema = z.object({
   /** P-03: permite trocar o cliente. */
   clienteId: z.string().min(1).optional(),
   nome: z.string().min(2),
-  tipo: z.enum(["particular", "licitacao", "aprovacao"]),
+  tipo: z.enum(["particular", "licitacao", "aprovacao", "laudo"]),
   situacao: z.enum(["em_andamento", "concluido", "arquivado", "cancelado"]),
   descricao: z.string().optional(),
   areaM2: z.number().nonnegative().optional(),
@@ -152,3 +152,17 @@ export const moverDisciplinaCatalogoSchema = z.object({
 
 export type CriarProjetoInput = z.infer<typeof criarProjetoSchema>;
 export type DisciplinaInput = z.infer<typeof disciplinaInputSchema>;
+
+/** Aprovação em 2 etapas (projetos aprovação/laudo) — ver `modules/projetos/aprovacao-disciplina`. */
+export const solicitarAprovacaoDisciplinaSchema = z.object({
+  disciplinaId: z.string().min(1),
+});
+
+export const confirmarAprovacaoDisciplinaSchema = z.object({
+  disciplinaId: z.string().min(1),
+});
+
+export const recusarAprovacaoDisciplinaSchema = z.object({
+  disciplinaId: z.string().min(1),
+  motivo: z.string().trim().min(1, "Informe o motivo da recusa.").max(500),
+});
