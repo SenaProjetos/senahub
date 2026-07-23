@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
@@ -48,6 +48,9 @@ export function EmailsView({ categorias, smtpAtivo }: { categorias: Categoria[];
   const [editando, setEditando] = useState<Editando | null>(null);
   const [pending, start] = useTransition();
   const confirm = useConfirm();
+  const assuntoRef = useRef<HTMLInputElement>(null);
+  const corpoRef = useRef<HTMLTextAreaElement>(null);
+  const [campoFocado, setCampoFocado] = useState<"assunto" | "corpo">("corpo");
 
   const grupos = useMemo(() => {
     const mapa = new Map<string, Categoria[]>();
@@ -82,6 +85,24 @@ export function EmailsView({ categorias, smtpAtivo }: { categorias: Categoria[];
   }
   function editar(v: Variante) {
     setEditando({ id: v.id, nome: v.nome, assunto: v.assunto, corpo: v.corpoHtml, ativo: v.ativo });
+  }
+
+  /** Insere `{{nome}}` no cursor do campo (assunto/corpo) usado por último. */
+  function inserirVariavel(nome: string) {
+    if (!editando) return;
+    const campo = campoFocado;
+    const el = campo === "assunto" ? assuntoRef.current : corpoRef.current;
+    const token = `{{${nome}}}`;
+    const atual = editando[campo];
+    const inicio = el?.selectionStart ?? atual.length;
+    const fim = el?.selectionEnd ?? atual.length;
+    const novo = atual.slice(0, inicio) + token + atual.slice(fim);
+    setEditando({ ...editando, [campo]: novo });
+    requestAnimationFrame(() => {
+      el?.focus();
+      const pos = inicio + token.length;
+      el?.setSelectionRange(pos, pos);
+    });
   }
 
   function salvar() {
@@ -270,16 +291,20 @@ export function EmailsView({ categorias, smtpAtivo }: { categorias: Categoria[];
                   <div className="space-y-1.5">
                     <Label>Assunto</Label>
                     <Input
+                      ref={assuntoRef}
                       value={editando.assunto}
                       onChange={(e) => setEditando({ ...editando, assunto: e.target.value })}
+                      onFocus={() => setCampoFocado("assunto")}
                     />
                   </div>
 
                   <div className="space-y-1.5">
                     <Label>Corpo (Markdown)</Label>
                     <textarea
+                      ref={corpoRef}
                       value={editando.corpo}
                       onChange={(e) => setEditando({ ...editando, corpo: e.target.value })}
+                      onFocus={() => setCampoFocado("corpo")}
                       rows={10}
                       spellCheck={false}
                       className="w-full resize-y rounded-lg border border-input bg-transparent px-2.5 py-1.5 font-mono text-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
@@ -289,12 +314,23 @@ export function EmailsView({ categorias, smtpAtivo }: { categorias: Categoria[];
 
                   {atual.variaveis.length > 0 && (
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Variáveis disponíveis</Label>
-                      <div className="flex flex-wrap gap-1.5">
+                      <Label className="text-xs text-muted-foreground">
+                        Variáveis disponíveis — clique para inserir no campo em uso ({campoFocado})
+                      </Label>
+                      <div className="space-y-1 rounded-lg border bg-muted/30 p-2">
                         {atual.variaveis.map((v) => (
-                          <code key={v.nome} title={v.descricao} className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                            {`{{${v.nome}}}`}
-                          </code>
+                          <button
+                            key={v.nome}
+                            type="button"
+                            onClick={() => inserirVariavel(v.nome)}
+                            className="flex w-full flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-md px-2 py-1.5 text-left hover:bg-muted"
+                          >
+                            <code className="shrink-0 rounded bg-background px-1.5 py-0.5 text-xs font-semibold">
+                              {`{{${v.nome}}}`}
+                            </code>
+                            <span className="text-xs text-muted-foreground">{v.descricao}</span>
+                            <span className="text-xs text-muted-foreground/70 italic">ex.: {v.exemplo}</span>
+                          </button>
                         ))}
                       </div>
                     </div>
