@@ -2919,12 +2919,33 @@ model Lead {
 
   atividades AtividadeLead[]
   propostas  Proposta[]
+  anexos     AnexoLead[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([etapaId, arquivado])
   @@map("lead")
+}
+
+/// Arquivo anexado a um lead do funil (proposta enviada, e-mail de solicitação
+/// da arquitetura, referências iniciais do orçamento). Mesmo padrão de
+/// FuncionarioDocumento: metadados + caminho relativo em STORAGE_BASE_PATH.
+model AnexoLead {
+  id          String   @id @default(cuid())
+  leadId      String
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  nome        String
+  caminho     String
+  nomeArquivo String
+  mime        String
+  tamanho     Int
+  hashSha256  String
+  autorId     String?
+  createdAt   DateTime @default(now())
+
+  @@index([leadId])
+  @@map("anexo_lead")
 }
 
 model AtividadeLead {

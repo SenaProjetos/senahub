@@ -24,6 +24,22 @@ export const idSchema = z.object({ id: z.string().min(1) });
 export const notaLeadSchema = z.object({ leadId: z.string().min(1), nota: z.string().min(1) });
 export const converterLeadSchema = z.object({ id: z.string().min(1) });
 
+// ── Anexos do lead ────────────────────────────────────────────
+/** Metadados devolvidos pela rota multipart `/api/comercial/anexos`. */
+const anexoMetaSchema = z.object({
+  caminho: z.string().min(1),
+  nomeArquivo: z.string().min(1),
+  mime: z.string().min(1),
+  tamanho: z.number().int().nonnegative(),
+  hashSha256: z.string().min(1),
+});
+export const adicionarAnexoLeadSchema = z.object({
+  leadId: z.string().min(1),
+  nome: opt(z.string()),
+  meta: anexoMetaSchema,
+});
+export const removerAnexoLeadSchema = z.object({ id: z.string().min(1) });
+
 export const metaSchema = z.object({
   ano: z.number().int().min(2020).max(2100),
   mes: z.number().int().min(1).max(12),

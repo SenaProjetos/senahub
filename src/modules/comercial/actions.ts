@@ -27,7 +27,10 @@ import {
   criarEtapaSchema,
   editarEtapaSchema,
   alternarEtapaSchema,
+  adicionarAnexoLeadSchema,
+  removerAnexoLeadSchema,
 } from "@/modules/comercial/schemas";
+import { removerArquivo } from "@/lib/storage";
 import type { Prisma } from "@/generated/prisma/client";
 
 const base = { modulo: "comercial", recurso: "comercial", permissao: "gerir" } as const;
@@ -118,6 +121,47 @@ export const adicionarNotaLead = defineAction(
     });
     rev();
     return { leadId: i.leadId };
+  },
+);
+
+/**
+ * Anexa um arquivo ao lead. O upload em si vai pela rota multipart
+ * `/api/comercial/anexos` (devolve `meta`); aqui só persiste o registro.
+ * `nome` opcional — cai no nome original do arquivo quando vazio.
+ */
+export const adicionarAnexoLead = defineAction(
+  { ...base, acao: "add-anexo-lead", entidade: "AnexoLead", schema: adicionarAnexoLeadSchema },
+  async (i, { user }) => {
+    const lead = await prisma.lead.findUnique({ where: { id: i.leadId }, select: { id: true } });
+    if (!lead) throw new ActionError("Lead não encontrado.");
+    const anexo = await prisma.anexoLead.create({
+      data: {
+        leadId: i.leadId,
+        nome: i.nome?.trim() || i.meta.nomeArquivo,
+        caminho: i.meta.caminho,
+        nomeArquivo: i.meta.nomeArquivo,
+        mime: i.meta.mime,
+        tamanho: i.meta.tamanho,
+        hashSha256: i.meta.hashSha256,
+        autorId: user.id,
+      },
+    });
+    rev();
+    revalidatePath(`/comercial/${i.leadId}`);
+    return { id: anexo.id };
+  },
+);
+
+export const removerAnexoLead = defineAction(
+  { ...base, acao: "rm-anexo-lead", entidade: "AnexoLead", schema: removerAnexoLeadSchema },
+  async (i) => {
+    const anexo = await prisma.anexoLead.findUnique({ where: { id: i.id }, select: { caminho: true, leadId: true } });
+    if (!anexo) throw new ActionError("Anexo não encontrado.");
+    await prisma.anexoLead.delete({ where: { id: i.id } });
+    await removerArquivo(anexo.caminho);
+    rev();
+    revalidatePath(`/comercial/${anexo.leadId}`);
+    return { id: i.id };
   },
 );
 

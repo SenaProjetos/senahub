@@ -16,6 +16,10 @@ export async function funilCompleto() {
             orderBy: { createdAt: "desc" },
             include: { autor: { select: { name: true } } },
           },
+          anexos: {
+            orderBy: { createdAt: "desc" },
+            select: { id: true, nome: true, nomeArquivo: true, tamanho: true, createdAt: true },
+          },
           _count: { select: { propostas: true } },
         },
       },
@@ -35,6 +39,10 @@ export async function obterLead(id: string) {
       etapa: true,
       cliente: { select: { id: true, nome: true } },
       atividades: { orderBy: { createdAt: "desc" }, include: { autor: { select: { name: true } } } },
+      anexos: {
+        orderBy: { createdAt: "desc" },
+        select: { id: true, nome: true, nomeArquivo: true, tamanho: true, createdAt: true },
+      },
       propostas: { select: { id: true, numero: true, titulo: true, status: true } },
     },
   });
