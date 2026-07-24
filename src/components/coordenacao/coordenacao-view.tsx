@@ -202,10 +202,10 @@ export function CoordenacaoView({
   const onSelecionarViewer = useCallback((info: SelecaoInfo | null) => {
     setSelecao(info);
     setTemSelecao(engineRef.current?.temSelecao ?? false);
-    // Selecionar um elemento no viewer troca o dock pra Propriedades automaticamente
-    // (mesmo comportamento de sempre — só que agora move o dock em vez de aparecer
-    // numa coluna lateral fixa).
-    if (info) setPainelAtivo("propriedades");
+    // Selecionar um elemento mostra Propriedades — mas só quando o dock está vazio ou já
+    // nas Propriedades. Nunca rouba um painel aberto de propósito: Apontamentos, Clash e
+    // Diff dependem de selecionar elementos e seriam fechados no meio da ação.
+    if (info) setPainelAtivo((atual) => (atual === null || atual === "propriedades" ? "propriedades" : atual));
   }, []);
 
   const alternarPainel = useCallback((id: PainelId) => {
