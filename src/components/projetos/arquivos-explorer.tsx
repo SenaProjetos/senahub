@@ -24,13 +24,14 @@ import {
   XCircle,
   RotateCcw,
   History,
+  ShieldCheck,
 } from "lucide-react";
 import { foraDoPadrao } from "@/modules/projetos/pranchas/codigo";
 import type {
   ArvoreDisciplina,
   ArvoreArquivoItem,
 } from "@/modules/projetos/arquivos/queries";
-import { renomearUpload, excluirUpload, excluirUploadsLote, restaurarUpload, excluirUploadDefinitivo } from "@/modules/uploads/actions";
+import { renomearUpload, excluirUpload, excluirUploadsLote, validarArquivosLote, restaurarUpload, excluirUploadDefinitivo } from "@/modules/uploads/actions";
 import type { LixeiraItem } from "@/modules/uploads/queries";
 import { DIAS_LIXEIRA } from "@/modules/uploads/lixeira";
 import {
@@ -563,8 +564,40 @@ export function ArquivosExplorer({
   const router = useRouter();
   const confirm = useConfirm();
   const [excluindoPend, excluindo] = useTransition();
+  const [validandoPend, validando] = useTransition();
   const [renomeando, setRenomeando] = useState<ArvoreArquivoItem | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
+
+  // Entregáveis validáveis por disciplina (versão atual, pacote A/B, disciplina não finalizada) —
+  // hoisted para reusar tanto na linha (podeValidar por arquivo) quanto no lote da seleção.
+  const validaveisPorDisciplina = useMemo(() => {
+    const mapa = new Map<string, Set<string>>();
+    if (!podeValidar) return mapa;
+    for (const d of disciplinas) {
+      if (d.finalizado) continue;
+      const ids = new Set(
+        entregaveisAtuais(
+          d.arquivos.map((a) => ({
+            id: a.id,
+            pacote: a.pacote,
+            nomeArquivo: a.nome,
+            versao: a.versao,
+            validado: a.aprovado,
+            origem: a.origem,
+          })),
+        ).map((u) => u.id),
+      );
+      mapa.set(d.id, ids);
+    }
+    return mapa;
+  }, [disciplinas, podeValidar]);
+
+  const selValidaveis = useMemo(() => {
+    if (validaveisPorDisciplina.size === 0) return [];
+    const todos = new Set<string>();
+    for (const ids of validaveisPorDisciplina.values()) for (const id of ids) todos.add(id);
+    return [...sel].filter((id) => todos.has(id));
+  }, [sel, validaveisPorDisciplina]);
 
   const excluirArquivo = useCallback(
     (a: ArvoreArquivoItem) => {
@@ -609,6 +642,19 @@ export function ArquivosExplorer({
       });
     })();
   }, [confirm, sel, projeto.id, router]);
+  // Validação em lote da seleção (só entregáveis validáveis — não-validáveis são ignorados na contagem).
+  const validarSelecionados = useCallback(() => {
+    const ids = selValidaveis;
+    if (ids.length === 0) return;
+    validando(async () => {
+      const r = await validarArquivosLote({ projetoId: projeto.id, uploadIds: ids });
+      if (r.ok) {
+        toast.success(`${r.data.total} arquivo(s) validado(s).`);
+        setSel(new Set());
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }, [selValidaveis, projeto.id, router]);
   const totais = useMemo(() => {
     const todos = disciplinas.flatMap((d) => d.arquivos);
     return { total: todos.length + geral.length, aprovados: todos.filter((a) => a.aprovado).length };
@@ -663,6 +709,18 @@ export function ArquivosExplorer({
           <Button size="sm" onClick={() => baixarZipIds([...sel], `${projeto.codigo}-selecao`)}>
             <Download className="size-3.5" /> Baixar .zip
           </Button>
+          {selValidaveis.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-status-aprovado"
+              disabled={validandoPend}
+              onClick={validarSelecionados}
+            >
+              <ShieldCheck className="size-3.5" />
+              {validandoPend ? "Validando…" : `Validar (${selValidaveis.length})`}
+            </Button>
+          )}
           {podeExcluirArquivo && (
             <Button size="sm" variant="destructive" disabled={excluindoPend} onClick={excluirSelecionados}>
               <Trash2 className="size-3.5" /> {excluindoPend ? "Movendo…" : "Mover para a lixeira"}
@@ -707,18 +765,7 @@ export function ArquivosExplorer({
                 {disciplinas.map((d) => {
                   const grupos = agruparPorPacote(d.arquivos);
                   // Entregáveis na versão atual (pacote A/B, origem manual) → só eles validam.
-                  const idsValidaveis = new Set(
-                    entregaveisAtuais(
-                      d.arquivos.map((a) => ({
-                        id: a.id,
-                        pacote: a.pacote,
-                        nomeArquivo: a.nome,
-                        versao: a.versao,
-                        validado: a.aprovado,
-                        origem: a.origem,
-                      })),
-                    ).map((u) => u.id),
-                  );
+                  const idsValidaveis = validaveisPorDisciplina.get(d.id) ?? new Set<string>();
                   const podeValidarDisc = podeValidar && !d.finalizado;
                   const totalArquivos = d.usaPastas ? d.arquivosPasta.length : contarArquivos(d.arquivos);
                   return (

@@ -320,6 +320,62 @@ export const solicitarAjusteArquivo = defineAction(
   },
 );
 
+const validarLoteSchema = z.object({
+  projetoId: z.string().min(1),
+  uploadIds: z.array(z.string().min(1)).min(1, "Selecione ao menos um arquivo.").max(500),
+});
+
+/**
+ * Valida VÁRIOS arquivos de uma vez (seleção múltipla no explorer / painel de Aprovações).
+ * Mesma regra do single (validarArquivo), mas tolerante: arquivos já validados, de disciplina
+ * já finalizada, ou com apontamento em aberto são ignorados em vez de abortar o lote inteiro.
+ */
+export const validarArquivosLote = defineAction(
+  {
+    ...baseValidacao,
+    acao: "validar-arquivos-lote",
+    schema: validarLoteSchema,
+    entidadeId: (d, i) => (i as { projetoId?: string })?.projetoId,
+  },
+  async (input, { user }) => {
+    const candidatos = await prisma.upload.findMany({
+      where: {
+        id: { in: input.uploadIds },
+        validado: false,
+        disciplina: { projetoId: input.projetoId, status: { not: "aprovado" } },
+      },
+      select: { id: true },
+    });
+    if (candidatos.length === 0) {
+      throw new ActionError("Nenhum arquivo válido para validar.");
+    }
+
+    const apontamentosAbertos = await prisma.pendencia.findMany({
+      where: { uploadId: { in: candidatos.map((u) => u.id) }, status: "aberta" },
+      select: { uploadId: true },
+    });
+    const bloqueados = new Set(apontamentosAbertos.map((p) => p.uploadId));
+    const validos = candidatos.filter((u) => !bloqueados.has(u.id));
+    if (validos.length === 0) {
+      throw new ActionError("Todos os arquivos selecionados têm apontamento(s) em aberto.");
+    }
+
+    await prisma.upload.updateMany({
+      where: { id: { in: validos.map((u) => u.id) } },
+      data: {
+        validado: true,
+        validadoPorId: user.id,
+        validadoEm: new Date(),
+        revisaoObs: null,
+        revisaoEm: null,
+        revisaoPorId: null,
+      },
+    });
+    revalidarArquivos(input.projetoId);
+    return { total: validos.length, ignorados: input.uploadIds.length - validos.length };
+  },
+);
+
 // ── Renomear arquivo de disciplina (nome exibido) ──────────────
 
 const renomearSchema = z.object({
