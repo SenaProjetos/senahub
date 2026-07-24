@@ -48,7 +48,7 @@ export function FechamentoView({
       <div>
         <h2 className="text-2xl font-extrabold tracking-tight">Fechamento mensal</h2>
         <p className="text-sm text-muted-foreground">
-          Consolida receita/despesa e a folha de projetistas do mês, com retenções automáticas.
+          Consolida receita/despesa e a produção (projetistas PJ) do mês, com retenções automáticas.
         </p>
       </div>
 
@@ -119,7 +119,7 @@ function FechamentoCard({ f }: { f: FechamentoItem }) {
       <p>Responsável: ${f.responsavel} · Status: ${fechado ? "Fechado" : "Aberto"}</p>
       <h2>Resultado do mês</h2>
       <table>${linha("Receita confirmada", f.receitaConfirmada)}${linha("Despesa confirmada", f.despesaConfirmada)}${linha("Resultado bruto", f.resultadoBruto, true)}</table>
-      <h2>Folha de projetistas</h2>
+      <h2>Produção (projetistas PJ)</h2>
       <table>${linha("Valor bruto", f.folhaBruta)}${linha("Retenção ISS", f.retencaoIss)}${linha("Retenção INSS", f.retencaoInss)}${linha("Retenção IR", f.retencaoIr)}${linha("Descontos", f.descontos)}${linha("Valor líquido", f.folhaLiquida, true)}</table>
       </body></html>`);
     win.document.close();
@@ -162,7 +162,7 @@ function FechamentoCard({ f }: { f: FechamentoItem }) {
           <Linha r="Resultado bruto" v={f.resultadoBruto} bold cor={f.resultadoBruto < 0 ? "text-destructive" : "text-success"} />
         </div>
         <div className="space-y-1 text-sm">
-          <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Folha de projetistas</p>
+          <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Produção (projetistas PJ)</p>
           <Linha r="Valor bruto" v={f.folhaBruta} />
           <Linha r="Retenção ISS" v={f.retencaoIss} />
           <Linha r="Retenção INSS" v={f.retencaoInss} />

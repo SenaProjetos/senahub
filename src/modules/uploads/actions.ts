@@ -126,7 +126,7 @@ export const validarEntrega = defineAction(
         corpo: `Revisão de ${disciplina.nome} (${codigoDisc}) revalidada — sem novo pagamento.`,
         href,
         tag: `revalidacao-${disciplina.id}`,
-      });
+      }, { categoria: "aprovacao_arquivo" });
       revalidatePath(href);
       revalidatePath("/planejamento/cronograma");
       revalidatePath("/");
@@ -153,6 +153,7 @@ export const validarEntrega = defineAction(
           href,
           tag: `pagto-${disciplina.id}`,
         },
+        { categoria: "pagamento" },
       );
     }
     if (salariados.length > 0) {
@@ -165,6 +166,7 @@ export const validarEntrega = defineAction(
           href,
           tag: `entrega-${disciplina.id}`,
         },
+        { categoria: "pagamento" },
       );
     }
 
@@ -183,6 +185,7 @@ export const validarEntrega = defineAction(
         href,
         tag: `validacao-${disciplina.id}`,
       },
+      { categoria: "aprovacao_arquivo" },
     );
 
     revalidatePath(href);

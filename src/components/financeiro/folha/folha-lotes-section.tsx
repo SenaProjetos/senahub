@@ -73,7 +73,7 @@ export function FolhaLotesSection({ folhas, contas, formas }: { folhas: Folha[];
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
             <CardTitle className="text-base">Lotes mensais</CardTitle>
-            <CardDescription>Agrupa os pagamentos liberados no mês em uma folha.</CardDescription>
+            <CardDescription>Agrupa os pagamentos de produção liberados no mês em um lote.</CardDescription>
           </div>
           <div className="flex items-end gap-2">
             <Input type="number" min="1" max="12" value={mes} onChange={(e) => setMes(e.target.value)} className="w-16" />

@@ -596,6 +596,7 @@ export const aceitarProposta = defineAction(
         href: `/projetos/${projeto.id}`,
         tag: `proposta-${p.id}`,
       },
+      { categoria: "proposta" },
     );
 
     rev();

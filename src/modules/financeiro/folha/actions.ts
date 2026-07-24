@@ -68,7 +68,7 @@ export const pagarProjetista = defineAction(
       corpo: `Seu pagamento de ${pag.disciplina.nome} foi efetivado.`,
       href: "/financeiro",
       tag: `pago-${pag.id}`,
-    });
+    }, { categoria: "pagamento" });
 
     revalidatePath("/financeiro/folha-projetistas");
     revalidatePath("/financeiro/lancamentos");

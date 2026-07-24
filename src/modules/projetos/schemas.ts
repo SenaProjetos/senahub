@@ -54,6 +54,12 @@ export const atualizarStatusDisciplinaSchema = z.object({
   status: z.enum(STATUS_DISCIPLINA),
 });
 
+/** Reabertura de disciplina aprovada — exige motivo (fica no registro de auditoria). */
+export const reabrirDisciplinaSchema = z.object({
+  disciplinaId: z.string().min(1),
+  motivo: z.string().min(3, "Explique o motivo da reabertura.").max(500),
+});
+
 export const responsaveisDisciplinaSchema = z.object({
   disciplinaId: z.string().min(1),
   responsaveisIds: z.array(z.string()),

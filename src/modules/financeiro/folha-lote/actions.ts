@@ -110,10 +110,10 @@ export const pagarFolhaProjetista = defineAction(
     const projetistas = [...new Set(folha.pagamentos.map((p) => p.projetista.id))];
     await notificarMuitos(projetistas, {
       titulo: "Pagamento efetivado",
-      corpo: `Seu pagamento da folha ${String(folha.mes).padStart(2, "0")}/${folha.ano} foi efetivado.`,
+      corpo: `Seu pagamento da produção ${String(folha.mes).padStart(2, "0")}/${folha.ano} foi efetivado.`,
       href: "/financeiro",
       tag: `folha-paga-${folha.id}`,
-    });
+    }, { categoria: "pagamento" });
 
     revalidatePath("/financeiro/folha-projetistas");
     revalidatePath("/financeiro/lancamentos");

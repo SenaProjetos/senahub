@@ -27,7 +27,7 @@ export const metadata: Metadata = { title: "Financeiro" };
 const ATALHOS = [
   { href: "/financeiro/lancamentos", icon: Receipt, titulo: "Lançamentos", desc: "Receitas e despesas" },
   { href: "/financeiro/contas", icon: ArrowLeftRight, titulo: "Contas a pagar e receber", desc: "Pendentes, filtros e exportação" },
-  { href: "/financeiro/folha-projetistas", icon: Banknote, titulo: "Folha de projetistas", desc: "Pagamentos por entrega" },
+  { href: "/financeiro/folha-projetistas", icon: Banknote, titulo: "Produção", desc: "Pagamento de projetistas PJ por entrega" },
   { href: "/financeiro/fluxo-caixa", icon: LineChart, titulo: "Fluxo de caixa", desc: "Saldos e movimentos" },
   { href: "/financeiro/conciliacao", icon: ArrowLeftRight, titulo: "Conciliação", desc: "Importar OFX e conciliar" },
   { href: "/financeiro/relatorios", icon: BarChart3, titulo: "Relatórios", desc: "DRE e indicadores" },

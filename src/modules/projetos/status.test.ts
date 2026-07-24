@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { progressoProjeto, progressoDoStatus, PESO_STATUS } from "./status";
+import {
+  progressoProjeto,
+  progressoDoStatus,
+  PESO_STATUS,
+  transicaoDisciplinaPermitida,
+  TRANSICOES_DISCIPLINA,
+  mensagemTransicaoDisciplina,
+} from "./status";
 import type { StatusDisciplina } from "@/generated/prisma/client";
 
 describe("progressoProjeto", () => {
@@ -53,5 +60,55 @@ describe("PESO_STATUS", () => {
   });
   it("aprovado tem peso 1 (100%)", () => {
     expect(PESO_STATUS["aprovado"]).toBe(1);
+  });
+});
+
+describe("transicaoDisciplinaPermitida — máquina de estados (decisão 2026-07-24)", () => {
+  // aguardando → em_andamento → entregue ⇄ em_revisao → aprovado
+  const permitidas: [StatusDisciplina, StatusDisciplina][] = [
+    ["aguardando", "em_andamento"],
+    ["em_andamento", "entregue"],
+    ["entregue", "em_revisao"],
+    ["entregue", "aprovado"],
+    ["em_revisao", "entregue"],
+    ["em_revisao", "aprovado"],
+  ];
+  for (const [de, para] of permitidas) {
+    it(`permite ${de} → ${para}`, () => {
+      expect(transicaoDisciplinaPermitida(de, para)).toBe(true);
+    });
+  }
+
+  const proibidas: [StatusDisciplina, StatusDisciplina][] = [
+    ["aguardando", "entregue"],
+    ["aguardando", "aprovado"],
+    ["aguardando", "em_revisao"],
+    ["em_andamento", "em_revisao"], // revisão só depois de entregue
+    ["em_andamento", "aprovado"],
+    ["em_andamento", "aguardando"], // sem voltar
+    ["entregue", "em_andamento"],
+    ["em_revisao", "em_andamento"],
+    ["aprovado", "em_andamento"], // terminal
+    ["aprovado", "em_revisao"],
+    ["aprovado", "entregue"],
+  ];
+  for (const [de, para] of proibidas) {
+    it(`proíbe ${de} → ${para}`, () => {
+      expect(transicaoDisciplinaPermitida(de, para)).toBe(false);
+    });
+  }
+
+  it("manter o mesmo status é no-op permitido", () => {
+    const todos = Object.keys(TRANSICOES_DISCIPLINA) as StatusDisciplina[];
+    for (const s of todos) expect(transicaoDisciplinaPermitida(s, s)).toBe(true);
+  });
+
+  it("aprovado é terminal (sem saídas)", () => {
+    expect(TRANSICOES_DISCIPLINA["aprovado"]).toHaveLength(0);
+  });
+
+  it("mensagem de erro cita os dois rótulos", () => {
+    expect(mensagemTransicaoDisciplina("aguardando", "aprovado")).toContain("Aguardando");
+    expect(mensagemTransicaoDisciplina("aguardando", "aprovado")).toContain("Aprovado");
   });
 });

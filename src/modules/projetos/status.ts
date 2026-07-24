@@ -81,3 +81,32 @@ export function progressoProjeto(statuses: StatusDisciplina[]): number {
 export function progressoDoStatus(status: StatusDisciplina): number {
   return Math.round(PESO_STATUS[status] * 100);
 }
+
+/**
+ * Máquina de estados da disciplina (decisão de processo 2026-07-24).
+ *
+ *   aguardando → em_andamento → entregue ⇄ em_revisao → aprovado
+ *
+ * `entregue` e `em_revisao` alcançam `aprovado` apenas pela validação de entrega
+ * (`uploads/actions.ts` `validarEntrega` — inclui a reaprovação pós-revisão). `aprovado`
+ * é terminal. Espelha o padrão de `licitacoes/status.ts`. Antes só existia uma tabela
+ * para não-gestores dentro da action; agora é a fonte única, aplicada a todos os perfis.
+ */
+export const TRANSICOES_DISCIPLINA: Record<StatusDisciplina, StatusDisciplina[]> = {
+  aguardando: ["em_andamento"],
+  em_andamento: ["entregue"],
+  entregue: ["em_revisao", "aprovado"],
+  em_revisao: ["entregue", "aprovado"],
+  aprovado: [],
+};
+
+/** true se `para` é alcançável a partir de `de`. Manter o mesmo status (no-op) é permitido. */
+export function transicaoDisciplinaPermitida(de: StatusDisciplina, para: StatusDisciplina): boolean {
+  if (de === para) return true;
+  return TRANSICOES_DISCIPLINA[de].includes(para);
+}
+
+/** Mensagem padrão para transição de status inválida. */
+export function mensagemTransicaoDisciplina(de: StatusDisciplina, para: StatusDisciplina): string {
+  return `Transição de "${STATUS_LABEL[de]}" para "${STATUS_LABEL[para]}" não é permitida.`;
+}

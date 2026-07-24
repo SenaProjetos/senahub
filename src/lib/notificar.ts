@@ -22,12 +22,21 @@ export type NotificarOpts = {
   categoria?: string;
 };
 
-/** Cria a notificação interna (sino) e dispara Web Push para um usuário. */
+/**
+ * Cria a notificação interna (sino) e dispara Web Push para um usuário.
+ * Respeita opt-out por categoria: se `opts.categoria` estiver presente e o usuário
+ * optou por sair dela, nada é enviado. (Antes só `notificarMuitos` filtrava — agora o
+ * filtro vive aqui, então notificações individuais também respeitam as Preferências.)
+ */
 export async function notificar(
   userId: string,
   n: NotificacaoInput,
   opts?: NotificarOpts,
 ): Promise<void> {
+  if (opts?.categoria) {
+    const permitido = await filtrarPorCategoria([userId], opts.categoria);
+    if (permitido.length === 0) return;
+  }
   await prisma.notificacao.create({
     data: { userId, titulo: n.titulo, corpo: n.corpo, href: n.href },
   });
@@ -46,5 +55,7 @@ export async function notificarMuitos(
   const destinatarios = opts?.categoria
     ? await filtrarPorCategoria(unicos, opts.categoria)
     : unicos;
-  await Promise.all(destinatarios.map((id) => notificar(id, n, opts)));
+  // Já filtrado em massa; ao delegar não repassa `categoria` para não refiltrar por id.
+  const optsSemCategoria = opts ? { push: opts.push } : undefined;
+  await Promise.all(destinatarios.map((id) => notificar(id, n, optsSemCategoria)));
 }

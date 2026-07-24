@@ -58,9 +58,9 @@ export function FolhaView({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Folha de projetistas</h2>
+        <h2 className="text-2xl font-extrabold tracking-tight">Produção</h2>
         <p className="text-sm text-muted-foreground">
-          Pagamentos liberados por entregas validadas.
+          Pagamentos de projetistas PJ/freelancer liberados por entregas validadas.
         </p>
       </div>
 

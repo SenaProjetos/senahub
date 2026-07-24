@@ -24,9 +24,11 @@ import {
   Plus,
   CalendarDays,
   NotebookPen,
+  Unlock,
 } from "lucide-react";
 import {
   atualizarStatusDisciplina,
+  reabrirDisciplina,
   definirResponsaveis,
   registrarRevisao,
 } from "@/modules/projetos/actions";
@@ -56,7 +58,7 @@ import {
   PainelProgressoEnvio,
   type LinhaEnvio,
 } from "@/components/projetos/upload-progresso";
-import { STATUS_LABEL, STATUS_TONE } from "@/modules/projetos/status";
+import { STATUS_LABEL, STATUS_TONE, transicaoDisciplinaPermitida } from "@/modules/projetos/status";
 import { diasDeAtraso } from "@/modules/projetos/atraso";
 import type { StatusDisciplina } from "@/generated/prisma/client";
 import { STATUS_DISCIPLINA } from "@/modules/projetos/schemas";
@@ -274,19 +276,28 @@ export function DisciplinaCard({
         )}
       </div>
 
-      {podeMexerStatus && (
+      {podeMexerStatus && disciplina.status !== "aprovado" && (
         <Select value={disciplina.status} items={STATUS_LABEL} onValueChange={mudarStatus} disabled={pending}>
           <SelectTrigger className="h-8">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {STATUS_DISCIPLINA.map((s) => (
+            {/* Só transições válidas da máquina de estados. "aprovado" fica de fora — só via validação. */}
+            {STATUS_DISCIPLINA.filter(
+              (s) =>
+                s === disciplina.status ||
+                (s !== "aprovado" && transicaoDisciplinaPermitida(disciplina.status, s)),
+            ).map((s) => (
               <SelectItem key={s} value={s}>
                 {STATUS_LABEL[s]}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+      )}
+
+      {disciplina.status === "aprovado" && podeGerir && (
+        <ReabrirDisciplinaDialog disciplina={disciplina} />
       )}
 
       {disciplina.jaValidado && (
@@ -908,6 +919,65 @@ function ArquivosDialog({
                   : "Validar entrega"}
             </Button>
           )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Reabrir disciplina aprovada (gestor). Volta para "em revisão" com motivo — fica na auditoria. */
+function ReabrirDisciplinaDialog({ disciplina }: { disciplina: Disc }) {
+  const [open, setOpen] = useState(false);
+  const [motivo, setMotivo] = useState("");
+  const [pending, start] = useTransition();
+
+  function reabrir() {
+    if (motivo.trim().length < 3) {
+      toast.error("Explique o motivo da reabertura.");
+      return;
+    }
+    start(async () => {
+      const res = await reabrirDisciplina({ disciplinaId: disciplina.id, motivo: motivo.trim() });
+      if (res.ok) {
+        toast.success("Disciplina reaberta para revisão.");
+        setMotivo("");
+        setOpen(false);
+      } else {
+        toast.error(res.error);
+      }
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <Button variant="outline" size="sm" className="w-full">
+            <Unlock className="size-3.5" /> Reabrir disciplina
+          </Button>
+        }
+      />
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Reabrir {disciplina.nome}</DialogTitle>
+          <DialogDescription>
+            Volta para &ldquo;em revisão&rdquo; para novos ajustes. O pagamento já liberado é mantido — a
+            reaprovação posterior não gera pagamento novo. A reabertura fica registrada na auditoria.
+          </DialogDescription>
+        </DialogHeader>
+        <Input
+          value={motivo}
+          onChange={(e) => setMotivo(e.target.value)}
+          placeholder="Motivo da reabertura"
+          autoFocus
+        />
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)} disabled={pending}>
+            Cancelar
+          </Button>
+          <Button onClick={reabrir} loading={pending}>
+            Reabrir
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -6,7 +6,7 @@ import { opcoesLancamento } from "@/modules/financeiro/lancamentos/queries";
 import { FolhaView } from "@/components/financeiro/folha/folha-view";
 import { FolhaLotesSection } from "@/components/financeiro/folha/folha-lotes-section";
 
-export const metadata: Metadata = { title: "Folha de projetistas" };
+export const metadata: Metadata = { title: "Produção" };
 
 export default async function FolhaProjetistasPage() {
   await requirePermission("financeiro", "ver");

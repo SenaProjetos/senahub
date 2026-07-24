@@ -49,6 +49,9 @@ export function PreferenciasView({
   notifCoordenacao: notifCoordenacaoInicial,
   notifAprovacaoArquivo: notifAprovacaoArquivoInicial,
   notifAprovacaoDisciplina: notifAprovacaoDisciplinaInicial,
+  notifProposta: notifPropostaInicial,
+  notifPagamento: notifPagamentoInicial,
+  notifDespesa: notifDespesaInicial,
   pontoEmailModo: pontoEmailModoInicial,
   mostrarAlertasPonto,
 }: {
@@ -65,6 +68,9 @@ export function PreferenciasView({
   notifCoordenacao: boolean;
   notifAprovacaoArquivo: boolean;
   notifAprovacaoDisciplina: boolean;
+  notifProposta: boolean;
+  notifPagamento: boolean;
+  notifDespesa: boolean;
   pontoEmailModo: PontoEmailModo;
   /** Alertas de jornada por horário são só p/ CLT/estagiário — controla a seção de e-mail. */
   mostrarAlertasPonto: boolean;
@@ -81,6 +87,9 @@ export function PreferenciasView({
   const [notifCoordenacao, setNotifCoordenacao] = useState(notifCoordenacaoInicial);
   const [notifAprovacaoArquivo, setNotifAprovacaoArquivo] = useState(notifAprovacaoArquivoInicial);
   const [notifAprovacaoDisciplina, setNotifAprovacaoDisciplina] = useState(notifAprovacaoDisciplinaInicial);
+  const [notifProposta, setNotifProposta] = useState(notifPropostaInicial);
+  const [notifPagamento, setNotifPagamento] = useState(notifPagamentoInicial);
+  const [notifDespesa, setNotifDespesa] = useState(notifDespesaInicial);
   const [pontoEmailModo, setPontoEmailModo] = useState<PontoEmailModo>(pontoEmailModoInicial);
   const [, start] = useTransition();
 
@@ -179,6 +188,27 @@ export function PreferenciasView({
       descricao: "Solicitação de aprovação de disciplina, e confirmação/recusa por um superior.",
       valor: notifAprovacaoDisciplina,
       set: setNotifAprovacaoDisciplina,
+    },
+    {
+      chave: "notif_proposta",
+      titulo: "Propostas aceitas",
+      descricao: "Quando uma proposta é aceita e vira projeto (para a equipe comercial/gestão).",
+      valor: notifProposta,
+      set: setNotifProposta,
+    },
+    {
+      chave: "notif_pagamento",
+      titulo: "Pagamentos e entregas validadas",
+      descricao: "Quando sua entrega é validada e quando um pagamento a você é liberado ou efetivado.",
+      valor: notifPagamento,
+      set: setNotifPagamento,
+    },
+    {
+      chave: "notif_despesa",
+      titulo: "Aprovação de despesas",
+      descricao: "Quando uma despesa que você lançou é aprovada ou rejeitada.",
+      valor: notifDespesa,
+      set: setNotifDespesa,
     },
   ];
 

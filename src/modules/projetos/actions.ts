@@ -12,6 +12,7 @@ import {
   criarProjetoSchema,
   editarProjetoSchema,
   atualizarStatusDisciplinaSchema,
+  reabrirDisciplinaSchema,
   responsaveisDisciplinaSchema,
   registrarRevisaoSchema,
   membrosProjetoSchema,
@@ -31,6 +32,7 @@ import { notificarMuitos } from "@/lib/notificar";
 import { sanitizeSvg } from "@/lib/sanitize-svg";
 import { normalizar } from "@/lib/disciplinas-core";
 import { usaEstruturaCustom } from "@/modules/projetos/estrutura-tipo";
+import { transicaoDisciplinaPermitida, mensagemTransicaoDisciplina } from "@/modules/projetos/status";
 import { semearPastasTemplate, projetoUsaTemplate } from "@/modules/projetos/pastas/seed";
 
 function isGlobal(role: Role) {
@@ -204,20 +206,12 @@ export const atualizarStatusDisciplina = defineAction(
       throw new ActionError("Apenas responsáveis ou gestores alteram o status.");
     }
 
-    // P-11: transições permitidas para não-gestores.
-    if (!ehGerir) {
-      const permitidas: Record<string, string[]> = {
-        aguardando: ["em_andamento"],
-        em_andamento: ["entregue", "em_revisao"],
-        em_revisao: ["em_andamento", "entregue"],
-        entregue: ["em_revisao"],
-      };
-      const atual = disciplina.status;
-      if (!(permitidas[atual] ?? []).includes(input.status)) {
-        throw new ActionError(
-          `Transição de "${atual}" para "${input.status}" não permitida.`,
-        );
-      }
+    // Decisão de processo (2026-07-24): máquina de estados canônica da disciplina,
+    // agora aplicada a TODOS os perfis (gestor ou responsável) — antes só valia para
+    // não-gestores. `aprovado` já é barrado acima (só via validação). Fonte única em
+    // `status.ts` (transicaoDisciplinaPermitida).
+    if (!transicaoDisciplinaPermitida(disciplina.status, input.status)) {
+      throw new ActionError(mensagemTransicaoDisciplina(disciplina.status, input.status));
     }
 
     const marcaEntregue = input.status === "entregue";
@@ -250,6 +244,7 @@ export const atualizarStatusDisciplina = defineAction(
           href,
           tag: `entregue-${disciplina.id}`,
         },
+        { categoria: "aprovacao_arquivo" },
       );
     } else if (input.status === "em_revisao") {
       // Avisa responsáveis que revisão foi solicitada.
@@ -265,6 +260,60 @@ export const atualizarStatusDisciplina = defineAction(
     }
 
     return { disciplinaId: input.disciplinaId, status: input.status };
+  },
+);
+
+/**
+ * Reabrir uma disciplina aprovada — exceção sancionada à máquina de estados (mantém registro).
+ * `aprovado → em_revisao`, só gestores (`projetos:gerir`), com motivo auditado. NÃO desfaz o
+ * pagamento já liberado; a reaprovação posterior (`validarEntrega`) fecha de volta para "aprovado"
+ * sem gerar pagamento novo.
+ */
+export const reabrirDisciplina = defineAction(
+  {
+    modulo: "projetos",
+    acao: "reabrir-disciplina",
+    recurso: "projetos",
+    permissao: "gerir",
+    entidade: "Disciplina",
+    schema: reabrirDisciplinaSchema,
+    entidadeId: (d, i) => ((d ?? i) as { disciplinaId: string }).disciplinaId,
+    capturarAntes: (input) =>
+      prisma.disciplina.findUnique({
+        where: { id: input.disciplinaId },
+        select: { nome: true, status: true },
+      }),
+  },
+  async (input) => {
+    const disciplina = await prisma.disciplina.findUnique({
+      where: { id: input.disciplinaId },
+      include: { responsaveis: true, projeto: { select: { id: true, codigo: true } } },
+    });
+    if (!disciplina) throw new ActionError("Disciplina não encontrada.");
+    if (disciplina.status !== "aprovado") {
+      throw new ActionError("Só é possível reabrir uma disciplina aprovada.");
+    }
+
+    await prisma.disciplina.update({
+      where: { id: input.disciplinaId },
+      data: { status: "em_revisao" },
+    });
+    revalidatePath(`/projetos/${disciplina.projetoId}`);
+    revalidatePath("/planejamento/cronograma");
+    revalidatePath("/");
+
+    const href = `/projetos/${disciplina.projetoId}`;
+    const codigo = formatarCodigo(disciplina.projeto.codigo);
+    const respIds = disciplina.responsaveis.map((r) => r.userId);
+    if (respIds.length > 0) {
+      await notificarMuitos(respIds, {
+        titulo: "Disciplina reaberta",
+        corpo: `${disciplina.nome} (${codigo}) reaberta para revisão. Motivo: ${input.motivo}`,
+        href,
+        tag: `reabertura-${disciplina.id}`,
+      });
+    }
+    return { disciplinaId: input.disciplinaId, status: "em_revisao" as const };
   },
 );
 
@@ -611,6 +660,17 @@ export const editarDisciplinasEmMassa = defineAction(
       throw new ActionError(
         "Este tipo de projeto usa o fluxo de aprovação em 2 etapas — não é possível marcar \"entregue\" em massa.",
       );
+    }
+    // Máquina de estados canônica (decisão 2026-07-24): valida cada disciplina do lote.
+    if (input.status !== undefined) {
+      const atuais = await prisma.disciplina.findMany({
+        where: { id: { in: input.disciplinaIds }, projetoId: input.projetoId },
+        select: { nome: true, status: true },
+      });
+      const invalida = atuais.find((d) => !transicaoDisciplinaPermitida(d.status, input.status!));
+      if (invalida) {
+        throw new ActionError(`${invalida.nome}: ${mensagemTransicaoDisciplina(invalida.status, input.status!)}`);
+      }
     }
 
     const data: Record<string, unknown> = {};

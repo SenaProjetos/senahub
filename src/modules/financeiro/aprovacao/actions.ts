@@ -88,7 +88,7 @@ export const aprovarLancamento = defineAction(
       },
     });
     if (l.autorId !== ctx.user.id) {
-      await notificar(l.autorId, { titulo: "Despesa aprovada", corpo: l.descricao, href: "/financeiro/lancamentos" });
+      await notificar(l.autorId, { titulo: "Despesa aprovada", corpo: l.descricao, href: "/financeiro/lancamentos" }, { categoria: "despesa" });
     }
     rev();
     return { id: i.id };
@@ -113,7 +113,7 @@ export const rejeitarLancamento = defineAction(
       },
     });
     if (l.autorId !== ctx.user.id) {
-      await notificar(l.autorId, { titulo: "Despesa rejeitada", corpo: `${l.descricao} — ${i.motivo}`, href: "/financeiro/lancamentos" });
+      await notificar(l.autorId, { titulo: "Despesa rejeitada", corpo: `${l.descricao} — ${i.motivo}`, href: "/financeiro/lancamentos" }, { categoria: "despesa" });
     }
     rev();
     return { id: i.id };
