@@ -2,6 +2,36 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.5.0](https://github.com/SenaProjetos//compare/v1.4.0...v1.5.0) (2026-07-24)
+
+
+### ✨ Funcionalidades
+
+* **arquivos:** aprovação em lote de arquivos selecionados ([eb460be](https://github.com/SenaProjetos//commit/eb460bebf9551ff5ad334d0adf61129ebc37d14d))
+* **comercial:** anexos no lead e observação em caixa maior ([9d9e7af](https://github.com/SenaProjetos//commit/9d9e7afc73fb8621a96aae50220bcbbbf7c2d5c9))
+* **configuracoes:** variáveis de e-mail visíveis e clicáveis no editor ([4c4df84](https://github.com/SenaProjetos//commit/4c4df8483d3256f374adc2319b0ca44f6edd7eec))
+* **coordenacao:** comparação de versões (model diff) por IfcGuid ([#4](https://github.com/SenaProjetos/senahub/issues/4)) ([14f1048](https://github.com/SenaProjetos//commit/14f1048b56ff59ad7d209805382c2f8748c86a9d))
+* **coordenacao:** detecção de conflitos (clash) + relatório com imagem ([#1](https://github.com/SenaProjetos/senahub/issues/1)) ([c5d76cc](https://github.com/SenaProjetos//commit/c5d76ccb70c8a088d04e788c453a95247e64a3cf))
+* **coordenacao:** georreferenciamento IFC (IfcMapConversion) ([#9](https://github.com/SenaProjetos/senahub/issues/9)) ([ea4c8a2](https://github.com/SenaProjetos//commit/ea4c8a2febf5ad83a8c4c1af15daeb79cf866914))
+* **coordenacao:** importação de BCF (round-trip) ([#3](https://github.com/SenaProjetos/senahub/issues/3)) ([c8f72e6](https://github.com/SenaProjetos//commit/c8f72e69c9ca0f7b92688b4cba6e3f8dea775782))
+* **dwg:** visualizador web de arquivos DWG ([8f0dfd4](https://github.com/SenaProjetos//commit/8f0dfd4074cc9d78d4120699c3f962862eb9d0c7))
+* **notificacoes:** página "Ver tudo" com todas as notificações ([b0dc004](https://github.com/SenaProjetos//commit/b0dc0046f02e164860d53c94c4492091207f2c68))
+* **projetos,financeiro,notificacoes:** decisões do blueprint de processos ([81550a8](https://github.com/SenaProjetos//commit/81550a8c5cc151a8f13473298e6362cb81489f0a))
+* **projetos:** enviar link do projeto por e-mail + convite de cadastro ([99eeb8a](https://github.com/SenaProjetos//commit/99eeb8a575f562e2cb6a1d4ff5a4c3b8b8825d79))
+* **projetos:** estrutura de pastas por tipo (aprovação/laudo), aprovação em 2 etapas e pastas personalizadas ([4c7f313](https://github.com/SenaProjetos//commit/4c7f3132be9b4f279672cd493b3d0d3a82dcfbbe))
+* **projetos:** validar prancha no visualizador, abas vazias e config por projeto ([3a193e9](https://github.com/SenaProjetos//commit/3a193e9b7758b810d7a35823569370e45fe57efd))
+
+
+### 🐛 Correções
+
+* **coordenacao:** corrige overlap de selects e vista salva desligando modelo ([5790f16](https://github.com/SenaProjetos//commit/5790f1629153ab7e630e2877dfe3270c9dab6049))
+* **coordenacao:** destacar sem efeito, IFC explodindo, medição sem XYZ, sem snap ([9528804](https://github.com/SenaProjetos//commit/9528804adb0f151997371d45eb62f077a4d2dbb6))
+* **coordenacao:** reorganiza UI do viewer + corrige duplicação no diff ([2f5386f](https://github.com/SenaProjetos//commit/2f5386ffa38938a6fbbfe527f35b47345ac30b9d))
+* **coordenacao:** seleção de elemento não fecha mais o painel Apontamentos ([98d3b43](https://github.com/SenaProjetos//commit/98d3b43aef16c5739dc1390f7d0e50429309baed))
+* **ponto,configuracoes:** melhora atalhos de navegação em listas ([93b9946](https://github.com/SenaProjetos//commit/93b9946568af8ceb94b43d23b72704281d3e368e))
+* **projetos:** placeholder no seletor de pacote/pasta antes de escolher a disciplina ([b54ccca](https://github.com/SenaProjetos//commit/b54ccca183167f9e80f45314ec3e64c2b6647f17))
+* **ui:** impedir blowout do grid no DialogContent ([011248e](https://github.com/SenaProjetos//commit/011248e21714112cbffeb1787cf72a2b7348b387))
+
 ## [1.4.0](https://github.com/SenaProjetos//compare/v1.3.0...v1.4.0) (2026-07-22)
 
 
