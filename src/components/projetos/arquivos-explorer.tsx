@@ -1895,7 +1895,14 @@ function Uploader({
           </SelectContent>
         </Select>
 
-        {usaPastas ? (
+        {!disciplinaId ? (
+          <Select<string> disabled>
+            <SelectTrigger className="w-44 text-muted-foreground">
+              <SelectValue placeholder="Selecione a disciplina…" />
+            </SelectTrigger>
+            <SelectContent />
+          </Select>
+        ) : usaPastas ? (
           <SeletorPasta pastas={discSel!.pastas} value={pastaId} onChange={setPastaId} />
         ) : (
           <Select value={pacote} onValueChange={(v) => v && setPacote(v as PacoteEnvio)}>
