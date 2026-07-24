@@ -155,9 +155,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
             </div>
             <p className="text-sm text-muted-foreground">{pessoa.email}</p>
             <div className="flex flex-wrap gap-x-6 gap-y-1 pt-1 text-xs text-muted-foreground">
-              {pessoa.nomeCompleto && pessoa.nomeCompleto !== pessoa.name && (
-                <span>Nome completo: {pessoa.nomeCompleto}</span>
-              )}
+              {pessoa.nomeCompleto && <span>Nome completo: {pessoa.nomeCompleto}</span>}
               {pessoa.dataAdmissao && <span>Admissão: {formatarData(pessoa.dataAdmissao)}</span>}
               {pessoa.cargo && <span>{pessoa.cargo}{pessoa.departamento ? ` · ${pessoa.departamento}` : ""}</span>}
               <span>{pessoa.projetosCount} projeto(s)</span>
