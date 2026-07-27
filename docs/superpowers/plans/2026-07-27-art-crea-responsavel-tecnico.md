@@ -10,6 +10,13 @@
 
 **Origem:** Pedido do usuário em 2026-07-27, após a entrega das Fases 0–3 de [2026-07-27-calculadoras-fundacoes-melhorias.md](2026-07-27-calculadoras-fundacoes-melhorias.md), que expôs a lacuna.
 
+> **STATUS: implementado em 2026-07-27** — as 4 fases foram entregues na branch `dev`
+> (`feat(rh): registro profissional…`, `feat(projetos): cadastro de ARTs…`,
+> `feat(arquivos): ARTs do projeto no explorador…`, `feat(ferramentas): selecao de ART…`).
+> Migrações: `20260727150000_registro_profissional` e `20260727160000_art_projeto`.
+> Os checkboxes abaixo ficam como registro do caminho percorrido; divergências do
+> executado em relação ao planejado estão anotadas ao pé de cada fase.
+
 ---
 
 ## Decisões — RESOLVIDAS em 2026-07-27
