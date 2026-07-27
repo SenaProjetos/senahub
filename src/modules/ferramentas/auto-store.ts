@@ -117,7 +117,7 @@ export async function autoStore(params: AutoStoreParams): Promise<void> {
   try {
     const json = serializar({
       ferramenta,
-      versaoCalc: 1,
+      versaoCalc: meta?.versaoCalc ?? 1,
       titulo,
       norma: meta?.norma,
       entradas,

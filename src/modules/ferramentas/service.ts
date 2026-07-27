@@ -1168,7 +1168,11 @@ function memoriaSapataExcentrica(entradas: Record<string, unknown>, base: BaseAr
         valores: [
           { simbolo: "e", descricao: "Excentricidade do centroide da sapata de divisa", valor: fmtNum(r.e, 1), unidade: "cm", formula: "(a1−ap1)/2" },
           { simbolo: "R1", descricao: "Reação na sapata de divisa (majorada)", valor: fmtNum(r.r1, 1), unidade: "kN", formula: "P1·ℓ/(ℓ−e)" },
-          { simbolo: "R2", descricao: "Reação na sapata interna (aliviada)", valor: fmtNum(r.r2, 1), unidade: "kN", formula: "P2−(R1−P1)" },
+          { simbolo: "R2", descricao: "Reação na sapata interna (aliviada)", valor: fmtNum(r.r2, 1), unidade: "kN", formula: "P2−α·(R1−P1)" },
+        ],
+        notas: [
+          `Fator de alívio adotado α = ${fmtNum(e.pctAlivio * 100, 0)}% do alívio teórico ΔP = R1−P1 = ${fmtNum(r.deltaP2, 1)} kN.`,
+          "O alívio integral (α = 100%) só se realiza com a viga efetivamente rígida e executada como calculada.",
         ],
       },
       {

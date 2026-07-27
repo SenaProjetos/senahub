@@ -40,6 +40,7 @@ export function EccentricFootingForm({ initialEntradas, onSalvo }: Props) {
   const [a1, setA1] = useState(s(initialEntradas?.a1, "150"));
   const [bwViga, setBwViga] = useState(s(initialEntradas?.bwViga, "30"));
   const [hViga, setHViga] = useState(s(initialEntradas?.hViga, "60"));
+  const [pctAlivio, setPctAlivio] = useState(s(initialEntradas?.pctAlivio, "0.5"));
   const [salvarOpen, setSalvarOpen] = useState(false);
 
   useEffect(() => {
@@ -48,7 +49,7 @@ export function EccentricFootingForm({ initialEntradas, onSalvo }: Props) {
     setModo(s(i.modo, "isolada")); setAco(s(i.aco, "CA-50")); setFck(s(i.fck, "25")); setSigmaAdm(s(i.sigmaAdm, "300"));
     setNk(s(i.nk, "")); setMk(s(i.mk, "0")); setA(s(i.a, "")); setB(s(i.b, "")); setAp(s(i.ap, "30")); setH(s(i.h, "50"));
     setP1(s(i.p1, "")); setP2(s(i.p2, "")); setEll(s(i.ell, "")); setAp1(s(i.ap1, "30")); setA1(s(i.a1, "150"));
-    setBwViga(s(i.bwViga, "30")); setHViga(s(i.hViga, "60"));
+    setBwViga(s(i.bwViga, "30")); setHViga(s(i.hViga, "60")); setPctAlivio(s(i.pctAlivio, "0.5"));
   }, [initialEntradas]);
 
   const entrada = useMemo<EntradaExcInput | null>(() => {
@@ -58,8 +59,8 @@ export function EccentricFootingForm({ initialEntradas, onSalvo }: Props) {
       return { modo: "isolada", nk: Number(nk), mk: Number(mk) || 0, a: Number(a), b: Number(b), ap: Number(ap), sigmaAdm: Number(sigmaAdm), h: Number(h), fck: Number(fck), aco: acoT };
     }
     if (!(Number(p1) > 0 && Number(p2) > 0 && Number(ell) > 0 && Number(ap1) > 0 && Number(a1) > 0 && Number(sigmaAdm) > 0)) return null;
-    return { modo: "viga_equilibrio", p1: Number(p1), p2: Number(p2), ell: Number(ell), ap1: Number(ap1), a1: Number(a1), sigmaAdm: Number(sigmaAdm), fck: Number(fck), aco: acoT, bwViga: Number(bwViga) || 30, hViga: Number(hViga) || 60 };
-  }, [modo, nk, mk, a, b, ap, h, p1, p2, ell, ap1, a1, sigmaAdm, fck, aco, bwViga, hViga]);
+    return { modo: "viga_equilibrio", p1: Number(p1), p2: Number(p2), ell: Number(ell), ap1: Number(ap1), a1: Number(a1), sigmaAdm: Number(sigmaAdm), fck: Number(fck), aco: acoT, bwViga: Number(bwViga) || 30, hViga: Number(hViga) || 60, pctAlivio: Number(pctAlivio) };
+  }, [modo, nk, mk, a, b, ap, h, p1, p2, ell, ap1, a1, sigmaAdm, fck, aco, bwViga, hViga, pctAlivio]);
 
   const r = useMemo(() => {
     if (!entrada) return null;
@@ -152,6 +153,20 @@ export function EccentricFootingForm({ initialEntradas, onSalvo }: Props) {
                   <Input id="e22-fck2" type="number" value={fck} onChange={(e) => setFck(e.target.value)} className="font-mono" />
                 </div>
                 {acoSelect}
+                <div className="space-y-1.5 col-span-2 sm:col-span-3">
+                  <Label>Alívio considerado na sapata interna</Label>
+                  <Select value={pctAlivio} onValueChange={(v) => v && setPctAlivio(v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">0% — despreza o alívio (mais seguro)</SelectItem>
+                      <SelectItem value="0.5">50% — prática de projeto (padrão)</SelectItem>
+                      <SelectItem value="1">100% — alívio teórico integral</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    O alívio ΔP = R1 − P1 só se realiza com a viga efetivamente rígida e executada como calculada.
+                  </p>
+                </div>
               </div>
             </GuiaGrupo>
           </>
@@ -202,7 +217,7 @@ export function EccentricFootingForm({ initialEntradas, onSalvo }: Props) {
           setModo(s(n.modo, "isolada")); setAco(s(n.aco, "CA-50")); setFck(s(n.fck, "25")); setSigmaAdm(s(n.sigmaAdm, "300"));
           setNk(s(n.nk, "")); setMk(s(n.mk, "0")); setA(s(n.a, "")); setB(s(n.b, "")); setAp(s(n.ap, "30")); setH(s(n.h, "50"));
           setP1(s(n.p1, "")); setP2(s(n.p2, "")); setEll(s(n.ell, "")); setAp1(s(n.ap1, "30")); setA1(s(n.a1, "150"));
-          setBwViga(s(n.bwViga, "30")); setHViga(s(n.hViga, "60"));
+          setBwViga(s(n.bwViga, "30")); setHViga(s(n.hViga, "60")); setPctAlivio(s(n.pctAlivio, "0.5"));
         }}
         onSalvo={onSalvo}
       />

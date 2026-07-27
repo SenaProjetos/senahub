@@ -8,7 +8,10 @@
  *     - e > a/6: triangular com descolamento, σmax = 2N/(3·b·(a/2−e)).
  *  B) "viga_equilibrio": pilar na divisa (P1, excêntrico) ligado por viga de equilíbrio (alavanca)
  *     a um pilar interno (P2). Centroide da sapata de divisa deslocado e=(a1−ap1)/2 do eixo do pilar.
- *     R1 = P1·ℓ/(ℓ−e); R2 = P2 − (R1−P1); M_viga = R1·e (couple). Dimensiona as 2 sapatas + a viga.
+ *     R1 = P1·ℓ/(ℓ−e); R2 = P2 − pctAlivio·(R1−P1); M_viga = R1·e (couple). Dimensiona as 2 sapatas + a viga.
+ *     O alívio ΔP na sapata interna só se realiza se a viga for de fato rígida e a obra executada
+ *     como calculada — por isso `pctAlivio` default 0,5 (prática de projeto); 1 = hipótese teórica
+ *     (menos conservadora), 0 = despreza o alívio (mais seguro).
  *
  * Reusa: calcularViga (E01) para a flexão da viga de equilíbrio; calcularSapata (E21) p/ a sapata interna.
  */
@@ -47,6 +50,7 @@ const vigaSchema = z.object({
   aco: acoEnum,
   bwViga: z.number().positive().default(30), // cm — largura da viga de equilíbrio
   hViga: z.number().positive().default(60), // cm — altura da viga
+  pctAlivio: z.number().min(0).max(1).default(0.5), // fração do alívio teórico aplicada em R2 (0=seguro, 1=teórico)
 });
 
 export const entradaSchema = z.discriminatedUnion("modo", [isoladaSchema, vigaSchema]);
@@ -157,7 +161,7 @@ function calcularViga2(v: z.infer<typeof vigaSchema>): ResultadoViga {
   }
   const r1 = (v.p1 * ellM) / (ellM - eM); // kN
   const deltaP2 = r1 - v.p1; // kN
-  const r2 = v.p2 - deltaP2; // kN
+  const r2 = v.p2 - v.pctAlivio * deltaP2; // kN — alívio parcial (default 50%, conservador vs. 100% teórico)
   if (r2 < 0) alertas.push("R2 < 0: a sapata interna sofre tração (levantamento) — revisar a geometria/cargas.");
 
   const mViga = r1 * eM; // kN·m (couple = R1·e)

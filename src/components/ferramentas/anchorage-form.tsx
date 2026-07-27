@@ -17,6 +17,7 @@ import { BITOLAS_MM } from "@/modules/ferramentas/calc/bitolas";
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { SalvarDialog } from "./salvar-dialog";
 import { SavefileButtons } from "./savefile-buttons";
+import { versaoCalcDe } from "@/modules/ferramentas/registry";
 import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
 import { AnchorageSchematic } from "./guia/schematics/ancoragem";
 
@@ -193,7 +194,7 @@ export function Footer({
         <Button type="button" disabled={!habilitado} onClick={() => setSalvarOpen(true)}>
           Salvar cálculo
         </Button>
-        <SavefileButtons ferramenta={ferramenta} versaoCalc={1} titulo={titulo} entradas={entradas} onImport={onImport} disabled={!habilitado} />
+        <SavefileButtons ferramenta={ferramenta} versaoCalc={versaoCalcDe(ferramenta)} titulo={titulo} entradas={entradas} onImport={onImport} disabled={!habilitado} />
       </div>
       <SalvarDialog open={salvarOpen} onOpenChange={setSalvarOpen} ferramenta={ferramenta} tituloSugerido={titulo} entradas={entradas} onSalvo={onSalvo} />
     </>

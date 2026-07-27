@@ -35,6 +35,12 @@ export type FerramentaMeta = {
   norma?: string;
   /** Formatos de exportação disponíveis. Vazio na F0; preenchido na F1+. */
   exportaveis: FormatoExport[];
+  /**
+   * Versão do engine de cálculo. Omitida = 1. Incrementar SEMPRE que uma fórmula ou hipótese
+   * padrão mudar depois de publicada — snapshots antigos guardam a versão com que foram gerados
+   * e não devem ser reinterpretados silenciosamente pela regra nova.
+   */
+  versaoCalc?: number;
   icon: LucideIcon;
 };
 
@@ -175,6 +181,7 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     tipo: "completa",
     norma: "NBR 6118/6122",
     exportaveis: ["pdf", "docx", "xlsx", "dxf"],
+    versaoCalc: 2, // v2: alívio parcial (pctAlivio, default 50%) na viga de equilíbrio
     icon: SquareStack,
   },
   {
@@ -191,6 +198,11 @@ export const FERRAMENTAS: FerramentaMeta[] = [
 
 export function getFerramenta(key: string): FerramentaMeta | undefined {
   return FERRAMENTAS.find((f) => f.key === key);
+}
+
+/** Versão do engine de cálculo da ferramenta (1 quando não declarada). */
+export function versaoCalcDe(key: string): number {
+  return getFerramenta(key)?.versaoCalc ?? 1;
 }
 
 export function porDisciplina(): Record<Disciplina, FerramentaMeta[]> {

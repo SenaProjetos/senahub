@@ -9,12 +9,12 @@ type Props = {
   entradas: Record<string, unknown> | null;
 };
 
-/** Cores ACI básicas → hex (para o preview). 7 = quase-preto. */
+/** Cores ACI básicas → hex (para o preview). 7 = cinza médio (legível em fundo claro e escuro). */
 const ACI: Record<number, string> = {
   1: "#dc2626", 2: "#ca8a04", 3: "#16a34a", 4: "#0891b2",
-  5: "#2563eb", 6: "#9333ea", 7: "#1f2937",
+  5: "#2563eb", 6: "#9333ea", 7: "#64748b",
 };
-const cor = (camadas: ReadonlyMap<string, number>, nome: string) => ACI[camadas.get(nome) ?? 7] ?? "#1f2937";
+const cor = (camadas: ReadonlyMap<string, number>, nome: string) => ACI[camadas.get(nome) ?? 7] ?? "#64748b";
 
 type Box = { minX: number; minY: number; maxX: number; maxY: number };
 
