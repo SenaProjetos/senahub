@@ -24,11 +24,23 @@ export type MemoriaTabela = {
   linhas: (string | number)[][];
 };
 
+/** Um gráfico/desenho embutido na memória (SVG inline; usado no HTML/PDF). */
+export type MemoriaImagem = {
+  titulo?: string;
+  /**
+   * Markup `<svg>…</svg>` autocontido. NÃO é escapado pelo renderer — só passar SVG
+   * gerado pelos builders internos (`memoria/diagramas/`), nunca string vinda do usuário.
+   */
+  svg: string;
+};
+
 export type MemoriaSecao = {
   titulo: string;
   paragrafos?: string[];
   valores?: MemoriaValor[];
   tabelas?: MemoriaTabela[];
+  /** Diagramas da seção. Renderizados no HTML/PDF; ignorados em docx/xlsx. */
+  imagens?: MemoriaImagem[];
   notas?: string[];
 };
 

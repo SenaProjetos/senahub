@@ -47,11 +47,20 @@ function secaoHtml(s: MemoriaSecao): string {
       </table>`,
     )
     .join("");
+  // `im.svg` entra sem escape (é o ponto do recurso) — só builders internos alimentam este campo.
+  const imagens = (s.imagens ?? [])
+    .map(
+      (im) => `<figure class="fig">
+        ${im.titulo ? `<figcaption>${esc(im.titulo)}</figcaption>` : ""}
+        ${im.svg}
+      </figure>`,
+    )
+    .join("");
   const notas =
     s.notas && s.notas.length > 0
       ? `<ul class="notas">${s.notas.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>`
       : "";
-  return `<section><h2>${esc(s.titulo)}</h2>${paragrafos}${valores}${tabelas}${notas}</section>`;
+  return `<section><h2>${esc(s.titulo)}</h2>${paragrafos}${valores}${tabelas}${imagens}${notas}</section>`;
 }
 
 export function renderMemoriaHtml(doc: MemoriaDoc): string {
@@ -87,6 +96,9 @@ export function renderMemoriaHtml(doc: MemoriaDoc): string {
   table.dados th { background: #f0f3f6; }
   .tab-titulo { font-weight: 600; margin: 8px 0 2px; }
   ul.notas { margin: 6px 0; padding-left: 18px; font-size: 10pt; color: #555; }
+  figure.fig { margin: 8px 0; page-break-inside: avoid; text-align: center; }
+  figure.fig figcaption { font-size: 9pt; color: #555; margin-bottom: 4px; font-weight: 600; }
+  figure.fig svg { max-width: 100%; height: auto; }
   footer { margin-top: 22px; border-top: 1px solid #ddd; padding-top: 8px; font-size: 8.5pt; color: #888; font-style: italic; }
 </style></head>
 <body>
