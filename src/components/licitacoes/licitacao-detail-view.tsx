@@ -823,7 +823,7 @@ function LicResponsaveis({
 }: {
   lic: Lic;
   podeGerir: boolean;
-  rtsDisponiveis: { id: string; nome: string; registro: string; conselho: string | null }[];
+  rtsDisponiveis: { id: string; nome: string; registro: string; conselho: string | null; vinculadoAUsuario?: boolean }[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -911,6 +911,7 @@ function LicResponsaveis({
                   {rtsDisponiveis.map((rt) => (
                     <SelectItem key={rt.id} value={rt.id}>
                       {rt.nome} — {rt.registro}
+                      {rt.vinculadoAUsuario ? " (do cadastro)" : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -939,6 +940,10 @@ function LicResponsaveis({
               <Plus className="size-3" /> Cadastrar RT
             </Button>
           </div>
+          <p className="text-[11px] text-muted-foreground italic">
+            RT marcado como &ldquo;(do cadastro)&rdquo; tem nome e registro vindos da ficha da pessoa — edite lá, em RH.
+            Cadastre aqui apenas responsáveis externos, sem acesso ao sistema.
+          </p>
         </>
       )}
     </div>

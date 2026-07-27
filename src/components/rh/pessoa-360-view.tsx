@@ -6,6 +6,7 @@ import { CalendarClock, Landmark, Building2, KeyRound, UserRound, ClipboardList,
 import { brl, formatarData } from "@/lib/utils";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { carregarPontoPessoa } from "@/modules/rh/pessoas/actions";
+import { formatarRegistro } from "@/modules/usuarios/registro";
 import { EscalaGrade } from "@/components/rh/escala-grade";
 import { EditarCadastroDialog, type Cadastro } from "@/components/rh/editar-cadastro-dialog";
 import { DependentesEditor } from "@/components/rh/dependentes-editor";
@@ -96,6 +97,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
         contatoEmergenciaNome: cadastro.contatoEmergenciaNome, emailPessoal: cadastro.emailPessoal,
         banco: cadastro.banco, agencia: cadastro.agencia, conta: cadastro.conta, tipoContaBancaria: cadastro.tipoContaBancaria,
         cargo: cadastro.cargo, departamento: cadastro.departamento,
+        conselho: cadastro.conselho, registroProfissional: cadastro.registroProfissional, registroUf: cadastro.registroUf,
         pjId: pessoa.pj?.id ?? null, pjLabel: pessoa.pj ? `${pessoa.pj.razaoSocial}${pessoa.pj.cnpj ? " · " + pessoa.pj.cnpj : ""}` : null,
       }
     : null;
@@ -158,6 +160,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
               {pessoa.nomeCompleto && <span>Nome completo: {pessoa.nomeCompleto}</span>}
               {pessoa.dataAdmissao && <span>Admissão: {formatarData(pessoa.dataAdmissao)}</span>}
               {pessoa.cargo && <span>{pessoa.cargo}{pessoa.departamento ? ` · ${pessoa.departamento}` : ""}</span>}
+              {pessoa.registro && <span>{pessoa.registro}</span>}
               <span>{pessoa.projetosCount} projeto(s)</span>
               {podeFolha && pessoa.salarioBase != null && <span>Salário base: {brl(pessoa.salarioBase)}</span>}
               {pessoa.pj && <span>PJ: {pessoa.pj.razaoSocial}</span>}
@@ -214,6 +217,11 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                 <Campo label="Telefone" valor={cadastro.telefone} />
                 <Campo label="E-mail pessoal" valor={cadastro.emailPessoal} />
                 <Campo label="Emergência" valor={cadastro.contatoEmergenciaNome ? `${cadastro.contatoEmergenciaNome}${cadastro.telefoneEmergencia ? " · " + cadastro.telefoneEmergencia : ""}` : null} />
+              </Secao>
+              <Secao titulo="Profissional">
+                <Campo label="Cargo" valor={cadastro.cargo} />
+                <Campo label="Departamento" valor={cadastro.departamento} />
+                <Campo label="Registro profissional" valor={formatarRegistro(cadastro)} />
               </Secao>
               {podeFolha && (
                 <Secao titulo="Dados bancários">

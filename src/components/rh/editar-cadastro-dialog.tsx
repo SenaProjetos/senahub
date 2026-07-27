@@ -7,6 +7,7 @@ import { Pencil, Check, Loader2 } from "lucide-react";
 import { editarCadastroFuncionario, consultarCep } from "@/modules/rh/funcionarios/actions";
 import { maskCpf, maskTelefone, maskCep } from "@/lib/utils";
 import { PJ_ROLES, type Role } from "@/lib/roles";
+import { CONSELHOS, UFS, formatarRegistro } from "@/modules/usuarios/registro";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +22,7 @@ export type Cadastro = {
   telefone: string | null; telefoneEmergencia: string | null; contatoEmergenciaNome: string | null; emailPessoal: string | null;
   banco: string | null; agencia: string | null; conta: string | null; tipoContaBancaria: string | null;
   cargo: string | null; departamento: string | null; pjId: string | null; pjLabel: string | null;
+  conselho: string | null; registroProfissional: string | null; registroUf: string | null;
 };
 
 export type FuncionarioCadastro = {
@@ -52,6 +54,7 @@ export function EditarCadastroDialog({
     telefone: s(c.telefone), telefoneEmergencia: s(c.telefoneEmergencia), contatoEmergenciaNome: s(c.contatoEmergenciaNome), emailPessoal: s(c.emailPessoal),
     banco: s(c.banco), agencia: s(c.agencia), conta: s(c.conta), tipoContaBancaria: s(c.tipoContaBancaria) || "corrente",
     cargo: s(c.cargo), departamento: s(c.departamento),
+    conselho: s(c.conselho), registroProfissional: s(c.registroProfissional), registroUf: s(c.registroUf),
     dataAdmissao: s(funcionario.dataAdmissao), salarioBase: funcionario.salarioBase != null ? String(funcionario.salarioBase) : "",
     pjId: s(c.pjId),
   });
@@ -167,6 +170,28 @@ export function EditarCadastroDialog({
                 <Campo label="Departamento"><Input value={f.departamento} onChange={(e) => set("departamento", e.target.value)} /></Campo>
                 <Campo label="Admissão"><Input type="date" value={f.dataAdmissao} onChange={(e) => set("dataAdmissao", e.target.value)} /></Campo>
                 <Campo label="Salário (R$)"><Input value={f.salarioBase} onChange={(e) => set("salarioBase", e.target.value)} inputMode="decimal" /></Campo>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-4">
+                <Campo label="Conselho">
+                  <select className={selectCls} value={f.conselho} onChange={(e) => set("conselho", e.target.value)}>
+                    <option value="">— nenhum —</option>
+                    {CONSELHOS.map((x) => <option key={x} value={x}>{x}</option>)}
+                  </select>
+                </Campo>
+                <Campo label="Registro (nº)">
+                  <Input value={f.registroProfissional} onChange={(e) => set("registroProfissional", e.target.value)} />
+                </Campo>
+                <Campo label="UF do registro">
+                  <select className={selectCls} value={f.registroUf} onChange={(e) => set("registroUf", e.target.value)}>
+                    <option value="">—</option>
+                    {UFS.map((x) => <option key={x} value={x}>{x}</option>)}
+                  </select>
+                </Campo>
+                <Campo label="Como será exibido">
+                  <p className="flex h-9 items-center text-sm text-muted-foreground">
+                    {formatarRegistro(f) ?? "—"}
+                  </p>
+                </Campo>
               </div>
               {ehPJ && (
                 <Campo label="Pessoa Jurídica (CNPJ)">

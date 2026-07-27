@@ -79,6 +79,12 @@ model User {
   // Profissional
   cargo                 String?
   departamento          String?
+  /// Conselho profissional: "CREA" | "CAU" | "CFT" | outro. Nulo = não é profissional registrado.
+  conselho              String?
+  /// Número do registro no conselho (ex.: "1234567890"). Exibido como "CREA-SP 1234567890".
+  registroProfissional  String?
+  /// UF do registro (sigla). Separada do número para montar o rótulo e permitir filtro.
+  registroUf            String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

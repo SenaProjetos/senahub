@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { CADASTRO_ROLES, type Role } from "@/lib/roles";
 import { espelhoMes } from "@/modules/ponto/queries";
+import { formatarRegistro } from "@/modules/usuarios/registro";
 
 const ymd = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
@@ -43,6 +44,7 @@ export async function fichaPessoa(userId: string) {
       id: true, name: true, nomeCompleto: true, email: true, role: true, ativo: true,
       mustChangePassword: true, createdAt: true,
       salarioBase: true, dataAdmissao: true, cpf: true, cargo: true, departamento: true,
+      conselho: true, registroProfissional: true, registroUf: true,
       clienteId: true,
       cliente: { select: { id: true, nome: true, tipo: true, documento: true } },
       pj: { select: { id: true, razaoSocial: true, cnpj: true } },
@@ -64,6 +66,8 @@ export async function fichaPessoa(userId: string) {
     dataAdmissao: ymd(u.dataAdmissao),
     cargo: u.cargo,
     departamento: u.departamento,
+    /** Rótulo pronto do registro profissional ("CREA-SP 123456") ou null. */
+    registro: formatarRegistro(u),
     socioAtivo: u.socio?.ativo === true,
     incompleto: cadastroIncompleto(u.role, u.cpf, u.dataAdmissao),
     projetosCount: u._count.projetosMembro,
@@ -84,6 +88,7 @@ export async function cadastroDaPessoa(userId: string) {
       telefone: true, telefoneEmergencia: true, contatoEmergenciaNome: true, emailPessoal: true,
       banco: true, agencia: true, conta: true, tipoContaBancaria: true,
       cargo: true, departamento: true,
+      conselho: true, registroProfissional: true, registroUf: true,
       dependentes: { orderBy: { createdAt: "asc" }, select: { id: true, nome: true, nascimento: true, parentesco: true } },
       funcDocumentos: {
         orderBy: { createdAt: "desc" },
@@ -99,6 +104,7 @@ export async function cadastroDaPessoa(userId: string) {
     telefone: u.telefone, telefoneEmergencia: u.telefoneEmergencia, contatoEmergenciaNome: u.contatoEmergenciaNome, emailPessoal: u.emailPessoal,
     banco: u.banco, agencia: u.agencia, conta: u.conta, tipoContaBancaria: u.tipoContaBancaria,
     cargo: u.cargo, departamento: u.departamento,
+    conselho: u.conselho, registroProfissional: u.registroProfissional, registroUf: u.registroUf,
     dependentes: u.dependentes.map((d) => ({ id: d.id, nome: d.nome, nascimento: ymd(d.nascimento), parentesco: d.parentesco })),
     documentos: u.funcDocumentos.map((d) => ({
       id: d.id, tipo: d.tipo, nome: d.nome, nomeArquivo: d.nomeArquivo, tamanho: d.tamanho, criadoEm: d.createdAt.toISOString(),

@@ -12,9 +12,11 @@
 
 ---
 
-## Decisões pendentes (confirmar ANTES de executar a Fase 1)
+## Decisões — RESOLVIDAS em 2026-07-27
 
-Cada uma muda materialmente o trabalho. A recomendação está marcada com ✅.
+O usuário aprovou todas as recomendações (D1a, D2a, D3a, D4a) e decidiu o ponto aberto da Fase 3:
+**o link público de arquivos EXIBE as ARTs para o cliente.** As opções recusadas ficam registradas
+abaixo como histórico do porquê.
 
 ### D1 — CREA/CAU: campo no `User` ou reuso do `ResponsavelTecnico`?
 
@@ -284,7 +286,7 @@ Decisão D2a: nó virtual read-only, não `Upload`.
 - [ ] **Step 1:** `page.tsx` passa a carregar `listarArtsDoProjeto(id)` junto do resto (adicionar ao `Promise.all` existente).
 - [ ] **Step 2:** `ArquivosExplorer` ganha um nó "ARTs" no mesmo nível dos pacotes, listando `tipo + número` e as versões como filhos. Cada nó com arquivo tem download; nós sem arquivo aparecem esmaecidos com "sem PDF anexado".
 - [ ] **Step 3:** Nó **read-only** — sem enviar/excluir/validar por ali; ação "Gerir ARTs" leva para a aba.
-- [ ] **Step 4:** Verificar na UI que o link público de arquivos (`LinkPublicoArquivos`) **não** expõe as ARTs (documento interno) — ou expõe, se for decisão do usuário. **Confirmar antes de implementar.**
+- [ ] **Step 4:** O link público de arquivos (`LinkPublicoArquivos`) **exibe** as ARTs ao cliente (decidido em 2026-07-27) — mesmo nó, mesma listagem, download liberado. Versões antigas também aparecem: o cliente vê o histórico completo.
 - [ ] **Step 5:** Commit — `feat(arquivos): ARTs do projeto visíveis no explorador de arquivos`.
 
 ---
