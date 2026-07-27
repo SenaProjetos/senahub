@@ -824,6 +824,14 @@ As Fases 3 a 6 foram desmembradas em planos independentes, cada um com **todo o 
 
 **Ordem de entrega recomendada:** Fase 0 → 1 → 2 → 3 → (4 / 5 / 6 conforme demanda). As chaves de `registry.ts` reservadas nos planos derivados são `sapata-prova-carga` (E25), `sapata-spt` (E26), `sapata-associada` (E27), `recalque-fundacao` (E28).
 
+## Continuação — origem dos dados do cabeçalho técnico
+
+A Task 1.3 entregou o **render** do cabeçalho (`MemoriaIdentificacao`), mas só obra/cliente/local têm origem
+no banco: `responsavel`/`registro`/`art` ficam vazios porque não existe campo para eles. Isso é resolvido
+por um plano próprio: [2026-07-27-art-crea-responsavel-tecnico.md](2026-07-27-art-crea-responsavel-tecnico.md)
+— CREA/CAU no cadastro do usuário, cadastro de ARTs versionadas por projeto (visíveis nos Arquivos) e o
+seletor de ART/responsável no memorial. Tem 4 decisões a confirmar antes de executar.
+
 ## Itens fora do escopo deste plano (registrar como backlog separado)
 
 - **Radier / fundação em placa:** 12ª lacuna real (nem o arquivo nem o SenaHub cobrem). Exige modelagem 2D (placa sobre base elástica / Winkler) — iniciativa de Produto/Arquitetura própria, sem código a portar do arquivo.
