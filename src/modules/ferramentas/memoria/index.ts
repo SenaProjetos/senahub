@@ -3,7 +3,7 @@
  * Puro / client-safe.
  */
 
-import type { MemoriaDoc, MemoriaSecao } from "./types";
+import type { MemoriaDoc, MemoriaIdentificacao, MemoriaSecao } from "./types";
 
 export * from "./types";
 
@@ -19,6 +19,7 @@ type MontarBaseArgs = {
   norma?: string;
   autor?: string;
   projeto?: string;
+  identificacao?: MemoriaIdentificacao;
   secoes: MemoriaSecao[];
   geradoEm?: string;
 };
@@ -33,6 +34,7 @@ export function montarMemoriaBase(args: MontarBaseArgs): MemoriaDoc {
     geradoEm: args.geradoEm ?? new Date().toISOString(),
     autor: args.autor,
     projeto: args.projeto,
+    identificacao: args.identificacao,
     secoes: args.secoes,
     disclaimer: DISCLAIMER_PADRAO,
   };

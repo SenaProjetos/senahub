@@ -25,3 +25,35 @@ describe("renderMemoriaHtml — imagens de seção", () => {
     expect(html).not.toContain("<figure");
   });
 });
+
+describe("renderMemoriaHtml — cabeçalho técnico", () => {
+  it("renderiza identificação e assinaturas quando fornecidas", () => {
+    const html = renderMemoriaHtml(
+      doc({
+        identificacao: {
+          obra: "Edifício Alfa",
+          responsavel: "Eng. Fulano",
+          registro: "CREA-SP 123456",
+          art: "ART-000111",
+          assinaturas: true,
+        },
+      }),
+    );
+    expect(html).toContain("Edifício Alfa");
+    expect(html).toContain("CREA-SP 123456");
+    expect(html).toContain("ART-000111");
+    expect(html).toContain("Responsável técnico");
+  });
+
+  it("escapa o conteúdo da identificação", () => {
+    const html = renderMemoriaHtml(doc({ identificacao: { obra: '<script>x</script>' } }));
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("&lt;script&gt;");
+  });
+
+  it("omite o bloco quando não há identificação", () => {
+    const html = renderMemoriaHtml(doc({}));
+    expect(html).not.toContain("table class=\"ident\"");
+    expect(html).not.toContain("class=\"sig\"");
+  });
+});

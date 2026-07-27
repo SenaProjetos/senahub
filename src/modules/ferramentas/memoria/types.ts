@@ -44,6 +44,24 @@ export type MemoriaSecao = {
   notas?: string[];
 };
 
+/**
+ * Bloco de identificação técnica do memorial (obra/cliente/responsável/ART).
+ * Opcional: quando ausente, o documento sai sem cabeçalho técnico nem assinaturas.
+ */
+export type MemoriaIdentificacao = {
+  obra?: string;
+  cliente?: string;
+  local?: string;
+  responsavel?: string;
+  /** Registro profissional, ex.: "CREA-SP 123456". */
+  registro?: string;
+  /** Número da ART/RRT. */
+  art?: string;
+  revisao?: string;
+  /** true = imprime os campos de assinatura (responsável / verificado / aprovado). */
+  assinaturas?: boolean;
+};
+
 export type MemoriaDoc = {
   /** Chave da ferramenta (ex.: "propriedades-secao"). */
   ferramenta: string;
@@ -57,6 +75,8 @@ export type MemoriaDoc = {
   autor?: string;
   /** Código/nome do projeto associado, se houver. */
   projeto?: string;
+  /** Cabeçalho técnico (ART/CREA) + assinaturas. Omitido = documento sem esse bloco. */
+  identificacao?: MemoriaIdentificacao;
   secoes: MemoriaSecao[];
   /** Aviso de responsabilidade técnica (ART/RRT). */
   disclaimer: string;

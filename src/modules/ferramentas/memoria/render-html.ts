@@ -3,7 +3,7 @@
  * Usado pelo PDF (puppeteer `setContent`) e por uma eventual prévia em tela. Puro, sem Next.
  */
 
-import type { MemoriaDoc, MemoriaSecao, MemoriaValor } from "./types";
+import type { MemoriaDoc, MemoriaIdentificacao, MemoriaSecao, MemoriaValor } from "./types";
 
 function esc(v: string | number): string {
   return String(v)
@@ -63,7 +63,34 @@ function secaoHtml(s: MemoriaSecao): string {
   return `<section><h2>${esc(s.titulo)}</h2>${paragrafos}${valores}${tabelas}${imagens}${notas}</section>`;
 }
 
+function identificacaoHtml(id: MemoriaIdentificacao): string {
+  const linha = (k: string, v?: string) => (v ? `<tr><td class="k">${esc(k)}</td><td>${esc(v)}</td></tr>` : "");
+  const resp = id.responsavel
+    ? `<tr><td class="k">Responsável técnico</td><td>${esc(id.responsavel)}${id.registro ? ` — ${esc(id.registro)}` : ""}</td></tr>`
+    : linha("Registro", id.registro);
+  const linhas = [
+    linha("Obra", id.obra),
+    linha("Cliente", id.cliente),
+    linha("Local", id.local),
+    resp,
+    linha("ART / RRT", id.art),
+    linha("Revisão", id.revisao),
+  ].join("");
+  return linhas ? `<table class="ident">${linhas}</table>` : "";
+}
+
+function assinaturasHtml(id: MemoriaIdentificacao): string {
+  return `<div class="sig">
+    <div><div class="ln"></div>${esc(id.responsavel ?? "Responsável técnico")}<br>${esc(id.registro ?? "CREA/CAU")}</div>
+    <div><div class="ln"></div>Verificado por</div>
+    <div><div class="ln"></div>Aprovado por</div>
+  </div>`;
+}
+
 export function renderMemoriaHtml(doc: MemoriaDoc): string {
+  const id = doc.identificacao;
+  const cab = id ? identificacaoHtml(id) : "";
+  const assinaturas = id?.assinaturas ? assinaturasHtml(id) : "";
   const meta = [
     doc.norma ? `Norma: ${esc(doc.norma)}` : "",
     doc.autor ? `Autor: ${esc(doc.autor)}` : "",
@@ -99,6 +126,12 @@ export function renderMemoriaHtml(doc: MemoriaDoc): string {
   figure.fig { margin: 8px 0; page-break-inside: avoid; text-align: center; }
   figure.fig figcaption { font-size: 9pt; color: #555; margin-bottom: 4px; font-weight: 600; }
   figure.fig svg { max-width: 100%; height: auto; }
+  table.ident { width: 100%; border: 1px solid #334155; border-radius: 4px; margin: 0 0 14px; font-size: 9.5pt; }
+  table.ident td { padding: 2px 8px; }
+  table.ident td.k { color: #475569; width: 34%; font-weight: 600; }
+  .sig { display: flex; gap: 24px; justify-content: space-around; margin-top: 40px; page-break-inside: avoid; }
+  .sig div { flex: 1; text-align: center; font-size: 9.5pt; }
+  .sig .ln { border-top: 1px solid #111; margin-bottom: 4px; }
   footer { margin-top: 22px; border-top: 1px solid #ddd; padding-top: 8px; font-size: 8.5pt; color: #888; font-style: italic; }
 </style></head>
 <body>
@@ -107,7 +140,9 @@ export function renderMemoriaHtml(doc: MemoriaDoc): string {
     ${doc.subtitulo ? `<p class="sub">${esc(doc.subtitulo)}</p>` : ""}
     <p class="meta">${meta}</p>
   </header>
+  ${cab}
   ${doc.secoes.map(secaoHtml).join("")}
+  ${assinaturas}
   <footer>${esc(doc.disclaimer)}</footer>
 </body></html>`;
 }

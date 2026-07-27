@@ -52,7 +52,7 @@ function flechaE01(e: EntradaFlexao, As: number, AsLinha: number) {
     mServ: e.mServ,
   });
 }
-import { montarMemoriaBase, fmtNum, type MemoriaDoc } from "./memoria";
+import { montarMemoriaBase, fmtNum, type MemoriaDoc, type MemoriaIdentificacao } from "./memoria";
 import { svgTensaoSolo } from "./memoria/diagramas/tensao-solo";
 import type { ResultadoBase, SnapshotCalculo } from "./types";
 
@@ -277,7 +277,14 @@ export function snapshotParaSalvar(
   };
 }
 
-type MemoriaOpts = { titulo: string; autor?: string; projeto?: string; geradoEm?: string };
+type MemoriaOpts = {
+  titulo: string;
+  autor?: string;
+  projeto?: string;
+  geradoEm?: string;
+  /** Cabeçalho técnico (obra/ART/CREA). Preenchido pela camada que chama (UI/action). */
+  identificacao?: MemoriaIdentificacao;
+};
 
 /**
  * Monta a memória de cálculo (MemoriaDoc) re-rodando o engine a partir das entradas.
@@ -297,6 +304,7 @@ export function montarMemoria(
     autor: opts.autor,
     projeto: opts.projeto,
     geradoEm: opts.geradoEm,
+    identificacao: opts.identificacao,
   };
 
   switch (ferramenta) {

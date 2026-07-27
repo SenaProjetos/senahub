@@ -32,7 +32,9 @@ export async function abrirCalculo(id: string) {
   const registro = await prisma.calculoFerramenta.findUnique({
     where: { id },
     include: {
-      projeto: { select: { id: true, nome: true, codigo: true } },
+      projeto: {
+        select: { id: true, nome: true, codigo: true, endereco: true, cliente: { select: { nome: true } } },
+      },
       disciplina: { select: { id: true, nome: true } },
       autor: { select: { name: true } },
     },
@@ -54,10 +56,20 @@ export async function memoriaDoCalculo(id: string) {
   const calc = await abrirCalculo(id);
   if (!calc) return null;
   const projeto = calc.projeto ? `${calc.projeto.codigo} — ${calc.projeto.nome}` : undefined;
+  // Cabeçalho técnico: só o que já existe no cadastro. Responsável/CREA/ART ainda não têm
+  // campo próprio no cálculo — quando tiverem, entram aqui e o bloco de assinaturas é ligado.
+  const identificacao = calc.projeto
+    ? {
+        obra: `${calc.projeto.codigo} — ${calc.projeto.nome}`,
+        cliente: calc.projeto.cliente.nome,
+        local: calc.projeto.endereco ?? undefined,
+      }
+    : undefined;
   const doc = montarMemoria(calc.ferramenta, calc.entradasJson as Record<string, unknown>, {
     titulo: calc.titulo,
     autor: calc.autor?.name,
     projeto,
+    identificacao,
     geradoEm: calc.createdAt.toISOString(),
   });
   return { calc, doc };
