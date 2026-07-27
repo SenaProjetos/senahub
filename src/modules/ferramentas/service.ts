@@ -53,6 +53,7 @@ function flechaE01(e: EntradaFlexao, As: number, AsLinha: number) {
   });
 }
 import { montarMemoriaBase, fmtNum, type MemoriaDoc } from "./memoria";
+import { svgTensaoSolo } from "./memoria/diagramas/tensao-solo";
 import type { ResultadoBase, SnapshotCalculo } from "./types";
 
 /** Calcula o resultado para a ferramenta informada e retorna ResultadoBase (painel). */
@@ -1141,6 +1142,21 @@ function memoriaSapataExcentrica(entradas: Record<string, unknown>, base: BaseAr
             { simbolo: "As", descricao: "Armadura (flexão no balanço)", valor: fmtNum(r.asA, 2), unidade: "cm²/m" },
           ],
           notas: r.alertas.length > 0 ? r.alertas : ["σmax ≤ σadm — verificação atendida."],
+        },
+        {
+          titulo: "Diagrama de tensões",
+          imagens: [
+            {
+              titulo: r.descola ? "Diagrama triangular (com descolamento)" : "Diagrama trapezoidal",
+              svg: svgTensaoSolo({
+                a: e.a,
+                sigmaMax: r.sigmaMax,
+                sigmaMin: r.sigmaMin,
+                descola: r.descola,
+                xContatoCm: r.descola ? 3 * (e.a / 2 - r.e) : undefined,
+              }),
+            },
+          ],
         },
       ],
     });
