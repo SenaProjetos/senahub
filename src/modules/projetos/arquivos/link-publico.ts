@@ -36,10 +36,58 @@ export type DisciplinaPublica = {
   nome: string;
   arquivos: ArquivoPublico[];
 };
+export type ArtPublica = {
+  id: string;
+  rotulo: string;
+  disciplina: string | null;
+  situacao: string;
+  emitidaEm: string | null;
+  /** Versões históricas COM arquivo — o cliente vê o histórico completo. */
+  versoes: { id: string; numero: number; rotulo: string }[];
+};
 export type ConteudoPublico = {
   projeto: { codigo: string; nome: string };
   disciplinas: DisciplinaPublica[];
+  arts: ArtPublica[];
 };
+
+/**
+ * ARTs visíveis no link: as do projeto todo (sem disciplina) e as de disciplinas que
+ * estão na whitelist do link — a mesma muralha dos arquivos. Só entram as que têm PDF:
+ * sem arquivo não há o que baixar.
+ */
+async function artsPublicasDoLink(projetoId: string, disciplinaIds: string[]) {
+  const arts = await prisma.art.findMany({
+    where: {
+      projetoId,
+      arquivoPath: { not: null },
+      OR: [{ disciplinaId: null }, { disciplinaId: { in: disciplinaIds } }],
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      tipo: true,
+      numero: true,
+      situacao: true,
+      emitidaEm: true,
+      disciplina: { select: { nome: true } },
+      versoes: {
+        where: { arquivoPath: { not: null } },
+        orderBy: { numero: "desc" },
+        select: { id: true, numero: true, numeroArt: true },
+      },
+    },
+  });
+
+  return arts.map((a) => ({
+    id: a.id,
+    rotulo: `${a.tipo} ${a.numero}`,
+    disciplina: a.disciplina?.nome ?? null,
+    situacao: a.situacao,
+    emitidaEm: a.emitidaEm ? a.emitidaEm.toISOString().slice(0, 10) : null,
+    versoes: a.versoes.map((v) => ({ id: v.id, numero: v.numero, rotulo: `${a.tipo} ${v.numeroArt}` })),
+  }));
+}
 
 function ehPdf(nome: string): boolean {
   return nome.toLowerCase().endsWith(".pdf");
@@ -71,8 +119,11 @@ export async function conteudoPublicoPorToken(token: string): Promise<ConteudoPu
     },
   });
 
+  const arts = await artsPublicasDoLink(link.projetoId, link.disciplinaIds);
+
   return {
     projeto: { codigo: link.projeto.codigo, nome: link.projeto.nome },
+    arts,
     disciplinas: disciplinas
       .map((d) => ({
         id: d.id,
@@ -108,6 +159,38 @@ export async function uploadLiberadoNoLink(token: string, uploadId: string) {
     select: { id: true, nomeArquivo: true, caminho: true, mimeType: true },
   });
   return upload;
+}
+
+/**
+ * Valida, para a rota pública de download, que `id` (de uma ART **ou** de uma versão de ART)
+ * está liberado pelo `token`: link vigente + ART do projeto do link + disciplina na whitelist
+ * (ou ART sem disciplina). Retorna caminho/nome do PDF, ou `null`.
+ */
+export async function artLiberadaNoLink(token: string, id: string) {
+  const link = await prisma.linkPublicoArquivos.findUnique({ where: { token } });
+  if (!link || !linkVigente(link) || link.disciplinaIds.length === 0) return null;
+
+  const escopo = {
+    projetoId: link.projetoId,
+    OR: [{ disciplinaId: null }, { disciplinaId: { in: link.disciplinaIds } }],
+  };
+
+  const art = await prisma.art.findFirst({
+    where: { id, arquivoPath: { not: null }, ...escopo },
+    select: { arquivoPath: true, arquivoNome: true, tipo: true, numero: true },
+  });
+  if (art?.arquivoPath) {
+    return { caminho: art.arquivoPath, nome: art.arquivoNome ?? `${art.tipo}-${art.numero}.pdf` };
+  }
+
+  const versao = await prisma.artVersao.findFirst({
+    where: { id, arquivoPath: { not: null }, art: escopo },
+    select: { arquivoPath: true, arquivoNome: true, numeroArt: true, art: { select: { tipo: true } } },
+  });
+  if (versao?.arquivoPath) {
+    return { caminho: versao.arquivoPath, nome: versao.arquivoNome ?? `${versao.art.tipo}-${versao.numeroArt}.pdf` };
+  }
+  return null;
 }
 
 /**

@@ -11,6 +11,7 @@ import { recebidosDoProjeto, geralDoProjeto, clienteDoProjeto, emailClienteDoPro
 import { podeGerirDocumento } from "@/modules/documentos-cliente/acesso";
 import { podeVerTodasDisciplinas, podeEnviarArquivo } from "@/modules/arquivos/acesso";
 import { linkArquivosDoProjeto } from "@/modules/projetos/arquivos/link-publico";
+import { listarArtsDoProjeto } from "@/modules/projetos/art/queries";
 import { ArquivosExplorer } from "@/components/projetos/arquivos-explorer";
 
 export const metadata: Metadata = { title: "Arquivos" };
@@ -40,6 +41,7 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
       linkArquivosDoProjeto(id),
       emailClienteDoProjeto(id),
     ]);
+  const arts = await listarArtsDoProjeto(id);
   const baseUrl = process.env.APP_URL ?? "";
   // Pasta "Geral" (Documento origem=interno) só é carregada p/ quem tem `arquivos_gerais:ver`.
   const geral = podeVerGeral ? await geralDoProjeto(id) : [];
@@ -61,6 +63,7 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
       podeExcluirDocumento={ehGlobal}
       podeExcluirArquivo={ehAdmin}
       lixeira={lixeira}
+      arts={arts}
       podeGerirLink={podeGerirLink}
       baseUrl={baseUrl}
       clienteEmail={clienteEmail}

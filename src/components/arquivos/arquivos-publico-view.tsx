@@ -100,6 +100,78 @@ function Disciplina({
   );
 }
 
+/** ARTs do projeto: documento vigente + versões anteriores, todos com PDF. Somente download. */
+function ArtsPublicas({ token, arts }: { token: string; arts: ConteudoPublico["arts"] }) {
+  const [aberto, setAberto] = useState(true);
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 rounded-sm py-2 pr-1 hover:bg-muted/50">
+        <button
+          type="button"
+          onClick={() => setAberto((v) => !v)}
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+          aria-expanded={aberto}
+        >
+          <ChevronRight className={cn("size-4 shrink-0 text-muted-foreground transition-transform", aberto && "rotate-90")} />
+          <FolderOpen className="size-4 shrink-0 text-warning" />
+          <span className="truncate text-sm font-semibold">ARTs</span>
+          <span className="shrink-0 font-mono text-xs text-muted-foreground">
+            {arts.length} documento{arts.length === 1 ? "" : "s"}
+          </span>
+        </button>
+      </div>
+      {aberto && (
+        <ul>
+          {arts.map((a) => (
+            <li key={a.id}>
+              <div className="flex items-center gap-2 rounded-sm py-1.5 pl-8 pr-1 text-sm hover:bg-muted/40">
+                <FileText className="size-4 shrink-0 text-destructive" />
+                <span className="min-w-0 flex-1 truncate">
+                  {a.rotulo}
+                  {a.disciplina ? ` · ${a.disciplina}` : ""}
+                </span>
+                <a
+                  href={`/api/p/arquivos/${token}/art/${a.id}?disposition=inline`}
+                  target="_blank"
+                  rel="noopener"
+                  className="shrink-0 text-primary hover:text-primary/80"
+                  aria-label={`Visualizar ${a.rotulo}`}
+                >
+                  <Eye className="size-4" />
+                </a>
+                <a
+                  href={`/api/p/arquivos/${token}/art/${a.id}`}
+                  className="shrink-0 text-primary hover:text-primary/80"
+                  aria-label={`Baixar ${a.rotulo}`}
+                >
+                  <Download className="size-4" />
+                </a>
+              </div>
+              {a.versoes.map((v) => (
+                <div
+                  key={v.id}
+                  className="flex items-center gap-2 rounded-sm py-1 pl-14 pr-1 text-xs text-muted-foreground hover:bg-muted/40"
+                >
+                  <span className="min-w-0 flex-1 truncate">
+                    versão anterior {v.numero} — {v.rotulo}
+                  </span>
+                  <a
+                    href={`/api/p/arquivos/${token}/art/${v.id}`}
+                    className="shrink-0 text-primary hover:text-primary/80"
+                    aria-label={`Baixar versão ${v.numero} de ${a.rotulo}`}
+                  >
+                    <Download className="size-3.5" />
+                  </a>
+                </div>
+              ))}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function ArquivosPublicoView({ token, conteudo }: { token: string; conteudo: ConteudoPublico }) {
   const total = conteudo.disciplinas.reduce((n, d) => n + d.arquivos.length, 0);
   return (
@@ -122,6 +194,7 @@ export function ArquivosPublicoView({ token, conteudo }: { token: string; conteu
           {conteudo.disciplinas.map((d) => (
             <Disciplina key={d.id} token={token} disciplina={d} />
           ))}
+          {conteudo.arts.length > 0 && <ArtsPublicas token={token} arts={conteudo.arts} />}
         </CardContent>
       </Card>
 

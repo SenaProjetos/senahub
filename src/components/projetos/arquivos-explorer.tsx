@@ -25,6 +25,7 @@ import {
   RotateCcw,
   History,
   ShieldCheck,
+  FileText,
 } from "lucide-react";
 import { foraDoPadrao } from "@/modules/projetos/pranchas/codigo";
 import type {
@@ -33,6 +34,8 @@ import type {
 } from "@/modules/projetos/arquivos/queries";
 import { renomearUpload, excluirUpload, excluirUploadsLote, validarArquivosLote, restaurarUpload, excluirUploadDefinitivo } from "@/modules/uploads/actions";
 import type { LixeiraItem } from "@/modules/uploads/queries";
+import type { ArtListItem } from "@/modules/projetos/art/queries";
+import { LABEL_SITUACAO_ART, rotuloArt } from "@/modules/projetos/art/service";
 import { DIAS_LIXEIRA } from "@/modules/uploads/lixeira";
 import {
   criarDocumento,
@@ -531,6 +534,7 @@ export function ArquivosExplorer({
   baseUrl,
   clienteEmail,
   linkPublico,
+  arts,
 }: {
   projeto: { id: string; codigo: string; nome: string };
   disciplinas: ArvoreDisciplina[];
@@ -560,6 +564,8 @@ export function ArquivosExplorer({
     expiraEm: string | null;
     disciplinaIds: string[];
   } | null;
+  /** ARTs do projeto — nó read-only; o cadastro fica na aba ARTs. */
+  arts: ArtListItem[];
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -872,6 +878,8 @@ export function ArquivosExplorer({
                     </Pasta>
                   );
                 })}
+
+                {arts.length > 0 && <ArtsPasta projetoId={projeto.id} arts={arts} />}
 
                 {mostrarLixeira && <LixeiraPasta itens={lixeira} />}
               </div>
@@ -1532,6 +1540,48 @@ function PastaGeral({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+// ── Pasta "ARTs": read-only. O cadastro (criar/versionar/anexar) fica na aba ARTs. ──
+
+function ArtsPasta({ projetoId, arts }: { projetoId: string; arts: ArtListItem[] }) {
+  return (
+    <Pasta
+      nome="ARTs"
+      contagem={arts.length}
+      nivel={0}
+      acao={
+        <Button size="xs" variant="ghost" render={<Link href={`/projetos/${projetoId}/arts`} />}>
+          Gerir ARTs
+        </Button>
+      }
+    >
+      {arts.map((a) => (
+        <div key={a.id} className="flex items-center gap-2 py-1.5 pl-8 pr-2 text-sm">
+          <FileText className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className={cn("min-w-0 truncate", !a.temArquivo && "text-muted-foreground")}>
+            {rotuloArt(a)}
+            {a.disciplina ? ` · ${a.disciplina.nome}` : ""}
+          </span>
+          <Badge variant="outline" className="shrink-0 text-[10px]">
+            {LABEL_SITUACAO_ART[a.situacao] ?? a.situacao}
+          </Badge>
+          {a.temArquivo ? (
+            <Button
+              size="xs"
+              variant="ghost"
+              className="ml-auto shrink-0"
+              render={<a href={`/api/projetos/art/${a.id}/download`} />}
+            >
+              <Download className="size-3" /> PDF
+            </Button>
+          ) : (
+            <span className="ml-auto shrink-0 text-xs italic text-muted-foreground">sem PDF</span>
+          )}
+        </div>
+      ))}
+    </Pasta>
   );
 }
 
