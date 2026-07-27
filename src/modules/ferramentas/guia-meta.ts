@@ -151,6 +151,20 @@ export const GUIAS: Record<string, GuiaMeta> = {
     ],
     dica: "A zona de aderência ruim (topo de peças altas concretadas de uma vez) reduz a aderência e aumenta lb. O gancho reduz o comprimento necessário de ancoragem.",
   },
+  "recalque-fundacao": {
+    subtitulo: "Guia dos dados de entrada para a estimativa de recalque de sapata (ELS).",
+    grupos: [
+      { n: 1, titulo: "Modo de cálculo", descricao: "Imediato elástico, imediato por fatias (Holl), adensamento primário ou compressão secundária + total." },
+      { n: 2, titulo: "Carga e geometria / parâmetros da argila", descricao: "Nos modos imediatos: carga e lados da sapata. No adensamento: acréscimo de tensão, σ' inicial, H, Cc, e₀, μ, cv e drenagem. Na secundária: Cα, tempos e as parcelas já calculadas." },
+      { n: 3, titulo: "Solo", descricao: "No elástico: altura da sapata, pilar, Eu e ν. Nas fatias: perfil de sondagem abaixo da base, até pelo menos 6·B." },
+    ],
+    unidades: [
+      "Carga: kN · Comprimentos: m · Pilar: cm",
+      "Tensões e Eu: kPa · cv: cm²/s",
+      "ρ imediato: mm · ρ adensamento/secundário: cm",
+    ],
+    dica: "O recalque total é a soma imediato + adensamento + secundário: calcule cada parcela no modo próprio e reúna no modo 'compressão secundária'. Es e μ estimados são de anteprojeto — com ensaio oedométrico, use os parâmetros medidos.",
+  },
   "sapata-spt": {
     subtitulo: "Guia dos dados de entrada para o pré-dimensionamento de sapata a partir do SPT.",
     grupos: [

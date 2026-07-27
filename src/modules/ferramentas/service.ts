@@ -30,6 +30,7 @@ import { calcular as calcularPuncao, entradaSchema as puncaoSchema, POSICOES } f
 import { calcular as calcularSapata, entradaSchema as sapataSchema } from "./calc/footing";
 import { calcular as calcularSapataExc, entradaSchema as sapataExcSchema } from "./calc/eccentric-footing";
 import { calcular as calcularSapataSpt, entradaSchema as sapataSptSchema } from "./calc/sapata-spt";
+import { calcular as calcularRecalque, entradaSchema as recalqueSchema } from "./calc/recalque-fundacao";
 import { SOLOS as SOLOS_SPT } from "./calc/spt-shared";
 import { getFerramenta } from "./registry";
 
@@ -56,6 +57,7 @@ function flechaE01(e: EntradaFlexao, As: number, AsLinha: number) {
 }
 import { montarMemoriaBase, fmtNum, type MemoriaDoc, type MemoriaIdentificacao } from "./memoria";
 import { svgTensaoSolo } from "./memoria/diagramas/tensao-solo";
+import { svgRecalqueFatias } from "./memoria/diagramas/recalque-fatias";
 import type { ResultadoBase, SnapshotCalculo } from "./types";
 
 /** Calcula o resultado para a ferramenta informada e retorna ResultadoBase (painel). */
@@ -147,6 +149,49 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
           bulbo: r.bulboOk ? "ok" : "revisar",
         },
       };
+    }
+    case "recalque-fundacao": {
+      const r = calcularRecalque(recalqueSchema.parse(entradas));
+      switch (r.modo) {
+        case "elastico":
+          return {
+            campos: {
+              "ρ (mm)": fmtNum(r.recalqueMm, 2),
+              rigidez: r.rigida ? "rígida" : "flexível",
+              Iw: fmtNum(r.iw, 3),
+              "q (kPa)": fmtNum(r.qKpa, 0),
+            },
+            alertas: r.alertas,
+          };
+        case "fatias":
+          return {
+            campos: {
+              "ρ (mm)": fmtNum(r.recalqueMm, 2),
+              fatias: r.fatias.length,
+              "q (kPa)": fmtNum(r.qKpa, 0),
+            },
+            alertas: r.alertas,
+          };
+        case "adensamento":
+          return {
+            campos: {
+              "ρ (cm)": fmtNum(r.rhoRealCm, 2),
+              "t100 (anos)": fmtNum(r.t100Anos, 1),
+              "ρ(t) (cm)": fmtNum(r.rhoTdiasCm, 2),
+            },
+            alertas: r.alertas,
+          };
+        case "secundaria":
+          return {
+            campos: {
+              "ρtotal (cm)": fmtNum(r.rhoTotalCm, 2),
+              "ρs (cm)": fmtNum(r.rhoSecundariaCm, 2),
+              aceitável: r.aceitavel ? "sim" : "não",
+            },
+            alertas: r.alertas,
+          };
+      }
+      break;
     }
     case "descida-cargas": {
       const r = calcularDescida(descidaSchema.parse(entradas));
@@ -335,6 +380,8 @@ export function montarMemoria(
       return memoriaEstacaSpt(entradas, base);
     case "sapata-spt":
       return memoriaSapataSpt(entradas, base);
+    case "recalque-fundacao":
+      return memoriaRecalqueFundacao(entradas, base);
     case "descida-cargas":
       return memoriaDescidaCargas(entradas, base);
     case "acao-vento":
@@ -705,6 +752,98 @@ function memoriaSapataSpt(entradas: Record<string, unknown>, base: BaseArgs): Me
           r.alertas.length > 0
             ? r.alertas
             : ["σadm no bulbo ≥ σadm na cota de apoio — não há camada mais fraca governando."],
+      },
+    ],
+  });
+}
+
+function memoriaRecalqueFundacao(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+  const e = recalqueSchema.parse(entradas);
+  const r = calcularRecalque(e);
+
+  if (r.modo === "elastico") {
+    return montarMemoriaBase({
+      ...base,
+      secoes: [
+        {
+          titulo: "Recalque imediato (teoria da elasticidade)",
+          valores: [
+            { simbolo: "q", descricao: "Tensão aplicada", valor: fmtNum(r.qKpa, 1), unidade: "kPa", formula: "Fz/(B·L)" },
+            { descricao: "Rigidez da sapata", valor: r.rigida ? "rígida" : "flexível", formula: "Hb ≥ máx[(B−bp)/3, (L−lp)/3]" },
+            { descricao: "Relação L/B", valor: fmtNum(r.lb, 2) },
+            { simbolo: "Iw", descricao: "Fator de forma", valor: fmtNum(r.iw, 4), formula: "interp. 0,86 (L/B=1) … 1,17 (L/B=2)" },
+            { simbolo: "ρ", descricao: "Recalque imediato", valor: fmtNum(r.recalqueMm, 2), unidade: "mm", formula: "q·B·(1−ν²)/Eu·Iw" },
+          ],
+          notas: r.alertas,
+        },
+      ],
+    });
+  }
+
+  if (r.modo === "fatias") {
+    return montarMemoriaBase({
+      ...base,
+      secoes: [
+        {
+          titulo: "Recalque imediato por fatias (Holl + Teixeira & Godoy)",
+          valores: [
+            { simbolo: "q", descricao: "Tensão aplicada", valor: fmtNum(r.qKpa, 1), unidade: "kPa" },
+            { simbolo: "ρ", descricao: "Recalque total", valor: fmtNum(r.recalqueMm, 2), unidade: "mm", formula: "Σ ρᵢ = Σ Δσᵢ·Δzᵢ/E_Si" },
+          ],
+          tabelas: [
+            {
+              titulo: "Fatias",
+              colunas: ["Fatia", "z (m)", "Δz (m)", "E_S (kPa)", "Δσ (kPa)", "ρᵢ (mm)"],
+              linhas: r.fatias.map((f) => [
+                f.i,
+                fmtNum(f.zM, 2),
+                fmtNum(f.dzM, 2),
+                fmtNum(f.esKpa, 0),
+                fmtNum(f.dSigmaKpa, 2),
+                fmtNum(f.rhoMm, 3),
+              ]),
+            },
+          ],
+          imagens: [{ titulo: "Recalque por fatia", svg: svgRecalqueFatias(r.fatias) }],
+          notas: r.alertas.length > 0 ? r.alertas : ["Es estimado do SPT (Teixeira & Godoy) — conferir com ensaio quando houver."],
+        },
+      ],
+    });
+  }
+
+  if (r.modo === "adensamento" && e.modo === "adensamento") {
+    return montarMemoriaBase({
+      ...base,
+      secoes: [
+        {
+          titulo: "Recalque por adensamento primário",
+          valores: [
+            { simbolo: "ρa", descricao: "Recalque teórico", valor: fmtNum(r.rhoTeoricoCm, 2), unidade: "cm", formula: "Cc·H/(1+e0)·log(σ'f/σ'p)" },
+            { simbolo: "ρreal", descricao: "Recalque corrigido", valor: fmtNum(r.rhoRealCm, 2), unidade: "cm", formula: "μ·ρa (Skempton–Bjerrum)" },
+            { descricao: "Tempo para recalque total", valor: fmtNum(r.t100Anos, 2), unidade: "anos", formula: "t = 2,0·Hd²/cv" },
+            { descricao: "Tempo para U = 50%", valor: fmtNum(r.t50Meses, 1), unidade: "meses" },
+            { descricao: `Grau de adensamento em ${fmtNum(e.tDias, 0)} dias`, valor: fmtNum(r.ut * 100, 1), unidade: "%" },
+            { descricao: "Drenagem da camada", valor: e.drenagem === "dupla" ? "dupla (Hd = H/2)" : "simples (Hd = H)" },
+            { descricao: "Recalque no instante t", valor: fmtNum(r.rhoTdiasCm, 2), unidade: "cm", formula: "U(t)·ρreal" },
+          ],
+          notas: r.alertas,
+        },
+      ],
+    });
+  }
+
+  if (r.modo !== "secundaria") throw new Error("Modo E28 inconsistente.");
+  return montarMemoriaBase({
+    ...base,
+    secoes: [
+      {
+        titulo: "Compressão secundária e recalque total",
+        valores: [
+          { simbolo: "ρs", descricao: "Recalque secundário", valor: fmtNum(r.rhoSecundariaCm, 2), unidade: "cm", formula: "Cα·log(t2/t1)·H" },
+          { simbolo: "ρt", descricao: "Recalque total", valor: fmtNum(r.rhoTotalCm, 2), unidade: "cm", formula: "ρi + ρa + ρs" },
+          { descricao: "Verificação", valor: r.aceitavel ? "ACEITÁVEL" : "NÃO ACEITÁVEL" },
+        ],
+        notas: r.alertas,
       },
     ],
   });

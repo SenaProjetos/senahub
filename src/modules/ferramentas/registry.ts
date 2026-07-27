@@ -196,6 +196,17 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     icon: Square,
   },
   {
+    key: "recalque-fundacao",
+    nome: "Recalque de Fundação Rasa",
+    descricao:
+      "Estimativa de recalque de sapata: imediato (elástico e por fatias/Holl), por adensamento primário e compressão secundária. Verificação de ELS.",
+    disciplina: "Fundações",
+    tipo: "completa",
+    norma: "NBR 6122",
+    exportaveis: ["pdf", "xlsx"],
+    icon: ArrowDownToLine,
+  },
+  {
     key: "estaca-spt",
     nome: "Estaca por SPT",
     descricao: "Capacidade de carga de estaca por Aoki-Velloso e Décourt-Quaresma, a partir do perfil de sondagem (SPT).",
