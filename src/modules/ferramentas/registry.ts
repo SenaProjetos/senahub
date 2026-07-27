@@ -185,6 +185,17 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     icon: SquareStack,
   },
   {
+    key: "sapata-spt",
+    nome: "Sapata por SPT (Alonso)",
+    descricao:
+      "Pré-dimensiona sapata quadrada por σadm estimado do SPT (Alonso, N ≤ 20) e verifica o bulbo de tensões (2B) a partir do perfil de sondagem. Estimativa de anteprojeto — não substitui laudo geotécnico.",
+    disciplina: "Fundações",
+    tipo: "rapida",
+    norma: "NBR 6484 / NBR 6122",
+    exportaveis: ["pdf", "xlsx"],
+    icon: Square,
+  },
+  {
     key: "estaca-spt",
     nome: "Estaca por SPT",
     descricao: "Capacidade de carga de estaca por Aoki-Velloso e Décourt-Quaresma, a partir do perfil de sondagem (SPT).",

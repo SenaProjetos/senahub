@@ -151,6 +151,19 @@ export const GUIAS: Record<string, GuiaMeta> = {
     ],
     dica: "A zona de aderência ruim (topo de peças altas concretadas de uma vez) reduz a aderência e aumenta lb. O gancho reduz o comprimento necessário de ancoragem.",
   },
+  "sapata-spt": {
+    subtitulo: "Guia dos dados de entrada para o pré-dimensionamento de sapata a partir do SPT.",
+    grupos: [
+      { n: 1, titulo: "Carga e cota", descricao: "Carga vertical do pilar, fator de majoração (peso próprio + reaterro) e profundidade da cota de apoio." },
+      { n: 2, titulo: "Perfil de sondagem (SPT)", descricao: "Camadas a partir da cota de apoio, do topo para baixo: solo, NSPT e espessura. A primeira é a camada de apoio." },
+    ],
+    unidades: [
+      "Carga: kN · Cota e espessura: m",
+      "NSPT: número de golpes",
+      "σadm: kPa · Lado B: cm",
+    ],
+    dica: "σadm ≈ N/5 (kgf/cm²) é estimativa de anteprojeto, válida só para N ≤ 20. Informe camadas até pelo menos 2B abaixo do apoio: uma camada mole dentro do bulbo governa o dimensionamento mesmo com crosta resistente na superfície.",
+  },
   "estaca-spt": {
     subtitulo: "Guia dos dados de entrada para a capacidade de carga de estaca a partir do SPT.",
     grupos: [

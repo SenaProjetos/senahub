@@ -29,6 +29,8 @@ import { calcular as calcularEscada, entradaSchema as escadaSchema, VINCULACOES 
 import { calcular as calcularPuncao, entradaSchema as puncaoSchema, POSICOES } from "./calc/punching";
 import { calcular as calcularSapata, entradaSchema as sapataSchema } from "./calc/footing";
 import { calcular as calcularSapataExc, entradaSchema as sapataExcSchema } from "./calc/eccentric-footing";
+import { calcular as calcularSapataSpt, entradaSchema as sapataSptSchema } from "./calc/sapata-spt";
+import { SOLOS as SOLOS_SPT } from "./calc/spt-shared";
 import { getFerramenta } from "./registry";
 
 /** Largura da alma (bw) usada no cisalhamento: b (retangular) ou bw (T). */
@@ -132,6 +134,17 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
           "Radm (Aoki)": fmtNum(r.aoki.radm, 0),
           "Radm (Décourt)": fmtNum(r.decourt.radm, 0),
           L: fmtNum(r.comprimento, 1),
+        },
+      };
+    }
+    case "sapata-spt": {
+      const r = calcularSapataSpt(sapataSptSchema.parse(entradas));
+      return {
+        campos: {
+          "σadm (kPa)": fmtNum(r.sigmaAdmKpa, 0),
+          "B (cm)": r.ladoCm,
+          "bulbo (m)": fmtNum(r.bulboM, 1),
+          bulbo: r.bulboOk ? "ok" : "revisar",
         },
       };
     }
@@ -320,6 +333,8 @@ export function montarMemoria(
       return memoriaResumoAco(entradas, base);
     case "estaca-spt":
       return memoriaEstacaSpt(entradas, base);
+    case "sapata-spt":
+      return memoriaSapataSpt(entradas, base);
     case "descida-cargas":
       return memoriaDescidaCargas(entradas, base);
     case "acao-vento":
@@ -619,6 +634,77 @@ function memoriaEstacaSpt(entradas: Record<string, unknown>, base: BaseArgs): Me
           { simbolo: "Radm", descricao: "Carga admissível (Rp/4 + Rl/1,3)", valor: fmtNum(r.decourt.radm, 1), unidade: "kN" },
         ],
         notas: ["Coeficientes empíricos — conferir contra o relatório de sondagem e a prática local."],
+      },
+    ],
+  });
+}
+
+function memoriaSapataSpt(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+  const e = sapataSptSchema.parse(entradas);
+  const r = calcularSapataSpt(e);
+  return montarMemoriaBase({
+    ...base,
+    secoes: [
+      {
+        titulo: "Dados de entrada",
+        tabelas: [
+          {
+            colunas: ["Parâmetro", "Valor"],
+            linhas: [
+              ["Carga vertical Fz", `${fmtNum(e.fz, 1)} kN`],
+              ["Fator de majoração FM", fmtNum(e.fm, 2)],
+              ["Cota de apoio", `${fmtNum(e.profundidadeM, 2)} m`],
+            ],
+          },
+          {
+            titulo: "Perfil de sondagem abaixo da cota de apoio",
+            colunas: ["Camada", "Solo", "NSPT", "Espessura (m)"],
+            linhas: e.camadas.map((c, i) => [i + 1, SOLOS_SPT[c.solo].label, c.nspt, c.espessuraM]),
+          },
+        ],
+      },
+      {
+        titulo: "Tensão admissível estimada (Alonso)",
+        valores: [
+          { simbolo: "N", descricao: "NSPT na cota de apoio", valor: r.nApoio, unidade: "golpes" },
+          {
+            simbolo: "σadm",
+            descricao: "Tensão admissível estimada",
+            valor: fmtNum(r.sigmaAdmKpa, 0),
+            unidade: "kPa",
+            formula: "N/5 (kgf/cm²)",
+          },
+        ],
+        notas: [
+          "Correlação empírica de anteprojeto (válida para N ≤ 20). Não substitui laudo geotécnico: " +
+            "com σadm de ensaio, dimensionar pela sapata isolada (E21).",
+        ],
+      },
+      {
+        titulo: "Dimensionamento da base",
+        valores: [
+          {
+            simbolo: "A",
+            descricao: "Área necessária",
+            valor: fmtNum(r.areaM2, 2),
+            unidade: "m²",
+            formula: "FM·Fz/σadm",
+            substituicao: `${fmtNum(e.fm, 2)}·${fmtNum(e.fz, 1)}/${fmtNum(r.sigmaAdmKpa, 0)}`,
+          },
+          { simbolo: "B", descricao: "Lado da sapata quadrada (múltiplo de 10 cm)", valor: r.ladoCm, unidade: "cm" },
+        ],
+      },
+      {
+        titulo: "Verificação do bulbo de tensões",
+        valores: [
+          { simbolo: "z", descricao: "Profundidade do bulbo (2B)", valor: fmtNum(r.bulboM, 2), unidade: "m" },
+          { simbolo: "N,bulbo", descricao: "N médio ponderado dentro do bulbo", valor: fmtNum(r.nBulbo, 1), unidade: "golpes" },
+          { simbolo: "σadm,bulbo", descricao: "Tensão admissível no bulbo", valor: fmtNum(r.sigmaAdmBulboKpa, 0), unidade: "kPa" },
+        ],
+        notas:
+          r.alertas.length > 0
+            ? r.alertas
+            : ["σadm no bulbo ≥ σadm na cota de apoio — não há camada mais fraca governando."],
       },
     ],
   });

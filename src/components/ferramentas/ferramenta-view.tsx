@@ -16,6 +16,7 @@ import { ConcreteBeamForm } from "./concrete-beam-form";
 import { AnchorageForm } from "./anchorage-form";
 import { SteelSummaryForm } from "./steel-summary-form";
 import { PileSptForm } from "./pile-spt-form";
+import { SapataSptForm } from "./sapata-spt-form";
 import { LoadDescentForm } from "./load-descent-form";
 import { WindForceForm } from "./wind-force-form";
 import { ActionCombosForm } from "./action-combos-form";
@@ -49,6 +50,8 @@ function renderForm(key: string, initialEntradas: Record<string, unknown> | unde
       return <SteelSummaryForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     case "estaca-spt":
       return <PileSptForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
+    case "sapata-spt":
+      return <SapataSptForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     case "descida-cargas":
       return <LoadDescentForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     case "acao-vento":

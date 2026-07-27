@@ -19,6 +19,7 @@ import { entradaSchema as stairSchema } from "./calc/stair";
 import { entradaSchema as punchingSchema } from "./calc/punching";
 import { entradaSchema as footingSchema } from "./calc/footing";
 import { entradaSchema as eccentricFootingSchema } from "./calc/eccentric-footing";
+import { entradaSchema as sapataSptSchema } from "./calc/sapata-spt";
 
 export const SAVEFILE_APP = "senahub" as const;
 export const SAVEFILE_KIND = "shcalc" as const;
@@ -51,6 +52,7 @@ const ENTRADAS_SCHEMAS: Record<string, z.ZodTypeAny> = {
   "acao-vento": windForceSchema,
   "combinacoes-acoes": actionCombosSchema,
   "estaca-spt": pileSptSchema,
+  "sapata-spt": sapataSptSchema,
 };
 
 const savefileSchema = headerSchema.extend({
