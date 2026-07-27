@@ -8,20 +8,11 @@
  */
 
 import { z } from "zod";
+import { SOLOS, camadaSptSchema, nMedioPonderado } from "./spt-shared";
 
-/** Tabela de solos: Aoki (K em kPa, α em %) e Décourt (C em kPa, para a ponta). */
-export const SOLOS = {
-  areia: { label: "Areia", K: 1000, alpha: 1.4, C: 400 },
-  areia_siltosa: { label: "Areia siltosa", K: 800, alpha: 2.0, C: 400 },
-  areia_argilosa: { label: "Areia argilosa", K: 600, alpha: 3.0, C: 400 },
-  silte: { label: "Silte", K: 400, alpha: 3.0, C: 200 },
-  silte_arenoso: { label: "Silte arenoso", K: 550, alpha: 2.2, C: 250 },
-  silte_argiloso: { label: "Silte argiloso", K: 230, alpha: 3.4, C: 200 },
-  argila: { label: "Argila", K: 200, alpha: 6.0, C: 120 },
-  argila_arenosa: { label: "Argila arenosa", K: 350, alpha: 2.4, C: 120 },
-  argila_siltosa: { label: "Argila siltosa", K: 220, alpha: 4.0, C: 120 },
-} as const;
-export type TipoSolo = keyof typeof SOLOS;
+// Perfil de solo (tabela + schema de camada) é compartilhado com as demais calculadoras de fundação.
+export { SOLOS };
+export type { TipoSolo, CamadaSpt } from "./spt-shared";
 
 /** Fatores F1/F2 do Aoki-Velloso por tipo de estaca. */
 export const ESTACAS = {
@@ -35,15 +26,7 @@ export type TipoEstaca = keyof typeof ESTACAS;
 export const entradaSchema = z.object({
   estaca: z.enum(["pre_moldada", "metalica", "franki", "escavada"]),
   diametroCm: z.number().positive(),
-  camadas: z
-    .array(
-      z.object({
-        solo: z.enum(Object.keys(SOLOS) as [TipoSolo, ...TipoSolo[]]),
-        nspt: z.number().min(0),
-        espessuraM: z.number().positive(),
-      }),
-    )
-    .min(1),
+  camadas: z.array(camadaSptSchema).min(1),
 });
 
 export type EntradaEstaca = z.infer<typeof entradaSchema>;
@@ -81,7 +64,7 @@ export function calcular(input: EntradaEstacaInput): ResultadoEstaca {
 
   // ── Décourt-Quaresma ──
   const rpDecourt = soloPonta.C * camadaPonta.nspt * ap; // kN
-  const nMedio = v.camadas.reduce((s, c) => s + c.nspt * c.espessuraM, 0) / comprimento;
+  const nMedio = nMedioPonderado(v.camadas);
   const ql = 10 * (nMedio / 3 + 1); // kPa
   const rlDecourt = ql * u * comprimento; // kN
   const radmDecourt = rpDecourt / 4 + rlDecourt / 1.3;
