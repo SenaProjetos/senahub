@@ -23,10 +23,15 @@ import {
   salvarCalculo,
   listarProjetosParaFerramenta,
   listarDisciplinasParaFerramenta,
+  dadosCabecalhoMemorial,
 } from "@/modules/ferramentas/actions";
 
 type Projeto = { id: string; codigo: string; nome: string };
 type Disciplina = { id: string; nome: string };
+type Art = { id: string; rotulo: string; responsavelNome: string | null; responsavelRegistro: string | null };
+
+/** Valor do seletor de ART quando o memorial não cita nenhuma. */
+const SEM_ART = "";
 
 type Props = {
   open: boolean;
@@ -53,6 +58,11 @@ export function SalvarDialog({
   const [carregandoProjetos, setCarregandoProjetos] = useState(false);
   const [carregandoDisciplinas, setCarregandoDisciplinas] = useState(false);
   const [pending, startTransition] = useTransition();
+  // Cabeçalho técnico do memorial (ART + responsável). Só faz sentido com projeto escolhido.
+  const [arts, setArts] = useState<Art[]>([]);
+  const [artId, setArtId] = useState(SEM_ART);
+  const [responsavelNome, setResponsavelNome] = useState("");
+  const [responsavelRegistro, setResponsavelRegistro] = useState("");
 
   // Carrega projetos ao abrir
   useEffect(() => {
@@ -80,6 +90,29 @@ export function SalvarDialog({
       .finally(() => setCarregandoDisciplinas(false));
   }, [projetoId]);
 
+  // ARTs do projeto + prefill do responsável a partir do cadastro de quem está salvando.
+  useEffect(() => {
+    if (!projetoId) {
+      setArts([]);
+      setArtId(SEM_ART);
+      return;
+    }
+    void dadosCabecalhoMemorial({ projetoId }).then((r) => {
+      if (!r.ok) return;
+      setArts(r.data.arts);
+      setResponsavelNome((atual) => atual || r.data.eu.nome);
+      setResponsavelRegistro((atual) => atual || r.data.eu.registro);
+    });
+  }, [projetoId]);
+
+  /** Escolher a ART sugere o responsável dela — mas o campo continua livre para digitar. */
+  function escolherArt(valor: string) {
+    setArtId(valor);
+    const art = arts.find((a) => a.id === valor);
+    if (art?.responsavelNome) setResponsavelNome(art.responsavelNome);
+    if (art?.responsavelRegistro) setResponsavelRegistro(art.responsavelRegistro);
+  }
+
   // Atualiza o titulo quando abre com novo tituloSugerido
   if (open && titulo !== tituloSugerido && !titulo) setTitulo(tituloSugerido);
 
@@ -89,6 +122,8 @@ export function SalvarDialog({
     setProjetoId("");
     setDisciplinaId("");
     setDisciplinas([]);
+    setArts([]);
+    setArtId(SEM_ART);
   }
 
   function handleSalvar() {
@@ -103,6 +138,9 @@ export function SalvarDialog({
         entradas,
         projetoId: projetoId || undefined,
         disciplinaId: disciplinaId || undefined,
+        artId: artId || undefined,
+        responsavelNome: responsavelNome.trim() || undefined,
+        responsavelRegistro: responsavelRegistro.trim() || undefined,
       });
       if (r.ok) {
         const msg =
@@ -190,6 +228,56 @@ export function SalvarDialog({
                   Selecione a disciplina para arquivar o cálculo automaticamente.
                 </p>
               )}
+            </div>
+          )}
+
+          {projetoId && (
+            <div className="space-y-3 rounded-sm border p-3">
+              <p className="text-xs font-semibold text-muted-foreground">
+                Cabeçalho técnico do memorial (opcional)
+              </p>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="art-calculo">ART / RRT</Label>
+                <Select value={artId} onValueChange={(v) => escolherArt(v ?? SEM_ART)}>
+                  <SelectTrigger id="art-calculo" disabled={arts.length === 0}>
+                    <SelectValue placeholder={arts.length === 0 ? "Projeto sem ART cadastrada" : "Nenhuma"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={SEM_ART}>Nenhuma</SelectItem>
+                    {arts.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.rotulo}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="resp-calculo">Responsável técnico</Label>
+                <Input
+                  id="resp-calculo"
+                  value={responsavelNome}
+                  onChange={(e) => setResponsavelNome(e.target.value)}
+                  placeholder="Nome do responsável"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="reg-calculo">Registro</Label>
+                <Input
+                  id="reg-calculo"
+                  value={responsavelRegistro}
+                  onChange={(e) => setResponsavelRegistro(e.target.value)}
+                  placeholder="CREA-SP 123456"
+                />
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                Preenchido a partir do seu cadastro (e da ART escolhida), mas pode ser editado.
+                Com responsável preenchido, o PDF sai com o bloco de assinaturas.
+              </p>
             </div>
           )}
         </div>

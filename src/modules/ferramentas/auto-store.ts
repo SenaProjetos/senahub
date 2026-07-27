@@ -35,6 +35,10 @@ export type AutoStoreParams = {
   autorId: string;
   autorNome: string | null | undefined;
   userRole: Role;
+  /** Cabeçalho técnico escolhido ao salvar — o PDF arquivado sai igual ao exportado depois. */
+  artId?: string | null;
+  responsavelNome?: string | null;
+  responsavelRegistro?: string | null;
 };
 
 async function salvarUpload(opts: {
@@ -133,6 +137,23 @@ export async function autoStore(params: AutoStoreParams): Promise<void> {
     });
   } catch { /* melhor esforço */ }
 
+  // Cabeçalho técnico: mesma montagem de `memoriaDoCalculo`, para o PDF arquivado aqui
+  // sair idêntico ao exportado depois a partir do cálculo salvo.
+  const art = params.artId
+    ? await prisma.art.findFirst({
+        where: { id: params.artId, projetoId },
+        select: { tipo: true, numero: true },
+      })
+    : null;
+  const identificacao = {
+    obra: `${projetoAcessivel.codigo} — ${projetoAcessivel.nome}`,
+    cliente: projetoAcessivel.cliente.nome,
+    responsavel: params.responsavelNome ?? undefined,
+    registro: params.responsavelRegistro ?? undefined,
+    art: art ? `${art.tipo} ${art.numero}` : undefined,
+    assinaturas: Boolean(params.responsavelNome),
+  };
+
   // Monta MemoriaDoc uma vez para os exportadores (A: docx/xlsx/dxf/pdf).
   let doc: ReturnType<typeof montarMemoria> | null = null;
   try {
@@ -141,6 +162,7 @@ export async function autoStore(params: AutoStoreParams): Promise<void> {
       autor: autorNome ?? undefined,
       projeto: `${projetoAcessivel.codigo} — ${projetoAcessivel.nome}`,
       geradoEm: new Date().toISOString(),
+      identificacao,
     });
   } catch { /* sem memória, pula exportações */ }
 

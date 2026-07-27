@@ -87,11 +87,17 @@ export const minhaAcao = defineAction(
 );
 ```
 
-To capture before/after diffs in the audit log, pass `capturarAntes` returning the pre-mutation entity:
+To capture before/after diffs in the audit log, add `capturarAntes` **to the config object** (not as a
+third argument) — it returns the pre-mutation entity:
 
 ```ts
-async (input, ctx) => { /* ... */ },
-{ capturarAntes: async (input) => prisma.licitacao.findUnique({ where: { id: input.id } }) }
+export const minhaAcao = defineAction(
+  {
+    modulo: "licitacoes", recurso: "licitacoes", permissao: "gerir", schema: meuSchema,
+    capturarAntes: async (input) => prisma.licitacao.findUnique({ where: { id: input.id } }),
+  },
+  async (input, ctx) => { /* ... */ },
+);
 ```
 
 **Component naming convention:** `*-view.tsx` = full page component (owns filters/title/actions), `*-dialog.tsx` = modal form, `*-form.tsx` = reusable form, `*-button.tsx` = contextual action button. `components/ui/` has all shadcn primitives; don't re-add anything already there (confirm-dialog, empty-state, sortable-head, status-badge, etc.).

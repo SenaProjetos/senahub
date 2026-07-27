@@ -51,6 +51,30 @@ describe("renderMemoriaHtml — cabeçalho técnico", () => {
     expect(html).toContain("&lt;script&gt;");
   });
 
+  it("obra + ART + responsável saem juntos, com assinaturas (caminho do cálculo salvo)", () => {
+    const html = renderMemoriaHtml(
+      doc({
+        identificacao: {
+          obra: "260142 — Residência Alfa",
+          cliente: "Construtora Beta",
+          responsavel: "Eng. Fulano",
+          registro: "CREA-SP 123456",
+          art: "ART 987654",
+          assinaturas: true,
+        },
+      }),
+    );
+    expect(html).toContain("260142 — Residência Alfa");
+    expect(html).toContain("ART 987654");
+    expect(html).toContain("Verificado por");
+  });
+
+  it("sem responsável, não imprime bloco de assinaturas", () => {
+    const html = renderMemoriaHtml(doc({ identificacao: { obra: "260142", art: "ART 1" } }));
+    expect(html).toContain("ART 1");
+    expect(html).not.toContain("Verificado por");
+  });
+
   it("omite o bloco quando não há identificação", () => {
     const html = renderMemoriaHtml(doc({}));
     expect(html).not.toContain("table class=\"ident\"");

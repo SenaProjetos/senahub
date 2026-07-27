@@ -8,6 +8,7 @@ import { can } from "@/lib/permissions";
 import { INTERNAL_ROLES } from "@/lib/roles";
 import type { Prisma } from "@/generated/prisma/client";
 import { escopoProjeto } from "@/modules/projetos/queries";
+import { formatarRegistro } from "@/modules/usuarios/registro";
 import { calcular, snapshotParaSalvar } from "./service";
 import { getFerramenta } from "./registry";
 import { autoStore } from "./auto-store";
@@ -23,6 +24,11 @@ const salvarSchema = z.object({
   projetoId: opt(z.string()),
   disciplinaId: opt(z.string()),
   entradas: z.record(z.string(), z.unknown()),
+  /** ART do projeto a citar no cabeçalho do memorial. */
+  artId: opt(z.string()),
+  /** Snapshot do responsável técnico — texto livre, prefillado do cadastro de quem salva. */
+  responsavelNome: opt(z.string().max(120)),
+  responsavelRegistro: opt(z.string().max(60)),
 });
 
 const renomearSchema = z.object({
@@ -58,6 +64,12 @@ export const salvarCalculo = defineAction(
       resultado,
     );
 
+    // A ART precisa existir E pertencer ao projeto informado — o id vem do cliente.
+    const artValida =
+      Boolean(i.artId) &&
+      Boolean(i.projetoId) &&
+      (await prisma.art.count({ where: { id: i.artId!, projetoId: i.projetoId! } })) > 0;
+
     const registro = await prisma.calculoFerramenta.create({
       data: {
         ferramenta: snapshot.ferramenta,
@@ -69,6 +81,10 @@ export const salvarCalculo = defineAction(
         autorId: user.id,
         projetoId: i.projetoId || null,
         disciplinaId: i.disciplinaId || null,
+        // ART só vale dentro do projeto do cálculo — vínculo cruzado vira null.
+        artId: artValida ? i.artId! : null,
+        responsavelNome: i.responsavelNome || null,
+        responsavelRegistro: i.responsavelRegistro || null,
       },
     });
 
@@ -85,6 +101,9 @@ export const salvarCalculo = defineAction(
         autorId: user.id,
         autorNome: user.name,
         userRole: user.role,
+        artId: artValida ? i.artId : null,
+        responsavelNome: i.responsavelNome || null,
+        responsavelRegistro: i.responsavelRegistro || null,
       }).catch((err) => console.error("[ferramentas] auto-store falhou:", err));
     }
 
@@ -185,6 +204,65 @@ export const listarProjetosParaFerramenta = defineAction(
 );
 
 /** Disciplinas de um projeto (para o select em cascata). */
+/**
+ * ARTs do projeto para o cabeçalho do memorial + o registro profissional de quem está
+ * salvando (prefill do responsável, sempre editável no formulário).
+ */
+export const dadosCabecalhoMemorial = defineAction(
+  {
+    ...base,
+    acao: "listar-arts-memorial",
+    permissao: "usar",
+    schema: z.object({ projetoId: z.string().min(1) }),
+    audit: false,
+  },
+  async ({ projetoId }, { user }) => {
+    const projetoAcessivel = await prisma.projeto.findFirst({
+      where: { id: projetoId, AND: [escopoProjeto(user)] },
+      select: { id: true },
+    });
+
+    const [arts, eu] = await Promise.all([
+      projetoAcessivel
+        ? prisma.art.findMany({
+            where: { projetoId, situacao: { notIn: ["cancelada"] } },
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true,
+              tipo: true,
+              numero: true,
+              responsavelNome: true,
+              responsavelRegistro: true,
+              responsavelUser: {
+                select: { name: true, nomeCompleto: true, conselho: true, registroProfissional: true, registroUf: true },
+              },
+            },
+          })
+        : [],
+      prisma.user.findUnique({
+        where: { id: user.id },
+        select: { name: true, nomeCompleto: true, conselho: true, registroProfissional: true, registroUf: true },
+      }),
+    ]);
+
+    return {
+      arts: arts.map((a) => ({
+        id: a.id,
+        rotulo: `${a.tipo} ${a.numero}`,
+        responsavelNome: a.responsavelUser
+          ? a.responsavelUser.nomeCompleto || a.responsavelUser.name
+          : a.responsavelNome,
+        responsavelRegistro:
+          (a.responsavelUser ? formatarRegistro(a.responsavelUser) : null) ?? a.responsavelRegistro,
+      })),
+      eu: {
+        nome: eu ? eu.nomeCompleto || eu.name : "",
+        registro: formatarRegistro(eu) ?? "",
+      },
+    };
+  },
+);
+
 export const listarDisciplinasParaFerramenta = defineAction(
   {
     ...base,
