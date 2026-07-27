@@ -647,6 +647,7 @@ model Projeto {
   calculosFerramenta CalculoFerramenta[]
   diarioEntradas     DiarioEntrada[]
   arts               Art[]
+  apontamentosCoordenacao ApontamentoCoordenacao[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1730,6 +1731,7 @@ model Disciplina {
   tarefas             Tarefa[]
   diarioEntradas      DiarioEntrada[]
   arts                Art[]
+  apontamentosCoordenacao ApontamentoCoordenacao[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3795,14 +3797,20 @@ model ConversaoDesenho {
 /// por PROJETO (nota é transversal a disciplinas), workflow
 /// aberta|resolvida|fechada|descartada, pode virar item de Tarefa.
 /// Câmera persistida já em espaço IFC (Z-up, metros) — viewer converte na borda.
-/// Refs denormalizadas sem FK (como Pendencia), exceto o upload âncora.
+/// `projetoId`/`disciplinaId` têm FK (Cascade/SetNull). O `uploadId` continua
+/// DENORMALIZADO de propósito: é uma chave de modelo polimórfica (`modelo-ref.ts`,
+/// uploadId cru ou `d:<versaoId>`) e o apontamento precisa SOBREVIVER à exclusão do
+/// modelo em que nasceu (âncora de snapshot) — uma FK quebraria isso.
 model ApontamentoCoordenacao {
   id             String    @id @default(cuid())
   projetoId      String
+  projeto        Projeto   @relation(fields: [projetoId], references: [id], onDelete: Cascade)
   /// Disciplina do modelo apontado. NULL quando o apontamento é sobre um IFC
   /// recebido do cliente (repositório Documento), que não pertence a disciplina.
   disciplinaId   String?
-  /// Referência ao modelo: uploadId cru (disciplina) ou `d:<documentoVersaoId>` (recebido).
+  disciplina     Disciplina? @relation(fields: [disciplinaId], references: [id], onDelete: SetNull)
+  /// Referência ao modelo (polimórfica, SEM FK — ver comentário do model): uploadId
+  /// cru (disciplina) ou `d:<documentoVersaoId>` (recebido do cliente).
   uploadId       String
   numero         Int
   titulo         String
