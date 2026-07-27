@@ -47,4 +47,16 @@ describe("E21 — Sapata isolada (NBR 6118/6122)", () => {
     expect(r.area).toBeGreaterThan(6); // ~7 m²
     expect(r.sigmaSolo).toBeLessThanOrEqual(150 * 1.001);
   });
+
+  // Caracterização: a Situação III do material de referência (sapata isolada centrada) já é
+  // coberta por este engine. Conversões: 250 tf = 2451,66 kN; 3,0 kgf/cm² = 294,20 kPa.
+  // Só se verifica a existência das grandezas — os números do método das bielas do material
+  // divergem por projeto (aqui a rota é formal: rigidez + bielas/flexão + punção).
+  it("cobre sapata isolada centrada da Situação III (grandezas presentes)", () => {
+    const r = calcular({ nk: 2451.66, sigmaAdm: 294.2, ap: 60, bp: 25, h: 60, fck: 30, aco: "CA-50" });
+    expect(r.a).toBeGreaterThan(0);
+    expect(r.b).toBeGreaterThan(0);
+    expect(r.asAporM).toBeGreaterThan(0);
+    expect(r.sigmaSolo).toBeLessThanOrEqual(294.2 * 1.001);
+  });
 });

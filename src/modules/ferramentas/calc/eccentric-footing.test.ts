@@ -47,4 +47,21 @@ describe("E22 — Sapatas excêntricas", () => {
       expect(r.as2porM).toBeGreaterThan(0);
     });
   });
+
+  // Caracterização da Situação VII do material de referência (viga alavanca).
+  // R1 = P1·ℓ/(ℓ−e) daqui ≡ R1 = P1 + P1·e/d do material, com d = ℓ−e.
+  // Conversões: 40 tf = 392,266 kN; 160 tf = 1569,064 kN; 2,0 kgf/cm² = 196,133 kPa.
+  describe("Situação VII (caracterização da viga alavanca)", () => {
+    it("R1 = P1·ℓ/(ℓ−e) coerente com a formulação incremental do material de referência", () => {
+      const r = calcular({
+        modo: "viga_equilibrio", p1: 392.266, p2: 1569.064,
+        ell: 300, ap1: 20, a1: 100,
+        sigmaAdm: 196.133, fck: 25, aco: "CA-50",
+      }) as ResultadoViga;
+      // e = (a1 − ap1)/2 = 40 cm → R1 = P1·300/(300−40)
+      expect(r.e).toBeCloseTo(40, 6);
+      expect(r.r1).toBeCloseTo((392.266 * 300) / (300 - 40), 2);
+      expect(r.deltaP2).toBeCloseTo(r.r1 - 392.266, 2);
+    });
+  });
 });
