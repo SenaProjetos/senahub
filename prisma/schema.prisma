@@ -163,6 +163,9 @@ model User {
   maquinasResponsavel    MaquinaTI[]               @relation("MaquinaResponsavel")
   avisosCriados          Aviso[]                   @relation("AvisosCriados")
   avisosRecebidos        AvisoDestinatario[]       @relation("AvisosRecebidos")
+  artsResponsavel        Art[]                     @relation("ArtResponsavel")
+  artsCriadas            Art[]                     @relation("ArtAutor")
+  artVersoesCriadas      ArtVersao[]               @relation("ArtVersaoAutor")
 
   @@index([role])
   @@map("user")
@@ -643,6 +646,7 @@ model Projeto {
   riscos             RiscoProjeto[]
   calculosFerramenta CalculoFerramenta[]
   diarioEntradas     DiarioEntrada[]
+  arts               Art[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1725,6 +1729,7 @@ model Disciplina {
   calculosFerramenta  CalculoFerramenta[]
   tarefas             Tarefa[]
   diarioEntradas      DiarioEntrada[]
+  arts                Art[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -4036,6 +4041,72 @@ model LicitacaoMetricaMensal {
 
 /// Snapshot persistido de um cálculo de ferramenta de engenharia.
 /// entradasJson e resultadoJson são o input/output do engine no momento do salvamento.
+/// Anotação/Registro de Responsabilidade Técnica de um projeto. Pode haver várias por projeto
+/// (uma por disciplina, por etapa, ou complementares). O histórico fica em ArtVersao — este
+/// registro "cabeça" carrega sempre os dados da versão vigente.
+model Art {
+  id           String      @id @default(cuid())
+  projetoId    String
+  projeto      Projeto     @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  /// Disciplina a que a ART se refere. Nulo = ART do projeto como um todo.
+  disciplinaId String?
+  disciplina   Disciplina? @relation(fields: [disciplinaId], references: [id], onDelete: SetNull)
+
+  /// "ART" (CREA) | "RRT" (CAU) | "TRT" (CFT).
+  tipo      String    @default("ART")
+  /// Número do documento no conselho.
+  numero    String
+  descricao String?
+  /// rascunho | registrada | baixada | cancelada | substituida
+  situacao  String    @default("registrada")
+  emitidaEm DateTime? @db.Date
+  /// Valor pago da taxa (controle de custo do projeto).
+  valor     Decimal?  @db.Decimal(10, 2)
+
+  /// Responsável técnico: usuário do sistema (preferencial) OU nome/registro avulsos.
+  responsavelUserId   String?
+  responsavelUser     User?   @relation("ArtResponsavel", fields: [responsavelUserId], references: [id])
+  responsavelNome     String?
+  responsavelRegistro String?
+
+  /// Caminho relativo a STORAGE_BASE_PATH (nunca absoluto).
+  arquivoPath String?
+  arquivoNome String?
+
+  versoes  ArtVersao[]
+  calculos CalculoFerramenta[]
+
+  autorId   String
+  autor     User     @relation("ArtAutor", fields: [autorId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projetoId])
+  @@index([disciplinaId])
+  @@map("art")
+}
+
+/// Uma versão da ART (substituição/aditivo/baixa). `numero` é sequencial por ART, começando em 1.
+model ArtVersao {
+  id          String    @id @default(cuid())
+  artId       String
+  art         Art       @relation(fields: [artId], references: [id], onDelete: Cascade)
+  numero      Int
+  numeroArt   String
+  situacao    String
+  emitidaEm   DateTime? @db.Date
+  arquivoPath String?
+  arquivoNome String?
+  /// Por que esta versão existe (ex.: "substituída por alteração de área").
+  observacao  String?
+  autorId     String
+  autor       User      @relation("ArtVersaoAutor", fields: [autorId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@unique([artId, numero])
+  @@map("art_versao")
+}
+
 model CalculoFerramenta {
   id            String  @id @default(cuid())
   /// Chave estável da ferramenta (ex.: "U01", "E01") — igual ao registry.ts.
@@ -4054,6 +4125,14 @@ model CalculoFerramenta {
   projeto      Projeto?    @relation(fields: [projetoId], references: [id], onDelete: SetNull)
   disciplinaId String?
   disciplina   Disciplina? @relation(fields: [disciplinaId], references: [id], onDelete: SetNull)
+
+  /// ART do projeto associada a este memorial (cabeçalho técnico do PDF).
+  artId               String?
+  art                 Art?    @relation(fields: [artId], references: [id], onDelete: SetNull)
+  /// Snapshot do responsável no momento da emissão — NÃO acompanha alterações posteriores no
+  /// cadastro da pessoa: memorial é registro técnico datado.
+  responsavelNome     String?
+  responsavelRegistro String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

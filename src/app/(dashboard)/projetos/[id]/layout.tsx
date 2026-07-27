@@ -127,6 +127,7 @@ export default async function ProjetoLayout({
           "/lista-mestre",
           "/servicos",
           "/arquivos",
+          "/arts",
           ...(podeCoordenacao ? ["/coordenacao"] : []),
           ...(podeDiario ? ["/diario"] : []),
           "/extras",

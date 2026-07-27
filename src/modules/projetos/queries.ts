@@ -405,13 +405,14 @@ export async function obterProjetoMinimo(viewer: Viewer, id: string) {
  * Visão Geral e Histórico ficam fora: sempre relevantes.
  */
 export async function abasComConteudo(projetoId: string) {
-  const [inputs, financeiro, listaMestre, servicos, arquivos, coordenacao, diario, extras] =
+  const [inputs, financeiro, listaMestre, servicos, arquivos, arts, coordenacao, diario, extras] =
     await Promise.all([
       prisma.inputProjeto.count({ where: { projetoId } }),
       prisma.lancamento.count({ where: { projetoId } }),
       prisma.prancha.count({ where: { disciplina: { projetoId } } }),
       prisma.servicoTerceirizado.count({ where: { projetoId } }),
       prisma.upload.count({ where: { disciplina: { projetoId }, excluidoEm: null } }),
+      prisma.art.count({ where: { projetoId } }),
       prisma.upload.count({
         where: { disciplina: { projetoId }, nomeArquivo: { endsWith: ".ifc", mode: "insensitive" } },
       }),
@@ -424,6 +425,7 @@ export async function abasComConteudo(projetoId: string) {
     "/lista-mestre": listaMestre > 0,
     "/servicos": servicos > 0,
     "/arquivos": arquivos > 0,
+    "/arts": arts > 0,
     "/coordenacao": coordenacao > 0,
     "/diario": diario > 0,
     "/extras": extras > 0,
