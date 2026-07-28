@@ -238,6 +238,7 @@ model User {
   artVersoesCriadas             ArtVersao[]               @relation("ArtVersaoAutor")
   orcamentosCustoCriados        CustoOrcamento[]          @relation("CustoOrcamentoCriador")
   orcamentoRevisoesCustoCriadas CustoOrcamentoRevisao[]   @relation("CustoOrcamentoRevisaoCriador")
+  importacoesCusto              CustoImportacao[]
 
   @@index([role])
   @@index([tipo, setor])
@@ -4584,4 +4585,144 @@ model CustoOrcamentoItem {
   @@index([orcamentoId])
   @@index([parentId])
   @@map("custo_orcamento_item")
+}
+
+// ───────────────────────────── Engenharia de Custos (Onda C1) ─────────────────────────────
+// Banco de insumos, composições (com auxiliar recursivo) e bases de preço, importados do SINAPI
+// ou cadastrados como composição própria. `CustoBasePreco.uf`/`regime` usam sentinela
+// ("NACIONAL"/"padrao") em vez de nulo — nulo não força unicidade no Postgres (NULL ≠ NULL) e
+// composição não tem UF (só o preço tem): sem o sentinela, cada UF×regime importado duplicaria a
+// estrutura inteira da composição. Base "estrutural" (uf=NACIONAL) ancora CustoComposicao; bases
+// de preço (uf=sigla real) ancoram só CustoPreco.
+
+enum CategoriaInsumo {
+  servicos
+  material
+  mao_de_obra
+  encargos_complementares
+  equipamento
+  especiais
+}
+
+enum TipoItemComposicao {
+  insumo
+  composicao
+}
+
+model CustoInsumo {
+  id          String                @id @default(cuid())
+  /// Código estável na fonte (ex.: SINAPI). Nunca reescrito ao reimportar — só upsert.
+  codigo      String
+  fonte       String
+  descricao   String
+  unidade     String
+  categoria   CategoriaInsumo
+  precos      CustoPreco[]
+  itensUsando CustoComposicaoItem[]
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@unique([fonte, codigo])
+  @@index([fonte])
+  @@map("custo_insumo")
+}
+
+/// Base de preço (uf = sigla real) OU base estrutural (uf = "NACIONAL", âncora de CustoComposicao).
+model CustoBasePreco {
+  id          String            @id @default(cuid())
+  nome        String
+  fonte       String
+  uf          String            @default("NACIONAL")
+  /// sem_desoneracao | com_desoneracao | sem_encargos | padrao (padrao = estrutural/própria)
+  regime      String            @default("padrao")
+  dataBase    DateTime          @db.Date
+  ativo       Boolean           @default(true)
+  precos      CustoPreco[]
+  composicoes CustoComposicao[]
+  createdAt   DateTime          @default(now())
+
+  @@unique([fonte, uf, regime, dataBase])
+  @@index([fonte, uf])
+  @@map("custo_base_preco")
+}
+
+model CustoPreco {
+  id        String         @id @default(cuid())
+  baseId    String
+  base      CustoBasePreco @relation(fields: [baseId], references: [id], onDelete: Cascade)
+  insumoId  String
+  insumo    CustoInsumo    @relation(fields: [insumoId], references: [id], onDelete: Cascade)
+  valor     Decimal        @db.Decimal(14, 2)
+  createdAt DateTime       @default(now())
+
+  @@unique([baseId, insumoId])
+  @@index([insumoId])
+  @@map("custo_preco")
+}
+
+model CustoComposicao {
+  id            String                @id @default(cuid())
+  baseId        String
+  base          CustoBasePreco        @relation(fields: [baseId], references: [id], onDelete: Cascade)
+  codigo        String
+  descricao     String
+  unidade       String
+  grupo         String?
+  itens         CustoComposicaoItem[]
+  /// Onde esta composição é usada como item AUXILIAR de outra (recursivo).
+  usadaComoItem CustoComposicaoItem[] @relation("ComposicaoAuxiliar")
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@unique([baseId, codigo])
+  @@index([baseId])
+  @@map("custo_composicao")
+}
+
+/// tipo=insumo → insumoId obrigatório/composicaoAuxId nulo; tipo=composicao → o inverso.
+/// XOR validado em service.ts (Prisma não expressa isso entre 2 FKs opcionais).
+model CustoComposicaoItem {
+  id              String             @id @default(cuid())
+  composicaoId    String
+  composicao      CustoComposicao    @relation(fields: [composicaoId], references: [id], onDelete: Cascade)
+  tipo            TipoItemComposicao
+  insumoId        String?
+  insumo          CustoInsumo?       @relation(fields: [insumoId], references: [id])
+  composicaoAuxId String?
+  composicaoAux   CustoComposicao?   @relation("ComposicaoAuxiliar", fields: [composicaoAuxId], references: [id])
+  coeficiente     Decimal            @db.Decimal(12, 6)
+  ordem           Int                @default(0)
+  createdAt       DateTime           @default(now())
+
+  @@index([composicaoId])
+  @@index([insumoId])
+  @@index([composicaoAuxId])
+  @@map("custo_composicao_item")
+}
+
+/// Rastreio do import assíncrono — espelha ConversaoModelo (fila/processando/concluido/erro + progresso).
+model CustoImportacao {
+  id                 String    @id @default(cuid())
+  fonte              String    @default("sinapi")
+  dataBase           DateTime  @db.Date
+  ufs                String[]
+  regimes            String[]
+  /// Caminho relativo a STORAGE_BASE_PATH (nunca absoluto).
+  caminhoArquivo     String
+  status             String    @default("fila")
+  progresso          Int?
+  insumosCriados     Int       @default(0)
+  precosCriados      Int       @default(0)
+  composicoesCriadas Int       @default(0)
+  itensCriados       Int       @default(0)
+  erro               String?
+  autorId            String
+  autor              User      @relation(fields: [autorId], references: [id])
+  iniciadoEm         DateTime?
+  concluidoEm        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([status])
+  @@map("custo_importacao")
 }

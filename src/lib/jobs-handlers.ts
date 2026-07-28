@@ -29,6 +29,7 @@ import { executarConversao } from "@/modules/coordenacao/conversao";
 import { executarConversaoDwg } from "@/modules/dwg/conversao";
 import { removerArquivo } from "@/lib/storage";
 import { limitePurga } from "@/modules/uploads/lixeira";
+import { executarImportacaoCusto } from "@/modules/custos/composicoes/service";
 import { Prisma } from "@/generated/prisma/client";
 
 /** Rotinas das automações (chamadas pelos jobs do pg-boss em lib/jobs.ts). */
@@ -1097,4 +1098,15 @@ export async function processarMensagemAgendada(data: unknown): Promise<void> {
   const semPush = offline.filter((m) => m.silenciado).map((m) => m.userId);
   if (comPush.length > 0) await notificarMuitos(comPush, notif);
   if (semPush.length > 0) await notificarMuitos(semPush, notif, { push: false });
+}
+
+// ── Engenharia de Custos: import SINAPI ─────────────────────────
+
+/**
+ * Handler da fila on-demand `importar-base-custos` (lib/jobs.ts). Toda a lógica de
+ * leitura/upsert mora em `modules/custos/composicoes/service.ts` (compartilhável se um dia
+ * houver um recálculo em lote fora do job); aqui é só o encaixe com o pg-boss.
+ */
+export async function processarImportacaoCusto(importacaoId: string): Promise<void> {
+  await executarImportacaoCusto(importacaoId);
 }

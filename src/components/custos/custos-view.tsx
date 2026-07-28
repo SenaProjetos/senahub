@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Calculator, Search } from "lucide-react";
+import { Calculator, Search, Database } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -34,6 +34,7 @@ export function CustosView({
   q,
   status,
   podeGerir,
+  podeBancos,
 }: {
   itens: OrcamentoListItem[];
   total: number;
@@ -43,6 +44,7 @@ export function CustosView({
   q: string;
   status: string;
   podeGerir: boolean;
+  podeBancos: boolean;
 }) {
   const setParams = useSetParams();
   const [busca, setBusca] = useState(q);
@@ -54,7 +56,14 @@ export function CustosView({
           <h2 className="text-2xl font-extrabold tracking-tight">Engenharia de Custos</h2>
           <p className="text-sm text-muted-foreground">{total} orçamento(s).</p>
         </div>
-        {podeGerir && <NovoOrcamentoDialog />}
+        <div className="flex items-center gap-2">
+          {podeBancos && (
+            <Button variant="outline" render={<Link href="/custos/bancos" />}>
+              <Database className="size-4" /> Bancos
+            </Button>
+          )}
+          {podeGerir && <NovoOrcamentoDialog />}
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

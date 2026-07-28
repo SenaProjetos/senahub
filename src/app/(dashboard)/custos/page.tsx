@@ -14,7 +14,10 @@ export default async function CustosPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const user = await requirePermission("custos", "ver");
-  const podeGerir = await can(user.role, "custos", "gerir");
+  const [podeGerir, podeBancos] = await Promise.all([
+    can(user.role, "custos", "gerir"),
+    can(user.role, "custos", "bancos"),
+  ]);
   const sp = await searchParams;
 
   const status = typeof sp.status === "string" ? sp.status : "";
@@ -32,6 +35,7 @@ export default async function CustosPage({
       q={typeof sp.q === "string" ? sp.q : ""}
       status={status}
       podeGerir={podeGerir}
+      podeBancos={podeBancos}
     />
   );
 }

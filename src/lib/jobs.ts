@@ -5,6 +5,7 @@ import { limparChunksOrfaos } from "@/lib/upload-chunks";
 import { FILA_CONVERTER_IFC } from "@/modules/coordenacao/conversao-estado";
 import { FILA_CONVERTER_DWG } from "@/modules/dwg/conversao-estado";
 import { FILA_MENSAGEM_AGENDADA } from "@/modules/chat/agendamento";
+import { FILA_IMPORTAR_CUSTOS } from "@/modules/custos/composicoes/service";
 import {
   processarConversaoIfc,
   processarConversaoDwg,
@@ -12,6 +13,7 @@ import {
   limparDxfOrfaos,
   purgarLixeiraArquivos,
   processarMensagemAgendada,
+  processarImportacaoCusto,
 } from "@/lib/jobs-handlers";
 import {
   alertasPrazoDisciplina,
@@ -112,6 +114,15 @@ export async function startJobs(): Promise<PgBoss> {
   await boss.createQueue(FILA_MENSAGEM_AGENDADA);
   await boss.work(FILA_MENSAGEM_AGENDADA, async ([job]) => {
     await processarMensagemAgendada(job.data);
+  });
+
+  // ── Engenharia de Custos: import de base de preços SINAPI (ON-DEMAND) ──────
+  // ~100 mil linhas numa carga típica — roda serializado (defaults do pg-boss),
+  // não pode competir com o Next pelo mesmo processo.
+  await boss.createQueue(FILA_IMPORTAR_CUSTOS);
+  await boss.work(FILA_IMPORTAR_CUSTOS, async ([job]) => {
+    const { importacaoId } = job.data as { importacaoId: string };
+    await processarImportacaoCusto(importacaoId);
   });
 
   // ── Automações (Onda 5g) ───────────────────────────────────
