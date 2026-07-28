@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requireRole } from "@/lib/session";
+import { CLT_ROLES } from "@/lib/roles";
 import { minhasSolicitacoes, humorHoje, meuOnboarding, minhasNFs } from "@/modules/rh/queries";
 import { modelosPorFonte } from "@/modules/documentos/queries";
 import { RhView } from "@/components/rh/rh-view";
@@ -50,6 +51,7 @@ export default async function RhPage() {
           altPorMim: f.altPorId === user.id,
         }))}
         humorAtual={humor?.humor ?? null}
+        podeSolicitarFerias={CLT_ROLES.includes(user.role)}
       />
 
       {onboarding && onboarding.itens.some((i) => !i.concluido) && (

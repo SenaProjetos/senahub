@@ -3,6 +3,7 @@ import { prisma } from "../src/lib/prisma";
 import { auth } from "../src/lib/auth";
 import { docVazio, novoId, type DocSchema } from "../src/modules/documentos/schema";
 import { MODALIDADES_PADRAO } from "../src/modules/licitacoes/modalidade";
+import { semearEscalaRolePadrao } from "./escalas-padrao";
 import type { Prisma } from "../src/generated/prisma/client";
 
 const ADMIN_EMAIL = "tadrio@senaprojetos.com.br";
@@ -489,6 +490,9 @@ async function main() {
     });
     console.log("✔ Modelo de documento exemplo (licitação) criado.");
   }
+
+  // 11) Escala padrão por perfil (corrige a jornada legal do estagiário — 6h/dia)
+  await semearEscalaRolePadrao();
 }
 
 /** Layout exemplo: timbrado + dados do projeto + tabela de disciplinas + total. */

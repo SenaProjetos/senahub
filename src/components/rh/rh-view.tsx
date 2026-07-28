@@ -33,23 +33,28 @@ export function RhView({
   abonos,
   ferias,
   humorAtual,
+  podeSolicitarFerias,
 }: {
   abonos: Abono[];
   ferias: Feria[];
   humorAtual: number | null;
+  /** Férias são instituto celetista — PJ/freelancer/sócio não solicitam (ver rh/actions.ts). */
+  podeSolicitarFerias: boolean;
 }) {
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-extrabold tracking-tight">RH</h2>
-        <p className="text-sm text-muted-foreground">Abono, férias e clima.</p>
+        <p className="text-sm text-muted-foreground">
+          {podeSolicitarFerias ? "Abono, férias e clima." : "Abono e clima."}
+        </p>
       </div>
 
       <ClimaCard humorAtual={humorAtual} />
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className={`grid gap-4 ${podeSolicitarFerias ? "lg:grid-cols-2" : "lg:grid-cols-1"}`}>
         <AbonoCard />
-        <FeriasCard />
+        {podeSolicitarFerias && <FeriasCard />}
       </div>
 
       <MinhasSolicitacoes abonos={abonos} ferias={ferias} />

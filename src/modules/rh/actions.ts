@@ -5,17 +5,28 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificar } from "@/lib/notificar";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+import { HR_ADMIN_ROLES, INTERNAL_ROLES, CLT_ROLES } from "@/lib/roles";
 import { validarInicioFeriasClt } from "@/lib/ferias-clt";
 import { listarFeriados } from "@/modules/rh/feriados/queries";
 
-const base = { modulo: "rh" } as const;
+/**
+ * `roles` é obrigatório aqui: sem `roles` E sem `recurso`, `defineAction` pula o gate inteiro
+ * (`lib/with-action.ts`). Como Server Action é endpoint, o perfil `cliente` alcançava o
+ * self-service de RH. Plano: docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md (§4c)
+ */
+const base = { modulo: "rh", roles: INTERNAL_ROLES } as const;
 const adminBase = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
 
 // ── Self-service ──────────────────────────────────────────────
+/**
+ * Restrito a `CLT_ROLES`: férias são instituto celetista (e recesso, no estágio). PJ, freelancer e
+ * sócio não têm férias — abrir a solicitação para eles materializa subordinação. Registro de
+ * ausência para não-celetistas é assunto da Onda B do plano (§8).
+ */
 export const solicitarFerias = defineAction(
   {
     ...base,
+    roles: CLT_ROLES,
     acao: "solicitar-ferias",
     entidade: "Ferias",
     schema: z.object({

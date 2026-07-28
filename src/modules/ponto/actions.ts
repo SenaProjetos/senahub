@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { INTERNAL_ROLES } from "@/lib/roles";
+import { INTERNAL_ROLES, CLT_ROLES } from "@/lib/roles";
 import { notificar } from "@/lib/notificar";
 import { aplicarBatida, editarDia } from "@/modules/ponto/service";
 import { espelhoDetalhado } from "@/modules/ponto/queries";
@@ -18,7 +18,13 @@ import {
 } from "@/modules/ponto/schemas";
 import type { Prisma } from "@/generated/prisma/client";
 
-const base = { modulo: "rh" } as const;
+/**
+ * `roles` é obrigatório aqui: sem `roles` E sem `recurso`, `defineAction` pula o gate inteiro
+ * (`lib/with-action.ts`) e sobra só sessão + `ativo`. Como Server Action é endpoint, o perfil
+ * `cliente` (usuário externo do portal) alcançava as ações de ponto.
+ * Plano: docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md (§4c)
+ */
+const base = { modulo: "rh", roles: INTERNAL_ROLES } as const;
 const rev = () => revalidatePath("/ponto");
 
 const projetoOpt = z.string().optional().or(z.literal(""));
@@ -106,10 +112,16 @@ export const trocarProjeto = defineAction(
  * "Assinatura" do espelho de um mês encerrado pelo próprio colaborador (S2).
  * Grava um hash SHA-256 do conteúdo aceito como prova de não-repúdio (mesmo
  * padrão do AceiteTermo). Só o próprio usuário, só meses já encerrados.
+ *
+ * Restrito a quem controla jornada (`CLT_ROLES`): o espelho assinado é prova de controle de
+ * jornada, e produzi-lo para PJ/freelancer/sócio materializa subordinação. A batida em si segue
+ * liberada aos internos porque `Batida` e `SessaoTrabalho` são gravadas 1:1 e o apontamento do PJ
+ * alimenta o rateio — desacoplar os dois é a Onda B do plano (§8).
  */
 export const aceitarEspelhoMes = defineAction(
   {
     ...base,
+    roles: CLT_ROLES,
     acao: "aceitar-espelho",
     entidade: "EspelhoAceite",
     schema: z.object({

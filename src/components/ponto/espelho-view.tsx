@@ -499,8 +499,9 @@ export function EspelhoView({
         )}
       </div>
 
-      {/* Aceite mensal (S2) — só no próprio espelho de mês encerrado. */}
-      {souEuMesmo && (detalhe.aceite || detalhe.podeAceitar) && (
+      {/* Aceite mensal (S2) — só no próprio espelho de mês encerrado, e só p/ quem controla
+          jornada (espelho assinado é prova de controle de jornada; ver ponto/actions.ts). */}
+      {souEuMesmo && detalhe.controlaJornada && (detalhe.aceite || detalhe.podeAceitar) && (
         <Card className="print:hidden">
           <CardContent className="flex flex-wrap items-center justify-between gap-3 py-3">
             {detalhe.aceite ? (

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { HR_ADMIN_ROLES, CLT_ROLES } from "@/lib/roles";
+import { HR_ADMIN_ROLES } from "@/lib/roles";
 import { smtpConfigurado } from "@/lib/mail";
 import { enviarEmailTemplate } from "@/lib/email-templates";
 import { calcularEncargos } from "@/lib/encargos";
@@ -47,7 +47,15 @@ export const criarFolha = defineAction(
   },
 );
 
-/** Gera holerites automaticamente p/ CLT/estagiário com salário base (INSS/IRRF + dependentes). */
+/**
+ * Gera holerites automaticamente p/ **CLT** com salário base (INSS/IRRF + dependentes).
+ *
+ * Estagiário está FORA de propósito: não é segurado obrigatório do RGPS (Lei 11.788, arts. 12 e 15),
+ * logo não há desconto de INSS sobre bolsa-auxílio — e `calcularEncargos` é pura, não recebe perfil
+ * e não tem como distinguir. Até o recibo de bolsa-auxílio existir como documento próprio, o RH
+ * lança a bolsa do estagiário à mão (`salvarHolerite`).
+ * Plano: docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md (§4a)
+ */
 export const gerarHoleritesAutomatico = defineAction(
   { ...base, acao: "gerar-holerites-auto", entidade: "FolhaPagamento", schema: idSchema },
   async (i) => {
@@ -60,7 +68,7 @@ export const gerarHoleritesAutomatico = defineAction(
 
     const jaTem = folha.holerites.map((h) => h.userId);
     const funcionarios = await prisma.user.findMany({
-      where: { ativo: true, role: { in: CLT_ROLES }, salarioBase: { not: null }, id: { notIn: jaTem } },
+      where: { ativo: true, role: "clt", salarioBase: { not: null }, id: { notIn: jaTem } },
       select: { id: true, salarioBase: true },
     });
     if (funcionarios.length === 0) {
