@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { fmtHoras } from "@/modules/ponto/format";
 import { brl, formatarData } from "@/lib/utils";
 import { RegistroPonto, type EstadoDiaProp, type AjustePendenteProp } from "@/components/ponto/registro-view";
+import { ApontamentoHoras } from "@/components/ponto/apontamento-view";
 import type { DisciplinaEscrevivel } from "@/modules/projetos/diario/queries";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -118,6 +119,8 @@ export function PontoView({
   pendencias,
   diarioPorProjeto,
   controlaJornada,
+  usaApontamento,
+  apontamento,
 }: {
   estadoDia: EstadoDiaProp;
   projetos: Projeto[];
@@ -129,6 +132,12 @@ export function PontoView({
   diarioPorProjeto: Record<string, DisciplinaEscrevivel[]>;
   /** Só CLT/estagiário têm controle de jornada (esperado/saldo); demais cargos são informativos. */
   controlaJornada: boolean;
+  /** PJ/freelancer: registra horas por projeto, sem vocabulário de ponto (ver apontamento.ts). */
+  usaApontamento: boolean;
+  apontamento: {
+    aberto: { id: string; projetoId: string | null; inicio: string | Date; projeto: { codigo: string; nome: string } | null } | null;
+    hojeMin: number;
+  } | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -235,13 +244,19 @@ export function PontoView({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Ponto</h2>
+        <h2 className="text-2xl font-extrabold tracking-tight">{usaApontamento ? "Apontamento de horas" : "Ponto"}</h2>
         <p className="text-sm text-muted-foreground">
-          Registre sua jornada: entrada, descansos e saída. Troque de projeto sem perder tempo.
+          {usaApontamento
+            ? "Registre suas horas por projeto para o rateio. Troque de projeto sem perder tempo."
+            : "Registre sua jornada: entrada, descansos e saída. Troque de projeto sem perder tempo."}
         </p>
       </div>
 
-      <RegistroPonto estadoDia={estadoDia} projetos={projetos} pendencias={pendencias} diarioPorProjeto={diarioPorProjeto} />
+      {usaApontamento && apontamento ? (
+        <ApontamentoHoras aberto={apontamento.aberto} hojeMin={apontamento.hojeMin} projetos={projetos} />
+      ) : (
+        <RegistroPonto estadoDia={estadoDia} projetos={projetos} pendencias={pendencias} diarioPorProjeto={diarioPorProjeto} />
+      )}
 
       {/* Filtro temporal do resumo — dia / semana (padrão) / mês. */}
       <div className="flex flex-wrap items-center justify-between gap-2">

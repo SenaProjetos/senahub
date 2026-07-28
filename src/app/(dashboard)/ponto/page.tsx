@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { requireRole } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { estadoDoDia, projetosDoUsuario, espelhoMes, ajustesPendentesCiencia } from "@/modules/ponto/queries";
+import { apontamentoAtual } from "@/modules/ponto/apontamento";
 import { rateioMesGestor } from "@/modules/rh/rateio/queries";
-import { CLT_ROLES } from "@/lib/roles";
+import { CLT_ROLES, PJ_ROLES } from "@/lib/roles";
 import { disciplinasEscreviveisNoProjeto, type DisciplinaEscrevivel } from "@/modules/projetos/diario/queries";
 import { PontoView } from "@/components/ponto/ponto-view";
 import { PontoSubnav } from "@/components/ponto/ponto-subnav";
@@ -25,13 +26,15 @@ export default async function PontoPage() {
   const hoje = new Date();
   const ano = hoje.getFullYear();
   const mes = hoje.getMonth() + 1;
+  const usaApontamento = PJ_ROLES.includes(user.role);
 
-  const [estadoDia, projetos, espelho, pendencias, podeRatear] = await Promise.all([
+  const [estadoDia, projetos, espelho, pendencias, podeRatear, apontamento] = await Promise.all([
     estadoDoDia(user.id),
     projetosDoUsuario(user.id),
     espelhoMes(user.id, ano, mes),
     ajustesPendentesCiencia(user.id),
     can(user.role, "ponto", "rateio"),
+    usaApontamento ? apontamentoAtual(user.id) : Promise.resolve(null),
   ]);
 
   const rateio = podeRatear ? await rateioMesGestor(ano, mes) : null;
@@ -63,6 +66,8 @@ export default async function PontoPage() {
         pendencias={pendencias}
         diarioPorProjeto={diarioPorProjeto}
         controlaJornada={CLT_ROLES.includes(user.role)}
+        usaApontamento={usaApontamento}
+        apontamento={apontamento}
       />
     </div>
   );

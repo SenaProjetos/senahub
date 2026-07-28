@@ -1,7 +1,7 @@
 # Setor × Contratação × Perfil de Acesso — separar vínculo, função e permissão
 
-**Data:** 2026-07-27 · **Status:** P1, Fase 0, Onda A e **Onda B (parcial) implementados**;
-resta a separação ponto×apontamento + mapa contábil + ciclo em sombra · **Branch:** `dev`
+**Data:** 2026-07-27 · **Status:** P1, Fase 0, Onda A e **Onda B implementados** (código); resta
+só o ciclo em sombra, que é calendário, não código · **Branch:** `dev`
 
 Deliberado por conselho de 4 cadeiras (Gerente de RH, Dev Sênior, Diretor, Usuária final), duas rodadas:
 parecer independente + confronto cruzado. Divergências e concessões registradas em §8.
@@ -656,17 +656,43 @@ porque ninguém tinha perfil). Agora é espelho byte-a-byte: `permissaoEfetiva()
 (0 mudanças na 2ª vez). `can()`/`with-action.ts` continuam intocados — zero mudança de comportamento real,
 isto é só o dado pronto para a Onda D.
 
-### 13.5 O que falta para fechar a Onda B
+### 13.5 Separação ponto × apontamento — implementada em 2026-07-28
 
-1. **Separar ponto de apontamento (bug (c) "resolvido de verdade").** Verificado nesta sessão:
-   `aplicarBatida()` (`modules/ponto/service.ts`) é o ÚNICO ponto de escrita de `SessaoTrabalho` no
-   sistema inteiro — não existe hoje nenhum jeito de PJ/freelancer/sócio lançar horas pro rateio a não ser
-   passando pela máquina de estados do ponto (geo, idempotência, `EspelhoAceite`). Separar exige uma nova
-   Server Action de "apontamento" (abrir/fechar `SessaoTrabalho` sem o vocabulário entrada/descanso/saída)
-   para quem não é `CLT_ROLES`, preservando `aplicarBatida` intacto para CLT/estágio. É funcionalidade
-   nova, não edição pequena — merece passada própria.
-2. **Mapa contábil §6.3** — `CATEGORIA_POR_TIPO` (`financeiro/custo/lancamento-custo.ts`) precisa de
-   entrada explícita antes de qualquer contratação migrar de fato (ainda não migrou — Onda B não mexeu em
-   `role`/`Contratacao` de ninguém).
-3. **Ciclo em sombra** — não é tarefa de código: é observar um fechamento de folha real com os dois
-   modelos calculando em paralelo antes da Onda D cortar de vez. Depende de calendário, não de trabalho.
+Fechada na mesma sessão. `aplicarBatida()` continua sendo o único ponto de escrita de `SessaoTrabalho`
+para quem controla jornada — **intocado**. Para `PJ_ROLES` (`projetista_pj`, `freelancer`), um caminho
+novo e paralelo:
+
+- **`src/modules/ponto/apontamento.ts`** — `abrirApontamento`/`trocarApontamento`/`fecharApontamento`/
+  `apontamentoAtual`, direto em `SessaoTrabalho`. Sem `Batida`, sem geolocalização, sem máquina de estados,
+  sem vocabulário entrada/descanso/saída — só "comecei no projeto X" / "parei". `rateio/queries.ts` já soma
+  `SessaoTrabalho` de forma genérica (confirmado: zero referência a `Batida` no arquivo inteiro), e
+  `espelhoMes` (`ponto/queries.ts`) já cai para somar `SessaoTrabalho` direto nos dias sem `Batida` —
+  **nenhuma das duas queries precisou mudar** para o apontamento aparecer certo no rateio e no histórico.
+- **`src/modules/ponto/apontamento-actions.ts`** — 3 Server Actions, `roles: PJ_ROLES`.
+- **`src/components/ponto/apontamento-view.tsx`** — UI deliberadamente mais simples que `RegistroPonto`:
+  sem cronômetro de jornada, sem fila offline, sem geo. Seletor de projeto + Iniciar/Trocar/Encerrar.
+- **`components/ponto/ponto-view.tsx` + `app/(dashboard)/ponto/page.tsx`** — branch por
+  `PJ_ROLES.includes(user.role)`: PJ vê `ApontamentoHoras`, todo o resto vê `RegistroPonto` inalterado.
+
+Verificado ponta a ponta contra o dev real (abrir → trocar de projeto → fechar → `espelhoMes` capturando
+as sessões do dia) — sem teste unitário, seguindo a convenção do módulo (`service.ts`/`queries.ts` não têm
+teste direto no projeto; só `engine.ts`/`format.ts`, puros, têm). 141 arquivos / 1300 testes, lint e build
+limpos.
+
+**Corte de comportamento deliberadamente NÃO feito:** `registrarBatida` continua aberto a `INTERNAL_ROLES`
+— PJ/freelancer ainda PODEM chamá-lo diretamente (só não veem mais o botão, porque a tela mostra
+`ApontamentoHoras` agora). Restringir `registrarBatida` para excluir PJ de vez é o corte real, condicionado
+ao ciclo em sombra abaixo — só a UI mudou, o servidor ainda aceita os dois caminhos.
+
+**Mapa contábil §6.3 — verificado, sem ação necessária agora.** `CATEGORIA_POR_TIPO`
+(`financeiro/custo/lancamento-custo.ts`) é indexado por `tipoProfissional`, que `uploads/pagamento.ts`
+ainda preenche direto de `r.user.role` — sem nenhuma camada de `Contratacao` no meio. O risco do plano
+(freelancer perder a conta 2.02 e cair em 2.01) só existe quando algo passar a derivar a categorização de
+`Contratacao` em vez de `role` — o que nenhuma onda fez até aqui. Fica como aviso para quando essa
+migração acontecer de fato (Onda D em diante), não como pendência de código hoje.
+
+### 13.6 O que falta para fechar a reforma
+
+**Ciclo em sombra** — não é tarefa de código: observar um fechamento de folha real com os dois modelos
+calculando em paralelo antes da Onda D restringir `registrarBatida` de vez e cortar `can()` para
+`permissaoEfetiva()`. Depende de calendário (um mês de operação real), não de trabalho de implementação.
