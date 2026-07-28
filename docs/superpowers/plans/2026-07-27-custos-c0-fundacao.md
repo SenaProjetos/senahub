@@ -1,6 +1,6 @@
 # Engenharia de Custos — Onda C0: Fundação
 
-**Data:** 2026-07-27 · **Status:** plano aguardando OK · **Branch:** `dev` · **Modelo:** Opus
+**Data:** 2026-07-27 · **Status:** implementado — `tsc`/`test`/`lint`/`build` limpos, `db:seed` rodado, commit `9c0c2d5` (schema/migration em `804bc37`) · **Branch:** `dev` · **Modelo:** Opus
 
 Fonte de verdade arquitetural: [design de conformidade](../specs/2026-07-27-engenharia-custos-design.md).
 Instrução de trabalho: [prompt de implementação](../prompts/2026-07-27-engenharia-custos-implementacao.md).
