@@ -30,6 +30,7 @@ import {
   ClipboardCheck,
   Library,
   BookMarked,
+  Coins,
   type LucideIcon,
 } from "lucide-react";
 import type { Role } from "@/lib/roles";
@@ -223,6 +224,12 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Normas Técnicas",
         href: "/engenharia/normas",
         icon: BookMarked,
+        roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"],
+      },
+      {
+        title: "Engenharia de Custos",
+        href: "/custos",
+        icon: Coins,
         roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"],
       },
     ],

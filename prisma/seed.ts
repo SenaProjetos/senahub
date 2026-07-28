@@ -45,6 +45,8 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "supervisor", recurso: "ferramentas", acao: "gerir" },
   { role: "supervisor", recurso: "biblioteca_tecnica", acao: "ver" },
   { role: "supervisor", recurso: "biblioteca_tecnica", acao: "incluir" },
+  { role: "supervisor", recurso: "custos", acao: "ver" },
+  { role: "supervisor", recurso: "custos", acao: "gerir" },
   { role: "supervisor", recurso: "ponto", acao: "rateio" },
   // Administrativo: configurações, usuários e clientes
   { role: "administrativo", recurso: "usuarios", acao: "gerir" },
@@ -119,6 +121,17 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "estagiario", recurso: "ferramentas", acao: "usar" },
   { role: "projetista_pj", recurso: "ferramentas", acao: "usar" },
   { role: "freelancer", recurso: "ferramentas", acao: "usar" },
+  // Engenharia de Custos: administrativo administra tudo (inclui bancos/cotações —
+  // base de preço corrompida contamina todo orçamento, por isso `bancos` é separado);
+  // demais internos só `ver`. `ti` e `cliente` ficam fora.
+  { role: "administrativo", recurso: "custos", acao: "ver" },
+  { role: "administrativo", recurso: "custos", acao: "gerir" },
+  { role: "administrativo", recurso: "custos", acao: "bancos" },
+  { role: "administrativo", recurso: "custos", acao: "cotacao" },
+  { role: "clt", recurso: "custos", acao: "ver" },
+  { role: "estagiario", recurso: "custos", acao: "ver" },
+  { role: "projetista_pj", recurso: "custos", acao: "ver" },
+  { role: "freelancer", recurso: "custos", acao: "ver" },
   // Patrimônio (Mód 16): inventário p/ gestão; TI p/ papel `ti` + gestores.
   // Coordenador fora: patrimônio é administrativo/TI, não coordenação técnica.
   { role: "administrativo", recurso: "patrimonio", acao: "ver" },

@@ -34,12 +34,13 @@ export default async function ProjetoLayout({
   const projeto = await obterProjetoMinimo(user, id);
   if (!projeto) notFound();
 
-  const [podeGerir, podeVerFinanceiro, podeHistorico, podeCoordenacao, canalChat, modelosDoc, conteudoPorAba] =
+  const [podeGerir, podeVerFinanceiro, podeHistorico, podeCoordenacao, podeCustos, canalChat, modelosDoc, conteudoPorAba] =
     await Promise.all([
       can(user.role, "projetos", "gerir"),
       can(user.role, "financeiro", "ver"),
       can(user.role, "projetos", "historico"),
       can(user.role, "coordenacao", "ver"),
+      can(user.role, "custos", "ver"),
       canalDoProjeto(id),
       modelosPorFonte("projeto"),
       abasComConteudo(id),
@@ -129,6 +130,7 @@ export default async function ProjetoLayout({
           "/arquivos",
           "/arts",
           ...(podeCoordenacao ? ["/coordenacao"] : []),
+          ...(podeCustos ? ["/custos"] : []),
           ...(podeDiario ? ["/diario"] : []),
           "/extras",
           // Histórico (CDE) só para admin ou cargos autorizados em Configurações.

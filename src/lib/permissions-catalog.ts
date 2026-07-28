@@ -161,6 +161,16 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     ],
   },
   {
+    recurso: "custos",
+    label: "Engenharia de Custos",
+    acoes: [
+      { acao: "ver", label: "Ver orçamentos, composições e insumos" },
+      { acao: "gerir", label: "Criar/editar orçamentos, quantitativos e revisões" },
+      { acao: "bancos", label: "Administrar bancos de composições, insumos e bases de preço" },
+      { acao: "cotacao", label: "Criar RFQs, receber propostas e escolher vencedor" },
+    ],
+  },
+  {
     recurso: "patrimonio",
     label: "Patrimônio / Ativos",
     acoes: [
