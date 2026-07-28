@@ -1,6 +1,6 @@
 # Engenharia de Custos — Onda C1: Bancos
 
-**Data:** 2026-07-28 · **Status:** plano aguardando OK · **Branch:** `dev` · **Modelo:** Sonnet
+**Data:** 2026-07-28 · **Status:** implementado — `tsc`/`test`/`lint`/`build` limpos, validado ponta a ponta com arquivo real (PE/RN/MG × 3 regimes, 34.8s, reimport idempotente), commit `3bd05d9` · **Branch:** `dev` · **Modelo:** Sonnet
 
 Depende de: [C0 — Fundação](2026-07-27-custos-c0-fundacao.md) (implementada, commits `9c0c2d5`/`9bc7695`,
 schema em `804bc37`). Fonte arquitetural: [design de conformidade](../specs/2026-07-27-engenharia-custos-design.md).
