@@ -8,6 +8,7 @@ import { fichaPessoa, cadastroDaPessoa, solicitacoesDoUsuario, notasDoUsuario } 
 import { opcoesCadastroFuncionario } from "@/modules/rh/funcionarios/queries";
 import { bancoHorasDe } from "@/modules/rh/banco/queries";
 import { escalaUsuarioGrade, escalaRoleGrade } from "@/modules/rh/escalas/queries";
+import { overridesDeUsuario } from "@/modules/perfis/queries";
 import { Pessoa360View } from "@/components/rh/pessoa-360-view";
 
 export const metadata: Metadata = { title: "Ficha da pessoa" };
@@ -51,7 +52,10 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
   const podeEditarCadastro = isCadastro && HR_ADMIN_ROLES.includes(user.role);
 
   // Ponto (espelhoMes) é a leitura mais cara → carregada sob demanda pela aba (lazy client).
-  const [cadastro, ausencias, banco, escalaUsuario, escalaRole, nf, opcoes] = await Promise.all([
+  // Overrides: mesmo piso de HR_ADMIN_ROLES que gere a matriz de permissões (não é exclusivo admin).
+  const podeGerirAcesso = HR_ADMIN_ROLES.includes(user.role);
+
+  const [cadastro, ausencias, banco, escalaUsuario, escalaRole, nf, opcoes, overrides] = await Promise.all([
     isCadastro ? cadastroDaPessoa(id) : Promise.resolve(null),
     isCLT ? solicitacoesDoUsuario(id) : Promise.resolve(null),
     isCLT ? bancoHorasDe(id) : Promise.resolve(null),
@@ -59,6 +63,7 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
     temEscala ? escalaRoleGrade(pessoa.role) : Promise.resolve(null),
     isPJ ? notasDoUsuario(id) : Promise.resolve(null),
     podeEditarCadastro ? opcoesCadastroFuncionario() : Promise.resolve(null),
+    podeGerirAcesso ? overridesDeUsuario(id) : Promise.resolve([]),
   ]);
 
   const escala = escalaUsuario && escalaRole
@@ -80,6 +85,8 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
       nf={nf}
       podeEditarCadastro={podeEditarCadastro}
       pessoasJuridicas={opcoes?.pessoasJuridicas ?? []}
+      overrides={overrides}
+      podeGerirAcesso={podeGerirAcesso}
     />
   );
 }

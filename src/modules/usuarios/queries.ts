@@ -16,6 +16,9 @@ export async function listarUsuarios(opts?: { incluirInativos?: boolean }) {
       clienteId: true,
       createdAt: true,
       socio: { select: { ativo: true } },
+      perfilId: true,
+      superUsuario: true,
+      perfil: { select: { nome: true } },
     },
   });
 }

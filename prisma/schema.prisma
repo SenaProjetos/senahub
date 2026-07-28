@@ -101,24 +101,25 @@ model User {
   // 100% em `role` + `Permissao` até a Onda D fazer o codemod dos call-sites.
   // Existem agora para permitir testar o motor (`permissaoEfetiva`) e o arnês de
   // equivalência (§6.2) ANTES da virada, não depois.
-  perfilId     String?
-  perfil       PerfilAcesso?      @relation(fields: [perfilId], references: [id])
+  perfilId            String?
+  perfil              PerfilAcesso?      @relation(fields: [perfilId], references: [id])
   /// Bypass total, fora da matriz por design — equivalente ao `role === "admin"` de hoje.
   /// Não vira linha de `PermissaoPerfil`: bypass como dado editável por tela é a falha de
   /// segurança que este motor deveria eliminar, não reproduzir.
-  superUsuario Boolean            @default(false)
-  overrides    PermissaoUsuario[]
+  superUsuario        Boolean            @default(false)
+  overrides           PermissaoUsuario[] @relation("PermissaoUsuarioAlvo")
+  overridesConcedidos PermissaoUsuario[] @relation("PermissaoUsuarioConcedidoPor")
   /// Vínculo do usuário externo (role cliente) ao Cliente que ele representa no portal.
-  clienteId    String?
-  cliente      Cliente?           @relation("ClienteUsuarios", fields: [clienteId], references: [id])
+  clienteId           String?
+  cliente             Cliente?           @relation("ClienteUsuarios", fields: [clienteId], references: [id])
   /// Item 6: PJ (CNPJ) que agrupa este perfil de projetista/colaborador PJ. Opcional —
   /// vínculos existentes (NF, pagamentos, projetos) permanecem no próprio User.
-  pjId         String?
-  pj           PessoaJuridica?    @relation(fields: [pjId], references: [id])
+  pjId                String?
+  pj                  PessoaJuridica?    @relation(fields: [pjId], references: [id])
   /// Salário base do colaborador CLT/estagiário (p/ geração automática de holerites).
-  salarioBase  Decimal?           @db.Decimal(12, 2)
+  salarioBase         Decimal?           @db.Decimal(12, 2)
   /// Data de admissão (CLT) — base do período aquisitivo de férias.
-  dataAdmissao DateTime?
+  dataAdmissao        DateTime?
 
   // Item 4 — cadastro completo do colaborador (replicado do RH do sistema antigo).
   // Tipo de contrato = `role`; jornada = `EscalaRole`/`EscalaUsuario` (Ponto v2).
@@ -451,7 +452,7 @@ model PermissaoPerfil {
 model PermissaoUsuario {
   id             String    @id @default(cuid())
   userId         String
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User      @relation("PermissaoUsuarioAlvo", fields: [userId], references: [id], onDelete: Cascade)
   recurso        String
   acao           String
   permitido      Boolean
@@ -459,11 +460,13 @@ model PermissaoUsuario {
   /// Passada a data, o override para de valer — a permissão volta a ser só a do perfil.
   expiraEm       DateTime?
   concedidoPorId String?
+  concedidoPor   User?     @relation("PermissaoUsuarioConcedidoPor", fields: [concedidoPorId], references: [id])
 
   criadoEm DateTime @default(now())
 
   @@unique([userId, recurso, acao])
   @@index([userId])
+  @@index([concedidoPorId])
   @@map("permissao_usuario")
 }
 
@@ -4475,7 +4478,13 @@ model CustoOrcamento {
   contratanteNome String?
 
   /// Data-base dos preços de todo o orçamento (SINAPI/SICRO/etc. publicam por mês).
+  /// É o dado do DOCUMENTO (sai no cabeçalho impresso); de onde o preço vem é `basePrecoId`.
   dataBase DateTime @db.Date
+
+  /// Base de preço usada para resolver o custo dos itens. Trocar esta FK É a "troca de data-base"
+  /// (o relatório de impacto compara os dois lados). Nulo = orçamento ainda sem base escolhida.
+  basePrecoId String?
+  basePreco   CustoBasePreco? @relation("OrcamentoBasePreco", fields: [basePrecoId], references: [id])
 
   // BDI — Acórdão TCU 2622/2013 (percentuais editáveis; `bdiPercentual` é o resultado materializado).
   bdiAdmCentral          Decimal  @default(0) @db.Decimal(5, 2)
@@ -4523,6 +4532,7 @@ model CustoOrcamento {
   @@index([licitacaoId])
   @@index([contratanteId])
   @@index([criadoPorId])
+  @@index([basePrecoId])
   @@map("custo_orcamento")
 }
 
@@ -4578,12 +4588,23 @@ model CustoOrcamentoItem {
   totalSemBdi Decimal @default(0) @db.Decimal(14, 2)
   totalComBdi Decimal @default(0) @db.Decimal(14, 2)
 
+  /// Composição de origem do custo. Null = custo digitado à mão no item.
+  composicaoId     String?
+  composicao       CustoComposicao? @relation(fields: [composicaoId], references: [id], onDelete: SetNull)
+  /// MATERIALIZAÇÃO (design §7): de qual base o `custoUnitario` gravado veio, e quando. É isto que
+  /// torna a revisão reproduzível anos depois — apagar a base NÃO apaga o custo já gravado.
+  basePrecoUsadaId String?
+  basePrecoUsada   CustoBasePreco?  @relation("ItemBaseUsada", fields: [basePrecoUsadaId], references: [id], onDelete: SetNull)
+  custoCalculadoEm DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([orcamentoId, codigo])
   @@index([orcamentoId])
   @@index([parentId])
+  @@index([composicaoId])
+  @@index([basePrecoUsadaId])
   @@map("custo_orcamento_item")
 }
 
@@ -4629,17 +4650,21 @@ model CustoInsumo {
 
 /// Base de preço (uf = sigla real) OU base estrutural (uf = "NACIONAL", âncora de CustoComposicao).
 model CustoBasePreco {
-  id          String            @id @default(cuid())
+  id          String               @id @default(cuid())
   nome        String
   fonte       String
-  uf          String            @default("NACIONAL")
+  uf          String               @default("NACIONAL")
   /// sem_desoneracao | com_desoneracao | sem_encargos | padrao (padrao = estrutural/própria)
-  regime      String            @default("padrao")
-  dataBase    DateTime          @db.Date
-  ativo       Boolean           @default(true)
+  regime      String               @default("padrao")
+  dataBase    DateTime             @db.Date
+  ativo       Boolean              @default(true)
   precos      CustoPreco[]
   composicoes CustoComposicao[]
-  createdAt   DateTime          @default(now())
+  /// Orçamentos que apontam para esta base como fonte de preço corrente (C2).
+  orcamentos  CustoOrcamento[]     @relation("OrcamentoBasePreco")
+  /// Itens cujo `custoUnitario` foi materializado a partir desta base (C2).
+  itensUsando CustoOrcamentoItem[] @relation("ItemBaseUsada")
+  createdAt   DateTime             @default(now())
 
   @@unique([fonte, uf, regime, dataBase])
   @@index([fonte, uf])
@@ -4661,18 +4686,20 @@ model CustoPreco {
 }
 
 model CustoComposicao {
-  id            String                @id @default(cuid())
-  baseId        String
-  base          CustoBasePreco        @relation(fields: [baseId], references: [id], onDelete: Cascade)
-  codigo        String
-  descricao     String
-  unidade       String
-  grupo         String?
-  itens         CustoComposicaoItem[]
+  id             String                @id @default(cuid())
+  baseId         String
+  base           CustoBasePreco        @relation(fields: [baseId], references: [id], onDelete: Cascade)
+  codigo         String
+  descricao      String
+  unidade        String
+  grupo          String?
+  itens          CustoComposicaoItem[]
   /// Onde esta composição é usada como item AUXILIAR de outra (recursivo).
-  usadaComoItem CustoComposicaoItem[] @relation("ComposicaoAuxiliar")
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
+  usadaComoItem  CustoComposicaoItem[] @relation("ComposicaoAuxiliar")
+  /// Itens de orçamento vinculados a esta composição (C2).
+  itensOrcamento CustoOrcamentoItem[]
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
 
   @@unique([baseId, codigo])
   @@index([baseId])

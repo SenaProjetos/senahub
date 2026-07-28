@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   Users,
   ShieldCheck,
+  KeyRound,
   FileText,
   Percent,
   CalendarDays,
@@ -53,6 +54,12 @@ const GRUPOS: Grupo[] = [
         icon: ShieldCheck,
         titulo: "Permissões",
         descricao: "Matriz de acesso por perfil (recurso × ação).",
+      },
+      {
+        href: "/configuracoes/perfis",
+        icon: KeyRound,
+        titulo: "Perfis de acesso",
+        descricao: "Criar perfis nomeados e sua matriz de permissões (só admin).",
       },
     ],
   },

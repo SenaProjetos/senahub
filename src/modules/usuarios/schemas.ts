@@ -15,6 +15,8 @@ export const criarUsuarioSchema = z.object({
   salarioBase: z.number().nonnegative().optional(),
   /** PJ (CNPJ) vinculada — só p/ projetista_pj/freelancer. */
   pjId: z.string().optional().or(z.literal("")),
+  /** Perfil de acesso (Onda C) — hoje NÃO autoriza nada ainda (motor inerte até a Onda D). */
+  perfilId: z.string().optional().or(z.literal("")),
 });
 
 export const editarUsuarioSchema = z.object({
@@ -26,6 +28,10 @@ export const editarUsuarioSchema = z.object({
   clienteId: z.string().optional().or(z.literal("")),
   /** Sócio ativo — só admin pode alterar (validado na action). */
   ehSocio: z.boolean().optional(),
+  /** Perfil de acesso (Onda C) — hoje NÃO autoriza nada ainda (motor inerte até a Onda D). */
+  perfilId: z.string().optional().or(z.literal("")),
+  /** Bypass total — só admin pode alterar (validado na action), mesmo raciocínio de `ehSocio`. */
+  superUsuario: z.boolean().optional(),
 });
 
 /** Auto-serviço: o próprio usuário escolhe o nome de exibição (não sensível, sem validação). */

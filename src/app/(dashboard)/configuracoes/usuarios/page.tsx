@@ -4,17 +4,19 @@ import { listarUsuarios } from "@/modules/usuarios/queries";
 import { listarClientes } from "@/modules/clientes/queries";
 import { solicitacoesCadastroPendentes } from "@/modules/auth/cadastro/queries";
 import { opcoesCadastroFuncionario } from "@/modules/rh/funcionarios/queries";
+import { perfisAtivosParaSelect } from "@/modules/perfis/queries";
 import { UsuariosView } from "@/components/configuracoes/usuarios-view";
 
 export const metadata: Metadata = { title: "Usuários" };
 
 export default async function UsuariosPage() {
   const user = await requireRole("admin", "supervisor", "administrativo");
-  const [usuarios, clientes, pedidos, opcoes] = await Promise.all([
+  const [usuarios, clientes, pedidos, opcoes, perfis] = await Promise.all([
     listarUsuarios({ incluirInativos: true }),
     listarClientes({ incluirInativos: false }),
     solicitacoesCadastroPendentes(),
     opcoesCadastroFuncionario(),
+    perfisAtivosParaSelect(),
   ]);
   return (
     <div className="space-y-5">
@@ -24,8 +26,10 @@ export default async function UsuariosPage() {
         pedidos={pedidos}
         pessoasJuridicas={opcoes.pessoasJuridicas}
         templates={opcoes.templates}
+        perfis={perfis}
         podeDefinirSocio={user.role === "admin"}
         podeExcluir={user.role === "admin"}
+        ehAdmin={user.role === "admin"}
       />
     </div>
   );

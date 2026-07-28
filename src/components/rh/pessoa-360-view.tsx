@@ -12,6 +12,7 @@ import { EscalaGrade } from "@/components/rh/escala-grade";
 import { EditarCadastroDialog, type Cadastro } from "@/components/rh/editar-cadastro-dialog";
 import { DependentesEditor } from "@/components/rh/dependentes-editor";
 import { DocumentosEditor } from "@/components/rh/documentos-editor";
+import { OverridesUsuario, type OverrideItem } from "@/components/rh/overrides-usuario";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -43,6 +44,9 @@ export type Pessoa360Props = {
   pessoasJuridicas?: { id: string; label: string }[];
   /** Conteúdo da aba Preferências (auto-serviço) — só a própria conta o recebe. */
   preferenciasSlot?: React.ReactNode;
+  /** Overrides de permissão (Onda C) — vazio quando `!podeGerirAcesso` (a query nem roda). */
+  overrides?: OverrideItem[];
+  podeGerirAcesso?: boolean;
 };
 
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -85,7 +89,7 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
   );
 }
 
-export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, controlaJornada = false, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [], preferenciasSlot }: Pessoa360Props) {
+export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, controlaJornada = false, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [], preferenciasSlot, overrides = [], podeGerirAcesso = false }: Pessoa360Props) {
   // Cadastro no formato do EditarCadastroDialog (junta os escalares + o vínculo PJ do cabeçalho).
   const cadastroDialog: Cadastro | null = cadastro
     ? {
@@ -459,6 +463,8 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
             </Secao>
             {!self && <Link href="/configuracoes/usuarios" className="text-sm text-primary hover:underline">Gerir acesso em Usuários →</Link>}
           </CardContent></Card>
+
+          {!self && <OverridesUsuario userId={pessoa.id} overrides={overrides} podeEditar={podeGerirAcesso} />}
         </TabsContent>
 
         {preferenciasSlot && <TabsContent value="preferencias">{preferenciasSlot}</TabsContent>}

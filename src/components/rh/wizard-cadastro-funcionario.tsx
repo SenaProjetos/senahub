@@ -23,11 +23,20 @@ const ETAPAS = [
 const CADASTRO_ROLES = ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"] as const;
 // Projetistas contratados como prestador/PJ (têm PJ/CNPJ e honorário, não salário CLT).
 const ROLES_PROJETISTA: readonly Form["role"][] = ["projetista_pj", "freelancer"];
+// Espelha o enum Prisma `Setor` — default "engenharia" (decisão do dono, ver mapa.ts).
+const SETOR_OPCOES = [
+  { value: "engenharia", label: "Engenharia" },
+  { value: "administrativo", label: "Administrativo" },
+  { value: "diretoria", label: "Diretoria" },
+  { value: "juridico", label: "Jurídico" },
+  { value: "ti", label: "TI" },
+] as const;
 const selectCls =
   "h-9 w-full rounded-sm border border-input bg-background px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 type Form = {
   name: string; email: string; role: (typeof CADASTRO_ROLES)[number];
+  setor: (typeof SETOR_OPCOES)[number]["value"];
   cpf: string; rg: string; dataNascimento: string; sexo: string; estadoCivil: string; nacionalidade: string;
   enderecoCep: string; enderecoLogradouro: string; enderecoNumero: string; enderecoComplemento: string;
   enderecoBairro: string; enderecoCidade: string; enderecoUf: string;
@@ -38,7 +47,7 @@ type Form = {
 };
 
 const VAZIO: Form = {
-  name: "", email: "", role: "clt",
+  name: "", email: "", role: "clt", setor: "engenharia",
   cpf: "", rg: "", dataNascimento: "", sexo: "nao_informado", estadoCivil: "solteiro", nacionalidade: "Brasileira",
   enderecoCep: "", enderecoLogradouro: "", enderecoNumero: "", enderecoComplemento: "",
   enderecoBairro: "", enderecoCidade: "", enderecoUf: "",
@@ -267,6 +276,14 @@ export function WizardCadastroFuncionario({
                   <Campo label="Cargo / função"><Input value={f.cargo} onChange={(e) => set("cargo", e.target.value)} /></Campo>
                   <Campo label="Departamento"><Input value={f.departamento} onChange={(e) => set("departamento", e.target.value)} /></Campo>
                 </div>
+
+                <Campo label="Setor (onde a pessoa atua — não concede acesso, só organiza o cadastro)">
+                  <select className={selectCls} value={f.setor} onChange={(e) => set("setor", e.target.value as Form["setor"])}>
+                    {SETOR_OPCOES.map((s) => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
+                  </select>
+                </Campo>
 
                 {ehProjetista ? (
                   <>

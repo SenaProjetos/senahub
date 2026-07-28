@@ -39,7 +39,7 @@ export const criarUsuario = defineAction(
     // Fase 2: preenche o cadastro inicial no mesmo ato (só o que veio) — evita "pessoa pela metade".
     const cadastro: {
       nomeCompleto?: string; cpf?: string; telefone?: string; cargo?: string;
-      dataAdmissao?: Date; salarioBase?: number; pjId?: string;
+      dataAdmissao?: Date; salarioBase?: number; pjId?: string; perfilId?: string;
     } = {};
     if (input.nomeCompleto?.trim()) cadastro.nomeCompleto = input.nomeCompleto.trim();
     if (input.cpf?.trim()) cadastro.cpf = input.cpf.trim();
@@ -48,6 +48,7 @@ export const criarUsuario = defineAction(
     if (input.dataAdmissao) cadastro.dataAdmissao = new Date(input.dataAdmissao);
     if (input.salarioBase != null) cadastro.salarioBase = input.salarioBase;
     if (input.pjId?.trim()) cadastro.pjId = input.pjId.trim();
+    if (input.perfilId?.trim()) cadastro.perfilId = input.perfilId.trim();
     if (Object.keys(cadastro).length > 0) {
       await prisma.user.update({ where: { id }, data: cadastro });
     }
@@ -96,6 +97,11 @@ export const editarUsuario = defineAction(
       }
     }
 
+    // Bypass total — mesmo raciocínio do sócio: só admin concede (validado ANTES de gravar).
+    if (input.superUsuario !== undefined && ctx.user.role !== "admin") {
+      throw new ActionError("Apenas administradores podem conceder acesso total (superUsuário).");
+    }
+
     await prisma.user.update({
       where: { id: input.id },
       data: {
@@ -103,6 +109,8 @@ export const editarUsuario = defineAction(
         nomeCompleto: input.nomeCompleto?.trim() || null,
         role: input.role,
         clienteId: input.role === "cliente" ? input.clienteId || null : null,
+        ...(input.perfilId !== undefined ? { perfilId: input.perfilId || null } : {}),
+        ...(input.superUsuario !== undefined ? { superUsuario: input.superUsuario } : {}),
       },
     });
 

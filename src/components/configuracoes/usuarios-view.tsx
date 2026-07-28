@@ -78,11 +78,14 @@ type FormState = {
   salarioBase: string;
   pjId: string;
   onboardingTemplateId: string;
+  perfilId: string;
+  superUsuario: boolean;
 };
 
 const EMPTY: FormState = {
   name: "", nomeCompleto: "", email: "", role: "projetista_pj", clienteId: "", ehSocio: false,
   cpf: "", telefone: "", cargo: "", dataAdmissao: "", salarioBase: "", pjId: "", onboardingTemplateId: "",
+  perfilId: "", superUsuario: false,
 };
 
 export function UsuariosView({
@@ -91,16 +94,21 @@ export function UsuariosView({
   pedidos,
   pessoasJuridicas,
   templates,
+  perfis,
   podeDefinirSocio,
   podeExcluir,
+  ehAdmin,
 }: {
   usuarios: UsuarioListItem[];
   clientes: { id: string; nome: string }[];
   pedidos: PedidoCadastro[];
   pessoasJuridicas: { id: string; label: string }[];
   templates: { id: string; nome: string }[];
+  perfis: { id: string; nome: string }[];
   podeDefinirSocio: boolean;
   podeExcluir: boolean;
+  /** Bypass total (`superUsuario`) só admin concede — mesmo raciocínio de `podeDefinirSocio`. */
+  ehAdmin: boolean;
 }) {
   const [mostrarInativos, setMostrarInativos] = useState(true);
   const [form, setForm] = useState<FormState | null>(null);
@@ -157,7 +165,9 @@ export function UsuariosView({
           nomeCompleto: form.nomeCompleto,
           role: form.role,
           clienteId: form.clienteId,
+          perfilId: form.perfilId,
           ...(podeDefinirSocio ? { ehSocio: form.ehSocio } : {}),
+          ...(ehAdmin ? { superUsuario: form.superUsuario } : {}),
         });
         if (res.ok) {
           toast.success("Usuário atualizado.");
@@ -172,6 +182,7 @@ export function UsuariosView({
           email: form.email,
           role: form.role,
           clienteId: form.clienteId,
+          perfilId: form.perfilId,
           // Cadastro inicial (só o relevante ao vínculo).
           ...(ehColaborador
             ? {
@@ -293,6 +304,8 @@ export function UsuariosView({
                             role: u.role as Role,
                             clienteId: u.clienteId ?? "",
                             ehSocio: u.socio?.ativo === true,
+                            perfilId: u.perfilId ?? "",
+                            superUsuario: u.superUsuario,
                           })
                         }
                       >
@@ -395,6 +408,41 @@ export function UsuariosView({
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-1.5">
+                <Label>Perfil de acesso</Label>
+                <Select
+                  value={form.perfilId || "__none"}
+                  onValueChange={(v) => setForm({ ...form, perfilId: v === "__none" ? "" : (v ?? "") })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Nenhum" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">— nenhum</SelectItem>
+                    {perfis.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Ainda não muda o acesso real — o motor por perfil entra em vigor numa etapa futura.
+                </p>
+              </div>
+              {ehAdmin && (
+                <div className="flex items-center justify-between rounded-sm border p-3">
+                  <div>
+                    <Label htmlFor="u-super">Acesso total (superusuário)</Label>
+                    <p className="text-xs text-muted-foreground">Bypass total — mesmo nível do perfil admin.</p>
+                  </div>
+                  <Switch
+                    id="u-super"
+                    checked={form.superUsuario}
+                    onCheckedChange={(v) => setForm({ ...form, superUsuario: v })}
+                  />
+                </div>
+              )}
               {!form.id && form.role !== "cliente" && (
                 <div className="space-y-3 rounded-sm border p-3">
                   <p className="text-xs font-medium text-muted-foreground">Cadastro inicial (opcional) — evita deixar a pessoa cadastrada pela metade.</p>

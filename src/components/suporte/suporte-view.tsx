@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { formatarData } from "@/lib/utils";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Send, Paperclip, FileText, Clock, AlertTriangle } from "lucide-react";
 import { abrirTicket, responderTicket, mudarStatusTicket } from "@/modules/suporte/actions";
@@ -85,12 +85,22 @@ export function SuporteView({
   prioridadeFiltro: string;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [pending, start] = useTransition();
   const [dialogNovo, setDialogNovo] = useState(false);
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
   const [prioridade, setPrioridade] = useState<"baixa" | "media" | "alta" | "urgente">("media");
-  const [categoria, setCategoria] = useState<"sugestao" | "erro" | "duvida" | "outro">("sugestao");
+  const [categoria, setCategoria] = useState<"sugestao" | "erro" | "duvida" | "acesso" | "outro">("sugestao");
+
+  // Chegada por link pré-preenchido (ex.: "meu acesso está errado" em Minha conta).
+  useEffect(() => {
+    if (searchParams.get("nova") !== "1") return;
+    setCategoria((searchParams.get("categoria") as typeof categoria) || "outro");
+    setTitulo(searchParams.get("titulo") ?? "");
+    setDialogNovo(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [respostas, setRespostas] = useState<Record<string, string>>({});
   const [arquivos, setArquivos] = useState<Record<string, File | null>>({});
   // Anexo (imagem/vídeo) do ticket sendo aberto.
@@ -381,6 +391,7 @@ export function SuporteView({
                     <SelectItem value="sugestao">Sugestão</SelectItem>
                     <SelectItem value="erro">Erro</SelectItem>
                     <SelectItem value="duvida">Dúvida</SelectItem>
+                    <SelectItem value="acesso">Acesso</SelectItem>
                     <SelectItem value="outro">Outro</SelectItem>
                   </SelectContent>
                 </Select>

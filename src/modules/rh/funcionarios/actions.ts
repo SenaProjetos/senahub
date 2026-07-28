@@ -10,6 +10,8 @@ import { criarUsuarioComCredencial } from "@/lib/auth-admin";
 import { buscarCep } from "@/lib/cep";
 import { getSession } from "@/lib/session";
 import { PJ_ROLES, type Role } from "@/lib/roles";
+import { aplicarVinculo } from "@/modules/usuarios/vinculo/service";
+import { derivarEixos } from "@/modules/usuarios/vinculo/mapa";
 
 const base = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
 const rev = () => revalidatePath("/rh/funcionarios");
@@ -25,11 +27,16 @@ export async function consultarCep(cep: string) {
 // Item 4 — papéis elegíveis ao cadastro completo (exclui cliente/ti). Projetistas: PJ + freelancer.
 const CADASTRO_ROLES = ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"] as const;
 
+/// Espelha o enum Prisma `Setor` (docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md).
+const SETOR_VALUES = ["diretoria", "administrativo", "juridico", "engenharia", "ti"] as const;
+
 const cadastrarFuncionarioSchema = z.object({
   // Conta de acesso
   name: z.string().min(2, "Informe o nome."),
   email: z.string().email("E-mail de acesso inválido."),
   role: z.enum(CADASTRO_ROLES),
+  /// Setor (Onda C) — opcional: sem escolha, cai no default de `derivarEixos` (§6.1 do plano).
+  setor: z.enum(SETOR_VALUES).optional(),
   // Dados pessoais
   cpf: opt(z.string()),
   rg: opt(z.string()),
@@ -124,6 +131,21 @@ export const cadastrarFuncionario = defineAction(
         pjId: i.pjId || null,
       },
     });
+
+    // Onda C: cria o Vínculo (Fase 0) já no cadastro — sem isso, quem contrata pelo wizard
+    // desde a Fase 0 nunca ganhava Setor/Contratação (só o backfill retroativo cobria).
+    // `admin` fica de fora (mesmo raciocínio do backfill: papel não é contratação).
+    const eixos = derivarEixos(i.role);
+    if (eixos.criaVinculo) {
+      await aplicarVinculo(prisma, id, {
+        contratacao: eixos.contratacao!,
+        setor: i.setor ?? eixos.setor!,
+        cargo: i.cargo || null,
+        remuneracao: i.salarioBase ?? null,
+        pjId: i.pjId || null,
+        dataInicio: dataOuNull(i.dataAdmissao) ?? new Date(),
+      });
+    }
 
     // Item 4: integra o disparo de onboarding (copia os itens do template).
     if (i.iniciarOnboarding && i.templateId) {

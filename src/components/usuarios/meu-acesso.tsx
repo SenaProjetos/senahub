@@ -1,5 +1,7 @@
-import { Check, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { Check, LifeBuoy, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatarData } from "@/lib/utils";
 import type { meuAcesso } from "@/modules/usuarios/vinculo/queries";
@@ -96,6 +98,19 @@ export function MeuAcesso({ acesso }: { acesso: Acesso }) {
           Esta lista mostra as permissões do seu perfil. O que você enxerga em cada projeto
           também depende de você participar dele.
         </p>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="self-start"
+          render={
+            <Link
+              href={`/suporte?nova=1&categoria=acesso&titulo=${encodeURIComponent("Meu acesso está errado")}`}
+            />
+          }
+        >
+          <LifeBuoy className="size-4" /> Meu acesso está errado
+        </Button>
       </CardContent>
     </Card>
   );

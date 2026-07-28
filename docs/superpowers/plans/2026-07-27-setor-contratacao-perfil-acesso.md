@@ -1,7 +1,7 @@
 # Setor × Contratação × Perfil de Acesso — separar vínculo, função e permissão
 
-**Data:** 2026-07-27 · **Status:** P1, Fase 0, Onda A e **Onda B implementados** (código); resta
-só o ciclo em sombra, que é calendário, não código · **Branch:** `dev`
+**Data:** 2026-07-27 · **Status:** P1, Fase 0, Onda A, Onda B e **Onda C implementados** (código);
+resta o ciclo em sombra (calendário) + Ondas D/E/F · **Branch:** `dev`
 
 Deliberado por conselho de 4 cadeiras (Gerente de RH, Dev Sênior, Diretor, Usuária final), duas rodadas:
 parecer independente + confronto cruzado. Divergências e concessões registradas em §8.
@@ -719,3 +719,70 @@ fechamento REAL antes de confiar nele para pagar gente de verdade. Isso é adoç
 organizacional, não correção de cálculo — nenhum script substitui. **Continua dependendo de um mês de
 operação real** antes da Onda D restringir `registrarBatida` de vez e cortar `can()` para
 `permissaoEfetiva()`.
+
+---
+
+## 14. Onda C — implementada em 2026-07-28 (Sonnet)
+
+Escopo entregue: CRUD de Perfis, atribuição de perfil ao usuário, overrides com motivo, wizard cria
+`Vinculo` de verdade, botão de Suporte pré-preenchido. **Deliberadamente NÃO construído:** o mecanismo de
+aviso "o que mudou no seu acesso" — ver §14.6. Lint limpo, 145 arquivos / 1336 testes, `tsc --noEmit`
+limpo. `npm run build` **não rodou** nesta onda: porta 3000 ocupada (dev ativo) — CLAUDE.md proíbe rodar
+build com dev no ar (corrompe `.next`). Verificado por smoke test direto no banco de dev em vez disso.
+
+### 14.1 CRUD de Perfis (`/configuracoes/perfis`, admin-only)
+
+`modules/perfis/`: schemas, queries (`listarPerfis`, `perfilComMatriz`, `perfisAtivosParaSelect`), actions
+(`criarPerfil` gera `chave` por slug com desambiguação por sufixo numérico; `editarPerfil` nunca toca a
+`chave`; `alternarPerfilAtivo`; `excluirPerfil` bloqueia perfis `sistema` ou com usuários atribuídos;
+`setPermissaoPerfil` invalida o cache). Todas com `roles: ["admin"]` explícito — não `recurso`/`permissao`
+— mesmo raciocínio de `setPermissao` recusar editar o perfil `admin`. Tela de matriz
+(`/configuracoes/perfis/[id]`) espelha `matriz-permissoes.tsx`, mas por perfil em vez de por role. Aviso
+(não bloqueio) acima de 10 perfis ativos — "perfil zoo" era preocupação explícita da usuária no conselho.
+
+### 14.2 Atribuição de perfil (`/configuracoes/usuarios`)
+
+`perfilId`/`superUsuario` adicionados a `criarUsuarioSchema`/`editarUsuarioSchema`. `superUsuario` só
+admin altera — mesmo padrão de guarda que já existia para `ehSocio` (valida ANTES de gravar qualquer
+coisa). Select de Perfil de acesso ao lado do select de Perfil (role) existente, com aviso de que ainda
+não muda acesso real.
+
+### 14.3 Overrides (`PermissaoUsuario`), na aba Acesso da ficha (Pessoa 360)
+
+Achado no caminho: o campo `concedidoPorId` (Onda A) era um escalar puro, **sem relação** — não dava pra
+mostrar quem concedeu. Corrigido com migration aditiva nomeando as duas relações `PermissaoUsuario`→`User`
+(`PermissaoUsuarioAlvo` e `PermissaoUsuarioConcedidoPor` — Prisma exige nomear as duas quando há mais de
+uma relação entre os mesmos dois models, não só a nova). `modules/perfis/overrides-actions.ts`:
+`criarOverride`/`revogarOverride`, gate `HR_ADMIN_ROLES` (mesmo piso de quem já edita usuário). UI mostra
+override ativo com motivo, quem concedeu, quando expira; formulário de criação com `motivo` obrigatório
+validado nos dois lados (schema + UI).
+
+### 14.4 Wizard cria `Vinculo` de verdade — corrige um buraco real
+
+Verificado: `cadastrarFuncionario` (o wizard de RH) nunca chamava `aplicarVinculo` — ninguém contratado
+pelo wizard **desde a Fase 0** ganhou `Vinculo`/`Setor`/`Contratação`; só o backfill retroativo (rodado
+uma vez) cobria quem já existia antes. Corrigido: o wizard ganha um select de Setor (default "Engenharia",
+igual ao backfill, mas agora RH pode escolher de verdade — diferente do backfill histórico, aqui tem quem
+sabe a resposta no momento da contratação). Contratação segue derivada do role via `derivarEixos` (mesmo
+mapa da Fase 0). `admin` fica sem vínculo, mesmo raciocínio do backfill. Smoke test confirmou: setor
+explícito escolhido vence o default.
+
+### 14.5 Botão de Suporte pré-preenchido
+
+Em "Meu acesso". Categoria `acesso` já existia no schema do ticket (só não estava na lista local do
+dialog) — sem trabalho de backend. Link com query string (`/suporte?nova=1&categoria=acesso&titulo=...`),
+lido via `useSearchParams` num `useEffect` que abre o dialog já preenchido.
+
+### 14.6 Mecanismo de aviso "o que mudou no seu acesso": deliberadamente NÃO construído
+
+O único gatilho real (§6.2: "o diff `true→false` por usuário vira o corpo do aviso") só existe quando a
+Onda D rodar o corte de verdade — construir a função de composição agora, sem nenhum call site, seria
+abstração para uma necessidade hipotética. Decisão consciente de não fazer, não pendência esquecida — o
+lugar certo é dentro do próprio script de cutover da Onda D, não um módulo separado à espera de uso.
+
+### 14.7 O que fica para a Onda D
+
+Codemod dos 119 `can()`, as 36 audience queries, `nav-config` → permissão, religar `acessoGlobal()` em
+cima de `escopoGlobalPerfil` (pendente a decisão de §9.7 sobre o Coordenador manter escopo global), e só
+então restringir `registrarBatida` a `CLT_ROLES` de vez. Gate: ciclo em sombra (§13.6) + equivalência
+com 0 ganhos rodada contra produção, não só dev.
