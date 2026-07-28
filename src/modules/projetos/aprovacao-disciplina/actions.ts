@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { GLOBAL_ROLES } from "@/lib/roles";
 import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { usaEstruturaCustom } from "@/modules/projetos/estrutura-tipo";
+import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { liberarPagamentosProjetista } from "@/modules/uploads/pagamento";
 import { podeSolicitarAprovacao } from "@/modules/projetos/aprovacao-disciplina/regras";
 import {
@@ -43,12 +43,16 @@ export const solicitarAprovacaoDisciplina = defineAction(
       where: { id: input.disciplinaId },
       include: {
         responsaveis: true,
+        pastas: { select: { origem: true } },
         projeto: { select: { id: true, codigo: true, tipo: true } },
       },
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
-    if (!usaEstruturaCustom(disciplina.projeto.tipo)) {
-      throw new ActionError("Este projeto não usa o fluxo de aprovação em 2 etapas.");
+    // Gate por DISCIPLINA (não pelo tipo do projeto): disciplinas de aprovação/laudo
+    // anteriores à feature de pastas não têm o template e seguem no fluxo A/B legado —
+    // a UI esconde este fluxo para elas, então a ação também precisa recusá-lo.
+    if (!disciplinaUsaPastas(disciplina.pastas)) {
+      throw new ActionError("Esta disciplina não usa o fluxo de aprovação em 2 etapas.");
     }
 
     const ehResponsavel = disciplina.responsaveis.some((r) => r.userId === user.id);

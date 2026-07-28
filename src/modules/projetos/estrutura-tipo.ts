@@ -43,6 +43,19 @@ export function usaEstruturaCustom(tipo: string): boolean {
 }
 
 /**
+ * FONTE ÚNICA do sinal "esta disciplina usa a árvore de pastas (e não o pacote A/B)".
+ *
+ * É POR DISCIPLINA, não por tipo de projeto: projetos aprovação/laudo criados ANTES da
+ * feature de pastas nunca receberam o template (ver `pastas/seed.ts`) e seguem no fluxo
+ * legado de pacote A/B + validação por-arquivo. Usar `usaEstruturaCustom(projeto.tipo)`
+ * como gate nesses casos trava a disciplina nos dois fluxos ao mesmo tempo: a UI oferece
+ * o A/B (que o servidor recusa) e esconde o fluxo de 2 etapas (que o servidor exige).
+ */
+export function disciplinaUsaPastas(pastas: readonly { origem: string }[]): boolean {
+  return pastas.some((p) => p.origem === "template");
+}
+
+/**
  * Slug de UM segmento de caminho de pasta (filesystem-safe, minúsculo, sem acento).
  * Pura — reutilizada pela seed de template e pela criação de pasta personalizada, para
  * o `caminho` gravado em `PastaProjeto` bater com o caminho físico no storage.

@@ -11,7 +11,7 @@ import { formatarCodigo } from "@/modules/projetos/numbering";
 import { GLOBAL_ROLES, type Role } from "@/lib/roles";
 import { statusValidacao } from "@/modules/uploads/validacao";
 import { liberarPagamentosProjetista } from "@/modules/uploads/pagamento";
-import { usaEstruturaCustom } from "@/modules/projetos/estrutura-tipo";
+import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 
 /** Extensão com o ponto, no case original (`.pdf`). Sem ponto (ou dotfile) → vazio. */
 function extComPonto(nome: string): string {
@@ -46,15 +46,19 @@ export const validarEntrega = defineAction(
         // não contam para completude de pacote nem para validação.
         uploads: { where: { excluidoEm: null } },
         pagamentos: { select: { id: true } },
+        pastas: { select: { origem: true } },
         projeto: { select: { id: true, codigo: true, nome: true, tipo: true } },
       },
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
 
-    // Aprovação/laudo: sem validação por-arquivo — a conclusão é só via fluxo de 2 etapas
-    // (solicitarAprovacaoDisciplina/confirmarAprovacaoDisciplina). Fecha o bypass que um
-    // admin abriria ao desmarcar exigePacoteA/B manualmente nesses tipos.
-    if (usaEstruturaCustom(disciplina.projeto.tipo)) {
+    // Aprovação/laudo COM árvore de pastas: sem validação por-arquivo — a conclusão é só
+    // via fluxo de 2 etapas (solicitarAprovacaoDisciplina/confirmarAprovacaoDisciplina).
+    // Fecha o bypass que um admin abriria ao desmarcar exigePacoteA/B manualmente.
+    // O gate é por DISCIPLINA (não pelo tipo do projeto): disciplinas de projetos
+    // aprovação/laudo anteriores à feature de pastas seguem no fluxo A/B legado — que é
+    // exatamente o que a UI lhes oferece.
+    if (disciplinaUsaPastas(disciplina.pastas)) {
       throw new ActionError(
         "Este tipo de projeto usa o fluxo de aprovação em 2 etapas, não a validação por arquivo.",
       );

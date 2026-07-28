@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   achatarTemplate,
+  disciplinaUsaPastas,
   slugSegmento,
   usaEstruturaCustom,
 } from "./estrutura-tipo";
@@ -12,6 +13,21 @@ describe("usaEstruturaCustom", () => {
     expect(usaEstruturaCustom("particular")).toBe(false);
     expect(usaEstruturaCustom("licitacao")).toBe(false);
     expect(usaEstruturaCustom("qualquer")).toBe(false);
+  });
+});
+
+describe("disciplinaUsaPastas", () => {
+  it("é true quando há ao menos uma pasta de origem template", () => {
+    expect(disciplinaUsaPastas([{ origem: "template" }])).toBe(true);
+    expect(disciplinaUsaPastas([{ origem: "custom" }, { origem: "template" }])).toBe(true);
+  });
+
+  it("é false sem pasta alguma — disciplina legada segue no fluxo A/B", () => {
+    expect(disciplinaUsaPastas([])).toBe(false);
+  });
+
+  it("é false quando só há pastas personalizadas (criadas à mão pelo admin)", () => {
+    expect(disciplinaUsaPastas([{ origem: "custom" }, { origem: "custom" }])).toBe(false);
   });
 });
 

@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { statusValidacao } from "@/modules/uploads/validacao";
+import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 
 /**
  * Uploads por disciplina para o explorer (aba Arquivos), agrupados no client em
@@ -72,7 +73,7 @@ export async function arvoreArquivosProjeto(
       // Aprovação/laudo (só projetos NOVOS): árvore própria (PastaProjeto) no lugar do
       // pacote A/B. Sinal por disciplina, não por tipo de projeto — projetos aprovação
       // beta (pré-feature) nunca têm pasta "template", então continuam na árvore legada.
-      const usaPastas = d.pastas.some((p) => p.origem === "template");
+      const usaPastas = disciplinaUsaPastas(d.pastas);
       // Uploads legados (pacote) vs. uploads na árvore nova (pastaId) — nunca os dois
       // ao mesmo tempo por upload (invariante do schema).
       const uploadsPacote = d.uploads.filter((u) => u.pastaId == null);

@@ -10,6 +10,7 @@ import { obterProjeto, usuariosInternos, papeisUsados, margemProjeto, catalogoDi
 import { StatusTimeline } from "@/components/projetos/status-timeline";
 import { formatarData } from "@/lib/utils";
 import { progressoProjeto } from "@/modules/projetos/status";
+import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DisciplinaCard, type TarefaDaDisciplina } from "@/components/projetos/disciplina-card";
@@ -72,7 +73,7 @@ export default async function ProjetoDetalhePage({
 
   const disciplinas = projeto.disciplinas.map((d) => {
     // Aprovação/laudo (só projetos novos): árvore de PastaProjeto no lugar do pacote A/B.
-    const usaPastas = d.pastas.some((p) => p.origem === "template");
+    const usaPastas = disciplinaUsaPastas(d.pastas);
     const uploadsPacote = d.uploads.filter((u) => u.pastaId == null);
     const uploadsPasta = d.uploads.filter((u) => u.pastaId != null);
     const uploads = uploadsPacote.map((u) => ({

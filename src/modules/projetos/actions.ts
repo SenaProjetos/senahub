@@ -31,7 +31,7 @@ import {
 import { notificarMuitos } from "@/lib/notificar";
 import { sanitizeSvg } from "@/lib/sanitize-svg";
 import { normalizar } from "@/lib/disciplinas-core";
-import { usaEstruturaCustom } from "@/modules/projetos/estrutura-tipo";
+import { usaEstruturaCustom, disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { transicaoDisciplinaPermitida, mensagemTransicaoDisciplina } from "@/modules/projetos/status";
 import { semearPastasTemplate, projetoUsaTemplate } from "@/modules/projetos/pastas/seed";
 
@@ -181,6 +181,7 @@ export const atualizarStatusDisciplina = defineAction(
       where: { id: input.disciplinaId },
       include: {
         responsaveis: true,
+        pastas: { select: { origem: true } },
         projeto: { select: { id: true, codigo: true, tipo: true } },
       },
     });
@@ -190,10 +191,12 @@ export const atualizarStatusDisciplina = defineAction(
     if (input.status === "aprovado") {
       throw new ActionError("Status 'aprovado' só pode ser definido via validação de entrega.");
     }
-    // Aprovação/laudo: "entregue" só via solicitarAprovacaoDisciplina (fluxo em 2 etapas).
-    if (input.status === "entregue" && usaEstruturaCustom(disciplina.projeto.tipo)) {
+    // Disciplina com árvore de pastas: "entregue" só via solicitarAprovacaoDisciplina
+    // (fluxo em 2 etapas). Gate por DISCIPLINA — as legadas de aprovação/laudo (sem
+    // template) usam o fluxo A/B e podem ir a "entregue" pelo seletor normal.
+    if (input.status === "entregue" && disciplinaUsaPastas(disciplina.pastas)) {
       throw new ActionError(
-        "Este tipo de projeto usa o fluxo de aprovação em 2 etapas — use \"Marcar projeto aprovado\".",
+        "Esta disciplina usa o fluxo de aprovação em 2 etapas — use \"Marcar projeto aprovado\".",
       );
     }
 
@@ -647,7 +650,7 @@ export const editarDisciplinasEmMassa = defineAction(
         { membros: { some: { userId: ctx.user.id } } },
         { disciplinas: { some: { responsaveis: { some: { userId: ctx.user.id } } } } },
       ] }] },
-      select: { id: true, tipo: true },
+      select: { id: true },
     });
     if (!projeto) throw new ActionError("Projeto não encontrado.");
 
@@ -655,18 +658,23 @@ export const editarDisciplinasEmMassa = defineAction(
     if (input.status === "aprovado") {
       throw new ActionError("Status \"aprovado\" só pode ser definido individualmente, na validação de entrega.");
     }
-    // Aprovação/laudo: "entregue" só via solicitarAprovacaoDisciplina (fluxo em 2 etapas).
-    if (input.status === "entregue" && usaEstruturaCustom(projeto.tipo)) {
-      throw new ActionError(
-        "Este tipo de projeto usa o fluxo de aprovação em 2 etapas — não é possível marcar \"entregue\" em massa.",
-      );
-    }
     // Máquina de estados canônica (decisão 2026-07-24): valida cada disciplina do lote.
     if (input.status !== undefined) {
       const atuais = await prisma.disciplina.findMany({
         where: { id: { in: input.disciplinaIds }, projetoId: input.projetoId },
-        select: { nome: true, status: true },
+        select: { nome: true, status: true, pastas: { select: { origem: true } } },
       });
+      // Disciplina com árvore de pastas: "entregue" só via solicitarAprovacaoDisciplina
+      // (fluxo em 2 etapas). Gate por DISCIPLINA, não pelo tipo do projeto — as legadas
+      // de aprovação/laudo (sem template) usam o fluxo A/B e entram normalmente no lote.
+      if (input.status === "entregue") {
+        const comPastas = atuais.find((d) => disciplinaUsaPastas(d.pastas));
+        if (comPastas) {
+          throw new ActionError(
+            `${comPastas.nome} usa o fluxo de aprovação em 2 etapas — não é possível marcar "entregue" em massa.`,
+          );
+        }
+      }
       const invalida = atuais.find((d) => !transicaoDisciplinaPermitida(d.status, input.status!));
       if (invalida) {
         throw new ActionError(`${invalida.nome}: ${mensagemTransicaoDisciplina(invalida.status, input.status!)}`);
