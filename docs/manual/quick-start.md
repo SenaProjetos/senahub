@@ -151,7 +151,7 @@ O SenaHub tem **9 perfis**. Cada um enxerga menus e dados diferentes:
 | Perfil | Em resumo |
 | --- | --- |
 | **Administrador** | Acesso total; ignora restrições de permissão. |
-| **Supervisor** | Visão global de projetos e dados; gestão ampla. |
+| **Coordenador** | Visão global de projetos e dados; gestão ampla. |
 | **Administrativo** | Rotinas administrativas, RH, financeiro, comercial. |
 | **CLT** | Colaborador com vínculo (ponto, holerite, banco de horas). |
 | **Estagiário** | Colaborador em estágio (ponto e banco de horas). |

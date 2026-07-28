@@ -17,7 +17,7 @@ sinonimos: [dicionário, vocabulário, terminologia]
 **SenaHub** — Plataforma de gestão integrada (ERP) do escritório de engenharia BIM.
 
 **Perfil (papel / role)** — Categoria de usuário que define o que cada pessoa pode ver
-e fazer. São 9: Administrador, Supervisor, Administrativo, CLT, Estagiário, Projetista
+e fazer. São 9: Administrador, Coordenador, Administrativo, CLT, Estagiário, Projetista
 PJ, Freelancer, Cliente e TI.
 
 **Permissão (`recurso:ação`)** — Controle fino do que um perfil pode fazer em cada área
@@ -41,7 +41,7 @@ você está e permite voltar.
 | Termo | Significado |
 | --- | --- |
 | **Administrador** | Acesso total; ignora restrições de permissão. |
-| **Supervisor** | Visão global de projetos e dados. |
+| **Coordenador** | Visão global de projetos e dados. |
 | **Administrativo** | Rotinas administrativas, RH, financeiro, comercial. |
 | **CLT** | Colaborador com vínculo trabalhista (ponto, holerite, banco de horas). |
 | **Estagiário** | Colaborador em estágio. |

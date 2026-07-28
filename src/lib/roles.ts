@@ -14,7 +14,9 @@ export type Role = (typeof ROLES)[number];
 
 export const ROLE_LABELS: Record<Role, string> = {
   admin: "Administrador",
-  supervisor: "Supervisor",
+  // O valor do enum segue `supervisor` (banco, permissões, migrations); só o rótulo mudou.
+  // Vira o perfil de acesso "Coordenador" na reforma de Setor × Contratação × Perfil.
+  supervisor: "Coordenador",
   administrativo: "Administrativo",
   clt: "CLT",
   estagiario: "Estagiário",
