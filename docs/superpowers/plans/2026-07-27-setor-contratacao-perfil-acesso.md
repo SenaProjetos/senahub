@@ -691,8 +691,31 @@ ainda preenche direto de `r.user.role` — sem nenhuma camada de `Contratacao` n
 `Contratacao` em vez de `role` — o que nenhuma onda fez até aqui. Fica como aviso para quando essa
 migração acontecer de fato (Onda D em diante), não como pendência de código hoje.
 
-### 13.6 O que falta para fechar a reforma
+### 13.6 Ciclo em sombra — a parte de código, feita; a parte de confiança, não dá pra simular
 
-**Ciclo em sombra** — não é tarefa de código: observar um fechamento de folha real com os dois modelos
-calculando em paralelo antes da Onda D restringir `registrarBatida` de vez e cortar `can()` para
-`permissaoEfetiva()`. Depende de calendário (um mês de operação real), não de trabalho de implementação.
+Pergunta do dono: dá pra simular o fechamento em vez de esperar? Resposta: **parte sim, parte não**, e as
+duas foram tratadas separadamente.
+
+**O que É simulável e está feito** (`scripts/simular-fechamento-sombra.ts`): prova, com volume e casos de
+borda — não teste de fumaça —, que `calcularRateioDetalhado()` (a função que gera `RateioHora` no
+fechamento real) trata sessões vindas de `aplicarBatida` (ponto, CLT) e escritas diretas em
+`SessaoTrabalho` (o que `apontamento.ts` faz) de forma IDÊNTICA. Cria 2 usuários efêmeros, gera um mês
+inteiro sintético (isolado em 2031-03, longe de qualquer dado real) pelos dois caminhos com troca de
+projeto no meio do dia, calcula à mão o minuto esperado de cada combinação usuário×projeto, roda o motor
+de rateio de verdade e compara byte a byte — mais uma prova separada com `abrirApontamento`/
+`fecharApontamento` reais (hoje de verdade, porque "sessão aberta" só faz sentido contra o relógio real,
+não dá pra simular num mês futuro). Deleta todo o dado sintético ao final — nada fica no banco.
+
+Achado no caminho: a **primeira versão da simulação acusou 1 divergência** — não no motor de rateio, no
+meu próprio cálculo manual do "esperado" (esqueci de somar a segunda sessão do dia no projeto A ao trocar
+de projeto). Corrigido e re-executado: **7/7 conferências passam**, banco confirmado limpo depois, script
+roda de novo sem sujeira acumulada (idempotente). Vale registrar: se eu tivesse aceitado o primeiro
+resultado sem investigar QUEM estava errado (motor ou teste), teria escrito no plano uma "divergência
+real" que não existia — mesma lição do achado das permissões órfãs em §13.2, checar antes de concluir.
+
+**O que NÃO é simulável:** PJ/freelancer efetivamente usando o botão "Iniciar apontamento" certo no dia a
+dia (esquecer de encerrar, sessão que fica aberta a noite toda, etc.) e a Diretoria/RH revisando um
+fechamento REAL antes de confiar nele para pagar gente de verdade. Isso é adoção operacional e confiança
+organizacional, não correção de cálculo — nenhum script substitui. **Continua dependendo de um mês de
+operação real** antes da Onda D restringir `registrarBatida` de vez e cortar `can()` para
+`permissaoEfetiva()`.
