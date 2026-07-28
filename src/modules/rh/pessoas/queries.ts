@@ -45,6 +45,7 @@ export async function fichaPessoa(userId: string) {
       mustChangePassword: true, createdAt: true,
       salarioBase: true, dataAdmissao: true, cpf: true, cargo: true, departamento: true,
       conselho: true, registroProfissional: true, registroUf: true,
+      setor: true, contratacao: true,
       clienteId: true,
       cliente: { select: { id: true, nome: true, tipo: true, documento: true } },
       pj: { select: { id: true, razaoSocial: true, cnpj: true } },
@@ -66,6 +67,10 @@ export async function fichaPessoa(userId: string) {
     dataAdmissao: ymd(u.dataAdmissao),
     cargo: u.cargo,
     departamento: u.departamento,
+    // Eixos novos (Fase 0): exibição read-only. Cache do vínculo ativo — quem altera é
+    // `aplicarVinculo`, nunca a tela. `null` = ainda não migrado pelo backfill.
+    setor: u.setor,
+    contratacao: u.contratacao,
     /** Rótulo pronto do registro profissional ("CREA-SP 123456") ou null. */
     registro: formatarRegistro(u),
     socioAtivo: u.socio?.ativo === true,

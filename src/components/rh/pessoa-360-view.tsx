@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CalendarClock, Landmark, Building2, KeyRound, UserRound, ClipboardList, CalendarRange, Clock, Receipt, SlidersHorizontal } from "lucide-react";
 import { brl, formatarData } from "@/lib/utils";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
+import { CONTRATACAO_LABELS, SETOR_LABELS } from "@/modules/usuarios/vinculo/labels";
 import { carregarPontoPessoa } from "@/modules/rh/pessoas/actions";
 import { formatarRegistro } from "@/modules/usuarios/registro";
 import { EscalaGrade } from "@/components/rh/escala-grade";
@@ -445,6 +446,13 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
           <Card><CardContent className="space-y-4 pt-6">
             <Secao titulo="Acesso ao sistema">
               <Campo label="Perfil" valor={ROLE_LABELS[pessoa.role as Role]} />
+              {/* Eixos novos (Fase 0): read-only. Setor e Contratação NÃO concedem acesso —
+                  quem decide o que a pessoa pode é o Perfil. */}
+              <Campo label="Setor" valor={pessoa.setor ? SETOR_LABELS[pessoa.setor] : "—"} />
+              <Campo
+                label="Contratação"
+                valor={pessoa.contratacao ? CONTRATACAO_LABELS[pessoa.contratacao] : "—"}
+              />
               <Campo label="Situação" valor={pessoa.ativo ? "Ativo" : "Inativo"} />
               <Campo label="Troca de senha" valor={pessoa.mustChangePassword ? "Pendente" : "—"} />
               <Campo label="Criado em" valor={formatarData(pessoa.criadoEm)} />

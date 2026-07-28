@@ -1,6 +1,6 @@
 # Setor × Contratação × Perfil de Acesso — separar vínculo, função e permissão
 
-**Data:** 2026-07-27 · **Status:** P1 **implementado**; Fase 0 → F pendentes · **Branch:** `dev`
+**Data:** 2026-07-27 · **Status:** P1 e **Fase 0 implementados**; Onda A → F pendentes · **Branch:** `dev`
 
 Deliberado por conselho de 4 cadeiras (Gerente de RH, Dev Sênior, Diretor, Usuária final), duas rodadas:
 parecer independente + confronto cruzado. Divergências e concessões registradas em §8.
@@ -458,3 +458,59 @@ seguinte. A separação ponto (CLT) × apontamento de horas (todos) é a Onda B.
    dos dois. É preenchimento de dado, não código.
 4. **Espelhos já assinados por PJ/freelancer continuam no banco** — o gate impede novos, não apaga os
    existentes. Decidir com orientação jurídica o que fazer com o histórico.
+
+---
+
+## 11. Fase 0 — implementada em 2026-07-28
+
+Migration puramente aditiva (`prisma/migrations/20260728023431_add_vinculo_setor_contratacao`) aplicada
+no dev sem reset, seguindo o caminho de drift da skill `nova-migracao` (`db push` + `migrate diff --script`
++ `migrate resolve --applied`). Lint limpo, **134 arquivos / 1245 testes** (1231 + 14 novos), build OK.
+
+**Schema** (`prisma/schema.prisma`): enums `Setor`, `Contratacao` (sem `socio` — §9.1), `TipoUsuario`;
+model `Vinculo`; em `User`: `tipo`/`setor`/`contratacao` (cache denormalizado, todos nullable) e
+`vinculoAtivoId` (`@unique`, ponteiro para o vínculo corrente). `tipo` ficou **sem default** de propósito:
+um default `externo` marcaria o escritório inteiro como externo se um deploy aplicasse a migration e
+esquecesse o backfill — `NULL` é a leitura honesta de "ainda não migrado".
+
+**Domínio** (`src/modules/usuarios/vinculo/`):
+- `mapa.ts` — `derivarEixos(role)`, puro e total sobre `Role` (mesma família de `lib/encargos.ts`,
+  `projetos/health.ts`), com o mapa de §6.1 já com o default Engenharia e o destino do Coordenador.
+  `aplicarSocio(eixos, socioAtivo)` implementa §9.1: sócio ativo com vínculo vira `pro_labore`; sócio sem
+  vínculo (ex.: admin) não inventa contratação. 14 testes (`mapa.test.ts`) — exaustividade sobre `ROLES`,
+  interno×externo, quem cria vínculo tem os dois eixos preenchidos ou nenhum, nenhuma contratação derivada
+  cai em `pro_labore` a não ser via sócio.
+- `service.ts` — `aplicarVinculo()` é o ÚNICO ponto que escreve `setor`/`contratacao`/`vinculoAtivoId` em
+  `User`; encerra o vínculo anterior (nunca apaga) e abre o novo. `inconsistenciasDeCache()` — diff entre
+  o vínculo ativo e o cache, para o teste de equivalência (§6.2) e reconciliação futura.
+- `labels.ts` — rótulos pt-BR, **client-safe** (sem `server-only`/Prisma-client), mesmo padrão de
+  `documentos/fontes-meta.ts`. `queries.ts` — `meuAcesso(userId)`, leitura pura para a tela "Meu acesso".
+
+**Backfill** (`scripts/backfill-vinculos.ts`): idempotente (2ª execução: 0 criados), roda em transação por
+usuário, checa `inconsistenciasDeCache` ao final, gera CSV em `logs/` com `revisar` por linha. Rodado no
+dev: 7 vínculos criados, 3 tipos ajustados (clientes), 0 inconsistências. Confirmou a interação com §9.1
+na prática — a usuária de demo que era `supervisor` **e** sócia ativa migrou para `pro_labore`, não `clt`.
+`dataInicio` vem de `dataAdmissao` quando existe, senão `createdAt` — nunca "hoje", para não apagar tempo
+de casa de quem já está no sistema.
+
+**UI:**
+- `components/usuarios/meu-acesso.tsx` + `MinhaFichaPage` — tela "Meu acesso" pedida pela usuária final:
+  Setor, Contratação, Cargo, Perfil, e a lista de permissões em português (reaproveita os rótulos de
+  `permissions-catalog.ts`), nunca `recurso:acao`. Não edita nada — RH continua sendo quem altera.
+- `Pessoa360View` (aba Acesso) e `fichaPessoa` (query do RH) ganharam Setor/Contratação como campos
+  read-only, ao lado do Perfil — cache do vínculo ativo, `—` quando ainda não migrado.
+
+**O que a Fase 0 deliberadamente NÃO faz:** não toca em `role`, `Permissao`, `nav-config`, ponto ou folha.
+Autorização continua 100% em `role`. `Vinculo.cargaSemanal`/`remuneracao` nascem preenchidos só onde já
+havia dado (`salarioBase`); PJ e pró-labore ficam nulos até alguém informar.
+
+### 11.1 Pendências operacionais da Fase 0
+
+1. **Rodar `npx tsx --tsconfig tsconfig.server.json scripts/backfill-vinculos.ts` em produção** — sem
+   isso `tipo`/`setor`/`contratacao` ficam `NULL` e a tela "Meu acesso" mostra "Não definido".
+2. **Conferir o CSV gerado** (`logs/backfill-vinculos-*.csv`) — toda linha com `setor_sem_origem` é o
+   default Engenharia, não um levantamento; toda linha com `pj_ou_autonomo_rpa` é freelancer aguardando
+   reclassificação (§9.2).
+3. **`admin` ficou sem vínculo de propósito** (`sem_vinculo_definir_a_mao`) — quem tem esse perfil não
+   ganhou setor/contratação automaticamente; é decisão manual, porque o papel diz o que a pessoa pode no
+   sistema, não como ela é contratada.

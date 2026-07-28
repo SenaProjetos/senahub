@@ -7,6 +7,8 @@ import { bancoHorasDe } from "@/modules/rh/banco/queries";
 import { escalaUsuarioGrade, escalaRoleGrade } from "@/modules/rh/escalas/queries";
 import { minhaAlteracaoPendente } from "@/modules/rh/cadastro/queries";
 import { carregarPreferenciasDaConta } from "@/modules/usuarios/preferencias/queries";
+import { meuAcesso } from "@/modules/usuarios/vinculo/queries";
+import { MeuAcesso } from "@/components/usuarios/meu-acesso";
 import { Pessoa360View } from "@/components/rh/pessoa-360-view";
 import { EditarMeusDados } from "@/components/rh/editar-meus-dados";
 import { PreferenciasView } from "@/components/configuracoes/preferencias-view";
@@ -27,7 +29,7 @@ export default async function MinhaFichaPage() {
   const temEscala = isCLT || INTERNAL_ROLES.includes(pessoa.role);
   const batePonto = isColaborador;
 
-  const [cadastro, ausencias, banco, escalaUsuario, escalaRole, nf, pendente, prefsConta] = await Promise.all([
+  const [cadastro, ausencias, banco, escalaUsuario, escalaRole, nf, pendente, prefsConta, acesso] = await Promise.all([
     isColaborador ? cadastroDaPessoa(id) : Promise.resolve(null),
     isCLT ? solicitacoesDoUsuario(id) : Promise.resolve(null),
     isCLT ? bancoHorasDe(id) : Promise.resolve(null),
@@ -36,6 +38,7 @@ export default async function MinhaFichaPage() {
     isPJ ? notasDoUsuario(id) : Promise.resolve(null),
     isColaborador ? minhaAlteracaoPendente(id) : Promise.resolve(null),
     carregarPreferenciasDaConta(id),
+    meuAcesso(id),
   ]);
 
   const escala = escalaUsuario && escalaRole
@@ -51,6 +54,8 @@ export default async function MinhaFichaPage() {
           bancários você mesmo pode alterar — as mudanças passam por validação do RH.
         </p>
       </div>
+
+      {acesso && <MeuAcesso acesso={acesso} />}
 
       {cadastro && <EditarMeusDados atual={cadastro} pendente={pendente} />}
       {/* Auto-serviço: própria ficha, com salário próprio visível e sem links de gestão.
