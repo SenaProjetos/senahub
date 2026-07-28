@@ -233,11 +233,26 @@ revogável. `ehSocio` fica só para o financeiro de verdade (retiradas, pró-lab
 ³ **Decisão do dono (2026-07-27): `supervisor` passa a se chamar "Coordenador"**, é de **Engenharia** e
 tem contratação **CLT** (a princípio). O rótulo já foi trocado em `ROLE_LABELS` (`lib/roles.ts`) — só o
 rótulo; o valor do enum segue `supervisor` no banco, nas permissões e nas migrations, e vira a `chave`
-`coordenador` do Perfil de acesso na Onda A. **Ponto a confirmar:** hoje `supervisor` está em
-`GLOBAL_ROLES` — vê todos os projetos e dados. Pelo princípio de espelho (§6.2) o perfil `coordenador`
-nasce com `escopo:global` para ninguém perder acesso no dia 1; se a intenção for que o Coordenador veja
-só as próprias frentes, isso é uma **mudança de regra deliberada**, feita depois da virada e fora do
-teste de equivalência.
+`coordenador` do Perfil de acesso na Onda A.
+
+**Matriz do coordenador: fechada em 20 permissões** (`PERMISSOES_BASE`, `prisma/seed.ts`), conferida
+contra a tela Configurações → Permissões. O seed estava fora de sincronia: concedia **42** — incluindo
+`usuarios:gerir`, `configuracoes:gerir`, `financeiro:ver/gerir`, `rh:cadastro`, `rh:folha`,
+`patrimonio:ti`, `juridico:gerir` e a administração inteira do ponto — porque as revogações foram feitas
+na tela e nunca voltaram ao código. Um banco novo nascia com um coordenador muito mais poderoso que o
+real. Faltava também `projetos:historico`, que a tela concede. Sem impacto no banco atual: a tela grava
+`permitido: false` mantendo a linha (`modules/permissoes/actions.ts`) e o seed usa `update: {}`.
+
+O recorte é de **coordenação técnica pura**: projetos, arquivos, planejamento, coordenação BIM, recursos,
+ferramentas, biblioteca e o `ponto:rateio`. Sem financeiro, comercial, jurídico, licitações, clientes,
+RH-pessoas, patrimônio, usuários/configurações nem Estúdio de Documentos. Estas 20 linhas são a matriz
+semente do perfil `coordenador` na Onda B (princípio de espelho, §6.2).
+
+**Escopo global: mantido (decisão do dono, 2026-07-27).** `supervisor` segue em `GLOBAL_ROLES` — o
+Coordenador continua vendo todos os projetos por ora. Note que **a matriz de permissões não controla
+isso**: escopo de dados vem de `GLOBAL_ROLES` em `lib/roles.ts`, que é código, não a tela. Restringir o
+Coordenador às próprias frentes seria mudança de regra deliberada, posterior à virada e fora do teste de
+equivalência (que só acusa *ganho* de acesso).
 
 ² **Decisão do dono (2026-07-27): "a princípio, considerar todos os CLT, estágio, PJ e freelancer como
 Engenharia."** Destrava o backfill — deixa de haver campo sem dado de origem. É um **default**, não um

@@ -15,16 +15,37 @@ const ADMIN_SENHA_INICIAL = "SenaHub@2026";
  * admin tem bypass total no código — não precisa estar aqui.
  */
 const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
-  // Supervisor: gestão ampla
-  { role: "supervisor", recurso: "usuarios", acao: "gerir" },
-  { role: "supervisor", recurso: "configuracoes", acao: "gerir" },
-  { role: "supervisor", recurso: "clientes", acao: "ver" },
-  { role: "supervisor", recurso: "clientes", acao: "gerir" },
+  // ── Coordenador (valor do enum: `supervisor`) ────────────────────────────────
+  // Lista definida pelo dono em 2026-07-27, conferida contra Configurações → Permissões.
+  // Recorte de COORDENAÇÃO TÉCNICA: projeto, arquivos, planejamento, coordenação BIM,
+  // recursos, ferramentas e biblioteca. Deliberadamente FORA: clientes, financeiro,
+  // comercial, jurídico, licitações, arquivos gerais, Estúdio de Documentos, usuários,
+  // configurações, avisos, permissões, patrimônio, RH-pessoas, e a administração de
+  // ponto (mantém só `rateio`, que é custo de projeto).
+  // Estas 20 linhas viram a matriz semente do perfil `coordenador` na Onda B
+  // (docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md).
+  // ATENÇÃO: o escopo GLOBAL de dados não vem daqui — vem de `GLOBAL_ROLES`
+  // (`lib/roles.ts`), que é código, não esta matriz.
   { role: "supervisor", recurso: "projetos", acao: "ver" },
   { role: "supervisor", recurso: "projetos", acao: "gerir" },
+  { role: "supervisor", recurso: "projetos", acao: "historico" },
   { role: "supervisor", recurso: "uploads", acao: "validar" },
-  { role: "supervisor", recurso: "financeiro", acao: "ver" },
-  { role: "supervisor", recurso: "financeiro", acao: "gerir" },
+  { role: "supervisor", recurso: "arquivos", acao: "ver" },
+  { role: "supervisor", recurso: "arquivos", acao: "baixar" },
+  { role: "supervisor", recurso: "arquivos", acao: "ver_todas_disciplinas" },
+  { role: "supervisor", recurso: "arquivos", acao: "enviar" },
+  { role: "supervisor", recurso: "qualidade", acao: "ver" },
+  { role: "supervisor", recurso: "planejamento", acao: "ver" },
+  { role: "supervisor", recurso: "planejamento", acao: "gerir" },
+  { role: "supervisor", recurso: "coordenacao", acao: "ver" },
+  { role: "supervisor", recurso: "coordenacao", acao: "gerir" },
+  { role: "supervisor", recurso: "recursos", acao: "ver" },
+  { role: "supervisor", recurso: "recursos", acao: "gerir" },
+  { role: "supervisor", recurso: "ferramentas", acao: "usar" },
+  { role: "supervisor", recurso: "ferramentas", acao: "gerir" },
+  { role: "supervisor", recurso: "biblioteca_tecnica", acao: "ver" },
+  { role: "supervisor", recurso: "biblioteca_tecnica", acao: "incluir" },
+  { role: "supervisor", recurso: "ponto", acao: "rateio" },
   // Administrativo: configurações, usuários e clientes
   { role: "administrativo", recurso: "usuarios", acao: "gerir" },
   { role: "administrativo", recurso: "configuracoes", acao: "gerir" },
@@ -35,22 +56,15 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "administrativo", recurso: "financeiro", acao: "ver" },
   { role: "administrativo", recurso: "financeiro", acao: "gerir" },
   // RH — Pessoas (ficha 360): cadastro p/ gestores de RH; folha (salário) idem.
-  { role: "supervisor", recurso: "rh", acao: "cadastro" },
-  { role: "supervisor", recurso: "rh", acao: "folha" },
+  // Coordenador NÃO entra: ficha de pessoas e salário ficam com admin + administrativo.
   { role: "administrativo", recurso: "rh", acao: "cadastro" },
   { role: "administrativo", recurso: "rh", acao: "folha" },
   // Arquivos gerais do projeto (pasta "Geral"): gestores administrativos por padrão.
-  { role: "supervisor", recurso: "arquivos_gerais", acao: "ver" },
-  { role: "supervisor", recurso: "arquivos_gerais", acao: "gerir" },
   { role: "administrativo", recurso: "arquivos_gerais", acao: "ver" },
   { role: "administrativo", recurso: "arquivos_gerais", acao: "gerir" },
   // Arquivos do projeto (Diretório + muralha por disciplina). `ver_todas_disciplinas`
   // separa internos (veem tudo do projeto) de externos (só a própria disciplina):
   // projetista_pj/freelancer NÃO recebem essa ação → só disciplinas onde são responsáveis.
-  { role: "supervisor", recurso: "arquivos", acao: "ver" },
-  { role: "supervisor", recurso: "arquivos", acao: "baixar" },
-  { role: "supervisor", recurso: "arquivos", acao: "ver_todas_disciplinas" },
-  { role: "supervisor", recurso: "arquivos", acao: "enviar" },
   { role: "administrativo", recurso: "arquivos", acao: "ver" },
   { role: "administrativo", recurso: "arquivos", acao: "baixar" },
   { role: "administrativo", recurso: "arquivos", acao: "ver_todas_disciplinas" },
@@ -69,32 +83,21 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "freelancer", recurso: "arquivos", acao: "ver" },
   { role: "freelancer", recurso: "arquivos", acao: "baixar" },
   { role: "freelancer", recurso: "arquivos", acao: "enviar" },
-  { role: "supervisor", recurso: "documentos", acao: "ver" },
-  { role: "supervisor", recurso: "documentos", acao: "gerir" },
   { role: "administrativo", recurso: "documentos", acao: "ver" },
   { role: "administrativo", recurso: "documentos", acao: "gerir" },
   { role: "administrativo", recurso: "comercial", acao: "ver" },
   { role: "administrativo", recurso: "comercial", acao: "gerir" },
-  { role: "supervisor", recurso: "comercial", acao: "ver" },
   // O5: jurídico, licitações, qualidade
-  { role: "supervisor", recurso: "juridico", acao: "ver" },
-  { role: "supervisor", recurso: "juridico", acao: "gerir" },
   { role: "administrativo", recurso: "juridico", acao: "ver" },
   { role: "administrativo", recurso: "juridico", acao: "gerir" },
   { role: "administrativo", recurso: "licitacoes", acao: "ver" },
   { role: "administrativo", recurso: "licitacoes", acao: "gerir" },
-  { role: "supervisor", recurso: "licitacoes", acao: "ver" },
-  { role: "supervisor", recurso: "qualidade", acao: "ver" },
   // O5: planejamento (ver p/ internos; gerir p/ gestores) e recursos (gestores)
-  { role: "supervisor", recurso: "planejamento", acao: "ver" },
-  { role: "supervisor", recurso: "planejamento", acao: "gerir" },
   { role: "administrativo", recurso: "planejamento", acao: "ver" },
   { role: "administrativo", recurso: "planejamento", acao: "gerir" },
   { role: "clt", recurso: "planejamento", acao: "ver" },
   { role: "estagiario", recurso: "planejamento", acao: "ver" },
   { role: "projetista_pj", recurso: "planejamento", acao: "ver" },
-  { role: "supervisor", recurso: "recursos", acao: "ver" },
-  { role: "supervisor", recurso: "recursos", acao: "gerir" },
   { role: "administrativo", recurso: "recursos", acao: "ver" },
   { role: "administrativo", recurso: "recursos", acao: "gerir" },
   // Perfis internos: veem projetos (escopo filtra para os seus)
@@ -110,8 +113,6 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "freelancer", recurso: "financeiro", acao: "extrato" },
   { role: "cliente", recurso: "financeiro", acao: "extrato" },
   // Ferramentas de engenharia: internos usam; gestores também administram
-  { role: "supervisor", recurso: "ferramentas", acao: "usar" },
-  { role: "supervisor", recurso: "ferramentas", acao: "gerir" },
   { role: "administrativo", recurso: "ferramentas", acao: "usar" },
   { role: "administrativo", recurso: "ferramentas", acao: "gerir" },
   { role: "clt", recurso: "ferramentas", acao: "usar" },
@@ -119,28 +120,20 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "projetista_pj", recurso: "ferramentas", acao: "usar" },
   { role: "freelancer", recurso: "ferramentas", acao: "usar" },
   // Patrimônio (Mód 16): inventário p/ gestão; TI p/ papel `ti` + gestores.
-  { role: "supervisor", recurso: "patrimonio", acao: "ver" },
-  { role: "supervisor", recurso: "patrimonio", acao: "gerir" },
-  { role: "supervisor", recurso: "patrimonio", acao: "ti" },
+  // Coordenador fora: patrimônio é administrativo/TI, não coordenação técnica.
   { role: "administrativo", recurso: "patrimonio", acao: "ver" },
   { role: "administrativo", recurso: "patrimonio", acao: "gerir" },
   { role: "ti", recurso: "patrimonio", acao: "ver" },
   { role: "ti", recurso: "patrimonio", acao: "gerir" },
   { role: "ti", recurso: "patrimonio", acao: "ti" },
-  // Ponto v2: supervisor mantém visão completa (equipe + rateio de custo).
-  // administrativo perde `rateio` por padrão (dado de custo/margem) — decisão do
-  // usuário; segue com espelho/escalas/ajustes (tarefas de RH do dia a dia).
-  { role: "supervisor", recurso: "ponto", acao: "rateio" },
-  { role: "supervisor", recurso: "ponto", acao: "espelho_equipe" },
-  { role: "supervisor", recurso: "ponto", acao: "gerir_escalas" },
-  { role: "supervisor", recurso: "ponto", acao: "ajustar" },
+  // Ponto v2: coordenador fica só com `rateio` (custo de projeto), no bloco acima.
+  // A administração do ponto (espelho de terceiros, escalas, ajuste de batida) é do
+  // administrativo — que por sua vez não vê `rateio`, por ser dado de custo/margem.
   { role: "administrativo", recurso: "ponto", acao: "espelho_equipe" },
   { role: "administrativo", recurso: "ponto", acao: "gerir_escalas" },
   { role: "administrativo", recurso: "ponto", acao: "ajustar" },
   // Coordenação BIM: internos veem a maquete federada (escopo de projeto filtra);
   // gestores gerem (apontamentos, conversão, BCF). Cliente fora no v1 (portal é F7).
-  { role: "supervisor", recurso: "coordenacao", acao: "ver" },
-  { role: "supervisor", recurso: "coordenacao", acao: "gerir" },
   { role: "administrativo", recurso: "coordenacao", acao: "ver" },
   { role: "administrativo", recurso: "coordenacao", acao: "gerir" },
   { role: "clt", recurso: "coordenacao", acao: "ver" },
@@ -148,10 +141,8 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "projetista_pj", recurso: "coordenacao", acao: "ver" },
   { role: "freelancer", recurso: "coordenacao", acao: "ver" },
   // Biblioteca técnica (Engenharia): todos internos veem e incluem padrões/normas;
-  // editar/excluir de terceiros (`gerir`) fica com admin (bypass) + supervisor.
-  { role: "supervisor", recurso: "biblioteca_tecnica", acao: "ver" },
-  { role: "supervisor", recurso: "biblioteca_tecnica", acao: "incluir" },
-  { role: "supervisor", recurso: "biblioteca_tecnica", acao: "gerir" },
+  // editar/excluir de terceiros (`gerir`) fica só com admin (bypass) — nem o
+  // coordenador mexe no conteúdo de outro autor.
   { role: "administrativo", recurso: "biblioteca_tecnica", acao: "ver" },
   { role: "administrativo", recurso: "biblioteca_tecnica", acao: "incluir" },
   { role: "clt", recurso: "biblioteca_tecnica", acao: "ver" },
