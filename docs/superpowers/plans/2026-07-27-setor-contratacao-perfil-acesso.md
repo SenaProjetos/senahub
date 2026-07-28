@@ -1,6 +1,6 @@
 # Setor × Contratação × Perfil de Acesso — separar vínculo, função e permissão
 
-**Data:** 2026-07-27 · **Status:** P1 e **Fase 0 implementados**; Onda A → F pendentes · **Branch:** `dev`
+**Data:** 2026-07-27 · **Status:** P1, Fase 0 e **Onda A implementados**; Ondas B → F pendentes · **Branch:** `dev`
 
 Deliberado por conselho de 4 cadeiras (Gerente de RH, Dev Sênior, Diretor, Usuária final), duas rodadas:
 parecer independente + confronto cruzado. Divergências e concessões registradas em §8.
@@ -514,3 +514,79 @@ havia dado (`salarioBase`); PJ e pró-labore ficam nulos até alguém informar.
 3. **`admin` ficou sem vínculo de propósito** (`sem_vinculo_definir_a_mao`) — quem tem esse perfil não
    ganhou setor/contratação automaticamente; é decisão manual, porque o papel diz o que a pessoa pode no
    sistema, não como ela é contratada.
+
+---
+
+## 12. Onda A — implementada em 2026-07-28
+
+Schema (3 modelos novos) + motor de permissão + `escopo:global` no `getSession` + arnês de equivalência.
+Lint limpo, **139 arquivos / 1289 testes** (1245 + 44 novos — 20 são meus, o resto é do módulo de Custos
+que evoluiu em paralelo), build limpo (após `rm -rf .next` — cache stale do build anterior, não bug).
+**Zero mudança de comportamento**: `role` + `Permissao` continuam sendo a autorização real; nada em
+`with-action.ts`/`can()` foi tocado.
+
+### 12.1 Colisão com trabalho concorrente (Engenharia de Custos) — resolvida sem perda
+
+No meio da Onda A, `prisma migrate diff` passou a propor **`DROP TABLE custo_orcamento`** — a outra sessão
+havia aplicado a própria migration (`20260728120000_custos_fundacao`) ao **mesmo banco de dev** enquanto eu
+trabalhava. Eu tinha isolado meu schema com `git stash` momentos antes (para gerar um diff limpo, só meu),
+e o `stash pop` não voltava por divergência de texto. Resolvido por reconstrução dirigida: extraí do stash
+só o bloco de conteúdo novo de Custos (4 enums + 3 models + os campos inversos que eles adicionaram em
+`User`, `Cliente`, `Projeto`, `Licitacao` — achados varrendo o diff completo, não só a cauda do arquivo) e
+reincorporei por cima da minha versão. Verificação de que nada se perdeu: **não** comparação textual
+(ruidosa por realinhamento de `prisma format`), e sim `prisma migrate diff --exit-code` entre o schema em
+disco e o banco vivo → **"No difference detected", exit 0** — prova estrutural de que schema e banco
+(Custos deles + meu Onda A) batem exatamente. Migration da Onda A gerada e aplicada depois disso, contendo
+**só** as minhas 3 tabelas (conferido: nenhum `DROP`/`ALTER` em tabela de Custos no diff final).
+Consequência prática: **não toquei** `prisma/seed.ts` nem `src/lib/permissions-catalog.ts` nesta onda — os
+dois têm trabalho de Custos misturado, não commitado por mim.
+
+### 12.2 Schema
+
+`PerfilAcesso` (`chave` única e estável, `nome` pt-BR editável, `sistema`/`ativo`), `PermissaoPerfil`
+(`@@unique([perfilId, recurso, acao])`, espelha `Permissao` mas por perfil), `PermissaoUsuario` (override
+com `motivo` **obrigatório**, `expiraEm` opcional — §8.3 item 5 do conselho). Em `User`: `perfilId`
+(nullable), `superUsuario` (default `false`, bypass **fora** da matriz — não vira linha de
+`PermissaoPerfil`, mesmo raciocínio de `admin` em `can()`). `model Permissao` ganhou comentário de
+depreciação (congelada como leitura legada, dropada só na Onda F) — não foi migrada in-place.
+
+### 12.3 Motor (`src/lib/permissao-efetiva.ts`)
+
+Isolado de propósito de `lib/permissions.ts` — `can()` não foi tocado. Resolução: `!ativo` → nega;
+`superUsuario` → concede; override não expirado → vale (inclusive para negar); perfil → default negado.
+Cache por `perfilId` (LRU, max 64, mesmo TTL de 10 min do cache existente); **override nunca cacheado**
+(§5.2 — é onde mora bug de invalidação). 13 testes (mock do Prisma, mesmo padrão de `permissions.test.ts`
+já existente no projeto), cobrindo os casos que mais importam: override revogando o que o perfil concede,
+override expirado caindo de volta no perfil, isolamento de cache entre perfis distintos.
+
+### 12.4 `escopo:global` no `getSession` (`src/lib/session.ts`)
+
+`SessionUser` ganhou `perfilId` e `escopoGlobalPerfil` — **inertes nesta onda** (todo `perfilId` é `null`,
+então `escopoGlobalPerfil` resolve `false` para todo mundo). `acessoGlobal()` (33 usos) **não foi tocado** —
+continua 100% sobre `role`/`ehSocio`. O lookup de `socio` existente virou um `prisma.user.findUnique` único
+que também traz `perfilId`/`superUsuario` (mesma contagem de round-trip de antes, não piorou o hot path);
+o cálculo de `escopoGlobalPerfil` via `permissaoEfetiva` soma uma consulta indexada por sessão — aceito
+pelo mesmo padrão de custo que o lookup de `ehSocio` já tinha.
+
+### 12.5 Arnês de equivalência
+
+`src/lib/equivalencia-permissoes.ts` — comparador puro, assimétrico (`compararPermissoes`), 7 testes
+incluindo o caso que garante fail-closed (detecta um ganho sintético). `scripts/snapshot-permissoes.ts`
+calcula a matriz "antes" (`can(role,...)` + piso de sócio, réplica exata da fórmula de `requirePermission`).
+`scripts/checar-equivalencia-permissoes.ts` orquestra antes×depois e é, sem alteração nenhuma, o gate que a
+Onda B vai rodar para liberar o corte.
+
+**Decisão consciente: nenhum fixture foi congelado no repo.** O catálogo de recurso:ação está mudando
+ativamente (Custos acabou de somar `custos:ver/gerir/bancos/cotacao`) — uma foto tirada hoje ficaria
+obsoleta antes da Onda B sequer começar. As duas ferramentas escrevem em `logs/` (gitignored, mesmo padrão
+do CSV do backfill) e rodam sob demanda. Executado de ponta a ponta contra o banco de dev real: **8
+usuários internos ativos × 52 pares = 416 células, 183 perdas (esperado — ninguém tem perfil ainda), zero
+ganhos, exit 0.** Esse resultado trivial-mas-correto é o comportamento certo desta onda: é a Onda B que faz
+o número de perdas cair a zero, perfil por perfil, até fechar em zero perdas e zero ganhos.
+
+### 12.6 O que a Onda A deliberadamente NÃO faz
+
+Não semeia nenhum `PerfilAcesso` real (Onda B: "perfis semente = as 126 linhas do seed atual"). Não muda
+nenhum call-site de `can()`/`requirePermission` (Onda D). Não constrói UI de CRUD de perfis nem overrides
+(Onda C). Não resolve a pergunta em aberto de §9.7 sobre o Coordenador manter escopo global — essa decisão
+só faz efeito quando algo passar a LER `escopoGlobalPerfil` em vez de `acessoGlobal()`.

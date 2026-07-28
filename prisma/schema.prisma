@@ -70,10 +70,10 @@ model User {
   image         String?
 
   // Campos de domínio
-  role               Role            @default(cliente)
-  ativo              Boolean         @default(true)
-  mustChangePassword Boolean         @default(false)
-  chatStatus         ChatStatus      @default(disponivel)
+  role               Role       @default(cliente)
+  ativo              Boolean    @default(true)
+  mustChangePassword Boolean    @default(false)
+  chatStatus         ChatStatus @default(disponivel)
 
   // ── Eixos novos (Fase 0) ─────────────────────────────────────────────────────
   // `setor` e `contratacao` são CACHE DENORMALIZADO do vínculo ativo — nunca escritos
@@ -86,25 +86,39 @@ model User {
   /// `externo` marcaria o escritório inteiro como externo caso um deploy aplique a
   /// migration e esqueça `scripts/backfill-vinculos.ts` — mentira silenciosa no banco.
   /// Vira NOT NULL numa migration posterior, quando o backfill tiver rodado em todo lugar.
-  tipo               TipoUsuario?
-  setor              Setor?
-  contratacao        Contratacao?
+  tipo           TipoUsuario?
+  setor          Setor?
+  contratacao    Contratacao?
   /// Ponteiro para o Vinculo corrente. `@unique` garante no banco que um vínculo não é
   /// o "ativo" de dois usuários ao mesmo tempo.
-  vinculoAtivoId     String?         @unique
-  vinculoAtivo       Vinculo?        @relation("VinculoAtivo", fields: [vinculoAtivoId], references: [id])
-  vinculos           Vinculo[]       @relation("VinculosDoUsuario")
+  vinculoAtivoId String?      @unique
+  vinculoAtivo   Vinculo?     @relation("VinculoAtivo", fields: [vinculoAtivoId], references: [id])
+  vinculos       Vinculo[]    @relation("VinculosDoUsuario")
+
+  // ── Motor de permissão (Onda A) ──────────────────────────────────────────────
+  // ZERO MUDANÇA DE COMPORTAMENTO nesta onda: `perfilId` nasce nulo para todo mundo,
+  // e nada em `with-action.ts`/`can()` lê estes campos ainda — autorização real segue
+  // 100% em `role` + `Permissao` até a Onda D fazer o codemod dos call-sites.
+  // Existem agora para permitir testar o motor (`permissaoEfetiva`) e o arnês de
+  // equivalência (§6.2) ANTES da virada, não depois.
+  perfilId     String?
+  perfil       PerfilAcesso?      @relation(fields: [perfilId], references: [id])
+  /// Bypass total, fora da matriz por design — equivalente ao `role === "admin"` de hoje.
+  /// Não vira linha de `PermissaoPerfil`: bypass como dado editável por tela é a falha de
+  /// segurança que este motor deveria eliminar, não reproduzir.
+  superUsuario Boolean            @default(false)
+  overrides    PermissaoUsuario[]
   /// Vínculo do usuário externo (role cliente) ao Cliente que ele representa no portal.
-  clienteId          String?
-  cliente            Cliente?        @relation("ClienteUsuarios", fields: [clienteId], references: [id])
+  clienteId    String?
+  cliente      Cliente?           @relation("ClienteUsuarios", fields: [clienteId], references: [id])
   /// Item 6: PJ (CNPJ) que agrupa este perfil de projetista/colaborador PJ. Opcional —
   /// vínculos existentes (NF, pagamentos, projetos) permanecem no próprio User.
-  pjId               String?
-  pj                 PessoaJuridica? @relation(fields: [pjId], references: [id])
+  pjId         String?
+  pj           PessoaJuridica?    @relation(fields: [pjId], references: [id])
   /// Salário base do colaborador CLT/estagiário (p/ geração automática de holerites).
-  salarioBase        Decimal?        @db.Decimal(12, 2)
+  salarioBase  Decimal?           @db.Decimal(12, 2)
   /// Data de admissão (CLT) — base do período aquisitivo de férias.
-  dataAdmissao       DateTime?
+  dataAdmissao DateTime?
 
   // Item 4 — cadastro completo do colaborador (replicado do RH do sistema antigo).
   // Tipo de contrato = `role`; jornada = `EscalaRole`/`EscalaUsuario` (Ponto v2).
@@ -150,82 +164,85 @@ model User {
   auditLogs         AuditLog[]
   resetSolicitacoes SolicitacaoResetSenha[]
 
-  projetosMembro         ProjetoMembro[]
-  disciplinasResponsavel DisciplinaResponsavel[]
-  revisoes               RevisaoDisciplina[]
-  uploadsAutor           Upload[]                  @relation("UploadAutor")
-  uploadsValidados       Upload[]                  @relation("UploadValidador")
-  uploadsRevisados       Upload[]                  @relation("UploadRevisor")
-  documentosAutor        Documento[]               @relation("DocumentoAutor")
-  pagamentos             PagamentoProjetista[]     @relation("PagamentoProjetista")
-  socio                  Socio?
-  lancamentosAutor       Lancamento[]              @relation("LancamentoAutor")
-  importacoesFinanceiras ImportacaoFinanceira[]    @relation("ImportacaoFinanceiraAutor")
-  canaisMembro           CanalMembro[]
-  canaisCriados          Canal[]                   @relation("CanaisCriados")
-  mensagens              Mensagem[]
-  sessoes                SessaoTrabalho[]
-  batidas                Batida[]
-  batidasAjustadas       Batida[]                  @relation("BatidaCriador")
-  escalasUsuario         EscalaUsuario[]
-  espelhoAceites         EspelhoAceite[]
-  ajustesPonto           AjustePonto[]             @relation("AjustePontoUsuario")
-  ajustesPontoEditados   AjustePonto[]             @relation("AjustePontoEditor")
-  diarioEntradas         DiarioEntrada[]           @relation("DiarioAutor")
-  alertasPontoEnviados   AlertaPontoEnviado[]
-  abonos                 AbonoFalta[]              @relation("AbonoUser")
-  abonosValidados        AbonoFalta[]              @relation("AbonoValidador")
-  ferias                 Ferias[]                  @relation("FeriasUser")
-  feriasValidadas        Ferias[]                  @relation("FeriasValidador")
-  emocoes                RegistroEmocao[]
-  feedbacksHumor         FeedbackHumor[]
-  holerites              Holerite[]
-  onboarding             OnboardingProcesso?
-  notasFiscais           NotaFiscalPJ[]            @relation("NfUser")
-  nfsValidadas           NotaFiscalPJ[]            @relation("NfValidador")
-  documentoVersoes       DocumentoModeloVersao[]
-  atividadesLead         AtividadeLead[]
-  propostasAutor         Proposta[]                @relation("PropostaAutor")
-  propostaVersoes        PropostaVersao[]          @relation("PropostaVersaoAutor")
-  tarefasCriadas         Tarefa[]                  @relation("TarefaCriador")
-  tarefasResponsavel     TarefaResponsavel[]
-  docJuridicoVersoes     DocJuridicoVersao[]
-  docLicitacaoVersoes    DocLicitacaoVersao[]
-  compromissosCriados    Compromisso[]             @relation("CompromissoCriador")
-  compromissosConvites   CompromissoParticipante[]
-  ticketsAutor           TicketSuporte[]           @relation("TicketAutor")
-  ticketMensagens        TicketMensagem[]          @relation("TicketMensagemAutor")
-  recurso                Recurso?
-  dependentes            Dependente[]
-  tarefaComentarios      TarefaComentario[]        @relation("TarefaComentarioAutor")
-  habilidades            UserHabilidade[]
-  rateios                RateioHora[]
-  funcDocumentos         FuncionarioDocumento[]    @relation("FuncDocumentos")
-  bancoHoras             BancoHorasMensal[]
-  feedbacksRecebidos     FeedbackRH[]              @relation("FeedbackAlvo")
-  mensagensLidas         MensagemLeitura[]
-  mensagensEntregues     MensagemEntrega[]
-  mensagensOuvidas       MensagemAudicao[]
-  reacoes                MensagemReacao[]
-  preference             UserPreference?
-  planejamentos          PlanejamentoPagamento[]
-  fechamentos            FechamentoMensal[]
-  responsavelTecnico     ResponsavelTecnico?
-  viabilidadesDecididas  ViabilidadeLicitacao[]    @relation("ViabilidadeDecisor")
-  aceitesGerados         AceiteCliente[]           @relation("AceiteGerador")
-  calculosFerramenta     CalculoFerramenta[]
-  aceitesTermo           AceiteTermo[]
-  ativosResponsavel      Ativo[]                   @relation("AtivoResponsavel")
-  maquinasResponsavel    MaquinaTI[]               @relation("MaquinaResponsavel")
-  avisosCriados          Aviso[]                   @relation("AvisosCriados")
-  avisosRecebidos        AvisoDestinatario[]       @relation("AvisosRecebidos")
-  artsResponsavel        Art[]                     @relation("ArtResponsavel")
-  artsCriadas            Art[]                     @relation("ArtAutor")
-  artVersoesCriadas      ArtVersao[]               @relation("ArtVersaoAutor")
+  projetosMembro                ProjetoMembro[]
+  disciplinasResponsavel        DisciplinaResponsavel[]
+  revisoes                      RevisaoDisciplina[]
+  uploadsAutor                  Upload[]                  @relation("UploadAutor")
+  uploadsValidados              Upload[]                  @relation("UploadValidador")
+  uploadsRevisados              Upload[]                  @relation("UploadRevisor")
+  documentosAutor               Documento[]               @relation("DocumentoAutor")
+  pagamentos                    PagamentoProjetista[]     @relation("PagamentoProjetista")
+  socio                         Socio?
+  lancamentosAutor              Lancamento[]              @relation("LancamentoAutor")
+  importacoesFinanceiras        ImportacaoFinanceira[]    @relation("ImportacaoFinanceiraAutor")
+  canaisMembro                  CanalMembro[]
+  canaisCriados                 Canal[]                   @relation("CanaisCriados")
+  mensagens                     Mensagem[]
+  sessoes                       SessaoTrabalho[]
+  batidas                       Batida[]
+  batidasAjustadas              Batida[]                  @relation("BatidaCriador")
+  escalasUsuario                EscalaUsuario[]
+  espelhoAceites                EspelhoAceite[]
+  ajustesPonto                  AjustePonto[]             @relation("AjustePontoUsuario")
+  ajustesPontoEditados          AjustePonto[]             @relation("AjustePontoEditor")
+  diarioEntradas                DiarioEntrada[]           @relation("DiarioAutor")
+  alertasPontoEnviados          AlertaPontoEnviado[]
+  abonos                        AbonoFalta[]              @relation("AbonoUser")
+  abonosValidados               AbonoFalta[]              @relation("AbonoValidador")
+  ferias                        Ferias[]                  @relation("FeriasUser")
+  feriasValidadas               Ferias[]                  @relation("FeriasValidador")
+  emocoes                       RegistroEmocao[]
+  feedbacksHumor                FeedbackHumor[]
+  holerites                     Holerite[]
+  onboarding                    OnboardingProcesso?
+  notasFiscais                  NotaFiscalPJ[]            @relation("NfUser")
+  nfsValidadas                  NotaFiscalPJ[]            @relation("NfValidador")
+  documentoVersoes              DocumentoModeloVersao[]
+  atividadesLead                AtividadeLead[]
+  propostasAutor                Proposta[]                @relation("PropostaAutor")
+  propostaVersoes               PropostaVersao[]          @relation("PropostaVersaoAutor")
+  tarefasCriadas                Tarefa[]                  @relation("TarefaCriador")
+  tarefasResponsavel            TarefaResponsavel[]
+  docJuridicoVersoes            DocJuridicoVersao[]
+  docLicitacaoVersoes           DocLicitacaoVersao[]
+  compromissosCriados           Compromisso[]             @relation("CompromissoCriador")
+  compromissosConvites          CompromissoParticipante[]
+  ticketsAutor                  TicketSuporte[]           @relation("TicketAutor")
+  ticketMensagens               TicketMensagem[]          @relation("TicketMensagemAutor")
+  recurso                       Recurso?
+  dependentes                   Dependente[]
+  tarefaComentarios             TarefaComentario[]        @relation("TarefaComentarioAutor")
+  habilidades                   UserHabilidade[]
+  rateios                       RateioHora[]
+  funcDocumentos                FuncionarioDocumento[]    @relation("FuncDocumentos")
+  bancoHoras                    BancoHorasMensal[]
+  feedbacksRecebidos            FeedbackRH[]              @relation("FeedbackAlvo")
+  mensagensLidas                MensagemLeitura[]
+  mensagensEntregues            MensagemEntrega[]
+  mensagensOuvidas              MensagemAudicao[]
+  reacoes                       MensagemReacao[]
+  preference                    UserPreference?
+  planejamentos                 PlanejamentoPagamento[]
+  fechamentos                   FechamentoMensal[]
+  responsavelTecnico            ResponsavelTecnico?
+  viabilidadesDecididas         ViabilidadeLicitacao[]    @relation("ViabilidadeDecisor")
+  aceitesGerados                AceiteCliente[]           @relation("AceiteGerador")
+  calculosFerramenta            CalculoFerramenta[]
+  aceitesTermo                  AceiteTermo[]
+  ativosResponsavel             Ativo[]                   @relation("AtivoResponsavel")
+  maquinasResponsavel           MaquinaTI[]               @relation("MaquinaResponsavel")
+  avisosCriados                 Aviso[]                   @relation("AvisosCriados")
+  avisosRecebidos               AvisoDestinatario[]       @relation("AvisosRecebidos")
+  artsResponsavel               Art[]                     @relation("ArtResponsavel")
+  artsCriadas                   Art[]                     @relation("ArtAutor")
+  artVersoesCriadas             ArtVersao[]               @relation("ArtVersaoAutor")
+  orcamentosCustoCriados        CustoOrcamento[]          @relation("CustoOrcamentoCriador")
+  orcamentoRevisoesCustoCriadas CustoOrcamentoRevisao[]   @relation("CustoOrcamentoRevisaoCriador")
 
   @@index([role])
   @@index([tipo, setor])
   @@index([contratacao])
+  @@index([perfilId])
   @@map("user")
 }
 
@@ -242,35 +259,35 @@ model User {
 ///
 /// Invariante: no máximo um vínculo `ativo` por usuário, apontado por `User.vinculoAtivoId`.
 model Vinculo {
-  id           String      @id @default(cuid())
+  id           String          @id @default(cuid())
   userId       String
-  user         User        @relation("VinculosDoUsuario", fields: [userId], references: [id], onDelete: Cascade)
+  user         User            @relation("VinculosDoUsuario", fields: [userId], references: [id], onDelete: Cascade)
   contratacao  Contratacao
   setor        Setor
   /// Cargo/função (texto livre, ex.: "Projetista de Estruturas Sênior"). NÃO é perfil de
   /// acesso — o que a pessoa É para o escritório, não o que ela pode clicar no sistema.
   cargo        String?
   /// Carga horária semanal contratada. Estágio tem teto legal de 30h (Lei 11.788, art. 10, II).
-  cargaSemanal Decimal?    @db.Decimal(4, 1)
+  cargaSemanal Decimal?        @db.Decimal(4, 1)
   /// Salário, bolsa, honorário ou pró-labore — conforme a contratação.
-  remuneracao  Decimal?    @db.Decimal(12, 2)
+  remuneracao  Decimal?        @db.Decimal(12, 2)
   /// PJ que fatura por este vínculo (quando `contratacao` é `pj`).
   pjId         String?
   pj           PessoaJuridica? @relation(fields: [pjId], references: [id])
 
-  dataInicio   DateTime    @db.Date
+  dataInicio DateTime  @db.Date
   /// Encerramento: rescisão, fim de contrato, fim do estágio, distrato. Preencher em vez de
   /// desativar o usuário — hoje o sistema não tem rescisão, e desativar remove a pessoa da
   /// folha do próprio mês da saída.
-  dataFim      DateTime?   @db.Date
-  motivoFim    String?
-  ativo        Boolean     @default(true)
+  dataFim    DateTime? @db.Date
+  motivoFim  String?
+  ativo      Boolean   @default(true)
 
-  criadoEm     DateTime    @default(now())
-  atualizadoEm DateTime    @updatedAt
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
 
   /// Lado inverso de `User.vinculoAtivoId`.
-  usuarioAtivo User?       @relation("VinculoAtivo")
+  usuarioAtivo User? @relation("VinculoAtivo")
 
   @@index([userId, dataInicio])
   @@index([userId, ativo])
@@ -370,6 +387,9 @@ model SolicitacaoResetSenha {
 // Permissões finas (recurso:ação), configuráveis em runtime
 // ─────────────────────────────────────────────────────────────
 
+/// LEGADO — matriz por `role`. Continua sendo a fonte de autorização REAL até a Onda D.
+/// Não é migrado in-place: fica congelado como leitura legada durante a coexistência e é
+/// dropado na Onda F, quando `PermissaoPerfil` já tiver assumido o papel.
 model Permissao {
   id        String  @id @default(cuid())
   role      Role
@@ -380,6 +400,70 @@ model Permissao {
   @@unique([role, recurso, acao])
   @@index([role])
   @@map("permissao")
+}
+
+/// Perfil de acesso nomeado e cadastrável — o "o que a pessoa pode fazer", independente de
+/// Setor/Contratação (que não concedem permissão nenhuma). Plano: Onda A do documento em
+/// docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md.
+model PerfilAcesso {
+  id        String  @id @default(cuid())
+  /// Slug ESTÁVEL — nunca renomear depois de publicado (mesma regra de `ferramentas/registry.ts`):
+  /// é a chave usada por código e por dado histórico (auditoria), não só de exibição.
+  chave     String  @unique
+  /// Rótulo pt-BR, esse sim editável livremente pela tela.
+  nome      String
+  descricao String?
+  /// Perfis semente (Onda B) nascem `sistema: true` — não excluíveis, para sempre existir um
+  /// destino de backfill determinístico. Perfis criados depois pela tela nascem `false`.
+  sistema   Boolean @default(false)
+  ativo     Boolean @default(true)
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  permissoes PermissaoPerfil[]
+  usuarios   User[]
+
+  @@map("perfil_acesso")
+}
+
+/// Matriz do perfil: mesmo par recurso:ação de `Permissao`/`PERMISSOES_CATALOGO`, só que por
+/// `perfilId` em vez de por `role`.
+model PermissaoPerfil {
+  id        String       @id @default(cuid())
+  perfilId  String
+  perfil    PerfilAcesso @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+  recurso   String
+  acao      String
+  permitido Boolean      @default(true)
+
+  @@unique([perfilId, recurso, acao])
+  @@index([perfilId])
+  @@map("permissao_perfil")
+}
+
+/// Override individual — 3 estados possíveis para um par (userId, recurso, acao): ausente (usa
+/// o perfil), concede (`permitido: true`) ou revoga (`permitido: false`, vence mesmo se o
+/// perfil concede). `motivo` é OBRIGATÓRIO: sem isso, em 12 meses ninguém sabe por que fulano
+/// tem uma permissão a mais — o mesmo pântano que este motor veio resolver, só que distribuído
+/// por usuário em vez de concentrado num enum. Não é cacheado (ver `lib/permissao-efetiva.ts`).
+model PermissaoUsuario {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recurso        String
+  acao           String
+  permitido      Boolean
+  motivo         String
+  /// Passada a data, o override para de valer — a permissão volta a ser só a do perfil.
+  expiraEm       DateTime?
+  concedidoPorId String?
+
+  criadoEm DateTime @default(now())
+
+  @@unique([userId, recurso, acao])
+  @@index([userId])
+  @@map("permissao_usuario")
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -568,16 +652,17 @@ model Cliente {
   // Login externo opcional do cliente (criado sob demanda).
   usuarioId String? @unique
 
-  contatos      ContatoCliente[]
-  projetos      Projeto[]
-  lancamentos   Lancamento[]
-  leads         Lead[]
-  propostas     Proposta[]
-  usuarios      User[]              @relation("ClienteUsuarios")
-  docsJuridicos DocumentoJuridico[]
-  documentos    Documento[]
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
+  contatos        ContatoCliente[]
+  projetos        Projeto[]
+  lancamentos     Lancamento[]
+  leads           Lead[]
+  propostas       Proposta[]
+  usuarios        User[]              @relation("ClienteUsuarios")
+  docsJuridicos   DocumentoJuridico[]
+  documentos      Documento[]
+  orcamentosCusto CustoOrcamento[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
   @@index([ativo])
   @@index([nome])
@@ -725,36 +810,37 @@ model Projeto {
   /// e ficam visíveis. Editado em EditarProjetoDialog; aplicado em ProjetoTabNav.
   abasConfig    Json?
 
-  disciplinas        Disciplina[]
-  membros            ProjetoMembro[]
-  inputs             InputProjeto[]
-  briefing           BriefingProjeto?
-  linkInput          LinkPublicoInput?
-  linkArquivos       LinkPublicoArquivos?
-  lancamentos        Lancamento[]
-  canais             Canal[]
-  proposta           Proposta?
-  tarefas            Tarefa[]
-  docsJuridicos      DocumentoJuridico[]
-  documentos         Documento[]
-  licitacao          Licitacao?
-  sessoes            SessaoTrabalho[]
-  eapTarefas         EapTarefa[]
-  alocacoes          Alocacao[]
-  servicos           ServicoTerceirizado[]
-  rateios            RateioHora[]
-  composicaoPreco    ProjetoComposicaoPreco?
-  lmConfig           LmConfig?
-  pranchaCatalogos   PranchaCatalogo[]
-  nomenclaturaConfig NomenclaturaConfig?
-  linhasBase         LinhaBase[]
-  planejamentos      PlanejamentoPagamento[]
-  checklist          ChecklistItemProjeto[]
-  riscos             RiscoProjeto[]
-  calculosFerramenta CalculoFerramenta[]
-  diarioEntradas     DiarioEntrada[]
-  arts               Art[]
+  disciplinas             Disciplina[]
+  membros                 ProjetoMembro[]
+  inputs                  InputProjeto[]
+  briefing                BriefingProjeto?
+  linkInput               LinkPublicoInput?
+  linkArquivos            LinkPublicoArquivos?
+  lancamentos             Lancamento[]
+  canais                  Canal[]
+  proposta                Proposta?
+  tarefas                 Tarefa[]
+  docsJuridicos           DocumentoJuridico[]
+  documentos              Documento[]
+  licitacao               Licitacao?
+  sessoes                 SessaoTrabalho[]
+  eapTarefas              EapTarefa[]
+  alocacoes               Alocacao[]
+  servicos                ServicoTerceirizado[]
+  rateios                 RateioHora[]
+  composicaoPreco         ProjetoComposicaoPreco?
+  lmConfig                LmConfig?
+  pranchaCatalogos        PranchaCatalogo[]
+  nomenclaturaConfig      NomenclaturaConfig?
+  linhasBase              LinhaBase[]
+  planejamentos           PlanejamentoPagamento[]
+  checklist               ChecklistItemProjeto[]
+  riscos                  RiscoProjeto[]
+  calculosFerramenta      CalculoFerramenta[]
+  diarioEntradas          DiarioEntrada[]
+  arts                    Art[]
   apontamentosCoordenacao ApontamentoCoordenacao[]
+  orcamentosCusto         CustoOrcamento[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1823,22 +1909,22 @@ model Disciplina {
   /// Fluxo de conclusão em 2 passos (projetos aprovação/laudo): responsável marca
   /// "projeto aprovado" (seta estes campos + status entregue); superior confirma
   /// (status aprovado) ou recusa (limpa). Substitui a validação por-arquivo nesses tipos.
-  aprovacaoSolicitadaEm   DateTime?
+  aprovacaoSolicitadaEm    DateTime?
   aprovacaoSolicitadaPorId String?
 
-  responsaveis        DisciplinaResponsavel[]
-  revisoes            RevisaoDisciplina[]
-  uploads             Upload[]
-  pastas              PastaProjeto[]
-  pagamentos          PagamentoProjetista[]
-  canais              Canal[]
-  eapTarefas          EapTarefa[]
-  pranchas            Prancha[]
-  solicitacoesRevisao SolicitacaoRevisao[]
-  calculosFerramenta  CalculoFerramenta[]
-  tarefas             Tarefa[]
-  diarioEntradas      DiarioEntrada[]
-  arts                Art[]
+  responsaveis            DisciplinaResponsavel[]
+  revisoes                RevisaoDisciplina[]
+  uploads                 Upload[]
+  pastas                  PastaProjeto[]
+  pagamentos              PagamentoProjetista[]
+  canais                  Canal[]
+  eapTarefas              EapTarefa[]
+  pranchas                Prancha[]
+  solicitacoesRevisao     SolicitacaoRevisao[]
+  calculosFerramenta      CalculoFerramenta[]
+  tarefas                 Tarefa[]
+  diarioEntradas          DiarioEntrada[]
+  arts                    Art[]
   apontamentosCoordenacao ApontamentoCoordenacao[]
 
   createdAt DateTime @default(now())
@@ -2175,28 +2261,28 @@ enum CanalDocumento {
 }
 
 model Documento {
-  id         String            @id @default(cuid())
-  clienteId  String // dono (denormalizado p/ ficha do cliente + escopo do portal)
-  cliente    Cliente           @relation(fields: [clienteId], references: [id], onDelete: Cascade)
-  propostaId String? // âncora comercial
-  proposta   Proposta?         @relation(fields: [propostaId], references: [id], onDelete: SetNull)
-  projetoId  String? // âncora de projeto (docs criados já na fase de projeto)
-  projeto    Projeto?          @relation(fields: [projetoId], references: [id], onDelete: SetNull)
-  origem     OrigemDocumento   @default(recebido_cliente)
-  canal      CanalDocumento    @default(interno)
-  nome       String
-  categoria  String?
-  descricao  String?
+  id                String            @id @default(cuid())
+  clienteId         String // dono (denormalizado p/ ficha do cliente + escopo do portal)
+  cliente           Cliente           @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  propostaId        String? // âncora comercial
+  proposta          Proposta?         @relation(fields: [propostaId], references: [id], onDelete: SetNull)
+  projetoId         String? // âncora de projeto (docs criados já na fase de projeto)
+  projeto           Projeto?          @relation(fields: [projetoId], references: [id], onDelete: SetNull)
+  origem            OrigemDocumento   @default(recebido_cliente)
+  canal             CanalDocumento    @default(interno)
+  nome              String
+  categoria         String?
+  descricao         String?
   /// Documento do "Geral" (origem=interno) marcado p/ também aparecer em "Recebidos
   /// do cliente" — assim projetistas sem `arquivos_gerais:ver` conseguem visualizar,
   /// sem copiar o arquivo em disco. Só faz efeito quando origem=interno.
-  exibirEmRecebidos Boolean     @default(false)
-  autorId    String? // null quando veio de link público sem user interno
-  autor      User?             @relation("DocumentoAutor", fields: [autorId], references: [id])
-  enviadoPor String? // nome digitado no link/portal (proveniência externa)
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-  versoes    DocumentoVersao[]
+  exibirEmRecebidos Boolean           @default(false)
+  autorId           String? // null quando veio de link público sem user interno
+  autor             User?             @relation("DocumentoAutor", fields: [autorId], references: [id])
+  enviadoPor        String? // nome digitado no link/portal (proveniência externa)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  versoes           DocumentoVersao[]
 
   @@index([clienteId])
   @@index([propostaId])
@@ -2219,7 +2305,7 @@ model DocumentoVersao {
 
   /// Coordenação BIM: quando esta versão é um IFC (recebido do cliente), guarda o
   /// estado da conversão para Fragments (.frag) — mesma tabela dos IFCs de disciplina.
-  conversao   ConversaoModelo?
+  conversao        ConversaoModelo?
   /// Visualizador DWG: quando esta versão é um DWG (recebido do cliente), guarda o
   /// estado da conversão para DXF — mesma tabela dos DWGs de disciplina.
   conversaoDesenho ConversaoDesenho?
@@ -2383,6 +2469,8 @@ model Licitacao {
   resultado            ResultadoLicitacao?
   viabilidade          ViabilidadeLicitacao?
   pncpLogs             IntegracaoPNCPLog[]
+  /// Ponte reservada com Engenharia de Custos (D4) — sem uso funcional na Onda C0.
+  orcamentosCusto      CustoOrcamento[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3688,9 +3776,9 @@ enum PacoteUpload {
 }
 
 model Upload {
-  id           String       @id @default(cuid())
+  id           String        @id @default(cuid())
   disciplinaId String
-  disciplina   Disciplina   @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+  disciplina   Disciplina    @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
   /// Localização legada (particular/licitacao): pacote A/B/OUTROS/RECEBIDOS + subpasta por
   /// extensão. Nulo quando o arquivo vive numa PastaProjeto (pastaId setado) — tipos
   /// aprovação/laudo e pastas personalizadas. Sempre um dos dois (pacote XOR pastaId).
@@ -3704,8 +3792,8 @@ model Upload {
   hashSha256   String
   tamanho      Int
   mimeType     String?
-  versao       Int          @default(1)
-  origem       OrigemUpload @default(manual)
+  versao       Int           @default(1)
+  origem       OrigemUpload  @default(manual)
 
   validado      Boolean   @default(false)
   validadoPorId String?
@@ -3728,9 +3816,9 @@ model Upload {
   excluidoEm    DateTime?
   excluidoPorId String?
 
-  aceite     AceiteCliente?
-  pendencias Pendencia[]      @relation("UploadPendencias")
-  conversao  ConversaoModelo?
+  aceite           AceiteCliente?
+  pendencias       Pendencia[]       @relation("UploadPendencias")
+  conversao        ConversaoModelo?
   conversaoDesenho ConversaoDesenho?
 
   @@index([disciplinaId, pacote])
@@ -3745,21 +3833,21 @@ model Upload {
 /// Substitui, nesses casos, a árvore derivada de PacoteUpload + extensão. Um Upload aponta
 /// para uma folha desta árvore via Upload.pastaId.
 model PastaProjeto {
-  id           String        @id @default(cuid())
+  id           String         @id @default(cuid())
   disciplinaId String
-  disciplina   Disciplina    @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+  disciplina   Disciplina     @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
   parentId     String?
-  parent       PastaProjeto? @relation("PastaFilhos", fields: [parentId], references: [id], onDelete: Cascade)
+  parent       PastaProjeto?  @relation("PastaFilhos", fields: [parentId], references: [id], onDelete: Cascade)
   filhos       PastaProjeto[] @relation("PastaFilhos")
   /// Rótulo exibido na árvore e no .zip (ex.: "Laudos").
   nome         String
   /// Slug-path relativo à disciplina, para o armazenamento físico (ex.: "aprovacao/laudos").
   caminho      String
   /// "template" (semeada pelo tipo do projeto) | "custom" (criada por admin).
-  origem       String        @default("custom")
-  ordem        Int           @default(0)
+  origem       String         @default("custom")
+  ordem        Int            @default(0)
   uploads      Upload[]
-  createdAt    DateTime      @default(now())
+  createdAt    DateTime       @default(now())
 
   @@index([disciplinaId, parentId])
   @@map("pasta_projeto")
@@ -3839,28 +3927,28 @@ model VistaCoordenacao {
 /// 1:1 com o Upload (cada versão de IFC tem a sua). O .frag fica em disco
 /// (caminho relativo a STORAGE_BASE_PATH), gerado por job pg-boss em child process.
 model ConversaoModelo {
-  id          String    @id @default(cuid())
+  id                String           @id @default(cuid())
   /// Origem do modelo: EXATAMENTE um de `uploadId` (IFC de disciplina) ou
   /// `documentoVersaoId` (IFC recebido do cliente, repositório Documento). A regra
   /// "exatamente um" é garantida em código (enfileirarConversao / …Documento).
-  uploadId          String?   @unique
-  upload            Upload?   @relation(fields: [uploadId], references: [id], onDelete: Cascade)
-  documentoVersaoId String?   @unique
+  uploadId          String?          @unique
+  upload            Upload?          @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  documentoVersaoId String?          @unique
   documentoVersao   DocumentoVersao? @relation(fields: [documentoVersaoId], references: [id], onDelete: Cascade)
   /// fila | processando | concluido | erro
-  status      String    @default("fila")
+  status            String           @default("fila")
   /// Progresso 0–100 durante `processando` (reportado pelo converter). Barra na UI.
-  progresso   Int?
+  progresso         Int?
   /// Caminho relativo a STORAGE_BASE_PATH (nunca absoluto).
-  caminhoFrag String?
-  tamanhoFrag Int?
-  erro        String?
-  duracaoMs   Int?
-  tentativas  Int       @default(0)
-  iniciadoEm  DateTime?
-  concluidoEm DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  caminhoFrag       String?
+  tamanhoFrag       Int?
+  erro              String?
+  duracaoMs         Int?
+  tentativas        Int              @default(0)
+  iniciadoEm        DateTime?
+  concluidoEm       DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   @@index([status])
   @@map("conversao_modelo")
@@ -3871,29 +3959,29 @@ model ConversaoModelo {
 /// tabela própria (não reaproveita a do IFC: job de limpeza/rota de streaming
 /// são específicos de cada fluxo).
 model ConversaoDesenho {
-  id          String    @id @default(cuid())
+  id                String           @id @default(cuid())
   /// Origem do desenho: EXATAMENTE um de `uploadId` (DWG de disciplina) ou
   /// `documentoVersaoId` (DWG recebido do cliente, repositório Documento). A regra
   /// "exatamente um" é garantida em código (enfileirarConversaoDwg).
-  uploadId          String?   @unique
-  upload            Upload?   @relation(fields: [uploadId], references: [id], onDelete: Cascade)
-  documentoVersaoId String?   @unique
+  uploadId          String?          @unique
+  upload            Upload?          @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  documentoVersaoId String?          @unique
   documentoVersao   DocumentoVersao? @relation(fields: [documentoVersaoId], references: [id], onDelete: Cascade)
   /// fila | processando | concluido | erro
-  status      String    @default("fila")
+  status            String           @default("fila")
   /// Progresso 0–100 durante `processando` (grosseiro — ODA não reporta progresso
   /// fino, ver spike F0.1). Barra na UI.
-  progresso   Int?
+  progresso         Int?
   /// Caminho relativo a STORAGE_BASE_PATH (nunca absoluto).
-  caminhoDxf String?
-  tamanhoDxf Int?
-  erro        String?
-  duracaoMs   Int?
-  tentativas  Int       @default(0)
-  iniciadoEm  DateTime?
-  concluidoEm DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  caminhoDxf        String?
+  tamanhoDxf        Int?
+  erro              String?
+  duracaoMs         Int?
+  tentativas        Int              @default(0)
+  iniciadoEm        DateTime?
+  concluidoEm       DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   @@index([status])
   @@map("conversao_desenho")
@@ -3910,9 +3998,9 @@ model ConversaoDesenho {
 /// uploadId cru ou `d:<versaoId>`) e o apontamento precisa SOBREVIVER à exclusão do
 /// modelo em que nasceu (âncora de snapshot) — uma FK quebraria isso.
 model ApontamentoCoordenacao {
-  id             String    @id @default(cuid())
+  id             String      @id @default(cuid())
   projetoId      String
-  projeto        Projeto   @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  projeto        Projeto     @relation(fields: [projetoId], references: [id], onDelete: Cascade)
   /// Disciplina do modelo apontado. NULL quando o apontamento é sobre um IFC
   /// recebido do cliente (repositório Documento), que não pertence a disciplina.
   disciplinaId   String?
@@ -3929,7 +4017,7 @@ model ApontamentoCoordenacao {
   camera         Json
   snapshotPath   String?
   /// aberta | resolvida | fechada | descartada
-  status         String    @default("aberta")
+  status         String      @default("aberta")
   prioridade     String?
   /// Guid do Topic gerado no export BCF (habilita round-trip futuro).
   bcfGuid        String?
@@ -3940,7 +4028,7 @@ model ApontamentoCoordenacao {
   resolvidoEm    DateTime?
   fechadoPorId   String?
   fechadoEm      DateTime?
-  createdAt      DateTime  @default(now())
+  createdAt      DateTime    @default(now())
 
   @@index([projetoId, status])
   @@index([projetoId, numero])
@@ -4335,4 +4423,165 @@ model ManutencaoMaquina {
 
   @@index([maquinaId])
   @@map("manutencao_maquina")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Engenharia de Custos (trabalho concorrente — reintegrado de stash após a
+// migration 20260728120000_custos_fundacao ter sido aplicada por outra sessão)
+// ─────────────────────────────────────────────────────────────
+
+enum StatusCustoOrcamento {
+  rascunho
+  em_elaboracao
+  concluido
+  aprovado
+  cancelado
+}
+
+enum CustoRegimeTributario {
+  lucro_presumido
+  lucro_real
+  simples_nacional
+}
+
+enum CustoRegimeEncargos {
+  desonerado
+  nao_desonerado
+}
+
+enum CustoTipoItem {
+  grupo
+  servico
+}
+
+/// Cabeçalho do orçamento de obra. FK de projeto opcional (D1: estudo avulso via `nomeAvulso`).
+model CustoOrcamento {
+  id        String               @id @default(cuid())
+  titulo    String
+  descricao String?
+  status    StatusCustoOrcamento @default(rascunho)
+
+  /// Um dos dois é obrigatório (regra aplicada no Zod + service, não no banco): obra real ancora
+  /// em `Projeto`; estudo avulso/terceiro usa `nomeAvulso`.
+  projetoId  String?
+  projeto    Projeto? @relation(fields: [projetoId], references: [id])
+  /// Preenchido quando o orçamento NÃO tem `Projeto` (estudo avulso, orçamento para terceiros).
+  nomeAvulso String?
+
+  /// Contratante, quando diferente do cliente do projeto (ou em orçamento avulso).
+  contratanteId   String?
+  contratante     Cliente? @relation(fields: [contratanteId], references: [id])
+  contratanteNome String?
+
+  /// Data-base dos preços de todo o orçamento (SINAPI/SICRO/etc. publicam por mês).
+  dataBase DateTime @db.Date
+
+  // BDI — Acórdão TCU 2622/2013 (percentuais editáveis; `bdiPercentual` é o resultado materializado).
+  bdiAdmCentral          Decimal  @default(0) @db.Decimal(5, 2)
+  bdiSeguro              Decimal  @default(0) @db.Decimal(5, 2)
+  bdiRisco               Decimal  @default(0) @db.Decimal(5, 2)
+  bdiGarantia            Decimal  @default(0) @db.Decimal(5, 2)
+  bdiDespesasFinanceiras Decimal  @default(0) @db.Decimal(5, 2)
+  bdiLucro               Decimal  @default(0) @db.Decimal(5, 2)
+  bdiPis                 Decimal  @default(0) @db.Decimal(5, 2)
+  bdiCofins              Decimal  @default(0) @db.Decimal(5, 2)
+  bdiIss                 Decimal  @default(0) @db.Decimal(5, 2)
+  bdiCprb                Decimal  @default(0) @db.Decimal(5, 2)
+  /// Resultado materializado de `bdi.ts#calcularBdi` no momento do cálculo — não recalculado a
+  /// cada leitura, para a revisão ficar reproduzível anos depois.
+  bdiPercentual          Decimal? @db.Decimal(5, 2)
+
+  // Encargos sociais de obra (Grupos A/B/C/D — ver `encargos-obra.ts`).
+  regimeEncargos        CustoRegimeEncargos @default(nao_desonerado)
+  /// Preset de rubricas usado como base (ex.: "sinapi"). Hoje só existe `PRESET_ENCARGOS_SINAPI`.
+  encargosPreset        String              @default("sinapi")
+  /// Override por rubrica: `{ codigo, horista?, mensalista? }[]` — ver `OverrideEncargo`.
+  encargosOverridesJson Json?
+  /// Resultados materializados de `encargos-obra.ts#calcularEncargos`.
+  encargosHoristaPct    Decimal?            @db.Decimal(5, 2)
+  encargosMensalistaPct Decimal?            @db.Decimal(5, 2)
+
+  regimeTributario CustoRegimeTributario
+
+  /// Ponte financeira RESERVADA (D4) — sem uso funcional na Onda C0. A geração de `Lancamento`
+  /// previsto acontece hoje só pelo caminho licitação/proposta (`MedicaoLicitacao`), não por aqui.
+  licitacaoId String?
+  licitacao   Licitacao? @relation(fields: [licitacaoId], references: [id])
+
+  criadoPorId String
+  criadoPor   User   @relation("CustoOrcamentoCriador", fields: [criadoPorId], references: [id])
+
+  revisoes CustoOrcamentoRevisao[]
+  itens    CustoOrcamentoItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projetoId])
+  @@index([status])
+  @@index([licitacaoId])
+  @@index([contratanteId])
+  @@index([criadoPorId])
+  @@map("custo_orcamento")
+}
+
+/// Snapshot imutável de uma revisão do orçamento. Nunca sofre UPDATE/DELETE — nova revisão é
+/// sempre um novo `numero`. Quem escreve aqui é a Onda C6; o model só é declarado agora.
+model CustoOrcamentoRevisao {
+  id               String         @id @default(cuid())
+  orcamentoId      String
+  orcamento        CustoOrcamento @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
+  numero           Int
+  /// Snapshot completo do orçamento (cabeçalho + árvore de itens) no momento da revisão.
+  snapshotJson     Json
+  valorTotal       Decimal        @db.Decimal(14, 2)
+  valorTotalComBdi Decimal        @db.Decimal(14, 2)
+  dataBase         DateTime       @db.Date
+
+  criadoPorId String
+  criadoPor   User   @relation("CustoOrcamentoRevisaoCriador", fields: [criadoPorId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([orcamentoId, numero])
+  @@index([orcamentoId])
+  @@map("custo_orcamento_revisao")
+}
+
+/// Nó da árvore do orçamento (grupo ou serviço). CRUD e roll-up persistido são da Onda C2 — o
+/// model é declarado agora porque `orcamento-arvore.ts` (motor puro) já opera sobre este formato.
+model CustoOrcamentoItem {
+  id          String               @id @default(cuid())
+  orcamentoId String
+  orcamento   CustoOrcamento       @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
+  parentId    String?
+  parent      CustoOrcamentoItem?  @relation("CustoItemFilhos", fields: [parentId], references: [id], onDelete: Cascade)
+  filhos      CustoOrcamentoItem[] @relation("CustoItemFilhos")
+
+  tipo      CustoTipoItem
+  /// Código WBS materializado (1.2.3) — recalculado por `orcamento-arvore.ts#calcularCodigosWbs`.
+  codigo    String
+  ordem     Int           @default(0)
+  descricao String
+  unidade   String?
+
+  quantidade    Decimal  @default(0) @db.Decimal(12, 2)
+  /// Custo unitário materializado (da composição, ou digitado). Ver `bloqueado`.
+  custoUnitario Decimal  @default(0) @db.Decimal(14, 2)
+  /// null = herda do pai mais próximo com valor, ou do orçamento (`bdiEfetivo`).
+  bdiPercentual Decimal? @db.Decimal(5, 2)
+  /// Preço travado — não recalcula ao trocar a base de preços (C2).
+  bloqueado     Boolean  @default(false)
+
+  /// Totais materializados pelo roll-up (`orcamento-arvore.ts`) — nunca calculados na leitura.
+  totalSemBdi Decimal @default(0) @db.Decimal(14, 2)
+  totalComBdi Decimal @default(0) @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orcamentoId, codigo])
+  @@index([orcamentoId])
+  @@index([parentId])
+  @@map("custo_orcamento_item")
 }
