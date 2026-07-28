@@ -1,6 +1,7 @@
 # Setor × Contratação × Perfil de Acesso — separar vínculo, função e permissão
 
-**Data:** 2026-07-27 · **Status:** P1, Fase 0 e **Onda A implementados**; Ondas B → F pendentes · **Branch:** `dev`
+**Data:** 2026-07-27 · **Status:** P1, Fase 0, Onda A e **Onda B (parcial) implementados**;
+resta a separação ponto×apontamento + mapa contábil + ciclo em sombra · **Branch:** `dev`
 
 Deliberado por conselho de 4 cadeiras (Gerente de RH, Dev Sênior, Diretor, Usuária final), duas rodadas:
 parecer independente + confronto cruzado. Divergências e concessões registradas em §8.
@@ -590,3 +591,82 @@ Não semeia nenhum `PerfilAcesso` real (Onda B: "perfis semente = as 126 linhas 
 nenhum call-site de `can()`/`requirePermission` (Onda D). Não constrói UI de CRUD de perfis nem overrides
 (Onda C). Não resolve a pergunta em aberto de §9.7 sobre o Coordenador manter escopo global — essa decisão
 só faz efeito quando algo passar a LER `escopoGlobalPerfil` em vez de `acessoGlobal()`.
+
+---
+
+## 13. Onda B (parcial) — implementada em 2026-07-28
+
+Escopo entregue: **perfis semente + backfill + piso de sócio via override**. **NÃO** entregue nesta
+passada: separação ponto×apontamento (bug (c) "resolvido de verdade"), mapa contábil §6.3, ciclo em
+sombra — ver §13.5. Checkpoint deliberado: a separação ponto×apontamento é mudança de comportamento real
+num módulo de dinheiro/jornada, e merece sua própria passada de atenção, não ser encaixada de carona aqui.
+
+Lint limpo, **140 arquivos / 1292 testes**, build limpo (após `rm -rf .next`).
+
+### 13.1 Perfis semente lêem `Permissao` ao vivo, não `PERMISSOES_BASE`
+
+`prisma/seed-perfis-acesso.ts` espelha a tabela `Permissao` (legado, já semeada) em
+`PerfilAcesso`/`PermissaoPerfil` — não importa a constante `PERMISSOES_BASE` de `prisma/seed.ts`. Motivo:
+o espelho fica automaticamente correto mesmo que outro módulo adicione linhas depois (aconteceu de fato:
+Custos somou `custos:ver/gerir/bancos/cotacao` entre uma leitura e outra desta sessão). Mapa de chaves em
+`src/modules/usuarios/vinculo/perfil-semente.ts` (client-safe, testado): **um perfil por ROLE ATUAL, não
+por função** — `clt` e `projetista_pj` fazem hoje a mesma função mas têm matrizes DIFERENTES (só `clt` tem
+`arquivos:ver_todas_disciplinas`), então consolidar os dois num perfil "Projetista" agora quebraria o
+espelho fiel. Essa consolidação é o objetivo de fundo da reforma inteira, mas é decisão CONSCIENTE de
+reconciliar as diferenças — deferida, não automatizada aqui. `admin` não vira perfil (idem Onda A).
+`GLOBAL_ROLES` (`supervisor`) ganha a permissão sintética `escopo:global` no perfil — inerte até a Onda D.
+
+### 13.2 Achado real durante a implementação: 23 permissões órfãs do Coordenador
+
+Ao rodar o seed pela primeira vez, o perfil `coordenador` saiu com **46 linhas** em vez das 23 esperadas
+(22 do seed atual + `escopo:global`). Investigado: a correção anterior desta reforma (commit `a55e9e9`,
+"alinha a matriz semente do coordenador com a matriz real") só editou o **array fonte** — `upsert` nunca
+revoga, então as 23 linhas antigas (`financeiro:ver/gerir`, `usuarios:gerir`, `rh:cadastro/folha`,
+`patrimonio:ti`, `juridico:gerir`, administração de ponto etc.) continuavam no banco com `permitido: true`.
+**Na prática, `can("supervisor", "financeiro", "ver")` e companhia estavam retornando `true` no banco de
+dev desde aquele commit**, apesar do commit dizer "matriz fechada". Corrigido em `prisma/seed.ts`: a etapa
+de permissões base agora poda (`deleteMany`) qualquer linha de `Permissao` cujo (role,recurso,acao) não
+esteja mais em `PERMISSOES_BASE`, para os roles presentes na lista — idempotente, sem afetar roles sem
+entrada nenhuma. Rodado: 23 órfãs removidas na primeira execução, 0 na segunda. **Nota de processo:** esse
+bug NÃO teria travado o gate de equivalência (§6.2) — ele se manifesta como `perda` (`true→false` ao
+comparar contra a matriz nova, correta), que é warning, não falha. Só foi achado por estranhar a contagem
+de linhas do perfil, não pelo script automatizado. Fica registrado como lição: número de linhas inesperado
+merece investigação mesmo com gate verde.
+
+### 13.3 Piso de sócio: override granular, não um perfil `socio`
+
+Decisão que diverge do texto original do plano (§5.1 dizia "perfil `socio`... substituindo o piso"): hoje
+`ehSocio` faz `requireRole`/`requirePermission` tratar QUALQUER usuário como coordenador em QUALQUER
+checagem — não é um perfil à parte, é um "OU" aplicado toda vez. Reproduzir isso como perfil fixo exigiria
+combinar coordenador com o role base de cada sócio (explosão combinatória) ou substituir o perfil do
+usuário (perdendo "sou administrativo E sócio" na ficha). Em vez disso, `scripts/backfill-perfis-acesso.ts`
+mantém o `perfilId` do sócio no seu PRÓPRIO role, e materializa a DIFERENÇA entre a matriz do coordenador e
+a matriz própria como `PermissaoUsuario` (uma linha por permissão faltante, `motivo` explicando a origem,
+sem `expiraEm` — indefinido até alguém revogar pela tela). Testado no dev real: os dois únicos sócios do
+dataset (`admin`, que já tem bypass total via `superUsuario`, e a `supervisor`/coordenadora, cuja própria
+matriz já é a do coordenador) corretamente geraram **zero** overrides — delta vazio nos dois casos, não bug.
+
+### 13.4 Verificação: espelho perfeito
+
+Rodado contra o dev real, nesta ordem: `db:seed` (perfis + poda) → `backfill-perfis-acesso.ts` (perfilId +
+superUsuario + overrides) → `checar-equivalencia-permissoes.ts`. Resultado: **8 usuários × 52 pares = 416
+células, 0 ganhos, 0 PERDAS** — diferente do resultado trivial da Onda A (0 ganhos, 183 perdas esperadas
+porque ninguém tinha perfil). Agora é espelho byte-a-byte: `permissaoEfetiva()` concorda com `can()` em
+100% das células, para todo usuário ativo. Reexecutar `backfill-perfis-acesso.ts` confirma idempotência
+(0 mudanças na 2ª vez). `can()`/`with-action.ts` continuam intocados — zero mudança de comportamento real,
+isto é só o dado pronto para a Onda D.
+
+### 13.5 O que falta para fechar a Onda B
+
+1. **Separar ponto de apontamento (bug (c) "resolvido de verdade").** Verificado nesta sessão:
+   `aplicarBatida()` (`modules/ponto/service.ts`) é o ÚNICO ponto de escrita de `SessaoTrabalho` no
+   sistema inteiro — não existe hoje nenhum jeito de PJ/freelancer/sócio lançar horas pro rateio a não ser
+   passando pela máquina de estados do ponto (geo, idempotência, `EspelhoAceite`). Separar exige uma nova
+   Server Action de "apontamento" (abrir/fechar `SessaoTrabalho` sem o vocabulário entrada/descanso/saída)
+   para quem não é `CLT_ROLES`, preservando `aplicarBatida` intacto para CLT/estágio. É funcionalidade
+   nova, não edição pequena — merece passada própria.
+2. **Mapa contábil §6.3** — `CATEGORIA_POR_TIPO` (`financeiro/custo/lancamento-custo.ts`) precisa de
+   entrada explícita antes de qualquer contratação migrar de fato (ainda não migrou — Onda B não mexeu em
+   `role`/`Contratacao` de ninguém).
+3. **Ciclo em sombra** — não é tarefa de código: é observar um fechamento de folha real com os dois
+   modelos calculando em paralelo antes da Onda D cortar de vez. Depende de calendário, não de trabalho.

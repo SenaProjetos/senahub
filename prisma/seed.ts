@@ -4,6 +4,7 @@ import { auth } from "../src/lib/auth";
 import { docVazio, novoId, type DocSchema } from "../src/modules/documentos/schema";
 import { MODALIDADES_PADRAO } from "../src/modules/licitacoes/modalidade";
 import { semearEscalaRolePadrao } from "./escalas-padrao";
+import { seedPerfisAcesso } from "./seed-perfis-acesso";
 import type { Prisma } from "../src/generated/prisma/client";
 
 const ADMIN_EMAIL = "tadrio@senaprojetos.com.br";
@@ -301,6 +302,23 @@ async function main() {
       update: {},
     });
   }
+  // Poda: `upsert` só ADICIONA — se uma linha for removida de PERMISSOES_BASE (um role fica
+  // com MENOS acesso), a linha antiga fica órfã no banco com `permitido: true` para sempre,
+  // porque nada nunca a revoga. Achado real: a redução do coordenador (commit a55e9e9) editou
+  // só o array e deixou 23 linhas órfãs (financeiro, usuarios:gerir, rh:folha, patrimonio:ti
+  // etc.) ainda concedidas no banco de dev, apesar do commit dizer "matriz fechada em 20". Só
+  // afeta roles presentes em PERMISSOES_BASE — não mexe em role sem entrada nenhuma na lista.
+  const rolesComBase = new Set(PERMISSOES_BASE.map((p) => p.role));
+  const chavesAtuais = new Set(PERMISSOES_BASE.map((p) => `${p.role}::${p.recurso}:${p.acao}`));
+  const existentes = await prisma.permissao.findMany({
+    where: { role: { in: [...rolesComBase] as never[] } },
+    select: { id: true, role: true, recurso: true, acao: true },
+  });
+  const orfaos = existentes.filter((e) => !chavesAtuais.has(`${e.role}::${e.recurso}:${e.acao}`));
+  if (orfaos.length > 0) {
+    await prisma.permissao.deleteMany({ where: { id: { in: orfaos.map((o) => o.id) } } });
+    console.log(`✔ ${orfaos.length} permissão(ões) órfã(s) podada(s) (removidas de PERMISSOES_BASE mas ainda no banco).`);
+  }
   console.log(`✔ ${PERMISSOES_BASE.length} permissões base garantidas.`);
 
   // 3) Catálogo de disciplinas
@@ -497,6 +515,11 @@ async function main() {
 
   // 11) Escala padrão por perfil (corrige a jornada legal do estagiário — 6h/dia)
   await semearEscalaRolePadrao();
+
+  // 12) Perfis de acesso semente (Onda B) — espelha `Permissao` (acima) em PerfilAcesso.
+  // Autorização real segue 100% em `role` até a Onda D; isto só prepara o dado.
+  const { perfis } = await seedPerfisAcesso(prisma);
+  console.log(`✔ ${perfis.length} perfil(is) de acesso semeado(s): ${perfis.map((p) => p.chave).join(", ")}.`);
 }
 
 /** Layout exemplo: timbrado + dados do projeto + tabela de disciplinas + total. */
