@@ -6,6 +6,8 @@ import { logAudit, getClientIp } from "@/lib/audit";
 import { salvarArquivo, slug, nomeArquivoLimpo } from "@/lib/storage";
 import { HR_ADMIN_ROLES } from "@/lib/roles";
 
+const MAX = 25 * 1024 * 1024;
+
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
@@ -23,6 +25,9 @@ export async function POST(req: Request) {
   let atestadoPath: string | null = null;
   let atestadoNome: string | null = null;
   if (atestado instanceof File && atestado.size > 0) {
+    if (atestado.size > MAX) {
+      return NextResponse.json({ error: "Atestado muito grande (máx 25 MB)." }, { status: 400 });
+    }
     const nome = nomeArquivoLimpo(atestado.name);
     const rel = `rh/atestados/${user.id}/${Date.now()}_${slug(nome)}`;
     const salvo = await salvarArquivo(rel, Buffer.from(await atestado.arrayBuffer()));

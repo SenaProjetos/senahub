@@ -36,16 +36,24 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    // Tudo exceto assets estáticos, imagens, a API de auth e as rotas de upload.
+    // Tudo exceto assets estáticos, imagens e a API inteira.
     //
-    // Rotas de upload (api/uploads, api/documentos, api/chat/anexo) ficam FORA do
-    // middleware de propósito: o Next 15.5 bufferiza o body em memória quando a rota
-    // passa pelo middleware, com teto de 10 MB (middlewareClientMaxBodySize) — bodies
-    // maiores são truncados e o multipart quebra ("expected boundary after body").
-    // Envios diretos chegam a 70 MB e chunks a 45 MB (lib/upload-grande.ts), então
-    // excluir do matcher evita o truncamento E o custo de RAM por request.
-    // ATENÇÃO: toda rota sob esses prefixos DEVE se auto-autenticar (getSession +
-    // mustChangePassword + ativo) — não há mais checagem otimista de cookie aqui.
-    "/((?!api/auth|api/uploads|api/documentos|api/chat/anexo|api/suporte/anexo|_next/static|_next/image|favicon.ico|MARCA|manifest.json|sw.js|robots.txt).*)",
+    // `/api` fica FORA do middleware por completo. Dois motivos:
+    //
+    // 1. Correção: o Next 15.5 bufferiza o body em memória quando a rota passa pelo
+    //    middleware, com teto de 10 MB (middlewareClientMaxBodySize). Bodies maiores
+    //    são truncados e o multipart quebra com "expected boundary after body" — 500 de
+    //    corpo vazio. Antes só alguns prefixos de upload eram excluídos, e toda rota
+    //    multipart nova caía nessa armadilha (foi o que derrubou /api/engenharia/normas).
+    // 2. Segurança: aqui só se verifica a PRESENÇA do cookie (getSessionCookie), nunca a
+    //    validade. Toda rota de API já chama getSession/requireUser/requirePermission ou
+    //    valida um token público, o que é estritamente mais forte. Tirar o middleware do
+    //    caminho não afrouxa nada — só economiza RAM por request.
+    //
+    // Exceções por desenho, que continuam sem sessão: /api/health (monitoramento) e
+    // /api/auth/** (handler do better-auth).
+    //
+    // ATENÇÃO: rota de API nova DEVE se auto-autenticar — não há checagem de cookie aqui.
+    "/((?!api/|_next/static|_next/image|favicon.ico|MARCA|manifest.json|sw.js|robots.txt).*)",
   ],
 };

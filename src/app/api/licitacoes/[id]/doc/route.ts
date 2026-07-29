@@ -6,6 +6,8 @@ import { salvarArquivo, slug, nomeArquivoLimpo } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { registrarHistorico, textoUploadDoc } from "@/modules/licitacoes/historico";
 
+const MAX = 25 * 1024 * 1024;
+
 /** Upload de documento da licitação (cria doc + versão, ou nova versão se título igual). */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -25,6 +27,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!(file instanceof File) || !titulo) {
     return NextResponse.json({ error: "Título e arquivo obrigatórios." }, { status: 400 });
   }
+  if (file.size > MAX) return NextResponse.json({ error: "Arquivo muito grande (máx 25 MB)." }, { status: 400 });
 
   let doc = await prisma.documentoLicitacao.findFirst({
     where: { licitacaoId: id, titulo },

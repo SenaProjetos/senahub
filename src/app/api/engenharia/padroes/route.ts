@@ -18,20 +18,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 
-  const form = await req.formData();
-  const file = form.get("file");
-  if (!(file instanceof File)) return NextResponse.json({ error: "Arquivo ausente." }, { status: 400 });
-  if (file.size > MAX) return NextResponse.json({ error: "Arquivo muito grande (máx 50 MB)." }, { status: 400 });
+  // Mesmo motivo da rota de normas: exceção sem tratamento vira 500 sem corpo.
+  try {
+    const form = await req.formData();
+    const file = form.get("file");
+    if (!(file instanceof File)) return NextResponse.json({ error: "Arquivo ausente." }, { status: 400 });
+    if (file.size > MAX) return NextResponse.json({ error: "Arquivo muito grande (máx 50 MB)." }, { status: 400 });
 
-  const nome = nomeArquivoLimpo(file.name || "arquivo");
-  const ext = nome.includes(".") ? nome.slice(nome.lastIndexOf(".")) : "";
-  const rel = `engenharia/padroes/${randomBytes(12).toString("hex")}${ext}`;
-  const salvo = await salvarArquivo(rel, Buffer.from(await file.arrayBuffer()));
-  return NextResponse.json({
-    caminho: salvo.caminho,
-    nomeArquivo: nome,
-    mime: file.type || "application/octet-stream",
-    tamanho: salvo.tamanho,
-    hashSha256: salvo.hashSha256,
-  });
+    const nome = nomeArquivoLimpo(file.name || "arquivo");
+    const ext = nome.includes(".") ? nome.slice(nome.lastIndexOf(".")) : "";
+    const rel = `engenharia/padroes/${randomBytes(12).toString("hex")}${ext}`;
+    const salvo = await salvarArquivo(rel, Buffer.from(await file.arrayBuffer()));
+    return NextResponse.json({
+      caminho: salvo.caminho,
+      nomeArquivo: nome,
+      mime: file.type || "application/octet-stream",
+      tamanho: salvo.tamanho,
+      hashSha256: salvo.hashSha256,
+    });
+  } catch (e) {
+    console.error("[engenharia/padroes] falha no upload:", e);
+    return NextResponse.json(
+      { error: "Falha ao receber o arquivo. Tente novamente; se persistir, avise o suporte." },
+      { status: 500 },
+    );
+  }
 }

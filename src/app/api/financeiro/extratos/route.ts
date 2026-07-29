@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { parseOfx } from "@/lib/ofx";
+import { IMPORT_TAMANHO_MAX } from "@/lib/import/planilha";
 
 export async function POST(req: Request) {
   const session = await getSession();
@@ -19,6 +20,9 @@ export async function POST(req: Request) {
   const file = form.get("file");
   if (!contaId || !(file instanceof File)) {
     return NextResponse.json({ error: "Conta e arquivo OFX são obrigatórios." }, { status: 400 });
+  }
+  if (file.size > IMPORT_TAMANHO_MAX) {
+    return NextResponse.json({ error: "Arquivo muito grande (máx 20 MB)." }, { status: 400 });
   }
 
   const conta = await prisma.contaBancaria.findUnique({ where: { id: contaId } });

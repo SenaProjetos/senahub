@@ -15,6 +15,16 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatarData } from "@/lib/utils";
 
+/** Corpo da rota de upload: metadata em caso de sucesso, `error` em caso de falha. */
+type RespostaUpload = {
+  caminho: string;
+  nomeArquivo: string;
+  mime?: string | null;
+  tamanho: number;
+  hashSha256?: string | null;
+  error?: string;
+};
+
 function fmtBytes(n: number) {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
@@ -61,8 +71,12 @@ export function NormasView({
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/engenharia/normas", { method: "POST", body: fd });
-      const meta = await res.json();
-      if (!res.ok) throw new Error(meta.error ?? "Falha no upload.");
+      // Resposta de erro pode vir sem corpo JSON (500 do runtime, página da CDN);
+      // ler antes de checar o status esconderia a causa atrás de um erro de parse.
+      const meta = (await res.json().catch(() => null)) as RespostaUpload | null;
+      if (!res.ok || !meta?.caminho) {
+        throw new Error(meta?.error ?? `Falha no upload (HTTP ${res.status}).`);
+      }
       const r = await criarNorma({ numero: form.numero, titulo: form.titulo, ano: Number(form.ano), meta });
       if (r.ok) {
         toast.success("Norma catalogada.");

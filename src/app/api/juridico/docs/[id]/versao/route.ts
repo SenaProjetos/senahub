@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { salvarArquivo, slug, nomeArquivoLimpo } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 
+const MAX = 25 * 1024 * 1024;
+
 /** Upload de nova versão de documento jurídico (multipart). */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -26,6 +28,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "Arquivo obrigatório." }, { status: 400 });
   }
+  if (file.size > MAX) return NextResponse.json({ error: "Arquivo muito grande (máx 25 MB)." }, { status: 400 });
 
   const numero = (doc.versoes[0]?.numero ?? 0) + 1;
   const nome = nomeArquivoLimpo(file.name);

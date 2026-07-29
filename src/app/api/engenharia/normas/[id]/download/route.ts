@@ -8,6 +8,11 @@ import { logAudit, getClientIp } from "@/lib/audit";
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+  // Rota fora do matcher do middleware (ver src/middleware.ts) — a checagem de
+  // conta ativa / troca de senha pendente é feita aqui.
+  if (session.user.mustChangePassword || !session.user.ativo) {
+    return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
+  }
   if (!(await podeVerBiblioteca(session.user.role))) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }

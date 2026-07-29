@@ -18,22 +18,34 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 
-  const form = await req.formData();
-  const file = form.get("file");
-  if (!(file instanceof File)) return NextResponse.json({ error: "Arquivo ausente." }, { status: 400 });
-  if (file.size > MAX) return NextResponse.json({ error: "Arquivo muito grande (máx 50 MB)." }, { status: 400 });
+  // Sem o try/catch, qualquer exceção (parse do multipart interrompido, erro de
+  // disco em STORAGE_BASE_PATH) vira um 500 de corpo VAZIO e o cliente quebra no
+  // res.json() sem nunca mostrar a causa. Aqui o detalhe vai para o log do
+  // servidor e o usuário recebe uma mensagem legível.
+  try {
+    const form = await req.formData();
+    const file = form.get("file");
+    if (!(file instanceof File)) return NextResponse.json({ error: "Arquivo ausente." }, { status: 400 });
+    if (file.size > MAX) return NextResponse.json({ error: "Arquivo muito grande (máx 50 MB)." }, { status: 400 });
 
-  const nome = nomeArquivoLimpo(file.name || "norma.pdf");
-  const ehPdf = nome.toLowerCase().endsWith(".pdf") || file.type === "application/pdf";
-  if (!ehPdf) return NextResponse.json({ error: "Envie um arquivo PDF." }, { status: 400 });
+    const nome = nomeArquivoLimpo(file.name || "norma.pdf");
+    const ehPdf = nome.toLowerCase().endsWith(".pdf") || file.type === "application/pdf";
+    if (!ehPdf) return NextResponse.json({ error: "Envie um arquivo PDF." }, { status: 400 });
 
-  const rel = `engenharia/normas/${randomBytes(12).toString("hex")}.pdf`;
-  const salvo = await salvarArquivo(rel, Buffer.from(await file.arrayBuffer()));
-  return NextResponse.json({
-    caminho: salvo.caminho,
-    nomeArquivo: nome,
-    mime: "application/pdf",
-    tamanho: salvo.tamanho,
-    hashSha256: salvo.hashSha256,
-  });
+    const rel = `engenharia/normas/${randomBytes(12).toString("hex")}.pdf`;
+    const salvo = await salvarArquivo(rel, Buffer.from(await file.arrayBuffer()));
+    return NextResponse.json({
+      caminho: salvo.caminho,
+      nomeArquivo: nome,
+      mime: "application/pdf",
+      tamanho: salvo.tamanho,
+      hashSha256: salvo.hashSha256,
+    });
+  } catch (e) {
+    console.error("[engenharia/normas] falha no upload:", e);
+    return NextResponse.json(
+      { error: "Falha ao receber o arquivo. Tente novamente; se persistir, avise o suporte." },
+      { status: 500 },
+    );
+  }
 }

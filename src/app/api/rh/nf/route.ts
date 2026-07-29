@@ -6,6 +6,8 @@ import { salvarArquivo, slug, nomeArquivoLimpo } from "@/lib/storage";
 import { notificarMuitos } from "@/lib/notificar";
 import { HR_ADMIN_ROLES, PJ_ROLES } from "@/lib/roles";
 
+const MAX = 25 * 1024 * 1024;
+
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
@@ -21,6 +23,7 @@ export async function POST(req: Request) {
   if (!(file instanceof File) || !valor || valor <= 0) {
     return NextResponse.json({ error: "Arquivo e valor são obrigatórios." }, { status: 400 });
   }
+  if (file.size > MAX) return NextResponse.json({ error: "Arquivo muito grande (máx 25 MB)." }, { status: 400 });
 
   const nome = nomeArquivoLimpo(file.name);
   const relativo = `nf-pj/${slug(user.name)}_${user.id.slice(0, 6)}/${Date.now()}_${slug(nome)}`;
