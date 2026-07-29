@@ -17,7 +17,7 @@
  * automatizar silenciosamente aqui.
  */
 import type { PrismaClient } from "@/generated/prisma/client";
-import { GLOBAL_ROLES, ROLES, type Role } from "@/lib/roles";
+import { ROLES, type Role } from "@/lib/roles";
 import { CHAVE_POR_ROLE, NOME_POR_ROLE } from "@/modules/usuarios/vinculo/perfil-semente";
 
 export { CHAVE_POR_ROLE };
@@ -55,12 +55,14 @@ export async function seedPerfisAcesso(prisma: PrismaClient): Promise<ResultadoS
       .filter((l) => l.permitido)
       .map((l) => ({ perfilId: perfil.id, recurso: l.recurso, acao: l.acao, permitido: true }));
 
-    // Escopo de dados: hoje é código puro (`GLOBAL_ROLES`), não passa por `Permissao`.
-    // Espelha aqui como par sintético `escopo:global` — inerte até a Onda D religar
-    // `acessoGlobal()` em cima do motor novo (ver lib/session.ts).
-    if (GLOBAL_ROLES.includes(role)) {
-      linhas.push({ perfilId: perfil.id, recurso: "escopo", acao: "global", permitido: true });
-    }
+    // Escopo de dados (`escopo:global`, sintético — não passa por `Permissao`): NENHUM perfil
+    // semente recebe automaticamente. Decisão do dono (2026-07-28, §9.7): Coordenador NÃO
+    // mantém o escopo global que `supervisor` tem hoje via `GLOBAL_ROLES` — a empresa está
+    // migrando para gestores por setor, e "todo coordenador vê todo projeto da empresa" não
+    // serve mais esse desenho. Continua inerte até a Onda D religar `acessoGlobal()` (hoje
+    // ainda lê `GLOBAL_ROLES`, código, sem mudança de comportamento real por este seed). Um
+    // futuro perfil "gestor de setor" que precise de escopo mais amplo que um projeto (mas
+    // não necessariamente global) é desenho novo, não este par binário — feito quando existir.
 
     await prisma.$transaction([
       prisma.permissaoPerfil.deleteMany({ where: { perfilId: perfil.id } }),

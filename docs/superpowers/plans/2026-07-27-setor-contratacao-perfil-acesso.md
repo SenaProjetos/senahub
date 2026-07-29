@@ -420,7 +420,19 @@ direto tem *menos* acesso, não mais**:
 - **Setor dos vínculos operacionais: RESOLVIDO** — default `engenharia` para CLT, estágio, PJ e freelancer
   (§6.1, nota 2). **Não bloqueia mais a Fase 0.**
 - **Destino do perfil `supervisor`: RESOLVIDO** — vira "Coordenador", Engenharia, CLT (§6.1, nota 3).
-  Rótulo já trocado. **Resta confirmar** se o Coordenador mantém o escopo global de hoje.
+  Rótulo já trocado.
+- **Escopo global do Coordenador: RESOLVIDO (2026-07-28) — opção B, PERDE o escopo global.**
+  Decisão do dono: *"hoje temos somente a gestão como coordenadores, mas já estamos em processo de
+  implementação de novos gestores por setor — melhor já implementar dessa forma para atender essa
+  nova visão empresarial."* Ou seja: a regra "todo Coordenador vê todo projeto da empresa" não serve
+  mais o desenho organizacional em construção (gestores por setor, não uma coordenação única). Um
+  Coordenador passa a ver os projetos que ele participa, igual a um projetista comum — não mais
+  todos. Implementado em `prisma/seed-perfis-acesso.ts` (§14.9): o perfil semente `coordenador` não
+  recebe mais `escopo:global` automaticamente. Inerte até a Onda D religar `acessoGlobal()` — hoje
+  ninguém perde acesso de verdade, só o DADO do perfil já nasce correto para quando a Onda D cortar.
+  Nota para o futuro: um perfil "gestor de setor" pode precisar de escopo intermediário (todos os
+  projetos DO SETOR, não da empresa inteira nem só os próprios) — isso é desenho novo, não o par
+  binário `escopo:global` que existe hoje; fica para quando esse perfil for definido de verdade.
 - **Quais freelancers são `pj` (CNPJ, emite NF) e quais são `autonomo_rpa`** (§9.2). O backfill migra todos
   como `pj` provisoriamente, mantendo a conta contábil 2.02 (§6.3); a reclassificação é pessoa a pessoa.
 - **Revisão pós-virada do setor** — quem não é de Engenharia se corrige na tela de cadastro. Como setor não
@@ -589,8 +601,9 @@ o número de perdas cair a zero, perfil por perfil, até fechar em zero perdas e
 
 Não semeia nenhum `PerfilAcesso` real (Onda B: "perfis semente = as 126 linhas do seed atual"). Não muda
 nenhum call-site de `can()`/`requirePermission` (Onda D). Não constrói UI de CRUD de perfis nem overrides
-(Onda C). Não resolve a pergunta em aberto de §9.7 sobre o Coordenador manter escopo global — essa decisão
-só faz efeito quando algo passar a LER `escopoGlobalPerfil` em vez de `acessoGlobal()`.
+(Onda C). Na época desta onda, §9.7 (Coordenador manter escopo global) ainda estava em aberto — resolvido
+depois em §14.9 (opção B, perde o escopo). De qualquer forma, essa decisão só faz efeito quando algo
+passar a LER `escopoGlobalPerfil` em vez de `acessoGlobal()` — o que segue sendo a Onda D.
 
 ---
 
@@ -782,9 +795,9 @@ lugar certo é dentro do próprio script de cutover da Onda D, não um módulo s
 
 ### 14.8 Onda E, passo 2 (§6.4) — materializar `EscalaUsuario` — implementado em 2026-07-28
 
-Adiantado enquanto a Onda D fica travada por dois gates fora do meu controle (ciclo em sombra,
-calendário; e a decisão pendente do Coordenador em §9.7). Este passo é seguro fazer isolado — não
-depende de nenhum dos dois, é puramente aditivo.
+Adiantado enquanto a Onda D ficava travada por dois gates fora do meu controle (ciclo em sombra,
+calendário; e a decisão pendente do Coordenador em §9.7 — resolvida depois, ver §14.9). Este passo
+é seguro fazer isolado — não depende de nenhum dos dois, é puramente aditivo.
 
 Verificado antes de escrever: nenhum consumidor real (`resolverEscala` em `ponto/service.ts`,
 `horasDiaPadraoEmLote` em `rh/escalas/queries.ts` — o do rateio, dinheiro de verdade) confia no
@@ -808,6 +821,25 @@ pré-requisito; o resto de Onda E segue depois de Onda D, como o plano sempre pr
 ### 14.7 O que fica para a Onda D
 
 Codemod dos 119 `can()`, as 36 audience queries, `nav-config` → permissão, religar `acessoGlobal()` em
-cima de `escopoGlobalPerfil` (pendente a decisão de §9.7 sobre o Coordenador manter escopo global), e só
-então restringir `registrarBatida` a `CLT_ROLES` de vez. Gate: ciclo em sombra (§13.6) + equivalência
-com 0 ganhos rodada contra produção, não só dev.
+cima de `escopoGlobalPerfil` (decisão de §9.7 já resolvida — Coordenador perde o escopo global, ver
+§14.9), e só então restringir `registrarBatida` a `CLT_ROLES` de vez. Gate: ciclo em sombra (§13.6) +
+equivalência com 0 ganhos rodada contra produção, não só dev.
+
+### 14.9 Escopo global do Coordenador — decisão registrada e semente corrigida em 2026-07-28
+
+§9.7 resolvido: **opção B, o Coordenador perde o escopo global** que `supervisor` tem hoje via
+`GLOBAL_ROLES`. Motivo do dono: a empresa está migrando para gestores por setor, não uma coordenação
+única que enxerga tudo — manter o escopo global do jeito de hoje contrariaria esse desenho novo.
+
+`prisma/seed-perfis-acesso.ts` deixou de conceder `escopo:global` automaticamente a qualquer perfil
+espelhado de `GLOBAL_ROLES` — antes o fazia para `coordenador` (porque `supervisor` está em
+`GLOBAL_ROLES` hoje). Rodado `db:seed` de novo e verificado: perfil `coordenador` caiu de 23 para 22
+linhas, sem `escopo:global`. **Zero mudança de comportamento real** — `acessoGlobal()` (`lib/roles.ts`)
+continua lendo `GLOBAL_ROLES` diretamente (código, não os dados do perfil) até a Onda D religar essa
+função no motor novo. Isso só corrige o DADO que a Onda D vai consumir, para não nascer errado.
+
+Registrado para quando a Onda D acontecer: sem mais gate de decisão em §9.7 — só faltam os dois gates
+originais (ciclo em sombra + equivalência 0 ganhos em produção). Nota para o futuro, não para agora: um
+perfil "gestor de setor" (mencionado pelo dono como já em implementação) provavelmente vai precisar de
+um escopo intermediário — todos os projetos DO SETOR, não da empresa inteira nem só os do próprio
+usuário — que é desenho novo, não o par binário `escopo:global` que existe hoje.
