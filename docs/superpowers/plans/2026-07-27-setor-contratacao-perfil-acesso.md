@@ -780,6 +780,31 @@ Onda D rodar o corte de verdade — construir a função de composição agora, 
 abstração para uma necessidade hipotética. Decisão consciente de não fazer, não pendência esquecida — o
 lugar certo é dentro do próprio script de cutover da Onda D, não um módulo separado à espera de uso.
 
+### 14.8 Onda E, passo 2 (§6.4) — materializar `EscalaUsuario` — implementado em 2026-07-28
+
+Adiantado enquanto a Onda D fica travada por dois gates fora do meu controle (ciclo em sombra,
+calendário; e a decisão pendente do Coordenador em §9.7). Este passo é seguro fazer isolado — não
+depende de nenhum dos dois, é puramente aditivo.
+
+Verificado antes de escrever: nenhum consumidor real (`resolverEscala` em `ponto/service.ts`,
+`horasDiaPadraoEmLote` em `rh/escalas/queries.ts` — o do rateio, dinheiro de verdade) confia no
+fallback interno de `escalaUsuarioGrade` (que cairia em 8h fixo) — todos cruzam corretamente com
+`escalaRoleGrade(role)` quando o usuário não tem override. Não havia bug vivo aqui, diferente do
+achado das permissões órfãs — só faltava dar o passo de materialização em si.
+
+`scripts/materializar-escala-usuario.ts`: para cada interno ativo sem NENHUMA linha em
+`EscalaUsuario` (idempotente — pula até override parcial/inativo, nunca sobrescreve edição
+manual), grava a grade vigente (`escalaRoleGrade(role)`) como override próprio. Roda com snapshot
+`horasDiaPadraoEmLote` antes/depois e falha se qualquer usuário mudar de horas — mesmo espírito do
+arnês de equivalência de permissões, agora para jornada.
+
+Rodado no dev real: 8 internos ativos, 6 já tinham escala própria do dataset demo (Diego/estagiário
+6h, Elis/freelancer 4h — preservadas intactas), 2 materializados (14 linhas), **zero mudança de
+jornada**. Reexecução confirma idempotência (0/8 na segunda vez). Isso destrava criar
+`EscalaContratacao` sem a colisão de `administrativo`/`clt`/`ti` colapsando no mesmo slot — mas a
+criação do enum em si ainda é passo 3 de §6.4, não feito agora (a materialização era o
+pré-requisito; o resto de Onda E segue depois de Onda D, como o plano sempre previu).
+
 ### 14.7 O que fica para a Onda D
 
 Codemod dos 119 `can()`, as 36 audience queries, `nav-config` → permissão, religar `acessoGlobal()` em
