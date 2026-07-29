@@ -1,6 +1,6 @@
 # Engenharia de Custos — Onda C2: Orçamento
 
-**Data:** 2026-07-28 · **Status:** plano aguardando OK · **Branch:** `dev` · **Modelo:** Opus
+**Data:** 2026-07-28 · **Status:** implementado — `tsc`/`test` (1336)/`lint`/`build` limpos, smoke real com SINAPI 06/2026, commit `0223f85` (schema em `009a05a`) · **Branch:** `dev` · **Modelo:** Opus
 
 Depende de: [C0 — Fundação](2026-07-27-custos-c0-fundacao.md) (`9c0c2d5`) e
 [C1 — Bancos](2026-07-28-custos-c1-bancos.md) (`3bd05d9`), ambas implementadas.
