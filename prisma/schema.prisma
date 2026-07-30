@@ -1085,7 +1085,32 @@ model Fornecedor {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  /// Suprimentos (Onda C4) — UFs atendidas.
+  lancamentos     Lancamento[]
+  servicos        ServicoTerceirizado[]
+  catalogo        FornecedorServico[]
+  subcontratacoes SubcontratacaoLicitacao[]
+  sancoes         SancaoConcorrente[]
+
+  @@index([ativo])
+  @@map("fornecedor")
+}
+
+/// Fornecedor de material/insumo de obra — cadastro dedicado a Cotações (Onda C4), independente do
+/// `Fornecedor` do financeiro (serviços/subcontratados/despesas): populações diferentes de verdade, não
+/// a mesma entidade duplicada (ver design §11).
+model CustoFornecedor {
+  id          String     @id @default(cuid())
+  tipo        TipoPessoa @default(PJ)
+  nome        String
+  documento   String?
+  email       String?
+  telefone    String?
+  observacoes String?
+  ativo       Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  /// UFs atendidas.
   regioesAtendidas      String[]          @default([])
   /// Categorias de insumo que este fornecedor costuma cotar — filtro de sugestão ao convidar pra RFQ.
   categoriasFornecidas  CategoriaInsumo[] @default([])
@@ -1094,18 +1119,13 @@ model Fornecedor {
   /// Nota subjetiva 0.00–5.00, editada manualmente por quem gerencia o cadastro.
   avaliacaoNota         Decimal?          @db.Decimal(3, 2)
 
-  lancamentos     Lancamento[]
-  servicos        ServicoTerceirizado[]
-  catalogo        FornecedorServico[]
-  subcontratacoes SubcontratacaoLicitacao[]
-  sancoes         SancaoConcorrente[]
-  representantes  CustoFornecedorRepresentante[]
-  rfqConvites     CustoRfqConvite[]
-  propostas       CustoProposta[]
-  precoHistorico  CustoPrecoHistorico[]
+  representantes CustoFornecedorRepresentante[]
+  rfqConvites    CustoRfqConvite[]
+  propostas      CustoProposta[]
+  precoHistorico CustoPrecoHistorico[]
 
   @@index([ativo])
-  @@map("fornecedor")
+  @@map("custo_fornecedor")
 }
 
 /// Serviço que um fornecedor presta (catálogo) — com valor de referência (A7).
@@ -4882,15 +4902,15 @@ model CustoVinculoBim {
 
 /// Suprimentos (Onda C4) — contato de um fornecedor. Mesma forma de FornecedorServico.
 model CustoFornecedorRepresentante {
-  id           String     @id @default(cuid())
+  id           String          @id @default(cuid())
   fornecedorId String
-  fornecedor   Fornecedor @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
+  fornecedor   CustoFornecedor @relation(fields: [fornecedorId], references: [id], onDelete: Cascade)
   nome         String
   cargo        String?
   telefone     String?
   email        String?
-  ativo        Boolean    @default(true)
-  createdAt    DateTime   @default(now())
+  ativo        Boolean         @default(true)
+  createdAt    DateTime        @default(now())
 
   @@index([fornecedorId])
   @@map("custo_fornecedor_representante")
@@ -4962,7 +4982,7 @@ model CustoRfqConvite {
   rfqId        String
   rfq          CustoRfq           @relation(fields: [rfqId], references: [id], onDelete: Cascade)
   fornecedorId String
-  fornecedor   Fornecedor         @relation(fields: [fornecedorId], references: [id])
+  fornecedor   CustoFornecedor    @relation(fields: [fornecedorId], references: [id])
   status       CustoStatusConvite @default(convidado)
   convidadoEm  DateTime           @default(now())
   respondidoEm DateTime?
@@ -4978,7 +4998,7 @@ model CustoProposta {
   rfqId                String
   rfq                  CustoRfq            @relation(fields: [rfqId], references: [id], onDelete: Cascade)
   fornecedorId         String
-  fornecedor           Fornecedor          @relation(fields: [fornecedorId], references: [id])
+  fornecedor           CustoFornecedor     @relation(fields: [fornecedorId], references: [id])
   status               CustoStatusProposta @default(recebida)
   frete                Decimal?            @db.Decimal(14, 2)
   /// true = preço unitário do item já inclui impostos; comparador NÃO soma `impostosValor` de novo.
@@ -5043,18 +5063,18 @@ model CustoPropostaAnexo {
 /// Append-only — nunca deletar/atualizar. 1 linha por item da proposta vencedora, gravada na mesma
 /// transação que marca a proposta `vencedora` (service.ts#escolherVencedor).
 model CustoPrecoHistorico {
-  id           String         @id @default(cuid())
+  id           String           @id @default(cuid())
   insumoId     String?
-  insumo       CustoInsumo?   @relation(fields: [insumoId], references: [id])
+  insumo       CustoInsumo?     @relation(fields: [insumoId], references: [id])
   descricao    String
   fornecedorId String?
-  fornecedor   Fornecedor?    @relation(fields: [fornecedorId], references: [id])
+  fornecedor   CustoFornecedor? @relation(fields: [fornecedorId], references: [id])
   propostaId   String?
-  proposta     CustoProposta? @relation(fields: [propostaId], references: [id])
-  valor        Decimal        @db.Decimal(14, 2)
+  proposta     CustoProposta?   @relation(fields: [propostaId], references: [id])
+  valor        Decimal          @db.Decimal(14, 2)
   unidade      String
-  data         DateTime       @db.Date
-  createdAt    DateTime       @default(now())
+  data         DateTime         @db.Date
+  createdAt    DateTime         @default(now())
 
   @@index([insumoId])
   @@index([fornecedorId])

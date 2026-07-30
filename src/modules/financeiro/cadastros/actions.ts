@@ -18,7 +18,6 @@ import {
   formaPagamentoEditSchema,
   fornecedorSchema,
   fornecedorEditSchema,
-  representanteSchema,
   socioSchema,
   socioEditSchema,
   idSchema,
@@ -133,26 +132,6 @@ export const alternarFornecedor = defineAction(
   { ...base, acao: "alternar-fornecedor", entidade: "Fornecedor", schema: toggleSchema },
   async (i) => {
     await prisma.fornecedor.update({ where: { id: i.id }, data: { ativo: i.ativo } });
-    rev();
-    return { id: i.id };
-  },
-);
-
-// ── Representantes do fornecedor (Onda C4 — Suprimentos) ───────
-export const criarRepresentante = defineAction(
-  { ...base, acao: "criar-representante", entidade: "CustoFornecedorRepresentante", schema: representanteSchema },
-  async (i) => {
-    const c = await prisma.custoFornecedorRepresentante.create({
-      data: { ...i, email: i.email || null },
-    });
-    rev();
-    return { id: c.id };
-  },
-);
-export const removerRepresentante = defineAction(
-  { ...base, acao: "remover-representante", entidade: "CustoFornecedorRepresentante", schema: idSchema },
-  async (i) => {
-    await prisma.custoFornecedorRepresentante.delete({ where: { id: i.id } });
     rev();
     return { id: i.id };
   },

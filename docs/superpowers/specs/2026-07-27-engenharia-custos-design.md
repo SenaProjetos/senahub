@@ -231,7 +231,7 @@ e não no `Projeto`. Assim:
 | 3 | Quantitativos (auto/semi/manual) | — | **novo**, mas o motor de agregação é puro e testado |
 | 4 | Banco de composições + import SINAPI/SICRO/… | `lib/import/*` (CSV/XLSX + mapeamento por sinônimos) | **reusar o motor de import**; entidades novas |
 | 5 | Banco de insumos + múltiplas bases de preço | — | **novo** |
-| 6 | Cadastro de fornecedores | **`Fornecedor` + `FornecedorServico` já existem** | **ESTENDER o model existente** — proibido criar `FornecedorCusto`; campos faltantes (regiões, condições, prazo médio, avaliação) entram como colunas novas ou tabela satélite 1:N |
+| 6 | Cadastro de fornecedores | ~~**`Fornecedor` + `FornecedorServico` já existem** — ESTENDER o model existente~~ **REVOGADO 2026-07-30** (ver nota abaixo) | novo model `CustoFornecedor`, dedicado — `Fornecedor`/`FornecedorServico` do financeiro seguem intocados |
 | 7 | Cotações (RFQ) | — | **novo**; anexos de proposta reusam o padrão multipart + `Upload`/storage |
 | 8 | Comparador de cotações | — | **novo**; motor de comparação = módulo **puro testado** |
 | 9 | Histórico de preços | padrão de histórico: `LancamentoStatusHistorico`, `NotaFiscalPJHistorico`, `LicitacaoHistorico` | **novo**, seguindo o padrão de tabela-histórico append-only |
@@ -304,7 +304,7 @@ Prefixo `Custo…` para o que é do domínio de orçamento; sufixo de domínio q
 | `CustoPreco` | preço de um insumo numa base numa data-base | `@@unique([baseId, insumoId, dataBase])` |
 | `CustoPrecoHistorico` | append-only de todo preço cotado (fornecedor, obra, data) | nunca deletar |
 | `CustoRfq` / `CustoRfqItem` | solicitação de cotação e seus itens | |
-| `CustoRfqConvite` | fornecedor convidado + status | FK para o **`Fornecedor` existente** |
+| `CustoRfqConvite` | fornecedor convidado + status | FK para `CustoFornecedor` (dedicado, revogado 2026-07-30 — não é o `Fornecedor` do financeiro) |
 | `CustoProposta` / `CustoPropostaItem` | proposta recebida (preço, frete, impostos, prazo, validade, condições) | anexos via `Upload` |
 | `CustoMedicao` / `CustoMedicaoItem` | medição do período | espelha `MedicaoLicitacao`; gera `Lancamento` previsto |
 | `CustoVinculoBim` | ligação item de orçamento ↔ IfcGuid | tabela de junção, base do 5D |
@@ -419,7 +419,7 @@ Ondas no formato dos planos existentes (`docs/superpowers/plans/`), cada uma fec
 | **C1 — Bancos** | insumos, bases de preço, composições, importador de base (job pg-boss) | C0, D2 |
 | **C2 — Orçamento** | árvore hierárquica, item ↔ composição, custo unitário materializado, recálculo, planilha orçamentária (XLSX/PDF) | C1 |
 | **C3 — Quantitativos** | levantamento manual + semi-auto (DWG) + auto (IFC via `indice-elementos`), vínculo BIM, caderno de quantitativos | C2 |
-| **C4 — Suprimentos** | extensão do `Fornecedor`, RFQ, propostas, comparador, escolha com justificativa, histórico de preços | C0 |
+| **C4 — Suprimentos** | `CustoFornecedor` dedicado (não é extensão do `Fornecedor` financeiro — ver §11), RFQ, propostas, comparador, escolha com justificativa, histórico de preços | C0 |
 | **C5 — Tempo & dinheiro** | cronograma sobre `EapTarefa`, físico-financeiro, Curva S, Curva ABC | C2, D5 |
 | **C6 — Medições & revisões** | medições mensais, integração financeira, revisões versionadas, diff | C5, D3, D4 |
 | **C7 — Relatórios & 5D** | os 11 relatórios, histogramas, destaque visual de elementos no viewer por item de orçamento | C3, C6 |
@@ -433,7 +433,13 @@ com CPM existente), **C6 Opus** (versionamento/diff + ponte financeira), **C7 So
 
 ## 11. Anti-padrões — o que explicitamente NÃO fazer
 
-- Criar `FornecedorCusto` / `ObraCusto` / segundo cadastro de cliente.
+- Criar `ObraCusto` / segundo cadastro de cliente.
+- ~~Criar `FornecedorCusto`~~ — **revogado 2026-07-30**: fornecedor do financeiro (serviços/
+  subcontratados/despesas) e fornecedor de material cotado em RFQ são populações diferentes de verdade,
+  não a mesma entidade duplicada — o anti-padrão original valia pra evitar duplicar cadastro da MESMA
+  população, não pra forçar a fusão de duas populações distintas. C4 usa `CustoFornecedor`, dedicado;
+  `Fornecedor`/`FornecedorServico` do financeiro seguem intocados. Ver plano de C4 §10 pro detalhe da
+  migração.
 - Escrever outro algoritmo de caminho crítico ou outro componente de Gantt.
 - Adicionar recharts/chart.js/d3 — o padrão do repo é SVG à mão.
 - Criar rotas REST de CRUD para orçamento/itens.

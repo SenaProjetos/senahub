@@ -1,6 +1,6 @@
 # Engenharia de Custos — Onda C4: Suprimentos
 
-**Data:** 2026-07-30 · **Status:** implementado — tsc/test/lint/build limpos; falta smoke em navegador (usuário) · **Branch:** `dev` · **Modelo:** Sonnet
+**Data:** 2026-07-30 · **Status:** revisão pós-commit concluída (§10 — fornecedor financeiro × obra separados), tsc/test/lint/build limpos; falta smoke em navegador (usuário) · **Branch:** `dev` · **Modelo:** Sonnet
 
 Depende de: [C0 — Fundação](2026-07-27-custos-c0-fundacao.md) (`9c0c2d5`), já implementada. **Não**
 depende de C1/C2/C3 — RFQ/cotação é ortogonal a bancos/orçamento/quantitativos (usa `CustoInsumo` de
@@ -429,7 +429,7 @@ eventos), e removido todo resíduo `TESTE*` do banco de dev ao final.
      o alerta TODO dia, indefinidamente, até alguém fechar/cancelar a RFQ manualmente (efeito "todo mundo
      silencia a categoria"). Corrigido pra usar `diaAlvo(-1)` (mesmo padrão do D-3/D-1 acima e de
      `alertaCertidoes`/`alertasPrazoDisciplina`) — dispara só no dia seguinte ao vencimento, uma vez.
-     Verificado por raciocínio de datas (janela de 1 dia útil só bate no dia D+1) + smoke que confirmou
+     Verificado por raciocínio de datas (janela de 1 dia de calendário só bate no dia D+1) + smoke que confirmou
      zero resíduo na tabela `Notificacao` após a corrida.
   2. **Corrida em `escolherVencedor`** — o guard `status !== "recebida"` era um `findUnique` fora da
      `$transaction`; dois cliques/chamadas concorrentes na MESMA proposta passavam ambos no guard antes
@@ -457,7 +457,7 @@ eventos), e removido todo resíduo `TESTE*` do banco de dev ao final.
 
 1. `/custos/cotacoes` → **Nova RFQ** → título, prazo de resposta, 2 itens (1 com busca de insumo, 1
    livre) → salvar (`rascunho`).
-2. Convidar 3 fornecedores (cadastrar 1 novo em `/financeiro/cadastros` se faltar, com região/categoria
+2. Convidar 3 fornecedores (cadastrar 1 novo em `/custos/fornecedores` se faltar, com região/categoria
    preenchidas) → RFQ vira `aberta`.
 3. **Registrar proposta** × 3 — a terceira deixando 1 item sem preço (parcial). Anexar 1 PDF de teste
    numa delas.
@@ -467,7 +467,7 @@ eventos), e removido todo resíduo `TESTE*` do banco de dev ao final.
    → confirmar → as outras 2 mostram `nao_escolhida`, RFQ `encerrada`.
 6. Ficha do insumo linkado (C1, `/custos` bancos) → aba/seção de histórico de preço → linha nova com
    fornecedor, valor, data.
-7. `/financeiro/cadastros` → fornecedor → conferir campos novos salvos + representante adicionado.
+7. `/custos/fornecedores` → fornecedor → conferir campos novos salvos + representante adicionado.
 
 ## 9. Fora de escopo (não invadir)
 
@@ -478,3 +478,91 @@ eventos), e removido todo resíduo `TESTE*` do banco de dev ao final.
   a regra em si é C7/IA, não esta onda).
 - Qualquer coisa de C1 (bancos)/C2 (orçamento)/C3 (quantitativos) além do link opcional a `CustoInsumo`.
 - Cronograma, medições, revisões (C5/C6/C7).
+
+## 10. Revisão pós-commit (2026-07-30) — fornecedor separado por domínio
+
+**Motivo (usuário):** "Os fornecedores do financeiro não são os mesmos dos orçamentos de obra." Reusar
+`Fornecedor` (financeiro — serviços/subcontratados/despesas, ligado a `Lancamento`,
+`ServicoTerceirizado`, `SubcontratacaoLicitacao`, `SancaoConcorrente`) pra fornecedor de material/insumo
+cotado em RFQ foi decisão errada, mesmo o design original ter marcado "modelo paralelo" como
+anti-padrão — o anti-padrão valia pra evitar duplicar cadastro da MESMA população; aqui são populações
+diferentes de verdade.
+
+**Confirmado sem mudança de código:** o "sistema manual" já é o comportamento atual —
+`convidarFornecedores` só grava `CustoRfqConvite` (nenhum e-mail/notificação sai pro fornecedor) e
+`registrarProposta` já é "proposta digitada por um funcionário a partir do que o fornecedor enviou"
+(comentário original em `service.ts:49`). Nenhuma tela sugere contato automático. Aprovação/vencedor e
+alertas de prazo/sem-resposta seguem exatamente como estão.
+
+**Mudança de schema:**
+- Novo model `CustoFornecedor` (`@@map("custo_fornecedor")`, módulo custos) — carrega os 5 campos que
+  hoje estão em `Fornecedor`: `regioesAtendidas`, `categoriasFornecidas`, `prazoMedioDiasEntrega`,
+  `condicoesComerciais`, `avaliacaoNota`, mais nome/documento/tipo/email/telefone/ativo básicos.
+- `Fornecedor` (financeiro) volta ao formato pré-C4 — remove os 5 campos + as 4 relations
+  (`representantes`/`rfqConvites`/`propostas`/`precoHistorico`). `Lancamento`, `ServicoTerceirizado`,
+  `FornecedorServico`, `SubcontratacaoLicitacao`, `SancaoConcorrente` não tocam nenhum desses 5 campos/4
+  relations hoje (confirmado por varredura) — revert é seguro.
+  Retarget de FK: `CustoFornecedorRepresentante.fornecedorId`, `CustoRfqConvite.fornecedorId`,
+  `CustoProposta.fornecedorId`, `CustoPrecoHistorico.fornecedorId` (nullable, mantém) — todos passam a
+  apontar pra `CustoFornecedor` em vez de `Fornecedor`.
+- Migração nova (forward-only): `ALTER TABLE fornecedor DROP` dos 5 campos, `CREATE TABLE
+  custo_fornecedor`, drop+recria as 4 FKs acima apontando pro novo `custo_fornecedor(id)`. Sem dado real
+  (feature não usada em prod ainda) — sem migração de dado.
+
+**Mudança de código:**
+- Novo submódulo `src/modules/custos/fornecedores/` (`schemas.ts`/`queries.ts`/`actions.ts`) — CRUD do
+  `CustoFornecedor` + `criarRepresentante`/`removerRepresentante` (movidos de
+  `financeiro/cadastros/actions.ts`).
+- Nova tela `/custos/fornecedores` (nav própria dentro de Custos) — CRUD completo + representantes,
+  movendo o que hoje está bolted-on em `fornecedores-section.tsx` (campos região/categoria/prazo/
+  condições/avaliação, seção de representantes, seção de histórico de preço).
+- `financeiro/cadastros` (schemas/actions/queries/UI) volta ao pré-C4: remove `criarRepresentante`/
+  `removerRepresentante`, os 5 campos do form/type, a seção de histórico de preço, o import cruzado de
+  `custos/cotacoes`, e o threading de `podeCotacao`.
+- `custos/cotacoes` (`service.ts`, `queries.ts`, `actions.ts`, os 3 dialogs que buscam/exibem
+  fornecedor) trocam `prisma.fornecedor` → `prisma.custoFornecedor`. Nenhuma mudança de contrato pros
+  componentes (RfqDetalheView etc. já só carregam `fornecedorId`/`fornecedorNome`/`avaliacaoFornecedor`
+  por tipo próprio, não o model inteiro).
+- §8 roteiro: passo 2 e 7 passam a apontar pra `/custos/fornecedores` em vez de `/financeiro/cadastros`.
+
+**Fora de escopo (explicitamente, por ora):** qualquer link entre `CustoFornecedor` e `Fornecedor`
+financeiro (ex.: quando a compra virar lançamento a pagar) — não pedido, fica pra quando surgir a
+necessidade real.
+
+### Passos de execução
+- [x] Passo A — schema (`CustoFornecedor` + revert `Fornecedor` + migração
+  `20260730160000_custos_fornecedor_separado`, via skill `nova-migracao`/shadow DB — sem reset, sem
+  perda de dado, os 4 FKs alvo confirmados vazios antes do diff). `permissions-catalog.ts` conferido:
+  `custos:cotacao` já estava seeded desde C0 — não era bug vivo, tela nova reusa a mesma permissão (sem
+  `db:seed` extra).
+- [x] Passo B — `src/modules/custos/fornecedores/` (schemas/queries/actions). `categoriaInsumo` do zod
+  passou a derivar de `Object.values(CategoriaInsumo)` (enum gerado do Prisma) em vez de mirror
+  hand-typed — fonte única agora, a mirror antiga em `financeiro/cadastros/schemas.ts` foi removida no
+  Passo C.
+- [x] Passo C — `financeiro/cadastros` (schemas/actions/queries/page/view/fornecedores-section) revertidos
+  via `git checkout 13ff95c~1 -- <paths>` — exato estado pré-C4, sem reescrever à mão.
+- [x] Passo D — `custos/cotacoes/queries.ts#buscarFornecedoresParaConvite` repontado pra
+  `prisma.custoFornecedor`; nova tela `/custos/fornecedores` (`fornecedores-view.tsx`, CRUD +
+  representantes + histórico de preço, adaptada de `fornecedores-section.tsx`); botão "Fornecedores" em
+  `custos-view.tsx` ao lado de "Cotações" (mesmo padrão — sem entrada em `nav-config.ts`). §8 roteiro
+  atualizado (passos 2 e 7 apontam pra `/custos/fornecedores`).
+- [x] Passo E — `tsc`/`test` (1430/1430)/`lint`/`build` (sem dev na :3000) limpos + smoke real no banco
+  de dev: `CustoFornecedor` criado independente do `Fornecedor` financeiro, representante, convite lista
+  só `CustoFornecedor`, fluxo completo convidar→proposta→escolher vencedor→`CustoPrecoHistorico`
+  (`fornecedorId` aponta pro `CustoFornecedor`) — 8/8 OK, dado de teste limpo ao final.
+  Design spec (`docs/superpowers/specs/2026-07-27-engenharia-custos-design.md`) atualizado registrando a
+  revogação do anti-padrão original (§6 tabela, §11, tabela de ondas, `CustoRfqConvite`).
+- [x] Revisão via advisor (pós-Passo D) achou 1 bug real de baixo risco, corrigido: `CATEGORIAS_INSUMO`
+  em `fornecedores-view.tsx` derivava de `Object.keys(CATEGORIA_INSUMO_LABEL)` (mirror hand-typed) em vez
+  do enum do Prisma — mesma classe de drift do zod corrigido no Passo B, um nível acima (lista de opção
+  do checkbox, não a validação). Corrigido pra `Object.values(CategoriaInsumo)`; labels seguem
+  hand-written (pt-BR) mas com fallback `?? cat` se uma categoria nova ainda não tiver label.
+
+**Atenção pro roteiro do §8 (elevado, não é o mesmo aviso de sempre):** `fornecedores-view.tsx` é ~380
+linhas de client code **nunca executado** — o smoke deste passo cobriu queries/service/actions (a lógica
+que importava pra provar a separação), mas nenhuma requisição real passou pelo formulário. O
+`npm run build` compila o componente, não o roda (rota `ƒ` dinâmica). Ponto específico pra testar
+primeiro: o payload de salvar usa `categoriasFornecidas: form.categoriasFornecidas as never[]` — é o
+único lugar com bypass de tipo ponta-a-ponta; um mismatch aparece como erro de zod em runtime ao salvar,
+não em compilação. Roteiro mínimo: marcar 2+ categorias → salvar → reabrir o fornecedor → conferir que
+as categorias persistiram.

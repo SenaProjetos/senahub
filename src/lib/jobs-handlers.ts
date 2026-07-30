@@ -257,7 +257,7 @@ export async function alertaLicitacoes(): Promise<number> {
 /**
  * RFQ `aberta` com prazo de resposta em 3/1 dia(s), e RFQ `aberta` cujo prazo venceu ONTEM com algum
  * convite ainda `convidado` (fornecedor nunca respondeu) → criador da RFQ + gestores de suprimentos.
- * Janela de 1 dia (como o D-3/D-1 acima) pra não reenviar todo dia enquanto a RFQ ficar aberta.
+ * Janela de 1 dia de calendário (como o D-3/D-1 acima) pra não reenviar todo dia enquanto a RFQ ficar aberta.
  */
 export async function alertaCotacoesCusto(): Promise<number> {
   let n = 0;

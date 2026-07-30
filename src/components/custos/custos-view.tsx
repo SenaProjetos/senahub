@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Calculator, Search, Database, ClipboardList } from "lucide-react";
+import { Calculator, Search, Database, ClipboardList, Truck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -67,6 +67,11 @@ export function CustosView({
           {podeCotacao && (
             <Button variant="outline" render={<Link href="/custos/cotacoes" />}>
               <ClipboardList className="size-4" /> Cotações
+            </Button>
+          )}
+          {podeCotacao && (
+            <Button variant="outline" render={<Link href="/custos/fornecedores" />}>
+              <Truck className="size-4" /> Fornecedores
             </Button>
           )}
           {podeGerir && <NovoOrcamentoDialog />}

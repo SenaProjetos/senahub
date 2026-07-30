@@ -177,7 +177,7 @@ export type FornecedorParaConvite = {
 /** Fornecedores ativos pro seletor de convite — marca quem já foi convidado nesta RFQ. */
 export async function buscarFornecedoresParaConvite(rfqId: string, q?: string): Promise<FornecedorParaConvite[]> {
   const [fornecedores, convidados] = await Promise.all([
-    prisma.fornecedor.findMany({
+    prisma.custoFornecedor.findMany({
       where: {
         ativo: true,
         ...(q ? { nome: { contains: q, mode: "insensitive" as const } } : {}),
