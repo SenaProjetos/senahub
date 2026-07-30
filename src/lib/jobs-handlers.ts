@@ -2,6 +2,7 @@ import "server-only";
 import { addDays, differenceInCalendarDays, subMonths } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { notificar, notificarMuitos } from "@/lib/notificar";
+import { enviarPush } from "@/lib/push";
 import { emitParaCanal, usuarioOnline } from "@/lib/socket";
 import { textoParaPreview } from "@/modules/chat/formatacao";
 import type { MensagemAgendadaJob } from "@/modules/chat/agendamento";
@@ -14,9 +15,20 @@ import { gravarSnapshotLicitacaoMensal } from "@/modules/licitacoes/dashboard/qu
 import { CLT_ROLES } from "@/lib/roles";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { formatarData } from "@/lib/utils";
+import { filtrarPorCategoria } from "@/modules/usuarios/preferencias/queries";
 import { getConfigLicitacoes } from "@/modules/licitacoes/config/queries";
 import { ehRecurso, TIPO_EVENTO_LABEL, type TipoEventoLicitacao } from "@/modules/licitacoes/eventos/eventos";
 import { eventosParaNotificar } from "@/modules/licitacoes/eventos/alertas";
+import {
+  habilitacoesParaNotificar,
+  vigenciaEfetivaContrato,
+  vencimentosContratoParaNotificar,
+  verboVencimentoCertidao,
+} from "@/modules/licitacoes/alertas";
+import {
+  entregarBestEffort,
+  persistirSinoLicitacaoUmaVez,
+} from "@/modules/licitacoes/alertas-dedup";
 import { acrescimoAcumuladoPct, somaAcrescimos, proximoDoLimite } from "@/modules/licitacoes/contrato/saldo";
 import { ehAniversarioReajuste, valorReajustado } from "@/modules/licitacoes/contrato/reajuste";
 import { importarEditaisPNCP } from "@/modules/licitacoes/pncp/import";
@@ -40,6 +52,49 @@ async function gestores(roles: string[] = ["admin", "supervisor", "administrativ
     select: { id: true },
   });
   return us.map((u) => u.id);
+}
+
+/**
+ * Persiste exatamente um sino por destinatário/chave, inclusive em retry do
+ * pg-boss. Sino + marca de dedup compartilham o mesmo commit; push é best-effort.
+ */
+async function notificarAlertaLicitacaoUmaVez(
+  userIds: string[],
+  chave: string,
+  notificacao: Parameters<typeof notificarMuitos>[1],
+  categoria: string,
+): Promise<number> {
+  const unicos = [...new Set(userIds)];
+  const destinatarios = await filtrarPorCategoria(unicos, categoria);
+  let enviados = 0;
+
+  for (const userId of destinatarios) {
+    const resultado = await persistirSinoLicitacaoUmaVez(
+      (operacao) => prisma.$transaction(async (tx) => operacao(tx)),
+      userId,
+      chave,
+      notificacao,
+    );
+    if (!resultado.criado) continue;
+
+    enviados++;
+    await entregarBestEffort(
+      () => enviarPush(userId, {
+        title: notificacao.titulo,
+        body: notificacao.corpo,
+        url: notificacao.href,
+        tag: notificacao.tag,
+      }),
+      (erro) => {
+        console.error(
+          `[alertas-licitacao] push best-effort falhou (${userId}/${chave}):`,
+          erro,
+        );
+      },
+    );
+  }
+
+  return enviados;
 }
 
 function diaAlvo(dias: number): { gte: Date; lte: Date } {
@@ -496,6 +551,217 @@ export async function alertaEventosLicitacao(): Promise<number> {
       tag: `evt-${a.id}-${a.dias}`,
     });
     n++;
+  }
+  return n;
+}
+
+/**
+ * Certidões vinculadas à habilitação que vencem antes da sessão.
+ * Dispara nos mesmos D-n configurados para datas-chave e ignora itens já
+ * atendidos manualmente.
+ */
+export async function alertaCertidoesAntesDaSessao(): Promise<number> {
+  const cfg = await getConfigLicitacoes();
+  const diasPadrao = [
+    ...new Set(cfg.datasChave.alertaDiasPadrao.filter((dias) => Number.isInteger(dias) && dias >= 0)),
+  ];
+
+  const hoje0 = new Date();
+  hoje0.setHours(0, 0, 0, 0);
+  const hojeISO = hoje0.toISOString().slice(0, 10);
+
+  const sessoes = await prisma.licitacaoEvento.findMany({
+    where: {
+      tipo: "sessao",
+      concluidoEm: null,
+      data: { gte: hoje0 },
+      licitacao: { status: "em_andamento" },
+    },
+    select: {
+      id: true,
+      data: true,
+      alertaDias: true,
+      licitacao: {
+        select: {
+          id: true,
+          titulo: true,
+          habilitacao: {
+            where: { certidaoId: { not: null } },
+            select: {
+              id: true,
+              exigencia: true,
+              atendido: true,
+              certidao: {
+                select: {
+                  validade: true,
+                  descricao: true,
+                  tipo: { select: { nome: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const mapeados = sessoes.flatMap((sessao) => {
+    const sessaoISO = sessao.data.toISOString().slice(0, 10);
+    return sessao.licitacao.habilitacao.flatMap((item) => {
+      if (!item.certidao) return [];
+      return [{
+        itemId: item.id,
+        sessaoId: sessao.id,
+        sessaoISO,
+        alertaDias: sessao.alertaDias,
+        certidaoValidadeISO: item.certidao.validade.toISOString().slice(0, 10),
+        atendido: item.atendido,
+        licitacaoId: sessao.licitacao.id,
+        licitacaoTitulo: sessao.licitacao.titulo,
+        exigencia: item.exigencia,
+        certidaoNome: item.certidao.tipo.nome,
+        certidaoDescricao: item.certidao.descricao,
+      }];
+    });
+  });
+
+  const aNotificar = habilitacoesParaNotificar(mapeados, hojeISO, diasPadrao);
+  if (aNotificar.length === 0) return 0;
+
+  const ids = await gestores(["admin", "administrativo"]);
+  const porChave = new Map(
+    mapeados.map((item) => [`${item.sessaoId}:${item.itemId}`, item]),
+  );
+  let n = 0;
+  for (const alerta of aNotificar) {
+    const item = porChave.get(`${alerta.sessaoId}:${alerta.itemId}`);
+    if (!item) continue;
+    const certidao = `${item.certidaoNome}${item.certidaoDescricao ? ` — ${item.certidaoDescricao}` : ""}`;
+    const verbo = verboVencimentoCertidao(item.certidaoValidadeISO, hojeISO);
+    const chave = [
+      "habil-cert",
+      item.itemId,
+      item.sessaoId,
+      item.sessaoISO,
+      item.certidaoValidadeISO,
+      `d${alerta.dias}`,
+    ].join(":");
+    const enviados = await notificarAlertaLicitacaoUmaVez(
+      ids,
+      chave,
+      {
+        titulo: "Habilitação: certidão inválida para a sessão",
+        corpo: `${item.licitacaoTitulo} — ${item.exigencia}: ${certidao} ${verbo} ${formatarData(item.certidaoValidadeISO)}, antes da sessão de ${formatarData(item.sessaoISO)}.`,
+        href: `/licitacoes/${item.licitacaoId}`,
+        tag: chave,
+      },
+      "certidao",
+    );
+    if (enviados > 0) n++;
+  }
+  return n;
+}
+
+/** Fim da vigência e validade da garantia contratual nos D-n configurados. */
+export async function alertaVencimentosContrato(): Promise<number> {
+  const cfg = await getConfigLicitacoes();
+  const diasPadrao = [
+    ...new Set(cfg.datasChave.alertaDiasPadrao.filter((dias) => Number.isInteger(dias) && dias >= 0)),
+  ];
+  if (diasPadrao.length === 0) return 0;
+
+  const hoje0 = new Date();
+  hoje0.setHours(0, 0, 0, 0);
+  const hojeISO = hoje0.toISOString().slice(0, 10);
+
+  const contratos = await prisma.contratoLicitacao.findMany({
+    where: {
+      licitacao: { status: "em_execucao" },
+      OR: diasPadrao.flatMap((dias) => [
+        { vigenciaFim: diaAlvo(dias) },
+        { garantiaValidade: diaAlvo(dias) },
+        {
+          aditivos: {
+            some: {
+              tipo: { in: ["prazo", "valor_prazo"] },
+              novaVigencia: diaAlvo(dias),
+            },
+          },
+        },
+      ]),
+    },
+    select: {
+      id: true,
+      numeroContrato: true,
+      vigenciaFim: true,
+      garantiaValidade: true,
+      aditivos: {
+        where: {
+          tipo: { in: ["prazo", "valor_prazo"] },
+          novaVigencia: { not: null },
+        },
+        orderBy: [{ data: "desc" }, { createdAt: "desc" }],
+        take: 1,
+        select: {
+          tipo: true,
+          novaVigencia: true,
+          data: true,
+          createdAt: true,
+        },
+      },
+      licitacao: { select: { id: true, titulo: true } },
+    },
+  });
+
+  const mapeados = contratos.map((contrato) => {
+    const vigenciaFimBaseISO = contrato.vigenciaFim?.toISOString().slice(0, 10) ?? null;
+    const aditivos = contrato.aditivos.map((aditivo) => ({
+      tipo: aditivo.tipo,
+      novaVigenciaISO: aditivo.novaVigencia?.toISOString().slice(0, 10) ?? null,
+      dataISO: aditivo.data.toISOString().slice(0, 10),
+      createdAtISO: aditivo.createdAt.toISOString(),
+    }));
+    return {
+      contratoId: contrato.id,
+      vigenciaFimISO: vigenciaEfetivaContrato(vigenciaFimBaseISO, aditivos),
+      garantiaValidadeISO: contrato.garantiaValidade?.toISOString().slice(0, 10) ?? null,
+      licitacaoId: contrato.licitacao.id,
+      licitacaoTitulo: contrato.licitacao.titulo,
+      numeroContrato: contrato.numeroContrato,
+    };
+  });
+  const aNotificar = vencimentosContratoParaNotificar(mapeados, hojeISO, diasPadrao);
+  if (aNotificar.length === 0) return 0;
+
+  const ids = await gestores(["admin", "administrativo"]);
+  const porId = new Map(mapeados.map((contrato) => [contrato.contratoId, contrato]));
+  let n = 0;
+  for (const alerta of aNotificar) {
+    const contrato = porId.get(alerta.contratoId);
+    if (!contrato) continue;
+    const numero = contrato.numeroContrato ? ` · contrato ${contrato.numeroContrato}` : "";
+    const titulo = alerta.tipo === "vigencia"
+      ? `Vigência contratual termina em ${alerta.dias} dia(s)`
+      : `Garantia contratual vence em ${alerta.dias} dia(s)`;
+    const chave = [
+      "contrato",
+      alerta.tipo,
+      alerta.contratoId,
+      alerta.dataISO,
+      `d${alerta.dias}`,
+    ].join(":");
+    const enviados = await notificarAlertaLicitacaoUmaVez(
+      ids,
+      chave,
+      {
+        titulo,
+        corpo: `${contrato.licitacaoTitulo}${numero} · ${formatarData(alerta.dataISO)}`,
+        href: `/licitacoes/${contrato.licitacaoId}`,
+        tag: chave,
+      },
+      "licitacao",
+    );
+    if (enviados > 0) n++;
   }
   return n;
 }

@@ -188,6 +188,7 @@ model User {
   ajustesPontoEditados          AjustePonto[]             @relation("AjustePontoEditor")
   diarioEntradas                DiarioEntrada[]           @relation("DiarioAutor")
   alertasPontoEnviados          AlertaPontoEnviado[]
+  alertasLicitacaoEnviados      AlertaLicitacaoEnviado[]
   abonos                        AbonoFalta[]              @relation("AbonoUser")
   abonosValidados               AbonoFalta[]              @relation("AbonoValidador")
   ferias                        Ferias[]                  @relation("FeriasUser")
@@ -522,6 +523,8 @@ model Notificacao {
   href      String?
   lida      Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  alertaLicitacaoEnviado AlertaLicitacaoEnviado?
 
   @@index([userId, lida])
   @@map("notificacao")
@@ -2516,6 +2519,21 @@ model LicitacaoEvento {
   @@index([licitacaoId])
   @@index([data])
   @@map("licitacao_evento")
+}
+
+/// Dedup persistente dos alertas automáticos de licitação por destinatário.
+model AlertaLicitacaoEnviado {
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chave          String
+  notificacaoId  String?       @unique
+  notificacao    Notificacao?  @relation(fields: [notificacaoId], references: [id], onDelete: SetNull)
+  enviadoEm      DateTime      @default(now())
+
+  @@unique([userId, chave])
+  @@index([enviadoEm])
+  @@map("alerta_licitacao_enviado")
 }
 
 /// Valor por disciplina dentro de uma licitação/edital (E5).
