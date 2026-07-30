@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
 import { criarOverrideSchema, revogarOverrideSchema } from "@/modules/perfis/schemas";
 
 /**
@@ -12,7 +11,7 @@ import { criarOverrideSchema, revogarOverrideSchema } from "@/modules/perfis/sch
  * usuário). `motivo` é obrigatório no schema — sem isso vira lixo em 12 meses (exigência do
  * conselho, §8.3 item 5 do plano).
  */
-const base = { modulo: "configuracoes", roles: HR_ADMIN_ROLES } as const;
+const base = { modulo: "configuracoes", recurso: "usuarios", permissao: "gerir" } as const;
 const rev = (userId: string) => {
   revalidatePath("/configuracoes/usuarios");
   revalidatePath(`/rh/pessoas/${userId}`);
