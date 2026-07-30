@@ -47,7 +47,13 @@ async function main() {
   });
 
   try {
-    const fClt = await fichaPessoa(clt.id);
+    const fClt = await fichaPessoa(clt.id, {
+      folha: true,
+      acesso: true,
+      ponto: true,
+      pendenciasRh: true,
+      projetos: { observador: { id: clt.id, role: "admin" } },
+    });
     check("fichaPessoa(clt) != null", !!fClt);
     check("fichaPessoa expõe nomeCompleto", fClt?.nomeCompleto === `${tag} Nome Completo`);
     check("clt com cpf+admissão => incompleto=false", fClt?.incompleto === false);
@@ -74,7 +80,13 @@ async function main() {
     const nf = await notasDoUsuario(pj.id);
     check("notasDoUsuario => array", Array.isArray(nf));
 
-    const fPj = await fichaPessoa(pj.id);
+    const fPj = await fichaPessoa(pj.id, {
+      folha: true,
+      acesso: true,
+      ponto: true,
+      pendenciasRh: true,
+      projetos: { observador: { id: pj.id, role: "admin" } },
+    });
     check("pj sem cpf/admissão => incompleto=true", fPj?.incompleto === true);
     check("pj sem nomeCompleto => null", fPj?.nomeCompleto === null);
 

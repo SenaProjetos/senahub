@@ -1,8 +1,15 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
+import { can } from "@/lib/permissions";
 import { CLT_ROLES, INTERNAL_ROLES, PJ_ROLES } from "@/lib/roles";
-import { fichaPessoa, cadastroDaPessoa, solicitacoesDoUsuario, notasDoUsuario } from "@/modules/rh/pessoas/queries";
+import {
+  fichaPessoa,
+  cadastroDaPessoa,
+  solicitacoesDoUsuario,
+  holeritesDaPessoa,
+  notasDoUsuario,
+} from "@/modules/rh/pessoas/queries";
 import { bancoHorasDe } from "@/modules/rh/banco/queries";
 import { escalaUsuarioGrade, escalaRoleGrade } from "@/modules/rh/escalas/queries";
 import { minhaAlteracaoPendente } from "@/modules/rh/cadastro/queries";
@@ -20,7 +27,16 @@ export default async function MinhaFichaPage() {
   if (user.role === "cliente") redirect("/portal");
   const id = user.id;
 
-  const pessoa = await fichaPessoa(id);
+  const podeVerProjetos = await can(user.role, "projetos", "ver");
+  const pessoa = await fichaPessoa(id, {
+    folha: true,
+    acesso: true,
+    ponto: true,
+    pendenciasRh: true,
+    projetos: podeVerProjetos
+      ? { observador: { id: user.id, role: user.role, ehSocio: user.ehSocio } }
+      : null,
+  });
   if (!pessoa) redirect("/");
 
   const isColaborador = pessoa.role !== "cliente";
@@ -29,12 +45,13 @@ export default async function MinhaFichaPage() {
   const temEscala = isCLT || INTERNAL_ROLES.includes(pessoa.role);
   const batePonto = isColaborador;
 
-  const [cadastro, ausencias, banco, escalaUsuario, escalaRole, nf, pendente, prefsConta, acesso] = await Promise.all([
+  const [cadastro, ausencias, banco, escalaUsuario, escalaRole, holerites, nf, pendente, prefsConta, acesso] = await Promise.all([
     isColaborador ? cadastroDaPessoa(id) : Promise.resolve(null),
     isCLT ? solicitacoesDoUsuario(id) : Promise.resolve(null),
     isCLT ? bancoHorasDe(id) : Promise.resolve(null),
     temEscala ? escalaUsuarioGrade(id) : Promise.resolve(null),
     temEscala ? escalaRoleGrade(pessoa.role) : Promise.resolve(null),
+    holeritesDaPessoa(id, { somenteDisponiveis: true }),
     isPJ ? notasDoUsuario(id) : Promise.resolve(null),
     isColaborador ? minhaAlteracaoPendente(id) : Promise.resolve(null),
     carregarPreferenciasDaConta(id),
@@ -70,6 +87,7 @@ export default async function MinhaFichaPage() {
         banco={banco}
         temPonto={batePonto}
         controlaJornada={isCLT}
+        holerites={holerites}
         nf={nf}
         preferenciasSlot={<PreferenciasView {...prefsConta} />}
       />

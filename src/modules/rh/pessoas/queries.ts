@@ -1,7 +1,9 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { CADASTRO_ROLES, type Role } from "@/lib/roles";
+import { usuarioOnline } from "@/lib/socket";
 import { espelhoMes } from "@/modules/ponto/queries";
+import { escopoProjeto } from "@/modules/projetos/queries";
 import { formatarRegistro } from "@/modules/usuarios/registro";
 
 const ymd = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
@@ -15,6 +17,7 @@ function cadastroIncompleto(role: Role, cpf: string | null, dataAdmissao: Date |
 /** Lista de pessoas (mestre) — base da tela /rh/pessoas. Reusa o que já existe no User. */
 export async function listarPessoas() {
   const us = await prisma.user.findMany({
+    where: { role: { not: "cliente" } },
     orderBy: [{ ativo: "desc" }, { name: "asc" }],
     select: {
       id: true, name: true, email: true, role: true, ativo: true,
@@ -36,24 +39,82 @@ export async function listarPessoas() {
 }
 export type PessoaListItem = Awaited<ReturnType<typeof listarPessoas>>[number];
 
+type ObservadorProjeto = { id: string; role: Role; ehSocio?: boolean };
+
+export type AcessosFichaPessoa = {
+  /** Salário base e histórico de folha. */
+  folha: boolean;
+  /** mustChangePassword, setor, contratação e data de criação da conta. */
+  acesso: boolean;
+  /** Indicador de sessão/ponto em aberto. */
+  ponto: boolean;
+  /** Pendências de ausências e existência de documentos de RH. */
+  pendenciasRh: boolean;
+  /** Sem `projetos:ver`, fica null e nenhuma consulta de projeto é executada. */
+  projetos: { observador: ObservadorProjeto } | null;
+};
+
 /** Cabeçalho/resumo da ficha (dados-núcleo + vínculos). `salarioBase` só deve ser exposto a quem pode ver folha. */
-export async function fichaPessoa(userId: string) {
+export async function fichaPessoa(userId: string, acessos: AcessosFichaPessoa) {
+  // Busca-base deliberadamente não contém folha, dados de acesso, ponto nem projetos.
+  // Cada domínio sensível abaixo só dispara sua própria consulta quando autorizado.
   const u = await prisma.user.findUnique({
     where: { id: userId },
     select: {
       id: true, name: true, nomeCompleto: true, email: true, role: true, ativo: true,
-      mustChangePassword: true, createdAt: true,
-      salarioBase: true, dataAdmissao: true, cpf: true, cargo: true, departamento: true,
+      dataAdmissao: true, cpf: true, cargo: true, departamento: true,
       conselho: true, registroProfissional: true, registroUf: true,
-      setor: true, contratacao: true,
       clienteId: true,
       cliente: { select: { id: true, nome: true, tipo: true, documento: true } },
       pj: { select: { id: true, razaoSocial: true, cnpj: true } },
       socio: { select: { ativo: true } },
-      _count: { select: { projetosMembro: true } },
     },
   });
   if (!u) return null;
+
+  const [folha, acesso, sessoesAbertas, abonosPendentes, feriasPendentes, documentos, projetosAtivos] =
+    await Promise.all([
+      acessos.folha
+        ? prisma.user.findUnique({ where: { id: userId }, select: { salarioBase: true } })
+        : Promise.resolve(null),
+      acessos.acesso
+        ? prisma.user.findUnique({
+            where: { id: userId },
+            select: { mustChangePassword: true, setor: true, contratacao: true, createdAt: true },
+          })
+        : Promise.resolve(null),
+      acessos.ponto
+        ? prisma.sessaoTrabalho.count({ where: { userId, fim: null } })
+        : Promise.resolve(null),
+      acessos.pendenciasRh
+        ? prisma.abonoFalta.count({ where: { userId, status: "pendente" } })
+        : Promise.resolve(null),
+      acessos.pendenciasRh
+        ? prisma.ferias.count({ where: { userId, status: "pendente" } })
+        : Promise.resolve(null),
+      acessos.pendenciasRh
+        ? prisma.funcionarioDocumento.count({ where: { userId } })
+        : Promise.resolve(null),
+      acessos.projetos
+        ? prisma.projeto.findMany({
+            where: {
+              AND: [
+                { situacao: "em_andamento" },
+                {
+                  OR: [
+                    { membros: { some: { userId } } },
+                    { disciplinas: { some: { responsaveis: { some: { userId } } } } },
+                  ],
+                },
+                escopoProjeto(acessos.projetos.observador),
+              ],
+            },
+            select: { id: true, codigo: true, nome: true },
+            orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
+          })
+        : Promise.resolve(null),
+    ]);
+
   return {
     id: u.id,
     name: u.name,
@@ -61,21 +122,37 @@ export async function fichaPessoa(userId: string) {
     email: u.email,
     role: u.role,
     ativo: u.ativo,
-    mustChangePassword: u.mustChangePassword,
-    criadoEm: u.createdAt.toISOString(),
-    salarioBase: u.salarioBase != null ? Number(u.salarioBase) : null,
+    // Null significa "não consultado/não autorizado", não um valor falso inventado.
+    mustChangePassword: acesso?.mustChangePassword ?? null,
+    criadoEm: acesso?.createdAt.toISOString() ?? null,
+    salarioBase: folha?.salarioBase != null ? Number(folha.salarioBase) : null,
     dataAdmissao: ymd(u.dataAdmissao),
     cargo: u.cargo,
     departamento: u.departamento,
     // Eixos novos (Fase 0): exibição read-only. Cache do vínculo ativo — quem altera é
     // `aplicarVinculo`, nunca a tela. `null` = ainda não migrado pelo backfill.
-    setor: u.setor,
-    contratacao: u.contratacao,
+    setor: acesso?.setor ?? null,
+    contratacao: acesso?.contratacao ?? null,
     /** Rótulo pronto do registro profissional ("CREA-SP 123456") ou null. */
     registro: formatarRegistro(u),
     socioAtivo: u.socio?.ativo === true,
     incompleto: cadastroIncompleto(u.role, u.cpf, u.dataAdmissao),
-    projetosCount: u._count.projetosMembro,
+    online: usuarioOnline(u.id),
+    projetosAtivos,
+    projetosCount: projetosAtivos?.length ?? null,
+    pendencias: {
+      pontoEmAberto: sessoesAbertas == null ? null : sessoesAbertas > 0,
+      ausencias:
+        abonosPendentes == null || feriasPendentes == null
+          ? null
+          : abonosPendentes + feriasPendentes,
+      // Não inventa uma matriz documental por vínculo: sinaliza apenas o fato objetivo
+      // de não haver nenhum documento anexado para quem possui cadastro trabalhista.
+      semDocumentos:
+        documentos == null
+          ? null
+          : CADASTRO_ROLES.includes(u.role) && documentos === 0,
+    },
     cliente: u.cliente ? { id: u.cliente.id, nome: u.cliente.nome, tipo: u.cliente.tipo, documento: u.cliente.documento } : null,
     pj: u.pj ? { id: u.pj.id, razaoSocial: u.pj.razaoSocial, cnpj: u.pj.cnpj } : null,
   };
@@ -165,6 +242,51 @@ export async function pontoDoMes(userId: string) {
   };
 }
 export type PontoMes = Awaited<ReturnType<typeof pontoDoMes>>;
+
+/**
+ * Aba Folha — histórico de holerites de UMA pessoa, já totalizado e serializável.
+ * No autoatendimento, rascunhos de folha aberta não podem vazar: só folhas
+ * efetivamente fechadas são elegíveis. O RH autorizado usa a leitura completa.
+ */
+export async function holeritesDaPessoa(
+  userId: string,
+  opts: { somenteDisponiveis?: boolean } = {},
+) {
+  const rows = await prisma.holerite.findMany({
+    where: opts.somenteDisponiveis
+      ? { userId, folha: { status: "fechada" } }
+      : { userId },
+    orderBy: [{ folha: { ano: "desc" } }, { folha: { mes: "desc" } }],
+    take: 36,
+    select: {
+      id: true,
+      enviadoEm: true,
+      folha: { select: { id: true, ano: true, mes: true, status: true, fechadaEm: true } },
+      itens: { select: { tipo: true, valor: true } },
+    },
+  });
+  return rows.map((h) => {
+    let proventos = 0;
+    let descontos = 0;
+    for (const item of h.itens) {
+      if (item.tipo === "provento") proventos += Number(item.valor);
+      else descontos += Number(item.valor);
+    }
+    return {
+      id: h.id,
+      folhaId: h.folha.id,
+      ano: h.folha.ano,
+      mes: h.folha.mes,
+      status: h.folha.status,
+      fechadaEm: h.folha.fechadaEm?.toISOString() ?? null,
+      enviadoEm: h.enviadoEm?.toISOString() ?? null,
+      proventos,
+      descontos,
+      liquido: proventos - descontos,
+    };
+  });
+}
+export type HoleritesPessoa = Awaited<ReturnType<typeof holeritesDaPessoa>>;
 
 /** Aba NF — notas fiscais enviadas por uma pessoa PJ/freelancer. */
 export async function notasDoUsuario(userId: string) {

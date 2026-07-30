@@ -17,7 +17,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import type { FichaPessoa, CadastroPessoa, SolicitacoesUsuario, PontoMes, NotasUsuario } from "@/modules/rh/pessoas/queries";
+import type {
+  FichaPessoa,
+  CadastroPessoa,
+  SolicitacoesUsuario,
+  PontoMes,
+  HoleritesPessoa,
+  NotasUsuario,
+} from "@/modules/rh/pessoas/queries";
 
 type DiaGrade = {
   diaSemana: number; ativo: boolean; entrada: string | null; saida: string | null;
@@ -35,6 +42,7 @@ export type Pessoa360Props = {
   temPonto: boolean;
   /** Só CLT/estagiário têm jornada controlada (esperado/saldo); demais cargos veem só o trabalhado. */
   controlaJornada?: boolean;
+  holerites: HoleritesPessoa | null;
   nf: NotasUsuario | null;
   /** Modo auto-serviço (o próprio usuário vendo sua ficha): esconde links de gestão que ele não acessa. */
   self?: boolean;
@@ -89,7 +97,7 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
   );
 }
 
-export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, controlaJornada = false, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [], preferenciasSlot, overrides = [], podeGerirAcesso = false }: Pessoa360Props) {
+export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, controlaJornada = false, holerites, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [], preferenciasSlot, overrides = [], podeGerirAcesso = false }: Pessoa360Props) {
   // Cadastro no formato do EditarCadastroDialog (junta os escalares + o vínculo PJ do cabeçalho).
   const cadastroDialog: Cadastro | null = cadastro
     ? {
@@ -106,6 +114,9 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
         pjId: pessoa.pj?.id ?? null, pjLabel: pessoa.pj ? `${pessoa.pj.razaoSocial}${pessoa.pj.cnpj ? " · " + pessoa.pj.cnpj : ""}` : null,
       }
     : null;
+  // A própria pessoa continua podendo ler seus dados básicos de acesso. Na ficha de
+  // terceiros, a aba e suas ações exigem a permissão fina `usuarios:gerir`.
+  const podeVerAcesso = self || podeGerirAcesso;
   const abas: { value: string; label: string; icon: React.ElementType; show: boolean }[] = [
     { value: "cadastro", label: "Cadastro", icon: UserRound, show: !!cadastro },
     { value: "ponto", label: "Ponto", icon: Clock, show: temPonto },
@@ -116,7 +127,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
     { value: "nf", label: "Notas fiscais", icon: Receipt, show: !!nf },
     { value: "folha", label: "Folha", icon: Landmark, show: podeFolha },
     { value: "cliente", label: "Cliente", icon: Building2, show: !!pessoa.cliente },
-    { value: "acesso", label: "Acesso", icon: KeyRound, show: true },
+    { value: "acesso", label: "Acesso", icon: KeyRound, show: podeVerAcesso },
     { value: "preferencias", label: "Preferências", icon: SlidersHorizontal, show: !!preferenciasSlot },
   ].filter((a) => a.show);
   const primeira = abas[0]?.value ?? "acesso";
@@ -157,8 +168,22 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
               ) : (
                 <span className="text-xs text-muted-foreground">Inativo</span>
               )}
+              <span className={`text-xs ${pessoa.online ? "text-success" : "text-muted-foreground"}`}>
+                {pessoa.online ? "Online agora" : "Offline"}
+              </span>
               {pessoa.mustChangePassword && <span className="text-xs text-warning">troca de senha pendente</span>}
               {pessoa.incompleto && <Badge variant="outline" className="border-warning text-warning">cadastro incompleto</Badge>}
+              {pessoa.pendencias.pontoEmAberto && (
+                <Badge variant="outline" className="border-warning text-warning">ponto em aberto</Badge>
+              )}
+              {(pessoa.pendencias.ausencias ?? 0) > 0 && (
+                <Badge variant="outline" className="border-warning text-warning">
+                  {pessoa.pendencias.ausencias} ausência(s) pendente(s)
+                </Badge>
+              )}
+              {pessoa.pendencias.semDocumentos && (
+                <Badge variant="outline" className="border-warning text-warning">sem documentos anexados</Badge>
+              )}
             </div>
             <p className="text-sm text-muted-foreground">{pessoa.email}</p>
             <div className="flex flex-wrap gap-x-6 gap-y-1 pt-1 text-xs text-muted-foreground">
@@ -166,11 +191,25 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
               {pessoa.dataAdmissao && <span>Admissão: {formatarData(pessoa.dataAdmissao)}</span>}
               {pessoa.cargo && <span>{pessoa.cargo}{pessoa.departamento ? ` · ${pessoa.departamento}` : ""}</span>}
               {pessoa.registro && <span>{pessoa.registro}</span>}
-              <span>{pessoa.projetosCount} projeto(s)</span>
+              {pessoa.projetosCount != null && <span>{pessoa.projetosCount} projeto(s) ativo(s)</span>}
               {podeFolha && pessoa.salarioBase != null && <span>Salário base: {brl(pessoa.salarioBase)}</span>}
               {pessoa.pj && <span>PJ: {pessoa.pj.razaoSocial}</span>}
               {pessoa.cliente && <span>Cliente: {pessoa.cliente.nome}</span>}
             </div>
+            {pessoa.projetosAtivos && pessoa.projetosAtivos.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
+                <span className="text-muted-foreground">Projetos ativos:</span>
+                {pessoa.projetosAtivos.map((projeto) => (
+                  <Link
+                    key={projeto.id}
+                    href={`/projetos/${projeto.id}`}
+                    className="rounded-full border px-2 py-0.5 font-medium hover:bg-muted"
+                  >
+                    {projeto.codigo} · {projeto.nome}
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -426,6 +465,50 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                 <Campo label="Salário base" valor={pessoa.salarioBase != null ? brl(pessoa.salarioBase) : null} />
                 <Campo label="Admissão" valor={pessoa.dataAdmissao ? formatarData(pessoa.dataAdmissao) : null} />
               </Secao>
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold">Holerites ({holerites?.length ?? 0})</h4>
+                {!holerites || holerites.length === 0 ? (
+                  <EmptyState title="Sem holerites" description="Nenhum holerite foi gerado para esta pessoa." />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm tabular-nums">
+                      <thead>
+                        <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
+                          <th className="py-2 pr-3 font-medium">Competência</th>
+                          <th className="py-2 pr-3 font-medium">Proventos</th>
+                          <th className="py-2 pr-3 font-medium">Descontos</th>
+                          <th className="py-2 pr-3 font-medium">Líquido</th>
+                          <th className="py-2 font-medium">Situação</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {holerites.map((h) => (
+                          <tr key={h.id} className="border-b">
+                            <td className="py-2 pr-3">
+                              {self ? (
+                                `${String(h.mes).padStart(2, "0")}/${h.ano}`
+                              ) : (
+                                <Link href={`/rh/folha/${h.folhaId}`} className="font-medium hover:underline">
+                                  {String(h.mes).padStart(2, "0")}/{h.ano}
+                                </Link>
+                              )}
+                            </td>
+                            <td className="py-2 pr-3">{brl(h.proventos)}</td>
+                            <td className="py-2 pr-3 text-destructive">{brl(h.descontos)}</td>
+                            <td className="py-2 pr-3 font-medium">{brl(h.liquido)}</td>
+                            <td className="py-2">
+                              <span className={h.status === "fechada" ? "text-success" : "text-warning"}>
+                                {h.status === "fechada" ? "Fechada" : "Aberta"}
+                              </span>
+                              {h.enviadoEm && <span className="text-muted-foreground"> · enviado</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
               {!self && <Link href="/rh/folha" className="text-sm text-primary hover:underline">Ver holerites em Folha CLT →</Link>}
             </CardContent></Card>
           </TabsContent>
@@ -446,26 +529,32 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
         )}
 
         {/* Acesso */}
-        <TabsContent value="acesso">
-          <Card><CardContent className="space-y-4 pt-6">
-            <Secao titulo="Acesso ao sistema">
-              <Campo label="Perfil" valor={ROLE_LABELS[pessoa.role as Role]} />
-              {/* Eixos novos (Fase 0): read-only. Setor e Contratação NÃO concedem acesso —
-                  quem decide o que a pessoa pode é o Perfil. */}
-              <Campo label="Setor" valor={pessoa.setor ? SETOR_LABELS[pessoa.setor] : "—"} />
-              <Campo
-                label="Contratação"
-                valor={pessoa.contratacao ? CONTRATACAO_LABELS[pessoa.contratacao] : "—"}
-              />
-              <Campo label="Situação" valor={pessoa.ativo ? "Ativo" : "Inativo"} />
-              <Campo label="Troca de senha" valor={pessoa.mustChangePassword ? "Pendente" : "—"} />
-              <Campo label="Criado em" valor={formatarData(pessoa.criadoEm)} />
-            </Secao>
-            {!self && <Link href="/configuracoes/usuarios" className="text-sm text-primary hover:underline">Gerir acesso em Usuários →</Link>}
-          </CardContent></Card>
+        {podeVerAcesso && (
+          <TabsContent value="acesso">
+            <Card><CardContent className="space-y-4 pt-6">
+              <Secao titulo="Acesso ao sistema">
+                <Campo label="Perfil" valor={ROLE_LABELS[pessoa.role as Role]} />
+                {/* Eixos novos (Fase 0): read-only. Setor e Contratação NÃO concedem acesso —
+                    quem decide o que a pessoa pode é o Perfil. */}
+                <Campo label="Setor" valor={pessoa.setor ? SETOR_LABELS[pessoa.setor] : "—"} />
+                <Campo
+                  label="Contratação"
+                  valor={pessoa.contratacao ? CONTRATACAO_LABELS[pessoa.contratacao] : "—"}
+                />
+                <Campo label="Situação" valor={pessoa.ativo ? "Ativo" : "Inativo"} />
+                <Campo label="Troca de senha" valor={pessoa.mustChangePassword ? "Pendente" : "—"} />
+                <Campo label="Criado em" valor={pessoa.criadoEm ? formatarData(pessoa.criadoEm) : null} />
+              </Secao>
+              {podeGerirAcesso && (
+                <Link href="/configuracoes/usuarios" className="text-sm text-primary hover:underline">
+                  Gerir acesso em Usuários →
+                </Link>
+              )}
+            </CardContent></Card>
 
-          {!self && <OverridesUsuario userId={pessoa.id} overrides={overrides} podeEditar={podeGerirAcesso} />}
-        </TabsContent>
+            {!self && <OverridesUsuario userId={pessoa.id} overrides={overrides} podeEditar={podeGerirAcesso} />}
+          </TabsContent>
+        )}
 
         {preferenciasSlot && <TabsContent value="preferencias">{preferenciasSlot}</TabsContent>}
       </Tabs>
