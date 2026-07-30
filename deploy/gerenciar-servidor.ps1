@@ -245,6 +245,39 @@ function Invoke-Diagnostico {
                 Write-Host "[FALHA] Chrome nao encontrado nesse caminho - essa e a causa provavel da falha ao gerar PDF." -ForegroundColor Red
             }
         }
+        "DWG" {
+            # A conversao DWG->DXF chama o ODA File Converter (exe externo) num child process,
+            # disparado por job pg-boss dentro do server.ts. Tres causas possiveis, nessa ordem.
+            $oda = Get-EnvValue -Key "ODA_CONVERTER_PATH"
+            Write-Host ""
+            Write-Host "Verificando ODA_CONVERTER_PATH: $oda" -ForegroundColor Cyan
+            if (-not $oda) {
+                Write-Host "[FALHA] ODA_CONVERTER_PATH nao esta no .env - essa e a causa provavel." -ForegroundColor Red
+                Write-Host "        Instale o ODA File Converter e aponte o .env pro exe (docs/DEPLOY.md secao 4.1)." -ForegroundColor Yellow
+            } elseif (-not (Test-Path $oda)) {
+                Write-Host "[FALHA] O exe nao existe nesse caminho - essa e a causa provavel." -ForegroundColor Red
+            } else {
+                Write-Host "[OK] ODA File Converter encontrado." -ForegroundColor Green
+            }
+
+            $svc = Get-Service -Name "SenaHub" -ErrorAction SilentlyContinue
+            if ($svc -and $svc.Status -eq "Running") {
+                Write-Host "[OK] Servico SenaHub rodando (o worker pg-boss que converte vive nele)." -ForegroundColor Green
+            } else {
+                Write-Host "[FALHA] Servico SenaHub parado - sem worker, o DWG fica preso em 'na fila'." -ForegroundColor Red
+            }
+
+            $storage = Get-EnvValue -Key "STORAGE_BASE_PATH"
+            if ($storage -and (Test-Path $storage)) {
+                Write-Host "[OK] STORAGE_BASE_PATH existe (origem do .dwg e destino do .dxf)." -ForegroundColor Green
+            } else {
+                Write-Host "[FALHA] STORAGE_BASE_PATH invalido: $storage" -ForegroundColor Red
+            }
+
+            Write-Host ""
+            Write-Host "Se tudo acima esta OK mas a conversao falha com 'nao gerou o arquivo de saida'," -ForegroundColor Yellow
+            Write-Host "o ODA (app Qt) esta sem sessao grafica no servico - ver docs/DEPLOY.md secao 4.1." -ForegroundColor Yellow
+        }
         "Site" {
             Invoke-Status
         }

@@ -369,7 +369,8 @@ echo(
 echo   1. Upload de arquivo esta falhando
 echo   2. Chat nao conecta
 echo   3. PDF nao gera
-echo   4. Site parece fora do ar
+echo   4. Conversao de DWG falha
+echo   5. Site parece fora do ar
 echo(
 echo   0. Voltar
 echo(
@@ -391,6 +392,11 @@ if "%subop%"=="3" (
   goto :menu_diagnostico
 )
 if "%subop%"=="4" (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Diagnostico -Sub DWG
+  pause
+  goto :menu_diagnostico
+)
+if "%subop%"=="5" (
   powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Diagnostico -Sub Site
   pause
   goto :menu_diagnostico

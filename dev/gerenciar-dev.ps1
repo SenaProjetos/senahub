@@ -780,6 +780,15 @@ function Invoke-Doctor {
             if (Test-Path $chrome) { Write-Host "  [OK]   CHROME_PATH existe" -ForegroundColor Green }
             else { Write-Host "  [ATENCAO] CHROME_PATH nao existe: $chrome" -ForegroundColor Yellow; $problemas += "CHROME_PATH inexistente" }
         }
+        # Opcional: so a conversao de DWG depende dele (ODA File Converter, exe externo).
+        $oda = Get-EnvValue -Key "ODA_CONVERTER_PATH"
+        if (-not $oda) {
+            Write-Host "  [INFO] ODA_CONVERTER_PATH ausente (conversao de DWG nao funciona - ver docs/DEPLOY.md 4.1)" -ForegroundColor DarkGray
+        } elseif (Test-Path $oda) {
+            Write-Host "  [OK]   ODA_CONVERTER_PATH existe" -ForegroundColor Green
+        } else {
+            Write-Host "  [ATENCAO] ODA_CONVERTER_PATH nao existe: $oda" -ForegroundColor Yellow; $problemas += "ODA_CONVERTER_PATH inexistente"
+        }
     }
 
     $dbUrl = Get-EnvValue -Key "DATABASE_URL"

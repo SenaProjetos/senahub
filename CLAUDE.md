@@ -182,4 +182,4 @@ in `lib/prisma.ts`. To see deleted rows, pass `excluidoEm` explicitly in the `wh
 - **`Select` `onValueChange`** returns `string | null`, not `string` (base-ui diverges from Radix here).
 - **Env vars:**
   - Required: `DATABASE_URL`, `BETTER_AUTH_SECRET` (32+ bytes), `BETTER_AUTH_URL` (origin for CSRF), `APP_URL` (base URL for links in notifications/emails), `STORAGE_BASE_PATH` (Windows upload path, must exist), `CHROME_PATH` (Chrome exe for puppeteer-core PDF)
-  - Optional: `ENABLE_BACKUP=1` + `BACKUP_PATH` + `PG_DUMP_PATH` (pg_dump.exe path), `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` (web push), `SMTP_HOST` + `SMTP_PORT` + `SMTP_USER` + `SMTP_PASS` + `SMTP_FROM` (email)
+  - Optional: `ODA_CONVERTER_PATH` (**ODAFileConverter.exe** — external app, not an npm package; without it every DWG→DXF conversion fails, see `docs/DEPLOY.md` §4.1), `ENABLE_BACKUP=1` + `BACKUP_PATH` + `PG_DUMP_PATH` (pg_dump.exe path), `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` (web push), `SMTP_HOST` + `SMTP_PORT` + `SMTP_USER` + `SMTP_PASS` + `SMTP_FROM` (email)

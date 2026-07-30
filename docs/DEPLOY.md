@@ -61,6 +61,8 @@ Preencha (ver [.env.production.example](../.env.production.example)):
 - `BETTER_AUTH_SECRET` = segredo **novo**: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
 - `STORAGE_BASE_PATH` = pasta existente (ex.: `F:\SenaHub\storage`)
 - `CHROME_PATH` = `C:\Program Files\Google\Chrome\Application\chrome.exe`
+- `ODA_CONVERTER_PATH` = executável do **ODA File Converter** (ver seção 4.1) — sem ele, todo upload de
+  DWG falha na conversão com *"Conversor de DWG não está configurado neste servidor"*
 - Backup (recomendado): `ENABLE_BACKUP=1`, `BACKUP_PATH`, `PG_DUMP_PATH` (`...\PostgreSQL\17\bin\pg_dump.exe`)
 
 > **Web push (opcional):** `NEXT_PUBLIC_VAPID_PUBLIC_KEY` é lida em **build-time** — defina **antes** do `npm run build`.
@@ -79,6 +81,35 @@ npm run db:seed              # admin + permissões + catálogos (idempotente)
 - ⚠️ Em produção use **`migrate deploy`**, nunca `migrate dev`.
 - ⚠️ **Nunca** rode `npm run seed:demo` em produção (apaga dados de negócio).
 - Admin inicial criado pelo seed: **tadrio@senaprojetos.com.br / SenaHub@2026** (troca obrigatória no 1º login).
+
+---
+
+## 4.1 ODA File Converter (conversão de DWG)
+
+O visualizador de DWG converte cada `.dwg` enviado para `.dxf` chamando o **ODA File Converter** — um
+executável externo, **não** um pacote npm. Ele não vem com o projeto e precisa ser instalado no servidor:
+
+1. Baixe em [opendesign.com](https://www.opendesign.com/guestfiles/oda_file_converter) (gratuito, exige
+   cadastro) a versão **Windows x64** e instale.
+2. Anote o caminho do exe, algo como
+   `C:\Program Files\ODA\ODAFileConverter 25.4\ODAFileConverter.exe`.
+3. Ponha no `.env` (aspas não são necessárias, mesmo com espaços no caminho):
+   ```
+   ODA_CONVERTER_PATH=C:\Program Files\ODA\ODAFileConverter 25.4\ODAFileConverter.exe
+   ```
+4. `Restart-Service SenaHub` e reenvie (ou clique em "tentar de novo") num DWG que falhou.
+
+> ⚠️ **O ODA é um app gráfico (Qt).** Como serviço NSSM rodando em `LocalSystem` (Session 0, sem desktop),
+> ele pode abrir mas não produzir saída. Sintoma: com o caminho correto, a conversão falha com *"não gerou
+> o arquivo de saída"* ou estoura o timeout de 9 min. Correção: rode o serviço com uma conta de usuário
+> comum, ou acrescente `QT_QPA_PLATFORM=offscreen` ao `AppEnvironmentExtra` do NSSM:
+> ```powershell
+> nssm set SenaHub AppEnvironmentExtra "NODE_ENV=production" "PORT=3000" "QT_QPA_PLATFORM=offscreen"
+> Restart-Service SenaHub
+> ```
+
+> A conversão roda como **job pg-boss** dentro do `server.ts`. Se o serviço estiver parado, o DWG fica
+> parado em "na fila" — sem worker, sem erro.
 
 ---
 
@@ -126,7 +157,7 @@ Start-Service cloudflared
 
 1. Acesse `https://hub.seudominio.com.br` → tela de login.
 2. Entre como admin → **troque a senha**.
-3. Confirme: cria projeto, abre **Chat** (WebSocket), gera um **PDF** (relatório de máquina em TI → "Baixar PDF" — valida `CHROME_PATH`), faz upload (valida `STORAGE_BASE_PATH`).
+3. Confirme: cria projeto, abre **Chat** (WebSocket), gera um **PDF** (relatório de máquina em TI → "Baixar PDF" — valida `CHROME_PATH`), faz upload (valida `STORAGE_BASE_PATH`), envia um **`.dwg`** num projeto e espera a conversão terminar (valida `ODA_CONVERTER_PATH` + jobs pg-boss).
 4. Se o login falhar / der erro de origem: confira que `BETTER_AUTH_URL` é **idêntico** à origem pública (`https://...`, sem barra no fim) e reinicie: `Restart-Service SenaHub`.
 
 ---
@@ -233,6 +264,9 @@ vermelho = SenaHub ou banco fora do ar. O `.bat` continua funcionando como alter
 | Login falha / CSRF | `BETTER_AUTH_URL` ≠ origem pública exata. Ajuste no `.env` e `Restart-Service SenaHub`. |
 | Chat não conecta | Serviço parado (o WS vem do mesmo `server.ts`). Cloudflare Tunnel já passa WS. |
 | PDF não gera | `CHROME_PATH` errado/ausente. |
+| "Conversor de DWG não está configurado" | `ODA_CONVERTER_PATH` ausente/errado no `.env` — ver seção 4.1. |
+| DWG fica em "na fila" pra sempre | Serviço parado: o worker pg-boss vive dentro do `server.ts`. |
+| DWG converte mas "não gerou o arquivo de saída" | ODA (Qt) sem sessão gráfica no serviço — ver o aviso da seção 4.1. |
 | Upload falha | `STORAGE_BASE_PATH` não existe ou sem permissão de escrita. |
 | `.next` corrompido | Nunca rode `npm run dev` no servidor de produção; se ocorrer, apague `.next` e refaça `npm run build`. |
 | Serviço preso em `STOP_PENDING` | `Get-CimInstance Win32_Service -Filter "Name='SenaHub'"` para achar o PID, depois `Stop-Process -Id <pid> -Force`. O menu (seção 13, Ferramentas avançadas) automatiza isso. |
