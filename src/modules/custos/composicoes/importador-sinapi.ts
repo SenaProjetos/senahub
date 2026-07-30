@@ -67,6 +67,18 @@ export function lerMesReferencia(sheet: ExcelJS.Worksheet): string | null {
   return texto || null;
 }
 
+/**
+ * Converte o metadado do SINAPI (normalmente "06/2026") para o primeiro dia do mês,
+ * no formato aceito pelo input `date`. Tolera o rótulo junto do valor porque alguns
+ * workbooks publicados trazem "Mês de Referência: 06/2026" na mesma célula.
+ */
+export function mesReferenciaParaDataBase(mesReferencia: string | null): string | null {
+  if (!mesReferencia) return null;
+  const match = mesReferencia.match(/\b(0?[1-9]|1[0-2])\s*[./-]\s*((?:19|20)\d{2})\b/);
+  if (!match) return null;
+  return `${match[2]}-${match[1].padStart(2, "0")}-01`;
+}
+
 export type InsumoLido = {
   codigo: string;
   descricao: string;

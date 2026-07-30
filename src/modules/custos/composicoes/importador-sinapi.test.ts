@@ -5,6 +5,7 @@ import {
   lerInsumosSinapi,
   lerComposicoesSinapi,
   lerMesReferencia,
+  mesReferenciaParaDataBase,
   UF_ORDEM_SINAPI,
 } from "./importador-sinapi";
 
@@ -23,6 +24,17 @@ beforeAll(async () => {
 describe("lerMesReferencia", () => {
   it("lê o mês de referência da linha 3", () => {
     expect(lerMesReferencia(wb.getWorksheet("ISD")!)).toBe("06/2026");
+  });
+
+  it("converte o mês de referência para a data-base editável", () => {
+    expect(mesReferenciaParaDataBase("06/2026")).toBe("2026-06-01");
+    expect(mesReferenciaParaDataBase("Mês de Referência: 6-2026")).toBe("2026-06-01");
+  });
+
+  it("não inventa data-base quando o metadado é inválido", () => {
+    expect(mesReferenciaParaDataBase(null)).toBeNull();
+    expect(mesReferenciaParaDataBase("13/2026")).toBeNull();
+    expect(mesReferenciaParaDataBase("junho de 2026")).toBeNull();
   });
 });
 

@@ -39,13 +39,26 @@ type StatusImportacao = {
   itensCriados: number;
 } | null;
 
+type ArquivoPreparado = {
+  caminho: string;
+  nomeArquivo: string;
+  tamanho: number;
+};
+
 export function ImportarBaseDialog() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [enviando, startEnvio] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
+  const inspecaoSeq = useRef(0);
+  const inspecaoEmCursoRef = useRef(false);
+  const envioEmCursoRef = useRef(false);
+  const arquivoPreparadoRef = useRef<ArquivoPreparado | null>(null);
 
   const [dataBase, setDataBase] = useState(new Date().toISOString().slice(0, 7) + "-01");
+  const [detectandoDataBase, setDetectandoDataBase] = useState(false);
+  const [mensagemDataBase, setMensagemDataBase] = useState<string | null>(null);
+  const [arquivoPreparado, setArquivoPreparado] = useState<ArquivoPreparado | null>(null);
   const [ufsSel, setUfsSel] = useState<Set<string>>(new Set());
   const [regimesSel, setRegimesSel] = useState<Set<string>>(new Set(["sem_desoneracao"]));
 
@@ -69,17 +82,94 @@ export function ImportarBaseDialog() {
     });
   }
 
+  function descartarArquivo(caminho: string) {
+    return fetch("/api/custos/importar-base", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ caminho }),
+    }).catch(() => undefined);
+  }
+
   function fechar() {
+    if (envioEmCursoRef.current) return;
+    const caminhoPendente = arquivoPreparadoRef.current?.caminho;
+    inspecaoSeq.current += 1;
+    inspecaoEmCursoRef.current = false;
+    arquivoPreparadoRef.current = null;
     setOpen(false);
     setImportacaoId(null);
     setStatusAtual(null);
+    setDetectandoDataBase(false);
+    setMensagemDataBase(null);
+    setArquivoPreparado(null);
     if (fileRef.current) fileRef.current.value = "";
+    if (caminhoPendente) void descartarArquivo(caminhoPendente);
+  }
+
+  async function prepararArquivo(arquivo?: File) {
+    // Além do `disabled` visual, os refs fecham a janela entre o evento e o
+    // próximo render: seleção A/B e início da importação nunca disputam o mesmo
+    // caminho temporário.
+    if (envioEmCursoRef.current || inspecaoEmCursoRef.current || enviando) return;
+    inspecaoEmCursoRef.current = true;
+    const seq = ++inspecaoSeq.current;
+    const caminhoAnterior = arquivoPreparadoRef.current?.caminho;
+    arquivoPreparadoRef.current = null;
+    setArquivoPreparado(null);
+    setMensagemDataBase(null);
+    if (caminhoAnterior) void descartarArquivo(caminhoAnterior);
+    if (!arquivo) {
+      inspecaoEmCursoRef.current = false;
+      setDetectandoDataBase(false);
+      return;
+    }
+
+    setDetectandoDataBase(true);
+    try {
+      const formData = new FormData();
+      formData.set("file", arquivo);
+      const resposta = await fetch("/api/custos/importar-base", {
+        method: "POST",
+        body: formData,
+      });
+      const json = await resposta.json();
+      if (seq !== inspecaoSeq.current) {
+        if (json.caminho) void descartarArquivo(json.caminho);
+        return;
+      }
+      if (!resposta.ok) {
+        setMensagemDataBase(json.error ?? "Não foi possível detectar a data-base.");
+        return;
+      }
+      const preparado = {
+        caminho: json.caminho,
+        nomeArquivo: json.nomeArquivo,
+        tamanho: json.tamanho,
+      };
+      arquivoPreparadoRef.current = preparado;
+      setArquivoPreparado(preparado);
+      if (json.dataBase) {
+        setDataBase(json.dataBase);
+        setMensagemDataBase(`Arquivo pronto · referência ${json.mesReferencia}. Você pode alterar a data.`);
+      } else {
+        setMensagemDataBase("Arquivo pronto · Mês de Referência não encontrado. Confira a data manualmente.");
+      }
+    } catch {
+      if (seq === inspecaoSeq.current) {
+        setMensagemDataBase("Não foi possível detectar a data-base. Confira-a manualmente.");
+      }
+    } finally {
+      if (seq === inspecaoSeq.current) {
+        inspecaoEmCursoRef.current = false;
+        setDetectandoDataBase(false);
+      }
+    }
   }
 
   function enviar() {
-    const arquivo = fileRef.current?.files?.[0];
-    if (!arquivo) {
-      toast.error("Selecione o arquivo .xlsx (workbook Referência do SINAPI).");
+    const preparado = arquivoPreparadoRef.current;
+    if (!preparado) {
+      toast.error("Aguarde o arquivo ser lido e preparado.");
       return;
     }
     if (ufsSel.size === 0) {
@@ -90,31 +180,37 @@ export function ImportarBaseDialog() {
       toast.error("Escolha ao menos um regime de encargos.");
       return;
     }
+    if (envioEmCursoRef.current || inspecaoEmCursoRef.current) return;
+    envioEmCursoRef.current = true;
     startEnvio(async () => {
-      const formData = new FormData();
-      formData.set("file", arquivo);
-      const up = await fetch("/api/custos/importar-base", { method: "POST", body: formData });
-      const upJson = await up.json();
-      if (!up.ok) {
-        toast.error(upJson.error ?? "Falha ao enviar o arquivo.");
-        return;
+      try {
+        const r = await iniciarImportacaoBase({
+          caminhoArquivo: preparado.caminho,
+          dataBase,
+          ufs: [...ufsSel] as never,
+          regimes: [...regimesSel] as never,
+        });
+        if (!r.ok) {
+          toast.error(r.error);
+          return;
+        }
+        // A partir daqui o arquivo pertence à linha CustoImportacao e não deve mais
+        // ser removido pelo cleanup de cancelamento do diálogo.
+        if (arquivoPreparadoRef.current?.caminho === preparado.caminho) {
+          arquivoPreparadoRef.current = null;
+          setArquivoPreparado(null);
+        }
+        if (!r.data.enfileirado) {
+          toast.error('Sem worker de jobs ativo — rode "npm run dev:server" para processar a importação.');
+          return;
+        }
+        setImportacaoId(r.data.importacaoId);
+        toast.success("Importação enfileirada — acompanhe o progresso abaixo.");
+      } catch {
+        toast.error("Não foi possível iniciar a importação.");
+      } finally {
+        envioEmCursoRef.current = false;
       }
-      const r = await iniciarImportacaoBase({
-        caminhoArquivo: upJson.caminho,
-        dataBase,
-        ufs: [...ufsSel] as never,
-        regimes: [...regimesSel] as never,
-      });
-      if (!r.ok) {
-        toast.error(r.error);
-        return;
-      }
-      if (!r.data.enfileirado) {
-        toast.error('Sem worker de jobs ativo — rode "npm run dev:server" para processar a importação.');
-        return;
-      }
-      setImportacaoId(r.data.importacaoId);
-      toast.success("Importação enfileirada — acompanhe o progresso abaixo.");
     });
   }
 
@@ -137,7 +233,10 @@ export function ImportarBaseDialog() {
   }, [importacaoId, statusAtual?.status, router]);
 
   return (
-    <Dialog open={open} onOpenChange={(v) => (v ? setOpen(true) : fechar())}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => (v ? setOpen(true) : !enviando && !envioEmCursoRef.current && fechar())}
+    >
       <Button onClick={() => setOpen(true)}>
         <Upload className="size-4" /> Importar base
       </Button>
@@ -151,11 +250,23 @@ export function ImportarBaseDialog() {
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
               <Label htmlFor="import-file">Arquivo (.xlsx)</Label>
-              <Input id="import-file" type="file" accept=".xlsx" ref={fileRef} />
+              <Input
+                id="import-file"
+                type="file"
+                accept=".xlsx"
+                ref={fileRef}
+                disabled={enviando || detectandoDataBase}
+                onChange={(e) => void prepararArquivo(e.target.files?.[0])}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="import-data-base">Data-base</Label>
               <Input id="import-data-base" type="date" value={dataBase} onChange={(e) => setDataBase(e.target.value)} />
+              {(detectandoDataBase || mensagemDataBase) && (
+                <p className="text-xs text-muted-foreground" role="status">
+                  {detectandoDataBase ? "Enviando e lendo Mês de Referência…" : mensagemDataBase}
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Regimes de encargos</Label>
@@ -207,7 +318,7 @@ export function ImportarBaseDialog() {
             {importacaoId ? "Fechar" : "Cancelar"}
           </Button>
           {!importacaoId && (
-            <Button onClick={enviar} disabled={enviando}>
+            <Button onClick={enviar} disabled={enviando || detectandoDataBase || !arquivoPreparado}>
               {enviando ? "Enviando…" : "Importar"}
             </Button>
           )}
