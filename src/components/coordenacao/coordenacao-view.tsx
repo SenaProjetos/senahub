@@ -66,6 +66,7 @@ export function CoordenacaoView({
   projetoNome,
   currentUserId,
   ehAdmin,
+  perfilGlobal,
   podeGerir,
   minhasDisciplinas,
   colunasTarefa,
@@ -80,6 +81,7 @@ export function CoordenacaoView({
   projetoNome: string;
   currentUserId: string;
   ehAdmin: boolean;
+  perfilGlobal: boolean;
   podeGerir: boolean;
   minhasDisciplinas: string[];
   colunasTarefa: { id: string; nome: string }[];
@@ -785,7 +787,13 @@ export function CoordenacaoView({
                 onToggleModelo={onToggle}
                 onAplicarCorte={aplicarCorte}
                 currentUserId={currentUserId}
+                podeAdministrarVistas={perfilGlobal}
                 onSalvarAtual={salvarVistaAtual}
+                onVistaRenomeada={(id, nome) =>
+                  setVistas((atuais) =>
+                    atuais.map((vista) => (vista.id === id ? { ...vista, nome } : vista)),
+                  )
+                }
               />
             )}
           </div>

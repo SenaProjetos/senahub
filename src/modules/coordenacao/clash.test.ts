@@ -90,6 +90,13 @@ describe("detectarConflitos", () => {
     expect(new Set(r.map((c) => c.localIdA))).toEqual(new Set([1, 2]));
   });
 
+  it("aceita tuning de tolerância por execução", () => {
+    const A = [caixa(1, [0, 0, 0], [2, 2, 2])];
+    const B = [caixa(2, [1.995, 0, 0], [3, 2, 2])]; // penetração de 5 mm em X
+    expect(detectarConflitos(A, B, 0.001)).toHaveLength(1);
+    expect(detectarConflitos(A, B, 0.01)).toEqual([]);
+  });
+
   it("sweep-and-prune: elementos distantes no X não geram par (correção)", () => {
     // 1000 caixas de A alinhadas em X, 1 de B longe de todas menos a última.
     const A = Array.from({ length: 1000 }, (_, i) => caixa(i, [i * 10, 0, 0], [i * 10 + 1, 1, 1]));

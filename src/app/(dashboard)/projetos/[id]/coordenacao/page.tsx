@@ -11,13 +11,19 @@ import {
   dashboardApontamentos,
   vistasDoProjeto,
 } from "@/modules/coordenacao/queries";
-import { contarPorStatus, contarPorDisciplina, semanasCriadosEncerrados } from "@/modules/coordenacao/dashboard";
+import {
+  contarConflitosAbertos,
+  contarPorStatus,
+  contarPorDisciplina,
+  semanasCriadosEncerrados,
+} from "@/modules/coordenacao/dashboard";
 import { opcoesTarefa } from "@/modules/tarefas/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConversaoStatusView } from "@/components/coordenacao/conversao-status-view";
 import { CoordenacaoView } from "@/components/coordenacao/coordenacao-view";
 import { DashboardCoordenacao } from "@/components/coordenacao/dashboard-coordenacao";
+import { GLOBAL_ROLES, type Role } from "@/lib/roles";
 
 export const metadata: Metadata = { title: "Coordenação" };
 
@@ -100,6 +106,7 @@ export default async function CoordenacaoPage({
           projetoNome={projeto.nome}
           currentUserId={user.id}
           ehAdmin={user.role === "admin"}
+          perfilGlobal={GLOBAL_ROLES.includes(user.role as Role)}
           podeGerir={podeGerir}
           minhasDisciplinas={minhasDisciplinas.map((d) => d.disciplinaId)}
           colunasTarefa={colunasTarefa}
@@ -113,19 +120,18 @@ export default async function CoordenacaoPage({
           description="Converta os IFCs abaixo para montar a maquete federada 3D."
         />
       )}
-      {resumoDashboard.length > 0 && (
-        <div className="space-y-3">
-          <div>
-            <h3 className="text-lg font-semibold">Painel de apontamentos</h3>
-            <p className="text-sm text-muted-foreground">Status, disciplina e evolução semanal.</p>
-          </div>
-          <DashboardCoordenacao
-            status={contarPorStatus(resumoDashboard)}
-            disciplinas={contarPorDisciplina(resumoDashboard)}
-            semanas={semanasCriadosEncerrados(resumoDashboard)}
-          />
+      <div className="space-y-3">
+        <div>
+          <h3 className="text-lg font-semibold">Painel de apontamentos</h3>
+          <p className="text-sm text-muted-foreground">Status, disciplina e evolução semanal.</p>
         </div>
-      )}
+        <DashboardCoordenacao
+          conflitosAbertos={contarConflitosAbertos(resumoDashboard)}
+          status={contarPorStatus(resumoDashboard)}
+          disciplinas={contarPorDisciplina(resumoDashboard)}
+          semanas={semanasCriadosEncerrados(resumoDashboard)}
+        />
+      </div>
       <div className="space-y-3">
         <div>
           <h3 className="text-lg font-semibold">Modelos e conversões</h3>

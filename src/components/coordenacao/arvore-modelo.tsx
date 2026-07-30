@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ListTree, Eye, X } from "lucide-react";
 import type { ViewerEngine } from "@/modules/coordenacao/viewer/engine";
 import {
@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { FiltrosPanel } from "@/components/coordenacao/filtros-painel";
 
 export type ModeloCarregado = { uploadId: string; label: string };
 
@@ -42,8 +43,10 @@ export function ArvoreModelo({
   const [modeloId, setModeloId] = useState<string | null>(null);
   const [elementos, setElementos] = useState<ElementoIndex[]>([]);
   const [carregando, setCarregando] = useState(false);
+  const [carregandoPsets, setCarregandoPsets] = useState(false);
   const [expandidos, setExpandidos] = useState<Set<number | null>>(new Set());
   const [isolado, setIsolado] = useState<{ pavimento: number | null; categoria: string } | null>(null);
+  const [multifiltroAtivo, setMultifiltroAtivo] = useState(false);
 
   // Modelo ativo padrão: o primeiro carregado. Se o modelo escolhido descarregar, troca.
   useEffect(() => {
@@ -56,12 +59,29 @@ export function ArvoreModelo({
       setElementos([]);
       return;
     }
+    let cancelado = false;
     setCarregando(true);
+    setCarregandoPsets(false);
     setIsolado(null);
     void engine
       .indiceDoModelo(modeloId)
-      .then(setElementos)
-      .finally(() => setCarregando(false));
+      .then(async (base) => {
+        if (cancelado) return;
+        setElementos(base);
+        setCarregando(false);
+        setCarregandoPsets(true);
+        const enriquecidos = await engine.indiceComPsetsDoModelo(modeloId);
+        if (!cancelado) setElementos(enriquecidos);
+      })
+      .finally(() => {
+        if (!cancelado) {
+          setCarregando(false);
+          setCarregandoPsets(false);
+        }
+      });
+    return () => {
+      cancelado = true;
+    };
   }, [engine, modeloId]);
 
   const pavimentos = useMemo(() => pavimentosDistintos(elementos), [elementos]);
@@ -77,7 +97,7 @@ export function ArvoreModelo({
   }
 
   function isolarCategoria(pavimentoId: number | null, categoria: string, els: ElementoIndex[]) {
-    if (!engine || !modeloId) return;
+    if (!engine || !modeloId || multifiltroAtivo) return;
     const ids = els.filter((e) => e.category === categoria).map((e) => e.localId);
     setIsolado({ pavimento: pavimentoId, categoria });
     void engine.isolarElementos(modeloId, ids);
@@ -89,91 +109,123 @@ export function ArvoreModelo({
     void engine.mostrarTudo();
   }
 
+  const aoMudarMultifiltro = useCallback((ativo: boolean) => {
+    setMultifiltroAtivo(ativo);
+    // Árvore e multifiltro escrevem na mesma visibilidade. Ao assumir o controle,
+    // o multifiltro invalida explicitamente o isolamento visual anterior da árvore.
+    if (ativo) setIsolado(null);
+  }, []);
+
   if (modelos.length === 0) return null;
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-1.5 text-sm">
-          <ListTree className="size-4" /> Elementos
-        </CardTitle>
-        <div className="flex items-center gap-2 pt-1">
-          <Select value={modeloId ?? ""} onValueChange={(v) => setModeloId(v || null)}>
-            <SelectTrigger className="h-8 w-full text-xs">
-              <SelectValue placeholder="Escolha um modelo" />
-            </SelectTrigger>
-            <SelectContent>
-              {modelos.map((m) => (
-                <SelectItem key={m.uploadId} value={m.uploadId}>
-                  {m.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {isolado && (
-            <Button size="icon" variant="ghost" className="size-8 shrink-0" title="Mostrar tudo" onClick={limparIsolamento}>
-              <X className="size-4" />
-            </Button>
+    <div className="space-y-3">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-1.5 text-sm">
+            <ListTree className="size-4" /> Elementos
+          </CardTitle>
+          <div className="flex items-center gap-2 pt-1">
+            <Select value={modeloId ?? ""} onValueChange={(v) => setModeloId(v || null)}>
+              <SelectTrigger className="h-8 w-full text-xs">
+                <SelectValue placeholder="Escolha um modelo" />
+              </SelectTrigger>
+              <SelectContent>
+                {modelos.map((m) => (
+                  <SelectItem key={m.uploadId} value={m.uploadId}>
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {isolado && (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-8 shrink-0"
+                title="Mostrar tudo"
+                onClick={limparIsolamento}
+              >
+                <X className="size-4" />
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {carregando ? (
+            <p className="py-2 text-xs text-muted-foreground">Carregando elementos…</p>
+          ) : elementos.length === 0 ? (
+            <p className="py-2 text-xs text-muted-foreground">Nenhum elemento indexado.</p>
+          ) : (
+            <ScrollArea className="max-h-[40vh]">
+              <div className="space-y-1 pr-3">
+                {pavimentos.map((pav) => {
+                  const els = porPavimento.get(pav.localId) ?? [];
+                  const categorias = agruparPorCategoria(els);
+                  const nomePav = pav.nome ?? PAVIMENTO_SEM_NOME;
+                  const aberto = expandidos.has(pav.localId);
+                  return (
+                    <div key={String(pav.localId)}>
+                      <button
+                        type="button"
+                        onClick={() => alternarExpandido(pav.localId)}
+                        className="flex w-full items-center gap-1.5 rounded px-1 py-1 text-left text-xs font-medium hover:bg-muted/50"
+                        aria-expanded={aberto}
+                      >
+                        <ChevronDown
+                          className={cn("size-3.5 shrink-0 transition-transform", !aberto && "-rotate-90")}
+                        />
+                        <span className="truncate">{nomePav}</span>
+                        <Badge variant="outline" className="ml-auto shrink-0 text-[10px]">
+                          {els.length}
+                        </Badge>
+                      </button>
+                      {aberto && (
+                        <div className="ml-5 space-y-0.5 border-l pl-2">
+                          {[...categorias.entries()].map(([categoria, itens]) => {
+                            const ativo = isolado?.pavimento === pav.localId && isolado?.categoria === categoria;
+                            return (
+                              <button
+                                key={categoria}
+                                type="button"
+                                onClick={() => isolarCategoria(pav.localId, categoria, els)}
+                                className={cn(
+                                  "flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-xs hover:bg-muted/50",
+                                  ativo && "bg-muted",
+                                  multifiltroAtivo && "cursor-not-allowed opacity-50",
+                                )}
+                                title={
+                                  multifiltroAtivo
+                                    ? "Limpe o multifiltro antes de isolar pela árvore."
+                                    : `Isolar ${itens.length} elemento(s) de ${categoria}`
+                                }
+                                disabled={multifiltroAtivo}
+                              >
+                                {ativo && <Eye className="size-3 shrink-0 text-primary" />}
+                                <span className="truncate text-muted-foreground">{categoria}</span>
+                                <span className="ml-auto shrink-0 text-muted-foreground">{itens.length}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
           )}
-        </div>
-      </CardHeader>
-      <CardContent>
-        {carregando ? (
-          <p className="py-2 text-xs text-muted-foreground">Carregando elementos…</p>
-        ) : elementos.length === 0 ? (
-          <p className="py-2 text-xs text-muted-foreground">Nenhum elemento indexado.</p>
-        ) : (
-          <ScrollArea className="max-h-[40vh]">
-            <div className="space-y-1 pr-3">
-              {pavimentos.map((pav) => {
-                const els = porPavimento.get(pav.localId) ?? [];
-                const categorias = agruparPorCategoria(els);
-                const nomePav = pav.nome ?? PAVIMENTO_SEM_NOME;
-                const aberto = expandidos.has(pav.localId);
-                return (
-                  <div key={String(pav.localId)}>
-                    <button
-                      type="button"
-                      onClick={() => alternarExpandido(pav.localId)}
-                      className="flex w-full items-center gap-1.5 rounded px-1 py-1 text-left text-xs font-medium hover:bg-muted/50"
-                      aria-expanded={aberto}
-                    >
-                      <ChevronDown className={cn("size-3.5 shrink-0 transition-transform", !aberto && "-rotate-90")} />
-                      <span className="truncate">{nomePav}</span>
-                      <Badge variant="outline" className="ml-auto shrink-0 text-[10px]">
-                        {els.length}
-                      </Badge>
-                    </button>
-                    {aberto && (
-                      <div className="ml-5 space-y-0.5 border-l pl-2">
-                        {[...categorias.entries()].map(([categoria, itens]) => {
-                          const ativo = isolado?.pavimento === pav.localId && isolado?.categoria === categoria;
-                          return (
-                            <button
-                              key={categoria}
-                              type="button"
-                              onClick={() => isolarCategoria(pav.localId, categoria, els)}
-                              className={cn(
-                                "flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-xs hover:bg-muted/50",
-                                ativo && "bg-muted",
-                              )}
-                              title={`Isolar ${itens.length} elemento(s) de ${categoria}`}
-                            >
-                              {ativo && <Eye className="size-3 shrink-0 text-primary" />}
-                              <span className="truncate text-muted-foreground">{categoria}</span>
-                              <span className="ml-auto shrink-0 text-muted-foreground">{itens.length}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </ScrollArea>
-        )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+      {modeloId && elementos.length > 0 && (
+        <FiltrosPanel
+          engine={engine}
+          modeloId={modeloId}
+          elementos={elementos}
+          carregandoPsets={carregandoPsets}
+          onFiltroAtivoChange={aoMudarMultifiltro}
+        />
+      )}
+    </div>
   );
 }

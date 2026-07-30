@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   contarPorStatus,
   contarPorDisciplina,
+  contarConflitosAbertos,
   semanasCriadosEncerrados,
   type ApontamentoResumo,
 } from "@/modules/coordenacao/dashboard";
@@ -36,6 +37,19 @@ describe("contarPorStatus", () => {
     ]);
     expect(r.find((s) => s.status === "aberta")?.total).toBe(2);
     expect(r.find((s) => s.status === "fechada")?.total).toBe(1);
+  });
+});
+
+describe("contarConflitosAbertos", () => {
+  it("conta somente apontamentos no status aberta", () => {
+    expect(
+      contarConflitosAbertos([
+        ap({ status: "aberta" }),
+        ap({ status: "aberta" }),
+        ap({ status: "resolvida" }),
+        ap({ status: "fechada" }),
+      ]),
+    ).toBe(2);
   });
 });
 

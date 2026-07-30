@@ -4,6 +4,7 @@ import type {
   PontoSemana,
 } from "@/modules/coordenacao/dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AlertTriangle } from "lucide-react";
 
 const STATUS_LABEL: Record<string, string> = {
   aberta: "Aberta",
@@ -17,6 +18,25 @@ const STATUS_COR: Record<string, string> = {
   fechada: "bg-status-aprovado",
   descartada: "bg-muted-foreground",
 };
+
+function CardConflitosAbertos({ total }: { total: number }) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <AlertTriangle className="size-4 text-warning" />
+          Conflitos abertos
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-3xl font-semibold tabular-nums">{total}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Apontamento{total === 1 ? "" : "s"} de coordenação aguardando tratamento.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
 
 function CardStatus({ status }: { status: ContagemStatus[] }) {
   const total = status.reduce((s, x) => s + x.total, 0);
@@ -126,19 +146,22 @@ function CardBurndown({ semanas }: { semanas: PontoSemana[] }) {
 
 /** Dashboard de apontamentos de coordenação: status, disciplina, burndown semanal. */
 export function DashboardCoordenacao({
+  conflitosAbertos,
   status,
   disciplinas,
   semanas,
 }: {
+  conflitosAbertos: number;
   status: ContagemStatus[];
   disciplinas: ContagemDisciplina[];
   semanas: PontoSemana[];
 }) {
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <CardConflitosAbertos total={conflitosAbertos} />
       <CardStatus status={status} />
       <CardDisciplinas disciplinas={disciplinas} />
-      <div className="md:col-span-2 lg:col-span-1">
+      <div className="md:col-span-2 xl:col-span-1">
         <CardBurndown semanas={semanas} />
       </div>
     </div>

@@ -21,6 +21,7 @@ import {
   SnappingClass,
   type FragmentsModel,
   type ItemData,
+  type MeshData,
 } from "@thatopen/fragments";
 import {
   extrairAtributos,
@@ -46,6 +47,12 @@ import {
   type Ponto3D,
 } from "@/modules/coordenacao/medicao";
 import { detectarConflitos, type Caixa, type Conflito } from "@/modules/coordenacao/clash";
+import {
+  refinarComponentesTriangulos,
+  triangulosDaMalha,
+  type ComponenteTriangulosClash,
+  type TrianguloClash,
+} from "@/modules/coordenacao/clash-malha";
 import { diffVersoes, type CentroPorGuid, type ResultadoDiff } from "@/modules/coordenacao/diff";
 
 CameraControls.install({ THREE });
@@ -54,6 +61,13 @@ const COR_SELECAO = 0x2563eb; // primário (azul) — highlight de seleção
 const COR_CONFLITO = 0xdc2626; // destrutivo (vermelho) — realce dos 2 elementos em conflito
 const COR_DIFF_ADICIONADO = 0x22c55e; // verde — elemento novo na versão atual
 const COR_DIFF_MOVIDO = 0xeab308; // âmbar — mesmo guid, centro deslocou > tolerância
+const LOTE_GEOMETRIAS_CLASH = 25;
+const LIMITE_TRIANGULOS_CLASH_POR_ITEM = 20_000;
+const LOTE_PSETS = 100;
+const LIMITE_PROPRIEDADES_POR_ELEMENTO = 256;
+const LIMITE_PROPRIEDADES_POR_MODELO = 100_000;
+const LIMITE_CARACTERES_PROPRIEDADES_MODELO = 20_000_000;
+const LIMITE_CARACTERES_CAMPO_PSET = 512;
 
 export type { AtributoItem, PsetItem };
 
@@ -93,6 +107,15 @@ export type ConflitoView = {
   profundidade: number;
   /** Centro do volume de interseção, espaço three (mundo) — âncora de câmera/pin. */
   centro: { x: number; y: number; z: number };
+  /** `malha` quando o par foi confirmado por triângulos; `aabb` inclui fallback sem geometria. */
+  metodo: "aabb" | "malha";
+};
+
+export type OpcoesClash = {
+  /** Penetração mínima em metros (broadphase AABB). */
+  tolerancia?: number;
+  /** Refina os pares AABB por interseção de triângulos quando a geometria está disponível. */
+  refinarPorMalha?: boolean;
 };
 
 // ── Medição ──────────────────────────────────────────────────
@@ -130,6 +153,14 @@ export class ViewerEngine {
   private modelos = new Map<string, FragmentsModel>();
   /** Índice de elementos por modelo (Onda 0) — computado sob demanda, invalidado ao descarregar. */
   private indiceCache = new Map<string, ElementoIndex[]>();
+  /** Mesmo índice enriquecido com Psets, carregado só quando o painel de filtros pede. */
+  private indicePsetsCache = new Map<string, ElementoIndex[]>();
+  /**
+   * Visibilidade é assíncrona no worker. Serializa e coalesce pedidos para uma
+   * resposta antiga de filtro/árvore nunca sobrescrever a escolha mais recente.
+   */
+  private filaVisibilidade: Promise<void> = Promise.resolve();
+  private revisaoVisibilidade = 0;
   private medicao: EstadoMedicao | null = null;
   /** Marcador visual do snap (vértice/aresta) sob o mouse — medição e arraste de realinhamento. */
   private snapMarker: THREE.Mesh | null = null;
@@ -232,6 +263,7 @@ export class ViewerEngine {
     this.modelos.delete(modeloId);
     this.selecao.delete(modeloId);
     this.indiceCache.delete(modeloId);
+    this.indicePsetsCache.delete(modeloId);
     this.scene.remove(model.object);
     await this.fragments.disposeModel(modeloId);
   }
@@ -371,15 +403,32 @@ export class ViewerEngine {
 
   // ── Visibilidade ───────────────────────────────────────────
 
+  private enfileirarVisibilidade(operacao: () => Promise<void>): Promise<void> {
+    const revisao = ++this.revisaoVisibilidade;
+    const atual = this.filaVisibilidade
+      .catch(() => {
+        // Uma falha anterior é entregue ao seu chamador, mas não envenena a fila.
+      })
+      .then(async () => {
+        if (this.destruido || revisao !== this.revisaoVisibilidade) return;
+        await operacao();
+      });
+    this.filaVisibilidade = atual;
+    return atual;
+  }
+
   /** Mostra só a seleção (nos modelos sem seleção, esconde tudo). */
   async isolarSelecao(): Promise<void> {
     if (!this.temSelecao) return;
-    for (const [modeloId, model] of this.modelos) {
-      const ids = this.selecao.get(modeloId);
-      await model.setVisible(undefined, false);
-      if (ids && ids.size > 0) await model.setVisible([...ids], true);
-    }
-    await this.fragments.update(true);
+    const selecao = new Map([...this.selecao].map(([id, ids]) => [id, [...ids]]));
+    await this.enfileirarVisibilidade(async () => {
+      for (const [modeloId, model] of this.modelos) {
+        const ids = selecao.get(modeloId);
+        await model.setVisible(undefined, false);
+        if (ids && ids.length > 0) await model.setVisible(ids, true);
+      }
+      await this.fragments.update(true);
+    });
   }
 
   async ocultarSelecao(): Promise<void> {
@@ -391,10 +440,12 @@ export class ViewerEngine {
   }
 
   async mostrarTudo(): Promise<void> {
-    for (const model of this.modelos.values()) {
-      await model.setVisible(undefined, true);
-    }
-    await this.fragments.update(true);
+    await this.enfileirarVisibilidade(async () => {
+      for (const model of this.modelos.values()) {
+        await model.setVisible(undefined, true);
+      }
+      await this.fragments.update(true);
+    });
   }
 
   /**
@@ -555,6 +606,107 @@ export class ViewerEngine {
     return elementos;
   }
 
+  /**
+   * Índice enriquecido com Property Sets IFC. A leitura é sob demanda e em lotes
+   * para não criar uma mensagem gigante para o worker em modelos grandes.
+   */
+  async indiceComPsetsDoModelo(modeloId: string): Promise<ElementoIndex[]> {
+    const cache = this.indicePsetsCache.get(modeloId);
+    if (cache) return cache;
+    const model = this.modelos.get(modeloId);
+    if (!model) return [];
+
+    const base = await this.indiceDoModelo(modeloId);
+    // Anotação explícita evita `propriedades: never[]` em compilações incrementais
+    // que ainda não contextualizaram o array vazio pelo tipo de ElementoIndex.
+    const enriquecidos: ElementoIndex[] = base.map((elemento) => ({
+      ...elemento,
+      propriedades: [],
+    }));
+    const porLocalId = new Map(enriquecidos.map((elemento) => [elemento.localId, elemento]));
+    const processados = new Set<number>();
+    let totalPropriedades = 0;
+    let totalCaracteres = 0;
+    let limiteGlobalAtingido = false;
+
+    const limitarCampo = (valor: string) => {
+      if (valor.length <= LIMITE_CARACTERES_CAMPO_PSET) return { valor, parcial: false };
+      return {
+        valor: `${valor.slice(0, LIMITE_CARACTERES_CAMPO_PSET - 1)}…`,
+        parcial: true,
+      };
+    };
+
+    for (let inicio = 0; inicio < base.length && !limiteGlobalAtingido; inicio += LOTE_PSETS) {
+      const ids = base.slice(inicio, inicio + LOTE_PSETS).map((elemento) => elemento.localId);
+      const dados = await model
+        .getItemsData(ids, {
+          attributesDefault: false,
+          relations: { IsDefinedBy: { attributes: true, relations: true } },
+        })
+        .catch(() => [] as ItemData[]);
+      for (let indice = 0; indice < ids.length; indice++) {
+        const localId = ids[indice];
+        const alvo = porLocalId.get(localId);
+        if (!alvo) continue;
+        processados.add(localId);
+        if (!dados[indice]) {
+          alvo.propriedadesParciais = true;
+          continue;
+        }
+        const { psets } = extrairAtributos(dados[indice]);
+        let propriedadesDoElemento = 0;
+        for (const pset of psets) {
+          for (const propriedade of pset.props) {
+            if (
+              propriedadesDoElemento >= LIMITE_PROPRIEDADES_POR_ELEMENTO ||
+              totalPropriedades >= LIMITE_PROPRIEDADES_POR_MODELO
+            ) {
+              alvo.propriedadesParciais = true;
+              if (totalPropriedades >= LIMITE_PROPRIEDADES_POR_MODELO) limiteGlobalAtingido = true;
+              break;
+            }
+            const psetLimitado = limitarCampo(pset.nome);
+            const nomeLimitado = limitarCampo(propriedade.nome);
+            const valorLimitado = limitarCampo(propriedade.valor);
+            const caracteres =
+              psetLimitado.valor.length + nomeLimitado.valor.length + valorLimitado.valor.length;
+            if (totalCaracteres + caracteres > LIMITE_CARACTERES_PROPRIEDADES_MODELO) {
+              alvo.propriedadesParciais = true;
+              limiteGlobalAtingido = true;
+              break;
+            }
+            alvo.propriedades!.push({
+              pset: psetLimitado.valor,
+              nome: nomeLimitado.valor,
+              valor: valorLimitado.valor,
+            });
+            if (psetLimitado.parcial || nomeLimitado.parcial || valorLimitado.parcial) {
+              alvo.propriedadesParciais = true;
+            }
+            propriedadesDoElemento += 1;
+            totalPropriedades += 1;
+            totalCaracteres += caracteres;
+          }
+          if (alvo.propriedadesParciais && (
+            propriedadesDoElemento >= LIMITE_PROPRIEDADES_POR_ELEMENTO ||
+            limiteGlobalAtingido
+          )) break;
+        }
+        if (limiteGlobalAtingido) break;
+      }
+    }
+
+    if (limiteGlobalAtingido) {
+      for (const elemento of enriquecidos) {
+        if (!processados.has(elemento.localId)) elemento.propriedadesParciais = true;
+      }
+    }
+    if (this.modelos.get(modeloId) !== model) return [];
+    this.indicePsetsCache.set(modeloId, enriquecidos);
+    return enriquecidos;
+  }
+
   /** Bounding boxes (espaço mundo, three) dos localIds informados — usado por clash/diff. */
   async bboxesDoModelo(modeloId: string, localIds: number[]): Promise<THREE.Box3[]> {
     const model = this.modelos.get(modeloId);
@@ -570,10 +722,13 @@ export class ViewerEngine {
    * reverte.
    */
   async isolarElementos(modeloId: string, localIds: number[]): Promise<void> {
-    for (const model of this.modelos.values()) await model.setVisible(undefined, false);
-    const model = this.modelos.get(modeloId);
-    if (model && localIds.length > 0) await model.setVisible(localIds, true);
-    await this.fragments.update(true);
+    const ids = [...localIds];
+    await this.enfileirarVisibilidade(async () => {
+      for (const model of this.modelos.values()) await model.setVisible(undefined, false);
+      const model = this.modelos.get(modeloId);
+      if (model && ids.length > 0) await model.setVisible(ids, true);
+      await this.fragments.update(true);
+    });
   }
 
   // ── Clash (detecção de conflitos) ────────────────────────────
@@ -582,8 +737,69 @@ export class ViewerEngine {
   // 2026-07-21-…). Junta índice+boxes de cada modelo (Onda 0) e roda o núcleo puro
   // de clash.ts. Efêmero — não persiste; o chamador decide o que virar apontamento.
 
-  /** Detecta conflitos (AABB+tolerância) entre TODOS os elementos de dois modelos carregados. */
-  async detectarConflitos(modeloIdA: string, modeloIdB: string, tolerancia?: number): Promise<ConflitoView[]> {
+  /** Número de triângulos declarados no buffer, antes de alocar vértices transformados. */
+  private totalTriangulosDaMalha(malha: MeshData): number {
+    if (malha.indices) return Math.floor(malha.indices.length / 3);
+    return Math.floor((malha.positions?.length ?? 0) / 9);
+  }
+
+  /**
+   * Extrai componentes em espaço-mundo, em lotes pequenos. Um item acima do
+   * limite defensivo não é refinado (permanece AABB) para não congelar/alocar
+   * centenas de MB na main thread.
+   */
+  private async componentesTriangulosPorItem(
+    model: FragmentsModel,
+    localIds: number[],
+  ): Promise<Map<number, ComponenteTriangulosClash[]>> {
+    const resultado = new Map<number, ComponenteTriangulosClash[]>();
+    if (localIds.length === 0) return resultado;
+    model.object.updateWorldMatrix(true, true);
+
+    for (let inicio = 0; inicio < localIds.length; inicio += LOTE_GEOMETRIAS_CLASH) {
+      const idsLote = localIds.slice(inicio, inicio + LOTE_GEOMETRIAS_CLASH);
+      const geometrias = await model.getItemsGeometry(idsLote);
+
+      idsLote.forEach((localId, indice) => {
+        const malhas = (geometrias[indice] ?? []) as MeshData[];
+        const totalDeclarado = malhas.reduce(
+          (total, malha) => total + this.totalTriangulosDaMalha(malha),
+          0,
+        );
+        if (totalDeclarado === 0 || totalDeclarado > LIMITE_TRIANGULOS_CLASH_POR_ITEM) return;
+
+        const componentes: ComponenteTriangulosClash[] = [];
+        for (const malha of malhas) {
+          if (!malha.positions || malha.positions.length < 9) continue;
+          const matrizMundo = model.object.matrixWorld.clone().multiply(malha.transform);
+          const triangulos: TrianguloClash[] = triangulosDaMalha({
+            positions: malha.positions,
+            indices: malha.indices,
+            matriz: matrizMundo.elements,
+          });
+          if (triangulos.length > 0) componentes.push(triangulos);
+        }
+        if (componentes.length > 0) resultado.set(localId, componentes);
+      });
+
+      // A conversão dos buffers acima é síncrona; uma task por lote mantém a UI viva.
+      if (inicio + LOTE_GEOMETRIAS_CLASH < localIds.length) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
+    }
+    return resultado;
+  }
+
+  /**
+   * Detecta conflitos entre todos os elementos de dois modelos carregados.
+   * O AABB é sempre o broadphase. Quando solicitado, a malha confirma cada par;
+   * se um item não expuser triângulos (LOD/IFC sem geometria), preserva o AABB.
+   */
+  async detectarConflitos(
+    modeloIdA: string,
+    modeloIdB: string,
+    opcoes: OpcoesClash = {},
+  ): Promise<ConflitoView[]> {
     const [elementosA, elementosB] = await Promise.all([
       this.indiceDoModelo(modeloIdA),
       this.indiceDoModelo(modeloIdB),
@@ -606,14 +822,60 @@ export class ViewerEngine {
       max: [boxesB[i].max.x, boxesB[i].max.y, boxesB[i].max.z],
     }));
 
-    const conflitos: Conflito[] = detectarConflitos(caixasA, caixasB, tolerancia);
-    return conflitos.map((c) => ({
+    const conflitos: Conflito[] = detectarConflitos(caixasA, caixasB, opcoes.tolerancia);
+    let metodoPorPar = new Map<string, "aabb" | "malha">();
+    let conflitosFinais = conflitos;
+
+    if (opcoes.refinarPorMalha && conflitos.length > 0) {
+      const modelA = this.modelos.get(modeloIdA);
+      const modelB = this.modelos.get(modeloIdB);
+      if (modelA && modelB) {
+        try {
+          const idsA = [...new Set(conflitos.map((c) => c.localIdA))];
+          const idsB = [...new Set(conflitos.map((c) => c.localIdB))];
+          const [componentesA, componentesB] = await Promise.all([
+            this.componentesTriangulosPorItem(modelA, idsA),
+            this.componentesTriangulosPorItem(modelB, idsB),
+          ]);
+          const refinados: Conflito[] = [];
+          for (let indice = 0; indice < conflitos.length; indice++) {
+            const conflito = conflitos[indice];
+            const chave = `${conflito.localIdA}:${conflito.localIdB}`;
+            const a = componentesA.get(conflito.localIdA);
+            const b = componentesB.get(conflito.localIdB);
+            if (!a || !b) {
+              metodoPorPar.set(chave, "aabb");
+              refinados.push(conflito);
+              continue;
+            }
+            const refino = await refinarComponentesTriangulos(a, b);
+            if (refino.status === "intersecta") {
+              metodoPorPar.set(chave, "malha");
+              refinados.push(conflito);
+            } else if (refino.status === "inconclusiva") {
+              metodoPorPar.set(chave, "aabb");
+              refinados.push(conflito);
+            }
+            if (indice > 0 && indice % 100 === 0) {
+              await new Promise<void>((resolve) => setTimeout(resolve, 0));
+            }
+          }
+          conflitosFinais = refinados;
+        } catch {
+          // Falha de worker/LOD não pode apagar clashes: mantém todo o broadphase.
+          metodoPorPar = new Map();
+        }
+      }
+    }
+
+    return conflitosFinais.map((c) => ({
       modeloIdA,
       localIdA: c.localIdA,
       modeloIdB,
       localIdB: c.localIdB,
       profundidade: c.profundidade,
       centro: { x: c.centro[0], y: c.centro[1], z: c.centro[2] },
+      metodo: metodoPorPar.get(`${c.localIdA}:${c.localIdB}`) ?? "aabb",
     }));
   }
 
@@ -1290,6 +1552,7 @@ export class ViewerEngine {
     this.modelos.clear();
     this.selecao.clear();
     this.indiceCache.clear();
+    this.indicePsetsCache.clear();
     this.diffCarregados.clear();
   }
 

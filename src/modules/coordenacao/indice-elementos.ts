@@ -36,6 +36,16 @@ export type ElementoIndex = {
   pavimentoLocalId: number | null;
   /** Rótulo do pavimento — preenchido por quem tem o nome (a árvore só traz category). */
   pavimentoNome: string | null;
+  /** Propriedades IFC carregadas sob demanda para o multifiltro por Pset. */
+  propriedades?: PropriedadePsetIndex[];
+  /** True quando limites defensivos impediram materializar todos os Psets do item/modelo. */
+  propriedadesParciais?: boolean;
+};
+
+export type PropriedadePsetIndex = {
+  pset: string;
+  nome: string;
+  valor: string;
 };
 
 /** Categorias espaciais reconhecidas como "pavimento" na hierarquia Project→Site→Building→Storey. */

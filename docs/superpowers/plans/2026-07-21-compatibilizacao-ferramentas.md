@@ -100,6 +100,9 @@ Objetivo: salvar câmera + visibilidade + corte como vista nomeada, reabrir/comp
 
 **Depende de:** nada. Reusa captura/restauração de câmera já existentes.
 
+**Status em 2026-07-28:** ✅ criar, renomear e excluir integrados via `defineAction`;
+autor e perfis globais podem alterar, e o painel atualiza o nome localmente.
+
 ---
 
 ## #1 Detecção automática de conflitos (Clash) — NÚCLEO DO MÓDULO
@@ -122,7 +125,7 @@ e gerar **relatório com imagem de cada clash** (câmera no conflito + os 2 elem
 | F2 | Adapter no `engine.ts` (junta boxes por disciplina via `getBoxes`, roda `detectarConflitos`, mapeia → view) + realce dos 2 elementos no viewer + câmera no conflito | **Sonnet 5** | Orquestração no engine (client) | ✅ feito |
 | F3 | `clash-painel.tsx` (escolher 2 disciplinas, lista, focar no 3D, "virar apontamento") | **Sonnet 5** | Componente + adapter | ✅ feito |
 | F3 | **Relatório de clashes**: p/ cada conflito, câmera no centro + realce dos 2 elementos → snapshot; compila HTML (abre em aba, print-to-PDF nativo do navegador — SEM puppeteer/dependência nova) | **Sonnet 5** | Geração de relatório + snapshot | ✅ feito (`relatorio-clash.ts`, 4 testes) |
-| F4 | Tuning de tolerância + (opcional) v2 narrowphase triângulo | **Opus 4.8** (v2 geo) | Refino geométrico | pendente |
+| F4 | Tuning de tolerância + (opcional) v2 narrowphase triângulo | **Opus 4.8** (v2 geo) | Refino geométrico | ✅ feito (`clash-malha.ts`; fallback AABB sem geometria) |
 
 **Depende de:** Onda 0 (índice/geometria). **v1 sem persistência** (decisão F0).
 
@@ -139,6 +142,9 @@ Objetivo: isolar/ocultar por pavimento, IfcClass ou valor de propriedade.
 | F3 | `filtros-painel.tsx` (checkbox tree de pavimentos/tipos) | **Haiku 4.5** |
 
 **Depende de:** Onda 0.
+
+**Status em 2026-07-28:** ✅ painel integrado à árvore, multifiltro por checkbox
+(pavimento/tipo/Pset), propriedades carregadas sob demanda em lotes e isolamento em tempo real.
 
 ---
 
@@ -192,6 +198,8 @@ Objetivo: apontamentos por disciplina/status, burndown, nº de conflitos abertos
 | F4 | Ajuste de acessibilidade/cores (tokens do design system) | **Haiku 4.5** |
 
 **Depende de:** apontamentos (pronto) + idealmente #1 clash.
+
+**Status em 2026-07-28:** ✅ dashboard integrado, incluindo KPI explícito de conflitos abertos.
 
 ---
 

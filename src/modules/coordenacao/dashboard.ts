@@ -19,6 +19,11 @@ export type PontoSemana = { semana: string; criados: number; encerrados: number 
 
 const STATUS_ORDEM = ["aberta", "resolvida", "fechada", "descartada"];
 
+/** Quantidade de conflitos/apontamentos que ainda exigem tratamento. */
+export function contarConflitosAbertos(apontamentos: readonly ApontamentoResumo[]): number {
+  return apontamentos.filter((apontamento) => apontamento.status === "aberta").length;
+}
+
 /** Contagem por status, na ordem canônica do workflow (mesmo se algum status não ocorrer). */
 export function contarPorStatus(apontamentos: readonly ApontamentoResumo[]): ContagemStatus[] {
   const contagem = new Map<string, number>();

@@ -19,6 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 export type ModeloClash = { uploadId: string; disciplinaId: string | null; label: string };
@@ -59,20 +61,38 @@ export function ClashPainel({
   const [ativoIdx, setAtivoIdx] = useState<number | null>(null);
   const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
   const [gerandoRelatorio, setGerandoRelatorio] = useState(false);
+  const [toleranciaMm, setToleranciaMm] = useState("1");
+  const [refinarPorMalha, setRefinarPorMalha] = useState(false);
   const [pending, start] = useTransition();
 
   const nomeDe = (uploadId: string) => modelos.find((m) => m.uploadId === uploadId)?.label ?? "—";
 
   async function detectar() {
     if (!engine || !modeloAId || !modeloBId) return;
+    const tolerancia = Number(toleranciaMm.replace(",", "."));
+    if (!Number.isFinite(tolerancia) || tolerancia < 0 || tolerancia > 1000) {
+      toast.error("Informe uma tolerância entre 0 e 1.000 mm.");
+      return;
+    }
     setDetectando(true);
     setAtivoIdx(null);
     setSelecionados(new Set());
     await engine.limparRealceConflito();
     try {
-      const r = await engine.detectarConflitos(modeloAId, modeloBId);
+      const r = await engine.detectarConflitos(modeloAId, modeloBId, {
+        tolerancia: tolerancia / 1000,
+        refinarPorMalha,
+      });
       setConflitos(r);
       if (r.length === 0) toast.success("Nenhum conflito encontrado entre as disciplinas escolhidas.");
+      else if (refinarPorMalha) {
+        const fallback = r.filter((conflito) => conflito.metodo === "aabb").length;
+        if (fallback > 0) {
+          toast.warning(
+            `${fallback} conflito(s) permaneceram em AABB porque o IFC não forneceu triângulos.`,
+          );
+        }
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao detectar conflitos.");
     } finally {
@@ -201,6 +221,31 @@ export function ClashPainel({
             </SelectContent>
           </Select>
         </div>
+        <div className="grid grid-cols-[1fr_auto] items-end gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="clash-tolerancia" className="text-xs">Tolerância (mm)</Label>
+            <Input
+              id="clash-tolerancia"
+              type="number"
+              min={0}
+              max={1000}
+              step={0.5}
+              value={toleranciaMm}
+              onChange={(evento) => setToleranciaMm(evento.target.value)}
+              className="h-8 text-xs"
+            />
+          </div>
+          <label className="flex h-8 cursor-pointer items-center gap-2 text-xs">
+            <Checkbox
+              checked={refinarPorMalha}
+              onCheckedChange={(valor) => setRefinarPorMalha(valor === true)}
+            />
+            Refinar por malha
+          </label>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          A malha reduz falsos positivos; quando o IFC não expõe triângulos, o par continua em AABB.
+        </p>
         <Button
           size="sm"
           className="w-full"
@@ -214,7 +259,14 @@ export function ClashPainel({
         {conflitos.length > 0 && (
           <>
             <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">{conflitos.length} conflito(s) encontrado(s)</p>
+              <div>
+                <p className="text-xs text-muted-foreground">{conflitos.length} conflito(s) encontrado(s)</p>
+                {refinarPorMalha && (
+                  <p className="text-[11px] text-muted-foreground">
+                    {conflitos.filter((conflito) => conflito.metodo === "malha").length} confirmado(s) por malha
+                  </p>
+                )}
+              </div>
               <Button size="sm" variant="outline" onClick={gerarRelatorio} disabled={gerandoRelatorio}>
                 <FileText className="mr-1.5 size-3.5" />
                 {gerandoRelatorio ? "Gerando…" : "Relatório"}

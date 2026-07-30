@@ -23,6 +23,7 @@ import {
   enviarApontamentosSchema,
   criarVistaSchema,
   idVistaSchema,
+  renomearVistaSchema,
   importarTopicoBcfSchema,
   lerGeorrefSchema,
   gravarGeorrefSchema,
@@ -536,6 +537,38 @@ export const criarVistaCoordenacao = defineAction(
     });
     revalidarCoordenacao(input.projetoId);
     return { id: vista.id };
+  },
+);
+
+/** Renomeia uma vista compartilhada (autor ou perfil global), preservando seu conteúdo. */
+export const renomearVistaCoordenacao = defineAction(
+  {
+    ...baseVista,
+    permissao: "ver",
+    acao: "renomear-vista",
+    schema: renomearVistaSchema,
+    entidadeId: (_d, input) => input.id,
+    capturarAntes: (input) =>
+      prisma.vistaCoordenacao.findUnique({
+        where: { id: input.id },
+        select: { id: true, projetoId: true, nome: true, autorId: true },
+      }),
+  },
+  async (input, { user }) => {
+    const vista = await prisma.vistaCoordenacao.findUnique({
+      where: { id: input.id },
+      select: { projetoId: true, autorId: true },
+    });
+    if (!vista) throw new ActionError("Vista não encontrada.");
+    if (vista.autorId !== user.id && !ehGlobal(user)) {
+      throw new ActionError("Só quem criou a vista (ou perfil global) pode renomeá-la.");
+    }
+    await prisma.vistaCoordenacao.update({
+      where: { id: input.id },
+      data: { nome: input.nome },
+    });
+    revalidarCoordenacao(vista.projetoId);
+    return { id: input.id, nome: input.nome };
   },
 );
 

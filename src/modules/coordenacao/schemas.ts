@@ -82,6 +82,9 @@ export const criarVistaSchema = z.object({
 });
 
 export const idVistaSchema = z.object({ id: z.string().min(1) });
+export const renomearVistaSchema = idVistaSchema.extend({
+  nome: z.string().trim().min(1, "Dê um nome à vista.").max(120),
+});
 
 // Envio dos apontamentos = criação da tarefa (espelha pendencias). Campos opcionais
 // vêm da janela de confirmação (TarefaDialog); ausentes caem nos defaults do servidor.
