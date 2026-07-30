@@ -438,7 +438,7 @@ eventos), e removido todo resíduo `TESTE*` do banco de dev ao final.
      tratando `count === 0` como "já foi decidida" (sem tabela nova, sem lock explícito). Verificado com
      smoke de `Promise.allSettled` disparando a mesma proposta 2x em paralelo: 1 sucesso, 1 rejeitado com
      a mensagem esperada, exatamente 1 linha de histórico de preço.
-- [x] Commit `feat(custos): RFQ, propostas, comparador e histórico de preços`.
+- [x] Commit `feat(custos): RFQ, propostas, comparador e histórico de preços` (`13ff95c`).
 
 ## 7. Definition of Done
 
