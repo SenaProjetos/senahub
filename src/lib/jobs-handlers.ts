@@ -254,6 +254,58 @@ export async function alertaLicitacoes(): Promise<number> {
   return n;
 }
 
+/**
+ * RFQ `aberta` com prazo de resposta em 3/1 dia(s), e RFQ `aberta` cujo prazo venceu ONTEM com algum
+ * convite ainda `convidado` (fornecedor nunca respondeu) → criador da RFQ + gestores de suprimentos.
+ * Janela de 1 dia (como o D-3/D-1 acima) pra não reenviar todo dia enquanto a RFQ ficar aberta.
+ */
+export async function alertaCotacoesCusto(): Promise<number> {
+  let n = 0;
+  const ids = await gestores(["admin", "administrativo"]);
+
+  for (const dias of [3, 1]) {
+    const rfqs = await prisma.custoRfq.findMany({
+      where: { status: "aberta", prazoResposta: diaAlvo(dias) },
+      select: { id: true, titulo: true, criadoPorId: true },
+    });
+    for (const r of rfqs) {
+      const destinatarios = [...new Set([...ids, r.criadoPorId])];
+      await notificarMuitos(
+        destinatarios,
+        {
+          titulo: `Cotação: prazo em ${dias} dia(s)`,
+          corpo: r.titulo,
+          href: `/custos/cotacoes/${r.id}`,
+          tag: `rfq-${r.id}-${dias}`,
+        },
+        { categoria: "custos" },
+      );
+      n++;
+    }
+  }
+
+  const semResposta = await prisma.custoRfq.findMany({
+    where: { status: "aberta", prazoResposta: diaAlvo(-1), convites: { some: { status: "convidado" } } },
+    select: { id: true, titulo: true, criadoPorId: true },
+  });
+  for (const r of semResposta) {
+    const destinatarios = [...new Set([...ids, r.criadoPorId])];
+    await notificarMuitos(
+      destinatarios,
+      {
+        titulo: "Cotação com fornecedor sem resposta",
+        corpo: `${r.titulo} — prazo vencido, ainda tem convite sem retorno.`,
+        href: `/custos/cotacoes/${r.id}`,
+        tag: `rfq-${r.id}-sem-resposta`,
+      },
+      { categoria: "custos" },
+    );
+    n++;
+  }
+
+  return n;
+}
+
 /** Dia 1º: grava o snapshot de qualidade do mês anterior. */
 export async function snapshotQualidadeMensal() {
   const anterior = subMonths(new Date(), 1);

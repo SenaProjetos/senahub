@@ -26,6 +26,7 @@ type Conta = {
   padrao: boolean;
 };
 type Servico = { id: string; descricao: string; valorReferencia: number | null };
+type Representante = { id: string; nome: string; cargo: string | null; telefone: string | null; email: string | null };
 type Fornecedor = {
   id: string;
   tipo: "PF" | "PJ";
@@ -37,6 +38,12 @@ type Fornecedor = {
   observacoes: string | null;
   ativo: boolean;
   catalogo: Servico[];
+  representantes: Representante[];
+  regioesAtendidas: string[];
+  categoriasFornecidas: string[];
+  prazoMedioDiasEntrega: number | null;
+  condicoesComerciais: string | null;
+  avaliacaoNota: number | null;
 };
 type Retirada = { id: string; data: string; valor: number; tipo: string; observacao: string | null };
 type SocioRow = { id: string; nome: string; ativo: boolean; percentual: number; retiradas: Retirada[] };
@@ -49,6 +56,7 @@ export function CadastrosView({
   fornecedores,
   socios,
   usuarios,
+  podeCotacao,
 }: {
   categorias: Cat[];
   centros: { id: string; nome: string }[];
@@ -57,6 +65,7 @@ export function CadastrosView({
   fornecedores: Fornecedor[];
   socios: SocioRow[];
   usuarios: { id: string; name: string }[];
+  podeCotacao: boolean;
 }) {
   return (
     <div className="space-y-4">
@@ -86,7 +95,7 @@ export function CadastrosView({
               <ContasSection contas={contas} />
             </TabsContent>
             <TabsContent value="fornecedores">
-              <FornecedoresSection fornecedores={fornecedores} />
+              <FornecedoresSection fornecedores={fornecedores} podeCotacao={podeCotacao} />
             </TabsContent>
             <TabsContent value="socios">
               <SociosSection socios={socios} usuarios={usuarios} />

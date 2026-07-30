@@ -21,7 +21,10 @@ export function listarFornecedores(incluirInativos = true) {
   return prisma.fornecedor.findMany({
     where: incluirInativos ? {} : { ativo: true },
     orderBy: { nome: "asc" },
-    include: { catalogo: { where: { ativo: true }, orderBy: { descricao: "asc" } } },
+    include: {
+      catalogo: { where: { ativo: true }, orderBy: { descricao: "asc" } },
+      representantes: { where: { ativo: true }, orderBy: { nome: "asc" } },
+    },
   });
 }
 

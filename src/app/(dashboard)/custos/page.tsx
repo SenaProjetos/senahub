@@ -14,9 +14,10 @@ export default async function CustosPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const user = await requirePermission("custos", "ver");
-  const [podeGerir, podeBancos] = await Promise.all([
+  const [podeGerir, podeBancos, podeCotacao] = await Promise.all([
     can(user.role, "custos", "gerir"),
     can(user.role, "custos", "bancos"),
+    can(user.role, "custos", "cotacao"),
   ]);
   const sp = await searchParams;
 
@@ -36,6 +37,7 @@ export default async function CustosPage({
       status={status}
       podeGerir={podeGerir}
       podeBancos={podeBancos}
+      podeCotacao={podeCotacao}
     />
   );
 }

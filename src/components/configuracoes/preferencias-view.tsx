@@ -52,6 +52,7 @@ export function PreferenciasView({
   notifProposta: notifPropostaInicial,
   notifPagamento: notifPagamentoInicial,
   notifDespesa: notifDespesaInicial,
+  notifCustos: notifCustosInicial,
   pontoEmailModo: pontoEmailModoInicial,
   mostrarAlertasPonto,
 }: {
@@ -71,6 +72,7 @@ export function PreferenciasView({
   notifProposta: boolean;
   notifPagamento: boolean;
   notifDespesa: boolean;
+  notifCustos: boolean;
   pontoEmailModo: PontoEmailModo;
   /** Alertas de jornada por horário são só p/ CLT/estagiário — controla a seção de e-mail. */
   mostrarAlertasPonto: boolean;
@@ -90,6 +92,7 @@ export function PreferenciasView({
   const [notifProposta, setNotifProposta] = useState(notifPropostaInicial);
   const [notifPagamento, setNotifPagamento] = useState(notifPagamentoInicial);
   const [notifDespesa, setNotifDespesa] = useState(notifDespesaInicial);
+  const [notifCustos, setNotifCustos] = useState(notifCustosInicial);
   const [pontoEmailModo, setPontoEmailModo] = useState<PontoEmailModo>(pontoEmailModoInicial);
   const [, start] = useTransition();
 
@@ -209,6 +212,13 @@ export function PreferenciasView({
       descricao: "Quando uma despesa que você lançou é aprovada ou rejeitada.",
       valor: notifDespesa,
       set: setNotifDespesa,
+    },
+    {
+      chave: "notif_custos",
+      titulo: "Cotações (suprimentos)",
+      descricao: "Prazo de resposta de RFQ perto do fim, ou fornecedor convidado sem retorno.",
+      valor: notifCustos,
+      set: setNotifCustos,
     },
   ];
 

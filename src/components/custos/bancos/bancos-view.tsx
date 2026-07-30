@@ -26,6 +26,7 @@ type ImportacaoItem = {
 export function BancosView({
   aba,
   podeGerir,
+  podeCotacao,
   q,
   bases,
   importacoes,
@@ -34,6 +35,7 @@ export function BancosView({
 }: {
   aba: "bases" | "insumos" | "composicoes";
   podeGerir: boolean;
+  podeCotacao: boolean;
   q: string;
   bases: BasePrecoItem[];
   importacoes: ImportacaoItem[];
@@ -61,7 +63,7 @@ export function BancosView({
         </TabsContent>
 
         <TabsContent value="insumos">
-          {insumos && <InsumosTab {...insumos} q={q} />}
+          {insumos && <InsumosTab {...insumos} q={q} podeCotacao={podeCotacao} />}
         </TabsContent>
 
         <TabsContent value="composicoes">

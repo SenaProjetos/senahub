@@ -21,7 +21,10 @@ export default async function BancosPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const user = await requirePermission("custos", "ver");
-  const podeGerir = await can(user.role, "custos", "bancos");
+  const [podeGerir, podeCotacao] = await Promise.all([
+    can(user.role, "custos", "bancos"),
+    can(user.role, "custos", "cotacao"),
+  ]);
   const sp = await searchParams;
 
   const abaRaw = typeof sp.tab === "string" ? sp.tab : "";
@@ -37,6 +40,7 @@ export default async function BancosPage({
     <BancosView
       aba={aba}
       podeGerir={podeGerir}
+      podeCotacao={podeCotacao}
       q={q}
       bases={bases}
       importacoes={importacoes}
