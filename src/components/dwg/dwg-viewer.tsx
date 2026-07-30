@@ -93,7 +93,18 @@ function desenharCena(
   ctx.restore();
 }
 
-export function DwgViewer({ url }: { url: string }) {
+export function DwgViewer({
+  url,
+  onCena,
+  onCamadasVisiveisChange,
+}: {
+  url: string;
+  /** Aditivo: a cena assim que carrega — usado por consumidores que precisam da geometria
+   *  crua (ex.: custos/quantitativos, soma de comprimento/área por camada). */
+  onCena?: (cena: CenaDwg) => void;
+  /** Aditivo: nomes das camadas VISÍVEIS toda vez que o usuário alterna um checkbox. */
+  onCamadasVisiveisChange?: (camadasVisiveis: string[]) => void;
+}) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const cenaRef = useRef<CenaDwg | null>(null);
@@ -104,6 +115,11 @@ export function DwgViewer({ url }: { url: string }) {
   const [cena, setCena] = useState<CenaDwg | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [camadasOcultas, setCamadasOcultas] = useState<Set<string>>(new Set());
+
+  // Mesmo padrão de viewer-3d.tsx: callbacks lidos via ref para não recriar o effect de
+  // carregamento (dep array `[url]`) a cada render por causa de uma arrow function inline.
+  const callbacksRef = useRef({ onCena, onCamadasVisiveisChange });
+  callbacksRef.current = { onCena, onCamadasVisiveisChange };
 
   const redesenhar = useCallback(() => {
     const canvas = canvasRef.current;
@@ -148,6 +164,8 @@ export function DwgViewer({ url }: { url: string }) {
         if (cancelado) return;
         cenaRef.current = c;
         setCena(c);
+        callbacksRef.current.onCena?.(c);
+        callbacksRef.current.onCamadasVisiveisChange?.(c.camadas.map((camada) => camada.nome));
       } catch (e) {
         console.error("[dwg-viewer] falha ao carregar DXF:", e);
         if (!cancelado) setErro("Não foi possível carregar o desenho.");
@@ -239,6 +257,8 @@ export function DwgViewer({ url }: { url: string }) {
       const novo = new Set(atual);
       if (novo.has(nome)) novo.delete(nome);
       else novo.add(nome);
+      const todas = cenaRef.current?.camadas.map((c) => c.nome) ?? [];
+      callbacksRef.current.onCamadasVisiveisChange?.(todas.filter((n) => !novo.has(n)));
       return novo;
     });
   }

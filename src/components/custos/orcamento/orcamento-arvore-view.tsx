@@ -15,6 +15,7 @@ import {
   Link2,
   ListTree,
   MoreHorizontal,
+  Box,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,17 +33,20 @@ import { moverItem, excluirItem, alternarTrava } from "@/modules/custos/orcament
 import type { ArvoreOrcamento, ItemArvore } from "@/modules/custos/orcamento/queries";
 import { ItemDialog, type AlvoItem } from "./item-dialog";
 import { VincularComposicaoDialog } from "./vincular-composicao-dialog";
+import { VerNoModeloDialog } from "../quantitativos/ver-no-modelo-dialog";
 
 export function OrcamentoArvoreView({
   orcamentoId,
   arvore,
   podeGerir,
   temBasePreco,
+  vinculosPorItem = {},
 }: {
   orcamentoId: string;
   arvore: ArvoreOrcamento;
   podeGerir: boolean;
   temBasePreco: boolean;
+  vinculosPorItem?: Record<string, number>;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -51,6 +55,7 @@ export function OrcamentoArvoreView({
   const [alvo, setAlvo] = useState<AlvoItem | null>(null);
   const [itemDialogAberto, setItemDialogAberto] = useState(false);
   const [vinculoAlvo, setVinculoAlvo] = useState<ItemArvore | null>(null);
+  const [verNoModeloAlvo, setVerNoModeloAlvo] = useState<ItemArvore | null>(null);
 
   function abrirCriar(tipo: "grupo" | "servico", pai: ItemArvore | null) {
     setAlvo({ modo: "criar", tipo, parentId: pai?.id ?? null, parentDescricao: pai?.descricao ?? null });
@@ -165,6 +170,16 @@ export function OrcamentoArvoreView({
                           <Badge variant="outline" className="font-mono text-[10px]">
                             {item.composicaoCodigo}
                           </Badge>
+                        )}
+                        {!ehGrupo && (vinculosPorItem[item.id] ?? 0) > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setVerNoModeloAlvo(item)}
+                            className="inline-flex items-center gap-1 rounded-sm border border-dashed px-1.5 py-0.5 text-[10px] text-muted-foreground hover:border-primary hover:text-primary"
+                            title="Ver elementos vinculados no modelo 3D"
+                          >
+                            <Box className="size-3" /> {vinculosPorItem[item.id]} no modelo
+                          </button>
                         )}
                       </span>
                     </TableCell>
@@ -299,6 +314,12 @@ export function OrcamentoArvoreView({
         itemDescricao={vinculoAlvo?.descricao ?? ""}
         open={vinculoAlvo !== null}
         onOpenChange={(v) => !v && setVinculoAlvo(null)}
+      />
+      <VerNoModeloDialog
+        itemId={verNoModeloAlvo?.id ?? null}
+        itemDescricao={verNoModeloAlvo?.descricao ?? ""}
+        open={verNoModeloAlvo !== null}
+        onOpenChange={(v) => !v && setVerNoModeloAlvo(null)}
       />
     </div>
   );

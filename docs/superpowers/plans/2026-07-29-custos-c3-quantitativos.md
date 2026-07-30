@@ -35,8 +35,9 @@ partir do IFC (no client), semi-automático sobre DXF, manual sobre PDF, e sempr
 Vínculo item ↔ elementos IFC (o 5D), destaque visual no viewer a partir da linha do orçamento, e o
 caderno de quantitativos.
 
-**DoD (§7):** levantar área de parede de um IFC real, vincular a um item do orçamento, e destacar os
-elementos no viewer clicando na linha.
+**DoD (§7):** levantar área de laje de um IFC real (ajustado no Passo 0 — ver §2.2; parede não tem
+quantity em nenhum arquivo real disponível), vincular a um item do orçamento, e destacar os elementos no
+viewer clicando na linha.
 
 ## 2. O achado que define a onda: de onde sai a quantidade
 
@@ -66,7 +67,7 @@ ArchiCAD e afins têm isso **desligado por padrão em vários fluxos**. Então:
 | Cenário no modelo real | O que C3 entrega |
 |---|---|
 | Tem `Qto_*`/`BaseQuantities` | Área/volume/comprimento reais por elemento → soma por categoria/pavimento |
-| Só `Pset_*` com quantidade customizada (varia por escritório) | Mapeamento configurável de Pset→grandeza (§3.3) |
+| Só `Pset_*` com quantidade customizada (varia por escritório) | Mapeamento Pset→grandeza — **cortado do escopo**, ver §3.3 |
 | Nenhuma quantidade | **Só contagem de elementos** (`CountValue` derivado) + aviso explícito na tela |
 
 **Não vou fingir área a partir de bounding box** — para orçamento isso é número errado com cara de
@@ -76,6 +77,34 @@ número certo. Bbox entra apenas como *estimativa marcada como tal* (`origem: "i
 > **Passo 0 da implementação (barato, faz primeiro):** rodar um diagnóstico no IFC real do usuário e
 > reportar **quais quantities existem**. Se não houver nenhuma, o DoD "levantar área de parede" não é
 > alcançável com aquele arquivo, e isso precisa ser dito **antes** de escrever o extrator — não depois.
+
+### 2.2 Resultado do Passo 0 (rodado 2026-07-30) — DoD ajustado
+
+Script: [scripts/diagnostico-quantidades-ifc.ts](../../../scripts/diagnostico-quantidades-ifc.ts). Rodado
+contra os 4 IFCs reais existentes no storage:
+
+- **Parede: 0% de cobertura em todo lugar.** O único IFC com paredes que abre (456 paredes,
+  `documentos/cmr5skc8w.../556e6983...ifc`) não tem nenhum `IfcElementQuantity` nem propriedade de área
+  em Pset custom (só `LoadBearing`/`IsExternal`/`Reference`). O outro arquivo de parede
+  (`ARQ-RES_AA-COND_MAGG-07-04-25.ifc`) **nunca converteu** — falhou em produção em 2026-07-11 com
+  `memory access out of bounds` (bug pré-existente na conversão, não é escopo da C3; confirmado batendo
+  o mesmo erro com `IfcAPI.OpenModel` direto no arquivo).
+- **Laje e pilar têm quantidade real, 100% de cobertura.** `documentos/cmr5skc8z.../c03fb9a4...ifc`
+  (origem `documentoVersaoId`, não upload de disciplina): 101/101 lajes com
+  `GrossArea`/`NetArea`/`GrossVolume`/`NetVolume`/`Perimeter`/`Depth`, 342/342 pilares com `Length` —
+  inclusive o caso de quantidades concorrentes que `escolherQuantidade` existe para resolver.
+- **`.frag` preserva `IfcElementQuantity`:** verificado na lib instalada
+  (`node_modules/@thatopen/fragments/dist/index.mjs:38788-38799`) — `IFCELEMENTQUANTITY` + os 6
+  `IfcQuantity*` estão na whitelist `classes.abstract` que o `IfcImporter` serializa, mesma classe que já
+  carrega `IsDefinedBy` para os Psets que o viewer lê hoje. O parser client nunca leu essa forma; o dado
+  sobrevive à conversão. Confirmação end-to-end (browser real) fica como aceite do Passo 5, não bloqueia
+  o Passo 2.
+
+**Decisão do dono (2026-07-30):** DoD do §7 passa de "área de parede" para **"área de laje"** — mesmo
+Cenário 1 da tabela acima, só que a categoria que tem o dado real é laje, não parede. Parede volta a ser
+demonstrável quando o `ARQ-RES_AA-COND_MAGG` convertido (bug de conversão à parte). Nada na arquitetura
+muda — `extrairQuantidades`/`escolherQuantidade`/`agregarPorCategoria` são genéricos por categoria, não
+hardcoded para parede.
 
 ## 3. Architecture
 
@@ -165,6 +194,21 @@ sobrescrever quantidade digitada sem pedir é perda de trabalho do orçamentista
 - `diagnosticoQuantidades(amostra)` → que grupos/nomes existem no modelo e em quantos elementos.
   É o que alimenta o Passo 0 (§2.1).
 
+**Achado extra (revisão pós-Passo 3): unidade não é assumida.** `AreaValue`/`VolumeValue`/
+`LengthValue` do `IfcElementQuantity` chegam na unidade DECLARADA do arquivo (`IfcSIUnit`), não
+necessariamente SI — mesmo problema que `realinhamento.ts#fatorMetros` já resolve para
+coordenadas, mas os valores de quantity são copiados crus na serialização do `.frag` (confirmado
+lendo `IfcPropertyProcessor` do `IfcImporter`: o fator de unidade só é aplicado a `Elevation` e à
+matriz de geometria, nunca a atributos como `AreaValue`). Medido no arquivo real do DoD
+(`documentos/cmr5skc8z.../c03fb9a4...ifc`): `LENGTHUNIT`/`AREAUNIT`/`VOLUMEUNIT` = METRE/
+SQUARE_METRE/CUBIC_METRE sem prefixo, valores de laje na faixa 10–13 (plausível m²) — **esse arquivo
+não precisa de conversão**, mas o extrator não pode assumir isso por padrão para qualquer arquivo.
+`extrairQuantidades` continua retornando o valor CRU (documentado como tal); `normalizarQuantidades`
+(novo, mesmo arquivo) aplica um fator de comprimento explícito (área ao quadrado, volume ao cubo) —
+nunca um default de 1 silencioso. Resolver o fator a partir do modelo real é responsabilidade do
+Passo 5 (client, único lugar com acesso ao `IfcProject`/unidades do `.frag` carregado); vira aceite
+explícito daquele passo, não suposição daqui.
+
 `quantitativos/agregacao.ts` — soma por categoria (IfcClass) e por pavimento, sobre
 `ElementoIndex[]` (reusa o índice da coordenação, não reimplementa) + as quantidades resolvidas:
 - `agregarPorCategoria(elementos, quantidadePorLocalId, opts)` → linhas de levantamento com
@@ -181,12 +225,15 @@ sobrescrever quantidade digitada sem pedir é perda de trabalho do orçamentista
 comprimento por camada e área de polilinhas fechadas. É o "semi-automático": o DXF já tem coordenadas
 reais em mm, então **não precisa de régua** — só escolher camadas.
 
-### 3.3 Mapeamento configurável Pset→grandeza
+### 3.3 Mapeamento Pset→grandeza — CORTADO do escopo (Passo 0/3, 2026-07-30)
 
-Para o cenário do meio da tabela §2.1 (escritório que exporta quantidade em Pset próprio):
-`CustoMapeamentoQuantidade` — `(fonte: "pset", grupo, nome) → grandeza + unidade`, por orçamento ou
-global. Pequeno, mas é o que evita "não consigo levantar nada" em modelo real que tem o dado com
-outro nome. Puro na resolução, tabela no banco.
+Desenhado para o cenário do meio da tabela §2.1 (escritório que exporta quantidade em Pset
+próprio). Cortado depois de rodar o Passo 0 de verdade: o único Pset "candidato" achado nas 456
+paredes do IFC real (`Pset_QuantityTakeOff.Reference`) é **texto, não número** — não há nenhum dado
+real hoje que esse mapeamento resolveria. Construir para esse cenário agora seria design
+especulativo (regra do CLAUDE.md: não desenhar para requisito hipotético). Removido do schema antes
+do primeiro commit (nunca foi migração aplicada em produção). Se aparecer um caso real, é uma
+migração aditiva pequena, isolada, quando houver dado pra testar contra.
 
 ### 3.4 Superfície de contato com a coordenação (minimizada de propósito)
 
@@ -257,7 +304,8 @@ Mesmas de C0–C2 +:
 **Aceite:** número real na mão — quantos % das paredes do modelo têm área exportada.
 
 ### Passo 1 — Schema + migração
-- [ ] `CustoQuantitativo`, `CustoVinculoBim`, `CustoMapeamentoQuantidade`, 2 enums, relações inversas.
+- [x] `CustoQuantitativo`, `CustoVinculoBim`, 2 enums, relações inversas. `CustoMapeamentoQuantidade`
+      cortado do escopo (§3.3).
 - [ ] Migração aditiva + `db:generate`. Drift → contorno das ondas anteriores, nunca `reset`.
 
 **Aceite:** `prisma validate` ok, `tsc` limpo, `migrate status` limpo.
@@ -283,11 +331,34 @@ categoria/pavimento com `elementosSemQuantidade` contado.
 apaga a linha anterior.
 
 ### Passo 5 — 1 método aditivo no engine + extração no client
-- [ ] `dadosBrutosPorLocalIds` no `viewer/engine.ts` (**só após a coordenação commitar**).
+- [ ] `dadosBrutosPorLocalIds` no `viewer/engine.ts` (**só após a coordenação commitar** — reconferido
+      limpo em 2026-07-30 antes de mexer).
 - [ ] Componente client de levantamento IFC: filtro por categoria/pavimento, prévia agregada, aviso
       de elementos sem quantidade, gravação do agregado.
+- [ ] **Unidade: decisão de projeto (2026-07-30), não escrita no engine.** Cheguei a mapear um
+      caminho client-side pra ler `IfcProject.UnitsInContext → IfcUnitAssignment → IfcSIUnit` (as
+      3 entidades estão na mesma whitelist `classes.abstract` das Quantities — dá pra alcançar), mas
+      são 2-3 chamadas encadeadas cuja resolução via `getItemsData` não está confirmada sem testar
+      no navegador (a relação não é uma das registradas no mapa `relations` do `IfcImporter` — pode
+      vir como Handle cru, não objeto resolvido). Em vez de arriscar mais arqueologia estática ou
+      abrir uma segunda frente no engine só pra isso, segui o mesmo caminho já validado pro PDF: o
+      diálogo de extração mostra uma amostra real ("NetArea da 1ª laje: 11,02") ao lado de um
+      seletor de unidade (padrão metros), e o usuário confirma — nunca assume SI em silêncio.
+      Zero método novo no engine além do único já prometido; zero campo novo no schema.
 
-**Aceite:** levantar de um IFC real sem subir malha (conferir no Network que só o agregado sai).
+**Aceite:** levantar de um IFC real sem subir malha (conferir no Network que só o agregado sai);
+o seletor de unidade aparece com a amostra real antes de gravar.
+
+**Status (2026-07-30): aceite NÃO confirmado no navegador.** Tudo que valida a cadeia
+`.frag → getItemsData({relations:{IsDefinedBy}}) → Qto_*.AreaValue` foi verificado com `web-ifc`
+cru sobre o `.ifc` (Passo 0) e com a whitelist `classes.abstract` do `IfcImporter` (prova que a
+entidade é serializada, não que `getItemsData` devolve a relação inline). Tentei confirmar via
+Node (`FragmentsModels` roda fora de browser, é usado nos scripts de `test-indexes` do próprio
+pacote) — construiu, mas `.load()` falha em `Worker is not defined` (a lib usa o `Worker` global
+do browser, não `node:worker_threads`; sem polyfill não dá pra rodar headless). Abortei essa
+tentativa em vez de perseguir um polyfill fora de escopo desta onda. **Fica pendente: abrir o
+diálogo "Levantar do IFC" num projeto com `.frag` real, filtrar `IFCSLAB`, e conferir que a soma
+não sai zerada.**
 
 ### Passo 6 — Telas (aba Quantitativos, medição PDF/DXF, "Ver no modelo")
 **Aceite:** DoD (§7) reproduzido no navegador.
@@ -302,7 +373,7 @@ apaga a linha anterior.
 
 ## 7. Definition of Done
 
-- Levantar área de parede de um IFC real **(condicionado ao Passo 0 — ver §2.1)** e gravar o
+- Levantar área de laje de um IFC real **(DoD ajustado no Passo 0 — ver §2.2)** e gravar o
   levantamento com rastro (uploadId + guids).
 - Aplicar o levantamento a um item do orçamento, com confirmação do de→para.
 - Clicar na linha do orçamento e **destacar os elementos no viewer**.
@@ -316,8 +387,9 @@ apaga a linha anterior.
 `npm run dev:server` (conversão IFC/DWG é job pg-boss; o viewer precisa do `.frag` pronto).
 
 1. Projeto com IFC já convertido → `/custos/[id]` → aba **Quantitativos** → **Levantar do IFC**.
-2. Filtrar `IFCWALL` → conferir contagem, área somada e o aviso de elementos sem quantidade.
-3. Gravar → **Aplicar ao item** → escolher o serviço de alvenaria → confirmar de→para.
+2. Filtrar `IFCSLAB` → conferir contagem, área somada (`GrossArea`/`NetArea`) e o aviso de elementos sem
+   quantidade.
+3. Gravar → **Aplicar ao item** → escolher o serviço correspondente → confirmar de→para.
 4. Aba **Itens** → o serviço mostra os elementos vinculados → **Ver no modelo** → viewer abre com os
    elementos destacados.
 5. **Medir no PDF**: abrir prancha, régua com medida conhecida, medir área, gravar.

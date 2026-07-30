@@ -241,6 +241,7 @@ model User {
   orcamentosCustoCriados        CustoOrcamento[]          @relation("CustoOrcamentoCriador")
   orcamentoRevisoesCustoCriadas CustoOrcamentoRevisao[]   @relation("CustoOrcamentoRevisaoCriador")
   importacoesCusto              CustoImportacao[]
+  quantitativosCustoCriados     CustoQuantitativo[]
 
   @@index([role])
   @@index([tipo, setor])
@@ -2523,13 +2524,13 @@ model LicitacaoEvento {
 
 /// Dedup persistente dos alertas automáticos de licitação por destinatário.
 model AlertaLicitacaoEnviado {
-  id             String        @id @default(cuid())
-  userId         String
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  chave          String
-  notificacaoId  String?       @unique
-  notificacao    Notificacao?  @relation(fields: [notificacaoId], references: [id], onDelete: SetNull)
-  enviadoEm      DateTime      @default(now())
+  id            String       @id @default(cuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chave         String
+  notificacaoId String?      @unique
+  notificacao   Notificacao? @relation(fields: [notificacaoId], references: [id], onDelete: SetNull)
+  enviadoEm     DateTime     @default(now())
 
   @@unique([userId, chave])
   @@index([enviadoEm])
@@ -4539,8 +4540,9 @@ model CustoOrcamento {
   criadoPorId String
   criadoPor   User   @relation("CustoOrcamentoCriador", fields: [criadoPorId], references: [id])
 
-  revisoes CustoOrcamentoRevisao[]
-  itens    CustoOrcamentoItem[]
+  revisoes      CustoOrcamentoRevisao[]
+  itens         CustoOrcamentoItem[]
+  quantitativos CustoQuantitativo[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -4614,6 +4616,9 @@ model CustoOrcamentoItem {
   basePrecoUsadaId String?
   basePrecoUsada   CustoBasePreco?  @relation("ItemBaseUsada", fields: [basePrecoUsadaId], references: [id], onDelete: SetNull)
   custoCalculadoEm DateTime?
+
+  quantitativos CustoQuantitativo[]
+  vinculosBim   CustoVinculoBim[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -4770,4 +4775,87 @@ model CustoImportacao {
 
   @@index([status])
   @@map("custo_importacao")
+}
+
+// ───────────────────────────── Engenharia de Custos (Onda C3) ─────────────────────────────
+// Quantitativos com rastro até a fonte (IFC/DXF/PDF/manual) e vínculo item↔elemento BIM (5D).
+
+enum CustoOrigemDado {
+  manual
+  ifc
+  dwg
+  pdf
+  ia
+}
+
+enum CustoGrandeza {
+  area
+  volume
+  comprimento
+  contagem
+  peso
+}
+
+/// Levantamento de quantidade com rastro até a fonte. Nunca é sobrescrito nem deletado
+/// (regra 10): recontagem gera OUTRA linha; a antiga fica com `substituidoPorId`.
+model CustoQuantitativo {
+  id          String              @id @default(cuid())
+  orcamentoId String
+  orcamento   CustoOrcamento      @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
+  /// Item de orçamento que este levantamento alimenta. Null = levantamento solto (ainda não vinculado).
+  itemId      String?
+  item        CustoOrcamentoItem? @relation(fields: [itemId], references: [id], onDelete: SetNull)
+
+  descricao  String
+  grandeza   CustoGrandeza
+  unidade    String
+  quantidade Decimal       @db.Decimal(12, 2)
+
+  origem    CustoOrigemDado
+  /// 0–1. Null = valor exato (manual conferido / quantity oficial do IFC). Costura de IA (design §8).
+  confianca Decimal?        @db.Decimal(3, 2)
+
+  // ── Rastro até a fonte (mesmo mecanismo de âncora de ApontamentoCoordenacao) ──
+  /// uploadId cru (disciplina) ou `d:<documentoVersaoId>`, polimórfico SEM FK — igual ao apontamento.
+  uploadId   String?
+  /// IfcGuids dos elementos contados (string[]) — origem `ifc`.
+  guids      Json?
+  /// Página (1-based) — origem `pdf`.
+  pagina     Int?
+  /// Pontos/retângulo/escala da medição — origem `pdf`/`dwg`.
+  ancoraJson Json?
+  /// Memória de como se chegou ao número (fórmula digitada, filtro aplicado, régua do PDF).
+  memoria    String?
+
+  substituidoPorId String?            @unique
+  substituidoPor   CustoQuantitativo? @relation("QuantitativoSubstituicao", fields: [substituidoPorId], references: [id], onDelete: SetNull)
+  substitui        CustoQuantitativo? @relation("QuantitativoSubstituicao")
+
+  criadoPorId String
+  criadoPor   User     @relation(fields: [criadoPorId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([orcamentoId])
+  @@index([itemId])
+  @@index([uploadId])
+  @@index([criadoPorId])
+  @@map("custo_quantitativo")
+}
+
+/// Ligação item de orçamento ↔ elemento IFC — a base do 5D e do destaque no viewer.
+model CustoVinculoBim {
+  id        String             @id @default(cuid())
+  itemId    String
+  item      CustoOrcamentoItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  /// Polimórfico SEM FK, igual ApontamentoCoordenacao.uploadId.
+  uploadId  String
+  /// IfcGuid do elemento. Um vínculo por (item, guid).
+  ifcGuid   String
+  createdAt DateTime           @default(now())
+
+  @@unique([itemId, ifcGuid])
+  @@index([itemId])
+  @@index([uploadId])
+  @@map("custo_vinculo_bim")
 }

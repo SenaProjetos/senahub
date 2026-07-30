@@ -21,6 +21,7 @@ import { cancelarOrcamento } from "@/modules/custos/actions";
 import { STATUS_ORCAMENTO_LABEL, STATUS_ORCAMENTO_TONE, REGIME_TRIBUTARIO_LABEL } from "@/modules/custos/status";
 import type { OrcamentoDetalhe } from "@/modules/custos/queries";
 import type { ArvoreOrcamento } from "@/modules/custos/orcamento/queries";
+import type { QuantitativoListItem } from "@/modules/custos/quantitativos/queries";
 import { OrcamentoCabecalhoForm } from "./orcamento-cabecalho-form";
 import { BdiDemonstrativo } from "./bdi-demonstrativo";
 import { EncargosDemonstrativo } from "./encargos-demonstrativo";
@@ -28,6 +29,10 @@ import { OrcamentoArvoreView } from "./orcamento/orcamento-arvore-view";
 import { BasePrecoSelector } from "./orcamento/base-preco-selector";
 import { TrocarDataBaseDialog } from "./orcamento/trocar-data-base-dialog";
 import { DuplicarOrcamentoDialog } from "./orcamento/duplicar-orcamento-dialog";
+import { QuantitativosTab } from "./quantitativos/quantitativos-tab";
+import type { ModeloOpcao } from "./quantitativos/levantar-ifc-dialog";
+import type { DesenhoOpcao } from "./quantitativos/medir-dxf-dialog";
+import type { PdfOpcao } from "./quantitativos/medir-pdf-dialog";
 
 type BaseOpcao = { id: string; nome: string; uf: string; regime: string };
 
@@ -38,13 +43,23 @@ export function OrcamentoDetalheView({
   basePrecoId,
   aba,
   podeGerir,
+  quantitativos,
+  modelosIfc,
+  desenhosDxf,
+  pdfs,
+  vinculosPorItem,
 }: {
   orcamento: OrcamentoDetalhe;
   arvore: ArvoreOrcamento;
   bases: BaseOpcao[];
   basePrecoId: string | null;
-  aba: "itens" | "cabecalho" | "bdi" | "encargos";
+  aba: "itens" | "cabecalho" | "bdi" | "encargos" | "quantitativos";
   podeGerir: boolean;
+  quantitativos: QuantitativoListItem[];
+  modelosIfc: ModeloOpcao[];
+  desenhosDxf: DesenhoOpcao[];
+  pdfs: PdfOpcao[];
+  vinculosPorItem: Record<string, number>;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -128,6 +143,12 @@ export function OrcamentoDetalheView({
               <DropdownMenuItem render={<a href={`/api/custos/${orcamento.id}/planilha.pdf?tipo=analitica`} />}>
                 <FileText className="size-4" /> PDF — analítica
               </DropdownMenuItem>
+              <DropdownMenuItem render={<a href={`/api/custos/${orcamento.id}/caderno.xlsx`} />}>
+                <FileSpreadsheet className="size-4" /> Caderno de quantitativos — XLSX
+              </DropdownMenuItem>
+              <DropdownMenuItem render={<a href={`/api/custos/${orcamento.id}/caderno.pdf`} />}>
+                <FileText className="size-4" /> Caderno de quantitativos — PDF
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -157,6 +178,7 @@ export function OrcamentoDetalheView({
           <TabsTrigger value="cabecalho">Cabeçalho</TabsTrigger>
           <TabsTrigger value="bdi">BDI</TabsTrigger>
           <TabsTrigger value="encargos">Encargos</TabsTrigger>
+          <TabsTrigger value="quantitativos">Quantitativos</TabsTrigger>
         </TabsList>
 
         <TabsContent value="itens">
@@ -166,6 +188,7 @@ export function OrcamentoDetalheView({
               arvore={arvore}
               podeGerir={podeGerir}
               temBasePreco={basePrecoId !== null}
+              vinculosPorItem={vinculosPorItem}
             />
           </div>
         </TabsContent>
@@ -223,6 +246,20 @@ export function OrcamentoDetalheView({
               <p className="text-sm text-destructive">{orcamento.encargos.erro}</p>
             )}
           </div>
+        </TabsContent>
+
+        <TabsContent value="quantitativos">
+          <QuantitativosTab
+            orcamentoId={orcamento.id}
+            quantitativos={quantitativos}
+            itensParaAplicar={arvore.itens
+              .filter((i) => i.tipo === "servico")
+              .map((i) => ({ id: i.id, codigo: i.codigo, descricao: i.descricao, unidade: i.unidade, quantidade: i.quantidade }))}
+            modelosIfc={modelosIfc}
+            desenhosDxf={desenhosDxf}
+            pdfs={pdfs}
+            podeGerir={podeGerir}
+          />
         </TabsContent>
       </Tabs>
     </div>

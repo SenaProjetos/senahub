@@ -707,6 +707,32 @@ export class ViewerEngine {
     return enriquecidos;
   }
 
+  /**
+   * ItemData CRU de localIds (mesma relação `IsDefinedBy` de `indiceComPsetsDoModelo`, sem
+   * achatar em Psets) — usado por custos/quantitativos (`quantidades-ifc.ts#extrairQuantidades`)
+   * para ler `IfcElementQuantity`, que `item-data.ts#extrairAtributos` nunca leu (só lê
+   * `HasProperties`/Pset). Aditivo de propósito: não reaproveita `indiceComPsetsDoModelo` porque
+   * aquele já descarta a forma de Quantities ao achatar; sem cache (chamado sob demanda, um
+   * conjunto de localIds por vez, não o modelo inteiro).
+   */
+  async dadosBrutosPorLocalIds(modeloId: string, localIds: number[]): Promise<unknown[]> {
+    const model = this.modelos.get(modeloId);
+    if (!model || localIds.length === 0) return [];
+
+    const resultado: unknown[] = [];
+    for (let inicio = 0; inicio < localIds.length; inicio += LOTE_PSETS) {
+      const lote = localIds.slice(inicio, inicio + LOTE_PSETS);
+      const dados = await model
+        .getItemsData(lote, {
+          attributesDefault: false,
+          relations: { IsDefinedBy: { attributes: true, relations: true } },
+        })
+        .catch(() => lote.map(() => null));
+      resultado.push(...dados);
+    }
+    return resultado;
+  }
+
   /** Bounding boxes (espaço mundo, three) dos localIds informados — usado por clash/diff. */
   async bboxesDoModelo(modeloId: string, localIds: number[]): Promise<THREE.Box3[]> {
     const model = this.modelos.get(modeloId);

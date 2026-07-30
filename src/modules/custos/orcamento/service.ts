@@ -97,7 +97,7 @@ async function totaisAtuais(db: Tx | typeof prisma, orcamentoId: string): Promis
  * árvore inteira por edição). Use `recalcularSubarvoreCompleta` quando o BDI de um GRUPO mudar,
  * porque aí a herança afeta toda a subárvore.
  */
-async function recalcularCaminho(db: Tx, orcamentoId: string, noAlteradoId: string) {
+export async function recalcularCaminho(db: Tx, orcamentoId: string, noAlteradoId: string) {
   const [nos, bdi, anteriores] = await Promise.all([
     carregarNos(db, orcamentoId),
     bdiDoOrcamento(db, orcamentoId),
@@ -204,7 +204,7 @@ export async function custoDaComposicao(
 
 // ── CRUD de item ─────────────────────────────────────────────────
 
-async function exigirOrcamentoEditavel(db: Tx | typeof prisma, orcamentoId: string) {
+export async function exigirOrcamentoEditavel(db: Tx | typeof prisma, orcamentoId: string) {
   const orc = await db.custoOrcamento.findUnique({
     where: { id: orcamentoId },
     select: { id: true, status: true, basePrecoId: true },

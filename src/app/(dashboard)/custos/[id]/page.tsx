@@ -5,11 +5,14 @@ import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { obterOrcamento } from "@/modules/custos/queries";
 import { arvoreDoOrcamento, basesDisponiveis } from "@/modules/custos/orcamento/queries";
+import { listarQuantitativos, contarVinculosPorItem, pdfsDoProjeto } from "@/modules/custos/quantitativos/queries";
+import { modelosCoordenacao } from "@/modules/coordenacao/queries";
+import { desenhosConvertidos } from "@/modules/dwg/queries";
 import { OrcamentoDetalheView } from "@/components/custos/orcamento-detalhe-view";
 
 export const metadata: Metadata = { title: "Orçamento — Engenharia de Custos" };
 
-const ABAS = ["itens", "cabecalho", "bdi", "encargos"] as const;
+const ABAS = ["itens", "cabecalho", "bdi", "encargos", "quantitativos"] as const;
 type Aba = (typeof ABAS)[number];
 
 export default async function OrcamentoPage({
@@ -24,14 +27,29 @@ export default async function OrcamentoPage({
   const sp = await searchParams;
   const aba: Aba = (ABAS as readonly string[]).includes(sp.aba ?? "") ? (sp.aba as Aba) : "itens";
 
-  const [orcamento, podeGerir, arvore, bases, cabecalho] = await Promise.all([
+  const [orcamento, podeGerir, podeVerCoordenacao] = await Promise.all([
     obterOrcamento(id, user),
     can(user.role, "custos", "gerir"),
+    can(user.role, "coordenacao", "ver"),
+  ]);
+  if (!orcamento) notFound();
+
+  const projetoId = orcamento.projetoId;
+  const [arvore, bases, cabecalho, quantitativos, modelosIfcBrutos, desenhosDxf, pdfs] = await Promise.all([
     arvoreDoOrcamento(id),
     basesDisponiveis(),
     prisma.custoOrcamento.findUnique({ where: { id }, select: { basePrecoId: true } }),
+    listarQuantitativos(id),
+    projetoId && podeVerCoordenacao ? modelosCoordenacao(projetoId) : Promise.resolve([]),
+    projetoId ? desenhosConvertidos(projetoId) : Promise.resolve([]),
+    projetoId ? pdfsDoProjeto(projetoId) : Promise.resolve([]),
   ]);
-  if (!orcamento) notFound();
+
+  const modelosIfc = modelosIfcBrutos
+    .filter((m) => m.conversao?.status === "concluido")
+    .map((m) => ({ uploadId: m.uploadId, nomeArquivo: m.nomeArquivo, disciplinaNome: m.disciplinaNome }));
+
+  const vinculosPorItem = Object.fromEntries(await contarVinculosPorItem(arvore.itens.map((i) => i.id)));
 
   return (
     <OrcamentoDetalheView
@@ -41,6 +59,11 @@ export default async function OrcamentoPage({
       basePrecoId={cabecalho?.basePrecoId ?? null}
       aba={aba}
       podeGerir={podeGerir}
+      quantitativos={quantitativos}
+      modelosIfc={modelosIfc}
+      desenhosDxf={desenhosDxf}
+      pdfs={pdfs}
+      vinculosPorItem={vinculosPorItem}
     />
   );
 }
