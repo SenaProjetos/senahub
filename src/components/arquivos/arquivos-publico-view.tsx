@@ -181,7 +181,7 @@ export function ArquivosPublicoView({ token, conteudo }: { token: string; conteu
           <p className="font-mono text-xs text-muted-foreground">{conteudo.projeto.codigo}</p>
           <h1 className="text-2xl font-extrabold tracking-tight">{conteudo.projeto.nome}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {total} arquivo{total === 1 ? "" : "s"} disponível{total === 1 ? "" : "eis"} para visualização e download.
+            {total} arquivo{total === 1 ? "" : "s"} dispon{total === 1 ? "ível" : "íveis"} para visualização e download.
           </p>
         </div>
         <Button render={<a href={`/api/p/arquivos/${token}/zip`} rel="noopener" />}>
