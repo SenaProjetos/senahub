@@ -1,0 +1,36 @@
+N:graphify
+D:Drive Graphify from its CLI to build, refresh, query, and export a durable code/corpus knowledge graph. Verified against graphify 0.9.29. Use when the user wants `graphify-out/GRAPH_REPORT.md`, `graph.json`, `graph.html`, `graphify extract`/`update`/`query`/`explain`/`path`/`god-nodes`/`affected`/`tree`, git-hook or watch-based refresh, or an install into Claude, Codex, Gemini, OpenCode, or the shared ~/.agents/skills root. Also covers the honest structural fallback when native extraction is empty or misleading. Route simple locate/reference work to codebase-search, narrative knowledge-base work to llm-wiki, and project-memory handoff to opencontext.
+G:knowledge-graph|codebase-analysis|graphrag|architecture|graphify|cli|corpus-analysis|persistent-memory
+V:graphify 0.9.29
+U[7]:
+  Build a repo or mixed-corpus graph from the CLI with graphify extract then cluster-only
+  Answer relationship questions from an existing graph with god-nodes, explain, path, affected, or query
+  Export the graph to html, callflow-html, wiki, obsidian, svg, graphml, neo4j, or falkordb artifacts
+  Keep a graph fresh with check-update, update, watch, or git hooks instead of ad-hoc rebuilds
+  Trace impact of a change with graphify affected, prs, or diagnose multigraph
+  Install Graphify into the shared ~/.agents/skills root via --platform agents, or per-agent via graphify <platform> install
+  Fall back to an honest structural graph when native extraction returns empty or misleading output
+S[8]{n,action,details}:
+  1,Normalize packet,Classify as repo-structure, relationship-trace, mixed-corpus-memory, review-diff, install, or refresh/fallback
+  2,Choose CLI mode,Pick one: cli-build, cli-query, cli-export, incremental-refresh, impact-context, labeling, install, or structural-fallback (these are mode labels, not CLI subcommands)
+  3,Scope first,No graphify scope exists; count the corpus yourself and pick the smallest subtree. extract honors .gitignore and .graphifyignore (paths only, not symbols)
+  4,Build or reuse,graphify extract <path> --code-only --out . writes graphify-out/graph.json; cluster-only . --no-label writes GRAPH_REPORT.md; update . refreshes. graphify build does not exist
+  5,Query narrowly,god-nodes and explain first; path and affected for relationships; query --budget only when the symbol is unknown
+  6,Report degradation,Separate two things: placeholder Community N labels vs a noise-dominated partition (high isolated-node count, cohesion ~0.04). The second is not fixable
+  7,Route out,codebase-search for locate/reference, llm-wiki for narrative knowledge, opencontext for project memory, survey for tool comparison
+  8,Return brief,Packet, mode, commands run, scope, coverage indexed/total, artifacts, degraded/fallback status, next commands, one route-out
+R[10]:
+  Never invent a graphify subcommand; build, scope, summary, serve, migrate-state, portable-check, review-context, affected-flows and detect-changes do not exist
+  graphify --help is incomplete (it omits export html/wiki/obsidian/svg/graphml/neo4j); verify against the cli.py dispatch table, and note subcommand --help falls through to root help
+  Always pass --out . to extract; the default is <path>, which buries the graph inside the scanned directory
+  Write graphify-out/, not .graphify/; it is set by GRAPHIFY_OUT and there is no migrate-state. Add it to .gitignore
+  graph.html comes from graphify export html and is skipped above --node-limit (default 5000); graphify tree has no cap and is far lighter
+  agents IS a valid --platform id and writes ~/.agents/skills; no npx skills add -a universal step is needed
+  Prefer GRAPH_REPORT.md plus god-nodes and explain before raw graph.json; query is BFS and saturates, so cap it with --budget
+  Report placeholder Community N labels and missing descriptions as degraded output, not success
+  Labeling with no API key is graphify label . --missing-only --backend claude-cli, which spends the user's Claude plan quota; confirm before running
+  After a wiki build or pip install --upgrade graphifyy, run scripts/patch_wikilink.py if [[...]] links break; it is idempotent
+E[3]{desc,in,out}:
+  "CLI build then orientation","build a graph for this service dir and tell me the busiest modules","graphify extract <dir> --code-only --out ., graphify cluster-only . --no-label, graphify god-nodes --top 15; reports graphify-out/GRAPH_REPORT.md and graph.json plus coverage indexed/total"
+  "Multi-agent install","install graphify for our agents","pip install graphifyy, graphify install --platform agents into ~/.agents/skills, optional graphify claude install / graphify opencode install for per-agent hooks"
+  "Search request misrouted as graphing","find where this config is defined and who references it","Routes to codebase-search instead of building a graph"

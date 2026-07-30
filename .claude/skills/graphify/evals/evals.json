@@ -1,0 +1,106 @@
+{
+  "skill_name": "graphify",
+  "verified_against": "graphify 0.9.29",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Map this repository with Graphify so I can understand the architecture before editing anything.",
+      "expected_output": "The skill classifies the request as a repo-structure packet, chooses one honest graph mode, scopes the repo, and reports durable graph artifacts.",
+      "assertions": [
+        "Response identifies a packet or equivalent mode classification for repo structure work",
+        "Response mentions GRAPH_REPORT.md, graph.json, or graph.html",
+        "Response scopes the repo or subtree explicitly instead of assuming the whole repo by default"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "We already have a graph in graphify-out/. What connects AuthModule to BillingService?",
+      "expected_output": "The skill uses graph-query follow-up behavior, reads the existing report first, and avoids an unnecessary rebuild.",
+      "assertions": [
+        "Response starts from existing graph artifacts rather than forcing a rebuild",
+        "Response mentions path, explain, or affected usage",
+        "Response references GRAPH_REPORT.md as the first reading surface"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Turn this docs + screenshots + notes folder into a persistent graph we can reuse next week.",
+      "expected_output": "The skill treats this as a mixed-corpus memory packet and chooses between local Graphify and structural fallback honestly.",
+      "assertions": [
+        "Response recognizes a mixed-corpus graphing request",
+        "Response mentions local build or structural fallback rather than only assistant-native install",
+        "Response labels fallback truthfully if native extraction is weak"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "I just need to find where this config is defined and who references it.",
+      "expected_output": "The skill routes the request to codebase-search instead of forcing Graphify.",
+      "assertions": [
+        "Response routes simple locate/reference work to codebase-search or an equivalent neighboring search skill",
+        "Response does not insist on building a graph for a search-first request"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Build a graph for this service directory and then tell me what the busiest modules are. Give me the exact commands.",
+      "expected_output": "A CLI-first answer that sizes the corpus first, uses `graphify extract <dir> --code-only --out .` for the first build followed by `graphify cluster-only . --no-label` for the report, then `graphify god-nodes` for the busiest modules, naming artifacts under `graphify-out/`.",
+      "assertions": [
+        "Response uses `graphify extract` for the first build and/or `graphify update` for a refresh",
+        "Response never invents a `graphify build`, `graphify scope`, or `graphify summary` subcommand",
+        "Response passes `--out .` to extract, or otherwise avoids writing the graph inside the scanned directory",
+        "Response scopes to the service directory rather than defaulting to the whole repo",
+        "Response uses `graphify god-nodes` and/or `graphify explain` for the follow-up instead of dumping graph.json",
+        "Response names artifacts under `graphify-out/` and does not claim `extract` or `update` produces graph.html"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Install graphify for all our agents.",
+      "expected_output": "Separates the CLI install from the skill install, uses `graphify install --platform agents` to populate the shared `~/.agents/skills` root, and adds per-agent glue via the per-platform subcommands where wanted.",
+      "assertions": [
+        "Response installs the CLI with `pip install graphifyy` (or pipx) separately from the skill",
+        "Response uses `graphify install --platform agents` (or the `skills` alias) for the shared `~/.agents/skills` root",
+        "Response does NOT claim that `agents` is an invalid platform id",
+        "Response does not recommend `npx skills add ... -a universal` as a required step",
+        "Response mentions per-platform subcommands such as `graphify claude install` or `graphify opencode install` for agent-specific hooks",
+        "Response does not invent a `graphify install jeo` platform id"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "We ran graphify and every cluster is called 'Community 3'. Is the graph broken?",
+      "expected_output": "Explains that the graph structure is intact but community labeling never ran without an LLM backend, and offers `graphify label . --missing-only --backend claude-cli` with the plan-quota caveat. Does not offer the nonexistent `update --fill-missing`.",
+      "assertions": [
+        "Response says the graph structure is intact rather than declaring the build failed",
+        "Response attributes placeholder `Community N` names to labeling running without an LLM backend",
+        "Response offers `graphify label` as the recovery command, not `graphify update --fill-missing`",
+        "Response notes that the `claude-cli` backend needs no API key but spends the user's Claude plan quota",
+        "Response does not present placeholder community names as meaningful clusters"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "GRAPH_REPORT.md says 1423 isolated nodes and every community has cohesion around 0.04. Fix the clustering.",
+      "expected_output": "Identifies a noise-dominated partition (a framework identifier repeated once per file, e.g. Next.js `export const metadata` per App Router page), states plainly that it is not fixable, and does not fake a fix.",
+      "assertions": [
+        "Response distinguishes a noise-dominated partition from merely-missing labels",
+        "Response explains that `.graphifyignore` filters paths, not symbols, so the identifier cannot be excluded",
+        "Response notes that hand-editing graph.json is undone by the next `graphify update`",
+        "Response warns that labeling would put real names on meaningless clusters",
+        "Response does not claim to have fixed the clustering"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "Does graphify have an export to Obsidian? `graphify --help` doesn't list one.",
+      "expected_output": "States that `graphify --help` is incomplete, that `graphify export obsidian` is implemented, and shows how to verify against the cli.py dispatch table rather than the help text.",
+      "assertions": [
+        "Response confirms `graphify export obsidian` exists",
+        "Response explains that root `--help` omits real commands and is not authoritative",
+        "Response notes that subcommand `--help` falls through to root help",
+        "Response gives a concrete verification route (inspecting the installed cli.py dispatch table)"
+      ]
+    }
+  ]
+}

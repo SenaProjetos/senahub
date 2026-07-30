@@ -70,3 +70,6 @@ deploy/gui/**/*.csproj.user
 /.design-sync/
 /.ds-sync/
 /ds-bundle/
+
+# graphify (grafo de conhecimento do código — artefato local, ~10 MB, regerável com `graphify update .`)
+/graphify-out/
