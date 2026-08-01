@@ -22,6 +22,7 @@ export type ItemParaDuplicar = {
   totalSemBdi: number;
   totalComBdi: number;
   composicaoId: string | null;
+  insumoId: string | null;
   basePrecoUsadaId: string | null;
 };
 

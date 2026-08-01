@@ -30,6 +30,8 @@ export type ItemArvore = {
   totalComBdi: number;
   composicaoId: string | null;
   composicaoCodigo: string | null;
+  insumoId: string | null;
+  insumoCodigo: string | null;
   custoCalculadoEm: Date | null;
 };
 
@@ -47,7 +49,7 @@ export async function arvoreDoOrcamento(orcamentoId: string): Promise<ArvoreOrca
     prisma.custoOrcamento.findUnique({ where: { id: orcamentoId }, select: { bdiPercentual: true } }),
     prisma.custoOrcamentoItem.findMany({
       where: { orcamentoId },
-      include: { composicao: { select: { codigo: true } } },
+      include: { composicao: { select: { codigo: true } }, insumo: { select: { codigo: true } } },
     }),
   ]);
 
@@ -102,6 +104,8 @@ export async function arvoreDoOrcamento(orcamentoId: string): Promise<ArvoreOrca
       totalComBdi: linha.totalComBdi,
       composicaoId: registro.composicaoId,
       composicaoCodigo: registro.composicao?.codigo ?? null,
+      insumoId: registro.insumoId,
+      insumoCodigo: registro.insumo?.codigo ?? null,
       custoCalculadoEm: registro.custoCalculadoEm,
     };
   });

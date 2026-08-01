@@ -32,8 +32,11 @@ import { brl } from "@/lib/utils";
 import { moverItem, excluirItem, alternarTrava } from "@/modules/custos/orcamento/actions";
 import type { ArvoreOrcamento, ItemArvore } from "@/modules/custos/orcamento/queries";
 import { ItemDialog, type AlvoItem } from "./item-dialog";
-import { VincularComposicaoDialog } from "./vincular-composicao-dialog";
+import { BuscaBancoDialog } from "./busca-banco-dialog";
 import { VerNoModeloDialog } from "../quantitativos/ver-no-modelo-dialog";
+
+type NovoServicoAlvo = { parentId: string; parentDescricao: string | null; fonte: "composicao" | "insumo" };
+type VinculoAlvo = { item: ItemArvore; fonte: "composicao" | "insumo" };
 
 export function OrcamentoArvoreView({
   orcamentoId,
@@ -54,12 +57,17 @@ export function OrcamentoArvoreView({
 
   const [alvo, setAlvo] = useState<AlvoItem | null>(null);
   const [itemDialogAberto, setItemDialogAberto] = useState(false);
-  const [vinculoAlvo, setVinculoAlvo] = useState<ItemArvore | null>(null);
+  const [novoServicoAlvo, setNovoServicoAlvo] = useState<NovoServicoAlvo | null>(null);
+  const [vinculoAlvo, setVinculoAlvo] = useState<VinculoAlvo | null>(null);
   const [verNoModeloAlvo, setVerNoModeloAlvo] = useState<ItemArvore | null>(null);
 
-  function abrirCriar(tipo: "grupo" | "servico", pai: ItemArvore | null) {
-    setAlvo({ modo: "criar", tipo, parentId: pai?.id ?? null, parentDescricao: pai?.descricao ?? null });
+  function abrirCriarGrupo(pai: ItemArvore | null) {
+    setAlvo({ modo: "criar", tipo: "grupo", parentId: pai?.id ?? null, parentDescricao: pai?.descricao ?? null });
     setItemDialogAberto(true);
+  }
+
+  function abrirNovoServico(pai: ItemArvore, fonte: "composicao" | "insumo") {
+    setNovoServicoAlvo({ parentId: pai.id, parentDescricao: pai.descricao, fonte });
   }
 
   function abrirEditar(item: ItemArvore) {
@@ -123,7 +131,7 @@ export function OrcamentoArvoreView({
           </p>
         </div>
         {podeGerir && (
-          <Button size="sm" onClick={() => abrirCriar("grupo", null)}>
+          <Button size="sm" onClick={() => abrirCriarGrupo(null)}>
             <FolderPlus className="size-4" /> Novo grupo
           </Button>
         )}
@@ -131,7 +139,7 @@ export function OrcamentoArvoreView({
 
       {!temBasePreco && podeGerir && (
         <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
-          Escolha a base de preço na aba <strong>Cabeçalho</strong> para poder vincular composições.
+          Escolha a base de preço na aba <strong>Cabeçalho</strong> para poder criar serviços vinculados a composição/insumo.
         </p>
       )}
 
@@ -160,7 +168,7 @@ export function OrcamentoArvoreView({
               {arvore.itens.map((item) => {
                 const ehGrupo = item.tipo === "grupo";
                 return (
-                  <TableRow key={item.id} className={ehGrupo ? "bg-muted/40 font-medium" : ""}>
+                  <TableRow key={item.id} className={`group ${ehGrupo ? "bg-muted/40 font-medium" : ""}`}>
                     <TableCell className="font-mono text-xs">{item.codigo}</TableCell>
                     <TableCell>
                       <span style={{ paddingLeft: `${item.nivel * 1.25}rem` }} className="inline-flex items-center gap-1.5">
@@ -169,6 +177,11 @@ export function OrcamentoArvoreView({
                         {item.composicaoCodigo && (
                           <Badge variant="outline" className="font-mono text-[10px]">
                             {item.composicaoCodigo}
+                          </Badge>
+                        )}
+                        {item.insumoCodigo && (
+                          <Badge variant="secondary" className="font-mono text-[10px]">
+                            {item.insumoCodigo}
                           </Badge>
                         )}
                         {!ehGrupo && (vinculosPorItem[item.id] ?? 0) > 0 && (
@@ -197,57 +210,89 @@ export function OrcamentoArvoreView({
                     <TableCell className="text-right font-mono text-xs">{brl(item.totalComBdi)}</TableCell>
                     {podeGerir && (
                       <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger
-                            render={
-                              <Button variant="ghost" size="icon" aria-label={`Ações de ${item.descricao}`} disabled={pending}>
-                                <MoreHorizontal className="size-4" />
-                              </Button>
-                            }
-                          />
-                          <DropdownMenuContent align="end">
+                        <div className="flex items-center justify-end gap-0.5">
+                          <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                             {ehGrupo && (
-                              <>
-                                <DropdownMenuItem onClick={() => abrirCriar("grupo", item)}>
-                                  <FolderPlus className="size-4" /> Subgrupo aqui
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => abrirCriar("servico", item)}>
-                                  <Plus className="size-4" /> Serviço aqui
-                                </DropdownMenuItem>
-                              </>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label={`Serviço em ${item.descricao}`}
+                                disabled={pending || !temBasePreco}
+                                onClick={() => abrirNovoServico(item, "composicao")}
+                              >
+                                <Plus className="size-4" />
+                              </Button>
                             )}
-                            <DropdownMenuItem onClick={() => abrirEditar(item)}>
-                              <Pencil className="size-4" /> Editar
-                            </DropdownMenuItem>
-                            {!ehGrupo && (
-                              <DropdownMenuItem onClick={() => setVinculoAlvo(item)} disabled={!temBasePreco}>
-                                <Link2 className="size-4" /> Vincular composição
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Editar ${item.descricao}`}
+                              disabled={pending}
+                              onClick={() => abrirEditar(item)}
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              render={
+                                <Button variant="ghost" size="icon" aria-label={`Ações de ${item.descricao}`} disabled={pending}>
+                                  <MoreHorizontal className="size-4" />
+                                </Button>
+                              }
+                            />
+                            <DropdownMenuContent align="end">
+                              {ehGrupo && (
+                                <>
+                                  <DropdownMenuItem onClick={() => abrirCriarGrupo(item)}>
+                                    <FolderPlus className="size-4" /> Subgrupo aqui
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => abrirNovoServico(item, "composicao")} disabled={!temBasePreco}>
+                                    <Plus className="size-4" /> Serviço (composição)
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => abrirNovoServico(item, "insumo")} disabled={!temBasePreco}>
+                                    <Plus className="size-4" /> Item (insumo)
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              <DropdownMenuItem onClick={() => abrirEditar(item)}>
+                                <Pencil className="size-4" /> Editar
                               </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem onClick={() => mover(item, "cima")}>
-                              <ChevronUp className="size-4" /> Mover para cima
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => mover(item, "baixo")}>
-                              <ChevronDown className="size-4" /> Mover para baixo
-                            </DropdownMenuItem>
-                            {!ehGrupo && (
-                              <DropdownMenuItem onClick={() => alternarTravaItem(item)}>
-                                {item.bloqueado ? (
-                                  <>
-                                    <LockOpen className="size-4" /> Destravar preço
-                                  </>
-                                ) : (
-                                  <>
-                                    <Lock className="size-4" /> Travar preço
-                                  </>
-                                )}
+                              {!ehGrupo && (
+                                <>
+                                  <DropdownMenuItem onClick={() => setVinculoAlvo({ item, fonte: "composicao" })} disabled={!temBasePreco}>
+                                    <Link2 className="size-4" /> Vincular composição
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => setVinculoAlvo({ item, fonte: "insumo" })} disabled={!temBasePreco}>
+                                    <Link2 className="size-4" /> Vincular insumo
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              <DropdownMenuItem onClick={() => mover(item, "cima")}>
+                                <ChevronUp className="size-4" /> Mover para cima
                               </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem onClick={() => excluir(item)}>
-                              <Trash2 className="size-4" /> Excluir
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              <DropdownMenuItem onClick={() => mover(item, "baixo")}>
+                                <ChevronDown className="size-4" /> Mover para baixo
+                              </DropdownMenuItem>
+                              {!ehGrupo && (
+                                <DropdownMenuItem onClick={() => alternarTravaItem(item)}>
+                                  {item.bloqueado ? (
+                                    <>
+                                      <LockOpen className="size-4" /> Destravar preço
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Lock className="size-4" /> Travar preço
+                                    </>
+                                  )}
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem onClick={() => excluir(item)}>
+                                <Trash2 className="size-4" /> Excluir
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </TableCell>
                     )}
                   </TableRow>
@@ -309,12 +354,27 @@ export function OrcamentoArvoreView({
         open={itemDialogAberto}
         onOpenChange={setItemDialogAberto}
       />
-      <VincularComposicaoDialog
-        itemId={vinculoAlvo?.id ?? null}
-        itemDescricao={vinculoAlvo?.descricao ?? ""}
-        open={vinculoAlvo !== null}
-        onOpenChange={(v) => !v && setVinculoAlvo(null)}
-      />
+      {novoServicoAlvo && (
+        <BuscaBancoDialog
+          modo="criar"
+          fonte={novoServicoAlvo.fonte}
+          orcamentoId={orcamentoId}
+          parentId={novoServicoAlvo.parentId}
+          parentDescricao={novoServicoAlvo.parentDescricao}
+          open={novoServicoAlvo !== null}
+          onOpenChange={(v) => !v && setNovoServicoAlvo(null)}
+        />
+      )}
+      {vinculoAlvo && (
+        <BuscaBancoDialog
+          modo="vincular"
+          fonte={vinculoAlvo.fonte}
+          itemId={vinculoAlvo.item.id}
+          itemDescricao={vinculoAlvo.item.descricao}
+          open={vinculoAlvo !== null}
+          onOpenChange={(v) => !v && setVinculoAlvo(null)}
+        />
+      )}
       <VerNoModeloDialog
         itemId={verNoModeloAlvo?.id ?? null}
         itemDescricao={verNoModeloAlvo?.descricao ?? ""}

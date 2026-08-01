@@ -7,7 +7,8 @@ export const criarItemSchema = z.object({
   descricao: z.string().min(1, "Descrição é obrigatória."),
   unidade: z.string().optional().or(z.literal("")),
   quantidade: z.number().min(0, "Quantidade não pode ser negativa.").optional(),
-  custoUnitario: z.number().min(0, "Custo não pode ser negativo.").optional(),
+  composicaoId: z.string().min(1).optional(),
+  insumoId: z.string().min(1).optional(),
 });
 
 export const editarItemSchema = z.object({
@@ -39,6 +40,11 @@ export const alternarTravaSchema = z.object({
 export const vincularComposicaoSchema = z.object({
   itemId: z.string().min(1),
   composicaoId: z.string().min(1),
+});
+
+export const vincularInsumoSchema = z.object({
+  itemId: z.string().min(1),
+  insumoId: z.string().min(1),
 });
 
 export const definirBasePrecoSchema = z.object({

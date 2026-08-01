@@ -15,6 +15,7 @@ import {
   idItemSchema,
   alternarTravaSchema,
   vincularComposicaoSchema,
+  vincularInsumoSchema,
   definirBasePrecoSchema,
   trocarBaseSchema,
   duplicarOrcamentoSchema,
@@ -58,21 +59,22 @@ export const criarItem = defineAction(
     acao: "criar-item-orcamento",
     entidade: "CustoOrcamentoItem",
     schema: criarItemSchema,
-    entidadeId: (data) => (data as { id: string }).id,
+    entidadeId: (data) => (data as { item: { id: string } }).item.id,
   },
   async (input, { user }) => {
     await exigirOrcamentoNoEscopo(input.orcamentoId, user);
-    const item = await service.criarItem({
+    const r = await service.criarItem({
       orcamentoId: input.orcamentoId,
       parentId: input.parentId ?? null,
       tipo: input.tipo,
       descricao: input.descricao,
       unidade: input.unidade || null,
       quantidade: input.quantidade,
-      custoUnitario: input.custoUnitario,
+      composicaoId: input.composicaoId,
+      insumoId: input.insumoId,
     });
     rev(input.orcamentoId);
-    return item;
+    return r;
   },
 );
 
@@ -161,6 +163,23 @@ export const vincularComposicao = defineAction(
   },
 );
 
+export const vincularInsumo = defineAction(
+  {
+    ...base,
+    acao: "vincular-insumo-item",
+    entidade: "CustoOrcamentoItem",
+    schema: vincularInsumoSchema,
+    entidadeId: (_data, input) => input.itemId,
+    capturarAntes: (input) => prisma.custoOrcamentoItem.findUnique({ where: { id: input.itemId } }),
+  },
+  async (input, { user }) => {
+    const orcamentoId = await exigirItemNoEscopo(input.itemId, user);
+    const r = await service.vincularInsumo(input);
+    rev(orcamentoId);
+    return r;
+  },
+);
+
 // ── Base de preço / troca de data-base ───────────────────────────
 
 export const definirBasePreco = defineAction(
@@ -234,13 +253,13 @@ export const duplicarOrcamento = defineAction(
   },
 );
 
-// ── Busca de composição para o diálogo de vínculo ────────────────
+// ── Busca de composição/insumo pro diálogo de criação/vínculo ────
 
 export const buscarComposicoesParaVinculo = defineAction(
   { ...leitura, acao: "buscar-composicoes-vinculo", schema: z.object({ q: z.string().optional() }) },
   async (input) => {
     const q = input.q?.trim();
-    return prisma.custoComposicao.findMany({
+    const registros = await prisma.custoComposicao.findMany({
       where: q
         ? {
             OR: [
@@ -251,7 +270,34 @@ export const buscarComposicoesParaVinculo = defineAction(
         : {},
       orderBy: { codigo: "asc" },
       take: 20,
-      select: { id: true, codigo: true, descricao: true, unidade: true },
+      select: { id: true, codigo: true, descricao: true, unidade: true, base: { select: { nome: true, fonte: true } } },
+    });
+    return registros.map((r) => ({
+      id: r.id,
+      codigo: r.codigo,
+      descricao: r.descricao,
+      unidade: r.unidade,
+      basePrecoNome: `${r.base.nome} (${r.base.fonte})`,
+    }));
+  },
+);
+
+export const buscarInsumosParaVinculo = defineAction(
+  { ...leitura, acao: "buscar-insumos-vinculo", schema: z.object({ q: z.string().optional() }) },
+  async (input) => {
+    const q = input.q?.trim();
+    return prisma.custoInsumo.findMany({
+      where: q
+        ? {
+            OR: [
+              { codigo: { contains: q, mode: "insensitive" } },
+              { descricao: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : {},
+      orderBy: { codigo: "asc" },
+      take: 20,
+      select: { id: true, codigo: true, descricao: true, unidade: true, categoria: true },
     });
   },
 );

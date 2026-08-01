@@ -4638,9 +4638,13 @@ model CustoOrcamentoItem {
   totalSemBdi Decimal @default(0) @db.Decimal(14, 2)
   totalComBdi Decimal @default(0) @db.Decimal(14, 2)
 
-  /// Composição de origem do custo. Null = custo digitado à mão no item.
+  /// Composição de origem do custo. Null = insumo direto (ver insumoId) ou custo digitado à mão (item antigo).
   composicaoId     String?
   composicao       CustoComposicao? @relation(fields: [composicaoId], references: [id], onDelete: SetNull)
+  /// Insumo direto (sem composição) de origem do custo. Nunca setado junto com composicaoId — cada
+  /// vincular*() zera o outro campo explicitamente.
+  insumoId         String?
+  insumo           CustoInsumo?     @relation(fields: [insumoId], references: [id], onDelete: SetNull)
   /// MATERIALIZAÇÃO (design §7): de qual base o `custoUnitario` gravado veio, e quando. É isto que
   /// torna a revisão reproduzível anos depois — apagar a base NÃO apaga o custo já gravado.
   basePrecoUsadaId String?
@@ -4657,6 +4661,7 @@ model CustoOrcamentoItem {
   @@index([orcamentoId])
   @@index([parentId])
   @@index([composicaoId])
+  @@index([insumoId])
   @@index([basePrecoUsadaId])
   @@map("custo_orcamento_item")
 }
@@ -4684,19 +4689,21 @@ enum TipoItemComposicao {
 }
 
 model CustoInsumo {
-  id             String                @id @default(cuid())
+  id                   String                @id @default(cuid())
   /// Código estável na fonte (ex.: SINAPI). Nunca reescrito ao reimportar — só upsert.
-  codigo         String
-  fonte          String
-  descricao      String
-  unidade        String
-  categoria      CategoriaInsumo
-  precos         CustoPreco[]
-  itensUsando    CustoComposicaoItem[]
-  rfqItens       CustoRfqItem[]
-  precoHistorico CustoPrecoHistorico[]
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
+  codigo               String
+  fonte                String
+  descricao            String
+  unidade              String
+  categoria            CategoriaInsumo
+  precos               CustoPreco[]
+  itensUsando          CustoComposicaoItem[]
+  rfqItens             CustoRfqItem[]
+  precoHistorico       CustoPrecoHistorico[]
+  /// Itens de orçamento vinculados diretamente (sem composição intermediária) a este insumo.
+  itensOrcamentoDireto CustoOrcamentoItem[]
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
 
   @@unique([fonte, codigo])
   @@index([fonte])

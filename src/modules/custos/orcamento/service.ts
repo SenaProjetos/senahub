@@ -202,6 +202,23 @@ export async function custoDaComposicao(
   return { custo: r.custoUnitario, semPreco: r.semPreco };
 }
 
+/**
+ * Resolve o custo unitário de um insumo direto (sem composição) contra uma base de preço. `baseId` já
+ * fixa uma `dataBase` específica (cada `CustoBasePreco` é um snapshot de uma data) — 1 lookup direto.
+ */
+export async function custoDoInsumo(
+  db: Tx | typeof prisma,
+  insumoId: string,
+  basePrecoId: string,
+): Promise<{ custo: number; semPreco: string[] }> {
+  const preco = await db.custoPreco.findFirst({
+    where: { baseId: basePrecoId, insumoId },
+    select: { valor: true },
+  });
+  if (!preco) return { custo: 0, semPreco: [insumoId] };
+  return { custo: Number(preco.valor), semPreco: [] };
+}
+
 // ── CRUD de item ─────────────────────────────────────────────────
 
 export async function exigirOrcamentoEditavel(db: Tx | typeof prisma, orcamentoId: string) {
@@ -221,10 +238,15 @@ export async function criarItem(input: {
   descricao: string;
   unidade?: string | null;
   quantidade?: number;
-  custoUnitario?: number;
+  composicaoId?: string;
+  insumoId?: string;
 }) {
+  if (input.tipo === "servico" && !input.composicaoId && !input.insumoId) {
+    throw new ActionError("Serviço precisa vir de uma composição ou de um insumo do banco.");
+  }
+
   return prisma.$transaction(async (db) => {
-    await exigirOrcamentoEditavel(db, input.orcamentoId);
+    const orc = await exigirOrcamentoEditavel(db, input.orcamentoId);
     if (input.parentId) {
       const pai = await db.custoOrcamentoItem.findFirst({
         where: { id: input.parentId, orcamentoId: input.orcamentoId },
@@ -232,6 +254,43 @@ export async function criarItem(input: {
       });
       if (!pai) throw new ActionError("Item pai não encontrado neste orçamento.");
       if (pai.tipo !== "grupo") throw new ActionError("Só é possível adicionar itens dentro de um grupo.");
+    }
+
+    let unidade = input.unidade ?? null;
+    let custoUnitario = 0;
+    let composicaoId: string | null = null;
+    let insumoId: string | null = null;
+    let basePrecoUsadaId: string | null = null;
+    let custoCalculadoEm: Date | null = null;
+    let semPreco: string[] = [];
+
+    if (input.composicaoId || input.insumoId) {
+      if (!orc.basePrecoId) {
+        throw new ActionError("Escolha a base de preço do orçamento antes de vincular composição ou insumo.");
+      }
+      if (input.composicaoId) {
+        const comp = await db.custoComposicao.findUnique({
+          where: { id: input.composicaoId },
+          select: { id: true, unidade: true },
+        });
+        if (!comp) throw new ActionError("Composição não encontrada.");
+        const r = await custoDaComposicao(db, input.composicaoId, orc.basePrecoId);
+        if ("erro" in r) throw new ActionError(r.erro);
+        composicaoId = comp.id;
+        unidade = comp.unidade;
+        custoUnitario = r.custo;
+        semPreco = r.semPreco;
+      } else {
+        const ins = await db.custoInsumo.findUnique({ where: { id: input.insumoId! }, select: { id: true, unidade: true } });
+        if (!ins) throw new ActionError("Insumo não encontrado.");
+        const r = await custoDoInsumo(db, input.insumoId!, orc.basePrecoId);
+        insumoId = ins.id;
+        unidade = ins.unidade;
+        custoUnitario = r.custo;
+        semPreco = r.semPreco;
+      }
+      basePrecoUsadaId = orc.basePrecoId;
+      custoCalculadoEm = new Date();
     }
 
     const max = await db.custoOrcamentoItem.aggregate({
@@ -248,15 +307,19 @@ export async function criarItem(input: {
         codigo: `~novo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         ordem: (max._max.ordem ?? -1) + 1,
         descricao: input.descricao,
-        unidade: input.unidade ?? null,
+        unidade,
         quantidade: input.quantidade ?? 0,
-        custoUnitario: input.custoUnitario ?? 0,
+        custoUnitario,
+        composicaoId,
+        insumoId,
+        basePrecoUsadaId,
+        custoCalculadoEm,
       },
     });
 
     await reindexarWbs(db, input.orcamentoId);
     await recalcularCaminho(db, input.orcamentoId, item.id);
-    return item;
+    return { item, semPreco };
   });
 }
 
@@ -286,7 +349,13 @@ export async function editarItem(input: {
         ...(input.unidade !== undefined ? { unidade: input.unidade } : {}),
         ...(input.quantidade !== undefined ? { quantidade: input.quantidade } : {}),
         ...(input.custoUnitario !== undefined
-          ? { custoUnitario: input.custoUnitario, composicaoId: null, basePrecoUsadaId: null, custoCalculadoEm: new Date() }
+          ? {
+              custoUnitario: input.custoUnitario,
+              composicaoId: null,
+              insumoId: null,
+              basePrecoUsadaId: null,
+              custoCalculadoEm: new Date(),
+            }
           : {}),
         ...(input.bdiPercentual !== undefined ? { bdiPercentual: input.bdiPercentual } : {}),
       },
@@ -382,7 +451,47 @@ export async function vincularComposicao(input: { itemId: string; composicaoId: 
       where: { id: input.itemId },
       data: {
         composicaoId: comp.id,
+        insumoId: null,
         unidade: comp.unidade,
+        custoUnitario: r.custo,
+        basePrecoUsadaId: orc.basePrecoId,
+        custoCalculadoEm: new Date(),
+      },
+    });
+    await recalcularCaminho(db, item.orcamentoId, input.itemId);
+    return { item: atualizado, semPreco: r.semPreco };
+  });
+}
+
+export async function vincularInsumo(input: { itemId: string; insumoId: string }) {
+  return prisma.$transaction(async (db) => {
+    const item = await db.custoOrcamentoItem.findUnique({
+      where: { id: input.itemId },
+      select: { id: true, orcamentoId: true, tipo: true, bloqueado: true },
+    });
+    if (!item) throw new ActionError("Item não encontrado.");
+    if (item.tipo !== "servico") throw new ActionError("Só serviços podem ser vinculados a um insumo.");
+    if (item.bloqueado) throw new ActionError("Item travado — destrave antes de vincular um insumo.");
+
+    const orc = await exigirOrcamentoEditavel(db, item.orcamentoId);
+    if (!orc.basePrecoId) {
+      throw new ActionError("Escolha a base de preço do orçamento antes de vincular insumos.");
+    }
+
+    const ins = await db.custoInsumo.findUnique({
+      where: { id: input.insumoId },
+      select: { id: true, unidade: true },
+    });
+    if (!ins) throw new ActionError("Insumo não encontrado.");
+
+    const r = await custoDoInsumo(db, input.insumoId, orc.basePrecoId);
+
+    const atualizado = await db.custoOrcamentoItem.update({
+      where: { id: input.itemId },
+      data: {
+        insumoId: ins.id,
+        composicaoId: null,
+        unidade: ins.unidade,
         custoUnitario: r.custo,
         basePrecoUsadaId: orc.basePrecoId,
         custoCalculadoEm: new Date(),
@@ -407,6 +516,7 @@ export async function previewTrocaBase(orcamentoId: string, basePrecoNovaId: str
       custoUnitario: true,
       bloqueado: true,
       composicaoId: true,
+      insumoId: true,
     },
     orderBy: { codigo: "asc" },
   });
@@ -417,10 +527,14 @@ export async function previewTrocaBase(orcamentoId: string, basePrecoNovaId: str
     if (item.composicaoId && !item.bloqueado) {
       const r = await custoDaComposicao(prisma, item.composicaoId, basePrecoNovaId);
       custoNovo = "erro" in r ? null : r.custo;
-    } else if (!item.composicaoId) {
-      // Custo digitado à mão não depende da base — permanece.
+    } else if (item.insumoId && !item.bloqueado) {
+      const r = await custoDoInsumo(prisma, item.insumoId, basePrecoNovaId);
+      custoNovo = r.custo;
+    } else if (!item.composicaoId && !item.insumoId) {
+      // Custo digitado à mão não depende da base — permanece (mesmo se travado).
       custoNovo = Number(item.custoUnitario);
     }
+    // else: vinculado (composição ou insumo) e travado — custoNovo fica null, sem prévia.
     paraTroca.push({
       id: item.id,
       codigo: item.codigo,
@@ -520,6 +634,7 @@ export async function duplicarOrcamento(orcamentoId: string, titulo: string, cri
         totalSemBdi: Number(i.totalSemBdi),
         totalComBdi: Number(i.totalComBdi),
         composicaoId: i.composicaoId,
+        insumoId: i.insumoId,
         basePrecoUsadaId: i.basePrecoUsadaId,
       }));
 

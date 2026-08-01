@@ -17,8 +17,10 @@ import {
 import { criarItem, editarItem } from "@/modules/custos/orcamento/actions";
 import type { ItemArvore } from "@/modules/custos/orcamento/queries";
 
+// "criar" só cria grupo — serviço novo nasce vinculado (composição ou insumo), via o dialog de busca
+// (novo-item-dialog.tsx). Este dialog segue cuidando de editar qualquer serviço já existente.
 export type AlvoItem =
-  | { modo: "criar"; tipo: "grupo" | "servico"; parentId: string | null; parentDescricao: string | null }
+  | { modo: "criar"; tipo: "grupo"; parentId: string | null; parentDescricao: string | null }
   | { modo: "editar"; item: ItemArvore };
 
 export function ItemDialog({
@@ -56,9 +58,9 @@ export function ItemDialog({
 
   if (!alvo) return null;
 
-  const ehServico = alvo.modo === "criar" ? alvo.tipo === "servico" : alvo.item.tipo === "servico";
+  const ehServico = alvo.modo === "editar" && alvo.item.tipo === "servico";
   const travado = alvo.modo === "editar" && alvo.item.bloqueado;
-  const vinculado = alvo.modo === "editar" && alvo.item.composicaoId !== null;
+  const vinculado = alvo.modo === "editar" && (alvo.item.composicaoId !== null || alvo.item.insumoId !== null);
 
   function salvar() {
     if (!descricao.trim()) {
@@ -71,11 +73,9 @@ export function ItemDialog({
           ? await criarItem({
               orcamentoId,
               parentId: alvo!.parentId,
-              tipo: alvo!.tipo,
+              tipo: "grupo",
               descricao: descricao.trim(),
               unidade: unidade.trim(),
-              quantidade: ehServico ? Number(quantidade) : undefined,
-              custoUnitario: ehServico ? Number(custoUnitario) : undefined,
             })
           : await editarItem({
               id: alvo!.item.id,
@@ -96,12 +96,7 @@ export function ItemDialog({
     });
   }
 
-  const titulo =
-    alvo.modo === "criar"
-      ? alvo.tipo === "grupo"
-        ? "Novo grupo"
-        : "Novo serviço"
-      : `Editar ${alvo.item.tipo === "grupo" ? "grupo" : "serviço"}`;
+  const titulo = alvo.modo === "criar" ? "Novo grupo" : `Editar ${alvo.item.tipo === "grupo" ? "grupo" : "serviço"}`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

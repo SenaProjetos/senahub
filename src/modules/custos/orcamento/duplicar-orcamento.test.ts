@@ -13,6 +13,7 @@ const base = {
   totalSemBdi: 200,
   totalComBdi: 240,
   composicaoId: null,
+  insumoId: null,
   basePrecoUsadaId: null,
 };
 
@@ -77,6 +78,16 @@ describe("duplicarItens", () => {
       bloqueado: true,
       bdiPercentual: 12.5,
     });
+  });
+
+  it("item vinculado a insumo direto preserva insumoId (não vira manual por acidente)", () => {
+    const comInsumo: ItemParaDuplicar[] = [
+      { ...base, id: "S", parentId: null, codigo: "1", insumoId: "ins-1", basePrecoUsadaId: "base-1" },
+    ];
+    const r = duplicarItens(comInsumo, "orc-novo", gerarId);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.itens[0]).toMatchObject({ insumoId: "ins-1", composicaoId: null, basePrecoUsadaId: "base-1" });
   });
 
   it("mapaIds cobre todos os itens", () => {
