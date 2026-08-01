@@ -13,6 +13,7 @@ import {
 } from "@/modules/custos/fornecedores/actions";
 import { buscarHistoricoPrecoFornecedor } from "@/modules/custos/cotacoes/actions";
 import { CategoriaInsumo } from "@/generated/prisma/enums";
+import { UFS } from "@/modules/usuarios/registro";
 import type { HistoricoPrecoItem } from "@/modules/custos/cotacoes/queries";
 import { brl, formatarData } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -137,7 +138,7 @@ function FornecedorDialog({
     email: "",
     telefone: "",
     observacoes: "",
-    regioesAtendidas: "",
+    regioesAtendidas: [] as string[],
     categoriasFornecidas: [] as string[],
     prazoMedioDiasEntrega: "",
     condicoesComerciais: "",
@@ -152,7 +153,7 @@ function FornecedorDialog({
       email: f.email ?? "",
       telefone: f.telefone ?? "",
       observacoes: f.observacoes ?? "",
-      regioesAtendidas: f.regioesAtendidas.join(", "),
+      regioesAtendidas: f.regioesAtendidas,
       categoriasFornecidas: f.categoriasFornecidas,
       prazoMedioDiasEntrega: f.prazoMedioDiasEntrega != null ? String(f.prazoMedioDiasEntrega) : "",
       condicoesComerciais: f.condicoesComerciais ?? "",
@@ -176,6 +177,17 @@ function FornecedorDialog({
     }));
   }
 
+  function alternarUf(uf: string) {
+    setForm((f) => ({
+      ...f,
+      regioesAtendidas: f.regioesAtendidas.includes(uf)
+        ? f.regioesAtendidas.filter((u) => u !== uf)
+        : [...f.regioesAtendidas, uf],
+    }));
+  }
+
+  const valido = form.nome.trim().length > 0 && form.regioesAtendidas.length > 0 && form.categoriasFornecidas.length > 0;
+
   function salvar() {
     start(async () => {
       const payload = {
@@ -185,10 +197,7 @@ function FornecedorDialog({
         email: form.email,
         telefone: form.telefone,
         observacoes: form.observacoes,
-        regioesAtendidas: form.regioesAtendidas
-          .split(/[,\s]+/)
-          .map((s) => s.trim().toUpperCase())
-          .filter(Boolean),
+        regioesAtendidas: form.regioesAtendidas,
         categoriasFornecidas: form.categoriasFornecidas as never[],
         prazoMedioDiasEntrega: form.prazoMedioDiasEntrega ? Number(form.prazoMedioDiasEntrega) : undefined,
         condicoesComerciais: form.condicoesComerciais,
@@ -226,13 +235,13 @@ function FornecedorDialog({
               </Select>
             </div>
             <div className="col-span-2 space-y-1.5">
-              <Label>Nome</Label>
+              <Label>Nome *</Label>
               <Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Documento</Label>
+              <Label>{form.tipo === "PJ" ? "CNPJ" : "CPF"}</Label>
               <Input value={form.documento} onChange={(e) => setForm({ ...form, documento: e.target.value })} />
             </div>
             <div className="space-y-1.5">
@@ -251,27 +260,19 @@ function FornecedorDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 border-t pt-3">
-            <div className="space-y-1.5">
-              <Label>Regiões atendidas (UF)</Label>
-              <Input
-                value={form.regioesAtendidas}
-                onChange={(e) => setForm({ ...form, regioesAtendidas: e.target.value })}
-                placeholder="PE, PB, RN"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Prazo médio de entrega (dias)</Label>
-              <Input
-                type="number"
-                min={0}
-                value={form.prazoMedioDiasEntrega}
-                onChange={(e) => setForm({ ...form, prazoMedioDiasEntrega: e.target.value })}
-              />
+          <div className="space-y-1.5 border-t pt-3">
+            <Label>Regiões atendidas (UF) *</Label>
+            <div className="grid max-h-40 grid-cols-4 gap-1.5 overflow-y-auto rounded-lg border p-2 sm:grid-cols-6">
+              {UFS.map((uf) => (
+                <label key={uf} className="flex items-center gap-1.5 text-sm">
+                  <Checkbox checked={form.regioesAtendidas.includes(uf)} onCheckedChange={() => alternarUf(uf)} />
+                  {uf}
+                </label>
+              ))}
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>Categorias fornecidas</Label>
+            <Label>Categorias fornecidas *</Label>
             <div className="flex flex-wrap gap-3">
               {CATEGORIAS_INSUMO.map((cat) => (
                 <label key={cat} className="flex items-center gap-1.5 text-sm">
@@ -280,6 +281,16 @@ function FornecedorDialog({
                 </label>
               ))}
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Prazo médio de entrega (dias)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={form.prazoMedioDiasEntrega}
+              onChange={(e) => setForm({ ...form, prazoMedioDiasEntrega: e.target.value })}
+              className="max-w-40"
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -307,7 +318,7 @@ function FornecedorDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={salvar} disabled={pending || !form.nome}>
+          <Button onClick={salvar} disabled={pending || !valido}>
             {pending ? "Salvando…" : "Salvar"}
           </Button>
         </DialogFooter>
