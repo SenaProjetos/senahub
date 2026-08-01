@@ -23,6 +23,7 @@ export type ItemArvore = {
   unidade: string | null;
   quantidade: number;
   custoUnitario: number;
+  custoUnitarioComBdi: number;
   bdiPercentual: number | null;
   bdiEfetivo: number;
   bloqueado: boolean;
@@ -32,6 +33,7 @@ export type ItemArvore = {
   composicaoCodigo: string | null;
   insumoId: string | null;
   insumoCodigo: string | null;
+  bancoNome: string | null;
   custoCalculadoEm: Date | null;
 };
 
@@ -49,7 +51,11 @@ export async function arvoreDoOrcamento(orcamentoId: string): Promise<ArvoreOrca
     prisma.custoOrcamento.findUnique({ where: { id: orcamentoId }, select: { bdiPercentual: true } }),
     prisma.custoOrcamentoItem.findMany({
       where: { orcamentoId },
-      include: { composicao: { select: { codigo: true } }, insumo: { select: { codigo: true } } },
+      include: {
+        composicao: { select: { codigo: true } },
+        insumo: { select: { codigo: true } },
+        basePrecoUsada: { select: { nome: true, fonte: true } },
+      },
     }),
   ]);
 
@@ -97,6 +103,7 @@ export async function arvoreDoOrcamento(orcamentoId: string): Promise<ArvoreOrca
       unidade: registro.unidade,
       quantidade: Number(registro.quantidade),
       custoUnitario: Number(registro.custoUnitario),
+      custoUnitarioComBdi: linha.custoUnitarioComBdi ?? Number(registro.custoUnitario),
       bdiPercentual: registro.bdiPercentual === null ? null : Number(registro.bdiPercentual),
       bdiEfetivo: linha.bdiPercentual ?? bdiOrcamento,
       bloqueado: registro.bloqueado,
@@ -106,6 +113,7 @@ export async function arvoreDoOrcamento(orcamentoId: string): Promise<ArvoreOrca
       composicaoCodigo: registro.composicao?.codigo ?? null,
       insumoId: registro.insumoId,
       insumoCodigo: registro.insumo?.codigo ?? null,
+      bancoNome: registro.basePrecoUsada ? `${registro.basePrecoUsada.nome} (${registro.basePrecoUsada.fonte})` : null,
       custoCalculadoEm: registro.custoCalculadoEm,
     };
   });
@@ -150,7 +158,14 @@ export async function dadosPlanilha(orcamentoId: string, tipo: "sintetica" | "an
   });
   if (!orc) return null;
 
-  const linhasBanco = await prisma.custoOrcamentoItem.findMany({ where: { orcamentoId } });
+  const linhasBanco = await prisma.custoOrcamentoItem.findMany({
+    where: { orcamentoId },
+    include: {
+      composicao: { select: { codigo: true } },
+      insumo: { select: { codigo: true } },
+      basePrecoUsada: { select: { nome: true, fonte: true } },
+    },
+  });
   const nos: NoOrcamento[] = linhasBanco.map((l) => ({
     id: l.id,
     parentId: l.parentId,
@@ -184,6 +199,15 @@ export async function dadosPlanilha(orcamentoId: string, tipo: "sintetica" | "an
     ),
     codigos: calcularCodigosWbs(arv.raizes),
     meta: new Map(linhasBanco.map((l) => [l.id, { descricao: l.descricao, unidade: l.unidade }])),
+    origem: new Map(
+      linhasBanco.map((l) => [
+        l.id,
+        {
+          codigoBanco: l.composicao?.codigo ?? l.insumo?.codigo ?? null,
+          bancoNome: l.basePrecoUsada ? `${l.basePrecoUsada.nome} (${l.basePrecoUsada.fonte})` : null,
+        },
+      ]),
+    ),
   };
 
   let linhas: LinhaPlanilha[];

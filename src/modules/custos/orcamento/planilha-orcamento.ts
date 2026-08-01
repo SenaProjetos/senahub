@@ -14,8 +14,12 @@ import { bdiEfetivo } from "../orcamento-arvore";
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 export type LinhaPlanilha = {
-  /** Código WBS (1.2.3) do nó, ou o código do insumo/composição nas linhas analíticas. */
+  /** Código WBS (1.2.3) do nó. Vazio nas linhas de composição analítica (que não têm WBS). */
   codigo: string;
+  /** Código de origem: insumo/composição vinculado ao serviço, ou do item de composição analítica. */
+  codigoBanco: string | null;
+  /** Nome do banco/base de onde veio o custo materializado (só linhas de serviço vinculadas). */
+  bancoNome: string | null;
   /** 0 = raiz. Nas linhas de composição, é o nível do serviço + 1. */
   nivel: number;
   tipo: "grupo" | "servico" | "composicao_item";
@@ -24,6 +28,8 @@ export type LinhaPlanilha = {
   /** Quantidade do item; nas linhas de composição, é o coeficiente. */
   quantidade: number | null;
   custoUnitario: number | null;
+  /** custoUnitario com o BDI efetivo já aplicado — "Valor com BDI" na planilha. */
+  custoUnitarioComBdi: number | null;
   /** BDI efetivo (%) aplicado nesta linha. Null nas linhas de composição (BDI é do serviço). */
   bdiPercentual: number | null;
   totalSemBdi: number;
@@ -39,6 +45,8 @@ export type ContextoPlanilha = {
   codigos: Map<string, string>;
   /** Descrição/unidade por id de nó. */
   meta: Map<string, { descricao: string; unidade: string | null }>;
+  /** Código do insumo/composição + nome do banco de origem, por id de nó (só serviços vinculados). */
+  origem?: Map<string, { codigoBanco: string | null; bancoNome: string | null }>;
 };
 
 /** Item de composição já resolvido (vindo de C1) para a forma analítica. */
@@ -62,16 +70,22 @@ function percorrer(nos: NoArvore[], nivel: number, ctx: ContextoPlanilha, visita
 function linhaDoNo(no: NoArvore, nivel: number, caminho: NoArvore[], ctx: ContextoPlanilha): LinhaPlanilha {
   const totais = ctx.totais.get(no.id) ?? { totalSemBdi: 0, totalComBdi: 0 };
   const meta = ctx.meta.get(no.id);
+  const origem = ctx.origem?.get(no.id);
   const ehServico = no.tipo === "servico";
+  const bdi = bdiEfetivo(caminho, ctx.bdiOrcamento);
+  const custoUnitario = ehServico ? no.custoUnitario : null;
   return {
     codigo: ctx.codigos.get(no.id) ?? "",
+    codigoBanco: ehServico ? (origem?.codigoBanco ?? null) : null,
+    bancoNome: ehServico ? (origem?.bancoNome ?? null) : null,
     nivel,
     tipo: no.tipo,
     descricao: meta?.descricao ?? "",
     unidade: meta?.unidade ?? "",
     quantidade: ehServico ? no.quantidade : null,
-    custoUnitario: ehServico ? no.custoUnitario : null,
-    bdiPercentual: bdiEfetivo(caminho, ctx.bdiOrcamento),
+    custoUnitario,
+    custoUnitarioComBdi: custoUnitario === null ? null : round2(custoUnitario * (1 + bdi / 100)),
+    bdiPercentual: bdi,
     totalSemBdi: totais.totalSemBdi,
     totalComBdi: totais.totalComBdi,
   };
@@ -104,13 +118,16 @@ export function linhasAnaliticas(
     for (const item of itens) {
       const subtotal = item.precoUnitario === null ? 0 : round2(item.precoUnitario * item.coeficiente);
       linhas.push({
-        codigo: item.codigo,
+        codigo: "",
+        codigoBanco: item.codigo,
+        bancoNome: null,
         nivel: nivel + 1,
         tipo: "composicao_item",
         descricao: item.descricao,
         unidade: item.unidade,
         quantidade: item.coeficiente,
         custoUnitario: item.precoUnitario,
+        custoUnitarioComBdi: null,
         bdiPercentual: null,
         totalSemBdi: subtotal,
         totalComBdi: subtotal,

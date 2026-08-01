@@ -55,35 +55,39 @@ export default async function PrintPlanilhaPage({
         <table>
           <thead>
             <tr>
-              <th style={{ width: "9%" }}>Código</th>
+              <th style={{ width: "7%" }}>Item</th>
+              <th style={{ width: "8%" }}>Código</th>
+              <th style={{ width: "10%" }}>Banco</th>
               <th>Descrição</th>
-              <th style={{ width: "5%" }}>Un.</th>
-              <th style={{ width: "9%" }} className="num">Qtd.</th>
-              <th style={{ width: "11%" }} className="num">Custo unit.</th>
-              <th style={{ width: "7%" }} className="num">BDI</th>
-              <th style={{ width: "12%" }} className="num">Total c/ BDI</th>
+              <th style={{ width: "5%" }}>Und</th>
+              <th style={{ width: "8%" }} className="num">Quant.</th>
+              <th style={{ width: "10%" }} className="num">Valor Unit</th>
+              <th style={{ width: "10%" }} className="num">Valor com BDI</th>
+              <th style={{ width: "11%" }} className="num">Total</th>
             </tr>
           </thead>
           <tbody>
             {dados.linhas.map((l, i) => (
               <tr key={`${l.codigo}-${i}`} className={l.tipo === "grupo" ? "grupo" : l.tipo === "composicao_item" ? "comp" : ""}>
                 <td style={{ fontFamily: "monospace" }}>{l.codigo}</td>
+                <td style={{ fontFamily: "monospace" }}>{l.codigoBanco ?? "—"}</td>
+                <td>{l.bancoNome ?? "—"}</td>
                 <td style={{ paddingLeft: `${3 + l.nivel * 10}px` }}>{l.descricao}</td>
                 <td>{l.unidade}</td>
                 <td className="num">
                   {l.quantidade === null ? "—" : l.quantidade.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                 </td>
                 <td className="num">{l.custoUnitario === null ? "—" : brl(l.custoUnitario)}</td>
-                <td className="num">{l.bdiPercentual === null ? "—" : `${l.bdiPercentual.toFixed(2)}%`}</td>
+                <td className="num">{l.custoUnitarioComBdi === null ? "—" : brl(l.custoUnitarioComBdi)}</td>
                 <td className="num">{brl(l.totalComBdi)}</td>
               </tr>
             ))}
             <tr className="total">
-              <td colSpan={6} className="num">TOTAL SEM BDI</td>
+              <td colSpan={8} className="num">TOTAL SEM BDI</td>
               <td className="num">{brl(dados.totalSemBdi)}</td>
             </tr>
             <tr className="total" style={{ borderTop: "none" }}>
-              <td colSpan={6} className="num">TOTAL COM BDI</td>
+              <td colSpan={8} className="num">TOTAL COM BDI</td>
               <td className="num">{brl(dados.totalComBdi)}</td>
             </tr>
           </tbody>

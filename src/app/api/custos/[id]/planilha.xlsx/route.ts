@@ -36,26 +36,28 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   ws.addRow([]);
 
   const linhaCabecalho = ws.addRow([
+    "Item",
     "Código",
+    "Banco",
     "Descrição",
-    "Un.",
-    "Quantidade",
-    "Custo unit.",
-    "BDI %",
-    "Total s/ BDI",
-    "Total c/ BDI",
+    "Und",
+    "Quant.",
+    "Valor Unit",
+    "Valor com BDI",
+    "Total",
   ]);
   linhaCabecalho.font = { bold: true };
 
   for (const l of dados.linhas) {
     const row = ws.addRow([
       l.codigo,
+      l.codigoBanco,
+      l.bancoNome,
       `${"    ".repeat(l.nivel)}${l.descricao}`,
       l.unidade,
       l.quantidade,
       l.custoUnitario,
-      l.bdiPercentual,
-      l.totalSemBdi,
+      l.custoUnitarioComBdi,
       l.totalComBdi,
     ]);
     if (l.tipo === "grupo") row.font = { bold: true };
@@ -63,29 +65,30 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   }
 
   ws.addRow([]);
-  ws.addRow(["", "TOTAL SEM BDI", "", "", "", "", dados.totalSemBdi, ""]).font = { bold: true };
-  ws.addRow(["", "TOTAL COM BDI", "", "", "", "", "", dados.totalComBdi]).font = { bold: true };
+  ws.addRow(["", "", "", "TOTAL SEM BDI", "", "", "", "", dados.totalSemBdi]).font = { bold: true };
+  ws.addRow(["", "", "", "TOTAL COM BDI", "", "", "", "", dados.totalComBdi]).font = { bold: true };
 
   if (dados.resumoGrupos.length > 0) {
     ws.addRow([]);
     ws.addRow(["Participação por grupo"]).font = { bold: true };
-    ws.addRow(["Código", "Grupo", "Total c/ BDI", "Participação %"]).font = { bold: true };
+    ws.addRow(["Item", "Grupo", "Total c/ BDI", "Participação %"]).font = { bold: true };
     for (const g of dados.resumoGrupos) {
       ws.addRow([g.codigo, g.descricao, g.totalComBdi, g.participacaoPct]);
     }
   }
 
   ws.columns = [
-    { width: 14 },
-    { width: 60 },
+    { width: 12 },
+    { width: 12 },
+    { width: 18 },
+    { width: 50 },
     { width: 8 },
+    { width: 12 },
     { width: 14 },
     { width: 14 },
-    { width: 10 },
-    { width: 16 },
     { width: 16 },
   ];
-  for (const col of ["D", "E", "G", "H"]) ws.getColumn(col).numFmt = MOEDA;
+  for (const col of ["F", "G", "H", "I"]) ws.getColumn(col).numFmt = MOEDA;
 
   const buffer = await wb.xlsx.writeBuffer();
   return new NextResponse(buffer as ArrayBuffer, {

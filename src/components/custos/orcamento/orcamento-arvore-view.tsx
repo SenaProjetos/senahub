@@ -154,13 +154,15 @@ export function OrcamentoArvoreView({
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-20">Item</TableHead>
                 <TableHead className="w-24">Código</TableHead>
+                <TableHead className="w-28">Banco</TableHead>
                 <TableHead>Descrição</TableHead>
-                <TableHead className="w-16">Un.</TableHead>
-                <TableHead className="w-24 text-right">Qtd.</TableHead>
-                <TableHead className="w-28 text-right">Custo unit.</TableHead>
-                <TableHead className="w-20 text-right">BDI</TableHead>
-                <TableHead className="w-32 text-right">Total c/ BDI</TableHead>
+                <TableHead className="w-16">Und</TableHead>
+                <TableHead className="w-24 text-right">Quant.</TableHead>
+                <TableHead className="w-28 text-right">Valor Unit</TableHead>
+                <TableHead className="w-28 text-right">Valor com BDI</TableHead>
+                <TableHead className="w-32 text-right">Total</TableHead>
                 {podeGerir && <TableHead className="w-10" />}
               </TableRow>
             </TableHeader>
@@ -170,20 +172,24 @@ export function OrcamentoArvoreView({
                 return (
                   <TableRow key={item.id} className={`group ${ehGrupo ? "bg-muted/40 font-medium" : ""}`}>
                     <TableCell className="font-mono text-xs">{item.codigo}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {item.composicaoCodigo ? (
+                        <Badge variant="outline" className="font-mono text-[10px]">
+                          {item.composicaoCodigo}
+                        </Badge>
+                      ) : item.insumoCodigo ? (
+                        <Badge variant="secondary" className="font-mono text-[10px]">
+                          {item.insumoCodigo}
+                        </Badge>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{item.bancoNome ?? "—"}</TableCell>
                     <TableCell>
                       <span style={{ paddingLeft: `${item.nivel * 1.25}rem` }} className="inline-flex items-center gap-1.5">
                         {item.descricao}
                         {item.bloqueado && <Lock className="size-3 text-muted-foreground" aria-label="Travado" />}
-                        {item.composicaoCodigo && (
-                          <Badge variant="outline" className="font-mono text-[10px]">
-                            {item.composicaoCodigo}
-                          </Badge>
-                        )}
-                        {item.insumoCodigo && (
-                          <Badge variant="secondary" className="font-mono text-[10px]">
-                            {item.insumoCodigo}
-                          </Badge>
-                        )}
                         {!ehGrupo && (vinculosPorItem[item.id] ?? 0) > 0 && (
                           <button
                             type="button"
@@ -203,8 +209,8 @@ export function OrcamentoArvoreView({
                     <TableCell className="text-right font-mono text-xs">
                       {ehGrupo ? "—" : brl(item.custoUnitario)}
                     </TableCell>
-                    <TableCell className="text-right font-mono text-xs text-muted-foreground">
-                      {item.bdiEfetivo.toFixed(2)}%
+                    <TableCell className="text-right font-mono text-xs" title={item.bdiPercentual !== null ? "BDI próprio nesta linha" : undefined}>
+                      {ehGrupo ? "—" : brl(item.custoUnitarioComBdi)}
                       {item.bdiPercentual !== null && <span className="ml-0.5 text-[10px]">*</span>}
                     </TableCell>
                     <TableCell className="text-right font-mono text-xs">{brl(item.totalComBdi)}</TableCell>
@@ -300,14 +306,14 @@ export function OrcamentoArvoreView({
               })}
 
               <TableRow className="border-t-2 font-bold">
-                <TableCell colSpan={6} className="text-right">
+                <TableCell colSpan={8} className="text-right">
                   Total sem BDI
                 </TableCell>
                 <TableCell className="text-right font-mono">{brl(arvore.totalSemBdi)}</TableCell>
                 {podeGerir && <TableCell />}
               </TableRow>
               <TableRow className="font-bold">
-                <TableCell colSpan={6} className="text-right">
+                <TableCell colSpan={8} className="text-right">
                   Total com BDI
                 </TableCell>
                 <TableCell className="text-right font-mono">{brl(arvore.totalComBdi)}</TableCell>

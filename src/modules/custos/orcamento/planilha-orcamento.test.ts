@@ -85,6 +85,26 @@ describe("linhasSinteticas", () => {
     expect(linhas.find((l) => l.codigo === "1")!.totalSemBdi).toBe(500);
     expect(linhas.find((l) => l.codigo === "2")!.totalSemBdi).toBe(500);
   });
+
+  it("custoUnitarioComBdi aplica o BDI efetivo da linha (herdado ou próprio)", () => {
+    const { arv, ctx } = cenario();
+    const linhas = linhasSinteticas(arv.raizes, ctx);
+    // S1: custo 100, BDI herdado do orçamento (20%) -> 120
+    expect(linhas.find((l) => l.codigo === "1.1.1")!.custoUnitarioComBdi).toBe(120);
+    // S3: custo 500, BDI próprio do grupo G2 (10%) -> 550
+    expect(linhas.find((l) => l.codigo === "2.1")!.custoUnitarioComBdi).toBe(550);
+    // grupo não tem custo unitário, logo não tem valor com BDI
+    expect(linhas.find((l) => l.codigo === "1")!.custoUnitarioComBdi).toBeNull();
+  });
+
+  it("codigoBanco/bancoNome vêm do contexto de origem, só em linhas de serviço", () => {
+    const { arv, ctx } = cenario();
+    ctx.origem = new Map([["S1", { codigoBanco: "88316", bancoNome: "SINAPI-PE (SINAPI)" }]]);
+    const linhas = linhasSinteticas(arv.raizes, ctx);
+    expect(linhas.find((l) => l.codigo === "1.1.1")).toMatchObject({ codigoBanco: "88316", bancoNome: "SINAPI-PE (SINAPI)" });
+    expect(linhas.find((l) => l.codigo === "1.1.2")).toMatchObject({ codigoBanco: null, bancoNome: null });
+    expect(linhas.find((l) => l.codigo === "1")).toMatchObject({ codigoBanco: null, bancoNome: null });
+  });
 });
 
 describe("linhasAnaliticas", () => {
@@ -103,14 +123,15 @@ describe("linhasAnaliticas", () => {
 
     const idx = linhas.findIndex((l) => l.codigo === "1.1.1");
     expect(linhas[idx + 1]).toMatchObject({
-      codigo: "88309",
+      codigo: "",
+      codigoBanco: "88309",
       tipo: "composicao_item",
       quantidade: 0.5,
       custoUnitario: 20,
       totalSemBdi: 10,
       nivel: 3,
     });
-    expect(linhas[idx + 2]).toMatchObject({ codigo: "34357", totalSemBdi: 10 });
+    expect(linhas[idx + 2]).toMatchObject({ codigoBanco: "34357", totalSemBdi: 10 });
     // a próxima linha volta a ser nó da árvore
     expect(linhas[idx + 3].codigo).toBe("1.1.2");
   });
@@ -121,7 +142,7 @@ describe("linhasAnaliticas", () => {
       ["S1", [{ codigo: "999", descricao: "Sem cotação", unidade: "UN", coeficiente: 3, precoUnitario: null }]],
     ]);
     const linhas = linhasAnaliticas(arv.raizes, composicoes, ctx);
-    const linha = linhas.find((l) => l.codigo === "999")!;
+    const linha = linhas.find((l) => l.codigoBanco === "999")!;
     expect(linha.custoUnitario).toBeNull();
     expect(linha.totalSemBdi).toBe(0);
   });
