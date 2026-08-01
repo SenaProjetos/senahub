@@ -87,6 +87,10 @@ export async function trocarSenha(formData: FormData) {
   const hash = await ctx.password.hash(parsed.data.novaSenha);
   await ctx.internalAdapter.updatePassword(session.user.id, hash);
 
+  // Se a senha vazou/foi comprometida, troca-la deve derrubar sessões em
+  // outros dispositivos. Mantém a sessão atual (a que acabou de trocar).
+  await auth.api.revokeOtherSessions({ headers: await headers() });
+
   await prisma.user.update({
     where: { id: session.user.id },
     data: { mustChangePassword: false },
@@ -99,6 +103,7 @@ export async function trocarSenha(formData: FormData) {
     tipo: "acao",
     entidade: "User",
     entidadeId: session.user.id,
+    detalhe: { sessoesOutrasRevogadas: true },
     ip: await getClientIp(),
   });
 
