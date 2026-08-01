@@ -1,10 +1,10 @@
 ---
 titulo: Notificações
 descricao: Central de avisos (sino), notificações push e opt-out por categoria.
-resumo: O sino no topo concentra os avisos do sistema; é possível receber push no navegador e desativar categorias específicas nas preferências.
-tags: [notificações, sino, push, avisos, alertas, categorias, preferências]
-palavras-chave: [notificação, sino, push, aviso, alerta, lembrete, categoria, opt-out, prazo, inadimplência]
-sinonimos: [avisos, alertas, central de notificações]
+resumo: O sino no topo concentra os avisos do sistema; avisos idênticos em sequência aparecem agrupados num item com contagem, e é possível receber push no navegador e desativar categorias específicas nas preferências.
+tags: [notificações, sino, push, avisos, alertas, categorias, preferências, agrupamento]
+palavras-chave: [notificação, sino, push, aviso, alerta, lembrete, categoria, opt-out, prazo, inadimplência, agrupamento, avisos repetidos, notificações duplicadas, contagem]
+sinonimos: [avisos, alertas, central de notificações, avisos repetidos]
 ---
 
 # Notificações
@@ -40,10 +40,24 @@ Notificações têm **categorias** e você pode **desativar** as que não quiser
 > Ao desativar uma categoria, você deixa de receber aqueles avisos (na plataforma e no
 > push).
 
+## Agrupamento de avisos repetidos
+
+Um mesmo evento pode gerar vários avisos iguais em poucos minutos — por exemplo, enviar
+cinco arquivos para uma disciplina gera um aviso de validação por arquivo. No **sino**,
+avisos idênticos (mesmo título, mesmo texto e mesmo destino) criados dentro de **15 minutos**
+aparecem como **um item só**, com um selo de contagem (`5×`) e o horário da ocorrência mais
+recente.
+
+- **Nada é descartado.** O agrupamento é só de exibição — a página **Ver tudo**
+  (`/notificacoes`) continua listando cada aviso individualmente.
+- **Marcar como lido**, **marcar como não lido** e **excluir** agem sobre o **grupo inteiro**.
+- O contador vermelho do sino continua contando **avisos**, não grupos: um item `5×` não lido
+  soma 5 no contador.
+- Avisos do mesmo tipo separados por mais de 15 minutos ficam em itens diferentes.
+
 ## Regras de negócio
 
 - Cada categoria respeita a sua **preferência** antes do envio.
-- Algumas notificações também são **agrupadas** (ex.: avisos de uma mesma entrega).
 
 ## Funcionalidades relacionadas
 

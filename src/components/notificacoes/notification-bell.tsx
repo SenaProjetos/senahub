@@ -7,11 +7,12 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   buscarNotificacoes,
-  marcarLida,
-  marcarNaoLida,
+  marcarLidas,
+  marcarNaoLidas,
   marcarTodasLidas,
-  excluirNotificacao,
+  excluirNotificacoes,
 } from "@/modules/notificacoes/actions";
+import type { GrupoNotificacao } from "@/modules/notificacoes/agrupar";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -19,21 +20,23 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
-type Notif = {
-  id: string;
-  titulo: string;
-  corpo: string | null;
-  href: string | null;
-  lida: boolean;
-  createdAt: string | Date;
-};
+/**
+ * Um item do sino pode representar várias notificações idênticas (ex.: 5 arquivos enviados
+ * um a um geram 5 avisos iguais). O agrupamento é só de apresentação — `ids` traz todas, e
+ * cada ação age sobre o grupo inteiro. A lista completa continua em /notificacoes.
+ *
+ * O tipo vem do motor (puro, sem `server-only`) para que uma mudança de formato quebre na
+ * compilação em vez de silenciosamente em runtime. `createdAt` aceita string porque a
+ * serialização do Server Action pode entregá-la assim.
+ */
+type Grupo = Omit<GrupoNotificacao, "createdAt"> & { createdAt: string | Date };
 
 const POLL_MS = 30_000;
 
 export function NotificationBell() {
   const router = useRouter();
   const [aberto, setAberto] = useState(false);
-  const [itens, setItens] = useState<Notif[]>([]);
+  const [itens, setItens] = useState<Grupo[]>([]);
   const [naoLidas, setNaoLidas] = useState(0);
   const anterior = useRef(0);
   const audio = useRef<HTMLAudioElement | null>(null);
@@ -50,8 +53,8 @@ export function NotificationBell() {
 
   const carregar = useCallback(
     async (comSom = true) => {
-      const { itens, naoLidas } = await buscarNotificacoes();
-      setItens(itens as Notif[]);
+      const { grupos, naoLidas } = await buscarNotificacoes();
+      setItens(grupos as Grupo[]);
       setNaoLidas(naoLidas);
       if (comSom && naoLidas > anterior.current) tocarSom();
       anterior.current = naoLidas;
@@ -74,14 +77,14 @@ export function NotificationBell() {
     };
   }, [carregar]);
 
-  async function abrir(n: Notif) {
-    if (!n.lida) {
-      await marcarLida(n.id);
+  async function abrir(g: Grupo) {
+    if (g.naoLidas > 0) {
+      await marcarLidas(g.ids);
       void carregar(false);
     }
-    if (n.href) {
+    if (g.href) {
       setAberto(false);
-      router.push(n.href);
+      router.push(g.href);
     }
   }
 
@@ -95,14 +98,14 @@ export function NotificationBell() {
     void carregar(false);
   }
 
-  async function alternarLida(n: Notif) {
-    if (n.lida) await marcarNaoLida(n.id);
-    else await marcarLida(n.id);
+  async function alternarLida(g: Grupo) {
+    if (g.naoLidas > 0) await marcarLidas(g.ids);
+    else await marcarNaoLidas(g.ids);
     void carregar(false);
   }
 
-  async function excluir(n: Notif) {
-    await excluirNotificacao(n.id);
+  async function excluir(g: Grupo) {
+    await excluirNotificacoes(g.ids);
     void carregar(false);
   }
 
@@ -141,24 +144,35 @@ export function NotificationBell() {
             </p>
           ) : (
             <ul className="divide-y">
-              {itens.map((n) => (
+              {itens.map((g) => (
                 <li
-                  key={n.id}
-                  className={`group relative flex items-start ${n.lida ? "" : "bg-primary/5"}`}
+                  // A chave pode se repetir entre dois bursts distintos — o id mais recente não.
+                  key={g.ids[0]}
+                  className={`group relative flex items-start ${g.naoLidas > 0 ? "bg-primary/5" : ""}`}
                 >
                   <button
-                    onClick={() => abrir(n)}
+                    onClick={() => abrir(g)}
                     className="min-w-0 flex-1 px-3 py-2.5 text-left outline-none transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                   >
                     <div className="flex items-start gap-2">
-                      {!n.lida && <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />}
+                      {g.naoLidas > 0 && (
+                        <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
+                      )}
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{n.titulo}</p>
-                        {n.corpo && (
-                          <p className="line-clamp-2 text-xs text-muted-foreground">{n.corpo}</p>
+                        <p className="truncate text-sm font-medium">{g.titulo}</p>
+                        {g.corpo && (
+                          <p className="line-clamp-2 text-xs text-muted-foreground">{g.corpo}</p>
                         )}
-                        <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
-                          {formatDistanceToNow(new Date(n.createdAt), {
+                        <p className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
+                          {g.total > 1 && (
+                            <span
+                              className="rounded-sm bg-muted px-1 py-px font-bold text-foreground"
+                              title={`${g.total} notificações iguais agrupadas`}
+                            >
+                              {g.total}×
+                            </span>
+                          )}
+                          {formatDistanceToNow(new Date(g.createdAt), {
                             addSuffix: true,
                             locale: ptBR,
                           })}
@@ -168,15 +182,15 @@ export function NotificationBell() {
                   </button>
                   <div className="flex shrink-0 items-center gap-0.5 self-center pr-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                     <button
-                      onClick={() => alternarLida(n)}
-                      title={n.lida ? "Marcar como não lida" : "Marcar como lida"}
+                      onClick={() => alternarLida(g)}
+                      title={g.naoLidas > 0 ? "Marcar como lida" : "Marcar como não lida"}
                       className="rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                     >
-                      {n.lida ? <Mail className="size-3.5" /> : <Check className="size-3.5" />}
+                      {g.naoLidas > 0 ? <Check className="size-3.5" /> : <Mail className="size-3.5" />}
                     </button>
                     <button
-                      onClick={() => excluir(n)}
-                      title="Excluir"
+                      onClick={() => excluir(g)}
+                      title={g.total > 1 ? `Excluir as ${g.total}` : "Excluir"}
                       className="rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
                     >
                       <X className="size-3.5" />
