@@ -4,6 +4,7 @@ import { auth } from "../src/lib/auth";
 import { docVazio, novoId, type DocSchema } from "../src/modules/documentos/schema";
 import { MODALIDADES_PADRAO } from "../src/modules/licitacoes/modalidade";
 import { semearEscalaRolePadrao } from "./escalas-padrao";
+import { feriadosNacionais } from "../src/modules/rh/feriados/queries";
 import { seedPerfisAcesso } from "./seed-perfis-acesso";
 import type { Prisma } from "../src/generated/prisma/client";
 
@@ -520,6 +521,27 @@ async function main() {
   // Autorização real segue 100% em `role` até a Onda D; isto só prepara o dado.
   const { perfis } = await seedPerfisAcesso(prisma);
   console.log(`✔ ${perfis.length} perfil(is) de acesso semeado(s): ${perfis.map((p) => p.chave).join(", ")}.`);
+
+  // 13) Feriados nacionais do ano corrente e do próximo.
+  // Antes só existiam se um admin clicasse "Importar feriados nacionais". Sem eles
+  // todo feriado vira dia útil e infla as horas ESPERADAS de todo colaborador no
+  // banco de horas. Semear só o ano corrente reintroduziria o problema em 1º/jan.
+  const anoAtual = new Date().getFullYear();
+  const anosFeriado = [anoAtual, anoAtual + 1];
+  let datasFeriado = 0;
+  for (const ano of anosFeriado) {
+    for (const f of feriadosNacionais(ano)) {
+      // `update` vazio de propósito: feriado ajustado à mão pelo admin (nome,
+      // esfera) não deve ser sobrescrito pelo seed a cada deploy.
+      await prisma.feriado.upsert({
+        where: { data: f.data },
+        create: { data: f.data, nome: f.nome, tipo: "nacional" },
+        update: {},
+      });
+      datasFeriado++;
+    }
+  }
+  console.log(`✔ ${datasFeriado} feriados nacionais garantidos (${anosFeriado.join(", ")}).`);
 }
 
 /** Layout exemplo: timbrado + dados do projeto + tabela de disciplinas + total. */

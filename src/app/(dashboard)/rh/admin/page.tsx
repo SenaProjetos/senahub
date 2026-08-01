@@ -13,7 +13,7 @@ import {
   nfsPendentes,
   nfsValidadas,
 } from "@/modules/rh/queries";
-import { fechamentosDoMes } from "@/modules/rh/banco/queries";
+import { fechamentosDoMes, saldoCorrenteEquipe, primeiroMesFechado } from "@/modules/rh/banco/queries";
 import { listarFeedbacks, colaboradoresInternos } from "@/modules/rh/feedback/queries";
 import { RhAdminView } from "@/components/rh/rh-admin-view";
 import { OnboardingAdmin } from "@/components/rh/onboarding-admin";
@@ -25,12 +25,15 @@ export const metadata: Metadata = { title: "RH — administração" };
 
 export default async function RhAdminPage() {
   await requireRole(...HR_ADMIN_ROLES);
-  // Banco de horas: alvo de fechamento = mês anterior ao atual.
+  // Banco de horas: alvo de fechamento = mês anterior ao atual; o saldo corrente
+  // (ao vivo, até hoje) é do mês ATUAL — as duas colunas do card.
   const agora = new Date();
   const bancoMes = agora.getMonth() === 0 ? 12 : agora.getMonth();
   const bancoAno = agora.getMonth() === 0 ? agora.getFullYear() - 1 : agora.getFullYear();
+  const mesCorrente = agora.getMonth() + 1;
+  const anoCorrente = agora.getFullYear();
 
-  const [abonos, ferias, alteracoesFerias, feriasVigentes, clima, feedbacksHumor, processos, opcoes, nfs, nfsHistorico, fechamentos, feedbacks, colaboradores] = await Promise.all([
+  const [abonos, ferias, alteracoesFerias, feriasVigentes, clima, feedbacksHumor, processos, opcoes, nfs, nfsHistorico, fechamentos, saldoCorrente, inicioRecalculo, feedbacks, colaboradores] = await Promise.all([
     abonosPendentes(),
     feriasPendentes(),
     alteracoesFeriasPendentes(),
@@ -42,6 +45,8 @@ export default async function RhAdminPage() {
     nfsPendentes(),
     nfsValidadas(),
     fechamentosDoMes(bancoAno, bancoMes),
+    saldoCorrenteEquipe(anoCorrente, mesCorrente),
+    primeiroMesFechado(),
     listarFeedbacks(),
     colaboradoresInternos(),
   ]);
@@ -55,7 +60,15 @@ export default async function RhAdminPage() {
         clima={clima}
         feedbacksHumor={feedbacksHumor}
       />
-      <BancoHorasAdmin ano={bancoAno} mes={bancoMes} fechamentos={fechamentos} />
+      <BancoHorasAdmin
+        ano={bancoAno}
+        mes={bancoMes}
+        fechamentos={fechamentos}
+        corrente={saldoCorrente}
+        anoCorrente={anoCorrente}
+        mesCorrente={mesCorrente}
+        inicioRecalculo={inicioRecalculo}
+      />
       <div className="grid gap-4 lg:grid-cols-2">
         <FeedbackSection feedbacks={feedbacks} colaboradores={colaboradores} />
       </div>

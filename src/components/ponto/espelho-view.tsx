@@ -62,6 +62,7 @@ const STATUS_META: Record<StatusDiaEspelho, { tone: "success" | "warning" | "dan
   agendado: { tone: "neutral", label: "—" },
   ajustado: { tone: "info", label: "Ajustado" },
   contestado: { tone: "danger", label: "Contestado" },
+  fora_vinculo: { tone: "neutral", label: "Fora do vínculo" },
 };
 
 function dataLabel(iso: string): string {
@@ -129,8 +130,8 @@ function LinhaDia({
   const primeiro = dia.descansos[0];
   const meta = STATUS_META[dia.status];
   const podeExpandir = dia.temMultiplosDescansos || dia.batidas.length > 0 || dia.ajustes.length > 0;
-  // Dias futuros (agendados) não são editáveis.
-  const editavel = podeEditar && dia.status !== "agendado";
+  // Dias futuros (agendados) e fora do vínculo não são editáveis.
+  const editavel = podeEditar && dia.status !== "agendado" && dia.status !== "fora_vinculo";
   const colunas = controlaJornada ? 11 : 9;
 
   return (

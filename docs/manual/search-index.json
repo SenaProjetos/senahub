@@ -231,9 +231,9 @@
       "titulo": "RH — administração",
       "path": "rh-ponto/rh-admin.md",
       "descricao": "Aprovação de abonos/férias, banco de horas, feedback, ponto manual, onboarding e validação de NFs.",
-      "resumo": "Central administrativa do RH — aprova solicitações, fecha banco de horas, dá feedback, lança ponto manual, gerencia onboarding e valida NFs de PJ.",
-      "tags": ["rh admin", "abonos", "férias", "banco de horas", "clima", "feedback", "ponto manual", "onboarding", "nota fiscal"],
-      "palavrasChave": ["rh administração", "aprovar abono", "aprovar férias", "banco de horas", "fechamento", "clima", "feedback", "ponto manual", "onboarding", "validar nf"],
+      "resumo": "Central administrativa do RH — aprova solicitações, fecha e recalcula o banco de horas (saldo fechado + saldo corrente), dá feedback, lança ponto manual, gerencia onboarding e valida NFs de PJ.",
+      "tags": ["rh admin", "abonos", "férias", "banco de horas", "saldo corrente", "clima", "feedback", "ponto manual", "onboarding", "nota fiscal"],
+      "palavrasChave": ["rh administração", "aprovar abono", "aprovar férias", "banco de horas", "saldo de horas", "saldo corrente", "recalcular histórico", "fechamento", "clima", "feedback", "ponto manual", "onboarding", "validar nf"],
       "sinonimos": ["administração de rh", "gestão de pessoas", "dp"]
     },
     {

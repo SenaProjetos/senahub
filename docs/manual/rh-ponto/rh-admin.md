@@ -27,7 +27,11 @@ Reunir as rotinas administrativas de RH em um só lugar.
   O RH também pode **propor** uma alteração pela ficha do colaborador; nesse caso quem
   precisa aprovar é o **funcionário**. Recusar mantém as datas originais.
 - **Clima e humor:** resumo do clima e os feedbacks de humor dos colaboradores.
-- **Banco de horas:** fechamento do mês (por padrão, o **mês anterior** ao atual).
+- **Banco de horas:** duas colunas por colaborador — o **saldo fechado** do mês anterior e o
+  **saldo corrente** do mês atual (ao vivo, até hoje, sem precisar fechar nada) — mais o
+  acumulado. Entram apenas os **vínculos CLT e de estágio** vigentes no mês. **Recalcular
+  histórico** refaz todos os meses já fechados a partir dos registros de ponto (útil depois
+  de corrigir escala, feriado ou data de admissão).
 - **Feedback:** registrar feedback para colaboradores internos.
 - **Ponto manual:** lançar/ajustar batidas de ponto (colaborador + projeto) — útil para
   esquecimentos.
@@ -46,6 +50,12 @@ Reunir as rotinas administrativas de RH em um só lugar.
 ## FAQ
 
 **Por que o banco de horas mostra o mês anterior?** O fechamento padrão é do mês já
-encerrado.
+encerrado — o prazo (último dia útil do mês corrente) aparece no aviso do card. Para
+acompanhar o mês em andamento use a coluna **saldo corrente**.
+
+**Por que fulano não aparece no banco de horas?** Só entram vínculos **CLT** e de
+**estágio** vigentes no mês. PJ, autônomo e pró-labore não têm jornada controlada e não
+acumulam falta. Quem foi admitido ou desligado no meio do mês aparece, mas só deve horas
+**dentro do período do vínculo**.
 
 **Como corrijo um ponto esquecido?** Use **Ponto manual** nesta tela.

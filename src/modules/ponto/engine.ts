@@ -17,6 +17,8 @@
  * - Batida em transição inválida é ignorada e contada em `inconsistencias`.
  */
 
+import { minutosSessao } from "@/modules/ponto/format";
+
 export type TipoBatida = "entrada" | "inicio_descanso" | "fim_descanso" | "saida";
 
 export type EstadoJornada = "fora" | "trabalhando" | "descansando";
@@ -162,6 +164,39 @@ export function intervalosTrabalho(
     intervalos.push({ inicio: marco, fim: null });
   }
   return intervalos;
+}
+
+/**
+ * Minutos trabalhados por dia — agregação HÍBRIDA batida/sessão.
+ *
+ * Um dia que tem Batida usa o motor (fonte de verdade da jornada, trata jornada
+ * incompleta corretamente); um dia só com sessão legada (pré-cutover) soma as
+ * sessões. Como cada sessão espelha um intervalo de trabalho das batidas
+ * (invariante do rateio), os dois caminhos coincidem nos dias fechados.
+ *
+ * Puro de propósito: é a MESMA função usada pelo espelho individual
+ * (`espelhoMes`) e pelo saldo em lote da equipe (`saldoCorrenteEquipe`) — duas
+ * cópias divergentes desta agregação seriam a repetição do bug que a unificação
+ * do esperado acabou de corrigir.
+ */
+export function trabalhadoPorDia(
+  batidasPorDia: Map<string, BatidaCalc[]>,
+  sessoesPorDia: Map<string, { inicio: Date; fim: Date | null }[]>,
+  hojeISO: string,
+  agora: Date,
+): Map<string, number> {
+  const chaves = [...new Set([...batidasPorDia.keys(), ...sessoesPorDia.keys()])].sort();
+  const out = new Map<string, number>();
+  for (const dia of chaves) {
+    const bat = batidasPorDia.get(dia);
+    out.set(
+      dia,
+      bat && bat.length > 0
+        ? calcularDia(bat, agora, dia === hojeISO).trabalhadoMin
+        : (sessoesPorDia.get(dia) ?? []).reduce((a, s) => a + minutosSessao(s.inicio, s.fim), 0),
+    );
+  }
+  return out;
 }
 
 /**

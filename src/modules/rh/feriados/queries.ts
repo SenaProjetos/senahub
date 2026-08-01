@@ -30,6 +30,10 @@ export async function listarFeriadosRecorrentes(): Promise<FeriadoRecorrenteItem
  * recorrentes expandidos para aquele ano. Dedup por data — o avulso vence o recorrente.
  * Contrato `{ data, nome, tipo }` mantido (ponto/escala consomem sem alteração).
  * Sem `ano` retorna só os avulsos (comportamento antigo).
+ *
+ * Devolve SÓ o que existe no banco — as telas de administração e de agenda editam
+ * e excluem por `id`, então sintetizar linhas aqui criaria botões apontando para
+ * registros inexistentes. Para CÁLCULO use `feriadosParaCalculo`.
  */
 export async function listarFeriados(ano?: number): Promise<FeriadoDia[]> {
   const where = ano
@@ -54,6 +58,32 @@ export async function listarFeriados(ano?: number): Promise<FeriadoDia[]> {
     }
   }
 
+  return [...porData.values()].sort((a, b) => a.data.localeCompare(b.data));
+}
+
+/**
+ * Feriados de um ano PARA CÁLCULO de jornada (ponto, banco de horas).
+ *
+ * Igual a `listarFeriados`, mas com uma rede de segurança: se o ano não tem
+ * NENHUM feriado nacional cadastrado, os nacionais são calculados na hora
+ * (`feriadosNacionais`, puro). O `Feriado` só é preenchido pelo seed ou por ação
+ * manual do admin — um ano que ninguém importou faria todo feriado virar dia
+ * útil e inflaria silenciosamente as horas esperadas de todos os colaboradores.
+ *
+ * Separada de `listarFeriados` de propósito: as linhas calculadas não existem no
+ * banco e não podem aparecer nas telas que editam/excluem feriado por `id`.
+ */
+export async function feriadosParaCalculo(ano: number): Promise<FeriadoDia[]> {
+  const cadastrados = await listarFeriados(ano);
+  if (cadastrados.some((f) => f.tipo === "nacional")) return cadastrados;
+
+  const porData = new Map(cadastrados.map((f) => [f.data, f]));
+  for (const f of feriadosNacionais(ano)) {
+    const data = f.data.toISOString().slice(0, 10);
+    if (!porData.has(data)) {
+      porData.set(data, { id: `calculado-${data}`, data, nome: f.nome, tipo: "nacional", origem: "unico" });
+    }
+  }
   return [...porData.values()].sort((a, b) => a.data.localeCompare(b.data));
 }
 

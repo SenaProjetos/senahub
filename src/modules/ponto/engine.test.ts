@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   calcularDia,
+  trabalhadoPorDia,
   intervalosTrabalho,
   intervalosComProjeto,
   transicoesPermitidas,
@@ -336,5 +337,66 @@ describe("engine — avaliarAtraso (S3)", () => {
   it("sem escala ou sem entrada não avalia", () => {
     expect(avaliarAtraso(null, "08:00", 10).atrasado).toBe(false);
     expect(avaliarAtraso(entrada("09:00"), null, 10).atrasado).toBe(false);
+  });
+});
+
+describe("trabalhadoPorDia", () => {
+  const AGORA = new Date("2026-06-30T12:00:00-03:00");
+  const HOJE = "2026-06-30";
+  const em = (iso: string, hhmm: string) => new Date(`${iso}T${hhmm}:00-03:00`);
+
+  const jornada = (iso: string, ini: string, fim: string) => [
+    { tipo: "entrada" as const, horario: em(iso, ini) },
+    { tipo: "saida" as const, horario: em(iso, fim) },
+  ];
+
+  it("mês SEM nenhum registro → mapa vazio (nada trabalhado)", () => {
+    const r = trabalhadoPorDia(new Map(), new Map(), HOJE, AGORA);
+    expect(r.size).toBe(0);
+    expect([...r.values()].reduce((a, b) => a + b, 0)).toBe(0);
+  });
+
+  it("mês PARCIALMENTE registrado só soma os dias que têm registro", () => {
+    const bat = new Map([
+      ["2026-06-01", jornada("2026-06-01", "08:00", "17:00")],
+      ["2026-06-02", jornada("2026-06-02", "08:00", "12:00")],
+    ]);
+    const r = trabalhadoPorDia(bat, new Map(), HOJE, AGORA);
+    expect(r.get("2026-06-01")).toBe(540);
+    expect(r.get("2026-06-02")).toBe(240);
+    expect(r.has("2026-06-03")).toBe(false); // dia sem registro não entra
+  });
+
+  it("dia com batida ignora a sessão legada do mesmo dia (batida é a fonte de verdade)", () => {
+    const bat = new Map([["2026-06-01", jornada("2026-06-01", "08:00", "17:00")]]);
+    const sess = new Map([
+      ["2026-06-01", [{ inicio: em("2026-06-01", "08:00"), fim: em("2026-06-01", "10:00") }]],
+    ]);
+    expect(trabalhadoPorDia(bat, sess, HOJE, AGORA).get("2026-06-01")).toBe(540);
+  });
+
+  it("dia só com sessão legada soma as sessões", () => {
+    const sess = new Map([
+      [
+        "2026-06-01",
+        [
+          { inicio: em("2026-06-01", "08:00"), fim: em("2026-06-01", "12:00") },
+          { inicio: em("2026-06-01", "13:00"), fim: em("2026-06-01", "17:00") },
+        ],
+      ],
+    ]);
+    expect(trabalhadoPorDia(new Map(), sess, HOJE, AGORA).get("2026-06-01")).toBe(480);
+  });
+
+  it("dia passado com ponta aberta conta só os pares fechados; hoje conta ao vivo", () => {
+    const abertoOntem = new Map([
+      ["2026-06-29", [{ tipo: "entrada" as const, horario: em("2026-06-29", "08:00") }]],
+    ]);
+    expect(trabalhadoPorDia(abertoOntem, new Map(), HOJE, AGORA).get("2026-06-29")).toBe(0);
+
+    const abertoHoje = new Map([
+      ["2026-06-30", [{ tipo: "entrada" as const, horario: em("2026-06-30", "08:00") }]],
+    ]);
+    expect(trabalhadoPorDia(abertoHoje, new Map(), HOJE, AGORA).get("2026-06-30")).toBe(240);
   });
 });

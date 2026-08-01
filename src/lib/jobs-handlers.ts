@@ -32,7 +32,7 @@ import {
 import { acrescimoAcumuladoPct, somaAcrescimos, proximoDoLimite } from "@/modules/licitacoes/contrato/saldo";
 import { ehAniversarioReajuste, valorReajustado } from "@/modules/licitacoes/contrato/reajuste";
 import { importarEditaisPNCP } from "@/modules/licitacoes/pncp/import";
-import { espelhoMes } from "@/modules/ponto/queries";
+import { fecharBancoDoMes } from "@/modules/rh/banco/service";
 import { ehFeriado } from "@/modules/rh/feriados/queries";
 import { resolverEscala } from "@/modules/ponto/service";
 import { avaliarAlertasDoDia } from "@/modules/ponto/alertas";
@@ -1120,33 +1120,7 @@ export async function statusReportSemanal(): Promise<number> {
  */
 export async function fecharBancoHorasMesAnterior(): Promise<number> {
   const ref = subMonths(new Date(), 1);
-  const ano = ref.getFullYear();
-  const mes = ref.getMonth() + 1;
-
-  const prevMes = mes === 1 ? 12 : mes - 1;
-  const prevAno = mes === 1 ? ano - 1 : ano;
-
-  const users = await prisma.user.findMany({
-    where: { ativo: true, role: { in: CLT_ROLES } },
-    select: { id: true },
-  });
-
-  let fechados = 0;
-  for (const u of users) {
-    const esp = await espelhoMes(u.id, ano, mes);
-    const prev = await prisma.bancoHorasMensal.findUnique({
-      where: { userId_ano_mes: { userId: u.id, ano: prevAno, mes: prevMes } },
-      select: { acumuladoMinutos: true },
-    });
-    const acumulado = (prev?.acumuladoMinutos ?? 0) + esp.saldoMinutos;
-    await prisma.bancoHorasMensal.upsert({
-      where: { userId_ano_mes: { userId: u.id, ano, mes } },
-      create: { userId: u.id, ano, mes, saldoMinutos: esp.saldoMinutos, acumuladoMinutos: acumulado },
-      update: { saldoMinutos: esp.saldoMinutos, acumuladoMinutos: acumulado, fechadoEm: new Date() },
-    });
-    fechados++;
-  }
-  return fechados;
+  return fecharBancoDoMes(ref.getFullYear(), ref.getMonth() + 1);
 }
 
 // ── Coordenação BIM ────────────────────────────────────────────

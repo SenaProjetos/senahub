@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { logAudit, getClientIp } from "@/lib/audit";
-import { CLT_ROLES, CADASTRO_ROLES, INTERNAL_ROLES, PJ_ROLES, HR_ADMIN_ROLES } from "@/lib/roles";
+import { CADASTRO_ROLES, INTERNAL_ROLES, PJ_ROLES, HR_ADMIN_ROLES } from "@/lib/roles";
 import {
   fichaPessoa,
   cadastroDaPessoa,
@@ -13,6 +13,7 @@ import {
 } from "@/modules/rh/pessoas/queries";
 import { opcoesCadastroFuncionario } from "@/modules/rh/funcionarios/queries";
 import { bancoHorasDe } from "@/modules/rh/banco/queries";
+import { contextoApuracao } from "@/modules/ponto/apuracao";
 import { escalaUsuarioGrade, escalaRoleGrade } from "@/modules/rh/escalas/queries";
 import { overridesDeUsuario } from "@/modules/perfis/queries";
 import { Pessoa360View } from "@/components/rh/pessoa-360-view";
@@ -63,9 +64,12 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
   }
 
   const isCadastro = CADASTRO_ROLES.includes(pessoa.role);
-  const isCLT = CLT_ROLES.includes(pessoa.role);
   const isPJ = PJ_ROLES.includes(pessoa.role) || !!pessoa.pj;
-  const temEscala = isCLT || INTERNAL_ROLES.includes(pessoa.role);
+  const temEscala = INTERNAL_ROLES.includes(pessoa.role);
+  // Jornada controlada vem da CONTRATAÇÃO vigente (vínculo), não do `role`:
+  // `administrativo` contratado como CLT tem banco de horas; `clt` que virou PJ não.
+  const agora = new Date();
+  const { controlaJornada } = await contextoApuracao(id, agora.getFullYear(), agora.getMonth() + 1);
   const batePonto = pessoa.role !== "cliente"; // internos + PJ têm espelho de ponto
 
   // Edição do cadastro trabalhista: só HR-admin, só p/ papéis com cadastro (nunca cliente/ti).
@@ -75,8 +79,8 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
 
   const [cadastro, ausencias, banco, escalaUsuario, escalaRole, holerites, nf, opcoes, overrides] = await Promise.all([
     isCadastro ? cadastroDaPessoa(id) : Promise.resolve(null),
-    isCLT ? solicitacoesDoUsuario(id) : Promise.resolve(null),
-    isCLT && podeVerPonto ? bancoHorasDe(id) : Promise.resolve(null),
+    controlaJornada ? solicitacoesDoUsuario(id) : Promise.resolve(null),
+    controlaJornada && podeVerPonto ? bancoHorasDe(id) : Promise.resolve(null),
     temEscala ? escalaUsuarioGrade(id) : Promise.resolve(null),
     temEscala ? escalaRoleGrade(pessoa.role) : Promise.resolve(null),
     podeFolha ? holeritesDaPessoa(id) : Promise.resolve(null),
@@ -98,7 +102,7 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
       escala={escala}
       banco={banco}
       temPonto={batePonto && podeVerPonto}
-      controlaJornada={isCLT}
+      controlaJornada={controlaJornada}
       holerites={holerites}
       nf={nf}
       podeEditarCadastro={podeEditarCadastro}

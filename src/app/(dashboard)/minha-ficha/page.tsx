@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
-import { CLT_ROLES, INTERNAL_ROLES, PJ_ROLES } from "@/lib/roles";
+import { INTERNAL_ROLES, PJ_ROLES } from "@/lib/roles";
 import {
   fichaPessoa,
   cadastroDaPessoa,
@@ -11,6 +11,7 @@ import {
   notasDoUsuario,
 } from "@/modules/rh/pessoas/queries";
 import { bancoHorasDe } from "@/modules/rh/banco/queries";
+import { contextoApuracao } from "@/modules/ponto/apuracao";
 import { escalaUsuarioGrade, escalaRoleGrade } from "@/modules/rh/escalas/queries";
 import { minhaAlteracaoPendente } from "@/modules/rh/cadastro/queries";
 import { carregarPreferenciasDaConta } from "@/modules/usuarios/preferencias/queries";
@@ -40,15 +41,18 @@ export default async function MinhaFichaPage() {
   if (!pessoa) redirect("/");
 
   const isColaborador = pessoa.role !== "cliente";
-  const isCLT = CLT_ROLES.includes(pessoa.role);
   const isPJ = PJ_ROLES.includes(pessoa.role) || !!pessoa.pj;
-  const temEscala = isCLT || INTERNAL_ROLES.includes(pessoa.role);
+  const temEscala = INTERNAL_ROLES.includes(pessoa.role);
+  // Jornada controlada vem da CONTRATAÇÃO vigente (vínculo), não do `role`:
+  // `administrativo` contratado como CLT tem banco de horas; `clt` que virou PJ não.
+  const agora = new Date();
+  const { controlaJornada } = await contextoApuracao(id, agora.getFullYear(), agora.getMonth() + 1);
   const batePonto = isColaborador;
 
   const [cadastro, ausencias, banco, escalaUsuario, escalaRole, holerites, nf, pendente, prefsConta, acesso] = await Promise.all([
     isColaborador ? cadastroDaPessoa(id) : Promise.resolve(null),
-    isCLT ? solicitacoesDoUsuario(id) : Promise.resolve(null),
-    isCLT ? bancoHorasDe(id) : Promise.resolve(null),
+    controlaJornada ? solicitacoesDoUsuario(id) : Promise.resolve(null),
+    controlaJornada ? bancoHorasDe(id) : Promise.resolve(null),
     temEscala ? escalaUsuarioGrade(id) : Promise.resolve(null),
     temEscala ? escalaRoleGrade(pessoa.role) : Promise.resolve(null),
     holeritesDaPessoa(id, { somenteDisponiveis: true }),
@@ -86,7 +90,7 @@ export default async function MinhaFichaPage() {
         escala={escala}
         banco={banco}
         temPonto={batePonto}
-        controlaJornada={isCLT}
+        controlaJornada={controlaJornada}
         holerites={holerites}
         nf={nf}
         preferenciasSlot={<PreferenciasView {...prefsConta} />}

@@ -1,12 +1,14 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { minutosSessao } from "@/modules/ponto/format";
-import { listarFeriados } from "@/modules/rh/feriados/queries";
-import { escalaRoleGrade, escalaUsuarioGrade, horasDiaPadrao, type DiaGrade } from "@/modules/rh/escalas/queries";
-import { CLT_ROLES } from "@/lib/roles";
+import { feriadosParaCalculo } from "@/modules/rh/feriados/queries";
+import { escalaRoleGrade, escalaUsuarioGrade, type DiaGrade } from "@/modules/rh/escalas/queries";
 import { acumuladoAte } from "@/modules/rh/banco/queries";
+import { esperadoPorDiaMes, somarEsperadoAte } from "@/modules/ponto/esperado";
+import { contextoApuracao } from "@/modules/ponto/apuracao";
 import {
   calcularDia,
+  trabalhadoPorDia,
   diaLocal,
   diaLocalDate,
   horaLocal,
@@ -309,6 +311,16 @@ async function diasFeriasNoMes(userId: string, ano: number, mes: number): Promis
  * a correção de fuso (`diaLocal` no lugar de `toISOString`) só reposiciona o
  * bucket de sessões noturnas. Dias de férias aprovadas passam a NÃO gerar horas
  * esperadas (não debitam o banco).
+ *
+ * O ESPERADO vem de `esperado.esperadoPorDiaMes` (puro, testado) sobre a janela
+ * de `apuracao.contextoApuracao`. Três correções em relação ao cálculo antigo:
+ * 1. Só apura dentro do vínculo (`piso`/`teto`) — antes o mês inteiro era cobrado
+ *    de quem foi admitido no dia 20 ou desligado no dia 10, e meses anteriores ao
+ *    próprio vínculo fechavam com a jornada cheia negativa.
+ * 2. Usa o `horasDia` REAL de cada dia da semana em vez do MAIOR da grade — isto
+ *    MUDA totais históricos de quem tem escala não-uniforme (era o ponto em que
+ *    `espelhoMes` e `espelhoDetalhado` discordavam).
+ * 3. Contratação sem jornada controlada (PJ, autônomo, pró-labore) esperado = 0.
  */
 export async function espelhoMes(userId: string, ano: number, mes: number) {
   const ini = new Date(ano, mes - 1, 1);
@@ -334,16 +346,12 @@ export async function espelhoMes(userId: string, ano: number, mes: number) {
   for (const s of sessoes) pushMap(sessPorDia, diaLocal(s.inicio), s);
 
   const hojeISO = diaLocal(new Date());
-  const chaves = [...new Set([...batPorDia.keys(), ...sessPorDia.keys()])].sort();
+  const minutosPorDia = trabalhadoPorDia(batPorDia, sessPorDia, hojeISO, new Date());
 
   let totalMin = 0;
-  const dias = chaves.map((dia) => {
-    const bat = batPorDia.get(dia);
+  const dias = [...minutosPorDia.keys()].map((dia) => {
     const sess = sessPorDia.get(dia) ?? [];
-    const minutos =
-      bat && bat.length > 0
-        ? calcularDia(bat, new Date(), dia === hojeISO).trabalhadoMin
-        : sess.reduce((acc, s) => acc + minutosSessao(s.inicio, s.fim), 0);
+    const minutos = minutosPorDia.get(dia) ?? 0;
     totalMin += minutos;
     return {
       dia,
@@ -357,37 +365,36 @@ export async function espelhoMes(userId: string, ano: number, mes: number) {
     };
   });
 
-  // Horas de um dia útil típico (independente do dia da semana) para o esperado do mês.
+  // Esperado POR DIA — mapa completo do mês, base do filtro por período no
+  // cliente E do total mensal. Regra única em `esperado.ts` (mesma que
+  // `espelhoDetalhado` usa para `devidasMin`).
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-  const horasDia = await horasDiaPadrao(userId, user?.role ?? "freelancer");
-
-  // Esperado POR DIA (dia útil e não-feriado → horasDia; senão 0) — base do filtro
-  // por período no cliente e do total mensal.
-  const feriadosAno = await listarFeriados(ano);
+  const [uGrade, rGrade, ctx, feriadosAno, feriasSet] = await Promise.all([
+    escalaUsuarioGrade(userId),
+    escalaRoleGrade(user?.role ?? "freelancer"),
+    contextoApuracao(userId, ano, mes),
+    feriadosParaCalculo(ano),
+    diasFeriasNoMes(userId, ano, mes),
+  ]);
   const prefixoMes = `${ano}-${String(mes).padStart(2, "0")}-`;
   const feriadoSet = new Set(
     feriadosAno.filter((f) => f.data.startsWith(prefixoMes)).map((f) => f.data),
   );
-  const feriasSet = await diasFeriasNoMes(userId, ano, mes);
-  const ultimoDiaMes = new Date(ano, mes, 0).getDate();
-  const esperadoDiaMin = Math.round(horasDia * 60);
-  const esperadoPorDia: Record<string, number> = {};
-  for (let d = 1; d <= ultimoDiaMes; d++) {
-    const iso = `${prefixoMes}${String(d).padStart(2, "0")}`;
-    const wd = new Date(ano, mes - 1, d).getDay();
-    // Dia útil, não-feriado e fora de férias → horas esperadas; senão 0 (férias
-    // não geram débito de banco de horas).
-    esperadoPorDia[iso] =
-      wd !== 0 && wd !== 6 && !feriadoSet.has(iso) && !feriasSet.has(iso) ? esperadoDiaMin : 0;
-  }
+
+  const esperadoPorDia = esperadoPorDiaMes({
+    ano,
+    mes,
+    escala: uGrade.temOverride ? uGrade.dias : rGrade,
+    feriados: feriadoSet,
+    ferias: feriasSet,
+    piso: ctx.piso,
+    teto: ctx.teto,
+    controlaJornada: ctx.controlaJornada,
+  });
 
   // Esperado do mês SÓ até HOJE (inclusive): evita saldo negativo gigante e
   // assustador no começo do mês. Mês passado → mês inteiro; mês futuro → 0.
-  // (ISO YYYY-MM-DD compara lexicograficamente = cronologicamente; `hojeISO` acima.)
-  let esperadoMin = 0;
-  for (const [iso, mins] of Object.entries(esperadoPorDia)) {
-    if (iso <= hojeISO) esperadoMin += mins;
-  }
+  const esperadoMin = somarEsperadoAte(esperadoPorDia, hojeISO);
 
   return {
     dias,
@@ -395,6 +402,7 @@ export async function espelhoMes(userId: string, ano: number, mes: number) {
     esperadoMinutos: esperadoMin,
     saldoMinutos: totalMin - esperadoMin,
     esperadoPorDia,
+    controlaJornada: ctx.controlaJornada,
   };
 }
 
@@ -440,7 +448,9 @@ export type StatusDiaEspelho =
   | "ferias"
   | "agendado"
   | "ajustado"
-  | "contestado";
+  | "contestado"
+  /** Fora da janela do vínculo — antes da admissão ou depois do desligamento. */
+  | "fora_vinculo";
 
 export type BatidaDetalhe = {
   id: string;
@@ -554,11 +564,12 @@ export async function espelhoDetalhado(
     select: { name: true, role: true },
   });
 
-  const [esp, uGrade, rGrade, acumulado] = await Promise.all([
+  const [esp, uGrade, rGrade, acumulado, ctxApuracao] = await Promise.all([
     espelhoMes(userId, ano, mes),
     escalaUsuarioGrade(userId),
     escalaRoleGrade(user.role),
     acumuladoAte(userId, ano, mes),
+    contextoApuracao(userId, ano, mes),
   ]);
   const gradeDe = (ds: number): DiaGrade => (uGrade.temOverride ? uGrade.dias[ds] : rGrade[ds]);
 
@@ -610,7 +621,7 @@ export async function espelhoDetalhado(
     ajusteInfoPorDia.set(iso, arr);
   }
 
-  const feriadosAno = await listarFeriados(ano);
+  const feriadosAno = await feriadosParaCalculo(ano);
   const prefixo = `${ano}-${pad2(mes)}-`;
   const feriadoPorDia = new Map(
     feriadosAno.filter((f) => f.data.startsWith(prefixo)).map((f) => [f.data, f.nome]),
@@ -635,10 +646,15 @@ export async function espelhoDetalhado(
       : null;
     const resumo = resumoBatidasDia(bat);
     const trabalhadoMin = calc?.trabalhadoMin ?? 0;
-    // Férias não geram horas devidas (dia pago sem jornada esperada).
-    const devidasMin = grade.ativo && !feriado && !ferias ? Math.round(grade.horasDia * 60) : 0;
+    // MESMA fonte do total do mês (`espelhoMes`): férias, feriado, dia inativo na
+    // grade, fora do vínculo e contratação sem jornada controlada já vêm zerados.
+    const devidasMin = esp.esperadoPorDia[iso] ?? 0;
     const extrasMin = Math.max(0, trabalhadoMin - devidasMin);
     const atraso = avaliarAtraso(resumo.entrada, grade.ativo ? grade.entrada : null, grade.toleranciaMin);
+    // Dia fora da janela do vínculo (antes da admissão / depois do desligamento).
+    const foraVinculo =
+      (!!ctxApuracao.piso && iso < ctxApuracao.piso) ||
+      (!!ctxApuracao.teto && iso > ctxApuracao.teto);
 
     let status: StatusDiaEspelho;
     const aj = ajustePorDia.get(iso);
@@ -649,8 +665,12 @@ export async function espelhoDetalhado(
       else status = "ok";
     } else if (ferias) status = "ferias";
     else if (feriado) status = "feriado";
+    else if (foraVinculo) status = "fora_vinculo";
     else if (!grade.ativo) status = "folga";
     else if (iso > hojeISO) status = "agendado";
+    // Sem jornada controlada (PJ/autônomo/pró-labore) não existe falta — o dia
+    // sem batida é só um dia sem registro.
+    else if (!esp.controlaJornada) status = "folga";
     else status = "falta";
 
     dias.push({
@@ -703,7 +723,7 @@ export async function espelhoDetalhado(
     acumuladoMinutos: acumulado?.acumuladoMinutos ?? null,
     aceite: aceiteRow ? { hash: aceiteRow.hash, aceitoEm: aceiteRow.aceitoEm.toISOString() } : null,
     podeAceitar,
-    controlaJornada: CLT_ROLES.includes(user.role),
+    controlaJornada: esp.controlaJornada,
   };
 }
 

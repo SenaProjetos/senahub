@@ -3,13 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction } from "@/lib/with-action";
-import { prisma } from "@/lib/prisma";
-import { HR_ADMIN_ROLES, CLT_ROLES } from "@/lib/roles";
-import { espelhoMes } from "@/modules/ponto/queries";
+import { HR_ADMIN_ROLES } from "@/lib/roles";
+import { fecharBancoDoMes, recalcularHistoricoBanco } from "@/modules/rh/banco/service";
 
 /**
- * Fecha o banco de horas do mês para CLT/estagiário:
- * congela o saldo do mês e o acumulado (acumulado anterior + saldo). Idempotente (upsert).
+ * Fecha o banco de horas do mês para quem tem jornada controlada (vínculo CLT/
+ * estágio vigente no mês): congela o saldo do mês e o acumulado (carry-forward).
+ * Idempotente (upsert). Regra em `service.ts`, compartilhada com o job mensal.
  */
 export const fecharBancoMesEquipe = defineAction(
   {
@@ -23,29 +23,34 @@ export const fecharBancoMesEquipe = defineAction(
     }),
   },
   async ({ ano, mes }) => {
-    const users = await prisma.user.findMany({
-      where: { ativo: true, role: { in: CLT_ROLES } },
-      select: { id: true },
-    });
-    const prevMes = mes === 1 ? 12 : mes - 1;
-    const prevAno = mes === 1 ? ano - 1 : ano;
-
-    let fechados = 0;
-    for (const u of users) {
-      const esp = await espelhoMes(u.id, ano, mes);
-      const prev = await prisma.bancoHorasMensal.findUnique({
-        where: { userId_ano_mes: { userId: u.id, ano: prevAno, mes: prevMes } },
-        select: { acumuladoMinutos: true },
-      });
-      const acumulado = (prev?.acumuladoMinutos ?? 0) + esp.saldoMinutos;
-      await prisma.bancoHorasMensal.upsert({
-        where: { userId_ano_mes: { userId: u.id, ano, mes } },
-        create: { userId: u.id, ano, mes, saldoMinutos: esp.saldoMinutos, acumuladoMinutos: acumulado },
-        update: { saldoMinutos: esp.saldoMinutos, acumuladoMinutos: acumulado, fechadoEm: new Date() },
-      });
-      fechados++;
-    }
+    const fechados = await fecharBancoDoMes(ano, mes);
     revalidatePath("/rh/admin");
     return { fechados };
+  },
+);
+
+/**
+ * Recalcula os meses já fechados a partir de `ano`/`mes`, do mais antigo para o
+ * mais recente (no máximo `MAX_MESES_RECALCULO` por chamada).
+ *
+ * Existe porque `BancoHorasMensal` guarda um SNAPSHOT: corrigir o cálculo não
+ * conserta sozinho o que já foi gravado. É recálculo (upsert idempotente sobre
+ * o espelho), nunca escrita manual de valor.
+ */
+export const recalcularBancoHistorico = defineAction(
+  {
+    modulo: "rh",
+    acao: "recalcular-banco-horas",
+    roles: HR_ADMIN_ROLES,
+    entidade: "BancoHorasMensal",
+    schema: z.object({
+      ano: z.number().int().min(2000).max(2100),
+      mes: z.number().int().min(1).max(12),
+    }),
+  },
+  async ({ ano, mes }) => {
+    const r = await recalcularHistoricoBanco(ano, mes);
+    revalidatePath("/rh/admin");
+    return r;
   },
 );

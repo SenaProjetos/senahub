@@ -92,10 +92,15 @@ export async function horasDiaPadrao(userId: string, role: Role): Promise<number
   return horasDiaDaSemana(semana);
 }
 
-/** Igual a `horasDiaPadrao`, mas em lote — evita N+1 (rateio roda sobre a equipe toda). */
-export async function horasDiaPadraoEmLote(
+/**
+ * Grade semanal vigente de vários usuários — 2 queries no total (evita N+1
+ * quando o cálculo roda sobre a equipe toda: rateio, saldo corrente do banco).
+ * Mesma resolução de `escalaUsuarioGrade`: override ativo do usuário substitui
+ * a grade do perfil POR INTEIRO.
+ */
+export async function gradesEmLote(
   usuarios: { id: string; role: Role }[],
-): Promise<Map<string, number>> {
+): Promise<Map<string, DiaGrade[]>> {
   const ids = usuarios.map((u) => u.id);
   const roles = [...new Set(usuarios.map((u) => u.role))];
   const [uRows, rRows] = await Promise.all([
@@ -107,13 +112,22 @@ export async function horasDiaPadraoEmLote(
   const porRole = new Map<string, LinhaDb[]>();
   for (const r of rRows) porRole.set(r.role, [...(porRole.get(r.role) ?? []), r]);
 
-  const out = new Map<string, number>();
+  const out = new Map<string, DiaGrade[]>();
   for (const u of usuarios) {
     const linhasU = porUser.get(u.id) ?? [];
     const temOverride = linhasU.some((l) => l.ativo);
-    const semana = completarSemana(temOverride ? linhasU : (porRole.get(u.role) ?? []));
-    out.set(u.id, horasDiaDaSemana(semana));
+    out.set(u.id, completarSemana(temOverride ? linhasU : (porRole.get(u.role) ?? [])));
   }
+  return out;
+}
+
+/** Igual a `horasDiaPadrao`, mas em lote — evita N+1 (rateio roda sobre a equipe toda). */
+export async function horasDiaPadraoEmLote(
+  usuarios: { id: string; role: Role }[],
+): Promise<Map<string, number>> {
+  const grades = await gradesEmLote(usuarios);
+  const out = new Map<string, number>();
+  for (const u of usuarios) out.set(u.id, horasDiaDaSemana(grades.get(u.id) ?? []));
   return out;
 }
 
