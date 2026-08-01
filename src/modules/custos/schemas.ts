@@ -4,7 +4,6 @@ const pct = () => z.number().min(0, "Não pode ser negativo.").max(100, "Não po
 
 export const idSchema = z.object({ id: z.string().min(1) });
 
-const regimeTributarioSchema = z.enum(["lucro_presumido", "lucro_real", "simples_nacional"]);
 const regimeEncargosSchema = z.enum(["desonerado", "nao_desonerado"]);
 
 export const criarOrcamentoSchema = z
@@ -16,7 +15,6 @@ export const criarOrcamentoSchema = z
     contratanteId: z.string().optional().or(z.literal("")),
     contratanteNome: z.string().optional().or(z.literal("")),
     dataBase: z.string().min(1, "Data-base é obrigatória."),
-    regimeTributario: regimeTributarioSchema,
   })
   .refine((v) => Boolean(v.projetoId) !== Boolean(v.nomeAvulso), {
     message: "Informe um projeto OU um nome avulso — nunca os dois, nem nenhum.",
@@ -30,7 +28,6 @@ export const atualizarCabecalhoSchema = z.object({
   contratanteId: z.string().optional().or(z.literal("")),
   contratanteNome: z.string().optional().or(z.literal("")),
   dataBase: z.string().min(1, "Data-base é obrigatória."),
-  regimeTributario: regimeTributarioSchema,
 });
 
 export const atualizarBdiSchema = z.object({

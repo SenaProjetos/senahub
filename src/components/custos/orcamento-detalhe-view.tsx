@@ -18,7 +18,7 @@ import {
 import { formatarData } from "@/lib/utils";
 import { useSetParams } from "@/lib/use-set-param";
 import { cancelarOrcamento } from "@/modules/custos/actions";
-import { STATUS_ORCAMENTO_LABEL, STATUS_ORCAMENTO_TONE, REGIME_TRIBUTARIO_LABEL } from "@/modules/custos/status";
+import { STATUS_ORCAMENTO_LABEL, STATUS_ORCAMENTO_TONE } from "@/modules/custos/status";
 import type { OrcamentoDetalhe } from "@/modules/custos/queries";
 import type { ArvoreOrcamento } from "@/modules/custos/orcamento/queries";
 import type { QuantitativoListItem } from "@/modules/custos/quantitativos/queries";
@@ -110,8 +110,6 @@ export function OrcamentoDetalheView({
             Contratante: {orcamento.contratanteCadastradoNome ?? orcamento.contratanteNome ?? "—"}
             {" · "}
             Data-base: {formatarData(orcamento.dataBase)}
-            {" · "}
-            {REGIME_TRIBUTARIO_LABEL[orcamento.regimeTributario] ?? orcamento.regimeTributario}
           </p>
           <p className="text-xs text-muted-foreground">
             Criado por {orcamento.criadoPorNome} em {formatarData(orcamento.createdAt)}

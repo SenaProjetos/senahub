@@ -500,7 +500,6 @@ export async function duplicarOrcamento(orcamentoId: string, titulo: string, cri
         encargosOverridesJson: origem.encargosOverridesJson ?? undefined,
         encargosHoristaPct: origem.encargosHoristaPct,
         encargosMensalistaPct: origem.encargosMensalistaPct,
-        regimeTributario: origem.regimeTributario,
         criadoPorId,
       },
     });

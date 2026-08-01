@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { atualizarCabecalho, atualizarBdi, atualizarEncargos } from "@/modules/custos/actions";
-import { REGIME_TRIBUTARIO_LABEL, REGIME_ENCARGOS_LABEL } from "@/modules/custos/status";
+import { REGIME_ENCARGOS_LABEL } from "@/modules/custos/status";
 import type { EntradaBdi } from "@/modules/custos/bdi";
 import type { OrcamentoDetalhe } from "@/modules/custos/queries";
 
@@ -45,7 +45,6 @@ export function OrcamentoCabecalhoForm({ orcamento }: { orcamento: OrcamentoDeta
     descricao: orcamento.descricao ?? "",
     contratanteNome: orcamento.contratanteNome ?? "",
     dataBase: toDateInput(orcamento.dataBase),
-    regimeTributario: orcamento.regimeTributario,
   });
   const [pendingCabecalho, startCabecalho] = useTransition();
 
@@ -62,7 +61,6 @@ export function OrcamentoCabecalhoForm({ orcamento }: { orcamento: OrcamentoDeta
         contratanteId: orcamento.contratanteId ?? "",
         contratanteNome: cabecalho.contratanteNome,
         dataBase: cabecalho.dataBase,
-        regimeTributario: cabecalho.regimeTributario as never,
       });
       if (r.ok) {
         toast.success("Cabeçalho atualizado.");
@@ -144,24 +142,6 @@ export function OrcamentoCabecalhoForm({ orcamento }: { orcamento: OrcamentoDeta
               value={cabecalho.dataBase}
               onChange={(e) => setCabecalho((f) => ({ ...f, dataBase: e.target.value }))}
             />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Regime tributário</Label>
-            <Select
-              value={cabecalho.regimeTributario}
-              onValueChange={(v) => v && setCabecalho((f) => ({ ...f, regimeTributario: v as typeof f.regimeTributario }))}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(REGIME_TRIBUTARIO_LABEL).map(([v, label]) => (
-                  <SelectItem key={v} value={v}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </div>
         <div className="flex justify-end">

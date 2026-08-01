@@ -4498,12 +4498,6 @@ enum StatusCustoOrcamento {
   cancelado
 }
 
-enum CustoRegimeTributario {
-  lucro_presumido
-  lucro_real
-  simples_nacional
-}
-
 enum CustoRegimeEncargos {
   desonerado
   nao_desonerado
@@ -4566,8 +4560,6 @@ model CustoOrcamento {
   /// Resultados materializados de `encargos-obra.ts#calcularEncargos`.
   encargosHoristaPct    Decimal?            @db.Decimal(5, 2)
   encargosMensalistaPct Decimal?            @db.Decimal(5, 2)
-
-  regimeTributario CustoRegimeTributario
 
   /// Ponte financeira RESERVADA (D4) — sem uso funcional na Onda C0. A geração de `Lancamento`
   /// previsto acontece hoje só pelo caminho licitação/proposta (`MedicaoLicitacao`), não por aqui.

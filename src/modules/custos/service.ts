@@ -60,7 +60,6 @@ export async function criarOrcamento(input: CriarInput, criadoPorId: string) {
       contratanteId: input.contratanteId || null,
       contratanteNome: input.contratanteNome || null,
       dataBase: new Date(input.dataBase),
-      regimeTributario: input.regimeTributario,
       bdiPercentual,
       regimeEncargos: "nao_desonerado",
       encargosHoristaPct: encargos.horista,
@@ -81,7 +80,6 @@ export async function atualizarCabecalho(input: AtualizarCabecalhoInput) {
       contratanteId: input.contratanteId || null,
       contratanteNome: input.contratanteNome || null,
       dataBase: new Date(input.dataBase),
-      regimeTributario: input.regimeTributario,
     },
   });
 }

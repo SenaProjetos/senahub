@@ -16,12 +16,6 @@ export const STATUS_ORCAMENTO_TONE: Record<string, StatusTone> = {
   cancelado: "danger",
 };
 
-export const REGIME_TRIBUTARIO_LABEL: Record<string, string> = {
-  lucro_presumido: "Lucro presumido",
-  lucro_real: "Lucro real",
-  simples_nacional: "Simples nacional",
-};
-
 export const REGIME_ENCARGOS_LABEL: Record<string, string> = {
   desonerado: "Desonerado",
   nao_desonerado: "Não desonerado",

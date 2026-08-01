@@ -27,7 +27,6 @@ import {
   listarProjetosParaOrcamento,
   listarClientesParaOrcamento,
 } from "@/modules/custos/actions";
-import { REGIME_TRIBUTARIO_LABEL } from "@/modules/custos/status";
 
 type ProjetoOpcao = { id: string; codigo: string; nome: string };
 type ClienteOpcao = { id: string; nome: string };
@@ -42,7 +41,6 @@ const VAZIO = {
   contratanteId: "",
   contratanteNome: "",
   dataBase: new Date().toISOString().slice(0, 10),
-  regimeTributario: "lucro_presumido" as const,
 };
 
 export function NovoOrcamentoDialog({ projetoFixo }: { projetoFixo?: ProjetoOpcao }) {
@@ -97,7 +95,6 @@ export function NovoOrcamentoDialog({ projetoFixo }: { projetoFixo?: ProjetoOpca
         contratanteId: form.contratanteId,
         contratanteNome: form.contratanteNome.trim(),
         dataBase: form.dataBase,
-        regimeTributario: form.regimeTributario,
       });
       if (r.ok) {
         toast.success("Orçamento criado.");
@@ -204,31 +201,14 @@ export function NovoOrcamentoDialog({ projetoFixo }: { projetoFixo?: ProjetoOpca
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="orc-data-base">Data-base</Label>
-              <Input
-                id="orc-data-base"
-                type="date"
-                value={form.dataBase}
-                onChange={(e) => set("dataBase", e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Regime tributário</Label>
-              <Select value={form.regimeTributario} onValueChange={(v) => v && set("regimeTributario", v as typeof form.regimeTributario)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(REGIME_TRIBUTARIO_LABEL).map(([v, label]) => (
-                    <SelectItem key={v} value={v}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="orc-data-base">Data-base</Label>
+            <Input
+              id="orc-data-base"
+              type="date"
+              value={form.dataBase}
+              onChange={(e) => set("dataBase", e.target.value)}
+            />
           </div>
         </div>
 

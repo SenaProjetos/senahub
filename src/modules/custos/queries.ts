@@ -124,7 +124,6 @@ export type OrcamentoDetalhe = {
   contratanteNome: string | null;
   contratanteCadastradoNome: string | null;
   dataBase: Date;
-  regimeTributario: string;
   regimeEncargos: string;
   encargosPreset: string;
   entradaBdi: EntradaBdi;
@@ -195,7 +194,6 @@ export async function obterOrcamento(id: string, viewer: Viewer): Promise<Orcame
     contratanteNome: registro.contratanteNome,
     contratanteCadastradoNome: registro.contratante?.nome ?? null,
     dataBase: registro.dataBase,
-    regimeTributario: registro.regimeTributario,
     regimeEncargos: registro.regimeEncargos,
     encargosPreset: registro.encargosPreset,
     entradaBdi,
