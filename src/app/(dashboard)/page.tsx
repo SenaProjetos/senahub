@@ -248,6 +248,7 @@ export default async function HomePage() {
               descricao="Evolução de projetos ativos por dia"
               pontos={snapshots.map((s) => ({
                 rotulo: s.dia.slice(8, 10) + "/" + s.dia.slice(5, 7),
+                tooltip: s.dia.slice(8, 10) + "/" + s.dia.slice(5, 7) + "/" + s.dia.slice(0, 4),
                 valor: s.projetosAtivos,
               }))}
             />

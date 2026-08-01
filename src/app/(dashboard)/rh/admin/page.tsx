@@ -7,6 +7,7 @@ import {
   alteracoesFeriasPendentes,
   feriasAprovadasVigentes,
   climaResumo,
+  climaHistorico,
   listarFeedbackHumor,
   onboardingsAtivos,
   opcoesOnboarding,
@@ -33,12 +34,13 @@ export default async function RhAdminPage() {
   const mesCorrente = agora.getMonth() + 1;
   const anoCorrente = agora.getFullYear();
 
-  const [abonos, ferias, alteracoesFerias, feriasVigentes, clima, feedbacksHumor, processos, opcoes, nfs, nfsHistorico, fechamentos, saldoCorrente, inicioRecalculo, feedbacks, colaboradores] = await Promise.all([
+  const [abonos, ferias, alteracoesFerias, feriasVigentes, clima, climaSerie, feedbacksHumor, processos, opcoes, nfs, nfsHistorico, fechamentos, saldoCorrente, inicioRecalculo, feedbacks, colaboradores] = await Promise.all([
     abonosPendentes(),
     feriasPendentes(),
     alteracoesFeriasPendentes(),
     feriasAprovadasVigentes(),
     climaResumo(),
+    climaHistorico(180),
     listarFeedbackHumor(),
     onboardingsAtivos(),
     opcoesOnboarding(),
@@ -58,6 +60,7 @@ export default async function RhAdminPage() {
         alteracoesFerias={alteracoesFerias}
         feriasVigentes={feriasVigentes}
         clima={clima}
+        climaSerie={climaSerie}
         feedbacksHumor={feedbacksHumor}
       />
       <BancoHorasAdmin

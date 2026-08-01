@@ -6,12 +6,16 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, X, Download, Smile, MessageSquare, CalendarSync } from "lucide-react";
 import { validarAbono, validarFerias, responderAlteracaoFerias, proporAlteracaoFerias } from "@/modules/rh/actions";
-import type { AbonoPendente, FeriasPendente, AlteracaoFeriasPendente, FeriasVigente } from "@/modules/rh/queries";
+import type { AbonoPendente, FeriasPendente, AlteracaoFeriasPendente, FeriasVigente, ClimaHistoricoPonto } from "@/modules/rh/queries";
 import { FeriasDatasDialog } from "@/components/rh/ferias-acoes";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TrendLine } from "@/components/qualidade/trend-line";
 
 const HUMORES = ["😞", "🙁", "😐", "🙂", "😄"];
+const JANELAS = [30, 90, 180] as const;
 function dt(d: string | Date) {
   return formatarData(d);
 }
@@ -22,6 +26,7 @@ export function RhAdminView({
   alteracoesFerias,
   feriasVigentes,
   clima,
+  climaSerie,
   feedbacksHumor,
 }: {
   abonos: AbonoPendente[];
@@ -34,10 +39,12 @@ export function RhAdminView({
     distribuicao: { humor: number; qtd: number }[];
     comentarios: { comentario: string; humor: number; createdAt: string | Date }[];
   };
+  climaSerie: ClimaHistoricoPonto[];
   feedbacksHumor: { id: string; conteudo: string; autor: string | null; createdAt: string }[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [janelaClima, setJanelaClima] = useState<(typeof JANELAS)[number]>(30);
 
   function decidirAbono(id: string, aprovar: boolean) {
     start(async () => {
@@ -69,6 +76,11 @@ export function RhAdminView({
 
   const maxDist = Math.max(1, ...clima.distribuicao.map((d) => d.qtd));
 
+  const corteClimaSerie = new Date();
+  corteClimaSerie.setDate(corteClimaSerie.getDate() - janelaClima);
+  const corteClimaSerieStr = corteClimaSerie.toISOString().slice(0, 10);
+  const climaSerieFiltrada = climaSerie.filter((p) => p.dia >= corteClimaSerieStr);
+
   return (
     <div className="space-y-6">
       <div>
@@ -86,20 +98,65 @@ export function RhAdminView({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="space-y-1">
-            {clima.distribuicao.map((d) => (
-              <div key={d.humor} className="flex items-center gap-2 text-sm">
-                <span className="w-6 text-lg">{HUMORES[d.humor - 1]}</span>
-                <div className="h-3 flex-1 rounded-sm bg-muted">
-                  <div
-                    className="h-full rounded-sm bg-primary"
-                    style={{ width: `${(d.qtd / maxDist) * 100}%` }}
-                  />
-                </div>
-                <span className="w-8 text-right font-mono text-xs">{d.qtd}</span>
+          <Tabs defaultValue="distribuicao">
+            <TabsList>
+              <TabsTrigger value="distribuicao">Distribuição atual</TabsTrigger>
+              <TabsTrigger value="evolucao">Evolução</TabsTrigger>
+            </TabsList>
+            <TabsContent value="distribuicao">
+              <div className="space-y-1 pt-2">
+                {clima.distribuicao.map((d) => (
+                  <div key={d.humor} className="flex items-center gap-2 text-sm">
+                    <span className="w-6 text-lg">{HUMORES[d.humor - 1]}</span>
+                    <div className="h-3 flex-1 rounded-sm bg-muted">
+                      <div
+                        className="h-full rounded-sm bg-primary"
+                        style={{ width: `${(d.qtd / maxDist) * 100}%` }}
+                      />
+                    </div>
+                    <span className="w-8 text-right font-mono text-xs">{d.qtd}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </TabsContent>
+            <TabsContent value="evolucao">
+              <div className="space-y-2 pt-2">
+                <div className="flex justify-end">
+                  <Select
+                    value={String(janelaClima)}
+                    onValueChange={(v) => v && setJanelaClima(Number(v) as (typeof JANELAS)[number])}
+                  >
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {JANELAS.map((j) => (
+                        <SelectItem key={j} value={String(j)}>
+                          {j} dias
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {climaSerieFiltrada.length < 2 ? (
+                  <p className="py-6 text-center text-sm text-muted-foreground">
+                    Sem histórico suficiente nesse período.
+                  </p>
+                ) : (
+                  <TrendLine
+                    descricao={`Média de clima emocional por dia — últimos ${janelaClima} dias`}
+                    minEixo={1}
+                    maxEixo={5}
+                    pontos={climaSerieFiltrada.map((p) => ({
+                      rotulo: p.dia.slice(8, 10) + "/" + p.dia.slice(5, 7),
+                      tooltip: p.dia.slice(8, 10) + "/" + p.dia.slice(5, 7) + "/" + p.dia.slice(0, 4),
+                      valor: Number(p.media.toFixed(2)),
+                    }))}
+                  />
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
           {clima.comentarios.length > 0 && (
             <div className="space-y-1 border-t pt-2">
               <p className="text-xs font-semibold text-muted-foreground">Comentários (anônimos)</p>

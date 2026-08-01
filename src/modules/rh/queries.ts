@@ -99,6 +99,48 @@ export async function climaResumo() {
   return { total, media, distribuicao, comentarios };
 }
 
+/**
+ * Limiar mínimo de registros num dia pra esse dia entrar na série histórica de clima.
+ * Decisão de produto: mantido em 1 (sem supressão real além de dias sem nenhum registro).
+ * RESSALVA: com limiar=1, um dia com exatamente 1 registro expõe a média = valor exato
+ * daquele único registro (não protege anonimato individual nesse caso). Se precisar
+ * fechar essa brecha, suba pra >=3.
+ */
+const LIMIAR_ANONIMATO_CLIMA = 1;
+
+/**
+ * Série histórica de clima (média diária), últimos `janelaDias`. ANÔNIMO — nunca
+ * retorna registros individuais, só {dia, media, qtd} agregados. Dias com menos de
+ * `LIMIAR_ANONIMATO_CLIMA` registros são omitidos da série (ver ressalva acima).
+ */
+export async function climaHistorico(janelaDias: number) {
+  const desde = new Date();
+  desde.setDate(desde.getDate() - janelaDias);
+  desde.setHours(0, 0, 0, 0);
+
+  const registros = await prisma.registroEmocao.findMany({
+    where: { dia: { gte: desde } },
+    select: { humor: true, dia: true },
+  });
+
+  const porDia = new Map<string, number[]>();
+  for (const r of registros) {
+    const chave = r.dia.toISOString().slice(0, 10);
+    if (!porDia.has(chave)) porDia.set(chave, []);
+    porDia.get(chave)!.push(r.humor);
+  }
+
+  return Array.from(porDia.entries())
+    .filter(([, humores]) => humores.length >= LIMIAR_ANONIMATO_CLIMA)
+    .map(([dia, humores]) => ({
+      dia,
+      media: humores.reduce((s, h) => s + h, 0) / humores.length,
+      qtd: humores.length,
+    }))
+    .sort((a, b) => a.dia.localeCompare(b.dia));
+}
+export type ClimaHistoricoPonto = Awaited<ReturnType<typeof climaHistorico>>[number];
+
 export type AbonoPendente = Awaited<ReturnType<typeof abonosPendentes>>[number];
 export type FeriasPendente = Awaited<ReturnType<typeof feriasPendentes>>[number];
 export type AlteracaoFeriasPendente = Awaited<ReturnType<typeof alteracoesFeriasPendentes>>[number];
