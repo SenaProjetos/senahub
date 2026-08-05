@@ -300,7 +300,11 @@ export function SuporteView({
                         <span className="font-semibold">{m.autor}:</span>{" "}
                         {m.texto && <span className="text-muted-foreground">{m.texto}</span>}
                         {m.anexoMime && (
-                          <a href={`/api/suporte/anexo/${m.id}`} target="_blank" rel="noreferrer" className="ml-1 inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                          <a
+                            href={`/api/suporte/anexo/${m.id}`}
+                            {...(m.anexoMime?.startsWith("image/") || m.anexoMime?.startsWith("video/") ? { target: "_blank", rel: "noreferrer" } : {})}
+                            className="ml-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                          >
                             <FileText className="size-3" /> {m.anexoNome ?? "anexo"}
                           </a>
                         )}

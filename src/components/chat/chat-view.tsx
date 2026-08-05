@@ -3273,8 +3273,6 @@ function AnexosMensagem({
             <a
               key={a.id}
               href={src}
-              target="_blank"
-              rel="noreferrer"
               className="flex items-center gap-1.5 rounded-sm bg-background/20 px-2 py-1 text-xs underline-offset-2 hover:underline"
             >
               <FileText className="size-3.5 shrink-0" />
@@ -3305,8 +3303,6 @@ function AnexosMensagem({
   return (
     <a
       href={src}
-      target="_blank"
-      rel="noreferrer"
       className="mb-1 flex items-center gap-1.5 rounded-sm bg-background/20 px-2 py-1 text-xs underline-offset-2 hover:underline"
     >
       <FileText className="size-3.5 shrink-0" />

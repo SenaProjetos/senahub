@@ -202,11 +202,7 @@ export function PreviewBar({
           variant="outline"
           size="sm"
           render={
-            <a
-              href={`/api/documentos/${modeloId}/dxf?${new URLSearchParams(valores).toString()}`}
-              target="_blank"
-              rel="noreferrer"
-            />
+            <a href={`/api/documentos/${modeloId}/dxf?${new URLSearchParams(valores).toString()}`} />
           }
         >
           <Ruler className="size-4" /> Baixar DXF
