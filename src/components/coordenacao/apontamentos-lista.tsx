@@ -160,10 +160,24 @@ export function ApontamentosLista({
                     )}
                     {podeGerir && a.status !== "fechada" && a.status !== "descartada" && (
                       <>
-                        <Button size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-xs text-status-aprovado" onClick={() => onFechar(a.id)} disabled={pending}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 gap-1 px-1.5 text-xs text-status-aprovado"
+                          onClick={() => onFechar(a.id)}
+                          disabled={pending}
+                          title="Encerra como resolvido/aceito"
+                        >
                           <Check className="size-3" /> fechar
                         </Button>
-                        <Button size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-xs text-muted-foreground" onClick={() => onDescartar(a.id)} disabled={pending}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 gap-1 px-1.5 text-xs text-muted-foreground"
+                          onClick={() => onDescartar(a.id)}
+                          disabled={pending}
+                          title="Encerra como não procede — não será tratado"
+                        >
                           <RotateCcw className="size-3" /> descartar
                         </Button>
                       </>
