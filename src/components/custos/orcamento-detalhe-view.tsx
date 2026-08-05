@@ -43,6 +43,7 @@ export function OrcamentoDetalheView({
   basePrecoId,
   aba,
   podeGerir,
+  podeGerirBancos,
   quantitativos,
   modelosIfc,
   desenhosDxf,
@@ -55,6 +56,7 @@ export function OrcamentoDetalheView({
   basePrecoId: string | null;
   aba: "itens" | "cabecalho" | "bdi" | "encargos" | "quantitativos";
   podeGerir: boolean;
+  podeGerirBancos: boolean;
   quantitativos: QuantitativoListItem[];
   modelosIfc: ModeloOpcao[];
   desenhosDxf: DesenhoOpcao[];
@@ -185,7 +187,9 @@ export function OrcamentoDetalheView({
               orcamentoId={orcamento.id}
               arvore={arvore}
               podeGerir={podeGerir}
+              podeGerirBancos={podeGerirBancos}
               temBasePreco={basePrecoId !== null}
+              basePrecoId={basePrecoId}
               vinculosPorItem={vinculosPorItem}
             />
           </div>

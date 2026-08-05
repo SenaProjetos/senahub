@@ -35,20 +35,24 @@ import { ItemDialog, type AlvoItem } from "./item-dialog";
 import { BuscaBancoDialog } from "./busca-banco-dialog";
 import { VerNoModeloDialog } from "../quantitativos/ver-no-modelo-dialog";
 
-type NovoServicoAlvo = { parentId: string; parentDescricao: string | null; fonte: "composicao" | "insumo" };
+type NovoServicoAlvo = { parentId: string | null; parentDescricao: string | null; fonte: "composicao" | "insumo" };
 type VinculoAlvo = { item: ItemArvore; fonte: "composicao" | "insumo" };
 
 export function OrcamentoArvoreView({
   orcamentoId,
   arvore,
   podeGerir,
+  podeGerirBancos,
   temBasePreco,
+  basePrecoId,
   vinculosPorItem = {},
 }: {
   orcamentoId: string;
   arvore: ArvoreOrcamento;
   podeGerir: boolean;
+  podeGerirBancos: boolean;
   temBasePreco: boolean;
+  basePrecoId: string | null;
   vinculosPorItem?: Record<string, number>;
 }) {
   const router = useRouter();
@@ -68,6 +72,10 @@ export function OrcamentoArvoreView({
 
   function abrirNovoServico(pai: ItemArvore, fonte: "composicao" | "insumo") {
     setNovoServicoAlvo({ parentId: pai.id, parentDescricao: pai.descricao, fonte });
+  }
+
+  function abrirNovoServicoRaiz(fonte: "composicao" | "insumo") {
+    setNovoServicoAlvo({ parentId: null, parentDescricao: null, fonte });
   }
 
   function abrirEditar(item: ItemArvore) {
@@ -131,9 +139,17 @@ export function OrcamentoArvoreView({
           </p>
         </div>
         {podeGerir && (
-          <Button size="sm" onClick={() => abrirCriarGrupo(null)}>
-            <FolderPlus className="size-4" /> Novo grupo
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" disabled={!temBasePreco} onClick={() => abrirNovoServicoRaiz("composicao")}>
+              <Link2 className="size-4" /> Vincular composição
+            </Button>
+            <Button size="sm" variant="outline" disabled={!temBasePreco} onClick={() => abrirNovoServicoRaiz("insumo")}>
+              <Link2 className="size-4" /> Vincular insumo
+            </Button>
+            <Button size="sm" onClick={() => abrirCriarGrupo(null)}>
+              <FolderPlus className="size-4" /> Novo grupo
+            </Button>
+          </div>
         )}
       </div>
 
@@ -369,6 +385,8 @@ export function OrcamentoArvoreView({
           parentDescricao={novoServicoAlvo.parentDescricao}
           open={novoServicoAlvo !== null}
           onOpenChange={(v) => !v && setNovoServicoAlvo(null)}
+          podeGerirBancos={podeGerirBancos}
+          basePrecoId={basePrecoId}
         />
       )}
       {vinculoAlvo && (
@@ -379,6 +397,8 @@ export function OrcamentoArvoreView({
           itemDescricao={vinculoAlvo.item.descricao}
           open={vinculoAlvo !== null}
           onOpenChange={(v) => !v && setVinculoAlvo(null)}
+          podeGerirBancos={podeGerirBancos}
+          basePrecoId={basePrecoId}
         />
       )}
       <VerNoModeloDialog

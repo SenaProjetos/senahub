@@ -31,6 +31,15 @@ export const adicionarItemComposicaoSchema = z
     path: ["tipo"],
   });
 
+export const criarInsumoSchema = z.object({
+  codigo: z.string().min(1, "Código é obrigatório."),
+  descricao: z.string().min(1, "Descrição é obrigatória."),
+  unidade: z.string().min(1, "Unidade é obrigatória."),
+  categoria: z.enum(["servicos", "material", "mao_de_obra", "encargos_complementares", "equipamento", "especiais"]),
+  basePrecoId: z.string().optional(),
+  preco: z.number().positive("Preço precisa ser maior que zero.").optional(),
+});
+
 export const removerItemComposicaoSchema = z.object({ itemId: z.string().min(1) });
 
 export const excluirComposicaoPropriaSchema = z.object({ id: z.string().min(1) });

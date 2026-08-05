@@ -27,9 +27,10 @@ export default async function OrcamentoPage({
   const sp = await searchParams;
   const aba: Aba = (ABAS as readonly string[]).includes(sp.aba ?? "") ? (sp.aba as Aba) : "itens";
 
-  const [orcamento, podeGerir, podeVerCoordenacao] = await Promise.all([
+  const [orcamento, podeGerir, podeGerirBancos, podeVerCoordenacao] = await Promise.all([
     obterOrcamento(id, user),
     can(user.role, "custos", "gerir"),
+    can(user.role, "custos", "bancos"),
     can(user.role, "coordenacao", "ver"),
   ]);
   if (!orcamento) notFound();
@@ -59,6 +60,7 @@ export default async function OrcamentoPage({
       basePrecoId={cabecalho?.basePrecoId ?? null}
       aba={aba}
       podeGerir={podeGerir}
+      podeGerirBancos={podeGerirBancos}
       quantitativos={quantitativos}
       modelosIfc={modelosIfc}
       desenhosDxf={desenhosDxf}

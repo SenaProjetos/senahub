@@ -6,6 +6,7 @@ import { z } from "zod";
 import {
   enfileirarImportacaoCusto,
   criarComposicaoPropria,
+  criarInsumoProprio,
   adicionarItemComposicao,
   removerItemComposicao,
   excluirComposicaoPropria,
@@ -14,6 +15,7 @@ import { obterImportacao, obterComposicao, listarInsumos, listarComposicoes } fr
 import {
   iniciarImportacaoSchema,
   criarComposicaoPropriaSchema,
+  criarInsumoSchema,
   adicionarItemComposicaoSchema,
   removerItemComposicaoSchema,
   excluirComposicaoPropriaSchema,
@@ -91,6 +93,21 @@ export const criarComposicao = defineAction(
   },
   async (input) => {
     const r = await criarComposicaoPropria(input);
+    revBancos();
+    return r;
+  },
+);
+
+export const criarInsumo = defineAction(
+  {
+    ...base,
+    acao: "criar-insumo-proprio",
+    entidade: "CustoInsumo",
+    schema: criarInsumoSchema,
+    entidadeId: (data) => (data as { id: string }).id,
+  },
+  async (input) => {
+    const r = await criarInsumoProprio(input);
     revBancos();
     return r;
   },

@@ -4,6 +4,7 @@ import type { PgBoss } from "pg-boss";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import { lerArquivo } from "@/lib/storage";
+import type { CategoriaInsumo } from "@/generated/prisma/enums";
 import {
   lerInsumosSinapi,
   lerComposicoesSinapi,
@@ -323,6 +324,38 @@ export async function criarComposicaoPropria(input: {
   return prisma.custoComposicao.create({
     data: { baseId: base.id, codigo: input.codigo, descricao: input.descricao, unidade: input.unidade, grupo: input.grupo || null },
   });
+}
+
+/**
+ * Insumo próprio (fora do catálogo SINAPI). Se `basePrecoId`+`preco` vierem (chamado da tela do
+ * orçamento), grava também o `CustoPreco` NA BASE ATIVA do orçamento — não numa base "própria"
+ * separada, porque `custoDoInsumo` resolve o preço por lookup direto em `[baseId, insumoId]` e
+ * precisa achar o valor na mesma base que o orçamento já usa pra ficar utilizável na hora. Efeito
+ * aceito: numa troca de base do orçamento, este insumo ad-hoc fica sem cotação na base nova (é
+ * preço manual de uma cotação específica, não dado oficial que deveria migrar).
+ */
+export async function criarInsumoProprio(input: {
+  codigo: string;
+  descricao: string;
+  unidade: string;
+  categoria: CategoriaInsumo;
+  basePrecoId?: string;
+  preco?: number;
+}) {
+  const existente = await prisma.custoInsumo.findUnique({
+    where: { fonte_codigo: { fonte: "propria", codigo: input.codigo } },
+  });
+  if (existente) throw new ActionError(`Já existe um insumo próprio com o código "${input.codigo}".`);
+
+  const insumo = await prisma.custoInsumo.create({
+    data: { fonte: "propria", codigo: input.codigo, descricao: input.descricao, unidade: input.unidade, categoria: input.categoria },
+  });
+
+  if (input.basePrecoId && input.preco !== undefined) {
+    await prisma.custoPreco.create({ data: { baseId: input.basePrecoId, insumoId: insumo.id, valor: input.preco } });
+  }
+
+  return insumo;
 }
 
 async function exigirComposicaoPropria(composicaoId: string) {
