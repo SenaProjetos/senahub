@@ -792,6 +792,33 @@ model NormaTecnica {
   @@map("norma_tecnica")
 }
 
+/// Biblioteca de referências técnicas soltas (artigo/livro/nota técnica/outro).
+/// Anexo e link externo são ambos opcionais, mas ao menos um é exigido na validação (Zod).
+model ReferenciaTecnica {
+  id          String   @id @default(cuid())
+  titulo      String
+  /// artigo | livro | nota_tecnica | outro (texto livre, ver TIPOS_REFERENCIA).
+  tipo        String
+  /// Autor da obra referenciada — distinto de autorId (quem cadastrou).
+  autorObra   String?
+  ano         Int?
+  tags        String[] @default([])
+  descricao   String?
+  linkExterno String?
+  arquivoPath String?
+  arquivoNome String?
+  mime        String?
+  tamanho     Int?
+  hashSha256  String?
+  autorId     String
+  ativo       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tipo])
+  @@map("referencia_tecnica")
+}
+
 /// Sequência atômica do número AAXXXX por ano.
 model ProjetoSequencia {
   ano    Int @id
