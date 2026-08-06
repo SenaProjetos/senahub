@@ -232,6 +232,7 @@ model User {
   calculosFerramenta            CalculoFerramenta[]
   aceitesTermo                  AceiteTermo[]
   ativosResponsavel             Ativo[]                   @relation("AtivoResponsavel")
+  certidoesResponsavel          Certidao[]                @relation("CertidaoResponsavel")
   maquinasResponsavel           MaquinaTI[]               @relation("MaquinaResponsavel")
   avisosCriados                 Aviso[]                   @relation("AvisosCriados")
   avisosRecebidos               AvisoDestinatario[]       @relation("AvisosRecebidos")
@@ -2440,8 +2441,10 @@ model AceiteDocumento {
 }
 
 model CertidaoTipo {
-  id   String @id @default(cuid())
-  nome String @unique
+  id          String     @id @default(cuid())
+  nome        String     @unique
+  /// Tipo obrigatório p/ o checklist de compliance (módulo certidões) — não afeta dado existente.
+  obrigatoria Boolean    @default(false)
 
   certidoes Certidao[]
 
@@ -2456,15 +2459,18 @@ model Certidao {
   validade         DateTime                   @db.Date
   arquivoPath      String?
   arquivoNome      String?
+  responsavelId    String?
+  responsavel      User?                      @relation("CertidaoResponsavel", fields: [responsavelId], references: [id], onDelete: SetNull)
   createdAt        DateTime                   @default(now())
   versoes          CertidaoVersao[]
   habilitacaoItens LicitacaoHabilitacaoItem[]
 
   @@index([validade])
+  @@index([responsavelId])
   @@map("certidao")
 }
 
-/// Versão histórica de uma certidão (E3).
+/// Versão histórica de uma certidão (E3). Cada upload (anexo inicial ou renovação) cria a sua.
 model CertidaoVersao {
   id          String   @id @default(cuid())
   certidaoId  String
@@ -2473,11 +2479,27 @@ model CertidaoVersao {
   validade    DateTime @db.Date
   arquivoPath String?
   arquivoNome String?
+  mimeType    String?
   autorId     String
   createdAt   DateTime @default(now())
 
   @@unique([certidaoId, numero])
   @@map("certidao_versao")
+}
+
+/// Link público (sem login) somente-leitura de certidões, p/ terceiros (contador, advogado).
+/// Mesma convenção de LinkPublicoArquivos: `ativo`/`expiraEm` revogam na hora, whitelist
+/// `certidaoIds` escopa o que é visível — vazio = nada exposto. Standalone (não é 1:1 de nada).
+model LinkPublicoCertidoes {
+  id          String    @id @default(cuid())
+  token       String    @unique
+  ativo       Boolean   @default(true)
+  expiraEm    DateTime?
+  certidaoIds String[]  @default([])
+  criadoPorId String?
+  createdAt   DateTime  @default(now())
+
+  @@map("link_publico_certidoes")
 }
 
 // ─────────────────────────────────────────────────────────────

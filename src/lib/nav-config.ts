@@ -28,6 +28,7 @@ import {
   IdCard,
   FolderArchive,
   ClipboardCheck,
+  ShieldCheck,
   Library,
   BookMarked,
   Notebook,
@@ -260,6 +261,12 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Jurídico",
         href: "/juridico",
         icon: Scale,
+        roles: ["admin", "supervisor", "administrativo"],
+      },
+      {
+        title: "Certidões",
+        href: "/certidoes",
+        icon: ShieldCheck,
         roles: ["admin", "supervisor", "administrativo"],
       },
       {

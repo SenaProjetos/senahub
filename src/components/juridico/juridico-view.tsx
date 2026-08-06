@@ -4,20 +4,16 @@ import { useRef, useState, useTransition } from "react";
 import { formatarData } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { differenceInCalendarDays } from "date-fns";
-import { Plus, Upload, Download, Trash2, Folder, FolderPlus, X, FileText, ShieldCheck, Eye, PenLine } from "lucide-react";
+import { Plus, Upload, Download, Trash2, Folder, FolderPlus, X, FileText, Eye, PenLine } from "lucide-react";
 import {
   criarDocJuridico,
   excluirDocJuridico,
-  criarCertidao,
-  excluirCertidao,
   criarPastaJuridica,
   excluirPastaJuridica,
   moverDocPasta,
   criarModeloContrato,
   editarModeloContrato,
   excluirModeloContrato,
-  novaVersaoCertidao,
   registrarAceite,
 } from "@/modules/juridico/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -48,7 +44,6 @@ type Doc = {
   cliente: string | null;
   versoes: { id: string; numero: number; arquivoNome: string; autor: string; data: string; aceites: Aceite[] }[];
 };
-type Cert = { id: string; tipo: string; descricao: string | null; validade: string; versoes: number };
 type Pasta = { id: string; nome: string; total: number };
 type Modelo = { id: string; nome: string; categoria: string | null; conteudo: string };
 
@@ -59,18 +54,14 @@ const ehPdf = (nome: string) => nome.toLowerCase().endsWith(".pdf");
 
 export function JuridicoView({
   docs,
-  certidoes,
   modelos,
-  tipos,
   projetos,
   clientes,
   pastas,
   podeGerir,
 }: {
   docs: Doc[];
-  certidoes: Cert[];
   modelos: Modelo[];
-  tipos: { id: string; nome: string }[];
   projetos: { id: string; label: string }[];
   clientes: { id: string; label: string }[];
   pastas: Pasta[];
@@ -81,23 +72,23 @@ export function JuridicoView({
       <div>
         <h2 className="text-2xl font-extrabold tracking-tight">Jurídico</h2>
         <p className="text-sm text-muted-foreground">
-          Contratos versionados e certidões com controle de validade.
+          Contratos versionados. Certidões da empresa agora ficam em{" "}
+          <a href="/certidoes" className="underline underline-offset-2">
+            Certidões
+          </a>
+          .
         </p>
       </div>
 
       <Tabs defaultValue="docs">
         <TabsList>
           <TabsTrigger value="docs">Documentos</TabsTrigger>
-          <TabsTrigger value="certidoes">Certidões</TabsTrigger>
           <TabsTrigger value="modelos">Modelos</TabsTrigger>
         </TabsList>
         <Card className="mt-3">
           <CardContent className="pt-5">
             <TabsContent value="docs">
               <DocsTab docs={docs} projetos={projetos} clientes={clientes} pastas={pastas} podeGerir={podeGerir} />
-            </TabsContent>
-            <TabsContent value="certidoes">
-              <CertidoesTab certidoes={certidoes} tipos={tipos} podeGerir={podeGerir} />
             </TabsContent>
             <TabsContent value="modelos">
               <ModelosTab modelos={modelos} podeGerir={podeGerir} />
@@ -465,121 +456,6 @@ function DocsTab({
           )}
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-function CertidoesTab({
-  certidoes,
-  tipos,
-  podeGerir,
-}: {
-  certidoes: Cert[];
-  tipos: { id: string; nome: string }[];
-  podeGerir: boolean;
-}) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const [tipoId, setTipoId] = useState("");
-  const [descricao, setDescricao] = useState("");
-  const [validade, setValidade] = useState("");
-
-  function criar() {
-    start(async () => {
-      const r = await criarCertidao({ tipoId, descricao, validade });
-      if (r.ok) {
-        toast.success("Certidão registrada.");
-        setDescricao("");
-        setValidade("");
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
-  function excluir(id: string) {
-    start(async () => {
-      const r = await excluirCertidao({ id });
-      if (r.ok) router.refresh();
-      else toast.error(r.error);
-    });
-  }
-  function novaVersao(id: string) {
-    const v = window.prompt("Nova validade da certidão (AAAA-MM-DD):");
-    if (!v?.trim()) return;
-    start(async () => {
-      const r = await novaVersaoCertidao({ certidaoId: id, validade: v });
-      if (r.ok) {
-        toast.success("Nova versão registrada.");
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
-
-  function badgeValidade(validade: string) {
-    const dias = differenceInCalendarDays(new Date(validade + "T00:00:00"), new Date());
-    if (dias < 0) return <Badge variant="outline" className="text-destructive border-destructive/40">vencida</Badge>;
-    if (dias <= 30)
-      return <Badge variant="outline" className="text-warning border-warning/40">vence em {dias}d</Badge>;
-    return <Badge variant="outline" className="text-success border-success/40">ok</Badge>;
-  }
-
-  return (
-    <div className="space-y-4">
-      {podeGerir && (
-        <div className="flex flex-wrap items-end gap-2 rounded-sm border border-dashed p-3">
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Tipo</Label>
-            <Select value={tipoId} onValueChange={(v) => setTipoId(v ?? "")}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="Selecione…" />
-              </SelectTrigger>
-              <SelectContent>
-                {tipos.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Descrição</Label>
-            <Input className="w-52" value={descricao} onChange={(e) => setDescricao(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Validade</Label>
-            <Input type="date" value={validade} onChange={(e) => setValidade(e.target.value)} />
-          </div>
-          <Button size="sm" onClick={criar} disabled={pending || !tipoId || !validade}>
-            <Plus className="size-3.5" /> Registrar
-          </Button>
-        </div>
-      )}
-
-      {certidoes.length === 0 ? (
-        <EmptyState icon={ShieldCheck} title="Nenhuma certidão." />
-      ) : (
-        <ul className="divide-y rounded-sm border">
-          {certidoes.map((c) => (
-            <li key={c.id} className="flex items-center gap-3 p-3 text-sm">
-              <span className="font-medium">{c.tipo}</span>
-              {c.descricao && <span className="text-muted-foreground">{c.descricao}</span>}
-              <span className="ml-auto font-mono text-xs">
-                {formatarData(c.validade)}
-              </span>
-              {badgeValidade(c.validade)}
-              {c.versoes > 0 && <span className="font-mono text-[10px] text-muted-foreground">{c.versoes} versão(ões)</span>}
-              {podeGerir && (
-                <>
-                  <Button size="sm" variant="ghost" onClick={() => novaVersao(c.id)}>Nova versão</Button>
-                  <Button size="icon" variant="ghost" aria-label="Excluir" onClick={() => excluir(c.id)}>
-                    <Trash2 className="size-4" />
-                  </Button>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }

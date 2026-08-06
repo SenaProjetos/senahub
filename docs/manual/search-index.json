@@ -293,11 +293,20 @@
     {
       "titulo": "Jurídico",
       "path": "gestao/juridico.md",
-      "descricao": "Documentos jurídicos com versões e aceite assinado, certidões com validade, pastas e modelos de contrato.",
-      "resumo": "Organize documentos jurídicos em pastas (com versões e aceite por hash), controle certidões e vencimentos e use modelos de contrato.",
-      "tags": ["jurídico", "documentos", "contrato", "certidão", "validade", "versão", "aceite", "assinatura", "pasta"],
-      "palavrasChave": ["jurídico", "documento jurídico", "contrato", "certidão", "validade", "vencimento", "versão", "aceite", "assinatura", "hash", "pasta", "modelo de contrato"],
+      "descricao": "Documentos jurídicos com versões e aceite assinado, pastas e modelos de contrato.",
+      "resumo": "Organize documentos jurídicos em pastas (com versões e aceite por hash) e use modelos de contrato.",
+      "tags": ["jurídico", "documentos", "contrato", "versão", "aceite", "assinatura", "pasta"],
+      "palavrasChave": ["jurídico", "documento jurídico", "contrato", "versão", "aceite", "assinatura", "hash", "pasta", "modelo de contrato"],
       "sinonimos": ["legal", "contratos", "documentação jurídica"]
+    },
+    {
+      "titulo": "Certidões",
+      "path": "gestao/certidoes.md",
+      "descricao": "Controle de certidões da empresa — versionamento, download individual ou em zip, link público e alertas de vencimento.",
+      "resumo": "Registre certidões, anexe e renove arquivos com histórico de versões, baixe individualmente ou em zip, compartilhe por link público e acompanhe vencimentos.",
+      "tags": ["certidão", "validade", "vencimento", "versão", "zip", "link público", "compliance"],
+      "palavrasChave": ["certidão", "certidões", "validade", "vencimento", "versão", "histórico", "zip", "download", "link público", "compartilhar", "responsável", "compliance"],
+      "sinonimos": ["documentos de regularidade", "CND", "regularidade fiscal"]
     },
     {
       "titulo": "Qualidade (retrabalho e SLA)",

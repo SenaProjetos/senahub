@@ -203,22 +203,23 @@ export async function alertaRateioAberto(): Promise<number> {
   return sessoes;
 }
 
-/** Certidões vencendo em 30/15/7 dias → gestores do jurídico. */
+/** Certidões vencendo em 30/15/7 dias → gestores + responsável (se houver). */
 export async function alertaCertidoes(): Promise<number> {
   let n = 0;
-  const ids = await gestores();
+  const idsGestores = await gestores();
   for (const dias of [30, 15, 7]) {
     const certs = await prisma.certidao.findMany({
       where: { validade: diaAlvo(dias) },
       include: { tipo: true },
     });
     for (const c of certs) {
+      const destinatarios = c.responsavelId ? [...idsGestores, c.responsavelId] : idsGestores;
       await notificarMuitos(
-        ids,
+        destinatarios,
         {
           titulo: `Certidão vence em ${dias} dia(s)`,
           corpo: `${c.tipo.nome}${c.descricao ? ` — ${c.descricao}` : ""}`,
-          href: "/juridico",
+          href: "/certidoes",
           tag: `cert-${c.id}-${dias}`,
         },
         { categoria: "certidao" },

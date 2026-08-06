@@ -94,6 +94,8 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   // O5: jurídico, licitações, qualidade
   { role: "administrativo", recurso: "juridico", acao: "ver" },
   { role: "administrativo", recurso: "juridico", acao: "gerir" },
+  { role: "administrativo", recurso: "certidoes", acao: "ver" },
+  { role: "administrativo", recurso: "certidoes", acao: "gerir" },
   { role: "administrativo", recurso: "licitacoes", acao: "ver" },
   { role: "administrativo", recurso: "licitacoes", acao: "gerir" },
   // O5: planejamento (ver p/ internos; gerir p/ gestores) e recursos (gestores)
@@ -210,7 +212,20 @@ const TAREFA_STATUS = [
   { nome: "Cancelada", cor: "#6E838B", concluido: false },
 ];
 
-const CERTIDAO_TIPOS = ["CND Federal", "CND Estadual", "CND Municipal", "FGTS", "Trabalhista", "ART/RRT"];
+const CERTIDAO_TIPOS: { nome: string; obrigatoria: boolean }[] = [
+  { nome: "Certidão Regularidade Fiscal Federal", obrigatoria: true },
+  { nome: "Certidão Regularidade Fiscal Estadual", obrigatoria: true },
+  { nome: "Certidão Regularidade Fiscal Municipal", obrigatoria: true },
+  { nome: "Certidão de Regularidade do FGTS", obrigatoria: true },
+  { nome: "Certidão Negativa de Débitos Trabalhistas", obrigatoria: true },
+  { nome: "Certidão Improbidade Administrativa e Inelegibilidade", obrigatoria: false },
+  { nome: "Inscrição Municipal (CIM)", obrigatoria: false },
+  { nome: "Certidão Isenção Inscrição Estadual", obrigatoria: false },
+  { nome: "Certidão Simplificada Jucepe", obrigatoria: false },
+  { nome: "Certidão Falimentar", obrigatoria: false },
+  { nome: "Balanço Patrimonial", obrigatoria: false },
+  { nome: "Livro Digital", obrigatoria: false },
+];
 
 const FUNIL_ETAPAS = [
   { nome: "Orçamento", cor: "#8B7FC7" },
@@ -456,8 +471,10 @@ async function main() {
       update: { ordem: i, concluido: TAREFA_STATUS[i].concluido },
     });
   }
-  for (const nome of CERTIDAO_TIPOS) {
-    await prisma.certidaoTipo.upsert({ where: { nome }, create: { nome }, update: {} });
+  // update: {} de propósito: gerir "obrigatoria" é ato de quem gere certidões pela tela
+  // (/certidoes → Gerenciar tipos) — o seed só garante que os itens-base existam.
+  for (const t of CERTIDAO_TIPOS) {
+    await prisma.certidaoTipo.upsert({ where: { nome: t.nome }, create: t, update: {} });
   }
   console.log(`✔ ${TAREFA_STATUS.length} status de tarefa, ${CERTIDAO_TIPOS.length} tipos de certidão.`);
 
