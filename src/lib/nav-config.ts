@@ -1,5 +1,6 @@
 import {
   Home,
+  Tags,
   Users,
   FolderKanban,
   Wallet,
@@ -155,6 +156,12 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Pessoas",
         href: "/rh/pessoas",
         icon: Users,
+        roles: ["admin", "supervisor", "administrativo"],
+      },
+      {
+        title: "Cargos e departamentos",
+        href: "/rh/catalogos",
+        icon: Tags,
         roles: ["admin", "supervisor", "administrativo"],
       },
       {

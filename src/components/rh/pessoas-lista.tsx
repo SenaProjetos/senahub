@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { CadastroIncompletoBadge } from "@/components/rh/cadastro-incompleto-badge";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import type { PessoaListItem } from "@/modules/rh/pessoas/queries";
 
@@ -36,11 +37,13 @@ export function PessoasLista({ pessoas }: { pessoas: PessoaListItem[] }) {
             {visiveis.map((p) => (
               <tr key={p.id} className={`border-t hover:bg-muted/40 ${p.ativo ? "" : "opacity-60"}`}>
                 <td className="px-4 py-2 font-medium">
+                  {/* Badge fora do Link de propósito: <button> (o gatilho do Popover) dentro de
+                      <a> é HTML inválido e quebraria o clique. */}
                   <Link href={`/rh/pessoas/${p.id}`} className="hover:underline">
                     {p.name}
                     {p.socioAtivo && <Badge variant="secondary" className="ml-2 align-middle">Sócio</Badge>}
-                    {p.incompleto && <Badge variant="outline" className="ml-2 align-middle border-warning text-warning">incompleto</Badge>}
                   </Link>
+                  <CadastroIncompletoBadge camposFaltantes={p.camposFaltantes} />
                 </td>
                 <td className="px-4 py-2 text-muted-foreground">{p.email}</td>
                 <td className="px-4 py-2"><Badge variant="outline">{ROLE_LABELS[p.role as Role]}</Badge></td>

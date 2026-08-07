@@ -203,6 +203,7 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     acoes: [
       { acao: "cadastro", label: "Ver a ficha de pessoas (cadastro, ausências, escala)" },
       { acao: "folha", label: "Ver dados de folha/salário na ficha da pessoa" },
+      { acao: "catalogos", label: "Administrar os catálogos de cargos e departamentos" },
     ],
   },
 ];

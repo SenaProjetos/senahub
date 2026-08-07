@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   abonoCount: vi.fn(),
   feriasCount: vi.fn(),
   documentoCount: vi.fn(),
+  contaBancariaCount: vi.fn(),
   projetoFindMany: vi.fn(),
   holeriteFindMany: vi.fn(),
   usuarioOnline: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock("@/lib/prisma", () => ({
     abonoFalta: { count: (...args: unknown[]) => mocks.abonoCount(...args) },
     ferias: { count: (...args: unknown[]) => mocks.feriasCount(...args) },
     funcionarioDocumento: { count: (...args: unknown[]) => mocks.documentoCount(...args) },
+    contaBancariaColaborador: { count: (...args: unknown[]) => mocks.contaBancariaCount(...args) },
     projeto: { findMany: (...args: unknown[]) => mocks.projetoFindMany(...args) },
     holerite: { findMany: (...args: unknown[]) => mocks.holeriteFindMany(...args) },
   },
@@ -88,7 +90,7 @@ describe("Pessoa 360 — consultas de resumo", () => {
       },
     ]);
 
-    const pessoas = await listarPessoas();
+    const pessoas = await listarPessoas(false);
 
     expect(mocks.userFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { role: { not: "cliente" } } }),
@@ -140,6 +142,7 @@ describe("Pessoa 360 — consultas de resumo", () => {
     mocks.userFindUnique
       .mockResolvedValueOnce(usuarioBase())
       .mockResolvedValueOnce({ salarioBase: 5000 });
+    mocks.contaBancariaCount.mockResolvedValue(1);
 
     const pessoa = await fichaPessoa("u1", {
       folha: true,
@@ -169,6 +172,7 @@ describe("Pessoa 360 — consultas de resumo", () => {
         contratacao: "clt",
         createdAt: new Date("2026-01-01T12:00:00Z"),
       });
+    mocks.contaBancariaCount.mockResolvedValue(1);
     mocks.sessaoCount.mockResolvedValue(1);
     mocks.abonoCount.mockResolvedValue(2);
     mocks.feriasCount.mockResolvedValue(1);

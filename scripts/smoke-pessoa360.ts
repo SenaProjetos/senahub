@@ -27,8 +27,12 @@ async function main() {
     if (!cond) ok = false;
   };
 
-  const pessoas = await listarPessoas();
+  const pessoas = await listarPessoas(true);
   check("listarPessoas retorna array", Array.isArray(pessoas));
+
+  // Cargo/departamento reais do catálogo (2.1) — completude exige a FK, não texto livre.
+  const cargo = await prisma.cargo.findFirst({ where: { ativo: true }, select: { id: true } });
+  const departamento = await prisma.departamento.findFirst({ where: { ativo: true }, select: { id: true } });
 
   const clt = await prisma.user.create({
     data: {
@@ -38,8 +42,20 @@ async function main() {
       role: "clt",
       ativo: true,
       cpf: "00000000000",
+      rg: "MG-00.000.000",
+      dataNascimento: new Date("1990-01-01"),
+      enderecoCep: "30130-000",
+      enderecoLogradouro: "Rua Smoke",
+      enderecoNumero: "1",
+      enderecoBairro: "Centro",
+      enderecoCidade: "Belo Horizonte",
+      enderecoUf: "MG",
+      telefone: "31999998888",
       dataAdmissao: new Date("2024-01-10"),
       salarioBase: 3000,
+      cargoId: cargo?.id,
+      departamentoId: departamento?.id,
+      contasBancarias: { create: { banco: "341", agencia: "0001", conta: "12345-6", ativo: true } },
     },
   });
   const pj = await prisma.user.create({
@@ -56,7 +72,20 @@ async function main() {
     });
     check("fichaPessoa(clt) != null", !!fClt);
     check("fichaPessoa expõe nomeCompleto", fClt?.nomeCompleto === `${tag} Nome Completo`);
-    check("clt com cpf+admissão => incompleto=false", fClt?.incompleto === false);
+    check(
+      "clt com todos os campos obrigatórios => incompleto=false" +
+        (cargo && departamento ? "" : " (catálogo de cargo/departamento vazio — rode npm run db:seed)"),
+      fClt?.incompleto === false,
+    );
+    if (fClt?.incompleto) console.log("   faltando:", fClt.camposFaltantes.map((c) => c.campo).join(", "));
+
+    const fCltIncompleto = await fichaPessoa(clt.id, {
+      folha: false, acesso: false, ponto: false, pendenciasRh: false, projetos: null,
+    });
+    check(
+      "sem rh:folha, salário/conta bancária saem da checagem (mesmo dado completo)",
+      fCltIncompleto?.incompleto === false,
+    );
 
     const cad = await cadastroDaPessoa(clt.id);
     check("cadastroDaPessoa(clt) != null", !!cad);
@@ -87,7 +116,7 @@ async function main() {
       pendenciasRh: true,
       projetos: { observador: { id: pj.id, role: "admin" } },
     });
-    check("pj sem cpf/admissão => incompleto=true", fPj?.incompleto === true);
+    check("pj sem nenhum campo obrigatório (telefone/endereço/cargo/PJ/conta) => incompleto=true", fPj?.incompleto === true);
     check("pj sem nomeCompleto => null", fPj?.nomeCompleto === null);
 
     const naLista = pessoas.length + 0; // sanity: lista já rodou antes de criar

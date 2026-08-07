@@ -16,7 +16,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 type Valores = Partial<Record<CampoAutoeditavel, string | null>>;
 type Pendente = { alteracoes: Record<string, string>; propostoEm: string } | null;
 
-const GRUPOS = ["Contato", "Emergência", "Endereço", "Dados bancários"] as const;
+// "Dados bancários" saiu daqui (2.2): virou proposta por CONTA em `MinhasContasEditor`, não
+// mais um diff campo-a-campo — `CAMPOS_AUTOEDITAVEIS` não tem mais nenhum campo desse grupo.
+const GRUPOS = ["Contato", "Emergência", "Endereço"] as const;
 
 export function EditarMeusDados({ atual, pendente }: { atual: Valores; pendente: Pendente }) {
   const router = useRouter();
@@ -87,16 +89,13 @@ export function EditarMeusDados({ atual, pendente }: { atual: Valores; pendente:
           <DialogHeader>
             <DialogTitle>Editar meus dados</DialogTitle>
             <DialogDescription>
-              Você propõe as alterações; elas só entram após o RH validar. Salário, cargo e CPF não são editáveis aqui.
+              Você propõe as alterações; elas só entram após o RH validar. Salário, cargo, CPF e conta bancária não são editáveis aqui — conta bancária tem proposta própria, na aba Cadastro.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {GRUPOS.map((grupo) => (
               <div key={grupo} className="space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{grupo}</p>
-                {grupo === "Dados bancários" && (
-                  <p className="text-xs text-warning">Mudança de conta bancária passa por validação reforçada do RH.</p>
-                )}
                 <div className="grid grid-cols-2 gap-3">
                   {CAMPOS_AUTOEDITAVEIS.filter((c) => c.grupo === grupo).map((c) => (
                     <div key={c.campo} className="space-y-1.5">

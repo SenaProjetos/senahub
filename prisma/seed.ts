@@ -63,6 +63,8 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   // Coordenador NÃO entra: ficha de pessoas e salário ficam com admin + administrativo.
   { role: "administrativo", recurso: "rh", acao: "cadastro" },
   { role: "administrativo", recurso: "rh", acao: "folha" },
+  // Catálogos de cargo/departamento: quem cadastra pessoa precisa manter as listas.
+  { role: "administrativo", recurso: "rh", acao: "catalogos" },
   // Arquivos gerais do projeto (pasta "Geral"): gestores administrativos por padrão.
   { role: "administrativo", recurso: "arquivos_gerais", acao: "ver" },
   { role: "administrativo", recurso: "arquivos_gerais", acao: "gerir" },
@@ -225,6 +227,18 @@ const CERTIDAO_TIPOS: { nome: string; obrigatoria: boolean }[] = [
   { nome: "Certidão Falimentar", obrigatoria: false },
   { nome: "Balanço Patrimonial", obrigatoria: false },
   { nome: "Livro Digital", obrigatoria: false },
+];
+
+// Catálogo mínimo de cargos. "Sócio" é RÓTULO — não concede acesso nenhum (isso é `Socio`+perfil).
+// O RH edita/arquiva/reordena pela tela; por isso o upsert abaixo nunca sobrescreve `ordem`.
+const CARGOS_BASE = ["Sócio", "Diretor", "Coordenador", "Engenheiro", "Arquiteto", "Projetista", "Estagiário", "Analista Administrativo"];
+
+// Departamentos-base, com o setor-pai sugerido. `setor` null = a definir pelo RH.
+const DEPARTAMENTOS_BASE: { nome: string; setor: "diretoria" | "administrativo" | "juridico" | "engenharia" | "ti" | null }[] = [
+  { nome: "Projetos", setor: "engenharia" },
+  { nome: "Orçamento", setor: "engenharia" },
+  { nome: "Financeiro", setor: "administrativo" },
+  { nome: "Pessoal", setor: "administrativo" },
 ];
 
 const FUNIL_ETAPAS = [
@@ -477,6 +491,23 @@ async function main() {
     await prisma.certidaoTipo.upsert({ where: { nome: t.nome }, create: t, update: {} });
   }
   console.log(`✔ ${TAREFA_STATUS.length} status de tarefa, ${CERTIDAO_TIPOS.length} tipos de certidão.`);
+
+  // 8b) Catálogos de RH (cargo/departamento). `update: {}` de propósito: reordenar, renomear e
+  // arquivar são atos do RH pela tela — o seed só garante que os itens-base existam. Rodar o
+  // seed depois do backfill não pode reembaralhar a lista nem ressuscitar item arquivado.
+  // `ordem` continua de onde a lista está (mesma regra de `criarCargo`), em vez de recomeçar do
+  // zero — senão itens semeados colidiriam com os que o backfill já numerou.
+  let ordemCargo = ((await prisma.cargo.findFirst({ orderBy: { ordem: "desc" }, select: { ordem: true } }))?.ordem ?? -1) + 1;
+  for (const nome of CARGOS_BASE) {
+    const r = await prisma.cargo.upsert({ where: { nome }, create: { nome, ordem: ordemCargo }, update: {} });
+    if (r.ordem === ordemCargo) ordemCargo++;
+  }
+  let ordemDepto = ((await prisma.departamento.findFirst({ orderBy: { ordem: "desc" }, select: { ordem: true } }))?.ordem ?? -1) + 1;
+  for (const d of DEPARTAMENTOS_BASE) {
+    const r = await prisma.departamento.upsert({ where: { nome: d.nome }, create: { nome: d.nome, setor: d.setor, ordem: ordemDepto }, update: {} });
+    if (r.ordem === ordemDepto) ordemDepto++;
+  }
+  console.log(`✔ ${CARGOS_BASE.length} cargos, ${DEPARTAMENTOS_BASE.length} departamentos no catálogo.`);
 
   // 9) Etapas do funil comercial
   for (let i = 0; i < FUNIL_ETAPAS.length; i++) {

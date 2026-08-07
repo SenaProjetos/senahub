@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { User, MapPin, CreditCard, Briefcase, Check, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { cadastrarFuncionario, consultarCep } from "@/modules/rh/funcionarios/actions";
-import { ROLE_LABELS } from "@/lib/roles";
+import { ROLE_LABELS, CADASTRO_ROLES, type Role } from "@/lib/roles";
 import { maskCpf, maskTelefone, maskCep } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +20,6 @@ const ETAPAS = [
   { num: 4 as const, label: "Contrato", icon: Briefcase },
 ];
 
-const CADASTRO_ROLES = ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"] as const;
 // Projetistas contratados como prestador/PJ (têm PJ/CNPJ e honorário, não salário CLT).
 const ROLES_PROJETISTA: readonly Form["role"][] = ["projetista_pj", "freelancer"];
 // Espelha o enum Prisma `Setor` — default "engenharia" (decisão do dono, ver mapa.ts).
@@ -35,34 +34,40 @@ const selectCls =
   "h-9 w-full rounded-sm border border-input bg-background px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 type Form = {
-  name: string; email: string; role: (typeof CADASTRO_ROLES)[number];
+  name: string; nomeCompleto: string; email: string; role: Role;
   setor: (typeof SETOR_OPCOES)[number]["value"];
   cpf: string; rg: string; dataNascimento: string; sexo: string; estadoCivil: string; nacionalidade: string;
   enderecoCep: string; enderecoLogradouro: string; enderecoNumero: string; enderecoComplemento: string;
   enderecoBairro: string; enderecoCidade: string; enderecoUf: string;
   telefone: string; telefoneEmergencia: string; contatoEmergenciaNome: string; emailPessoal: string;
   banco: string; agencia: string; conta: string; tipoContaBancaria: string;
-  cargo: string; departamento: string; dataAdmissao: string; salarioBase: string; pjId: string;
+  /** Ids do catálogo (2.1) — cargo/departamento deixaram de ser texto livre. */
+  cargoId: string; departamentoId: string; dataAdmissao: string; salarioBase: string; pjId: string;
   iniciarOnboarding: boolean; templateId: string;
 };
 
 const VAZIO: Form = {
-  name: "", email: "", role: "clt", setor: "engenharia",
+  name: "", nomeCompleto: "", email: "", role: "clt", setor: "engenharia",
   cpf: "", rg: "", dataNascimento: "", sexo: "nao_informado", estadoCivil: "solteiro", nacionalidade: "Brasileira",
   enderecoCep: "", enderecoLogradouro: "", enderecoNumero: "", enderecoComplemento: "",
   enderecoBairro: "", enderecoCidade: "", enderecoUf: "",
   telefone: "", telefoneEmergencia: "", contatoEmergenciaNome: "", emailPessoal: "",
   banco: "", agencia: "", conta: "", tipoContaBancaria: "corrente",
-  cargo: "", departamento: "", dataAdmissao: "", salarioBase: "", pjId: "",
+  cargoId: "", departamentoId: "", dataAdmissao: "", salarioBase: "", pjId: "",
   iniciarOnboarding: false, templateId: "",
 };
 
 export function WizardCadastroFuncionario({
   templates,
   pessoasJuridicas,
+  cargos,
+  departamentos,
 }: {
   templates: { id: string; nome: string }[];
   pessoasJuridicas: { id: string; label: string }[];
+  /** Catálogo ativo (2.1) — substitui o cargo/departamento em texto livre. */
+  cargos: { id: string; nome: string }[];
+  departamentos: { id: string; nome: string }[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -175,9 +180,12 @@ export function WizardCadastroFuncionario({
           <div className="space-y-3">
             {etapa === 1 && (
               <>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Campo label="Nome completo *"><Input value={f.name} onChange={(e) => set("name", e.target.value)} /></Campo>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Campo label="Nome de exibição *"><Input value={f.name} onChange={(e) => set("name", e.target.value)} /></Campo>
                   <Campo label="E-mail de acesso *"><Input type="email" value={f.email} onChange={(e) => set("email", e.target.value)} /></Campo>
+                  <Campo label="Nome completo">
+                    <Input value={f.nomeCompleto} onChange={(e) => set("nomeCompleto", e.target.value)} placeholder="Como consta em documentos formais" />
+                  </Campo>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Campo label="Perfil (tipo de contrato)">
@@ -273,8 +281,18 @@ export function WizardCadastroFuncionario({
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Campo label="Cargo / função"><Input value={f.cargo} onChange={(e) => set("cargo", e.target.value)} /></Campo>
-                  <Campo label="Departamento"><Input value={f.departamento} onChange={(e) => set("departamento", e.target.value)} /></Campo>
+                  <Campo label="Cargo / função">
+                    <select className={selectCls} value={f.cargoId} onChange={(e) => set("cargoId", e.target.value)}>
+                      <option value="">— não definido —</option>
+                      {cargos.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                    </select>
+                  </Campo>
+                  <Campo label="Departamento">
+                    <select className={selectCls} value={f.departamentoId} onChange={(e) => set("departamentoId", e.target.value)}>
+                      <option value="">— não definido —</option>
+                      {departamentos.map((d) => <option key={d.id} value={d.id}>{d.nome}</option>)}
+                    </select>
+                  </Campo>
                 </div>
 
                 <Campo label="Setor (onde a pessoa atua — não concede acesso, só organiza o cadastro)">

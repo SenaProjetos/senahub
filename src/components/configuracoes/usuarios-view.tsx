@@ -73,7 +73,7 @@ type FormState = {
   // Fase 2 — cadastro inicial (só na criação)
   cpf: string;
   telefone: string;
-  cargo: string;
+  cargoId: string;
   dataAdmissao: string;
   salarioBase: string;
   pjId: string;
@@ -84,7 +84,7 @@ type FormState = {
 
 const EMPTY: FormState = {
   name: "", nomeCompleto: "", email: "", role: "projetista_pj", clienteId: "", ehSocio: false,
-  cpf: "", telefone: "", cargo: "", dataAdmissao: "", salarioBase: "", pjId: "", onboardingTemplateId: "",
+  cpf: "", telefone: "", cargoId: "", dataAdmissao: "", salarioBase: "", pjId: "", onboardingTemplateId: "",
   perfilId: "", superUsuario: false,
 };
 
@@ -95,6 +95,7 @@ export function UsuariosView({
   pessoasJuridicas,
   templates,
   perfis,
+  cargos,
   podeDefinirSocio,
   podeExcluir,
   ehAdmin,
@@ -105,6 +106,8 @@ export function UsuariosView({
   pessoasJuridicas: { id: string; label: string }[];
   templates: { id: string; nome: string }[];
   perfis: { id: string; nome: string }[];
+  /** Catálogo de cargos ativo (2.1) — esta tela também cria pessoa, então também precisa dele. */
+  cargos: { id: string; nome: string }[];
   podeDefinirSocio: boolean;
   podeExcluir: boolean;
   /** Bypass total (`superUsuario`) só admin concede — mesmo raciocínio de `podeDefinirSocio`. */
@@ -189,7 +192,7 @@ export function UsuariosView({
                 nomeCompleto: form.nomeCompleto,
                 cpf: form.cpf,
                 telefone: form.telefone,
-                cargo: form.cargo,
+                cargoId: form.cargoId,
                 ...(ehClt
                   ? {
                       dataAdmissao: form.dataAdmissao,
@@ -462,7 +465,15 @@ export function UsuariosView({
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="u-cargo">Cargo</Label>
-                    <Input id="u-cargo" value={form.cargo} onChange={(e) => setForm({ ...form, cargo: e.target.value })} />
+                    <select
+                      id="u-cargo"
+                      className="h-9 w-full rounded-sm border border-input bg-background px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      value={form.cargoId}
+                      onChange={(e) => setForm({ ...form, cargoId: e.target.value })}
+                    >
+                      <option value="">— não definido —</option>
+                      {cargos.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                    </select>
                   </div>
                   {CLT_ROLES.includes(form.role) && (
                     <div className="grid grid-cols-2 gap-3">

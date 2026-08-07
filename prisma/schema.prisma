@@ -142,14 +142,28 @@ model User {
   telefoneEmergencia    String?
   contatoEmergenciaNome String?
   emailPessoal          String?
-  // Dados bancários
-  banco                 String?
-  agencia               String?
-  conta                 String?
-  tipoContaBancaria     String? // corrente | poupanca | salario | pagamento
+  // Dados bancários: 1:N em `ContaBancariaColaborador` desde 2.2. As 4 colunas escalares que
+  // existiam aqui (banco/agencia/conta/tipoContaBancaria) foram copiadas e então removidas.
+  /// Conta usada por padrão (folha, reembolso). `@unique` = no máximo uma principal por pessoa,
+  /// garantido pelo schema — mesmo padrão de `vinculoAtivoId`.
+  contaBancariaPrincipalId String?                   @unique
+  contaBancariaPrincipal   ContaBancariaColaborador? @relation("ContaPrincipal", fields: [contaBancariaPrincipalId], references: [id])
   // Profissional
+  /// CACHE do rótulo de `cargoRef` — mesmo padrão de `setor`/`contratacao` acima. Quem escreve
+  /// é o service do catálogo (inclusive ao renomear o Cargo), nunca a tela. Existe para os
+  /// leitores fora do RH não precisarem de join: projetos, dashboard e preferências.
   cargo                 String?
+  /// CACHE do rótulo de `departamentoRef` — mesma regra de `cargo`.
   departamento          String?
+  /// Fonte de verdade do cargo. Nulo = ainda não classificado no catálogo.
+  contasBancarias       ContaBancariaColaborador[] @relation("ContasDoColaborador")
+  historicoContratual   HistoricoContratual[]      @relation("HistoricoDoColaborador")
+  historicoRegistrado   HistoricoContratual[]      @relation("HistoricoAutor")
+  cargoId               String?
+  cargoRef              Cargo?        @relation(fields: [cargoId], references: [id])
+  /// Fonte de verdade do departamento. Nulo = ainda não classificado no catálogo.
+  departamentoId        String?
+  departamentoRef       Departamento? @relation(fields: [departamentoId], references: [id])
   /// Conselho profissional: "CREA" | "CAU" | "CFT" | outro. Nulo = não é profissional registrado.
   conselho              String?
   /// Número do registro no conselho (ex.: "1234567890"). Exibido como "CREA-SP 1234567890".
@@ -252,6 +266,8 @@ model User {
   @@index([tipo, setor])
   @@index([contratacao])
   @@index([perfilId])
+  @@index([cargoId])
+  @@index([departamentoId])
   @@map("user")
 }
 
@@ -297,11 +313,154 @@ model Vinculo {
 
   /// Lado inverso de `User.vinculoAtivoId`.
   usuarioAtivo User? @relation("VinculoAtivo")
+  /// Alterações datadas de cargo/departamento/remuneração DENTRO deste vínculo.
+  historico    HistoricoContratual[]
 
   @@index([userId, dataInicio])
   @@index([userId, ativo])
   @@index([pjId])
   @@map("vinculo")
+}
+
+/// Catálogo de cargos administrado pelo RH — substitui o texto livre que existia em
+/// `User.cargo` e `Vinculo.cargo`.
+///
+/// Cargo é RÓTULO, não autorização: "Sócio" aqui não concede nada. Quem manda em acesso
+/// continua sendo `PerfilAcesso`/`Role`, e a condição de sócio é a relação `Socio`.
+///
+/// Segue o padrão de `DisciplinaCatalogo`: arquiva-se (`ativo = false`) em vez de excluir,
+/// para não quebrar quem já aponta para a linha.
+model Cargo {
+  id           String   @id @default(cuid())
+  nome         String   @unique
+  ativo        Boolean  @default(true)
+  ordem        Int      @default(0)
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  users     User[]
+  historico HistoricoContratual[]
+
+  @@map("cargo")
+}
+
+/// Catálogo de departamentos administrado pelo RH — a subdivisão DENTRO de um setor.
+///
+/// `setor` é o eixo macro (enum, usado por `Vinculo` e perfil de acesso) e continua intocado;
+/// departamento é o recorte fino e opcional. Nulo = departamento ainda não vinculado a um setor.
+model Departamento {
+  id           String   @id @default(cuid())
+  nome         String   @unique
+  setor        Setor?
+  ativo        Boolean  @default(true)
+  ordem        Int      @default(0)
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  users     User[]
+  historico HistoricoContratual[]
+
+  @@index([setor])
+  @@map("departamento")
+}
+
+/// Alteração contratual DATADA de uma pessoa: cargo, departamento e remuneração com vigência.
+///
+/// É tabela-filha do vínculo, não uma nova linha de `Vinculo`. A razão é concreta: o ponto usa
+/// `Vinculo.dataInicio` como PISO DE APURAÇÃO (`modules/ponto/apuracao.ts`). Fechar o vínculo a
+/// cada reajuste faria um aumento no dia 15 jogar os dias 1–14 para fora da janela apurável.
+/// `Vinculo` continua significando "período de vínculo empregatício"; o que muda DENTRO dele
+/// vem para cá.
+///
+/// Cada linha é um SNAPSHOT do estado a partir de `vigenciaEm` — não um par campo/valor. Assim
+/// cargo, departamento e remuneração nunca contam histórias incoerentes entre si, e o "valor
+/// anterior → novo" sai de comparar linhas consecutivas.
+///
+/// O valor VIGENTE é a linha mais recente com `vigenciaEm <= hoje`; `User.salarioBase`,
+/// `User.cargoId` e `User.departamentoId` são cache disso, escritos só por
+/// `modules/rh/contratual/service.ts`.
+model HistoricoContratual {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation("HistoricoDoColaborador", fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Vínculo que cobria a data. Nulo para quem ainda não tem vínculo (backfill não rodou).
+  vinculoId String?
+  vinculo   Vinculo? @relation(fields: [vinculoId], references: [id], onDelete: SetNull)
+
+  vigenciaEm DateTime @db.Date
+
+  cargoId        String?
+  cargo          Cargo?        @relation(fields: [cargoId], references: [id])
+  departamentoId String?
+  departamento   Departamento? @relation(fields: [departamentoId], references: [id])
+  /// Rótulos CONGELADOS na data. Renomear um item de catálogo corrige a grafia do presente —
+  /// não pode reescrever o que estava escrito num registro contratual passado.
+  cargoNome        String?
+  departamentoNome String?
+
+  remuneracao Decimal? @db.Decimal(12, 2)
+
+  /// carga_inicial | admissao | reajuste | promocao | transferencia | correcao
+  motivo     String?
+  observacao String?
+
+  /// Quem registrou. FK de verdade, ao contrário dos `autorId` soltos herdados de outros models.
+  autorId String
+  autor   User   @relation("HistoricoAutor", fields: [autorId], references: [id])
+
+  criadoEm DateTime @default(now())
+
+  @@index([userId, vigenciaEm])
+  @@index([vinculoId])
+  @@index([cargoId])
+  @@index([departamentoId])
+  @@index([autorId])
+  @@map("historico_contratual")
+}
+
+/// Tipo da chave PIX. Determina a validação — ver `modules/rh/contas/pix.ts` (puro, testado).
+enum TipoPix {
+  cpf
+  cnpj
+  email
+  telefone
+  aleatoria
+}
+
+/// Conta bancária DE UM COLABORADOR (1:N). Nome longo de propósito: `ContaBancaria` já existe
+/// e é a conta **da empresa**, do financeiro — os dois não têm relação.
+///
+/// Substitui os 4 escalares que viviam em `User` (banco/agencia/conta/tipoContaBancaria).
+/// A conta principal não é um booleano aqui: é o ponteiro `User.contaBancariaPrincipalId`,
+/// que por ser `@unique` garante no schema, e não em código, no máximo uma principal por
+/// pessoa — mesmo padrão de `User.vinculoAtivoId`.
+model ContaBancariaColaborador {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation("ContasDoColaborador", fields: [userId], references: [id], onDelete: Cascade)
+
+  banco     String?
+  agencia   String?
+  conta     String?
+  /// corrente | poupanca | salario | pagamento
+  tipoConta String?
+  /// Preencher quando a conta não é do próprio colaborador (ex.: conta conjunta).
+  titular   String?
+
+  pixTipo  TipoPix?
+  /// Guardada NORMALIZADA (só dígitos / +55DDD… / minúscula), como `validarChavePix` devolve.
+  pixChave String?
+
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  /// Lado inverso de `User.contaBancariaPrincipalId`.
+  usuarioPrincipal User? @relation("ContaPrincipal")
+
+  @@index([userId])
+  @@map("conta_bancaria_colaborador")
 }
 
 enum TipoTermo {
@@ -3568,9 +3727,18 @@ model Dependente {
   userId     String
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   nome       String
+  cpf        String?
   nascimento DateTime? @db.Date
+  /// Texto livre (select fixo na UI, sem enum) — evita migrar valores desconhecidos de quem
+  /// já tem dependente cadastrado.
   parentesco String?
-  createdAt  DateTime  @default(now())
+  /// Entra na dedução de IRRF da folha (`funcionarios/queries.ts` → `dependentesPorUsuario`).
+  /// Default `false` para linha NOVA: o RH confirma ativamente, em vez de reter IRRF a menos
+  /// por esquecer de desmarcar. As linhas que já existiam antes deste campo foram migradas
+  /// para `true` (preserva o número que a folha já usava).
+  dependenteIrrf Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  atualizadoEm   DateTime @updatedAt
 
   @@index([userId])
   @@map("dependente")

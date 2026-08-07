@@ -16,18 +16,18 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 const selectCls = "h-9 w-full rounded-sm border border-input bg-background px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 export type Cadastro = {
+  nomeCompleto: string | null;
   cpf: string | null; rg: string | null; dataNascimento: string | null; sexo: string | null; estadoCivil: string | null; nacionalidade: string | null;
   enderecoCep: string | null; enderecoLogradouro: string | null; enderecoNumero: string | null; enderecoComplemento: string | null;
   enderecoBairro: string | null; enderecoCidade: string | null; enderecoUf: string | null;
   telefone: string | null; telefoneEmergencia: string | null; contatoEmergenciaNome: string | null; emailPessoal: string | null;
-  banco: string | null; agencia: string | null; conta: string | null; tipoContaBancaria: string | null;
-  cargo: string | null; departamento: string | null; pjId: string | null; pjLabel: string | null;
+  pjId: string | null; pjLabel: string | null;
   conselho: string | null; registroProfissional: string | null; registroUf: string | null;
 };
 
 export type FuncionarioCadastro = {
   id: string; name: string; role: string;
-  salarioBase: number | null; dataAdmissao: string | null;
+  dataAdmissao: string | null;
   cadastro: Cadastro;
 };
 
@@ -47,15 +47,13 @@ export function EditarCadastroDialog({
   const c = funcionario.cadastro;
 
   const [f, setF] = useState({
-    name: funcionario.name,
+    nomeCompleto: s(c.nomeCompleto),
     cpf: s(c.cpf), rg: s(c.rg), dataNascimento: s(c.dataNascimento), sexo: s(c.sexo) || "nao_informado", estadoCivil: s(c.estadoCivil) || "solteiro", nacionalidade: s(c.nacionalidade) || "Brasileira",
     enderecoCep: s(c.enderecoCep), enderecoLogradouro: s(c.enderecoLogradouro), enderecoNumero: s(c.enderecoNumero), enderecoComplemento: s(c.enderecoComplemento),
     enderecoBairro: s(c.enderecoBairro), enderecoCidade: s(c.enderecoCidade), enderecoUf: s(c.enderecoUf),
     telefone: s(c.telefone), telefoneEmergencia: s(c.telefoneEmergencia), contatoEmergenciaNome: s(c.contatoEmergenciaNome), emailPessoal: s(c.emailPessoal),
-    banco: s(c.banco), agencia: s(c.agencia), conta: s(c.conta), tipoContaBancaria: s(c.tipoContaBancaria) || "corrente",
-    cargo: s(c.cargo), departamento: s(c.departamento),
     conselho: s(c.conselho), registroProfissional: s(c.registroProfissional), registroUf: s(c.registroUf),
-    dataAdmissao: s(funcionario.dataAdmissao), salarioBase: funcionario.salarioBase != null ? String(funcionario.salarioBase) : "",
+    dataAdmissao: s(funcionario.dataAdmissao),
     pjId: s(c.pjId),
   });
 
@@ -84,7 +82,6 @@ export function EditarCadastroDialog({
       const res = await editarCadastroFuncionario({
         id: funcionario.id,
         ...f,
-        salarioBase: f.salarioBase ? Number(f.salarioBase.replace(",", ".")) : null,
         pjId: PJ_ROLES.includes(funcionario.role as Role) ? f.pjId : "",
       });
       if (res.ok) {
@@ -112,7 +109,9 @@ export function EditarCadastroDialog({
           <div className="space-y-4">
             <Secao titulo="Dados pessoais">
               <div className="grid gap-3 sm:grid-cols-2">
-                <Campo label="Nome completo"><Input value={f.name} onChange={(e) => set("name", e.target.value)} /></Campo>
+                <Campo label="Nome completo">
+                  <Input value={f.nomeCompleto} onChange={(e) => set("nomeCompleto", e.target.value)} placeholder="Como consta em documentos formais" />
+                </Campo>
                 <Campo label="CPF"><Input value={f.cpf} onChange={(e) => set("cpf", maskCpf(e.target.value))} /></Campo>
               </div>
               <div className="grid gap-3 sm:grid-cols-4">
@@ -151,27 +150,15 @@ export function EditarCadastroDialog({
               </div>
             </Secao>
 
-            <Secao titulo="Dados bancários">
-              <div className="grid gap-3 sm:grid-cols-4">
-                <Campo label="Banco"><Input value={f.banco} onChange={(e) => set("banco", e.target.value)} /></Campo>
-                <Campo label="Agência"><Input value={f.agencia} onChange={(e) => set("agencia", e.target.value)} /></Campo>
-                <Campo label="Conta"><Input value={f.conta} onChange={(e) => set("conta", e.target.value)} /></Campo>
-                <Campo label="Tipo">
-                  <select className={selectCls} value={f.tipoContaBancaria} onChange={(e) => set("tipoContaBancaria", e.target.value)}>
-                    <option value="corrente">Corrente</option><option value="poupanca">Poupança</option><option value="salario">Salário</option><option value="pagamento">Pagamento</option>
-                  </select>
-                </Campo>
-              </div>
-            </Secao>
+            {/* Dados bancários saíram daqui (2.2): viraram lista N:1 e são editados no
+                "Contas bancárias e PIX", na própria aba Cadastro. */}
 
+            {/* Cargo, departamento e salário saíram daqui (2.4): formam um estado contratual
+                com vigência e motivo — editados pelo botão "Registrar alteração contratual"
+                (aba Cadastro/Folha da ficha), não como campos soltos deste dialog. */}
             <Secao titulo="Profissional">
               <div className="grid gap-3 sm:grid-cols-4">
-                <Campo label="Cargo"><Input value={f.cargo} onChange={(e) => set("cargo", e.target.value)} /></Campo>
-                <Campo label="Departamento"><Input value={f.departamento} onChange={(e) => set("departamento", e.target.value)} /></Campo>
                 <Campo label="Admissão"><Input type="date" value={f.dataAdmissao} onChange={(e) => set("dataAdmissao", e.target.value)} /></Campo>
-                <Campo label="Salário (R$)"><Input value={f.salarioBase} onChange={(e) => set("salarioBase", e.target.value)} inputMode="decimal" /></Campo>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-4">
                 <Campo label="Conselho">
                   <select className={selectCls} value={f.conselho} onChange={(e) => set("conselho", e.target.value)}>
                     <option value="">— nenhum —</option>

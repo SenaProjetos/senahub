@@ -10,9 +10,16 @@ import { carregarPontoPessoa } from "@/modules/rh/pessoas/actions";
 import { formatarRegistro } from "@/modules/usuarios/registro";
 import { EscalaGrade } from "@/components/rh/escala-grade";
 import { EditarCadastroDialog, type Cadastro } from "@/components/rh/editar-cadastro-dialog";
+import { ContasBancariasEditor } from "@/components/rh/contas-bancarias-editor";
+import { MinhasContasEditor } from "@/components/rh/minhas-contas-editor";
+import type { PropostaConta } from "@/modules/rh/contas/pendencia";
+import { CadastroIncompletoBadge } from "@/components/rh/cadastro-incompleto-badge";
+import { AlteracaoContratualDialog } from "@/components/rh/alteracao-contratual-dialog";
+import type { ContaColaborador } from "@/modules/rh/contas/queries";
 import { DependentesEditor } from "@/components/rh/dependentes-editor";
 import { DocumentosEditor } from "@/components/rh/documentos-editor";
 import { OverridesUsuario, type OverrideItem } from "@/components/rh/overrides-usuario";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -50,8 +57,20 @@ export type Pessoa360Props = {
   podeEditarCadastro?: boolean;
   /** PJs para o seletor de CNPJ do cadastro (usado só quando `podeEditarCadastro`). */
   pessoasJuridicas?: { id: string; label: string }[];
+  /** Catálogos ativos (2.1) para os selects de cargo/departamento do cadastro. */
+  cargos?: { id: string; nome: string }[];
+  departamentos?: { id: string; nome: string }[];
+  /** Contas bancárias (2.2). `null` = não autorizado a ver — nada bancário chega ao cliente. */
+  contas?: ContaColaborador[] | null;
+  /** Proposta de conta pendente (2.2f) — só relevante quando `self` (auto-serviço). */
+  contaPendente?: PropostaConta | null;
   /** Conteúdo da aba Preferências (auto-serviço) — só a própria conta o recebe. */
   preferenciasSlot?: React.ReactNode;
+  /**
+   * Linha do tempo contratual (2.3). Entra por slot porque é componente de SERVIDOR e esta view
+   * é client — mesmo padrão de `preferenciasSlot`. `undefined` = sem `rh:folha`.
+   */
+  historicoSlot?: React.ReactNode;
   /** Overrides de permissão (Onda C) — vazio quando `!podeGerirAcesso` (a query nem roda). */
   overrides?: OverrideItem[];
   podeGerirAcesso?: boolean;
@@ -97,10 +116,11 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
   );
 }
 
-export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, controlaJornada = false, holerites, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [], preferenciasSlot, overrides = [], podeGerirAcesso = false }: Pessoa360Props) {
+export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, controlaJornada = false, holerites, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [], cargos = [], departamentos = [], contas = null, contaPendente = null, preferenciasSlot, historicoSlot, overrides = [], podeGerirAcesso = false }: Pessoa360Props) {
   // Cadastro no formato do EditarCadastroDialog (junta os escalares + o vínculo PJ do cabeçalho).
   const cadastroDialog: Cadastro | null = cadastro
     ? {
+        nomeCompleto: cadastro.nomeCompleto,
         cpf: cadastro.cpf, rg: cadastro.rg, dataNascimento: cadastro.dataNascimento, sexo: cadastro.sexo,
         estadoCivil: cadastro.estadoCivil, nacionalidade: cadastro.nacionalidade,
         enderecoCep: cadastro.enderecoCep, enderecoLogradouro: cadastro.enderecoLogradouro, enderecoNumero: cadastro.enderecoNumero,
@@ -108,8 +128,6 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
         enderecoCidade: cadastro.enderecoCidade, enderecoUf: cadastro.enderecoUf,
         telefone: cadastro.telefone, telefoneEmergencia: cadastro.telefoneEmergencia,
         contatoEmergenciaNome: cadastro.contatoEmergenciaNome, emailPessoal: cadastro.emailPessoal,
-        banco: cadastro.banco, agencia: cadastro.agencia, conta: cadastro.conta, tipoContaBancaria: cadastro.tipoContaBancaria,
-        cargo: cadastro.cargo, departamento: cadastro.departamento,
         conselho: cadastro.conselho, registroProfissional: cadastro.registroProfissional, registroUf: cadastro.registroUf,
         pjId: pessoa.pj?.id ?? null, pjLabel: pessoa.pj ? `${pessoa.pj.razaoSocial}${pessoa.pj.cnpj ? " · " + pessoa.pj.cnpj : ""}` : null,
       }
@@ -136,6 +154,9 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
   const [aba, setAba] = useState(primeira);
   const [ponto, setPonto] = useState<PontoMes | null>(null);
   const [pontoEstado, setPontoEstado] = useState<"idle" | "carregando" | "pronto" | "erro">("idle");
+  // Um dialog só, compartilhado pelas duas abas (Cadastro e Folha) — evita duas instâncias
+  // de estado divergentes para a mesma alteração.
+  const [alteracaoOpen, setAlteracaoOpen] = useState(false);
 
   useEffect(() => {
     if (aba !== "ponto" || !temPonto || pontoEstado !== "idle") return;
@@ -172,7 +193,13 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                 {pessoa.online ? "Online agora" : "Offline"}
               </span>
               {pessoa.mustChangePassword && <span className="text-xs text-warning">troca de senha pendente</span>}
-              {pessoa.incompleto && <Badge variant="outline" className="border-warning text-warning">cadastro incompleto</Badge>}
+              {pessoa.incompleto && (
+                <CadastroIncompletoBadge
+                  camposFaltantes={pessoa.camposFaltantes}
+                  label="cadastro incompleto"
+                  className="ml-0"
+                />
+              )}
               {pessoa.pendencias.pontoEmAberto && (
                 <Badge variant="outline" className="border-warning text-warning">ponto em aberto</Badge>
               )}
@@ -232,10 +259,10 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                   <EditarCadastroDialog
                     funcionario={{
                       id: pessoa.id,
-                      // O dialog grava em User.name (nome de exibição) — passa o próprio p/ não sobrescrever.
+                      // Só para o título do dialog — o dialog não edita nome de exibição
+                      // (isso é `usuarios-view.tsx`/`editarUsuario`), só `nomeCompleto`.
                       name: pessoa.name,
                       role: pessoa.role,
-                      salarioBase: pessoa.salarioBase,
                       dataAdmissao: pessoa.dataAdmissao,
                       cadastro: cadastroDialog,
                     }}
@@ -267,13 +294,22 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                 <Campo label="Departamento" valor={cadastro.departamento} />
                 <Campo label="Registro profissional" valor={formatarRegistro(cadastro)} />
               </Secao>
-              {podeFolha && (
-                <Secao titulo="Dados bancários">
-                  <Campo label="Banco" valor={cadastro.banco} />
-                  <Campo label="Agência" valor={cadastro.agencia} />
-                  <Campo label="Conta" valor={cadastro.conta} />
-                  <Campo label="Tipo" valor={cadastro.tipoContaBancaria} />
-                </Secao>
+              {podeEditarCadastro && (
+                <div>
+                  <Button size="xs" variant="outline" onClick={() => setAlteracaoOpen(true)}>
+                    Registrar alteração contratual
+                  </Button>
+                </div>
+              )}
+              {/* `contas` só é consultado quando `rh:folha` — sem a permissão vem `null` e nada
+                  bancário trafega no payload, em vez de vir e ser escondido no render.
+                  `self` sempre vê a versão de auto-serviço (propor, não escrever direto) — mesma
+                  regra que já vale hoje pro resto do cadastro: `/minha-ficha` nunca passa
+                  `podeEditarCadastro=true`. */}
+              {contas && (
+                self
+                  ? <MinhasContasEditor contas={contas} pendente={contaPendente} />
+                  : <ContasBancariasEditor pessoaId={pessoa.id} contas={contas} podeEditar={podeEditarCadastro} />
               )}
               <DependentesEditor pessoaId={pessoa.id} dependentes={cadastro.dependentes} podeEditar={podeEditarCadastro} />
               <DocumentosEditor pessoaId={pessoa.id} documentos={cadastro.documentos} podeEditar={podeEditarCadastro} />
@@ -339,7 +375,10 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                     {ausencias.ferias.map((f) => (
                       <li key={f.id} className="flex items-center justify-between gap-3 py-2">
                         <span>{formatarData(f.inicio)} — {formatarData(f.fim)}{f.observacao ? <span className="text-muted-foreground"> · {f.observacao}</span> : null}</span>
-                        <StatusBadge status={f.status} />
+                        <span className="flex shrink-0 items-center gap-2">
+                          {f.lancadaPeloRh && <Badge variant="outline">Lançada pelo RH</Badge>}
+                          <StatusBadge status={f.status} />
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -465,6 +504,22 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                 <Campo label="Salário base" valor={pessoa.salarioBase != null ? brl(pessoa.salarioBase) : null} />
                 <Campo label="Admissão" valor={pessoa.dataAdmissao ? formatarData(pessoa.dataAdmissao) : null} />
               </Secao>
+              {podeEditarCadastro && (
+                <div>
+                  <Button size="xs" variant="outline" onClick={() => setAlteracaoOpen(true)}>
+                    Registrar reajuste / alteração contratual
+                  </Button>
+                </div>
+              )}
+              {historicoSlot && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold">Histórico contratual</h4>
+                  <p className="text-xs text-muted-foreground">
+                    O salário acima é sempre a última vigência desta lista.
+                  </p>
+                  {historicoSlot}
+                </div>
+              )}
               <div className="space-y-2">
                 <h4 className="text-sm font-semibold">Holerites ({holerites?.length ?? 0})</h4>
                 {!holerites || holerites.length === 0 ? (
@@ -558,6 +613,21 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
 
         {preferenciasSlot && <TabsContent value="preferencias">{preferenciasSlot}</TabsContent>}
       </Tabs>
+
+      {podeEditarCadastro && cadastro && (
+        <AlteracaoContratualDialog
+          open={alteracaoOpen}
+          onOpenChange={setAlteracaoOpen}
+          userId={pessoa.id}
+          nome={pessoa.name}
+          cargoAtualId={cadastro.cargoId}
+          departamentoAtualId={cadastro.departamentoId}
+          salarioAtual={pessoa.salarioBase}
+          podeEditarSalario={podeFolha}
+          cargos={cargos}
+          departamentos={departamentos}
+        />
+      )}
     </div>
   );
 }

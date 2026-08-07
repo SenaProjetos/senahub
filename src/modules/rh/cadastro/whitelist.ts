@@ -15,11 +15,11 @@ export const CAMPOS_AUTOEDITAVEIS = [
   { campo: "enderecoBairro", label: "Bairro", grupo: "Endereço", sensivel: false },
   { campo: "enderecoCidade", label: "Cidade", grupo: "Endereço", sensivel: false },
   { campo: "enderecoUf", label: "UF", grupo: "Endereço", sensivel: false },
-  // Dados bancários = vetor de fraude → validação reforçada (marcados como sensíveis na fila do RH).
-  { campo: "banco", label: "Banco", grupo: "Dados bancários", sensivel: true },
-  { campo: "agencia", label: "Agência", grupo: "Dados bancários", sensivel: true },
-  { campo: "conta", label: "Conta", grupo: "Dados bancários", sensivel: true },
-  { campo: "tipoContaBancaria", label: "Tipo de conta", grupo: "Dados bancários", sensivel: true },
+  // Dados bancários SAÍRAM daqui (2.2): deixaram de ser 4 escalares em `User` e viraram
+  // `ContaBancariaColaborador` (1:N). Um diff campo-a-campo não representa mais uma conta, e as
+  // colunas antigas nem existem — manter as chaves aqui faria `aprovarAlteracaoCadastro` gravar
+  // em coluna inexistente. A proposta de conta pelo colaborador volta com fluxo próprio,
+  // por conta e não por campo.
 ] as const;
 
 export type CampoAutoeditavel = (typeof CAMPOS_AUTOEDITAVEIS)[number]["campo"];
