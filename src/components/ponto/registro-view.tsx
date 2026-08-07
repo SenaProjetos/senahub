@@ -1,13 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  Play,
-  Square,
-  Coffee,
-  Utensils,
   Repeat,
   CloudOff,
   Info,
@@ -17,21 +13,10 @@ import {
   AlertTriangle,
   NotebookPen,
 } from "lucide-react";
-import {
-  registrarBatida,
-  trocarProjeto,
-  darCienciaAjuste,
-  contestarAjuste,
-} from "@/modules/ponto/actions";
-import {
-  contarPendentes,
-  enfileirarBatida,
-  enfileirarTroca,
-  estaOffline,
-  sincronizar,
-  type TipoBatida,
-  type Geo,
-} from "@/lib/ponto-offline";
+import { darCienciaAjuste, contestarAjuste } from "@/modules/ponto/actions";
+import { type TipoBatida } from "@/lib/ponto-offline";
+import { useBatida, useCronometro } from "@/components/ponto/use-batida";
+import { ESTADO_LABEL, TIPO_LABEL, BOTAO, COR_ESTADO } from "@/components/ponto/batida-meta";
 import { transicoesPermitidas, type EstadoJornada } from "@/modules/ponto/engine";
 import { fmtHoras } from "@/modules/ponto/format";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -91,73 +76,8 @@ export type AjustePendenteProp = {
   justificativa: string;
 };
 
-const ESTADO_LABEL: Record<EstadoJornada, string> = {
-  fora: "Fora da jornada",
-  trabalhando: "Trabalhando",
-  descansando: "Em descanso",
-};
-
-const TIPO_LABEL: Record<TipoBatida, string> = {
-  entrada: "Entrada",
-  inicio_descanso: "Início do descanso",
-  fim_descanso: "Fim do descanso",
-  saida: "Saída",
-};
-
-const BOTAO: Record<TipoBatida, { label: string; icon: typeof Play; variant?: "default" | "outline" | "destructive" | "secondary" }> = {
-  entrada: { label: "Iniciar jornada", icon: Play, variant: "default" },
-  inicio_descanso: { label: "Iniciar descanso", icon: Coffee, variant: "secondary" },
-  fim_descanso: { label: "Voltar do descanso", icon: Utensils, variant: "default" },
-  saida: { label: "Encerrar jornada", icon: Square, variant: "destructive" },
-};
-
-const SUCESSO: Record<TipoBatida, string> = {
-  entrada: "Jornada iniciada.",
-  inicio_descanso: "Descanso iniciado.",
-  fim_descanso: "De volta ao trabalho.",
-  saida: "Jornada encerrada.",
-};
-
 function hhmm(d: string | Date): string {
   return new Date(d).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-}
-
-/** Captura geolocalização opcional (S6): timeout curto, falha silenciosa. */
-async function capturarGeo(): Promise<Geo> {
-  if (typeof navigator === "undefined" || !navigator.geolocation) return null;
-  return new Promise<Geo>((resolve) => {
-    const done = (g: Geo) => resolve(g);
-    const t = setTimeout(() => done(null), 5000);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        clearTimeout(t);
-        done({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
-      },
-      () => {
-        clearTimeout(t);
-        done(null);
-      },
-      { timeout: 5000, maximumAge: 60_000 },
-    );
-  });
-}
-
-/** Cronômetro do trabalho do dia, ao vivo quando trabalhando. */
-function useTrabalhadoVivo(estadoDia: EstadoDiaProp): number {
-  const baseMs = estadoDia.trabalhadoMin * 60_000;
-  const ancora = new Date(estadoDia.agora).getTime();
-  const [ms, setMs] = useState(baseMs);
-  useEffect(() => {
-    if (estadoDia.estado !== "trabalhando") {
-      setMs(baseMs);
-      return;
-    }
-    const tick = () => setMs(baseMs + (Date.now() - ancora));
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [estadoDia.estado, baseMs, ancora]);
-  return ms;
 }
 
 function Relogio({ ms, ativo }: { ms: number; ativo: boolean }) {
@@ -319,86 +239,16 @@ export function RegistroPonto({
   /** Disciplinas em que o usuário pode escrever no diário, por projeto — projeto sem nenhuma não entra aqui (atalho some). */
   diarioPorProjeto: Record<string, DisciplinaEscrevivel[]>;
 }) {
-  const router = useRouter();
   const [projetoId, setProjetoId] = useState(estadoDia.projetoAtivo?.id ?? NONE);
-  const [busy, setBusy] = useState(false);
-  const [pendentes, setPendentes] = useState(0);
+  const { bater, trocar, busy, pendentes, sincronizarFila } = useBatida();
 
-  const trabalhadoMs = useTrabalhadoVivo(estadoDia);
+  const trabalhadoMs = useCronometro(
+    estadoDia.trabalhadoMin,
+    estadoDia.agora,
+    estadoDia.estado === "trabalhando",
+  );
   const permitidas = transicoesPermitidas(estadoDia.estado);
   const proj = (id: string) => (id === NONE ? undefined : id);
-
-  async function bater(tipo: TipoBatida) {
-    const geo = await capturarGeo();
-    const payload = { projetoId: proj(projetoId), geo };
-    if (estaOffline()) {
-      enfileirarBatida(tipo, payload);
-      setPendentes(contarPendentes());
-      toast.info("Sem conexão — batida salva e será enviada ao reconectar.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const r = await registrarBatida({ tipo, projetoId: proj(projetoId), geo });
-      if (r.ok) {
-        toast.success(SUCESSO[tipo]);
-        router.refresh();
-      } else {
-        toast.error(r.error);
-      }
-    } catch {
-      enfileirarBatida(tipo, payload);
-      setPendentes(contarPendentes());
-      toast.info("Sem conexão — batida salva e será enviada ao reconectar.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function trocar() {
-    const payload = { projetoId: proj(projetoId) };
-    if (estaOffline()) {
-      enfileirarTroca(payload);
-      setPendentes(contarPendentes());
-      toast.info("Sem conexão — troca salva e será enviada ao reconectar.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const r = await trocarProjeto({ projetoId: proj(projetoId) });
-      if (r.ok) {
-        toast.success("Projeto trocado.");
-        router.refresh();
-      } else {
-        toast.error(r.error);
-      }
-    } catch {
-      enfileirarTroca(payload);
-      setPendentes(contarPendentes());
-      toast.info("Sem conexão — troca salva e será enviada ao reconectar.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const sincronizarFila = useCallback(async () => {
-    if (contarPendentes() === 0) return;
-    const { sincronizados, falhas } = await sincronizar({ registrarBatida, trocar: trocarProjeto });
-    setPendentes(contarPendentes());
-    if (sincronizados > 0) {
-      toast.success(`${sincronizados} batida(s) sincronizada(s).`);
-      router.refresh();
-    }
-    for (const f of falhas) toast.error(`Batida offline rejeitada: ${f}`);
-  }, [router]);
-
-  useEffect(() => {
-    setPendentes(contarPendentes());
-    void sincronizarFila();
-    const onOnline = () => void sincronizarFila();
-    window.addEventListener("online", onOnline);
-    return () => window.removeEventListener("online", onOnline);
-  }, [sincronizarFila]);
 
   const podeEscolherProjeto = estadoDia.estado === "fora" || estadoDia.estado === "descansando";
 
@@ -418,16 +268,7 @@ export function RegistroPonto({
         <div className="flex flex-col items-center gap-2">
           <Relogio ms={trabalhadoMs} ativo={estadoDia.estado === "trabalhando"} />
           <div className="flex items-center gap-2 text-sm">
-            <span
-              className={`size-2 rounded-full ${
-                estadoDia.estado === "trabalhando"
-                  ? "animate-pulse bg-success"
-                  : estadoDia.estado === "descansando"
-                    ? "bg-warning"
-                    : "bg-muted-foreground/40"
-              }`}
-              aria-hidden
-            />
+            <span className={`size-2 rounded-full ${COR_ESTADO[estadoDia.estado]}`} aria-hidden />
             <span className="text-muted-foreground">{ESTADO_LABEL[estadoDia.estado]}</span>
             {estadoDia.projetoAtivo && estadoDia.estado === "trabalhando" && (
               <span className="text-muted-foreground">
@@ -457,7 +298,7 @@ export function RegistroPonto({
             </SelectContent>
           </Select>
           {estadoDia.estado === "trabalhando" && (
-            <Button variant="outline" disabled={busy} onClick={trocar}>
+            <Button variant="outline" disabled={busy} onClick={() => void trocar(proj(projetoId))}>
               <Repeat className="size-4" /> Trocar projeto
             </Button>
           )}
@@ -469,7 +310,12 @@ export function RegistroPonto({
             const b = BOTAO[tipo];
             const Icon = b.icon;
             return (
-              <Button key={tipo} variant={b.variant} disabled={busy} onClick={() => bater(tipo)}>
+              <Button
+                key={tipo}
+                variant={b.variant}
+                disabled={busy}
+                onClick={() => void bater(tipo, proj(projetoId))}
+              >
                 <Icon className="size-4" /> {b.label}
               </Button>
             );

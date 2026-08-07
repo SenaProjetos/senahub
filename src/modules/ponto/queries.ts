@@ -72,14 +72,11 @@ export type EstadoDia = {
 };
 
 /**
- * Estado da jornada CORRENTE do usuário (a que uma nova batida afetaria) — base
- * da tela de registro. Resolve jornada que cruza a meia-noite pelo dia da
- * entrada; se a última jornada está fechada, mostra a timeline do dia de hoje.
+ * Batidas da jornada CORRENTE (a que uma nova batida afetaria): se a última
+ * jornada ainda está aberta, são as do dia DELA — mesmo que tenha cruzado a
+ * meia-noite; senão, as de hoje (dia novo, pode reabrir turno).
  */
-export async function estadoDoDia(userId: string): Promise<EstadoDia> {
-  const agora = new Date();
-  const diaHoje = diaLocalDate(agora);
-
+async function batidasCorrentes(userId: string, agora: Date): Promise<BatidaDia[]> {
   const ultima = await prisma.batida.findFirst({
     where: { userId },
     orderBy: { horario: "desc" },
@@ -88,7 +85,6 @@ export async function estadoDoDia(userId: string): Promise<EstadoDia> {
 
   const selBatida = { id: true, tipo: true, horario: true, projetoId: true, editada: true } as const;
 
-  let batidas: BatidaDia[] = [];
   if (ultima) {
     const doDia = (await prisma.batida.findMany({
       where: { userId, dia: ultima.dia },
@@ -96,18 +92,88 @@ export async function estadoDoDia(userId: string): Promise<EstadoDia> {
       select: selBatida,
     })) as BatidaDia[];
     const est = calcularDia(doDia, agora, false).estado;
-    if (est !== "fora") {
-      batidas = doDia; // jornada aberta (mesmo cruzando a meia-noite)
-    }
+    if (est !== "fora") return doDia; // jornada aberta (mesmo cruzando a meia-noite)
   }
-  if (batidas.length === 0) {
-    // Jornada fechada ou inexistente → timeline do dia de hoje (pode reabrir turno).
-    batidas = (await prisma.batida.findMany({
-      where: { userId, dia: diaHoje },
-      orderBy: { horario: "asc" },
-      select: selBatida,
-    })) as BatidaDia[];
-  }
+
+  return (await prisma.batida.findMany({
+    where: { userId, dia: diaLocalDate(agora) },
+    orderBy: { horario: "asc" },
+    select: selBatida,
+  })) as BatidaDia[];
+}
+
+/** Resumo enxuto da jornada corrente — miniatura do header (sem timeline nem histórico). */
+export type ResumoJornada = {
+  estado: EstadoJornada;
+  trabalhadoMin: number;
+  descansoMin: number;
+  projetoAtivo: { id: string; codigo: string; nome: string } | null;
+  /**
+   * Projeto da última sessão da jornada corrente — usado pelo header ao voltar do
+   * descanso, para reabrir no mesmo projeto sem exigir o seletor da tela cheia.
+   */
+  retomarProjeto: { id: string; codigo: string; nome: string } | null;
+  /** Instante do cálculo no servidor — âncora do cronômetro ao vivo no cliente. */
+  agora: Date;
+};
+
+/**
+ * Payload da miniatura do header (`buscarResumoJornada` em `actions.ts`): ponto para quem
+ * controla jornada, apontamento de horas para PJ/freelancer (ver `apontamento.ts`). Mora
+ * aqui, e não no componente, para que a action e o widget compartilhem UM tipo — divergência
+ * entre os dois quebra o tsc em vez de sumir silenciosamente da tela.
+ */
+export type ResumoHeader =
+  | ({ modo: "ponto" } & ResumoJornada)
+  | {
+      modo: "apontamento";
+      aberto: {
+        inicio: Date;
+        projetoId: string | null;
+        projeto: { codigo: string; nome: string } | null;
+      } | null;
+      hojeMin: number;
+      agora: Date;
+    };
+
+/**
+ * Versão leve de `estadoDoDia` para o relógio do header: mesmas regras de jornada
+ * corrente (incluindo a que cruza a meia-noite), sem `montarTimeline` nem os
+ * acumulados por projeto — é lida em polling, precisa ser barata.
+ */
+export async function resumoJornada(userId: string): Promise<ResumoJornada> {
+  const agora = new Date();
+  const batidas = await batidasCorrentes(userId, agora);
+  const calc = calcularDia(batidas, agora, true);
+
+  // Trabalhando → sessão aberta; em descanso → última sessão fechada (para retomar no mesmo projeto).
+  const sessao =
+    calc.estado === "fora"
+      ? null
+      : await prisma.sessaoTrabalho.findFirst({
+          where: { userId, ...(calc.estado === "trabalhando" ? { fim: null } : {}) },
+          orderBy: { inicio: "desc" },
+          select: { projeto: { select: { id: true, codigo: true, nome: true } } },
+        });
+
+  return {
+    estado: calc.estado,
+    trabalhadoMin: calc.trabalhadoMin,
+    descansoMin: calc.descansoMin,
+    projetoAtivo: calc.estado === "trabalhando" ? sessao?.projeto ?? null : null,
+    retomarProjeto: sessao?.projeto ?? null,
+    agora,
+  };
+}
+
+/**
+ * Estado da jornada CORRENTE do usuário (a que uma nova batida afetaria) — base
+ * da tela de registro. Resolve jornada que cruza a meia-noite pelo dia da
+ * entrada; se a última jornada está fechada, mostra a timeline do dia de hoje.
+ */
+export async function estadoDoDia(userId: string): Promise<EstadoDia> {
+  const agora = new Date();
+  const batidas = await batidasCorrentes(userId, agora);
 
   const calc = calcularDia(batidas, agora, true);
 

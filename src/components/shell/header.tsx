@@ -7,6 +7,7 @@ import { UserMenu } from "@/components/shell/user-menu";
 import { MobileNav } from "@/components/shell/mobile-nav";
 import { NotificationBell } from "@/components/notificacoes/notification-bell";
 import { AgendaResumo } from "@/components/agenda/agenda-resumo";
+import { JornadaHeader } from "@/components/ponto/jornada-header";
 import { Breadcrumb } from "@/components/shell/breadcrumb";
 import { NAV_GROUPS } from "@/lib/nav-config";
 import type { Role } from "@/lib/roles";
@@ -38,6 +39,9 @@ export function Header({
         </div>
       </div>
       <div className="flex items-center gap-1.5">
+        {/* Relógio da jornada antes da busca: dois relógios mono lado a lado (jornada +
+            agenda) se confundem — a busca separa os dois visualmente. */}
+        <JornadaHeader />
         <button
           type="button"
           data-tour="busca"

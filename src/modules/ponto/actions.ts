@@ -5,10 +5,17 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { INTERNAL_ROLES, CLT_ROLES } from "@/lib/roles";
+import { INTERNAL_ROLES, CLT_ROLES, PJ_ROLES } from "@/lib/roles";
 import { notificar } from "@/lib/notificar";
+import { getSession } from "@/lib/session";
 import { aplicarBatida, editarDia } from "@/modules/ponto/service";
-import { espelhoDetalhado } from "@/modules/ponto/queries";
+import { apontamentoAtual } from "@/modules/ponto/apontamento";
+import {
+  espelhoDetalhado,
+  projetosDoUsuario,
+  resumoJornada,
+  type ResumoHeader,
+} from "@/modules/ponto/queries";
 import { diaLocal } from "@/modules/ponto/engine";
 import {
   ajustePontoProprioSchema,
@@ -26,6 +33,40 @@ import type { Prisma } from "@/generated/prisma/client";
  */
 const base = { modulo: "rh", roles: INTERNAL_ROLES } as const;
 const rev = () => revalidatePath("/ponto");
+
+/**
+ * Resumo da jornada corrente para a miniatura do header (lida em polling, não é mutação →
+ * fora do `defineAction`, como `buscarAgendaHoje`). O gate de role é explícito: Server Action
+ * é endpoint público, e `cliente` não pode ler estado de jornada de ninguém.
+ * PJ/freelancer recebem o APONTAMENTO (sem vocabulário de ponto) — ver `apontamento.ts`.
+ */
+export async function buscarResumoJornada(): Promise<ResumoHeader | null> {
+  const session = await getSession();
+  const user = session?.user;
+  if (!user || !user.ativo || !INTERNAL_ROLES.includes(user.role)) return null;
+
+  if (PJ_ROLES.includes(user.role)) {
+    const { aberto, hojeMin } = await apontamentoAtual(user.id);
+    return {
+      modo: "apontamento" as const,
+      aberto: aberto
+        ? { inicio: aberto.inicio, projetoId: aberto.projetoId, projeto: aberto.projeto }
+        : null,
+      hojeMin,
+      agora: new Date(),
+    };
+  }
+
+  return { modo: "ponto" as const, ...(await resumoJornada(user.id)) };
+}
+
+/** Projetos do seletor da miniatura do header — mesmo gate/leitura do seletor da tela `/ponto`. */
+export async function buscarProjetosPonto() {
+  const session = await getSession();
+  const user = session?.user;
+  if (!user || !user.ativo || !INTERNAL_ROLES.includes(user.role)) return [];
+  return projetosDoUsuario(user.id);
+}
 
 const projetoOpt = z.string().optional().or(z.literal(""));
 
