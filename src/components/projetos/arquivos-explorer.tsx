@@ -32,7 +32,7 @@ import type {
   ArvoreDisciplina,
   ArvoreArquivoItem,
 } from "@/modules/projetos/arquivos/queries";
-import { renomearUpload, excluirUpload, excluirUploadsLote, validarArquivosLote, restaurarUpload, excluirUploadDefinitivo } from "@/modules/uploads/actions";
+import { renomearUpload, excluirUpload, excluirUploadsLote, validarArquivosLote, restaurarUpload, excluirUploadDefinitivo, solicitarExclusaoUpload } from "@/modules/uploads/actions";
 import type { LixeiraItem } from "@/modules/uploads/queries";
 import type { ArtListItem } from "@/modules/projetos/art/queries";
 import { LABEL_SITUACAO_ART, rotuloArt } from "@/modules/projetos/art/service";
@@ -55,7 +55,7 @@ import type { PastaFlat } from "@/modules/projetos/pastas/arvore";
 // compartilhada com a geração de .zip, para o zip espelhar a árvore desta tela.
 import { SUBPASTAS, PACOTES, PACOTE_LABEL, extDe, subpastaDe } from "@/modules/uploads/estrutura";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
-import { DocumentoViewer } from "@/components/projetos/documento-viewer";
+import { PreviewPdfButton } from "@/components/pdf/preview-pdf-button";
 import { VisualizarDwgButton } from "@/components/dwg/visualizar-dwg-button";
 import { refDocumentoDwg } from "@/modules/dwg/desenho-ref";
 import { LinkPublicoArquivosButton } from "@/components/projetos/link-publico-arquivos-dialog";
@@ -88,36 +88,6 @@ const CATEGORIAS_GERAL = ["contrato", "planta", "memorial", "foto", "administrat
 // `extDe` reexportado para compatibilidade com quem importava daqui.
 export { extDe };
 
-/**
- * Botão de pré-visualização (só PDF): abre o documento num visualizador
- * somente-leitura (zoom, sem apontamentos). Nada para arquivos não-PDF.
- */
-function PreviewPdfButton({ nomeArquivo, url, titulo }: { nomeArquivo: string; url: string; titulo: string }) {
-  const [aberto, setAberto] = useState(false);
-  if (extDe(nomeArquivo) !== "pdf") return null;
-  return (
-    <>
-      <button
-        type="button"
-        className="shrink-0 text-muted-foreground hover:text-foreground"
-        aria-label={`Visualizar ${titulo}`}
-        title="Visualizar (PDF)"
-        onClick={() => setAberto(true)}
-      >
-        <Eye className="size-3.5" />
-      </button>
-      <Dialog open={aberto} onOpenChange={setAberto}>
-        <DialogContent className="flex h-[92svh] w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">
-          <DialogHeader className="border-b px-4 py-2">
-            <DialogTitle className="truncate text-sm">{titulo}</DialogTitle>
-            <DialogDescription className="sr-only">Pré-visualização somente leitura do PDF.</DialogDescription>
-          </DialogHeader>
-          {aberto && <DocumentoViewer url={url} />}
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
 /** Separa nome em base + extensão (com o ponto, no case original). `.env`/sem ponto → sem extensão. */
 function separarExt(nome: string): { base: string; ext: string } {
   const i = nome.lastIndexOf(".");
@@ -284,6 +254,8 @@ function LinhaArquivo({
   projetoId,
   onRenomear,
   onExcluir,
+  onSolicitarExclusao,
+  pendentesExclusao,
   podeValidar,
   foraPadrao,
   anteriores,
@@ -294,6 +266,10 @@ function LinhaArquivo({
   projetoId: string;
   onRenomear?: (a: ArvoreArquivoItem) => void;
   onExcluir?: (a: ArvoreArquivoItem) => void;
+  /** Só para quem NÃO pode excluir: abre o pedido de exclusão (com justificativa). */
+  onSolicitarExclusao?: (a: ArvoreArquivoItem) => void;
+  /** Ids (por versão) com pedido de exclusão pendente — desarma o botão de pedir. */
+  pendentesExclusao?: Set<string>;
   podeValidar?: boolean;
   foraPadrao?: boolean;
   /** Versões anteriores deste arquivo (só na linha "atual"); expandidas no acordeão. */
@@ -400,6 +376,26 @@ function LinhaArquivo({
             <Trash2 className="size-3.5" />
           </button>
         )}
+        {!onExcluir && onSolicitarExclusao && (
+          pendentesExclusao?.has(a.id) ? (
+            <span
+              className="flex shrink-0 items-center gap-1 text-xs text-warning"
+              title="Já existe um pedido de exclusão aguardando decisão de um administrador."
+            >
+              <Trash2 className="size-3.5" /> exclusão solicitada
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="shrink-0 text-muted-foreground hover:text-destructive"
+              aria-label={historico ? `Solicitar exclusão da versão ${a.versao} de ${a.nome}` : `Solicitar exclusão de ${a.nome}`}
+              title="Solicitar exclusão (um administrador decide)"
+              onClick={() => onSolicitarExclusao(a)}
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+          )
+        )}
       </div>
       {temVersoes &&
         verVersoes &&
@@ -410,6 +406,8 @@ function LinhaArquivo({
             nivel={nivel + 1}
             projetoId={projetoId}
             onExcluir={onExcluir}
+            onSolicitarExclusao={onSolicitarExclusao}
+            pendentesExclusao={pendentesExclusao}
             historico
           />
         ))}
@@ -476,6 +474,70 @@ function RenomearDialog({ item, onClose }: { item: ArvoreArquivoItem | null; onC
   );
 }
 
+/**
+ * Pedido de exclusão para quem não tem permissão de excluir: o arquivo NÃO sai do lugar,
+ * o pedido vai para a fila de Aprovações e notifica os administradores. A justificativa é
+ * obrigatória (mínimo 10 caracteres — o mesmo piso validado no schema da action).
+ */
+function SolicitarExclusaoDialog({ item, onClose }: { item: ArvoreArquivoItem | null; onClose: () => void }) {
+  const router = useRouter();
+  const [justificativa, setJustificativa] = useState("");
+  const [lastId, setLastId] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+
+  if (item && item.id !== lastId) {
+    setLastId(item.id);
+    setJustificativa("");
+  }
+
+  function enviar() {
+    if (!item || justificativa.trim().length < 10) return;
+    start(async () => {
+      const r = await solicitarExclusaoUpload({ uploadId: item.id, justificativa });
+      if (r.ok) {
+        toast.success("Pedido enviado — um administrador vai decidir.");
+        onClose();
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  return (
+    <Dialog open={!!item} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Solicitar exclusão</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">{item?.nome}</span> continua no projeto até que um
+            administrador aprove o pedido.
+          </p>
+          <div className="space-y-1.5">
+            <Label htmlFor="justificativa-exclusao">Por que este arquivo deve ser excluído?</Label>
+            <textarea
+              id="justificativa-exclusao"
+              rows={3}
+              maxLength={1000}
+              autoFocus
+              className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
+              placeholder="Ex.: enviado na disciplina errada; substituído pela revisão R02."
+              value={justificativa}
+              onChange={(e) => setJustificativa(e.target.value)}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={enviar} disabled={pending || justificativa.trim().length < 10}>
+            {pending ? "Enviando…" : "Enviar pedido"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /** Conta arquivos lógicos (distintos), ignorando versões — mesma `(pacote, nome)` = um arquivo. */
 function contarArquivos(arquivos: ArvoreArquivoItem[]): number {
   return new Set(arquivos.map((a) => `${a.pacote}/${a.nome}`)).size;
@@ -525,10 +587,14 @@ export function ArquivosExplorer({
   podeValidar,
   nomenclatura,
   recebidos,
+  baseArquitetonica,
+  podeGerirBaseArquitetonica,
   clienteId,
   podeGerirRecebidos,
   podeExcluirDocumento,
   podeExcluirArquivo,
+  podeSolicitarExclusao,
+  exclusoesPendentes,
   lixeira,
   podeGerirLink,
   baseUrl,
@@ -543,12 +609,19 @@ export function ArquivosExplorer({
   podeValidar: boolean;
   nomenclatura: { exigir: boolean; padrao: string | null };
   recebidos: DocumentoItem[];
+  /** Pasta "Base Arquitetônica" (referência fixa do projeto) — sempre renderizada, mesmo vazia. */
+  baseArquitetonica: DocumentoItem[];
+  podeGerirBaseArquitetonica: boolean;
   clienteId: string | null;
   podeGerirRecebidos: boolean;
   /** Excluir Documento (Recebidos/Geral) é restrito a admin/supervisor — mais estreito que podeGerir (upload/nova versão). */
   podeExcluirDocumento: boolean;
   /** Excluir arquivo de disciplina (Upload) é override só-admin, com confirmação. */
   podeExcluirArquivo: boolean;
+  /** Quem NÃO pode excluir pode PEDIR a exclusão (justificativa → admin decide). */
+  podeSolicitarExclusao: boolean;
+  /** Uploads com pedido de exclusão pendente visíveis para este usuário. */
+  exclusoesPendentes: string[];
   /** Arquivos na lixeira do projeto (só admin recebe; vazio p/ os demais). */
   lixeira: LixeiraItem[];
   /** Pode gerir o link público de arquivos (projetos:gerir). */
@@ -572,6 +645,7 @@ export function ArquivosExplorer({
   const [excluindoPend, excluindo] = useTransition();
   const [validandoPend, validando] = useTransition();
   const [renomeando, setRenomeando] = useState<ArvoreArquivoItem | null>(null);
+  const [pedindoExclusao, setPedindoExclusao] = useState<ArvoreArquivoItem | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
 
   // Entregáveis validáveis por disciplina (versão atual, pacote A/B, disciplina não finalizada) —
@@ -626,6 +700,9 @@ export function ArquivosExplorer({
     },
     [confirm, router],
   );
+  // Pedido de exclusão (quem não pode excluir): abre o diálogo da justificativa.
+  const pendentesExclusao = useMemo(() => new Set(exclusoesPendentes), [exclusoesPendentes]);
+  const solicitarExclusao = useCallback((a: ArvoreArquivoItem) => setPedindoExclusao(a), []);
   // Envio em lote da seleção para a lixeira (só admin — botão gateado por podeExcluirArquivo).
   const excluirSelecionados = useCallback(() => {
     void (async () => {
@@ -681,7 +758,9 @@ export function ArquivosExplorer({
   const temRecebidos = recebidos.length > 0 || podeGerirRecebidos;
   // Admin sempre vê a lixeira (mesmo vazia) — é onde os excluídos ficam por 30 dias.
   const mostrarLixeira = podeExcluirArquivo;
-  const vazio =
+  // "Base Arquitetônica" é sempre renderizada (mesmo sem nenhum arquivo) — não conta
+  // pra "vazio", que descreve só o RESTO (disciplinas/Recebidos/Geral/lixeira).
+  const vazioResto =
     totais.total === 0 && !podeGerirGeral && !temRecebidos && !mostrarLixeira && disciplinas.length === 0;
 
   return (
@@ -741,10 +820,19 @@ export function ArquivosExplorer({
       <SelecaoCtx.Provider value={ctxSelecao}>
         <Card>
           <CardContent className="p-2">
-            {vazio ? (
+            <div className="divide-y">
+              <PastaBaseArquitetonica
+                projetoId={projeto.id}
+                clienteId={clienteId}
+                arquivos={baseArquitetonica}
+                podeGerir={podeGerirBaseArquitetonica}
+                podeExcluir={podeExcluirDocumento}
+              />
+            </div>
+            {vazioResto ? (
               <EmptyState
                 icon={FolderOpen}
-                title="Nenhum arquivo"
+                title="Nenhum outro arquivo"
                 description="Envie arquivos pelo painel da disciplina ou pelo formulário acima."
               />
             ) : (
@@ -861,6 +949,8 @@ export function ArquivosExplorer({
                                       projetoId={projeto.id}
                                       onRenomear={d.podeEnviar ? setRenomeando : undefined}
                                       onExcluir={podeExcluirArquivo ? excluirArquivo : undefined}
+                                      onSolicitarExclusao={podeSolicitarExclusao ? solicitarExclusao : undefined}
+                                      pendentesExclusao={pendentesExclusao}
                                       podeValidar={podeValidarDisc && idsValidaveis.has(atual.id)}
                                       foraPadrao={
                                         nomenclatura.exigir &&
@@ -889,6 +979,7 @@ export function ArquivosExplorer({
       </SelecaoCtx.Provider>
 
       <RenomearDialog item={renomeando} onClose={() => setRenomeando(null)} />
+      <SolicitarExclusaoDialog item={pedindoExclusao} onClose={() => setPedindoExclusao(null)} />
     </div>
   );
 }
@@ -953,7 +1044,7 @@ function LinhaVersaoDocumento({
         {formatarData(v.criadoEm)}
       </span>
       <span className="shrink-0 font-mono text-xs">{fmtBytes(v.tamanho)}</span>
-      <PreviewPdfButton nomeArquivo={v.nomeArquivo} url={v.downloadUrl} titulo={`${nome} v${v.numero}`} />
+      <PreviewPdfButton visivel={extDe(v.nomeArquivo) === "pdf"} url={v.downloadUrl} titulo={`${nome} v${v.numero}`} />
       <VisualizarDwgButton desenhoId={refDocumentoDwg(v.id)} nomeArquivo={v.nomeArquivo} titulo={`${nome} v${v.numero}`} />
       <a
         href={v.downloadUrl}
@@ -1142,7 +1233,7 @@ function RecebidosPasta({
                     {d.atual ? fmtBytes(d.atual.tamanho) : "—"}
                   </span>
                   {d.atual && (
-                    <PreviewPdfButton nomeArquivo={d.atual.nomeArquivo} url={d.atual.downloadUrl} titulo={d.nome} />
+                    <PreviewPdfButton visivel={extDe(d.atual.nomeArquivo) === "pdf"} url={d.atual.downloadUrl} titulo={d.nome} />
                   )}
                   {d.atual && (
                     <VisualizarDwgButton desenhoId={refDocumentoDwg(d.atual.id)} nomeArquivo={d.atual.nomeArquivo} titulo={d.nome} />
@@ -1187,6 +1278,222 @@ function RecebidosPasta({
                       v={v}
                       nome={d.nome}
                       podeExcluir={podeExcluir && d.origem !== "interno"}
+                      pending={pending}
+                      onExcluir={() => excluirVersao(v.id)}
+                    />
+                  ))}
+              </Fragment>
+            );
+          })
+        )}
+      </Pasta>
+    </>
+  );
+}
+
+// ── Pasta "Base Arquitetônica": Documento(origem=base_arquitetonica), referência fixa
+// do projeto (ex.: base do arquiteto) — visível a todas as disciplinas, sem gate extra
+// de capability, mesmo espírito de "Recebidos do cliente" mas em pasta própria. Sempre
+// renderizada pelo caller (mesmo sem nenhum arquivo ainda) — não entra na conta de "vazio".
+
+function PastaBaseArquitetonica({
+  projetoId,
+  clienteId,
+  arquivos,
+  podeGerir,
+  podeExcluir,
+}: {
+  projetoId: string;
+  clienteId: string | null;
+  arquivos: DocumentoItem[];
+  podeGerir: boolean;
+  podeExcluir: boolean;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [busy, setBusy] = useState(false);
+  const fileNovo = useRef<HTMLInputElement>(null);
+  const fileVersao = useRef<HTMLInputElement>(null);
+  const [alvoVersao, setAlvoVersao] = useState<string | null>(null);
+  const [versoesAbertas, setVersoesAbertas] = useState<Set<string>>(new Set());
+  const alternarVersoes = (id: string) =>
+    setVersoesAbertas((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+
+  function excluirVersao(versaoId: string) {
+    start(async () => {
+      const r = await excluirVersaoDocumento({ versaoId });
+      if (r.ok) {
+        toast.success("Versão excluída.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  async function enviarNovos(files: File[]) {
+    if (files.length === 0) return;
+    setBusy(true);
+    try {
+      let ok = 0;
+      for (const file of files) {
+        try {
+          const meta = await subirDocumento(file, projetoId, clienteId);
+          const r = await criarDocumento({ projetoId, nome: file.name, origem: "base_arquitetonica", meta });
+          if (r.ok) ok += 1;
+          else toast.error(`${file.name}: ${r.error}`);
+        } catch (e) {
+          toast.error(`${file.name}: ${(e as Error).message}`);
+        }
+      }
+      if (ok > 0) toast.success(`${ok} arquivo(s) enviado(s).`);
+      router.refresh();
+    } finally {
+      setBusy(false);
+      if (fileNovo.current) fileNovo.current.value = "";
+    }
+  }
+
+  async function enviarVersao(documentoId: string, file: File) {
+    setBusy(true);
+    try {
+      const meta = await subirDocumento(file, projetoId, clienteId);
+      const r = await adicionarVersaoDocumento({ documentoId, meta });
+      if (r.ok) {
+        toast.success(`Versão ${r.data.numero} adicionada.`);
+        router.refresh();
+      } else toast.error(r.error);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+      setAlvoVersao(null);
+    }
+  }
+
+  function excluir(id: string) {
+    start(async () => {
+      const r = await excluirDocumento({ id });
+      if (r.ok) router.refresh();
+      else toast.error(r.error);
+    });
+  }
+
+  return (
+    <>
+      <input
+        ref={fileVersao}
+        type="file"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f && alvoVersao) enviarVersao(alvoVersao, f);
+          e.target.value = "";
+        }}
+      />
+      <Pasta
+        nome="Base Arquitetônica"
+        contagem={arquivos.length}
+        nivel={0}
+        acao={
+          podeGerir ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 gap-1 px-2 text-xs"
+              disabled={busy}
+              onClick={() => fileNovo.current?.click()}
+            >
+              <UploadIcon className="size-3.5" /> {busy ? "Enviando…" : "Enviar"}
+            </Button>
+          ) : undefined
+        }
+      >
+        <input
+          ref={fileNovo}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => enviarNovos(Array.from(e.target.files ?? []))}
+        />
+        {arquivos.length === 0 ? (
+          <p className="py-1.5 pl-10 text-xs text-muted-foreground">
+            Referência arquitetônica do projeto (ex.: base do arquiteto), visível a todas as disciplinas. Nada enviado ainda.
+          </p>
+        ) : (
+          arquivos.map((d) => {
+            const anteriores = d.versoes.slice(1);
+            const aberto = versoesAbertas.has(d.id);
+            return (
+              <Fragment key={d.id}>
+                <div
+                  className="flex items-center gap-2 rounded-sm py-1 pr-2 text-sm hover:bg-muted/40"
+                  style={{ paddingLeft: "1.75rem" }}
+                >
+                  <IconeArquivo nome={d.atual?.nomeArquivo ?? d.nome} />
+                  <span className="min-w-0 flex-1 truncate" title={d.nome}>
+                    {d.nome}
+                    {d.totalVersoes > 1 && <span className="ml-1 font-mono text-xs text-muted-foreground">v{d.atual?.numero}</span>}
+                  </span>
+                  {anteriores.length > 0 && (
+                    <VersaoToggle
+                      n={anteriores.length}
+                      aberto={aberto}
+                      onClick={() => alternarVersoes(d.id)}
+                      nome={d.nome}
+                    />
+                  )}
+                  <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                    {d.atual ? fmtBytes(d.atual.tamanho) : "—"}
+                  </span>
+                  {d.atual && (
+                    <PreviewPdfButton visivel={extDe(d.atual.nomeArquivo) === "pdf"} url={d.atual.downloadUrl} titulo={d.nome} />
+                  )}
+                  {d.atual && (
+                    <VisualizarDwgButton desenhoId={refDocumentoDwg(d.atual.id)} nomeArquivo={d.atual.nomeArquivo} titulo={d.nome} />
+                  )}
+                  {d.atual && (
+                    <a href={d.atual.downloadUrl} className="shrink-0 text-primary hover:text-primary/80" aria-label={`Baixar ${d.nome}`}>
+                      <Download className="size-3.5" />
+                    </a>
+                  )}
+                  {podeGerir && (
+                    <button
+                      type="button"
+                      className="shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                      aria-label="Nova versão"
+                      title="Enviar nova versão"
+                      disabled={busy}
+                      onClick={() => {
+                        setAlvoVersao(d.id);
+                        fileVersao.current?.click();
+                      }}
+                    >
+                      <UploadIcon className="size-3.5" />
+                    </button>
+                  )}
+                  {podeExcluir && (
+                    <button
+                      type="button"
+                      className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-50"
+                      aria-label="Excluir"
+                      disabled={pending}
+                      onClick={() => excluir(d.id)}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  )}
+                </div>
+                {aberto &&
+                  anteriores.map((v) => (
+                    <LinhaVersaoDocumento
+                      key={v.id}
+                      v={v}
+                      nome={d.nome}
+                      podeExcluir={podeExcluir}
                       pending={pending}
                       onExcluir={() => excluirVersao(v.id)}
                     />
@@ -1382,7 +1689,7 @@ function PastaGeral({
                     {a.atual ? fmtBytes(a.atual.tamanho) : "—"}
                   </span>
                   {a.atual && (
-                    <PreviewPdfButton nomeArquivo={a.atual.nomeArquivo} url={a.atual.downloadUrl} titulo={a.nome} />
+                    <PreviewPdfButton visivel={extDe(a.atual.nomeArquivo) === "pdf"} url={a.atual.downloadUrl} titulo={a.nome} />
                   )}
                   {a.atual && (
                     <VisualizarDwgButton desenhoId={refDocumentoDwg(a.atual.id)} nomeArquivo={a.atual.nomeArquivo} titulo={a.nome} />

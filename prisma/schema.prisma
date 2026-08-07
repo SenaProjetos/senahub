@@ -185,6 +185,8 @@ model User {
   uploadsAutor                  Upload[]                  @relation("UploadAutor")
   uploadsValidados              Upload[]                  @relation("UploadValidador")
   uploadsRevisados              Upload[]                  @relation("UploadRevisor")
+  exclusoesSolicitadas          SolicitacaoExclusaoUpload[] @relation("ExclusaoSolicitante")
+  exclusoesDecididas            SolicitacaoExclusaoUpload[] @relation("ExclusaoDecisor")
   documentosAutor               Documento[]               @relation("DocumentoAutor")
   pagamentos                    PagamentoProjetista[]     @relation("PagamentoProjetista")
   socio                         Socio?
@@ -243,6 +245,10 @@ model User {
   responsavelTecnico            ResponsavelTecnico?
   viabilidadesDecididas         ViabilidadeLicitacao[]    @relation("ViabilidadeDecisor")
   aceitesGerados                AceiteCliente[]           @relation("AceiteGerador")
+  pendenciasExcluidas           Pendencia[]               @relation("PendenciaExcluidaPor")
+  pendenciaRespostas            PendenciaResposta[]       @relation("PendenciaRespostaAutor")
+  pendenciaAnexos               PendenciaAnexo[]          @relation("PendenciaAnexoAutor")
+  calibracoesPrancha            CalibracaoPrancha[]       @relation("CalibracaoAutor")
   calculosFerramenta            CalculoFerramenta[]
   aceitesTermo                  AceiteTermo[]
   ativosResponsavel             Ativo[]                   @relation("AtivoResponsavel")
@@ -2053,7 +2059,7 @@ model AbonoFalta {
   @@map("abono_falta")
 }
 
-/// Solicitação de férias.
+/// Solicitação de férias — ou lançamento direto pelo RH (ver `lancadoPorId`).
 model Ferias {
   id            String            @id @default(cuid())
   userId        String
@@ -2064,6 +2070,9 @@ model Ferias {
   status        StatusSolicitacao @default(pendente)
   validadoPorId String?
   validadoPor   User?             @relation("FeriasValidador", fields: [validadoPorId], references: [id])
+  /// RH/admin que lançou as férias direto, sem solicitação do colaborador.
+  /// Não-nulo ⟺ lançamento por RH. Denormalizado, sem FK (mesmo padrão de `altPorId`).
+  lancadoPorId  String?
   // Proposta de alteração de datas em férias JÁ APROVADAS — dupla aprovação
   // (admin/RH + funcionário). Aplica-se quando altOkAdmin && altOkFunc; ao aplicar,
   // move alt* → inicio/fim e zera os campos. Enquanto pendente, altPorId marca quem propôs.
@@ -2158,6 +2167,7 @@ model Disciplina {
   diarioEntradas          DiarioEntrada[]
   arts                    Art[]
   apontamentosCoordenacao ApontamentoCoordenacao[]
+  documentos              DocumentoDisciplina[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2484,6 +2494,10 @@ enum OrigemDocumento {
   interno // equipe subiu p/ compartilhar
   contrato
   comercial
+  /// Referência fixa por projeto (ex.: base do arquiteto), visível a todas as
+  /// disciplinas como "Recebidos do cliente", mas em pasta própria — ver
+  /// `baseArquitetonicaDoProjeto` em modules/documentos-cliente/queries.ts.
+  base_arquitetonica
 }
 
 enum CanalDocumento {
@@ -4093,16 +4107,96 @@ model Upload {
   excluidoEm    DateTime?
   excluidoPorId String?
 
-  aceite           AceiteCliente?
-  pendencias       Pendencia[]       @relation("UploadPendencias")
-  conversao        ConversaoModelo?
-  conversaoDesenho ConversaoDesenho?
+  /// Documento lógico (pai) que agrupa as VERSÕES deste mesmo arquivo. Nulo só em
+  /// linhas legadas anteriores ao backfill — a criação normal (persistir, em
+  /// api/uploads/route.ts) sempre resolve/cria o pai antes de gravar.
+  documentoId String?
+  documento   DocumentoDisciplina? @relation(fields: [documentoId], references: [id], onDelete: SetNull)
+
+  aceite                AceiteCliente?
+  solicitacoesExclusao  SolicitacaoExclusaoUpload[]
+  pendencias            Pendencia[]       @relation("UploadPendencias")
+  pendenciasVerificadas Pendencia[]       @relation("PendenciaVerificacao")
+  calibracoes           CalibracaoPrancha[] @relation("UploadCalibracoes")
+  conversao             ConversaoModelo?
+  conversaoDesenho      ConversaoDesenho?
 
   @@index([disciplinaId, pacote])
   @@index([pastaId])
   @@index([autorId])
   @@index([excluidoEm])
+  @@index([documentoId])
   @@map("upload")
+}
+
+/// Situação de um pedido de exclusão de arquivo feito por quem NÃO pode excluir.
+enum StatusSolicitacaoExclusao {
+  pendente
+  aprovada
+  recusada
+}
+
+/// Pedido de exclusão de um arquivo de disciplina (Upload) feito por um usuário sem
+/// permissão de excluir. Nada sai do lugar enquanto está `pendente` — o arquivo só vai
+/// para a lixeira quando um admin aprova. Histórico completo (uma linha por pedido, os
+/// decididos ficam): é o registro de "quem pediu, por quê, quem decidiu".
+/// Só um pedido `pendente` por arquivo (índice parcial único, criado na migração — o
+/// Prisma não expressa `WHERE status = 'pendente'`).
+model SolicitacaoExclusaoUpload {
+  id       String @id @default(cuid())
+  uploadId String
+  upload   Upload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  /// Denormalizado (sem FK) para filtrar/agrupar por projeto sem join triplo. A limpeza
+  /// vem pela cascata do Upload (disciplina → projeto).
+  projetoId     String
+  justificativa String
+  status        StatusSolicitacaoExclusao @default(pendente)
+
+  solicitanteId String
+  solicitante   User   @relation("ExclusaoSolicitante", fields: [solicitanteId], references: [id])
+
+  decididoPorId String?
+  decididoPor   User?     @relation("ExclusaoDecisor", fields: [decididoPorId], references: [id])
+  decididoEm    DateTime?
+  /// Resposta do decisor (obrigatória na recusa, para o solicitante saber o motivo).
+  motivoDecisao String?
+
+  createdAt DateTime @default(now())
+
+  @@index([status, createdAt])
+  @@index([uploadId])
+  @@index([projetoId, status])
+  @@index([solicitanteId])
+  @@index([decididoPorId])
+  @@map("solicitacao_exclusao_upload")
+}
+
+/// Documento LÓGICO de disciplina: agrupa as versões (Upload) do mesmo arquivo sob um id
+/// estável. Antes disto a cadeia de versões era derivada em runtime por
+/// (disciplinaId, pacote|pastaId, nomeArquivo) — o que quebrava ao renomear e não dava
+/// âncora estável para apontamentos. Segue o padrão pai/versão já usado por
+/// Documento/DocumentoVersao, DocumentoJuridico/DocJuridicoVersao, Art/ArtVersao etc.
+model DocumentoDisciplina {
+  id           String     @id @default(cuid())
+  disciplinaId String
+  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+  /// Chave de AGRUPAMENTO (dedupe/lookup) — NÃO é a identidade. A identidade é `id`, e é
+  /// ela que Pendencia referencia; por isso renomear só reescreve esta chave e não
+  /// desancora nada. Normalizada como "A/planta.pdf" ou "pasta:<pastaId>/planta.pdf"
+  /// porque UNIQUE no Postgres trata NULL como distinto — com `pacote` XOR `pastaId` crus,
+  /// a constraint deixaria passar duplicata. Não "simplificar" de volta para colunas soltas.
+  chave        String
+  /// Nome exibido; espelho de Upload.nomeArquivo das suas versões (renomear atualiza os dois).
+  nomeArquivo  String
+  createdAt    DateTime   @default(now())
+
+  uploads    Upload[]
+  pendencias Pendencia[]
+  calibracoes CalibracaoPrancha[]
+
+  @@unique([disciplinaId, chave])
+  @@index([disciplinaId])
+  @@map("documento_disciplina")
 }
 
 /// Árvore de pastas por disciplina (auto-referente). Semeada por template conforme o tipo
@@ -4158,10 +4252,162 @@ model Pendencia {
   fechadoEm      DateTime?
   createdAt      DateTime  @default(now())
 
+  /// Âncora ESTÁVEL do apontamento: o documento lógico, não a versão. `uploadId` acima
+  /// continua sendo a versão de ORIGEM (onde o apontamento nasceu) e `uploadVerificacaoId`
+  /// a versão em que foi verificado/encerrado. O `numero` é mantido através das revisões.
+  documentoId         String?
+  documento           DocumentoDisciplina? @relation(fields: [documentoId], references: [id], onDelete: SetNull)
+  uploadVerificacaoId String?
+  uploadVerificacao   Upload?              @relation("PendenciaVerificacao", fields: [uploadVerificacaoId], references: [id], onDelete: SetNull)
+
+  /// Âncora TEXTUAL do apontamento (ver `modules/projetos/pendencias/ancora.ts`). Guarda um
+  /// trecho do texto da página perto do clique, para reposicionar o pino quando ele é herdado
+  /// por uma revisão de layout diferente. Nulo = prancha sem texto ali (CAD que exportou texto
+  /// como curva, escaneada) ou linha anterior a esta feature: o pino cai de volta em (x,y).
+  /// NÃO existe coluna "posição incerta": a incerteza é POR VERSÃO (o mesmo pino é exato na
+  /// revisão em que nasceu e pode ser incerto na seguinte), então é derivada na leitura.
+  ancoraTexto   String?
+  /// Offset (chars) do item-âncora dentro de `ancoraTexto` — o trecho é maior que o item.
+  ancoraOffset  Int?
+  /// Deslocamento normalizado do item-âncora até o ponto clicado.
+  ancoraDx      Float?
+  ancoraDy      Float?
+
+  /// Classificação estruturada (item 11). Catálogo em `pendencias/helpers.ts` (código, não
+  /// tabela — é vocabulário fixo do escritório, não dado editável pelo usuário).
+  /// `impeditivo` é o TOPO da escala de severidade, não um flag à parte (decidido 2026-08-06):
+  /// o item 19 bloqueia a aprovação enquanto houver aberto com `severidade = "impeditivo"`.
+  /// Nulos = linha anterior à feature ou apontamento não classificado — a UI mostra "—".
+  /// severidade: impeditivo | alta | media | baixa
+  severidade    String?
+  /// tipo: incompatibilidade | falta_informacao | erro_tecnico | norma | representacao | outro
+  tipo          String?
+
+  /// Marcação vetorial (item 9) — ver `modules/projetos/pendencias/marcacao.ts`.
+  /// `x`/`y` acima seguem sendo a ÂNCORA canônica (onde o arrasto começou); a forma vem por
+  /// cima. Nulo (ou "ponto") = pino simples, o comportamento de sempre.
+  /// marcacaoTipo: ponto | retangulo | seta | nuvem | medida
+  marcacaoTipo  String?
+  /// `{ pontos: [{ dx, dy }] }` — **offsets normalizados relativos a (x,y)**, nunca coordenada
+  /// absoluta de página. É o que faz a forma acompanhar de graça a relocalização da âncora
+  /// textual (item 3): reposicionar o pino numa revisão de layout deslocado move o desenho
+  /// junto. Com coordenada absoluta o pino iria pro lugar certo e a forma ficaria pra trás.
+  marcacaoGeo   Json?
+
+  /// Medição (item 28) — só em `marcacaoTipo = "medida"`. O valor é CONGELADO na criação,
+  /// junto do fator e do modo que o produziram: recalibrar a prancha depois não pode mudar
+  /// silenciosamente um número que já virou apontamento, e guardar o fator é o que permite
+  /// explicar de onde veio a medida meses depois.
+  medidaMm      Float?
+  /// mm reais por ponto do PDF usados no cálculo (ver `pendencias/medicao.ts`).
+  medidaFator   Float?
+  /// escala | dois_pontos
+  medidaModo    String?
+
+  /// Miniatura do recorte da prancha (item 14, R6 pediu que PERSISTA) — caminho relativo em
+  /// `STORAGE_BASE_PATH`, servido por `/api/pendencias/thumb/[id]`. Só existe para apontamento
+  /// com FORMA: o recorte é a área selecionada, e pino simples não tem recorte (além de ser a
+  /// interação mais quente do viewer, que não deve pagar um upload a mais).
+  thumbPath     String?
+
+  /// Soft delete (item 24). Pendencia NÃO entra na extension de `lib/prisma.ts` de propósito:
+  /// a numeração é sequencial por documento (`_max: { numero }`), e esconder linhas excluídas
+  /// do aggregate faria o próximo apontamento REUSAR o número de um excluído (dois "#5" no
+  /// mesmo documento, sem erro). O filtro `excluidoEm: null` é explícito em cada leitura.
+  excluidoEm    DateTime?
+  excluidoPorId String?
+  excluidoPor   User?     @relation("PendenciaExcluidaPor", fields: [excluidoPorId], references: [id], onDelete: SetNull)
+
+  respostas     PendenciaResposta[]
+  anexos        PendenciaAnexo[]
+
   @@index([uploadId, numero])
   @@index([disciplinaId])
   @@index([projetoId, status])
+  @@index([documentoId, numero])
+  @@index([uploadVerificacaoId])
+  @@index([excluidoPorId])
   @@map("pendencia")
+}
+
+/// Thread de resposta do apontamento (item 39) — abre o ciclo pro projetista responder, não
+/// só mudar status. Fica ancorada na `Pendencia` (que por sua vez é ancorada no documento,
+/// não na versão), então a conversa sobrevive às revisões junto com o apontamento.
+/// Sem soft delete: a thread É a trilha; resposta publicada não some.
+/// Calibração de escala de UMA página de prancha (item 28). Guarda o resultado dos dois modos
+/// que o solicitante pediu — declarar a escala (1:50) ou calibrar por dois pontos conhecidos —
+/// normalizados na mesma grandeza: `mmPorPonto`.
+///
+/// Ancorada no DOCUMENTO, não na versão: revisão nova da mesma prancha mantém a escala, que é
+/// o comportamento esperado (recalibrar é um clique se mudar). `uploadId` é o fallback da linha
+/// legada sem documento pai, igual ao resto do módulo. Exatamente UM dos dois é preenchido, e
+/// cada `@@unique` guarda a sua população — no Postgres o NULL não colide, então a chave com
+/// `documentoId` nulo passaria batido se não houvesse a segunda.
+model CalibracaoPrancha {
+  id                String               @id @default(cuid())
+  documentoId       String?
+  documento         DocumentoDisciplina? @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  uploadId          String?
+  upload            Upload?              @relation("UploadCalibracoes", fields: [uploadId], references: [id], onDelete: Cascade)
+  pagina            Int
+  /// escala | dois_pontos
+  modo              String
+  /// Denominador da escala declarada (50 para 1:50). Nulo no modo `dois_pontos`.
+  escalaDenominador Int?
+  /// mm REAIS por PONTO do PDF — é o que a medição consome, nos dois modos.
+  mmPorPonto        Float
+  autorId           String
+  autor             User                 @relation("CalibracaoAutor", fields: [autorId], references: [id], onDelete: Cascade)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@unique([documentoId, pagina])
+  @@unique([uploadId, pagina])
+  @@index([autorId])
+  @@map("calibracao_prancha")
+}
+
+/// Anexo do apontamento (item 12) — print, foto, áudio, PDF ou link externo.
+/// Campos de arquivo espelham `AnexoLead` de propósito (é a mesma forma que `salvarArquivo`
+/// devolve), pra não existirem dois vocabulários diferentes pro mesmo conceito no schema.
+/// **Sem transcrição de áudio** (decidido em R5): áudio entra como arquivo bruto.
+model PendenciaAnexo {
+  id          String    @id @default(cuid())
+  pendenciaId String
+  pendencia   Pendencia @relation(fields: [pendenciaId], references: [id], onDelete: Cascade)
+  /// arquivo | link
+  tipo        String    @default("arquivo")
+  /// Rótulo exibido (nome do arquivo, ou o título que a pessoa deu ao link).
+  nome        String
+  /// Preenchidos só quando `tipo = "arquivo"`.
+  caminho     String?
+  nomeArquivo String?
+  mime        String?
+  tamanho     Int?
+  hashSha256  String?
+  /// Preenchido só quando `tipo = "link"` — validado como http/https na action.
+  url         String?
+  autorId     String
+  autor       User      @relation("PendenciaAnexoAutor", fields: [autorId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@index([pendenciaId, createdAt])
+  @@index([autorId])
+  @@map("pendencia_anexo")
+}
+
+model PendenciaResposta {
+  id          String    @id @default(cuid())
+  pendenciaId String
+  pendencia   Pendencia @relation(fields: [pendenciaId], references: [id], onDelete: Cascade)
+  autorId     String
+  autor       User      @relation("PendenciaRespostaAutor", fields: [autorId], references: [id], onDelete: Cascade)
+  texto       String
+  createdAt   DateTime  @default(now())
+
+  @@index([pendenciaId, createdAt])
+  @@index([autorId])
+  @@map("pendencia_resposta")
 }
 
 /// N-43: Aceite digital do cliente para uma entrega validada.

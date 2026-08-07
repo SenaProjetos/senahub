@@ -10,8 +10,11 @@ import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { GLOBAL_ROLES, type Role } from "@/lib/roles";
 import { statusValidacao } from "@/modules/uploads/validacao";
+import { chaveDocumento } from "@/modules/uploads/documento";
 import { liberarPagamentosProjetista } from "@/modules/uploads/pagamento";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
+import { projetoVisivel } from "@/modules/planejamento/queries";
+import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
 
 /** Extensão com o ponto, no case original (`.pdf`). Sem ponto (ou dotfile) → vazio. */
 function extComPonto(nome: string): string {
@@ -228,6 +231,7 @@ async function carregarUploadEditavel(uploadId: string) {
       nomeArquivo: true,
       autorId: true,
       disciplinaId: true,
+      documentoId: true,
       disciplina: {
         select: {
           status: true,
@@ -256,8 +260,17 @@ export const validarArquivo = defineAction(
   { ...baseValidacao, acao: "validar-arquivo", schema: uploadIdSchema },
   async (input, { user }) => {
     const upload = await carregarUploadEditavel(input.uploadId);
+    // Escopo do DOCUMENTO, não da versão: um apontamento aberto na R01 continua visível (e
+    // aberto) na R02 por carry-over — contar só por `uploadId` deixaria validar a R02 com o
+    // pino herdado ainda em aberto, esvaziando o gate. Mesma correção já feita em
+    // `pendenciasDoUpload`/`enviarApontamentos`/`contarPendenciasAbertas`. `excluidoEm: null`
+    // porque `Pendencia` fica fora da extension de soft delete (ver `excluirPendencia`).
     const apontamentoAberto = await prisma.pendencia.count({
-      where: { uploadId: upload.id, status: "aberta" },
+      where: {
+        ...(upload.documentoId ? { documentoId: upload.documentoId } : { uploadId: upload.id }),
+        status: "aberta",
+        excluidoEm: null,
+      },
     });
     if (apontamentoAberto > 0) {
       throw new ActionError("Há apontamento(s) em aberto nesta prancha — resolva-os antes de validar.");
@@ -351,18 +364,31 @@ export const validarArquivosLote = defineAction(
         validado: false,
         disciplina: { projetoId: input.projetoId, status: { not: "aprovado" } },
       },
-      select: { id: true },
+      select: { id: true, documentoId: true },
     });
     if (candidatos.length === 0) {
       throw new ActionError("Nenhum arquivo válido para validar.");
     }
 
+    // Mesmo escopo por DOCUMENTO do `validarArquivo` (ver comentário lá): o pino herdado da
+    // revisão anterior tem `uploadId` da versão ANTIGA, então bloquear por uploadId deixaria
+    // passar a versão nova com apontamento aberto.
     const apontamentosAbertos = await prisma.pendencia.findMany({
-      where: { uploadId: { in: candidatos.map((u) => u.id) }, status: "aberta" },
-      select: { uploadId: true },
+      where: {
+        OR: [
+          { uploadId: { in: candidatos.filter((u) => !u.documentoId).map((u) => u.id) } },
+          { documentoId: { in: candidatos.map((u) => u.documentoId).filter((d): d is string => d != null) } },
+        ],
+        status: "aberta",
+        excluidoEm: null,
+      },
+      select: { uploadId: true, documentoId: true },
     });
-    const bloqueados = new Set(apontamentosAbertos.map((p) => p.uploadId));
-    const validos = candidatos.filter((u) => !bloqueados.has(u.id));
+    const docsBloqueados = new Set(apontamentosAbertos.map((p) => p.documentoId).filter((d): d is string => d != null));
+    const uploadsBloqueados = new Set(apontamentosAbertos.filter((p) => !p.documentoId).map((p) => p.uploadId));
+    const validos = candidatos.filter((u) =>
+      u.documentoId ? !docsBloqueados.has(u.documentoId) : !uploadsBloqueados.has(u.id),
+    );
     if (validos.length === 0) {
       throw new ActionError("Todos os arquivos selecionados têm apontamento(s) em aberto.");
     }
@@ -418,6 +444,8 @@ export const renomearUpload = defineAction(
         id: true,
         nomeArquivo: true,
         pacote: true,
+        pastaId: true,
+        documentoId: true,
         disciplinaId: true,
         disciplina: { select: { projetoId: true, responsaveis: { select: { userId: true } } } },
       },
@@ -446,14 +474,43 @@ export const renomearUpload = defineAction(
     // Renomeia a cadeia inteira (todas as versões deste arquivo lógico), não só a
     // versão-alvo — assim o agrupamento por nome não se quebra e o histórico se mantém.
     // Sem filtro de excluidoEm: versões na lixeira também migram (nenhuma fica órfã
-    // sob o nome antigo, o que reiniciaria a numeração num futuro re-upload).
-    const { count } = await prisma.upload.updateMany({
-      where: {
-        disciplinaId: up.disciplinaId,
-        pacote: up.pacote,
-        nomeArquivo: up.nomeArquivo,
-      },
-      data: { nomeArquivo: nomeFinal },
+    // sob o nome antigo, o que reiniciaria a numeração num futuro re-upload). `updateMany`
+    // não passa pelo filtro de soft delete (só leituras passam — ver lib/prisma.ts).
+    //
+    // Escopo pelo documento (pai) quando existe: o filtro antigo por `pacote` casava
+    // `pacote: null` para QUALQUER arquivo de mesmo nome em pastas diferentes da mesma
+    // disciplina, renomeando junto o que não devia. `documentoId` é exato.
+    const alvo = up.documentoId
+      ? { documentoId: up.documentoId }
+      : { disciplinaId: up.disciplinaId, pacote: up.pacote, nomeArquivo: up.nomeArquivo };
+
+    const chaveNova = chaveDocumento({
+      pacote: up.pacote,
+      pastaId: up.pastaId,
+      nomeArquivo: nomeFinal,
+    });
+
+    // Colisão: já existe OUTRO documento com esse nome no mesmo local. Antes o rename
+    // fundia as duas cadeias em silêncio (mesma disciplina + pacote + nome = "mesmo
+    // arquivo"), embaralhando as versões. Agora recusa com mensagem clara.
+    const conflito = await prisma.documentoDisciplina.findUnique({
+      where: { disciplinaId_chave: { disciplinaId: up.disciplinaId, chave: chaveNova } },
+      select: { id: true },
+    });
+    if (conflito && conflito.id !== up.documentoId) {
+      throw new ActionError("Já existe um arquivo com esse nome nesta pasta.");
+    }
+
+    const { count } = await prisma.$transaction(async (tx) => {
+      // O pai carrega o nome exibido e a chave de agrupamento — precisa acompanhar o
+      // rename, senão o próximo upload com o nome novo não encontra esta cadeia.
+      if (up.documentoId) {
+        await tx.documentoDisciplina.update({
+          where: { id: up.documentoId },
+          data: { nomeArquivo: nomeFinal, chave: chaveNova },
+        });
+      }
+      return tx.upload.updateMany({ where: alvo, data: { nomeArquivo: nomeFinal } });
     });
     revalidatePath(`/projetos/${up.disciplina.projetoId}/arquivos`);
     return { disciplinaId: up.disciplinaId, de: up.nomeArquivo, para: nomeFinal, versoes: count };
@@ -512,7 +569,10 @@ export const excluirUpload = defineAction(
       where: { id: upload.id },
       data: { excluidoEm: new Date(), excluidoPorId: user.id },
     });
+    // Pedido de exclusão em aberto neste arquivo: fecha e avisa quem pediu.
+    await fecharPedidosDeExclusao([upload.id], user.id);
     revalidarArquivos(upload.disciplina.projetoId);
+    revalidatePath("/aprovacoes");
     return { disciplinaId: upload.disciplinaId, nome: upload.nomeArquivo };
   },
 );
@@ -558,7 +618,9 @@ export const excluirUploadsLote = defineAction(
       where: { id: { in: uploads.map((u) => u.id) } },
       data: { excluidoEm: new Date(), excluidoPorId: user.id },
     });
+    await fecharPedidosDeExclusao(uploads.map((u) => u.id), user.id);
     revalidarArquivos(input.projetoId);
+    revalidatePath("/aprovacoes");
     return { total: uploads.length, ids: uploads.map((u) => u.id) };
   },
 );
@@ -609,6 +671,10 @@ export const restaurarUpload = defineAction(
  * Exclui EM DEFINITIVO um arquivo que já está na lixeira ("excluir agora" / esvaziar).
  * Só admin. Remove o registro (cascata: Pendencia/AceiteCliente/ConversaoModelo) e os
  * arquivos físicos (o próprio + o `.frag` da conversão IFC, se houver). Auditado.
+ *
+ * NÃO chama `fecharPedidosDeExclusao` de propósito: só age sobre arquivo que JÁ está na
+ * lixeira, e o pedido pendente já foi encerrado (com aviso) quando ele foi pra lá. A
+ * cascata leva junto o histórico de pedidos — o registro permanente é o AuditLog.
  */
 export const excluirUploadDefinitivo = defineAction(
   {
@@ -651,6 +717,305 @@ export const excluirUploadDefinitivo = defineAction(
 
     revalidarArquivos(upload.disciplina.projetoId);
     return { disciplinaId: upload.disciplinaId, nome: upload.nomeArquivo };
+  },
+);
+
+// ── Solicitação de exclusão (quem NÃO pode excluir pede; admin decide) ──
+
+/**
+ * Fecha (como `aprovada`) os pedidos pendentes dos arquivos que acabaram de ir para a
+ * lixeira por ação direta do admin, e avisa quem pediu. Sem isso o pedido ficaria órfão
+ * na fila apontando para um arquivo que já não existe na árvore. Devolve os pedidos
+ * fechados só para o chamador decidir o que revalidar.
+ */
+async function fecharPedidosDeExclusao(uploadIds: string[], adminId: string) {
+  const pendentes = await prisma.solicitacaoExclusaoUpload.findMany({
+    where: { uploadId: { in: uploadIds }, status: "pendente" },
+    select: { id: true, solicitanteId: true, upload: { select: { nomeArquivo: true } } },
+  });
+  if (pendentes.length === 0) return [];
+
+  await prisma.solicitacaoExclusaoUpload.updateMany({
+    where: { id: { in: pendentes.map((p) => p.id) } },
+    data: {
+      status: "aprovada",
+      decididoPorId: adminId,
+      decididoEm: new Date(),
+      motivoDecisao: "Arquivo excluído diretamente por um administrador.",
+    },
+  });
+
+  // Uma notificação por SOLICITANTE (não por pedido): num lote de 500 arquivos do mesmo
+  // autor isso é 1 aviso, não 500 — e um filtro de categoria em vez de 500.
+  const porSolicitante = new Map<string, string[]>();
+  for (const p of pendentes) {
+    if (p.solicitanteId === adminId) continue;
+    const nomes = porSolicitante.get(p.solicitanteId) ?? [];
+    nomes.push(p.upload.nomeArquivo);
+    porSolicitante.set(p.solicitanteId, nomes);
+  }
+  await Promise.all(
+    [...porSolicitante].map(([solicitanteId, nomes]) =>
+      notificarMuitos(
+        [solicitanteId],
+        {
+          titulo: "Exclusão aprovada",
+          corpo:
+            nomes.length === 1
+              ? `"${nomes[0]}" foi movido para a lixeira do projeto.`
+              : `${nomes.length} arquivos que você pediu para excluir foram movidos para a lixeira.`,
+          href: "/",
+          tag: `exclusao-${solicitanteId}-${Date.now()}`,
+        },
+        { categoria: "aprovacao_arquivo" },
+      ),
+    ),
+  );
+  return pendentes;
+}
+
+const solicitarExclusaoSchema = z.object({
+  uploadId: z.string().min(1),
+  justificativa: z
+    .string()
+    .trim()
+    .min(10, "Explique o motivo da exclusão (mínimo 10 caracteres).")
+    .max(1000, "Justificativa muito longa (máximo 1000 caracteres)."),
+});
+
+/**
+ * Pede a exclusão de um arquivo de disciplina. NADA acontece com o arquivo aqui: ele
+ * continua na árvore e nos downloads — o pedido só entra na fila de `/aprovacoes` e
+ * notifica os admins, que aprovam (aí sim vai para a lixeira) ou recusam.
+ *
+ * Gate invertido em relação a `excluirUpload`: quem JÁ pode excluir não solicita. O
+ * escopo do arquivo é conferido do mesmo jeito que na leitura (projeto visível + muralha
+ * por disciplina), pra não virar um oráculo de existência de arquivo alheio.
+ */
+export const solicitarExclusaoUpload = defineAction(
+  {
+    modulo: "uploads",
+    acao: "solicitar-exclusao-arquivo",
+    recurso: "projetos",
+    permissao: "ver",
+    entidade: "SolicitacaoExclusaoUpload",
+    schema: solicitarExclusaoSchema,
+    entidadeId: (d) => (d as { id?: string } | undefined)?.id,
+  },
+  async (input, { user }) => {
+    if (user.role === "admin") {
+      throw new ActionError("Você já pode excluir arquivos — use a exclusão direta.");
+    }
+
+    const upload = await prisma.upload.findUnique({
+      where: { id: input.uploadId },
+      select: {
+        id: true,
+        nomeArquivo: true,
+        excluidoEm: true,
+        disciplinaId: true,
+        disciplina: {
+          select: {
+            nome: true,
+            projetoId: true,
+            responsaveis: { select: { userId: true } },
+            projeto: { select: { codigo: true, nome: true } },
+          },
+        },
+      },
+    });
+    // Mensagem única para "não existe" e "você não enxerga" — não vaza a existência.
+    const naoEncontrado = new ActionError("Arquivo não encontrado.");
+    if (!upload) throw naoEncontrado;
+    if (!(await projetoVisivel(user, upload.disciplina.projetoId))) throw naoEncontrado;
+    const veTodas = await podeVerTodasDisciplinas(user);
+    const ehResponsavel = upload.disciplina.responsaveis.some((r) => r.userId === user.id);
+    if (!veTodas && !ehResponsavel) throw naoEncontrado;
+
+    if (upload.excluidoEm) throw new ActionError("Este arquivo já está na lixeira.");
+
+    // Idempotência: um pendente por arquivo (índice parcial único cobre a corrida).
+    const pendente = await prisma.solicitacaoExclusaoUpload.findFirst({
+      where: { uploadId: upload.id, status: "pendente" },
+      select: { id: true },
+    });
+    if (pendente) {
+      throw new ActionError("Já existe um pedido de exclusão pendente para este arquivo.");
+    }
+
+    const solicitacao = await prisma.solicitacaoExclusaoUpload.create({
+      data: {
+        uploadId: upload.id,
+        projetoId: upload.disciplina.projetoId,
+        justificativa: input.justificativa,
+        solicitanteId: user.id,
+      },
+      select: { id: true },
+    });
+
+    const admins = await prisma.user.findMany({
+      where: { ativo: true, role: "admin" },
+      select: { id: true },
+    });
+    const codigo = formatarCodigo(upload.disciplina.projeto.codigo);
+    await notificarMuitos(
+      admins.map((a) => a.id).filter((id) => id !== user.id),
+      {
+        titulo: "Exclusão de arquivo solicitada",
+        corpo: `${user.name} pediu a exclusão de "${upload.nomeArquivo}" (${codigo} · ${upload.disciplina.nome}).`,
+        href: "/aprovacoes",
+        tag: `exclusao-${solicitacao.id}`,
+      },
+      { categoria: "aprovacao_arquivo" },
+    );
+
+    revalidarArquivos(upload.disciplina.projetoId);
+    revalidatePath("/aprovacoes");
+    return { id: solicitacao.id, uploadId: upload.id, nome: upload.nomeArquivo };
+  },
+);
+
+/** Carrega o pedido para decisão e garante que ele ainda está pendente. */
+async function carregarPedidoPendente(id: string) {
+  const solicitacao = await prisma.solicitacaoExclusaoUpload.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      status: true,
+      projetoId: true,
+      solicitanteId: true,
+      uploadId: true,
+      upload: {
+        select: {
+          id: true,
+          nomeArquivo: true,
+          excluidoEm: true,
+          disciplinaId: true,
+          disciplina: { select: { projetoId: true } },
+        },
+      },
+    },
+  });
+  if (!solicitacao) throw new ActionError("Pedido de exclusão não encontrado.");
+  if (solicitacao.status !== "pendente") {
+    throw new ActionError("Este pedido de exclusão já foi decidido.");
+  }
+  return solicitacao;
+}
+
+const decidirExclusaoSchema = z.object({ id: z.string().min(1) });
+
+/**
+ * Aprova o pedido: o arquivo vai para a LIXEIRA (mesmo soft delete de `excluirUpload`,
+ * restaurável por `DIAS_LIXEIRA` dias). Só admin. Se o arquivo já tiver sido excluído
+ * por outra via, o pedido é apenas encerrado — não é erro. Notifica o solicitante.
+ */
+export const aprovarSolicitacaoExclusao = defineAction(
+  {
+    modulo: "uploads",
+    acao: "aprovar-exclusao-arquivo",
+    recurso: "projetos",
+    permissao: "ver",
+    entidade: "SolicitacaoExclusaoUpload",
+    schema: decidirExclusaoSchema,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
+    capturarAntes: (input) =>
+      prisma.solicitacaoExclusaoUpload.findUnique({
+        where: { id: input.id },
+        select: { status: true, uploadId: true, justificativa: true, solicitanteId: true },
+      }),
+  },
+  async (input, { user }) => {
+    exigirAdmin(user.role);
+    const solicitacao = await carregarPedidoPendente(input.id);
+
+    await prisma.$transaction(async (tx) => {
+      // Já na lixeira (admin excluiu por fora): só encerra o pedido, sem re-datar.
+      if (!solicitacao.upload.excluidoEm) {
+        await tx.upload.update({
+          where: { id: solicitacao.uploadId },
+          data: { excluidoEm: new Date(), excluidoPorId: user.id },
+        });
+      }
+      await tx.solicitacaoExclusaoUpload.update({
+        where: { id: solicitacao.id },
+        data: { status: "aprovada", decididoPorId: user.id, decididoEm: new Date() },
+      });
+    });
+
+    await notificarMuitos(
+      [solicitacao.solicitanteId].filter((id) => id !== user.id),
+      {
+        titulo: "Exclusão aprovada",
+        corpo: `"${solicitacao.upload.nomeArquivo}" foi movido para a lixeira do projeto.`,
+        href: `/projetos/${solicitacao.upload.disciplina.projetoId}/arquivos`,
+        tag: `exclusao-${solicitacao.id}`,
+      },
+      { categoria: "aprovacao_arquivo" },
+    );
+
+    revalidarArquivos(solicitacao.upload.disciplina.projetoId);
+    revalidatePath("/aprovacoes");
+    return { id: solicitacao.id, uploadId: solicitacao.uploadId, nome: solicitacao.upload.nomeArquivo };
+  },
+);
+
+const recusarExclusaoSchema = z.object({
+  id: z.string().min(1),
+  motivo: z
+    .string()
+    .trim()
+    .min(5, "Explique por que o arquivo será mantido (mínimo 5 caracteres).")
+    .max(1000, "Motivo muito longo (máximo 1000 caracteres)."),
+});
+
+/**
+ * Recusa o pedido: o arquivo é MANTIDO como está. Só admin. O motivo é obrigatório —
+ * é o que volta para o solicitante na notificação.
+ */
+export const recusarSolicitacaoExclusao = defineAction(
+  {
+    modulo: "uploads",
+    acao: "recusar-exclusao-arquivo",
+    recurso: "projetos",
+    permissao: "ver",
+    entidade: "SolicitacaoExclusaoUpload",
+    schema: recusarExclusaoSchema,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
+    capturarAntes: (input) =>
+      prisma.solicitacaoExclusaoUpload.findUnique({
+        where: { id: input.id },
+        select: { status: true, uploadId: true, justificativa: true, solicitanteId: true },
+      }),
+  },
+  async (input, { user }) => {
+    exigirAdmin(user.role);
+    const solicitacao = await carregarPedidoPendente(input.id);
+
+    await prisma.solicitacaoExclusaoUpload.update({
+      where: { id: solicitacao.id },
+      data: {
+        status: "recusada",
+        decididoPorId: user.id,
+        decididoEm: new Date(),
+        motivoDecisao: input.motivo,
+      },
+    });
+
+    await notificarMuitos(
+      [solicitacao.solicitanteId].filter((id) => id !== user.id),
+      {
+        titulo: "Exclusão recusada",
+        corpo: `"${solicitacao.upload.nomeArquivo}" será mantido. Motivo: ${input.motivo}`,
+        href: `/projetos/${solicitacao.upload.disciplina.projetoId}/arquivos`,
+        tag: `exclusao-${solicitacao.id}`,
+      },
+      { categoria: "aprovacao_arquivo" },
+    );
+
+    revalidarArquivos(solicitacao.upload.disciplina.projetoId);
+    revalidatePath("/aprovacoes");
+    return { id: solicitacao.id, uploadId: solicitacao.uploadId, nome: solicitacao.upload.nomeArquivo };
   },
 );
 
