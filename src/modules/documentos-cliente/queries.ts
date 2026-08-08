@@ -131,7 +131,8 @@ export async function documentosDaProposta(propostaId: string): Promise<Document
  * "Recebidos do cliente" de um projeto = documentos do próprio projeto **+** os
  * herdados da proposta que gerou este projeto (join `Proposta.projetoId`). Sem
  * mistura: cada projeto herda só da sua proposta de origem. (Usado na Fase 2.)
- * Exclui `origem=interno` — esses são o repositório "Geral" (ver `geralDoProjeto`).
+ * Exclui `origem=interno` (repositório "Geral", ver `geralDoProjeto`) e
+ * `origem=base_arquitetonica` (pasta própria, ver `baseArquitetonicaDoProjeto`).
  */
 export async function recebidosDoProjeto(
   projetoId: string,
@@ -152,8 +153,8 @@ export async function recebidosDoProjeto(
   const docs = await prisma.documento.findMany({
     where: {
       OR: [
-        // Recebidos "de verdade": material externo (não interno) ancorado no projeto/proposta.
-        { origem: { not: "interno" }, OR: ancoras },
+        // Recebidos "de verdade": material externo (não interno/base) ancorado no projeto/proposta.
+        { origem: { notIn: ["interno", "base_arquitetonica"] }, OR: ancoras },
         // Docs do "Geral" (interno) marcados p/ também aparecer em Recebidos (não duplica arquivo).
         ...(opts?.incluirCompartilhadosDoGeral
           ? [{ origem: "interno" as const, exibirEmRecebidos: true, projetoId }]
@@ -174,6 +175,23 @@ export async function recebidosDoProjeto(
 export async function geralDoProjeto(projetoId: string): Promise<DocumentoItem[]> {
   const docs = await prisma.documento.findMany({
     where: { projetoId, origem: "interno" },
+    orderBy: { createdAt: "desc" },
+    include: incluir,
+  });
+  return docs.map(mapear);
+}
+
+/**
+ * Pasta "Base Arquitetônica" do projeto: referência fixa (ex.: base do arquiteto)
+ * usada por todas as disciplinas — mesmo espírito de "Recebidos do cliente" (sem
+ * gate extra de capability, qualquer membro do projeto vê), só que em pasta própria
+ * pra não se misturar com o material recebido do cliente. Não herda de proposta
+ * (referência é do projeto, não da fase comercial). Nunca exposta no portal do
+ * cliente — só `recebidosDoProjeto`/`geralDoProjeto` são lidas de lá.
+ */
+export async function baseArquitetonicaDoProjeto(projetoId: string): Promise<DocumentoItem[]> {
+  const docs = await prisma.documento.findMany({
+    where: { projetoId, origem: "base_arquitetonica" },
     orderBy: { createdAt: "desc" },
     include: incluir,
   });
