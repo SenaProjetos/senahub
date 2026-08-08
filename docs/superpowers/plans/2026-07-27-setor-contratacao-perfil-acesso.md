@@ -1,8 +1,9 @@
 # Setor × Contratação × Perfil de Acesso — separar vínculo, função e permissão
 
 **Data:** 2026-07-27 · **Status:** P1, Fase 0, Onda A, Onda B e **Onda C implementados** (código);
-**ciclo em sombra dado por cumprido pelo dono em 2026-08-08** (§15); Onda D liberada para começar,
-travada só pelo harness de audiência + equivalência contra prod · **Branch:** `dev`
+**os dois gates da Onda D foram cumpridos em 2026-08-08** (§15: ciclo em sombra dado por cumprido
+pelo dono; equivalência 0 ganhos/0 perdas contra dado de produção) e o harness de audiência que
+faltava está entregue — **a Onda D pode começar** · **Branch:** `dev`
 
 Deliberado por conselho de 4 cadeiras (Gerente de RH, Dev Sênior, Diretor, Usuária final), duas rodadas:
 parecer independente + confronto cruzado. Divergências e concessões registradas em §8.
@@ -857,11 +858,8 @@ o **ciclo em sombra cumprido** ("já passamos por um ciclo de folha; por mim, t�
 resultado verificável por script; §13.6 sempre disse que só o tempo de operação resolveria. Registrado
 como decisão, não como medição.
 
-**Gate 2 (equivalência 0 ganhos em produção) — AINDA ABERTO.** O resultado de 416 células / 0 ganhos /
-0 perdas de §13.4 foi contra o banco de **dev**. `checar-equivalencia-permissoes.ts` é read-only, mas
-não deve ser apontado para produção: usar `scripts/restaurar-snapshot-prod.ts` para restaurar um dump
-num banco descartável local e rodar o gate contra dado real ali. Sem isso, a virada é feita às cegas
-quanto a overrides e perfis que só existem em produção.
+**Gate 2 (equivalência 0 ganhos em produção) — CUMPRIDO em 2026-08-08, ver §15.2.** O resultado de
+416 células / 0 ganhos / 0 perdas de §13.4 tinha sido medido só no banco de **dev**.
 
 ### 15.1 Achado que reordena a Onda D: o harness de audiência não existe
 
@@ -913,7 +911,43 @@ diferenças, exit 0) e caminho vermelho (snapshot adulterado → acusa quem saiu
 mudança de menu, exit 1). 11 audiências resolvidas, nenhuma vazia, 10 usuários ativos com menu
 fotografado. lint limpo, 1805 testes, build ok.
 
-### 15.2 Escopo do codemod é menor do que a contagem sugere
+### 15.2 Gate 2 cumprido contra dado de produção — e o gate estava passando em falso
+
+`scripts/ensaiar-gate-onda-d.ts` clona o restore de produção (`senahub_snapshot_prod`) num banco
+descartável (`senahub_gate_onda_d`), roda **a sequência que o deploy vai rodar** e só então mede:
+`migrate deploy` → `db:seed` → `backfill-vinculos` (Fase 0) → `backfill-perfis-acesso` (Onda B) →
+gate de equivalência → snapshot de audiência. Produção não é tocada e o `.env` de dev não é
+alterado — cada passo recebe um `DATABASE_URL` com **só o nome do banco trocado**.
+
+**Resultado: 26 usuários × 1430 células, 0 ganhos, 0 perdas.** Espelho byte-a-byte contra dado
+real. **Gate 2 cumprido.**
+
+**Achado sério no caminho — a primeira execução deu verde tendo comparado ZERO células.**
+`gerarSnapshotLegado()` filtra `ativo: true` **E** `tipo: "interno"`, e em produção `tipo` é nulo
+para os 27 usuários: **o backfill da Fase 0 nunca rodou lá**. O checador então imprimiu
+"✔ Zero ganhos de acesso. Equivalência preservada." e saiu 0 — sem ter medido nada. Um gate que
+aprova o conjunto vazio é pior que gate nenhum, porque dá a impressão de ter medido. Duas
+correções: (1) `checar-equivalencia-permissoes.ts` agora **falha duro** com 0 células, apontando o
+backfill da Fase 0 como causa provável; (2) o backfill da Fase 0 entrou como passo explícito do
+ensaio — e a **ordem do deploy real é essa**: Fase 0 antes do backfill de perfis, senão o perfil é
+atribuído a uma base sem `tipo`.
+
+Mesma lição de `a55e9e9` e de §13.6: não aceitar um resultado só porque ele é verde.
+
+### 15.3 Corte do escopo global do Coordenador: a lista nominal é VAZIA hoje
+
+A decisão registrada em §15.5 (cortar junto, com aviso manual) exigia a lista de quem perde a visão
+de quais projetos. Medido no clone de produção: **0 usuários com role `supervisor` ativos**. A
+distribuição real é admin 3, administrativo 1, clt 5, estagiário 6, projetista_pj 10, freelancer 1.
+Ninguém em produção ocupa hoje o papel que perderia o escopo global — **a lista de avisos é vazia e
+o risco de "o sistema quebrou" na manhã seguinte não existe neste corte**. Refazer a medição na
+véspera da virada, porque a empresa está criando gestores por setor e isso muda.
+
+Verificado junto: os **3 sócios ativos são exatamente os 3 admins** (`superUsuario: true`), então o
+piso de sócio não precisou de nenhum override individual — coerente com as 0 perdas do gate, que
+já provariam qualquer buraco nesse piso.
+
+### 15.4 Escopo do codemod é menor do que a contagem sugere
 
 `grep "can("` em `src/` dá 157 ocorrências em 108 arquivos (o plano dizia 119). A maioria é gate de
 **visibilidade** em `page.tsx`, não ponto de enforcement independente: o enforcement real afunila em
@@ -921,15 +955,16 @@ fotografado. lint limpo, 1805 testes, build ok.
 exatamente por que o harness precisa existir ANTES do flip: é a camada de UI/audiência que sai do
 alcance do gate de equivalência.
 
-### 15.3 Escopo global do Coordenador: cortar junto, com aviso manual
+### 15.5 Escopo global do Coordenador: cortar junto, com aviso manual (decisão)
 
 Decisão do dono: religar `acessoGlobal()` sobre `escopoGlobalPerfil` **no mesmo corte** da Onda D
 (não adiar), **mas gerando antes a lista nominal de quem perde a visão de quais projetos**, para
 aviso manual às pessoas antes de subir. Isso substitui o mecanismo automático de §14.6, que segue
 não construído. Lembrar que o gate de equivalência **não** bloqueia isso — perda de acesso é warning
-por design (§6.2 passo 3), então a lista é a única salvaguarda.
+por design (§6.2 passo 3), então a lista é a única salvaguarda. **A lista foi medida em §15.3 e está
+vazia hoje** — nenhum `supervisor` ativo em produção. Refazer a medição na véspera da virada.
 
-### 15.4 Higiene de branch (R8)
+### 15.6 Higiene de branch (R8)
 
 Estado em 2026-08-08: `feat/cadastro-colaborador` está 13 commits à frente de `dev`, 1 atrás, com 56
 arquivos não commitados de trabalho não relacionado (pendências, RH, arquivos). Decisão do dono:

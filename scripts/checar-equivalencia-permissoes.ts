@@ -74,6 +74,20 @@ async function main() {
   console.log(`\n${relatorio.totalUsuarios} usuário(s) × ${antes.length} célula(s) comparada(s).`);
   console.log(`  → relatório completo: ${arquivo}`);
 
+  // Comparação vazia é FALHA, não sucesso. Sem esta guarda o script imprime "zero ganhos" e
+  // sai 0 tendo comparado NADA — foi o que aconteceu ao rodar contra um restore de produção
+  // onde a Fase 0 nunca rodou: `gerarSnapshotLegado` filtra `tipo: "interno"`, todo mundo em
+  // produção tem `tipo` nulo, e o gate deu verde com 0 usuários (§15.2 do plano). Um gate que
+  // aprova o conjunto vazio é pior que gate nenhum, porque dá a impressão de ter medido.
+  if (antes.length === 0) {
+    console.error("\n✖ Nenhuma célula comparada — o gate não mediu nada.");
+    console.error("  Causa provável: nenhum usuário com `ativo: true` E `tipo: \"interno\"`.");
+    console.error("  Se for um restore de produção, rode antes o backfill da Fase 0:");
+    console.error("    npx tsx --tsconfig tsconfig.server.json scripts/backfill-vinculos.ts");
+    await prisma.$disconnect();
+    process.exit(1);
+  }
+
   if (perdas.length > 0) {
     console.warn(`\n⚠ ${perdas.length} perda(s) de acesso (esperado antes da Onda B semear perfis reais).`);
   }
