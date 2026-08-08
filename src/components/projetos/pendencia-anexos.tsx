@@ -2,9 +2,10 @@
 
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { ExternalLink, FileText, Link2, Loader2, Paperclip, Trash2 } from "lucide-react";
+import { Camera, ExternalLink, FileText, Link2, Loader2, Paperclip, Trash2 } from "lucide-react";
 import { anexarLinkPendencia, excluirAnexoPendencia } from "@/modules/projetos/pendencias/actions";
 import type { AnexoView } from "@/modules/projetos/pendencias/queries";
+import { MOMENTOS_EVIDENCIA, MOMENTO_LABEL, type MomentoEvidencia } from "@/modules/projetos/pendencias/helpers";
 import { Button } from "@/components/ui/button";
 import { formatarDataHora } from "@/lib/utils";
 
@@ -49,6 +50,10 @@ export function PendenciaAnexos({
   const [url, setUrl] = useState("");
   const [rotulo, setRotulo] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
+  // Qual botão abriu o seletor de arquivo — decide o `momento` do que for enviado (item 7).
+  // Vive num ref, não em state: o `change` do input dispara fora do ciclo de render que o
+  // clique iniciou, e um state agendado ainda não teria chegado quando o arquivo é lido.
+  const momentoRef = useRef<MomentoEvidencia | null>(null);
 
   async function enviarArquivo(file: File) {
     if (file.size > MAX) {
@@ -57,9 +62,11 @@ export function PendenciaAnexos({
     }
     setEnviando(true);
     try {
+      const momento = momentoRef.current;
       const form = new FormData();
       form.append("pendenciaId", pendenciaId);
       form.append("file", file);
+      if (momento) form.append("momento", momento);
       const r = await fetch("/api/pendencias/anexo", { method: "POST", body: form });
       const dados = await r.json().catch(() => null);
       if (!r.ok) {
@@ -75,6 +82,7 @@ export function PendenciaAnexos({
           url: null,
           mime: dados.mime,
           tamanho: dados.tamanho,
+          momento: dados.momento ?? null,
           autorId: currentUserId,
           autor: "Você",
           createdAt: new Date().toISOString(),
@@ -83,6 +91,7 @@ export function PendenciaAnexos({
       toast.success("Anexo enviado.");
     } finally {
       setEnviando(false);
+      momentoRef.current = null;
       if (inputRef.current) inputRef.current.value = "";
     }
   }
@@ -102,6 +111,7 @@ export function PendenciaAnexos({
             url: r.data.url,
             mime: null,
             tamanho: null,
+            momento: null,
             autorId: currentUserId,
             autor: "Você",
             createdAt: new Date().toISOString(),
@@ -122,15 +132,26 @@ export function PendenciaAnexos({
     });
   }
 
+  // Evidência primeiro (antes → depois), anexo comum depois. Agrupar por seção com título
+  // custaria duas linhas de cabeçalho num painel estreito; a etiqueta na própria linha diz o
+  // mesmo ocupando o espaço que já existe.
+  const ordem = (m: string | null) => (m === "antes" ? 0 : m === "depois" ? 1 : 2);
+  const ordenados = [...anexos].sort((a, b) => ordem(a.momento) - ordem(b.momento));
+
   return (
     <div className="mt-1.5 space-y-1.5" onClick={(e) => e.stopPropagation()}>
-      {anexos.map((a) => {
+      {ordenados.map((a) => {
         const podeRemover = a.autorId === currentUserId || ehAdmin;
         const rota = `/api/pendencias/anexo/${a.id}`;
         const titulo = `${a.nome} · ${a.autor} · ${formatarDataHora(a.createdAt)}`;
         return (
           <div key={a.id} className="group/anexo flex items-start gap-1.5 text-[11px]">
             <div className="min-w-0 flex-1">
+              {a.momento && (
+                <span className="mb-0.5 inline-block rounded-sm bg-muted px-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {MOMENTO_LABEL[a.momento as MomentoEvidencia] ?? a.momento}
+                </span>
+              )}
               {a.tipo === "link" ? (
                 <a
                   href={a.url ?? "#"}
@@ -242,11 +263,33 @@ export function PendenciaAnexos({
             size="sm"
             variant="ghost"
             className="h-6 gap-1 px-1.5 text-xs text-muted-foreground"
-            onClick={() => inputRef.current?.click()}
+            onClick={() => {
+              momentoRef.current = null;
+              inputRef.current?.click();
+            }}
             disabled={enviando || pending}
           >
             {enviando ? <Loader2 className="size-3 animate-spin" /> : <Paperclip className="size-3" />} anexar
           </Button>
+          {/* Evidência antes/depois (item 7): mesmo endpoint do anexo comum, só carimba o
+              momento. Dois botões em vez de um seletor porque a escolha tem duas opções e
+              acontece no mesmo gesto de escolher o arquivo. */}
+          {MOMENTOS_EVIDENCIA.map((m) => (
+            <Button
+              key={m}
+              size="sm"
+              variant="ghost"
+              className="h-6 gap-1 px-1.5 text-xs text-muted-foreground"
+              onClick={() => {
+                momentoRef.current = m;
+                inputRef.current?.click();
+              }}
+              disabled={enviando || pending}
+              title={`Anexar evidência de ${MOMENTO_LABEL[m].toLowerCase()}`}
+            >
+              <Camera className="size-3" /> {MOMENTO_LABEL[m].toLowerCase()}
+            </Button>
+          ))}
           <Button
             size="sm"
             variant="ghost"

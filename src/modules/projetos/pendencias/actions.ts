@@ -9,16 +9,22 @@ import { removerArquivo } from "@/lib/storage";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { GLOBAL_ROLES, type Role } from "@/lib/roles";
 import type { SessionUser } from "@/lib/session";
+import { can } from "@/lib/permissions";
 import {
   rotuloItemPendencia,
+  podeTransicionar,
+  type PapeisPendencia,
+  type StatusPendencia,
   mencionadosNovos,
   resolverMencionados,
   SEVERIDADES,
+  STATUS_ABERTOS,
   TIPOS_PENDENCIA,
 } from "@/modules/projetos/pendencias/helpers";
 import { TIPOS_MARCACAO } from "@/modules/projetos/pendencias/marcacao";
 import { MODOS_CALIBRACAO } from "@/modules/projetos/pendencias/medicao";
 import { extrairMencoes } from "@/modules/chat/mencoes";
+import { buscarPendenciasParaReferencia, possiveisReincidencias } from "@/modules/projetos/pendencias/queries";
 
 // ── Schemas ────────────────────────────────────────────────────
 // Classificação (item 11) é OPCIONAL: exigir severidade/tipo em todo pino transformaria o
@@ -35,6 +41,8 @@ const criarSchema = z.object({
   y: z.number().min(0).max(1),
   texto: z.string().trim().min(1, "Descreva a pendência.").max(1000),
   ...classificacaoSchema,
+  /** Prazo do apontamento (item 18) — data ISO (AAAA-MM-DD). Opcional. */
+  prazo: z.string().trim().min(1).max(10).nullish(),
   // Marcação vetorial (item 9). Só o cliente sabe o que foi desenhado; `x`/`y` acima continuam
   // sendo a âncora (início do arrasto) e os pontos são OFFSETS a partir dela. Ausente = pino.
   marcacao: z
@@ -70,7 +78,17 @@ const editarSchema = z.object({
   ...classificacaoSchema,
 });
 /** Reclassificar não é "editar": vale mesmo depois de enviada como tarefa (ver `classificarPendencia`). */
-const classificarPendenciaSchema = z.object({ id: z.string().min(1), ...classificacaoSchema });
+const classificarPendenciaSchema = z.object({
+  id: z.string().min(1),
+  ...classificacaoSchema,
+  /** Ajustar o prazo entra na triagem, junto de severidade/tipo (item 18). */
+  prazo: z.string().trim().max(10).nullish(),
+});
+/** "Não procede" exige justificativa (item 22) — validado aqui, não por NOT NULL na coluna. */
+const descartarSchema = z.object({
+  id: z.string().min(1),
+  justificativa: z.string().trim().min(3, "Explique por que o apontamento não procede.").max(1000),
+});
 const responderSchema = z.object({
   id: z.string().min(1),
   texto: z.string().trim().min(1, "Escreva uma resposta.").max(2000),
@@ -303,6 +321,7 @@ export const criarPendencia = defineAction(
           ancoraDy: input.ancora?.dy ?? null,
           severidade: input.severidade ?? null,
           tipo: input.tipo ?? null,
+          prazo: input.prazo ? new Date(`${input.prazo}T12:00:00`) : null,
           // Pino simples não grava geometria — `null` mantém a linha idêntica à de antes do item 9.
           marcacaoTipo: input.marcacao && input.marcacao.tipo !== "ponto" ? input.marcacao.tipo : null,
           marcacaoGeo:
@@ -383,7 +402,11 @@ export const classificarPendencia = defineAction(
     }
     await prisma.pendencia.update({
       where: { id: p.id },
-      data: { severidade: input.severidade ?? null, tipo: input.tipo ?? null },
+      data: {
+        severidade: input.severidade ?? null,
+        tipo: input.tipo ?? null,
+        prazo: input.prazo ? new Date(`${input.prazo}T12:00:00`) : null,
+      },
     });
     revalidarViewer(p.projetoId, p.uploadId);
     return { id: p.id, projetoId: p.projetoId };
@@ -444,6 +467,12 @@ export const replicarPendencia = defineAction(
             medidaMm: origem.medidaMm,
             medidaFator: origem.medidaFator,
             medidaModo: origem.medidaModo,
+            // Prazo (item 18) acompanha a cópia: é o mesmo problema, com a mesma urgência.
+            prazo: origem.prazo,
+            // Herda o estado de publicação (item 31): replicar um apontamento já publicado
+            // gera cópias publicadas — fazê-las nascer rascunho as esconderia até alguém
+            // enviar uma rodada em CADA prancha de destino, o que ninguém espera.
+            publicadoEm: origem.publicadoEm ? new Date() : null,
           },
         });
         out.push({ uploadId: nova.uploadId, numero: nova.numero });
@@ -511,8 +540,13 @@ export const enviarApontamentos = defineAction(
     const pendencias = await prisma.pendencia.findMany({
       where: {
         ...(upload.documentoId ? { documentoId: upload.documentoId } : { uploadId: upload.id }),
-        status: "aberta",
+        // Inclui `em_correcao` (item 22): é trabalho pendente e precisa entrar na rodada.
+        status: { in: [...STATUS_ABERTOS] },
         tarefaId: null,
+        // Rascunho ALHEIO fica de fora (item 31): publicar a análise a meio caminho de outro
+        // revisor seria justamente o que o modo rascunho existe pra impedir. Os meus entram —
+        // enviar é o ato de entregar o que eu marquei.
+        OR: [{ publicadoEm: { not: null } }, { autorId: user.id }],
         // Soft delete (item 24) é explícito: `Pendencia` fica fora da extension de lib/prisma.ts
         // (ver `excluirPendencia`), então nenhuma leitura ganha o filtro de graça.
         excluidoEm: null,
@@ -567,6 +601,14 @@ export const enviarApontamentos = defineAction(
         });
         await tx.pendencia.update({ where: { id: p.id }, data: { tarefaId: tarefa.id, tarefaItemId: item.id } });
       }
+      // Publica o lote (item 31): até aqui os apontamentos eram RASCUNHO, visíveis só pro
+      // autor. Não existe um segundo passo de "publicar" — o envio já É o lote (cria a tarefa,
+      // notifica os responsáveis e, se for o caso, abre revisão). Só marca quem ainda não
+      // tinha data, pra não reescrever a publicação de linha antiga (backfill) reenviada.
+      await tx.pendencia.updateMany({
+        where: { id: { in: pendencias.map((p) => p.id) }, publicadoEm: null },
+        data: { publicadoEm: new Date() },
+      });
       // Marca o arquivo como "ajuste solicitado" (mesmo badge da validação parcial).
       await tx.upload.update({
         where: { id: upload.id },
@@ -609,85 +651,131 @@ export const enviarApontamentos = defineAction(
   },
 );
 
-// ── Ciclo de vida (projetista / validador) ─────────────────────
+// ── Ciclo de vida: máquina de estados do item 22 ───────────────
 
-/** Projetista marca a pendência como resolvida; sincroniza o item de checklist. */
+/** Descobre os papéis do usuário SOBRE ESTA pendência, na forma que a máquina entende. */
+async function papeisSobre(p: { disciplinaId: string }, user: SessionUser): Promise<PapeisPendencia> {
+  const global = ehGlobal(user);
+  const [validador, resp] = await Promise.all([
+    can(user.role, "uploads", "validar"),
+    global
+      ? Promise.resolve(true)
+      : prisma.disciplinaResponsavel
+          .findFirst({ where: { disciplinaId: p.disciplinaId, userId: user.id }, select: { id: true } })
+          .then((r) => r !== null),
+  ]);
+  return { ehValidador: validador, ehResponsavel: resp, ehGlobal: global };
+}
+
+/**
+ * Aplica UMA transição de estado, validada pela máquina do item 22
+ * (`helpers.ts#podeTransicionar`). Antes, cada action checava o status na mão — com 6 estados
+ * isso multiplica e diverge, e a UI não tinha como saber o que o servidor aceitaria.
+ *
+ * Os efeitos colaterais são por DESTINO, não por action: quem entra em estado "concluído"
+ * marca o item de checklist, quem volta pra fila desmarca. `reaberturas` (item 23) só conta a
+ * volta de `resolvida` — voltar de `em_correcao` ou de `adiado` não é reabertura, é retomada.
+ */
+async function transicionar(
+  input: { id: string; justificativa?: string | null },
+  user: SessionUser,
+  destino: StatusPendencia,
+) {
+  const p = await prisma.pendencia.findUnique({ where: { id: input.id } });
+  if (!p || p.excluidoEm) throw new ActionError("Pendência não encontrada.");
+
+  const papeis = await papeisSobre(p, user);
+  const veredito = podeTransicionar(p.status, destino, papeis);
+  if (!veredito.ok) throw new ActionError(veredito.motivo);
+
+  const justificativa = input.justificativa?.trim() ?? "";
+  if (veredito.exigeJustificativa && justificativa.length === 0) {
+    throw new ActionError("Explique por que o apontamento não procede.");
+  }
+
+  const agora = new Date();
+  const dados: Record<string, unknown> = { status: destino };
+  let itemConcluido: boolean | null = null;
+
+  if (destino === "resolvida") {
+    dados.resolvidoPorId = user.id;
+    dados.resolvidoEm = agora;
+    itemConcluido = true;
+  } else if (destino === "aberta") {
+    dados.resolvidoPorId = null;
+    dados.resolvidoEm = null;
+    itemConcluido = false;
+    // Item 23: só a volta de "resolvida" é reabertura de fato.
+    if (p.status === "resolvida") dados.reaberturas = p.reaberturas + 1;
+  } else if (destino === "em_correcao" || destino === "adiado") {
+    itemConcluido = false;
+  } else if (destino === "fechada") {
+    dados.fechadoPorId = user.id;
+    dados.fechadoEm = agora;
+    // Registra CONTRA QUAL versão foi verificada — `uploadId` continua sendo onde nasceu.
+    // Sem isso não dá pra dizer "aberto na R01, conferido na R03".
+    const verificacao = p.documentoId
+      ? await prisma.upload.findFirst({ where: { documentoId: p.documentoId }, orderBy: { versao: "desc" }, select: { id: true } })
+      : null;
+    dados.uploadVerificacaoId = verificacao?.id ?? p.uploadId;
+    itemConcluido = true;
+  } else if (destino === "descartada") {
+    dados.fechadoPorId = user.id;
+    dados.fechadoEm = agora;
+    dados.justificativaDescarte = justificativa;
+    itemConcluido = true;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.pendencia.update({ where: { id: p.id }, data: dados });
+    if (p.tarefaItemId && itemConcluido !== null) {
+      await tx.tarefaItem.update({ where: { id: p.tarefaItemId }, data: { concluido: itemConcluido } });
+    }
+  });
+
+  revalidarViewer(p.projetoId, p.uploadId);
+  revalidatePath("/tarefas");
+  revalidatePath("/pendencias");
+  return { id: p.id, projetoId: p.projetoId, status: destino };
+}
+
+/** Projetista assume a correção (item 22) — o único estado 100% novo da máquina. */
+export const assumirCorrecaoPendencia = defineAction(
+  { ...baseProjetista, acao: "assumir-correcao-pendencia", schema: idSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId },
+  async (input, { user }) => transicionar(input, user, "em_correcao"),
+);
+
+/** Projetista marca como resolvida (= aguardando verificação do validador). */
 export const resolverPendencia = defineAction(
   { ...baseProjetista, acao: "resolver-pendencia", schema: idSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId },
-  async (input, { user }) => {
-    const p = await prisma.pendencia.findUnique({ where: { id: input.id } });
-    if (!p || p.excluidoEm) throw new ActionError("Pendência não encontrada.");
-    await exigirResponsavelOuGlobal(p.disciplinaId, user);
-    if (p.status === "fechada" || p.status === "descartada") {
-      throw new ActionError("Pendência já encerrada pelo validador.");
-    }
-    await prisma.$transaction(async (tx) => {
-      await tx.pendencia.update({
-        where: { id: p.id },
-        data: { status: "resolvida", resolvidoPorId: user.id, resolvidoEm: new Date() },
-      });
-      if (p.tarefaItemId) await tx.tarefaItem.update({ where: { id: p.tarefaItemId }, data: { concluido: true } });
-    });
-    revalidarViewer(p.projetoId, p.uploadId);
-    revalidatePath("/tarefas");
-    return { id: p.id, projetoId: p.projetoId };
-  },
+  async (input, { user }) => transicionar(input, user, "resolvida"),
 );
 
-/** Projetista reabre uma pendência resolvida (volta a aberta); sincroniza o item de checklist. */
+/** Volta pra fila: reabrir (de resolvida), largar a correção, ou reativar um adiado. */
 export const reabrirPendencia = defineAction(
   { ...baseProjetista, acao: "reabrir-pendencia", schema: idSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId },
-  async (input, { user }) => {
-    const p = await prisma.pendencia.findUnique({ where: { id: input.id } });
-    if (!p || p.excluidoEm) throw new ActionError("Pendência não encontrada.");
-    await exigirResponsavelOuGlobal(p.disciplinaId, user);
-    if (p.status !== "resolvida") throw new ActionError("Só pendências resolvidas podem ser reabertas.");
-    await prisma.$transaction(async (tx) => {
-      await tx.pendencia.update({
-        where: { id: p.id },
-        data: { status: "aberta", resolvidoPorId: null, resolvidoEm: null },
-      });
-      if (p.tarefaItemId) await tx.tarefaItem.update({ where: { id: p.tarefaItemId }, data: { concluido: false } });
-    });
-    revalidarViewer(p.projetoId, p.uploadId);
-    revalidatePath("/tarefas");
-    return { id: p.id, projetoId: p.projetoId };
-  },
+  async (input, { user }) => transicionar(input, user, "aberta"),
 );
 
-/** Validador encerra a pendência (aceita a resolução). Marca o item de checklist concluído. */
+/** Validador encerra a pendência (aceita a resolução). */
 export const fecharPendencia = defineAction(
   { ...baseValidador, acao: "fechar-pendencia", schema: idSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId },
-  async (input, { user }) => {
-    const p = await prisma.pendencia.findUnique({ where: { id: input.id } });
-    if (!p || p.excluidoEm) throw new ActionError("Pendência não encontrada.");
-    if (p.status === "fechada") return { id: p.id, projetoId: p.projetoId };
-    // Registra CONTRA QUAL versão a pendência foi verificada — `uploadId` continua sendo a
-    // versão de origem (onde nasceu). Sem isso não dá para dizer "aberto na R01, conferido
-    // na R03". Usa a versão vigente do documento; `findFirst` já ignora a lixeira.
-    const verificacao = p.documentoId
-      ? await prisma.upload.findFirst({
-          where: { documentoId: p.documentoId },
-          orderBy: { versao: "desc" },
-          select: { id: true },
-        })
-      : null;
-    await prisma.$transaction(async (tx) => {
-      await tx.pendencia.update({
-        where: { id: p.id },
-        data: {
-          status: "fechada",
-          fechadoPorId: user.id,
-          fechadoEm: new Date(),
-          uploadVerificacaoId: verificacao?.id ?? p.uploadId,
-        },
-      });
-      if (p.tarefaItemId) await tx.tarefaItem.update({ where: { id: p.tarefaItemId }, data: { concluido: true } });
-    });
-    revalidarViewer(p.projetoId, p.uploadId);
-    revalidatePath("/tarefas");
-    return { id: p.id, projetoId: p.projetoId };
-  },
+  async (input, { user }) => transicionar(input, user, "fechada"),
+);
+
+/**
+ * Validador marca "não procede" (item 22) — a justificativa passou a ser OBRIGATÓRIA. O valor
+ * gravado continua `descartada`: é o mesmo estado, e renomear invalidaria o AuditLog já escrito.
+ */
+export const descartarPendencia = defineAction(
+  { ...baseValidador, acao: "descartar-pendencia", schema: descartarSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId },
+  async (input, { user }) => transicionar(input, user, "descartada"),
+);
+
+/** Adia o apontamento — SÓ admin/supervisor (restrição do solicitante em R9). */
+export const adiarPendencia = defineAction(
+  { ...baseProjetista, acao: "adiar-pendencia", schema: idSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId },
+  async (input, { user }) => transicionar(input, user, "adiado"),
 );
 
 // ── Thread de resposta (item 39) ───────────────────────────────
@@ -753,6 +841,65 @@ export const responderPendencia = defineAction(
       await notificarMencionados(resolverMencionados(input.texto, candidatos), user.id, p.numero, input.texto, p.projetoId);
     }
     return { id: resposta.id, pendenciaId: p.id, projetoId: p.projetoId };
+  },
+);
+
+// ── Biblioteca de apontamentos-padrão (item 10) ────────────────
+
+const padraoSchema = z.object({
+  disciplinaId: z.string().nullish(),
+  texto: z.string().trim().min(3, "Escreva o texto do apontamento-padrão.").max(1000),
+  ...classificacaoSchema,
+});
+
+/**
+ * Cadastra uma frase recorrente na biblioteca (item 10) — "cota ausente na planta baixa" e
+ * afins, pra não redigitar a cada revisão. `disciplinaId` nulo = vale pra qualquer disciplina.
+ *
+ * Gate de quem aponta (`uploads:validar`): a biblioteca é ferramenta de quem revisa.
+ */
+export const criarApontamentoPadrao = defineAction(
+  { ...baseValidador, acao: "criar-apontamento-padrao", entidade: "ApontamentoPadrao", schema: padraoSchema, entidadeId: (d) => (d as { id: string }).id },
+  async (input, { user }) => {
+    const p = await prisma.apontamentoPadrao.create({
+      data: {
+        disciplinaId: input.disciplinaId || null,
+        texto: input.texto,
+        severidade: input.severidade ?? null,
+        tipo: input.tipo ?? null,
+        autorId: user.id,
+      },
+    });
+    revalidatePath("/pendencias");
+    return { id: p.id, texto: p.texto };
+  },
+);
+
+/** Desativa um padrão (soft): sai do autocomplete sem sumir de quem já usou. */
+export const desativarApontamentoPadrao = defineAction(
+  { ...baseValidador, acao: "desativar-apontamento-padrao", entidade: "ApontamentoPadrao", schema: idSchema, entidadeId: (d) => (d as { id: string }).id },
+  async (input, { user }) => {
+    const p = await prisma.apontamentoPadrao.findUnique({ where: { id: input.id } });
+    if (!p) throw new ActionError("Apontamento-padrão não encontrado.");
+    if (p.autorId !== user.id && !ehGlobal(user)) {
+      throw new ActionError("Só quem cadastrou (ou admin/supervisor) pode desativar.");
+    }
+    await prisma.apontamentoPadrao.update({ where: { id: p.id }, data: { ativo: false } });
+    revalidatePath("/pendencias");
+    return { id: p.id };
+  },
+);
+
+/**
+ * Marca que um padrão foi usado (item 10) — alimenta a ordenação do autocomplete pelo que a
+ * equipe mais usa. Separado da criação da pendência de propósito: falhar aqui não pode
+ * derrubar a criação do apontamento, que é o que importa.
+ */
+export const registrarUsoApontamentoPadrao = defineAction(
+  { ...baseValidador, acao: "usar-apontamento-padrao", entidade: "ApontamentoPadrao", schema: idSchema, entidadeId: (d) => (d as { id: string }).id, audit: false },
+  async (input) => {
+    await prisma.apontamentoPadrao.update({ where: { id: input.id }, data: { usos: { increment: 1 } } });
+    return { id: input.id };
   },
 );
 
@@ -865,6 +1012,185 @@ export const excluirAnexoPendencia = defineAction(
   },
 );
 
+// ── Reincidência (item 17) ─────────────────────────────────────
+
+/**
+ * Sugere apontamentos já fechados parecidos com o texto sendo escrito (item 17).
+ *
+ * Só sugere: nada muda de estado aqui, e confirmar (no cliente) apenas cria a referência
+ * cruzada do item 13 — a mesma ligação que a pessoa faria à mão. É a garantia contra o risco
+ * que a ficha registra (falso positivo escondendo problema novo): a heurística nunca fecha,
+ * marca nem classifica nada sozinha.
+ *
+ * `disciplinaId` vem do UPLOAD, não do cliente. `audit: false` — dispara a cada pausa na
+ * digitação.
+ */
+export const sugerirReincidencias = defineAction(
+  { ...baseValidador, acao: "sugerir-reincidencias", entidade: "Pendencia", schema: z.object({ uploadId: z.string().min(1), texto: z.string().max(2000) }), entidadeId: (d) => (d as { disciplinaId: string }).disciplinaId, audit: false },
+  async (input) => {
+    const upload = await prisma.upload.findUnique({
+      where: { id: input.uploadId },
+      select: { disciplinaId: true },
+    });
+    if (!upload) throw new ActionError("Prancha não encontrada.");
+    const itens = await possiveisReincidencias(upload.disciplinaId, input.texto);
+    return { disciplinaId: upload.disciplinaId, itens };
+  },
+);
+
+// ── Marca d'água de leitura (item 8) ───────────────────────────
+
+/**
+ * Avança a marca d'água de "já analisei até aqui" ao ABRIR a prancha (item 8).
+ *
+ * Roda depois de o viewer montar, não durante a leitura do RSC: gravar na renderização faria a
+ * própria visita zerar o aviso antes de a pessoa lê-lo. `audit: false` — abrir prancha é
+ * navegação, e uma linha de auditoria por abertura afogaria o log sem contar nada novo (o
+ * acesso ao arquivo já é auditado no download).
+ *
+ * Gate: `projetos:ver` + a linha é sempre do PRÓPRIO usuário (`user.id`, nunca um id vindo do
+ * cliente), então não há como marcar leitura em nome de outra pessoa.
+ */
+export const marcarDocumentoLido = defineAction(
+  { ...baseProjetista, acao: "marcar-documento-lido", entidade: "LeituraDocumento", schema: z.object({ documentoId: z.string().min(1) }), entidadeId: (d) => (d as { documentoId: string }).documentoId, audit: false },
+  async (input, { user }) => {
+    const agora = new Date();
+    await prisma.leituraDocumento.upsert({
+      where: { documentoId_userId: { documentoId: input.documentoId, userId: user.id } },
+      update: { lidoEm: agora },
+      create: { documentoId: input.documentoId, userId: user.id, lidoEm: agora },
+    });
+    return { documentoId: input.documentoId };
+  },
+);
+
+// ── Referência cruzada (item 13) ───────────────────────────────
+
+const referenciarSchema = z.object({
+  origemId: z.string().min(1),
+  destinoId: z.string().min(1),
+  nota: z.string().trim().max(300).optional(),
+});
+
+/**
+ * Liga dois apontamentos do mesmo projeto ("este problema é o mesmo do #12 da ARQ", item 13).
+ *
+ * Gate de PARTICIPANTE (`baseProjetista` + `exigirParticipante`), igual a anexo (item 12) e
+ * resposta (item 39): ligar dois apontamentos é acrescentar contexto a um que já existe, não
+ * abrir apontamento novo — e o projetista é justamente quem costuma reconhecer que dois
+ * problemas são o mesmo. Exigir `uploads:validar` deixaria de fora quem tem a informação.
+ *
+ * A ligação é gravada com direção, mas é exibida dos dois lados (ver `carregarReferencias`),
+ * então o **par inverso é recusado**: `@@unique([origemId, destinoId])` não o pega, e ele
+ * renderizaria como uma segunda linha idêntica na tela dos dois apontamentos.
+ */
+export const referenciarPendencia = defineAction(
+  { ...baseProjetista, acao: "referenciar-pendencia", entidade: "ReferenciaPendencia", schema: referenciarSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId },
+  async (input, { user }) => {
+    if (input.origemId === input.destinoId) throw new ActionError("Um apontamento não pode referenciar a si mesmo.");
+
+    const [origem, destino] = await Promise.all([
+      prisma.pendencia.findUnique({ where: { id: input.origemId } }),
+      prisma.pendencia.findUnique({ where: { id: input.destinoId } }),
+    ]);
+    if (!origem || origem.excluidoEm) throw new ActionError("Apontamento de origem não encontrado.");
+    // Rascunho de terceiro é tratado como inexistente (item 31): admitir aqui vazaria a
+    // existência de uma análise que ninguém mais pode abrir.
+    if (!destino || destino.excluidoEm || (destino.publicadoEm === null && destino.autorId !== user.id)) {
+      throw new ActionError("Apontamento referenciado não encontrado.");
+    }
+    if (origem.projetoId !== destino.projetoId) {
+      throw new ActionError("Só é possível referenciar apontamentos do mesmo projeto.");
+    }
+    await exigirParticipante(origem, user);
+
+    const jaExiste = await prisma.referenciaPendencia.findFirst({
+      where: {
+        OR: [
+          { origemId: input.origemId, destinoId: input.destinoId },
+          { origemId: input.destinoId, destinoId: input.origemId },
+        ],
+      },
+      select: { id: true },
+    });
+    if (jaExiste) throw new ActionError("Estes apontamentos já estão ligados.");
+
+    const ref = await prisma.referenciaPendencia.create({
+      data: { origemId: origem.id, destinoId: destino.id, nota: input.nota?.trim() || null, autorId: user.id },
+    });
+    // Revalida os DOIS viewers: o apontamento citado também passa a mostrar a ligação.
+    revalidarViewer(origem.projetoId, origem.uploadId);
+    if (destino.uploadId !== origem.uploadId) revalidarViewer(destino.projetoId, destino.uploadId);
+
+    // Avisa o outro lado — a referência é informação nova pra quem cuida do apontamento citado.
+    const destinatarios = [...new Set([destino.autorId])].filter((id) => id !== user.id);
+    if (destinatarios.length > 0) {
+      await notificarMuitos(
+        destinatarios,
+        {
+          titulo: `Apontamento #${destino.numero} foi referenciado`,
+          corpo: `${user.name} ligou o apontamento #${origem.numero} a este.`,
+          href: `/projetos/${destino.projetoId}/arquivos/${destino.uploadId}/visualizar?pin=${destino.numero}`,
+          tag: `pendencia-referencia-${ref.id}`,
+        },
+        { categoria: CATEGORIA_APONTAMENTO },
+      ).catch((err) => console.error("[pendencias] falha ao notificar referência:", err));
+    }
+    return { id: ref.id, origemId: origem.id, destinoId: destino.id, projetoId: origem.projetoId };
+  },
+);
+
+const buscarAlvosSchema = z.object({
+  origemId: z.string().min(1),
+  termo: z.string().max(120).default(""),
+});
+
+/**
+ * Alimenta o seletor de destino da referência (item 13).
+ *
+ * O projeto vem da PRÓPRIA pendência de origem, não do cliente: assim o escopo da busca não
+ * depende de um id enviado pelo navegador, e o mesmo `exigirParticipante` que autoriza criar a
+ * ligação já autoriza procurar o destino. `audit: false` — é leitura de digitação, gravaria uma
+ * linha de auditoria por tecla.
+ */
+export const buscarAlvosReferencia = defineAction(
+  { ...baseProjetista, acao: "buscar-alvos-referencia", entidade: "Pendencia", schema: buscarAlvosSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId, audit: false },
+  async (input, { user }) => {
+    const origem = await prisma.pendencia.findUnique({ where: { id: input.origemId } });
+    if (!origem || origem.excluidoEm) throw new ActionError("Apontamento não encontrado.");
+    await exigirParticipante(origem, user);
+    const itens = await buscarPendenciasParaReferencia({
+      projetoId: origem.projetoId,
+      excluirId: origem.id,
+      termo: input.termo,
+      viewerId: user.id,
+    });
+    return { projetoId: origem.projetoId, itens };
+  },
+);
+
+/** Desfaz uma referência cruzada (quem ligou, ou admin). Hard delete — a ligação não tem história. */
+export const removerReferenciaPendencia = defineAction(
+  { ...baseProjetista, acao: "remover-referencia-pendencia", entidade: "ReferenciaPendencia", schema: idSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId },
+  async (input, { user }) => {
+    const ref = await prisma.referenciaPendencia.findUnique({
+      where: { id: input.id },
+      include: {
+        origem: { select: { projetoId: true, uploadId: true } },
+        destino: { select: { projetoId: true, uploadId: true } },
+      },
+    });
+    if (!ref) throw new ActionError("Referência não encontrada.");
+    if (ref.autorId !== user.id && user.role !== "admin") {
+      throw new ActionError("Só quem criou a referência (ou admin) pode removê-la.");
+    }
+    await prisma.referenciaPendencia.delete({ where: { id: ref.id } });
+    revalidarViewer(ref.origem.projetoId, ref.origem.uploadId);
+    if (ref.destino.uploadId !== ref.origem.uploadId) revalidarViewer(ref.destino.projetoId, ref.destino.uploadId);
+    return { id: ref.id, projetoId: ref.origem.projetoId };
+  },
+);
+
 /** Autor apaga a própria resposta (ou admin). Hard delete — thread curta, sem histórico de edição. */
 export const excluirRespostaPendencia = defineAction(
   { ...baseProjetista, acao: "excluir-resposta-pendencia", entidade: "PendenciaResposta", schema: idSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId },
@@ -881,22 +1207,3 @@ export const excluirRespostaPendencia = defineAction(
   },
 );
 
-/** Validador descarta a pendência (não procede). Marca o item de checklist concluído (sai do trabalho ativo). */
-export const descartarPendencia = defineAction(
-  { ...baseValidador, acao: "descartar-pendencia", schema: idSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId },
-  async (input, { user }) => {
-    const p = await prisma.pendencia.findUnique({ where: { id: input.id } });
-    if (!p || p.excluidoEm) throw new ActionError("Pendência não encontrada.");
-    if (p.status === "descartada") return { id: p.id, projetoId: p.projetoId };
-    await prisma.$transaction(async (tx) => {
-      await tx.pendencia.update({
-        where: { id: p.id },
-        data: { status: "descartada", fechadoPorId: user.id, fechadoEm: new Date() },
-      });
-      if (p.tarefaItemId) await tx.tarefaItem.update({ where: { id: p.tarefaItemId }, data: { concluido: true } });
-    });
-    revalidarViewer(p.projetoId, p.uploadId);
-    revalidatePath("/tarefas");
-    return { id: p.id, projetoId: p.projetoId };
-  },
-);

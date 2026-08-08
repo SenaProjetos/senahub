@@ -27,7 +27,9 @@ export async function exportarPendenciasBcf(
 ): Promise<{ stream: ReadableStream<Uint8Array>; total: number } | { erro: string }> {
   const selecionados = ids.slice(0, MAX_APONTAMENTOS);
   const pendencias = await prisma.pendencia.findMany({
-    where: { id: { in: selecionados }, projetoId },
+    // Rascunho (item 31) não é exportável: BCF vai pra ferramenta de terceiro (Revit/Navisworks),
+    // e o que ainda não foi entregue não pode sair do sistema.
+    where: { id: { in: selecionados }, projetoId, publicadoEm: { not: null }, excluidoEm: null },
     orderBy: { numero: "asc" },
   });
   if (pendencias.length === 0) return { erro: "Nenhum apontamento selecionado." };

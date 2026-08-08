@@ -3,8 +3,8 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Check, CopyPlus, FileArchive, GitCompare, Loader2, Maximize2, MapPin, MessageSquare, Pencil, RotateCcw, Ruler, Send, Stamp, Table2, Tags, Trash2, Undo2, ZoomIn, ZoomOut } from "lucide-react";
-import type { PendenciaView } from "@/modules/projetos/pendencias/queries";
+import { ArrowLeft, BookmarkPlus, Check, CopyPlus, FileArchive, GitCompare, Loader2, Maximize2, MapPin, MessageSquare, PauseCircle, Pencil, RotateCcw, Ruler, Send, Sparkles, Stamp, Table2, Tags, Trash2, Undo2, Wrench, X, ZoomIn, ZoomOut } from "lucide-react";
+import type { PendenciaView, ReincidenciaView } from "@/modules/projetos/pendencias/queries";
 import {
   criarPendencia,
   editarPendencia,
@@ -16,6 +16,10 @@ import {
   descartarPendencia,
   replicarPendencia,
   responderPendencia,
+  criarApontamentoPadrao,
+  registrarUsoApontamentoPadrao,
+  assumirCorrecaoPendencia,
+  adiarPendencia,
   classificarPendencia,
   excluirRespostaPendencia,
 } from "@/modules/projetos/pendencias/actions";
@@ -26,6 +30,15 @@ import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arq
 import {
   rotuloItemPendencia,
   pesoSeveridade,
+  transicoesPossiveis,
+  temEvidencia,
+  STATUS_LABEL,
+  STATUS_TERMINAIS,
+  contaComoTrabalho,
+  ehRascunho,
+  temImpeditivoAberto,
+  type PapeisPendencia,
+  type StatusPendencia,
   SEVERIDADES,
   SEVERIDADE_LABEL,
   TIPOS_PENDENCIA,
@@ -53,10 +66,20 @@ import {
   rotuloCalibracao,
   type ModoCalibracao,
 } from "@/modules/projetos/pendencias/medicao";
-import { calibrarPrancha } from "@/modules/projetos/pendencias/actions";
-import type { CalibracaoView } from "@/modules/projetos/pendencias/queries";
+import { calibrarPrancha, marcarDocumentoLido } from "@/modules/projetos/pendencias/actions";
+import type { CalibracaoView, PadraoView } from "@/modules/projetos/pendencias/queries";
+import {
+  diasAtePrazo,
+  rotuloPrazo,
+  situacaoPrazo,
+  SITUACAO_PRAZO_LABEL,
+  type SituacaoPrazo,
+} from "@/modules/projetos/pendencias/prazo";
 import { MarcacaoSvg } from "@/components/pdf/marcacao-svg";
 import { PendenciaAnexos } from "@/components/projetos/pendencia-anexos";
+import { PendenciaReferencias } from "@/components/projetos/pendencia-referencias";
+import { descreverNovidades, type Novidades } from "@/modules/projetos/pendencias/novidades";
+import { sugerirReincidencias, referenciarPendencia } from "@/modules/projetos/pendencias/actions";
 import { partesComMencao } from "@/modules/chat/mencoes";
 import { PdfPagina, type MarcaTexto } from "@/components/pdf/pdf-pagina";
 import { usePdfBusca } from "@/components/pdf/use-pdf-busca";
@@ -79,7 +102,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { cn, formatarDataHora, rotuloRevisao } from "@/lib/utils";
+import { cn, formatarData, formatarDataHora, rotuloRevisao } from "@/lib/utils";
 
 // pdf.js é carregado dinamicamente no cliente (evita SSR e mantém o chunk fora do bundle inicial).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -133,6 +156,8 @@ type Props = {
   podeValidar: boolean;
   ehResponsavel: boolean;
   ehAdmin: boolean;
+  /** admin/supervisor — único perfil que adia e reativa apontamento (item 22, R9). */
+  ehGlobal: boolean;
   currentUserId: string;
   pendenciasIniciais: PendenciaView[];
   colunasTarefa: { id: string; nome: string }[];
@@ -146,17 +171,45 @@ type Props = {
   pranchasParaReplicar: PranchaVigente[];
   /** Calibração de escala por página (item 28) — vazio = nenhuma página calibrada ainda. */
   calibracoesIniciais: CalibracaoView[];
+  /** Biblioteca de apontamentos-padrão aplicável a esta disciplina (item 10). */
+  padroes: PadraoView[];
+  /** "O que mudou desde sua última análise" (item 8) — já calculado ANTES desta visita. */
+  novidades: Novidades;
   paginaInicial: number | null;
   pinInicial: number | null;
 };
 
 // `traco` é a cor do desenho vetorial (item 9): o SVG usa `currentColor`, então basta a classe
 // de texto — mesma paleta do pino, sem cor cravada em hex.
+// Os rótulos vêm de `helpers.ts` — um lugar só, senão a tela e o relatório divergem.
 const STATUS_META: Record<string, { label: string; cls: string; pin: string; traco: string }> = {
-  aberta: { label: "Aberta", cls: "text-warning border-warning/40", pin: "bg-warning text-warning-foreground", traco: "text-warning" },
+  aberta: { label: STATUS_LABEL.aberta, cls: "text-warning border-warning/40", pin: "bg-warning text-warning-foreground", traco: "text-warning" },
+  em_correcao: { label: STATUS_LABEL.em_correcao, cls: "text-primary border-primary/40", pin: "bg-primary text-primary-foreground", traco: "text-primary" },
   resolvida: { label: "Resolvida", cls: "text-info border-info/40", pin: "bg-info text-info-foreground", traco: "text-info" },
-  fechada: { label: "Fechada", cls: "text-status-aprovado border-status-aprovado/40", pin: "bg-status-aprovado text-white", traco: "text-status-aprovado" },
-  descartada: { label: "Descartada", cls: "text-muted-foreground border-muted", pin: "bg-muted-foreground text-white", traco: "text-muted-foreground" },
+  fechada: { label: STATUS_LABEL.fechada, cls: "text-status-aprovado border-status-aprovado/40", pin: "bg-status-aprovado text-white", traco: "text-status-aprovado" },
+  descartada: { label: STATUS_LABEL.descartada, cls: "text-muted-foreground border-muted", pin: "bg-muted-foreground text-white", traco: "text-muted-foreground" },
+  adiado: { label: STATUS_LABEL.adiado, cls: "text-muted-foreground border-dashed border-muted-foreground/40", pin: "bg-muted text-muted-foreground", traco: "text-muted-foreground" },
+};
+
+/** Botão de cada transição — o rótulo/ícone que a máquina de estados (item 22) oferece. */
+const ACAO_TRANSICAO: Record<
+  StatusPendencia,
+  {
+    rotulo: string;
+    sucesso: string;
+    cls: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    icone: any;
+    /** `null` quando a transição NÃO é direta — "não procede" passa pela janela de justificativa. */
+    acao: ((i: { id: string }) => Promise<{ ok: boolean; error?: string }>) | null;
+  }
+> = {
+  em_correcao: { rotulo: "assumir", sucesso: "Assumida para correção.", cls: "text-primary", icone: Wrench, acao: assumirCorrecaoPendencia },
+  resolvida: { rotulo: "resolver", sucesso: "Marcada como resolvida.", cls: "text-info", icone: Check, acao: resolverPendencia },
+  aberta: { rotulo: "voltar à fila", sucesso: "Voltou para a fila.", cls: "", icone: Undo2, acao: reabrirPendencia },
+  fechada: { rotulo: "fechar", sucesso: "Apontamento fechado.", cls: "text-status-aprovado", icone: Check, acao: fecharPendencia },
+  descartada: { rotulo: "não procede", sucesso: "Marcado como não procede.", cls: "text-muted-foreground", icone: RotateCcw, acao: null },
+  adiado: { rotulo: "adiar", sucesso: "Apontamento adiado.", cls: "text-muted-foreground", icone: PauseCircle, acao: adiarPendencia },
 };
 
 /**
@@ -174,6 +227,14 @@ const SEVERIDADE_CLS: Record<Severidade, string> = {
 /** Medição pronta pra persistir (item 28) — valor + fator + modo que o produziram. */
 type MedidaCalculada = { mm: number; fator: number; modo: ModoCalibracao };
 
+/** Cor do badge de prazo (item 18). Só vencido usa `destructive` — é o que exige ação hoje. */
+const PRAZO_CLS: Record<SituacaoPrazo, string> = {
+  sem_prazo: "",
+  no_prazo: "text-muted-foreground border-muted",
+  vence_em_breve: "text-warning border-warning/40",
+  vencido: "border-transparent bg-destructive text-white",
+};
+
 /** Valor do `Select` quando nada está escolhido — `Select` do base-ui não aceita `null` como item. */
 const SEM_CLASSIFICACAO = "__nenhum__";
 
@@ -187,11 +248,15 @@ function CamposClassificacao({
   setSeveridade,
   tipo,
   setTipo,
+  prazo,
+  setPrazo,
 }: {
   severidade: Severidade | null;
   setSeveridade: (v: Severidade | null) => void;
   tipo: TipoPendencia | null;
   setTipo: (v: TipoPendencia | null) => void;
+  prazo: string;
+  setPrazo: (v: string) => void;
 }) {
   return (
     <>
@@ -235,6 +300,19 @@ function CamposClassificacao({
           </Select>
         </div>
       </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="pendencia-prazo">Prazo (opcional)</Label>
+        <input
+          id="pendencia-prazo"
+          type="date"
+          value={prazo}
+          onChange={(e) => setPrazo(e.target.value)}
+          className="w-full rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
+        />
+        <p className="text-xs text-muted-foreground">
+          A contagem começa quando a rodada é enviada — rascunho não queima prazo.
+        </p>
+      </div>
       {severidade === "impeditivo" && (
         <p className="text-xs text-destructive">
           Apontamento impeditivo: marca a prancha como bloqueada para aprovação enquanto estiver aberto.
@@ -267,7 +345,23 @@ export function PdfViewer(props: Props) {
   }, []);
 
   const [pendencias, setPendencias] = useState<PendenciaView[]>(props.pendenciasIniciais);
-  const temApontamentoAberto = pendencias.some((p) => p.status === "aberta");
+  // "Em aberto" = aberta OU em_correcao (item 22): quem assumiu a correção ainda tem trabalho
+  // pendente, e deixar de contar aqui destravaria a validação ao assumir.
+  const temApontamentoAberto = pendencias.some((p) => contaComoTrabalho(p));
+  // Rascunhos meus, ainda não entregues (item 31) — não bloqueiam nada, mas some sem avisar
+  // seria pior: quem marcou 5 pinos e saiu da tela precisa saber que ninguém os viu.
+  const rascunhos = pendencias.filter((p) => ehRascunho(p) && !STATUS_TERMINAIS.includes(p.status as StatusPendencia));
+  // Item 19: impeditivo aberto é o que NÃO pode passar — sinalizado à parte do bloqueio geral.
+  const temImpeditivo = temImpeditivoAberto(pendencias);
+  /** Papéis desta pessoa sobre esta prancha, na forma que a máquina de estados entende. */
+  // Tem que espelhar `papeisSobre` do servidor: lá o perfil GLOBAL já conta como responsável.
+  // Sem esse `|| props.ehGlobal`, a tela escondia de um supervisor transições que a action
+  // aceitaria — o inverso do problema que a máquina veio resolver, e igualmente confuso.
+  const papeisNaTela: PapeisPendencia = {
+    ehValidador: podeValidar,
+    ehResponsavel: ehResponsavel || ehAdmin || props.ehGlobal,
+    ehGlobal: ehAdmin || props.ehGlobal,
+  };
   // Validar a prancha: só a versão vigente, entrega não finalizada, e sem apontamento
   // aberto (força resolver/fechar as pendências antes de dar por validada).
   const podeValidarArquivo = podeValidar && versaoAtual && !finalizada && !temApontamentoAberto;
@@ -317,6 +411,61 @@ export function PdfViewer(props: Props) {
   // Classificação do apontamento sendo criado/editado (item 11) — opcional.
   const [severidade, setSeveridade] = useState<Severidade | null>(null);
   const [tipo, setTipo] = useState<TipoPendencia | null>(null);
+  /** Prazo do apontamento (item 18) — data ISO no input `type="date"`; "" = sem prazo. */
+  const [prazo, setPrazo] = useState("");
+  /** Biblioteca (item 10): lista local pra refletir o que foi cadastrado sem recarregar. */
+  const [padroes, setPadroes] = useState<PadraoView[]>(props.padroes);
+  const [buscaPadrao, setBuscaPadrao] = useState("");
+  /**
+   * Reincidência (item 17): sugestões de apontamento FECHADO parecido com o que está sendo
+   * escrito, e qual delas a pessoa confirmou. Confirmar não muda nada agora — depois de criar
+   * o apontamento, vira a referência cruzada do item 13.
+   */
+  const [reincidencias, setReincidencias] = useState<ReincidenciaView[]>([]);
+  const [reincidenciaDe, setReincidenciaDe] = useState<string | null>(null);
+
+  // Consulta de reincidência só no formulário de CRIAÇÃO e com pausa na digitação: editar é
+  // ajustar o que já existe, e consultar a cada tecla seria uma varredura por caractere.
+  useEffect(() => {
+    if (editId || !draft) {
+      setReincidencias([]);
+      return;
+    }
+    const t = texto.trim();
+    if (t.length < 10) {
+      setReincidencias([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      const r = await sugerirReincidencias({ uploadId, texto: t });
+      if (r.ok) setReincidencias(r.data.itens);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [texto, editId, draft, uploadId]);
+
+  /** Aplica um padrão no formulário: preenche o texto e a pré-classificação sugerida. */
+  function aplicarPadrao(p: PadraoView) {
+    setTexto(p.texto);
+    if (p.severidade) setSeveridade(p.severidade as Severidade);
+    if (p.tipo) setTipo(p.tipo as TipoPendencia);
+    setBuscaPadrao("");
+    // Contabiliza o uso pra ordenação — falhar aqui não pode atrapalhar o apontamento.
+    void registrarUsoApontamentoPadrao({ id: p.id }).catch(() => {});
+    setPadroes((ps) => ps.map((x) => (x.id === p.id ? { ...x, usos: x.usos + 1 } : x)));
+  }
+
+  /** Guarda o texto atual como padrão reutilizável da disciplina. */
+  function salvarComoPadrao() {
+    const t = texto.trim();
+    if (t.length < 3) return;
+    start(async () => {
+      const r = await criarApontamentoPadrao({ disciplinaId, texto: t, severidade, tipo });
+      if (r.ok) {
+        setPadroes((ps) => [{ id: r.data.id, texto: r.data.texto, severidade, tipo, usos: 0, geral: false }, ...ps]);
+        toast.success("Salvo na biblioteca da disciplina.");
+      } else toast.error(r.error);
+    });
+  }
   // Reclassificar depois do envio (item 11) — janela separada da de editar texto, que fecha
   // assim que a rodada vira tarefa. Aqui é onde a triagem de fato acontece.
   const [classificarId, setClassificarId] = useState<string | null>(null);
@@ -325,6 +474,9 @@ export function PdfViewer(props: Props) {
   const [respostaTexto, setRespostaTexto] = useState("");
   // Geração do PDF carimbado (itens 20/25) — pode levar alguns segundos numa prancha A0.
   const [carimbando, setCarimbando] = useState(false);
+  // "Não procede" (item 22) exige justificativa — id do apontamento + texto.
+  const [descartarId, setDescartarId] = useState<string | null>(null);
+  const [justificativa, setJustificativa] = useState("");
   // Replicar apontamento pra outras pranchas (item 30).
   const [replicarId, setReplicarId] = useState<string | null>(null);
   const [replicarDestinos, setReplicarDestinos] = useState<Set<string>>(new Set());
@@ -396,6 +548,15 @@ export function PdfViewer(props: Props) {
   const busca = usePdfBusca(numPages);
   const camadas = usePdfCamadas(pdf);
   const presentes = usePresencaDocumento(documentoId);
+
+  // Aviso do item 8: a frase é congelada no primeiro render (o servidor já a calculou com a
+  // marca d'água ANTERIOR) e some quando a pessoa dispensa. O `marcarDocumentoLido` roda logo
+  // em seguida — a partir daqui, "novo" passa a ser o que vier depois desta abertura.
+  const [avisoNovidades, setAvisoNovidades] = useState<string | null>(() => descreverNovidades(props.novidades));
+  useEffect(() => {
+    if (!documentoId) return;
+    void marcarDocumentoLido({ documentoId });
+  }, [documentoId]);
 
   /**
    * Ancoragem resiliente (item 3): o pino HERDADO de outra revisão tem `(x,y)` da revisão
@@ -544,6 +705,9 @@ export function PdfViewer(props: Props) {
     setTexto("");
     setSeveridade(null);
     setTipo(null);
+    setPrazo("");
+    setReincidencias([]);
+    setReincidenciaDe(null);
   }
 
   function abrirNovo(
@@ -559,6 +723,7 @@ export function PdfViewer(props: Props) {
     setTexto(medida ? `Medida: ${formatarMedida(medida.mm)}. ` : "");
     setSeveridade(null);
     setTipo(null);
+    setPrazo("");
     setDraft({ pagina, x, y, marcacao, medida });
   }
 
@@ -615,8 +780,12 @@ export function PdfViewer(props: Props) {
           tipo,
           marcacao: draft.marcacao,
           medidaMm: draft.medida?.mm ?? null,
+          // Nasce RASCUNHO (item 31): só vira público no envio da rodada.
+          publicadoEm: null,
+          prazo: prazo ? new Date(`${prazo}T12:00:00`).toISOString() : null,
           thumbPath: null,
           anexos: [],
+          referencias: [],
           autorId: props.currentUserId,
           autor: "Você",
           tarefaId: null,
@@ -631,7 +800,18 @@ export function PdfViewer(props: Props) {
         };
         setPendencias((ps) => [...ps, nova]);
         setSelecionadaId(nova.id);
+        // Reincidência confirmada (item 17) → vira a MESMA referência cruzada do item 13. Não
+        // existe "vínculo de reincidência" à parte: seria uma segunda ligação entre os mesmos
+        // dois apontamentos, com a mesma semântica e outra tela pra manter.
+        const repeteId = reincidenciaDe;
         fecharFormulario();
+        if (repeteId) {
+          void referenciarPendencia({ origemId: r.data.id, destinoId: repeteId, nota: "reincidência" })
+            .then((res) => {
+              if (!res.ok) toast.error(res.error);
+            })
+            .catch(() => {});
+        }
         toast.success(`Apontamento #${nova.numero} criado.`);
         // Só marcação de ÁREA tem recorte (item 14) — pino simples não gera miniatura.
         if (draft.marcacao) void enviarMiniatura(r.data.id, draft.pagina, draft.x, draft.y, draft.marcacao);
@@ -766,10 +946,28 @@ export function PdfViewer(props: Props) {
     });
   }
 
+  /** "Não procede" (item 22) — justificativa obrigatória, validada também no servidor. */
+  function confirmarDescarte() {
+    if (!descartarId) return;
+    const id = descartarId;
+    const texto = justificativa.trim();
+    if (texto.length < 3) return;
+    start(async () => {
+      const r = await descartarPendencia({ id, justificativa: texto });
+      if (r.ok) {
+        setPendencias((ps) => ps.map((x) => (x.id === id ? { ...x, status: "descartada" } : x)));
+        setDescartarId(null);
+        setJustificativa("");
+        toast.success("Marcado como não procede.");
+      } else toast.error(r.error);
+    });
+  }
+
   /** Abre a janela de reclassificação já com o que o apontamento tem hoje (item 11). */
   function abrirClassificacao(p: PendenciaView) {
     setSeveridade((p.severidade as Severidade | null) ?? null);
     setTipo((p.tipo as TipoPendencia | null) ?? null);
+    setPrazo(p.prazo ? p.prazo.slice(0, 10) : "");
     setClassificarId(p.id);
   }
 
@@ -777,12 +975,17 @@ export function PdfViewer(props: Props) {
     if (!classificarId) return;
     const id = classificarId;
     start(async () => {
-      const r = await classificarPendencia({ id, severidade, tipo });
+      const r = await classificarPendencia({ id, severidade, tipo, prazo: prazo || null });
       if (r.ok) {
-        setPendencias((ps) => ps.map((p) => (p.id === id ? { ...p, severidade, tipo } : p)));
+        setPendencias((ps) =>
+          ps.map((p) =>
+            p.id === id ? { ...p, severidade, tipo, prazo: prazo ? new Date(`${prazo}T12:00:00`).toISOString() : null } : p,
+          ),
+        );
         setClassificarId(null);
         setSeveridade(null);
         setTipo(null);
+        setPrazo("");
         toast.success("Classificação atualizada.");
       } else toast.error(r.error);
     });
@@ -1090,10 +1293,41 @@ export function PdfViewer(props: Props) {
           !finalizada &&
           !validado &&
           temApontamentoAberto && (
-            <span className="text-xs text-warning" title="Resolva ou feche os apontamentos abertos para validar a prancha">
-              Apontamento(s) em aberto — não é possível validar.
+            <span
+              className={cn("text-xs", temImpeditivo ? "font-medium text-destructive" : "text-warning")}
+              title={
+                temImpeditivo
+                  ? "Há apontamento IMPEDITIVO em aberto — a prancha não pode ser liberada."
+                  : "Resolva ou feche os apontamentos abertos para validar a prancha"
+              }
+            >
+              {temImpeditivo
+                ? "Apontamento IMPEDITIVO em aberto — não é possível validar."
+                : "Apontamento(s) em aberto — não é possível validar."}
             </span>
           )
+        )}
+        {avisoNovidades && (
+          <span
+            className="inline-flex items-center gap-1 rounded-sm border border-info/40 px-1.5 py-0.5 text-xs text-info"
+            title="Contado a partir da última vez que você abriu esta prancha."
+          >
+            <Sparkles className="size-3" />
+            {avisoNovidades}
+            <button
+              type="button"
+              aria-label="Dispensar aviso de novidades"
+              className="ml-0.5 text-info/70 hover:text-info"
+              onClick={() => setAvisoNovidades(null)}
+            >
+              <X className="size-3" />
+            </button>
+          </span>
+        )}
+        {rascunhos.length > 0 && (
+          <span className="text-xs text-muted-foreground" title="Só você enxerga estes apontamentos até enviar a rodada.">
+            {rascunhos.length} em rascunho
+          </span>
         )}
         {podeApontar ? (
           <>
@@ -1360,6 +1594,15 @@ export function PdfViewer(props: Props) {
                           <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", meta.cls)}>
                             {meta.label}
                           </Badge>
+                          {ehRascunho(p) && (
+                            <Badge
+                              variant="outline"
+                              className="h-5 border-dashed px-1.5 text-[10px] text-muted-foreground"
+                              title="Rascunho: só você enxerga. Vira visível ao enviar a rodada."
+                            >
+                              Rascunho
+                            </Badge>
+                          )}
                           {p.deOutraRevisao && p.versaoOrigem != null && (
                             <Badge
                               variant="outline"
@@ -1378,7 +1621,7 @@ export function PdfViewer(props: Props) {
                         </div>
                         {/* Classificação (item 11) — some quando o apontamento não foi classificado,
                             em vez de mostrar um "—" que só ocuparia espaço na lista. */}
-                        {(p.severidade || p.tipo || p.marcacao) && (
+                        {(p.severidade || p.tipo || p.marcacao || p.prazo) && (
                           <div className="mt-1 flex flex-wrap items-center gap-1">
                             {p.marcacao && (
                               <Badge variant="outline" className="h-5 px-1.5 text-[10px] text-muted-foreground">
@@ -1398,6 +1641,19 @@ export function PdfViewer(props: Props) {
                                 {TIPO_PENDENCIA_LABEL[p.tipo as TipoPendencia] ?? p.tipo}
                               </Badge>
                             )}
+                            {(() => {
+                              const sit = situacaoPrazo(p, STATUS_TERMINAIS);
+                              if (sit === "sem_prazo") return null;
+                              return (
+                                <Badge
+                                  variant="outline"
+                                  className={cn("h-5 px-1.5 text-[10px]", PRAZO_CLS[sit])}
+                                  title={`${SITUACAO_PRAZO_LABEL[sit]} — ${rotuloPrazo(diasAtePrazo(p.prazo, p.publicadoEm))}`}
+                                >
+                                  {rotuloPrazo(diasAtePrazo(p.prazo, p.publicadoEm))}
+                                </Badge>
+                              );
+                            })()}
                           </div>
                         )}
                         {/* Miniatura do recorte (item 14) — só existe em marcação de área.
@@ -1422,6 +1678,19 @@ export function PdfViewer(props: Props) {
                             ehAdmin={ehAdmin}
                             onMudou={(anexos) =>
                               setPendencias((ps) => ps.map((x) => (x.id === p.id ? { ...x, anexos } : x)))
+                            }
+                          />
+                        )}
+                        {/* Referência cruzada (item 13) — mesma regra de exibição dos anexos:
+                            só ocupa espaço quando já existe ligação ou a thread está aberta. */}
+                        {(p.referencias.length > 0 || threadId === p.id) && (
+                          <PendenciaReferencias
+                            pendenciaId={p.id}
+                            referencias={p.referencias}
+                            currentUserId={props.currentUserId}
+                            ehAdmin={ehAdmin}
+                            onMudou={(referencias) =>
+                              setPendencias((ps) => ps.map((x) => (x.id === p.id ? { ...x, referencias } : x)))
                             }
                           />
                         )}
@@ -1488,30 +1757,46 @@ export function PdfViewer(props: Props) {
                               </Button>
                             </>
                           )}
-                          {ehResponsavel && p.status === "aberta" && (
-                            <Button size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-xs text-info" onClick={() => mudarStatus(p.id, resolverPendencia, "resolvida", "Marcada como resolvida.")} disabled={pending}>
-                              <Check className="size-3" /> resolver
-                            </Button>
+                          {/* Evidência do "depois" (item 7): avisa exatamente no momento em que
+                              alguém marcou como resolvida e o validador vai fechar. Não bloqueia
+                              — há correção que não rende foto (uma cota que passou a existir na
+                              revisão nova), e travar o fechamento por isso pararia o fluxo. */}
+                          {p.status === "resolvida" && !temEvidencia(p.anexos, "depois") && (
+                            <span className="w-full text-[10px] text-muted-foreground">
+                              Sem evidência do “depois” anexada.
+                            </span>
                           )}
-                          {ehResponsavel && p.status === "resolvida" && (
-                            <Button size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-xs" onClick={() => mudarStatus(p.id, reabrirPendencia, "aberta", "Reaberta.")} disabled={pending}>
-                              <Undo2 className="size-3" /> reabrir
+                          {/* Transições (item 22): a lista sai da MESMA máquina que a action
+                              usa pra recusar, então a tela nunca oferece um movimento que o
+                              servidor vai negar. */}
+                          {transicoesPossiveis(p.status, papeisNaTela).map((destino) => {
+                            const meta = ACAO_TRANSICAO[destino];
+                            const Icone = meta.icone;
+                            const rotulo = destino === "aberta" && p.status === "resolvida" ? "reabrir" : meta.rotulo;
+                            return (
+                              <Button
+                                key={destino}
+                                size="sm"
+                                variant="ghost"
+                                className={cn("h-6 gap-1 px-1.5 text-xs", meta.cls)}
+                                onClick={() => {
+                                  // "Não procede" precisa de justificativa: abre a janela.
+                                  // Sem action direta = precisa de janela (só "não procede" hoje).
+                                  if (!meta.acao) setDescartarId(p.id);
+                                  else mudarStatus(p.id, meta.acao, destino, meta.sucesso);
+                                }}
+                                disabled={pending}
+                              >
+                                <Icone className="size-3" /> {rotulo}
+                              </Button>
+                            );
+                          })}
+                          {podeValidar && !STATUS_TERMINAIS.includes(p.status as StatusPendencia) && (
+                            /* Triagem (item 11): vale DEPOIS do envio, quando "editar" já fechou —
+                               é justamente aí que se decide o que é impeditivo. */
+                            <Button size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-xs text-muted-foreground" onClick={() => abrirClassificacao(p)} disabled={pending}>
+                              <Tags className="size-3" /> classificar
                             </Button>
-                          )}
-                          {podeValidar && p.status !== "fechada" && p.status !== "descartada" && (
-                            <>
-                              {/* Triagem (item 11): vale DEPOIS do envio, quando "editar" já fechou —
-                                  é justamente aí que se decide o que é impeditivo. */}
-                              <Button size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-xs text-muted-foreground" onClick={() => abrirClassificacao(p)} disabled={pending}>
-                                <Tags className="size-3" /> classificar
-                              </Button>
-                              <Button size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-xs text-status-aprovado" onClick={() => mudarStatus(p.id, fecharPendencia, "fechada", "Pendência fechada.")} disabled={pending}>
-                                <Check className="size-3" /> fechar
-                              </Button>
-                              <Button size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-xs text-muted-foreground" onClick={() => mudarStatus(p.id, descartarPendencia, "descartada", "Pendência descartada.")} disabled={pending}>
-                                <RotateCcw className="size-3" /> descartar
-                              </Button>
-                            </>
                           )}
                           {podeValidar && pranchasParaReplicar.length > 0 && (
                             <Button
@@ -1556,6 +1841,43 @@ export function PdfViewer(props: Props) {
               {draft && ` · pág. ${draft.pagina}`}
             </DialogDescription>
           </DialogHeader>
+          {/* Biblioteca de apontamentos-padrão (item 10) — só no formulário de CRIAÇÃO:
+              editar um apontamento existente é ajustar o que já foi escrito, não escolher
+              de catálogo. */}
+          {!editId && padroes.length > 0 && (
+            <div className="space-y-1.5">
+              <Label htmlFor="busca-padrao">Usar um apontamento-padrão</Label>
+              <input
+                id="busca-padrao"
+                value={buscaPadrao}
+                onChange={(e) => setBuscaPadrao(e.target.value)}
+                placeholder="Buscar na biblioteca da disciplina…"
+                className="w-full rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
+              />
+              {buscaPadrao.trim().length > 0 && (
+                <div className="max-h-36 overflow-y-auto rounded-sm border">
+                  {padroes
+                    .filter((p) => p.texto.toLowerCase().includes(buscaPadrao.trim().toLowerCase()))
+                    .slice(0, 8)
+                    .map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => aplicarPadrao(p)}
+                        className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-muted/50"
+                      >
+                        <span className="min-w-0 flex-1 truncate">{p.texto}</span>
+                        {p.geral && <span className="shrink-0 text-[10px] text-muted-foreground">geral</span>}
+                        {p.usos > 0 && <span className="shrink-0 text-[10px] text-muted-foreground">{p.usos}×</span>}
+                      </button>
+                    ))}
+                  {padroes.filter((p) => p.texto.toLowerCase().includes(buscaPadrao.trim().toLowerCase())).length === 0 && (
+                    <p className="px-2 py-1.5 text-xs text-muted-foreground">Nada na biblioteca com esse termo.</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="pendencia-texto">Descrição da pendência</Label>
             <textarea
@@ -1568,14 +1890,95 @@ export function PdfViewer(props: Props) {
               autoFocus
               className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
             />
+            {/* Reincidência (item 17): SUGESTÃO. Marcar não muda estado nenhum — só faz o
+                apontamento nascer ligado ao fechado (referência do item 13). */}
+            {reincidencias.length > 0 && (
+              <div className="space-y-1 rounded-sm border border-warning/40 bg-warning/5 p-2">
+                <p className="text-xs font-medium text-warning">
+                  Parece repetir apontamento já fechado nesta disciplina:
+                </p>
+                {reincidencias.map((r) => (
+                  <label key={r.id} className="flex cursor-pointer items-start gap-1.5 text-xs">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={reincidenciaDe === r.id}
+                      onChange={(e) => setReincidenciaDe(e.target.checked ? r.id : null)}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="font-medium">#{r.numero}</span> {r.texto}
+                      <span className="block text-[10px] text-muted-foreground">
+                        {r.arquivo}
+                        {r.fechadoEm ? ` · fechado em ${formatarData(r.fechadoEm)}` : ""}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+                <p className="text-[10px] text-muted-foreground">
+                  Marcar apenas registra a ligação entre os dois apontamentos.
+                </p>
+              </div>
+            )}
           </div>
-          <CamposClassificacao severidade={severidade} setSeveridade={setSeveridade} tipo={tipo} setTipo={setTipo} />
+          <CamposClassificacao severidade={severidade} setSeveridade={setSeveridade} tipo={tipo} setTipo={setTipo} prazo={prazo} setPrazo={setPrazo} />
           <DialogFooter>
+            {!editId && (
+              <Button
+                variant="ghost"
+                className="mr-auto gap-1 text-xs text-muted-foreground"
+                onClick={salvarComoPadrao}
+                disabled={pending || texto.trim().length < 3}
+                title="Guarda este texto na biblioteca da disciplina para reutilizar"
+              >
+                <BookmarkPlus className="size-3.5" /> salvar como padrão
+              </Button>
+            )}
             <Button variant="outline" onClick={fecharFormulario} disabled={pending}>
               Cancelar
             </Button>
             <Button onClick={salvarDraft} disabled={pending || !texto.trim()}>
               {editId ? "Salvar" : "Criar apontamento"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* "Não procede" (item 22) — a justificativa virou obrigatória */}
+      <Dialog
+        open={descartarId != null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setDescartarId(null);
+            setJustificativa("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Marcar como não procede</DialogTitle>
+            <DialogDescription>
+              Encerra o apontamento sem correção. A justificativa fica registrada e aparece para o
+              projetista — é o que evita a discussão de &quot;por que isso foi descartado?&quot; depois.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="justificativa-descarte">Por que não procede?</Label>
+            <textarea
+              id="justificativa-descarte"
+              value={justificativa}
+              onChange={(e) => setJustificativa(e.target.value)}
+              rows={3}
+              maxLength={1000}
+              autoFocus
+              className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDescartarId(null); setJustificativa(""); }} disabled={pending}>
+              Cancelar
+            </Button>
+            <Button onClick={confirmarDescarte} disabled={pending || justificativa.trim().length < 3}>
+              Confirmar
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1725,7 +2128,7 @@ export function PdfViewer(props: Props) {
               virar tarefa — é aí que a triagem costuma acontecer.
             </DialogDescription>
           </DialogHeader>
-          <CamposClassificacao severidade={severidade} setSeveridade={setSeveridade} tipo={tipo} setTipo={setTipo} />
+          <CamposClassificacao severidade={severidade} setSeveridade={setSeveridade} tipo={tipo} setTipo={setTipo} prazo={prazo} setPrazo={setPrazo} />
           <DialogFooter>
             <Button
               variant="outline"
@@ -2005,6 +2408,9 @@ function Pagina({
                   // de fingir precisão. Herdado mas relocalizado pela âncora textual volta ao
                   // visual normal — a posição foi reconferida contra o texto desta revisão.
                   p.incerta && "opacity-70 ring-muted-foreground",
+                  // Rascunho: mesma linguagem visual do "incerto" (esmaecido), sem inventar
+                  // um terceiro código de cor.
+                  ehRascunho(p) && "opacity-60 ring-dashed ring-muted-foreground",
                   sel && "ring-4 ring-ring",
                 )}
                 style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}

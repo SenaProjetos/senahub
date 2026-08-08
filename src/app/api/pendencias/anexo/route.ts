@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { acessoGlobal } from "@/lib/roles";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { salvarArquivo, nomeArquivoLimpo } from "@/lib/storage";
+import { MOMENTOS_EVIDENCIA } from "@/modules/projetos/pendencias/helpers";
 
 const MAX = 25 * 1024 * 1024; // 25 MB — mesmo teto dos documentos de RH
 
@@ -44,6 +45,10 @@ export async function POST(req: Request) {
 
   const form = await req.formData();
   const pendenciaId = String(form.get("pendenciaId") ?? "");
+  // Momento da evidência (item 7). Ausente/desconhecido → null = anexo comum do item 12; o
+  // campo é opcional de propósito, o mesmo endpoint serve aos dois casos.
+  const bruto = String(form.get("momento") ?? "");
+  const momento = (MOMENTOS_EVIDENCIA as readonly string[]).includes(bruto) ? bruto : null;
   const file = form.get("file");
   if (!pendenciaId || !(file instanceof File)) {
     return NextResponse.json({ error: "Dados incompletos." }, { status: 400 });
@@ -82,6 +87,7 @@ export async function POST(req: Request) {
       mime: file.type,
       tamanho: salvo.tamanho,
       hashSha256: salvo.hashSha256,
+      momento,
       autorId: user.id,
     },
   });
@@ -93,7 +99,7 @@ export async function POST(req: Request) {
     resultado: "sucesso",
     entidade: "PendenciaAnexo",
     entidadeId: p.projetoId,
-    detalhe: { pendenciaId: p.id, nome, mime: file.type, tamanho: salvo.tamanho },
+    detalhe: { pendenciaId: p.id, nome, mime: file.type, tamanho: salvo.tamanho, momento },
     ip: await getClientIp(),
   });
 
@@ -103,5 +109,6 @@ export async function POST(req: Request) {
     nome: anexo.nome,
     mime: anexo.mime,
     tamanho: anexo.tamanho,
+    momento: anexo.momento,
   });
 }

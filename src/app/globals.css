@@ -275,3 +275,61 @@
     animation: none !important;
   }
 }
+
+/*
+ * Camada de texto do pdf.js (`PdfPagina`, componentes/pdf) — texto invisível posicionado
+ * sobre o canvas, pra permitir seleção e a busca textual (item 26). Extraído à mão do
+ * `pdfjs-dist/web/pdf_viewer.css` oficial (não importado inteiro: aquele arquivo também traz
+ * o editor de marcação nativo do pdf.js — que não usamos, temos nosso próprio <mark> — e
+ * `color-scheme:only light`, que quebraria o dark mode do resto do app). Os custom
+ * properties (--font-height, --scale-x, --total-scale-factor, ...) são setados pela própria
+ * classe `TextLayer` do pdf.js via JS a cada span; esta folha só consome esses valores —
+ * não são inventados aqui, então não simplificar a fórmula sem checar contra a lib.
+ */
+.textLayer {
+  position: absolute;
+  text-align: initial;
+  inset: 0;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  z-index: 0;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+.textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  user-select: text;
+}
+.textLayer > :not(.markedContent),
+.textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  --scale-x: 1;
+  --rotate: 0deg;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+.textLayer .markedContent {
+  display: contents;
+}
+.textLayer span[role="img"] {
+  user-select: none;
+  cursor: default;
+}
+/* <mark> de busca (pintado à mão em pdf-pagina.tsx) — herda posição do span pai, que já é
+   absoluto; o texto do próprio <mark> segue transparente (o glifo real vem do canvas). */
+.textLayer mark {
+  border-radius: 1px;
+  color: transparent;
+}

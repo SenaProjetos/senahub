@@ -67,6 +67,27 @@ describe("parsePranchaFilename", () => {
     expect(parsePranchaFilename("arquivo qualquer.pdf")).toBeNull();
     expect(parsePranchaFilename("260142-ELE-EXE-PL.pdf")).toBeNull(); // faltando numeração
   });
+
+  it("aceita sigla com dígito (normalizarCatalogo permite A-Z0-9)", () => {
+    expect(parsePranchaFilename("260142-SPD1-EXE-0001-PL")?.especialidade).toBe("SPD1");
+  });
+
+  it("recusa desenho de elemento em vez de ler a revisão como tipo", () => {
+    // Nome real de projeto (pilar/viga). Antes casava e devolvia tipo="R00", revisao=null.
+    expect(parsePranchaFilename("253-PIL-VIG-001-R00.DXF")).toBeNull();
+    expect(parsePranchaFilename("253-PIL-VIG-001-RV2.DXF")).toBeNull();
+  });
+
+  it("não confunde o sufixo de revisão com o tipo quando ambos existem", () => {
+    expect(parsePranchaFilename("260142-ELE-EXE-0001-PL-R00")).toEqual({
+      codigoProjeto: "260142",
+      especialidade: "ELE",
+      fase: "EXE",
+      numeracao: 1,
+      tipo: "PL",
+      revisao: 0,
+    });
+  });
 });
 
 describe("foraDoPadrao", () => {

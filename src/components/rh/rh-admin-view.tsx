@@ -6,8 +6,17 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, X, Download, Smile, MessageSquare, CalendarSync } from "lucide-react";
 import { validarAbono, validarFerias, responderAlteracaoFerias, proporAlteracaoFerias } from "@/modules/rh/actions";
-import type { AbonoPendente, FeriasPendente, AlteracaoFeriasPendente, FeriasVigente, ClimaHistoricoPonto } from "@/modules/rh/queries";
+import type {
+  AbonoPendente,
+  FeriasPendente,
+  AlteracaoFeriasPendente,
+  FeriasVigente,
+  ClimaHistoricoPonto,
+  ColaboradorComDireitoFerias,
+} from "@/modules/rh/queries";
 import { FeriasDatasDialog } from "@/components/rh/ferias-acoes";
+import { LancarFeriasDialog } from "@/components/rh/lancar-ferias-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -25,6 +34,8 @@ export function RhAdminView({
   ferias,
   alteracoesFerias,
   feriasVigentes,
+  colaboradoresFerias,
+  ultimoMesFechadoBanco,
   clima,
   climaSerie,
   feedbacksHumor,
@@ -33,6 +44,8 @@ export function RhAdminView({
   ferias: FeriasPendente[];
   alteracoesFerias: AlteracaoFeriasPendente[];
   feriasVigentes: FeriasVigente[];
+  colaboradoresFerias: ColaboradorComDireitoFerias[];
+  ultimoMesFechadoBanco: { ano: number; mes: number } | null;
   clima: {
     total: number;
     media: number;
@@ -237,7 +250,17 @@ export function RhAdminView({
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Férias pendentes ({ferias.length})</CardTitle>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-base">Férias pendentes ({ferias.length})</CardTitle>
+              <LancarFeriasDialog
+                colaboradores={colaboradoresFerias}
+                ultimoMesFechado={ultimoMesFechadoBanco}
+              />
+            </div>
+            <CardDescription>
+              Solicitações dos colaboradores. Use <strong>Lançar férias</strong> para registrar um
+              período direto, sem solicitação.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {ferias.length === 0 ? (
@@ -327,6 +350,11 @@ export function RhAdminView({
                         {" · "}
                         {dt(f.inicio)} – {dt(f.fim)}
                       </span>
+                      {f.lancadoPorId && (
+                        <Badge variant="outline" className="ml-2 align-middle">
+                          Lançada pelo RH
+                        </Badge>
+                      )}
                     </div>
                     {f.altInicio ? (
                       <span className="text-xs text-muted-foreground">Alteração em andamento</span>

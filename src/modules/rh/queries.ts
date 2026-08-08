@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { CLT_ROLES } from "@/lib/roles";
 
 export async function minhasSolicitacoes(userId: string) {
   const [abonos, ferias] = await Promise.all([
@@ -51,6 +52,20 @@ export async function feriasAprovadasVigentes() {
     include: { user: { select: { name: true } } },
   });
 }
+
+/**
+ * Colaboradores elegíveis a férias (CLT/estágio) — alvos do lançamento direto pelo RH.
+ * Não dá pra reusar `colaboradoresInternos()` (feedback/queries.ts): aquela só exclui
+ * `cliente`, então traz PJ, freelancer e gestores, que não têm férias.
+ */
+export async function colaboradoresComDireitoFerias() {
+  return prisma.user.findMany({
+    where: { ativo: true, role: { in: CLT_ROLES as never } },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
+}
+export type ColaboradorComDireitoFerias = Awaited<ReturnType<typeof colaboradoresComDireitoFerias>>[number];
 
 export async function humorHoje(userId: string) {
   const dia = new Date();

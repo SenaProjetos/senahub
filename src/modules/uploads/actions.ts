@@ -15,6 +15,7 @@ import { liberarPagamentosProjetista } from "@/modules/uploads/pagamento";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { projetoVisivel } from "@/modules/planejamento/queries";
 import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
+import { STATUS_ABERTOS } from "@/modules/projetos/pendencias/helpers";
 
 /** Extensão com o ponto, no case original (`.pdf`). Sem ponto (ou dotfile) → vazio. */
 function extComPonto(nome: string): string {
@@ -268,7 +269,9 @@ export const validarArquivo = defineAction(
     const apontamentoAberto = await prisma.pendencia.count({
       where: {
         ...(upload.documentoId ? { documentoId: upload.documentoId } : { uploadId: upload.id }),
-        status: "aberta",
+        // Inclui `em_correcao`: um apontamento que alguém está corrigindo continua bloqueando
+        // a validação — senão assumir a correção destravaria a entrega (ver STATUS_ABERTOS).
+        status: { in: [...STATUS_ABERTOS] },
         excluidoEm: null,
       },
     });
@@ -379,7 +382,9 @@ export const validarArquivosLote = defineAction(
           { uploadId: { in: candidatos.filter((u) => !u.documentoId).map((u) => u.id) } },
           { documentoId: { in: candidatos.map((u) => u.documentoId).filter((d): d is string => d != null) } },
         ],
-        status: "aberta",
+        // Inclui `em_correcao`: um apontamento que alguém está corrigindo continua bloqueando
+        // a validação — senão assumir a correção destravaria a entrega (ver STATUS_ABERTOS).
+        status: { in: [...STATUS_ABERTOS] },
         excluidoEm: null,
       },
       select: { uploadId: true, documentoId: true },

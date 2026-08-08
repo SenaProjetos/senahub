@@ -295,8 +295,63 @@ Status: NÃO EXISTE, nenhuma lib de diff instalada. Impacto: ALTO (ataca a dor p
 **7. Evidência antes/depois no fechamento do apontamento**
 Status: NÃO EXISTE (sem campo de anexo em Pendencia). `fecharPendencia` (`actions.ts:315-332`) só muda status. Impacto: MÉDIO-ALTO. Esforço: M. Complexidade: baixa/média — CRUD+upload sobre padrão já existente (`lib/storage.ts`, mesmo molde de `api/rh/funcionarios/documentos`). Schema: Sim. Depende: nenhuma estrutural forte, mais rico com 1. Risco: baixo. Incerteza (pergunta 4): histórico completo versionado, ou só snapshot mais recente de cada lado? **Modelo: Opus.**
 
+> ✅ **IMPLEMENTADO em 2026-08-08.** Migration `20260808060000_pendencia_anexo_momento`, aditiva:
+> uma coluna `momento` (`antes` | `depois`, nullable) em `PendenciaAnexo` — **não** uma tabela nova.
+>
+> É a resposta direta a R4 (**histórico completo versionado**, não o último snapshot de cada
+> lado): com N linhas por momento ordenadas por `createdAt`, o histórico sai de graça. Uma tabela
+> `PendenciaEvidencia` com dois campos de arquivo guardaria só o último e duplicaria upload,
+> download, hash, permissão e remoção — tudo isso já existe e é exercitado desde o item 12.
+> Anexo sem momento continua sendo anexo comum: nem toda evidência é "antes" ou "depois" (uma
+> norma, um print de referência).
+>
+> Mesmo endpoint multipart (`/api/pendencias/anexo`), que passou a aceitar um campo `momento`
+> opcional e validá-lo contra a lista fechada. Na tela, dois botões ("antes"/"depois") ao lado de
+> "anexar": a escolha acontece no mesmo gesto de escolher o arquivo. O momento escolhido vive num
+> `ref`, não em state — o `change` do input dispara fora do ciclo de render que o clique iniciou,
+> e um state agendado ainda não teria chegado.
+>
+> **Não bloqueia o fechamento.** Quando alguém marca como `resolvida` sem nenhuma evidência do
+> "depois", o painel avisa em texto — mas fechar continua permitido: há correção que não rende
+> foto (uma cota que passou a existir na revisão nova), e travar o fluxo por isso pararia o
+> trabalho pra provar o que a própria revisão já prova.
+>
+> Verificado em navegador: os botões "antes"/"depois" aparecem na caixa de anexos do apontamento.
+
 **8. Painel "o que mudou desde sua última análise"**
 Status: NÃO EXISTE (nenhum campo de "última visualização por usuário"). Impacto: MÉDIO. Esforço: M. Complexidade: média. Schema: Sim (tabela nova de "visto por", sem backfill — nasce vazia). Depende: 1 (documento é a unidade que faz sentido rastrear, não upload solto). Risco: baixo. Incerteza: "mudou" = só pendência nova, ou também revisão nova sem pendência nova? **Modelo: Opus.**
+
+> ✅ **IMPLEMENTADO em 2026-08-08.** Migration `20260808070000_leitura_documento`, tabela nova
+> (nasce vazia, sem backfill). `LeituraDocumento` = uma linha por (documento, pessoa) com a
+> marca d'água `lidoEm`, atualizada quando ela ABRE a prancha.
+>
+> **Resposta à incerteza: os DOIS sinais, sempre separados.** "Mudou" é apontamento novo *e*
+> revisão nova, e a frase nomeia cada um: *"Desde sua última visita: 1 revisão nova e 2
+> apontamentos novos."* Somar num total ("3 novidades") faria a pessoa procurar 3 pinos e achar
+> 2 — são coisas de natureza diferente pra quem abre a prancha.
+>
+> **Ausência de linha ≠ "tudo é novo".** Quem nunca abriu não recebe aviso nenhum: numa prancha
+> com 40 apontamentos históricos, anunciar "40 novidades" pra quem chegou agora é ruído, não
+> informação. Primeira visita não tem novidade — tem a prancha inteira.
+>
+> **A ordem é o que faz o aviso existir:** o RSC lê as novidades com a marca d'água ANTERIOR e
+> passa a frase pro viewer; `marcarDocumentoLido` só roda depois de o viewer montar. Gravar
+> durante a renderização faria a própria visita zerar o aviso antes de alguém lê-lo.
+>
+> Recortes do contador: apontamento entra por `publicadoEm` (rascunho de terceiro não é novidade
+> de ninguém, item 31) e o próprio autor não conta como novidade pra si mesmo. `audit: false` na
+> action — abrir prancha é navegação, e uma linha por abertura afogaria o log (o acesso ao
+> arquivo já é auditado no download). A unidade é o documento, não o upload: rastrear por versão
+> perderia justamente o sinal "revisão nova". Módulo puro `novidades.ts` (5 testes).
+>
+> Verificado em navegador, com dois usuários e três visitas: 1ª visita do Bruno sem aviso (a marca
+> d'água nasce ali), publicação de um apontamento pela Helena, 2ª visita mostrando
+> *"Desde sua última visita: 1 apontamento novo."* (sem contar o rascunho nem os antigos), 3ª
+> visita já sem aviso.
+>
+> Pegadinha do smoke, não do código, que vale registrar: `now()` do Postgres devolve hora LOCAL
+> (UTC-3) numa coluna `timestamp without time zone`, enquanto o Prisma grava UTC — publicar por
+> SQL cru com `now()` nasce 3h no passado e o contador ignora. Nos scripts, `now() at time zone 'utc'`.
 
 ### Indicação do problema
 
@@ -416,6 +471,26 @@ Status: NÃO EXISTE (só x,y ponto, schema:4016-4017). Impacto: MÉDIO. Esforço
 **10. Biblioteca de apontamentos-padrão por disciplina**
 Status: NÃO EXISTE. Impacto: BAIXO-MÉDIO. Esforço: P. Complexidade: baixa — CRUD+autocomplete, padrão de `adicionar-do-catalogo-button.tsx` já existente. Schema: Sim (tabela pequena, sem dependência de outros dados). Depende: —. Risco: baixo. **Modelo: Opus** (regra fixa, mesmo trivial).
 
+> ✅ **IMPLEMENTADO em 2026-08-08.** Migration `20260808040000_apontamento_padrao`, tabela nova
+> (nasce vazia). `ApontamentoPadrao` guarda texto + classificação sugerida + contador de usos;
+> `disciplinaId` nulo = padrão GERAL, válido em qualquer disciplina.
+>
+> Ao contrário do vocabulário de severidade/tipo (item 11), que vive em **código** por ser
+> vocabulário fixo do escritório, este é **dado**: quem revisa cadastra e edita. Daí ser tabela.
+>
+> `padroesDaDisciplina()` devolve os da disciplina + os gerais, ordenados por `usos desc` — o
+> autocomplete precisa colocar na frente o que a equipe de fato escreve, não o que foi
+> cadastrado primeiro. Aplicar um padrão preenche texto e pré-classificação e incrementa o uso
+> por uma action separada (`registrarUsoApontamentoPadrao`, `audit: false`): falhar a contagem
+> não pode derrubar a criação do apontamento, que é o que importa.
+>
+> Só aparece no formulário de **criação** — editar um apontamento existente é ajustar o que já
+> foi escrito, não escolher de catálogo. Desativação é soft (`ativo = false`): sai do
+> autocomplete sem sumir de quem já usou.
+>
+> Verificado em navegador: "salvar como padrão" grava na disciplina certa, a caixa de busca
+> aparece no formulário seguinte, aplicar preenche o texto e o contador de usos vai a 1.
+
 **11. Classificação estruturada: disciplina, severidade, tipo**
 Status: PARCIAL — disciplina já vem via FK (schema:4011); severidade/tipo não existem. Impacto: MÉDIO-ALTO (alimenta 18, 19, 38). Esforço: P. Complexidade: baixa. Schema: Sim. Depende: —. Risco: baixo. Incerteza: taxonomia de severidade/tipo é decisão de produto. **Modelo: Opus.** ✅ *quick win*
 
@@ -507,6 +582,46 @@ Status: NÃO EXISTE. **Decidido (R5): sem transcrição por enquanto** — áudi
 
 **13. Referência cruzada entre pranchas/documentos**
 Status: NÃO EXISTE. Impacto: BAIXO-MÉDIO. Esforço: P/M. Complexidade: baixa. Schema: Sim. Depende: 1 (referenciar "documento", não upload solto). Risco: baixo. **Modelo: Opus.**
+
+> ✅ **IMPLEMENTADO em 2026-08-08.** Migration `20260808050000_referencia_pendencia`, tabela nova.
+> Liga pendência → pendência (não documento → documento): como a pendência já está ancorada no
+> `DocumentoDisciplina` pelo item 1, a ligação sobrevive às revisões dos **dois** lados de graça.
+>
+> **A ligação é direcional, mas exibida nos dois lados.** Quem abre o apontamento citado precisa
+> saber que alguém o citou — mostrar só o lado "aponta para" deixaria metade da informação
+> invisível justamente pra quem tem que agir. `direcao` (`feita` | `recebida`) só existe pra UI
+> escrever a frase certa.
+>
+> Quatro coisas que o banco não pega sozinho, e por isso estão no código:
+> - **par inverso.** `@@unique([origemId, destinoId])` não impede `B→A` quando `A→B` existe — e,
+>   com exibição bidirecional, isso renderizaria linha duplicada nos dois apontamentos. A action
+>   recusa nos dois sentidos. Auto-referência idem.
+> - **alvo excluído.** `Pendencia` é soft delete e fica FORA da extension de `lib/prisma.ts`,
+>   então o `ON DELETE CASCADE` da FK nunca dispara em `excluirPendencia`; sem `excluidoEm: null`
+>   explícito na leitura, a ligação viraria um chip pendurado no nada.
+> - **revisão vigente.** O link abre `?pin=<numero>` e `numero` é escopado por documento, mas o
+>   `uploadId` gravado é a versão em que o apontamento NASCEU — que pode ser obsoleta e
+>   só-leitura. A leitura resolve a maior `versao` do documento (fallback pro próprio upload em
+>   linha legada).
+> - **rascunho de terceiro.** Referenciar o que ninguém mais enxerga (item 31) produziria um link
+>   que não resolve; o seletor e a action tratam como inexistente. O lado **inverso** também: a exibição
+>   bidirecional mostra a ORIGEM na tela do apontamento citado, e a origem pode ser um rascunho —
+>   caminho normal do item 17, onde a reincidência confirmada liga um apontamento recém-criado
+>   (ainda rascunho) ao fechado. Sem filtro na leitura, o texto da análise em andamento apareceria
+>   pra qualquer um que abrisse a prancha do citado.
+>
+> Gate: **participante** (`baseProjetista` + `exigirParticipante`), igual a anexo (item 12) e
+> resposta (item 39) — ligar dois apontamentos é acrescentar contexto a um que já existe, e o
+> projetista é justamente quem costuma reconhecer que dois problemas são o mesmo. Exigir
+> `uploads:validar` deixaria de fora quem tem a informação.
+>
+> O seletor de destino é escopado por projeto **na consulta**, a partir do `projetoId` da própria
+> pendência de origem — não de um id vindo do navegador.
+>
+> Verificado em navegador (dois usuários): "referenciar" → busca → clique cria a ligação, os dois
+> lados aparecem, a lixeira desfaz. E o teste que importa: com Helena mantendo um apontamento em
+> rascunho ligado a um fechado, Bruno abriu a prancha do fechado e **não** viu nem o texto nem o
+> número do rascunho.
 
 **14. Criação por seleção de área + atalhos + thumbnail do recorte**
 Status: NÃO EXISTE (criação hoje é só clique de ponto, `pdf-viewer.tsx:730-736`). Impacto: MÉDIO. Esforço: M. Complexidade: média (combina com 9 se área virar tipo de marcação). Schema: Sim, se thumbnail persiste. Depende: some bem com 9. Risco: baixo. Incerteza (pergunta 6): thumbnail precisa ficar salvo, ou é só apoio visual no momento de criar? **Modelo: Opus.**
@@ -603,11 +718,103 @@ Status: NÃO EXISTE (só `contarPendenciasAbertas`, `queries.ts:50-58`, contagem
 **17. Detecção de reincidência de apontamentos**
 Status: NÃO EXISTE. Impacto: MÉDIO-ALTO. Esforço: G. Complexidade: alta (similaridade textual real é algoritmo não-trivial). Schema: provavelmente Sim (persistir vínculo de reincidência). Depende: 1, 2 (com carry-over pronto, fica quase trivial dentro da mesma cadeia). Risco: médio (falso + esconde problema novo). Incerteza (pergunta 7): "reincidência" é (a) mesma pendência reaberta (já existe hoje) ou (b) pendência nova que parece repetir uma fechada antes? Esforços bem diferentes. **Modelo: Opus.**
 
+> ✅ **IMPLEMENTADO em 2026-08-08.** Escopo (R7): **(b)** apontamento novo que repete um já
+> encerrado — o caso (a) já existe como estado (`reaberturas`, item 22) e não precisa de algoritmo.
+>
+> **Sem schema novo.** A ficha previa "persistir vínculo de reincidência"; o vínculo é a
+> referência cruzada do item 13, criada com `nota: "reincidência"`. Uma tabela própria seria uma
+> segunda ligação entre os mesmos dois apontamentos, com a mesma semântica e outra tela pra manter.
+>
+> Heurística **léxica**, e assim de propósito: similaridade semântica de verdade exigiria
+> embeddings/IA, que o item 38 já adiou. Jaccard sobre conjunto de tokens (minúsculo, sem acento,
+> sem palavra vazia, token < 3 fora) — não distância de edição: o que se repete num apontamento
+> de projeto é o vocabulário ("cota ausente na planta baixa"), não a grafia, e Jaccard é
+> indiferente à ordem das palavras, que muda toda hora sem mudar o problema.
+>
+> **Limiar 0,40, medido — não escolhido de cabeça.** O banco de dev tem 6 apontamentos e
+> **nenhum par com uma palavra sequer em comum** (varredura completa: 0 pares com score > 0), ou
+> seja, não oferece sinal. O corte saiu de um corpus rotulado à mão de 16 pares em pt-BR (8
+> "mesmo problema reescrito" × 8 "só o vocabulário da disciplina em comum"):
+>
+> | limiar | acha o mesmo problema | falso positivo |
+> |---|---|---|
+> | 0,60 | 4/8 | 1/8 |
+> | 0,50 | 7/8 | 1/8 |
+> | **0,40** | **8/8** | **1/8** |
+> | 0,25 | 8/8 | 3/8 |
+>
+> Em 0,40 os 8 legítimos aparecem e o único falso positivo é *"viga V-04 sem detalhamento de
+> armadura"* × *"pilar P-07 sem detalhamento de armadura"* (0,60) — elemento diferente, mas
+> literalmente o mesmo problema recorrente, que é um aviso defensável. Recalibrar quando houver
+> histórico real de repetição.
+>
+> **Contra o risco que a própria ficha registra** (falso positivo escondendo problema novo): a
+> heurística não fecha, marca nem classifica nada. É uma sugestão que aparece enquanto a pessoa
+> digita, com no máximo 3 itens, e confirmar apenas registra a ligação. Só candidatos `fechada`
+> entram — `descartada` é o "não procede" (item 22), e sugerir repetição do que o escritório já
+> julgou improcedente empurraria pra fechar um apontamento legítimo; `resolvida` ainda está em
+> verificação. Escopo é a DISCIPLINA, não o documento: "cota ausente" volta na planta do
+> pavimento seguinte, e limitar ao documento perderia o caso que o item existe pra pegar.
+>
+> Limitação registrada em teste: código de elemento ("V-04") se decompõe em tokens curtos demais
+> e não sobrevive à tokenização — o casamento vem do vocabulário do problema, não do código da peça.
+>
+> Verificado em navegador: com *"Cota ausente na planta baixa do pavimento terreo"* fechado numa
+> prancha, digitar *"Falta cota na planta baixa do pavimento terreo"* em OUTRA prancha da mesma
+> disciplina fez a caixa aparecer citando o #1; marcar e criar gravou a referência com
+> `nota = "reincidência"`, e o apontamento novo continuou rascunho.
+
 **18. Prazo/SLA por apontamento com notificação agrupada**
 Status: NÃO EXISTE (só a Tarefa agrupada tem prazo, `actions.ts:207`, não a pendência individual). **Decidido (R8): prazo fixo definido na criação** (não calculado por severidade) — remove a dependência de 11. Impacto: MÉDIO. Esforço: M. Complexidade: baixa/média (infra de job pronta — pg-boss/`lib/jobs.ts` — só configurar handler; sem tabela de regra por severidade). Schema: Sim (campo prazo). Depende: — (independente de 11 agora). Risco: baixo. **Modelo: Opus.**
 
+> ✅ **IMPLEMENTADO em 2026-08-08.** Migration `20260808030000_pendencia_prazo`, aditiva.
+> Data FIXA na criação (R8), ajustável na triagem junto de severidade/tipo — sem tabela de regra
+> por severidade.
+>
+> **O relógio corre a partir de `publicadoEm`, não de `createdAt`** — descoberta que veio do
+> item 31: enquanto o apontamento é rascunho ele existe só pra quem escreveu, e cobrar prazo de
+> alguém que ainda não pode ver o problema não é SLA, é armadilha. Um apontamento criado na
+> segunda e entregue na quinta começa a contar na quinta.
+>
+> **Reativar um `adiado` PRESERVA o prazo** (decisão do solicitante em 2026-08-08, que era o
+> ponto deixado em aberto pelo item 22). Sai de graça: nenhuma transição mexe em `prazo`.
+> `adiado` continua no radar de prazo — adiar tira da fila de trabalho, não do relógio.
+>
+> Motor puro em `pendencias/prazo.ts` (+15 testes): `diasAtePrazo` compara por DIA e não por
+> hora (prazo é data, não horário), `situacaoPrazo` classifica em
+> sem_prazo/no_prazo/vence_em_breve/vencido e nunca marca como vencido o que já está encerrado —
+> cobrar SLA de algo fechado é ruído puro.
+>
+> **Notificação agrupada por PESSOA, não por apontamento** (`agruparPorDestinatario`, puro e
+> testado): uma prancha com 12 apontamentos vencidos viraria 12 pushes, que é a forma mais rápida
+> de alguém desligar a categoria inteira. O job (`alertas-prazo-apontamento`, dias úteis 08:10)
+> manda uma notificação por responsável, com as 3 primeiras e "+N", e usa tag por pessoa+dia pra
+> reexecução não empilhar.
+>
+> Verificado **invocando o handler direto** — jobs pg-boss não rodam em `npm run dev`, então
+> navegador não cobriria: rascunho com prazo vencido → 0 avisados; o mesmo apontamento publicado
+> → 1 avisado, com a mensagem agrupada correta; apontamento encerrado → 0 avisados. Estado do
+> banco restaurado ao fim.
+>
+> **Nota do desenho:** "vencido" é um RÓTULO, não um bloqueio — não entrou em `contaComoTrabalho`.
+> Apontamento vencido não impede validação por si só; quem bloqueia é o impeditivo (item 19).
+
 **19. Integração Kanban + bloqueio de aprovação por apontamento impeditivo**
 Status: PARCIAL — Kanban JÁ EXISTE e é central (`enviarApontamentos` cria Tarefa+TarefaItem, `actions.ts:200-225`). "Impeditivo": NÃO EXISTE — hoje bloqueia por qualquer pendência aberta (`!temApontamentoAberto`, `pdf-viewer.tsx:95`), sem distinguir severidade. Impacto: ALTO (metade já entregue). Esforço: P. Complexidade: baixa (estender condição existente). Schema: Sim (o campo/severidade). Depende: 11. Risco: baixo (mudança pequena em condição já testada). **Modelo: Opus.**
+
+> ✅ **IMPLEMENTADO em 2026-08-07** (depois do item 22, de propósito: `temImpeditivoAberto` lê
+> "está aberta", e fazer antes significaria escrever duas vezes assim que `em_correcao` surgisse).
+> `temImpeditivoAberto` — que já estava escrita e testada desde o item 11, sem chamador — passou
+> a alimentar a barra do viewer: com impeditivo em aberto o aviso vira vermelho e diz
+> **"Apontamento IMPEDITIVO em aberto — não é possível validar"**, em vez do genérico.
+>
+> A função usa `estaAberta`, não `status === "aberta"`: um impeditivo que o projetista assumiu
+> (`em_correcao`) continua travando — se contasse só "aberta", assumir a correção destravaria a
+> aprovação, que é o oposto do que o estado significa. Coberto por teste.
+>
+> O Kanban já estava entregue desde antes (`enviarApontamentos` cria Tarefa + TarefaItem, e cada
+> transição sincroniza o item do checklist). Verificado em navegador com um apontamento
+> impeditivo real.
 
 **20. Exportação: PDF carimbado com marcações + relatório em lista/planilha**
 Status: NÃO EXISTE export nenhum. Infra de relatório (planilha/PDF-de-HTML) JÁ EXISTE amplamente (puppeteer-core em ~13 rotas, exceljs em `eap-export`). "PDF carimbado" (desenhar marcação em cima do PDF original) é capacidade DIFERENTE — puppeteer gera PDF novo, não edita existente. Impacto: MÉDIO-ALTO. Esforço: P (só relatório) / G (carimbado). Complexidade: baixa (relatório) / alta (carimbado). Schema: Não. Depende: carimbado depende de 9. Risco: baixo/médio. Incerteza: **não confirmo** se lib de edição de PDF (ex. pdf-lib, não instalada) cobre bem overlay em PDF vetorial de CAD — não pesquisei essa lib. **Modelo: Sonnet** (relatório) / **Opus** (carimbado).
@@ -713,8 +920,61 @@ Notas de implementação: "resolvida" já cumpre o papel de "aguardando verifica
 
 **Modelo: Opus.**
 
+> ✅ **IMPLEMENTADO em 2026-08-07.** Migration `20260807220000_pendencia_estados_intermediarios`,
+> **aditiva**: os estados novos (`em_correcao`, `adiado`) são só valores novos de uma coluna que
+> já é TEXT, e o estado que a UI passa a chamar de **"Não procede" continua GRAVADO como
+> `descartada`**. Renomear teria custado a verdade do `AuditLog` já escrito (que não dá pra
+> reescrever com sentido) e um UPDATE em tabela populada — e a própria ficha diz que é o MESMO
+> estado, não um novo. O rótulo mora em `STATUS_LABEL`, com uma linha explicando a diferença
+> entre valor e rótulo, que é o que evita a divergência.
+>
+> **A máquina virou código puro:** `podeTransicionar(de, para, papeis)` em `helpers.ts`
+> (client-safe), com o diagrama aprovado numa tabela só. Antes cada action checava o status na
+> mão — com 6 estados isso multiplica e diverge, e a tela não tinha como saber o que o servidor
+> aceitaria. Agora a lista de botões sai de `transicoesPossiveis()`, a MESMA função que a action
+> usa pra recusar: a UI não oferece movimento que o servidor nega. +26 testes, incluindo o
+> **espaço negativo** — os 36 pares possíveis são verificados, e todo par fora do diagrama tem
+> que ser recusado mesmo para perfil global.
+>
+> **`STATUS_ABERTOS` é a parte que mais podia dar errado em silêncio.** "Em aberto" passou a
+> significar `aberta` OU `em_correcao`, e isso teve que ser propagado a TODO lugar que contava
+> "aberta": contagem de badge, visão consolidada, KPIs, envio da rodada, o gate do viewer e os
+> dois gates de `validarArquivo`/`validarArquivosLote`. Se `em_correcao` tivesse ficado de fora,
+> assumir a correção destravaria a validação da entrega — mesma classe de bug já encontrada duas
+> vezes neste trabalho. `adiado` fica de fora de propósito: adiar É tirar da fila, senão adiar
+> não teria efeito.
+>
+> `resolvida` NÃO virou estado novo — já cumpria o papel de "aguardando verificação", e o rótulo
+> passou a dizer isso. `em_correcao` é o único estado 100% novo. `adiado` é restrito a
+> admin/supervisor, como R9 pediu, e a recusa explica o motivo em vez de sumir com o botão.
+> "Não procede" passou a exigir justificativa — validada no Zod e no handler, com a coluna
+> nullable (linha antiga descartada não tem uma).
+>
+> Verificado em navegador: as transições oferecidas mudam a cada estado; assumir → `em_correcao`
+> no banco e **o bloqueio de validação continua de pé**; "não procede" com o Confirmar
+> desabilitado sem texto e a justificativa gravada; estado terminal não oferece transição nenhuma
+> e o bloqueio some. Zero erro de console.
+>
+> **Bug de UI corrigido na verificação:** o cliente montava os papéis com
+> `ehResponsavel || ehAdmin`, mas o servidor trata perfil GLOBAL como responsável. Um supervisor
+> via a tela esconder "assumir"/"resolver" que a action teria aceitado — o inverso do problema
+> que a máquina veio resolver. Os dois lados agora usam a mesma regra.
+>
+> Ponto em aberto (só importa quando o item 18 entrar): reativar um `adiado` preserva ou reseta
+> o prazo/SLA.
+
 **23. Contagem de reabertura por apontamento**
 Status: NÃO EXISTE (`reabrirPendencia`, `actions.ts:294-312`, só muda status). Impacto: BAIXO. Esforço: P. Complexidade: baixa. Schema: Sim. Depende: —. Risco: baixo. **Modelo: Opus** (regra fixa).
+
+> ✅ **IMPLEMENTADO em 2026-08-07, junto do item 22.** Coluna `reaberturas`, `NOT NULL DEFAULT 0`
+> — nunca nula porque a contagem entra em média/KPI e um nulo obrigaria guarda em todo lugar que
+> soma. Incrementa dentro da MESMA transação da mudança de estado.
+>
+> Conta só a volta de **`resolvida` → `aberta`**, que é reabertura de verdade. Voltar de
+> `em_correcao` (o projetista largou a correção) ou reativar um `adiado` NÃO conta: é retomada,
+> não reabertura — e inflar o número com isso tornaria a métrica inútil justamente pra quem quer
+> saber quantas idas e vindas o apontamento teve. Verificado em navegador: resolver+reabrir leva
+> a 1; assumir+voltar mantém em 1.
 
 **24. Trilha de auditoria imutável (soft delete + log de status)**
 Status: PARCIAL — AuditLog automático já cobre log de ação (`defineAction`). `excluirPendencia` faz **hard delete** (`actions.ts:159`) — sem soft delete, sem `capturarAntes`. Impacto: MÉDIO. Esforço: P. Complexidade: baixa (padrão já replicado 2x — Upload, Lancamento). Schema: Sim. Depende: —. Risco: baixo, mas trocar pra soft-delete exige revisar toda leitura de Pendencia. **Modelo: Opus.** ✅ *quick win*
@@ -924,6 +1184,47 @@ Status: NÃO EXISTE (`criarPendencia` 1 uploadId por chamada, `actions.ts:98-134
 
 **31. Modo rascunho + publicar análise em lote**
 Status: NÃO EXISTE — toda pendência já nasce "aberta"/visível (`actions.ts:126`). Impacto: MÉDIO (evita notificar a cada pin isolado). Esforço: M. Complexidade: baixa/média. Schema: Sim. Depende: some bem com 22. Risco: baixo. **Modelo: Opus.**
+
+> ✅ **IMPLEMENTADO em 2026-08-08.** Coluna `publicadoEm` — nulo = RASCUNHO.
+>
+> **Não existe um passo separado de "publicar", e isso foi decisão de desenho.** O
+> `enviarApontamentos` JÁ era o momento do lote: cria a tarefa, notifica os responsáveis e, se a
+> entrega estava validada, abre revisão. Acrescentar um botão "publicar" ao lado dele daria DUAS
+> etapas de lote e obrigaria o usuário a entender a diferença. Então a publicação foi dobrada no
+> envio: tudo que se marca antes é rascunho, "Enviar" entrega. É exatamente o valor que a ficha
+> pede ("evita notificar a cada pin isolado"), sem conceito novo na tela.
+>
+> **`ATENÇÃO — primeira migração NÃO-aditiva desta leva.`** A coluna nasce nullable, mas o
+> backfill (`publicadoEm = createdAt`) é obrigatório: sem ele, todo apontamento já existente
+> viraria rascunho invisível de uma vez, sumindo de badge, visão gerencial, gate de validação e
+> export. Conferido no dev: 6 linhas, 0 sem `publicadoEm` depois do backfill.
+>
+> **A pergunta "isto é trabalho pendente?" virou de DUAS dimensões** — estado (item 22) e
+> publicação. Por isso a composição virou `contaComoTrabalho()` em `helpers.ts` mais um
+> fragmento `ONDE_TRABALHO` em `queries.ts`, em vez de espalhar `publicadoEm != null` pelos ~10
+> pontos que já filtravam por estado: espalhar é como um deles fica pra trás.
+>
+> **Decisão de tipo que virou rede de segurança:** `publicadoEm` é OBRIGATÓRIO na assinatura de
+> `contaComoTrabalho`/`temImpeditivoAberto`, não opcional. Com `?`, um chamador que esquecesse de
+> trazer a coluna receberia "é rascunho" em silêncio — e como rascunho não conta como trabalho,
+> isso DESTRAVARIA o gate de validação sem erro nenhum. Com o campo obrigatório, o tsc aponta
+> quem esqueceu. Dois testes antigos quebraram na hora exatamente por isso, o que é o
+> comportamento desejado.
+>
+> Duas regras de visibilidade que NÃO são a mesma: (a) o rascunho só aparece pra quem escreveu —
+> `pendenciasDoUpload` passou a receber `viewerId`; (b) rascunho **não sai em export nenhum** —
+> PDF carimbado, relatório, BCF e até a miniatura. Um rascunho vazando num PDF que vai pro
+> canteiro seria a pior versão desse erro.
+>
+> Dois detalhes que a ficha não pedia mas o desenho exige: enviar publica **só os meus** rascunhos
+> (publicar a análise a meio caminho de outro revisor é justamente o que o modo evita), e replicar
+> (item 30) herda o estado de publicação da origem — cópias de um apontamento publicado nascem
+> publicadas, senão sumiriam até alguém enviar uma rodada em cada prancha de destino.
+>
+> Verificado em navegador com um rascunho IMPEDITIVO (o pior caso pra vazar): **não bloqueia** a
+> validação, **não** aparece em `/pendencias`, o PDF carimbado sai com **0 apontamentos**, e o
+> Bruno (outro usuário com acesso ao projeto) **não o enxerga**. Depois de "Enviar": publicado,
+> com tarefa, visível pro Bruno e presente em `/pendencias`. Zero erro de console.
 
 **32. Presença em tempo real no documento (Socket.io)**
 Status: NÃO EXISTE pro PDF viewer. Infra JÁ EXISTE (`lib/socket.ts`, presença via globalThis, já usada no chat). Impacto: BAIXO-MÉDIO. Esforço: M. Complexidade: média (integrar com a mesma cautela de globalThis já documentada). Schema: Não. Depende: —, só funciona sob dev:server/prod. Risco: baixo se seguir padrão existente; alto se reintroduzir variável module-scoped (armadilha já documentada). **Modelo: Sonnet.**

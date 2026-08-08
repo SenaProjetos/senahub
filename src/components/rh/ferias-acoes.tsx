@@ -35,6 +35,8 @@ export type FeriaItem = {
   altOkFunc: boolean;
   /** A proposta pendente foi feita pelo próprio usuário logado. */
   altPorMim: boolean;
+  /** Registrada direto pelo RH, sem solicitação do colaborador. */
+  lancadaPeloRh: boolean;
 };
 
 /** `@db.Date` chega como meia-noite UTC — fatiar o ISO evita deslocar o dia. */

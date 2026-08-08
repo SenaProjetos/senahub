@@ -4,20 +4,15 @@ import { prisma } from "@/lib/prisma";
 import { acessoGlobal } from "@/lib/roles";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { SEVERIDADE_LABEL, TIPO_PENDENCIA_LABEL, type Severidade, type TipoPendencia } from "@/modules/projetos/pendencias/helpers";
+// Rótulos de status vêm do catálogo central (item 22) — ter uma cópia aqui fez a planilha
+// ficar sem os estados novos e chamar "descartada" de "Descartada" e não "Não procede".
+import { SEVERIDADE_LABEL, STATUS_LABEL, TIPO_PENDENCIA_LABEL, type Severidade, type StatusPendencia, type TipoPendencia } from "@/modules/projetos/pendencias/helpers";
 import { MARCACAO_LABEL, lerMarcacao } from "@/modules/projetos/pendencias/marcacao";
 import { formatarMedida } from "@/modules/projetos/pendencias/medicao";
 
 // exceljs é CommonJS — evita problema de default export no Turbopack (mesmo padrão das outras rotas).
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const ExcelJS = require("exceljs") as typeof import("exceljs");
-
-const STATUS_LABEL: Record<string, string> = {
-  aberta: "Aberta",
-  resolvida: "Resolvida",
-  fechada: "Fechada",
-  descartada: "Descartada",
-};
 
 /**
  * Relatório de apontamentos em planilha (item 20, parte "relatório") — a metade barata do
@@ -64,7 +59,8 @@ export async function GET(req: Request) {
   }
 
   const pendencias = await prisma.pendencia.findMany({
-    where: { ...escopo, excluidoEm: null },
+    // Rascunho (item 31) fora do relatório: só entra o que já foi entregue.
+    where: { ...escopo, excluidoEm: null, publicadoEm: { not: null } },
     orderBy: [{ projetoId: "asc" }, { numero: "asc" }],
     include: {
       // Aninhado de propósito: a versão de origem pode estar na lixeira sem deixar de ser
@@ -124,7 +120,7 @@ export async function GET(req: Request) {
       prancha: p.upload?.nomeArquivo ?? "—",
       numero: p.numero,
       pagina: p.pagina,
-      status: STATUS_LABEL[p.status] ?? p.status,
+      status: STATUS_LABEL[p.status as StatusPendencia] ?? p.status,
       severidade: p.severidade ? (SEVERIDADE_LABEL[p.severidade as Severidade] ?? p.severidade) : "—",
       tipo: p.tipo ? (TIPO_PENDENCIA_LABEL[p.tipo as TipoPendencia] ?? p.tipo) : "—",
       // "Pino" quando não há forma: a coluna descreve o que foi marcado na prancha, e vazio

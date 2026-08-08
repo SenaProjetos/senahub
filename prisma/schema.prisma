@@ -249,6 +249,9 @@ model User {
   pendenciaRespostas            PendenciaResposta[]       @relation("PendenciaRespostaAutor")
   pendenciaAnexos               PendenciaAnexo[]          @relation("PendenciaAnexoAutor")
   calibracoesPrancha            CalibracaoPrancha[]       @relation("CalibracaoAutor")
+  apontamentosPadrao            ApontamentoPadrao[]       @relation("ApontamentoPadraoAutor")
+  referenciasPendencia          ReferenciaPendencia[]     @relation("ReferenciaAutor")
+  leiturasDocumento             LeituraDocumento[]        @relation("LeituraDocumentoUsuario")
   calculosFerramenta            CalculoFerramenta[]
   aceitesTermo                  AceiteTermo[]
   ativosResponsavel             Ativo[]                   @relation("AtivoResponsavel")
@@ -2175,6 +2178,7 @@ model Disciplina {
   @@index([projetoId])
   @@index([status])
   @@map("disciplina")
+  apontamentosPadrao  ApontamentoPadrao[]
 }
 
 /// Diário de projeto por disciplina: projetistas registram a evolução diária dos
@@ -4193,6 +4197,7 @@ model DocumentoDisciplina {
   uploads    Upload[]
   pendencias Pendencia[]
   calibracoes CalibracaoPrancha[]
+  leituras   LeituraDocumento[]
 
   @@unique([disciplinaId, chave])
   @@index([disciplinaId])
@@ -4241,7 +4246,11 @@ model Pendencia {
   x              Float
   y              Float
   texto          String
-  /// aberta | resolvida | fechada | descartada
+  /// aberta | em_correcao | resolvida | fechada | descartada | adiado
+  /// A máquina de estados aprovada (item 22) vive em `pendencias/helpers.ts#podeTransicionar`.
+  /// `descartada` é o valor GRAVADO do estado que a UI chama de "Não procede": manter o nome
+  /// antigo no banco preserva a verdade do `AuditLog` já escrito e mantém a migração aditiva —
+  /// é o MESMO estado, não um novo (a ficha do item 22 diz isso).
   status         String    @default("aberta")
   autorId        String
   tarefaId       String?
@@ -4294,6 +4303,26 @@ model Pendencia {
   /// junto. Com coordenada absoluta o pino iria pro lugar certo e a forma ficaria pra trás.
   marcacaoGeo   Json?
 
+  /// Prazo do apontamento (item 18) — data FIXA definida na criação (R8), não calculada por
+  /// severidade. O relógio só corre a partir de `publicadoEm`: rascunho não queima prazo,
+  /// porque o projetista não pode agir sobre o que ainda não enxerga. Adiar e reativar NÃO
+  /// mexem no prazo (decisão do solicitante em 2026-08-08: reativar PRESERVA).
+  prazo          DateTime?
+
+  /// Rascunho → publicado (item 31). Nulo = RASCUNHO: existe só para quem escreveu, não conta
+  /// em badge/KPI/visão gerencial, não bloqueia validação e não sai em export nenhum. A
+  /// publicação acontece no envio da rodada (`enviarApontamentos`) — não há um segundo passo
+  /// de "publicar", porque o envio já É o lote (cria a tarefa, notifica e abre revisão).
+  publicadoEm    DateTime?
+
+  /// Justificativa obrigatória ao marcar "não procede" (item 22). Nullable na coluna porque
+  /// linha antiga descartada não tem uma — a obrigatoriedade é validada no schema Zod, não por
+  /// NOT NULL numa tabela já populada.
+  justificativaDescarte String?
+  /// Quantas vezes o apontamento foi reaberto (item 23). Default 0, nunca nulo: a contagem
+  /// entra em média/KPI e um nulo obrigaria guarda em todo lugar que soma.
+  reaberturas    Int       @default(0)
+
   /// Medição (item 28) — só em `marcacaoTipo = "medida"`. O valor é CONGELADO na criação,
   /// junto do fator e do modo que o produziram: recalibrar a prancha depois não pode mudar
   /// silenciosamente um número que já virou apontamento, e guardar o fator é o que permite
@@ -4320,6 +4349,8 @@ model Pendencia {
 
   respostas     PendenciaResposta[]
   anexos        PendenciaAnexo[]
+  referenciasFeitas   ReferenciaPendencia[] @relation("ReferenciaOrigem")
+  referenciasRecebidas ReferenciaPendencia[] @relation("ReferenciaDestino")
 
   @@index([uploadId, numero])
   @@index([disciplinaId])
@@ -4367,6 +4398,54 @@ model CalibracaoPrancha {
   @@map("calibracao_prancha")
 }
 
+/// Referência cruzada entre apontamentos (item 13): "isto se relaciona com o #7 da prancha
+/// de estrutura". Aponta para outra PENDÊNCIA — e como pendência já está ancorada no
+/// documento (item 1), a referência sobrevive às revisões dos dois lados.
+///
+/// Direcional mas exibida nos dois sentidos: quem abre o #7 precisa saber que alguém o
+/// referenciou, senão a metade útil da informação fica invisível.
+model ReferenciaPendencia {
+  id        String    @id @default(cuid())
+  origemId  String
+  origem    Pendencia @relation("ReferenciaOrigem", fields: [origemId], references: [id], onDelete: Cascade)
+  destinoId String
+  destino   Pendencia @relation("ReferenciaDestino", fields: [destinoId], references: [id], onDelete: Cascade)
+  nota      String?
+  autorId   String
+  autor     User      @relation("ReferenciaAutor", fields: [autorId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@unique([origemId, destinoId])
+  @@index([destinoId])
+  @@index([autorId])
+  @@map("referencia_pendencia")
+}
+
+/// Apontamento-padrão (item 10): frases recorrentes por disciplina, pra não redigitar
+/// "cota ausente na planta baixa" a cada revisão. Catálogo de DADO (o usuário cadastra),
+/// ao contrário do vocabulário fixo de severidade/tipo, que vive em código.
+model ApontamentoPadrao {
+  id           String      @id @default(cuid())
+  /// Nulo = vale para qualquer disciplina (geral).
+  disciplinaId String?
+  disciplina   Disciplina? @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+  texto        String
+  /// Pré-classificação sugerida ao aplicar (itens 11) — opcional.
+  severidade   String?
+  tipo         String?
+  /// Quantas vezes já foi usado — ordena o autocomplete pelo que a equipe mais usa.
+  usos         Int         @default(0)
+  ativo        Boolean     @default(true)
+  autorId      String
+  autor        User        @relation("ApontamentoPadraoAutor", fields: [autorId], references: [id], onDelete: Cascade)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([disciplinaId, ativo])
+  @@index([autorId])
+  @@map("apontamento_padrao")
+}
+
 /// Anexo do apontamento (item 12) — print, foto, áudio, PDF ou link externo.
 /// Campos de arquivo espelham `AnexoLead` de propósito (é a mesma forma que `salvarArquivo`
 /// devolve), pra não existirem dois vocabulários diferentes pro mesmo conceito no schema.
@@ -4387,6 +4466,13 @@ model PendenciaAnexo {
   hashSha256  String?
   /// Preenchido só quando `tipo = "link"` — validado como http/https na action.
   url         String?
+  /// Evidência antes/depois (item 7): `antes` | `depois`. Nulo = anexo comum do item 12.
+  ///
+  /// É uma COLUNA no anexo, não uma tabela nova, porque a decisão R4 pediu **histórico completo
+  /// versionado** e não "o último snapshot de cada lado": com N linhas por momento ordenadas por
+  /// `createdAt`, o histórico sai de graça. Uma tabela `PendenciaEvidencia` com dois campos de
+  /// arquivo guardaria só o último e duplicaria upload, download, hash e remoção.
+  momento     String?
   autorId     String
   autor       User      @relation("PendenciaAnexoAutor", fields: [autorId], references: [id], onDelete: Cascade)
   createdAt   DateTime  @default(now())
@@ -5541,4 +5627,27 @@ model CustoPrecoHistorico {
   @@index([insumoId])
   @@index([fornecedorId])
   @@map("custo_preco_historico")
+}
+
+/// Item 8 — marca d'água de "até onde eu já analisei este documento".
+///
+/// Uma linha por (documento, pessoa), atualizada quando ela ABRE a prancha. Nasce vazia: quem
+/// nunca abriu não tem linha, e a ausência é lida como "primeira visita" — sem novidades a
+/// mostrar, não como "tudo é novo" (uma prancha com 40 apontamentos históricos gritaria "40
+/// novidades" pra quem chegou agora, que é ruído, não informação).
+///
+/// A unidade é o DOCUMENTO, não o upload: revisão nova é justamente uma das coisas que a pessoa
+/// precisa ver como novidade, então rastrear por versão perderia o sinal principal.
+model LeituraDocumento {
+  id          String              @id @default(cuid())
+  documentoId String
+  documento   DocumentoDisciplina @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User                @relation("LeituraDocumentoUsuario", fields: [userId], references: [id], onDelete: Cascade)
+  /// Momento da última abertura. É o corte de "desde quando" das novidades.
+  lidoEm      DateTime            @default(now())
+
+  @@unique([documentoId, userId])
+  @@index([userId])
+  @@map("leitura_documento")
 }

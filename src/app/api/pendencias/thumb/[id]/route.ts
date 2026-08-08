@@ -17,9 +17,11 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   const p = await prisma.pendencia.findUnique({
     where: { id },
-    select: { thumbPath: true, projetoId: true, excluidoEm: true },
+    select: { thumbPath: true, projetoId: true, excluidoEm: true, publicadoEm: true, autorId: true },
   });
   if (!p || p.excluidoEm || !p.thumbPath) return NextResponse.json({ error: "Sem miniatura." }, { status: 404 });
+  // Miniatura de RASCUNHO (item 31) só para quem escreveu — a imagem revela a região marcada.
+  if (!p.publicadoEm && p.autorId !== user.id) return NextResponse.json({ error: "Sem miniatura." }, { status: 404 });
 
   if (!acessoGlobal(user)) {
     const [membro, resp] = await Promise.all([

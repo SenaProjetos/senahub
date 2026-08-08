@@ -7,7 +7,7 @@ import { formatarCodigo } from "@/modules/projetos/numbering";
 import { formatarDataHora } from "@/lib/utils";
 import { lerMarcacao, caminhoNuvem, abasSeta, type Marcacao } from "@/modules/projetos/pendencias/marcacao";
 import { formatarMedida } from "@/modules/projetos/pendencias/medicao";
-import { SEVERIDADE_LABEL, type Severidade } from "@/modules/projetos/pendencias/helpers";
+import { SEVERIDADE_LABEL, contaComoTrabalho, type Severidade } from "@/modules/projetos/pendencias/helpers";
 import { anguloTextoEmPe, caixaPdf, normalizarRotacao, paraPdf } from "@/modules/projetos/pendencias/carimbo/coords";
 
 /**
@@ -244,6 +244,9 @@ export async function carimbarPrancha(uploadId: string, posicoes: PosicaoPin[] =
     where: {
       ...(upload.documentoId ? { documentoId: upload.documentoId } : { uploadId: upload.id }),
       excluidoEm: null,
+      // Rascunho NUNCA sai carimbado (item 31): esta é a folha que vai pro canteiro, e vazar
+      // uma análise a meio caminho aqui é a pior versão desse erro.
+      publicadoEm: { not: null },
     },
     orderBy: { numero: "asc" },
   });
@@ -277,7 +280,7 @@ export async function carimbarPrancha(uploadId: string, posicoes: PosicaoPin[] =
     // Impeditivo ainda aberto tem cor própria: no papel que vai pro canteiro, ele precisa
     // saltar mesmo de longe, e a diferença entre "aberta" e "aberta impeditiva" é justamente
     // o que decide se a prancha pode ser executada.
-    const cor = p.status === "aberta" && p.severidade === "impeditivo" ? COR_IMPEDITIVO : (COR_STATUS[p.status] ?? COR_STATUS.aberta);
+    const cor = contaComoTrabalho(p) && p.severidade === "impeditivo" ? COR_IMPEDITIVO : (COR_STATUS[p.status] ?? COR_STATUS.aberta);
 
     // Posição relocalizada pelo viewer quando houver; senão, a do banco.
     const pos = porId.get(p.id);
@@ -309,8 +312,8 @@ export async function carimbarPrancha(uploadId: string, posicoes: PosicaoPin[] =
   }
 
   // ── Bloco de análise (item 25), só na 1ª página ──
-  const abertas = pendencias.filter((p) => p.status === "aberta").length;
-  const impeditivas = pendencias.filter((p) => p.status === "aberta" && p.severidade === "impeditivo").length;
+  const abertas = pendencias.filter((p) => contaComoTrabalho(p)).length;
+  const impeditivas = pendencias.filter((p) => contaComoTrabalho(p) && p.severidade === "impeditivo").length;
   const codigo = formatarCodigo(upload.disciplina.projeto.codigo);
   const linhas: { texto: string; negrito?: boolean; cor?: ReturnType<typeof rgb> }[] = [
     { texto: "ANÁLISE DE PROJETO — SENAHUB", negrito: true },

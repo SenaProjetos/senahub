@@ -97,6 +97,22 @@ export async function primeiroMesFechado(): Promise<{ ano: number; mes: number }
   return row;
 }
 
+/**
+ * Mês mais recente com fechamento gravado — base do aviso de lançamento retroativo de férias.
+ *
+ * APROXIMAÇÃO: `BancoHorasMensal` é por colaborador (`userId_ano_mes`) e `fecharBancoDoMes`
+ * só percorre quem teve jornada no mês, então um mês fechado "para a equipe" pode não estar
+ * fechado para uma pessoa específica. O máximo global superavisa, nunca subavisa — direção
+ * segura para um banner que só orienta o RH a rodar o recálculo.
+ */
+export async function ultimoMesFechado(): Promise<{ ano: number; mes: number } | null> {
+  const row = await prisma.bancoHorasMensal.findFirst({
+    orderBy: [{ ano: "desc" }, { mes: "desc" }],
+    select: { ano: true, mes: true },
+  });
+  return row;
+}
+
 /** Acumulado fechado mais recente do colaborador (até o mês informado, exclusivo). */
 export async function acumuladoAte(userId: string, ano: number, mes: number) {
   const row = await prisma.bancoHorasMensal.findFirst({

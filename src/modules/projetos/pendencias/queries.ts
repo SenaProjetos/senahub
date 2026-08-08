@@ -2,10 +2,20 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Ancora } from "@/modules/projetos/pendencias/ancora";
 import { lerMarcacao, type Marcacao } from "@/modules/projetos/pendencias/marcacao";
+import { STATUS_ABERTOS, contaComoTrabalho } from "@/modules/projetos/pendencias/helpers";
+
+/**
+ * Fragmento `where` de "isto é trabalho pendente" (itens 22 + 31): estado em aberto E já
+ * publicado. Existe como constante porque a mesma condição vale em toda contagem, KPI e visão
+ * gerencial — repetir à mão é como um dos pontos fica pra trás.
+ */
+const ONDE_TRABALHO = { status: { in: [...STATUS_ABERTOS] }, publicadoEm: { not: null }, excluidoEm: null };
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { acessoGlobal, type Role } from "@/lib/roles";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { calcularAging, type FaixaAging } from "@/lib/aging";
+import type { Novidades } from "@/modules/projetos/pendencias/novidades";
+import { candidatosReincidencia, tokenizar, MIN_TOKENS_COMPARAVEL } from "@/modules/projetos/pendencias/similaridade";
 
 /** Um anexo do apontamento (item 12) — arquivo (print/foto/áudio/PDF) ou link externo. */
 export type AnexoView = {
@@ -17,6 +27,8 @@ export type AnexoView = {
   /** Só em `tipo="arquivo"` — decide o render (imagem, player de áudio ou linha de download). */
   mime: string | null;
   tamanho: number | null;
+  /** Evidência antes/depois (item 7): `antes` | `depois`. Null = anexo comum do item 12. */
+  momento: string | null;
   autorId: string;
   autor: string;
   createdAt: string;
@@ -29,6 +41,37 @@ export type RespostaView = {
   autor: string;
   texto: string;
   createdAt: string;
+};
+
+/**
+ * Uma referência cruzada (item 13) já resolvida do ponto de vista de QUEM está lendo.
+ *
+ * A ligação é gravada com direção (origem → destino), mas aparece dos DOIS lados: quem abre o
+ * apontamento referenciado precisa saber que alguém o citou, senão metade da informação fica
+ * invisível justamente pra quem tem que agir. `direcao` só existe pra UI escrever a frase certa
+ * ("aponta para" × "citado por").
+ */
+export type ReferenciaView = {
+  id: string;
+  direcao: "feita" | "recebida";
+  nota: string | null;
+  /** O apontamento do OUTRO lado da ligação. */
+  pendenciaId: string;
+  numero: number;
+  texto: string;
+  status: string;
+  severidade: string | null;
+  pagina: number;
+  projetoId: string;
+  /**
+   * Upload VIGENTE do documento do outro apontamento — nunca o `uploadId` de origem dele. O
+   * link tem que cair na revisão atual da prancha; a de origem pode ser obsoleta e só-leitura.
+   */
+  uploadId: string;
+  disciplinaNome: string;
+  arquivo: string;
+  /** Quem criou a ligação (não o autor do apontamento) — decide quem pode desfazer. */
+  autorId: string;
 };
 
 /** Pendência (apontamento posicional) já com nomes resolvidos, pronta para o viewer. */
@@ -49,6 +92,10 @@ export type PendenciaView = {
    * acompanha sozinha a relocalização da âncora textual feita pelo viewer.
    */
   marcacao: Marcacao | null;
+  /** Rascunho (item 31): `null` = ainda não publicado — só o autor enxerga. */
+  publicadoEm: string | null;
+  /** Prazo do apontamento (item 18). O relógio só corre depois de `publicadoEm`. */
+  prazo: string | null;
   /** Medição congelada (item 28), em mm — só em `marcacao.tipo = "medida"`. */
   medidaMm: number | null;
   /**
@@ -77,7 +124,166 @@ export type PendenciaView = {
    * (`modules/projetos/pendencias/ancora.ts`). Null = sem âncora: o pino fica no (x,y) gravado.
    */
   ancora: Ancora | null;
+  /** Referências cruzadas (item 13), nas duas direções. */
+  referencias: ReferenciaView[];
 };
+
+/**
+ * Carrega as referências cruzadas (item 13) de um conjunto de apontamentos, nas duas direções,
+ * e devolve indexado por id de pendência.
+ *
+ * Dois cuidados que o banco não dá de graça:
+ * - **Alvo excluído.** `Pendencia` é soft delete e fica FORA da extension de `lib/prisma.ts`, então
+ *   o `ON DELETE CASCADE` da FK nunca dispara em `excluirPendencia`. Sem o `excluidoEm: null`
+ *   explícito aqui, a ligação continuaria renderizando um chip pendurado no nada.
+ * - **Revisão vigente.** O link abre `?pin=<numero>`, e `numero` é escopado por DOCUMENTO — o
+ *   `uploadId` gravado no apontamento é a versão em que ele NASCEU, que pode ser obsoleta.
+ *   Resolve-se a maior `versao` do documento (fallback pro upload próprio na linha legada).
+ * - **Rascunho do OUTRO lado.** A ligação é exibida nos dois sentidos, então o lado `recebida`
+ *   mostra a ORIGEM — que pode ser um rascunho de terceiro (item 31). É o caminho normal do item
+ *   17: a reincidência confirmada liga o apontamento recém-criado (ainda rascunho) ao fechado, e
+ *   sem este filtro o número e o texto da análise em andamento apareceriam pra quem abrisse a
+ *   prancha do apontamento citado. Mesma cláusula de `pendenciasDoUpload`.
+ */
+async function carregarReferencias(ids: string[], viewerId?: string): Promise<Map<string, ReferenciaView[]>> {
+  const mapa = new Map<string, ReferenciaView[]>();
+  if (ids.length === 0) return mapa;
+
+  const links = await prisma.referenciaPendencia.findMany({
+    where: { OR: [{ origemId: { in: ids } }, { destinoId: { in: ids } }] },
+    orderBy: { createdAt: "asc" },
+  });
+  if (links.length === 0) return mapa;
+
+  const alvos = await prisma.pendencia.findMany({
+    where: {
+      id: { in: [...new Set(links.flatMap((l) => [l.origemId, l.destinoId]))] },
+      excluidoEm: null,
+      ...(viewerId
+        ? { OR: [{ publicadoEm: { not: null } }, { autorId: viewerId }] }
+        : { publicadoEm: { not: null } }),
+    },
+    select: {
+      id: true, numero: true, texto: true, status: true, severidade: true, pagina: true,
+      projetoId: true, uploadId: true, documentoId: true, disciplinaId: true,
+      upload: { select: { nomeArquivo: true } },
+    },
+  });
+  const porId = new Map(alvos.map((a) => [a.id, a]));
+
+  const docIds = [...new Set(alvos.map((a) => a.documentoId).filter((d): d is string => d != null))];
+  const [uploadsDoc, disciplinas] = await Promise.all([
+    docIds.length
+      ? prisma.upload.findMany({
+          where: { documentoId: { in: docIds } },
+          select: { id: true, documentoId: true, versao: true },
+          orderBy: { versao: "desc" },
+        })
+      : [],
+    prisma.disciplina.findMany({
+      where: { id: { in: [...new Set(alvos.map((a) => a.disciplinaId))] } },
+      select: { id: true, nome: true },
+    }),
+  ]);
+  const vigente = new Map<string, string>();
+  for (const u of uploadsDoc) if (u.documentoId && !vigente.has(u.documentoId)) vigente.set(u.documentoId, u.id);
+  const nomeDisciplina = new Map(disciplinas.map((d) => [d.id, d.nome]));
+
+  for (const l of links) {
+    for (const [meu, outroId, direcao] of [
+      [l.origemId, l.destinoId, "feita"],
+      [l.destinoId, l.origemId, "recebida"],
+    ] as const) {
+      if (!ids.includes(meu)) continue;
+      const o = porId.get(outroId);
+      if (!o) continue; // alvo excluído — a ligação simplesmente não aparece
+      const lista = mapa.get(meu) ?? [];
+      lista.push({
+        id: l.id,
+        direcao,
+        nota: l.nota,
+        pendenciaId: o.id,
+        numero: o.numero,
+        texto: o.texto,
+        status: o.status,
+        severidade: o.severidade,
+        pagina: o.pagina,
+        projetoId: o.projetoId,
+        uploadId: (o.documentoId ? vigente.get(o.documentoId) : null) ?? o.uploadId,
+        disciplinaNome: nomeDisciplina.get(o.disciplinaId) ?? "—",
+        arquivo: o.upload?.nomeArquivo ?? "—",
+        autorId: l.autorId,
+      });
+      mapa.set(meu, lista);
+    }
+  }
+  return mapa;
+}
+
+/** Um apontamento candidato a destino de referência (item 13), pronto pro seletor. */
+export type AlvoReferenciaView = {
+  id: string;
+  numero: number;
+  texto: string;
+  status: string;
+  severidade: string | null;
+  disciplinaNome: string;
+  arquivo: string;
+};
+
+/**
+ * Busca apontamentos do MESMO projeto para ligar por referência (item 13).
+ *
+ * O escopo de projeto é da consulta, não da UI: `Pendencia` não tem relação com `Projeto`
+ * (só a coluna), então filtra-se por `projetoId` direto — o mesmo caminho de
+ * `visaoConsolidadaPendencias`. Rascunho de terceiro fica de fora (mesma cláusula de
+ * `pendenciasDoUpload`): referenciar o que ninguém mais vê produziria um link que não resolve.
+ */
+export async function buscarPendenciasParaReferencia(opts: {
+  projetoId: string;
+  excluirId: string;
+  termo: string;
+  viewerId: string;
+}): Promise<AlvoReferenciaView[]> {
+  const termo = opts.termo.trim();
+  const numero = /^#?\d+$/.test(termo) ? Number(termo.replace("#", "")) : null;
+
+  const linhas = await prisma.pendencia.findMany({
+    where: {
+      projetoId: opts.projetoId,
+      id: { not: opts.excluirId },
+      excluidoEm: null,
+      OR: [{ publicadoEm: { not: null } }, { autorId: opts.viewerId }],
+      ...(termo
+        ? numero != null
+          ? { numero }
+          : { texto: { contains: termo, mode: "insensitive" as const } }
+        : {}),
+    },
+    orderBy: [{ numero: "asc" }],
+    take: 30,
+    select: {
+      id: true, numero: true, texto: true, status: true, severidade: true,
+      disciplinaId: true, upload: { select: { nomeArquivo: true } },
+    },
+  });
+  if (linhas.length === 0) return [];
+
+  const disciplinas = await prisma.disciplina.findMany({
+    where: { id: { in: [...new Set(linhas.map((l) => l.disciplinaId))] } },
+    select: { id: true, nome: true },
+  });
+  const nome = new Map(disciplinas.map((d) => [d.id, d.nome]));
+  return linhas.map((l) => ({
+    id: l.id,
+    numero: l.numero,
+    texto: l.texto,
+    status: l.status,
+    severidade: l.severidade,
+    disciplinaNome: nome.get(l.disciplinaId) ?? "—",
+    arquivo: l.upload?.nomeArquivo ?? "—",
+  }));
+}
 
 /**
  * Apontamentos de uma prancha, ordenados por número.
@@ -90,7 +296,16 @@ export type PendenciaView = {
  */
 export async function pendenciasDoUpload(
   uploadId: string,
-  opts?: { documentoId?: string | null; versaoAtual?: number },
+  opts?: {
+    documentoId?: string | null;
+    versaoAtual?: number;
+    /**
+     * Quem está lendo. Rascunho (item 31) só aparece para o AUTOR — sem isso, o projetista
+     * veria a análise a meio caminho, que é justamente o que o modo rascunho evita.
+     * Ausente = só publicados (é o que as rotas de export usam).
+     */
+    viewerId?: string;
+  },
 ): Promise<PendenciaView[]> {
   // A versão de origem vem por relação ANINHADA de propósito: leitura aninhada não passa
   // pela extensão de soft delete (ver lib/prisma.ts), e a origem pode estar na lixeira sem
@@ -98,7 +313,14 @@ export async function pendenciasDoUpload(
   const rows = await prisma.pendencia.findMany({
     // Soft delete (item 24) explícito: `Pendencia` fica FORA da extension de lib/prisma.ts
     // (esconder excluídas do `_max: { numero }` faria a numeração reusar número).
-    where: { ...(opts?.documentoId ? { documentoId: opts.documentoId } : { uploadId }), excluidoEm: null },
+    where: {
+      ...(opts?.documentoId ? { documentoId: opts.documentoId } : { uploadId }),
+      excluidoEm: null,
+      // Publicados para todos; rascunho, só para quem escreveu.
+      ...(opts?.viewerId
+        ? { OR: [{ publicadoEm: { not: null } }, { autorId: opts.viewerId }] }
+        : { publicadoEm: { not: null } }),
+    },
     orderBy: { numero: "asc" },
     include: {
       upload: { select: { versao: true } },
@@ -114,9 +336,12 @@ export async function pendenciasDoUpload(
       ...rows.flatMap((r) => r.anexos.map((x) => x.autorId)),
     ]),
   ];
-  const users = autorIds.length
-    ? await prisma.user.findMany({ where: { id: { in: autorIds } }, select: { id: true, name: true } })
-    : [];
+  const [users, referencias] = await Promise.all([
+    autorIds.length
+      ? prisma.user.findMany({ where: { id: { in: autorIds } }, select: { id: true, name: true } })
+      : [],
+    carregarReferencias(rows.map((r) => r.id), opts?.viewerId),
+  ]);
   const nome = new Map(users.map((u) => [u.id, u.name]));
 
   return rows.map((r) => {
@@ -133,6 +358,8 @@ export async function pendenciasDoUpload(
       tipo: r.tipo,
       marcacao: lerMarcacao(r.marcacaoTipo, r.marcacaoGeo),
       medidaMm: r.medidaMm,
+      publicadoEm: r.publicadoEm?.toISOString() ?? null,
+      prazo: r.prazo?.toISOString() ?? null,
       thumbPath: r.thumbPath,
       autorId: r.autorId,
       autor: nome.get(r.autorId) ?? "—",
@@ -154,6 +381,7 @@ export async function pendenciasDoUpload(
         url: x.url,
         mime: x.mime,
         tamanho: x.tamanho,
+        momento: x.momento,
         autorId: x.autorId,
         autor: nome.get(x.autorId) ?? "—",
         createdAt: x.createdAt.toISOString(),
@@ -166,6 +394,7 @@ export async function pendenciasDoUpload(
         r.ancoraTexto != null && r.ancoraOffset != null && r.ancoraDx != null && r.ancoraDy != null
           ? { texto: r.ancoraTexto, offset: r.ancoraOffset, dx: r.ancoraDx, dy: r.ancoraDy }
           : null,
+      referencias: referencias.get(r.id) ?? [],
     };
   });
 }
@@ -190,14 +419,14 @@ export async function contarPendenciasAbertas(
     comDocumento.length
       ? prisma.pendencia.groupBy({
           by: ["documentoId"],
-          where: { documentoId: { in: comDocumento.map((u) => u.documentoId) }, status: "aberta", excluidoEm: null },
+          where: { documentoId: { in: comDocumento.map((u) => u.documentoId) }, ...ONDE_TRABALHO },
           _count: { _all: true },
         })
       : [],
     semDocumento.length
       ? prisma.pendencia.groupBy({
           by: ["uploadId"],
-          where: { uploadId: { in: semDocumento.map((u) => u.uploadId) }, status: "aberta", excluidoEm: null },
+          where: { uploadId: { in: semDocumento.map((u) => u.uploadId) }, ...ONDE_TRABALHO },
           _count: { _all: true },
         })
       : [],
@@ -223,6 +452,10 @@ export type ItemConsolidado = {
   /** Classificação (item 11) — a triagem gerencial é justamente onde ela serve. */
   severidade: string | null;
   tipo: string | null;
+  /** Prazo (item 18) + publicação, pra visão gerencial marcar o que está vencido. */
+  prazo: string | null;
+  publicadoEm: string | null;
+  status: string;
   projetoId: string;
   projetoCodigo: string;
   projetoNome: string;
@@ -252,7 +485,9 @@ export async function visaoConsolidadaPendencias(viewer: { id: string; role: Rol
   }
 
   const pendencias = await prisma.pendencia.findMany({
-    where: { status: "aberta", excluidoEm: null, ...(projetoIds ? { projetoId: { in: projetoIds } } : {}) },
+    // "Em aberto" = aberta OU em_correcao (ver STATUS_ABERTOS): um apontamento que o
+    // projetista assumiu continua sendo trabalho pendente na visão gerencial.
+    where: { ...ONDE_TRABALHO, ...(projetoIds ? { projetoId: { in: projetoIds } } : {}) },
     orderBy: { createdAt: "asc" },
   });
   if (pendencias.length === 0) return [];
@@ -282,6 +517,9 @@ export async function visaoConsolidadaPendencias(viewer: { id: string; role: Rol
       createdAt: p.createdAt.toISOString(),
       severidade: p.severidade,
       tipo: p.tipo,
+      prazo: p.prazo?.toISOString() ?? null,
+      publicadoEm: p.publicadoEm?.toISOString() ?? null,
+      status: p.status,
       projetoId: p.projetoId,
       projetoCodigo: proj ? formatarCodigo(proj.codigo) : "—",
       projetoNome: proj?.nome ?? "—",
@@ -311,18 +549,19 @@ export type EstatisticasPendencias = {
 export async function estatisticasPendencias(projetoId: string): Promise<EstatisticasPendencias> {
   const [encerradas, totalPranchas, abertas, documentos] = await Promise.all([
     prisma.pendencia.findMany({
-      where: { projetoId, status: { in: ["resolvida", "fechada"] }, excluidoEm: null },
+      where: { projetoId, status: { in: ["resolvida", "fechada"] }, publicadoEm: { not: null }, excluidoEm: null },
       select: { createdAt: true, resolvidoEm: true, fechadoEm: true },
     }),
     prisma.upload.count({ where: { disciplina: { projetoId } } }),
-    prisma.pendencia.count({ where: { projetoId, status: "aberta", excluidoEm: null } }),
+    prisma.pendencia.count({ where: { projetoId, ...ONDE_TRABALHO } }),
     prisma.documentoDisciplina.findMany({
       where: { disciplina: { projetoId } },
       select: {
         uploads: { select: { versao: true } },
         // Leitura ANINHADA: nunca passaria pela extension de soft delete nem se `Pendencia`
         // estivesse nela (ver lib/prisma.ts) — aqui o filtro é obrigatoriamente explícito.
-        pendencias: { where: { excluidoEm: null }, select: { status: true } },
+        // Rascunho fora também aqui: um documento "zerado" não pode depender do que ninguém viu.
+        pendencias: { where: { excluidoEm: null, publicadoEm: { not: null } }, select: { status: true, publicadoEm: true } },
       },
     }),
   ]);
@@ -339,7 +578,7 @@ export async function estatisticasPendencias(projetoId: string): Promise<Estatis
 
   const densidadePorPrancha = totalPranchas > 0 ? abertas / totalPranchas : null;
 
-  const zerados = documentos.filter((d) => d.pendencias.length > 0 && !d.pendencias.some((p) => p.status === "aberta"));
+  const zerados = documentos.filter((d) => d.pendencias.length > 0 && !d.pendencias.some((p) => contaComoTrabalho(p)));
   const revisoesAteZerarMedia = zerados.length
     ? zerados.reduce((s, d) => s + Math.max(1, ...d.uploads.map((u) => u.versao)), 0) / zerados.length
     : null;
@@ -370,4 +609,141 @@ export async function calibracoesDaPrancha(
     select: { pagina: true, modo: true, escalaDenominador: true, mmPorPonto: true },
   });
   return linhas;
+}
+
+/** Um apontamento-padrão pronto pro autocomplete (item 10). */
+export type PadraoView = {
+  id: string;
+  texto: string;
+  severidade: string | null;
+  tipo: string | null;
+  usos: number;
+  geral: boolean;
+};
+
+/**
+ * Biblioteca de apontamentos-padrão aplicável a uma disciplina (item 10): os dela mais os
+ * GERAIS (`disciplinaId` nulo). Ordena pelo mais usado — o autocomplete tem que colocar na
+ * frente o que a equipe de fato escreve, não o que foi cadastrado primeiro.
+ */
+export async function padroesDaDisciplina(disciplinaId: string): Promise<PadraoView[]> {
+  const linhas = await prisma.apontamentoPadrao.findMany({
+    where: { ativo: true, OR: [{ disciplinaId }, { disciplinaId: null }] },
+    orderBy: [{ usos: "desc" }, { texto: "asc" }],
+    take: 200,
+    select: { id: true, texto: true, severidade: true, tipo: true, usos: true, disciplinaId: true },
+  });
+  return linhas.map((l) => ({
+    id: l.id,
+    texto: l.texto,
+    severidade: l.severidade,
+    tipo: l.tipo,
+    usos: l.usos,
+    geral: l.disciplinaId === null,
+  }));
+}
+
+/**
+ * Novidades do documento desde a última abertura desta pessoa (item 8).
+ *
+ * Sem `documentoId` (linha legada anterior ao item 1) não há o que responder: a marca d'água é
+ * por documento justamente porque REVISÃO NOVA é um dos sinais, e rastrear por upload perderia
+ * exatamente esse.
+ *
+ * Não grava nada — a marca d'água só avança quando o viewer confirma a abertura
+ * (`marcarDocumentoLido`), senão a própria leitura zeraria o aviso antes de alguém vê-lo.
+ */
+export async function novidadesDoDocumento(
+  documentoId: string | null,
+  userId: string,
+): Promise<Novidades> {
+  if (!documentoId) return { desde: null, apontamentos: 0, revisoes: 0 };
+
+  const leitura = await prisma.leituraDocumento.findUnique({
+    where: { documentoId_userId: { documentoId, userId } },
+    select: { lidoEm: true },
+  });
+  if (!leitura) return { desde: null, apontamentos: 0, revisoes: 0 };
+
+  const [apontamentos, revisoes] = await Promise.all([
+    // Corta por `publicadoEm`, não `createdAt` (item 31): rascunho de terceiro não é novidade
+    // de ninguém, e o próprio rascunho de quem está lendo também não — ele acabou de escrevê-lo.
+    prisma.pendencia.count({
+      where: {
+        documentoId,
+        excluidoEm: null,
+        publicadoEm: { gt: leitura.lidoEm },
+        autorId: { not: userId },
+      },
+    }),
+    prisma.upload.count({ where: { documentoId, createdAt: { gt: leitura.lidoEm } } }),
+  ]);
+  return { desde: leitura.lidoEm.toISOString(), apontamentos, revisoes };
+}
+
+/** Uma sugestão de reincidência (item 17), já pontuada. */
+export type ReincidenciaView = {
+  id: string;
+  numero: number;
+  texto: string;
+  score: number;
+  fechadoEm: string | null;
+  arquivo: string;
+  /** Upload VIGENTE do documento onde o apontamento fechado vive — pro link abrir a revisão atual. */
+  uploadId: string;
+  projetoId: string;
+};
+
+/**
+ * Apontamentos já FECHADOS da disciplina que se parecem com o texto que está sendo escrito
+ * (item 17). Sugestão, nunca decisão — quem confirma é a pessoa, e confirmar só cria a
+ * referência cruzada do item 13.
+ *
+ * Escopo é a DISCIPLINA, não o documento: o mesmo problema costuma reaparecer na prancha
+ * irmã ("cota ausente" volta na planta do 2º pavimento), e limitar ao documento perderia
+ * justamente o caso que o item existe pra pegar.
+ *
+ * Só `fechada`: `descartada` é o "não procede" (item 22) — repetir algo que o escritório já
+ * julgou improcedente não é reincidência, e sugerir isso empurraria pra fechar um apontamento
+ * legítimo. `resolvida` ainda está em verificação, então também fica de fora.
+ */
+export async function possiveisReincidencias(
+  disciplinaId: string,
+  texto: string,
+): Promise<ReincidenciaView[]> {
+  if (tokenizar(texto).size < MIN_TOKENS_COMPARAVEL) return [];
+
+  const fechados = await prisma.pendencia.findMany({
+    where: { disciplinaId, status: "fechada", excluidoEm: null, publicadoEm: { not: null } },
+    orderBy: { fechadoEm: "desc" },
+    take: 300,
+    select: {
+      id: true, numero: true, texto: true, fechadoEm: true, projetoId: true,
+      uploadId: true, documentoId: true, upload: { select: { nomeArquivo: true } },
+    },
+  });
+  const candidatos = candidatosReincidencia(texto, fechados);
+  if (candidatos.length === 0) return [];
+
+  const docIds = [...new Set(candidatos.map((c) => c.documentoId).filter((d): d is string => d != null))];
+  const uploadsDoc = docIds.length
+    ? await prisma.upload.findMany({
+        where: { documentoId: { in: docIds } },
+        select: { id: true, documentoId: true, versao: true },
+        orderBy: { versao: "desc" },
+      })
+    : [];
+  const vigente = new Map<string, string>();
+  for (const u of uploadsDoc) if (u.documentoId && !vigente.has(u.documentoId)) vigente.set(u.documentoId, u.id);
+
+  return candidatos.map((c) => ({
+    id: c.id,
+    numero: c.numero,
+    texto: c.texto,
+    score: c.score,
+    fechadoEm: c.fechadoEm?.toISOString() ?? null,
+    arquivo: c.upload?.nomeArquivo ?? "—",
+    uploadId: (c.documentoId ? vigente.get(c.documentoId) : null) ?? c.uploadId,
+    projetoId: c.projetoId,
+  }));
 }
