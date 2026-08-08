@@ -120,7 +120,7 @@ function GradeTable({
                   value={d.entrada ?? ""}
                   disabled={disabled || !d.ativo}
                   onChange={(e) => atualizar(idx, { entrada: e.target.value || null })}
-                  className="w-24 text-center font-mono text-xs"
+                  className="w-28 px-2 text-center font-mono text-xs"
                 />
               </TableCell>
               <TableCell>
@@ -132,7 +132,7 @@ function GradeTable({
                         value={desc.inicio}
                         disabled={disabled || !d.ativo}
                         onChange={(e) => updateDescanso(idx, dIdx, "inicio", e.target.value)}
-                        className="w-20 text-center font-mono text-xs"
+                        className="w-28 px-2 text-center font-mono text-xs"
                       />
                       <span className="text-xs text-muted-foreground">–</span>
                       <Input
@@ -140,7 +140,7 @@ function GradeTable({
                         value={desc.fim}
                         disabled={disabled || !d.ativo}
                         onChange={(e) => updateDescanso(idx, dIdx, "fim", e.target.value)}
-                        className="w-20 text-center font-mono text-xs"
+                        className="w-28 px-2 text-center font-mono text-xs"
                       />
                       {!disabled && (
                         <Button
@@ -174,7 +174,7 @@ function GradeTable({
                   value={d.saida ?? ""}
                   disabled={disabled || !d.ativo}
                   onChange={(e) => atualizar(idx, { saida: e.target.value || null })}
-                  className="w-24 text-center font-mono text-xs"
+                  className="w-28 px-2 text-center font-mono text-xs"
                 />
               </TableCell>
               <TableCell className="text-center font-mono text-sm text-muted-foreground">

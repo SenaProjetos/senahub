@@ -10,4 +10,10 @@ export const metaDocumento = z.object({
 });
 export type MetaDocumento = z.infer<typeof metaDocumento>;
 
-export const ORIGENS_DOCUMENTO = ["recebido_cliente", "interno", "contrato", "comercial"] as const;
+export const ORIGENS_DOCUMENTO = [
+  "recebido_cliente",
+  "interno",
+  "contrato",
+  "comercial",
+  "base_arquitetonica",
+] as const;

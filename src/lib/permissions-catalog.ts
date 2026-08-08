@@ -74,8 +74,16 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     recurso: "juridico",
     label: "Jurídico",
     acoes: [
-      { acao: "ver", label: "Ver documentos e certidões" },
+      { acao: "ver", label: "Ver documentos jurídicos" },
       { acao: "gerir", label: "Gerir documentos jurídicos" },
+    ],
+  },
+  {
+    recurso: "certidoes",
+    label: "Certidões",
+    acoes: [
+      { acao: "ver", label: "Ver certidões e histórico de versões" },
+      { acao: "gerir", label: "Registrar, renovar e excluir certidões" },
     ],
   },
   {
@@ -153,11 +161,11 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
   },
   {
     recurso: "biblioteca_tecnica",
-    label: "Biblioteca técnica (Padrões e Normas)",
+    label: "Biblioteca técnica (Padrões, Normas e Referências)",
     acoes: [
-      { acao: "ver", label: "Ver padrões técnicos e normas catalogadas" },
-      { acao: "incluir", label: "Incluir novos padrões e normas" },
-      { acao: "gerir", label: "Editar/excluir padrões e normas de qualquer autor" },
+      { acao: "ver", label: "Ver padrões, normas e referências catalogadas" },
+      { acao: "incluir", label: "Incluir novos padrões, normas e referências" },
+      { acao: "gerir", label: "Editar/excluir padrões, normas e referências de qualquer autor" },
     ],
   },
   {
@@ -195,6 +203,7 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     acoes: [
       { acao: "cadastro", label: "Ver a ficha de pessoas (cadastro, ausências, escala)" },
       { acao: "folha", label: "Ver dados de folha/salário na ficha da pessoa" },
+      { acao: "catalogos", label: "Administrar os catálogos de cargos e departamentos" },
     ],
   },
 ];

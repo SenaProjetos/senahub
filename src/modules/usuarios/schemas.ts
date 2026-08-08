@@ -10,7 +10,8 @@ export const criarUsuarioSchema = z.object({
   nomeCompleto: z.string().max(120).optional().or(z.literal("")),
   cpf: z.string().max(14).optional().or(z.literal("")),
   telefone: z.string().max(20).optional().or(z.literal("")),
-  cargo: z.string().max(80).optional().or(z.literal("")),
+  /** Id do cargo no catálogo (2.1) — o texto livre saiu; o rótulo em `User.cargo` é cache. */
+  cargoId: z.string().optional().or(z.literal("")),
   dataAdmissao: z.string().optional().or(z.literal("")),
   salarioBase: z.number().nonnegative().optional(),
   /** PJ (CNPJ) vinculada — só p/ projetista_pj/freelancer. */

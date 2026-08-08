@@ -545,7 +545,11 @@ export function TarefaDialog({
                       </div>
                       {c.texto && <p className="whitespace-pre-wrap break-words">{c.texto}</p>}
                       {c.anexoMime && (
-                        <a href={`/api/tarefas/anexo/${c.id}`} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                        <a
+                          href={`/api/tarefas/anexo/${c.id}`}
+                          {...(c.anexoMime?.startsWith("image/") ? { target: "_blank", rel: "noreferrer" } : {})}
+                          className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                        >
                           <FileText className="size-3" /> {c.anexoNome ?? "anexo"}
                         </a>
                       )}

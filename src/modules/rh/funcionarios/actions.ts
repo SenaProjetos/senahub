@@ -9,9 +9,12 @@ import { removerArquivo } from "@/lib/storage";
 import { criarUsuarioComCredencial } from "@/lib/auth-admin";
 import { buscarCep } from "@/lib/cep";
 import { getSession } from "@/lib/session";
-import { PJ_ROLES, type Role } from "@/lib/roles";
+import { PJ_ROLES, CADASTRO_ROLES, type Role } from "@/lib/roles";
 import { aplicarVinculo } from "@/modules/usuarios/vinculo/service";
 import { derivarEixos } from "@/modules/usuarios/vinculo/mapa";
+import { resolverClassificacao } from "@/modules/rh/catalogos/service";
+import { registrarAlteracaoContratual } from "@/modules/rh/contratual/service";
+import { normalizarConta, garantirPrincipal } from "@/modules/rh/contas/service";
 
 const base = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
 const rev = () => revalidatePath("/rh/funcionarios");
@@ -24,15 +27,14 @@ export async function consultarCep(cep: string) {
   return buscarCep(cep);
 }
 
-// Item 4 — papéis elegíveis ao cadastro completo (exclui cliente/ti). Projetistas: PJ + freelancer.
-const CADASTRO_ROLES = ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"] as const;
-
 /// Espelha o enum Prisma `Setor` (docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md).
 const SETOR_VALUES = ["diretoria", "administrativo", "juridico", "engenharia", "ti"] as const;
 
 const cadastrarFuncionarioSchema = z.object({
   // Conta de acesso
   name: z.string().min(2, "Informe o nome."),
+  /** Nome como consta em documentos formais (holerite/contrato/NF). Vazio = usa `name`. */
+  nomeCompleto: opt(z.string()),
   email: z.string().email("E-mail de acesso inválido."),
   role: z.enum(CADASTRO_ROLES),
   /// Setor (Onda C) — opcional: sem escolha, cai no default de `derivarEixos` (§6.1 do plano).
@@ -62,8 +64,10 @@ const cadastrarFuncionarioSchema = z.object({
   conta: opt(z.string()),
   tipoContaBancaria: opt(z.string()),
   // Profissional
-  cargo: opt(z.string()),
-  departamento: opt(z.string()),
+  // Cargo/departamento vêm do CATÁLOGO (2.1). O texto livre saiu do contrato da action:
+  // `User.cargo`/`User.departamento` viraram cache do rótulo, escrito só por `resolverClassificacao`.
+  cargoId: opt(z.string()),
+  departamentoId: opt(z.string()),
   conselho: opt(z.string()),
   registroProfissional: opt(z.string()),
   registroUf: opt(z.string()),
@@ -84,7 +88,7 @@ const dataOuNull = (s?: string | null) => (s ? new Date(s + "T00:00:00Z") : null
  */
 export const cadastrarFuncionario = defineAction(
   { ...base, acao: "cadastrar-funcionario", entidade: "User", schema: cadastrarFuncionarioSchema },
-  async (i) => {
+  async (i, ctx) => {
     const email = i.email.toLowerCase().trim();
     if (await prisma.user.findUnique({ where: { email } })) {
       throw new ActionError("Já existe um usuário com esse e-mail de acesso.");
@@ -97,9 +101,17 @@ export const cadastrarFuncionario = defineAction(
       clienteId: "",
     });
 
+    // Só resolve o rótulo aqui (leitura) — quem GRAVA cargo/departamento/salário é
+    // `registrarAlteracaoContratual`, mais abaixo, junto com a linha de histórico.
+    const classificacao = await resolverClassificacao(prisma, {
+      cargoId: i.cargoId || null,
+      departamentoId: i.departamentoId || null,
+    });
+
     await prisma.user.update({
       where: { id },
       data: {
+        nomeCompleto: i.nomeCompleto || null,
         cpf: i.cpf || null,
         rg: i.rg || null,
         dataNascimento: dataOuNull(i.dataNascimento),
@@ -117,20 +129,28 @@ export const cadastrarFuncionario = defineAction(
         telefoneEmergencia: i.telefoneEmergencia || null,
         contatoEmergenciaNome: i.contatoEmergenciaNome || null,
         emailPessoal: i.emailPessoal || null,
-        banco: i.banco || null,
-        agencia: i.agencia || null,
-        conta: i.conta || null,
-        tipoContaBancaria: i.tipoContaBancaria || null,
-        cargo: i.cargo || null,
-        departamento: i.departamento || null,
         conselho: i.conselho || null,
         registroProfissional: i.registroProfissional || null,
         registroUf: i.registroUf || null,
         dataAdmissao: dataOuNull(i.dataAdmissao),
-        salarioBase: i.salarioBase ?? null,
         pjId: i.pjId || null,
       },
     });
+
+    // 2.2: a conta informada no wizard vira a PRIMEIRA conta da pessoa (e a principal), em vez
+    // dos 4 escalares que existiam em `User`. Só cria se veio algo — conta vazia é ruído.
+    if (i.banco || i.agencia || i.conta) {
+      const dadosConta = normalizarConta({
+        banco: i.banco,
+        agencia: i.agencia,
+        conta: i.conta,
+        tipoConta: i.tipoContaBancaria,
+      });
+      await prisma.$transaction(async (tx) => {
+        await tx.contaBancariaColaborador.create({ data: { userId: id, ...dadosConta } });
+        await garantirPrincipal(tx, id);
+      });
+    }
 
     // Onda C: cria o Vínculo (Fase 0) já no cadastro — sem isso, quem contrata pelo wizard
     // desde a Fase 0 nunca ganhava Setor/Contratação (só o backfill retroativo cobria).
@@ -140,12 +160,30 @@ export const cadastrarFuncionario = defineAction(
       await aplicarVinculo(prisma, id, {
         contratacao: eixos.contratacao!,
         setor: i.setor ?? eixos.setor!,
-        cargo: i.cargo || null,
+        cargo: classificacao.cargo ?? null,
         remuneracao: i.salarioBase ?? null,
         pjId: i.pjId || null,
         dataInicio: dataOuNull(i.dataAdmissao) ?? new Date(),
       });
     }
+
+    // 2.3: primeira linha do histórico contratual. Vem DEPOIS de `aplicarVinculo` de propósito,
+    // para o registro já nascer amarrado ao vínculo recém-criado. É esta chamada — e só ela —
+    // que grava `cargoId`/`departamentoId`/`salarioBase` no User.
+    await prisma.$transaction((tx) =>
+      registrarAlteracaoContratual(
+        tx,
+        id,
+        {
+          cargoId: i.cargoId || null,
+          departamentoId: i.departamentoId || null,
+          remuneracao: i.salarioBase ?? null,
+          vigenciaEm: dataOuNull(i.dataAdmissao) ?? undefined,
+          motivo: "admissao",
+        },
+        ctx.user.id,
+      ),
+    );
 
     // Item 4: integra o disparo de onboarding (copia os itens do template).
     if (i.iniciarOnboarding && i.templateId) {
@@ -173,7 +211,11 @@ export const cadastrarFuncionario = defineAction(
 
 const editarCadastroSchema = z.object({
   id: z.string().min(1),
-  name: z.string().min(2, "Informe o nome."),
+  // Nome de EXIBIÇÃO (`User.name`, chat/menções) não é editado aqui — é
+  // `usuarios-view.tsx`/`editarUsuario`. Este dialog edita só `nomeCompleto` (documentos
+  // formais). Antes os dois eram confundidos: o campo "Nome completo" gravava em `name`, e
+  // salvar o cadastro sobrescrevia silenciosamente o nome de exibição da pessoa.
+  nomeCompleto: opt(z.string()),
   cpf: opt(z.string()),
   rg: opt(z.string()),
   dataNascimento: opt(z.string()),
@@ -191,21 +233,21 @@ const editarCadastroSchema = z.object({
   telefoneEmergencia: opt(z.string()),
   contatoEmergenciaNome: opt(z.string()),
   emailPessoal: opt(z.string()),
-  banco: opt(z.string()),
-  agencia: opt(z.string()),
-  conta: opt(z.string()),
-  tipoContaBancaria: opt(z.string()),
-  cargo: opt(z.string()),
-  departamento: opt(z.string()),
   conselho: opt(z.string()),
   registroProfissional: opt(z.string()),
   registroUf: opt(z.string()),
   dataAdmissao: opt(z.string()),
-  salarioBase: z.number().min(0).optional().nullable(),
   pjId: opt(z.string()),
 });
 
-/** Item 4: edita o cadastro completo de um colaborador existente (não altera conta/e-mail/role). */
+/**
+ * Item 4: edita o cadastro de um colaborador existente — identidade, endereço, contato e
+ * registro profissional (não altera conta/e-mail/role).
+ *
+ * Cargo, departamento e salário SAÍRAM daqui (2.4): formam um estado contratual com vigência e
+ * motivo, editado só por `registrarAlteracaoContratualAction`
+ * (`modules/rh/contratual/actions.ts`) — o único escritor de `HistoricoContratual`.
+ */
 export const editarCadastroFuncionario = defineAction(
   { ...base, acao: "editar-cadastro-funcionario", entidade: "User", schema: editarCadastroSchema },
   async (i) => {
@@ -214,7 +256,7 @@ export const editarCadastroFuncionario = defineAction(
     await prisma.user.update({
       where: { id: i.id },
       data: {
-        name: i.name,
+        nomeCompleto: i.nomeCompleto || null,
         cpf: i.cpf || null,
         rg: i.rg || null,
         dataNascimento: dataOuNull(i.dataNascimento),
@@ -232,21 +274,15 @@ export const editarCadastroFuncionario = defineAction(
         telefoneEmergencia: i.telefoneEmergencia || null,
         contatoEmergenciaNome: i.contatoEmergenciaNome || null,
         emailPessoal: i.emailPessoal || null,
-        banco: i.banco || null,
-        agencia: i.agencia || null,
-        conta: i.conta || null,
-        tipoContaBancaria: i.tipoContaBancaria || null,
-        cargo: i.cargo || null,
-        departamento: i.departamento || null,
         conselho: i.conselho || null,
         registroProfissional: i.registroProfissional || null,
         registroUf: i.registroUf || null,
         dataAdmissao: dataOuNull(i.dataAdmissao),
-        salarioBase: i.salarioBase ?? null,
         // pjId só para projetistas PJ/freelancer.
         pjId: PJ_ROLES.includes(u.role as Role) ? i.pjId || null : null,
       },
     });
+
     rev();
     return { id: i.id };
   },
@@ -260,29 +296,60 @@ const docMeta = z.object({
   hashSha256: z.string().min(1),
 });
 
+const dependenteCampos = {
+  nome: z.string().min(1, "Informe o nome."),
+  cpf: opt(z.string()),
+  nascimento: opt(z.string()),
+  parentesco: opt(z.string()),
+  // Default false no schema é só para linha NOVA no banco — aqui o form decide sempre
+  // explicitamente (checkbox), então o campo é obrigatório no payload, não opcional.
+  dependenteIrrf: z.boolean(),
+};
+
 export const adicionarDependente = defineAction(
   {
     ...base,
     acao: "add-dependente",
     entidade: "Dependente",
-    schema: z.object({
-      userId: z.string().min(1),
-      nome: z.string().min(1, "Informe o nome."),
-      nascimento: opt(z.string()),
-      parentesco: opt(z.string()),
-    }),
+    schema: z.object({ userId: z.string().min(1), ...dependenteCampos }),
   },
   async (i) => {
     const d = await prisma.dependente.create({
       data: {
         userId: i.userId,
         nome: i.nome,
+        cpf: i.cpf || null,
         nascimento: i.nascimento ? new Date(i.nascimento + "T00:00:00Z") : null,
         parentesco: i.parentesco || null,
+        dependenteIrrf: i.dependenteIrrf,
       },
     });
     rev();
     return { id: d.id };
+  },
+);
+
+export const editarDependente = defineAction(
+  {
+    ...base,
+    acao: "editar-dependente",
+    entidade: "Dependente",
+    schema: z.object({ id: z.string().min(1), ...dependenteCampos }),
+    capturarAntes: async (i) => prisma.dependente.findUnique({ where: { id: i.id } }),
+  },
+  async (i) => {
+    await prisma.dependente.update({
+      where: { id: i.id },
+      data: {
+        nome: i.nome,
+        cpf: i.cpf || null,
+        nascimento: i.nascimento ? new Date(i.nascimento + "T00:00:00Z") : null,
+        parentesco: i.parentesco || null,
+        dependenteIrrf: i.dependenteIrrf,
+      },
+    });
+    rev();
+    return { id: i.id };
   },
 );
 
@@ -295,15 +362,9 @@ export const removerDependente = defineAction(
   },
 );
 
-/** Define o salário base do colaborador (p/ geração automática de holerite). */
-export const salvarSalario = defineAction(
-  { ...base, acao: "salvar-salario", entidade: "User", schema: z.object({ userId: z.string().min(1), salarioBase: z.number().min(0) }) },
-  async (i) => {
-    await prisma.user.update({ where: { id: i.userId }, data: { salarioBase: i.salarioBase } });
-    rev();
-    return { id: i.userId };
-  },
-);
+// `salvarSalario` foi removida em 2.4: `registrarAlteracaoContratualAction`
+// (`modules/rh/contratual/actions.ts`) cobre o mesmo caso (mesmo service) e além disso edita
+// cargo/departamento junto — era a única rota que só mexia em remuneração, sem chamador na UI.
 
 /** Define a data de admissão do colaborador (base do período aquisitivo de férias). */
 export const salvarDataAdmissao = defineAction(

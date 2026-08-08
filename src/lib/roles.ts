@@ -53,8 +53,18 @@ export const PROJETO_MEMBRO_ROLES: Role[] = ["clt", "estagiario", "projetista_pj
 /** Perfis PJ — recebem NF, não têm holerite CLT. */
 export const PJ_ROLES: Role[] = ["projetista_pj", "freelancer"];
 
-/** Item 4: perfis elegíveis ao cadastro completo de colaborador (exclui freelancer e cliente). */
-export const CADASTRO_ROLES: Role[] = ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "ti"];
+/**
+ * Perfis elegíveis ao cadastro completo de colaborador (exclui cliente e ti).
+ *
+ * `ti` fica de fora: é gate técnico de `patrimonio:ti` (máquinas), não vínculo empregatício —
+ * a ficha de pessoa não faz sentido pra esse papel (ver `rh/pessoas/[id]/page.tsx`, comentário
+ * "nunca cliente/ti"). `freelancer` entra: é projetista PJ como `projetista_pj`, com cadastro
+ * trabalhista completo (2.4).
+ *
+ * Única fonte — antes havia cópias divergentes em `funcionarios/actions.ts` e
+ * `wizard-cadastro-funcionario.tsx` (uma tinha `ti`, outra `freelancer`); consolidado em 2.4.
+ */
+export const CADASTRO_ROLES: Role[] = ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"];
 
 /**
  * Perfis que a própria pessoa pode PEDIR no auto-cadastro público (/solicitar-cadastro).

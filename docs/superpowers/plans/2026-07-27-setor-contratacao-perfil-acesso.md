@@ -1,7 +1,8 @@
 # Setor × Contratação × Perfil de Acesso — separar vínculo, função e permissão
 
 **Data:** 2026-07-27 · **Status:** P1, Fase 0, Onda A, Onda B e **Onda C implementados** (código);
-resta o ciclo em sombra (calendário) + Ondas D/E/F · **Branch:** `dev`
+**ciclo em sombra dado por cumprido pelo dono em 2026-08-08** (§15); Onda D liberada para começar,
+travada só pelo harness de audiência + equivalência contra prod · **Branch:** `dev`
 
 Deliberado por conselho de 4 cadeiras (Gerente de RH, Dev Sênior, Diretor, Usuária final), duas rodadas:
 parecer independente + confronto cruzado. Divergências e concessões registradas em §8.
@@ -843,3 +844,57 @@ originais (ciclo em sombra + equivalência 0 ganhos em produção). Nota para o 
 perfil "gestor de setor" (mencionado pelo dono como já em implementação) provavelmente vai precisar de
 um escopo intermediário — todos os projetos DO SETOR, não da empresa inteira nem só os do próprio
 usuário — que é desenho novo, não o par binário `escopo:global` que existe hoje.
+
+---
+
+## 15. Liberação da Onda D — decisões do dono, 2026-08-08
+
+Gatilho: o dono viu na ficha de usuário o aviso "overrides ainda não têm efeito no acesso real" e
+perguntou quando o motor entra em vigor. Resposta: Onda D. Ao ser informado dos dois gates, declarou
+o **ciclo em sombra cumprido** ("já passamos por um ciclo de folha; por mim, tá tudo certo pra mudar").
+
+**Gate 1 (ciclo em sombra) — CUMPRIDO.** É juízo do dono sobre adoção e confiança organizacional, não
+resultado verificável por script; §13.6 sempre disse que só o tempo de operação resolveria. Registrado
+como decisão, não como medição.
+
+**Gate 2 (equivalência 0 ganhos em produção) — AINDA ABERTO.** O resultado de 416 células / 0 ganhos /
+0 perdas de §13.4 foi contra o banco de **dev**. `checar-equivalencia-permissoes.ts` é read-only, mas
+não deve ser apontado para produção: usar `scripts/restaurar-snapshot-prod.ts` para restaurar um dump
+num banco descartável local e rodar o gate contra dado real ali. Sem isso, a virada é feita às cegas
+quanto a overrides e perfis que só existem em produção.
+
+### 15.1 Achado que reordena a Onda D: o harness de audiência não existe
+
+§8 lista "Diff-test de audiência" como **dependência da própria Onda D**, e §6.2 passo 4 exige o diff
+em dois lugares que não passam por `can()`: (i) itens de menu visíveis por usuário (`nav-config`),
+(ii) as 36 audience queries, como snapshot `{query → [userIds]}` antes/depois. Varredura de
+`scripts/` em 2026-08-08: **não existe**. O arnês atual (`snapshot-permissoes.ts` +
+`checar-equivalencia-permissoes.ts`) cobre apenas células de `can()`.
+
+Consequência prática: **o primeiro entregável da Onda D é esse harness, não o codemod.** R2 é falha
+silenciosa (aprovação que deixa de notificar, digest vazio, alerta de certidão que some) — nenhum
+teste de célula de permissão a detecta, e nenhum erro aparece em log.
+
+### 15.2 Escopo do codemod é menor do que a contagem sugere
+
+`grep "can("` em `src/` dá 157 ocorrências em 108 arquivos (o plano dizia 119). A maioria é gate de
+**visibilidade** em `page.tsx`, não ponto de enforcement independente: o enforcement real afunila em
+`defineAction` → `requirePermission` → `can()`. A virada é um chokepoint + N gates de UI — que é
+exatamente por que o harness precisa existir ANTES do flip: é a camada de UI/audiência que sai do
+alcance do gate de equivalência.
+
+### 15.3 Escopo global do Coordenador: cortar junto, com aviso manual
+
+Decisão do dono: religar `acessoGlobal()` sobre `escopoGlobalPerfil` **no mesmo corte** da Onda D
+(não adiar), **mas gerando antes a lista nominal de quem perde a visão de quais projetos**, para
+aviso manual às pessoas antes de subir. Isso substitui o mecanismo automático de §14.6, que segue
+não construído. Lembrar que o gate de equivalência **não** bloqueia isso — perda de acesso é warning
+por design (§6.2 passo 3), então a lista é a única salvaguarda.
+
+### 15.4 Higiene de branch (R8)
+
+Estado em 2026-08-08: `feat/cadastro-colaborador` está 13 commits à frente de `dev`, 1 atrás, com 56
+arquivos não commitados de trabalho não relacionado (pendências, RH, arquivos). Decisão do dono:
+**fechar esse trabalho primeiro**, depois abrir branch nova a partir de `dev` só para a Onda D — que
+é literalmente a mitigação de R8 (`nav-config.ts`/`roles.ts` em conflito permanente numa branch
+longa). Nada da Onda D começa antes disso.

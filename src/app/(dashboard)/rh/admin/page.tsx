@@ -6,6 +6,7 @@ import {
   feriasPendentes,
   alteracoesFeriasPendentes,
   feriasAprovadasVigentes,
+  colaboradoresComDireitoFerias,
   climaResumo,
   climaHistorico,
   listarFeedbackHumor,
@@ -14,7 +15,7 @@ import {
   nfsPendentes,
   nfsValidadas,
 } from "@/modules/rh/queries";
-import { fechamentosDoMes, saldoCorrenteEquipe, primeiroMesFechado } from "@/modules/rh/banco/queries";
+import { fechamentosDoMes, saldoCorrenteEquipe, primeiroMesFechado, ultimoMesFechado } from "@/modules/rh/banco/queries";
 import { listarFeedbacks, colaboradoresInternos } from "@/modules/rh/feedback/queries";
 import { RhAdminView } from "@/components/rh/rh-admin-view";
 import { OnboardingAdmin } from "@/components/rh/onboarding-admin";
@@ -34,11 +35,13 @@ export default async function RhAdminPage() {
   const mesCorrente = agora.getMonth() + 1;
   const anoCorrente = agora.getFullYear();
 
-  const [abonos, ferias, alteracoesFerias, feriasVigentes, clima, climaSerie, feedbacksHumor, processos, opcoes, nfs, nfsHistorico, fechamentos, saldoCorrente, inicioRecalculo, feedbacks, colaboradores] = await Promise.all([
+  const [abonos, ferias, alteracoesFerias, feriasVigentes, colaboradoresFerias, ultimoFechado, clima, climaSerie, feedbacksHumor, processos, opcoes, nfs, nfsHistorico, fechamentos, saldoCorrente, inicioRecalculo, feedbacks, colaboradores] = await Promise.all([
     abonosPendentes(),
     feriasPendentes(),
     alteracoesFeriasPendentes(),
     feriasAprovadasVigentes(),
+    colaboradoresComDireitoFerias(),
+    ultimoMesFechado(),
     climaResumo(),
     climaHistorico(180),
     listarFeedbackHumor(),
@@ -59,6 +62,8 @@ export default async function RhAdminPage() {
         ferias={ferias}
         alteracoesFerias={alteracoesFerias}
         feriasVigentes={feriasVigentes}
+        colaboradoresFerias={colaboradoresFerias}
+        ultimoMesFechadoBanco={ultimoFechado}
         clima={clima}
         climaSerie={climaSerie}
         feedbacksHumor={feedbacksHumor}

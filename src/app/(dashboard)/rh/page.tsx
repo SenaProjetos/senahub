@@ -49,6 +49,7 @@ export default async function RhPage() {
           altOkAdmin: f.altOkAdmin,
           altOkFunc: f.altOkFunc,
           altPorMim: f.altPorId === user.id,
+          lancadaPeloRh: f.lancadoPorId !== null,
         }))}
         humorAtual={humor?.humor ?? null}
         podeSolicitarFerias={CLT_ROLES.includes(user.role)}

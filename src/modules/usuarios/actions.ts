@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { ensureCanalSocios } from "@/modules/chat/service";
+import { registrarAlteracaoContratual } from "@/modules/rh/contratual/service";
 import { notificarNovosMembros, emitParaUsuario } from "@/lib/socket";
 import {
   criarUsuarioComCredencial,
@@ -28,7 +29,7 @@ export const criarUsuario = defineAction(
     schema: criarUsuarioSchema,
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
-  async (input) => {
+  async (input, ctx) => {
     const existing = await prisma.user.findUnique({
       where: { email: input.email.toLowerCase().trim() },
     });
@@ -38,19 +39,36 @@ export const criarUsuario = defineAction(
 
     // Fase 2: preenche o cadastro inicial no mesmo ato (só o que veio) — evita "pessoa pela metade".
     const cadastro: {
-      nomeCompleto?: string; cpf?: string; telefone?: string; cargo?: string;
-      dataAdmissao?: Date; salarioBase?: number; pjId?: string; perfilId?: string;
+      nomeCompleto?: string; cpf?: string; telefone?: string;
+      dataAdmissao?: Date; pjId?: string; perfilId?: string;
     } = {};
     if (input.nomeCompleto?.trim()) cadastro.nomeCompleto = input.nomeCompleto.trim();
     if (input.cpf?.trim()) cadastro.cpf = input.cpf.trim();
     if (input.telefone?.trim()) cadastro.telefone = input.telefone.trim();
-    if (input.cargo?.trim()) cadastro.cargo = input.cargo.trim();
     if (input.dataAdmissao) cadastro.dataAdmissao = new Date(input.dataAdmissao);
-    if (input.salarioBase != null) cadastro.salarioBase = input.salarioBase;
     if (input.pjId?.trim()) cadastro.pjId = input.pjId.trim();
     if (input.perfilId?.trim()) cadastro.perfilId = input.perfilId.trim();
     if (Object.keys(cadastro).length > 0) {
       await prisma.user.update({ where: { id }, data: cadastro });
+    }
+
+    // Cargo e salário NÃO entram no update acima. Esta rota é gateada por `usuarios:gerir`,
+    // não por RH — é a que mais escapa quando se mexe no cadastro — e por isso passa pelo mesmo
+    // escritor único, deixando a primeira linha do histórico contratual.
+    if (input.cargoId?.trim() || input.salarioBase != null) {
+      await prisma.$transaction((tx) =>
+        registrarAlteracaoContratual(
+          tx,
+          id,
+          {
+            cargoId: input.cargoId?.trim() || null,
+            remuneracao: input.salarioBase ?? null,
+            vigenciaEm: input.dataAdmissao ? new Date(input.dataAdmissao) : undefined,
+            motivo: "admissao",
+          },
+          ctx.user.id,
+        ),
+      );
     }
 
     revalidatePath(REVALIDATE);

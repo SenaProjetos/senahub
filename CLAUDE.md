@@ -16,7 +16,7 @@ newer per-feature work is tracked in dated specs/plans under [docs/superpowers/]
 ```bash
 npm run dev          # Next only (Turbopack). NO Socket.io / NO pg-boss → chat & jobs do NOT work here
 npm run dev:server   # full server.ts (Next + Socket.io + pg-boss) — use this for chat/realtime/jobs
-npm run build        # next build --turbopack
+npm run build        # scripts/build.mjs → next build --turbopack (com NODE_OPTIONS de heap)
 npm start            # prod: tsx server.ts
 npm run lint         # eslint
 npm test             # vitest run (all *.test.ts under src/)

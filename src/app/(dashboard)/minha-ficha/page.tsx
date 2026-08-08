@@ -16,6 +16,9 @@ import { escalaUsuarioGrade, escalaRoleGrade } from "@/modules/rh/escalas/querie
 import { minhaAlteracaoPendente } from "@/modules/rh/cadastro/queries";
 import { carregarPreferenciasDaConta } from "@/modules/usuarios/preferencias/queries";
 import { meuAcesso } from "@/modules/usuarios/vinculo/queries";
+import { contasDoColaborador, minhaContaPendente } from "@/modules/rh/contas/queries";
+import { historicoContratualDaPessoa } from "@/modules/rh/contratual/queries";
+import { HistoricoContratual } from "@/components/rh/historico-contratual";
 import { MeuAcesso } from "@/components/usuarios/meu-acesso";
 import { Pessoa360View } from "@/components/rh/pessoa-360-view";
 import { EditarMeusDados } from "@/components/rh/editar-meus-dados";
@@ -49,7 +52,7 @@ export default async function MinhaFichaPage() {
   const { controlaJornada } = await contextoApuracao(id, agora.getFullYear(), agora.getMonth() + 1);
   const batePonto = isColaborador;
 
-  const [cadastro, ausencias, banco, escalaUsuario, escalaRole, holerites, nf, pendente, prefsConta, acesso] = await Promise.all([
+  const [cadastro, ausencias, banco, escalaUsuario, escalaRole, holerites, nf, pendente, prefsConta, acesso, contas, historico, contaPendente] = await Promise.all([
     isColaborador ? cadastroDaPessoa(id) : Promise.resolve(null),
     controlaJornada ? solicitacoesDoUsuario(id) : Promise.resolve(null),
     controlaJornada ? bancoHorasDe(id) : Promise.resolve(null),
@@ -60,6 +63,11 @@ export default async function MinhaFichaPage() {
     isColaborador ? minhaAlteracaoPendente(id) : Promise.resolve(null),
     carregarPreferenciasDaConta(id),
     meuAcesso(id),
+    // A própria pessoa sempre vê as próprias contas (mesmo critério de `podeFolha` fixo aqui).
+    isColaborador ? contasDoColaborador(id) : Promise.resolve(null),
+    // A pessoa vê o próprio histórico contratual (aqui `podeFolha` é fixo: é a própria ficha).
+    isColaborador ? historicoContratualDaPessoa(id) : Promise.resolve(null),
+    isColaborador ? minhaContaPendente(id) : Promise.resolve(null),
   ]);
 
   const escala = escalaUsuario && escalaRole
@@ -71,8 +79,8 @@ export default async function MinhaFichaPage() {
       <div>
         <h1 className="text-2xl font-extrabold tracking-tight">Minha conta</h1>
         <p className="text-sm text-muted-foreground">
-          Seus dados de cadastro, ponto, ausências, escala e preferências num só lugar. Contato, endereço e dados
-          bancários você mesmo pode alterar — as mudanças passam por validação do RH.
+          Seus dados de cadastro, ponto, ausências, escala e preferências num só lugar. Contato e endereço você mesmo pode alterar — as
+          mudanças passam por validação do RH. Contas bancárias são cadastradas pelo RH.
         </p>
       </div>
 
@@ -93,6 +101,9 @@ export default async function MinhaFichaPage() {
         controlaJornada={controlaJornada}
         holerites={holerites}
         nf={nf}
+        contas={contas}
+        contaPendente={contaPendente}
+        historicoSlot={historico ? <HistoricoContratual historico={historico} /> : undefined}
         preferenciasSlot={<PreferenciasView {...prefsConta} />}
       />
     </div>

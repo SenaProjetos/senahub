@@ -9,6 +9,7 @@ import { solicitarFerias, registrarHumor } from "@/modules/rh/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -116,6 +117,11 @@ function MinhasSolicitacoes({ abonos, ferias }: { abonos: Abono[]; ferias: Feria
                     {" · "}
                     {dt(s.inicio)} – {dt(s.fim)}
                   </span>
+                  {s.feria?.lancadaPeloRh && (
+                    <Badge variant="outline" className="ml-2 align-middle">
+                      Lançada pelo RH
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {s.feria && <FeriasAcoes feria={s.feria} />}

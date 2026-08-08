@@ -445,7 +445,7 @@ function HoleriteEditor({
     if (inss === 0 && irrf === 0) {
       toast.message("Configure as faixas em Configurações → Encargos.");
     } else {
-      toast.success(`INSS R$ ${inss.toLocaleString("pt-BR")} · IRRF R$ ${irrf.toLocaleString("pt-BR")}`);
+      toast.success(`INSS ${brl(inss)} · IRRF ${brl(irrf)}`);
     }
   }
 
@@ -505,6 +505,7 @@ function HoleriteEditor({
               </Select>
               <Input
                 type="number"
+                step="0.01"
                 className="w-28"
                 value={it.valor || ""}
                 onChange={(e) => setItem(i, { valor: Number(e.target.value) })}

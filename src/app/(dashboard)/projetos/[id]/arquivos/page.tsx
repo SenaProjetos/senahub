@@ -5,9 +5,15 @@ import { can } from "@/lib/permissions";
 import { GLOBAL_ROLES } from "@/lib/roles";
 import { projetoVisivel } from "@/modules/planejamento/queries";
 import { arvoreArquivosProjeto } from "@/modules/projetos/arquivos/queries";
-import { lixeiraDoProjeto } from "@/modules/uploads/queries";
+import { lixeiraDoProjeto, pedidosExclusaoPendentesDoProjeto } from "@/modules/uploads/queries";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
-import { recebidosDoProjeto, geralDoProjeto, clienteDoProjeto, emailClienteDoProjeto } from "@/modules/documentos-cliente/queries";
+import {
+  recebidosDoProjeto,
+  geralDoProjeto,
+  baseArquitetonicaDoProjeto,
+  clienteDoProjeto,
+  emailClienteDoProjeto,
+} from "@/modules/documentos-cliente/queries";
 import { podeGerirDocumento } from "@/modules/documentos-cliente/acesso";
 import { podeVerTodasDisciplinas, podeEnviarArquivo } from "@/modules/arquivos/acesso";
 import { linkArquivosDoProjeto } from "@/modules/projetos/arquivos/link-publico";
@@ -27,7 +33,7 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
     podeVerTodasDisciplinas(user),
     podeEnviarArquivo(user.role),
   ]);
-  const [arvore, podeVerGeral, podeGerirGeral, podeValidar, nomenclatura, recebidos, clienteId, podeGerirRecebidos, podeGerirLink, linkPublico, clienteEmail] =
+  const [arvore, podeVerGeral, podeGerirGeral, podeValidar, nomenclatura, recebidos, baseArquitetonica, clienteId, podeGerirRecebidos, podeGerirLink, linkPublico, clienteEmail] =
     await Promise.all([
       arvoreArquivosProjeto(id, user.id, ehGlobal, { veTodas, podeEnviarCap }),
       can(user.role, "arquivos_gerais", "ver"),
@@ -35,6 +41,7 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
       can(user.role, "uploads", "validar"),
       resolverNomenclatura(id),
       recebidosDoProjeto(id, { incluirCompartilhadosDoGeral: true }),
+      baseArquitetonicaDoProjeto(id),
       clienteDoProjeto(id),
       podeGerirDocumento(user, { projetoId: id }),
       can(user.role, "projetos", "gerir"),
@@ -48,6 +55,9 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
   // Lixeira do projeto: só admin (gate da action) — os demais recebem lista vazia.
   const ehAdmin = user.role === "admin";
   const lixeira = ehAdmin ? await lixeiraDoProjeto(id) : [];
+  // Pedidos de exclusão pendentes: o admin vê todos (é quem decide); os demais só o
+  // próprio pedido, pra não expor que outra pessoa quer excluir aquele arquivo.
+  const exclusoesPendentes = await pedidosExclusaoPendentesDoProjeto(id, ehAdmin ? undefined : user.id);
 
   return (
     <ArquivosExplorer
@@ -58,10 +68,14 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
       podeValidar={podeValidar}
       nomenclatura={nomenclatura}
       recebidos={recebidos}
+      baseArquitetonica={baseArquitetonica}
+      podeGerirBaseArquitetonica={podeGerirRecebidos}
       clienteId={clienteId}
       podeGerirRecebidos={podeGerirRecebidos}
       podeExcluirDocumento={ehGlobal}
       podeExcluirArquivo={ehAdmin}
+      podeSolicitarExclusao={!ehAdmin}
+      exclusoesPendentes={exclusoesPendentes}
       lixeira={lixeira}
       arts={arts}
       podeGerirLink={podeGerirLink}

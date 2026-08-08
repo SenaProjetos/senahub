@@ -11,7 +11,7 @@ export default async function JuridicoPage() {
   const user = await requirePermission("juridico", "ver");
   const podeGerir = await can(user.role, "juridico", "gerir");
 
-  const [docs, certidoes, tipos, projetos, clientes, pastas, modelos] = await Promise.all([
+  const [docs, projetos, clientes, pastas, modelos] = await Promise.all([
     prisma.documentoJuridico.findMany({
       orderBy: { createdAt: "desc" },
       include: {
@@ -26,8 +26,6 @@ export default async function JuridicoPage() {
         },
       },
     }),
-    prisma.certidao.findMany({ orderBy: { validade: "asc" }, include: { tipo: true, _count: { select: { versoes: true } } } }),
-    prisma.certidaoTipo.findMany({ orderBy: { nome: "asc" } }),
     prisma.projeto.findMany({
       orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
       select: { id: true, codigo: true, nome: true },
@@ -66,15 +64,7 @@ export default async function JuridicoPage() {
           })),
         })),
       }))}
-      certidoes={certidoes.map((c) => ({
-        id: c.id,
-        tipo: c.tipo.nome,
-        descricao: c.descricao,
-        validade: c.validade.toISOString().slice(0, 10),
-        versoes: c._count.versoes,
-      }))}
       modelos={modelos.map((m) => ({ id: m.id, nome: m.nome, categoria: m.categoria, conteudo: m.conteudo }))}
-      tipos={tipos}
       projetos={projetos.map((p) => ({ id: p.id, label: `${p.codigo} · ${p.nome}` }))}
       clientes={clientes.map((c) => ({ id: c.id, label: c.nome }))}
     />

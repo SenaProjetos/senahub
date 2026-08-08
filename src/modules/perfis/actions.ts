@@ -25,9 +25,6 @@ const ADMIN_ONLY: Role[] = ["admin"];
 const base = { modulo: "configuracoes", roles: ADMIN_ONLY } as const;
 const rev = () => revalidatePath("/configuracoes/perfis");
 
-/** Aviso apenas — perfis demais viram a bagunça que este motor veio substituir (feedback do conselho). */
-const LIMITE_AVISO_PERFIS = 10;
-
 export const criarPerfil = defineAction(
   { ...base, acao: "criar-perfil", entidade: "PerfilAcesso", schema: criarPerfilSchema },
   async (i) => {
@@ -111,5 +108,3 @@ export const setPermissaoPerfil = defineAction(
     return { ok: true };
   },
 );
-
-export { LIMITE_AVISO_PERFIS };

@@ -1108,7 +1108,35 @@ export const editarDisciplinaCatalogo = defineAction(
     const dados = normalizarCatalogo(i);
     dados.categoria = await canonizarCategoria(dados.categoria);
     await garantirUnicosCatalogo(dados.nome, dados.codigo, i.id);
-    await prisma.disciplinaCatalogo.update({ where: { id: i.id }, data: dados });
+
+    // `Disciplina.nome` (linha de projeto) aponta para o catálogo por TEXTO, sem FK. Renomear aqui
+    // sem cascatear orfana toda disciplina em uso: perde a sigla (que compõe a pasta e o prefixo do
+    // arquivo no storage) e perde o bloco-base — a próxima folha da Lista Mestre reiniciaria em 1
+    // em vez de `bloco+1`, sem erro visível. Por isso o rename anda junto, na mesma transação.
+    const nomeMudou = dados.nome !== existe.nome;
+    await prisma.$transaction(async (tx) => {
+      await tx.disciplinaCatalogo.update({ where: { id: i.id }, data: dados });
+      if (!nomeMudou) return;
+      const candidatas = await tx.disciplina.findMany({
+        where: { nome: existe.nome },
+        select: { id: true, projetoId: true },
+      });
+      if (candidatas.length === 0) return;
+      // Projeto que já tenha o nome de destino ficaria com duas disciplinas iguais — exigiria
+      // mover uploads/tarefas. Esse caso é deixado como está, não fundido automaticamente.
+      const jaTemDestino = new Set(
+        (
+          await tx.disciplina.findMany({
+            where: { nome: dados.nome, projetoId: { in: candidatas.map((c) => c.projetoId) } },
+            select: { projetoId: true },
+          })
+        ).map((d) => d.projetoId),
+      );
+      const ids = candidatas.filter((c) => !jaTemDestino.has(c.projetoId)).map((c) => c.id);
+      if (ids.length > 0) {
+        await tx.disciplina.updateMany({ where: { id: { in: ids } }, data: { nome: dados.nome } });
+      }
+    });
     revCatalogo();
     return { id: i.id };
   },

@@ -3,16 +3,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { PdfPagina } from "@/components/pdf/pdf-pagina";
+import { usePdfBusca } from "@/components/pdf/use-pdf-busca";
+import { BarraBuscaPdf } from "@/components/pdf/barra-busca-pdf";
+import { usePdfCamadas } from "@/components/pdf/use-pdf-camadas";
+import { CamadasPdf } from "@/components/pdf/camadas-pdf";
+import { usePinchZoom } from "@/components/pdf/use-pinch-zoom";
 
 // pdf.js é carregado dinamicamente no cliente (evita SSR e mantém o chunk fora do bundle inicial).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PdfDoc = any;
 
 /**
- * Visualizador de PDF SOMENTE-LEITURA para documentos do cliente (Recebidos) e do
- * Geral. Renderiza as páginas com pdf.js e permite zoom — mas NÃO tem camada de
- * apontamentos/pinos (diferente do `PdfViewer`, que é para validar entregáveis).
+ * Visualizador de PDF SOMENTE-LEITURA para documentos do cliente (Recebidos), do Geral e
+ * (via `PreviewPdfButton`) dos documentos de RH. Renderiza as páginas com pdf.js, permite
+ * zoom e busca textual — mas NÃO tem camada de apontamentos/pinos (diferente do
+ * `PdfViewer`, que é para validar entregáveis).
  */
 export function DocumentoViewer({ url }: { url: string }) {
   const [pdf, setPdf] = useState<PdfDoc | null>(null);
@@ -21,12 +27,19 @@ export function DocumentoViewer({ url }: { url: string }) {
   const [larguraAlvo, setLarguraAlvo] = useState(800);
   const [zoom, setZoom] = useState(1);
   const colunaRef = useRef<HTMLDivElement | null>(null);
+  const paginaRefs = useRef(new Map<number, HTMLDivElement>());
 
   const ZOOM_MIN = 0.5;
   const ZOOM_MAX = 5;
   const ajustarZoom = useCallback((delta: number) => {
     setZoom((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(z + delta).toFixed(2))));
   }, []);
+  // Zoom por pinça de 2 dedos (item 34-touch). Sem pan por arraste aqui (usa scroll nativo do
+  // navegador, ao contrário do PdfViewer) — só a pinça é custom.
+  usePinchZoom(colunaRef, { zoom, setZoom, min: ZOOM_MIN, max: ZOOM_MAX });
+
+  const busca = usePdfBusca(numPages);
+  const camadas = usePdfCamadas(pdf);
 
   useEffect(() => {
     let cancelado = false;
@@ -79,9 +92,38 @@ export function DocumentoViewer({ url }: { url: string }) {
     return () => el.removeEventListener("wheel", onWheel);
   }, [ajustarZoom]);
 
+  // Ao navegar pra uma ocorrência: rola até a página e, na sequência, até a marca exata.
+  useEffect(() => {
+    const atual = busca.ocorrenciaAtual;
+    if (!atual) return;
+    paginaRefs.current.get(atual.pagina)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const id = atual.id;
+    const t = setTimeout(() => {
+      colunaRef.current?.querySelector(`[data-ocorrencia="${CSS.escape(id)}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 200);
+    return () => clearTimeout(t);
+  }, [busca.ocorrenciaAtual]);
+
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-end gap-1 border-b px-2 py-1.5">
+      <div className="flex flex-wrap items-center justify-end gap-1 border-b px-2 py-1.5">
+        <BarraBuscaPdf
+          query={busca.query}
+          onQueryChange={busca.setQuery}
+          total={busca.total}
+          indiceAtual={busca.indiceAtual}
+          pronto={busca.pronto}
+          onProxima={busca.proxima}
+          onAnterior={busca.anterior}
+          className="flex items-center gap-1"
+        />
+        {camadas.temCamadas && (
+          <>
+            <div className="mx-1 h-5 w-px bg-border" />
+            <CamadasPdf grupos={camadas.grupos} onAlternar={camadas.alternar} />
+          </>
+        )}
+        <div className="mx-1 h-5 w-px bg-border" />
         <Button variant="outline" size="icon" className="size-7" onClick={() => ajustarZoom(-0.2)} aria-label="Diminuir zoom">
           <ZoomOut className="size-3.5" />
         </Button>
@@ -90,7 +132,14 @@ export function DocumentoViewer({ url }: { url: string }) {
           <ZoomIn className="size-3.5" />
         </Button>
       </div>
-      <div ref={colunaRef} className="flex-1 overflow-auto bg-muted/40 p-3">
+      {busca.query.trim() !== "" && busca.semTextoPesquisavel && (
+        <div className="border-b bg-warning/10 px-3 py-1.5 text-xs text-warning">
+          Este PDF não possui texto pesquisável (provavelmente um documento escaneado).
+        </div>
+      )}
+      {/* pan-x/pan-y preservam o scroll nativo (não há pan por arraste aqui); só o
+          pinch-zoom NATIVO é suprimido, pra não brigar com o `usePinchZoom`. */}
+      <div ref={colunaRef} className="flex-1 overflow-auto bg-muted/40 p-3" style={{ touchAction: "pan-x pan-y" }}>
         {erro ? (
           <p className="py-10 text-center text-sm text-destructive">{erro}</p>
         ) : !pdf ? (
@@ -99,60 +148,25 @@ export function DocumentoViewer({ url }: { url: string }) {
           </p>
         ) : (
           <div className="flex flex-col items-center gap-3">
-            {Array.from({ length: numPages }, (_, i) => (
-              <PaginaPdf key={i + 1} pdf={pdf} pagina={i + 1} largura={larguraAlvo * zoom} />
+            {Array.from({ length: numPages }, (_, i) => i + 1).map((n) => (
+              <PdfPagina
+                key={n}
+                registrar={(el) => {
+                  if (el) paginaRefs.current.set(n, el);
+                  else paginaRefs.current.delete(n);
+                }}
+                pdf={pdf}
+                pagina={n}
+                largura={larguraAlvo * zoom}
+                onTexto={busca.registrarTexto}
+                marcas={busca.ocorrenciasPorPagina(n)}
+                ocgConfig={camadas.config}
+                ocgVersao={camadas.versao}
+              />
             ))}
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function PaginaPdf({ pdf, pagina, largura }: { pdf: PdfDoc; pagina: number; largura: number }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [dim, setDim] = useState<{ w: number; h: number } | null>(null);
-
-  useEffect(() => {
-    let cancelado = false;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let task: any;
-    (async () => {
-      try {
-        const page = await pdf.getPage(pagina);
-        const base = page.getViewport({ scale: 1 });
-        const scale = largura / base.width;
-        const viewport = page.getViewport({ scale });
-        const canvas = canvasRef.current;
-        if (!canvas || cancelado) return;
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        canvas.width = Math.floor(viewport.width * dpr);
-        canvas.height = Math.floor(viewport.height * dpr);
-        canvas.style.width = `${Math.floor(viewport.width)}px`;
-        canvas.style.height = `${Math.floor(viewport.height)}px`;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-        task = page.render({ canvasContext: ctx, viewport, transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined });
-        await task.promise;
-        if (!cancelado) setDim({ w: Math.floor(viewport.width), h: Math.floor(viewport.height) });
-      } catch (e) {
-        // Cancelamento de render dispara exceção esperada ao trocar largura.
-        if (!cancelado) console.debug("[documento-viewer] render pág.", pagina, e);
-      }
-    })();
-    return () => {
-      cancelado = true;
-      try {
-        task?.cancel?.();
-      } catch {
-        /* noop */
-      }
-    };
-  }, [pdf, pagina, largura]);
-
-  return (
-    <div className={cn("mx-auto shadow-sm", !dim && "min-h-40 w-full max-w-2xl")} style={{ width: dim?.w }}>
-      <canvas ref={canvasRef} className="block bg-white" />
     </div>
   );
 }

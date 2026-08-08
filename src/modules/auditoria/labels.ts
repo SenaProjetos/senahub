@@ -109,6 +109,8 @@ export const ACAO_LABEL: Record<string, string> = {
   "rm-dependente": "Removeu dependente",
   "add-doc-funcionario": "Adicionou documento do funcionário",
   "rm-doc-funcionario": "Removeu documento do funcionário",
+  "visualizar-doc-funcionario": "Visualizou documento do funcionário",
+  "download-doc-funcionario": "Baixou documento do funcionário",
   "bater-ponto": "Bateu ponto",
   "registrar-ponto-manual": "Registrou ponto manual",
   "encerrar-jornada": "Encerrou jornada",
@@ -116,6 +118,7 @@ export const ACAO_LABEL: Record<string, string> = {
   "definir-escala": "Definiu escala",
   "solicitar-ferias": "Solicitou férias",
   "validar-ferias": "Validou férias",
+  "lancar-ferias-colaborador": "Lançou férias (RH)",
   "validar-abono": "Validou abono",
   "gerar-fechamento": "Gerou fechamento",
   "excluir-fechamento": "Excluiu fechamento",
@@ -233,8 +236,19 @@ export const ACAO_LABEL: Record<string, string> = {
   "editar-tabela-preco": "Editou tabela de preço",
   "salvar-composicao": "Salvou composição",
   "criar-certidao": "Criou certidão",
+  "editar-certidao": "Editou dados da certidão",
   "excluir-certidao": "Excluiu certidão",
+  "criar-tipo-certidao": "Criou tipo de certidão",
+  "editar-tipo-certidao": "Editou tipo de certidão",
+  "excluir-tipo-certidao": "Excluiu tipo de certidão",
   "nova-versao-certidao": "Adicionou versão de certidão",
+  "download-certidao": "Baixou certidão",
+  "download-certidao-zip": "Baixou zip de certidões",
+  "download-link-publico": "Baixou documento via link público",
+  "download-link-publico-zip": "Baixou zip via link público",
+  "criar-link-certidoes": "Gerou link público de certidões",
+  "atualizar-link-certidoes": "Atualizou link público de certidões",
+  "revogar-link-certidoes": "Revogou link público de certidões",
 
   // Sócios
   "criar-socio": "Criou sócio",
@@ -284,6 +298,15 @@ export const ACAO_LABEL: Record<string, string> = {
   "remover-linha-plano": "Removeu linha do plano",
   "salvar-linhas-plano": "Salvou linhas do plano",
   "aplicar-plano": "Aplicou plano",
+
+  // Apontamentos (pendências de prancha)
+  "exportar-bcf-pendencias": "Exportou apontamentos em BCF",
+  "exportar-pdf-carimbado": "Exportou PDF carimbado da prancha",
+  "exportar-relatorio-pendencias": "Exportou relatório de apontamentos",
+  "classificar-pendencia": "Classificou um apontamento",
+  "responder-pendencia": "Respondeu em um apontamento",
+  "excluir-resposta-pendencia": "Excluiu uma resposta de apontamento",
+  "replicar-pendencia": "Replicou apontamento para outras pranchas",
 };
 
 /** Rótulos legíveis (pt-BR) para os módulos/seções registrados em AuditLog.modulo. */
@@ -306,6 +329,7 @@ export const MODULO_LABEL: Record<string, string> = {
   qualidade: "Qualidade",
   licitacoes: "Licitações",
   juridico: "Jurídico",
+  certidoes: "Certidões",
   suporte: "Suporte",
   notificacoes: "Notificações",
   uploads: "Uploads",

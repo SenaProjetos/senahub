@@ -20,12 +20,6 @@ const docSchema = z.object({
   observacao: opt(z.string()),
 });
 
-const certidaoSchema = z.object({
-  tipoId: z.string().min(1, "Selecione o tipo."),
-  descricao: opt(z.string()),
-  validade: z.string().min(1, "Informe a validade."),
-});
-
 const idSchema = z.object({ id: z.string().min(1) });
 
 export const criarDocJuridico = defineAction(
@@ -95,28 +89,6 @@ export const excluirDocJuridico = defineAction(
   },
 );
 
-export const criarCertidao = defineAction(
-  { ...base, acao: "criar-certidao", entidade: "Certidao", schema: certidaoSchema },
-  async (i) => {
-    const c = await prisma.certidao.create({
-      data: { tipoId: i.tipoId, descricao: i.descricao || null, validade: new Date(i.validade) },
-    });
-    rev();
-    return { id: c.id };
-  },
-);
-
-export const excluirCertidao = defineAction(
-  { ...base, acao: "excluir-certidao", entidade: "Certidao", schema: idSchema },
-  async (i) => {
-    const c = await prisma.certidao.findUnique({ where: { id: i.id } });
-    if (!c) throw new ActionError("Certidão não encontrada.");
-    await prisma.certidao.delete({ where: { id: i.id } });
-    rev();
-    return { id: i.id };
-  },
-);
-
 // ── E2 Modelos de contrato ────────────────────────────────────
 export const criarModeloContrato = defineAction(
   { ...base, acao: "criar-modelo", entidade: "ModeloContrato", schema: z.object({ nome: z.string().min(1, "Informe o nome."), categoria: opt(z.string()), conteudo: z.string().default("") }) },
@@ -181,18 +153,3 @@ export const registrarAceite = defineAction(
   },
 );
 
-// ── E3 Nova versão de certidão ────────────────────────────────
-export const novaVersaoCertidao = defineAction(
-  { ...base, acao: "nova-versao-certidao", entidade: "CertidaoVersao", schema: z.object({ certidaoId: z.string().min(1), validade: z.string().min(1, "Informe a validade.") }) },
-  async (i, ctx) => {
-    const c = await prisma.certidao.findUnique({ where: { id: i.certidaoId }, include: { versoes: { orderBy: { numero: "desc" }, take: 1 } } });
-    if (!c) throw new ActionError("Certidão não encontrada.");
-    const numero = (c.versoes[0]?.numero ?? 0) + 1;
-    await prisma.$transaction([
-      prisma.certidaoVersao.create({ data: { certidaoId: c.id, numero, validade: c.validade, arquivoPath: c.arquivoPath, arquivoNome: c.arquivoNome, autorId: ctx.user.id } }),
-      prisma.certidao.update({ where: { id: c.id }, data: { validade: new Date(i.validade) } }),
-    ]);
-    rev();
-    return { numero };
-  },
-);

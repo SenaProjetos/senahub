@@ -13,6 +13,7 @@ import { createRequire } from "node:module";
 import { Packer } from "docx";
 import { prisma } from "@/lib/prisma";
 import { salvarArquivo, slug } from "@/lib/storage";
+import { baseDirDisciplina, nomeFisico } from "@/modules/uploads/caminho";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { serializar } from "./savefile";
 import { getFerramenta } from "./registry";
@@ -49,8 +50,9 @@ async function salvarUpload(opts: {
   mimeType: string;
   autorId: string;
   baseDir: string;
+  siglaDisciplina: string | null;
 }) {
-  const { disciplinaId, pacote, nomeArquivo, buffer, mimeType, autorId, baseDir } = opts;
+  const { disciplinaId, pacote, nomeArquivo, buffer, mimeType, autorId, baseDir, siglaDisciplina } = opts;
 
   const anterior = await prisma.upload.findFirst({
     where: { disciplinaId, pacote, nomeArquivo },
@@ -59,13 +61,7 @@ async function salvarUpload(opts: {
   });
   const versao = anterior ? anterior.versao + 1 : 1;
 
-  const ext = nomeArquivo.includes(".") ? nomeArquivo.slice(nomeArquivo.lastIndexOf(".")) : "";
-  const baseNome = ext ? nomeArquivo.slice(0, -(ext.length)) : nomeArquivo;
-  const nomeVers =
-    versao > 1
-      ? `${slug(baseNome)}__v${versao}${ext}`
-      : `${slug(baseNome)}${ext}`;
-  const relativo = `${baseDir}/${pacote}/${nomeVers}`;
+  const relativo = `${baseDir}/${pacote}/${nomeFisico({ nomeArquivo, siglaDisciplina, versao })}`;
 
   const salvo = await salvarArquivo(relativo, buffer);
 
@@ -107,12 +103,22 @@ export async function autoStore(params: AutoStoreParams): Promise<void> {
   });
   if (!disciplina) return;
 
-  const baseDir = [
-    String(projetoAcessivel.ano),
-    slug(projetoAcessivel.cliente.nome),
-    `${projetoAcessivel.codigo}_${slug(projetoAcessivel.nome)}`,
-    slug(disciplina.nome),
-  ].join("/");
+  // Mesma convenção da rota de upload: a pasta e o prefixo do arquivo usam a SIGLA do catálogo
+  // (vínculo por nome, não FK), caindo no nome inteiro quando a disciplina não tem sigla.
+  const cat = await prisma.disciplinaCatalogo.findFirst({
+    where: { nome: disciplina.nome },
+    select: { codigo: true },
+  });
+  const siglaDisciplina = cat?.codigo ?? null;
+
+  const baseDir = baseDirDisciplina({
+    ano: projetoAcessivel.ano,
+    clienteNome: projetoAcessivel.cliente.nome,
+    projetoCodigo: projetoAcessivel.codigo,
+    projetoNome: projetoAcessivel.nome,
+    disciplinaNome: disciplina.nome,
+    siglaDisciplina,
+  });
 
   const meta = getFerramenta(ferramenta);
   const tituloSlug = `calc-${slug(titulo)}`;
@@ -134,6 +140,7 @@ export async function autoStore(params: AutoStoreParams): Promise<void> {
       mimeType: "application/json",
       autorId,
       baseDir,
+      siglaDisciplina,
     });
   } catch { /* melhor esforço */ }
 
@@ -179,6 +186,7 @@ export async function autoStore(params: AutoStoreParams): Promise<void> {
       mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       autorId,
       baseDir,
+      siglaDisciplina,
     });
   } catch { /* melhor esforço */ }
 
@@ -195,6 +203,7 @@ export async function autoStore(params: AutoStoreParams): Promise<void> {
       mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       autorId,
       baseDir,
+      siglaDisciplina,
     });
   } catch { /* melhor esforço */ }
 
@@ -210,6 +219,7 @@ export async function autoStore(params: AutoStoreParams): Promise<void> {
         mimeType: "application/dxf",
         autorId,
         baseDir,
+        siglaDisciplina,
       });
     }
   } catch { /* melhor esforço */ }
@@ -242,6 +252,7 @@ export async function autoStore(params: AutoStoreParams): Promise<void> {
           mimeType: "application/pdf",
           autorId,
           baseDir,
+          siglaDisciplina,
         });
       } finally {
         await browser.close();

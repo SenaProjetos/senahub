@@ -1,5 +1,6 @@
 import {
   Home,
+  Tags,
   Users,
   FolderKanban,
   Wallet,
@@ -28,8 +29,10 @@ import {
   IdCard,
   FolderArchive,
   ClipboardCheck,
+  ShieldCheck,
   Library,
   BookMarked,
+  Notebook,
   Coins,
   type LucideIcon,
 } from "lucide-react";
@@ -156,6 +159,12 @@ export const NAV_GROUPS: NavGroup[] = [
         roles: ["admin", "supervisor", "administrativo"],
       },
       {
+        title: "Cargos e departamentos",
+        href: "/rh/catalogos",
+        icon: Tags,
+        roles: ["admin", "supervisor", "administrativo"],
+      },
+      {
         title: "RH — admin",
         href: "/rh/admin",
         icon: UserCog,
@@ -227,6 +236,12 @@ export const NAV_GROUPS: NavGroup[] = [
         roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"],
       },
       {
+        title: "Referências Técnicas",
+        href: "/engenharia/referencias",
+        icon: Notebook,
+        roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"],
+      },
+      {
         title: "Engenharia de Custos",
         href: "/custos",
         icon: Coins,
@@ -250,9 +265,21 @@ export const NAV_GROUPS: NavGroup[] = [
         roles: ["admin", "supervisor", "administrativo"],
       },
       {
+        title: "Apontamentos",
+        href: "/pendencias",
+        icon: ClipboardCheck,
+        roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"],
+      },
+      {
         title: "Jurídico",
         href: "/juridico",
         icon: Scale,
+        roles: ["admin", "supervisor", "administrativo"],
+      },
+      {
+        title: "Certidões",
+        href: "/certidoes",
+        icon: ShieldCheck,
         roles: ["admin", "supervisor", "administrativo"],
       },
       {

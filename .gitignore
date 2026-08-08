@@ -58,7 +58,19 @@ next-env.d.ts
 
 # amostras de importação (dados reais — não commitar)
 /docs/samples/
+
+# dumps de banco (pg_dump de produção: CPF, salário, hash de senha — nunca commitar).
+# Guarde-os FORA do repositório; ver scripts/restaurar-snapshot-prod.ts.
+# Não usar *.sql aqui: as migrations do Prisma são .sql e precisam ser versionadas.
+*.backup
+*.dump
 .superpowers/
+
+# tooling de agente (config/cache local por máquina — AGENTS.md e CLAUDE.md são versionados)
+/.agents/
+/.codex/
+/.vscode/
+/m.mjs
 
 # .NET (deploy/gui/SenaHubManager — gerenciador com GUI)
 deploy/gui/**/bin/

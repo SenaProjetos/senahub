@@ -90,7 +90,7 @@ export function MaquinaDetalheView({ maquina, podeTi }: { maquina: MaquinaDetalh
             <Cpu className="size-5 text-muted-foreground" aria-hidden /> {maquina.nome}
           </h2>
         </div>
-        <Button variant="outline" size="sm" render={<a href={`/api/patrimonio/ti/${maquina.id}/pdf`} target="_blank" rel="noreferrer" />}>
+        <Button variant="outline" size="sm" render={<a href={`/api/patrimonio/ti/${maquina.id}/pdf`} />}>
           <FileDown className="size-4" /> Baixar PDF
         </Button>
       </div>

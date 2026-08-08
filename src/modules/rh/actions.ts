@@ -6,6 +6,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificar } from "@/lib/notificar";
 import { HR_ADMIN_ROLES, INTERNAL_ROLES, CLT_ROLES } from "@/lib/roles";
+import { formatarData } from "@/lib/utils";
 import { validarInicioFeriasClt } from "@/lib/ferias-clt";
 import { listarFeriados } from "@/modules/rh/feriados/queries";
 
@@ -129,6 +130,75 @@ export const validarFerias = defineAction(
     });
     revalidatePath("/rh/admin");
     return { id: i.id };
+  },
+);
+
+// ── Lançamento direto pelo RH ─────────────────────────────────
+const lancarFeriasSchema = z
+  .object({
+    userId: z.string().min(1, "Selecione o colaborador."),
+    inicio: z.string().min(1),
+    fim: z.string().min(1),
+    observacao: z.string().optional(),
+  })
+  .refine((v) => v.fim >= v.inicio, {
+    message: "A data de fim não pode ser anterior ao início.",
+    path: ["fim"],
+  });
+
+/**
+ * RH/admin registra férias de um colaborador SEM solicitação prévia dele (CLT art. 136:
+ * a época do gozo é definida pelo empregador). Nasce já `aprovado`, então os efeitos —
+ * ponto, banco de horas, agenda, disponibilidade em projetos, jobs — valem na hora: todos
+ * os consumidores leem `status: "aprovado"` + intervalo de datas. Nenhuma regra é duplicada.
+ *
+ * `lancadoPorId` distingue este registro de uma solicitação do colaborador que o RH aprovou.
+ */
+export const lancarFeriasColaborador = defineAction(
+  {
+    ...adminBase,
+    acao: "lancar-ferias-colaborador",
+    entidade: "Ferias",
+    schema: lancarFeriasSchema,
+    // As outras actions de férias não definem `entidadeId` porque agem sobre o próprio
+    // registro do autor. Aqui o RH age sobre a linha de OUTRA pessoa — a trilha precisa
+    // apontar qual registro nasceu.
+    entidadeId: (d) => (d as { id: string }).id,
+  },
+  async (i, { user }) => {
+    const alvo = await prisma.user.findUnique({
+      where: { id: i.userId },
+      select: { id: true, role: true, ativo: true },
+    });
+    if (!alvo || !alvo.ativo) throw new ActionError("Colaborador não encontrado.");
+    // Mesma restrição do autoatendimento, aplicada ao ALVO (o chamador é sempre gestor de RH):
+    // férias são instituto celetista — lançar para PJ/freelancer materializaria subordinação.
+    if (!(CLT_ROLES as readonly string[]).includes(alvo.role))
+      throw new ActionError("Férias só podem ser lançadas para colaboradores CLT ou estagiários.");
+    // Regra CLT de início pelo perfil do ALVO, não do RH (que nunca é `clt` — passar
+    // `user.role` aqui desligaria a validação em silêncio).
+    await garantirInicioFeriasClt(alvo.role, i.inicio);
+
+    const f = await prisma.ferias.create({
+      data: {
+        userId: alvo.id,
+        inicio: new Date(i.inicio),
+        fim: new Date(i.fim),
+        observacao: i.observacao || null,
+        status: "aprovado",
+        validadoPorId: user.id,
+        lancadoPorId: user.id,
+      },
+    });
+
+    await notificar(alvo.id, {
+      titulo: "Férias lançadas pelo RH",
+      corpo: `O RH registrou suas férias de ${formatarData(f.inicio)} a ${formatarData(f.fim)}.`,
+      href: "/rh",
+    });
+    revalidatePath("/rh");
+    revalidatePath("/rh/admin");
+    return { id: f.id };
   },
 );
 

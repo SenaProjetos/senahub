@@ -53,7 +53,13 @@ export type PranchaParseada = {
  */
 export function parsePranchaFilename(filename: string): PranchaParseada | null {
   const base = filename.replace(/\.[^.]+$/, "");
-  const m = base.match(/^([A-Za-z0-9]+)-([A-Za-z]+)-([A-Za-z]+)-(\d{1,6})-([A-Za-z0-9]+)(?:-RV?(\d+))?$/);
+  // A especialidade aceita dígito porque `normalizarCatalogo` permite sigla [A-Z0-9] (ex.: SPD1).
+  // O `(?!RV?\d+$)` no TIPO evita o falso positivo em nomes de desenho de elemento como
+  // "253-PIL-VIG-001-R00": sem ele, o parser casava e devolvia tipo="R00" com revisao=null —
+  // dado errado alimentando o import da Lista Mestre, em vez de recusar o nome.
+  const m = base.match(
+    /^([A-Za-z0-9]+)-([A-Za-z0-9]+)-([A-Za-z]+)-(\d{1,6})-(?!RV?\d+$)([A-Za-z0-9]+)(?:-RV?(\d+))?$/,
+  );
   if (!m) return null;
   return {
     codigoProjeto: m[1].toUpperCase(),

@@ -14,6 +14,11 @@ import { gravarSnapshotDashboard } from "@/modules/dashboard/queries";
 import { gravarSnapshotLicitacaoMensal } from "@/modules/licitacoes/dashboard/queries";
 import { CLT_ROLES } from "@/lib/roles";
 import { formatarCodigo } from "@/modules/projetos/numbering";
+import {
+  agruparPorDestinatario,
+  situacaoPrazo,
+  DIAS_ALERTA as DIAS_ALERTA_APONTAMENTO,
+} from "@/modules/projetos/pendencias/prazo";
 import { formatarData } from "@/lib/utils";
 import { filtrarPorCategoria } from "@/modules/usuarios/preferencias/queries";
 import { getConfigLicitacoes } from "@/modules/licitacoes/config/queries";
@@ -203,22 +208,23 @@ export async function alertaRateioAberto(): Promise<number> {
   return sessoes;
 }
 
-/** Certidões vencendo em 30/15/7 dias → gestores do jurídico. */
+/** Certidões vencendo em 30/15/7 dias → gestores + responsável (se houver). */
 export async function alertaCertidoes(): Promise<number> {
   let n = 0;
-  const ids = await gestores();
+  const idsGestores = await gestores();
   for (const dias of [30, 15, 7]) {
     const certs = await prisma.certidao.findMany({
       where: { validade: diaAlvo(dias) },
       include: { tipo: true },
     });
     for (const c of certs) {
+      const destinatarios = c.responsavelId ? [...idsGestores, c.responsavelId] : idsGestores;
       await notificarMuitos(
-        ids,
+        destinatarios,
         {
           titulo: `Certidão vence em ${dias} dia(s)`,
           corpo: `${c.tipo.nome}${c.descricao ? ` — ${c.descricao}` : ""}`,
-          href: "/juridico",
+          href: "/certidoes",
           tag: `cert-${c.id}-${dias}`,
         },
         { categoria: "certidao" },
@@ -1401,4 +1407,93 @@ export async function processarMensagemAgendada(data: unknown): Promise<void> {
  */
 export async function processarImportacaoCusto(importacaoId: string): Promise<void> {
   await executarImportacaoCusto(importacaoId);
+}
+
+// ── Apontamentos: prazo/SLA (item 18) ───────────────────────────
+
+/**
+ * Varredura diária dos apontamentos vencidos ou vencendo (item 18).
+ *
+ * **Uma notificação por PESSOA, não por apontamento.** Uma prancha com 12 apontamentos
+ * vencidos viraria 12 pushes — a forma mais rápida de alguém desligar a categoria inteira.
+ * Por isso o agrupamento (`agruparPorDestinatario`) é puro e testado à parte.
+ *
+ * Só entram apontamentos **publicados** (rascunho não tem relógio, item 31) e ainda em aberto
+ * ou aguardando verificação; `fechada`/`descartada` saem porque o trabalho acabou. `adiado`
+ * entra: adiar tira da fila de trabalho, não do radar de prazo — e o solicitante decidiu que
+ * reativar PRESERVA o prazo, então o adiado continua com o relógio dele.
+ */
+export async function alertasPrazoApontamento(): Promise<number> {
+  const limite = addDays(new Date(), DIAS_ALERTA_APONTAMENTO);
+  const pendencias = await prisma.pendencia.findMany({
+    where: {
+      prazo: { not: null, lte: limite },
+      publicadoEm: { not: null },
+      excluidoEm: null,
+      status: { notIn: ["fechada", "descartada"] },
+    },
+    select: {
+      id: true,
+      numero: true,
+      texto: true,
+      prazo: true,
+      publicadoEm: true,
+      status: true,
+      projetoId: true,
+      disciplinaId: true,
+      uploadId: true,
+    },
+  });
+  if (pendencias.length === 0) return 0;
+
+  const disciplinaIds = [...new Set(pendencias.map((p) => p.disciplinaId))];
+  const projetoIds = [...new Set(pendencias.map((p) => p.projetoId))];
+  const [responsaveis, projetos] = await Promise.all([
+    prisma.disciplinaResponsavel.findMany({
+      where: { disciplinaId: { in: disciplinaIds } },
+      select: { disciplinaId: true, userId: true },
+    }),
+    prisma.projeto.findMany({ where: { id: { in: projetoIds } }, select: { id: true, codigo: true, nome: true } }),
+  ]);
+  const porDisciplina = new Map<string, string[]>();
+  for (const r of responsaveis) {
+    const lista = porDisciplina.get(r.disciplinaId);
+    if (lista) lista.push(r.userId);
+    else porDisciplina.set(r.disciplinaId, [r.userId]);
+  }
+  const nomeProjeto = new Map(projetos.map((p) => [p.id, p]));
+
+  const agrupado = agruparPorDestinatario(
+    pendencias.map((p) => ({ item: p, destinatarios: porDisciplina.get(p.disciplinaId) ?? [] })),
+  );
+
+  let enviados = 0;
+  for (const [userId, itens] of agrupado) {
+    const vencidos = itens.filter((p) => situacaoPrazo(p, ["fechada", "descartada"]) === "vencido");
+    const proximos = itens.length - vencidos.length;
+    const proj = nomeProjeto.get(itens[0].projetoId);
+    const partes = [
+      vencidos.length > 0 ? `${vencidos.length} vencido(s)` : null,
+      proximos > 0 ? `${proximos} vencendo` : null,
+    ].filter(Boolean);
+    await notificar(
+      userId,
+      {
+        titulo: `Apontamentos com prazo: ${partes.join(" e ")}`,
+        corpo:
+          `${proj ? `${formatarCodigo(proj.codigo)} — ` : ""}` +
+          itens
+            .slice(0, 3)
+            .map((p) => `#${p.numero} ${p.texto.slice(0, 40)}`)
+            .join(" · ") +
+          (itens.length > 3 ? ` … +${itens.length - 3}` : ""),
+        href: "/pendencias",
+        // Uma tag por dia e por pessoa: reexecução do job no mesmo dia não empilha push.
+        tag: `prazo-apontamento-${userId}-${new Date().toISOString().slice(0, 10)}`,
+      },
+      { categoria: "apontamento" },
+    );
+    enviados++;
+  }
+  return enviados;
 }

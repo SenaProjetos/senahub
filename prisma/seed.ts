@@ -63,6 +63,8 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   // Coordenador NÃO entra: ficha de pessoas e salário ficam com admin + administrativo.
   { role: "administrativo", recurso: "rh", acao: "cadastro" },
   { role: "administrativo", recurso: "rh", acao: "folha" },
+  // Catálogos de cargo/departamento: quem cadastra pessoa precisa manter as listas.
+  { role: "administrativo", recurso: "rh", acao: "catalogos" },
   // Arquivos gerais do projeto (pasta "Geral"): gestores administrativos por padrão.
   { role: "administrativo", recurso: "arquivos_gerais", acao: "ver" },
   { role: "administrativo", recurso: "arquivos_gerais", acao: "gerir" },
@@ -94,6 +96,8 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   // O5: jurídico, licitações, qualidade
   { role: "administrativo", recurso: "juridico", acao: "ver" },
   { role: "administrativo", recurso: "juridico", acao: "gerir" },
+  { role: "administrativo", recurso: "certidoes", acao: "ver" },
+  { role: "administrativo", recurso: "certidoes", acao: "gerir" },
   { role: "administrativo", recurso: "licitacoes", acao: "ver" },
   { role: "administrativo", recurso: "licitacoes", acao: "gerir" },
   // O5: planejamento (ver p/ internos; gerir p/ gestores) e recursos (gestores)
@@ -210,7 +214,32 @@ const TAREFA_STATUS = [
   { nome: "Cancelada", cor: "#6E838B", concluido: false },
 ];
 
-const CERTIDAO_TIPOS = ["CND Federal", "CND Estadual", "CND Municipal", "FGTS", "Trabalhista", "ART/RRT"];
+const CERTIDAO_TIPOS: { nome: string; obrigatoria: boolean }[] = [
+  { nome: "Certidão Regularidade Fiscal Federal", obrigatoria: true },
+  { nome: "Certidão Regularidade Fiscal Estadual", obrigatoria: true },
+  { nome: "Certidão Regularidade Fiscal Municipal", obrigatoria: true },
+  { nome: "Certidão de Regularidade do FGTS", obrigatoria: true },
+  { nome: "Certidão Negativa de Débitos Trabalhistas", obrigatoria: true },
+  { nome: "Certidão Improbidade Administrativa e Inelegibilidade", obrigatoria: false },
+  { nome: "Inscrição Municipal (CIM)", obrigatoria: false },
+  { nome: "Certidão Isenção Inscrição Estadual", obrigatoria: false },
+  { nome: "Certidão Simplificada Jucepe", obrigatoria: false },
+  { nome: "Certidão Falimentar", obrigatoria: false },
+  { nome: "Balanço Patrimonial", obrigatoria: false },
+  { nome: "Livro Digital", obrigatoria: false },
+];
+
+// Catálogo mínimo de cargos. "Sócio" é RÓTULO — não concede acesso nenhum (isso é `Socio`+perfil).
+// O RH edita/arquiva/reordena pela tela; por isso o upsert abaixo nunca sobrescreve `ordem`.
+const CARGOS_BASE = ["Sócio", "Diretor", "Coordenador", "Engenheiro", "Arquiteto", "Projetista", "Estagiário", "Analista Administrativo"];
+
+// Departamentos-base, com o setor-pai sugerido. `setor` null = a definir pelo RH.
+const DEPARTAMENTOS_BASE: { nome: string; setor: "diretoria" | "administrativo" | "juridico" | "engenharia" | "ti" | null }[] = [
+  { nome: "Projetos", setor: "engenharia" },
+  { nome: "Orçamento", setor: "engenharia" },
+  { nome: "Financeiro", setor: "administrativo" },
+  { nome: "Pessoal", setor: "administrativo" },
+];
 
 const FUNIL_ETAPAS = [
   { nome: "Orçamento", cor: "#8B7FC7" },
@@ -236,30 +265,44 @@ const ONBOARDING_PADRAO = {
 // Item 15: catálogo com sigla (nomenclatura de arquivos) + categoria (agrupamento na UI).
 // Catálogo-base pré-criado. `categoria: null` cai no grupo "Outras" (ver schema/nota da view).
 // O ícone deriva do nome (lib/disciplinas.ts) — não fixamos `icone` aqui.
-const DISCIPLINAS_CATALOGO: { nome: string; codigo: string; categoria: string | null }[] = [
+//
+// `numeracao` = bloco-base da folha na Lista Mestre: 1ª folha = bloco+1 (EST 4000 → 4001).
+// Valores da tabela oficial do escritório, casados pela SIGLA (os nomes de tela do catálogo são
+// mantidos de propósito — a tabela oficial usa descrições mais longas p/ as mesmas siglas).
+// Duas exceções deliberadas, decididas com o escritório:
+//   ACU 3100 — a tabela trazia 3000, igual a ARQ; dois blocos iguais colidem (as duas começariam
+//              em 3001). 3100 segue o padrão de sub-bloco +100 da própria tabela (LOG/SEG/SPD/SUB
+//              sob ELE, DRE sob HID, GAS sob CLI).
+//   FUN null — Fundações não consta da tabela oficial; sem bloco, suas folhas começam em 1.
+const DISCIPLINAS_CATALOGO: {
+  nome: string;
+  codigo: string;
+  categoria: string | null;
+  numeracao: number | null;
+}[] = [
   // ARQUITETURA
-  { nome: "Arquitetura", codigo: "ARQ", categoria: "ARQUITETURA" },
-  { nome: "Acústica", codigo: "ACU", categoria: "ARQUITETURA" },
+  { nome: "Arquitetura", codigo: "ARQ", categoria: "ARQUITETURA", numeracao: 3000 },
+  { nome: "Acústica", codigo: "ACU", categoria: "ARQUITETURA", numeracao: 3100 },
   // CIVIL
-  { nome: "Estrutural", codigo: "EST", categoria: "CIVIL" },
-  { nome: "Hidrossanitário", codigo: "HID", categoria: "CIVIL" },
-  { nome: "Incêndio (PPCI)", codigo: "PCI", categoria: "CIVIL" },
-  { nome: "Fundações", codigo: "FUN", categoria: "CIVIL" },
-  { nome: "Terraplenagem", codigo: "TER", categoria: "CIVIL" },
-  { nome: "Topografia", codigo: "TOP", categoria: "CIVIL" },
-  { nome: "Pavimentação", codigo: "PAV", categoria: "CIVIL" },
-  { nome: "Drenagem", codigo: "DRE", categoria: "CIVIL" },
+  { nome: "Estrutural", codigo: "EST", categoria: "CIVIL", numeracao: 4000 },
+  { nome: "Hidrossanitário", codigo: "HID", categoria: "CIVIL", numeracao: 6000 },
+  { nome: "Incêndio (PPCI)", codigo: "PCI", categoria: "CIVIL", numeracao: 7000 },
+  { nome: "Fundações", codigo: "FUN", categoria: "CIVIL", numeracao: null },
+  { nome: "Terraplenagem", codigo: "TER", categoria: "CIVIL", numeracao: 1000 },
+  { nome: "Topografia", codigo: "TOP", categoria: "CIVIL", numeracao: 0 },
+  { nome: "Pavimentação", codigo: "PAV", categoria: "CIVIL", numeracao: 2000 },
+  { nome: "Drenagem", codigo: "DRE", categoria: "CIVIL", numeracao: 6100 },
   // ELÉTRICA
-  { nome: "Elétrico", codigo: "ELE", categoria: "ELÉTRICA" },
-  { nome: "Cabeamento", codigo: "LOG", categoria: "ELÉTRICA" },
-  { nome: "CFTV", codigo: "SEG", categoria: "ELÉTRICA" },
-  { nome: "SPDA", codigo: "SPD", categoria: "ELÉTRICA" },
-  { nome: "Subestação", codigo: "SUB", categoria: "ELÉTRICA" },
+  { nome: "Elétrico", codigo: "ELE", categoria: "ELÉTRICA", numeracao: 5000 },
+  { nome: "Cabeamento", codigo: "LOG", categoria: "ELÉTRICA", numeracao: 5100 },
+  { nome: "CFTV", codigo: "SEG", categoria: "ELÉTRICA", numeracao: 5200 },
+  { nome: "SPDA", codigo: "SPD", categoria: "ELÉTRICA", numeracao: 5300 },
+  { nome: "Subestação", codigo: "SUB", categoria: "ELÉTRICA", numeracao: 5400 },
   // MECÂNICA
-  { nome: "Climatização (AVAC)", codigo: "CLI", categoria: "MECÂNICA" },
-  { nome: "Gás", codigo: "GAS", categoria: "MECÂNICA" },
+  { nome: "Climatização (AVAC)", codigo: "CLI", categoria: "MECÂNICA", numeracao: 8000 },
+  { nome: "Gás", codigo: "GAS", categoria: "MECÂNICA", numeracao: 8200 },
   // OUTRAS
-  { nome: "Orçamento", codigo: "ORC", categoria: null },
+  { nome: "Orçamento", codigo: "ORC", categoria: null, numeracao: 9000 },
 ];
 
 async function main() {
@@ -338,11 +381,65 @@ async function main() {
     const d = DISCIPLINAS_CATALOGO[i];
     await prisma.disciplinaCatalogo.upsert({
       where: { nome: d.nome },
-      create: { nome: d.nome, codigo: d.codigo, categoria: d.categoria, ordem: i },
+      // `numeracao` NÃO entra no `update:` de propósito: o bloco é editável na tela de
+      // configurações, e repeti-lo aqui faria todo `db:seed` (que roda em todo deploy) apagar
+      // o ajuste do admin. O backfill logo abaixo cobre as linhas que ainda estão sem bloco.
+      create: { nome: d.nome, codigo: d.codigo, categoria: d.categoria, ordem: i, numeracao: d.numeracao },
       update: { codigo: d.codigo, categoria: d.categoria, ordem: i },
     });
   }
+  // Backfill do bloco-base nas linhas que já existiam antes desta versão (dev e produção).
+  // `where: { numeracao: null }` torna a operação idempotente E não-destrutiva: só preenche vazio.
+  let preenchidos = 0;
+  for (const d of DISCIPLINAS_CATALOGO) {
+    if (d.numeracao == null) continue;
+    const r = await prisma.disciplinaCatalogo.updateMany({
+      where: { nome: d.nome, numeracao: null },
+      data: { numeracao: d.numeracao },
+    });
+    preenchidos += r.count;
+  }
+  if (preenchidos > 0) console.log(`  ↻ bloco-base preenchido em ${preenchidos} disciplina(s).`);
   console.log(`✔ ${DISCIPLINAS_CATALOGO.length} disciplinas no catálogo.`);
+
+  // 3a) Reconciliação das disciplinas DOS PROJETOS (`Disciplina.nome`). Elas apontam para o
+  // catálogo por TEXTO, sem FK, então um nome divergente vira disciplina órfã: perde a sigla
+  // (que compõe a pasta e o prefixo do arquivo no storage) e o número-base da Lista Mestre.
+  // NÃO move nada em disco — arquivos já gravados seguem no caminho persistido em `Upload.caminho`;
+  // só uploads NOVOS passam a cair na pasta da sigla.
+  const RENOMES_DISCIPLINA_PROJETO: { de: string; para: string }[] = [
+    { de: "Arquitetônico", para: "Arquitetura" },
+    { de: "Prevenção de Incêndio", para: "Incêndio (PPCI)" },
+  ];
+  for (const r of RENOMES_DISCIPLINA_PROJETO) {
+    const candidatas = await prisma.disciplina.findMany({
+      where: { nome: r.de },
+      select: { id: true, projetoId: true },
+    });
+    if (candidatas.length === 0) continue;
+    // Projeto que JÁ tem o nome de destino ficaria com duas disciplinas iguais — exige merge
+    // manual (mover uploads/tarefas), então esse caso é pulado e reportado.
+    const jaTemDestino = new Set(
+      (
+        await prisma.disciplina.findMany({
+          where: { nome: r.para, projetoId: { in: candidatas.map((c) => c.projetoId) } },
+          select: { projetoId: true },
+        })
+      ).map((d) => d.projetoId),
+    );
+    const renomear = candidatas.filter((c) => !jaTemDestino.has(c.projetoId));
+    if (renomear.length > 0) {
+      await prisma.disciplina.updateMany({
+        where: { id: { in: renomear.map((c) => c.id) } },
+        data: { nome: r.para },
+      });
+      console.log(`  ↻ ${renomear.length} disciplina(s) de projeto: "${r.de}" → "${r.para}"`);
+    }
+    const pulados = candidatas.length - renomear.length;
+    if (pulados > 0) {
+      console.log(`  ⚠ ${pulados} pulada(s) em "${r.de}": o projeto já tem "${r.para}" (merge manual).`);
+    }
+  }
 
   // 3b) Catálogo da Lista Mestre (folha/tipo/fase) — siglas globais padrão.
   const LM_CATALOGO: { categoria: "folha" | "tipo" | "fase"; sigla: string; nome: string }[] = [
@@ -456,10 +553,29 @@ async function main() {
       update: { ordem: i, concluido: TAREFA_STATUS[i].concluido },
     });
   }
-  for (const nome of CERTIDAO_TIPOS) {
-    await prisma.certidaoTipo.upsert({ where: { nome }, create: { nome }, update: {} });
+  // update: {} de propósito — igual CARGOS_BASE: gerir "obrigatoria" é ato de quem gere
+  // certidões pela tela (/certidoes → Gerenciar tipos), o seed só garante que os itens-base existam.
+  for (const t of CERTIDAO_TIPOS) {
+    await prisma.certidaoTipo.upsert({ where: { nome: t.nome }, create: t, update: {} });
   }
   console.log(`✔ ${TAREFA_STATUS.length} status de tarefa, ${CERTIDAO_TIPOS.length} tipos de certidão.`);
+
+  // 8b) Catálogos de RH (cargo/departamento). `update: {}` de propósito: reordenar, renomear e
+  // arquivar são atos do RH pela tela — o seed só garante que os itens-base existam. Rodar o
+  // seed depois do backfill não pode reembaralhar a lista nem ressuscitar item arquivado.
+  // `ordem` continua de onde a lista está (mesma regra de `criarCargo`), em vez de recomeçar do
+  // zero — senão itens semeados colidiriam com os que o backfill já numerou.
+  let ordemCargo = ((await prisma.cargo.findFirst({ orderBy: { ordem: "desc" }, select: { ordem: true } }))?.ordem ?? -1) + 1;
+  for (const nome of CARGOS_BASE) {
+    const r = await prisma.cargo.upsert({ where: { nome }, create: { nome, ordem: ordemCargo }, update: {} });
+    if (r.ordem === ordemCargo) ordemCargo++;
+  }
+  let ordemDepto = ((await prisma.departamento.findFirst({ orderBy: { ordem: "desc" }, select: { ordem: true } }))?.ordem ?? -1) + 1;
+  for (const d of DEPARTAMENTOS_BASE) {
+    const r = await prisma.departamento.upsert({ where: { nome: d.nome }, create: { nome: d.nome, setor: d.setor, ordem: ordemDepto }, update: {} });
+    if (r.ordem === ordemDepto) ordemDepto++;
+  }
+  console.log(`✔ ${CARGOS_BASE.length} cargos, ${DEPARTAMENTOS_BASE.length} departamentos no catálogo.`);
 
   // 9) Etapas do funil comercial
   for (let i = 0; i < FUNIL_ETAPAS.length; i++) {

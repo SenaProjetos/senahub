@@ -182,7 +182,10 @@ async function main() {
   });
 
   // ── Projetos + disciplinas + responsáveis + membros ─────────
-  const DISC = ["Estrutural", "Hidrossanitário", "Elétrico", "Arquitetônico", "Fundações", "Prevenção de Incêndio"];
+  // Nomes CANÔNICOS do catálogo (prisma/seed.ts → DISCIPLINAS_CATALOGO). O vínculo
+  // Disciplina→DisciplinaCatalogo é por nome (texto, sem FK), então divergir aqui gera disciplina
+  // órfã: sem sigla, sem numeração, e a pasta no storage sai com o nome inteiro em vez de "EST".
+  const DISC = ["Estrutural", "Hidrossanitário", "Elétrico", "Arquitetura", "Fundações", "Incêndio (PPCI)"];
   const STATUSES: StatusDisciplina[] = ["aguardando", "em_andamento", "em_revisao", "entregue", "aprovado"];
   const projetosDef = [
     { nome: "Residencial Vila Real", cli: 0, sit: "em_andamento", area: 320, discs: 4, prazo: 40 },

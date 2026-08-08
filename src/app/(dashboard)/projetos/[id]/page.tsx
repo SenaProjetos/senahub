@@ -18,6 +18,8 @@ import { tarefasDoProjeto, opcoesTarefa, colunasTarefaAtivas, tarefaBloqueada } 
 import { EquipeManager } from "@/components/projetos/equipe-manager";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ProjetoKpis } from "@/components/projetos/projeto-kpis";
+import { PendenciasKpis } from "@/components/projetos/pendencias-kpis";
+import { estatisticasPendencias } from "@/modules/projetos/pendencias/queries";
 import { DisciplinasKanban } from "@/components/projetos/disciplinas-kanban";
 import { DisciplinasGantt } from "@/components/projetos/disciplinas-gantt";
 import { MargemDonut } from "@/components/projetos/margem-donut";
@@ -47,7 +49,7 @@ export default async function ProjetoDetalhePage({
     podeVerFinanceiro(user),
   ]);
 
-  const [internos, papeis, margem, catalogo, slaFora, canalChat, canaisDisc, sessaoPonto, timelineStatus] = await Promise.all([
+  const [internos, papeis, margem, catalogo, slaFora, canalChat, canaisDisc, sessaoPonto, timelineStatus, statsPendencias] = await Promise.all([
     podeGerir ? usuariosInternos() : Promise.resolve([]),
     podeGerir ? papeisUsados() : Promise.resolve([]),
     verFinanceiro ? margemProjeto(projeto.id) : Promise.resolve(null),
@@ -57,6 +59,7 @@ export default async function ProjetoDetalhePage({
     canaisDasDisciplinas(projeto.id),
     user.role !== "cliente" ? sessaoAberta(user.id) : Promise.resolve(null),
     timelineStatusProjeto(projeto.id),
+    user.role !== "cliente" ? estatisticasPendencias(projeto.id) : Promise.resolve(null),
   ]);
 
   // Item 26 (beta): CLT/estagiário são remunerados por salário/bolsa (RH), não por
@@ -281,6 +284,7 @@ export default async function ProjetoDetalhePage({
         situacao={projeto.situacao}
         margemPct={margem?.margemPct ?? null}
       />
+      {statsPendencias && <PendenciasKpis stats={statsPendencias} />}
 
       {/* P-44: Mini-gantt de disciplinas */}
       {disciplinas.some((d) => d.prazo) && (

@@ -20,7 +20,8 @@ const CAMPOS_SELECT = {
   telefone: true, emailPessoal: true, telefoneEmergencia: true, contatoEmergenciaNome: true,
   enderecoCep: true, enderecoLogradouro: true, enderecoNumero: true, enderecoComplemento: true,
   enderecoBairro: true, enderecoCidade: true, enderecoUf: true,
-  banco: true, agencia: true, conta: true, tipoContaBancaria: true,
+  // Os 4 campos bancários saíram (2.2) junto com as colunas: hoje são `ContaBancariaColaborador`,
+  // e o auto-serviço não os propõe mais. Ver `rh/cadastro/whitelist.ts`.
 } as const;
 
 /** Fila de validação do RH: todas as alterações pendentes, com valor atual × proposto. */

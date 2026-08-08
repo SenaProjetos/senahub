@@ -14,6 +14,7 @@ import {
   purgarLixeiraArquivos,
   processarMensagemAgendada,
   processarImportacaoCusto,
+  alertasPrazoApontamento,
 } from "@/lib/jobs-handlers";
 import {
   alertasPrazoDisciplina,
@@ -272,6 +273,14 @@ export async function startJobs(): Promise<PgBoss> {
       handler: async () => {
         const n = await limparDxfOrfaos();
         if (n > 0) console.log(`[dwg] ${n} .dxf órfão(s) removido(s).`);
+      },
+    },
+    {
+      fila: "alertas-prazo-apontamento",
+      cron: "10 8 * * 1-5", // dias úteis 08:10 — antes do expediente começar de fato
+      handler: async () => {
+        const n = await alertasPrazoApontamento();
+        if (n > 0) console.log(`[apontamentos] ${n} pessoa(s) avisada(s) sobre prazo.`);
       },
     },
     {

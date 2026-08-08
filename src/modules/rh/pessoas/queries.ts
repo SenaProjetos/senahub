@@ -5,37 +5,67 @@ import { usuarioOnline } from "@/lib/socket";
 import { espelhoMes } from "@/modules/ponto/queries";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { formatarRegistro } from "@/modules/usuarios/registro";
+import { camposFaltantes, type EntradaCompletude } from "@/modules/rh/pessoas/completude";
+import { derivarEixos } from "@/modules/usuarios/vinculo/mapa";
 
 const ymd = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+const enderecoCompletoOk = (u: { enderecoCep: string | null; enderecoLogradouro: string | null; enderecoNumero: string | null; enderecoBairro: string | null; enderecoCidade: string | null; enderecoUf: string | null }) =>
+  ({ enderecoCep: u.enderecoCep, enderecoLogradouro: u.enderecoLogradouro, enderecoNumero: u.enderecoNumero, enderecoBairro: u.enderecoBairro, enderecoCidade: u.enderecoCidade, enderecoUf: u.enderecoUf });
 
-/** Um cadastro é "incompleto" quando faltam campos-base do colaborador (só p/ perfis com cadastro). */
-function cadastroIncompleto(role: Role, cpf: string | null, dataAdmissao: Date | null): boolean {
-  if (!CADASTRO_ROLES.includes(role)) return false;
-  return !cpf || !dataAdmissao;
-}
-
-/** Lista de pessoas (mestre) — base da tela /rh/pessoas. Reusa o que já existe no User. */
-export async function listarPessoas() {
+/**
+ * Lista de pessoas (mestre) — base da tela /rh/pessoas. Reusa o que já existe no User.
+ *
+ * `podeFolha`: quando `false`, salário e conta bancária saem da checagem de completude (ver
+ * `completude.ts` § `avaliarFolha`) — este viewer não pode ver nem corrigir esses campos.
+ * `contratacao` REAL não é lida aqui (fica atrás de `usuarios:gerir` em `fichaPessoa`); a
+ * completude da lista usa o fallback por `role` (`derivarEixos`), suficiente para o badge.
+ */
+export async function listarPessoas(podeFolha: boolean) {
   const us = await prisma.user.findMany({
     where: { role: { not: "cliente" } },
     orderBy: [{ ativo: "desc" }, { name: "asc" }],
     select: {
-      id: true, name: true, email: true, role: true, ativo: true,
-      clienteId: true, pjId: true, cpf: true, dataAdmissao: true,
+      id: true, name: true, nomeCompleto: true, email: true, role: true, ativo: true,
+      clienteId: true, pjId: true, cpf: true, rg: true, dataNascimento: true, dataAdmissao: true,
+      enderecoCep: true, enderecoLogradouro: true, enderecoNumero: true, enderecoBairro: true,
+      enderecoCidade: true, enderecoUf: true, telefone: true,
+      cargoId: true, departamentoId: true,
+      ...(podeFolha ? { salarioBase: true, _count: { select: { contasBancarias: { where: { ativo: true } } } } } : {}),
       socio: { select: { ativo: true } },
     },
   });
-  return us.map((u) => ({
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    role: u.role,
-    ativo: u.ativo,
-    clienteId: u.clienteId,
-    pjId: u.pjId,
-    socioAtivo: u.socio?.ativo === true,
-    incompleto: cadastroIncompleto(u.role, u.cpf, u.dataAdmissao),
-  }));
+  return us.map((u) => {
+    const entrada: EntradaCompletude = {
+      role: u.role,
+      contratacao: derivarEixos(u.role).contratacao,
+      nomeCompleto: u.nomeCompleto,
+      cpf: u.cpf,
+      rg: u.rg,
+      dataNascimento: ymd(u.dataNascimento),
+      ...enderecoCompletoOk(u),
+      telefone: u.telefone,
+      dataAdmissao: ymd(u.dataAdmissao),
+      cargoId: u.cargoId,
+      departamentoId: u.departamentoId,
+      pjId: u.pjId,
+      temSalario: podeFolha ? (u as { salarioBase: unknown }).salarioBase != null : false,
+      contasBancariasAtivas: podeFolha ? (u as { _count: { contasBancarias: number } })._count.contasBancarias : 0,
+      avaliarFolha: podeFolha,
+    };
+    const faltando = camposFaltantes(entrada);
+    return {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      ativo: u.ativo,
+      clienteId: u.clienteId,
+      pjId: u.pjId,
+      socioAtivo: u.socio?.ativo === true,
+      incompleto: faltando.length > 0,
+      camposFaltantes: faltando,
+    };
+  });
 }
 export type PessoaListItem = Awaited<ReturnType<typeof listarPessoas>>[number];
 
@@ -62,7 +92,10 @@ export async function fichaPessoa(userId: string, acessos: AcessosFichaPessoa) {
     where: { id: userId },
     select: {
       id: true, name: true, nomeCompleto: true, email: true, role: true, ativo: true,
-      dataAdmissao: true, cpf: true, cargo: true, departamento: true,
+      dataAdmissao: true, cpf: true, rg: true, dataNascimento: true, cargo: true, departamento: true,
+      cargoId: true, departamentoId: true, telefone: true,
+      enderecoCep: true, enderecoLogradouro: true, enderecoNumero: true, enderecoBairro: true,
+      enderecoCidade: true, enderecoUf: true,
       conselho: true, registroProfissional: true, registroUf: true,
       clienteId: true,
       cliente: { select: { id: true, nome: true, tipo: true, documento: true } },
@@ -72,7 +105,7 @@ export async function fichaPessoa(userId: string, acessos: AcessosFichaPessoa) {
   });
   if (!u) return null;
 
-  const [folha, acesso, sessoesAbertas, abonosPendentes, feriasPendentes, documentos, projetosAtivos] =
+  const [folha, acesso, contasAtivas, sessoesAbertas, abonosPendentes, feriasPendentes, documentos, projetosAtivos] =
     await Promise.all([
       acessos.folha
         ? prisma.user.findUnique({ where: { id: userId }, select: { salarioBase: true } })
@@ -82,6 +115,9 @@ export async function fichaPessoa(userId: string, acessos: AcessosFichaPessoa) {
             where: { id: userId },
             select: { mustChangePassword: true, setor: true, contratacao: true, createdAt: true },
           })
+        : Promise.resolve(null),
+      acessos.folha
+        ? prisma.contaBancariaColaborador.count({ where: { userId, ativo: true } })
         : Promise.resolve(null),
       acessos.ponto
         ? prisma.sessaoTrabalho.count({ where: { userId, fim: null } })
@@ -115,6 +151,29 @@ export async function fichaPessoa(userId: string, acessos: AcessosFichaPessoa) {
         : Promise.resolve(null),
     ]);
 
+  // `contratacao` real só está disponível quando `acessos.acesso` (gate `usuarios:gerir`).
+  // Fallback por `role` (mesmo padrão de `apuracao.ts`) quando não autorizado ou ainda não
+  // migrado — o cálculo de completude nunca lê o escalar fora deste gate já existente.
+  const contratacaoEfetiva = acesso?.contratacao ?? derivarEixos(u.role).contratacao;
+  const entradaCompletude: EntradaCompletude = {
+    role: u.role,
+    contratacao: contratacaoEfetiva,
+    nomeCompleto: u.nomeCompleto,
+    cpf: u.cpf,
+    rg: u.rg,
+    dataNascimento: ymd(u.dataNascimento),
+    ...enderecoCompletoOk(u),
+    telefone: u.telefone,
+    dataAdmissao: ymd(u.dataAdmissao),
+    cargoId: u.cargoId,
+    departamentoId: u.departamentoId,
+    pjId: u.pj?.id ?? null,
+    temSalario: folha?.salarioBase != null,
+    contasBancariasAtivas: contasAtivas ?? 0,
+    avaliarFolha: acessos.folha,
+  };
+  const faltando = camposFaltantes(entradaCompletude);
+
   return {
     id: u.id,
     name: u.name,
@@ -129,6 +188,8 @@ export async function fichaPessoa(userId: string, acessos: AcessosFichaPessoa) {
     dataAdmissao: ymd(u.dataAdmissao),
     cargo: u.cargo,
     departamento: u.departamento,
+    cargoId: u.cargoId,
+    departamentoId: u.departamentoId,
     // Eixos novos (Fase 0): exibição read-only. Cache do vínculo ativo — quem altera é
     // `aplicarVinculo`, nunca a tela. `null` = ainda não migrado pelo backfill.
     setor: acesso?.setor ?? null,
@@ -136,7 +197,8 @@ export async function fichaPessoa(userId: string, acessos: AcessosFichaPessoa) {
     /** Rótulo pronto do registro profissional ("CREA-SP 123456") ou null. */
     registro: formatarRegistro(u),
     socioAtivo: u.socio?.ativo === true,
-    incompleto: cadastroIncompleto(u.role, u.cpf, u.dataAdmissao),
+    incompleto: faltando.length > 0,
+    camposFaltantes: faltando,
     online: usuarioOnline(u.id),
     projetosAtivos,
     projetosCount: projetosAtivos?.length ?? null,
@@ -164,32 +226,42 @@ export async function cadastroDaPessoa(userId: string) {
   const u = await prisma.user.findUnique({
     where: { id: userId },
     select: {
+      nomeCompleto: true,
       cpf: true, rg: true, dataNascimento: true, sexo: true, estadoCivil: true, nacionalidade: true,
       enderecoCep: true, enderecoLogradouro: true, enderecoNumero: true, enderecoComplemento: true,
       enderecoBairro: true, enderecoCidade: true, enderecoUf: true,
       telefone: true, telefoneEmergencia: true, contatoEmergenciaNome: true, emailPessoal: true,
-      banco: true, agencia: true, conta: true, tipoContaBancaria: true,
-      cargo: true, departamento: true,
+      // Dados bancários saíram daqui (2.2): viraram `ContaBancariaColaborador` e só são lidos
+      // por `contasDoColaborador`, sob `rh:folha`. Antes trafegavam no payload RSC para
+      // qualquer portador de `rh:cadastro`.
+      cargo: true, departamento: true, cargoId: true, departamentoId: true,
       conselho: true, registroProfissional: true, registroUf: true,
-      dependentes: { orderBy: { createdAt: "asc" }, select: { id: true, nome: true, nascimento: true, parentesco: true } },
+      dependentes: {
+        orderBy: { createdAt: "asc" },
+        select: { id: true, nome: true, cpf: true, nascimento: true, parentesco: true, dependenteIrrf: true },
+      },
       funcDocumentos: {
         orderBy: { createdAt: "desc" },
-        select: { id: true, tipo: true, nome: true, nomeArquivo: true, tamanho: true, createdAt: true },
+        select: { id: true, tipo: true, nome: true, nomeArquivo: true, mime: true, tamanho: true, createdAt: true },
       },
     },
   });
   if (!u) return null;
   return {
+    nomeCompleto: u.nomeCompleto,
     cpf: u.cpf, rg: u.rg, dataNascimento: ymd(u.dataNascimento), sexo: u.sexo, estadoCivil: u.estadoCivil, nacionalidade: u.nacionalidade,
     enderecoCep: u.enderecoCep, enderecoLogradouro: u.enderecoLogradouro, enderecoNumero: u.enderecoNumero,
     enderecoComplemento: u.enderecoComplemento, enderecoBairro: u.enderecoBairro, enderecoCidade: u.enderecoCidade, enderecoUf: u.enderecoUf,
     telefone: u.telefone, telefoneEmergencia: u.telefoneEmergencia, contatoEmergenciaNome: u.contatoEmergenciaNome, emailPessoal: u.emailPessoal,
-    banco: u.banco, agencia: u.agencia, conta: u.conta, tipoContaBancaria: u.tipoContaBancaria,
+    // Rótulos (cache) para exibição; ids para o formulário — o form edita a FK, nunca o texto.
     cargo: u.cargo, departamento: u.departamento,
+    cargoId: u.cargoId, departamentoId: u.departamentoId,
     conselho: u.conselho, registroProfissional: u.registroProfissional, registroUf: u.registroUf,
-    dependentes: u.dependentes.map((d) => ({ id: d.id, nome: d.nome, nascimento: ymd(d.nascimento), parentesco: d.parentesco })),
+    dependentes: u.dependentes.map((d) => ({
+      id: d.id, nome: d.nome, cpf: d.cpf, nascimento: ymd(d.nascimento), parentesco: d.parentesco, dependenteIrrf: d.dependenteIrrf,
+    })),
     documentos: u.funcDocumentos.map((d) => ({
-      id: d.id, tipo: d.tipo, nome: d.nome, nomeArquivo: d.nomeArquivo, tamanho: d.tamanho, criadoEm: d.createdAt.toISOString(),
+      id: d.id, tipo: d.tipo, nome: d.nome, nomeArquivo: d.nomeArquivo, mime: d.mime, tamanho: d.tamanho, criadoEm: d.createdAt.toISOString(),
     })),
   };
 }
@@ -209,7 +281,7 @@ export async function solicitacoesDoUsuario(userId: string) {
     prisma.ferias.findMany({
       where: { userId },
       orderBy: { inicio: "desc" },
-      select: { id: true, inicio: true, fim: true, observacao: true, status: true, createdAt: true },
+      select: { id: true, inicio: true, fim: true, observacao: true, status: true, lancadoPorId: true, createdAt: true },
     }),
   ]);
   return {
@@ -220,6 +292,7 @@ export async function solicitacoesDoUsuario(userId: string) {
     })),
     ferias: ferias.map((f) => ({
       id: f.id, inicio: ymd(f.inicio)!, fim: ymd(f.fim)!, observacao: f.observacao, status: f.status,
+      lancadaPeloRh: f.lancadoPorId !== null,
       criadoEm: f.createdAt.toISOString(),
     })),
   };

@@ -27,6 +27,7 @@ export default async function UsuariosPage() {
         pessoasJuridicas={opcoes.pessoasJuridicas}
         templates={opcoes.templates}
         perfis={perfis}
+        cargos={opcoes.cargos}
         podeDefinirSocio={user.role === "admin"}
         podeExcluir={user.role === "admin"}
         ehAdmin={user.role === "admin"}
