@@ -38,6 +38,7 @@ function TabelaFaixas({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [linhas, setLinhas] = useState<Linha[]>(paraLinhas(inicial));
+  const colunas = comDeduzir ? "grid-cols-[1fr_1fr_1fr_auto]" : "grid-cols-[1fr_1fr_auto]";
 
   const set = (i: number, campo: keyof Linha, v: string) =>
     setLinhas((ls) => ls.map((l, idx) => (idx === i ? { ...l, [campo]: v } : l)));
@@ -62,23 +63,24 @@ function TabelaFaixas({
         <CardDescription>{descricao}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
-        <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+        <div className={`grid ${colunas} gap-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground`}>
           <span>Limite (R$)</span>
           <span>Alíquota (%)</span>
-          <span>{comDeduzir ? "Deduzir (R$)" : "—"}</span>
+          {comDeduzir ? <span>Deduzir (R$)</span> : null}
           <span />
         </div>
         {linhas.map((l, i) => (
-          <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-2">
+          <div key={i} className={`grid ${colunas} items-center gap-2`}>
             <Input type="number" step="0.01" value={l.limite} onChange={(e) => set(i, "limite", e.target.value)} />
             <Input type="number" step="0.001" value={l.aliquota} onChange={(e) => set(i, "aliquota", e.target.value)} />
-            <Input
-              type="number"
-              step="0.01"
-              value={l.deduzir}
-              onChange={(e) => set(i, "deduzir", e.target.value)}
-              disabled={!comDeduzir}
-            />
+            {comDeduzir ? (
+              <Input
+                type="number"
+                step="0.01"
+                value={l.deduzir}
+                onChange={(e) => set(i, "deduzir", e.target.value)}
+              />
+            ) : null}
             <Button
               size="icon"
               variant="ghost"
@@ -164,7 +166,7 @@ export function EncargosView({ inss, irrf, deducaoDep }: { inss: FaixaDTO[]; irr
       <div className="grid gap-4 lg:grid-cols-2">
         <TabelaFaixas
           titulo="INSS"
-          descricao="Progressivo marginal. Limite = topo da faixa; o maior limite vira o teto."
+          descricao="Progressivo marginal: cada faixa tributa só a parcela do salário dentro dela. Limite = topo da faixa; o maior limite vira o teto. Não há parcela a deduzir — o cálculo marginal já chega ao mesmo valor da tabela com dedução."
           tipo="inss"
           inicial={inss}
           comDeduzir={false}
