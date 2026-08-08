@@ -66,6 +66,12 @@ next-env.d.ts
 *.dump
 .superpowers/
 
+# tooling de agente (config/cache local por máquina — AGENTS.md e CLAUDE.md são versionados)
+/.agents/
+/.codex/
+/.vscode/
+/m.mjs
+
 # .NET (deploy/gui/SenaHubManager — gerenciador com GUI)
 deploy/gui/**/bin/
 deploy/gui/**/obj/

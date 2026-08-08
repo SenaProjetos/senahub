@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "dev:server": "tsx watch --tsconfig tsconfig.server.json server.ts --dev",
-    "build": "next build --turbopack",
+    "build": "node scripts/build.mjs",
     "start": "tsx --tsconfig tsconfig.server.json server.ts",
     "lint": "eslint",
     "test": "vitest run",
