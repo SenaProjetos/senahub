@@ -911,6 +911,20 @@ diferenças, exit 0) e caminho vermelho (snapshot adulterado → acusa quem saiu
 mudança de menu, exit 1). 11 audiências resolvidas, nenhuma vazia, 10 usuários ativos com menu
 fotografado. lint limpo, 1805 testes, build ok.
 
+**Baseline versionada: `docs/superpowers/baselines/audiencia-antes-onda-d.json`** — o "antes" contra
+o qual a Onda D vai medir, tirado do dev neste commit, com os ids hasheados (sem dado pessoal).
+Fica versionada, e não em `logs/`, porque um "antes" que só existe em `logs/` (gitignored) não
+sobrevive a um clone do repositório — e o comparador exige um arquivo salvo. O primeiro comando da
+Onda D é:
+
+```
+npx tsx --tsconfig tsconfig.server.json scripts/checar-equivalencia-audiencia.ts docs/superpowers/baselines/audiencia-antes-onda-d.json
+```
+
+Ele tem que sair 0 ANTES do codemod (prova que a baseline corresponde ao código atual) e sair 0 DE
+NOVO depois. Regerar a baseline só quando a mudança de audiência for intencional e aprovada — nunca
+para "fazer o gate passar".
+
 ### 15.2 Gate 2 cumprido contra dado de produção — e o gate estava passando em falso
 
 `scripts/ensaiar-gate-onda-d.ts` clona o restore de produção (`senahub_snapshot_prod`) num banco

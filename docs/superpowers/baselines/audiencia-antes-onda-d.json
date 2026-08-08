@@ -1,0 +1,404 @@
+{
+  "geradoEm": "2026-08-08T23:38:21.647Z",
+  "audiencias": [
+    {
+      "chave": "global",
+      "ids": [
+        "a0bcd02b6c60",
+        "faea2f7734c5"
+      ]
+    },
+    {
+      "chave": "rh_admin",
+      "ids": [
+        "0e5c04f38edd",
+        "a0bcd02b6c60",
+        "faea2f7734c5"
+      ]
+    },
+    {
+      "chave": "gestao_operacional",
+      "ids": [
+        "0e5c04f38edd",
+        "a0bcd02b6c60",
+        "faea2f7734c5"
+      ]
+    },
+    {
+      "chave": "clt",
+      "ids": [
+        "756588ae5be7",
+        "adecf00f1bea"
+      ]
+    },
+    {
+      "chave": "interno",
+      "ids": [
+        "0e5c04f38edd",
+        "1b16aabe6b45",
+        "756588ae5be7",
+        "a0bcd02b6c60",
+        "a7ffc794863a",
+        "adecf00f1bea",
+        "b4d223464247",
+        "faea2f7734c5"
+      ]
+    },
+    {
+      "chave": "projeto_membro",
+      "ids": [
+        "1b16aabe6b45",
+        "756588ae5be7",
+        "a7ffc794863a",
+        "adecf00f1bea",
+        "b4d223464247"
+      ]
+    },
+    {
+      "chave": "pj",
+      "ids": [
+        "1b16aabe6b45",
+        "a7ffc794863a",
+        "b4d223464247"
+      ]
+    },
+    {
+      "chave": "chat_participante",
+      "ids": [
+        "0e5c04f38edd",
+        "756588ae5be7",
+        "a0bcd02b6c60",
+        "a7ffc794863a",
+        "adecf00f1bea",
+        "b4d223464247",
+        "faea2f7734c5"
+      ]
+    },
+    {
+      "chave": "chat_global",
+      "ids": [
+        "a0bcd02b6c60",
+        "faea2f7734c5"
+      ]
+    },
+    {
+      "chave": "chat_dm",
+      "ids": [
+        "0e5c04f38edd",
+        "756588ae5be7",
+        "a0bcd02b6c60",
+        "a7ffc794863a",
+        "adecf00f1bea",
+        "b4d223464247",
+        "faea2f7734c5"
+      ]
+    },
+    {
+      "chave": "planejamento_recurso",
+      "ids": [
+        "0e5c04f38edd",
+        "756588ae5be7",
+        "a0bcd02b6c60",
+        "a7ffc794863a",
+        "adecf00f1bea",
+        "b4d223464247",
+        "faea2f7734c5"
+      ]
+    }
+  ],
+  "parametrizadas": [
+    {
+      "chave": "jobs:gestores(admin,supervisor,administrativo)",
+      "ids": [
+        "0e5c04f38edd",
+        "a0bcd02b6c60",
+        "faea2f7734c5"
+      ]
+    },
+    {
+      "chave": "jobs:gestores(admin,supervisor)",
+      "ids": [
+        "a0bcd02b6c60",
+        "faea2f7734c5"
+      ]
+    }
+  ],
+  "nav": [
+    {
+      "chave": "0e5c04f38edd",
+      "ids": [
+        "/",
+        "/agenda",
+        "/ajuda",
+        "/arquivos",
+        "/certidoes",
+        "/chat",
+        "/clientes",
+        "/comercial",
+        "/configuracoes",
+        "/custos",
+        "/documentos",
+        "/engenharia/normas",
+        "/engenharia/padroes",
+        "/engenharia/referencias",
+        "/ferramentas",
+        "/financeiro",
+        "/juridico",
+        "/licitacoes",
+        "/minha-ficha",
+        "/patrimonio",
+        "/pendencias",
+        "/planejamento",
+        "/ponto",
+        "/preferencias",
+        "/projetos",
+        "/recursos",
+        "/rh",
+        "/rh/admin",
+        "/rh/catalogos",
+        "/rh/escalas",
+        "/rh/folha",
+        "/rh/pessoas",
+        "/rh/pessoas-juridicas",
+        "/rh/produtividade",
+        "/suporte",
+        "/tarefas"
+      ]
+    },
+    {
+      "chave": "1b16aabe6b45",
+      "ids": [
+        "/",
+        "/agenda",
+        "/ajuda",
+        "/arquivos",
+        "/custos",
+        "/engenharia/normas",
+        "/engenharia/padroes",
+        "/engenharia/referencias",
+        "/ferramentas",
+        "/financeiro",
+        "/minha-ficha",
+        "/pendencias",
+        "/ponto",
+        "/preferencias",
+        "/projetos",
+        "/projetos/meu-trabalho",
+        "/rh",
+        "/suporte",
+        "/tarefas"
+      ]
+    },
+    {
+      "chave": "7505b8c82306",
+      "ids": [
+        "/ajuda",
+        "/financeiro",
+        "/portal",
+        "/suporte"
+      ]
+    },
+    {
+      "chave": "756588ae5be7",
+      "ids": [
+        "/",
+        "/agenda",
+        "/ajuda",
+        "/arquivos",
+        "/chat",
+        "/custos",
+        "/engenharia/normas",
+        "/engenharia/padroes",
+        "/engenharia/referencias",
+        "/ferramentas",
+        "/financeiro",
+        "/minha-ficha",
+        "/pendencias",
+        "/planejamento",
+        "/ponto",
+        "/preferencias",
+        "/projetos",
+        "/projetos/meu-trabalho",
+        "/rh",
+        "/suporte",
+        "/tarefas"
+      ]
+    },
+    {
+      "chave": "a0bcd02b6c60",
+      "ids": [
+        "/",
+        "/agenda",
+        "/ajuda",
+        "/aprovacoes",
+        "/arquivos",
+        "/certidoes",
+        "/chat",
+        "/clientes",
+        "/comercial",
+        "/configuracoes",
+        "/custos",
+        "/documentos",
+        "/engenharia/normas",
+        "/engenharia/padroes",
+        "/engenharia/referencias",
+        "/ferramentas",
+        "/financeiro",
+        "/juridico",
+        "/licitacoes",
+        "/minha-ficha",
+        "/patrimonio",
+        "/patrimonio/ti",
+        "/pendencias",
+        "/planejamento",
+        "/ponto",
+        "/preferencias",
+        "/projetos",
+        "/qualidade",
+        "/recursos",
+        "/rh",
+        "/rh/admin",
+        "/rh/catalogos",
+        "/rh/escalas",
+        "/rh/folha",
+        "/rh/pessoas",
+        "/rh/pessoas-juridicas",
+        "/rh/produtividade",
+        "/suporte",
+        "/tarefas"
+      ]
+    },
+    {
+      "chave": "a72884d81145",
+      "ids": [
+        "/ajuda",
+        "/financeiro",
+        "/portal",
+        "/suporte"
+      ]
+    },
+    {
+      "chave": "a7ffc794863a",
+      "ids": [
+        "/",
+        "/agenda",
+        "/ajuda",
+        "/arquivos",
+        "/chat",
+        "/custos",
+        "/engenharia/normas",
+        "/engenharia/padroes",
+        "/engenharia/referencias",
+        "/ferramentas",
+        "/financeiro",
+        "/minha-ficha",
+        "/pendencias",
+        "/planejamento",
+        "/ponto",
+        "/preferencias",
+        "/projetos",
+        "/projetos/meu-trabalho",
+        "/rh",
+        "/suporte",
+        "/tarefas"
+      ]
+    },
+    {
+      "chave": "adecf00f1bea",
+      "ids": [
+        "/",
+        "/agenda",
+        "/ajuda",
+        "/arquivos",
+        "/chat",
+        "/custos",
+        "/engenharia/normas",
+        "/engenharia/padroes",
+        "/engenharia/referencias",
+        "/ferramentas",
+        "/minha-ficha",
+        "/pendencias",
+        "/planejamento",
+        "/ponto",
+        "/preferencias",
+        "/projetos",
+        "/projetos/meu-trabalho",
+        "/rh",
+        "/suporte",
+        "/tarefas"
+      ]
+    },
+    {
+      "chave": "b4d223464247",
+      "ids": [
+        "/",
+        "/agenda",
+        "/ajuda",
+        "/arquivos",
+        "/chat",
+        "/custos",
+        "/engenharia/normas",
+        "/engenharia/padroes",
+        "/engenharia/referencias",
+        "/ferramentas",
+        "/financeiro",
+        "/minha-ficha",
+        "/pendencias",
+        "/planejamento",
+        "/ponto",
+        "/preferencias",
+        "/projetos",
+        "/projetos/meu-trabalho",
+        "/rh",
+        "/suporte",
+        "/tarefas"
+      ]
+    },
+    {
+      "chave": "faea2f7734c5",
+      "ids": [
+        "/",
+        "/agenda",
+        "/ajuda",
+        "/aprovacoes",
+        "/arquivos",
+        "/auditoria",
+        "/auditoria/uso",
+        "/certidoes",
+        "/chat",
+        "/clientes",
+        "/comercial",
+        "/configuracoes",
+        "/custos",
+        "/documentos",
+        "/engenharia/normas",
+        "/engenharia/padroes",
+        "/engenharia/referencias",
+        "/ferramentas",
+        "/financeiro",
+        "/juridico",
+        "/licitacoes",
+        "/minha-ficha",
+        "/patrimonio",
+        "/patrimonio/ti",
+        "/pendencias",
+        "/planejamento",
+        "/ponto",
+        "/preferencias",
+        "/projetos",
+        "/qualidade",
+        "/recursos",
+        "/rh",
+        "/rh/admin",
+        "/rh/catalogos",
+        "/rh/escalas",
+        "/rh/folha",
+        "/rh/pessoas",
+        "/rh/pessoas-juridicas",
+        "/rh/produtividade",
+        "/suporte",
+        "/tarefas"
+      ]
+    }
+  ]
+}

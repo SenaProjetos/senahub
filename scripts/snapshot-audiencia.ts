@@ -15,13 +15,18 @@
  * pode ser anexado num relatório sem vazar id real.
  *
  * Uso:
- *   npx tsx --tsconfig tsconfig.server.json scripts/snapshot-audiencia.ts
+ *   npx tsx --tsconfig tsconfig.server.json scripts/snapshot-audiencia.ts [caminho-de-saida.json]
+ *
+ * Sem argumento grava em `logs/` (gitignored) — foto descartável. Com caminho explícito é como
+ * a BASELINE versionada é regerada (`docs/superpowers/baselines/audiencia-antes-onda-d.json`):
+ * o comparador exige um "antes" salvo, e um "antes" que só existe em `logs/` não sobrevive a
+ * um clone do repositório. Os ids saem hasheados, então a baseline não carrega dado pessoal.
  *
  * Plano: docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md (§6.2, §7-R2)
  */
 import "dotenv/config";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { prisma } from "../src/lib/prisma";
 import { AUDIENCIAS, AUDIENCIAS_PARAMETRIZADAS, AUDIENCIA_KEYS, whereAudiencia } from "../src/lib/audiencias";
 import { navItemsForRole } from "../src/lib/nav-config";
@@ -80,9 +85,11 @@ export async function gerarSnapshotAudiencia(): Promise<SnapshotAudiencia> {
 async function main() {
   const snap = await gerarSnapshotAudiencia();
 
-  const dir = join(process.cwd(), "logs");
-  mkdirSync(dir, { recursive: true });
-  const arquivo = join(dir, `snapshot-audiencia-${snap.geradoEm.replace(/[:.]/g, "-")}.json`);
+  const destino = process.argv[2];
+  const arquivo = destino
+    ? join(process.cwd(), destino)
+    : join(process.cwd(), "logs", `snapshot-audiencia-${snap.geradoEm.replace(/[:.]/g, "-")}.json`);
+  mkdirSync(dirname(arquivo), { recursive: true });
   writeFileSync(arquivo, JSON.stringify(snap, null, 2), "utf8");
 
   console.log(`\n${snap.audiencias.length} audiência(s) de papel constante:`);
