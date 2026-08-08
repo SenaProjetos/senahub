@@ -47,6 +47,7 @@ export function PreferenciasView({
   notifRiscoProjeto: notifRiscoProjetoInicial,
   notifLembretePonto: notifLembretePontoInicial,
   notifCoordenacao: notifCoordenacaoInicial,
+  notifApontamento: notifApontamentoInicial,
   notifAprovacaoArquivo: notifAprovacaoArquivoInicial,
   notifAprovacaoDisciplina: notifAprovacaoDisciplinaInicial,
   notifProposta: notifPropostaInicial,
@@ -67,6 +68,7 @@ export function PreferenciasView({
   notifRiscoProjeto: boolean;
   notifLembretePonto: boolean;
   notifCoordenacao: boolean;
+  notifApontamento: boolean;
   notifAprovacaoArquivo: boolean;
   notifAprovacaoDisciplina: boolean;
   notifProposta: boolean;
@@ -87,6 +89,7 @@ export function PreferenciasView({
   const [notifRiscoProjeto, setNotifRiscoProjeto] = useState(notifRiscoProjetoInicial);
   const [notifLembretePonto, setNotifLembretePonto] = useState(notifLembretePontoInicial);
   const [notifCoordenacao, setNotifCoordenacao] = useState(notifCoordenacaoInicial);
+  const [notifApontamento, setNotifApontamento] = useState(notifApontamentoInicial);
   const [notifAprovacaoArquivo, setNotifAprovacaoArquivo] = useState(notifAprovacaoArquivoInicial);
   const [notifAprovacaoDisciplina, setNotifAprovacaoDisciplina] = useState(notifAprovacaoDisciplinaInicial);
   const [notifProposta, setNotifProposta] = useState(notifPropostaInicial);
@@ -177,6 +180,13 @@ export function PreferenciasView({
       descricao: "Conversão de modelos IFC e apontamentos de compatibilização.",
       valor: notifCoordenacao,
       set: setNotifCoordenacao,
+    },
+    {
+      chave: "notif_apontamento",
+      titulo: "Apontamentos em pranchas",
+      descricao: "Quando alguém responde num apontamento seu, ou menciona você (@) em um.",
+      valor: notifApontamento,
+      set: setNotifApontamento,
     },
     {
       chave: "notif_aprovacao_arquivo",

@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PreviewPdfButton } from "@/components/pdf/preview-pdf-button";
 
 export type DocumentoItem = {
-  id: string; tipo: string; nome: string; nomeArquivo: string; tamanho: number; criadoEm: string;
+  id: string; tipo: string; nome: string; nomeArquivo: string; mime: string; tamanho: number; criadoEm: string;
 };
 
 const TIPOS_DOC = ["contrato", "rg", "cpf", "aso", "diploma", "comprovante", "outro"] as const;
@@ -98,6 +99,11 @@ export function DocumentosEditor({
                 <span className="font-mono text-xs text-muted-foreground">{fmtBytes(d.tamanho)}</span>
               </span>
               <span className="flex shrink-0 items-center">
+                <PreviewPdfButton
+                  visivel={d.mime === "application/pdf"}
+                  url={`/api/rh/funcionarios/documentos/${d.id}/download?disposition=inline`}
+                  titulo={d.nome}
+                />
                 <Button size="icon" variant="ghost" aria-label="Baixar" render={<a href={`/api/rh/funcionarios/documentos/${d.id}/download`} />}>
                   <Download className="size-3.5" />
                 </Button>

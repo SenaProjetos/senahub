@@ -265,6 +265,12 @@ export const NAV_GROUPS: NavGroup[] = [
         roles: ["admin", "supervisor", "administrativo"],
       },
       {
+        title: "Apontamentos",
+        href: "/pendencias",
+        icon: ClipboardCheck,
+        roles: ["admin", "supervisor", "administrativo", "clt", "estagiario", "projetista_pj", "freelancer"],
+      },
+      {
         title: "Jurídico",
         href: "/juridico",
         icon: Scale,

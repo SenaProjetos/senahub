@@ -6,9 +6,11 @@ import { GLOBAL_ROLES } from "@/lib/roles";
 import { podeEnviarArquivo } from "@/modules/arquivos/acesso";
 import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { salvarArquivo, removerArquivo, slug, nomeArquivoLimpo, type ArquivoSalvo } from "@/lib/storage";
+import { salvarArquivo, removerArquivo, nomeArquivoLimpo, type ArquivoSalvo } from "@/lib/storage";
 import { montarChunksEm, limparChunks } from "@/lib/upload-chunks";
 import { destinoArquivo, extensao, limiteDoPacote, limiteLabelDoPacote, type PacoteAlvo } from "@/modules/uploads/service";
+import { baseDirDisciplina, nomeFisico } from "@/modules/uploads/caminho";
+import { chaveDocumento } from "@/modules/uploads/documento";
 import { enfileirarConversao } from "@/modules/coordenacao/service";
 import { enfileirarConversaoDwg } from "@/modules/dwg/service";
 
@@ -98,12 +100,14 @@ export async function POST(req: Request) {
     select: { codigo: true },
   });
   const codDisc = cat?.codigo ?? null;
-  const baseDir = [
-    String(projeto.ano),
-    slug(projeto.cliente.nome),
-    `${projeto.codigo}_${slug(projeto.nome)}`,
-    codDisc ? slug(codDisc) : slug(disciplina.nome),
-  ].join("/");
+  const baseDir = baseDirDisciplina({
+    ano: projeto.ano,
+    clienteNome: projeto.cliente.nome,
+    projetoCodigo: projeto.codigo,
+    projetoNome: projeto.nome,
+    disciplinaNome: disciplina.nome,
+    siglaDisciplina: codDisc,
+  });
 
   /**
    * Persiste UM arquivo já validado por tamanho: resolve destino (roteamento/versão),
@@ -124,22 +128,35 @@ export async function POST(req: Request) {
     });
     const versao = anterior ? anterior.versao + 1 : 1;
 
-    const ext = extensao(nome);
-    const baseNome = ext ? nome.slice(0, -(ext.length + 1)) : nome;
     // Prefixa o arquivo com a sigla da disciplina (ex.: ELE-planta.dwg) quando houver código.
-    const nomeBase = codDisc ? `${codDisc}-${slug(baseNome)}` : slug(baseNome);
-    const nomeVersionado = versao > 1 ? `${nomeBase}__v${versao}${ext ? "." + ext : ""}` : `${nomeBase}${ext ? "." + ext : ""}`;
+    const nomeVersionado = nomeFisico({ nomeArquivo: nome, siglaDisciplina: codDisc, versao });
     const relativo = pastaAlvo
       ? `${baseDir}/${pastaAlvo.caminho}/${nomeVersionado}`
       : `${baseDir}/${destino}/${nomeVersionado}`;
 
     const salvo = await gravar(relativo);
 
+    // Documento lógico (pai) que agrupa as versões deste arquivo. `upsert` sobre o unique
+    // (disciplinaId, chave) resolve o existente OU cria — e é o que impede dois envios
+    // simultâneos do mesmo nome de criarem dois pais para a mesma cadeia.
+    const chave = chaveDocumento({
+      pacote: pastaAlvo ? null : destino,
+      pastaId: pastaAlvo?.id ?? null,
+      nomeArquivo: nome,
+    });
+    const documento = await prisma.documentoDisciplina.upsert({
+      where: { disciplinaId_chave: { disciplinaId, chave } },
+      create: { disciplinaId, chave, nomeArquivo: nome },
+      update: {},
+      select: { id: true },
+    });
+
     const criado = await prisma.upload.create({
       data: {
         disciplinaId,
         pacote: pastaAlvo ? null : destino,
         pastaId: pastaAlvo?.id,
+        documentoId: documento.id,
         nomeArquivo: nome,
         caminho: salvo.caminho,
         hashSha256: salvo.hashSha256,

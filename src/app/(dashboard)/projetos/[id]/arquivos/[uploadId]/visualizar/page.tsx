@@ -5,7 +5,8 @@ import { can } from "@/lib/permissions";
 import { acessoGlobal } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { pendenciasDoUpload } from "@/modules/projetos/pendencias/queries";
+import { pendenciasDoUpload, calibracoesDaPrancha } from "@/modules/projetos/pendencias/queries";
+import { pranchasVigentesDisciplina } from "@/modules/uploads/queries";
 import { opcoesTarefa } from "@/modules/tarefas/queries";
 import { PdfViewer } from "@/components/projetos/pdf-viewer";
 
@@ -31,6 +32,7 @@ export default async function VisualizarPage({
       pacote: true,
       versao: true,
       validado: true,
+      documentoId: true,
       disciplinaId: true,
       disciplina: {
         select: {
@@ -68,7 +70,12 @@ export default async function VisualizarPage({
   });
 
   const podeValidar = await can(user.role, "uploads", "validar");
-  const pendencias = await pendenciasDoUpload(uploadId);
+  // Escopo do documento (todas as revisões): apontamento aberto na R01 continua aparecendo
+  // na R02 — carry-over. `versaoAtual` deixa a UI marcar o que veio de revisão anterior.
+  const pendencias = await pendenciasDoUpload(uploadId, {
+    documentoId: upload.documentoId,
+    versaoAtual: upload.versao,
+  });
 
   // Janela de confirmação da tarefa (só quem valida envia apontamentos).
   const [colunasTarefa, opcoes] = podeValidar
@@ -82,6 +89,14 @@ export default async function VisualizarPage({
       ])
     : [[], null];
   const responsaveisPadrao = upload.disciplina.responsaveis.map((r) => r.userId);
+  // Só mostra o link de comparar quando há de fato outra revisão pra comparar (itens 4/5).
+  const temOutraRevisao = upload.documentoId
+    ? (await prisma.upload.count({ where: { documentoId: upload.documentoId } })) > 1
+    : false;
+  // Candidatas a destino do "replicar apontamento" (item 30) — só quem valida aponta mesmo.
+  const pranchasParaReplicar = podeValidar ? await pranchasVigentesDisciplina(upload.disciplinaId, uploadId) : [];
+  // Escala calibrada por página (item 28) — escopo do documento, então revisão nova herda.
+  const calibracoes = await calibracoesDaPrancha(uploadId, upload.documentoId);
 
   return (
     <PdfViewer
@@ -104,6 +119,10 @@ export default async function VisualizarPage({
       colunasTarefa={colunasTarefa}
       opcoesTarefa={opcoes}
       responsaveisPadrao={responsaveisPadrao}
+      temOutraRevisao={temOutraRevisao}
+      documentoId={upload.documentoId}
+      pranchasParaReplicar={pranchasParaReplicar}
+      calibracoesIniciais={calibracoes}
       paginaInicial={sp.pagina ? Number(sp.pagina) : null}
       pinInicial={sp.pin ? Number(sp.pin) : null}
     />

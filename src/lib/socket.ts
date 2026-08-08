@@ -85,6 +85,29 @@ export function initSocket(server: HttpServer): SocketServer {
       if (typeof canalId === "string") socket.join(`canal:${canalId}`);
     });
 
+    // Presença no visualizador de PDF (item 32) — room por DOCUMENTO, não por versão: duas
+    // pessoas olhando R01 e R02 do mesmo documento estão trabalhando na mesma coisa e devem
+    // se ver. Transiente (entra ao montar o viewer, sai ao desmontar/trocar de página) — ao
+    // contrário dos canais de chat, que o usuário permanece "dentro" pela sessão toda.
+    socket.on("entrar-documento", (documentoId: string) => {
+      if (typeof documentoId !== "string" || !documentoId) return;
+      socket.join(`documento:${documentoId}`);
+      socket.data.documentoAtual = documentoId;
+      socket.to(`documento:${documentoId}`).emit("presenca-documento", {
+        documentoId,
+        userId,
+        nome: socket.data.nome as string,
+        entrou: true,
+      });
+      socket.emit("presenca-documento-inicial", { documentoId, usuarios: quemVeDocumento(documentoId, userId) });
+    });
+    socket.on("sair-documento", (documentoId: string) => {
+      if (typeof documentoId !== "string" || !documentoId) return;
+      socket.leave(`documento:${documentoId}`);
+      if (socket.data.documentoAtual === documentoId) socket.data.documentoAtual = undefined;
+      socket.to(`documento:${documentoId}`).emit("presenca-documento", { documentoId, userId, entrou: false });
+    });
+
     // Cliente (re)montou e pede o snapshot atual de quem está online. Resolve a
     // corrida em que o listener `presenca-inicial` é registrado DEPOIS da conexão
     // (o socket é singleton, criado pelo provider antes do ChatView montar).
@@ -111,6 +134,9 @@ export function initSocket(server: HttpServer): SocketServer {
       } else {
         presenca.set(userId, n);
       }
+      // Fechou a aba sem disparar "sair-documento" explícito — avisa o room mesmo assim.
+      const doc = socket.data.documentoAtual as string | undefined;
+      if (doc) socket.to(`documento:${doc}`).emit("presenca-documento", { documentoId: doc, userId, entrou: false });
     });
   });
 
@@ -171,6 +197,25 @@ export function usuarioOnline(userId: string): boolean {
 /** Emite um evento para todos no room de um canal. */
 export function emitParaCanal(canalId: string, evento: string, payload: unknown) {
   getIoInterno()?.to(`canal:${canalId}`).emit(evento, payload);
+}
+
+/**
+ * Quem mais está com o mesmo documento aberto no viewer agora (item 32), excluindo o próprio
+ * socket que está perguntando. Deduplica por userId (a mesma pessoa pode ter 2 abas abertas).
+ */
+export function quemVeDocumento(documentoId: string, excluirUserId?: string): { userId: string; nome: string }[] {
+  const io = getIoInterno();
+  if (!io) return [];
+  const room = io.sockets.adapter.rooms.get(`documento:${documentoId}`);
+  if (!room) return [];
+  const vistos = new Map<string, string>();
+  for (const socketId of room) {
+    const s = io.sockets.sockets.get(socketId);
+    const uid = s?.data.userId as string | undefined;
+    if (!uid || uid === excluirUserId) continue;
+    vistos.set(uid, (s?.data.nome as string) ?? "—");
+  }
+  return [...vistos.entries()].map(([userId, nome]) => ({ userId, nome }));
 }
 
 /** Emite um evento para um usuário específico (todos os dispositivos). */
