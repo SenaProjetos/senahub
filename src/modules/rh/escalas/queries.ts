@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { INTERNAL_ROLES, type Role } from "@/lib/roles";
+import { type Role } from "@/lib/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 
 export type DiaGrade = {
   diaSemana: number;
@@ -134,7 +135,7 @@ export async function horasDiaPadraoEmLote(
 /** Usuários internos elegíveis a escala (todos os perfis exceto cliente). */
 export async function usuariosParaEscala() {
   return prisma.user.findMany({
-    where: { ativo: true, role: { in: INTERNAL_ROLES } },
+    where: whereAudiencia("interno"),
     orderBy: { name: "asc" },
     select: { id: true, name: true, role: true },
   });

@@ -1,7 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { docSchemaZ, docVazio, type DocSchema } from "@/modules/documentos/schema";
-import { PROJETO_MEMBRO_ROLES, type Role } from "@/lib/roles";
+import { type Role } from "@/lib/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 import type { Prisma } from "@/generated/prisma/client";
 
 export type Viewer = { id: string; role: Role };
@@ -123,7 +124,7 @@ export async function opcoesParametros() {
       take: 100,
     }),
     prisma.user.findMany({
-      where: { ativo: true, role: { in: PROJETO_MEMBRO_ROLES } },
+      where: whereAudiencia("projeto_membro"),
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),

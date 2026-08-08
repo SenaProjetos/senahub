@@ -5,6 +5,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { GLOBAL_ROLES, type Role } from "@/lib/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 import { proximoCodigoProjeto, formatarCodigo } from "@/modules/projetos/numbering";
 import { ensureCanaisProjeto } from "@/modules/chat/service";
 import { notificarNovosMembros } from "@/lib/socket";
@@ -236,7 +237,7 @@ export const atualizarStatusDisciplina = defineAction(
     if (input.status === "entregue") {
       // Avisa gestores/supervisores que há uma entrega aguardando validação.
       const validadores = await prisma.user.findMany({
-        where: { ativo: true, role: { in: ["admin", "supervisor", "administrativo"] } },
+        where: whereAudiencia("gestao_operacional"),
         select: { id: true },
       });
       await notificarMuitos(

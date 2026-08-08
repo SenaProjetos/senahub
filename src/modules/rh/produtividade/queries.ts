@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { PROJETO_MEMBRO_ROLES } from "@/lib/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 
 /**
  * Item 7 — Produtividade por projetista (semanal/mensal).
@@ -92,7 +92,7 @@ export async function produtividadeProjetistas(
   const periodosValidos = new Set(periodos);
 
   const projetistas = await prisma.user.findMany({
-    where: { ativo: true, role: { in: PROJETO_MEMBRO_ROLES } },
+    where: whereAudiencia("projeto_membro"),
     select: { id: true, name: true, role: true },
     orderBy: { name: "asc" },
   });

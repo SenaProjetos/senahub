@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { GLOBAL_ROLES } from "@/lib/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 import { enviarPush } from "@/lib/push";
 
 export async function notificar(input: {
@@ -25,7 +25,7 @@ export async function notificarAdmins(input: {
   href?: string;
 }): Promise<void> {
   const admins = await prisma.user.findMany({
-    where: { role: { in: GLOBAL_ROLES }, ativo: true },
+    where: whereAudiencia("global"),
     select: { id: true },
   });
   if (admins.length === 0) return;

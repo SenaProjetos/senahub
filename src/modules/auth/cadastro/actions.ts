@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { notificarMuitos } from "@/lib/notificar";
-import { HR_ADMIN_ROLES, SOLICITACAO_CADASTRO_ROLES, ROLE_LABELS, type Role } from "@/lib/roles";
+import { SOLICITACAO_CADASTRO_ROLES, ROLE_LABELS, type Role } from "@/lib/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 
 const publicSchema = z.object({
   nome: z.string().min(1, "Informe o nome."),
@@ -39,7 +40,7 @@ export async function solicitarCadastro(raw: unknown): Promise<{ ok: true } | { 
   // pode derrubar o envio público — o pedido já foi gravado.
   try {
     const gestores = await prisma.user.findMany({
-      where: { ativo: true, role: { in: HR_ADMIN_ROLES } },
+      where: whereAudiencia("rh_admin"),
       select: { id: true },
     });
     await notificarMuitos(

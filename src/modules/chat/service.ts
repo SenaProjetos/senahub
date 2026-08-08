@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { CHAT_ROLES, ROLES_GLOBAIS_CHAT } from "@/modules/chat/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 
 /** Par (canal, usuário) de um vínculo de membro recém-criado — para join ao vivo no socket. */
 export type NovoMembroCanal = { canalId: string; userId: string };
@@ -87,7 +87,7 @@ export async function ensureCanalGeral() {
     canal = await prisma.canal.create({ data: { tipo: "geral", nome: "#geral" } });
   }
   const internos = await prisma.user.findMany({
-    where: { ativo: true, role: { in: CHAT_ROLES as never } },
+    where: whereAudiencia("chat_participante"),
     select: { id: true },
   });
   await syncMembros(canal.id, internos.map((u) => u.id));
@@ -111,7 +111,7 @@ export async function ensureCanaisProjeto(projetoId: string): Promise<NovoMembro
   if (!projeto) return [];
 
   const globais = (
-    await prisma.user.findMany({ where: { role: { in: ROLES_GLOBAIS_CHAT as never }, ativo: true }, select: { id: true } })
+    await prisma.user.findMany({ where: whereAudiencia("chat_global"), select: { id: true } })
   ).map((u) => u.id);
 
   const adicionados: NovoMembroCanal[] = [];

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificarMuitos } from "@/lib/notificar";
+import { whereAudiencia } from "@/lib/audiencias";
 import { smtpConfigurado } from "@/lib/mail";
 import { enviarEmailTemplate } from "@/lib/email-templates";
 import { proximoCodigoProjeto } from "@/modules/projetos/numbering";
@@ -585,7 +586,7 @@ export const aceitarProposta = defineAction(
     notificarNovosMembros(await ensureCanaisProjeto(projeto.id));
 
     const gestores = await prisma.user.findMany({
-      where: { ativo: true, role: { in: ["admin", "supervisor", "administrativo"] } },
+      where: whereAudiencia("gestao_operacional"),
       select: { id: true },
     });
     await notificarMuitos(

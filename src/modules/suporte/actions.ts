@@ -5,6 +5,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { HR_ADMIN_ROLES } from "@/lib/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 import { notificar, notificarMuitos } from "@/lib/notificar";
 
 const rev = () => revalidatePath("/suporte");
@@ -61,7 +62,7 @@ export const abrirTicket = defineAction(
       });
     }
     const gestores = await prisma.user.findMany({
-      where: { ativo: true, role: { in: ["admin", "supervisor"] } },
+      where: whereAudiencia("global"),
       select: { id: true },
     });
     await notificarMuitos(

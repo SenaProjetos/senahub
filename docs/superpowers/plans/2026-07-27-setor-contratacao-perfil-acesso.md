@@ -875,6 +875,44 @@ Consequência prática: **o primeiro entregável da Onda D é esse harness, não
 silenciosa (aprovação que deixa de notificar, digest vazio, alerta de certidão que some) — nenhum
 teste de célula de permissão a detecta, e nenhum erro aparece em log.
 
+### 15.1.1 Harness de audiência — implementado em 2026-08-08
+
+`src/lib/audiencias.ts` (registro + `whereAudiencia()`), `src/lib/equivalencia-audiencia.ts`
+(comparador puro, testado), `scripts/snapshot-audiencia.ts` e
+`scripts/checar-equivalencia-audiencia.ts`.
+
+**A decisão de desenho que dá valor ao verde:** o registro **não repete** os filtros espalhados
+pelo código — os ~34 call-sites foram trocados para consumir `whereAudiencia("chave")`, de modo
+que existe UMA definição, usada pelo call-site e pelo arnês. Um registro que apenas espelhasse os
+`where` divergiria do código que deveria certificar, e o gate ficaria verde justamente quando
+mentisse. Filtros que não são de papel (`id: { not: ... }`, `email: { not: "" }`,
+`recurso: null`, `vinculos: { none: {} }`) continuam no call-site.
+
+**Critério invertido em relação ao gate de permissão, de propósito:** lá, perda é warning
+(conserta-se com override, a pessoa reclama no mesmo dia). Aqui **qualquer diferença é falha
+dura** — quem saiu deixa de ser notificado em silêncio e a notificação perdida não volta; quem
+entrou já leu o que não devia. Está escrito no cabeçalho dos dois arquivos, porque alguém vai
+lê-los lado a lado e estranhar.
+
+**Contagem real: 11 audiências de papel constante + 3 parametrizadas**, não as "36" do §3 — o
+número velho contava *sites*, não conjuntos distintos, e incluía `escalaRole.findMany`
+(`escalas/queries.ts`), que é `EscalaRole`, um dos 4 campos de "Role como dado" do R6, não uma
+audiência de pessoas. As 11: `global`, `rh_admin`, `gestao_operacional`, `clt`, `interno`,
+`projeto_membro`, `pj`, `chat_participante`, `chat_global`, `chat_dm`, `planejamento_recurso`.
+`rh_admin` e `gestao_operacional` têm hoje o MESMO conjunto de papéis e chaves separadas de
+propósito: a intenção difere (RH × operação do escritório) e na Onda D provavelmente viram
+permissões diferentes — fundi-las agora perderia a distinção de forma irreversível.
+
+As 3 parametrizadas não têm conjunto estático e ficam registradas como tal, em vez de ganharem um
+palpite: `jobs:gestores(roles)` (fotografada com os 2 argumentos reais das chamadas),
+`financeiro:aprovadoresPorPapeis(papeis)` (papéis vêm da configuração de alçada no banco) e
+`avisos:alvoRoles` (papéis são dado por linha em `Aviso.alvoRoles` — R6, não audiência de código).
+
+Verificado nos dois sentidos contra o banco de dev: caminho verde (snapshot × foto de agora → 0
+diferenças, exit 0) e caminho vermelho (snapshot adulterado → acusa quem saiu da audiência e a
+mudança de menu, exit 1). 11 audiências resolvidas, nenhuma vazia, 10 usuários ativos com menu
+fotografado. lint limpo, 1805 testes, build ok.
+
 ### 15.2 Escopo do codemod é menor do que a contagem sugere
 
 `grep "can("` em `src/` dá 157 ocorrências em 108 arquivos (o plano dizia 119). A maioria é gate de

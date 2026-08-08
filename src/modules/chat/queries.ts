@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { DM_ROLES_EXCLUIDAS } from "@/modules/chat/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 
 export type ReacaoAgregada = {
   emoji: string;
@@ -416,7 +416,7 @@ export async function membrosCanal(canalId: string) {
 /** Usuários para abrir DM (internos, exceto o próprio e clientes/freelancers). */
 export async function usuariosParaDM(userId: string) {
   return prisma.user.findMany({
-    where: { ativo: true, id: { not: userId }, role: { notIn: DM_ROLES_EXCLUIDAS as never } },
+    where: { ...whereAudiencia("chat_dm"), id: { not: userId } },
     select: { id: true, name: true, role: true, chatStatus: true },
     orderBy: { name: "asc" },
   });

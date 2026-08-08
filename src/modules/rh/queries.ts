@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { CLT_ROLES } from "@/lib/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 
 export async function minhasSolicitacoes(userId: string) {
   const [abonos, ferias] = await Promise.all([
@@ -60,7 +60,7 @@ export async function feriasAprovadasVigentes() {
  */
 export async function colaboradoresComDireitoFerias() {
   return prisma.user.findMany({
-    where: { ativo: true, role: { in: CLT_ROLES as never } },
+    where: whereAudiencia("clt"),
     orderBy: { name: "asc" },
     select: { id: true, name: true },
   });

@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { whereAudiencia } from "@/lib/audiencias";
 
 /** Tudo que a tela principal de certidões precisa, num só carregamento (poucas dezenas de linhas). */
 export async function dadosDaTela() {
@@ -14,7 +15,7 @@ export async function dadosDaTela() {
     }),
     prisma.certidaoTipo.findMany({ orderBy: { nome: "asc" } }),
     prisma.user.findMany({
-      where: { ativo: true, role: { in: ["admin", "supervisor", "administrativo"] } },
+      where: whereAudiencia("gestao_operacional"),
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),

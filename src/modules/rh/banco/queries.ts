@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { CLT_ROLES, type Role } from "@/lib/roles";
+import { type Role } from "@/lib/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 import { gradesEmLote } from "@/modules/rh/escalas/queries";
 import { feriadosParaCalculo } from "@/modules/rh/feriados/queries";
 import { CONTRATACOES_JORNADA, contextoApuracaoEmLote } from "@/modules/ponto/apuracao";
@@ -40,7 +41,7 @@ export async function usuariosComJornadaNoMes(
             },
           },
         },
-        { vinculos: { none: {} }, ativo: true, role: { in: CLT_ROLES } },
+        { vinculos: { none: {} }, ...whereAudiencia("clt") },
       ],
     },
     orderBy: { name: "asc" },

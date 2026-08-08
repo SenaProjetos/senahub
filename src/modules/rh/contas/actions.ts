@@ -6,6 +6,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificar, notificarMuitos } from "@/lib/notificar";
 import { HR_ADMIN_ROLES } from "@/lib/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 import { normalizarConta, definirContaPrincipal, garantirPrincipal } from "./service";
 import { criarContaSchema, editarContaSchema, contaIdSchema, TIPOS_CONTA } from "./schemas";
 import { lerContaPendente, gravarContaPendente } from "./pendencia";
@@ -168,7 +169,7 @@ export const proporContaBancaria = defineAction(
     }
 
     const gestores = await prisma.user.findMany({
-      where: { ativo: true, role: { in: HR_ADMIN_ROLES } },
+      where: whereAudiencia("rh_admin"),
       select: { id: true },
     });
     await notificarMuitos(

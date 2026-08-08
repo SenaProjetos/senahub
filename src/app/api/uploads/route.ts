@@ -3,6 +3,7 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { GLOBAL_ROLES } from "@/lib/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 import { podeEnviarArquivo } from "@/modules/arquivos/acesso";
 import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -193,7 +194,7 @@ export async function POST(req: Request) {
     const novos = rs.filter((r) => r.ok && (r.pacote === "A" || r.pacote === "B")).length;
     if (novos <= 0) return;
     const validadores = await prisma.user.findMany({
-      where: { ativo: true, role: { in: ["admin", "supervisor"] }, id: { not: user.id } },
+      where: { ...whereAudiencia("global"), id: { not: user.id } },
       select: { id: true },
     });
     if (validadores.length === 0) return;

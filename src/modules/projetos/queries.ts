@@ -1,7 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
-import { INTERNAL_ROLES, acessoGlobal, type Role } from "@/lib/roles";
+import { acessoGlobal, type Role } from "@/lib/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 import { CATEGORIA_TERCEIRIZADO } from "@/modules/financeiro/custo/lancamento-custo";
 import { calcularRateioDetalhado } from "@/modules/rh/rateio/queries";
 import { normalizar } from "@/lib/disciplinas-core";
@@ -254,7 +255,7 @@ export async function disciplinasForaDeSLA(viewer: Viewer) {
 /** Usuários elegíveis como membros/responsáveis de projeto (todos exceto cliente). */
 export async function usuariosInternos() {
   return prisma.user.findMany({
-    where: { ativo: true, role: { in: INTERNAL_ROLES } },
+    where: whereAudiencia("interno"),
     select: { id: true, name: true, role: true, cargo: true },
     orderBy: { name: "asc" },
   });

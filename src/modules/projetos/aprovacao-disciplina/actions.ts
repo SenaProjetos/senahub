@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { GLOBAL_ROLES } from "@/lib/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
@@ -79,7 +80,7 @@ export const solicitarAprovacaoDisciplina = defineAction(
     const href = `/projetos/${disciplina.projeto.id}`;
     const codigo = formatarCodigo(disciplina.projeto.codigo);
     const gestores = await prisma.user.findMany({
-      where: { ativo: true, role: { in: GLOBAL_ROLES } },
+      where: whereAudiencia("global"),
       select: { id: true },
     });
     await notificarMuitos(

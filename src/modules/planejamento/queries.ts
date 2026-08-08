@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { acessoGlobal, type Role } from "@/lib/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { progressoDoStatus } from "@/modules/projetos/status";
 import { minutosSessao } from "@/modules/ponto/format";
@@ -280,7 +281,7 @@ export async function matrizRecursos() {
       select: { id: true, codigo: true, nome: true },
     }),
     prisma.user.findMany({
-      where: { ativo: true, role: { notIn: ["cliente", "freelancer"] }, recurso: null },
+      where: { ...whereAudiencia("planejamento_recurso"), recurso: null },
       select: { id: true, name: true, role: true },
       orderBy: { name: "asc" },
     }),

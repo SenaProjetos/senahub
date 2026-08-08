@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { salvarArquivo, slug, nomeArquivoLimpo } from "@/lib/storage";
 import { notificarMuitos } from "@/lib/notificar";
-import { HR_ADMIN_ROLES, PJ_ROLES } from "@/lib/roles";
+import { PJ_ROLES } from "@/lib/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 
 const MAX = 25 * 1024 * 1024;
 
@@ -41,7 +42,7 @@ export async function POST(req: Request) {
   });
 
   const gestores = await prisma.user.findMany({
-    where: { ativo: true, role: { in: HR_ADMIN_ROLES as never } },
+    where: whereAudiencia("rh_admin"),
     select: { id: true },
   });
   await notificarMuitos(

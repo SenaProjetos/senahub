@@ -9,6 +9,7 @@ import { removerArquivo } from "@/lib/storage";
 import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { GLOBAL_ROLES, type Role } from "@/lib/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 import { statusValidacao } from "@/modules/uploads/validacao";
 import { chaveDocumento } from "@/modules/uploads/documento";
 import { liberarPagamentosProjetista } from "@/modules/uploads/pagamento";
@@ -125,7 +126,7 @@ export const validarEntrega = defineAction(
       const avisar = [
         ...disciplina.responsaveis.map((r) => r.userId),
         ...(await prisma.user.findMany({
-          where: { ativo: true, role: { in: ["admin", "supervisor", "administrativo"] } },
+          where: whereAudiencia("gestao_operacional"),
           select: { id: true },
         })).map((g) => g.id),
       ];
@@ -179,7 +180,7 @@ export const validarEntrega = defineAction(
     }
 
     const gestores = await prisma.user.findMany({
-      where: { ativo: true, role: { in: ["admin", "supervisor", "administrativo"] } },
+      where: whereAudiencia("gestao_operacional"),
       select: { id: true },
     });
     await notificarMuitos(

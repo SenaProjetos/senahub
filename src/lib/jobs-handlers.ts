@@ -12,7 +12,7 @@ import { slugAlertaPonto } from "@/lib/email-templates-meta";
 import { gravarSnapshotQualidade } from "@/modules/qualidade/queries";
 import { gravarSnapshotDashboard } from "@/modules/dashboard/queries";
 import { gravarSnapshotLicitacaoMensal } from "@/modules/licitacoes/dashboard/queries";
-import { CLT_ROLES } from "@/lib/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
   agruparPorDestinatario,
@@ -378,7 +378,7 @@ export async function lembretePontoNaoBatido(): Promise<number> {
   const hojeISO = diaLocal(agora);
   if (await ehFeriado(hojeISO)) return 0; // feriado → dia não útil
   const clts = await prisma.user.findMany({
-    where: { ativo: true, role: { in: CLT_ROLES } },
+    where: whereAudiencia("clt"),
     select: { id: true, role: true },
   });
   let n = 0;
@@ -445,7 +445,7 @@ export async function alertasPontoTick(): Promise<number> {
   if (await ehFeriado(diaLocal(agora))) return 0; // feriado → sem alerta de ponto
 
   const usuarios = await prisma.user.findMany({
-    where: { ativo: true, role: { in: CLT_ROLES } },
+    where: whereAudiencia("clt"),
     select: { id: true, role: true, name: true, email: true },
   });
   if (usuarios.length === 0) return 0;
@@ -516,7 +516,7 @@ export async function resumoPontoEmailDiario(): Promise<number> {
   const hoje = diaLocalDate(new Date());
 
   const usuarios = await prisma.user.findMany({
-    where: { ativo: true, role: { in: CLT_ROLES }, email: { not: "" } },
+    where: { ...whereAudiencia("clt"), email: { not: "" } },
     select: { id: true, email: true },
   });
   const modos = await emailModosPorUsuario(usuarios.map((u) => u.id));
@@ -853,7 +853,7 @@ export async function resumoSemanal(): Promise<void> {
 
   if (smtpConfigurado()) {
     const admins = await prisma.user.findMany({
-      where: { ativo: true, role: { in: ["admin", "supervisor"] } },
+      where: whereAudiencia("global"),
       select: { email: true },
     });
     for (const a of admins) {

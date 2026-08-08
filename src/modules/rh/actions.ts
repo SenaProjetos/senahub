@@ -6,6 +6,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificar } from "@/lib/notificar";
 import { HR_ADMIN_ROLES, INTERNAL_ROLES, CLT_ROLES } from "@/lib/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 import { formatarData } from "@/lib/utils";
 import { validarInicioFeriasClt } from "@/lib/ferias-clt";
 import { listarFeriados } from "@/modules/rh/feriados/queries";
@@ -406,7 +407,7 @@ async function garantirInicioFeriasClt(role: string, inicioISO: string) {
 
 async function notificarGestores(titulo: string, corpo: string, href: string) {
   const gestores = await prisma.user.findMany({
-    where: { ativo: true, role: { in: HR_ADMIN_ROLES as never } },
+    where: whereAudiencia("rh_admin"),
     select: { id: true },
   });
   await Promise.all(gestores.map((g) => notificar(g.id, { titulo, corpo, href })));

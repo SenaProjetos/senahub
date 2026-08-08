@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { PJ_ROLES } from "@/lib/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 
 export type PessoaJuridicaItem = {
   id: string;
@@ -34,7 +34,7 @@ export async function listarPessoasJuridicas(): Promise<PessoaJuridicaItem[]> {
 /** Projetistas PJ/freelancer ativos — candidatos a vincular a uma PJ (com o vínculo atual). */
 export async function projetistasParaPJ() {
   const users = await prisma.user.findMany({
-    where: { ativo: true, role: { in: PJ_ROLES } },
+    where: whereAudiencia("pj"),
     orderBy: { name: "asc" },
     select: { id: true, name: true, role: true, pjId: true },
   });

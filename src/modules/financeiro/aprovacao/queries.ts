@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@/lib/roles";
+import { whereAudiencia } from "@/lib/audiencias";
 import type { FaixaAlcada } from "@/modules/financeiro/aprovacao/niveis";
 
 export const CHAVE_LIMITE_APROVACAO = "financeiro.limiteAprovacao";
@@ -44,7 +45,7 @@ export async function limiteAprovacao(): Promise<number> {
 /** Usuários que podem aprovar (admin/supervisor) — destinatários das notificações. */
 export async function aprovadores(): Promise<string[]> {
   const us = await prisma.user.findMany({
-    where: { ativo: true, role: { in: ["admin", "supervisor"] } },
+    where: whereAudiencia("global"),
     select: { id: true },
   });
   return us.map((u) => u.id);
