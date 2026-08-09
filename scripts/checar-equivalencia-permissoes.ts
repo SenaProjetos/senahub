@@ -29,7 +29,7 @@ import { prisma } from "../src/lib/prisma";
 import { permissaoEfetiva } from "../src/lib/permissao-efetiva";
 import { compararPermissoes, type CelulaPermissao } from "../src/lib/equivalencia-permissoes";
 import { ehLeitura } from "../src/lib/permissions-catalog";
-import { excecaoDe, excecoesObsoletas } from "../src/lib/allowlist-equivalencia";
+import { excecaoDe, excecoesObsoletas, mensagemFinalDoGate } from "../src/lib/allowlist-equivalencia";
 import { gerarSnapshotLegado, hashUserId } from "./snapshot-permissoes";
 
 async function gerarMatrizPerfil(antes: CelulaPermissao[]): Promise<CelulaPermissao[]> {
@@ -65,22 +65,28 @@ async function main() {
   const { ganhos, perdas } = compararPermissoes(antes, depois);
 
   const anonimizar = (d: (typeof ganhos)[number]) => ({ ...d, userId: hashUserId(d.userId) });
+  // Identificacao CONSISTENTE nos tres blocos: id real (para o operador achar a pessoa) mais o
+  // hash (que e a chave da allowlist e do relatorio). Antes, perdas saiam com cuid e ganhos com
+  // hash — a mesma pessoa em duas representacoes, impossivel de correlacionar a olho.
+  const ident = (userId: string) => `${userId} (hash ${hashUserId(userId)})`;
 
   // Ganho coberto por exceção versionada continua sendo IMPRESSO — só não bloqueia. Exceção
   // silenciosa não serve para nada: o objetivo da allowlist é registrar a mudança intencional,
   // não fazer o gate calar.
-  const ganhosHash = ganhos.map(anonimizar);
-  const aceitos = ganhosHash.filter((g) => excecaoDe(g) !== undefined);
-  const bloqueantes = ganhosHash.filter((g) => excecaoDe(g) === undefined);
+  // A busca na allowlist usa o HASH (é a chave versionada), mas as listas ficam com o id REAL —
+  // só o relatório em disco anonimiza. Assim os três blocos do console falam a mesma língua.
+  const excecaoDoGanho = (g: (typeof ganhos)[number]) => excecaoDe({ ...g, userId: hashUserId(g.userId) });
+  const aceitos = ganhos.filter((g) => excecaoDoGanho(g) !== undefined);
+  const bloqueantes = ganhos.filter((g) => excecaoDoGanho(g) === undefined);
   const usuariosPresentes = new Set(antes.map((c) => hashUserId(c.userId)));
-  const obsoletas = excecoesObsoletas(ganhosHash, usuariosPresentes);
+  const obsoletas = excecoesObsoletas(ganhos.map(anonimizar), usuariosPresentes);
 
   const relatorio = {
     geradoEm: new Date().toISOString(),
     totalCelulas: antes.length,
     totalUsuarios: new Set(antes.map((c) => c.userId)).size,
-    ganhos: bloqueantes,
-    ganhosAceitos: aceitos.map((g) => ({ ...g, excecao: excecaoDe(g) })),
+    ganhos: bloqueantes.map(anonimizar),
+    ganhosAceitos: aceitos.map((g) => ({ ...anonimizar(g), excecao: excecaoDoGanho(g) })),
     excecoesObsoletas: obsoletas,
     perdas: perdas.map(anonimizar),
   };
@@ -117,7 +123,7 @@ async function main() {
     // adivinhado: lista o que perdeu e deixa a leitura para quem sabe o que mudou.
     console.warn(`\n⚠ ${perdas.length} perda(s) de acesso — NÃO bloqueia, mas confira se é intencional:`);
     for (const p of perdas.slice(0, 20)) {
-      console.warn(`  - [${p.role}] ${p.userId}: ${p.recurso}:${p.acao} (via ${p.via ?? "requirePermission"})`);
+      console.warn(`  - [${p.role}] ${ident(p.userId)}: ${p.recurso}:${p.acao} (via ${p.via ?? "requirePermission"})`);
     }
     if (perdas.length > 20) console.warn(`  ... e mais ${perdas.length - 20}.`);
   }
@@ -125,8 +131,8 @@ async function main() {
   if (aceitos.length > 0) {
     console.log(`\n● ${aceitos.length} ganho(s) COBERTO(S) por allowlist versionada — não bloqueiam:`);
     for (const g of aceitos) {
-      const e = excecaoDe(g)!;
-      console.log(`  - [${g.role}] ${g.userId}: ${g.recurso}:${g.acao} (via ${g.via}) — ${e.aprovadoPor}, ${e.aprovadoEm}`);
+      const e = excecaoDoGanho(g)!;
+      console.log(`  - [${g.role}] ${ident(g.userId)}: ${g.recurso}:${g.acao} (via ${g.via}) — ${e.aprovadoPor}, ${e.aprovadoEm}`);
     }
   }
 
@@ -140,7 +146,7 @@ async function main() {
     console.error(`\n✖ ${ganhos.length} GANHO(S) DE ACESSO DETECTADO(S) — bloqueante:`);
     for (const g of ganhos.slice(0, 20)) {
       console.error(
-        `  - [${g.role}] ${g.userId}: ${g.recurso}:${g.acao} passou de negado para permitido (via ${g.via ?? "requirePermission"})`,
+        `  - [${g.role}] ${ident(g.userId)}: ${g.recurso}:${g.acao} passou de negado para permitido (via ${g.via ?? "requirePermission"})`,
       );
     }
     if (ganhos.length > 20) console.error(`  ... e mais ${ganhos.length - 20}.`);
@@ -168,7 +174,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log("\n✔ Zero ganhos de acesso. Equivalência preservada.");
+  console.log(`\n${mensagemFinalDoGate(aceitos.length, bloqueantes.length)}`);
   await prisma.$disconnect();
 }
 

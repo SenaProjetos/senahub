@@ -1173,6 +1173,47 @@ Desenho, e cada item é uma forma de allowlist não virar a porta dos fundos do 
 O identificador é o **hash** do userId (o mesmo do relatório em `logs/`), então a allowlist é
 versionável sem carregar identificador direto de pessoa no repositório.
 
+### 15.13 A mesma falha três vezes, e o que finalmente a parou — 2026-08-09
+
+Rodando a allowlist em produção, a linha final do gate saiu como
+`✔ Zero ganhos de acesso. Equivalência preservada.` — **três linhas depois de listar 5 ganhos
+aceitos**. Terceira ocorrência do mesmo defeito no mesmo arquivo:
+
+1. o rodapé que afirmava "isso é ganho de ESCRITA" contra uma lista só de leitura;
+2. o aviso de perdas que atribuía a causa a "antes da Onda B semear perfis reais";
+3. esta.
+
+E a terceira é a pior, porque eu **afirmei a saída esperada sem ter executado aquele caminho**: o
+`sed` que trocaria o texto não casou, e no dev não existe exceção aplicável, então o ramo com
+`aceitos > 0` nunca rodou aqui. Um teste teria pego; a leitura do diff não pegou.
+
+**Correção estrutural, não pontual:** a lógica virou `mensagemFinalDoGate(qtdAceitos,
+qtdBloqueantes)`, função **pura**, em `lib/allowlist-equivalencia.ts`, com teste para os três
+casos — inclusive o de "houve ganho aceito", que é justamente o que não rodava. A regra que sai
+disso, e que vale para qualquer gate deste repositório: **texto de gate que depende de estado não
+pode ser literal solto num `console.log`; é função pura e testada.**
+
+Corrigida junto a identificação inconsistente: perdas saíam com o cuid completo e ganhos com o
+hash — a mesma pessoa em duas representações, impossível de correlacionar a olho. Agora os três
+blocos imprimem `id (hash …)`, com o hash sendo a chave da allowlist e do relatório.
+
+### 15.14 O sócio nunca usou nenhuma das 7 escritas — verificado no AuditLog
+
+Conferido em produção antes de confirmar o corte: **9 registros no total** para essa pessoa
+(4 logins, 1 troca de senha, 1 aceite de termo, 1 avatar, 1 documento de cliente, 1 download de
+arquivo). **Zero ocorrências** de `uploads:validar-*`, `projetos:*`, planejamento, coordenação,
+recursos, ferramentas ou custos. Não é ausência por nome errado de ação: as mesmas ações aparecem
+fartamente para outras pessoas na mesma base (239 `uploads:validar-arquivo`, 101
+`projetos:atualizar-status-disciplina`).
+
+**Ressalva que limita a força disso:** o `AuditLog` inteiro começa em 2026-07-01 — são ~5 semanas,
+não 6 meses. Mas a conta foi criada em 2026-07-03, então a trilha cobre praticamente toda a vida
+dela no sistema novo. O que a trilha **não** cobre é o sistema antigo: se essa pessoa validava
+entregas lá antes da migração, a ausência aqui reflete pouco tempo de uso, não a função dela.
+
+Conclusão operacional: **o corte das 7 pode seguir sem aviso prévio**, salvo se o dono souber que
+a função dela no sistema antigo incluía validação.
+
 ### 15.6 Higiene de branch (R8)
 
 Estado em 2026-08-08: `feat/cadastro-colaborador` está 13 commits à frente de `dev`, 1 atrás, com 56

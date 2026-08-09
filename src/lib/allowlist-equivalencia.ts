@@ -64,6 +64,21 @@ export const ALLOWLIST_EQUIVALENCIA: ExcecaoEquivalencia[] = [
 
 type ChaveGanho = { userId: string; recurso: string; acao: string; via?: ViaAutorizacao };
 
+/**
+ * A linha final do gate. É PURA e testada de propósito: a versão anterior era um `console.log`
+ * fixo que dizia "Zero ganhos de acesso. Equivalência preservada." três linhas depois de listar
+ * 5 ganhos aceitos — a terceira ocorrência seguida da mesma falha (mensagem que AFIRMA em vez de
+ * REPORTAR), e a única que passou porque o caminho com exceções nunca rodava no dev, onde não há
+ * exceção aplicável. Sendo função pura, o teste cobre os três casos sem precisar de banco.
+ */
+export function mensagemFinalDoGate(qtdAceitos: number, qtdBloqueantes: number): string {
+  if (qtdBloqueantes > 0) return `✖ ${qtdBloqueantes} ganho(s) de acesso NÃO aprovado(s).`;
+  if (qtdAceitos > 0) {
+    return `✔ Nenhum ganho não aprovado. ${qtdAceitos} exceção(ões) versionada(s) em vigor — ver acima.`;
+  }
+  return "✔ Zero ganhos de acesso. Equivalência preservada.";
+}
+
 function chave(e: { userIdHash?: string; userId?: string; recurso: string; acao: string; via?: ViaAutorizacao }): string {
   return `${e.userIdHash ?? e.userId}::${e.recurso}:${e.acao}::${e.via ?? "requirePermission"}`;
 }

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { ALLOWLIST_EQUIVALENCIA, excecaoDe, excecoesObsoletas } from "@/lib/allowlist-equivalencia";
+import {
+  ALLOWLIST_EQUIVALENCIA,
+  excecaoDe,
+  excecoesObsoletas,
+  mensagemFinalDoGate,
+} from "@/lib/allowlist-equivalencia";
 import { ehLeitura } from "@/lib/permissions-catalog";
 
 const ALVO = { userId: "de4d7b2489d1", recurso: "qualidade", acao: "ver", via: "defineAction" as const };
@@ -44,6 +49,27 @@ describe("allowlist de equivalência", () => {
       expect(e.aprovadoPor.length, id).toBeGreaterThan(0);
       expect(e.aprovadoEm, id).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     }
+  });
+
+  // Este bloco existe porque a linha final do gate JÁ MENTIU em produção: era um texto fixo
+  // dizendo "Zero ganhos de acesso. Equivalência preservada." impresso três linhas depois de
+  // listar 5 ganhos aceitos. Passou despercebido porque o caminho com exceções nunca rodava no
+  // dev, onde não há exceção aplicável — por isso a lógica virou função pura e testada.
+  describe("mensagemFinalDoGate", () => {
+    it("não diz 'zero ganhos' quando houve ganho coberto por exceção", () => {
+      const m = mensagemFinalDoGate(5, 0);
+      expect(m).toContain("5 exceção(ões)");
+      expect(m).not.toContain("Zero ganhos");
+    });
+
+    it("diz 'zero ganhos' só quando não houve ganho nenhum", () => {
+      expect(mensagemFinalDoGate(0, 0)).toBe("✔ Zero ganhos de acesso. Equivalência preservada.");
+    });
+
+    it("bloqueante vence a exceção na mensagem", () => {
+      expect(mensagemFinalDoGate(5, 2)).toContain("✖");
+      expect(mensagemFinalDoGate(0, 2)).toContain("2 ganho(s) de acesso NÃO aprovado(s)");
+    });
   });
 
   it("não há exceção duplicada", () => {
