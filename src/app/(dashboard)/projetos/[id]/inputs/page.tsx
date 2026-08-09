@@ -22,7 +22,7 @@ export default async function ProjetoInputsPage({ params }: { params: Promise<{ 
   if (!projeto) notFound();
 
   const [podeGerir, projetoCompleto, inputs, link, progresso, briefing] = await Promise.all([
-    can(user.role, "projetos", "gerir"),
+    can(user, "projetos", "gerir"),
     obterProjeto(user, id),
     listarInputs(id),
     linkInput(id),

@@ -31,20 +31,20 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
   const ehGlobal = user.role === "admin" || GLOBAL_ROLES.includes(user.role);
   const [veTodas, podeEnviarCap] = await Promise.all([
     podeVerTodasDisciplinas(user),
-    podeEnviarArquivo(user.role),
+    podeEnviarArquivo(user),
   ]);
   const [arvore, podeVerGeral, podeGerirGeral, podeValidar, nomenclatura, recebidos, baseArquitetonica, clienteId, podeGerirRecebidos, podeGerirLink, linkPublico, clienteEmail] =
     await Promise.all([
       arvoreArquivosProjeto(id, user.id, ehGlobal, { veTodas, podeEnviarCap }),
-      can(user.role, "arquivos_gerais", "ver"),
-      can(user.role, "arquivos_gerais", "gerir"),
-      can(user.role, "uploads", "validar"),
+      can(user, "arquivos_gerais", "ver"),
+      can(user, "arquivos_gerais", "gerir"),
+      can(user, "uploads", "validar"),
       resolverNomenclatura(id),
       recebidosDoProjeto(id, { incluirCompartilhadosDoGeral: true }),
       baseArquitetonicaDoProjeto(id),
       clienteDoProjeto(id),
       podeGerirDocumento(user, { projetoId: id }),
-      can(user.role, "projetos", "gerir"),
+      can(user, "projetos", "gerir"),
       linkArquivosDoProjeto(id),
       emailClienteDoProjeto(id),
     ]);

@@ -20,7 +20,7 @@ export default async function PlanejamentoProjetoPage({
 
   const [{ tarefas, disciplinas, temLinhaBase }, podeGerir, planoReal] = await Promise.all([
     eapDoProjeto(projetoId),
-    can(user.role, "planejamento", "gerir"),
+    can(user, "planejamento", "gerir"),
     planoVsRealProjeto(projetoId),
   ]);
 

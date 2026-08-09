@@ -15,7 +15,7 @@
 /**
  * Qual dos DOIS caminhos de autorização a célula mede. Eles não são equivalentes hoje:
  *   - `requirePermission` (`session.ts`) aplica o piso de sócio: `can(role) || (ehSocio && can("supervisor"))`
- *   - `defineAction` (`with-action.ts`) chama `can(user.role, ...)` e **não** aplica o piso
+ *   - `defineAction` (`with-action.ts`) chama `can(user, ...)` e **não** aplica o piso
  * Ou seja: um sócio não-admin hoje passa em páginas que o coordenador vê, mas NÃO nas Server
  * Actions correspondentes. `permissaoEfetiva` não tem essa divisão (o piso virou override
  * individual, que vale em qualquer checagem), então medir só a fórmula de `requirePermission`

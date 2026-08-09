@@ -11,7 +11,7 @@ export default async function RecursosPage() {
   const user = await requirePermission("recursos", "ver");
   const [{ linhas, projetos, usuariosSemRecurso }, podeGerir, catalogoHabilidades, cargaSemanal] = await Promise.all([
     matrizRecursos(),
-    can(user.role, "recursos", "gerir"),
+    can(user, "recursos", "gerir"),
     listarHabilidades(),
     cargaSemanalPorRecurso(12),
   ]);

@@ -10,10 +10,10 @@ export const metadata: Metadata = { title: "Documentos" };
 
 export default async function DocumentosPage() {
   const user = await requirePermission("documentos", "ver");
-  const podeGerir = await can(user.role, "documentos", "gerir");
+  const podeGerir = await can(user, "documentos", "gerir");
   const [modelos, fontes, datasets] = await Promise.all([
     listarModelos({ id: user.id, role: user.role }),
-    fontesPermitidasOpcoes(user.role),
+    fontesPermitidasOpcoes(user),
     podeGerir ? listarDatasetsParaFonte() : Promise.resolve([]),
   ]);
   return (

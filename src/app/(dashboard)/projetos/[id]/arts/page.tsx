@@ -18,7 +18,7 @@ export default async function ArtsProjetoPage({ params }: { params: Promise<{ id
     listarArtsDoProjeto(id),
     responsaveisDisponiveis(),
     disciplinasParaArt(id),
-    can(user.role, "projetos", "gerir"),
+    can(user, "projetos", "gerir"),
   ]);
 
   return (

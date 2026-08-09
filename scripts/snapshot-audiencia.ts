@@ -29,13 +29,20 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { prisma } from "../src/lib/prisma";
 import { AUDIENCIAS, AUDIENCIAS_PARAMETRIZADAS, AUDIENCIA_KEYS, whereAudiencia } from "../src/lib/audiencias";
-import { navItemsForRole } from "../src/lib/nav-config";
+import { navItemsPara } from "../src/lib/nav-config";
+import { permissoesEfetivas } from "../src/lib/permissao-efetiva";
 import { conjuntosVazios, type ConjuntoNomeado } from "../src/lib/equivalencia-audiencia";
 import { hashUserId } from "./snapshot-permissoes";
-import type { Role } from "../src/lib/roles";
+
 
 export type SnapshotAudiencia = {
   geradoEm: string;
+  /**
+   * Só na baseline versionada: POR QUE ela foi regerada. Existe porque regerar a baseline é a
+   * única forma de fazer este gate calar — sem o motivo gravado no próprio arquivo, um `git log`
+   * distraído não distingue "mudança aprovada" de "alguém queria o verde de volta".
+   */
+  notaDeAprovacao?: string;
   /** Audiências de papel constante — as chaves de `AUDIENCIAS`. */
   audiencias: ConjuntoNomeado[];
   /** Audiências cujo conjunto de papéis é argumento; a chave carrega os argumentos concretos. */
@@ -68,16 +75,28 @@ export async function gerarSnapshotAudiencia(): Promise<SnapshotAudiencia> {
     }
   }
 
-  // Menu por usuário: `navItemsForRole` é a mesma função que a sidebar chama.
-  const usuarios = await prisma.user.findMany({ where: { ativo: true }, select: { id: true, role: true } });
-  const nav: ConjuntoNomeado[] = usuarios
-    .map((u) => ({
+  // Menu por usuário: `navItemsPara` é a mesma função que a sidebar chama, com o mesmo contexto
+  // que o layout monta — é isso que faz o snapshot medir o menu real, e não uma aproximação.
+  const usuarios = await prisma.user.findMany({
+    where: { ativo: true },
+    select: { id: true, role: true, tipo: true, setor: true, superUsuario: true, perfilId: true },
+  });
+  const nav: ConjuntoNomeado[] = [];
+  for (const u of usuarios) {
+    const permitidas = await permissoesEfetivas({
+      id: u.id,
+      ativo: true,
+      superUsuario: u.superUsuario,
+      perfilId: u.perfilId,
+    });
+    nav.push({
       chave: hashUserId(u.id),
-      ids: navItemsForRole(u.role as Role)
+      ids: navItemsPara({ permitidas, tipo: u.tipo, setor: u.setor })
         .flatMap((g) => g.items.map((i) => i.href))
         .sort(),
-    }))
-    .sort((a, b) => a.chave.localeCompare(b.chave));
+    });
+  }
+  nav.sort((a, b) => a.chave.localeCompare(b.chave));
 
   return { geradoEm: new Date().toISOString(), audiencias, parametrizadas, nav };
 }
@@ -86,11 +105,12 @@ async function main() {
   const snap = await gerarSnapshotAudiencia();
 
   const destino = process.argv[2];
+  const nota = process.argv.slice(3).join(" ").trim();
   const arquivo = destino
     ? join(process.cwd(), destino)
     : join(process.cwd(), "logs", `snapshot-audiencia-${snap.geradoEm.replace(/[:.]/g, "-")}.json`);
   mkdirSync(dirname(arquivo), { recursive: true });
-  writeFileSync(arquivo, JSON.stringify(snap, null, 2), "utf8");
+  writeFileSync(arquivo, JSON.stringify(nota ? { ...snap, notaDeAprovacao: nota } : snap, null, 2), "utf8");
 
   console.log(`\n${snap.audiencias.length} audiência(s) de papel constante:`);
   for (const c of snap.audiencias) {

@@ -26,7 +26,7 @@ export default async function ProjetoFinanceiroPage({
   if (!projeto) notFound();
 
   const [podeGerir, verFinanceiro] = await Promise.all([
-    can(user.role, "projetos", "gerir"),
+    can(user, "projetos", "gerir"),
     podeVerFinanceiro(user),
   ]);
 

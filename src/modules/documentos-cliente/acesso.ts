@@ -50,13 +50,13 @@ export async function podeLerDocumento(
     // Doc do Geral marcado p/ aparecer em "Recebidos": membro interno do projeto lê,
     // mesmo sem `arquivos_gerais:ver` (é o objetivo da flag). Senão, regra antiga.
     if (exibirEmRecebidos) return true;
-    return can(user.role, "arquivos_gerais", "ver");
+    return can(user, "arquivos_gerais", "ver");
   }
   const projetoId = await projetoEfetivo(ancora);
   if (projetoId && (await veProjeto(user, projetoId))) return true;
   // Equipe que administra clientes vê os documentos na ficha do cliente ("segue o cliente").
-  if (await can(user.role, "clientes", "ver")) return true;
-  return can(user.role, "comercial", "ver");
+  if (await can(user, "clientes", "ver")) return true;
+  return can(user, "comercial", "ver");
 }
 
 /**
@@ -72,10 +72,10 @@ export async function podeGerirDocumento(
 ): Promise<boolean> {
   if (origem === "interno") {
     const projetoId = await projetoEfetivo(ancora);
-    return !!projetoId && (await veProjeto(user, projetoId)) && (await can(user.role, "arquivos_gerais", "gerir"));
+    return !!projetoId && (await veProjeto(user, projetoId)) && (await can(user, "arquivos_gerais", "gerir"));
   }
   if (acessoGlobal(user)) return true;
-  if (await can(user.role, "comercial", "gerir")) return true;
+  if (await can(user, "comercial", "gerir")) return true;
   const projetoId = await projetoEfetivo(ancora);
   if (projetoId && INTERNAL_ROLES.includes(user.role as Role) && (await veProjeto(user, projetoId))) return true;
   return false;

@@ -29,9 +29,9 @@ export default async function OrcamentoPage({
 
   const [orcamento, podeGerir, podeGerirBancos, podeVerCoordenacao] = await Promise.all([
     obterOrcamento(id, user),
-    can(user.role, "custos", "gerir"),
-    can(user.role, "custos", "bancos"),
-    can(user.role, "coordenacao", "ver"),
+    can(user, "custos", "gerir"),
+    can(user, "custos", "bancos"),
+    can(user, "coordenacao", "ver"),
   ]);
   if (!orcamento) notFound();
 

@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Jurídico" };
 
 export default async function JuridicoPage() {
   const user = await requirePermission("juridico", "ver");
-  const podeGerir = await can(user.role, "juridico", "gerir");
+  const podeGerir = await can(user, "juridico", "gerir");
 
   const [docs, projetos, clientes, pastas, modelos] = await Promise.all([
     prisma.documentoJuridico.findMany({

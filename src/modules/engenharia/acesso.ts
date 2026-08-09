@@ -1,6 +1,5 @@
 import "server-only";
-import { can } from "@/lib/permissions";
-import type { Role } from "@/lib/roles";
+import { can, type SubjectAutorizacao } from "@/lib/permissions";
 
 /**
  * Permissões do recurso `biblioteca_tecnica` (Padrões técnicos + Normas catalogadas,
@@ -8,16 +7,16 @@ import type { Role } from "@/lib/roles";
  */
 
 /** Pode ver a biblioteca (padrões e normas). */
-export function podeVerBiblioteca(role: Role): Promise<boolean> {
-  return can(role, "biblioteca_tecnica", "ver");
+export function podeVerBiblioteca(user: SubjectAutorizacao): Promise<boolean> {
+  return can(user, "biblioteca_tecnica", "ver");
 }
 
 /** Pode incluir novos padrões/normas. */
-export function podeIncluirBiblioteca(role: Role): Promise<boolean> {
-  return can(role, "biblioteca_tecnica", "incluir");
+export function podeIncluirBiblioteca(user: SubjectAutorizacao): Promise<boolean> {
+  return can(user, "biblioteca_tecnica", "incluir");
 }
 
 /** Pode editar/excluir padrões/normas de QUALQUER autor (o autor sempre mexe nos seus). */
-export function podeGerirBiblioteca(role: Role): Promise<boolean> {
-  return can(role, "biblioteca_tecnica", "gerir");
+export function podeGerirBiblioteca(user: SubjectAutorizacao): Promise<boolean> {
+  return can(user, "biblioteca_tecnica", "gerir");
 }

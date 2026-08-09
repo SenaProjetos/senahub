@@ -69,7 +69,7 @@ export default async function VisualizarPage({
     select: { id: true },
   });
 
-  const podeValidar = await can(user.role, "uploads", "validar");
+  const podeValidar = await can(user, "uploads", "validar");
   // Escopo do documento (todas as revisões): apontamento aberto na R01 continua aparecendo
   // na R02 — carry-over. `versaoAtual` deixa a UI marcar o que veio de revisão anterior.
   const pendencias = await pendenciasDoUpload(uploadId, {

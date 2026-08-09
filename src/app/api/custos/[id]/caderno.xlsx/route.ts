@@ -13,7 +13,7 @@ const ORIGEM_LABEL: Record<string, string> = { manual: "Manual", ifc: "IFC", dwg
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  if (!(await can(session.user.role, "custos", "ver"))) {
+  if (!(await can(session.user, "custos", "ver"))) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 

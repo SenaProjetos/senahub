@@ -11,7 +11,7 @@ import { STATUS_ABERTOS, contaComoTrabalho } from "@/modules/projetos/pendencias
  */
 const ONDE_TRABALHO = { status: { in: [...STATUS_ABERTOS] }, publicadoEm: { not: null }, excluidoEm: null };
 import { escopoProjeto } from "@/modules/projetos/queries";
-import { acessoGlobal, type Role } from "@/lib/roles";
+import { acessoGlobal, type Role, type EscopoDeDados } from "@/lib/roles";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { calcularAging, type FaixaAging } from "@/lib/aging";
 import type { Novidades } from "@/modules/projetos/pendencias/novidades";
@@ -476,7 +476,7 @@ export type ItemConsolidado = {
  * primeiro (mesma função usada no dashboard, `app/(dashboard)/page.tsx`) e filtra por
  * `projetoId IN (...)`. Perfil global não filtra (mesmo padrão de `escopoProjeto`).
  */
-export async function visaoConsolidadaPendencias(viewer: { id: string; role: Role; ehSocio?: boolean }): Promise<ItemConsolidado[]> {
+export async function visaoConsolidadaPendencias(viewer: { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados): Promise<ItemConsolidado[]> {
   let projetoIds: string[] | null = null;
   if (!acessoGlobal(viewer)) {
     const acessiveis = await prisma.projeto.findMany({ where: escopoProjeto(viewer), select: { id: true } });

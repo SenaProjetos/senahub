@@ -36,11 +36,11 @@ export default async function ProjetoLayout({
 
   const [podeGerir, podeVerFinanceiro, podeHistorico, podeCoordenacao, podeCustos, canalChat, modelosDoc, conteudoPorAba] =
     await Promise.all([
-      can(user.role, "projetos", "gerir"),
-      can(user.role, "financeiro", "ver"),
-      can(user.role, "projetos", "historico"),
-      can(user.role, "coordenacao", "ver"),
-      can(user.role, "custos", "ver"),
+      can(user, "projetos", "gerir"),
+      can(user, "financeiro", "ver"),
+      can(user, "projetos", "historico"),
+      can(user, "coordenacao", "ver"),
+      can(user, "custos", "ver"),
       canalDoProjeto(id),
       modelosPorFonte("projeto"),
       abasComConteudo(id),

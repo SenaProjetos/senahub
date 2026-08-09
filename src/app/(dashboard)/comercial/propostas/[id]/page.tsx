@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "Proposta" };
 
 export default async function PropostaPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requirePermission("comercial", "ver");
-  const podeGerir = await can(user.role, "comercial", "gerir");
+  const podeGerir = await can(user, "comercial", "gerir");
   const { id } = await params;
   const [p, catalogo, tabelas, modelosDoc, documentos, versoesComp] = await Promise.all([
     obterProposta(id),

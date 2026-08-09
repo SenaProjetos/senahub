@@ -657,7 +657,7 @@ export const enviarApontamentos = defineAction(
 async function papeisSobre(p: { disciplinaId: string }, user: SessionUser): Promise<PapeisPendencia> {
   const global = ehGlobal(user);
   const [validador, resp] = await Promise.all([
-    can(user.role, "uploads", "validar"),
+    can(user, "uploads", "validar"),
     global
       ? Promise.resolve(true)
       : prisma.disciplinaResponsavel

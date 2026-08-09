@@ -68,7 +68,7 @@ async function main() {
       acesso: true,
       ponto: true,
       pendenciasRh: true,
-      projetos: { observador: { id: clt.id, role: "admin" } },
+      projetos: { observador: { id: clt.id, role: "admin", superUsuario: true, escopoGlobalPerfil: true } },
     });
     check("fichaPessoa(clt) != null", !!fClt);
     check("fichaPessoa expõe nomeCompleto", fClt?.nomeCompleto === `${tag} Nome Completo`);
@@ -114,7 +114,7 @@ async function main() {
       acesso: true,
       ponto: true,
       pendenciasRh: true,
-      projetos: { observador: { id: pj.id, role: "admin" } },
+      projetos: { observador: { id: pj.id, role: "admin", superUsuario: true, escopoGlobalPerfil: true } },
     });
     check("pj sem nenhum campo obrigatório (telefone/endereço/cargo/PJ/conta) => incompleto=true", fPj?.incompleto === true);
     check("pj sem nomeCompleto => null", fPj?.nomeCompleto === null);

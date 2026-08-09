@@ -13,7 +13,7 @@ export default async function PropostasPage({
   searchParams: Promise<{ status?: string }>;
 }) {
   const user = await requirePermission("comercial", "ver");
-  const podeGerir = await can(user.role, "comercial", "gerir");
+  const podeGerir = await can(user, "comercial", "gerir");
   const sp = await searchParams;
   const [propostas, clientes] = await Promise.all([
     listarPropostas(sp.status),

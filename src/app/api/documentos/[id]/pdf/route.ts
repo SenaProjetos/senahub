@@ -13,7 +13,7 @@ export const maxDuration = 60;
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return new Response("Não autenticado", { status: 401 });
-  if (!(await can(session.user.role, "documentos", "ver"))) {
+  if (!(await can(session.user, "documentos", "ver"))) {
     return new Response("Sem acesso", { status: 403 });
   }
 

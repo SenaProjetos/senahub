@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
-import { can } from "@/lib/permissions";
+import { can, canRole } from "@/lib/permissions";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { CADASTRO_ROLES, INTERNAL_ROLES, PJ_ROLES, HR_ADMIN_ROLES } from "@/lib/roles";
 import {
@@ -31,12 +31,12 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
   // Folha/salário: permissão fina `rh:folha` (admin bypassa; sócio herda de supervisor).
   // Os demais domínios usam exatamente suas permissões — a query nem busca o dado negado.
   const podeFolha =
-    (await can(user.role, "rh", "folha")) || (user.ehSocio === true && (await can("supervisor", "rh", "folha")));
+    (await can(user, "rh", "folha")) || (user.ehSocio === true && (await canRole("supervisor", "rh", "folha")));
   // Mesmo gate de `defineAction`: sem fallback de sócio/supervisor para escrita de acesso.
   const [podeGerirAcesso, podeVerPonto, podeVerProjetos] = await Promise.all([
-    can(user.role, "usuarios", "gerir"),
-    can(user.role, "ponto", "espelho_equipe"),
-    can(user.role, "projetos", "ver"),
+    can(user, "usuarios", "gerir"),
+    can(user, "ponto", "espelho_equipe"),
+    can(user, "projetos", "ver"),
   ]);
 
   const pessoa = await fichaPessoa(id, {
@@ -45,7 +45,7 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
     ponto: podeVerPonto,
     pendenciasRh: true,
     projetos: podeVerProjetos
-      ? { observador: { id: user.id, role: user.role, ehSocio: user.ehSocio } }
+      ? { observador: { id: user.id, role: user.role, ehSocio: user.ehSocio, superUsuario: user.superUsuario, escopoGlobalPerfil: user.escopoGlobalPerfil } }
       : null,
   });
   if (!pessoa) notFound();

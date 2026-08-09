@@ -16,7 +16,7 @@ export default async function ServicosPage({ params }: { params: Promise<{ id: s
   const [servicos, fornecedores, podeGerir] = await Promise.all([
     servicosDoProjeto(id),
     fornecedoresAtivos(),
-    can(user.role, "projetos", "gerir"),
+    can(user, "projetos", "gerir"),
   ]);
   return <ServicosView projeto={projeto} servicos={servicos} fornecedores={fornecedores} podeGerir={podeGerir} />;
 }

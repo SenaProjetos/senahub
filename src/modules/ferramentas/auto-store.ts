@@ -22,7 +22,7 @@ import { renderMemoriaHtml } from "./memoria/render-html";
 import { renderMemoriaDocx } from "./memoria/render-docx";
 import { preencherWorkbookMemoria } from "./memoria/render-xlsx";
 import { desenharDxf } from "./dxf";
-import type { Role } from "@/lib/roles";
+import type { Role, EscopoDeDados } from "@/lib/roles";
 
 const req = createRequire(import.meta.url);
 const ExcelJS = req("exceljs") as typeof import("exceljs");
@@ -36,6 +36,8 @@ export type AutoStoreParams = {
   autorId: string;
   autorNome: string | null | undefined;
   userRole: Role;
+  /** Escopo de dados do autor: o job nao tem sessao, entao o chamador precisa carregar. */
+  escopo: EscopoDeDados;
   /** Cabeçalho técnico escolhido ao salvar — o PDF arquivado sai igual ao exportado depois. */
   artId?: string | null;
   responsavelNome?: string | null;
@@ -82,11 +84,11 @@ async function salvarUpload(opts: {
 }
 
 export async function autoStore(params: AutoStoreParams): Promise<void> {
-  const { ferramenta, titulo, entradas, projetoId, disciplinaId, autorId, autorNome, userRole } = params;
+  const { ferramenta, titulo, entradas, projetoId, disciplinaId, autorId, autorNome, userRole, escopo } = params;
 
   // Verifica que o usuário tem acesso ao projeto.
   const projetoAcessivel = await prisma.projeto.findFirst({
-    where: { id: projetoId, AND: [escopoProjeto({ id: autorId, role: userRole })] },
+    where: { id: projetoId, AND: [escopoProjeto({ id: autorId, role: userRole, ...escopo })] },
     select: {
       id: true,
       ano: true,

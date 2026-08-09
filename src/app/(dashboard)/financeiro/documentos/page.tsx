@@ -14,7 +14,7 @@ export default async function DocumentosFinanceirosPage() {
   const [docs, opcoes, podeGerir] = await Promise.all([
     listarDocumentosFinanceiros(),
     opcoesDocumentoFinanceiro(),
-    can(user.role, "financeiro", "gerir"),
+    can(user, "financeiro", "gerir"),
   ]);
   return <DocumentosFinanceirosView docs={docs} opcoes={opcoes} podeGerir={podeGerir} />;
 }

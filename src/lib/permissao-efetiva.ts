@@ -68,6 +68,46 @@ async function overrideVigente(userId: string, recurso: string, acao: string): P
   return row.permitido;
 }
 
+/**
+ * TODAS as permissões efetivas do usuário, de uma vez: `["recurso:acao", ...]`.
+ *
+ * Existe para o menu. Filtrar 41 itens de navegação chamando `permissaoEfetiva` item a item
+ * seriam 41 consultas por render — diferente das 1-3 por página que `can()` custa, e
+ * indefensável. Aqui são **duas** leituras: a matriz do perfil (que já é LRU) e um único
+ * `findMany` dos overrides do usuário.
+ *
+ * Isto **não** é um cache de override: o resultado é calculado a cada chamada e serve àquele
+ * render. Uma revogação continua valendo no próximo request, que é a garantia de §5.2 — o que
+ * se evita aqui é repetir a MESMA leitura N vezes dentro de um render, não reaproveitá-la entre
+ * requests.
+ *
+ * `superUsuario` recebe o catálogo inteiro: é o mesmo bypass de `permissaoEfetiva`, materializado
+ * para que o consumidor (puro, client-side) não precise conhecer o conceito.
+ */
+export async function permissoesEfetivas(subject: SubjectPermissao): Promise<string[]> {
+  if (!subject.ativo) return [];
+
+  const { PERMISSOES_CATALOGO } = await import("@/lib/permissions-catalog");
+  const todas = PERMISSOES_CATALOGO.flatMap((r) => r.acoes.map((a) => `${r.recurso}:${a.acao}`));
+  if (subject.superUsuario) return todas;
+
+  const doPerfil = subject.perfilId ? await loadPerfil(subject.perfilId) : new Map<string, boolean>();
+  const overrides = await prisma.permissaoUsuario.findMany({
+    where: { userId: subject.id },
+    select: { recurso: true, acao: true, permitido: true, expiraEm: true },
+  });
+
+  const agora = Date.now();
+  const porOverride = new Map<string, boolean>();
+  for (const o of overrides) {
+    if (o.expiraEm && o.expiraEm.getTime() < agora) continue;
+    porOverride.set(`${o.recurso}:${o.acao}`, o.permitido);
+  }
+
+  // Mesma ordem de resolução de `permissaoEfetiva`: override vence o perfil, inclusive negando.
+  return todas.filter((chave) => porOverride.get(chave) ?? doPerfil.get(chave) ?? false);
+}
+
 /** Verifica se o subject pode executar `recurso:acao` pelo motor de Perfil de acesso. */
 export async function permissaoEfetiva(subject: SubjectPermissao, recurso: string, acao: string): Promise<boolean> {
   if (!subject.ativo) return false;

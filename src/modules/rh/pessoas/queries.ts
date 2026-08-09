@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { CADASTRO_ROLES, type Role } from "@/lib/roles";
+import { CADASTRO_ROLES, type Role, type EscopoDeDados } from "@/lib/roles";
 import { usuarioOnline } from "@/lib/socket";
 import { espelhoMes } from "@/modules/ponto/queries";
 import { escopoProjeto } from "@/modules/projetos/queries";
@@ -69,7 +69,7 @@ export async function listarPessoas(podeFolha: boolean) {
 }
 export type PessoaListItem = Awaited<ReturnType<typeof listarPessoas>>[number];
 
-type ObservadorProjeto = { id: string; role: Role; ehSocio?: boolean };
+type ObservadorProjeto = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
 
 export type AcessosFichaPessoa = {
   /** Salário base e histórico de folha. */

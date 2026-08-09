@@ -24,7 +24,7 @@ export default async function LicitacaoDetalhePage({
   params: Promise<{ id: string }>;
 }) {
   const user = await requirePermission("licitacoes", "ver");
-  const podeGerir = await can(user.role, "licitacoes", "gerir");
+  const podeGerir = await can(user, "licitacoes", "gerir");
   const { id } = await params;
 
   const lic = await obterLicitacao(id);

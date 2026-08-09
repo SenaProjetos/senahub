@@ -12,7 +12,7 @@ export default async function PatrimonioPage() {
     listarAtivos(),
     categoriasAtivo(),
     colaboradoresInternos(),
-    can(user.role, "patrimonio", "gerir"),
+    can(user, "patrimonio", "gerir"),
   ]);
   return (
     <PatrimonioView ativos={ativos} categorias={categorias} colaboradores={colaboradores} podeGerir={podeGerir} />

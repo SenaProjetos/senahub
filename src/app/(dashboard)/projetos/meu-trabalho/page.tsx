@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Briefcase } from "lucide-react";
 import { requirePermission } from "@/lib/session";
+import { can } from "@/lib/permissions";
+import { usuariosInternos } from "@/modules/projetos/queries";
+import { SeletorPessoaTrabalho } from "@/components/projetos/seletor-pessoa-trabalho";
 import { minhasDisciplinas } from "@/modules/projetos/meu-trabalho/queries";
 import { STATUS_LABEL, STATUS_CHIP, STATUS_TEXT } from "@/modules/projetos/status";
 import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
@@ -13,9 +16,33 @@ import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Meu trabalho" };
 
-export default async function MeuTrabalhoPage() {
+/**
+ * Quem pode ver o trabalho DE OUTRA PESSOA. `recursos:ver` é a permissão que já significa
+ * "enxergar a alocação das pessoas" (é o gate da matriz de Recursos) — reusar evita criar uma
+ * permissão nova só para esta tela, e mantém as duas visões sob a mesma decisão de acesso.
+ */
+const PERMISSAO_VER_DE_OUTROS = { recurso: "recursos", acao: "ver" } as const;
+
+export default async function MeuTrabalhoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ usuario?: string }>;
+}) {
   const user = await requirePermission("projetos", "ver");
-  const disciplinas = await minhasDisciplinas(user.id);
+  const { usuario } = await searchParams;
+
+  const podeVerDeOutros = await can(user, PERMISSAO_VER_DE_OUTROS.recurso, PERMISSAO_VER_DE_OUTROS.acao);
+  // Gate no SERVIDOR, não no seletor: sem isto, bastaria digitar `?usuario=<id>` na barra de
+  // endereços para ler a carteira de qualquer pessoa. `alvoId` só é diferente do próprio usuário
+  // quando a permissão confirma.
+  const alvoId = podeVerDeOutros && usuario && usuario !== user.id ? usuario : user.id;
+  const vendoOutraPessoa = alvoId !== user.id;
+
+  const [disciplinas, pessoas] = await Promise.all([
+    minhasDisciplinas(alvoId),
+    podeVerDeOutros ? usuariosInternos() : Promise.resolve([]),
+  ]);
+  const alvo = vendoOutraPessoa ? pessoas.find((p) => p.id === alvoId) : null;
 
   const atrasadas = disciplinas.filter((d) => d.atraso > 0);
   const nosPrazos = disciplinas.filter((d) => d.atraso === 0);
@@ -49,15 +76,24 @@ export default async function MeuTrabalhoPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Meu trabalho</h2>
-        <p className="text-sm text-muted-foreground">
-          Disciplinas nas quais você é responsável em projetos ativos ({disciplinas.length} no total).
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-extrabold tracking-tight">
+            {vendoOutraPessoa ? `Trabalho de ${alvo?.name ?? "—"}` : "Meu trabalho"}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {vendoOutraPessoa
+              ? `Disciplinas sob responsabilidade desta pessoa em projetos ativos (${disciplinas.length} no total).`
+              : `Disciplinas nas quais você é responsável em projetos ativos (${disciplinas.length} no total).`}
+          </p>
+        </div>
+        {podeVerDeOutros && (
+          <SeletorPessoaTrabalho pessoas={pessoas} selecionado={vendoOutraPessoa ? alvoId : null} />
+        )}
       </div>
 
       {disciplinas.length === 0 ? (
-        <EmptyState icon={Briefcase} title="Nenhuma disciplina atribuída a você em projetos ativos." />
+        <EmptyState icon={Briefcase} title={vendoOutraPessoa ? "Nenhuma disciplina atribuída a esta pessoa em projetos ativos." : "Nenhuma disciplina atribuída a você em projetos ativos."} />
       ) : (
         <div className="space-y-4">
           {atrasadas.length > 0 && (

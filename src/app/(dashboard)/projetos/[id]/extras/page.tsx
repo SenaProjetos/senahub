@@ -15,7 +15,7 @@ export default async function ExtrasPage({ params }: { params: Promise<{ id: str
   if (!projeto) notFound();
   const [dados, podeGerir] = await Promise.all([
     extrasDoProjeto(id),
-    can(user.role, "projetos", "gerir"),
+    can(user, "projetos", "gerir"),
   ]);
   return <ExtrasView projeto={projeto} dados={dados} podeGerir={podeGerir} />;
 }

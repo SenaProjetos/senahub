@@ -10,8 +10,8 @@ export default async function NormasPage() {
   const user = await requirePermission("biblioteca_tecnica", "ver");
   const [normas, podeIncluir, podeGerir] = await Promise.all([
     listarNormas(),
-    podeIncluirBiblioteca(user.role),
-    podeGerirBiblioteca(user.role),
+    podeIncluirBiblioteca(user),
+    podeGerirBiblioteca(user),
   ]);
 
   return (

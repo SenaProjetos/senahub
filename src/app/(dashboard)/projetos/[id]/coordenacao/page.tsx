@@ -42,7 +42,7 @@ export default async function CoordenacaoPage({
 
   const [modelos, podeGerir, apontamentos, minhasDisciplinas, resumoDashboard, vistas] = await Promise.all([
     modelosCoordenacao(id),
-    can(user.role, "coordenacao", "gerir"),
+    can(user, "coordenacao", "gerir"),
     apontamentosDoProjeto(id),
     prisma.disciplinaResponsavel.findMany({
       where: { userId: user.id, disciplina: { projetoId: id } },

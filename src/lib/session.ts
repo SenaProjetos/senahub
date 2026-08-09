@@ -26,13 +26,22 @@ export type SessionUser = {
    */
   perfilId: string | null;
   escopoGlobalPerfil: boolean;
+  /**
+   * Bypass total do motor de Perfil de acesso (equivalente ao `role === "admin"` de `can()`).
+   * Exposto na sessão a partir da Onda D porque `can(subject, ...)` recebe o sujeito inteiro e
+   * `permissaoEfetiva` consome este campo. Já era lido pelo `getSession` desde a Onda A.
+   */
+  superUsuario: boolean;
 };
 
 /** Sessão atual (ou null). Memoizada por request. */
 export const getSession = cache(async () => {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return null;
-  const base = session.user as unknown as Omit<SessionUser, "ehSocio" | "perfilId" | "escopoGlobalPerfil">;
+  const base = session.user as unknown as Omit<
+    SessionUser,
+    "ehSocio" | "perfilId" | "escopoGlobalPerfil" | "superUsuario"
+  >;
 
   // Sócio + perfil/superUsuário num único round-trip (mesmo lookup que já existia, ampliado).
   const { prisma } = await import("@/lib/prisma");
@@ -58,6 +67,7 @@ export const getSession = cache(async () => {
       ...base,
       ehSocio: dados?.socio?.ativo === true,
       perfilId: dados?.perfilId ?? null,
+      superUsuario: dados?.superUsuario ?? false,
       escopoGlobalPerfil,
     } as SessionUser,
     session: session.session,
@@ -89,9 +99,12 @@ export async function requireRole(...roles: Role[]): Promise<SessionUser> {
  * Sócio ativo herda as permissões do supervisor (acesso de leitura/gestão elevado).
  */
 export async function requirePermission(recurso: string, acao: string): Promise<SessionUser> {
-  const { can } = await import("@/lib/permissions");
+  const { can, canRole } = await import("@/lib/permissions");
   const user = await requireUser();
-  const ok = (await can(user.role, recurso, acao)) || (user.ehSocio && (await can("supervisor", recurso, acao)));
+  // `canRole("supervisor", ...)` é o piso de sócio — a única pergunta legítima do tipo "o que o
+  // papel X poderia" que sobra fora do arnês. Vira override individual (só leitura, §15.7) no
+  // religamento do motor.
+  const ok = (await can(user, recurso, acao)) || (user.ehSocio && (await canRole("supervisor", recurso, acao)));
   if (!ok) redirect("/sem-permissao");
   return user;
 }

@@ -1039,6 +1039,46 @@ Verificado no dev: gate com 0 ganhos e 0 perdas nas duas vias; backfill idempote
 0 podados — o único sócio não-admin do dev é `supervisor`, para quem o piso é no-op). lint limpo,
 1820 testes, build ok.
 
+### 15.8 Onda D, bloco 1 — quebra de assinatura de `can()` (2026-08-09)
+
+Branch `feat/onda-d-perfil-acesso`. **Assinatura quebrada, comportamento idêntico** — o corpo de
+`can()` ainda delega para `canRole(subject.role, ...)`, a matriz legada. O religamento em
+`permissaoEfetiva` é um commit próprio, de 3 linhas. Separar o diff grande e inerte do diff pequeno
+e arriscado é o que torna o corte auditável: 123 arquivos mudaram sem que nenhum bit de autorização
+mudasse.
+
+132 substituições mecânicas (`can(user.role, …)` → `can(user, …)`) e **24 erros de tipo reais** —
+o rendimento esperado da técnica de §8.1. O que os 24 revelaram:
+
+- **Três rotas de API autenticavam com `auth.api.getSession` direto** (`patrimonio/export`,
+  `patrimonio/ti/[id]/pdf`, `projetos/carteira`). A sessão crua do better-auth não tem
+  `superUsuario`/`perfilId`, então elas nunca poderiam alimentar o motor novo. Passaram a usar o
+  `getSession` de `lib/session`, que enriquece. Isso **não** era achável por grep.
+- Os helpers de acesso (`arquivos/acesso.ts`, `engenharia/acesso.ts`, `documentos/fontes-perm.ts`)
+  e `resolverModelo` recebiam `role` solto; agora recebem o sujeito.
+- `meuAcesso` montava a listagem a partir do papel; agora monta o sujeito do próprio registro.
+
+`canRole()` continua exportada para as duas perguntas legítimas do tipo "o que o papel X poderia":
+o **piso de sócio** em `requirePermission` e o **arnês de equivalência**, que precisa reconstruir a
+matriz antiga para comparar. Nenhum gate novo deve chamá-la.
+
+**Propriedade importante do arnês:** o gate compara `canRole` (antes) com `permissaoEfetiva`
+(depois) **diretamente**, sem passar por `can()`. Logo o resultado dele não muda quando o corpo de
+`can()` for religado — ele mede a equivalência dos dois motores, não do wrapper. É por isso que
+verde antes do flip continua valendo depois.
+
+> **⚠ PERIGO DE ORDEM NO DEPLOY.** Depois do flip, `can()` passa a exigir `superUsuario` e
+> `perfilId` preenchidos. Numa base onde `backfill-perfis-acesso.ts` (passo 4 do runbook) **não**
+> rodou, `perfilId` é nulo em todo mundo e `permissaoEfetiva` nega tudo — **o escritório inteiro
+> perde acesso, admin incluído**. Em 2026-08-09 produção está exatamente nesse estado: o deploy
+> rodou, os backfills não. **O commit do flip não pode chegar em produção antes dos passos 3, 4 e 5
+> do runbook.** O gate de equivalência é o que prova que rodaram.
+
+Gate de permissão: 880 células (440 por via), 0 ganhos, 0 perdas. Gate de audiência: 0 diferenças
+contra a baseline. lint limpo, 1825 testes, build ok.
+
+**Falta na Onda D:** religar o corpo de `can()`; `nav-config` `roles[]` → permissão; `acessoGlobal()`
+sobre `escopoGlobalPerfil` (§14.9/§15.3); restringir `registrarBatida` a `CLT_ROLES`.
 ### 15.9 O sócio não-admin não era latente — existe em produção (2026-08-09)
 
 §15.7 registrou o risco do piso de sócio como **latente**, porque nem dev nem produção tinham
@@ -1213,6 +1253,96 @@ entregas lá antes da migração, a ausência aqui reflete pouco tempo de uso, n
 
 Conclusão operacional: **o corte das 7 pode seguir sem aviso prévio**, salvo se o dono souber que
 a função dela no sistema antigo incluía validação.
+
+### 15.15 Escopo de dados entra no arnês — e §15.3 estava errado (2026-08-09)
+
+**Correção:** §15.3 afirmou que a lista de quem perde o escopo global estava **vazia**. Contei só os
+`supervisor` (são zero) e **esqueci dos sócios**. A regra legada é
+`role === "admin" || GLOBAL_ROLES.includes(role) || ehSocio` — o sócio `projetista_pj` **enxerga
+todos os projetos da empresa hoje**, e o corte o atingiria. São 27 call-sites de `acessoGlobal`
+(lista de projetos, dashboard, downloads, ZIPs, pendências, BCF, coordenação): a mudança mais
+visível da onda inteira, para a pessoa que já aparece em §15.9 e §15.12.
+
+Pior: **o gate não veria.** `escopo:global` não estava no `PERMISSOES_CATALOGO`, então nenhuma das
+2860 células media escopo de dados. Era o único eixo de acesso do sistema sem arnês — o plano já
+avisava (§6.1, "a matriz de permissões não controla isso"), mas na prática a perda passaria muda.
+
+**Decisões do dono (2026-08-09):**
+- **O sócio MANTÉM a visão global.** É leitura, coerente com o piso ser read-only (§15.7). Vira
+  override nominal, auditável e revogável, em vez do `if (ehSocio)` escondido. O backfill passou a
+  materializar `escopo:global` para sócio ativo — é a segunda metade do piso legado, que nunca
+  esteve em tabela nenhuma.
+- **`escopo:global` entra no catálogo**, marcado como leitura. Deixa de ser permissão fantasma:
+  aparece na tela de Permissões e passa a ser medido pelo gate.
+
+**Como o "antes" é modelado, e por que importa:** para essa célula, `gerarSnapshotLegado` escreve a
+fórmula legada **à mão** (`admin || GLOBAL_ROLES || ehSocio`) em vez de chamar `acessoGlobal()` —
+porque `acessoGlobal()` já é a fórmula NOVA. Chamá-la faria o "antes" e o "depois" serem a mesma
+coisa, e o gate aprovaria qualquer mudança de escopo comparando o motor novo consigo mesmo. É a
+armadilha clássica de arnês que testa a implementação contra ela mesma.
+
+`acessoGlobal(u)` agora exige `EscopoDeDados` com os dois campos **obrigatórios**. Opcionais fariam
+um viewer parcial (`{ id, role }`) compilar e resolver `false` em silêncio — o compilador achou 12
+lugares assim, incluindo o `auto-store` das ferramentas, que rodava fora de sessão e reconstruía o
+viewer pela metade.
+
+Resultado no dev: **896 células (era 880), 0 ganhos, 0 perdas**; audiências sem diferença; 1844
+testes; build ok.
+
+> **Produção precisa de `db:seed` + `backfill-perfis-acesso` de novo no Deploy 2** — o seed para o
+> catálogo novo e o backfill para materializar o `escopo:global` do sócio. Sem o backfill, ele
+> perde a visão global no instante do flip.
+
+### 15.16 Onda D fechada — o menu, e o que o gate de audiência pegou (2026-08-09)
+
+**`roles[]` codificava três eixos, não um.** O plano dizia "nav → permissão" assumindo um só.
+Dos 41 itens: 15 tinham permissão de verdade, 14 eram "todos os internos" (não existe
+`recurso:acao` que signifique "é gente de dentro"), 2 não tinham condição e o resto era próprio.
+Forçar os 14 por permissão significaria inventar pares falsos no catálogo — que seriam semeados
+em todo perfil e medidos pelo gate como se fossem acesso a alguma coisa. Ficou híbrido:
+`permissao` onde existe uma real, `tipo` onde o eixo é interno×externo, nada onde é de todos.
+
+**Três achados do gate que revisão de diff não pegaria:**
+
+1. **Dois CLIENTES ganhariam `/projetos` e `/pendencias`.** O perfil `portal_cliente` tem
+   `projetos:ver` (o portal usa a mesma permissão), então mapear só por permissão exporia a tela
+   interna. Corrigido com `tipo: "interno"` **junto** da permissão. É o achado mais grave da onda
+   e apareceu só porque o menu passou a ser medido por usuário.
+2. `/rh/produtividade` sumia para o `administrativo` — mapeei em `ponto:rateio`, que ele não tem.
+3. O `freelancer` ganhava `/chat`. A regra "freelancer não entra no chat" era código
+   (`CHAT_ROLES`); virou `chat:usar` — e não é permissão inventada para o menu, o chat já gateava
+   isso de verdade no `service.ts`.
+
+**Duas diferenças ficaram, aprovadas pelo dono, e a baseline foi regerada com a nota gravada
+dentro do próprio arquivo** (`notaDeAprovacao`) — regerar é a única forma de fazer este gate
+calar, e sem o motivo no arquivo um `git log` distraído não distingue "mudança aprovada" de
+"alguém queria o verde de volta":
+
+- `/projetos/meu-trabalho` passa a aparecer para gestão (pedido do dono, ver §15.17);
+- **o coordenador perde 17 itens de menu** — e isso é **correção, não regressão**: verificado par
+  a par que ele não consegue abrir NENHUMA dessas telas hoje (`clientes:ver` NÃO, `financeiro:ver`
+  NÃO, `rh:folha` NÃO…). O menu mostrava item que levava direto a "Sem permissão", desde que §6.1
+  fechou a matriz do coordenador em coordenação técnica pura. Em produção não há `supervisor`
+  ativo, então hoje afeta zero pessoas.
+
+**Desempenho:** `permissoesEfetivas` carrega tudo em duas leituras e o filtro (`navItemsPara`) é
+puro — checar 41 itens um a um seriam 41 consultas por render. O contexto é montado uma vez em
+`(dashboard)/layout.tsx` e desce como prop, o que também mantém `nav-config.ts` client-safe.
+
+Entraram no catálogo nesta onda: `escopo:global`, `chat:usar` e `auditoria:ver`. Gate de permissão
+em 928 células, 0 ganhos e 0 perdas.
+
+### 15.17 "Meu trabalho" de qualquer pessoa (2026-08-09)
+
+Pedido do dono ao decidir o item de menu: gestão vê o próprio "Meu trabalho" **e o de qualquer
+outra pessoa**. Não é visibilidade de menu, é capacidade nova — foi em commit separado, para não
+misturar migração com funcionalidade no mesmo diff.
+
+`?usuario=<id>` + seletor de pessoa. **O gate é no servidor**, não no seletor: sem isso bastaria
+digitar o parâmetro na barra de endereços para ler a carteira de qualquer um. A permissão é
+`recursos:ver` — reusada de propósito, porque já significa "enxergar a alocação das pessoas" (é o
+gate da matriz de Recursos), e criar uma permissão nova só para esta tela colocaria as duas visões
+sob decisões de acesso diferentes.
 
 ### 15.6 Higiene de branch (R8)
 

@@ -25,8 +25,8 @@ export default async function ListaMestrePage({ params }: { params: Promise<{ id
       catalogosPranchaConfig(id),
       nomenclaturaDoProjeto(id),
       nomenclaturaGlobal(),
-      can(user.role, "projetos", "gerir"),
-      can(user.role, "configuracoes", "gerir"),
+      can(user, "projetos", "gerir"),
+      can(user, "configuracoes", "gerir"),
     ]);
   return (
     <ListaMestreView

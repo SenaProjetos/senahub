@@ -50,7 +50,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
   // Capability de download (separada da visibilidade). Global/admin passam direto.
-  if (!ehGlobal && !(await podeBaixarArquivo(user.role))) {
+  if (!ehGlobal && !(await podeBaixarArquivo(user))) {
     return NextResponse.json({ error: "Sem permissão para baixar arquivos." }, { status: 403 });
   }
 

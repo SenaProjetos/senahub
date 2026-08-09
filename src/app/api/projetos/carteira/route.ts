@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { getSession } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { escopoProjeto } from "@/modules/projetos/queries";
-import type { Role } from "@/lib/roles";
 
 // exceljs é CommonJS — evita problema de default export no Turbopack.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -29,11 +27,13 @@ const TIPO_PT: Record<string, string> = { particular: "Particular", licitacao: "
 const CABECALHO = ["Código", "Nome", "Cliente", "Tipo", "Situação", "Prazo", "Valor Contrato (R$)", "Disciplinas Total", "Aprovadas", "Criado em"];
 
 export async function GET(request: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  // `getSession` (lib/session) traz o sujeito completo que `can()` agora exige — a sessão crua
+  // do better-auth não tem `superUsuario`/`perfilId`.
+  const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
 
-  const user = { id: session.user.id, role: session.user.role as Role };
-  const podeVer = await can(user.role, "projetos", "ver");
+  const user = session.user;
+  const podeVer = await can(user, "projetos", "ver");
   if (!podeVer) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
 
   // XLSX é o padrão (Mód 2); CSV permanece como opção.

@@ -16,7 +16,7 @@ export default async function ContasPage({
     searchParams,
     dadosContas(),
     opcoesLancamento(),
-    can(user.role, "financeiro", "gerir"),
+    can(user, "financeiro", "gerir"),
   ]);
   const tabInicial = tab === "receita" ? "receita" : "despesa";
   return <ContasPagarReceberView itens={itens} opcoes={opcoes} tabInicial={tabInicial} podeGerir={podeGerir} />;

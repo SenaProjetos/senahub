@@ -57,7 +57,7 @@ export const excluirPadrao = defineAction(
     const p = await prisma.padraoTecnico.findUnique({ where: { id: input.id } });
     if (!p) throw new ActionError("Padrão não encontrado.");
     // Autor mexe no próprio; para excluir de terceiros exige `gerir` (admin bypassa).
-    if (p.autorId !== ctx.user.id && !(await can(ctx.user.role, "biblioteca_tecnica", "gerir"))) {
+    if (p.autorId !== ctx.user.id && !(await can(ctx.user, "biblioteca_tecnica", "gerir"))) {
       throw new ActionError("Sem permissão para excluir este padrão.");
     }
     await prisma.padraoTecnico.delete({ where: { id: input.id } });
@@ -110,7 +110,7 @@ export const excluirNorma = defineAction(
   async (input, ctx) => {
     const n = await prisma.normaTecnica.findUnique({ where: { id: input.id } });
     if (!n) throw new ActionError("Norma não encontrada.");
-    if (n.autorId !== ctx.user.id && !(await can(ctx.user.role, "biblioteca_tecnica", "gerir"))) {
+    if (n.autorId !== ctx.user.id && !(await can(ctx.user, "biblioteca_tecnica", "gerir"))) {
       throw new ActionError("Sem permissão para excluir esta norma.");
     }
     await prisma.normaTecnica.delete({ where: { id: input.id } });

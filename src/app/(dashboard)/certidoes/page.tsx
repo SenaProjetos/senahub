@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Certidões" };
 
 export default async function CertidoesPage() {
   const user = await requirePermission("certidoes", "ver");
-  const podeGerir = await can(user.role, "certidoes", "gerir");
+  const podeGerir = await can(user, "certidoes", "gerir");
 
   const { certidoes, tipos, responsaveisPossiveis, links, auditLogs, habilitacoes, versaoIdParaCertidaoId, nomeDoUsuario } =
     await dadosDaTela();

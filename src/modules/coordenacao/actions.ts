@@ -592,6 +592,6 @@ export const excluirVistaCoordenacao = defineAction(
 /** Versões convertidas do mesmo grupo (disciplina+pacote+nomeArquivo) — escolha "antiga"×"nova" no diff. */
 export async function buscarVersoesConvertidas(uploadId: string) {
   const session = await getSession();
-  if (!session || !(await can(session.user.role, "coordenacao", "ver"))) return [];
+  if (!session || !(await can(session.user, "coordenacao", "ver"))) return [];
   return versoesConvertidasDoUpload(uploadId);
 }

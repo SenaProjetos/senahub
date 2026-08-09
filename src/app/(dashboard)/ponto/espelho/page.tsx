@@ -30,8 +30,8 @@ export default async function EspelhoPontoPage({
   const mes = Number(sp.m) || hoje.getMonth() + 1;
 
   const [podeVerEquipe, podeAjustar] = await Promise.all([
-    can(user.role, "ponto", "espelho_equipe"),
-    can(user.role, "ponto", "ajustar"),
+    can(user, "ponto", "espelho_equipe"),
+    can(user, "ponto", "ajustar"),
   ]);
   // Só quem pode ver a equipe escolhe outro usuário; os demais veem só o próprio.
   const targetId = podeVerEquipe && sp.u ? sp.u : user.id;

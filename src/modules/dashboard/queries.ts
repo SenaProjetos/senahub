@@ -1,12 +1,12 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma, StatusDisciplina } from "@/generated/prisma/client";
-import { acessoGlobal, type Role } from "@/lib/roles";
+import { acessoGlobal, type Role, type EscopoDeDados } from "@/lib/roles";
 import { kpisHome } from "@/modules/qualidade/queries";
 import { montarSerieReceita } from "@/modules/dashboard/serie-receita";
 import { PESO_STATUS } from "@/modules/projetos/status";
 
-type Viewer = { id: string; role: Role; ehSocio?: boolean };
+type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
 
 export type KpiProjetista = {
   emRevisao: number;

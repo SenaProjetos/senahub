@@ -22,8 +22,8 @@ export default async function BancosPage({
 }) {
   const user = await requirePermission("custos", "ver");
   const [podeGerir, podeCotacao] = await Promise.all([
-    can(user.role, "custos", "bancos"),
-    can(user.role, "custos", "cotacao"),
+    can(user, "custos", "bancos"),
+    can(user, "custos", "cotacao"),
   ]);
   const sp = await searchParams;
 

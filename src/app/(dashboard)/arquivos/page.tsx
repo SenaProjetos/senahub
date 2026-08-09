@@ -11,7 +11,7 @@ export default async function ArquivosDiretorioPage() {
   const user = await requirePermission("arquivos", "ver");
   const [veTodas, podeValidar] = await Promise.all([
     podeVerTodasDisciplinas(user),
-    can(user.role, "uploads", "validar"),
+    can(user, "uploads", "validar"),
   ]);
   const projetos = await diretorioArquivos(user, veTodas);
 

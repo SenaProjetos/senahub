@@ -24,7 +24,7 @@ const MIME: Record<string, string> = {
 export async function GET(_req: Request, ctx: { params: Promise<{ arquivo: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  if (!(await can(session.user.role, "documentos", "ver"))) {
+  if (!(await can(session.user, "documentos", "ver"))) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 

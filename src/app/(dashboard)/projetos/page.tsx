@@ -50,7 +50,7 @@ export default async function ProjetosPage({
     take,
   });
   const pc = pageCount(total, pageSize);
-  const podeGerir = await can(user.role, "projetos", "gerir");
+  const podeGerir = await can(user, "projetos", "gerir");
 
   const [clientes, catalogo, internos] = podeGerir
     ? await Promise.all([

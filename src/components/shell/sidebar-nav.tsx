@@ -10,9 +10,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { navItemsForRole, type NavGroup, type NavItem } from "@/lib/nav-config";
+import { navItemsPara, type ContextoNav, type NavGroup, type NavItem } from "@/lib/nav-config";
 import { ChatBadge } from "@/components/chat/chat-badge";
-import type { Role } from "@/lib/roles";
+
 
 const GROUP_KEY = (title: string) => `navGroups:${title}`;
 
@@ -145,18 +145,18 @@ function CollapsibleGroup({
  * sempre passa `collapsed={false}` e um `onNavigate` para fechar ao navegar.
  */
 export function SidebarNav({
-  role,
+  nav,
   collapsed = false,
   mounted = true,
   onNavigate,
 }: {
-  role: Role;
+  nav: ContextoNav;
   collapsed?: boolean;
   mounted?: boolean;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
-  const groups = navItemsForRole(role);
+  const groups = navItemsPara(nav);
 
   return (
     <nav className="flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-3 py-4">
