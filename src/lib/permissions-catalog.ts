@@ -178,6 +178,22 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     acoes: [{ acao: "gerir", label: "Editar matriz de permissões" }],
   },
   {
+    // Participar do chat. Era regra de negócio em código (`CHAT_ROLES` exclui cliente,
+    // freelancer e ti) e virou permissão na Onda D. Não é permissão inventada para o menu: o
+    // chat tem gate real no `service.ts`, e o item de menu só passou a consultar o mesmo eixo.
+    recurso: "chat",
+    label: "Chat",
+    acoes: [{ acao: "usar", label: "Participar do chat interno", leitura: true }],
+  },
+  {
+    // Entrou no catálogo na Onda D junto com o menu: `/auditoria` era `roles: ["admin"]` e não
+    // tinha permissão correspondente. Só `superUsuario` a recebe hoje (bypass), que reproduz
+    // exatamente a visibilidade anterior.
+    recurso: "auditoria",
+    label: "Auditoria",
+    acoes: [{ acao: "ver", label: "Ver o log de auditoria e o uso por seção", leitura: true }],
+  },
+  {
     recurso: "ferramentas",
     label: "Ferramentas de Engenharia",
     acoes: [

@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import { Shell } from "@/components/shell/shell";
 import { requireUser } from "@/lib/session";
+import { permissoesEfetivas } from "@/lib/permissao-efetiva";
+import { prisma } from "@/lib/prisma";
+import type { ContextoNav } from "@/lib/nav-config";
 import { precisaAceitarTermo } from "@/modules/legal/queries";
 import { PushManager } from "@/components/notificacoes/push-manager";
 import { AvisoProvider } from "@/components/notificacoes/aviso-provider";
@@ -37,11 +40,29 @@ export default async function DashboardLayout({
     .filter(([k, v]) => k.startsWith("tour_visto:") && v === true)
     .map(([k]) => k);
 
+  // Contexto do menu, calculado UMA vez por request e descido como prop: `nav-config` é
+  // importado por componentes client, então o filtro precisa ser puro — e checar item a item
+  // seriam 41 consultas por render (Onda D, §15.16).
+  const eixos = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { tipo: true, setor: true, superUsuario: true, perfilId: true },
+  });
+  const nav: ContextoNav = {
+    permitidas: await permissoesEfetivas({
+      id: user.id,
+      ativo: user.ativo,
+      superUsuario: eixos?.superUsuario ?? false,
+      perfilId: eixos?.perfilId ?? null,
+    }),
+    tipo: eixos?.tipo ?? null,
+    setor: eixos?.setor ?? null,
+  };
+
   const conteudo = (
     <ConfirmProvider>
      <OnboardingProvider vistosIniciais={toursVistos}>
      <DisciplinasIconeProvider mapa={iconesDisciplina}>
-      <Shell role={user.role} user={user}>
+      <Shell nav={nav} user={user}>
         {/* Google Fonts do catálogo de documentos: carregam no editor e no preview/PDF
             (o Puppeteer imprime a própria página de preview, que vive neste layout). */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />

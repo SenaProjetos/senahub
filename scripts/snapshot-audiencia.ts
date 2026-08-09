@@ -29,10 +29,11 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { prisma } from "../src/lib/prisma";
 import { AUDIENCIAS, AUDIENCIAS_PARAMETRIZADAS, AUDIENCIA_KEYS, whereAudiencia } from "../src/lib/audiencias";
-import { navItemsForRole } from "../src/lib/nav-config";
+import { navItemsPara } from "../src/lib/nav-config";
+import { permissoesEfetivas } from "../src/lib/permissao-efetiva";
 import { conjuntosVazios, type ConjuntoNomeado } from "../src/lib/equivalencia-audiencia";
 import { hashUserId } from "./snapshot-permissoes";
-import type { Role } from "../src/lib/roles";
+
 
 export type SnapshotAudiencia = {
   geradoEm: string;
@@ -68,16 +69,28 @@ export async function gerarSnapshotAudiencia(): Promise<SnapshotAudiencia> {
     }
   }
 
-  // Menu por usuário: `navItemsForRole` é a mesma função que a sidebar chama.
-  const usuarios = await prisma.user.findMany({ where: { ativo: true }, select: { id: true, role: true } });
-  const nav: ConjuntoNomeado[] = usuarios
-    .map((u) => ({
+  // Menu por usuário: `navItemsPara` é a mesma função que a sidebar chama, com o mesmo contexto
+  // que o layout monta — é isso que faz o snapshot medir o menu real, e não uma aproximação.
+  const usuarios = await prisma.user.findMany({
+    where: { ativo: true },
+    select: { id: true, role: true, tipo: true, setor: true, superUsuario: true, perfilId: true },
+  });
+  const nav: ConjuntoNomeado[] = [];
+  for (const u of usuarios) {
+    const permitidas = await permissoesEfetivas({
+      id: u.id,
+      ativo: true,
+      superUsuario: u.superUsuario,
+      perfilId: u.perfilId,
+    });
+    nav.push({
       chave: hashUserId(u.id),
-      ids: navItemsForRole(u.role as Role)
+      ids: navItemsPara({ permitidas, tipo: u.tipo, setor: u.setor })
         .flatMap((g) => g.items.map((i) => i.href))
         .sort(),
-    }))
-    .sort((a, b) => a.chave.localeCompare(b.chave));
+    });
+  }
+  nav.sort((a, b) => a.chave.localeCompare(b.chave));
 
   return { geradoEm: new Date().toISOString(), audiencias, parametrizadas, nav };
 }

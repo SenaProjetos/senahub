@@ -17,6 +17,14 @@ const ADMIN_SENHA_INICIAL = "SenaHub@2026";
  * admin tem bypass total no código — não precisa estar aqui.
  */
 const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
+  // Chat — espelha `CHAT_ROLES` (cliente, freelancer e ti ficam de fora, regra de negócio).
+  // Virou permissão na Onda D para o menu deixar de depender de `roles[]`.
+  { role: "admin", recurso: "chat", acao: "usar" },
+  { role: "supervisor", recurso: "chat", acao: "usar" },
+  { role: "administrativo", recurso: "chat", acao: "usar" },
+  { role: "clt", recurso: "chat", acao: "usar" },
+  { role: "estagiario", recurso: "chat", acao: "usar" },
+  { role: "projetista_pj", recurso: "chat", acao: "usar" },
   // ── Coordenador (valor do enum: `supervisor`) ────────────────────────────────
   // Lista definida pelo dono em 2026-07-27, conferida contra Configurações → Permissões.
   // Recorte de COORDENAÇÃO TÉCNICA: projeto, arquivos, planejamento, coordenação BIM,

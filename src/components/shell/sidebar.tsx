@@ -7,11 +7,11 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SidebarNav } from "@/components/shell/sidebar-nav";
 import { APP_VERSION, VERSION_LABEL } from "@/lib/version";
-import type { Role } from "@/lib/roles";
+import type { ContextoNav } from "@/lib/nav-config";
 
 const COLLAPSED_KEY = "senahub:sidebar-collapsed";
 
-export function Sidebar({ role }: { role: Role }) {
+export function Sidebar({ nav }: { nav: ContextoNav }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -55,7 +55,7 @@ export function Sidebar({ role }: { role: Role }) {
         </Link>
       </div>
 
-      <SidebarNav role={role} collapsed={collapsed} mounted={mounted} />
+      <SidebarNav nav={nav} collapsed={collapsed} mounted={mounted} />
 
       <div className={cn("border-t border-sidebar-border p-2", collapsed && "flex justify-center")}>
         <Button

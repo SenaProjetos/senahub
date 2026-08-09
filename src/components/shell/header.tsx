@@ -9,7 +9,7 @@ import { NotificationBell } from "@/components/notificacoes/notification-bell";
 import { AgendaResumo } from "@/components/agenda/agenda-resumo";
 import { JornadaHeader } from "@/components/ponto/jornada-header";
 import { Breadcrumb } from "@/components/shell/breadcrumb";
-import { NAV_GROUPS } from "@/lib/nav-config";
+import { NAV_GROUPS, type ContextoNav } from "@/lib/nav-config";
 import type { Role } from "@/lib/roles";
 
 function titleFromPath(pathname: string): string {
@@ -23,16 +23,18 @@ function titleFromPath(pathname: string): string {
 export function Header({
   title,
   user,
+  nav,
 }: {
   title?: string;
   user: { name: string; email: string; role: Role; image?: string | null };
+  nav: ContextoNav;
 }) {
   const pathname = usePathname();
   const resolved = title ?? titleFromPath(pathname);
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-2 border-b border-border bg-background/85 px-4 backdrop-blur lg:px-6">
       <div className="flex min-w-0 items-center gap-2">
-        <MobileNav role={user.role} />
+        <MobileNav nav={nav} />
         <div className="min-w-0">
           <Breadcrumb />
           <h1 className="truncate text-lg font-bold tracking-tight">{resolved}</h1>

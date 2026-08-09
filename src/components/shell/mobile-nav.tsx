@@ -6,7 +6,7 @@ import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { SidebarNav } from "@/components/shell/sidebar-nav";
-import type { Role } from "@/lib/roles";
+import type { ContextoNav } from "@/lib/nav-config";
 
 /**
  * Sidebar como drawer no mobile (< lg): botão hamburger no header abre um
@@ -14,7 +14,7 @@ import type { Role } from "@/lib/roles";
  * SidebarNav). Fecha ao navegar, no backdrop, no Esc. No lg+ fica oculto —
  * a sidebar fixa assume.
  */
-export function MobileNav({ role }: { role: Role }) {
+export function MobileNav({ nav }: { nav: ContextoNav }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -44,7 +44,7 @@ export function MobileNav({ role }: { role: Role }) {
             <img src="/MARCA/logo_completa_light.svg" alt="SenaHub" className="h-9 w-auto dark:hidden" />
           </Link>
         </div>
-        <SidebarNav role={role} onNavigate={() => setOpen(false)} />
+        <SidebarNav nav={nav} onNavigate={() => setOpen(false)} />
       </SheetContent>
     </Sheet>
   );
