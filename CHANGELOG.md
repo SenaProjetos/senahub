@@ -2,6 +2,23 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.9.0](https://github.com/SenaProjetos//compare/v1.8.1...v1.9.0) (2026-08-09)
+
+
+### ✨ Funcionalidades
+
+* **acesso:** can() passa a resolver pelo motor de Perfil de acesso ([8530d2f](https://github.com/SenaProjetos//commit/8530d2f93ad215257be75aebeaa8760bf57510e9))
+* **acesso:** carregamento em lote das permissoes efetivas ([638d21d](https://github.com/SenaProjetos//commit/638d21d9652ba837330aa1907da63997ec1a8d33))
+* **acesso:** escopo de dados sai do codigo e entra no motor de perfil ([414ed95](https://github.com/SenaProjetos//commit/414ed9557e75a3663207037de5664eec5597903d))
+* **nav:** menu deixa de depender de roles[] e passa a permissao + tipo ([dba185f](https://github.com/SenaProjetos//commit/dba185f655e231057d5474ab45e896da98e65655))
+* **ponto:** registrarBatida restrito a quem tem jornada controlada ([2a1abcc](https://github.com/SenaProjetos//commit/2a1abccf1dadc2e6b5517bd3762c561303de6f75))
+* **projetos:** gestao ve o "Meu trabalho" de qualquer pessoa ([2375c25](https://github.com/SenaProjetos//commit/2375c25e0017359725a1e729fa03c0558ee9d4a2))
+
+
+### ♻️ Refatorações
+
+* **acesso:** can() passa a receber o sujeito, nao o papel ([4b8d259](https://github.com/SenaProjetos//commit/4b8d2593ce8ea68b04a1f7024188803d0b5171d8))
+
 ## [1.8.1](https://github.com/SenaProjetos//compare/v1.8.0...v1.8.1) (2026-08-09)
 
 
