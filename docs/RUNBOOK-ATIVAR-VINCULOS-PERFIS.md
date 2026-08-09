@@ -9,9 +9,9 @@ Contratação × Vínculo) e Onda B (Perfis de acesso) da reforma de acesso.
 
 ## Correção de escopo — leia antes
 
-Isto **não** é "3 comandos de 5 minutos", como foi dito antes de eu medir. Produção roda `master`,
-que está **81 commits e 15 migrations atrás** de `dev`. O `prisma/seed.ts` do código atual não roda
-contra o schema antigo de produção. A operação real é:
+Isto **não** é "3 comandos de 5 minutos", como foi dito antes de eu medir. Produção estava **81
+commits e 15 migrations atrás** de `dev`, e o `prisma/seed.ts` do código atual não roda contra o
+schema antigo. A operação real é:
 
 1. promover `dev` → `master`;
 2. rodar o **Deploy completo** já existente (ele sozinho faz `migrate deploy` **e** `db:seed`);
@@ -64,7 +64,33 @@ deploy\gerenciar-servidor.bat   → Listar backups
 **Se falhar:** pare aqui. Corrija `PG_DUMP_PATH` (caminho do `pg_dump.exe`) e `BACKUP_PATH` no `.env`
 e repita. Não siga sem um backup verificado.
 
+> **Dois buracos de recuperação constatados no servidor em 2026-08-09** — nenhum bloqueia estes
+> backfills (que só tocam colunas), mas os dois são do tipo que só aparece na hora errada:
+> 1. **`PG_BIN_PATH` não está no `.env`.** É o que o script de restauração usa para achar o
+>    `pg_restore.exe`. Existe backup, mas o **caminho de volta não está configurado** — um backup
+>    que ninguém testou restaurar ainda não é um backup. Configure e faça uma restauração de teste
+>    num banco descartável.
+> 2. **O espelho do storage está parado desde 28/07** (`STORAGE_BACKUP_PATH` também ausente do
+>    `.env`). O dump do banco **não contém arquivo nenhum** — hoje existe rede para o banco e
+>    nenhuma para os uploads.
+
 ---
+
+> ### ⚠ O servidor tem `dev` em check-out, não `master` (constatado em 2026-08-09)
+>
+> `origin/dev` e `origin/master` apontam para o mesmo commit hoje (`89d0463`, 1.6.0), então o
+> código em produção está correto. Mas o **working tree do servidor está na branch `dev`**, e
+> `Invoke-DeployCompleto` roda `git pull` na branch que estiver em check-out. Na prática,
+> **`dev` é a branch de produção**, não `master`.
+>
+> Consequência que importa mais do que a divergência de procedimento: **mergear qualquer coisa em
+> `dev` fica a um `git pull` de distância de produção.** O commit que religa `can()` no
+> `permissaoEfetiva` (Onda D) derruba o acesso de todo mundo numa base sem os backfills — então
+> ele **não pode ser mergeado em `dev`** antes dos passos 3, 4 e 5 estarem verdes em produção.
+>
+> Decidir depois: ou o servidor passa a seguir `master` (alinha com o procedimento e com
+> [[workflow-branch-dev]]), ou o procedimento passa a assumir `dev` e o `master` vira redundante.
+> Enquanto não decidir, trate `dev` como se fosse produção.
 
 ## Passo 1 — promover `dev` → `master`
 
