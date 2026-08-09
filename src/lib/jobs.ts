@@ -1,5 +1,6 @@
 import { PgBoss } from "pg-boss";
 import { executarBackup } from "@/lib/backup";
+import { executarBackupStorage } from "@/lib/backup-storage";
 import { notificarAdmins } from "@/lib/notifications";
 import { limparChunksOrfaos } from "@/lib/upload-chunks";
 import { FILA_CONVERTER_IFC } from "@/modules/coordenacao/conversao-estado";
@@ -56,6 +57,7 @@ import {
 const estadoGlobal = globalThis as unknown as { __senahubBoss?: PgBoss | null };
 
 const FILA_BACKUP = "backup-diario";
+const FILA_BACKUP_STORAGE = "backup-storage-diario";
 
 /**
  * Inicia o pg-boss (fila + agendamento sobre o próprio PostgreSQL).
@@ -93,6 +95,41 @@ export async function startJobs(): Promise<PgBoss> {
   if (process.env.ENABLE_BACKUP === "1") {
     await boss.schedule(FILA_BACKUP, "0 3 * * *", {}, { tz: "America/Sao_Paulo" });
     console.log("[pg-boss] backup diário agendado (03:00).");
+  }
+
+  // Backup dos ARQUIVOS às 03:30 — depois do dump, porque o dump é o crítico e não
+  // convém os dois disputarem disco. Espelho aditivo (robocopy), ver lib/backup-storage.ts.
+  await boss.createQueue(FILA_BACKUP_STORAGE);
+  await boss.work(FILA_BACKUP_STORAGE, async () => {
+    try {
+      const r = await executarBackupStorage();
+      const n = r.resumo.arquivos;
+      console.log(
+        `[backup-storage] ok: ${r.destino}` +
+          (n ? ` (${n.copiados} copiados de ${n.total}, ${n.falhas} falha(s))` : ""),
+      );
+      if (r.avisoMesmoVolume) {
+        console.warn(`[backup-storage] ATENÇÃO: destino no mesmo volume da origem — não protege contra perda de disco.`);
+      }
+      if (n && n.falhas > 0) {
+        await notificarAdmins({
+          titulo: "Backup de arquivos com falhas",
+          corpo: `${n.falhas} arquivo(s) não puderam ser copiados para ${r.destino}.`,
+        });
+      }
+    } catch (err) {
+      console.error("[backup-storage] falhou:", err);
+      await notificarAdmins({
+        titulo: "Falha no backup de arquivos",
+        corpo: err instanceof Error ? err.message : "Erro desconhecido no robocopy.",
+      });
+      throw err;
+    }
+  });
+
+  if (process.env.ENABLE_BACKUP === "1" && process.env.STORAGE_BASE_PATH) {
+    await boss.schedule(FILA_BACKUP_STORAGE, "30 3 * * *", {}, { tz: "America/Sao_Paulo" });
+    console.log("[pg-boss] backup de arquivos agendado (03:30).");
   }
 
   // ── Coordenação BIM: conversão IFC → Fragments (ON-DEMAND, não agendada) ──

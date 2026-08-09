@@ -5,8 +5,29 @@ import path from "node:path";
 /**
  * Backup do PostgreSQL via pg_dump. Salva em BACKUP_PATH (ou ./backups),
  * mantém os últimos RETENCAO_DIAS dias. Substitui o cron externo do sistema antigo.
+ *
+ * Extensão `.backup` é a mesma do backup manual (`deploy/gerenciar-servidor.ps1`), para os
+ * dois aparecerem juntos na listagem e envelhecerem pela mesma retenção. Dumps `.dump`
+ * gerados por versões anteriores deste arquivo continuam sendo reconhecidos e podados.
  */
 const RETENCAO_DIAS = 30;
+
+/**
+ * Reconhece os nomes que envelhecem por esta retenção: `senahub_*` (job atual e backup
+ * manual do menu), `*.dump` legado e as cópias `pre-restauracao_*` que
+ * `scripts/restaurar-backup.ts` grava antes de sobrescrever um banco — sem isso elas
+ * ficariam para sempre e lotariam o disco de backup.
+ */
+export function ehArquivoDeBackup(nome: string): boolean {
+  const prefixoOk = nome.startsWith("senahub_") || nome.startsWith("pre-restauracao_");
+  return prefixoOk && (nome.endsWith(".backup") || nome.endsWith(".dump"));
+}
+
+/** Carimbo local compacto (o servidor opera em America/Sao_Paulo; ISO-UTC confundia o operador). */
+function carimbo(d = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
 
 function parseDbUrl(url: string) {
   const u = new URL(url);
@@ -27,8 +48,7 @@ export async function executarBackup(): Promise<{ arquivo: string; bytes: number
   const dir = process.env.BACKUP_PATH || path.join(process.cwd(), "backups");
   await mkdir(dir, { recursive: true });
 
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const arquivo = path.join(dir, `senahub_${stamp}.dump`);
+  const arquivo = path.join(dir, `senahub_${carimbo()}.backup`);
 
   const pgDump = process.env.PG_DUMP_PATH || "pg_dump";
 
@@ -49,7 +69,7 @@ export async function executarBackup(): Promise<{ arquivo: string; bytes: number
   // Retenção
   const limite = Date.now() - RETENCAO_DIAS * 86_400_000;
   for (const nome of await readdir(dir)) {
-    if (!nome.startsWith("senahub_") || !nome.endsWith(".dump")) continue;
+    if (!ehArquivoDeBackup(nome)) continue;
     const full = path.join(dir, nome);
     const info = await stat(full);
     if (info.mtimeMs < limite) await unlink(full);

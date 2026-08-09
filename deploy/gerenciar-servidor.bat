@@ -53,7 +53,7 @@ echo    5. Reiniciar tunel Cloudflare
 echo    6. Abrir o SenaHub no navegador
 echo    7. Ver logs recentes
 echo    8. Diagnostico: por que algo nao esta funcionando?
-echo    9. Backup manual do banco agora
+echo    9. Backup e restauracao (banco + arquivos)
 echo   10. Atualizar e reiniciar (deploy completo)
 echo   11. Rodar testes de fumaca (smoke tests)
 echo   12. Ferramentas avancadas
@@ -243,10 +243,75 @@ start "" "https://hub.senaprojetos.com.br"
 exit /b
 
 :acao_backup
+cls
 echo(
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Backup
+echo  ===================================================
+echo   Backup e restauracao
+echo  ===================================================
+echo(
+echo   O dump do banco NAO contem os arquivos enviados
+echo   (uploads, IFC, DXF, PDFs). Sao dois backups.
+echo(
+echo   1. Backup do BANCO agora (pg_dump)
+echo   2. Backup dos ARQUIVOS agora (espelho do storage)
+echo   3. Backup COMPLETO (banco + arquivos)
+echo   4. Listar / verificar backups
+echo(
+echo   5. RESTAURAR o banco a partir de um backup
+echo   6. RESTAURAR os arquivos a partir do espelho
+echo(
+echo   0. Voltar
+echo(
+set "bkop="
+set /p bkop="Escolha uma opcao: "
+set "bkop=%bkop: =%"
+
+if "%bkop%"=="1" (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Backup
+  pause
+  goto :acao_backup
+)
+if "%bkop%"=="2" (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao BackupStorage
+  pause
+  goto :acao_backup
+)
+if "%bkop%"=="3" (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao BackupTudo
+  pause
+  goto :acao_backup
+)
+if "%bkop%"=="4" (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao ListarBackups
+  pause
+  goto :acao_backup
+)
+if "%bkop%"=="5" (
+  call :requer_admin
+  if errorlevel 1 (
+    pause
+    goto :acao_backup
+  )
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao RestaurarBackup
+  pause
+  goto :acao_backup
+)
+if "%bkop%"=="6" (
+  call :requer_admin
+  if errorlevel 1 (
+    pause
+    goto :acao_backup
+  )
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao RestaurarStorage
+  pause
+  goto :acao_backup
+)
+if "%bkop%"=="0" exit /b
+
+echo(
+echo Opcao invalida.
 pause
-exit /b
+goto :acao_backup
 
 :acao_deploy
 echo(
@@ -423,7 +488,7 @@ echo   2. Verificar processos orfaos / portas em uso
 echo   3. Corrigir build corrompido (limpar .next e reconstruir)
 echo   4. Aplicar apenas migrations (sem pull/build)
 echo   5. Reaplicar seed (idempotente - NAO e o seed de demonstracao)
-echo   6. Listar / verificar backups
+echo   6. Listar / verificar backups (mesmo da opcao 9 do menu principal)
 echo   7. Resetar senha do admin (emergencia)
 echo   8. Ver log de auditoria do menu
 echo   9. Reiniciar o servidor Windows (reboot)

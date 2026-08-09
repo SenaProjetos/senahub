@@ -416,6 +416,7 @@ echo   5. Resetar senha do admin
 echo   6. Seeds de dev (aniversariantes/melhorias/modalidades) ...
 echo   7. Abrir Prisma Studio
 echo   8. Status do banco (porta 5433)
+echo   9. Backup e restauracao ...
 echo(
 echo   0. Voltar
 echo(
@@ -431,6 +432,7 @@ if "%subop%"=="5" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" 
 if "%subop%"=="6" ( call :menu_seeds_dev & goto :menu_db )
 if "%subop%"=="7" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Studio & pause & goto :menu_db )
 if "%subop%"=="8" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao DbStatus & pause & goto :menu_db )
+if "%subop%"=="9" ( call :menu_backup_dev & goto :menu_db )
 if "%subop%"=="0" exit /b
 
 echo(
@@ -447,6 +449,39 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao DbMigrate -Sub
 endlocal
 pause
 goto :menu_db
+
+:menu_backup_dev
+cls
+echo(
+echo  =====================================================
+echo   Backup e restauracao (banco de DEV)
+echo  =====================================================
+echo(
+echo   1. Backup do banco de dev agora (pg_dump -Fc)
+echo   2. Listar backups
+echo   3. RESTAURAR um backup POR CIMA do banco de dev
+echo(
+echo   Dump de PRODUCAO (nao toca no banco de dev):
+echo   4. Restaurar em banco descartavel (ensaio/conferencia)
+echo   5. Descartar o banco de snapshot
+echo(
+echo   0. Voltar
+echo(
+set "subop="
+set /p subop="Escolha uma opcao: "
+set "subop=%subop: =%"
+
+if "%subop%"=="1" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao BackupDev & pause & goto :menu_backup_dev )
+if "%subop%"=="2" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao ListarBackupsDev & pause & goto :menu_backup_dev )
+if "%subop%"=="3" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao RestaurarBackupDev & pause & goto :menu_backup_dev )
+if "%subop%"=="4" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao SnapshotProd -Sub restaurar & pause & goto :menu_backup_dev )
+if "%subop%"=="5" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao SnapshotProd -Sub descartar & pause & goto :menu_backup_dev )
+if "%subop%"=="0" exit /b
+
+echo(
+echo Opcao invalida.
+pause
+goto :menu_backup_dev
 
 :menu_seeds_dev
 cls

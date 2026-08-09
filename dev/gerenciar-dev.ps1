@@ -680,6 +680,165 @@ function Invoke-DbStatus {
     }
 }
 
+# ======================== BACKUP / RESTAURACAO (DEV) ========================
+
+# Em dev o .env raramente tem PG_DUMP_PATH; caimos no caminho padrao da v17.
+function Get-PgBinDir {
+    $candidatos = @(
+        (Get-EnvValue -Key "PG_BIN_PATH"),
+        $(if (Get-EnvValue -Key "PG_DUMP_PATH") { Split-Path (Get-EnvValue -Key "PG_DUMP_PATH") -Parent } else { $null }),
+        "C:\Program Files\PostgreSQL\17\bin"
+    ) | Where-Object { $_ }
+    foreach ($d in $candidatos) {
+        if (Test-Path (Join-Path $d "pg_dump.exe")) { return $d }
+    }
+    return $null
+}
+
+function Get-BackupDirDev {
+    $b = Get-EnvValue -Key "BACKUP_PATH"
+    if ($b) { return $b }
+    return (Join-Path $AppRoot "backups")
+}
+
+function Invoke-BackupDev {
+    $binDir = Get-PgBinDir
+    if (-not $binDir) {
+        Write-Host "[ERRO] pg_dump.exe nao encontrado. Defina PG_BIN_PATH no .env." -ForegroundColor Red
+        return
+    }
+    $dbUrl = Get-EnvValue -Key "DATABASE_URL"
+    if (-not $dbUrl -or $dbUrl -notmatch "postgresql://([^:]+):([^@]+)@([^:/]+):(\d+)/([\w-]+)") {
+        Write-Host "[ERRO] DATABASE_URL ausente ou invalida no .env." -ForegroundColor Red
+        return
+    }
+    $u = $Matches[1]; $pw = $Matches[2]; $h = $Matches[3]; $pt = $Matches[4]; $n = $Matches[5]
+    $dir = Get-BackupDirDev
+    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+    $arq = Join-Path $dir ("dev_{0}_{1}.backup" -f $n, (Get-Date -Format "yyyyMMdd_HHmmss"))
+
+    Write-Host ""
+    Write-Host "Gerando backup do banco de DEV em: $arq" -ForegroundColor Cyan
+    $env:PGPASSWORD = $pw
+    try {
+        & (Join-Path $binDir "pg_dump.exe") -h $h -p $pt -U $u -d $n -Fc -f $arq
+        $ok = ($LASTEXITCODE -eq 0)
+    } finally {
+        Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue
+    }
+    if ($ok -and (Test-Path $arq)) {
+        $mb = [math]::Round((Get-Item $arq).Length / 1MB, 2)
+        Write-Host "[OK] Backup de dev: $arq ($mb MB)" -ForegroundColor Green
+        Write-Audit -AcaoNome "BackupDev" -Detalhe "$arq ($mb MB)"
+    } else {
+        Write-Host "[ERRO] pg_dump falhou." -ForegroundColor Red
+        Write-Audit -AcaoNome "BackupDev" -Detalhe "FALHOU"
+    }
+}
+
+function Invoke-ListarBackupsDev {
+    $dir = Get-BackupDirDev
+    Write-Host ""
+    if (-not (Test-Path $dir)) {
+        Write-Host "[FALHA] Pasta de backups nao encontrada: $dir" -ForegroundColor Red
+        return
+    }
+    $arquivos = Get-ChildItem -Path $dir -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Extension -in ".backup", ".dump" } |
+        Sort-Object LastWriteTime -Descending
+    if (-not $arquivos) {
+        Write-Host "[FALHA] Nenhum backup em $dir" -ForegroundColor Red
+        return
+    }
+    Write-Host "Backups em $dir :" -ForegroundColor Cyan
+    foreach ($a in ($arquivos | Select-Object -First 20)) {
+        Write-Host ("  {0}  {1,10} MB  {2}" -f $a.LastWriteTime, [math]::Round($a.Length / 1MB, 2), $a.Name)
+    }
+}
+
+# Restaura POR CIMA do banco de dev. Destrutivo, mas em dev - a rede de seguranca e a
+# copia automatica que o proprio script TS faz antes de apagar.
+function Invoke-RestaurarBackupDev {
+    $dbUrl = Get-EnvValue -Key "DATABASE_URL"
+    if (-not $dbUrl -or $dbUrl -notmatch "postgresql://([^:]+):([^@]+)@([^:/]+):(\d+)/([\w-]+)") {
+        Write-Host "[ERRO] DATABASE_URL ausente ou invalida no .env." -ForegroundColor Red
+        return
+    }
+    $dbName = $Matches[5]
+
+    $arquivo = $Sub
+    if (-not $arquivo) {
+        Invoke-ListarBackupsDev
+        Write-Host ""
+        Write-Host "Informe o NOME do arquivo (ou caminho completo):" -ForegroundColor Yellow
+        $arquivo = (Read-Host ">").Trim().Trim('"')
+    }
+    if (-not $arquivo) { Write-Host "Cancelado." -ForegroundColor Yellow; return }
+    if (-not (Test-Path $arquivo)) { $arquivo = Join-Path (Get-BackupDirDev) $arquivo }
+    if (-not (Test-Path $arquivo)) {
+        Write-Host "[ERRO] Arquivo nao encontrado: $arquivo" -ForegroundColor Red
+        return
+    }
+    $arquivo = (Resolve-Path $arquivo).Path
+
+    Write-Host ""
+    Write-Host "[ATENCAO] Isso APAGA o banco de DEV '$dbName' e o substitui pelo arquivo:" -ForegroundColor Yellow
+    Write-Host "          $arquivo" -ForegroundColor Yellow
+    Write-Host "          Se o dump vier de PRODUCAO, prefira a opcao de snapshot descartavel" -ForegroundColor Yellow
+    Write-Host "          (dado pessoal real nao deveria virar banco de trabalho)." -ForegroundColor Yellow
+    if (-not (Confirm-Typed -Palavra "RESTAURAR")) { Write-Host "Cancelado." -ForegroundColor Yellow; return }
+
+    # O dev server segura conexoes e o DROP DATABASE nao passa.
+    if (Test-DevServerRodando) {
+        Write-Host ""
+        Write-Host "[ATENCAO] Dev server rodando na porta 3000 - ele mantem conexoes abertas no banco." -ForegroundColor Yellow
+        if (Confirm-SN "Parar o dev server e continuar") { Stop-DevServer }
+        else { Write-Host "[ERRO] Restauracao abortada (dev server ativo)." -ForegroundColor Red; return }
+    }
+
+    Push-Location $AppRoot
+    try {
+        & npx tsx --tsconfig tsconfig.server.json scripts/restaurar-backup.ts "$arquivo" --confirmado
+        $ok = ($LASTEXITCODE -eq 0)
+        Write-Audit -AcaoNome "RestaurarBackupDev" -Detalhe "$arquivo exit=$LASTEXITCODE"
+        if ($ok) {
+            Write-Host ""
+            Write-Host "---- Aplicando migrations pendentes ----" -ForegroundColor Cyan
+            npx prisma migrate deploy
+        }
+    } finally {
+        Pop-Location
+    }
+}
+
+# Dump de PRODUCAO num banco descartavel (nao toca no banco de dev). Ensaio de migration
+# destrutiva / conferencia de dado real. Script: scripts/restaurar-snapshot-prod.ts.
+function Invoke-SnapshotProd {
+    param([string]$Modo)
+    Push-Location $AppRoot
+    try {
+        if ($Modo -eq "descartar") {
+            Write-Host ""
+            Write-Host "Isso APAGA o banco de snapshot (senahub_snapshot_prod)." -ForegroundColor Yellow
+            if (-not (Confirm-SN "Continuar")) { Write-Host "Cancelado." -ForegroundColor Yellow; return }
+            & npx tsx --tsconfig tsconfig.server.json scripts/restaurar-snapshot-prod.ts --descartar
+            Write-Audit -AcaoNome "SnapshotProd" -Detalhe "descartar exit=$LASTEXITCODE"
+            return
+        }
+        Write-Host ""
+        Write-Host "Caminho do dump de PRODUCAO (.backup gerado por pg_dump -Fc):" -ForegroundColor Yellow
+        $arq = (Read-Host ">").Trim().Trim('"')
+        if (-not $arq -or -not (Test-Path $arq)) { Write-Host "[ERRO] Arquivo nao encontrado." -ForegroundColor Red; return }
+        Write-Host ""
+        Write-Host "[LEMBRETE] Dump de producao tem dado pessoal real (CPF, salario, hash de senha)." -ForegroundColor Yellow
+        Write-Host "           Apague o banco e o arquivo quando terminar (opcao 'descartar')." -ForegroundColor Yellow
+        & npx tsx --tsconfig tsconfig.server.json scripts/restaurar-snapshot-prod.ts "$arq" --recriar
+        Write-Audit -AcaoNome "SnapshotProd" -Detalhe "restaurar exit=$LASTEXITCODE"
+    } finally {
+        Pop-Location
+    }
+}
+
 # ======================== SMOKES E2E ========================
 
 function Invoke-Smoke {
@@ -892,6 +1051,10 @@ switch ($Acao) {
     "SeedsDev"         { Invoke-SeedsDev -Qual $Sub }
     "Studio"           { Invoke-Studio }
     "DbStatus"         { Invoke-DbStatus }
+    "BackupDev"        { Invoke-BackupDev }
+    "ListarBackupsDev" { Invoke-ListarBackupsDev }
+    "RestaurarBackupDev" { Invoke-RestaurarBackupDev }
+    "SnapshotProd"     { Invoke-SnapshotProd -Modo $Sub }
     "Smoke"            { Invoke-Smoke -Qual $Sub }
     "ReleaseDry"       { Invoke-ReleaseDry }
     "Release"          { Invoke-Release -Tipo $Sub }

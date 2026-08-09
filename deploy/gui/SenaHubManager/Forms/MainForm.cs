@@ -194,6 +194,12 @@ public class MainForm : Form
             mensagemConfirmacao: "Isso vai desconectar os usuarios conectados por alguns segundos.", palavraConfirmacao: "REINICIAR"));
         painel.Controls.Add(CriarBotaoAcao("Reiniciar tunel Cloudflare", "ReiniciarTunel", precisaConfirmar: false));
         painel.Controls.Add(CriarBotaoAcao("Backup manual do banco agora", "Backup", precisaConfirmar: false));
+        painel.Controls.Add(CriarBotaoAcao("Backup manual dos arquivos (uploads)", "BackupStorage", precisaConfirmar: false));
+        painel.Controls.Add(CriarBotaoAcao("Backup completo (banco + arquivos)", "BackupTudo", precisaConfirmar: false));
+        painel.Controls.Add(CriarBotaoAcao("Listar / verificar backups", "ListarBackups", precisaConfirmar: false));
+        // Restauracao NAO tem botao aqui de proposito: o gerenciar-servidor.ps1 recusa
+        // RestaurarBackup/RestaurarStorage quando chamado com -Confirmar (que e como esta GUI
+        // chama tudo). Derrubar o banco de producao exige a palavra digitada no console.
         painel.Controls.Add(CriarBotaoAcao("Rodar testes de fumaca", "SmokeTests", precisaConfirmar: true,
             mensagemConfirmacao: "Isso roda testes contra o banco REAL (idempotentes, mas geram e limpam dados de teste).", palavraConfirmacao: "CONFIRMAR"));
         painel.Controls.Add(CriarBotaoAcao("Aplicar so as migrations", "Migrations", precisaConfirmar: false));

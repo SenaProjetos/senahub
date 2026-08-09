@@ -64,6 +64,9 @@ src/
                          #   encargos.ts: INSS/IRRF progressive payroll calculator (pure, tested)
                          #   ofx.ts: OFX bank statement parser with dedup+auto-match (tested)
                          #   aprovacao.ts: devePassarPorAprovacao(tipo, valor, limite) for finance workflows
+                         #   backup.ts (pg_dump -Fc) + backup-storage.ts (additive robocopy mirror of
+                         #     STORAGE_BASE_PATH — the DB dump holds NO files); restore is the destructive
+                         #     scripts/restaurar-backup.ts (menus call it), see docs/DEPLOY.md §8
                          #   aging.ts: receivables/payables aging buckets (a_vencer…d120_mais, pure/tested)
                          #   aquisitivo.ts: CLT vacation accrual/concessive-window status (pure, tested)
                          #   ponto-offline.ts: localStorage queue for batidas made while online drops (client)
@@ -182,4 +185,4 @@ in `lib/prisma.ts`. To see deleted rows, pass `excluidoEm` explicitly in the `wh
 - **`Select` `onValueChange`** returns `string | null`, not `string` (base-ui diverges from Radix here).
 - **Env vars:**
   - Required: `DATABASE_URL`, `BETTER_AUTH_SECRET` (32+ bytes), `BETTER_AUTH_URL` (origin for CSRF), `APP_URL` (base URL for links in notifications/emails), `STORAGE_BASE_PATH` (Windows upload path, must exist), `CHROME_PATH` (Chrome exe for puppeteer-core PDF)
-  - Optional: `ODA_CONVERTER_PATH` (**ODAFileConverter.exe** — external app, not an npm package; without it every DWG→DXF conversion fails, see `docs/DEPLOY.md` §4.1), `ENABLE_BACKUP=1` + `BACKUP_PATH` + `PG_DUMP_PATH` (pg_dump.exe path), `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` (web push), `SMTP_HOST` + `SMTP_PORT` + `SMTP_USER` + `SMTP_PASS` + `SMTP_FROM` (email)
+  - Optional: `ODA_CONVERTER_PATH` (**ODAFileConverter.exe** — external app, not an npm package; without it every DWG→DXF conversion fails, see `docs/DEPLOY.md` §4.1), `ENABLE_BACKUP=1` + `BACKUP_PATH` + `PG_DUMP_PATH` (pg_dump.exe path) + `STORAGE_BACKUP_PATH` (storage mirror target, defaults to `BACKUP_PATH\storage`) + `PG_BIN_PATH` (Postgres bin dir, used by the restore script to find `pg_restore.exe`), `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` (web push), `SMTP_HOST` + `SMTP_PORT` + `SMTP_USER` + `SMTP_PASS` + `SMTP_FROM` (email)

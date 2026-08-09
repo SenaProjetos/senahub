@@ -63,7 +63,9 @@ Preencha (ver [.env.production.example](../.env.production.example)):
 - `CHROME_PATH` = `C:\Program Files\Google\Chrome\Application\chrome.exe`
 - `ODA_CONVERTER_PATH` = executável do **ODA File Converter** (ver seção 4.1) — sem ele, todo upload de
   DWG falha na conversão com *"Conversor de DWG não está configurado neste servidor"*
-- Backup (recomendado): `ENABLE_BACKUP=1`, `BACKUP_PATH`, `PG_DUMP_PATH` (`...\PostgreSQL\17\bin\pg_dump.exe`)
+- Backup (recomendado): `ENABLE_BACKUP=1`, `BACKUP_PATH`, `PG_DUMP_PATH` (`...\PostgreSQL\17\bin\pg_dump.exe`),
+  `STORAGE_BACKUP_PATH` (opcional — destino do espelho dos arquivos; padrão `BACKUP_PATH\storage`),
+  `PG_BIN_PATH` (opcional — pasta bin do Postgres, usada pela restauração para achar o `pg_restore.exe`)
 
 > **Web push (opcional):** `NEXT_PUBLIC_VAPID_PUBLIC_KEY` é lida em **build-time** — defina **antes** do `npm run build`.
 
@@ -162,11 +164,61 @@ Start-Service cloudflared
 
 ---
 
-## 8. Backups
+## 8. Backups e restauração
 
-Com `ENABLE_BACKUP=1` + `BACKUP_PATH` + `PG_DUMP_PATH`, o pg-boss roda o backup agendado
-(`lib/jobs-handlers.ts`) gravando dumps em `BACKUP_PATH`. Verifique que o `pg_dump.exe` da
-versão 17 está no `PG_DUMP_PATH` e que a pasta existe.
+São **dois** backups, e você precisa dos dois: o dump do Postgres **não contém arquivo
+nenhum**. Restaurar só o banco deixa todo `Upload` apontando para caminho inexistente.
+
+| O quê | Como | Onde cai | Agendado |
+|---|---|---|---|
+| Banco | `pg_dump -Fc` (`lib/backup.ts`) | `BACKUP_PATH\senahub_<data>.backup` | 03:00 |
+| Arquivos | espelho robocopy (`lib/backup-storage.ts`) | `STORAGE_BACKUP_PATH` ou `BACKUP_PATH\storage` | 03:30 |
+
+Ambos exigem `ENABLE_BACKUP=1`. O do banco exige `BACKUP_PATH` + `PG_DUMP_PATH`
+(`pg_dump.exe` da v17); o dos arquivos exige `STORAGE_BASE_PATH`. Retenção do banco: 30
+dias (`.backup` e `.dump` legado). O espelho de arquivos é **aditivo** — copia o que mudou e
+nunca apaga no destino, então um arquivo excluído por engano continua recuperável.
+
+> **Ponha o backup em outro disco.** `BACKUP_PATH` no mesmo volume do `STORAGE_BASE_PATH`
+> não protege contra perda de disco. O menu avisa quando detecta isso.
+
+**No dia a dia:** menu de gerenciamento (seção 13) → opção **9. Backup e restauração** —
+backup manual do banco, dos arquivos, ou dos dois; listar/verificar; e as duas restaurações.
+
+### 8.1 Restaurar o banco
+
+`scripts/restaurar-backup.ts` (chamado pela opção 9 → 5 do menu) segue uma ordem fixa:
+**valida** o dump com `pg_restore --list` → **para** o SenaHub → grava uma **cópia de
+segurança do estado atual** (aborta se ela falhar) → `DROP`/`CREATE` → `pg_restore` →
+`migrate deploy` → sobe o serviço. Se a restauração falhar, o serviço fica parado de
+propósito e o caminho da cópia de segurança é impresso — é o caminho de volta.
+
+Dois detalhes deliberados: o schema `pgboss` é **excluído** (senão a fila de jobs volta
+congelada na hora do backup e dispara ao subir; `boss.start()` recria limpa — use
+`--com-pgboss` para manter), e a restauração **recusa** `-Confirmar`: não pode ser
+disparada pela GUI nem por automação, só com a palavra digitada no console do servidor.
+
+Direto pela linha de comando, se preferir:
+
+```powershell
+Stop-Service SenaHub
+npx tsx --tsconfig tsconfig.server.json scripts/restaurar-backup.ts "F:\backups\senahub_20260808_030000.backup"
+npx prisma migrate deploy
+Start-Service SenaHub
+```
+
+### 8.2 Restaurar os arquivos
+
+Opção 9 → 6 do menu: robocopy do espelho de volta para `STORAGE_BASE_PATH`, com o SenaHub
+parado. Sobrescreve arquivos de mesmo nome e mantém os que só existem no destino.
+
+### 8.3 Ensaiar antes (recomendado)
+
+Para conferir dado real ou ensaiar uma migration destrutiva **sem tocar em produção**, use
+`scripts/restaurar-snapshot-prod.ts`, que restaura num banco descartável e se recusa a
+escrever no banco em uso (Central do Desenvolvedor → Banco de dados → 9 → 4). Um dump de
+produção tem dado pessoal real (CPF, salário, hash de senha) — apague banco e arquivo ao
+terminar.
 
 ---
 
