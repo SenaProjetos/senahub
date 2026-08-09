@@ -62,7 +62,9 @@ async function main() {
   let pulados = 0;
 
   for (const u of usuarios) {
-    const eixos = aplicarSocio(derivarEixos(u.role as Role), u.socio?.ativo === true);
+    // `u.pjId` separa o sócio que fatura pela própria PJ do sócio administrador com
+    // pró-labore (§9.1) — sem ele, os dois colapsavam em `pro_labore`.
+    const eixos = aplicarSocio(derivarEixos(u.role as Role), u.socio?.ativo === true, u.pjId != null);
 
     // Data de início do vínculo: admissão quando existe (é o dado formal), senão a criação
     // do cadastro. Nunca "hoje" — isso apagaria o tempo de casa de quem já está aqui.

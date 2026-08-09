@@ -81,16 +81,29 @@ export function derivarEixos(role: Role): EixosDerivados {
 }
 
 /**
- * Ajuste societário: sócio ativo é remunerado por pró-labore, não por salário
- * (decisão do dono). `model Socio` continua sendo a fonte de verdade de "é sócio" — o eixo
+ * Ajuste societário. `model Socio` continua sendo a fonte de verdade de "é sócio" — o eixo
  * Contratação só diz COMO a pessoa trabalha, se trabalhar. Sócio que só aporta capital não
  * tem vínculo nenhum e nem precisa de cadastro de colaborador.
+ *
+ * **Dois casos remunerados, não um** (§9.1 do plano, tabela): o sócio administrador recebe
+ * **pró-labore**; o sócio que **fatura pela própria PJ** tem `contratacao = pj` + `pjId` — duas
+ * remunerações de natureza distinta, um único usuário. A primeira versão desta função
+ * colapsava os dois em `pro_labore`, e o caso da PJ só apareceu no backfill de produção em
+ * 2026-08-09: um `projetista_pj` sócio ativo, que fatura pela própria PJ (confirmado pelo dono),
+ * estava sendo derivado como pró-labore. `pjId` preenchido é o sinal que separa os dois — é o
+ * mesmo dado que a tabela de §9.1 usa.
  */
-export function aplicarSocio(eixos: EixosDerivados, socioAtivo: boolean): EixosDerivados {
+export function aplicarSocio(
+  eixos: EixosDerivados,
+  socioAtivo: boolean,
+  temPj = false,
+): EixosDerivados {
   if (!socioAtivo) return eixos;
+  if (!eixos.criaVinculo) return { ...eixos, revisar: [...eixos.revisar, "socio_ativo"] };
+  // Fatura pela própria PJ → mantém `pj`. Sem PJ vinculada → pró-labore (sócio administrador).
   return {
     ...eixos,
-    contratacao: eixos.criaVinculo ? "pro_labore" : eixos.contratacao,
+    contratacao: temPj ? "pj" : "pro_labore",
     revisar: [...eixos.revisar, "socio_ativo"],
   };
 }

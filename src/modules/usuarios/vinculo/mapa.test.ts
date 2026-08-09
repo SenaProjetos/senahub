@@ -96,4 +96,23 @@ describe("aplicarSocio", () => {
   it("não altera o setor — sócio que projeta continua em Engenharia e não some dos Recursos", () => {
     expect(aplicarSocio(derivarEixos("clt"), true).setor).toBe("engenharia");
   });
+
+  // §9.1, tabela: são DOIS casos remunerados, não um. O caso da PJ apareceu de verdade no
+  // backfill de produção (2026-08-09): um projetista_pj sócio ativo que fatura pela própria PJ
+  // estava sendo derivado como pró-labore.
+  it("sócio que fatura pela PRÓPRIA PJ mantém `pj`, não vira pró-labore", () => {
+    const e = aplicarSocio(derivarEixos("projetista_pj"), true, true);
+    expect(e.contratacao).toBe("pj");
+    expect(e.revisar).toContain("socio_ativo");
+  });
+
+  it("sócio com vínculo e SEM PJ vinculada é pró-labore (sócio administrador)", () => {
+    expect(aplicarSocio(derivarEixos("projetista_pj"), true, false).contratacao).toBe("pro_labore");
+  });
+
+  it("`temPj` não inventa contratação para sócio sem vínculo", () => {
+    const e = aplicarSocio(derivarEixos("admin"), true, true);
+    expect(e.criaVinculo).toBe(false);
+    expect(e.contratacao).toBeNull();
+  });
 });

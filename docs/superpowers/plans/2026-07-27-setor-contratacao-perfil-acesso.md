@@ -1039,6 +1039,45 @@ Verificado no dev: gate com 0 ganhos e 0 perdas nas duas vias; backfill idempote
 0 podados — o único sócio não-admin do dev é `supervisor`, para quem o piso é no-op). lint limpo,
 1820 testes, build ok.
 
+### 15.9 O sócio não-admin não era latente — existe em produção (2026-08-09)
+
+§15.7 registrou o risco do piso de sócio como **latente**, porque nem dev nem produção tinham
+sócio que fosse não-admin e não-supervisor. **Errado.** O dry-run do backfill em produção achou
+**4 sócios ativos, não 3**: os 3 admins e um **`projetista_pj`**. A afirmação "os 3 sócios são os
+3 admins" veio do snapshot de 2026-08-06; o quarto foi marcado depois. Lição repetida: um número
+tirado de snapshot envelhece, e "latente" era conclusão de um dado velho.
+
+**Quanto isso valia, medido:** a matriz do coordenador tem 22 permissões, a do `projetista_pj`
+tem 11, e faltam 12. Com o script anterior ao fix de §15.7, esse sócio receberia os 12 como
+override, **7 deles de ESCRITA**: `projetos:gerir`, `uploads:validar`, `planejamento:gerir`,
+`recursos:gerir`, `ferramentas:gerir`, `coordenacao:gerir`, `custos:gerir`. `uploads:validar` é
+"validar entregas (libera pagamento)". Com o fix, sobram **5, todas de leitura**: `qualidade:ver`,
+`recursos:ver`, `ponto:rateio`, `arquivos:ver_todas_disciplinas`, `projetos:historico`.
+
+**E o gate de uma via teria dado verde.** O `checar-equivalencia-permissoes.ts` anterior modela a
+fórmula do `requirePermission`, que **já inclui o piso** — o lado "antes" desse sócio já afirma a
+matriz do coordenador, então os 7 overrides de escrita não aparecem como ganho. Cego por
+construção, exatamente a cegueira que §15.7 corrigiu com a medição em duas vias. É a validação
+empírica de que a dupla fórmula valia o trabalho: ela existe há um dia e o primeiro caso real
+apareceu no dia seguinte.
+
+**Decisões do dono (2026-08-09):**
+- **O quarto sócio fatura pela própria PJ** → contratação correta é `pj`, não `pro_labore`.
+  `aplicarSocio` colapsava os dois casos remunerados de §9.1 num só; ganhou o parâmetro `temPj`
+  (`User.pjId != null`, o mesmo dado da tabela de §9.1) e três testes. `backfill-vinculos.ts`
+  passa o sinal.
+- **Rodar os backfills em produção agora e corrigir depois**, em vez de esperar o fix chegar lá.
+  Consequência aceita conscientemente: produção grava `pro_labore` para esse sócio (corrigível na
+  tela, `Vinculo` é versionado) e os 12 overrides, 7 de escrita. Eles ficam **inertes** — nada lê
+  `permissaoEfetiva` para autorizar ainda — e a **poda** do fix os remove no próximo backfill,
+  porque o `motivo` do script antigo começa com "Piso de sócio (legado" e casa com o filtro da
+  poda (verificado contra a versão em `master`).
+
+**Consequência para a Onda D:** o flip não pode ir a produção antes de a poda ter rodado lá. E o
+gate de duas vias vai acusar ganho nas **5 células de leitura** — porque `defineAction` hoje não
+aplica piso nenhum e passaria a aplicar. Isso não é bug: é a decisão de §15.7 aparecendo como
+diferença, e precisa virar **allowlist versionada com assinatura do dono**, não um ajuste no gate.
+
 ### 15.6 Higiene de branch (R8)
 
 Estado em 2026-08-08: `feat/cadastro-colaborador` está 13 commits à frente de `dev`, 1 atrás, com 56
