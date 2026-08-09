@@ -37,6 +37,12 @@ import { hashUserId } from "./snapshot-permissoes";
 
 export type SnapshotAudiencia = {
   geradoEm: string;
+  /**
+   * Só na baseline versionada: POR QUE ela foi regerada. Existe porque regerar a baseline é a
+   * única forma de fazer este gate calar — sem o motivo gravado no próprio arquivo, um `git log`
+   * distraído não distingue "mudança aprovada" de "alguém queria o verde de volta".
+   */
+  notaDeAprovacao?: string;
   /** Audiências de papel constante — as chaves de `AUDIENCIAS`. */
   audiencias: ConjuntoNomeado[];
   /** Audiências cujo conjunto de papéis é argumento; a chave carrega os argumentos concretos. */
@@ -99,11 +105,12 @@ async function main() {
   const snap = await gerarSnapshotAudiencia();
 
   const destino = process.argv[2];
+  const nota = process.argv.slice(3).join(" ").trim();
   const arquivo = destino
     ? join(process.cwd(), destino)
     : join(process.cwd(), "logs", `snapshot-audiencia-${snap.geradoEm.replace(/[:.]/g, "-")}.json`);
   mkdirSync(dirname(arquivo), { recursive: true });
-  writeFileSync(arquivo, JSON.stringify(snap, null, 2), "utf8");
+  writeFileSync(arquivo, JSON.stringify(nota ? { ...snap, notaDeAprovacao: nota } : snap, null, 2), "utf8");
 
   console.log(`\n${snap.audiencias.length} audiência(s) de papel constante:`);
   for (const c of snap.audiencias) {

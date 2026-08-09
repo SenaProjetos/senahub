@@ -1,5 +1,5 @@
 {
-  "geradoEm": "2026-08-08T23:38:21.647Z",
+  "geradoEm": "2026-08-09T14:29:31.798Z",
   "audiencias": [
     {
       "chave": "global",
@@ -152,6 +152,7 @@
         "/ponto",
         "/preferencias",
         "/projetos",
+        "/projetos/meu-trabalho",
         "/recursos",
         "/rh",
         "/rh/admin",
@@ -232,38 +233,22 @@
         "/ajuda",
         "/aprovacoes",
         "/arquivos",
-        "/certidoes",
         "/chat",
-        "/clientes",
-        "/comercial",
-        "/configuracoes",
         "/custos",
-        "/documentos",
         "/engenharia/normas",
         "/engenharia/padroes",
         "/engenharia/referencias",
         "/ferramentas",
-        "/financeiro",
-        "/juridico",
-        "/licitacoes",
         "/minha-ficha",
-        "/patrimonio",
-        "/patrimonio/ti",
         "/pendencias",
         "/planejamento",
         "/ponto",
         "/preferencias",
         "/projetos",
+        "/projetos/meu-trabalho",
         "/qualidade",
         "/recursos",
         "/rh",
-        "/rh/admin",
-        "/rh/catalogos",
-        "/rh/escalas",
-        "/rh/folha",
-        "/rh/pessoas",
-        "/rh/pessoas-juridicas",
-        "/rh/produtividade",
         "/suporte",
         "/tarefas"
       ]
@@ -386,6 +371,7 @@
         "/ponto",
         "/preferencias",
         "/projetos",
+        "/projetos/meu-trabalho",
         "/qualidade",
         "/recursos",
         "/rh",
@@ -400,5 +386,6 @@
         "/tarefas"
       ]
     }
-  ]
+  ],
+  "notaDeAprovacao": "Regerada apos a Onda D, com assinatura do dono em 2026-08-09. Duas mudancas aprovadas: (1) /projetos/meu-trabalho passa a aparecer para gestao, a pedido do dono; (2) o perfil coordenador perde 17 itens de menu que ele NAO conseguia abrir — verificado par a par que can(supervisor, ...) nega todos. Ver §15.16 do plano."
 }

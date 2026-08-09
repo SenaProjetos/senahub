@@ -1293,6 +1293,57 @@ testes; build ok.
 > catálogo novo e o backfill para materializar o `escopo:global` do sócio. Sem o backfill, ele
 > perde a visão global no instante do flip.
 
+### 15.16 Onda D fechada — o menu, e o que o gate de audiência pegou (2026-08-09)
+
+**`roles[]` codificava três eixos, não um.** O plano dizia "nav → permissão" assumindo um só.
+Dos 41 itens: 15 tinham permissão de verdade, 14 eram "todos os internos" (não existe
+`recurso:acao` que signifique "é gente de dentro"), 2 não tinham condição e o resto era próprio.
+Forçar os 14 por permissão significaria inventar pares falsos no catálogo — que seriam semeados
+em todo perfil e medidos pelo gate como se fossem acesso a alguma coisa. Ficou híbrido:
+`permissao` onde existe uma real, `tipo` onde o eixo é interno×externo, nada onde é de todos.
+
+**Três achados do gate que revisão de diff não pegaria:**
+
+1. **Dois CLIENTES ganhariam `/projetos` e `/pendencias`.** O perfil `portal_cliente` tem
+   `projetos:ver` (o portal usa a mesma permissão), então mapear só por permissão exporia a tela
+   interna. Corrigido com `tipo: "interno"` **junto** da permissão. É o achado mais grave da onda
+   e apareceu só porque o menu passou a ser medido por usuário.
+2. `/rh/produtividade` sumia para o `administrativo` — mapeei em `ponto:rateio`, que ele não tem.
+3. O `freelancer` ganhava `/chat`. A regra "freelancer não entra no chat" era código
+   (`CHAT_ROLES`); virou `chat:usar` — e não é permissão inventada para o menu, o chat já gateava
+   isso de verdade no `service.ts`.
+
+**Duas diferenças ficaram, aprovadas pelo dono, e a baseline foi regerada com a nota gravada
+dentro do próprio arquivo** (`notaDeAprovacao`) — regerar é a única forma de fazer este gate
+calar, e sem o motivo no arquivo um `git log` distraído não distingue "mudança aprovada" de
+"alguém queria o verde de volta":
+
+- `/projetos/meu-trabalho` passa a aparecer para gestão (pedido do dono, ver §15.17);
+- **o coordenador perde 17 itens de menu** — e isso é **correção, não regressão**: verificado par
+  a par que ele não consegue abrir NENHUMA dessas telas hoje (`clientes:ver` NÃO, `financeiro:ver`
+  NÃO, `rh:folha` NÃO…). O menu mostrava item que levava direto a "Sem permissão", desde que §6.1
+  fechou a matriz do coordenador em coordenação técnica pura. Em produção não há `supervisor`
+  ativo, então hoje afeta zero pessoas.
+
+**Desempenho:** `permissoesEfetivas` carrega tudo em duas leituras e o filtro (`navItemsPara`) é
+puro — checar 41 itens um a um seriam 41 consultas por render. O contexto é montado uma vez em
+`(dashboard)/layout.tsx` e desce como prop, o que também mantém `nav-config.ts` client-safe.
+
+Entraram no catálogo nesta onda: `escopo:global`, `chat:usar` e `auditoria:ver`. Gate de permissão
+em 928 células, 0 ganhos e 0 perdas.
+
+### 15.17 "Meu trabalho" de qualquer pessoa (2026-08-09)
+
+Pedido do dono ao decidir o item de menu: gestão vê o próprio "Meu trabalho" **e o de qualquer
+outra pessoa**. Não é visibilidade de menu, é capacidade nova — foi em commit separado, para não
+misturar migração com funcionalidade no mesmo diff.
+
+`?usuario=<id>` + seletor de pessoa. **O gate é no servidor**, não no seletor: sem isso bastaria
+digitar o parâmetro na barra de endereços para ler a carteira de qualquer um. A permissão é
+`recursos:ver` — reusada de propósito, porque já significa "enxergar a alocação das pessoas" (é o
+gate da matriz de Recursos), e criar uma permissão nova só para esta tela colocaria as duas visões
+sob decisões de acesso diferentes.
+
 ### 15.6 Higiene de branch (R8)
 
 Estado em 2026-08-08: `feat/cadastro-colaborador` está 13 commits à frente de `dev`, 1 atrás, com 56
