@@ -1,8 +1,8 @@
 import "server-only";
+import type { Contratacao } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import type { Prisma } from "@/generated/prisma/client";
-import type { Role } from "@/lib/roles";
 import {
   calcularDia,
   diaLocal,
@@ -16,7 +16,7 @@ import {
   type EstadoJornada,
 } from "@/modules/ponto/engine";
 import {
-  escalaRoleGrade,
+  escalaContratacaoGrade,
   escalaUsuarioGrade,
   type DiaGrade,
 } from "@/modules/rh/escalas/queries";
@@ -198,11 +198,11 @@ export async function aplicarBatida(params: {
  * substitui a escala do perfil por inteiro; senão a escala do perfil; senão o
  * padrão seg-sex 8h. Puro-de-I/O (só leituras). Usado por espelho e alertas.
  */
-export async function resolverEscala(userId: string, role: Role, data: Date): Promise<DiaGrade> {
+export async function resolverEscala(userId: string, contratacao: Contratacao | null, data: Date): Promise<DiaGrade> {
   const ds = diaSemanaLocal(data);
   const usuario = await escalaUsuarioGrade(userId);
   if (usuario.temOverride) return usuario.dias[ds];
-  const perfil = await escalaRoleGrade(role);
+  const perfil = await escalaContratacaoGrade(contratacao);
   return perfil[ds];
 }
 

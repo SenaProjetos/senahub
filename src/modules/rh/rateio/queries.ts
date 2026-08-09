@@ -27,11 +27,11 @@ async function custoHoraPorUsuario(
   if (userIds.length === 0) return new Map();
   const [recursos, users] = await Promise.all([
     prisma.recurso.findMany({ where: { userId: { in: userIds } }, select: { userId: true, custoHora: true } }),
-    prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, role: true, salarioBase: true } }),
+    prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, role: true, contratacao: true, salarioBase: true } }),
   ]);
   const rec = new Map(recursos.map((r) => [r.userId, r.custoHora != null ? Number(r.custoHora) : null]));
   const sal = new Map(users.map((u) => [u.id, u.salarioBase != null ? Number(u.salarioBase) : null]));
-  const esc = await horasDiaPadraoEmLote(users.map((u) => ({ id: u.id, role: u.role ?? "freelancer" })));
+  const esc = await horasDiaPadraoEmLote(users.map((u) => ({ id: u.id, contratacao: u.contratacao })));
   const horasMes = diasUteis(ano, mes); // dias úteis; × horasDia abaixo
 
   const out = new Map<string, number>();

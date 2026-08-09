@@ -71,10 +71,21 @@ inclusive o admin** — o bypass deixa de ser `role === "admin"` e passa a ser `
    ```
    É ele que materializa o `escopo:global` do sócio. Entre o serviço subir e este comando rodar,
    essa pessoa enxerga só os projetos dela — janela de minutos, mas rode logo.
-3. Conferir o gate:
+3. **Materializar a jornada de quem ainda não tem grade própria** (passo 2 de §6.4, nunca rodado
+   em produção — era o "passo 6 opcional"). Precisa vir ANTES do gate de jornada:
+   ```
+   npx tsx --tsconfig tsconfig.server.json scripts/materializar-escala-usuario.ts
+   ```
+   Grava o valor que já estava sendo calculado — ninguém muda de jornada.
+
+4. Conferir os gates:
    ```
    npx tsx --tsconfig tsconfig.server.json scripts/checar-equivalencia-permissoes.ts
+   npx tsx --tsconfig tsconfig.server.json scripts/checar-equivalencia-jornada.ts
    ```
+   O de jornada compara a grade de cada pessoa pelo caminho antigo (`EscalaRole[role]`) e pelo
+   novo (`EscalaContratacao[contratacao]`). **Qualquer diferença é bloqueante** — jornada errada
+   vira banco de horas e falta errados retroativamente, e o espelho é assinado com hash.
    Esperado: **exit 0**, com `5 ganho(s) COBERTO(S) por allowlist versionada` e as 7 perdas de
    escrita do sócio (intencionais). Qualquer ganho **fora** dessas 5 é bloqueante.
 

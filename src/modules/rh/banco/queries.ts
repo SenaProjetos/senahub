@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { type Role } from "@/lib/roles";
+import type { Contratacao } from "@/generated/prisma/enums";
 import { whereAudiencia } from "@/lib/audiencias";
 import { gradesEmLote } from "@/modules/rh/escalas/queries";
 import { feriadosParaCalculo } from "@/modules/rh/feriados/queries";
@@ -25,7 +26,7 @@ import { diaLocal, trabalhadoPorDia, type TipoBatida } from "@/modules/ponto/eng
 export async function usuariosComJornadaNoMes(
   ano: number,
   mes: number,
-): Promise<{ id: string; name: string; role: Role }[]> {
+): Promise<{ id: string; name: string; role: Role; contratacao: Contratacao | null }[]> {
   const iniMes = new Date(Date.UTC(ano, mes - 1, 1));
   const fimMes = new Date(Date.UTC(ano, mes, 0));
 
@@ -45,7 +46,7 @@ export async function usuariosComJornadaNoMes(
       ],
     },
     orderBy: { name: "asc" },
-    select: { id: true, name: true, role: true },
+    select: { id: true, name: true, role: true, contratacao: true },
   });
 }
 

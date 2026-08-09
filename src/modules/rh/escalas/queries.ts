@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { type Role } from "@/lib/roles";
+import type { Contratacao } from "@/generated/prisma/enums";
 import { whereAudiencia } from "@/lib/audiencias";
 
 export type DiaGrade = {
@@ -60,9 +61,30 @@ function completarSemana(linhas: LinhaDb[]): DiaGrade[] {
   });
 }
 
-/** Grade padrão (7 dias) do perfil — usada quando o usuário não tem override ativo. */
+/**
+ * LEGADO — grade padrão por PAPEL. Continua exportada só para o arnês de jornada
+ * (`scripts/checar-equivalencia-jornada.ts`) reconstruir o "antes". Nenhum caminho de cálculo
+ * deve chamá-la: a fonte é `escalaContratacaoGrade` desde a Onda E.
+ */
 export async function escalaRoleGrade(role: Role): Promise<DiaGrade[]> {
   const linhas = await prisma.escalaRole.findMany({ where: { role } });
+  return completarSemana(linhas);
+}
+
+/**
+ * Grade padrão (7 dias) da CONTRATAÇÃO — usada quando o usuário não tem override ativo.
+ *
+ * Jornada é matéria trabalhista, e `role` misturava quatro eixos; a chave passa a ser COMO a
+ * pessoa é contratada (Onda E, §6.4).
+ *
+ * `contratacao` nula (admin sem vínculo) ou sem linhas (`pj`, `autonomo_rpa`, `pro_labore`) cai
+ * no default de `completarSemana` — 8h nos dias úteis, exatamente como caía via `escalaRoleGrade`
+ * para esses papéis, que também não tinham linha. Ver a nota no schema sobre por que "sem
+ * jornada" NÃO virou 0h: zeraria o custo/hora de PJ sem `Recurso.custoHora`.
+ */
+export async function escalaContratacaoGrade(contratacao: Contratacao | null): Promise<DiaGrade[]> {
+  if (!contratacao) return completarSemana([]);
+  const linhas = await prisma.escalaContratacao.findMany({ where: { contratacao } });
   return completarSemana(linhas);
 }
 
@@ -87,9 +109,9 @@ function horasDiaDaSemana(semana: DiaGrade[]): number {
   return ativos.length ? Math.max(...ativos) : 8;
 }
 
-export async function horasDiaPadrao(userId: string, role: Role): Promise<number> {
+export async function horasDiaPadrao(userId: string, contratacao: Contratacao | null): Promise<number> {
   const usuario = await escalaUsuarioGrade(userId);
-  const semana = usuario.temOverride ? usuario.dias : await escalaRoleGrade(role);
+  const semana = usuario.temOverride ? usuario.dias : await escalaContratacaoGrade(contratacao);
   return horasDiaDaSemana(semana);
 }
 
@@ -100,31 +122,31 @@ export async function horasDiaPadrao(userId: string, role: Role): Promise<number
  * a grade do perfil POR INTEIRO.
  */
 export async function gradesEmLote(
-  usuarios: { id: string; role: Role }[],
+  usuarios: { id: string; contratacao: Contratacao | null }[],
 ): Promise<Map<string, DiaGrade[]>> {
   const ids = usuarios.map((u) => u.id);
-  const roles = [...new Set(usuarios.map((u) => u.role))];
+  const contratacoes = [...new Set(usuarios.map((u) => u.contratacao).filter((c): c is Contratacao => c != null))];
   const [uRows, rRows] = await Promise.all([
     prisma.escalaUsuario.findMany({ where: { userId: { in: ids } } }),
-    prisma.escalaRole.findMany({ where: { role: { in: roles } } }),
+    prisma.escalaContratacao.findMany({ where: { contratacao: { in: contratacoes } } }),
   ]);
   const porUser = new Map<string, LinhaDb[]>();
   for (const r of uRows) porUser.set(r.userId, [...(porUser.get(r.userId) ?? []), r]);
-  const porRole = new Map<string, LinhaDb[]>();
-  for (const r of rRows) porRole.set(r.role, [...(porRole.get(r.role) ?? []), r]);
+  const porContratacao = new Map<string, LinhaDb[]>();
+  for (const r of rRows) porContratacao.set(r.contratacao, [...(porContratacao.get(r.contratacao) ?? []), r]);
 
   const out = new Map<string, DiaGrade[]>();
   for (const u of usuarios) {
     const linhasU = porUser.get(u.id) ?? [];
     const temOverride = linhasU.some((l) => l.ativo);
-    out.set(u.id, completarSemana(temOverride ? linhasU : (porRole.get(u.role) ?? [])));
+    out.set(u.id, completarSemana(temOverride ? linhasU : (u.contratacao ? (porContratacao.get(u.contratacao) ?? []) : [])));
   }
   return out;
 }
 
 /** Igual a `horasDiaPadrao`, mas em lote — evita N+1 (rateio roda sobre a equipe toda). */
 export async function horasDiaPadraoEmLote(
-  usuarios: { id: string; role: Role }[],
+  usuarios: { id: string; contratacao: Contratacao | null }[],
 ): Promise<Map<string, number>> {
   const grades = await gradesEmLote(usuarios);
   const out = new Map<string, number>();
@@ -137,6 +159,6 @@ export async function usuariosParaEscala() {
   return prisma.user.findMany({
     where: whereAudiencia("interno"),
     orderBy: { name: "asc" },
-    select: { id: true, name: true, role: true },
+    select: { id: true, name: true, role: true, contratacao: true },
   });
 }

@@ -1344,6 +1344,47 @@ digitar o parâmetro na barra de endereços para ler a carteira de qualquer um. 
 gate da matriz de Recursos), e criar uma permissão nova só para esta tela colocaria as duas visões
 sob decisões de acesso diferentes.
 
+### 15.18 Onda E — jornada passa a ser chaveada por contratação (2026-08-09)
+
+Passo 3 de §6.4. `EscalaContratacao` criada (migration aditiva), `EscalaRole` **mantida** — o drop
+é o passo 4, depois do ciclo em sombra.
+
+**O risco desta onda não era a colisão que §6.4 previu.** As grades de `administrativo`, `clt` e
+`ti` são idênticas (08:00–17:00, 8h), então o slot `clt` tem valor único e a colisão é benigna. O
+risco real estava em `custoHoraPorUsuario` (`rh/rateio/queries.ts`): quando o PJ não tem
+`Recurso.custoHora`, o custo vem de `salarioBase ÷ (horasDia × diasÚteis)`. Hoje o PJ não tem grade
+e cai no default de 8h. Se `EscalaContratacao` tratasse `pj`/`autonomo_rpa`/`pro_labore` como "sem
+jornada" = 0h, o `h > 0 ? s/h : 0` **zeraria o custo/hora e quebraria a margem de projeto em
+silêncio** — sem nenhum gate cobrindo, porque escala não é permissão nem audiência.
+
+Decisão: **`pj`, `autonomo_rpa` e `pro_labore` ficam sem linha**, e o default de `completarSemana`
+continua respondendo 8h — exatamente como respondia via `EscalaRole`, que também não tinha linha
+para esses papéis. A semântica "PJ não tem jornada" fica para quando §10.1.3 (preencher
+`Recurso.custoHora` de PJ e sócio) estiver resolvido. Comportamento preservado, semântica adiada
+de propósito.
+
+**Gate novo: `scripts/checar-equivalencia-jornada.ts`.** R4 era o único risco da reforma sem arnês.
+Compara, por usuário interno ativo, a grade dos 7 dias pelo caminho antigo × pelo novo — e
+**qualquer diferença bloqueia**, sem assimetria: tanto reduzir quanto aumentar a jornada esperada
+falsifica espelho, saldo e folha, e o `EspelhoAceite` guarda hash SHA-256 do espelho assinado.
+
+Ele também compara **as grades padrão em si**, papel a papel, independente de usuário — sem isso
+perderia os dentes numa base onde todo mundo já tem override (o dev, depois do passo 2): a
+comparação por usuário viraria override-contra-override, sempre igual, e um erro na semeadura só
+apareceria no primeiro colaborador contratado DEPOIS da virada.
+
+**Escrita dupla na tela de escalas, com recusa.** `salvarEscalaRole` grava nas duas tabelas
+enquanto coexistem — sem isso, editar a grade seria **no-op silencioso**: a pessoa salva, a tela
+confirma, nenhum cálculo muda. E recusa quando a edição faria `administrativo`/`clt`/`ti`
+divergirem, porque as três colapsam no slot `clt` e gravar assim elegeria uma vencedora em
+silêncio. A tela passa a editar contratação direto quando `EscalaRole` for dropada.
+
+Resultado no dev: 8 usuários × 7 dias + 4 grades padrão, **zero diferença**. Os três gates verdes.
+
+**Falta na Onda E:** passo 4 (dropar `EscalaRole`) e a migração da tela — os dois ficam para depois
+do ciclo em sombra, como §6.4 sempre previu. E **o passo 2 (`materializar-escala-usuario.ts`) nunca
+rodou em produção** — entrou no runbook do Deploy 2.
+
 ### 15.6 Higiene de branch (R8)
 
 Estado em 2026-08-08: `feat/cadastro-colaborador` está 13 commits à frente de `dev`, 1 atrás, com 56

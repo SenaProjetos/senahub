@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { minutosSessao } from "@/modules/ponto/format";
 import { feriadosParaCalculo } from "@/modules/rh/feriados/queries";
-import { escalaRoleGrade, escalaUsuarioGrade, type DiaGrade } from "@/modules/rh/escalas/queries";
+import { escalaContratacaoGrade, escalaUsuarioGrade, type DiaGrade } from "@/modules/rh/escalas/queries";
 import { acumuladoAte } from "@/modules/rh/banco/queries";
 import { esperadoPorDiaMes, somarEsperadoAte } from "@/modules/ponto/esperado";
 import { contextoApuracao } from "@/modules/ponto/apuracao";
@@ -434,10 +434,10 @@ export async function espelhoMes(userId: string, ano: number, mes: number) {
   // Esperado POR DIA — mapa completo do mês, base do filtro por período no
   // cliente E do total mensal. Regra única em `esperado.ts` (mesma que
   // `espelhoDetalhado` usa para `devidasMin`).
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { contratacao: true } });
   const [uGrade, rGrade, ctx, feriadosAno, feriasSet] = await Promise.all([
     escalaUsuarioGrade(userId),
-    escalaRoleGrade(user?.role ?? "freelancer"),
+    escalaContratacaoGrade(user?.contratacao ?? null),
     contextoApuracao(userId, ano, mes),
     feriadosParaCalculo(ano),
     diasFeriasNoMes(userId, ano, mes),
@@ -627,13 +627,13 @@ export async function espelhoDetalhado(
 ): Promise<EspelhoDetalhado> {
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: userId },
-    select: { name: true, role: true },
+    select: { name: true, role: true, contratacao: true },
   });
 
   const [esp, uGrade, rGrade, acumulado, ctxApuracao] = await Promise.all([
     espelhoMes(userId, ano, mes),
     escalaUsuarioGrade(userId),
-    escalaRoleGrade(user.role),
+    escalaContratacaoGrade(user.contratacao),
     acumuladoAte(userId, ano, mes),
     contextoApuracao(userId, ano, mes),
   ]);

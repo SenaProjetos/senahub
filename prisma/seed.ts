@@ -3,7 +3,7 @@ import { prisma } from "../src/lib/prisma";
 import { auth } from "../src/lib/auth";
 import { docVazio, novoId, type DocSchema } from "../src/modules/documentos/schema";
 import { MODALIDADES_PADRAO } from "../src/modules/licitacoes/modalidade";
-import { semearEscalaRolePadrao } from "./escalas-padrao";
+import { semearEscalaRolePadrao, semearEscalaContratacao } from "./escalas-padrao";
 import { feriadosNacionais } from "../src/modules/rh/feriados/queries";
 import { seedPerfisAcesso } from "./seed-perfis-acesso";
 import type { Prisma } from "../src/generated/prisma/client";
@@ -640,6 +640,7 @@ async function main() {
 
   // 11) Escala padrão por perfil (corrige a jornada legal do estagiário — 6h/dia)
   await semearEscalaRolePadrao();
+  await semearEscalaContratacao();
 
   // 12) Perfis de acesso semente (Onda B) — espelha `Permissao` (acima) em PerfilAcesso.
   // Autorização real segue 100% em `role` até a Onda D; isto só prepara o dado.

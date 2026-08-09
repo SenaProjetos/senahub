@@ -1944,6 +1944,33 @@ model EscalaRole {
   @@map("escala_role")
 }
 
+/// Escala PADRÃO por contratação — sucessora de `EscalaRole` (Onda E, §6.4 do plano de Setor ×
+/// Contratação × Perfil). A chave passa a ser COMO a pessoa é contratada, não o papel que ela
+/// tem no app: jornada é matéria trabalhista, e `role` misturava quatro eixos.
+///
+/// `pj`, `autonomo_rpa` e `pro_labore` NÃO têm linha aqui, de propósito: quem não tem jornada
+/// controlada continua caindo no default de `completarSemana` (8h úteis), exatamente como cai
+/// hoje. Tratar "sem jornada" como 0h zeraria o custo/hora de PJ sem `Recurso.custoHora` em
+/// `custoHoraPorUsuario` (salarioBase ÷ horas) e quebraria a margem de projeto em silêncio.
+model EscalaContratacao {
+  id          String      @id @default(cuid())
+  contratacao Contratacao
+  diaSemana   Int
+
+  /// Horário previsto "HH:MM" — null = day off / sem horário fixo.
+  entrada       String?
+  saida         String?
+  /// Descansos previstos: `[{inicio,fim}]` em "HH:MM" — múltiplos permitidos.
+  descansos     Json    @default("[]")
+  horasDia      Decimal @default(8) @db.Decimal(4, 2)
+  ativo         Boolean @default(true)
+  /// Tolerância de atraso em minutos (CLT art. 58 §1º) — informativo, não altera falta/ok.
+  toleranciaMin Int     @default(10)
+
+  @@unique([contratacao, diaSemana])
+  @@map("escala_contratacao")
+}
+
 /// Override de escala por usuário — mesma grade da EscalaRole. Se o usuário
 /// tem qualquer linha ativa, a grade dele substitui a do role POR INTEIRO
 /// (não mescla dia a dia).

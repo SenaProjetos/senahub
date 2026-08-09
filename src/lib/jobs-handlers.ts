@@ -379,12 +379,12 @@ export async function lembretePontoNaoBatido(): Promise<number> {
   if (await ehFeriado(hojeISO)) return 0; // feriado → dia não útil
   const clts = await prisma.user.findMany({
     where: whereAudiencia("clt"),
-    select: { id: true, role: true },
+    select: { id: true, role: true, contratacao: true },
   });
   let n = 0;
   for (const u of clts) {
     // Folga (escala do dia inativa) → sem lembrete.
-    const grade = await resolverEscala(u.id, u.role, agora);
+    const grade = await resolverEscala(u.id, u.contratacao, agora);
     if (!grade.ativo) continue;
     // Férias aprovadas cobrindo hoje → sem lembrete.
     const ferias = await prisma.ferias.findFirst({
@@ -446,7 +446,7 @@ export async function alertasPontoTick(): Promise<number> {
 
   const usuarios = await prisma.user.findMany({
     where: whereAudiencia("clt"),
-    select: { id: true, role: true, name: true, email: true },
+    select: { id: true, role: true, contratacao: true, name: true, email: true },
   });
   if (usuarios.length === 0) return 0;
 
@@ -470,7 +470,7 @@ export async function alertasPontoTick(): Promise<number> {
 
   let enviados = 0;
   for (const u of usuarios) {
-    const grade = await resolverEscala(u.id, u.role, agora);
+    const grade = await resolverEscala(u.id, u.contratacao, agora);
     const eventos = avaliarAlertasDoDia({ agora, grade, batidasHoje: batidasPorUser.get(u.id) ?? [] });
     if (eventos.length === 0) continue;
 
