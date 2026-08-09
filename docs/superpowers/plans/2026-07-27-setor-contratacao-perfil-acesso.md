@@ -1111,6 +1111,43 @@ do coordenador. Registrado aqui porque um verde arquivado sem essa ressalva vira
    3 `sem_vinculo_definir_a_mao socio_ativo` (os admins), 1 `setor_sem_origem socio_ativo`, 1
    `setor_sem_origem pj_ou_autonomo_rpa` (o freelancer aguardando reclassificação, §9.2).
 
+### 15.11 Deploy 1 (v1.7.0) e o resultado do gate em produção — 2026-08-09
+
+Deploy sem o flip: só o piso-de-leitura, a poda, o gate em duas vias e o fix do sócio-PJ. `can()`
+intocado. Rodado no servidor depois:
+
+- **Poda: `5 materializados · 7 podados`**, exatamente o previsto. Os 7 de escrita
+  (`projetos:gerir`, `uploads:validar`, `planejamento:gerir`, `coordenacao:gerir`,
+  `recursos:gerir`, `ferramentas:gerir`, `custos:gerir`) saíram de `permissao_usuario`.
+- **Gate: 26 × 2860 células, exit 1 — 5 ganhos e 7 perdas, todos do mesmo usuário** (o sócio
+  `projetista_pj`). Os 5 ganhos são `via defineAction`, exatamente as células de leitura previstas.
+  As 7 perdas são `via requirePermission` — a imagem espelhada da poda.
+
+**As 7 perdas não estavam previstas na instrução e merecem leitura própria.** Elas dizem que essa
+pessoa **hoje consegue** `uploads:validar` ("validar entregas — libera pagamento"), `projetos:gerir`
+e mais 5, **por causa do piso de sócio nas páginas** — e deixaria de conseguir no flip. Não é
+regressão: é o `if (ehSocio)` implícito saindo do código e virando dado explícito, que é o objetivo
+declarado de §5.1. Mas é perda de capacidade real de uma pessoa real, no dia 1 — a mesma classe do
+corte de escopo do Coordenador (§15.3/§15.5), e merece o mesmo tratamento de aviso.
+
+**Dois defeitos de mensagem do próprio gate, achados na execução e corrigidos:**
+1. O rodapé afirmava, fixo, *"Isso é ganho de acesso de ESCRITA"* — e contradizia a lista logo
+   acima, onde os 5 ganhos eram todos de leitura. Um operador que lesse só o rodapé concluiria que
+   liberou escrita para um sócio. Agora a classificação é **calculada** com `ehLeitura` e o texto
+   muda conforme o caso.
+2. O aviso de perdas dizia *"(esperado antes da Onda B semear perfis reais)"* — verdade na Onda A,
+   mentira depois que os perfis foram semeados. Em produção ele apareceu explicando perdas cuja
+   causa real era a poda. Foi trocado por uma lista das células perdidas, sem diagnóstico
+   adivinhado.
+
+Ambos são a mesma falha de fundo: **mensagem de gate que afirma diagnóstico em vez de reportar
+medição**. É o oposto do que o arnês existe para fazer.
+
+**Decisões pendentes antes do Deploy 2 (o flip):** (a) os 5 ganhos de leitura via `defineAction` —
+allowlist versionada assinada, ou restringir mais o piso; (b) as 7 escritas que a pessoa perde —
+conceder explicitamente (perfil próprio ou overrides nominais com motivo) ou deixar cair. As duas
+são a mesma pergunta de fundo: **o que esse sócio deve poder fazer, dito explicitamente?**
+
 ### 15.6 Higiene de branch (R8)
 
 Estado em 2026-08-08: `feat/cadastro-colaborador` está 13 commits à frente de `dev`, 1 atrás, com 56
