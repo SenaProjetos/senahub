@@ -55,16 +55,29 @@ export async function canRole(role: Role, recurso: string, acao: string): Promis
 }
 
 /**
- * Verifica se o usuário pode executar `recurso:acao`.
+ * Verifica se o usuário pode executar `recurso:acao`. **Fonte real de autorização.**
  *
- * HOJE delega para `canRole(subject.role, ...)` — **zero mudança de comportamento**. O corpo é
- * trocado por `permissaoEfetiva(subject, ...)` num commit próprio, pequeno e revisável, depois
- * que todos os call-sites já estiverem passando o sujeito e o gate de equivalência estiver verde.
- * Separar a quebra de assinatura (diff grande, comportamento idêntico) do religamento do motor
- * (diff de 3 linhas, comportamento novo) é o que torna o corte auditável.
+ * Desde a Onda D resolve por `permissaoEfetiva` (Perfil de acesso + override individual), não mais
+ * pela matriz por `role`. Três diferenças de comportamento, todas deliberadas e todas cobertas
+ * pelo gate de equivalência (`scripts/checar-equivalencia-permissoes.ts`):
+ *
+ *   1. **O bypass deixa de ser `role === "admin"` e passa a ser `superUsuario`.** É a razão de o
+ *      backfill ter que rodar ANTES deste código chegar numa base: sem `superUsuario` marcado, o
+ *      admin se tranca para fora junto com todo mundo.
+ *   2. **Usuário inativo é negado aqui também**, não só no gate de sessão do `defineAction`.
+ *   3. **Sem `perfilId`, nega tudo** — default negado, que é o mesmo princípio da matriz antiga
+ *      (linha ausente = negado), agora aplicado à pessoa e não ao papel.
+ *
+ * `canRole` continua existindo para o piso de sócio e para o arnês; não é caminho de autorização.
+ *
+ * Custo: `permissaoEfetiva` faz uma consulta indexada por `userId` a cada chamada, porque
+ * override **não é cacheado de propósito** (§5.2 do plano: é onde mora todo bug de invalidação, e
+ * revogação tem que valer na hora). São 1-3 chamadas por página. Se virar problema, o conserto é
+ * pré-carregar os overrides do usuário uma vez por request — nunca um cache com TTL.
  */
 export async function can(subject: SubjectAutorizacao, recurso: string, acao: string): Promise<boolean> {
-  return canRole(subject.role, recurso, acao);
+  const { permissaoEfetiva } = await import("@/lib/permissao-efetiva");
+  return permissaoEfetiva(subject, recurso, acao);
 }
 
 /**
