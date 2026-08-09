@@ -2,6 +2,13 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.10.0](https://github.com/SenaProjetos//compare/v1.9.0...v1.10.0) (2026-08-09)
+
+
+### ✨ Funcionalidades
+
+* **rh:** jornada passa a ser chaveada por contratacao, nao por papel ([42db539](https://github.com/SenaProjetos//commit/42db5392ac565aca9ebfb1e8a47aba62d68f2233))
+
 ## [1.9.0](https://github.com/SenaProjetos//compare/v1.8.1...v1.9.0) (2026-08-09)
 
 
