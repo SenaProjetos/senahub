@@ -2,6 +2,20 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.7.0](https://github.com/SenaProjetos//compare/v1.6.0...v1.7.0) (2026-08-09)
+
+
+### ✨ Funcionalidades
+
+* **acesso:** piso de socio passa a ser so de leitura ([de4e79d](https://github.com/SenaProjetos//commit/de4e79d68b911e1a54aa31aafee8038cedcc05ea))
+
+
+### 🐛 Correções
+
+* **acesso:** gate media so um dos dois caminhos de autorizacao ([30d014f](https://github.com/SenaProjetos//commit/30d014f1bfd14970497aeccb65d98148c120f730))
+* **acesso:** poda so encosta em par que o catalogo conhece; runbook atualizado ([1190b1d](https://github.com/SenaProjetos//commit/1190b1d05dbb13eb0bebb84777e6327735cb244d))
+* **vinculo:** socio que fatura pela propria PJ nao vira pro-labore ([b8c8668](https://github.com/SenaProjetos//commit/b8c86684a0825133bbe500a243daee62fb51663b))
+
 ## [1.6.0](https://github.com/SenaProjetos//compare/v1.5.0...v1.6.0) (2026-08-09)
 
 
