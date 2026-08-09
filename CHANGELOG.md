@@ -2,6 +2,13 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.8.1](https://github.com/SenaProjetos//compare/v1.8.0...v1.8.1) (2026-08-09)
+
+
+### 🐛 Correções
+
+* **acesso:** linha final do gate dizia "zero ganhos" logo apos listar 5 ([9024f7d](https://github.com/SenaProjetos//commit/9024f7d59ebd61d7c03429dbb144ada0466c17fc))
+
 ## [1.8.0](https://github.com/SenaProjetos//compare/v1.7.0...v1.8.0) (2026-08-09)
 
 
