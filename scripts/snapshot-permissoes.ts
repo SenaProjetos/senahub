@@ -48,9 +48,18 @@ export async function gerarSnapshotLegado(): Promise<CelulaPermissao[]> {
     const role = u.role as Role;
     const ehSocio = u.socio?.ativo === true;
     for (const { recurso, acao } of pares) {
-      // Mesma fórmula de `requirePermission` (lib/session.ts): perfil OU piso de sócio.
-      const permitido = (await can(role, recurso, acao)) || (ehSocio && (await can("supervisor", recurso, acao)));
-      celulas.push({ userId: u.id, role, recurso, acao, permitido });
+      const daRole = await can(role, recurso, acao);
+
+      // Duas fórmulas, porque os dois caminhos de autorização DIVERGEM hoje (ver
+      // `ViaAutorizacao` em lib/equivalencia-permissoes.ts):
+      //   `requirePermission` (session.ts:94) aplica o piso de sócio;
+      //   `defineAction` (with-action.ts:76) chama `can(user.role, ...)` e NÃO aplica.
+      // Medir só a primeira esconderia o ganho de escrita que um sócio não-admin teria ao
+      // trocar `defineAction` por `permissaoEfetiva` — que não faz essa distinção.
+      const comPiso = daRole || (ehSocio && (await can("supervisor", recurso, acao)));
+
+      celulas.push({ userId: u.id, role, recurso, acao, via: "requirePermission", permitido: comPiso });
+      celulas.push({ userId: u.id, role, recurso, acao, via: "defineAction", permitido: daRole });
     }
   }
   return celulas;

@@ -71,7 +71,9 @@ async function main() {
   const arquivo = join(dir, `equivalencia-permissoes-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
   writeFileSync(arquivo, JSON.stringify(relatorio, null, 2), "utf8");
 
+  const porVia = (v: string) => antes.filter((c) => (c.via ?? "requirePermission") === v).length;
   console.log(`\n${relatorio.totalUsuarios} usuário(s) × ${antes.length} célula(s) comparada(s).`);
+  console.log(`  ${porVia("requirePermission")} via requirePermission (com piso de sócio) · ${porVia("defineAction")} via defineAction (sem piso).`);
   console.log(`  → relatório completo: ${arquivo}`);
 
   // Comparação vazia é FALHA, não sucesso. Sem esta guarda o script imprime "zero ganhos" e
@@ -95,9 +97,18 @@ async function main() {
   if (ganhos.length > 0) {
     console.error(`\n✖ ${ganhos.length} GANHO(S) DE ACESSO DETECTADO(S) — bloqueante:`);
     for (const g of ganhos.slice(0, 20)) {
-      console.error(`  - [${g.role}] ${g.userId}: ${g.recurso}:${g.acao} passou de negado para permitido`);
+      console.error(
+        `  - [${g.role}] ${g.userId}: ${g.recurso}:${g.acao} passou de negado para permitido (via ${g.via ?? "requirePermission"})`,
+      );
     }
     if (ganhos.length > 20) console.error(`  ... e mais ${ganhos.length - 20}.`);
+    if (ganhos.some((g) => g.via === "defineAction")) {
+      console.error(
+        "\n  Ganhos em `defineAction` costumam ser o piso de sócio: hoje ele vale em requirePermission\n" +
+          "  (páginas) mas NÃO em with-action (Server Actions), e `permissaoEfetiva` não faz essa\n" +
+          "  distinção. Isso é ganho de acesso de ESCRITA — decidir antes de virar, não depois.",
+      );
+    }
     await prisma.$disconnect();
     process.exit(1);
   }

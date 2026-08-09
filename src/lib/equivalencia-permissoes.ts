@@ -12,6 +12,18 @@
  * Plano: docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md (§6.2, R1)
  */
 
+/**
+ * Qual dos DOIS caminhos de autorização a célula mede. Eles não são equivalentes hoje:
+ *   - `requirePermission` (`session.ts`) aplica o piso de sócio: `can(role) || (ehSocio && can("supervisor"))`
+ *   - `defineAction` (`with-action.ts`) chama `can(user.role, ...)` e **não** aplica o piso
+ * Ou seja: um sócio não-admin hoje passa em páginas que o coordenador vê, mas NÃO nas Server
+ * Actions correspondentes. `permissaoEfetiva` não tem essa divisão (o piso virou override
+ * individual, que vale em qualquer checagem), então medir só a fórmula de `requirePermission`
+ * esconderia um GANHO de acesso de escrita no caminho de `defineAction` — R1 fail-open com
+ * luz verde. As duas fórmulas viram matrizes separadas.
+ */
+export type ViaAutorizacao = "requirePermission" | "defineAction";
+
 export type CelulaPermissao = {
   /** Hasheado pelo script gerador — nunca o id real em fixtures persistidas. */
   userId: string;
@@ -19,6 +31,8 @@ export type CelulaPermissao = {
   role: string;
   recurso: string;
   acao: string;
+  /** Caminho medido. Ausente = `requirePermission` (formato antigo do relatório). */
+  via?: ViaAutorizacao;
   permitido: boolean;
 };
 
@@ -27,6 +41,7 @@ export type DiferencaPermissao = {
   role: string;
   recurso: string;
   acao: string;
+  via?: ViaAutorizacao;
   antes: boolean;
   depois: boolean;
 };
@@ -36,8 +51,10 @@ export type ResultadoEquivalencia = {
   perdas: DiferencaPermissao[];
 };
 
-function chave(c: { userId: string; recurso: string; acao: string }): string {
-  return `${c.userId}::${c.recurso}:${c.acao}`;
+function chave(c: { userId: string; recurso: string; acao: string; via?: ViaAutorizacao }): string {
+  // `via` entra na chave para que as duas fórmulas não se sobreponham. Ausente vira
+  // `requirePermission` — mantém compatível o relatório gerado antes desta divisão.
+  return `${c.userId}::${c.recurso}:${c.acao}::${c.via ?? "requirePermission"}`;
 }
 
 /**
@@ -61,6 +78,7 @@ export function compararPermissoes(antes: CelulaPermissao[], depois: CelulaPermi
       role: a.role,
       recurso: a.recurso,
       acao: a.acao,
+      via: a.via,
       antes: a.permitido,
       depois: depoisPermitido,
     };

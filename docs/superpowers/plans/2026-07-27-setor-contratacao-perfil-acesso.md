@@ -978,6 +978,48 @@ não construído. Lembrar que o gate de equivalência **não** bloqueia isso —
 por design (§6.2 passo 3), então a lista é a única salvaguarda. **A lista foi medida em §15.3 e está
 vazia hoje** — nenhum `supervisor` ativo em produção. Refazer a medição na véspera da virada.
 
+### 15.7 Assimetria do piso de sócio — decisão de desenho ANTES do codemod (2026-08-08)
+
+Achado ao ler o encadeamento de autorização para planejar o codemod. **Os dois caminhos de gate
+divergem hoje:**
+
+| Caminho | Fórmula | Onde |
+|---|---|---|
+| `requirePermission` (páginas/RSC) | `can(role) \|\| (ehSocio && can("supervisor"))` | `session.ts:94` |
+| `defineAction` (Server Actions) | `can(user.role, ...)` — **sem piso** | `with-action.ts:76` |
+
+Ou seja, um sócio não-admin hoje **enxerga** o que o coordenador enxerga, mas **não escreve** pelas
+Server Actions correspondentes. `permissaoEfetiva` não tem essa divisão: o piso virou
+`PermissaoUsuario` (§13.3), e override vale em QUALQUER checagem. No instante em que `defineAction`
+passar a chamar `permissaoEfetiva`, esse sócio **ganha acesso de escrita**.
+
+**O gate de equivalência não via isso.** `gerarSnapshotLegado` codificava só a fórmula de
+`requirePermission`, então o lado "antes" já afirmava que o sócio tinha a permissão, e o ganho
+zerava na conta. R1 fail-open, com luz verde, dentro do arnês construído para impedir R1.
+
+**Correção aplicada:** `CelulaPermissao` ganhou `via: "requirePermission" | "defineAction"`, e
+`gerarSnapshotLegado` gera as DUAS matrizes (a chave de comparação inclui `via`). Rodado no dev:
+8 usuários × 880 células (440 por via), 0 ganhos, 0 perdas. O relatório agora diz explicitamente
+quando um ganho vem por `defineAction`, porque esse é o ganho de escrita.
+
+**Por que dá 0 hoje e ainda assim importa:** nem o dev nem a produção têm um sócio que seja
+não-admin **e** não-supervisor. Em produção os 3 sócios são os 3 admins; no dev, um é admin e o
+outro é `supervisor` — e para um supervisor o piso `can("supervisor")` é idêntico ao próprio papel,
+logo não acrescenta nada. **O risco é latente, não ativo.** Ele se materializa no dia em que existir
+um sócio `administrativo`, `clt` ou `projetista_pj` — e aí seria tarde. Decidir agora custa uma
+conversa; decidir depois custa um incidente de escrita.
+
+**Pendente de decisão do dono** (não é escolha técnica — é a mesma regra "sócio = piso de leitura"
+que o conselho já fixou numa direção):
+
+- **(A) piso é só de leitura** — bate com o comentário de `roles.ts:77-79` ("nunca use para gates de
+  escrita/destrutivos"). Implica escopar os overrides materializados às ações de leitura, o que a
+  assinatura atual de `permissaoEfetiva` não expressa: precisa saber se `recurso:acao` é leitura.
+- **(B) piso vale para escrita também** — então o comportamento atual de `defineAction` é que é o
+  bug, a mudança é intencional e entra na allowlist versionada com assinatura do dono.
+
+Recomendação: **(A)**.
+
 ### 15.6 Higiene de branch (R8)
 
 Estado em 2026-08-08: `feat/cadastro-colaborador` está 13 commits à frente de `dev`, 1 atrás, com 56
