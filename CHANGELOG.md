@@ -2,6 +2,18 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.8.0](https://github.com/SenaProjetos//compare/v1.7.0...v1.8.0) (2026-08-09)
+
+
+### ✨ Funcionalidades
+
+* **acesso:** allowlist versionada do gate de equivalencia ([4709d3d](https://github.com/SenaProjetos//commit/4709d3d811cc764c441c11235828b0258772c029))
+
+
+### 🐛 Correções
+
+* **acesso:** mensagem do gate afirmava diagnostico em vez de reportar medicao ([9002e84](https://github.com/SenaProjetos//commit/9002e8489c7adc370ff798189c584b6532566f34))
+
 ## [1.7.0](https://github.com/SenaProjetos//compare/v1.6.0...v1.7.0) (2026-08-09)
 
 
