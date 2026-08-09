@@ -2,6 +2,86 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.6.0](https://github.com/SenaProjetos//compare/v1.5.0...v1.6.0) (2026-08-09)
+
+
+### ✨ Funcionalidades
+
+* **acesso:** arnes de audiencia — o gate que faltava para a Onda D ([29c7c94](https://github.com/SenaProjetos//commit/29c7c9473fd2be0f63c544486c2b902fc95e1745))
+* **acesso:** baseline versionada de audiencia para a Onda D medir contra ([1610f2d](https://github.com/SenaProjetos//commit/1610f2d208e3fdd38fe2678a0994d92cbf779cb9))
+* **apontamentos:** estados intermediarios, prazo, referencias e novidades entre revisoes ([45caf64](https://github.com/SenaProjetos//commit/45caf64ecfaa65512859fe0246594e36cdaad3f9))
+* **apontamentos:** revisao ancorada em documento, marcacoes vetoriais, medicao calibrada e diff entre revisoes ([8d1b410](https://github.com/SenaProjetos//commit/8d1b410ad3448aac210052d74275f83022940f21))
+* **arquivos:** ARTs do projeto no explorador e no link publico ([7ce162b](https://github.com/SenaProjetos//commit/7ce162ba4124bc54ae0a26179dbd33f5ca045318))
+* **arquivos:** completa pasta Base Arquitetonica (origem no Documento) ([01a6ed5](https://github.com/SenaProjetos//commit/01a6ed5d819bfecaf1bb9ede3649baa70c71283f))
+* **arquivos:** solicitacao de exclusao com justificativa e decisao do admin ([261f264](https://github.com/SenaProjetos//commit/261f26449e7a3abc4e2543a8c814b6d67133f141))
+* **auth:** estende sessão pra 7 dias e revoga outros devices na troca de senha ([d6eb527](https://github.com/SenaProjetos//commit/d6eb52793588b93c9648f3ecb7bbb635f59b4917))
+* **backup:** restauração de banco e backup dos arquivos ([d27e270](https://github.com/SenaProjetos//commit/d27e27027790f3d70d3d7ad1bf086fbc0def3577))
+* **certidoes:** separa modulo de certidoes com versionamento real, download e link publico ([6d5e80e](https://github.com/SenaProjetos//commit/6d5e80ec3b974f8850a3b95f5a1479ee4c5499eb))
+* **coordenacao:** clash por malha, multifiltro por Pset e vistas renomeáveis ([012bb01](https://github.com/SenaProjetos//commit/012bb01f709b3fd5d80d70ee3c36bd94500bab57)), closes [#0](https://github.com/SenaProjetos/senahub/issues/0) [#1](https://github.com/SenaProjetos/senahub/issues/1) [#3](https://github.com/SenaProjetos/senahub/issues/3) [#7](https://github.com/SenaProjetos/senahub/issues/7)
+* **coordenacao:** FK em projetoId/disciplinaId do apontamento ([d9257fc](https://github.com/SenaProjetos//commit/d9257fc9d9117c450489a8935662cff5241e8b6a))
+* **custos:** banco de composições, insumos e importador SINAPI ([3bd05d9](https://github.com/SenaProjetos//commit/3bd05d9cf520d0a936e7ffcd205183ecdef0b295))
+* **custos:** busca de banco integrada + item de insumo direto no orçamento ([1f41e48](https://github.com/SenaProjetos//commit/1f41e4864e8afbdd4776ea0a22ab84b5eef87b35))
+* **custos:** busca em tempo real, vínculo na raiz, criação inline de insumo/composição ([7020ed8](https://github.com/SenaProjetos//commit/7020ed87a96e177dc6ba7dd1e071fd1c82300e1e))
+* **custos:** detecta mês de referência do SINAPI e limpa upload abandonado ([68b8580](https://github.com/SenaProjetos//commit/68b8580643cfef2be19fdfe8aaf40206b65a65f8))
+* **custos:** fundação do módulo de engenharia de custos ([9c0c2d5](https://github.com/SenaProjetos//commit/9c0c2d5986bb696de221a0ba788a3d5b90830423))
+* **custos:** planilha orçamentária com árvore, composição e export ([0223f85](https://github.com/SenaProjetos//commit/0223f854a7f1b02d570dcea316edf3aab58217db))
+* **custos:** planilha orçamentária com colunas Item/Código/Banco separadas ([5541fe9](https://github.com/SenaProjetos//commit/5541fe9ef8fc23f7cc0ebd89aa34092aafa88b0b))
+* **custos:** quantitativos com rastro à fonte e vínculo BIM ([c739a03](https://github.com/SenaProjetos//commit/c739a03c0289e4f156c4b6f9616fb69e3e2e8dfe))
+* **custos:** RFQ, propostas, comparador e histórico de preços ([13ff95c](https://github.com/SenaProjetos//commit/13ff95caa40935315f3e9727692ca96672510cbc))
+* **engenharia:** biblioteca de referências técnicas (artigo/livro/nota/outro) ([9eaa289](https://github.com/SenaProjetos//commit/9eaa2899bd934a62d3cc3d5d07edddd69d0418f5))
+* **ferramentas:** cabecalho tecnico (ART/CREA) e assinaturas opcionais no memorial ([90c28e2](https://github.com/SenaProjetos//commit/90c28e2b8541343de747a37a1526f2229253d1f2))
+* **ferramentas:** diagrama de tensoes no solo no memorial da sapata excentrica ([f056f59](https://github.com/SenaProjetos//commit/f056f59de0ab17a20d128d740e280db7c9435d6b))
+* **ferramentas:** engine de recalque de fundacao rasa (4 modos) ([a459bcd](https://github.com/SenaProjetos//commit/a459bcd487cdd05747f853d6d8a1d3e6337ffd48))
+* **ferramentas:** integra recalque-fundacao (registry/service/savefile/UI) ([c7fcefa](https://github.com/SenaProjetos//commit/c7fcefa69f2856b9c3cf53eb48d1b18a17d4fec2))
+* **ferramentas:** sapata por SPT (Alonso) com verificacao de bulbo ([c422ea4](https://github.com/SenaProjetos//commit/c422ea41f86b8a013ac35344cf0ebf88421ec27e))
+* **ferramentas:** selecao de ART e responsavel tecnico no memorial ([1ecc3b6](https://github.com/SenaProjetos//commit/1ecc3b6962aa090451c594d9108b053b9589d6ed))
+* **ferramentas:** suporte a imagem/SVG na memoria de calculo (HTML/PDF) ([bf06d31](https://github.com/SenaProjetos//commit/bf06d318da6a5fc3f66a9747e385d4aaf0cab21c))
+* **licitacoes:** alertas de habilitação e vencimento de contrato ([2694c6a](https://github.com/SenaProjetos//commit/2694c6aac45aec4e1b4ef70bbdeae72845120fb6))
+* **notificacoes:** agrupa avisos repetidos no sino ([558caba](https://github.com/SenaProjetos//commit/558cabafb47408949ec810264fb68d85954bfe47))
+* **ponto:** relogio da jornada no header com atalhos rapidos ([9bc032f](https://github.com/SenaProjetos//commit/9bc032fd6007b03174e29852de38ca81b606a4d4))
+* **ponto:** separa apontamento de horas do controle de jornada (Onda B) ([1212ca2](https://github.com/SenaProjetos//commit/1212ca2301d2d675cd81c437f9df44875a268c15))
+* **projetos:** cadastro de ARTs do projeto com versionamento ([8827fba](https://github.com/SenaProjetos//commit/8827fba5c2a3ccc9dc3fea41a2d1fc1f1b6b01ef))
+* **rh:** amplia cadastro do colaborador — contas 1:N, cargo/depto por catalogo, historico contratual, dependentes e completude ([23e5e89](https://github.com/SenaProjetos//commit/23e5e89c47c4138fa19adf2f69c50aa5060d567a))
+* **rh:** materializa EscalaUsuario pra todo interno ativo (Onda E, passo 2) ([e548932](https://github.com/SenaProjetos//commit/e5489320b87baadc221946e95ab803f4218d7ee0))
+* **rh:** registro profissional (CREA/CAU) no cadastro do usuario ([d8d4e1a](https://github.com/SenaProjetos//commit/d8d4e1af483a3e61d2c61f2fbdd2f77d46a33e43))
+* **usuarios:** Fase 0 -- Vinculo + Setor + Contratacao (cache) + Meu acesso ([c0167d0](https://github.com/SenaProjetos//commit/c0167d070cf8665c89808ba609dc52aa367aed14))
+* **usuarios:** Onda A -- motor de Perfil de acesso (PerfilAcesso/PermissaoPerfil/PermissaoUsuario) ([804bc37](https://github.com/SenaProjetos//commit/804bc370106f383911695225873341152752d070))
+* **usuarios:** Onda B parcial -- perfis semente + backfill + piso de socio via override ([83476f7](https://github.com/SenaProjetos//commit/83476f78dd2e48a1baa551113e2f58d0ce646181))
+* **usuarios:** Onda C -- CRUD de Perfis, overrides, wizard cria Vinculo, botao Suporte ([009a05a](https://github.com/SenaProjetos//commit/009a05a997f9ce8356da1004616cc5f4ae40275e))
+
+
+### 🐛 Correções
+
+* **acesso:** gate de equivalencia aprovava o conjunto vazio; ensaio contra dado de producao ([0026435](https://github.com/SenaProjetos//commit/00264354c37646e1d137d7755b41ad24bebdc80e))
+* **anexos:** remove target=_blank de downloads forcados ([a699b3a](https://github.com/SenaProjetos//commit/a699b3ad55f9026518a6dad857f29507f4db4e17))
+* **api:** tira /api do middleware (teto de 10 MB) ([49a3ef5](https://github.com/SenaProjetos//commit/49a3ef568f40120cd2c9503d602f96debdb75cb9))
+* **arquivos:** concordância de "disponível/disponíveis" na view pública ([900e67e](https://github.com/SenaProjetos//commit/900e67e7d2ba160a774cab5d15f804fdad3baef2))
+* **build:** eleva o heap do type-check para nao estourar no next build ([9fad6a2](https://github.com/SenaProjetos//commit/9fad6a2fa6d66940129160c7b29a2e3022c4eb5f))
+* **coordenacao:** tooltip explica diferença entre fechar e descartar apontamento ([43d51da](https://github.com/SenaProjetos//commit/43d51daae837a8a703cbefa58d1b675e261d4c10))
+* **custos:** fornecedor de obra exige UF/categoria e mostra CPF×CNPJ ([811efd8](https://github.com/SenaProjetos//commit/811efd8f722e29e664872e7f7f5ec2d0067a02c0))
+* **dashboard:** rótulos do eixo X sem sobreposição + histórico de clima emocional ([0e3b7ac](https://github.com/SenaProjetos//commit/0e3b7acb1b9ba094202aa6493b6a6b0e93e9ce13))
+* **ferramentas:** fator de alivio parcial (default 50%) na viga de equilibrio ([648dd62](https://github.com/SenaProjetos//commit/648dd62638258a54b703e1c06e656e8fc4f2b5ef))
+* **notificacoes:** badge do sino conta ate 99+ ([3b3821f](https://github.com/SenaProjetos//commit/3b3821fb65e480a8ee322c1ea172f9fa60b66a26))
+* **perfis:** overrides de permissão gateiam por `usuarios:gerir` ([d8efc4d](https://github.com/SenaProjetos//commit/d8efc4d2f430c60d9188ee27aa8971d5c7547628))
+* **perfis:** remove export de constante em arquivo "use server" ([7c444b1](https://github.com/SenaProjetos//commit/7c444b1a96b5e59ddfb91de010aeddc51f2d5687))
+* **permissoes:** alinha a matriz semente do coordenador com a matriz real ([a55e9e9](https://github.com/SenaProjetos//commit/a55e9e994cf566745c51caaf4e3754addd78591e))
+* **ponto:** apura banco de horas só dentro do vínculo ([a3e37c5](https://github.com/SenaProjetos//commit/a3e37c51dd1c48c4b4aa9275ee1afecbd59ac0f5))
+* **projetos:** gate de fluxo de aprovação passa a ser por disciplina ([bcff24f](https://github.com/SenaProjetos//commit/bcff24fdfc0ffb44e133897474d9686cf2dbcb39))
+* **rh:** corrige largura dos inputs de hora na grade de escalas ([637d0b0](https://github.com/SenaProjetos//commit/637d0b028c634dbd8bd47b067c239c12a780250a))
+* **rh:** encargos com 2 casas e sem coluna morta no INSS ([2d3e0f2](https://github.com/SenaProjetos//commit/2d3e0f239198463145d28a7a1497a472fea3902a))
+* **rh:** jornada legal de estagio, INSS indevido e gates de ponto/ferias ([61b8342](https://github.com/SenaProjetos//commit/61b834285025be1fe9188a84fbcf431fa26fabd5))
+* **rh:** Pessoa 360 só consulta o domínio que o observador pode ver ([c356983](https://github.com/SenaProjetos//commit/c356983d4b11ab9c5a5fa16f50c4828692ae347d))
+* **rh:** sempre exibir nome completo na Pessoa 360 ([6cb3307](https://github.com/SenaProjetos//commit/6cb33077405c818389cc8bd5c6aa6b7fd9105499))
+* **usuarios:** Coordenador perde escopo global (SS9.7 resolvido) ([8c668e6](https://github.com/SenaProjetos//commit/8c668e6fbb30be8e8f3bc87ffba1517621365082))
+
+
+### ♻️ Refatorações
+
+* **custos:** remove regime tributário do orçamento ([52a599d](https://github.com/SenaProjetos//commit/52a599db17e774d7f19da53acd0bb620f6e86d4e))
+* **custos:** separa fornecedor de obra do fornecedor do financeiro ([b66c92b](https://github.com/SenaProjetos//commit/b66c92b1be14e5b5b98ff6a7be036b2507f3026e))
+* **ferramentas:** extrai perfil de SPT compartilhado (spt-shared) ([2596303](https://github.com/SenaProjetos//commit/25963035a43e9b7824649820e91be006684d9c7f))
+* **usuarios:** renomeia o perfil Supervisor para Coordenador ([8fd2f6f](https://github.com/SenaProjetos//commit/8fd2f6f8dd0e44565cdcaabe60ba471fe8c7ad40))
+
 ## [1.5.0](https://github.com/SenaProjetos//compare/v1.4.0...v1.5.0) (2026-07-24)
 
 
