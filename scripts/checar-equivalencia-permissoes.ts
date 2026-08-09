@@ -4,13 +4,18 @@
  * todo usuário interno ativo × todo par recurso:ação do catálogo.
  *
  * Critério assimétrico — é a garantia de fail-closed da migração:
- *   - GANHO (false→true): FALHA DURA. Exit code 1. Ninguém pode ganhar acesso que não tinha.
- *   - PERDA (true→false): warning no relatório. Aceitável — conserta-se com override.
+ *   - GANHO (false→true): FALHA DURA. Exit 1. Exceção só via `lib/allowlist-equivalencia.ts`,
+ *     versionada, com motivo e aprovação. Ganho coberto por exceção continua sendo IMPRESSO.
+ *   - PERDA (true→false): warning. Não bloqueia, mas é listada célula a célula — pode ser
+ *     mudança intencional (ex.: a poda do piso de sócio) ou um buraco.
  *
- * Rodado HOJE (Onda A), com todo `perfilId` nulo, o resultado esperado é: zero ganhos (nada
- * para ganhar — `permissaoEfetiva` nega tudo sem perfil) e uma perda por célula hoje permitida
- * (perde tudo, porque ainda não tem perfil). Isso é o comportamento CORRETO desta onda, não
- * uma falha — é a Onda B que faz esse número de perdas cair a zero, perfil por perfil.
+ * Mede **duas fórmulas**, porque os dois caminhos de autorização divergem: `requirePermission`
+ * (páginas) aplica o piso de sócio e `defineAction` (Server Actions) não. Ver `ViaAutorizacao`.
+ *
+ * Duas coisas que este script aprendeu na marra e que valem para qualquer gate:
+ *   - **comparação vazia é falha, não sucesso** (ver a guarda de `antes.length === 0`);
+ *   - **mensagem de gate reporta medição, não afirma diagnóstico** — a versão anterior dizia
+ *     "isso é ganho de ESCRITA" de forma fixa e contradizia a própria lista.
  *
  * Uso:
  *   npx tsx --tsconfig tsconfig.server.json scripts/checar-equivalencia-permissoes.ts
@@ -24,6 +29,7 @@ import { prisma } from "../src/lib/prisma";
 import { permissaoEfetiva } from "../src/lib/permissao-efetiva";
 import { compararPermissoes, type CelulaPermissao } from "../src/lib/equivalencia-permissoes";
 import { ehLeitura } from "../src/lib/permissions-catalog";
+import { excecaoDe, excecoesObsoletas } from "../src/lib/allowlist-equivalencia";
 import { gerarSnapshotLegado, hashUserId } from "./snapshot-permissoes";
 
 async function gerarMatrizPerfil(antes: CelulaPermissao[]): Promise<CelulaPermissao[]> {
@@ -59,11 +65,23 @@ async function main() {
   const { ganhos, perdas } = compararPermissoes(antes, depois);
 
   const anonimizar = (d: (typeof ganhos)[number]) => ({ ...d, userId: hashUserId(d.userId) });
+
+  // Ganho coberto por exceção versionada continua sendo IMPRESSO — só não bloqueia. Exceção
+  // silenciosa não serve para nada: o objetivo da allowlist é registrar a mudança intencional,
+  // não fazer o gate calar.
+  const ganhosHash = ganhos.map(anonimizar);
+  const aceitos = ganhosHash.filter((g) => excecaoDe(g) !== undefined);
+  const bloqueantes = ganhosHash.filter((g) => excecaoDe(g) === undefined);
+  const usuariosPresentes = new Set(antes.map((c) => hashUserId(c.userId)));
+  const obsoletas = excecoesObsoletas(ganhosHash, usuariosPresentes);
+
   const relatorio = {
     geradoEm: new Date().toISOString(),
     totalCelulas: antes.length,
     totalUsuarios: new Set(antes.map((c) => c.userId)).size,
-    ganhos: ganhos.map(anonimizar),
+    ganhos: bloqueantes,
+    ganhosAceitos: aceitos.map((g) => ({ ...g, excecao: excecaoDe(g) })),
+    excecoesObsoletas: obsoletas,
     perdas: perdas.map(anonimizar),
   };
 
@@ -104,7 +122,21 @@ async function main() {
     if (perdas.length > 20) console.warn(`  ... e mais ${perdas.length - 20}.`);
   }
 
-  if (ganhos.length > 0) {
+  if (aceitos.length > 0) {
+    console.log(`\n● ${aceitos.length} ganho(s) COBERTO(S) por allowlist versionada — não bloqueiam:`);
+    for (const g of aceitos) {
+      const e = excecaoDe(g)!;
+      console.log(`  - [${g.role}] ${g.userId}: ${g.recurso}:${g.acao} (via ${g.via}) — ${e.aprovadoPor}, ${e.aprovadoEm}`);
+    }
+  }
+
+  if (obsoletas.length > 0) {
+    console.warn(`\n⚠ ${obsoletas.length} exceção(ões) da allowlist não casaram com nada — remova de src/lib/allowlist-equivalencia.ts:`);
+    for (const e of obsoletas) console.warn(`  - ${e.userIdHash}: ${e.recurso}:${e.acao} (via ${e.via})`);
+  }
+
+  if (bloqueantes.length > 0) {
+    const ganhos = bloqueantes;
     console.error(`\n✖ ${ganhos.length} GANHO(S) DE ACESSO DETECTADO(S) — bloqueante:`);
     for (const g of ganhos.slice(0, 20)) {
       console.error(

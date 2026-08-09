@@ -1143,10 +1143,35 @@ corte de escopo do Coordenador (§15.3/§15.5), e merece o mesmo tratamento de a
 Ambos são a mesma falha de fundo: **mensagem de gate que afirma diagnóstico em vez de reportar
 medição**. É o oposto do que o arnês existe para fazer.
 
-**Decisões pendentes antes do Deploy 2 (o flip):** (a) os 5 ganhos de leitura via `defineAction` —
-allowlist versionada assinada, ou restringir mais o piso; (b) as 7 escritas que a pessoa perde —
-conceder explicitamente (perfil próprio ou overrides nominais com motivo) ou deixar cair. As duas
-são a mesma pergunta de fundo: **o que esse sócio deve poder fazer, dito explicitamente?**
+### 15.12 As duas decisões sobre o sócio, e a allowlist — 2026-08-09
+
+**(a) As 7 escritas: DEIXAR CAIR.** Decisão do dono. Essa pessoa perde `uploads:validar`,
+`projetos:gerir`, `planejamento:gerir`, `coordenacao:gerir`, `recursos:gerir`, `ferramentas:gerir`
+e `custos:gerir` quando o flip subir. Elas nunca vieram de um perfil — vinham do piso implícito, e
+o objetivo declarado de §5.1 é exatamente esse: o `if (ehSocio)` escondido vira dado explícito, e
+o que ninguém concedeu conscientemente deixa de valer. Se ela precisar de alguma, pede e recebe
+com motivo registrado. **Antes de subir o flip, vale conferir no `AuditLog` se ela de fato usou
+alguma dessas 7 nos últimos meses** — se usou `uploads:validar`, isso é um fluxo de trabalho real
+que vai parar, e aí é aviso à pessoa, não só nota de rodapé.
+
+**(b) Os 5 ganhos de leitura: ACEITOS via allowlist versionada.** Implementada em
+`src/lib/allowlist-equivalencia.ts` — ela **não existia**, embora §6.2 passo 3 a exigisse desde o
+começo ("exceção só via allowlist versionada e aprovada").
+
+Desenho, e cada item é uma forma de allowlist não virar a porta dos fundos do gate:
+- **casamento exato** (usuário + recurso + ação + via). Sem curinga: exceção que cobre "tudo
+  daquele usuário" deixou de ser exceção.
+- **`motivo`, `aprovadoPor`, `aprovadoEm` obrigatórios**, com teste que falha se faltarem — é o R5
+  ("em 12 meses ninguém sabe por que fulano tem isso") atacado na origem.
+- **ganho aceito continua sendo IMPRESSO**, só não bloqueia. Exceção silenciosa não serve.
+- **teste que exige que toda exceção em vigor seja de LEITURA** — se alguém adicionar uma de
+  escrita sem mudar a decisão de §15.7, a suíte quebra.
+- **exceção obsoleta é reportada**, mas só quando a pessoa existe na base comparada: uma exceção
+  nominal de produção não casa nada no dev, e isso é "não se aplica aqui", não "está obsoleta".
+  Gate que grita nos dois casos ensina o time a ignorar o aviso.
+
+O identificador é o **hash** do userId (o mesmo do relatório em `logs/`), então a allowlist é
+versionável sem carregar identificador direto de pessoa no repositório.
 
 ### 15.6 Higiene de branch (R8)
 
