@@ -3,18 +3,43 @@
  * Cresce a cada onda conforme novos módulos entram. A matriz de permissões
  * (Configurações → Permissões) é montada a partir daqui.
  */
+export type AcaoCatalogo = {
+  acao: string;
+  label: string;
+  /**
+   * Ação de LEITURA (não muda estado de negócio). Marcada **explicitamente**, e o default é
+   * `false` — fail-closed: uma ação nova que ninguém classificou não vira leitura por descuido.
+   *
+   * Existe por causa do piso de sócio (§15.7 do plano de Setor × Contratação × Perfil):
+   * decisão do dono em 2026-08-08 é que o piso é **só de leitura**, alinhado ao que
+   * `roles.ts` já dizia ("nunca use para gates de escrita/destrutivos"). `backfill-perfis-acesso.ts`
+   * só materializa override de piso onde `leitura === true`.
+   *
+   * Casos de fronteira decididos como NÃO-leitura, de propósito:
+   *   - `documentos:ver` — "ver e **gerar**" documentos; gerar persiste arquivo.
+   *   - `ferramentas:usar` — "usar e **salvar** cálculos".
+   */
+  leitura?: boolean;
+};
+
 export type RecursoCatalogo = {
   recurso: string;
   label: string;
-  acoes: { acao: string; label: string }[];
+  acoes: AcaoCatalogo[];
 };
+
+/** `recurso:acao` é ação de leitura? Default fail-closed: o que não está marcado, não é. */
+export function ehLeitura(recurso: string, acao: string): boolean {
+  const r = PERMISSOES_CATALOGO.find((x) => x.recurso === recurso);
+  return r?.acoes.find((a) => a.acao === acao)?.leitura === true;
+}
 
 export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
   {
     recurso: "clientes",
     label: "Clientes",
     acoes: [
-      { acao: "ver", label: "Ver clientes" },
+      { acao: "ver", label: "Ver clientes", leitura: true },
       { acao: "gerir", label: "Criar/editar clientes" },
     ],
   },
@@ -22,9 +47,9 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     recurso: "projetos",
     label: "Projetos",
     acoes: [
-      { acao: "ver", label: "Ver projetos" },
+      { acao: "ver", label: "Ver projetos", leitura: true },
       { acao: "gerir", label: "Criar/editar projetos e disciplinas" },
-      { acao: "historico", label: "Ver o histórico (CDE) de documentos do projeto" },
+      { acao: "historico", label: "Ver o histórico (CDE) de documentos do projeto", leitura: true },
     ],
   },
   {
@@ -36,7 +61,7 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     recurso: "arquivos_gerais",
     label: "Arquivos gerais do projeto",
     acoes: [
-      { acao: "ver", label: 'Ver a pasta "Geral" do projeto' },
+      { acao: "ver", label: 'Ver a pasta "Geral" do projeto', leitura: true },
       { acao: "gerir", label: 'Adicionar/editar/excluir arquivos gerais' },
     ],
   },
@@ -44,11 +69,12 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     recurso: "arquivos",
     label: "Arquivos do projeto (Diretório)",
     acoes: [
-      { acao: "ver", label: "Ver o Diretório de arquivos" },
-      { acao: "baixar", label: "Baixar/abrir arquivos" },
+      { acao: "ver", label: "Ver o Diretório de arquivos", leitura: true },
+      { acao: "baixar", label: "Baixar/abrir arquivos", leitura: true },
       {
         acao: "ver_todas_disciplinas",
         label: "Ver arquivos de todas as disciplinas do projeto (senão, só as próprias)",
+        leitura: true,
       },
       { acao: "enviar", label: "Enviar arquivos (pelo projeto)" },
     ],
@@ -57,16 +83,16 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     recurso: "financeiro",
     label: "Financeiro",
     acoes: [
-      { acao: "ver", label: "Ver financeiro (cadastros, lançamentos, relatórios)" },
+      { acao: "ver", label: "Ver financeiro (cadastros, lançamentos, relatórios)", leitura: true },
       { acao: "gerir", label: "Lançar e gerir financeiro" },
-      { acao: "extrato", label: "Ver apenas o próprio extrato" },
+      { acao: "extrato", label: "Ver apenas o próprio extrato", leitura: true },
     ],
   },
   {
     recurso: "comercial",
     label: "Comercial (CRM)",
     acoes: [
-      { acao: "ver", label: "Ver funil e propostas" },
+      { acao: "ver", label: "Ver funil e propostas", leitura: true },
       { acao: "gerir", label: "Gerir leads, propostas e tabelas de preço" },
     ],
   },
@@ -74,7 +100,7 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     recurso: "juridico",
     label: "Jurídico",
     acoes: [
-      { acao: "ver", label: "Ver documentos jurídicos" },
+      { acao: "ver", label: "Ver documentos jurídicos", leitura: true },
       { acao: "gerir", label: "Gerir documentos jurídicos" },
     ],
   },
@@ -82,7 +108,7 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     recurso: "certidoes",
     label: "Certidões",
     acoes: [
-      { acao: "ver", label: "Ver certidões e histórico de versões" },
+      { acao: "ver", label: "Ver certidões e histórico de versões", leitura: true },
       { acao: "gerir", label: "Registrar, renovar e excluir certidões" },
     ],
   },
@@ -90,20 +116,20 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     recurso: "licitacoes",
     label: "Licitações",
     acoes: [
-      { acao: "ver", label: "Ver licitações" },
+      { acao: "ver", label: "Ver licitações", leitura: true },
       { acao: "gerir", label: "Gerir licitações e medições" },
     ],
   },
   {
     recurso: "qualidade",
     label: "Qualidade",
-    acoes: [{ acao: "ver", label: "Ver índice de qualidade" }],
+    acoes: [{ acao: "ver", label: "Ver índice de qualidade", leitura: true }],
   },
   {
     recurso: "planejamento",
     label: "Planejamento",
     acoes: [
-      { acao: "ver", label: "Ver EAP e cronograma dos projetos" },
+      { acao: "ver", label: "Ver EAP e cronograma dos projetos", leitura: true },
       { acao: "gerir", label: "Editar EAP, linha de base e aplicar plano" },
     ],
   },
@@ -111,7 +137,7 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     recurso: "coordenacao",
     label: "Coordenação BIM",
     acoes: [
-      { acao: "ver", label: "Ver maquete federada e apontamentos" },
+      { acao: "ver", label: "Ver maquete federada e apontamentos", leitura: true },
       { acao: "gerir", label: "Criar apontamentos, converter modelos e exportar BCF" },
     ],
   },
@@ -119,7 +145,7 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     recurso: "recursos",
     label: "Recursos",
     acoes: [
-      { acao: "ver", label: "Ver matriz de recursos" },
+      { acao: "ver", label: "Ver matriz de recursos", leitura: true },
       { acao: "gerir", label: "Gerir capacidade e alocações" },
     ],
   },
@@ -163,7 +189,7 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     recurso: "biblioteca_tecnica",
     label: "Biblioteca técnica (Padrões, Normas e Referências)",
     acoes: [
-      { acao: "ver", label: "Ver padrões, normas e referências catalogadas" },
+      { acao: "ver", label: "Ver padrões, normas e referências catalogadas", leitura: true },
       { acao: "incluir", label: "Incluir novos padrões, normas e referências" },
       { acao: "gerir", label: "Editar/excluir padrões, normas e referências de qualquer autor" },
     ],
@@ -172,7 +198,7 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     recurso: "custos",
     label: "Engenharia de Custos",
     acoes: [
-      { acao: "ver", label: "Ver orçamentos, composições e insumos" },
+      { acao: "ver", label: "Ver orçamentos, composições e insumos", leitura: true },
       { acao: "gerir", label: "Criar/editar orçamentos, quantitativos e revisões" },
       { acao: "bancos", label: "Administrar bancos de composições, insumos e bases de preço" },
       { acao: "cotacao", label: "Criar RFQs, receber propostas e escolher vencedor" },
@@ -182,7 +208,7 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     recurso: "patrimonio",
     label: "Patrimônio / Ativos",
     acoes: [
-      { acao: "ver", label: "Ver inventário de ativos" },
+      { acao: "ver", label: "Ver inventário de ativos", leitura: true },
       { acao: "gerir", label: "Criar/editar ativos do inventário" },
       { acao: "ti", label: "Gerenciar TI (máquinas, peças, manutenção)" },
     ],
@@ -191,8 +217,8 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     recurso: "ponto",
     label: "Ponto",
     acoes: [
-      { acao: "rateio", label: "Ver rateio de horas da equipe por projeto" },
-      { acao: "espelho_equipe", label: "Ver espelho de ponto de outros usuários" },
+      { acao: "rateio", label: "Ver rateio de horas da equipe por projeto", leitura: true },
+      { acao: "espelho_equipe", label: "Ver espelho de ponto de outros usuários", leitura: true },
       { acao: "gerir_escalas", label: "Configurar escalas de trabalho (por perfil e por usuário)" },
       { acao: "ajustar", label: "Editar batidas de ponto de outros usuários (com ciência)" },
     ],
@@ -201,8 +227,8 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     recurso: "rh",
     label: "RH — Pessoas",
     acoes: [
-      { acao: "cadastro", label: "Ver a ficha de pessoas (cadastro, ausências, escala)" },
-      { acao: "folha", label: "Ver dados de folha/salário na ficha da pessoa" },
+      { acao: "cadastro", label: "Ver a ficha de pessoas (cadastro, ausências, escala)", leitura: true },
+      { acao: "folha", label: "Ver dados de folha/salário na ficha da pessoa", leitura: true },
       { acao: "catalogos", label: "Administrar os catálogos de cargos e departamentos" },
     ],
   },

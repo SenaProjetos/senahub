@@ -24,12 +24,13 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { prisma } from "../src/lib/prisma";
 import { CHAVE_POR_ROLE } from "../prisma/seed-perfis-acesso";
+import { ehLeitura } from "../src/lib/permissions-catalog";
 import type { Role } from "../src/lib/roles";
 
 const DRY_RUN = process.argv.includes("--dry-run");
 const MOTIVO_PISO_SOCIO =
-  "Piso de sócio (legado) — migrado automaticamente na Onda B a partir de `ehSocio`. " +
-  "Ver docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md (§5.1).";
+  "Piso de sócio (legado, SOMENTE LEITURA) — migrado automaticamente na Onda B a partir de `ehSocio`. " +
+  "Ver docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md (§5.1 e §15.7).";
 
 type LinhaCsv = {
   nome: string;
@@ -72,6 +73,7 @@ async function main() {
   let perfisAtribuidos = 0;
   let superUsuariosMarcados = 0;
   let overridesTotal = 0;
+  let overridesPodados = 0;
 
   for (const u of usuarios) {
     const role = u.role as Role;
@@ -104,7 +106,14 @@ async function main() {
         select: { recurso: true, acao: true },
       });
       const jaTem = new Set(matrizPropria.map((m) => `${m.recurso}:${m.acao}`));
-      const faltantes = matrizCoordenador.filter((m) => !jaTem.has(`${m.recurso}:${m.acao}`));
+      // Piso de sócio é SÓ DE LEITURA (decisão do dono, 2026-08-08 — §15.7 do plano), alinhado
+      // ao que `roles.ts` já dizia: "nunca use para gates de escrita/destrutivos". Materializar
+      // o piso inteiro daria ao sócio não-admin acesso de ESCRITA que ele não tem hoje, porque
+      // `with-action.ts` (Server Actions) nunca aplicou o piso — só `session.ts` (páginas).
+      // `ehLeitura` é fail-closed: ação não classificada não entra.
+      const faltantes = matrizCoordenador.filter(
+        (m) => !jaTem.has(`${m.recurso}:${m.acao}`) && ehLeitura(m.recurso, m.acao),
+      );
 
       for (const f of faltantes) {
         if (!DRY_RUN) {
@@ -119,6 +128,25 @@ async function main() {
         overridesCriados++;
       }
       overridesTotal += overridesCriados;
+
+      // PODA. `upsert` nunca revoga: uma base onde a versão anterior deste script rodou tem
+      // overrides de piso para ações de ESCRITA, e eles sobreviveriam para sempre. É a mesma
+      // armadilha do achado de §13.2 (23 permissões órfãs do coordenador), agora do lado do
+      // sócio. Só remove o que ESTE script criou — casa pelo prefixo do motivo, para nunca
+      // encostar num override lançado à mão pela tela.
+      const doPiso = await prisma.permissaoUsuario.findMany({
+        where: { userId: u.id, motivo: { startsWith: "Piso de sócio (legado" } },
+        select: { recurso: true, acao: true },
+      });
+      const obsoletos = doPiso.filter((o) => !ehLeitura(o.recurso, o.acao));
+      for (const o of obsoletos) {
+        if (!DRY_RUN) {
+          await prisma.permissaoUsuario.delete({
+            where: { userId_recurso_acao: { userId: u.id, recurso: o.recurso, acao: o.acao } },
+          });
+        }
+        overridesPodados++;
+      }
     }
 
     linhasCsv.push({
@@ -137,7 +165,10 @@ async function main() {
 
   console.log(`${DRY_RUN ? "[DRY-RUN] " : ""}${usuarios.length} usuário(s) processado(s).`);
   console.log(`  ✔ ${perfisAtribuidos} perfil(is) atribuído(s) · ${superUsuariosMarcados} superUsuario marcado(s)`);
-  console.log(`  ✔ ${overridesTotal} override(s) de piso de sócio materializado(s)`);
+  console.log(`  ✔ ${overridesTotal} override(s) de piso de sócio materializado(s) — só leitura (§15.7)`);
+  if (overridesPodados > 0) {
+    console.log(`  ✔ ${overridesPodados} override(s) de piso obsoleto(s) podado(s) (ação de escrita)`);
+  }
   console.log(`  → CSV: ${arquivo}`);
 
   await prisma.$disconnect();

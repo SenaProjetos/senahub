@@ -1020,6 +1020,25 @@ que o conselho já fixou numa direção):
 
 Recomendação: **(A)**.
 
+**DECIDIDO pelo dono em 2026-08-08: opção (A) — o piso de sócio é SÓ DE LEITURA.** Implementado:
+
+- `permissions-catalog.ts` ganhou `leitura?: boolean` por ação + `ehLeitura(recurso, acao)`,
+  **fail-closed** (ação não classificada não é leitura). 24 das 56 ações marcadas. Dois casos de
+  fronteira decididos como NÃO-leitura de propósito: `documentos:ver` ("ver e **gerar**") e
+  `ferramentas:usar` ("usar e **salvar** cálculos").
+- `backfill-perfis-acesso.ts` só materializa override de piso onde `ehLeitura` é verdadeiro — e
+  **poda** os overrides de piso de escrita que a versão anterior do script tenha criado. A poda
+  existe porque `upsert` nunca revoga: sem ela, uma base onde o script antigo rodou carregaria
+  override de escrita para sempre. É a mesma armadilha do achado de §13.2, agora do lado do sócio.
+  A poda casa pelo prefixo do `motivo`, então nunca encosta em override lançado à mão pela tela.
+- `permissaoEfetiva` **não mudou**: o escopo é resolvido na materialização, não no motor. O motor
+  segue genérico, e override manual de escrita continua possível — que é o comportamento correto,
+  já que a tela existe para isso.
+
+Verificado no dev: gate com 0 ganhos e 0 perdas nas duas vias; backfill idempotente (0 criados,
+0 podados — o único sócio não-admin do dev é `supervisor`, para quem o piso é no-op). lint limpo,
+1820 testes, build ok.
+
 ### 15.6 Higiene de branch (R8)
 
 Estado em 2026-08-08: `feat/cadastro-colaborador` está 13 commits à frente de `dev`, 1 atrás, com 56
