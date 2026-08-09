@@ -18,7 +18,7 @@ const STATUS_LABEL: Record<string, string> = {
 export async function GET(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  if (!(await can(session.user.role, "licitacoes", "ver"))) {
+  if (!(await can(session.user, "licitacoes", "ver"))) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 

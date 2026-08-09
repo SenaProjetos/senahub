@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { getSession } from "@/lib/session";
 import { can } from "@/lib/permissions";
-import type { Role } from "@/lib/roles";
 import { listarAtivos } from "@/modules/patrimonio/queries";
 import { STATUS_ATIVO_LABEL } from "@/modules/patrimonio/schemas";
 
@@ -11,9 +9,11 @@ import { STATUS_ATIVO_LABEL } from "@/modules/patrimonio/schemas";
 const ExcelJS = require("exceljs") as typeof import("exceljs");
 
 export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  // `getSession` (lib/session) e não `auth.api.getSession` direto: `can()` recebe o sujeito
+  // completo (inclui `superUsuario`/`perfilId`), que a sessão crua do better-auth não traz.
+  const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-  const podeVer = await can(session.user.role as Role, "patrimonio", "ver");
+  const podeVer = await can(session.user, "patrimonio", "ver");
   if (!podeVer) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
 
   const ativos = await listarAtivos();

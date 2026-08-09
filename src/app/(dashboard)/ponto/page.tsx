@@ -33,7 +33,7 @@ export default async function PontoPage() {
     projetosDoUsuario(user.id),
     espelhoMes(user.id, ano, mes),
     ajustesPendentesCiencia(user.id),
-    can(user.role, "ponto", "rateio"),
+    can(user, "ponto", "rateio"),
     usaApontamento ? apontamentoAtual(user.id) : Promise.resolve(null),
   ]);
 

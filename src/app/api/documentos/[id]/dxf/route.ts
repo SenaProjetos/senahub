@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return new Response("Não autenticado", { status: 401 });
-  if (!(await can(session.user.role, "documentos", "ver"))) {
+  if (!(await can(session.user, "documentos", "ver"))) {
     return new Response("Sem acesso", { status: 403 });
   }
 
@@ -30,7 +30,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!parsed.success) return new Response("Schema do modelo inválido", { status: 422 });
 
   // Segurança: não resolve a fonte se o viewer não pode vê-la (gera só o gabarito).
-  const podeFonte = modelo.fonte ? await podeVerFonte(session.user.role, modelo.fonte) : true;
+  const podeFonte = modelo.fonte ? await podeVerFonte(session.user, modelo.fonte) : true;
 
   const sp = Object.fromEntries(new URL(req.url).searchParams.entries());
   const temParams = Object.keys(sp).length > 0;

@@ -11,7 +11,7 @@ export default async function OportunidadesPage() {
   const [oportunidades, opcoes, podeGerir] = await Promise.all([
     listarOportunidades(),
     opcoesOportunidade(),
-    can(user.role, "comercial", "gerir"),
+    can(user, "comercial", "gerir"),
   ]);
   return <OportunidadesView oportunidades={oportunidades} opcoes={opcoes} podeGerir={podeGerir} />;
 }

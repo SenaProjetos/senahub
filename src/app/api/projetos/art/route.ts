@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   const { can } = await import("@/lib/permissions");
-  if (!(await can(session.user.role, "projetos", "gerir"))) {
+  if (!(await can(session.user, "projetos", "gerir"))) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 

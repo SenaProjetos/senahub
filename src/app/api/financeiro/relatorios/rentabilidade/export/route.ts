@@ -45,7 +45,7 @@ function csv(linhas: Linha[]): string {
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  if (!(await can(session.user.role, "financeiro", "ver"))) {
+  if (!(await can(session.user, "financeiro", "ver"))) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 

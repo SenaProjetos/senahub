@@ -105,7 +105,7 @@ export async function resolverAcessoDesenho(user: SessionUser, desenhoId: string
   const participaProjeto = ehMembro || ehRespProjeto;
   const veTodas = await podeVerTodasDisciplinas(user);
   const podeVerEstaDisc = ehGlobal || ehRespDesta || (veTodas && participaProjeto);
-  const podeBaixar = ehGlobal || (await podeBaixarArquivo(user.role));
+  const podeBaixar = ehGlobal || (await podeBaixarArquivo(user));
 
   return {
     status: conversao.status,

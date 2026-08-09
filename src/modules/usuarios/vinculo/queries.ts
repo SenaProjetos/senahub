@@ -19,6 +19,10 @@ export async function meuAcesso(userId: string) {
   const u = await prisma.user.findUnique({
     where: { id: userId },
     select: {
+      id: true,
+      ativo: true,
+      superUsuario: true,
+      perfilId: true,
       role: true,
       tipo: true,
       setor: true,
@@ -31,12 +35,14 @@ export async function meuAcesso(userId: string) {
   if (!u) return null;
 
   const role = u.role as Role;
+  // Sujeito montado do próprio registro: `can()` recebe o usuário, não o papel (Onda D).
+  const sujeito = { id: u.id, role, ativo: u.ativo, superUsuario: u.superUsuario, perfilId: u.perfilId };
   const grupos = await Promise.all(
     PERMISSOES_CATALOGO.map(async (r) => ({
       recurso: r.recurso,
       label: r.label,
       acoes: await Promise.all(
-        r.acoes.map(async (a) => ({ label: a.label, permitido: await can(role, r.recurso, a.acao) })),
+        r.acoes.map(async (a) => ({ label: a.label, permitido: await can(sujeito, r.recurso, a.acao) })),
       ),
     })),
   );

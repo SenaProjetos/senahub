@@ -55,14 +55,14 @@ export default async function PreviewPage({
   const fontesBloqueadas = (
     await Promise.all(
       usadas.map(async (fid) =>
-        !isFonteDataset(fid) && !(await podeVerFonte(user.role, fid)) ? fid : null,
+        !isFonteDataset(fid) && !(await podeVerFonte(user, fid)) ? fid : null,
       ),
     )
   ).filter((f): f is string => f !== null);
   const fonteBloqueada = fontesBloqueadas.length > 0;
 
   // Resolve todas as fontes (com gate de permissão por fonte no server).
-  const resolvido = await resolverModelo(modelo.fonte, modelo.schema, paramsPorFonte, user.role);
+  const resolvido = await resolverModelo(modelo.fonte, modelo.schema, paramsPorFonte, user);
 
   // Faltam parâmetros se ALGUMA fonte de sistema usada tem param não preenchido.
   const faltamParams = usadas.some((fid) => {

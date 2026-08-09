@@ -31,7 +31,7 @@ export default async function MinhaFichaPage() {
   if (user.role === "cliente") redirect("/portal");
   const id = user.id;
 
-  const podeVerProjetos = await can(user.role, "projetos", "ver");
+  const podeVerProjetos = await can(user, "projetos", "ver");
   const pessoa = await fichaPessoa(id, {
     folha: true,
     acesso: true,

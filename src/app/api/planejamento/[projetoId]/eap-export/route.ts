@@ -35,7 +35,7 @@ export async function GET(
 ) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  if (!(await can(session.user.role, "planejamento", "ver"))) {
+  if (!(await can(session.user, "planejamento", "ver"))) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 

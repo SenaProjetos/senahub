@@ -11,7 +11,7 @@ export default async function AprovacoesPage() {
   const [itens, limite, podeGerir] = await Promise.all([
     lancamentosAguardando(),
     limiteAprovacao(),
-    can(user.role, "financeiro", "gerir"),
+    can(user, "financeiro", "gerir"),
   ]);
   return <AprovacoesView itens={itens} limite={limite} podeGerir={podeGerir} />;
 }

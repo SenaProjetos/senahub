@@ -85,7 +85,7 @@ export async function POST(req: Request) {
   }
   // Capability de envio (recurso `arquivos`). Global passa direto; os demais precisam de
   // `arquivos:enviar` (configurável na matriz de permissões).
-  if (!ehGlobal && !(await podeEnviarArquivo(user.role))) {
+  if (!ehGlobal && !(await podeEnviarArquivo(user))) {
     return NextResponse.json(
       { error: "Sem permissão para enviar arquivos." },
       { status: 403 },

@@ -21,7 +21,7 @@ export default async function ProjetoCustosPage({ params }: { params: Promise<{ 
 
   const [itens, podeGerir] = await Promise.all([
     orcamentosDoProjeto(id, user),
-    can(user.role, "custos", "gerir"),
+    can(user, "custos", "gerir"),
   ]);
 
   return <ProjetoCustosView projeto={projeto} itens={itens} podeGerir={podeGerir} />;

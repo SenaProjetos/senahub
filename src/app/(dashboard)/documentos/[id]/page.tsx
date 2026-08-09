@@ -18,7 +18,7 @@ export default async function EditorPage({ params }: { params: Promise<{ id: str
     obterModelo(id),
     fontesHabilitadas(),
     listarBlocos(user.id),
-    fontesPermitidasOpcoes(user.role),
+    fontesPermitidasOpcoes(user),
     listarDatasetsParaFonte(),
   ]);
   if (!modelo) notFound();

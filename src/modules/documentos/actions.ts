@@ -272,7 +272,7 @@ export const registrarDocumentoGerado = defineAction(
     // de sistema usada o usuário não pode ver (datasets não têm gate de módulo).
     for (const fid of usadas) {
       if (fid.startsWith("dataset:")) continue;
-      if (!(await podeVerFonte(user.role, fid))) {
+      if (!(await podeVerFonte(user, fid))) {
         throw new ActionError("Sem permissão para uma das fontes de dados deste modelo.");
       }
     }
@@ -296,7 +296,7 @@ export const registrarDocumentoGerado = defineAction(
     // Resolve tudo (com gate por fonte) e monta o snapshot. Mantém o formato
     // retrocompat (escalar/linhas = fonte primária) + `porFonte` (sub-relatórios).
     const resolvido = schema
-      ? await resolverModelo(modelo.fonte, schema, paramsPorFonte, user.role)
+      ? await resolverModelo(modelo.fonte, schema, paramsPorFonte, user)
       : { escalarPrimaria: {} as Record<string, unknown>, linhasPrimaria: [], porFonte: {} };
     const dados = {
       escalar: resolvido.escalarPrimaria as Record<string, unknown>,
@@ -377,7 +377,7 @@ export const enviarDocumentoPorEmail = defineAction(
     });
     if (!modelo) throw new ActionError("Modelo não encontrado.");
     // Mesma checagem de segurança da geração: não vazar fonte que o usuário não pode ver.
-    if (modelo.fonte && !(await podeVerFonte(user.role, modelo.fonte))) {
+    if (modelo.fonte && !(await podeVerFonte(user, modelo.fonte))) {
       throw new ActionError("Sem permissão para a fonte de dados deste modelo.");
     }
 

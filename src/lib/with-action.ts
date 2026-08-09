@@ -73,7 +73,7 @@ export function defineAction<S, T>(
 
     // Permissão fina
     if (config.recurso) {
-      const allowed = await can(user.role, config.recurso, config.permissao ?? config.acao);
+      const allowed = await can(user, config.recurso, config.permissao ?? config.acao);
       if (!allowed) {
         await maybeAudit(config, { user, ip }, "bloqueado");
         return { ok: false, error: "Sem permissão." };

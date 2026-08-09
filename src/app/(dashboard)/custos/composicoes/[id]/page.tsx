@@ -23,7 +23,7 @@ export default async function ComposicaoPage({
 
   const [composicao, podeGerir] = await Promise.all([
     obterComposicao(id, basePrecoId),
-    can(user.role, "custos", "bancos"),
+    can(user, "custos", "bancos"),
   ]);
   if (!composicao) notFound();
 

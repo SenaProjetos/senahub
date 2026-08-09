@@ -126,7 +126,7 @@ export const renomearCalculo = defineAction(
     const registro = await prisma.calculoFerramenta.findUnique({ where: { id: i.id } });
     if (!registro) throw new ActionError("Cálculo não encontrado.");
 
-    const podeGerir = await can(user.role, "ferramentas", "gerir");
+    const podeGerir = await can(user, "ferramentas", "gerir");
     if (registro.autorId !== user.id && !podeGerir) {
       throw new ActionError("Sem permissão para renomear este cálculo.");
     }
@@ -149,7 +149,7 @@ export const buscarCalculo = defineAction(
   async (i, { user }) => {
     const registro = await prisma.calculoFerramenta.findUnique({ where: { id: i.id } });
     if (!registro) throw new ActionError("Cálculo não encontrado.");
-    const podeGerir = await can(user.role, "ferramentas", "gerir");
+    const podeGerir = await can(user, "ferramentas", "gerir");
     if (registro.autorId !== user.id && !podeGerir) throw new ActionError("Sem permissão.");
     return {
       id: registro.id,
@@ -177,7 +177,7 @@ export const excluirCalculo = defineAction(
     const registro = await prisma.calculoFerramenta.findUnique({ where: { id: i.id } });
     if (!registro) throw new ActionError("Cálculo não encontrado.");
 
-    const podeGerir = await can(user.role, "ferramentas", "gerir");
+    const podeGerir = await can(user, "ferramentas", "gerir");
     if (registro.autorId !== user.id && !podeGerir) {
       throw new ActionError("Sem permissão para excluir este cálculo.");
     }

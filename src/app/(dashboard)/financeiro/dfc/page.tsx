@@ -13,7 +13,7 @@ export default async function DfcPage({ searchParams }: { searchParams: Promise<
   const [dfc, categorias, podeGerir] = await Promise.all([
     relatorioDFC(new Date(ano, 0, 1), new Date(ano, 11, 31, 23, 59, 59)),
     categoriasParaDfc(),
-    can(user.role, "financeiro", "gerir"),
+    can(user, "financeiro", "gerir"),
   ]);
   return <DfcView ano={ano} dfc={dfc} categorias={categorias} podeGerir={podeGerir} />;
 }

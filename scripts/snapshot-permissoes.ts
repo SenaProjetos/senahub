@@ -21,7 +21,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { prisma } from "../src/lib/prisma";
-import { can } from "../src/lib/permissions";
+import { canRole } from "../src/lib/permissions";
 import { PERMISSOES_CATALOGO } from "../src/lib/permissions-catalog";
 import type { CelulaPermissao } from "../src/lib/equivalencia-permissoes";
 import type { Role } from "../src/lib/roles";
@@ -48,7 +48,7 @@ export async function gerarSnapshotLegado(): Promise<CelulaPermissao[]> {
     const role = u.role as Role;
     const ehSocio = u.socio?.ativo === true;
     for (const { recurso, acao } of pares) {
-      const daRole = await can(role, recurso, acao);
+      const daRole = await canRole(role, recurso, acao);
 
       // Duas fórmulas, porque os dois caminhos de autorização DIVERGEM hoje (ver
       // `ViaAutorizacao` em lib/equivalencia-permissoes.ts):
@@ -56,7 +56,7 @@ export async function gerarSnapshotLegado(): Promise<CelulaPermissao[]> {
       //   `defineAction` (with-action.ts:76) chama `can(user.role, ...)` e NÃO aplica.
       // Medir só a primeira esconderia o ganho de escrita que um sócio não-admin teria ao
       // trocar `defineAction` por `permissaoEfetiva` — que não faz essa distinção.
-      const comPiso = daRole || (ehSocio && (await can("supervisor", recurso, acao)));
+      const comPiso = daRole || (ehSocio && (await canRole("supervisor", recurso, acao)));
 
       celulas.push({ userId: u.id, role, recurso, acao, via: "requirePermission", permitido: comPiso });
       celulas.push({ userId: u.id, role, recurso, acao, via: "defineAction", permitido: daRole });

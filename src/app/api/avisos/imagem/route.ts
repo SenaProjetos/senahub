@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   if (user.mustChangePassword || !user.ativo) {
     return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
   }
-  if (!(await can(user.role, "avisos", "enviar"))) {
+  if (!(await can(user, "avisos", "enviar"))) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 

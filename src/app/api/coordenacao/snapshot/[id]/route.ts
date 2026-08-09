@@ -10,7 +10,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   const user = session.user;
-  if (!(await can(user.role, "coordenacao", "ver"))) {
+  if (!(await can(user, "coordenacao", "ver"))) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
   const { id } = await ctx.params;

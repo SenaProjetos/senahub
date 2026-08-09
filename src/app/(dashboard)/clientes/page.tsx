@@ -55,7 +55,7 @@ export default async function ClientesPage({
       take,
     }),
     listarFiltrosClientes(),
-    can(user.role, "clientes", "gerir"),
+    can(user, "clientes", "gerir"),
   ]);
 
   return (

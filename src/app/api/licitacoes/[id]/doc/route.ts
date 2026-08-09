@@ -13,7 +13,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   const user = session.user;
-  if (!(await can(user.role, "licitacoes", "gerir"))) {
+  if (!(await can(user, "licitacoes", "gerir"))) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 

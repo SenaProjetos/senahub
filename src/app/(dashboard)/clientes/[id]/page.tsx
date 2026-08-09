@@ -31,7 +31,7 @@ export default async function ClienteDetalhePage({
   params: Promise<{ id: string }>;
 }) {
   const user = await requirePermission("clientes", "ver");
-  const podeGerir = await can(user.role, "clientes", "gerir");
+  const podeGerir = await can(user, "clientes", "gerir");
   const { id } = await params;
   const cliente = await obterCliente(id);
   if (!cliente) notFound();

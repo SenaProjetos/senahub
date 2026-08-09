@@ -10,7 +10,7 @@ const MAX = 25 * 1024 * 1024;
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  if (!(await can(session.user.role, "custos", "cotacao"))) {
+  if (!(await can(session.user, "custos", "cotacao"))) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 

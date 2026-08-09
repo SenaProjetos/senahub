@@ -84,7 +84,7 @@ export default async function FinanceiroPage({
       agingReport("despesa"),
       totalAguardando(),
       totalTransacoesPendentes(),
-      can(user.role, "financeiro", "gerir"),
+      can(user, "financeiro", "gerir"),
       relatorioDRE(inicioMes, fimMes),
       serieMensalResultado(hoje.getFullYear()),
       despesasPorCategoria(inicioMes, fimMes),
@@ -263,7 +263,7 @@ export default async function FinanceiroPage({
   }
 
   // Sem visão completa → extrato próprio (projetista/freelancer/cliente).
-  const podeExtrato = await can(user.role, "financeiro", "extrato");
+  const podeExtrato = await can(user, "financeiro", "extrato");
   if (!podeExtrato) redirect("/sem-permissao");
 
   const { pagamentos, total, pago, aberto } = await meuExtrato(user.id);

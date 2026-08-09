@@ -20,7 +20,7 @@ async function podeAdministrarBancos() {
   const session = await getSession();
   if (!session) return { ok: false as const, status: 401, error: "Não autenticado." };
   const { can } = await import("@/lib/permissions");
-  if (!(await can(session.user.role, "custos", "bancos"))) {
+  if (!(await can(session.user, "custos", "bancos"))) {
     return { ok: false as const, status: 403, error: "Sem permissão." };
   }
   return { ok: true as const };

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
-import { can } from "@/lib/permissions";
+import { can, canRole } from "@/lib/permissions";
 import { HR_ADMIN_ROLES } from "@/lib/roles";
 import { listarPessoas } from "@/modules/rh/pessoas/queries";
 import { opcoesCadastroFuncionario } from "@/modules/rh/funcionarios/queries";
@@ -20,7 +20,7 @@ export default async function PessoasPage() {
   // Mesmo gate de `[id]/page.tsx`: sem `rh:folha`, salário/conta bancária saem da checagem de
   // completude da lista (ver `completude.ts` § avaliarFolha) — este viewer não pode corrigi-los.
   const podeFolha =
-    (await can(user.role, "rh", "folha")) || (user.ehSocio === true && (await can("supervisor", "rh", "folha")));
+    (await can(user, "rh", "folha")) || (user.ehSocio === true && (await canRole("supervisor", "rh", "folha")));
   const [pessoas, pendencias, pendenciasContas, opcoes] = await Promise.all([
     listarPessoas(podeFolha),
     alteracoesPendentes(),

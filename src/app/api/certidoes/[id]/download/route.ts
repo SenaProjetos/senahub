@@ -14,7 +14,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   if (session.user.mustChangePassword || !session.user.ativo) {
     return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
   }
-  if (!(await can(session.user.role, "certidoes", "ver"))) {
+  if (!(await can(session.user, "certidoes", "ver"))) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 

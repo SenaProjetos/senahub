@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Sanções" };
 
 export default async function SancoesPage() {
   const user = await requirePermission("licitacoes", "ver");
-  const podeGerir = await can(user.role, "licitacoes", "gerir");
+  const podeGerir = await can(user, "licitacoes", "gerir");
   const [proprias, concorrentes, fornecedores] = await Promise.all([
     listarSancoesProprias(),
     listarSancoesConcorrentes(),

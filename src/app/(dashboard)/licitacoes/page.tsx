@@ -20,7 +20,7 @@ export default async function LicitacoesPage({
   }>;
 }) {
   const user = await requirePermission("licitacoes", "ver");
-  const podeGerir = await can(user.role, "licitacoes", "gerir");
+  const podeGerir = await can(user, "licitacoes", "gerir");
   const sp = await searchParams;
   const filtro = {
     status: sp.status ? sp.status.split(",").filter(Boolean) : [],

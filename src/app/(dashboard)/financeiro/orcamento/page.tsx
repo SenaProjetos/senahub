@@ -22,7 +22,7 @@ export default async function OrcamentoPage({
     orcamentoPorCategoria(new Date(ano, 0, 1), new Date(ano, 11, 31, 23, 59, 59)),
     serieMensalResultado(ano),
     categoriasFinanceiras(),
-    can(user.role, "financeiro", "gerir"),
+    can(user, "financeiro", "gerir"),
   ]);
   return (
     <OrcamentoView

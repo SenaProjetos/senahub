@@ -13,7 +13,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   if (session.user.mustChangePassword || !session.user.ativo) {
     return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
   }
-  if (!(await podeVerBiblioteca(session.user.role))) {
+  if (!(await podeVerBiblioteca(session.user))) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
   const { id } = await ctx.params;

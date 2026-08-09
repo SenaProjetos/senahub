@@ -52,7 +52,7 @@ export const editarReferencia = defineAction(
   async (input, ctx) => {
     const atual = await prisma.referenciaTecnica.findUnique({ where: { id: input.id } });
     if (!atual) throw new ActionError("Referência não encontrada.");
-    if (atual.autorId !== ctx.user.id && !(await can(ctx.user.role, "biblioteca_tecnica", "gerir"))) {
+    if (atual.autorId !== ctx.user.id && !(await can(ctx.user, "biblioteca_tecnica", "gerir"))) {
       throw new ActionError("Sem permissão para editar esta referência.");
     }
 
@@ -112,7 +112,7 @@ export const excluirReferencia = defineAction(
   async (input, ctx) => {
     const r = await prisma.referenciaTecnica.findUnique({ where: { id: input.id } });
     if (!r) throw new ActionError("Referência não encontrada.");
-    if (r.autorId !== ctx.user.id && !(await can(ctx.user.role, "biblioteca_tecnica", "gerir"))) {
+    if (r.autorId !== ctx.user.id && !(await can(ctx.user, "biblioteca_tecnica", "gerir"))) {
       throw new ActionError("Sem permissão para excluir esta referência.");
     }
     await prisma.referenciaTecnica.delete({ where: { id: input.id } });

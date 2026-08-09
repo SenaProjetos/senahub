@@ -1,17 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
 import puppeteer from "puppeteer-core";
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { can } from "@/lib/permissions";
-import type { Role } from "@/lib/roles";
 import { obterMaquina } from "@/modules/patrimonio/queries";
 import { renderMaquinaHtml } from "@/modules/patrimonio/render-html";
 
 /** PDF do relatório por máquina (puppeteer + setContent). Gateado a patrimonio:ti. */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  // `getSession` (lib/session) traz o sujeito completo que `can()` agora exige.
+  const session = await getSession();
   if (!session?.user) return new Response("Não autorizado.", { status: 401 });
-  if (!(await can(session.user.role as Role, "patrimonio", "ti"))) return new Response("Sem permissão.", { status: 403 });
+  if (!(await can(session.user, "patrimonio", "ti"))) return new Response("Sem permissão.", { status: 403 });
 
   const { id } = await params;
   const maquina = await obterMaquina(id);

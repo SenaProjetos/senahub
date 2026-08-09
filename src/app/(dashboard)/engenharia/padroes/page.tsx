@@ -11,8 +11,8 @@ export default async function PadroesPage() {
   const [grupos, disciplinas, podeIncluir, podeGerir] = await Promise.all([
     listarPadroes(),
     disciplinasCatalogo(),
-    podeIncluirBiblioteca(user.role),
-    podeGerirBiblioteca(user.role),
+    podeIncluirBiblioteca(user),
+    podeGerirBiblioteca(user),
   ]);
 
   return (

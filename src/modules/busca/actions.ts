@@ -37,12 +37,12 @@ export async function buscaGlobal(termo: string): Promise<ResultadoBusca> {
   const user = await requireUser();
   const digits = t.replace(/\D/g, "");
   const [podeClientes, podeTarefas, podeFin, podeDocs, podeLic, podeCom] = await Promise.all([
-    can(user.role, "clientes", "ver"),
-    can(user.role, "tarefas", "ver"),
-    can(user.role, "financeiro", "ver"),
-    can(user.role, "documentos", "ver"),
-    can(user.role, "licitacoes", "ver"),
-    can(user.role, "comercial", "ver"),
+    can(user, "clientes", "ver"),
+    can(user, "tarefas", "ver"),
+    can(user, "financeiro", "ver"),
+    can(user, "documentos", "ver"),
+    can(user, "licitacoes", "ver"),
+    can(user, "comercial", "ver"),
   ]);
 
   const [projetos, clientes, tarefas, lancamentos, documentos, licitacoes, propostas, ajuda] = await Promise.all([

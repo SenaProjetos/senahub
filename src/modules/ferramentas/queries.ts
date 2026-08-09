@@ -43,7 +43,7 @@ export async function abrirCalculo(id: string) {
 
   if (!registro) return null;
 
-  const podeGerir = await can(user.role, "ferramentas", "gerir");
+  const podeGerir = await can(user, "ferramentas", "gerir");
   if (registro.autorId !== user.id && !podeGerir) return null;
 
   return registro;
@@ -85,7 +85,7 @@ export async function memoriaDoCalculo(id: string) {
 /** Lista paginada de cálculos. Escopo: só os próprios, a menos que tenha ferramentas:gerir. */
 export async function listarCalculos(params: RawParams, ferramenta?: string) {
   const user = await requirePermission("ferramentas", "usar");
-  const podeGerir = await can(user.role, "ferramentas", "gerir");
+  const podeGerir = await can(user, "ferramentas", "gerir");
 
   const { skip, take, q } = parseListParams(params, {
     sortFields: ["createdAt", "titulo"],

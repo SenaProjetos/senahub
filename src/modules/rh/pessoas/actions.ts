@@ -20,7 +20,7 @@ export const carregarPontoPessoa = defineAction(
   async (input, ctx) => {
     // Qualquer usuário vê o próprio. Para terceiros, usa o mesmo gate da página/resumo.
     const ehProprio = input.id === ctx.user.id;
-    const podeRH = ehProprio ? false : await can(ctx.user.role, "ponto", "espelho_equipe");
+    const podeRH = ehProprio ? false : await can(ctx.user, "ponto", "espelho_equipe");
     if (!podeRH && !ehProprio) throw new ActionError("Sem permissão.");
     return pontoDoMes(input.id);
   },

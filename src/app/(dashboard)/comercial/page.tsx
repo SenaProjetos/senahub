@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: "Comercial" };
 
 export default async function ComercialPage() {
   const user = await requirePermission("comercial", "ver");
-  const podeGerir = await can(user.role, "comercial", "gerir");
+  const podeGerir = await can(user, "comercial", "gerir");
   const [etapas, resumo] = await Promise.all([funilCompleto(), resumoComercial()]);
 
   return (

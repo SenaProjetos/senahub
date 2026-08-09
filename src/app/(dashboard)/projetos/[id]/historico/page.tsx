@@ -18,7 +18,7 @@ export default async function HistoricoPage({
   const user = await requirePermission("projetos", "ver");
   const { id } = await params;
   // Visibilidade restrita: admin (bypass) ou cargos com projetos:historico. Esconde a existência.
-  if (!(await can(user.role, "projetos", "historico"))) notFound();
+  if (!(await can(user, "projetos", "historico"))) notFound();
 
   const projeto = await projetoVisivel(user, id);
   if (!projeto) notFound();

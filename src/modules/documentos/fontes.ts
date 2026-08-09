@@ -6,7 +6,7 @@ import { saldoContratual, somaDeltas } from "@/modules/licitacoes/contrato/saldo
 import { totalComposicao } from "@/modules/licitacoes/composicao/composicao";
 import { podeVerFonte } from "@/modules/documentos/fontes-perm";
 import { fontesUsadasNoSchema } from "@/modules/documentos/fontes-usadas";
-import type { Role } from "@/lib/roles";
+import type { SubjectAutorizacao } from "@/lib/permissions";
 import type { DocSchema } from "@/modules/documentos/schema";
 import type { Escalar, Linha } from "@/modules/documentos/tokens";
 
@@ -48,13 +48,13 @@ export { PARAM_FONTE_PREFIX, chaveParamFonte } from "@/modules/documentos/fontes
  * @param fontePrimaria   `modelo.fonte` (pode ser null/"" = sem fonte primária).
  * @param schema          schema do modelo (deriva as fontes das bandas).
  * @param paramsPorFonte  params de cada fonte: `paramsPorFonte[fonteId]`.
- * @param viewerRole      papel do usuário, para `podeVerFonte`.
+ * @param viewer          sujeito autorizado, para `podeVerFonte`.
  */
 export async function resolverModelo(
   fontePrimaria: string | null | undefined,
   schema: DocSchema,
   paramsPorFonte: Record<string, Record<string, string>>,
-  viewerRole: Role,
+  viewer: SubjectAutorizacao,
 ): Promise<ModeloResolvido> {
   const usadas = fontesUsadasNoSchema(fontePrimaria, schema);
 
@@ -62,7 +62,7 @@ export async function resolverModelo(
   await Promise.all(
     usadas.map(async (fonteId) => {
       // Datasets não têm permissão de módulo; fontes de sistema passam pelo gate.
-      const liberada = isFonteDataset(fonteId) || (await podeVerFonte(viewerRole, fonteId));
+      const liberada = isFonteDataset(fonteId) || (await podeVerFonte(viewer, fonteId));
       if (!liberada) {
         porFonte[fonteId] = { escalar: {}, linhas: [] };
         return;

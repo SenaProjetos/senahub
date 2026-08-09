@@ -10,8 +10,8 @@ export default async function ReferenciasPage() {
   const user = await requirePermission("biblioteca_tecnica", "ver");
   const [referencias, podeIncluir, podeGerir] = await Promise.all([
     listarReferencias(),
-    podeIncluirBiblioteca(user.role),
-    podeGerirBiblioteca(user.role),
+    podeIncluirBiblioteca(user),
+    podeGerirBiblioteca(user),
   ]);
 
   return (
