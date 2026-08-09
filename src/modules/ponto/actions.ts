@@ -97,8 +97,23 @@ const registrarBatidaSchema = z.object({
  * antigos baterPonto/encerrarJornada — a máquina de estados (no service) decide
  * o que é válido. O acoplamento com a SessaoTrabalho (rateio) é transacional.
  */
+/**
+ * Bater ponto é ato de quem tem JORNADA CONTROLADA — CLT e estágio. PJ, freelancer e sócio
+ * lançam horas por `modules/ponto/apontamento.ts`, que grava `SessaoTrabalho` direto, sem
+ * `Batida`, sem geolocalização e sem máquina de estados de jornada.
+ *
+ * O gate ficou aberto de propósito até aqui (§10 do plano): `Batida` e `SessaoTrabalho` eram
+ * gravadas 1:1, e cortar a batida antes de existir o apontamento cegaria a margem de projeto no
+ * mês seguinte. A separação foi feita na Onda B (§13.5), que deixou o PJ **sem o botão** mas com
+ * o servidor ainda aceitando os dois caminhos — "corte real fica pro ciclo em sombra". O ciclo
+ * foi dado por cumprido em 2026-08-08 (§15), então o corte é agora.
+ *
+ * Por que isso importa além da arrumação: `Batida` com geolocalização, tolerância de atraso e
+ * banco de horas é o conjunto probatório de vínculo empregatício. Aceitá-la de um PJ é produzir,
+ * em banco estruturado e exportável, prova contra a própria empresa (§4, bug (c)).
+ */
 export const registrarBatida = defineAction(
-  { ...base, acao: "registrar-batida", entidade: "Batida", schema: registrarBatidaSchema },
+  { ...base, roles: CLT_ROLES, acao: "registrar-batida", entidade: "Batida", schema: registrarBatidaSchema },
   async (i, { user }) => {
     const agora = new Date();
     let horario = agora;
