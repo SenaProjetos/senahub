@@ -148,8 +148,15 @@ npx tsx --tsconfig tsconfig.server.json scripts/backfill-perfis-acesso.ts
 **Critérios (números do ensaio contra este dataset):**
 - `26 usuário(s) processado(s).`
 - `✔ 23 perfil(is) atribuído(s) · 3 superUsuario marcado(s)`
-- `✔ 0 override(s) de piso de sócio materializado(s)` — correto aqui, porque os 3 sócios ativos são
-  os 3 admins, e admin já faz bypass total.
+- `✔ 0 override(s) de piso de sócio materializado(s) — só leitura (§15.7)` — o zero está correto
+  aqui, porque os 3 sócios ativos são os 3 admins, e admin já faz bypass total (nem passa pelo
+  caminho de override).
+
+> **Se você já rodou este passo antes de 2026-08-09:** rode de novo depois do próximo deploy. O
+> script mudou — o piso de sócio passou a ser **só de leitura** (§15.7 do plano) e ele agora
+> **poda** overrides de piso de escrita que a versão anterior tenha criado. É idempotente, então
+> rodar duas vezes não faz mal. Em produção o efeito é nulo (0 overrides, porque os sócios são
+> admins), mas rode assim mesmo para a base não ficar com resíduo.
 
 **Verificação no banco:**
 
@@ -168,8 +175,10 @@ npx tsx --tsconfig tsconfig.server.json scripts/checar-equivalencia-permissoes.t
 ```
 
 **Critério: `✔ Zero ganhos de acesso.` com um número de células DIFERENTE DE ZERO** — o esperado é
-`26 usuário(s) × 1430 célula(s)`. Se aparecer `0 célula(s)`, o script agora falha duro em vez de
-mentir; significa que o passo 3 não pegou.
+`26 usuário(s) × 2860 célula(s)` (**1430 por via**: metade mede a fórmula de `requirePermission`,
+com o piso de sócio, e metade a de `defineAction`, sem o piso — os dois caminhos divergem hoje, ver
+§15.7). Se aparecer `0 célula(s)`, o script falha duro em vez de mentir; significa que o passo 3
+não pegou.
 
 Qualquer ganho de acesso é **bloqueante**: pare, não siga para a Onda D, e me traga o relatório
 gerado em `logs/equivalencia-permissoes-*.json`.

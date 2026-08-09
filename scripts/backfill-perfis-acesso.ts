@@ -24,10 +24,15 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { prisma } from "../src/lib/prisma";
 import { CHAVE_POR_ROLE } from "../prisma/seed-perfis-acesso";
-import { ehLeitura } from "../src/lib/permissions-catalog";
+import { ehLeitura, PERMISSOES_CATALOGO } from "../src/lib/permissions-catalog";
 import type { Role } from "../src/lib/roles";
 
 const DRY_RUN = process.argv.includes("--dry-run");
+
+const PARES_DO_CATALOGO = new Set(
+  PERMISSOES_CATALOGO.flatMap((r) => r.acoes.map((a) => `${r.recurso}:${a.acao}`)),
+);
+const conhecidoNoCatalogo = (recurso: string, acao: string) => PARES_DO_CATALOGO.has(`${recurso}:${acao}`);
 const MOTIVO_PISO_SOCIO =
   "Piso de sócio (legado, SOMENTE LEITURA) — migrado automaticamente na Onda B a partir de `ehSocio`. " +
   "Ver docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md (§5.1 e §15.7).";
@@ -138,7 +143,18 @@ async function main() {
         where: { userId: u.id, motivo: { startsWith: "Piso de sócio (legado" } },
         select: { recurso: true, acao: true },
       });
-      const obsoletos = doPiso.filter((o) => !ehLeitura(o.recurso, o.acao));
+      // Só poda par que o catálogo CONHECE. Um par que sumiu do catálogo (renomeado, removido)
+      // faria `ehLeitura` responder `false` por ignorância, não por classificação — e a poda
+      // apagaria em silêncio um override possivelmente legítimo. Hoje não há nenhum par assim
+      // (verificado: 0 em `PermissaoPerfil` e em `Permissao`), mas um rename futuro criaria.
+      const desconhecidos = doPiso.filter((o) => !conhecidoNoCatalogo(o.recurso, o.acao));
+      for (const d of desconhecidos) {
+        console.warn(
+          `⚠ override de piso em par fora do catálogo (${d.recurso}:${d.acao}, usuário ${u.email}) — ` +
+            "mantido. Classifique no catálogo ou remova à mão.",
+        );
+      }
+      const obsoletos = doPiso.filter((o) => conhecidoNoCatalogo(o.recurso, o.acao) && !ehLeitura(o.recurso, o.acao));
       for (const o of obsoletos) {
         if (!DRY_RUN) {
           await prisma.permissaoUsuario.delete({
