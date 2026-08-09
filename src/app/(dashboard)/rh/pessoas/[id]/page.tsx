@@ -45,7 +45,7 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
     ponto: podeVerPonto,
     pendenciasRh: true,
     projetos: podeVerProjetos
-      ? { observador: { id: user.id, role: user.role, ehSocio: user.ehSocio } }
+      ? { observador: { id: user.id, role: user.role, ehSocio: user.ehSocio, superUsuario: user.superUsuario, escopoGlobalPerfil: user.escopoGlobalPerfil } }
       : null,
   });
   if (!pessoa) notFound();

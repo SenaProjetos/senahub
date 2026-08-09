@@ -107,7 +107,7 @@ async function main() {
   check("eapDoProjeto: tarefas + baseline + dependência", eap.tarefas.length === 2 && eap.temLinhaBase && eap.tarefas.some((t) => t.predecessoraIds.length === 1));
 
   // 6) projetosComPlano (viewer admin = global)
-  const lista = await projetosComPlano({ id: admin.id, role: admin.role as Role });
+  const lista = await projetosComPlano({ id: admin.id, role: admin.role as Role, superUsuario: true, escopoGlobalPerfil: true });
   const naLista = lista.find((p) => p.id === projeto.id);
   check("projetosComPlano inclui o projeto com 2 tarefas", naLista?.totalTarefas === 2);
 

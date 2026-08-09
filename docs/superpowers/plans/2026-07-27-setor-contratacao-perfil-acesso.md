@@ -1254,6 +1254,45 @@ entregas lá antes da migração, a ausência aqui reflete pouco tempo de uso, n
 Conclusão operacional: **o corte das 7 pode seguir sem aviso prévio**, salvo se o dono souber que
 a função dela no sistema antigo incluía validação.
 
+### 15.15 Escopo de dados entra no arnês — e §15.3 estava errado (2026-08-09)
+
+**Correção:** §15.3 afirmou que a lista de quem perde o escopo global estava **vazia**. Contei só os
+`supervisor` (são zero) e **esqueci dos sócios**. A regra legada é
+`role === "admin" || GLOBAL_ROLES.includes(role) || ehSocio` — o sócio `projetista_pj` **enxerga
+todos os projetos da empresa hoje**, e o corte o atingiria. São 27 call-sites de `acessoGlobal`
+(lista de projetos, dashboard, downloads, ZIPs, pendências, BCF, coordenação): a mudança mais
+visível da onda inteira, para a pessoa que já aparece em §15.9 e §15.12.
+
+Pior: **o gate não veria.** `escopo:global` não estava no `PERMISSOES_CATALOGO`, então nenhuma das
+2860 células media escopo de dados. Era o único eixo de acesso do sistema sem arnês — o plano já
+avisava (§6.1, "a matriz de permissões não controla isso"), mas na prática a perda passaria muda.
+
+**Decisões do dono (2026-08-09):**
+- **O sócio MANTÉM a visão global.** É leitura, coerente com o piso ser read-only (§15.7). Vira
+  override nominal, auditável e revogável, em vez do `if (ehSocio)` escondido. O backfill passou a
+  materializar `escopo:global` para sócio ativo — é a segunda metade do piso legado, que nunca
+  esteve em tabela nenhuma.
+- **`escopo:global` entra no catálogo**, marcado como leitura. Deixa de ser permissão fantasma:
+  aparece na tela de Permissões e passa a ser medido pelo gate.
+
+**Como o "antes" é modelado, e por que importa:** para essa célula, `gerarSnapshotLegado` escreve a
+fórmula legada **à mão** (`admin || GLOBAL_ROLES || ehSocio`) em vez de chamar `acessoGlobal()` —
+porque `acessoGlobal()` já é a fórmula NOVA. Chamá-la faria o "antes" e o "depois" serem a mesma
+coisa, e o gate aprovaria qualquer mudança de escopo comparando o motor novo consigo mesmo. É a
+armadilha clássica de arnês que testa a implementação contra ela mesma.
+
+`acessoGlobal(u)` agora exige `EscopoDeDados` com os dois campos **obrigatórios**. Opcionais fariam
+um viewer parcial (`{ id, role }`) compilar e resolver `false` em silêncio — o compilador achou 12
+lugares assim, incluindo o `auto-store` das ferramentas, que rodava fora de sessão e reconstruía o
+viewer pela metade.
+
+Resultado no dev: **896 células (era 880), 0 ganhos, 0 perdas**; audiências sem diferença; 1844
+testes; build ok.
+
+> **Produção precisa de `db:seed` + `backfill-perfis-acesso` de novo no Deploy 2** — o seed para o
+> catálogo novo e o backfill para materializar o `escopo:global` do sócio. Sem o backfill, ele
+> perde a visão global no instante do flip.
+
 ### 15.6 Higiene de branch (R8)
 
 Estado em 2026-08-08: `feat/cadastro-colaborador` está 13 commits à frente de `dev`, 1 atrás, com 56

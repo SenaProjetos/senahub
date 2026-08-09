@@ -189,7 +189,7 @@ describe("Pessoa 360 — consultas de resumo", () => {
       ponto: true,
       pendenciasRh: true,
       projetos: {
-        observador: { id: "gestor", role: "administrativo", ehSocio: false },
+        observador: { id: "gestor", role: "administrativo", ehSocio: false, superUsuario: false, escopoGlobalPerfil: false },
       },
     });
 

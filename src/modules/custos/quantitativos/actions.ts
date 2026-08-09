@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import type { Role } from "@/lib/roles";
+import type { Role, EscopoDeDados } from "@/lib/roles";
 import { escopoCustoOrcamento } from "../queries";
 import * as service from "./service";
 import { historicoQuantitativo, listarQuantitativos, guidsPorItem } from "./queries";
@@ -24,7 +24,7 @@ const rev = (orcamentoId: string) => {
   revalidatePath(`/custos/${orcamentoId}`);
 };
 
-type Viewer = { id: string; role: Role; ehSocio?: boolean };
+type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
 
 async function exigirOrcamentoNoEscopo(orcamentoId: string, viewer: Viewer) {
   const r = await prisma.custoOrcamento.findFirst({

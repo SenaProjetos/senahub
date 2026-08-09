@@ -224,6 +224,15 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     ],
   },
   {
+    // Escopo de DADOS, não de tela: quem tem isto enxerga todos os projetos da empresa; quem não
+    // tem enxerga os projetos em que é membro ou responsável. Era o único eixo de acesso que
+    // vivia só em código (`GLOBAL_ROLES`/`ehSocio` em `acessoGlobal`), fora da tela de Permissões
+    // e fora do arnês de equivalência. Entrou no catálogo na Onda D para deixar de ser invisível.
+    recurso: "escopo",
+    label: "Escopo de dados",
+    acoes: [{ acao: "global", label: "Ver todos os projetos da empresa (não só os próprios)", leitura: true }],
+  },
+  {
     recurso: "rh",
     label: "RH — Pessoas",
     acoes: [

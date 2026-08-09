@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import type { Role } from "@/lib/roles";
+import type { Role, EscopoDeDados } from "@/lib/roles";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { escopoCustoOrcamento } from "./queries";
 import * as service from "./service";
@@ -23,7 +23,7 @@ const rev = (id?: string) => {
 };
 
 /** Garante que o orçamento existe e está dentro do escopo de acesso do usuário (D1). */
-async function exigirNoEscopo(id: string, viewer: { id: string; role: Role; ehSocio?: boolean }) {
+async function exigirNoEscopo(id: string, viewer: { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados) {
   const r = await prisma.custoOrcamento.findFirst({
     where: { AND: [{ id }, escopoCustoOrcamento(viewer)] },
     select: { id: true },

@@ -1,13 +1,13 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
-import { acessoGlobal, type Role } from "@/lib/roles";
+import { acessoGlobal, type Role, type EscopoDeDados } from "@/lib/roles";
 import { whereAudiencia } from "@/lib/audiencias";
 import { CATEGORIA_TERCEIRIZADO } from "@/modules/financeiro/custo/lancamento-custo";
 import { calcularRateioDetalhado } from "@/modules/rh/rateio/queries";
 import { normalizar } from "@/lib/disciplinas-core";
 
-type Viewer = { id: string; role: Role; ehSocio?: boolean };
+type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
 
 /** Filtro de escopo: global (inclui sócio) vê tudo; cliente vê seus projetos; demais só onde participam. */
 export function escopoProjeto(viewer: Viewer): Prisma.ProjetoWhereInput {

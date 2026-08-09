@@ -1,12 +1,12 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { acessoGlobal, type Role } from "@/lib/roles";
+import { acessoGlobal, type Role, type EscopoDeDados } from "@/lib/roles";
 import { whereAudiencia } from "@/lib/audiencias";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { progressoDoStatus } from "@/modules/projetos/status";
 import { minutosSessao } from "@/modules/ponto/format";
 
-type Viewer = { id: string; role: Role; ehSocio?: boolean };
+type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 

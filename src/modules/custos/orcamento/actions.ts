@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import type { Role } from "@/lib/roles";
+import type { Role, EscopoDeDados } from "@/lib/roles";
 import { escopoCustoOrcamento } from "../queries";
 import * as service from "./service";
 import { previewTrocaBase } from "./service";
@@ -29,7 +29,7 @@ const rev = (orcamentoId: string) => {
   revalidatePath(`/custos/${orcamentoId}`);
 };
 
-type Viewer = { id: string; role: Role; ehSocio?: boolean };
+type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
 
 /** Escopo de acesso (D1) pelo id do ORÇAMENTO. */
 async function exigirOrcamentoNoEscopo(orcamentoId: string, viewer: Viewer) {

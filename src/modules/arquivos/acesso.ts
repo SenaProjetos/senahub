@@ -1,6 +1,6 @@
 import "server-only";
 import { can, type SubjectAutorizacao } from "@/lib/permissions";
-import { acessoGlobal } from "@/lib/roles";
+import { acessoGlobal, type EscopoDeDados } from "@/lib/roles";
 
 /**
  * Permissões do recurso `arquivos` (Diretório + muralha por disciplina). Fonte única
@@ -28,7 +28,7 @@ export function podeEnviarArquivo(user: SubjectAutorizacao): Promise<boolean> {
  * responsável (muralha do projetista externo). Perfil global/sócio sempre vê tudo.
  */
 export async function podeVerTodasDisciplinas(
-  user: SubjectAutorizacao & { ehSocio?: boolean },
+  user: SubjectAutorizacao & EscopoDeDados,
 ): Promise<boolean> {
   if (acessoGlobal(user)) return true;
   return can(user, "arquivos", "ver_todas_disciplinas");

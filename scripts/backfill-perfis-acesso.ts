@@ -116,9 +116,18 @@ async function main() {
       // o piso inteiro daria ao sócio não-admin acesso de ESCRITA que ele não tem hoje, porque
       // `with-action.ts` (Server Actions) nunca aplicou o piso — só `session.ts` (páginas).
       // `ehLeitura` é fail-closed: ação não classificada não entra.
-      const faltantes = matrizCoordenador.filter(
-        (m) => !jaTem.has(`${m.recurso}:${m.acao}`) && ehLeitura(m.recurso, m.acao),
-      );
+      // O piso legado tinha DUAS partes, e só uma vinha da matriz do coordenador:
+      //   (i) `can(role) || can("supervisor")` em `requirePermission` — a matriz;
+      //   (ii) `ehSocio` em `acessoGlobal()` — o ESCOPO DE DADOS, que nunca esteve em tabela
+      //        nenhuma. Sem materializar `escopo:global`, o sócio deixaria de enxergar a carteira
+      //        inteira no dia do flip — perda silenciosa, porque escopo não é célula de `can()`.
+      // Decisão do dono (2026-08-09): o sócio MANTÉM a visão global. É leitura, coerente com o
+      // piso ser read-only (§15.7), e vira dado auditável em vez de `if (ehSocio)` escondido.
+      const alvoPiso = [
+        ...matrizCoordenador.filter((m) => ehLeitura(m.recurso, m.acao)),
+        { recurso: "escopo", acao: "global" },
+      ];
+      const faltantes = alvoPiso.filter((m) => !jaTem.has(`${m.recurso}:${m.acao}`));
 
       for (const f of faltantes) {
         if (!DRY_RUN) {
