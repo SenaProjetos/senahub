@@ -48,6 +48,49 @@ Os números da coluna da direita não são estimativa: saíram do ensaio
 
 ---
 
+---
+
+## ⚠ DEPLOY 2 — a virada da autorização (Onda D)
+
+Os passos abaixo (0 a 6) são do **Deploy 1**, já executado em 2026-08-09. O Deploy 2 é o que
+**religa a autorização** no motor de Perfil de acesso. A partir dele, `role` deixa de decidir
+acesso.
+
+**Pré-requisitos, todos já cumpridos no Deploy 1:** `perfilId` em 23 pessoas, `superUsuario` nos
+3 admins, gate de equivalência verde. **Sem eles, este deploy tranca todo mundo para fora,
+inclusive o admin** — o bypass deixa de ser `role === "admin"` e passa a ser `superUsuario`.
+
+**Sequência:**
+
+1. `deploy\gerenciar-servidor.bat` → **Deploy completo**. Não há migration nova; o `db:seed` do
+   próprio deploy cria as permissões novas (`escopo:global`, `chat:usar`, `auditoria:ver`) e
+   atualiza os perfis **antes** de o serviço subir — a ordem do script já garante isso.
+2. **Imediatamente depois de o serviço subir**, rode:
+   ```
+   npx tsx --tsconfig tsconfig.server.json scripts/backfill-perfis-acesso.ts
+   ```
+   É ele que materializa o `escopo:global` do sócio. Entre o serviço subir e este comando rodar,
+   essa pessoa enxerga só os projetos dela — janela de minutos, mas rode logo.
+3. Conferir o gate:
+   ```
+   npx tsx --tsconfig tsconfig.server.json scripts/checar-equivalencia-permissoes.ts
+   ```
+   Esperado: **exit 0**, com `5 ganho(s) COBERTO(S) por allowlist versionada` e as 7 perdas de
+   escrita do sócio (intencionais). Qualquer ganho **fora** dessas 5 é bloqueante.
+
+**O que muda para as pessoas, no dia 1:**
+- o sócio `projetista_pj` perde 7 ações de escrita (entre elas "validar entregas"). Verificado no
+  `AuditLog` que ele nunca usou nenhuma;
+- quem for `supervisor` perde o escopo global e 17 itens de menu que já não conseguia abrir. Hoje
+  não há `supervisor` ativo em produção — **reconfira na véspera**;
+- PJ, freelancer e sócio deixam de bater ponto (usam "Iniciar apontamento");
+- gestão passa a ver "Meu trabalho", inclusive o de outras pessoas.
+
+**Rollback:** restaurar o backup do passo 0 e voltar o código para a tag anterior. Os backfills
+são aditivos e não precisam ser desfeitos.
+
+---
+
 ## Passo 0 — provar que o backup funciona (NÃO PULE)
 
 O deploy faz backup antes da migration, mas `Invoke-Backup` **falha macio**: se `PG_DUMP_PATH` ou
