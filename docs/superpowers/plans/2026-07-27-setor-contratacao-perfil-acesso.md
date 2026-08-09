@@ -1078,6 +1078,39 @@ gate de duas vias vai acusar ganho nas **5 células de leitura** — porque `def
 aplica piso nenhum e passaria a aplicar. Isso não é bug: é a decisão de §15.7 aparecendo como
 diferença, e precisa virar **allowlist versionada com assinatura do dono**, não um ajuste no gate.
 
+### 15.10 Runbook executado em produção — 2026-08-09
+
+Passos 1 a 4 rodados no servidor. Saída real:
+
+| Passo | Resultado |
+|---|---|
+| `db:seed` | 117 permissões base · **8 perfis semeados** |
+| `backfill-vinculos` | **27 processados · 24 vínculos criados · 3 tipos ajustados · 0 pulados**, "cache e vínculo consistentes", 25 marcados para conferência humana |
+| `backfill-perfis-acesso` | **26 processados · 23 perfis · 3 superUsuario · 12 overrides** (todos de um único usuário — o sócio `projetista_pj`) |
+| `checar-equivalencia-permissoes` | **26 usuários × 1430 células · 0 ganhos · 0 perdas**, exit 0 |
+
+**Gate 2 cumprido contra produção viva**, não mais contra o clone do snapshot. Os 12 overrides
+batem exatamente com a medição feita no dev antes de autorizar (22 do coordenador − 10 em comum).
+Os `3 superUsuario` são o número que impede os admins de se trancarem para fora no flip.
+
+**O verde do passo 4 NÃO é evidência sobre o sócio** — o gate de uma via modela a fórmula do
+`requirePermission`, que já embute o piso, então o lado "antes" dessa pessoa já afirmava a matriz
+do coordenador. Registrado aqui porque um verde arquivado sem essa ressalva vira, em três meses,
+"já foi verificado".
+
+**Três pendências que este runbook deixou abertas, em ordem de risco:**
+
+1. **Os 7 overrides de escrita estão gravados em produção.** Inertes hoje. A poda de §15.7 os
+   remove — **o flip do `can()` não pode ir a produção antes disso**.
+2. **`contratacao = pro_labore` gravado para o sócio que fatura pela própria PJ.** Atenção: o
+   `backfill-vinculos.ts` é idempotente por PULAR quem já tem vínculo ativo, então **rodar de novo
+   com o fix de §15.9 NÃO corrige quem já foi gravado**. A correção é na tela (o `aplicarVinculo`
+   encerra o vínculo anterior e abre o novo, sem perder histórico). O fix só protege cadastros
+   novos.
+3. **25 linhas para conferência humana**: 20 `setor_sem_origem` (o default Engenharia, §6.1 nota 2),
+   3 `sem_vinculo_definir_a_mao socio_ativo` (os admins), 1 `setor_sem_origem socio_ativo`, 1
+   `setor_sem_origem pj_ou_autonomo_rpa` (o freelancer aguardando reclassificação, §9.2).
+
 ### 15.6 Higiene de branch (R8)
 
 Estado em 2026-08-08: `feat/cadastro-colaborador` está 13 commits à frente de `dev`, 1 atrás, com 56

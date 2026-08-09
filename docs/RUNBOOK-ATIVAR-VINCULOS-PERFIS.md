@@ -171,12 +171,21 @@ npx tsx --tsconfig tsconfig.server.json scripts/backfill-perfis-acesso.ts --dry-
 npx tsx --tsconfig tsconfig.server.json scripts/backfill-perfis-acesso.ts
 ```
 
-**Critérios (números do ensaio contra este dataset):**
+**Critérios — EXECUTADO EM PRODUÇÃO em 2026-08-09, saída real:**
 - `26 usuário(s) processado(s).`
 - `✔ 23 perfil(is) atribuído(s) · 3 superUsuario marcado(s)`
-- `✔ 0 override(s) de piso de sócio materializado(s) — só leitura (§15.7)` — o zero está correto
-  aqui, porque os 3 sócios ativos são os 3 admins, e admin já faz bypass total (nem passa pelo
-  caminho de override).
+- `✔ 12 override(s) de piso de sócio materializado(s)`
+
+> **O critério "0 overrides" que estava aqui era ERRADO** — vinha da afirmação "os 3 sócios ativos
+> são os 3 admins", tirada de um snapshot de 2026-08-06. São **4 sócios ativos**: os 3 admins mais
+> um `projetista_pj`, marcado depois do snapshot. Admin cai num `continue` antes do bloco de
+> override, o sócio não-admin não — por isso 12, todos de um único usuário. Ver §15.9 do plano.
+>
+> Dos 12, **7 são de ESCRITA** (`projetos:gerir`, `uploads:validar`, `planejamento:gerir`,
+> `recursos:gerir`, `ferramentas:gerir`, `coordenacao:gerir`, `custos:gerir`) e estão **gravados em
+> produção hoje**, por decisão consciente do dono ("rodar agora e corrigir depois"). São inertes —
+> nada lê `permissaoEfetiva` para autorizar ainda. **A poda do fix de §15.7 os remove no próximo
+> backfill, e isso tem que acontecer ANTES do flip do `can()`.**
 
 > **Se você já rodou este passo antes de 2026-08-09:** rode de novo depois do próximo deploy. O
 > script mudou — o piso de sócio passou a ser **só de leitura** (§15.7 do plano) e ele agora
