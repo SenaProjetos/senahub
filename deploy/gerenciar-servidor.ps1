@@ -50,6 +50,19 @@ function Get-EnvValue {
     return $valor
 }
 
+function Get-EnvValueRaw {
+    # Valor EXATAMENTE como esta no .env, sem aparar aspas. Get-EnvValue apara com
+    # Trim('"'), o que MASCARA uma aspa sem par - e aspa sem par e um erro real de
+    # configuracao: o dotenv (Node) so remove aspas balanceadas, entao a orfa vira
+    # parte do valor e o spawn falha com ENOENT enquanto o Test-Path daqui diz OK.
+    param([string]$Key)
+    $envPath = Join-Path $AppRoot ".env"
+    if (-not (Test-Path $envPath)) { return $null }
+    $linha = Get-Content $envPath -Encoding UTF8 | Where-Object { $_ -match "^$Key=" } | Select-Object -First 1
+    if (-not $linha) { return $null }
+    return ($linha -replace "^$Key=", "").Trim()
+}
+
 function Write-Audit {
     param([string]$AcaoNome, [string]$Detalhe = "")
     $linha = "{0} | {1} | {2} | {3}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $env:USERNAME, $AcaoNome, $Detalhe
@@ -247,17 +260,61 @@ function Invoke-Diagnostico {
         }
         "DWG" {
             # A conversao DWG->DXF chama o ODA File Converter (exe externo) num child process,
-            # disparado por job pg-boss dentro do server.ts. Tres causas possiveis, nessa ordem.
+            # disparado por job pg-boss dentro do server.ts. As causas ja vistas em producao,
+            # na ordem em que sao checadas: caminho ausente, aspa sem par no .env, caminho de
+            # versao velha do ODA, QT_QPA_PLATFORM sem o plugin correspondente, servico parado.
             $oda = Get-EnvValue -Key "ODA_CONVERTER_PATH"
+            $odaBruto = Get-EnvValueRaw -Key "ODA_CONVERTER_PATH"
             Write-Host ""
             Write-Host "Verificando ODA_CONVERTER_PATH: $oda" -ForegroundColor Cyan
             if (-not $oda) {
                 Write-Host "[FALHA] ODA_CONVERTER_PATH nao esta no .env - essa e a causa provavel." -ForegroundColor Red
                 Write-Host "        Instale o ODA File Converter e aponte o .env pro exe (docs/DEPLOY.md secao 4.1)." -ForegroundColor Yellow
+            } elseif ($odaBruto -match '^"[^"]*$' -or $odaBruto -match '^[^"]*"$') {
+                Write-Host "[FALHA] Aspa sem par no valor do .env - essa e a causa provavel." -ForegroundColor Red
+                Write-Host "        Valor bruto: $odaBruto" -ForegroundColor Yellow
+                Write-Host "        O caminho vai no .env SEM aspas, mesmo tendo espacos." -ForegroundColor Yellow
+                Write-Host "        No log do app o sintoma e: spawn `"C:\Program Files\... ENOENT" -ForegroundColor Yellow
             } elseif (-not (Test-Path $oda)) {
                 Write-Host "[FALHA] O exe nao existe nesse caminho - essa e a causa provavel." -ForegroundColor Red
+                Write-Host "        O numero da versao entra no nome da pasta e muda a cada release do ODA." -ForegroundColor Yellow
+                $achados = @(Get-ChildItem "C:\Program Files\ODA" -Recurse -Filter "ODAFileConverter.exe" -ErrorAction SilentlyContinue)
+                if ($achados.Count -gt 0) {
+                    foreach ($a in $achados) { Write-Host "        Instalado aqui: $($a.FullName)" -ForegroundColor Yellow }
+                } else {
+                    Write-Host "        Nenhum ODAFileConverter.exe achado em C:\Program Files\ODA." -ForegroundColor Yellow
+                }
             } else {
                 Write-Host "[OK] ODA File Converter encontrado." -ForegroundColor Green
+            }
+
+            # Armadilha do QT_QPA_PLATFORM: o pacote do ODA so traz qwindows.dll em
+            # platforms/. Forcar outra plataforma (ex.: offscreen - receita antiga e
+            # errada do DEPLOY.md) trava o Qt em erro fatal em vez de sair, e a
+            # conversao morre no timeout de 9 min sem gerar nada.
+            $chaveParams = "HKLM:\SYSTEM\CurrentControlSet\Services\SenaHub\Parameters"
+            $extra = $null
+            if (Test-Path $chaveParams) {
+                $extra = (Get-ItemProperty -Path $chaveParams -ErrorAction SilentlyContinue).AppEnvironmentExtra
+            }
+            $qt = $extra | Where-Object { $_ -match "^QT_QPA_PLATFORM=" } | Select-Object -First 1
+            if ($qt) {
+                $plataforma = ($qt -split "=", 2)[1]
+                Write-Host ""
+                Write-Host "Servico define QT_QPA_PLATFORM=$plataforma" -ForegroundColor Cyan
+                $plugin = $null
+                if ($oda -and (Test-Path $oda)) {
+                    $plugin = Join-Path (Split-Path $oda -Parent) "platforms\q$plataforma.dll"
+                }
+                if ($plugin -and (Test-Path $plugin)) {
+                    Write-Host "[OK] O plugin q$plataforma.dll existe no pacote do ODA." -ForegroundColor Green
+                } else {
+                    Write-Host "[FALHA] O ODA nao distribui o plugin q$plataforma.dll - essa e a causa provavel." -ForegroundColor Red
+                    Write-Host "        Sintoma: a conversao estoura o timeout de 9 min sem gerar .dxf." -ForegroundColor Yellow
+                    Write-Host "        Remova a variavel do servico (num PowerShell como Administrador):" -ForegroundColor Yellow
+                    Write-Host '        nssm set SenaHub AppEnvironmentExtra "NODE_ENV=production" "PORT=3000"' -ForegroundColor Yellow
+                    Write-Host "        Restart-Service SenaHub" -ForegroundColor Yellow
+                }
             }
 
             $svc = Get-Service -Name "SenaHub" -ErrorAction SilentlyContinue
@@ -276,7 +333,8 @@ function Invoke-Diagnostico {
 
             Write-Host ""
             Write-Host "Se tudo acima esta OK mas a conversao falha com 'nao gerou o arquivo de saida'," -ForegroundColor Yellow
-            Write-Host "o ODA (app Qt) esta sem sessao grafica no servico - ver docs/DEPLOY.md secao 4.1." -ForegroundColor Yellow
+            Write-Host "o problema e o proprio DWG - teste o mesmo arquivo direto no ODA pela linha de" -ForegroundColor Yellow
+            Write-Host "comando: ODAFileConverter.exe <pastaEntrada> <pastaSaida> ACAD2018 DXF 0 1" -ForegroundColor Yellow
         }
         "Site" {
             Invoke-Status

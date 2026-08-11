@@ -93,22 +93,32 @@ executável externo, **não** um pacote npm. Ele não vem com o projeto e precis
 
 1. Baixe em [opendesign.com](https://www.opendesign.com/guestfiles/oda_file_converter) (gratuito, exige
    cadastro) a versão **Windows x64** e instale.
-2. Anote o caminho do exe, algo como
-   `C:\Program Files\ODA\ODAFileConverter 25.4\ODAFileConverter.exe`.
-3. Ponha no `.env` (aspas não são necessárias, mesmo com espaços no caminho):
+2. Pegue o caminho **da versão que você instalou** — o número da versão entra no nome da pasta e muda a
+   cada release, então não copie o exemplo abaixo às cegas:
+   ```powershell
+   (Get-ChildItem "C:\Program Files\ODA" -Recurse -Filter ODAFileConverter.exe).FullName
    ```
-   ODA_CONVERTER_PATH=C:\Program Files\ODA\ODAFileConverter 25.4\ODAFileConverter.exe
+3. Ponha no `.env` **sem aspas**, mesmo com espaços no caminho:
+   ```
+   ODA_CONVERTER_PATH=C:\Program Files\ODA\ODAFileConverter 27.1.0\ODAFileConverter.exe
    ```
 4. `Restart-Service SenaHub` e reenvie (ou clique em "tentar de novo") num DWG que falhou.
 
-> ⚠️ **O ODA é um app gráfico (Qt).** Como serviço NSSM rodando em `LocalSystem` (Session 0, sem desktop),
-> ele pode abrir mas não produzir saída. Sintoma: com o caminho correto, a conversão falha com *"não gerou
-> o arquivo de saída"* ou estoura o timeout de 9 min. Correção: rode o serviço com uma conta de usuário
-> comum, ou acrescente `QT_QPA_PLATFORM=offscreen` ao `AppEnvironmentExtra` do NSSM:
+> ⚠️ **Aspa sem par quebra tudo silenciosamente.** O `dotenv` só remove aspas **balanceadas** — se faltar a
+> de fechamento, o `"` vira parte do caminho e o spawn morre com `ENOENT`. No log aparece
+> `Falha ao iniciar o ODA File Converter: spawn "C:\Program Files\... ENOENT` — repare na aspa antes do `C:`.
+
+> ⚠️ **NÃO defina `QT_QPA_PLATFORM=offscreen`.** O ODA é um app Qt, mas o pacote dele traz **só**
+> `qwindows.dll` em `platforms/` — `qoffscreen.dll` não existe ali. Forçar `offscreen` faz o Qt travar em
+> erro fatal em vez de sair, e a conversão morre no timeout de 9 min sem gerar nada. O `qwindows` funciona
+> normalmente com o serviço em `LocalSystem`/Session 0 (verificado neste servidor em 11/08/2026 via
+> `PsExec -s`: exit 0 e `.dxf` gerado). O `AppEnvironmentExtra` correto é só:
 > ```powershell
-> nssm set SenaHub AppEnvironmentExtra "NODE_ENV=production" "PORT=3000" "QT_QPA_PLATFORM=offscreen"
+> nssm set SenaHub AppEnvironmentExtra "NODE_ENV=production" "PORT=3000"
 > Restart-Service SenaHub
 > ```
+> Se algum dia o ODA passar a exigir sessão gráfica de fato, a saída é rodar o serviço com uma conta de
+> usuário comum — nunca a variável.
 
 > A conversão roda como **job pg-boss** dentro do `server.ts`. Se o serviço estiver parado, o DWG fica
 > parado em "na fila" — sem worker, sem erro.
@@ -316,9 +326,10 @@ vermelho = SenaHub ou banco fora do ar. O `.bat` continua funcionando como alter
 | Login falha / CSRF | `BETTER_AUTH_URL` ≠ origem pública exata. Ajuste no `.env` e `Restart-Service SenaHub`. |
 | Chat não conecta | Serviço parado (o WS vem do mesmo `server.ts`). Cloudflare Tunnel já passa WS. |
 | PDF não gera | `CHROME_PATH` errado/ausente. |
-| "Conversor de DWG não está configurado" | `ODA_CONVERTER_PATH` ausente/errado no `.env` — ver seção 4.1. |
+| "Conversor de DWG não está configurado" | `ODA_CONVERTER_PATH` ausente/errado no `.env` — ver seção 4.1. Se o log mostra `spawn "C:\... ENOENT` (aspa antes do `C:`), é aspa sem par no `.env`. Se mostra um caminho de versão que não existe mais, o ODA foi atualizado e a pasta mudou de nome. |
 | DWG fica em "na fila" pra sempre | Serviço parado: o worker pg-boss vive dentro do `server.ts`. |
-| DWG converte mas "não gerou o arquivo de saída" | ODA (Qt) sem sessão gráfica no serviço — ver o aviso da seção 4.1. |
+| DWG estoura o timeout de 9 min sem gerar `.dxf` | `QT_QPA_PLATFORM` definido no `AppEnvironmentExtra` do serviço apontando para um plugin Qt que o ODA não distribui — ver o aviso da seção 4.1. |
+| DWG converte mas "não gerou o arquivo de saída" | DWG corrompido ou com conteúdo não suportado; teste o mesmo arquivo direto no ODA pela linha de comando. |
 | Upload falha | `STORAGE_BASE_PATH` não existe ou sem permissão de escrita. |
 | `.next` corrompido | Nunca rode `npm run dev` no servidor de produção; se ocorrer, apague `.next` e refaça `npm run build`. |
 | Serviço preso em `STOP_PENDING` | `Get-CimInstance Win32_Service -Filter "Name='SenaHub'"` para achar o PID, depois `Stop-Process -Id <pid> -Force`. O menu (seção 13, Ferramentas avançadas) automatiza isso. |
