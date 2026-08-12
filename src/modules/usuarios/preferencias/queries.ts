@@ -46,6 +46,7 @@ export async function carregarPreferenciasDaConta(userId: string) {
     notifApontamento: prefs.notif_apontamento !== false,
     notifAprovacaoArquivo: prefs.notif_aprovacao_arquivo !== false,
     notifAprovacaoDisciplina: prefs.notif_aprovacao_disciplina !== false,
+    notifInputCliente: prefs.notif_input_cliente !== false,
     notifProposta: prefs.notif_proposta !== false,
     notifPagamento: prefs.notif_pagamento !== false,
     notifDespesa: prefs.notif_despesa !== false,

@@ -50,6 +50,7 @@ export function PreferenciasView({
   notifApontamento: notifApontamentoInicial,
   notifAprovacaoArquivo: notifAprovacaoArquivoInicial,
   notifAprovacaoDisciplina: notifAprovacaoDisciplinaInicial,
+  notifInputCliente: notifInputClienteInicial,
   notifProposta: notifPropostaInicial,
   notifPagamento: notifPagamentoInicial,
   notifDespesa: notifDespesaInicial,
@@ -71,6 +72,7 @@ export function PreferenciasView({
   notifApontamento: boolean;
   notifAprovacaoArquivo: boolean;
   notifAprovacaoDisciplina: boolean;
+  notifInputCliente: boolean;
   notifProposta: boolean;
   notifPagamento: boolean;
   notifDespesa: boolean;
@@ -92,6 +94,7 @@ export function PreferenciasView({
   const [notifApontamento, setNotifApontamento] = useState(notifApontamentoInicial);
   const [notifAprovacaoArquivo, setNotifAprovacaoArquivo] = useState(notifAprovacaoArquivoInicial);
   const [notifAprovacaoDisciplina, setNotifAprovacaoDisciplina] = useState(notifAprovacaoDisciplinaInicial);
+  const [notifInputCliente, setNotifInputCliente] = useState(notifInputClienteInicial);
   const [notifProposta, setNotifProposta] = useState(notifPropostaInicial);
   const [notifPagamento, setNotifPagamento] = useState(notifPagamentoInicial);
   const [notifDespesa, setNotifDespesa] = useState(notifDespesaInicial);
@@ -201,6 +204,13 @@ export function PreferenciasView({
       descricao: "Solicitação de aprovação de disciplina, e confirmação/recusa por um superior.",
       valor: notifAprovacaoDisciplina,
       set: setNotifAprovacaoDisciplina,
+    },
+    {
+      chave: "notif_input_cliente",
+      titulo: "Formulário preenchido pelo cliente",
+      descricao: "Quando o cliente responde o briefing ou as perguntas do link público do projeto.",
+      valor: notifInputCliente,
+      set: setNotifInputCliente,
     },
     {
       chave: "notif_proposta",

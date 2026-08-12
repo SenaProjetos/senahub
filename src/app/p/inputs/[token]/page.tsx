@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { ClipboardList } from "lucide-react";
 import { inputsPorToken } from "@/modules/inputs/queries";
 import { prePopularRespostas } from "@/modules/inputs/briefing-schema";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -15,7 +15,20 @@ export default async function InputsPublicoPage({
 }) {
   const { token } = await params;
   const projeto = await inputsPorToken(token);
-  if (!projeto) notFound();
+
+  // Token inexistente, revogado ou expirado → mensagem neutra (não revela se o link
+  // já existiu, nem qual projeto).
+  if (!projeto) {
+    return (
+      <main className="mx-auto flex min-h-[60svh] max-w-md flex-col items-center justify-center px-4 text-center">
+        <ClipboardList className="mb-3 size-10 text-muted-foreground" />
+        <h1 className="text-lg font-bold">Link indisponível</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Este formulário não está mais ativo ou expirou. Solicite um novo link ao responsável pelo projeto.
+        </p>
+      </main>
+    );
+  }
 
   const itens = projeto.inputs.map((i) => ({
     id: i.id,

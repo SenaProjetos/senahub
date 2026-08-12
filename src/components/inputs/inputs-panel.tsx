@@ -3,12 +3,11 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2, Link2, Copy, Save, Inbox } from "lucide-react";
+import { Plus, Trash2, Save, Inbox } from "lucide-react";
 import {
   adicionarInput,
   removerInput,
   responderInputs,
-  gerarLinkInput,
   aplicarInputsPadrao,
 } from "@/modules/inputs/actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,16 +31,12 @@ export function InputsPanel({
   disciplinas,
   itens,
   progresso,
-  token,
-  baseUrl,
 }: {
   projetoId: string;
   podeGerir: boolean;
   disciplinas: string[];
   itens: Item[];
   progresso: { total: number; respondidas: number };
-  token: string | null;
-  baseUrl: string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -52,8 +47,6 @@ export function InputsPanel({
   const [respostas, setRespostas] = useState<Record<string, string>>(
     Object.fromEntries(itens.map((i) => [i.id, i.resposta])),
   );
-
-  const linkUrl = token ? `${baseUrl}/p/inputs/${token}` : null;
 
   function adicionar() {
     if (!novaPergunta.trim()) return;
@@ -90,16 +83,6 @@ export function InputsPanel({
     });
   }
 
-  function gerarLink() {
-    start(async () => {
-      const res = await gerarLinkInput({ projetoId });
-      if (res.ok) {
-        toast.success("Link gerado.");
-        router.refresh();
-      } else toast.error(res.error);
-    });
-  }
-
   function aplicarPadrao() {
     start(async () => {
       const res = await aplicarInputsPadrao({ projetoId });
@@ -108,12 +91,6 @@ export function InputsPanel({
         router.refresh();
       } else toast.error(res.error);
     });
-  }
-
-  async function copiar() {
-    if (!linkUrl) return;
-    await navigator.clipboard.writeText(linkUrl);
-    toast.success("Link copiado.");
   }
 
   // Estado vazio + colapsado: card compacto com 1 botão para expandir (ou apenas o aviso).
@@ -147,28 +124,14 @@ export function InputsPanel({
           </div>
           {podeGerir && (
             <div className="flex items-center gap-2">
-              {linkUrl ? (
-                <Button variant="outline" size="sm" onClick={copiar}>
-                  <Copy className="size-3.5" /> Copiar link
-                </Button>
-              ) : null}
               <Button variant="outline" size="sm" onClick={aplicarPadrao} disabled={pending}>
                 <Plus className="size-3.5" /> Aplicar padrão
-              </Button>
-              <Button variant="outline" size="sm" onClick={gerarLink} disabled={pending}>
-                <Link2 className="size-3.5" /> {token ? "Regerar link" : "Gerar link público"}
               </Button>
             </div>
           )}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {linkUrl && podeGerir && (
-          <p className="break-all rounded-sm bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
-            {linkUrl}
-          </p>
-        )}
-
         {itens.length === 0 ? (
           <EmptyState icon={Inbox} title="Nenhuma pergunta definida." />
         ) : (

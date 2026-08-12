@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { calcularStatusBriefing } from "@/modules/inputs/briefing-schema";
+import { linkVigente } from "@/lib/link-publico";
+import { notificarPreenchimentoInput } from "@/modules/inputs/notificar-preenchimento";
 
 const putSchema = z.object({ respostas: z.record(z.string(), z.unknown()).default({}) });
 
@@ -11,7 +13,7 @@ async function projetoDoToken(token: string) {
     where: { token },
     include: { projeto: { select: { id: true } } },
   });
-  if (!link || !link.ativo) return null;
+  if (!link || !linkVigente(link)) return null;
   return link.projeto;
 }
 
@@ -27,10 +29,17 @@ export async function PUT(req: Request, ctx: { params: Promise<{ token: string }
   const respostas = parsed.data.respostas;
   const status = calcularStatusBriefing(respostas);
   const respostasJson = respostas as unknown as Prisma.InputJsonValue;
+  const anterior = await prisma.briefingProjeto.findUnique({
+    where: { projetoId: projeto.id },
+    select: { status: true },
+  });
   await prisma.briefingProjeto.upsert({
     where: { projetoId: projeto.id },
     create: { projetoId: projeto.id, respostasJson, status, preenchidoPor: "Cliente (link público)", preenchidoEm: new Date() },
     update: { respostasJson, status, preenchidoPor: "Cliente (link público)", preenchidoEm: new Date() },
   });
+  // Só a TRANSIÇÃO para completo fura a janela de 6 h; o resto é aviso de "mexeu".
+  const concluiu = status === "completo" && anterior?.status !== "completo";
+  await notificarPreenchimentoInput(projeto.id, concluiu ? "completo" : "parcial");
   return NextResponse.json({ ok: true, status });
 }

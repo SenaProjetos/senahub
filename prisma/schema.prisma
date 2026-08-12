@@ -1140,12 +1140,20 @@ model BriefingProjeto {
 }
 
 /// Link público (por token) para o cliente preencher os inputs sem login.
+/// Mesma convenção de LinkPublicoArquivos: `ativo=false` revoga na hora e `expiraEm`
+/// no passado desliga o link (regra única em `lib/link-publico.ts`).
 model LinkPublicoInput {
   id        String   @id @default(cuid())
   projetoId String   @unique
   projeto   Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
   token     String   @unique
   ativo     Boolean  @default(true)
+  /// Data/hora de expiração (opcional). Nulo = não expira.
+  expiraEm  DateTime?
+  /// Última vez que a equipe foi avisada de preenchimento por este link. Serve de
+  /// trava de janela: o formulário salva sozinho a cada campo, e sem isso cada
+  /// tecla viraria notificação.
+  notificadoEm DateTime?
   createdAt DateTime @default(now())
 
   @@map("link_publico_input")

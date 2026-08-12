@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { linkVigente } from "@/lib/link-publico";
+import { notificarPreenchimentoInput } from "@/modules/inputs/notificar-preenchimento";
 
 const putSchema = z.object({
   respostas: z.array(z.object({ id: z.string(), resposta: z.string() })),
@@ -11,7 +13,7 @@ async function projetoDoToken(token: string) {
     where: { token },
     include: { projeto: { select: { id: true, nome: true, codigo: true } } },
   });
-  if (!link || !link.ativo) return null;
+  if (!link || !linkVigente(link)) return null;
   return link.projeto;
 }
 
@@ -49,5 +51,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ token: string }
       prisma.inputProjeto.update({ where: { id: r.id }, data: { resposta: r.resposta || null } }),
     ),
   );
+  // Avisa a equipe (janela de 6 h — o formulário salva sozinho a cada campo).
+  if (validas.length > 0) await notificarPreenchimentoInput(projeto.id, "parcial");
   return NextResponse.json({ ok: true, salvos: validas.length });
 }

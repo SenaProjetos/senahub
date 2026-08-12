@@ -12,6 +12,10 @@ import {
 } from "@/modules/inputs/briefing-schema";
 import { InputsPanel } from "@/components/inputs/inputs-panel";
 import { BriefingSection } from "@/components/inputs/briefing-section";
+import { LinkPublicoInputsButton } from "@/components/inputs/link-publico-inputs-dialog";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { linkVigente } from "@/lib/link-publico";
+import { formatarDataHora } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Inputs — Projeto" };
 
@@ -45,8 +49,41 @@ export default async function ProjetoInputsPage({ params }: { params: Promise<{ 
   });
   const statusBriefing: StatusBriefing = (briefing?.status as StatusBriefing) ?? calcularStatusBriefing(respostasSalvas);
 
+  // Situação do link em uma frase — o botão fica ACIMA do formulário, porque o
+  // link abre o formulário inteiro (briefing + perguntas extras).
+  const vigente = link ? linkVigente(link) : false;
+  const situacaoLink = !link
+    ? "Nenhum link gerado — o cliente ainda não consegue preencher sozinho."
+    : !link.ativo
+      ? "Link revogado. Reative para o cliente voltar a preencher."
+      : link.expiraEm && !vigente
+        ? `Link expirado em ${formatarDataHora(link.expiraEm)}.`
+        : link.expiraEm
+          ? `Link ativo até ${formatarDataHora(link.expiraEm)}.`
+          : "Link ativo, sem data de expiração.";
+
   return (
     <div className="space-y-4">
+      {podeGerir && (
+        <Card>
+          <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
+            <div className="min-w-0">
+              <CardTitle className="text-base">Formulário do cliente</CardTitle>
+              <CardDescription>{situacaoLink}</CardDescription>
+            </div>
+            <LinkPublicoInputsButton
+              projetoId={id}
+              baseUrl={baseUrl}
+              link={
+                link
+                  ? { token: link.token, ativo: link.ativo, expiraEm: link.expiraEm?.toISOString() ?? null }
+                  : null
+              }
+            />
+          </CardHeader>
+        </Card>
+      )}
+
       <BriefingSection
         projetoId={id}
         respostasIniciais={respostasIniciais}
@@ -66,8 +103,6 @@ export default async function ProjetoInputsPage({ params }: { params: Promise<{ 
           resposta: i.resposta ?? "",
         }))}
         progresso={progresso}
-        token={link?.ativo ? link.token : null}
-        baseUrl={baseUrl}
       />
     </div>
   );

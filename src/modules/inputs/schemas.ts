@@ -15,4 +15,11 @@ export const responderInputsSchema = z.object({
 
 export const gerarLinkSchema = z.object({ projetoId: z.string().min(1) });
 
+/** Revoga (`ativo=false`) e/ou define a validade do link público de inputs. */
+export const atualizarLinkSchema = z.object({
+  projetoId: z.string().min(1),
+  ativo: z.boolean(),
+  expiraEm: z.string().datetime().nullable().optional(),
+});
+
 export type AdicionarInputInput = z.infer<typeof adicionarInputSchema>;

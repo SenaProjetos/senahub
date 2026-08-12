@@ -21,6 +21,7 @@
     "smoke:onda4": "tsx --tsconfig tsconfig.server.json scripts/smoke-onda4.ts",
     "smoke:onda5": "tsx --tsconfig tsconfig.server.json scripts/smoke-onda5.ts",
     "smoke:onda3": "tsx --tsconfig tsconfig.server.json scripts/smoke-onda3.ts",
+    "smoke:inputs-link": "tsx --tsconfig tsconfig.server.json scripts/smoke-inputs-link.ts",
     "release": "commit-and-tag-version",
     "release:minor": "commit-and-tag-version --release-as minor",
     "release:major": "commit-and-tag-version --release-as major",

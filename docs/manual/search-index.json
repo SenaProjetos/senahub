@@ -70,9 +70,9 @@
       "path": "projetos/projetos.md",
       "descricao": "Cadastro e acompanhamento de projetos, disciplinas, responsáveis, revisões e ciclo de vida.",
       "resumo": "Liste e filtre projetos, crie/edite, gerencie disciplinas e seus status, responsáveis, membros, revisões, duplicação e cancelamento/arquivamento.",
-      "tags": ["projetos", "disciplinas", "status", "responsáveis", "membros", "revisões", "duplicar", "cancelar", "arquivar", "progresso"],
-      "palavrasChave": ["projeto", "disciplina", "status", "em andamento", "em revisão", "entregue", "aprovado", "responsável", "membro", "revisão", "duplicar projeto", "cancelar projeto", "prazo"],
-      "sinonimos": ["obras", "jobs", "contratos de projeto"]
+      "tags": ["projetos", "disciplinas", "status", "responsáveis", "membros", "revisões", "duplicar", "cancelar", "arquivar", "progresso", "inputs", "briefing", "link público"],
+      "palavrasChave": ["projeto", "disciplina", "status", "em andamento", "em revisão", "entregue", "aprovado", "responsável", "membro", "revisão", "duplicar projeto", "cancelar projeto", "prazo", "link do formulário", "cliente sem cadastro", "preencher sem login", "briefing de start", "revogar link", "link expirado"],
+      "sinonimos": ["obras", "jobs", "contratos de projeto", "formulário do cliente", "link externo do projeto"]
     },
     {
       "titulo": "Meu trabalho",

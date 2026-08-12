@@ -3,7 +3,7 @@
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { defineAction } from "@/lib/with-action";
+import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { calcularStatusBriefing } from "@/modules/inputs/briefing-schema";
@@ -12,6 +12,7 @@ import {
   removerInputSchema,
   responderInputsSchema,
   gerarLinkSchema,
+  atualizarLinkSchema,
 } from "@/modules/inputs/schemas";
 
 const projBase = { modulo: "projetos", recurso: "projetos", permissao: "gerir" } as const;
@@ -129,7 +130,12 @@ export const salvarBriefing = defineAction(
   },
 );
 
-/** Gera (ou regenera) o link público de inputs do projeto. */
+/**
+ * Gera (ou regenera) o link público de inputs do projeto. Ao regerar, troca SÓ o
+ * token e preserva estado e validade (mesma regra de `gerarLinkArquivos`): o
+ * endereço antigo morre na hora, e um link revogado continua revogado — reativar
+ * é decisão explícita no `atualizarLinkInput`.
+ */
 export const gerarLinkInput = defineAction(
   {
     modulo: "projetos",
@@ -139,6 +145,7 @@ export const gerarLinkInput = defineAction(
     entidade: "LinkPublicoInput",
     schema: gerarLinkSchema,
     entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
+    capturarAntes: (i) => prisma.linkPublicoInput.findUnique({ where: { projetoId: i.projetoId } }),
   },
   async (input) => {
     // Garante que os inputs padrão das disciplinas estejam no projeto antes de liberar o link.
@@ -147,10 +154,37 @@ export const gerarLinkInput = defineAction(
     await prisma.linkPublicoInput.upsert({
       where: { projetoId: input.projetoId },
       create: { projetoId: input.projetoId, token, ativo: true },
-      update: { token, ativo: true },
+      update: { token },
     });
-    revalidatePath(`/projetos/${input.projetoId}`);
+    revalidatePath(`/projetos/${input.projetoId}/inputs`);
     return { projetoId: input.projetoId, token };
+  },
+);
+
+/** Revoga (ou reativa) e define a validade do link público de inputs. */
+export const atualizarLinkInput = defineAction(
+  {
+    modulo: "projetos",
+    acao: "atualizar-link-input",
+    recurso: "projetos",
+    permissao: "gerir",
+    entidade: "LinkPublicoInput",
+    schema: atualizarLinkSchema,
+    entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
+    capturarAntes: (i) => prisma.linkPublicoInput.findUnique({ where: { projetoId: i.projetoId } }),
+  },
+  async (input) => {
+    const link = await prisma.linkPublicoInput.findUnique({ where: { projetoId: input.projetoId } });
+    if (!link) throw new ActionError("Gere o link público antes de configurá-lo.");
+    await prisma.linkPublicoInput.update({
+      where: { projetoId: input.projetoId },
+      data: {
+        ativo: input.ativo,
+        expiraEm: input.expiraEm ? new Date(input.expiraEm) : null,
+      },
+    });
+    revalidatePath(`/projetos/${input.projetoId}/inputs`);
+    return { projetoId: input.projetoId };
   },
 );
 

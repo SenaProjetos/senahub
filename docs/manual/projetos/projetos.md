@@ -111,6 +111,20 @@ Ao abrir um projeto, além da visão geral há abas para: **Lista Mestre**, **Se
 será detalhada em sua própria página do manual. (A aba **Lista Mestre** organiza as folhas
 técnicas por disciplina — substitui a antiga aba "Pranchas".)
 
+### Link do formulário para o cliente (aba Inputs)
+
+No topo da aba **Inputs**, o cartão **Formulário do cliente** gera um link público que
+abre o briefing de start **e** as perguntas extras — o cliente preenche **sem login e sem
+cadastro**, e as respostas caem direto nesta aba (salvam sozinhas, campo a campo).
+
+- **Gerar link público** cria o endereço; **Copiar**/**Abrir** ficam ao lado dele.
+- **Link ativo** desligado **revoga na hora**; **Expira em** desliga o link na data
+  escolhida (vazio = não expira). Depois disso o cliente vê "Link indisponível".
+- **Regerar link** troca o endereço e invalida o anterior — use se o link vazou.
+- Quando o cliente preenche, a gestão recebe notificação (uma por janela de 6 h, mais um
+  aviso quando o briefing fica completo). Para não receber, desligue **Formulário
+  preenchido pelo cliente** em *Preferências → Notificações*.
+
 ## Permissões (resumo)
 
 | Ação | Permissão |

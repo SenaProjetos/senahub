@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { linkVigente } from "@/lib/link-publico";
 
 /** Templates de inputs padrão (catálogo por disciplina). */
 export async function listarInputTemplates() {
@@ -31,7 +32,7 @@ export async function progressoInputs(projetoId: string) {
   return { total, respondidas };
 }
 
-/** Carrega o projeto + inputs + briefing pelo token público (somente links ativos). */
+/** Carrega o projeto + inputs + briefing pelo token público (só link vigente). */
 export async function inputsPorToken(token: string) {
   const link = await prisma.linkPublicoInput.findUnique({
     where: { token },
@@ -50,7 +51,7 @@ export async function inputsPorToken(token: string) {
       },
     },
   });
-  if (!link || !link.ativo) return null;
+  if (!link || !linkVigente(link)) return null;
   return link.projeto;
 }
 

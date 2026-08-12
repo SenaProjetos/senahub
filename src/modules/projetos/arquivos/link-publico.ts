@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import type { LinkPublicoArquivos } from "@/generated/prisma/client";
+import { linkVigente } from "@/lib/link-publico";
 
 /**
  * Link público (sem login) de arquivos do projeto — somente ver + baixar.
@@ -13,12 +13,8 @@ import type { LinkPublicoArquivos } from "@/generated/prisma/client";
  *  - `ativo=false` revoga na hora; `expiraEm` no passado desliga o link.
  */
 
-/** Link vale agora? (ativo e não expirado). */
-export function linkVigente(link: Pick<LinkPublicoArquivos, "ativo" | "expiraEm">): boolean {
-  if (!link.ativo) return false;
-  if (link.expiraEm && link.expiraEm.getTime() <= Date.now()) return false;
-  return true;
-}
+/** Link vale agora? (ativo e não expirado) — regra em `lib/link-publico.ts`. */
+export { linkVigente };
 
 /** Configuração do link para a tela de gerenciamento (aba Arquivos). */
 export async function linkArquivosDoProjeto(projetoId: string) {

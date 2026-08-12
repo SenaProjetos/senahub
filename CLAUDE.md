@@ -29,6 +29,7 @@ npm run db:seed               # admin + permissions + catalogs (idempotent)
 npm run seed:demo             # demo dataset (wipes business data, recreates; demo users senha Demo@2026)
 npm run admin:reset-senha     # reset admin senha → SenaHub@2026 + force change
 npm run smoke:onda1|onda2|onda3|onda3efg|onda4|onda5   # e2e smokes against the dev DB
+npm run smoke:inputs-link     # link público de inputs: janela da notificação, revogação, expiração
 ```
 
 - **Dev helper (Windows):** `dev.bat` (raiz) → *Central do Desenvolvedor* (`dev/gerenciar-dev.bat` + `.ps1`),
@@ -64,6 +65,8 @@ src/
                          #   encargos.ts: INSS/IRRF progressive payroll calculator (pure, tested)
                          #   ofx.ts: OFX bank statement parser with dedup+auto-match (tested)
                          #   aprovacao.ts: devePassarPorAprovacao(tipo, valor, limite) for finance workflows
+                         #   link-publico.ts: linkVigente({ativo, expiraEm}) — single rule for every
+                         #     token link (arquivos + inputs); revoke = ativo:false, expiry = expiraEm
                          #   backup.ts (pg_dump -Fc) + backup-storage.ts (additive robocopy mirror of
                          #     STORAGE_BASE_PATH — the DB dump holds NO files); restore is the destructive
                          #     scripts/restaurar-backup.ts (menus call it), see docs/DEPLOY.md §8
@@ -166,7 +169,7 @@ in `lib/prisma.ts`. To see deleted rows, pass `excluidoEm` explicitly in the `wh
 
 **Cross-module pages (not their own module folder):** `/recursos` = resource-allocation matrix built from `modules/planejamento/queries.ts` (`matrizRecursos`, `cargaSemanalPorRecurso`) + `modules/rh/habilidades/queries.ts`, gated `recursos:ver`/`recursos:gerir`.
 
-**Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`, `coordenacao`, `aprovacao_arquivo`, `aprovacao_disciplina`.
+**Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`, `coordenacao`, `aprovacao_arquivo`, `aprovacao_disciplina`, `input_cliente`.
 
 ## Gotchas
 
