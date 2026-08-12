@@ -6,6 +6,9 @@ import {
   transicaoDisciplinaPermitida,
   TRANSICOES_DISCIPLINA,
   mensagemTransicaoDisciplina,
+  etapaDisciplina,
+  rotuloEtapaDisciplina,
+  ETAPAS_DISCIPLINA,
 } from "./status";
 import type { StatusDisciplina } from "@/generated/prisma/client";
 
@@ -110,5 +113,45 @@ describe("transicaoDisciplinaPermitida — máquina de estados (decisão 2026-07
   it("mensagem de erro cita os dois rótulos", () => {
     expect(mensagemTransicaoDisciplina("aguardando", "aprovado")).toContain("Aguardando");
     expect(mensagemTransicaoDisciplina("aguardando", "aprovado")).toContain("Aprovado");
+  });
+});
+
+describe("etapaDisciplina — trilho do card", () => {
+  it("entregue e em_revisao ocupam a MESMA etapa (a máquina vai e volta entre eles)", () => {
+    expect(etapaDisciplina("entregue")).toBe(etapaDisciplina("em_revisao"));
+  });
+
+  it("as etapas avançam na ordem do fluxo", () => {
+    expect(etapaDisciplina("aguardando")).toBe(0);
+    expect(etapaDisciplina("em_andamento")).toBe(1);
+    expect(etapaDisciplina("entregue")).toBe(2);
+    expect(etapaDisciplina("aprovado")).toBe(ETAPAS_DISCIPLINA.length - 1);
+  });
+
+  it("todo status cai dentro do trilho", () => {
+    const todos: StatusDisciplina[] = ["aguardando", "em_andamento", "em_revisao", "entregue", "aprovado"];
+    for (const s of todos) {
+      const i = etapaDisciplina(s);
+      expect(i).toBeGreaterThanOrEqual(0);
+      expect(i).toBeLessThan(ETAPAS_DISCIPLINA.length);
+    }
+  });
+});
+
+describe("rotuloEtapaDisciplina", () => {
+  it("etapas fixas ignoram o status atual", () => {
+    expect(rotuloEtapaDisciplina(0, "aprovado", null)).toBe("Aguardando");
+    expect(rotuloEtapaDisciplina(1, "aprovado", null)).toBe("Em andamento");
+    expect(rotuloEtapaDisciplina(3, "aguardando", null)).toBe("Aprovado");
+  });
+
+  it("a 3ª etapa mostra o estado real", () => {
+    expect(rotuloEtapaDisciplina(2, "entregue", null)).toBe("Entregue");
+    expect(rotuloEtapaDisciplina(2, "em_revisao", null)).toBe("Em revisão");
+    expect(rotuloEtapaDisciplina(2, "entregue", new Date())).toBe("Aguardando confirmação");
+  });
+
+  it("solicitação em aberto só muda o rótulo em 'entregue' (mesma regra de rotuloStatusDisciplina)", () => {
+    expect(rotuloEtapaDisciplina(2, "em_revisao", new Date())).toBe("Em revisão");
   });
 });

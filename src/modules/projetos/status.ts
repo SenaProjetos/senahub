@@ -106,6 +106,44 @@ export function transicaoDisciplinaPermitida(de: StatusDisciplina, para: StatusD
   return TRANSICOES_DISCIPLINA[de].includes(para);
 }
 
+/**
+ * Etapas do trilho visual da disciplina (stepper do card). São 4, não 5: `entregue` e
+ * `em_revisao` são o MESMO ponto do caminho — a máquina vai e volta entre eles
+ * (`entregue ⇄ em_revisao`), então um trilho linear de 5 passos mentiria sobre o fluxo.
+ * O rótulo dessa etapa é dinâmico (ver `rotuloEtapaDisciplina`).
+ */
+export const ETAPAS_DISCIPLINA = ["aguardando", "em_andamento", "entregue", "aprovado"] as const;
+
+/** Índice da etapa atual no trilho — `em_revisao` compartilha o ponto de `entregue`. */
+export function etapaDisciplina(status: StatusDisciplina): number {
+  switch (status) {
+    case "aguardando":
+      return 0;
+    case "em_andamento":
+      return 1;
+    case "entregue":
+    case "em_revisao":
+      return 2;
+    case "aprovado":
+      return 3;
+  }
+}
+
+/**
+ * Rótulo da etapa no trilho. A 3ª etapa mostra o estado real (Entregue / Em revisão /
+ * Aguardando confirmação, este último no fluxo de pastas) — as demais são fixas.
+ */
+export function rotuloEtapaDisciplina(
+  indice: number,
+  atual: StatusDisciplina,
+  aprovacaoSolicitadaEm: Date | string | null,
+): string {
+  if (indice !== 2) return STATUS_LABEL[ETAPAS_DISCIPLINA[indice]];
+  if (atual === "em_revisao") return STATUS_LABEL.em_revisao;
+  if (atual === "entregue" && aprovacaoSolicitadaEm != null) return "Aguardando confirmação";
+  return STATUS_LABEL.entregue;
+}
+
 /** Mensagem padrão para transição de status inválida. */
 export function mensagemTransicaoDisciplina(de: StatusDisciplina, para: StatusDisciplina): string {
   return `Transição de "${STATUS_LABEL[de]}" para "${STATUS_LABEL[para]}" não é permitida.`;

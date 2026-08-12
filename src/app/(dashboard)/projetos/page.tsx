@@ -6,7 +6,9 @@ import {
   listarProjetos,
   catalogoDisciplinas,
   usuariosInternos,
+  prontasPorProjeto,
 } from "@/modules/projetos/queries";
+import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
 import { listarClientes } from "@/modules/clientes/queries";
 import { ProjetosView } from "@/components/projetos/projetos-view";
 import { parseListParams, pageCount } from "@/lib/list-params";
@@ -51,6 +53,13 @@ export default async function ProjetosPage({
   });
   const pc = pageCount(total, pageSize);
   const podeGerir = await can(user, "projetos", "gerir");
+  // Badge "pronta para aprovar": mesma muralha por disciplina do Diretório de arquivos,
+  // limitado aos projetos DESTA página (senão varre a carteira inteira a cada render).
+  const prontas = await prontasPorProjeto(
+    user,
+    await podeVerTodasDisciplinas(user),
+    items.map((p) => p.id),
+  );
 
   const [clientes, catalogo, internos] = podeGerir
     ? await Promise.all([
@@ -78,6 +87,7 @@ export default async function ProjetosPage({
       clientes={clientes.map((c) => ({ id: c.id, nome: c.nome }))}
       catalogo={catalogo.map((d) => d.nome)}
       internos={internos}
+      prontasPorProjeto={prontas}
     />
   );
 }

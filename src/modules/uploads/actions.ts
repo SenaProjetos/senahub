@@ -74,14 +74,12 @@ export const validarEntrega = defineAction(
     if (disciplina.status === "aprovado") {
       throw new ActionError("Esta entrega já foi validada.");
     }
-    // Reaprovação pós-revisão: se a disciplina voltou para "em_revisao" (apontamentos numa
-    // entrega já validada), ela já tem pagamento. Reaprovar NÃO gera pagamento novo — a
-    // validação financeira é mantida. Fora desse caso, pagamento existente = já validada.
-    const emRevisao = disciplina.status === "em_revisao";
+    // Pagamento já existente NÃO é sinal de "já validada" — a idempotência é o check de
+    // status acima. Disciplina não-aprovada com pagamento liberado (reabertura, ou dado
+    // vindo de importação/seed) apenas conclui SEM gerar pagamento novo, no ramo abaixo.
+    // Antes isso valia só para "em_revisao", e a partir de qualquer outro status a
+    // disciplina ficava presa: o botão aparecia e a action recusava para sempre.
     const jaTemPagamento = disciplina.pagamentos.length > 0;
-    if (jaTemPagamento && !emRevisao) {
-      throw new ActionError("Esta entrega já foi validada e o pagamento já foi liberado.");
-    }
 
     const temA = !disciplina.exigePacoteA || disciplina.uploads.some((u) => u.pacote === "A");
     const temB = !disciplina.exigePacoteB || disciplina.uploads.some((u) => u.pacote === "B");
@@ -117,8 +115,8 @@ export const validarEntrega = defineAction(
     const href = `/projetos/${disciplina.projeto.id}`;
     const codigoDisc = formatarCodigo(disciplina.projeto.codigo);
 
-    // Reaprovação pós-revisão: fecha a revisão de volta para "aprovado" sem gerar pagamento.
-    if (emRevisao && jaTemPagamento) {
+    // Reaprovação: fecha a disciplina em "aprovado" mantendo o pagamento já liberado.
+    if (jaTemPagamento) {
       await prisma.disciplina.update({
         where: { id: disciplina.id },
         data: { status: "aprovado", entregueEm: agora },
@@ -131,10 +129,10 @@ export const validarEntrega = defineAction(
         })).map((g) => g.id),
       ];
       await notificarMuitos([...new Set(avisar)].filter((id) => id !== user.id), {
-        titulo: "Revisão concluída",
-        corpo: `Revisão de ${disciplina.nome} (${codigoDisc}) revalidada — sem novo pagamento.`,
+        titulo: "Entrega aprovada",
+        corpo: `${disciplina.nome} (${codigoDisc}) aprovada — pagamento já liberado, sem novo pagamento.`,
         href,
-        tag: `revalidacao-${disciplina.id}`,
+        tag: `aprovacao-sem-pagamento-${disciplina.id}`,
       }, { categoria: "aprovacao_arquivo" });
       revalidatePath(href);
       revalidatePath("/planejamento/cronograma");

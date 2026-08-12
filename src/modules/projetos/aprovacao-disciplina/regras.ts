@@ -8,12 +8,25 @@ import type { StatusDisciplina } from "@/generated/prisma/client";
  * marca "projeto aprovado". Passo 2: um superior (admin/supervisor) confirma ou recusa.
  */
 
-/** Passo 1: responsável marca "projeto aprovado" — exige vínculo e status "em_andamento". */
+/**
+ * Passo 1: responsável marca "projeto aprovado" — exige vínculo e um status de origem
+ * pré-aprovação. Além de "em_andamento", aceita "em_revisao" e "entregue" SEM solicitação
+ * em aberto: senão a disciplina de aprovação/laudo fica presa sem nenhum caminho até
+ * "aprovado" (o seletor esconde "aprovado", `validarEntrega` recusa quem usa pastas e o
+ * gate de 2 etapas barra "entregue"). É exatamente o estado em que `reabrirDisciplina`
+ * deixa a disciplina (`aprovado → em_revisao`).
+ */
+const STATUS_SOLICITAVEIS = ["em_andamento", "em_revisao", "entregue"];
+
 export function podeSolicitarAprovacao(p: {
   ehResponsavel: boolean;
   status: string;
+  /** Solicitação já em aberto → o passo 1 já foi dado; cabe confirmar/recusar. */
+  aprovacaoSolicitadaEm?: Date | string | null;
 }): boolean {
-  return p.ehResponsavel && p.status === "em_andamento";
+  if (!p.ehResponsavel) return false;
+  if (p.aprovacaoSolicitadaEm != null) return false;
+  return STATUS_SOLICITAVEIS.includes(p.status);
 }
 
 /** Passo 2: confirmar/recusar é exclusivo de admin+supervisor — nunca "gestor" em sentido amplo. */

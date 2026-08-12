@@ -6,6 +6,8 @@ import { whereAudiencia } from "@/lib/audiencias";
 import { CATEGORIA_TERCEIRIZADO } from "@/modules/financeiro/custo/lancamento-custo";
 import { calcularRateioDetalhado } from "@/modules/rh/rateio/queries";
 import { normalizar } from "@/lib/disciplinas-core";
+import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
+import { prontidaoAprovacao, type Prontidao } from "@/modules/projetos/prontidao";
 
 type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
 
@@ -122,6 +124,104 @@ export async function listarProjetos(
   return { items, total };
 }
 
+/**
+ * Fila de conclusão: disciplinas que só dependem de alguém apertar o botão para virar
+ * `aprovado` (ver `prontidao.ts`). Alimenta o badge da lista de projetos, o contador do
+ * dashboard e a seção de Aprovações — as três telas onde o gestor descobre que há
+ * entrega parada, já que `aprovado` nunca aparece no seletor de status.
+ *
+ * ESCOPADA, ao contrário de `contarPendentesAprovacao` (que é só-admin de propósito):
+ * aqui os consumidores incluem a lista de projetos, visível a projetista/freelancer/cliente.
+ * `veTodasDisciplinas` deve vir de `podeVerTodasDisciplinas(user)` — quando false só entram
+ * as disciplinas onde o usuário é responsável, mesma muralha do Diretório.
+ */
+export async function disciplinasProntasParaAprovar(
+  viewer: Viewer,
+  veTodasDisciplinas: boolean,
+  /**
+   * Restringe a projetos específicos. A lista de projetos passa os ids DA PÁGINA — sem isso
+   * a query varreria os uploads de toda a carteira a cada render só para acender o badge de
+   * no máximo `take` projetos. Omitir = carteira inteira (fila do painel de Aprovações).
+   */
+  projetoIds?: string[],
+) {
+  const disciplinas = await prisma.disciplina.findMany({
+    where: {
+      status: { not: "aprovado" },
+      ...(projetoIds ? { projetoId: { in: projetoIds } } : {}),
+      projeto: {
+        AND: [escopoProjeto(viewer), { situacao: { notIn: ["cancelado", "arquivado"] } as never }],
+      },
+      ...(veTodasDisciplinas ? {} : { responsaveis: { some: { userId: viewer.id } } }),
+    },
+    orderBy: [{ projeto: { ano: "desc" } }, { projeto: { sequencial: "desc" } }, { ordem: "asc" }],
+    select: {
+      id: true,
+      nome: true,
+      status: true,
+      projetoId: true,
+      exigePacoteA: true,
+      exigePacoteB: true,
+      aprovacaoSolicitadaEm: true,
+      pastas: { select: { origem: true } },
+      // `_count` ignora o filtro da muralha acima — é o total real de responsáveis,
+      // que é o que `validarEntrega` cobra.
+      _count: { select: { responsaveis: true } },
+      uploads: {
+        // Lixeira: leitura aninhada não passa pelo filtro global (lib/prisma.ts) → explícito.
+        where: { excluidoEm: null, pacote: { in: ["A", "B"] } },
+        select: { pacote: true, nomeArquivo: true, versao: true, validado: true, origem: true },
+      },
+      projeto: { select: { codigo: true, nome: true } },
+    },
+  });
+
+  return disciplinas.flatMap((d) => {
+    const prontidao = prontidaoAprovacao({
+      status: d.status,
+      usaPastas: disciplinaUsaPastas(d.pastas),
+      aprovacaoSolicitadaEm: d.aprovacaoSolicitadaEm,
+      exigePacoteA: d.exigePacoteA,
+      exigePacoteB: d.exigePacoteB,
+      qtdResponsaveis: d._count.responsaveis,
+      uploads: d.uploads.map((u) => ({
+        pacote: u.pacote as "A" | "B",
+        nomeArquivo: u.nomeArquivo,
+        versao: u.versao,
+        validado: u.validado,
+        origem: u.origem as "manual" | "ferramenta",
+      })),
+    });
+    if (!prontidao) return [];
+    return [
+      {
+        id: d.id,
+        nome: d.nome,
+        projetoId: d.projetoId,
+        projetoCodigo: d.projeto.codigo,
+        projetoNome: d.projeto.nome,
+        prontidao: prontidao as Prontidao,
+        href: `/projetos/${d.projetoId}`,
+      },
+    ];
+  });
+}
+
+export type DisciplinaPronta = Awaited<ReturnType<typeof disciplinasProntasParaAprovar>>[number];
+
+/** Quantas disciplinas prontas por projeto — badge da lista de projetos (só a página atual). */
+export async function prontasPorProjeto(
+  viewer: Viewer,
+  veTodasDisciplinas: boolean,
+  projetoIds: string[],
+): Promise<Record<string, number>> {
+  if (projetoIds.length === 0) return {};
+  const prontas = await disciplinasProntasParaAprovar(viewer, veTodasDisciplinas, projetoIds);
+  const mapa: Record<string, number> = {};
+  for (const d of prontas) mapa[d.projetoId] = (mapa[d.projetoId] ?? 0) + 1;
+  return mapa;
+}
+
 export async function obterProjeto(viewer: Viewer, id: string) {
   const projeto = await prisma.projeto.findFirst({
     where: { id, AND: [escopoProjeto(viewer)] },
@@ -134,6 +234,10 @@ export async function obterProjeto(viewer: Viewer, id: string) {
           responsaveis: { include: { user: { select: { id: true, name: true, role: true } } } },
           revisoes: { orderBy: { numero: "desc" }, include: { autor: { select: { name: true } } } },
           uploads: {
+            // Lixeira: leitura aninhada não passa pelo filtro global (lib/prisma.ts) → explícito.
+            // Sem isso, arquivo excluído continuava na lista da disciplina e ainda contava
+            // em `statusValidacao` (fila de validação / prontidão para aprovar).
+            where: { excluidoEm: null },
             orderBy: [{ pacote: "asc" }, { createdAt: "desc" }],
             select: {
               id: true,

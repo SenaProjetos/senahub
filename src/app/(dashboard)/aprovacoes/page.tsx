@@ -3,8 +3,11 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
 import { GLOBAL_ROLES } from "@/lib/roles";
 import { pendentesAprovacao } from "@/modules/arquivos/queries";
+import { disciplinasProntasParaAprovar } from "@/modules/projetos/queries";
+import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
 import { pedidosExclusaoPendentes } from "@/modules/uploads/queries";
 import { AprovacoesView } from "@/components/arquivos/aprovacoes-view";
+import { ProntasAprovacaoView } from "@/components/arquivos/prontas-aprovacao-view";
 import { PedidosExclusaoView } from "@/components/arquivos/pedidos-exclusao-view";
 
 export const metadata: Metadata = { title: "Aprovações" };
@@ -16,8 +19,12 @@ export default async function AprovacoesPage() {
 
   // Decidir exclusão é só-admin (mesmo gate da lixeira) — supervisor não vê a fila.
   const ehAdmin = user.role === "admin";
-  const [pendentes, pedidosExclusao] = await Promise.all([
+  // Perfis globais já retornam true aqui — derivar em vez de fixar `true` mantém a muralha
+  // por disciplina caso o gate da tela um dia se abra para outro perfil.
+  const veTodasDisc = await podeVerTodasDisciplinas(user);
+  const [pendentes, prontas, pedidosExclusao] = await Promise.all([
     pendentesAprovacao(),
+    disciplinasProntasParaAprovar(user, veTodasDisc),
     ehAdmin ? pedidosExclusaoPendentes() : Promise.resolve([]),
   ]);
 
@@ -30,6 +37,17 @@ export default async function AprovacoesPage() {
         </p>
       </div>
       <AprovacoesView pendentes={pendentes} />
+
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">Prontas para aprovar</h2>
+          <p className="text-sm text-muted-foreground">
+            Disciplinas que já cumpriram tudo e só esperam a aprovação — o status
+            &quot;Aprovado&quot; não sai do seletor, sai do botão no card da disciplina.
+          </p>
+        </div>
+        <ProntasAprovacaoView prontas={prontas} />
+      </div>
 
       {ehAdmin && (
         <div className="space-y-4">

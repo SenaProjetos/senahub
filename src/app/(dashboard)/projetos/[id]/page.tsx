@@ -113,6 +113,9 @@ export default async function ProjetoDetalhePage({
       temA: uploads.some((u) => u.pacote === "A"),
       temB: uploads.some((u) => u.pacote === "B"),
       jaValidado: d.status === "aprovado",
+      // Reabertura mantém o pagamento já liberado — o card avisa para ninguém achar que
+      // reaprovar vai pagar de novo (`validarEntrega`/`confirmarAprovacaoDisciplina` não pagam).
+      temPagamento: d._count.pagamentos > 0,
       exigePacoteA: d.exigePacoteA,
       exigePacoteB: d.exigePacoteB,
       usaPastas,

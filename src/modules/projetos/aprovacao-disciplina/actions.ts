@@ -10,6 +10,7 @@ import { formatarCodigo } from "@/modules/projetos/numbering";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { liberarPagamentosProjetista } from "@/modules/uploads/pagamento";
 import { podeSolicitarAprovacao } from "@/modules/projetos/aprovacao-disciplina/regras";
+import { STATUS_LABEL } from "@/modules/projetos/status";
 import {
   solicitarAprovacaoDisciplinaSchema,
   confirmarAprovacaoDisciplinaSchema,
@@ -57,12 +58,21 @@ export const solicitarAprovacaoDisciplina = defineAction(
     }
 
     const ehResponsavel = disciplina.responsaveis.some((r) => r.userId === user.id);
-    if (!podeSolicitarAprovacao({ ehResponsavel, status: disciplina.status })) {
+    if (
+      !podeSolicitarAprovacao({
+        ehResponsavel,
+        status: disciplina.status,
+        aprovacaoSolicitadaEm: disciplina.aprovacaoSolicitadaEm,
+      })
+    ) {
       if (!ehResponsavel) {
         throw new ActionError("Apenas responsáveis pela disciplina podem solicitar aprovação.");
       }
+      if (disciplina.aprovacaoSolicitadaEm) {
+        throw new ActionError("Já existe uma solicitação de aprovação aguardando confirmação.");
+      }
       throw new ActionError(
-        `Só é possível solicitar aprovação com a disciplina "em andamento" (status atual: "${disciplina.status}").`,
+        `Não é possível solicitar aprovação com a disciplina "${STATUS_LABEL[disciplina.status]}".`,
       );
     }
 

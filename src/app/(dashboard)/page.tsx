@@ -16,8 +16,9 @@ import { kpisHome } from "@/modules/qualidade/queries";
 import { agingReport } from "@/modules/financeiro/aging/queries";
 import { projetosRecentes, serieReceita, snapshotsDashboard, carteiraProjetosDashboard, aniversariantesDoMes, humorDeHoje, kpisProjetista } from "@/modules/dashboard/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { escopoProjeto } from "@/modules/projetos/queries";
+import { escopoProjeto, disciplinasProntasParaAprovar } from "@/modules/projetos/queries";
 import { contarPendentesAprovacao } from "@/modules/arquivos/queries";
+import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
 import { STATUS_CHIP, STATUS_LABEL } from "@/modules/projetos/status";
 import { HeroCard } from "@/components/dashboard/hero-card";
 import { ReceitaChart } from "@/components/dashboard/receita-chart";
@@ -60,7 +61,9 @@ export default async function HomePage() {
   const podeAprovar = GLOBAL_ROLES.includes(user.role);
   // Item 5: só busca/expõe dado financeiro a quem pode ver (financeiro:ver ou sócio ativo).
   const verFin = await podeVerFinanceiro(user);
-  const [kpis, projetos, snapshots, receita, agingReceita, carteira, aniversarios, humorHoje, kpisMeu, pendentesAprov] = await Promise.all([
+  // Muralha por disciplina (mesma do Diretório de arquivos) para a fila de conclusão.
+  const veTodasDisc = await podeVerTodasDisciplinas(user);
+  const [kpis, projetos, snapshots, receita, agingReceita, carteira, aniversarios, humorHoje, kpisMeu, pendentesAprov, prontasParaAprovar] = await Promise.all([
     // Perfis sem acesso global veem os KPIs restritos aos SEUS projetos (bug beta #9).
     kpisHome(isGlobal ? {} : escopoProjeto(user)),
     projetosRecentes(user, 15),
@@ -72,6 +75,10 @@ export default async function HomePage() {
     humorDeHoje(user.id),
     kpisProjetista(user.id),
     podeAprovar ? contarPendentesAprovacao() : Promise.resolve(0),
+    // Disciplinas que só esperam o botão de aprovar. Varre a carteira inteira (sem
+    // `projetoIds`), então roda só para quem pode agir — mesmo gate do card de aprovações.
+    // Os demais perfis recebem o mesmo sinal no badge da lista e no card da disciplina.
+    podeAprovar ? disciplinasProntasParaAprovar(user, veTodasDisc) : Promise.resolve([]),
   ]);
 
   const cards = [
@@ -105,6 +112,18 @@ export default async function HomePage() {
             label: "Aprovações pendentes",
             value: String(pendentesAprov),
             delta: "arquivos aguardando validação",
+            href: "/aprovacoes",
+          },
+        ]
+      : []),
+    // Disciplinas que já passaram por tudo e só esperam o botão — `aprovado` não está no
+    // seletor de status, então sem este card ninguém descobre que a entrega parou aqui.
+    ...(prontasParaAprovar.length > 0
+      ? [
+          {
+            label: "Prontas para aprovar",
+            value: String(prontasParaAprovar.length),
+            delta: "disciplinas aguardando só a aprovação",
             href: "/aprovacoes",
           },
         ]

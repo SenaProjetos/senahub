@@ -13,6 +13,7 @@ import {
   FileSpreadsheet,
   FileText,
   CalendarClock,
+  ShieldCheck,
 } from "lucide-react";
 import type { ProjetoListItem } from "@/modules/projetos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -100,6 +101,7 @@ export function ProjetosView({
   clientes,
   catalogo,
   internos,
+  prontasPorProjeto,
 }: {
   items: ProjetoListItem[];
   podeGerir: boolean;
@@ -117,6 +119,8 @@ export function ProjetosView({
   clientes: { id: string; nome: string }[];
   catalogo: string[];
   internos: { id: string; name: string; role: string }[];
+  /** projetoId → nº de disciplinas prontas para aprovar (já escopado no server). */
+  prontasPorProjeto: Record<string, number>;
 }) {
   const setParams = useSetParams();
   const [q, setQ] = useState(busca);
@@ -310,11 +314,11 @@ export function ProjetosView({
           />
         </div>
       ) : vista === "kanban" ? (
-        <ProjetosKanban items={items} />
+        <ProjetosKanban items={items} prontas={prontasPorProjeto} />
       ) : vista === "cards" ? (
-        <ProjetosCards items={items} />
+        <ProjetosCards items={items} prontas={prontasPorProjeto} />
       ) : (
-        <ProjetosTabela items={items} />
+        <ProjetosTabela items={items} prontas={prontasPorProjeto} />
       )}
 
       <Pagination page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
@@ -332,8 +336,30 @@ export function ProjetosView({
   );
 }
 
+/**
+ * Badge "pronta para aprovar": disciplina que só espera alguém apertar o botão (regra em
+ * `modules/projetos/prontidao.ts`). Existe porque `aprovado` nunca aparece no seletor de
+ * status — sem esse sinal o gestor teria de abrir projeto por projeto para descobrir.
+ */
+function BadgeProntas({ n, className }: { n: number; className?: string }) {
+  if (n <= 0) return null;
+  const texto = `${n} disciplina(s) pronta(s) para aprovar`;
+  return (
+    <Badge
+      variant="outline"
+      className={`shrink-0 gap-1 border-status-aprovado/40 bg-status-aprovado/10 text-[10px] text-status-aprovado ${className ?? ""}`}
+    >
+      <ShieldCheck className="size-3" aria-hidden />
+      <span className="sr-only">{texto}</span>
+      <span aria-hidden>
+        {n} p/ aprovar
+      </span>
+    </Badge>
+  );
+}
+
 /** Visão LISTA responsiva: colunas prioritárias sempre visíveis; secundárias colapsam em telas estreitas. */
-function ProjetosTabela({ items }: { items: ProjetoListItem[] }) {
+function ProjetosTabela({ items, prontas }: { items: ProjetoListItem[]; prontas: Record<string, number> }) {
   return (
     <div className="rounded-sm border">
       <Table>
@@ -366,9 +392,12 @@ function ProjetosTabela({ items }: { items: ProjetoListItem[] }) {
                   </Link>
                 </TableCell>
                 <TableCell className="font-medium">
-                  <Link href={`/projetos/${p.id}`} className="hover:underline">
-                    {p.nome}
-                  </Link>
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <Link href={`/projetos/${p.id}`} className="hover:underline">
+                      {p.nome}
+                    </Link>
+                    <BadgeProntas n={prontas[p.id] ?? 0} />
+                  </span>
                   <span className="block text-xs font-normal text-muted-foreground md:hidden">
                     {p.cliente.nome}
                   </span>
@@ -415,7 +444,7 @@ function ProjetosTabela({ items }: { items: ProjetoListItem[] }) {
 }
 
 /** Visão CARDS (padrão): grade responsiva com tipo, prazo+risco, ícones de disciplina e progresso. */
-function ProjetosCards({ items }: { items: ProjetoListItem[] }) {
+function ProjetosCards({ items, prontas }: { items: ProjetoListItem[]; prontas: Record<string, number> }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {items.map((p) => {
@@ -430,9 +459,12 @@ function ProjetosCards({ items }: { items: ProjetoListItem[] }) {
           >
             <div className="flex items-center justify-between gap-2">
               <span className="font-mono text-xs text-muted-foreground">{formatarCodigo(p.codigo)}</span>
-              <Badge variant="outline" className="shrink-0 text-[10px]">
-                {TIPO_PROJETO_LABEL[p.tipo] ?? p.tipo}
-              </Badge>
+              <span className="flex shrink-0 items-center gap-1">
+                <BadgeProntas n={prontas[p.id] ?? 0} />
+                <Badge variant="outline" className="shrink-0 text-[10px]">
+                  {TIPO_PROJETO_LABEL[p.tipo] ?? p.tipo}
+                </Badge>
+              </span>
             </div>
             <div className="min-w-0">
               <p className="truncate font-medium leading-tight" title={p.nome}>{p.nome}</p>
@@ -474,7 +506,7 @@ function ProjetosCards({ items }: { items: ProjetoListItem[] }) {
 const SITUACOES_KANBAN = ["em_andamento", "concluido", "arquivado", "cancelado"] as const;
 
 /** Visão KANBAN read-only: agrupa os projetos da página atual por `situacao`. */
-function ProjetosKanban({ items }: { items: ProjetoListItem[] }) {
+function ProjetosKanban({ items, prontas }: { items: ProjetoListItem[]; prontas: Record<string, number> }) {
   const grupos = SITUACOES_KANBAN.map((sit) => ({
     sit,
     label: SITUACAO_PROJETO_LABEL[sit] ?? sit,
@@ -503,9 +535,12 @@ function ProjetosKanban({ items }: { items: ProjetoListItem[] }) {
                 >
                   <div className="flex items-start justify-between gap-1">
                     <p className="font-mono text-xs text-muted-foreground">{formatarCodigo(p.codigo)}</p>
-                    {atraso > 0 && (
-                      <Badge variant="destructive" className="shrink-0 text-[9px] leading-tight">+{atraso}d</Badge>
-                    )}
+                    <span className="flex shrink-0 items-center gap-1">
+                      <BadgeProntas n={prontas[p.id] ?? 0} />
+                      {atraso > 0 && (
+                        <Badge variant="destructive" className="shrink-0 text-[9px] leading-tight">+{atraso}d</Badge>
+                      )}
+                    </span>
                   </div>
                   <p className="mt-0.5 truncate font-medium leading-tight" title={p.nome}>{p.nome}</p>
                   <p className="mt-0.5 truncate text-xs text-muted-foreground" title={p.cliente.nome}>{p.cliente.nome}</p>

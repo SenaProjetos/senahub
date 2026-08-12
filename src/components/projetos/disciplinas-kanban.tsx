@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CheckSquare, Square, X } from "lucide-react";
+import { CheckSquare, Square, X, Info } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { STATUS_LABEL, STATUS_CHIP } from "@/modules/projetos/status";
@@ -14,6 +14,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { editarDisciplinasEmMassa } from "@/modules/projetos/actions";
 import type { StatusDisciplina } from "@/generated/prisma/client";
 
@@ -186,7 +187,9 @@ export function DisciplinasKanban({
               <SelectValue placeholder="Mudar status" />
             </SelectTrigger>
             <SelectContent>
-              {STATUS_ORDER.map((s) => (
+              {/* "aprovado" fica de fora: é terminal e só entra pela validação de entrega
+                  ou pelo fluxo de aprovação em 2 etapas — em massa a action sempre recusa. */}
+              {STATUS_ORDER.filter((s) => s !== "aprovado").map((s) => (
                 <SelectItem key={s} value={s}>
                   {STATUS_LABEL[s]}
                 </SelectItem>
@@ -237,7 +240,31 @@ export function DisciplinasKanban({
                 STATUS_COL_CLASS[status],
               )}
             >
-              <span className="text-xs font-semibold">{STATUS_LABEL[status]}</span>
+              <span className="flex items-center gap-1 text-xs font-semibold">
+                {STATUS_LABEL[status]}
+                {/* "Aprovado" é terminal e não sai do seletor de status. A dica fica no hover
+                    para não roubar altura da coluna; o botão carrega o texto em aria-label,
+                    então leitor de tela e teclado alcançam igual. */}
+                {status === "aprovado" && (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          type="button"
+                          aria-label="Como uma disciplina vira Aprovado"
+                          className="inline-flex text-muted-foreground hover:text-foreground"
+                        >
+                          <Info className="size-3" />
+                        </button>
+                      }
+                    />
+                    <TooltipContent>
+                      Entra pelo botão de aprovação no card da disciplina, não pelo seletor de
+                      status.
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </span>
               <span className="text-xs text-muted-foreground">{items.length}</span>
             </div>
 

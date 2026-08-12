@@ -46,7 +46,7 @@ import { ehGlobal } from "@/modules/projetos/diario/acesso";
 import { DiarioEntradaDialog } from "@/components/projetos/diario-entrada-dialog";
 import { DisciplinaEditDialog, DisciplinaDeleteButton } from "@/components/projetos/disciplina-edit-dialog";
 import { validarEntrega, gerarAceiteCliente } from "@/modules/uploads/actions";
-import { statusValidacao, entregaveisAtuais } from "@/modules/uploads/validacao";
+import { statusValidacao, entregaveisAtuais, type StatusValidacao } from "@/modules/uploads/validacao";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
 import { IconeArquivo, StatusArquivo, VersaoToggle } from "@/components/projetos/arquivos-explorer";
 import { PastaTreeView, SeletorPasta, type ArquivoPasta } from "@/components/projetos/pasta-tree-view";
@@ -58,7 +58,15 @@ import {
   PainelProgressoEnvio,
   type LinhaEnvio,
 } from "@/components/projetos/upload-progresso";
-import { STATUS_LABEL, STATUS_TONE, transicaoDisciplinaPermitida } from "@/modules/projetos/status";
+import {
+  STATUS_LABEL,
+  STATUS_TONE,
+  transicaoDisciplinaPermitida,
+  ETAPAS_DISCIPLINA,
+  etapaDisciplina,
+  rotuloEtapaDisciplina,
+} from "@/modules/projetos/status";
+import { prontidaoAprovacao } from "@/modules/projetos/prontidao";
 import { diasDeAtraso } from "@/modules/projetos/atraso";
 import type { StatusDisciplina } from "@/generated/prisma/client";
 import { STATUS_DISCIPLINA } from "@/modules/projetos/schemas";
@@ -126,6 +134,8 @@ type Disc = {
   temA: boolean;
   temB: boolean;
   jaValidado: boolean;
+  /** Já existe pagamento de projetista liberado para esta disciplina. */
+  temPagamento: boolean;
   exigePacoteA: boolean;
   exigePacoteB: boolean;
   /** Aprovação/laudo (só projetos novos): árvore de pastas própria no lugar do pacote A/B. */
@@ -175,6 +185,12 @@ export function DisciplinaCard({
   const atraso = diasDeAtraso(disciplina.prazo, disciplina.status);
   const qtdTarefas = tarefas?.length ?? 0;
   const qtdAtrasadas = tarefas?.filter(tarefaAtrasada).length ?? 0;
+  // Fonte única do progresso de validação: o card e o dialog de arquivos leem o MESMO
+  // objeto, senão o painel de conclusão e o botão do rodapé podem discordar.
+  const stVal = statusValidacao(disciplina.uploads, {
+    exigePacoteA: disciplina.exigePacoteA,
+    exigePacoteB: disciplina.exigePacoteB,
+  });
 
   function mudarStatus(status: string | null) {
     if (!status) return;
@@ -276,6 +292,8 @@ export function DisciplinaCard({
         )}
       </div>
 
+      <TrilhoEtapas disciplina={disciplina} />
+
       {podeMexerStatus && disciplina.status !== "aprovado" && (
         <Select value={disciplina.status} items={STATUS_LABEL} onValueChange={mudarStatus} disabled={pending}>
           <SelectTrigger className="h-8">
@@ -306,14 +324,29 @@ export function DisciplinaCard({
         </div>
       )}
 
-      {disciplina.usaPastas && (
+      {/* Pagamento já liberado numa disciplina ainda não aprovada (reabertura, ou base
+          importada): aprovar NÃO gera outro pagamento. Sem este aviso a dúvida "vou pagar
+          de novo?" trava a aprovação. */}
+      {!disciplina.jaValidado && disciplina.temPagamento && (
+        <div className="flex items-center gap-1.5 rounded-sm bg-status-revisao/10 px-2 py-1 text-xs text-status-revisao">
+          <Unlock className="size-3.5" aria-hidden /> Pagamento já liberado · aprovar não gera novo
+        </div>
+      )}
+
+      {disciplina.usaPastas ? (
         <FluxoAprovacaoDisciplina disciplina={disciplina} meRole={meRole} />
+      ) : (
+        !disciplina.jaValidado &&
+        disciplina.status !== "aprovado" && (
+          <PainelEntrega disciplina={disciplina} stVal={stVal} podeValidar={podeValidar} />
+        )
       )}
 
       <div className="flex flex-wrap gap-1.5">
         <ArquivosDialog
           projetoId={projetoId}
           disciplina={disciplina}
+          stVal={stVal}
           podeEnviar={podeEnviar}
           podeValidar={podeValidar}
         />
@@ -334,6 +367,146 @@ export function DisciplinaCard({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Trilho de etapas da disciplina — deixa visível que "Aprovado" é a CHEGADA do fluxo, não
+ * uma opção do seletor. São 4 pontos porque `entregue` e `em_revisao` são o mesmo ponto do
+ * caminho (a máquina alterna entre eles); o rótulo dessa etapa mostra o estado real.
+ */
+function TrilhoEtapas({ disciplina }: { disciplina: Disc }) {
+  const atual = etapaDisciplina(disciplina.status);
+  return (
+    <ol className="flex items-center gap-1" aria-label="Etapas da disciplina">
+      {ETAPAS_DISCIPLINA.map((_, i) => {
+        const rotulo = rotuloEtapaDisciplina(i, disciplina.status, disciplina.aprovacaoSolicitadaEm);
+        const percorrida = i <= atual;
+        return (
+          <Fragment key={i}>
+            {i > 0 && (
+              <span
+                aria-hidden
+                className={`h-px flex-1 ${i <= atual ? "bg-status-aprovado" : "bg-muted"}`}
+              />
+            )}
+            <li
+              className={`flex items-center gap-1 text-[10px] leading-tight ${
+                i === atual ? "font-semibold text-foreground" : "text-muted-foreground"
+              }`}
+              aria-current={i === atual ? "step" : undefined}
+            >
+              <span
+                aria-hidden
+                className={`size-1.5 shrink-0 rounded-full ${
+                  percorrida ? "bg-status-aprovado" : "bg-muted-foreground/30"
+                }`}
+              />
+              {rotulo}
+            </li>
+          </Fragment>
+        );
+      })}
+    </ol>
+  );
+}
+
+/**
+ * Painel de conclusão da entrega (fluxo pacote A/B) — resposta ao "cadê o status Aprovado?".
+ *
+ * `aprovado` é terminal e nunca aparece no seletor de status: só entra por `validarEntrega`.
+ * Antes, o único botão vivia no rodapé do dialog de Arquivos, então o card não dava nenhum
+ * sinal do que faltava. Aqui o card mostra SEMPRE um dos dois: o botão que conclui a entrega,
+ * ou o motivo exato de ele ainda não estar disponível.
+ *
+ * As condições seguem as pré-condições do servidor (`validarEntrega`) para que o botão não
+ * seja oferecido a uma chamada que a action vai recusar. Não é paridade exata: a contagem de
+ * pacotes aqui usa `entregaveisAtuais` (só origem `manual`), enquanto o servidor aceita
+ * qualquer upload no pacote — na prática só torna a exigência do painel mais estrita.
+ */
+function PainelEntrega({
+  disciplina,
+  stVal,
+  podeValidar,
+}: {
+  disciplina: Disc;
+  stVal: StatusValidacao;
+  podeValidar: boolean;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+
+  const semResponsavel = disciplina.responsaveis.length === 0;
+  // Mesmos entregáveis que `statusValidacao` conta — a mensagem nunca contradiz `stVal`.
+  const atuais = entregaveisAtuais(disciplina.uploads);
+  const faltamPacotes = [
+    disciplina.exigePacoteA && !atuais.some((u) => u.pacote === "A") ? "Pranchas e arquivos" : null,
+    disciplina.exigePacoteB && !atuais.some((u) => u.pacote === "B") ? "Backup do modelo" : null,
+  ].filter((s): s is string => s !== null);
+  // Mesma regra que pinta o badge na lista/dashboard/Aprovações — se divergisse, a lista
+  // diria "pronta para aprovar" e o card abriria sem botão.
+  const pronta =
+    prontidaoAprovacao({
+      status: disciplina.status,
+      usaPastas: disciplina.usaPastas,
+      aprovacaoSolicitadaEm: disciplina.aprovacaoSolicitadaEm,
+      exigePacoteA: disciplina.exigePacoteA,
+      exigePacoteB: disciplina.exigePacoteB,
+      qtdResponsaveis: disciplina.responsaveis.length,
+      uploads: disciplina.uploads,
+    }) === "pronta_validacao";
+
+  function validar() {
+    start(async () => {
+      const res = await validarEntrega({ disciplinaId: disciplina.id });
+      if (res.ok) {
+        toast.success(
+          res.data.pagamentos > 0
+            ? `Entrega aprovada. ${res.data.pagamentos} pagamento(s) liberado(s).`
+            : "Entrega aprovada. Sem pagamento (equipe CLT/estágio).",
+        );
+        router.refresh();
+      } else {
+        toast.error(res.error);
+      }
+    });
+  }
+
+  if (pronta) {
+    return (
+      <div className="flex flex-wrap items-center gap-2 rounded-sm border border-status-aprovado/40 bg-status-aprovado/10 px-2.5 py-1.5 text-xs">
+        <span className="text-status-aprovado">
+          {stVal.total} arquivo(s) validado(s) — pronta para aprovação.
+        </span>
+        {podeValidar ? (
+          <Button size="sm" className="ml-auto h-7 px-2" onClick={validar} disabled={pending}>
+            <ShieldCheck className="size-3.5" /> {pending ? "Aprovando…" : "Aprovar entrega"}
+          </Button>
+        ) : (
+          <span className="ml-auto text-muted-foreground">Aguardando validação do gestor.</span>
+        )}
+      </div>
+    );
+  }
+
+  // Não está pronta: dizer exatamente o que falta, na ordem em que o servidor cobraria.
+  const motivo =
+    stVal.total === 0
+      ? "Envie os arquivos da entrega para poder aprovar."
+      : faltamPacotes.length > 0
+        ? `Para aprovar, falta enviar: ${faltamPacotes.join(" e ")}.`
+        : stVal.pendentes > 0
+          ? `${stVal.validados} de ${stVal.total} arquivo(s) validado(s) — valide os ${stVal.pendentes} restante(s) em "Arquivos" para aprovar.`
+          : semResponsavel
+            ? "Defina ao menos um responsável para poder aprovar."
+            : null;
+  if (!motivo) return null;
+
+  return (
+    <p className="flex items-start gap-1.5 rounded-sm border border-dashed px-2.5 py-1.5 text-xs text-muted-foreground">
+      <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+      <span>{motivo}</span>
+    </p>
   );
 }
 
@@ -375,6 +548,7 @@ function FluxoAprovacaoDisciplina({
   const podeSolicitar = podeSolicitarAprovacao({
     ehResponsavel: disciplina.ehResponsavel,
     status: disciplina.status,
+    aprovacaoSolicitadaEm: disciplina.aprovacaoSolicitadaEm,
   });
   const podeConfirmar = !!meRole && podeConfirmarOuRecusarAprovacao(meRole);
   const aguardando = disciplina.aprovacaoSolicitadaEm != null;
@@ -412,7 +586,24 @@ function FluxoAprovacaoDisciplina({
     });
   }
 
-  if (!podeSolicitar && !aguardando) return null;
+  // Sem ação disponível: em vez de sumir (o que deixava o card sem nenhuma pista de como
+  // chegar em "aprovado"), explicar de quem é a vez. `aprovado` não entra aqui — o card já
+  // mostra "Reabrir" nesse caso.
+  if (!podeSolicitar && !aguardando) {
+    if (disciplina.status === "aprovado") return null;
+    const motivo =
+      disciplina.responsaveis.length === 0
+        ? "Defina ao menos um responsável — só ele pode marcar o projeto como aprovado."
+        : disciplina.status === "aguardando"
+          ? "Coloque a disciplina em andamento para poder marcá-la como aprovada."
+          : "Aguardando o responsável marcar o projeto como aprovado.";
+    return (
+      <p className="flex items-start gap-1.5 rounded-sm border border-dashed px-2.5 py-1.5 text-xs text-muted-foreground">
+        <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+        <span>{motivo}</span>
+      </p>
+    );
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-sm border border-status-entregue/40 bg-status-entregue/10 px-2.5 py-1.5 text-xs">
@@ -463,11 +654,13 @@ function FluxoAprovacaoDisciplina({
 function ArquivosDialog({
   projetoId,
   disciplina,
+  stVal,
   podeEnviar,
   podeValidar,
 }: {
   projetoId: string;
   disciplina: Disc;
+  stVal: StatusValidacao;
   podeEnviar: boolean;
   podeValidar: boolean;
 }) {
@@ -488,11 +681,13 @@ function ArquivosDialog({
       return n;
     });
 
-  const stVal = statusValidacao(disciplina.uploads, {
-    exigePacoteA: disciplina.exigePacoteA,
-    exigePacoteB: disciplina.exigePacoteB,
-  });
-  const completoParaValidar = stVal.completo && !disciplina.jaValidado;
+  // `stVal.completo` também é true sem nenhum entregável, e o servidor exige responsável —
+  // sem os dois checks o botão fica habilitado para uma chamada que a action recusa.
+  const completoParaValidar =
+    stVal.completo &&
+    stVal.total > 0 &&
+    disciplina.responsaveis.length > 0 &&
+    !disciplina.jaValidado;
   // Ids dos entregáveis na versão atual — só eles ganham controles de validação.
   const idsValidaveis = new Set(entregaveisAtuais(disciplina.uploads).map((u) => u.id));
 
@@ -580,8 +775,8 @@ function ArquivosDialog({
       if (res.ok) {
         toast.success(
           res.data.pagamentos > 0
-            ? `Entrega validada. ${res.data.pagamentos} pagamento(s) liberado(s).`
-            : "Entrega validada. Sem pagamento (equipe CLT/estágio).",
+            ? `Entrega aprovada. ${res.data.pagamentos} pagamento(s) liberado(s).`
+            : "Entrega aprovada. Sem pagamento (equipe CLT/estágio).",
         );
         setOpen(false);
         router.refresh();
