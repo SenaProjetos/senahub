@@ -38,7 +38,9 @@ export async function GET(req: Request) {
   }
 
   const uploads = await prisma.upload.findMany({
-    where: { id: { in: ids } },
+    // Lixeira: `Upload` não está no filtro global (lib/prisma.ts) → explícito. Os ids vêm
+    // da query string, então sem isso uma URL montada à mão baixaria arquivo excluído.
+    where: { id: { in: ids }, excluidoEm: null },
     include: {
       pasta: { select: { caminho: true } },
       disciplina: {

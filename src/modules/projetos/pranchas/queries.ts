@@ -97,7 +97,8 @@ export async function proporPranchasImport(disciplinaId: string) {
     select: {
       pranchas: { select: { numeracao: true, tipo: true, fase: true } },
       uploads: {
-        where: { pacote: "A" },
+        // Lixeira: leitura aninhada não passa pelo filtro global (lib/prisma.ts) → explícito.
+        where: { pacote: "A", excluidoEm: null },
         select: { nomeArquivo: true, versao: true },
         orderBy: { versao: "asc" },
       },

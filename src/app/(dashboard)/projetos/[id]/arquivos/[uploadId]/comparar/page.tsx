@@ -24,6 +24,9 @@ export default async function CompararPage({ params }: { params: Promise<{ id: s
       nomeArquivo: true,
       documentoId: true,
       disciplinaId: true,
+      // Lixeira: `Upload` não está no filtro global (lib/prisma.ts) → checagem explícita,
+      // igual à rota de download.
+      excluidoEm: true,
       disciplina: {
         select: {
           projetoId: true,
@@ -32,7 +35,7 @@ export default async function CompararPage({ params }: { params: Promise<{ id: s
       },
     },
   });
-  if (!upload || upload.disciplina.projetoId !== id) notFound();
+  if (!upload || upload.excluidoEm || upload.disciplina.projetoId !== id) notFound();
 
   const membros = await prisma.projetoMembro.findMany({ where: { projetoId: id }, select: { userId: true } });
   const ehGlobal = acessoGlobal(user);

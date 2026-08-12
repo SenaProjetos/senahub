@@ -34,6 +34,9 @@ export default async function VisualizarPage({
       validado: true,
       documentoId: true,
       disciplinaId: true,
+      // Lixeira: `Upload` não está no filtro global (lib/prisma.ts) → checagem explícita,
+      // igual à rota de download.
+      excluidoEm: true,
       disciplina: {
         select: {
           nome: true,
@@ -45,8 +48,8 @@ export default async function VisualizarPage({
       },
     },
   });
-  // O upload precisa existir E pertencer ao projeto da URL.
-  if (!upload || upload.disciplina.projetoId !== id) notFound();
+  // O upload precisa existir, estar fora da lixeira E pertencer ao projeto da URL.
+  if (!upload || upload.excluidoEm || upload.disciplina.projetoId !== id) notFound();
 
   // Mesmo controle de acesso do download: global, responsável da disciplina ou membro do projeto.
   const membros = await prisma.projetoMembro.findMany({
