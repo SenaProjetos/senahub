@@ -356,7 +356,11 @@ export const resolverApontamentoCoordenacao = defineAction(
         where: { id: a.id },
         data: { status: "resolvida", resolvidoPorId: user.id, resolvidoEm: new Date() },
       });
-      if (a.tarefaItemId) await tx.tarefaItem.update({ where: { id: a.tarefaItemId }, data: { concluido: true } });
+      // `updateMany` (não `update`): `tarefaItemId` é ponteiro SEM FK e pode estar órfão — o
+      // item de checklist some junto com a tarefa. Com `update`, o P2025 do Prisma não é
+      // `ActionError` e derrubaria a mudança de estado com um erro genérico. Mesma correção
+      // aplicada em `modules/projetos/pendencias/actions.ts#transicionar`.
+      if (a.tarefaItemId) await tx.tarefaItem.updateMany({ where: { id: a.tarefaItemId }, data: { concluido: true } });
     });
     revalidarCoordenacao(a.projetoId);
     revalidatePath("/tarefas");
@@ -378,7 +382,7 @@ export const reabrirApontamentoCoordenacao = defineAction(
         where: { id: a.id },
         data: { status: "aberta", resolvidoPorId: null, resolvidoEm: null },
       });
-      if (a.tarefaItemId) await tx.tarefaItem.update({ where: { id: a.tarefaItemId }, data: { concluido: false } });
+      if (a.tarefaItemId) await tx.tarefaItem.updateMany({ where: { id: a.tarefaItemId }, data: { concluido: false } });
     });
     revalidarCoordenacao(a.projetoId);
     revalidatePath("/tarefas");
@@ -398,7 +402,7 @@ export const fecharApontamentoCoordenacao = defineAction(
         where: { id: a.id },
         data: { status: "fechada", fechadoPorId: user.id, fechadoEm: new Date() },
       });
-      if (a.tarefaItemId) await tx.tarefaItem.update({ where: { id: a.tarefaItemId }, data: { concluido: true } });
+      if (a.tarefaItemId) await tx.tarefaItem.updateMany({ where: { id: a.tarefaItemId }, data: { concluido: true } });
     });
     revalidarCoordenacao(a.projetoId);
     revalidatePath("/tarefas");
@@ -418,7 +422,7 @@ export const descartarApontamentoCoordenacao = defineAction(
         where: { id: a.id },
         data: { status: "descartada", fechadoPorId: user.id, fechadoEm: new Date() },
       });
-      if (a.tarefaItemId) await tx.tarefaItem.update({ where: { id: a.tarefaItemId }, data: { concluido: true } });
+      if (a.tarefaItemId) await tx.tarefaItem.updateMany({ where: { id: a.tarefaItemId }, data: { concluido: true } });
     });
     revalidarCoordenacao(a.projetoId);
     revalidatePath("/tarefas");

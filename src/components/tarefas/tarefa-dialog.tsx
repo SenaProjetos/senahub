@@ -109,7 +109,9 @@ export function TarefaDialog({
   /** Pré-preenche o formulário ao CRIAR (tarefa === null). */
   valoresIniciais?: Partial<FormTarefa>;
   /** Se definido, substitui criar/editar: recebe o payload e retorna se deu certo (fecha ao true). */
-  onSubmit?: (payload: Omit<FormTarefa, "itens"> & { itens: { descricao: string; concluido: boolean }[] }) => Promise<boolean>;
+  onSubmit?: (
+    payload: Omit<FormTarefa, "itens"> & { itens: { id?: string; descricao: string; concluido: boolean }[] },
+  ) => Promise<boolean>;
   /** Checklist só-leitura (ex.: itens gerados por apontamentos). */
   itensReadonly?: boolean;
   /** Título do diálogo (sobrepõe o padrão). */
@@ -232,7 +234,10 @@ export function TarefaDialog({
       projetoId: form.projetoId === NONE ? "" : form.projetoId,
       disciplinaId: form.disciplinaId === NONE ? "" : form.disciplinaId,
       responsaveisIds: form.responsaveisIds,
-      itens: form.itens.map((i) => ({ descricao: i.descricao, concluido: i.concluido })),
+      // `id` vai junto quando o item já existe: é o que faz `editarTarefa` ATUALIZAR a linha em
+      // vez de apagar e recriar — recriar troca o id e orfana o `tarefaItemId` dos
+      // apontamentos. Item novo não tem id e nasce no servidor.
+      itens: form.itens.map((i) => ({ id: i.id, descricao: i.descricao, concluido: i.concluido })),
       dependeDeIds: form.dependeDeIds,
     };
     if (onSubmit) {

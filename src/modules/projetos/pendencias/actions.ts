@@ -729,7 +729,12 @@ async function transicionar(
   await prisma.$transaction(async (tx) => {
     await tx.pendencia.update({ where: { id: p.id }, data: dados });
     if (p.tarefaItemId && itemConcluido !== null) {
-      await tx.tarefaItem.update({ where: { id: p.tarefaItemId }, data: { concluido: itemConcluido } });
+      // `updateMany`, não `update`: `tarefaItemId` é ponteiro SEM FK e pode estar órfão (item
+      // de checklist apagado com a tarefa, ou recriado por uma edição antiga da tarefa). Com
+      // `update`, o Prisma joga P2025 — que não é `ActionError` — e a transição INTEIRA morre
+      // com "Erro ao processar a solicitação.". O estado do apontamento não pode depender de
+      // um item de checklist que sumiu; sem alvo, o sync simplesmente não acontece.
+      await tx.tarefaItem.updateMany({ where: { id: p.tarefaItemId }, data: { concluido: itemConcluido } });
     }
   });
 

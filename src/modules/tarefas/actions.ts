@@ -36,7 +36,13 @@ const tarefaSchema = z.object({
   projetoId: opt(z.string()),
   disciplinaId: opt(z.string()),
   responsaveisIds: z.array(z.string()).default([]),
-  itens: z.array(z.object({ descricao: z.string().min(1), concluido: z.boolean() })).default([]),
+  // `id` OPCIONAL no item: presente = item que já existe no banco (o diálogo o devolve como
+  // veio), ausente = item novo digitado agora. É o que permite a edição PRESERVAR a linha em
+  // vez de recriá-la — ver `editarTarefa`. Nunca é usado para criar com id escolhido pelo
+  // cliente: em `criarTarefa` ele é descartado.
+  itens: z
+    .array(z.object({ id: z.string().optional(), descricao: z.string().min(1), concluido: z.boolean() }))
+    .default([]),
   dependeDeIds: z.array(z.string()).default([]),
 });
 const editarSchema = tarefaSchema.extend({ id: z.string().min(1) });
@@ -62,7 +68,9 @@ export const criarTarefa = defineAction(
         disciplinaId,
         criadorId: user.id,
         responsaveis: { create: i.responsaveisIds.map((userId) => ({ userId })) },
-        itens: { create: i.itens.map((it, idx) => ({ ...it, ordem: idx })) },
+        // `id` do payload é descartado de propósito: tarefa nova só tem item novo, e aceitar
+        // id vindo do cliente deixaria escolher a chave primária da linha.
+        itens: { create: i.itens.map((it, idx) => ({ descricao: it.descricao, concluido: it.concluido, ordem: idx })) },
         dependeDe: { create: i.dependeDeIds.map((dependeDeId) => ({ dependeDeId })) },
       },
     });
@@ -94,13 +102,29 @@ export const editarTarefa = defineAction(
     await exigirCriadorOuGlobal(id, user);
     if (r.dependeDeIds.includes(id)) throw new ActionError("Tarefa não pode depender dela mesma.");
     // Item 7: mantém concluidaEm coerente com o status escolhido na edição.
-    const [destino, atual, antigosResp] = await Promise.all([
+    const [destino, atual, antigosResp, itensAtuais] = await Promise.all([
       prisma.tarefaStatus.findUnique({ where: { id: r.statusId }, select: { concluido: true } }),
       prisma.tarefa.findUnique({ where: { id }, select: { concluidaEm: true } }),
       prisma.tarefaResponsavel.findMany({ where: { tarefaId: id }, select: { userId: true } }),
+      prisma.tarefaItem.findMany({ where: { tarefaId: id }, select: { id: true } }),
     ]);
     const concluidaEm = destino?.concluido ? (atual?.concluidaEm ?? new Date()) : null;
     const disciplinaId = await resolverDisciplina(r.projetoId ?? "", r.disciplinaId ?? "");
+
+    /**
+     * Checklist é reconciliado POR ID, não recriado.
+     *
+     * Antes eram `deleteMany` + `createMany`: cada edição da tarefa apagava todos os itens e
+     * criava outros com ids NOVOS. O texto e o `concluido` sobreviviam (vêm do formulário),
+     * mas os IDS trocavam — e `Pendencia.tarefaItemId` / `ApontamentoCoordenacao.tarefaItemId`
+     * são ponteiros SEM FK, então ficavam órfãos e a próxima transição do apontamento
+     * estourava P2025 ("Erro ao processar a solicitação." na tela do usuário).
+     *
+     * Agora: item com `id` conhecido é ATUALIZADO, item sem `id` é criado, e só some do banco
+     * o que o usuário realmente removeu na tela — o vínculo apontamento↔item sobrevive à edição.
+     */
+    const idsAtuais = new Set(itensAtuais.map((it) => it.id));
+    const manter = r.itens.map((it) => it.id).filter((itemId): itemId is string => !!itemId && idsAtuais.has(itemId));
     await prisma.$transaction([
       prisma.tarefa.update({
         where: { id },
@@ -120,10 +144,17 @@ export const editarTarefa = defineAction(
         data: r.responsaveisIds.map((userId) => ({ tarefaId: id, userId })),
         skipDuplicates: true,
       }),
-      prisma.tarefaItem.deleteMany({ where: { tarefaId: id } }),
-      prisma.tarefaItem.createMany({
-        data: r.itens.map((it, idx) => ({ tarefaId: id, ...it, ordem: idx })),
-      }),
+      prisma.tarefaItem.deleteMany({ where: { tarefaId: id, id: { notIn: manter } } }),
+      ...r.itens.map((it, idx) =>
+        it.id && idsAtuais.has(it.id)
+          ? prisma.tarefaItem.update({
+              where: { id: it.id },
+              data: { descricao: it.descricao, concluido: it.concluido, ordem: idx },
+            })
+          : prisma.tarefaItem.create({
+              data: { tarefaId: id, descricao: it.descricao, concluido: it.concluido, ordem: idx },
+            }),
+      ),
       prisma.tarefaDependencia.deleteMany({ where: { tarefaId: id } }),
       prisma.tarefaDependencia.createMany({
         data: r.dependeDeIds.map((dependeDeId) => ({ tarefaId: id, dependeDeId })),
