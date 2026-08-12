@@ -281,8 +281,15 @@ justamente quem não tem o problema.
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File "F:\SenaHub\app\deploy\instalar-tarefa-atualizacao.ps1"
 ```
-Agenda para 03:30; acrescente `-Hora "04:00"` no fim para outro horário. A tarefa registrada já
+Agenda para **04:00**; acrescente `-Hora "04:30"` no fim para outro horário. A tarefa registrada já
 chama o PowerShell com `-ExecutionPolicy Bypass`, então ela roda sem depender da política da máquina.
+
+> ⚠️ **Não marque para 03:30.** O deploy **para** o serviço SenaHub, e o pg-boss vive dentro dele
+> com dois jobs agendados justamente para 03:30 ([lib/jobs.ts](../src/lib/jobs.ts)): o **espelho de
+> arquivos** (robocopy) e o alerta de jornadas abertas. Um deploy nesse horário mataria o espelho no
+> meio — e ele é o **único** backup dos uploads, já que o dump do Postgres não contém arquivo nenhum
+> (seção 8). Às 04:00 o espelho já teve 30 minutos para terminar. O backup do **banco** das 03:00 não
+> entra nessa conta: o próprio deploy faz um antes de migrar.
 
 **Testar antes de confiar (não espere o horário agendado):**
 ```powershell

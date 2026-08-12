@@ -8,22 +8,33 @@
 
     powershell -NoProfile -ExecutionPolicy Bypass -File deploy\gerenciar-servidor.ps1 -Acao DeployAutomatico
 
-  Roda como SYSTEM (privilegio total local, sem precisar guardar senha de admin), pensado
-  para disparar alguns minutos depois do backup diario as 03:00 (agendado dentro do proprio
-  app via pg-boss - ver src/lib/jobs.ts). O comando em si (Invoke-DeployAutomatico, dentro de
-  gerenciar-servidor.ps1) SO reinicia o servico se houver commit novo na master - nas noites
-  sem mudanca, roda e sai sem downtime.
+  Roda como SYSTEM (privilegio total local, sem precisar guardar senha de admin).
+
+  HORARIO PADRAO 04:00 - nao mude para 03:30. O deploy PARA o servico SenaHub, e o pg-boss
+  (que roda dentro dele) tem DOIS jobs agendados para 03:30: o backup de ARQUIVOS via robocopy
+  e o alerta de jornadas abertas - ver src/lib/jobs.ts. Marcar o deploy para 03:30 mataria o
+  espelho do storage no meio, e ele e o UNICO backup dos uploads: o dump do Postgres nao
+  contem arquivo nenhum. As 04:00 o espelho ja teve 30 min para terminar. O backup do BANCO
+  (03:00) nao entra nessa conta - o proprio deploy faz um antes de migrar.
+
+  O comando em si (Invoke-DeployAutomatico, dentro de gerenciar-servidor.ps1) SO reinicia o
+  servico se houver commit novo na master - nas noites sem mudanca, roda e sai sem downtime.
+
+  PRE-REQUISITO: 'git config --system --add safe.directory <raiz>'. A tarefa roda como SYSTEM
+  e o git recusa repositorio de outro dono ("detected dubious ownership") - sem isso o deploy
+  morre no primeiro comando git, toda noite.
 
   Rode este script UMA VEZ, como Administrador. Depois disso a tarefa fica agendada sozinha;
   nao precisa rodar de novo a menos que queira mudar o horario ou recriar a tarefa.
 .EXAMPLE
-  .\deploy\instalar-tarefa-atualizacao.ps1
+  powershell -NoProfile -ExecutionPolicy Bypass -File "F:\SenaHub\app\deploy\instalar-tarefa-atualizacao.ps1"
 .EXAMPLE
-  .\deploy\instalar-tarefa-atualizacao.ps1 -Hora "04:00"
+  powershell -NoProfile -ExecutionPolicy Bypass -File "F:\SenaHub\app\deploy\instalar-tarefa-atualizacao.ps1" -Hora "04:30"
 #>
 param(
   [string]$TaskName = "SenaHub - Deploy Automatico",
-  [string]$Hora = "03:30"
+  # 04:00 e deliberado - ver o aviso de horario acima antes de mudar.
+  [string]$Hora = "04:00"
 )
 
 $ErrorActionPreference = "Stop"
@@ -64,7 +75,7 @@ $settings = New-ScheduledTaskSettingsSet `
 
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
   -Principal $principal -Settings $settings `
-  -Description "Deploy automatico do SenaHub (git pull / build / migrate / restart), diario apos o backup das 03:00. So mexe no servico se houver commit novo." `
+  -Description "Deploy automatico do SenaHub (git pull / build / migrate / restart), diario depois dos backups das 03:00 e 03:30. So mexe no servico se houver commit novo." `
   | Out-Null
 
 Write-Host ""
