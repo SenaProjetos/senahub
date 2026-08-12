@@ -30,9 +30,17 @@ Conta Cloudflare com o domínio (`seudominio.com.br`) já adicionado como zona.
 ```powershell
 git clone <URL_DO_REPO> F:\SenaHub\app
 cd F:\SenaHub\app
-git checkout main   # ou a branch publicada
+git checkout master
 ```
 > Não copie `.env`, `node_modules` nem `.next` da máquina de dev — serão recriados aqui.
+
+> ⚠️ **O checkout do servidor fica em `master` e não sai de lá.** `master` é a produção; `dev`
+> acumula o trabalho e só chega aqui via *Promover dev → produção* no PC de dev. O deploy usa
+> `git pull` sem argumento, que segue o branch do checkout — então um `git checkout` digitado no
+> servidor troca a fonte da produção silenciosamente. Foi o que houve entre 27/07 e 11/08/2026:
+> o checkout foi para `dev`, os deploys seguintes publicaram `dev`, e `master` ficou quatro
+> releases atrás (1.6.0) enquanto a produção rodava 1.10.0. Hoje o menu confere isso antes de
+> puxar e aborta o deploy automático se o checkout tiver saído de `master`.
 
 ---
 

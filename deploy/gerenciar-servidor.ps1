@@ -26,6 +26,13 @@ $AppRoot = Split-Path -Parent $PSScriptRoot
 $LogsDir = Join-Path $AppRoot "logs"
 $AuditLogPath = Join-Path $LogsDir "menu-audit.log"
 
+# Branch que representa a producao. O deploy usa 'git pull' pelado, que segue o branch
+# do CHECKOUT - entao um 'git checkout' digitado no servidor troca a fonte da producao
+# sem avisar ninguem. Foi o que houve entre 27/07 e 11/08/2026: o checkout foi pra 'dev',
+# os deploys seguintes passaram a publicar 'dev', e o master ficou parado quatro releases
+# atras (1.6.0) enquanto a producao rodava 1.10.0 - sem nenhum sinal no menu.
+$BranchProducao = "master"
+
 if (-not (Test-Path $LogsDir)) {
     New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
 }
@@ -86,6 +93,29 @@ function Assert-Admin {
         return $false
     }
     return $true
+}
+
+function Get-BranchAtual {
+    $b = git -C $AppRoot rev-parse --abbrev-ref HEAD 2>$null | Select-Object -First 1
+    if ($b) { return $b.Trim() }
+    return "(desconhecido)"
+}
+
+function Assert-BranchProducao {
+    # Confere que o checkout esta no branch de producao ANTES de puxar codigo novo.
+    # -NaoInterativo (deploy automatico): so aborta, nao tem ninguem para responder.
+    param([switch]$NaoInterativo)
+    $branch = Get-BranchAtual
+    if ($branch -eq $BranchProducao) {
+        Write-Host "[OK] Checkout em '$branch' (branch de producao)." -ForegroundColor Green
+        return $true
+    }
+    Write-Host "[ATENCAO] O checkout esta em '$branch', nao em '$BranchProducao'." -ForegroundColor Red
+    Write-Host "          O 'git pull' segue o branch do checkout, entao este deploy publicaria" -ForegroundColor Yellow
+    Write-Host "          '$branch' em producao - e nao o que foi promovido pelo PC de dev." -ForegroundColor Yellow
+    Write-Host "          Para voltar ao normal: git checkout $BranchProducao" -ForegroundColor Yellow
+    if ($NaoInterativo) { return $false }
+    return (Confirm-Typed -Palavra "PUBLICAR $branch")
 }
 
 function Test-PostgresConnection {
@@ -703,6 +733,14 @@ function Invoke-DeployCompleto {
         Write-Host "[OK] Nada pendente." -ForegroundColor Green
 
         Write-Host ""
+        Write-Host "---- Branch do checkout ----" -ForegroundColor Cyan
+        if (-not (Assert-BranchProducao)) {
+            Write-Host "[CANCELADO] Deploy abortado. Servico NAO foi tocado." -ForegroundColor Red
+            Write-Audit -AcaoNome "DeployCompleto" -Detalhe "ABORTADO: checkout em $(Get-BranchAtual)"
+            return
+        }
+
+        Write-Host ""
         Write-Host "---- git pull ----" -ForegroundColor Cyan
         git pull
         if ($LASTEXITCODE -ne 0) { Write-Host "[ERRO] git pull falhou." -ForegroundColor Red; return }
@@ -811,6 +849,14 @@ function Invoke-DeployAutomatico {
             Write-DeployLog "ABORTADO: ha mudancas locais nao commitadas."
             Invoke-Notificacao -Status "falhou" -Detalhe "Mudancas locais nao commitadas impediram o deploy automatico. Servico NAO foi tocado."
             Write-Audit -AcaoNome "DeployAutomatico" -Detalhe "ABORTADO: git status sujo"
+            return
+        }
+
+        $branchAtual = Get-BranchAtual
+        if ($branchAtual -ne $BranchProducao) {
+            Write-DeployLog "ABORTADO: checkout em '$branchAtual', esperado '$BranchProducao'."
+            Invoke-Notificacao -Status "falhou" -Detalhe "O checkout do servidor esta em '$branchAtual', nao em '$BranchProducao'. O deploy automatico foi abortado para nao publicar o branch errado. Servico NAO foi tocado."
+            Write-Audit -AcaoNome "DeployAutomatico" -Detalhe "ABORTADO: checkout em $branchAtual"
             return
         }
 
