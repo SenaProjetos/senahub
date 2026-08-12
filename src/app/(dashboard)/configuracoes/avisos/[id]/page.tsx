@@ -4,9 +4,11 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Check, Clock } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { detalheAviso } from "@/modules/notificacoes/avisos/queries";
+import { statusAviso } from "@/modules/notificacoes/avisos/agendamento";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { formatarDataHora } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const metadata: Metadata = { title: "Detalhe do aviso" };
@@ -19,6 +21,7 @@ export default async function AvisoDetalhePage({ params }: { params: Promise<{ i
 
   const confirmados = aviso.destinatarios.filter((d) => d.lidoEm).length;
   const total = aviso.destinatarios.length;
+  const status = statusAviso(aviso);
 
   return (
     <div className="space-y-5">
@@ -32,13 +35,34 @@ export default async function AvisoDetalhePage({ params }: { params: Promise<{ i
       <div>
         <h2 className="text-2xl font-extrabold tracking-tight">{aviso.titulo}</h2>
         {aviso.corpo && <p className="mt-1 text-sm whitespace-pre-wrap text-muted-foreground">{aviso.corpo}</p>}
-        <p className="mt-2 text-xs text-muted-foreground">
-          Enviado por {aviso.criadoPor.name} em {formatarDataHora(aviso.criadoEm)} ·{" "}
-          <strong>{confirmados}</strong> de <strong>{total}</strong> confirmaram
-          {aviso.exigeConfirmacao ? "" : " · sem confirmação obrigatória"}
-        </p>
+        {status === "enviado" ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Enviado por {aviso.criadoPor.name} em {formatarDataHora(aviso.enviadoEm ?? aviso.criadoEm)} ·{" "}
+            <strong>{confirmados}</strong> de <strong>{total}</strong> confirmaram
+            {aviso.exigeConfirmacao ? "" : " · sem confirmação obrigatória"}
+          </p>
+        ) : (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Criado por {aviso.criadoPor.name} em {formatarDataHora(aviso.criadoEm)} ·{" "}
+            {status === "cancelado"
+              ? `envio cancelado em ${formatarDataHora(aviso.canceladoEm!)}`
+              : `envio agendado para ${aviso.agendadoPara ? formatarDataHora(aviso.agendadoPara) : "—"}`}
+          </p>
+        )}
       </div>
 
+      {status !== "enviado" ? (
+        /* Sem destinatários ainda: o alvo só é resolvido no disparo. */
+        <EmptyState
+          icon={Clock}
+          title={status === "cancelado" ? "Envio cancelado" : "Ainda não enviado"}
+          description={
+            status === "cancelado"
+              ? "Este aviso foi cancelado antes de disparar, então ninguém o recebeu."
+              : "Os destinatários são apurados no momento do envio — a lista aparece aqui depois que o aviso disparar."
+          }
+        />
+      ) : (
       <div className="rounded-lg border">
         <Table>
           <TableHeader>
@@ -78,6 +102,7 @@ export default async function AvisoDetalhePage({ params }: { params: Promise<{ i
           </TableBody>
         </Table>
       </div>
+      )}
     </div>
   );
 }

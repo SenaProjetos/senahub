@@ -728,6 +728,9 @@ enum AvisoAlvoTipo {
 
 /// Comunicado direcionado que surge como modal bloqueante para o destinatário.
 /// Registro de envio; a leitura é confirmada por destinatário em AvisoDestinatario.
+/// Pode ser imediato (`agendadoPara` null) ou agendado — nesse caso o alvo fica
+/// guardado aqui e só vira AvisoDestinatario no disparo (quem entrou na empresa
+/// nesse meio-tempo também recebe).
 model Aviso {
   id               String              @id @default(cuid())
   titulo           String
@@ -737,12 +740,19 @@ model Aviso {
   criadoPor        User                @relation("AvisosCriados", fields: [criadoPorId], references: [id])
   alvoTipo         AvisoAlvoTipo
   alvoRoles        String[] // preenchido quando alvoTipo=categoria
+  alvoUserIds      String[] // preenchido quando alvoTipo=usuarios
+  incluirClientes  Boolean             @default(false) // vale para alvoTipo=todos
   exigeConfirmacao Boolean             @default(true)
+  emailSolicitado  Boolean             @default(false) // intenção do autor (enviouEmail = resultado)
   enviouEmail      Boolean             @default(false)
+  agendadoPara     DateTime? // null = envio imediato
+  enviadoEm        DateTime? // momento do disparo efetivo (imediato ≈ criadoEm)
+  canceladoEm      DateTime? // agendamento cancelado antes do disparo
   criadoEm         DateTime            @default(now())
   destinatarios    AvisoDestinatario[]
 
   @@index([criadoEm])
+  @@index([agendadoPara, enviadoEm])
   @@map("aviso")
 }
 

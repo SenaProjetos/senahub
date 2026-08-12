@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ImagePlus, Mail, Megaphone, Monitor, Search, Trash2 } from "lucide-react";
+import { Clock, ImagePlus, Mail, Megaphone, Monitor, Search, Trash2 } from "lucide-react";
 import { criarAviso } from "@/modules/notificacoes/avisos/actions";
+import { validarAgendamentoAviso } from "@/modules/notificacoes/avisos/agendamento";
 import { ROLES, ROLE_LABELS, type Role } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +31,10 @@ export function AvisoGeralView({ usuarios }: { usuarios: UsuarioAlvo[] }) {
   const [busca, setBusca] = useState("");
   const [exigeConfirmacao, setExigeConfirmacao] = useState(true);
   const [enviarEmail, setEnviarEmail] = useState(false);
+  // Agendamento: `agendar` liga o campo; `quando` é o valor do datetime-local
+  // (horário LOCAL do navegador — convertido para ISO só no envio).
+  const [agendar, setAgendar] = useState(false);
+  const [quando, setQuando] = useState("");
   // Imagem opcional: `imagemPath` (persistido no storage) + preview local (objectURL).
   const [imagemPath, setImagemPath] = useState<string | null>(null);
   const [imagemPreview, setImagemPreview] = useState<string | null>(null);
@@ -36,6 +42,7 @@ export function AvisoGeralView({ usuarios }: { usuarios: UsuarioAlvo[] }) {
   const [modoPreview, setModoPreview] = useState<"sistema" | "email">("sistema");
   const [pending, start] = useTransition();
   const confirm = useConfirm();
+  const router = useRouter();
   const imagemRef = useRef<HTMLInputElement>(null);
 
   const tituloTrim = titulo.trim();
@@ -109,11 +116,26 @@ export function AvisoGeralView({ usuarios }: { usuarios: UsuarioAlvo[] }) {
     if (alvoTipo === "categoria" && rolesSel.size === 0) return toast.error("Selecione ao menos uma categoria.");
     if (alvoTipo === "usuarios" && usersSel.size === 0) return toast.error("Selecione ao menos um usuário.");
 
+    // Mesma regra do servidor, aplicada antes para não gastar uma ida ao servidor.
+    let agendadoParaISO: string | undefined;
+    if (agendar) {
+      if (!quando) return toast.error("Escolha a data e a hora do envio.");
+      const v = validarAgendamentoAviso(new Date(quando).toISOString());
+      if (!v.ok) return toast.error(v.erro);
+      agendadoParaISO = v.date.toISOString();
+    }
+    const quandoTexto = agendadoParaISO
+      ? new Date(agendadoParaISO).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })
+      : "";
+
     const ok = await confirm({
-      title: "Enviar aviso?",
-      description: `Destino: ${alvoLabel}. ${exigeConfirmacao ? "Exigirá confirmação de leitura." : "Sem confirmação de leitura."}`,
+      title: agendar ? "Agendar aviso?" : "Enviar aviso?",
+      description:
+        (agendar ? `Será enviado em ${quandoTexto}. ` : "") +
+        `Destino: ${alvoLabel}. ${exigeConfirmacao ? "Exigirá confirmação de leitura." : "Sem confirmação de leitura."}` +
+        (agendar ? " Os destinatários são apurados na hora do envio." : ""),
       variant: "default",
-      confirmLabel: "Enviar",
+      confirmLabel: agendar ? "Agendar" : "Enviar",
     });
     if (!ok) return;
 
@@ -128,18 +150,24 @@ export function AvisoGeralView({ usuarios }: { usuarios: UsuarioAlvo[] }) {
         exigeConfirmacao,
         enviarEmail,
         imagemPath: imagemPath ?? undefined,
+        agendadoPara: agendadoParaISO,
       });
       if (r.ok) {
         toast.success(
-          `Aviso enviado para ${r.data.total} usuário(s)` +
-            (r.data.comEmail ? ` · ${r.data.comEmail} e-mail(s)` : "") +
-            ".",
+          r.data.agendado
+            ? `Aviso agendado para ${quandoTexto} (~${r.data.total} destinatário(s)).`
+            : `Aviso enviado para ${r.data.total} usuário(s)` +
+                (r.data.comEmail ? ` · ${r.data.comEmail} e-mail(s)` : "") +
+                ".",
         );
         setTitulo("");
         setCorpo("");
         setRolesSel(new Set());
         setUsersSel(new Set());
+        setAgendar(false);
+        setQuando("");
         removerImagem();
+        router.refresh(); // atualiza as abas Agendados/Enviados
       } else toast.error(r.error);
     });
   }
@@ -326,6 +354,37 @@ export function AvisoGeralView({ usuarios }: { usuarios: UsuarioAlvo[] }) {
             </div>
           </div>
 
+          {/* Agendamento */}
+          <div className="space-y-2 rounded-sm border p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label className="text-sm font-medium">Agendar envio</Label>
+                <p className="text-xs text-muted-foreground">
+                  Em vez de enviar agora, dispara na data e hora escolhidas (até 90 dias).
+                </p>
+              </div>
+              <Switch checked={agendar} onCheckedChange={(v: boolean) => setAgendar(v)} />
+            </div>
+            {agendar && (
+              <div className="space-y-1.5">
+                <Label htmlFor="aviso-quando" className="text-xs text-muted-foreground">
+                  Data e hora do envio
+                </Label>
+                <Input
+                  id="aviso-quando"
+                  type="datetime-local"
+                  value={quando}
+                  onChange={(e) => setQuando(e.target.value)}
+                  className="max-w-60"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Os destinatários são apurados na hora do envio — quem entrar na equipe até lá também
+                  recebe. Dá para cancelar em &ldquo;Agendados&rdquo; enquanto não disparar.
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* Pré-visualização (como fica no sistema e no e-mail) */}
           <div data-tour="aviso-preview" className="space-y-2">
             <div className="flex items-center justify-between gap-2">
@@ -373,6 +432,9 @@ export function AvisoGeralView({ usuarios }: { usuarios: UsuarioAlvo[] }) {
                 </div>
                 <p className="mt-2 text-[11px] text-muted-foreground/70">
                   {alvoLabel} · {exigeConfirmacao ? "com confirmação" : "sem confirmação"}
+                  {agendar && quando
+                    ? ` · agendado para ${new Date(quando).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}`
+                    : ""}
                 </p>
               </div>
             ) : (
@@ -411,7 +473,14 @@ export function AvisoGeralView({ usuarios }: { usuarios: UsuarioAlvo[] }) {
           </div>
 
           <Button onClick={enviar} disabled={pending}>
-            <Megaphone className="size-3.5" /> {pending ? "Enviando…" : "Enviar aviso"}
+            {agendar ? <Clock className="size-3.5" /> : <Megaphone className="size-3.5" />}
+            {agendar
+              ? pending
+                ? "Agendando…"
+                : "Agendar aviso"
+              : pending
+                ? "Enviando…"
+                : "Enviar aviso"}
           </Button>
         </CardContent>
       </Card>

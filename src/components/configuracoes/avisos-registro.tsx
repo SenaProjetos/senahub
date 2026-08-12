@@ -11,6 +11,9 @@ export type AvisoRegistro = {
   id: string;
   titulo: string;
   criadoEm: string | Date;
+  /** Momento do disparo. Nos avisos antigos (antes do agendamento) = criadoEm. */
+  enviadoEm: string | Date | null;
+  agendadoPara: string | Date | null;
   autor: string;
   alvoTipo: string;
   alvoRoles: string[];
@@ -76,7 +79,10 @@ export function AvisosRegistro({ avisos }: { avisos: AvisoRegistro[] }) {
                   <span className="ml-1 text-xs text-muted-foreground">({pct}%)</span>
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
-                  {formatarDataHora(new Date(a.criadoEm))}
+                  {formatarDataHora(new Date(a.enviadoEm ?? a.criadoEm))}
+                  {a.agendadoPara && (
+                    <span className="block text-[11px] text-muted-foreground/70">agendado</span>
+                  )}
                 </TableCell>
                 <TableCell>
                   <ChevronRight className="size-4 text-muted-foreground" />

@@ -20,6 +20,8 @@ export const criarAvisoSchema = z
     exigeConfirmacao: z.boolean().default(true),
     enviarEmail: z.boolean().default(false),
     imagemPath: z.string().optional(),
+    /** ISO do envio programado. Ausente/vazio = envia na hora. */
+    agendadoPara: z.string().optional().or(z.literal("")),
   })
   .refine((v) => v.alvoTipo !== "categoria" || v.alvoRoles.length > 0, {
     message: "Selecione ao menos uma categoria.",

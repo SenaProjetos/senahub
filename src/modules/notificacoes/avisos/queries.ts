@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { statusAviso } from "./agendamento";
 
 export type AvisoPendente = {
   avisoId: string;
@@ -39,7 +40,12 @@ export async function avisosPendentes(userId: string): Promise<AvisoPendente[]> 
   }));
 }
 
-/** Lista de avisos enviados com contagem de confirmações (registro admin). */
+/**
+ * Registro de avisos (enviados, agendados e cancelados) com contagem de
+ * confirmações. Um aviso agendado ainda não tem destinatários — o alvo só é
+ * resolvido no disparo —, então `total`/`confirmados` vêm zerados de propósito e
+ * a UI separa pelo `status`.
+ */
 export async function listarAvisos() {
   const [avisos, confirmados] = await Promise.all([
     prisma.aviso.findMany({
@@ -61,11 +67,16 @@ export async function listarAvisos() {
     titulo: a.titulo,
     corpo: a.corpo,
     criadoEm: a.criadoEm,
+    agendadoPara: a.agendadoPara,
+    enviadoEm: a.enviadoEm,
+    canceladoEm: a.canceladoEm,
+    status: statusAviso(a),
     autor: a.criadoPor.name,
     alvoTipo: a.alvoTipo,
     alvoRoles: a.alvoRoles,
     exigeConfirmacao: a.exigeConfirmacao,
     enviouEmail: a.enviouEmail,
+    emailSolicitado: a.emailSolicitado,
     total: a._count.destinatarios,
     confirmados: mapaConf.get(a.id) ?? 0,
   }));

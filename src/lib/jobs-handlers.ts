@@ -47,6 +47,7 @@ import { executarConversaoDwg } from "@/modules/dwg/conversao";
 import { removerArquivo } from "@/lib/storage";
 import { limitePurga } from "@/modules/uploads/lixeira";
 import { executarImportacaoCusto } from "@/modules/custos/composicoes/service";
+import { dispatcharAviso } from "@/modules/notificacoes/avisos/service";
 import { Prisma } from "@/generated/prisma/client";
 
 /** Rotinas das automações (chamadas pelos jobs do pg-boss em lib/jobs.ts). */
@@ -1284,6 +1285,41 @@ export async function purgarLixeiraArquivos(): Promise<number> {
     }
   }
   return removidos;
+}
+
+/**
+ * Dispara os avisos gerais cuja hora agendada já passou.
+ *
+ * Cada aviso é CLAIMADO (updateMany condicional em `enviadoEm: null`) antes do
+ * fan-out: o disparo pode demorar mais que o intervalo do tick (o envio de e-mail
+ * é sequencial por destinatário) e um segundo tick não pode reenviar um modal
+ * bloqueante para a empresa inteira. Devolve quantos foram disparados.
+ */
+export async function dispararAvisosAgendados(): Promise<number> {
+  const vencidos = await prisma.aviso.findMany({
+    where: { agendadoPara: { lte: new Date() }, enviadoEm: null, canceladoEm: null },
+    select: { id: true },
+    orderBy: { agendadoPara: "asc" },
+    take: 20,
+  });
+  if (vencidos.length === 0) return 0;
+
+  let disparados = 0;
+  for (const { id } of vencidos) {
+    const { count } = await prisma.aviso.updateMany({
+      where: { id, enviadoEm: null, canceladoEm: null },
+      data: { enviadoEm: new Date() },
+    });
+    if (count !== 1) continue; // outro tick pegou primeiro, ou foi cancelado no meio
+    try {
+      await dispatcharAviso(id);
+      disparados++;
+    } catch (err) {
+      // Fica marcado como enviado de propósito: reenviar arriscaria dobrar o modal.
+      console.error(`[avisos] falha ao disparar o aviso agendado ${id}:`, err);
+    }
+  }
+  return disparados;
 }
 
 export async function limparFragsOrfaos(): Promise<number> {

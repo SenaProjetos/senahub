@@ -2,6 +2,11 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ROLES, type Role } from "@/lib/roles";
+import { notificarMuitos } from "@/lib/notificar";
+import { emitParaUsuario } from "@/lib/socket";
+import { enviarEmail, smtpConfigurado, type EmailAnexo } from "@/lib/mail";
+import { renderTemplate } from "@/lib/email-templates";
+import { lerArquivo, existeArquivo } from "@/lib/storage";
 import type { CriarAvisoInput } from "./schemas";
 
 type AlvoInput = Pick<
@@ -41,4 +46,82 @@ export async function resolverDestinatarios(
     select: { id: true },
   });
   return users.map((u) => u.id).filter((id) => id !== autorId);
+}
+
+/**
+ * Entrega de fato um aviso já persistido: resolve o alvo AGORA, cria as linhas de
+ * destinatário, dispara sino/push, empurra o modal aos que estão online e envia o
+ * e-mail opcional. Compartilhado por `criarAviso` (envio imediato) e pelo job
+ * `dispararAvisosAgendados` — por isso mora aqui e não em actions.ts.
+ *
+ * Idempotente do lado dos destinatários (`skipDuplicates`); quem controla o
+ * "só uma vez" é a marcação de `enviadoEm` feita pelo chamador ANTES de chamar.
+ */
+export async function dispatcharAviso(
+  avisoId: string,
+): Promise<{ total: number; comEmail: number }> {
+  const aviso = await prisma.aviso.findUnique({ where: { id: avisoId } });
+  if (!aviso) return { total: 0, comEmail: 0 };
+
+  const destinatarios = await resolverDestinatarios(
+    {
+      alvoTipo: aviso.alvoTipo,
+      alvoRoles: aviso.alvoRoles,
+      userIds: aviso.alvoUserIds,
+      incluirClientes: aviso.incluirClientes,
+    },
+    aviso.criadoPorId,
+  );
+  if (destinatarios.length === 0) return { total: 0, comEmail: 0 };
+
+  await prisma.avisoDestinatario.createMany({
+    data: destinatarios.map((userId) => ({ avisoId, userId })),
+    skipDuplicates: true,
+  });
+
+  // Sino + Web Push interno (reusa a fan-out existente).
+  await notificarMuitos(destinatarios, {
+    titulo: aviso.titulo,
+    corpo: aviso.corpo || undefined,
+    href: "/",
+    tag: `aviso-${aviso.id}`,
+  });
+
+  // Modal ao vivo para quem está online (offline pega no próximo login).
+  for (const userId of destinatarios) {
+    emitParaUsuario(userId, "aviso-novo", { avisoId: aviso.id });
+  }
+
+  // E-mail opcional aos destinatários com endereço.
+  let comEmail = 0;
+  if (aviso.emailSolicitado && smtpConfigurado()) {
+    const users = await prisma.user.findMany({
+      where: { id: { in: destinatarios }, email: { not: "" } },
+      select: { email: true },
+    });
+    const tpl = await renderTemplate("aviso-geral", {
+      titulo: aviso.titulo,
+      corpo: aviso.corpo || "",
+    });
+
+    // Imagem inline (CID): anexo referenciado no HTML — funciona em qualquer cliente,
+    // sem depender de URL pública. Lida uma vez e reusada em todos os destinatários.
+    let html = tpl.html;
+    let anexos: EmailAnexo[] | undefined;
+    if (aviso.imagemPath && (await existeArquivo(aviso.imagemPath))) {
+      const buf = await lerArquivo(aviso.imagemPath);
+      anexos = [{ filename: "aviso.jpg", content: buf, contentType: "image/jpeg", cid: "aviso-imagem" }];
+      html += `<p style="margin-top:16px"><img src="cid:aviso-imagem" alt="" style="max-width:100%;height:auto;border-radius:8px" /></p>`;
+    }
+
+    for (const u of users) {
+      const ok = await enviarEmail({ to: u.email, subject: tpl.assunto, html, attachments: anexos });
+      if (ok) comEmail++;
+    }
+    if (comEmail > 0) {
+      await prisma.aviso.update({ where: { id: aviso.id }, data: { enviouEmail: true } });
+    }
+  }
+
+  return { total: destinatarios.length, comEmail };
 }

@@ -376,8 +376,8 @@
       "path": "sistema/configuracoes.md",
       "descricao": "Central de administração — usuários, permissões, parâmetros de folha, projetos, licitações, funil e avisos, além do status das integrações.",
       "resumo": "Hub administrativo com cadastros e parâmetros do sistema e o status das integrações on-premise (SMTP/push).",
-      "tags": ["configurações", "administração", "usuários", "permissões", "encargos", "feriados", "licitações", "funil", "avisos", "integrações"],
-      "palavrasChave": ["configurações", "administração", "usuários", "permissões", "matriz", "encargos", "inss", "irrf", "feriados", "modalidades", "habilitação", "funil", "aviso geral", "smtp", "push"],
+      "tags": ["configurações", "administração", "usuários", "permissões", "encargos", "feriados", "licitações", "funil", "avisos", "agendamento", "integrações"],
+      "palavrasChave": ["configurações", "administração", "usuários", "permissões", "matriz", "encargos", "inss", "irrf", "feriados", "modalidades", "habilitação", "funil", "aviso geral", "agendar aviso", "aviso agendado", "comunicado programado", "smtp", "push"],
       "sinonimos": ["admin", "ajustes do sistema", "parâmetros", "settings"]
     },
     {

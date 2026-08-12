@@ -30,6 +30,7 @@ npm run seed:demo             # demo dataset (wipes business data, recreates; de
 npm run admin:reset-senha     # reset admin senha → SenaHub@2026 + force change
 npm run smoke:onda1|onda2|onda3|onda3efg|onda4|onda5   # e2e smokes against the dev DB
 npm run smoke:inputs-link     # link público de inputs: janela da notificação, revogação, expiração
+npm run smoke:aviso-agendado  # aviso agendado: disparo do tick, claim anti-duplicata, cancelamento
 ```
 
 - **Dev helper (Windows):** `dev.bat` (raiz) → *Central do Desenvolvedor* (`dev/gerenciar-dev.bat` + `.ps1`),

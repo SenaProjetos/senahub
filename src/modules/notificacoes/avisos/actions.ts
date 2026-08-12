@@ -1,21 +1,22 @@
 "use server";
 
+import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { notificarMuitos } from "@/lib/notificar";
-import { emitParaUsuario } from "@/lib/socket";
-import { enviarEmail, smtpConfigurado, type EmailAnexo } from "@/lib/mail";
-import { renderTemplate } from "@/lib/email-templates";
-import { lerArquivo, existeArquivo } from "@/lib/storage";
 import { criarAvisoSchema } from "./schemas";
-import { resolverDestinatarios, rolesValidas } from "./service";
+import { resolverDestinatarios, rolesValidas, dispatcharAviso } from "./service";
+import { validarAgendamentoAviso } from "./agendamento";
 import { avisosPendentes } from "./queries";
 
 /**
- * Cria um aviso geral direcionado. Persiste o aviso + 1 linha por destinatário,
- * dispara sino/push, emite o modal ao vivo (socket) e, opcionalmente, e-mail.
- * Substitui o antigo `enviarAvisoGeral` (só sino/push, sem confirmação).
+ * Cria um aviso geral direcionado — imediato ou agendado (`agendadoPara`).
+ *
+ * Imediato: persiste o aviso já marcado como enviado e dispara na hora
+ * (destinatários + sino/push + modal ao vivo + e-mail opcional).
+ * Agendado: persiste só o aviso com o alvo; o job `avisos-agendados` resolve os
+ * destinatários e dispara na hora marcada — por isso nenhum AvisoDestinatario é
+ * criado antes, o que também impede o modal de vazar antes do tempo.
  */
 export const criarAviso = defineAction(
   {
@@ -28,10 +29,16 @@ export const criarAviso = defineAction(
     entidadeId: (data) => (data as { id?: string }).id,
   },
   async (i, ctx) => {
-    const destinatarios = await resolverDestinatarios(i, ctx.user.id);
-    if (destinatarios.length === 0) {
+    // Prévia do alvo: falha cedo (e informa o tamanho) mesmo no agendamento, ainda
+    // que a lista definitiva só seja resolvida no disparo.
+    const previa = await resolverDestinatarios(i, ctx.user.id);
+    if (previa.length === 0) {
       throw new ActionError("Nenhum destinatário para o alvo escolhido.");
     }
+
+    const agendamento = i.agendadoPara ? validarAgendamentoAviso(i.agendadoPara) : null;
+    if (agendamento && !agendamento.ok) throw new ActionError(agendamento.erro);
+    const quando = agendamento?.ok ? agendamento.date : null;
 
     const aviso = await prisma.aviso.create({
       data: {
@@ -41,56 +48,49 @@ export const criarAviso = defineAction(
         criadoPorId: ctx.user.id,
         alvoTipo: i.alvoTipo,
         alvoRoles: i.alvoTipo === "categoria" ? rolesValidas(i.alvoRoles) : [],
+        alvoUserIds: i.alvoTipo === "usuarios" ? i.userIds : [],
+        incluirClientes: i.incluirClientes,
         exigeConfirmacao: i.exigeConfirmacao,
-        destinatarios: { create: destinatarios.map((userId) => ({ userId })) },
+        emailSolicitado: i.enviarEmail,
+        agendadoPara: quando,
+        enviadoEm: quando ? null : new Date(),
       },
     });
 
-    // Sino + Web Push interno (reusa a fan-out existente).
-    await notificarMuitos(destinatarios, {
-      titulo: i.titulo,
-      corpo: i.corpo || undefined,
-      href: "/",
-      tag: `aviso-${aviso.id}`,
+    if (quando) {
+      return {
+        id: aviso.id,
+        agendado: true as const,
+        agendadoPara: quando.toISOString(),
+        total: previa.length,
+        comEmail: 0,
+      };
+    }
+
+    const r = await dispatcharAviso(aviso.id);
+    return { id: aviso.id, agendado: false as const, agendadoPara: null, ...r };
+  },
+);
+
+/** Cancela um aviso agendado antes do disparo (não desfaz aviso já enviado). */
+export const cancelarAvisoAgendado = defineAction(
+  {
+    modulo: "configuracoes",
+    recurso: "avisos",
+    permissao: "enviar",
+    acao: "cancelar-aviso-agendado",
+    entidade: "Aviso",
+    schema: z.object({ id: z.string().min(1) }),
+    entidadeId: (data) => (data as { id?: string }).id,
+    capturarAntes: async (input) => prisma.aviso.findUnique({ where: { id: input.id } }),
+  },
+  async (i) => {
+    const { count } = await prisma.aviso.updateMany({
+      where: { id: i.id, enviadoEm: null, canceladoEm: null },
+      data: { canceladoEm: new Date() },
     });
-
-    // Modal ao vivo para quem está online (offline pega no próximo login).
-    for (const userId of destinatarios) {
-      emitParaUsuario(userId, "aviso-novo", { avisoId: aviso.id });
-    }
-
-    // E-mail opcional aos destinatários com endereço.
-    let comEmail = 0;
-    if (i.enviarEmail && smtpConfigurado()) {
-      const users = await prisma.user.findMany({
-        where: { id: { in: destinatarios }, email: { not: "" } },
-        select: { email: true },
-      });
-      const tpl = await renderTemplate("aviso-geral", {
-        titulo: i.titulo,
-        corpo: i.corpo || "",
-      });
-
-      // Imagem inline (CID): anexo referenciado no HTML — funciona em qualquer cliente,
-      // sem depender de URL pública. Lida uma vez e reusada em todos os destinatários.
-      let html = tpl.html;
-      let anexos: EmailAnexo[] | undefined;
-      if (i.imagemPath && (await existeArquivo(i.imagemPath))) {
-        const buf = await lerArquivo(i.imagemPath);
-        anexos = [{ filename: "aviso.jpg", content: buf, contentType: "image/jpeg", cid: "aviso-imagem" }];
-        html += `<p style="margin-top:16px"><img src="cid:aviso-imagem" alt="" style="max-width:100%;height:auto;border-radius:8px" /></p>`;
-      }
-
-      for (const u of users) {
-        const ok = await enviarEmail({ to: u.email, subject: tpl.assunto, html, attachments: anexos });
-        if (ok) comEmail++;
-      }
-      if (comEmail > 0) {
-        await prisma.aviso.update({ where: { id: aviso.id }, data: { enviouEmail: true } });
-      }
-    }
-
-    return { id: aviso.id, total: destinatarios.length, comEmail };
+    if (count !== 1) throw new ActionError("Este aviso já foi enviado ou cancelado.");
+    return { id: i.id };
   },
 );
 

@@ -2,8 +2,8 @@
 titulo: Configurações (administração)
 descricao: Central de administração — usuários, permissões, parâmetros de folha, projetos, licitações, funil e avisos, além do status das integrações.
 resumo: Hub administrativo com cadastros e parâmetros do sistema (usuários, permissões, encargos, documentos/inputs padrão, feriados, licitações, funil) e o status das integrações on-premise (SMTP/push).
-tags: [configurações, administração, usuários, permissões, encargos, feriados, licitações, funil, avisos, integrações]
-palavras-chave: [configurações, administração, usuários, permissões, matriz, encargos, inss, irrf, feriados, modalidades, habilitação, funil, aviso geral, smtp, push]
+tags: [configurações, administração, usuários, permissões, encargos, feriados, licitações, funil, avisos, agendamento, integrações]
+palavras-chave: [configurações, administração, usuários, permissões, matriz, encargos, inss, irrf, feriados, modalidades, habilitação, funil, aviso geral, agendar aviso, aviso agendado, comunicado programado, smtp, push]
 sinonimos: [admin, ajustes do sistema, parâmetros, settings]
 ---
 
@@ -40,7 +40,14 @@ lugar.
 - **Etapas do funil** — estágios do pipeline comercial (criar/editar/ativar/desativar).
 
 ### Sistema
-- **Aviso geral** — enviar um comunicado (**sino + push**) a todos os usuários.
+- **Aviso geral** — enviar um comunicado (**modal em tela cheia + sino/push** e, se quiser,
+  **e-mail**) para todos, por categoria de perfil ou por nome. Pode **exigir confirmação de
+  leitura** e levar uma **imagem**.
+  - **Agendar envio** — em vez de disparar na hora, escolha data e hora (até **90 dias**).
+    O aviso fica na aba **Agendados** e pode ser **cancelado** enquanto não disparar.
+    Os destinatários são apurados **no momento do envio** — quem entrar na equipe até lá
+    também recebe.
+  - A aba **Enviados** mostra o registro com **quantos confirmaram** a leitura.
 
 ### Integrações (somente leitura)
 - **E-mail (SMTP)** e **Web Push (VAPID)** mostram se estão **configurados**. O sistema é
@@ -62,3 +69,9 @@ lugar.
 
 **Por que não consigo enviar um Aviso geral mesmo sendo supervisor?** O envio de avisos
 pode estar restrito ao admin (ver pendência na deliberação da seção).
+
+**Agendei um aviso e a hora passou sem enviar.** O disparo depende do serviço de tarefas do
+servidor. Se ele estiver parado, o aviso continua na fila e sai assim que o serviço voltar —
+nada é perdido. Verifique também se o envio não foi **cancelado** na aba Agendados.
+
+**Dá para editar um aviso agendado?** Não. **Cancele** e crie outro com o texto corrigido.

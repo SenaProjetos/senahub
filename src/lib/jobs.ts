@@ -16,6 +16,7 @@ import {
   processarMensagemAgendada,
   processarImportacaoCusto,
   alertasPrazoApontamento,
+  dispararAvisosAgendados,
 } from "@/lib/jobs-handlers";
 import {
   alertasPrazoDisciplina,
@@ -318,6 +319,17 @@ export async function startJobs(): Promise<PgBoss> {
       handler: async () => {
         const n = await alertasPrazoApontamento();
         if (n > 0) console.log(`[apontamentos] ${n} pessoa(s) avisada(s) sobre prazo.`);
+      },
+    },
+    {
+      // Varredura (em vez de boss.send com startAfter): o aviso agendado fica
+      // visível e cancelável no registro até a hora marcada. Sem worker — ou seja,
+      // sob `npm run dev` — o agendamento simplesmente não dispara.
+      fila: "avisos-agendados",
+      cron: "* * * * *", // a cada minuto: o usuário escolhe hora:minuto, respeite o minuto
+      handler: async () => {
+        const n = await dispararAvisosAgendados();
+        if (n > 0) console.log(`[avisos] ${n} aviso(s) agendado(s) disparado(s).`);
       },
     },
     {
