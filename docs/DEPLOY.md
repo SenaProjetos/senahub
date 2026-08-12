@@ -138,10 +138,12 @@ executável externo, **não** um pacote npm. Ele não vem com o projeto e precis
 Em um PowerShell **como Administrador**:
 
 ```powershell
-cd F:\SenaHub\app
-.\scripts\instalar-servico.ps1 -Port 3000        # use -NssmPath "C:\nssm\nssm.exe" se não estiver no PATH
+powershell -NoProfile -ExecutionPolicy Bypass -File "F:\SenaHub\app\scripts\instalar-servico.ps1" -Port 3000
 Start-Service SenaHub
 ```
+> Use `-NssmPath "C:\nssm\nssm.exe"` se o nssm não estiver no PATH. O `-ExecutionPolicy Bypass`
+> não é opcional: a política padrão do Windows recusa rodar `.ps1` de arquivo, e ela vale **por
+> processo** — nada na máquina é alterado. Vale para todos os `.ps1` deste runbook.
 Teste local: abra `http://localhost:3000` no servidor. Logs em `F:\SenaHub\app\logs`.
 
 ---
@@ -266,11 +268,21 @@ mesma sequência da opção 10 do menu (git pull → build → backup → migrat
 nenhuma pergunta interativa — pensado pra rodar sozinho via Windows Task Scheduler. Só mexe no
 serviço se houver commit novo em `master`; em noites sem mudança, sai sem downtime nenhum.
 
+**Pré-requisito — libere o repositório para o SYSTEM:**
+```powershell
+git config --system --add safe.directory F:/Senahub/app
+```
+A tarefa roda como **SYSTEM**, e o git recusa repositório de outro dono (*"detected dubious
+ownership"*). Sem isso o deploy automático morre no primeiro comando git, toda noite. Tem que ser
+`--system` (vale para todos os usuários) — `--global` só valeria para quem digitou o comando, que é
+justamente quem não tem o problema.
+
 **Instalar (uma vez, como Administrador):**
 ```powershell
-cd F:\SenaHub\app
-.\deploy\instalar-tarefa-atualizacao.ps1        # agenda para 03:30; use -Hora "04:00" p/ outro horário
+powershell -NoProfile -ExecutionPolicy Bypass -File "F:\SenaHub\app\deploy\instalar-tarefa-atualizacao.ps1"
 ```
+Agenda para 03:30; acrescente `-Hora "04:00"` no fim para outro horário. A tarefa registrada já
+chama o PowerShell com `-ExecutionPolicy Bypass`, então ela roda sem depender da política da máquina.
 
 **Testar antes de confiar (não espere o horário agendado):**
 ```powershell
@@ -280,10 +292,19 @@ Get-ScheduledTaskInfo -TaskName "SenaHub - Deploy Automatico"   # LastTaskResult
 Depois, confira `logs\deploy-automatico.log` (saída completa de cada passo) e
 `logs\menu-audit.log` (uma linha-resumo por execução).
 
+> ⚠️ **Esse `Start-ScheduledTask` não é um ensaio.** Se houver commit novo, ele para o serviço,
+> reconstrói e reinicia de verdade — site fora do ar por alguns minutos. Dispare num horário que
+> você aceite isso. Sem commit novo, ele sai em segundos sem tocar no serviço.
+
 **Aviso por e-mail:** se `SMTP_HOST` estiver preenchido no `.env`, cada execução manda um e-mail
 (sucesso ou falha) para `DEPLOY_NOTIFY_EMAIL` (ou o admin padrão, se vazio) via
 `scripts/notificar-deploy.ts`. Sem SMTP configurado, ele só loga e segue em frente — nunca trava
 o deploy.
+
+> ⚠️ **Falha noturna deixa o site parado.** Se `npm ci`, build, backup ou migration falharem, o
+> deploy aborta e **não** reverte: o serviço fica parado de propósito, para não subir algo meio
+> construído. Às 03:30 isso significa fora do ar até alguém ver. Confirme que o SMTP acima funciona
+> **antes** de confiar na automação — sem ele, a falha é silenciosa.
 
 **Fluxo de PR (opcional, recomendado se for automatizar sem supervisão):** o GitHub não deixa o
 autor de um PR aprovar o próprio PR, e este repositório é mantido por uma única pessoa — então o
@@ -315,8 +336,7 @@ dotnet publish -c Release -r win-x64 --self-contained false -o publish
 
 **Instalar o início automático (uma vez, como Administrador):**
 ```powershell
-cd F:\SenaHub\app
-.\deploy\instalar-monitor-bandeja.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File "F:\SenaHub\app\deploy\instalar-monitor-bandeja.ps1"
 ```
 
 Depois disso, o SenaHub Manager sobe sozinho (elevado, sem UAC) toda vez que o

@@ -132,8 +132,7 @@ O serviço NSSM aponta pro diretório antigo (`F:`). Recrie a partir do SSD:
 # como Administrador
 Stop-Service SenaHub -ErrorAction SilentlyContinue
 nssm remove SenaHub confirm          # ou: sc.exe delete SenaHub
-cd C:\SenaHub\app
-.\scripts\instalar-servico.ps1 -Port 3000    # registra Application/AppDirectory no novo path
+powershell -NoProfile -ExecutionPolicy Bypass -File "C:\SenaHub\app\scripts\instalar-servico.ps1" -Port 3000
 Start-Service SenaHub
 Start-Service cloudflared             # se foi parado no passo 2
 ```
@@ -161,8 +160,7 @@ Se algo falhar no cutover:
 ```powershell
 Stop-Service SenaHub
 nssm remove SenaHub confirm
-cd F:\SenaHub\app                    # volta pro path antigo (HDD)
-.\scripts\instalar-servico.ps1 -Port 3000
+powershell -NoProfile -ExecutionPolicy Bypass -File "F:\SenaHub\app\scripts\instalar-servico.ps1" -Port 3000
 Start-Service SenaHub
 ```
 Dados intactos: o banco e o storage nunca foram movidos.
