@@ -831,24 +831,163 @@ function Invoke-Notificacao {
     }
 }
 
+function Get-ToplevelGit {
+    # Raiz do repositorio SEGUNDO O GIT, normalizada para separador do Windows. Serve para
+    # provar no log que o status rodou no checkout certo - a tarefa agendada roda como
+    # SYSTEM, cujo diretorio inicial e C:\Windows\system32, e um dia isso vai importar.
+    $t = git -C $AppRoot rev-parse --show-toplevel 2>$null | Select-Object -First 1
+    if (-not $t) { return $null }
+    return [System.IO.Path]::GetFullPath($t.Trim().Replace("/", "\"))
+}
+
+function Get-EstadoGit {
+    # Estado do working tree com o exit code SEPARADO da saida.
+    #
+    # De proposito sem '2>&1': em PS 5.1, com $ErrorActionPreference='Stop', mesclar o
+    # stderr de um .exe vira NativeCommandError e o motivo real (ex.: "detected dubious
+    # ownership") sumiria atras de uma excecao generica. Com o codigo na mao da para
+    # separar "o git falhou" de "a arvore esta suja" - dois problemas muito diferentes
+    # que o log antigo reportava com a MESMA frase.
+    $linhas = @(git -C $AppRoot status --porcelain)
+    $codigo = $LASTEXITCODE
+    return [PSCustomObject]@{
+        Ok     = ($codigo -eq 0)
+        Codigo = $codigo
+        Linhas = $linhas
+        Sujo   = (($codigo -eq 0) -and (@($linhas).Count -gt 0))
+    }
+}
+
+function Format-ResumoSujeira {
+    # Detalhe de UMA linha para o menu-audit.log. O AuditLogParser da GUI faz
+    # Split(" | ", 4) linha a linha, entao o detalhe nao pode conter quebra de linha
+    # (viraria uma segunda linha orfa) nem " | " (deslocaria os campos). A saida
+    # COMPLETA vai para o deploy-automatico.log, que nao tem esse contrato.
+    param([string[]]$Linhas, [int]$Max = 5)
+    $todas = @($Linhas)
+    $amostra = $todas | Select-Object -First $Max | ForEach-Object {
+        (($_ -replace "[\r\n]+", " ") -replace " \| ", " / ").Trim()
+    }
+    $texto = ($amostra -join "; ")
+    if ($todas.Count -gt $Max) { $texto += "; +$($todas.Count - $Max) outro(s)" }
+    if ($texto.Length -gt 400) { $texto = $texto.Substring(0, 397) + "..." }
+    return "$($todas.Count) entrada(s): $texto"
+}
+
+function Invoke-VerificarDeploy {
+    # Pre-voo do deploy automatico ISOLADO: so le. Nao para servico, nao puxa codigo,
+    # nao roda build, nao notifica. Existe para reproduzir um "git status sujo" com o
+    # MESMO usuario da tarefa agendada (SYSTEM) e ver a saida exata, sem arriscar
+    # producao. Como SYSTEM, rode elevado:
+    #   schtasks /create /tn "SenaHub - Verificar Deploy" /ru SYSTEM /sc once /st 00:00 ^
+    #     /tr "powershell -NoProfile -ExecutionPolicy Bypass -File F:\SenaHub\app\deploy\gerenciar-servidor.ps1 -Acao VerificarDeploy"
+    #   schtasks /run /tn "SenaHub - Verificar Deploy"  &&  schtasks /delete /tn "SenaHub - Verificar Deploy" /f
+    Push-Location -LiteralPath $AppRoot
+    try {
+        $topo = Get-ToplevelGit
+        Write-Host ""
+        Write-Host "---- Pre-voo do deploy automatico (somente leitura) ----" -ForegroundColor Cyan
+        Write-Host ("  usuario : {0}" -f $env:USERNAME)
+        Write-Host ("  cwd     : {0}" -f (Get-Location).Path)
+        Write-Host ("  AppRoot : {0}" -f $AppRoot)
+        Write-Host ("  toplevel: {0}" -f $(if ($topo) { $topo } else { "(git nao respondeu)" }))
+
+        $estado = Get-EstadoGit
+        $branch = Get-BranchAtual
+        Write-Host ("  branch  : {0} (producao: {1})" -f $branch, $BranchProducao)
+        Write-Host ""
+
+        $problemas = @()
+        if (-not $topo) {
+            $problemas += "git nao devolveu o toplevel"
+            Write-Host "[ERRO] 'git rev-parse --show-toplevel' nao respondeu." -ForegroundColor Red
+        } elseif ($topo.TrimEnd("\") -ne ([System.IO.Path]::GetFullPath($AppRoot)).TrimEnd("\")) {
+            $problemas += "toplevel != AppRoot"
+            Write-Host "[ERRO] O git respondeu por OUTRO repositorio: $topo" -ForegroundColor Red
+        }
+
+        if (-not $estado.Ok) {
+            $problemas += "git status exit=$($estado.Codigo)"
+            Write-Host "[ERRO] 'git status --porcelain' falhou (exit $($estado.Codigo))." -ForegroundColor Red
+            Write-Host "       Erro do git logo acima. Suspeito numero 1 rodando como SYSTEM:" -ForegroundColor Yellow
+            Write-Host "       'dubious ownership' -> git config --system --add safe.directory $AppRoot" -ForegroundColor Yellow
+        } elseif ($estado.Sujo) {
+            $problemas += "arvore suja"
+            Write-Host "[ERRO] Working tree SUJO - o deploy automatico abortaria aqui." -ForegroundColor Red
+            Write-Host "       Saida completa de 'git status --porcelain':" -ForegroundColor Yellow
+            foreach ($l in $estado.Linhas) { Write-Host "         $l" }
+        } else {
+            Write-Host "[OK] Working tree limpo." -ForegroundColor Green
+        }
+
+        if ($branch -ne $BranchProducao) {
+            $problemas += "branch=$branch"
+            Write-Host "[ERRO] Checkout em '$branch', esperado '$BranchProducao'." -ForegroundColor Red
+        }
+
+        Write-Host ""
+        if ($problemas.Count -eq 0) {
+            $detalhe = "OK (branch=$branch, arvore limpa)"
+            Write-Host "[OK] Pre-voo limpo - o deploy automatico passaria deste ponto." -ForegroundColor Green
+        } else {
+            $detalhe = "PROBLEMAS: " + ($problemas -join "; ")
+            if ($estado.Sujo) { $detalhe += " - " + (Format-ResumoSujeira -Linhas $estado.Linhas) }
+            Write-Host "[FALHOU] O deploy automatico abortaria: $($problemas -join '; ')" -ForegroundColor Red
+        }
+
+        Write-DeployLog "VerificarDeploy (usuario=$env:USERNAME): $detalhe"
+        if ($estado.Sujo) {
+            foreach ($l in $estado.Linhas) { Write-DeployLog "  $l" }
+        }
+        Write-Audit -AcaoNome "VerificarDeploy" -Detalhe $detalhe
+    } finally {
+        Pop-Location
+    }
+}
+
 function Invoke-DeployAutomatico {
     # Variante NAO INTERATIVA de Invoke-DeployCompleto, para rodar via Windows Task
     # Scheduler (sem ninguem para responder Confirm-Typed). Roda todo santo dia, mas
     # so para/rebuilda/reinicia o servico se houver commit novo em origin/master - nas
     # noites sem mudanca, sai cedo sem downtime nenhum.
-    Push-Location $AppRoot
+    Push-Location -LiteralPath $AppRoot
     $inicio = Get-Date
     $logPath = Join-Path $LogsDir "deploy-automatico.log"
     try {
         Write-DeployLog "===== INICIO deploy automatico ====="
 
+        # Contexto de TODA execucao (nao so das que abortam): em 12 e 13/08/2026 o deploy
+        # abortou com "git status sujo" as 04:00 e de manha a arvore estava limpa, sem
+        # nenhuma pista no log de QUAL arquivo sujou nem de ONDE o git rodou. Sem acesso
+        # interativo ao servidor na hora, nao havia como diagnosticar. Agora ha.
+        $topoGit = Get-ToplevelGit
+        Write-DeployLog "Contexto: usuario=$env:USERNAME cwd=$((Get-Location).Path) AppRoot=$AppRoot toplevel=$(if ($topoGit) { $topoGit } else { '(git nao respondeu)' })"
+
+        if (-not $topoGit -or $topoGit.TrimEnd("\") -ne ([System.IO.Path]::GetFullPath($AppRoot)).TrimEnd("\")) {
+            Write-DeployLog "ABORTADO: o git nao respondeu pelo repositorio esperado (toplevel='$topoGit', esperado='$AppRoot')."
+            Invoke-Notificacao -Status "falhou" -Detalhe "O deploy automatico rodou fora do checkout esperado (git respondeu por '$topoGit'). Servico NAO foi tocado."
+            Write-Audit -AcaoNome "DeployAutomatico" -Detalhe "ABORTADO: toplevel inesperado ($topoGit)"
+            return
+        }
+
         $commitAntes = (git rev-parse HEAD).Trim()
 
-        $statusGit = git status --porcelain
-        if ($statusGit) {
-            Write-DeployLog "ABORTADO: ha mudancas locais nao commitadas."
-            Invoke-Notificacao -Status "falhou" -Detalhe "Mudancas locais nao commitadas impediram o deploy automatico. Servico NAO foi tocado."
-            Write-Audit -AcaoNome "DeployAutomatico" -Detalhe "ABORTADO: git status sujo"
+        $estadoGit = Get-EstadoGit
+        if (-not $estadoGit.Ok) {
+            # Git falhou de verdade (repo quebrado, permissao, 'dubious ownership' rodando
+            # como SYSTEM). Antes isso caia no mesmo aviso de "sujo" e mandava investigar
+            # arquivo nenhum.
+            Write-DeployLog "ABORTADO: 'git status --porcelain' falhou (exit $($estadoGit.Codigo)). Rode '-Acao VerificarDeploy' como SYSTEM para ver o erro do git."
+            Invoke-Notificacao -Status "falhou" -Detalhe "O comando 'git status' falhou no servidor (exit $($estadoGit.Codigo)). Deploy automatico abortado; servico NAO foi tocado."
+            Write-Audit -AcaoNome "DeployAutomatico" -Detalhe "ABORTADO: git status falhou (exit $($estadoGit.Codigo))"
+            return
+        }
+        if ($estadoGit.Sujo) {
+            $resumoSujeira = Format-ResumoSujeira -Linhas $estadoGit.Linhas
+            Write-DeployLog "ABORTADO: ha mudancas locais nao commitadas. Saida completa de 'git status --porcelain':"
+            foreach ($linhaStatus in $estadoGit.Linhas) { Write-DeployLog "  $linhaStatus" }
+            Invoke-Notificacao -Status "falhou" -Detalhe "Mudancas locais nao commitadas impediram o deploy automatico ($resumoSujeira). Servico NAO foi tocado."
+            Write-Audit -AcaoNome "DeployAutomatico" -Detalhe "ABORTADO: git status sujo - $resumoSujeira"
             return
         }
 
@@ -1162,6 +1301,7 @@ switch ($Acao) {
     "RestaurarStorage"   { Invoke-RestaurarStorage }
     "DeployCompleto"     { Invoke-DeployCompleto }
     "DeployAutomatico"   { Invoke-DeployAutomatico }
+    "VerificarDeploy"    { Invoke-VerificarDeploy }
     "SmokeTests"         { Invoke-SmokeTests }
     "Migrations"         { Invoke-Migrations }
     "ReaplicarSeed"      { Invoke-ReaplicarSeed }
