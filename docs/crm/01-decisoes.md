@@ -178,10 +178,10 @@ Cada ADR usa o número da linha correspondente na tabela A.3 do playbook (`#1`�
 ✅ Resolvido: `campaignId = null` conta como "campanha implícita" para efeito da constraint — 1 prospecção ativa por empresa quando `campaignId` é null, e 1 por empresa+campanha quando preenchido.
 
 **Q2 — Destino do model `Oportunidade` órfão atual.**
-⏳ **AINDA ABERTA.** Abordagem aceita (confirmar uso real com o time; se baixo/zero, não migrar), mas **não fechada por dado**. A auditoria rodada em 2026-08-13 mostrou `oportunidade = 0`, porém **no banco de dev, que só tem `seed:demo`** — isso não prova nada sobre produção. Fecha quando `scripts/auditoria-crm.ts` rodar em produção (bloco 6).
+✅ **FECHADA com dado de produção** (2026-08-13): `oportunidade = 0`. A hipótese da auditoria está confirmada — feature construída, nunca conectada ao fluxo, nunca usada. Decisão: **descartar** (model, módulo, view e rota `/comercial/oportunidades`). Não há migração de dado, porque não há dado. Ver `03-migracao.md` §6.
 
 **Q3 — Conteúdo do catálogo `DisciplinaPadrao`.**
-⏳ **AINDA ABERTA.** O levantamento foi automatizado (bloco 4b do `scripts/auditoria-crm.ts`), mas a execução em dev devolveu 13 grafias **do seed demo** — strings limpas e artificiais. A variação real que interessa (`Elétrica`/`Elétrico`/`ELETRICA`, abreviações, erros de digitação) é exatamente o que uma base de demo não tem. Fecha com a saída do script em produção.
+✅ **FECHADA com dado de produção** (2026-08-13): 24 grafias distintas. Decisões do usuário: `Climatização (AVAC)`+`Ar condicionado (ARC)`+`Exaustão (EXT)` **colapsam**; `Gases`+`Gás` **colapsam**; o grupo `Cabeamento`/`CFTV`/`Lógica/cftv`/`Lógica e Cftv`/`Dados,Voz,Automação e CFTV` **NÃO colapsa** (são entregas distintas). Pendência residual: `Lógica/cftv` vs `Lógica e Cftv` diferem só em pontuação — conferir antes do P6. Ver `03-migracao.md` §5.
 
 **Q4 — Quem vira `responsavelId` para registros históricos sem responsável.**
 ✅ Resolvido (com o escopo revisado pelo ADR-15): `autorId` (quem criou o lead/proposta) vira o `responsavelId` default no backfill — agora só para exibição/atribuição ("Meus x Todos"), não mais para controle de acesso, já que ADR-15 manteve as permissões atuais.
@@ -197,7 +197,22 @@ Cada ADR usa o número da linha correspondente na tabela A.3 do playbook (`#1`�
 
 ---
 
-*Decisões da P2 fechadas, **exceto Q2 e Q3**, que dependem de rodar `scripts/auditoria-crm.ts` contra
-o banco de **produção** (o de dev só tem `seed:demo`, cujos números não representam a realidade).
-Nenhuma das duas bloqueia o desenho do schema (P3) — bloqueiam o backfill (P4/§1) e o seed do
-catálogo de disciplinas (P6).*
+*Todas as decisões da P2 estão fechadas — Q2 e Q3 com dado real de produção (2026-08-13).*
+
+---
+
+## Nota pós-auditoria de produção (2026-08-13)
+
+A auditoria em produção trouxe um fato que **contextualiza todas as ADRs acima**: o módulo Comercial
+está sendo **contornado**. São 8 leads, 1 proposta sem itens, 0 atividades e 0 contatos — contra 31
+projetos e 46 clientes. O trabalho entra no sistema direto como `Projeto`; propostas e histórico
+comercial vivem fora do SenaHub.
+
+Isso não invalida nenhuma decisão registrada aqui, mas muda o peso de algumas:
+
+- **ADR-11 (soft delete)** e **ADR-03 (CNPJ único parcial)** continuam valendo, mas o volume em risco é
+  pequeno — o cuidado maior é com `Cliente`, que respinga fora do CRM (46 registros, 31 projetos).
+- **ADR-16 (regra determinística + `needsReview`)** perde importância prática: os 8 leads vão para
+  revisão manual de qualquer forma. A regra fica documentada para quando houver volume.
+- **T1 (LGPD)** não tem dado a migrar: `contato_cliente = 0`.
+- O risco real da reforma **não é técnico, é de adoção** — ver `03-migracao.md` §8.6.

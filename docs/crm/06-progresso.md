@@ -17,34 +17,45 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 ## P4 — Plano de migração de dados · 2026-08-13 · Opus
 
 **Feito:**
-- `docs/crm/03-migracao.md` — plano EXPAND → BACKFILL → SWITCH → CONTRACT, com regras de classificação,
-  dedup de empresas, de-para de origem, preservação de IDs, reversibilidade por fase, validação de
-  backup e checklist pós-migração.
-- `scripts/auditoria-crm.ts` — script de auditoria pré-migração, **100% somente leitura** (item 1 do P4).
-  Roda com `npx tsx --tsconfig tsconfig.server.json scripts/auditoria-crm.ts`.
-- Executado contra o banco de **dev**: rodou limpo, mas os números são de `seed:demo` e **não servem**
-  para decidir a migração.
-- Q2 e Q3 **reabertas** em `01-decisoes.md` — tinham sido marcadas como resolvidas, mas os dados que as
-  fechariam vieram de base demo.
+- `scripts/auditoria-crm.ts` — auditoria pré-migração, **100% somente leitura** (item 1 do P4).
+  Rodado em dev (só `seed:demo`, inútil para decidir) e depois **em produção** pelo usuário.
+- `docs/crm/03-migracao.md` — escrito como plano de 4 fases e **reescrito por completo** depois dos
+  números de produção. O plano EXPAND→BACKFILL→SWITCH→CONTRACT foi **descartado**.
+- Q2 e Q3 **fechadas com dado de produção**.
 
-**Arquivos:** `docs/crm/03-migracao.md` (novo), `scripts/auditoria-crm.ts` (novo),
-`docs/crm/01-decisoes.md` (Q2/Q3 reabertas), `docs/crm/06-progresso.md` (novo).
+**O achado que decidiu tudo:** o módulo Comercial não é pouco usado — é **contornado**. 8 leads,
+1 proposta *sem itens*, 0 atividades, 0 contatos, 0 oportunidades; contra **31 projetos e 46 clientes**.
+O trabalho entra direto como `Projeto`; propostas e histórico comercial vivem fora do SenaHub.
+Não há migração de dados relevante: o plano virou backup → schema novo → mover 8 leads à mão →
+fundir 3 duplicatas de cliente → consolidar 24 grafias de disciplina.
+
+**Outros achados de produção:**
+- `Lead.origem` era para ser canal de aquisição, mas foi preenchido com **nome de empreendimento**
+  (confirmado pelo usuário). Os 8 valores viram canal "Outro" com o texto preservado; `CanalAquisicao` e
+  `Campanha` nascem **vazios** — não há de-para a fazer.
+- 3 grupos de `Cliente` duplicado por nome (MADANO ×2, Záphis ×3, Nominal Engenharia ×2). Zero por
+  documento — o índice único parcial não está bloqueado. A normalização se validou casando
+  `NOMINAL ENGENHARIA` com `Nominal Engenharia LTDA`.
+- 100% dos leads caíram em "ambíguo", mas isso é a **regra medindo a coisa errada**: R3/R4 tratam
+  "sem proposta" como anomalia, quando aqui é o estado normal (existe 1 proposta em todo o sistema).
+
+**Arquivos:** `docs/crm/03-migracao.md` (novo, reescrito), `scripts/auditoria-crm.ts` (novo),
+`docs/crm/01-decisoes.md` (Q2/Q3 fechadas + nota pós-auditoria), `docs/crm/06-progresso.md` (novo).
 
 **Verificação:** `npx eslint scripts/auditoria-crm.ts` → limpo.
 `npx tsc --noEmit -p tsconfig.server.json` (com `--max-old-space-size=8192`, senão estoura heap) → 2 erros,
 ambos **pré-existentes** em `src/lib/backup-storage.test.ts` (commit `d27e270`), nenhum no código novo.
 `next build` não rodado: nada do bundle mudou e o CLAUDE.md alerta contra buildar com `next dev` ativo.
 
-**Pendente (bloqueia o P5):**
-- ⛔ **Rodar o script contra PRODUÇÃO** e colar a saída em `03-migracao.md` §1. O plano tem um GATE:
-  conforme o volume real, ele é executado como está, encolhe, ou é descartado.
-- Decisão §2.1 — ordem entre as regras R6/R7 (lead perdido que já era cliente conta como perda real?).
-- Decisão §2.2 — leads arquivados viram `excluidoEm` ou registro vivo com status terminal? (recomendo o 2º).
-- Confirmação da nomenclatura `Negociacao`/`DisciplinaPadrao` (`02-schema.md` §8.1).
+**Pendente:**
+- Conferir `Lógica/cftv` vs `Lógica e Cftv` (§5) — diferem só em pontuação, provavelmente a mesma coisa.
+- Confirmar a nomenclatura `Negociacao`/`DisciplinaPadrao` (`02-schema.md` §8.1).
+- Decisões §2.1 (ordem R6/R7) e §2.2 (leads arquivados): **não se aplicam** — zero leads em `Perdido`,
+  zero arquivados. Ficam documentadas para quando houver dado.
 
-**Riscos:** os 7 listados em `03-migracao.md` §10. Os dois que mais mordem: token/numeração de proposta
-já estão em e-mails de clientes reais (imutáveis), e o soft delete em `Cliente` respinga em módulos fora
-do CRM (Projeto, Lancamento, Documento…).
+**Riscos:** os 6 em `03-migracao.md` §8. O mais concreto: fundir cliente duplicado pode mover projeto de
+obra para a empresa errada (31 projetos em 46 clientes). O mais importante: **o risco real é de adoção,
+não técnico** — migrar 8 leads é trivial, fazer o time parar de contornar o módulo é o problema de verdade.
 
 ---
 
