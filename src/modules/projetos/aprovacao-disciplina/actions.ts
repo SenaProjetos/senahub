@@ -9,6 +9,7 @@ import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { liberarPagamentosProjetista } from "@/modules/uploads/pagamento";
+import { bloqueioValorDisciplina } from "@/modules/uploads/rateio";
 import { podeSolicitarAprovacao } from "@/modules/projetos/aprovacao-disciplina/regras";
 import { STATUS_LABEL } from "@/modules/projetos/status";
 import {
@@ -122,10 +123,12 @@ export const confirmarAprovacaoDisciplina = defineAction(
     entidade: "Disciplina",
     schema: confirmarAprovacaoDisciplinaSchema,
     entidadeId: (d, i) => ((d ?? i) as { disciplinaId: string }).disciplinaId,
+    // valor entra aqui porque o diálogo de confirmação pode reescrevê-lo — sem isso a
+    // edição de valor (dinheiro) ficava fora do diff do AuditLog.
     capturarAntes: (input) =>
       prisma.disciplina.findUnique({
         where: { id: input.disciplinaId },
-        select: { status: true, aprovacaoSolicitadaEm: true },
+        select: { status: true, aprovacaoSolicitadaEm: true, valor: true },
       }),
   },
   async (input, { user }) => {
@@ -147,6 +150,21 @@ export const confirmarAprovacaoDisciplina = defineAction(
 
     const agora = new Date();
     const jaTemPagamento = disciplina.pagamentos.length > 0;
+    // Diálogo de confirmação permite ajustar o valor total antes de liberar — só vale
+    // quando ainda não há pagamento (reaprovação não recalcula nada).
+    const valorFinal =
+      !jaTemPagamento && input.valor != null
+        ? input.valor
+        : disciplina.valor == null
+          ? null
+          : Number(disciplina.valor);
+    // Gate de valor no passo 2 (aqui), nunca no passo 1: quem solicita é o responsável,
+    // que roda com `projetos:ver` e não pode definir o valor — barrar lá travaria o fluxo
+    // sem saída. Reaprovação (pagamento já liberado) passa direto.
+    if (!jaTemPagamento) {
+      const bloqueio = bloqueioValorDisciplina(disciplina.responsaveis, valorFinal);
+      if (bloqueio) throw new ActionError(bloqueio);
+    }
     const { pagaveis, salariados } = await prisma.$transaction(async (tx) => {
       await tx.disciplina.update({
         where: { id: disciplina.id },
@@ -155,11 +173,15 @@ export const confirmarAprovacaoDisciplina = defineAction(
           entregueEm: agora,
           aprovacaoSolicitadaEm: null,
           aprovacaoSolicitadaPorId: null,
+          ...(!jaTemPagamento && input.valor != null ? { valor: input.valor } : {}),
         },
       });
       // Reaprovação pós-revisão já tem pagamento liberado — não gera de novo.
       if (jaTemPagamento) return { pagaveis: [], salariados: [] };
-      return liberarPagamentosProjetista(tx, { disciplina, autorId: user.id, agora });
+      return liberarPagamentosProjetista(
+        tx,
+        { disciplina: { ...disciplina, valor: valorFinal }, autorId: user.id, agora },
+      );
     });
 
     const href = `/projetos/${disciplina.projeto.id}`;

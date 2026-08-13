@@ -1,10 +1,15 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Wallet } from "lucide-react";
-import { pagarProjetista } from "@/modules/financeiro/folha/actions";
+import { Wallet, Pencil, Ban } from "lucide-react";
+import {
+  pagarProjetista,
+  editarPagamentoProjetista,
+  cancelarPagamentoProjetista,
+} from "@/modules/financeiro/folha/actions";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { FolhaItem } from "@/modules/financeiro/folha/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
@@ -54,6 +59,7 @@ export function FolhaView({
   formas: { id: string; nome: string }[];
 }) {
   const [pagar, setPagar] = useState<FolhaItem | null>(null);
+  const [editar, setEditar] = useState<FolhaItem | null>(null);
 
   return (
     <div className="space-y-4">
@@ -129,9 +135,21 @@ export function FolhaView({
                   </TableCell>
                   <TableCell>
                     {p.status === "pendente" && (
-                      <Button size="sm" variant="outline" onClick={() => setPagar(p)}>
-                        <Wallet className="size-3.5" /> Pagar
-                      </Button>
+                      <div className="flex flex-wrap gap-1">
+                        <Button size="sm" variant="outline" onClick={() => setPagar(p)}>
+                          <Wallet className="size-3.5" /> Pagar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="px-2"
+                          title="Editar valor"
+                          onClick={() => setEditar(p)}
+                        >
+                          <Pencil className="size-3.5" />
+                        </Button>
+                        <CancelarPagamentoButton pagamento={p} />
+                      </div>
                     )}
                   </TableCell>
                 </TableRow>
@@ -142,7 +160,107 @@ export function FolhaView({
       </div>
 
       <PagarDialog pagamento={pagar} onClose={() => setPagar(null)} contas={contas} formas={formas} />
+      <EditarValorDialog pagamento={editar} onClose={() => setEditar(null)} />
     </div>
+  );
+}
+
+/**
+ * Botão de cancelar direto na folha — confirmação via `useConfirm` (padrão do repo,
+ * evita mais um dialog controlado). Só aparece em pendentes; a action recusa o resto.
+ */
+function CancelarPagamentoButton({ pagamento }: { pagamento: FolhaItem }) {
+  const router = useRouter();
+  const confirm = useConfirm();
+  const [pending, start] = useTransition();
+
+  function cancelar() {
+    start(async () => {
+      const ok = await confirm({
+        title: "Cancelar pagamento",
+        description: `${pagamento.projetista.name} — ${brl(Number(pagamento.valor))}. A linha sai do "a pagar" e não pode ser desfeita por aqui.`,
+        confirmLabel: "Cancelar pagamento",
+        variant: "destructive",
+      });
+      if (!ok) return;
+      const r = await cancelarPagamentoProjetista({ id: pagamento.id });
+      if (r.ok) {
+        toast.success("Pagamento cancelado.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  return (
+    <Button size="sm" variant="ghost" className="px-2 text-destructive" title="Cancelar pagamento" onClick={cancelar} disabled={pending}>
+      <Ban className="size-3.5" />
+    </Button>
+  );
+}
+
+/**
+ * Corrige o valor de um pagamento pendente — a rota de conserto para as linhas de
+ * R$ 0,00 que já existem em produção (F3 sincroniza a partir da disciplina; esta é a
+ * via direta, para quando a disciplina já não existe mais editável ou o ajuste é só
+ * no pagamento). Zerar não é permitido aqui — use "Cancelar".
+ */
+function EditarValorDialog({ pagamento, onClose }: { pagamento: FolhaItem | null; onClose: () => void }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [valor, setValor] = useState("");
+
+  // Aberto imperativamente (botão de lápis na linha, não um DialogTrigger interno) —
+  // `onOpenChange` só dispara ao FECHAR, então o valor precisa ser sincronizado aqui.
+  useEffect(() => {
+    if (pagamento) setValor(String(Number(pagamento.valor)));
+  }, [pagamento]);
+
+  function salvar() {
+    if (!pagamento) return;
+    const num = Number(valor);
+    if (!(num > 0)) {
+      toast.error("Informe um valor maior que zero.");
+      return;
+    }
+    start(async () => {
+      const r = await editarPagamentoProjetista({ id: pagamento.id, valor: num });
+      if (r.ok) {
+        toast.success("Valor atualizado.");
+        onClose();
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  return (
+    <Dialog open={!!pagamento} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Editar valor do pagamento</DialogTitle>
+          <DialogDescription>{pagamento?.projetista.name} — {pagamento?.disciplina.nome}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-1.5">
+          <Label htmlFor="valor-pagamento">Valor (R$)</Label>
+          <Input
+            id="valor-pagamento"
+            type="number"
+            min="0.01"
+            step="0.01"
+            value={valor}
+            onChange={(e) => setValor(e.target.value)}
+            autoFocus
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={pending}>
+            Cancelar
+          </Button>
+          <Button onClick={salvar} disabled={pending}>
+            {pending ? "Salvando…" : "Salvar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

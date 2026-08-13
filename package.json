@@ -23,6 +23,7 @@
     "smoke:onda3": "tsx --tsconfig tsconfig.server.json scripts/smoke-onda3.ts",
     "smoke:inputs-link": "tsx --tsconfig tsconfig.server.json scripts/smoke-inputs-link.ts",
     "smoke:aviso-agendado": "tsx --tsconfig tsconfig.server.json scripts/smoke-aviso-agendado.ts",
+    "smoke:sync-pagamento": "tsx --tsconfig tsconfig.server.json scripts/smoke-sync-pagamento.ts",
     "release": "commit-and-tag-version",
     "release:minor": "commit-and-tag-version --release-as minor",
     "release:major": "commit-and-tag-version --release-as major",

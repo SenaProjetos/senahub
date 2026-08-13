@@ -13,6 +13,7 @@ import { whereAudiencia } from "@/lib/audiencias";
 import { statusValidacao } from "@/modules/uploads/validacao";
 import { chaveDocumento } from "@/modules/uploads/documento";
 import { liberarPagamentosProjetista } from "@/modules/uploads/pagamento";
+import { bloqueioValorDisciplina } from "@/modules/uploads/rateio";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { projetoVisivel } from "@/modules/planejamento/queries";
 import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
@@ -139,6 +140,14 @@ export const validarEntrega = defineAction(
       revalidatePath("/");
       return { disciplinaId: disciplina.id, pagamentos: 0 };
     }
+
+    // Concluir sem valor gerava PagamentoProjetista de R$ 0,00 na folha, sem lançamento
+    // e sem rota de conserto (o próprio zero bloqueia a regeneração, via jaTemPagamento).
+    const bloqueio = bloqueioValorDisciplina(
+      disciplina.responsaveis,
+      disciplina.valor == null ? null : Number(disciplina.valor),
+    );
+    if (bloqueio) throw new ActionError(bloqueio);
 
     const { pagaveis, salariados } = await prisma.$transaction(async (tx) => {
       await tx.disciplina.update({

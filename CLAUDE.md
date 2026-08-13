@@ -31,6 +31,7 @@ npm run admin:reset-senha     # reset admin senha → SenaHub@2026 + force chang
 npm run smoke:onda1|onda2|onda3|onda3efg|onda4|onda5   # e2e smokes against the dev DB
 npm run smoke:inputs-link     # link público de inputs: janela da notificação, revogação, expiração
 npm run smoke:aviso-agendado  # aviso agendado: disparo do tick, claim anti-duplicata, cancelamento
+npm run smoke:sync-pagamento  # pagamento de projetista: sync de valor/responsáveis, cancelamento, total do lote
 ```
 
 - **Dev helper (Windows):** `dev.bat` (raiz) → *Central do Desenvolvedor* (`dev/gerenciar-dev.bat` + `.ps1`),

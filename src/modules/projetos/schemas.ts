@@ -166,6 +166,8 @@ export const solicitarAprovacaoDisciplinaSchema = z.object({
 
 export const confirmarAprovacaoDisciplinaSchema = z.object({
   disciplinaId: z.string().min(1),
+  /** Diálogo de confirmação: ajusta Disciplina.valor antes de liberar os pagamentos. */
+  valor: z.number().nonnegative().optional(),
 });
 
 export const recusarAprovacaoDisciplinaSchema = z.object({

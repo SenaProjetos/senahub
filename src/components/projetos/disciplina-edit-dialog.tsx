@@ -39,10 +39,11 @@ export function DisciplinaEditDialog({
   exigePacoteB: exigeBInicial = true,
   usaEstruturaPastas = false,
 }: EditProps) {
+  const valorInicialTexto = valorInicial != null ? String(valorInicial) : "";
   const [open, setOpen] = useState(false);
   const [nome, setNome] = useState(nomeInicial);
   const [prazo, setPrazo] = useState(prazoInicial?.slice(0, 10) ?? "");
-  const [valor, setValor] = useState(valorInicial != null ? String(valorInicial) : "");
+  const [valor, setValor] = useState(valorInicialTexto);
   const [respIds, setRespIds] = useState<string[]>(respInicial);
   const [exigeA, setExigeA] = useState(exigeAInicial);
   const [exigeB, setExigeB] = useState(exigeBInicial);
@@ -54,7 +55,11 @@ export function DisciplinaEditDialog({
         disciplinaId,
         nome,
         prazo: prazo || null,
-        valor: valor ? parseFloat(valor) : null,
+        // Campo intocado manda `undefined` (= não mexer), nunca `null`. Quem não enxerga
+        // o valor da disciplina (CLT/estágio, `ocultarValorDisciplina`) abre o diálogo com
+        // o campo vazio; mandar `null` daí limparia o valor e cancelaria os pagamentos
+        // pendentes. Limpar continua possível — basta apagar um campo que estava preenchido.
+        valor: valor === valorInicialTexto ? undefined : valor ? parseFloat(valor) : null,
         responsaveisIds: respIds,
         exigePacoteA: exigeA,
         exigePacoteB: exigeB,

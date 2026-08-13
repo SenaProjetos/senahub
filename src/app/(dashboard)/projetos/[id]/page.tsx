@@ -100,7 +100,7 @@ export default async function ProjetoDetalhePage({
       status: d.status,
       prazo: d.prazo ? new Date(d.prazo).toISOString() : null,
       valor: ocultarValorDisciplina ? null : d.valor != null ? Number(d.valor) : null,
-      responsaveis: d.responsaveis.map((r) => ({ userId: r.userId, name: r.user.name })),
+      responsaveis: d.responsaveis.map((r) => ({ userId: r.userId, name: r.user.name, role: r.user.role })),
       ehResponsavel: d.responsaveis.some((r) => r.userId === user.id),
       revisoes: d.revisoes.map((rv) => ({
         id: rv.id,

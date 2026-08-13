@@ -35,6 +35,7 @@ import { normalizar } from "@/lib/disciplinas-core";
 import { usaEstruturaCustom, disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { transicaoDisciplinaPermitida, mensagemTransicaoDisciplina } from "@/modules/projetos/status";
 import { semearPastasTemplate, projetoUsaTemplate } from "@/modules/projetos/pastas/seed";
+import { sincronizarPagamentosPorDisciplinaId } from "@/modules/uploads/pagamento";
 
 function isGlobal(role: Role) {
   return role === "admin" || GLOBAL_ROLES.includes(role);
@@ -340,7 +341,7 @@ export const definirResponsaveis = defineAction(
       ).map((r) => r.userId),
     }),
   },
-  async (input) => {
+  async (input, ctx) => {
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: input.disciplinaId },
       select: { projetoId: true, nome: true, projeto: { select: { codigo: true } } },
@@ -353,6 +354,9 @@ export const definirResponsaveis = defineAction(
     });
     const anteriorIds = new Set(anteriores.map((r) => r.userId));
     const novosIds = input.responsaveisIds.filter((id) => !anteriorIds.has(id));
+    const mudouEquipe =
+      anteriorIds.size !== new Set(input.responsaveisIds).size ||
+      input.responsaveisIds.some((id) => !anteriorIds.has(id));
 
     await prisma.$transaction(async (tx) => {
       await tx.disciplinaResponsavel.deleteMany({ where: { disciplinaId: input.disciplinaId } });
@@ -362,6 +366,11 @@ export const definirResponsaveis = defineAction(
       });
       const removidosIds = [...anteriorIds].filter((id) => !input.responsaveisIds.includes(id));
       await podarMembrosSemVinculo(tx, disciplina.projetoId, removidosIds);
+      // Segundo escritor de DisciplinaResponsavel (o outro é `editarDisciplina`): sem
+      // isto, trocar a equipe por aqui deixava o pagamento liberado no nome de quem saiu.
+      if (mudouEquipe) {
+        await sincronizarPagamentosPorDisciplinaId(tx, input.disciplinaId, ctx.user.id);
+      }
     });
     // P-15: notificar novos responsáveis atribuídos.
     if (novosIds.length > 0) {
@@ -693,16 +702,23 @@ export const editarDisciplinasEmMassa = defineAction(
       });
     }
 
-    // Substituir responsável de cada disciplina selecionada.
+    // Substituir responsável de cada disciplina selecionada. Terceiro escritor de
+    // DisciplinaResponsavel (com `editarDisciplina` e `definirResponsaveis`) — troca de
+    // responsável é troca de quem recebe, então sincroniza o financeiro junto. Uma
+    // transação para o lote inteiro: se alguma disciplina recusar (pagamento efetivado),
+    // nenhuma troca é aplicada, em vez de deixar metade do lote alterada.
     if (input.responsavelId !== undefined) {
-      for (const disciplinaId of input.disciplinaIds) {
-        await prisma.disciplinaResponsavel.deleteMany({ where: { disciplinaId } });
-        if (input.responsavelId) {
-          await prisma.disciplinaResponsavel.create({
-            data: { disciplinaId, userId: input.responsavelId },
-          });
+      await prisma.$transaction(async (tx) => {
+        for (const disciplinaId of input.disciplinaIds) {
+          await tx.disciplinaResponsavel.deleteMany({ where: { disciplinaId } });
+          if (input.responsavelId) {
+            await tx.disciplinaResponsavel.create({
+              data: { disciplinaId, userId: input.responsavelId },
+            });
+          }
+          await sincronizarPagamentosPorDisciplinaId(tx, disciplinaId, ctx.user.id);
         }
-      }
+      });
     }
 
     revalidatePath(`/projetos/${input.projetoId}`);
@@ -808,10 +824,10 @@ export const editarDisciplina = defineAction(
       };
     },
   },
-  async (input) => {
+  async (input, ctx) => {
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: input.disciplinaId },
-      select: { projetoId: true, projeto: { select: { prazoFinal: true } } },
+      select: { projetoId: true, valor: true, projeto: { select: { prazoFinal: true } } },
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
 
@@ -830,6 +846,15 @@ export const editarDisciplina = defineAction(
     });
     const anteriorIds = new Set(anteriorResp.map((r) => r.userId));
     const novosIds = input.responsaveisIds.filter((id) => !anteriorIds.has(id));
+
+    // Só o que mexe em dinheiro dispara a sincronização — editar nome/prazo de uma
+    // disciplina com pagamento efetivado continua livre (a sincronização recusaria).
+    const valorAnterior = disciplina.valor == null ? null : Number(disciplina.valor);
+    const valorNovo = input.valor === undefined ? valorAnterior : input.valor;
+    const mudouValor = valorNovo !== valorAnterior;
+    const mudouEquipe =
+      anteriorIds.size !== new Set(input.responsaveisIds).size ||
+      input.responsaveisIds.some((id) => !anteriorIds.has(id));
 
     await prisma.$transaction(async (tx) => {
       await tx.disciplina.update({
@@ -854,6 +879,9 @@ export const editarDisciplina = defineAction(
       }
       const removidosIds = [...anteriorIds].filter((id) => !input.responsaveisIds.includes(id));
       await podarMembrosSemVinculo(tx, disciplina.projetoId, removidosIds);
+      if (mudouValor || mudouEquipe) {
+        await sincronizarPagamentosPorDisciplinaId(tx, input.disciplinaId, ctx.user.id);
+      }
     });
 
     if (novosIds.length > 0) {

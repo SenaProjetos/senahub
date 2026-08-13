@@ -52,6 +52,7 @@ import { IconeArquivo, StatusArquivo, VersaoToggle } from "@/components/projetos
 import { PastaTreeView, SeletorPasta, type ArquivoPasta } from "@/components/projetos/pasta-tree-view";
 import type { PastaFlat } from "@/modules/projetos/pastas/arvore";
 import { limiteDoPacote, limiteLabelDoPacote } from "@/modules/uploads/limites";
+import { ratearPagamentoProjetista, bloqueioValorDisciplina } from "@/modules/uploads/rateio";
 import {
   enviarArquivoComProgresso,
   patchLinhaEnvio,
@@ -127,7 +128,7 @@ type Disc = {
   status: StatusDisciplina;
   prazo: string | null;
   valor: number | null;
-  responsaveis: { userId: string; name: string }[];
+  responsaveis: { userId: string; name: string; role: string }[];
   ehResponsavel: boolean;
   revisoes: { id: string; numero: number; motivo: string | null; autor: string; data: string }[];
   uploads: UploadItem[];
@@ -563,9 +564,9 @@ function FluxoAprovacaoDisciplina({
     });
   }
 
-  function confirmar() {
+  function confirmar(valor?: number) {
     start(async () => {
-      const res = await confirmarAprovacaoDisciplina({ disciplinaId: disciplina.id });
+      const res = await confirmarAprovacaoDisciplina({ disciplinaId: disciplina.id, valor });
       if (res.ok) {
         toast.success("Aprovação confirmada.");
         router.refresh();
@@ -615,9 +616,14 @@ function FluxoAprovacaoDisciplina({
           </span>
           {podeConfirmar && (
             <div className="ml-auto flex gap-1.5">
-              <Button size="sm" className="h-7 px-2" onClick={confirmar} disabled={pending}>
-                <CheckCircle className="size-3.5" /> Confirmar
-              </Button>
+              {disciplina.temPagamento ? (
+                // Reaprovação: pagamento já liberado, sem valor a rever.
+                <Button size="sm" className="h-7 px-2" onClick={() => confirmar()} disabled={pending}>
+                  <CheckCircle className="size-3.5" /> Confirmar
+                </Button>
+              ) : (
+                <ConfirmarAprovacaoDialog disciplina={disciplina} pending={pending} onConfirmar={confirmar} />
+              )}
               <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => setRecusando(true)} disabled={pending}>
                 <XCircle className="size-3.5" /> Recusar
               </Button>
@@ -648,6 +654,110 @@ function FluxoAprovacaoDisciplina({
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/**
+ * Diálogo do passo 2 (confirmar): mostra o valor a enviar ao financeiro e o split por
+ * projetista ANTES de liberar o pagamento — resposta direta às disciplinas concluídas
+ * sem valor (viravam PagamentoProjetista de R$ 0,00 na folha, sem lançamento). Só
+ * aparece quando ainda não há pagamento liberado (`!disciplina.temPagamento`);
+ * reaprovação usa o botão simples, sem valor a rever.
+ */
+function ConfirmarAprovacaoDialog({
+  disciplina,
+  pending,
+  onConfirmar,
+}: {
+  disciplina: Disc;
+  pending: boolean;
+  onConfirmar: (valor: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [valorTexto, setValorTexto] = useState(() => String(disciplina.valor ?? ""));
+
+  const responsaveisComRole = disciplina.responsaveis.map((r) => ({
+    ...r,
+    user: { role: r.role },
+  }));
+  const valorNum = valorTexto.trim() === "" ? null : Number(valorTexto);
+  const valorValido = valorNum != null && !Number.isNaN(valorNum) && valorNum >= 0;
+  const bloqueio = bloqueioValorDisciplina(responsaveisComRole, valorValido ? valorNum : null);
+  const { pagaveis, salariados } = ratearPagamentoProjetista(
+    responsaveisComRole,
+    valorValido ? valorNum : 0,
+  );
+
+  function confirmar() {
+    if (bloqueio || !valorValido) return;
+    onConfirmar(valorNum);
+    setOpen(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) setValorTexto(String(disciplina.valor ?? "")); }}>
+      <DialogTrigger
+        render={
+          <Button size="sm" className="h-7 px-2">
+            <CheckCircle className="size-3.5" /> Confirmar
+          </Button>
+        }
+      />
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Confirmar aprovação — {disciplina.nome}</DialogTitle>
+          <DialogDescription>
+            Revise o valor antes de enviar ao financeiro. Depois de confirmado, o pagamento é liberado
+            e a alteração passa a exigir edição no financeiro.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="valor-confirmacao">Valor total a pagar</Label>
+          <Input
+            id="valor-confirmacao"
+            type="number"
+            min={0}
+            step="0.01"
+            value={valorTexto}
+            onChange={(e) => setValorTexto(e.target.value)}
+            autoFocus
+          />
+        </div>
+
+        {valorValido && (pagaveis.length > 0 || salariados.length > 0) && (
+          <div className="space-y-1 rounded-sm border p-2 text-xs">
+            {pagaveis.map(({ responsavel, valor }) => (
+              <div key={responsavel.userId} className="flex justify-between">
+                <span>{responsavel.name}</span>
+                <span className="font-mono">{brl(valor)}</span>
+              </div>
+            ))}
+            {salariados.map((r) => (
+              <div key={r.userId} className="flex justify-between text-muted-foreground">
+                <span>{r.name}</span>
+                <span>sem pagamento (CLT/estágio)</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {bloqueio && (
+          <p className="flex items-start gap-1.5 text-xs text-destructive">
+            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden /> {bloqueio}
+          </p>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>
+            Cancelar
+          </Button>
+          <Button onClick={confirmar} disabled={pending || !valorValido || !!bloqueio}>
+            Confirmar e enviar ao financeiro
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

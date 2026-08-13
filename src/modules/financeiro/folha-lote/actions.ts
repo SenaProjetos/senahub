@@ -23,8 +23,10 @@ export const gerarFolhaDoMes = defineAction(
   async ({ ano, mes }) => {
     const ini = new Date(ano, mes - 1, 1);
     const fim = new Date(ano, mes, 1);
+    // `status: pendente` explícito: cancelar um pagamento o solta do lote (folhaId: null)
+    // — sem este filtro ele seria recolhido de volta no lote seguinte.
     const pend = await prisma.pagamentoProjetista.findMany({
-      where: { folhaId: null, liberadoEm: { gte: ini, lt: fim } },
+      where: { folhaId: null, status: "pendente", liberadoEm: { gte: ini, lt: fim } },
       select: { id: true },
     });
     if (pend.length === 0) throw new ActionError("Nenhum pagamento liberado no mês fora de lote.");
@@ -33,7 +35,10 @@ export const gerarFolhaDoMes = defineAction(
       const existente = await tx.folhaProjetista.findUnique({ where: { ano_mes: { ano, mes } } });
       const f = existente ?? (await tx.folhaProjetista.create({ data: { ano, mes, status: "fechada", fechadaEm: new Date() } }));
       await tx.pagamentoProjetista.updateMany({ where: { id: { in: pend.map((p) => p.id) } }, data: { folhaId: f.id } });
-      const agg = await tx.pagamentoProjetista.aggregate({ where: { folhaId: f.id }, _sum: { valor: true } });
+      const agg = await tx.pagamentoProjetista.aggregate({
+        where: { folhaId: f.id, status: { not: "cancelado" } },
+        _sum: { valor: true },
+      });
       return tx.folhaProjetista.update({
         where: { id: f.id },
         data: { total: agg._sum.valor ?? 0, status: "fechada", fechadaEm: existente?.fechadaEm ?? new Date() },
@@ -67,7 +72,9 @@ export const pagarFolhaProjetista = defineAction(
       where: { id: i.id },
       include: {
         pagamentos: {
-          where: { status: { not: "pago" } },
+          // `pendente` explícito, não `!= pago`: um pagamento cancelado no lote não pode
+          // ser pago junto (cancelar já o solta do lote, isto é a segunda trava).
+          where: { status: "pendente" },
           include: {
             projetista: { select: { id: true, name: true } },
             disciplina: { select: { nome: true, projetoId: true, projeto: { select: { codigo: true } } } },
