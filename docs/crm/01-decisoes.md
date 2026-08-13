@@ -178,10 +178,10 @@ Cada ADR usa o número da linha correspondente na tabela A.3 do playbook (`#1`�
 ✅ Resolvido: `campaignId = null` conta como "campanha implícita" para efeito da constraint — 1 prospecção ativa por empresa quando `campaignId` é null, e 1 por empresa+campanha quando preenchido.
 
 **Q2 — Destino do model `Oportunidade` órfão atual.**
-✅ Resolvido: primeiro confirmar com o time comercial se `/comercial/oportunidades` tem uso real. Se uso baixo/zero, os registros existentes **não são migrados** — ficam arquivados, fora do CRM novo. *(Ação pendente: essa checagem com o time é conteúdo de execução, não de schema — revisitar antes do P4/P8.)*
+⏳ **AINDA ABERTA.** Abordagem aceita (confirmar uso real com o time; se baixo/zero, não migrar), mas **não fechada por dado**. A auditoria rodada em 2026-08-13 mostrou `oportunidade = 0`, porém **no banco de dev, que só tem `seed:demo`** — isso não prova nada sobre produção. Fecha quando `scripts/auditoria-crm.ts` rodar em produção (bloco 6).
 
-**Q3 — Conteúdo do catálogo `Discipline`.**
-✅ Plano aceito: a lista fechada será levantada via `SELECT DISTINCT` (`PropostaItem.disciplina`, `Projeto.Disciplina.nome`, `ItemTabelaPreco.disciplina`) assim que o banco de dev estiver acessível, e validada com o usuário antes do P4. **Não é uma decisão de schema em si** — o P3 desenha a tabela `Discipline` vazia/estruturalmente, o de-para de conteúdo é do P4.
+**Q3 — Conteúdo do catálogo `DisciplinaPadrao`.**
+⏳ **AINDA ABERTA.** O levantamento foi automatizado (bloco 4b do `scripts/auditoria-crm.ts`), mas a execução em dev devolveu 13 grafias **do seed demo** — strings limpas e artificiais. A variação real que interessa (`Elétrica`/`Elétrico`/`ELETRICA`, abreviações, erros de digitação) é exatamente o que uma base de demo não tem. Fecha com a saída do script em produção.
 
 **Q4 — Quem vira `responsavelId` para registros históricos sem responsável.**
 ✅ Resolvido (com o escopo revisado pelo ADR-15): `autorId` (quem criou o lead/proposta) vira o `responsavelId` default no backfill — agora só para exibição/atribuição ("Meus x Todos"), não mais para controle de acesso, já que ADR-15 manteve as permissões atuais.
@@ -197,4 +197,7 @@ Cada ADR usa o número da linha correspondente na tabela A.3 do playbook (`#1`�
 
 ---
 
-*Todas as decisões da P2 estão fechadas. Próximo passo: P3 — desenhar `docs/crm/02-schema.md`, aguardando o sinal do usuário para rodar.*
+*Decisões da P2 fechadas, **exceto Q2 e Q3**, que dependem de rodar `scripts/auditoria-crm.ts` contra
+o banco de **produção** (o de dev só tem `seed:demo`, cujos números não representam a realidade).
+Nenhuma das duas bloqueia o desenho do schema (P3) — bloqueiam o backfill (P4/§1) e o seed do
+catálogo de disciplinas (P6).*
