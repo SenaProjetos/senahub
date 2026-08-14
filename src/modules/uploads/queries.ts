@@ -183,13 +183,28 @@ export async function pranchasVigentesDisciplina(disciplinaId: string, excluirUp
   return vigentes;
 }
 
-export async function revisoesDoDocumento(documentoId: string): Promise<RevisaoDocumento[]> {
+export async function revisoesDoDocumento(
+  documentoId: string,
+  opts: { mesmaExtensaoDe?: string } = {},
+): Promise<RevisaoDocumento[]> {
   const doc = await prisma.documentoDisciplina.findUnique({
     where: { id: documentoId },
-    include: { uploads: { select: { id: true, versao: true, excluidoEm: true }, orderBy: { versao: "desc" } } },
+    include: {
+      uploads: {
+        select: { id: true, versao: true, excluidoEm: true, nomeArquivo: true },
+        orderBy: { versao: "desc" },
+      },
+    },
   });
   if (!doc) return [];
-  return doc.uploads.map((u) => ({ uploadId: u.id, versao: u.versao, excluido: u.excluidoEm != null }));
+
+  // Depois do merge por nome-base (M4) um documento guarda PDF e DWG juntos. Comparar
+  // revisões só faz sentido dentro do MESMO formato — sem este filtro o seletor do
+  // comparador ofereceria o .dwg como se fosse uma revisão do .pdf.
+  const ext = opts.mesmaExtensaoDe ? extensaoDe(opts.mesmaExtensaoDe) : null;
+  const uploads = ext ? doc.uploads.filter((u) => extensaoDe(u.nomeArquivo) === ext) : doc.uploads;
+
+  return uploads.map((u) => ({ uploadId: u.id, versao: u.versao, excluido: u.excluidoEm != null }));
 }
 
 // ── Listagem paginada de documentos (tela nova, Fase 1 — F1-PR10) ─────────────
@@ -381,4 +396,31 @@ export async function opcoesFiltroDocumentos(opts: {
     (a, b) => a.localeCompare(b, "pt-BR"),
   );
   return { extensoes, autores };
+}
+
+/**
+ * Resolve a cadeia de merge de documentos (M4): dado um id que pode ser um APELIDO
+ * (documento absorvido por outro), devolve o id do documento vivo.
+ *
+ * Existe porque o merge por nome-base faz soft-retire em vez de DELETE — `AuditLog`
+ * guarda `entidadeId` de documento sem FK, e links/bookmarks antigos continuam por aí.
+ * Sem isto, um id antigo levaria a um documento sem nenhuma versão pendurada.
+ *
+ * `limite` corta cadeia patológica: um ciclo (A→B→A) causado por dado corrompido deixaria
+ * o loop infinito, e travar uma página é pior do que devolver o último id conhecido.
+ */
+export async function resolverDocumentoCanonico(
+  documentoId: string,
+  limite = 10,
+): Promise<string> {
+  let atual = documentoId;
+  for (let i = 0; i < limite; i++) {
+    const doc = await prisma.documentoDisciplina.findUnique({
+      where: { id: atual },
+      select: { substituidoPorId: true },
+    });
+    if (!doc?.substituidoPorId) return atual;
+    atual = doc.substituidoPorId;
+  }
+  return atual;
 }

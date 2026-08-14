@@ -313,6 +313,26 @@ const DISCIPLINAS_CATALOGO: {
   { nome: "Orçamento", codigo: "ORC", categoria: null, numeracao: 9000 },
 ];
 
+/**
+ * Status documental (item 26 da spec). Nove estados sugeridos pela própria spec, ordenados
+ * como o fluxo real de uma prancha. `final` marca o que não deve mais receber revisão.
+ *
+ * `update` preserva `cor` e `ativo` de propósito: renomear/recolorir é ato de quem gere o
+ * catálogo pela tela — o seed só garante que os itens-base existam (mesma regra de
+ * CERTIDAO_TIPOS e CARGOS_BASE).
+ */
+const DOCUMENTO_STATUS = [
+  { nome: "Em elaboração", final: false },
+  { nome: "Enviado", final: false },
+  { nome: "Em análise", final: false },
+  { nome: "Correção solicitada", final: false },
+  { nome: "Aprovado", final: false },
+  { nome: "Aprovado com ressalvas", final: false },
+  { nome: "Liberado para obra", final: false },
+  { nome: "Obsoleto", final: true },
+  { nome: "Arquivado", final: true },
+];
+
 async function main() {
   // 1) Admin
   const existing = await prisma.user.findUnique({ where: { email: ADMIN_EMAIL } });
@@ -567,6 +587,17 @@ async function main() {
     await prisma.certidaoTipo.upsert({ where: { nome: t.nome }, create: t, update: {} });
   }
   console.log(`✔ ${TAREFA_STATUS.length} status de tarefa, ${CERTIDAO_TIPOS.length} tipos de certidão.`);
+
+  // 8c) Status documental (Fase 2 de Documentos) — catálogo do status de cada documento,
+  // distinto do status da disciplina (enum) e do status de tarefa (acima).
+  for (let i = 0; i < DOCUMENTO_STATUS.length; i++) {
+    await prisma.documentoStatus.upsert({
+      where: { nome: DOCUMENTO_STATUS[i].nome },
+      create: { ...DOCUMENTO_STATUS[i], ordem: i },
+      update: { ordem: i, final: DOCUMENTO_STATUS[i].final },
+    });
+  }
+  console.log(`✔ ${DOCUMENTO_STATUS.length} status documentais garantidos.`);
 
   // 8b) Catálogos de RH (cargo/departamento). `update: {}` de propósito: reordenar, renomear e
   // arquivar são atos do RH pela tela — o seed só garante que os itens-base existam. Rodar o

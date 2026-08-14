@@ -185,6 +185,7 @@ model User {
   uploadsAutor                  Upload[]                  @relation("UploadAutor")
   uploadsValidados              Upload[]                  @relation("UploadValidador")
   uploadsRevisados              Upload[]                  @relation("UploadRevisor")
+  revisoesDocumento             DocumentoRevisao[]        @relation("RevisaoAutor")
   exclusoesSolicitadas          SolicitacaoExclusaoUpload[] @relation("ExclusaoSolicitante")
   exclusoesDecididas            SolicitacaoExclusaoUpload[] @relation("ExclusaoDecisor")
   documentosAutor               Documento[]               @relation("DocumentoAutor")
@@ -3862,6 +3863,8 @@ model PranchaCatalogo {
   projeto   Projeto?                 @relation(fields: [projetoId], references: [id], onDelete: Cascade)
   createdAt DateTime                 @default(now())
 
+  documentos DocumentoDisciplina[]
+
   @@index([categoria, projetoId])
   @@map("prancha_catalogo")
 }
@@ -4161,6 +4164,11 @@ model Upload {
   /// api/uploads/route.ts) sempre resolve/cria o pai antes de gravar.
   documentoId String?
   documento   DocumentoDisciplina? @relation(fields: [documentoId], references: [id], onDelete: SetNull)
+  /// Revisão a que este arquivo pertence (Fase 2). Nula em linha antiga até o backfill
+  /// rodar, e nula de propósito em upload sem documento lógico (ex.: gerado por ferramenta
+  /// antes da reconciliação). Nunca é lida pelo código da Fase 1.
+  revisaoId   String?
+  revisao     DocumentoRevisao?    @relation(fields: [revisaoId], references: [id], onDelete: SetNull)
 
   aceite                AceiteCliente?
   solicitacoesExclusao  SolicitacaoExclusaoUpload[]
@@ -4175,6 +4183,7 @@ model Upload {
   @@index([autorId])
   @@index([excluidoEm])
   @@index([documentoId])
+  @@index([revisaoId])
   @@map("upload")
 }
 
@@ -4237,16 +4246,89 @@ model DocumentoDisciplina {
   chave        String
   /// Nome exibido; espelho de Upload.nomeArquivo das suas versões (renomear atualiza os dois).
   nomeArquivo  String
+  /// Título legível ("Planta de forma do pavimento tipo"). Nulo enquanto ninguém preencher —
+  /// a tela cai no `nomeArquivo`, que é o comportamento de hoje.
+  titulo       String?
+  descricao    String?
+  /// Fase do documento (Anteprojeto/Projeto Básico/Executivo...). Aponta para o catálogo que
+  /// a Lista Mestre já usa; a categoria correta (`fase`) é garantida pela UI, não por
+  /// constraint — `PranchaCatalogo` guarda as três categorias na mesma tabela.
+  faseId       String?
+  fase         PranchaCatalogo? @relation(fields: [faseId], references: [id], onDelete: SetNull)
+  statusId     String?
+  status       DocumentoStatus? @relation(fields: [statusId], references: [id], onDelete: SetNull)
   createdAt    DateTime   @default(now())
 
+  /// Documento que absorveu este (merge por nome-base, M4). Quando preenchido, esta linha
+  /// é um APELIDO histórico: nada novo se pendura nela, mas ela continua existindo para
+  /// que `AuditLog.entidadeId` e links antigos ainda resolvam — via `resolverDocumentoCanonico`.
+  /// Soft-retire em vez de DELETE justamente por isso.
+  substituidoPorId String?
+  substituidoPor   DocumentoDisciplina?  @relation("MergeDocumento", fields: [substituidoPorId], references: [id], onDelete: SetNull)
+  substituidos     DocumentoDisciplina[] @relation("MergeDocumento")
+
   uploads    Upload[]
+  revisoes   DocumentoRevisao[]
   pendencias Pendencia[]
   calibracoes CalibracaoPrancha[]
   leituras   LeituraDocumento[]
 
   @@unique([disciplinaId, chave])
   @@index([disciplinaId])
+  @@index([substituidoPorId])
+  @@index([faseId])
+  @@index([statusId])
   @@map("documento_disciplina")
+}
+
+/// Revisão de um documento: o nível que faltava entre o documento lógico e o arquivo.
+///
+/// Existe para que PDF e DWG da MESMA revisão (R03) pertençam a um único ponto no tempo,
+/// em vez de serem duas linhas independentes cada uma com seu contador — ver
+/// docs/auditoria/03-plano-refatoracao.md §2. `Upload` continua sendo o arquivo físico
+/// (o `DocumentFile` da spec) e ganha `revisaoId` apontando para cá.
+///
+/// `Upload.versao` NÃO foi removido: durante a Fase 2 as duas coisas convivem, porque
+/// `entregaveisAtuais()` e a validação por-arquivo ainda leem `versao`. A remoção dele é
+/// decisão de uma onda posterior, quando nada mais depender do contador por linha.
+/// Status documental configurável (item 26 da spec). Tabela, não enum, pelo mesmo motivo de
+/// `TarefaStatus`: o escritório muda o vocabulário sem migration. É DIFERENTE de revisão —
+/// "R03" diz qual versão é, "Em análise" diz em que ponto do fluxo ela está.
+///
+/// `StatusDisciplina` (enum) continua existindo e não se confunde com este: aquele é o estado
+/// da DISCIPLINA inteira; este é de um documento.
+model DocumentoStatus {
+  id     String  @id @default(cuid())
+  nome   String  @unique
+  ordem  Int     @default(0)
+  cor    String?
+  /// Estado terminal: o documento não deve mais receber revisão (obsoleto/arquivado).
+  final  Boolean @default(false)
+  ativo  Boolean @default(true)
+
+  documentos DocumentoDisciplina[]
+
+  @@map("documento_status")
+}
+
+model DocumentoRevisao {
+  id          String              @id @default(cuid())
+  documentoId String
+  documento   DocumentoDisciplina @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  /// Número da revisão dentro do documento (1, 2, 3...). Exibido como R01, R02...
+  numero      Int
+  createdAt   DateTime            @default(now())
+  /// Quem enviou a revisão. Nulo quando o autor foi removido, ou em linha vinda de backfill
+  /// de um upload cujo autor não existe mais.
+  createdById String?
+  createdBy   User?               @relation("RevisaoAutor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  uploads Upload[]
+
+  @@unique([documentoId, numero])
+  @@index([documentoId])
+  @@index([createdById])
+  @@map("documento_revisao")
 }
 
 /// Árvore de pastas por disciplina (auto-referente). Semeada por template conforme o tipo

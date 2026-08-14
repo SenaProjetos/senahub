@@ -152,12 +152,23 @@ export async function POST(req: Request) {
       select: { id: true },
     });
 
+    // Revisão do documento (Fase 2): o ponto no tempo a que este arquivo pertence. PDF e
+    // DWG enviados como a mesma versão do mesmo documento caem na MESMA revisão — é o que
+    // o `upsert` sobre (documentoId, numero) garante, inclusive em envios concorrentes.
+    const revisao = await prisma.documentoRevisao.upsert({
+      where: { documentoId_numero: { documentoId: documento.id, numero: versao } },
+      create: { documentoId: documento.id, numero: versao, createdById: user.id },
+      update: {},
+      select: { id: true },
+    });
+
     const criado = await prisma.upload.create({
       data: {
         disciplinaId,
         pacote: pastaAlvo ? null : destino,
         pastaId: pastaAlvo?.id,
         documentoId: documento.id,
+        revisaoId: revisao.id,
         nomeArquivo: nome,
         caminho: salvo.caminho,
         hashSha256: salvo.hashSha256,

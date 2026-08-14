@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
 import { acessoGlobal } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
-import { revisoesDoDocumento } from "@/modules/uploads/queries";
+import { revisoesDoDocumento, resolverDocumentoCanonico } from "@/modules/uploads/queries";
 import { ComparadorRevisoes } from "@/components/projetos/comparador-revisoes";
 
 export const metadata: Metadata = { title: "Comparar revisões" };
@@ -43,7 +43,12 @@ export default async function CompararPage({ params }: { params: Promise<{ id: s
   const ehMembro = membros.some((m) => m.userId === user.id);
   if (!ehGlobal && !ehResp && !ehMembro) notFound();
 
-  const revisoes = upload.documentoId ? await revisoesDoDocumento(upload.documentoId) : [];
+  // O documento pode ter sido absorvido por outro no merge por nome-base (M4): sem resolver
+  // a cadeia, um upload que caiu num apelido ficaria sem nenhuma revisão para comparar.
+  const documentoCanonicoId = upload.documentoId ? await resolverDocumentoCanonico(upload.documentoId) : null;
+  const revisoes = documentoCanonicoId
+    ? await revisoesDoDocumento(documentoCanonicoId, { mesmaExtensaoDe: upload.nomeArquivo })
+    : [];
   // Sem documentoId (linha legada) ou só 1 versão: nada pra comparar.
   if (revisoes.length < 2) notFound();
 
