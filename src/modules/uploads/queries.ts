@@ -191,3 +191,194 @@ export async function revisoesDoDocumento(documentoId: string): Promise<RevisaoD
   if (!doc) return [];
   return doc.uploads.map((u) => ({ uploadId: u.id, versao: u.versao, excluido: u.excluidoEm != null }));
 }
+
+// ── Listagem paginada de documentos (tela nova, Fase 1 — F1-PR10) ─────────────
+// Substitui, na tela v2, o caminho "carrega a árvore inteira e filtra em memória":
+// projeto com milhares de arquivos passava todos pelo servidor e pelo DOM. Aqui filtro,
+// ordenação e recorte acontecem no Postgres, e só a página pedida sai do banco.
+
+/** Campos ordenáveis — whitelist (o valor vem da URL). */
+export const CAMPOS_ORDENACAO_DOCUMENTOS = ["nome", "disciplina", "versao", "data", "tamanho"] as const;
+export type CampoOrdenacaoDocumento = (typeof CAMPOS_ORDENACAO_DOCUMENTOS)[number];
+
+export type FiltrosListagemDocumentos = {
+  disciplinaId?: string | null;
+  q?: string;
+  ext?: string;
+  autor?: string;
+  /** Dias para trás; qualquer valor fora de 7/30/90 é ignorado. */
+  periodo?: string;
+  /** "sim" | "nao" — arquivos de PastaProjeto ficam fora dos dois (não têm validação). */
+  validado?: string;
+};
+
+const DIAS_VALIDOS = new Set(["7", "30", "90"]);
+
+function orderByDocumentos(
+  sort: CampoOrdenacaoDocumento | null,
+  dir: "asc" | "desc",
+): NonNullable<Parameters<typeof prisma.upload.findMany>[0]>["orderBy"] {
+  switch (sort) {
+    case "nome":
+      return [{ nomeArquivo: dir }];
+    case "disciplina":
+      // Desempate por nome do arquivo, igual à ordenação client anterior.
+      return [{ disciplina: { nome: dir } }, { nomeArquivo: "asc" }];
+    case "versao":
+      return [{ versao: dir }];
+    case "tamanho":
+      return [{ tamanho: dir }];
+    case "data":
+      return [{ createdAt: dir }];
+    default:
+      // Sem ordenação escolhida: mais recente primeiro — o que a pessoa acabou de enviar.
+      return [{ createdAt: "desc" }];
+  }
+}
+
+/**
+ * Uma página de documentos do projeto, já filtrada e ordenada no banco.
+ *
+ * `veTodas` reproduz a muralha por disciplina do resto do módulo: quem não a tem só
+ * enxerga as disciplinas onde é responsável — a mesma regra da rota de download.
+ */
+export async function listarDocumentosProjeto(opts: {
+  projetoId: string;
+  userId: string;
+  veTodas: boolean;
+  filtros: FiltrosListagemDocumentos;
+  skip: number;
+  take: number;
+  sort: CampoOrdenacaoDocumento | null;
+  dir: "asc" | "desc";
+}) {
+  const { projetoId, userId, veTodas, filtros, skip, take, sort, dir } = opts;
+
+  const escopoDisciplina = {
+    projetoId,
+    ...(veTodas ? {} : { responsaveis: { some: { userId } } }),
+    ...(filtros.disciplinaId ? { id: filtros.disciplinaId } : {}),
+  };
+
+  const termo = filtros.q?.trim();
+  const dias = DIAS_VALIDOS.has(filtros.periodo ?? "") ? Number(filtros.periodo) : null;
+
+  const where = {
+    // Lixeira: `findMany` de topo já ganha `excluidoEm: null` pela extensão de lib/prisma.ts,
+    // mas deixamos explícito porque a condição viaja junto no `count` e no `groupBy`.
+    excluidoEm: null,
+    disciplina: escopoDisciplina,
+    ...(termo
+      ? {
+          OR: [
+            { nomeArquivo: { contains: termo, mode: "insensitive" as const } },
+            { disciplina: { nome: { contains: termo, mode: "insensitive" as const } } },
+            { autor: { name: { contains: termo, mode: "insensitive" as const } } },
+          ],
+        }
+      : {}),
+    ...(filtros.ext ? { nomeArquivo: { endsWith: `.${filtros.ext}`, mode: "insensitive" as const } } : {}),
+    ...(filtros.autor ? { autor: { name: filtros.autor } } : {}),
+    ...(dias ? { createdAt: { gte: new Date(Date.now() - dias * 86_400_000) } } : {}),
+    // Validação só existe no fluxo de pacote; arquivo dentro de PastaProjeto fica fora.
+    ...(filtros.validado === "sim" ? { validado: true, pastaId: null } : {}),
+    ...(filtros.validado === "nao" ? { validado: false, pastaId: null } : {}),
+  };
+
+  // Conta ANTES de buscar para poder grampear a página: `?page=99` num projeto de 3 páginas
+  // caía numa tela vazia dizendo "nenhum documento neste projeto", ao lado de "68 item(ns)".
+  const total = await prisma.upload.count({ where });
+  const ultimaPagina = Math.max(1, Math.ceil(total / Math.max(1, take)));
+  const paginaPedida = Math.floor(skip / Math.max(1, take)) + 1;
+  const pagina = Math.min(paginaPedida, ultimaPagina);
+  const skipEfetivo = (pagina - 1) * take;
+
+  const uploads = await prisma.upload.findMany({
+      where,
+      orderBy: orderByDocumentos(sort, dir),
+      skip: skipEfetivo,
+      take,
+      select: {
+        id: true,
+        nomeArquivo: true,
+        versao: true,
+        tamanho: true,
+        validado: true,
+        pastaId: true,
+        createdAt: true,
+        // `responsaveis` alimenta o `podeGerir` da linha (renomear é de global/responsável).
+        disciplina: { select: { id: true, nome: true, responsaveis: { select: { userId: true } } } },
+        autor: { select: { name: true } },
+      },
+  });
+
+  return { total, uploads, pagina };
+}
+
+/** Extensão em minúsculas, sem ponto (`""` quando o nome não tem extensão). */
+function extensaoDe(nome: string): string {
+  const i = nome.lastIndexOf(".");
+  return i > 0 ? nome.slice(i + 1).toLowerCase() : "";
+}
+
+/**
+ * Converte o resultado de `listarDocumentosProjeto` nas linhas que a tabela consome.
+ *
+ * `validado` vira `null` para arquivo dentro de `PastaProjeto`: lá não existe validação
+ * por arquivo, e mostrar "pendente" para sempre seria mentira (mesma regra de
+ * `linhasDeDocumentos`, usada pelo caminho não paginado).
+ */
+export function linhasDeUploads(
+  uploads: Awaited<ReturnType<typeof listarDocumentosProjeto>>["uploads"],
+  opts: { podeEnviarCap: boolean; ehGlobal: boolean; userId: string },
+) {
+  return uploads.map((u) => ({
+    id: u.id,
+    nome: u.nomeArquivo,
+    ext: extensaoDe(u.nomeArquivo),
+    disciplinaId: u.disciplina.id,
+    disciplinaNome: u.disciplina.nome,
+    versao: u.versao,
+    validado: u.pastaId ? null : u.validado,
+    autor: u.autor?.name ?? "—",
+    data: u.createdAt.toISOString(),
+    tamanho: u.tamanho,
+    downloadUrl: `/api/uploads/${u.id}/download`,
+    podeGerir:
+      opts.podeEnviarCap &&
+      (opts.ehGlobal || u.disciplina.responsaveis.some((r) => r.userId === opts.userId)),
+  }));
+}
+
+/**
+ * Opções dos selects de filtro — extensões e responsáveis que REALMENTE existem no escopo.
+ *
+ * Sai do banco e não da página atual: com paginação, montar as opções a partir das 24 linhas
+ * visíveis daria uma lista de filtros que muda a cada página. Ignora de propósito os demais
+ * filtros ativos, para que aplicar um filtro nunca esvazie as opções dos outros.
+ */
+export async function opcoesFiltroDocumentos(opts: {
+  projetoId: string;
+  userId: string;
+  veTodas: boolean;
+  disciplinaId?: string | null;
+}) {
+  const { projetoId, userId, veTodas, disciplinaId } = opts;
+  const uploads = await prisma.upload.findMany({
+    where: {
+      excluidoEm: null,
+      disciplina: {
+        projetoId,
+        ...(veTodas ? {} : { responsaveis: { some: { userId } } }),
+        ...(disciplinaId ? { id: disciplinaId } : {}),
+      },
+    },
+    select: { nomeArquivo: true, autor: { select: { name: true } } },
+  });
+
+  const extensoes = [...new Set(uploads.map((u) => extensaoDe(u.nomeArquivo)).filter(Boolean))].sort();
+  const autores = [...new Set(uploads.map((u) => u.autor?.name).filter((n): n is string => !!n))].sort(
+    (a, b) => a.localeCompare(b, "pt-BR"),
+  );
+  return { extensoes, autores };
+}

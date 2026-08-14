@@ -9,6 +9,8 @@ import { removerArquivo } from "@/lib/storage";
 import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { GLOBAL_ROLES, type Role } from "@/lib/roles";
+import { can } from "@/lib/permissions";
+import type { SessionUser } from "@/lib/session";
 import { whereAudiencia } from "@/lib/audiencias";
 import { statusValidacao } from "@/modules/uploads/validacao";
 import { chaveDocumento } from "@/modules/uploads/documento";
@@ -465,9 +467,13 @@ export const renomearUpload = defineAction(
     });
     if (!up) throw new ActionError("Arquivo não encontrado.");
 
+    // Global/responsável continuam valendo como sempre; `arquivos:renomear` é uma porta a
+    // MAIS, agora visível na tela de Permissões (antes a regra só existia aqui no código).
     const ehGlobal = user.role === "admin" || GLOBAL_ROLES.includes(user.role as Role);
     const ehResp = up.disciplina.responsaveis.some((r) => r.userId === user.id);
-    if (!ehGlobal && !ehResp) throw new ActionError("Sem permissão para renomear este arquivo.");
+    if (!ehGlobal && !ehResp && !(await can(user, "arquivos", "renomear"))) {
+      throw new ActionError("Sem permissão para renomear este arquivo.");
+    }
 
     // A extensão do arquivo não pode ser alterada: força a extensão original,
     // trocando o que o cliente eventualmente tenha enviado (case-insensitive).
@@ -534,11 +540,19 @@ export const renomearUpload = defineAction(
 
 const excluirSchema = z.object({ uploadId: z.string().min(1) });
 
-/** Gate comum: só admin mexe na lixeira. */
-function exigirAdmin(role: string) {
-  if (role !== "admin") {
-    throw new ActionError("Apenas administradores podem gerir a lixeira do projeto.");
-  }
+/**
+ * Gate da lixeira: admin OU quem tiver `arquivos:excluir` concedido na matriz.
+ *
+ * Era `role === "admin"` cravado em código, invisível para a tela de Permissões
+ * (docs/auditoria/01-arquitetura-atual.md §10b). A capability foi catalogada e passa a ser
+ * um caminho ADICIONAL — o `role === "admin"` continua aqui de propósito: `can()` bypassa
+ * por `superUsuario`, não por role, então trocar um pelo outro trancaria o admin para fora
+ * em qualquer base onde o backfill de perfis ainda não tenha rodado.
+ */
+async function exigirPermissaoLixeira(user: SessionUser) {
+  if (user.role === "admin") return;
+  if (await can(user, "arquivos", "excluir")) return;
+  throw new ActionError("Você não tem permissão para gerir a lixeira do projeto.");
 }
 
 /**
@@ -564,7 +578,7 @@ export const excluirUpload = defineAction(
       }),
   },
   async (input, { user }) => {
-    exigirAdmin(user.role);
+    await exigirPermissaoLixeira(user);
     const upload = await prisma.upload.findUnique({
       where: { id: input.uploadId },
       select: {
@@ -613,7 +627,7 @@ export const excluirUploadsLote = defineAction(
     entidadeId: (d) => (d as { projetoId?: string } | undefined)?.projetoId,
   },
   async (input, { user }) => {
-    exigirAdmin(user.role);
+    await exigirPermissaoLixeira(user);
     // Só arquivos DESTE projeto e ainda fora da lixeira (escopo + idempotência).
     const uploads = await prisma.upload.findMany({
       where: {
@@ -657,7 +671,7 @@ export const restaurarUpload = defineAction(
       }),
   },
   async (input, { user }) => {
-    exigirAdmin(user.role);
+    await exigirPermissaoLixeira(user);
     const upload = await prisma.upload.findUnique({
       where: { id: input.uploadId },
       select: {
@@ -705,7 +719,7 @@ export const excluirUploadDefinitivo = defineAction(
       }),
   },
   async (input, { user }) => {
-    exigirAdmin(user.role);
+    await exigirPermissaoLixeira(user);
     const upload = await prisma.upload.findUnique({
       where: { id: input.uploadId },
       select: {
@@ -939,7 +953,7 @@ export const aprovarSolicitacaoExclusao = defineAction(
       }),
   },
   async (input, { user }) => {
-    exigirAdmin(user.role);
+    await exigirPermissaoLixeira(user);
     const solicitacao = await carregarPedidoPendente(input.id);
 
     await prisma.$transaction(async (tx) => {
@@ -1002,7 +1016,7 @@ export const recusarSolicitacaoExclusao = defineAction(
       }),
   },
   async (input, { user }) => {
-    exigirAdmin(user.role);
+    await exigirPermissaoLixeira(user);
     const solicitacao = await carregarPedidoPendente(input.id);
 
     await prisma.solicitacaoExclusaoUpload.update({

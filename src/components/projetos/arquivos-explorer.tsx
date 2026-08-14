@@ -67,6 +67,8 @@ import {
   limiteLabelDoPacote,
 } from "@/modules/uploads/limites";
 import { precisaChunk, enviarEmChunks } from "@/lib/upload-grande";
+import { useDropzone } from "@/lib/use-dropzone";
+import { detectarNovasRevisoes, mensagemNovasRevisoes, type ArquivoExistente } from "@/modules/uploads/revisao-nova";
 import { cn, formatarData, rotuloRevisao } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -754,6 +756,18 @@ export function ArquivosExplorer({
   const ctxSelecao = useMemo(() => ({ sel, alternar }), [sel, alternar]);
 
   const enviaveis = disciplinas.filter((d) => d.podeEnviar);
+  // Nomes já enviados por disciplina — o Uploader compara com o que está sendo enviado
+  // para avisar que o arquivo vira uma nova versão em vez de substituir em silêncio.
+  const existentesPorDisciplina = useMemo(() => {
+    const mapa: Record<string, ArquivoExistente[]> = {};
+    for (const d of disciplinas) {
+      mapa[d.id] = [
+        ...d.arquivos.map((a) => ({ nome: a.nome, pacote: a.pacote, pastaId: null, versao: a.versao })),
+        ...d.arquivosPasta.map((a) => ({ nome: a.nome, pacote: null, pastaId: a.pastaId, versao: a.versao })),
+      ];
+    }
+    return mapa;
+  }, [disciplinas]);
   const temGeral = geral.length > 0 || podeGerirGeral;
   const temRecebidos = recebidos.length > 0 || podeGerirRecebidos;
   // Admin sempre vê a lixeira (mesmo vazia) — é onde os excluídos ficam por 30 dias.
@@ -786,7 +800,13 @@ export function ArquivosExplorer({
         )}
       </div>
 
-      {enviaveis.length > 0 && <Uploader disciplinas={enviaveis} nomenclatura={nomenclatura} />}
+      {enviaveis.length > 0 && (
+        <Uploader
+          disciplinas={enviaveis}
+          nomenclatura={nomenclatura}
+          existentesPorDisciplina={existentesPorDisciplina}
+        />
+      )}
 
       {sel.size > 0 && (
         <div className="sticky top-2 z-10 flex flex-wrap items-center gap-3 rounded-sm border bg-background/95 px-3 py-2 shadow-sm backdrop-blur">
@@ -1155,8 +1175,14 @@ function RecebidosPasta({
     });
   }
 
+  // Arrastar-e-soltar aqui também (antes só o Uploader de disciplina tinha).
+  const { arrastando, dropProps } = useDropzone(enviarNovos, !podeGerir || busy);
+
   return (
-    <>
+    <div
+      className={cn("rounded-sm transition-colors", arrastando && "bg-primary/5 ring-1 ring-primary")}
+      {...(podeGerir ? dropProps : {})}
+    >
       <input
         ref={fileVersao}
         type="file"
@@ -1287,7 +1313,7 @@ function RecebidosPasta({
           })
         )}
       </Pasta>
-    </>
+    </div>
   );
 }
 
@@ -1382,8 +1408,14 @@ function PastaBaseArquitetonica({
     });
   }
 
+  // Arrastar-e-soltar aqui também (antes só o Uploader de disciplina tinha).
+  const { arrastando, dropProps } = useDropzone(enviarNovos, !podeGerir || busy);
+
   return (
-    <>
+    <div
+      className={cn("rounded-sm transition-colors", arrastando && "bg-primary/5 ring-1 ring-primary")}
+      {...(podeGerir ? dropProps : {})}
+    >
       <input
         ref={fileVersao}
         type="file"
@@ -1503,7 +1535,7 @@ function PastaBaseArquitetonica({
           })
         )}
       </Pasta>
-    </>
+    </div>
   );
 }
 
@@ -1528,6 +1560,8 @@ function PastaGeral({
   const [editar, setEditar] = useState<DocumentoItem | null>(null);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ nome: "", categoria: "outro", descricao: "" });
+  /** Arquivo vindo do arrastar-e-soltar (o input só carrega o que foi escolhido no clique). */
+  const [arquivoSolto, setArquivoSolto] = useState<File | null>(null);
   const fileNovo = useRef<HTMLInputElement>(null);
   const fileVersao = useRef<HTMLInputElement>(null);
   const [alvoVersao, setAlvoVersao] = useState<string | null>(null);
@@ -1541,6 +1575,7 @@ function PastaGeral({
     });
 
   function abrirNovo() {
+    setArquivoSolto(null);
     setForm({ nome: "", categoria: "outro", descricao: "" });
     setNovo(true);
   }
@@ -1550,7 +1585,8 @@ function PastaGeral({
   }
 
   async function salvarNovo() {
-    const file = fileNovo.current?.files?.[0];
+    // `arquivoSolto` vem do arrastar-e-soltar; o input segue valendo para quem clica.
+    const file = arquivoSolto ?? fileNovo.current?.files?.[0];
     if (!form.nome.trim() || !file) {
       toast.error("Informe o nome e selecione um arquivo.");
       return;
@@ -1628,8 +1664,22 @@ function PastaGeral({
     });
   }
 
+  // Arrastar-e-soltar aqui ABRE o formulário com o arquivo já escolhido — diferente de
+  // Recebidos/Base Arquitetônica, que enviam direto: aqui nome/categoria/descrição são
+  // obrigatórios, e enviar em silêncio criaria documento sem classificação.
+  const { arrastando, dropProps } = useDropzone((files) => {
+    const f = files[0];
+    if (!f) return;
+    setArquivoSolto(f);
+    setForm({ nome: f.name, categoria: "outro", descricao: "" });
+    setNovo(true);
+  }, !podeGerir || busy);
+
   return (
-    <>
+    <div
+      className={cn("rounded-sm transition-colors", arrastando && "bg-primary/5 ring-1 ring-primary")}
+      {...(podeGerir ? dropProps : {})}
+    >
       <input
         ref={fileVersao}
         type="file"
@@ -1803,7 +1853,21 @@ function PastaGeral({
             </div>
             <div className="space-y-1.5">
               <Label>Arquivo</Label>
-              <Input ref={fileNovo} type="file" />
+              {arquivoSolto ? (
+                // Arquivo veio arrastado: o input de arquivo não pode ser preenchido por
+                // código, então mostramos o nome e deixamos trocar.
+                <div className="flex items-center gap-2 rounded-sm border px-2.5 py-1.5 text-sm">
+                  <IconeArquivo nome={arquivoSolto.name} />
+                  <span className="min-w-0 flex-1 truncate" title={arquivoSolto.name}>
+                    {arquivoSolto.name}
+                  </span>
+                  <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setArquivoSolto(null)}>
+                    Trocar
+                  </Button>
+                </div>
+              ) : (
+                <Input ref={fileNovo} type="file" />
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -1846,7 +1910,7 @@ function PastaGeral({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }
 
@@ -2088,9 +2152,12 @@ function patchLinha(
 function Uploader({
   disciplinas,
   nomenclatura,
+  existentesPorDisciplina,
 }: {
   disciplinas: { id: string; nome: string; usaPastas: boolean; pastas: PastaFlat[] }[];
   nomenclatura: { exigir: boolean; padrao: string | null };
+  /** Arquivos já enviados, por disciplina — usado só para avisar que o envio vira nova versão. */
+  existentesPorDisciplina: Record<string, ArquivoExistente[]>;
 }) {
   const router = useRouter();
   // Sem disciplina pré-selecionada: força a escolha consciente e evita envio no alvo errado.
@@ -2098,7 +2165,6 @@ function Uploader({
   const [pacote, setPacote] = useState<PacoteEnvio>("A");
   const [pastaId, setPastaId] = useState("");
   const [enviando, setEnviando] = useState(false);
-  const [arrastando, setArrastando] = useState(false);
   const [pendentes, setPendentes] = useState<ItemEnvio[] | null>(null);
   const [progresso, setProgresso] = useState<LinhaEnvio[] | null>(null);
   const inputArquivos = useRef<HTMLInputElement>(null);
@@ -2106,6 +2172,7 @@ function Uploader({
 
   const discSel = disciplinas.find((d) => d.id === disciplinaId);
   const usaPastas = discSel?.usaPastas ?? false;
+  const { arrastando, dropProps } = useDropzone((files) => enviar(files), enviando);
 
   function selecionarDisciplina(id: string) {
     setDisciplinaId(id);
@@ -2164,6 +2231,16 @@ function Uploader({
 
   async function uploadFinal(itens: ItemEnvio[]) {
     setPendentes(null);
+    // Item 12 da spec: "nunca substituir silenciosamente uma revisão existente". O servidor
+    // já versiona (versao+1), mas até aqui nada dizia isso na tela — o aviso sai ANTES do
+    // primeiro byte subir, com a versão que será criada.
+    const revisoes = detectarNovasRevisoes(
+      itens.map((i) => i.nome),
+      existentesPorDisciplina[disciplinaId] ?? [],
+      usaPastas ? { pastaId } : { pacote: itens[0]?.alvo },
+    );
+    if (revisoes.length > 0) toast.info(mensagemNovasRevisoes(revisoes), { duration: 6000 });
+
     // Envia arquivo a arquivo (XHR) para exibir a lista e o progresso de cada um.
     const linhas: LinhaEnvio[] = itens.map((it) => ({ ...it, status: "pendente", progresso: 0 }));
     setProgresso(linhas);
@@ -2210,16 +2287,7 @@ function Uploader({
         "space-y-3 rounded-sm border border-dashed p-3 transition-colors",
         arrastando && "border-primary bg-primary/5",
       )}
-      onDragOver={(e) => {
-        e.preventDefault();
-        setArrastando(true);
-      }}
-      onDragLeave={() => setArrastando(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setArrastando(false);
-        if (e.dataTransfer.files.length) enviar(e.dataTransfer.files);
-      }}
+      {...dropProps}
     >
       <RevisarNomesDialog
         itens={pendentes}

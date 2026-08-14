@@ -5,7 +5,16 @@ import { can } from "@/lib/permissions";
 import { GLOBAL_ROLES } from "@/lib/roles";
 import { projetoVisivel } from "@/modules/planejamento/queries";
 import { arvoreArquivosProjeto } from "@/modules/projetos/arquivos/queries";
-import { lixeiraDoProjeto, pedidosExclusaoPendentesDoProjeto } from "@/modules/uploads/queries";
+import {
+  lixeiraDoProjeto,
+  pedidosExclusaoPendentesDoProjeto,
+  listarDocumentosProjeto,
+  linhasDeUploads,
+  opcoesFiltroDocumentos,
+  CAMPOS_ORDENACAO_DOCUMENTOS,
+  type CampoOrdenacaoDocumento,
+} from "@/modules/uploads/queries";
+import { parseListParams, pageCount } from "@/lib/list-params";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import {
   recebidosDoProjeto,
@@ -19,14 +28,40 @@ import { podeVerTodasDisciplinas, podeEnviarArquivo } from "@/modules/arquivos/a
 import { linkArquivosDoProjeto } from "@/modules/projetos/arquivos/link-publico";
 import { listarArtsDoProjeto } from "@/modules/projetos/art/queries";
 import { ArquivosExplorer } from "@/components/projetos/arquivos-explorer";
+import { DocumentosShell } from "@/components/projetos/arquivos/documentos-shell";
 
 export const metadata: Metadata = { title: "Arquivos" };
 
-export default async function ArquivosPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ArquivosPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{
+    docsv2?: string;
+    disciplinaId?: string;
+    q?: string;
+    ext?: string;
+    autor?: string;
+    periodo?: string;
+    val?: string;
+    page?: string;
+    pageSize?: string;
+    sort?: string;
+    dir?: string;
+  }>;
+}) {
   const user = await requirePermission("projetos", "ver");
   const { id } = await params;
   const projeto = await projetoVisivel(user, id);
   if (!projeto) notFound();
+
+  // Feature flag da refatoração de Documentos (Fase 1, docs/auditoria/03-plano-refatoracao.md
+  // §6): padrão desligado (tela atual continua sendo o `ArquivosExplorer` de sempre);
+  // `?docsv2=1` liga a tela nova em desenvolvimento, `NEXT_PUBLIC_DOCUMENTOS_V2=1` liga por
+  // ambiente quando a Fase 1 estiver completa e aprovada pra virar padrão.
+  const sp = await searchParams;
+  const documentosV2 = process.env.NEXT_PUBLIC_DOCUMENTOS_V2 === "1" || sp?.docsv2 === "1";
 
   const ehGlobal = user.role === "admin" || GLOBAL_ROLES.includes(user.role);
   const [veTodas, podeEnviarCap] = await Promise.all([
@@ -58,6 +93,80 @@ export default async function ArquivosPage({ params }: { params: Promise<{ id: s
   // Pedidos de exclusão pendentes: o admin vê todos (é quem decide); os demais só o
   // próprio pedido, pra não expor que outra pessoa quer excluir aquele arquivo.
   const exclusoesPendentes = await pedidosExclusaoPendentesDoProjeto(id, ehAdmin ? undefined : user.id);
+
+  if (documentosV2) {
+    // Badge IFC abre a aba Coordenação (viewer BIM): sem a permissão, o badge vira download.
+    // `arquivos:excluir` espelha na UI o gate da action (admin OU capability concedida).
+    const [podeCoordenacao, podeExcluirCap] = await Promise.all([
+      can(user, "coordenacao", "ver"),
+      can(user, "arquivos", "excluir"),
+    ]);
+    const podeExcluirArquivo = ehAdmin || podeExcluirCap;
+    const disciplinasArvore = arvore.disciplinas.map((d) => ({
+      id: d.id,
+      nome: d.nome,
+      status: d.status,
+      total: d.arquivos.length + d.arquivosPasta.length,
+      podeEnviar: d.podeEnviar,
+    }));
+    const totalDocumentos = disciplinasArvore.reduce((soma, d) => soma + d.total, 0);
+    // Seleção do painel esquerdo: id inválido/de outro projeto cai em "todas" — a árvore já
+    // veio filtrada pela muralha por disciplina, então filtrar por ela nunca amplia o escopo.
+    const selecionadaId =
+      sp?.disciplinaId && disciplinasArvore.some((d) => d.id === sp.disciplinaId) ? sp.disciplinaId : null;
+    // Filtro, ordenação e recorte acontecem no Postgres (F1-PR10): projeto com milhares de
+    // arquivos não pode trafegar inteiro até o client a cada carga da tela.
+    const filtros = {
+      disciplinaId: selecionadaId,
+      q: sp?.q,
+      ext: sp?.ext,
+      autor: sp?.autor,
+      periodo: sp?.periodo,
+      validado: sp?.val,
+    };
+    const lp = parseListParams(sp ?? {}, {
+      sortFields: CAMPOS_ORDENACAO_DOCUMENTOS,
+      defaultPageSize: 24,
+    });
+    const [pagina, opcoes] = await Promise.all([
+      listarDocumentosProjeto({
+        projetoId: id,
+        userId: user.id,
+        veTodas,
+        filtros,
+        skip: lp.skip,
+        take: lp.take,
+        sort: lp.sort as CampoOrdenacaoDocumento | null,
+        dir: lp.dir,
+      }),
+      opcoesFiltroDocumentos({ projetoId: id, userId: user.id, veTodas, disciplinaId: selecionadaId }),
+    ]);
+    const linhas = linhasDeUploads(pagina.uploads, { podeEnviarCap, ehGlobal, userId: user.id });
+    const filtrosAtivos = [sp?.q, sp?.ext, sp?.autor, sp?.periodo, sp?.val].filter(
+      (v) => typeof v === "string" && v.trim() !== "",
+    ).length;
+
+    return (
+      <DocumentosShell
+        projeto={projeto}
+        disciplinas={disciplinasArvore}
+        linhas={linhas}
+        extensoes={opcoes.extensoes}
+        autores={opcoes.autores}
+        temFiltroAtivo={filtrosAtivos > 0}
+        totalDocumentos={totalDocumentos}
+        totalFiltrado={pagina.total}
+        totalDisciplinas={disciplinasArvore.length}
+        disciplinaSelecionadaId={selecionadaId}
+        paginacao={{ page: pagina.pagina, pageCount: pageCount(pagina.total, lp.pageSize), pageSize: lp.pageSize }}
+        podeEnviar={podeEnviarCap}
+        podeCoordenacao={podeCoordenacao}
+        podeValidar={podeValidar}
+        podeExcluir={podeExcluirArquivo}
+        podeSolicitarExclusao={!podeExcluirArquivo}
+      />
+    );
+  }
 
   return (
     <ArquivosExplorer
