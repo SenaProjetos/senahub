@@ -33,6 +33,7 @@ import {
 } from "@/modules/comercial/schemas";
 import { removerArquivo } from "@/lib/storage";
 import { etapaEhPerdido } from "@/modules/comercial/status";
+import { formatarNumeroProposta } from "@/modules/comercial/numeracao";
 import type { Prisma } from "@/generated/prisma/client";
 
 const base = { modulo: "comercial", recurso: "comercial", permissao: "gerir" } as const;
@@ -279,7 +280,7 @@ async function proximoNumeroProposta(tx: Prisma.TransactionClient) {
   return {
     ano,
     sequencial: seq.ultimo,
-    numero: `PR-${String(ano % 100).padStart(2, "0")}${String(seq.ultimo).padStart(4, "0")}`,
+    numero: formatarNumeroProposta(ano, seq.ultimo),
   };
 }
 
