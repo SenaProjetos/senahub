@@ -121,6 +121,7 @@ M1–M8 entram na Fase 2. M9 entra na Fase 4, isolada das demais (nenhum PR toca
 | F2-PR7 | Migration M7 — `ListaDocumentos`/`ListaDocumentoItem` + Server Actions + aba "Listas" no painel esquerdo | `prisma/schema.prisma`, `prisma/migrations/<novo>/`, novo `src/modules/uploads/listas.ts` (actions), `src/components/projetos/arquivos/painel-listas.tsx` (novo) |
 | F2-PR8 | Modal/drawer de histórico de revisões dedicado (item 14) | novo `src/components/projetos/arquivos/historico-revisoes-dialog.tsx`, reusa `revisoesDoDocumento()` |
 | F2-PR9 | Upload de nova revisão — fluxo que aceita múltiplas extensões sob a mesma revisão de uma vez, com toast de confirmação | `src/app/api/uploads/route.ts`, `src/components/projetos/arquivos-explorer.tsx` (`Uploader`) |
+| F2-PR10 | Colunas configuráveis + prioridade de coluna em tela menor (item 8 da spec) — em 1366px as colunas finais (Atualizado, Tamanho, menu) ficam atrás do scroll interno do `Table`; definir quais colunas cedem primeiro e deixar a escolha persistir por usuário | `src/components/projetos/arquivos/tabela-documentos.tsx`, novo seletor de colunas, `modules/usuarios/preferencias/` (persistência) |
 
 **O que NÃO entra nesta fase**: workspace de 3 painéis do visualizador (Fase 3), tarefa rastreável entre revisões (Fase 4), comparação avançada com opacidade/zoom sincronizado (Fase 4).
 
@@ -132,10 +133,11 @@ M1–M8 entram na Fase 2. M9 entra na Fase 4, isolada das demais (nenhum PR toca
 - [ ] Criar uma Lista, adicionar 2 documentos, remover 1 — reflete corretamente na aba Listas sem reload.
 - [ ] Alterar o status de um Documento persiste e aparece na tabela sem reload.
 - [ ] Ligar "Exigir fases" na configuração de um projeto torna o campo fase obrigatório ao criar/editar Documento nesse projeto; em projeto com o toggle desligado, o campo continua opcional (comportamento atual preservado).
+- [ ] Em 1366px, as colunas que a pessoa marcou como visíveis aparecem sem scroll interno; a escolha sobrevive a recarregar a página.
 - [ ] Fazer upload de um arquivo com nome no padrão `{projeto}-{sigla}-{fase}-{numeracao4}-{tipo}[-Rnn]` em projeto com "Exigir fases" ligado pré-preenche a fase detectada pelo parser (`codigo.ts:54-72`), editável antes de confirmar.
 - [ ] `npm run db:migrate` roda sem erro em ambiente limpo (seed incluso) e `npm run db:seed` continua idempotente.
 
-**Paralelo vs. sequencial**: F2-PR1→PR2→PR3→PR4 são estritamente sequenciais (cada um depende do estado de dados do anterior). F2-PR5 pode começar em paralelo com PR3/PR4 (não depende do merge de chave). F2-PR6, PR6b, PR7, PR8 podem ser paralelos entre si depois de PR5/PR4 estarem em produção (F2-PR6b não depende de PR6 — é `NomenclaturaConfig`, tabela separada de `DocumentoDisciplina`). F2-PR9 depende de PR4 (precisa de `documentoId` canônico estável antes de mudar o fluxo de upload) e se beneficia de PR6b já estar em produção (pré-preenchimento de fase no upload), mas não é bloqueado por ele.
+**Paralelo vs. sequencial**: F2-PR1→PR2→PR3→PR4 são estritamente sequenciais (cada um depende do estado de dados do anterior). F2-PR5 pode começar em paralelo com PR3/PR4 (não depende do merge de chave). F2-PR6, PR6b, PR7, PR8 podem ser paralelos entre si depois de PR5/PR4 estarem em produção (F2-PR6b não depende de PR6 — é `NomenclaturaConfig`, tabela separada de `DocumentoDisciplina`). F2-PR9 depende de PR4 (precisa de `documentoId` canônico estável antes de mudar o fluxo de upload) e se beneficia de PR6b já estar em produção (pré-preenchimento de fase no upload), mas não é bloqueado por ele. F2-PR10 é independente de todos: só mexe na tabela e na preferência do usuário, sem tocar schema de documento — pode ir a qualquer momento da fase, inclusive primeiro.
 
 **Ponto de rollback**: até F2-PR2 (inclusive), reversível via restore de backup pré-migration sem perda (nada foi merged ainda). A partir de F2-PR3 (merge), o ponto de rollback seguro é o `pg_dump` tirado imediatamente antes de M4 rodar em produção — reversão pós-merge por `DROP COLUMN`/migration reversa não desfaz o merge lógico (dados já reagrupados), só restore completo desfaz.
 
@@ -237,7 +239,7 @@ Nenhum endpoint é removido nesta refatoração inteira (Fases 1–4).
 | Fase | PRs | Esforço agregado |
 |---|---|---|
 | 1 | 11 PRs — F1-PR3 (G), F1-PR7 (M), F1-PR8 (M), F1-PR10 (M), demais (P–M) | ~2G + 6M + 3P |
-| 2 | 10 PRs — F2-PR1 (G), F2-PR3 (G), F2-PR4 (M), F2-PR7 (M), F2-PR6b (P), demais (P–M) | ~2G + 5M + 3P |
+| 2 | 11 PRs — F2-PR1 (G), F2-PR3 (G), F2-PR4 (M), F2-PR7 (M), F2-PR10 (M), F2-PR6b (P), demais (P–M) | ~2G + 6M + 3P |
 | 3 | 5 PRs — F3-PR3 (G), demais (M) | ~1G + 4M |
 | 4 | 4 PRs — F4-PR1 (M), F4-PR2 (M), F4-PR3 (P), F4-PR4 (M) | ~3M + 1P |
 
