@@ -81,6 +81,7 @@ export async function arvoreArquivosProjeto(
       return {
         id: d.id,
         nome: d.nome,
+        status: d.status,
         finalizado: d.status === "aprovado",
         podeEnviar: podeEnviarCap && (ehGlobal || d.responsaveis.some((r) => r.userId === userId)),
         usaPastas,
