@@ -92,6 +92,39 @@ os callbacks `entidadeId` ficam na config do `defineAction`, alimentando a audit
 
 **Fase 1a completa** (F1.0–F1.4). Verificação: **192 arquivos, 1961 testes verdes**, lint limpo.
 
+**F1.5 — catálogos e enums** (commit `97a0ecb`, Sonnet) — **primeira migration do CRM**
+- 5 tabelas (`tipo_empreendimento`, `motivo_perda` +`exigeConcorrente`, `canal_aquisicao`,
+  `segmento`, `probabilidade_estagio`) + 7 enums. **Puramente aditiva** — nada existente alterado.
+- Disciplina **não** entra: `disciplina_catalogo` já é o catálogo do sistema (§8.1). As relações
+  inversas (`Negociacao[]`, `Lead[]`, `Campanha[]`, `Cliente[]`) ficam para as tarefas que criam
+  esses models — é lá que entram as FKs e seus índices.
+
+**Como o drift foi contornado (sem reset):** `prisma migrate dev` pediu reset por drift acumulado em
+`pendencia`/`pendencia_anexo`, **vindo de outra frente**. Reset recusado — apagaria o dataset de dev.
+Caminho manual da skill `nova-migracao`:
+`migrate diff --from-config-datasource --to-schema` (não precisa de shadow DB, que não está
+configurada) gerou o SQL → revisado → `migrate deploy` aplicou. **O diff provou que o delta é só do
+CRM**: 7 `CREATE TYPE` + 5 `CREATE TABLE` + 4 índices únicos, zero menção ao drift alheio.
+`migrate status` limpo depois (161 migrations).
+
+**`labels.ts` e `status.ts` religados:** os tipos agora vêm de `@/generated/prisma/enums` em vez de
+declarados à mão — era a nota deixada na F1.4. **Verificado na prática**, não assumido: adicionei um
+valor ao enum no Prisma, regenerei, e o `satisfies` acusou `TS1360`; depois restaurei o schema. O
+arquivo de rótulos está genuinamente amarrado à fonte real agora.
+
+Ainda declarados localmente, com o motivo: `StatusPropostaCrm` (`em_negociacao` só entra na Fase 5) e
+`TipoProximaAcao`/`TipoAncoraCompromisso` (chegam na F2.1b, `Compromisso` v2).
+
+**Erro meu, pego pelo tsc:** ao religar, deixei declarações locais duplicadas de `BaseLegalLgpd` e
+`StatusRelacionamentoContato` conflitando com os imports (`TS2440`/`TS2484`). Corrigido antes do commit.
+
+**Verificação:** `prisma validate` ✅ · `migrate status` limpo ✅ · `grep DisciplinaPadrao prisma/`
+vazio ✅ (os 3 critérios de aceite) · 192 arquivos, 1961 testes verdes · lint limpo · tsc só os 2
+pré-existentes de `backup-storage.test.ts`.
+
+**Não rodei `db:seed`:** os catálogos nascem vazios e seu seed idempotente é a **F1.6**. Nenhum campo
+obrigatório novo nem permissão nova nesta migration, que são os gatilhos que a skill lista.
+
 ⚠️ **Erro de tsc alheio detectado em `dev`:** `src/components/certidoes/certidoes-view.tsx:153` —
 `return toast.error(...)` dentro de `startTransition`, cuja assinatura exige `void` (TS2345). Vem do
 commit `77e5ce6` (frente de certidões), **não** do CRM. Registrado aqui porque quebra `tsc` na branch
