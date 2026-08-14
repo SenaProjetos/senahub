@@ -158,7 +158,7 @@ export default async function ArquivosPage({
         totalFiltrado={pagina.total}
         totalDisciplinas={disciplinasArvore.length}
         disciplinaSelecionadaId={selecionadaId}
-        paginacao={{ page: lp.page, pageCount: pageCount(pagina.total, lp.pageSize), pageSize: lp.pageSize }}
+        paginacao={{ page: pagina.pagina, pageCount: pageCount(pagina.total, lp.pageSize), pageSize: lp.pageSize }}
         podeEnviar={podeEnviarCap}
         podeCoordenacao={podeCoordenacao}
         podeValidar={podeValidar}

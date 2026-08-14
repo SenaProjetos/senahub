@@ -285,12 +285,18 @@ export async function listarDocumentosProjeto(opts: {
     ...(filtros.validado === "nao" ? { validado: false, pastaId: null } : {}),
   };
 
-  const [total, uploads] = await Promise.all([
-    prisma.upload.count({ where }),
-    prisma.upload.findMany({
+  // Conta ANTES de buscar para poder grampear a página: `?page=99` num projeto de 3 páginas
+  // caía numa tela vazia dizendo "nenhum documento neste projeto", ao lado de "68 item(ns)".
+  const total = await prisma.upload.count({ where });
+  const ultimaPagina = Math.max(1, Math.ceil(total / Math.max(1, take)));
+  const paginaPedida = Math.floor(skip / Math.max(1, take)) + 1;
+  const pagina = Math.min(paginaPedida, ultimaPagina);
+  const skipEfetivo = (pagina - 1) * take;
+
+  const uploads = await prisma.upload.findMany({
       where,
       orderBy: orderByDocumentos(sort, dir),
-      skip,
+      skip: skipEfetivo,
       take,
       select: {
         id: true,
@@ -304,10 +310,9 @@ export async function listarDocumentosProjeto(opts: {
         disciplina: { select: { id: true, nome: true, responsaveis: { select: { userId: true } } } },
         autor: { select: { name: true } },
       },
-    }),
-  ]);
+  });
 
-  return { total, uploads };
+  return { total, uploads, pagina };
 }
 
 /** Extensão em minúsculas, sem ponto (`""` quando o nome não tem extensão). */

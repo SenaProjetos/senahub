@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { ChevronRight, Upload as UploadIcon } from "lucide-react";
+import { Upload as UploadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PainelDisciplinas, type DisciplinaArvore } from "@/components/projetos/arquivos/painel-disciplinas";
 import { TabelaDocumentos } from "@/components/projetos/arquivos/tabela-documentos";
@@ -15,12 +14,9 @@ import type { LinhaDocumento } from "@/modules/uploads/lista-documentos";
  * chega em F1-PR2/F1-PR3 — até lá, os dois mostram skeleton (estado de carregamento real da
  * tela, não dado fake).
  *
- * Por que um breadcrumb próprio em vez de reusar `components/shell/breadcrumb.tsx`: aquele
- * componente monta os rótulos só a partir do pathname (`buildCrumbs`), e um segmento que
- * "parece id" vira sempre "Detalhe" — não tem como injetar o nome real do projeto sem alterar
- * um componente global usado por toda a aplicação, fora do escopo desta Fase 1 (ver stop
- * condition do prompt 04: não tocar arquivo fora do escopo do PR). Esta trilha local é estática
- * (sem `usePathname`), então o componente pode continuar Server Component.
+ * Sem breadcrumb próprio: o shell já renderiza a trilha em toda página do dashboard, e o
+ * cabeçalho do projeto mostra código e nome logo acima — uma segunda trilha aqui só empilhava
+ * a mesma informação duas vezes (visto ao rodar a tela).
  */
 export function DocumentosShell({
   projeto,
@@ -60,30 +56,6 @@ export function DocumentosShell({
 }) {
   return (
     <div className="space-y-4">
-      <nav aria-label="Trilha de navegação" className="min-w-0">
-        <ol className="flex items-center gap-1 text-xs text-muted-foreground">
-          <li>
-            <Link href="/projetos" className="truncate transition-colors hover:text-foreground">
-              Projetos
-            </Link>
-          </li>
-          <ChevronRight className="size-3 shrink-0 text-muted-foreground/60" aria-hidden />
-          <li className="min-w-0">
-            <Link
-              href={`/projetos/${projeto.id}`}
-              className="truncate transition-colors hover:text-foreground"
-            >
-              {projeto.codigo} · {projeto.nome}
-            </Link>
-          </li>
-          <ChevronRight className="size-3 shrink-0 text-muted-foreground/60" aria-hidden />
-          <li className="min-w-0">
-            <span className="truncate font-medium text-foreground" aria-current="page">
-              Documentos
-            </span>
-          </li>
-        </ol>
-      </nav>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
