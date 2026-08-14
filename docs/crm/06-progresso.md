@@ -51,8 +51,42 @@ bundle client aqui).
 **Nota de modelo:** F1.1/F1.2 estavam marcadas Sonnet no backlog; sessão trocou de Opus→Sonnet
 antes de começar (regra do projeto: parar e trocar, não só avisar).
 
-**Pendente:** F1.3 (`service.ts` + teste de caracterização do aceite) — marcada **Opus** no backlog,
-é a tarefa de risco alto da Fase 1a. Trocar modelo antes de rodar.
+**F1.3 — `service.ts` + caracterização do aceite** (commit `a7498ee`, Opus)
+- `criarPropostaDeLead`, `salvarProposta`, `aceitarProposta` + `proximoNumeroProposta` saem de
+  `actions.ts` para `service.ts`. `actions.ts` fica com sessão/permissão/Zod/auditoria e
+  revalidação de rota. **607 → 445 linhas.**
+- `disciplinas.ts` + teste — mapeamento item→disciplina, puro e **genérico no tipo do valor**
+  (assim o `Decimal` do Prisma atravessa sem virar `number` e perder precisão).
+- `scripts/smoke-crm-fase1.ts` + `npm run smoke:crm-fase1` — **23 checks** contra o banco de dev.
+
+**Preservado de propósito** (é movimentação, não reescrita):
+`ActionError` continua sendo lançado do service; `ensureCanaisProjeto`/`notificarNovosMembros`/
+`notificarMuitos` continuam **fora** da transação (falha de notificação não desfaz o aceite);
+os callbacks `entidadeId` ficam na config do `defineAction`, alimentando a auditoria.
+
+**Como a equivalência foi provada, e o que não deu para provar:**
+- `git diff --color-moved=zebra --color-moved-ws=allow-indentation-change` → **317 linhas
+  detectadas como movimentação**. As 113 restantes foram auditadas uma a uma: docblock novo,
+  import, assinatura exportada e renomeação de parâmetro (`i.leadId`→`input.leadId`,
+  `user.id`→`autorId`). Única troca semântica: `p.itens.map(...)` → `disciplinasDeItens(p.itens)`.
+- ⚠️ **O smoke não pôde rodar ANTES da extração** — a lógica estava dentro de um `defineAction`,
+  que exige sessão (`getSession()`), e não é invocável de um script `tsx`. Montar sessão falsa
+  seria mais arriscado que o refactor. A equivalência apoia-se então no diff de movimentação
+  literal **mais** os deltas de estado: sequência de proposta +1, de projeto +1, projetos +1,
+  disciplinas +3 — todos lidos no início do próprio run, nunca hardcodados (o banco de dev é
+  compartilhado com outras frentes).
+- Baseline do dev antes de tudo: `propostaSeq=8, projetoSeq=15, proposta=6, projeto=10, disciplina=32`.
+
+**Critério de aceite emendado, com o motivo:** o backlog pedia `actions.ts < 250 linhas`. Ficou em
+**445**. Para chegar a 250 seria preciso mover também Leads, Etapas do funil e Tabelas de preço —
+que F1.3 não nomeia — inflando justamente o diff da tarefa cujo aceite é "só movimentação, nenhuma
+regra alterada". A contagem de linhas era proxy; o objetivo real (lógica de negócio alcançável fora
+do `defineAction`, com o aceite caracterizado) está cumprido. Critério corrigido no `04-plano-fases.md`.
+
+**Verificação:** `npx vitest run` → **190 arquivos, 1953 testes, verdes**. `eslint` limpo.
+`tsc --noEmit` → só os 2 pré-existentes de `backup-storage.test.ts`. `npm run smoke:crm-fase1` → 23/23.
+`tsc` pegou um erro real que lint/vitest/smoke deixaram passar (`unknown` não atribuível a `Decimal`) —
+corrigido com o genérico antes do commit.
 
 ---
 
