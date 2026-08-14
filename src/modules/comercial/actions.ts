@@ -32,6 +32,7 @@ import {
   removerAnexoLeadSchema,
 } from "@/modules/comercial/schemas";
 import { removerArquivo } from "@/lib/storage";
+import { etapaEhPerdido } from "@/modules/comercial/status";
 import type { Prisma } from "@/generated/prisma/client";
 
 const base = { modulo: "comercial", recurso: "comercial", permissao: "gerir" } as const;
@@ -39,13 +40,6 @@ const rev = () => {
   revalidatePath("/comercial");
   revalidatePath("/comercial/propostas");
 };
-
-/**
- * Detecta a etapa "Perdido" pelo NOME (não há flag no schema; ver
- * FunilEtapa em schema.prisma e a etapa "Perdido" do seed). Comparação
- * case-insensitive por substring "perdid" — cobre "Perdido"/"Perdida".
- */
-const etapaEhPerdido = (nome: string) => nome.toLowerCase().includes("perdid");
 
 // ── Leads ─────────────────────────────────────────────────────
 export const criarLead = defineAction(
