@@ -77,6 +77,28 @@ os callbacks `entidadeId` ficam na config do `defineAction`, alimentando a audit
   compartilhado com outras frentes).
 - Baseline do dev antes de tudo: `propostaSeq=8, projetoSeq=15, proposta=6, projeto=10, disciplina=32`.
 
+**F1.4 — `labels.ts` + teste** (commit `d2b8d64`, Sonnet no lugar do Haiku previsto, a pedido do usuário)
+- 10 enums, **55 valores**, cobrindo tudo que `02-schema.md` define. Implementa a decisão
+  transversal T6: identificador em código, rótulo pt-BR centralizado num arquivo só.
+- Exaustividade por `satisfies Record<Enum, string>` — faltar valor quebra a **compilação**, não o
+  teste. **Mecanismo verificado na prática**, não assumido: um mapa incompleto produz `TS1360`.
+- O teste cobre o que o compilador não pega: contagem por enum contra o schema alvo, rótulo vazio,
+  rótulo idêntico ao identificador (esqueceram de traduzir) e underscore vazando para o usuário.
+- Tipos declarados localmente porque os enums só entram no `schema.prisma` na F1.5. Quando a
+  migration vier, troca-se `type X` por `import type { X }` e o `satisfies` passa a validar contra
+  a fonte real.
+- Inclui `opcoesDe()`, que monta `value/label` para `Select` preservando a **ordem do funil**
+  (ordem de declaração), não alfabética.
+
+**Fase 1a completa** (F1.0–F1.4). Verificação: **192 arquivos, 1961 testes verdes**, lint limpo.
+
+⚠️ **Erro de tsc alheio detectado em `dev`:** `src/components/certidoes/certidoes-view.tsx:153` —
+`return toast.error(...)` dentro de `startTransition`, cuja assinatura exige `void` (TS2345). Vem do
+commit `77e5ce6` (frente de certidões), **não** do CRM. Registrado aqui porque quebra `tsc` na branch
+compartilhada e alguém precisa corrigir.
+
+---
+
 **Critério de aceite emendado, com o motivo:** o backlog pedia `actions.ts < 250 linhas`. Ficou em
 **445**. Para chegar a 250 seria preciso mover também Leads, Etapas do funil e Tabelas de preço —
 que F1.3 não nomeia — inflando justamente o diff da tarefa cujo aceite é "só movimentação, nenhuma
