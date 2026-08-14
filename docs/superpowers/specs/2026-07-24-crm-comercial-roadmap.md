@@ -1,6 +1,20 @@
 # Spec / Roadmap — Evolução do CRM comercial (funil de vendas)
 
-**Data:** 2026-07-24 · **Status:** 📋 planejamento (acompanhamento) · **Branch alvo:** `dev`
+**Data:** 2026-07-24 · **Status:** 🔄 **SUPERSEDED** (2026-08-14) · **Branch alvo:** `dev`
+
+> ## ⚠️ Este documento foi absorvido
+>
+> O backlog vivo do CRM é **[`docs/crm/04-plano-fases.md`](../../crm/04-plano-fases.md)**, que funde
+> as 34 ideias daqui dentro das 7 fases do playbook (`docs/crm/`). Use aquele para executar.
+>
+> **O que continua valendo daqui:** todos os **vereditos de viabilidade** (§3 e §6) — ML rejeitado,
+> e-mail inbound inviável sem IMAP, checklist por etapa *soft* e nunca hard-gate, WhatsApp só
+> registro manual, estatística de concorrentes adiada. Cada um foi preservado no plano novo, com
+> a numeração de ideia (`#15`, `#m2`…) citada tarefa a tarefa.
+>
+> **O que foi substituído:** a ordenação por Ondas A–F. A auditoria em produção (2026-08-13)
+> mostrou que o módulo é **contornado**, não pouco usado — 8 leads e 1 proposta sem itens contra
+> 31 projetos e 46 clientes — e o plano novo reordena em função disso.
 
 Origem: pedido do dono — dois ajustes no card do funil (caixa de observação maior + anexar
 arquivo) que abriram uma rodada de **34 sugestões** de evolução do módulo comercial. Este

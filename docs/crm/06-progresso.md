@@ -20,6 +20,49 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## P5 — Plano de fases e backlog · 2026-08-14 · Opus
+
+**Feito:**
+- `docs/crm/04-plano-fases.md` — **99 tarefas** de ≤ meio dia em 7 fases, cada uma com ID estável,
+  dependências, critério de aceite verificável, ideia de origem, marca de risco alto, modelo de IA
+  recomendado e se exige migration / `db:seed` no deploy / teste puro / smoke.
+- **Fusão dos dois planos concorrentes** (decisão do usuário): o roadmap de Ondas A–F
+  (`docs/superpowers/specs/2026-07-24-crm-comercial-roadmap.md`) foi absorvido e marcado como
+  **superseded**. Os vereditos do dono foram todos preservados; só a ordenação por Ondas mudou.
+- `CLAUDE.md` — um bullet novo em `## Architecture` apontando para `docs/crm/`, no formato dos
+  bullets vizinhos (`legal`, Ajuda/Manual). Nada do que já existia foi reescrito.
+
+**Decisões do usuário nesta sessão:**
+- **Fundir** os dois planos num só (em vez de arquivar um ou manter os dois).
+- **Sem feature flag** — substituição direta. O projeto não tem mecanismo de flag, e com o módulo
+  contornado não há operação ativa a proteger. Nenhuma tarefa desenha convivência antigo/novo.
+- **Ordem das 7 fases do playbook** (em vez de "adoção primeiro").
+
+**Arquivos:** `docs/crm/04-plano-fases.md` (novo), `docs/crm/06-progresso.md`, `CLAUDE.md`,
+`docs/superpowers/specs/2026-07-24-crm-comercial-roadmap.md` (cabeçalho de superseded).
+
+**Verificação** (P5 é planejamento — nenhum código mudou, lint/test/build não se aplicam):
+99 tarefas com ID · **zero** critérios de aceite vagos · as **34 ideias A–F todas endereçadas**
+(alocadas, rejeitadas com veredito preservado, ou em "não coube" com o porquê) · as únicas 2
+menções a "feature flag"/"convivência" estão na seção que declara o cancelamento.
+
+**Pendente — 3 decisões que bloqueiam a execução (não o plano):**
+- **F2.1** (trava a Fase 2): âncora da Próxima Ação — estender `Compromisso` ou tabela `ProximaAcao`
+  nova. Hoje o follow-up grava o lead como **string** na descrição, então "quais leads estão sem
+  próxima ação" é impossível de consultar.
+- **F2.2** (trava a Fase 2): quais status contam como "não ativo" no índice único `(clienteId, campaignId)`.
+- **#13** (trava F1.23): parceiros/indicações — canal + `origemDetalhada` (custo zero) ou entidade
+  `Parceiro` de verdade (ADR nova + migration + UI).
+
+**Riscos:** os 8 em `04-plano-fases.md` §7. O maior continua sendo **adoção, não técnica** — nenhum
+backlog faz o time parar de contornar o módulo; por isso cada fase declara seu próprio gancho, e o
+mais forte (proposta que ganha do Word, F1.22) foi puxado para dentro da Fase 1.
+
+**➡️ PARADA OBRIGATÓRIA do playbook:** revisar `00` a `04` pessoalmente antes de qualquer código.
+É o último ponto em que corrigir rumo custa texto, não implementação.
+
+---
+
 ## P4 — Plano de migração de dados · 2026-08-13 · Opus
 
 **Feito:**
