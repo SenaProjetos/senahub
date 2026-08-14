@@ -176,6 +176,32 @@ do time assim que a tela existir.
 
 **Verificação:** 193 arquivos, **1972 testes verdes** · lint limpo · tsc só os 2 pré-existentes.
 
+**F1.8 — campos comerciais no `Cliente`** (commit `01b324f`, Sonnet)
+- `status` + `statusOverride` (ADR-08), `linkedinUrl`, `salesNavigatorUrl`, `segmentoId` (FK) e
+  `porte`; índices de `status`, `documento` e `segmentoId` (o Prisma não cria o da FK sozinho).
+- `status` é **NOT NULL com DEFAULT** — seguro em tabela populada (46 registros em produção). Todo
+  o resto nullable.
+
+**Backfill incluído, e é o ponto da tarefa:** quem já tem proposta aceita nasce `CLIENTE`, não
+`PROSPECT`. Sem isso, **todo cliente com contrato fechado apareceria como prospect** no primeiro
+acesso — o default da coluna não sabe olhar o histórico. Verificado no dev: 2 clientes com proposta
+aceita viraram `CLIENTE`, 6 ficaram `PROSPECT`, e a contagem **bate com a consulta ao histórico**
+(`comPropostaAceita === marcadosCliente`).
+
+- `statusOverride` fica `NULL`: ninguém sobrescreveu nada ainda, e `EX_CLIENTE`/`PARCEIRO` nunca são
+  inferidos (ADR-08).
+- `categoria` (texto livre) **não é tocada** — fica deprecada em favor de `segmentoId`/`porte`, com o
+  conteúdo histórico preservado. Nada reescrito.
+- O índice **único parcial** de `documento` (ADR-03) **não** entra aqui: é a F1.15, e depende de
+  resolver as 3 duplicatas de nome antes. Aqui vai só o índice de busca.
+
+**Aceite "os clientes continuam listando":** não abri browser; exercitei as queries reais
+(`listarClientes`, `listarClientesPaginado`) direto — seguem retornando, com os campos novos
+presentes. Vale confirmar em `/clientes` no navegador quando for conveniente.
+
+**Verificação:** 193 arquivos, 1972 testes verdes · lint limpo · tsc só os 2 pré-existentes ·
+`migrate status` limpo (162 migrations).
+
 ⚠️ **Erro de tsc alheio detectado em `dev`:** `src/components/certidoes/certidoes-view.tsx:153` —
 `return toast.error(...)` dentro de `startTransition`, cuja assinatura exige `void` (TS2345). Vem do
 commit `77e5ce6` (frente de certidões), **não** do CRM. Registrado aqui porque quebra `tsc` na branch
