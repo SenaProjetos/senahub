@@ -152,7 +152,10 @@ export function CertidoesView({
     const file = novoFileRef.current?.files?.[0] ?? null;
     start(async () => {
       const r = await criarCertidao(novo);
-      if (!r.ok) return toast.error(r.error);
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
 
       if (file) {
         const fd = new FormData();
