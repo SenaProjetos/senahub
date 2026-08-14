@@ -7,6 +7,7 @@ import { semearEscalaRolePadrao, semearEscalaContratacao } from "./escalas-padra
 import { feriadosNacionais } from "../src/modules/rh/feriados/queries";
 import { seedPerfisAcesso } from "./seed-perfis-acesso";
 import type { Prisma } from "../src/generated/prisma/client";
+import type { EstagioNegociacao } from "../src/generated/prisma/enums";
 
 const ADMIN_EMAIL = "tadrio@senaprojetos.com.br";
 const ADMIN_NAME = "Tádrio";
@@ -247,6 +248,70 @@ const DEPARTAMENTOS_BASE: { nome: string; setor: "diretoria" | "administrativo" 
   { nome: "Orçamento", setor: "engenharia" },
   { nome: "Financeiro", setor: "administrativo" },
   { nome: "Pessoal", setor: "administrativo" },
+];
+
+// ── CRM (Fase 1b, docs/crm/04-plano-fases.md F1.6) ────────────────────────────
+// Listas iniciais aprovadas pelo dono em 2026-08-14, derivadas dos empreendimentos reais em
+// produção (EDIF. ISA BEACH/MARMARES/BELA BEACH, RES. PLINIO PAIVA, CAPIBA MALL…).
+// Todas são config-driven: editáveis na tela depois, e o seed NÃO desfaz edição do usuário
+// (`update: {}` — mesmo padrão de MODALIDADES_PADRAO).
+
+const TIPOS_EMPREENDIMENTO = [
+  "Residencial multifamiliar",
+  "Residencial unifamiliar",
+  "Comercial / Corporativo",
+  "Shopping / Varejo",
+  "Industrial / Galpão",
+  "Hotelaria",
+  "Saúde",
+  "Educacional",
+  "Institucional",
+  "Outro",
+];
+
+/// `exigeConcorrente` liga o campo de nome do concorrente na UI ao escolher o motivo.
+const MOTIVOS_PERDA: { nome: string; exigeConcorrente: boolean }[] = [
+  { nome: "Preço acima do orçamento", exigeConcorrente: false },
+  { nome: "Prazo incompatível", exigeConcorrente: false },
+  { nome: "Perdemos para concorrente", exigeConcorrente: true },
+  { nome: "Sem verba / adiado", exigeConcorrente: false },
+  { nome: "Escopo fora da atuação", exigeConcorrente: false },
+  { nome: "Cliente não retornou", exigeConcorrente: false },
+  { nome: "Cancelado pelo cliente", exigeConcorrente: false },
+  { nome: "Outro", exigeConcorrente: false },
+];
+
+const CANAIS_AQUISICAO = [
+  "Indicação",
+  "Site",
+  "LinkedIn / Sales Navigator",
+  "Feira / Evento",
+  "Anúncio",
+  "Cliente recorrente",
+  "Prospecção ativa",
+  "Outro",
+];
+
+const SEGMENTOS = [
+  "Incorporadora",
+  "Construtora",
+  "Indústria",
+  "Varejo",
+  "Saúde",
+  "Educação",
+  "Setor público",
+  "Outro",
+];
+
+/// Probabilidade padrão por estágio (ADR-12 / 02-schema.md §2.14). Os estágios terminais
+/// (PERDIDO/EM_ESPERA/CANCELADO) ficam de fora de propósito: não são ponto do funil, e a
+/// probabilidade deles é resolvida no serviço.
+const PROBABILIDADES_ESTAGIO: { estagio: EstagioNegociacao; probabilidade: number }[] = [
+  { estagio: "LEVANTAMENTO", probabilidade: 20 },
+  { estagio: "ORCAMENTO", probabilidade: 35 },
+  { estagio: "PROPOSTA_ENVIADA", probabilidade: 55 },
+  { estagio: "NEGOCIACAO", probabilidade: 75 },
+  { estagio: "CONTRATADO", probabilidade: 100 },
 ];
 
 const FUNIL_ETAPAS = [
@@ -635,6 +700,51 @@ async function main() {
     });
   }
   console.log(`✔ ${MODALIDADES_PADRAO.length} modalidades de licitação.`);
+
+  // 9c) Catálogos do CRM (F1.6). Config-driven, editáveis na tela.
+  // `update: {}` em todos: o seed GARANTE a existência, mas nunca desfaz o que o usuário
+  // editou/desativou depois — é o que torna rodar duas vezes inofensivo.
+  for (let i = 0; i < TIPOS_EMPREENDIMENTO.length; i++) {
+    await prisma.tipoEmpreendimento.upsert({
+      where: { nome: TIPOS_EMPREENDIMENTO[i] },
+      create: { nome: TIPOS_EMPREENDIMENTO[i], ordem: i },
+      update: {},
+    });
+  }
+  for (let i = 0; i < MOTIVOS_PERDA.length; i++) {
+    const m = MOTIVOS_PERDA[i];
+    await prisma.motivoPerda.upsert({
+      where: { nome: m.nome },
+      create: { nome: m.nome, ordem: i, exigeConcorrente: m.exigeConcorrente },
+      update: {},
+    });
+  }
+  for (let i = 0; i < CANAIS_AQUISICAO.length; i++) {
+    await prisma.canalAquisicao.upsert({
+      where: { nome: CANAIS_AQUISICAO[i] },
+      create: { nome: CANAIS_AQUISICAO[i], ordem: i },
+      update: {},
+    });
+  }
+  for (let i = 0; i < SEGMENTOS.length; i++) {
+    await prisma.segmento.upsert({
+      where: { nome: SEGMENTOS[i] },
+      create: { nome: SEGMENTOS[i], ordem: i },
+      update: {},
+    });
+  }
+  // Probabilidade por estágio: `estagio` é a PK (enum), então o upsert é por ela.
+  for (const p of PROBABILIDADES_ESTAGIO) {
+    await prisma.probabilidadeEstagio.upsert({
+      where: { estagio: p.estagio },
+      create: p,
+      update: {},
+    });
+  }
+  console.log(
+    `✔ CRM: ${TIPOS_EMPREENDIMENTO.length} tipos de empreendimento, ${MOTIVOS_PERDA.length} motivos de perda, ` +
+      `${CANAIS_AQUISICAO.length} canais, ${SEGMENTOS.length} segmentos, ${PROBABILIDADES_ESTAGIO.length} probabilidades.`,
+  );
 
   // 10) Modelos de documento exemplo (Estúdio de Documentos)
   const existeModeloProjeto = await prisma.documentoModelo.findFirst({
