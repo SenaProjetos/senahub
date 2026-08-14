@@ -4246,6 +4246,14 @@ model DocumentoDisciplina {
   nomeArquivo  String
   createdAt    DateTime   @default(now())
 
+  /// Documento que absorveu este (merge por nome-base, M4). Quando preenchido, esta linha
+  /// é um APELIDO histórico: nada novo se pendura nela, mas ela continua existindo para
+  /// que `AuditLog.entidadeId` e links antigos ainda resolvam — via `resolverDocumentoCanonico`.
+  /// Soft-retire em vez de DELETE justamente por isso.
+  substituidoPorId String?
+  substituidoPor   DocumentoDisciplina?  @relation("MergeDocumento", fields: [substituidoPorId], references: [id], onDelete: SetNull)
+  substituidos     DocumentoDisciplina[] @relation("MergeDocumento")
+
   uploads    Upload[]
   revisoes   DocumentoRevisao[]
   pendencias Pendencia[]
@@ -4254,6 +4262,7 @@ model DocumentoDisciplina {
 
   @@unique([disciplinaId, chave])
   @@index([disciplinaId])
+  @@index([substituidoPorId])
   @@map("documento_disciplina")
 }
 
