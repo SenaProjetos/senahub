@@ -108,6 +108,9 @@ Consequência operacional para este plano: **toda fase declara o que entrega que
 | ID | Tarefa | Dep | Aceite verificável | Ideia | ⚠️ | Modelo | Mig/Seed | Prova |
 |---|---|---|---|---|---|---|---|---|
 | F1.23 | `Lead`: `responsavelId` (só atribuição/exibição — ADR-15 **não** é gate), `canalId`, `origemDetalhada`, `campaignId` + model `Campanha` (UI dela só na Fase 4) | F1.5, F1.8 | `prisma validate`; os 8 leads recebem `responsavelId = autorId` (Q4) e canal `Outro` com `origem` preservada em `origemDetalhada` (03-mig §3) | #m1, #m4 | ⚠️ toca os 8 leads | S | **M** | browser |
+| **F1.23a** | Model `Parceiro` (nome, tipo PF/PJ, documento, email, telefone, observacao, ativo, `excluidoEm`) + `Lead.parceiroId` + `Negociacao.parceiroId` + índices. **Sem campo de comissão** — a regra não foi decidida (ADR-19) | F1.23 | `prisma validate`; criar parceiro e vincular a um lead; `@@index([parceiroId])` presente | #13 | | S | **M** | — |
+| **F1.23b** | CRUD de parceiros (lista + dialog) e seleção **por lista** no form de lead/negociação — nunca texto livre, que é a razão de a entidade existir | F1.23a | cadastrar 2 parceiros, vincular um a um lead, trocar pelo outro; digitar nome livre **não** é possível | #13 | | S | **seed** (permissão) | browser |
+| **F1.23c** | Relatório "negócios por parceiro": contagem e valor por parceiro, respeitando os filtros da lista | F1.23b, F6.3 | com 2 parceiros e 3 negociações, os totais batem com a soma conferida à mão. **Comissão NÃO é calculada** — ver ADR-19 | #13 | | S | — | browser |
 | F1.24 | **Remover o código do `Oportunidade` órfão**: `src/modules/comercial/oportunidades/`, `components/comercial/oportunidades-view.tsx`, rota `/comercial/oportunidades`, entrada de nav. **A tabela fica** (ver §8.1) | F1.3 | `grep -rn "oportunidade" src/ --include=*.tsx -i` não acha view/rota; `next build` limpo; `/comercial/oportunidades` retorna 404 | 03-mig §6 | | H | — | browser |
 | F1.25 | Fecho da fase: `npm run lint` · `npm test` · `npm run build` · `scripts/smoke-crm-fase1.ts` | todas | os 4 verdes, colados no `06-progresso.md` | — | | H | — | smoke |
 
@@ -119,15 +122,17 @@ Consequência operacional para este plano: **toda fase declara o que entrega que
 
 **O que faz o time querer usar:** hoje o `follow-up-dialog.tsx` grava o lead como **string dentro da descrição** de um `Compromisso` — a pergunta "quais leads estão sem próxima ação" é literalmente impossível de responder por query. Depois desta fase o board mostra atraso sozinho, e a lista de follow-up sai da cabeça de quem vende.
 
-### Duas decisões que eu não tomo sozinho
+### Decisões da Fase 2 — RESOLVIDAS (2026-08-14)
 
-| ID | Decisão | Opções | Trade-off | Modelo |
-|---|---|---|---|---|
-| **F2.1** | Âncora da Próxima Ação | **(a)** estender `Compromisso` (`schema:3231`) com `entidadeTipo`/`entidadeId`/`tipo`/`concluidoEm` · **(b)** tabela nova `ProximaAcao` | **(a)** aproveita a UI de agenda inteira que já existe (`components/agenda/agenda-view.tsx`, 3 vistas, export `.ics`) e o follow-up comercial já cai lá dentro hoje — mas mistura "tarefa comercial" com "reunião de calendário" e qualquer query da agenda passa a precisar filtrar. **(b)** é limpo e não arrisca a agenda, mas duplica o conceito "coisa agendada com data" e o follow-up deixa de aparecer no calendário do vendedor sem trabalho extra. `02-schema.md` §8.2 inclina para **(b)**; P11 item 1 pede **parar e confirmar** se a resposta for "criar novo". **Custo de não decidir: nulo hoje, alto depois — F2.9/F2.10/F2.11 e a Fase 7 inteira dependem disso.** | **O** |
-| **F2.2** | Lista de status "fechados" que saem do índice único parcial `(clienteId, campaignId)` (ADR-02/Q1) | quais de `SEM_OPORTUNIDADE`, `EM_ESPERA`, `DESCARTADO`, `OPORTUNIDADE_CRIADA` contam como "não ativo" | Se `OPORTUNIDADE_CRIADA` contar como ativo, a empresa fica travada para nova prospecção enquanto a negociação existir — pode ser o desejado ou um bloqueio irritante. Conteúdo pendente desde `02-schema.md` §5. | **O** |
+| ID | Decisão | Resposta do usuário | Onde ficou registrada |
+|---|---|---|---|
+| **F2.1** | Âncora da Próxima Ação | **Estender `Compromisso`** — o follow-up comercial passa a viver na agenda que já existe, ganhando visão mês/semana/dia e export `.ics` sem UI nova. A tabela `ProximaAcao` **não será criada**. ⚠️ Custo aceito: a agenda recebe volume comercial e **precisa de filtro por `tipo` antes disso** — é a tarefa **F2.1a**, bloqueante. | ADR-17, `02-schema.md` §2.15 |
+| **F2.2** | Status que contam como "ativo" no índice único `(clienteId, campaignId)` | **Liberar.** Só `IDENTIFICADO`, `CONTATO_INICIADO`, `EM_CONTATO` e `QUALIFICADO` travam a empresa. `OPORTUNIDADE_CRIADA`, `SEM_OPORTUNIDADE`, `EM_ESPERA` e `DESCARTADO` liberam. Decidido com dado real: `Záphis` aparece 3× e `Rbarros` 2× — **múltiplas obras por cliente é o padrão do escritório**. | ADR-18, `02-schema.md` §5 |
 
-**Aceite das duas:** a escolha registrada em `01-decisoes.md` com a alternativa descartada e o porquê. Nenhuma tarefa de schema desta fase começa antes.
-
+| ID | Tarefa | Dep | Aceite verificável | Ideia | ⚠️ | Modelo | Mig/Seed | Prova |
+|---|---|---|---|---|---|---|---|---|
+| **F2.1a** | Filtro por `tipo` nas queries e na UI da agenda, **antes** de qualquer follow-up comercial ancorado entrar | F1.24 | abrir `/agenda` com ações comerciais no banco: a visão de mês mostra só compromissos; alternar o filtro revela as ações. Nenhuma reunião some | ADR-17 | ⚠️ toca a agenda, módulo fora do CRM | S | — | browser |
+| **F2.1b** | `Compromisso` v2: `entidadeTipo`/`entidadeId`/`tipo`/`concluidoEm`/`concluidoPor` — **tudo nullable** (aditivo puro) | F2.1a | `prisma validate`; todo compromisso existente continua válido com os 5 campos em null | ADR-17 | | S | **M** | — |
 | ID | Tarefa | Dep | Aceite verificável | Ideia | ⚠️ | Modelo | Mig/Seed | Prova |
 |---|---|---|---|---|---|---|---|---|
 | F2.3 | `Lead` v2: `status: StatusProspeccao`, `needsReview`, `clienteId` obrigatório, junção `LeadContato`. `etapaId`/`FunilEtapa`/`arquivado`/`motivoPerda` ficam **deprecados, não apagados** (02-schema §8.3) | F1.23 | `prisma validate`; `FunilEtapa` continua no schema; os 8 leads têm `status` preenchido | ADR-01/16 | ⚠️ toca os 8 leads | **O** | **M** | — |
@@ -267,7 +272,7 @@ Consequência operacional para este plano: **toda fase declara o que entrega que
 |---|---|---|
 | 11 | Empresa + múltiplos contatos (B2B) | F1.9, F1.11 |
 | 12 | Histórico consolidado do cliente | **F3.7** (Empresa 360) |
-| 13 | Parceiros / indicações | **não coube** — ver §4 |
+| 13 | Parceiros / indicações | **F1.23a–F1.23c** (entidade `Parceiro` — ADR-19) |
 | 14 | Concorrentes | F5.10 (campo `Negociacao.concorrente`). Estatística **adiada** — veredito do dono |
 | 15 | Motivos de perda estruturados | F1.5, F1.6 (catálogo `MotivoPerda`) + F5.10 |
 | 16 | Probabilidade dinâmica | F2.6 (`ProbabilidadeEstagio`) + F6.10. **Framing de ML rejeitado** — só heurística |
@@ -304,7 +309,6 @@ Consequência operacional para este plano: **toda fase declara o que entrega que
 
 | Ideia | Por quê |
 |---|---|
-| **#13 — Parceiros / indicações** | `02-schema.md` **não tem entidade `Parceiro`** e nenhuma ADR decidiu criá-la (`grep -n -i parceiro prisma/schema.prisma docs/crm/02-schema.md` só acha o valor de enum `PARCEIRO` de `StatusComercialCliente`). O guardrail do playbook manda **parar e perguntar** em vez de projetar além do 02-schema. **Duas saídas, e a decisão é sua:** (a) `CanalAquisicao = "Indicação"` + `origemDetalhada` = nome de quem indicou — custo zero, já cabe em F1.23, mas não dá para rankear parceiro nem pagar comissão; (b) entidade `Parceiro` de verdade — exige ADR nova, migration e UI, ~1 dia. |
 | **#21 — a parte "sequências"** | A cadência automática multi-passo (dia 0 e-mail → dia 3 ligação → dia 7 LinkedIn, com templates) é produto novo, não regra. O P18 pede explicitamente **regras determinísticas**, e F7.1/F7.3 entregam o *aviso* de follow-up vencido — que é o que o roadmap descreveu como "cron pg-boss sobre `proximoContato`". A cadência fica registrada como candidata a uma fase 8 futura. |
 | **#m3** | **Não existe no documento fonte.** A legenda diz `m1..m10`, mas `m3` não é citado em nenhuma seção do roadmap (`grep -oE "\bm[0-9]+\b"` devolve m1, m2, m4, m5, m6, m7, m8, m9, m10). Sem conteúdo, sem como alocar — não inventei um. |
 | **#27 — e-mail inbound** | Permanece **inviável**: sem IMAP/webhook, deploy nativo Windows sem infra de mail. Outbound (`enviarEmailTemplate`) + abertura do link (`PropostaVisualizacao`) já dão ~80%. |

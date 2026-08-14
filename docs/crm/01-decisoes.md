@@ -143,6 +143,74 @@ Cada ADR usa o número da linha correspondente na tabela A.3 do playbook (`#1`�
 
 ---
 
+## ADR-17 — Próxima Ação vive no `Compromisso` existente (não em tabela nova)
+
+> Decidida em 2026-08-14, respondendo à pendência F2.1. O P11 do playbook exige confirmação
+> explícita **se a resposta fosse "criar tabela nova"** — não é o caso: reaproveitamos, que é a
+> preferência declarada do próprio playbook.
+
+- **Contexto:** hoje o `FollowUpDialog` (`src/components/comercial/follow-up-dialog.tsx`) cria um
+  `Compromisso` e grava o lead como **texto** na descrição (`Lead: ${leadNome}`). Não há FK. Por
+  isso "quais clientes estão sem próximo contato marcado?" — a pergunta mais útil de um CRM — é
+  hoje **impossível de responder por query**.
+- **Decisão:** estender `Compromisso` (`prisma/schema.prisma:3231`) com âncora polimórfica, tipo e
+  conclusão. **Não** criar `ProximaAcao`.
+- **Consequências:**
+  1. O follow-up comercial passa a aparecer na agenda que já existe — visão mês/semana/dia e export
+     `.ics` (`modules/agenda/ics.ts`) vêm de graça, sem uma linha de UI nova.
+  2. **A agenda passa a receber um volume novo de itens.** Toda query de agenda
+     (`modules/agenda/queries.ts`, `components/agenda/agenda-view.tsx`) precisa ganhar filtro por
+     tipo, senão "Ligar para a Záphis" polui a visão de reuniões. **É o custo aceito desta escolha** —
+     e vira tarefa explícita na Fase 2, não um efeito colateral descoberto depois.
+  3. Os compromissos de follow-up já existentes têm o lead só como texto: ou ficam sem âncora
+     (aceitável, são poucos) ou recebem backfill best-effort casando o nome. Decidir na execução.
+- **Alternativa descartada:** tabela `ProximaAcao` dedicada (era a inclinação de `02-schema.md` §8.2).
+  Mais limpa e sem risco para a agenda, mas duplicaria o conceito "coisa agendada com data" e tiraria
+  o follow-up do calendário do vendedor — que é justamente onde ele já olha todo dia.
+- **⚠️ Conflito com código atual:** `Compromisso` é usado hoje **só** pela agenda e pelo
+  `follow-up-dialog`. Estender é aditivo (colunas nullable), mas a UI da agenda **precisa** do filtro
+  antes de o volume comercial entrar.
+
+## ADR-18 — Prospecção qualificada LIBERA a empresa para nova prospecção
+
+> Decidida em 2026-08-14, fechando a pendência F2.2 (e o resíduo da Q1/ADR-02).
+
+- **Contexto:** o ADR-02 impede duas prospecções abertas para a mesma empresa+campanha, para dois
+  vendedores não trabalharem o mesmo cliente sem saber. Faltava definir quais status contam como
+  "ativo" na constraint.
+- **Decisão:** contam como **ativos** apenas `IDENTIFICADO`, `CONTATO_INICIADO`, `EM_CONTATO` e
+  `QUALIFICADO`. Saem da constraint — ou seja, **liberam** a empresa: `OPORTUNIDADE_CRIADA`,
+  `SEM_OPORTUNIDADE`, `EM_ESPERA`, `DESCARTADO`.
+- **Consequências:** assim que uma prospecção vira negociação, a empresa fica livre para uma
+  abordagem nova em paralelo. A trava continua fazendo o trabalho que importa (impedir duas pessoas
+  na *mesma* oportunidade fria), sem impedir negócios legítimos simultâneos.
+- **O dado que decidiu:** na auditoria de produção, `Záphis Incorporadora` aparece **3 vezes** e
+  `Rbarros Engenharia` **2 vezes** — obras diferentes da mesma incorporadora. **Múltiplas obras por
+  cliente é o padrão do escritório, não a exceção.** Travar seria brigar com a operação todo dia.
+- **Alternativa descartada:** manter a empresa ocupada enquanto houver negociação viva — daria uma
+  garantia de unicidade mais forte, ao custo de recusar a segunda obra de um cliente recorrente.
+
+## ADR-19 — `Parceiro` é entidade própria (indicações medíveis)
+
+> Decidida em 2026-08-14, fechando a pendência #13. Sai de "não coube" e entra no backlog.
+
+- **Contexto:** hoje a indicação só cabe como a palavra "Indicação" num campo de texto. Quem indicou
+  se perde, ou vira texto livre — e aí "João", "João Silva" e "j. silva" são três pessoas distintas
+  para o sistema, o que impede qualquer soma.
+- **Decisão:** criar a entidade `Parceiro`, escolhida de lista (não digitada), referenciada por
+  `Lead` e `Negociacao`.
+- **Consequências:** passa a ser possível responder "quantos negócios este parceiro trouxe" e "quanta
+  receita veio dele". Custo estimado: ~1 dia (migration + catálogo + UI de seleção + relatório).
+- **⚠️ Decisão de produto NÃO tomada:** a **regra de comissão** (percentual ou valor fixo? base é o
+  valor proposto ou o contratado? vence no aceite ou no recebimento? há faixas?). O schema nasce com
+  o vínculo e a identificação do parceiro; **nenhum cálculo de comissão será implementado sem essa
+  regra definida** — inventá-la seria fabricar política financeira. Fica registrada como pendência
+  da fase que implementar o relatório.
+- **Alternativa descartada:** canal `Indicação` + nome em `origemDetalhada` (custo zero) — barato,
+  mas não permite somar nem rankear, que é exatamente o motivo de a decisão ter sido tomada.
+
+---
+
 ## Decisões transversais
 
 ### T1 — LGPD

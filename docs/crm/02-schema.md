@@ -645,10 +645,18 @@ ou não se aplica, resolvido na camada de serviço, não no banco).
   `Segmento.nome` — catálogos com nome único (mesmo padrão de `FunilEtapa.nome`/`TabelaPreco.nome` hoje).
 - `Negociacao.leadId` — `@unique`: uma prospecção qualifica em **no máximo uma** negociação (impede
   qualificar o mesmo lead duas vezes, criando negociações duplicadas da mesma origem).
-- **Pendente de conteúdo, não de estrutura:** unicidade "1 prospecção ativa por empresa+campanha"
-  (ADR-02/Q1) — índice único parcial `(clienteId, campaignId) WHERE status NOT IN (...)`, a lista exata
-  de status "fechados" que saem da constraint é definida junto da regra de classificação no P4 (mesmo
-  motivo do documento — depende de conteúdo que ainda não foi escrito).
+- **"1 prospecção ativa por empresa+campanha" — RESOLVIDO** (ADR-18, 2026-08-14):
+  ```sql
+  CREATE UNIQUE INDEX lead_prospeccao_ativa ON lead ("clienteId", "campaignId")
+    WHERE status IN ('IDENTIFICADO','CONTATO_INICIADO','EM_CONTATO','QUALIFICADO')
+      AND "excluidoEm" IS NULL;
+  ```
+  `OPORTUNIDADE_CRIADA`, `SEM_OPORTUNIDADE`, `EM_ESPERA` e `DESCARTADO` **liberam** a empresa.
+  Decidido com dado de produção: `Záphis` aparece 3× e `Rbarros` 2× — múltiplas obras por cliente é
+  o padrão do escritório, então travar a empresa durante uma negociação brigaria com a operação.
+  (Postgres trata `NULL` como distinto em índice único, então `campaignId = null` **não** agruparia
+  sozinho — a constraint precisa de `COALESCE("campaignId",'')` ou de um valor sentinela para
+  cumprir a Q1. Detalhe de implementação a resolver na tarefa, não decisão de produto.)
 
 ---
 
@@ -711,7 +719,98 @@ obriga a usá-lo — é daí que vêm as 24 grafias distintas encontradas em pro
 > Fica de lição para o resto da reforma: antes de criar catálogo/tabela "nova", conferir se o sistema já
 > tem uma. Este schema tem 158 migrations de história — a chance de já existir é real.
 
-### 8.2 `NextAction` não desenhado nesta P3
+### 2.15 `Compromisso` — evolução (RESOLVE a pendência da §8.2)
+
+> Decidido em 2026-08-14 (ADR-17): a Próxima Ação **reaproveita** `Compromisso`
+> (`prisma/schema.prisma:3231`). A tabela `ProximaAcao` que a §8.2 inclinava a criar **não existirá**.
+
+```prisma
+model Compromisso {
+  // ... titulo, descricao, local, inicio, fim, criadorId, participantes permanecem ...
+
+  /// Âncora polimórfica (sem FK — mesmo padrão de ApontamentoCoordenacao/Pendencia).
+  /// null nos dois = compromisso de agenda comum, como hoje.
+  entidadeTipo TipoAncoraCompromisso?
+  entidadeId   String?
+
+  /// null = compromisso de agenda (comportamento atual). Preenchido = ação comercial.
+  tipo TipoProximaAcao?
+
+  concluidoEm  DateTime?
+  concluidoPor String?
+
+  @@index([entidadeTipo, entidadeId])
+  @@index([tipo, concluidoEm])   // "ações abertas", "atrasadas", "de hoje"
+}
+
+enum TipoAncoraCompromisso {
+  LEAD
+  NEGOCIACAO
+  CLIENTE
+}
+
+/// Lista do P11 item 3.
+enum TipoProximaAcao {
+  LIGACAO
+  WHATSAPP
+  EMAIL
+  LINKEDIN
+  REUNIAO
+  FOLLOW_UP
+  COBRAR_DOCUMENTACAO
+  COBRAR_ARQUITETURA
+  ENVIAR_PROPOSTA
+  REVISAR_PROPOSTA
+  RETORNO_AO_CLIENTE
+  OUTRO
+}
+```
+
+**Tudo nullable, então é 100% aditivo** — todo `Compromisso` existente continua válido e a agenda não
+muda de comportamento. `tipo = null` é exatamente o compromisso de agenda de hoje.
+
+**⚠️ O custo desta escolha, explícito:** a agenda passa a receber os follow-ups comerciais. As
+queries e a UI da agenda (`modules/agenda/queries.ts`, `components/agenda/agenda-view.tsx`) precisam
+de filtro por `tipo` **antes** de o volume comercial entrar — senão "Ligar para a Záphis" polui a
+visão de reuniões. Isso é tarefa da Fase 2, não efeito colateral a descobrir depois.
+
+### 2.16 `Parceiro` — nova (ADR-19)
+
+```prisma
+model Parceiro {
+  id        String  @id @default(cuid())
+  nome      String
+  tipo      TipoPessoa @default(PF)   // reusa o enum existente (PF|PJ)
+  documento String?
+  email     String?
+  telefone  String?
+  observacao String?
+  ativo     Boolean @default(true)
+
+  /// Soft delete, coerente com ADR-11.
+  excluidoEm DateTime?
+  createdAt  DateTime @default(now())
+
+  leads       Lead[]
+  negociacoes Negociacao[]
+
+  @@index([ativo])
+  @@map("parceiro")
+}
+```
+`Lead` e `Negociacao` ganham `parceiroId String?` + relação + `@@index([parceiroId])`.
+
+**Sem campo de comissão por ora.** A regra (percentual ou fixo? sobre proposto ou contratado? vence
+no aceite ou no recebimento?) **não foi decidida** — ver ADR-19. Adicionar um `comissaoPercentual`
+agora seria fabricar política financeira; o campo entra quando a regra existir.
+
+### 8.2 `NextAction` — RESOLVIDO (era: não desenhado nesta P3)
+
+> ⚠️ **Superado em 2026-08-14.** Esta seção apresentava as opções (a) estender `Compromisso` e
+> (b) tabela nova, e inclinava para (b). **A decisão foi (a)** — ver ADR-17 e §2.15 acima. O texto
+> abaixo fica como registro do raciocínio original.
+
+### 8.2-original (histórico) — `NextAction` não desenhado nesta P3
 O próprio playbook (P11, mais adiante) instrui: *"ANTES de criar qualquer coisa: verifique o sistema de
 compromissos/follow-ups que já existe... Prefira reaproveitar. Espere minha confirmação se a resposta
 for 'criar novo'."* Isso é uma instrução de **execução** (P11), não de schema antecipado (P3) — desenhar

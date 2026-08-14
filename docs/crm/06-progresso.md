@@ -46,13 +46,23 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 (alocadas, rejeitadas com veredito preservado, ou em "não coube" com o porquê) · as únicas 2
 menções a "feature flag"/"convivência" estão na seção que declara o cancelamento.
 
-**Pendente — 3 decisões que bloqueiam a execução (não o plano):**
-- **F2.1** (trava a Fase 2): âncora da Próxima Ação — estender `Compromisso` ou tabela `ProximaAcao`
-  nova. Hoje o follow-up grava o lead como **string** na descrição, então "quais leads estão sem
-  próxima ação" é impossível de consultar.
-- **F2.2** (trava a Fase 2): quais status contam como "não ativo" no índice único `(clienteId, campaignId)`.
-- **#13** (trava F1.23): parceiros/indicações — canal + `origemDetalhada` (custo zero) ou entidade
-  `Parceiro` de verdade (ADR nova + migration + UI).
+**Pendências FECHADAS no mesmo dia (2026-08-14), viraram ADR-17/18/19:**
+- **F2.1 → ADR-17:** a Próxima Ação **reaproveita `Compromisso`** em vez de tabela nova. O follow-up
+  comercial passa a viver na agenda existente (visão mês/semana/dia + export `.ics` de graça).
+  ⚠️ Custo aceito e virou tarefa bloqueante **F2.1a**: a agenda precisa de filtro por `tipo` **antes**
+  de o volume comercial entrar, senão "Ligar para a Záphis" polui a visão de reuniões.
+- **F2.2 → ADR-18:** prospecção qualificada **libera** a empresa. Só `IDENTIFICADO`,
+  `CONTATO_INICIADO`, `EM_CONTATO` e `QUALIFICADO` travam. Decidido com dado real: `Záphis` aparece
+  3× e `Rbarros` 2× — **múltiplas obras por cliente é o padrão do escritório**, travar brigaria com
+  a operação. (Detalhe técnico anotado no schema: `NULL` é distinto em índice único no Postgres, então
+  `campaignId` nulo precisa de `COALESCE` ou sentinela para cumprir a Q1.)
+- **#13 → ADR-19:** `Parceiro` vira **entidade própria**, escolhida de lista. Saiu de "não coube" e
+  virou **F1.23a–F1.23c** (model + CRUD/seleção + relatório de negócios por parceiro).
+  ⚠️ A **regra de comissão** (percentual ou fixo? sobre proposto ou contratado? vence no aceite ou no
+  recebimento?) **não foi decidida** — o schema nasce sem campo de comissão e nenhum cálculo será
+  implementado até a regra existir. Inventá-la seria fabricar política financeira.
+
+Backlog passou de 99 → **104 tarefas** (F2.1a, F2.1b, F1.23a, F1.23b, F1.23c).
 
 **Riscos:** os 8 em `04-plano-fases.md` §7. O maior continua sendo **adoção, não técnica** — nenhum
 backlog faz o time parar de contornar o módulo; por isso cada fase declara seu próprio gancho, e o
