@@ -67,8 +67,23 @@ Lancamento, Lead, Proposta, User, DocumentoJuridico, Documento, CustoOrcamento
 - `ContatoCliente` (linha ~862) já é 1:N com `principal: Boolean` — o pedaço "Contact" do CRM alvo já existe aqui, sem nenhum campo de LGPD (`optOut`, origem/data de coleta).
 - **Sem unicidade em `documento` (CNPJ/CPF)** — nem total nem parcial. Sem unicidade em `nome`. Nenhuma checagem de duplicata em lugar nenhum do código (ver E).
 
-### Disciplina — não existe catálogo compartilhado
-- `Disciplina` (linha 2182) é um model **por-Projeto** (`projetoId` obrigatório), não um catálogo. `PropostaItem.disciplina` e a `disciplina` copiada para `Projeto.Disciplina.nome` no aceite (`aceitarProposta`, ver B) são strings livres digitadas de novo em cada lugar — **zero fonte única de verdade para "quais disciplinas existem"** hoje no sistema.
+### Disciplina — o catálogo EXISTE (correção)
+
+> ⚠️ **Correção de 2026-08-13.** A versão original desta seção afirmava que não existia catálogo
+> compartilhado de disciplinas. **Estava errado.**
+
+- `DisciplinaCatalogo` (linha 906) **é** o catálogo compartilhado, e é mais rico do que o mínimo
+  necessário: `nome` (@unique), `codigo` (sigla p/ nomenclatura de arquivo: ARQ, EST, ELE…),
+  `numeracao` (bloco-base da folha: Estrutural = 4000 → 4001, 4002…), `categoria` (ARQUITETURA,
+  CIVIL, ELÉTRICA, MECÂNICA), `icone`/`iconeSvg`, `ativo`, `ordem`.
+- Vem **seedado com 20 disciplinas** (`prisma/seed.ts:285`), com reconciliação de renomeações
+  (`RENOMES`, que já aplicou `Lógica` → `Cabeamento`).
+- É usado por `PadraoTecnico` (biblioteca técnica), `modules/engenharia`, `modules/projetos`,
+  `modules/ferramentas/auto-store`, `app/api/uploads`.
+- **O que de fato falta** não é o catálogo, e sim a **FK**: `Disciplina.nome` (por-projeto),
+  `PropostaItem.disciplina` e `ItemTabelaPreco.disciplina` continuam sendo **strings livres**, sem
+  referência ao catálogo. É daí que vem a divergência de grafia — o catálogo existe, mas nada obriga
+  a usá-lo.
 
 ### Permissão
 Uma única entrada no catálogo (`src/lib/permissions-catalog.ts:92`):

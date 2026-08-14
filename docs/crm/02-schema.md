@@ -26,7 +26,7 @@ hoje é nome em português (`Cliente`, `Lead`, `Oportunidade`, `Proposta`, `Funi
 | NextAction | **não desenhado nesta P3** | ver seção 8.2 — decisão adiada pro P11 por instrução do próprio playbook |
 | Campaign | **`Campanha`** (novo) | novo |
 | PropertyType | **`TipoEmpreendimento`** (novo) | novo |
-| Discipline | **`DisciplinaPadrao`** (novo) | nome novo pra não colidir com o `Disciplina` por-projeto existente (ver 8.1) |
+| Discipline | **`DisciplinaCatalogo`** (JÁ EXISTE — reaproveitar, não criar) | ver correção em 8.1 |
 | LossReason | **`MotivoPerda`** (novo) | novo |
 | AcquisitionChannel | **`CanalAquisicao`** (novo) | novo |
 | Segment | **`Segmento`** (novo) | novo |
@@ -58,7 +58,7 @@ erDiagram
     Negociacao ||--o{ NegociacaoContato : "vincula"
     ContatoCliente ||--o{ NegociacaoContato : "participa"
     Negociacao ||--o{ NegociacaoDisciplina : "orca"
-    DisciplinaPadrao ||--o{ NegociacaoDisciplina : "usada em"
+    DisciplinaCatalogo ||--o{ NegociacaoDisciplina : "usada em"
     Negociacao ||--o{ Proposta : "recebe propostas"
     Negociacao }o--o| TipoEmpreendimento : "classifica"
     Negociacao }o--o| Campanha : "originado por"
@@ -71,7 +71,7 @@ erDiagram
     Proposta ||--o{ PropostaCondicao : "tem"
     Proposta ||--o{ PropostaVersao : "versiona"
     Proposta ||--o{ PropostaVisualizacao : "rastreia abertura"
-    DisciplinaPadrao ||--o{ PropostaItem : "usada em"
+    DisciplinaCatalogo ||--o{ PropostaItem : "usada em"
 
     Atividade }o--|| Cliente : "resolve para"
     Atividade }o--o| ContatoCliente : "sobre"
@@ -370,7 +370,7 @@ model NegociacaoDisciplina {
   negociacaoId   String
   negociacao     Negociacao @relation(fields: [negociacaoId], references: [id], onDelete: Cascade)
   disciplinaId   String
-  disciplina     DisciplinaPadrao @relation(fields: [disciplinaId], references: [id])
+  disciplina     DisciplinaCatalogo @relation(fields: [disciplinaId], references: [id])
   /// Valor opcional por disciplina (ADR-13) — mesmo padrão de PropostaItem.valor.
   valor          Decimal?   @db.Decimal(14, 2)
 
@@ -412,7 +412,7 @@ enum StatusProposta {
 model PropostaItem {
   // id, propostaId, descricao, valor, ordem permanecem
   disciplinaId String
-  disciplina   DisciplinaPadrao @relation(fields: [disciplinaId], references: [id])
+  disciplina   DisciplinaCatalogo @relation(fields: [disciplinaId], references: [id])
   // campo antigo `disciplina: String` fica como `disciplinaTextoLegado` (deprecado, só leitura,
   // preservando o texto original digitado antes da migração — mesmo padrão do "Outro" do P4 item 4)
 }
@@ -495,14 +495,14 @@ model TipoEmpreendimento {
   @@map("tipo_empreendimento")
 }
 
-model DisciplinaPadrao {
-  id     String  @id @default(cuid())
-  nome   String  @unique
-  ativo  Boolean @default(true)
-  ordem  Int     @default(0)
-  negociacaoItens NegociacaoDisciplina[]
-  propostaItens   PropostaItem[]
-  @@map("disciplina_padrao")
+// ⚠️ CORREÇÃO (2026-08-13): NÃO criar `DisciplinaPadrao`. O catálogo já existe.
+// `DisciplinaCatalogo` (schema.prisma:906) já tem nome@unique, codigo (sigla), numeracao,
+// categoria, icone, ativo, ordem — e vem seedado com 20 disciplinas. Só ganha as relações novas:
+model DisciplinaCatalogo {
+  // ... id, nome, codigo, numeracao, categoria, icone, iconeSvg, ativo, ordem permanecem ...
+  padroes         PadraoTecnico[]         // já existe
+  negociacaoItens NegociacaoDisciplina[]  // novo
+  propostaItens   PropostaItem[]          // novo
 }
 
 model MotivoPerda {
@@ -606,7 +606,8 @@ ou não se aplica, resolvido na camada de serviço, não no banco).
 | `Proposta` (campos novos) | **Evolui** — todo o núcleo (numeração, token, PDF, pixel) intocado |
 | `PropostaVersao` (campos novos) | **Evolui** — o `snapshot` JSON continua, ganha campos estruturados ao lado |
 | `Atividade` | **Substitui/unifica** `AtividadeLead` + `AtividadeOportunidade` — as duas antigas ficam congeladas, não apagadas |
-| `Campanha`, `TipoEmpreendimento`, `DisciplinaPadrao`, `MotivoPerda`, `CanalAquisicao`, `Segmento` | **Complementam** — catálogos que hoje são texto livre espalhado |
+| `Campanha`, `TipoEmpreendimento`, `MotivoPerda`, `CanalAquisicao`, `Segmento` | **Complementam** — catálogos que hoje são texto livre espalhado |
+| `DisciplinaCatalogo` | **JÁ EXISTE, seedado** — só ganha as FKs novas. Ver 8.1 |
 | `ProbabilidadeEstagio` | **Complementa** — não existia nenhum conceito de probabilidade no schema atual |
 | `Projeto.negociacaoId` | **Complementa** — `Proposta.projetoId` continua existindo, ganha um caminho paralelo |
 
@@ -640,7 +641,7 @@ ou não se aplica, resolvido na camada de serviço, não no banco).
 - `LeadContato.(leadId, contatoId)` e `NegociacaoContato.(negociacaoId, contatoId)` — um contato não
   entra duas vezes na mesma prospecção/negociação.
 - `NegociacaoDisciplina.(negociacaoId, disciplinaId)` — uma disciplina não se repete na mesma negociação.
-- `TipoEmpreendimento.nome`, `DisciplinaPadrao.nome`, `MotivoPerda.nome`, `CanalAquisicao.nome`,
+- `TipoEmpreendimento.nome`, `MotivoPerda.nome`, `CanalAquisicao.nome`,
   `Segmento.nome` — catálogos com nome único (mesmo padrão de `FunilEtapa.nome`/`TabelaPreco.nome` hoje).
 - `Negociacao.leadId` — `@unique`: uma prospecção qualifica em **no máximo uma** negociação (impede
   qualificar o mesmo lead duas vezes, criando negociações duplicadas da mesma origem).
@@ -685,19 +686,30 @@ lugar que esqueceram de checar.
 
 ## 8. Riscos e pontos onde escolhi entre duas modelagens
 
-### 8.1 Nomenclatura: `Negociacao` (não `Oportunidade`) e `DisciplinaPadrao` (não `Disciplina`)
-Dois nomes do playbook colidem com nomes **já ocupados** no schema real: `Oportunidade` (o model órfão
-existente) e `Disciplina` (model por-projeto existente, `prisma/schema.prisma:2182`). Prisma não aceita
-dois models com o mesmo nome. Escolhas:
-- Renomear os models antigos pra abrir espaço pro nome "limpo" — descartado: renomear `Disciplina`
-  (usado em `Projeto`, licitações, pagamento de projetista, RevisaoDisciplina...) está muito fora do
-  escopo desta tarefa ("não refatore fora do escopo").
-- Dar nome novo aos models do CRM — **escolhido**. `Negociacao` e `DisciplinaPadrao`. Também evita
-  decidir por antecipação o destino do `Oportunidade` órfão (Q2 ainda não fechada com o time comercial) —
-  o novo model nasce sem tocar no antigo, então a decisão de arquivar/migrar o antigo fica livre pra
-  acontecer depois, sem pressão de nome.
-- **Precisa da sua confirmação** antes do P6 — é a decisão de nomenclatura que mais se propaga (toca
-  praticamente todo o schema novo).
+### 8.1 Nomenclatura: `Negociacao` ✅ aprovado · `DisciplinaPadrao` ❌ cancelado
+
+**`Negociacao` — aprovado pelo usuário (2026-08-13).** O nome do playbook (`Opportunity` → `Oportunidade`)
+colide com o model órfão existente, e Prisma não aceita dois models homônimos. Renomear o antigo estaria
+fora do escopo. `Negociacao` resolve sem tocar em nada — e como a Q2 fechou em "descartar o órfão", o
+nome antigo simplesmente sai de cena junto com o model.
+
+**`DisciplinaPadrao` — CANCELADO (correção de 2026-08-13).** A premissa estava errada: eu havia
+registrado na auditoria que não existia catálogo de disciplinas. **Existe** — `DisciplinaCatalogo`
+(`prisma/schema.prisma:906`), seedado com 20 disciplinas (`prisma/seed.ts:285`), com `nome` @unique,
+`codigo` (sigla p/ nomenclatura de arquivo), `numeracao` (bloco-base da folha), `categoria`, ícone,
+`ativo`/`ordem`. Já é usado por `PadraoTecnico`, `modules/engenharia`, `modules/projetos`,
+`modules/ferramentas` e `api/uploads`.
+
+Criar um segundo catálogo teria sido o pior resultado possível: **duas fontes de verdade concorrentes**
+para a mesma coisa, cada uma alimentando metade do sistema. O CRM passa a apontar para
+`DisciplinaCatalogo`; não há model novo.
+
+O que de fato falta não é o catálogo, é a **FK**: `Disciplina.nome` (por-projeto),
+`PropostaItem.disciplina` e `ItemTabelaPreco.disciplina` são strings livres. O catálogo existe, mas nada
+obriga a usá-lo — é daí que vêm as 24 grafias distintas encontradas em produção.
+
+> Fica de lição para o resto da reforma: antes de criar catálogo/tabela "nova", conferir se o sistema já
+> tem uma. Este schema tem 158 migrations de história — a chance de já existir é real.
 
 ### 8.2 `NextAction` não desenhado nesta P3
 O próprio playbook (P11, mais adiante) instrui: *"ANTES de criar qualquer coisa: verifique o sistema de

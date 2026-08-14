@@ -1,5 +1,11 @@
 # 06 — Log de progresso da reforma do CRM
 
+> **Correção transversal (2026-08-13):** a auditoria (P1) afirmou que não existia catálogo de
+> disciplinas. **Existe** — `DisciplinaCatalogo` (`schema.prisma:906`), seedado com 20 entradas, com
+> sigla/numeração/categoria, já usado por engenharia, projetos, ferramentas e uploads. O P3 chegou a
+> propor criar um `DisciplinaPadrao`; **cancelado** — seriam duas fontes de verdade concorrentes.
+> Corrigido em `00-auditoria.md`, `02-schema.md` §8.1, `03-migracao.md` §5 e Q3 de `01-decisoes.md`.
+
 Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 **Formato de cada entrada:**
@@ -47,9 +53,10 @@ fundir 3 duplicatas de cliente → consolidar 24 grafias de disciplina.
 ambos **pré-existentes** em `src/lib/backup-storage.test.ts` (commit `d27e270`), nenhum no código novo.
 `next build` não rodado: nada do bundle mudou e o CLAUDE.md alerta contra buildar com `next dev` ativo.
 
-**Pendente:**
-- Conferir `Lógica/cftv` vs `Lógica e Cftv` (§5) — diferem só em pontuação, provavelmente a mesma coisa.
-- Confirmar a nomenclatura `Negociacao`/`DisciplinaPadrao` (`02-schema.md` §8.1).
+**Pendente:** nada bloqueando o P5.
+- ✅ Nomenclatura `Negociacao` aprovada pelo usuário. `DisciplinaPadrao` **cancelado** (ver correção no topo).
+- ✅ `Lógica` vs `CFTV`: são disciplinas **diferentes**; as 3 strings compostas viram `Cabeamento` + `CFTV`,
+  desmembradas à mão (`Disciplina` carrega valor de pagamento, revisões e arquivos — não é `UPDATE` de texto).
 - Decisões §2.1 (ordem R6/R7) e §2.2 (leads arquivados): **não se aplicam** — zero leads em `Perdido`,
   zero arquivados. Ficam documentadas para quando houver dado.
 
@@ -67,8 +74,8 @@ Schema real **não** foi tocado; nenhuma migration gerada.
 
 **Arquivos:** `docs/crm/02-schema.md` (novo).
 
-**Pendente:** confirmação da nomenclatura (§8.1) — `Opportunity` virou `Negociacao` e `Discipline` virou
-`DisciplinaPadrao` para não colidir com `Oportunidade` e `Disciplina`, que já existem no schema.
+**Pendente:** nada. Nomenclatura `Negociacao` aprovada pelo usuário; a proposta `DisciplinaPadrao` foi
+**cancelada** — o catálogo `DisciplinaCatalogo` já existia (ver correção no topo deste arquivo).
 
 **Riscos:** documentados em §8. Destaques: o funil de prospecção deixa de ser configurável (`FunilEtapa`)
 e vira enum fixo — perda deliberada de flexibilidade em troca de eliminar o `etapaEhPerdido()` por

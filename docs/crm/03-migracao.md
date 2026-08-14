@@ -176,33 +176,55 @@ de obra para o cliente errado.
 
 ---
 
-## §5 — Catálogo de disciplinas (fecha a Q3)
+## §5 — Disciplinas (fecha a Q3)
 
-24 grafias distintas em produção, entre `Projeto.Disciplina.nome` e `ItemTabelaPreco.disciplina`
-(`PropostaItem` tem 0 registros, então não contribui).
+> ⚠️ **Correção:** o catálogo **já existe** — `DisciplinaCatalogo` (`schema.prisma:906`), seedado com 20
+> disciplinas (`seed.ts:285`), com sigla, numeração de folha e categoria. Não se cria catálogo novo;
+> ver `02-schema.md` §8.1. O que falta é a **FK** — hoje `Disciplina.nome`, `PropostaItem.disciplina` e
+> `ItemTabelaPreco.disciplina` são strings livres, e é por isso que existem 24 grafias.
 
-### Decisões do usuário
+Das 24 grafias de produção, **18 já batem exatamente** com o catálogo. Só **6** precisam de tratamento:
 
-| Grupo | Decisão | Vira |
-|---|---|---|
-| `Climatização (AVAC)` (4) + `Ar condicionado (ARC)` (1) + `Exaustão (EXT)` (1) | **Colapsam** | uma disciplina só |
-| `Gases` (1) + `Gás` (1) | **Colapsam** | uma disciplina só |
-| `Cabeamento` (4) + `CFTV` (2) + `Lógica/cftv` (1) + `Lógica e Cftv` (1) + `Dados/Voz, Automação e CFTV` (1) | **NÃO colapsam** | permanecem separadas |
+| Grafia em produção | Onde | Vira | Observação |
+|---|---|---|---|
+| `Ar condicionado (ARC)` | 1 projeto | `Climatização (AVAC)` | colapsa (decisão do usuário) |
+| `Exaustão (EXT)` | 1 projeto | `Climatização (AVAC)` | colapsa (decisão do usuário) |
+| `Gases` | 1 projeto | `Gás` | colapsa (decisão do usuário) |
+| `Lógica/cftv` | 1 projeto | **`Cabeamento` + `CFTV`** | ⚠️ string composta — vira DUAS |
+| `Lógica e Cftv` | 1 projeto | **`Cabeamento` + `CFTV`** | ⚠️ string composta — vira DUAS |
+| `Dados/Voz, Automação e CFTV` | 1 projeto | **`Cabeamento` + `CFTV`** (+ automação?) | ⚠️ string composta |
 
-### ⚠️ Pendência residual
+### As strings compostas: `Lógica` e `CFTV` são disciplinas DIFERENTES
 
-Dentro do grupo que **não** colapsa, `Lógica/cftv` e `Lógica e Cftv` diferem **apenas em pontuação e
-caixa** — são quase certamente a mesma disciplina digitada de dois jeitos, não duas entregas distintas.
+Confirmado pelo usuário: `Lógica/cftv` e `Lógica e Cftv` são a mesma grafia escrita de dois jeitos —
+mas **cada uma mistura duas disciplinas num campo só**. `Lógica` e `CFTV` são entregas distintas.
 
-Vale uma conferida antes do P6 semear o catálogo: manter as duas cria duas entradas que ninguém
-consegue distinguir na hora de escolher.
+O catálogo já reflete isso: `Cabeamento` (código `LOG`, categoria ELÉTRICA, numeração 5100) e `CFTV`
+(código `SEG`, ELÉTRICA, 5200) são entradas separadas. O seed inclusive já registra a renomeação
+histórica `Lógica → Cabeamento` (`seed.ts`, array `RENOMES`) — ou seja, `Cabeamento` **é** a antiga
+`Lógica`.
 
-### Como aplicar
+### ⚠️ Não desmembrar automaticamente
 
-O catálogo `DisciplinaPadrao` é semeado com a lista consolidada (P6). Cada `Disciplina.nome` e
-`ItemTabelaPreco.disciplina` existente ganha FK para a entrada correspondente; o texto original é
-preservado em `disciplinaTextoLegado` antes da conversão (`02-schema.md` §2.8), então nada se perde e a
-consolidação é auditável depois.
+Desmembrar uma `Disciplina` composta em duas **não é um `UPDATE` de texto**. `Disciplina` (por-projeto)
+carrega, com `onDelete: Cascade` na maioria:
+
+- `valor` (`Decimal`) — **é a base do pagamento ao projetista**; dividir em duas exige decidir o rateio
+- `RevisaoDisciplina` — log imutável de revisões (RV00, RV01…), com unique `(disciplinaId, numero)`
+- `DisciplinaResponsavel` — quem responde pela entrega
+- `DocumentoDisciplina`, uploads e apontamentos vinculados
+
+Um desmembramento automático teria de escolher para qual das duas novas disciplinas vão o valor, as
+revisões e os arquivos — decisão que o script não tem como tomar.
+
+**São 3 projetos.** Tratar à mão, com o responsável pelo projeto junto, decidindo caso a caso se
+desmembra (e como rateia) ou se mantém como uma disciplina só com o nome corrigido.
+
+### Como aplicar o resto
+
+As outras 21 grafias (18 exatas + as 3 que colapsam) ganham FK para a entrada correspondente do
+`DisciplinaCatalogo`, com o texto original preservado em `disciplinaTextoLegado` antes da conversão
+(`02-schema.md` §2.8) — nada se perde, e a consolidação fica auditável.
 
 ---
 
@@ -276,5 +298,5 @@ há itens. Provar que zero continua zero não prova nada. O que de fato tem valo
 
 ---
 
-*Q2 e Q3 fechadas por este documento. Pendências: a conferida em `Lógica/cftv` vs `Lógica e Cftv` (§5),
-e a confirmação da nomenclatura `Negociacao`/`DisciplinaPadrao` (`02-schema.md` §8.1). Próximo: P5.*
+*Q2 e Q3 fechadas por este documento. Nomenclatura `Negociacao` aprovada; `DisciplinaPadrao` cancelado
+(o catálogo já existia — ver §5). Nada bloqueia o P5.*

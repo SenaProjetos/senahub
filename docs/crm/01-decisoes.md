@@ -180,8 +180,8 @@ Cada ADR usa o número da linha correspondente na tabela A.3 do playbook (`#1`�
 **Q2 — Destino do model `Oportunidade` órfão atual.**
 ✅ **FECHADA com dado de produção** (2026-08-13): `oportunidade = 0`. A hipótese da auditoria está confirmada — feature construída, nunca conectada ao fluxo, nunca usada. Decisão: **descartar** (model, módulo, view e rota `/comercial/oportunidades`). Não há migração de dado, porque não há dado. Ver `03-migracao.md` §6.
 
-**Q3 — Conteúdo do catálogo `DisciplinaPadrao`.**
-✅ **FECHADA com dado de produção** (2026-08-13): 24 grafias distintas. Decisões do usuário: `Climatização (AVAC)`+`Ar condicionado (ARC)`+`Exaustão (EXT)` **colapsam**; `Gases`+`Gás` **colapsam**; o grupo `Cabeamento`/`CFTV`/`Lógica/cftv`/`Lógica e Cftv`/`Dados,Voz,Automação e CFTV` **NÃO colapsa** (são entregas distintas). Pendência residual: `Lógica/cftv` vs `Lógica e Cftv` diferem só em pontuação — conferir antes do P6. Ver `03-migracao.md` §5.
+**Q3 — Catálogo de disciplinas.**
+✅ **FECHADA** (2026-08-13). **Correção importante:** o catálogo **já existe** — `DisciplinaCatalogo`, seedado com 20 disciplinas. Não se cria `DisciplinaPadrao` (a auditoria original errou ao afirmar que não havia catálogo). Das 24 grafias em produção, 18 batem exatamente; 6 precisam de tratamento. Decisões do usuário: `Ar condicionado (ARC)` e `Exaustão (EXT)` **colapsam** em `Climatização (AVAC)`; `Gases` **colapsa** em `Gás`; `Lógica` e `CFTV` são disciplinas **diferentes** — as strings `Lógica/cftv`, `Lógica e Cftv` e `Dados/Voz, Automação e CFTV` **misturam duas disciplinas num campo só** e viram `Cabeamento` + `CFTV`. Desmembramento é manual (3 projetos): `Disciplina` carrega valor de pagamento, revisões e arquivos. Ver `03-migracao.md` §5.
 
 **Q4 — Quem vira `responsavelId` para registros históricos sem responsável.**
 ✅ Resolvido (com o escopo revisado pelo ADR-15): `autorId` (quem criou o lead/proposta) vira o `responsavelId` default no backfill — agora só para exibição/atribuição ("Meus x Todos"), não mais para controle de acesso, já que ADR-15 manteve as permissões atuais.
