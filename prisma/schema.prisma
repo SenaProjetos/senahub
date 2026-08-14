@@ -838,8 +838,28 @@ model Cliente {
 
   observacoes String?
   /// Classificação livre do cliente (ex.: porte/segmento), p/ filtro e relatório.
+  /// DEPRECADA pelo par `segmentoId`/`porte` (CRM F1.8) — mantida com o texto histórico,
+  /// nada é reescrito. Registros novos usam os campos estruturados.
   categoria   String?
   ativo       Boolean @default(true)
+
+  // ── CRM (F1.8) ──────────────────────────────────────────────
+  /// Status comercial DERIVADO de ter proposta aceita (ADR-08). Materializado para
+  /// permitir filtro/ordenação com índice — calcular em toda leitura não escala.
+  /// A regra vive em `modules/comercial/status.ts` (`calcularStatusComercial`).
+  status         StatusComercialCliente  @default(PROSPECT)
+  /// Quando preenchido, VENCE o cálculo. É o único caminho para EX_CLIENTE e PARCEIRO,
+  /// que nunca são inferidos — não há sinal no sistema que os justifique.
+  statusOverride StatusComercialCliente?
+
+  /// Sales Navigator (Fase 4). Sem scraping — só o link, colado à mão.
+  linkedinUrl       String?
+  salesNavigatorUrl String?
+
+  segmentoId String?
+  segmento   Segmento? @relation(fields: [segmentoId], references: [id])
+  /// Porte da empresa. Texto por ora — vira catálogo se ganhar regra de negócio.
+  porte      String?
 
   // Login externo opcional do cliente (criado sob demanda).
   usuarioId String? @unique
@@ -858,6 +878,12 @@ model Cliente {
 
   @@index([ativo])
   @@index([nome])
+  @@index([status])
+  /// Busca por CNPJ digitado. O índice ÚNICO PARCIAL (único quando preenchido, ADR-03)
+  /// é tarefa própria (F1.15) e depende de resolver as 3 duplicatas de nome antes.
+  @@index([documento])
+  /// O Prisma não cria índice sozinho no lado da FK.
+  @@index([segmentoId])
   @@map("cliente")
 }
 
@@ -3564,6 +3590,8 @@ model Segmento {
   nome  String  @unique
   ativo Boolean @default(true)
   ordem Int     @default(0)
+
+  clientes Cliente[]
 
   @@map("segmento")
 }
