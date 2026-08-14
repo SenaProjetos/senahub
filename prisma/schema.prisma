@@ -3863,6 +3863,8 @@ model PranchaCatalogo {
   projeto   Projeto?                 @relation(fields: [projetoId], references: [id], onDelete: Cascade)
   createdAt DateTime                 @default(now())
 
+  documentos DocumentoDisciplina[]
+
   @@index([categoria, projetoId])
   @@map("prancha_catalogo")
 }
@@ -4244,6 +4246,17 @@ model DocumentoDisciplina {
   chave        String
   /// Nome exibido; espelho de Upload.nomeArquivo das suas versões (renomear atualiza os dois).
   nomeArquivo  String
+  /// Título legível ("Planta de forma do pavimento tipo"). Nulo enquanto ninguém preencher —
+  /// a tela cai no `nomeArquivo`, que é o comportamento de hoje.
+  titulo       String?
+  descricao    String?
+  /// Fase do documento (Anteprojeto/Projeto Básico/Executivo...). Aponta para o catálogo que
+  /// a Lista Mestre já usa; a categoria correta (`fase`) é garantida pela UI, não por
+  /// constraint — `PranchaCatalogo` guarda as três categorias na mesma tabela.
+  faseId       String?
+  fase         PranchaCatalogo? @relation(fields: [faseId], references: [id], onDelete: SetNull)
+  statusId     String?
+  status       DocumentoStatus? @relation(fields: [statusId], references: [id], onDelete: SetNull)
   createdAt    DateTime   @default(now())
 
   /// Documento que absorveu este (merge por nome-base, M4). Quando preenchido, esta linha
@@ -4263,6 +4276,8 @@ model DocumentoDisciplina {
   @@unique([disciplinaId, chave])
   @@index([disciplinaId])
   @@index([substituidoPorId])
+  @@index([faseId])
+  @@index([statusId])
   @@map("documento_disciplina")
 }
 
@@ -4276,6 +4291,26 @@ model DocumentoDisciplina {
 /// `Upload.versao` NÃO foi removido: durante a Fase 2 as duas coisas convivem, porque
 /// `entregaveisAtuais()` e a validação por-arquivo ainda leem `versao`. A remoção dele é
 /// decisão de uma onda posterior, quando nada mais depender do contador por linha.
+/// Status documental configurável (item 26 da spec). Tabela, não enum, pelo mesmo motivo de
+/// `TarefaStatus`: o escritório muda o vocabulário sem migration. É DIFERENTE de revisão —
+/// "R03" diz qual versão é, "Em análise" diz em que ponto do fluxo ela está.
+///
+/// `StatusDisciplina` (enum) continua existindo e não se confunde com este: aquele é o estado
+/// da DISCIPLINA inteira; este é de um documento.
+model DocumentoStatus {
+  id     String  @id @default(cuid())
+  nome   String  @unique
+  ordem  Int     @default(0)
+  cor    String?
+  /// Estado terminal: o documento não deve mais receber revisão (obsoleto/arquivado).
+  final  Boolean @default(false)
+  ativo  Boolean @default(true)
+
+  documentos DocumentoDisciplina[]
+
+  @@map("documento_status")
+}
+
 model DocumentoRevisao {
   id          String              @id @default(cuid())
   documentoId String

@@ -83,6 +83,11 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
       // tinha: os gates antigos continuam valendo e estas ações apenas SOMAM a eles.
       { acao: "renomear", label: "Renomear arquivos de qualquer disciplina" },
       { acao: "excluir", label: "Excluir/restaurar arquivos (lixeira do projeto)" },
+      // Fase 2: metadados do documento lógico (título, descrição, fase) e o status documental,
+      // que é o eixo do fluxo de aprovação — separado de "enviar" de propósito, porque quem
+      // sobe arquivo não é necessariamente quem declara que ele foi aprovado.
+      { acao: "editar_metadados", label: "Editar título, descrição e fase dos documentos" },
+      { acao: "alterar_status", label: "Alterar o status documental (Em análise, Aprovado, Liberado...)" },
     ],
   },
   {
