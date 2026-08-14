@@ -84,7 +84,12 @@ export default async function ArquivosPage({
 
   if (documentosV2) {
     // Badge IFC abre a aba Coordenação (viewer BIM): sem a permissão, o badge vira download.
-    const podeCoordenacao = await can(user, "coordenacao", "ver");
+    // `arquivos:excluir` espelha na UI o gate da action (admin OU capability concedida).
+    const [podeCoordenacao, podeExcluirCap] = await Promise.all([
+      can(user, "coordenacao", "ver"),
+      can(user, "arquivos", "excluir"),
+    ]);
+    const podeExcluirArquivo = ehAdmin || podeExcluirCap;
     const disciplinasArvore = arvore.disciplinas.map((d) => ({
       id: d.id,
       nome: d.nome,
@@ -119,8 +124,8 @@ export default async function ArquivosPage({
         podeEnviar={podeEnviarCap}
         podeCoordenacao={podeCoordenacao}
         podeValidar={podeValidar}
-        podeExcluir={ehAdmin}
-        podeSolicitarExclusao={!ehAdmin}
+        podeExcluir={podeExcluirArquivo}
+        podeSolicitarExclusao={!podeExcluirArquivo}
       />
     );
   }

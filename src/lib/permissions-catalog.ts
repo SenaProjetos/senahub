@@ -77,6 +77,12 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
         leitura: true,
       },
       { acao: "enviar", label: "Enviar arquivos (pelo projeto)" },
+      // Estas duas eram regra fixa em código (`role === "admin"` / "global ou responsável"),
+      // fora da matriz — ver docs/auditoria/01-arquitetura-atual.md §10b. Entram no catálogo
+      // para poderem ser concedidas pela tela de Permissões, sem que ninguém perca o que já
+      // tinha: os gates antigos continuam valendo e estas ações apenas SOMAM a eles.
+      { acao: "renomear", label: "Renomear arquivos de qualquer disciplina" },
+      { acao: "excluir", label: "Excluir/restaurar arquivos (lixeira do projeto)" },
     ],
   },
   {
