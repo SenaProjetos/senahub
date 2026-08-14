@@ -85,3 +85,6 @@ deploy/gui/**/*.csproj.user
 
 # graphify (grafo de conhecimento do código — artefato local, ~10 MB, regerável com `graphify update .`)
 /graphify-out/
+
+# Relatorio de reconciliacao (gerado pelo script, nao versionar)
+reconciliacao-orfaos-*.json
