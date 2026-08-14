@@ -23,11 +23,15 @@ export function etapaEhPerdido(nome: string): boolean {
   return nome.toLowerCase().includes("perdid");
 }
 
-/** Status comercial da Empresa (`Cliente.status`, docs/crm/02-schema.md §6). Chega via migration
- * na Fase 1 (F1.5) — este tipo é a versão do módulo comercial, independente do client Prisma
- * gerado, porque a coluna ainda não existe no schema real quando este arquivo nasce (F1.1 é a
- * única parte da Fase 1 sem mudança de schema). */
-export type StatusComercial = "PROSPECT" | "CLIENTE" | "EX_CLIENTE" | "PARCEIRO";
+/**
+ * Status comercial da Empresa (docs/crm/02-schema.md §6).
+ *
+ * Religado na F1.5: o enum `StatusComercialCliente` já existe no Prisma. A COLUNA
+ * `Cliente.status` ainda não — chega junto com `Cliente` v2. Reexportado com nome curto porque
+ * é assim que o módulo se refere a ele.
+ */
+export type { StatusComercialCliente as StatusComercial } from "@/generated/prisma/enums";
+import type { StatusComercialCliente as StatusComercial } from "@/generated/prisma/enums";
 
 /**
  * Deriva o status comercial da Empresa (ADR-08, docs/crm/01-decisoes.md).

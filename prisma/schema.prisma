@@ -3512,6 +3512,137 @@ model MetaComercial {
   @@map("meta_comercial")
 }
 
+// ─────────────────────────────────────────────────────────────
+// CRM — catálogos e vocabulário (Fase 1b, docs/crm/04-plano-fases.md F1.5)
+//
+// Só o VOCABULÁRIO: tabelas de catálogo e enums. Os models que os consomem
+// (`Negociacao`, `Lead` v2, `Campanha`, `Cliente` v2) chegam nas tarefas seguintes, e é lá
+// que as relações inversas são declaradas. Migration puramente aditiva — nada existente
+// é alterado, renomeado ou removido.
+//
+// ⚠️ Disciplina NÃO entra aqui: `DisciplinaCatalogo` (acima) já é o catálogo do sistema,
+// seedado com 20 entradas. Ver docs/crm/02-schema.md §8.1 — criar um segundo seria
+// fabricar duas fontes de verdade concorrentes.
+// ─────────────────────────────────────────────────────────────
+
+/// Tipo de empreendimento da negociação (residencial, galpão, hospital…).
+model TipoEmpreendimento {
+  id    String  @id @default(cuid())
+  nome  String  @unique
+  ativo Boolean @default(true)
+  ordem Int     @default(0)
+
+  @@map("tipo_empreendimento")
+}
+
+/// Motivo padronizado de perda — substitui o `Lead.motivoPerda` de texto livre.
+model MotivoPerda {
+  id    String  @id @default(cuid())
+  nome  String  @unique
+  ativo Boolean @default(true)
+  ordem Int     @default(0)
+  /// Quando true, a UI exige preencher o concorrente ao selecionar este motivo.
+  exigeConcorrente Boolean @default(false)
+
+  @@map("motivo_perda")
+}
+
+/// Canal de aquisição (como o negócio chegou). Nasce VAZIO: o `Lead.origem` de hoje foi
+/// preenchido com nome de empreendimento, não com canal — ver docs/crm/03-migracao.md §3.
+model CanalAquisicao {
+  id    String  @id @default(cuid())
+  nome  String  @unique
+  ativo Boolean @default(true)
+  ordem Int     @default(0)
+
+  @@map("canal_aquisicao")
+}
+
+/// Segmento de mercado do cliente.
+model Segmento {
+  id    String  @id @default(cuid())
+  nome  String  @unique
+  ativo Boolean @default(true)
+  ordem Int     @default(0)
+
+  @@map("segmento")
+}
+
+/// Probabilidade padrão por estágio da negociação — configurável, NUNCA hardcoded na UI
+/// (ADR-12). Estágios terminais (PERDIDO/EM_ESPERA/CANCELADO) não entram: a probabilidade
+/// deles é resolvida no serviço, não no banco.
+model ProbabilidadeEstagio {
+  estagio       EstagioNegociacao @id
+  probabilidade Int
+
+  @@map("probabilidade_estagio")
+}
+
+/// Funil de PROSPECÇÃO. Os 4 primeiros são os estados "ativos" que travam a empresa para uma
+/// nova prospecção; os 4 últimos liberam (ADR-18).
+enum StatusProspeccao {
+  IDENTIFICADO
+  CONTATO_INICIADO
+  EM_CONTATO
+  QUALIFICADO
+  OPORTUNIDADE_CRIADA
+  SEM_OPORTUNIDADE
+  EM_ESPERA
+  DESCARTADO
+}
+
+/// Funil de NEGOCIAÇÃO (o que hoje é feito fora do sistema).
+enum EstagioNegociacao {
+  LEVANTAMENTO
+  ORCAMENTO
+  PROPOSTA_ENVIADA
+  NEGOCIACAO
+  CONTRATADO
+  PERDIDO
+  EM_ESPERA
+  CANCELADO
+}
+
+/// Temperatura manual — sem IA, sem scoring automático (veredito do dono no roadmap).
+enum Temperatura {
+  FRIO
+  MORNO
+  QUENTE
+}
+
+/// Tipo de evento na timeline. `SISTEMA` = registrado automaticamente pelo próprio fluxo.
+enum TipoAtividade {
+  LIGACAO
+  WHATSAPP
+  EMAIL
+  LINKEDIN
+  REUNIAO
+  NOTA
+  ANEXO
+  SISTEMA
+}
+
+/// Status comercial da Empresa. Derivado de ter proposta aceita, com override manual (ADR-08).
+/// EX_CLIENTE e PARCEIRO nunca são calculados — só entram por override.
+enum StatusComercialCliente {
+  PROSPECT
+  CLIENTE
+  EX_CLIENTE
+  PARCEIRO
+}
+
+/// LGPD: base legal da coleta do contato. Prospecção B2B fria = legítimo interesse.
+enum BaseLegalLgpd {
+  LEGITIMO_INTERESSE
+}
+
+/// Situação do contato dentro da empresa dele.
+enum StatusRelacionamentoContato {
+  ATIVO
+  AFASTADO
+  SAIU_DA_EMPRESA
+}
+
 /// Tabela de preço por m² por disciplina (preços automáticos da proposta).
 model TabelaPreco {
   id    String  @id @default(cuid())

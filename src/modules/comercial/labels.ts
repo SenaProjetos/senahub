@@ -6,49 +6,40 @@
  * com três grafias diferentes em três telas (foi exatamente o que aconteceu com as disciplinas,
  * que hoje têm 24 grafias em produção).
  *
- * ⚠️ Os enums ainda NÃO existem em `prisma/schema.prisma` — chegam na F1.5. Por isso os tipos são
- * declarados aqui, e não importados de `@/generated/prisma/client`. Quando a migration entrar,
- * troque cada `type X` por `import type { X }` do client gerado: o `satisfies` abaixo passa a
- * acusar, em tempo de compilação, qualquer valor de enum que ficar sem rótulo.
+ * ✅ Religado na F1.5 (2026-08-14): os enums agora existem no `schema.prisma`, então os tipos vêm
+ * do client gerado. O `satisfies` abaixo passa a validar contra a FONTE REAL — adicionar um valor
+ * ao enum no Prisma sem dar rótulo aqui quebra a compilação, que é exatamente o que se quer.
  *
- * Puro: sem I/O, sem `server-only` — client component pode importar.
+ * Ainda declarados localmente (não existem no Prisma):
+ *   - `StatusPropostaCrm` — `em_negociacao` só entra no enum real na Fase 5 (P14)
+ *   - `TipoProximaAcao` / `TipoAncoraCompromisso` — chegam na F2.1b (`Compromisso` v2, ADR-17)
+ *
+ * Puro: sem I/O, sem `server-only` — client component pode importar (o client Prisma exporta os
+ * enums como valores/tipos, sem puxar o runtime de banco quando importados com `import type`).
  */
 
-import type { StatusComercial } from "@/modules/comercial/status";
+import type {
+  StatusProspeccao,
+  EstagioNegociacao,
+  Temperatura,
+  TipoAtividade,
+  StatusComercialCliente,
+  BaseLegalLgpd,
+  StatusRelacionamentoContato,
+} from "@/generated/prisma/enums";
 
-export type StatusProspeccao =
-  | "IDENTIFICADO"
-  | "CONTATO_INICIADO"
-  | "EM_CONTATO"
-  | "QUALIFICADO"
-  | "OPORTUNIDADE_CRIADA"
-  | "SEM_OPORTUNIDADE"
-  | "EM_ESPERA"
-  | "DESCARTADO";
+export type {
+  StatusProspeccao,
+  EstagioNegociacao,
+  Temperatura,
+  TipoAtividade,
+  StatusComercialCliente,
+  BaseLegalLgpd,
+  StatusRelacionamentoContato,
+};
 
-export type EstagioNegociacao =
-  | "LEVANTAMENTO"
-  | "ORCAMENTO"
-  | "PROPOSTA_ENVIADA"
-  | "NEGOCIACAO"
-  | "CONTRATADO"
-  | "PERDIDO"
-  | "EM_ESPERA"
-  | "CANCELADO";
-
-export type Temperatura = "FRIO" | "MORNO" | "QUENTE";
-
+/** `em_negociacao` ainda não existe no enum do Prisma — entra na Fase 5 (P14). */
 export type StatusPropostaCrm = "rascunho" | "enviada" | "em_negociacao" | "aceita" | "recusada";
-
-export type TipoAtividade =
-  | "LIGACAO"
-  | "WHATSAPP"
-  | "EMAIL"
-  | "LINKEDIN"
-  | "REUNIAO"
-  | "NOTA"
-  | "ANEXO"
-  | "SISTEMA";
 
 export type TipoProximaAcao =
   | "LIGACAO"
@@ -66,10 +57,6 @@ export type TipoProximaAcao =
 
 export type TipoAncoraCompromisso = "LEAD" | "NEGOCIACAO" | "CLIENTE";
 
-export type StatusRelacionamentoContato = "ATIVO" | "AFASTADO" | "SAIU_DA_EMPRESA";
-
-export type BaseLegalLgpd = "LEGITIMO_INTERESSE";
-
 // ── Rótulos ──────────────────────────────────────────────────────────────────
 // `satisfies Record<T, string>` é o que garante exaustividade: falta um valor → erro de compilação.
 // Usar `satisfies` em vez de anotação de tipo preserva as chaves literais para quem itera o objeto.
@@ -80,7 +67,7 @@ export const STATUS_COMERCIAL_LABEL = {
   CLIENTE: "Cliente",
   EX_CLIENTE: "Ex-cliente",
   PARCEIRO: "Parceiro",
-} satisfies Record<StatusComercial, string>;
+} satisfies Record<StatusComercialCliente, string>;
 
 /** Funil de prospecção (ADR-18: só os 4 primeiros travam a empresa para nova prospecção). */
 export const STATUS_PROSPECCAO_LABEL = {
