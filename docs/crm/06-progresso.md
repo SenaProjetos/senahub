@@ -20,6 +20,42 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## Fase 1a — Dívida técnica primeiro · 2026-08-14 · Sonnet (F1.1/F1.2 Opus na decisão de modelo, executadas em Sonnet)
+
+Início da execução do backlog (`04-plano-fases.md`). F1.0 já estava feito (bullet no CLAUDE.md, P5).
+
+**F1.1 — `src/modules/comercial/status.ts` + `.test.ts`** (commit `80ac5d8`)
+- `etapaEhPerdido` extraído de arrow function anônima em `actions.ts` para função nomeada,
+  documentada e testada. **Mesma regra, mesmo comportamento em produção** — substring
+  case-insensitive `"perdid"`, cobre "Perdido"/"Perdida". Teste cobre explicitamente a limitação
+  já conhecida (auditoria §E.1): etapa renomeada para fora do padrão deixa de ser reconhecida
+  silenciosamente — documentado como comportamento atual, não bug escondido.
+- `calcularStatusComercial(temPropostaAceita, override)` — função pura pronta para quando F1.5/F1.9
+  trouxerem `Cliente.status` via migration (ADR-08, `02-schema.md` §6).
+
+**F1.2 — `src/modules/comercial/numeracao.ts` + `.test.ts`** (commit `0924430`)
+- `formatarNumeroProposta(ano, sequencial)` extraído do template literal inline em
+  `proximoNumeroProposta`. O contador (`PropostaSequencia`, upsert transacional) continua em
+  `actions.ts` — é estado, não regra. Testa explicitamente `sequencial >= 10000` (cresce, não
+  trunca) e virada de ano. Número já emitido a clientes reais **não muda**.
+
+**Verificação:** `npx vitest run` → **189 arquivos, 1938 testes, todos verdes** (14 novos:
+`status.test.ts` + `numeracao.test.ts`). `eslint` limpo. `tsc --noEmit` (heap 8GB) → mesmos 2 erros
+pré-existentes de `src/lib/backup-storage.test.ts` (commit `d27e270`), nada no código novo. `next
+build` não rodado (regra: nunca junto com `next dev` ativo na mesma `.next`; nenhuma mudança de
+bundle client aqui).
+
+**Arquivos:** `src/modules/comercial/status.ts` + `.test.ts` (novos), `numeracao.ts` + `.test.ts`
+(novos), `actions.ts` (religado nos dois extraídos), `CLAUDE.md` (corrige 99→104 tarefas).
+
+**Nota de modelo:** F1.1/F1.2 estavam marcadas Sonnet no backlog; sessão trocou de Opus→Sonnet
+antes de começar (regra do projeto: parar e trocar, não só avisar).
+
+**Pendente:** F1.3 (`service.ts` + teste de caracterização do aceite) — marcada **Opus** no backlog,
+é a tarefa de risco alto da Fase 1a. Trocar modelo antes de rodar.
+
+---
+
 ## P5 — Plano de fases e backlog · 2026-08-14 · Opus
 
 **Feito:**
