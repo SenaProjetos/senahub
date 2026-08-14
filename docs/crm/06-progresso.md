@@ -125,6 +125,27 @@ pré-existentes de `backup-storage.test.ts`.
 **Não rodei `db:seed`:** os catálogos nascem vazios e seu seed idempotente é a **F1.6**. Nenhum campo
 obrigatório novo nem permissão nova nesta migration, que são os gatilhos que a skill lista.
 
+**F1.6 — seed dos catálogos** (commit `2645028`, Sonnet)
+- 10 tipos de empreendimento · 8 motivos de perda (com `exigeConcorrente` em "Perdemos para
+  concorrente") · 8 canais · 8 segmentos · 5 probabilidades por estágio (20/35/55/75/100).
+- **Listas aprovadas pelo dono em 2026-08-14**, derivadas dos empreendimentos reais de produção
+  (EDIF. ISA BEACH/MARMARES/BELA BEACH, RES. PLINIO PAIVA, CAPIBA MALL). Não foram inventadas:
+  perguntei antes de semear, porque conteúdo de catálogo é decisão de produto.
+- Estágios terminais (`PERDIDO`/`EM_ESPERA`/`CANCELADO`) ficam fora de `ProbabilidadeEstagio` de
+  propósito — não são ponto do funil.
+
+**Idempotência verificada nas duas pontas**, não só na contagem:
+1. `npm run db:seed` **duas vezes** → 10/8/8/8/5 idêntico (o aceite pedia isto).
+2. **O que a contagem não prova:** desativei `Hotelaria` (`ativo=false, ordem=99`) e mudei
+   `NEGOCIACAO` para 80 à mão, rodei o seed de novo — **as duas edições sobreviveram**. É o
+   `update: {}` fazendo seu trabalho: o seed garante existência, nunca desfaz edição do usuário.
+   Estado de teste restaurado depois (`Hotelaria` ativa/ordem 5, `NEGOCIACAO` 75).
+
+⚠️ **O deploy exige `npm run db:seed`** — sem ele os catálogos ficam vazios em produção e os selects
+do CRM aparecem sem nenhuma opção.
+
+**Verificação:** 192 arquivos, 1961 testes verdes · lint limpo · tsc só os 2 pré-existentes.
+
 ⚠️ **Erro de tsc alheio detectado em `dev`:** `src/components/certidoes/certidoes-view.tsx:153` —
 `return toast.error(...)` dentro de `startTransition`, cuja assinatura exige `void` (TS2345). Vem do
 commit `77e5ce6` (frente de certidões), **não** do CRM. Registrado aqui porque quebra `tsc` na branch
