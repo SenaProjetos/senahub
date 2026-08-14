@@ -31,6 +31,7 @@ import {
   editarTipoCertidao,
   excluirTipoCertidao,
   criarLinkCertidoes,
+  atualizarLinkCertidoes,
   revogarLinkCertidoes,
 } from "@/modules/certidoes/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -129,6 +130,7 @@ export function CertidoesView({
   const [compartilharAberto, setCompartilharAberto] = useState(false);
   const [tiposAberto, setTiposAberto] = useState(false);
   const [novo, setNovo] = useState({ tipoId: "", descricao: "", validade: "" });
+  const novoFileRef = useRef<HTMLInputElement>(null);
 
   const visiveis = certidoes.filter((c) => {
     if (filtro === "todas") return true;
@@ -147,13 +149,28 @@ export function CertidoesView({
 
   function registrar() {
     if (!novo.tipoId || !novo.validade) return toast.error("Selecione o tipo e informe a validade.");
+    const file = novoFileRef.current?.files?.[0] ?? null;
     start(async () => {
       const r = await criarCertidao(novo);
-      if (r.ok) {
+      if (!r.ok) return toast.error(r.error);
+
+      if (file) {
+        const fd = new FormData();
+        fd.set("file", file);
+        fd.set("validade", novo.validade);
+        const res = await fetch(`/api/certidoes/${r.data.id}/versao`, { method: "POST", body: fd });
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          toast.error(data?.error ?? "Certidão registrada, mas falhou o envio do arquivo.");
+        } else {
+          toast.success("Certidão registrada com arquivo.");
+        }
+      } else {
         toast.success("Certidão registrada — anexe o arquivo em seguida.");
-        setNovo({ tipoId: "", descricao: "", validade: "" });
-        router.refresh();
-      } else toast.error(r.error);
+      }
+      setNovo({ tipoId: "", descricao: "", validade: "" });
+      if (novoFileRef.current) novoFileRef.current.value = "";
+      router.refresh();
     });
   }
 
@@ -235,6 +252,10 @@ export function CertidoesView({
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Validade</Label>
             <Input type="date" value={novo.validade} onChange={(e) => setNovo((n) => ({ ...n, validade: e.target.value }))} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Arquivo (PDF, opcional)</Label>
+            <input ref={novoFileRef} type="file" accept="application/pdf" className="block w-52 text-sm" />
           </div>
           <Button size="sm" onClick={registrar} disabled={pending || !novo.tipoId || !novo.validade}>
             <Plus className="size-3.5" /> Registrar
@@ -722,10 +743,13 @@ function CompartilharDialog({
   const [marcadas, setMarcadas] = useState<Set<string>>(new Set());
   const [expiraEm, setExpiraEm] = useState("");
   const [gerado, setGerado] = useState<string | null>(null);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
 
   function abrir() {
     setMarcadas(new Set(preSelecionadas));
+    setExpiraEm("");
     setGerado(null);
+    setEditandoId(null);
   }
 
   function alternar(id: string) {
@@ -737,13 +761,33 @@ function CompartilharDialog({
     });
   }
 
+  function editar(l: LinkPublico) {
+    setEditandoId(l.id);
+    setMarcadas(new Set(l.certidaoIds));
+    setExpiraEm(l.expiraEm ? l.expiraEm.slice(0, 10) : "");
+    setGerado(null);
+  }
+
+  function cancelarEdicao() {
+    setEditandoId(null);
+    setMarcadas(new Set());
+    setExpiraEm("");
+  }
+
   function gerar() {
     if (marcadas.size === 0) return toast.error("Selecione ao menos uma certidão.");
+    const expiraIso = expiraEm ? new Date(expiraEm).toISOString() : null;
     start(async () => {
-      const r = await criarLinkCertidoes({
-        certidaoIds: [...marcadas],
-        expiraEm: expiraEm ? new Date(expiraEm).toISOString() : null,
-      });
+      if (editandoId) {
+        const r = await atualizarLinkCertidoes({ id: editandoId, certidaoIds: [...marcadas], ativo: true, expiraEm: expiraIso });
+        if (r.ok) {
+          toast.success("Link atualizado.");
+          cancelarEdicao();
+          router.refresh();
+        } else toast.error(r.error);
+        return;
+      }
+      const r = await criarLinkCertidoes({ certidaoIds: [...marcadas], expiraEm: expiraIso });
       if (r.ok) {
         const url = `${window.location.origin}/p/certidoes/${r.data.token}`;
         setGerado(url);
@@ -762,6 +806,7 @@ function CompartilharDialog({
       const r = await revogarLinkCertidoes({ id });
       if (r.ok) {
         toast.success("Link revogado.");
+        if (editandoId === id) cancelarEdicao();
         router.refresh();
       } else toast.error(r.error);
     });
@@ -781,6 +826,14 @@ function CompartilharDialog({
         </DialogHeader>
 
         <div className="space-y-3">
+          {editandoId && (
+            <div className="flex items-center justify-between rounded-sm border border-primary/40 bg-primary/5 px-2 py-1.5 text-xs">
+              <span>Editando link existente — ajuste as certidões e/ou a expiração.</span>
+              <Button size="sm" variant="ghost" onClick={cancelarEdicao}>
+                Cancelar edição
+              </Button>
+            </div>
+          )}
           <div className="max-h-40 space-y-1 overflow-y-auto rounded-sm border p-2">
             {certidoes.map((c) => (
               <label key={c.id} className="flex items-center gap-2 py-0.5 text-sm">
@@ -795,7 +848,7 @@ function CompartilharDialog({
               <Input type="date" value={expiraEm} onChange={(e) => setExpiraEm(e.target.value)} />
             </div>
             <Button onClick={gerar} disabled={pending}>
-              Gerar link
+              {editandoId ? "Salvar alterações" : "Gerar link"}
             </Button>
           </div>
           {gerado && (
@@ -815,11 +868,17 @@ function CompartilharDialog({
                   const expirado = l.expiraEm ? new Date(l.expiraEm).getTime() <= Date.now() : false;
                   const vigente = l.ativo && !expirado;
                   return (
-                    <li key={l.id} className="flex items-center gap-2 text-xs">
+                    <li
+                      key={l.id}
+                      className={`flex flex-wrap items-center gap-2 rounded-sm px-1.5 py-1 text-xs ${editandoId === l.id ? "bg-primary/5" : ""}`}
+                    >
                       <Badge variant="outline" className={vigente ? "text-success border-success/40" : "text-muted-foreground"}>
                         {vigente ? "ativo" : l.ativo ? "expirado" : "revogado"}
                       </Badge>
-                      <span className="text-muted-foreground">{l.certidaoIds.length} certidão(ões) · {formatarData(l.createdAt)}</span>
+                      <span className="text-muted-foreground">
+                        {l.certidaoIds.length} certidão(ões) · gerado {formatarData(l.createdAt)}
+                        {l.expiraEm ? <> · expira {formatarData(l.expiraEm)}</> : <> · sem expiração</>}
+                      </span>
                       <div className="ml-auto flex items-center gap-1">
                         <Button
                           size="icon"
@@ -829,6 +888,11 @@ function CompartilharDialog({
                         >
                           <Copy className="size-3.5" />
                         </Button>
+                        {l.ativo && (
+                          <Button size="icon" variant="ghost" aria-label="Editar link" onClick={() => editar(l)} disabled={pending}>
+                            <PenLine className="size-3.5" />
+                          </Button>
+                        )}
                         {l.ativo && (
                           <Button size="icon" variant="ghost" aria-label="Revogar link" onClick={() => revogar(l.id)} disabled={pending}>
                             <Ban className="size-3.5" />
