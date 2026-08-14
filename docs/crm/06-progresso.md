@@ -146,6 +146,36 @@ do CRM aparecem sem nenhuma opção.
 
 **Verificação:** 192 arquivos, 1961 testes verdes · lint limpo · tsc só os 2 pré-existentes.
 
+**F1.7 — parâmetros configuráveis** (commit `1c267c3`, Opus)
+- `comercial.config` em `ConfigSistema` com 4 limiares: `descontoMaxSemJustificativa` (**10**,
+  decisão Q6), `diasSemContato` (15), `diasAvisoValidadeProposta` (7), `diasClienteInativo` (180).
+- **Critério de aceite cumprido:** `grep` não acha nenhum desses números solto em
+  `src/modules/comercial/` — quem precisar de limiar chama a query.
+- `padroes.ts` puro + testado (11 casos) separado de `queries.ts` (só o `findUnique`), seguindo o
+  padrão do projeto de isolar lógica testável do I/O.
+
+**Emenda de critério, com o motivo:** o backlog pedia "seed roda 2× sem duplicar". **Não se aplica.**
+O padrão real dos ~8 módulos que usam `ConfigSistema` (`financeiro/config`, `financeiro/aprovacao`,
+`licitacoes/config`, `rh/encargos`) é **não semear**: o default mora no código e a chave só nasce
+quando alguém edita na tela. Semear duplicaria a fonte do default — mudar o padrão no código não
+teria efeito nos bancos onde o seed já gravou o valor antigo. Corrigido no `04-plano-fases.md`.
+
+**Decisões de implementação que valem registro:**
+- O parse é defensivo **campo a campo**: um valor inválido derruba só o próprio campo para o
+  default, nunca o objeto inteiro.
+- Rejeita negativo, `NaN` e `Infinity`. `diasSemContato: -5` não é "config exótica" — é um alerta
+  que nunca dispara, e falha em silêncio, que é o pior modo de falha para isso.
+- `exigeJustificativaDesconto` compara com `>`, não `>=`: o limite é o **teto do que passa livre**,
+  então 10% exato não exige justificativa; 10,01% exige.
+- Zero é aceito: desligar um limiar é configuração legítima.
+
+⚠️ **Três dos quatro defaults são meus, não seus:** só o desconto (10%) veio de decisão registrada
+(Q6). `diasSemContato=15`, `diasAvisoValidadeProposta=7` e `diasClienteInativo=180` são pontos de
+partida operacionais que escolhi — por isso vivem em configuração, para você ajustar ao ritmo real
+do time assim que a tela existir.
+
+**Verificação:** 193 arquivos, **1972 testes verdes** · lint limpo · tsc só os 2 pré-existentes.
+
 ⚠️ **Erro de tsc alheio detectado em `dev`:** `src/components/certidoes/certidoes-view.tsx:153` —
 `return toast.error(...)` dentro de `startTransition`, cuja assinatura exige `void` (TS2345). Vem do
 commit `77e5ce6` (frente de certidões), **não** do CRM. Registrado aqui porque quebra `tsc` na branch
