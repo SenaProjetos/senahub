@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, BookmarkPlus, Check, CopyPlus, FileArchive, GitCompare, Loader2, Maximize2, MapPin, MessageSquare, PauseCircle, Pencil, RotateCcw, Ruler, Send, Sparkles, Stamp, Table2, Tags, Trash2, Undo2, Wrench, X, ZoomIn, ZoomOut } from "lucide-react";
+import { ArrowLeft, BookmarkPlus, Check, CopyPlus, Expand, FileArchive, GitCompare, Loader2, Maximize2, MapPin, MessageSquare, Minimize, PauseCircle, Pencil, RotateCcw, RotateCw, Ruler, Send, Sparkles, Stamp, Table2, Tags, Trash2, Undo2, Wrench, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { PendenciaView, ReincidenciaView } from "@/modules/projetos/pendencias/queries";
 import {
   criarPendencia,
@@ -335,6 +335,10 @@ export function PdfViewer(props: Props) {
   const [erro, setErro] = useState<string | null>(null);
   const [larguraAlvo, setLarguraAlvo] = useState(900);
   const [zoom, setZoom] = useState(1);
+  /** Giro só de leitura (0|90|180|270) — ver a trava de coordenadas em `Pagina`. */
+  const [rotacao, setRotacao] = useState<0 | 90 | 180 | 270>(0);
+  const [emTelaCheia, setEmTelaCheia] = useState(false);
+  const raizRef = useRef<HTMLDivElement | null>(null);
   const [arrastando, setArrastando] = useState(false);
   const panRef = useRef<{ sx: number; sy: number; left: number; top: number } | null>(null);
 
@@ -1175,8 +1179,33 @@ export function PdfViewer(props: Props) {
     .sort((a, b) => a.numero - b.numero);
   const abertasSemTarefa = enviaveis.length;
 
+  // Tela cheia real (Fullscreen API) no container do visualizador — sem plugin, e o
+  // `fullscreenchange` mantém o estado certo quando a pessoa sai pelo Esc do navegador.
+  useEffect(() => {
+    const aoTrocar = () => setEmTelaCheia(document.fullscreenElement === raizRef.current);
+    document.addEventListener("fullscreenchange", aoTrocar);
+    return () => document.removeEventListener("fullscreenchange", aoTrocar);
+  }, []);
+
+  async function alternarTelaCheia() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await raizRef.current?.requestFullscreen();
+    } catch {
+      // Navegador pode recusar (permissão/iframe) — sem tela cheia, o resto segue igual.
+      toast.error("Não foi possível abrir em tela cheia neste navegador.");
+    }
+  }
+
+  function girar() {
+    setRotacao((r) => ((r + 90) % 360) as 0 | 90 | 180 | 270);
+    // Girar desliga o modo de apontar: a camada de coordenadas fica indisponível enquanto
+    // a página não voltar para 0° (ver comentário em `Pagina`).
+    setModoApontar(false);
+  }
+
   return (
-    <div className="flex h-[calc(100vh-2rem)] flex-col">
+    <div ref={raizRef} className="flex h-[calc(100vh-2rem)] flex-col bg-background data-fullscreen:h-screen data-fullscreen:p-3" data-fullscreen={emTelaCheia || undefined}>
       {/* Cabeçalho */}
       <div className="flex flex-wrap items-center gap-3 border-b pb-3">
         <Link
@@ -1282,6 +1311,30 @@ export function PdfViewer(props: Props) {
               title="Ajustar à largura"
             >
               <Maximize2 className="size-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className={cn("size-7", rotacao !== 0 && "text-primary")}
+              onClick={girar}
+              aria-label={`Girar 90° (atual: ${rotacao}°)`}
+              title={
+                rotacao === 0
+                  ? "Girar 90°"
+                  : `Girada ${rotacao}° — apontamentos ficam ocultos até voltar a 0°`
+              }
+            >
+              <RotateCw className="size-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-7"
+              onClick={alternarTelaCheia}
+              aria-label={emTelaCheia ? "Sair da tela cheia" : "Abrir em tela cheia"}
+              title={emTelaCheia ? "Sair da tela cheia" : "Tela cheia"}
+            >
+              {emTelaCheia ? <Minimize className="size-4" /> : <Expand className="size-4" />}
             </Button>
           </div>
         )}
@@ -1484,9 +1537,15 @@ export function PdfViewer(props: Props) {
                   marcas={busca.ocorrenciasPorPagina(n)}
                   ocgConfig={camadas.config}
                   ocgVersao={camadas.versao}
+                  rotacao={rotacao}
                 />
               ))}
             </div>
+          )}
+          {rotacao !== 0 && (
+            <p className="pointer-events-none sticky bottom-2 mx-auto w-fit rounded-sm bg-foreground/90 px-3 py-1.5 text-xs text-background shadow-md">
+              Página girada {rotacao}° — apontamentos ocultos. Volte para 0° para marcar ou medir.
+            </p>
           )}
         </div>
 
@@ -2236,10 +2295,13 @@ function Pagina({
   marcas,
   ocgConfig,
   ocgVersao,
+  rotacao,
 }: {
   pdf: PdfDoc;
   pagina: number;
   largura: number;
+  /** Giro só de leitura; com ela != 0 a camada de apontamentos é suprimida (ver PdfViewer). */
+  rotacao: 0 | 90 | 180 | 270;
   pins: PinPosicionado[];
   selecionadaId: string | null;
   modoApontar: boolean;
@@ -2348,8 +2410,13 @@ function Pagina({
       : null;
 
   return (
-    <PdfPagina pdf={pdf} pagina={pagina} largura={largura} registrar={registrar} onTexto={onTexto} marcas={marcas} ocgConfig={ocgConfig} ocgVersao={ocgVersao}>
+    <PdfPagina pdf={pdf} pagina={pagina} largura={largura} registrar={registrar} onTexto={onTexto} marcas={marcas} ocgConfig={ocgConfig} ocgVersao={ocgVersao} rotacao={rotacao}>
       {(dim) => {
+        // Girado: nada de camada de coordenadas. `x`/`y` (e a geometria das marcações) são
+        // normalizados no espaço NÃO rotacionado — desenhá-los sobre a página girada
+        // colocaria cada pino no lugar errado, e um clique gravaria coordenada inválida
+        // num registro de coordenação. Voltar para 0° devolve tudo.
+        if (rotacao !== 0) return null;
         dimPtRef.current = { wPt: dim.wPt, hPt: dim.hPt };
         return (
         <div

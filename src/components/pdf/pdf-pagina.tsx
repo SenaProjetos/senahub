@@ -44,6 +44,12 @@ type Props = {
    * `%`, seguem podendo usar a forma simples.
    */
   children?: ReactNode | ((dim: { w: number; h: number; wPt: number; hPt: number }) => ReactNode);
+  /**
+   * Giro da página em graus (0|90|180|270), somado ao `/Rotate` do próprio PDF. Só afeta a
+   * exibição — quem usa camada de coordenadas (pinos, medição) tem de tratar o giro por
+   * conta, porque `x`/`y` normalizados continuam no espaço NÃO rotacionado.
+   */
+  rotacao?: 0 | 90 | 180 | 270;
 };
 
 /**
@@ -54,7 +60,7 @@ type Props = {
  * Pinta as marcas de busca com `<mark>` via DOM API (createTextNode/createElement) — nunca
  * `innerHTML`: o texto vem do PDF e não é confiável como HTML.
  */
-export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, ocgConfig, ocgVersao, children }: Props) {
+export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, ocgConfig, ocgVersao, rotacao = 0, children }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const textLayerRef = useRef<HTMLDivElement | null>(null);
   const [dim, setDim] = useState<{ w: number; h: number; wPt: number; hPt: number } | null>(null);
@@ -114,9 +120,9 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
       try {
         const pdfjs = await import("pdfjs-dist");
         const page = await pdf.getPage(pagina);
-        const base = page.getViewport({ scale: 1 });
+        const base = page.getViewport({ scale: 1, rotation: rotacao });
         const scale = largura / base.width;
-        const viewport = page.getViewport({ scale });
+        const viewport = page.getViewport({ scale, rotation: rotacao });
         const canvas = canvasRef.current;
         if (!canvas || cancelado) return;
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -203,7 +209,7 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
     // objeto não muda — só o contador força este efeito (que re-renderiza o canvas do zero,
     // já que camada visível/oculta é decidida DENTRO do `page.render()`) a rodar de novo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pdf, pagina, largura, ocgVersao]);
+  }, [pdf, pagina, largura, ocgVersao, rotacao]);
 
   return (
     <div ref={registrar} className="relative mx-auto shadow-sm" style={{ width: dim?.w }}>
