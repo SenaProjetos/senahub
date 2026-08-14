@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { FileX2, SearchX } from "lucide-react";
 import {
   Table,
@@ -19,11 +18,7 @@ import { BarraSelecaoDocumentos } from "@/components/projetos/arquivos/barra-sel
 import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { BadgeExtensao } from "@/components/projetos/arquivos/badge-extensao";
 import { MenuDocumento } from "@/components/projetos/arquivos/menu-documento";
-import {
-  campoOrdenacaoValido,
-  ordenarLinhas,
-  type LinhaDocumento,
-} from "@/modules/uploads/lista-documentos";
+import type { LinhaDocumento } from "@/modules/uploads/lista-documentos";
 import { formatarData, rotuloRevisao } from "@/lib/utils";
 
 function fmtBytes(n: number): string {
@@ -33,7 +28,7 @@ function fmtBytes(n: number): string {
 }
 
 /**
- * Tabela densa de documentos (F1-PR3, docs/auditoria/03-plano-refatoracao.md).
+ * Tabela densa de documentos (F1-PR3 + paginação server-side em F1-PR10).
  *
  * Usa o `Table` do design system, não markup custom: a auditoria (02-matriz-gap.md, D5)
  * confirmou que o componente não tem limitação técnica — já é usado em 38 telas densas do
@@ -42,9 +37,9 @@ function fmtBytes(n: number): string {
  * Fase 1 = uma linha POR ARQUIVO. Agrupar PDF+DWG da mesma prancha numa linha só depende do
  * merge de chave da Fase 2 (D1) — não é simulado aqui.
  *
- * Ordenação client-side sobre a lista já carregada, via `?sort=&dir=` (mesmo contrato do
- * `SortableHead` do design system). Vira ordenação no banco quando a paginação server-side
- * entrar em F1-PR10.
+ * Ordenação e paginação são do BANCO: `SortableHead`/`Pagination` só escrevem na URL
+ * (`?sort=&dir=&page=`) e o servidor devolve a página pronta. Nada de fatiar em memória —
+ * um projeto com milhares de arquivos nunca chega inteiro ao navegador.
  */
 export function TabelaDocumentos({
   projetoId,
@@ -65,14 +60,9 @@ export function TabelaDocumentos({
   podeExcluir: boolean;
   podeSolicitarExclusao: boolean;
 }) {
-  const sp = useSearchParams();
-  const campo = campoOrdenacaoValido(sp.get("sort"));
-  const dir = sp.get("dir") === "desc" ? "desc" : "asc";
-
-  const ordenadas = useMemo(
-    () => (campo ? ordenarLinhas(linhas, campo, dir) : linhas),
-    [linhas, campo, dir],
-  );
+  // A página já vem ordenada e recortada do banco (F1-PR10) — o `SortableHead` só empurra
+  // `?sort=&dir=` para a URL, e a query do servidor faz o trabalho.
+  const ordenadas = linhas;
 
   const [selecao, setSelecao] = useState<Set<string>>(new Set());
   // Só conta o que ainda está na tela: trocar de disciplina (ou filtrar, em F1-PR7) troca as

@@ -5,7 +5,16 @@ import { can } from "@/lib/permissions";
 import { GLOBAL_ROLES } from "@/lib/roles";
 import { projetoVisivel } from "@/modules/planejamento/queries";
 import { arvoreArquivosProjeto } from "@/modules/projetos/arquivos/queries";
-import { lixeiraDoProjeto, pedidosExclusaoPendentesDoProjeto } from "@/modules/uploads/queries";
+import {
+  lixeiraDoProjeto,
+  pedidosExclusaoPendentesDoProjeto,
+  listarDocumentosProjeto,
+  linhasDeUploads,
+  opcoesFiltroDocumentos,
+  CAMPOS_ORDENACAO_DOCUMENTOS,
+  type CampoOrdenacaoDocumento,
+} from "@/modules/uploads/queries";
+import { parseListParams, pageCount } from "@/lib/list-params";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import {
   recebidosDoProjeto,
@@ -20,7 +29,6 @@ import { linkArquivosDoProjeto } from "@/modules/projetos/arquivos/link-publico"
 import { listarArtsDoProjeto } from "@/modules/projetos/art/queries";
 import { ArquivosExplorer } from "@/components/projetos/arquivos-explorer";
 import { DocumentosShell } from "@/components/projetos/arquivos/documentos-shell";
-import { linhasDeDocumentos, filtrarLinhas, contarFiltros } from "@/modules/uploads/lista-documentos";
 
 export const metadata: Metadata = { title: "Arquivos" };
 
@@ -37,6 +45,10 @@ export default async function ArquivosPage({
     autor?: string;
     periodo?: string;
     val?: string;
+    page?: string;
+    pageSize?: string;
+    sort?: string;
+    dir?: string;
   }>;
 }) {
   const user = await requirePermission("projetos", "ver");
@@ -102,25 +114,51 @@ export default async function ArquivosPage({
     // veio filtrada pela muralha por disciplina, então filtrar por ela nunca amplia o escopo.
     const selecionadaId =
       sp?.disciplinaId && disciplinasArvore.some((d) => d.id === sp.disciplinaId) ? sp.disciplinaId : null;
-    const todasLinhas = linhasDeDocumentos(
-      selecionadaId ? arvore.disciplinas.filter((d) => d.id === selecionadaId) : arvore.disciplinas,
-    );
-    // Opções dos selects saem dos dados reais da disciplina em foco — nada de lista fixa.
-    const extensoes = [...new Set(todasLinhas.map((l) => l.ext).filter(Boolean))].sort();
-    const autores = [...new Set(todasLinhas.map((l) => l.autor))].sort((a, b) => a.localeCompare(b, "pt-BR"));
-    const filtros = { q: sp?.q, ext: sp?.ext, autor: sp?.autor, periodo: sp?.periodo, validado: sp?.val };
-    const linhas = filtrarLinhas(todasLinhas, filtros);
+    // Filtro, ordenação e recorte acontecem no Postgres (F1-PR10): projeto com milhares de
+    // arquivos não pode trafegar inteiro até o client a cada carga da tela.
+    const filtros = {
+      disciplinaId: selecionadaId,
+      q: sp?.q,
+      ext: sp?.ext,
+      autor: sp?.autor,
+      periodo: sp?.periodo,
+      validado: sp?.val,
+    };
+    const lp = parseListParams(sp ?? {}, {
+      sortFields: CAMPOS_ORDENACAO_DOCUMENTOS,
+      defaultPageSize: 24,
+    });
+    const [pagina, opcoes] = await Promise.all([
+      listarDocumentosProjeto({
+        projetoId: id,
+        userId: user.id,
+        veTodas,
+        filtros,
+        skip: lp.skip,
+        take: lp.take,
+        sort: lp.sort as CampoOrdenacaoDocumento | null,
+        dir: lp.dir,
+      }),
+      opcoesFiltroDocumentos({ projetoId: id, userId: user.id, veTodas, disciplinaId: selecionadaId }),
+    ]);
+    const linhas = linhasDeUploads(pagina.uploads, { podeEnviarCap, ehGlobal, userId: user.id });
+    const filtrosAtivos = [sp?.q, sp?.ext, sp?.autor, sp?.periodo, sp?.val].filter(
+      (v) => typeof v === "string" && v.trim() !== "",
+    ).length;
+
     return (
       <DocumentosShell
         projeto={projeto}
         disciplinas={disciplinasArvore}
         linhas={linhas}
-        extensoes={extensoes}
-        autores={autores}
-        temFiltroAtivo={contarFiltros(filtros) > 0}
+        extensoes={opcoes.extensoes}
+        autores={opcoes.autores}
+        temFiltroAtivo={filtrosAtivos > 0}
         totalDocumentos={totalDocumentos}
+        totalFiltrado={pagina.total}
         totalDisciplinas={disciplinasArvore.length}
         disciplinaSelecionadaId={selecionadaId}
+        paginacao={{ page: lp.page, pageCount: pageCount(pagina.total, lp.pageSize), pageSize: lp.pageSize }}
         podeEnviar={podeEnviarCap}
         podeCoordenacao={podeCoordenacao}
         podeValidar={podeValidar}

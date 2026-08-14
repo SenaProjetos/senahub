@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { PainelDisciplinas, type DisciplinaArvore } from "@/components/projetos/arquivos/painel-disciplinas";
 import { TabelaDocumentos } from "@/components/projetos/arquivos/tabela-documentos";
 import { FiltrosDocumentos } from "@/components/projetos/arquivos/filtros-documentos";
+import { Pagination } from "@/components/ui/pagination";
 import type { LinhaDocumento } from "@/modules/uploads/lista-documentos";
 
 /**
@@ -28,6 +29,8 @@ export function DocumentosShell({
   extensoes,
   autores,
   temFiltroAtivo,
+  totalFiltrado,
+  paginacao,
   totalDocumentos,
   totalDisciplinas,
   disciplinaSelecionadaId,
@@ -43,6 +46,9 @@ export function DocumentosShell({
   extensoes: string[];
   autores: string[];
   temFiltroAtivo: boolean;
+  /** Total que casa com os filtros (o `linhas` traz só a página atual). */
+  totalFiltrado: number;
+  paginacao: { page: number; pageCount: number; pageSize: number };
   totalDocumentos: number;
   totalDisciplinas: number;
   disciplinaSelecionadaId: string | null;
@@ -104,7 +110,7 @@ export function DocumentosShell({
         </aside>
 
         <main className="min-w-0 space-y-3">
-          <FiltrosDocumentos extensoes={extensoes} autores={autores} totalFiltrado={linhas.length} />
+          <FiltrosDocumentos extensoes={extensoes} autores={autores} totalFiltrado={totalFiltrado} />
           <TabelaDocumentos
             projetoId={projeto.id}
             linhas={linhas}
@@ -114,6 +120,12 @@ export function DocumentosShell({
             podeValidar={podeValidar}
             podeExcluir={podeExcluir}
             podeSolicitarExclusao={podeSolicitarExclusao}
+          />
+          <Pagination
+            page={paginacao.page}
+            pageCount={paginacao.pageCount}
+            pageSize={paginacao.pageSize}
+            total={totalFiltrado}
           />
         </main>
       </div>
