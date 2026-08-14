@@ -50,6 +50,7 @@ export function TabelaDocumentos({
   podeValidar,
   podeExcluir,
   podeSolicitarExclusao,
+  colunas,
 }: {
   projetoId: string;
   linhas: LinhaDocumento[];
@@ -59,6 +60,8 @@ export function TabelaDocumentos({
   podeValidar: boolean;
   podeExcluir: boolean;
   podeSolicitarExclusao: boolean;
+  /** Ids das colunas que o usuário escolheu ver (resolvido no servidor). */
+  colunas: Set<string>;
 }) {
   // A página já vem ordenada e recortada do banco (F1-PR10) — o `SortableHead` só empurra
   // `?sort=&dir=` para a URL, e a query do servidor faz o trabalho.
@@ -129,12 +132,12 @@ export function TabelaDocumentos({
             </TableHead>
             <SortableHead field="disciplina">Disciplina</SortableHead>
             <SortableHead field="nome">Documento</SortableHead>
-            <SortableHead field="versao" className="text-right">Revisão</SortableHead>
-            <TableHead>Validado</TableHead>
-            <TableHead>Extensão</TableHead>
-            <TableHead>Responsável</TableHead>
-            <SortableHead field="data">Atualizado</SortableHead>
-            <SortableHead field="tamanho" className="text-right">Tamanho</SortableHead>
+            {colunas.has("revisao") && <SortableHead field="versao" className="text-right">Revisão</SortableHead>}
+            {colunas.has("validado") && <TableHead>Validado</TableHead>}
+            {colunas.has("extensao") && <TableHead>Extensão</TableHead>}
+            {colunas.has("responsavel") && <TableHead>Responsável</TableHead>}
+            {colunas.has("data") && <SortableHead field="data">Atualizado</SortableHead>}
+            {colunas.has("tamanho") && <SortableHead field="tamanho" className="text-right">Tamanho</SortableHead>}
             <TableHead className="w-10"><span className="sr-only">Ações</span></TableHead>
           </TableRow>
         </TableHeader>
@@ -155,39 +158,49 @@ export function TabelaDocumentos({
                 </span>
               </TableCell>
               <TableCell className="max-w-[22rem] font-medium whitespace-normal">{l.nome}</TableCell>
-              <TableCell className="text-right font-mono text-xs tabular-nums">
-                {rotuloRevisao(l.versao)}
-              </TableCell>
-              <TableCell>
-                {l.validado === null ? (
-                  <span className="text-xs text-muted-foreground" title="Arquivos em pasta não passam por validação">
-                    —
-                  </span>
-                ) : l.validado ? (
-                  <Badge variant="outline" className="border-success/40 bg-success/10 text-success">
-                    Validado
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="text-muted-foreground">
-                    Pendente
-                  </Badge>
-                )}
-              </TableCell>
-              <TableCell>
-                <BadgeExtensao
-                  projetoId={projetoId}
-                  uploadId={l.id}
-                  nome={l.nome}
-                  ext={l.ext}
-                  downloadUrl={l.downloadUrl}
-                  podeCoordenacao={podeCoordenacao}
-                />
-              </TableCell>
-              <TableCell className="text-muted-foreground">{l.autor}</TableCell>
-              <TableCell className="tabular-nums text-muted-foreground">{formatarData(l.data)}</TableCell>
-              <TableCell className="text-right tabular-nums text-muted-foreground">
-                {fmtBytes(l.tamanho)}
-              </TableCell>
+              {colunas.has("revisao") && (
+                <TableCell className="text-right font-mono text-xs tabular-nums">
+                  {rotuloRevisao(l.versao)}
+                </TableCell>
+              )}
+              {colunas.has("validado") && (
+                <TableCell>
+                  {l.validado === null ? (
+                    <span className="text-xs text-muted-foreground" title="Arquivos em pasta não passam por validação">
+                      —
+                    </span>
+                  ) : l.validado ? (
+                    <Badge variant="outline" className="border-success/40 bg-success/10 text-success">
+                      Validado
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-muted-foreground">
+                      Pendente
+                    </Badge>
+                  )}
+                </TableCell>
+              )}
+              {colunas.has("extensao") && (
+                <TableCell>
+                  <BadgeExtensao
+                    projetoId={projetoId}
+                    uploadId={l.id}
+                    nome={l.nome}
+                    ext={l.ext}
+                    downloadUrl={l.downloadUrl}
+                    podeCoordenacao={podeCoordenacao}
+                  />
+                </TableCell>
+              )}
+              {colunas.has("responsavel") && <TableCell className="text-muted-foreground">{l.autor}</TableCell>}
+              {colunas.has("data") && (
+                <TableCell className="tabular-nums text-muted-foreground">{formatarData(l.data)}</TableCell>
+              )}
+              {colunas.has("tamanho") && (
+                <TableCell className="text-right tabular-nums text-muted-foreground">
+                  {fmtBytes(l.tamanho)}
+                </TableCell>
+              )}
               <TableCell className="text-right">
                 <MenuDocumento
                   projetoId={projetoId}

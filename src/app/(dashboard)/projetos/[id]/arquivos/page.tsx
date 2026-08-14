@@ -15,6 +15,8 @@ import {
   type CampoOrdenacaoDocumento,
 } from "@/modules/uploads/queries";
 import { parseListParams, pageCount } from "@/lib/list-params";
+import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
+import { resolverColunasVisiveis, CHAVE_PREF_COLUNAS, idsOcultaveis } from "@/modules/uploads/colunas-documento";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import {
   recebidosDoProjeto,
@@ -142,6 +144,11 @@ export default async function ArquivosPage({
       opcoesFiltroDocumentos({ projetoId: id, userId: user.id, veTodas, disciplinaId: selecionadaId }),
     ]);
     const linhas = linhasDeUploads(pagina.uploads, { podeEnviarCap, ehGlobal, userId: user.id });
+    // Colunas visíveis: preferência do USUÁRIO (vale em qualquer projeto), resolvida no
+    // servidor para a tabela já nascer com o recorte certo — sem piscar mostrando tudo.
+    const prefs = await getPreferencias(user.id);
+    const colunas = resolverColunasVisiveis(prefs[CHAVE_PREF_COLUNAS]);
+    const colunasOcultas = idsOcultaveis().filter((id) => !colunas.has(id));
     const filtrosAtivos = [sp?.q, sp?.ext, sp?.autor, sp?.periodo, sp?.val].filter(
       (v) => typeof v === "string" && v.trim() !== "",
     ).length;
@@ -154,6 +161,8 @@ export default async function ArquivosPage({
         extensoes={opcoes.extensoes}
         autores={opcoes.autores}
         temFiltroAtivo={filtrosAtivos > 0}
+        colunas={colunas}
+        colunasOcultas={colunasOcultas}
         totalDocumentos={totalDocumentos}
         totalFiltrado={pagina.total}
         totalDisciplinas={disciplinasArvore.length}

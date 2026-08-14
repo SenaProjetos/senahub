@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { PainelDisciplinas, type DisciplinaArvore } from "@/components/projetos/arquivos/painel-disciplinas";
 import { TabelaDocumentos } from "@/components/projetos/arquivos/tabela-documentos";
 import { FiltrosDocumentos } from "@/components/projetos/arquivos/filtros-documentos";
+import { SeletorColunas } from "@/components/projetos/arquivos/seletor-colunas";
 import { Pagination } from "@/components/ui/pagination";
 import type { LinhaDocumento } from "@/modules/uploads/lista-documentos";
 
@@ -25,6 +26,8 @@ export function DocumentosShell({
   extensoes,
   autores,
   temFiltroAtivo,
+  colunas,
+  colunasOcultas,
   totalFiltrado,
   paginacao,
   totalDocumentos,
@@ -42,6 +45,8 @@ export function DocumentosShell({
   extensoes: string[];
   autores: string[];
   temFiltroAtivo: boolean;
+  colunas: Set<string>;
+  colunasOcultas: string[];
   /** Total que casa com os filtros (o `linhas` traz só a página atual). */
   totalFiltrado: number;
   paginacao: { page: number; pageCount: number; pageSize: number };
@@ -82,7 +87,10 @@ export function DocumentosShell({
         </aside>
 
         <main className="min-w-0 space-y-3">
-          <FiltrosDocumentos extensoes={extensoes} autores={autores} totalFiltrado={totalFiltrado} />
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <FiltrosDocumentos extensoes={extensoes} autores={autores} totalFiltrado={totalFiltrado} />
+            <SeletorColunas ocultas={colunasOcultas} />
+          </div>
           <TabelaDocumentos
             projetoId={projeto.id}
             linhas={linhas}
@@ -92,6 +100,7 @@ export function DocumentosShell({
             podeValidar={podeValidar}
             podeExcluir={podeExcluir}
             podeSolicitarExclusao={podeSolicitarExclusao}
+            colunas={colunas}
           />
           <Pagination
             page={paginacao.page}
