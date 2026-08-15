@@ -19,6 +19,11 @@
  */
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
+import {
+  normalizarDocumento,
+  normalizarNomeEmpresa,
+  dominioCorporativo,
+} from "../src/modules/comercial/dedupe";
 
 // ── Regras de classificação (determinísticas — ver docs/crm/03-migracao.md §2) ──
 
@@ -88,48 +93,9 @@ export function classificarLead(l: LeadClassificavel): { bucket: Bucket; motivo:
   return { bucket: "prospeccao_pura", motivo: "R8: etapa inicial, sem proposta — prospecção" };
 }
 
-// ── Normalizações (mesmas que a dedup vai usar — P8) ────────────────────────
-
-/** Só dígitos: "12.345.678/0001-90" → "12345678000190". */
-export function normalizarDocumento(d: string | null): string | null {
-  if (!d) return null;
-  const so = d.replace(/\D/g, "");
-  return so.length > 0 ? so : null;
-}
-
-/**
- * Minúsculo, sem acento, sem pontuação, espaços colapsados. Sufixo societário só cai
- * quando o registro é PJ — `Cliente.nome` guarda nome de PESSOA quando `tipo = PF`, e aí
- * "Sá" (→ "sa" depois de tirar o acento) e "Me" seriam comidos como se fossem sufixo.
- *
- * A classe de acento vai escrita em escape (\u0300-\u036f) de propósito: os combining marks
- * literais não sobrevivem a todo round-trip de encoding (este repo já tem comentários
- * corrompidos em prisma/schema.prisma por isso).
- */
-export function normalizarNomeEmpresa(nome: string, tipo: "PF" | "PJ" = "PJ"): string {
-  const base = nome
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-  const semSufixo =
-    tipo === "PJ" ? base.replace(/\b(ltda|epp|eireli|s\/?a|cia|inc|mei|me)\b/g, "") : base;
-  return semSufixo
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/** Domínio do e-mail, ignorando provedores públicos (não identificam empresa). */
-const PROVEDORES_PUBLICOS = new Set([
-  "gmail.com", "hotmail.com", "outlook.com", "yahoo.com", "yahoo.com.br",
-  "bol.com.br", "uol.com.br", "terra.com.br", "live.com", "icloud.com", "msn.com",
-]);
-export function dominioCorporativo(email: string | null): string | null {
-  if (!email || !email.includes("@")) return null;
-  const d = email.split("@").pop()?.toLowerCase().trim();
-  if (!d || PROVEDORES_PUBLICOS.has(d)) return null;
-  return d;
-}
+// Normalizacoes (normalizarDocumento/normalizarNomeEmpresa/dominioCorporativo) migraram para
+// src/modules/comercial/dedupe.ts (F1.12) -- este script agora importa de la, em vez de manter
+// uma segunda copia da mesma logica.
 
 // ── Relatório ────────────────────────────────────────────────────────────────
 
