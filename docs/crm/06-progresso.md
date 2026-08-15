@@ -199,6 +199,33 @@ aceita viraram `CLIENTE`, 6 ficaram `PROSPECT`, e a contagem **bate com a consul
 (`listarClientes`, `listarClientesPaginado`) direto — seguem retornando, com os campos novos
 presentes. Vale confirmar em `/clientes` no navegador quando for conveniente.
 
+**F1.9 — LGPD no `ContatoCliente`** (commit `73599d8`, Sonnet)
+- `optOut`/`optOutAt`, `baseLegal`, `dataCollectionSource`, `dataCollectedAt`, `linkedinUrl`,
+  `salesNavigatorUrl`, `papelDecisao`, `statusRelacionamento` e **`createdAt`** (que faltava).
+- Aditiva e segura: os dois NOT NULL têm DEFAULT, `createdAt` usa `CURRENT_TIMESTAMP`.
+- `@@index([optOut])` — é o filtro de toda lista de abordagem.
+
+⚠️ **Ressalva registrada na própria migration, sobre o backfill de `dataCollectedAt` (Q5):** a
+decisão foi usar `createdAt` como proxy da data de coleta. Só que, para linhas pré-existentes,
+`createdAt` acabou de ser preenchido com a **data da migration**, não com a data real do cadastro —
+esse dado nunca foi guardado. O proxy vale para contatos criados daqui em diante; para os antigos é
+só o instante em que a coluna nasceu. **Hoje o ponto é teórico: há zero contatos em produção e em
+dev.** O `UPDATE` fica pelo caso de algum ambiente ter dado que não conhecemos.
+
+**F1.10 — `lgpd.ts`** (commit `02bc217`, Sonnet no lugar do Haiku previsto)
+- `podeAbordar(contato)` + `WHERE_PODE_ABORDAR` (o filtro Prisma equivalente, lado a lado para as
+  duas mudarem juntas) + `registrarOptOut(agora)` com relógio injetado.
+- **Critério de aceite cumprido:** `optOut` aparece **só** em `lgpd.ts` dentro de
+  `src/modules/comercial/`.
+- **Decisão explícita:** ter e-mail/telefone **não** faz parte da regra. Contato sem e-mail ainda
+  pode ser abordado por telefone, LinkedIn ou visita — filtrar por canal é de quem monta a lista.
+  Misturar as duas coisas faria o sistema "proteger" quem nunca pediu proteção.
+- O motivo de centralizar: quando a regra crescer, muda num lugar só. Espalhada, sempre sobra um
+  ponto esquecido — e o modo de falha é mandar e-mail para quem pediu descadastro.
+
+**Verificação (F1.9+F1.10):** 194 arquivos, **1979 testes verdes** · lint limpo · tsc limpo ·
+`migrate status` limpo (163 migrations).
+
 **Verificação:** 193 arquivos, 1972 testes verdes · lint limpo · tsc só os 2 pré-existentes ·
 `migrate status` limpo (162 migrations).
 
