@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { brl, formatarData } from "@/lib/utils";
 import { PropostaPublicaUpload } from "@/components/comercial/proposta-publica-upload";
+import { nomeDisciplinaItem } from "@/modules/comercial/disciplinas";
 
 export const metadata: Metadata = { title: "Proposta — Sena Projetos", robots: { index: false } };
 
@@ -21,7 +22,9 @@ export default async function PropostaPublicaPage({
     where: { token },
     include: {
       cliente: { select: { nome: true } },
-      itens: { orderBy: { ordem: "asc" } },
+      // `disciplina` (catalogo) no include: a pagina publica mostra o nome do catalogo e cai
+      // no texto original quando o item ainda nao tem FK (F1.19).
+      itens: { orderBy: { ordem: "asc" }, include: { disciplina: { select: { nome: true } } } },
       condicoes: { orderBy: { ordem: "asc" } },
     },
   });
@@ -55,7 +58,7 @@ export default async function PropostaPublicaPage({
             {p.itens.map((it) => (
               <tr key={it.id}>
                 <td className="px-4 py-2.5">
-                  {it.disciplina}
+                  {nomeDisciplinaItem(it)}
                   {it.descricao && (
                     <span className="block text-xs text-muted-foreground">{it.descricao}</span>
                   )}

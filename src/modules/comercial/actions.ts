@@ -351,7 +351,10 @@ export const copiarProposta = defineAction(
           autorId: user.id,
           itens: {
             create: p.itens.map((it) => ({
-              disciplina: it.disciplina,
+              // Copia os DOIS: texto legado e a FK ja resolvida (F1.19). Nao re-resolve pelo
+              // nome -- a copia deve ser fiel ao original, inclusive quando ele nao tem FK.
+              disciplinaTextoLegado: it.disciplinaTextoLegado,
+              disciplinaId: it.disciplinaId,
               descricao: it.descricao,
               valor: it.valor,
               ordem: it.ordem,

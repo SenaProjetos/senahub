@@ -87,7 +87,12 @@ export async function resumoComercial() {
 // ── Propostas ─────────────────────────────────────────────────
 const INCLUDE_PROPOSTA = {
   cliente: { select: { id: true, nome: true } },
-  itens: { orderBy: { ordem: "asc" as const } },
+  // `disciplina` (catalogo) junto: quem exibe usa `nomeDisciplinaItem`, que prefere o
+  // catalogo e cai no texto original (F1.19).
+  itens: {
+    orderBy: { ordem: "asc" as const },
+    include: { disciplina: { select: { nome: true } } },
+  },
   condicoes: { orderBy: { ordem: "asc" as const } },
   _count: { select: { visualizacoes: true, versoes: true } },
 };

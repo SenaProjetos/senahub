@@ -350,9 +350,9 @@ async function main() {
         aceitaEm: statusProp[i] === "aceita" ? dia(-5 + i) : null,
         itens: {
           create: [
-            { disciplina: "Estrutural", valor: area * 22, ordem: 0 },
-            { disciplina: "Elétrico", valor: area * 11, ordem: 1 },
-            { disciplina: "Hidrossanitário", valor: area * 13, ordem: 2 },
+            { disciplinaTextoLegado: "Estrutural", valor: area * 22, ordem: 0 },
+            { disciplinaTextoLegado: "Elétrico", valor: area * 11, ordem: 1 },
+            { disciplinaTextoLegado: "Hidrossanitário", valor: area * 13, ordem: 2 },
           ],
         },
         condicoes: {

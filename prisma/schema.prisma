@@ -996,7 +996,9 @@ model DisciplinaCatalogo {
   ativo     Boolean @default(true)
   ordem     Int     @default(0)
 
-  padroes PadraoTecnico[]
+  padroes       PadraoTecnico[]
+  /// Itens de proposta que já apontam para este catálogo (CRM F1.19).
+  propostaItens PropostaItem[]
 
   @@map("disciplina_catalogo")
 }
@@ -3807,12 +3809,25 @@ model PropostaItem {
   id         String   @id @default(cuid())
   propostaId String
   proposta   Proposta @relation(fields: [propostaId], references: [id], onDelete: Cascade)
-  disciplina String
+
+  // ── Disciplina: texto livre → catálogo (CRM F1.19) ──────────
+  /// Texto original digitado antes da migração. O `@map` mantém a COLUNA FÍSICA com o nome
+  /// antigo (`disciplina`): o banco não sofre rename, só o código passa a usar o nome alvo.
+  /// Fica como fallback enquanto houver item sem FK — a consolidação das grafias de produção
+  /// é a F1.21. Deprecado para escrita nova; ainda lido.
+  disciplinaTextoLegado String              @map("disciplina")
+  /// NULLABLE de propósito: em produção há 24 grafias, 18 batendo exato com o catálogo e 6
+  /// precisando de tratamento manual. Item que não resolve fica sem FK — é estado esperado,
+  /// não falha.
+  disciplinaId          String?
+  disciplina            DisciplinaCatalogo? @relation(fields: [disciplinaId], references: [id])
+
   descricao  String?
   valor      Decimal  @db.Decimal(14, 2)
   ordem      Int      @default(0)
 
   @@index([propostaId])
+  @@index([disciplinaId])
   @@map("proposta_item")
 }
 

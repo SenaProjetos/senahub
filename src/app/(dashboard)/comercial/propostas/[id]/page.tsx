@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
+import { nomeDisciplinaItem } from "@/modules/comercial/disciplinas";
 import { obterProposta } from "@/modules/comercial/queries";
 import { listarTabelasPreco } from "@/modules/comercial/queries";
 import { catalogoDisciplinas } from "@/modules/projetos/queries";
@@ -47,7 +48,7 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
         visualizacoes: p.visualizacoes.map((v) => v.createdAt.toISOString()),
         versoes: p.versoes.map((v) => ({ numero: v.numero, autor: v.autor.name, data: v.createdAt.toISOString() })),
         itens: p.itens.map((it) => ({
-          disciplina: it.disciplina,
+          disciplina: nomeDisciplinaItem(it),
           descricao: it.descricao ?? "",
           valor: Number(it.valor),
         })),

@@ -109,6 +109,12 @@ export function PropostaEditor({
     let aplicados = 0;
     setItens((arr) =>
       arr.map((it) => {
+        // ⚠️ Casa por TEXTO, não por FK. Hoje isso é equivalente: o backfill da F1.19 resolve a
+        // FK por nome EXATO, então `nomeDisciplinaItem` devolve o mesmo texto de antes sempre que
+        // há FK. Divergirá quando alguém RENOMEAR uma disciplina no catálogo — o item passa a
+        // exibir o nome novo e a tabela de preço continua com o antigo, e o preço para de casar
+        // em silêncio. A F1.20 converte `ItemTabelaPreco.disciplina` para FK; quando os dois
+        // lados tiverem id, esta comparação deve passar a usar `disciplinaId`.
         const preco = t.itens.find((x) => x.disciplina === it.disciplina);
         if (!preco) return it;
         aplicados++;

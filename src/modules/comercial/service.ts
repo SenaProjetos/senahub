@@ -113,6 +113,12 @@ export async function salvarProposta(i: SalvarPropostaInput, autorId: string) {
     condicoes: i.condicoes,
   };
 
+  // Resolve as disciplinas do catálogo por nome EXATO (F1.19). O que não casar grava só o texto,
+  // com `disciplinaId` null — casar por aproximação apontaria o item para a disciplina errada, e
+  // valor de disciplina vira pagamento de projetista.
+  const catalogo = await prisma.disciplinaCatalogo.findMany({ select: { id: true, nome: true } });
+  const idsPorNome = new Map(catalogo.map((d) => [d.nome, d.id]));
+
   await prisma.$transaction([
     prisma.proposta.update({
       where: { id: i.id },
@@ -127,7 +133,10 @@ export async function salvarProposta(i: SalvarPropostaInput, autorId: string) {
     prisma.propostaItem.createMany({
       data: i.itens.map((it, idx) => ({
         propostaId: i.id,
-        disciplina: it.disciplina,
+        // Grava o texto E resolve a FK pelo nome (F1.19). `disciplinaId` fica null quando a
+        // grafia nao existe no catalogo -- estado esperado ate a consolidacao da F1.21.
+        disciplinaTextoLegado: it.disciplina,
+        disciplinaId: idsPorNome.get(it.disciplina) ?? null,
         descricao: it.descricao || null,
         valor: it.valor,
         ordem: idx,
@@ -166,7 +175,12 @@ export async function salvarProposta(i: SalvarPropostaInput, autorId: string) {
 export async function aceitarProposta(propostaId: string) {
   const p = await prisma.proposta.findUnique({
     where: { id: propostaId },
-    include: { itens: { orderBy: { ordem: "asc" } }, cliente: { select: { nome: true } } },
+    include: {
+      // `disciplina` (catalogo) entra no include para o aceite resolver o nome preferindo o
+      // catalogo e caindo no texto legado (F1.19) -- ver `disciplinasDeItens`.
+      itens: { orderBy: { ordem: "asc" }, include: { disciplina: { select: { nome: true } } } },
+      cliente: { select: { nome: true } },
+    },
   });
   if (!p) throw new ActionError("Proposta não encontrada.");
   if (p.status === "aceita") throw new ActionError("Proposta já aceita.");

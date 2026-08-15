@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { nomeDisciplinaItem } from "@/modules/comercial/disciplinas";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { relatorioDRE } from "@/modules/financeiro/relatorios/queries";
 import { saldoContratual, somaDeltas } from "@/modules/licitacoes/contrato/saldo";
@@ -157,7 +158,7 @@ export async function resolverFonte(
         where: { id: params.propostaId ?? "" },
         include: {
           cliente: true,
-          itens: { orderBy: { ordem: "asc" } },
+          itens: { orderBy: { ordem: "asc" }, include: { disciplina: { select: { nome: true } } } },
           condicoes: { orderBy: { ordem: "asc" } },
         },
       });
@@ -187,7 +188,9 @@ export async function resolverFonte(
           Observacoes: p.observacoes ?? "",
         },
         linhas: p.itens.map((it) => ({
-          Disciplina: it.disciplina,
+          // Prefere o catalogo, cai no texto original -- documento gerado nao pode sair com a
+          // disciplina em branco (F1.19).
+          Disciplina: nomeDisciplinaItem(it),
           Descricao: it.descricao ?? "",
           Valor: Number(it.valor),
         })),

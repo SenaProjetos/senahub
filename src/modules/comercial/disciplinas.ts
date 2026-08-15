@@ -6,6 +6,24 @@
 
 export type DisciplinaNova<V> = { nome: string; valor: V; ordem: number };
 
+/** O mínimo para resolver o nome de uma disciplina de item de proposta (F1.19). */
+export type ItemComDisciplina = {
+  disciplina?: { nome: string } | null;
+  disciplinaTextoLegado: string;
+};
+
+/**
+ * Nome da disciplina de um item de proposta: prefere o catálogo, cai no texto original (F1.19).
+ *
+ * O fallback não é temporário nem defensivo — é o estado correto enquanto houver item cuja
+ * grafia não casou com o catálogo. Produção tem 24 grafias, 18 batendo exato e 6 pendentes de
+ * consolidação manual (F1.21). Sem o fallback, a proposta pública e o PDF passariam a mostrar
+ * disciplina em branco nesses casos.
+ */
+export function nomeDisciplinaItem(item: ItemComDisciplina): string {
+  return item.disciplina?.nome ?? item.disciplinaTextoLegado;
+}
+
 /**
  * Cada `PropostaItem` vira uma `Disciplina` do projeto criado no aceite.
  *
@@ -19,10 +37,12 @@ export type DisciplinaNova<V> = { nome: string; valor: V; ordem: number };
  * genérico garante isso no compilador, em vez de depender de `unknown` com cast na outra ponta.
  */
 export function disciplinasDeItens<V>(
-  itens: { disciplina: string; valor: V }[],
+  itens: (ItemComDisciplina & { valor: V })[],
 ): DisciplinaNova<V>[] {
   return itens.map((it, idx) => ({
-    nome: it.disciplina,
+    // Prefere o nome do catálogo (F1.19). A `Disciplina` do projeto continua guardando o NOME
+    // como texto — vira FK só quando a Fase 2 tocar `Projeto.Disciplina`.
+    nome: nomeDisciplinaItem(it),
     valor: it.valor,
     ordem: idx,
   }));

@@ -17,7 +17,7 @@
  */
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
-import { aceitarProposta, criarPropostaDeLead } from "../src/modules/comercial/service";
+import { aceitarProposta, criarPropostaDeLead, salvarProposta } from "../src/modules/comercial/service";
 import { formatarNumeroProposta } from "../src/modules/comercial/numeracao";
 
 async function main() {
@@ -75,13 +75,23 @@ async function main() {
   check("aceite sem itens é recusado", recusouSemItens);
 
   // ── 3. aceite com itens: cria projeto + 1 disciplina por item, na ordem ──
-  await prisma.propostaItem.createMany({
-    data: [
-      { propostaId: proposta.id, disciplina: "Estrutural", valor: 15000, ordem: 0 },
-      { propostaId: proposta.id, disciplina: "Elétrico", valor: 8000, ordem: 1 },
-      { propostaId: proposta.id, disciplina: "Hidrossanitário", valor: 5000, ordem: 2 },
-    ],
-  });
+  // Usa `salvarProposta` (o caminho REAL da aplicação) em vez de `createMany` direto: é ele que
+  // resolve a FK da disciplina contra o catálogo (F1.19), e é isso que precisa ser exercitado.
+  // As três existem no catálogo, então devem resolver FK. Item sem match no catálogo fica com
+  // `disciplinaId` null e usa o texto legado — coberto pelo teste unitário de `nomeDisciplinaItem`.
+  await salvarProposta(
+    {
+      id: proposta.id,
+      titulo: `${tag}_proposta`,
+      itens: [
+        { disciplina: "Estrutural", valor: 15000 },
+        { disciplina: "Elétrico", valor: 8000 },
+        { disciplina: "Hidrossanitário", valor: 5000 },
+      ],
+      condicoes: [],
+    },
+    autor.id,
+  );
 
   const { projetoId, codigo } = await aceitarProposta(proposta.id);
   check("aceite devolve projeto", !!projetoId && !!codigo);
@@ -102,6 +112,35 @@ async function main() {
       Number(projeto.disciplinas[1].valor) === 8000 &&
       projeto.disciplinas[2].nome === "Hidrossanitário" &&
       Number(projeto.disciplinas[2].valor) === 5000,
+  );
+
+  // ── 3b. F1.19: disciplina virou FK, com fallback para o texto original ────
+  const itensDepois = await prisma.propostaItem.findMany({
+    where: { propostaId: proposta.id },
+    include: { disciplina: { select: { nome: true } } },
+    orderBy: { ordem: "asc" },
+  });
+  check(
+    "todo item resolve um nome de disciplina (via FK ou fallback)",
+    itensDepois.every((it) => (it.disciplina?.nome ?? it.disciplinaTextoLegado).trim() !== ""),
+  );
+  check(
+    "o texto original é sempre preservado",
+    itensDepois.every((it) => it.disciplinaTextoLegado.trim() !== ""),
+  );
+  const comFk = itensDepois.filter((it) => it.disciplinaId !== null).length;
+  console.log(
+    `      ${comFk}/${itensDepois.length} itens resolveram FK do catálogo` +
+      `${comFk < itensDepois.length ? " (o resto usa o texto legado — consolidação é a F1.21)" : ""}`,
+  );
+  check(
+    "a soma dos valores NÃO mudou com a conversão",
+    Number(
+      (await prisma.propostaItem.aggregate({
+        where: { propostaId: proposta.id },
+        _sum: { valor: true },
+      }))._sum.valor ?? 0,
+    ) === 28000,
   );
 
   const propostaAceita = await prisma.proposta.findUniqueOrThrow({ where: { id: proposta.id } });
