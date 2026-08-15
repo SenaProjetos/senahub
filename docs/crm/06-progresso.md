@@ -449,6 +449,24 @@ original é preservado e que a soma dos valores não muda.
 **Verificação:** 195 arquivos, **2017 testes verdes** · lint e tsc limpos · os 4 smokes do CRM e o
 `smoke:onda4` (que também toca proposta) passando.
 
+**F1.20 — `ItemTabelaPreco.disciplina` vira FK do catálogo** (commit `2416318`, Sonnet)
+
+Mesmo padrão da F1.19: `@map("disciplina")` mantém a coluna física, `disciplinaId` nullable com
+backfill por nome exato. **Verificado com dado real do dev: 10/11 itens resolveram FK.** O único que
+não resolveu é `Lógica` — exatamente o caso que o comentário da F1.19 já citava (o catálogo renomeou
+para `Cabeamento`), confirmando que o risco documentado ali era real, não hipotético.
+
+⚠️ **Decisão explícita: não fechei o risco do `proposta-editor.tsx`** (comparação de preço por texto,
+não por FK) nesta tarefa. Fechar isso exigiria fiar `disciplinaId` ponta a ponta pelos tipos locais
+`Item`/`Tabela` do editor, que hoje só carregam `string` — mais escopo do que F1.20 pede (só "continua
+listando"). Atualizei o comentário no código para deixar claro que é decisão, não esquecimento: o
+caso comum já funciona por construção (item escolhido agora vem do mesmo catálogo dos dois lados);
+só quebra para item salvo **antes** de um rename no catálogo — o mesmo cenário que acabou de acontecer
+de verdade com `Lógica`→`Cabeamento`.
+
+**Verificação:** 195 arquivos, 2017 testes verdes · lint e tsc limpos · `listarTabelasPreco()`
+exercitada contra o dev · os 4 smokes do CRM + `smoke:onda4` passando.
+
 **Verificação:** 193 arquivos, 1972 testes verdes · lint limpo · tsc só os 2 pré-existentes ·
 `migrate status` limpo (162 migrations).
 
