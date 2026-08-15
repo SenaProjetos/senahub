@@ -226,6 +226,43 @@ dev.** O `UPDATE` fica pelo caso de algum ambiente ter dado que não conhecemos.
 **Verificação (F1.9+F1.10):** 194 arquivos, **1979 testes verdes** · lint limpo · tsc limpo ·
 `migrate status` limpo (163 migrations).
 
+**F1.11 — `/clientes`: filtros, form em abas, contatos inline** (commit `a8f3c3d`, Sonnet) —
+primeira tarefa de UI da reforma
+- Busca/filtros/paginação server-side **já existiam** (`parseListParams`+`useSetParams`); só
+  acrescentei filtro por **Segmento** (catálogo — `listarFiltrosClientes` agora consulta o model
+  `Segmento` direto, não `distinct` sobre uso passado, que ficaria vazio até o primeiro cliente
+  ganhar um) e por **Classificação** (`StatusComercialCliente` — é o termo "classificação da
+  empresa" do playbook original, P6). Coluna de classificação nova na tabela.
+- `cliente-form.tsx` reescrito em 5 abas: Identificação, Comercial (classificação **somente
+  leitura**, Segmento, Porte, Categoria realocada com nota "campo legado"), LinkedIn (com aviso
+  "sem scraping — Fase 4"), Observações (**ganhou textarea** — não era editável no dialog antes),
+  Contatos (só ao editar).
+- `contatos-tab.tsx` (novo): edição **inline**, sem modal — diferente do `ContatoDialog`
+  existente, que fica intocado e continua servindo a página de detalhe.
+
+**Decisão explícita: não editar `statusOverride` nesta tarefa.** A aba "Comercial" listada no
+backlog não pede isso, e construir a UI de override sem decidir quem pode usá-la ou como auditar
+seria inventar feature além do pedido. Mostro o status calculado como badge, e paro aí.
+
+**Erro real que cometi e corrigi:** a primeira versão do `contatos-tab.tsx` chamava
+`startTransition` **durante o render** (`if (contatos === null) { carregar(); return … }`) — efeito
+colateral impuro, contra as regras do React. Corrigido com `useEffect` na montagem, guardado por
+`clienteId`. O componente só monta (e só então busca) quando a aba Contatos é aberta pela primeira
+vez — carregar contatos não deveria ser o custo de editar Identificação.
+
+**`editarContato` reconcilia "principal":** marcar um contato como principal desmarca os demais do
+mesmo cliente, na mesma transação. O schema não tem constraint para isso; sem a reconciliação,
+um cliente acumularia N "principais" sem que nada avisasse.
+
+**Verificação:** sem migration (os campos já existiam desde F1.8/F1.9). Queries exercitadas contra
+o dev, não só teste unitário: filtro por segmento (achou o cliente certo), por classificação (3
+`CLIENTE`), paginação combinada com filtro, e `contatosDoCliente`. 194 arquivos, 1979 testes
+verdes · lint limpo · tsc limpo.
+
+⚠️ **Não abri browser.** O critério "recarregar a página preserva o filtro" segue pendente de
+confirmação visual, no mesmo padrão de `searchParams`+`useSetParams` que já funciona para os
+filtros existentes (tipo/situação/UF/categoria) — os dois novos foram fiados nele.
+
 **Verificação:** 193 arquivos, 1972 testes verdes · lint limpo · tsc só os 2 pré-existentes ·
 `migrate status` limpo (162 migrations).
 
