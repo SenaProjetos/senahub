@@ -14,6 +14,9 @@ import { PrismaClient, Prisma } from '@/generated/prisma/client'
  * - `lancamento`: excluídos somem de financeiro/relatórios.
  * - `upload`: lixeira do projeto (arquivos de disciplina) — some das listagens/downloads.
  * - `cliente`: some das listagens/selects, mas continua resolvendo onde é referenciado (F1.17).
+ * - `lead` / `contatoCliente`: F1.18. ⚠️ A leitura PRINCIPAL dos dois é ANINHADA (o funil lê
+ *   leads via `FunilEtapa.leads`; `obterCliente` inclui `contatos`), então NÃO passa por aqui —
+ *   nesses dois pontos o filtro é explícito no `where` da relação.
  *
  * ── COMO VER OS EXCLUÍDOS ───────────────────────────────────────────────────
  * Passe `excluidoEm` explicitamente no `where`. As formas foram VERIFICADAS contra o banco
@@ -56,6 +59,8 @@ const softDelete = Prisma.defineExtension({
     lancamento: { async $allOperations(ctx) { return filtroSoftDelete(ctx as never) } },
     upload: { async $allOperations(ctx) { return filtroSoftDelete(ctx as never) } },
     cliente: { async $allOperations(ctx) { return filtroSoftDelete(ctx as never) } },
+    lead: { async $allOperations(ctx) { return filtroSoftDelete(ctx as never) } },
+    contatoCliente: { async $allOperations(ctx) { return filtroSoftDelete(ctx as never) } },
   },
 })
 

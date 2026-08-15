@@ -68,7 +68,9 @@ export async function listarClientes(opts?: ListarClientesOpts) {
   return prisma.cliente.findMany({
     where: buildWhere(opts),
     orderBy: buildOrderBy(opts),
-    include: { _count: { select: { contatos: true } } },
+    // `_count` tambem e leitura aninhada: sem o where, contaria contato excluido e o numero
+    // na lista nao bateria com a ficha do cliente (F1.18).
+    include: { _count: { select: { contatos: { where: { excluidoEm: null } } } } },
   });
 }
 
@@ -79,7 +81,7 @@ export async function listarClientesPaginado(opts?: ListarClientesOpts) {
     prisma.cliente.findMany({
       where,
       orderBy: buildOrderBy(opts),
-      include: { _count: { select: { contatos: true } } },
+      include: { _count: { select: { contatos: { where: { excluidoEm: null } } } } },
       skip: opts?.skip,
       take: opts?.take,
     }),
@@ -137,7 +139,11 @@ export async function contatosDoCliente(clienteId: string) {
 export async function obterCliente(id: string) {
   return prisma.cliente.findUnique({
     where: { id },
-    include: { contatos: { orderBy: [{ principal: "desc" }, { nome: "asc" }] } },
+    include: {
+      // `excluidoEm: null` EXPLÍCITO: leitura ANINHADA não passa pela extensão de soft delete
+      // (F1.18) — sem isto, contato excluído continuaria na ficha do cliente.
+      contatos: { where: { excluidoEm: null }, orderBy: [{ principal: "desc" }, { nome: "asc" }] },
+    },
   });
 }
 

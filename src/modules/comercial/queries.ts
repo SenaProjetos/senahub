@@ -8,7 +8,10 @@ export async function funilCompleto() {
     orderBy: { ordem: "asc" },
     include: {
       leads: {
-        where: { arquivado: false },
+        // `excluidoEm: null` EXPLÍCITO: esta é leitura ANINHADA (leads via FunilEtapa) e não
+        // passa pela extensão de soft delete do `lib/prisma.ts` — sem isto, lead excluído
+        // continuaria aparecendo no Kanban (F1.18).
+        where: { arquivado: false, excluidoEm: null },
         orderBy: { updatedAt: "desc" },
         include: {
           cliente: { select: { id: true, nome: true } },
@@ -125,7 +128,9 @@ export function totalProposta(itens: { valor: unknown }[]): number {
 export async function listarEtapasFunil() {
   return prisma.funilEtapa.findMany({
     orderBy: { ordem: "asc" },
-    select: { id: true, nome: true, ordem: true, cor: true, ativo: true, _count: { select: { leads: true } } },
+    // Conta so leads vivos: a tela de configuracao usa este numero para avisar quantos leads
+    // uma etapa tem antes de desativa-la (F1.18).
+    select: { id: true, nome: true, ordem: true, cor: true, ativo: true, _count: { select: { leads: { where: { excluidoEm: null } } } } },
   });
 }
 export type EtapaFunilConfig = Awaited<ReturnType<typeof listarEtapasFunil>>[number];

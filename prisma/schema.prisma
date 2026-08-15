@@ -939,9 +939,14 @@ model ContatoCliente {
   /// Faltava no model. Necessário para `dataCollectedAt` ter de onde puxar (Q5).
   createdAt DateTime @default(now())
 
+  /// Soft delete (ADR-11). A leitura principal e ANINHADA (`obterCliente` inclui contatos),
+  /// que nao passa pela extensao -- o filtro la e explicito.
+  excluidoEm DateTime?
+
   @@index([clienteId])
   /// Filtro das listas de abordagem: "quem posso contatar".
   @@index([optOut])
+  @@index([excluidoEm])
   @@map("contato_cliente")
 }
 
@@ -3527,6 +3532,11 @@ model Lead {
   /// Motivo registrado ao mover o lead para a etapa "Perdido".
   motivoPerda   String?
   arquivado     Boolean    @default(false)
+  /// Soft delete (ADR-11). Distinto de `arquivado`: arquivar tira do funil mas mantem o lead
+  /// como registro vivo; excluir e remocao logica. Leituras top-level sao auto-filtradas pela
+  /// extensao em `lib/prisma.ts`; as ANINHADAS (funil le leads via FunilEtapa) precisam do
+  /// filtro explicito -- ver `funilCompleto`.
+  excluidoEm    DateTime?
 
   atividades AtividadeLead[]
   propostas  Proposta[]
@@ -3536,6 +3546,7 @@ model Lead {
   updatedAt DateTime @updatedAt
 
   @@index([etapaId, arquivado])
+  @@index([excluidoEm])
   @@map("lead")
 }
 
