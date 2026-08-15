@@ -391,6 +391,32 @@ lint e tsc limpos.
 produção 46 (a F1.15 ainda não rodou). Troquei por asserção de **delta** — mais forte, porque prova
 que a extensão faz o que deve e **nada além disso**.
 
+**F1.18 — soft delete em `Lead` e `ContatoCliente`** (commit `87e130e`, Opus; backlog pedia Sonnet)
+
+**A diferença em relação à F1.17 é o que define a tarefa:** aqui a leitura **principal** dos dois
+models é **aninhada** — o Kanban lê leads via `FunilEtapa.leads`, a ficha do cliente lê contatos via
+`include`. Leitura aninhada **não passa pela extensão**. Ou seja: ligar a extensão sozinha **não
+cumpriria** o critério de aceite ("funil não mostra lead com `excluidoEm`").
+
+**5 filtros explícitos**, todos em leitura aninhada:
+`funilCompleto` (leads do Kanban) · `obterCliente` (contatos da ficha) · `listarEtapasFunil`
+(`_count` de leads) · `listarClientes` e `listarClientesPaginado` (`_count` de contatos).
+
+Os `_count` são leitura aninhada igualmente — sem `where`, a etapa mostraria **"3 leads" com 2 na
+tela**. Esse é o tipo de divergência que ninguém reporta como bug, só desconfia do sistema.
+
+**`Lead.excluidoEm` ≠ `Lead.arquivado`** (que já existia): arquivar tira do funil mas mantém o lead
+vivo e reversível pela UI; excluir é remoção lógica. Coexistem de propósito — a Fase 2 substitui
+`arquivado` pelo status `DESCARTADO` do funil novo, e só então o campo antigo fica órfão.
+
+**O smoke pegou uma inconsistência — e o errado era o teste, não o código.** Eu havia escrito o
+check como `count({ where: { id } }) === 0`, mas lookup por id é **isento** do filtro de propósito
+(exemption criada na F1.17, para resolver nome em histórico). Corrigi o teste e transformei o
+comportamento num check explícito, para ninguém tropeçar nisso de novo.
+
+**Verificação:** smoke novo `npm run smoke:crm-soft-delete-lead` → **13/13**. Os 3 smokes anteriores
+(`crm-fase1`, `crm-dedupe`, `crm-soft-delete`) seguem passando · 2013 testes · lint e tsc limpos.
+
 **Verificação:** 193 arquivos, 1972 testes verdes · lint limpo · tsc só os 2 pré-existentes ·
 `migrate status` limpo (162 migrations).
 
