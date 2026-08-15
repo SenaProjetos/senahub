@@ -897,7 +897,33 @@ model ContatoCliente {
   telefone  String?
   principal Boolean @default(false)
 
+  // ── LGPD (CRM F1.9, decisão transversal T1) ─────────────────
+  /// Descadastro. Contato com optOut NUNCA entra em lista de abordagem nem em exportação
+  /// de prospecção. A checagem é centralizada em `modules/comercial/lgpd.ts` (F1.10) —
+  /// não repetir esta condição solta em query.
+  optOut     Boolean   @default(false)
+  optOutAt   DateTime?
+  /// Base legal da coleta. Prospecção B2B fria = legítimo interesse. É campo, e não
+  /// constante, para não travar o dia em que houver outra base.
+  baseLegal  BaseLegalLgpd @default(LEGITIMO_INTERESSE)
+  /// De onde veio o dado (Sales Navigator, indicação, site…) e quando foi coletado.
+  dataCollectionSource String?
+  dataCollectedAt      DateTime?
+
+  /// Sales Navigator (Fase 4) — só o link colado, sem scraping.
+  linkedinUrl       String?
+  salesNavigatorUrl String?
+
+  /// Papel na decisão de compra (decisor, influenciador, técnico…). Texto por ora.
+  papelDecisao         String?
+  statusRelacionamento StatusRelacionamentoContato @default(ATIVO)
+
+  /// Faltava no model. Necessário para `dataCollectedAt` ter de onde puxar (Q5).
+  createdAt DateTime @default(now())
+
   @@index([clienteId])
+  /// Filtro das listas de abordagem: "quem posso contatar".
+  @@index([optOut])
   @@map("contato_cliente")
 }
 
