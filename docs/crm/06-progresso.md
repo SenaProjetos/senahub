@@ -283,6 +283,29 @@ import). Vale corrigir quando alguém mexer nesse script de novo.
 **Verificação:** só função pura, sem migration. 195 arquivos, **2003 testes verdes** · lint limpo ·
 tsc limpo · rodei o script religado contra o dev (0 duplicatas hoje, como esperado).
 
+**Correção a pedido do usuário (commit `eda1216`):** `auditoria-crm.ts:272` chamava
+`normalizarNomeEmpresa(c.nome)` sem `tipo` — `tipo` nem estava no `select`. Corrigido: `tipo` entra
+no select, e a chamada passa `c.tipo`.
+
+**F1.13 — alerta não bloqueante de duplicata** (commit `543e242`, Sonnet)
+- `candidatosDuplicata` (dedupe.ts) — casa a entrada contra os clientes existentes por documento
+  (mais forte), nome exato, domínio de e-mail corporativo, nome parecido (mais fraco, só esse usa
+  `similaridade`). Um cliente batendo por dois motivos aparece **uma vez só**, com o mais forte.
+- `clientesParaDedupe` + `buscarCandidatosDuplicata` (leitura) expõem isso pro client.
+- `cliente-form.tsx`: debounce de 400ms ao digitar nome/documento/email, **só na criação**
+  (`form.id` ausente — editar não compara contra si mesmo). Banner entre o header e as abas,
+  visível independente da aba ativa.
+- **Genuinamente não bloqueante:** "Criar mesmo assim" só dispensa o banner — o botão Salvar nunca
+  fica desabilitado por causa dele. "Usar este" abre o cliente existente em nova aba (preferi isso
+  a tentar abrir a edição inline via estado entre componentes, mais frágil para pouco ganho).
+
+**Verificado contra o dev reproduzindo o cenário exato do aceite:** criei 2 clientes
+"Madano"/"MADANO", digitei "Madano" na busca → achou os 2 por `nome_exato`; criei um 3º igual
+mesmo assim → funcionou (confirma que não bloqueia). Dados de teste removidos ao final.
+
+**Verificação:** 34 testes puros no `dedupe.ts` (10 novos de `candidatosDuplicata`) · 195 arquivos,
+**2013 testes verdes** · lint limpo · tsc limpo.
+
 **Verificação:** 193 arquivos, 1972 testes verdes · lint limpo · tsc só os 2 pré-existentes ·
 `migrate status` limpo (162 migrations).
 
