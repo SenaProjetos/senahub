@@ -864,6 +864,17 @@ model Cliente {
   // Login externo opcional do cliente (criado sob demanda).
   usuarioId String? @unique
 
+  // ── Fusão de duplicata (CRM F1.14) ──────────────────────────
+  /// Quando preenchido, este cliente foi ABSORVIDO pelo apontado. Nada é apagado: o registro
+  /// continua existindo, arquivado (`ativo: false`), com a referência ao sobrevivente — é o
+  /// que permite auditar depois "para onde foi este cadastro".
+  fundidoEmId  String?
+  sobrevivente Cliente?  @relation("ClienteFusao", fields: [fundidoEmId], references: [id])
+  absorvidos   Cliente[] @relation("ClienteFusao")
+  /// Data da fusão. Nome separado de `fundidoEmId` de propósito — "fundido em" seria ambíguo
+  /// entre "em qual cliente" e "em que data".
+  fusaoEm      DateTime?
+
   contatos        ContatoCliente[]
   projetos        Projeto[]
   lancamentos     Lancamento[]
@@ -884,6 +895,7 @@ model Cliente {
   @@index([documento])
   /// O Prisma não cria índice sozinho no lado da FK.
   @@index([segmentoId])
+  @@index([fundidoEmId])
   @@map("cliente")
 }
 

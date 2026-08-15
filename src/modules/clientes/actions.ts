@@ -11,9 +11,11 @@ import {
   editarContatoSchema,
   buscarContatosClienteSchema,
   buscarCandidatosDuplicataSchema,
+  mesclarClientesSchema,
 } from "@/modules/clientes/schemas";
 import { contatosDoCliente, clientesParaDedupe } from "@/modules/clientes/queries";
 import { candidatosDuplicata } from "@/modules/comercial/dedupe";
+import { mesclarClientes, capturarClientesDaFusao } from "@/modules/clientes/fusao";
 
 const REVALIDATE = "/clientes";
 
@@ -140,6 +142,32 @@ export const editarContato = defineAction(
 
     revalidatePath(`/clientes/${atual.clienteId}`);
     return { id };
+  },
+);
+
+/**
+ * Funde dois clientes duplicados (F1.14). ⚠️ Move projeto entre empresas — a escolha de quem
+ * sobrevive é humana; esta action só executa. `capturarAntes` grava os dois no `AuditLog`,
+ * porque é o registro que alguém vai querer daqui a seis meses quando um projeto parecer estar
+ * na empresa errada.
+ */
+export const mesclarClientesAction = defineAction(
+  {
+    modulo: "clientes",
+    acao: "mesclar-clientes",
+    recurso: "clientes",
+    permissao: "gerir",
+    entidade: "Cliente",
+    schema: mesclarClientesSchema,
+    entidadeId: (_d, i) => i.sobreviventeId,
+    capturarAntes: capturarClientesDaFusao,
+  },
+  async (input) => {
+    const r = await mesclarClientes(input.sobreviventeId, input.absorvidoId);
+    revalidatePath(REVALIDATE);
+    revalidatePath(`/clientes/${input.sobreviventeId}`);
+    revalidatePath(`/clientes/${input.absorvidoId}`);
+    return r;
   },
 );
 

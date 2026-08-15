@@ -68,6 +68,12 @@ export const editarContatoSchema = z.object({
 
 export const buscarContatosClienteSchema = z.object({ clienteId: z.string().min(1) });
 
+/** Fusão de clientes duplicados (F1.14). O sobrevivente é escolhido por quem executa. */
+export const mesclarClientesSchema = z.object({
+  sobreviventeId: z.string().min(1),
+  absorvidoId: z.string().min(1),
+});
+
 /** Checagem de duplicata (F1.13) ao digitar CNPJ/nome/e-mail na criação de um cliente. */
 export const buscarCandidatosDuplicataSchema = z.object({
   nome: z.string().optional(),
