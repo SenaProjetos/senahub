@@ -242,11 +242,31 @@ export const alternarEtapaFunil = defineAction(
 );
 
 // ── Tabelas de preço ──────────────────────────────────────────
+
+/**
+ * Resolve a FK do catálogo por nome EXATO (F1.20, mesmo racional da F1.19: casar por
+ * aproximação arriscaria apontar o item para a disciplina errada).
+ */
+async function idsDisciplinaPorNome(): Promise<Map<string, string>> {
+  const catalogo = await prisma.disciplinaCatalogo.findMany({ select: { id: true, nome: true } });
+  return new Map(catalogo.map((d) => [d.nome, d.id]));
+}
+
 export const criarTabelaPreco = defineAction(
   { ...base, acao: "criar-tabela-preco", entidade: "TabelaPreco", schema: tabelaPrecoSchema },
   async (i) => {
+    const idsPorNome = await idsDisciplinaPorNome();
     const t = await prisma.tabelaPreco.create({
-      data: { nome: i.nome, itens: { create: i.itens } },
+      data: {
+        nome: i.nome,
+        itens: {
+          create: i.itens.map((it) => ({
+            disciplinaTextoLegado: it.disciplina,
+            disciplinaId: idsPorNome.get(it.disciplina) ?? null,
+            valorM2: it.valorM2,
+          })),
+        },
+      },
     });
     revalidatePath("/comercial/tabelas");
     return { id: t.id };
@@ -256,11 +276,17 @@ export const criarTabelaPreco = defineAction(
 export const editarTabelaPreco = defineAction(
   { ...base, acao: "editar-tabela-preco", entidade: "TabelaPreco", schema: tabelaPrecoEditSchema },
   async (i) => {
+    const idsPorNome = await idsDisciplinaPorNome();
     await prisma.$transaction([
       prisma.tabelaPreco.update({ where: { id: i.id }, data: { nome: i.nome } }),
       prisma.itemTabelaPreco.deleteMany({ where: { tabelaId: i.id } }),
       prisma.itemTabelaPreco.createMany({
-        data: i.itens.map((it) => ({ tabelaId: i.id, ...it })),
+        data: i.itens.map((it) => ({
+          tabelaId: i.id,
+          disciplinaTextoLegado: it.disciplina,
+          disciplinaId: idsPorNome.get(it.disciplina) ?? null,
+          valorM2: it.valorM2,
+        })),
       }),
     ]);
     revalidatePath("/comercial/tabelas");

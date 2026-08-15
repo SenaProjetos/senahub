@@ -62,7 +62,7 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
       tabelas={tabelas.map((t) => ({
         id: t.id,
         nome: t.nome,
-        itens: t.itens.map((it) => ({ disciplina: it.disciplina, valorM2: Number(it.valorM2) })),
+        itens: t.itens.map((it) => ({ disciplina: it.disciplinaTextoLegado, valorM2: Number(it.valorM2) })),
       }))}
     />
     <PropostaExtras propostaId={p.id} clienteId={p.clienteId} documentos={documentos} versoes={versoesComp} podeGerir={podeGerir} />

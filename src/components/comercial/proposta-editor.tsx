@@ -109,12 +109,17 @@ export function PropostaEditor({
     let aplicados = 0;
     setItens((arr) =>
       arr.map((it) => {
-        // ⚠️ Casa por TEXTO, não por FK. Hoje isso é equivalente: o backfill da F1.19 resolve a
-        // FK por nome EXATO, então `nomeDisciplinaItem` devolve o mesmo texto de antes sempre que
-        // há FK. Divergirá quando alguém RENOMEAR uma disciplina no catálogo — o item passa a
-        // exibir o nome novo e a tabela de preço continua com o antigo, e o preço para de casar
-        // em silêncio. A F1.20 converte `ItemTabelaPreco.disciplina` para FK; quando os dois
-        // lados tiverem id, esta comparação deve passar a usar `disciplinaId`.
+        // ⚠️ Casa por TEXTO, não por FK — RISCO AINDA ABERTO após F1.19+F1.20.
+        // Os dois lados (`PropostaItem.disciplinaId` e `ItemTabelaPreco.disciplinaId`) já
+        // existem no banco, mas este editor não tem o id nenhum dos dois em mãos: `Item`/`Tabela`
+        // (tipos locais deste arquivo) só carregam `disciplina: string`, porque o Select de cada
+        // linha já escolhe o NOME direto do mesmo `catalogo` — então, para item escolhido AGORA,
+        // o texto já é a fonte de verdade por construção, os dois lados vindo do mesmo catálogo.
+        // O caso que ainda quebra: um item salvo ANTES de alguém renomear uma disciplina no
+        // catálogo, comparado com uma tabela de preço carregada DEPOIS do rename — o texto salvo
+        // fica desatualizado e o preço para de casar, em silêncio. Fio de ID ponta a ponta não
+        // entrou aqui de propósito: é escopo maior que F1.20 pediu (só "continua listando").
+        // Fica registrado como candidato a limpeza futura, não como esquecimento.
         const preco = t.itens.find((x) => x.disciplina === it.disciplina);
         if (!preco) return it;
         aplicados++;

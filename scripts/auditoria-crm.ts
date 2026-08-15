@@ -310,7 +310,7 @@ async function main() {
   const [dPropostas, dProjetos, dTabelas] = await Promise.all([
     prisma.propostaItem.groupBy({ by: ["disciplinaTextoLegado"], _count: { _all: true } }),
     prisma.disciplina.groupBy({ by: ["nome"], _count: { _all: true } }),
-    prisma.itemTabelaPreco.groupBy({ by: ["disciplina"], _count: { _all: true } }),
+    prisma.itemTabelaPreco.groupBy({ by: ["disciplinaTextoLegado"], _count: { _all: true } }),
   ]);
 
   const universo = new Map<string, { proposta: number; projeto: number; tabela: number }>();
@@ -321,7 +321,7 @@ async function main() {
   };
   for (const d of dPropostas) acc(d.disciplinaTextoLegado, "proposta", d._count._all);
   for (const d of dProjetos) acc(d.nome, "projeto", d._count._all);
-  for (const d of dTabelas) acc(d.disciplina, "tabela", d._count._all);
+  for (const d of dTabelas) acc(d.disciplinaTextoLegado, "tabela", d._count._all);
 
   tabela(
     [...universo.entries()]

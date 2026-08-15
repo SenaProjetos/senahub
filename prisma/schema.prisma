@@ -999,6 +999,8 @@ model DisciplinaCatalogo {
   padroes       PadraoTecnico[]
   /// Itens de proposta que já apontam para este catálogo (CRM F1.19).
   propostaItens PropostaItem[]
+  /// Itens de tabela de preço que já apontam para este catálogo (CRM F1.20).
+  itensTabelaPreco ItemTabelaPreco[]
 
   @@map("disciplina_catalogo")
 }
@@ -3740,13 +3742,24 @@ model TabelaPreco {
 }
 
 model ItemTabelaPreco {
-  id         String      @id @default(cuid())
-  tabelaId   String
-  tabela     TabelaPreco @relation(fields: [tabelaId], references: [id], onDelete: Cascade)
-  disciplina String
-  valorM2    Decimal     @db.Decimal(12, 2)
+  id       String      @id @default(cuid())
+  tabelaId String
+  tabela   TabelaPreco @relation(fields: [tabelaId], references: [id], onDelete: Cascade)
 
-  @@unique([tabelaId, disciplina])
+  // ── Disciplina: texto livre → catálogo (CRM F1.20, mesmo padrão da F1.19) ──
+  /// `@map` mantém a COLUNA FÍSICA `disciplina` — só o código passa a chamá-la assim.
+  /// A unique constraint abaixo continua sobre esta coluna, sem mudança de comportamento.
+  disciplinaTextoLegado String              @map("disciplina")
+  /// NULLABLE: item "extra" (fora do catálogo, digitado à mão) fica sem FK. A tela de tabelas
+  /// já preenche a maioria a partir do catálogo (`catalogoDisciplinas()`), então o backfill
+  /// resolve quase tudo — mas alguém pode ter digitado uma disciplina custom.
+  disciplinaId          String?
+  disciplina            DisciplinaCatalogo? @relation(fields: [disciplinaId], references: [id])
+
+  valorM2 Decimal @db.Decimal(12, 2)
+
+  @@unique([tabelaId, disciplinaTextoLegado])
+  @@index([disciplinaId])
   @@map("item_tabela_preco")
 }
 

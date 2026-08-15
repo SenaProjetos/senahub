@@ -121,7 +121,7 @@ export async function listarTabelasPreco() {
   return prisma.tabelaPreco.findMany({
     where: { ativo: true },
     orderBy: { nome: "asc" },
-    include: { itens: { orderBy: { disciplina: "asc" } } },
+    include: { itens: { orderBy: { disciplinaTextoLegado: "asc" } } },
   });
 }
 
