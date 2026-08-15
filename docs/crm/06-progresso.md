@@ -344,6 +344,53 @@ limpo · tsc limpo · `migrate status` limpo (164 migrations).
 — a F1.15 usa direto via script, com confirmação humana por grupo. Botão de mesclar na tela não
 está no backlog da Fase 1.
 
+---
+
+### Decisão de sequência (2026-08-14)
+
+F1.15/F1.16/F1.21 tocam **produção** e ficaram para depois. Ordem acertada com o usuário:
+**terminar as 8 tarefas de dev (F1.17–F1.24) → um único deploy → as 3 de produção em bloco.**
+Evita deixar produção com a Fase 1 pela metade e reduz a dois eventos (deploy + janela de fusão).
+
+**F1.17 — soft delete em `Cliente`** (commit `a4f7ab6`, Opus) — ⚠️⚠️ respinga em 6 módulos fora do CRM
+
+**Inventário antes de ligar** (o critério de aceite exigia): **11 leituras top-level** em busca,
+clientes, comercial, custos, documentos e financeiro — mais **27 leituras aninhadas** via
+`include`/`select`, que **não passam pela extensão**. As aninhadas ficam como estão de propósito:
+projeto/proposta antigo deve continuar mostrando de qual cliente era.
+
+**Duas exceções reais que o inventário revelou:**
+
+1. **Lookup só por id** (`{ id }` / `{ id: { in: [...] } }`) não é listagem — é `findUnique` em
+   lote, resolvendo nome de algo já referenciado. Filtrar faria o nome sumir de documento
+   histórico. Resolvido **na própria extensão** (`ehLookupPorId`): corrige os 2 call sites sem
+   tocá-los e o próximo que alguém escrever.
+2. **Índice de dedupe da importação financeira** (`commit-core.ts:79`, `importacao/queries.ts:18`)
+   **precisa** enxergar os excluídos. Se um cliente soft-deleted sumisse do índice, o mesmo nome no
+   CSV criaria cadastro novo — **exatamente a duplicata que a Fase 1 está removendo**. Seria
+   entregar um bug que fabrica duplicata na fase que existe para eliminá-las.
+
+**A sintaxe do escape foi verificada contra o banco, não inferida** — e o resultado é
+contra-intuitivo:
+
+| forma | resultado |
+|---|---|
+| `excluidoEm: { not: undefined }` | ✅ vê todos |
+| `excluidoEm: undefined` | ❌ o `??` converte para `null` |
+| `OR: [{excluidoEm: null}, {not: null}]` | ❌ AND implícito com o filtro injetado anula |
+
+Documentado no cabeçalho da extensão, porque vale também para `lancamento` e `upload`.
+
+**Verificação:** smoke novo `npm run smoke:crm-soft-delete` → **11/11**. Além dele, exercitei as
+queries reais de cada módulo: ao excluir 1 cliente, `/clientes`, busca global, opções de custos e
+de financeiro caem **exatamente 1** cada, o índice de dedupe **não muda**, e tudo volta ao normal
+ao limpar `excluidoEm`. `smoke:crm-dedupe` e `smoke:crm-fase1` seguem passando · 2013 testes ·
+lint e tsc limpos.
+
+**Nota sobre o critério de aceite:** ele dizia "continuam listando os 43 clientes". Dev tem 10 e
+produção 46 (a F1.15 ainda não rodou). Troquei por asserção de **delta** — mais forte, porque prova
+que a extensão faz o que deve e **nada além disso**.
+
 **Verificação:** 193 arquivos, 1972 testes verdes · lint limpo · tsc só os 2 pré-existentes ·
 `migrate status` limpo (162 migrations).
 
