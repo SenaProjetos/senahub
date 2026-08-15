@@ -263,6 +263,26 @@ verdes · lint limpo · tsc limpo.
 confirmação visual, no mesmo padrão de `searchParams`+`useSetParams` que já funciona para os
 filtros existentes (tipo/situação/UF/categoria) — os dois novos foram fiados nele.
 
+**F1.12 — `dedupe.ts`** (commit `1da56be`, Sonnet)
+- Extraído **literalmente** de `scripts/auditoria-crm.ts` (que já validou os 3 grupos reais de
+  duplicata de produção). O script agora **importa** em vez de manter uma segunda cópia.
+- 3 primitivos novos: `normalizarTelefone` (heurística E.164, não validação — comprimento fora do
+  esperado retorna `null`, nunca um número inventado), `dominioDoSite`, `similaridade`
+  (Levenshtein normalizado, para o que a normalização exata não pega: erro de digitação, abreviação).
+- **Erro que cometi e corrigi:** reintroduzi o bug de encoding do P4 (combining marks Unicode
+  literais na classe de regex, em vez do escape `[\u0300-\u036f]`) — provavelmente digitei o
+  comentário de cabeça em vez de copiar o
+  arquivo fonte. Corrigido com o mesmo método de antes, antes do commit.
+- Teste (24 casos) reproduz os 3 grupos reais de produção e confirma que PF não come "Sá"/"Me".
+
+⚠️ **Achado colateral, não corrigido (fora de escopo desta tarefa):** `auditoria-crm.ts:272` chama
+`normalizarNomeEmpresa(c.nome)` sem o parâmetro `tipo` — sempre assume PJ, mesmo quando
+`Cliente.tipo === "PF"`. Já era assim antes da minha mudança (call site preexistente, só religuei o
+import). Vale corrigir quando alguém mexer nesse script de novo.
+
+**Verificação:** só função pura, sem migration. 195 arquivos, **2003 testes verdes** · lint limpo ·
+tsc limpo · rodei o script religado contra o dev (0 duplicatas hoje, como esperado).
+
 **Verificação:** 193 arquivos, 1972 testes verdes · lint limpo · tsc só os 2 pré-existentes ·
 `migrate status` limpo (162 migrations).
 
