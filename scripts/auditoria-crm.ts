@@ -251,7 +251,7 @@ async function main() {
   // ── 3. Duplicatas de Cliente ───────────────────────────────────────────────
   titulo("3. DUPLICATAS DE CLIENTE (bloqueiam o índice único parcial de CNPJ)");
   const clientes = await prisma.cliente.findMany({
-    select: { id: true, nome: true, documento: true, email: true, ativo: true },
+    select: { id: true, nome: true, tipo: true, documento: true, email: true, ativo: true },
   });
 
   const porDocumento = new Map<string, typeof clientes>();
@@ -269,7 +269,7 @@ async function main() {
 
   const porNome = new Map<string, typeof clientes>();
   for (const c of clientes) {
-    const n = normalizarNomeEmpresa(c.nome);
+    const n = normalizarNomeEmpresa(c.nome, c.tipo);
     if (!n) continue;
     porNome.set(n, [...(porNome.get(n) ?? []), c]);
   }
