@@ -306,6 +306,44 @@ mesmo assim → funcionou (confirma que não bloqueia). Dados de teste removidos
 **Verificação:** 34 testes puros no `dedupe.ts` (10 novos de `candidatosDuplicata`) · 195 arquivos,
 **2013 testes verdes** · lint limpo · tsc limpo.
 
+**F1.14 — fusão de clientes duplicados** (commit `e0eb9f4`, Opus) — ⚠️ move projeto entre empresas
+- Migration aditiva: `fundidoEmId` (auto-referência) + `fusaoEm` + índice. `ON DELETE SET NULL`,
+  não `CASCADE` — se o sobrevivente for removido um dia, o absorvido não some junto.
+- `mesclarClientes` move tudo e arquiva o absorvido com a referência. **Nada é apagado.**
+
+**O backlog listava 5 relações. O schema tem 11, e 3 não são descobríveis:**
+- `documento_financeiro.clienteId` e `oportunidade.clienteId` são **FK escalar sem `@relation`**
+  ("p/ não inflar Cliente", diz o schema) — não aparecem em `Cliente.xxx[]`, não têm constraint no
+  banco, então **nem introspecção acha**.
+- `custo_orcamento` aponta por **`contratanteId`**, não `clienteId` — um grep ingênuo passa direto.
+
+Mover só as 5 do backlog deixaria documento, orçamento de custo e documento jurídico órfãos,
+apontando para um cliente arquivado. O usuário procuraria o arquivo no cliente sobrevivente e não
+acharia.
+
+**O check mais importante do smoke não é o do critério de aceite:** ele enumera as FKs reais do
+`information_schema` e **falha** se aparecer alguma que a fusão não trata. É o que impede
+`REFERENCIAS_CLIENTE` de virar retrato de hoje quando a Fase 2 adicionar `Negociacao.clienteId` e a
+Fase 3 `Atividade.clienteId`. **Verifiquei o guarda na prática:** removi `projeto` da lista e o
+smoke acusou `⚠ NÃO TRATADAS: projeto.clienteId`, com a instrução de onde corrigir. Restaurei.
+
+**Decisão sobre `usuarioId` (@unique):** se os **dois** clientes têm login de portal, a fusão é
+**recusada** com `ActionError`, em vez de descartar um em silêncio — o cliente perderia acesso ao
+portal sem ninguém saber por quê. Se só o absorvido tem, o login migra.
+
+**Além do critério de aceite:** o smoke conta as linhas das 12 tabelas antes e depois e exige total
+idêntico. É a prova de "nada é apagado" que checagem por tabela não dá.
+
+`capturarAntes` grava os dois clientes no `AuditLog` — é o registro que alguém vai querer daqui a
+seis meses quando um projeto parecer estar na empresa errada.
+
+**Verificação:** `npm run smoke:crm-dedupe` → **13/13** · 195 arquivos, 2013 testes verdes · lint
+limpo · tsc limpo · `migrate status` limpo (164 migrations).
+
+⚠️ **Sem UI ainda.** A action existe e está auditada, mas nenhuma tela chama `mesclarClientesAction`
+— a F1.15 usa direto via script, com confirmação humana por grupo. Botão de mesclar na tela não
+está no backlog da Fase 1.
+
 **Verificação:** 193 arquivos, 1972 testes verdes · lint limpo · tsc só os 2 pré-existentes ·
 `migrate status` limpo (162 migrations).
 
