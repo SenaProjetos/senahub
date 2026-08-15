@@ -4,6 +4,8 @@ import { can } from "@/lib/permissions";
 import { listarClientesPaginado, listarFiltrosClientes } from "@/modules/clientes/queries";
 import { ClientesView } from "@/components/clientes/clientes-view";
 import { parseListParams, pageCount } from "@/lib/list-params";
+import { STATUS_COMERCIAL_LABEL } from "@/modules/comercial/labels";
+import type { StatusComercialCliente } from "@/generated/prisma/enums";
 
 export const metadata: Metadata = { title: "Clientes" };
 
@@ -14,6 +16,8 @@ type SP = {
   cidade?: string;
   categoria?: string;
   situacao?: string;
+  segmentoId?: string;
+  status?: string;
   sort?: string;
   dir?: string;
   page?: string;
@@ -39,6 +43,11 @@ export default async function ClientesPage({
     sp.situacao === "ativo" || sp.situacao === "inativo" ? sp.situacao : undefined;
   const uf = sp.uf || undefined;
   const categoria = sp.categoria || undefined;
+  const segmentoId = sp.segmentoId || undefined;
+  const status =
+    sp.status && sp.status in STATUS_COMERCIAL_LABEL
+      ? (sp.status as StatusComercialCliente)
+      : undefined;
 
   const [{ items, total }, filtros, podeGerir] = await Promise.all([
     listarClientesPaginado({
@@ -47,6 +56,8 @@ export default async function ClientesPage({
       uf,
       categoria,
       situacao,
+      segmentoId,
+      status,
       // sem filtro de situação, mostra ativos e inativos (comportamento anterior)
       incluirInativos: true,
       sort,
@@ -69,10 +80,13 @@ export default async function ClientesPage({
       pageSize={pageSize}
       ufs={filtros.ufs}
       categorias={filtros.categorias}
+      segmentos={filtros.segmentos}
       tipo={tipo ?? ""}
       situacao={situacao ?? ""}
       uf={uf ?? ""}
       categoria={categoria ?? ""}
+      segmentoId={segmentoId ?? ""}
+      status={status ?? ""}
     />
   );
 }

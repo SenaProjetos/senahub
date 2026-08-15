@@ -1,14 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { defineAction } from "@/lib/with-action";
+import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import {
   criarClienteSchema,
   editarClienteSchema,
   clienteIdSchema,
   adicionarContatoSchema,
+  editarContatoSchema,
+  buscarContatosClienteSchema,
 } from "@/modules/clientes/schemas";
+import { contatosDoCliente } from "@/modules/clientes/queries";
 
 const REVALIDATE = "/clientes";
 
@@ -93,6 +96,61 @@ export const adicionarContato = defineAction(
     revalidatePath(`/clientes/${clienteId}`);
     return { id: contato.id };
   },
+);
+
+/**
+ * Edita um contato existente (F1.11, edição inline na aba Contatos).
+ *
+ * Marcar `principal: true` desmarca os demais contatos do MESMO cliente na mesma transação —
+ * o schema não tem constraint de unicidade para isso (não é FK, é regra de negócio), e sem essa
+ * reconciliação o cliente acumularia N "principais" sem que nada avisasse.
+ */
+export const editarContato = defineAction(
+  {
+    modulo: "clientes",
+    acao: "editar-contato",
+    recurso: "clientes",
+    permissao: "gerir",
+    entidade: "ContatoCliente",
+    schema: editarContatoSchema,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
+  },
+  async (input) => {
+    const { id, email, principal, ...rest } = input;
+    const atual = await prisma.contatoCliente.findUnique({
+      where: { id },
+      select: { clienteId: true },
+    });
+    if (!atual) throw new ActionError("Contato não encontrado.");
+
+    await prisma.$transaction(async (tx) => {
+      if (principal === true) {
+        await tx.contatoCliente.updateMany({
+          where: { clienteId: atual.clienteId, id: { not: id } },
+          data: { principal: false },
+        });
+      }
+      await tx.contatoCliente.update({
+        where: { id },
+        data: { ...rest, email: email || null, ...(principal !== undefined ? { principal } : {}) },
+      });
+    });
+
+    revalidatePath(`/clientes/${atual.clienteId}`);
+    return { id };
+  },
+);
+
+/** Lê os contatos de um cliente sob demanda (F1.11) — hidrata a aba Contatos ao ser aberta. */
+export const buscarContatosCliente = defineAction(
+  {
+    modulo: "clientes",
+    acao: "buscar-contatos-cliente",
+    recurso: "clientes",
+    permissao: "ver",
+    schema: buscarContatosClienteSchema,
+  },
+  async (input) => contatosDoCliente(input.clienteId),
 );
 
 export const reativarCliente = defineAction(

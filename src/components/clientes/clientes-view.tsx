@@ -10,6 +10,7 @@ import {
 } from "@/modules/clientes/actions";
 import type { ClienteListItem } from "@/modules/clientes/queries";
 import type { CriarClienteInput } from "@/modules/clientes/schemas";
+import { STATUS_COMERCIAL_LABEL, opcoesDe } from "@/modules/comercial/labels";
 import { ClienteForm } from "@/components/clientes/cliente-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,7 +40,10 @@ import { SortableHead } from "@/components/ui/sortable-head";
 import { Pagination } from "@/components/ui/pagination";
 import { useSetParams } from "@/lib/use-set-param";
 
-type FormCliente = CriarClienteInput & { id?: string };
+type FormCliente = CriarClienteInput & {
+  id?: string;
+  status?: keyof typeof STATUS_COMERCIAL_LABEL;
+};
 
 const TODOS = "todos";
 
@@ -53,10 +57,13 @@ export function ClientesView({
   pageSize,
   ufs,
   categorias,
+  segmentos,
   tipo,
   situacao,
   uf,
   categoria,
+  segmentoId,
+  status,
 }: {
   clientes: ClienteListItem[];
   podeGerir: boolean;
@@ -67,10 +74,13 @@ export function ClientesView({
   pageSize: number;
   ufs: string[];
   categorias: string[];
+  segmentos: { id: string; nome: string }[];
   tipo: string;
   situacao: string;
   uf: string;
   categoria: string;
+  segmentoId: string;
+  status: string;
 }) {
   const setParams = useSetParams();
   const [q, setQ] = useState(busca);
@@ -105,6 +115,11 @@ export function ClientesView({
       uf: c.uf ?? undefined,
       categoria: c.categoria ?? undefined,
       observacoes: c.observacoes ?? undefined,
+      segmentoId: c.segmentoId ?? undefined,
+      porte: c.porte ?? undefined,
+      linkedinUrl: c.linkedinUrl ?? undefined,
+      salesNavigatorUrl: c.salesNavigatorUrl ?? undefined,
+      status: c.status,
     });
     setFormOpen(true);
   }
@@ -211,6 +226,42 @@ export function ClientesView({
             </SelectContent>
           </Select>
         )}
+
+        {segmentos.length > 0 && (
+          <Select
+            value={segmentoId || TODOS}
+            onValueChange={(v) => setParams({ segmentoId: v === TODOS ? null : v })}
+          >
+            <SelectTrigger className="h-9 w-[11rem]" aria-label="Filtrar por segmento">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODOS}>Segmento: todos</SelectItem>
+              {segmentos.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        <Select
+          value={status || TODOS}
+          onValueChange={(v) => setParams({ status: v === TODOS ? null : v })}
+        >
+          <SelectTrigger className="h-9 w-[11rem]" aria-label="Filtrar por classificação">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={TODOS}>Classificação: todas</SelectItem>
+            {opcoesDe(STATUS_COMERCIAL_LABEL).map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="rounded-sm border">
@@ -220,6 +271,7 @@ export function ClientesView({
               <SortableHead field="nome">Nome</SortableHead>
               <TableHead>Tipo</TableHead>
               <TableHead>Categoria</TableHead>
+              <TableHead>Classificação</TableHead>
               <TableHead>Documento</TableHead>
               <SortableHead field="cidade">Cidade/UF</SortableHead>
               <TableHead>Situação</TableHead>
@@ -229,7 +281,7 @@ export function ClientesView({
           <TableBody>
             {clientes.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                <TableCell colSpan={8} className="text-center text-muted-foreground">
                   Nenhum cliente.
                 </TableCell>
               </TableRow>
@@ -253,6 +305,9 @@ export function ClientesView({
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{STATUS_COMERCIAL_LABEL[c.status]}</Badge>
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {c.documento ?? "—"}
@@ -303,7 +358,7 @@ export function ClientesView({
 
       <Pagination page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
 
-      <ClienteForm cliente={form} open={formOpen} onOpenChange={setFormOpen} />
+      <ClienteForm cliente={form} open={formOpen} onOpenChange={setFormOpen} segmentos={segmentos} />
     </div>
   );
 }

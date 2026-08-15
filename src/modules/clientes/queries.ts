@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
+import type { StatusComercialCliente } from "@/generated/prisma/enums";
 import type { Dir } from "@/lib/list-params";
 
 /** Campos ordenáveis na listagem de clientes (whitelist). */
@@ -17,6 +18,10 @@ export type ListarClientesOpts = {
   categoria?: string;
   /** "ativo" | "inativo" — filtra `ativo`. Quando ausente, segue `incluirInativos`. */
   situacao?: "ativo" | "inativo";
+  /** Segmento de mercado (F1.11, catálogo `Segmento`). */
+  segmentoId?: string;
+  /** Status comercial — "classificação" no vocabulário do playbook (ADR-08). */
+  status?: StatusComercialCliente;
   sort?: string | null;
   dir?: Dir;
   skip?: number;
@@ -34,6 +39,8 @@ function buildWhere(opts?: ListarClientesOpts): Prisma.ClienteWhereInput {
   if (opts?.uf) where.uf = opts.uf;
   if (opts?.cidade) where.cidade = { equals: opts.cidade, mode: "insensitive" };
   if (opts?.categoria) where.categoria = opts.categoria;
+  if (opts?.segmentoId) where.segmentoId = opts.segmentoId;
+  if (opts?.status) where.status = opts.status;
 
   if (opts?.q) {
     where.OR = [
@@ -83,13 +90,22 @@ export async function listarClientesPaginado(opts?: ListarClientesOpts) {
 
 /** UFs, cidades e categorias distintas (para popular os selects de filtro). */
 export async function listarFiltrosClientes() {
-  const rows = await prisma.cliente.findMany({
-    where: {
-      OR: [{ uf: { not: null } }, { cidade: { not: null } }, { categoria: { not: null } }],
-    },
-    select: { uf: true, cidade: true, categoria: true },
-    distinct: ["uf", "cidade", "categoria"],
-  });
+  const [rows, segmentos] = await Promise.all([
+    prisma.cliente.findMany({
+      where: {
+        OR: [{ uf: { not: null } }, { cidade: { not: null } }, { categoria: { not: null } }],
+      },
+      select: { uf: true, cidade: true, categoria: true },
+      distinct: ["uf", "cidade", "categoria"],
+    }),
+    // Segmento é catálogo (F1.6), não texto livre — lista as opções configuradas, não um
+    // `distinct` sobre o que já foi usado (que ficaria vazio até o primeiro cliente ganhar um).
+    prisma.segmento.findMany({
+      where: { ativo: true },
+      orderBy: { ordem: "asc" },
+      select: { id: true, nome: true },
+    }),
+  ]);
   const ufs = [...new Set(rows.map((r) => r.uf).filter((v): v is string => !!v))].sort();
   const cidades = [...new Set(rows.map((r) => r.cidade).filter((v): v is string => !!v))].sort(
     (a, b) => a.localeCompare(b, "pt-BR"),
@@ -97,7 +113,15 @@ export async function listarFiltrosClientes() {
   const categorias = [
     ...new Set(rows.map((r) => r.categoria).filter((v): v is string => !!v)),
   ].sort((a, b) => a.localeCompare(b, "pt-BR"));
-  return { ufs, cidades, categorias };
+  return { ufs, cidades, categorias, segmentos };
+}
+
+/** Contatos de um cliente, para hidratar a aba "Contatos" do formulário sob demanda. */
+export async function contatosDoCliente(clienteId: string) {
+  return prisma.contatoCliente.findMany({
+    where: { clienteId },
+    orderBy: [{ principal: "desc" }, { nome: "asc" }],
+  });
 }
 
 export async function obterCliente(id: string) {
