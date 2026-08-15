@@ -6,6 +6,8 @@ import {
   dominioDoSite,
   normalizarTelefone,
   similaridade,
+  candidatosDuplicata,
+  type ClienteResumoDedupe,
 } from "./dedupe";
 
 describe("normalizarDocumento", () => {
@@ -146,5 +148,97 @@ describe("similaridade", () => {
 
   it("é simétrica", () => {
     expect(similaridade("madano", "madano ltda")).toBe(similaridade("madano ltda", "madano"));
+  });
+});
+
+describe("candidatosDuplicata", () => {
+  const madano: ClienteResumoDedupe = {
+    id: "c1",
+    nome: "MADANO",
+    tipo: "PJ",
+    documento: null,
+    email: null,
+  };
+  const zaphis: ClienteResumoDedupe = {
+    id: "c2",
+    nome: "Záphis Incorporadora",
+    tipo: "PJ",
+    documento: "11222333000144",
+    email: "contato@zaphis.com.br",
+  };
+  const existentes = [madano, zaphis];
+
+  it('digitar "Madano" na criação acha o candidato existente por nome exato — caso do aceite (F1.13)', () => {
+    const r = candidatosDuplicata(existentes, { nome: "Madano", tipo: "PJ" });
+    expect(r).toHaveLength(1);
+    expect(r[0].cliente.id).toBe("c1");
+    expect(r[0].motivo).toBe("nome_exato");
+  });
+
+  it("acha por documento normalizado, mesmo com máscara diferente", () => {
+    const r = candidatosDuplicata(existentes, { documento: "11.222.333/0001-44" });
+    expect(r).toHaveLength(1);
+    expect(r[0].cliente.id).toBe("c2");
+    expect(r[0].motivo).toBe("documento");
+  });
+
+  it("acha por domínio de e-mail corporativo igual", () => {
+    const r = candidatosDuplicata(existentes, { email: "financeiro@zaphis.com.br" });
+    expect(r[0].cliente.id).toBe("c2");
+    expect(r[0].motivo).toBe("email");
+  });
+
+  it("e-mail de provedor público nunca vira candidato — não identifica empresa", () => {
+    const r = candidatosDuplicata(
+      [{ ...zaphis, email: "zaphis@gmail.com" }],
+      { email: "outraempresa@gmail.com" },
+    );
+    expect(r).toHaveLength(0);
+  });
+
+  it("nome parecido (erro de digitação) entra como nome_similar, abaixo do limiar de nome_exato", () => {
+    const r = candidatosDuplicata(existentes, { nome: "Madanoo", tipo: "PJ" });
+    expect(r).toHaveLength(1);
+    expect(r[0].motivo).toBe("nome_similar");
+    expect(r[0].score).toBeGreaterThanOrEqual(0.85);
+  });
+
+  it("nome muito diferente não gera candidato nenhum", () => {
+    const r = candidatosDuplicata(existentes, { nome: "Construtora Beta", tipo: "PJ" });
+    expect(r).toHaveLength(0);
+  });
+
+  it("documento é o sinal mais forte: quando bate, some com o candidato mesmo se o nome também batesse por outro motivo", () => {
+    const r = candidatosDuplicata(existentes, {
+      nome: "Záphis Incorporadora",
+      tipo: "PJ",
+      documento: "11.222.333/0001-44",
+    });
+    expect(r).toHaveLength(1);
+    expect(r[0].motivo).toBe("documento"); // não "nome_exato", mesmo o nome também batendo
+  });
+
+  it("mesmo cliente batendo por dois motivos aparece uma vez só, com o motivo mais forte", () => {
+    const r = candidatosDuplicata(existentes, {
+      nome: "Záphis Incorporadora",
+      tipo: "PJ",
+      email: "outro@zaphis.com.br",
+    });
+    expect(r).toHaveLength(1);
+    expect(r[0].motivo).toBe("nome_exato"); // nome_exato (3) > email (2)
+  });
+
+  it("entrada vazia não gera candidato nenhum", () => {
+    expect(candidatosDuplicata(existentes, {})).toHaveLength(0);
+  });
+
+  it("reproduz o grupo Záphis (3 registros reais em produção) — todos batem entre si", () => {
+    const grupo: ClienteResumoDedupe[] = [
+      { id: "z1", nome: "Záphis Incorporadora", tipo: "PJ", documento: null, email: null },
+      { id: "z2", nome: "Záphis Incorporadora", tipo: "PJ", documento: null, email: null },
+    ];
+    const r = candidatosDuplicata(grupo, { nome: "Záphis Incorporadora", tipo: "PJ" });
+    expect(r).toHaveLength(2);
+    expect(r.every((c) => c.motivo === "nome_exato")).toBe(true);
   });
 });

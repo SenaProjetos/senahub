@@ -129,3 +129,90 @@ export function similaridade(a: string, b: string): number {
   if (tamanhoMax === 0) return 1;
   return 1 - levenshtein(a, b) / tamanhoMax;
 }
+
+// ── Busca de candidatos (F1.13) ─────────────────────────────────────────────
+
+export type ClienteResumoDedupe = {
+  id: string;
+  nome: string;
+  tipo: "PF" | "PJ";
+  documento: string | null;
+  email: string | null;
+};
+
+export type MotivoCandidato = "documento" | "nome_exato" | "nome_similar" | "email";
+
+export type CandidatoDuplicata = {
+  cliente: ClienteResumoDedupe;
+  motivo: MotivoCandidato;
+  /** 1 para match exato (documento/nome/e-mail); a similaridade de fato só para `nome_similar`. */
+  score: number;
+};
+
+/** Ordem de força de cada motivo — decide qual fica quando o mesmo cliente casa por mais de um. */
+const FORCA_MOTIVO: Record<MotivoCandidato, number> = {
+  documento: 4,
+  nome_exato: 3,
+  email: 2,
+  nome_similar: 1,
+};
+
+/**
+ * Candidatos a duplicata de uma Empresa que está sendo digitada AGORA, contra as já
+ * cadastradas. Puro: recebe a lista já buscada, não consulta o banco.
+ *
+ * Não decide nada sozinha — só aponta candidatos, ordenados do mais forte pro mais fraco, pra
+ * um alerta NÃO BLOQUEANTE (F1.13). Documento é o sinal mais forte (identidade legal); nome
+ * exato e e-mail corporativo em seguida; nome só "parecido" é o mais fraco e o único que usa
+ * `similaridade` — os outros três são match exato depois de normalizar.
+ */
+export function candidatosDuplicata(
+  existentes: ClienteResumoDedupe[],
+  entrada: {
+    nome?: string | null;
+    tipo?: "PF" | "PJ";
+    documento?: string | null;
+    email?: string | null;
+  },
+  opts: { limiarSimilaridade?: number } = {},
+): CandidatoDuplicata[] {
+  const limiar = opts.limiarSimilaridade ?? 0.85;
+  const tipo = entrada.tipo ?? "PJ";
+
+  const docEntrada = normalizarDocumento(entrada.documento ?? null);
+  const nomeEntrada = entrada.nome?.trim() ? normalizarNomeEmpresa(entrada.nome, tipo) : null;
+  const dominioEntrada = dominioCorporativo(entrada.email ?? null);
+
+  const porCliente = new Map<string, CandidatoDuplicata>();
+  const registra = (cliente: ClienteResumoDedupe, motivo: MotivoCandidato, score: number) => {
+    const atual = porCliente.get(cliente.id);
+    if (!atual || FORCA_MOTIVO[motivo] > FORCA_MOTIVO[atual.motivo]) {
+      porCliente.set(cliente.id, { cliente, motivo, score });
+    }
+  };
+
+  for (const c of existentes) {
+    if (docEntrada && normalizarDocumento(c.documento) === docEntrada) {
+      registra(c, "documento", 1);
+      continue; // documento já é o sinal mais forte possível — não precisa checar o resto
+    }
+
+    if (dominioEntrada && dominioCorporativo(c.email) === dominioEntrada) {
+      registra(c, "email", 1);
+    }
+
+    if (nomeEntrada) {
+      const nomeExistente = normalizarNomeEmpresa(c.nome, c.tipo);
+      if (nomeExistente === nomeEntrada) {
+        registra(c, "nome_exato", 1);
+      } else {
+        const s = similaridade(nomeEntrada, nomeExistente);
+        if (s >= limiar) registra(c, "nome_similar", s);
+      }
+    }
+  }
+
+  return [...porCliente.values()].sort(
+    (a, b) => FORCA_MOTIVO[b.motivo] - FORCA_MOTIVO[a.motivo] || b.score - a.score,
+  );
+}

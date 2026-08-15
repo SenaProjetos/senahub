@@ -116,6 +116,16 @@ export async function listarFiltrosClientes() {
   return { ufs, cidades, categorias, segmentos };
 }
 
+/**
+ * Resumo de todos os clientes para checagem de duplicata (F1.13) — poucos campos, sem paginar:
+ * o volume (46 em produção hoje) não justifica a complexidade de paginar uma busca de dedupe.
+ */
+export async function clientesParaDedupe() {
+  return prisma.cliente.findMany({
+    select: { id: true, nome: true, tipo: true, documento: true, email: true },
+  });
+}
+
 /** Contatos de um cliente, para hidratar a aba "Contatos" do formulário sob demanda. */
 export async function contatosDoCliente(clienteId: string) {
   return prisma.contatoCliente.findMany({

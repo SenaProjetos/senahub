@@ -10,8 +10,10 @@ import {
   adicionarContatoSchema,
   editarContatoSchema,
   buscarContatosClienteSchema,
+  buscarCandidatosDuplicataSchema,
 } from "@/modules/clientes/schemas";
-import { contatosDoCliente } from "@/modules/clientes/queries";
+import { contatosDoCliente, clientesParaDedupe } from "@/modules/clientes/queries";
+import { candidatosDuplicata } from "@/modules/comercial/dedupe";
 
 const REVALIDATE = "/clientes";
 
@@ -138,6 +140,24 @@ export const editarContato = defineAction(
 
     revalidatePath(`/clientes/${atual.clienteId}`);
     return { id };
+  },
+);
+
+/**
+ * Candidatos a duplicata (F1.13) para o alerta não bloqueante do formulário de cliente. Não
+ * bloqueia nada — só devolve os candidatos, ordenados; a UI decide o que mostrar.
+ */
+export const buscarCandidatosDuplicata = defineAction(
+  {
+    modulo: "clientes",
+    acao: "buscar-candidatos-duplicata",
+    recurso: "clientes",
+    permissao: "ver",
+    schema: buscarCandidatosDuplicataSchema,
+  },
+  async (input) => {
+    const existentes = await clientesParaDedupe();
+    return candidatosDuplicata(existentes, input);
   },
 );
 

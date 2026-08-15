@@ -68,6 +68,14 @@ export const editarContatoSchema = z.object({
 
 export const buscarContatosClienteSchema = z.object({ clienteId: z.string().min(1) });
 
+/** Checagem de duplicata (F1.13) ao digitar CNPJ/nome/e-mail na criação de um cliente. */
+export const buscarCandidatosDuplicataSchema = z.object({
+  nome: z.string().optional(),
+  tipo: z.enum(["PF", "PJ"]).optional(),
+  documento: z.string().optional(),
+  email: z.string().optional(),
+});
+
 export type CriarClienteInput = z.infer<typeof criarClienteSchema>;
 export type EditarClienteInput = z.infer<typeof editarClienteSchema>;
 export type AdicionarContatoInput = z.infer<typeof adicionarContatoSchema>;

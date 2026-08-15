@@ -1,12 +1,18 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
-import { criarCliente, editarCliente } from "@/modules/clientes/actions";
+import { Loader2, TriangleAlert } from "lucide-react";
+import {
+  criarCliente,
+  editarCliente,
+  buscarCandidatosDuplicata,
+} from "@/modules/clientes/actions";
 import { CATEGORIAS_CLIENTE, type CriarClienteInput } from "@/modules/clientes/schemas";
 import { validarCpfCnpj } from "@/lib/documento";
 import { STATUS_COMERCIAL_LABEL } from "@/modules/comercial/labels";
+import type { CandidatoDuplicata, MotivoCandidato } from "@/modules/comercial/dedupe";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +41,14 @@ type Segmento = { id: string; nome: string };
 const VAZIO: Cliente = { tipo: "PJ", nome: "" };
 const SEM_SEGMENTO = "nenhum";
 
+/** Rótulo pt-BR do motivo do candidato a duplicata (F1.13) — específico deste alerta. */
+const MOTIVO_LABEL: Record<MotivoCandidato, string> = {
+  documento: "mesmo CNPJ/CPF",
+  nome_exato: "mesmo nome",
+  email: "mesmo domínio de e-mail",
+  nome_similar: "nome parecido",
+};
+
 export function ClienteForm({
   cliente,
   open,
@@ -51,6 +65,8 @@ export function ClienteForm({
   const [visitouContatos, setVisitouContatos] = useState(false);
   const [pending, startTransition] = useTransition();
   const [buscandoCep, setBuscandoCep] = useState(false);
+  const [candidatos, setCandidatos] = useState<CandidatoDuplicata[]>([]);
+  const [alertaDispensado, setAlertaDispensado] = useState(false);
 
   // Reinicia o form quando muda o cliente em edição OU quando o dialog reabre
   // (sem isso, "novo cliente" reaproveitava o estado do cadastro anterior).
@@ -76,6 +92,37 @@ export function ClienteForm({
     setAba(v);
     if (v === "contatos") setVisitouContatos(true);
   }
+
+  // Alerta NÃO BLOQUEANTE de duplicata (F1.13) — só na criação (editar não checa contra si
+  // mesmo). Debounce de 400ms pra não bater no servidor a cada tecla; cancela a busca anterior
+  // se o usuário continuar digitando antes dela voltar.
+  useEffect(() => {
+    if (form.id) {
+      setCandidatos([]);
+      return;
+    }
+    const nome = form.nome?.trim() ?? "";
+    const documento = form.documento?.trim() ?? "";
+    const email = form.email?.trim() ?? "";
+    if (nome.length < 3 && !documento && !email) {
+      setCandidatos([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      buscarCandidatosDuplicata({
+        nome: nome || undefined,
+        tipo: form.tipo,
+        documento: documento || undefined,
+        email: email || undefined,
+      }).then((r) => {
+        if (r.ok) {
+          setCandidatos(r.data);
+          setAlertaDispensado(false);
+        }
+      });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [form.nome, form.documento, form.email, form.tipo, form.id]);
 
   async function preencherPorCep() {
     const cep = (form.cep ?? "").replace(/\D/g, "");
@@ -127,6 +174,47 @@ export function ClienteForm({
           <DialogTitle>{form.id ? "Editar cliente" : "Novo cliente"}</DialogTitle>
           <DialogDescription>Dados cadastrais, comerciais e contatos.</DialogDescription>
         </DialogHeader>
+
+        {!alertaDispensado && candidatos.length > 0 && (
+          <div className="flex items-start gap-2 rounded-sm border border-warning/40 bg-warning/10 p-3 text-sm">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <p className="font-medium">
+                {candidatos.length === 1
+                  ? "Já existe um cliente parecido"
+                  : `Já existem ${candidatos.length} clientes parecidos`}
+              </p>
+              <ul className="space-y-1">
+                {candidatos.slice(0, 5).map((c) => (
+                  <li key={c.cliente.id} className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate">
+                      {c.cliente.nome}
+                      <span className="ml-1.5 text-xs text-muted-foreground">
+                        ({MOTIVO_LABEL[c.motivo]})
+                      </span>
+                    </span>
+                    <Link
+                      href={`/clientes/${c.cliente.id}`}
+                      target="_blank"
+                      className="shrink-0 whitespace-nowrap text-xs font-medium text-primary hover:underline"
+                    >
+                      Usar este ↗
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => setAlertaDispensado(true)}
+              >
+                Criar mesmo assim
+              </Button>
+            </div>
+          </div>
+        )}
 
         <Tabs value={aba} onValueChange={mudarAba}>
           <TabsList className="flex-wrap">
