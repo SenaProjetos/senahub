@@ -875,6 +875,11 @@ model Cliente {
   /// entre "em qual cliente" e "em que data".
   fusaoEm      DateTime?
 
+  /// Soft delete (ADR-11). Leituras top-level são auto-filtradas pela extensão em
+  /// `lib/prisma.ts`. NÃO esconde o cliente onde ele é alcançado por relação (`include`) nem
+  /// por `findUnique` — de propósito: um projeto antigo continua mostrando de quem era.
+  excluidoEm DateTime?
+
   contatos        ContatoCliente[]
   projetos        Projeto[]
   lancamentos     Lancamento[]
@@ -896,6 +901,7 @@ model Cliente {
   /// O Prisma não cria índice sozinho no lado da FK.
   @@index([segmentoId])
   @@index([fundidoEmId])
+  @@index([excluidoEm])
   @@map("cliente")
 }
 

@@ -76,7 +76,14 @@ async function construirResolver(tx: Tx) {
   }
   const cliDoc = new Map<string, string>();
   const cliNome = new Map<string, string>();
-  for (const c of await tx.cliente.findMany({ select: { id: true, nome: true, documento: true } })) {
+  // `excluidoEm: { not: undefined }` = enxerga TAMBÉM os soft-deleted (F1.17). Este índice é o
+  // que evita criar cliente duplicado na importação: se um cliente excluído não aparecesse
+  // aqui, o mesmo nome/documento no CSV criaria um cadastro novo — justamente a duplicata que
+  // a Fase 1 do CRM está removendo.
+  for (const c of await tx.cliente.findMany({
+    where: { excluidoEm: { not: undefined } },
+    select: { id: true, nome: true, documento: true },
+  })) {
     if (c.documento) cliDoc.set(c.documento.replace(/\D/g, ""), c.id);
     cliNome.set(chaveMatch(c.nome), c.id);
   }

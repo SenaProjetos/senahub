@@ -26,6 +26,7 @@
     "smoke:sync-pagamento": "tsx --tsconfig tsconfig.server.json scripts/smoke-sync-pagamento.ts",
     "smoke:crm-fase1": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-fase1.ts",
     "smoke:crm-dedupe": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-dedupe.ts",
+    "smoke:crm-soft-delete": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-soft-delete.ts",
     "release": "commit-and-tag-version",
     "release:minor": "commit-and-tag-version --release-as minor",
     "release:major": "commit-and-tag-version --release-as major",

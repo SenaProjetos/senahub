@@ -15,7 +15,12 @@ export async function carregarExistentes(): Promise<Existentes> {
     prisma.formaPagamento.findMany({ select: { nome: true } }),
     prisma.centroCusto.findMany({ select: { nome: true } }),
     prisma.fornecedor.findMany({ select: { nome: true, documento: true } }),
-    prisma.cliente.findMany({ select: { nome: true, nomeFantasia: true, documento: true } }),
+    // Enxerga também os soft-deleted (F1.17): a pré-visualização precisa marcar como
+    // "já existe" um cliente excluído, senão o commit criaria uma duplicata dele.
+    prisma.cliente.findMany({
+      where: { excluidoEm: { not: undefined } },
+      select: { nome: true, nomeFantasia: true, documento: true },
+    }),
   ]);
 
   const nomePorId = new Map(categorias.map((c) => [c.id, c.nome]));
