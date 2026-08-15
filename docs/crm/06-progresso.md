@@ -417,6 +417,38 @@ comportamento num check explícito, para ninguém tropeçar nisso de novo.
 **Verificação:** smoke novo `npm run smoke:crm-soft-delete-lead` → **13/13**. Os 3 smokes anteriores
 (`crm-fase1`, `crm-dedupe`, `crm-soft-delete`) seguem passando · 2013 testes · lint e tsc limpos.
 
+**F1.19 — `PropostaItem.disciplina` vira FK do catálogo** (commit `f5e5cb4`, Opus) — ⚠️ toca proposta
+
+**A coluna física NÃO foi renomeada.** No schema Prisma ela passa a se chamar
+`disciplinaTextoLegado` via `@map("disciplina")` — o nome muda só no código. Duas consequências
+boas: nenhum `RENAME` numa tabela ligada ao link público já enviado a cliente, e os **9 pontos de
+leitura falharam em COMPILAÇÃO**, não em runtime. O tsc listou todos; nada foi descoberto por acaso.
+
+`disciplinaId` é **nullable de propósito**: produção tem 24 grafias, 18 batendo exato e 6 pendentes
+(F1.21). Item que não resolve fica sem FK — estado esperado. O backfill casa por **nome exato**;
+casar por aproximação apontaria o item para a disciplina errada, e valor de disciplina vira
+pagamento de projetista.
+
+Leitura sempre por `nomeDisciplinaItem()`: prefere o catálogo, cai no texto original. **O fallback
+não é defensivo — é o estado correto** enquanto houver grafia não consolidada. Sem ele, a proposta
+pública e o PDF mostrariam disciplina em branco. Os 2 pontos mais sensíveis: `/a/proposta/[token]`
+e o token `[Disciplina]` do Estúdio, onde documento gerado em branco seria falha silenciosa.
+
+⚠️ **Risco documentado no `proposta-editor.tsx`:** a aplicação de tabela de preço casa por **texto**.
+Hoje é equivalente (o backfill só resolve FK em nome exato, então o nome exibido não muda), mas
+**divergirá quando alguém renomear uma disciplina no catálogo** — o item passa a exibir o nome novo
+e a tabela continua com o antigo, e o preço para de casar em silêncio. Verificado no dev: **10 de 11
+grafias** de `ItemTabelaPreco` batem com o catálogo; a exceção é `Lógica`, que o catálogo renomeou
+para `Cabeamento`. A **F1.20** converte `ItemTabelaPreco` e a comparação deve passar a usar `disciplinaId`.
+
+**O smoke estava se enganando:** ele criava itens com `createMany` direto, contornando a resolução
+de FK — registrava **0/3 resolvidos** e passava mesmo assim. Troquei para `salvarProposta`, o
+caminho real da aplicação: agora dá **3/3** e checa que todo item resolve um nome, que o texto
+original é preservado e que a soma dos valores não muda.
+
+**Verificação:** 195 arquivos, **2017 testes verdes** · lint e tsc limpos · os 4 smokes do CRM e o
+`smoke:onda4` (que também toca proposta) passando.
+
 **Verificação:** 193 arquivos, 1972 testes verdes · lint limpo · tsc só os 2 pré-existentes ·
 `migrate status` limpo (162 migrations).
 
