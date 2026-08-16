@@ -191,6 +191,44 @@ describe("preencherItensDaTabela", () => {
     expect(dois.itens[0].valor).toBe(5000);
   });
 
+  it("disciplina fora do catálogo não vira item, mesmo se vier marcada", () => {
+    // O caso real do dev: a tabela tem `Lógica` com preço, mas o catálogo já a renomeou para
+    // `Cabeamento`. Criar o item deixaria o Select da linha sem opção correspondente — valor na
+    // tela, disciplina em branco.
+    const r = preencherItensDaTabela({
+      itens: [],
+      linhas: [...linhas, { disciplina: "Lógica", valorM2: 7 }],
+      areaM2: 800,
+      selecionadas: ["Elétrico", "Lógica"],
+      disciplinasValidas: ["Elétrico", "Hidrossanitário", "Estrutural", "Cabeamento"],
+    });
+    expect(r.itens.map((i) => i.disciplina)).toEqual(["Elétrico"]);
+    expect(r.adicionados).toBe(1);
+  });
+
+  it("disciplina fora do catálogo também não é reprecificada", () => {
+    const legado = { disciplina: "Lógica", descricao: "", valor: 4321 };
+    const r = preencherItensDaTabela({
+      itens: [legado],
+      linhas: [{ disciplina: "Lógica", valorM2: 7 }],
+      areaM2: 800,
+      selecionadas: ["Lógica"],
+      disciplinasValidas: ["Cabeamento"],
+    });
+    expect(r.itens).toEqual([legado]); // valor intocado
+    expect(r.reprecificados).toBe(0);
+  });
+
+  it("sem `disciplinasValidas` nada é filtrado — a trava é opt-in", () => {
+    const r = preencherItensDaTabela({
+      itens: [],
+      linhas: [{ disciplina: "Lógica", valorM2: 7 }],
+      areaM2: 800,
+      selecionadas: ["Lógica"],
+    });
+    expect(r.adicionados).toBe(1);
+  });
+
   it("marcar disciplina que a tabela não tem não cria item fantasma", () => {
     const r = preencherItensDaTabela({
       itens: [],

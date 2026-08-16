@@ -257,6 +257,7 @@ export function PropostaEditor({
                   tabelas={tabelas}
                   itens={itens}
                   areaM2={Number(areaM2) || 0}
+                  catalogo={catalogo}
                   onAplicar={preenchido}
                 />
                 <Button size="sm" variant="outline" onClick={addItem} className="ml-auto">

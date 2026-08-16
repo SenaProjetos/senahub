@@ -75,17 +75,25 @@ export function totalItens(itens: { valor: number }[]): number {
  * A operação nunca remove nada.
  *
  * O item novo nasce COM o valor da linha da tabela: não há casamento por nome nesse caminho, o
- * preço vem da própria linha que o originou. Isso deixa o item alinhado com a tabela por
- * construção, e é o que fecha a maior parte do risco que a F1.20 deixou anotado.
+ * preço vem da própria linha que o originou.
+ *
+ * `disciplinasValidas` (quando informado) é o catálogo, e nenhuma disciplina de fora dele entra.
+ * Sem essa trava, uma linha de tabela com grafia fora do catálogo — em dev, `Lógica`, renomeada
+ * para `Cabeamento` e ainda sem FK — viraria um item cujo `<Select>` no editor não tem opção
+ * correspondente: valor na tela, disciplina em branco. E quem "consertasse" o dropdown vazio
+ * trocaria a disciplina mantendo o valor, que é o risco desta tarefa por outra porta. O diálogo
+ * também desabilita essas linhas; a trava mora aqui porque aqui dá para provar com teste.
  */
 export function preencherItensDaTabela(args: {
   itens: ItemProposta[];
   linhas: LinhaTabelaPreco[];
   areaM2: number;
   selecionadas: string[];
+  disciplinasValidas?: string[];
 }): { itens: ItemProposta[]; adicionados: number; reprecificados: number } {
-  const { itens, linhas, areaM2, selecionadas } = args;
-  const marcadas = new Set(selecionadas);
+  const { itens, linhas, areaM2, selecionadas, disciplinasValidas } = args;
+  const validas = disciplinasValidas ? new Set(disciplinasValidas) : null;
+  const marcadas = new Set(selecionadas.filter((d) => !validas || validas.has(d)));
   const precoPor = new Map(linhas.map((l) => [l.disciplina, l.valorM2]));
 
   let reprecificados = 0;

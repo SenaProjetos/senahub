@@ -488,15 +488,30 @@ divergência entre a tela e o que o cliente lê no PDF**. `arredondarMoeda` arre
 string que o banco vê. Conferido contra o PG do dev, não inferido — `1.005`, `2.675`, `1.115`,
 `1234.567` e `-1.005` batem nos cinco.
 
-**Divergência que a F1.19+F1.20 introduziram, corrigida aqui:** o item da proposta passou a ser
-exibido pelo nome do **catálogo** enquanto a linha da tabela continuava vindo como **texto legado** —
-e o editor casava os dois por texto. Disciplina renomeada no catálogo (`Lógica`→`Cabeamento`, o caso
-real da F1.20) deixava de casar **em silêncio**: sem erro, só um item a menos precificado. Antes da
-F1.19 os dois lados eram texto cru e concordavam mesmo desatualizados, então isto nasceu com as duas
-tarefas anteriores. `listarTabelasPreco()` passa a resolver o nome pelo mesmo `nomeDisciplinaItem()`
-das duas pontas, e as duas páginas pararam de mapear à mão. **Isso fecha o risco que a F1.20 deixou
-anotado** sem precisar fiar `disciplinaId` ponta a ponta. Resta o item cuja grafia não existe no
-catálogo (sem FK dos dois lados) — é a F1.21, não uma pendência nova.
+**Assimetria de resolução de nome, fechada aqui — mas ela era LATENTE, não uma falha em curso.**
+A F1.19+F1.20 deixaram o item da proposta sendo exibido pelo nome do **catálogo** e a linha da tabela
+como **texto legado**, com o editor casando os dois por texto. `listarTabelasPreco()` passa a resolver
+pelo mesmo `nomeDisciplinaItem()` nas duas pontas e as duas páginas pararam de mapear à mão.
+
+⚠️ **Correção de uma afirmação minha exagerada** (a mensagem do commit `2ecab67` a repete; fica
+corrigida aqui, que é o que a F1.21 vai ler). Escrevi que `Lógica`→`Cabeamento` "deixava de casar em
+silêncio". **Não deixava.** Medido no dev: dos 18 `PropostaItem`, **0** têm texto ≠ nome do catálogo —
+porque os dois backfills resolveram por nome EXATO e `salvarProposta` continua fazendo isso, então
+todo item com FK tem `disciplinaTextoLegado === disciplina.nome`. E `Lógica` está **sem FK dos dois
+lados**, resolvendo para `"Lógica"` antes e depois da mudança: a correção **não a cobre**.
+
+O que a correção realmente fecha: o sub-caso em que **as duas pontas têm FK** e alguém renomeia a
+disciplina no catálogo depois. **Continuam abertos** o caso misto (item com FK, linha de tabela sem) e
+o caso sem FK nenhuma — ambos são a **F1.21**. Ou seja: o risco de disciplina **não** está aposentado.
+
+**Risco NOVO que a própria F1.22 criava, e que só apareceu na revisão:** `preencherItensDaTabela`
+nomeia o item com o nome resolvido da linha da tabela, e o `<Select>` de cada linha do editor só
+oferece nomes do **catálogo**. Um clique numa linha fora do catálogo (em dev, `Lógica` — 1 de 11)
+mintava um item com valor e dropdown em branco; e quem "consertasse" esse dropdown trocaria a
+disciplina mantendo o valor — o ⚠️ da tarefa entrando por outra porta. Travado na função pura
+(`disciplinasValidas`, 3 testes) e não só na UI, para ser verificável sem browser; o diálogo ainda
+mostra a linha **desabilitada com o motivo**, em vez de escondê-la — alguém precisa notar que existe
+disciplina com preço cadastrado fora do catálogo, que é o trabalho da F1.21.
 
 **Critério 3 ("total na tela = total no PDF") não estava coberto por nada.** O PDF é renderizado da
 própria página pública (`page.goto` em `/a/proposta/[token]`), então PDF ≡ página pública por
@@ -514,9 +529,14 @@ alcança isto: a divergência nasce no arredondamento do banco.
 **Verificação:** 196 arquivos, 2039 testes verdes · `eslint .` limpo · `tsc` só os 2 pré-existentes
 de `backup-storage.test.ts` · `smoke:crm-fase1` 30/30.
 
-**Pendente:** `npm run build` **não rodou** — a guarda do `scripts/build.mjs` barrou por haver processo
-na `:3000` (dev server subiu 21:09 durante a sessão). Não derrubei processo alheio. Fica para a F1.25,
-que roda o build de fecho da fase de qualquer forma.
+**Pendente — duas coisas, ambas para a F1.25:**
+1. `npm run build` **não rodou** — a guarda do `scripts/build.mjs` barrou por haver processo na `:3000`
+   (dev server subiu 21:09 durante a sessão). Não derrubei processo alheio.
+2. **A verificação em browser não foi feita**, e a coluna "Prova" da F1.22 pede `puro + browser`. O
+   diálogo é a entrega inteira do lado do usuário e nada dele é alcançável por vitest ou smoke:
+   `Select` aninhado dentro de `DialogContent` (portal/foco do base-ui) e o reset de `marcadas` ao
+   trocar de tabela. O que **está** provado sem browser: o cálculo, a trava de catálogo e a igualdade
+   tela = banco.
 
 **Verificação:** 193 arquivos, 1972 testes verdes · lint limpo · tsc só os 2 pré-existentes ·
 `migrate status` limpo (162 migrations).

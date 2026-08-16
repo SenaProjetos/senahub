@@ -43,11 +43,13 @@ export function AplicarTabelaDialog({
   tabelas,
   itens,
   areaM2,
+  catalogo,
   onAplicar,
 }: {
   tabelas: TabelaPrecoParaEditor[];
   itens: ItemProposta[];
   areaM2: number;
+  catalogo: string[];
   onAplicar: (itens: ItemProposta[], resumo: { adicionados: number; reprecificados: number }) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -58,11 +60,31 @@ export function AplicarTabelaDialog({
   const areaValida = areaM2 > 0;
   const jaNaProposta = useMemo(() => new Set(itens.map((i) => i.disciplina)), [itens]);
 
+  /**
+   * Disciplina da tabela que NÃO existe no catálogo não pode virar item aqui.
+   *
+   * O `<Select>` de cada linha do editor só oferece nomes do catálogo — um item criado com nome de
+   * fora nasceria com o dropdown em branco, mostrando valor sem disciplina legível. Pior: quem
+   * fosse "consertar" o dropdown vazio trocaria a disciplina mantendo o valor, que é exatamente o
+   * ⚠️ desta tarefa (número errado indo para o cliente) entrando por outra porta.
+   *
+   * Em dev isso é 1 linha de 11 (`Lógica`, renomeada para `Cabeamento` no catálogo e ainda sem FK).
+   * Fica visível e desabilitada, com o motivo, em vez de sumir da lista: alguém precisa notar que
+   * essa disciplina tem preço cadastrado e está fora do catálogo — é o trabalho da F1.21.
+   */
+  const noCatalogo = useMemo(() => new Set(catalogo), [catalogo]);
+
   // Abrir já marca o que a proposta tem: reaplicar depois de mudar a área é um clique só.
   useEffect(() => {
     if (!open || !tabela) return;
-    setMarcadas(new Set(tabela.itens.filter((l) => jaNaProposta.has(l.disciplina)).map((l) => l.disciplina)));
-  }, [open, tabela, jaNaProposta]);
+    setMarcadas(
+      new Set(
+        tabela.itens
+          .filter((l) => jaNaProposta.has(l.disciplina) && noCatalogo.has(l.disciplina))
+          .map((l) => l.disciplina),
+      ),
+    );
+  }, [open, tabela, jaNaProposta, noCatalogo]);
 
   function alternar(disciplina: string) {
     setMarcadas((s) => {
@@ -80,6 +102,7 @@ export function AplicarTabelaDialog({
       linhas: tabela.itens,
       areaM2,
       selecionadas: [...marcadas],
+      disciplinasValidas: catalogo,
     });
     onAplicar(r.itens, { adicionados: r.adicionados, reprecificados: r.reprecificados });
     setOpen(false);
@@ -130,29 +153,41 @@ export function AplicarTabelaDialog({
           ) : (
             <>
               <div className="max-h-72 overflow-y-auto rounded-sm border">
-                {tabela.itens.map((l) => (
-                  <label
-                    key={l.disciplina}
-                    className="flex items-center gap-2 border-b p-2 text-sm last:border-b-0"
-                  >
-                    <Checkbox
-                      checked={marcadas.has(l.disciplina)}
-                      onCheckedChange={() => alternar(l.disciplina)}
-                    />
-                    <span className="min-w-0 flex-1">
-                      {l.disciplina}
-                      {jaNaProposta.has(l.disciplina) && (
-                        <span className="ml-1 text-xs text-muted-foreground">(já na proposta)</span>
-                      )}
-                      <span className="block text-xs text-muted-foreground">
-                        {brl(l.valorM2)}/m² × {areaM2} m²
+                {tabela.itens.map((l) => {
+                  const foraDoCatalogo = !noCatalogo.has(l.disciplina);
+                  return (
+                    <label
+                      key={l.disciplina}
+                      className={`flex items-center gap-2 border-b p-2 text-sm last:border-b-0 ${
+                        foraDoCatalogo ? "opacity-50" : ""
+                      }`}
+                    >
+                      <Checkbox
+                        checked={marcadas.has(l.disciplina)}
+                        disabled={foraDoCatalogo}
+                        onCheckedChange={() => alternar(l.disciplina)}
+                      />
+                      <span className="min-w-0 flex-1">
+                        {l.disciplina}
+                        {foraDoCatalogo ? (
+                          <span className="ml-1 text-xs text-muted-foreground">
+                            (fora do catálogo de disciplinas)
+                          </span>
+                        ) : (
+                          jaNaProposta.has(l.disciplina) && (
+                            <span className="ml-1 text-xs text-muted-foreground">(já na proposta)</span>
+                          )
+                        )}
+                        <span className="block text-xs text-muted-foreground">
+                          {brl(l.valorM2)}/m² × {areaM2} m²
+                        </span>
                       </span>
-                    </span>
-                    <span className="shrink-0 font-mono text-sm">
-                      {brl(valorPorArea(l.valorM2, areaM2))}
-                    </span>
-                  </label>
-                ))}
+                      <span className="shrink-0 font-mono text-sm">
+                        {brl(valorPorArea(l.valorM2, areaM2))}
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
               <p className="text-right text-sm">
                 Total marcado: <span className="font-mono font-bold">{brl(totalMarcado)}</span>
