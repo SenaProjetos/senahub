@@ -2,6 +2,72 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.11.0](https://github.com/SenaProjetos//compare/v1.10.0...v1.11.0) (2026-08-16)
+
+
+### ✨ Funcionalidades
+
+* **avisos:** agendar o envio de um comunicado ([651a9b7](https://github.com/SenaProjetos//commit/651a9b75aa2f9819332f9a141c26221651edec93))
+* **certidoes:** anexo no registro + gestão de links compartilhados ([77e5ce6](https://github.com/SenaProjetos//commit/77e5ce66eb0b91bdd46606fc4c6e27d68c83e161))
+* **clientes:** alerta nao bloqueante de duplicata ao cadastrar (F1.13) ([543e242](https://github.com/SenaProjetos//commit/543e242156e37d6b4dc2eb2b7d591ce92778ab7a))
+* **clientes:** filtros de segmento/classificacao, form em abas e contatos inline (F1.11) ([a8f3c3d](https://github.com/SenaProjetos//commit/a8f3c3d624df647ebd9d5d54b09510a67f39f4cd))
+* **clientes:** fusao de duplicatas com auditoria (F1.14) ([e0eb9f4](https://github.com/SenaProjetos//commit/e0eb9f40c56bf260da70868b7624f5f3c7a9693a))
+* **clientes:** soft delete em Cliente com filtro automatico (F1.17) ([a4f7ab6](https://github.com/SenaProjetos//commit/a4f7ab6efb39b69486889dfc4c22286f4959aa35))
+* **comercial:** arquivo central de rotulos pt-BR dos enums do CRM (F1.4) ([d2b8d64](https://github.com/SenaProjetos//commit/d2b8d6434565dcf4a26adfd1e1e1e05cecaff232))
+* **comercial:** campos comerciais no Cliente (F1.8) ([f9f120b](https://github.com/SenaProjetos//commit/f9f120b4b3facb44025047c6a62e5901449fc604))
+* **comercial:** catalogos e enums do CRM (F1.5) ([97a0ecb](https://github.com/SenaProjetos//commit/97a0ecba4cd9f8a9f3386899dbedfbde7d0f1d01))
+* **comercial:** checagem de LGPD centralizada em lgpd.ts (F1.10) ([02bc217](https://github.com/SenaProjetos//commit/02bc217792405e940ff748c4aa76d6a287916d46))
+* **comercial:** CRUD de parceiros + selecao por lista no lead (F1.23b) ([4f57b25](https://github.com/SenaProjetos//commit/4f57b252381c20f51e57c10a5f6641dbd143d9c5))
+* **comercial:** ItemTabelaPreco.disciplina vira FK do catalogo (F1.20) ([2416318](https://github.com/SenaProjetos//commit/241631843fdcd6150bf996e9d52033797ed73c46))
+* **comercial:** Lead ganha atribuicao/origem/parceiro estruturados (F1.23 + F1.23a) ([ce8f96f](https://github.com/SenaProjetos//commit/ce8f96f28ddb419796fcc8f9b706223a1c449d98)), closes [#13](https://github.com/SenaProjetos/senahub/issues/13)
+* **comercial:** LGPD e campos de CRM no contato do cliente (F1.9) ([73599d8](https://github.com/SenaProjetos//commit/73599d8548fdf477578187511c73216964ed467c))
+* **comercial:** parametros configuraveis em ConfigSistema (F1.7) ([1c267c3](https://github.com/SenaProjetos//commit/1c267c32f357a48501c1e42fb01e67bdaa70bc88))
+* **comercial:** primitivos de deduplicacao (F1.12) ([1da56be](https://github.com/SenaProjetos//commit/1da56bee6b98e9bd07cb808e863fb7ec92e87ab1))
+* **comercial:** proposta pre-preenchida pela tabela de preco (F1.22) ([2ecab67](https://github.com/SenaProjetos//commit/2ecab67d313de5ffb6a1e2b5687e36c0edd7aae0))
+* **comercial:** PropostaItem.disciplina vira FK do catalogo (F1.19) ([f5e5cb4](https://github.com/SenaProjetos//commit/f5e5cb47c7fff8fc146f8859d5f1eddd21019491))
+* **comercial:** seed idempotente dos catalogos do CRM (F1.6) ([2645028](https://github.com/SenaProjetos//commit/2645028b643e2be8ed190e93c880436c011a749d))
+* **comercial:** soft delete em Lead e ContatoCliente (F1.18) ([87e130e](https://github.com/SenaProjetos//commit/87e130e093f6294f62afb62090da3cf8ef7f3390))
+* **documentos:** agrupar PDF e DWG no mesmo documento (F2-PR3, M4) ([0a3c361](https://github.com/SenaProjetos//commit/0a3c361fa92de9a0fcf5a3390805e689791b86df))
+* **documentos:** colunas configuráveis na tabela (F2-PR10, item 8) ([d7fb7cd](https://github.com/SenaProjetos//commit/d7fb7cdbaebaef9f74889b98d42ea4eb8cc0ab30))
+* **documentos:** dropzone nas pastas do cliente e aviso de nova versão (F1-PR8) ([c33e1b4](https://github.com/SenaProjetos//commit/c33e1b49364a33902f96954b54fb21e1501033e3))
+* **documentos:** girar página e tela cheia no visualizador (F1-PR11) ([cf637de](https://github.com/SenaProjetos//commit/cf637de59aed9dd65bb371a6ad95c42d0de5f7fb))
+* **documentos:** metadados do documento e catálogo de status (F2-PR5, M5+M6) ([1dedc04](https://github.com/SenaProjetos//commit/1dedc04836deeac2d96c8f974087c8d2d327133f))
+* **documentos:** nível de revisão entre documento e arquivo (F2-PR1, M1+M2) ([c4d9d7c](https://github.com/SenaProjetos//commit/c4d9d7c0efa1c20154748047607c35a1b3a3a532))
+* **documentos:** nova tela de documentos atrás de flag (Fase 1, PR1-PR7) ([cd4bcba](https://github.com/SenaProjetos//commit/cd4bcba4d53232682f04e44709da9ae53def2cf8))
+* **documentos:** reconciliar uploads sem documento lógico (F2-PR2, M3) ([8ab7caf](https://github.com/SenaProjetos//commit/8ab7caf5da5b9d193b59b6425688b8a8635264f7))
+* **documentos:** resolver a cadeia de merge e gravar a revisão no upload (F2-PR4) ([5b485d4](https://github.com/SenaProjetos//commit/5b485d443f9d8324bf9fc10ac886a377ee927f84))
+* **inputs:** link do cliente ganha revogacao, validade e aviso de preenchimento ([daa7b18](https://github.com/SenaProjetos//commit/daa7b18648ca0c9ee44d003dc93302b12bd69a46))
+* **permissoes:** catalogar exclusão e renomeação de arquivos (F1-PR9) ([609f8cd](https://github.com/SenaProjetos//commit/609f8cd58f7d5bbe2860fca96bc72d3648ea73f9))
+* **projetos:** aprovacao de disciplina deixa de ser um beco sem saida ([5724bc2](https://github.com/SenaProjetos//commit/5724bc256149da2407937e01c3354cad3578b27b))
+
+
+### 🐛 Correções
+
+* **certidoes:** retorno de toast dentro de startTransition (TS2345) ([4ff47c2](https://github.com/SenaProjetos//commit/4ff47c2bf8bf1ff3836fe9e6e4f237aeef90989c))
+* **comercial:** trava disciplina fora do catalogo no preenchimento (F1.22) ([52c0434](https://github.com/SenaProjetos//commit/52c04341f9369ef06d0a4c396a27fdd9066a4927))
+* **crm:** passa tipo do cliente para normalizarNomeEmpresa em auditoria-crm.ts ([eda1216](https://github.com/SenaProjetos//commit/eda12165f948b309f00d61298b519fb2c72de0a5))
+* **deploy:** corrige receita do ODA que travava a conversao de DWG ([13f8123](https://github.com/SenaProjetos//commit/13f8123ca097a79197c894bbfb4b639cd23bc215))
+* **deploy:** deploy automatico registra a saida do git status ao abortar ([745a9c2](https://github.com/SenaProjetos//commit/745a9c2ad1ae92fefb91767aae8be9fa6df5b34a))
+* **deploy:** deploy confere o branch do checkout antes de publicar ([a18272d](https://github.com/SenaProjetos//commit/a18272d2b6487ab14c9be8b9236ca105460522f4))
+* **deploy:** horario padrao do deploy automatico sai de 03:30 para 04:00 ([f8c655b](https://github.com/SenaProjetos//commit/f8c655b84a29dc652b9a8a6eefba52077c3c280c))
+* **documentos:** página fora do range e trilha duplicada (achados ao rodar) ([181836f](https://github.com/SenaProjetos//commit/181836f0bfc550f93863d8996fdf1d9e5726104e))
+* **financeiro:** impede pagamento de projetista com valor zerado ([b31487f](https://github.com/SenaProjetos//commit/b31487ffc5025e48beb1193f628adbc5acb9873f))
+* **tarefas:** apontamento para de quebrar quando o item de checklist some ([68739bd](https://github.com/SenaProjetos//commit/68739bd2b2775e9ddc055d7e29c8705f55a1c700))
+* **uploads:** arquivo na lixeira deixa de vazar em visualizar, comparar e zip ([bcd482c](https://github.com/SenaProjetos//commit/bcd482cdd2816fefb407a40ca0f90119553f5340))
+
+
+### ⚡ Performance
+
+* **documentos:** paginar a listagem no banco e adicionar skeleton (F1-PR10) ([d68429e](https://github.com/SenaProjetos//commit/d68429efb5af2515509fe41ee40c74ef90bd7988))
+
+
+### ♻️ Refatorações
+
+* **comercial:** extrai etapaEhPerdido para status.ts testado (F1.1) ([80ac5d8](https://github.com/SenaProjetos//commit/80ac5d8a1fb82471d10e5e030124d9b4bf7a5c9f))
+* **comercial:** extrai formatarNumeroProposta para numeracao.ts (F1.2) ([0924430](https://github.com/SenaProjetos//commit/092443061da0d25b7879634e003c2bc345a78be7))
+* **comercial:** extrai service.ts com teste de caracterizacao do aceite (F1.3) ([a7498ee](https://github.com/SenaProjetos//commit/a7498eecb665d9fb1cc9b4ae926f83ea59a19baa))
+* **comercial:** remove Oportunidade code (F1.24) ([768fd4a](https://github.com/SenaProjetos//commit/768fd4a689854963461ac4a168f7bd1ef7ced5ba))
+
 ## [1.10.0](https://github.com/SenaProjetos//compare/v1.9.0...v1.10.0) (2026-08-09)
 
 
