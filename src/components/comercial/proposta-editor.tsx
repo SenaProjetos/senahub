@@ -14,7 +14,6 @@ import {
   Link2,
   Plus,
   Trash2,
-  Wand2,
   Eye,
   ListChecks,
 } from "lucide-react";
@@ -41,11 +40,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  AplicarTabelaDialog,
+  type TabelaPrecoParaEditor,
+} from "@/components/comercial/aplicar-tabela-dialog";
+import { itensPersistiveis, totalItens, type ItemProposta } from "@/modules/comercial/honorarios";
 import { brl } from "@/lib/utils";
 
-type Item = { disciplina: string; descricao: string; valor: number };
+type Item = ItemProposta;
 type Condicao = { descricao: string; tipo: "percentual" | "valor"; valor: number };
-type Tabela = { id: string; nome: string; itens: { disciplina: string; valorM2: number }[] };
+type Tabela = TabelaPrecoParaEditor;
 
 type Proposta = {
   id: string;
@@ -87,12 +91,17 @@ export function PropostaEditor({
   const [observacoes, setObservacoes] = useState(proposta.observacoes);
   const [itens, setItens] = useState<Item[]>(proposta.itens);
   const [condicoes, setCondicoes] = useState<Condicao[]>(proposta.condicoes);
-  const [tabelaSel, setTabelaSel] = useState(tabelas[0]?.id ?? "");
 
   const aceita = proposta.status === "aceita";
   const editavel = podeGerir && !aceita;
-  const total = itens.reduce((s, i) => s + (i.valor || 0), 0);
   const linkPublico = `${baseUrl}/a/proposta/${proposta.token}`;
+
+  // Uma lista só para exibir o total E para enviar no salvar — é o que garante o critério da
+  // F1.22 ("total na tela = total no PDF"). `itensPersistiveis` derruba a linha sem disciplina
+  // (que a action descartaria) e quantiza o valor na precisão do banco (Decimal(14,2)); sem isso,
+  // um valor digitado com 3 casas somaria na tela de um jeito e seria gravado de outro.
+  const paraSalvar = itensPersistiveis(itens);
+  const total = totalItens(paraSalvar);
 
   function addItem() {
     const usadas = new Set(itens.map((i) => i.disciplina));
@@ -100,33 +109,23 @@ export function PropostaEditor({
     setItens((arr) => [...arr, { disciplina: prox, descricao: "", valor: 0 }]);
   }
 
-  /** Preços automáticos: valor = valorM2 da tabela × área. */
-  function aplicarTabela() {
-    const t = tabelas.find((x) => x.id === tabelaSel);
-    const area = Number(areaM2);
-    if (!t) return toast.error("Selecione a tabela.");
-    if (!area || area <= 0) return toast.error("Informe a área (m²) antes de aplicar.");
-    let aplicados = 0;
-    setItens((arr) =>
-      arr.map((it) => {
-        // ⚠️ Casa por TEXTO, não por FK — RISCO AINDA ABERTO após F1.19+F1.20.
-        // Os dois lados (`PropostaItem.disciplinaId` e `ItemTabelaPreco.disciplinaId`) já
-        // existem no banco, mas este editor não tem o id nenhum dos dois em mãos: `Item`/`Tabela`
-        // (tipos locais deste arquivo) só carregam `disciplina: string`, porque o Select de cada
-        // linha já escolhe o NOME direto do mesmo `catalogo` — então, para item escolhido AGORA,
-        // o texto já é a fonte de verdade por construção, os dois lados vindo do mesmo catálogo.
-        // O caso que ainda quebra: um item salvo ANTES de alguém renomear uma disciplina no
-        // catálogo, comparado com uma tabela de preço carregada DEPOIS do rename — o texto salvo
-        // fica desatualizado e o preço para de casar, em silêncio. Fio de ID ponta a ponta não
-        // entrou aqui de propósito: é escopo maior que F1.20 pediu (só "continua listando").
-        // Fica registrado como candidato a limpeza futura, não como esquecimento.
-        const preco = t.itens.find((x) => x.disciplina === it.disciplina);
-        if (!preco) return it;
-        aplicados++;
-        return { ...it, valor: Math.round(preco.valorM2 * area * 100) / 100 };
-      }),
-    );
-    toast.success(`Tabela aplicada (${aplicados} item(ns) — ${area} m²).`);
+  /**
+   * Resultado do preenchimento pela tabela (F1.22). O cálculo e a escolha das disciplinas moram
+   * no diálogo + em `honorarios.ts`; aqui só entra o estado novo.
+   *
+   * A comparação por NOME que antes vivia neste arquivo saiu: as disciplinas agora vêm da própria
+   * linha da tabela, então o item nasce com o preço da linha que o originou, sem casamento algum.
+   * Reprecificar um item já existente ainda casa por nome — mas as duas pontas passaram a resolver
+   * o nome pelo mesmo catálogo (`listarTabelasPreco`), o que fecha o caso "Lógica"→"Cabeamento"
+   * que a F1.20 deixou anotado. Resta o item antigo cuja grafia não existe no catálogo: aí não há
+   * FK dos dois lados, e é exatamente o que a F1.21 vai consolidar.
+   */
+  function preenchido(novos: Item[], resumo: { adicionados: number; reprecificados: number }) {
+    setItens(novos);
+    const partes = [];
+    if (resumo.adicionados) partes.push(`${resumo.adicionados} item(ns) adicionado(s)`);
+    if (resumo.reprecificados) partes.push(`${resumo.reprecificados} reprecificado(s)`);
+    toast.success(`${partes.join(", ") || "Nada a preencher"} — ${areaM2} m².`);
   }
 
   function salvar() {
@@ -137,7 +136,7 @@ export function PropostaEditor({
         areaM2: areaM2 ? Number(areaM2) : undefined,
         validade,
         observacoes,
-        itens: itens.filter((i) => i.disciplina),
+        itens: paraSalvar,
         condicoes: condicoes.filter((c) => c.descricao),
       });
       if (r.ok) {
@@ -254,21 +253,12 @@ export function PropostaEditor({
           <CardContent className="space-y-3">
             {editavel && (
               <div className="flex flex-wrap items-center gap-2 rounded-sm border border-dashed p-2.5">
-                <Select value={tabelaSel} onValueChange={(v) => setTabelaSel(v ?? "")}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue placeholder="Tabela de preço" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tabelas.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button size="sm" variant="outline" onClick={aplicarTabela}>
-                  <Wand2 className="size-3.5" /> Aplicar (R$/m² × área)
-                </Button>
+                <AplicarTabelaDialog
+                  tabelas={tabelas}
+                  itens={itens}
+                  areaM2={Number(areaM2) || 0}
+                  onAplicar={preenchido}
+                />
                 <Button size="sm" variant="outline" onClick={addItem} className="ml-auto">
                   <Plus className="size-3.5" /> Item
                 </Button>
@@ -307,8 +297,12 @@ export function PropostaEditor({
                         setItens((arr) => arr.map((x, idx) => (idx === i ? { ...x, descricao: e.target.value } : x)))
                       }
                     />
+                    {/* `step` em centavos: a coluna é Decimal(14,2), então 3 casas digitadas à
+                        mão seriam arredondadas pelo banco e o total da tela divergiria do PDF. */}
                     <Input
                       type="number"
+                      step="0.01"
+                      min="0"
                       className="w-32"
                       value={it.valor || ""}
                       disabled={!editavel}

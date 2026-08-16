@@ -12,11 +12,7 @@ export default async function TabelasPage() {
   return (
     <TabelasView
       catalogo={catalogo.map((d) => d.nome)}
-      tabelas={tabelas.map((t) => ({
-        id: t.id,
-        nome: t.nome,
-        itens: t.itens.map((it) => ({ disciplina: it.disciplinaTextoLegado, valorM2: Number(it.valorM2) })),
-      }))}
+      tabelas={tabelas}
     />
   );
 }

@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { nomeDisciplinaItem } from "@/modules/comercial/disciplinas";
 
 // ── Funil ─────────────────────────────────────────────────────
 export async function funilCompleto() {
@@ -117,12 +118,33 @@ export async function obterProposta(id: string) {
   });
 }
 
+/**
+ * Tabelas de preço já resolvidas para exibição: nome de disciplina vindo do catálogo (com queda
+ * para o texto original) e `valorM2` como number.
+ *
+ * A resolução mora AQUI, e não em cada página, por causa de uma divergência que a F1.19+F1.20
+ * criaram: o item da proposta passou a ser exibido pelo nome do CATÁLOGO enquanto a linha da
+ * tabela continuava vindo como texto legado. Como o editor casa os dois LADOS por texto, uma
+ * disciplina renomeada no catálogo (o caso real "Lógica" → "Cabeamento") deixava de casar — em
+ * silêncio, sem erro, só um item a menos precificado. Com as duas pontas passando por
+ * `nomeDisciplinaItem`, elas voltam a concordar.
+ *
+ * A ordenação é por nome RESOLVIDO, feita aqui em JS: ordenar no banco por
+ * `disciplinaTextoLegado` classificaria por uma string que ninguém mais vê na tela.
+ */
 export async function listarTabelasPreco() {
-  return prisma.tabelaPreco.findMany({
+  const tabelas = await prisma.tabelaPreco.findMany({
     where: { ativo: true },
     orderBy: { nome: "asc" },
-    include: { itens: { orderBy: { disciplinaTextoLegado: "asc" } } },
+    include: { itens: { include: { disciplina: { select: { nome: true } } } } },
   });
+  return tabelas.map((t) => ({
+    id: t.id,
+    nome: t.nome,
+    itens: t.itens
+      .map((it) => ({ disciplina: nomeDisciplinaItem(it), valorM2: Number(it.valorM2) }))
+      .sort((a, b) => a.disciplina.localeCompare(b.disciplina, "pt-BR")),
+  }));
 }
 
 export function totalProposta(itens: { valor: unknown }[]): number {

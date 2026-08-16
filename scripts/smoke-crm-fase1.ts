@@ -19,6 +19,7 @@ import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { aceitarProposta, criarPropostaDeLead, salvarProposta } from "../src/modules/comercial/service";
 import { formatarNumeroProposta } from "../src/modules/comercial/numeracao";
+import { itensPersistiveis, totalItens } from "../src/modules/comercial/honorarios";
 
 async function main() {
   const tag = `SMKCRM_${Date.now()}`;
@@ -73,6 +74,38 @@ async function main() {
     recusouSemItens = true;
   }
   check("aceite sem itens é recusado", recusouSemItens);
+
+  // ── 2b. F1.22: o total da tela é o total gravado ──────────────────────────
+  // O critério da F1.22 é "total na tela = total no PDF". O PDF é renderizado da própria página
+  // pública (`page.goto` em `/a/proposta/[token]`), então PDF e página pública são iguais por
+  // construção — o que sobra provar é que o editor não exibe um número diferente do que persiste.
+  //
+  // Só um smoke alcança isto: `PropostaItem.valor` é `Decimal(14,2)`, e a divergência nasce no
+  // ARREDONDAMENTO DO BANCO, que teste puro nenhum executa. Os valores abaixo têm 3 casas de
+  // propósito — é o que acontece quando alguém digita o valor à mão (critério 2 da tarefa).
+  const itensCrus = [
+    { disciplina: "Estrutural", descricao: "", valor: 1000.555 },
+    { disciplina: "Elétrico", descricao: "", valor: 2000.4 },
+    { disciplina: "Hidrossanitário", descricao: "", valor: 1.005 },
+  ];
+  const naTela = totalItens(itensPersistiveis(itensCrus));
+  await salvarProposta(
+    { id: proposta.id, titulo: `${tag}_proposta`, itens: itensPersistiveis(itensCrus), condicoes: [] },
+    autor.id,
+  );
+  const totalGravado = Number(
+    (
+      await prisma.propostaItem.aggregate({
+        where: { propostaId: proposta.id },
+        _sum: { valor: true },
+      })
+    )._sum.valor ?? 0,
+  );
+  check(`total da tela (${naTela}) = total gravado (${totalGravado})`, naTela === totalGravado);
+  check(
+    "…e a soma sem quantizar daria outro número — a checagem acima discrimina de verdade",
+    itensCrus.reduce((s, i) => s + i.valor, 0) !== totalGravado,
+  );
 
   // ── 3. aceite com itens: cria projeto + 1 disciplina por item, na ordem ──
   // Usa `salvarProposta` (o caminho REAL da aplicação) em vez de `createMany` direto: é ele que
