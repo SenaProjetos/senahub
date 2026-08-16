@@ -17,6 +17,8 @@ import { PrismaClient, Prisma } from '@/generated/prisma/client'
  * - `lead` / `contatoCliente`: F1.18. ⚠️ A leitura PRINCIPAL dos dois é ANINHADA (o funil lê
  *   leads via `FunilEtapa.leads`; `obterCliente` inclui `contatos`), então NÃO passa por aqui —
  *   nesses dois pontos o filtro é explícito no `where` da relação.
+ * - `parceiro`: F1.23a. Fora dos 4 models originais da ADR-11, mas o backlog (F1.23a) pediu
+ *   `excluidoEm` explicitamente — registrado aqui para o campo não ficar morto.
  *
  * ── COMO VER OS EXCLUÍDOS ───────────────────────────────────────────────────
  * Passe `excluidoEm` explicitamente no `where`. As formas foram VERIFICADAS contra o banco
@@ -61,6 +63,7 @@ const softDelete = Prisma.defineExtension({
     cliente: { async $allOperations(ctx) { return filtroSoftDelete(ctx as never) } },
     lead: { async $allOperations(ctx) { return filtroSoftDelete(ctx as never) } },
     contatoCliente: { async $allOperations(ctx) { return filtroSoftDelete(ctx as never) } },
+    parceiro: { async $allOperations(ctx) { return filtroSoftDelete(ctx as never) } },
   },
 })
 

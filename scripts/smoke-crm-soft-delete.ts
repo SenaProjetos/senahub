@@ -1,5 +1,5 @@
 /**
- * Smoke do soft delete de Cliente (F1.17).
+ * Smoke do soft delete de Cliente (F1.17) + Parceiro (F1.23a).
  *
  * Por que existe: `Cliente` é lido por 6 módulos FORA do CRM (busca, custos, documentos,
  * financeiro, projetos, rh). Ligar o filtro automático na extensão do Prisma pode fazer cliente
@@ -104,6 +104,24 @@ async function main() {
   // ── Limpeza ──────────────────────────────────────────────────────────────
   await prisma.projeto.delete({ where: { id: projeto.id } });
   await prisma.cliente.delete({ where: { id: cliente.id } });
+
+  // ── 5. Parceiro (F1.23a) — mesmo padrão, verificação separada porque `parceiro` está FORA
+  // dos 4 models originais da ADR-11 (o backlog pediu `excluidoEm` explicitamente na F1.23a) ──
+  const parceiro = await prisma.parceiro.create({ data: { nome: `${tag}_parceiro`, tipo: "PF" } });
+  // `where: { id }` sozinho cai na exceção `ehLookupPorId` — de propósito, não é o que este
+  // bloco quer provar. Usa `nome` para exercitar a extensão de verdade.
+  const contarPorNome = () => prisma.parceiro.count({ where: { nome: parceiro.nome } });
+
+  check("parceiro novo aparece na listagem", (await contarPorNome()) === 1);
+  await prisma.parceiro.update({ where: { id: parceiro.id }, data: { excluidoEm: new Date() } });
+  check("some da listagem depois de excluído", (await contarPorNome()) === 0);
+  check(
+    "escape hatch (`excluidoEm: { not: undefined }`) continua enxergando",
+    (await prisma.parceiro.count({ where: { nome: parceiro.nome, excluidoEm: { not: undefined } } })) === 1,
+  );
+  await prisma.parceiro.update({ where: { id: parceiro.id }, data: { excluidoEm: null } });
+  check("reativar devolve à listagem", (await contarPorNome()) === 1);
+  await prisma.parceiro.delete({ where: { id: parceiro.id } });
 
   console.log(ok ? "\nSmoke do soft delete de Cliente: OK" : "\nSmoke do soft delete de Cliente: FALHOU");
   if (!ok) process.exitCode = 1;

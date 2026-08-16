@@ -258,6 +258,8 @@ model User {
   ativosResponsavel             Ativo[]                   @relation("AtivoResponsavel")
   certidoesResponsavel          Certidao[]                @relation("CertidaoResponsavel")
   maquinasResponsavel           MaquinaTI[]               @relation("MaquinaResponsavel")
+  leadsResponsavel              Lead[]                    @relation("LeadResponsavel")
+  campanhasResponsavel          Campanha[]                @relation("CampanhaResponsavel")
   avisosCriados                 Aviso[]                   @relation("AvisosCriados")
   avisosRecebidos               AvisoDestinatario[]       @relation("AvisosRecebidos")
   artsResponsavel               Art[]                     @relation("ArtResponsavel")
@@ -3542,6 +3544,24 @@ model Lead {
   /// filtro explicito -- ver `funilCompleto`.
   excluidoEm    DateTime?
 
+  // ── F1.23: atribuicao/origem estruturada, nao gate de permissao (ADR-15 revisado, Q4) ──
+  /// So exibicao/atribuicao ("Meus x Todos", Fase 2) -- NUNCA usar para checagem de acesso.
+  /// Backfill inicial em `scripts/backfill-lead-f123.ts` (nao ha `autorId` no lead nem
+  /// `entidadeId` no AuditLog de `criarLead` para derivar isso automaticamente na migration).
+  responsavelId String?
+  responsavel   User?           @relation("LeadResponsavel", fields: [responsavelId], references: [id], onDelete: SetNull)
+  canalId       String?
+  canal         CanalAquisicao? @relation(fields: [canalId], references: [id])
+  /// Complemento em texto livre ao canal (ex.: nome do empreendimento). Backfill: `origem` vira
+  /// canal "Outro" + o texto original preservado aqui (docs/crm/03-migracao.md §3).
+  origemDetalhada String?
+  campaignId      String?
+  campanha        Campanha? @relation(fields: [campaignId], references: [id])
+
+  // ── F1.23a (ADR-19): indicacao mensuravel, escolhida de lista -- nunca texto livre ──
+  parceiroId String?
+  parceiro   Parceiro? @relation(fields: [parceiroId], references: [id])
+
   atividades AtividadeLead[]
   propostas  Proposta[]
   anexos     AnexoLead[]
@@ -3551,7 +3571,65 @@ model Lead {
 
   @@index([etapaId, arquivado])
   @@index([excluidoEm])
+  @@index([responsavelId])
+  @@index([canalId])
+  @@index([campaignId])
+  @@index([parceiroId])
   @@map("lead")
+}
+
+/// Campanha de marketing/prospeccao (F1.23). Nasce vazia -- sem dado historico pra migrar
+/// (docs/crm/03-migracao.md §3). UI de gestao (CRUD, selecao no formulario, relatorio por
+/// campanha) so entra na Fase 4; aqui so o vinculo com `Lead` ja existe, pra nao remodelar o FK
+/// quando a tela chegar.
+model Campanha {
+  id            String          @id @default(cuid())
+  nome          String
+  canalId       String?
+  canal         CanalAquisicao? @relation(fields: [canalId], references: [id])
+  periodoInicio DateTime?       @db.Date
+  periodoFim    DateTime?       @db.Date
+  responsavelId String?
+  /// Mesmo padrao de `Lead.responsavelId`: so exibicao, nao gate.
+  responsavel   User?           @relation("CampanhaResponsavel", fields: [responsavelId], references: [id], onDelete: SetNull)
+  meta          Decimal?        @db.Decimal(14, 2)
+  observacao    String?
+  ativo         Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+
+  leads Lead[]
+
+  @@index([canalId])
+  @@index([responsavelId])
+  @@map("campanha")
+}
+
+/// Parceiro/indicador (ADR-19, fecha a pendencia #13). Escolhido de LISTA, nunca digitado --
+/// e a razao da entidade existir: hoje a indicacao vira a palavra "Indicacao" num campo de
+/// texto livre, e "Joao"/"Joao Silva"/"j. silva" viram 3 pessoas distintas pro sistema, o que
+/// impede somar. SEM campo de comissao de proposito: a regra (percentual? base proposto ou
+/// contratado? vence no aceite ou no recebimento? ha faixas?) nao foi decidida -- nenhum calculo
+/// sera implementado sem essa regra definida (fabricar politica financeira nao e opcao). CRUD +
+/// selecao por lista e a F1.23b; relatorio "negocios por parceiro" e a F1.23c.
+model Parceiro {
+  id         String    @id @default(cuid())
+  nome       String
+  tipo       TipoPessoa @default(PF)
+  documento  String?
+  email      String?
+  telefone   String?
+  observacao String?
+  ativo      Boolean   @default(true)
+  /// Soft delete: campo explicito no backlog (F1.23a), mesmo padrao de Cliente/Lead/ContatoCliente
+  /// (ADR-11) apesar de Parceiro nao estar entre os 4 models originais da ADR -- registrado na
+  /// extensao de `lib/prisma.ts` do mesmo jeito.
+  excluidoEm DateTime?
+  createdAt  DateTime  @default(now())
+
+  leads Lead[]
+
+  @@index([excluidoEm])
+  @@map("parceiro")
 }
 
 /// Arquivo anexado a um lead do funil (proposta enviada, e-mail de solicitação
@@ -3639,6 +3717,9 @@ model CanalAquisicao {
   nome  String  @unique
   ativo Boolean @default(true)
   ordem Int     @default(0)
+
+  leads     Lead[]
+  campanhas Campanha[]
 
   @@map("canal_aquisicao")
 }

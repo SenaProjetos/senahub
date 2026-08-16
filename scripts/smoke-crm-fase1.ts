@@ -50,6 +50,24 @@ async function main() {
     data: { nome: `${tag}_lead`, email: `${tag}@exemplo.test`, etapaId: etapa.id },
   });
 
+  // ── 0b. F1.23 + F1.23a: atribuicao/origem/parceiro estruturados no Lead ──
+  const canal = await prisma.canalAquisicao.findFirstOrThrow({ where: { nome: "Outro" } });
+  const campanha = await prisma.campanha.create({ data: { nome: `${tag}_campanha`, canalId: canal.id } });
+  const parceiro = await prisma.parceiro.create({ data: { nome: `${tag}_parceiro`, tipo: "PF" } });
+  await prisma.lead.update({
+    where: { id: lead.id },
+    data: { responsavelId: autor.id, canalId: canal.id, origemDetalhada: "teste smoke", campaignId: campanha.id, parceiroId: parceiro.id },
+  });
+  const leadComVinculos = await prisma.lead.findUniqueOrThrow({
+    where: { id: lead.id },
+    include: { responsavel: { select: { id: true } }, canal: true, campanha: { include: { canal: true } }, parceiro: true },
+  });
+  check("lead resolve responsavel", leadComVinculos.responsavel?.id === autor.id);
+  check("lead resolve canal direto", leadComVinculos.canal?.nome === "Outro");
+  check("lead resolve campanha, e a campanha resolve o PRÓPRIO canal", leadComVinculos.campanha?.canal?.nome === "Outro");
+  check("lead resolve parceiro (ADR-19)", leadComVinculos.parceiro?.id === parceiro.id);
+  check("origemDetalhada preservada", leadComVinculos.origemDetalhada === "teste smoke");
+
   // ── 1. criarPropostaDeLead: converte o lead em cliente e numera a proposta ──
   const { proposta, criouCliente } = await criarPropostaDeLead(
     { leadId: lead.id, titulo: `${tag}_proposta` },
@@ -220,6 +238,8 @@ async function main() {
   await prisma.proposta.delete({ where: { id: proposta.id } });
   await prisma.lead.delete({ where: { id: lead.id } });
   if (criouCliente) await prisma.cliente.delete({ where: { id: proposta.clienteId } });
+  await prisma.campanha.delete({ where: { id: campanha.id } });
+  await prisma.parceiro.delete({ where: { id: parceiro.id } });
 
   console.log(ok ? "\nSmoke do CRM Fase 1: OK" : "\nSmoke do CRM Fase 1: FALHOU");
   if (!ok) process.exitCode = 1;
