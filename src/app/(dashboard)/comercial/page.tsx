@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { FileText, Table2, Target, Handshake } from "lucide-react";
+import { FileText, Table2, Handshake } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { funilCompleto, resumoComercial, parceirosAtivos } from "@/modules/comercial/queries";
@@ -30,9 +30,6 @@ export default async function ComercialPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" render={<Link href="/comercial/oportunidades" />}>
-            <Target className="size-4" /> Oportunidades
-          </Button>
           <Button variant="outline" size="sm" render={<Link href="/comercial/parceiros" />}>
             <Handshake className="size-4" /> Parceiros
           </Button>
