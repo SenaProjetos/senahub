@@ -467,6 +467,57 @@ de verdade com `Lógica`→`Cabeamento`.
 **Verificação:** 195 arquivos, 2017 testes verdes · lint e tsc limpos · `listarTabelasPreco()`
 exercitada contra o dev · os 4 smokes do CRM + `smoke:onda4` passando.
 
+**F1.22 — Gancho de adoção: proposta pré-preenchida pela tabela de preço** (commit `2ecab67`, Opus)
+— ⚠️ número errado vai para o cliente
+
+O que existia não era o que a tarefa pedia. O botão "Aplicar (R$/m² × área)" **só reprecificava itens
+já digitados** — um `arr.map()` que nunca adicionava linha. Montar proposta continuava exigindo
+adicionar cada disciplina à mão antes de ver qualquer preço, que é justamente o atrito que faz o time
+preferir o Word. Agora um diálogo lista as disciplinas da tabela com o valor de cada uma **calculado
+antes de confirmar**, com o total marcado: 800 m² × 3 disciplinas marcadas = 3 itens precificados.
+O não marcado fica intocado — a operação nunca remove item, inclusive os digitados à mão fora da tabela.
+
+`honorarios.ts` (puro, 22 testes) — `arredondarMoeda`, `valorPorArea`, `itensPersistiveis`,
+`totalItens`, `preencherItensDaTabela`.
+
+**Achado que muda o código, não só o teste:** `Math.round(v * 100) / 100` **não** é o arredondamento
+do banco. `PropostaItem.valor` é `Decimal(14,2)` e o que trafega até lá é a representação decimal
+mais curta do double (`String(v)`) — é ela que o Prisma serializa e o PG arredonda meio-para-cima.
+Em `1.005`, `Math.round` devolve `1.00` (o double é 1.00499…) e o banco grava `1.01`: **um centavo de
+divergência entre a tela e o que o cliente lê no PDF**. `arredondarMoeda` arredonda sobre a mesma
+string que o banco vê. Conferido contra o PG do dev, não inferido — `1.005`, `2.675`, `1.115`,
+`1234.567` e `-1.005` batem nos cinco.
+
+**Divergência que a F1.19+F1.20 introduziram, corrigida aqui:** o item da proposta passou a ser
+exibido pelo nome do **catálogo** enquanto a linha da tabela continuava vindo como **texto legado** —
+e o editor casava os dois por texto. Disciplina renomeada no catálogo (`Lógica`→`Cabeamento`, o caso
+real da F1.20) deixava de casar **em silêncio**: sem erro, só um item a menos precificado. Antes da
+F1.19 os dois lados eram texto cru e concordavam mesmo desatualizados, então isto nasceu com as duas
+tarefas anteriores. `listarTabelasPreco()` passa a resolver o nome pelo mesmo `nomeDisciplinaItem()`
+das duas pontas, e as duas páginas pararam de mapear à mão. **Isso fecha o risco que a F1.20 deixou
+anotado** sem precisar fiar `disciplinaId` ponta a ponta. Resta o item cuja grafia não existe no
+catálogo (sem FK dos dois lados) — é a F1.21, não uma pendência nova.
+
+**Critério 3 ("total na tela = total no PDF") não estava coberto por nada.** O PDF é renderizado da
+própria página pública (`page.goto` em `/a/proposta/[token]`), então PDF ≡ página pública por
+construção; o que faltava garantir era **editor = persistido**. Dois caminhos quebravam, ambos
+independentes da tabela: (a) valor de 3 casas digitado à mão — o critério 2 põe esse caminho em jogo
+de propósito; (b) o total somava todos os itens, mas o salvar filtrava os sem disciplina. Ambos
+fechados pela mesma decisão: `itensPersistiveis()` é a lista **única** que o editor exibe *e* envia,
+então a igualdade vale por construção. Input de valor ganhou `step="0.01"`.
+
+`smoke-crm-fase1.ts` ganhou a asserção de ida-e-volta — salva itens com 3 casas, lê de volta, compara
+(3001,97 dos dois lados) — mais uma checagem de que a soma **sem** quantizar daria outro número
+(3001,96), para o teste discriminar de verdade em vez de passar por coincidência. Teste puro não
+alcança isto: a divergência nasce no arredondamento do banco.
+
+**Verificação:** 196 arquivos, 2039 testes verdes · `eslint .` limpo · `tsc` só os 2 pré-existentes
+de `backup-storage.test.ts` · `smoke:crm-fase1` 30/30.
+
+**Pendente:** `npm run build` **não rodou** — a guarda do `scripts/build.mjs` barrou por haver processo
+na `:3000` (dev server subiu 21:09 durante a sessão). Não derrubei processo alheio. Fica para a F1.25,
+que roda o build de fecho da fase de qualquer forma.
+
 **Verificação:** 193 arquivos, 1972 testes verdes · lint limpo · tsc só os 2 pré-existentes ·
 `migrate status` limpo (162 migrations).
 
