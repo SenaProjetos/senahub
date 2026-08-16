@@ -529,6 +529,45 @@ alcança isto: a divergência nasce no arredondamento do banco.
 **Verificação:** 196 arquivos, 2039 testes verdes · `eslint .` limpo · `tsc` só os 2 pré-existentes
 de `backup-storage.test.ts` · `smoke:crm-fase1` 30/30.
 
+**F1.23 + F1.23a — Lead ganha atribuição/origem/parceiro estruturados** (commit `ce8f96f`, Opus)
+— ⚠️ toca os 8 leads
+
+Junta as duas tarefas: F1.23a (`Parceiro`) toca o mesmo `Lead` e a mesma migration que F1.23,
+separar duplicaria alteração na mesma tabela. `responsavelId`/`canalId`/`origemDetalhada`/
+`campaignId` (+ model `Campanha`, vazia, UI só na Fase 4) e `parceiroId` (+ model `Parceiro`,
+ADR-19, sem campo de comissão de propósito). `Negociacao.parceiroId` não entra — esse model ainda
+não existe, nasce na Fase 2.
+
+**Achado que travou a leitura literal do Q4, e a resposta do usuário:** não há como saber quem
+criou um lead já existente — `Lead` nunca teve campo de autor, e `criarLead` não passa
+`entidadeId` ao `AuditLog`. Perguntei; o usuário mandou checar o dump de produção de 2026-08-14
+antes de decidir. Restaurado num banco throwaway (`pg_restore`, só descoberta, descartado depois):
+produção tem 8 linhas de audit "criar-lead", **todas do mesmo usuário** (Lúcio Sena), casando por
+horário (~10ms) com os 8 leads reais — e **zero** linhas em `atividade_lead` para eles. O oposto
+do dev, que não tem audit nenhum pros 8 leads de `seed:demo` mas tem 1 `AtividadeLead` cada.
+`scripts/backfill-lead-f123.ts` usa as duas fontes nessa ordem (audit_log por proximidade de
+horário, senão `AtividadeLead` mais antiga, senão null) — cobre os dois ambientes com o dado real
+de cada um, sem inventar nenhum.
+
+⚠️ **Bug achado na revisão, corrigido antes de commitar.** A primeira versão gravava o backfill de
+`canalId`/`origemDetalhada` **dentro da migration**, guardado por "se a linha 'Outro' existir no
+catálogo". Funciona no dev (F1.6 semeou o catálogo dias atrás) mas quebraria em silêncio na
+produção: `migrate deploy` roda **antes** de `db:seed` no fluxo padrão, e este é o primeiro deploy
+de toda a reforma — `canal_aquisicao` estaria vazio quando a migration roda, o `UPDATE` não
+encontraria nada, e nada re-rodaria depois. Os 8 leads reais perderiam "SMERALDA DEL MARE" etc. de
+`origemDetalhada` para sempre — exatamente o que `03-migracao.md` §3 proíbe. Migration virou só
+estrutura; os dois backfills ficam no script, rodado depois do seed. Provado simulando o cenário:
+reset dos 3 campos dos 8 leads do dev para null (imita pós-migrate/pré-seed) e rodando o script de
+novo — os 8 voltaram certos. Checksum da migration recalculado e sincronizado com
+`_prisma_migrations` depois da edição (sha256 do arquivo == coluna, conferido, não inferido).
+
+**Verificação:** 2042 testes verdes · lint e tsc limpos · `migrate status` limpo · `smoke:crm-fase1`
+(seção nova: parceiro/campanha/canal/responsável no lead) · `smoke:crm-soft-delete` (seção nova:
+`Parceiro`) · `smoke:crm-dedupe`, `smoke:crm-soft-delete-lead`, `smoke:onda4` — todos OK.
+
+**Pendente — as mesmas duas da F1.22, ambas para a F1.25:** browser (Campanha/Parceiro ainda sem
+UI — F1.23b/F1.23c/Fase 4) e `npm run build` (dev server ocupando a `:3000`).
+
 **Pendente — duas coisas, ambas para a F1.25:**
 1. `npm run build` **não rodou** — a guarda do `scripts/build.mjs` barrou por haver processo na `:3000`
    (dev server subiu 21:09 durante a sessão). Não derrubei processo alheio.
