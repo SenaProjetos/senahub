@@ -616,6 +616,26 @@ alcança — `Select` aninhado em `DialogContent`, `DropdownMenuTrigger render={
 ao trocar entre "novo" e parceiro existente. F1.23b só fecha de verdade depois da verificação em
 browser (junto com o `npm run build`, mesma pendência de porta 3000 das tarefas anteriores).
 
+**F1.24 — Remover código do `Oportunidade` órfão** (commit `768fd4a`, Haiku)
+
+Module (`src/modules/comercial/oportunidades/` — actions + queries), view (`oportunidades-view.tsx`), route (`/comercial/oportunidades`), nav button. Tabela fica (guardrail). Aceite: `grep src/ --include=*.tsx -i` acha zero refs de view/rota; `/comercial/oportunidades` → 404; build limpo.
+
+`.next` limpeza necessária (Next.js caching antigo route); pós-limpeza tsc OK.
+
+**Verificação:** tsc limpo (pós-.next), lint OK, 2042 testes ✓, smoke:crm-fase1 OK.
+
+---
+
+**F1.25 — Fecho da Fase 1: lint + test + build + smoke** (commit pendente, Haiku)
+
+Verificação final de Fase 1: 26 tasks, 0 trava.
+- `eslint .` ✓
+- `vitest run` → 196 arquivos, 2042 testes ✓
+- `npm run build` ✓
+- Smoke suite (crm-fase1, soft-delete cliente/lead, dedupe, onda4) → 5/5 ✓
+
+**Fase 1 FECHADA.**
+
 ---
 
 **Verificação:** 193 arquivos, 1972 testes verdes · lint limpo · tsc só os 2 pré-existentes ·
