@@ -199,6 +199,13 @@ function Invoke-Verificar {
     try {
         if (Test-Path $VerificacaoLog) { Remove-Item $VerificacaoLog -ErrorAction SilentlyContinue }
 
+        # PS 5.1: "2>&1" num processo nativo (node/npm) envolve cada linha de stderr
+        # num NativeCommandError TERMINANTE mesmo com exit code 0 (ex.: warnings de log).
+        # Com ErrorActionPreference=Stop (script-scope) isso aborta o pipeline no meio,
+        # antes do check de $LASTEXITCODE abaixo. "Continue" aqui e local a esta funcao
+        # (nao vaza pro resto do script) e deixa quem decide falha ser o exit code real.
+        $ErrorActionPreference = "Continue"
+
         Write-Host ""
         Write-Host "==================== VERIFICACAO (1/3 LINT) ====================" -ForegroundColor Cyan
         npm run lint 2>&1 | Tee-Object -FilePath $VerificacaoLog | Out-Host
