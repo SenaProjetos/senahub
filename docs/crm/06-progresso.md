@@ -529,6 +529,15 @@ alcança isto: a divergência nasce no arredondamento do banco.
 **Verificação:** 196 arquivos, 2039 testes verdes · `eslint .` limpo · `tsc` só os 2 pré-existentes
 de `backup-storage.test.ts` · `smoke:crm-fase1` 30/30.
 
+**Pendente — duas coisas, ambas para a F1.25:**
+1. `npm run build` **não rodou** — a guarda do `scripts/build.mjs` barrou por haver processo na `:3000`
+   (dev server subiu 21:09 durante a sessão). Não derrubei processo alheio.
+2. **A verificação em browser não foi feita**, e a coluna "Prova" da F1.22 pede `puro + browser`. O
+   diálogo é a entrega inteira do lado do usuário e nada dele é alcançável por vitest ou smoke:
+   `Select` aninhado dentro de `DialogContent` (portal/foco do base-ui) e o reset de `marcadas` ao
+   trocar de tabela. O que **está** provado sem browser: o cálculo, a trava de catálogo e a igualdade
+   tela = banco.
+
 **F1.23 + F1.23a — Lead ganha atribuição/origem/parceiro estruturados** (commit `ce8f96f`, Opus)
 — ⚠️ toca os 8 leads
 
@@ -568,14 +577,46 @@ novo — os 8 voltaram certos. Checksum da migration recalculado e sincronizado 
 **Pendente — as mesmas duas da F1.22, ambas para a F1.25:** browser (Campanha/Parceiro ainda sem
 UI — F1.23b/F1.23c/Fase 4) e `npm run build` (dev server ocupando a `:3000`).
 
-**Pendente — duas coisas, ambas para a F1.25:**
-1. `npm run build` **não rodou** — a guarda do `scripts/build.mjs` barrou por haver processo na `:3000`
-   (dev server subiu 21:09 durante a sessão). Não derrubei processo alheio.
-2. **A verificação em browser não foi feita**, e a coluna "Prova" da F1.22 pede `puro + browser`. O
-   diálogo é a entrega inteira do lado do usuário e nada dele é alcançável por vitest ou smoke:
-   `Select` aninhado dentro de `DialogContent` (portal/foco do base-ui) e o reset de `marcadas` ao
-   trocar de tabela. O que **está** provado sem browser: o cálculo, a trava de catálogo e a igualdade
-   tela = banco.
+**F1.23b — CRUD de parceiros + seleção por lista no lead** (commit `4f57b25`, Sonnet)
+
+Tela `/comercial/parceiros` (lista + `ParceiroDialog`: criar/editar/arquivar/reativar) e o
+`LeadDialog` ganha `Select` de parceiro alimentado por `parceirosAtivos()` — nenhum campo de texto
+livre em lugar nenhum, que é a razão de a entidade existir (ADR-19). `Negociacao` não entra: o
+model ainda não existe (Fase 2).
+
+**Corrigida contradição interna do próprio backlog:** a linha F1.23b de `04-plano-fases.md` marcava
+`Mig/Seed = seed (permissão)`, mas o §5 do mesmo arquivo diz "nenhuma ação nova entra em
+`permissions-catalog.ts` em nenhuma das 7 fases". Implementado: CRUD de `Parceiro` reusa
+`comercial:gerir`, igual a toda outra action do módulo — confirmado sem tocar
+`permissions-catalog.ts`. §5 estava certo; a célula da linha, desatualizada. Doc corrigido com nota
+de rodapé.
+
+**Dois achados na revisão, corrigidos antes de commitar:**
+1. Nada impedia `parceiroId` de apontar para um id que não existe — o Zod (`opt(z.string())`)
+   deixa passar qualquer string, e Server Action aceita payload arbitrário do cliente. Sem
+   checagem, um id inválido virava `P2003` (violação de FK) e o `defineAction` devolvia "erro
+   inesperado" em vez de mensagem de negócio — e um parceiro **arquivado numa aba desatualizada**
+   continuaria sendo aceito, já que "nunca texto livre" só estava garantido no `Select`, não no
+   servidor. `validarParceiroId()` adicionado em `criarLead`/`editarLead`, mesmo padrão que
+   `moverLead` já usa para `etapaId`: checa **existência**, não "está ativo" — um lead já vinculado
+   a um parceiro arquivado continua legítimo, e `moverLead` também não checa se a etapa está ativa.
+2. `listarParceiros()` contava `_count.leads` sem filtrar `excluidoEm` — leitura ANINHADA não passa
+   pela extensão de soft delete de `lib/prisma.ts` (mesmo bug que a F1.18 já tinha corrigido em
+   `listarEtapasFunil`, esquecido aqui). Verificado contra o dev: 1 lead vivo + 1 excluído contava
+   **2** antes da correção, **1** depois.
+
+**Verificação:** 2042 testes verdes · lint e tsc limpos · `smoke:crm-fase1` com seção nova
+(cadastrar 2 parceiros, vincular, trocar, arquivar tira da lista de ativos sem quebrar o
+histórico) + os outros 4 smokes do CRM. E2E fora do smoke, contra dado real do dev: parceiro
+criado/vinculado/trocado, contagem de leads excluídos confirmada 1 (não 2).
+
+⚠️ **Pendente — diferente das últimas tarefas: aqui o próprio aceite não está confirmado, não é
+rotina.** "Digitar nome livre não é possível" é uma alegação de UI que nenhum smoke em Prisma
+alcança — `Select` aninhado em `DialogContent`, `DropdownMenuTrigger render={...}`, reset do form
+ao trocar entre "novo" e parceiro existente. F1.23b só fecha de verdade depois da verificação em
+browser (junto com o `npm run build`, mesma pendência de porta 3000 das tarefas anteriores).
+
+---
 
 **Verificação:** 193 arquivos, 1972 testes verdes · lint limpo · tsc só os 2 pré-existentes ·
 `migrate status` limpo (162 migrations).
