@@ -16,6 +16,9 @@ export async function funilCompleto() {
         orderBy: { updatedAt: "desc" },
         include: {
           cliente: { select: { id: true, nome: true } },
+          // Parceiro (F1.23a): so o suficiente pra exibir; a lista de opcoes do Select vem de
+          // `parceirosAtivos()`, nao daqui.
+          parceiro: { select: { id: true, nome: true } },
           atividades: {
             orderBy: { createdAt: "desc" },
             include: { autor: { select: { name: true } } },
@@ -42,6 +45,7 @@ export async function obterLead(id: string) {
     include: {
       etapa: true,
       cliente: { select: { id: true, nome: true } },
+      parceiro: { select: { id: true, nome: true } },
       atividades: { orderBy: { createdAt: "desc" }, include: { autor: { select: { name: true } } } },
       anexos: {
         orderBy: { createdAt: "desc" },
@@ -168,3 +172,24 @@ export type LeadDetalhe = NonNullable<Awaited<ReturnType<typeof obterLead>>>;
 export type PropostaListItem = Awaited<ReturnType<typeof listarPropostas>>[number];
 export type PropostaDetalhe = NonNullable<Awaited<ReturnType<typeof obterProposta>>>;
 export type TabelaPrecoItem = Awaited<ReturnType<typeof listarTabelasPreco>>[number];
+
+// ── Parceiros (F1.23a/b, ADR-19) ─────────────────────────────────
+/** Todos, ativos e inativos — para a tela de gestão. */
+export async function listarParceiros() {
+  return prisma.parceiro.findMany({
+    orderBy: [{ ativo: "desc" }, { nome: "asc" }],
+    // `_count` e leitura ANINHADA -- nao passa pela extensao de soft delete (mesmo padrao de
+    // `listarEtapasFunil`, F1.18). Sem o `where` explicito, lead excluido inflaria a contagem.
+    include: { _count: { select: { leads: { where: { excluidoEm: null } } } } },
+  });
+}
+export type ParceiroItem = Awaited<ReturnType<typeof listarParceiros>>[number];
+
+/** Só os ativos — é o que popula o Select do formulário de lead (nunca texto livre). */
+export async function parceirosAtivos() {
+  return prisma.parceiro.findMany({
+    where: { ativo: true },
+    orderBy: { nome: "asc" },
+    select: { id: true, nome: true },
+  });
+}

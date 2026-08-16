@@ -68,6 +68,23 @@ async function main() {
   check("lead resolve parceiro (ADR-19)", leadComVinculos.parceiro?.id === parceiro.id);
   check("origemDetalhada preservada", leadComVinculos.origemDetalhada === "teste smoke");
 
+  // ── 0c. F1.23b: cadastrar 2, vincular um, trocar pelo outro (aceite literal da tarefa) ──
+  const parceiro2 = await prisma.parceiro.create({ data: { nome: `${tag}_parceiro2`, tipo: "PJ" } });
+  await prisma.lead.update({ where: { id: lead.id }, data: { parceiroId: parceiro2.id } });
+  const leadTrocado = await prisma.lead.findUniqueOrThrow({ where: { id: lead.id }, include: { parceiro: true } });
+  check("trocar de parceiro reflete no lead", leadTrocado.parceiro?.id === parceiro2.id);
+
+  // Arquivar tira da lista de ativos que alimenta o Select do formulário de lead — sem isso, um
+  // parceiro desligado continuaria oferecido como opção pra vincular a leads novos.
+  await prisma.parceiro.update({ where: { id: parceiro.id }, data: { ativo: false } });
+  const ativosComTag = await prisma.parceiro.findMany({
+    where: { ativo: true, nome: { in: [parceiro.nome, parceiro2.nome] } },
+  });
+  check("parceiro arquivado some da lista de ativos", ativosComTag.length === 1 && ativosComTag[0].id === parceiro2.id);
+  // Mas o lead já vinculado ao parceiro arquivado continua resolvendo o nome — não é soft delete.
+  const parceiroArquivadoAindaResolve = await prisma.parceiro.findUnique({ where: { id: parceiro.id } });
+  check("parceiro arquivado continua existindo/resolvível (não some, só sai do Select)", parceiroArquivadoAindaResolve?.ativo === false);
+
   // ── 1. criarPropostaDeLead: converte o lead em cliente e numera a proposta ──
   const { proposta, criouCliente } = await criarPropostaDeLead(
     { leadId: lead.id, titulo: `${tag}_proposta` },
@@ -240,6 +257,7 @@ async function main() {
   if (criouCliente) await prisma.cliente.delete({ where: { id: proposta.clienteId } });
   await prisma.campanha.delete({ where: { id: campanha.id } });
   await prisma.parceiro.delete({ where: { id: parceiro.id } });
+  await prisma.parceiro.delete({ where: { id: parceiro2.id } });
 
   console.log(ok ? "\nSmoke do CRM Fase 1: OK" : "\nSmoke do CRM Fase 1: FALHOU");
   if (!ok) process.exitCode = 1;

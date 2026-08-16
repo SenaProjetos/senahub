@@ -109,10 +109,12 @@ Consequência operacional para este plano: **toda fase declara o que entrega que
 |---|---|---|---|---|---|---|---|---|
 | F1.23 | `Lead`: `responsavelId` (só atribuição/exibição — ADR-15 **não** é gate), `canalId`, `origemDetalhada`, `campaignId` + model `Campanha` (UI dela só na Fase 4) | F1.5, F1.8 | `prisma validate`; os 8 leads recebem `responsavelId = autorId` (Q4) e canal `Outro` com `origem` preservada em `origemDetalhada` (03-mig §3) | #m1, #m4 | ⚠️ toca os 8 leads | S | **M** | browser |
 | **F1.23a** | Model `Parceiro` (nome, tipo PF/PJ, documento, email, telefone, observacao, ativo, `excluidoEm`) + `Lead.parceiroId` + `Negociacao.parceiroId` + índices. **Sem campo de comissão** — a regra não foi decidida (ADR-19) | F1.23 | `prisma validate`; criar parceiro e vincular a um lead; `@@index([parceiroId])` presente | #13 | | S | **M** | — |
-| **F1.23b** | CRUD de parceiros (lista + dialog) e seleção **por lista** no form de lead/negociação — nunca texto livre, que é a razão de a entidade existir | F1.23a | cadastrar 2 parceiros, vincular um a um lead, trocar pelo outro; digitar nome livre **não** é possível | #13 | | S | **seed** (permissão) | browser |
+| **F1.23b** | CRUD de parceiros (lista + dialog) e seleção **por lista** no form de lead/negociação — nunca texto livre, que é a razão de a entidade existir | F1.23a | cadastrar 2 parceiros, vincular um a um lead, trocar pelo outro; digitar nome livre **não** é possível | #13 | | S | — ¹ | browser |
 | **F1.23c** | Relatório "negócios por parceiro": contagem e valor por parceiro, respeitando os filtros da lista | F1.23b, F6.3 | com 2 parceiros e 3 negociações, os totais batem com a soma conferida à mão. **Comissão NÃO é calculada** — ver ADR-19 | #13 | | S | — | browser |
 | F1.24 | **Remover o código do `Oportunidade` órfão**: `src/modules/comercial/oportunidades/`, `components/comercial/oportunidades-view.tsx`, rota `/comercial/oportunidades`, entrada de nav. **A tabela fica** (ver §8.1) | F1.3 | `grep -rn "oportunidade" src/ --include=*.tsx -i` não acha view/rota; `next build` limpo; `/comercial/oportunidades` retorna 404 | 03-mig §6 | | H | — | browser |
 | F1.25 | Fecho da fase: `npm run lint` · `npm test` · `npm run build` · `scripts/smoke-crm-fase1.ts` | todas | os 4 verdes, colados no `06-progresso.md` | — | | H | — | smoke |
+
+¹ **Correção (F1.23b, 2026-08-16):** a linha original marcava `Mig/Seed = seed (permissão)`, contradizendo o §5 deste mesmo arquivo ("nenhum recurso ou ação nova entra no `permissions-catalog.ts` em nenhuma das 7 fases"). Implementado: CRUD de `Parceiro` reusa `comercial:gerir`, igual a toda outra action do módulo — nenhuma permissão nova, nenhum seed. §5 estava certo; a célula da linha, desatualizada.
 
 ---
 

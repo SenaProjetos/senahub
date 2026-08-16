@@ -34,7 +34,13 @@ import { brlInteiro } from "@/lib/utils";
 /** Sentinela para "sem filtro" nos Selects (base-ui não aceita value vazio). */
 const TODOS = "__todos";
 
-export function FunilBoard({ etapas }: { etapas: EtapaFunil[] }) {
+export function FunilBoard({
+  etapas,
+  parceiros,
+}: {
+  etapas: EtapaFunil[];
+  parceiros: { id: string; nome: string }[];
+}) {
   const router = useRouter();
   const setParams = useSetParams();
   const searchParams = useSearchParams();
@@ -156,6 +162,7 @@ export function FunilBoard({ etapas }: { etapas: EtapaFunil[] }) {
         open={dialogLead !== null}
         onOpenChange={(o) => !o && setDialogLead(null)}
         etapas={etapas.map((e) => ({ id: e.id, nome: e.nome }))}
+        parceiros={parceiros}
       />
 
       <MotivoPerdaDialog

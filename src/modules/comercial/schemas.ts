@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { validarCpfCnpj } from "@/lib/documento";
 
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
 
@@ -12,6 +13,9 @@ export const criarLeadSchema = z.object({
   valorEstimado: z.number().nonnegative().optional(),
   etapaId: z.string().min(1, "Selecione a etapa."),
   observacoes: opt(z.string()),
+  /// F1.23a (ADR-19): SEMPRE um id do catálogo `Parceiro`, nunca texto — o Select do formulário
+  /// não oferece opção de digitar. `""` = sem parceiro (sentinel `SEM_PARCEIRO` no dialog).
+  parceiroId: opt(z.string()),
 });
 export const editarLeadSchema = criarLeadSchema.extend({ id: z.string().min(1) });
 export const moverLeadSchema = z.object({
@@ -99,3 +103,23 @@ export const statusPropostaSchema = z.object({
 });
 
 export type SalvarPropostaInput = z.infer<typeof salvarPropostaSchema>;
+
+// ── Parceiros (F1.23a/b, ADR-19) ────────────────────────────────
+/** Documento opcional, mas se preenchido deve ser CPF/CNPJ válido — mesma regra do Cliente. */
+const parceiroDocValido = (d: { documento?: string }) =>
+  !d.documento?.trim() || validarCpfCnpj(d.documento);
+const parceiroDocMsg = { message: "CPF/CNPJ inválido.", path: ["documento"] };
+
+const parceiroBase = {
+  nome: z.string().min(2, "Informe o nome."),
+  tipo: z.enum(["PF", "PJ"]),
+  documento: opt(z.string()),
+  email: opt(z.string().email("E-mail inválido.")),
+  telefone: opt(z.string()),
+  observacao: opt(z.string()),
+};
+export const criarParceiroSchema = z.object(parceiroBase).refine(parceiroDocValido, parceiroDocMsg);
+export const editarParceiroSchema = z
+  .object({ id: z.string().min(1), ...parceiroBase })
+  .refine(parceiroDocValido, parceiroDocMsg);
+export const parceiroIdSchema = z.object({ id: z.string().min(1) });

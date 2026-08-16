@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
-import { obterLead, funilCompleto } from "@/modules/comercial/queries";
+import { obterLead, funilCompleto, parceirosAtivos } from "@/modules/comercial/queries";
 import type { LeadItem } from "@/modules/comercial/queries";
 import { LeadDetalheView } from "@/components/comercial/lead-detalhe-view";
 
@@ -14,7 +14,7 @@ export default async function LeadDetalhePage({
 }) {
   await requirePermission("comercial", "ver");
   const { id } = await params;
-  const [lead, etapas] = await Promise.all([obterLead(id), funilCompleto()]);
+  const [lead, etapas, parceiros] = await Promise.all([obterLead(id), funilCompleto(), parceirosAtivos()]);
   if (!lead) notFound();
 
   // Normaliza p/ o shape de LeadItem usado pelo modal/cards
@@ -31,6 +31,7 @@ export default async function LeadDetalhePage({
       etapaAtual={{ id: lead.etapa.id, nome: lead.etapa.nome, cor: lead.etapa.cor }}
       etapas={etapas.map((e) => ({ id: e.id, nome: e.nome }))}
       propostas={lead.propostas}
+      parceiros={parceiros}
     />
   );
 }

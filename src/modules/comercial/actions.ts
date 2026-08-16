@@ -25,6 +25,9 @@ import {
   alternarEtapaSchema,
   adicionarAnexoLeadSchema,
   removerAnexoLeadSchema,
+  criarParceiroSchema,
+  editarParceiroSchema,
+  parceiroIdSchema,
 } from "@/modules/comercial/schemas";
 import { removerArquivo } from "@/lib/storage";
 import { etapaEhPerdido } from "@/modules/comercial/status";
@@ -39,14 +42,37 @@ const base = { modulo: "comercial", recurso: "comercial", permissao: "gerir" } a
 const rev = () => {
   revalidatePath("/comercial");
   revalidatePath("/comercial/propostas");
+  revalidatePath("/comercial/parceiros");
 };
+
+/**
+ * Valida `parceiroId` recebido do cliente antes de gravar no Lead — mesmo padrão de `moverLead`
+ * validando `etapaId` (existência, não "está ativo": um lead já vinculado a um parceiro
+ * arquivado continua legítimo, e `moverLead` também não checa se a etapa está ativa).
+ *
+ * Sem isto o Zod (`opt(z.string())`) deixa passar qualquer string — Server Action aceita payload
+ * arbitrário do cliente, então "nunca texto livre" seria garantido só pelo Select, não pelo
+ * servidor. Sem a checagem, um id que não existe vira `P2003` (violação de FK) e o
+ * `defineAction` devolve "erro inesperado" em vez da mensagem de negócio.
+ */
+async function validarParceiroId(parceiroId: string | undefined): Promise<string | null> {
+  if (!parceiroId) return null;
+  const existe = await prisma.parceiro.findUnique({ where: { id: parceiroId }, select: { id: true } });
+  if (!existe) throw new ActionError("Parceiro não encontrado.");
+  return parceiroId;
+}
 
 // ── Leads ─────────────────────────────────────────────────────
 export const criarLead = defineAction(
   { ...base, acao: "criar-lead", entidade: "Lead", schema: criarLeadSchema },
   async (i) => {
     const lead = await prisma.lead.create({
-      data: { ...i, email: i.email || null, valorEstimado: i.valorEstimado },
+      data: {
+        ...i,
+        email: i.email || null,
+        valorEstimado: i.valorEstimado,
+        parceiroId: await validarParceiroId(i.parceiroId),
+      },
     });
     rev();
     return { id: lead.id };
@@ -59,7 +85,10 @@ export const editarLead = defineAction(
     const { id, ...rest } = i;
     await prisma.lead.update({
       where: { id },
-      data: { ...rest, email: rest.email || null },
+      // `parceiroId: null` explicito -- no update do Prisma, `undefined` significa "nao mexe",
+      // entao trocar pra "sem parceiro" (sentinel SEM_PARCEIRO no dialog) precisa mandar `null`
+      // de verdade, senao o campo fica preso no valor antigo.
+      data: { ...rest, email: rest.email || null, parceiroId: await validarParceiroId(rest.parceiroId) },
     });
     rev();
     return { id };
@@ -290,6 +319,56 @@ export const editarTabelaPreco = defineAction(
       }),
     ]);
     revalidatePath("/comercial/tabelas");
+    return { id: i.id };
+  },
+);
+
+// ── Parceiros (F1.23b, ADR-19) ───────────────────────────────────
+function normalizarParceiro<T extends { documento?: string; email?: string; telefone?: string; observacao?: string }>(
+  input: T,
+) {
+  return {
+    ...input,
+    documento: input.documento || null,
+    email: input.email || null,
+    telefone: input.telefone || null,
+    observacao: input.observacao || null,
+  };
+}
+
+export const criarParceiro = defineAction(
+  { ...base, acao: "criar-parceiro", entidade: "Parceiro", schema: criarParceiroSchema },
+  async (i) => {
+    const p = await prisma.parceiro.create({ data: normalizarParceiro(i) });
+    rev();
+    return { id: p.id };
+  },
+);
+
+export const editarParceiro = defineAction(
+  { ...base, acao: "editar-parceiro", entidade: "Parceiro", schema: editarParceiroSchema },
+  async (i) => {
+    const { id, ...rest } = i;
+    await prisma.parceiro.update({ where: { id }, data: normalizarParceiro(rest) });
+    rev();
+    return { id };
+  },
+);
+
+export const arquivarParceiro = defineAction(
+  { ...base, acao: "arquivar-parceiro", entidade: "Parceiro", schema: parceiroIdSchema },
+  async (i) => {
+    await prisma.parceiro.update({ where: { id: i.id }, data: { ativo: false } });
+    rev();
+    return { id: i.id };
+  },
+);
+
+export const reativarParceiro = defineAction(
+  { ...base, acao: "reativar-parceiro", entidade: "Parceiro", schema: parceiroIdSchema },
+  async (i) => {
+    await prisma.parceiro.update({ where: { id: i.id }, data: { ativo: true } });
+    rev();
     return { id: i.id };
   },
 );

@@ -55,18 +55,24 @@ type Form = {
   valorEstimado: string;
   etapaId: string;
   observacoes: string;
+  parceiroId: string;
 };
+
+/** Sentinela pro Select de parceiro (base-ui não aceita value vazio) — F1.23a. */
+const SEM_PARCEIRO = "nenhum";
 
 export function LeadDialog({
   lead,
   open,
   onOpenChange,
   etapas,
+  parceiros,
 }: {
   lead: LeadItem | null;
   open: boolean;
   onOpenChange: (o: boolean) => void;
   etapas: { id: string; nome: string }[];
+  parceiros: { id: string; nome: string }[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -79,6 +85,7 @@ export function LeadDialog({
     valorEstimado: "",
     etapaId: etapas[0]?.id ?? "",
     observacoes: "",
+    parceiroId: SEM_PARCEIRO,
   };
   const deLead = (l: LeadItem): Form => ({
     nome: l.nome,
@@ -89,6 +96,7 @@ export function LeadDialog({
     valorEstimado: l.valorEstimado != null ? String(Number(l.valorEstimado)) : "",
     etapaId: l.etapaId,
     observacoes: l.observacoes ?? "",
+    parceiroId: l.parceiro?.id ?? SEM_PARCEIRO,
   });
   const [form, setForm] = useState<Form>(lead ? deLead(lead) : vazio);
   const [nota, setNota] = useState("");
@@ -114,6 +122,7 @@ export function LeadDialog({
       valorEstimado: form.valorEstimado ? Number(form.valorEstimado) : undefined,
       etapaId: form.etapaId,
       observacoes: form.observacoes,
+      parceiroId: form.parceiroId === SEM_PARCEIRO ? "" : form.parceiroId,
     };
     start(async () => {
       if (!lead) {
@@ -268,6 +277,25 @@ export function LeadDialog({
                 onChange={(e) => set("origem", e.target.value)}
                 placeholder="indicação, site…"
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Parceiro (indicação)</Label>
+              <Select
+                value={form.parceiroId}
+                onValueChange={(v) => set("parceiroId", v ?? SEM_PARCEIRO)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SEM_PARCEIRO}>Sem parceiro</SelectItem>
+                  {parceiros.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div className="space-y-1.5">

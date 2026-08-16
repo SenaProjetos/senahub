@@ -24,11 +24,13 @@ export function LeadDetalheView({
   etapaAtual,
   etapas,
   propostas,
+  parceiros,
 }: {
   lead: LeadItem;
   etapaAtual: Etapa;
   etapas: { id: string; nome: string }[];
   propostas: PropostaResumo[];
+  parceiros: { id: string; nome: string }[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -101,6 +103,7 @@ export function LeadDetalheView({
               <Linha icon={Mail} label="E-mail" valor={lead.email} />
               <Linha icon={Phone} label="Telefone" valor={lead.telefone} />
               <Linha label="Origem" valor={lead.origem} />
+              <Linha label="Parceiro" valor={lead.parceiro?.nome ?? null} />
               <Linha
                 label="Valor estimado"
                 valor={lead.valorEstimado != null ? brl(Number(lead.valorEstimado)) : null}
@@ -151,7 +154,7 @@ export function LeadDetalheView({
         </div>
       </div>
 
-      <LeadDialog lead={lead} open={editar} onOpenChange={setEditar} etapas={etapas} />
+      <LeadDialog lead={lead} open={editar} onOpenChange={setEditar} etapas={etapas} parceiros={parceiros} />
     </div>
   );
 }
