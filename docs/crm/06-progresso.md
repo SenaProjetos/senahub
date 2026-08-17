@@ -638,6 +638,29 @@ Verificação final de Fase 1: 26 tasks, 0 trava.
 
 ---
 
+**Deploy em produção + backfill F1.23 · 2026-08-16 · Sonnet**
+
+Deploy do commit `66e30b2` (Fase 1 fechada) em produção, via menu (`gerenciar-servidor.ps1`,
+opção 10): `git pull` → `npm ci` → `npm run build` → backup → `npx prisma migrate deploy`
+(migration `20260816090000_crm_lead_campanha_parceiro`, só coluna nullable + tabela nova, sem
+dado tocado) → `npm run db:seed` (idempotente) → restart do serviço. Sem downtime fora do
+restart.
+
+Em seguida, `npx tsx scripts/backfill-lead-f123.ts --gravar` rodado manualmente (só depois do
+`db:seed`, porque depende de `canal_aquisicao` ter a linha "Outro"): preenche
+`canalId`/`origemDetalhada` (via `Lead.origem` legado) e `responsavelId` (via `AuditLog`
+`criar-lead` por proximidade de horário, fallback `AtividadeLead.autorId`) dos 8 leads reais.
+Rodado primeiro em `--dry-run` (padrão sem flag), conferido contra a saída esperada, depois
+`--gravar`. **8/8 leads, 0 sem sinal nos dois passos** — bate exatamente com o dry-run.
+
+**Arquivos:** nenhum (execução, não código).
+
+**Pendente:** F1.15/F1.16/F1.21 (fusão manual de 3 grupos de cliente duplicado, índice único de
+CNPJ, consolidação de 24 grafias de disciplina) seguem fora deste ciclo — decisão já registrada
+(linha 351-353 deste arquivo) de rodar em bloco depois.
+
+---
+
 **Verificação:** 193 arquivos, 1972 testes verdes · lint limpo · tsc só os 2 pré-existentes ·
 `migrate status` limpo (162 migrations).
 
