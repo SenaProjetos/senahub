@@ -5,12 +5,19 @@ Onda D implementadas e mergeadas em `dev`** (§15.8-15.18, commit `6eb6762`, tag
 resolve por `permissaoEfetiva`, `registrarBatida` já restrito a `CLT_ROLES`, nav já é `permissao`+`tipo`.
 **Onda E parcial** (tag v1.10.0): `EscalaContratacao` criada, jornada já resolve por contratação;
 falta o passo 4 (dropar `EscalaRole`) e migrar a tela, que dependem do ciclo em sombra pós-flip.
-**Pendência real, fora do código:** o **Deploy 2** (a virada de autorização em produção — religar
-`can()`, rodar `materializar-escala-usuario.ts`, reconferir os 2 gates, ver
-`docs/RUNBOOK-ATIVAR-VINCULOS-PERFIS.md`) **não tem confirmação de execução em produção** desde que
-o Deploy 1 (Fase 0 + Onda B) rodou em 2026-08-09. `dev` avançou muito desde então (Onda E + Fase 1
-inteira do CRM comercial), então o próximo deploy carrega os dois de uma vez. Onda F (poda de
-`Permissao`/`User.role`/`enum Role`) não começou — gate é 1-2 meses de produção estável pós-flip.
+**Deploy 2 — CONCLUÍDO em 2026-08-19, com um achado.** O status anterior deste cabeçalho dizia que
+ele "não tem confirmação de execução"; **meio certo**. O *código* da virada foi a produção junto com
+o deploy de 2026-08-09 (`6eb6762` entrou em `master` naquele dia), e `can()` resolve por
+`permissaoEfetiva` em produção desde então. O que **não** tinha rodado era o **passo 2 do runbook**
+(`backfill-perfis-acesso.ts` depois do `db:seed`) — e por 10 dias o sócio ficou sem `escopo:global`,
+enxergando só os projetos dele. Perda silenciosa: sem erro, sem log, só menos coisa na tela.
+Causa: `escopo:global` só entrou no catálogo NA Onda D (`414ed95`), então o backfill do Deploy 1 não
+tinha esse par para migrar — é exatamente o motivo de o runbook mandar rodá-lo **de novo** no Deploy 2.
+Corrigido em 2026-08-19: 1 override criado, gate de permissões de volta às **7 perdas previstas**
+(as intencionais de escrita do sócio) com os 5 ganhos cobertos pela allowlist, e gate de jornada
+**idêntico para os 26 usuários**. Post-mortem em `docs/RUNBOOK-ATIVAR-VINCULOS-PERFIS.md` §Deploy 2.
+Onda F (poda de `Permissao`/`User.role`/`enum Role`) não começou — gate é 1-2 meses de produção
+estável pós-flip, contados **de 2026-08-09** (quando o código virou), não de agora.
 · **Branch:** `dev`
 
 Deliberado por conselho de 4 cadeiras (Gerente de RH, Dev Sênior, Diretor, Usuária final), duas rodadas:

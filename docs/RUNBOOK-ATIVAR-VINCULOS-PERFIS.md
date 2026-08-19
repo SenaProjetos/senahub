@@ -52,6 +52,33 @@ Os números da coluna da direita não são estimativa: saíram do ensaio
 
 ## ⚠ DEPLOY 2 — a virada da autorização (Onda D)
 
+> ## ✅ CONCLUÍDO em 2026-08-19 — os dois gates verdes. Leia o post-mortem abaixo antes de reusar.
+>
+> O **código** da virada foi para produção junto com o deploy de 2026-08-09 (commit `6eb6762` entrou
+> em `master` naquele dia e todo deploy posterior o carregou). Mas o **passo 2 desta seção — rodar
+> `backfill-perfis-acesso.ts` depois do `db:seed` — nunca foi executado**, e passou 10 dias assim.
+>
+> **Consequência, silenciosa:** o sócio ficou sem `escopo:global` e enxergou só os projetos dele —
+> sem erro em tela, sem log, só menos coisa aparecendo. O gate de equivalência acusava 9 perdas em
+> vez das 7 previstas; as 2 sobrando eram `escopo:global` pelos dois caminhos de avaliação.
+>
+> **Por que o Deploy 1 não bastou, e é o ponto a lembrar:** `escopo:global` só passou a existir no
+> catálogo NA Onda D (commit `414ed95`) — antes disso o escopo de dados vivia hardcoded em
+> `GLOBAL_ROLES`/`ehSocio`. O backfill só materializa pares que existem no catálogo
+> (`conhecidoNoCatalogo`), então quando ele rodou no Deploy 1 esse item ainda não existia para ser
+> migrado. **É exatamente por isso que este passo 2 manda rodar o mesmo backfill de novo, depois do
+> seed** — e é por isso que ele é idempotente. Rodar o backfill uma vez só, no deploy anterior, não
+> substitui rodá-lo aqui.
+>
+> **Corrigido em 2026-08-19:** backfill rodado, 1 override criado (`escopo:global`; os outros 5 do
+> piso de sócio já existiam desde o Deploy 1). Gate de permissões voltou às **7 perdas previstas**,
+> com os 5 ganhos cobertos pela allowlist. Gate de jornada: **idêntico para os 26 usuários**.
+>
+> **Ao ler o dry-run deste backfill, não se assuste com o número:** ele conta os "faltantes" contra a
+> matriz do PERFIL do usuário, não contra os overrides já existentes — então reporta os mesmos 6 para
+> o sócio existindo override ou não. Quem desduplica é o `upsert` com `update: {}`. Para saber o que
+> realmente falta, o instrumento é o `checar-equivalencia-permissoes.ts`, não a contagem do dry-run.
+
 Os passos abaixo (0 a 6) são do **Deploy 1**, já executado em 2026-08-09. O Deploy 2 é o que
 **religa a autorização** no motor de Perfil de acesso. A partir dele, `role` deixa de decidir
 acesso.
