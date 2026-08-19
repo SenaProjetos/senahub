@@ -152,7 +152,7 @@ normalizado**, todos reais:
 | Grupo | Registros | Observação |
 |---|---|---|
 | `madano` | `MADANO` (2×) | Ambos sem documento |
-| `zaphis incorporadora` | `Záphis Incorporadora` (3×) | Todos sem documento |
+| `zaphis incorporadora` | `Záphis Incorporadora` (3×) | Todos sem documento. ⚠️ **Corrigido em 2026-08-19 (F1.15):** há um **4º** registro da mesma empresa, `Zaphis Inc LTDA` (CNPJ `40.817.865/0001-60`), que **não casou na normalização de nome** — "Inc" não é tratado como forma de "Incorporadora". É ele que tem os 2 projetos, e é ele que sobrevive. Achado na conferência manual exigida por este mesmo §4; mesma empresa confirmada pelo usuário a partir do lead "EDIF. ISA BEACH" contra o projeto `260030 · ISA BEACH 2` |
 | `nominal engenharia` | `NOMINAL ENGENHARIA` (sem doc) + `Nominal Engenharia LTDA` (CNPJ `66403270000151`) | A fusão **preenche** o documento que faltava |
 
 A normalização se provou aqui: casar `NOMINAL ENGENHARIA` com `Nominal Engenharia LTDA` exigiu remover o
@@ -184,6 +184,16 @@ de obra para o cliente errado.
 > `ItemTabelaPreco.disciplina` são strings livres, e é por isso que existem 24 grafias.
 
 Das 24 grafias de produção, **18 já batem exatamente** com o catálogo. Só **6** precisam de tratamento:
+
+> ⚠️ **Recontagem em 2026-08-19 (F1.15/F1.16), contra produção:** olhando só `Disciplina.nome`, que é o que
+> resta consolidar, são **18 grafias distintas** — **12 batem exatas** e **6 precisam de tratamento** (as 6 da
+> tabela abaixo, todas confirmadas). O "24 / 18 exatas" somava as três tabelas; `PropostaItem` e
+> `ItemTabelaPreco` já foram resolvidos por F1.19/F1.20 e hoje estão com **0 registros sem `disciplinaId`**.
+> O catálogo tem **18** entradas, não 20.
+>
+> ⚠️ **E falta a FK:** `Disciplina` **não tem** `disciplinaId` nem `disciplinaTextoLegado` — F1.19 cobriu
+> `PropostaItem`, F1.20 cobriu `ItemTabelaPreco`, e ninguém cobriu `Disciplina`. Sem isso o aceite da F1.21
+> não tem como ser cumprido. Registrado como **F1.19c** no `04-plano-fases.md`.
 
 | Grafia em produção | Onde | Vira | Observação |
 |---|---|---|---|
@@ -220,6 +230,19 @@ revisões e os arquivos — decisão que o script não tem como tomar.
 **São 3 projetos.** Tratar à mão, com o responsável pelo projeto junto, decidindo caso a caso se
 desmembra (e como rateia) ou se mantém como uma disciplina só com o nome corrigido.
 
+**Levantamento de 2026-08-19 — o que cada uma carrega de fato:**
+
+| Grafia | Projeto | Cliente | `valor` | Revisões | Uploads | Responsáveis |
+|---|---|---|---|---|---|---|
+| `Dados/Voz, Automação e CFTV` | `260023 · BFF'S LOUNGE - EASY MALL - TORRE` | Renata Calheiros | **NULL** | **2** | 18 | 1 |
+| `Lógica e Cftv` | `260014 · CLINICA GASTROCLINICA ILHA DO LEITE` | Tecomat Engenharia Ltda | **NULL** | 0 | 12 | 1 |
+| `Lógica/cftv` | `260020 · ESCOLA IGNACIA SURUBIM` | Prefeitura Municipal de Surubim | **NULL** | 0 | 8 | 1 |
+
+**Boa notícia: o rateio de `valor` não existe.** As três estão com `valor = NULL`, então a decisão mais
+espinhosa que este §5 antecipava — dividir a base de pagamento ao projetista — **não se aplica a nenhuma das
+três**. O que continua exigindo decisão humana é o destino dos **38 uploads** e das **2 revisões** do projeto
+260023: desmembrar em `Cabeamento` + `CFTV` obriga a dizer para qual das duas vai cada arquivo.
+
 ### Como aplicar o resto
 
 As outras 21 grafias (18 exatas + as 3 que colapsam) ganham FK para a entrada correspondente do
@@ -248,9 +271,9 @@ há itens. Provar que zero continua zero não prova nada. O que de fato tem valo
 
 ### Nada pode sumir
 
-- [ ] `projeto` = **31** — é onde está o trabalho real do escritório
-- [ ] `cliente` = **46**, ou menos **exatamente** pelo número de fusões do §4 (esperado: 46 − 3 = 43 se
-      as 3 fusões colapsarem um par cada; conferir o número exato contra o `AuditLog` das fusões)
+- [ ] `projeto` = **32** — é onde está o trabalho real do escritório. (Eram 31 na auditoria de 2026-08-14; medido em 32 em 2026-08-19. O invariante que vale é **não mudar durante a fusão**, não o número absoluto.)
+- [ ] `cliente` = **46 linhas na tabela, sempre** — a fusão arquiva (`fundidoEmId`), **não apaga**. O que cai é
+      o número de **não-fundidos**: 46 → **41**, por 5 fusões (MADANO 1 + Záphis 3 + Nominal 1). A conta "46 − 3 = 43" do texto original supunha um par por grupo e não sobrevive ao 4º Záphis; conferir sempre contra o `AuditLog` das fusões, como este item já mandava
 - [ ] `lead` = **8** — os leads não são apagados, viram `Negociacao` mantendo o registro de origem
 - [ ] `anexo_lead` = **4**, e os 4 arquivos continuam abrindo (apontam para `STORAGE_BASE_PATH`)
 - [ ] `tabela_preco` = 1, com seus itens

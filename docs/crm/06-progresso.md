@@ -20,6 +20,125 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## Fase 1 em produção — F1.15 + F1.16 · 2026-08-19 · Opus
+
+As duas tarefas de produção que faltavam da Fase 1. **F1.21 não foi executada** — está bloqueada
+por uma lacuna do próprio backlog, registrada como **F1.19c** (ver abaixo).
+
+**Feito:**
+
+**F1.15 — fusão dos grupos duplicados** (`scripts/fundir-clientes-f115.ts`)
+- **5 fusões, não 3.** O aceite dizia "3 entradas no AuditLog" supondo um par por grupo; Záphis
+  absorve 3. `cliente` mantém **46 linhas** (a fusão arquiva, não apaga) e cai de 46 para **41
+  não-fundidos**. `projeto` **32 → 32**, com **1** projeto mudando de cliente — o previsto.
+- ⚠️ **O grupo Záphis tinha um 4º registro que o `03-migracao.md` §4 não conhecia.** `Zaphis Inc
+  LTDA` (CNPJ `40.817.865/0001-60`) não casou na normalização de nome — "Inc" não é tratado como
+  forma de "Incorporadora" — e só apareceu na conferência manual que o próprio §4 exige. É ele
+  que tem os 2 projetos (`260001`, `260030`) e o CNPJ, então vence os três critérios e sobrevive.
+  Que é a mesma empresa foi decisão do usuário, com a evidência do lead "EDIF. ISA BEACH" contra
+  o projeto `260030 · ISA BEACH 2`. Sem isso a fusão teria deixado a empresa partida em dois.
+- **A inversão do critério no grupo Nominal é deliberada** e move obra: quem tem o projeto
+  `260031 · SESI ARAÇUAI - FIEMG` é o registro SEM documento, que foi absorvido. O §4 manda o
+  critério (2) decidir ali, e é essa fusão que preenche o CNPJ que destrava a F1.16.
+- IDs **hardcoded e revalidados** contra nome/documento antes de qualquer escrita, em vez de
+  resolvidos por `LIKE` em tempo de execução: entre o dry-run e o `--gravar` alguém pode cadastrar
+  um cliente parecido, e o alvo mudaria em silêncio.
+- A prova do aceite é um retrato de `projeto.id → clienteId` **inteiro** antes/depois, não a
+  contagem: `projeto` continuaria 32 mesmo se uma obra fosse parar na empresa errada.
+
+**F1.16 — documento único** (`scripts/normalizar-documento-f116.ts` + migration
+`20260819120000_crm_cliente_documento_unico`)
+- ⚠️ **A migration teria falhado como estava escrita no backlog.** 2 clientes PF ("Bruno",
+  "Roberto Barros") tinham `documento = ''`, e string vazia **não é NULL** — o predicado
+  `WHERE documento IS NOT NULL` pega o `''`, os dois colidem e o `CREATE UNIQUE INDEX` aborta.
+- E o índice sozinho seria meia garantia: 4 dos 28 documentos preenchidos estavam pontuados
+  (`40.817.865/0001-60`) contra 24 só com dígitos. Para o índice são valores distintos, então o
+  mesmo CNPJ passaria duas vezes. Os 6 foram normalizados por `normalizarDocumento` — a mesma
+  função que a F1.12 usa para detectar duplicata — e `actions.ts` passa a gravar já normalizado.
+- Mensagem de negócio (ADR-03) diz **em qual cliente** o documento já está, e cobre o caso
+  confuso: cliente excluído ou já fundido continua ocupando o documento (o índice não sabe de
+  soft delete), então a leitura usa o escape hatch `excluidoEm: { not: undefined }`. Há ainda um
+  laço P2002 para a corrida entre a checagem e o `INSERT`.
+
+**F1.21 — NÃO executada, e o motivo é uma lacuna do backlog**
+- **`Disciplina` não tem `disciplinaId` nem `disciplinaTextoLegado`.** F1.19 pôs a FK em
+  `PropostaItem`, F1.20 em `ItemTabelaPreco`, e **nenhuma tarefa pôs em `Disciplina`** — que é
+  justamente onde vivem as grafias livres. O aceite "zero `Disciplina` sem `disciplinaId`" não
+  tem como ser cumprido sem migration nova. Registrado como **F1.19c** no `04-plano-fases.md`;
+  exige tocar o módulo **projetos**, fora do CRM, e por isso não foi improvisado aqui.
+- Os outros dois terços do aceite **já estavam cumpridos**: `proposta_item` e `item_tabela_preco`
+  têm **0** registros sem `disciplinaId`.
+- Recontagem contra produção: são **18 grafias distintas** em `Disciplina.nome` (não 24 — aquele
+  número somava as três tabelas), **12 exatas** (não 18) e as 6 conhecidas precisando de
+  tratamento. `disciplina_catalogo` tem **18** entradas, não 20.
+- **Boa notícia para quando a F1.19c sair:** as 3 strings compostas estão todas com
+  `valor = NULL`, então o rateio do pagamento ao projetista — a decisão mais espinhosa que o §5
+  antecipava — **não se aplica a nenhuma**. O que resta decidir com o responsável é o destino dos
+  arquivos: `Dados/Voz, Automação e CFTV` (260023) carrega 2 revisões e 18 uploads,
+  `Lógica e Cftv` (260014) 12 uploads, `Lógica/cftv` (260020) 8 uploads.
+
+**Dois erros meus, pegos antes de estragarem alguma coisa:**
+1. O script de normalização reportava **0** documentos vazios quando havia 2: comparava com
+   `normalizado ?? ""`, e para `documento = ''` isso dá `'' !== ''` → falso. O único caso que
+   quebra a migration era o único a escapar da normalização. Corrigido e reconferido.
+2. O primeiro `--gravar` da fusão **abortou** procurando `user."excluidoEm"`, coluna que não
+   existe (o soft delete de F1.17/F1.18 pegou `cliente`/`lead`/`contatoCliente`, não usuários).
+   Falhou na busca do operador da auditoria, **antes** do laço de fusão — conferido contra o
+   banco, não suposto: `fundidos=0`, `auditFusao=0`, `cliente=46`, `projeto=32`. A causa é que o
+   dry-run retorna antes do bloco exclusivo do `--gravar`, então aquela query nunca era exercida;
+   as duas restantes desse bloco foram testadas em separado antes de repetir.
+
+**Ensaio, e por que não foi no banco descartável:** `restaurar-snapshot-prod.ts` exige `CREATEDB`,
+que o papel `senahub` não tem, e a senha do único superusuário (`postgres`) não estava disponível.
+Como Postgres tem **DDL transacional**, o ensaio (`scripts/ensaio-f115-f116.ts`) rodou contra o
+dado real dentro de uma transação revertida — normalização, as 5 fusões e o próprio
+`CREATE UNIQUE INDEX`, com `ROLLBACK` no fim, conferindo que nada sobrou. Passou inteiro,
+inclusive a recusa de um CNPJ repetido pelo índice. **Foi o ensaio que revelou** que a fusão do
+grupo Nominal move **7 linhas de `documento`** (Estúdio) que o dry-run não mostrava — ele contava
+só projetos/propostas/lançamentos/contatos/leads. O dry-run passou a enumerar
+`REFERENCIAS_CLIENTE` inteira: confirmar fusão sem ver tudo que se move é assinar em branco.
+Limite honesto do ensaio: replica o efeito via SQL derivado de `REFERENCIAS_CLIENTE` em vez de
+chamar `mesclarClientes()` (transação aninhada não volta atrás junto) — a função em si já é
+coberta por `smoke:crm-dedupe`.
+
+**Arquivos:** `scripts/fundir-clientes-f115.ts`, `scripts/normalizar-documento-f116.ts`,
+`scripts/ensaio-f115-f116.ts`, `scripts/smoke-crm-prod.ts` (novos),
+`prisma/migrations/20260819120000_crm_cliente_documento_unico/` (nova),
+`src/modules/clientes/actions.ts` (ADR-03), `docs/crm/03-migracao.md` (§4 o 4º Záphis, §5 a
+recontagem + o levantamento das 3 compostas, §7 as contagens), `docs/crm/04-plano-fases.md`
+(F1.19c nova; F1.15/F1.16/F1.21 com os números conferidos).
+
+**Verificação:** `smoke-crm-prod` → **17 OK · 0 falhas · 1 pulado** · `eslint` limpo ·
+`tsc --noEmit` só os 2 pré-existentes de `backup-storage.test.ts` · `vitest run` → **196 arquivos,
+2042 testes verdes** · `migrate deploy` aplicou a migration sem erro (170 migrations) ·
+`pg_restore --list` validou `senahub_20260819_030016.backup` (1624 entradas, com `lead`,
+`cliente`, `proposta`, `anexo_lead`, `projeto`).
+
+**Pendente:**
+- **Browser, do aceite da F1.16:** que a recusa do 2º CNPJ apareça como mensagem em pt-BR na
+  tela. A recusa **no banco** está provada (o ensaio tentou o INSERT duplicado e o índice barrou);
+  o que falta é a mensagem, que nenhum smoke em Prisma alcança.
+- **Build não rodado:** esta sessão é no servidor de produção, com o serviço no ar servindo
+  `.next`. Compilar aqui é passo de deploy, não de verificação.
+- **F1.19c** (FK em `Disciplina`) e, depois dela, a F1.21 de verdade — incluindo a conversa com o
+  responsável dos 3 projetos das strings compostas.
+
+**Riscos:**
+- O índice `cliente_documento_unico` **não exclui** `excluidoEm` nem `fundidoEmId` do predicado —
+  é o DDL pedido pelo ADR-03. Hoje é inofensivo (nenhum cliente arquivado tem documento), mas
+  recadastrar uma empresa cujo registro antigo foi excluído vai dar erro de duplicata. Está
+  anotado na própria migration, com onde mexer.
+- `04-plano-fases.md` e `03-migracao.md` estavam com **números de 2026-08-14** apresentados como
+  fatos atuais (`projeto = 31`, `46 → 43`, "24 grafias / 18 exatas", catálogo de 20). Foram
+  corrigidos com a data da medição, mas vale a lição: número em documento de plano envelhece, e
+  este backlog usa número como critério de aceite.
+- **O log não tem entrada nenhuma do deploy da Fase 1** (o de 2026-08-16, com o backfill da
+  F1.23). Produção estava com 169 migrations aplicadas e schema em dia quando esta sessão começou,
+  então o deploy aconteceu — só não foi registrado. Não inventei a entrada por não ter os fatos;
+  fica para quem executou.
+
+---
+
 ## Fase 1a — Dívida técnica primeiro · 2026-08-14 · Sonnet (F1.1/F1.2 Opus na decisão de modelo, executadas em Sonnet)
 
 Início da execução do backlog (`04-plano-fases.md`). F1.0 já estava feito (bullet no CLAUDE.md, P5).
