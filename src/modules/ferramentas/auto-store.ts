@@ -101,14 +101,14 @@ export async function autoStore(params: AutoStoreParams): Promise<void> {
 
   const disciplina = await prisma.disciplina.findUnique({
     where: { id: disciplinaId },
-    select: { nome: true },
+    select: { disciplinaTextoLegado: true },
   });
   if (!disciplina) return;
 
   // Mesma convenção da rota de upload: a pasta e o prefixo do arquivo usam a SIGLA do catálogo
   // (vínculo por nome, não FK), caindo no nome inteiro quando a disciplina não tem sigla.
   const cat = await prisma.disciplinaCatalogo.findFirst({
-    where: { nome: disciplina.nome },
+    where: { nome: disciplina.disciplinaTextoLegado },
     select: { codigo: true },
   });
   const siglaDisciplina = cat?.codigo ?? null;
@@ -118,7 +118,7 @@ export async function autoStore(params: AutoStoreParams): Promise<void> {
     clienteNome: projetoAcessivel.cliente.nome,
     projetoCodigo: projetoAcessivel.codigo,
     projetoNome: projetoAcessivel.nome,
-    disciplinaNome: disciplina.nome,
+    disciplinaNome: disciplina.disciplinaTextoLegado,
     siglaDisciplina,
   });
 

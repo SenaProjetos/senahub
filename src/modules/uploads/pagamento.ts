@@ -28,7 +28,7 @@ export async function liberarPagamentosProjetista(
   params: {
     disciplina: {
       id: string;
-      nome: string;
+      disciplinaTextoLegado: string;
       valor: Prisma.Decimal | number | null;
       responsaveis: ResponsavelComUser[];
       projeto: { id: string; codigo: string };
@@ -62,7 +62,7 @@ export async function liberarPagamentosProjetista(
         valor,
         tipoProfissional: r.user.role,
         projetistaNome: r.user.name,
-        disciplinaNome: disciplina.nome,
+        disciplinaNome: disciplina.disciplinaTextoLegado,
         projetoId: disciplina.projeto.id,
         projetoCodigo: disciplina.projeto.codigo,
         autorId,
@@ -108,7 +108,7 @@ export async function sincronizarPagamentosPorDisciplinaId(
     where: { id: disciplinaId },
     select: {
       id: true,
-      nome: true,
+      disciplinaTextoLegado: true,
       valor: true,
       responsaveis: { select: { userId: true, user: { select: { id: true, name: true, role: true } } } },
       projeto: { select: { id: true, codigo: true } },
@@ -138,7 +138,7 @@ export async function sincronizarPagamentosDisciplina(
   params: {
     disciplina: {
       id: string;
-      nome: string;
+      disciplinaTextoLegado: string;
       valor: Prisma.Decimal | number | null;
       responsaveis: ResponsavelComUser[];
       projeto: { id: string; codigo: string };
@@ -197,7 +197,7 @@ export async function sincronizarPagamentosDisciplina(
         valor,
         tipoProfissional: resp.user.role,
         projetistaNome: resp.user.name,
-        disciplinaNome: disciplina.nome,
+        disciplinaNome: disciplina.disciplinaTextoLegado,
         projetoId: disciplina.projeto.id,
         projetoCodigo: disciplina.projeto.codigo,
         autorId,
@@ -240,7 +240,7 @@ export async function sincronizarPagamentosDisciplina(
       valor,
       tipoProfissional: resp.user.role,
       projetistaNome: resp.user.name,
-      disciplinaNome: disciplina.nome,
+      disciplinaNome: disciplina.disciplinaTextoLegado,
       projetoId: disciplina.projeto.id,
       projetoCodigo: disciplina.projeto.codigo,
       autorId,

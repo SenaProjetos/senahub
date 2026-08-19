@@ -35,7 +35,7 @@ async function main() {
       versao: true,
       origem: true,
       createdAt: true,
-      disciplina: { select: { nome: true, projeto: { select: { codigo: true } } } },
+      disciplina: { select: { disciplinaTextoLegado: true, projeto: { select: { codigo: true } } } },
     },
     orderBy: { createdAt: "asc" },
   });
@@ -55,7 +55,7 @@ async function main() {
   console.log("por origem:", JSON.stringify(Object.fromEntries(porOrigem)));
   console.log("\nprimeiros 20:");
   for (const u of orfaos.slice(0, 20)) {
-    console.log(`  ${u.disciplina.projeto.codigo} | ${u.disciplina.nome} | ${u.nomeArquivo} | v${u.versao} | ${u.origem}`);
+    console.log(`  ${u.disciplina.projeto.codigo} | ${u.disciplina.disciplinaTextoLegado} | ${u.nomeArquivo} | v${u.versao} | ${u.origem}`);
   }
 
   if (!APLICAR) {

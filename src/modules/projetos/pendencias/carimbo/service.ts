@@ -232,7 +232,7 @@ export async function carimbarPrancha(uploadId: string, posicoes: PosicaoPin[] =
       validadoEm: true,
       documentoId: true,
       validadoPor: { select: { name: true } },
-      disciplina: { select: { nome: true, projeto: { select: { codigo: true, nome: true } } } },
+      disciplina: { select: { disciplinaTextoLegado: true, projeto: { select: { codigo: true, nome: true } } } },
     },
   });
   if (!upload) return { erro: "Prancha não encontrada." };
@@ -318,7 +318,7 @@ export async function carimbarPrancha(uploadId: string, posicoes: PosicaoPin[] =
   const linhas: { texto: string; negrito?: boolean; cor?: ReturnType<typeof rgb> }[] = [
     { texto: "ANÁLISE DE PROJETO — SENAHUB", negrito: true },
     { texto: `${codigo} · ${upload.disciplina.projeto.nome}`.slice(0, 70) },
-    { texto: `${upload.disciplina.nome} · ${upload.nomeArquivo}`.slice(0, 70) },
+    { texto: `${upload.disciplina.disciplinaTextoLegado} · ${upload.nomeArquivo}`.slice(0, 70) },
     {
       texto: upload.validado
         ? `Liberado por ${upload.validadoPor?.name ?? "—"} em ${formatarDataHora(upload.validadoEm)}`

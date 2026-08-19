@@ -45,7 +45,7 @@ export default async function AgendaPage({
         status: { notIn: ["aprovado"] },
         projeto: { situacao: "em_andamento" },
       },
-      select: { id: true, nome: true, prazo: true, projeto: { select: { id: true, codigo: true } } },
+      select: { id: true, disciplinaTextoLegado: true, prazo: true, projeto: { select: { id: true, codigo: true } } },
     }),
     // Tarefas do usuário (responsável ou criador) com prazo no intervalo e ainda não concluídas.
     prisma.tarefa.findMany({
@@ -107,7 +107,7 @@ export default async function AgendaPage({
         })),
         ...prazosDisciplina.map((d) => ({
           data: d.prazo!.toISOString().slice(0, 10),
-          rotulo: `${d.projeto.codigo} · ${d.nome}`,
+          rotulo: `${d.projeto.codigo} · ${d.disciplinaTextoLegado}`,
           href: `/projetos/${d.projeto.id}`,
           tipo: "disciplina" as const,
         })),

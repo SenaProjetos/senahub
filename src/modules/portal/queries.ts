@@ -53,7 +53,7 @@ export async function projetoDoCliente(clienteId: string, projetoId: string) {
       endereco: true,
       disciplinas: {
         orderBy: { ordem: "asc" },
-        select: { id: true, nome: true, status: true, prazo: true },
+        select: { id: true, disciplinaTextoLegado: true, status: true, prazo: true },
       },
     },
   });
@@ -68,7 +68,7 @@ export async function projetoDoCliente(clienteId: string, projetoId: string) {
     progresso: progresso(p.disciplinas),
     disciplinas: p.disciplinas.map((d) => ({
       id: d.id,
-      nome: d.nome,
+      nome: d.disciplinaTextoLegado,
       status: d.status,
       prazo: d.prazo ? d.prazo.toISOString().slice(0, 10) : null,
     })),

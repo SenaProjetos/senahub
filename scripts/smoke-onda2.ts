@@ -61,7 +61,7 @@ async function main() {
   const disc = await prisma.disciplina.create({
     data: {
       projetoId: projeto.id,
-      nome: "Estrutural",
+      disciplinaTextoLegado: "Estrutural",
       valor: 800,
       responsaveis: { create: { userId: projetista.id } },
     },

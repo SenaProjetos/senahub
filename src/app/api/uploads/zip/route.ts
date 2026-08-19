@@ -45,7 +45,7 @@ export async function GET(req: Request) {
       pasta: { select: { caminho: true } },
       disciplina: {
         select: {
-          nome: true,
+          disciplinaTextoLegado: true,
           projetoId: true,
           responsaveis: { select: { userId: true } },
           projeto: { select: { membros: { select: { userId: true } } } },
@@ -82,7 +82,7 @@ export async function GET(req: Request) {
   }
 
   // Prefixa a disciplina no caminho só quando a seleção mistura disciplinas.
-  const multiDisc = new Set(acessiveis.map((u) => u.disciplina.nome)).size > 1;
+  const multiDisc = new Set(acessiveis.map((u) => u.disciplina.disciplinaTextoLegado)).size > 1;
 
   await logAudit({
     userId: user.id,
@@ -101,7 +101,7 @@ export async function GET(req: Request) {
       u.pastaId && u.pasta
         ? caminhoNoZipPasta(u.pasta.caminho, u.nomeArquivo)
         : caminhoNoZip(u.pacote!, u.nomeArquivo);
-    let nome = `${multiDisc ? `${slug(u.disciplina.nome)}/` : ""}${rel}`;
+    let nome = `${multiDisc ? `${slug(u.disciplina.disciplinaTextoLegado)}/` : ""}${rel}`;
     if (usados.has(nome)) {
       const i = nome.lastIndexOf(".");
       const raiz = i > 0 ? nome.slice(0, i) : nome;

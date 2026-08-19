@@ -94,10 +94,10 @@ export async function POST(req: Request) {
 
   // Refs não-nulas p/ uso dentro de closures (o narrowing do guard `!disciplina` não
   // atravessa funções aninhadas como `avisarValidadores`).
-  const { projeto, nome: disciplinaNome } = disciplina;
+  const { projeto, disciplinaTextoLegado: disciplinaNome } = disciplina;
   // Item 15: nomenclatura usa a sigla do catálogo (ex.: ELE) quando existir; senão, o nome.
   const cat = await prisma.disciplinaCatalogo.findFirst({
-    where: { nome: disciplina.nome },
+    where: { nome: disciplina.disciplinaTextoLegado },
     select: { codigo: true },
   });
   const codDisc = cat?.codigo ?? null;
@@ -106,7 +106,7 @@ export async function POST(req: Request) {
     clienteNome: projeto.cliente.nome,
     projetoCodigo: projeto.codigo,
     projetoNome: projeto.nome,
-    disciplinaNome: disciplina.nome,
+    disciplinaNome: disciplina.disciplinaTextoLegado,
     siglaDisciplina: codDisc,
   });
 

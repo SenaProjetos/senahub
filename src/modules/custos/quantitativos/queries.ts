@@ -319,15 +319,15 @@ export async function pdfsDoProjeto(projetoId: string): Promise<PdfProjeto[]> {
   const uploads = await prisma.upload.findMany({
     where: { disciplina: { projetoId }, nomeArquivo: { endsWith: ".pdf", mode: "insensitive" } },
     orderBy: [{ versao: "desc" }, { createdAt: "desc" }],
-    select: { id: true, nomeArquivo: true, disciplina: { select: { nome: true } } },
+    select: { id: true, nomeArquivo: true, disciplina: { select: { disciplinaTextoLegado: true } } },
   });
   const vistos = new Set<string>();
   const pdfs: PdfProjeto[] = [];
   for (const u of uploads) {
-    const chave = `${u.disciplina.nome}::${u.nomeArquivo.toLowerCase()}`;
+    const chave = `${u.disciplina.disciplinaTextoLegado}::${u.nomeArquivo.toLowerCase()}`;
     if (vistos.has(chave)) continue;
     vistos.add(chave);
-    pdfs.push({ uploadId: u.id, nomeArquivo: u.nomeArquivo, disciplinaNome: u.disciplina.nome });
+    pdfs.push({ uploadId: u.id, nomeArquivo: u.nomeArquivo, disciplinaNome: u.disciplina.disciplinaTextoLegado });
   }
   return pdfs.sort((a, b) => a.disciplinaNome.localeCompare(b.disciplinaNome, "pt-BR") || a.nomeArquivo.localeCompare(b.nomeArquivo, "pt-BR"));
 }

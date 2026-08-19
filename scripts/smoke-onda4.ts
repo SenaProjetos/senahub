@@ -95,7 +95,7 @@ async function main() {
         clienteId: cliente.id,
         areaM2: area,
         disciplinas: {
-          create: proposta.itens.map((it, idx) => ({ nome: it.disciplinaTextoLegado, valor: it.valor, ordem: idx })),
+          create: proposta.itens.map((it, idx) => ({ disciplinaTextoLegado: it.disciplinaTextoLegado, valor: it.valor, ordem: idx })),
         },
       },
       include: { disciplinas: true },
@@ -110,7 +110,7 @@ async function main() {
   check(
     "valores das disciplinas = valores dos itens",
     projeto.disciplinas.every((d) =>
-      proposta.itens.some((it) => it.disciplinaTextoLegado === d.nome && Number(it.valor) === Number(d.valor)),
+      proposta.itens.some((it) => it.disciplinaTextoLegado === d.disciplinaTextoLegado && Number(it.valor) === Number(d.valor)),
     ),
   );
 

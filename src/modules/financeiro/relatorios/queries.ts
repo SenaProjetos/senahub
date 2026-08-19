@@ -495,14 +495,14 @@ export type CustoDisciplina = { disciplinaId: string; nome: string; projeto: str
 export async function custoPorDisciplina(de: Date, ate: Date): Promise<CustoDisciplina[]> {
   const pagamentos = await prisma.pagamentoProjetista.findMany({
     where: { liberadoEm: { gte: de, lte: ate } },
-    include: { disciplina: { select: { id: true, nome: true, valor: true, projeto: { select: { codigo: true, nome: true } } } } },
+    include: { disciplina: { select: { id: true, disciplinaTextoLegado: true, valor: true, projeto: { select: { codigo: true, nome: true } } } } },
   });
   const mapa = new Map<string, CustoDisciplina>();
   for (const p of pagamentos) {
     const d = p.disciplina;
     const cur =
       mapa.get(d.id) ??
-      { disciplinaId: d.id, nome: d.nome, projeto: `${d.projeto.codigo} ${d.projeto.nome}`, orcado: Number(d.valor ?? 0), pago: 0, saldo: 0 };
+      { disciplinaId: d.id, nome: d.disciplinaTextoLegado, projeto: `${d.projeto.codigo} ${d.projeto.nome}`, orcado: Number(d.valor ?? 0), pago: 0, saldo: 0 };
     cur.pago += Number(p.valor);
     mapa.set(d.id, cur);
   }

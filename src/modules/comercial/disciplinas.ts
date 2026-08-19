@@ -4,7 +4,7 @@
  * projeto gerado vai conter — por isso vive aqui, testado, e não inline na transação.
  */
 
-export type DisciplinaNova<V> = { nome: string; valor: V; ordem: number };
+export type DisciplinaNova<V> = { disciplinaTextoLegado: string; valor: V; ordem: number };
 
 /** O mínimo para resolver o nome de uma disciplina de item de proposta (F1.19). */
 export type ItemComDisciplina = {
@@ -40,9 +40,11 @@ export function disciplinasDeItens<V>(
   itens: (ItemComDisciplina & { valor: V })[],
 ): DisciplinaNova<V>[] {
   return itens.map((it, idx) => ({
-    // Prefere o nome do catálogo (F1.19). A `Disciplina` do projeto continua guardando o NOME
-    // como texto — vira FK só quando a Fase 2 tocar `Projeto.Disciplina`.
-    nome: nomeDisciplinaItem(it),
+    // Prefere o nome do catálogo (F1.19). A `Disciplina` do projeto guarda o NOME como texto.
+    // A F1.19c criou `Disciplina.disciplinaId`, então propagar aqui o `it.disciplinaId` do item
+    // de proposta passou a ser possível — ficou de fora de propósito: a F1.19c é rename + FK,
+    // sem mudança de comportamento. Vale avaliar na F1.21, quando as grafias forem resolvidas.
+    disciplinaTextoLegado: nomeDisciplinaItem(it),
     valor: it.valor,
     ordem: idx,
   }));

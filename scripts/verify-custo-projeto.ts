@@ -30,7 +30,7 @@ async function main() {
         data: {
           ano: 2099, sequencial: 9999, codigo: "999999",
           tipo: "particular", nome: "VERIFY custo", clienteId: cliente.id,
-          disciplinas: { create: { nome: "Arquitetura", valor: 1000, ordem: 0 } },
+          disciplinas: { create: { disciplinaTextoLegado: "Arquitetura", valor: 1000, ordem: 0 } },
         },
         include: { disciplinas: true },
       });
@@ -42,7 +42,7 @@ async function main() {
       });
       const lancId = await criarDespesaProjetistaPrevista(tx, {
         pagamentoId: pag.id, valor: 1000, tipoProfissional: "projetista_pj",
-        projetistaNome: autor.name, disciplinaNome: disc.nome,
+        projetistaNome: autor.name, disciplinaNome: disc.disciplinaTextoLegado,
         projetoId: projeto.id, projetoCodigo: projeto.codigo, autorId: autor.id, quando: new Date(),
       });
       const prev = await tx.lancamento.findUnique({ where: { id: lancId } });

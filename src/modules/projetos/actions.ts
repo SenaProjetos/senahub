@@ -106,7 +106,7 @@ export const criarProjeto = defineAction(
         const disc = await tx.disciplina.create({
           data: {
             projetoId: p.id,
-            nome: d.nome,
+            disciplinaTextoLegado: d.nome,
             prazo: parseData(d.prazo),
             valor: d.valor,
             ordem: i,
@@ -175,7 +175,7 @@ export const atualizarStatusDisciplina = defineAction(
     capturarAntes: (input) =>
       prisma.disciplina.findUnique({
         where: { id: input.disciplinaId },
-        select: { nome: true, status: true },
+        select: { disciplinaTextoLegado: true, status: true },
       }),
   },
   async (input, { user }) => {
@@ -245,7 +245,7 @@ export const atualizarStatusDisciplina = defineAction(
         validadores.map((v) => v.id),
         {
           titulo: "Entrega aguardando validação",
-          corpo: `${disciplina.nome} (${codigo}) marcada como entregue.`,
+          corpo: `${disciplina.disciplinaTextoLegado} (${codigo}) marcada como entregue.`,
           href,
           tag: `entregue-${disciplina.id}`,
         },
@@ -257,7 +257,7 @@ export const atualizarStatusDisciplina = defineAction(
       if (respIds.length > 0) {
         await notificarMuitos(respIds, {
           titulo: "Revisão solicitada",
-          corpo: `${disciplina.nome} (${codigo}) requer revisão.`,
+          corpo: `${disciplina.disciplinaTextoLegado} (${codigo}) requer revisão.`,
           href,
           tag: `revisao-${disciplina.id}`,
         });
@@ -286,7 +286,7 @@ export const reabrirDisciplina = defineAction(
     capturarAntes: (input) =>
       prisma.disciplina.findUnique({
         where: { id: input.disciplinaId },
-        select: { nome: true, status: true },
+        select: { disciplinaTextoLegado: true, status: true },
       }),
   },
   async (input) => {
@@ -313,7 +313,7 @@ export const reabrirDisciplina = defineAction(
     if (respIds.length > 0) {
       await notificarMuitos(respIds, {
         titulo: "Disciplina reaberta",
-        corpo: `${disciplina.nome} (${codigo}) reaberta para revisão. Motivo: ${input.motivo}`,
+        corpo: `${disciplina.disciplinaTextoLegado} (${codigo}) reaberta para revisão. Motivo: ${input.motivo}`,
         href,
         tag: `reabertura-${disciplina.id}`,
       });
@@ -344,7 +344,7 @@ export const definirResponsaveis = defineAction(
   async (input, ctx) => {
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: input.disciplinaId },
-      select: { projetoId: true, nome: true, projeto: { select: { codigo: true } } },
+      select: { projetoId: true, disciplinaTextoLegado: true, projeto: { select: { codigo: true } } },
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
 
@@ -376,7 +376,7 @@ export const definirResponsaveis = defineAction(
     if (novosIds.length > 0) {
       await notificarMuitos(novosIds, {
         titulo: "Você foi atribuído a uma disciplina",
-        corpo: `${disciplina.nome} — projeto ${disciplina.projeto.codigo}`,
+        corpo: `${disciplina.disciplinaTextoLegado} — projeto ${disciplina.projeto.codigo}`,
         href: `/projetos/${disciplina.projetoId}`,
         tag: `resp-${input.disciplinaId}`,
       });
@@ -432,7 +432,7 @@ export const registrarRevisao = defineAction(
     if (respIds.length > 0) {
       await notificarMuitos(respIds, {
         titulo: `Revisão R${revisao.numero} registrada`,
-        corpo: `${disciplina.nome}: ${input.motivo || "sem motivo informado"}.`,
+        corpo: `${disciplina.disciplinaTextoLegado}: ${input.motivo || "sem motivo informado"}.`,
         href: `/projetos/${disciplina.projetoId}`,
         tag: `revisao-${revisao.id}`,
       });
@@ -501,7 +501,7 @@ export const duplicarProjeto = defineAction(
           orderBy: { ordem: "asc" },
           select: {
             id: true,
-            nome: true,
+            disciplinaTextoLegado: true,
             valor: true,
             prazo: true,
             ordem: true,
@@ -551,7 +551,7 @@ export const duplicarProjeto = defineAction(
           valorContrato: origem.valorContrato,
           disciplinas: {
             create: origem.disciplinas.map((d) => ({
-              nome: d.nome,
+              disciplinaTextoLegado: d.disciplinaTextoLegado,
               valor: d.valor,
               prazo: d.prazo,
               ordem: d.ordem,
@@ -672,7 +672,7 @@ export const editarDisciplinasEmMassa = defineAction(
     if (input.status !== undefined) {
       const atuais = await prisma.disciplina.findMany({
         where: { id: { in: input.disciplinaIds }, projetoId: input.projetoId },
-        select: { nome: true, status: true, pastas: { select: { origem: true } } },
+        select: { disciplinaTextoLegado: true, status: true, pastas: { select: { origem: true } } },
       });
       // Disciplina com árvore de pastas: "entregue" só via solicitarAprovacaoDisciplina
       // (fluxo em 2 etapas). Gate por DISCIPLINA, não pelo tipo do projeto — as legadas
@@ -681,13 +681,13 @@ export const editarDisciplinasEmMassa = defineAction(
         const comPastas = atuais.find((d) => disciplinaUsaPastas(d.pastas));
         if (comPastas) {
           throw new ActionError(
-            `${comPastas.nome} usa o fluxo de aprovação em 2 etapas — não é possível marcar "entregue" em massa.`,
+            `${comPastas.disciplinaTextoLegado} usa o fluxo de aprovação em 2 etapas — não é possível marcar "entregue" em massa.`,
           );
         }
       }
       const invalida = atuais.find((d) => !transicaoDisciplinaPermitida(d.status, input.status!));
       if (invalida) {
-        throw new ActionError(`${invalida.nome}: ${mensagemTransicaoDisciplina(invalida.status, input.status!)}`);
+        throw new ActionError(`${invalida.disciplinaTextoLegado}: ${mensagemTransicaoDisciplina(invalida.status, input.status!)}`);
       }
     }
 
@@ -764,7 +764,7 @@ export const criarDisciplina = defineAction(
       const d = await tx.disciplina.create({
         data: {
           projetoId: input.projetoId,
-          nome: input.nome,
+          disciplinaTextoLegado: input.nome,
           prazo: input.prazo ? new Date(input.prazo) : undefined,
           valor: input.valor,
           ordem: (maxOrdem._max.ordem ?? 0) + 1,
@@ -809,7 +809,7 @@ export const editarDisciplina = defineAction(
     capturarAntes: async (input) => {
       const d = await prisma.disciplina.findUnique({
         where: { id: input.disciplinaId },
-        select: { nome: true, valor: true, prazo: true },
+        select: { disciplinaTextoLegado: true, valor: true, prazo: true },
       });
       if (!d) return null;
       const resp = await prisma.disciplinaResponsavel.findMany({
@@ -817,7 +817,7 @@ export const editarDisciplina = defineAction(
         select: { userId: true },
       });
       return {
-        nome: d.nome,
+        nome: d.disciplinaTextoLegado,
         valor: d.valor == null ? null : Number(d.valor),
         prazo: d.prazo?.toISOString() ?? null,
         responsaveisIds: resp.map((r) => r.userId),
@@ -860,7 +860,7 @@ export const editarDisciplina = defineAction(
       await tx.disciplina.update({
         where: { id: input.disciplinaId },
         data: {
-          nome: input.nome,
+          disciplinaTextoLegado: input.nome,
           prazo: input.prazo === null ? null : input.prazo ? new Date(input.prazo) : undefined,
           valor: input.valor === null ? null : input.valor,
           ...(input.exigePacoteA !== undefined ? { exigePacoteA: input.exigePacoteA } : {}),
@@ -912,7 +912,7 @@ export const excluirDisciplina = defineAction(
     capturarAntes: (input) =>
       prisma.disciplina.findUnique({
         where: { id: input.disciplinaId },
-        select: { nome: true, projetoId: true },
+        select: { disciplinaTextoLegado: true, projetoId: true },
       }),
   },
   async (input) => {
@@ -1010,12 +1010,12 @@ export const adicionarDisciplinasDoCatalogo = defineAction(
       select: {
         id: true,
         tipo: true,
-        disciplinas: { select: { nome: true, ordem: true } },
+        disciplinas: { select: { disciplinaTextoLegado: true, ordem: true } },
       },
     });
     if (!projeto) throw new ActionError("Projeto não encontrado.");
 
-    const nomesExistentes = new Set(projeto.disciplinas.map((d) => d.nome.toLowerCase()));
+    const nomesExistentes = new Set(projeto.disciplinas.map((d) => d.disciplinaTextoLegado.toLowerCase()));
     const novas = input.nomes.filter((n) => !nomesExistentes.has(n.toLowerCase()));
     if (novas.length === 0) throw new ActionError("Todas as disciplinas selecionadas já existem no projeto.");
 
@@ -1027,7 +1027,7 @@ export const adicionarDisciplinasDoCatalogo = defineAction(
         usaEstruturaCustom(projeto.tipo) && (await projetoUsaTemplate(tx, input.projetoId));
       for (const [i, nome] of novas.entries()) {
         const d = await tx.disciplina.create({
-          data: { projetoId: input.projetoId, nome, ordem: maxOrdem + i + 1 },
+          data: { projetoId: input.projetoId, disciplinaTextoLegado: nome, ordem: maxOrdem + i + 1 },
         });
         if (semear) await semearPastasTemplate(tx, d.id, projeto.tipo);
       }
@@ -1138,16 +1138,19 @@ export const editarDisciplinaCatalogo = defineAction(
     dados.categoria = await canonizarCategoria(dados.categoria);
     await garantirUnicosCatalogo(dados.nome, dados.codigo, i.id);
 
-    // `Disciplina.nome` (linha de projeto) aponta para o catálogo por TEXTO, sem FK. Renomear aqui
-    // sem cascatear orfana toda disciplina em uso: perde a sigla (que compõe a pasta e o prefixo do
-    // arquivo no storage) e perde o bloco-base — a próxima folha da Lista Mestre reiniciaria em 1
-    // em vez de `bloco+1`, sem erro visível. Por isso o rename anda junto, na mesma transação.
+    // `Disciplina.disciplinaTextoLegado` (linha de projeto) casa com o catálogo por TEXTO.
+    // A F1.19c criou `disciplinaId`, mas ele é NULLABLE e ainda há disciplina sem FK (as grafias
+    // que a F1.21 resolve à mão), então o texto continua sendo o elo real — e é ele que a tela
+    // exibe. Renomear aqui sem cascatear orfana toda disciplina em uso: perde a sigla (que compõe
+    // a pasta e o prefixo do arquivo no storage) e perde o bloco-base — a próxima folha da Lista
+    // Mestre reiniciaria em 1 em vez de `bloco+1`, sem erro visível. Por isso o rename anda junto,
+    // na mesma transação. Quando a F1.21 zerar as FKs nulas, este cascateamento pode sair.
     const nomeMudou = dados.nome !== existe.nome;
     await prisma.$transaction(async (tx) => {
       await tx.disciplinaCatalogo.update({ where: { id: i.id }, data: dados });
       if (!nomeMudou) return;
       const candidatas = await tx.disciplina.findMany({
-        where: { nome: existe.nome },
+        where: { disciplinaTextoLegado: existe.nome },
         select: { id: true, projetoId: true },
       });
       if (candidatas.length === 0) return;
@@ -1156,14 +1159,14 @@ export const editarDisciplinaCatalogo = defineAction(
       const jaTemDestino = new Set(
         (
           await tx.disciplina.findMany({
-            where: { nome: dados.nome, projetoId: { in: candidatas.map((c) => c.projetoId) } },
+            where: { disciplinaTextoLegado: dados.nome, projetoId: { in: candidatas.map((c) => c.projetoId) } },
             select: { projetoId: true },
           })
         ).map((d) => d.projetoId),
       );
       const ids = candidatas.filter((c) => !jaTemDestino.has(c.projetoId)).map((c) => c.id);
       if (ids.length > 0) {
-        await tx.disciplina.updateMany({ where: { id: { in: ids } }, data: { nome: dados.nome } });
+        await tx.disciplina.updateMany({ where: { id: { in: ids } }, data: { disciplinaTextoLegado: dados.nome } });
       }
     });
     revCatalogo();
@@ -1201,7 +1204,7 @@ export const excluirDisciplinaCatalogo = defineAction(
   async (i) => {
     const c = await prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } });
     if (!c) throw new ActionError("Disciplina não encontrada.");
-    const uso = await prisma.disciplina.count({ where: { nome: c.nome } });
+    const uso = await prisma.disciplina.count({ where: { disciplinaTextoLegado: c.nome } });
     if (uso > 0) {
       throw new ActionError(`Em uso em ${uso} projeto(s) — arquive em vez de excluir.`);
     }

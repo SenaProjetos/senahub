@@ -37,7 +37,7 @@ export default async function InputsPublicoPage({
     resposta: i.resposta ?? "",
   }));
 
-  const disciplinas = projeto.disciplinas.map((d) => d.nome);
+  const disciplinas = projeto.disciplinas.map((d) => d.disciplinaTextoLegado);
   const respostasBriefing = prePopularRespostas(
     (projeto.briefing?.respostasJson as Record<string, unknown> | null) ?? {},
     {

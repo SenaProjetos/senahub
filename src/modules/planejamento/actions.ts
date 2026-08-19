@@ -217,14 +217,14 @@ export const aplicarAoProjeto = defineAction(
       }),
       prisma.disciplina.findMany({
         where: { projetoId: i.projetoId },
-        select: { id: true, nome: true },
+        select: { id: true, disciplinaTextoLegado: true },
       }),
     ]);
     if (tarefas.length === 0) {
       throw new ActionError("Nenhuma tarefa vinculada a disciplina. Vincule disciplinas para aplicar.");
     }
     const comEap = new Set(tarefas.map((t) => t.disciplinaId));
-    const semEap = todasDiscs.filter((d) => !comEap.has(d.id)).map((d) => d.nome);
+    const semEap = todasDiscs.filter((d) => !comEap.has(d.id)).map((d) => d.disciplinaTextoLegado);
     await prisma.$transaction(
       tarefas.map((t) =>
         prisma.disciplina.update({
@@ -251,7 +251,7 @@ export const gerarEapDasDisciplinas = defineAction(
       prisma.disciplina.findMany({
         where: { projetoId: i.projetoId },
         orderBy: { ordem: "asc" },
-        select: { id: true, nome: true, prazo: true },
+        select: { id: true, disciplinaTextoLegado: true, prazo: true },
       }),
       prisma.eapTarefa.findMany({
         where: { projetoId: i.projetoId, disciplinaId: { not: null } },
@@ -279,7 +279,7 @@ export const gerarEapDasDisciplinas = defineAction(
           data: {
             projetoId: i.projetoId,
             disciplinaId: d.id,
-            nome: d.nome,
+            nome: d.disciplinaTextoLegado,
             inicioPrevisto: hoje,
             fimPrevisto: fim,
             ordem: ordem++,

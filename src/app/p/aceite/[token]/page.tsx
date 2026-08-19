@@ -24,7 +24,7 @@ export default async function AceitePublicoPage({
           createdAt: true,
           disciplina: {
             select: {
-              nome: true,
+              disciplinaTextoLegado: true,
               projeto: { select: { codigo: true, nome: true } },
             },
           },
@@ -52,7 +52,7 @@ export default async function AceitePublicoPage({
         token={token}
         arquivo={upload.nomeArquivo}
         pacote={upload.pacote}
-        disciplina={upload.disciplina.nome}
+        disciplina={upload.disciplina.disciplinaTextoLegado}
         dataEntrega={upload.createdAt.toISOString()}
         situacaoAtual={aceite.situacao}
         respondidoEm={aceite.respondidoEm?.toISOString() ?? null}

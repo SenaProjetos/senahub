@@ -130,7 +130,7 @@ export async function alertasPrazoDisciplina(): Promise<number> {
       await notificarMuitos(
         alvo,
         {
-          titulo: `Prazo em ${dias} dia(s): ${d.nome}`,
+          titulo: `Prazo em ${dias} dia(s): ${d.disciplinaTextoLegado}`,
           corpo: `${formatarCodigo(d.projeto.codigo)} — entrega em ${dias} dia(s).`,
           href: `/projetos/${d.projeto.id}`,
           tag: `prazo-${d.id}-${dias}`,
@@ -1072,7 +1072,7 @@ export async function statusReportSemanal(): Promise<number> {
       membros: { select: { userId: true } },
       disciplinas: {
         select: {
-          nome: true,
+          disciplinaTextoLegado: true,
           status: true,
           prazo: true,
           responsaveis: { select: { userId: true } },
@@ -1103,7 +1103,7 @@ export async function statusReportSemanal(): Promise<number> {
     const corpo =
       `${p.codigo} — ${aprovadas}/${total} disciplina(s) aprovada(s).` +
       (atrasadas.length > 0
-        ? ` Atrasadas: ${atrasadas.map((d) => d.nome).join(", ")}.`
+        ? ` Atrasadas: ${atrasadas.map((d) => d.disciplinaTextoLegado).join(", ")}.`
         : " Sem atrasos.");
 
     await notificarMuitos(

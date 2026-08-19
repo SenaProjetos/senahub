@@ -20,6 +20,99 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F1.19c — FK de disciplina no catálogo · 2026-08-19 · Sonnet
+
+Fecha a lacuna que a F1.15/F1.16 encontrou e que **bloqueava a F1.21**: F1.19 pôs a FK do catálogo
+em `PropostaItem`, F1.20 em `ItemTabelaPreco`, e ninguém pôs em `Disciplina` — justamente a tabela
+onde as grafias livres vivem e a que carrega `valor` (pagamento ao projetista), `RevisaoDisciplina`,
+uploads, responsáveis e apontamentos.
+
+**Feito:**
+
+**Schema + migration** (`20260819170000_crm_disciplina_catalogo_fk`)
+- `Disciplina.disciplinaId` nullable + `@@index` + FK `ON DELETE SET NULL` para `DisciplinaCatalogo`
+  (relação nomeada `catalogo`, não `disciplina` — `disciplina.disciplina` seria ilegível).
+- `nome` → `disciplinaTextoLegado` via `@map("nome")`. **A coluna física não se move** — o `@map`
+  é efeito zero em SQL, e por isso a migration tem só `ADD COLUMN` + `CREATE INDEX` + `ADD
+  CONSTRAINT`. Conferido com `grep -icE 'rename|drop'` na migration: os únicos hits estão em
+  comentário.
+- Aplicada em dev pelo caminho sem reset (`db push` → migration à mão → `migrate resolve --applied`,
+  a skill `/nova-migracao`), porque `migrate dev` pedia reset por drift acumulado. `migrate status`
+  fecha em 171 migrations. A migration da F1.16, que veio no merge de `master`, também foi aplicada
+  no dev nesta sessão (`migrate deploy`) — o dev estava sem ela.
+
+**Backfill** (`scripts/backfill-disciplina-f119c.ts`, dry-run → `--gravar`)
+- Fora da migration, **de propósito**, e o comentário do arquivo registra as duas razões: (1) foi o
+  bug da F1.23 — `migrate deploy` roda antes do `db:seed`, e um UPDATE guardado por "se o catálogo
+  existir" faz nada em silêncio e nunca re-roda; (2) `disciplina` carrega o pagamento ao projetista,
+  e foi exatamente o dry-run enumerando tudo que revelou o 4º registro Záphis na F1.15.
+- Casa por nome **exato**, como F1.19/F1.20. O que não casa fica com FK null — estado esperado, é o
+  trabalho da F1.21. O relatório agrupa as pendentes por grafia e mostra o que cada uma carrega
+  (valor / revisões / uploads / responsáveis), que é a informação que a F1.21 precisa ter à vista.
+- Idempotente (só toca `disciplinaId IS NULL`), provado rodando 2×: a segunda resolve 0 e as sem
+  match seguem sem match — o que permite re-rodar depois da F1.21 sem desfazer decisão humana.
+
+**Rename: 74 arquivos, 489 erros de `tsc` até convergir**
+O prompt previu ~76 leituras em 47 arquivos; o `tsc` acusou **489 erros em 74 arquivos**, porque
+cada leitura quebrada derruba junto o `include` inteiro e os callbacks que dependiam da inferência.
+Convergiu em 6 passadas até sobrarem **só os 2 erros pré-existentes** de `backup-storage.test.ts`.
+Nenhuma substituição global — cada edição foi ancorada em `arquivo:linha` do próprio `tsc`, porque
+`nome` também existe em `Projeto`, `Cliente` e `DisciplinaCatalogo`.
+
+Três decisões que valem registro:
+- **Tipos de UI continuam falando `nome`.** `OpcoesUI`, `DisciplinaEscrevivel`, `EapWorkspace`,
+  `ArtsView` e o seletor de ferramentas são tipos de tela — o campo volta a se chamar `nome` na
+  fronteira (`queries.ts`/action), não na UI. A F1.19c renomeou a coluna, não o rótulo exibido.
+  `DisciplinaIcones` foi a exceção: só o `projetos-view` a consome, e mapear em 3 chamadas seria
+  pior que ajustar a prop.
+- **Nada de lógica de exibição mudou.** Resistido o impulso de trocar o texto por
+  `catalogo?.nome ?? disciplinaTextoLegado`: o aceite pede "mesmo texto de antes", e hoje os dois
+  são equivalentes (o backfill casa por nome exato). Se a exibição deve preferir o catálogo é
+  decisão da F1.21.
+- **`disciplinasDeItens` (comercial) não passou a preencher a FK**, embora agora pudesse — está
+  anotado no código como avaliação para a F1.21. F1.19c é rename + FK, sem mudança de comportamento.
+
+**Dois achados fora do escopo, corrigidos porque quebravam o gate:**
+- `scripts/smoke-crm-dedupe.ts` usava CNPJ **fixo** (`11222333000199`). Com o índice único da F1.16
+  agora presente no dev, a 2ª execução colide com o resto deixado pela 1ª (o cleanup do fim não roda
+  quando uma asserção falha no meio). Passou a derivar o documento do `tag`, como o resto do smoke.
+- `projetos/actions.ts` tinha um comentário afirmando que `Disciplina` casa com o catálogo "por
+  TEXTO, sem FK" — verdade até esta tarefa. Reescrito: a FK existe, mas é nullable e ainda há
+  disciplina sem ela, então o cascateamento de rename continua necessário até a F1.21.
+
+**Item pequeno do prompt:** `smoke:crm-prod` ganhou entrada em `package.json`, que faltava.
+
+**Arquivos:** `prisma/schema.prisma`, `prisma/migrations/20260819170000_crm_disciplina_catalogo_fk/`,
+`scripts/backfill-disciplina-f119c.ts` (novo), `scripts/fixture-disciplinas-f121.ts` (novo),
+`package.json`, `docs/crm/06-progresso.md` + 74 arquivos de call site.
+
+**Verificação:** `prisma validate` ✓ · `migrate status` em dia (171) · `tsc --noEmit` em
+`tsconfig.json` **e** `tsconfig.server.json` → só os 2 pré-existentes de `backup-storage.test.ts` ·
+`eslint .` limpo · `vitest run` **196 arquivos, 2042 testes verdes** · `npm run build` ✓ ·
+smokes `crm-fase1`, `crm-dedupe`, `crm-soft-delete`, `crm-soft-delete-lead`, `sync-pagamento` → OK.
+
+⚠️ **`smoke:crm-prod` dá 10 OK / 7 falhas / 1 pulado no dev, e isso é o esperado:** as 7 são
+contagens de **produção** (32 projetos, 46 clientes, 5 fusões no AuditLog) medidas contra o dev
+(13 / 14 / 0). Todos os checks estruturais — índice único existe, zero órfãos, zero documento
+duplicado, numero/token preenchidos — passam. Em produção este mesmo smoke fechou 17 OK / 0 falhas
+(commit `ea3f694`).
+
+**A armadilha #2 do prompt se confirmou, e valeu o aviso:** o `seed:demo` não tem nenhuma das 6
+grafias problemáticas — o backfill resolvia 34/34 e o ramo "sem match" nunca rodava. Por isso
+`scripts/fixture-disciplinas-f121.ts` foi criado e **ficou no repo**: a F1.21 vai precisar dele para
+ser testada em dev, e sem ele o próximo a mexer cai na mesma armadilha. Com a fixture o dry-run
+mostra 34 resolvidas + 6 pendentes agrupadas por grafia.
+
+**Pendente:** **F1.21** — agora destravada. As 3 strings compostas seguem exigindo decisão do
+responsável de cada projeto (260014, 260020, 260023), com o levantamento pronto em
+`docs/crm/03-migracao.md` §5 (os três com `valor = NULL`, então o rateio de pagamento não se aplica;
+o que decide é o destino dos 38 uploads e das 2 revisões).
+
+**Deploy:** migration aditiva, nada destrutivo. `migrate deploy` → `db:seed` → e só então
+`npx tsx --tsconfig tsconfig.server.json scripts/backfill-disciplina-f119c.ts` (dry-run primeiro).
+
+---
+
 ## Fase 1 em produção — F1.15 + F1.16 · 2026-08-19 · Opus
 
 As duas tarefas de produção que faltavam da Fase 1. **F1.21 não foi executada** — está bloqueada

@@ -46,7 +46,7 @@ export async function lixeiraDoProjeto(projetoId: string) {
       excluidoEm: true,
       excluidoPorId: true,
       disciplinaId: true,
-      disciplina: { select: { nome: true } },
+      disciplina: { select: { disciplinaTextoLegado: true } },
     },
   });
 
@@ -63,7 +63,7 @@ export async function lixeiraDoProjeto(projetoId: string) {
     versao: u.versao,
     tamanho: u.tamanho,
     disciplinaId: u.disciplinaId,
-    disciplina: u.disciplina.nome,
+    disciplina: u.disciplina.disciplinaTextoLegado,
     excluidoEm: u.excluidoEm!.toISOString(),
     excluidoPor: u.excluidoPorId ? nomePor.get(u.excluidoPorId) ?? null : null,
     diasRestantes: diasRestantesLixeira(u.excluidoEm!),
@@ -113,7 +113,7 @@ export async function pedidosExclusaoPendentes() {
           tamanho: true,
           excluidoEm: true,
           disciplina: {
-            select: { nome: true, projetoId: true, projeto: { select: { codigo: true, nome: true } } },
+            select: { disciplinaTextoLegado: true, projetoId: true, projeto: { select: { codigo: true, nome: true } } },
           },
         },
       },
@@ -129,7 +129,7 @@ export async function pedidosExclusaoPendentes() {
     tamanho: p.upload.tamanho,
     // Já na lixeira: o pedido virou formalidade, a UI mostra isso e só encerra.
     jaNaLixeira: p.upload.excluidoEm !== null,
-    disciplina: p.upload.disciplina.nome,
+    disciplina: p.upload.disciplina.disciplinaTextoLegado,
     projetoId: p.upload.disciplina.projetoId,
     projetoCodigo: p.upload.disciplina.projeto.codigo,
     projetoNome: p.upload.disciplina.projeto.nome,
@@ -238,7 +238,7 @@ function orderByDocumentos(
       return [{ nomeArquivo: dir }];
     case "disciplina":
       // Desempate por nome do arquivo, igual à ordenação client anterior.
-      return [{ disciplina: { nome: dir } }, { nomeArquivo: "asc" }];
+      return [{ disciplina: { disciplinaTextoLegado: dir } }, { nomeArquivo: "asc" }];
     case "versao":
       return [{ versao: dir }];
     case "tamanho":
@@ -287,7 +287,7 @@ export async function listarDocumentosProjeto(opts: {
       ? {
           OR: [
             { nomeArquivo: { contains: termo, mode: "insensitive" as const } },
-            { disciplina: { nome: { contains: termo, mode: "insensitive" as const } } },
+            { disciplina: { disciplinaTextoLegado: { contains: termo, mode: "insensitive" as const } } },
             { autor: { name: { contains: termo, mode: "insensitive" as const } } },
           ],
         }
@@ -322,7 +322,7 @@ export async function listarDocumentosProjeto(opts: {
         pastaId: true,
         createdAt: true,
         // `responsaveis` alimenta o `podeGerir` da linha (renomear é de global/responsável).
-        disciplina: { select: { id: true, nome: true, responsaveis: { select: { userId: true } } } },
+        disciplina: { select: { id: true, disciplinaTextoLegado: true, responsaveis: { select: { userId: true } } } },
         autor: { select: { name: true } },
       },
   });
@@ -352,7 +352,7 @@ export function linhasDeUploads(
     nome: u.nomeArquivo,
     ext: extensaoDe(u.nomeArquivo),
     disciplinaId: u.disciplina.id,
-    disciplinaNome: u.disciplina.nome,
+    disciplinaNome: u.disciplina.disciplinaTextoLegado,
     versao: u.versao,
     validado: u.pastaId ? null : u.validado,
     autor: u.autor?.name ?? "—",

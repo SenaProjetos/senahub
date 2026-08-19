@@ -77,7 +77,7 @@ export const pagarFolhaProjetista = defineAction(
           where: { status: "pendente" },
           include: {
             projetista: { select: { id: true, name: true } },
-            disciplina: { select: { nome: true, projetoId: true, projeto: { select: { codigo: true } } } },
+            disciplina: { select: { disciplinaTextoLegado: true, projetoId: true, projeto: { select: { codigo: true } } } },
           },
         },
       },
@@ -97,7 +97,7 @@ export const pagarFolhaProjetista = defineAction(
             valor: pag.valor,
             tipoProfissional: pag.tipoProfissional,
             projetistaNome: pag.projetista.name,
-            disciplinaNome: pag.disciplina.nome,
+            disciplinaNome: pag.disciplina.disciplinaTextoLegado,
             projetoId: pag.disciplina.projetoId,
             projetoCodigo: pag.disciplina.projeto.codigo,
           },

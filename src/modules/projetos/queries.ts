@@ -82,7 +82,7 @@ export async function listarProjetos(
     });
   }
   if (opts?.disciplina) {
-    and.push({ disciplinas: { some: { nome: opts.disciplina } } });
+    and.push({ disciplinas: { some: { disciplinaTextoLegado: opts.disciplina } } });
   }
   if (opts?.q) {
     const digits = opts.q.replace(/\D/g, "");
@@ -115,7 +115,7 @@ export async function listarProjetos(
         prazoFinal: true,
         cliente: { select: { id: true, nome: true } },
         _count: { select: { disciplinas: true } },
-        disciplinas: { select: { nome: true, status: true, prazo: true } },
+        disciplinas: { select: { disciplinaTextoLegado: true, status: true, prazo: true } },
       },
     }),
     prisma.projeto.count({ where }),
@@ -157,7 +157,7 @@ export async function disciplinasProntasParaAprovar(
     orderBy: [{ projeto: { ano: "desc" } }, { projeto: { sequencial: "desc" } }, { ordem: "asc" }],
     select: {
       id: true,
-      nome: true,
+      disciplinaTextoLegado: true,
       status: true,
       projetoId: true,
       exigePacoteA: true,
@@ -196,7 +196,7 @@ export async function disciplinasProntasParaAprovar(
     return [
       {
         id: d.id,
-        nome: d.nome,
+        nome: d.disciplinaTextoLegado,
         projetoId: d.projetoId,
         projetoCodigo: d.projeto.codigo,
         projetoNome: d.projeto.nome,
@@ -301,11 +301,11 @@ export async function catalogoDisciplinas() {
 export async function catalogoDisciplinasAdmin() {
   const [itens, disciplinas] = await Promise.all([
     prisma.disciplinaCatalogo.findMany({ orderBy: [{ ordem: "asc" }, { nome: "asc" }] }),
-    prisma.disciplina.findMany({ select: { nome: true, projetoId: true } }),
+    prisma.disciplina.findMany({ select: { disciplinaTextoLegado: true, projetoId: true } }),
   ]);
   const usoPorNome = new Map<string, Set<string>>();
   for (const d of disciplinas) {
-    const k = normalizar(d.nome);
+    const k = normalizar(d.disciplinaTextoLegado);
     let set = usoPorNome.get(k);
     if (!set) usoPorNome.set(k, (set = new Set()));
     set.add(d.projetoId);
@@ -347,7 +347,7 @@ export async function disciplinasForaDeSLA(viewer: Viewer) {
     },
     select: {
       id: true,
-      nome: true,
+      disciplinaTextoLegado: true,
       entregueEm: true,
       projetoId: true,
       projeto: { select: { id: true, codigo: true, nome: true } },
@@ -554,10 +554,10 @@ async function contarExtras(projetoId: string): Promise<number> {
 export async function timelineStatusProjeto(projetoId: string) {
   const discIds = await prisma.disciplina.findMany({
     where: { projetoId },
-    select: { id: true, nome: true },
+    select: { id: true, disciplinaTextoLegado: true },
   });
   if (discIds.length === 0) return [];
-  const idMap = new Map(discIds.map((d) => [d.id, d.nome]));
+  const idMap = new Map(discIds.map((d) => [d.id, d.disciplinaTextoLegado]));
   const logs = await prisma.auditLog.findMany({
     where: {
       modulo: "projetos",

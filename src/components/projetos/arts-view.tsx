@@ -91,7 +91,7 @@ export function ArtsView({ projetoId, arts, responsaveis, disciplinas, podeGerir
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold">{rotuloArt(a)}</span>
                     <Badge variant={corSituacao(a.situacao)}>{LABEL_SITUACAO_ART[a.situacao] ?? a.situacao}</Badge>
-                    {a.disciplina && <Badge variant="outline">{a.disciplina.nome}</Badge>}
+                    {a.disciplina && <Badge variant="outline">{a.disciplina.disciplinaTextoLegado}</Badge>}
                     {a.versoes > 0 && (
                       <Badge variant="secondary">
                         {a.versoes} versão(ões) anterior(es)

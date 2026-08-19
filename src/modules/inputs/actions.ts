@@ -21,12 +21,12 @@ const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
 /** Cria, no projeto, os inputs padrão (InputTemplate) das disciplinas dele — sem duplicar. */
 async function aplicarInputsPadraoCore(projetoId: string): Promise<number> {
   const [proj, existentes, templates] = await Promise.all([
-    prisma.projeto.findUnique({ where: { id: projetoId }, select: { disciplinas: { select: { nome: true } } } }),
+    prisma.projeto.findUnique({ where: { id: projetoId }, select: { disciplinas: { select: { disciplinaTextoLegado: true } } } }),
     prisma.inputProjeto.findMany({ where: { projetoId }, select: { disciplina: true, pergunta: true } }),
     prisma.inputTemplate.findMany({ where: { ativo: true }, orderBy: [{ disciplina: "asc" }, { ordem: "asc" }] }),
   ]);
   if (!proj) return 0;
-  const discs = new Set(proj.disciplinas.map((d) => d.nome));
+  const discs = new Set(proj.disciplinas.map((d) => d.disciplinaTextoLegado));
   const jaTem = new Set(existentes.map((e) => `${e.disciplina ?? ""}|${e.pergunta}`));
   const novos = templates.filter(
     (t) => (t.disciplina == null || discs.has(t.disciplina)) && !jaTem.has(`${t.disciplina ?? ""}|${t.pergunta}`),

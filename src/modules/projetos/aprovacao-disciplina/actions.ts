@@ -98,7 +98,7 @@ export const solicitarAprovacaoDisciplina = defineAction(
       gestores.map((g) => g.id),
       {
         titulo: "Projeto aprovado — aguardando confirmação",
-        corpo: `${disciplina.nome} (${codigo}) marcada como aprovada pelo responsável.`,
+        corpo: `${disciplina.disciplinaTextoLegado} (${codigo}) marcada como aprovada pelo responsável.`,
         href,
         tag: `aprovacao-solicitada-${disciplina.id}`,
       },
@@ -192,7 +192,7 @@ export const confirmarAprovacaoDisciplina = defineAction(
         respIds,
         {
           titulo: "Projeto aprovado",
-          corpo: `${disciplina.nome} (${codigo}) foi confirmada como aprovada.`,
+          corpo: `${disciplina.disciplinaTextoLegado} (${codigo}) foi confirmada como aprovada.`,
           href,
           tag: `aprovacao-confirmada-${disciplina.id}`,
         },
@@ -253,7 +253,7 @@ export const recusarAprovacaoDisciplina = defineAction(
         respIds,
         {
           titulo: "Aprovação recusada",
-          corpo: `${disciplina.nome} (${codigo}): ${input.motivo}`,
+          corpo: `${disciplina.disciplinaTextoLegado} (${codigo}): ${input.motivo}`,
           href,
           tag: `aprovacao-recusada-${disciplina.id}`,
         },

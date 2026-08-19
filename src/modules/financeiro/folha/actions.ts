@@ -36,7 +36,7 @@ export const pagarProjetista = defineAction(
       where: { id: i.id },
       include: {
         projetista: { select: { id: true, name: true } },
-        disciplina: { select: { nome: true, projetoId: true, projeto: { select: { codigo: true } } } },
+        disciplina: { select: { disciplinaTextoLegado: true, projetoId: true, projeto: { select: { codigo: true } } } },
       },
     });
     if (!pag) throw new ActionError("Pagamento não encontrado.");
@@ -53,7 +53,7 @@ export const pagarProjetista = defineAction(
           valor: pag.valor,
           tipoProfissional: pag.tipoProfissional,
           projetistaNome: pag.projetista.name,
-          disciplinaNome: pag.disciplina.nome,
+          disciplinaNome: pag.disciplina.disciplinaTextoLegado,
           projetoId: pag.disciplina.projetoId,
           projetoCodigo: pag.disciplina.projeto.codigo,
         },
@@ -67,7 +67,7 @@ export const pagarProjetista = defineAction(
 
     await notificar(pag.projetista.id, {
       titulo: "Pagamento efetivado",
-      corpo: `Seu pagamento de ${pag.disciplina.nome} foi efetivado.`,
+      corpo: `Seu pagamento de ${pag.disciplina.disciplinaTextoLegado} foi efetivado.`,
       href: "/financeiro",
       tag: `pago-${pag.id}`,
     }, { categoria: "pagamento" });
@@ -121,7 +121,7 @@ export const editarPagamentoProjetista = defineAction(
       where: { id: input.id },
       include: {
         projetista: { select: { name: true, role: true } },
-        disciplina: { select: { nome: true, projetoId: true, projeto: { select: { codigo: true } } } },
+        disciplina: { select: { disciplinaTextoLegado: true, projetoId: true, projeto: { select: { codigo: true } } } },
       },
     });
     if (!pag) throw new ActionError("Pagamento não encontrado.");
@@ -148,7 +148,7 @@ export const editarPagamentoProjetista = defineAction(
           valor: input.valor,
           tipoProfissional: pag.tipoProfissional,
           projetistaNome: pag.projetista.name,
-          disciplinaNome: pag.disciplina.nome,
+          disciplinaNome: pag.disciplina.disciplinaTextoLegado,
           projetoId: pag.disciplina.projetoId,
           projetoCodigo: pag.disciplina.projeto.codigo,
           autorId: user.id,

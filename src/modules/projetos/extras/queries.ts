@@ -7,7 +7,7 @@ export async function extrasDoProjeto(projetoId: string) {
     prisma.solicitacaoRevisao.findMany({
       where: { disciplina: { projetoId } },
       orderBy: { createdAt: "desc" },
-      include: { disciplina: { select: { nome: true } } },
+      include: { disciplina: { select: { disciplinaTextoLegado: true } } },
     }),
     prisma.projetoComposicaoPreco.findUnique({
       where: { projetoId },
@@ -15,7 +15,7 @@ export async function extrasDoProjeto(projetoId: string) {
     }),
     prisma.lmConfig.findUnique({ where: { projetoId } }),
     prisma.linhaBase.findMany({ where: { projetoId }, orderBy: { createdAt: "desc" } }),
-    prisma.disciplina.findMany({ where: { projetoId }, orderBy: { ordem: "asc" }, select: { id: true, nome: true } }),
+    prisma.disciplina.findMany({ where: { projetoId }, orderBy: { ordem: "asc" }, select: { id: true, disciplinaTextoLegado: true } }),
     prisma.checklistItemProjeto.findMany({ where: { projetoId }, orderBy: { ordem: "asc" } }),
     prisma.riscoProjeto.findMany({ where: { projetoId }, orderBy: { createdAt: "asc" } }),
   ]);
@@ -29,7 +29,7 @@ export async function extrasDoProjeto(projetoId: string) {
     solicitacoes: solic.map((s) => ({
       id: s.id,
       disciplinaId: s.disciplinaId,
-      disciplina: s.disciplina.nome,
+      disciplina: s.disciplina.disciplinaTextoLegado,
       solicitante: nome.get(s.solicitanteId) ?? "—",
       motivo: s.motivo,
       status: s.status,

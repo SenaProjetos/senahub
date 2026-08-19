@@ -46,7 +46,7 @@ export async function modelosCoordenacao(projetoId: string): Promise<ModeloCoord
       versao: true,
       tamanho: true,
       createdAt: true,
-      disciplina: { select: { id: true, nome: true } },
+      disciplina: { select: { id: true, disciplinaTextoLegado: true } },
       conversao: {
         select: {
           status: true,
@@ -70,7 +70,7 @@ export async function modelosCoordenacao(projetoId: string): Promise<ModeloCoord
     modelos.push({
       tipo: "upload",
       disciplinaId: u.disciplina.id,
-      disciplinaNome: u.disciplina.nome,
+      disciplinaNome: u.disciplina.disciplinaTextoLegado,
       uploadId: u.id,
       nomeArquivo: u.nomeArquivo,
       versao: u.versao,
@@ -181,11 +181,11 @@ export async function apontamentosDoProjeto(projetoId: string): Promise<Apontame
       ? prisma.user.findMany({ where: { id: { in: autorIds } }, select: { id: true, name: true } })
       : Promise.resolve([]),
     disciplinaIds.length
-      ? prisma.disciplina.findMany({ where: { id: { in: disciplinaIds } }, select: { id: true, nome: true } })
+      ? prisma.disciplina.findMany({ where: { id: { in: disciplinaIds } }, select: { id: true, disciplinaTextoLegado: true } })
       : Promise.resolve([]),
   ]);
   const nome = new Map(users.map((u) => [u.id, u.name]));
-  const nomeDisciplina = new Map(disciplinas.map((d) => [d.id, d.nome]));
+  const nomeDisciplina = new Map(disciplinas.map((d) => [d.id, d.disciplinaTextoLegado]));
   return rows.map((r) => ({
     id: r.id,
     numero: r.numero,
@@ -236,9 +236,9 @@ export async function dashboardApontamentos(
   });
   const disciplinaIds = [...new Set(rows.map((r) => r.disciplinaId).filter((x): x is string => !!x))];
   const disciplinas = disciplinaIds.length
-    ? await prisma.disciplina.findMany({ where: { id: { in: disciplinaIds } }, select: { id: true, nome: true } })
+    ? await prisma.disciplina.findMany({ where: { id: { in: disciplinaIds } }, select: { id: true, disciplinaTextoLegado: true } })
     : [];
-  const nomeDisciplina = new Map(disciplinas.map((d) => [d.id, d.nome]));
+  const nomeDisciplina = new Map(disciplinas.map((d) => [d.id, d.disciplinaTextoLegado]));
   return rows.map((r) => ({
     createdAt: r.createdAt.toISOString(),
     resolvidoEm: r.resolvidoEm?.toISOString() ?? null,

@@ -216,7 +216,7 @@ async function main() {
           endereco: `Quadra ${pi + 1}, Lote ${10 + pi} — ${clientes[d.cli].cidade ?? "Goiânia"}/GO`,
           disciplinas: {
             create: Array.from({ length: d.discs }, (_, j) => ({
-              nome: DISC[j % DISC.length],
+              disciplinaTextoLegado: DISC[j % DISC.length],
               status: STATUSES[(pi + j) % STATUSES.length],
               valor: 4000 + ((pi + j) % 5) * 1500,
               prazo: dia(d.prazo - j * 5),

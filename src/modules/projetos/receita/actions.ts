@@ -126,7 +126,7 @@ export const faturarEntrega = defineAction(
   async (i, { user }) => {
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: i.disciplinaId },
-      select: { nome: true, valor: true, projeto: { select: { id: true, tipo: true, codigo: true } } },
+      select: { disciplinaTextoLegado: true, valor: true, projeto: { select: { id: true, tipo: true, codigo: true } } },
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
     const valor = disciplina.valor != null ? Number(disciplina.valor) : 0;
@@ -147,7 +147,7 @@ export const faturarEntrega = defineAction(
     await prisma.lancamento.create({
       data: {
         tipo: "receita",
-        descricao: `Faturamento — ${disciplina.nome} (${disciplina.projeto.codigo})`,
+        descricao: `Faturamento — ${disciplina.disciplinaTextoLegado} (${disciplina.projeto.codigo})`,
         valor,
         status: "previsto",
         data: agora,

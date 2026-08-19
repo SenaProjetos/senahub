@@ -17,7 +17,7 @@ export async function minhasDisciplinas(userId: string) {
       disciplina: {
         select: {
           id: true,
-          nome: true,
+          disciplinaTextoLegado: true,
           status: true,
           prazo: true,
           projeto: {
@@ -35,7 +35,7 @@ export async function minhasDisciplinas(userId: string) {
   const agora = new Date();
   return registros.map(({ disciplina: d }) => ({
     disciplinaId: d.id,
-    nome: d.nome,
+    nome: d.disciplinaTextoLegado,
     status: d.status,
     prazo: d.prazo ? d.prazo.toISOString() : null,
     atraso: diasDeAtraso(d.prazo, d.status, agora),

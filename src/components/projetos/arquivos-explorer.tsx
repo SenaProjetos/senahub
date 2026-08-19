@@ -1933,7 +1933,7 @@ function ArtsPasta({ projetoId, arts }: { projetoId: string; arts: ArtListItem[]
           <FileText className="size-3.5 shrink-0 text-muted-foreground" />
           <span className={cn("min-w-0 truncate", !a.temArquivo && "text-muted-foreground")}>
             {rotuloArt(a)}
-            {a.disciplina ? ` · ${a.disciplina.nome}` : ""}
+            {a.disciplina ? ` · ${a.disciplina.disciplinaTextoLegado}` : ""}
           </span>
           <Badge variant="outline" className="shrink-0 text-[10px]">
             {LABEL_SITUACAO_ART[a.situacao] ?? a.situacao}

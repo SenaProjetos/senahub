@@ -96,7 +96,7 @@ export default async function ProjetoDetalhePage({
     }));
     return {
       id: d.id,
-      nome: d.nome,
+      nome: d.disciplinaTextoLegado,
       status: d.status,
       prazo: d.prazo ? new Date(d.prazo).toISOString() : null,
       valor: ocultarValorDisciplina ? null : d.valor != null ? Number(d.valor) : null,
@@ -154,7 +154,7 @@ export default async function ProjetoDetalhePage({
       tarefaOpcoes.projetos.unshift({ id: projeto.id, codigo: projeto.codigo, nome: projeto.nome });
     for (const d of projeto.disciplinas) {
       if (!tarefaOpcoes.disciplinas.some((x) => x.id === d.id))
-        tarefaOpcoes.disciplinas.push({ id: d.id, nome: d.nome, projetoId: projeto.id });
+        tarefaOpcoes.disciplinas.push({ id: d.id, nome: d.disciplinaTextoLegado, projetoId: projeto.id });
     }
   }
   const tarefasPorDisciplina = new Map<string, TarefaDaDisciplina[]>();
@@ -307,7 +307,7 @@ export default async function ProjetoDetalhePage({
           <span className="font-medium">Validação pendente há mais de {SLA_VALIDACAO_DIAS} dias:</span>{" "}
           {slaFora
             .filter((d) => d.projetoId === projeto.id)
-            .map((d) => d.nome)
+            .map((d) => d.disciplinaTextoLegado)
             .join(", ")}
         </div>
       )}

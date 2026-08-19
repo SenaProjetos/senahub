@@ -144,7 +144,7 @@ export async function resolverFonte(
           ClienteEndereco: endCliente,
         },
         linhas: p.disciplinas.map((d) => ({
-          Disciplina: d.nome,
+          Disciplina: d.disciplinaTextoLegado,
           Status: d.status.replace("_", " "),
           Prazo: d.prazo ?? "",
           Valor: d.valor != null ? Number(d.valor) : 0,
@@ -205,7 +205,7 @@ export async function resolverFonte(
           where: { projetistaId: userId },
           orderBy: { liberadoEm: "desc" },
           include: {
-            disciplina: { select: { nome: true, projeto: { select: { codigo: true } } } },
+            disciplina: { select: { disciplinaTextoLegado: true, projeto: { select: { codigo: true } } } },
           },
         }),
       ]);
@@ -219,7 +219,7 @@ export async function resolverFonte(
         },
         linhas: pagamentos.map((x) => ({
           Projeto: formatarCodigo(x.disciplina.projeto.codigo),
-          Disciplina: x.disciplina.nome,
+          Disciplina: x.disciplina.disciplinaTextoLegado,
           Valor: Number(x.valor),
           Status: x.status,
           LiberadoEm: x.liberadoEm,

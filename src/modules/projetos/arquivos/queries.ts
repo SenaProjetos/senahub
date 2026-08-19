@@ -29,7 +29,7 @@ export async function arvoreArquivosProjeto(
     orderBy: { ordem: "asc" },
     select: {
       id: true,
-      nome: true,
+      disciplinaTextoLegado: true,
       status: true,
       aprovacaoSolicitadaEm: true,
       responsaveis: { select: { userId: true } },
@@ -80,7 +80,7 @@ export async function arvoreArquivosProjeto(
       const uploadsPasta = d.uploads.filter((u) => u.pastaId != null);
       return {
         id: d.id,
-        nome: d.nome,
+        nome: d.disciplinaTextoLegado,
         status: d.status,
         finalizado: d.status === "aprovado",
         podeEnviar: podeEnviarCap && (ehGlobal || d.responsaveis.some((r) => r.userId === userId)),

@@ -34,7 +34,7 @@ export async function desenhosConvertidos(projetoId: string): Promise<DesenhoCon
       id: true,
       nomeArquivo: true,
       versao: true,
-      disciplina: { select: { id: true, nome: true } },
+      disciplina: { select: { id: true, disciplinaTextoLegado: true } },
       conversaoDesenho: { select: { status: true, caminhoDxf: true } },
     },
   });
@@ -48,7 +48,7 @@ export async function desenhosConvertidos(projetoId: string): Promise<DesenhoCon
     desenhos.push({
       tipo: "upload",
       disciplinaId: u.disciplina.id,
-      disciplinaNome: u.disciplina.nome,
+      disciplinaNome: u.disciplina.disciplinaTextoLegado,
       desenhoId: u.id,
       nomeArquivo: u.nomeArquivo,
       versao: u.versao,

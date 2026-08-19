@@ -10,7 +10,7 @@ export async function listarFolha(opts?: { status?: "pendente" | "pago" | "cance
     orderBy: [{ status: "asc" }, { liberadoEm: "desc" }],
     include: {
       projetista: { select: { name: true } },
-      disciplina: { select: { nome: true, projeto: { select: { codigo: true, nome: true } } } },
+      disciplina: { select: { disciplinaTextoLegado: true, projeto: { select: { codigo: true, nome: true } } } },
     },
   });
   const pendente = itens

@@ -44,7 +44,7 @@ export async function inputsPorToken(token: string) {
           codigo: true,
           endereco: true,
           inputs: { orderBy: [{ disciplina: "asc" }, { ordem: "asc" }, { createdAt: "asc" }] },
-          disciplinas: { select: { nome: true } },
+          disciplinas: { select: { disciplinaTextoLegado: true } },
           briefing: { select: { respostasJson: true, status: true } },
           cliente: { select: { nome: true, email: true, telefone: true } },
         },

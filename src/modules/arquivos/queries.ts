@@ -29,7 +29,7 @@ export async function diretorioArquivos(user: SessionUser, veTodas: boolean) {
         orderBy: { ordem: "asc" },
         select: {
           id: true,
-          nome: true,
+          disciplinaTextoLegado: true,
           status: true,
           uploads: {
             // Lixeira: leitura aninhada não passa pelo filtro global (lib/prisma.ts) → explícito.
@@ -90,7 +90,7 @@ export async function diretorioArquivos(user: SessionUser, veTodas: boolean) {
           }));
           return {
             id: d.id,
-            nome: d.nome,
+            nome: d.disciplinaTextoLegado,
             finalizado: d.status === "aprovado",
             // Entregáveis (A/B) ainda não validados — badge de pendência na árvore.
             pendentes: arquivos.filter((a) => (a.pacote === "A" || a.pacote === "B") && !a.aprovado).length,
@@ -137,7 +137,7 @@ export async function pendentesAprovacao() {
       disciplina: {
         select: {
           id: true,
-          nome: true,
+          disciplinaTextoLegado: true,
           projetoId: true,
           projeto: { select: { codigo: true, nome: true } },
         },
@@ -171,7 +171,7 @@ export async function pendentesAprovacao() {
       criadoEm: u.createdAt.toISOString(),
       ajusteObs: u.revisaoObs,
       autor: nomeAutor.get(u.autorId) ?? "—",
-      disciplina: u.disciplina.nome,
+      disciplina: u.disciplina.disciplinaTextoLegado,
       projetoId: u.disciplina.projetoId,
       projetoCodigo: u.disciplina.projeto.codigo,
       projetoNome: u.disciplina.projeto.nome,

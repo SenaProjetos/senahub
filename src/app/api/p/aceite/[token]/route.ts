@@ -17,7 +17,7 @@ async function aceiteDoToken(token: string) {
         select: {
           nomeArquivo: true,
           pacote: true,
-          disciplina: { select: { nome: true, projeto: { select: { codigo: true, nome: true } } } },
+          disciplina: { select: { disciplinaTextoLegado: true, projeto: { select: { codigo: true, nome: true } } } },
         },
       },
     },
@@ -34,7 +34,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
     situacao: aceite.situacao,
     arquivo: upload.nomeArquivo,
     pacote: upload.pacote,
-    disciplina: upload.disciplina.nome,
+    disciplina: upload.disciplina.disciplinaTextoLegado,
     projeto: { codigo: upload.disciplina.projeto.codigo, nome: upload.disciplina.projeto.nome },
   });
 }

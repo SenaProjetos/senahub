@@ -62,14 +62,14 @@ export async function eapDoProjeto(projetoId: string) {
     where: { projetoId },
     orderBy: { ordem: "asc" },
     include: {
-      disciplina: { select: { id: true, nome: true, status: true } },
+      disciplina: { select: { id: true, disciplinaTextoLegado: true, status: true } },
       predecessoras: { select: { predecessoraId: true } },
     },
   });
   const disciplinas = await prisma.disciplina.findMany({
     where: { projetoId },
     orderBy: { ordem: "asc" },
-    select: { id: true, nome: true },
+    select: { id: true, disciplinaTextoLegado: true },
   });
   return {
     tarefas: tarefas.map((t) => ({
@@ -85,11 +85,13 @@ export async function eapDoProjeto(projetoId: string) {
       inicioBaseline: t.inicioBaseline ? iso(t.inicioBaseline) : null,
       fimBaseline: t.fimBaseline ? iso(t.fimBaseline) : null,
       disciplinaId: t.disciplinaId,
-      disciplinaNome: t.disciplina?.nome ?? null,
+      disciplinaNome: t.disciplina?.disciplinaTextoLegado ?? null,
       predecessoraIds: t.predecessoras.map((p) => p.predecessoraId),
       marco: t.marco,
     })),
-    disciplinas,
+    // Volta a se chamar `nome` na fronteira da UI (`EapWorkspace` fala "nome"): a F1.19c
+    // renomeou a coluna no schema, não o rótulo exibido.
+    disciplinas: disciplinas.map((d) => ({ id: d.id, nome: d.disciplinaTextoLegado })),
     temLinhaBase: tarefas.some((t) => t.inicioBaseline != null),
   };
 }
@@ -109,7 +111,7 @@ export async function cronogramaProjetosAtivos() {
       eapTarefas: {
         orderBy: { ordem: "asc" },
         include: {
-          disciplina: { select: { id: true, nome: true, status: true } },
+          disciplina: { select: { id: true, disciplinaTextoLegado: true, status: true } },
           predecessoras: { select: { predecessoraId: true } },
         },
       },
@@ -133,7 +135,7 @@ export async function cronogramaProjetosAtivos() {
       inicioBaseline: t.inicioBaseline ? iso(t.inicioBaseline) : null,
       fimBaseline: t.fimBaseline ? iso(t.fimBaseline) : null,
       disciplinaId: t.disciplinaId,
-      disciplinaNome: t.disciplina?.nome ?? null,
+      disciplinaNome: t.disciplina?.disciplinaTextoLegado ?? null,
       predecessoraIds: t.predecessoras.map((pp) => pp.predecessoraId),
       marco: t.marco,
     })),

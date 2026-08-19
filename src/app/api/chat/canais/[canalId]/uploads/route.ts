@@ -43,7 +43,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ canalId: string
       id: true,
       nomeArquivo: true,
       mimeType: true,
-      disciplina: { select: { nome: true } },
+      disciplina: { select: { disciplinaTextoLegado: true } },
     },
   });
 
@@ -51,7 +51,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ canalId: string
     id: u.id,
     nomeArquivo: u.nomeArquivo,
     mimeType: u.mimeType,
-    disciplina: u.disciplina.nome,
+    disciplina: u.disciplina.disciplinaTextoLegado,
   }));
   return NextResponse.json({ uploads: itens });
 }

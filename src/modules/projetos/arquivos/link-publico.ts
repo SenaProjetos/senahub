@@ -66,7 +66,7 @@ async function artsPublicasDoLink(projetoId: string, disciplinaIds: string[]) {
       numero: true,
       situacao: true,
       emitidaEm: true,
-      disciplina: { select: { nome: true } },
+      disciplina: { select: { disciplinaTextoLegado: true } },
       versoes: {
         where: { arquivoPath: { not: null } },
         orderBy: { numero: "desc" },
@@ -78,7 +78,7 @@ async function artsPublicasDoLink(projetoId: string, disciplinaIds: string[]) {
   return arts.map((a) => ({
     id: a.id,
     rotulo: `${a.tipo} ${a.numero}`,
-    disciplina: a.disciplina?.nome ?? null,
+    disciplina: a.disciplina?.disciplinaTextoLegado ?? null,
     situacao: a.situacao,
     emitidaEm: a.emitidaEm ? a.emitidaEm.toISOString().slice(0, 10) : null,
     versoes: a.versoes.map((v) => ({ id: v.id, numero: v.numero, rotulo: `${a.tipo} ${v.numeroArt}` })),
@@ -106,7 +106,7 @@ export async function conteudoPublicoPorToken(token: string): Promise<ConteudoPu
     orderBy: { ordem: "asc" },
     select: {
       id: true,
-      nome: true,
+      disciplinaTextoLegado: true,
       uploads: {
         where: { validado: true, excluidoEm: null },
         orderBy: [{ nomeArquivo: "asc" }, { versao: "desc" }],
@@ -123,7 +123,7 @@ export async function conteudoPublicoPorToken(token: string): Promise<ConteudoPu
     disciplinas: disciplinas
       .map((d) => ({
         id: d.id,
-        nome: d.nome,
+        nome: d.disciplinaTextoLegado,
         arquivos: d.uploads.map((u) => ({
           id: u.id,
           nome: u.nomeArquivo,
@@ -211,7 +211,7 @@ export async function uploadsDoLinkParaZip(token: string, disciplinaId?: string)
     where: { id: { in: alvo } },
     orderBy: { ordem: "asc" },
     select: {
-      nome: true,
+      disciplinaTextoLegado: true,
       uploads: {
         where: { validado: true, excluidoEm: null },
         orderBy: [{ nomeArquivo: "asc" }, { versao: "desc" }],
@@ -221,7 +221,7 @@ export async function uploadsDoLinkParaZip(token: string, disciplinaId?: string)
   });
 
   const entradas = disciplinas.flatMap((d) =>
-    d.uploads.map((u) => ({ caminho: u.caminho, nome: `${d.nome}/${u.nomeArquivo}` })),
+    d.uploads.map((u) => ({ caminho: u.caminho, nome: `${d.disciplinaTextoLegado}/${u.nomeArquivo}` })),
   );
   if (entradas.length === 0) return null;
   return { codigo: link.projeto.codigo, entradas };

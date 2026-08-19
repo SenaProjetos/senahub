@@ -22,7 +22,7 @@ export function escopoTarefa(viewer: Viewer): Prisma.TarefaWhereInput {
 /** Include compartilhado do formato "board" de tarefa (colunas e listas por disciplina). */
 const includeTarefaBoard = {
   projeto: { select: { codigo: true, nome: true } },
-  disciplina: { select: { id: true, nome: true } },
+  disciplina: { select: { id: true, disciplinaTextoLegado: true } },
   responsaveis: { include: { user: { select: { id: true, name: true } } } },
   itens: { orderBy: { ordem: "asc" } },
   dependeDe: {
@@ -91,11 +91,19 @@ export async function opcoesTarefa() {
     }),
     prisma.disciplina.findMany({
       where: { projeto: { situacao: "em_andamento" } },
-      orderBy: [{ ordem: "asc" }, { nome: "asc" }],
-      select: { id: true, nome: true, projetoId: true },
+      orderBy: [{ ordem: "asc" }, { disciplinaTextoLegado: "asc" }],
+      select: { id: true, disciplinaTextoLegado: true, projetoId: true },
     }),
   ]);
-  return { internos, projetos, tarefas, disciplinas };
+  // `disciplinaTextoLegado` volta a se chamar `nome` na fronteira da UI: `OpcoesUI`
+  // (`components/tarefas/tarefa-dialog.tsx`) é tipo de tela e fala "nome", não o nome do campo
+  // do banco. A F1.19c renomeou só a coluna no schema — o rótulo exibido não mudou.
+  return {
+    internos,
+    projetos,
+    tarefas,
+    disciplinas: disciplinas.map((d) => ({ id: d.id, nome: d.disciplinaTextoLegado, projetoId: d.projetoId })),
+  };
 }
 
 export type ColunaTarefas = Awaited<ReturnType<typeof quadroTarefas>>[number];

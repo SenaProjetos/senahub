@@ -1003,6 +1003,8 @@ model DisciplinaCatalogo {
   propostaItens PropostaItem[]
   /// Itens de tabela de preço que já apontam para este catálogo (CRM F1.20).
   itensTabelaPreco ItemTabelaPreco[]
+  /// Disciplinas de projeto que já apontam para este catálogo (CRM F1.19c).
+  disciplinas   Disciplina[]
 
   @@map("disciplina_catalogo")
 }
@@ -2265,7 +2267,22 @@ model Disciplina {
   id           String           @id @default(cuid())
   projetoId    String
   projeto      Projeto          @relation(fields: [projetoId], references: [id], onDelete: Cascade)
-  nome         String
+
+  // ── Disciplina: texto livre → catálogo (CRM F1.19c, mesmo padrão da F1.19/F1.20) ──
+  /// Texto original digitado antes da migração. `@map` mantém a COLUNA FÍSICA com o nome
+  /// antigo (`nome`): o banco não sofre rename, só o código passa a chamá-la assim — os
+  /// pontos de leitura que ainda usam `.nome` falham em COMPILAÇÃO, não em runtime.
+  /// Fica como fallback enquanto houver disciplina sem FK — a consolidação das 6 grafias
+  /// pendentes é a F1.21. Deprecado para escrita nova; ainda lido.
+  disciplinaTextoLegado String              @map("nome")
+  /// NULLABLE de propósito: em produção há 18 grafias distintas, 12 batendo exato com o
+  /// catálogo e 6 precisando de tratamento manual (3 colapsam, 3 são string composta —
+  /// ver `docs/crm/03-migracao.md` §5). Item que não resolve fica sem FK — é estado
+  /// esperado, não falha. Relação chamada `catalogo`, não `disciplina`, porque o próprio
+  /// model já se chama `Disciplina` — `disciplina.disciplina` seria ambíguo de ler.
+  disciplinaId          String?
+  catalogo              DisciplinaCatalogo? @relation(fields: [disciplinaId], references: [id])
+
   status       StatusDisciplina @default(aguardando)
   prazo        DateTime?
   /// Quando a disciplina foi entregue/aprovada (p/ SLA de entregas).
@@ -2304,6 +2321,7 @@ model Disciplina {
 
   @@index([projetoId])
   @@index([status])
+  @@index([disciplinaId])
   @@map("disciplina")
   apontamentosPadrao  ApontamentoPadrao[]
 }

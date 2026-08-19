@@ -28,7 +28,7 @@ export async function listarArtsDoProjeto(projetoId: string) {
     where: { projetoId },
     orderBy: { createdAt: "desc" },
     include: {
-      disciplina: { select: { id: true, nome: true } },
+      disciplina: { select: { id: true, disciplinaTextoLegado: true } },
       responsavelUser: responsavelSelect,
       _count: { select: { versoes: true } },
     },
@@ -62,7 +62,7 @@ export async function artComVersoes(id: string) {
   const a = await prisma.art.findUnique({
     where: { id },
     include: {
-      disciplina: { select: { id: true, nome: true } },
+      disciplina: { select: { id: true, disciplinaTextoLegado: true } },
       responsavelUser: responsavelSelect,
       versoes: {
         orderBy: { numero: "desc" },
@@ -106,11 +106,14 @@ export type ArtDetalhe = NonNullable<Awaited<ReturnType<typeof artComVersoes>>>;
 
 /** Disciplinas do projeto, para o seletor do cadastro de ART. */
 export async function disciplinasParaArt(projetoId: string) {
-  return prisma.disciplina.findMany({
+  const disciplinas = await prisma.disciplina.findMany({
     where: { projetoId },
     orderBy: { ordem: "asc" },
-    select: { id: true, nome: true },
+    select: { id: true, disciplinaTextoLegado: true },
   });
+  // Volta a se chamar `nome` na fronteira da UI — o seletor fala "nome", não o nome do campo
+  // do banco. A F1.19c renomeou a coluna no schema, não o rótulo exibido.
+  return disciplinas.map((d) => ({ id: d.id, nome: d.disciplinaTextoLegado }));
 }
 
 /**

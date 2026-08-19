@@ -136,7 +136,7 @@ export async function ensureCanaisProjeto(projetoId: string): Promise<NovoMembro
     let canalDisc = await prisma.canal.findFirst({ where: { tipo: "disciplina", disciplinaId: d.id } });
     if (!canalDisc) {
       canalDisc = await prisma.canal.create({
-        data: { tipo: "disciplina", disciplinaId: d.id, projetoId, nome: d.nome },
+        data: { tipo: "disciplina", disciplinaId: d.id, projetoId, nome: d.disciplinaTextoLegado },
       });
     }
     const novosDisc = await syncMembros(canalDisc.id, [...d.responsaveis.map((r) => r.userId), ...globais]);

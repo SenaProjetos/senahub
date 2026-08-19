@@ -98,7 +98,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ disciplinaId: 
     },
   });
 
-  const nome = `${disciplina.projeto.codigo}_${disciplina.nome}.zip`;
+  const nome = `${disciplina.projeto.codigo}_${disciplina.disciplinaTextoLegado}.zip`;
   return new NextResponse(stream, {
     headers: {
       "Content-Type": "application/zip",

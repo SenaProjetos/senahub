@@ -174,11 +174,11 @@ async function main() {
   check("uma disciplina por item da proposta", projeto.disciplinas.length === 3);
   check(
     "disciplinas preservam nome, valor e ordem dos itens",
-    projeto.disciplinas[0].nome === "Estrutural" &&
+    projeto.disciplinas[0].disciplinaTextoLegado === "Estrutural" &&
       Number(projeto.disciplinas[0].valor) === 15000 &&
-      projeto.disciplinas[1].nome === "Elétrico" &&
+      projeto.disciplinas[1].disciplinaTextoLegado === "Elétrico" &&
       Number(projeto.disciplinas[1].valor) === 8000 &&
-      projeto.disciplinas[2].nome === "Hidrossanitário" &&
+      projeto.disciplinas[2].disciplinaTextoLegado === "Hidrossanitário" &&
       Number(projeto.disciplinas[2].valor) === 5000,
   );
 

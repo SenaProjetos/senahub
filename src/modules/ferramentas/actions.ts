@@ -278,10 +278,13 @@ export const listarDisciplinasParaFerramenta = defineAction(
       select: { id: true },
     });
     if (!projetoAcessivel) return [];
-    return prisma.disciplina.findMany({
+    const disciplinas = await prisma.disciplina.findMany({
       where: { projetoId },
       orderBy: { ordem: "asc" },
-      select: { id: true, nome: true },
+      select: { id: true, disciplinaTextoLegado: true },
     });
+    // Volta a se chamar `nome` na fronteira da UI (o seletor do diálogo fala "nome"): a F1.19c
+    // renomeou a coluna no schema, não o rótulo exibido.
+    return disciplinas.map((d) => ({ id: d.id, nome: d.disciplinaTextoLegado }));
   },
 );

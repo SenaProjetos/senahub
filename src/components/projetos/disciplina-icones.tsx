@@ -12,7 +12,7 @@ export function DisciplinaIcones({
   max = 8,
   size = "size-4",
 }: {
-  disciplinas: { nome: string; status: StatusDisciplina }[];
+  disciplinas: { disciplinaTextoLegado: string; status: StatusDisciplina }[];
   max?: number;
   size?: string;
 }) {
@@ -24,14 +24,14 @@ export function DisciplinaIcones({
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {visiveis.map((d, i) => {
-        const rotulo = `${d.nome} — ${STATUS_LABEL[d.status]}`;
+        const rotulo = `${d.disciplinaTextoLegado} — ${STATUS_LABEL[d.status]}`;
         return (
           <span
-            key={`${d.nome}-${i}`}
+            key={`${d.disciplinaTextoLegado}-${i}`}
             title={rotulo}
             className={`inline-flex items-center ${STATUS_TEXT[d.status]}`}
           >
-            <DisciplinaIcone nome={d.nome} className={size} />
+            <DisciplinaIcone nome={d.disciplinaTextoLegado} className={size} />
             <span className="sr-only">{rotulo}</span>
           </span>
         );

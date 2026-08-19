@@ -36,7 +36,7 @@ export default async function ProjetoInputsPage({ params }: { params: Promise<{ 
   if (!projetoCompleto) notFound();
 
   const baseUrl = process.env.APP_URL ?? "";
-  const disciplinas = projetoCompleto.disciplinas.map((d) => d.nome);
+  const disciplinas = projetoCompleto.disciplinas.map((d) => d.disciplinaTextoLegado);
 
   // Respostas do briefing + pré-população do cadastro (sem sobrescrever o já preenchido).
   const respostasSalvas = (briefing?.respostasJson as Record<string, unknown> | null) ?? {};

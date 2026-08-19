@@ -113,7 +113,7 @@ export function FolhaView({
                 <TableRow key={p.id}>
                   <TableCell className="font-medium">{p.projetista.name}</TableCell>
                   <TableCell className="text-sm">
-                    {p.disciplina.nome}
+                    {p.disciplina.disciplinaTextoLegado}
                     <span className="block text-xs text-muted-foreground">
                       {formatarCodigo(p.disciplina.projeto.codigo)} · {p.disciplina.projeto.nome}
                     </span>
@@ -237,7 +237,7 @@ function EditarValorDialog({ pagamento, onClose }: { pagamento: FolhaItem | null
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Editar valor do pagamento</DialogTitle>
-          <DialogDescription>{pagamento?.projetista.name} — {pagamento?.disciplina.nome}</DialogDescription>
+          <DialogDescription>{pagamento?.projetista.name} — {pagamento?.disciplina.disciplinaTextoLegado}</DialogDescription>
         </DialogHeader>
         <div className="space-y-1.5">
           <Label htmlFor="valor-pagamento">Valor (R$)</Label>

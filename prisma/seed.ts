@@ -506,7 +506,7 @@ async function main() {
   ];
   for (const r of RENOMES_DISCIPLINA_PROJETO) {
     const candidatas = await prisma.disciplina.findMany({
-      where: { nome: r.de },
+      where: { disciplinaTextoLegado: r.de },
       select: { id: true, projetoId: true },
     });
     if (candidatas.length === 0) continue;
@@ -515,7 +515,7 @@ async function main() {
     const jaTemDestino = new Set(
       (
         await prisma.disciplina.findMany({
-          where: { nome: r.para, projetoId: { in: candidatas.map((c) => c.projetoId) } },
+          where: { disciplinaTextoLegado: r.para, projetoId: { in: candidatas.map((c) => c.projetoId) } },
           select: { projetoId: true },
         })
       ).map((d) => d.projetoId),
@@ -524,7 +524,7 @@ async function main() {
     if (renomear.length > 0) {
       await prisma.disciplina.updateMany({
         where: { id: { in: renomear.map((c) => c.id) } },
-        data: { nome: r.para },
+        data: { disciplinaTextoLegado: r.para },
       });
       console.log(`  ↻ ${renomear.length} disciplina(s) de projeto: "${r.de}" → "${r.para}"`);
     }

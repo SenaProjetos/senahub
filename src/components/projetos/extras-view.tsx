@@ -262,7 +262,7 @@ export function ExtrasView({
               <SelectTrigger className="w-48"><SelectValue placeholder="Disciplina" /></SelectTrigger>
               <SelectContent>
                 {dados.disciplinas.map((d) => (
-                  <SelectItem key={d.id} value={d.id}>{d.nome}</SelectItem>
+                  <SelectItem key={d.id} value={d.id}>{d.disciplinaTextoLegado}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

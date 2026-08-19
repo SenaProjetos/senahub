@@ -13,7 +13,7 @@ export async function pranchasDoProjeto(projetoId: string) {
     orderBy: { ordem: "asc" },
     select: {
       id: true,
-      nome: true,
+      disciplinaTextoLegado: true,
       pranchas: {
         orderBy: [{ ordem: "asc" }, { numeracao: "asc" }],
         select: { id: true, folha: true, tipo: true, fase: true, numeracao: true, revisao: true, conteudo: true },
@@ -22,7 +22,7 @@ export async function pranchasDoProjeto(projetoId: string) {
   });
 
   // Sigla e número-base da disciplina vêm do catálogo (por nome) — usados na nomenclatura.
-  const nomes = [...new Set(discs.map((d) => d.nome))];
+  const nomes = [...new Set(discs.map((d) => d.disciplinaTextoLegado))];
   const cats = nomes.length
     ? await prisma.disciplinaCatalogo.findMany({
         where: { nome: { in: nomes } },
@@ -33,12 +33,12 @@ export async function pranchasDoProjeto(projetoId: string) {
   const baseDe = new Map(cats.map((c) => [c.nome, c.numeracao]));
 
   return discs.map((d) => {
-    const sigla = siglaDe.get(d.nome) ?? null;
+    const sigla = siglaDe.get(d.disciplinaTextoLegado) ?? null;
     return {
       id: d.id,
-      nome: d.nome,
+      nome: d.disciplinaTextoLegado,
       sigla,
-      numeracaoBase: baseDe.get(d.nome) ?? null,
+      numeracaoBase: baseDe.get(d.disciplinaTextoLegado) ?? null,
       pranchas: d.pranchas.map((p) => ({
         ...p,
         codigo: codigoPrancha({

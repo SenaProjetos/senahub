@@ -39,7 +39,7 @@ export default async function VisualizarPage({
       excluidoEm: true,
       disciplina: {
         select: {
-          nome: true,
+          disciplinaTextoLegado: true,
           status: true,
           projetoId: true,
           projeto: { select: { id: true, codigo: true, nome: true } },
@@ -116,7 +116,7 @@ export default async function VisualizarPage({
       nomeArquivo={upload.nomeArquivo}
       codigo={formatarCodigo(upload.disciplina.projeto.codigo)}
       projetoNome={upload.disciplina.projeto.nome}
-      disciplinaNome={upload.disciplina.nome}
+      disciplinaNome={upload.disciplina.disciplinaTextoLegado}
       versao={upload.versao}
       versaoAtual={!maisNova}
       validado={upload.validado}

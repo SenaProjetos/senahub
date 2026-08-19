@@ -133,7 +133,7 @@ export const validarEntrega = defineAction(
       ];
       await notificarMuitos([...new Set(avisar)].filter((id) => id !== user.id), {
         titulo: "Entrega aprovada",
-        corpo: `${disciplina.nome} (${codigoDisc}) aprovada — pagamento já liberado, sem novo pagamento.`,
+        corpo: `${disciplina.disciplinaTextoLegado} (${codigoDisc}) aprovada — pagamento já liberado, sem novo pagamento.`,
         href,
         tag: `aprovacao-sem-pagamento-${disciplina.id}`,
       }, { categoria: "aprovacao_arquivo" });
@@ -167,7 +167,7 @@ export const validarEntrega = defineAction(
         pagaveis.map((r) => r.userId),
         {
           titulo: "Pagamento liberado",
-          corpo: `Entrega de ${disciplina.nome} (${codigo}) validada. Pagamento liberado.`,
+          corpo: `Entrega de ${disciplina.disciplinaTextoLegado} (${codigo}) validada. Pagamento liberado.`,
           href,
           tag: `pagto-${disciplina.id}`,
         },
@@ -180,7 +180,7 @@ export const validarEntrega = defineAction(
         salariados.map((r) => r.userId),
         {
           titulo: "Entrega validada",
-          corpo: `Entrega de ${disciplina.nome} (${codigo}) validada.`,
+          corpo: `Entrega de ${disciplina.disciplinaTextoLegado} (${codigo}) validada.`,
           href,
           tag: `entrega-${disciplina.id}`,
         },
@@ -198,8 +198,8 @@ export const validarEntrega = defineAction(
         titulo: "Entrega validada",
         corpo:
           pagaveis.length > 0
-            ? `${disciplina.nome} (${codigo}) validada — pagamento de projetista criado.`
-            : `${disciplina.nome} (${codigo}) validada — sem pagamento (equipe CLT/estágio).`,
+            ? `${disciplina.disciplinaTextoLegado} (${codigo}) validada — pagamento de projetista criado.`
+            : `${disciplina.disciplinaTextoLegado} (${codigo}) validada — sem pagamento (equipe CLT/estágio).`,
         href,
         tag: `validacao-${disciplina.id}`,
       },
@@ -247,7 +247,7 @@ async function carregarUploadEditavel(uploadId: string) {
         select: {
           status: true,
           projetoId: true,
-          nome: true,
+          disciplinaTextoLegado: true,
           projeto: { select: { codigo: true } },
           responsaveis: { select: { userId: true } },
         },
@@ -342,7 +342,7 @@ export const solicitarAjusteArquivo = defineAction(
     if (destinatarios.length > 0) {
       await notificarMuitos(destinatarios, {
         titulo: "Ajuste solicitado em arquivo",
-        corpo: `${upload.nomeArquivo} (${disciplina.nome} · ${codigo}): ${input.motivo}`,
+        corpo: `${upload.nomeArquivo} (${disciplina.disciplinaTextoLegado} · ${codigo}): ${input.motivo}`,
         href: `/projetos/${disciplina.projetoId}/arquivos`,
         tag: `ajuste-${upload.id}`,
       });
@@ -843,7 +843,7 @@ export const solicitarExclusaoUpload = defineAction(
         disciplinaId: true,
         disciplina: {
           select: {
-            nome: true,
+            disciplinaTextoLegado: true,
             projetoId: true,
             responsaveis: { select: { userId: true } },
             projeto: { select: { codigo: true, nome: true } },
@@ -889,7 +889,7 @@ export const solicitarExclusaoUpload = defineAction(
       admins.map((a) => a.id).filter((id) => id !== user.id),
       {
         titulo: "Exclusão de arquivo solicitada",
-        corpo: `${user.name} pediu a exclusão de "${upload.nomeArquivo}" (${codigo} · ${upload.disciplina.nome}).`,
+        corpo: `${user.name} pediu a exclusão de "${upload.nomeArquivo}" (${codigo} · ${upload.disciplina.disciplinaTextoLegado}).`,
         href: "/aprovacoes",
         tag: `exclusao-${solicitacao.id}`,
       },

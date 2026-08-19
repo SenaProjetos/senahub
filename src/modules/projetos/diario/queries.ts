@@ -34,7 +34,7 @@ export async function diarioDoProjeto(user: SessionUser, projetoId: string): Pro
     orderBy: { ordem: "asc" },
     select: {
       id: true,
-      nome: true,
+      disciplinaTextoLegado: true,
       responsaveis: { select: { userId: true } },
       diarioEntradas: {
         orderBy: [{ data: "desc" }, { createdAt: "desc" }],
@@ -56,7 +56,7 @@ export async function diarioDoProjeto(user: SessionUser, projetoId: string): Pro
     const ehResp = d.responsaveis.some((r) => r.userId === user.id);
     return {
       disciplinaId: d.id,
-      disciplinaNome: d.nome,
+      disciplinaNome: d.disciplinaTextoLegado,
       podeEscrever: podeEscreverNoDiario({ role: user.role, ehResponsavelDaDisciplina: ehResp }),
       entradas: d.diarioEntradas.map((e) => ({
         id: e.id,
@@ -115,7 +115,9 @@ export async function disciplinasEscreviveisNoProjeto(user: SessionUser, projeto
       ...(ehGlobal(user.role) ? {} : { responsaveis: { some: { userId: user.id } } }),
     },
     orderBy: { ordem: "asc" },
-    select: { id: true, nome: true },
+    select: { id: true, disciplinaTextoLegado: true },
   });
-  return disciplinas;
+  // Volta a se chamar `nome` na fronteira da UI: `DisciplinaEscrevivel` é tipo de tela.
+  // A F1.19c renomeou a coluna no schema, não o rótulo exibido.
+  return disciplinas.map((d) => ({ id: d.id, nome: d.disciplinaTextoLegado }));
 }

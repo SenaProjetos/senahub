@@ -10,7 +10,7 @@ export async function indiceQualidadeAtual() {
       where: { projeto: { situacao: "em_andamento" }, revisoes: { some: {} } },
     }),
     prisma.disciplina.groupBy({
-      by: ["nome"],
+      by: ["disciplinaTextoLegado"],
       where: { projeto: { situacao: "em_andamento" } },
       _count: { _all: true },
     }),
@@ -23,9 +23,9 @@ export async function indiceQualidadeAtual() {
   });
   const discs = await prisma.disciplina.findMany({
     where: { id: { in: revisoes.map((r) => r.disciplinaId) } },
-    select: { id: true, nome: true },
+    select: { id: true, disciplinaTextoLegado: true },
   });
-  const nomePorId = new Map(discs.map((d) => [d.id, d.nome]));
+  const nomePorId = new Map(discs.map((d) => [d.id, d.disciplinaTextoLegado]));
   const revPorNome = new Map<string, number>();
   for (const r of revisoes) {
     const nome = nomePorId.get(r.disciplinaId);
@@ -37,9 +37,9 @@ export async function indiceQualidadeAtual() {
     comRevisao,
     indice: total > 0 ? Math.round((comRevisao / total) * 10000) / 100 : 0,
     porDisciplina: porDisciplina.map((d) => ({
-      nome: d.nome,
+      nome: d.disciplinaTextoLegado,
       total: d._count._all,
-      revisoes: revPorNome.get(d.nome) ?? 0,
+      revisoes: revPorNome.get(d.disciplinaTextoLegado) ?? 0,
     })),
   };
 }
@@ -51,7 +51,7 @@ export async function slaEntregas() {
     where: { prazo: { not: null }, projeto: { situacao: { in: ["em_andamento", "concluido"] } } },
     select: {
       id: true,
-      nome: true,
+      disciplinaTextoLegado: true,
       status: true,
       prazo: true,
       entregueEm: true,
@@ -73,7 +73,7 @@ export async function slaEntregas() {
         if (dias <= 0) noPrazo++;
         else {
           atrasadasEntregues++;
-          atrasos.push({ projeto: d.projeto.codigo, projetoId: d.projeto.id, nome: d.nome, dias, entregue: true });
+          atrasos.push({ projeto: d.projeto.codigo, projetoId: d.projeto.id, nome: d.disciplinaTextoLegado, dias, entregue: true });
         }
       } else {
         noPrazo++; // entregue sem data registrada → considera no prazo
@@ -81,7 +81,7 @@ export async function slaEntregas() {
     } else if (d.prazo! < hoje) {
       pendentesVencidas++;
       const dias = Math.round((hoje.getTime() - d.prazo!.getTime()) / 86400000);
-      atrasos.push({ projeto: d.projeto.codigo, projetoId: d.projeto.id, nome: d.nome, dias, entregue: false });
+      atrasos.push({ projeto: d.projeto.codigo, projetoId: d.projeto.id, nome: d.disciplinaTextoLegado, dias, entregue: false });
     } else {
       pendentesEmDia++;
     }

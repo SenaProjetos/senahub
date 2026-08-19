@@ -309,7 +309,7 @@ async function main() {
   titulo("4b. VALORES DISTINTOS DE DISCIPLINA (catálogo DisciplinaPadrao — Q3)");
   const [dPropostas, dProjetos, dTabelas] = await Promise.all([
     prisma.propostaItem.groupBy({ by: ["disciplinaTextoLegado"], _count: { _all: true } }),
-    prisma.disciplina.groupBy({ by: ["nome"], _count: { _all: true } }),
+    prisma.disciplina.groupBy({ by: ["disciplinaTextoLegado"], _count: { _all: true } }),
     prisma.itemTabelaPreco.groupBy({ by: ["disciplinaTextoLegado"], _count: { _all: true } }),
   ]);
 
@@ -320,7 +320,7 @@ async function main() {
     universo.set(chave, atual);
   };
   for (const d of dPropostas) acc(d.disciplinaTextoLegado, "proposta", d._count._all);
-  for (const d of dProjetos) acc(d.nome, "projeto", d._count._all);
+  for (const d of dProjetos) acc(d.disciplinaTextoLegado, "projeto", d._count._all);
   for (const d of dTabelas) acc(d.disciplinaTextoLegado, "tabela", d._count._all);
 
   tabela(

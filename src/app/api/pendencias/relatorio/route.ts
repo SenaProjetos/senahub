@@ -76,11 +76,11 @@ export async function GET(req: Request) {
   // `Pendencia` não tem relação Prisma para `User` (só a coluna `autorId`) — resolve o nome
   // à parte, igual `pendenciasDoUpload` já faz.
   const [disciplinas, projetos, autores] = await Promise.all([
-    prisma.disciplina.findMany({ where: { id: { in: disciplinaIds } }, select: { id: true, nome: true } }),
+    prisma.disciplina.findMany({ where: { id: { in: disciplinaIds } }, select: { id: true, disciplinaTextoLegado: true } }),
     prisma.projeto.findMany({ where: { id: { in: projetoIds } }, select: { id: true, codigo: true, nome: true } }),
     autorIds.length ? prisma.user.findMany({ where: { id: { in: autorIds } }, select: { id: true, name: true } }) : [],
   ]);
-  const nomeDisciplina = new Map(disciplinas.map((d) => [d.id, d.nome]));
+  const nomeDisciplina = new Map(disciplinas.map((d) => [d.id, d.disciplinaTextoLegado]));
   const dadosProjeto = new Map(projetos.map((p) => [p.id, p]));
   const nomeAutor = new Map(autores.map((u) => [u.id, u.name]));
 

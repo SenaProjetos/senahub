@@ -26,7 +26,7 @@ export async function receitaProjeto(projetoId: string) {
     prisma.disciplina.findMany({
       where: { projetoId },
       orderBy: { ordem: "asc" },
-      select: { id: true, nome: true, valor: true, status: true },
+      select: { id: true, disciplinaTextoLegado: true, valor: true, status: true },
     }),
   ]);
 
@@ -78,7 +78,7 @@ export async function receitaProjeto(projetoId: string) {
       .filter((d) => d.valor != null && Number(d.valor) > 0)
       .map((d) => ({
         id: d.id,
-        nome: d.nome,
+        nome: d.disciplinaTextoLegado,
         valor: Number(d.valor),
         status: d.status,
         faturada: faturadas.has(d.id),

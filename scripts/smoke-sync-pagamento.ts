@@ -65,7 +65,7 @@ async function main() {
   const disciplina = await prisma.disciplina.create({
     data: {
       projetoId: projeto.id,
-      nome: "Estrutural",
+      disciplinaTextoLegado: "Estrutural",
       valor: null,
       responsaveis: { create: [{ userId: pjA.id }, { userId: pjB.id }] },
     },
@@ -76,7 +76,7 @@ async function main() {
       where: { id: disciplina.id },
       select: {
         id: true,
-        nome: true,
+        disciplinaTextoLegado: true,
         valor: true,
         responsaveis: { select: { userId: true, user: { select: { id: true, name: true, role: true } } } },
         projeto: { select: { id: true, codigo: true } },
@@ -166,7 +166,7 @@ async function main() {
   const disc2 = await prisma.disciplina.create({
     data: {
       projetoId: projeto.id,
-      nome: "Elétrica",
+      disciplinaTextoLegado: "Elétrica",
       valor: null,
       responsaveis: { create: [{ userId: pjC.id }] },
     },
@@ -176,7 +176,7 @@ async function main() {
       where: { id: disc2.id },
       select: {
         id: true,
-        nome: true,
+        disciplinaTextoLegado: true,
         valor: true,
         responsaveis: { select: { userId: true, user: { select: { id: true, name: true, role: true } } } },
         projeto: { select: { id: true, codigo: true } },

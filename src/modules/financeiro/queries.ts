@@ -8,7 +8,7 @@ export async function meuExtrato(userId: string) {
     orderBy: { liberadoEm: "desc" },
     include: {
       disciplina: {
-        select: { nome: true, projeto: { select: { codigo: true, nome: true } } },
+        select: { disciplinaTextoLegado: true, projeto: { select: { codigo: true, nome: true } } },
       },
     },
   });

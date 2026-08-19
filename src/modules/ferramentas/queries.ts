@@ -36,7 +36,7 @@ export async function abrirCalculo(id: string) {
         select: { id: true, nome: true, codigo: true, endereco: true, cliente: { select: { nome: true } } },
       },
       art: { select: { id: true, tipo: true, numero: true } },
-      disciplina: { select: { id: true, nome: true } },
+      disciplina: { select: { id: true, disciplinaTextoLegado: true } },
       autor: { select: { name: true } },
     },
   });

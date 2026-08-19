@@ -73,7 +73,11 @@ async function main() {
     data: { tipo: "PJ", nome: `${tag}_sobrevivente`, documento: null },
   });
   const absorvido = await prisma.cliente.create({
-    data: { tipo: "PJ", nome: `${tag}_absorvido`, documento: "11222333000199" },
+    // Documento derivado do `tag`, não fixo: a F1.16 criou o índice único parcial
+    // `cliente_documento_unico`, então um CNPJ constante faz a 2ª execução colidir com o resto
+    // deixado pela 1ª (o cleanup do fim não roda quando uma asserção falha no meio).
+    // Só os 14 dígitos importam aqui — o smoke não valida CNPJ, valida a fusão.
+    data: { tipo: "PJ", nome: `${tag}_absorvido`, documento: `${Date.now()}`.slice(-14).padStart(14, "9") },
   });
 
   const anoAtual = new Date().getFullYear();

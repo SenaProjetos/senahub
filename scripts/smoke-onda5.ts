@@ -37,7 +37,7 @@ async function main() {
         tipo: "particular",
         nome: `${tag}_proj`,
         clienteId: cliente.id,
-        disciplinas: { create: [{ nome: "Estrutural", ordem: 0 }] },
+        disciplinas: { create: [{ disciplinaTextoLegado: "Estrutural", ordem: 0 }] },
       },
       include: { disciplinas: true },
     });

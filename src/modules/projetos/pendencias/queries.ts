@@ -182,12 +182,12 @@ async function carregarReferencias(ids: string[], viewerId?: string): Promise<Ma
       : [],
     prisma.disciplina.findMany({
       where: { id: { in: [...new Set(alvos.map((a) => a.disciplinaId))] } },
-      select: { id: true, nome: true },
+      select: { id: true, disciplinaTextoLegado: true },
     }),
   ]);
   const vigente = new Map<string, string>();
   for (const u of uploadsDoc) if (u.documentoId && !vigente.has(u.documentoId)) vigente.set(u.documentoId, u.id);
-  const nomeDisciplina = new Map(disciplinas.map((d) => [d.id, d.nome]));
+  const nomeDisciplina = new Map(disciplinas.map((d) => [d.id, d.disciplinaTextoLegado]));
 
   for (const l of links) {
     for (const [meu, outroId, direcao] of [
@@ -271,9 +271,9 @@ export async function buscarPendenciasParaReferencia(opts: {
 
   const disciplinas = await prisma.disciplina.findMany({
     where: { id: { in: [...new Set(linhas.map((l) => l.disciplinaId))] } },
-    select: { id: true, nome: true },
+    select: { id: true, disciplinaTextoLegado: true },
   });
-  const nome = new Map(disciplinas.map((d) => [d.id, d.nome]));
+  const nome = new Map(disciplinas.map((d) => [d.id, d.disciplinaTextoLegado]));
   return linhas.map((l) => ({
     id: l.id,
     numero: l.numero,
@@ -498,7 +498,7 @@ export async function visaoConsolidadaPendencias(viewer: { id: string; role: Rol
     prisma.projeto.findMany({ where: { id: { in: projetoIdsUsados } }, select: { id: true, codigo: true, nome: true } }),
     prisma.disciplina.findMany({
       where: { id: { in: disciplinaIdsUsados } },
-      select: { id: true, nome: true, responsaveis: { select: { user: { select: { name: true } } } } },
+      select: { id: true, disciplinaTextoLegado: true, responsaveis: { select: { user: { select: { name: true } } } } },
     }),
   ]);
   const porProjeto = new Map(projetos.map((p) => [p.id, p]));
@@ -524,7 +524,7 @@ export async function visaoConsolidadaPendencias(viewer: { id: string; role: Rol
       projetoCodigo: proj ? formatarCodigo(proj.codigo) : "—",
       projetoNome: proj?.nome ?? "—",
       disciplinaId: p.disciplinaId,
-      disciplinaNome: disc?.nome ?? "—",
+      disciplinaNome: disc?.disciplinaTextoLegado ?? "—",
       responsaveis: disc?.responsaveis.map((r) => r.user.name) ?? [],
       faixa,
       diasAbertos: diasAtraso,

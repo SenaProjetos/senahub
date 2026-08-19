@@ -31,8 +31,8 @@ describe("disciplinasDeItens", () => {
       { disciplinaTextoLegado: "Elétrico", valor: 8000 },
     ]);
     expect(r).toEqual([
-      { nome: "Estrutural", valor: 15000, ordem: 0 },
-      { nome: "Elétrico", valor: 8000, ordem: 1 },
+      { disciplinaTextoLegado: "Estrutural", valor: 15000, ordem: 0 },
+      { disciplinaTextoLegado: "Elétrico", valor: 8000, ordem: 1 },
     ]);
   });
 

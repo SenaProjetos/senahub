@@ -105,7 +105,7 @@ export async function executarConversao(
           autorId: true,
           disciplina: {
             select: {
-              nome: true,
+              disciplinaTextoLegado: true,
               projetoId: true,
               responsaveis: { select: { userId: true } },
             },
@@ -145,7 +145,7 @@ export async function executarConversao(
       fragRel: caminhoFragDeUpload(u.caminho, u.id),
       nomeArquivo: u.nomeArquivo,
       projetoId: u.disciplina.projetoId,
-      disciplinaNome: u.disciplina.nome,
+      disciplinaNome: u.disciplina.disciplinaTextoLegado,
       destinatariosIds: [...new Set([u.autorId, ...u.disciplina.responsaveis.map((r) => r.userId)])],
       modeloKey: u.id,
     };

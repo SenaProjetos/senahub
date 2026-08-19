@@ -195,7 +195,7 @@ async function carregarUploadParaApontar(uploadId: string) {
         select: {
           status: true,
           projetoId: true,
-          nome: true,
+          disciplinaTextoLegado: true,
           projeto: { select: { codigo: true } },
           responsaveis: { select: { userId: true } },
         },
@@ -569,7 +569,7 @@ export const enviarApontamentos = defineAction(
     if (!statusEscolhido) throw new ActionError("Nenhuma coluna de tarefas configurada.");
 
     const resumo = `${pendencias.length} apontamento(s) na prancha ${upload.nomeArquivo}.`;
-    const titulo = input.titulo?.trim() || `Ajustes · ${upload.nomeArquivo} (${disciplina.nome} — ${codigo})`;
+    const titulo = input.titulo?.trim() || `Ajustes · ${upload.nomeArquivo} (${disciplina.disciplinaTextoLegado} — ${codigo})`;
     const descricao = input.descricao?.trim() || resumo;
     // Entrega já validada: apontar reabre a disciplina em REVISÃO, mas mantém a validação
     // financeira (pagamentos ficam intactos) e registra a revisão (RVxx).
@@ -637,7 +637,7 @@ export const enviarApontamentos = defineAction(
       await notificarMuitos(destinatarios, {
         titulo: eraAprovada ? "Revisão aberta na prancha" : "Ajustes solicitados na prancha",
         corpo:
-          `${upload.nomeArquivo} (${disciplina.nome} · ${codigo}): ${pendencias.length} apontamento(s)` +
+          `${upload.nomeArquivo} (${disciplina.disciplinaTextoLegado} · ${codigo}): ${pendencias.length} apontamento(s)` +
           (revisaoNumero != null ? ` — revisão R${revisaoNumero} aberta.` : "."),
         href: "/tarefas",
         tag: `pendencias-${upload.id}`,
