@@ -1,9 +1,17 @@
 # Setor × Contratação × Perfil de Acesso — separar vínculo, função e permissão
 
-**Data:** 2026-07-27 · **Status:** P1, Fase 0, Onda A, Onda B e **Onda C implementados** (código);
-**os dois gates da Onda D foram cumpridos em 2026-08-08** (§15: ciclo em sombra dado por cumprido
-pelo dono; equivalência 0 ganhos/0 perdas contra dado de produção) e o harness de audiência que
-faltava está entregue — **a Onda D pode começar** · **Branch:** `dev`
+**Data:** 2026-07-27 · **Status (atualizado 2026-08-16):** P1, Fase 0, Onda A, Onda B, **Onda C e
+Onda D implementadas e mergeadas em `dev`** (§15.8-15.18, commit `6eb6762`, tag v1.9.0) — `can()` já
+resolve por `permissaoEfetiva`, `registrarBatida` já restrito a `CLT_ROLES`, nav já é `permissao`+`tipo`.
+**Onda E parcial** (tag v1.10.0): `EscalaContratacao` criada, jornada já resolve por contratação;
+falta o passo 4 (dropar `EscalaRole`) e migrar a tela, que dependem do ciclo em sombra pós-flip.
+**Pendência real, fora do código:** o **Deploy 2** (a virada de autorização em produção — religar
+`can()`, rodar `materializar-escala-usuario.ts`, reconferir os 2 gates, ver
+`docs/RUNBOOK-ATIVAR-VINCULOS-PERFIS.md`) **não tem confirmação de execução em produção** desde que
+o Deploy 1 (Fase 0 + Onda B) rodou em 2026-08-09. `dev` avançou muito desde então (Onda E + Fase 1
+inteira do CRM comercial), então o próximo deploy carrega os dois de uma vez. Onda F (poda de
+`Permissao`/`User.role`/`enum Role`) não começou — gate é 1-2 meses de produção estável pós-flip.
+· **Branch:** `dev`
 
 Deliberado por conselho de 4 cadeiras (Gerente de RH, Dev Sênior, Diretor, Usuária final), duas rodadas:
 parecer independente + confronto cruzado. Divergências e concessões registradas em §8.
