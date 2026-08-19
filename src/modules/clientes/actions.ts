@@ -15,18 +15,76 @@ import {
 } from "@/modules/clientes/schemas";
 import { contatosDoCliente, clientesParaDedupe } from "@/modules/clientes/queries";
 import { candidatosDuplicata } from "@/modules/comercial/dedupe";
+import { soDigitos } from "@/lib/documento";
 import { mesclarClientes, capturarClientesDaFusao } from "@/modules/clientes/fusao";
 
 const REVALIDATE = "/clientes";
 
-function normalizar<T extends { email?: string; tipo?: "PF" | "PJ"; nomeFantasia?: string | null }>(input: T): T {
+function normalizar<
+  T extends { email?: string; tipo?: "PF" | "PJ"; nomeFantasia?: string | null; documento?: string | null },
+>(input: T): T {
   return {
     ...input,
     email: input.email || undefined,
     // Defesa no servidor: PF não tem nome fantasia. `null` explícito limpa o campo
     // no update (undefined significaria "não mexe" e o valor de quando era PJ ficaria).
     ...(input.tipo === "PF" ? { nomeFantasia: null } : {}),
+    // F1.16/ADR-03: documento é gravado SÓ COM DÍGITOS, e vazio vira `null`.
+    // Sem isso o índice único parcial vira meia garantia: "40.817.865/0001-60" e
+    // "40817865000160" são o mesmo CNPJ e passariam os dois. E string vazia NÃO é NULL —
+    // `WHERE documento IS NOT NULL` PEGA o `''`, então dois clientes sem documento salvos
+    // como `''` colidiriam no índice (era o estado de 2 registros de produção antes da F1.16).
+    ...(input.documento !== undefined ? { documento: soDigitos(input.documento ?? "") || null } : {}),
   };
+}
+
+/**
+ * ADR-03: CPF/CNPJ é único **quando preenchido**. A garantia real é o índice único parcial
+ * `cliente_documento_unico` (migration `20260819...`); esta checagem existe só para trocar o
+ * erro técnico do banco por uma mensagem que diz QUEM já tem o documento.
+ *
+ * Lê com `excluidoEm: { not: undefined }` (o escape hatch da extensão de soft delete, ver
+ * `lib/prisma.ts`) porque o índice do banco não sabe de soft delete: um cliente excluído
+ * continua ocupando o documento, e sem isso a mensagem amigável não apareceria justamente no
+ * caso mais confuso para o usuário — "não existe nenhum cliente com esse CNPJ na lista, mas o
+ * sistema diz que já existe".
+ */
+async function conferirDocumentoUnico(documento: string | null | undefined, ignorarId?: string): Promise<void> {
+  if (!documento) return;
+  const existente = await prisma.cliente.findFirst({
+    where: {
+      documento,
+      excluidoEm: { not: undefined },
+      ...(ignorarId ? { id: { not: ignorarId } } : {}),
+    },
+    select: { nome: true, excluidoEm: true, fundidoEmId: true },
+  });
+  if (!existente) return;
+
+  const situacao = existente.excluidoEm
+    ? " (cliente excluído)"
+    : existente.fundidoEmId
+      ? " (cliente já fundido em outro)"
+      : "";
+  throw new ActionError(`Este CPF/CNPJ já está cadastrado em "${existente.nome}"${situacao}.`);
+}
+
+/**
+ * Rede de segurança para a corrida entre a checagem acima e o `INSERT`: se dois cadastros com o
+ * mesmo documento chegarem juntos, quem perde recebe P2002 do índice. Sem isto o `defineAction`
+ * devolveria "erro inesperado" para um caso de negócio perfeitamente normal.
+ */
+async function comDocumentoUnico<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    const codigo = (e as { code?: string }).code;
+    const alvo = JSON.stringify((e as { meta?: unknown }).meta ?? "");
+    if (codigo === "P2002" && alvo.includes("documento")) {
+      throw new ActionError("Este CPF/CNPJ já está cadastrado em outro cliente.");
+    }
+    throw e;
+  }
 }
 
 export const criarCliente = defineAction(
@@ -40,7 +98,9 @@ export const criarCliente = defineAction(
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
-    const cliente = await prisma.cliente.create({ data: normalizar(input) });
+    const dados = normalizar(input);
+    await conferirDocumentoUnico(dados.documento);
+    const cliente = await comDocumentoUnico(() => prisma.cliente.create({ data: dados }));
     revalidatePath(REVALIDATE);
     return { id: cliente.id };
   },
@@ -58,7 +118,8 @@ export const editarCliente = defineAction(
   },
   async (input) => {
     const { id, ...rest } = normalizar(input);
-    await prisma.cliente.update({ where: { id }, data: rest });
+    await conferirDocumentoUnico(rest.documento, id);
+    await comDocumentoUnico(() => prisma.cliente.update({ where: { id }, data: rest }));
     revalidatePath(REVALIDATE);
     revalidatePath(`/clientes/${id}`);
     return { id };
