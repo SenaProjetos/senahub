@@ -103,6 +103,21 @@ grafias problemáticas — o backfill resolvia 34/34 e o ramo "sem match" nunca 
 ser testada em dev, e sem ele o próximo a mexer cai na mesma armadilha. Com a fixture o dry-run
 mostra 34 resolvidas + 6 pendentes agrupadas por grafia.
 
+**Estado em que o dev ficou, de propósito:** a fixture foi criada, usada para exercitar os dois
+ramos do backfill, e depois **removida** (`--limpar`). O dev tem hoje as **34 disciplinas do
+`seed:demo`, todas com FK resolvida, e zero linha sintética** — se ficassem, `scripts/auditoria-crm.ts`
+e qualquer contagem de grafia no dev passariam a reportar 6 grafias inventadas como se fossem reais,
+e a próxima sessão mediria errado. **A F1.21 deve rodar a fixture de novo antes de testar** (é um
+comando; ids fixos `fixf119c*`, então não duplica).
+
+**Verificação da migration contra o banco, depois do `db push`:** conferido no catálogo do Postgres
+que `disciplina` tem exatamente o que a migration descreve — a coluna física **`nome` continua lá,
+intacta** (é a prova de que o `@map` funcionou e nada foi renomeado), mais `disciplinaId` nullable,
+o índice `disciplina_disciplinaId_idx` e a FK `ON DELETE SET NULL` para `disciplina_catalogo`. Nada
+além disso. Importa porque o `db push` sincroniza o schema INTEIRO: ele também refez índices de
+`pendencia`/`pendencia_anexo` que faltavam no dev por drift antigo — drift de outra frente, que
+**não** entra nesta migration e portanto não vai a produção, o que é o comportamento correto.
+
 **Pendente:** **F1.21** — agora destravada. As 3 strings compostas seguem exigindo decisão do
 responsável de cada projeto (260014, 260020, 260023), com o levantamento pronto em
 `docs/crm/03-migracao.md` §5 (os três com `valor = NULL`, então o rateio de pagamento não se aplica;
