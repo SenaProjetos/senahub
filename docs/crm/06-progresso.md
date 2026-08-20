@@ -20,6 +20,80 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F2.3 + F2.4 + F2.5 — Lead v2, Negociacao e a regra de prospecção única · 2026-08-20 · Opus
+
+O bloco de fundação da Fase 2: os dois models que separam prospecção de negociação, mais a
+constraint que impede a mesma empresa de ser trabalhada duas vezes em paralelo.
+
+**F2.3 — `Lead` v2** (migration `20260820100000_crm_lead_v2_status_contatos`)
+- `status: StatusProspeccao @default(IDENTIFICADO)` + `needsReview` + junção `LeadContato`.
+- O enum fixo mata o `etapaEhPerdido()` por substring, dívida que a auditoria já tinha flagado.
+- ADITIVA: `etapaId`/`FunilEtapa`, `arquivado` e `motivoPerda` ficam DEPRECADOS **e populados**
+  (§8.3). Conferido no dev: 8 leads com status, `funil_etapa` com 5 linhas, todos os `etapaId`
+  preservados.
+- ⚠️ **Desvio deliberado do ADR-01, que pede `clienteId` obrigatório: a coluna continua NULLABLE.**
+  Medido antes de decidir: **8 de 8 leads têm `clienteId` nulo**, porque `criarLead` nunca
+  preencheu esse campo — ele não está sequer no `criarLeadSchema`, só é setado na conversão para
+  cliente. `SET NOT NULL` abortaria o deploy com "column contains null values". A obrigatoriedade
+  fica na camada de aplicação, **mesmo padrão que o P5 já havia decidido para
+  `Proposta.negociacaoId`** (§8.2); a F2.18 preenche os 8 à mão e só então um CONTRACT fecha a
+  coluna. Fechar agora seria trocar um deploy que funciona por um que aborta.
+
+**F2.4 — `Negociacao` + junções + gancho no `Projeto`** (migration `20260820110000_crm_negociacao`)
+- 3 tabelas novas + 1 coluna nullable em `projeto`. Aceite verificado no banco:
+  `proposta.projetoId` inalterado, **inclusive o unique `proposta_projetoId_key`**; os 13 projetos
+  do dev seguem todos sem negociação.
+- `leadId @unique`: qualificar o mesmo lead 2× passa a ser recusado pelo **banco**, não só pela
+  action da F2.8 — a garantia deixa de depender de alguém lembrar de checar.
+- **Duas coisas fora da lista literal da tarefa, com motivo registrado:** (1) `responsavelId`
+  ganhou `@relation` de verdade — o `Oportunidade` órfão guardava isso como string solta e a
+  auditoria §10 apontou que quebra a integridade referencial; repetir o defeito no model que o
+  substitui seria carregar a dívida adiante. (2) `parceiroId` entrou aqui: é a metade pendente da
+  F1.23a, que pediu `Negociacao.parceiroId` mas não pôde criá-la porque o model não existia.
+- `Proposta[]` e `Atividade[]` **não** entram nas relações: `Proposta.negociacaoId` é da F5.2 e o
+  model `Atividade` é da F3.1. `Negociacao` entra na extensão de soft delete (ADR-11), com a
+  ressalva anotada de que `Cliente.negociacoes` na Empresa 360 será leitura **aninhada** e vai
+  precisar do `where` explícito, como já acontece com `lead`.
+
+**F2.5 — prospecção ativa única** (migration `20260820120000_crm_prospeccao_ativa_unica`)
+- **São DOIS índices parciais, e o motivo é a razão de a tarefa não ser trivial:** em Postgres
+  `NULL <> NULL`, então um único índice em `(clienteId, campaignId)` **não pegaria** duas
+  prospecções abertas da mesma empresa **sem campanha** — exatamente o caso comum (nenhum lead de
+  produção tem campanha) e o que o aceite exige recusar. Um índice cobre campanha preenchida,
+  outro cobre campanha nula.
+- SQL cru, fora do `schema.prisma` (o Prisma não expressa predicado de índice) — mesmo padrão do
+  `cliente_documento_unico` da F1.16 e dos GIN de busca.
+- `prospeccao.ts` + teste guardam os 4 status que travam. **O teste lê a própria migration** e
+  confere que as duas pontas listam os mesmos status: sem isso, adicionar um status no módulo e
+  esquecer do banco faria a UI recusar o que o banco aceita, em silêncio.
+- `comProspeccaoAtivaUnica` traduz o `P2002` em mensagem de negócio, espelhando o
+  `comDocumentoUnico` da F1.16. Aqui o catch é a **única** checagem, não um complemento: uma
+  consulta prévia teria janela de corrida e ainda assim precisaria do catch. Vale também no
+  editar — trocar a empresa de um lead colide igual.
+- **Provado contra o banco de dev, os 4 cenários do aceite:** 1ª ativa sem campanha passa · 2ª na
+  mesma empresa sem campanha **recusada (P2002)** · 3ª com campanha própria passa · status
+  terminal não trava.
+
+**⚠️ Aviso deixado na migration para a F2.18:** a partir daqui, preencher `clienteId` à mão pode
+esbarrar nestes índices — Záphis tem 3 leads e Rbarros 2. Se dois receberem a mesma empresa
+mantendo status ativo e sem campanha, o segundo UPDATE é recusado. **É a regra funcionando**, não
+um bug: cabe a quem migrar decidir o status real de cada um (vários já deveriam estar em
+`OPORTUNIDADE_CRIADA` ou `DESCARTADO`) ou separá-los por campanha.
+
+**Migrations pelo caminho manual**, as três: `migrate dev` segue recusando pelo drift antigo de
+`pendencia`/`pendencia_anexo`, e a shadow DB não está configurada. `db push` → SQL à mão →
+`migrate resolve --applied`. 175 migrations, `migrate status` em dia.
+
+**Arquivos:** `prisma/schema.prisma`, 3 migrations novas, `src/lib/prisma.ts`,
+`src/modules/comercial/prospeccao.ts` + `.test.ts` (novos), `src/modules/comercial/actions.ts`.
+
+**Verificação:** `eslint .` limpo · `vitest run` **199 arquivos, 2056 testes verdes** (5 novos) ·
+`tsc --noEmit` (heap 8GB) só os 2 pré-existentes de `backup-storage.test.ts`.
+
+**Pendente:** F2.6 (máquina de transições) e F2.7 (`moverEstagio` único) são o próximo bloco.
+
+---
+
 ## F2.1b + F2.1a — `Compromisso` v2 + filtro comercial na agenda · 2026-08-20 · Sonnet
 
 Abre a **Fase 2 (Jornada)**. Duas tarefas do backlog, executadas **na ordem invertida** em relação
