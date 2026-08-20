@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
+import { chaveDocumento } from "../src/modules/uploads/documento";
 
 /**
  * Diagnóstico somente-leitura do estado da Fase 2 no banco (rodar em produção após deploy).
@@ -19,22 +20,38 @@ async function main() {
   const todas = await prisma.documentoRevisao.findMany({ select: { uploads: { select: { id: true } } } });
   const multi = todas.filter((r) => r.uploads.length > 1).length;
 
+  // Grupos que AINDA teriam merge, recalculados com a mesma chave do script — é o que
+  // distingue "merge completo" de "merge interrompido no meio".
+  const vivosDocs = await prisma.documentoDisciplina.findMany({
+    where: { substituidoPorId: null },
+    select: { id: true, disciplinaId: true, chave: true, nomeArquivo: true },
+  });
+  const grupos = new Map<string, number>();
+  for (const d of vivosDocs) {
+    const local = d.chave.includes("/") ? d.chave.slice(0, d.chave.indexOf("/")) : "";
+    const nova = chaveDocumento({ pacote: null, pastaId: null, nomeArquivo: d.nomeArquivo });
+    const k = `${d.disciplinaId}::${local}/${nova.slice(nova.indexOf("/") + 1)}`;
+    grupos.set(k, (grupos.get(k) ?? 0) + 1);
+  }
+  const aMesclar = [...grupos.values()].filter((n) => n > 1).length;
+
   console.log("=== ESTADO DA FASE 2 ===");
   console.log(`documentos: ${docs} (vivos ${vivos} / apelidos ${apelidos})`);
   console.log(`revisoes: ${revs} | com mais de um arquivo: ${multi}`);
   console.log(`uploads ativos: ${ups} | sem revisao: ${semRev} | orfaos: ${orfaos}`);
   console.log(`catalogo de status: ${status}`);
+  console.log(`grupos ainda por mesclar: ${aMesclar}`);
 
   console.log("\n=== O QUE FALTA ===");
   const pend: string[] = [];
   if (status === 0) pend.push("npm run db:seed  (catalogo de status vazio)");
   if (orfaos > 0) pend.push(`scripts/reconciliar-uploads-orfaos.ts  (${orfaos} orfaos)`);
   if (semRev > 0) pend.push(`scripts/backfill-documento-revisao.ts  (${semRev} uploads sem revisao)`);
-  // O merge é medido SÓ por `apelidos`. Usar "revisões multi-arquivo" como sinal foi um erro:
-  // desde o deploy, cada upload novo já nasce com a chave sem extensão e cria revisão
-  // multi-arquivo sozinho — o que mascarava um acervo antigo inteiro por mesclar.
-  if (apelidos === 0 && docs > 0) {
-    pend.push(`scripts/merge-documentos-por-base.ts  (${docs} documentos, nenhum mesclado — rodar em modo relatório primeiro)`);
+  // Contar apelidos NÃO basta: um merge interrompido no meio deixa apelidos > 0 e passaria
+  // por completo (aconteceu em produção — 66 de 219 grupos). O único jeito honesto é
+  // recalcular os grupos com a mesma chave do script de merge e ver se sobrou algum.
+  if (aMesclar > 0) {
+    pend.push(`scripts/merge-documentos-por-base.ts  (${aMesclar} grupo(s) ainda por mesclar — o script é idempotente, pode rodar de novo)`);
   }
   if (pend.length === 0) {
     console.log("  nada — Fase 2 aplicada por completo.");
