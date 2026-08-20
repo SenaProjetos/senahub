@@ -30,9 +30,18 @@ async function main() {
   if (status === 0) pend.push("npm run db:seed  (catalogo de status vazio)");
   if (orfaos > 0) pend.push(`scripts/reconciliar-uploads-orfaos.ts  (${orfaos} orfaos)`);
   if (semRev > 0) pend.push(`scripts/backfill-documento-revisao.ts  (${semRev} uploads sem revisao)`);
-  if (apelidos === 0 && multi === 0) pend.push("scripts/merge-documentos-por-base.ts  (nenhum documento mesclado)");
-  if (pend.length === 0) console.log("  nada — Fase 2 aplicada por completo.");
-  else pend.forEach((p) => console.log("  - " + p));
+  // O merge é medido SÓ por `apelidos`. Usar "revisões multi-arquivo" como sinal foi um erro:
+  // desde o deploy, cada upload novo já nasce com a chave sem extensão e cria revisão
+  // multi-arquivo sozinho — o que mascarava um acervo antigo inteiro por mesclar.
+  if (apelidos === 0 && docs > 0) {
+    pend.push(`scripts/merge-documentos-por-base.ts  (${docs} documentos, nenhum mesclado — rodar em modo relatório primeiro)`);
+  }
+  if (pend.length === 0) {
+    console.log("  nada — Fase 2 aplicada por completo.");
+  } else {
+    pend.forEach((p) => console.log("  - " + p));
+    console.log("  (execute na ordem acima — o merge depende das revisões já criadas)");
+  }
   await prisma.$disconnect();
 }
 main();
