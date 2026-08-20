@@ -28,6 +28,7 @@ import {
   criarParceiroSchema,
   editarParceiroSchema,
   parceiroIdSchema,
+  moverEstagioSchema,
 } from "@/modules/comercial/schemas";
 import { removerArquivo } from "@/lib/storage";
 import { etapaEhPerdido } from "@/modules/comercial/status";
@@ -36,6 +37,7 @@ import {
   criarPropostaDeLead as servicoCriarPropostaDeLead,
   salvarProposta as servicoSalvarProposta,
   aceitarProposta as servicoAceitarProposta,
+  moverEstagio as servicoMoverEstagio,
 } from "@/modules/comercial/service";
 
 const base = { modulo: "comercial", recurso: "comercial", permissao: "gerir" } as const;
@@ -583,5 +585,40 @@ export const aceitarProposta = defineAction(
     rev();
     revalidatePath("/projetos");
     return resultado;
+  },
+);
+
+// ── Negociação ────────────────────────────────────────────────
+/**
+ * Única action que muda estágio de negociação (F2.7). Delega inteiramente ao `moverEstagio` do
+ * service — a regra de transição não é reimplementada aqui, e nenhuma outra action deve fazer
+ * `update` de `estagio`.
+ *
+ * `capturarAntes` guarda o estágio anterior no `AuditLog`, e `entidadeId` amarra o registro à
+ * negociação. Juntos dão o rastro que o ADR-10 exige da reabertura e que o
+ * `atualizarOportunidade` antigo não tinha.
+ */
+export const moverEstagioNegociacao = defineAction(
+  {
+    ...base,
+    acao: "mover-estagio-negociacao",
+    entidade: "Negociacao",
+    schema: moverEstagioSchema,
+    entidadeId: (_d, i) => (i as { negociacaoId: string }).negociacaoId,
+    capturarAntes: async (i) =>
+      prisma.negociacao.findUnique({
+        where: { id: (i as { negociacaoId: string }).negociacaoId },
+        select: { estagio: true, probabilidade: true, motivoPerdaId: true, concorrente: true },
+      }),
+  },
+  async (i) => {
+    const r = await servicoMoverEstagio({
+      negociacaoId: i.negociacaoId,
+      para: i.para,
+      motivoPerdaId: i.motivoPerdaId || null,
+      concorrente: i.concorrente || null,
+    });
+    rev();
+    return r;
   },
 );

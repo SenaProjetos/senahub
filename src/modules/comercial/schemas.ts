@@ -123,3 +123,24 @@ export const editarParceiroSchema = z
   .object({ id: z.string().min(1), ...parceiroBase })
   .refine(parceiroDocValido, parceiroDocMsg);
 export const parceiroIdSchema = z.object({ id: z.string().min(1) });
+
+// ── Negociação (F2.7) ─────────────────────────────────────────
+/**
+ * `para` é validado contra o enum do Prisma; as regras de QUAL transição vale moram em
+ * `jornada.ts` (puro), não aqui — Zod checa forma, não regra de negócio.
+ */
+export const moverEstagioSchema = z.object({
+  negociacaoId: z.string().min(1),
+  para: z.enum([
+    "LEVANTAMENTO",
+    "ORCAMENTO",
+    "PROPOSTA_ENVIADA",
+    "NEGOCIACAO",
+    "CONTRATADO",
+    "PERDIDO",
+    "EM_ESPERA",
+    "CANCELADO",
+  ]),
+  motivoPerdaId: opt(z.string()),
+  concorrente: opt(z.string()),
+});

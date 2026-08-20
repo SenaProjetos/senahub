@@ -11,6 +11,12 @@ import { notificarNovosMembros } from "@/lib/socket";
 import { formatarNumeroProposta } from "@/modules/comercial/numeracao";
 import { disciplinasDeItens } from "@/modules/comercial/disciplinas";
 import type { SalvarPropostaInput } from "@/modules/comercial/schemas";
+import type { EstagioNegociacao } from "@/generated/prisma/client";
+import {
+  probabilidadeDe,
+  validarMovimento,
+  type TabelaProbabilidade,
+} from "@/modules/comercial/jornada";
 import type { Prisma } from "@/generated/prisma/client";
 
 /**
@@ -228,4 +234,83 @@ export async function aceitarProposta(propostaId: string) {
   );
 
   return { projetoId: projeto.id, codigo: projeto.codigo };
+}
+
+// ── Negociação: ponto ÚNICO de escrita de estágio (F2.7, ADR-10) ─────────────────────────────
+/**
+ * A única forma de um `Negociacao.estagio` mudar. Qualquer `update` genérico de estágio fora
+ * daqui é regressão — foi exatamente o defeito do `atualizarOportunidade`, que trocava o status
+ * livremente, sem guarda e sem rastro (ADR-10 registra isso como conflito com o código atual).
+ *
+ * A validação roda ANTES de qualquer escrita: `validarMovimento` é pura e lança `ActionError`
+ * com mensagem de negócio, então uma transição inválida nunca chega a tocar o banco.
+ *
+ * A probabilidade acompanha o estágio (ADR-12), respeitando o override manual — a regra mora em
+ * `probabilidadeDe`, e a tabela vem do banco (`ProbabilidadeEstagio`, seed da F1.6), nunca de
+ * constante no código.
+ *
+ * ⚠️ **A entrada de timeline (`Atividade`) NÃO é gravada aqui, e é de propósito:** o model
+ * `Atividade` só nasce na F3.1 — não existe tabela para escrever hoje. Este é o ponto de inserção
+ * dela: quando a F3.1 rodar, o registro de timeline entra nesta mesma transação, junto do update.
+ * A auditoria já está coberta pelo `defineAction` da action que chama isto, com `capturarAntes`
+ * guardando o estágio anterior e `entidadeId` apontando para a negociação.
+ */
+export async function moverEstagio(input: {
+  negociacaoId: string;
+  para: EstagioNegociacao;
+  motivoPerdaId?: string | null;
+  concorrente?: string | null;
+}): Promise<{ id: string; de: EstagioNegociacao; para: EstagioNegociacao; probabilidade: number }> {
+  const negociacao = await prisma.negociacao.findUnique({
+    where: { id: input.negociacaoId },
+    select: { id: true, estagio: true, probabilidade: true, probabilidadeOverride: true },
+  });
+  if (!negociacao) throw new ActionError("Negociação não encontrada.");
+
+  const motivo = input.motivoPerdaId
+    ? await prisma.motivoPerda.findUnique({
+        where: { id: input.motivoPerdaId },
+        select: { id: true, exigeConcorrente: true },
+      })
+    : null;
+  if (input.motivoPerdaId && !motivo) throw new ActionError("Motivo de perda não encontrado.");
+
+  validarMovimento({
+    de: negociacao.estagio,
+    para: input.para,
+    motivoPerdaId: input.motivoPerdaId,
+    concorrente: input.concorrente,
+    motivo,
+  });
+
+  const linhas = await prisma.probabilidadeEstagio.findMany({
+    select: { estagio: true, probabilidade: true },
+  });
+  const tabela: TabelaProbabilidade = Object.fromEntries(
+    linhas.map((l) => [l.estagio, l.probabilidade]),
+  );
+  const probabilidade = probabilidadeDe(input.para, {
+    tabela,
+    override: negociacao.probabilidadeOverride,
+    atual: negociacao.probabilidade,
+  });
+
+  // `dataFechamento` marca o fim do ciclo — preenchida ao encerrar, LIMPA ao reabrir (ADR-10),
+  // senão uma negociação reaberta continuaria contando como fechada nos relatórios da Fase 6.
+  const encerra = input.para === "CONTRATADO" || input.para === "PERDIDO" || input.para === "CANCELADO";
+
+  await prisma.negociacao.update({
+    where: { id: negociacao.id },
+    data: {
+      estagio: input.para,
+      probabilidade,
+      dataFechamento: encerra ? new Date() : null,
+      // Motivo e concorrente só fazem sentido no encerramento sem contrato; ao sair de PERDIDO
+      // (reabertura) eles são zerados, para não sobrar "perdemos para X" numa negociação viva.
+      motivoPerdaId: input.para === "PERDIDO" ? (input.motivoPerdaId ?? null) : null,
+      concorrente: input.para === "PERDIDO" ? (input.concorrente?.trim() || null) : null,
+    },
+  });
+
+  return { id: negociacao.id, de: negociacao.estagio, para: input.para, probabilidade };
 }
