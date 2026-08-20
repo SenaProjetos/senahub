@@ -118,6 +118,28 @@ além disso. Importa porque o `db push` sincroniza o schema INTEIRO: ele também
 `pendencia`/`pendencia_anexo` que faltavam no dev por drift antigo — drift de outra frente, que
 **não** entra nesta migration e portanto não vai a produção, o que é o comportamento correto.
 
+**Executado em produção — 2026-08-19 (mesma data).** `migrate deploy` → `db:seed` → backfill em
+dry-run → `--gravar`. **79 disciplinas ganharam FK**; as **6 sem match exato** ficaram em `null`,
+que é o estado esperado e o insumo da F1.21. `smoke:crm-prod` fechou **17 OK / 0 falhas / 1 pulado**
+(o pulado é `needsReview`, que só nasce na Fase 2 com a `Negociacao`).
+
+Os números de produção bateram exatamente com o que o §5 do `03-migracao.md` mediu: as 79 cobrem
+**12 grafias distintas**, que somadas às 6 pendentes dão as **18 distintas** documentadas, contra um
+catálogo de **18** entradas.
+
+**Dois dados novos que o dry-run em produção trouxe, e que a F1.21 herda:**
+
+- **As 3 grafias que "colapsam" estão vazias.** `Ar condicionado (ARC)` e `Exaustão (EXT)` (ambas em
+  260023) e `Gases` (260014) têm `valor` NULL, **0 revisões, 0 uploads e 0 responsáveis**. Para elas
+  a F1.21 é só apontar a FK — não há arquivo nem revisão cujo destino precise ser decidido. O peso
+  real da F1.21 está inteiro nas 3 strings compostas (38 uploads e 2 revisões somados).
+- ⚠️ **Colisão a decidir no 260023:** esse projeto tem `Ar condicionado (ARC)` **e** `Exaustão (EXT)`,
+  e as duas colapsam para `Climatização (AVAC)` — o projeto terminaria com **duas** `Disciplina`
+  apontando para a mesma entrada do catálogo. Não quebra nada (`Disciplina` não tem unique em
+  `(projetoId, disciplinaId)`, conferido no schema), mas alguém precisa dizer se viram uma só. Como
+  ambas estão vazias, fundir é indolor. **Não estava no levantamento do §5** — apareceu agora porque
+  o relatório do backfill agrupa por grafia e mostra o projeto de cada uma.
+
 **Pendente:** **F1.21** — agora destravada. As 3 strings compostas seguem exigindo decisão do
 responsável de cada projeto (260014, 260020, 260023), com o levantamento pronto em
 `docs/crm/03-migracao.md` §5 (os três com `valor = NULL`, então o rateio de pagamento não se aplica;

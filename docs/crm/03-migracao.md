@@ -243,6 +243,19 @@ espinhosa que este §5 antecipava — dividir a base de pagamento ao projetista 
 três**. O que continua exigindo decisão humana é o destino dos **38 uploads** e das **2 revisões** do projeto
 260023: desmembrar em `Cabeamento` + `CFTV` obriga a dizer para qual das duas vai cada arquivo.
 
+**Complemento medido em 2026-08-19, no backfill da F1.19c em produção — duas coisas que esta tabela
+não dizia:**
+
+As **3 grafias que colapsam** (`Ar condicionado (ARC)`, `Exaustão (EXT)`, `Gases`) estão
+**completamente vazias**: `valor` NULL, 0 revisões, 0 uploads, 0 responsáveis. Para elas a F1.21 é só
+apontar a FK — todo o trabalho de decisão está nas 3 compostas da tabela acima.
+
+⚠️ **Colisão no 260023, ainda sem decisão:** esse projeto tem **as duas** grafias que colapsam para
+`Climatização (AVAC)` — `Ar condicionado (ARC)` e `Exaustão (EXT)`. Aplicar a regra como está escrita
+deixa o projeto com **duas `Disciplina` apontando para a mesma entrada do catálogo**. O banco aceita
+(`Disciplina` não tem unique em `(projetoId, disciplinaId)`), então não é erro — é uma escolha:
+fundir numa só ou manter as duas. Como ambas estão vazias, fundir não perde nada.
+
 ### Como aplicar o resto
 
 As outras 21 grafias (18 exatas + as 3 que colapsam) ganham FK para a entrada correspondente do
