@@ -342,3 +342,126 @@ export async function funilProspeccao() {
 }
 export type ColunaProspeccao = Awaited<ReturnType<typeof funilProspeccao>>[number];
 export type LeadProspeccao = ColunaProspeccao["leads"][number];
+
+// ── Kanban de Negociações (F2.14) ────────────────────────────
+/** Colunas do board de negociação, na ordem do funil. */
+export const COLUNAS_NEGOCIACAO = [
+  "LEVANTAMENTO",
+  "ORCAMENTO",
+  "PROPOSTA_ENVIADA",
+  "NEGOCIACAO",
+  "CONTRATADO",
+  "PERDIDO",
+  "EM_ESPERA",
+  "CANCELADO",
+] as const;
+
+/** Quantos cards por coluna vêm na primeira carga (F2.14 pede paginação por coluna). */
+export const PAGINA_COLUNA = 25;
+
+/**
+ * Board de negociações.
+ *
+ * **Duas consultas no total, independentemente de quantas colunas ou cards** — é o aceite
+ * ("1 query para montar o board, sem N+1"). A primeira traz as negociações com tudo do card
+ * resolvido por `select` (cliente, responsável, disciplinas contadas); a segunda traz as próximas
+ * ações de todas elas em lote, porque a âncora é polimórfica e sem FK (ver F2.10) e o Prisma não
+ * junta relação que não existe no schema.
+ *
+ * O ingênuo aqui seria uma consulta por coluna (8) mais uma por card para a próxima ação — com
+ * 200 cards seriam 208 idas ao banco para desenhar uma tela.
+ *
+ * **Contagem e soma vêm do banco, não do array paginado.** Se viessem do array, uma coluna com
+ * 200 registros mostraria "25" e somaria só a primeira página — o número no topo da coluna
+ * mentiria justamente onde ele mais importa.
+ */
+export async function funilNegociacao(opts?: { pagina?: number }) {
+  const take = PAGINA_COLUNA * (opts?.pagina ?? 1);
+
+  const [totais, negociacoes] = await Promise.all([
+    prisma.negociacao.groupBy({
+      by: ["estagio"],
+      _count: true,
+      _sum: { valorEstimado: true },
+    }),
+    prisma.negociacao.findMany({
+      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        titulo: true,
+        estagio: true,
+        temperatura: true,
+        valorEstimado: true,
+        valorProposto: true,
+        probabilidade: true,
+        updatedAt: true,
+        cliente: { select: { id: true, nome: true } },
+        responsavel: { select: { id: true, name: true } },
+        _count: { select: { disciplinas: true, contatos: true } },
+      },
+    }),
+  ]);
+
+  const acoes = await prisma.compromisso.findMany({
+    where: {
+      entidadeTipo: "NEGOCIACAO",
+      entidadeId: { in: negociacoes.map((n) => n.id) },
+      tipo: { not: null },
+      concluidoEm: null,
+    },
+    orderBy: { inicio: "asc" },
+    select: { entidadeId: true, inicio: true, tipo: true, titulo: true },
+  });
+  const proxima = new Map<string, (typeof acoes)[number]>();
+  for (const a of acoes) {
+    if (a.entidadeId && !proxima.has(a.entidadeId)) proxima.set(a.entidadeId, a);
+  }
+
+  const cards = negociacoes.map((n) => {
+    const p = proxima.get(n.id);
+    return {
+      id: n.id,
+      titulo: n.titulo,
+      estagio: n.estagio,
+      temperatura: n.temperatura,
+      valorEstimado: n.valorEstimado != null ? Number(n.valorEstimado) : null,
+      valorProposto: n.valorProposto != null ? Number(n.valorProposto) : null,
+      probabilidade: n.probabilidade,
+      updatedAt: n.updatedAt.toISOString(),
+      cliente: n.cliente,
+      responsavel: n.responsavel,
+      qtdDisciplinas: n._count.disciplinas,
+      qtdContatos: n._count.contatos,
+      proximaAcao: p
+        ? { inicio: p.inicio.toISOString(), tipo: p.tipo, titulo: p.titulo }
+        : null,
+    };
+  });
+
+  const totalPorEstagio = new Map(totais.map((t) => [t.estagio, t]));
+
+  return COLUNAS_NEGOCIACAO.map((estagio) => {
+    const doEstagio = cards.filter((c) => c.estagio === estagio);
+    const agregado = totalPorEstagio.get(estagio);
+    return {
+      estagio,
+      cards: doEstagio.slice(0, take),
+      /** Total REAL no banco — não o tamanho da página. */
+      total: agregado?._count ?? 0,
+      soma: Number(agregado?._sum.valorEstimado ?? 0),
+      temMais: doEstagio.length > take,
+    };
+  });
+}
+export type ColunaNegociacao = Awaited<ReturnType<typeof funilNegociacao>>[number];
+export type CardNegociacao = ColunaNegociacao["cards"][number];
+
+/** Catálogo de motivos de perda para o diálogo (F2.14) — `exigeConcorrente` junto, é a regra. */
+export async function motivosPerdaAtivos() {
+  return prisma.motivoPerda.findMany({
+    where: { ativo: true },
+    orderBy: { ordem: "asc" },
+    select: { id: true, nome: true, exigeConcorrente: true },
+  });
+}
+export type MotivoPerdaOpcao = Awaited<ReturnType<typeof motivosPerdaAtivos>>[number];

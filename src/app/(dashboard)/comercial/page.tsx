@@ -33,6 +33,9 @@ export default async function ComercialPage() {
           <Button variant="outline" size="sm" render={<Link href="/comercial/prospeccao" />}>
             <KanbanSquare className="size-4" /> Prospecção
           </Button>
+          <Button variant="outline" size="sm" render={<Link href="/comercial/negociacoes" />}>
+            <Handshake className="size-4" /> Negociações
+          </Button>
           <Button variant="outline" size="sm" render={<Link href="/comercial/parceiros" />}>
             <Handshake className="size-4" /> Parceiros
           </Button>
