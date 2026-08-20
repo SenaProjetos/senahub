@@ -97,6 +97,8 @@ export default async function ProjetoDetalhePage({
     return {
       id: d.id,
       nome: d.disciplinaTextoLegado,
+      // Só o nome cru: quem decide se aparece é `rotuloCatalogo`, no componente.
+      catalogoNome: d.catalogo?.nome ?? null,
       status: d.status,
       prazo: d.prazo ? new Date(d.prazo).toISOString() : null,
       valor: ocultarValorDisciplina ? null : d.valor != null ? Number(d.valor) : null,

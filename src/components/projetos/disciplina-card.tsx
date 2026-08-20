@@ -32,6 +32,7 @@ import {
   definirResponsaveis,
   registrarRevisao,
 } from "@/modules/projetos/actions";
+import { rotuloCatalogo } from "@/modules/projetos/disciplina-rotulo";
 import {
   solicitarAprovacaoDisciplina,
   confirmarAprovacaoDisciplina,
@@ -125,6 +126,8 @@ type UploadItem = {
 type Disc = {
   id: string;
   nome: string;
+  /** Nome no catálogo. Vira rótulo secundário só se diferir de `nome` — ver `rotuloCatalogo`. */
+  catalogoNome?: string | null;
   status: StatusDisciplina;
   prazo: string | null;
   valor: number | null;
@@ -184,6 +187,7 @@ export function DisciplinaCard({
   const podeEnviar = podeGerir || disciplina.ehResponsavel;
   const podeDiario = !!meRole && (ehGlobal(meRole) || disciplina.ehResponsavel);
   const atraso = diasDeAtraso(disciplina.prazo, disciplina.status);
+  const rotulo = rotuloCatalogo(disciplina.nome, disciplina.catalogoNome);
   const qtdTarefas = tarefas?.length ?? 0;
   const qtdAtrasadas = tarefas?.filter(tarefaAtrasada).length ?? 0;
   // Fonte única do progresso de validação: o card e o dialog de arquivos leem o MESMO
@@ -209,7 +213,17 @@ export function DisciplinaCard({
     <div className="space-y-3 rounded-sm border bg-card p-4">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h4 className="font-semibold">{disciplina.nome}</h4>
+          <h4 className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 font-semibold">
+            {disciplina.nome}
+            {rotulo && (
+              <span
+                className="text-xs font-normal text-muted-foreground"
+                title={`Classificada no catálogo como ${rotulo}`}
+              >
+                · {rotulo}
+              </span>
+            )}
+          </h4>
           {disciplina.prazo && (
             <p className="text-xs text-muted-foreground">
               Prazo: {formatarData(disciplina.prazo)}

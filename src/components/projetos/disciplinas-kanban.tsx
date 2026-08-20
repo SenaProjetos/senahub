@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { rotuloCatalogo } from "@/modules/projetos/disciplina-rotulo";
 import { CheckSquare, Square, X, Info } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,8 @@ const STATUS_COL_CLASS: Record<StatusDisciplina, string> = {
 export interface DisciplinaKanban {
   id: string;
   nome: string;
+  /** Nome no catálogo. Vira rótulo secundário só se diferir de `nome` — ver `rotuloCatalogo`. */
+  catalogoNome?: string | null;
   status: StatusDisciplina;
   prazo: string | null;
   valor: number | null;
@@ -92,7 +95,14 @@ function KanbanCard({
         </button>
       )}
 
-      <span className="pr-6 text-sm font-medium leading-snug">{disc.nome}</span>
+      <div className="pr-6">
+        <span className="text-sm font-medium leading-snug">{disc.nome}</span>
+        {rotuloCatalogo(disc.nome, disc.catalogoNome) && (
+          <span className="block text-[11px] leading-tight text-muted-foreground">
+            {rotuloCatalogo(disc.nome, disc.catalogoNome)}
+          </span>
+        )}
+      </div>
 
       <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
         <span
