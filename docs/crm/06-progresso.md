@@ -20,6 +20,97 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F2.6 → F2.10 — jornada, qualificação, frescor e próxima ação · 2026-08-20 · Opus
+
+Cinco tarefas seguidas, todas destravadas pelo bloco de schema anterior.
+
+**F2.6 — `jornada.ts` + teste (puro)**
+- `transicaoPermitida`, `exigeMotivoPerda`, `exigeConcorrente`, `probabilidadeDe`. Tabela de
+  probabilidade **injetada**, nunca consultada dentro do módulo — é o que o mantém puro e ao mesmo
+  tempo cumpre "nunca hardcode na UI" (ADR-12).
+- **`CONTRATADO` só é alcançável de `PROPOSTA_ENVIADA`/`NEGOCIACAO`.** Não é purismo: essa
+  transição cria um `Projeto` (F5.9), e liberar o atalho faria projeto nascer sem nenhuma proposta
+  por trás — o buraco que a reforma existe para fechar.
+- **Voltar entre ativos é permitido.** Cliente pedir revisão é caso real; bloquear empurraria o
+  time a contornar por fora, que é o problema de origem.
+- **`PERDIDO` e `CANCELADO` reabrem.** O ADR-10 fala só de "perdida", mas a diferença entre os
+  dois é o motivo, não a reversibilidade — negar só a um seria arbitrário. Decisão registrada.
+- **`PERDIDO`/`CANCELADO` zeram a probabilidade mesmo com override manual** — única regra que passa
+  por cima do override, porque o contrário faria o forecast da Fase 6 (probabilidade × valor)
+  mentir. `EM_ESPERA` mantém: pausar não é perder.
+- Estágio sem linha na tabela mantém o valor atual em vez de chutar default — chutar recriaria o
+  número mágico que o ADR-12 rejeita.
+
+**F2.7 — `moverEstagio()`, ponto único de escrita**
+- Conferido por grep: a **única escrita de `estagio` do repositório** está no service; o único
+  `estagio:` em `actions.ts` é um `select` para a auditoria.
+- `validarMovimento` é puro e lança `ActionError`, então transição inválida **nunca chega a tocar
+  o banco** (padrão de guard síncrono de `custos/orcamento/service.test.ts`).
+- `dataFechamento` é **limpa ao reabrir**, senão negociação reaberta seguiria contando como
+  fechada nos relatórios. `motivoPerda`/`concorrente` idem — para não sobrar "perdemos para X"
+  numa negociação viva.
+- ⚠️ **A entrada de timeline (`Atividade`) NÃO é gravada**, e é de propósito: o model só nasce na
+  F3.1, não há tabela para escrever. Ponto de inserção marcado no docblock. A auditoria já está
+  coberta pelo `defineAction` com `capturarAntes` + `entidadeId`.
+
+**F2.8 — `qualificarProspeccao()`**
+- O lead **sobrevive**: vai a `OPORTUNIDADE_CRIADA` e a negociação aponta de volta. É o que
+  preserva "como esta empresa chegou até nós" — canal, campanha, parceiro e timeline continuam
+  consultáveis. Destruir o lead apagaria justamente o que a Fase 6 precisa para medir origem.
+- Título herda `origemDetalhada`, que é onde o nome do empreendimento foi parar no backfill da
+  F1.23 — o "campo próprio da `Negociacao`" que o `03-migracao.md` §3 manda usar.
+- Qualificar 2× é impossível por **duas barreiras independentes**: o guard e o `leadId @unique`.
+  A segunda cobre a corrida entre dois cliques simultâneos, que o guard sozinho não pega.
+- Provado no banco: lead sobrevive, negociação aponta de volta, título/canal/contatos herdados,
+  2ª qualificação recusada.
+
+**F2.9 — `frescor.ts` + teste (puro, relógio injetado)**
+- **Conta dias de CALENDÁRIO local, não blocos de 24h.** Interação às 23h de ontem é "1 dia" hoje
+  às 8h, não "zero" — é como quem vende enxerga, e o que faz o número bater com a memória da pessoa.
+- `diasSemInteracao` devolve **`null`** quando nunca houve interação, não zero: "nunca falamos" e
+  "falamos hoje" são estados diferentes, e zero esconderia quem nunca foi contatado justamente na
+  lista feita para achar essas pessoas.
+- ⚠️ **Fuso:** o backlog pede `America/Recife`; o resto do código (`ponto/engine`, `jobs`, `backup`)
+  usa `America/Sao_Paulo`. **Hoje são idênticos** — ambos UTC-3 fixo, o Brasil aboliu o DST em 2019
+  e Pernambuco nunca o adotou. Só passaria a importar se o horário de verão voltasse, e aí Recife
+  seria o fuso **certo** para o escritório. Ficou em Recife, com a divergência documentada no
+  módulo para não parecer descuido de copiar-e-colar.
+- O teste-guarda "zero `new Date()` sem argumento" **pegou um caso real na primeira execução**: o
+  próprio docblock que explica a regra. Corrigido removendo comentários antes da checagem — e o
+  teste agora prova que continua pegando o caso de verdade.
+
+**F2.10 — Próxima Ação ancorada**
+- O schema veio na F2.1b; esta tarefa entregou quem **escreve** e quem **lê**.
+- Antes o `follow-up-dialog` gravava `titulo: "Follow-up: <nome>"` e nada mais — o lead existia ali
+  como **texto**. Era por isso que "quais prospecções estão sem próximo contato marcado?" era
+  impossível por query. Agora vira um `findMany`.
+- Duas consultas em vez de join porque a âncora é **polimórfica e sem FK**; inventar três FKs
+  nullable só para permitir o join deixaria o modelo pior que a consulta extra.
+- `tipo: { not: null }` restringe a compromissos comerciais — reunião comum com o cliente não conta
+  como próxima ação. É o mesmo campo que a agenda filtra (F2.1a): âncora e filtro compartilham a fonte.
+- Provado no banco o ciclo inteiro: 2 leads sem ação → agendar tira um → `proximasAcoesDe` devolve
+  com o tipo certo → concluir devolve o lead à fila → concluir de novo é recusado.
+
+**Verificação (do bloco todo):** `eslint` limpo no código do projeto · `vitest run` **201 arquivos,
+2112 testes verdes** (56 novos) · `tsc --noEmit` (heap 8GB) só os 2 pré-existentes de
+`backup-storage.test.ts` · `npm run build` ✓.
+
+⚠️ **Ruído de ambiente, não do código:** `npx eslint .` passou a acusar 14 erros vindos de
+`.claude/worktrees/agent-*/public/*.min.mjs` — workers minificados de terceiros dentro de worktrees
+de agente criados durante a sessão. Nenhum arquivo do projeto. Se os worktrees não estiverem em uso,
+`git worktree remove` limpa.
+
+⚠️ **Outra frente commitando em paralelo:** commits de `documentos` (`05718ea`, `9905d2c`) entraram
+no meio deste histórico e o checkout chegou a ser trocado para `refactor/documentos-cde` por fora.
+Nada se perdeu (as refs apontavam para o mesmo commit), mas a partir daí passei a commitar por
+**caminho explícito**, não `git add -A` — há um `src/modules/uploads/documentos-agrupados.ts` da
+outra frente na árvore que deliberadamente não foi tocado.
+
+**Pendente da Fase 2:** F2.11 a F2.17 (UI: boards, filtros, WhatsApp/e-mail, responsivo), F2.18
+(**produção**, migra os 8 leads), F2.19 (opcional, recomendado adiar) e F2.20 (fecho).
+
+---
+
 ## F2.3 + F2.4 + F2.5 — Lead v2, Negociacao e a regra de prospecção única · 2026-08-20 · Opus
 
 O bloco de fundação da Fase 2: os dois models que separam prospecção de negociação, mais a
