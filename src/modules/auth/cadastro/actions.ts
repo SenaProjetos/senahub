@@ -5,15 +5,18 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { notificarMuitos } from "@/lib/notificar";
-import { SOLICITACAO_CADASTRO_ROLES, ROLE_LABELS, type Role } from "@/lib/roles";
 import { whereAudiencia } from "@/lib/audiencias";
+import { roleLegadoDe } from "@/modules/usuarios/vinculo/mapa";
+import {
+  acharVinculoPretendido,
+  VALORES_VINCULO_PRETENDIDO,
+} from "@/modules/auth/cadastro/vinculos";
 
 const publicSchema = z.object({
   nome: z.string().min(1, "Informe o nome."),
   email: z.string().email("E-mail inválido."),
   telefone: z.string().optional(),
-  // Só perfis não-privilegiados podem ser pedidos publicamente; o admin decide o vínculo real.
-  role: z.enum(SOLICITACAO_CADASTRO_ROLES as [string, ...string[]]).default("cliente"),
+  vinculo: z.enum(VALORES_VINCULO_PRETENDIDO).default("externo"),
   mensagem: z.string().optional(),
 });
 
@@ -26,12 +29,15 @@ export async function solicitarCadastro(raw: unknown): Promise<{ ok: true } | { 
   const existe = await prisma.solicitacaoCadastro.findFirst({ where: { email: p.data.email, status: "pendente" } });
   if (existe) return { ok: true };
 
+  const escolhido = acharVinculoPretendido(p.data.vinculo);
+
   await prisma.solicitacaoCadastro.create({
     data: {
       nome: p.data.nome,
       email: p.data.email,
       telefone: p.data.telefone || null,
-      role: p.data.role as Role,
+      tipoPretendido: escolhido.tipo,
+      contratacaoPretendida: escolhido.contratacao,
       mensagem: p.data.mensagem || null,
     },
   });
@@ -47,7 +53,7 @@ export async function solicitarCadastro(raw: unknown): Promise<{ ok: true } | { 
       gestores.map((g) => g.id),
       {
         titulo: "Novo pedido de acesso",
-        corpo: `${p.data.nome} (${p.data.email}) solicitou cadastro como ${ROLE_LABELS[p.data.role as Role]}.`,
+        corpo: `${p.data.nome} (${p.data.email}) solicitou cadastro como ${escolhido.label}.`,
         href: "/configuracoes/usuarios",
         tag: "solicitacao-cadastro",
       },
@@ -75,9 +81,18 @@ export const avaliarSolicitacaoCadastro = defineAction(
     revalidatePath("/configuracoes/usuarios");
     return {
       id: i.id,
-      // Reaproveita tudo que a pessoa informou (nome/e-mail/telefone/cargo pretendido).
+      // Reaproveita tudo que a pessoa informou (nome/e-mail/telefone/vínculo pretendido).
+      // `role` é DERIVADO dos eixos só para o formulário de Usuários, que ainda fala papel —
+      // some junto com `User.role` na Onda F, quando a tela passar a falar os eixos direto.
       prefill: i.aprovar
-        ? { name: pedido.nome, email: pedido.email, telefone: pedido.telefone ?? "", role: pedido.role }
+        ? {
+            name: pedido.nome,
+            email: pedido.email,
+            telefone: pedido.telefone ?? "",
+            role: roleLegadoDe(pedido.tipoPretendido, pedido.contratacaoPretendida),
+            tipoPretendido: pedido.tipoPretendido,
+            contratacaoPretendida: pedido.contratacaoPretendida,
+          }
         : null,
     };
   },

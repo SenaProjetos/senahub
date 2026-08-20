@@ -9,14 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { SOLICITACAO_CADASTRO_ROLES, ROLE_LABELS, type Role } from "@/lib/roles";
+import { OPCOES_VINCULO_PRETENDIDO, type VinculoPretendido } from "@/modules/auth/cadastro/vinculos";
 
 export default function SolicitarCadastroPage() {
-  const [form, setForm] = useState<{ nome: string; email: string; telefone: string; role: Role; mensagem: string }>({
+  const [form, setForm] = useState<{ nome: string; email: string; telefone: string; vinculo: VinculoPretendido; mensagem: string }>({
     nome: "",
     email: "",
     telefone: "",
-    role: "cliente",
+    vinculo: "externo",
     mensagem: "",
   });
   const [enviando, setEnviando] = useState(false);
@@ -62,14 +62,14 @@ export default function SolicitarCadastroPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Cargo / vínculo</Label>
-                <Select value={form.role} onValueChange={(v) => v && setForm({ ...form, role: v as Role })}>
+                <Select value={form.vinculo} onValueChange={(v) => v && setForm({ ...form, vinculo: v as VinculoPretendido })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {SOLICITACAO_CADASTRO_ROLES.map((r) => (
-                      <SelectItem key={r} value={r}>
-                        {ROLE_LABELS[r]}
+                    {OPCOES_VINCULO_PRETENDIDO.map((o) => (
+                      <SelectItem key={o.valor} value={o.valor}>
+                        {o.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

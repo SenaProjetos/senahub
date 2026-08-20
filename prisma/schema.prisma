@@ -1903,8 +1903,15 @@ model SolicitacaoCadastro {
   email     String
   telefone  String?
   mensagem  String?
-  /// Cargo/vínculo pretendido informado pela pessoa (palpite — o admin decide na criação).
-  role      Role                @default(cliente)
+  /// Vínculo PRETENDIDO informado pela própria pessoa (palpite — o admin decide na criação).
+  /// Era um `role` único até 2026-08-20; virou os dois eixos da reforma de acesso porque o
+  /// dado mostrou que um enum só não expressava a resposta: 27 dos 32 pedidos eram `cliente`,
+  /// que é `tipo: externo` e contratação NENHUMA. Ver R6 do plano de acesso.
+  /// Ganho de tabela: a pessoa PJ agora se declara `pj` ou `autonomo_rpa` na origem, então
+  /// pedidos novos não entram na fila de reclassificação manual do §9.2.
+  tipoPretendido        TipoUsuario  @default(externo)
+  /// Null quando `tipoPretendido = externo` (cliente do portal não tem contratação).
+  contratacaoPretendida Contratacao?
   status    StatusSolicCadastro @default(pendente)
   createdAt DateTime            @default(now())
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ROLES, type Role } from "@/lib/roles";
-import { aplicarSocio, derivarEixos } from "./mapa";
+import { aplicarSocio, derivarEixos, roleLegadoDe } from "./mapa";
 
 describe("derivarEixos", () => {
   it("é total sobre Role — todo perfil tem mapa", () => {
@@ -114,5 +114,42 @@ describe("aplicarSocio", () => {
     const e = aplicarSocio(derivarEixos("admin"), true, true);
     expect(e.criaVinculo).toBe(false);
     expect(e.contratacao).toBeNull();
+  });
+});
+
+describe("roleLegadoDe", () => {
+  it("externo é sempre cliente, qualquer que seja a contratação", () => {
+    expect(roleLegadoDe("externo", null)).toBe("cliente");
+    // Combinação incoerente (externo COM contratação) não deve inventar papel interno.
+    expect(roleLegadoDe("externo", "clt")).toBe("cliente");
+  });
+
+  it("mapeia cada contratação interna para um papel", () => {
+    expect(roleLegadoDe("interno", "clt")).toBe("clt");
+    expect(roleLegadoDe("interno", "estagio")).toBe("estagiario");
+    expect(roleLegadoDe("interno", "pj")).toBe("projetista_pj");
+    expect(roleLegadoDe("interno", "autonomo_rpa")).toBe("freelancer");
+  });
+
+  it("pro_labore e ausência de contratação caem em clt, sem estourar", () => {
+    expect(roleLegadoDe("interno", "pro_labore")).toBe("clt");
+    expect(roleLegadoDe("interno", null)).toBe("clt");
+  });
+
+  it("devolve sempre um Role válido — nunca undefined por falta de ramo", () => {
+    const contratacoes = ["clt", "estagio", "pj", "autonomo_rpa", "pro_labore", null] as const;
+    for (const c of contratacoes) {
+      for (const t of ["interno", "externo"] as const) {
+        expect(ROLES).toContain(roleLegadoDe(t, c));
+      }
+    }
+  });
+
+  it("volta ao papel de origem no caminho de ida e volta que importa", () => {
+    // Só os papéis que o formulário público oferece — os que a reforma precisa preservar.
+    for (const role of ["cliente", "clt", "estagiario", "projetista_pj"] as Role[]) {
+      const e = derivarEixos(role);
+      expect(roleLegadoDe(e.tipo, e.contratacao)).toBe(role);
+    }
   });
 });

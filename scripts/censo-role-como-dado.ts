@@ -73,15 +73,16 @@ async function main() {
   // ── 3. SolicitacaoCadastro.role ───────────────────────────────────────────
   const pendentes = await prisma.solicitacaoCadastro.count({ where: { status: "pendente" } });
   const totalSolic = await prisma.solicitacaoCadastro.count();
-  const porRole = await prisma.solicitacaoCadastro.groupBy({
-    by: ["role"],
-    _count: { role: true },
+  const porVinculo = await prisma.solicitacaoCadastro.groupBy({
+    by: ["tipoPretendido", "contratacaoPretendida"],
+    _count: { _all: true },
   });
 
-  console.log("\n[SolicitacaoCadastro.role]");
+  console.log("\n[SolicitacaoCadastro] — `role` MIGRADO em 2026-08-20 para tipo + contratação");
   console.log(`  total: ${totalSolic} · pendentes (o campo ainda vai ser lido): ${pendentes}`);
-  for (const g of porRole) {
-    console.log(`     - ${g.role}: ${g._count.role}`);
+  for (const g of porVinculo) {
+    const rotulo = `${g.tipoPretendido}${g.contratacaoPretendida ? ` / ${g.contratacaoPretendida}` : ""}`;
+    console.log(`     - ${rotulo}: ${g._count._all}`);
   }
 
   // ── 4. EscalaRole.role — o 4º campo, preso na Onda E ──────────────────────

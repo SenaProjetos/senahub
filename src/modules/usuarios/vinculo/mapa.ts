@@ -107,3 +107,39 @@ export function aplicarSocio(
     revisar: [...eixos.revisar, "socio_ativo"],
   };
 }
+
+/**
+ * Caminho INVERSO: dos eixos novos de volta ao `Role` legado.
+ *
+ * Existe porque telas que ainda falam `role` precisam de um valor enquanto o enum não cai na
+ * Onda F — hoje só o pré-preenchimento do cadastro (`avaliarSolicitacaoCadastro` → formulário
+ * de Usuários). É a "derivação em um único ponto" que o R3 do plano pede: sem isso, cada
+ * chamador inventaria o próprio `if`, e metade do sistema derivaria diferente da outra metade.
+ *
+ * **Some junto com `User.role`.** Quando o formulário de Usuários passar a falar Setor ×
+ * Contratação direto, esta função não tem mais chamador e vai embora com o enum.
+ *
+ * Não é bijeção: `pj` volta como `projetista_pj` (o papel mais comum), e `pro_labore` não tem
+ * papel próprio — cai em `clt`, que é o mais próximo em jornada/folha. Nenhum dos dois importa
+ * para o único uso atual, que é palpite de formulário revisado por um humano antes de gravar.
+ */
+export function roleLegadoDe(
+  tipo: TipoUsuario,
+  contratacao: Contratacao | null,
+): Role {
+  if (tipo === "externo") return "cliente";
+  switch (contratacao) {
+    case "clt":
+      return "clt";
+    case "estagio":
+      return "estagiario";
+    case "pj":
+      return "projetista_pj";
+    case "autonomo_rpa":
+      return "freelancer";
+    case "pro_labore":
+      return "clt";
+    case null:
+      return "clt";
+  }
+}

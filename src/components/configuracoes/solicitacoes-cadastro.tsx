@@ -5,14 +5,14 @@ import { Check, X, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
 
 export type PedidoCadastro = {
   id: string;
   nome: string;
   email: string;
   telefone: string | null;
-  role: Role;
+  /** Rótulo pt-BR já resolvido no servidor (ex.: "Cliente", "PJ") — não é mais um `Role`. */
+  vinculoPretendido: string;
   mensagem: string | null;
   createdAt: string;
 };
@@ -46,7 +46,7 @@ export function SolicitacoesCadastro({
               <div className="min-w-0">
                 <p className="flex items-center gap-1.5 font-medium">
                   {p.nome} <span className="font-mono text-xs text-muted-foreground">{p.email}</span>
-                  <Badge variant="outline" className="shrink-0">{ROLE_LABELS[p.role]}</Badge>
+                  <Badge variant="outline" className="shrink-0">{p.vinculoPretendido}</Badge>
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {p.telefone ? `${p.telefone} · ` : ""}{p.mensagem ?? ""} · {formatarData(p.createdAt)}
