@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { STATUS_PROSPECCAO_ATIVOS, prospeccaoTravaEmpresa } from "./prospeccao";
+import {
+  STATUS_PROSPECCAO_ATIVOS,
+  podeQualificar,
+  prospeccaoTravaEmpresa,
+  validarQualificacao,
+} from "./prospeccao";
 
 describe("prospeccaoTravaEmpresa", () => {
   it("os 4 status ativos travam a empresa (ADR-18)", () => {
@@ -46,5 +51,46 @@ describe("acoplamento com o índice parcial do banco", () => {
     for (const s of ["SEM_OPORTUNIDADE", "EM_ESPERA", "DESCARTADO", "OPORTUNIDADE_CRIADA"]) {
       expect(sql).not.toContain(`'${s}'`);
     }
+  });
+});
+
+describe("validarQualificacao — guard da F2.8, sem tocar o banco", () => {
+  const empresa = "cliente-1";
+
+  it("qualifica a partir de qualquer status ativo", () => {
+    for (const status of STATUS_PROSPECCAO_ATIVOS) {
+      expect(() => validarQualificacao({ status, clienteId: empresa })).not.toThrow();
+    }
+  });
+
+  it("recusa qualificar de novo o que já virou oportunidade", () => {
+    expect(() =>
+      validarQualificacao({ status: "OPORTUNIDADE_CRIADA", clienteId: empresa }),
+    ).toThrow(/já foi qualificada/i);
+  });
+
+  it("recusa status fora do fluxo, pedindo reativação", () => {
+    for (const status of ["SEM_OPORTUNIDADE", "DESCARTADO", "EM_ESPERA"] as const) {
+      expect(() => validarQualificacao({ status, clienteId: empresa })).toThrow(/[Rr]eative/);
+    }
+  });
+
+  it("recusa prospecção sem empresa, explicando o que falta", () => {
+    // Negociacao.clienteId é NOT NULL enquanto Lead.clienteId segue nullable (F2.3): sem esta
+    // guarda o erro seria uma violação de constraint crua, sem dizer o que fazer.
+    expect(() => validarQualificacao({ status: "EM_CONTATO", clienteId: null })).toThrow(
+      /empresa/i,
+    );
+  });
+
+  it("checa o status antes da empresa — a mensagem mais útil vem primeiro", () => {
+    expect(() => validarQualificacao({ status: "DESCARTADO", clienteId: null })).toThrow(
+      /[Rr]eative/,
+    );
+  });
+
+  it("podeQualificar acompanha exatamente quem trava a empresa", () => {
+    for (const s of STATUS_PROSPECCAO_ATIVOS) expect(podeQualificar(s)).toBe(true);
+    expect(podeQualificar("OPORTUNIDADE_CRIADA")).toBe(false);
   });
 });

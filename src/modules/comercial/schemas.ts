@@ -144,3 +144,9 @@ export const moverEstagioSchema = z.object({
   motivoPerdaId: opt(z.string()),
   concorrente: opt(z.string()),
 });
+
+export const qualificarProspeccaoSchema = z.object({
+  leadId: z.string().min(1),
+  titulo: opt(z.string()),
+  responsavelId: opt(z.string()),
+});

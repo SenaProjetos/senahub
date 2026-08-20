@@ -29,6 +29,7 @@ import {
   editarParceiroSchema,
   parceiroIdSchema,
   moverEstagioSchema,
+  qualificarProspeccaoSchema,
 } from "@/modules/comercial/schemas";
 import { removerArquivo } from "@/lib/storage";
 import { etapaEhPerdido } from "@/modules/comercial/status";
@@ -38,6 +39,7 @@ import {
   salvarProposta as servicoSalvarProposta,
   aceitarProposta as servicoAceitarProposta,
   moverEstagio as servicoMoverEstagio,
+  qualificarProspeccao as servicoQualificarProspeccao,
 } from "@/modules/comercial/service";
 
 const base = { modulo: "comercial", recurso: "comercial", permissao: "gerir" } as const;
@@ -617,6 +619,35 @@ export const moverEstagioNegociacao = defineAction(
       para: i.para,
       motivoPerdaId: i.motivoPerdaId || null,
       concorrente: i.concorrente || null,
+    });
+    rev();
+    return r;
+  },
+);
+
+/**
+ * Qualifica a prospecção (F2.8). Delega ao service; o lead sobrevive apontando para a negociação.
+ * `entidadeId` aponta para o LEAD — é a entidade que o usuário tinha em mãos ao agir, e é por ela
+ * que alguém vai procurar no histórico depois.
+ */
+export const qualificarProspeccao = defineAction(
+  {
+    ...base,
+    acao: "qualificar-prospeccao",
+    entidade: "Lead",
+    schema: qualificarProspeccaoSchema,
+    entidadeId: (_d, i) => (i as { leadId: string }).leadId,
+    capturarAntes: async (i) =>
+      prisma.lead.findUnique({
+        where: { id: (i as { leadId: string }).leadId },
+        select: { status: true, clienteId: true },
+      }),
+  },
+  async (i) => {
+    const r = await servicoQualificarProspeccao({
+      leadId: i.leadId,
+      titulo: i.titulo || null,
+      responsavelId: i.responsavelId || null,
     });
     rev();
     return r;

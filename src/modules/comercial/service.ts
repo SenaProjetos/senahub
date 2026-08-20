@@ -17,6 +17,7 @@ import {
   validarMovimento,
   type TabelaProbabilidade,
 } from "@/modules/comercial/jornada";
+import { validarQualificacao } from "@/modules/comercial/prospeccao";
 import type { Prisma } from "@/generated/prisma/client";
 
 /**
@@ -313,4 +314,81 @@ export async function moverEstagio(input: {
   });
 
   return { id: negociacao.id, de: negociacao.estagio, para: input.para, probabilidade };
+}
+
+/**
+ * Qualifica uma prospecção: nasce a `Negociacao` e **o `Lead` sobrevive** (F2.8, P9 item 4).
+ *
+ * O lead NÃO é destruído nem convertido — vai para `OPORTUNIDADE_CRIADA` e a negociação aponta de
+ * volta por `leadId`. É o que preserva "como esta empresa chegou até nós": canal, campanha,
+ * parceiro que indicou, e a timeline da prospecção continuam existindo e consultáveis depois que
+ * o negócio virou negociação. Destruir o lead (o que a conversão antiga fazia com o cliente)
+ * apagaria justamente a informação que a Fase 6 precisa para medir origem.
+ *
+ * Qualificar 2× é impossível por **duas** barreiras independentes: o guard (`validarQualificacao`
+ * recusa `OPORTUNIDADE_CRIADA`) e o `Negociacao.leadId @unique` no banco. A segunda cobre a
+ * corrida entre dois cliques simultâneos, que o guard sozinho não pega.
+ *
+ * Tudo numa transação: uma negociação criada sem o lead mudar de status deixaria a empresa travada
+ * para novas prospecções (F2.5) por um registro que já virou negócio.
+ */
+export async function qualificarProspeccao(input: {
+  leadId: string;
+  /** Opcional: por padrão herda o nome do empreendimento já registrado na prospecção. */
+  titulo?: string | null;
+  responsavelId?: string | null;
+}): Promise<{ negociacaoId: string; leadId: string }> {
+  const lead = await prisma.lead.findUnique({
+    where: { id: input.leadId },
+    select: {
+      id: true,
+      nome: true,
+      status: true,
+      clienteId: true,
+      canalId: true,
+      campaignId: true,
+      parceiroId: true,
+      origemDetalhada: true,
+      valorEstimado: true,
+      responsavelId: true,
+      contatos: { select: { contatoId: true, principal: true } },
+    },
+  });
+  if (!lead) throw new ActionError("Prospecção não encontrada.");
+
+  validarQualificacao({ status: lead.status, clienteId: lead.clienteId });
+
+  // `origemDetalhada` é onde o nome do empreendimento foi parar no backfill da F1.23 (o campo
+  // `origem` legado era "canal" no nome e empreendimento no uso — ver 03-migracao.md §3). É esse
+  // o "campo próprio da Negociacao" que o §3 manda usar: o título do negócio.
+  const titulo = input.titulo?.trim() || lead.origemDetalhada?.trim() || lead.nome;
+
+  return prisma.$transaction(async (tx) => {
+    const negociacao = await tx.negociacao.create({
+      data: {
+        titulo,
+        clienteId: lead.clienteId!, // garantido por `validarQualificacao`
+        leadId: lead.id,
+        responsavelId: input.responsavelId ?? lead.responsavelId,
+        canalId: lead.canalId,
+        campaignId: lead.campaignId,
+        parceiroId: lead.parceiroId,
+        valorEstimado: lead.valorEstimado,
+        // Nasce no início do funil de negociação; a probabilidade correspondente entra na
+        // primeira transição via `moverEstagio`, que é o ponto único de escrita (F2.7).
+        estagio: "LEVANTAMENTO",
+        contatos: {
+          create: lead.contatos.map((c) => ({ contatoId: c.contatoId, principal: c.principal })),
+        },
+      },
+      select: { id: true },
+    });
+
+    await tx.lead.update({
+      where: { id: lead.id },
+      data: { status: "OPORTUNIDADE_CRIADA" },
+    });
+
+    return { negociacaoId: negociacao.id, leadId: lead.id };
+  });
 }
