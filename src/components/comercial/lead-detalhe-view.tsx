@@ -10,6 +10,7 @@ import { criarPropostaDeLead } from "@/modules/comercial/actions";
 import { LeadDialog } from "./lead-dialog";
 import { etapaEhPerdido } from "./motivo-perda-dialog";
 import { FollowUpDialog } from "./follow-up-dialog";
+import { ContatoRapidoBotoes } from "./contato-rapido-botoes";
 import { NotasHistorico } from "./notas-historico";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -72,6 +73,12 @@ export function LeadDetalheView({
           </div>
         </div>
         <div className="flex gap-2">
+          <ContatoRapidoBotoes
+            telefone={lead.telefone}
+            email={lead.email}
+            assunto={lead.nome}
+            mensagem={`Olá! Sobre ${lead.nome}…`}
+          />
           <FollowUpDialog leadId={lead.id} leadNome={lead.nome} leadEmail={lead.email} />
           <Button size="sm" variant="outline" onClick={novaProposta} disabled={pending}>
             <FilePlus2 className="size-3.5" /> Nova proposta

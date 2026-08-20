@@ -99,7 +99,11 @@ export function ProspeccaoBoard({ colunas }: { colunas: ColunaProspeccao[] }) {
 
   return (
     <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-      <div className="flex gap-3 overflow-x-auto pb-2">
+      {/* F2.17: em tela pequena as colunas EMPILHAM (flex-col) e ocupam a largura toda —
+          sem scroll horizontal, que é o aceite. A partir de `sm` volta a ser board lado a lado.
+          Feito por CSS e não por media query em JS de propósito: `useMediaQuery` renderiza o
+          layout errado no servidor e corrige depois da hidratação, fazendo o board piscar. */}
+      <div className="flex flex-col gap-3 pb-2 sm:flex-row sm:overflow-x-auto">
         {colunasExibidas.map((c) => (
           <Coluna key={c.status} status={c.status} leads={c.leads} agora={agora} />
         ))}
@@ -124,7 +128,7 @@ function Coluna({
   return (
     <div
       ref={setNodeRef}
-      className={`flex w-64 shrink-0 flex-col rounded-sm border p-2 transition-colors ${
+      className={`flex w-full shrink-0 flex-col rounded-sm border p-2 transition-colors sm:w-64 ${
         isOver ? "border-primary bg-primary/5" : "border-border/60"
       }`}
     >

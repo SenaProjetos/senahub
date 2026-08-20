@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { requirePermission } from "@/lib/session";
-import { funilProspeccao } from "@/modules/comercial/queries";
+import { funilProspeccao, opcoesFiltroComercial } from "@/modules/comercial/queries";
+import { lerFiltros } from "@/modules/comercial/filtros";
+import { FiltrosComerciais } from "@/components/comercial/filtros-comerciais";
 import { ProspeccaoBoard, ProspeccaoVazia } from "@/components/comercial/prospeccao-board";
 import { Button } from "@/components/ui/button";
 
@@ -15,9 +17,17 @@ export const metadata: Metadata = { title: "Prospecção" };
  * enxerga `FunilEtapa` — e os 8 leads de produção só migram para o funil novo na **F2.18**. Trocar
  * agora deixaria a operação sem board até lá. Os dois convivem no intervalo, de propósito.
  */
-export default async function ProspeccaoPage() {
+export default async function ProspeccaoPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requirePermission("comercial", "ver");
-  const colunas = await funilProspeccao();
+  const filtros = lerFiltros(await searchParams);
+  const [colunas, opcoes] = await Promise.all([
+    funilProspeccao(filtros),
+    opcoesFiltroComercial(),
+  ]);
   const total = colunas.reduce((s, c) => s + c.leads.length, 0);
 
   return (
@@ -33,6 +43,8 @@ export default async function ProspeccaoPage() {
           </p>
         </div>
       </div>
+
+      <FiltrosComerciais opcoes={opcoes} />
 
       {total === 0 ? <ProspeccaoVazia /> : <ProspeccaoBoard colunas={colunas} />}
     </div>

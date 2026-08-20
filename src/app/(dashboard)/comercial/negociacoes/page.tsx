@@ -2,7 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { requirePermission } from "@/lib/session";
-import { funilNegociacao, motivosPerdaAtivos } from "@/modules/comercial/queries";
+import {
+  funilNegociacao,
+  motivosPerdaAtivos,
+  opcoesFiltroComercial,
+} from "@/modules/comercial/queries";
+import { lerFiltros } from "@/modules/comercial/filtros";
+import { FiltrosComerciais } from "@/components/comercial/filtros-comerciais";
 import { NegociacaoBoard } from "@/components/comercial/negociacao-board";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -12,9 +18,18 @@ import { brlInteiro } from "@/lib/utils";
 export const metadata: Metadata = { title: "Negociações" };
 
 /** Kanban de Negociações (F2.14) — o funil que hoje acontece inteiramente fora do sistema. */
-export default async function NegociacoesPage() {
+export default async function NegociacoesPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requirePermission("comercial", "ver");
-  const [colunas, motivos] = await Promise.all([funilNegociacao(), motivosPerdaAtivos()]);
+  const filtros = lerFiltros(await searchParams);
+  const [colunas, motivos, opcoes] = await Promise.all([
+    funilNegociacao({ filtros }),
+    motivosPerdaAtivos(),
+    opcoesFiltroComercial(),
+  ]);
 
   const total = colunas.reduce((s, c) => s + c.total, 0);
   // Pipeline = só o que ainda pode fechar. Contratado já fechou; perdido/cancelado não volta
@@ -37,6 +52,8 @@ export default async function NegociacoesPage() {
           </p>
         </div>
       </div>
+
+      <FiltrosComerciais opcoes={opcoes} mostrarDisciplina />
 
       {total === 0 ? (
         <EmptyState

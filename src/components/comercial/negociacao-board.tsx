@@ -119,7 +119,9 @@ export function NegociacaoBoard({
         }
         onDragEnd={onDragEnd}
       >
-        <div className="flex gap-3 overflow-x-auto pb-2">
+        {/* F2.17: mesma regra do board de prospecção — empilha em tela pequena, lado a lado
+            a partir de `sm`. Ver comentário lá para o porquê de ser CSS e não JS. */}
+        <div className="flex flex-col gap-3 pb-2 sm:flex-row sm:overflow-x-auto">
           {colunasExibidas.map((c) => (
             <Coluna key={c.estagio} coluna={c} agora={agora} />
           ))}
@@ -150,7 +152,7 @@ function Coluna({ coluna, agora }: { coluna: ColunaNegociacao; agora: Date }) {
   return (
     <div
       ref={setNodeRef}
-      className={`flex w-72 shrink-0 flex-col rounded-sm border p-2 transition-colors ${
+      className={`flex w-full shrink-0 flex-col rounded-sm border p-2 transition-colors sm:w-72 ${
         isOver ? "border-primary bg-primary/5" : "border-border/60"
       }`}
     >

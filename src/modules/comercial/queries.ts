@@ -7,6 +7,11 @@ import {
 } from "@/modules/comercial/prospeccao";
 import { ESTAGIOS_ATIVOS } from "@/modules/comercial/jornada";
 import type { TipoAncoraCompromisso } from "@/generated/prisma/client";
+import {
+  whereProspeccao,
+  whereNegociacao,
+  type FiltrosComerciais,
+} from "@/modules/comercial/filtros";
 
 // ── Funil ─────────────────────────────────────────────────────
 export async function funilCompleto() {
@@ -287,9 +292,13 @@ export async function proximasAcoesDe(entidadeTipo: TipoAncoraCompromisso, entid
  * lote — o N+1 clássico aqui seria buscar a próxima ação por card, e numa coluna de 200 isso são
  * 200 idas ao banco só para desenhar uma etiqueta.
  */
-export async function funilProspeccao() {
+export async function funilProspeccao(filtros?: FiltrosComerciais, agora: Date = new Date()) {
   const leads = await prisma.lead.findMany({
-    where: { status: { in: [...COLUNAS_PROSPECCAO] }, arquivado: false },
+    where: {
+      status: { in: [...COLUNAS_PROSPECCAO] },
+      arquivado: false,
+      ...(filtros ? whereProspeccao(filtros, agora) : {}),
+    },
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,
@@ -375,16 +384,25 @@ export const PAGINA_COLUNA = 25;
  * 200 registros mostraria "25" e somaria só a primeira página — o número no topo da coluna
  * mentiria justamente onde ele mais importa.
  */
-export async function funilNegociacao(opts?: { pagina?: number }) {
+export async function funilNegociacao(opts?: {
+  pagina?: number;
+  filtros?: FiltrosComerciais;
+  agora?: Date;
+}) {
   const take = PAGINA_COLUNA * (opts?.pagina ?? 1);
+  // MESMO `where` no groupBy e no findMany: se divergissem, o contador da coluna deixaria de
+  // bater com os cards exibidos exatamente quando houvesse filtro — o pior momento possível.
+  const where = opts?.filtros ? whereNegociacao(opts.filtros, opts.agora ?? new Date()) : {};
 
   const [totais, negociacoes] = await Promise.all([
     prisma.negociacao.groupBy({
       by: ["estagio"],
+      where,
       _count: true,
       _sum: { valorEstimado: true },
     }),
     prisma.negociacao.findMany({
+      where,
       orderBy: { updatedAt: "desc" },
       select: {
         id: true,
@@ -465,3 +483,37 @@ export async function motivosPerdaAtivos() {
   });
 }
 export type MotivoPerdaOpcao = Awaited<ReturnType<typeof motivosPerdaAtivos>>[number];
+
+/** Opções dos filtros compartilhados (F2.15) — uma consulta por catálogo, todas em paralelo. */
+export async function opcoesFiltroComercial() {
+  const [responsaveis, campanhas, canais, empresas, disciplinas] = await Promise.all([
+    prisma.user.findMany({
+      where: { ativo: true, role: { not: "cliente" } },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.campanha.findMany({
+      where: { ativo: true },
+      select: { id: true, nome: true },
+      orderBy: { nome: "asc" },
+    }),
+    prisma.canalAquisicao.findMany({
+      where: { ativo: true },
+      select: { id: true, nome: true },
+      orderBy: { ordem: "asc" },
+    }),
+    // Só empresas que aparecem no comercial — a lista inteira de clientes tornaria o Select
+    // inútil num escritório com centenas.
+    prisma.cliente.findMany({
+      where: { OR: [{ leads: { some: {} } }, { negociacoes: { some: {} } }] },
+      select: { id: true, nome: true },
+      orderBy: { nome: "asc" },
+    }),
+    prisma.disciplinaCatalogo.findMany({
+      where: { ativo: true },
+      select: { id: true, nome: true },
+      orderBy: { ordem: "asc" },
+    }),
+  ]);
+  return { responsaveis, campanhas, canais, empresas, disciplinas };
+}
