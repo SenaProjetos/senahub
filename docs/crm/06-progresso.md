@@ -20,6 +20,73 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F1.21 — consolidação das 6 grafias · 2026-08-19 · Sonnet
+
+**Fecha a Fase 1.** A F1.19c resolveu 79 disciplinas por nome exato e parou nas 6 que não casavam
+com o catálogo, de propósito — o destino delas era decisão de quem toca o projeto, não de script.
+
+**As duas decisões, tomadas pelo dono em 2026-08-19:**
+
+1. **As 3 strings compostas viram duas disciplinas, com a CFTV nascendo VAZIA.** O histórico (38
+   uploads e 2 revisões) fica inteiro na `Cabeamento` — que é a antiga `Lógica`, conforme o array
+   `RENOMES` do seed —, sem reclassificação arquivo a arquivo. A separação passa a valer para
+   entregas novas. Descartadas: manter uma disciplina só (CFTV seguiria misturado) e reclassificar
+   os 38 arquivos com os 3 responsáveis (correto no histórico, mas exigia sessão com 3 pessoas).
+2. **No 260023, `Ar condicionado (ARC)` e `Exaustão (EXT)` ficam como DUAS linhas** apontando para a
+   mesma entrada `Climatização (AVAC)`, em vez de fundir — são entregas separadas naquele contrato.
+   O banco aceita: `Disciplina` não tem unique em `(projetoId, disciplinaId)`.
+
+**A decisão 2 fechou, por tabela, a pergunta que a F1.19c deixou em aberto.** Aquela entrada dizia
+"se a exibição deve preferir o catálogo é decisão da F1.21". A resposta é **não, e não é mais
+adiamento**: com duas linhas na mesma FK, preferir o nome do catálogo renderizaria "Climatização
+(AVAC)" **duas vezes** no 260023, apagando exatamente a distinção que a decisão 2 existe para
+manter. O `disciplinaTextoLegado` é load-bearing na tela, não resíduo de migração. Efeito prático:
+a F1.21 ficou sendo só dado — nenhuma segunda passada pelos 74 call sites.
+
+**`scripts/consolidar-disciplinas-f121.ts`** (dry-run → `--gravar`; `npm run crm:consolidar-disciplinas`)
+- Plano declarativo (`PLANO`) com as 6 grafias, o alvo no catálogo e se ganha CFTV irmã.
+- **A CFTV nova é criada como o app cria**, não por INSERT cru: `ordem` = max+1, responsáveis
+  copiados da composta e `semearPastasTemplate` sob a **mesma guarda** do `adicionarDisciplina`
+  (`usaEstruturaCustom(tipo) && projetoUsaTemplate(...)`). Sem isso a disciplina nasceria sem árvore
+  de pastas e ficaria inerte no `/arquivos` e no fluxo de upload.
+- **Responsável copiado, sem notificar.** Quem respondia pelo CFTV misturado responde por ele
+  separado — não é atribuição nova, é a mesma pessoa no mesmo trabalho, e um aviso disparado por
+  script de migração confundiria. Decisão registrada em vez de deixada implícita.
+- **Idempotência com os dois passos independentes**, de propósito: a FK só é escrita se estiver
+  nula, e a CFTV só é criada se o projeto ainda não tiver disciplina apontando para CFTV. Se a
+  criação dependesse de "a FK ainda está nula", uma execução interrompida entre os dois passos
+  deixaria o projeto **sem CFTV para sempre**, em silêncio — a re-execução pularia a linha. Cada
+  projeto ainda roda dentro de uma `$transaction`.
+
+**O dry-run reporta um efeito colateral em vez de deixá-lo como incógnita:** `alertaRiscoProjeto`
+(`lib/jobs-handlers.ts`) notifica admin+supervisor sobre projeto `em_andamento` com `prazoFinal`
+vencido **que tenha alguma disciplina não-aprovada**. A CFTV nova nasce `aguardando`, então um
+projeto atrasado cujas disciplinas estivessem **todas** aprovadas passaria a alertar. O script
+imprime situação/prazo/não-aprovadas de cada projeto tocado, marcando quem já entrava no alerta
+antes. (`saudeProjeto` não é risco: disciplina sem `prazo` nunca conta como atrasada, e entrar no
+`total` só **dilui** o percentual — a saúde melhora ou fica igual, nunca piora.)
+
+**Testado em dev incluindo o ramo que a fixture sozinha não exercita:** `fixture-disciplinas-f121.ts`
+cria as 6 grafias, mas nos projetos de demo (`tipo=particular`) a guarda de template não dispara —
+`pastas=0`, e o caminho do `semearPastasTemplate` **nunca rodaria**. Para fechar a lacuna, uma
+composta foi inserida à mão no **260011** (`tipo=aprovacao`, um dos 2 projetos do dev com árvore
+nova): a CFTV nasceu com as **4 pastas do template**, na ordem pai-antes-filho. Depois o dev foi
+**limpo pelo próprio AuditLog** (as ids das CFTV criadas ficam em `detalhe.cftvCriada`), voltando ao
+baseline exato de **34 disciplinas, 0 sem FK, zero linha sintética, zero entrada de auditoria**.
+
+**Aceite:** 2ª execução consecutiva → `0 FK · 0 CFTV`, com as 6 marcadas "já consolidada".
+`disciplina sem FK = 0`. 6 entradas de `AuditLog` (`acao: consolidar-disciplina`, `entidade:
+Disciplina`, `entidadeId` da disciplina original, grafia de origem e id da CFTV no detalhe).
+
+**Arquivos:** `scripts/consolidar-disciplinas-f121.ts` (novo), `package.json`, `docs/crm/06-progresso.md`.
+
+**Verificação:** `eslint .` limpo · `vitest run` **196 arquivos, 2042 testes verdes** ·
+`tsc --noEmit -p tsconfig.server.json` só os 2 pré-existentes de `backup-storage.test.ts`.
+
+**Pendente:** rodar em **produção** (dry-run → conferência → `--gravar`). Nada mais da Fase 1.
+
+---
+
 ## F1.19c — FK de disciplina no catálogo · 2026-08-19 · Sonnet
 
 Fecha a lacuna que a F1.15/F1.16 encontrou e que **bloqueava a F1.21**: F1.19 pôs a FK do catálogo

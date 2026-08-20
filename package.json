@@ -29,6 +29,7 @@
     "smoke:crm-soft-delete": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-soft-delete.ts",
     "smoke:crm-soft-delete-lead": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-soft-delete-lead.ts",
     "smoke:crm-prod": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-prod.ts",
+    "crm:consolidar-disciplinas": "tsx --tsconfig tsconfig.server.json scripts/consolidar-disciplinas-f121.ts",
     "release": "commit-and-tag-version",
     "release:minor": "commit-and-tag-version --release-as minor",
     "release:major": "commit-and-tag-version --release-as major",
