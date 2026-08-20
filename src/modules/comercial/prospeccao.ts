@@ -81,3 +81,41 @@ export const STATUS_PROSPECCAO_LABEL: Record<StatusProspeccao, string> = {
   EM_ESPERA: "Em espera",
   DESCARTADO: "Descartado",
 };
+
+/** Colunas do Kanban de Prospecção (F2.13), na ordem do funil. */
+export const COLUNAS_PROSPECCAO: readonly StatusProspeccao[] = [
+  "IDENTIFICADO",
+  "CONTATO_INICIADO",
+  "EM_CONTATO",
+  "QUALIFICADO",
+  "OPORTUNIDADE_CRIADA",
+] as const;
+
+/**
+ * `OPORTUNIDADE_CRIADA` **não** é alcançável por update de status: esse estado significa que
+ * existe uma `Negociacao`, e só `qualificarProspeccao` (F2.8) a cria. Deixar arrastar para lá com
+ * um update simples produziria lead marcado como oportunidade sem negociação nenhuma — mentira no
+ * board e buraco no funil de baixo.
+ *
+ * Quem arrasta para essa coluna dispara a qualificação de verdade, não uma troca de rótulo.
+ */
+export function exigeQualificacao(destino: StatusProspeccao): boolean {
+  return destino === "OPORTUNIDADE_CRIADA";
+}
+
+/**
+ * Guard do movimento de prospecção. Diferente da jornada de negociação (F2.6), o funil de
+ * prospecção **não tem ordem obrigatória**: pular de IDENTIFICADO direto para QUALIFICADO é
+ * legítimo (a empresa pode chegar já qualificada por indicação). O que existe é um conjunto
+ * pequeno de movimentos sem sentido.
+ */
+export function validarMovimentoProspeccao(de: StatusProspeccao, para: StatusProspeccao): void {
+  if (de === para) {
+    throw new ActionError(`A prospecção já está em "${STATUS_PROSPECCAO_LABEL[para]}".`);
+  }
+  if (de === "OPORTUNIDADE_CRIADA") {
+    throw new ActionError(
+      "Esta prospecção já virou negociação. Mova a NEGOCIAÇÃO de estágio, não a prospecção.",
+    );
+  }
+}

@@ -13,6 +13,7 @@ import { disciplinasDeItens } from "@/modules/comercial/disciplinas";
 import type { SalvarPropostaInput } from "@/modules/comercial/schemas";
 import type {
   EstagioNegociacao,
+  StatusProspeccao,
   TipoAncoraCompromisso,
   TipoProximaAcao,
 } from "@/generated/prisma/client";
@@ -21,7 +22,10 @@ import {
   validarMovimento,
   type TabelaProbabilidade,
 } from "@/modules/comercial/jornada";
-import { validarQualificacao } from "@/modules/comercial/prospeccao";
+import {
+  validarQualificacao,
+  validarMovimentoProspeccao,
+} from "@/modules/comercial/prospeccao";
 import type { Prisma } from "@/generated/prisma/client";
 
 /**
@@ -473,4 +477,55 @@ export async function concluirProximaAcao(input: {
     data: { concluidoEm: input.quando, concluidoPor: input.userId },
   });
   return { id: c.id };
+}
+
+/**
+ * Ponto ÚNICO de escrita de `Lead.status` (F2.13), espelhando o que `moverEstagio` faz para a
+ * negociação. Nenhum update genérico de status fora daqui.
+ *
+ * Não trata `OPORTUNIDADE_CRIADA`: esse destino exige `qualificarProspeccao`, porque o estado
+ * significa "existe uma Negociacao" — e só aquela função a cria. O chamador decide qual das duas
+ * invocar (`exigeQualificacao`), em vez de esta função criar negociação por baixo dos panos.
+ */
+export async function moverProspeccao(input: {
+  leadId: string;
+  para: StatusProspeccao;
+}): Promise<{ id: string; de: StatusProspeccao; para: StatusProspeccao }> {
+  const lead = await prisma.lead.findUnique({
+    where: { id: input.leadId },
+    select: { id: true, status: true },
+  });
+  if (!lead) throw new ActionError("Prospecção não encontrada.");
+
+  validarMovimentoProspeccao(lead.status, input.para);
+
+  // Passa pela mesma rede da F2.5: mover para um status ATIVO pode colidir com outra prospecção
+  // já aberta na mesma empresa, e a mensagem tem que ser de negócio, não P2002 cru.
+  await comProspeccaoAtivaUnicaService(() =>
+    prisma.lead.update({ where: { id: lead.id }, data: { status: input.para } }),
+  );
+
+  return { id: lead.id, de: lead.status, para: input.para };
+}
+
+/**
+ * Mesma tradução de P2002 de `actions.ts`, disponível no service porque `moverProspeccao` também
+ * pode esbarrar no índice parcial da F2.5. Duplicação consciente e mínima: mover isto para um
+ * módulo compartilhado exigiria um arquivo novo só para uma função de 12 linhas, e o service não
+ * pode importar de `actions.ts` (que é `"use server"`).
+ */
+async function comProspeccaoAtivaUnicaService<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    const codigo = (e as { code?: string }).code;
+    const alvo = JSON.stringify((e as { meta?: unknown }).meta ?? "");
+    if (codigo === "P2002" && alvo.includes("prospeccao_ativa")) {
+      throw new ActionError(
+        "Já existe uma prospecção ativa para esta empresa nesta campanha. " +
+          "Registre o contato na prospecção existente, ou encerre-a antes de abrir outra.",
+      );
+    }
+    throw e;
+  }
 }

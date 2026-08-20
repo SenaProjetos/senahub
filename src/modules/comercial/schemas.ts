@@ -186,3 +186,17 @@ export const definirTemperaturaSchema = z.object({
   id: z.string().min(1),
   temperatura: z.enum(["FRIO", "MORNO", "QUENTE"]).nullable(),
 });
+
+export const moverProspeccaoSchema = z.object({
+  leadId: z.string().min(1),
+  para: z.enum([
+    "IDENTIFICADO",
+    "CONTATO_INICIADO",
+    "EM_CONTATO",
+    "QUALIFICADO",
+    "OPORTUNIDADE_CRIADA",
+    "SEM_OPORTUNIDADE",
+    "EM_ESPERA",
+    "DESCARTADO",
+  ]),
+});

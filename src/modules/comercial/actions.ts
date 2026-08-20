@@ -33,9 +33,11 @@ import {
   agendarProximaAcaoSchema,
   concluirProximaAcaoSchema,
   definirTemperaturaSchema,
+  moverProspeccaoSchema,
 } from "@/modules/comercial/schemas";
 import { removerArquivo } from "@/lib/storage";
 import { etapaEhPerdido } from "@/modules/comercial/status";
+import { exigeQualificacao } from "@/modules/comercial/prospeccao";
 import {
   proximoNumeroProposta,
   criarPropostaDeLead as servicoCriarPropostaDeLead,
@@ -45,6 +47,7 @@ import {
   qualificarProspeccao as servicoQualificarProspeccao,
   agendarProximaAcao as servicoAgendarProximaAcao,
   concluirProximaAcao as servicoConcluirProximaAcao,
+  moverProspeccao as servicoMoverProspeccao,
 } from "@/modules/comercial/service";
 
 const base = { modulo: "comercial", recurso: "comercial", permissao: "gerir" } as const;
@@ -737,5 +740,35 @@ export const definirTemperatura = defineAction(
     }
     rev();
     return { id: i.id };
+  },
+);
+
+/**
+ * Move a prospecção no Kanban (F2.13). Se o destino for `OPORTUNIDADE_CRIADA`, delega para a
+ * QUALIFICAÇÃO — que cria a `Negociacao` — em vez de trocar o rótulo. Sem isso o board mostraria
+ * "oportunidade criada" para um lead sem negociação nenhuma.
+ */
+export const moverProspeccao = defineAction(
+  {
+    ...base,
+    acao: "mover-prospeccao",
+    entidade: "Lead",
+    schema: moverProspeccaoSchema,
+    entidadeId: (_d, i) => (i as { leadId: string }).leadId,
+    capturarAntes: async (i) =>
+      prisma.lead.findUnique({
+        where: { id: (i as { leadId: string }).leadId },
+        select: { status: true },
+      }),
+  },
+  async (i) => {
+    if (exigeQualificacao(i.para)) {
+      const r = await servicoQualificarProspeccao({ leadId: i.leadId });
+      rev();
+      return { id: r.leadId, qualificada: true };
+    }
+    const r = await servicoMoverProspeccao({ leadId: i.leadId, para: i.para });
+    rev();
+    return { id: r.id, qualificada: false };
   },
 );

@@ -1,7 +1,10 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { nomeDisciplinaItem } from "@/modules/comercial/disciplinas";
-import { STATUS_PROSPECCAO_ATIVOS } from "@/modules/comercial/prospeccao";
+import {
+  STATUS_PROSPECCAO_ATIVOS,
+  COLUNAS_PROSPECCAO,
+} from "@/modules/comercial/prospeccao";
 import { ESTAGIOS_ATIVOS } from "@/modules/comercial/jornada";
 import type { TipoAncoraCompromisso } from "@/generated/prisma/client";
 
@@ -275,3 +278,67 @@ export async function proximasAcoesDe(entidadeTipo: TipoAncoraCompromisso, entid
     },
   });
 }
+
+// ── Kanban de Prospecção (F2.13) ─────────────────────────────
+/**
+ * Board de prospecção agrupado por `status` (o funil novo), não por `FunilEtapa` (deprecado).
+ *
+ * **Uma query só** para montar o board inteiro, com os contatos e a próxima ação resolvidos em
+ * lote — o N+1 clássico aqui seria buscar a próxima ação por card, e numa coluna de 200 isso são
+ * 200 idas ao banco só para desenhar uma etiqueta.
+ */
+export async function funilProspeccao() {
+  const leads = await prisma.lead.findMany({
+    where: { status: { in: [...COLUNAS_PROSPECCAO] }, arquivado: false },
+    orderBy: { updatedAt: "desc" },
+    select: {
+      id: true,
+      nome: true,
+      status: true,
+      temperatura: true,
+      valorEstimado: true,
+      updatedAt: true,
+      origemDetalhada: true,
+      cliente: { select: { id: true, nome: true } },
+      responsavel: { select: { id: true, name: true } },
+      parceiro: { select: { id: true, nome: true } },
+      _count: { select: { propostas: true } },
+    },
+  });
+
+  // Próximas ações de TODOS os leads numa consulta só (âncora polimórfica, sem FK — ver F2.10).
+  const acoes = await prisma.compromisso.findMany({
+    where: {
+      entidadeTipo: "LEAD",
+      entidadeId: { in: leads.map((l) => l.id) },
+      tipo: { not: null },
+      concluidoEm: null,
+    },
+    orderBy: { inicio: "asc" },
+    select: { entidadeId: true, inicio: true, tipo: true, titulo: true },
+  });
+  // Primeira ação de cada lead (a lista já vem ordenada por data).
+  const proximaPorLead = new Map<string, (typeof acoes)[number]>();
+  for (const a of acoes) {
+    if (a.entidadeId && !proximaPorLead.has(a.entidadeId)) proximaPorLead.set(a.entidadeId, a);
+  }
+
+  const comAcao = leads.map((l) => {
+    const prox = proximaPorLead.get(l.id);
+    return {
+      ...l,
+      valorEstimado: l.valorEstimado != null ? Number(l.valorEstimado) : null,
+      updatedAt: l.updatedAt.toISOString(),
+      proximaAcao: prox
+        ? { inicio: prox.inicio.toISOString(), tipo: prox.tipo, titulo: prox.titulo }
+        : null,
+    };
+  });
+
+  return COLUNAS_PROSPECCAO.map((status) => ({
+    status,
+    leads: comAcao.filter((l) => l.status === status),
+  }));
+}
+export type ColunaProspeccao = Awaited<ReturnType<typeof funilProspeccao>>[number];
+export type LeadProspeccao = ColunaProspeccao["leads"][number];
