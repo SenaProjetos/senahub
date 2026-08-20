@@ -1443,6 +1443,77 @@ usuário deveria estar em `pj`? está?"), não este script.
 que já estava listado — Onda E passo 4 (dropar `EscalaRole` + migrar tela) e Onda F (poda), ambos
 gated por tempo de operação estável, não por trabalho de código pendente.
 
+### 15.20 R6 — os campos de "Role como dado" saem do enum (2026-08-20)
+
+Feito **fora da Onda F e sem esperar o gate de tempo**, depois de constatar que o plano tratava
+os 4 campos do R6 como um bloco homogêneo preso à poda. Não são: 3 dos 4 são migração de dado
+independente, e só `EscalaRole.role` está preso (à Onda E, não à F).
+
+**O censo veio antes da decisão** (`scripts/censo-role-como-dado.ts`, novo, só leitura). Contra
+produção:
+
+| Campo | Estado real | Bloqueia dropar `enum Role`? |
+|---|---|---|
+| `DocumentoModelo.perfis` | **0 modelos** com `visibilidade = "perfis"` | sim — era `Role[]` |
+| `SolicitacaoCadastro.role` | 0 pendentes, 32 históricos | sim — era `Role` |
+| `Aviso.alvoRoles` | 1 histórico, **0 agendado ao vivo** | **não** — já era `String[]` |
+
+**Duas correções ao plano.** (i) `Aviso.alvoRoles` nunca foi `Role[]`; o acoplamento dele é em
+código (`whereDoAlvo` consulta `User.role`), então só cai com `User.role`, que é o **último**
+passo da Onda F e não o primeiro. (ii) O R6 previa "avisos históricos e modelos perdem o alvo em
+silêncio" como risco vivo — na prática era 1 aviso já disparado (imutável: os destinatários já
+viraram linha em `AvisoDestinatario`) e 0 modelos. O risco que o censo procurava de verdade era
+**aviso agendado ainda não disparado**, que resolve o alvo no momento do disparo; não havia
+nenhum.
+
+**O que mudou, em 3 commits separados:**
+
+- **`DocumentoModelo.perfis` → `PerfilAcesso.chave`** (`8cf46c6`). Chave e não id: portátil
+  entre bancos, é o que o schema já declara estável para dado histórico. A migration **não** usa
+  o `DROP COLUMN` que o `migrate diff` propõe — faz cast preservando dado e mapeia os 2 papéis
+  cuja chave difere (`supervisor`→`coordenador`, `cliente`→`portal_cliente`). Hoje dá no mesmo
+  por estar vazio, mas roda em qualquer clone. Saíram junto 2 comparações diretas a `role`
+  (viraram `superUsuario`), e a action passou a validar que a chave existe e está ativa — sem
+  isso um perfil renomeado grava modelo que ninguém enxerga, a falha silenciosa que o R6 fecha.
+- **`SolicitacaoCadastro.role` → `tipoPretendido` + `contratacaoPretendida`** (`ccc156b`). Dois
+  campos porque o dado mandou: 27 dos 32 pedidos são `cliente`, que é `tipo: externo` e
+  contratação **nenhuma** — nenhum enum de contratação sozinho representaria a resposta mais
+  comum do formulário público. Ganho de tabela: o formulário passa a perguntar **PJ ou
+  Autônomo (RPA) direto**, então pedidos novos já nascem classificados em vez de entrar na fila
+  de reclassificação manual do §9.2. `roleLegadoDe()` nasce em `vinculo/mapa.ts` como a
+  "derivação em um único ponto" que o R3 pedia, e some junto com `User.role`.
+- **`Aviso` ganha alvo por Setor, Contratação e Perfil** (`39a2b26`) — decisão do dono: os três
+  eixos selecionáveis, não um. `alvoTipo` continua sendo o discriminador, o que evita ter de
+  inventar precedência entre listas ("Engenharia E CLT" × "Engenharia OU CLT" são audiências
+  diferentes). `categoria` (por `Role`) fica no enum resolvendo os avisos gravados, mas sai da
+  tela.
+
+**O achado que mais valeu a passada — um fail-open latente em `whereDoAlvo`.** A função
+terminava com um `return` solto que era o ramo `todos`, então **qualquer `alvoTipo` não
+reconhecido resolvia para a base inteira**. Inalcançável enquanto o enum tinha 3 valores;
+deixaria de ser com 6 — bastaria um aviso agendado gravado por versão mais nova do código e um
+rollback para o disparo pegar a empresa toda. Virou switch exaustivo (o compilador quebra se
+entrar valor novo) com default que **não casa ninguém**: em fan-out de notificação, "todo mundo"
+é o pior default possível, porque perda é visível e vazamento não. Esta é a audiência que
+`lib/audiencias.ts` registra como parametrizada **sem snapshot** — ou seja, a única sem arnês
+automático —, então os 5 testes novos são a única rede que ela tem, e **foram verificados
+vermelhos contra a implementação antiga antes de ficarem verdes** (§15.13: não afirmar saída de
+caminho que não se executou).
+
+**Deliberadamente NÃO feito:** trocar o ramo `todos` de `role: { not: "cliente" }` para
+`tipo: "interno"`. É equivalente **só** numa base sem `tipo` nulo (§11: NULL = ainda não
+migrado), e isso é medição de produção, não suposição. No dev bate (8 = 8). Antes de trocar,
+na Onda F:
+
+```sql
+select count(*) from "user" where ativo and tipo is null;   -- precisa dar 0
+```
+
+**Estado do R6 depois desta passada:** dos 4 campos, 2 saíram do enum, 1 (`Aviso.alvoRoles`)
+nunca esteve preso a ele e cai com `User.role`, e 1 (`EscalaRole.role`) segue na Onda E. As
+colunas ainda tipadas `Role` no schema são `User.role`, `Permissao.role` (tabela dropada
+inteira) e `EscalaRole.role` — nenhuma delas é "Role como dado" no sentido do R6.
+
 ### 15.6 Higiene de branch (R8)
 
 Estado em 2026-08-08: `feat/cadastro-colaborador` está 13 commits à frente de `dev`, 1 atrás, com 56
