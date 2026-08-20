@@ -945,6 +945,9 @@ model ContatoCliente {
   /// que nao passa pela extensao -- o filtro la e explicito.
   excluidoEm DateTime?
 
+  /// F2.3: prospecções em que este contato aparece.
+  leads LeadContato[]
+
   @@index([clienteId])
   /// Filtro das listas de abordagem: "quem posso contatar".
   @@index([optOut])
@@ -3588,15 +3591,41 @@ model Lead {
   telefone      String?
   origem        String?
   valorEstimado Decimal?   @db.Decimal(14, 2)
+
+  // ── F2.3: funil de prospecção vira enum fixo (ADR-01/16, 02-schema §2.3 e §8.3) ──────
+  /// Estágio da prospecção. Substitui `etapaId`/`FunilEtapa` (abaixo, DEPRECADOS): enum fixo
+  /// elimina de vez o `etapaEhPerdido()` por substring, que era dívida flagada na auditoria.
+  /// `@default(IDENTIFICADO)` é o que preenche os leads existentes na migration — sem ele a
+  /// coluna NOT NULL não poderia nascer numa tabela populada.
+  status        StatusProspeccao @default(IDENTIFICADO)
+  /// Marcado quando a classificação automática ficou ambígua e um humano precisa conferir
+  /// (ADR-16). A F2.18 migra os 8 leads reais todos com `needsReview = true`.
+  needsReview   Boolean          @default(false)
+
+  // ── DEPRECADOS pela F2.3, mantidos por decisão (02-schema §8.3): não são apagados ──────
+  /// DEPRECADO — use `status`. Mantido só para leitura do histórico pré-migração; a tabela
+  /// `FunilEtapa` continua existindo e órfã até o CONTRACT. Continua NOT NULL porque toda
+  /// linha atual tem valor e removê-lo agora seria mudança destrutiva sem ganho.
   etapaId       String
   etapa         FunilEtapa @relation(fields: [etapaId], references: [id])
-  /// Preenchido quando o lead é convertido em cliente.
-  clienteId     String?
-  cliente       Cliente?   @relation(fields: [clienteId], references: [id])
+  /// DEPRECADO — `arquivado` e `motivoPerda` (texto livre) são substituídos por `status`
+  /// (SEM_OPORTUNIDADE/DESCARTADO) e pelo catálogo `MotivoPerda`. Ver §8.3.
   observacoes   String?
-  /// Motivo registrado ao mover o lead para a etapa "Perdido".
   motivoPerda   String?
   arquivado     Boolean    @default(false)
+
+  /// ⚠️ ADR-01 diz "obrigatório", e AQUI ELE CONTINUA NULLABLE — desvio deliberado, mesmo
+  /// padrão já decidido para `Proposta.negociacaoId` no P5: a obrigatoriedade mora na camada
+  /// de aplicação, não numa constraint que quebraria o deploy.
+  /// Motivo concreto: `criarLead` NUNCA preencheu este campo (não está nem no
+  /// `criarLeadSchema`) — ele só é setado na conversão para cliente. Medido em 2026-08-20:
+  /// **8 de 8 leads com `clienteId = NULL`**, em dev e, pela mesma razão, em produção.
+  /// `ALTER COLUMN ... SET NOT NULL` falharia com "column contains null values".
+  /// Sequência correta: F2.18 preenche os 8 à mão → depois disso, e só depois, uma migration
+  /// de CONTRACT pode fechar a coluna. Fechar antes seria trocar um deploy que funciona por um
+  /// que aborta.
+  clienteId     String?
+  cliente       Cliente?   @relation(fields: [clienteId], references: [id])
   /// Soft delete (ADR-11). Distinto de `arquivado`: arquivar tira do funil mas mantem o lead
   /// como registro vivo; excluir e remocao logica. Leituras top-level sao auto-filtradas pela
   /// extensao em `lib/prisma.ts`; as ANINHADAS (funil le leads via FunilEtapa) precisam do
@@ -3624,6 +3653,9 @@ model Lead {
   atividades AtividadeLead[]
   propostas  Proposta[]
   anexos     AnexoLead[]
+  /// F2.3 (ADR-01): N contatos por prospecção. `Lead.contato` (texto livre) fica DEPRECADO,
+  /// mantido como fallback de exibição para leads antigos sem contato estruturado.
+  contatos   LeadContato[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3634,7 +3666,27 @@ model Lead {
   @@index([canalId])
   @@index([campaignId])
   @@index([parceiroId])
+  @@index([clienteId])
+  @@index([status])
+  @@index([createdAt])
   @@map("lead")
+}
+
+/// Junção Lead ↔ ContatoCliente (F2.3, ADR-01). A prospecção pertence à Empresa e pode ter N
+/// contatos; `principal` é o contato principal DESTA prospecção, que pode diferir do principal
+/// da empresa. Sem esta tabela, "tudo que já rolou com essa empresa" (Empresa 360, Fase 3) não
+/// tem como amarrar quem falou com quem.
+model LeadContato {
+  id        String         @id @default(cuid())
+  leadId    String
+  lead      Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  contatoId String
+  contato   ContatoCliente @relation(fields: [contatoId], references: [id])
+  principal Boolean        @default(false)
+
+  @@unique([leadId, contatoId])
+  @@index([contatoId])
+  @@map("lead_contato")
 }
 
 /// Campanha de marketing/prospeccao (F1.23). Nasce vazia -- sem dado historico pra migrar
