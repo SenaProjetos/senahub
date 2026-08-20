@@ -1400,6 +1400,49 @@ Resultado no dev: 8 usuários × 7 dias + 4 grades padrão, **zero diferença**.
 do ciclo em sombra, como §6.4 sempre previu. E **o passo 2 (`materializar-escala-usuario.ts`) nunca
 rodou em produção** — entrou no runbook do Deploy 2.
 
+### 15.19 Reconferência independente do Deploy 2 — 2026-08-20
+
+Um dia depois do post-mortem de 2026-08-19 (§ acima, commit `2c29024`), reconferido do zero contra
+produção viva, sem confiar no relato anterior — mesma disciplina de "não aceitar verde sem medir"
+repetida no plano inteiro.
+
+**Confirmado, tudo verde, de forma independente:**
+- `9905d2c` (commit rodando em produção hoje) é descendente de `6eb6762` — o flip da Onda D está
+  mesmo ativo (`can()` resolvendo por `permissaoEfetiva`).
+- Os 6 overrides do sócio (5 de leitura + `escopo:global`) estão gravados — 5 desde 2026-08-09,
+  `escopo:global` desde 2026-08-19T21:50 (bate com o horário do fix do dia anterior).
+- Gate de permissão: 26 usuários × 3224 células, 0 ganhos não aprovados, as 7 perdas de escrita do
+  sócio (intencionais, §15.12a) e os 5 ganhos de leitura cobertos pela allowlist.
+- Gate de jornada: 26 usuários × 7 dias + 4 grades padrão, zero diferença.
+- Lista nominal de quem perde escopo global (`role: "supervisor", ativo: true`): **vazia**, igual à
+  medição de 08-09. Ninguém afetado por esse corte hoje.
+
+**Achado novo, não coberto pelo post-mortem de ontem: o gate de audiência é inútil contra produção,
+e sempre foi.** Rodado `checar-equivalencia-audiencia.ts` contra a baseline versionada
+(`docs/superpowers/baselines/audiencia-antes-onda-d.json`) → **52 conjuntos divergentes,
+BLOQUEANTE**. Investigado antes de alarmar: a baseline tem **8 ids distintos no total**, e são
+exatamente os 8 hashes que aparecem "SAÍRAM" de toda audiência no diff. Esse número bate com o
+dataset de **dev** (o plano cita "8 usuários"/"10 usuários ativos" várias vezes pra dev, nunca pra
+produção, que sempre mediu 26-29) — confirma que a baseline commitada foi tirada do banco de dev
+(§15.1.1 já dizia isso: "tirado do dev neste commit"), não de produção. Hash é
+`sha256(userId).slice(0,12)`, determinístico e sem salt (`scripts/snapshot-permissoes.ts:29-31`) —
+então não é o algoritmo que mudou, é que dev e produção são bancos diferentes: mesma pessoa real tem
+`id` (cuid) diferente em cada um, logo hash diferente, logo o diff enxerga "todo mundo saiu e entrou".
+
+**Isso não invalida o flip** — a evidência real de ausência de vazamento é o gate de permissão, que
+calcula os dois lados (antes/depois) **ao vivo contra o banco atual**, sem depender de fixture
+antiga. O gate de audiência, ao contrário, compara contra um arquivo estático: só é válido no
+mesmo instante/ambiente em que foi capturado (foi assim que validou o codemod, em dev, em 08-08/08-09
+— §15.1.1). Rodá-lo contra produção, ou contra dev 11 dias depois com gente nova contratada, sempre
+ia acusar diferença, tenha ou não tenha mudado alguma coisa de verdade. **Nenhuma baseline de
+audiência de produção jamais foi capturada** — é uma lacuna real do arnês, não do flip: se um dia
+for preciso auditar audiência pós-mudança em produção, é comparação manual pontual (like "esse
+usuário deveria estar em `pj`? está?"), não este script.
+
+**Conclusão: Deploy 2 fechado.** Não sobra pendência de verificação. O que resta da reforma é só o
+que já estava listado — Onda E passo 4 (dropar `EscalaRole` + migrar tela) e Onda F (poda), ambos
+gated por tempo de operação estável, não por trabalho de código pendente.
+
 ### 15.6 Higiene de branch (R8)
 
 Estado em 2026-08-08: `feat/cadastro-colaborador` está 13 commits à frente de `dev`, 1 atrás, com 56
