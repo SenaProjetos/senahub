@@ -19,6 +19,10 @@ import { PrismaClient, Prisma } from '@/generated/prisma/client'
  *   nesses dois pontos o filtro é explícito no `where` da relação.
  * - `parceiro`: F1.23a. Fora dos 4 models originais da ADR-11, mas o backlog (F1.23a) pediu
  *   `excluidoEm` explicitamente — registrado aqui para o campo não ficar morto.
+ * - `negociacao`: F2.4 (ADR-11). Diferente de `lead`, a leitura principal é TOP-LEVEL (o board
+ *   de negociações lê `prisma.negociacao.findMany` direto, não via relação), então o filtro
+ *   automático daqui cobre o caso principal — mas `Cliente.negociacoes` na Empresa 360 (Fase 3)
+ *   é aninhada e vai precisar do `where` explícito, como já acontece com `lead`.
  *
  * ── COMO VER OS EXCLUÍDOS ───────────────────────────────────────────────────
  * Passe `excluidoEm` explicitamente no `where`. As formas foram VERIFICADAS contra o banco
@@ -64,6 +68,7 @@ const softDelete = Prisma.defineExtension({
     lead: { async $allOperations(ctx) { return filtroSoftDelete(ctx as never) } },
     contatoCliente: { async $allOperations(ctx) { return filtroSoftDelete(ctx as never) } },
     parceiro: { async $allOperations(ctx) { return filtroSoftDelete(ctx as never) } },
+    negociacao: { async $allOperations(ctx) { return filtroSoftDelete(ctx as never) } },
   },
 })
 

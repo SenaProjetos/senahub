@@ -259,6 +259,7 @@ model User {
   certidoesResponsavel          Certidao[]                @relation("CertidaoResponsavel")
   maquinasResponsavel           MaquinaTI[]               @relation("MaquinaResponsavel")
   leadsResponsavel              Lead[]                    @relation("LeadResponsavel")
+  negociacoesResponsavel        Negociacao[]              @relation("NegociacaoResponsavel")
   campanhasResponsavel          Campanha[]                @relation("CampanhaResponsavel")
   avisosCriados                 Aviso[]                   @relation("AvisosCriados")
   avisosRecebidos               AvisoDestinatario[]       @relation("AvisosRecebidos")
@@ -904,6 +905,8 @@ model Cliente {
   @@index([segmentoId])
   @@index([fundidoEmId])
   @@index([excluidoEm])
+  /// F2.4: negociações desta empresa.
+  negociacoes Negociacao[]
   @@map("cliente")
 }
 
@@ -952,6 +955,8 @@ model ContatoCliente {
   /// Filtro das listas de abordagem: "quem posso contatar".
   @@index([optOut])
   @@index([excluidoEm])
+  /// F2.4: negociações em que este contato aparece.
+  negociacoes NegociacaoContato[]
   @@map("contato_cliente")
 }
 
@@ -1008,6 +1013,8 @@ model DisciplinaCatalogo {
   itensTabelaPreco ItemTabelaPreco[]
   /// Disciplinas de projeto que já apontam para este catálogo (CRM F1.19c).
   disciplinas   Disciplina[]
+  /// Negociações que já apontam para este catálogo (CRM F2.4).
+  negociacoes NegociacaoDisciplina[]
 
   @@map("disciplina_catalogo")
 }
@@ -1147,12 +1154,23 @@ model Projeto {
   apontamentosCoordenacao ApontamentoCoordenacao[]
   orcamentosCusto         CustoOrcamento[]
 
+  // ── F2.4 (ADR-06): de onde veio este projeto, do lado comercial ────────────────────────
+  /// Nullable: todo projeto anterior à reforma (e todo projeto criado fora do funil, que hoje é
+  /// como o trabalho entra) fica sem negociação — é o estado normal, não uma pendência.
+  /// ⚠️ Passa a existir um SEGUNDO caminho para "de onde veio esse projeto", ao lado de
+  /// `Proposta.projetoId`, que continua existindo e inalterado. O risco de divergência entre os
+  /// dois é reconhecido em `02-schema.md` §8.5, e a mitigação é da F5.9: a transação de aceite
+  /// grava os dois SEMPRE juntos, nunca um sem o outro, com teste dedicado provando isso.
+  negociacaoId String?
+  negociacao   Negociacao? @relation(fields: [negociacaoId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([ano, sequencial])
   @@index([clienteId])
   @@index([situacao])
+  @@index([negociacaoId])
   @@map("projeto")
 }
 
@@ -3669,7 +3687,127 @@ model Lead {
   @@index([clienteId])
   @@index([status])
   @@index([createdAt])
+  /// F2.4: a negociação nascida desta prospecção (1:1 opcional).
+  negociacao Negociacao?
   @@map("lead")
+}
+
+/// NEGOCIAÇÃO (F2.4, ADR-04/06/13) — o estágio que hoje acontece inteiramente FORA do sistema.
+/// Assume o papel que o model `Oportunidade` pretendia e nunca cumpriu (era órfão, sem FK para
+/// Lead nem Proposta, 0 linhas em produção); nome novo justamente para não colidir com ele.
+///
+/// A separação prospecção (`Lead`) × negociação (`Negociacao`) é o ponto da Fase 2: qualificar
+/// uma prospecção CRIA uma negociação e o Lead sobrevive apontando para ela (`leadId @unique`),
+/// em vez de o registro mudar de natureza e perder o histórico de como chegou.
+model Negociacao {
+  id        String  @id @default(cuid())
+  titulo    String
+  clienteId String
+  cliente   Cliente @relation(fields: [clienteId], references: [id])
+  /// Origem, quando veio de uma prospecção qualificada. `@unique` garante que qualificar o
+  /// mesmo lead duas vezes é recusado pelo banco, não só pela action (F2.8).
+  leadId    String? @unique
+  lead      Lead?   @relation(fields: [leadId], references: [id])
+
+  /// Só exibição/atribuição, NUNCA gate de permissão (ADR-15 revisado) — igual ao `Lead`.
+  /// Com `@relation` de verdade: o `Oportunidade` órfão guardava isto como string solta, e a
+  /// auditoria (§10) apontou que isso quebra a integridade referencial que o resto do schema tem.
+  responsavelId String?
+  responsavel   User?   @relation("NegociacaoResponsavel", fields: [responsavelId], references: [id], onDelete: SetNull)
+
+  tipoEmpreendimentoId String?
+  tipoEmpreendimento   TipoEmpreendimento? @relation(fields: [tipoEmpreendimentoId], references: [id])
+  areaM2               Decimal?            @db.Decimal(12, 2)
+
+  valorEstimado  Decimal? @db.Decimal(14, 2)
+  valorProposto  Decimal? @db.Decimal(14, 2)
+  valorNegociado Decimal? @db.Decimal(14, 2)
+  /// Percentual (0-100). A UI aceita valor OU percentual e converte antes de gravar.
+  desconto       Decimal? @db.Decimal(14, 2)
+
+  /// 0-100, populado a partir de `ProbabilidadeEstagio` no create e em cada transição.
+  probabilidade         Int     @default(0)
+  /// true = usuário sobrescreveu à mão; a partir daí a transição NÃO recalcula (ADR-12).
+  probabilidadeOverride Boolean @default(false)
+
+  temperatura Temperatura?
+  estagio     EstagioNegociacao @default(LEVANTAMENTO)
+
+  motivoPerdaId String?
+  motivoPerdaRef MotivoPerda? @relation(fields: [motivoPerdaId], references: [id])
+  /// Preenchido só quando `MotivoPerda.exigeConcorrente = true`.
+  concorrente   String?
+
+  previsaoFechamento DateTime?
+  /// Preenchido quando `estagio` vira CONTRATADO ou PERDIDO.
+  dataFechamento     DateTime?
+
+  canalId    String?
+  canal      CanalAquisicao? @relation(fields: [canalId], references: [id])
+  campaignId String?
+  campanha   Campanha?       @relation(fields: [campaignId], references: [id])
+  /// F1.23a (ADR-19): a metade que faltou daquela tarefa — quando ela rodou, `Negociacao` ainda
+  /// não existia. Indicação sempre escolhida de lista, nunca texto livre.
+  parceiroId String?
+  parceiro   Parceiro?       @relation(fields: [parceiroId], references: [id])
+
+  /// ADR-16, mesma lógica do `Lead`: classificação ambígua espera conferência humana.
+  needsReview Boolean @default(false)
+
+  /// Soft delete (ADR-11). Registrado na extensão de `lib/prisma.ts`.
+  excluidoEm DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contatos    NegociacaoContato[]
+  disciplinas NegociacaoDisciplina[]
+  /// 1:N (ADR-06) — a FK mora no lado `Projeto` (ver §2.13). `Proposta[]` e `Atividade[]` NÃO
+  /// entram aqui: `Proposta.negociacaoId` é da F5.2 e o model `Atividade` é da F3.1.
+  projetos    Projeto[]
+
+  @@index([clienteId])
+  @@index([responsavelId])
+  @@index([estagio])
+  @@index([dataFechamento])
+  @@index([canalId])
+  @@index([campaignId])
+  @@index([parceiroId])
+  @@index([createdAt])
+  @@index([excluidoEm])
+  @@map("negociacao")
+}
+
+/// Junção Negociacao ↔ ContatoCliente (F2.4). O P9 item 2 pede a negociação vinculada a Empresa
+/// **e contatos** — sem esta tabela o requisito não fecha.
+model NegociacaoContato {
+  id           String         @id @default(cuid())
+  negociacaoId String
+  negociacao   Negociacao     @relation(fields: [negociacaoId], references: [id], onDelete: Cascade)
+  contatoId    String
+  contato      ContatoCliente @relation(fields: [contatoId], references: [id])
+  principal    Boolean        @default(false)
+
+  @@unique([negociacaoId, contatoId])
+  @@index([contatoId])
+  @@map("negociacao_contato")
+}
+
+/// Junção Negociacao ↔ DisciplinaCatalogo (F2.4, ADR-13). Reaproveita o catálogo que já existe —
+/// é a mesma fonte de verdade que `PropostaItem`/`ItemTabelaPreco` passaram a usar na F1.19/F1.20
+/// e que `Disciplina` passou a usar na F1.19c. Nenhum catálogo novo.
+model NegociacaoDisciplina {
+  id           String             @id @default(cuid())
+  negociacaoId String
+  negociacao   Negociacao         @relation(fields: [negociacaoId], references: [id], onDelete: Cascade)
+  disciplinaId String
+  disciplina   DisciplinaCatalogo @relation(fields: [disciplinaId], references: [id])
+  /// Opcional (ADR-13) — mesmo padrão de `PropostaItem.valor`.
+  valor        Decimal?           @db.Decimal(14, 2)
+
+  @@unique([negociacaoId, disciplinaId])
+  @@index([disciplinaId])
+  @@map("negociacao_disciplina")
 }
 
 /// Junção Lead ↔ ContatoCliente (F2.3, ADR-01). A prospecção pertence à Empresa e pode ter N
@@ -3712,6 +3850,7 @@ model Campanha {
 
   @@index([canalId])
   @@index([responsavelId])
+  negociacoes Negociacao[]
   @@map("campanha")
 }
 
@@ -3740,6 +3879,7 @@ model Parceiro {
   leads Lead[]
 
   @@index([excluidoEm])
+  negociacoes Negociacao[]
   @@map("parceiro")
 }
 
@@ -3805,6 +3945,7 @@ model TipoEmpreendimento {
   nome  String  @unique
   ativo Boolean @default(true)
   ordem Int     @default(0)
+  negociacoes Negociacao[]
 
   @@map("tipo_empreendimento")
 }
@@ -3817,6 +3958,7 @@ model MotivoPerda {
   ordem Int     @default(0)
   /// Quando true, a UI exige preencher o concorrente ao selecionar este motivo.
   exigeConcorrente Boolean @default(false)
+  negociacoes Negociacao[]
 
   @@map("motivo_perda")
 }
@@ -3831,6 +3973,7 @@ model CanalAquisicao {
 
   leads     Lead[]
   campanhas Campanha[]
+  negociacoes Negociacao[]
 
   @@map("canal_aquisicao")
 }
