@@ -20,6 +20,76 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F2.12 → F2.17 — temperatura, os dois boards, filtros e contato rápido · 2026-08-20 · Opus
+
+**Seed sintético primeiro** (`npm run seed:crm-fase2`). O `seed:demo` não conhece o funil novo:
+dev tinha **0 negociações**, 1 contato e 8 leads todos em `IDENTIFICADO`, então o board da F2.14
+renderizaria vazio e não haveria como conferir contador, soma, frescor ou "sem próxima ação".
+
+O usuário ofereceu uma cópia anonimizada do banco de produção; **recusada com o motivo**:
+`AuditLog.detalhe` (JSON livre com o antes/depois de toda mutação), mensagens de chat e dezenas de
+campos de observação são texto livre que **não se mascara de forma confiável, só se trunca** — e o
+que falta ao dev é forma e volume, não conteúdo real. Além disso a restauração reverteria o schema
+da Fase 2 (dev em 176 migrations, produção em 173). Ficou combinado que a cópia tem valor **só**
+para ensaiar a F2.18, e como banco descartável.
+
+O seed respeita a regra que o próprio sistema impõe: o índice da F2.5 recusaria duas prospecções
+ativas na mesma empresa sem campanha, então `c01` aparece duas vezes — uma sem campanha, outra com
+— que é exatamente o caso permitido e que vale ter no board.
+
+**F2.12 — temperatura** · `null` é estado distinto de `FRIO` ("ninguém classificou"), e o card não
+pinta nada — tratar null como frio faria todo lead novo nascer azul e a cor perderia sentido.
+⚠️ **Bug pego antes de entrar:** o schema ia usar `optional`, e com `undefined` o Prisma entende
+"não mexe" — limpar a temperatura seria **no-op silencioso**. Provado no banco: com `undefined` o
+valor permanece; com `null`, limpa. Trocado para `nullish`.
+
+**F2.13 — Kanban de Prospecção** · Movimento **otimista com rollback** (o board antigo esperava o
+servidor e dava impressão de nada ter acontecido). Arrastar para `OPORTUNIDADE_CRIADA` **não é
+update de status**: dispara `qualificarProspeccao`, porque o estado significa "existe uma
+Negociacao" — sem isso o board mostraria oportunidade sem negociação nenhuma. O funil de prospecção
+**não tem ordem obrigatória** (pular direto para QUALIFICADO é legítimo: empresa pode chegar
+qualificada por indicação), diferente da jornada de negociação.
+
+**F2.14 — Kanban de Negociações** · **Duas consultas no total**, independentemente de colunas ou
+cards; o ingênuo seria 8 (uma por coluna) + 1 por card para a próxima ação = 208 idas ao banco com
+200 cards. **Contagem e soma vêm do banco, não do array paginado** — do array, uma coluna com 200
+registros mostraria "25" e somaria só a primeira página. Conferido: soma dos totais = `count()` da
+tabela. Soltar em PERDIDO abre o diálogo de motivo **antes** de enviar (pedir depois obrigaria a
+arrastar duas vezes); o campo de concorrente aparece conforme `MotivoPerda.exigeConcorrente`, regra
+que mora no dado.
+
+**F2.15 — filtros na URL** · Um componente para os dois boards, sem `useState` de filtro — a URL é
+a fonte de verdade, e é isso que faz "copiar a URL e abrir noutra aba" funcionar de graça. **O
+mesmo `where` alimenta o `groupBy` e o `findMany`**: se divergissem, o contador deixaria de bater
+com os cards exatamente quando houvesse filtro. Valor inválido na URL vira **ausente**, nunca erro.
+Provado contra o banco (temperatura, empresa, disciplina — os três batendo com `count()`).
+
+**F2.16 — contato rápido** · Reusa `normalizarTelefone` da F1.12 em vez de repetir a regra de
+E.164. Botão **só existe se houver dado utilizável** — sem telefone válido não há botão, evitando
+abrir o app numa conversa inexistente. Só abre; nada é enviado nem lido (veredito do dono, sem API).
+
+**F2.17 — responsivo** · Colunas empilham em tela pequena, lado a lado a partir de `sm`. Por **CSS
+e não `useMediaQuery`**: media query em JS renderiza o layout errado no servidor e corrige após a
+hidratação, fazendo o board piscar.
+
+**Verificação:** `vitest run` **2144 testes verdes** (26 novos) · `tsc` e `eslint` limpos ·
+`npm run build` ✓ · filtros e boards provados contra o banco de dev.
+
+⚠️ **NÃO verificado em navegador:** arrastar em 390px, clique real nos botões de contato, e o
+rollback visual do drag. Sem `chromium-cli` no ambiente, como registrado desde a F2.1a. A lógica
+por trás de cada um está coberta por teste ou por prova contra o banco; o que falta é a conferência
+visual.
+
+**F2.11 PULADA — dependência não declarada.** Seu aceite exige "registra `Atividade`" e "atualiza
+última interação", mas o model `Atividade` é da **F3.1** e `ultimaInteracao` não existe em lugar
+nenhum do schema projetado (seria derivado de `Atividade`). A tarefa declara `Dep: F2.10` apenas.
+Sobra dela só o encadeamento de diálogo, cosmético sem o registro.
+
+**Pendente da Fase 2:** F2.11 (bloqueada pela F3.1), F2.18 (**produção**), F2.19 (opcional, o
+próprio plano recomenda adiar) e F2.20 (fecho).
+
+---
+
 ## F2.6 → F2.10 — jornada, qualificação, frescor e próxima ação · 2026-08-20 · Opus
 
 Cinco tarefas seguidas, todas destravadas pelo bloco de schema anterior.
