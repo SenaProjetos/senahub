@@ -20,7 +20,6 @@ import {
   docSchemaZ,
 } from "@/modules/documentos/schema";
 import type { Prisma } from "@/generated/prisma/client";
-import { ROLES } from "@/lib/roles";
 
 const base = { modulo: "documentos", recurso: "documentos", permissao: "gerir" } as const;
 const PATH = "/documentos";
@@ -48,7 +47,12 @@ const visibilidadeSchema = z
   .object({
     id: z.string().min(1),
     visibilidade: z.enum(["pessoal", "perfis", "global"]),
-    perfis: z.array(z.enum(ROLES)).default([]),
+    /**
+     * `PerfilAcesso.chave` (não `Role`, não `id`). Não dá para fechar num `z.enum` porque perfis
+     * são cadastráveis em runtime — a validação de existência é feita contra o banco no corpo
+     * da action, que é onde a lista real vive.
+     */
+    perfis: z.array(z.string().min(1)).default([]),
   })
   .refine((v) => v.visibilidade !== "perfis" || v.perfis.length > 0, {
     message: "Selecione ao menos um perfil.",
@@ -75,16 +79,28 @@ export const definirVisibilidadeModelo = defineAction(
     });
     if (!m) throw new ActionError("Modelo não encontrado.");
     const ehDono = m.donoId != null && m.donoId === user.id;
-    if (!ehDono && user.role !== "admin") {
+    if (!ehDono && !user.superUsuario) {
       throw new ActionError("Apenas o dono ou um administrador pode alterar a visibilidade.");
+    }
+
+    // Chaves precisam existir e estar ativas: sem isso um perfil digitado/renomeado grava um
+    // modelo que ninguém enxerga — falha silenciosa, a mesma classe do R6 que esta migração fecha.
+    const perfis = i.visibilidade === "perfis" ? i.perfis : [];
+    if (perfis.length > 0) {
+      const existentes = await prisma.perfilAcesso.findMany({
+        where: { chave: { in: perfis }, ativo: true },
+        select: { chave: true },
+      });
+      const achadas = new Set(existentes.map((p) => p.chave));
+      const invalidas = perfis.filter((c) => !achadas.has(c));
+      if (invalidas.length > 0) {
+        throw new ActionError(`Perfil de acesso inexistente ou inativo: ${invalidas.join(", ")}.`);
+      }
     }
 
     await prisma.documentoModelo.update({
       where: { id: i.id },
-      data: {
-        visibilidade: i.visibilidade,
-        perfis: i.visibilidade === "perfis" ? i.perfis : [],
-      },
+      data: { visibilidade: i.visibilidade, perfis },
     });
     revalidatePath(PATH);
     revalidatePath(`${PATH}/${i.id}`);

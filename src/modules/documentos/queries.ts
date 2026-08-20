@@ -1,28 +1,35 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { docSchemaZ, docVazio, type DocSchema } from "@/modules/documentos/schema";
-import { type Role } from "@/lib/roles";
 import { whereAudiencia } from "@/lib/audiencias";
 import type { Prisma } from "@/generated/prisma/client";
 
-export type Viewer = { id: string; role: Role };
+/**
+ * `perfilChave` é a `PerfilAcesso.chave` do viewer (null = sem perfil atribuído), e
+ * `superUsuario` substitui o antigo `role === "admin"` — mesma população (o backfill marcou
+ * exatamente os admins), agora sem depender do enum `Role`, que sai na Onda F.
+ */
+export type Viewer = { id: string; perfilChave: string | null; superUsuario: boolean };
 
 /**
  * Filtro de visibilidade aplicado no `where` do Prisma. O viewer pode ver um modelo se:
  * - visibilidade "global"; OU
  * - é o dono (donoId === viewer.id); OU
- * - visibilidade "perfis" e o perfil do viewer está em `perfis`; OU
+ * - visibilidade "perfis" e o PERFIL DE ACESSO do viewer está em `perfis`; OU
  * - não tem dono (donoId == null → legado/sistema, visível a todos).
- * Admin enxerga tudo (sem filtro).
+ * Super-usuário enxerga tudo (sem filtro).
  */
 export function visibilidadeWhere(viewer: Viewer): Prisma.DocumentoModeloWhereInput {
-  if (viewer.role === "admin") return {};
+  if (viewer.superUsuario) return {};
   return {
     OR: [
       { visibilidade: "global" },
       { donoId: null },
       { donoId: viewer.id },
-      { visibilidade: "perfis", perfis: { has: viewer.role } },
+      // Sem perfil atribuído, o ramo "perfis" não casa com nada — `has` exige um valor.
+      ...(viewer.perfilChave
+        ? [{ visibilidade: "perfis", perfis: { has: viewer.perfilChave } }]
+        : []),
     ],
   };
 }

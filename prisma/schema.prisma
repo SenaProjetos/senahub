@@ -4255,8 +4255,12 @@ model DocumentoModelo {
   donoId       String?
   /// Visibilidade do modelo: "pessoal" (só o dono) | "perfis" (perfis em `perfis`) | "global" (todos).
   visibilidade String        @default("global")
-  /// Perfis que enxergam o modelo quando visibilidade = "perfis".
-  perfis       Role[]        @default([])
+  /// Perfis de acesso que enxergam o modelo quando visibilidade = "perfis".
+  /// Guarda `PerfilAcesso.chave` (slug estável, portátil entre bancos), NÃO o `id` — mesmo
+  /// critério do resto do sistema para dado histórico. Era `Role[]` até 2026-08-20: um dos 4
+  /// campos de "Role como dado" (R6) do plano de acesso, migrado quando o censo mostrou 0
+  /// modelos usando `visibilidade = "perfis"` em produção — troca de tipo sem dado a migrar.
+  perfis       String[]      @default([])
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 

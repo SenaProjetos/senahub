@@ -13,7 +13,6 @@ import {
   definirVisibilidadeModelo,
 } from "@/modules/documentos/actions";
 import { FONTES } from "@/modules/documentos/fontes-meta";
-import { ROLES, ROLE_LABELS, type Role } from "@/lib/roles";
 
 type FonteOpcao = { id: string; label: string };
 type DatasetOpcao = { id: string; nome: string };
@@ -55,10 +54,14 @@ type Modelo = {
   atualizadoEm: string;
   donoId: string | null;
   visibilidade: string;
-  perfis: Role[];
+  /** `PerfilAcesso.chave` — não mais `Role` (R6 do plano de acesso). */
+  perfis: string[];
 };
 
-type Viewer = { id: string; role: Role; isAdmin: boolean };
+type Viewer = { id: string; perfilChave: string | null; superUsuario: boolean };
+
+/** Perfis de acesso ativos, para o seletor de compartilhamento. */
+type PerfilOpcao = { chave: string; nome: string };
 
 const TIPO_LABEL: Record<string, string> = {
   relatorio: "Relatório",
@@ -108,12 +111,15 @@ export function DocumentosView({
   modelos,
   podeGerir,
   viewer,
+  perfisDisponiveis,
   fontes,
   datasets,
 }: {
   modelos: Modelo[];
   podeGerir: boolean;
   viewer: Viewer;
+  /** Perfis de acesso ativos (só preenchido para quem gere) — opções do compartilhamento. */
+  perfisDisponiveis: PerfilOpcao[];
   /** Fontes de sistema que o viewer pode ver (filtradas no server). */
   fontes: FonteOpcao[];
   /** Datasets de CSV disponíveis como fonte (só preenchido para quem gere). */
@@ -134,11 +140,11 @@ export function DocumentosView({
   // Compartilhamento / visibilidade
   const [shareModelo, setShareModelo] = useState<Modelo | null>(null);
   const [shareVis, setShareVis] = useState<Visibilidade>("global");
-  const [sharePerfis, setSharePerfis] = useState<Role[]>([]);
+  const [sharePerfis, setSharePerfis] = useState<string[]>([]);
 
-  // Só o dono ou um admin pode alterar a visibilidade.
+  // Só o dono ou um super-usuário pode alterar a visibilidade.
   function podeCompartilhar(m: Modelo) {
-    return viewer.isAdmin || (m.donoId != null && m.donoId === viewer.id);
+    return viewer.superUsuario || (m.donoId != null && m.donoId === viewer.id);
   }
 
   function abrirCompartilhar(m: Modelo) {
@@ -147,9 +153,9 @@ export function DocumentosView({
     setSharePerfis(m.perfis ?? []);
   }
 
-  function togglePerfil(role: Role, on: boolean) {
+  function togglePerfil(chave: string, on: boolean) {
     setSharePerfis((atual) =>
-      on ? Array.from(new Set([...atual, role])) : atual.filter((r) => r !== role),
+      on ? Array.from(new Set([...atual, chave])) : atual.filter((c) => c !== chave),
     );
   }
 
@@ -400,21 +406,18 @@ export function DocumentosView({
               <div className="space-y-2">
                 <Label>Perfis com acesso</Label>
                 <div className="grid grid-cols-2 gap-2">
-                  {ROLES.map((role) => {
-                    const checked = sharePerfis.includes(role);
-                    return (
-                      <label
-                        key={role}
-                        className="flex items-center gap-2 text-sm cursor-pointer"
-                      >
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={(c) => togglePerfil(role, c as boolean)}
-                        />
-                        {ROLE_LABELS[role]}
-                      </label>
-                    );
-                  })}
+                  {perfisDisponiveis.map((p) => (
+                    <label
+                      key={p.chave}
+                      className="flex items-center gap-2 text-sm cursor-pointer"
+                    >
+                      <Checkbox
+                        checked={sharePerfis.includes(p.chave)}
+                        onCheckedChange={(c) => togglePerfil(p.chave, c as boolean)}
+                      />
+                      {p.nome}
+                    </label>
+                  ))}
                 </div>
               </div>
             )}

@@ -16,15 +16,19 @@ export type SessionUser = {
   /** Sócio ativo (registro Socio) — recebe acesso de LEITURA elevado (piso de supervisor). */
   ehSocio: boolean;
   /**
-   * Motor de Perfil de acesso (Onda A da separação Setor × Contratação × Perfil — plano em
-   * docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md). INERTE nesta onda:
-   * `perfilId` é `null` para todo mundo até a Onda B semear perfis reais, então
-   * `escopoGlobalPerfil` resolve `false` para todo mundo. NENHUM gate hoje lê estes dois
-   * campos — `acessoGlobal()`/`requireRole`/`requirePermission` continuam 100% sobre `role`.
-   * Existem agora para o arnês de equivalência (§6.2) rodar contra dado real desde já, e para
-   * a Onda D não precisar voltar a mexer neste arquivo.
+   * Motor de Perfil de acesso (plano em
+   * docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md).
+   * ATIVO desde a Onda D (2026-08-09): `can()` resolve por `permissaoEfetiva` e
+   * `acessoGlobal()` lê `superUsuario || escopoGlobalPerfil` — estes campos SÃO a autorização
+   * real hoje, não mais um ensaio. (O comentário anterior dizia "inerte, nenhum gate lê" —
+   * era verdade na Onda A e virou mentira no flip.)
    */
   perfilId: string | null;
+  /**
+   * `PerfilAcesso.chave` do perfil acima — slug estável, o identificador que dado histórico
+   * usa (ver `DocumentoModelo.perfis`). Vem do mesmo round-trip de `perfilId`, sem custo extra.
+   */
+  perfilChave: string | null;
   escopoGlobalPerfil: boolean;
   /**
    * Bypass total do motor de Perfil de acesso (equivalente ao `role === "admin"` de `can()`).
@@ -40,14 +44,19 @@ export const getSession = cache(async () => {
   if (!session) return null;
   const base = session.user as unknown as Omit<
     SessionUser,
-    "ehSocio" | "perfilId" | "escopoGlobalPerfil" | "superUsuario"
+    "ehSocio" | "perfilId" | "perfilChave" | "escopoGlobalPerfil" | "superUsuario"
   >;
 
   // Sócio + perfil/superUsuário num único round-trip (mesmo lookup que já existia, ampliado).
   const { prisma } = await import("@/lib/prisma");
   const dados = await prisma.user.findUnique({
     where: { id: base.id },
-    select: { perfilId: true, superUsuario: true, socio: { select: { ativo: true } } },
+    select: {
+      perfilId: true,
+      superUsuario: true,
+      perfil: { select: { chave: true } },
+      socio: { select: { ativo: true } },
+    },
   });
 
   const { permissaoEfetiva } = await import("@/lib/permissao-efetiva");
@@ -67,6 +76,7 @@ export const getSession = cache(async () => {
       ...base,
       ehSocio: dados?.socio?.ativo === true,
       perfilId: dados?.perfilId ?? null,
+      perfilChave: dados?.perfil?.chave ?? null,
       superUsuario: dados?.superUsuario ?? false,
       escopoGlobalPerfil,
     } as SessionUser,
