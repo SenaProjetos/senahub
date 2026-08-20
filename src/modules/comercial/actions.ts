@@ -62,18 +62,47 @@ async function validarParceiroId(parceiroId: string | undefined): Promise<string
   return parceiroId;
 }
 
+/**
+ * Traduz a violação dos índices parciais da F2.5 (ADR-02/ADR-18) numa mensagem que o vendedor
+ * entende. Sem isto o `defineAction` devolveria "erro inesperado" para uma regra de negócio
+ * perfeitamente normal — mesmo raciocínio (e mesmo formato) de `comDocumentoUnico` em
+ * `modules/clientes/actions.ts`, criado na F1.16 para o índice de CPF/CNPJ.
+ *
+ * Aqui a rede de segurança é a ÚNICA checagem, e não um complemento a uma consulta prévia: uma
+ * verificação "já existe prospecção ativa?" antes do INSERT teria janela de corrida e ainda
+ * assim precisaria deste catch. Deixar só o catch é mais simples e igualmente correto.
+ */
+async function comProspeccaoAtivaUnica<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    const codigo = (e as { code?: string }).code;
+    const alvo = JSON.stringify((e as { meta?: unknown }).meta ?? "");
+    if (codigo === "P2002" && alvo.includes("prospeccao_ativa")) {
+      throw new ActionError(
+        "Já existe uma prospecção ativa para esta empresa nesta campanha. " +
+          "Registre o contato na prospecção existente, ou encerre-a antes de abrir outra.",
+      );
+    }
+    throw e;
+  }
+}
+
 // ── Leads ─────────────────────────────────────────────────────
 export const criarLead = defineAction(
   { ...base, acao: "criar-lead", entidade: "Lead", schema: criarLeadSchema },
   async (i) => {
-    const lead = await prisma.lead.create({
-      data: {
-        ...i,
-        email: i.email || null,
-        valorEstimado: i.valorEstimado,
-        parceiroId: await validarParceiroId(i.parceiroId),
-      },
-    });
+    const parceiroId = await validarParceiroId(i.parceiroId);
+    const lead = await comProspeccaoAtivaUnica(() =>
+      prisma.lead.create({
+        data: {
+          ...i,
+          email: i.email || null,
+          valorEstimado: i.valorEstimado,
+          parceiroId,
+        },
+      }),
+    );
     rev();
     return { id: lead.id };
   },
@@ -83,13 +112,18 @@ export const editarLead = defineAction(
   { ...base, acao: "editar-lead", entidade: "Lead", schema: editarLeadSchema },
   async (i) => {
     const { id, ...rest } = i;
-    await prisma.lead.update({
-      where: { id },
-      // `parceiroId: null` explicito -- no update do Prisma, `undefined` significa "nao mexe",
-      // entao trocar pra "sem parceiro" (sentinel SEM_PARCEIRO no dialog) precisa mandar `null`
-      // de verdade, senao o campo fica preso no valor antigo.
-      data: { ...rest, email: rest.email || null, parceiroId: await validarParceiroId(rest.parceiroId) },
-    });
+    const parceiroId = await validarParceiroId(rest.parceiroId);
+    // Editar tambem passa pela guarda: trocar a empresa de um lead pode colidir com uma
+    // prospeccao ativa que ja exista naquela empresa, exatamente como criar do zero.
+    await comProspeccaoAtivaUnica(() =>
+      prisma.lead.update({
+        where: { id },
+        // `parceiroId: null` explicito -- no update do Prisma, `undefined` significa "nao mexe",
+        // entao trocar pra "sem parceiro" (sentinel SEM_PARCEIRO no dialog) precisa mandar `null`
+        // de verdade, senao o campo fica preso no valor antigo.
+        data: { ...rest, email: rest.email || null, parceiroId },
+      }),
+    );
     rev();
     return { id };
   },
