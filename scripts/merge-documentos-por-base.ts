@@ -97,6 +97,8 @@ async function main() {
   }
 
   const log: { canonico: string; absorvidos: string[] }[] = [];
+  // Linhas descartadas por colisão de UNIQUE (fica a mais recente) — reportado no fim.
+  const descartadas = { calibracoes: 0, leituras: 0 };
   for (const [, ds] of paraMesclar) {
     const ordenados = [...ds].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
     const canonico = ordenados[0];
@@ -128,8 +130,52 @@ async function main() {
         // Tudo que pendurava no perdedor passa a pendurar no canônico.
         await tx.upload.updateMany({ where: { documentoId: p.id }, data: { documentoId: canonico.id } });
         await tx.pendencia.updateMany({ where: { documentoId: p.id }, data: { documentoId: canonico.id } });
-        await tx.calibracaoPrancha.updateMany({ where: { documentoId: p.id }, data: { documentoId: canonico.id } });
-        await tx.leituraDocumento.updateMany({ where: { documentoId: p.id }, data: { documentoId: canonico.id } });
+
+        // Calibração e leitura têm UNIQUE com `documentoId` — mover em bloco estoura quando o
+        // canônico já tem a mesma página calibrada, ou quando a mesma pessoa leu os dois lados
+        // (foi o que derrubou a execução em produção, no 67º grupo). Em colisão fica a linha
+        // MAIS RECENTE: é a que reflete a última calibração feita e a última leitura real.
+        const calibs = await tx.calibracaoPrancha.findMany({
+          where: { documentoId: p.id },
+          select: { id: true, pagina: true, updatedAt: true },
+        });
+        for (const c of calibs) {
+          const existente = await tx.calibracaoPrancha.findUnique({
+            where: { documentoId_pagina: { documentoId: canonico.id, pagina: c.pagina } },
+            select: { id: true, updatedAt: true },
+          });
+          if (!existente) {
+            await tx.calibracaoPrancha.update({ where: { id: c.id }, data: { documentoId: canonico.id } });
+          } else if (c.updatedAt > existente.updatedAt) {
+            await tx.calibracaoPrancha.delete({ where: { id: existente.id } });
+            await tx.calibracaoPrancha.update({ where: { id: c.id }, data: { documentoId: canonico.id } });
+            descartadas.calibracoes += 1;
+          } else {
+            await tx.calibracaoPrancha.delete({ where: { id: c.id } });
+            descartadas.calibracoes += 1;
+          }
+        }
+
+        const leituras = await tx.leituraDocumento.findMany({
+          where: { documentoId: p.id },
+          select: { id: true, userId: true, lidoEm: true },
+        });
+        for (const l of leituras) {
+          const existente = await tx.leituraDocumento.findUnique({
+            where: { documentoId_userId: { documentoId: canonico.id, userId: l.userId } },
+            select: { id: true, lidoEm: true },
+          });
+          if (!existente) {
+            await tx.leituraDocumento.update({ where: { id: l.id }, data: { documentoId: canonico.id } });
+          } else if (l.lidoEm > existente.lidoEm) {
+            await tx.leituraDocumento.delete({ where: { id: existente.id } });
+            await tx.leituraDocumento.update({ where: { id: l.id }, data: { documentoId: canonico.id } });
+            descartadas.leituras += 1;
+          } else {
+            await tx.leituraDocumento.delete({ where: { id: l.id } });
+            descartadas.leituras += 1;
+          }
+        }
         // Soft-retire + chave neutralizada, para não brigar pelo UNIQUE com o canônico.
         await tx.documentoDisciplina.update({
           where: { id: p.id },
