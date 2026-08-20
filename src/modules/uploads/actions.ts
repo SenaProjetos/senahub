@@ -20,6 +20,7 @@ import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { projetoVisivel } from "@/modules/planejamento/queries";
 import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
 import { STATUS_ABERTOS } from "@/modules/projetos/pendencias/helpers";
+import { historicoRevisoesDocumento } from "@/modules/uploads/queries";
 
 /** Extensão com o ponto, no case original (`.pdf`). Sem ponto (ou dotfile) → vazio. */
 function extComPonto(nome: string): string {
@@ -1077,6 +1078,49 @@ export const gerarAceiteCliente = defineAction(
     });
     revalidatePath(`/projetos/${upload.disciplina.projetoId}`);
     return { token: aceite.token };
+  },
+);
+
+// ── Histórico de revisões (F2-PR8) ─────────────────────────────
+
+const historicoRevisoesSchema = z.object({ uploadId: z.string().min(1) });
+
+/**
+ * Leitura sob demanda do histórico de revisões (abre o drawer do menu "..." sem
+ * recarregar a página). `historicoRevisoesDocumento` mora em `queries.ts`
+ * (`server-only`, sem checagem de sessão) — este wrapper é o único jeito de chamá-la a
+ * partir do menu (client component), com a mesma muralha por disciplina das demais
+ * leituras de upload deste arquivo (`projetoVisivel` + responsável-ou-`ver_todas_disciplinas`).
+ * `audit: false`: abrir um histórico é navegação, não uma ação de negócio — auditar
+ * cada abertura seria ruído no log.
+ */
+export const carregarHistoricoRevisoes = defineAction(
+  {
+    modulo: "uploads",
+    acao: "ver-historico-revisoes",
+    recurso: "projetos",
+    permissao: "ver",
+    schema: historicoRevisoesSchema,
+    audit: false,
+  },
+  async (input, { user }) => {
+    const upload = await prisma.upload.findUnique({
+      where: { id: input.uploadId },
+      select: {
+        disciplina: {
+          select: { projetoId: true, responsaveis: { select: { userId: true } } },
+        },
+      },
+    });
+    // Mensagem única para "não existe" e "você não enxerga" — não vaza a existência.
+    const naoEncontrado = new ActionError("Arquivo não encontrado.");
+    if (!upload) throw naoEncontrado;
+    if (!(await projetoVisivel(user, upload.disciplina.projetoId))) throw naoEncontrado;
+    const veTodas = await podeVerTodasDisciplinas(user);
+    const ehResponsavel = upload.disciplina.responsaveis.some((r) => r.userId === user.id);
+    if (!veTodas && !ehResponsavel) throw naoEncontrado;
+
+    return historicoRevisoesDocumento(input.uploadId);
   },
 );
 

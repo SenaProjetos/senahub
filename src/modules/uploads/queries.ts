@@ -424,3 +424,76 @@ export async function resolverDocumentoCanonico(
   }
   return atual;
 }
+
+export type ArquivoHistoricoRevisao = {
+  id: string;
+  nome: string;
+  ext: string;
+  excluido: boolean;
+  downloadUrl: string;
+};
+
+export type HistoricoRevisao = {
+  numero: number;
+  /** ISO — atravessa a fronteira Server Action → cliente como string, não `Date`. */
+  criadoEm: string;
+  autor: string | null;
+  /** `true` na revisão de maior número (a lista já vem ordenada da mais recente pra mais antiga). */
+  atual: boolean;
+  arquivos: ArquivoHistoricoRevisao[];
+};
+
+/**
+ * Histórico de revisões (R00, R01, R02...) de um documento — drawer do menu "..." da
+ * tabela de arquivos (F2-PR8). Recebe o id do UPLOAD (é o que a linha da tabela tem à
+ * mão) e resolve o documento a partir dele, em vez de exigir o documentoId do chamador.
+ *
+ * Chama `resolverDocumentoCanonico` antes de buscar as revisões: documentos podem ter
+ * sido fundidos por nome-base (M4), e um id antigo aponta para um "apelido" sem
+ * revisão nenhuma pendurada — sem isso o histórico viria vazio para documentos fundidos.
+ *
+ * Leitura ANINHADA (`documentoRevisao.findMany` → `include: { uploads }`) de propósito,
+ * igual a `revisoesDoDocumento`: não passa pelo filtro global de soft-delete de
+ * `lib/prisma.ts` (que só intercepta `prisma.upload.*` no topo), então um arquivo na
+ * lixeira continua aparecendo na revisão a que pertence — só marcado `excluido: true`
+ * para a UI sinalizar, nunca escondido (a pergunta "o que foi enviado nesta revisão"
+ * continua válida mesmo depois de descartado).
+ */
+export async function historicoRevisoesDocumento(uploadId: string): Promise<HistoricoRevisao[]> {
+  const upload = await prisma.upload.findUnique({
+    where: { id: uploadId },
+    select: { documentoId: true },
+  });
+  // Sem documento lógico (linha legada anterior ao backfill): não há histórico de
+  // revisões possível — estado vazio, não erro.
+  if (!upload?.documentoId) return [];
+
+  const documentoId = await resolverDocumentoCanonico(upload.documentoId);
+
+  const revisoes = await prisma.documentoRevisao.findMany({
+    where: { documentoId },
+    orderBy: { numero: "desc" },
+    select: {
+      numero: true,
+      createdAt: true,
+      createdBy: { select: { name: true } },
+      uploads: { select: { id: true, nomeArquivo: true, excluidoEm: true } },
+    },
+  });
+
+  const maiorNumero = revisoes[0]?.numero;
+
+  return revisoes.map((r) => ({
+    numero: r.numero,
+    criadoEm: r.createdAt.toISOString(),
+    autor: r.createdBy?.name ?? null,
+    atual: r.numero === maiorNumero,
+    arquivos: r.uploads.map((u) => ({
+      id: u.id,
+      nome: u.nomeArquivo,
+      ext: extensaoDe(u.nomeArquivo),
+      excluido: u.excluidoEm != null,
+      downloadUrl: `/api/uploads/${u.id}/download`,
+    })),
+  }));
+}
