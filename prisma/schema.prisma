@@ -3616,6 +3616,9 @@ model Lead {
   /// `@default(IDENTIFICADO)` é o que preenche os leads existentes na migration — sem ele a
   /// coluna NOT NULL não poderia nascer numa tabela populada.
   status        StatusProspeccao @default(IDENTIFICADO)
+  /// F2.12: manual, sem IA nem scoring automático (veredito do dono no roadmap). Nullable =
+  /// "ninguém classificou ainda", que é diferente de FRIO — o card não pinta nada nesse caso.
+  temperatura   Temperatura?
   /// Marcado quando a classificação automática ficou ambígua e um humano precisa conferir
   /// (ADR-16). A F2.18 migra os 8 leads reais todos com `needsReview = true`.
   needsReview   Boolean          @default(false)

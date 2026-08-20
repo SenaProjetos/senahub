@@ -32,6 +32,7 @@ import {
   qualificarProspeccaoSchema,
   agendarProximaAcaoSchema,
   concluirProximaAcaoSchema,
+  definirTemperaturaSchema,
 } from "@/modules/comercial/schemas";
 import { removerArquivo } from "@/lib/storage";
 import { etapaEhPerdido } from "@/modules/comercial/status";
@@ -108,6 +109,7 @@ export const criarLead = defineAction(
           email: i.email || null,
           valorEstimado: i.valorEstimado,
           parceiroId,
+          temperatura: i.temperatura ?? null,
         },
       }),
     );
@@ -129,7 +131,14 @@ export const editarLead = defineAction(
         // `parceiroId: null` explicito -- no update do Prisma, `undefined` significa "nao mexe",
         // entao trocar pra "sem parceiro" (sentinel SEM_PARCEIRO no dialog) precisa mandar `null`
         // de verdade, senao o campo fica preso no valor antigo.
-        data: { ...rest, email: rest.email || null, parceiroId },
+        data: {
+          ...rest,
+          email: rest.email || null,
+          parceiroId,
+          // null EXPLÍCITO: é o que permite limpar a classificação. `undefined` faria o Prisma
+          // ignorar o campo, e "voltar para não classificado" seria um no-op silencioso.
+          temperatura: rest.temperatura ?? null,
+        },
       }),
     );
     rev();
@@ -705,5 +714,28 @@ export const concluirProximaAcao = defineAction(
     rev();
     revalidatePath("/agenda");
     return r;
+  },
+);
+
+/**
+ * Temperatura manual (F2.12). Um único ponto para os dois funis — `entidadeTipo` decide a tabela,
+ * em vez de duas actions quase idênticas que divergiriam na primeira manutenção.
+ */
+export const definirTemperatura = defineAction(
+  {
+    ...base,
+    acao: "definir-temperatura",
+    entidade: "Lead",
+    schema: definirTemperaturaSchema,
+    entidadeId: (_d, i) => (i as { id: string }).id,
+  },
+  async (i) => {
+    if (i.entidadeTipo === "LEAD") {
+      await prisma.lead.update({ where: { id: i.id }, data: { temperatura: i.temperatura } });
+    } else {
+      await prisma.negociacao.update({ where: { id: i.id }, data: { temperatura: i.temperatura } });
+    }
+    rev();
+    return { id: i.id };
   },
 );

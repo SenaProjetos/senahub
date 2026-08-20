@@ -26,6 +26,11 @@ import {
 } from "@/modules/comercial/actions";
 import type { LeadItem } from "@/modules/comercial/queries";
 import { FollowUpDialog } from "./follow-up-dialog";
+import {
+  TEMPERATURAS,
+  TEMPERATURA_ICONE,
+  TEMPERATURA_LABEL,
+} from "@/modules/comercial/temperatura";
 import { MotivoPerdaDialog, etapaEhPerdido } from "./motivo-perda-dialog";
 import { NotasHistorico } from "./notas-historico";
 import { Button } from "@/components/ui/button";
@@ -56,10 +61,13 @@ type Form = {
   etapaId: string;
   observacoes: string;
   parceiroId: string;
+  temperatura: string;
 };
 
 /** Sentinela pro Select de parceiro (base-ui não aceita value vazio) — F1.23a. */
 const SEM_PARCEIRO = "nenhum";
+/** F2.12: "não classificado" é estado próprio, distinto de FRIO — base-ui recusa value="". */
+const SEM_TEMPERATURA = "nao_classificado";
 
 export function LeadDialog({
   lead,
@@ -86,6 +94,7 @@ export function LeadDialog({
     etapaId: etapas[0]?.id ?? "",
     observacoes: "",
     parceiroId: SEM_PARCEIRO,
+    temperatura: SEM_TEMPERATURA,
   };
   const deLead = (l: LeadItem): Form => ({
     nome: l.nome,
@@ -97,6 +106,7 @@ export function LeadDialog({
     etapaId: l.etapaId,
     observacoes: l.observacoes ?? "",
     parceiroId: l.parceiro?.id ?? SEM_PARCEIRO,
+    temperatura: l.temperatura ?? SEM_TEMPERATURA,
   });
   const [form, setForm] = useState<Form>(lead ? deLead(lead) : vazio);
   const [nota, setNota] = useState("");
@@ -123,6 +133,11 @@ export function LeadDialog({
       etapaId: form.etapaId,
       observacoes: form.observacoes,
       parceiroId: form.parceiroId === SEM_PARCEIRO ? "" : form.parceiroId,
+      // null (não undefined) para conseguir LIMPAR — ver comentário na action.
+      temperatura:
+        form.temperatura === SEM_TEMPERATURA
+          ? null
+          : (form.temperatura as "FRIO" | "MORNO" | "QUENTE"),
     };
     start(async () => {
       if (!lead) {
@@ -292,6 +307,25 @@ export function LeadDialog({
                   {parceiros.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Temperatura</Label>
+              <Select
+                value={form.temperatura}
+                onValueChange={(v) => set("temperatura", v ?? SEM_TEMPERATURA)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SEM_TEMPERATURA}>Não classificado</SelectItem>
+                  {TEMPERATURAS.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {TEMPERATURA_ICONE[t]} {TEMPERATURA_LABEL[t]}
                     </SelectItem>
                   ))}
                 </SelectContent>

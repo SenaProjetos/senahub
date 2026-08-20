@@ -29,6 +29,12 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  TEMPERATURA_CLASS,
+  TEMPERATURA_ICONE,
+  TEMPERATURA_LABEL,
+  ehTemperatura,
+} from "@/modules/comercial/temperatura";
 import { brlInteiro } from "@/lib/utils";
 
 /** Sentinela para "sem filtro" nos Selects (base-ui não aceita value vazio). */
@@ -254,9 +260,20 @@ function CardLead({
           <p className="truncate text-xs text-muted-foreground">
             {lead.cliente ? `Cliente: ${lead.cliente.nome}` : (lead.origem ?? "—")}
           </p>
-          <div className="mt-1 flex items-center gap-2">
+          <div className="mt-1 flex flex-wrap items-center gap-2">
             {lead.valorEstimado != null && (
               <span className="font-mono text-xs">{brlInteiro(Number(lead.valorEstimado))}</span>
+            )}
+            {/* F2.12: só aparece quando alguém classificou. `null` não pinta nada — senão todo
+                lead novo nasceria colorido e a cor deixaria de significar alguma coisa. */}
+            {ehTemperatura(lead.temperatura) && (
+              <Badge
+                variant="outline"
+                className={`text-[10px] ${TEMPERATURA_CLASS[lead.temperatura]}`}
+                title={`Temperatura: ${TEMPERATURA_LABEL[lead.temperatura]}`}
+              >
+                {TEMPERATURA_ICONE[lead.temperatura]} {TEMPERATURA_LABEL[lead.temperatura]}
+              </Badge>
             )}
             {lead._count.propostas > 0 && (
               <Badge variant="outline" className="text-[10px]">

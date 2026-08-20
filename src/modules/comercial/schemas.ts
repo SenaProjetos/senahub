@@ -16,6 +16,9 @@ export const criarLeadSchema = z.object({
   /// F1.23a (ADR-19): SEMPRE um id do catálogo `Parceiro`, nunca texto — o Select do formulário
   /// não oferece opção de digitar. `""` = sem parceiro (sentinel `SEM_PARCEIRO` no dialog).
   parceiroId: opt(z.string()),
+  /// F2.12: `null` = não classificado. `nullish` e NÃO `optional`: com `undefined` o Prisma
+  /// entende "não mexe neste campo", e limpar a classificação viraria no-op silencioso.
+  temperatura: z.enum(["FRIO", "MORNO", "QUENTE"]).nullish(),
 });
 export const editarLeadSchema = criarLeadSchema.extend({ id: z.string().min(1) });
 export const moverLeadSchema = z.object({
@@ -176,3 +179,10 @@ export const agendarProximaAcaoSchema = z.object({
 });
 
 export const concluirProximaAcaoSchema = z.object({ compromissoId: z.string().min(1) });
+
+/** F2.12: `null` limpa a classificação (volta a "não classificado"). */
+export const definirTemperaturaSchema = z.object({
+  entidadeTipo: z.enum(["LEAD", "NEGOCIACAO"]),
+  id: z.string().min(1),
+  temperatura: z.enum(["FRIO", "MORNO", "QUENTE"]).nullable(),
+});
