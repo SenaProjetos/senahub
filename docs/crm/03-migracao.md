@@ -243,6 +243,22 @@ espinhosa que este §5 antecipava — dividir a base de pagamento ao projetista 
 três**. O que continua exigindo decisão humana é o destino dos **38 uploads** e das **2 revisões** do projeto
 260023: desmembrar em `Cabeamento` + `CFTV` obriga a dizer para qual das duas vai cada arquivo.
 
+> ## ✅ RESOLVIDO — F1.21 executada em produção em 2026-08-19
+>
+> As 6 grafias abaixo foram consolidadas por `scripts/consolidar-disciplinas-f121.ts`: **6 FK
+> resolvidas, 3 disciplinas `CFTV` criadas**. `disciplina` sem FK = **0**. As duas decisões que
+> travavam esta seção foram tomadas pelo dono e estão no `PLANO` do script:
+>
+> 1. **Compostas → duas disciplinas, CFTV nascendo vazia.** O histórico (38 uploads, 2 revisões)
+>    fica na `Cabeamento`; a separação vale para entregas novas. Sem reclassificação arquivo a
+>    arquivo — era a opção mais cara e a decisão foi não pagá-la.
+> 2. **260023 mantém DUAS linhas** de `Climatização (AVAC)` (`Ar condicionado (ARC)` + `Exaustão
+>    (EXT)`), em vez de fundir: são entregas separadas naquele contrato.
+>
+> A decisão 2 fixou também que **a exibição continua usando `disciplinaTextoLegado`**, não o nome do
+> catálogo — com duas linhas na mesma FK, preferir o catálogo mostraria "Climatização (AVAC)" duas
+> vezes e apagaria a distinção. Detalhes em `06-progresso.md`, entrada F1.21.
+
 **Complemento medido em 2026-08-19, no backfill da F1.19c em produção — duas coisas que esta tabela
 não dizia:**
 

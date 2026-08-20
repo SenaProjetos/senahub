@@ -83,7 +83,19 @@ Disciplina`, `entidadeId` da disciplina original, grafia de origem e id da CFTV 
 **Verificação:** `eslint .` limpo · `vitest run` **196 arquivos, 2042 testes verdes** ·
 `tsc --noEmit -p tsconfig.server.json` só os 2 pré-existentes de `backup-storage.test.ts`.
 
-**Pendente:** rodar em **produção** (dry-run → conferência → `--gravar`). Nada mais da Fase 1.
+**Executado em produção — 2026-08-19.** Dry-run → conferência → `--gravar`: **6 FK resolvidas, 3
+disciplinas CFTV criadas**, cada uma herdando **1 responsável** da composta (no dev era 0 — dado de
+demo não tem responsável). Re-execução imediata: as 6 marcadas "já consolidada", `0 FK · 0 CFTV` —
+idempotência provada contra o dado real. `smoke:crm-prod` seguiu **17 OK / 0 falhas / 1 pulado**.
+
+**O efeito colateral do alerta não se materializou, e o dry-run provou isso antes:** os 3 projetos
+(260023, 260014, 260020) **já entravam** em `alertaRiscoProjeto` — todos `em_andamento`, todos com
+`prazoFinal` vencido e **nenhuma** disciplina aprovada. A CFTV nova não mudou gatilho de ninguém.
+Como efeito lateral, ficou registrado que os três estão vencidos há semanas (260020 desde 21/07) e
+o alerta diário não está sendo acionado por ninguém — observação de operação, fora do escopo do CRM.
+
+**FASE 1 FECHADA — dev e produção.** 30 tarefas. A única que sobra sob outra dependência é a
+**F1.23c** (relatório "negócios por parceiro"), que depende de `F6.3` e por isso vive na Fase 6.
 
 ---
 
