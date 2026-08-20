@@ -3,6 +3,7 @@ import { requirePermission } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { listarAvisos } from "@/modules/notificacoes/avisos/queries";
 import { AvisoGeralView, type UsuarioAlvo } from "@/components/configuracoes/aviso-geral-view";
+import { perfisAtivosParaSelect } from "@/modules/perfis/queries";
 import { AvisosRegistro } from "@/components/configuracoes/avisos-registro";
 import { AvisosAgendados } from "@/components/configuracoes/avisos-agendados";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,13 +13,14 @@ export const metadata: Metadata = { title: "Avisos gerais" };
 export default async function AvisosPage() {
   await requirePermission("avisos", "enviar");
 
-  const [usuarios, avisos] = await Promise.all([
+  const [usuarios, avisos, perfis] = await Promise.all([
     prisma.user.findMany({
       where: { ativo: true },
       select: { id: true, name: true, role: true },
       orderBy: { name: "asc" },
     }),
     listarAvisos(),
+    perfisAtivosParaSelect(),
   ]);
 
   // Agendado ainda não tem destinatários (o alvo só é resolvido no disparo), então
@@ -36,7 +38,7 @@ export default async function AvisosPage() {
           <TabsTrigger value="enviados">Enviados ({enviados.length})</TabsTrigger>
         </TabsList>
         <TabsContent value="novo">
-          <AvisoGeralView usuarios={usuarios as UsuarioAlvo[]} />
+          <AvisoGeralView usuarios={usuarios as UsuarioAlvo[]} perfis={perfis} />
         </TabsContent>
         <TabsContent value="agendados">
           <div className="space-y-4">

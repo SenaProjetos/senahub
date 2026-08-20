@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { statusAviso } from "./agendamento";
+import { alvoLabel } from "./alvo-label";
 
 export type AvisoPendente = {
   avisoId: string;
@@ -62,6 +63,9 @@ export async function listarAvisos() {
     }),
   ]);
   const mapaConf = new Map(confirmados.map((c) => [c.avisoId, c._count]));
+  // Uma consulta para a lista inteira — o rótulo do alvo por perfil precisa do nome pt-BR.
+  const perfis = await prisma.perfilAcesso.findMany({ select: { chave: true, nome: true } });
+  const nomePorChavePerfil = Object.fromEntries(perfis.map((p) => [p.chave, p.nome]));
   return avisos.map((a) => ({
     id: a.id,
     titulo: a.titulo,
@@ -73,7 +77,8 @@ export async function listarAvisos() {
     status: statusAviso(a),
     autor: a.criadoPor.name,
     alvoTipo: a.alvoTipo,
-    alvoRoles: a.alvoRoles,
+    // Rótulo pronto: as telas não remontam o texto do alvo (eram duas cópias divergentes).
+    alvoLabel: alvoLabel(a, nomePorChavePerfil),
     exigeConfirmacao: a.exigeConfirmacao,
     enviouEmail: a.enviouEmail,
     emailSolicitado: a.emailSolicitado,

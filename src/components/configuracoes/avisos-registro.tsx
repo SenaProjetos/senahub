@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { Mail, ChevronRight } from "lucide-react";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { formatarDataHora } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -15,18 +14,12 @@ export type AvisoRegistro = {
   enviadoEm: string | Date | null;
   agendadoPara: string | Date | null;
   autor: string;
-  alvoTipo: string;
-  alvoRoles: string[];
+  /** Rótulo do alvo já resolvido no servidor (ver modules/notificacoes/avisos/alvo-label.ts). */
+  alvoLabel: string;
   enviouEmail: boolean;
   total: number;
   confirmados: number;
 };
-
-function alvoTexto(a: AvisoRegistro): string {
-  if (a.alvoTipo === "todos") return "Todos";
-  if (a.alvoTipo === "usuarios") return "Por nome";
-  return a.alvoRoles.map((r) => ROLE_LABELS[r as Role] ?? r).join(", ") || "Categorias";
-}
 
 export function AvisosRegistro({ avisos }: { avisos: AvisoRegistro[] }) {
   const router = useRouter();
@@ -67,7 +60,7 @@ export function AvisosRegistro({ avisos }: { avisos: AvisoRegistro[] }) {
                   <span className="block text-xs text-muted-foreground">por {a.autor}</span>
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
-                  {alvoTexto(a)}
+                  {a.alvoLabel}
                   {a.enviouEmail && (
                     <Mail className="ml-1 inline size-3 text-muted-foreground/70" aria-label="Enviado por e-mail" />
                   )}

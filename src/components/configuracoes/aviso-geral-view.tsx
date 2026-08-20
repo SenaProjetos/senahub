@@ -6,7 +6,9 @@ import { toast } from "sonner";
 import { Clock, ImagePlus, Mail, Megaphone, Monitor, Search, Trash2 } from "lucide-react";
 import { criarAviso } from "@/modules/notificacoes/avisos/actions";
 import { validarAgendamentoAviso } from "@/modules/notificacoes/avisos/agendamento";
-import { ROLES, ROLE_LABELS, type Role } from "@/lib/roles";
+import { ROLE_LABELS, type Role } from "@/lib/roles";
+import { SETOR_LABELS, CONTRATACAO_LABELS } from "@/modules/usuarios/vinculo/labels";
+import { SETORES, CONTRATACOES } from "@/modules/notificacoes/avisos/schemas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,14 +21,26 @@ import { cn } from "@/lib/utils";
 
 export type UsuarioAlvo = { id: string; name: string; role: Role };
 
-type AlvoTipo = "todos" | "categoria" | "usuarios";
+// `categoria` (por Role) NÃO aparece mais na tela — os avisos antigos continuam legíveis,
+// mas o alvo novo se escolhe pelos eixos da reforma de acesso.
+type AlvoTipo = "todos" | "usuarios" | "setor" | "contratacao" | "perfil";
 
-export function AvisoGeralView({ usuarios }: { usuarios: UsuarioAlvo[] }) {
+export type PerfilAlvo = { chave: string; nome: string };
+
+export function AvisoGeralView({
+  usuarios,
+  perfis,
+}: {
+  usuarios: UsuarioAlvo[];
+  perfis: PerfilAlvo[];
+}) {
   const [titulo, setTitulo] = useState("");
   const [corpo, setCorpo] = useState("");
   const [alvoTipo, setAlvoTipo] = useState<AlvoTipo>("todos");
   const [incluirClientes, setIncluirClientes] = useState(false);
-  const [rolesSel, setRolesSel] = useState<Set<Role>>(new Set());
+  const [setoresSel, setSetoresSel] = useState<Set<string>>(new Set());
+  const [contratacoesSel, setContratacoesSel] = useState<Set<string>>(new Set());
+  const [perfisSel, setPerfisSel] = useState<Set<string>>(new Set());
   const [usersSel, setUsersSel] = useState<Set<string>>(new Set());
   const [busca, setBusca] = useState("");
   const [exigeConfirmacao, setExigeConfirmacao] = useState(true);
@@ -85,11 +99,15 @@ export function AvisoGeralView({ usuarios }: { usuarios: UsuarioAlvo[] }) {
     return [...base].sort((a, b) => a.name.localeCompare(b.name));
   }, [usuarios, busca]);
 
-  function toggleRole(r: Role) {
-    setRolesSel((s) => {
+  /** Um só toggle para os três eixos — eram três cópias da mesma lógica de Set. */
+  function toggleEm(
+    set: React.Dispatch<React.SetStateAction<Set<string>>>,
+    valor: string,
+  ) {
+    set((s) => {
       const n = new Set(s);
-      if (n.has(r)) n.delete(r);
-      else n.add(r);
+      if (n.has(valor)) n.delete(valor);
+      else n.add(valor);
       return n;
     });
   }
@@ -107,14 +125,22 @@ export function AvisoGeralView({ usuarios }: { usuarios: UsuarioAlvo[] }) {
       ? incluirClientes
         ? "todos (equipe + clientes)"
         : "toda a equipe interna"
-      : alvoTipo === "categoria"
-        ? `${rolesSel.size} categoria(s)`
-        : `${usersSel.size} usuário(s)`;
+      : alvoTipo === "usuarios"
+        ? `${usersSel.size} usuário(s)`
+        : alvoTipo === "setor"
+          ? `${setoresSel.size} setor(es)`
+          : alvoTipo === "contratacao"
+            ? `${contratacoesSel.size} contratação(ões)`
+            : `${perfisSel.size} perfil(is)`;
 
   async function enviar() {
     if (!tituloTrim) return toast.error("Informe o título.");
-    if (alvoTipo === "categoria" && rolesSel.size === 0) return toast.error("Selecione ao menos uma categoria.");
     if (alvoTipo === "usuarios" && usersSel.size === 0) return toast.error("Selecione ao menos um usuário.");
+    if (alvoTipo === "setor" && setoresSel.size === 0) return toast.error("Selecione ao menos um setor.");
+    if (alvoTipo === "contratacao" && contratacoesSel.size === 0)
+      return toast.error("Selecione ao menos uma contratação.");
+    if (alvoTipo === "perfil" && perfisSel.size === 0)
+      return toast.error("Selecione ao menos um perfil de acesso.");
 
     // Mesma regra do servidor, aplicada antes para não gastar uma ida ao servidor.
     let agendadoParaISO: string | undefined;
@@ -144,7 +170,10 @@ export function AvisoGeralView({ usuarios }: { usuarios: UsuarioAlvo[] }) {
         titulo,
         corpo,
         alvoTipo,
-        alvoRoles: [...rolesSel],
+        alvoRoles: [],
+        alvoSetores: [...setoresSel] as (typeof SETORES)[number][],
+        alvoContratacoes: [...contratacoesSel] as (typeof CONTRATACOES)[number][],
+        alvoPerfis: [...perfisSel],
         userIds: [...usersSel],
         incluirClientes,
         exigeConfirmacao,
@@ -162,7 +191,9 @@ export function AvisoGeralView({ usuarios }: { usuarios: UsuarioAlvo[] }) {
         );
         setTitulo("");
         setCorpo("");
-        setRolesSel(new Set());
+        setSetoresSel(new Set());
+        setContratacoesSel(new Set());
+        setPerfisSel(new Set());
         setUsersSel(new Set());
         setAgendar(false);
         setQuando("");
@@ -255,7 +286,9 @@ export function AvisoGeralView({ usuarios }: { usuarios: UsuarioAlvo[] }) {
               {(
                 [
                   ["todos", "Todos"],
-                  ["categoria", "Por categoria"],
+                  ["setor", "Por setor"],
+                  ["contratacao", "Por contratação"],
+                  ["perfil", "Por perfil de acesso"],
                   ["usuarios", "Por nome"],
                 ] as [AlvoTipo, string][]
               ).map(([tipo, rotulo]) => (
@@ -285,17 +318,47 @@ export function AvisoGeralView({ usuarios }: { usuarios: UsuarioAlvo[] }) {
               </div>
             )}
 
-            {alvoTipo === "categoria" && (
-              <div className="grid grid-cols-2 gap-2 rounded-sm border p-3 sm:grid-cols-3">
-                {ROLES.map((r) => (
-                  <label key={r} className="flex cursor-pointer items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={rolesSel.has(r)}
-                      onCheckedChange={() => toggleRole(r)}
-                    />
-                    {ROLE_LABELS[r]}
-                  </label>
-                ))}
+            {(alvoTipo === "setor" || alvoTipo === "contratacao" || alvoTipo === "perfil") && (
+              <div className="space-y-2 rounded-sm border p-3">
+                <p className="text-xs text-muted-foreground">
+                  {alvoTipo === "setor"
+                    ? "Onde a pessoa atua. Não tem relação com o que ela pode acessar."
+                    : alvoTipo === "contratacao"
+                      ? "Como a pessoa é contratada (CLT, estágio, PJ...)."
+                      : "O que a pessoa pode fazer no sistema."}
+                </p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {alvoTipo === "setor" &&
+                    SETORES.map((v) => (
+                      <label key={v} className="flex cursor-pointer items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={setoresSel.has(v)}
+                          onCheckedChange={() => toggleEm(setSetoresSel, v)}
+                        />
+                        {SETOR_LABELS[v]}
+                      </label>
+                    ))}
+                  {alvoTipo === "contratacao" &&
+                    CONTRATACOES.map((v) => (
+                      <label key={v} className="flex cursor-pointer items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={contratacoesSel.has(v)}
+                          onCheckedChange={() => toggleEm(setContratacoesSel, v)}
+                        />
+                        {CONTRATACAO_LABELS[v]}
+                      </label>
+                    ))}
+                  {alvoTipo === "perfil" &&
+                    perfis.map((p) => (
+                      <label key={p.chave} className="flex cursor-pointer items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={perfisSel.has(p.chave)}
+                          onCheckedChange={() => toggleEm(setPerfisSel, p.chave)}
+                        />
+                        {p.nome}
+                      </label>
+                    ))}
+                </div>
               </div>
             )}
 

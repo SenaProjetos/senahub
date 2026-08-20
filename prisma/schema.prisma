@@ -726,8 +726,15 @@ model PushSubscription {
 
 enum AvisoAlvoTipo {
   todos
+  /// LEGADO — alvo por `Role` (`Aviso.alvoRoles`). Congelado: a tela não oferece mais, e os
+  /// avisos já enviados que usam isto continuam legíveis. Sai junto com `User.role` na Onda F.
   categoria
   usuarios
+  /// Eixos da reforma de acesso (2026-08-20). Um aviso mira UM eixo — o `alvoTipo` é o
+  /// discriminador, então "Engenharia E CLT" × "Engenharia OU CLT" não fica ambíguo.
+  setor
+  contratacao
+  perfil
 }
 
 /// Comunicado direcionado que surge como modal bloqueante para o destinatário.
@@ -743,7 +750,12 @@ model Aviso {
   criadoPorId      String
   criadoPor        User                @relation("AvisosCriados", fields: [criadoPorId], references: [id])
   alvoTipo         AvisoAlvoTipo
-  alvoRoles        String[] // preenchido quando alvoTipo=categoria
+  alvoRoles        String[] // LEGADO — preenchido quando alvoTipo=categoria (ver enum acima)
+  /// Preenchidos conforme o `alvoTipo` correspondente. `alvoPerfis` guarda
+  /// `PerfilAcesso.chave` (slug estável), mesmo critério de `DocumentoModelo.perfis`.
+  alvoSetores      Setor[]
+  alvoContratacoes Contratacao[]
+  alvoPerfis       String[]
   alvoUserIds      String[] // preenchido quando alvoTipo=usuarios
   incluirClientes  Boolean             @default(false) // vale para alvoTipo=todos
   exigeConfirmacao Boolean             @default(true)

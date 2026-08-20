@@ -47,7 +47,12 @@ export const criarAviso = defineAction(
         imagemPath: i.imagemPath || null,
         criadoPorId: ctx.user.id,
         alvoTipo: i.alvoTipo,
+        // Só o eixo escolhido é gravado; os demais ficam vazios. Guardar seleção de um eixo
+        // que o `alvoTipo` não usa deixaria o registro histórico mentindo sobre quem foi mirado.
         alvoRoles: i.alvoTipo === "categoria" ? rolesValidas(i.alvoRoles) : [],
+        alvoSetores: i.alvoTipo === "setor" ? i.alvoSetores : [],
+        alvoContratacoes: i.alvoTipo === "contratacao" ? i.alvoContratacoes : [],
+        alvoPerfis: i.alvoTipo === "perfil" ? i.alvoPerfis : [],
         alvoUserIds: i.alvoTipo === "usuarios" ? i.userIds : [],
         incluirClientes: i.incluirClientes,
         exigeConfirmacao: i.exigeConfirmacao,

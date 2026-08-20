@@ -11,7 +11,13 @@ import type { CriarAvisoInput } from "./schemas";
 
 type AlvoInput = Pick<
   CriarAvisoInput,
-  "alvoTipo" | "alvoRoles" | "userIds" | "incluirClientes"
+  | "alvoTipo"
+  | "alvoRoles"
+  | "alvoSetores"
+  | "alvoContratacoes"
+  | "alvoPerfis"
+  | "userIds"
+  | "incluirClientes"
 >;
 
 /** Mantém só valores que são roles válidas (defensivo contra input inválido). */
@@ -21,19 +27,49 @@ export function rolesValidas(roles: string[]): Role[] {
 }
 
 /**
+ * `where` que não casa com NINGUÉM. É o default de todo caminho desconhecido — ver o porquê
+ * no comentário de `whereDoAlvo`.
+ */
+const NINGUEM: Prisma.UserWhereInput = { id: { in: [] } };
+
+/**
  * Monta o `where` de usuários-alvo a partir da seleção. PURA (sem I/O) para
  * ser testável — a resolução real dos ids fica em `resolverDestinatarios`.
+ *
+ * **Switch exaustivo e fail-closed, de propósito.** A versão anterior terminava com um
+ * `return` solto que era o ramo `todos`, então qualquer `alvoTipo` não reconhecido resolvia
+ * para a base inteira. Era inalcançável enquanto o enum tinha 3 valores; deixou de ser no
+ * instante em que ganhou `setor`/`contratacao`/`perfil`, porque basta um aviso agendado
+ * gravado com um valor novo e um rollback do código para o disparo pegar a empresa toda.
+ * Em fan-out de notificação, "todo mundo" é o pior default possível — daí `NINGUEM`.
  */
 export function whereDoAlvo(input: AlvoInput): Prisma.UserWhereInput {
   const base: Prisma.UserWhereInput = { ativo: true };
-  if (input.alvoTipo === "usuarios") {
-    return { ...base, id: { in: input.userIds } };
+  switch (input.alvoTipo) {
+    case "todos":
+      // Segue em `role` de propósito: trocar por `tipo: "interno"` só é seguro numa base sem
+      // `tipo` nulo (§11 do plano — NULL = ainda não migrado), e isso é verificação de
+      // produção, não suposição. Fica para a Onda F, junto com a saída de `User.role`.
+      return input.incluirClientes ? base : { ...base, role: { not: "cliente" } };
+    case "usuarios":
+      return { ...base, id: { in: input.userIds } };
+    case "categoria":
+      return { ...base, role: { in: rolesValidas(input.alvoRoles) } };
+    case "setor":
+      return { ...base, setor: { in: input.alvoSetores } };
+    case "contratacao":
+      return { ...base, contratacao: { in: input.alvoContratacoes } };
+    case "perfil":
+      return { ...base, perfil: { chave: { in: input.alvoPerfis } } };
+    default: {
+      // Exaustividade checada pelo compilador: valor novo no enum quebra o build aqui em vez
+      // de cair num ramo silencioso. Em runtime (dado gravado por versão mais nova do código),
+      // não notifica ninguém — perda visível, nunca vazamento.
+      const _exaustivo: never = input.alvoTipo;
+      void _exaustivo;
+      return NINGUEM;
+    }
   }
-  if (input.alvoTipo === "categoria") {
-    return { ...base, role: { in: rolesValidas(input.alvoRoles) } };
-  }
-  // todos
-  return input.incluirClientes ? base : { ...base, role: { not: "cliente" } };
 }
 
 /** Ids dos destinatários resolvidos do alvo, sempre excluindo o autor. */
@@ -67,6 +103,9 @@ export async function dispatcharAviso(
     {
       alvoTipo: aviso.alvoTipo,
       alvoRoles: aviso.alvoRoles,
+      alvoSetores: aviso.alvoSetores,
+      alvoContratacoes: aviso.alvoContratacoes,
+      alvoPerfis: aviso.alvoPerfis,
       userIds: aviso.alvoUserIds,
       incluirClientes: aviso.incluirClientes,
     },

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Ban, Clock, Mail } from "lucide-react";
 import { cancelarAvisoAgendado } from "@/modules/notificacoes/avisos/actions";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { formatarDataHora } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,18 +16,12 @@ export type AvisoAgendado = {
   id: string;
   titulo: string;
   autor: string;
-  alvoTipo: string;
-  alvoRoles: string[];
+  /** Rótulo do alvo já resolvido no servidor (ver modules/notificacoes/avisos/alvo-label.ts). */
+  alvoLabel: string;
   agendadoPara: string | Date | null;
   canceladoEm: string | Date | null;
   emailSolicitado: boolean;
 };
-
-function alvoTexto(a: AvisoAgendado): string {
-  if (a.alvoTipo === "todos") return "Todos";
-  if (a.alvoTipo === "usuarios") return "Por nome";
-  return a.alvoRoles.map((r) => ROLE_LABELS[r as Role] ?? r).join(", ") || "Categorias";
-}
 
 /**
  * Avisos que ainda não dispararam (e os que foram cancelados antes de disparar).
@@ -87,7 +80,7 @@ export function AvisosAgendados({ avisos }: { avisos: AvisoAgendado[] }) {
                 <span className="block text-xs text-muted-foreground">por {a.autor}</span>
               </TableCell>
               <TableCell className="text-sm text-muted-foreground">
-                {alvoTexto(a)}
+                {a.alvoLabel}
                 {a.emailSolicitado && (
                   <Mail className="ml-1 inline size-3 text-muted-foreground/70" aria-label="Também por e-mail" />
                 )}
