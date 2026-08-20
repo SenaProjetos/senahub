@@ -129,6 +129,46 @@ são aditivos e não precisam ser desfeitos.
 
 ---
 
+## ⚠ DEPLOY 3 — as 3 migrations do R6 ("Role como dado"), 2026-08-20
+
+Estas migrations estão em `dev` e **nunca rodaram em produção**. O "Deploy completo" normal
+já roda `migrate deploy` e aplica as três — não há comando novo. O que existe de específico é
+**uma delas ser irreversível**, e por isso o Passo 0 (backup) deixa de ser formalidade.
+
+| Migration | O que faz | Reversível? |
+|---|---|---|
+| `20260820140000_documento_modelo_perfis_acesso` | `DocumentoModelo.perfis`: `Role[]` → `TEXT[]` com cast preservando dado | sim (recast) |
+| `20260820150000_solicitacao_cadastro_eixos` | Cria `tipoPretendido`/`contratacaoPretendida`, faz backfill dos 32 pedidos, **e DROPA `role`** | **NÃO** |
+| `20260820160000_aviso_alvo_por_eixo` | `ADD VALUE` no enum `AvisoAlvoTipo` + 3 colunas novas em `aviso` | parcial (ver abaixo) |
+
+**O `DROP COLUMN "role"` é o único passo irreversível de todo este runbook.** Voltar atrás é
+**restaurar o backup**, não re-rodar migration. Some junto o `role` dos 32 pedidos históricos —
+o backfill grava o equivalente nos dois eixos novos antes de dropar, e o SQL foi conferido
+contra dado sintético dos 9 papéis (9/9 corretos, 0 órfãs), mas o dado ORIGINAL não volta.
+
+> **Ligado a isto: `PG_BIN_PATH` continua ausente do `.env` do servidor** (ver a nota do Passo
+> 0). É o que o script de restauração usa para achar o `pg_restore.exe`. Existe backup e **não
+> existe caminho de volta configurado** — o que transforma "passo irreversível" em
+> "irreversível de verdade". **Configure e teste uma restauração num banco descartável ANTES
+> deste deploy.** É o único item que eu trataria como bloqueante aqui.
+
+**Sobre o `ALTER TYPE ... ADD VALUE`:** no Postgres ele não volta atrás junto com a transação.
+Se a migration falhar num passo posterior, os valores novos do enum **ficam** no banco e o
+`_prisma_migrations` registra falha. Re-rodar é seguro (o SQL usa `IF NOT EXISTS`) — mas um
+operador tentando "limpar na mão" vai achar que o banco está inconsistente. Não está: re-rode.
+
+**Conferência depois de subir** (o censo já imprime tudo isto):
+
+```
+npx tsx --tsconfig tsconfig.server.json scripts/censo-role-como-dado.ts
+```
+
+Critério: `SolicitacaoCadastro` fecha em **32 no total**, distribuídos em **27 `externo` (sem
+contratação)** + **5 `interno / pj`**. Nenhuma linha pode ter sobrado no default `externo`
+sendo de colaborador — se a soma não der 32, o backfill não pegou.
+
+---
+
 ## Passo 0 — provar que o backup funciona (NÃO PULE)
 
 O deploy faz backup antes da migration, mas `Invoke-Backup` **falha macio**: se `PG_DUMP_PATH` ou

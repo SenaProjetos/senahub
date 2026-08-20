@@ -159,6 +159,21 @@ export function DocumentosView({
     );
   }
 
+  /**
+   * Opções do diálogo = perfis ATIVOS + os que o modelo já referencia mas foram desativados.
+   * Sem a segunda parte o perfil inativo fica marcado no dado e sem checkbox na tela: a pessoa
+   * não consegue desmarcá-lo, e a action (que só aceita perfil ativo) recusa o salvamento —
+   * beco sem saída, sem nenhuma forma de sair pela interface.
+   */
+  const perfisParaMarcar = useMemo(() => {
+    const ativos = perfisDisponiveis.map((p) => ({ ...p, inativo: false }));
+    const conhecidos = new Set(perfisDisponiveis.map((p) => p.chave));
+    const orfaos = sharePerfis
+      .filter((c) => !conhecidos.has(c))
+      .map((chave) => ({ chave, nome: chave, inativo: true }));
+    return [...ativos, ...orfaos];
+  }, [perfisDisponiveis, sharePerfis]);
+
   function salvarCompartilhamento() {
     if (!shareModelo) return;
     if (shareVis === "perfis" && sharePerfis.length === 0) {
@@ -406,7 +421,7 @@ export function DocumentosView({
               <div className="space-y-2">
                 <Label>Perfis com acesso</Label>
                 <div className="grid grid-cols-2 gap-2">
-                  {perfisDisponiveis.map((p) => (
+                  {perfisParaMarcar.map((p) => (
                     <label
                       key={p.chave}
                       className="flex items-center gap-2 text-sm cursor-pointer"
@@ -415,7 +430,10 @@ export function DocumentosView({
                         checked={sharePerfis.includes(p.chave)}
                         onCheckedChange={(c) => togglePerfil(p.chave, c as boolean)}
                       />
-                      {p.nome}
+                      <span className={p.inativo ? "text-muted-foreground italic" : undefined}>
+                        {p.nome}
+                        {p.inativo && " (inativo)"}
+                      </span>
                     </label>
                   ))}
                 </div>
