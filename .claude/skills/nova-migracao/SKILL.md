@@ -29,14 +29,22 @@ Quando o Prisma pedir reset — **não aceite**:
    npx prisma db push
    ```
 
-2. Gerar o SQL da migration a partir do delta:
+2. Gerar o SQL da migration a partir do delta (Prisma 7: a flag é `--to-schema`, não
+   `--to-schema-datamodel`; `--shadow-database-url` **não existe mais como flag de CLI** — o
+   shadow DB só vem de `datasource.shadowDatabaseUrl` em `prisma.config.ts`, lido de
+   `SHADOW_DATABASE_URL`):
    ```bash
    npx prisma migrate diff \
      --from-migrations prisma/migrations \
-     --to-schema-datamodel prisma/schema.prisma \
-     --shadow-database-url <URL_DE_SHADOW> \
+     --to-schema prisma/schema.prisma \
      --script
    ```
+   Se faltar `SHADOW_DATABASE_URL` (ambiente sem shadow DB configurado — no dev deste projeto,
+   `senahub` não tem `CREATEDB`, mesma causa-raiz do ensaio por transação da F1.15/F1.16), o
+   comando recusa com `You must set datasource.shadowDatabaseUrl...`. **Não é bloqueio**: escreva
+   o SQL à mão a partir do diff do `schema.prisma` (você já sabe exatamente o que mudou — é
+   mecânico para `ADD COLUMN`/`CREATE TYPE`/`CREATE INDEX` aditivos) e siga direto pro passo 3.
+   Ver `prisma/migrations/20260820090000_crm_compromisso_proxima_acao/` como exemplo recente.
 
 3. Criar `prisma/migrations/<AAAAMMDDHHMMSS>_<nome>/migration.sql` com esse SQL.
    Revisar à mão antes de salvar (o diff às vezes gera DROP + CREATE onde um

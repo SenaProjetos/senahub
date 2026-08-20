@@ -14,6 +14,11 @@ export type CompromissoResumo = {
 /**
  * Compromissos de HOJE do usuário (como criador ou participante), em ordem cronológica.
  * Usado pelo resumo da agenda no relógio do header.
+ *
+ * `tipo: null` de propósito (F2.1a, ADR-17): este widget é o resumo de REUNIÕES do dia, sem
+ * espaço de tela para um filtro — e o ADR cita esta query nominalmente como uma das que precisam
+ * excluir ação comercial antes do volume começar a entrar (F2.10). O `/agenda` completo tem o
+ * toggle; aqui a exclusão é sempre.
  */
 export async function resumoAgendaHoje(userId: string): Promise<CompromissoResumo[]> {
   const agora = new Date();
@@ -24,6 +29,7 @@ export async function resumoAgendaHoje(userId: string): Promise<CompromissoResum
   const compromissos = await prisma.compromisso.findMany({
     where: {
       inicio: { gte: inicioDia, lt: fimDia },
+      tipo: null,
       OR: [{ criadorId: userId }, { participantes: { some: { userId } } }],
     },
     orderBy: { inicio: "asc" },

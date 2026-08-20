@@ -12,6 +12,8 @@ import {
   excluirCompromisso,
 } from "@/modules/agenda/actions";
 import { gerarIcs } from "@/modules/agenda/ics";
+import { ehAcaoComercial, TIPO_PROXIMA_ACAO_LABEL } from "@/modules/agenda/proxima-acao";
+import type { TipoProximaAcao } from "@/generated/prisma/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +35,8 @@ type Comp = {
   local: string | null;
   inicio: string;
   fim: string | null;
+  /** F2.1a (CRM, ADR-17): null = compromisso de agenda comum. Preenchido = ação comercial. */
+  tipo: TipoProximaAcao | null;
   criador: string;
   minhaConfirmacao: boolean | null;
   participantes: { nome: string; confirmado: boolean | null }[];
@@ -132,6 +136,10 @@ export function AgendaView({
   const router = useRouter();
   const [dialogNovo, setDialogNovo] = useState(false);
   const [vista, setVista] = useState<Vista>("mes");
+  // F2.1a (CRM, ADR-17): a agenda passa a poder receber ações comerciais (F2.10+), então o
+  // padrão é escondê-las — quem quiser vê-las junto liga o filtro. Nenhuma reunião some nunca:
+  // isto só filtra o que TEM `tipo` preenchido.
+  const [mostrarComercial, setMostrarComercial] = useState(false);
   // dia/semana de referência (estado local) — começa em hoje ou no mês exibido
   const [refData, setRefData] = useState<Date>(() => {
     const h = new Date();
@@ -146,17 +154,24 @@ export function AgendaView({
     router.push(`/agenda?m=${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   }
 
+  // Compromissos comuns sempre aparecem; ações comerciais só quando o filtro está ligado.
+  const qtdComercial = useMemo(() => compromissos.filter((c) => ehAcaoComercial(c.tipo)).length, [compromissos]);
+  const compromissosFiltrados = useMemo(
+    () => (mostrarComercial ? compromissos : compromissos.filter((c) => !ehAcaoComercial(c.tipo))),
+    [compromissos, mostrarComercial],
+  );
+
   // compromissos agrupados por dia (chave local YYYY-MM-DD), reaproveitando os dados carregados
   const compsPorChave = useMemo(() => {
     const m = new Map<string, Comp[]>();
-    for (const c of compromissos) {
+    for (const c of compromissosFiltrados) {
       const k = chaveDia(new Date(c.inicio));
       const lista = m.get(k);
       if (lista) lista.push(c);
       else m.set(k, [c]);
     }
     return m;
-  }, [compromissos]);
+  }, [compromissosFiltrados]);
 
   // feriados agrupados por data (YYYY-MM-DD) — mesma chave usada nas vistas
   const feriadosPorChave = useMemo(() => {
@@ -184,11 +199,22 @@ export function AgendaView({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <ToggleVista vista={vista} onChange={setVista} />
+        <div className="flex flex-wrap items-center gap-2">
+          <ToggleVista vista={vista} onChange={setVista} />
+          {qtdComercial > 0 && (
+            <Button
+              variant={mostrarComercial ? "secondary" : "outline"}
+              size="sm"
+              onClick={() => setMostrarComercial((v) => !v)}
+            >
+              {mostrarComercial ? "Ocultar" : "Mostrar"} ações comerciais ({qtdComercial})
+            </Button>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            onClick={() => baixarIcs(compromissosVisiveis(vista, compromissos, refData, diasDaSemana), nomeArquivoIcs(vista, refData, ano, mes))}
+            onClick={() => baixarIcs(compromissosVisiveis(vista, compromissosFiltrados, refData, diasDaSemana), nomeArquivoIcs(vista, refData, ano, mes))}
           >
             <Download className="size-4" /> Exportar .ics
           </Button>
@@ -202,7 +228,7 @@ export function AgendaView({
         <VistaMes
           ano={ano}
           mes={mes}
-          compromissos={compromissos}
+          compromissos={compromissosFiltrados}
           prazos={prazos}
           feriados={feriados}
           feriasSet={feriasSet}
@@ -409,7 +435,13 @@ function VistaMes({
                   </Link>
                 ))}
                 {info.comps.map((c) => (
-                  <p key={c.id} className="truncate rounded-sm bg-primary/15 px-1 text-[10px] text-primary" title={c.titulo}>
+                  <p
+                    key={c.id}
+                    className={`truncate rounded-sm px-1 text-[10px] ${
+                      ehAcaoComercial(c.tipo) ? "bg-warning/15 text-warning" : "bg-primary/15 text-primary"
+                    }`}
+                    title={ehAcaoComercial(c.tipo) ? `${TIPO_PROXIMA_ACAO_LABEL[c.tipo!]}: ${c.titulo}` : c.titulo}
+                  >
                     {fmtHora(c.inicio)} {c.titulo}
                   </p>
                 ))}
@@ -513,16 +545,20 @@ function VistaSemana({
                 {comps.length === 0 && fers.length === 0 && !emFerias ? (
                   <p className="text-[10px] text-muted-foreground/60">—</p>
                 ) : (
-                  comps.map((c) => (
-                    <div
-                      key={c.id}
-                      className="rounded-sm bg-primary/15 px-1.5 py-1 text-[11px] text-primary"
-                      title={c.local ? `${c.titulo} · ${c.local}` : c.titulo}
-                    >
-                      <span className="font-mono">{fmtHora(c.inicio)}</span>{" "}
-                      <span className="font-medium">{c.titulo}</span>
-                    </div>
-                  ))
+                  comps.map((c) => {
+                    const comercial = ehAcaoComercial(c.tipo);
+                    return (
+                      <div
+                        key={c.id}
+                        className={`rounded-sm px-1.5 py-1 text-[11px] ${comercial ? "bg-warning/15 text-warning" : "bg-primary/15 text-primary"}`}
+                        title={c.local ? `${c.titulo} · ${c.local}` : c.titulo}
+                      >
+                        <span className="font-mono">{fmtHora(c.inicio)}</span>{" "}
+                        <span className="font-medium">{c.titulo}</span>
+                        {comercial && <span className="ml-1 opacity-80">· {TIPO_PROXIMA_ACAO_LABEL[c.tipo!]}</span>}
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -628,12 +664,18 @@ function CompRow({ c, onEditar }: { c: Comp; onEditar: (c: Comp) => void }) {
   }
 
   const confirmados = c.participantes.filter((p) => p.confirmado === true).length;
+  const comercial = ehAcaoComercial(c.tipo);
 
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-sm border p-2.5 text-sm">
       <span className="font-mono text-xs text-muted-foreground">
         {new Date(c.inicio).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
       </span>
+      {comercial && (
+        <Badge variant="outline" className="border-warning/40 text-warning">
+          {TIPO_PROXIMA_ACAO_LABEL[c.tipo!]}
+        </Badge>
+      )}
       <span className="font-medium">{c.titulo}</span>
       {c.local && (
         <span className="flex items-center gap-1 text-xs text-muted-foreground">

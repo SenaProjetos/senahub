@@ -3339,10 +3339,51 @@ model Compromisso {
   criador   User      @relation("CompromissoCriador", fields: [criadorId], references: [id])
   createdAt DateTime  @default(now())
 
+  // ── Próxima Ação comercial (CRM F2.1b, ADR-17) ──────────────────────────
+  /// Âncora polimórfica, SEM FK — mesmo padrão de ApontamentoCoordenacao/Pendencia (a entidade
+  /// referenciada pode ser Lead, Negociacao ou Cliente, e nenhuma FK única cobriria as três).
+  /// Os dois null = compromisso de agenda comum, exatamente como hoje. TUDO nesta seção é
+  /// nullable de propósito: é 100% aditivo, nenhum Compromisso existente muda de significado.
+  entidadeTipo TipoAncoraCompromisso?
+  entidadeId   String?
+
+  /// null = compromisso de agenda (comportamento atual, sem mudança). Preenchido = ação
+  /// comercial. É o campo que `modules/agenda` passa a filtrar (F2.1a) ANTES de qualquer
+  /// escrita real chegar aqui (F2.10) — a UI e a query já sabem separar antes do volume entrar.
+  tipo TipoProximaAcao?
+
+  concluidoEm  DateTime?
+  concluidoPor String?
+
   participantes CompromissoParticipante[]
 
   @@index([inicio])
+  @@index([entidadeTipo, entidadeId])
+  @@index([tipo, concluidoEm])
   @@map("compromisso")
+}
+
+/// Tipo de entidade que uma Próxima Ação comercial referencia (CRM F2.1b, ADR-17).
+enum TipoAncoraCompromisso {
+  LEAD
+  NEGOCIACAO
+  CLIENTE
+}
+
+/// Tipo de Próxima Ação comercial (CRM F2.1b, ADR-17, lista do P11 item 3).
+enum TipoProximaAcao {
+  LIGACAO
+  WHATSAPP
+  EMAIL
+  LINKEDIN
+  REUNIAO
+  FOLLOW_UP
+  COBRAR_DOCUMENTACAO
+  COBRAR_ARQUITETURA
+  ENVIAR_PROPOSTA
+  REVISAR_PROPOSTA
+  RETORNO_AO_CLIENTE
+  OUTRO
 }
 
 model CompromissoParticipante {

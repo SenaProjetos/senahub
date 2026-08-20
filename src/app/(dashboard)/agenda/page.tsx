@@ -34,6 +34,8 @@ export default async function AgendaPage({
         criador: { select: { name: true } },
         participantes: { include: { user: { select: { id: true, name: true } } } },
       },
+      // `tipo` já vem no select padrão (`include` não restringe campos escalares) — deixado
+      // explícito no mapeamento abaixo porque é o campo que a F2.1a filtra (CRM, ADR-17).
     }),
     prisma.projeto.findMany({
       where: { situacao: "em_andamento", prazoFinal: { gte: iniQuery, lte: fimQuery } },
@@ -89,6 +91,9 @@ export default async function AgendaPage({
         local: c.local,
         inicio: c.inicio.toISOString(),
         fim: c.fim ? c.fim.toISOString() : null,
+        // F2.1a (CRM, ADR-17): null = compromisso de agenda comum. Preenchido = ação comercial
+        // — hoje sempre null (nada ainda escreve `tipo`; a F2.10 é quem começa).
+        tipo: c.tipo,
         criador: c.criador.name,
         minhaConfirmacao:
           c.participantes.find((p) => p.user.id === user.id)?.confirmado ?? null,

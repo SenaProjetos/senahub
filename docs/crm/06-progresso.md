@@ -20,6 +20,74 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F2.1b + F2.1a — `Compromisso` v2 + filtro comercial na agenda · 2026-08-20 · Sonnet
+
+Abre a **Fase 2 (Jornada)**. Duas tarefas do backlog, executadas **na ordem invertida** em relação
+ao `04-plano-fases.md` — decisão registrada abaixo, com o motivo.
+
+**Inversão de ordem, e por quê:** o backlog lista F2.1a (filtro) com `Dep: F1.24` antes de F2.1b
+(schema) com `Dep: F2.1a`. Mas o aceite da F2.1a fala em filtrar por `tipo` — campo que só nasce na
+F2.1b — e sua célula de Mig/Seed é "—" (nenhuma migration). Lendo o ADR-17 até o fim: o "bloqueante"
+é em relação à **F2.10** (que começa a escrever ações comerciais em volume), não em relação à F2.1b
+em si, que é aditiva e nullable — não polui nada só por existir. Construir o filtro ANTES de o campo
+existir deixaria a F2.1a intestável de verdade (filtrando uma coluna vazia). Feito **F2.1b primeiro**.
+
+**F2.1b — `Compromisso` v2** (migration `20260820090000_crm_compromisso_proxima_acao`)
+- `entidadeTipo`/`entidadeId` (âncora polimórfica, SEM FK — mesmo padrão de
+  `ApontamentoCoordenacao`/`Pendencia`) + `tipo` + `concluidoEm` + `concluidoPor`. **Tudo
+  nullable** — 100% aditivo, todo `Compromisso` existente continua válido com os 5 em null.
+- 2 enums novos: `TipoAncoraCompromisso` (LEAD/NEGOCIACAO/CLIENTE) e `TipoProximaAcao` (12
+  valores, lista do P11 item 3 / `02-schema.md` §2.15).
+- **Migration escrita à mão**, não pelo caminho feliz do skill: `prisma migrate dev` recusou pelo
+  mesmo drift antigo de `pendencia`/`pendencia_anexo` que a F1.19c já tinha visto. O passo de
+  shadow database do `/nova-migracao` também não rodou — `migrate diff --from-migrations` exige
+  `SHADOW_DATABASE_URL`, que não está configurada (mesma causa-raiz do "banco descartável exige
+  CREATEDB, que o papel `senahub` não tem" da F1.15). Caminho seguido: `db push` (efeito já
+  aplicado) → SQL escrito à mão, no padrão das migrations anteriores → `migrate resolve --applied`.
+  Conferido no catálogo do Postgres: os 5 campos existem, todos nullable, coluna nenhuma renomeada.
+- ⚠️ **Achado, registrado para quem gerar a próxima migration nesta máquina:** a flag do skill
+  `--to-schema-datamodel` não existe mais nesta versão do Prisma (7) — virou `--to-schema`. O
+  `.claude/skills/nova-migracao/SKILL.md` ainda cita a flag antiga.
+
+**F2.1a — filtro por `tipo` na agenda** (ADR-17 cita nominalmente `modules/agenda/queries.ts` e
+`components/agenda/agenda-view.tsx` como os dois pontos a proteger antes do volume comercial entrar)
+- `modules/agenda/proxima-acao.ts` + `.test.ts` (puro): `TIPO_PROXIMA_ACAO_LABEL` (12 rótulos
+  pt-BR) e `ehAcaoComercial(tipo)` — `null`/`undefined` = compromisso comum.
+- `resumoAgendaHoje` (widget do relógio no header): passou a filtrar `tipo: null` sempre, sem
+  toggle — não há espaço de tela pra um filtro num resumo de 1 linha, e o widget é especificamente
+  "reuniões de hoje".
+- `/agenda` (página completa): a query **não** filtra no servidor — traz tudo, o filtro é
+  client-side em `AgendaView`. Padrão: ações comerciais **escondidas**; botão "Mostrar ações
+  comerciais (N)" aparece só quando `N > 0` (zero ruído enquanto nada usa o campo ainda, que é o
+  estado de hoje — F2.10 é quem começa a escrever). Aplicado nas 3 vistas (mês/semana/dia), que
+  compartilham a mesma lista filtrada — nenhuma vista fica dessincronizada da outra.
+- Itens comerciais, quando revelados, ganham cor `warning` (livre no arquivo; as outras 4
+  categorias — reunião, feriado, férias, prazo — já usam primary/success/info/destructive) e o
+  rótulo do tipo (badge no card do dia, `· Rótulo` na semana, prefixo no mês).
+
+**Verificação por falta de ferramenta, registrada com honestidade:** o aceite da F2.1a é `browser`.
+Sem `chromium-cli` no ambiente e sem skill de projeto para dirigir o app, montar login autenticado
+do zero (cookie de sessão do better-auth) foi julgado desproporcional para um toggle coberto por
+teste unitário. Verificado em vez disso: (1) `ehAcaoComercial`/`TIPO_PROXIMA_ACAO_LABEL` com 8
+testes; (2) dry-run direto no banco de dev com um `Compromisso` real (`tipo=LIGACAO`) — confirmado
+que `resumoAgendaHoje` o exclui (0 itens) e que a query de `/agenda` o traz com `tipo` preenchido
+para o client filtrar; dado de teste removido depois. **Não verificado**: clique real no botão em
+navegador. Baixo risco (é `useState` + filtro de array, sem async), mas fica registrado como o que
+não foi feito, não como feito.
+
+**Arquivos:** `prisma/schema.prisma`, `prisma/migrations/20260820090000_.../migration.sql` (novo),
+`src/modules/agenda/proxima-acao.ts` + `.test.ts` (novos), `src/modules/agenda/queries.ts`,
+`src/app/(dashboard)/agenda/page.tsx`, `src/components/agenda/agenda-view.tsx`.
+
+**Verificação:** `eslint .` limpo · `vitest run` **198 arquivos, 2051 testes verdes** (8 novos) ·
+`tsc --noEmit` (heap 8GB) em `tsconfig.json` **e** `tsconfig.server.json`, só os 2 pré-existentes
+de `backup-storage.test.ts` · `npm run build` ✓.
+
+**Pendente:** nada bloqueia a Fase 2 continuar. Parede de modelo: toda tarefa restante (F2.3 em
+diante) depende de F2.3, F2.6, F2.7 ou F2.9 — as 4 marcadas **O** (Opus) do backlog.
+
+---
+
 ## F1.21 — consolidação das 6 grafias · 2026-08-19 · Sonnet
 
 **Fecha a Fase 1.** A F1.19c resolveu 79 disciplinas por nome exato e parou nas 6 que não casavam
