@@ -4,10 +4,19 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CalendarPlus } from "lucide-react";
-import { criarCompromisso } from "@/modules/agenda/actions";
+import { agendarProximaAcao } from "@/modules/comercial/actions";
+import { TIPO_PROXIMA_ACAO_LABEL } from "@/modules/agenda/proxima-acao";
+import type { TipoProximaAcao } from "@/generated/prisma/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -27,16 +36,24 @@ function amanhaAs9(): string {
   return new Date(d.getTime() - off * 60000).toISOString().slice(0, 16);
 }
 
+const TIPOS = Object.keys(TIPO_PROXIMA_ACAO_LABEL) as TipoProximaAcao[];
+
 /**
- * Botão + dialog que agenda um follow-up do lead criando um Compromisso
- * na Agenda (action `criarCompromisso`). Reutilizável no modal e na página
- * de detalhe do lead.
+ * Agenda a **próxima ação** da prospecção (F2.10, ADR-17).
+ *
+ * Continua criando um `Compromisso` — a agenda é a mesma —, mas agora **ancorado** na entidade
+ * (`entidadeTipo`/`entidadeId`) e com `tipo` preenchido. Antes o lead ia só no texto do título
+ * (`"Follow-up: <nome>"`), o que tornava "quais prospecções estão sem próximo contato?"
+ * impossível de responder por query. O `tipo` é também o que faz a agenda saber separar ação
+ * comercial de reunião (filtro da F2.1a).
  */
 export function FollowUpDialog({
+  leadId,
   leadNome,
   leadEmail,
   className,
 }: {
+  leadId: string;
   leadNome: string;
   leadEmail?: string | null;
   className?: string;
@@ -45,11 +62,13 @@ export function FollowUpDialog({
   const [pending, start] = useTransition();
   const [open, setOpen] = useState(false);
   const [titulo, setTitulo] = useState(`Follow-up: ${leadNome}`);
+  const [tipo, setTipo] = useState<TipoProximaAcao>("FOLLOW_UP");
   const [inicio, setInicio] = useState(amanhaAs9);
   const [local, setLocal] = useState("");
 
   function reset() {
     setTitulo(`Follow-up: ${leadNome}`);
+    setTipo("FOLLOW_UP");
     setInicio(amanhaAs9());
     setLocal("");
   }
@@ -57,16 +76,17 @@ export function FollowUpDialog({
   function agendar() {
     if (!titulo.trim() || !inicio) return;
     start(async () => {
-      const r = await criarCompromisso({
+      const r = await agendarProximaAcao({
+        entidadeTipo: "LEAD",
+        entidadeId: leadId,
+        tipo,
         titulo,
-        descricao: leadEmail ? `Lead: ${leadNome} (${leadEmail})` : `Lead: ${leadNome}`,
-        local,
         inicio,
-        fim: "",
-        participantesIds: [],
+        local,
+        descricao: leadEmail ? `Lead: ${leadNome} (${leadEmail})` : `Lead: ${leadNome}`,
       });
       if (r.ok) {
-        toast.success("Follow-up agendado na agenda.");
+        toast.success("Próxima ação agendada.");
         setOpen(false);
         reset();
         router.refresh();
@@ -91,9 +111,27 @@ export function FollowUpDialog({
       />
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Agendar follow-up</DialogTitle>
+          <DialogTitle>Agendar próxima ação</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Tipo</Label>
+            <Select
+              value={tipo}
+              onValueChange={(v) => setTipo((v as TipoProximaAcao) ?? "FOLLOW_UP")}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TIPOS.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {TIPO_PROXIMA_ACAO_LABEL[t]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-1.5">
             <Label>Título</Label>
             <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
@@ -108,11 +146,7 @@ export function FollowUpDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Local (opcional)</Label>
-            <Input
-              value={local}
-              onChange={(e) => setLocal(e.target.value)}
-              placeholder="Ligação, escritório…"
-            />
+            <Input value={local} onChange={(e) => setLocal(e.target.value)} />
           </div>
         </div>
         <DialogFooter>

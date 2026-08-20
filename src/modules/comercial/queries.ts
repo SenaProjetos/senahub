@@ -1,6 +1,9 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { nomeDisciplinaItem } from "@/modules/comercial/disciplinas";
+import { STATUS_PROSPECCAO_ATIVOS } from "@/modules/comercial/prospeccao";
+import { ESTAGIOS_ATIVOS } from "@/modules/comercial/jornada";
+import type { TipoAncoraCompromisso } from "@/generated/prisma/client";
 
 // ── Funil ─────────────────────────────────────────────────────
 export async function funilCompleto() {
@@ -191,5 +194,84 @@ export async function parceirosAtivos() {
     where: { ativo: true },
     orderBy: { nome: "asc" },
     select: { id: true, nome: true },
+  });
+}
+
+// ── Próxima Ação (F2.10, ADR-17) ─────────────────────────────────────────────
+/**
+ * Ids de entidades que TÊM próxima ação em aberto.
+ *
+ * Duas consultas em vez de um join porque a âncora é **polimórfica e sem FK**
+ * (`entidadeTipo`/`entidadeId` apontam para Lead, Negociacao ou Cliente — o mesmo padrão de
+ * `ApontamentoCoordenacao`/`Pendencia`). O Prisma não junta relação que não existe no schema, e
+ * inventar três FKs nullable só para permitir o join deixaria o modelo pior que a consulta extra.
+ *
+ * `tipo: { not: null }` restringe a compromissos COMERCIAIS: uma reunião comum marcada com o
+ * cliente não conta como próxima ação de prospecção.
+ */
+async function idsComAcaoAberta(entidadeTipo: TipoAncoraCompromisso): Promise<Set<string>> {
+  const linhas = await prisma.compromisso.findMany({
+    where: { entidadeTipo, tipo: { not: null }, concluidoEm: null },
+    select: { entidadeId: true },
+  });
+  return new Set(linhas.map((l) => l.entidadeId).filter((id): id is string => id != null));
+}
+
+/**
+ * **Prospecções ativas sem próxima ação marcada** — a pergunta que hoje é impossível de
+ * responder por query, porque o lead vive como texto dentro do título do compromisso.
+ *
+ * É a métrica de abandono do funil: quem está aberto e sem ninguém tendo combinado o próximo
+ * passo. Alimenta a lista de follow-up (F2.11) e o "Meu Dia" (F6.5).
+ */
+export async function prospeccoesSemProximaAcao() {
+  const comAcao = await idsComAcaoAberta("LEAD");
+  const ativos = await prisma.lead.findMany({
+    where: { status: { in: [...STATUS_PROSPECCAO_ATIVOS] }, arquivado: false },
+    orderBy: { updatedAt: "asc" },
+    select: {
+      id: true,
+      nome: true,
+      status: true,
+      updatedAt: true,
+      cliente: { select: { id: true, nome: true } },
+      responsavel: { select: { id: true, name: true } },
+    },
+  });
+  return ativos.filter((l) => !comAcao.has(l.id));
+}
+
+/** Mesma leitura para negociações — o funil de baixo tem o mesmo buraco. */
+export async function negociacoesSemProximaAcao() {
+  const comAcao = await idsComAcaoAberta("NEGOCIACAO");
+  const ativas = await prisma.negociacao.findMany({
+    where: { estagio: { in: [...ESTAGIOS_ATIVOS] } },
+    orderBy: { updatedAt: "asc" },
+    select: {
+      id: true,
+      titulo: true,
+      estagio: true,
+      updatedAt: true,
+      cliente: { select: { id: true, nome: true } },
+      responsavel: { select: { id: true, name: true } },
+    },
+  });
+  return ativas.filter((n) => !comAcao.has(n.id));
+}
+
+/** Próximas ações em aberto de uma entidade, da mais próxima para a mais distante. */
+export async function proximasAcoesDe(entidadeTipo: TipoAncoraCompromisso, entidadeId: string) {
+  return prisma.compromisso.findMany({
+    where: { entidadeTipo, entidadeId, tipo: { not: null }, concluidoEm: null },
+    orderBy: { inicio: "asc" },
+    select: {
+      id: true,
+      titulo: true,
+      tipo: true,
+      inicio: true,
+      fim: true,
+      local: true,
+      criador: { select: { name: true } },
+    },
   });
 }

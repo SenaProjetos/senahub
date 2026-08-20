@@ -314,7 +314,7 @@ export function LeadDialog({
             <div className="space-y-2 rounded-sm border border-dashed p-3">
               <div className="flex items-center justify-between">
                 <Label className="text-xs text-muted-foreground">Atividades</Label>
-                <FollowUpDialog leadNome={lead.nome} leadEmail={lead.email} />
+                <FollowUpDialog leadId={lead.id} leadNome={lead.nome} leadEmail={lead.email} />
               </div>
               <div className="flex items-center gap-2">
                 <Input

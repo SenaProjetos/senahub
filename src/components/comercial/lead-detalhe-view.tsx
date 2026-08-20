@@ -72,7 +72,7 @@ export function LeadDetalheView({
           </div>
         </div>
         <div className="flex gap-2">
-          <FollowUpDialog leadNome={lead.nome} leadEmail={lead.email} />
+          <FollowUpDialog leadId={lead.id} leadNome={lead.nome} leadEmail={lead.email} />
           <Button size="sm" variant="outline" onClick={novaProposta} disabled={pending}>
             <FilePlus2 className="size-3.5" /> Nova proposta
           </Button>

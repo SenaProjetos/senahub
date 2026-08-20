@@ -11,7 +11,11 @@ import { notificarNovosMembros } from "@/lib/socket";
 import { formatarNumeroProposta } from "@/modules/comercial/numeracao";
 import { disciplinasDeItens } from "@/modules/comercial/disciplinas";
 import type { SalvarPropostaInput } from "@/modules/comercial/schemas";
-import type { EstagioNegociacao } from "@/generated/prisma/client";
+import type {
+  EstagioNegociacao,
+  TipoAncoraCompromisso,
+  TipoProximaAcao,
+} from "@/generated/prisma/client";
 import {
   probabilidadeDe,
   validarMovimento,
@@ -391,4 +395,82 @@ export async function qualificarProspeccao(input: {
 
     return { negociacaoId: negociacao.id, leadId: lead.id };
   });
+}
+
+// ── Próxima Ação (F2.10, ADR-17) ─────────────────────────────────────────────────────────────
+/**
+ * Agenda a próxima ação de uma prospecção/negociação — um `Compromisso` **ancorado**, não um
+ * título com o nome do lead dentro.
+ *
+ * É a diferença que justifica a tarefa: hoje o `follow-up-dialog` grava
+ * `titulo: "Follow-up: <nome do lead>"` e mais nada. O lead existe ali como TEXTO. Por isso
+ * "quais prospecções estão sem próximo contato marcado?" — a pergunta mais útil de um CRM — é
+ * literalmente impossível de responder por query. Com `entidadeTipo`/`entidadeId` preenchidos,
+ * vira um `findMany`.
+ *
+ * O compromisso continua aparecendo na agenda (é a mesma tabela), agora com `tipo` preenchido,
+ * que é o que o filtro da F2.1a usa para não poluir a visão de reuniões.
+ */
+export async function agendarProximaAcao(input: {
+  entidadeTipo: TipoAncoraCompromisso;
+  entidadeId: string;
+  tipo: TipoProximaAcao;
+  titulo: string;
+  inicio: Date;
+  fim?: Date | null;
+  local?: string | null;
+  descricao?: string | null;
+  criadorId: string;
+  participantesIds?: string[];
+}): Promise<{ id: string }> {
+  const participantes = [...new Set([input.criadorId, ...(input.participantesIds ?? [])])];
+  const c = await prisma.compromisso.create({
+    data: {
+      titulo: input.titulo,
+      descricao: input.descricao || null,
+      local: input.local || null,
+      inicio: input.inicio,
+      fim: input.fim ?? null,
+      criadorId: input.criadorId,
+      entidadeTipo: input.entidadeTipo,
+      entidadeId: input.entidadeId,
+      tipo: input.tipo,
+      participantes: {
+        create: participantes.map((userId) => ({
+          userId,
+          confirmado: userId === input.criadorId ? true : null,
+        })),
+      },
+    },
+    select: { id: true },
+  });
+  return c;
+}
+
+/**
+ * Conclui uma próxima ação. `concluidoEm`/`concluidoPor` saem do nulo, e a ação deixa de contar
+ * como pendente nas consultas de frescor.
+ *
+ * ⚠️ O registro na timeline (`Atividade`) e a atualização de "última interação" são da F2.11/F3.1
+ * — este é o ponto de inserção. Concluir hoje já tira a ação da fila de abertas, que é o efeito
+ * que a F2.10 precisa entregar.
+ */
+export async function concluirProximaAcao(input: {
+  compromissoId: string;
+  userId: string;
+  quando: Date;
+}): Promise<{ id: string }> {
+  const c = await prisma.compromisso.findUnique({
+    where: { id: input.compromissoId },
+    select: { id: true, tipo: true, concluidoEm: true },
+  });
+  if (!c) throw new ActionError("Ação não encontrada.");
+  if (!c.tipo) throw new ActionError("Este compromisso não é uma ação comercial.");
+  if (c.concluidoEm) throw new ActionError("Esta ação já foi concluída.");
+
+  await prisma.compromisso.update({
+    where: { id: c.id },
+    data: { concluidoEm: input.quando, concluidoPor: input.userId },
+  });
+  return { id: c.id };
 }

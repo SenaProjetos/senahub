@@ -150,3 +150,29 @@ export const qualificarProspeccaoSchema = z.object({
   titulo: opt(z.string()),
   responsavelId: opt(z.string()),
 });
+
+/** F2.10: próxima ação ancorada — `entidadeId` é obrigatório, é o ponto da tarefa. */
+export const agendarProximaAcaoSchema = z.object({
+  entidadeTipo: z.enum(["LEAD", "NEGOCIACAO", "CLIENTE"]),
+  entidadeId: z.string().min(1),
+  tipo: z.enum([
+    "LIGACAO",
+    "WHATSAPP",
+    "EMAIL",
+    "LINKEDIN",
+    "REUNIAO",
+    "FOLLOW_UP",
+    "COBRAR_DOCUMENTACAO",
+    "COBRAR_ARQUITETURA",
+    "ENVIAR_PROPOSTA",
+    "REVISAR_PROPOSTA",
+    "RETORNO_AO_CLIENTE",
+    "OUTRO",
+  ]),
+  titulo: z.string().min(1, "Informe o título."),
+  inicio: z.string().min(1, "Informe data/hora."),
+  local: opt(z.string()),
+  descricao: opt(z.string()),
+});
+
+export const concluirProximaAcaoSchema = z.object({ compromissoId: z.string().min(1) });

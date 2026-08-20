@@ -30,6 +30,8 @@ import {
   parceiroIdSchema,
   moverEstagioSchema,
   qualificarProspeccaoSchema,
+  agendarProximaAcaoSchema,
+  concluirProximaAcaoSchema,
 } from "@/modules/comercial/schemas";
 import { removerArquivo } from "@/lib/storage";
 import { etapaEhPerdido } from "@/modules/comercial/status";
@@ -40,6 +42,8 @@ import {
   aceitarProposta as servicoAceitarProposta,
   moverEstagio as servicoMoverEstagio,
   qualificarProspeccao as servicoQualificarProspeccao,
+  agendarProximaAcao as servicoAgendarProximaAcao,
+  concluirProximaAcao as servicoConcluirProximaAcao,
 } from "@/modules/comercial/service";
 
 const base = { modulo: "comercial", recurso: "comercial", permissao: "gerir" } as const;
@@ -650,6 +654,56 @@ export const qualificarProspeccao = defineAction(
       responsavelId: i.responsavelId || null,
     });
     rev();
+    return r;
+  },
+);
+
+// ── Próxima Ação (F2.10) ──────────────────────────────────────
+/**
+ * Agenda a próxima ação ANCORADA na entidade. Substitui o caminho antigo, em que o
+ * `follow-up-dialog` chamava `criarCompromisso` e deixava o lead só no texto do título.
+ */
+export const agendarProximaAcao = defineAction(
+  {
+    ...base,
+    acao: "agendar-proxima-acao",
+    entidade: "Compromisso",
+    schema: agendarProximaAcaoSchema,
+    entidadeId: (d) => (d as { id: string }).id,
+  },
+  async (i, { user }) => {
+    const r = await servicoAgendarProximaAcao({
+      entidadeTipo: i.entidadeTipo,
+      entidadeId: i.entidadeId,
+      tipo: i.tipo,
+      titulo: i.titulo,
+      inicio: new Date(i.inicio),
+      local: i.local || null,
+      descricao: i.descricao || null,
+      criadorId: user.id,
+    });
+    rev();
+    revalidatePath("/agenda");
+    return r;
+  },
+);
+
+export const concluirProximaAcao = defineAction(
+  {
+    ...base,
+    acao: "concluir-proxima-acao",
+    entidade: "Compromisso",
+    schema: concluirProximaAcaoSchema,
+    entidadeId: (_d, i) => (i as { compromissoId: string }).compromissoId,
+  },
+  async (i, { user }) => {
+    const r = await servicoConcluirProximaAcao({
+      compromissoId: i.compromissoId,
+      userId: user.id,
+      quando: new Date(),
+    });
+    rev();
+    revalidatePath("/agenda");
     return r;
   },
 );
