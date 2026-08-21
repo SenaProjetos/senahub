@@ -15,6 +15,7 @@ import type {
   EstagioNegociacao,
   StatusProspeccao,
   TipoAncoraCompromisso,
+  TipoAtividade,
   TipoProximaAcao,
 } from "@/generated/prisma/client";
 import {
@@ -563,6 +564,53 @@ export async function qualificarProspeccao(input: {
   });
 }
 
+// ── Registro manual de interação (F3.4) ──────────────────────────────────────────────────────
+/**
+ * Registro manual em **2 cliques** — o contraponto da F3.2. Lá o sistema registra sozinho o que
+ * ele mesmo causa (mudou de estágio, aceitou proposta); aqui a pessoa registra o que aconteceu
+ * **fora** dele — a ligação, a conversa de WhatsApp. Sem API de WhatsApp (#28, veredito do dono):
+ * o registro é sempre manual, nunca automático.
+ *
+ * Os 6 tipos aceitos (`LIGACAO`/`WHATSAPP`/`EMAIL`/`LINKEDIN`/`REUNIAO`/`NOTA`) são exatamente
+ * `TipoAtividade` menos `ANEXO` (tem fluxo próprio) e `SISTEMA` (reservado para `atividade-eventos.ts`
+ * — ninguém digita um evento automático).
+ *
+ * Reusa `resolverAncoraComercial` — o mesmo resolvedor de empresa/responsável que
+ * `concluirProximaAcao` (F2.11) já usa para a mesma âncora polimórfica.
+ *
+ * ⚠️ Ao contrário de `registrarAtividade` (que nunca lança, porque protege uma operação que já
+ * aconteceu), este **lança** quando não há empresa: aqui não existe operação nenhuma além do
+ * próprio registro, então "salvar em silêncio um registro que não existe" seria pior que recusar
+ * e dizer o motivo.
+ */
+export async function registrarInteracaoManual(input: {
+  entidadeTipo: TipoAncoraCompromisso;
+  entidadeId: string;
+  tipo: Extract<TipoAtividade, "LIGACAO" | "WHATSAPP" | "EMAIL" | "LINKEDIN" | "REUNIAO" | "NOTA">;
+  nota: string;
+  autorId: string;
+}): Promise<{ id: string }> {
+  const { clienteId } = await resolverAncoraComercial(input.entidadeTipo, input.entidadeId);
+  if (!clienteId) {
+    throw new ActionError(
+      "Esta prospecção/negociação ainda não tem empresa vinculada — vincule antes de registrar.",
+    );
+  }
+
+  const atividade = await prisma.atividade.create({
+    data: {
+      tipo: input.tipo,
+      descricao: input.nota,
+      autorId: input.autorId,
+      clienteId,
+      leadId: input.entidadeTipo === "LEAD" ? input.entidadeId : null,
+      negociacaoId: input.entidadeTipo === "NEGOCIACAO" ? input.entidadeId : null,
+    },
+    select: { id: true },
+  });
+  return { id: atividade.id };
+}
+
 // ── Próxima Ação (F2.10, ADR-17) ─────────────────────────────────────────────────────────────
 /**
  * Agenda a próxima ação de uma prospecção/negociação — um `Compromisso` **ancorado**, não um
@@ -636,6 +684,43 @@ export async function agendarProximaAcao(input: {
  *   assistente registrar a ligação em nome de quem vende — sem isso o responsável nunca saberia
  *   que a ação anotada em nome dele foi concluída.
  */
+/**
+ * Resolve empresa/responsável/nome a partir de uma âncora polimórfica (LEAD/NEGOCIACAO/CLIENTE),
+ * o mesmo par `entidadeTipo`/`entidadeId` usado por `Compromisso` (F2.10) e agora por
+ * `registrarInteracaoManual` (F3.4). Sem FK — mesmo padrão de `ApontamentoCoordenacao`/
+ * `Pendencia` — então não dá para resolver com um `include`; extraído para não repetir o
+ * mesmo if/else nos dois lugares que precisam disso.
+ */
+async function resolverAncoraComercial(
+  entidadeTipo: TipoAncoraCompromisso,
+  entidadeId: string,
+): Promise<{ clienteId: string | null; responsavelId: string | null; nome: string }> {
+  if (entidadeTipo === "LEAD") {
+    const lead = await prisma.lead.findUnique({
+      where: { id: entidadeId },
+      select: { clienteId: true, responsavelId: true, nome: true },
+    });
+    return {
+      clienteId: lead?.clienteId ?? null,
+      responsavelId: lead?.responsavelId ?? null,
+      nome: lead?.nome ?? "",
+    };
+  }
+  if (entidadeTipo === "NEGOCIACAO") {
+    const neg = await prisma.negociacao.findUnique({
+      where: { id: entidadeId },
+      select: { clienteId: true, responsavelId: true, titulo: true },
+    });
+    return {
+      clienteId: neg?.clienteId ?? null,
+      responsavelId: neg?.responsavelId ?? null,
+      nome: neg?.titulo ?? "",
+    };
+  }
+  // CLIENTE: a própria empresa é a âncora, e Cliente não tem campo de responsável.
+  return { clienteId: entidadeId, responsavelId: null, nome: "" };
+}
+
 export async function concluirProximaAcao(input: {
   compromissoId: string;
   userId: string;
@@ -658,32 +743,10 @@ export async function concluirProximaAcao(input: {
   }
   if (c.concluidoEm) throw new ActionError("Esta ação já foi concluída.");
 
-  // Resolve a empresa e o responsável a partir da entidade ancorada — a âncora é polimórfica e
-  // sem FK (mesmo padrão de `ApontamentoCoordenacao`/`Pendencia`), então não dá para fazer isso
-  // com um `include`.
-  let clienteId: string | null = null;
-  let responsavelId: string | null = null;
-  let entidadeNome = "";
-  if (c.entidadeTipo === "LEAD") {
-    const lead = await prisma.lead.findUnique({
-      where: { id: c.entidadeId },
-      select: { clienteId: true, responsavelId: true, nome: true },
-    });
-    clienteId = lead?.clienteId ?? null;
-    responsavelId = lead?.responsavelId ?? null;
-    entidadeNome = lead?.nome ?? "";
-  } else if (c.entidadeTipo === "NEGOCIACAO") {
-    const neg = await prisma.negociacao.findUnique({
-      where: { id: c.entidadeId },
-      select: { clienteId: true, responsavelId: true, titulo: true },
-    });
-    clienteId = neg?.clienteId ?? null;
-    responsavelId = neg?.responsavelId ?? null;
-    entidadeNome = neg?.titulo ?? "";
-  } else {
-    // CLIENTE: a própria empresa é a âncora, e Cliente não tem campo de responsável.
-    clienteId = c.entidadeId;
-  }
+  const { clienteId, responsavelId, nome: entidadeNome } = await resolverAncoraComercial(
+    c.entidadeTipo,
+    c.entidadeId,
+  );
 
   const atividadeRegistrada = clienteId != null;
 

@@ -23,6 +23,7 @@ import {
   moverEstagio,
   moverProspeccao,
   qualificarProspeccao,
+  registrarInteracaoManual,
 } from "../src/modules/comercial/service";
 import {
   funilNegociacao,
@@ -221,6 +222,56 @@ async function main() {
     "filtro inválido na URL não quebra nem filtra",
     invalido.reduce((s, c) => s + c.total, 0) === totalBanco,
   );
+
+  console.log("\n── F3.4: registro manual de interação (2 cliques) ─────────────────\n");
+
+  const interacao = await registrarInteracaoManual({
+    entidadeTipo: "LEAD",
+    entidadeId: lead2.id,
+    tipo: "LIGACAO",
+    nota: `${TAG}_liguei e o cliente pediu retorno amanhã`,
+    autorId: user.id,
+  });
+  const atividadeCriada = await prisma.atividade.findUnique({
+    where: { id: interacao.id },
+    select: { tipo: true, descricao: true, clienteId: true, leadId: true, negociacaoId: true },
+  });
+  check("registrarInteracaoManual cria a Atividade", atividadeCriada !== null);
+  check("tipo gravado é o escolhido, não SISTEMA", atividadeCriada?.tipo === "LIGACAO");
+  check("descrição é o texto digitado, sem reescrever", atividadeCriada?.descricao.includes("pediu retorno") === true);
+  check("ancorada no cliente certo", atividadeCriada?.clienteId === emp.id);
+  check("ancorada no lead certo", atividadeCriada?.leadId === lead2.id);
+  check("sem negociacaoId (é LEAD, não NEGOCIACAO)", atividadeCriada?.negociacaoId === null);
+
+  const leadOrfao = await prisma.lead.create({
+    data: { nome: `${TAG}_lead_orfao`, etapaId: etapa.id, status: "IDENTIFICADO" }, // sem clienteId de propósito
+    select: { id: true },
+  });
+  await recusa(
+    "sem empresa vinculada, o registro manual é recusado (não silenciado como o automático)",
+    () =>
+      registrarInteracaoManual({
+        entidadeTipo: "LEAD",
+        entidadeId: leadOrfao.id,
+        tipo: "NOTA",
+        nota: "não devia gravar",
+        autorId: user.id,
+      }),
+    /empresa vinculada/i,
+  );
+
+  const interacaoNeg = await registrarInteracaoManual({
+    entidadeTipo: "NEGOCIACAO",
+    entidadeId: q.negociacaoId,
+    tipo: "REUNIAO",
+    nota: `${TAG}_reunião de alinhamento`,
+    autorId: user.id,
+  });
+  const atividadeNeg = await prisma.atividade.findUnique({
+    where: { id: interacaoNeg.id },
+    select: { negociacaoId: true, leadId: true },
+  });
+  check("registro em NEGOCIACAO ancora negociacaoId, não leadId", atividadeNeg?.negociacaoId === q.negociacaoId && atividadeNeg?.leadId === null);
 
   console.log(`\n${ok ? "✔ Fase 2: tudo verde." : "✖ Fase 2: há falhas acima."}`);
   if (!ok) process.exitCode = 1;

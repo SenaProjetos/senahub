@@ -20,6 +20,91 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F3.4 — registro manual de interação em 2 cliques · 2026-08-21 · Sonnet
+
+**Feito:** o contraponto manual do `registrarAtividade()` automático da F3.2 — ligação, WhatsApp,
+e-mail, LinkedIn, reunião ou nota, disparados por quem vende, sem passar por um formulário.
+
+- `resolverAncoraComercial()` extraído de dentro de `concluirProximaAcao` (era lógica inline) —
+  agora reusado pelas duas operações que precisam de `{clienteId, responsavelId, nome}` a partir
+  de `entidadeTipo`/`entidadeId` (LEAD/NEGOCIACAO/CLIENTE).
+- `registrarInteracaoManual()` **lança** `ActionError` quando não há `clienteId` — ao contrário do
+  `registrarAtividade()` automático (que engole e retorna `false`), aqui não existe operação de
+  negócio para proteger: é *só* o registro, então sem empresa vinculada não há o que fazer além de
+  recusar com mensagem clara ("vincule antes de registrar").
+- Action `registrarInteracao` (`entidade: "Atividade"`, `entidadeId` do próprio registro criado —
+  ainda cobre pelo teste da F3.3, `auditoria.test.ts` continua 4/4).
+- UI: `RegistrarInteracaoPopover` — 1 clique abre, 1 clique no tipo registra. Os 5 tipos
+  "rápidos" (ligação/whatsapp/e-mail/linkedin/reunião) têm descrição padrão pronta (“Ligação
+  realizada.” etc.) e disparam sozinhos; só `NOTA` abre um campo de texto, porque não há "o que
+  aconteceu" óbvio para adivinhar. Encaixado em três pontos: os dois Kanbans (ícone `+` no canto
+  do card, `stopPropagation` para não brigar com o drag) e o cabeçalho da ficha do lead (botão
+  "Registrar" por extenso).
+
+**Arquivos:** `src/components/comercial/registrar-interacao-popover.tsx` (novo);
+`src/modules/comercial/service.ts` (`resolverAncoraComercial`, `registrarInteracaoManual`);
+`src/modules/comercial/schemas.ts` (`registrarInteracaoSchema`); `src/modules/comercial/actions.ts`
+(`registrarInteracao`); `src/components/comercial/prospeccao-board.tsx`,
+`negociacao-board.tsx`, `lead-detalhe-view.tsx` (encaixe); `scripts/smoke-crm-fase2.ts` (7 checks
+novos, incluindo o caso de recusa por falta de empresa).
+
+**Verificação:** eslint limpo, tsc limpo, 2179 testes (suíte não cresceu — nenhum teste puro novo,
+a regra em si não tem lógica além do que a F3.1/F3.2 já cobrem; a cobertura daqui é o smoke), build
+ok, `npm run smoke:crm-fase2` todo verde — provado no banco: `Atividade` nasce com o `tipo`
+escolhido (não `SISTEMA`), a descrição é o texto exato (sem reescrita), ancora em `leadId` OU
+`negociacaoId` conforme a origem, e lead sem `clienteId` é recusado com a mensagem certa em vez de
+silenciado.
+
+**Pendente:** "2 cliques, cronometrado" ficou provado por contagem de cliques no código, não por
+cronômetro em navegador de verdade — não há chromium-cli neste ambiente. Sem achados chumbados.
+
+---
+
+## F3.2 + F3.3 — timeline automática (`registrarAtividade`) + fecha a dívida de auditoria · 2026-08-21 · Opus
+
+**F3.2** — `registrarAtividade()` hookado em 11 pontos do fluxo (empresa/contato cadastrados,
+prospecção criada, estágio alterado, negociação criada, proposta criada/enviada/revisada/aceita,
+projeto criado, negociação perdida). Nunca lança — mesmo princípio do `logAudit`: falha ao gravar
+histórico não pode desfazer a operação que o originou. Aceita `tx` opcional para entrar na mesma
+transação do chamador (aceite de proposta: projeto e timeline nascem juntos ou nenhum nasce).
+Aceite da proposta emite **2 eventos, não 3** — o terceiro (negociação→CONTRATADO) exigiria
+`Proposta.negociacaoId`, que só nasce na F5.2; documentado como impossível hoje, não esquecido.
+
+Regressão pega pelas próprias smokes: os hooks passaram a criar `Atividade` (FK NOT NULL para
+`Cliente`), e a limpeza de `smoke-crm-fase1`/`fase2` apagava o cliente antes — corrigido nas duas.
+
+**F3.3** — 23 das 31 actions do Comercial não passavam `entidadeId`: o `AuditLog` registrava que
+"alguém editou um lead" mas não QUAL, e a tela de histórico por entidade (que filtra exatamente por
+esse campo) não mostrava a linha em lugar nenhum. Fechado com `idResultadoOuInput` (id do retorno
+quando cria, do input quando edita/apaga) + 3 casos explícitos fora do padrão (`nota-lead` audita o
+Lead, não a nota; `converter-lead` audita o Lead do input, não o cliente que retorna;
+`definir-meta` usa chave composta ano-mês). O aceite original era um `grep` manual — virou
+`auditoria.test.ts`, que parseia os blocos de `defineAction` e falha se uma action nova nascer sem
+`entidade`/`entidadeId`.
+
+**ADR-20** (novo) formaliza a fronteira que a F3.2 criou sem documentar: `Atividade` é NARRATIVA
+(pt-BR, sempre ancorada num Cliente, pode faltar quando não há empresa) vs `AuditLog` é TÉCNICO
+(antes/depois, nunca falta). Registra também por que a timeline não é derivada do `AuditLog`: ele
+não ancora em Cliente, e juntar Lead+Negociação+Proposta a cada leitura + traduzir JSON pra
+português na tela seria pior que manter as duas.
+
+**Arquivos:** `src/modules/comercial/atividade-eventos.ts` + `.test.ts` (novos, F3.2);
+`src/modules/comercial/service.ts`, `actions.ts` (F3.2 hooks); `src/modules/clientes/actions.ts`
+(F3.2, `criarCliente`/`adicionarContato`); `src/modules/comercial/auditoria.test.ts` (novo, F3.3);
+`src/modules/comercial/actions.ts` (F3.3, `entidadeId` em 23 actions); `docs/crm/01-decisoes.md`
+(ADR-20); `scripts/smoke-crm-fase1.ts`, `smoke-crm-fase2.ts` (limpeza corrigida).
+
+**Verificação:** F3.2 — eslint/tsc limpos, 2175 testes (12 novos), build ok, smokes Fase 1 e Fase 2
+verdes, provado no banco (aceite gera 2 eventos na mesma transação, 3 mudanças de estágio + perda
+geram 5 eventos, metadata cru preservado). F3.3 — eslint/tsc limpos, 2179 testes (4 novos), build
+ok, smoke Fase 2 verde.
+
+**Nota de processo:** as duas tarefas foram feitas e commitadas (`9dd6c1a`, `03b861c`) na hora certa,
+mas esta entrada do log só foi escrita depois, junto com a da F3.4 — lacuna notada e fechada aqui,
+sem re-executar nada.
+
+---
+
 ## F3.1 + F2.11 — nasce Atividade, e a F2.11 sai do bloqueio · 2026-08-21 · Sonnet
 
 **F3.1** — model `Atividade` (`02-schema.md` §2.10), unificando `AtividadeLead` +
