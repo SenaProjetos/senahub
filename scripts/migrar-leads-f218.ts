@@ -44,6 +44,7 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import type { EstagioNegociacao } from "../src/generated/prisma/client";
+import { normalizarNomeEmpresa, similaridade } from "../src/modules/comercial/dedupe";
 
 const GRAVAR = process.argv.includes("--gravar");
 
@@ -140,9 +141,24 @@ async function main() {
     } else {
       const achado = porNomeNormalizado.get(normalizar(l.nome));
       if (!achado) {
+        // Não casou exato. Em vez de só recusar, SUGERE os mais parecidos — reusando a
+        // `similaridade` do dedupe (F1.12), que é a mesma régua que a tela de duplicatas usa.
+        // Recusar sem apontar caminho obriga quem executa a vasculhar 41 empresas à mão.
+        const perto = clientes
+          .map((c) => ({ nome: c.nome, s: similaridade(normalizarNomeEmpresa(l.nome), normalizarNomeEmpresa(c.nome)) }))
+          .filter((c) => c.s >= 0.4)
+          .sort((a, b) => b.s - a.s)
+          .slice(0, 5);
+        const sugestao =
+          perto.length > 0
+            ? `
+      mais parecidos: ${perto.map((c) => `"${c.nome}" (${Math.round(c.s * 100)}%)`).join(", ")}`
+            : `
+      nenhuma empresa parecida — provavelmente precisa ser CADASTRADA`;
         problemas.push(
           `"${obra}": sem clienteId e o nome "${l.nome}" não casa com nenhuma empresa — ` +
-            `Negociacao.clienteId é NOT NULL, então este não pode ser migrado sem decisão humana`,
+            `Negociacao.clienteId é NOT NULL, então este não pode ser migrado sem decisão humana` +
+            sugestao,
         );
         continue;
       }
