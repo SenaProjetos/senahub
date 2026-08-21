@@ -7,7 +7,7 @@ import { funilCompleto, resumoComercial, parceirosAtivos } from "@/modules/comer
 import { FunilBoard } from "@/components/comercial/funil-board";
 import { MetaCard } from "@/components/comercial/meta-card";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { KpiCard } from "@/components/ui/kpi-card";
 
 export const metadata: Metadata = { title: "Comercial" };
 
@@ -56,22 +56,8 @@ export default async function ComercialPage() {
           realizado={resumo.realizado}
           podeGerir={podeGerir}
         />
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">
-              Aceitas no mês
-            </CardDescription>
-            <CardTitle className="text-2xl">{resumo.aceitasNoMes}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">
-              Leads ativos
-            </CardDescription>
-            <CardTitle className="text-2xl">{resumo.leadsAtivos}</CardTitle>
-          </CardHeader>
-        </Card>
+        <KpiCard label="Aceitas no mês" valor={resumo.aceitasNoMes} />
+        <KpiCard label="Leads ativos" valor={resumo.leadsAtivos} />
       </div>
 
       <div className="space-y-3">
