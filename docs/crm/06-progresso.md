@@ -20,6 +20,69 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F3.1 + F2.11 — nasce Atividade, e a F2.11 sai do bloqueio · 2026-08-21 · Sonnet
+
+**F3.1** — model `Atividade` (`02-schema.md` §2.10), unificando `AtividadeLead` +
+`AtividadeOportunidade` numa timeline única, sempre resolvendo para um `Cliente`. As duas tabelas
+antigas ficam **deprecadas, não apagadas** — conferido no banco: `atividade_lead` seguiu com as 8
+linhas reais, `atividade_oportunidade` intacta, a nova nasceu vazia.
+
+`leadId`/`negociacaoId`/`propostaId`/`contatoId` são opcionais e **sem cascade** (`ON DELETE SET
+NULL`): apagar um lead não deve apagar o rastro de que ele existiu. `metadata` é para dado
+narrativo de eventos `SISTEMA` — não é o lugar do valor técnico anterior/novo, que segue sendo o
+`AuditLog` (fronteira que a F3.3 vai formalizar).
+
+Migration puramente aditiva, aplicada via o caminho manual de sempre (`db push` → SQL à mão →
+`migrate resolve`) — `migrate dev` seguiu recusando pelo drift antigo.
+
+**F2.11** — estava bloqueada até aqui porque seu aceite ("registra `Atividade`, atualiza última
+interação") dependia de um model que não existia. Com a F3.1 pronta, destravou:
+
+- `tipoAtividadeDe()` faz a ponte entre os dois enums que o design nunca fundiu de propósito:
+  `TipoProximaAcao` (12 valores, a ação **a fazer**) e `TipoAtividade` (8 canais, o que **já
+  aconteceu**). Os 7 sem equivalente direto (`FOLLOW_UP`, `COBRAR_*`, `ENVIAR_PROPOSTA`,
+  `REVISAR_PROPOSTA`, `RETORNO_AO_CLIENTE`, `OUTRO`) viram `NOTA` — nada se perde, só a
+  granularidade do canal, porque a descrição já carrega o título da ação.
+- **"Última interação" não é escrita em lugar nenhum** — não existe coluna para isso. É derivada
+  (`ultimaInteracaoDe`, o `createdAt` mais recente da timeline mesclada), e o efeito acontece
+  sozinho no instante em que a `Atividade` nasce.
+- **`Atividade` só é registrada quando a entidade resolve uma empresa.** `clienteId` é NOT NULL
+  no schema, e `Lead.clienteId` segue nullable desde a F2.3. Concluir a ação **nunca falha** por
+  causa disso — só a entrada na timeline fica de fora, sinalizado no retorno
+  (`atividadeRegistrada`). Provado no dev: lead sem empresa conclui normalmente, zero `Atividade`
+  criada.
+- **Notifica o responsável**, só quando ele existe e é outra pessoa — cobre o assistente que
+  registra em nome de quem vende. Sem auto-notificação quando quem conclui é o próprio
+  responsável. Categoria nova (`comercial_interacao`) ainda sem alternância nas Preferências —
+  registrado como pendência, não bug: o padrão é opt-out, então ninguém fica sem notificação só
+  por a categoria ser nova.
+- `mesclarTimeline()` junta o legado (`AtividadeLead`, texto em `nota`) com o novo (`Atividade`,
+  em `descricao`) numa lista só, mais recente primeiro — o mínimo para a ficha do lead mostrar os
+  dois períodos juntos. A consolidação de verdade, com componente reutilizável e scroll infinito,
+  é a **F3.6**; este merge não tenta antecipá-la.
+
+**UI:** card "Próxima ação" na ficha do lead com botão Concluir por pendência; "Última
+interação" exibida; e o `FollowUpDialog` ganha `iniciarAberto`, reaberto automaticamente (troca
+de `key`) depois de concluir — "sugere agendar a próxima sem sair da tela" sem um segundo
+componente de diálogo.
+
+**Provado contra o banco de dev, os 4 casos:** empresa + notificação ao responsável diferente ·
+sem auto-notificação quando é a mesma pessoa · lead sem empresa não quebra e não registra
+`Atividade` · mapeamento de tipo sem canal direto (`COBRAR_DOCUMENTACAO` → `NOTA`).
+
+**Arquivos:** `prisma/schema.prisma`, migration `20260821000000_crm_atividade`,
+`src/modules/comercial/atividade.ts` + `.test.ts` (novos), `service.ts`, `queries.ts`,
+`lead-detalhe-view.tsx`, `follow-up-dialog.tsx`, a página de detalhe do lead.
+
+**Verificação:** `eslint` limpo · `tsc` limpo (app e server) · `vitest run` **205 arquivos, 2163
+testes** (9 novos) · `npm run build` ✓ (rodado depois de o dev server ser parado — a regra do
+projeto é nunca buildar com `next dev` ativo, corrompe o `.next`) · `migrate status` em dia (180).
+
+**Pendente da Fase 3:** F3.2 e F3.3 são **Opus** — `registrarAtividade()` com hooks automáticos em
+toda mudança de estágio, e fechar a dívida de `entidadeId` em todas as actions do Comercial.
+
+---
+
 ## F2.18 + F2.20 — migração dos leads reais e FECHO DA FASE 2 · 2026-08-21 · Opus
 
 ### F2.18 — o inventário mudou a natureza da tarefa
