@@ -74,9 +74,23 @@ const softDelete = Prisma.defineExtension({
 
 function createClient() {
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
+  // `PRISMA_LOG_QUERIES=1` liga o log de query por EVENTO. Existe para o smoke da F3.7 poder
+  // CONTAR as consultas da Empresa 360 (o aceite é "≤ 5, nenhuma em laço") medindo o caminho de
+  // código real — o mesmo singleton que a página usa — em vez de um client paralelo montado só
+  // para o teste, que poderia divergir daqui sem ninguém perceber.
+  // Desligado por padrão: em produção isto seria um evento por query.
+  const logando = process.env.PRISMA_LOG_QUERIES === '1'
+  const base = new PrismaClient({
+    adapter,
+    log: (logando ? [{ emit: 'event', level: 'query' }] : undefined) as never,
+  })
+  // `$extends` devolve um client SEM `$on` — quem quer ouvir os eventos precisa da instância
+  // base. Só é exposta quando o log está ligado, e sempre por `globalThis` (mesmo motivo de
+  // `lib/socket.ts`: tsx e o bundler do Next carregam este módulo como instâncias separadas).
+  if (logando) (globalThis as { __prismaBase?: unknown }).__prismaBase = base
   // A extensão só intercepta queries (não adiciona API nova), então o tipo público
   // segue sendo PrismaClient — mantém o filtro em runtime sem mudar assinaturas no resto do app.
-  return new PrismaClient({ adapter }).$extends(softDelete) as unknown as PrismaClient
+  return base.$extends(softDelete) as unknown as PrismaClient
 }
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
