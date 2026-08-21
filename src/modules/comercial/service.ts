@@ -3,7 +3,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/with-action";
-import { notificarMuitos } from "@/lib/notificar";
+import { notificar, notificarMuitos } from "@/lib/notificar";
 import { whereAudiencia } from "@/lib/audiencias";
 import { proximoCodigoProjeto } from "@/modules/projetos/numbering";
 import { ensureCanaisProjeto } from "@/modules/chat/service";
@@ -26,6 +26,8 @@ import {
   validarQualificacao,
   validarMovimentoProspeccao,
 } from "@/modules/comercial/prospeccao";
+import { tipoAtividadeDe } from "@/modules/comercial/atividade";
+import { TIPO_PROXIMA_ACAO_LABEL } from "@/modules/agenda/proxima-acao";
 import type { Prisma } from "@/generated/prisma/client";
 
 /**
@@ -459,24 +461,110 @@ export async function agendarProximaAcao(input: {
  * — este é o ponto de inserção. Concluir hoje já tira a ação da fila de abertas, que é o efeito
  * que a F2.10 precisa entregar.
  */
+/**
+ * Conclui uma próxima ação (F2.11). Além do que já fazia (F2.10):
+ *
+ * - **Registra `Atividade`** na timeline — só quando a entidade resolve uma empresa. Uma
+ *   `Atividade` sem `Cliente` não é um estado que o schema aceita (`clienteId` é NOT NULL,
+ *   F3.1 §P12 item 1: "toda Atividade resolve para uma Empresa"), e `Lead.clienteId` continua
+ *   nullable (F2.3). Concluir a ação NUNCA falha por causa disso — só a entrada na timeline
+ *   fica de fora, e é isso que fica registrado no retorno (`atividadeRegistrada`).
+ * - **"Última interação" não é escrita aqui.** Não existe coluna para isso (é derivada,
+ *   `ultimaInteracaoDe` em `atividade.ts`) — o efeito acontece sozinho no instante em que a
+ *   `Atividade` é criada, porque quem lê consulta o `createdAt` mais recente.
+ * - **Notifica o responsável**, só quando ele existe e é OUTRA pessoa. Cobre o caso comum de um
+ *   assistente registrar a ligação em nome de quem vende — sem isso o responsável nunca saberia
+ *   que a ação anotada em nome dele foi concluída.
+ */
 export async function concluirProximaAcao(input: {
   compromissoId: string;
   userId: string;
   quando: Date;
-}): Promise<{ id: string }> {
+}): Promise<{ id: string; atividadeRegistrada: boolean }> {
   const c = await prisma.compromisso.findUnique({
     where: { id: input.compromissoId },
-    select: { id: true, tipo: true, concluidoEm: true },
+    select: {
+      id: true,
+      tipo: true,
+      titulo: true,
+      concluidoEm: true,
+      entidadeTipo: true,
+      entidadeId: true,
+    },
   });
   if (!c) throw new ActionError("Ação não encontrada.");
-  if (!c.tipo) throw new ActionError("Este compromisso não é uma ação comercial.");
+  if (!c.tipo || !c.entidadeTipo || !c.entidadeId) {
+    throw new ActionError("Este compromisso não é uma ação comercial.");
+  }
   if (c.concluidoEm) throw new ActionError("Esta ação já foi concluída.");
 
-  await prisma.compromisso.update({
-    where: { id: c.id },
-    data: { concluidoEm: input.quando, concluidoPor: input.userId },
+  // Resolve a empresa e o responsável a partir da entidade ancorada — a âncora é polimórfica e
+  // sem FK (mesmo padrão de `ApontamentoCoordenacao`/`Pendencia`), então não dá para fazer isso
+  // com um `include`.
+  let clienteId: string | null = null;
+  let responsavelId: string | null = null;
+  let entidadeNome = "";
+  if (c.entidadeTipo === "LEAD") {
+    const lead = await prisma.lead.findUnique({
+      where: { id: c.entidadeId },
+      select: { clienteId: true, responsavelId: true, nome: true },
+    });
+    clienteId = lead?.clienteId ?? null;
+    responsavelId = lead?.responsavelId ?? null;
+    entidadeNome = lead?.nome ?? "";
+  } else if (c.entidadeTipo === "NEGOCIACAO") {
+    const neg = await prisma.negociacao.findUnique({
+      where: { id: c.entidadeId },
+      select: { clienteId: true, responsavelId: true, titulo: true },
+    });
+    clienteId = neg?.clienteId ?? null;
+    responsavelId = neg?.responsavelId ?? null;
+    entidadeNome = neg?.titulo ?? "";
+  } else {
+    // CLIENTE: a própria empresa é a âncora, e Cliente não tem campo de responsável.
+    clienteId = c.entidadeId;
+  }
+
+  const atividadeRegistrada = clienteId != null;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.compromisso.update({
+      where: { id: c.id },
+      data: { concluidoEm: input.quando, concluidoPor: input.userId },
+    });
+
+    if (clienteId) {
+      await tx.atividade.create({
+        data: {
+          tipo: tipoAtividadeDe(c.tipo!),
+          descricao: c.titulo,
+          autorId: input.userId,
+          clienteId,
+          leadId: c.entidadeTipo === "LEAD" ? c.entidadeId : null,
+          negociacaoId: c.entidadeTipo === "NEGOCIACAO" ? c.entidadeId : null,
+        },
+      });
+    }
   });
-  return { id: c.id };
+
+  if (responsavelId && responsavelId !== input.userId) {
+    await notificar(
+      responsavelId,
+      {
+        titulo: "Interação registrada",
+        corpo: `${TIPO_PROXIMA_ACAO_LABEL[c.tipo!]} concluída — ${entidadeNome}`,
+        href: c.entidadeTipo === "LEAD" ? `/comercial/${c.entidadeId}` : "/comercial/negociacoes",
+        tag: `comercial-acao-${c.id}`,
+      },
+      // Categoria nova — "comercial_interacao" ainda não tem alternância nas Preferências
+      // (`preferencias-view.tsx`), então hoje ninguém consegue desligá-la pela tela. Não é
+      // bug: o padrão de opt-out é "ligado até alguém desligar", e adicionar o toggle é
+      // trabalho de UI fora do escopo desta tarefa — registrado como pendência.
+      { categoria: "comercial_interacao" },
+    );
+  }
+
+  return { id: c.id, atividadeRegistrada };
 }
 
 /**

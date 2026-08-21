@@ -58,6 +58,13 @@ export async function obterLead(id: string) {
       cliente: { select: { id: true, nome: true } },
       parceiro: { select: { id: true, nome: true } },
       atividades: { orderBy: { createdAt: "desc" }, include: { autor: { select: { name: true } } } },
+      // F3.1: timeline nova. Nome do relation (`atividadesComerciais`) mantido distinto de
+      // `atividades` (a legada) — a mesclagem dos dois em ordem cronológica única acontece na
+      // camada de exibição (`mesclarTimeline`, F2.11), não aqui.
+      atividadesComerciais: {
+        orderBy: { createdAt: "desc" },
+        include: { autor: { select: { name: true } } },
+      },
       anexos: {
         orderBy: { createdAt: "desc" },
         select: { id: true, nome: true, nomeArquivo: true, tamanho: true, createdAt: true },
