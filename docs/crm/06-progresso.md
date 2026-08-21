@@ -20,6 +20,80 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## Fase 2 em produção — deploy, falha e ADR-02 revisado · 2026-08-21 · Opus
+
+**A Fase 2 está em produção.** 5 migrations aplicadas, build limpo, serviço no ar. Mas o deploy
+**falhou no meio** e vale registrar o incidente inteiro, porque a causa se repete.
+
+### O que quebrou
+
+`prisma migrate deploy` abortou na F2.5 com **P3018 / 23505**:
+
+```
+não foi possível criar o índice único "lead_prospeccao_ativa_sem_campanha_unica"
+DETAIL: Chave ("clienteId")=(cmr3kqb57006hywnu1x3z4t3j) está duplicada.
+```
+
+O serviço ficou parado com o banco a meio caminho: `crm_lead_v2_status_contatos` e
+`crm_negociacao` aplicadas, `crm_lead_temperatura` **não** — e o build novo já esperava
+`Lead.temperatura`. Subir o serviço ali teria trocado uma parada limpa por erro em tela.
+
+### Erro meu, e de um tipo que eu já conhecia
+
+**Medi o dev e inferi produção.** No dev, 8 de 8 leads tinham `clienteId` nulo, e como `criarLead`
+nunca preenche esse campo, concluí que produção seria igual. Esqueci que **`converterLead`
+preenche**: em produção, 6 dos 8 leads têm cliente. Verifiquei o ambiente errado e tratei a
+inferência como fato.
+
+Pior: eu **escrevi o aviso da colisão dentro da própria migration** — "Záphis tem 3 leads e Rbarros
+2, o segundo UPDATE é recusado". Só que apontei o aviso para a **F2.18**, quando alguém fosse
+preencher `clienteId` à mão. Não percebi que os leads **já tinham cliente**, então a colisão
+explodiu antes, na criação do índice.
+
+E a lição já estava dada na Fase 1: **F1.16 (índice único) veio depois da F1.15 (limpeza dos
+dados)**, por este exato motivo. Não a apliquei aqui.
+
+### Duas descobertas que valem mais que o incidente
+
+**1. A colisão foi criada pela F1.15.** Os 3 leads da Záphis apontavam para 3 registros de cliente
+distintos; a fusão os juntou sob `Zaphis Inc LTDA`. Nenhum dos dois passos estava errado
+isoladamente — **a interação entre eles** produziu um estado que a regra proibia. É o tipo de
+defeito que nenhuma revisão de tarefa isolada pega.
+
+**2. A migration NÃO é atômica.** O primeiro índice (`..._campanha_unica`) **persistiu em
+produção** mesmo com a falha do segundo, e o registro ficou com `finished_at: null` —
+nem aplicada nem pendente, e o `migrate status` não a listava como falha. Eu havia suposto que o
+Postgres reverteria o arquivo inteiro. Por isso a correção precisou de `IF NOT EXISTS`.
+
+### ADR-02 revisado — o dado refutou a regra
+
+As 3 prospecções da Záphis (EDIF. ARAPIRACA, ISA BEACH, BELA BEACH) são **obras reais e
+simultâneas**. A regra "uma prospecção ativa por empresa" não corresponde à operação. O ADR-18 já
+tinha chegado perto ("múltiplas obras por cliente é o padrão do escritório"), mas resolveu isso
+liberando os status **terminais** — não previu várias obras **ativas ao mesmo tempo**.
+
+**Decisão do dono: abandonar a regra sem campanha.** A regra sobrevive só dentro de uma mesma
+campanha. Descartada a alternativa `(empresa, empreendimento)`, que manteria o espírito mas exige
+um campo estruturado de empreendimento que hoje não existe.
+
+### Recuperação
+
+`migrate resolve --rolled-back` → migration corrigida (só o índice de campanha) → `migrate deploy`
+aplicou as 5 → build → serviço no ar. Dev alinhado (índice extra dropado).
+
+### Verificação morta encontrada de quebra
+
+O `smoke-crm-prod` **pulava** a checagem de `needsReview` com o motivo "o campo ainda não existe em
+`Lead`". A F2.3 criou o campo; a versão pulada continuou no script. O smoke passou a **afirmar em
+produção que uma coluna existente não existia** — pior que checagem ausente, porque aparece na
+saída como se algo tivesse sido considerado. Trocada por `colunaExiste()`, que decide em execução,
+mais três checagens novas — incluindo uma que vigia se o índice removido reapareceu.
+
+**Pendente:** F2.18 (migrar os 8 leads — agora sem o obstáculo do índice), F2.11 (bloqueada pela
+F3.1), F2.19 (opcional) e F2.20 (fecho).
+
+---
+
 ## F2.12 → F2.17 — temperatura, os dois boards, filtros e contato rápido · 2026-08-20 · Opus
 
 **Seed sintético primeiro** (`npm run seed:crm-fase2`). O `seed:demo` não conhece o funil novo:
