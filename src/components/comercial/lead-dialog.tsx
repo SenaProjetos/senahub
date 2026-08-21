@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -13,6 +13,9 @@ import {
   Download,
   Trash2,
   FileText,
+  History,
+  Link2,
+  X,
 } from "lucide-react";
 import {
   criarLead,
@@ -23,7 +26,9 @@ import {
   adicionarAnexoLead,
   removerAnexoLead,
   moverLead,
+  buscarEmpresaParaVincularAction,
 } from "@/modules/comercial/actions";
+import type { EmpresaParaVincular } from "@/modules/comercial/queries";
 import type { LeadItem } from "@/modules/comercial/queries";
 import { FollowUpDialog } from "./follow-up-dialog";
 import {
@@ -113,13 +118,44 @@ export function LeadDialog({
   const [pedirMotivo, setPedirMotivo] = useState(false);
   const key = lead?.id ?? "novo";
   const [lastKey, setLastKey] = useState(key);
+  // F3.8: sinal de reativação — só na CRIAÇÃO (editar já tem `lead.cliente`, se houver).
+  const [candidatosReativacao, setCandidatosReativacao] = useState<EmpresaParaVincular[]>([]);
+  const [vinculado, setVinculado] = useState<EmpresaParaVincular | null>(null);
+  const [dispensouReativacao, setDispensouReativacao] = useState(false);
   if (lastKey !== key) {
     setLastKey(key);
     setForm(lead ? deLead(lead) : vazio);
     setNota("");
+    setCandidatosReativacao([]);
+    setVinculado(null);
+    setDispensouReativacao(false);
   }
 
   const set = (k: keyof Form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  /**
+   * F3.8 — enquanto o nome é digitado (só em criação), busca empresa já cadastrada com
+   * histórico. Debounce de 400ms, mesmo valor de `buscarCandidatosDuplicata` no cadastro de
+   * Cliente (F1.13) — consistência de UX entre os dois alertas "isto já existe".
+   */
+  useEffect(() => {
+    if (lead || vinculado) {
+      setCandidatosReativacao([]);
+      return;
+    }
+    const nome = form.nome.trim();
+    if (nome.length < 3) {
+      setCandidatosReativacao([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      buscarEmpresaParaVincularAction({ nome }).then((r) => {
+        setCandidatosReativacao(Array.isArray(r) ? r : []);
+        setDispensouReativacao(false);
+      });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [form.nome, lead, vinculado]);
 
   /** Salva os campos do lead. Quando informado, grava também o motivo da perda. */
   function persistir(motivoPerda?: string) {
@@ -141,9 +177,10 @@ export function LeadDialog({
     };
     start(async () => {
       if (!lead) {
-        const r = await criarLead(payload);
+        // F3.8: só entra no payload se o usuário aceitou o sinal de reativação.
+        const r = await criarLead(vinculado ? { ...payload, clienteId: vinculado.clienteId } : payload);
         if (r.ok) {
-          toast.success("Lead criado.");
+          toast.success(vinculado ? `Lead criado e vinculado a ${vinculado.nome}.` : "Lead criado.");
           onOpenChange(false);
           router.refresh();
         } else toast.error(r.error);
@@ -239,6 +276,80 @@ export function LeadDialog({
                 <p className="whitespace-pre-wrap">{lead.motivoPerda}</p>
               </div>
             )}
+          {/* F3.8 — sinal de reativação: nome digitado casa com empresa já cadastrada que tem
+              histórico. Some sozinho quando o usuário vincula, dispensa, ou apaga o nome. */}
+          {vinculado ? (
+            <div className="flex items-start gap-2 rounded-sm border border-primary/40 bg-primary/5 p-2.5 text-sm">
+              <Link2 className="mt-0.5 size-4 shrink-0 text-primary" />
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">
+                  Vinculado a <span className="font-semibold">{vinculado.nome}</span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Este lead vai herdar o histórico da empresa na timeline.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-6 shrink-0"
+                aria-label="Desvincular"
+                onClick={() => setVinculado(null)}
+              >
+                <X className="size-3.5" />
+              </Button>
+            </div>
+          ) : (
+            !dispensouReativacao &&
+            candidatosReativacao.length > 0 && (
+              <div className="flex items-start gap-2 rounded-sm border border-warning/40 bg-warning/10 p-3 text-sm">
+                <History className="mt-0.5 size-4 shrink-0 text-warning" />
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <p className="font-medium">Esta empresa já tem histórico no sistema</p>
+                  <ul className="space-y-1.5">
+                    {candidatosReativacao.map((c) => {
+                      const partes = [
+                        c.projetos > 0 && `${c.projetos} contrato${c.projetos > 1 ? "s" : ""} anterior${c.projetos > 1 ? "es" : ""}`,
+                        c.negociacoes > 0 && `${c.negociacoes} negociação${c.negociacoes > 1 ? "ões" : ""}`,
+                        c.propostas > 0 && `${c.propostas} proposta${c.propostas > 1 ? "s" : ""}`,
+                      ].filter(Boolean);
+                      return (
+                        <li key={c.clienteId} className="flex items-center justify-between gap-2">
+                          <span className="min-w-0">
+                            <span className="font-medium">{c.nome}</span>
+                            {partes.length > 0 && (
+                              <span className="ml-1.5 text-xs text-muted-foreground">
+                                — {partes.join(" · ")}
+                              </span>
+                            )}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 shrink-0 px-2 text-xs"
+                            onClick={() => setVinculado(c)}
+                          >
+                            <Link2 className="size-3 shrink-0" /> Vincular
+                          </Button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setDispensouReativacao(true)}
+                  >
+                    É outra empresa, criar sem vincular
+                  </Button>
+                </div>
+              </div>
+            )
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Nome / empresa</Label>

@@ -12,6 +12,8 @@ import {
   whereNegociacao,
   type FiltrosComerciais,
 } from "@/modules/comercial/filtros";
+import { candidatosDuplicata } from "@/modules/comercial/dedupe";
+import { clientesParaDedupe } from "@/modules/clientes/queries";
 
 // ── Funil ─────────────────────────────────────────────────────
 export async function funilCompleto() {
@@ -528,4 +530,75 @@ export async function opcoesFiltroComercial() {
 export async function lerTemplatosNotas() {
   const { lerTemplates } = await import("./templates-notas");
   return lerTemplates(prisma);
+}
+
+// ── Reativação (F3.8) ────────────────────────────────────────────────────
+export type EmpresaParaVincular = {
+  clienteId: string;
+  nome: string;
+  motivo: "nome_exato" | "nome_similar";
+  projetos: number;
+  negociacoes: number;
+  propostas: number;
+};
+
+/**
+ * F3.8 — "sinal de reativação": quem digita o nome de uma empresa que JÁ existe, criando uma
+ * prospecção nova do zero, está prestes a fazer o sistema esquecer o que já rolou com ela — 3
+ * contratos anteriores, viram um lead órfão sem `clienteId`, exatamente como os 8 leads reais da
+ * F2.18 chegaram (nenhum tinha empresa vinculada, e a ligação teve de ser feita à mão, depois).
+ *
+ * Reusa `candidatosDuplicata()` (F1.12/F1.13) — mesma detecção "quase igual" que já protege o
+ * cadastro de Cliente contra duplicata — mas aqui o propósito é DIFERENTE: não é alertar "você
+ * pode estar duplicando", é oferecer "vincule e herde o histórico". Só nome entra na comparação
+ * (o formulário de lead não tem campo de documento), e só os matches fortes (nome exato ou
+ * similaridade ≥ 0,85, o mesmo limiar padrão de `candidatosDuplicata`) chegam à tela — abaixo
+ * disso o ruído (nome parecido mas empresa diferente) pesa mais que o ganho.
+ *
+ * Devolve `[]` sem histórico nenhum (não teria "reativação" a oferecer) e nome com menos de 3
+ * caracteres (buscar por 1-2 letras devolveria tanta coisa que deixaria de ser sinal).
+ */
+export async function buscarEmpresaParaVincular(nome: string): Promise<EmpresaParaVincular[]> {
+  if (!nome || nome.trim().length < 3) return [];
+
+  const existentes = await clientesParaDedupe();
+  const candidatos = candidatosDuplicata(existentes, { nome, tipo: "PJ" }).filter(
+    (c): c is typeof c & { motivo: "nome_exato" | "nome_similar" } =>
+      c.motivo === "nome_exato" || (c.motivo === "nome_similar" && c.score >= 0.85),
+  );
+  if (candidatos.length === 0) return [];
+
+  const ids = candidatos.slice(0, 3).map((c) => c.cliente.id);
+  const contagens = await prisma.cliente.findMany({
+    where: { id: { in: ids } },
+    select: {
+      id: true,
+      _count: {
+        select: {
+          projetos: true,
+          // `excluidoEm: null` EXPLÍCITO — leitura via `_count` de relação é aninhada, não passa
+          // pela extensão de soft delete do `lib/prisma.ts` (mesmo ponto que a F3.7 já tratou).
+          negociacoes: { where: { excluidoEm: null } },
+          propostas: true,
+        },
+      },
+    },
+  });
+
+  return candidatos
+    .filter((c) => ids.includes(c.cliente.id))
+    .map((c) => {
+      const cont = contagens.find((x) => x.id === c.cliente.id);
+      return {
+        clienteId: c.cliente.id,
+        nome: c.cliente.nome,
+        motivo: c.motivo,
+        projetos: cont?._count.projetos ?? 0,
+        negociacoes: cont?._count.negociacoes ?? 0,
+        propostas: cont?._count.propostas ?? 0,
+      };
+    })
+    // Só oferece quando há de fato algo pra "reativar" — empresa cadastrada sem nenhum
+    // histórico não é sinal de reativação, é só uma homônima.
+    .filter((c) => c.projetos + c.negociacoes + c.propostas > 0);
 }

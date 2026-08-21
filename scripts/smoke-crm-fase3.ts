@@ -1,16 +1,20 @@
 /**
- * Smoke da Fase 3 do CRM — a prova do aceite da **F3.7 (Empresa 360)**.
+ * Smoke da Fase 3 do CRM — prova o aceite da **F3.7 (Empresa 360)** e da **F3.8 (reativação)**.
  *
- * O aceite é performance, e performance não se prova por leitura de código: "≤ 5 queries para a
- * página inteira, nenhuma em laço" e "empresa com 50 projetos abre em tempo comparável a uma com
- * 1". Este script mede as duas coisas contra o banco de dev, contando os eventos de query do
- * próprio Prisma.
+ * F3.7: o aceite é performance, e performance não se prova por leitura de código: "≤ 5 queries
+ * para a página inteira, nenhuma em laço" e "empresa com 50 projetos abre em tempo comparável a
+ * uma com 1". Este script mede as duas coisas contra o banco de dev, contando os eventos de query
+ * do próprio Prisma.
  *
  * **A prova de que não há N+1 é a comparação, não o cronômetro.** Uma empresa gorda (50 projetos,
  * 200 atividades, 30 contatos) e uma magra (1 de cada) precisam gastar o MESMO número de
  * consultas. Se qualquer lista estiver sendo percorrida com uma ida ao banco por item, o número
  * da gorda dispara e o teste quebra — sem depender de relógio, que varia com a máquina e daria
  * falso positivo/negativo dependendo do dia.
+ *
+ * F3.8: `buscarEmpresaParaVincular()` reusa `candidatosDuplicata()` (F1.12) num contexto novo —
+ * este smoke prova que o limiar de similaridade, o piso de 3 caracteres e o filtro "só com
+ * histórico" seguram contra as empresas reais que o F3.7 já criou.
  *
  * ⚠️ NUNCA RODAR CONTRA PRODUÇÃO. Cria e apaga empresas, projetos, leads, negociações e
  * atividades. Tudo com prefixo `SMKF3_`, limpeza no `finally`.
@@ -31,6 +35,8 @@ process.env.PRISMA_LOG_QUERIES = "1";
 const { prisma } = require("../src/lib/prisma") as typeof import("../src/lib/prisma");
 const { empresa360, TAKE_LISTA, TAKE_TIMELINE } =
   require("../src/modules/comercial/empresa-360/queries") as typeof import("../src/modules/comercial/empresa-360/queries");
+const { buscarEmpresaParaVincular } =
+  require("../src/modules/comercial/queries") as typeof import("../src/modules/comercial/queries");
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const TAG = `SMKF3_${Date.now()}`;
@@ -234,6 +240,38 @@ async function main() {
     depois!.contatos.length === 29 && depois!.indicadores.contatos === 29,
     `lista=${depois!.contatos.length} indicador=${depois!.indicadores.contatos}`,
   );
+
+  console.log("\n── F3.8: sinal de reativação (buscarEmpresaParaVincular) ─────────\n");
+
+  // Empresa homônima da "gorda", mas SEM histórico — prova que o filtro final ("só oferece
+  // quando há algo pra reativar") não deixa passar coincidência de nome vazia de conteúdo.
+  const vaziaId = await criarEmpresa("gorda_vazia", { projetos: 0, atividades: 0, contatos: 0, leads: 0, negociacoes: 0 });
+  // Renomeia pra ficar homônima de verdade (a criação já usa "vazia" no nome, que quebraria o
+  // match) — precisa ser IGUAL ao nome da "gorda" pra testar a colisão de nome_exato.
+  const nomeGorda = `${TAG}_gorda`;
+  await prisma.cliente.update({ where: { id: vaziaId }, data: { nome: nomeGorda } });
+
+  const porNomeExato = await buscarEmpresaParaVincular(nomeGorda);
+  check(
+    "nome exato acha a empresa com histórico (não a homônima vazia)",
+    porNomeExato.length === 1 && porNomeExato[0].clienteId === gordaId,
+    `${porNomeExato.length} candidato(s)`,
+  );
+  check("traz a contagem certa de projetos", porNomeExato[0]?.projetos === 50, `${porNomeExato[0]?.projetos}`);
+  check("traz a contagem de negociações também", porNomeExato[0]?.negociacoes === 12, `${porNomeExato[0]?.negociacoes}`);
+
+  const porNomeParecido = await buscarEmpresaParaVincular(`${nomeGorda}s`); // 1 char a mais
+  check(
+    "nome com pequeno erro de digitação ainda casa (similaridade ≥ 0,85)",
+    porNomeParecido.some((c) => c.clienteId === gordaId),
+    `${porNomeParecido.map((c) => c.nome).join(", ")}`,
+  );
+
+  const semRelacao = await buscarEmpresaParaVincular(`Construtora Completamente Diferente ${Date.now()}`);
+  check("nome sem nenhuma relação não casa com nada", semRelacao.length === 0, `${semRelacao.length}`);
+
+  const curtoDemais = await buscarEmpresaParaVincular("ab");
+  check("menos de 3 caracteres não busca (ruído demais)", curtoDemais.length === 0);
 
   console.log(`\n${ok ? "✔ Fase 3: tudo verde." : "✖ Fase 3: há falhas acima."}`);
   console.log(

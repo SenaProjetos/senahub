@@ -35,11 +35,12 @@ import {
   definirTemperaturaSchema,
   moverProspeccaoSchema,
   registrarInteracaoSchema,
+  buscarEmpresaParaVincularSchema,
 } from "@/modules/comercial/schemas";
 import { removerArquivo } from "@/lib/storage";
 import { etapaEhPerdido } from "@/modules/comercial/status";
 import { exigeQualificacao } from "@/modules/comercial/prospeccao";
-import { lerTemplatosNotas } from "@/modules/comercial/queries";
+import { lerTemplatosNotas, buscarEmpresaParaVincular } from "@/modules/comercial/queries";
 import {
   proximoNumeroProposta,
   criarPropostaDeLead as servicoCriarPropostaDeLead,
@@ -90,6 +91,20 @@ async function validarParceiroId(parceiroId: string | undefined): Promise<string
 }
 
 /**
+ * F3.8: `clienteId` só chega aqui quando o usuário aceitou o sinal de reativação e escolheu
+ * "vincular" — o formulário nunca deixa digitar um id à mão. Mesmo assim valida a existência
+ * antes de gravar, mesmo padrão defensivo de `validarParceiroId`: Server Action aceita payload
+ * arbitrário do cliente, e "veio de um botão que só mostra empresa real" não é garantia no
+ * servidor.
+ */
+async function validarClienteId(clienteId: string | undefined): Promise<string | null> {
+  if (!clienteId) return null;
+  const existe = await prisma.cliente.findUnique({ where: { id: clienteId }, select: { id: true } });
+  if (!existe) throw new ActionError("Empresa não encontrada.");
+  return clienteId;
+}
+
+/**
  * Traduz a violação dos índices parciais da F2.5 (ADR-02/ADR-18) numa mensagem que o vendedor
  * entende. Sem isto o `defineAction` devolveria "erro inesperado" para uma regra de negócio
  * perfeitamente normal — mesmo raciocínio (e mesmo formato) de `comDocumentoUnico` em
@@ -120,6 +135,7 @@ export const criarLead = defineAction(
   { ...base, acao: "criar-lead", entidade: "Lead", schema: criarLeadSchema, entidadeId: idResultadoOuInput },
   async (i, ctx) => {
     const parceiroId = await validarParceiroId(i.parceiroId);
+    const clienteId = await validarClienteId(i.clienteId);
     const lead = await comProspeccaoAtivaUnica(() =>
       prisma.lead.create({
         data: {
@@ -127,6 +143,7 @@ export const criarLead = defineAction(
           email: i.email || null,
           valorEstimado: i.valorEstimado,
           parceiroId,
+          clienteId,
           temperatura: i.temperatura ?? null,
         },
       }),
@@ -842,4 +859,23 @@ export const moverProspeccao = defineAction(
 export async function obterTemplatosNotas() {
   "use server";
   return await lerTemplatosNotas();
+}
+
+/**
+ * F3.8 — sinal de reativação: busca empresa por nome enquanto o usuário digita no "Novo lead".
+ *
+ * Fora de `defineAction` de propósito, mesmo padrão de `obterTemplatosNotas`: é busca, não
+ * mutação — gravar `AuditLog` a cada tecla digitada (debounce ou não) poluiria a auditoria sem
+ * nenhum "o quê mudou" para registrar. Ainda assim exige sessão + `comercial:gerir` (o mesmo
+ * piso de quem abre o diálogo que chama isto), porque devolve nome + contagem de projetos de
+ * empresas que talvez não apareçam para todo mundo.
+ */
+export async function buscarEmpresaParaVincularAction(input: unknown) {
+  "use server";
+  const { requireUser } = await import("@/lib/session");
+  const { can } = await import("@/lib/permissions");
+  const user = await requireUser();
+  if (!(await can(user, "comercial", "gerir"))) return [];
+  const { nome } = buscarEmpresaParaVincularSchema.parse(input);
+  return buscarEmpresaParaVincular(nome);
 }
