@@ -57,6 +57,21 @@ const ETAPA_PARA_ESTAGIO: Record<string, EstagioNegociacao> = {
   Perdido: "PERDIDO",
 };
 
+/**
+ * Empresas que o lead referencia mas que NUNCA foram cadastradas (decisão do dono, 2026-08-21).
+ *
+ * `CP CONSTRUÇÃO` aparece em `Lead.nome` do "CAPIBA MALL" e não existe entre os 41 clientes — nem
+ * com nome parecido (a sugestão por similaridade não achou nada acima de 40%). Não é grafia
+ * divergente: o registro nunca foi criado.
+ *
+ * Nasce SEM documento — ninguém tem o CNPJ à mão agora, e inventar um seria pior que deixar nulo
+ * (o índice único da F1.16 é parcial justamente para permitir empresa sem documento). Fica
+ * marcada para conferência junto com a negociação.
+ */
+const EMPRESAS_A_CRIAR: Record<string, { nome: string }> = {
+  "CP CONSTRUÇÃO": { nome: "CP CONSTRUÇÃO" },
+};
+
 /** Vínculo com projeto — só os aprovados pelo dono. Chave = `origemDetalhada` do lead. */
 const PROJETO_POR_OBRA: Record<string, string> = {
   "RES. PLINIO PAIVA": "260024",
@@ -110,6 +125,8 @@ async function main() {
     obra: string;
     empresa: string;
     clienteId: string;
+    /** Preenchido quando a empresa ainda não existe e foi aprovada para cadastro. */
+    criarEmpresa?: string;
     estagio: EstagioNegociacao;
     valor: number | null;
     projetoCodigo: string | null;
@@ -149,6 +166,24 @@ async function main() {
           .filter((c) => c.s >= 0.4)
           .sort((a, b) => b.s - a.s)
           .slice(0, 5);
+        const aCriar = EMPRESAS_A_CRIAR[l.nome.trim()];
+        if (aCriar) {
+          // Aprovada para cadastro. Marca no plano; a criação acontece na transação, junto com a
+          // negociação — assim ou nascem as duas, ou nenhuma.
+          clienteId = "";
+          empresa = `${aCriar.nome}  (SERÁ CRIADA — aprovado em 2026-08-21)`;
+          plano.push({
+            leadId: l.id,
+            obra,
+            empresa,
+            clienteId: "",
+            criarEmpresa: aCriar.nome,
+            estagio,
+            valor: l.valorEstimado != null ? Number(l.valorEstimado) : null,
+            projetoCodigo: PROJETO_POR_OBRA[obra] ?? null,
+          });
+          continue;
+        }
         const sugestao =
           perto.length > 0
             ? `
@@ -212,6 +247,37 @@ async function main() {
 
   for (const p of plano) {
     await prisma.$transaction(async (tx) => {
+      // Empresa aprovada para cadastro nasce AQUI, na mesma transação da negociação: ou as duas
+      // existem, ou nenhuma. Criar antes, fora da transação, deixaria uma empresa órfã se a
+      // negociação falhasse.
+      let clienteId = p.clienteId;
+      if (p.criarEmpresa) {
+        const novo = await tx.cliente.create({
+          data: { nome: p.criarEmpresa, tipo: "PJ" },
+          select: { id: true },
+        });
+        clienteId = novo.id;
+        await tx.auditLog.create({
+          data: {
+            userId: null,
+            modulo: "clientes",
+            acao: "criar-cliente",
+            entidade: "Cliente",
+            entidadeId: novo.id,
+            resultado: "sucesso",
+            detalhe: {
+              origem: "script:migrar-leads-f218",
+              tarefa: "F2.18",
+              motivo: "empresa referenciada pelo lead mas nunca cadastrada; aprovada pelo dono",
+              nome: p.criarEmpresa,
+              semDocumento: true,
+            },
+            ip: null,
+          },
+        });
+        console.log(`  + empresa criada: "${p.criarEmpresa}"`);
+      }
+
       const lead = await tx.lead.findUniqueOrThrow({
         where: { id: p.leadId },
         select: { canalId: true, campaignId: true, parceiroId: true, responsavelId: true },
@@ -220,7 +286,7 @@ async function main() {
       const neg = await tx.negociacao.create({
         data: {
           titulo: p.obra,
-          clienteId: p.clienteId,
+          clienteId,
           leadId: p.leadId,
           estagio: p.estagio,
           valorEstimado: p.valor,
@@ -247,7 +313,9 @@ async function main() {
           // ficaria com `clienteId` nulo enquanto a negociação dele tem empresa — incoerência
           // que a Empresa 360 (Fase 3) mostraria como "prospecção sem empresa". É seguro:
           // `OPORTUNIDADE_CRIADA` não é status ativo, então não esbarra no índice da F2.5.
-          clienteId: p.clienteId,
+          // Usa a variável local, não `p.clienteId`: quando a empresa foi CRIADA agora, o plano
+          // guarda string vazia e o id real só existe aqui dentro da transação.
+          clienteId,
         },
       });
 
