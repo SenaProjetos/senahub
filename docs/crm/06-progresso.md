@@ -20,6 +20,64 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F3.9 — `AnexoLead` → `Documento` (script pronto, dry-run ensaiado, `--gravar` PENDENTE em produção) · 2026-08-21 · Sonnet
+
+**Feito:** `scripts/migrar-anexos-lead-f39.ts` — migra os anexos do lead para `Documento`
+genérico, ancorado no cliente. Ensaiado no dev com fixture (não há `anexo_lead` real fora de
+produção): dry-run, abort ao detectar lead sem `clienteId`, `--gravar`, idempotência (rodar 2×
+não duplica), e confirmação de que o `Documento` migrado aparece em `documentosDoCliente()`
+(bucket "Gerais do cliente") com `downloadUrl` funcionando pela rota genérica
+`/api/documentos/[id]/download`.
+
+**Emenda ao backlog: zero migration de schema, não "M".** `Documento` já tem tudo que precisa —
+`clienteId` obrigatório, `origem: "comercial"` já em uso desde sempre para anexo de PROPOSTA
+(`documentos-cliente/actions.ts:78`), `propostaId`/`projetoId` opcionais (documento "geral do
+cliente" já é caso legítimo hoje). Migrar é só leitura de uma tabela + escrita na outra, mesma
+forma que `criarDocumento` já usa. Mesmo padrão da F1.7: backlog escrito antes de olhar o dado,
+corrigido quando o código mostrou que a premissa não se sustentava.
+
+**Arquivos NÃO se movem — só a linha do banco.** `AnexoLead.caminho` e `DocumentoVersao.caminho`
+são o mesmo tipo de valor (caminho relativo sob `STORAGE_BASE_PATH`). A migração cria uma SEGUNDA
+referência ao mesmo arquivo em disco; nada é copiado, movido ou reescrito. É por isso que o
+⚠️⚠️ do backlog ("arquivos fora do dump do banco") não se aplica aqui como risco de execução — o
+risco que aquele aviso descreve é sobre BACKUP (não capturar o storage), não sobre esta migração.
+
+**Por que os 4 reais devem resolver:** `Documento.clienteId` é NOT NULL; `AnexoLead.lead.clienteId`
+é nullable (F2.3) — mas a F2.18 (produção, mesma data) preencheu `clienteId` nos 8 leads reais, e
+os 4 anexos pertencem a leads desse grupo. O script ainda assim CONFERE e recusa rodar por inteiro
+se algum não resolver (mesmo padrão de "recusa executar" da F2.18) — nunca supõe vínculo.
+
+**Idempotência sem coluna nova:** cada `Documento` migrado carrega `"Migrado de
+anexo_lead:<id>"` no `descricao` — reprocessar filtra por essa marca antes de criar.
+
+**Escopo deliberadamente NÃO incluído:** o caminho de UPLOAD (`adicionarAnexoLead`,
+`LeadAnexos` em `lead-dialog.tsx`) continua escrevendo em `AnexoLead`, sem redirecionar para
+`Documento`. O aceite pede migrar o que já existe e manter `anexo_lead` "aditivo" — não pede
+unificar o fluxo de escrita, e fazer isso agora exigiria decidir o comportamento para leads sem
+`clienteId` (que a F3.8 reduz, mas não elimina). Fica registrado como próximo passo natural, não
+como pendência desta tarefa.
+
+**Arquivos:** `scripts/migrar-anexos-lead-f39.ts` (novo). Nenhum arquivo de `src/` mudou — a
+migração não precisou de nenhuma query/action nova, só reusou `documentosDoCliente` (F3.7/anterior)
+e a rota de download genérica (já existente).
+
+**Verificação:** eslint limpo, tsc limpo, 2181 testes (inalterado — nenhuma lógica nova em `src/`
+pra testar; a prova é o dry-run/gravar/idempotência ensaiados contra o Postgres real do dev), build
+ok. Fixture criada e apagada (cliente + 2 leads + anexo válido + anexo órfão + documento migrado),
+dev conferido sem sobra.
+
+**Pendente — decisão do dono antes de rodar em produção:**
+1. Confirmar que os 4 anexos reais realmente resolvem (rodar o script SEM `--gravar` em produção
+   primeiro — se o `ABORTANDO` aparecer, algum lead perdeu o `clienteId` da F2.18 e precisa de
+   investigação antes de qualquer coisa).
+2. Rodar com `--gravar` em produção. ⚠️⚠️ Nenhum arquivo em disco muda, mas é escrita em produção
+   — segue a disciplina de sempre: dry-run primeiro, `--gravar` só com autorização explícita.
+3. Depois de gravado: abrir `/clientes/[id]` de uma das empresas afetadas e conferir visualmente
+   que o documento aparece em "Gerais do cliente" e baixa — sem chromium-cli neste ambiente, essa
+   parte fica para verificação manual do usuário (mesma lacuna já registrada em F3.4/F3.6/F3.7/F3.8).
+
+---
+
 ## F3.8 — Sinal de reativação · 2026-08-21 · Sonnet
 
 **Feito:** ao criar um lead pelo `LeadDialog` (o único ponto de criação de prospecção hoje — o
