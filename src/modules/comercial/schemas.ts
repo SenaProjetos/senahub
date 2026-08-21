@@ -19,6 +19,9 @@ export const criarLeadSchema = z.object({
   /// F2.12: `null` = não classificado. `nullish` e NÃO `optional`: com `undefined` o Prisma
   /// entende "não mexe neste campo", e limpar a classificação viraria no-op silencioso.
   temperatura: z.enum(["FRIO", "MORNO", "QUENTE"]).nullish(),
+  /// F3.8: preenchido só quando o usuário aceita o "sinal de reativação" e vincula a uma
+  /// empresa já cadastrada. Ausente = lead nasce sem `clienteId`, comportamento de sempre.
+  clienteId: opt(z.string()),
 });
 export const editarLeadSchema = criarLeadSchema.extend({ id: z.string().min(1) });
 export const moverLeadSchema = z.object({
@@ -208,3 +211,6 @@ export const registrarInteracaoSchema = z.object({
   tipo: z.enum(["LIGACAO", "WHATSAPP", "EMAIL", "LINKEDIN", "REUNIAO", "NOTA"]),
   nota: z.string().min(1, "Escreva o que aconteceu."),
 });
+
+/** F3.8: sinal de reativação — busca empresa por nome enquanto o usuário digita. */
+export const buscarEmpresaParaVincularSchema = z.object({ nome: z.string() });

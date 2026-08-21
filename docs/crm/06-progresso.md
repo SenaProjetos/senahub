@@ -20,6 +20,60 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F3.8 — Sinal de reativação · 2026-08-21 · Sonnet
+
+**Feito:** ao criar um lead pelo `LeadDialog` (o único ponto de criação de prospecção hoje — o
+`FunilBoard` legado em `/comercial`), digitar o nome de uma empresa que já tem histórico mostra um
+alerta ANTES de salvar: nome, contratos/negociações anteriores, e um botão "Vincular" que grava o
+`clienteId` no lead que está nascendo.
+
+**Reusa `candidatosDuplicata()` (F1.12/F1.13) num propósito diferente.** A mesma detecção "quase
+igual" que já protege o cadastro de Cliente contra duplicata agora serve para OFERECER herdar
+histórico, não para alertar sobre duplicar. Só nome entra na comparação (o form de lead não tem
+documento nem e-mail de empresa); só matches fortes (nome exato ou similaridade ≥ 0,85, mesmo
+limiar padrão da função) chegam à tela. `buscarEmpresaParaVincular()` (nova, `queries.ts`) filtra
+por fim para "tem histórico de verdade" — uma homônima vazia (0 projetos/negociações/propostas)
+não é sinal de reativação, é só coincidência de nome, e o smoke prova exatamente essa distinção
+com duas empresas de nome idêntico, uma vazia e uma com 50 projetos.
+
+**`Lead.clienteId` agora pode nascer preenchido.** Até aqui `criarLead` nunca aceitava
+`clienteId` — é por isso que os 8 leads reais chegaram todos órfãos na F2.18, exigindo ligação à
+mão depois. `criarLeadSchema` ganhou o campo (opcional, só chega preenchido quando o usuário clica
+"Vincular"); `criarLead` valida a existência antes de gravar (`validarClienteId`, mesmo padrão
+defensivo de `validarParceiroId` — Server Action aceita payload arbitrário, "veio de um botão que
+só mostra empresa real" não é garantia no servidor). O resto da cadeia já funcionava sozinho:
+`registrarAtividade` (F3.2) já só dispara quando há `clienteId`, então um lead vinculado já nasce
+com o evento PROSPECCAO_CRIADA na timeline da empresa, sem tocar nesse código.
+
+**Fora de `defineAction` de propósito:** `buscarEmpresaParaVincularAction` (busca-enquanto-digita,
+debounce 400ms) é leitura, não mutação — gravar `AuditLog` a cada tecla poluiria a auditoria sem
+nenhum "o quê mudou" pra registrar. Mesmo padrão de `obterTemplatosNotas` (F3.5). Ainda exige
+sessão + `comercial:gerir` (checado à mão, já que não passa pelo gate do `defineAction`) porque
+devolve nome e contagem de projetos de empresas que talvez não apareçam pra todo mundo.
+
+**Arquivos:** `src/modules/comercial/queries.ts` (`buscarEmpresaParaVincular`);
+`src/modules/comercial/schemas.ts` (`clienteId` em `criarLeadSchema`,
+`buscarEmpresaParaVincularSchema`); `src/modules/comercial/actions.ts` (`validarClienteId`,
+`clienteId` em `criarLead`, `buscarEmpresaParaVincularAction`);
+`src/components/comercial/lead-dialog.tsx` (banner + debounce + estado de vínculo);
+`scripts/smoke-crm-fase3.ts` (6 checks novos).
+
+**Verificação:** eslint limpo, tsc limpo, 2181 testes (suíte não cresceu — a lógica nova é
+composição do que F1.12/F3.7 já cobrem; a prova daqui é o smoke), build ok,
+`npm run smoke:crm-fase3` 23/23 verde (17 da F3.7 + 6 da F3.8), smokes das Fases 1 e 2 sem
+regressão. Provado no banco: nome exato acha a empresa certa e ignora a homônima vazia, erro de
+digitação de 1 caractere ainda casa, nome sem relação nenhuma não casa, busca com menos de 3
+caracteres nem roda.
+
+**Pendente:** verificação em browser do fluxo completo (digitar → ver o alerta → clicar Vincular →
+lead nasce com `clienteId` → timeline da empresa mostra o evento) — sem chromium-cli neste
+ambiente, mesma lacuna já registrada em F3.4/F3.6/F3.7. O `criarLead` com `clienteId` preenchido
+não foi exercitado ponta a ponta pelo smoke porque é uma `defineAction` (exige sessão, que scripts
+não têm) — o que o smoke prova é a busca (`buscarEmpresaParaVincular`) e a validação
+(`validarClienteId`, coberta pelo mesmo padrão já provado para `validarParceiroId`).
+
+---
+
 ## F3.7 — Empresa 360 · 2026-08-21 · Opus
 
 **Feito:** a tela que responde "tudo o que já aconteceu com esta empresa" — resumo comercial,
