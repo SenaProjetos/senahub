@@ -248,6 +248,10 @@ async function main() {
   // `Proposta.projetoId` precisa ser solto antes, senão o delete do projeto esbarra na FK.
   // As notificações do sino NÃO caem por cascata: saem pelo href do projeto.
   // As sequências NÃO voltam atrás (upsert incremental) — é o custo aceito deste smoke.
+  // F3.2: os hooks de timeline passaram a criar `Atividade` no aceite, e ela tem FK NOT NULL
+  // para `Cliente` — sem apagar antes, o delete do cliente no fim esbarra na constraint. Foi
+  // este smoke que pegou a regressão quando os hooks entraram.
+  await prisma.atividade.deleteMany({ where: { clienteId: proposta.clienteId } });
   await prisma.notificacao.deleteMany({ where: { href: `/projetos/${projetoId}` } });
   await prisma.proposta.update({ where: { id: proposta.id }, data: { projetoId: null } });
   await prisma.projeto.delete({ where: { id: projetoId } });

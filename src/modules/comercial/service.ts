@@ -27,6 +27,7 @@ import {
   validarMovimentoProspeccao,
 } from "@/modules/comercial/prospeccao";
 import { tipoAtividadeDe } from "@/modules/comercial/atividade";
+import { descreverEvento, type EventoAtividade } from "@/modules/comercial/atividade-eventos";
 import { TIPO_PROXIMA_ACAO_LABEL } from "@/modules/agenda/proxima-acao";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -106,6 +107,22 @@ export async function criarPropostaDeLead(
         autorId,
       },
     });
+    // F3.2 — dentro da transação. Quando o cliente nasce aqui (lead ainda sem empresa), o
+    // evento de "empresa cadastrada" também entra: é a primeira coisa que aconteceu com ela, e
+    // sem isso a Empresa 360 começaria a história pela proposta, sem dizer de onde a empresa veio.
+    if (autorId) {
+      if (criouCliente) {
+        await registrarAtividade(
+          { evento: "EMPRESA_CADASTRADA", nome: lead.nome },
+          { autorId, clienteId, leadId: lead.id, tx },
+        );
+      }
+      await registrarAtividade(
+        { evento: "PROPOSTA_CRIADA", numero: proposta.numero, titulo: input.titulo },
+        { autorId, clienteId, leadId: lead.id, propostaId: proposta.id, tx },
+      );
+    }
+
     return { proposta, criouCliente };
   });
 
@@ -178,6 +195,18 @@ export async function salvarProposta(i: SalvarPropostaInput, autorId: string) {
       },
     }),
   ]);
+
+  // F3.2 — fora da transação em lote de propósito: `$transaction([...])` recebe um ARRAY de
+  // promessas, não um callback com `tx`, então não há como passar o cliente transacional para
+  // `registrarAtividade`. Reescrever o lote inteiro em callback só para isso seria mexer no
+  // caminho da proposta (que a Fase 5 vai reescrever) por um ganho pequeno: se a timeline
+  // falhar, `registrarAtividade` engole o erro e a revisão continua salva — que é o
+  // comportamento desejado.
+  await registrarAtividade(
+    { evento: "PROPOSTA_REVISADA", numero: p.numero, versao: (p.versoes[0]?.numero ?? 0) + 1 },
+    { autorId, clienteId: p.clienteId, propostaId: p.id },
+  );
+
   return { id: i.id };
 }
 
@@ -189,7 +218,7 @@ export async function salvarProposta(i: SalvarPropostaInput, autorId: string) {
  * foi: se o fan-out falhar, o projeto continua criado e a proposta aceita. Mover para dentro
  * mudaria comportamento observável (uma falha de notificação desfaria o aceite).
  */
-export async function aceitarProposta(propostaId: string) {
+export async function aceitarProposta(propostaId: string, autorId?: string) {
   const p = await prisma.proposta.findUnique({
     where: { id: propostaId },
     include: {
@@ -223,6 +252,27 @@ export async function aceitarProposta(propostaId: string) {
       where: { id: p.id },
       data: { status: "aceita", aceitaEm: new Date(), projetoId: projeto.id },
     });
+
+    // F3.2 — DOIS eventos, na mesma transação do aceite: se qualquer etapa falhar, nem o projeto
+    // nem a timeline existem. São dois e não um porque respondem a perguntas diferentes na
+    // Empresa 360: "quando fechamos?" e "que obra isso virou?".
+    //
+    // ⚠️ O backlog fala em TRÊS eventos (aceite, contrato, projeto criado). O terceiro é a
+    // negociação indo a CONTRATADO — e `aceitarProposta` ainda não conhece `Negociacao`: esse
+    // vínculo é `Proposta.negociacaoId`, criado só na F5.2, e a reescrita do aceite que amarra
+    // os dois é a F5.9. Emitir um evento de "contrato" hoje seria inventar um estado que o
+    // sistema não tem. O terceiro evento nasce lá.
+    if (autorId) {
+      await registrarAtividade(
+        { evento: "PROPOSTA_ACEITA", numero: p.numero },
+        { autorId, clienteId: p.clienteId, propostaId: p.id, tx },
+      );
+      await registrarAtividade(
+        { evento: "PROJETO_CRIADO", codigo: projeto.codigo, nome: projeto.nome },
+        { autorId, clienteId: p.clienteId, propostaId: p.id, tx },
+      );
+    }
+
     return projeto;
   });
 
@@ -245,6 +295,60 @@ export async function aceitarProposta(propostaId: string) {
   );
 
   return { projetoId: projeto.id, codigo: projeto.codigo };
+}
+
+// ── Timeline automática (F3.2) ───────────────────────────────────────────────────────────────
+/**
+ * Grava um evento automático na timeline. É o único ponto de escrita de `Atividade` vinda do
+ * fluxo — o registro manual (F3.4) terá o seu.
+ *
+ * **Nunca lança.** Uma falha ao registrar histórico não pode desfazer a operação que o originou:
+ * seria absurdo o aceite de uma proposta falhar porque a linha da timeline não gravou. Erros vão
+ * para o console e a operação segue — mesmo princípio do `logAudit` (`lib/audit.ts`), que também
+ * engole a própria falha de propósito.
+ *
+ * **Aceita `tx`.** Quando o chamador está numa transação, o evento entra nela e some junto se ela
+ * reverter — que é o correto para o aceite: projeto e timeline nascem ou não nascem juntos.
+ *
+ * **Devolve `false` quando não houve `clienteId`.** `Atividade.clienteId` é NOT NULL (F3.1: toda
+ * atividade resolve para uma empresa), e nem toda entidade tem empresa — `Lead.clienteId` segue
+ * nullable desde a F2.3. Nesses casos o evento é descartado silenciosamente, e o retorno diz isso
+ * a quem quiser conferir.
+ */
+export async function registrarAtividade(
+  ev: EventoAtividade,
+  ctx: {
+    autorId: string;
+    clienteId: string | null | undefined;
+    leadId?: string | null;
+    negociacaoId?: string | null;
+    propostaId?: string | null;
+    contatoId?: string | null;
+    tx?: Prisma.TransactionClient;
+  },
+): Promise<boolean> {
+  if (!ctx.clienteId) return false;
+  try {
+    const d = descreverEvento(ev);
+    const db = ctx.tx ?? prisma;
+    await db.atividade.create({
+      data: {
+        tipo: d.tipo,
+        descricao: d.descricao,
+        metadata: d.metadata as Prisma.InputJsonValue,
+        autorId: ctx.autorId,
+        clienteId: ctx.clienteId,
+        leadId: ctx.leadId ?? null,
+        negociacaoId: ctx.negociacaoId ?? null,
+        propostaId: ctx.propostaId ?? null,
+        contatoId: ctx.contatoId ?? null,
+      },
+    });
+    return true;
+  } catch (err) {
+    console.error("[atividade] falha ao registrar evento:", err);
+    return false;
+  }
 }
 
 // ── Negociação: ponto ÚNICO de escrita de estágio (F2.7, ADR-10) ─────────────────────────────
@@ -271,17 +375,26 @@ export async function moverEstagio(input: {
   para: EstagioNegociacao;
   motivoPerdaId?: string | null;
   concorrente?: string | null;
+  /** F3.2: autor do evento de timeline. Opcional só para não quebrar chamadas de script/smoke. */
+  autorId?: string;
 }): Promise<{ id: string; de: EstagioNegociacao; para: EstagioNegociacao; probabilidade: number }> {
   const negociacao = await prisma.negociacao.findUnique({
     where: { id: input.negociacaoId },
-    select: { id: true, estagio: true, probabilidade: true, probabilidadeOverride: true },
+    select: {
+      id: true,
+      estagio: true,
+      probabilidade: true,
+      probabilidadeOverride: true,
+      clienteId: true,
+    },
   });
   if (!negociacao) throw new ActionError("Negociação não encontrada.");
 
   const motivo = input.motivoPerdaId
     ? await prisma.motivoPerda.findUnique({
         where: { id: input.motivoPerdaId },
-        select: { id: true, exigeConcorrente: true },
+        // `nome` entra para a timeline (F3.2) descrever a perda sem uma segunda consulta.
+        select: { id: true, nome: true, exigeConcorrente: true },
       })
     : null;
   if (input.motivoPerdaId && !motivo) throw new ActionError("Motivo de perda não encontrado.");
@@ -310,17 +423,47 @@ export async function moverEstagio(input: {
   // senão uma negociação reaberta continuaria contando como fechada nos relatórios da Fase 6.
   const encerra = input.para === "CONTRATADO" || input.para === "PERDIDO" || input.para === "CANCELADO";
 
-  await prisma.negociacao.update({
-    where: { id: negociacao.id },
-    data: {
-      estagio: input.para,
-      probabilidade,
-      dataFechamento: encerra ? new Date() : null,
-      // Motivo e concorrente só fazem sentido no encerramento sem contrato; ao sair de PERDIDO
-      // (reabertura) eles são zerados, para não sobrar "perdemos para X" numa negociação viva.
-      motivoPerdaId: input.para === "PERDIDO" ? (input.motivoPerdaId ?? null) : null,
-      concorrente: input.para === "PERDIDO" ? (input.concorrente?.trim() || null) : null,
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.negociacao.update({
+      where: { id: negociacao.id },
+      data: {
+        estagio: input.para,
+        probabilidade,
+        dataFechamento: encerra ? new Date() : null,
+        // Motivo e concorrente só fazem sentido no encerramento sem contrato; ao sair de PERDIDO
+        // (reabertura) eles são zerados, para não sobrar "perdemos para X" numa negociação viva.
+        motivoPerdaId: input.para === "PERDIDO" ? (input.motivoPerdaId ?? null) : null,
+        concorrente: input.para === "PERDIDO" ? (input.concorrente?.trim() || null) : null,
+      },
+    });
+
+    // F3.2 — o evento entra na MESMA transação do update: ou a negociação muda e a timeline
+    // registra, ou nenhum dos dois. Uma timeline dizendo "movido para X" sobre uma negociação
+    // que não moveu seria pior que timeline nenhuma.
+    if (input.autorId) {
+      await registrarAtividade(
+        { evento: "ESTAGIO_ALTERADO", de: negociacao.estagio, para: input.para },
+        {
+          autorId: input.autorId,
+          clienteId: negociacao.clienteId,
+          negociacaoId: negociacao.id,
+          tx,
+        },
+      );
+      // PERDIDO ganha um segundo evento, com o motivo — é o que a Fase 6 agrupa no relatório
+      // "por que perdemos". Ler isso do `ESTAGIO_ALTERADO` exigiria juntar com a tabela de
+      // motivos toda vez.
+      if (input.para === "PERDIDO") {
+        await registrarAtividade(
+          {
+            evento: "NEGOCIACAO_PERDIDA",
+            motivo: motivo?.nome ?? null,
+            concorrente: input.concorrente?.trim() || null,
+          },
+          { autorId: input.autorId, clienteId: negociacao.clienteId, negociacaoId: negociacao.id, tx },
+        );
+      }
+    }
   });
 
   return { id: negociacao.id, de: negociacao.estagio, para: input.para, probabilidade };
@@ -347,6 +490,8 @@ export async function qualificarProspeccao(input: {
   /** Opcional: por padrão herda o nome do empreendimento já registrado na prospecção. */
   titulo?: string | null;
   responsavelId?: string | null;
+  /** F3.2: autor do evento de timeline. */
+  autorId?: string;
 }): Promise<{ negociacaoId: string; leadId: string }> {
   const lead = await prisma.lead.findUnique({
     where: { id: input.leadId },
@@ -398,6 +543,21 @@ export async function qualificarProspeccao(input: {
       where: { id: lead.id },
       data: { status: "OPORTUNIDADE_CRIADA" },
     });
+
+    // F3.2 — dentro da transação: se a qualificação reverter, a timeline não fica dizendo que
+    // uma negociação inexistente foi criada.
+    if (input.autorId) {
+      await registrarAtividade(
+        { evento: "NEGOCIACAO_CRIADA", titulo, deProspeccao: true },
+        {
+          autorId: input.autorId,
+          clienteId: lead.clienteId,
+          leadId: lead.id,
+          negociacaoId: negociacao.id,
+          tx,
+        },
+      );
+    }
 
     return { negociacaoId: negociacao.id, leadId: lead.id };
   });

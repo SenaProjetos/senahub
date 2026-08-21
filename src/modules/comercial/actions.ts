@@ -48,6 +48,7 @@ import {
   agendarProximaAcao as servicoAgendarProximaAcao,
   concluirProximaAcao as servicoConcluirProximaAcao,
   moverProspeccao as servicoMoverProspeccao,
+  registrarAtividade,
 } from "@/modules/comercial/service";
 
 const base = { modulo: "comercial", recurso: "comercial", permissao: "gerir" } as const;
@@ -103,7 +104,7 @@ async function comProspeccaoAtivaUnica<T>(fn: () => Promise<T>): Promise<T> {
 // ── Leads ─────────────────────────────────────────────────────
 export const criarLead = defineAction(
   { ...base, acao: "criar-lead", entidade: "Lead", schema: criarLeadSchema },
-  async (i) => {
+  async (i, ctx) => {
     const parceiroId = await validarParceiroId(i.parceiroId);
     const lead = await comProspeccaoAtivaUnica(() =>
       prisma.lead.create({
@@ -115,6 +116,12 @@ export const criarLead = defineAction(
           temperatura: i.temperatura ?? null,
         },
       }),
+    );
+    // F3.2 — só registra quando o lead já nasce com empresa; `Atividade.clienteId` é NOT NULL
+    // e `Lead.clienteId` segue nullable (F2.3). Sem empresa, não há timeline onde pendurar.
+    await registrarAtividade(
+      { evento: "PROSPECCAO_CRIADA", nome: i.nome },
+      { autorId: ctx.user.id, clienteId: lead.clienteId, leadId: lead.id },
     );
     rev();
     return { id: lead.id };
@@ -537,14 +544,23 @@ export const copiarProposta = defineAction(
 
 export const mudarStatusProposta = defineAction(
   { ...base, acao: "status-proposta", entidade: "Proposta", schema: statusPropostaSchema },
-  async (i) => {
+  async (i, ctx) => {
     if (i.status === "aceita") {
       throw new ActionError("Use a ação de aceitar (gera o projeto).");
     }
-    await prisma.proposta.update({
+    const p = await prisma.proposta.update({
       where: { id: i.id },
       data: { status: i.status, enviadaEm: i.status === "enviada" ? new Date() : undefined },
+      select: { id: true, numero: true, clienteId: true },
     });
+    // F3.2 — só "enviada" vira evento. Rascunho ↔ recusada são idas e vindas de edição; encher a
+    // timeline com elas afogaria os eventos que importam.
+    if (i.status === "enviada") {
+      await registrarAtividade(
+        { evento: "PROPOSTA_ENVIADA", numero: p.numero, porEmail: false },
+        { autorId: ctx.user.id, clienteId: p.clienteId, propostaId: p.id },
+      );
+    }
     rev();
     revalidatePath(`/comercial/propostas/${i.id}`);
     return { id: i.id };
@@ -554,7 +570,7 @@ export const mudarStatusProposta = defineAction(
 /** Envia a proposta por e-mail ao cliente com o link público. Marca como enviada. */
 export const enviarPropostaEmail = defineAction(
   { ...base, acao: "enviar-proposta-email", entidade: "Proposta", schema: idSchema },
-  async (i) => {
+  async (i, ctx) => {
     if (!smtpConfigurado()) {
       throw new ActionError("SMTP não configurado (defina SMTP_HOST no .env).");
     }
@@ -580,6 +596,10 @@ export const enviarPropostaEmail = defineAction(
       where: { id: i.id },
       data: { status: "enviada", enviadaEm: new Date() },
     });
+    await registrarAtividade(
+      { evento: "PROPOSTA_ENVIADA", numero: p.numero, porEmail: true },
+      { autorId: ctx.user.id, clienteId: p.clienteId, propostaId: p.id },
+    );
     rev();
     revalidatePath(`/comercial/propostas/${i.id}`);
     return { id: i.id };
@@ -598,8 +618,8 @@ export const aceitarProposta = defineAction(
     schema: idSchema,
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
-  async (i) => {
-    const resultado = await servicoAceitarProposta(i.id);
+  async (i, { user }) => {
+    const resultado = await servicoAceitarProposta(i.id, user.id);
     rev();
     revalidatePath("/projetos");
     return resultado;
@@ -629,12 +649,13 @@ export const moverEstagioNegociacao = defineAction(
         select: { estagio: true, probabilidade: true, motivoPerdaId: true, concorrente: true },
       }),
   },
-  async (i) => {
+  async (i, { user }) => {
     const r = await servicoMoverEstagio({
       negociacaoId: i.negociacaoId,
       para: i.para,
       motivoPerdaId: i.motivoPerdaId || null,
       concorrente: i.concorrente || null,
+      autorId: user.id,
     });
     rev();
     return r;
@@ -659,11 +680,12 @@ export const qualificarProspeccao = defineAction(
         select: { status: true, clienteId: true },
       }),
   },
-  async (i) => {
+  async (i, { user }) => {
     const r = await servicoQualificarProspeccao({
       leadId: i.leadId,
       titulo: i.titulo || null,
       responsavelId: i.responsavelId || null,
+      autorId: user.id,
     });
     rev();
     return r;
@@ -761,9 +783,9 @@ export const moverProspeccao = defineAction(
         select: { status: true },
       }),
   },
-  async (i) => {
+  async (i, { user }) => {
     if (exigeQualificacao(i.para)) {
-      const r = await servicoQualificarProspeccao({ leadId: i.leadId });
+      const r = await servicoQualificarProspeccao({ leadId: i.leadId, autorId: user.id });
       rev();
       return { id: r.leadId, qualificada: true };
     }

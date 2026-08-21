@@ -227,6 +227,11 @@ async function main() {
 }
 
 async function limpar() {
+  // F3.2: os hooks de timeline criam `Atividade`, que tem FK NOT NULL para `Cliente`. Precisa
+  // sair ANTES do cliente, senão o delete final bate na constraint — foi exatamente o que
+  // aconteceu quando os hooks entraram e este smoke passou a falhar na limpeza.
+  await prisma.atividade.deleteMany({ where: { cliente: { nome: { contains: TAG } } } });
+
   const negs = await prisma.negociacao.findMany({
     where: { OR: [{ titulo: { contains: TAG } }, { cliente: { nome: { contains: TAG } } }] },
     select: { id: true },
