@@ -20,6 +20,47 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F3.10 — `ui/kpi-card.tsx` compartilhado · 2026-08-21 · Sonnet
+
+**Feito:** `KpiCard`, com 2 variantes — `"padrao"` (o `<Card>` cheio do dashboard `/comercial`)
+e `"compacta"` (o tile denso da Empresa 360, F3.7). São visuais DIFERENTES porque já eram
+diferentes antes; a tarefa é nomear e compartilhar, não uniformizar aparência.
+
+**Migrado (Comercial, os 2 pontos do backlog):**
+- `/comercial` (dashboard raiz) — os cards "Aceitas no mês" e "Leads ativos", que eram markup
+  `<Card><CardHeader>…` repetido duas vezes na mesma página.
+- `empresa-360-view.tsx` (F3.7) — os 6 indicadores, que já nasceram com o comentário "F3.10 troca
+  isto" apontando exatamente para cá.
+
+**A contagem "7 duplicatas" do backlog está subestimada — corrigido aqui.** `grep` pela mesma
+assinatura visual (`CardDescription` mono/uppercase + `CardTitle` grande) achou o padrão em **12
+arquivos fora do Comercial**, alguns com várias ocorrências na mesma página (`qualidade/page.tsx`
+sozinho tem 8): `financeiro/dfc-view.tsx`, `financeiro/folha/folha-view.tsx`,
+`financeiro/orcamento-view.tsx`, `financeiro/relatorios/relatorios-view.tsx`,
+`financeiro/relatorios/rentabilidade-view.tsx`, `ponto/espelho-view.tsx`, `ponto/ponto-view.tsx`,
+`financeiro/balanco/page.tsx`, `financeiro/fluxo-caixa/page.tsx`, `financeiro/page.tsx`,
+`(dashboard)/page.tsx`, `qualidade/page.tsx`. Exatamente o que o aceite previu ("as demais
+listadas na PR como follow-up") — ficam registradas aqui, não migradas nesta tarefa: são módulos
+diferentes, cada migração merece revisão própria em vez de um PR que toca 12 arquivos de uma vez.
+
+**`MetaCard` NÃO é candidato.** Tem barra de progresso, form de edição inline e lógica própria —
+é um widget, não um "número com rótulo". Confundir os dois deixaria o `KpiCard` inchado com props
+que só uma tela usa.
+
+**Arquivos:** `src/components/ui/kpi-card.tsx` (novo); `src/app/(dashboard)/comercial/page.tsx`
+(2 cards migrados); `src/components/comercial/empresa-360-view.tsx` (6 indicadores migrados, função
+`Indicador` local removida).
+
+**Verificação:** eslint limpo, tsc limpo, 2181 testes (inalterado — troca de markup, nenhuma regra
+nova), build ok. Visual conferido por leitura: as duas variantes reproduzem o JSX anterior
+elemento a elemento (mesmas classes Tailwind, mesma estrutura), sem prop nova sendo usada nos
+call sites migrados que mudasse o resultado.
+
+**Pendente:** verificação visual em browser — sem chromium-cli neste ambiente, mesma lacuna já
+registrada nas tarefas anteriores da Fase 3.
+
+---
+
 ## F3.9 — `AnexoLead` → `Documento` (script pronto, dry-run ensaiado, `--gravar` PENDENTE em produção) · 2026-08-21 · Sonnet
 
 **Feito:** `scripts/migrar-anexos-lead-f39.ts` — migra os anexos do lead para `Documento`

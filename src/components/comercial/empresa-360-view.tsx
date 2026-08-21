@@ -18,6 +18,7 @@ import { RegistrarInteracaoPopover } from "@/components/comercial/registrar-inte
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { KpiCard } from "@/components/ui/kpi-card";
 import { Timeline } from "@/components/ui/timeline";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { brl, brlInteiro, formatarData, formatarDataHora } from "@/lib/utils";
@@ -35,9 +36,8 @@ const TIPOS_FILTRO_TIMELINE = opcoesDe(TIPO_ATIVIDADE_LABEL).map((o) => ({
  * cliente JÁ é a página da empresa. Uma segunda tela para a mesma entidade seria exatamente a
  * fragmentação que esta reforma existe para desfazer.
  *
- * **Os indicadores estão num componente local (`Indicador`) de propósito.** A F3.10 consolida as
- * 7 duplicatas de card de KPI num `ui/kpi-card.tsx` compartilhado — deixar o markup concentrado
- * aqui faz daquela tarefa uma troca de uma linha, em vez de uma caça pelo arquivo.
+ * Os 6 indicadores usam `<KpiCard variante="compacta">` (F3.10) — era um componente `Indicador`
+ * local até essa tarefa consolidar no `ui/kpi-card.tsx` compartilhado.
  */
 export function Empresa360View({ dados, podeGerir }: { dados: Empresa360; podeGerir: boolean }) {
   const { resumo, indicadores } = dados;
@@ -108,22 +108,25 @@ export function Empresa360View({ dados, podeGerir }: { dados: Empresa360; podeGe
 
       {/* ── Indicadores ────────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        <Indicador label="Contatos" valor={indicadores.contatos} icone={Users} />
-        <Indicador label="Prospecções" valor={indicadores.prospeccoes} icone={Target} />
-        <Indicador
+        <KpiCard variante="compacta" label="Contatos" valor={indicadores.contatos} icone={Users} />
+        <KpiCard variante="compacta" label="Prospecções" valor={indicadores.prospeccoes} icone={Target} />
+        <KpiCard
+          variante="compacta"
           label="Negociações"
           valor={indicadores.negociacoesAbertas}
           detalhe={`${indicadores.negociacoesEncerradas} encerrada(s)`}
           icone={Handshake}
         />
-        <Indicador label="Propostas" valor={indicadores.propostas} icone={FileText} />
-        <Indicador
+        <KpiCard variante="compacta" label="Propostas" valor={indicadores.propostas} icone={FileText} />
+        <KpiCard
+          variante="compacta"
           label="Projetos"
           valor={indicadores.projetos}
           detalhe={`${indicadores.contratos} contratada(s)`}
           icone={Building2}
         />
-        <Indicador
+        <KpiCard
+          variante="compacta"
           label="Valor acumulado"
           valor={brlInteiro(indicadores.valorAcumulado)}
           detalhe={`ticket ${brlInteiro(indicadores.ticketMedio)}`}
@@ -296,28 +299,6 @@ function Campo({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-/** F3.10 troca isto pelo `ui/kpi-card.tsx` compartilhado — ver o docblock do componente. */
-function Indicador({
-  label,
-  valor,
-  detalhe,
-  icone: Icone,
-}: {
-  label: string;
-  valor: number | string;
-  detalhe?: string;
-  icone?: typeof Users;
-}) {
-  return (
-    <div className="rounded-sm border bg-card p-2">
-      <p className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
-        {Icone && <Icone className="size-3" />} {label}
-      </p>
-      <p className="mt-0.5 text-lg font-bold tabular-nums">{valor}</p>
-      {detalhe && <p className="text-[10px] text-muted-foreground">{detalhe}</p>}
-    </div>
-  );
-}
 
 function Lista<T extends { id: string }>({
   itens,
