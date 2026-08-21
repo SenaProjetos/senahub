@@ -69,15 +69,31 @@ async function main() {
   const projetos = await num(`SELECT count(*) AS n FROM projeto`);
   check("projeto", projetos === 32, `${projetos} (esperado 32 — o trabalho real do escritório)`);
 
+  // A F2.18 cadastra empresa que o lead referenciava mas que nunca existiu (aprovado em
+  // 2026-08-21: "CP CONSTRUÇÃO"). O número base 46 é de ANTES disso, então a expectativa se
+  // ajusta sozinha contando o que aquele script criou — em vez de eu subir a constante à mão e
+  // o smoke voltar a mentir na próxima vez. Sem isto, uma criação APROVADA aparece como falha,
+  // e falso alarme corrói a confiança no smoke tanto quanto alarme perdido.
+  const criadasF218 = await num(
+    `SELECT count(*) AS n FROM audit_log
+      WHERE acao = 'criar-cliente' AND detalhe->>'origem' = 'script:migrar-leads-f218'`,
+  );
+  const baseCliente = 46 + criadasF218;
+  const sufixoF218 = criadasF218 > 0 ? ` + ${criadasF218} criada(s) na F2.18` : "";
+
   const clienteLinhas = await num(`SELECT count(*) AS n FROM cliente`);
-  check("cliente (linhas na tabela)", clienteLinhas === 46, `${clienteLinhas} (esperado 46 — fusão arquiva, não apaga)`);
+  check(
+    "cliente (linhas na tabela)",
+    clienteLinhas === baseCliente,
+    `${clienteLinhas} (esperado ${baseCliente} — 46 da base${sufixoF218}; fusão arquiva, não apaga)`,
+  );
 
   const naoFundidos = await num(`SELECT count(*) AS n FROM cliente WHERE "fundidoEmId" IS NULL`);
-  const esperadoNaoFundido = jaFundiu ? 41 : 46;
+  const esperadoNaoFundido = (jaFundiu ? 41 : 46) + criadasF218;
   check(
     "cliente (não fundidos)",
     naoFundidos === esperadoNaoFundido,
-    `${naoFundidos} (esperado ${esperadoNaoFundido}${jaFundiu ? " — 46 menos as 5 fusões" : " — antes da F1.15"})`,
+    `${naoFundidos} (esperado ${esperadoNaoFundido}${jaFundiu ? " — 46 menos as 5 fusões" : " — antes da F1.15"}${sufixoF218})`,
   );
 
   const leads = await num(`SELECT count(*) AS n FROM lead`);
@@ -176,6 +192,46 @@ async function main() {
       `SELECT count(*) AS n FROM lead WHERE "status" IS NULL`,
     );
     check("todo lead tem status de prospecção (F2.3)", Number(semStatus) === 0, `${Number(semStatus)} sem status`);
+  }
+
+  // ── F2.18: os 8 leads migrados ────────────────────────────────────────────────────────
+  // O aceite da tarefa: as negociações existem, os leads NÃO foram apagados, e os anexos
+  // continuam de pé. Antes da F2.18 tudo isto é zero, e zero também é resposta certa.
+  const migrados = await num(
+    `SELECT count(*) AS n FROM audit_log WHERE acao = 'migrar-lead-f218'`,
+  );
+  if (migrados > 0) {
+    const negs = await num(`SELECT count(*) AS n FROM negociacao`);
+    check(
+      "F2.18 — uma negociação por lead migrado",
+      negs === migrados,
+      `${negs} negociação(ões) para ${migrados} lead(s) migrado(s)`,
+    );
+
+    const comLead = await num(`SELECT count(*) AS n FROM negociacao WHERE "leadId" IS NOT NULL`);
+    check(
+      "F2.18 — toda negociação aponta de volta para o lead",
+      comLead === negs,
+      `${comLead} de ${negs}`,
+    );
+
+    const qualificados = await num(
+      `SELECT count(*) AS n FROM lead WHERE status = 'OPORTUNIDADE_CRIADA'`,
+    );
+    check(
+      "F2.18 — leads sobreviveram como OPORTUNIDADE_CRIADA",
+      qualificados === migrados,
+      `${qualificados} de ${migrados} (o lead NÃO é apagado — F2.8)`,
+    );
+
+    const projVinculados = await num(
+      `SELECT count(*) AS n FROM projeto WHERE "negociacaoId" IS NOT NULL`,
+    );
+    check(
+      "F2.18 — projetos vinculados apenas nos casos inequívocos",
+      projVinculados === 2,
+      `${projVinculados} (esperado 2: 260024 e 260028)`,
+    );
   }
 
   // F2.5: o índice de campanha existe; o "sem campanha" foi REMOVIDO em 2026-08-21 porque o dado
