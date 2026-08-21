@@ -17,6 +17,31 @@ Cada ADR usa o número da linha correspondente na tabela A.3 do playbook (`#1`�
 
 ## ADR-02 — Uma prospecção ativa por Empresa + Campanha
 
+> ## ⚠️ REVISADO em 2026-08-21 — a parte "sem campanha" foi ABANDONADA, refutada por dado real.
+>
+> **O que aconteceu:** o índice único parcial que implementava esta regra **abortou o deploy de
+> produção** (P3018 / 23505). `Zaphis Inc LTDA` tem **três prospecções ativas simultâneas** —
+> EDIF. ARAPIRACA, EDIF. ISA BEACH e EDIF. BELA BEACH — todas sem campanha.
+>
+> **Não era dado sujo.** São três obras reais acontecendo ao mesmo tempo. E a colisão foi **criada
+> pela F1.15**: antes da fusão esses leads apontavam para três registros de cliente distintos, e só
+> passaram a dividir a mesma empresa quando o grupo Záphis foi consolidado. Nenhum dos dois passos
+> estava errado isoladamente; a interação entre eles produziu um estado que a regra proibia.
+>
+> **Decisão do dono (2026-08-21): abandonar a regra sem campanha.** Várias prospecções ativas por
+> empresa passam a ser legítimas — é o que o escritório faz. A regra sobrevive **apenas dentro de
+> uma mesma campanha**, que é o caso em que duplicar é de fato erro.
+>
+> **O que fica no banco:** só `lead_prospeccao_ativa_campanha_unica`. O índice "sem campanha" foi
+> removido da migration e **não volta**; o `smoke-crm-prod` passou a vigiar isso, para que uma
+> reversão distraída não faça o próximo deploy abortar de novo.
+>
+> **Alternativa considerada e descartada:** trocar a chave para `(empresa, empreendimento)` — mantém
+> o espírito da regra, mas exige um campo estruturado de empreendimento, que hoje não existe (o nome
+> vive em texto livre em `origemDetalhada`). Fica disponível se um dia o empreendimento virar entidade.
+>
+> O texto original abaixo é mantido como registro do que se pensava antes de medir.
+
 - **Contexto:** hoje nada impede múltiplos `Lead`s abertos para a mesma `Cliente`.
 - **Decisão:** não pode haver 2 prospecções abertas para a mesma empresa (por campanha); as demais viram interações (não registros novos).
 - **Consequências:** exige índice único parcial `(clienteId, campaignId) WHERE status IN (abertos)`. Depende da entidade `Campaign` (P3) existir antes de a constraint fazer sentido.

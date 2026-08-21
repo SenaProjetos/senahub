@@ -20,6 +20,145 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F2.18 + F2.20 — migração dos leads reais e FECHO DA FASE 2 · 2026-08-21 · Opus
+
+### F2.18 — o inventário mudou a natureza da tarefa
+
+O backlog descrevia "mover os 8 leads para `Lead` v2 / `Negociacao`", supondo prospecções. O
+inventário mostrou que **nenhum dos 8 é prospecção**: 6 na etapa antiga "Contratado" e 2 em
+"Proposta enviada". Todos já passaram do funil de cima.
+
+Seguir a descrição sem olhar o dado teria deixado **seis contratos fechados aparecendo como
+"Identificado"** no board, e o forecast da Fase 6 nasceria errado. A fonte do estágio real era a
+etapa antiga — que a F2.3 deprecou mas **manteve populada** exatamente para isto (§8.3).
+
+**Resultado em produção:** 8 negociações criadas (6 CONTRATADO somando R$ 197.000, 2
+PROPOSTA_ENVIADA somando R$ 46.500), leads sobreviveram em `OPORTUNIDADE_CRIADA`, 2 projetos
+vinculados, todas com `needsReview = true`.
+
+**Três decisões do dono, registradas no código:**
+- **Vínculo de projeto só nos 2 inequívocos** (`RES. PLINIO PAIVA → 260024`, `SMERALDA → 260028`).
+  Os outros 4 ficaram sem vínculo: dois têm nome divergente (`EDIF. MARMARES` vs `HOTEL MARMARES -
+  TAMANDARÉ`, `EDIF. ISA BEACH` vs `ISA BEACH 2`) e dois não têm projeto. Errar aponta obra para o
+  negócio errado.
+- **Empresa dos órfãos derivada, não chutada:** estava em `Lead.nome` (a obra tinha ido para
+  `origemDetalhada` no backfill da F1.23). O script **recusa executar por inteiro** se algum não
+  resolver — provado no ensaio com um registro impossível: bloqueou tudo, não gravou nada.
+- **`CP CONSTRUÇÃO` cadastrada** — nunca existiu entre os 41 clientes, nem com nome parecido
+  (similaridade não achou nada acima de 40%). Nasce sem CNPJ, dentro da **mesma transação** da
+  negociação: ou as duas existem, ou nenhuma. Criar fora deixaria empresa órfã se a negociação
+  falhasse.
+
+**Bug pego no ensaio, que teria parado a migração em produção:** o `lead.update` continuava usando
+o `clienteId` do plano — string vazia no caso da empresa recém-criada — em vez do id real. `P2003`,
+violação de FK. Apareceu porque a criação de empresa introduziu um instante em que o id **só existe
+dentro da transação**, situação que não havia antes. Ensaiar contra o caso real foi o que separou
+"compila" de "funciona".
+
+### Duas verificações mortas encontradas e corrigidas
+
+1. O smoke **pulava** `needsReview` dizendo "o campo ainda não existe" — a F2.3 já o criara. O
+   smoke afirmava em produção que uma coluna existente não existia. Pior que checagem ausente:
+   aparece na saída como se algo tivesse sido considerado.
+2. Depois da F2.18, o smoke acusou **2 falhas** por uma criação de empresa **aprovada**. Falso
+   alarme corrói a confiança tanto quanto alarme perdido. A expectativa passou a **se ajustar
+   sozinha**, contando no `AuditLog` o que a F2.18 criou, em vez de eu subir a constante à mão e o
+   smoke voltar a mentir na próxima vez.
+
+Acrescentadas as checagens de aceite da própria F2.18 (uma negociação por lead, todas apontando de
+volta, leads não apagados, exatamente 2 projetos vinculados).
+
+### F2.20 — fecho
+
+`scripts/smoke-crm-fase2.ts` (novo, `npm run smoke:crm-fase2`) — **30 checagens** cobrindo a
+FIAÇÃO, que os testes puros não alcançam: transição recusada antes de tocar o banco, `leadId
+@unique` barrando dupla qualificação, o índice da F2.5 recusando duplicata na mesma campanha,
+reabertura limpando `dataFechamento` e motivo, próxima ação saindo e voltando à fila, e o contador
+do board batendo com o banco sob filtro.
+
+**Os quatro verdes:** `eslint` limpo · `vitest run` **2154 testes** · `npm run build` ✓ ·
+`smoke:crm-fase2` **tudo verde** · `tsc` só os 2 pré-existentes · `migrate status` em dia (179).
+
+**FASE 2 FECHADA.** 19 das 22 tarefas. Fora: **F2.11** (bloqueada pela F3.1 — seu aceite exige o
+model `Atividade`, que é da Fase 3, e `ultimaInteracao`, que não existe no schema projetado;
+dependência que o backlog não declara) e **F2.19** (opcional, o próprio plano recomenda adiar).
+
+---
+
+## Fase 2 em produção — deploy, falha e ADR-02 revisado · 2026-08-21 · Opus
+
+**A Fase 2 está em produção.** 5 migrations aplicadas, build limpo, serviço no ar. Mas o deploy
+**falhou no meio** e vale registrar o incidente inteiro, porque a causa se repete.
+
+### O que quebrou
+
+`prisma migrate deploy` abortou na F2.5 com **P3018 / 23505**:
+
+```
+não foi possível criar o índice único "lead_prospeccao_ativa_sem_campanha_unica"
+DETAIL: Chave ("clienteId")=(cmr3kqb57006hywnu1x3z4t3j) está duplicada.
+```
+
+O serviço ficou parado com o banco a meio caminho: `crm_lead_v2_status_contatos` e
+`crm_negociacao` aplicadas, `crm_lead_temperatura` **não** — e o build novo já esperava
+`Lead.temperatura`. Subir o serviço ali teria trocado uma parada limpa por erro em tela.
+
+### Erro meu, e de um tipo que eu já conhecia
+
+**Medi o dev e inferi produção.** No dev, 8 de 8 leads tinham `clienteId` nulo, e como `criarLead`
+nunca preenche esse campo, concluí que produção seria igual. Esqueci que **`converterLead`
+preenche**: em produção, 6 dos 8 leads têm cliente. Verifiquei o ambiente errado e tratei a
+inferência como fato.
+
+Pior: eu **escrevi o aviso da colisão dentro da própria migration** — "Záphis tem 3 leads e Rbarros
+2, o segundo UPDATE é recusado". Só que apontei o aviso para a **F2.18**, quando alguém fosse
+preencher `clienteId` à mão. Não percebi que os leads **já tinham cliente**, então a colisão
+explodiu antes, na criação do índice.
+
+E a lição já estava dada na Fase 1: **F1.16 (índice único) veio depois da F1.15 (limpeza dos
+dados)**, por este exato motivo. Não a apliquei aqui.
+
+### Duas descobertas que valem mais que o incidente
+
+**1. A colisão foi criada pela F1.15.** Os 3 leads da Záphis apontavam para 3 registros de cliente
+distintos; a fusão os juntou sob `Zaphis Inc LTDA`. Nenhum dos dois passos estava errado
+isoladamente — **a interação entre eles** produziu um estado que a regra proibia. É o tipo de
+defeito que nenhuma revisão de tarefa isolada pega.
+
+**2. A migration NÃO é atômica.** O primeiro índice (`..._campanha_unica`) **persistiu em
+produção** mesmo com a falha do segundo, e o registro ficou com `finished_at: null` —
+nem aplicada nem pendente, e o `migrate status` não a listava como falha. Eu havia suposto que o
+Postgres reverteria o arquivo inteiro. Por isso a correção precisou de `IF NOT EXISTS`.
+
+### ADR-02 revisado — o dado refutou a regra
+
+As 3 prospecções da Záphis (EDIF. ARAPIRACA, ISA BEACH, BELA BEACH) são **obras reais e
+simultâneas**. A regra "uma prospecção ativa por empresa" não corresponde à operação. O ADR-18 já
+tinha chegado perto ("múltiplas obras por cliente é o padrão do escritório"), mas resolveu isso
+liberando os status **terminais** — não previu várias obras **ativas ao mesmo tempo**.
+
+**Decisão do dono: abandonar a regra sem campanha.** A regra sobrevive só dentro de uma mesma
+campanha. Descartada a alternativa `(empresa, empreendimento)`, que manteria o espírito mas exige
+um campo estruturado de empreendimento que hoje não existe.
+
+### Recuperação
+
+`migrate resolve --rolled-back` → migration corrigida (só o índice de campanha) → `migrate deploy`
+aplicou as 5 → build → serviço no ar. Dev alinhado (índice extra dropado).
+
+### Verificação morta encontrada de quebra
+
+O `smoke-crm-prod` **pulava** a checagem de `needsReview` com o motivo "o campo ainda não existe em
+`Lead`". A F2.3 criou o campo; a versão pulada continuou no script. O smoke passou a **afirmar em
+produção que uma coluna existente não existia** — pior que checagem ausente, porque aparece na
+saída como se algo tivesse sido considerado. Trocada por `colunaExiste()`, que decide em execução,
+mais três checagens novas — incluindo uma que vigia se o índice removido reapareceu.
+
+**Pendente:** F2.18 (migrar os 8 leads — agora sem o obstáculo do índice), F2.11 (bloqueada pela
+F3.1), F2.19 (opcional) e F2.20 (fecho).
+
+---
+
 ## F2.12 → F2.17 — temperatura, os dois boards, filtros e contato rápido · 2026-08-20 · Opus
 
 **Seed sintético primeiro** (`npm run seed:crm-fase2`). O `seed:demo` não conhece o funil novo:

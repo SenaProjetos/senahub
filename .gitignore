@@ -88,3 +88,6 @@ deploy/gui/**/*.csproj.user
 
 # Relatorio de reconciliacao (gerado pelo script, nao versionar)
 reconciliacao-orfaos-*.json
+
+# Log do merge de documentos (gerado por scripts/merge-documentos-por-base.ts, nao versionar)
+merge-documentos-*.json
