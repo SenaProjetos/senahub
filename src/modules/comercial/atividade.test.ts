@@ -29,13 +29,17 @@ describe("mesclarTimeline", () => {
 
   it("junta legado e novo, ordenado do mais recente para o mais antigo", () => {
     const legado = [{ id: "l1", nota: "nota antiga", createdAt: new Date("2026-08-01"), autor }];
-    const nova = [{ id: "n1", descricao: "atividade nova", createdAt: new Date("2026-08-20"), autor }];
+    const nova = [
+      { id: "n1", descricao: "atividade nova", createdAt: new Date("2026-08-20"), autor, tipo: "LIGACAO" as const },
+    ];
     const m = mesclarTimeline(legado, nova);
     expect(m.map((i) => i.id)).toEqual(["n1", "l1"]);
   });
 
   it("descricao do novo vira nota — mesma chave que o componente de exibição usa", () => {
-    const nova = [{ id: "n1", descricao: "ligação concluída", createdAt: new Date(), autor }];
+    const nova = [
+      { id: "n1", descricao: "ligação concluída", createdAt: new Date(), autor, tipo: "LIGACAO" as const },
+    ];
     expect(mesclarTimeline([], nova)[0].nota).toBe("ligação concluída");
   });
 
@@ -48,8 +52,18 @@ describe("mesclarTimeline", () => {
       { id: "l1", nota: "l1", createdAt: new Date("2026-08-10"), autor },
       { id: "l2", nota: "l2", createdAt: new Date("2026-08-05"), autor },
     ];
-    const nova = [{ id: "n1", descricao: "n1", createdAt: new Date("2026-08-07"), autor }];
+    const nova = [{ id: "n1", descricao: "n1", createdAt: new Date("2026-08-07"), autor, tipo: "NOTA" as const }];
     expect(mesclarTimeline(legado, nova).map((i) => i.id)).toEqual(["l1", "n1", "l2"]);
+  });
+
+  it("F3.6: legado sempre vira tipo NOTA — não há canal estruturado nos dados antigos", () => {
+    const legado = [{ id: "l1", nota: "l1", createdAt: new Date(), autor }];
+    expect(mesclarTimeline(legado, [])[0].tipo).toBe("NOTA");
+  });
+
+  it("F3.6: novo preserva o tipo real, para o filtro do <Timeline>", () => {
+    const nova = [{ id: "n1", descricao: "n1", createdAt: new Date(), autor, tipo: "WHATSAPP" as const }];
+    expect(mesclarTimeline([], nova)[0].tipo).toBe("WHATSAPP");
   });
 });
 

@@ -20,6 +20,54 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F3.6 — `<Timeline>` reutilizável · 2026-08-21 · Sonnet
+
+**Feito:** `src/components/ui/timeline.tsx` — domain-agnostic de propósito (como todo `ui/*`):
+recebe `tipo` como `string` solto em vez de importar `TipoAtividade`, filtro por tipo é opcional
+(`tipos?`) e só aparece se o chamador passar rótulos. Scroll infinito via sentinela +
+`IntersectionObserver`: a janela visível cresce em `pageSize` (padrão 20) quando o sentinela entra
+na viewport; trocar o filtro reseta a janela, senão sobrariam "buracos" na primeira página depois
+de filtrar.
+
+**Nota de escopo (paginação é só de RENDER, não de rede):** o array inteiro de eventos já chega
+pronto do servidor — mesmo dado que os componentes antigos recebiam. O aceite ("500 eventos carrega
+só a 1ª página") é sobre o que a tela ocupa, não sobre uma nova query por página: com centenas de
+eventos numa timeline comercial o array inteiro ainda é leve. Paginar de verdade no servidor é outro
+problema (histórico completo de `AuditLog`), fora do escopo aqui.
+
+**Levantamento dos "3 renderizadores bespoke":** hoje só sobra **1 renderizador vivo** com dado
+estruturado — `NotasHistorico`, usado por `lead-detalhe-view.tsx` (a ficha atual, com
+`atividadesTimeline` já trazendo `tipo` desde a F3.1/F3.2). O 2º candidato histórico
+(`oportunidades-view.tsx`, citado em `00-auditoria.md`) **já não existe** — código apagado em fase
+anterior junto com o resto de `Oportunidade`. Sobra um 3º ponto, `lead-dialog.tsx` (modal do
+`FunilBoard` **legado**, `/comercial` raiz) — também usa `NotasHistorico`, mas só enxerga
+`AtividadeLead` (a query `funilCompleto()` não inclui `atividadesComerciais`), então não tem `tipo`
+pra filtrar. **Migrado:** `lead-detalhe-view.tsx` → `<Timeline>`, com `ATIVIDADE_ICONE` (ícone por
+canal, novo, também usado pela popover da F3.4) e o filtro alimentado por `TIPO_ATIVIDADE_LABEL`.
+**Fora de escopo, declarado aqui:** `lead-dialog.tsx`/`NotasHistorico` — é UI do funil legado
+(`FunilEtapa`, já deprecado desde a F2.3) sem o dado que o filtro precisa; portá-lo empurraria
+`atividadesComerciais` para dentro de uma query que serve uma tela em extinção. Fica pra quando o
+`FunilBoard` for removido de vez.
+
+`mesclarTimeline()` ganhou o campo `tipo` no `ItemTimeline` — legado (`AtividadeLead`, sem coluna de
+canal) vira `"NOTA"` (mesmo catch-all de `tipoAtividadeDe`), novo (`Atividade`) preserva o `tipo`
+real. 2 testes novos cobrindo os dois lados.
+
+**Arquivos:** `src/components/ui/timeline.tsx` (novo); `src/components/comercial/atividade-icones.tsx`
+(novo, `ATIVIDADE_ICONE` compartilhado); `src/modules/comercial/atividade.ts` + `.test.ts` (`tipo`
+em `ItemTimeline`); `src/components/comercial/lead-detalhe-view.tsx` (migração);
+`src/components/comercial/registrar-interacao-popover.tsx` (passou a importar `ATIVIDADE_ICONE` em
+vez de duplicar os ícones).
+
+**Verificação:** eslint limpo, tsc limpo, 2181 testes (2 novos), build ok, `smoke:crm-fase2` ainda
+verde (a mudança em `atividade.ts` não toca banco).
+
+**Pendente:** prova de "500 eventos, só 1ª página" e "filtrar não recarrega" ficou por leitura de
+código (render fatiado, filtro é `useState` local) — sem chromium-cli neste ambiente pra cronometrar
+em navegador de verdade, mesma lacuna já registrada na F3.4.
+
+---
+
 ## F3.4 — registro manual de interação em 2 cliques · 2026-08-21 · Sonnet
 
 **Feito:** o contraponto manual do `registrarAtividade()` automático da F3.2 — ligação, WhatsApp,

@@ -37,6 +37,13 @@ export type ItemTimeline = {
   nota: string;
   createdAt: Date;
   autor: { name: string | null } | null;
+  /**
+   * F3.6: canal do evento, para o `<Timeline>` filtrar sem recarregar a página. O legado
+   * (`AtividadeLead`) não tem essa coluna — cai em `"NOTA"`, o mesmo catch-all que
+   * `tipoAtividadeDe()` usa pros tipos sem canal equivalente. Não é "errado": o legado É,
+   * de fato, texto livre sem canal estruturado.
+   */
+  tipo: TipoAtividade;
 };
 
 /**
@@ -45,15 +52,33 @@ export type ItemTimeline = {
  *
  * Pura — recebe os dois arrays já carregados pela query, não faz I/O. É o mínimo necessário para
  * a tela de detalhe do lead mostrar os dois períodos juntos (F2.11); a consolidação de verdade,
- * com scroll infinito e um componente reutilizável, é a F3.6 — este merge não tenta antecipá-la.
+ * com scroll infinito e um componente reutilizável, é a F3.6 (`<Timeline>`, `ui/timeline.tsx`).
  */
 export function mesclarTimeline(
   legado: { id: string; nota: string; createdAt: Date; autor: { name: string | null } }[],
-  nova: { id: string; descricao: string; createdAt: Date; autor: { name: string | null } }[],
+  nova: {
+    id: string;
+    descricao: string;
+    createdAt: Date;
+    autor: { name: string | null };
+    tipo: TipoAtividade;
+  }[],
 ): ItemTimeline[] {
   const itens: ItemTimeline[] = [
-    ...legado.map((a) => ({ id: a.id, nota: a.nota, createdAt: a.createdAt, autor: a.autor })),
-    ...nova.map((a) => ({ id: a.id, nota: a.descricao, createdAt: a.createdAt, autor: a.autor })),
+    ...legado.map((a) => ({
+      id: a.id,
+      nota: a.nota,
+      createdAt: a.createdAt,
+      autor: a.autor,
+      tipo: "NOTA" as const,
+    })),
+    ...nova.map((a) => ({
+      id: a.id,
+      nota: a.descricao,
+      createdAt: a.createdAt,
+      autor: a.autor,
+      tipo: a.tipo,
+    })),
   ];
   return itens.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
