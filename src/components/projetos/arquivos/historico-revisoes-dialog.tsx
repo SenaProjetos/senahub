@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Download, History } from "lucide-react";
 import { carregarHistoricoRevisoes } from "@/modules/uploads/actions";
 import type { HistoricoRevisao } from "@/modules/uploads/queries";
-import { formatarData, rotuloRevisao } from "@/lib/utils";
+import { formatarDataHora, rotuloRevisao } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -92,7 +92,7 @@ export function HistoricoRevisoesDialog({ uploadId, nomeDocumento, open, onOpenC
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{rotuloRevisao(r.numero)}</span>
                     {r.atual && <Badge>atual</Badge>}
-                    <span className="text-xs text-muted-foreground">{formatarData(r.criadoEm)}</span>
+                    <span className="text-xs text-muted-foreground tabular-nums">{formatarDataHora(r.criadoEm)}</span>
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">Enviado por {r.autor ?? "—"}</p>
 
