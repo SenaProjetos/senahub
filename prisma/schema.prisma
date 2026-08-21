@@ -259,6 +259,7 @@ model User {
   certidoesResponsavel          Certidao[]                @relation("CertidaoResponsavel")
   maquinasResponsavel           MaquinaTI[]               @relation("MaquinaResponsavel")
   leadsResponsavel              Lead[]                    @relation("LeadResponsavel")
+  atividadesComerciais          Atividade[]               @relation("AtividadeAutor")
   negociacoesResponsavel        Negociacao[]              @relation("NegociacaoResponsavel")
   campanhasResponsavel          Campanha[]                @relation("CampanhaResponsavel")
   avisosCriados                 Aviso[]                   @relation("AvisosCriados")
@@ -919,6 +920,8 @@ model Cliente {
   @@index([excluidoEm])
   /// F2.4: negociações desta empresa.
   negociacoes Negociacao[]
+  /// F3.1: timeline unificada do Comercial.
+  atividadesComerciais Atividade[]
   @@map("cliente")
 }
 
@@ -969,6 +972,8 @@ model ContatoCliente {
   @@index([excluidoEm])
   /// F2.4: negociações em que este contato aparece.
   negociacoes NegociacaoContato[]
+  /// F3.1: eventos da timeline em que este contato aparece.
+  atividades Atividade[]
   @@map("contato_cliente")
 }
 
@@ -2487,6 +2492,8 @@ model Oportunidade {
   @@map("oportunidade")
 }
 
+/// DEPRECADO (F3.1) — não apagado; `Oportunidade` já era órfã (F1.24 removeu o código, a tabela
+/// segue inerte). `registrarAtividade()` (F3.2) nunca escreve aqui.
 model AtividadeOportunidade {
   id             String       @id @default(cuid())
   oportunidadeId String
@@ -3711,6 +3718,8 @@ model Lead {
   @@index([createdAt])
   /// F2.4: a negociação nascida desta prospecção (1:1 opcional).
   negociacao Negociacao?
+  /// F3.1: timeline unificada (substitui AtividadeLead para escrita nova).
+  atividadesComerciais Atividade[]
   @@map("lead")
 }
 
@@ -3797,6 +3806,8 @@ model Negociacao {
   @@index([parceiroId])
   @@index([createdAt])
   @@index([excluidoEm])
+  /// F3.1: timeline unificada.
+  atividades Atividade[]
   @@map("negociacao")
 }
 
@@ -3925,6 +3936,8 @@ model AnexoLead {
   @@map("anexo_lead")
 }
 
+/// DEPRECADO (F3.1) — não apagado, histórico pré-migração continua legível. Nada novo escreve
+/// aqui depois do SWITCH; `registrarAtividade()` (F3.2) grava só em `Atividade`.
 model AtividadeLead {
   id        String   @id @default(cuid())
   leadId    String
@@ -3936,6 +3949,50 @@ model AtividadeLead {
 
   @@index([leadId])
   @@map("atividade_lead")
+}
+
+/// Timeline unificada do Comercial (F3.1, `02-schema.md` §2.10). Substitui `AtividadeLead` +
+/// `AtividadeOportunidade` — as duas ficam DEPRECADAS, não apagadas (as tabelas antigas
+/// continuam no schema; ver os docblocks nelas).
+///
+/// Toda Atividade resolve para um Cliente (P12 item 1) — é o que permite a timeline da Empresa
+/// 360 (F3.7) agregar tudo de uma empresa numa consulta só, em vez de juntar Lead+Negociacao+
+/// Proposta em três buscas separadas.
+///
+/// `leadId`/`negociacaoId`/`propostaId`/`contatoId` são todos opcionais e SEM onDelete: Cascade
+/// de propósito — apagar um lead não deve apagar a história de que ele existiu. O rastro fica.
+model Atividade {
+  id        String        @id @default(cuid())
+  tipo      TipoAtividade @default(NOTA)
+  descricao String
+  autorId   String
+  autor     User          @relation("AtividadeAutor", fields: [autorId], references: [id])
+  /// Dado extra por tipo de evento SISTEMA (ex.: estágio anterior/novo numa mudança de funil).
+  /// Narrativo, para exibição — não é o lugar do valor técnico anterior/novo, que é o `AuditLog`
+  /// (fronteira decidida na F3.3).
+  metadata  Json?
+
+  clienteId String
+  cliente   Cliente @relation(fields: [clienteId], references: [id])
+
+  contatoId    String?
+  leadId       String?
+  negociacaoId String?
+  propostaId   String?
+
+  contato    ContatoCliente? @relation(fields: [contatoId], references: [id])
+  lead       Lead?           @relation(fields: [leadId], references: [id])
+  negociacao Negociacao?     @relation(fields: [negociacaoId], references: [id])
+  proposta   Proposta?       @relation(fields: [propostaId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([clienteId, createdAt])
+  @@index([leadId])
+  @@index([negociacaoId])
+  @@index([contatoId])
+  @@index([propostaId])
+  @@map("atividade")
 }
 
 model MetaComercial {
@@ -4172,6 +4229,8 @@ model Proposta {
   @@unique([ano, sequencial])
   @@index([status])
   @@index([clienteId])
+  /// F3.1: timeline unificada.
+  atividades Atividade[]
   @@map("proposta")
 }
 
