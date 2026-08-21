@@ -309,3 +309,42 @@ Isso não invalida nenhuma decisão registrada aqui, mas muda o peso de algumas:
   revisão manual de qualquer forma. A regra fica documentada para quando houver volume.
 - **T1 (LGPD)** não tem dado a migrar: `contato_cliente = 0`.
 - O risco real da reforma **não é técnico, é de adoção** — ver `03-migracao.md` §8.6.
+
+---
+
+## ADR-20 — `Atividade` é narrativa; `AuditLog` é técnico
+
+> Decidida em 2026-08-21, fechando a segunda metade da F3.3. Os dois registros coexistem de
+> propósito, e a pergunta "então é duplicado?" aparece toda vez que alguém abre o código — este
+> ADR existe para não ser respondida de novo.
+
+- **Contexto:** com a F3.2, toda mudança relevante do Comercial passa a gravar em **dois** lugares:
+  uma `Atividade` (timeline) e uma linha de `AuditLog`. À primeira vista é redundância.
+
+- **Decisão:** não é redundância, são públicos diferentes.
+
+  | | `Atividade` | `AuditLog` |
+  |---|---|---|
+  | **Para quem** | quem vende, na tela | quem audita, investigando |
+  | **Formato** | frase em pt-BR: *"Estágio movido de Orçamento para Proposta enviada"* | `antes`/`novo` estruturados, ip, usuário |
+  | **Escopo** | só o Comercial | o sistema inteiro (`defineAction`) |
+  | **Ancoragem** | sempre um `Cliente` — é o que faz a Empresa 360 agregar | `entidade` + `entidadeId` da tabela tocada |
+  | **Pode faltar?** | **sim** — sem empresa não há timeline (ver abaixo) | **não** — toda mutação audita |
+
+- **Consequências, e a que mais surpreende:** `Atividade` **pode não ser gravada** e isso é
+  aceitável. `Atividade.clienteId` é NOT NULL (F3.1) e `Lead.clienteId` segue nullable (F2.3) — um
+  lead sem empresa conclui ações e muda de estado normalmente, só não aparece em timeline nenhuma,
+  porque não há empresa a cuja história ele pertença. `registrarAtividade()` devolve `false` nesse
+  caso e **nunca lança**: perder a narrativa não pode desfazer a operação. O `AuditLog`, esse sim,
+  registra sempre — é ele a garantia de rastreabilidade, não a timeline.
+
+- **O `metadata` da `Atividade` não é o diff.** Ele carrega só o que a narrativa precisa para ser
+  reconstruída na tela (ex.: `de`/`para` crus em `ESTAGIO_ALTERADO`, que a Fase 6 usa para medir
+  tempo-por-etapa sem parsear texto). O valor anterior/novo completo é do `AuditLog`, via
+  `capturarAntes`.
+
+- **Alternativa descartada:** derivar a timeline do `AuditLog` em vez de ter tabela própria. Sai
+  mais barato de escrever e mais caro em tudo o mais: o `AuditLog` é do sistema inteiro (filtrar
+  só o Comercial dele já é custoso), não tem âncora em `Cliente` (a Empresa 360 teria de juntar
+  Lead + Negociacao + Proposta a cada leitura) e guarda o dado técnico, não a frase — a tela
+  precisaria traduzir `{"estagio": {"de": "ORCAMENTO"}}` em português a cada renderização.
