@@ -40,6 +40,22 @@ async function num(sql: string, ...params: unknown[]): Promise<number> {
   return Number(r.n);
 }
 
+/**
+ * A coluna existe? Deixa o smoke rodar contra bancos em estágios diferentes da migração sem
+ * quebrar — e, mais importante, sem PULAR em silêncio uma checagem cuja premissa já mudou. Foi
+ * exatamente o que aconteceu com `needsReview`: a versão pulada continuou no script depois de a
+ * F2.3 criar o campo, e o smoke passou a afirmar que a coluna não existia enquanto ela existia.
+ */
+async function colunaExiste(tabela: string, coluna: string): Promise<boolean> {
+  const r = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+    `SELECT count(*) AS n FROM information_schema.columns
+      WHERE table_name = $1 AND column_name = $2`,
+    tabela,
+    coluna,
+  );
+  return Number(r[0].n) > 0;
+}
+
 async function main() {
   console.log("\n=== Smoke CRM produção — checklist de 03-migracao.md §7 ===\n");
 
@@ -130,9 +146,54 @@ async function main() {
   );
   check("nenhum projeto aponta para cliente inexistente", projOrfaos === 0, `${projOrfaos} órfão(s)`);
 
-  pular(
-    "8 leads com needsReview = true",
-    "o campo `needsReview` ainda não existe em `Lead` — nasce com a `Negociacao` na Fase 2",
+  // O campo nasceu na F2.3 (migration `crm_lead_v2_status_contatos`). Antes disso esta checagem
+  // era pulada; a versão pulada continuou no smoke depois da migration existir, então ela ficou
+  // dizendo "ainda não existe" sobre uma coluna que já existia — verificação morta em silêncio.
+  const temNeedsReview = await colunaExiste("lead", "needsReview");
+  if (!temNeedsReview) {
+    pular("leads marcados para revisão", "o campo `needsReview` ainda não existe em `Lead` (F2.3)");
+  } else {
+    // Antes da F2.18 o número CORRETO é zero: a migration preencheu `status` com o default e
+    // ninguém revisou nada ainda. Marcar tudo para revisão é o que a F2.18 faz, e é lá que este
+    // número deve virar 8. Checar ">0" aqui daria falso alarme no estado intermediário.
+    const [{ n: comRevisao }] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+      `SELECT count(*) AS n FROM lead WHERE "needsReview" = true`,
+    );
+    const [{ n: totalLeads }] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+      `SELECT count(*) AS n FROM lead`,
+    );
+    check(
+      "needsReview coerente com o estágio da migração",
+      Number(comRevisao) === 0 || Number(comRevisao) === Number(totalLeads),
+      `${Number(comRevisao)} de ${Number(totalLeads)} marcado(s) — 0 antes da F2.18, ${Number(totalLeads)} depois`,
+    );
+  }
+
+  // `status` (F2.3) precisa estar preenchido em todo lead: a coluna é NOT NULL com default, então
+  // zero nulos é garantia do banco — o que vale conferir é que ninguém ficou fora do enum novo.
+  if (await colunaExiste("lead", "status")) {
+    const [{ n: semStatus }] = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
+      `SELECT count(*) AS n FROM lead WHERE "status" IS NULL`,
+    );
+    check("todo lead tem status de prospecção (F2.3)", Number(semStatus) === 0, `${Number(semStatus)} sem status`);
+  }
+
+  // F2.5: o índice de campanha existe; o "sem campanha" foi REMOVIDO em 2026-08-21 porque o dado
+  // real o refuta (Záphis com 3 obras ativas). Se ele reaparecer, alguém reverteu a correção sem
+  // resolver a regra — e o próximo deploy volta a abortar.
+  const idxF25 = await prisma.$queryRawUnsafe<{ indexname: string }[]>(
+    `SELECT indexname FROM pg_indexes WHERE tablename='lead' AND indexname LIKE 'lead_prospeccao%'`,
+  );
+  const nomes = idxF25.map((i) => i.indexname);
+  check(
+    "índice de prospecção ativa por campanha existe",
+    nomes.includes("lead_prospeccao_ativa_campanha_unica"),
+    nomes.join(", ") || "nenhum",
+  );
+  check(
+    "índice sem-campanha NÃO existe (removido: o dado real refuta o ADR-02)",
+    !nomes.includes("lead_prospeccao_ativa_sem_campanha_unica"),
+    nomes.includes("lead_prospeccao_ativa_sem_campanha_unica") ? "reapareceu — ver 06-progresso" : "ok",
   );
 
   // Nenhum vínculo pode ter ficado apontando para um cliente absorvido.
