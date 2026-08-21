@@ -26,12 +26,20 @@ import { etapaEhPerdido } from "./motivo-perda-dialog";
 import { FollowUpDialog } from "./follow-up-dialog";
 import { RegistrarInteracaoPopover } from "@/components/comercial/registrar-interacao-popover";
 import { ContatoRapidoBotoes } from "./contato-rapido-botoes";
-import { NotasHistorico } from "./notas-historico";
+import { ATIVIDADE_ICONE } from "@/components/comercial/atividade-icones";
+import { TIPO_ATIVIDADE_LABEL, opcoesDe } from "@/modules/comercial/labels";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Timeline } from "@/components/ui/timeline";
 import { brl, formatarDataHora } from "@/lib/utils";
+
+/** F3.6: opções do filtro da timeline, na ordem declarada em `TIPO_ATIVIDADE_LABEL`. */
+const TIPOS_FILTRO_TIMELINE = opcoesDe(TIPO_ATIVIDADE_LABEL).map((o) => ({
+  value: o.value,
+  label: o.label,
+}));
 
 type Etapa = { id: string; nome: string; cor: string | null };
 type PropostaResumo = { id: string; numero: string; titulo: string; status: string };
@@ -255,7 +263,18 @@ export function LeadDetalheView({
               <CardTitle className="text-sm">Histórico de atividades</CardTitle>
             </CardHeader>
             <CardContent>
-              <NotasHistorico atividades={atividadesTimeline} />
+              <Timeline
+                eventos={atividadesTimeline.map((a) => ({
+                  id: a.id,
+                  tipo: a.tipo,
+                  descricao: a.nota,
+                  createdAt: a.createdAt,
+                  autor: a.autor?.name ?? null,
+                  icone: ATIVIDADE_ICONE[a.tipo],
+                }))}
+                tipos={TIPOS_FILTRO_TIMELINE}
+                vazioTitulo="Nenhuma atividade registrada"
+              />
             </CardContent>
           </Card>
         </div>

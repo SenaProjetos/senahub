@@ -3,8 +3,9 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Link2, Mail, MessageCircle, Phone, Plus, StickyNote, Users } from "lucide-react";
+import { Plus } from "lucide-react";
 import { registrarInteracao, obterTemplatosNotas } from "@/modules/comercial/actions";
+import { ATIVIDADE_ICONE } from "@/components/comercial/atividade-icones";
 import type { TipoAncoraCompromisso } from "@/modules/comercial/labels";
 import type { TipoAtividade } from "@/generated/prisma/client";
 import type { TemplateNota } from "@/modules/comercial/templates-notas";
@@ -23,13 +24,18 @@ type TipoRapido = Exclude<TipoRegistravel, "NOTA">;
  * Os 5 tipos "rápidos" (ligação/whatsapp/e-mail/linkedin/reunião) já têm uma descrição padrão —
  * clicar no ícone registra na hora, sem digitar nada. `NOTA` é o único que não tem "o que
  * aconteceu" óbvio, então abre um campo de texto em vez de disparar sozinho.
+ *
+ * Ícones vêm de `ATIVIDADE_ICONE` (F3.6) — o mesmo conjunto que o `<Timeline>` usa pra exibir,
+ * pra "ligar" na popover parecer com "ligação" na timeline depois.
  */
-const TIPOS_RAPIDOS: { tipo: TipoRapido; label: string; nota: string; Icone: typeof Phone }[] = [
-  { tipo: "LIGACAO", label: "Ligação", nota: "Ligação realizada.", Icone: Phone },
-  { tipo: "WHATSAPP", label: "WhatsApp", nota: "Mensagem enviada por WhatsApp.", Icone: MessageCircle },
-  { tipo: "EMAIL", label: "E-mail", nota: "E-mail enviado.", Icone: Mail },
-  { tipo: "LINKEDIN", label: "LinkedIn", nota: "Contato via LinkedIn.", Icone: Link2 },
-  { tipo: "REUNIAO", label: "Reunião", nota: "Reunião realizada.", Icone: Users },
+const IconeNota = ATIVIDADE_ICONE.NOTA;
+
+const TIPOS_RAPIDOS: { tipo: TipoRapido; label: string; nota: string }[] = [
+  { tipo: "LIGACAO", label: "Ligação", nota: "Ligação realizada." },
+  { tipo: "WHATSAPP", label: "WhatsApp", nota: "Mensagem enviada por WhatsApp." },
+  { tipo: "EMAIL", label: "E-mail", nota: "E-mail enviado." },
+  { tipo: "LINKEDIN", label: "LinkedIn", nota: "Contato via LinkedIn." },
+  { tipo: "REUNIAO", label: "Reunião", nota: "Reunião realizada." },
 ];
 
 export function RegistrarInteracaoPopover({
@@ -52,7 +58,6 @@ export function RegistrarInteracaoPopover({
   const [templates, setTemplates] = useState<TemplateNota[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (notaAberta && templates.length === 0 && !loadingTemplates) {
       setLoadingTemplates(true);
@@ -61,6 +66,7 @@ export function RegistrarInteracaoPopover({
         .catch(() => setTemplates([]))
         .finally(() => setLoadingTemplates(false));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notaAberta]);
 
   function registrar(tipo: TipoRegistravel, nota: string) {
@@ -121,19 +127,22 @@ export function RegistrarInteracaoPopover({
               O que aconteceu?
             </p>
             <div className="grid grid-cols-1 gap-0.5">
-              {TIPOS_RAPIDOS.map(({ tipo, label, nota, Icone }) => (
-                <Button
-                  key={tipo}
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="justify-start gap-2"
-                  disabled={pending}
-                  onClick={() => registrar(tipo, nota)}
-                >
-                  <Icone className="size-3.5" /> {label}
-                </Button>
-              ))}
+              {TIPOS_RAPIDOS.map(({ tipo, label, nota }) => {
+                const Icone = ATIVIDADE_ICONE[tipo];
+                return (
+                  <Button
+                    key={tipo}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start gap-2"
+                    disabled={pending}
+                    onClick={() => registrar(tipo, nota)}
+                  >
+                    <Icone className="size-3.5" /> {label}
+                  </Button>
+                );
+              })}
               <Button
                 type="button"
                 variant="ghost"
@@ -142,7 +151,7 @@ export function RegistrarInteracaoPopover({
                 disabled={pending}
                 onClick={() => setNotaAberta(true)}
               >
-                <StickyNote className="size-3.5" /> Nota
+                <IconeNota className="size-3.5" /> Nota
               </Button>
             </div>
           </div>
