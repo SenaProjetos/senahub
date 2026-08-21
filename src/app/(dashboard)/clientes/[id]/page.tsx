@@ -1,27 +1,28 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Mail, Phone, MapPin, Users, Building2, History, FileText, Download } from "lucide-react";
+import { ArrowLeft, Mail, Phone, MapPin, Users, Building2, FileText, Download } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import {
   obterCliente,
   resumoFinanceiroCliente,
-  historicoCliente,
   type ContatoItem,
 } from "@/modules/clientes/queries";
 import { documentosDoCliente } from "@/modules/documentos-cliente/queries";
 import { projetosDoCliente } from "@/modules/projetos/queries";
+import { empresa360 } from "@/modules/comercial/empresa-360/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { SITUACAO_PROJETO_LABEL } from "@/modules/projetos/status";
 import { modelosPorFonte } from "@/modules/documentos/queries";
 import { ContatoDialog } from "@/components/clientes/contato-dialog";
+import { Empresa360View } from "@/components/comercial/empresa-360-view";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { brl, formatarData } from "@/lib/utils";
+import { brl } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Cliente" };
 
@@ -32,16 +33,27 @@ export default async function ClienteDetalhePage({
 }) {
   const user = await requirePermission("clientes", "ver");
   const podeGerir = await can(user, "clientes", "gerir");
+  /**
+   * F3.7 — a Empresa 360 é dado COMERCIAL numa página gateada por `clientes:ver`. Hoje nenhum
+   * perfil tem um sem o outro (conferido no banco), mas a matriz de permissão é dado editável
+   * pela tela: separar o gate custa uma chamada e evita que uma edição futura vaze funil de
+   * vendas para quem só devia ver o cadastro.
+   */
+  const podeVerComercial = await can(user, "comercial", "ver");
   const { id } = await params;
   const cliente = await obterCliente(id);
   if (!cliente) notFound();
 
-  const [fin, projetos, historico, modelosDoc, gruposDoc] = await Promise.all([
+  const [fin, projetos, modelosDoc, gruposDoc, dados360] = await Promise.all([
     resumoFinanceiroCliente(id),
     projetosDoCliente(id),
-    historicoCliente(id),
     modelosPorFonte("cliente"),
     documentosDoCliente(id),
+    // `historicoCliente` MORREU aqui: a timeline da Empresa 360 (`Atividade`, F3.1/F3.2) é a
+    // versão real do mesmo card — narrativa gravada pelo fluxo, e não uma remontagem em memória
+    // de createdAt de projeto/proposta/lançamento a cada leitura. A função continua exportada
+    // por enquanto; some quando nenhuma tela chamar.
+    podeVerComercial ? empresa360(id) : Promise.resolve(null),
   ]);
   const totalDocs = gruposDoc.reduce((s, g) => s + g.documentos.length, 0);
   const endereco = [
@@ -227,29 +239,8 @@ export default async function ClienteDetalhePage({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Histórico</CardTitle>
-          <CardDescription>Linha do tempo de eventos do cliente</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {historico.length === 0 ? (
-            <EmptyState icon={History} title="Nenhum evento registrado." />
-          ) : (
-            <ul className="space-y-3 text-sm">
-              {historico.map((ev) => (
-                <li key={ev.id} className="flex gap-3">
-                  <span className="w-20 shrink-0 font-mono text-xs text-muted-foreground">
-                    {formatarData(ev.data)}
-                  </span>
-                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-muted-foreground/40" />
-                  <span>{ev.descricao}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+      {/* F3.7 — substitui o card "Histórico" que remontava eventos em memória a cada leitura. */}
+      {dados360 && <Empresa360View dados={dados360} podeGerir={podeGerir} />}
     </div>
   );
 }

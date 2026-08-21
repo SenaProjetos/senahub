@@ -20,6 +20,88 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F3.7 — Empresa 360 · 2026-08-21 · Opus
+
+**Feito:** a tela que responde "tudo o que já aconteceu com esta empresa" — resumo comercial,
+7 indicadores e 6 abas (Timeline / Contatos / Prospecções / Negociações / Propostas / Projetos).
+
+**Onde mora, e por quê:** dentro de `/clientes/[id]`, **não** numa rota nova em `/comercial`. A
+ficha do cliente já É a página da empresa (cadastro, financeiro, contatos, projetos, documentos);
+uma segunda tela para a mesma entidade seria exatamente a fragmentação que a reforma existe para
+desfazer, e a F3.8 não saberia para onde linkar. O card **"Histórico" bespoke morreu** — remontava
+eventos em memória a partir de `createdAt` de projeto/proposta/lançamento a cada leitura; a
+timeline de `Atividade` (F3.1/F3.2) é a versão gravada do mesmo card. `historicoCliente()` segue
+exportada mas sem chamador.
+
+**Gate separado.** A 360 é dado comercial numa página gateada por `clientes:ver`. Conferido no
+banco: **nenhum perfil hoje tem `clientes:ver` sem `comercial:ver`** — mas a matriz é dado editável
+pela tela, então a seção é gateada por `can(user, "comercial", "ver")`. Custa uma chamada e evita
+que uma edição futura de perfil vaze funil de vendas para quem só devia ver o cadastro.
+
+**Dinheiro vem de `Projeto`, não das tabelas comerciais.** Produção tem 31 projetos contra 1
+proposta sem itens e 0 negociações — o Comercial é contornado. "Valor acumulado" e "ticket médio"
+derivados de `Negociacao`/`Proposta` mostrariam **R$ 0 para toda empresa real**, matando justamente
+a tela que deveria justificar o registro das fases anteriores. Saem de `Projeto.valorContrato`;
+`Negociacao` alimenta os indicadores de FUNIL (abertas/encerradas/contratadas), que é o que ela
+sabe responder hoje.
+
+### ⚠️ O aceite de performance: medido, e o número literal não fecha
+
+O backlog pede "log do Prisma: **≤ 5 queries** para a página inteira, nenhuma em laço". Medido pelo
+`scripts/smoke-crm-fase3.ts` (novo), que conta os eventos de query do próprio Prisma:
+
+| | chamadas ao client | statements SQL |
+|---|---|---|
+| `empresa360()` | **4** | **14** |
+
+As 4 chamadas são `cliente.findUnique` + `negociacao.groupBy` + `projeto.aggregate` +
+`compromisso.findMany`. Viram 14 statements porque **o Prisma emite um SELECT por relação
+aninhada** — as 6 listas das abas, o `segmento`, e os `autor`/`responsavel` de dentro delas.
+
+**O que o critério realmente protege está provado.** O smoke monta duas empresas — uma com 50
+projetos / 200 atividades / 30 contatos / 12 negociações, outra com 1 de cada — e assere que as
+duas gastam o **mesmo** número de consultas: `magra=14 vs gorda=14`. Se qualquer lista estivesse
+sendo percorrida com uma ida ao banco por item, esse número dispararia. É a prova de "nenhuma em
+laço" sem depender de cronômetro, que varia com a máquina.
+
+**Não baixei o número artificialmente.** As duas saídas seriam `$queryRaw` (perde a extensão de
+soft delete — a mesma que já causou bug de leitura aninhada neste módulo) ou ligar o preview
+`relationJoins` do Prisma 7 (colapsaria para ~4 via LATERAL JOIN, mas é feature em preview mexendo
+no ORM inteiro para melhorar uma página). Nenhuma das duas troca é boa. `EXPLAIN` e afinação de
+índice são a **F6.11**, que existe exatamente para isso — fica registrado lá.
+
+**Decisão pendente do dono:** aceitar 4 chamadas / 14 statements como cumprimento do critério, ou
+tratar como dívida a resolver na F6.11.
+
+**Outras garantias travadas no smoke:** toda lista é limitada por `take` (25 nas abas, 50 na
+timeline) e **todo indicador conta o BANCO**, nunca `array.length` — senão a aba mostraria 25 e o
+número ao lado 50, e quem lê concluiria que um dos dois está errado. Quando trunca, a tela diz
+("mostrando 25 de 50"). Contato soft-deletado some da aba **e** do indicador (leitura aninhada não
+passa pela extensão do `lib/prisma.ts` — o `where` é explícito nas três relações que têm
+`excluidoEm`, exatamente como o comentário daquele arquivo já antecipava para "a Empresa 360").
+
+**Arquivos:** `src/modules/comercial/empresa-360/queries.ts` (novo);
+`src/components/comercial/empresa-360-view.tsx` (novo); `src/app/(dashboard)/clientes/[id]/page.tsx`
+(troca o card Histórico, absorve a query, gate comercial); `src/lib/prisma.ts`
+(`PRISMA_LOG_QUERIES=1` opt-in + base exposta em `globalThis` — `$extends` devolve client sem
+`$on`); `scripts/smoke-crm-fase3.ts` (novo, 17 checks); `package.json` (`smoke:crm-fase3`).
+
+**Nota para a F3.10:** os cards de indicador ficaram num componente local (`Indicador`) de
+propósito — quando o `ui/kpi-card.tsx` compartilhado nascer, a migração daqui é uma troca de uma
+linha, não uma caça pelo arquivo.
+
+**Verificação:** eslint limpo, tsc limpo (precisou de `--max-old-space-size=8192`; o `build.mjs` já
+bumpa heap pelo mesmo motivo), 2181 testes, build ok, `smoke:crm-fase3` 17/17 verde,
+`smoke:crm-fase1` e `smoke:crm-fase2` sem regressão, e o dev conferido sem sobra do smoke.
+
+**Pendente:** verificação em browser (o aceite também diz "browser") — sem chromium-cli neste
+ambiente, mesma lacuna já registrada na F3.4/F3.6. A **aba Anexos** do enunciado não virou aba: o
+card "Documentos" que já existe na página (`documentosDoCliente`, 1 query, já era chamado) é a
+mesma coisa e continua onde estava. A **F3.9** migra `AnexoLead` para dentro dele — é lá que os dois
+viram um só.
+
+---
+
 ## F3.6 — `<Timeline>` reutilizável · 2026-08-21 · Sonnet
 
 **Feito:** `src/components/ui/timeline.tsx` — domain-agnostic de propósito (como todo `ui/*`):
