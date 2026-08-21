@@ -34,6 +34,7 @@ import {
   concluirProximaAcaoSchema,
   definirTemperaturaSchema,
   moverProspeccaoSchema,
+  registrarInteracaoSchema,
 } from "@/modules/comercial/schemas";
 import { removerArquivo } from "@/lib/storage";
 import { etapaEhPerdido } from "@/modules/comercial/status";
@@ -49,6 +50,7 @@ import {
   concluirProximaAcao as servicoConcluirProximaAcao,
   moverProspeccao as servicoMoverProspeccao,
   registrarAtividade,
+  registrarInteracaoManual as servicoRegistrarInteracaoManual,
 } from "@/modules/comercial/service";
 
 const base = { modulo: "comercial", recurso: "comercial", permissao: "gerir" } as const;
@@ -708,6 +710,32 @@ export const qualificarProspeccao = defineAction(
  * Agenda a próxima ação ANCORADA na entidade. Substitui o caminho antigo, em que o
  * `follow-up-dialog` chamava `criarCompromisso` e deixava o lead só no texto do título.
  */
+/**
+ * Registro manual de interação em 2 cliques (F3.4) — o contraponto humano da timeline automática
+ * da F3.2. Usado tanto no card do Kanban quanto na ficha da entidade; por isso `entidadeTipo`/
+ * `entidadeId` vêm no input, e não fixos como em `adicionarNotaLead` (que só serve ao Lead).
+ */
+export const registrarInteracao = defineAction(
+  {
+    ...base,
+    acao: "registrar-interacao",
+    entidade: "Atividade",
+    schema: registrarInteracaoSchema,
+    entidadeId: (d) => (d as { id: string }).id,
+  },
+  async (i, { user }) => {
+    const r = await servicoRegistrarInteracaoManual({
+      entidadeTipo: i.entidadeTipo,
+      entidadeId: i.entidadeId,
+      tipo: i.tipo,
+      nota: i.nota,
+      autorId: user.id,
+    });
+    rev();
+    return r;
+  },
+);
+
 export const agendarProximaAcao = defineAction(
   {
     ...base,

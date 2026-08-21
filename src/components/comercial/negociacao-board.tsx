@@ -32,6 +32,7 @@ import {
 } from "@/modules/comercial/temperatura";
 import { diasSemInteracao, followUpAtrasado } from "@/modules/comercial/frescor";
 import { MotivoPerdaNegociacaoDialog } from "./motivo-perda-negociacao-dialog";
+import { RegistrarInteracaoPopover } from "@/components/comercial/registrar-interacao-popover";
 import { Badge } from "@/components/ui/badge";
 import { brlInteiro } from "@/lib/utils";
 
@@ -217,6 +218,11 @@ function Card({
           </button>
         )}
         <div className="min-w-0 flex-1">
+          {!overlay && (
+            <div className="float-right ml-1">
+              <RegistrarInteracaoPopover entidadeTipo="NEGOCIACAO" entidadeId={card.id} />
+            </div>
+          )}
           <p className="truncate text-xs font-semibold text-muted-foreground">
             {card.cliente.nome}
           </p>

@@ -27,6 +27,7 @@ import {
   ehTemperatura,
 } from "@/modules/comercial/temperatura";
 import { diasSemInteracao, followUpAtrasado } from "@/modules/comercial/frescor";
+import { RegistrarInteracaoPopover } from "@/components/comercial/registrar-interacao-popover";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { brlInteiro } from "@/lib/utils";
@@ -186,6 +187,11 @@ function Card({
           </button>
         )}
         <div className="min-w-0 flex-1">
+          {!arrastandoOverlay && (
+            <div className="float-right ml-1">
+              <RegistrarInteracaoPopover entidadeTipo="LEAD" entidadeId={lead.id} />
+            </div>
+          )}
           <p className="truncate font-medium">{lead.cliente?.nome ?? lead.nome}</p>
           <p className="truncate text-xs text-muted-foreground">
             {lead.origemDetalhada ?? lead.nome}

@@ -24,6 +24,7 @@ import type { TipoProximaAcao } from "@/generated/prisma/client";
 import { LeadDialog } from "./lead-dialog";
 import { etapaEhPerdido } from "./motivo-perda-dialog";
 import { FollowUpDialog } from "./follow-up-dialog";
+import { RegistrarInteracaoPopover } from "@/components/comercial/registrar-interacao-popover";
 import { ContatoRapidoBotoes } from "./contato-rapido-botoes";
 import { NotasHistorico } from "./notas-historico";
 import { Button } from "@/components/ui/button";
@@ -127,6 +128,7 @@ export function LeadDetalheView({
             assunto={lead.nome}
             mensagem={`Olá! Sobre ${lead.nome}…`}
           />
+          <RegistrarInteracaoPopover entidadeTipo="LEAD" entidadeId={lead.id} label="Registrar" />
           <FollowUpDialog
             key={sugerirProximaContador}
             leadId={lead.id}

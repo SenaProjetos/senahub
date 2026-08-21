@@ -200,3 +200,11 @@ export const moverProspeccaoSchema = z.object({
     "DESCARTADO",
   ]),
 });
+
+/** F3.4: registro manual de interação, 2 cliques a partir de qualquer card ou ficha. */
+export const registrarInteracaoSchema = z.object({
+  entidadeTipo: z.enum(["LEAD", "NEGOCIACAO", "CLIENTE"]),
+  entidadeId: z.string().min(1),
+  tipo: z.enum(["LIGACAO", "WHATSAPP", "EMAIL", "LINKEDIN", "REUNIAO", "NOTA"]),
+  nota: z.string().min(1, "Escreva o que aconteceu."),
+});
