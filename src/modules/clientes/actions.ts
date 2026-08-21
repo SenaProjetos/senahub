@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
+import { registrarAtividade } from "@/modules/comercial/service";
 import {
   criarClienteSchema,
   editarClienteSchema,
@@ -97,10 +98,16 @@ export const criarCliente = defineAction(
     schema: criarClienteSchema,
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
-  async (input) => {
+  async (input, ctx) => {
     const dados = normalizar(input);
     await conferirDocumentoUnico(dados.documento);
     const cliente = await comDocumentoUnico(() => prisma.cliente.create({ data: dados }));
+    // F3.2 — primeiro evento da história desta empresa na Empresa 360 (Fase 3). Sem ele, a
+    // timeline começaria pela primeira prospecção, sem dizer quando a empresa entrou no sistema.
+    await registrarAtividade(
+      { evento: "EMPRESA_CADASTRADA", nome: cliente.nome },
+      { autorId: ctx.user.id, clienteId: cliente.id },
+    );
     revalidatePath(REVALIDATE);
     return { id: cliente.id };
   },
@@ -153,11 +160,15 @@ export const adicionarContato = defineAction(
     schema: adicionarContatoSchema,
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
-  async (input) => {
+  async (input, ctx) => {
     const { clienteId, email, ...rest } = input;
     const contato = await prisma.contatoCliente.create({
       data: { ...rest, email: email || null, cliente: { connect: { id: clienteId } } },
     });
+    await registrarAtividade(
+      { evento: "CONTATO_CADASTRADO", nome: contato.nome, cargo: contato.cargo },
+      { autorId: ctx.user.id, clienteId, contatoId: contato.id },
+    );
     revalidatePath(`/clientes/${clienteId}`);
     return { id: contato.id };
   },
