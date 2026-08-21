@@ -52,6 +52,17 @@ import {
 } from "@/modules/comercial/service";
 
 const base = { modulo: "comercial", recurso: "comercial", permissao: "gerir" } as const;
+
+/**
+ * `entidadeId` do caso comum (F3.3): o id vem do RETORNO quando a action cria algo, e do INPUT
+ * quando ela edita/apaga. `(d ?? i)` cobre os dois sem cada action repetir o mesmo cast.
+ *
+ * Por que isso importa: sem `entidadeId` o `AuditLog` registra que "alguém editou um lead" mas
+ * não QUAL — e a tela de histórico por entidade (que filtra justamente por esse campo) mostra a
+ * linha em lugar nenhum. Era o estado de 23 das 31 actions do Comercial.
+ */
+const idResultadoOuInput = (d: unknown, i: unknown): string | undefined =>
+  ((d ?? i) as { id?: string } | undefined)?.id;
 const rev = () => {
   revalidatePath("/comercial");
   revalidatePath("/comercial/propostas");
@@ -103,7 +114,7 @@ async function comProspeccaoAtivaUnica<T>(fn: () => Promise<T>): Promise<T> {
 
 // ── Leads ─────────────────────────────────────────────────────
 export const criarLead = defineAction(
-  { ...base, acao: "criar-lead", entidade: "Lead", schema: criarLeadSchema },
+  { ...base, acao: "criar-lead", entidade: "Lead", schema: criarLeadSchema, entidadeId: idResultadoOuInput },
   async (i, ctx) => {
     const parceiroId = await validarParceiroId(i.parceiroId);
     const lead = await comProspeccaoAtivaUnica(() =>
@@ -129,7 +140,7 @@ export const criarLead = defineAction(
 );
 
 export const editarLead = defineAction(
-  { ...base, acao: "editar-lead", entidade: "Lead", schema: editarLeadSchema },
+  { ...base, acao: "editar-lead", entidade: "Lead", schema: editarLeadSchema, entidadeId: idResultadoOuInput },
   async (i) => {
     const { id, ...rest } = i;
     const parceiroId = await validarParceiroId(rest.parceiroId);
@@ -162,7 +173,7 @@ export const editarLead = defineAction(
  * Ao sair de "Perdido" para outra etapa, limpa o motivo.
  */
 export const moverLead = defineAction(
-  { ...base, acao: "mover-lead", entidade: "Lead", schema: moverLeadSchema },
+  { ...base, acao: "mover-lead", entidade: "Lead", schema: moverLeadSchema, entidadeId: idResultadoOuInput },
   async (i) => {
     const destino = await prisma.funilEtapa.findUnique({
       where: { id: i.etapaId },
@@ -190,7 +201,7 @@ export const moverLead = defineAction(
 );
 
 export const arquivarLead = defineAction(
-  { ...base, acao: "arquivar-lead", entidade: "Lead", schema: idSchema },
+  { ...base, acao: "arquivar-lead", entidade: "Lead", schema: idSchema, entidadeId: idResultadoOuInput },
   async (i) => {
     await prisma.lead.update({ where: { id: i.id }, data: { arquivado: true } });
     rev();
@@ -199,7 +210,7 @@ export const arquivarLead = defineAction(
 );
 
 export const adicionarNotaLead = defineAction(
-  { ...base, acao: "nota-lead", entidade: "AtividadeLead", schema: notaLeadSchema },
+  { ...base, acao: "nota-lead", entidade: "Lead", schema: notaLeadSchema, entidadeId: (_d, i) => (i as { leadId: string }).leadId },
   async (i, { user }) => {
     await prisma.atividadeLead.create({
       data: { leadId: i.leadId, nota: i.nota, autorId: user.id },
@@ -215,7 +226,7 @@ export const adicionarNotaLead = defineAction(
  * `nome` opcional — cai no nome original do arquivo quando vazio.
  */
 export const adicionarAnexoLead = defineAction(
-  { ...base, acao: "add-anexo-lead", entidade: "AnexoLead", schema: adicionarAnexoLeadSchema },
+  { ...base, acao: "add-anexo-lead", entidade: "AnexoLead", schema: adicionarAnexoLeadSchema, entidadeId: idResultadoOuInput },
   async (i, { user }) => {
     const lead = await prisma.lead.findUnique({ where: { id: i.leadId }, select: { id: true } });
     if (!lead) throw new ActionError("Lead não encontrado.");
@@ -238,7 +249,7 @@ export const adicionarAnexoLead = defineAction(
 );
 
 export const removerAnexoLead = defineAction(
-  { ...base, acao: "rm-anexo-lead", entidade: "AnexoLead", schema: removerAnexoLeadSchema },
+  { ...base, acao: "rm-anexo-lead", entidade: "AnexoLead", schema: removerAnexoLeadSchema, entidadeId: idResultadoOuInput },
   async (i) => {
     const anexo = await prisma.anexoLead.findUnique({ where: { id: i.id }, select: { caminho: true, leadId: true } });
     if (!anexo) throw new ActionError("Anexo não encontrado.");
@@ -252,7 +263,7 @@ export const removerAnexoLead = defineAction(
 
 /** Converte o lead em cliente (sem redigitação). */
 export const converterLead = defineAction(
-  { ...base, acao: "converter-lead", entidade: "Lead", schema: converterLeadSchema },
+  { ...base, acao: "converter-lead", entidade: "Lead", schema: converterLeadSchema, entidadeId: (_d, i) => (i as { id: string }).id },
   async (i) => {
     const lead = await prisma.lead.findUnique({ where: { id: i.id } });
     if (!lead) throw new ActionError("Lead não encontrado.");
@@ -275,7 +286,7 @@ export const converterLead = defineAction(
 );
 
 export const definirMeta = defineAction(
-  { ...base, acao: "definir-meta", entidade: "MetaComercial", schema: metaSchema },
+  { ...base, acao: "definir-meta", entidade: "MetaComercial", schema: metaSchema, entidadeId: (_d, i) => { const m = i as { ano: number; mes: number }; return `${m.ano}-${String(m.mes).padStart(2, "0")}`; } },
   async (i) => {
     await prisma.metaComercial.upsert({
       where: { ano_mes: { ano: i.ano, mes: i.mes } },
@@ -295,7 +306,7 @@ const revFunil = () => {
 };
 
 export const criarEtapaFunil = defineAction(
-  { ...base, acao: "criar-etapa-funil", entidade: "FunilEtapa", schema: criarEtapaSchema },
+  { ...base, acao: "criar-etapa-funil", entidade: "FunilEtapa", schema: criarEtapaSchema, entidadeId: idResultadoOuInput },
   async (i) => {
     const maxOrdem = await prisma.funilEtapa.aggregate({ _max: { ordem: true } });
     const etapa = await prisma.funilEtapa.create({
@@ -307,7 +318,7 @@ export const criarEtapaFunil = defineAction(
 );
 
 export const editarEtapaFunil = defineAction(
-  { ...base, acao: "editar-etapa-funil", entidade: "FunilEtapa", schema: editarEtapaSchema },
+  { ...base, acao: "editar-etapa-funil", entidade: "FunilEtapa", schema: editarEtapaSchema, entidadeId: idResultadoOuInput },
   async (i) => {
     const existe = await prisma.funilEtapa.findUnique({ where: { id: i.id } });
     if (!existe) throw new ActionError("Etapa não encontrada.");
@@ -321,7 +332,7 @@ export const editarEtapaFunil = defineAction(
 );
 
 export const alternarEtapaFunil = defineAction(
-  { ...base, acao: "alternar-etapa-funil", entidade: "FunilEtapa", schema: alternarEtapaSchema },
+  { ...base, acao: "alternar-etapa-funil", entidade: "FunilEtapa", schema: alternarEtapaSchema, entidadeId: idResultadoOuInput },
   async (i) => {
     const etapa = await prisma.funilEtapa.findUnique({ where: { id: i.id } });
     if (!etapa) throw new ActionError("Etapa não encontrada.");
@@ -343,7 +354,7 @@ async function idsDisciplinaPorNome(): Promise<Map<string, string>> {
 }
 
 export const criarTabelaPreco = defineAction(
-  { ...base, acao: "criar-tabela-preco", entidade: "TabelaPreco", schema: tabelaPrecoSchema },
+  { ...base, acao: "criar-tabela-preco", entidade: "TabelaPreco", schema: tabelaPrecoSchema, entidadeId: idResultadoOuInput },
   async (i) => {
     const idsPorNome = await idsDisciplinaPorNome();
     const t = await prisma.tabelaPreco.create({
@@ -364,7 +375,7 @@ export const criarTabelaPreco = defineAction(
 );
 
 export const editarTabelaPreco = defineAction(
-  { ...base, acao: "editar-tabela-preco", entidade: "TabelaPreco", schema: tabelaPrecoEditSchema },
+  { ...base, acao: "editar-tabela-preco", entidade: "TabelaPreco", schema: tabelaPrecoEditSchema, entidadeId: idResultadoOuInput },
   async (i) => {
     const idsPorNome = await idsDisciplinaPorNome();
     await prisma.$transaction([
@@ -398,7 +409,7 @@ function normalizarParceiro<T extends { documento?: string; email?: string; tele
 }
 
 export const criarParceiro = defineAction(
-  { ...base, acao: "criar-parceiro", entidade: "Parceiro", schema: criarParceiroSchema },
+  { ...base, acao: "criar-parceiro", entidade: "Parceiro", schema: criarParceiroSchema, entidadeId: idResultadoOuInput },
   async (i) => {
     const p = await prisma.parceiro.create({ data: normalizarParceiro(i) });
     rev();
@@ -407,7 +418,7 @@ export const criarParceiro = defineAction(
 );
 
 export const editarParceiro = defineAction(
-  { ...base, acao: "editar-parceiro", entidade: "Parceiro", schema: editarParceiroSchema },
+  { ...base, acao: "editar-parceiro", entidade: "Parceiro", schema: editarParceiroSchema, entidadeId: idResultadoOuInput },
   async (i) => {
     const { id, ...rest } = i;
     await prisma.parceiro.update({ where: { id }, data: normalizarParceiro(rest) });
@@ -417,7 +428,7 @@ export const editarParceiro = defineAction(
 );
 
 export const arquivarParceiro = defineAction(
-  { ...base, acao: "arquivar-parceiro", entidade: "Parceiro", schema: parceiroIdSchema },
+  { ...base, acao: "arquivar-parceiro", entidade: "Parceiro", schema: parceiroIdSchema, entidadeId: idResultadoOuInput },
   async (i) => {
     await prisma.parceiro.update({ where: { id: i.id }, data: { ativo: false } });
     rev();
@@ -426,7 +437,7 @@ export const arquivarParceiro = defineAction(
 );
 
 export const reativarParceiro = defineAction(
-  { ...base, acao: "reativar-parceiro", entidade: "Parceiro", schema: parceiroIdSchema },
+  { ...base, acao: "reativar-parceiro", entidade: "Parceiro", schema: parceiroIdSchema, entidadeId: idResultadoOuInput },
   async (i) => {
     await prisma.parceiro.update({ where: { id: i.id }, data: { ativo: true } });
     rev();
@@ -439,7 +450,7 @@ export const reativarParceiro = defineAction(
 // e a revalidação de rota, que é a parte que depende do Next.
 
 export const criarProposta = defineAction(
-  { ...base, acao: "criar-proposta", entidade: "Proposta", schema: criarPropostaSchema },
+  { ...base, acao: "criar-proposta", entidade: "Proposta", schema: criarPropostaSchema, entidadeId: idResultadoOuInput },
   async (i, { user }) => {
     const proposta = await prisma.$transaction(async (tx) => {
       const { ano, sequencial, numero } = await proximoNumeroProposta(tx);
@@ -463,7 +474,7 @@ export const criarProposta = defineAction(
 
 /** Cria uma proposta partindo de um lead. Lógica em `service.ts`. */
 export const criarPropostaDeLead = defineAction(
-  { ...base, acao: "criar-proposta-lead", entidade: "Proposta", schema: criarPropostaDeLeadSchema },
+  { ...base, acao: "criar-proposta-lead", entidade: "Proposta", schema: criarPropostaDeLeadSchema, entidadeId: idResultadoOuInput },
   async (i, { user }) => {
     const { proposta, criouCliente, leadId } = await servicoCriarPropostaDeLead(i, user.id);
 
@@ -492,7 +503,7 @@ export const salvarProposta = defineAction(
 );
 
 export const copiarProposta = defineAction(
-  { ...base, acao: "copiar-proposta", entidade: "Proposta", schema: idSchema },
+  { ...base, acao: "copiar-proposta", entidade: "Proposta", schema: idSchema, entidadeId: idResultadoOuInput },
   async (i, { user }) => {
     const p = await prisma.proposta.findUnique({
       where: { id: i.id },
@@ -543,7 +554,7 @@ export const copiarProposta = defineAction(
 );
 
 export const mudarStatusProposta = defineAction(
-  { ...base, acao: "status-proposta", entidade: "Proposta", schema: statusPropostaSchema },
+  { ...base, acao: "status-proposta", entidade: "Proposta", schema: statusPropostaSchema, entidadeId: idResultadoOuInput },
   async (i, ctx) => {
     if (i.status === "aceita") {
       throw new ActionError("Use a ação de aceitar (gera o projeto).");
@@ -569,7 +580,7 @@ export const mudarStatusProposta = defineAction(
 
 /** Envia a proposta por e-mail ao cliente com o link público. Marca como enviada. */
 export const enviarPropostaEmail = defineAction(
-  { ...base, acao: "enviar-proposta-email", entidade: "Proposta", schema: idSchema },
+  { ...base, acao: "enviar-proposta-email", entidade: "Proposta", schema: idSchema, entidadeId: idResultadoOuInput },
   async (i, ctx) => {
     if (!smtpConfigurado()) {
       throw new ActionError("SMTP não configurado (defina SMTP_HOST no .env).");
