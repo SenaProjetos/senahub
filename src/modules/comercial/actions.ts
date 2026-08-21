@@ -39,6 +39,7 @@ import {
 import { removerArquivo } from "@/lib/storage";
 import { etapaEhPerdido } from "@/modules/comercial/status";
 import { exigeQualificacao } from "@/modules/comercial/prospeccao";
+import { lerTemplatosNotas } from "@/modules/comercial/queries";
 import {
   proximoNumeroProposta,
   criarPropostaDeLead as servicoCriarPropostaDeLead,
@@ -833,3 +834,12 @@ export const moverProspeccao = defineAction(
     return { id: r.id, qualificada: false };
   },
 );
+
+/**
+ * F3.5 — Fetch templates para preencher na popover do registro manual de interação.
+ * Sem permissão/audit — é só leitura de configuração.
+ */
+export async function obterTemplatosNotas() {
+  "use server";
+  return await lerTemplatosNotas();
+}

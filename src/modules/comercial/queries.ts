@@ -524,3 +524,8 @@ export async function opcoesFiltroComercial() {
   ]);
   return { responsaveis, campanhas, canais, empresas, disciplinas };
 }
+
+export async function lerTemplatosNotas() {
+  const { lerTemplates } = await import("./templates-notas");
+  return lerTemplates(prisma);
+}

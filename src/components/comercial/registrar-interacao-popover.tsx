@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Link2, Mail, MessageCircle, Phone, Plus, StickyNote, Users } from "lucide-react";
-import { registrarInteracao } from "@/modules/comercial/actions";
+import { registrarInteracao, obterTemplatosNotas } from "@/modules/comercial/actions";
 import type { TipoAncoraCompromisso } from "@/modules/comercial/labels";
 import type { TipoAtividade } from "@/generated/prisma/client";
+import type { TemplateNota } from "@/modules/comercial/templates-notas";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -48,6 +49,19 @@ export function RegistrarInteracaoPopover({
   const [open, setOpen] = useState(false);
   const [notaAberta, setNotaAberta] = useState(false);
   const [notaTexto, setNotaTexto] = useState("");
+  const [templates, setTemplates] = useState<TemplateNota[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (notaAberta && templates.length === 0 && !loadingTemplates) {
+      setLoadingTemplates(true);
+      obterTemplatosNotas()
+        .then(setTemplates)
+        .catch(() => setTemplates([]))
+        .finally(() => setLoadingTemplates(false));
+    }
+  }, [notaAberta]);
 
   function registrar(tipo: TipoRegistravel, nota: string) {
     if (!nota.trim()) return;
@@ -137,6 +151,21 @@ export function RegistrarInteracaoPopover({
             <p className="px-1 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
               Nota
             </p>
+            {templates.length > 0 && (
+              <div className="grid grid-cols-1 gap-1 border-b pb-2">
+                {templates.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    className="rounded-sm border border-dashed px-2 py-1 text-left text-[10px] transition-colors hover:bg-muted"
+                    onClick={() => setNotaTexto(t.texto)}
+                    disabled={pending}
+                  >
+                    {t.titulo}
+                  </button>
+                ))}
+              </div>
+            )}
             <textarea
               autoFocus
               rows={3}
