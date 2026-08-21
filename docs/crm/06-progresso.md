@@ -20,6 +20,29 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F3.11 — FECHO DA FASE 3 · 2026-08-21 · Sonnet
+
+**Os 4 verdes:** `eslint` limpo (repo inteiro) · `vitest run` **2181 testes** · `npm run build` ✓
+· `smoke:crm-fase3` **23/23** (17 F3.7 + 6 F3.8). Sem regressão: `smoke:crm-fase1` e
+`smoke:crm-fase2` continuam verdes.
+
+**FASE 3 FECHADA.** F3.1–F3.10, dez tarefas: timeline unificada (`Atividade`), timeline
+automática + hooks, dívida de auditoria (ADR-20), registro manual em 2 cliques, templates de
+nota, `<Timeline>` reutilizável, Empresa 360, sinal de reativação, `AnexoLead → Documento`,
+`kpi-card.tsx` compartilhado.
+
+**Pendente, fora do código (não bloqueia o fecho, mas fica registrado):**
+- **F3.9 em produção** — script pronto e ensaiado no dev (`scripts/migrar-anexos-lead-f39.ts`),
+  mas o `--gravar` contra o banco real ainda não rodou. Comando: dry-run primeiro, `--gravar`
+  só com autorização explícita.
+- **Verificação em browser** — F3.4, F3.6, F3.7, F3.8, F3.9, F3.10 todas com essa lacuna:
+  sem chromium-cli neste ambiente, a prova ficou em tsc/eslint/vitest/build/smoke, não em
+  clique real. Fica para o usuário conferir visualmente antes de considerar a fase 100% provada.
+- **Fase 6 herda o follow-up de F3.10** — as ~12 telas com o mesmo padrão de KPI card fora do
+  Comercial (financeiro, ponto, qualidade, dashboard raiz), listadas no registro da F3.10.
+
+---
+
 ## F3.10 — `ui/kpi-card.tsx` compartilhado · 2026-08-21 · Sonnet
 
 **Feito:** `KpiCard`, com 2 variantes — `"padrao"` (o `<Card>` cheio do dashboard `/comercial`)
