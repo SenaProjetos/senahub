@@ -4,9 +4,23 @@ import { useState, useTransition, type ComponentType } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Pencil, Mail, Phone, User2, FileText, FilePlus2, XCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  Pencil,
+  Mail,
+  Phone,
+  User2,
+  FileText,
+  FilePlus2,
+  XCircle,
+  CalendarClock,
+  Check,
+} from "lucide-react";
 import type { LeadItem } from "@/modules/comercial/queries";
-import { criarPropostaDeLead } from "@/modules/comercial/actions";
+import { criarPropostaDeLead, concluirProximaAcao } from "@/modules/comercial/actions";
+import { TIPO_PROXIMA_ACAO_LABEL } from "@/modules/agenda/proxima-acao";
+import type { ItemTimeline } from "@/modules/comercial/atividade";
+import type { TipoProximaAcao } from "@/generated/prisma/client";
 import { LeadDialog } from "./lead-dialog";
 import { etapaEhPerdido } from "./motivo-perda-dialog";
 import { FollowUpDialog } from "./follow-up-dialog";
@@ -14,11 +28,20 @@ import { ContatoRapidoBotoes } from "./contato-rapido-botoes";
 import { NotasHistorico } from "./notas-historico";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { brl } from "@/lib/utils";
+import { brl, formatarDataHora } from "@/lib/utils";
 
 type Etapa = { id: string; nome: string; cor: string | null };
 type PropostaResumo = { id: string; numero: string; titulo: string; status: string };
+type ProximaAcao = {
+  id: string;
+  tipo: TipoProximaAcao | null;
+  titulo: string;
+  inicio: string;
+  local: string | null;
+  criador: string | null;
+};
 
 export function LeadDetalheView({
   lead,
@@ -26,17 +49,31 @@ export function LeadDetalheView({
   etapas,
   propostas,
   parceiros,
+  atividadesTimeline,
+  proximasAcoes,
+  ultimaInteracao,
 }: {
   lead: LeadItem;
   etapaAtual: Etapa;
   etapas: { id: string; nome: string }[];
   propostas: PropostaResumo[];
   parceiros: { id: string; nome: string }[];
+  /** F2.11: legado (AtividadeLead) + novo (Atividade) já mesclados, mais recente primeiro. */
+  atividadesTimeline: ItemTimeline[];
+  /** F2.10/F2.11: ações comerciais ainda em aberto, ancoradas neste lead. */
+  proximasAcoes: ProximaAcao[];
+  /** F2.11: derivado (`createdAt` mais recente da timeline), não uma coluna do banco. */
+  ultimaInteracao: string | null;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [editar, setEditar] = useState(false);
   const perdido = etapaEhPerdido(etapaAtual.nome);
+
+  // F2.11 — "sugere agendar a próxima sem sair da tela": concluir uma ação remonta o
+  // FollowUpDialog com `key` nova e `iniciarAberto`, e ele abre sozinho, sem exigir o clique no
+  // botão-gatilho. `key` também garante que o form nasce limpo, não com resíduo do form anterior.
+  const [sugerirProximaContador, setSugerirProximaContador] = useState(0);
 
   function novaProposta() {
     start(async () => {
@@ -44,6 +81,17 @@ export function LeadDetalheView({
       if (r.ok) {
         toast.success(`Proposta ${r.data.numero} criada.`);
         router.push(`/comercial/propostas/${r.data.id}`);
+      } else toast.error(r.error);
+    });
+  }
+
+  function concluir(compromissoId: string) {
+    start(async () => {
+      const r = await concluirProximaAcao({ compromissoId });
+      if (r.ok) {
+        toast.success("Ação concluída.");
+        setSugerirProximaContador((n) => n + 1);
+        router.refresh();
       } else toast.error(r.error);
     });
   }
@@ -79,7 +127,13 @@ export function LeadDetalheView({
             assunto={lead.nome}
             mensagem={`Olá! Sobre ${lead.nome}…`}
           />
-          <FollowUpDialog leadId={lead.id} leadNome={lead.nome} leadEmail={lead.email} />
+          <FollowUpDialog
+            key={sugerirProximaContador}
+            leadId={lead.id}
+            leadNome={lead.nome}
+            leadEmail={lead.email}
+            iniciarAberto={sugerirProximaContador > 0}
+          />
           <Button size="sm" variant="outline" onClick={novaProposta} disabled={pending}>
             <FilePlus2 className="size-3.5" /> Nova proposta
           </Button>
@@ -115,11 +169,55 @@ export function LeadDetalheView({
                 label="Valor estimado"
                 valor={lead.valorEstimado != null ? brl(Number(lead.valorEstimado)) : null}
               />
+              <Linha
+                label="Última interação"
+                valor={ultimaInteracao ? formatarDataHora(ultimaInteracao) : null}
+              />
               {lead.observacoes && (
                 <div className="pt-1">
                   <p className="text-xs text-muted-foreground">Observações</p>
                   <p className="whitespace-pre-wrap">{lead.observacoes}</p>
                 </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Próxima ação</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {proximasAcoes.length === 0 ? (
+                <EmptyState
+                  icon={CalendarClock}
+                  title="Nenhuma ação marcada"
+                  description="Use “Agendar follow-up” acima."
+                />
+              ) : (
+                proximasAcoes.map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex items-start gap-2 rounded-sm border p-2 text-sm"
+                  >
+                    <CalendarClock className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{a.titulo}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {a.tipo ? TIPO_PROXIMA_ACAO_LABEL[a.tipo] : "Ação"} ·{" "}
+                        {formatarDataHora(a.inicio)}
+                        {a.local ? ` · ${a.local}` : ""}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() => concluir(a.id)}
+                    >
+                      <Check className="size-3.5" /> Concluir
+                    </Button>
+                  </div>
+                ))
               )}
             </CardContent>
           </Card>
@@ -155,7 +253,7 @@ export function LeadDetalheView({
               <CardTitle className="text-sm">Histórico de atividades</CardTitle>
             </CardHeader>
             <CardContent>
-              <NotasHistorico atividades={lead.atividades} />
+              <NotasHistorico atividades={atividadesTimeline} />
             </CardContent>
           </Card>
         </div>

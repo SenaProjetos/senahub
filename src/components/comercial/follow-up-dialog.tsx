@@ -52,15 +52,22 @@ export function FollowUpDialog({
   leadNome,
   leadEmail,
   className,
+  iniciarAberto,
 }: {
   leadId: string;
   leadNome: string;
   leadEmail?: string | null;
   className?: string;
+  /**
+   * F2.11 — "sugere agendar a próxima sem sair da tela": ao concluir uma ação, o chamador
+   * remonta este componente com `key` trocada e `iniciarAberto`, e o diálogo já abre sozinho,
+   * sem precisar do clique no botão-gatilho.
+   */
+  iniciarAberto?: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(iniciarAberto ?? false);
   const [titulo, setTitulo] = useState(`Follow-up: ${leadNome}`);
   const [tipo, setTipo] = useState<TipoProximaAcao>("FOLLOW_UP");
   const [inicio, setInicio] = useState(amanhaAs9);
