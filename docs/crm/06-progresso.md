@@ -41,29 +41,40 @@ paranoia de um documento vivo.
 **Divergência deliberada do texto do backlog, aprovada:** a F5.2 diz "negociação sintética". O ADR
 manda **derivar**: se a proposta histórica tem `leadId` e esse lead virou `Negociacao` na F2.18,
 liga na **real** — sintética só quando não houver. Criar uma sintética existindo a real inventaria
-um registro que a Fase 6 contaria como negócio. Qual dos dois casos é o de produção é uma consulta
-read-only na F5.2; não bloqueava a F5.1.
+um registro que a Fase 6 contaria como negócio. **Qual dos dois é o caso de produção não dá para
+saber antes de rodar** — o banco real está noutra máquina e o dev tem dataset de demonstração; o
+script classifica em tempo de execução, lá. É o que torna o "recusa por inteiro se ambíguo"
+obrigatório, e não zelo.
 
 **Decisão do dono sobre `criarPropostaDeLead`** (o caminho que hoje cria proposta pulando a
 negociação, e que a F5.3 quebraria): **qualificar automático por trás** — o botão continua na tela
 do lead, mas criar a proposta passa a criar/reusar a `Negociacao` na mesma transação. Escolhida
 entre 3 opções; as outras duas ficam registradas no ADR com o motivo do descarte.
 
-**Duas armadilhas que o ADR já deixa mapeadas para a F5.3 não redescobrir:**
+**Três armadilhas que o ADR já deixa mapeadas para a F5.3 não redescobrir:**
 1. `qualificarProspeccao` abre a **própria** `$transaction` — reusá-la de dentro de
    `criarPropostaDeLead` exige extrair o miolo numa função que recebe `tx` (forma de
    `proximoNumeroProposta`). Sem isso, falhar ao criar a proposta deixaria negociação órfã: o
    mesmo defeito que a F4.3 existiu para não repetir.
-2. Muda comportamento visível — `validarQualificacao` recusa lead `PERDIDO`, então criar proposta a
-   partir dele, que hoje funciona, passa a ser recusado. Aceito de propósito.
+2. O `clienteId` tem de ser lido de DENTRO da transação — `criarPropostaDeLead` pode criar o
+   cliente no passo 1, e aí o id não existe no objeto `lead` carregado antes. É o `P2003` que
+   travou o ensaio da F2.18 e o cuidado que moldou a F4.3: **terceira aparição da mesma
+   armadilha** neste projeto.
+3. ⚠️ **Pendente de confirmação, não decidido:** `validarQualificacao` recusa lead `PERDIDO`, então
+   criar proposta a partir dele — que **hoje funciona** — passaria a ser recusado. Descobri isso ao
+   escrever o ADR, **depois** de o dono ter escolhido; a pergunta mostrou só "aparece uma
+   negociação que ninguém pediu". Há caso de uso real do outro lado (prospecção perdida que volta e
+   o time reaproveita o registro), então fica marcado no ADR para confirmar antes da F5.3 — a
+   alternativa é reativar o lead automaticamente em vez de recusar.
 
 **Arquivos:** `docs/crm/01-decisoes.md` (ADR-21, novo).
 
 **Verificação:** não se aplica — tarefa de decisão, sem código. O aceite da F5.1 é literalmente
 "usuário aprovou por escrito no `01-decisoes.md`", e está.
 
-**Pendente:** F5.2 (coluna + backfill, Opus, migration) é a próxima. Primeiro passo dela é a
-consulta read-only que decide real-vs-sintética.
+**Pendente:** confirmar com o dono a consequência do `PERDIDO` (item 3 acima) — bloqueia a F5.3,
+não a F5.2. F5.2 (coluna + backfill, Opus, migration) é a próxima e precisa de autorização própria:
+é ⚠️⚠️ e roda migração contra produção.
 
 **Riscos:** o congelamento da página pública é uma regra de processo, não uma trava de código —
 depende de quem escrever F5.4/F5.5/F5.10 lembrar dela. É por isso que está no ADR e não só num

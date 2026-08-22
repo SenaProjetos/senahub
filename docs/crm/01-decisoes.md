@@ -380,8 +380,8 @@ vive na validação de criação (F5.3), não numa constraint. `NOT NULL` exigir
 e travaria qualquer proposta histórica que não resolvesse. Mesma forma que o `02-schema.md` §2.8 já
 previa. Ganha `@@index([negociacaoId])`.
 
-**2. O backfill deriva; não inventa.** Uma linha em produção, e o caminho depende de um fato que
-uma consulta read-only resolve na F5.2:
+**2. O backfill deriva; não inventa.** Uma linha em produção, e o caminho depende de um fato sobre
+ela:
 
 | Situação da proposta histórica | O que o backfill faz |
 |---|---|
@@ -391,6 +391,11 @@ uma consulta read-only resolve na F5.2:
 Isto **diverge do texto do backlog** (F5.2 diz "negociação sintética" sem ressalva), de propósito e
 com aprovação: criar uma sintética quando a real existe seria inventar um registro que a Fase 6 depois
 contaria como negócio.
+
+**Qual dos dois casos é o de produção não se decide aqui — nem antes de rodar.** O banco de
+produção vive noutra máquina (`F:\SenaHub`) e o dev tem dataset de demonstração, não a proposta
+real: não há de onde consultar esse fato com antecedência. O script **classifica em tempo de
+execução, lá**, e é justamente por isso que o item 3 abaixo é obrigatório e não zelo excessivo.
 
 **3. O script recusa executar por inteiro se algo ficar ambíguo** — nunca cai num fallback
 silencioso. É a forma que a F2.18 já provou (e que lá pegou uma violação de FK antes de produção).
@@ -416,10 +421,19 @@ fluxo vira, tudo na MESMA transação:
   função que **recebe `tx`** — mesma forma de `proximoNumeroProposta`. Sem isso são duas transações
   independentes, e uma falha ao criar a proposta deixaria uma negociação órfã: exatamente o defeito
   que a F4.3 existiu para não repetir.
-- **Muda comportamento visível:** `validarQualificacao` recusa lead em status não-qualificável
-  (ex.: `PERDIDO` — "Reative-a antes"). Criar proposta a partir de um lead nesse estado, que hoje
-  funciona, passa a ser recusado com mensagem de negócio. É aceito como parte da decisão: proposta
-  para prospecção perdida é o cenário que a regra quer impedir.
+- **O `clienteId` tem de vir de DENTRO da transação.** `criarPropostaDeLead` pode CRIAR o cliente
+  no passo 1 (converte o lead que ainda não tem empresa) — nesse instante o id só existe dentro da
+  `tx`, e o objeto `lead` lido antes dela ainda traz `clienteId: null`. Ler do objeto antigo é
+  literalmente o `P2003` que travou o ensaio da F2.18, e é o mesmo cuidado que moldou o desenho da
+  F4.3. Terceira vez que este projeto encontra a mesma armadilha; por isso está escrita aqui.
+- **⚠️ PENDENTE DE CONFIRMAÇÃO — muda comportamento visível de um jeito que NÃO foi apresentado na
+  escolha.** `validarQualificacao` recusa lead em status não-qualificável (ex.: `PERDIDO` —
+  "Reative-a antes"). Com a auto-qualificação, criar proposta a partir de um lead nesse estado, que
+  **hoje funciona**, passa a ser recusado. Isto foi descoberto ao escrever este ADR, **depois** de o
+  dono escolher a opção — a pergunta só mostrou "aparece uma negociação que ninguém pediu", não
+  isto. Há um caso de uso real do outro lado: prospecção perdida que volta e o time reaproveita o
+  registro. **Confirmar com o dono antes de implementar a F5.3**; se ele preferir manter o
+  comportamento atual, a saída é reativar o lead automaticamente em vez de recusar.
 
 **6. A saída renderizada de `/a/proposta/[token]` fica CONGELADA na Fase 5**, salvo tarefa que a
 nomeie explicitamente como entrega. F5.4 (campos estruturados de versão), F5.5 (`em_negociacao`) e
