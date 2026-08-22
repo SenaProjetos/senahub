@@ -236,6 +236,86 @@ export async function alertaCertidoes(): Promise<number> {
   return n;
 }
 
+/**
+ * Propostas cuja validade venceu e que ainda estão vivas → avisa gestores + responsável (F5.7).
+ *
+ * ── "Expirar" aqui é AVISAR, não mudar de estado ────────────────────────────────────────────
+ * Não existe `StatusProposta.expirada`, de propósito (02-schema §2.8; a ideia de origem, #m9,
+ * pede "alerta de validade … ninguém avisa (job)"). Se a proposta expirou é uma pergunta que a
+ * própria `validade` responde, via `propostaExpirada()` — mesmo princípio que manteve
+ * "visualizada" fora do enum (§8.4). O que este job persiste é só que o AVISO saiu.
+ *
+ * ── Idempotência: compare-and-swap, igual a `dispararAvisosAgendados` ───────────────────────
+ * `updateMany` com `alertaValidadeEm: null` no `where` e a data no `data`: só quem conseguir
+ * trocar (count === 1) notifica. Dois ticks simultâneos, ou o retry do pg-boss depois de uma
+ * falha no meio, resultam em UMA notificação por proposta — a corrida é resolvida pelo banco,
+ * não por checar-antes-de-escrever (que teria janela entre o SELECT e o UPDATE).
+ *
+ * ── Quais propostas ────────────────────────────────────────────────────────────────────────
+ * `aceita` nunca expira: o negócio fechou, a data de validade virou histórico. `recusada`
+ * também fica de fora — avisar que expirou algo já perdido é ruído. Sobram `rascunho` e
+ * `enviada` (e `em_negociacao` quando a F5.5 a criar, que entra sozinha por não estar na lista
+ * de excluídos).
+ */
+export async function alertaPropostasExpiradas(agora: Date = new Date()): Promise<number> {
+  const { propostaExpirada } = await import("@/modules/comercial/validade");
+
+  const candidatas = await prisma.proposta.findMany({
+    where: {
+      validade: { not: null },
+      alertaValidadeEm: null,
+      status: { notIn: ["aceita", "recusada"] },
+    },
+    select: {
+      id: true,
+      numero: true,
+      titulo: true,
+      validade: true,
+      autorId: true,
+      cliente: { select: { nome: true } },
+    },
+    take: 50,
+  });
+  if (candidatas.length === 0) return 0;
+
+  // O filtro fino é em memória de propósito: "expirou" depende do fuso de Recife, e o Postgres
+  // compararia `date < now()` no fuso do servidor — exatamente o bug que a F5.6 corrigiu. O
+  // `where` acima já reduziu o conjunto ao que pode importar.
+  const expiradas = candidatas.filter((p) => propostaExpirada(p.validade, agora));
+  if (expiradas.length === 0) return 0;
+
+  const idsGestores = await gestores();
+  let avisadas = 0;
+
+  for (const p of expiradas) {
+    const { count } = await prisma.proposta.updateMany({
+      where: { id: p.id, alertaValidadeEm: null },
+      data: { alertaValidadeEm: agora },
+    });
+    if (count !== 1) continue; // outro tick chegou primeiro
+
+    const destinatarios = [...new Set([...idsGestores, p.autorId])];
+    try {
+      await notificarMuitos(
+        destinatarios,
+        {
+          titulo: "Proposta com validade vencida",
+          corpo: `${p.numero} — ${p.cliente.nome} (válida até ${formatarData(p.validade)})`,
+          href: `/comercial/propostas/${p.id}`,
+          tag: `proposta-validade-${p.id}`,
+        },
+        { categoria: "proposta" },
+      );
+      avisadas++;
+    } catch (err) {
+      // Fica marcado como avisado de propósito, igual a `dispararAvisosAgendados`: reenviar
+      // arriscaria dobrar o sino, e um alerta perdido incomoda menos que um repetido todo dia.
+      console.error(`[propostas] falha ao avisar validade vencida de ${p.numero}:`, err);
+    }
+  }
+  return avisadas;
+}
+
 /** Prazos de proposta de licitação em 15/7/1 dias → gestores. */
 export async function alertaLicitacoes(): Promise<number> {
   let n = 0;

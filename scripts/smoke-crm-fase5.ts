@@ -19,6 +19,12 @@
  * fabricadas no formato antigo, incluindo uma malformada. Sem isto, aquele SQL estrearia no
  * deploy de produção sem nunca ter rodado em lugar nenhum.
  *
+ * ── F5.7 ── exercita o handler REAL (`alertaPropostasExpiradas`), não uma cópia. Consequência
+ * a saber: ele varre o banco inteiro, como faria em produção, então **carimba
+ * `alertaValidadeEm` nas propostas do seed que já estiverem vencidas** e gera o sino delas.
+ * É comportamento correto (é o que o job faz), e o `finally` só limpa o que o smoke criou —
+ * as notificações do seed ficam, porque são verdadeiras.
+ *
  * ⚠️ NUNCA RODAR CONTRA PRODUÇÃO. Cria e apaga clientes, leads, negociações e propostas. Tudo
  * com prefixo `SMKF5_`, limpeza no `finally`.
  *
@@ -33,6 +39,7 @@ import { carregarPendentes, executarVinculo } from "../src/modules/comercial/mig
 import { salvarProposta } from "../src/modules/comercial/service";
 import { versoesComparaveis } from "../src/modules/comercial/propostas-extras/queries";
 import { versaoVigente } from "../src/modules/comercial/versoes";
+import { alertaPropostasExpiradas } from "../src/lib/jobs-handlers";
 
 const TAG = `SMKF5_${Date.now()}`;
 
@@ -378,6 +385,58 @@ async function main() {
     backfilled.every((b) => b.status === null),
   );
 
+  console.log("\n── F5.7: alerta de validade — tick 2× dá 1 notificação só ────────\n");
+
+  const ONTEM_EM_RECIFE = "2020-01-01"; // bem no passado: expirada sem depender do relógio real
+  const pExpirada = await criarProposta("EXPIRADA", {
+    status: "enviada",
+    validade: new Date(`${ONTEM_EM_RECIFE}T00:00:00.000Z`),
+  });
+  const pAceitaVencida = await criarProposta("ACEITAVENCIDA", {
+    status: "aceita",
+    aceitaEm: new Date(),
+    validade: new Date(`${ONTEM_EM_RECIFE}T00:00:00.000Z`),
+  });
+  const pNoPrazo = await criarProposta("NOPRAZO", {
+    status: "enviada",
+    validade: new Date("2099-12-31T00:00:00.000Z"),
+  });
+
+  // `Notificacao` não persiste `tag` (ela só existe para o push) — o `href` é o que identifica
+  // a proposta no sino, e é único por proposta.
+  const contarNotif = (propostaId: string) =>
+    prisma.notificacao.count({ where: { href: `/comercial/propostas/${propostaId}` } });
+
+  const primeiroTick = await alertaPropostasExpiradas();
+  check("1º tick avisou ao menos a proposta expirada", primeiroTick >= 1, `${primeiroTick} avisada(s)`);
+  check("a proposta expirada gerou notificação", (await contarNotif(pExpirada.id)) > 0);
+  check(
+    "proposta ACEITA com validade vencida NÃO é avisada (aceite da tarefa)",
+    (await contarNotif(pAceitaVencida.id)) === 0,
+  );
+  check("proposta dentro do prazo não é avisada", (await contarNotif(pNoPrazo.id)) === 0);
+
+  const notifDepoisDo1 = await contarNotif(pExpirada.id);
+  const segundoTick = await alertaPropostasExpiradas();
+  const notifDepoisDo2 = await contarNotif(pExpirada.id);
+  check(
+    "2º tick NÃO avisa de novo a mesma proposta (compare-and-swap)",
+    notifDepoisDo2 === notifDepoisDo1,
+    `${notifDepoisDo1} → ${notifDepoisDo2}`,
+  );
+  check("o 2º tick não contou a proposta já avisada", segundoTick === 0, `${segundoTick}`);
+
+  const marcada = await prisma.proposta.findUnique({
+    where: { id: pExpirada.id },
+    select: { alertaValidadeEm: true, status: true },
+  });
+  check("alertaValidadeEm foi carimbado", marcada?.alertaValidadeEm != null);
+  check(
+    "o status NÃO mudou — 'expirada' não é estado, é derivado da validade",
+    marcada?.status === "enviada",
+    `${marcada?.status}`,
+  );
+
   console.log(`\n${ok ? "✔ Fase 5: tudo verde." : "✖ Fase 5: há falhas acima."}`);
   if (!ok) process.exitCode = 1;
 }
@@ -389,6 +448,11 @@ async function limpar() {
   // Ordem ditada pelas FKs: proposta referencia negociacao (SET NULL, mas some junto de qualquer
   // forma), negociacao referencia cliente (RESTRICT), lead referencia cliente (RESTRICT).
   const props = await prisma.proposta.findMany({ where: { clienteId: { in: ids } }, select: { id: true } });
+  // Notificações do alerta de validade (F5.7) — não pendem de FK, então some por `href` ou
+  // ficariam no sino de todo mundo depois que o smoke apagasse as propostas.
+  await prisma.notificacao.deleteMany({
+    where: { href: { in: props.map((p) => `/comercial/propostas/${p.id}`) } },
+  });
   await prisma.propostaVersao.deleteMany({ where: { propostaId: { in: props.map((p) => p.id) } } });
   await prisma.propostaItem.deleteMany({ where: { propostaId: { in: props.map((p) => p.id) } } });
   await prisma.propostaCondicao.deleteMany({ where: { propostaId: { in: props.map((p) => p.id) } } });

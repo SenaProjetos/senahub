@@ -31,6 +31,7 @@ import {
   alertaPncpNaoPublicado,
   alertaRateioAberto,
   alertaCotacoesCusto,
+  alertaPropostasExpiradas,
   snapshotQualidadeMensal,
   snapshotLicitacaoMensal,
   snapshotDashboardDiario,
@@ -174,7 +175,7 @@ export async function startJobs(): Promise<PgBoss> {
       fila: "alertas-diarios",
       cron: "0 8 * * *", // 08:00 — prazos de disciplina, inadimplência, certidões, licitações
       handler: async () => {
-        const [a, b, c, d, e, f, g, h, i, j, k] = await Promise.all([
+        const [a, b, c, d, e, f, g, h, i, j, k, l] = await Promise.all([
           alertasPrazoDisciplina(),
           alertaInadimplencia(),
           alertaCertidoes(),
@@ -186,8 +187,12 @@ export async function startJobs(): Promise<PgBoss> {
           alertaReajusteContrato(),
           alertaPncpNaoPublicado(),
           alertaCotacoesCusto(),
+          // F5.7 — entra no tick diário que já existe, em vez de uma fila própria: é o mesmo
+          // horário e a mesma audiência dos outros alertas, e uma cron a mais custaria uma
+          // fila do pg-boss para rodar a 1 segundo de distância das outras onze.
+          alertaPropostasExpiradas(),
         ]);
-        console.log(`[alertas] prazos=${a} inad=${b} certidões=${c} licitações=${d} eventos=${e} habilitação=${f} contratos=${g} aditivos=${h} reajustes=${i} pncp=${j} cotações=${k}`);
+        console.log(`[alertas] prazos=${a} inad=${b} certidões=${c} licitações=${d} eventos=${e} habilitação=${f} contratos=${g} aditivos=${h} reajustes=${i} pncp=${j} cotações=${k} propostas=${l}`);
       },
     },
     {

@@ -4262,6 +4262,13 @@ model Proposta {
 
   enviadaEm DateTime?
   aceitaEm  DateTime?
+  /// Quando o alerta de validade vencida foi disparado (F5.7). É a marca de compare-and-swap
+  /// que torna o tick idempotente — mesmo papel de `Aviso.enviadoEm` em `dispararAvisosAgendados`.
+  ///
+  /// NÃO existe status `expirada`: "expirou" é DERIVADO de `validade` por `propostaExpirada()`
+  /// (F5.6), pelo mesmo princípio que manteve "visualizada" fora do enum (02-schema §8.4) — não
+  /// materializar estado que a data já responde. Esta coluna registra só o AVISO, não o estado.
+  alertaValidadeEm DateTime?
 
   itens         PropostaItem[]
   condicoes     PropostaCondicao[]

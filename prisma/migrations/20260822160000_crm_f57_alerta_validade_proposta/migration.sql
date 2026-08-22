@@ -1,0 +1,22 @@
+-- CRM Fase 5 (F5.7): marca de idempotência do alerta de validade de proposta.
+--
+-- ── Emenda ao backlog, registrada ───────────────────────────────────────────────────────────
+-- A F5.7 não previa migration (coluna "Mig/Seed" vazia), mas pedia explicitamente idempotência
+-- "por `updateMany` condicional (compare-and-swap, padrão de `dispararAvisosAgendados`)". Esse
+-- padrão precisa de um campo contra o qual comparar-e-trocar — `Aviso.enviadoEm` é o equivalente
+-- lá. Sem coluna, não há compare-and-swap: só haveria "notifica de novo a cada tick".
+--
+-- ── Por que NÃO é um status `expirada` ──────────────────────────────────────────────────────
+-- O enum alvo do `02-schema.md` §2.8 é `rascunho | enviada | em_negociacao | aceita | recusada`
+-- — sem `expirada`. E a ideia de origem (#m9 do roadmap) é literalmente "**alerta** de validade
+-- da proposta … ninguém avisa (job)", não uma transição de estado. "Expirou" continua DERIVADO
+-- da própria `validade` por `propostaExpirada()` (F5.6), pelo mesmo princípio que manteve
+-- "visualizada" fora do enum (§8.4): não materializar o que o dado já responde.
+--
+-- Esta coluna registra QUE O AVISO SAIU, não que a proposta mudou de estado.
+--
+-- 100% aditivo, nullable, sem backfill: `NULL` significa "ainda não avisamos", que é a verdade
+-- para toda proposta existente — o alerta não existia até agora.
+
+-- AlterTable
+ALTER TABLE "proposta" ADD COLUMN     "alertaValidadeEm" TIMESTAMP(3);

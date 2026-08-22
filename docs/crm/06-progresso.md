@@ -20,6 +20,68 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F5.7 — Alerta automático de validade vencida · 2026-08-22 · Opus
+
+**Feito:** `alertaPropostasExpiradas` em `lib/jobs-handlers.ts`, plugado no tick diário
+`alertas-diarios` de `lib/jobs.ts` (o 12º alerta do mesmo cron das 08:00) + coluna
+`Proposta.alertaValidadeEm`.
+
+**Duas emendas ao backlog, e o motivo de cada uma:**
+
+1. **"Expirar" virou AVISAR, não mudar de estado.** O título da tarefa ("expiração automática")
+   sugere um status `expirada` — que **não existe** no enum alvo (`02-schema.md` §2.8:
+   `rascunho | enviada | em_negociacao | aceita | recusada`). E a ideia de origem, **#m9**, é
+   literalmente *"alerta de validade da proposta … `Proposta.validade` existe, ninguém avisa
+   (job)"*. Então "expirou" continua DERIVADO da própria validade, por `propostaExpirada()`
+   (F5.6) — mesmo princípio que manteve "visualizada" fora do enum (§8.4): não materializar o
+   que o dado já responde. O smoke prova que **o status não muda**.
+2. **Precisou de migration, que o backlog não previa** (coluna "Mig/Seed" vazia). A própria
+   tarefa pede idempotência "por `updateMany` condicional (compare-and-swap, padrão de
+   `dispararAvisosAgendados`)" — e esse padrão exige um campo contra o qual comparar-e-trocar
+   (`Aviso.enviadoEm` é o equivalente lá). Sem coluna não há compare-and-swap: haveria "notifica
+   de novo a cada tick". `alertaValidadeEm` é aditiva, nullable, sem backfill — `NULL` significa
+   "ainda não avisamos", que é a verdade para toda proposta existente.
+
+**O filtro fino é em memória, de propósito.** O `where` do Prisma reduz o conjunto
+(`validade != null`, `alertaValidadeEm: null`, status vivo), mas quem decide "expirou?" é
+`propostaExpirada` em JS. Fazer `validade < now()` no Postgres compararia no fuso do servidor —
+exatamente o bug que a F5.6 acabou de corrigir. Seria irônico reintroduzi-lo no job que existe
+por causa dele.
+
+**Quem fica de fora:** `aceita` (o negócio fechou, a validade virou histórico — é o aceite
+literal da tarefa) e `recusada` (avisar que expirou algo já perdido é ruído).
+
+**Falha registrada de propósito, não silenciada:** se a notificação estourar depois do
+compare-and-swap, a proposta **fica marcada como avisada**. É a mesma escolha de
+`dispararAvisosAgendados` ("reenviar arriscaria dobrar o modal") — um alerta perdido incomoda
+menos que um repetido todo dia.
+
+**Descoberta durante o smoke:** `Notificacao` **não persiste `tag`** — ela existe só para o
+push. Contar notificação por `tag` no banco não funciona; o `href` é o identificador que sobra.
+O handler continua passando `tag` (é o contrato de `notificarMuitos`, e os outros 11 alertas
+fazem igual), mas quem for verificar no banco precisa saber disso.
+
+**Arquivos:** `prisma/schema.prisma` (`alertaValidadeEm`) ·
+`prisma/migrations/20260822160000_crm_f57_alerta_validade_proposta/migration.sql` (novo) ·
+`src/lib/jobs-handlers.ts` (handler) · `src/lib/jobs.ts` (entrada no tick + import) ·
+`scripts/smoke-crm-fase5.ts` (+8 checks).
+
+**Verificação:** eslint limpo, tsc limpo, **2277 testes**, build ok, `migrate status` "up to
+date". `npm run smoke:crm-fase5` — **51/51**, com o aceite literal provado: **tick 2× seguidas →
+a contagem de notificações não muda** (3 → 3) e o 2º tick devolve 0; proposta `aceita` com
+validade vencida **não** é avisada; proposta no prazo também não. Sem regressão:
+`smoke:crm-fase4` verde.
+
+**Pendente:** o job **só roda sob `dev:server`/produção** (pg-boss) — em `npm run dev` ele
+existe mas nunca dispara. Verificação de ponta a ponta com o sino na tela fica para o browser.
+
+**Riscos:** o smoke exercita o handler REAL, que varre o banco inteiro — então carimba
+`alertaValidadeEm` das propostas do seed que já estejam vencidas e gera o sino delas. É o
+comportamento correto do job, mas significa que rodar o smoke tem efeito além dos dados que ele
+cria; está escrito no cabeçalho do arquivo.
+
+---
+
 ## F5.6 — `validade.ts`: expiração em America/Recife · 2026-08-22 · Opus
 
 **Feito:** `modules/comercial/validade.ts` + `.test.ts` (24 testes) — `propostaExpirada`,
