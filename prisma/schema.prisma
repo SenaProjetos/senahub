@@ -872,6 +872,16 @@ model Cliente {
   linkedinUrl       String?
   salesNavigatorUrl String?
 
+  // ── Lista de prospecção do Sales Navigator (CRM F4.1) ────────
+  /// Candidato curado FORA do funil ainda — marcar `true` não cria prospecção nem
+  /// `Lead`; é só "entra na lista de abordagem" (F4.3/F4.6). Vira prospecção quando
+  /// alguém de fato registra o primeiro contato.
+  listaSalesNavigator Boolean         @default(false)
+  /// Quando entrou na lista — não é `createdAt` do cliente (o cadastro pode ser antigo,
+  /// a curadoria para a lista é um evento posterior).
+  dataInclusaoLista   DateTime?
+  statusAbordagem     StatusAbordagem @default(NAO_ABORDADO)
+
   segmentoId String?
   segmento   Segmento? @relation(fields: [segmentoId], references: [id])
   /// Porte da empresa. Texto por ora — vira catálogo se ganhar regra de negócio.
@@ -911,6 +921,9 @@ model Cliente {
   @@index([ativo])
   @@index([nome])
   @@index([status])
+  /// Filtro "lista SN" (F4.1) — sempre por esta flag, não por `salesNavigatorUrl != null`
+  /// (o link pode existir num cliente já convertido, que não é mais candidato de lista).
+  @@index([listaSalesNavigator])
   /// Busca por CNPJ digitado. O índice ÚNICO PARCIAL (único quando preenchido, ADR-03)
   /// é tarefa própria (F1.15) e depende de resolver as 3 duplicatas de nome antes.
   @@index([documento])
@@ -952,6 +965,13 @@ model ContatoCliente {
   linkedinUrl       String?
   salesNavigatorUrl String?
 
+  // ── Lista de prospecção do Sales Navigator (CRM F4.1) ────────
+  /// Mesma semântica de `Cliente.listaSalesNavigator` — um contato pode ser o candidato
+  /// curado mesmo quando a empresa dele ainda não é (abordagem entra pela pessoa).
+  listaSalesNavigator Boolean         @default(false)
+  dataInclusaoLista   DateTime?
+  statusAbordagem     StatusAbordagem @default(NAO_ABORDADO)
+
   /// Papel na decisão de compra (decisor, influenciador, técnico…). Texto por ora.
   papelDecisao         String?
   statusRelacionamento StatusRelacionamentoContato @default(ATIVO)
@@ -970,6 +990,8 @@ model ContatoCliente {
   /// Filtro das listas de abordagem: "quem posso contatar".
   @@index([optOut])
   @@index([excluidoEm])
+  /// Filtro "lista SN" (F4.1), mesmo motivo do índice em `Cliente`.
+  @@index([listaSalesNavigator])
   /// F2.4: negociações em que este contato aparece.
   negociacoes NegociacaoContato[]
   /// F3.1: eventos da timeline em que este contato aparece.
@@ -4130,6 +4152,17 @@ enum StatusComercialCliente {
   CLIENTE
   EX_CLIENTE
   PARCEIRO
+}
+
+/// Estado da abordagem na lista de prospecção do Sales Navigator (CRM F4.1). Distinto de
+/// `StatusRelacionamentoContato` — este acompanha o FUNIL de outbound (ainda nem foi
+/// tentado → tentado → resultado), não o vínculo da pessoa com a empresa dela.
+enum StatusAbordagem {
+  NAO_ABORDADO
+  ABORDADO
+  RESPONDEU
+  SEM_RESPOSTA
+  RECUSADO
 }
 
 /// LGPD: base legal da coleta do contato. Prospecção B2B fria = legítimo interesse.

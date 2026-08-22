@@ -18,6 +18,8 @@ type SP = {
   situacao?: string;
   segmentoId?: string;
   status?: string;
+  /** F4.1 — "lista SN": "1" filtra só quem está marcado. */
+  listaSN?: string;
   sort?: string;
   dir?: string;
   page?: string;
@@ -48,6 +50,7 @@ export default async function ClientesPage({
     sp.status && sp.status in STATUS_COMERCIAL_LABEL
       ? (sp.status as StatusComercialCliente)
       : undefined;
+  const listaSalesNavigator = sp.listaSN === "1" ? true : undefined;
 
   const [{ items, total }, filtros, podeGerir] = await Promise.all([
     listarClientesPaginado({
@@ -58,6 +61,7 @@ export default async function ClientesPage({
       situacao,
       segmentoId,
       status,
+      listaSalesNavigator,
       // sem filtro de situação, mostra ativos e inativos (comportamento anterior)
       incluirInativos: true,
       sort,
@@ -87,6 +91,7 @@ export default async function ClientesPage({
       categoria={categoria ?? ""}
       segmentoId={segmentoId ?? ""}
       status={status ?? ""}
+      listaSN={sp.listaSN === "1"}
     />
   );
 }

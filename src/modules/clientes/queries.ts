@@ -22,6 +22,8 @@ export type ListarClientesOpts = {
   segmentoId?: string;
   /** Status comercial — "classificação" no vocabulário do playbook (ADR-08). */
   status?: StatusComercialCliente;
+  /** F4.1 — "lista SN": candidatos curados do Sales Navigator, dentro/fora do funil. */
+  listaSalesNavigator?: boolean;
   sort?: string | null;
   dir?: Dir;
   skip?: number;
@@ -41,6 +43,7 @@ function buildWhere(opts?: ListarClientesOpts): Prisma.ClienteWhereInput {
   if (opts?.categoria) where.categoria = opts.categoria;
   if (opts?.segmentoId) where.segmentoId = opts.segmentoId;
   if (opts?.status) where.status = opts.status;
+  if (opts?.listaSalesNavigator) where.listaSalesNavigator = true;
 
   if (opts?.q) {
     where.OR = [
