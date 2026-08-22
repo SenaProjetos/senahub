@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { requirePermission } from "@/lib/session";
-import { funilProspeccao, opcoesFiltroComercial } from "@/modules/comercial/queries";
+import { can } from "@/lib/permissions";
+import { funilProspeccao, opcoesFiltroComercial, campanhasAtivas } from "@/modules/comercial/queries";
 import { lerFiltros } from "@/modules/comercial/filtros";
 import { FiltrosComerciais } from "@/components/comercial/filtros-comerciais";
 import { ProspeccaoBoard, ProspeccaoVazia } from "@/components/comercial/prospeccao-board";
+import { ProspeccaoRapidaDialog } from "@/components/comercial/prospeccao-rapida-dialog";
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Prospecção" };
@@ -22,11 +24,13 @@ export default async function ProspeccaoPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requirePermission("comercial", "ver");
+  const user = await requirePermission("comercial", "ver");
+  const podeGerir = await can(user, "comercial", "gerir");
   const filtros = lerFiltros(await searchParams);
-  const [colunas, opcoes] = await Promise.all([
+  const [colunas, opcoes, campanhas] = await Promise.all([
     funilProspeccao(filtros),
     opcoesFiltroComercial(),
+    campanhasAtivas(),
   ]);
   const total = colunas.reduce((s, c) => s + c.leads.length, 0);
 
@@ -42,6 +46,7 @@ export default async function ProspeccaoPage({
             {total} prospecção(ões) no funil · arraste para mudar de estágio
           </p>
         </div>
+        {podeGerir && <ProspeccaoRapidaDialog campanhas={campanhas} />}
       </div>
 
       <FiltrosComerciais opcoes={opcoes} />

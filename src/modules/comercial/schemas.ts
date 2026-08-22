@@ -231,3 +231,34 @@ export const registrarInteracaoSchema = z.object({
 
 /** F3.8: sinal de reativação — busca empresa por nome enquanto o usuário digita. */
 export const buscarEmpresaParaVincularSchema = z.object({ nome: z.string() });
+
+// ── Fluxo rápido de prospecção (F4.3) ───────────────────────────
+export const buscarEmpresaParaProspeccaoRapidaSchema = z.object({ nome: z.string() });
+
+/** Busca contato DENTRO de uma empresa já resolvida — escopo menor que a dedupe do F3.8. */
+export const buscarContatoNaEmpresaSchema = z.object({
+  clienteId: z.string().min(1),
+  termo: z.string(),
+});
+
+export const criarProspeccaoRapidaSchema = z.object({
+  urlPerfil: opt(z.string()),
+  urlAlvo: z.enum(["cliente", "contato"]),
+  empresa: z.object({
+    clienteId: opt(z.string()),
+    nome: opt(z.string()),
+  }),
+  contato: z.object({
+    contatoId: opt(z.string()),
+    nome: opt(z.string()),
+    email: opt(z.string().email("E-mail inválido.")),
+    telefone: opt(z.string()),
+    cargo: opt(z.string()),
+  }),
+  campanhaId: opt(z.string()),
+  canalId: opt(z.string()),
+  abordagem: z.object({
+    tipo: z.enum(["LIGACAO", "WHATSAPP", "EMAIL", "LINKEDIN", "REUNIAO", "NOTA"]),
+    nota: z.string().min(1, "Escreva o que aconteceu."),
+  }),
+});

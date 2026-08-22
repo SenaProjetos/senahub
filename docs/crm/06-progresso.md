@@ -20,6 +20,73 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F4.3 — Fluxo rápido de prospecção numa tela só · 2026-08-22 · Sonnet
+
+**Feito:** `ProspeccaoRapidaDialog` em `/comercial/prospeccao` (o único board comercial que não
+tinha ponto de criação nenhum — o `FunilBoard` legado em `/comercial` era a única forma de nascer
+um lead). Colar link → nome da empresa (busca-enquanto-digita, reusa `dedupe.ts`/F1.12) → nome do
+contato (busca escopada à empresa já resolvida) → tipo de abordagem (grid de 1 clique, mesmo
+padrão da F3.4) → nota → salvar. Etapa e canal saem do formulário — a `service.ts` escolhe a
+etapa inicial sozinha, um campo a menos no caminho de <60s.
+
+**Consultei o advisor antes de desenhar** — primeira tarefa da Fase 4 que não é espelho de um
+padrão já existente, e ele apontou dois riscos que teriam mordido em produção:
+
+1. **O bug da F2.18 recorreria idêntico.** "`lead.update` continuava usando o `clienteId` do
+   plano — string vazia — em vez do id real", porque o id da empresa recém-criada só existe
+   DENTRO da transação. `criarProspeccaoRapida` (novo, `service.ts`) é uma `$transaction` de 5
+   passos (empresa → contato → prospecção → `LeadContato` → abordagem) que só usa o id
+   RETORNADO por cada `tx.create()`, nunca um valor capturado antes.
+2. **`prospeccao_ativa_unica` (F2.5) bloquearia o próprio aceite.** "2º prospect da mesma
+   empresa reaproveita a empresa" — se o 2º prospect cair na mesma empresa com prospecção já
+   ATIVA, o índice recusaria uma 2ª. Decisão: em vez de deixar estourar e mostrar erro, a
+   service CONFERE antes (`tx.lead.findFirst` por `clienteId` + status ativo) e, se achar,
+   ANEXA o novo contato à prospecção existente (`LeadContato`) e registra a abordagem nela —
+   não abre uma segunda. `comProspeccaoAtivaUnica` (movida de `actions.ts` para `service.ts`,
+   agora exportada — `criarLead`/`editarLead` continuam usando a mesma função) fica como rede
+   de segurança para a corrida entre o SELECT e o INSERT, não como única checagem.
+
+**Dedupe é responsabilidade da UI, não da service — de propósito, e testado nos dois sentidos.**
+`criarProspeccaoRapida({ empresa: { nome } })` (sem id) cria uma empresa nova toda vez, mesmo
+nome repetido — é o MESMO contrato que `criarLead` já tinha antes desta tarefa. Quem evita
+duplicata é o dialog: busca-enquanto-digita (`buscarEmpresaParaProspeccaoRapida`, reusa
+`candidatosDuplicata` do F1.12/F3.8, sem o filtro "só com histórico" daquele — aqui a pergunta é
+"já existe", não "vale reativar") + botão "usar esta" que resolve o `clienteId` antes de
+submeter. O smoke prova os dois comportamentos lado a lado, para não virarem confusão depois.
+
+**Dívida da F4.1, paga aqui.** `listaSalesNavigator`/`dataInclusaoLista`/`statusAbordagem`
+nascem preenchidos em registro NOVO; num REAPROVEITADO só `statusAbordagem` avança para
+`ABORDADO` — `dataInclusaoLista` não é tocada (a empresa não "entrou na lista" hoje). Mesmo
+cuidado com `ContatoCliente.dataCollectionSource`/`dataCollectedAt` (LGPD/T1, F1.9) — é
+literalmente o caso que esses campos foram criados para cobrir.
+
+**LGPD não foi reimplementada.** `podeAbordar()` (`lgpd.ts`, T1) é a MESMA função que o resto do
+sistema usa — contato com `optOut=true` recusa a abordagem inteira (empresa e contato já
+criados/reaproveitados são revertidos junto, pela transação).
+
+**Arquivos:** `src/modules/comercial/service.ts` (`criarProspeccaoRapida`,
+`comProspeccaoAtivaUnica` movida pra cá e exportada); `src/modules/comercial/queries.ts`
+(`buscarEmpresaParaProspeccaoRapida`, `buscarContatoNaEmpresa`); `src/modules/comercial/schemas.ts`
+(3 schemas novos); `src/modules/comercial/actions.ts` (`criarProspeccaoRapida` + 2 actions de
+busca, `comProspeccaoAtivaUnica` agora importada); `src/components/comercial/
+prospeccao-rapida-dialog.tsx` (novo); `/comercial/prospeccao/page.tsx` (botão, gateado por
+`comercial:gerir`); `scripts/smoke-crm-fase4.ts` (novo — nome deliberado, ver aviso no F4.7 do
+`04-plano-fases.md` sobre o `smoke-fase4.ts` não relacionado).
+
+**Verificação:** eslint limpo, tsc limpo, 2181 testes, build ok, `smoke:crm-fase1/2/3` sem
+regressão, `smoke:crm-fase4` **24/24 verde** — cobrindo exatamente os 4 pontos que o advisor
+pediu: (a) falha no meio não deixa `Cliente` órfão (rollback provado, contagem antes/depois
+idêntica); (b) 2º prospect por id reaproveita empresa E prospecção ativa, sem id cria nova (os
+dois comportamentos, de propósito); (c) `statusAbordagem`/`dataCollectionSource` populados; (d)
+opt-out recusa a abordagem, nada fica gravado.
+
+**O cronômetro de 60s é verificação de usuário — mesma lacuna desde a F3.4.** O proxy medível
+que o smoke reporta: 1 chamada de service = 1 `$transaction` de 5 passos internos, **zero** idas
+a mais ao servidor depois do formulário preenchido. Isso é necessário pro aceite ser alcançável,
+mas não é a mesma coisa que provar que alcança — falta o clique real com relógio.
+
+---
+
 ## F4.2 — CRUD + UI de Campanha · 2026-08-22 · Sonnet
 
 **Feito:** `Campanha` já existia no schema (F1.23, nasceu vazia de propósito) e o FILTRO por

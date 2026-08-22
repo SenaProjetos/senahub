@@ -39,11 +39,19 @@ import {
   moverProspeccaoSchema,
   registrarInteracaoSchema,
   buscarEmpresaParaVincularSchema,
+  buscarEmpresaParaProspeccaoRapidaSchema,
+  buscarContatoNaEmpresaSchema,
+  criarProspeccaoRapidaSchema,
 } from "@/modules/comercial/schemas";
 import { removerArquivo } from "@/lib/storage";
 import { etapaEhPerdido } from "@/modules/comercial/status";
 import { exigeQualificacao } from "@/modules/comercial/prospeccao";
-import { lerTemplatosNotas, buscarEmpresaParaVincular } from "@/modules/comercial/queries";
+import {
+  lerTemplatosNotas,
+  buscarEmpresaParaVincular,
+  buscarEmpresaParaProspeccaoRapida,
+  buscarContatoNaEmpresa,
+} from "@/modules/comercial/queries";
 import {
   proximoNumeroProposta,
   criarPropostaDeLead as servicoCriarPropostaDeLead,
@@ -56,6 +64,8 @@ import {
   moverProspeccao as servicoMoverProspeccao,
   registrarAtividade,
   registrarInteracaoManual as servicoRegistrarInteracaoManual,
+  comProspeccaoAtivaUnica,
+  criarProspeccaoRapida as servicoCriarProspeccaoRapida,
 } from "@/modules/comercial/service";
 
 const base = { modulo: "comercial", recurso: "comercial", permissao: "gerir" } as const;
@@ -105,32 +115,6 @@ async function validarClienteId(clienteId: string | undefined): Promise<string |
   const existe = await prisma.cliente.findUnique({ where: { id: clienteId }, select: { id: true } });
   if (!existe) throw new ActionError("Empresa não encontrada.");
   return clienteId;
-}
-
-/**
- * Traduz a violação dos índices parciais da F2.5 (ADR-02/ADR-18) numa mensagem que o vendedor
- * entende. Sem isto o `defineAction` devolveria "erro inesperado" para uma regra de negócio
- * perfeitamente normal — mesmo raciocínio (e mesmo formato) de `comDocumentoUnico` em
- * `modules/clientes/actions.ts`, criado na F1.16 para o índice de CPF/CNPJ.
- *
- * Aqui a rede de segurança é a ÚNICA checagem, e não um complemento a uma consulta prévia: uma
- * verificação "já existe prospecção ativa?" antes do INSERT teria janela de corrida e ainda
- * assim precisaria deste catch. Deixar só o catch é mais simples e igualmente correto.
- */
-async function comProspeccaoAtivaUnica<T>(fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn();
-  } catch (e) {
-    const codigo = (e as { code?: string }).code;
-    const alvo = JSON.stringify((e as { meta?: unknown }).meta ?? "");
-    if (codigo === "P2002" && alvo.includes("prospeccao_ativa")) {
-      throw new ActionError(
-        "Já existe uma prospecção ativa para esta empresa nesta campanha. " +
-          "Registre o contato na prospecção existente, ou encerre-a antes de abrir outra.",
-      );
-    }
-    throw e;
-  }
 }
 
 // ── Leads ─────────────────────────────────────────────────────
@@ -944,3 +928,55 @@ export async function buscarEmpresaParaVincularAction(input: unknown) {
   const { nome } = buscarEmpresaParaVincularSchema.parse(input);
   return buscarEmpresaParaVincular(nome);
 }
+
+/**
+ * F4.3 — busca-enquanto-digita a empresa no fluxo rápido. Mesmo padrão de
+ * `buscarEmpresaParaVincularAction` (F3.8), sem o filtro "só com histórico" — aqui a pergunta é
+ * só "essa empresa já existe".
+ */
+export async function buscarEmpresaParaProspeccaoRapidaAction(input: unknown) {
+  "use server";
+  const { requireUser } = await import("@/lib/session");
+  const { can } = await import("@/lib/permissions");
+  const user = await requireUser();
+  if (!(await can(user, "comercial", "gerir"))) return [];
+  const { nome } = buscarEmpresaParaProspeccaoRapidaSchema.parse(input);
+  return buscarEmpresaParaProspeccaoRapida(nome);
+}
+
+/**
+ * F4.3 — busca-enquanto-digita DENTRO de uma empresa já resolvida no fluxo rápido. Mesmo padrão
+ * de `buscarEmpresaParaVincularAction`: fora de `defineAction` porque é leitura, não mutação.
+ */
+export async function buscarContatoNaEmpresaAction(input: unknown) {
+  "use server";
+  const { requireUser } = await import("@/lib/session");
+  const { can } = await import("@/lib/permissions");
+  const user = await requireUser();
+  if (!(await can(user, "comercial", "gerir"))) return [];
+  const { clienteId, termo } = buscarContatoNaEmpresaSchema.parse(input);
+  return buscarContatoNaEmpresa(clienteId, termo);
+}
+
+/**
+ * F4.3 — "Novo lead" numa tela só. Diferente das outras actions do Comercial, a lógica NÃO fica
+ * em `service.ts` chamada por um handler fino — aqui ela É `criarProspeccaoRapida` (já em
+ * `service.ts`, dentro de uma `$transaction`): esta action só faz sessão/permissão/Zod/auditoria,
+ * o padrão de sempre.
+ */
+export const criarProspeccaoRapida = defineAction(
+  {
+    ...base,
+    acao: "criar-prospeccao-rapida",
+    entidade: "Lead",
+    schema: criarProspeccaoRapidaSchema,
+    // `idResultadoOuInput` não serve aqui: o retorno é `{ leadId, clienteId, contatoId }`, sem
+    // `.id` — a entidade auditada é o LEAD, então o resolver aponta direto pra `leadId`.
+    entidadeId: (d) => (d as { leadId?: string } | undefined)?.leadId,
+  },
+  async (i, ctx) => {
+    const r = await servicoCriarProspeccaoRapida({ ...i, autorId: ctx.user.id });
+    rev();
+    return r;
+  },
+);
