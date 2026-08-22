@@ -654,3 +654,46 @@ export async function buscarEmpresaParaVincular(nome: string): Promise<EmpresaPa
     // histórico não é sinal de reativação, é só uma homônima.
     .filter((c) => c.projetos + c.negociacoes + c.propostas > 0);
 }
+
+// ── Fluxo rápido de prospecção (F4.3) ────────────────────────────
+export type EmpresaCandidata = { id: string; nome: string };
+
+/**
+ * Busca empresa por nome/domínio enquanto o usuário digita no fluxo rápido (F4.3). Reusa
+ * `candidatosDuplicata` (F1.12), como o sinal de reativação (F3.8) — mas SEM o filtro "só com
+ * histórico" daquele: aqui a pergunta não é "vale a pena reativar", é "essa empresa já existe,
+ * sim ou não" — e uma empresa recém-criada AGORA MESMO (2º prospect da mesma sessão, ainda sem
+ * projeto/negociação nenhum) tem que aparecer igual, ou o aceite "reaproveita sem duplicar"
+ * falha exatamente no caso que ele testa.
+ */
+export async function buscarEmpresaParaProspeccaoRapida(nome: string): Promise<EmpresaCandidata[]> {
+  if (!nome || nome.trim().length < 3) return [];
+  const existentes = await clientesParaDedupe();
+  return candidatosDuplicata(existentes, { nome, tipo: "PJ" })
+    .filter((c) => c.motivo === "nome_exato" || (c.motivo === "nome_similar" && c.score >= 0.85))
+    .slice(0, 5)
+    .map((c) => ({ id: c.cliente.id, nome: c.cliente.nome }));
+}
+
+/**
+ * Busca contato DENTRO de uma empresa já resolvida — escopo menor que `candidatosDuplicata`
+ * (F1.12): aqui a empresa já está decidida, então "quase igual" entre poucos contatos de UMA
+ * empresa não precisa de Levenshtein — `contains` já resolve sem falso-negativo.
+ */
+export async function buscarContatoNaEmpresa(clienteId: string, termo: string) {
+  const t = termo.trim();
+  if (t.length < 2) return [];
+  return prisma.contatoCliente.findMany({
+    where: {
+      clienteId,
+      excluidoEm: null,
+      OR: [
+        { nome: { contains: t, mode: "insensitive" } },
+        { email: { contains: t, mode: "insensitive" } },
+      ],
+    },
+    orderBy: { nome: "asc" },
+    take: 5,
+    select: { id: true, nome: true, cargo: true, email: true, telefone: true, optOut: true },
+  });
+}

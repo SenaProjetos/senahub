@@ -26,10 +26,12 @@ import {
 import {
   validarQualificacao,
   validarMovimentoProspeccao,
+  STATUS_PROSPECCAO_ATIVOS,
 } from "@/modules/comercial/prospeccao";
 import { tipoAtividadeDe } from "@/modules/comercial/atividade";
 import { descreverEvento, type EventoAtividade } from "@/modules/comercial/atividade-eventos";
 import { TIPO_PROXIMA_ACAO_LABEL } from "@/modules/agenda/proxima-acao";
+import { podeAbordar } from "@/modules/comercial/lgpd";
 import type { Prisma } from "@/generated/prisma/client";
 
 /**
@@ -609,6 +611,233 @@ export async function registrarInteracaoManual(input: {
     select: { id: true },
   });
   return { id: atividade.id };
+}
+
+/**
+ * Traduz a violação dos índices parciais da F2.5 (ADR-02/ADR-18) numa mensagem que o vendedor
+ * entende. Movida de `actions.ts` para cá na F4.3 — `criarProspeccaoRapida` precisa do mesmo
+ * catch dentro de uma transação, e `actions.ts` segue reexportando/reusando esta versão em vez
+ * de manter uma segunda cópia.
+ */
+export async function comProspeccaoAtivaUnica<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    const codigo = (e as { code?: string }).code;
+    const alvo = JSON.stringify((e as { meta?: unknown }).meta ?? "");
+    if (codigo === "P2002" && alvo.includes("prospeccao_ativa")) {
+      throw new ActionError(
+        "Já existe uma prospecção ativa para esta empresa nesta campanha. " +
+          "Registre o contato na prospecção existente, ou encerre-a antes de abrir outra.",
+      );
+    }
+    throw e;
+  }
+}
+
+// ── Fluxo rápido de prospecção (F4.3, "Sales Navigator numa tela só") ─────────────────────────
+export type ProspeccaoRapidaInput = {
+  /** Link colado (perfil LinkedIn/Sales Navigator da empresa OU da pessoa) — nunca "raspado". */
+  urlPerfil?: string | null;
+  /** A quem o `urlPerfil` pertence — decide se vira `Cliente.salesNavigatorUrl` ou
+   * `ContatoCliente.salesNavigatorUrl`. Sem isso o link de uma PESSOA acabaria gravado como se
+   * fosse o perfil da EMPRESA (ou vice-versa), o que é pior que não guardar o link nenhum. */
+  urlAlvo: "cliente" | "contato";
+  empresa: { clienteId?: string | null; nome?: string };
+  contato: { contatoId?: string | null; nome?: string; email?: string; telefone?: string; cargo?: string };
+  campanhaId?: string | null;
+  canalId?: string | null;
+  abordagem: {
+    tipo: Extract<TipoAtividade, "LIGACAO" | "WHATSAPP" | "EMAIL" | "LINKEDIN" | "REUNIAO" | "NOTA">;
+    nota: string;
+  };
+  autorId: string;
+};
+
+export type ProspeccaoRapidaResultado = {
+  leadId: string;
+  clienteId: string;
+  contatoId: string;
+  reaproveitouEmpresa: boolean;
+  reaproveitouContato: boolean;
+  /** A empresa já tinha prospecção ATIVA — o contato entrou nela em vez de abrir uma 2ª. */
+  reaproveitouProspeccaoAtiva: boolean;
+};
+
+/**
+ * "Colar URL → criar/vincular empresa → criar/vincular contato → criar prospecção → registrar
+ * abordagem", tudo numa transação só (F4.3). É a resposta a como os 8 leads reais da F2.18
+ * chegaram órfãos: nada aqui deixa a etapa seguinte para "depois" — sai tudo junto ou nada sai.
+ *
+ * ── Por que uma transação, e não 5 chamadas separadas ──────────────────────────────────────
+ * Empresa nova + contato novo + prospecção só fazem sentido juntos. Um erro no passo 4 depois de
+ * já ter criado a empresa nos passos 1–2 deixaria um `Cliente` órfão, sem prospecção nenhuma —
+ * pior que o problema que a F3.8 existe para resolver. `$transaction` garante tudo-ou-nada.
+ *
+ * ── "2º prospect da mesma empresa reaproveita a empresa" (aceite da tarefa) ────────────────
+ * Não é só a EMPRESA que não duplica — uma empresa com prospecção ATIVA não ganha uma segunda: o
+ * novo contato entra na existente (`LeadContato`) e a abordagem é registrada nela. É a mesma
+ * regra que o índice parcial `lead_prospeccao_ativa_campanha_unica` (F2.5/ADR-02) já impõe no
+ * banco quando há campanha — aqui a checagem é PROATIVA (antes do INSERT, então nunca aparece
+ * como erro pro usuário) e vale mesmo sem campanha selecionada, que é o caso mais comum deste
+ * fluxo. `comProspeccaoAtivaUnica` continua como rede de segurança para a corrida entre o SELECT
+ * e o INSERT — cinturão e suspensório, não redundância inútil.
+ *
+ * ── `listaSalesNavigator`/`statusAbordagem` (dívida deixada pela F4.1) ─────────────────────
+ * Só nasce `true`/`ABORDADO` em registro NOVO. Num registro REAPROVEITADO, só o
+ * `statusAbordagem` avança para `ABORDADO` — `dataInclusaoLista` não é tocada, porque a empresa
+ * não "entrou na lista" hoje, entrou quando entrou; reescrever essa data seria mentir sobre o
+ * histórico (mesmo cuidado do docblock da migration da F4.1).
+ */
+export async function criarProspeccaoRapida(
+  input: ProspeccaoRapidaInput,
+): Promise<ProspeccaoRapidaResultado> {
+  return prisma.$transaction(async (tx) => {
+    // ── 1. Empresa: reaproveita ou cria ───────────────────────────────────────────────────
+    let clienteId: string;
+    let reaproveitouEmpresa: boolean;
+    if (input.empresa.clienteId) {
+      const existe = await tx.cliente.findUnique({
+        where: { id: input.empresa.clienteId },
+        select: { id: true },
+      });
+      if (!existe) throw new ActionError("Empresa não encontrada.");
+      clienteId = existe.id;
+      reaproveitouEmpresa = true;
+      await tx.cliente.update({ where: { id: clienteId }, data: { statusAbordagem: "ABORDADO" } });
+    } else {
+      const nome = input.empresa.nome?.trim();
+      if (!nome) throw new ActionError("Informe o nome da empresa.");
+      const novo = await tx.cliente.create({
+        data: {
+          nome,
+          tipo: "PJ",
+          ...(input.urlAlvo === "cliente" && input.urlPerfil ? { salesNavigatorUrl: input.urlPerfil } : {}),
+          listaSalesNavigator: true,
+          dataInclusaoLista: new Date(),
+          statusAbordagem: "ABORDADO",
+        },
+        select: { id: true },
+      });
+      clienteId = novo.id;
+      reaproveitouEmpresa = false;
+      await registrarAtividade(
+        { evento: "EMPRESA_CADASTRADA", nome },
+        { autorId: input.autorId, clienteId, tx },
+      );
+    }
+
+    // ── 2. Contato: reaproveita ou cria ───────────────────────────────────────────────────
+    let contatoId: string;
+    let reaproveitouContato: boolean;
+    if (input.contato.contatoId) {
+      const existe = await tx.contatoCliente.findFirst({
+        where: { id: input.contato.contatoId, clienteId },
+        select: { id: true, optOut: true, telefone: true, email: true },
+      });
+      if (!existe) throw new ActionError("Contato não encontrado nesta empresa.");
+      // LGPD (T1): a MESMA regra do resto do sistema — nunca reimplementada solta aqui.
+      if (!podeAbordar(existe)) {
+        throw new ActionError("Este contato pediu descadastro (opt-out) — não pode ser abordado.");
+      }
+      contatoId = existe.id;
+      reaproveitouContato = true;
+      await tx.contatoCliente.update({ where: { id: contatoId }, data: { statusAbordagem: "ABORDADO" } });
+    } else {
+      const nome = input.contato.nome?.trim();
+      if (!nome) throw new ActionError("Informe o nome do contato.");
+      const novo = await tx.contatoCliente.create({
+        data: {
+          clienteId,
+          nome,
+          email: input.contato.email || null,
+          telefone: input.contato.telefone || null,
+          cargo: input.contato.cargo || null,
+          ...(input.urlAlvo === "contato" && input.urlPerfil ? { salesNavigatorUrl: input.urlPerfil } : {}),
+          listaSalesNavigator: true,
+          dataInclusaoLista: new Date(),
+          statusAbordagem: "ABORDADO",
+          // LGPD (T1): de onde veio o dado e quando — exatamente o caso que esses dois campos
+          // foram criados para cobrir (F1.9), não um genérico "createdAt" que já existia.
+          dataCollectionSource: "Sales Navigator",
+          dataCollectedAt: new Date(),
+        },
+        select: { id: true },
+      });
+      contatoId = novo.id;
+      reaproveitouContato = false;
+      await registrarAtividade(
+        { evento: "CONTATO_CADASTRADO", nome, cargo: input.contato.cargo ?? null },
+        { autorId: input.autorId, clienteId, contatoId, tx },
+      );
+    }
+
+    // ── 3. Prospecção: reaproveita a ATIVA (se houver) ou cria ───────────────────────────
+    const etapaPadrao = await tx.funilEtapa.findFirst({
+      where: { ativo: true },
+      orderBy: { ordem: "asc" },
+      select: { id: true },
+    });
+    if (!etapaPadrao) throw new ActionError("Nenhuma etapa de funil configurada.");
+
+    const ativa = await tx.lead.findFirst({
+      where: {
+        clienteId,
+        status: { in: [...STATUS_PROSPECCAO_ATIVOS] },
+        arquivado: false,
+        excluidoEm: null,
+      },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true },
+    });
+
+    let leadId: string;
+    let reaproveitouProspeccaoAtiva: boolean;
+    if (ativa) {
+      leadId = ativa.id;
+      reaproveitouProspeccaoAtiva = true;
+    } else {
+      const nomeEmpresa = input.empresa.nome?.trim() ?? "";
+      const novoLead = await comProspeccaoAtivaUnica(() =>
+        tx.lead.create({
+          data: {
+            nome: nomeEmpresa || "Prospecção",
+            clienteId,
+            etapaId: etapaPadrao.id,
+            campaignId: input.campanhaId || null,
+            canalId: input.canalId || null,
+          },
+          select: { id: true },
+        }),
+      );
+      leadId = novoLead.id;
+      reaproveitouProspeccaoAtiva = false;
+      await registrarAtividade(
+        { evento: "PROSPECCAO_CRIADA", nome: nomeEmpresa },
+        { autorId: input.autorId, clienteId, leadId, tx },
+      );
+    }
+
+    // ── 4. Vincula o contato à prospecção (join idempotente) ─────────────────────────────
+    await tx.leadContato.upsert({
+      where: { leadId_contatoId: { leadId, contatoId } },
+      create: { leadId, contatoId, principal: true },
+      update: {},
+    });
+
+    // ── 5. Registra a abordagem — o toque real, não um evento de sistema ────────────────
+    await tx.atividade.create({
+      data: {
+        tipo: input.abordagem.tipo,
+        descricao: input.abordagem.nota,
+        autorId: input.autorId,
+        clienteId,
+        leadId,
+      },
+    });
+
+    return { leadId, clienteId, contatoId, reaproveitouEmpresa, reaproveitouContato, reaproveitouProspeccaoAtiva };
+  });
 }
 
 // ── Próxima Ação (F2.10, ADR-17) ─────────────────────────────────────────────────────────────
