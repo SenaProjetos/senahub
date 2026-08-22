@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Eye, FileSignature } from "lucide-react";
 import { criarProposta } from "@/modules/comercial/actions";
+import { STATUS_PROPOSTA_LABEL } from "@/modules/comercial/labels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,6 +52,9 @@ type StatusTone = "success" | "warning" | "danger" | "info" | "neutral";
 export const STATUS_PROPOSTA_TONE: Record<string, StatusTone> = {
   rascunho: "neutral",
   enviada: "warning",
+  // F5.5 — "info" (não "warning"): já saiu da fila de espera, tem resposta do cliente. Cor
+  // própria pra não confundir com "enviada, aguardando" na mesma lista.
+  em_negociacao: "info",
   aceita: "success",
   recusada: "danger",
 };
@@ -132,9 +136,9 @@ export function PropostasView({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="todas">Todos os status</SelectItem>
-          {["rascunho", "enviada", "aceita", "recusada"].map((s) => (
+          {(["rascunho", "enviada", "em_negociacao", "aceita", "recusada"] as const).map((s) => (
             <SelectItem key={s} value={s}>
-              {s}
+              {STATUS_PROPOSTA_LABEL[s]}
             </SelectItem>
           ))}
         </SelectContent>
@@ -178,7 +182,7 @@ export function PropostasView({
                   <TableCell className="text-right font-mono">{brl(p.total)}</TableCell>
                   <TableCell>
                     <StatusBadge tone={STATUS_PROPOSTA_TONE[p.status] ?? "neutral"}>
-                      {p.status}
+                      {STATUS_PROPOSTA_LABEL[p.status as keyof typeof STATUS_PROPOSTA_LABEL] ?? p.status}
                     </StatusBadge>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{p.visualizacoes}</TableCell>

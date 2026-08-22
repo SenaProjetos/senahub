@@ -37,7 +37,13 @@ import { prisma } from "../src/lib/prisma";
 import { removerArquivo } from "../src/lib/storage";
 import { planejarVinculo } from "../src/modules/comercial/vinculo-negociacao";
 import { carregarPendentes, executarVinculo } from "../src/modules/comercial/migracao-vinculo";
-import { salvarProposta, aceitarProposta, criarProposta, criarPropostaDeLead } from "../src/modules/comercial/service";
+import {
+  salvarProposta,
+  aceitarProposta,
+  criarProposta,
+  criarPropostaDeLead,
+  mudarStatusProposta,
+} from "../src/modules/comercial/service";
 import { versoesComparaveis } from "../src/modules/comercial/propostas-extras/queries";
 import { versaoVigente } from "../src/modules/comercial/versoes";
 import { alertaPropostasExpiradas } from "../src/lib/jobs-handlers";
@@ -846,6 +852,44 @@ async function main() {
   check("(d) a proposta nasceu com negociação", propostaD.negociacaoId !== null);
   const negD = await prisma.negociacao.findUnique({ where: { id: propostaD.negociacaoId! }, select: { leadId: true, estagio: true } });
   check("(d) a negociação criada é deste lead, no estágio inicial LEVANTAMENTO", negD?.leadId === leadForaDoFluxo.id && negD.estagio === "LEVANTAMENTO");
+
+  console.log("\n── F5.5: StatusProposta.em_negociacao + transições ────────────────\n");
+
+  const cliF55 = await prisma.cliente.create({ data: { nome: `${TAG}_EmpresaF55`, tipo: "PJ" } });
+  const negF55 = await prisma.negociacao.create({
+    data: { titulo: `${TAG}_NegF55`, clienteId: cliF55.id, estagio: "PROPOSTA_ENVIADA" },
+  });
+  const pF55 = await criarProposta({ titulo: `${TAG} F55`, clienteId: cliF55.id, negociacaoId: negF55.id }, user.id);
+
+  const paraEnviada = await mudarStatusProposta({ id: pF55.id, status: "enviada" }, user.id);
+  check("mudarStatusProposta aceita 'enviada'", paraEnviada.id === pF55.id);
+  const paraEmNegociacao = await mudarStatusProposta({ id: pF55.id, status: "em_negociacao" }, user.id);
+  check("mudarStatusProposta aceita 'em_negociacao' (o valor novo do enum)", paraEmNegociacao.id === pF55.id);
+  const lidaF55 = await prisma.proposta.findUnique({ where: { id: pF55.id }, select: { status: true } });
+  check("o status gravado é exatamente em_negociacao", lidaF55?.status === "em_negociacao");
+
+  // Imutabilidade: uma proposta ACEITA não muda de status por aqui — mesma regra que
+  // `salvarProposta` já aplica a itens/condições, agora também do lado do status.
+  const pF55b = await criarProposta({ titulo: `${TAG} F55b`, clienteId: cliF55.id, negociacaoId: negF55.id }, user.id);
+  await salvarProposta(
+    { id: pF55b.id, titulo: `${TAG} F55b`, areaM2: undefined, validade: "", observacoes: "",
+      itens: [{ disciplina: "Arquitetura", descricao: "", valor: 1000 }], condicoes: [] },
+    user.id,
+  );
+  await aceitarProposta(pF55b.id, user.id);
+  let recusouStatusDeAceita = "";
+  try {
+    await mudarStatusProposta({ id: pF55b.id, status: "rascunho" }, user.id);
+  } catch (e) {
+    recusouStatusDeAceita = (e as Error).message;
+  }
+  check(
+    "proposta ACEITA não muda de status por mudarStatusProposta (imutável)",
+    /não pode mudar de status/i.test(recusouStatusDeAceita),
+    recusouStatusDeAceita,
+  );
+  const aindaAceita = await prisma.proposta.findUnique({ where: { id: pF55b.id }, select: { status: true } });
+  check("a proposta continua aceita, intocada", aindaAceita?.status === "aceita");
 
   console.log(`\n${ok ? "✔ Fase 5: tudo verde." : "✖ Fase 5: há falhas acima."}`);
   if (!ok) process.exitCode = 1;

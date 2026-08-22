@@ -115,9 +115,12 @@ export const salvarPropostaSchema = z.object({
   condicoes: z.array(condicaoPropostaSchema),
 });
 
+/** F5.5: `em_negociacao` entra no leque de status que esta action aceita definir. `aceita`
+ *  continua RECUSADA aqui mesmo estando no enum — só `aceitarProposta` pode chegar lá (gera o
+ *  projeto). */
 export const statusPropostaSchema = z.object({
   id: z.string().min(1),
-  status: z.enum(["rascunho", "enviada", "aceita", "recusada"]),
+  status: z.enum(["rascunho", "enviada", "em_negociacao", "aceita", "recusada"]),
 });
 
 export type SalvarPropostaInput = z.infer<typeof salvarPropostaSchema>;

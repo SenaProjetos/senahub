@@ -10,8 +10,11 @@
  * do client gerado. O `satisfies` abaixo passa a validar contra a FONTE REAL — adicionar um valor
  * ao enum no Prisma sem dar rótulo aqui quebra a compilação, que é exatamente o que se quer.
  *
+ * ✅ `StatusProposta` religado na F5.5 (2026-08-22): `em_negociacao` entrou no enum real do
+ * Prisma (P14 item 4) — o tipo local `StatusPropostaCrm` que o antecipava foi removido; usa-se
+ * `StatusProposta` importado abaixo, como os demais.
+ *
  * Ainda declarados localmente (não existem no Prisma):
- *   - `StatusPropostaCrm` — `em_negociacao` só entra no enum real na Fase 5 (P14)
  *   - `TipoProximaAcao` / `TipoAncoraCompromisso` — chegam na F2.1b (`Compromisso` v2, ADR-17)
  *
  * Puro: sem I/O, sem `server-only` — client component pode importar (o client Prisma exporta os
@@ -26,6 +29,7 @@ import type {
   StatusComercialCliente,
   BaseLegalLgpd,
   StatusRelacionamentoContato,
+  StatusProposta,
 } from "@/generated/prisma/enums";
 
 export type {
@@ -36,10 +40,8 @@ export type {
   StatusComercialCliente,
   BaseLegalLgpd,
   StatusRelacionamentoContato,
+  StatusProposta,
 };
-
-/** `em_negociacao` ainda não existe no enum do Prisma — entra na Fase 5 (P14). */
-export type StatusPropostaCrm = "rascunho" | "enviada" | "em_negociacao" | "aceita" | "recusada";
 
 export type TipoProximaAcao =
   | "LIGACAO"
@@ -99,14 +101,13 @@ export const TEMPERATURA_LABEL = {
   QUENTE: "Quente",
 } satisfies Record<Temperatura, string>;
 
-/** Inclui `em_negociacao`, que só entra no schema na Fase 5 (P14). */
 export const STATUS_PROPOSTA_LABEL = {
   rascunho: "Rascunho",
   enviada: "Enviada",
   em_negociacao: "Em negociação",
   aceita: "Aceita",
   recusada: "Recusada",
-} satisfies Record<StatusPropostaCrm, string>;
+} satisfies Record<StatusProposta, string>;
 
 /** Timeline. `SISTEMA` é o evento automático (mudança de etapa, criação…). */
 export const TIPO_ATIVIDADE_LABEL = {

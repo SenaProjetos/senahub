@@ -14,6 +14,7 @@ import type { SalvarPropostaInput } from "@/modules/comercial/schemas";
 import type {
   EstagioNegociacao,
   StatusProspeccao,
+  StatusProposta,
   TipoAncoraCompromisso,
   TipoAtividade,
   TipoProximaAcao,
@@ -26,6 +27,7 @@ import {
 import { calcularValoresVersao, proximoNumeroVersao } from "@/modules/comercial/versoes";
 import { isoParaDataValidade } from "@/modules/comercial/validade";
 import { calcularStatusComercial } from "@/modules/comercial/status";
+import { arquivarPdfDaVersao } from "@/modules/comercial/pdf-proposta";
 import {
   validarQualificacao,
   validarMovimentoProspeccao,
@@ -107,6 +109,51 @@ export async function criarProposta(
       },
     });
   });
+}
+
+/**
+ * Muda o status "de vitrine" da proposta — o vai-e-vem editorial (`rascunho` ↔ `enviada` ↔
+ * `em_negociacao` ↔ `recusada`), NUNCA o aceite: `aceita` só chega por `aceitarProposta`, que
+ * gera o projeto na mesma transação (F5.9). É a mesma separação que `Negociacao` tem entre
+ * `moverEstagio` (jornada) e o aceite criando `CONTRATADO` por um caminho próprio.
+ *
+ * **F5.5 — a única transição bloqueada é sair de `aceita`.** Uma proposta aceita é imutável
+ * (`salvarProposta` já recusa editar itens/condições dela); esta function fecha a MESMA regra
+ * do lado do status — sem isto, `mudarStatusProposta` conseguiria "desaceitar" uma proposta que
+ * já virou projeto, um estado que nada mais no sistema sabe desfazer. Fora isso, permissivo de
+ * propósito: `enviada → rascunho` (puxar de volta pra editar) e `em_negociacao → enviada`
+ * (reenviar) são idas e vindas legítimas — travar demais aqui repetiria o erro que o ADR-02 já
+ * documentou para `Negociacao`.
+ */
+export async function mudarStatusProposta(
+  input: { id: string; status: Exclude<StatusProposta, "aceita"> },
+  autorId: string,
+): Promise<{ id: string }> {
+  const atual = await prisma.proposta.findUnique({ where: { id: input.id }, select: { status: true } });
+  if (!atual) throw new ActionError("Proposta não encontrada.");
+  if (atual.status === "aceita") {
+    throw new ActionError("Proposta aceita não pode mudar de status — ela já virou projeto.");
+  }
+
+  const p = await prisma.proposta.update({
+    where: { id: input.id },
+    data: { status: input.status, enviadaEm: input.status === "enviada" ? new Date() : undefined },
+    select: { id: true, numero: true, clienteId: true },
+  });
+
+  // F3.2 — só "enviada" vira evento. Rascunho/em_negociacao/recusada são idas e vindas de
+  // edição; encher a timeline com elas afogaria os eventos que importam.
+  if (input.status === "enviada") {
+    await registrarAtividade(
+      { evento: "PROPOSTA_ENVIADA", numero: p.numero, porEmail: false },
+      { autorId, clienteId: p.clienteId, propostaId: p.id },
+    );
+    // F5.13 — congela o PDF do que está sendo enviado. Nunca lança (ver docblock do módulo): o
+    // envio não pode falhar por causa do arquivo.
+    await arquivarPdfDaVersao(p.id);
+  }
+
+  return { id: p.id };
 }
 
 /**

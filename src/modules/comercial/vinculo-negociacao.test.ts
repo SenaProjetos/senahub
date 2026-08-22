@@ -85,10 +85,14 @@ describe("planejarVinculo — sintética quando não há de onde derivar", () =>
 });
 
 describe("planejarVinculo — estágio da sintética sai do status da proposta", () => {
-  it("os 4 status mapeiam para estágios distintos e coerentes", () => {
+  // F5.5: `em_negociacao` entrou no enum depois deste mapa existir (F5.2) — o TypeScript já
+  // obriga a chave em `ESTAGIO_POR_STATUS_PROPOSTA`; este teste é o que pegaria, em runtime,
+  // um valor MAPEADO ERRADO (o tipo não valida o VALOR, só a presença da chave).
+  it("os 5 status mapeiam para estágios distintos e coerentes", () => {
     expect(ESTAGIO_POR_STATUS_PROPOSTA).toEqual({
       rascunho: "ORCAMENTO",
       enviada: "PROPOSTA_ENVIADA",
+      em_negociacao: "NEGOCIACAO",
       aceita: "CONTRATADO",
       recusada: "PERDIDO",
     });

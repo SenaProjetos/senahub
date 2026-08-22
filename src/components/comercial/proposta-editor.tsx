@@ -16,6 +16,7 @@ import {
   Trash2,
   Eye,
   ListChecks,
+  MessageSquareText,
 } from "lucide-react";
 import {
   salvarProposta,
@@ -25,6 +26,7 @@ import {
   enviarPropostaEmail,
 } from "@/modules/comercial/actions";
 import { STATUS_PROPOSTA_TONE } from "./propostas-view";
+import { STATUS_PROPOSTA_LABEL } from "@/modules/comercial/labels";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -156,7 +158,7 @@ export function PropostaEditor({
     });
   }
 
-  function status(s: "enviada" | "recusada" | "rascunho") {
+  function status(s: "enviada" | "em_negociacao" | "recusada" | "rascunho") {
     start(async () => {
       const r = await mudarStatusProposta({ id: proposta.id, status: s });
       if (r.ok) {
@@ -202,7 +204,10 @@ export function PropostaEditor({
             <span className="font-mono text-sm text-muted-foreground">{proposta.numero}</span>
             <h2 className="truncate text-xl font-extrabold tracking-tight">{titulo}</h2>
             <StatusBadge tone={STATUS_PROPOSTA_TONE[proposta.status] ?? "neutral"}>
-              {proposta.status}
+              {/* `proposta.status` chega como `string` solto (prop do Server Component) — o
+                  cast é local, só aqui; `STATUS_PROPOSTA_LABEL` continua estrito para quem
+                  já tem o enum de verdade. O `??` cobre um valor fora do enum sem quebrar a tela. */}
+              {STATUS_PROPOSTA_LABEL[proposta.status as keyof typeof STATUS_PROPOSTA_LABEL] ?? proposta.status}
             </StatusBadge>
             {proposta.visualizacoes.length > 0 && (
               <Badge variant="outline" className="gap-1">
@@ -227,6 +232,13 @@ export function PropostaEditor({
                   <Button variant="outline" size="sm" onClick={email} disabled={pending}>
                     <Send className="size-3.5" /> E-mail
                   </Button>
+                  {/* F5.5 — só depois de enviada faz sentido marcar "em negociação": é o
+                      cliente respondendo, e não dá pra responder ao que nunca chegou. */}
+                  {proposta.status === "enviada" && (
+                    <Button variant="outline" size="sm" onClick={() => status("em_negociacao")} disabled={pending}>
+                      <MessageSquareText className="size-3.5" /> Em negociação
+                    </Button>
+                  )}
                   <Button variant="outline" size="sm" onClick={() => status("recusada")} disabled={pending}>
                     <X className="size-3.5" /> Recusar
                   </Button>

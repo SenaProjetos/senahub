@@ -20,6 +20,70 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F5.5 — `StatusProposta.em_negociacao` + transições · 2026-08-22 · Sonnet
+
+**Feito:** enum ganha `em_negociacao` (entre `enviada` e `aceita`); `mudarStatusProposta`
+extraído para `service.ts` (mesma consistência da F5.3 — as outras mutações de Proposta já
+moraram lá, esta era a única exceção) e ganha a única transição bloqueada: sair de `aceita`.
+Botão "Em negociação" no editor, visível só a partir de `enviada`. `visualizada` continua FORA
+do enum, como já era.
+
+**Este é o valor que a F1.4 já tinha antecipado, literalmente esperando por hoje.**
+`StatusPropostaCrm` era um tipo local declarado desde a F1.5, com o comentário *"em_negociacao
+ainda não existe no enum do Prisma — entra na Fase 5"*. Chegou a hora: removido, e todo mundo
+que o usava passa a importar `StatusProposta` de verdade — inclusive `STATUS_PROPOSTA_LABEL`,
+que JÁ tinha o rótulo "Em negociação" escrito, sem chamador nenhum até agora.
+
+**O `Record<StatusProposta, EstagioNegociacao>` da F5.2 forçou a própria correção.**
+`ESTAGIO_POR_STATUS_PROPOSTA` (`vinculo-negociacao.ts`) é chave completa por `StatusProposta` —
+adicionar o valor no enum quebrou a COMPILAÇÃO até eu mapear `em_negociacao → NEGOCIACAO`. É
+exatamente o motivo de usar `Record` em vez de `switch`/`default` nesse tipo de tabela: o
+compilador lembra sozinho de todo lugar que precisa da entrada nova.
+
+**"+ transições" ficou deliberadamente permissivo — não é uma máquina de estados nova.** O
+aceite verificável da tarefa é só sobre `visualizada` ficar fora do enum (já valia); "+
+transições" no texto da tarefa não veio com uma lista de regras. Decisão: a ÚNICA transição
+bloqueada é sair de `aceita` — fecha a MESMA lacuna que `salvarProposta` já cobre do lado dos
+itens (proposta aceita é imutável), agora também do lado do status, porque hoje era possível
+"desaceitar" uma proposta que já virou projeto. `rascunho ↔ enviada ↔ em_negociacao ↔ recusada`
+continuam livres — travar mais reproduziria o erro que o ADR-02 já documentou pra `Negociacao`
+("múltiplas obras por cliente é o padrão real; travar demais briga com a operação").
+
+**`StatusProposta` renderizava CRU na tela, nas duas telas — corrigido de passagem.**
+`proposta-editor.tsx` e `propostas-view.tsx` mostravam `{proposta.status}` direto (o
+identificador em inglês, ex. "rascunho" minúsculo sem acento — na verdade já em português, mas
+sem tratamento nenhum) em vez de `STATUS_PROPOSTA_LABEL[...]`. Violava a própria convenção T6
+("rótulo pt-BR centralizado, nenhuma tela escreve à mão") em todos os status, não só o novo — e
+o Select de filtro por status tinha os 4 valores antigos hardcoded, também sem label. Corrigido
+nos três lugares enquanto eu já estava mexendo na vizinhança imediata — não é featurecreep, é o
+mesmo arquivo/linha que precisava aceitar o valor novo de qualquer forma.
+
+**Arquivos:** `prisma/schema.prisma` (enum) ·
+`prisma/migrations/20260822200000_crm_f55_status_proposta_em_negociacao/migration.sql` (novo,
+`ALTER TYPE ... ADD VALUE`) · `src/modules/comercial/labels.ts` (`StatusPropostaCrm` removido,
+`StatusProposta` religado) · `src/modules/comercial/schemas.ts` (enum do Zod) ·
+`src/modules/comercial/service.ts` (`mudarStatusProposta` novo) ·
+`src/modules/comercial/actions.ts` (`mudarStatusProposta` fino) ·
+`src/modules/comercial/vinculo-negociacao.ts` + `.test.ts` (mapeamento + teste atualizado) ·
+`src/components/comercial/proposta-editor.tsx` (botão + badge com label) ·
+`src/components/comercial/propostas-view.tsx` (badge + filtro com label) ·
+`scripts/smoke-crm-fase5.ts` (+5).
+
+**Verificação:** eslint limpo, tsc limpo, **2285 testes** (1 atualizada pro novo mapeamento),
+build ok, `migrate status` "up to date". `smoke:crm-fase5` **103/103**: `em_negociacao`
+gravável de verdade, e proposta aceita recusando mudar de status. Sem regressão em
+`fase1`–`fase4`.
+
+**Pendente:** verificação em browser do botão novo e do badge com o rótulo certo. F5.8
+(desconto acima do limite) é a próxima.
+
+**Riscos:** nenhum novo. `ALTER TYPE ... ADD VALUE` sem `BEFORE`/`AFTER` deixou o valor no FIM
+da ordem interna do enum no Postgres (não na posição declarada no `schema.prisma`) — sem
+efeito funcional aqui (rótulos vêm de `Record`, não de comparação `<`/`>`), registrado caso
+algo um dia dependa de `ORDER BY status`.
+
+---
+
 ## F5.3 — Proposta nova exige negociação · 2026-08-22 · Sonnet
 
 **Feito:** `criarProposta` (proposta avulsa) e `criarPropostaDeLead` — os **três** caminhos que

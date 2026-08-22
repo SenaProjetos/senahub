@@ -57,6 +57,7 @@ import {
   proximoNumeroProposta,
   criarProposta as servicoCriarProposta,
   criarPropostaDeLead as servicoCriarPropostaDeLead,
+  mudarStatusProposta as servicoMudarStatusProposta,
   salvarProposta as servicoSalvarProposta,
   aceitarProposta as servicoAceitarProposta,
   moverEstagio as servicoMoverEstagio,
@@ -622,25 +623,10 @@ export const mudarStatusProposta = defineAction(
     if (i.status === "aceita") {
       throw new ActionError("Use a ação de aceitar (gera o projeto).");
     }
-    const p = await prisma.proposta.update({
-      where: { id: i.id },
-      data: { status: i.status, enviadaEm: i.status === "enviada" ? new Date() : undefined },
-      select: { id: true, numero: true, clienteId: true },
-    });
-    // F3.2 — só "enviada" vira evento. Rascunho ↔ recusada são idas e vindas de edição; encher a
-    // timeline com elas afogaria os eventos que importam.
-    if (i.status === "enviada") {
-      await registrarAtividade(
-        { evento: "PROPOSTA_ENVIADA", numero: p.numero, porEmail: false },
-        { autorId: ctx.user.id, clienteId: p.clienteId, propostaId: p.id },
-      );
-      // F5.13 — congela o PDF do que está sendo enviado. Nunca lança (ver docblock): o envio
-      // não pode falhar por causa do arquivo.
-      await arquivarPdfDaVersao(p.id);
-    }
+    const r = await servicoMudarStatusProposta({ id: i.id, status: i.status }, ctx.user.id);
     rev();
     revalidatePath(`/comercial/propostas/${i.id}`);
-    return { id: i.id };
+    return r;
   },
 );
 

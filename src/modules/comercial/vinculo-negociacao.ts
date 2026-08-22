@@ -17,6 +17,10 @@ import type { EstagioNegociacao, StatusProposta } from "@/generated/prisma/clien
 export const ESTAGIO_POR_STATUS_PROPOSTA: Record<StatusProposta, EstagioNegociacao> = {
   rascunho: "ORCAMENTO",
   enviada: "PROPOSTA_ENVIADA",
+  // F5.5 — `em_negociacao` não existia quando este mapa foi escrito (F5.2); o TypeScript força
+  // a entrada aqui assim que o enum ganha o valor, que é exatamente o ponto de usar `Record`
+  // em vez de um `switch` com `default`.
+  em_negociacao: "NEGOCIACAO",
   aceita: "CONTRATADO",
   recusada: "PERDIDO",
 };

@@ -4216,6 +4216,11 @@ model ItemTabelaPreco {
 enum StatusProposta {
   rascunho
   enviada
+  /// F5.5 (P14 item 4) — cliente respondeu, está em vai-e-vem de termos. NÃO é o mesmo que
+  /// "visualizada": aquilo é só o pixel de abertura do link (`PropostaVisualizacao`), continua
+  /// derivado e de propósito NÃO virou estado (02-schema §8.4) — cada abertura é um evento, e
+  /// "em negociação" é uma resposta humana, coisas de naturezas diferentes.
+  em_negociacao
   aceita
   recusada
 }
