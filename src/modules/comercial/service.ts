@@ -24,6 +24,7 @@ import {
   type TabelaProbabilidade,
 } from "@/modules/comercial/jornada";
 import { calcularValoresVersao, proximoNumeroVersao } from "@/modules/comercial/versoes";
+import { isoParaDataValidade } from "@/modules/comercial/validade";
 import {
   validarQualificacao,
   validarMovimentoProspeccao,
@@ -176,7 +177,7 @@ export async function salvarProposta(i: SalvarPropostaInput, autorId: string) {
       data: {
         titulo: i.titulo,
         areaM2: i.areaM2,
-        validade: i.validade ? new Date(i.validade) : null,
+        validade: isoParaDataValidade(i.validade),
         observacoes: i.observacoes || null,
       },
     }),
@@ -218,7 +219,7 @@ export async function salvarProposta(i: SalvarPropostaInput, autorId: string) {
         // fato consultável em vez de uma inferência pela data.
         status: p.status,
         dataEnvio: p.enviadaEm,
-        validade: i.validade ? new Date(i.validade) : null,
+        validade: isoParaDataValidade(i.validade),
         observacao: i.observacoes || null,
       },
     }),

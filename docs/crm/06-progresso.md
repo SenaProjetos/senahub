@@ -20,6 +20,53 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F5.6 — `validade.ts`: expiração em America/Recife · 2026-08-22 · Opus
+
+**Feito:** `modules/comercial/validade.ts` + `.test.ts` (24 testes) — `propostaExpirada`,
+`diasAteVencer`, `dataCivilRecife`, `validadeParaISO`, `isoParaDataValidade`. Puro, relógio
+injetado. `salvarProposta` passou a gravar a validade por `isoParaDataValidade` nos dois pontos
+que faziam `new Date(i.validade)` (T5 apontava um; havia dois — o segundo nasceu na F5.4, nesta
+mesma sessão).
+
+**O bug, exatamente:** `Proposta.validade` é `@db.Date` — uma data CIVIL, sem hora. Perguntar
+"expirou?" comparando `validade < new Date()` mistura uma data civil com um INSTANTE, e o
+resultado passa a depender do fuso do processo. Às **23h do dia 30 em Recife** o instante já é
+dia 1º em UTC: a comparação ingênua responde "expirada" enquanto o cliente, olhando o calendário
+dele, ainda está dentro do prazo. A proposta some da mesa um dia antes do combinado — e só à
+noite, o que torna o bug intermitente e quase irreproduzível de manhã.
+
+O teste documenta os dois lados na mesma asserção: `new Date(VALIDADE) < AS_23H_...` é `true` (o
+bug, preservado como registro) e `propostaExpirada(...)` é `false` (o correto).
+
+**`Intl.DateTimeFormat` com `timeZone` explícito, não `-3` fixo.** Um deslocamento constante
+seria bomba-relógio: o Brasil já teve horário de verão e pode voltar a ter. O `Intl` consulta o
+banco de fusos do sistema e acerta sozinho.
+
+**A leitura da validade é em UTC de propósito.** `@db.Date` chega do Prisma como meia-noite UTC;
+usar `getFullYear()` (local) devolveria o dia anterior em qualquer fuso a oeste de Greenwich — o
+mesmo erro, na direção contrária.
+
+**`isoParaDataValidade` existe para matar uma pegadinha da spec de JS:**
+`new Date("2026-09-30")` é UTC (correto para `@db.Date`), mas `new Date("2026-09-30T00:00:00")`
+é LOCAL e grava o dia errado. Depender de saber essa diferença é convite a bug; a função é
+explícita (`T00:00:00.000Z`).
+
+**Verificação:** eslint limpo, tsc limpo, **2277 testes** (24 novos), build ok, `smoke:crm-fase5`
+43/43 sem regressão. O aceite "roda igual com `TZ=UTC`" foi provado rodando a suíte **três
+vezes, em três fusos** — `America/Recife`, `UTC` e `Asia/Tokyo` (UTC+9, o extremo oposto):
+24/24 idênticos nos três.
+
+**Pendente:** nada desta tarefa. `diasAteVencer` já nasce pronto para a **F5.7** (expiração
+automática) decidir o que avisar.
+
+**Riscos:** as funções existem, mas **ainda não há nada que EXPIRE uma proposta** — o status
+`expirada` nem existe no enum. Até a F5.7, `propostaExpirada` é verdade calculável que ninguém
+consulta. Fora do Comercial, `certidoes/service.ts` faz a mesma comparação com o mesmo defeito
+(`new Date(\`${iso}T00:00:00\`)`, sem fuso) — **fora do escopo desta fase**, mas registrado aqui
+porque é o mesmo bug e alguém vai topar com ele.
+
+---
+
 ## F5.4 — `PropostaVersao` com campos estruturados · 2026-08-22 · Opus
 
 **Feito:** 7 colunas novas em `PropostaVersao` (`valorOriginal`, `valorVersao`, `desconto`,
