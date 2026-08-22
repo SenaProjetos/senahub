@@ -230,3 +230,55 @@ describe("validarMovimento — guard que recusa ANTES de tocar o banco (F2.7)", 
     expect(() => validarMovimento({ de: "ORCAMENTO", para: "PROPOSTA_ENVIADA" })).not.toThrow();
   });
 });
+
+/**
+ * F5.9 — o aceite de proposta move a negociação para CONTRATADO por um caminho próprio.
+ *
+ * A regra normal exige vir de PROPOSTA_ENVIADA/NEGOCIACAO, e o motivo está escrito na própria
+ * `jornada.ts`: "deixar LEVANTAMENTO → CONTRATADO passar significaria projeto nascendo sem
+ * nenhuma proposta por trás". No aceite essa premissa está satisfeita por construção — a
+ * proposta É o gatilho. O que a exceção NÃO afrouxa são os estágios terminais.
+ */
+describe("transicaoPermitida — porAceiteDeProposta (F5.9)", () => {
+  const porAceite = { porAceiteDeProposta: true };
+
+  it("de qualquer estágio ATIVO vai a CONTRATADO quando é aceite de proposta", () => {
+    for (const de of ["LEVANTAMENTO", "ORCAMENTO", "PROPOSTA_ENVIADA", "NEGOCIACAO"] as const) {
+      expect(transicaoPermitida(de, "CONTRATADO", porAceite)).toBe(true);
+    }
+  });
+
+  it("EM_ESPERA também aceita — a pausa não invalida a proposta que o cliente assinou", () => {
+    expect(transicaoPermitida("EM_ESPERA", "CONTRATADO", porAceite)).toBe(true);
+  });
+
+  it("SEM a flag, LEVANTAMENTO/ORCAMENTO continuam recusados (a regra do board não mudou)", () => {
+    expect(transicaoPermitida("LEVANTAMENTO", "CONTRATADO")).toBe(false);
+    expect(transicaoPermitida("ORCAMENTO", "CONTRATADO")).toBe(false);
+  });
+
+  it("PERDIDO e CANCELADO seguem recusados MESMO no aceite — ali a inconsistência é real", () => {
+    expect(transicaoPermitida("PERDIDO", "CONTRATADO", porAceite)).toBe(false);
+    expect(transicaoPermitida("CANCELADO", "CONTRATADO", porAceite)).toBe(false);
+  });
+
+  it("já CONTRATADO segue recusado (não se aceita duas vezes)", () => {
+    expect(transicaoPermitida("CONTRATADO", "CONTRATADO", porAceite)).toBe(false);
+  });
+
+  it("a flag não afrouxa transição nenhuma que não seja para CONTRATADO", () => {
+    expect(transicaoPermitida("CONTRATADO", "ORCAMENTO", porAceite)).toBe(false);
+  });
+
+  it("validarMovimento dá mensagem específica de aceite quando recusa", () => {
+    expect(() =>
+      validarMovimento({ de: "PERDIDO", para: "CONTRATADO", porAceiteDeProposta: true }),
+    ).toThrow(/aceitar a proposta/i);
+  });
+
+  it("validarMovimento passa para negociação em orçamento quando é aceite", () => {
+    expect(() =>
+      validarMovimento({ de: "ORCAMENTO", para: "CONTRATADO", porAceiteDeProposta: true }),
+    ).not.toThrow();
+  });
+});

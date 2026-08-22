@@ -36,7 +36,7 @@ import { readFileSync } from "node:fs";
 import { prisma } from "../src/lib/prisma";
 import { planejarVinculo } from "../src/modules/comercial/vinculo-negociacao";
 import { carregarPendentes, executarVinculo } from "../src/modules/comercial/migracao-vinculo";
-import { salvarProposta } from "../src/modules/comercial/service";
+import { salvarProposta, aceitarProposta } from "../src/modules/comercial/service";
 import { versoesComparaveis } from "../src/modules/comercial/propostas-extras/queries";
 import { versaoVigente } from "../src/modules/comercial/versoes";
 import { alertaPropostasExpiradas } from "../src/lib/jobs-handlers";
@@ -437,6 +437,188 @@ async function main() {
     `${marcada?.status}`,
   );
 
+  console.log("\n── F5.9: aceite ponta a ponta, numa transação só ─────────────────\n");
+
+  // Cenário completo: empresa PROSPECT, negociação em ORÇAMENTO (de propósito — não é
+  // PROPOSTA_ENVIADA, para exercitar o caminho `porAceiteDeProposta`), proposta com itens.
+  const cliAceite = await prisma.cliente.create({
+    data: { nome: `${TAG}_EmpresaAceite`, tipo: "PJ", status: "PROSPECT" },
+  });
+  const leadAceite = await prisma.lead.create({
+    data: { nome: `${TAG}_LeadAceite`, clienteId: cliAceite.id, etapaId: etapa.id, status: "OPORTUNIDADE_CRIADA" },
+  });
+  const negAceite = await prisma.negociacao.create({
+    data: {
+      titulo: `${TAG}_NegAceite`,
+      clienteId: cliAceite.id,
+      leadId: leadAceite.id,
+      estagio: "ORCAMENTO",
+      valorEstimado: 999,
+    },
+  });
+  const pAceite = await prisma.proposta.create({
+    data: {
+      ano,
+      sequencial: 970000 + Math.floor(Math.random() * 9000),
+      numero: `${TAG}_ACEITE`,
+      titulo: `${TAG} Projeto do aceite`,
+      clienteId: cliAceite.id,
+      negociacaoId: negAceite.id,
+      token: randomBytes(18).toString("hex"),
+      autorId: user.id,
+      status: "enviada",
+    },
+    select: { id: true, numero: true },
+  });
+  await salvarProposta(
+    {
+      id: pAceite.id,
+      titulo: `${TAG} Projeto do aceite`,
+      areaM2: undefined,
+      validade: "",
+      observacoes: "",
+      itens: [
+        { disciplina: "Arquitetura", descricao: "", valor: 12000 },
+        { disciplina: "Estrutural", descricao: "", valor: 8000 },
+      ],
+      condicoes: [],
+    },
+    user.id,
+  );
+
+  const projetosAntes = await prisma.projeto.count();
+  const resultado = await aceitarProposta(pAceite.id, user.id);
+  check("o aceite devolveu projeto", !!resultado.projetoId && !!resultado.codigo, resultado.codigo);
+
+  const [propostaDepois, projetoCriado, negDepois, cliDepois] = await Promise.all([
+    prisma.proposta.findUnique({
+      where: { id: pAceite.id },
+      select: { status: true, aceitaEm: true, projetoId: true, negociacaoId: true },
+    }),
+    prisma.projeto.findUnique({
+      where: { id: resultado.projetoId },
+      select: { negociacaoId: true, clienteId: true, nome: true, disciplinas: { select: { id: true } } },
+    }),
+    prisma.negociacao.findUnique({
+      where: { id: negAceite.id },
+      select: { estagio: true, valorNegociado: true, dataFechamento: true, probabilidade: true },
+    }),
+    prisma.cliente.findUnique({ where: { id: cliAceite.id }, select: { status: true } }),
+  ]);
+
+  // ── §8.5: os dois caminhos gravados JUNTOS ──
+  check(
+    "§8.5 — Proposta.projetoId E Projeto.negociacaoId gravados na MESMA transação",
+    propostaDepois?.projetoId === resultado.projetoId && projetoCriado?.negociacaoId === negAceite.id,
+    `proposta.projetoId=${propostaDepois?.projetoId} projeto.negociacaoId=${projetoCriado?.negociacaoId}`,
+  );
+  check(
+    "os dois apontam para a mesma negociação da proposta",
+    propostaDepois?.negociacaoId === projetoCriado?.negociacaoId,
+  );
+
+  check("proposta virou aceita, com data", propostaDepois?.status === "aceita" && propostaDepois.aceitaEm != null);
+  check("projeto nasceu com 1 disciplina por item", projetoCriado?.disciplinas.length === 2, `${projetoCriado?.disciplinas.length}`);
+  check("negociação foi a CONTRATADO", negDepois?.estagio === "CONTRATADO", `${negDepois?.estagio}`);
+  check(
+    "valorNegociado = soma dos itens da proposta aceita (20000), não o valorEstimado (999)",
+    Number(negDepois?.valorNegociado) === 20000,
+    `${negDepois?.valorNegociado}`,
+  );
+  check("dataFechamento carimbada", negDepois?.dataFechamento != null);
+  check("empresa virou CLIENTE (ADR-08)", cliDepois?.status === "CLIENTE", `${cliDepois?.status}`);
+
+  const versaoAceita = await prisma.propostaVersao.findFirst({
+    where: { propostaId: pAceite.id },
+    orderBy: { numero: "desc" },
+    select: { status: true, valorVersao: true },
+  });
+  check(
+    "a versão vigente foi carimbada como aceita, com o valor final",
+    versaoAceita?.status === "aceita" && Number(versaoAceita.valorVersao) === 20000,
+    `${versaoAceita?.status} / ${versaoAceita?.valorVersao}`,
+  );
+
+  const eventos = await prisma.atividade.findMany({
+    where: { clienteId: cliAceite.id },
+    select: { metadata: true },
+  });
+  const nomesEventos = eventos.map((e) => (e.metadata as { evento?: string } | null)?.evento);
+  for (const ev of ["PROPOSTA_ACEITA", "PROJETO_CRIADO", "ESTAGIO_ALTERADO"]) {
+    check(`timeline registrou ${ev}`, nomesEventos.includes(ev), nomesEventos.join(", "));
+  }
+
+  console.log("\n── F5.9: falha no meio não deixa projeto órfão ────────────────────\n");
+
+  // Aceitar a MESMA proposta de novo é recusado — e o importante: sem criar projeto nenhum.
+  const projetosAntesDaFalha = await prisma.projeto.count();
+  let recusouSegundoAceite = false;
+  try {
+    await aceitarProposta(pAceite.id, user.id);
+  } catch {
+    recusouSegundoAceite = true;
+  }
+  check("aceitar duas vezes é recusado", recusouSegundoAceite);
+  check(
+    "nenhum projeto a mais foi criado na tentativa recusada",
+    (await prisma.projeto.count()) === projetosAntesDaFalha,
+  );
+
+  // Negociação já PERDIDA recusa o aceite ANTES de tocar o banco — a validação roda antes da
+  // transação, então nem sequência de projeto é consumida.
+  const cliPerdido = await prisma.cliente.create({ data: { nome: `${TAG}_EmpresaPerdida`, tipo: "PJ" } });
+  const negPerdida = await prisma.negociacao.create({
+    data: { titulo: `${TAG}_NegPerdida`, clienteId: cliPerdido.id, estagio: "PERDIDO" },
+  });
+  const pPerdida = await prisma.proposta.create({
+    data: {
+      ano,
+      sequencial: 960000 + Math.floor(Math.random() * 9000),
+      numero: `${TAG}_PERDIDA`,
+      titulo: `${TAG} Perdida`,
+      clienteId: cliPerdido.id,
+      negociacaoId: negPerdida.id,
+      token: randomBytes(18).toString("hex"),
+      autorId: user.id,
+    },
+    select: { id: true },
+  });
+  await salvarProposta(
+    {
+      id: pPerdida.id,
+      titulo: `${TAG} Perdida`,
+      areaM2: undefined,
+      validade: "",
+      observacoes: "",
+      itens: [{ disciplina: "Arquitetura", descricao: "", valor: 5000 }],
+      condicoes: [],
+    },
+    user.id,
+  );
+
+  const projetosAntesDaPerdida = await prisma.projeto.count();
+  let recusouPerdida = "";
+  try {
+    await aceitarProposta(pPerdida.id, user.id);
+  } catch (e) {
+    recusouPerdida = (e as Error).message;
+  }
+  check("aceite de proposta em negociação PERDIDA é recusado", recusouPerdida !== "", recusouPerdida);
+  check("a mensagem é de negócio, falando em aceitar", /aceitar a proposta/i.test(recusouPerdida));
+  check(
+    "nenhum projeto órfão — a validação roda ANTES da transação",
+    (await prisma.projeto.count()) === projetosAntesDaPerdida,
+  );
+  check(
+    "a negociação perdida continua PERDIDO, intocada",
+    (await prisma.negociacao.findUnique({ where: { id: negPerdida.id }, select: { estagio: true } }))?.estagio === "PERDIDO",
+  );
+
+  check(
+    "no total, o aceite bem-sucedido criou exatamente 1 projeto",
+    (await prisma.projeto.count()) === projetosAntes + 1,
+  );
+
   console.log(`\n${ok ? "✔ Fase 5: tudo verde." : "✖ Fase 5: há falhas acima."}`);
   if (!ok) process.exitCode = 1;
 }
@@ -447,6 +629,21 @@ async function limpar() {
   if (ids.length === 0) return;
   // Ordem ditada pelas FKs: proposta referencia negociacao (SET NULL, mas some junto de qualquer
   // forma), negociacao referencia cliente (RESTRICT), lead referencia cliente (RESTRICT).
+  // F5.9: o aceite CRIA um `Projeto`. `Disciplina` e `Canal` (+ membros/mensagens) caem por
+  // cascata dele, mas `Proposta.projetoId` precisa ser solto antes — senão o delete esbarra na
+  // FK. Mesma sequência que `smoke-crm-fase1.ts` já usava pelo mesmo motivo.
+  const projetos = await prisma.projeto.findMany({ where: { clienteId: { in: ids } }, select: { id: true } });
+  if (projetos.length > 0) {
+    await prisma.notificacao.deleteMany({
+      where: { href: { in: projetos.map((p) => `/projetos/${p.id}`) } },
+    });
+    await prisma.proposta.updateMany({
+      where: { projetoId: { in: projetos.map((p) => p.id) } },
+      data: { projetoId: null },
+    });
+    await prisma.projeto.deleteMany({ where: { id: { in: projetos.map((p) => p.id) } } });
+  }
+
   const props = await prisma.proposta.findMany({ where: { clienteId: { in: ids } }, select: { id: true } });
   // Notificações do alerta de validade (F5.7) — não pendem de FK, então some por `href` ou
   // ficariam no sino de todo mundo depois que o smoke apagasse as propostas.

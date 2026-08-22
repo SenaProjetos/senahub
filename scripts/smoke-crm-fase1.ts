@@ -218,6 +218,38 @@ async function main() {
   check("token do link público NÃO muda no aceite", propostaAceita.token === proposta.token);
   check("número da proposta NÃO muda no aceite", propostaAceita.numero === proposta.numero);
 
+  // ── F5.9: o aceite foi reescrito; esta caracterização foi ATUALIZADA, não descartada ──────
+  // Tudo acima passou sem uma linha de mudança — é a prova de que a reescrita preservou o
+  // comportamento. O que segue é o que a F5.9 ACRESCENTOU, caracterizado aqui para que este
+  // arquivo continue descrevendo o aceite ATUAL, e não o de antes dela.
+  //
+  // Esta proposta nasce de um LEAD (`criarPropostaDeLead`), então NÃO tem negociação — é
+  // justamente o caminho de retrocompatibilidade: o aceite tem de funcionar igual, sem
+  // inventar uma negociação que ninguém pediu.
+  check("sem negociação vinculada, o aceite não inventa uma", propostaAceita.negociacaoId === null);
+  const projetoDoAceite = await prisma.projeto.findUniqueOrThrow({
+    where: { id: projetoId },
+    select: { negociacaoId: true },
+  });
+  check(
+    "§8.5 — sem negociação na proposta, o projeto também nasce sem (os dois lados concordam)",
+    projetoDoAceite.negociacaoId === null,
+  );
+  const clienteDoAceite = await prisma.cliente.findUniqueOrThrow({
+    where: { id: proposta.clienteId },
+    select: { status: true },
+  });
+  check("F5.9 — a empresa passou a CLIENTE no aceite (ADR-08)", clienteDoAceite.status === "CLIENTE");
+  const versaoAceita = await prisma.propostaVersao.findFirst({
+    where: { propostaId: proposta.id },
+    orderBy: { numero: "desc" },
+    select: { status: true, valorVersao: true },
+  });
+  check(
+    `F5.9 — versão vigente carimbada como aceita, valor final 28000 (veio: ${versaoAceita?.status} / ${versaoAceita?.valorVersao})`,
+    versaoAceita?.status === "aceita" && Number(versaoAceita.valorVersao) === 28000,
+  );
+
   // ── 4. aceitar de novo é recusado (idempotência do lado seguro) ──
   let recusouDuplicado = false;
   try {

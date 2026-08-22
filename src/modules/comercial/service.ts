@@ -25,6 +25,7 @@ import {
 } from "@/modules/comercial/jornada";
 import { calcularValoresVersao, proximoNumeroVersao } from "@/modules/comercial/versoes";
 import { isoParaDataValidade } from "@/modules/comercial/validade";
+import { calcularStatusComercial } from "@/modules/comercial/status";
 import {
   validarQualificacao,
   validarMovimentoProspeccao,
@@ -240,8 +241,23 @@ export async function salvarProposta(i: SalvarPropostaInput, autorId: string) {
 }
 
 /**
- * ACEITE: cria o projeto com as disciplinas dos itens (valores incluídos),
- * cria os canais de chat e notifica gestores. Sem redigitação.
+ * ACEITE (reescrito na F5.9) — o caminho mais crítico do módulo. **Uma transação só**, fechando
+ * o ciclo comercial inteiro: cria o `Projeto` com as disciplinas dos itens, marca a proposta
+ * como aceita, leva a `Negociacao` a `CONTRATADO` com os valores finais, materializa o status
+ * comercial da empresa e carimba a versão aceita.
+ *
+ * ── §8.5: os dois caminhos para "de onde veio este projeto", gravados JUNTOS ────────────────
+ * `Proposta.projetoId` e `Projeto.negociacaoId` respondem à mesma pergunta por caminhos
+ * diferentes. Nada no banco impede que divirjam — é a divergência silenciosa que o
+ * `02-schema.md` §8.5 aponta como risco real. Aqui os dois nascem na MESMA transação, do id
+ * retornado pelo `create`, nunca de um valor capturado antes: ou existem os dois, ou nenhum.
+ * O smoke tem check dedicado para isso, e outro provando que uma falha no meio não deixa
+ * projeto órfão.
+ *
+ * ── Os TRÊS eventos que a F3.2 previa ──────────────────────────────────────────────────────
+ * `PROPOSTA_ACEITA`, `PROJETO_CRIADO` e — agora que o aceite conhece `Negociacao` — o
+ * `ESTAGIO_ALTERADO` para `CONTRATADO`, que vem de `aplicarMovimentoEstagio`. O comentário da
+ * F3.2 dizia "o terceiro evento nasce lá [na F5.9]"; nasceu.
  *
  * ⚠️ Os canais de chat e as notificações rodam FORA da transação, de propósito e como sempre
  * foi: se o fan-out falhar, o projeto continua criado e a proposta aceita. Mover para dentro
@@ -254,12 +270,42 @@ export async function aceitarProposta(propostaId: string, autorId?: string) {
       // `disciplina` (catalogo) entra no include para o aceite resolver o nome preferindo o
       // catalogo e caindo no texto legado (F1.19) -- ver `disciplinasDeItens`.
       itens: { orderBy: { ordem: "asc" }, include: { disciplina: { select: { nome: true } } } },
-      cliente: { select: { nome: true } },
+      cliente: { select: { nome: true, statusOverride: true } },
+      // F5.2 — de qual negociação esta proposta nasceu. `null` nas históricas.
+      negociacao: { select: { id: true, estagio: true, clienteId: true, probabilidade: true, probabilidadeOverride: true } },
+      // F5.4 — a versão vigente recebe o carimbo de "foi esta que o cliente aceitou".
+      versoes: { orderBy: { numero: "desc" }, take: 1, select: { id: true, numero: true } },
     },
   });
   if (!p) throw new ActionError("Proposta não encontrada.");
   if (p.status === "aceita") throw new ActionError("Proposta já aceita.");
   if (p.itens.length === 0) throw new ActionError("Adicione itens antes de aceitar.");
+
+  // ── Validação do movimento ANTES de escrever qualquer coisa ──
+  // `validarMovimento` é puro e lança mensagem de negócio; rodar aqui garante que uma negociação
+  // já perdida/cancelada recusa o aceite sem ter criado projeto nenhum.
+  let probabilidadeContratado = 0;
+  if (p.negociacao) {
+    validarMovimento({
+      de: p.negociacao.estagio,
+      para: "CONTRATADO",
+      porAceiteDeProposta: true,
+    });
+    const linhas = await prisma.probabilidadeEstagio.findMany({
+      select: { estagio: true, probabilidade: true },
+    });
+    const tabela: TabelaProbabilidade = Object.fromEntries(
+      linhas.map((l) => [l.estagio, l.probabilidade]),
+    );
+    probabilidadeContratado = probabilidadeDe("CONTRATADO", {
+      tabela,
+      override: p.negociacao.probabilidadeOverride,
+      atual: p.negociacao.probabilidade,
+    });
+  }
+
+  const valorFinal = p.itens.reduce((s, it) => s + Number(it.valor), 0);
+  const aceitaEm = new Date();
 
   const projeto = await prisma.$transaction(async (tx) => {
     const { ano, sequencial, codigo } = await proximoCodigoProjeto(tx);
@@ -272,33 +318,68 @@ export async function aceitarProposta(propostaId: string, autorId?: string) {
         nome: p.titulo,
         clienteId: p.clienteId,
         areaM2: p.areaM2,
+        // §8.5, metade 1 de 2 — a outra é o `projetoId` logo abaixo, na mesma transação.
+        negociacaoId: p.negociacao?.id ?? null,
         disciplinas: {
           create: disciplinasDeItens(p.itens),
         },
       },
     });
+    // §8.5, metade 2 de 2. `projeto.id` vem do RETORNO do create acima — nunca de um valor
+    // montado antes da transação (o `P2003` da F2.18 nasceu exatamente desse descuido).
     await tx.proposta.update({
       where: { id: p.id },
-      data: { status: "aceita", aceitaEm: new Date(), projetoId: projeto.id },
+      data: { status: "aceita", aceitaEm, projetoId: projeto.id },
     });
 
-    // F3.2 — DOIS eventos, na mesma transação do aceite: se qualquer etapa falhar, nem o projeto
-    // nem a timeline existem. São dois e não um porque respondem a perguntas diferentes na
-    // Empresa 360: "quando fechamos?" e "que obra isso virou?".
-    //
-    // ⚠️ O backlog fala em TRÊS eventos (aceite, contrato, projeto criado). O terceiro é a
-    // negociação indo a CONTRATADO — e `aceitarProposta` ainda não conhece `Negociacao`: esse
-    // vínculo é `Proposta.negociacaoId`, criado só na F5.2, e a reescrita do aceite que amarra
-    // os dois é a F5.9. Emitir um evento de "contrato" hoje seria inventar um estado que o
-    // sistema não tem. O terceiro evento nasce lá.
+    // F5.4 — carimba QUAL versão o cliente aceitou. A imutabilidade em si já vem de
+    // `salvarProposta`, que recusa editar proposta aceita; isto responde "aceitou qual?", que
+    // o histórico não saberia dizer depois de N revisões.
+    if (p.versoes[0]) {
+      await tx.propostaVersao.update({
+        where: { id: p.versoes[0].id },
+        data: { status: "aceita", valorVersao: valorFinal },
+      });
+    }
+
+    // ── Negociação → CONTRATADO, com os valores comerciais finais ──
+    if (p.negociacao) {
+      await tx.negociacao.update({
+        where: { id: p.negociacao.id },
+        // `valorNegociado` é o que de fato fechou: a soma dos itens da proposta aceita. Sem
+        // isto o forecast da Fase 6 continuaria somando `valorEstimado`, que é o chute inicial.
+        data: { valorNegociado: valorFinal },
+      });
+      await aplicarMovimentoEstagio(tx, {
+        negociacao: p.negociacao,
+        para: "CONTRATADO",
+        probabilidade: probabilidadeContratado,
+        encerra: true,
+        autorId,
+      });
+    }
+
+    // ── Empresa vira CLIENTE (ADR-08) ──
+    // `calcularStatusComercial` existia desde a F1.5 sem nenhum chamador: o status é DERIVADO de
+    // "tem proposta aceita", e até agora nada materializava isso. O override manual continua
+    // vencendo — é o único caminho para EX_CLIENTE/PARCEIRO, que nunca são inferidos.
+    await tx.cliente.update({
+      where: { id: p.clienteId },
+      data: { status: calcularStatusComercial(true, p.cliente.statusOverride) },
+    });
+
+    // F3.2 — os eventos entram na mesma transação: se qualquer etapa falhar, nem o projeto nem
+    // a timeline existem. São dois aqui (o terceiro, `ESTAGIO_ALTERADO`, veio de
+    // `aplicarMovimentoEstagio` acima) porque respondem a perguntas diferentes na Empresa 360:
+    // "quando fechamos?" e "que obra isso virou?".
     if (autorId) {
       await registrarAtividade(
         { evento: "PROPOSTA_ACEITA", numero: p.numero },
-        { autorId, clienteId: p.clienteId, propostaId: p.id, tx },
+        { autorId, clienteId: p.clienteId, propostaId: p.id, negociacaoId: p.negociacao?.id, tx },
       );
       await registrarAtividade(
         { evento: "PROJETO_CRIADO", codigo: projeto.codigo, nome: projeto.nome },
-        { autorId, clienteId: p.clienteId, propostaId: p.id, tx },
+        { autorId, clienteId: p.clienteId, propostaId: p.id, negociacaoId: p.negociacao?.id, tx },
       );
     }
 
@@ -452,50 +533,84 @@ export async function moverEstagio(input: {
   // senão uma negociação reaberta continuaria contando como fechada nos relatórios da Fase 6.
   const encerra = input.para === "CONTRATADO" || input.para === "PERDIDO" || input.para === "CANCELADO";
 
-  await prisma.$transaction(async (tx) => {
-    await tx.negociacao.update({
-      where: { id: negociacao.id },
-      data: {
-        estagio: input.para,
-        probabilidade,
-        dataFechamento: encerra ? new Date() : null,
-        // Motivo e concorrente só fazem sentido no encerramento sem contrato; ao sair de PERDIDO
-        // (reabertura) eles são zerados, para não sobrar "perdemos para X" numa negociação viva.
-        motivoPerdaId: input.para === "PERDIDO" ? (input.motivoPerdaId ?? null) : null,
-        concorrente: input.para === "PERDIDO" ? (input.concorrente?.trim() || null) : null,
-      },
-    });
-
-    // F3.2 — o evento entra na MESMA transação do update: ou a negociação muda e a timeline
-    // registra, ou nenhum dos dois. Uma timeline dizendo "movido para X" sobre uma negociação
-    // que não moveu seria pior que timeline nenhuma.
-    if (input.autorId) {
-      await registrarAtividade(
-        { evento: "ESTAGIO_ALTERADO", de: negociacao.estagio, para: input.para },
-        {
-          autorId: input.autorId,
-          clienteId: negociacao.clienteId,
-          negociacaoId: negociacao.id,
-          tx,
-        },
-      );
-      // PERDIDO ganha um segundo evento, com o motivo — é o que a Fase 6 agrupa no relatório
-      // "por que perdemos". Ler isso do `ESTAGIO_ALTERADO` exigiria juntar com a tabela de
-      // motivos toda vez.
-      if (input.para === "PERDIDO") {
-        await registrarAtividade(
-          {
-            evento: "NEGOCIACAO_PERDIDA",
-            motivo: motivo?.nome ?? null,
-            concorrente: input.concorrente?.trim() || null,
-          },
-          { autorId: input.autorId, clienteId: negociacao.clienteId, negociacaoId: negociacao.id, tx },
-        );
-      }
-    }
-  });
+  await prisma.$transaction((tx) =>
+    aplicarMovimentoEstagio(tx, {
+      negociacao,
+      para: input.para,
+      probabilidade,
+      encerra,
+      motivoPerdaId: input.motivoPerdaId,
+      concorrente: input.concorrente,
+      motivoNome: motivo?.nome ?? null,
+      autorId: input.autorId,
+    }),
+  );
 
   return { id: negociacao.id, de: negociacao.estagio, para: input.para, probabilidade };
+}
+
+/**
+ * A ESCRITA do movimento de estágio, recebendo `tx` de fora.
+ *
+ * Extraída do corpo de `moverEstagio` na F5.9 — sem mudança de comportamento — porque o aceite
+ * (`aceitarProposta`) precisa mover a negociação para `CONTRATADO` **dentro da própria
+ * transação**, junto de criar o projeto. Chamar `moverEstagio` de lá abriria uma segunda
+ * transação independente: uma falha ao criar o projeto deixaria a negociação já contratada,
+ * apontando para um projeto que não existe. É a mesma armadilha registrada no ADR-21 item 5.
+ *
+ * A VALIDAÇÃO continua fora daqui, antes de qualquer escrita — `validarMovimento` é pura e
+ * lança `ActionError` com mensagem de negócio, então transição inválida nunca chega ao banco.
+ */
+async function aplicarMovimentoEstagio(
+  tx: Prisma.TransactionClient,
+  args: {
+    negociacao: { id: string; estagio: EstagioNegociacao; clienteId: string };
+    para: EstagioNegociacao;
+    probabilidade: number;
+    encerra: boolean;
+    motivoPerdaId?: string | null;
+    concorrente?: string | null;
+    motivoNome?: string | null;
+    autorId?: string;
+  },
+): Promise<void> {
+  const { negociacao, para, probabilidade, encerra, autorId } = args;
+
+  await tx.negociacao.update({
+    where: { id: negociacao.id },
+    data: {
+      estagio: para,
+      probabilidade,
+      dataFechamento: encerra ? new Date() : null,
+      // Motivo e concorrente só fazem sentido no encerramento sem contrato; ao sair de PERDIDO
+      // (reabertura) eles são zerados, para não sobrar "perdemos para X" numa negociação viva.
+      motivoPerdaId: para === "PERDIDO" ? (args.motivoPerdaId ?? null) : null,
+      concorrente: para === "PERDIDO" ? (args.concorrente?.trim() || null) : null,
+    },
+  });
+
+  // F3.2 — o evento entra na MESMA transação do update: ou a negociação muda e a timeline
+  // registra, ou nenhum dos dois. Uma timeline dizendo "movido para X" sobre uma negociação
+  // que não moveu seria pior que timeline nenhuma.
+  if (autorId) {
+    await registrarAtividade(
+      { evento: "ESTAGIO_ALTERADO", de: negociacao.estagio, para },
+      { autorId, clienteId: negociacao.clienteId, negociacaoId: negociacao.id, tx },
+    );
+    // PERDIDO ganha um segundo evento, com o motivo — é o que a Fase 6 agrupa no relatório
+    // "por que perdemos". Ler isso do `ESTAGIO_ALTERADO` exigiria juntar com a tabela de
+    // motivos toda vez.
+    if (para === "PERDIDO") {
+      await registrarAtividade(
+        {
+          evento: "NEGOCIACAO_PERDIDA",
+          motivo: args.motivoNome ?? null,
+          concorrente: args.concorrente?.trim() || null,
+        },
+        { autorId, clienteId: negociacao.clienteId, negociacaoId: negociacao.id, tx },
+      );
+    }
+  }
 }
 
 /**

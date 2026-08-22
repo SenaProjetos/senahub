@@ -20,6 +20,75 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F5.9 — Aceite reescrito, uma transação só · 2026-08-22 · Opus
+
+**Feito:** `aceitarProposta` agora fecha o ciclo comercial inteiro numa transação: cria o
+`Projeto` (com `negociacaoId`), marca a proposta aceita (com `projetoId`), leva a `Negociacao`
+a `CONTRATADO` com `valorNegociado` = soma dos itens da proposta aceita, materializa
+`Cliente.status → CLIENTE` e carimba a versão vigente como a que foi aceita.
+
+**§8.5 fechado — os dois caminhos gravados juntos.** `Proposta.projetoId` e
+`Projeto.negociacaoId` respondem à mesma pergunta e **nada no banco impede que divirjam**. Agora
+nascem no mesmo `$transaction`, e o `projeto.id` vem do RETORNO do `create` — nunca de um valor
+montado antes (o `P2003` da F2.18 nasceu exatamente desse descuido; é a 4ª vez que essa
+armadilha aparece nesta reforma). Check dedicado no smoke.
+
+**O TERCEIRO evento da timeline, que a F3.2 deixou marcado.** O comentário de lá dizia: *"o
+terceiro é a negociação indo a CONTRATADO … `aceitarProposta` ainda não conhece `Negociacao` …
+o terceiro evento nasce lá [na F5.9]"*. Nasceu — `ESTAGIO_ALTERADO` vem de
+`aplicarMovimentoEstagio`, na mesma transação. O smoke confere os três.
+
+**Duas extrações necessárias, pelo motivo que o ADR-21 já tinha mapeado:**
+
+1. **`aplicarMovimentoEstagio(tx, …)`** — o miolo de `moverEstagio`, que abria transação
+   própria. Chamar `moverEstagio` de dentro do aceite abriria uma segunda transação
+   independente: falhar ao criar o projeto deixaria a negociação já `CONTRATADO`, apontando
+   para um projeto que não existe. `moverEstagio` continua com a mesma assinatura e
+   comportamento, só delegando.
+2. **`transicaoPermitida(de, para, { porAceiteDeProposta })`** — `CONTRATADO` só era alcançável
+   de `PROPOSTA_ENVIADA`/`NEGOCIACAO`, e a `jornada.ts` já explicava por quê: *"deixar
+   LEVANTAMENTO → CONTRATADO passar significaria projeto nascendo sem nenhuma proposta por
+   trás"*. **No aceite essa premissa está satisfeita por construção** — a proposta É o gatilho.
+   Recusar obrigaria o time a arrastar o card antes de aceitar: burocracia que empurra as
+   pessoas para fora do sistema, o problema que o módulo existe para resolver. O que a exceção
+   **não** afrouxa: `PERDIDO`, `CANCELADO` e já-`CONTRATADO` seguem recusados, com mensagem
+   própria ("Não é possível aceitar a proposta: a negociação está em …"). 8 testes cobrem os
+   dois lados.
+
+**`calcularStatusComercial` saiu da órfandade.** Existia desde a F1.5 **sem nenhum chamador** —
+o status era derivável e nada o materializava. O aceite é o gatilho natural ("tem proposta
+aceita" → CLIENTE), e o override manual continua vencendo, que é o único caminho para
+`EX_CLIENTE`/`PARCEIRO`.
+
+**Caracterização da F1.3: ATUALIZADA, não deletada** — e o resultado mais tranquilizador do dia:
+ela passou **sem uma linha de mudança**, provando que a reescrita preservou o comportamento
+anterior (token/número intactos, sequências +1, disciplinas por item, recusa de aceite duplo).
+Depois disso ganhou 4 checks do que a F5.9 acrescentou, para continuar descrevendo o aceite
+ATUAL. Como a proposta dela nasce de um lead (sem negociação), ela virou também o **teste de
+retrocompatibilidade**: aceite sem negociação não inventa uma, e o projeto nasce sem
+`negociacaoId` — os dois lados do §8.5 concordando no caso nulo.
+
+**Arquivos:** `src/modules/comercial/service.ts` (aceite reescrito + `aplicarMovimentoEstagio`)
+· `src/modules/comercial/jornada.ts` (`porAceiteDeProposta`) · `jornada.test.ts` (+8) ·
+`scripts/smoke-crm-fase5.ts` (+20, incluindo limpeza do `Projeto`) ·
+`scripts/smoke-crm-fase1.ts` (caracterização atualizada, +4).
+
+**Verificação:** eslint limpo, tsc limpo, **2285 testes** (+8), build ok.
+`smoke:crm-fase5` **71/71**; `smoke:crm-fase1` (a caracterização) verde; `fase2`, `fase3` e
+`fase4` sem regressão. O aceite literal da tarefa provado: os dois campos na mesma transação,
+falha em qualquer etapa não deixa projeto órfão (negociação `PERDIDO` recusa **antes** da
+transação — nem a sequência de projeto é consumida), e proposta→projeto ponta a ponta.
+
+**Pendente:** verificação em browser do aceite pela tela. **F5.12** (equipe, cronograma e
+financeiro no aceite) é a continuação natural, já no bloco Sonnet.
+
+**Riscos:** o aceite ficou grande — lê 4 relações, valida, e escreve em 5 tabelas. A próxima
+pessoa que precisar acrescentar algo ali deve olhar antes se cabe em `F5.12` (que já vai mexer
+no mesmo lugar) em vez de empilhar. Nada nele é opcional hoje, mas o teto de complexidade está
+perto.
+
+---
+
 ## F5.7 — Alerta automático de validade vencida · 2026-08-22 · Opus
 
 **Feito:** `alertaPropostasExpiradas` em `lib/jobs-handlers.ts`, plugado no tick diário

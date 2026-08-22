@@ -52,11 +52,34 @@ const PODEM_CONTRATAR: readonly EstagioNegociacao[] = ["PROPOSTA_ENVIADA", "NEGO
  * - **CONTRATADO → nada.** Único terminal de verdade: ele criou um `Projeto` (F5.9). Desfazer
  *   isso não é mudança de estágio, é outra operação, com outras consequências.
  */
-export function transicaoPermitida(de: EstagioNegociacao, para: EstagioNegociacao): boolean {
+export function transicaoPermitida(
+  de: EstagioNegociacao,
+  para: EstagioNegociacao,
+  opts: {
+    /**
+     * A transição vem do ACEITE de uma proposta (F5.9), não de um arrasto no board.
+     *
+     * Dispensa a exigência de vir de `PROPOSTA_ENVIADA`/`NEGOCIACAO` — e não é exceção
+     * arbitrária: aquela regra existe porque `CONTRATADO` cria um `Projeto` e "deixar
+     * LEVANTAMENTO → CONTRATADO passar significaria projeto nascendo sem nenhuma proposta por
+     * trás". No aceite, a proposta É o gatilho: a premissa que a regra protege está satisfeita
+     * por construção. Recusar aqui só obrigaria o time a arrastar o card antes de aceitar —
+     * burocracia que empurra as pessoas para fora do sistema, que é o problema que este
+     * módulo existe para resolver.
+     *
+     * O que continua valendo: não se aceita proposta de negociação PERDIDA, CANCELADA ou já
+     * CONTRATADA. Essas três seguem recusadas, porque ali a inconsistência é real.
+     */
+    porAceiteDeProposta?: boolean;
+  } = {},
+): boolean {
   if (de === para) return false;
   if (de === "CONTRATADO") return false;
 
-  if (para === "CONTRATADO") return (PODEM_CONTRATAR as readonly string[]).includes(de);
+  if (para === "CONTRATADO") {
+    if (opts.porAceiteDeProposta) return ehAtivo(de) || de === "EM_ESPERA";
+    return (PODEM_CONTRATAR as readonly string[]).includes(de);
+  }
 
   // Sair de um ativo: qualquer outro ativo, ou qualquer forma de encerrar/pausar.
   if (ehAtivo(de)) return ehAtivo(para) || ehEncerrado(para) || para === "EM_ESPERA";
@@ -144,15 +167,19 @@ export function validarMovimento(args: {
   concorrente?: string | null;
   /** A linha de `MotivoPerda` escolhida, quando houver — para checar `exigeConcorrente`. */
   motivo?: { exigeConcorrente: boolean } | null;
+  /** F5.9 — ver `transicaoPermitida`. */
+  porAceiteDeProposta?: boolean;
 }): void {
-  const { de, para, motivoPerdaId, concorrente, motivo } = args;
+  const { de, para, motivoPerdaId, concorrente, motivo, porAceiteDeProposta } = args;
 
   if (de === para) {
     throw new ActionError(`A negociação já está em "${ESTAGIO_LABEL[para]}".`);
   }
-  if (!transicaoPermitida(de, para)) {
+  if (!transicaoPermitida(de, para, { porAceiteDeProposta })) {
     throw new ActionError(
-      `Não é possível mover de "${ESTAGIO_LABEL[de]}" para "${ESTAGIO_LABEL[para]}".`,
+      porAceiteDeProposta
+        ? `Não é possível aceitar a proposta: a negociação está em "${ESTAGIO_LABEL[de]}".`
+        : `Não é possível mover de "${ESTAGIO_LABEL[de]}" para "${ESTAGIO_LABEL[para]}".`,
     );
   }
   if (exigeMotivoPerda(para) && !motivoPerdaId) {
