@@ -28,6 +28,9 @@ import {
   criarParceiroSchema,
   editarParceiroSchema,
   parceiroIdSchema,
+  criarCampanhaSchema,
+  editarCampanhaSchema,
+  campanhaIdSchema,
   moverEstagioSchema,
   qualificarProspeccaoSchema,
   agendarProximaAcaoSchema,
@@ -460,6 +463,68 @@ export const reativarParceiro = defineAction(
   { ...base, acao: "reativar-parceiro", entidade: "Parceiro", schema: parceiroIdSchema, entidadeId: idResultadoOuInput },
   async (i) => {
     await prisma.parceiro.update({ where: { id: i.id }, data: { ativo: true } });
+    rev();
+    return { id: i.id };
+  },
+);
+
+// ── Campanhas (F4.2) ─────────────────────────────────────────────
+/**
+ * `periodoInicio`/`periodoFim` chegam como `"AAAA-MM-DD"` (input `type="date"`) ou `""` — o
+ * `@db.Date` do Prisma quer `Date` ou `null`, nunca string vazia. `canalId`/`responsavelId`
+ * seguem o mesmo padrão de `parceiroId` em `criarLead`: `""` do sentinel do Select vira `null`.
+ */
+function normalizarCampanha<
+  T extends {
+    canalId?: string;
+    periodoInicio?: string;
+    periodoFim?: string;
+    responsavelId?: string;
+    observacao?: string;
+  },
+>(input: T) {
+  return {
+    ...input,
+    canalId: input.canalId || null,
+    periodoInicio: input.periodoInicio ? new Date(input.periodoInicio) : null,
+    periodoFim: input.periodoFim ? new Date(input.periodoFim) : null,
+    responsavelId: input.responsavelId || null,
+    observacao: input.observacao || null,
+  };
+}
+
+export const criarCampanha = defineAction(
+  { ...base, acao: "criar-campanha", entidade: "Campanha", schema: criarCampanhaSchema, entidadeId: idResultadoOuInput },
+  async (i) => {
+    const c = await prisma.campanha.create({ data: normalizarCampanha(i) });
+    rev();
+    return { id: c.id };
+  },
+);
+
+export const editarCampanha = defineAction(
+  { ...base, acao: "editar-campanha", entidade: "Campanha", schema: editarCampanhaSchema, entidadeId: idResultadoOuInput },
+  async (i) => {
+    const { id, ...rest } = i;
+    await prisma.campanha.update({ where: { id }, data: normalizarCampanha(rest) });
+    rev();
+    return { id };
+  },
+);
+
+export const arquivarCampanha = defineAction(
+  { ...base, acao: "arquivar-campanha", entidade: "Campanha", schema: campanhaIdSchema, entidadeId: idResultadoOuInput },
+  async (i) => {
+    await prisma.campanha.update({ where: { id: i.id }, data: { ativo: false } });
+    rev();
+    return { id: i.id };
+  },
+);
+
+export const reativarCampanha = defineAction(
+  { ...base, acao: "reativar-campanha", entidade: "Campanha", schema: campanhaIdSchema, entidadeId: idResultadoOuInput },
+  async (i) => {
+    await prisma.campanha.update({ where: { id: i.id }, data: { ativo: true } });
     rev();
     return { id: i.id };
   },

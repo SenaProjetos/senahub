@@ -58,6 +58,7 @@ export function LeadDetalheView({
   etapas,
   propostas,
   parceiros,
+  campanhas,
   atividadesTimeline,
   proximasAcoes,
   ultimaInteracao,
@@ -67,6 +68,7 @@ export function LeadDetalheView({
   etapas: { id: string; nome: string }[];
   propostas: PropostaResumo[];
   parceiros: { id: string; nome: string }[];
+  campanhas: { id: string; nome: string }[];
   /** F2.11: legado (AtividadeLead) + novo (Atividade) já mesclados, mais recente primeiro. */
   atividadesTimeline: ItemTimeline[];
   /** F2.10/F2.11: ações comerciais ainda em aberto, ancoradas neste lead. */
@@ -280,7 +282,14 @@ export function LeadDetalheView({
         </div>
       </div>
 
-      <LeadDialog lead={lead} open={editar} onOpenChange={setEditar} etapas={etapas} parceiros={parceiros} />
+      <LeadDialog
+        lead={lead}
+        open={editar}
+        onOpenChange={setEditar}
+        etapas={etapas}
+        parceiros={parceiros}
+        campanhas={campanhas}
+      />
     </div>
   );
 }

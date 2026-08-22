@@ -20,6 +20,48 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F4.2 — CRUD + UI de Campanha · 2026-08-22 · Sonnet
+
+**Feito:** `Campanha` já existia no schema (F1.23, nasceu vazia de propósito) e o FILTRO por
+campanha já funcionava nos boards (F2.15) — o que faltava era exatamente o que o docblock do
+model já apontava: "UI de gestão (CRUD, seleção no formulário) só entra na Fase 4". Espelhado
+1:1 no CRUD de `Parceiro` (mesma forma: catálogo por lista, nunca texto livre, ADR-19):
+`CampanhasView`/`CampanhaDialog` em `/comercial/campanhas`, botão ao lado de "Parceiros" na
+página raiz do Comercial.
+
+**A peça que faltava de verdade:** nenhuma tela deixava um `Lead` GANHAR uma campanha. O filtro
+já existia (F2.15) mas não tinha o que filtrar — nenhum lead nasce com `campaignId` sem alguém
+escolher no formulário. `lead-dialog.tsx` ganhou o Select "Campanha" ao lado de Observações
+(mesmo padrão do Select "Parceiro"), e o `campaignId` percorre toda a cadeia até o board:
+`obterLead`/`funilCompleto` (select), `LeadItem` (tipo), `/comercial/[id]` e `/comercial`
+(fetch de `campanhasAtivas()`), `FunilBoard` → `LeadDialog` (prop threading).
+
+**Qualificar já propagava.** `service.ts` (F2.x) já copia `Lead.campaignId` para
+`Negociacao.campaignId` na qualificação — não precisou mexer: uma prospecção vinculada a uma
+campanha continua na mesma campanha depois de virar negociação, sem esta tarefa tocar naquele
+código.
+
+**Arquivos:** `src/modules/comercial/schemas.ts` (`campanhaBase`/`criarCampanhaSchema`/
+`editarCampanhaSchema`/`campanhaIdSchema`, + `campanhaId` em `criarLeadSchema`);
+`src/modules/comercial/actions.ts` (`normalizarCampanha`, 4 actions CRUD);
+`src/modules/comercial/queries.ts` (`listarCampanhas`, `campanhasAtivas`, `canaisAtivos`,
+`responsaveisAtivos`, + `campanha` no select de `funilCompleto`/`obterLead`);
+`src/components/comercial/campanha-dialog.tsx` + `campanhas-view.tsx` (novos);
+`src/app/(dashboard)/comercial/campanhas/page.tsx` (novo); `lead-dialog.tsx` (Select Campanha);
+`funil-board.tsx`, `lead-detalhe-view.tsx`, `/comercial/page.tsx`, `/comercial/[id]/page.tsx`
+(prop threading de `campanhas`).
+
+**Verificação:** eslint limpo, tsc limpo, 2181 testes, build ok, `smoke:crm-fase1/2/3` sem
+regressão. Ensaiado no dev (fora de smoke formal): criei 1 campanha, vinculei 3 leads reais
+(`campaignId`), `funilProspeccao()` sem filtro devolveu 19, com `campanhaId` da campanha nova
+devolveu exatamente os **3** vinculados. Dev limpo depois (campanha e vínculos desfeitos).
+
+**Pendente:** verificação em browser (criar campanha pela UI, abrir "Novo lead", escolher a
+campanha no Select, filtrar o board e ver o card) — sem chromium-cli neste ambiente, mesma
+lacuna recorrente.
+
+---
+
 ## F4.1 — Campos de lista do Sales Navigator · 2026-08-22 · Sonnet
 
 **Feito:** `Cliente`/`ContatoCliente` ganham `listaSalesNavigator` (Boolean, default `false`),

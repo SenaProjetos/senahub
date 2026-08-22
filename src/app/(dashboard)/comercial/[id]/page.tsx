@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
-import { obterLead, funilCompleto, parceirosAtivos, proximasAcoesDe } from "@/modules/comercial/queries";
+import { obterLead, funilCompleto, parceirosAtivos, campanhasAtivas, proximasAcoesDe } from "@/modules/comercial/queries";
 import type { LeadItem } from "@/modules/comercial/queries";
 import { mesclarTimeline, ultimaInteracaoDe } from "@/modules/comercial/atividade";
 import { LeadDetalheView } from "@/components/comercial/lead-detalhe-view";
@@ -15,7 +15,12 @@ export default async function LeadDetalhePage({
 }) {
   await requirePermission("comercial", "ver");
   const { id } = await params;
-  const [lead, etapas, parceiros] = await Promise.all([obterLead(id), funilCompleto(), parceirosAtivos()]);
+  const [lead, etapas, parceiros, campanhas] = await Promise.all([
+    obterLead(id),
+    funilCompleto(),
+    parceirosAtivos(),
+    campanhasAtivas(),
+  ]);
   if (!lead) notFound();
 
   // Segunda consulta, não incluída em `obterLead`: próximas ações são compromissos, tabela
@@ -43,6 +48,7 @@ export default async function LeadDetalhePage({
       etapas={etapas.map((e) => ({ id: e.id, nome: e.nome }))}
       propostas={lead.propostas}
       parceiros={parceiros}
+      campanhas={campanhas}
       atividadesTimeline={atividadesTimeline}
       proximasAcoes={proximasAcoes.map((a) => ({
         id: a.id,

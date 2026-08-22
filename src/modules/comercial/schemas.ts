@@ -16,6 +16,9 @@ export const criarLeadSchema = z.object({
   /// F1.23a (ADR-19): SEMPRE um id do catálogo `Parceiro`, nunca texto — o Select do formulário
   /// não oferece opção de digitar. `""` = sem parceiro (sentinel `SEM_PARCEIRO` no dialog).
   parceiroId: opt(z.string()),
+  /// F4.2: mesmo padrão do parceiro — id do catálogo `Campanha`, nunca texto. `""` = sem
+  /// campanha (sentinel `SEM_CAMPANHA` no dialog).
+  campanhaId: opt(z.string()),
   /// F2.12: `null` = não classificado. `nullish` e NÃO `optional`: com `undefined` o Prisma
   /// entende "não mexe neste campo", e limpar a classificação viraria no-op silencioso.
   temperatura: z.enum(["FRIO", "MORNO", "QUENTE"]).nullish(),
@@ -129,6 +132,20 @@ export const editarParceiroSchema = z
   .object({ id: z.string().min(1), ...parceiroBase })
   .refine(parceiroDocValido, parceiroDocMsg);
 export const parceiroIdSchema = z.object({ id: z.string().min(1) });
+
+// ── Campanhas (F4.2) ─────────────────────────────────────────────
+const campanhaBase = {
+  nome: z.string().min(2, "Informe o nome."),
+  canalId: opt(z.string()),
+  periodoInicio: opt(z.string()),
+  periodoFim: opt(z.string()),
+  responsavelId: opt(z.string()),
+  meta: z.number().nonnegative().optional(),
+  observacao: opt(z.string()),
+};
+export const criarCampanhaSchema = z.object(campanhaBase);
+export const editarCampanhaSchema = z.object({ id: z.string().min(1), ...campanhaBase });
+export const campanhaIdSchema = z.object({ id: z.string().min(1) });
 
 // ── Negociação (F2.7) ─────────────────────────────────────────
 /**

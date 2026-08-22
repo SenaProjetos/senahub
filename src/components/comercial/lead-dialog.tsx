@@ -66,11 +66,14 @@ type Form = {
   etapaId: string;
   observacoes: string;
   parceiroId: string;
+  campanhaId: string;
   temperatura: string;
 };
 
 /** Sentinela pro Select de parceiro (base-ui não aceita value vazio) — F1.23a. */
 const SEM_PARCEIRO = "nenhum";
+/** Idem, para campanha (F4.2). */
+const SEM_CAMPANHA = "nenhuma";
 /** F2.12: "não classificado" é estado próprio, distinto de FRIO — base-ui recusa value="". */
 const SEM_TEMPERATURA = "nao_classificado";
 
@@ -80,12 +83,14 @@ export function LeadDialog({
   onOpenChange,
   etapas,
   parceiros,
+  campanhas,
 }: {
   lead: LeadItem | null;
   open: boolean;
   onOpenChange: (o: boolean) => void;
   etapas: { id: string; nome: string }[];
   parceiros: { id: string; nome: string }[];
+  campanhas: { id: string; nome: string }[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -99,6 +104,7 @@ export function LeadDialog({
     etapaId: etapas[0]?.id ?? "",
     observacoes: "",
     parceiroId: SEM_PARCEIRO,
+    campanhaId: SEM_CAMPANHA,
     temperatura: SEM_TEMPERATURA,
   };
   const deLead = (l: LeadItem): Form => ({
@@ -111,6 +117,7 @@ export function LeadDialog({
     etapaId: l.etapaId,
     observacoes: l.observacoes ?? "",
     parceiroId: l.parceiro?.id ?? SEM_PARCEIRO,
+    campanhaId: l.campanha?.id ?? SEM_CAMPANHA,
     temperatura: l.temperatura ?? SEM_TEMPERATURA,
   });
   const [form, setForm] = useState<Form>(lead ? deLead(lead) : vazio);
@@ -169,6 +176,7 @@ export function LeadDialog({
       etapaId: form.etapaId,
       observacoes: form.observacoes,
       parceiroId: form.parceiroId === SEM_PARCEIRO ? "" : form.parceiroId,
+      campanhaId: form.campanhaId === SEM_CAMPANHA ? "" : form.campanhaId,
       // null (não undefined) para conseguir LIMPAR — ver comentário na action.
       temperatura:
         form.temperatura === SEM_TEMPERATURA
@@ -442,6 +450,25 @@ export function LeadDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Campanha</Label>
+            <Select
+              value={form.campanhaId}
+              onValueChange={(v) => set("campanhaId", v ?? SEM_CAMPANHA)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SEM_CAMPANHA}>Sem campanha</SelectItem>
+                {campanhas.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1.5">
             <Label>Observações</Label>
