@@ -4369,6 +4369,21 @@ model PropostaVersao {
   dataEnvio     DateTime?
   observacao    String?
 
+  // ── PDF imutável arquivado (F5.13, aprovado pelo dono em 2026-08-22) ────────
+  /// Caminho relativo sob `STORAGE_BASE_PATH` do PDF congelado desta versão.
+  ///
+  /// Existe porque hoje o PDF é RE-RENDERIZADO ao vivo da página pública a cada download
+  /// (`/api/t/proposta/[token]/pdf` faz `page.goto`), então o documento baixado amanhã pode
+  /// diferir do que o cliente recebeu (00-auditoria §E.6). Arquivar no ENVIO congela o que foi
+  /// efetivamente mandado.
+  ///
+  /// `null` = versão nunca enviada (ou anterior à F5.13) — nesse caso o download cai no
+  /// ao-vivo, como sempre foi. Não há backfill possível: o PDF de uma versão passada não pode
+  /// ser reconstruído, porque a página pública já mostra outro conteúdo.
+  pdfPath       String?
+  pdfHashSha256 String?
+  pdfTamanho    Int?
+
   @@unique([propostaId, numero])
   @@map("proposta_versao")
 }

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { smtpConfigurado } from "@/lib/mail";
+import { arquivarPdfDaVersao } from "@/modules/comercial/pdf-proposta";
 import { enviarEmailTemplate } from "@/lib/email-templates";
 import {
   criarLeadSchema,
@@ -640,6 +641,9 @@ export const mudarStatusProposta = defineAction(
         { evento: "PROPOSTA_ENVIADA", numero: p.numero, porEmail: false },
         { autorId: ctx.user.id, clienteId: p.clienteId, propostaId: p.id },
       );
+      // F5.13 — congela o PDF do que está sendo enviado. Nunca lança (ver docblock): o envio
+      // não pode falhar por causa do arquivo.
+      await arquivarPdfDaVersao(p.id);
     }
     rev();
     revalidatePath(`/comercial/propostas/${i.id}`);
@@ -680,6 +684,9 @@ export const enviarPropostaEmail = defineAction(
       { evento: "PROPOSTA_ENVIADA", numero: p.numero, porEmail: true },
       { autorId: ctx.user.id, clienteId: p.clienteId, propostaId: p.id },
     );
+    // F5.13 — congela o PDF do que foi enviado. Depois do e-mail de propósito: se o
+    // arquivamento falhar, o cliente já recebeu, e recusar aqui seria mentir sobre isso.
+    await arquivarPdfDaVersao(p.id);
     rev();
     revalidatePath(`/comercial/propostas/${i.id}`);
     return { id: i.id };

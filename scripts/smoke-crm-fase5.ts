@@ -34,12 +34,18 @@ import "dotenv/config";
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { prisma } from "../src/lib/prisma";
+import { removerArquivo } from "../src/lib/storage";
 import { planejarVinculo } from "../src/modules/comercial/vinculo-negociacao";
 import { carregarPendentes, executarVinculo } from "../src/modules/comercial/migracao-vinculo";
 import { salvarProposta, aceitarProposta } from "../src/modules/comercial/service";
 import { versoesComparaveis } from "../src/modules/comercial/propostas-extras/queries";
 import { versaoVigente } from "../src/modules/comercial/versoes";
 import { alertaPropostasExpiradas } from "../src/lib/jobs-handlers";
+import {
+  arquivarPdfDaVersao,
+  pdfArquivadoDaVersao,
+  pdfArquivadoDaProposta,
+} from "../src/modules/comercial/pdf-proposta";
 
 const TAG = `SMKF5_${Date.now()}`;
 
@@ -619,6 +625,114 @@ async function main() {
     (await prisma.projeto.count()) === projetosAntes + 1,
   );
 
+  console.log("\n── F5.13: PDF da v1 continua sendo o da v1 depois da v2 ──────────\n");
+
+  // Gerador FALSO: o de verdade faz `page.goto` num servidor Next que não está no ar sob `tsx`.
+  // O que importa aqui não é o Chrome — é o arquivamento: gravou o byte, carimbou o caminho, e
+  // o download devolve o documento ANTIGO depois de a proposta mudar.
+  const pdfDaChamada: string[] = [];
+  const gerarFake = async (token: string) => {
+    const conteudo = `%PDF-fake v${pdfDaChamada.length + 1} token=${token}`;
+    pdfDaChamada.push(conteudo);
+    return Buffer.from(conteudo, "utf8");
+  };
+
+  const pPdf = await criarProposta("PDF", { status: "rascunho" });
+  const salvarPdf = (titulo: string, valor: number) =>
+    salvarProposta(
+      {
+        id: pPdf.id,
+        titulo,
+        areaM2: undefined,
+        validade: "",
+        observacoes: "",
+        itens: [{ disciplina: "Arquitetura", descricao: "", valor }],
+        condicoes: [],
+      },
+      user.id,
+    );
+
+  await salvarPdf(`${TAG} v1`, 1000);
+  const arq1 = await arquivarPdfDaVersao(pPdf.id, { gerar: gerarFake });
+  check(
+    "arquivou o PDF da v1 no envio",
+    arq1.arquivado === true && arq1.versao === 1,
+    JSON.stringify(arq1),
+  );
+
+  // Reenviar a MESMA versão não regera — o documento que o cliente recebeu é o que fica.
+  const arq1Denovo = await arquivarPdfDaVersao(pPdf.id, { gerar: gerarFake });
+  check(
+    "reenviar a mesma versão NÃO regera o PDF (idempotente)",
+    arq1Denovo.arquivado === false && /já tem PDF arquivado/.test(arq1Denovo.motivo),
+    JSON.stringify(arq1Denovo),
+  );
+
+  // ── O aceite literal da tarefa ──
+  await salvarPdf(`${TAG} v2 MUDADA`, 99999);
+  const pdfV1 = await pdfArquivadoDaVersao(pPdf.id, 1);
+  check(
+    "depois de salvar a v2, o PDF da v1 ainda é o documento da v1",
+    pdfV1?.buffer.toString("utf8") === "%PDF-fake v1 token=" + (await prisma.proposta.findUnique({ where: { id: pPdf.id }, select: { token: true } }))!.token,
+    pdfV1?.buffer.toString("utf8").slice(0, 30),
+  );
+  check("o PDF da v1 não virou o da v2", !pdfV1?.buffer.toString("utf8").includes("v2"));
+
+  const pdfV2 = await pdfArquivadoDaVersao(pPdf.id, 2);
+  check("a v2, ainda não enviada, NÃO tem PDF arquivado (404 na rota interna)", pdfV2 === null);
+
+  // A rota pública serve o arquivado da VIGENTE; como a v2 não foi enviada, não há arquivado
+  // vigente e ela cairia no ao-vivo — que é o fallback correto, não um bug.
+  const publico = await pdfArquivadoDaProposta(pPdf.id);
+  check(
+    "a rota pública não serve o PDF da v1 como se fosse o atual (vigente é a v2, sem arquivo)",
+    publico === null,
+  );
+
+  // Agora envia a v2: passa a haver arquivado vigente, e os DOIS coexistem.
+  const arq2 = await arquivarPdfDaVersao(pPdf.id, { gerar: gerarFake });
+  check("arquivou o PDF da v2", arq2.arquivado === true && arq2.versao === 2, JSON.stringify(arq2));
+  const publicoDepois = await pdfArquivadoDaProposta(pPdf.id);
+  check("a rota pública agora serve o da v2 (a vigente)", publicoDepois?.versao === 2);
+  const pdfV1AindaLa = await pdfArquivadoDaVersao(pPdf.id, 1);
+  check(
+    "e o da v1 continua lá, intocado — os dois coexistem",
+    pdfV1AindaLa?.buffer.toString("utf8").includes("v1") === true,
+  );
+
+  const colunasPdf = await prisma.propostaVersao.findMany({
+    where: { propostaId: pPdf.id },
+    orderBy: { numero: "asc" },
+    select: { numero: true, pdfPath: true, pdfHashSha256: true, pdfTamanho: true },
+  });
+  check(
+    "as duas versões têm caminho, hash e tamanho gravados",
+    colunasPdf.every((c) => c.pdfPath && c.pdfHashSha256 && (c.pdfTamanho ?? 0) > 0),
+    JSON.stringify(colunasPdf.map((c) => ({ v: c.numero, t: c.pdfTamanho }))),
+  );
+  check(
+    "os caminhos são diferentes entre as versões (não sobrescreve)",
+    colunasPdf[0].pdfPath !== colunasPdf[1].pdfPath,
+  );
+
+  // Falha na geração não derruba o envio.
+  const pPdfFalha = await criarProposta("PDFFALHA", { status: "rascunho" });
+  await salvarProposta(
+    { id: pPdfFalha.id, titulo: `${TAG} falha`, areaM2: undefined, validade: "", observacoes: "",
+      itens: [{ disciplina: "Arquitetura", descricao: "", valor: 1 }], condicoes: [] },
+    user.id,
+  );
+  const arqFalha = await arquivarPdfDaVersao(pPdfFalha.id, {
+    gerar: async () => {
+      throw new Error("Chrome explodiu");
+    },
+  });
+  check(
+    "falha ao gerar NÃO lança — devolve o motivo (o envio não pode cair por causa do PDF)",
+    arqFalha.arquivado === false && /Chrome explodiu/.test(arqFalha.motivo),
+    JSON.stringify(arqFalha),
+  );
+
   console.log(`\n${ok ? "✔ Fase 5: tudo verde." : "✖ Fase 5: há falhas acima."}`);
   if (!ok) process.exitCode = 1;
 }
@@ -645,6 +759,14 @@ async function limpar() {
   }
 
   const props = await prisma.proposta.findMany({ where: { clienteId: { in: ids } }, select: { id: true } });
+
+  // F5.13: os PDFs arquivados são ARQUIVOS em `STORAGE_BASE_PATH` — não caem com o registro.
+  // Sem isto, cada rodada do smoke deixaria dois .pdf de lixo no disco do dev.
+  const comPdf = await prisma.propostaVersao.findMany({
+    where: { propostaId: { in: props.map((p) => p.id) }, pdfPath: { not: null } },
+    select: { pdfPath: true },
+  });
+  for (const v of comPdf) await removerArquivo(v.pdfPath!);
   // Notificações do alerta de validade (F5.7) — não pendem de FK, então some por `href` ou
   // ficariam no sino de todo mundo depois que o smoke apagasse as propostas.
   await prisma.notificacao.deleteMany({

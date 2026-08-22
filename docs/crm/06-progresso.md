@@ -20,6 +20,68 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F5.13 — PDF imutável arquivado por versão · 2026-08-22 · Opus
+
+**Aprovado pelo dono** (a tarefa era opcional, com portão próprio): *"melhor pagar o custo de
+storage e manter alguns PDFs que pesam alguns kb pra preservar o histórico"*.
+
+**Feito:** `PropostaVersao` ganhou `pdfPath`/`pdfHashSha256`/`pdfTamanho`; o PDF é congelado no
+ENVIO (os dois caminhos — `mudarStatusProposta` para "enviada" e `enviarPropostaEmail` — passam
+por `arquivarPdfDaVersao`); a rota pública serve o arquivado da versão vigente; e uma rota nova
+`/api/comercial/propostas/[id]/versoes/[numero]/pdf` (gated `comercial:ver`) baixa o PDF de
+qualquer versão do histórico.
+
+**O problema que isso resolve** (00-auditoria §E.6): o PDF era **re-renderizado da página pública
+a cada download**. Mudou um item? O documento que o cliente baixa amanhã deixa de ser o que ele
+recebeu — sem registro de qual era.
+
+**`gerarPdfDaPaginaPublica` é INJETÁVEL, e não por preciosismo.** Ele faz `page.goto` num
+servidor Next que precisa estar NO AR; um smoke roda sob `tsx` puro. Sem injeção, testar o
+arquivamento exigiria subir a aplicação inteira — ou não testar. Com o gerador injetado, o smoke
+prova o que importa (grava o byte, carimba caminho/hash/tamanho, e o download devolve o
+documento antigo depois de a proposta mudar) sem depender do Chrome. Mesmo padrão do `spawn`
+injetável de `coordenacao/conversao.ts`.
+
+**Bug meu, pego pelo próprio smoke antes de commitar.** A 1ª versão de `pdfArquivadoDaProposta`
+escolhia a vigente **entre as versões que tinham PDF**. Consequência: proposta enviada na v1 e
+depois editada (v2, não enviada) serviria o PDF da **v1** enquanto a PÁGINA pública mostra a
+**v2** — o cliente veria um preço na tela e outro no documento, pior que qualquer um dos dois
+sozinho. Corrigido: pega a vigente de verdade e só devolve se ELA estiver arquivada; senão cai
+no ao-vivo, que sempre reflete a página. Agora PDF e tela nunca discordam.
+
+**Sem backfill, e não é omissão.** O PDF de uma versão passada é impossível de reconstruir — a
+página já mostra outro conteúdo, e é dela que ele sai. Gerar agora produziria o documento de
+HOJE carimbado como se fosse o de então, pior que não ter. `NULL` = sem congelado, e o download
+cai no ao-vivo exatamente como sempre funcionou. É esse fallback que mantém tudo que já existe
+idêntico.
+
+**Nunca lança.** Um PDF que não gerou não pode derrubar o envio — no caminho do e-mail o
+arquivamento roda **depois** do envio, de propósito: o cliente já recebeu, e falhar ali seria
+mentir sobre isso. Devolve o motivo para quem quiser registrar. **Idempotente:** versão que já
+tem PDF não regera — o documento que o cliente recebeu é o que fica.
+
+**Arquivos:** `prisma/schema.prisma` (3 colunas) ·
+`prisma/migrations/20260822180000_crm_f513_pdf_versao_arquivado/migration.sql` (novo) ·
+`src/modules/comercial/pdf-proposta.ts` (novo — geração extraída da rota + arquivamento) ·
+`src/app/api/t/proposta/[token]/pdf/route.ts` (serve arquivado, fallback ao-vivo) ·
+`src/app/api/comercial/propostas/[id]/versoes/[numero]/pdf/route.ts` (novo) ·
+`src/modules/comercial/actions.ts` (arquiva nos 2 caminhos de envio) ·
+`scripts/smoke-crm-fase5.ts` (+12, incluindo limpeza dos .pdf do disco).
+
+**Verificação:** eslint limpo, tsc limpo, **2285 testes**, build ok, `migrate status` "up to
+date". `smoke:crm-fase5` **83/83**, com o aceite literal: **baixar o PDF da versão 1 depois de
+salvar a versão 2 devolve o documento da v1**. Fases 1–4 sem regressão.
+
+**Pendente:** verificação em browser com o Chrome de verdade — o smoke usa gerador falso de
+propósito, então o `puppeteer.launch` em si só é exercitado em `dev:server`/produção.
+**Depende de `CHROME_PATH`**, que já era requisito da rota pública.
+
+**Riscos:** storage cresce por versão ENVIADA (não por salvamento) — decisão consciente do dono.
+O backup de storage (`backup-storage.ts`, espelho robocopy) passa a incluí-los, o que é o
+desejado: um PDF de proposta fora do backup seria histórico que se perde no primeiro incidente.
+
+---
+
 ## F5.9 — Aceite reescrito, uma transação só · 2026-08-22 · Opus
 
 **Feito:** `aceitarProposta` agora fecha o ciclo comercial inteiro numa transação: cria o
