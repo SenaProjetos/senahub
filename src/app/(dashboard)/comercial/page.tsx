@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { FileText, Table2, Handshake, KanbanSquare } from "lucide-react";
+import { FileText, Table2, Handshake, KanbanSquare, Megaphone } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
-import { funilCompleto, resumoComercial, parceirosAtivos } from "@/modules/comercial/queries";
+import { funilCompleto, resumoComercial, parceirosAtivos, campanhasAtivas } from "@/modules/comercial/queries";
 import { FunilBoard } from "@/components/comercial/funil-board";
 import { MetaCard } from "@/components/comercial/meta-card";
 import { Button } from "@/components/ui/button";
@@ -14,10 +14,11 @@ export const metadata: Metadata = { title: "Comercial" };
 export default async function ComercialPage() {
   const user = await requirePermission("comercial", "ver");
   const podeGerir = await can(user, "comercial", "gerir");
-  const [etapas, resumo, parceiros] = await Promise.all([
+  const [etapas, resumo, parceiros, campanhas] = await Promise.all([
     funilCompleto(),
     resumoComercial(),
     parceirosAtivos(),
+    campanhasAtivas(),
   ]);
 
   return (
@@ -38,6 +39,9 @@ export default async function ComercialPage() {
           </Button>
           <Button variant="outline" size="sm" render={<Link href="/comercial/parceiros" />}>
             <Handshake className="size-4" /> Parceiros
+          </Button>
+          <Button variant="outline" size="sm" render={<Link href="/comercial/campanhas" />}>
+            <Megaphone className="size-4" /> Campanhas
           </Button>
           <Button variant="outline" size="sm" render={<Link href="/comercial/tabelas" />}>
             <Table2 className="size-4" /> Tabelas de preço
@@ -61,7 +65,7 @@ export default async function ComercialPage() {
       </div>
 
       <div className="space-y-3">
-        <FunilBoard etapas={etapas} parceiros={parceiros} />
+        <FunilBoard etapas={etapas} parceiros={parceiros} campanhas={campanhas} />
       </div>
     </div>
   );

@@ -43,9 +43,11 @@ const TODOS = "__todos";
 export function FunilBoard({
   etapas,
   parceiros,
+  campanhas,
 }: {
   etapas: EtapaFunil[];
   parceiros: { id: string; nome: string }[];
+  campanhas: { id: string; nome: string }[];
 }) {
   const router = useRouter();
   const setParams = useSetParams();
@@ -169,6 +171,7 @@ export function FunilBoard({
         onOpenChange={(o) => !o && setDialogLead(null)}
         etapas={etapas.map((e) => ({ id: e.id, nome: e.nome }))}
         parceiros={parceiros}
+        campanhas={campanhas}
       />
 
       <MotivoPerdaDialog

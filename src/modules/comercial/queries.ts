@@ -32,6 +32,9 @@ export async function funilCompleto() {
           // Parceiro (F1.23a): so o suficiente pra exibir; a lista de opcoes do Select vem de
           // `parceirosAtivos()`, nao daqui.
           parceiro: { select: { id: true, nome: true } },
+          // Campanha (F4.2): mesmo padrao — so o suficiente pra exibir/editar; opcoes do
+          // Select vem de `campanhasAtivas()`.
+          campanha: { select: { id: true, nome: true } },
           atividades: {
             orderBy: { createdAt: "desc" },
             include: { autor: { select: { name: true } } },
@@ -59,6 +62,7 @@ export async function obterLead(id: string) {
       etapa: true,
       cliente: { select: { id: true, nome: true } },
       parceiro: { select: { id: true, nome: true } },
+      campanha: { select: { id: true, nome: true } },
       atividades: { orderBy: { createdAt: "desc" }, include: { autor: { select: { name: true } } } },
       // F3.1: timeline nova. Nome do relation (`atividadesComerciais`) mantido distinto de
       // `atividades` (a legada) — a mesclagem dos dois em ordem cronológica única acontece na
@@ -211,6 +215,54 @@ export async function parceirosAtivos() {
     where: { ativo: true },
     orderBy: { nome: "asc" },
     select: { id: true, nome: true },
+  });
+}
+
+// ── Campanhas (F4.2) ──────────────────────────────────────────────
+/** Todas, ativas e inativas — para a tela de gestão. */
+export async function listarCampanhas() {
+  return prisma.campanha.findMany({
+    orderBy: [{ ativo: "desc" }, { createdAt: "desc" }],
+    include: {
+      canal: { select: { nome: true } },
+      responsavel: { select: { name: true } },
+      // Aninhado: sem `where`, lead/negociação excluído inflaria a contagem (mesmo ponto de
+      // `listarParceiros`, F1.18).
+      _count: {
+        select: {
+          leads: { where: { excluidoEm: null } },
+          negociacoes: { where: { excluidoEm: null } },
+        },
+      },
+    },
+  });
+}
+export type CampanhaItem = Awaited<ReturnType<typeof listarCampanhas>>[number];
+
+/** Só as ativas — popula o Select do formulário de lead (nunca texto livre). */
+export async function campanhasAtivas() {
+  return prisma.campanha.findMany({
+    where: { ativo: true },
+    orderBy: { nome: "asc" },
+    select: { id: true, nome: true },
+  });
+}
+
+/** Catálogo de canais de aquisição — popula o Select "canal" do formulário de campanha. */
+export async function canaisAtivos() {
+  return prisma.canalAquisicao.findMany({
+    where: { ativo: true },
+    orderBy: { ordem: "asc" },
+    select: { id: true, nome: true },
+  });
+}
+
+/** Usuários internos ativos — popula o Select "responsável" do formulário de campanha. */
+export async function responsaveisAtivos() {
+  return prisma.user.findMany({
+    where: { ativo: true, role: { not: "cliente" } },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
   });
 }
 
