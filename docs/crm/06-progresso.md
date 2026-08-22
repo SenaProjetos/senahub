@@ -20,6 +20,43 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F4.7 — FECHO DA FASE 4 · 2026-08-22 · Sonnet
+
+**Os 4 verdes:** `eslint` limpo (repo inteiro) · `vitest run` **2221 testes** · `npm run build` ✓
+· `smoke:crm-fase4` **50/50** (25 F4.3 + 17 F4.5 + 8 F4.6). Sem regressão: `smoke:crm-fase1`,
+`smoke:crm-fase2` e `smoke:crm-fase3` continuam verdes (nenhum dos três se resume a um
+"N/N" — só o `fase4` tem esse formato de saída).
+
+**FASE 4 FECHADA.** F4.1–F4.6, seis tarefas — "Sales Navigator": `listaSalesNavigator`/
+`statusAbordagem` em `Cliente`/`ContatoCliente`, CRUD de `Campanha`, fluxo rápido de
+prospecção numa tela só (`criarProspeccaoRapida`), `mapeamento-crm.ts` (auto-mapeamento de
+planilha), wizard de importação CSV (`resolverLinhas` + dedup intra-arquivo + banco), export
+CSV de Empresas/Contatos/Prospecções/Negociações respeitando filtro ativo e LGPD.
+
+**Correção de processo no meio da fase, registrada aqui por ser da fase, não de uma tarefa
+só:** F4.1–F4.5 foram parar direto em `master` (engano — o padrão certo, já documentado em
+memória, é trabalhar em `dev` e só levar a `master` no deploy de verdade). Avisado pelo
+usuário, corrigido: `master` resetado pro commit anterior a F4.1 + `push --force-with-lease`,
+`dev` nunca tocado (histórico intacto). F4.6 e este fecho já nasceram no lugar certo.
+
+**Pendente, fora do código (não bloqueia o fecho, mas fica registrado):**
+- **Verificação em browser** — a lacuna de sempre (sem chromium-cli neste ambiente), mas
+  desta vez com a lista exata do que falta clicar, pra não virar "conferir tudo" vago:
+  - **F4.1** — filtro "Lista SN" em `/clientes` marca só quem está na lista.
+  - **F4.2** — CRUD de Campanha (`/comercial/campanhas`) e o Select de campanha no funil/lead.
+  - **F4.3** — `ProspeccaoRapidaDialog` em `/comercial/prospeccao`: colar URL → prospecção
+    criada em menos de 60s, cronometrado por gente (o proxy medível já está provado no smoke).
+  - **F4.5** — wizard em `/comercial/importar`, os 4 passos, incluindo o bloco novo de
+    "linhas fora da importação" (`problemas`) que a 2ª rodada do advisor pediu.
+  - **F4.6** — os 4 botões "Exportar" (clientes, 2× prospecção, negociações) de fato baixando
+    um arquivo `.csv` que abre certo no Excel (separador `;`, acentos, BOM).
+- **F3.9 em produção** — segue sem rodar (herdado do fecho da Fase 3, não é desta fase).
+- **Fase 5** (Propostas) é a próxima. Pré-condição do `99-playbook.md` já satisfeita — F1.3
+  (teste de caracterização do aceite) foi commitado na Fase 1 (`a7498ee`) — então nenhuma
+  tarefa da Fase 5 precisa esperar antes de tocar `aceitarProposta`/link público.
+
+---
+
 ## F4.6 — Export CSV de Empresas/Contatos/Prospecções/Negociações · 2026-08-22 · Sonnet
 
 **Feito:** 4 rotas (`api/comercial/export/{empresas,contatos,prospeccoes,negociacoes}`),
