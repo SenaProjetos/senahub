@@ -20,6 +20,57 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F5.1 — Portão bloqueante: plano do vínculo Proposta ↔ Negociação · 2026-08-22 · Opus
+
+**Feito:** plano apresentado ao dono, **aprovado**, e registrado como **ADR-21** em
+`01-decisoes.md`. Zero código, zero schema — é o que a tarefa pede ("apresentar plano curto […] e
+**esperar aprovação**"), e a ordem importa: o plano foi ao usuário PRIMEIRO, o ADR só foi escrito
+depois do OK. Escrever o ADR antes e perguntar "pode?" inverteria o portão.
+
+**O fato que reorganiza a fase inteira:** o PDF não é arquivo guardado — a rota faz
+`page.goto("/a/proposta/${token}")` e imprime a **página pública ao vivo**. Logo, mexer em
+`app/a/proposta/[token]/page.tsx` reescreve retroativamente o PDF de toda proposta já enviada. O
+ADR **congela** a saída dessa página para a Fase 5 inteira, salvo tarefa que a nomeie como
+entrega — F5.4, F5.5 e F5.10 são todas do editor interno e não têm motivo para tocar ali.
+
+**Calibragem honesta do ⚠️⚠️:** a proposta única de produção **está sem itens**. O risco é sobre o
+MECANISMO (token, numeração, rota pública) ser sagrado, não sobre um documento que algum cliente
+esteja lendo. Isso define quanta cerimônia a F5.2 precisa — nem menos que as 3 provas do §7, nem a
+paranoia de um documento vivo.
+
+**Divergência deliberada do texto do backlog, aprovada:** a F5.2 diz "negociação sintética". O ADR
+manda **derivar**: se a proposta histórica tem `leadId` e esse lead virou `Negociacao` na F2.18,
+liga na **real** — sintética só quando não houver. Criar uma sintética existindo a real inventaria
+um registro que a Fase 6 contaria como negócio. Qual dos dois casos é o de produção é uma consulta
+read-only na F5.2; não bloqueava a F5.1.
+
+**Decisão do dono sobre `criarPropostaDeLead`** (o caminho que hoje cria proposta pulando a
+negociação, e que a F5.3 quebraria): **qualificar automático por trás** — o botão continua na tela
+do lead, mas criar a proposta passa a criar/reusar a `Negociacao` na mesma transação. Escolhida
+entre 3 opções; as outras duas ficam registradas no ADR com o motivo do descarte.
+
+**Duas armadilhas que o ADR já deixa mapeadas para a F5.3 não redescobrir:**
+1. `qualificarProspeccao` abre a **própria** `$transaction` — reusá-la de dentro de
+   `criarPropostaDeLead` exige extrair o miolo numa função que recebe `tx` (forma de
+   `proximoNumeroProposta`). Sem isso, falhar ao criar a proposta deixaria negociação órfã: o
+   mesmo defeito que a F4.3 existiu para não repetir.
+2. Muda comportamento visível — `validarQualificacao` recusa lead `PERDIDO`, então criar proposta a
+   partir dele, que hoje funciona, passa a ser recusado. Aceito de propósito.
+
+**Arquivos:** `docs/crm/01-decisoes.md` (ADR-21, novo).
+
+**Verificação:** não se aplica — tarefa de decisão, sem código. O aceite da F5.1 é literalmente
+"usuário aprovou por escrito no `01-decisoes.md`", e está.
+
+**Pendente:** F5.2 (coluna + backfill, Opus, migration) é a próxima. Primeiro passo dela é a
+consulta read-only que decide real-vs-sintética.
+
+**Riscos:** o congelamento da página pública é uma regra de processo, não uma trava de código —
+depende de quem escrever F5.4/F5.5/F5.10 lembrar dela. É por isso que está no ADR e não só num
+comentário.
+
+---
+
 ## F4.7 — FECHO DA FASE 4 · 2026-08-22 · Sonnet
 
 **Os 4 verdes:** `eslint` limpo (repo inteiro) · `vitest run` **2221 testes** · `npm run build` ✓

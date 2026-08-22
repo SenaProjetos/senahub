@@ -348,3 +348,105 @@ Isso não invalida nenhuma decisão registrada aqui, mas muda o peso de algumas:
   só o Comercial dele já é custoso), não tem âncora em `Cliente` (a Empresa 360 teria de juntar
   Lead + Negociacao + Proposta a cada leitura) e guarda o dado técnico, não a frase — a tela
   precisaria traduzir `{"estagio": {"de": "ORCAMENTO"}}` em português a cada renderização.
+
+---
+
+## ADR-21 — Proposta pertence a uma Negociação (vínculo sem quebrar o que já foi enviado)
+
+> **Aprovado pelo dono em 2026-08-22**, fechando a F5.1 — o portão bloqueante que a Fase 5
+> inteira depende. O plano foi apresentado e aprovado ANTES de qualquer linha de schema ou
+> código; este ADR é o registro do que foi aprovado, não a proposta em si.
+
+### Contexto: o que está de fato em risco
+
+Hoje `Proposta` conhece `Cliente` e (opcionalmente) `Lead`, mas **não conhece `Negociacao`** — que
+só passou a existir na F2.4. Ligar as duas é a base de toda a Fase 5. O que não pode quebrar no
+caminho:
+
+- **O PDF não é arquivo guardado.** `api/t/proposta/[token]/pdf/route.ts` faz
+  `page.goto("/a/proposta/${token}")` e imprime a **página pública ao vivo** (00-aud §E.6). A
+  consequência que manda no resto desta fase: *qualquer mudança em
+  `src/app/a/proposta/[token]/page.tsx` muda retroativamente o PDF de toda proposta já enviada.*
+- **Token e numeração já circularam.** `Proposta.token` está em links enviados a clientes reais e
+  `numero`/`PropostaSequencia` são a identidade contábil do documento.
+- **Calibragem honesta do risco:** a proposta única de produção **está sem itens**
+  (`03-migracao.md` §0). O ⚠️⚠️ é sobre o **mecanismo** ser sagrado — token, numeração, rota
+  pública — não sobre um documento que algum cliente está lendo agora.
+
+### Decisão
+
+**1. `Proposta.negociacaoId` é `String?` — nullable no banco, para sempre.** A obrigatoriedade
+vive na validação de criação (F5.3), não numa constraint. `NOT NULL` exigiria um backfill perfeito
+e travaria qualquer proposta histórica que não resolvesse. Mesma forma que o `02-schema.md` §2.8 já
+previa. Ganha `@@index([negociacaoId])`.
+
+**2. O backfill deriva; não inventa.** Uma linha em produção, e o caminho depende de um fato que
+uma consulta read-only resolve na F5.2:
+
+| Situação da proposta histórica | O que o backfill faz |
+|---|---|
+| tem `leadId`, e esse lead virou `Negociacao` na F2.18 | liga na **negociação real** — sem entidade sintética |
+| sem `leadId`, ou o lead não tem negociação | cria negociação **sintética** com `needsReview: true` |
+
+Isto **diverge do texto do backlog** (F5.2 diz "negociação sintética" sem ressalva), de propósito e
+com aprovação: criar uma sintética quando a real existe seria inventar um registro que a Fase 6 depois
+contaria como negócio.
+
+**3. O script recusa executar por inteiro se algo ficar ambíguo** — nunca cai num fallback
+silencioso. É a forma que a F2.18 já provou (e que lá pegou uma violação de FK antes de produção).
+
+**4. As três provas da F5.2 são as do `03-migracao.md` §7, literais:**
+- `numero` e `token` **byte a byte inalterados**;
+- `PropostaSequencia.ultimo` inalterado;
+- `/a/proposta/<token>` ainda abre.
+
+**5. `criarPropostaDeLead` passa a qualificar o lead automaticamente** (decisão do dono entre 3
+opções; as descartadas ficam no fim deste ADR). O botão continua onde está, na tela do lead, e o
+fluxo vira, tudo na MESMA transação:
+
+1. garante `Cliente` (já faz hoje — converte o lead se ainda não tiver);
+2. se o lead **já tem** `Negociacao` (`Negociacao.leadId @unique`), **reusa**;
+3. senão, qualifica — cria a `Negociacao`, lead vai para `OPORTUNIDADE_CRIADA`;
+4. cria a `Proposta` já com `negociacaoId`.
+
+**Duas consequências que a F5.3 precisa tratar, e que não são óbvias no código de hoje:**
+
+- **`qualificarProspeccao` (`service.ts`) abre a própria `$transaction`** e faz o `findUnique` fora
+  dela. Para rodar dentro da transação de `criarPropostaDeLead`, o miolo precisa ser extraído numa
+  função que **recebe `tx`** — mesma forma de `proximoNumeroProposta`. Sem isso são duas transações
+  independentes, e uma falha ao criar a proposta deixaria uma negociação órfã: exatamente o defeito
+  que a F4.3 existiu para não repetir.
+- **Muda comportamento visível:** `validarQualificacao` recusa lead em status não-qualificável
+  (ex.: `PERDIDO` — "Reative-a antes"). Criar proposta a partir de um lead nesse estado, que hoje
+  funciona, passa a ser recusado com mensagem de negócio. É aceito como parte da decisão: proposta
+  para prospecção perdida é o cenário que a regra quer impedir.
+
+**6. A saída renderizada de `/a/proposta/[token]` fica CONGELADA na Fase 5**, salvo tarefa que a
+nomeie explicitamente como entrega. F5.4 (campos estruturados de versão), F5.5 (`em_negociacao`) e
+F5.10 (motivo de recusa) vivem todas no editor interno — nenhuma tem motivo para tocar ali. Está
+escrito aqui uma vez justamente para que a 7ª tarefa da fase não acrescente uma linha sem perceber
+que reescreveu o PDF de um documento já enviado.
+
+### Dois invariantes que este ADR cobra das tarefas seguintes
+
+- **Escrita dupla do §8.5.** `Proposta.projetoId` e `Projeto.negociacaoId` respondem à mesma
+  pergunta ("de onde veio este projeto"). A F5.9 grava **os dois na mesma transação ou nenhum**,
+  provado por **teste nomeado** — não por comentário. É a divergência mais provável de apodrecer em
+  silêncio, porque nada no banco a impede.
+- **O teste de caracterização da F1.3 é ATUALIZADO, nunca deletado.** Ele é a rede embaixo da
+  reescrita do aceite (F5.9). Se uma asserção falhar, o certo é revisar o diff deliberadamente —
+  apagar a asserção destrói o único mecanismo que pega mudança de comportamento não intencional.
+
+### O que este ADR **não** decide
+
+**F5.13** (PDF imutável arquivado por versão enviada) tem portão próprio: custo de storage e
+dependência de `CHROME_PATH`. Aprovar o vínculo Proposta↔Negociação não aprova o arquivamento.
+
+### Alternativas descartadas para o `criarPropostaDeLead` (item 5)
+
+- **Aposentar o caminho** — prospecção qualifica → negociação → proposta como único fluxo. Era a
+  recomendação técnica (mais limpa, bate com "sem feature flag, substituição direta"), mas tira um
+  atalho que o time usa hoje.
+- **Deixar criar proposta sem negociação** — transformaria a F5.3 em "exige `negociacaoId`, EXCETO
+  se veio de um lead". Descartada porque a exceção tende a virar o caminho mais usado, por ser o
+  mais curto — e aí a regra deixa de valer na prática.
