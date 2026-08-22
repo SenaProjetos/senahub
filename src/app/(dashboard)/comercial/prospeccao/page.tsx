@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { funilProspeccao, opcoesFiltroComercial, campanhasAtivas } from "@/modules/comercial/queries";
@@ -11,6 +11,17 @@ import { ProspeccaoRapidaDialog } from "@/components/comercial/prospeccao-rapida
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Prospecção" };
+
+/** searchParams (Next) → query string — mesmas chaves repassadas pro export CSV (F4.6), sem
+ *  reconstruir o filtro a partir de `FiltrosComerciais` (a URL já É a fonte de verdade). */
+function paraQueryString(sp: Record<string, string | string[] | undefined>): string {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp)) {
+    if (v == null) continue;
+    p.set(k, Array.isArray(v) ? (v[0] ?? "") : v);
+  }
+  return p.toString();
+}
 
 /**
  * Kanban de Prospecção (F2.13), agrupado por `StatusProspeccao`.
@@ -26,13 +37,15 @@ export default async function ProspeccaoPage({
 }) {
   const user = await requirePermission("comercial", "ver");
   const podeGerir = await can(user, "comercial", "gerir");
-  const filtros = lerFiltros(await searchParams);
+  const sp = await searchParams;
+  const filtros = lerFiltros(sp);
   const [colunas, opcoes, campanhas] = await Promise.all([
     funilProspeccao(filtros),
     opcoesFiltroComercial(),
     campanhasAtivas(),
   ]);
   const total = colunas.reduce((s, c) => s + c.leads.length, 0);
+  const qs = paraQueryString(sp);
 
   return (
     <div className="space-y-4">
@@ -46,7 +59,17 @@ export default async function ProspeccaoPage({
             {total} prospecção(ões) no funil · arraste para mudar de estágio
           </p>
         </div>
-        {podeGerir && <ProspeccaoRapidaDialog campanhas={campanhas} />}
+        {podeGerir && (
+          <>
+            <Button variant="outline" size="sm" render={<a href={`/api/comercial/export/prospeccoes?${qs}`} />}>
+              <Download className="size-4" /> Prospecções
+            </Button>
+            <Button variant="outline" size="sm" render={<a href={`/api/comercial/export/contatos?${qs}`} />}>
+              <Download className="size-4" /> Contatos
+            </Button>
+            <ProspeccaoRapidaDialog campanhas={campanhas} />
+          </>
+        )}
       </div>
 
       <FiltrosComerciais opcoes={opcoes} />

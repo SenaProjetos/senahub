@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
 import { requirePermission } from "@/lib/session";
+import { can } from "@/lib/permissions";
 import {
   funilNegociacao,
   motivosPerdaAtivos,
@@ -17,19 +18,33 @@ import { brlInteiro } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Negociações" };
 
+/** searchParams (Next) → query string — mesmas chaves repassadas pro export CSV (F4.6), sem
+ *  reconstruir o filtro a partir de `FiltrosComerciais` (a URL já É a fonte de verdade). */
+function paraQueryString(sp: Record<string, string | string[] | undefined>): string {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp)) {
+    if (v == null) continue;
+    p.set(k, Array.isArray(v) ? (v[0] ?? "") : v);
+  }
+  return p.toString();
+}
+
 /** Kanban de Negociações (F2.14) — o funil que hoje acontece inteiramente fora do sistema. */
 export default async function NegociacoesPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requirePermission("comercial", "ver");
-  const filtros = lerFiltros(await searchParams);
+  const user = await requirePermission("comercial", "ver");
+  const podeGerir = await can(user, "comercial", "gerir");
+  const sp = await searchParams;
+  const filtros = lerFiltros(sp);
   const [colunas, motivos, opcoes] = await Promise.all([
     funilNegociacao({ filtros }),
     motivosPerdaAtivos(),
     opcoesFiltroComercial(),
   ]);
+  const qs = paraQueryString(sp);
 
   const total = colunas.reduce((s, c) => s + c.total, 0);
   // Pipeline = só o que ainda pode fechar. Contratado já fechou; perdido/cancelado não volta
@@ -51,6 +66,11 @@ export default async function NegociacoesPage({
             {total} negociação(ões) · pipeline em aberto {brlInteiro(pipeline)}
           </p>
         </div>
+        {podeGerir && (
+          <Button variant="outline" size="sm" render={<a href={`/api/comercial/export/negociacoes?${qs}`} />}>
+            <Download className="size-4" /> Exportar
+          </Button>
+        )}
       </div>
 
       <FiltrosComerciais opcoes={opcoes} mostrarDisciplina />

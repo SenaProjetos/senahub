@@ -20,6 +20,71 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F4.6 — Export CSV de Empresas/Contatos/Prospecções/Negociações · 2026-08-22 · Sonnet
+
+**Feito:** 4 rotas (`api/comercial/export/{empresas,contatos,prospeccoes,negociacoes}`),
+cada uma repassando os MESMOS filtros ativos da tela de origem (mesmas chaves de URL —
+`/clientes` pras empresas, `resp`/`camp`/`canal`/`empresa`/`temp`/`periodo` de
+`FiltrosComerciais` pros outros 3) direto pro `where` do Prisma. Botão "Exportar" em
+`clientes-view.tsx`, `/comercial/prospeccao` (2 botões — Prospecções e Contatos) e
+`/comercial/negociacoes`. Consulta de verdade em `modules/comercial/exportacao.ts`, separada
+da rota (auth + `NextResponse`) pelo mesmo motivo de `importacao/commit.ts` na F4.5: chamável
+sem sessão, então testável por smoke. CSV escrito por `lib/export/csv.ts` (extraído do inline
+de `api/rh/produtividade/export/route.ts` — `;`, aspas, BOM — em vez de colar o mesmo em 4
+rotas; 10 testes puros).
+
+**"Contatos" não tem tela própria — decisão do advisor, não invenção nova.** Em vez de criar
+uma listagem "todos os contatos" que não existe hoje, o export de Contatos usa o MESMO recorte
+de `FiltrosComerciais` da Prospecção: "pessoas alcançáveis por uma prospecção que bate no
+filtro" — a leitura que o próprio docblock de `WHERE_PODE_ABORDAR` (`lgpd.ts`) já previa
+("toda query que monta lista de abordagem OU exportação de prospecção").
+
+**LGPD: o vazamento não estava onde eu ia procurar primeiro.** O advisor apontou que gate de
+opt-out em `/export/contatos` não bastava — `/export/prospeccoes` e `/export/negociacoes` têm
+uma coluna "contato principal" que é leitura ANINHADA de `ContatoCliente` via `LeadContato`/
+`NegociacaoContato`, fora da extensão de soft delete E fora de qualquer filtro que já existisse.
+Sem cuidado extra, um contato que pediu descadastro continuaria aparecendo ali, escondido numa
+coluna que ninguém pensaria em auditar de novo pra LGPD. As 3 rotas usam `WHERE_PODE_ABORDAR`
+no INCLUDE aninhado (`contatos: { where: { contato: WHERE_PODE_ABORDAR }, ... }`), não só no
+filtro de topo — testado nos 2 lugares (prospecções e negociações), não só um.
+
+**2ª rodada de advisor achou 3 problemas reais antes do commit:**
+
+1. **`empresas` export divergia da própria tela.** `/clientes` mostra ativos E inativos por
+   padrão (`incluirInativos: true` hardcoded, comentário "sem filtro de situação, mostra ativos
+   e inativos"); a rota de export não passava isso, então SEM filtro de situação na URL o CSV
+   saía só com ativos — o CSV mentindo sobre o que a tela mostrava, exatamente o oposto do que
+   F4.6 pede. Corrigido, mais `sort`/`dir` também repassados (antes só o `q`/filtros iam, uma
+   ordenação escolhida na tela não ia pro arquivo).
+2. **O check de smoke de Negociações não provava nada.** `negociacoesCampA.length === 0`
+   passava igual se o gate de LGPD funcionasse OU se a query estivesse quebrada e sempre
+   devolvesse `[]`. Substituído por uma `Negociacao` de verdade (mesmo contato com opt-out de
+   clienteA) — agora prova as 2 coisas: aparece no filtro certo E não vaza o contato.
+3. **Dedup por e-mail no export de Contatos:** não implementado, documentado como risco
+   conhecido (mesma pessoa em 2 empresas sai 2x) — mesma decisão de "dedup é da UI/importação,
+   não da service" que a F4.5 já tinha registrado, agora do lado do export.
+
+**Arquivos:** `src/lib/export/csv.ts` + `.test.ts` (novos) ·
+`src/modules/comercial/exportacao.ts` (novo) ·
+`src/app/api/comercial/export/{empresas,contatos,prospeccoes,negociacoes}/route.ts` (novos) ·
+`src/components/clientes/clientes-view.tsx`,
+`src/app/(dashboard)/comercial/{prospeccao,negociacoes}/page.tsx` (botões de export) ·
+`scripts/smoke-crm-fase4.ts` (seção F4.6, 8 checks novos + limpeza de Campanha/Negociacao).
+
+**Verificação:** eslint limpo, tsc limpo, **2221 testes** (10 novos em `csv.test.ts`, puros —
+separador, aspas, quebra de linha, BOM), build ok. `npm run smoke:crm-fase4` — **50/50** (os 42
+de F4.3+F4.5 + 8 novos de F4.6) contra o banco de dev real: opt-out ausente em CONTATOS e em
+"contato principal" de PROSPECÇÕES/NEGOCIAÇÕES (3 provas separadas, mesmo código em 3 call
+sites), filtro de campanha isolando exatamente as linhas certas nos 3 exports relacionais.
+
+**Pendente:** verificação visual em browser — os 4 botões de fato baixando um arquivo (mesma
+lacuna de sempre, sem chromium-cli). F4.7 (fecho da fase) é o próximo passo.
+
+**Riscos:** dedup por e-mail no export de Contatos, registrado acima e no código
+(`exportacao.ts`). Fora isso, nenhum risco novo desta tarefa.
+
+---
+
 ## F4.5 — Wizard de importação CSV do Comercial · 2026-08-22 · Sonnet
 
 **Feito:** `/comercial/importar` — 4 passos (Enviar → Mapear+Campanha → Conferir → Concluir),

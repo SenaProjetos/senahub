@@ -16,6 +16,12 @@
  * banco de verdade, `executarCommitCrm` gravando numa transação de verdade, e reimportar o MESMO
  * arquivo uma 2ª vez batendo contra o que a 1ª rodada de fato persistiu — não uma simulação.
  *
+ * ── F4.6 ── as rotas de export (`api/comercial/export/*`) são só autenticação + formatação —
+ * a consulta de verdade vive em `modules/comercial/exportacao.ts`, chamável direto daqui sem
+ * sessão (mesmo motivo de `commit.ts` na F4.5). As 2 propriedades do aceite só se provam contra
+ * Postgres: opt-out em NENHUM export (nem solto, nem escondido numa coluna aninhada de "contato
+ * principal") e filtro de campanha trazendo só aquela campanha.
+ *
  * ⚠️ NUNCA RODAR CONTRA PRODUÇÃO. Cria e apaga clientes, contatos, leads e atividades. Tudo com
  * prefixo `SMKF4_`, limpeza no `finally`.
  *
@@ -25,6 +31,12 @@ import "dotenv/config";
 import { randomBytes } from "node:crypto";
 import { prisma } from "../src/lib/prisma";
 import { criarProspeccaoRapida } from "../src/modules/comercial/service";
+import type { FiltrosComerciais } from "../src/modules/comercial/filtros";
+import {
+  contatosParaExport,
+  prospeccoesParaExport,
+  negociacoesParaExport,
+} from "../src/modules/comercial/exportacao";
 import { buscarEmpresaParaProspeccaoRapida, buscarContatoNaEmpresa } from "../src/modules/comercial/queries";
 import { resolverLinhas, contarBuckets, type LinhaCrmNorm } from "../src/modules/comercial/importacao/processar";
 import { carregarExistentesCrm } from "../src/modules/comercial/importacao/queries";
@@ -313,6 +325,106 @@ async function main() {
   const leadDoOptOut = await prisma.lead.findFirst({ where: { clienteId: clienteOptOut.id } });
   check("contato opt-out não ganhou prospecção nova", leadDoOptOut == null);
 
+  console.log("\n── F4.6: export CSV — opt-out em nenhum export, filtro de campanha isola ──\n");
+
+  const FILTROS_VAZIOS: FiltrosComerciais = {
+    responsavelId: null,
+    campanhaId: null,
+    canalId: null,
+    clienteId: null,
+    temperatura: null,
+    periodo: null,
+    disciplinaId: null,
+  };
+
+  const [etapaExport, campA, campB] = await Promise.all([
+    prisma.funilEtapa.findFirst({ where: { ativo: true }, orderBy: { ordem: "asc" }, select: { id: true } }),
+    prisma.campanha.create({ data: { nome: `${TAG}_ExpCampA` } }),
+    prisma.campanha.create({ data: { nome: `${TAG}_ExpCampB` } }),
+  ]);
+  if (!etapaExport) throw new Error("dev incompleto — nenhuma FunilEtapa ativa.");
+
+  // clienteA: a ÚNICA pessoa vinculada à prospecção pediu opt-out — o teste mais estrito
+  // possível pra "contato principal" (prospeccoesParaExport): se vazar, aparece aqui.
+  const clienteA = await prisma.cliente.create({ data: { nome: `${TAG}_ExpEmpresaA`, tipo: "PJ" } });
+  const contatoOptOutExport = await prisma.contatoCliente.create({
+    data: { clienteId: clienteA.id, nome: `${TAG}_ExpContatoOptOut`, email: `${TAG}_optout@exemplo-smoke.com`, optOut: true, optOutAt: new Date() },
+  });
+  const leadA = await prisma.lead.create({
+    data: { nome: `${TAG}_ExpEmpresaA`, clienteId: clienteA.id, etapaId: etapaExport.id, campaignId: campA.id },
+  });
+  await prisma.leadContato.create({ data: { leadId: leadA.id, contatoId: contatoOptOutExport.id, principal: true } });
+
+  // clienteC: mesma campanha A, contato SEM opt-out — a linha "boa" que prova que o filtro de
+  // campanha (não o opt-out) é o que decide quem entra.
+  const clienteC = await prisma.cliente.create({ data: { nome: `${TAG}_ExpEmpresaC`, tipo: "PJ" } });
+  const contatoOkExport = await prisma.contatoCliente.create({
+    data: { clienteId: clienteC.id, nome: `${TAG}_ExpContatoOk`, email: `${TAG}_ok@exemplo-smoke.com`, optOut: false },
+  });
+  const leadC = await prisma.lead.create({
+    data: { nome: `${TAG}_ExpEmpresaC`, clienteId: clienteC.id, etapaId: etapaExport.id, campaignId: campA.id },
+  });
+  await prisma.leadContato.create({ data: { leadId: leadC.id, contatoId: contatoOkExport.id, principal: true } });
+
+  // clienteB: campanha B — a linha que o filtro por campA precisa EXCLUIR.
+  const clienteB = await prisma.cliente.create({ data: { nome: `${TAG}_ExpEmpresaB`, tipo: "PJ" } });
+  const leadB = await prisma.lead.create({
+    data: { nome: `${TAG}_ExpEmpresaB`, clienteId: clienteB.id, etapaId: etapaExport.id, campaignId: campB.id },
+  });
+
+  const contatosExport = await contatosParaExport({ ...FILTROS_VAZIOS, campanhaId: campA.id }, new Date());
+  check(
+    "export de CONTATOS nunca inclui quem pediu opt-out",
+    !contatosExport.some((c) => c.email === contatoOptOutExport.email),
+  );
+  check(
+    "export de CONTATOS inclui quem NÃO pediu opt-out, na campanha filtrada",
+    contatosExport.some((c) => c.email === contatoOkExport.email),
+  );
+
+  const prospeccoesCampA = await prospeccoesParaExport({ ...FILTROS_VAZIOS, campanhaId: campA.id }, new Date());
+  check(
+    "export de PROSPECÇÕES filtrado por campanha traz só as 2 daquela campanha",
+    prospeccoesCampA.length === 2,
+    `${prospeccoesCampA.length}`,
+  );
+  check(
+    `a prospecção "${leadB.nome}" (campanha B) NÃO aparece no export filtrado por campanha A`,
+    !prospeccoesCampA.some((l) => l.nome === leadB.nome),
+  );
+  const linhaA = prospeccoesCampA.find((l) => l.cliente?.nome === clienteA.nome);
+  check(
+    "prospecção cujo ÚNICO contato pediu opt-out não vaza nome/e-mail na coluna 'contato principal'",
+    linhaA != null && linhaA.contatos.length === 0,
+  );
+  const linhaC = prospeccoesCampA.find((l) => l.cliente?.nome === clienteC.nome);
+  check(
+    "prospecção com contato SEM opt-out mostra o contato principal normalmente",
+    linhaC?.contatos[0]?.contato.email === contatoOkExport.email,
+  );
+
+  // Negociação de verdade pra clienteA (cujo ÚNICO contato pediu opt-out) — mesmo par de
+  // provas de prospeccoesParaExport (aparece no filtro certo + não vaza o contato), só que
+  // no código de `negociacoesParaExport`, que é OUTRO call site do mesmo `WHERE_PODE_ABORDAR`
+  // aninhado. Sem esta negociação de verdade, o check anterior (lista vazia) passaria até se a
+  // query estivesse quebrada e sempre devolvesse `[]` — não prova nada sozinho.
+  const negociacaoA = await prisma.negociacao.create({
+    data: { titulo: `${TAG}_ExpNegociacaoA`, clienteId: clienteA.id, campaignId: campA.id },
+  });
+  await prisma.negociacaoContato.create({ data: { negociacaoId: negociacaoA.id, contatoId: contatoOptOutExport.id, principal: true } });
+
+  const negociacoesCampA = await negociacoesParaExport({ ...FILTROS_VAZIOS, campanhaId: campA.id }, new Date());
+  check(
+    "export de NEGOCIAÇÕES filtrado por campanha traz a negociação daquela campanha",
+    negociacoesCampA.some((n) => n.titulo === negociacaoA.titulo),
+    `${negociacoesCampA.length} negociação(ões)`,
+  );
+  const linhaNegA = negociacoesCampA.find((n) => n.titulo === negociacaoA.titulo);
+  check(
+    "negociação cujo ÚNICO contato pediu opt-out não vaza nome/e-mail na coluna 'contato principal'",
+    linhaNegA != null && linhaNegA.contatos.length === 0,
+  );
+
   console.log(`\n${ok ? "✔ Fase 4: tudo verde." : "✖ Fase 4: há falhas acima."}`);
   console.log(
     "\n  Proxy medível do aceite '<60s': 1 chamada de service = 1 `$transaction` (5 passos " +
@@ -326,14 +438,22 @@ async function main() {
 async function limpar() {
   const clientes = await prisma.cliente.findMany({ where: { nome: { contains: TAG } }, select: { id: true } });
   const ids = clientes.map((c) => c.id);
-  if (ids.length === 0) return;
-  const leads = await prisma.lead.findMany({ where: { clienteId: { in: ids } }, select: { id: true } });
-  const leadIds = leads.map((l) => l.id);
-  await prisma.leadContato.deleteMany({ where: { leadId: { in: leadIds } } });
-  await prisma.atividade.deleteMany({ where: { clienteId: { in: ids } } });
-  await prisma.lead.deleteMany({ where: { id: { in: leadIds } } });
-  await prisma.contatoCliente.deleteMany({ where: { clienteId: { in: ids } } });
-  await prisma.cliente.deleteMany({ where: { id: { in: ids } } });
+  if (ids.length > 0) {
+    // `Negociacao.clienteId` é FK sem `onDelete` (RESTRICT) — apagar antes do Cliente.
+    // `NegociacaoContato` é `onDelete: Cascade` a partir de `Negociacao`, então não precisa
+    // de um deleteMany próprio.
+    await prisma.negociacao.deleteMany({ where: { clienteId: { in: ids } } });
+    const leads = await prisma.lead.findMany({ where: { clienteId: { in: ids } }, select: { id: true } });
+    const leadIds = leads.map((l) => l.id);
+    await prisma.leadContato.deleteMany({ where: { leadId: { in: leadIds } } });
+    await prisma.atividade.deleteMany({ where: { clienteId: { in: ids } } });
+    await prisma.lead.deleteMany({ where: { id: { in: leadIds } } });
+    await prisma.contatoCliente.deleteMany({ where: { clienteId: { in: ids } } });
+    await prisma.cliente.deleteMany({ where: { id: { in: ids } } });
+  }
+  // Campanhas (F4.6) DEPOIS dos leads: `Lead.campaignId` é FK sem `onDelete` — apagar a
+  // campanha antes violaria a constraint enquanto algum lead ainda apontava pra ela.
+  await prisma.campanha.deleteMany({ where: { nome: { contains: TAG } } });
 }
 
 main()

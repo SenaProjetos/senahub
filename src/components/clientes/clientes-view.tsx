@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Search, UserPlus, MoreHorizontal, Pencil, Power, PowerOff } from "lucide-react";
+import { Search, UserPlus, MoreHorizontal, Pencil, Power, PowerOff, Download } from "lucide-react";
 import {
   desativarCliente,
   reativarCliente,
@@ -86,6 +87,12 @@ export function ClientesView({
   listaSN: boolean;
 }) {
   const setParams = useSetParams();
+  // F4.6: export CSV com os MESMOS filtros/ordenação ativos na tela — parte da URL atual
+  // (`sort`/`dir` incluso de graça, sem precisar virar prop nova), só tirando `page`/
+  // `pageSize`: exportar é sempre "tudo que bate no filtro", nunca só a página aberta.
+  const paramsExport = new URLSearchParams(useSearchParams().toString());
+  paramsExport.delete("page");
+  paramsExport.delete("pageSize");
   const [q, setQ] = useState(busca);
   const [form, setForm] = useState<FormCliente | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -145,9 +152,14 @@ export function ClientesView({
           <p className="text-sm text-muted-foreground">{total} cliente(s).</p>
         </div>
         {podeGerir && (
-          <Button onClick={novo}>
-            <UserPlus className="size-4" /> Novo cliente
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" render={<a href={`/api/comercial/export/empresas?${paramsExport}`} />}>
+              <Download className="size-4" /> Exportar CSV
+            </Button>
+            <Button onClick={novo}>
+              <UserPlus className="size-4" /> Novo cliente
+            </Button>
+          </div>
         )}
       </div>
 
