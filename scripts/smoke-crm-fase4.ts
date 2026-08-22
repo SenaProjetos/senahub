@@ -1,14 +1,20 @@
 /**
- * Smoke da Fase 4 do CRM (Sales Navigator) — exercita `criarProspeccaoRapida` (F4.3) contra o
- * banco de dev.
+ * Smoke da Fase 4 do CRM (Sales Navigator) contra o banco de dev — um arquivo por fase (mesmo
+ * padrão de `smoke-crm-fase1/2/3.ts`), crescendo tarefa a tarefa em vez de 1 arquivo por task.
+ * Hoje cobre F4.3 (`criarProspeccaoRapida`) e F4.5 (importação CSV).
  *
  * ⚠️ Existe um `scripts/smoke-fase4.ts` NÃO RELACIONADO (outra fase, outro sistema) — o prefixo
  * `smoke-crm-` deste arquivo é deliberado, ver F4.7 no `04-plano-fases.md`.
  *
- * Por que existe: `criarProspeccaoRapida` é uma transação de 5 passos (empresa → contato →
+ * ── F4.3 ── `criarProspeccaoRapida` é uma transação de 5 passos (empresa → contato →
  * prospecção → vínculo → abordagem) com duas regras que só se provam contra Postgres real —
  * "tudo-ou-nada" (uma falha no meio não deixa `Cliente` órfão) e "2º prospect da mesma empresa
  * reaproveita a empresa E a prospecção ativa" — nenhuma das duas é alcançável por `vitest`.
+ *
+ * ── F4.5 ── `resolverLinhas` (puro) já tem cobertura de `vitest` em `processar.test.ts`; o que
+ * só este smoke prova é o CICLO COMPLETO contra Postgres real: `carregarExistentesCrm` lendo o
+ * banco de verdade, `executarCommitCrm` gravando numa transação de verdade, e reimportar o MESMO
+ * arquivo uma 2ª vez batendo contra o que a 1ª rodada de fato persistiu — não uma simulação.
  *
  * ⚠️ NUNCA RODAR CONTRA PRODUÇÃO. Cria e apaga clientes, contatos, leads e atividades. Tudo com
  * prefixo `SMKF4_`, limpeza no `finally`.
@@ -16,9 +22,13 @@
  * Uso: npm run smoke:crm-fase4
  */
 import "dotenv/config";
+import { randomBytes } from "node:crypto";
 import { prisma } from "../src/lib/prisma";
 import { criarProspeccaoRapida } from "../src/modules/comercial/service";
 import { buscarEmpresaParaProspeccaoRapida, buscarContatoNaEmpresa } from "../src/modules/comercial/queries";
+import { resolverLinhas, contarBuckets, type LinhaCrmNorm } from "../src/modules/comercial/importacao/processar";
+import { carregarExistentesCrm } from "../src/modules/comercial/importacao/queries";
+import { executarCommitCrm } from "../src/modules/comercial/importacao/commit";
 
 const TAG = `SMKF4_${Date.now()}`;
 
@@ -204,6 +214,104 @@ async function main() {
   );
   const buscaContatoOutraEmpresa = await buscarContatoNaEmpresa("id-que-nao-existe", `${TAG}_Contato1`);
   check("busca de contato é escopada por empresa — não vaza pra outra", buscaContatoOutraEmpresa.length === 0);
+
+  console.log("\n── F4.5: importação CSV — 100 linhas com 10 duplicatas ─────────────\n");
+
+  // `similaridade` (dedupe.ts) é Levenshtein normalizado pelo TAMANHO TOTAL da string — um
+  // prefixo comum longo (o TAG) some do cálculo (Levenshtein alinha o prefixo igual de graça),
+  // então o que decide o score é só a PARTE QUE VARIA. "ImpEmpresa1" vs "ImpEmpresa2" variam em
+  // 1 caractere só — score ~0.97, ACIMA do limiar 0.85 de match — e 90 "empresas" viravam 1 só
+  // na 1ª tentativa deste smoke. Cada nome carrega 16 hex ALEATÓRIOS (não um índice decimal) —
+  // dois valores aleatórios independentes desse tamanho não ficam Levenshtein-parecidos por
+  // acaso (a chance de 2 entre 90 caírem sob 0.85 de distância é desprezível).
+  const linha = (idx: number, overrides: Partial<LinhaCrmNorm> = {}): LinhaCrmNorm => ({
+    idx,
+    empresaNome: `${TAG}_Imp${randomBytes(8).toString("hex")}`,
+    documento: "",
+    nomeContato: `${TAG}_ImpContato${idx}`,
+    cargo: "",
+    emailContato: `imp${idx}@exemplo-smoke.com`,
+    telefone: "",
+    segmento: "",
+    cidade: "",
+    uf: "",
+    linkedinUrl: "",
+    observacao: "",
+    erros: [],
+    ...overrides,
+  });
+
+  // 90 linhas com empresa+contato distintos + 10 que REPETEM literalmente uma das 10 primeiras
+  // (mesma empresa, mesmo e-mail de contato) — o caso mais estrito de "duplicata": nem a
+  // pré-visualização nem o commit devem tratar isso como gente/empresa nova.
+  const linhasBase: LinhaCrmNorm[] = Array.from({ length: 90 }, (_, i) => linha(i + 1));
+  const linhasDuplicadas: LinhaCrmNorm[] = Array.from({ length: 10 }, (_, i) =>
+    linha(90 + i + 1, { empresaNome: linhasBase[i].empresaNome, nomeContato: linhasBase[i].nomeContato, emailContato: linhasBase[i].emailContato }),
+  );
+  const arquivo100 = [...linhasBase, ...linhasDuplicadas];
+
+  const existentesAntes = await carregarExistentesCrm();
+  const resolvidas1 = resolverLinhas(arquivo100, existentesAntes);
+  const preview1 = contarBuckets(resolvidas1);
+  check("pré-visualização: 100 linhas no total", preview1.total === 100);
+  check("pré-visualização marca as 10 duplicatas como 'vincular'", preview1.vinculados === 10, `${preview1.vinculados}`);
+  check("pré-visualização: as outras 90 são 'criar'", preview1.criados === 90, `${preview1.criados}`);
+  check(
+    "buckets disjuntos somam o total (aceite: 'relatório final soma 100')",
+    preview1.criados + preview1.vinculados + preview1.ignorados + preview1.erros === 100,
+  );
+
+  const commit1 = await executarCommitCrm(prisma, { resolvidas: resolvidas1, autorId: user.id, campanhaId: null });
+  check("commit: contagens batem com a pré-visualização", commit1.criados === 90 && commit1.vinculados === 10);
+
+  const [clientesCriados, leadsCriados, contatosCriados, leadContatosCriados] = await Promise.all([
+    prisma.cliente.findMany({ where: { nome: { contains: `${TAG}_Imp` } }, select: { id: true } }),
+    prisma.lead.count({ where: { nome: { contains: `${TAG}_Imp` } } }),
+    prisma.contatoCliente.count({ where: { nome: { contains: `${TAG}_ImpContato` } } }),
+    prisma.leadContato.count({ where: { lead: { nome: { contains: `${TAG}_Imp` } } } }),
+  ]);
+  check("90 Clientes novos no banco (as 10 duplicatas NÃO criaram outro)", clientesCriados.length === 90, `${clientesCriados.length}`);
+  check("90 Leads (1 por empresa — as 10 duplicatas vincularam ao existente)", leadsCriados === 90, `${leadsCriados}`);
+  check("90 Contatos novos (as 10 duplicatas reaproveitaram o contato)", contatosCriados === 90, `${contatosCriados}`);
+  check(
+    "90 LeadContato (join idempotente — duplicata repete o MESMO par, não soma)",
+    leadContatosCriados === 90,
+    `${leadContatosCriados}`,
+  );
+
+  console.log("\n── F4.5: reimportar o MESMO arquivo não cria nada novo ─────────────\n");
+
+  const existentesDepois = await carregarExistentesCrm();
+  const resolvidas2 = resolverLinhas(arquivo100, existentesDepois);
+  const preview2 = contarBuckets(resolvidas2);
+  check("2ª rodada: 0 criados (aceite: 'rodar o mesmo arquivo 2x não cria nada novo')", preview2.criados === 0, `${preview2.criados}`);
+  check("2ª rodada: as 100 linhas vinculam ao que já existe", preview2.vinculados === 100, `${preview2.vinculados}`);
+
+  const commit2 = await executarCommitCrm(prisma, { resolvidas: resolvidas2, autorId: user.id, campanhaId: null });
+  check("commit da 2ª rodada também não cria nada", commit2.criados === 0);
+  const clientesAposRerun = await prisma.cliente.count({ where: { nome: { contains: `${TAG}_Imp` } } });
+  check("contagem de Clientes no banco não mudou após a 2ª rodada", clientesAposRerun === 90, `${clientesAposRerun}`);
+
+  console.log("\n── F4.5: linha inválida e contato opt-out ficam de fora ────────────\n");
+
+  const clienteOptOut = await prisma.cliente.create({ data: { nome: `${TAG}_ImpEmpresaOptOut`, tipo: "PJ" } });
+  const contatoOptOutImp = await prisma.contatoCliente.create({
+    data: { clienteId: clienteOptOut.id, nome: `${TAG}_ImpContatoOptOut`, email: "optout@exemplo-smoke.com", optOut: true, optOutAt: new Date() },
+  });
+  const arquivoComProblemas: LinhaCrmNorm[] = [
+    linha(201, { empresaNome: "", nomeContato: "", erros: ["Sem nome da empresa.", "Sem nome do contato."] }),
+    linha(202, { empresaNome: clienteOptOut.nome, nomeContato: contatoOptOutImp.nome, emailContato: contatoOptOutImp.email! }),
+  ];
+  const existentesComOptOut = await carregarExistentesCrm();
+  const resolvidas3 = resolverLinhas(arquivoComProblemas, existentesComOptOut);
+  const preview3 = contarBuckets(resolvidas3);
+  check("linha sem empresa/contato vira 'erro'", preview3.erros === 1);
+  check("linha para contato opt-out vira 'ignorado' (LGPD)", preview3.ignorados === 1);
+
+  const commit3 = await executarCommitCrm(prisma, { resolvidas: resolvidas3, autorId: user.id, campanhaId: null });
+  check("commit não grava nada dessas 2 linhas", commit3.criados === 0 && commit3.vinculados === 0);
+  const leadDoOptOut = await prisma.lead.findFirst({ where: { clienteId: clienteOptOut.id } });
+  check("contato opt-out não ganhou prospecção nova", leadDoOptOut == null);
 
   console.log(`\n${ok ? "✔ Fase 4: tudo verde." : "✖ Fase 4: há falhas acima."}`);
   console.log(
