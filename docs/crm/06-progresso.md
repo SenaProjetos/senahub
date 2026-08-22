@@ -20,6 +20,45 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F4.4 — `mapeamento-crm.ts` · 2026-08-22 · Sonnet
+
+**Feito:** `src/lib/import/mapeamento-crm.ts` + `.test.ts` (11 testes) — auto-detecção de coluna
+pro import de planilha do CRM (Empresa, CNPJ, contato, cargo, e-mail, telefone, segmento,
+cidade/UF, LinkedIn, observação). "Reusa o algoritmo `autoMapear`" literalmente: o dois-passadas
+(igualdade exata → fallback por inclusão → cada coluna usada uma vez) foi extraído de dentro do
+`autoMapear` do financeiro para `autoMapearGenerico<T>(headers, campos)`, parametrizado — e
+`autoMapear` do financeiro virou uma chamada de uma linha pra ele (`autoMapearGenerico(headers,
+CAMPOS)`), sem quebrar nenhum call site nem o teste que já existia.
+
+**O aviso do backlog ("não reaproveitar `mapeamento.ts` direto") é sobre os TIPOS, não o
+algoritmo.** `CampoSenaHub`/`CAMPOS` são campos de `Lancamento` (data, valor, categoria…) — usar
+esses diretamente faria "E-mail do contato" mapear pra nada, ou pior, coincidir com o sinônimo
+errado. `mapeamento-crm.ts` define seu próprio `CampoCrm`/`CAMPOS_CRM`, alheio ao financeiro.
+
+**`CAMPOS_OBRIGATORIOS_CRM = ["empresa", "nomeContato"]`, não escolha arbitrária.** É exatamente
+o par que `criarProspeccaoRapida` (F4.3) já exige — os dois únicos "Informe o nome…" que a
+service lança. Uma linha da planilha sem os dois não vira prospecção de qualquer forma; melhor a
+tela de import recusar cedo do que a F4.5 descobrir isso linha a linha depois.
+
+**Ambiguidade de "Nome" testada, não só evitada por acidente.** Uma planilha com só uma coluna
+"Nome" (comum em export simples) mapeia para EMPRESA, nunca para contato — decidido pela ORDEM de
+`CAMPOS_CRM` (`empresa` declarado primeiro). `nomeContato` fica sem mapeamento automático nesse
+caso, correto: melhor pedir pra mapear à mão do que adivinhar "esta pessoa é a razão social".
+Coberto por teste dedicado, não só mencionado no comentário.
+
+**Arquivos:** `src/lib/import/mapeamento.ts` (extrai `autoMapearGenerico`, `autoMapear` vira
+wrapper); `src/lib/import/mapeamento-crm.ts` (novo); `src/lib/import/mapeamento-crm.test.ts`
+(novo, 11 testes).
+
+**Verificação:** eslint limpo, tsc limpo, **2192 testes** (2181 + 11 novos, os 5 do financeiro
+inalterados — prova que a extração não mudou comportamento), build ok. Puro — sem banco, sem
+smoke (a tarefa não usa nenhum dos dois).
+
+**Pendente:** nada específico desta tarefa — `mapeamento-crm.ts` fica pronto pra a F4.5 (wizard
+de import) consumir.
+
+---
+
 ## F4.3 — Fluxo rápido de prospecção numa tela só · 2026-08-22 · Sonnet
 
 **Feito:** `ProspeccaoRapidaDialog` em `/comercial/prospeccao` (o único board comercial que não
