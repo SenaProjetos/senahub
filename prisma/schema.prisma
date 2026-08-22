@@ -3815,9 +3815,12 @@ model Negociacao {
 
   contatos    NegociacaoContato[]
   disciplinas NegociacaoDisciplina[]
-  /// 1:N (ADR-06) — a FK mora no lado `Projeto` (ver §2.13). `Proposta[]` e `Atividade[]` NÃO
-  /// entram aqui: `Proposta.negociacaoId` é da F5.2 e o model `Atividade` é da F3.1.
+  /// 1:N (ADR-06) — a FK mora no lado `Projeto` (ver §2.13).
   projetos    Projeto[]
+  /// F5.2 (ADR-21): as propostas emitidas nesta negociação. A FK mora no lado `Proposta` e é
+  /// nullable de propósito — proposta histórica pode não ter negociação, e é isso que impede a
+  /// obrigatoriedade de virar constraint.
+  propostas   Proposta[]
 
   @@index([clienteId])
   @@index([responsavelId])
@@ -4235,6 +4238,16 @@ model Proposta {
   cliente     Cliente        @relation(fields: [clienteId], references: [id])
   leadId      String?
   lead        Lead?          @relation(fields: [leadId], references: [id])
+
+  /// De qual negociação esta proposta nasceu (CRM F5.2, ADR-21).
+  ///
+  /// **NULLABLE no banco, para sempre** — a obrigatoriedade vive na validação de criação (F5.3),
+  /// nunca numa constraint. `NOT NULL` exigiria um backfill perfeito e travaria qualquer proposta
+  /// histórica que não resolvesse; a garantia que importa (nenhuma proposta NOVA sem negociação)
+  /// é a mesma, sem pôr em risco o único registro que não pode quebrar.
+  negociacaoId String?
+  negociacao   Negociacao? @relation(fields: [negociacaoId], references: [id])
+
   status      StatusProposta @default(rascunho)
   areaM2      Decimal?       @db.Decimal(12, 2)
   validade    DateTime?      @db.Date
@@ -4262,6 +4275,8 @@ model Proposta {
   @@unique([ano, sequencial])
   @@index([status])
   @@index([clienteId])
+  /// F5.2: "quais propostas desta negociação" — o Prisma não cria índice sozinho no lado da FK.
+  @@index([negociacaoId])
   /// F3.1: timeline unificada.
   atividades Atividade[]
   @@map("proposta")

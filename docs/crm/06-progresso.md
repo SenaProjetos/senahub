@@ -20,6 +20,84 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F5.2 — `Proposta.negociacaoId` + backfill · 2026-08-22 · Opus
+
+**Feito:** coluna `Proposta.negociacaoId` (nullable, `@@index`, FK `ON DELETE SET NULL`) +
+relação inversa `Negociacao.propostas`, migration `20260822120000_crm_f52_proposta_negociacao`, e
+o backfill em três peças:
+
+- **`modules/comercial/vinculo-negociacao.ts`** — `planejarVinculo`, **puro**. É onde mora a
+  decisão, e ela tem 6 saídas: real, sintética agrupada por lead, sintética solta, e **três**
+  abortos. 15 testes de `vitest`.
+- **`modules/comercial/migracao-vinculo.ts`** — o I/O (`carregarPendentes` em 3 consultas,
+  `executarVinculo` numa transação só). Separado do script pelo mesmo motivo de
+  `importacao/commit.ts` na F4.5: script não é importável por smoke, e este caminho de escrita
+  precisa ser exercitado contra Postgres antes de tocar produção.
+- **`scripts/migrar-proposta-negociacao-f52.ts`** — casca fina: consulta, mostra o plano, grava
+  só com `--gravar`.
+
+**O bug que o smoke não pegava e teria derrubado a migração EM PRODUÇÃO.** Levantado pelo
+advisor, e eu **verifiquei contra o Postgres de dev antes de consertar** — não aceitei nem
+recusei no papel:
+
+1. `Negociacao` está na extensão de soft delete (`lib/prisma.ts`);
+2. `carregarPendentes` filtrava por `leadId` — não cai no `ehLookupPorId`, então a extensão
+   injetava `excluidoEm: null` e a negociação excluída ficava **invisível**;
+3. o plano classificava "lead sem negociação" → **sintética**, com aquele `leadId`;
+4. `Negociacao.leadId` é `@unique` no BANCO — constraint que não sabe de `excluidoEm`. A linha
+   excluída ainda ocupa o `leadId`.
+
+Medido: `P2002` em `negociacao_leadId_key`, dentro da transação, derrubando o backfill inteiro —
+na máquina onde não dá para iterar. **Corrigido** com o escape hatch (`excluidoEm: { not:
+undefined }`) em `carregarPendentes` + um **terceiro aborto** em `planejarVinculo`: ligar numa
+negociação excluída é tão errado quanto inventar uma, e quem decide (restaurar? desvincular?) é
+gente. Teste puro + cenário de smoke que **prova o P2002** logo depois do aborto, para o aborto
+não parecer zelo excessivo a quem ler daqui a um ano.
+
+**A assimetria que fez isso passar despercebido**, agora escrita no código: a consulta de LEADS
+enxerga os excluídos de graça (`{ where: { id: { in: [...] } } }` cai no `ehLookupPorId`), a de
+NEGOCIAÇÕES não (filtra por `leadId`). Mesmo arquivo, comportamentos opostos, a uma linha de
+distância.
+
+**Duas coisas deliberadas, registradas para a fase não as descobrir como bug:**
+- **Sintética `PERDIDO` nasce sem `dataFechamento`.** O campo pede preenchimento em CONTRATADO
+  *ou* PERDIDO, mas `Proposta` não tem `recusadaEm` de onde derivar — inventar `updatedAt` seria
+  pior que o buraco. **A Fase 6 precisa excluir essas linhas do cálculo de tempo de ciclo.**
+- **Sintética `PERDIDO` nasce sem `motivoPerdaId`**, que a F5.10 vai tornar obrigatório. Não
+  quebra nada (a obrigatoriedade é de validação, não constraint), mas essas linhas pré-existem em
+  violação da regra que a F5.10 introduz.
+
+**A migration nunca executou em lugar nenhum** — o dev recebeu o schema por `db push` e a
+migration foi carimbada com `migrate resolve --applied` (drift pré-existente nas tabelas
+`pendencia`, caminho documentado da skill `nova-migracao`). Mitigação: os nomes de FK e índice
+foram lidos do `pg_constraint`/`pg_indexes` reais, não escritos de memória. **A primeira execução
+de verdade é o deploy de produção** — rodar o checklist do `03-migracao.md` §7 logo depois.
+
+**Arquivos:** `prisma/schema.prisma` (coluna + índice + relação inversa) ·
+`prisma/migrations/20260822120000_crm_f52_proposta_negociacao/migration.sql` (novo) ·
+`src/modules/comercial/vinculo-negociacao.ts` + `.test.ts` (novos) ·
+`src/modules/comercial/migracao-vinculo.ts` (novo) ·
+`scripts/migrar-proposta-negociacao-f52.ts` (novo) · `scripts/smoke-crm-fase5.ts` (novo) ·
+`package.json` (`smoke:crm-fase5`).
+
+**Verificação:** eslint limpo, tsc limpo, **2236 testes** (15 novos), build ok, `prisma migrate
+status` "up to date". `npm run smoke:crm-fase5` — **26/26** contra o banco de dev, provando o que
+`vitest` não alcança: os **3 invariantes do `03-migracao.md` §7** (`numero`/`token` byte a byte
+inalterados via comparação de fotografia antes/depois, `PropostaSequencia.ultimo` intacto, e a
+proposta ainda resolvível pelo token — a query que a página pública faz), o agrupamento por lead
+batendo no `@unique` real, e o caso do soft delete acima. Sem regressão: `smoke:crm-fase4` verde.
+Dry-run contra o dev: 7 propostas, todas classificadas, nada gravado.
+
+**Pendente:** rodar `--gravar` em produção — **é do dono**, depois do deploy, com dry-run antes.
+Se o dry-run lá acusar aborto, é dado real precisando de decisão humana, não bug do script.
+
+**Riscos:** o `ON DELETE SET NULL` da FK significa que apagar uma negociação desvincula a
+proposta em silêncio (não apaga o documento — correto, mas o vínculo some sem aviso). Só vira
+problema quando a Fase 6 medir "propostas por negociação"; registrado aqui para não virar
+mistério lá.
+
+---
+
 ## F5.1 — Portão bloqueante: plano do vínculo Proposta ↔ Negociação · 2026-08-22 · Opus
 
 **Feito:** plano apresentado ao dono, **aprovado**, e registrado como **ADR-21** em

@@ -34,6 +34,7 @@
     "smoke:crm-fase2": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-fase2.ts",
     "smoke:crm-fase3": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-fase3.ts",
     "smoke:crm-fase4": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-fase4.ts",
+    "smoke:crm-fase5": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-fase5.ts",
     "release": "commit-and-tag-version",
     "release:minor": "commit-and-tag-version --release-as minor",
     "release:major": "commit-and-tag-version --release-as major",
