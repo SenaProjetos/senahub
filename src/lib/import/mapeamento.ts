@@ -155,17 +155,25 @@ export const CAMPOS: CampoDef[] = [
 ];
 
 /**
- * Mapeia cada campo do SenaHub ao índice da coluna na planilha.
- * Casa por chave exata; se nenhum bater, tenta por inclusão. Cada coluna é usada
- * no máximo uma vez (na ordem de declaração de CAMPOS).
+ * O algoritmo em si — SEM saber de `Lancamento`, `CampoSenaHub` ou financeiro. Casa cada campo
+ * ao índice da coluna na planilha: igualdade exata primeiro (prioriza o 1º sinônimo que
+ * existir), inclusão como fallback. Cada coluna é usada no máximo uma vez, na ordem de
+ * declaração de `campos`.
+ *
+ * Extraído de dentro de `autoMapear` (F4.4) pra ser reusado por outro domínio sem herdar
+ * `CAMPOS`/`CampoSenaHub`, que são do financeiro — ver `mapeamento-crm.ts`. Genérico em `T`
+ * (o union de campos de cada domínio) só pra não perder o tipo do índice no retorno.
  */
-export function autoMapear(headers: string[]): Partial<Record<CampoSenaHub, number>> {
+export function autoMapearGenerico<T extends string>(
+  headers: string[],
+  campos: { campo: T; sinonimos: string[] }[],
+): Partial<Record<T, number>> {
   const chaves = headers.map((h) => chaveMatch(h ?? ""));
   const usados = new Set<number>();
-  const out: Partial<Record<CampoSenaHub, number>> = {};
+  const out: Partial<Record<T, number>> = {};
 
-  // 1ª passada: igualdade exata (prioriza o 1º sinônimo que existir)
-  for (const def of CAMPOS) {
+  // 1ª passada: igualdade exata
+  for (const def of campos) {
     let achou = -1;
     for (const sin of def.sinonimos) {
       const idx = chaves.findIndex((h, i) => !usados.has(i) && h === sin);
@@ -180,7 +188,7 @@ export function autoMapear(headers: string[]): Partial<Record<CampoSenaHub, numb
     }
   }
   // 2ª passada: inclusão (fallback)
-  for (const def of CAMPOS) {
+  for (const def of campos) {
     if (out[def.campo] != null) continue;
     const idx = chaves.findIndex(
       (h, i) => !usados.has(i) && h !== "" && def.sinonimos.some((s) => h.includes(s) || s.includes(h)),
@@ -191,4 +199,9 @@ export function autoMapear(headers: string[]): Partial<Record<CampoSenaHub, numb
     }
   }
   return out;
+}
+
+/** Mapeia cada campo do FINANCEIRO ao índice da coluna — `autoMapearGenerico` fixado em `CAMPOS`. */
+export function autoMapear(headers: string[]): Partial<Record<CampoSenaHub, number>> {
+  return autoMapearGenerico(headers, CAMPOS);
 }
