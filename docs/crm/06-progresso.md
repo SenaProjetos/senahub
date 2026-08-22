@@ -120,6 +120,17 @@ lacuna de sempre, sem chromium-cli). F4.7 (fecho da fase) é o próximo passo.
 **Riscos:** dedup por e-mail no export de Contatos, registrado acima e no código
 (`exportacao.ts`). Fora isso, nenhum risco novo desta tarefa.
 
+**Correção pós-commit (mesmo dia, achada pelo advisor):** a rota de `/export/empresas`
+gateava por `comercial:gerir`, mas o BOTÃO (`clientes-view.tsx`) só aparece atrás de
+`clientes:gerir` — as duas pontas podiam discordar (um papel com um dos dois recursos e não o
+outro veria o botão cair num 403 em JSON cru, ou o oposto). tsc/lint/vitest/build/smoke não
+pegam isso: é uma propriedade de consistência entre DOIS arquivos, sem tipo compartilhado
+ligando os dois. Corrigido: a rota agora gateia por `clientes:gerir` também — os dados são
+`Cliente`, o botão vive em `/clientes`, é a leitura mais honesta mesmo com a rota morando
+fisicamente sob `/api/comercial/export/`. As outras 3 rotas (contatos/prospecções/negociações)
+já eram consistentes desde o commit original — os dois lados de cada uma computam
+`comercial:gerir`.
+
 ---
 
 ## F4.5 — Wizard de importação CSV do Comercial · 2026-08-22 · Sonnet

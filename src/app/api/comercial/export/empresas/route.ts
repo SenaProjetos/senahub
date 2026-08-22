@@ -5,11 +5,20 @@ import { empresasParaExport } from "@/modules/comercial/exportacao";
 import { arquivoCsv, headersDownloadCsv } from "@/lib/export/csv";
 import type { StatusComercialCliente } from "@/generated/prisma/client";
 
-/** Export CSV de Empresas (F4.6) — mesmos filtros de `/clientes` (mesmas chaves de URL). */
+/**
+ * Export CSV de Empresas (F4.6) — mesmos filtros de `/clientes` (mesmas chaves de URL).
+ *
+ * Gate é `clientes:gerir`, NÃO `comercial:gerir` — de propósito, e diferente das outras 3
+ * rotas deste F4.6. Os dados exportados são `Cliente` e o botão que dispara isto vive em
+ * `clientes-view.tsx`, atrás de `can(user, "clientes", "gerir")`; gatear a ROTA por
+ * `comercial:gerir` deixaria as duas pontas discordando — um papel com um dos dois recursos
+ * mas não o outro veria o botão e cairia num 403 em JSON cru, ou o contrário. Se um dia esta
+ * exportação ganhar filtro/coluna vindo do domínio Comercial, revisitar os dois lados juntos.
+ */
 export async function GET(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  if (!(await can(session.user, "comercial", "gerir"))) {
+  if (!(await can(session.user, "clientes", "gerir"))) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 
