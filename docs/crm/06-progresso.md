@@ -20,6 +20,50 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F4.1 — Campos de lista do Sales Navigator · 2026-08-22 · Sonnet
+
+**Feito:** `Cliente`/`ContatoCliente` ganham `listaSalesNavigator` (Boolean, default `false`),
+`dataInclusaoLista` (DateTime?), `statusAbordagem` (novo enum `StatusAbordagem`: NAO_ABORDADO →
+ABORDADO → RESPONDEU | SEM_RESPOSTA | RECUSADO). Filtro "lista SN" ligado em `/clientes`:
+`ListarClientesOpts.listaSalesNavigator` → `buildWhere` → URL `?listaSN=1` → Select na
+`ClientesView`, mesmo padrão dos filtros existentes (`status`, `segmentoId`).
+
+**Decisão de modelo do dono:** o backlog pedia Haiku; ficou em Sonnet a pedido explícito
+(2026-08-22), registrado aqui por transparência do processo.
+
+**`statusAbordagem` é funil PRÓPRIO, não reaproveita `StatusRelacionamentoContato`.** O primeiro
+acompanha "ainda nem tentei → tentei → resultado" da campanha de outbound; o segundo é o vínculo
+da pessoa com a empresa dela (ativo/afastado/saiu). Confundir os dois faria uma mudança de emprego
+parecer uma resposta de prospecção.
+
+**100% aditivo, sem backfill.** Os 46 clientes/8 leads reais e todo o dataset de dev nascem
+`listaSalesNavigator=false` — ninguém "já estava na lista" retroativamente, é o oposto: a lista é
+curadoria vindo daqui pra frente. `statusAbordagem` nasce `NAO_ABORDADO` em todo mundo pelo mesmo
+motivo (o outbound do Sales Navigator não existia antes desta tarefa).
+
+**Migração com drift** — `migrate dev` pediu reset (drift em `pendencia`/`pendencia_anexo`,
+pré-existente, nada a ver com esta tarefa). Caminho da skill `/nova-migracao`: `db push` → SQL
+escrito à mão (sem shadow DB configurado neste dev, mesma causa-raiz de F1.15/F1.16) → `migrate
+resolve --applied`. `prisma/migrations/20260822090000_crm_f41_sales_navigator_lista/`.
+
+**Arquivos:** `prisma/schema.prisma` (campos + enum + 2 índices); migration acima;
+`src/modules/clientes/queries.ts` (`ListarClientesOpts.listaSalesNavigator`, `buildWhere`);
+`src/app/(dashboard)/clientes/page.tsx` (`?listaSN=1`); `src/components/clientes/clientes-view.tsx`
+(Select "Lista SN").
+
+**Verificação:** `prisma validate` ok, eslint limpo, tsc limpo, 2181 testes, build ok,
+`smoke:crm-fase1/2/3` sem regressão. Ensaiado no dev direto (fora de smoke formal, tarefa pequena
+demais pra script próprio): marcado 1 cliente, `listarClientesPaginado({})` = 27,
+`listarClientesPaginado({ listaSalesNavigator: true })` = 1, achou o certo, `statusAbordagem`
+default confirmado `NAO_ABORDADO`. Dev limpo depois (flag desfeita).
+
+**Pendente:** verificação em browser (`/clientes` → Select "Lista SN" → filtra a tabela) — sem
+chromium-cli neste ambiente, mesma lacuna recorrente da Fase 3. F4.3 é quem de fato ESCREVE
+`statusAbordagem` (registrar abordagem); por ora o campo existe e filtra, mas nada na UI ainda
+marca um cliente como "lista SN" — isso também é F4.3 (fluxo rápido de prospecção).
+
+---
+
 ## F3.11 — FECHO DA FASE 3 · 2026-08-21 · Sonnet
 
 **Os 4 verdes:** `eslint` limpo (repo inteiro) · `vitest run` **2181 testes** · `npm run build` ✓

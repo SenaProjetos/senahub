@@ -64,6 +64,7 @@ export function ClientesView({
   categoria,
   segmentoId,
   status,
+  listaSN,
 }: {
   clientes: ClienteListItem[];
   podeGerir: boolean;
@@ -81,6 +82,8 @@ export function ClientesView({
   categoria: string;
   segmentoId: string;
   status: string;
+  /** F4.1 — "lista SN": candidatos curados do Sales Navigator. */
+  listaSN: boolean;
 }) {
   const setParams = useSetParams();
   const [q, setQ] = useState(busca);
@@ -260,6 +263,19 @@ export function ClientesView({
                 {o.label}
               </SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={listaSN ? "1" : TODOS}
+          onValueChange={(v) => setParams({ listaSN: v === "1" ? "1" : null })}
+        >
+          <SelectTrigger className="h-9 w-[10rem]" aria-label="Filtrar por lista Sales Navigator">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={TODOS}>Lista SN: todos</SelectItem>
+            <SelectItem value="1">Só lista SN</SelectItem>
           </SelectContent>
         </Select>
       </div>
