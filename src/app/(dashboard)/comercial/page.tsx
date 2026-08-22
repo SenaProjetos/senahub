@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { FileText, Table2, Handshake, KanbanSquare, Megaphone } from "lucide-react";
+import { FileText, Table2, Handshake, KanbanSquare, Megaphone, Upload } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { funilCompleto, resumoComercial, parceirosAtivos, campanhasAtivas } from "@/modules/comercial/queries";
@@ -45,6 +45,9 @@ export default async function ComercialPage() {
           </Button>
           <Button variant="outline" size="sm" render={<Link href="/comercial/tabelas" />}>
             <Table2 className="size-4" /> Tabelas de preço
+          </Button>
+          <Button variant="outline" size="sm" render={<Link href="/comercial/importar" />}>
+            <Upload className="size-4" /> Importar
           </Button>
           <Button size="sm" render={<Link href="/comercial/propostas" />}>
             <FileText className="size-4" /> Propostas

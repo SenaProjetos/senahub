@@ -20,6 +20,94 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F4.5 — Wizard de importação CSV do Comercial · 2026-08-22 · Sonnet
+
+**Feito:** `/comercial/importar` — 4 passos (Enviar → Mapear+Campanha → Conferir → Concluir),
+copiando o padrão de `components/financeiro/importacao/importador-view.tsx` como o backlog
+pedia, mas SEM o que aquele padrão carrega e este aceite não pede: sem `LoteImportacao`, sem
+desfazer, sem hierarquia de categoria, sem 2ª perna de transferência. Núcleo novo em
+`modules/comercial/importacao/`:
+
+- `processar.ts` — **puro**. `normalizarLinhasCrm` (linha → campos + erros) e `resolverLinhas`
+  (o coração): decide por linha se a prospecção é `criar`/`vincular`/`ignorar`/`erro`, em UMA
+  passada que acumula o que o próprio arquivo já introduziu — é o que faz a 2ª ocorrência da
+  MESMA empresa (dentro do mesmo arquivo) vincular à 1ª em vez de duplicar.
+- `queries.ts` — `carregarExistentesCrm()`: 3 consultas (clientes, contatos, leads ativos),
+  **nunca uma por linha**. Inclui soft-deleted de propósito (mesmo motivo do comentário F1.17
+  em `financeiro/importacao/queries.ts`: reimportar depois de excluir tem que RECONHECER, não
+  duplicar).
+- `commit.ts` — grava o `LinhaResolvida[]` que a pré-visualização já calculou (não resolve de
+  novo) numa transação só para o arquivo inteiro, `timeout: 120000` (mesmo número de
+  `financeiro/importacao/commit-core.ts`, mesmo motivo: dezenas-centenas de linhas, ação
+  administrativa explícita, não caminho quente — "nada fica pela metade" é o que uma transação
+  única garante de graça).
+- `actions.ts` + `schemas.ts` + `app/api/comercial/importacao/route.ts` — mesmo formato
+  caminho/mapeamento/dry-run/commit do financeiro, permissão `comercial:gerir`.
+
+**Consultei o advisor antes de escrever** — apontou 4 riscos; os 4 viraram decisão de design:
+dedup tem que ser DENTRO do arquivo, não só contra o banco (resolvido pelo acumulador de
+`resolverLinhas`); idempotência no re-run precisa de uma CHAVE (aqui é nome normalizado da
+empresa + e-mail/nome do contato — não há hash de linha como no financeiro, prospecção não tem
+um "valor" pra hashear); nada de 100 `create()` numa transação interativa sem subir o timeout
+(resolvido copiando o número do financeiro); `optOut` tem que virar `ignorado`, nunca reabrir
+alguém que pediu descadastro.
+
+**Bug real, achado pelo smoke, não pela revisão de código.** A 1ª versão do fixture de 100
+linhas nomeava as empresas `${TAG}_ImpEmpresa1..90` — só o número final varia. `similaridade`
+(Levenshtein normalizado pelo TAMANHO TOTAL da string) não vê prefixo compartilhado como "grátis"
+quando o resto quase não muda: 90 nomes de ~35 caracteres diferindo em 1 dígito pontuam ~0.97 de
+parecido, acima do limiar 0.85 — as 90 empresas colapsaram em 1 só na pré-visualização. Não é bug
+em `candidatosDuplicata` (já usado em produção com nomes de empresa de verdade, onde isso não
+acontece) — era o fixture criando uma colisão artificial. Corrigido trocando o sufixo numérico por
+16 hex aleatórios por nome; documentado no próprio smoke pra não se repetir num fixture futuro.
+
+**2ª rodada de advisor, depois do pipeline pronto, achou 1 lacuna real e 2 pontos pra blindar
+antes do commit:**
+
+1. **A pré-visualização somava certo mas não dizia QUEM ficou de fora.** `validarImportacaoCrm`
+   só devolvia uma amostra das 15 primeiras linhas — um opt-out ou erro na linha 40 de um
+   arquivo de 100 virava só um número ("Ignoradas: 1"), sem identificar a linha. Era exatamente
+   o buraco que "nada é sobrescrito em silêncio" (texto do aceite) veda — só que do lado do
+   RELATÓRIO, não da gravação. Corrigido com um campo `problemas` à parte (até 100 linhas
+   ignoradas/com erro, não só as 15 da amostra) e um bloco dedicado na tela — mesmo padrão do
+   bloco de erro que `financeiro/importador-view.tsx` já tinha e que a 1ª versão daqui deixou de
+   copiar.
+2. **`commit.ts` reforçado com uma guarda:** hoje uma linha só vira `ignorar` (opt-out) quando o
+   contato bate num match existente — o que torna impossível uma empresa NOVA (`ref` sintética)
+   chegar ignorada. Se um motivo de ignorar novo aparecer um dia sem essa mesma garantia, uma
+   ref sintética tentando entrar como `clienteId` real seria um FK quebrando a transação inteira
+   sem dizer por quê — agora falha com mensagem clara antes disso.
+3. Docblock de `commit.ts` corrigido: dizia que dry-run e commit usam o MESMO `LinhaResolvida[]`
+   calculado uma vez; na verdade são a MESMA FUNÇÃO chamada duas vezes, cada vez contra o banco
+   como ele está NAQUELE momento — é essa releitura (não uma memória compartilhada) que faz o
+   re-run da 2ª rodada resolver diferente da 1ª.
+
+**Arquivos:** `src/modules/comercial/importacao/{processar,processar.test,queries,commit,
+schemas,actions}.ts` (novos) · `src/app/api/comercial/importacao/route.ts` (novo) ·
+`src/components/comercial/importacao/importador-view.tsx` (novo) ·
+`src/app/(dashboard)/comercial/importar/page.tsx` (novo) ·
+`src/app/(dashboard)/comercial/page.tsx` (botão "Importar") ·
+`scripts/smoke-crm-fase4.ts` (seção F4.5, 17 checks novos).
+
+**Verificação:** eslint limpo, tsc limpo, **2211 testes** (19 novos em `processar.test.ts`,
+puros — dedup dentro do arquivo, contra o banco, opt-out, idempotência simulada), build ok
+(`/comercial/importar` 5.7 kB). `npm run smoke:crm-fase4` — **42/42** (os 25 de F4.3 + 17 novos
+de F4.5), contra o banco de dev real: os 3 números literais do aceite provados por igual —
+100 linhas com 10 duplicatas → pré-visualização marca as 10 (`vinculados: 10`), relatório final
+soma 100 (`criados + vinculados + ignorados + erros === 100`), reimportar o MESMO arquivo dá
+`criados: 0` na pré-visualização E no commit, com a contagem de Clientes no banco inalterada
+depois da 2ª rodada.
+
+**Pendente:** verificação visual do wizard em browser (mesma lacuna de sempre nesta fase — sem
+chromium-cli). F4.6 (exportação CSV) é o próximo da fase.
+
+**Riscos:** a chave de idempotência (nome normalizado + e-mail/nome do contato) é mais fraca que
+o hash de linha do financeiro — uma empresa que muda de nome entre duas importações não é
+reconhecida como a mesma. Aceitável pro caso de uso (import de lista comercial, não
+reconciliação contábil), mas vale registrar se algum dia doer.
+
+---
+
 ## F4.4 — `mapeamento-crm.ts` · 2026-08-22 · Sonnet
 
 **Feito:** `src/lib/import/mapeamento-crm.ts` + `.test.ts` (11 testes) — auto-detecção de coluna
