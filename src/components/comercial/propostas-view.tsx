@@ -55,14 +55,19 @@ export const STATUS_PROPOSTA_TONE: Record<string, StatusTone> = {
   recusada: "danger",
 };
 
+const SEM_NEGOCIACAO = "nenhuma";
+
 export function PropostasView({
   propostas,
   clientes,
+  negociacoes,
   podeGerir,
   status,
 }: {
   propostas: Proposta[];
   clientes: { id: string; nome: string }[];
+  /** F5.3 — só as que ainda podem receber proposta nova (ver `negociacoesParaSelecao`). */
+  negociacoes: { id: string; titulo: string; clienteId: string }[];
   podeGerir: boolean;
   status: string;
 }) {
@@ -71,14 +76,29 @@ export function PropostasView({
   const [pending, start] = useTransition();
   const [titulo, setTitulo] = useState("");
   const [clienteId, setClienteId] = useState("");
+  const [negociacaoId, setNegociacaoId] = useState(SEM_NEGOCIACAO);
+
+  // Escopada ao cliente escolhido — trocar de cliente sem trocar a negociação selecionada
+  // mandaria uma negociação de outra empresa, que a action recusa mas a tela não deveria nem
+  // oferecer.
+  const negociacoesDoCliente = negociacoes.filter((n) => n.clienteId === clienteId);
+
+  function escolherCliente(v: string) {
+    setClienteId(v);
+    setNegociacaoId(SEM_NEGOCIACAO);
+  }
 
   function criar() {
     if (!titulo || !clienteId) {
       toast.error("Informe título e cliente.");
       return;
     }
+    if (negociacaoId === SEM_NEGOCIACAO) {
+      toast.error("Selecione a negociação — toda proposta nova nasce de uma (F5.3).");
+      return;
+    }
     start(async () => {
-      const r = await criarProposta({ titulo, clienteId, leadId: "" });
+      const r = await criarProposta({ titulo, clienteId, negociacaoId });
       if (r.ok) {
         toast.success(`Proposta ${r.data.numero} criada.`);
         setOpen(false);
@@ -181,7 +201,7 @@ export function PropostasView({
             </div>
             <div className="space-y-1.5">
               <Label>Cliente</Label>
-              <Select value={clienteId} onValueChange={(v) => setClienteId(v ?? "")}>
+              <Select value={clienteId} onValueChange={(v) => escolherCliente(v ?? "")}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione…" />
                 </SelectTrigger>
@@ -193,6 +213,34 @@ export function PropostasView({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            {/* F5.3 — toda proposta nova nasce de uma negociação; sem isto a action recusa. */}
+            <div className="space-y-1.5">
+              <Label>Negociação</Label>
+              <Select
+                value={negociacaoId}
+                onValueChange={(v) => setNegociacaoId(v ?? SEM_NEGOCIACAO)}
+                disabled={!clienteId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={clienteId ? "Selecione…" : "Escolha o cliente primeiro"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SEM_NEGOCIACAO} disabled>
+                    — selecione —
+                  </SelectItem>
+                  {negociacoesDoCliente.map((n) => (
+                    <SelectItem key={n.id} value={n.id}>
+                      {n.titulo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {clienteId && negociacoesDoCliente.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Este cliente não tem negociação em aberto — qualifique uma prospecção antes.
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>

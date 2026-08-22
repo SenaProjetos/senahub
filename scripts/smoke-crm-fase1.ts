@@ -223,18 +223,34 @@ async function main() {
   // comportamento. O que segue é o que a F5.9 ACRESCENTOU, caracterizado aqui para que este
   // arquivo continue descrevendo o aceite ATUAL, e não o de antes dela.
   //
-  // Esta proposta nasce de um LEAD (`criarPropostaDeLead`), então NÃO tem negociação — é
-  // justamente o caminho de retrocompatibilidade: o aceite tem de funcionar igual, sem
-  // inventar uma negociação que ninguém pediu.
-  check("sem negociação vinculada, o aceite não inventa uma", propostaAceita.negociacaoId === null);
+  // ── Emenda da F5.3, no mesmo espírito ("atualiza, nunca deleta") ──────────────────────────
+  // Até a F5.3, `criarPropostaDeLead` NUNCA vinculava negociação — daqui saía sempre
+  // `negociacaoId: null`, e era essa a caracterização original deste bloco. A F5.3 (ADR-21
+  // item 5) mudou a REALIDADE: o lead desta fixture nasce em `IDENTIFICADO` (o default), que é
+  // qualificável, então `criarPropostaDeLead` agora auto-qualifica ANTES de criar a proposta —
+  // ela nasce COM negociação, e assim que fica correto continuar descrevendo aqui.
+  //
+  // O caso "sem negociação" (retrocompatibilidade com proposta histórica, de antes da F5.2) não
+  // foi perdido — ganhou cobertura própria, mais fiel à realidade de produção (criada direto,
+  // não via um lead incidentalmente qualificável), em `smoke-crm-fase5.ts` §F5.3.
+  check(
+    "F5.3 — o lead (nasce IDENTIFICADO, qualificável) foi auto-qualificado ao criar a proposta",
+    propostaAceita.negociacaoId !== null,
+  );
+  const negociacaoDoAceite = await prisma.negociacao.findUniqueOrThrow({
+    where: { id: propostaAceita.negociacaoId! },
+    select: { estagio: true, leadId: true },
+  });
+  check("a negociação auto-criada aponta pro MESMO lead (F2.8 — o lead sobrevive)", negociacaoDoAceite.leadId === lead.id);
   const projetoDoAceite = await prisma.projeto.findUniqueOrThrow({
     where: { id: projetoId },
     select: { negociacaoId: true },
   });
   check(
-    "§8.5 — sem negociação na proposta, o projeto também nasce sem (os dois lados concordam)",
-    projetoDoAceite.negociacaoId === null,
+    "§8.5 — Proposta.negociacaoId e Projeto.negociacaoId concordam (a mesma negociação nos 2 lados)",
+    projetoDoAceite.negociacaoId === propostaAceita.negociacaoId,
   );
+  check("a negociação foi a CONTRATADO no aceite (F5.9)", negociacaoDoAceite.estagio === "CONTRATADO");
   const clienteDoAceite = await prisma.cliente.findUniqueOrThrow({
     where: { id: proposta.clienteId },
     select: { status: true },
@@ -288,7 +304,13 @@ async function main() {
   await prisma.proposta.update({ where: { id: proposta.id }, data: { projetoId: null } });
   await prisma.projeto.delete({ where: { id: projetoId } });
   await prisma.propostaItem.deleteMany({ where: { propostaId: proposta.id } });
+  await prisma.propostaVersao.deleteMany({ where: { propostaId: proposta.id } });
   await prisma.proposta.delete({ where: { id: proposta.id } });
+  // F5.3: `criarPropostaDeLead` agora auto-qualifica (o lead nasce IDENTIFICADO), então SEMPRE
+  // sobra uma `Negociacao` pra apagar — que precisa sumir ANTES do lead: `Negociacao.leadId` é
+  // FK sem `onDelete` (RESTRICT), e `Proposta.negociacaoId` já foi resolvido pela `delete`
+  // acima (`ON DELETE SET NULL`, não impede nada).
+  await prisma.negociacao.deleteMany({ where: { leadId: lead.id } });
   await prisma.lead.delete({ where: { id: lead.id } });
   if (criouCliente) await prisma.cliente.delete({ where: { id: proposta.clienteId } });
   await prisma.campanha.delete({ where: { id: campanha.id } });

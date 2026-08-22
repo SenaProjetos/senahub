@@ -30,6 +30,8 @@ import {
   validarQualificacao,
   validarMovimentoProspeccao,
   STATUS_PROSPECCAO_ATIVOS,
+  podeQualificar,
+  STATUS_PROSPECCAO_LABEL,
 } from "@/modules/comercial/prospeccao";
 import { tipoAtividadeDe } from "@/modules/comercial/atividade";
 import { descreverEvento, type EventoAtividade } from "@/modules/comercial/atividade-eventos";
@@ -69,17 +71,66 @@ export async function proximoNumeroProposta(tx: Prisma.TransactionClient) {
 }
 
 /**
- * Cria uma proposta partindo de um lead. Garante o cliente (converte o lead
- * se ainda não tiver um) e vincula a proposta ao lead — assim o funil e a
- * ficha do lead passam a listar suas propostas.
+ * Cria uma proposta AVULSA (não a partir de um lead — esse caminho é `criarPropostaDeLead`,
+ * logo abaixo), a partir de um cliente e de uma negociação já escolhidos na tela.
+ *
+ * **F5.3 — `negociacaoId` é obrigatório e é validado aqui, não só no Zod.** O schema garante
+ * que a string não é vazia; esta função garante que a negociação EXISTE e é DAQUELE cliente —
+ * sem isto, um Select mal montado (ou um payload editado à mão) poderia mandar a negociação de
+ * OUTRA empresa, e a proposta nasceria apontando "de onde veio" para o negócio errado.
+ */
+export async function criarProposta(
+  input: { titulo: string; clienteId: string; negociacaoId: string },
+  autorId: string,
+) {
+  const negociacao = await prisma.negociacao.findUnique({
+    where: { id: input.negociacaoId },
+    select: { id: true, clienteId: true },
+  });
+  if (!negociacao) throw new ActionError("Negociação não encontrada.");
+  if (negociacao.clienteId !== input.clienteId) {
+    throw new ActionError("Esta negociação não é desta empresa.");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const { ano, sequencial, numero } = await proximoNumeroProposta(tx);
+    return tx.proposta.create({
+      data: {
+        ano,
+        sequencial,
+        numero,
+        titulo: input.titulo,
+        clienteId: input.clienteId,
+        negociacaoId: input.negociacaoId,
+        token: randomBytes(18).toString("hex"),
+        autorId,
+      },
+    });
+  });
+}
+
+/**
+ * Cria uma proposta partindo de um lead. Garante o cliente (converte o lead se ainda não tiver
+ * um), garante uma negociação (F5.3, ADR-21 item 5) e vincula a proposta aos dois — assim o
+ * funil e a ficha do lead passam a listar suas propostas.
+ *
+ * ── `negociacaoId` deixou de ser opcional na proposta (F5.3) ─────────────────────────────────
+ * Este é o caminho que teria quebrado com a regra nova sem a auto-qualificação: "Nova proposta"
+ * na tela do lead sempre funcionou com um clique. `garantirNegociacaoParaProposta` resolve os
+ * 3 casos (já tem negociação / qualifica direto / fora do fluxo pede confirmação) DENTRO desta
+ * mesma transação — nunca duas transações independentes, que deixariam negociação órfã se o
+ * passo seguinte falhasse.
  *
  * Devolve `criouCliente` para o chamador decidir se revalida `/clientes`.
  */
 export async function criarPropostaDeLead(
-  input: { leadId: string; titulo: string },
+  input: { leadId: string; titulo: string; confirmarReativacao?: boolean },
   autorId: string,
 ) {
-  const lead = await prisma.lead.findUnique({ where: { id: input.leadId } });
+  const lead = await prisma.lead.findUnique({
+    where: { id: input.leadId },
+    include: { contatos: { select: { contatoId: true, principal: true } } },
+  });
   if (!lead) throw new ActionError("Lead não encontrado.");
 
   const { proposta, criouCliente } = await prisma.$transaction(async (tx) => {
@@ -100,6 +151,15 @@ export async function criarPropostaDeLead(
       criouCliente = true;
       await tx.lead.update({ where: { id: lead.id }, data: { clienteId } });
     }
+
+    // F5.3 — garante a negociação ANTES de criar a proposta, com o `clienteId` já resolvido
+    // (pode ter acabado de nascer 3 linhas acima).
+    const negociacaoId = await garantirNegociacaoParaProposta(
+      tx,
+      { ...lead, clienteId },
+      { autorId, confirmarReativacao: input.confirmarReativacao ?? false },
+    );
+
     const { ano, sequencial, numero } = await proximoNumeroProposta(tx);
     const proposta = await tx.proposta.create({
       data: {
@@ -109,6 +169,7 @@ export async function criarPropostaDeLead(
         titulo: input.titulo,
         clienteId,
         leadId: lead.id,
+        negociacaoId,
         token: randomBytes(18).toString("hex"),
         autorId,
       },
@@ -125,7 +186,7 @@ export async function criarPropostaDeLead(
       }
       await registrarAtividade(
         { evento: "PROPOSTA_CRIADA", numero: proposta.numero, titulo: input.titulo },
-        { autorId, clienteId, leadId: lead.id, propostaId: proposta.id, tx },
+        { autorId, clienteId, leadId: lead.id, propostaId: proposta.id, negociacaoId, tx },
       );
     }
 
@@ -657,54 +718,128 @@ export async function qualificarProspeccao(input: {
 
   validarQualificacao({ status: lead.status, clienteId: lead.clienteId });
 
+  return prisma.$transaction(async (tx) => {
+    const { negociacaoId } = await aplicarQualificacao(tx, lead, {
+      titulo: input.titulo,
+      responsavelId: input.responsavelId,
+      autorId: input.autorId,
+    });
+    return { negociacaoId, leadId: lead.id };
+  });
+}
+
+type LeadParaQualificar = {
+  id: string;
+  nome: string;
+  clienteId: string | null;
+  canalId: string | null;
+  campaignId: string | null;
+  parceiroId: string | null;
+  origemDetalhada: string | null;
+  valorEstimado: Prisma.Decimal | number | null;
+  responsavelId: string | null;
+  contatos: { contatoId: string; principal: boolean }[];
+};
+
+/**
+ * A ESCRITA da qualificação, recebendo `tx` de fora — extraída de `qualificarProspeccao` na
+ * F5.3, mesma forma de `aplicarMovimentoEstagio` (F5.9) e pelo mesmo motivo: o novo chamador
+ * (`criarPropostaDeLead`, via `garantirNegociacaoParaProposta` abaixo) precisa qualificar
+ * DENTRO da própria transação que também cria a proposta. Duas transações independentes
+ * deixariam uma negociação criada sem a proposta que a motivou, se o passo seguinte falhasse.
+ *
+ * A VALIDAÇÃO (`validarQualificacao`) continua fora, antes de qualquer escrita — comportamento
+ * inalterado de `qualificarProspeccao`.
+ */
+async function aplicarQualificacao(
+  tx: Prisma.TransactionClient,
+  lead: LeadParaQualificar,
+  opts: { titulo?: string | null; responsavelId?: string | null; autorId?: string },
+): Promise<{ negociacaoId: string }> {
   // `origemDetalhada` é onde o nome do empreendimento foi parar no backfill da F1.23 (o campo
   // `origem` legado era "canal" no nome e empreendimento no uso — ver 03-migracao.md §3). É esse
   // o "campo próprio da Negociacao" que o §3 manda usar: o título do negócio.
-  const titulo = input.titulo?.trim() || lead.origemDetalhada?.trim() || lead.nome;
+  const titulo = opts.titulo?.trim() || lead.origemDetalhada?.trim() || lead.nome;
 
-  return prisma.$transaction(async (tx) => {
-    const negociacao = await tx.negociacao.create({
-      data: {
-        titulo,
-        clienteId: lead.clienteId!, // garantido por `validarQualificacao`
-        leadId: lead.id,
-        responsavelId: input.responsavelId ?? lead.responsavelId,
-        canalId: lead.canalId,
-        campaignId: lead.campaignId,
-        parceiroId: lead.parceiroId,
-        valorEstimado: lead.valorEstimado,
-        // Nasce no início do funil de negociação; a probabilidade correspondente entra na
-        // primeira transição via `moverEstagio`, que é o ponto único de escrita (F2.7).
-        estagio: "LEVANTAMENTO",
-        contatos: {
-          create: lead.contatos.map((c) => ({ contatoId: c.contatoId, principal: c.principal })),
-        },
+  const negociacao = await tx.negociacao.create({
+    data: {
+      titulo,
+      clienteId: lead.clienteId!, // garantido pelo chamador (validarQualificacao já rodou)
+      leadId: lead.id,
+      responsavelId: opts.responsavelId ?? lead.responsavelId,
+      canalId: lead.canalId,
+      campaignId: lead.campaignId,
+      parceiroId: lead.parceiroId,
+      valorEstimado: lead.valorEstimado,
+      // Nasce no início do funil de negociação; a probabilidade correspondente entra na
+      // primeira transição via `moverEstagio`, que é o ponto único de escrita (F2.7).
+      estagio: "LEVANTAMENTO",
+      contatos: {
+        create: lead.contatos.map((c) => ({ contatoId: c.contatoId, principal: c.principal })),
       },
-      select: { id: true },
-    });
+    },
+    select: { id: true },
+  });
 
-    await tx.lead.update({
-      where: { id: lead.id },
-      data: { status: "OPORTUNIDADE_CRIADA" },
-    });
+  await tx.lead.update({
+    where: { id: lead.id },
+    data: { status: "OPORTUNIDADE_CRIADA" },
+  });
 
-    // F3.2 — dentro da transação: se a qualificação reverter, a timeline não fica dizendo que
-    // uma negociação inexistente foi criada.
-    if (input.autorId) {
-      await registrarAtividade(
-        { evento: "NEGOCIACAO_CRIADA", titulo, deProspeccao: true },
-        {
-          autorId: input.autorId,
-          clienteId: lead.clienteId,
-          leadId: lead.id,
-          negociacaoId: negociacao.id,
-          tx,
-        },
+  // F3.2 — dentro da transação: se a qualificação reverter, a timeline não fica dizendo que
+  // uma negociação inexistente foi criada.
+  if (opts.autorId) {
+    await registrarAtividade(
+      { evento: "NEGOCIACAO_CRIADA", titulo, deProspeccao: true },
+      { autorId: opts.autorId, clienteId: lead.clienteId, leadId: lead.id, negociacaoId: negociacao.id, tx },
+    );
+  }
+
+  return { negociacaoId: negociacao.id };
+}
+
+/**
+ * Garante uma `Negociacao` para uma proposta que está nascendo de um `Lead` (F5.3, ADR-21
+ * item 5) — dentro da MESMA transação de `criarPropostaDeLead`. Três caminhos:
+ *
+ * 1. **Já tem negociação** (`Negociacao.leadId` é `@unique`) → reusa. É o caso de todo lead já
+ *    `OPORTUNIDADE_CRIADA` — inclusive uma 2ª proposta do mesmo negócio.
+ * 2. **Status qualificável** (os 4 de `STATUS_PROSPECCAO_ATIVOS`) → qualifica direto, sem
+ *    perguntar nada — é o fluxo normal, idêntico ao que "Nova proposta" sempre fez.
+ * 3. **Fora do fluxo** (`SEM_OPORTUNIDADE`/`EM_ESPERA`/`DESCARTADO`) → é o caso do ADR-21 §5b.
+ *    **Recusa por padrão** com uma mensagem que a UI reconhece para oferecer confirmação
+ *    (`lead-detalhe-view.tsx` já faz essa checagem ANTES de chamar a action, usando o `status`
+ *    que já tem em mãos — isto aqui é o cinturão, não a UX principal). Só com
+ *    `confirmarReativacao: true` reativa — e reativa por `validarMovimentoProspeccao`, nunca
+ *    por um `update` cru, porque um 2º caminho de escrita de status é o que a F2.7 existiu
+ *    para fechar.
+ */
+async function garantirNegociacaoParaProposta(
+  tx: Prisma.TransactionClient,
+  lead: LeadParaQualificar & { status: StatusProspeccao },
+  opts: { autorId?: string; confirmarReativacao: boolean },
+): Promise<string> {
+  const existente = await tx.negociacao.findUnique({ where: { leadId: lead.id }, select: { id: true } });
+  if (existente) return existente.id;
+
+  let statusAtual = lead.status;
+  if (!podeQualificar(statusAtual)) {
+    if (!opts.confirmarReativacao) {
+      throw new ActionError(
+        `Esta prospecção está "${STATUS_PROSPECCAO_LABEL[statusAtual]}" — criar a proposta vai ` +
+          "reativá-la e abrir uma negociação. Confirme para continuar.",
       );
     }
+    // Reativa por um estágio ativo antes de qualificar — mesma validação de um arrasto no
+    // board (`moverProspeccao`), nunca um `update` de status solto.
+    validarMovimentoProspeccao(statusAtual, "EM_CONTATO");
+    await tx.lead.update({ where: { id: lead.id }, data: { status: "EM_CONTATO" } });
+    statusAtual = "EM_CONTATO";
+  }
 
-    return { negociacaoId: negociacao.id, leadId: lead.id };
-  });
+  validarQualificacao({ status: statusAtual, clienteId: lead.clienteId });
+  const { negociacaoId } = await aplicarQualificacao(tx, lead, { autorId: opts.autorId });
+  return negociacaoId;
 }
 
 // ── Registro manual de interação (F3.4) ──────────────────────────────────────────────────────

@@ -239,6 +239,22 @@ export async function listarCampanhas() {
 }
 export type CampanhaItem = Awaited<ReturnType<typeof listarCampanhas>>[number];
 
+/**
+ * Negociações que podem receber uma proposta NOVA (F5.3) — popula o Select de
+ * `criarProposta`, escopado pelo cliente selecionado.
+ *
+ * Fora da lista: `CONTRATADO` (já tem a proposta aceita e o projeto — F5.9) e `PERDIDO`/
+ * `CANCELADO` (negócio encerrado; reabrir é a F5.11, não criar proposta por cima). `EM_ESPERA`
+ * entra — uma negociação pausada ainda pode ganhar uma proposta nova redigida enquanto espera.
+ */
+export async function negociacoesParaSelecao() {
+  return prisma.negociacao.findMany({
+    where: { estagio: { notIn: ["CONTRATADO", "PERDIDO", "CANCELADO"] } },
+    orderBy: { titulo: "asc" },
+    select: { id: true, titulo: true, clienteId: true, estagio: true },
+  });
+}
+
 /** Só as ativas — popula o Select do formulário de lead (nunca texto livre). */
 export async function campanhasAtivas() {
   return prisma.campanha.findMany({

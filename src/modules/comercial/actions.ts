@@ -55,6 +55,7 @@ import {
 } from "@/modules/comercial/queries";
 import {
   proximoNumeroProposta,
+  criarProposta as servicoCriarProposta,
   criarPropostaDeLead as servicoCriarPropostaDeLead,
   salvarProposta as servicoSalvarProposta,
   aceitarProposta as servicoAceitarProposta,
@@ -522,21 +523,7 @@ export const reativarCampanha = defineAction(
 export const criarProposta = defineAction(
   { ...base, acao: "criar-proposta", entidade: "Proposta", schema: criarPropostaSchema, entidadeId: idResultadoOuInput },
   async (i, { user }) => {
-    const proposta = await prisma.$transaction(async (tx) => {
-      const { ano, sequencial, numero } = await proximoNumeroProposta(tx);
-      return tx.proposta.create({
-        data: {
-          ano,
-          sequencial,
-          numero,
-          titulo: i.titulo,
-          clienteId: i.clienteId,
-          leadId: i.leadId || null,
-          token: randomBytes(18).toString("hex"),
-          autorId: user.id,
-        },
-      });
-    });
+    const proposta = await servicoCriarProposta(i, user.id);
     rev();
     return { id: proposta.id, numero: proposta.numero };
   },
@@ -591,6 +578,12 @@ export const copiarProposta = defineAction(
           titulo: `${p.titulo} — cópia`,
           clienteId: p.clienteId,
           leadId: p.leadId,
+          // F5.3: a cópia herda a MESMA negociação do original — é um novo rascunho do mesmo
+          // negócio, não um negócio novo. Se o original for histórico (sem negociação, de
+          // antes da F5.3), a cópia nasce igualmente sem — fiel à origem, não uma exceção à
+          // regra: nada aqui está INVENTANDO uma proposta nova sem negociação, só preservando
+          // o que já era assim.
+          negociacaoId: p.negociacaoId,
           areaM2: p.areaM2,
           validade: p.validade,
           observacoes: p.observacoes,

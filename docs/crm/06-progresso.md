@@ -20,6 +20,76 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F5.3 — Proposta nova exige negociação · 2026-08-22 · Sonnet
+
+**Feito:** `criarProposta` (proposta avulsa) e `criarPropostaDeLead` — os **três** caminhos que
+criam `Proposta` — passam a garantir `negociacaoId`. Faltava mapear um: **`copiarProposta`**
+(ação "duplicar", em `actions.ts`) copiava `leadId` mas nunca `negociacaoId` — corrigido para
+herdar a MESMA negociação do original, não uma nova (é o mesmo negócio, não outro).
+
+**As três garantias são de naturezas diferentes, cada uma com o cuidado certo:**
+- **`criarProposta`** (proposta avulsa, tela `/comercial/propostas`) — o Select agora obriga
+  escolher uma negociação DO cliente selecionado. A action confere as duas coisas que o Zod
+  sozinho não vê: a negociação existe, e é DAQUELE cliente — sem isso um payload editado à mão
+  poderia apontar "de onde veio" para o negócio errado.
+- **`copiarProposta`** — herda `negociacaoId` do original, sem validação nova (é dado que já era
+  válido). Copiar uma histórica (sem negociação) também nasce sem — fiel à origem, não uma
+  brecha na regra.
+- **`criarPropostaDeLead`** (botão "Nova proposta" na ficha do lead) — implementa o que a **ADR-21
+  item 5** já tinha decidido na F5.1: **auto-qualifica**. Três ramos, extraídos em
+  `garantirNegociacaoParaProposta`, dentro da MESMA transação que cria a proposta:
+  1. lead já tem negociação (`Negociacao.leadId @unique`) → reusa;
+  2. status qualificável (os 4 ativos) → qualifica direto, sem perguntar nada — é o fluxo normal;
+  3. fora do fluxo (`SEM_OPORTUNIDADE`/`EM_ESPERA`/`DESCARTADO`) → é a **ADR-21 §5b**: recusa por
+     padrão com mensagem específica; só com `confirmarReativacao: true` reativa (por
+     `validarMovimentoProspeccao`, nunca `update` cru) e então qualifica.
+
+**A extração que o ADR já havia mapeado, feita exatamente como previsto:** `aplicarQualificacao`
+saiu de `qualificarProspeccao` (que abria a própria `$transaction`) para uma função que recebe
+`tx` — mesma forma de `aplicarMovimentoEstagio` (F5.9) e pelo mesmo motivo: chamar a versão
+antiga de dentro do aceite/criação de proposta abriria uma 2ª transação independente, e uma
+negociação nasceria órfã se o passo seguinte falhasse.
+
+**A confirmação é 100% client-side, não um round-trip de erro-e-repete.** `lead.status` já
+chega para `lead-detalhe-view.tsx` como prop (via `LeadItem`) — a tela decide ANTES de chamar a
+action se precisa perguntar, usando `podeQualificar`/`STATUS_PROSPECCAO_LABEL` (puros,
+importáveis no client). O servidor recusa por padrão de qualquer forma — é o cinturão, nunca a
+UX principal.
+
+**Bug pego pela própria bateria de regressão, não por revisão.** A caracterização da F1.3
+(`smoke-crm-fase1.ts`) cria seu lead sem `status` explícito → nasce `IDENTIFICADO` (default),
+que é qualificável. As asserções que a F5.9 tinha escrito ali ("sem negociação vinculada, o
+aceite não inventa uma") passaram a FALHAR — não porque algo quebrou, mas porque a REALIDADE
+mudou: aquele caminho específico agora sempre tem negociação. **Atualizadas, não deletadas**
+(mesmo princípio da F5.9): viraram "foi auto-qualificado" + confere §8.5 concordando no lado
+NÃO-nulo. O caso "sem negociação" (retrocompat com proposta histórica) não se perdeu — ganhou
+cobertura própria, mais fiel à produção real, no `smoke-crm-fase5.ts` §F5.3.
+
+**Arquivos:** `src/modules/comercial/schemas.ts` (`negociacaoId` obrigatório;
+`confirmarReativacao` novo) · `src/modules/comercial/service.ts` (`criarProposta` NOVO —
+extraído de `actions.ts`; `criarPropostaDeLead` reescrito; `aplicarQualificacao` +
+`garantirNegociacaoParaProposta` novos) · `src/modules/comercial/jornada.ts`/`.test.ts`
+(inalterados nesta tarefa — já vieram prontos da F5.9) · `src/modules/comercial/queries.ts`
+(`negociacoesParaSelecao`, novo) · `src/modules/comercial/actions.ts` (`criarProposta` fino;
+`copiarProposta` herda `negociacaoId`) · `src/components/comercial/propostas-view.tsx` (Select
+de negociação, escopado por cliente) · `src/components/comercial/lead-detalhe-view.tsx`
+(confirmação client-side) · `.../propostas/page.tsx` (passa `negociacoes`) ·
+`scripts/smoke-crm-fase5.ts` (+15) · `scripts/smoke-crm-fase1.ts` (3 asserções atualizadas, +1
+nova, limpeza da negociação nova no cleanup).
+
+**Verificação:** eslint limpo, tsc limpo, **2285 testes** (sem novos — a lógica nova é toda I/O,
+verificada por smoke, seguindo o padrão de F5.2/F5.9), build ok. `smoke:crm-fase5` **98/98**,
+`smoke:crm-fase1` (caracterização, atualizada) verde, `fase2`/`fase3`/`fase4` sem regressão.
+
+**Pendente:** verificação em browser dos dois Selects novos (negociação em "Nova proposta" e o
+diálogo de confirmação de reativação). F5.5 (`em_negociacao`) é a próxima.
+
+**Riscos:** nenhum novo desta tarefa. O padrão "3 caminhos de criação, 1 regra" já está fechado
+— se um 4º caminho aparecer no futuro (import em massa de propostas, por exemplo), ele precisa
+do mesmo tratamento que `copiarProposta` recebeu aqui, e este parágrafo é o lembrete.
+
+---
+
 ## F5.13 — PDF imutável arquivado por versão · 2026-08-22 · Opus
 
 **Aprovado pelo dono** (a tarefa era opcional, com portão próprio): *"melhor pagar o custo de

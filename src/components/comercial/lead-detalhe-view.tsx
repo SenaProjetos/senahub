@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import type { LeadItem } from "@/modules/comercial/queries";
 import { criarPropostaDeLead, concluirProximaAcao } from "@/modules/comercial/actions";
+import { podeQualificar, STATUS_PROSPECCAO_LABEL } from "@/modules/comercial/prospeccao";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { TIPO_PROXIMA_ACAO_LABEL } from "@/modules/agenda/proxima-acao";
 import type { ItemTimeline } from "@/modules/comercial/atividade";
 import type { TipoProximaAcao } from "@/generated/prisma/client";
@@ -77,6 +79,7 @@ export function LeadDetalheView({
   ultimaInteracao: string | null;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, start] = useTransition();
   const [editar, setEditar] = useState(false);
   const perdido = etapaEhPerdido(etapaAtual.nome);
@@ -86,9 +89,29 @@ export function LeadDetalheView({
   // botão-gatilho. `key` também garante que o form nasce limpo, não com resíduo do form anterior.
   const [sugerirProximaContador, setSugerirProximaContador] = useState(0);
 
-  function novaProposta() {
+  /**
+   * F5.3 (ADR-21 §5b) — "Nova proposta" garante uma negociação por trás. Prospecção já
+   * qualificável (os 4 status ativos) ou já `OPORTUNIDADE_CRIADA`: segue direto, como sempre
+   * fez. Fora do fluxo (`SEM_OPORTUNIDADE`/`EM_ESPERA`/`DESCARTADO`): confirma ANTES de chamar
+   * a action — o `status` já está em mãos aqui, então não precisa de um round-trip só para
+   * descobrir se precisa perguntar. O servidor recusa por padrão sem o consentimento (cinturão);
+   * esta checagem é a UX de verdade.
+   */
+  async function novaProposta() {
+    let confirmarReativacao = false;
+    if (!podeQualificar(lead.status) && lead.status !== "OPORTUNIDADE_CRIADA") {
+      const ok = await confirm({
+        title: "Reativar prospecção?",
+        description:
+          `Esta prospecção está "${STATUS_PROSPECCAO_LABEL[lead.status]}". Criar a proposta vai ` +
+          "reativá-la e abrir uma negociação.",
+        confirmLabel: "Reativar e criar",
+      });
+      if (!ok) return;
+      confirmarReativacao = true;
+    }
     start(async () => {
-      const r = await criarPropostaDeLead({ leadId: lead.id, titulo: lead.nome });
+      const r = await criarPropostaDeLead({ leadId: lead.id, titulo: lead.nome, confirmarReativacao });
       if (r.ok) {
         toast.success(`Proposta ${r.data.numero} criada.`);
         router.push(`/comercial/propostas/${r.data.id}`);

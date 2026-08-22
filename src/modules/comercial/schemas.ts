@@ -84,16 +84,25 @@ export const condicaoPropostaSchema = z.object({
   valor: z.number().nonnegative(),
 });
 
+/**
+ * F5.3: proposta NOVA exige negociação — `negociacaoId` deixou de ser opcional. `leadId` saiu
+ * do schema: o único chamador desta action sempre mandava `""` (nunca um id real — o caminho
+ * que de fato vincula lead é `criarPropostaDeLead`, schema separado, logo abaixo).
+ */
 export const criarPropostaSchema = z.object({
   titulo: z.string().min(1, "Informe o título."),
   clienteId: z.string().min(1, "Selecione o cliente."),
-  leadId: opt(z.string()),
+  negociacaoId: z.string().min(1, "Selecione a negociação."),
 });
 
-/** Cria a proposta a partir de um lead (deriva/gera o cliente e vincula o lead). */
+/** Cria a proposta a partir de um lead (deriva/gera o cliente, garante a negociação — F5.3). */
 export const criarPropostaDeLeadSchema = z.object({
   leadId: z.string().min(1),
   titulo: z.string().min(1, "Informe o título."),
+  /** ADR-21 §5b: consentimento explícito pra reativar um lead fora do fluxo. A UI já faz a
+   *  checagem antes de perguntar (tem o `status` em mãos); isto aqui é o cinturão do servidor,
+   *  que recusa por padrão sem ele. */
+  confirmarReativacao: z.boolean().optional(),
 });
 
 export const salvarPropostaSchema = z.object({

@@ -37,7 +37,7 @@ import { prisma } from "../src/lib/prisma";
 import { removerArquivo } from "../src/lib/storage";
 import { planejarVinculo } from "../src/modules/comercial/vinculo-negociacao";
 import { carregarPendentes, executarVinculo } from "../src/modules/comercial/migracao-vinculo";
-import { salvarProposta, aceitarProposta } from "../src/modules/comercial/service";
+import { salvarProposta, aceitarProposta, criarProposta, criarPropostaDeLead } from "../src/modules/comercial/service";
 import { versoesComparaveis } from "../src/modules/comercial/propostas-extras/queries";
 import { versaoVigente } from "../src/modules/comercial/versoes";
 import { alertaPropostasExpiradas } from "../src/lib/jobs-handlers";
@@ -80,7 +80,7 @@ async function main() {
   });
 
   const ano = new Date().getFullYear();
-  const criarProposta = async (sufixo: string, over: Record<string, unknown> = {}) =>
+  const criarPropostaFixture = async (sufixo: string, over: Record<string, unknown> = {}) =>
     prisma.proposta.create({
       data: {
         ano,
@@ -97,10 +97,10 @@ async function main() {
       select: { id: true, numero: true, token: true, negociacaoId: true },
     });
 
-  const pReal = await criarProposta("REAL", { leadId: leadA.id, status: "enviada" });
-  const pSemLead = await criarProposta("SEMLEAD", { status: "aceita", aceitaEm: new Date() });
-  const pLeadB1 = await criarProposta("LEADB1", { leadId: leadB.id, status: "rascunho" });
-  const pLeadB2 = await criarProposta("LEADB2", { leadId: leadB.id, status: "rascunho" });
+  const pReal = await criarPropostaFixture("REAL", { leadId: leadA.id, status: "enviada" });
+  const pSemLead = await criarPropostaFixture("SEMLEAD", { status: "aceita", aceitaEm: new Date() });
+  const pLeadB1 = await criarPropostaFixture("LEADB1", { leadId: leadB.id, status: "rascunho" });
+  const pLeadB2 = await criarPropostaFixture("LEADB2", { leadId: leadB.id, status: "rascunho" });
   const minhas = [pReal, pSemLead, pLeadB1, pLeadB2];
   const idsMinhas = new Set(minhas.map((p) => p.id));
 
@@ -243,7 +243,7 @@ async function main() {
     data: { titulo: `${TAG}_NegociacaoExcluida`, clienteId: cliente.id, leadId: leadC.id },
   });
   await prisma.negociacao.update({ where: { id: negExcluida.id }, data: { excluidoEm: new Date() } });
-  const pLeadC = await criarProposta("LEADC", { leadId: leadC.id, status: "rascunho" });
+  const pLeadC = await criarPropostaFixture("LEADC", { leadId: leadC.id, status: "rascunho" });
 
   const carregado2 = await carregarPendentes(prisma);
   const negDoLeadC = carregado2.negociacoes.filter((n) => n.leadId === leadC.id);
@@ -282,7 +282,7 @@ async function main() {
 
   console.log("\n── F5.4: 3 versões, comparadas sem parsear JSON ───────────────────\n");
 
-  const pVersionada = await criarProposta("VERSOES", { status: "rascunho" });
+  const pVersionada = await criarPropostaFixture("VERSOES", { status: "rascunho" });
   const salvar = (titulo: string, itens: { disciplina: string; valor: number }[], validade?: string) =>
     salvarProposta(
       {
@@ -346,7 +346,7 @@ async function main() {
 
   // Versões escritas ANTES da F5.4 não têm as colunas preenchidas. Simula esse estado e roda os
   // mesmos UPDATEs do arquivo de migration — que de outro modo só estreariam em produção.
-  const pLegado = await criarProposta("LEGADO", { status: "enviada" });
+  const pLegado = await criarPropostaFixture("LEGADO", { status: "enviada" });
   const legadas = [
     { numero: 1, snapshot: { titulo: "L1", validade: "2026-12-31", observacoes: "obs legada", itens: [{ disciplina: "A", valor: 1000 }, { disciplina: "B", valor: 2500.5 }] } },
     { numero: 2, snapshot: { titulo: "L2", validade: null, itens: [{ disciplina: "A", valor: "3000" }] } },
@@ -394,16 +394,16 @@ async function main() {
   console.log("\n── F5.7: alerta de validade — tick 2× dá 1 notificação só ────────\n");
 
   const ONTEM_EM_RECIFE = "2020-01-01"; // bem no passado: expirada sem depender do relógio real
-  const pExpirada = await criarProposta("EXPIRADA", {
+  const pExpirada = await criarPropostaFixture("EXPIRADA", {
     status: "enviada",
     validade: new Date(`${ONTEM_EM_RECIFE}T00:00:00.000Z`),
   });
-  const pAceitaVencida = await criarProposta("ACEITAVENCIDA", {
+  const pAceitaVencida = await criarPropostaFixture("ACEITAVENCIDA", {
     status: "aceita",
     aceitaEm: new Date(),
     validade: new Date(`${ONTEM_EM_RECIFE}T00:00:00.000Z`),
   });
-  const pNoPrazo = await criarProposta("NOPRAZO", {
+  const pNoPrazo = await criarPropostaFixture("NOPRAZO", {
     status: "enviada",
     validade: new Date("2099-12-31T00:00:00.000Z"),
   });
@@ -637,7 +637,7 @@ async function main() {
     return Buffer.from(conteudo, "utf8");
   };
 
-  const pPdf = await criarProposta("PDF", { status: "rascunho" });
+  const pPdf = await criarPropostaFixture("PDF", { status: "rascunho" });
   const salvarPdf = (titulo: string, valor: number) =>
     salvarProposta(
       {
@@ -716,7 +716,7 @@ async function main() {
   );
 
   // Falha na geração não derruba o envio.
-  const pPdfFalha = await criarProposta("PDFFALHA", { status: "rascunho" });
+  const pPdfFalha = await criarPropostaFixture("PDFFALHA", { status: "rascunho" });
   await salvarProposta(
     { id: pPdfFalha.id, titulo: `${TAG} falha`, areaM2: undefined, validade: "", observacoes: "",
       itens: [{ disciplina: "Arquitetura", descricao: "", valor: 1 }], condicoes: [] },
@@ -732,6 +732,120 @@ async function main() {
     arqFalha.arquivado === false && /Chrome explodiu/.test(arqFalha.motivo),
     JSON.stringify(arqFalha),
   );
+
+  console.log("\n── F5.3: proposta nova exige negociação ───────────────────────────\n");
+
+  const cliF53 = await prisma.cliente.create({ data: { nome: `${TAG}_EmpresaF53`, tipo: "PJ" } });
+  const negF53 = await prisma.negociacao.create({
+    data: { titulo: `${TAG}_NegF53`, clienteId: cliF53.id, estagio: "ORCAMENTO" },
+  });
+
+  const propostaComNeg = await criarProposta({ titulo: `${TAG} com negociação`, clienteId: cliF53.id, negociacaoId: negF53.id }, user.id);
+  check("criarProposta com negociação válida funciona", !!propostaComNeg.numero, propostaComNeg.numero);
+
+  let recusouOutroCliente = "";
+  const cliOutro = await prisma.cliente.create({ data: { nome: `${TAG}_EmpresaOutra`, tipo: "PJ" } });
+  try {
+    await criarProposta({ titulo: `${TAG} x`, clienteId: cliOutro.id, negociacaoId: negF53.id }, user.id);
+  } catch (e) {
+    recusouOutroCliente = (e as Error).message;
+  }
+  check(
+    "negociação de OUTRO cliente é recusada, com mensagem de negócio",
+    /não é desta empresa/i.test(recusouOutroCliente),
+    recusouOutroCliente,
+  );
+
+  let recusouInexistente = "";
+  try {
+    await criarProposta({ titulo: `${TAG} y`, clienteId: cliF53.id, negociacaoId: "id-que-nao-existe" }, user.id);
+  } catch (e) {
+    recusouInexistente = (e as Error).message;
+  }
+  check("negociação inexistente é recusada", /não encontrada/i.test(recusouInexistente), recusouInexistente);
+
+  // "a proposta histórica continua abrindo" — simula uma proposta ANTERIOR à F5.3 (sem
+  // negociação) e confere que a leitura não quebrou.
+  const propostaHistorica = await prisma.proposta.create({
+    data: {
+      ano, sequencial: 950000 + Math.floor(Math.random() * 9000), numero: `${TAG}_HIST`,
+      titulo: `${TAG} histórica`, clienteId: cliF53.id, token: randomBytes(18).toString("hex"), autorId: user.id,
+    },
+  });
+  const lida = await prisma.proposta.findUnique({ where: { id: propostaHistorica.id }, select: { negociacaoId: true, numero: true } });
+  check(
+    "proposta histórica (sem negociação) continua legível normalmente",
+    lida?.negociacaoId === null && lida.numero === propostaHistorica.numero,
+  );
+
+  console.log("\n── F5.3: criarPropostaDeLead garante negociação (ADR-21 item 5) ──\n");
+
+  // (a) Lead JÁ qualificado (tem negociação) — reusa, não cria uma 2ª.
+  const leadJaQualificado = await prisma.lead.create({
+    data: { nome: `${TAG}_LeadJaQual`, clienteId: cliF53.id, etapaId: etapa.id, status: "OPORTUNIDADE_CRIADA" },
+  });
+  const negJaExistente = await prisma.negociacao.create({
+    data: { titulo: `${TAG}_NegJaExistente`, clienteId: cliF53.id, leadId: leadJaQualificado.id, estagio: "LEVANTAMENTO" },
+  });
+  const negociacoesAntesA = await prisma.negociacao.count();
+  const { proposta: propostaA } = await criarPropostaDeLead(
+    { leadId: leadJaQualificado.id, titulo: `${TAG} de lead já qualificado` },
+    user.id,
+  );
+  check("(a) proposta criada aponta pra negociação JÁ EXISTENTE, não pra uma nova", propostaA.negociacaoId === negJaExistente.id);
+  check("(a) nenhuma negociação a mais foi criada", (await prisma.negociacao.count()) === negociacoesAntesA);
+
+  // (b) Lead qualificável (status ativo) — qualifica sozinho, sem perguntar nada.
+  const leadQualificavel = await prisma.lead.create({
+    data: { nome: `${TAG}_LeadQualificavel`, clienteId: cliF53.id, etapaId: etapa.id, status: "EM_CONTATO" },
+  });
+  const { proposta: propostaB } = await criarPropostaDeLead(
+    { leadId: leadQualificavel.id, titulo: `${TAG} de lead qualificável` },
+    user.id,
+  );
+  const leadBDepois = await prisma.lead.findUnique({ where: { id: leadQualificavel.id }, select: { status: true } });
+  check("(b) lead qualificável virou OPORTUNIDADE_CRIADA sozinho", leadBDepois?.status === "OPORTUNIDADE_CRIADA");
+  check("(b) a proposta nasceu com negociacaoId preenchido", propostaB.negociacaoId !== null);
+  const negB = await prisma.negociacao.findUnique({ where: { id: propostaB.negociacaoId! }, select: { leadId: true } });
+  check("(b) a negociação criada aponta de volta pro lead (o lead sobrevive, F2.8)", negB?.leadId === leadQualificavel.id);
+
+  // (c) Lead FORA do fluxo, sem confirmação — recusa, com a mensagem que a UI reconhece.
+  const leadForaDoFluxo = await prisma.lead.create({
+    data: { nome: `${TAG}_LeadDescartado`, clienteId: cliF53.id, etapaId: etapa.id, status: "DESCARTADO" },
+  });
+  let recusouSemConfirmar = "";
+  try {
+    await criarPropostaDeLead({ leadId: leadForaDoFluxo.id, titulo: `${TAG} sem confirmar` }, user.id);
+  } catch (e) {
+    recusouSemConfirmar = (e as Error).message;
+  }
+  check(
+    "(c) lead DESCARTADO sem confirmarReativacao é recusado, mensagem fala em reativar",
+    /reativá-la/i.test(recusouSemConfirmar),
+    recusouSemConfirmar,
+  );
+  const leadCIntocado = await prisma.lead.findUnique({ where: { id: leadForaDoFluxo.id }, select: { status: true } });
+  check("(c) o lead recusado continua DESCARTADO, intocado", leadCIntocado?.status === "DESCARTADO");
+  check(
+    "(c) nenhuma negociação foi criada na tentativa recusada",
+    (await prisma.negociacao.findUnique({ where: { leadId: leadForaDoFluxo.id } })) === null,
+  );
+
+  // (d) MESMO lead, agora COM confirmação — reativa (por validarMovimentoProspeccao, não update
+  // cru), qualifica, e cria a proposta — tudo numa transação.
+  const { proposta: propostaD } = await criarPropostaDeLead(
+    { leadId: leadForaDoFluxo.id, titulo: `${TAG} com confirmação`, confirmarReativacao: true },
+    user.id,
+  );
+  const leadDDepois = await prisma.lead.findUnique({ where: { id: leadForaDoFluxo.id }, select: { status: true } });
+  check(
+    "(d) com confirmação, o lead sai de DESCARTADO e termina OPORTUNIDADE_CRIADA (não fica em EM_CONTATO)",
+    leadDDepois?.status === "OPORTUNIDADE_CRIADA",
+    `${leadDDepois?.status}`,
+  );
+  check("(d) a proposta nasceu com negociação", propostaD.negociacaoId !== null);
+  const negD = await prisma.negociacao.findUnique({ where: { id: propostaD.negociacaoId! }, select: { leadId: true, estagio: true } });
+  check("(d) a negociação criada é deste lead, no estágio inicial LEVANTAMENTO", negD?.leadId === leadForaDoFluxo.id && negD.estagio === "LEVANTAMENTO");
 
   console.log(`\n${ok ? "✔ Fase 5: tudo verde." : "✖ Fase 5: há falhas acima."}`);
   if (!ok) process.exitCode = 1;
