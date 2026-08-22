@@ -23,6 +23,7 @@ import {
   validarMovimento,
   type TabelaProbabilidade,
 } from "@/modules/comercial/jornada";
+import { calcularValoresVersao, proximoNumeroVersao } from "@/modules/comercial/versoes";
 import {
   validarQualificacao,
   validarMovimentoProspeccao,
@@ -132,7 +133,14 @@ export async function criarPropostaDeLead(
   return { proposta, criouCliente, leadId: lead.id };
 }
 
-/** Salva itens/condições e grava versão (snapshot). */
+/**
+ * Salva itens/condições e grava versão.
+ *
+ * A versão guarda o `snapshot` JSON (itens e condições linha a linha, o único lugar que os tem)
+ * **e**, desde a F5.4, os campos estruturados ao lado — valor, desconto, status, validade,
+ * observação. Os dois não competem: o JSON é o detalhe, as colunas são o que relatório e
+ * comparação leem sem parsear nada.
+ */
 export async function salvarProposta(i: SalvarPropostaInput, autorId: string) {
   const p = await prisma.proposta.findUnique({
     where: { id: i.id },
@@ -149,6 +157,12 @@ export async function salvarProposta(i: SalvarPropostaInput, autorId: string) {
     itens: i.itens,
     condicoes: i.condicoes,
   };
+
+  // F5.4 — os mesmos números do snapshot, agora em coluna. `desconto` fica `null` até a F5.8
+  // dar a UI: hoje não há de onde o usuário informá-lo, e inventar zero seria afirmar que uma
+  // decisão comercial foi tomada. `valorVersao === valorOriginal` é o estado "sem desconto".
+  const valores = calcularValoresVersao(i.itens, null);
+  const numeroVersao = proximoNumeroVersao(p.versoes);
 
   // Resolve as disciplinas do catálogo por nome EXATO (F1.19). O que não casar grava só o texto,
   // com `disciplinaId` null — casar por aproximação apontaria o item para a disciplina errada, e
@@ -192,9 +206,20 @@ export async function salvarProposta(i: SalvarPropostaInput, autorId: string) {
     prisma.propostaVersao.create({
       data: {
         propostaId: i.id,
-        numero: (p.versoes[0]?.numero ?? 0) + 1,
+        numero: numeroVersao,
         snapshot: snapshot as unknown as Prisma.InputJsonValue,
         autorId,
+        // F5.4 — campos estruturados ao lado do snapshot.
+        valorOriginal: valores.valorOriginal,
+        valorVersao: valores.valorVersao,
+        desconto: valores.desconto,
+        // Status e envio são da PROPOSTA no momento em que a versão nasceu — não do que ela
+        // virá a ser depois. É isso que faz "v2 foi salva quando já estava enviada" ser um
+        // fato consultável em vez de uma inferência pela data.
+        status: p.status,
+        dataEnvio: p.enviadaEm,
+        validade: i.validade ? new Date(i.validade) : null,
+        observacao: i.observacoes || null,
       },
     }),
   ]);
@@ -206,7 +231,7 @@ export async function salvarProposta(i: SalvarPropostaInput, autorId: string) {
   // falhar, `registrarAtividade` engole o erro e a revisão continua salva — que é o
   // comportamento desejado.
   await registrarAtividade(
-    { evento: "PROPOSTA_REVISADA", numero: p.numero, versao: (p.versoes[0]?.numero ?? 0) + 1 },
+    { evento: "PROPOSTA_REVISADA", numero: p.numero, versao: numeroVersao },
     { autorId, clienteId: p.clienteId, propostaId: p.id },
   );
 

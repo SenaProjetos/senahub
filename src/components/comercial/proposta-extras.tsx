@@ -32,7 +32,18 @@ async function subirArquivo(file: File, propostaId: string, clienteId: string): 
   return meta as MetaDocumento;
 }
 
-type Versao = { numero: number; autor: string; data: string; titulo: string; itens: { disciplina: string; valor: number }[]; total: number };
+type Versao = {
+  numero: number;
+  autor: string;
+  data: string;
+  titulo: string;
+  itens: { disciplina: string; valor: number }[];
+  /** F5.4: vem da coluna `valorVersao`, não mais de somar o JSON. */
+  total: number;
+  valorOriginal: number | null;
+  desconto: number | null;
+  validade: string | null;
+};
 
 export function PropostaExtras({
   propostaId,
@@ -215,9 +226,23 @@ export function PropostaExtras({
                           </li>
                         ))}
                       </ul>
+                      {/* F5.4 — desconto sai de coluna própria; só aparece quando houve. */}
+                      {v.desconto != null && v.valorOriginal != null && (
+                        <>
+                          <p className="mt-1 flex justify-between border-t pt-1 text-muted-foreground">
+                            <span>Subtotal</span><span className="font-mono">{brl(v.valorOriginal)}</span>
+                          </p>
+                          <p className="flex justify-between text-destructive">
+                            <span>Desconto</span><span className="font-mono">− {brl(v.desconto)}</span>
+                          </p>
+                        </>
+                      )}
                       <p className="mt-1 flex justify-between border-t pt-1 font-mono font-semibold">
                         <span>Total</span><span>{brl(v.total)}</span>
                       </p>
+                      {v.validade && (
+                        <p className="mt-1 text-muted-foreground">Válida até {formatarData(v.validade)}</p>
+                      )}
                     </div>
                   ))}
                 </div>

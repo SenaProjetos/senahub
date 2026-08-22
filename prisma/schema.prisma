@@ -4331,11 +4331,36 @@ model PropostaVersao {
   id         String   @id @default(cuid())
   propostaId String
   proposta   Proposta @relation(fields: [propostaId], references: [id], onDelete: Cascade)
+  /// Versão VIGENTE é a de maior `numero` — derivada, nunca uma flag booleana (ADR-05, F5.4).
+  /// Um `vigente: Boolean` exigiria desmarcar o anterior a cada salvamento, e duas linhas
+  /// marcadas (ou nenhuma) seriam um estado impossível de distinguir de "ainda não salvou".
   numero     Int
+  /// PERMANECE (F5.4): é o único lugar que guarda itens e condições linha a linha — não há
+  /// tabela de itens POR VERSÃO, e criar uma seria reescrever o versionamento, não evoluí-lo.
   snapshot   Json
   autorId    String
   autor      User     @relation("PropostaVersaoAutor", fields: [autorId], references: [id])
   createdAt  DateTime @default(now())
+
+  // ── Campos estruturados (F5.4, ADR-05 / P14 item 3) ──────────
+  /// O trio de valores é auto-contido DENTRO da versão: `valorOriginal` é a soma dos itens
+  /// (valor cheio), `desconto` o abatimento concedido, `valorVersao` o que o cliente paga
+  /// (`valorOriginal - desconto`). NÃO é "valor da v1 como linha de base" — "original" aqui
+  /// significa "de tabela, antes do abatimento", que é o vocabulário comercial e o que a F5.8
+  /// precisa para validar "desconto acima de 10%".
+  valorOriginal Decimal?        @db.Decimal(14, 2)
+  valorVersao   Decimal?        @db.Decimal(14, 2)
+  /// Abatimento em VALOR (não percentual) — o percentual é derivado (`desconto/valorOriginal`),
+  /// e guardar o derivado seria abrir espaço para os dois discordarem. `null` até a F5.8 dar a
+  /// UI de desconto; enquanto isso `valorVersao == valorOriginal`, que é o estado "sem desconto".
+  desconto      Decimal?        @db.Decimal(14, 2)
+  /// Status da proposta NO MOMENTO desta versão. Nullable: as versões históricas (anteriores à
+  /// F5.4) não têm de onde derivar isto — o snapshot nunca guardou status.
+  status        StatusProposta?
+  validade      DateTime?       @db.Date
+  /// Quando ESTA versão foi enviada ao cliente. Nullable pelo mesmo motivo de `status`.
+  dataEnvio     DateTime?
+  observacao    String?
 
   @@unique([propostaId, numero])
   @@map("proposta_versao")

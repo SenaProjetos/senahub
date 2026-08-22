@@ -20,6 +20,75 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F5.4 — `PropostaVersao` com campos estruturados · 2026-08-22 · Opus
+
+**Feito:** 7 colunas novas em `PropostaVersao` (`valorOriginal`, `valorVersao`, `desconto`,
+`status`, `validade`, `dataEnvio`, `observacao`), preenchidas por `salvarProposta`, com o
+`snapshot` JSON **permanecendo** — ele é o único lugar que guarda itens e condições linha a
+linha. `versoesComparaveis` passou a ler o total da COLUNA. Regras puras em
+`modules/comercial/versoes.ts` (17 testes).
+
+**A ambiguidade que precisava ser resolvida, e como.** `valorOriginal` tem duas leituras
+plausíveis lendo só o nome: (a) valor cheio antes do desconto, dentro da própria versão; (b)
+total da v1 como linha de base. Escolhi **(a)**, e está escrito no schema e testado: "valor
+original" no vocabulário comercial é preço de tabela, não "o primeiro que digitamos"; a leitura
+(b) quebraria se a v1 fosse removida; e é (a) que a **F5.8** precisa para validar "desconto
+acima de 10%" (`desconto / valorOriginal`). O trio fica auto-contido:
+`valorVersao = valorOriginal − desconto`.
+
+**`desconto` guardado em VALOR, não em percentual** — o percentual é derivado
+(`percentualDesconto`), e persistir o derivado abriria espaço para os dois discordarem. Fica
+`null` até a F5.8 dar a UI; enquanto isso `valorVersao === valorOriginal`, que é o estado
+"nenhum abatimento", não um valor faltando.
+
+**Versão vigente continua DERIVADA (maior `numero`), sem flag** — `versaoVigente()` puro. Uma
+coluna `vigente: Boolean` exigiria desmarcar a anterior a cada salvamento, e duas linhas
+marcadas (ou nenhuma) seriam um estado indistinguível de "ainda não salvou".
+
+**O backfill roda DENTRO da migration, ao contrário da F5.2.** Lá o vínculo exigia decisão
+humana no caso ambíguo, então foi script com `--gravar`. Aqui é derivação pura do próprio
+snapshot: deixá-lo manual criaria uma janela em que versões antigas ficariam sem valor e a UI
+teria de manter o caminho "parseia o JSON" como fallback — anulando o objetivo da tarefa.
+
+**E esse SQL foi exercitado contra dado real antes de existir**, em vez de estrear no deploy: o
+smoke **lê os UPDATEs do próprio arquivo de migration** e os roda sobre versões fabricadas no
+formato antigo. Três casos, três comportamentos confirmados: soma normal (3500,5), valor gravado
+como *string* no JSON (`"3000"` → 3000), e **snapshot malformado** (`itens: "lixo"`) virando
+`NULL` graças à guarda `jsonb_typeof` — sem ela, `jsonb_array_elements` derrubaria a migration
+inteira em produção, que é o pior lugar para descobrir isso.
+
+**O que o backfill NÃO inventa:** `status` e `dataEnvio` ficam `NULL` no histórico. O snapshot
+nunca os guardou, e derivá-los do estado ATUAL da proposta atribuiria a uma versão de meses
+atrás o status de hoje.
+
+**Erro pego pelo `build`, não pelo `tsc`:** `areaM2: null` no smoke (o schema pede
+`number | undefined`). Registrando porque o motivo é reutilizável: **`npx tsc -p tsconfig.json`
+não cobre `scripts/`** — quem type-checa aquela pasta é o `next build`. Rodar só lint+tsc num
+script novo dá falso verde.
+
+**Arquivos:** `prisma/schema.prisma` (7 colunas + docblocks) ·
+`prisma/migrations/20260822140000_crm_f54_proposta_versao_estruturada/migration.sql` (novo,
+DDL + 3 UPDATEs de backfill) · `src/modules/comercial/versoes.ts` + `.test.ts` (novos) ·
+`src/modules/comercial/service.ts` (`salvarProposta` grava as colunas) ·
+`src/modules/comercial/propostas-extras/queries.ts` (total vem da coluna) ·
+`src/components/comercial/proposta-extras.tsx` (mostra subtotal/desconto/validade) ·
+`scripts/smoke-crm-fase5.ts` (+17 checks).
+
+**Verificação:** eslint limpo, tsc limpo, **2253 testes** (17 novos), build ok, `migrate status`
+"up to date". `npm run smoke:crm-fase5` — **43/43**, incluindo a prova mais direta do aceite:
+**esvaziar o `snapshot` da v2 e o total continuar 3500,5**, porque vem da coluna. Sem regressão:
+`smoke:crm-fase4` verde.
+
+**Pendente:** verificação em browser da comparação de versões (a lacuna de sempre). A UI de
+desconto é da **F5.8** — até lá a coluna existe e fica `null`.
+
+**Riscos:** `versoesComparaveis` mantém um `?? soma dos itens` como rede para a linha cujo
+snapshot o backfill não conseguiu derivar. É degradação visível (mostra um total em vez de
+"R$ 0,00"), mas significa que o caminho do JSON não morreu de todo — some quando não houver
+mais versão anterior à F5.4 no banco.
+
+---
+
 ## F5.2 — `Proposta.negociacaoId` + backfill · 2026-08-22 · Opus
 
 **Feito:** coluna `Proposta.negociacaoId` (nullable, `@@index`, FK `ON DELETE SET NULL`) +

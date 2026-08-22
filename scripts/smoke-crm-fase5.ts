@@ -12,6 +12,13 @@
  *     byte inalterados, `PropostaSequencia.ultimo` inalterado, e a proposta ainda resolvível
  *     pelo token (o que a página `/a/proposta/[token]` faz).
  *
+ * ── F5.4 ── `versoes.ts` (vigente derivada, trio de valores) tem cobertura de `vitest`. Aqui
+ * ficam as duas coisas que só o banco prova: que `salvarProposta` de fato GRAVA as colunas
+ * novas (e a comparação sobrevive ao snapshot ser esvaziado), e que **o SQL de backfill do
+ * arquivo de migration funciona** — ele é lido do próprio arquivo e executado sobre versões
+ * fabricadas no formato antigo, incluindo uma malformada. Sem isto, aquele SQL estrearia no
+ * deploy de produção sem nunca ter rodado em lugar nenhum.
+ *
  * ⚠️ NUNCA RODAR CONTRA PRODUÇÃO. Cria e apaga clientes, leads, negociações e propostas. Tudo
  * com prefixo `SMKF5_`, limpeza no `finally`.
  *
@@ -19,9 +26,13 @@
  */
 import "dotenv/config";
 import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { prisma } from "../src/lib/prisma";
 import { planejarVinculo } from "../src/modules/comercial/vinculo-negociacao";
 import { carregarPendentes, executarVinculo } from "../src/modules/comercial/migracao-vinculo";
+import { salvarProposta } from "../src/modules/comercial/service";
+import { versoesComparaveis } from "../src/modules/comercial/propostas-extras/queries";
+import { versaoVigente } from "../src/modules/comercial/versoes";
 
 const TAG = `SMKF5_${Date.now()}`;
 
@@ -256,6 +267,117 @@ async function main() {
     estourou || "não estourou",
   );
 
+  console.log("\n── F5.4: 3 versões, comparadas sem parsear JSON ───────────────────\n");
+
+  const pVersionada = await criarProposta("VERSOES", { status: "rascunho" });
+  const salvar = (titulo: string, itens: { disciplina: string; valor: number }[], validade?: string) =>
+    salvarProposta(
+      {
+        id: pVersionada.id,
+        titulo,
+        areaM2: undefined,
+        validade: validade ?? "",
+        observacoes: `obs de ${titulo}`,
+        itens: itens.map((it) => ({ disciplina: it.disciplina, descricao: "", valor: it.valor })),
+        condicoes: [],
+      },
+      user.id,
+    );
+
+  await salvar("v1", [{ disciplina: "Arquitetura", valor: 1000 }], "2026-09-30");
+  await salvar("v2", [{ disciplina: "Arquitetura", valor: 1000 }, { disciplina: "Estrutural", valor: 2500.5 }]);
+  await salvar("v3", [{ disciplina: "Arquitetura", valor: 4000 }]);
+
+  const comparaveis = await versoesComparaveis(pVersionada.id);
+  check("as 3 versões existem, numeradas 1..3", comparaveis.length === 3, `${comparaveis.length}`);
+  check(
+    "a numeração é sequencial e a vigente é a de maior número",
+    versaoVigente(comparaveis)?.numero === 3,
+    `vigente=v${versaoVigente(comparaveis)?.numero}`,
+  );
+
+  // O aceite: o total vem da COLUNA. Conferido lendo o banco direto, sem passar pelo snapshot.
+  const colunas = await prisma.propostaVersao.findMany({
+    where: { propostaId: pVersionada.id },
+    orderBy: { numero: "asc" },
+    select: { numero: true, valorOriginal: true, valorVersao: true, desconto: true, status: true, validade: true, observacao: true },
+  });
+  check(
+    "valorVersao gravado em COLUNA nas 3 versões (1000 / 3500.5 / 4000)",
+    colunas.map((c) => Number(c.valorVersao)).join(",") === "1000,3500.5,4000",
+    colunas.map((c) => c.valorVersao?.toString()).join(" | "),
+  );
+  check(
+    "sem desconto, valorOriginal === valorVersao (estado 'nenhum abatimento')",
+    colunas.every((c) => c.valorOriginal?.toString() === c.valorVersao?.toString() && c.desconto === null),
+  );
+  check("status da proposta no momento da versão foi gravado", colunas.every((c) => c.status === "rascunho"));
+  check("validade da v1 foi para coluna própria", colunas[0].validade?.toISOString().slice(0, 10) === "2026-09-30");
+  check("observação da versão foi para coluna própria", colunas[2].observacao === "obs de v3");
+
+  // A prova de que comparar não depende mais do JSON: apaga o snapshot e o total continua certo.
+  await prisma.$executeRawUnsafe(
+    `UPDATE proposta_versao SET snapshot = '{}'::jsonb WHERE "propostaId" = $1 AND numero = 2`,
+    pVersionada.id,
+  );
+  const aposApagarSnapshot = await versoesComparaveis(pVersionada.id);
+  const v2SemSnapshot = aposApagarSnapshot.find((v) => v.numero === 2);
+  check(
+    "com o snapshot ESVAZIADO, o total da v2 continua 3500.5 (vem da coluna)",
+    v2SemSnapshot?.total === 3500.5,
+    `${v2SemSnapshot?.total}`,
+  );
+  check("os itens somem junto com o snapshot — é ele que os guarda, e isso é esperado", v2SemSnapshot?.itens.length === 0);
+
+  console.log("\n── F5.4: o SQL de backfill da migration, contra dado real ─────────\n");
+
+  // Versões escritas ANTES da F5.4 não têm as colunas preenchidas. Simula esse estado e roda os
+  // mesmos UPDATEs do arquivo de migration — que de outro modo só estreariam em produção.
+  const pLegado = await criarProposta("LEGADO", { status: "enviada" });
+  const legadas = [
+    { numero: 1, snapshot: { titulo: "L1", validade: "2026-12-31", observacoes: "obs legada", itens: [{ disciplina: "A", valor: 1000 }, { disciplina: "B", valor: 2500.5 }] } },
+    { numero: 2, snapshot: { titulo: "L2", validade: null, itens: [{ disciplina: "A", valor: "3000" }] } },
+    { numero: 3, snapshot: { titulo: "L3", validade: "data-invalida", itens: "lixo" } },
+  ];
+  for (const l of legadas) {
+    await prisma.propostaVersao.create({
+      data: { propostaId: pLegado.id, numero: l.numero, autorId: user.id, snapshot: l.snapshot as never },
+    });
+  }
+
+  const sqlMigration = readFileSync(
+    "prisma/migrations/20260822140000_crm_f54_proposta_versao_estruturada/migration.sql",
+    "utf8",
+  );
+  const updates = sqlMigration
+    .split("\n")
+    .filter((linha) => !linha.trim().startsWith("--"))
+    .join("\n")
+    .split(";")
+    .map((s) => s.trim())
+    .filter((s) => s.toUpperCase().startsWith("UPDATE"));
+  check("o arquivo de migration tem os 3 UPDATEs de backfill", updates.length === 3, `${updates.length}`);
+  for (const u of updates) await prisma.$executeRawUnsafe(u);
+
+  const backfilled = await prisma.propostaVersao.findMany({
+    where: { propostaId: pLegado.id },
+    orderBy: { numero: "asc" },
+    select: { numero: true, valorOriginal: true, valorVersao: true, validade: true, observacao: true, status: true },
+  });
+  check("v1 legada: soma dos itens (3500.5) foi derivada do snapshot", Number(backfilled[0].valorVersao) === 3500.5);
+  check("v1 legada: validade e observação extraídas do JSON", backfilled[0].validade?.toISOString().slice(0, 10) === "2026-12-31" && backfilled[0].observacao === "obs legada");
+  check("v2 legada: valor gravado como STRING no JSON também converte", Number(backfilled[1].valorVersao) === 3000);
+  check("v2 legada: validade null no snapshot fica null, sem estourar", backfilled[1].validade === null);
+  check(
+    "v3 legada: snapshot MALFORMADO (itens não-array) vira NULL em vez de derrubar a migration",
+    backfilled[2].valorVersao === null,
+  );
+  check('v3 legada: validade "data-invalida" não passou pelo cast', backfilled[2].validade === null);
+  check(
+    "status NÃO é inventado no backfill — o snapshot nunca o guardou",
+    backfilled.every((b) => b.status === null),
+  );
+
   console.log(`\n${ok ? "✔ Fase 5: tudo verde." : "✖ Fase 5: há falhas acima."}`);
   if (!ok) process.exitCode = 1;
 }
@@ -266,6 +388,10 @@ async function limpar() {
   if (ids.length === 0) return;
   // Ordem ditada pelas FKs: proposta referencia negociacao (SET NULL, mas some junto de qualquer
   // forma), negociacao referencia cliente (RESTRICT), lead referencia cliente (RESTRICT).
+  const props = await prisma.proposta.findMany({ where: { clienteId: { in: ids } }, select: { id: true } });
+  await prisma.propostaVersao.deleteMany({ where: { propostaId: { in: props.map((p) => p.id) } } });
+  await prisma.propostaItem.deleteMany({ where: { propostaId: { in: props.map((p) => p.id) } } });
+  await prisma.propostaCondicao.deleteMany({ where: { propostaId: { in: props.map((p) => p.id) } } });
   await prisma.proposta.deleteMany({ where: { clienteId: { in: ids } } });
   // SQL cru: `deleteMany` do Prisma passa pela extensão de soft delete, que injeta
   // `excluidoEm: null` e deixaria a negociação EXCLUÍDA do cenário acima para trás — resíduo
