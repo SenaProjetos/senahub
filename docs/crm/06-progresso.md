@@ -60,21 +60,36 @@ entre 3 opções; as outras duas ficam registradas no ADR com o motivo do descar
    cliente no passo 1, e aí o id não existe no objeto `lead` carregado antes. É o `P2003` que
    travou o ensaio da F2.18 e o cuidado que moldou a F4.3: **terceira aparição da mesma
    armadilha** neste projeto.
-3. ⚠️ **Pendente de confirmação, não decidido:** `validarQualificacao` recusa lead `PERDIDO`, então
-   criar proposta a partir dele — que **hoje funciona** — passaria a ser recusado. Descobri isso ao
-   escrever o ADR, **depois** de o dono ter escolhido; a pergunta mostrou só "aparece uma
-   negociação que ninguém pediu". Há caso de uso real do outro lado (prospecção perdida que volta e
-   o time reaproveita o registro), então fica marcado no ADR para confirmar antes da F5.3 — a
-   alternativa é reativar o lead automaticamente em vez de recusar.
+**Uma consequência que a pergunta original NÃO mostrava — perguntada de novo, e decidida (ADR §5b):**
+`validarQualificacao` recusa qualificar lead em `SEM_OPORTUNIDADE`/`EM_ESPERA`/`DESCARTADO`, e o
+botão "Nova proposta" aparece **sem condição de status** — então a auto-qualificação faria um fluxo
+que hoje sempre funciona passar a falhar nesses três casos. Descobri ao escrever o ADR, depois da
+resposta do dono; a opção escolhida mostrava só "aparece uma negociação que ninguém pediu".
+Registrar como "aceito" o que não foi perguntado seria atribuir consentimento inexistente, então
+virou uma 2ª pergunta. **Decisão: confirmar na hora** — diálogo avisa que vai reativar + abrir
+negociação, e confirmando tudo acontece numa transação só. Com três amarras que são parte da
+decisão: o **servidor recusa por padrão** e só procede com consentimento explícito no payload (a
+UI coleta, não garante); a reativação passa por `validarMovimentoProspeccao`, não por `update` cru
+(senão vira 2º caminho de escrita de status, o que a F2.7 fechou); e nada é retroativo — os 8 leads
+de produção estão em `OPORTUNIDADE_CRIADA` e caem no ramo "reusa", então o caso é futuro.
+
+**Correção de fato, no mesmo commit:** a 1ª versão do ADR citava o status `PERDIDO`, que **não
+existe** em `StatusProspeccao` (é do funil de negociação). Os que de fato bloqueiam são
+`SEM_OPORTUNIDADE`, `EM_ESPERA` e `DESCARTADO`.
 
 **Arquivos:** `docs/crm/01-decisoes.md` (ADR-21, novo).
 
 **Verificação:** não se aplica — tarefa de decisão, sem código. O aceite da F5.1 é literalmente
 "usuário aprovou por escrito no `01-decisoes.md`", e está.
 
-**Pendente:** confirmar com o dono a consequência do `PERDIDO` (item 3 acima) — bloqueia a F5.3,
-não a F5.2. F5.2 (coluna + backfill, Opus, migration) é a próxima e precisa de autorização própria:
-é ⚠️⚠️ e roda migração contra produção.
+**Ordem de execução escolhida pelo dono:** **agrupada por modelo**, não a numérica do backlog. As
+dependências permitem — bloco Opus (F5.2 → F5.4 → F5.6 → F5.7 → F5.9 → F5.13), depois bloco Sonnet
+(F5.3, F5.5, F5.8, F5.10 → F5.11 → F5.12), depois Haiku (F5.14). São 2 trocas de modelo em vez das
+~9 da ordem numérica. Custo aceito: as telas de validação e de perda só aparecem no fim da fase.
+
+**Pendente:** F5.2 (coluna + backfill, Opus, migration) precisa de autorização própria — é ⚠️⚠️.
+F5.13 (PDF imutável) continua sendo decisão do dono, não tarefa; se for "não", a fase tem 12
+pendentes em vez de 13.
 
 **Riscos:** o congelamento da página pública é uma regra de processo, não uma trava de código —
 depende de quem escrever F5.4/F5.5/F5.10 lembrar dela. É por isso que está no ADR e não só num

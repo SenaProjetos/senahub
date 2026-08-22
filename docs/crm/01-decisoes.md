@@ -414,7 +414,7 @@ fluxo vira, tudo na MESMA transação:
 3. senão, qualifica — cria a `Negociacao`, lead vai para `OPORTUNIDADE_CRIADA`;
 4. cria a `Proposta` já com `negociacaoId`.
 
-**Duas consequências que a F5.3 precisa tratar, e que não são óbvias no código de hoje:**
+**Duas armadilhas de implementação que a F5.3 precisa tratar, e que não são óbvias no código:**
 
 - **`qualificarProspeccao` (`service.ts`) abre a própria `$transaction`** e faz o `findUnique` fora
   dela. Para rodar dentro da transação de `criarPropostaDeLead`, o miolo precisa ser extraído numa
@@ -426,14 +426,42 @@ fluxo vira, tudo na MESMA transação:
   `tx`, e o objeto `lead` lido antes dela ainda traz `clienteId: null`. Ler do objeto antigo é
   literalmente o `P2003` que travou o ensaio da F2.18, e é o mesmo cuidado que moldou o desenho da
   F4.3. Terceira vez que este projeto encontra a mesma armadilha; por isso está escrita aqui.
-- **⚠️ PENDENTE DE CONFIRMAÇÃO — muda comportamento visível de um jeito que NÃO foi apresentado na
-  escolha.** `validarQualificacao` recusa lead em status não-qualificável (ex.: `PERDIDO` —
-  "Reative-a antes"). Com a auto-qualificação, criar proposta a partir de um lead nesse estado, que
-  **hoje funciona**, passa a ser recusado. Isto foi descoberto ao escrever este ADR, **depois** de o
-  dono escolher a opção — a pergunta só mostrou "aparece uma negociação que ninguém pediu", não
-  isto. Há um caso de uso real do outro lado: prospecção perdida que volta e o time reaproveita o
-  registro. **Confirmar com o dono antes de implementar a F5.3**; se ele preferir manter o
-  comportamento atual, a saída é reativar o lead automaticamente em vez de recusar.
+
+### 5b. Prospecção fora do fluxo: confirmação explícita, nunca silêncio
+
+> **Decidido em 2026-08-22, numa segunda pergunta ao dono.** A escolha do item 5 foi feita a partir
+> de uma pergunta que mostrava só "aparece uma negociação que ninguém pediu"; a consequência abaixo
+> só apareceu ao escrever este ADR, **depois** da resposta. Registrar como "aceito" o que não foi
+> perguntado seria atribuir consentimento inexistente — então foi perguntado de novo, e é esta a
+> decisão.
+
+`validarQualificacao` recusa qualificar lead em `SEM_OPORTUNIDADE`, `EM_ESPERA` ou `DESCARTADO`
+("estão fora do fluxo por decisão de alguém"). Como o botão **"Nova proposta" aparece sem nenhuma
+condição de status** (`lead-detalhe-view.tsx`), a auto-qualificação faria um fluxo que hoje sempre
+funciona passar a falhar nesses três casos.
+
+**Decisão: confirmar na hora.** Lead fora do fluxo → a UI pergunta antes ("Esta prospecção está
+descartada. Criar a proposta vai reativá-la e abrir uma negociação."); confirmando, reativação +
+qualificação + proposta acontecem **na mesma transação**, e a timeline registra os três eventos.
+
+Três detalhes de desenho que fazem parte da decisão, não da implementação:
+
+- **O servidor recusa por padrão.** Só procede com um consentimento **explícito no payload** — a
+  garantia nunca é o diálogo da UI, que é apenas onde o consentimento é coletado. Server Action
+  aceita payload arbitrário; sem isso, "confirmar" viraria decoração.
+- **A reativação passa por `validarMovimentoProspeccao`**, não por um `update` cru de status.
+  Aquele guard é permissivo (só recusa `de === para` e sair de `OPORTUNIDADE_CRIADA`), então
+  `DESCARTADO → EM_CONTATO` é legítimo — mas ir por fora dele abriria um segundo caminho de
+  escrita de status, e é exatamente esse tipo de bypass que a F2.7 existiu para fechar.
+- **Nada disso é retroativo.** Os 8 leads de produção estão todos em `OPORTUNIDADE_CRIADA`
+  (F2.18) — caem no ramo "reusa a negociação existente" do item 5. O caso desta seção é **futuro**;
+  não há registro hoje que precise dele.
+
+**Alternativas descartadas:** *recusar com mensagem* ("reative antes") — honesta e de regra única,
+mas cobra um passo a mais num fluxo que hoje é um clique; *reativar automático sem perguntar* — um
+clique sempre, ao custo de "Nova proposta" mexer, escondido, no status de um registro que alguém
+deliberadamente descartou; *botão desabilitado* — `disabled` sem explicação ensina menos que um
+erro com mensagem, e o servidor precisaria da regra do mesmo jeito.
 
 **6. A saída renderizada de `/a/proposta/[token]` fica CONGELADA na Fase 5**, salvo tarefa que a
 nomeie explicitamente como entrega. F5.4 (campos estruturados de versão), F5.5 (`em_negociacao`) e
