@@ -20,6 +20,52 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F5.14 — Fecho da Fase 5 · 2026-08-22 · Sonnet
+
+**Feito:** as 4 verificações rodadas de novo, do zero, sobre o estado final da fase — não reaproveitando
+o resultado de nenhuma tarefa individual:
+
+| Verificação | Resultado |
+|---|---|
+| `npm run lint` | limpo (0 erros, 0 avisos) |
+| `npm test` | **2302/2302** testes, 213 arquivos |
+| `npm run build` | ok |
+| `smoke:crm-fase1` → `fase5` | **5/5 fases verdes** — `fase5` em **137/137** checks |
+
+Mais dois, fora do "4 verdes" mas parte do fecho de qualquer fase com migration: `npx prisma
+validate` (schema válido) e `npx prisma migrate status` (187 migrations, banco em dia — as 5
+migrations desta fase, F5.2/F5.4/F5.5/F5.7/F5.13, todas aplicadas e reconhecidas).
+
+**O checklist de `03-migracao.md` §7 (`projeto=31`, token/número intactos) fica DEFERIDO, não
+executado aqui.** Esse checklist mede a migração de FUSÃO de clientes/leads/anexos contra
+**produção** — uma operação distinta de tudo que a Fase 5 fez (que rodou só contra o dev). Ela
+ainda não foi disparada em produção (o script `scripts/migrar-proposta-negociacao-f52.ts`
+continua em modo `--dry-run` por padrão, e rodar o `--gravar` contra produção é decisão do dono,
+não algo que se faz de passagem no fecho de uma fase). Mesmo precedente já registrado para o
+script de migração de anexos da F3.9: fica pendente, e é executado no dia do deploy, com o
+checklist reexecutado NAQUELE momento contra o banco real — reexecutá-lo agora contra o dev não
+provaria nada, porque o dev não tem os 8 leads/31-32 projetos/46 clientes da produção real.
+
+**Resumo da Fase 5 (13 tarefas numeradas, F5.1–F5.13, + este fecho):**
+`Proposta.negociacaoId` ligado (com backfill migrado e testado), `PropostaVersao` estruturada,
+expiração timezone-aware com alerta automático, aceite reescrito numa transação só, PDF
+arquivado por versão, proposta nova exige negociação, `em_negociacao` no enum, desconto exige
+justificativa acima do limite, perda estruturada nos dois lados (Negociacao e Proposta),
+reabertura volta ao estágio real, e o aceite fecha equipe+financeiro. Zero regressão registrada
+em `fase1`–`fase4` em qualquer ponto do caminho — cada tarefa rodou as 4 fases anteriores antes
+de commitar.
+
+**Arquivos:** nenhum — tarefa de verificação pura, sem mudança de código.
+
+**Pendente (herdado, não desta tarefa):** verificação em browser de toda UI nova da fase
+(diálogos de negociação/proposta, botões de status, campos de desconto) — lacuna registrada
+desde a F5.3, sem chromium-cli neste ambiente. Checklist §7 de `03-migracao.md` contra produção
+(acima). Fases 6 e 7 do backlog seguem fora de escopo.
+
+**Riscos:** nenhum. Fase 5 encerrada, `dev` sincronizado com `origin/dev`.
+
+---
+
 ## F5.12 — aceite fecha equipe e financeiro (cronograma fica de fora) · 2026-08-22 · Sonnet
 
 **Consultei o advisor antes de desenhar** — a descrição da tarefa lista três lacunas (equipe,
