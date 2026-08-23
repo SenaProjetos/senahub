@@ -1,4 +1,4 @@
-import type { EstagioNegociacao } from "@/generated/prisma/client";
+import type { EstagioNegociacao, StatusProposta } from "@/generated/prisma/client";
 import { ActionError } from "@/lib/action-error";
 
 /**
@@ -186,6 +186,27 @@ export function validarMovimento(args: {
     throw new ActionError("Informe o motivo da perda.");
   }
   if (exigeConcorrente(motivo) && !concorrente?.trim()) {
+    throw new ActionError("Este motivo exige informar o concorrente.");
+  }
+}
+
+/**
+ * Perda estruturada do lado de `Proposta` (F5.10) — mesma regra de `validarMovimento`, mas para
+ * `status = recusada`, que não é um `EstagioNegociacao` e por isso não passa pelas funções acima.
+ * Reusa `exigeConcorrente` (já status-agnóstica, olha só o `motivo`) — o único pedaço novo é
+ * "recusar exige motivo", análogo a `exigeMotivoPerda`.
+ */
+export function validarMotivoRecusaProposta(args: {
+  status: StatusProposta;
+  motivoPerdaId?: string | null;
+  concorrente?: string | null;
+  motivo?: { exigeConcorrente: boolean } | null;
+}): void {
+  if (args.status !== "recusada") return;
+  if (!args.motivoPerdaId) {
+    throw new ActionError("Informe o motivo da recusa.");
+  }
+  if (exigeConcorrente(args.motivo) && !args.concorrente?.trim()) {
     throw new ActionError("Este motivo exige informar o concorrente.");
   }
 }

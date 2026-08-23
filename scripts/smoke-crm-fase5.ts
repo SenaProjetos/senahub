@@ -43,6 +43,7 @@ import {
   criarProposta,
   criarPropostaDeLead,
   mudarStatusProposta,
+  moverEstagio,
 } from "../src/modules/comercial/service";
 import { versoesComparaveis } from "../src/modules/comercial/propostas-extras/queries";
 import { versaoVigente } from "../src/modules/comercial/versoes";
@@ -1036,6 +1037,193 @@ async function main() {
     `(d) desconto EXATAMENTE no limite (${limite}%) NÃO exige justificativa (fronteira é '>', não '>=')`,
     recusouNoLimite === "",
     recusouNoLimite,
+  );
+
+  console.log("\n── F5.10: perda estruturada — Negociacao ganha observação livre ───\n");
+
+  // Motivos vêm do CATÁLOGO seedado (F1.6) — nunca hardcoded, o catálogo pode crescer/mudar sem
+  // deploy. Um SEM exigeConcorrente e um COM, pra exercitar os dois ramos.
+  const [motivoSemConcorrente, motivoComConcorrente] = await Promise.all([
+    prisma.motivoPerda.findFirst({ where: { ativo: true, exigeConcorrente: false } }),
+    prisma.motivoPerda.findFirst({ where: { ativo: true, exigeConcorrente: true } }),
+  ]);
+  if (!motivoSemConcorrente || !motivoComConcorrente) {
+    throw new Error("dev incompleto — catálogo MotivoPerda sem os 2 tipos (rode `npm run db:seed`).");
+  }
+
+  const cliF510 = await prisma.cliente.create({ data: { nome: `${TAG}_EmpresaF510`, tipo: "PJ" } });
+  const negF510 = await prisma.negociacao.create({
+    data: { titulo: `${TAG}_NegF510`, clienteId: cliF510.id, estagio: "PROPOSTA_ENVIADA" },
+  });
+
+  // (a) Perder SEM motivo é recusado — a jornada.ts já cobria isto antes da F5.10; confirma que
+  // continua valendo depois da mudança.
+  let recusouSemMotivo = "";
+  try {
+    await moverEstagio({ negociacaoId: negF510.id, para: "PERDIDO", autorId: user.id });
+  } catch (e) {
+    recusouSemMotivo = (e as Error).message;
+  }
+  check("(a) mover pra PERDIDO sem motivo é recusado", /motivo da perda/i.test(recusouSemMotivo), recusouSemMotivo);
+
+  // (b) Motivo que exige concorrente, sem preencher — recusado.
+  let recusouSemConcorrente = "";
+  try {
+    await moverEstagio({
+      negociacaoId: negF510.id,
+      para: "PERDIDO",
+      motivoPerdaId: motivoComConcorrente.id,
+      autorId: user.id,
+    });
+  } catch (e) {
+    recusouSemConcorrente = (e as Error).message;
+  }
+  check(
+    "(b) motivo que exige concorrente, sem concorrente, é recusado",
+    /exige informar o concorrente/i.test(recusouSemConcorrente),
+    recusouSemConcorrente,
+  );
+
+  // (c) Motivo + concorrente + observação — grava os 3, e a timeline ganha o evento com os 3.
+  await moverEstagio({
+    negociacaoId: negF510.id,
+    para: "PERDIDO",
+    motivoPerdaId: motivoComConcorrente.id,
+    concorrente: "Gama Projetos",
+    observacao: `${TAG} — perdemos no preço final`,
+    autorId: user.id,
+  });
+  const negF510Perdida = await prisma.negociacao.findUnique({
+    where: { id: negF510.id },
+    select: { estagio: true, motivoPerdaId: true, concorrente: true, observacaoPerda: true },
+  });
+  check(
+    "(c) os 3 campos gravados na Negociacao",
+    negF510Perdida?.motivoPerdaId === motivoComConcorrente.id &&
+      negF510Perdida.concorrente === "Gama Projetos" &&
+      negF510Perdida.observacaoPerda === `${TAG} — perdemos no preço final`,
+    JSON.stringify(negF510Perdida),
+  );
+  const eventoPerdidaF510 = await prisma.atividade.findFirst({
+    where: { negociacaoId: negF510.id },
+    orderBy: { createdAt: "desc" },
+    select: { metadata: true },
+  });
+  check(
+    "(c) o evento NEGOCIACAO_PERDIDA carrega motivo, concorrente e observação",
+    (eventoPerdidaF510?.metadata as { evento?: string; observacao?: string } | null)?.evento ===
+      "NEGOCIACAO_PERDIDA" &&
+      (eventoPerdidaF510?.metadata as { observacao?: string } | null)?.observacao ===
+        `${TAG} — perdemos no preço final`,
+    JSON.stringify(eventoPerdidaF510?.metadata),
+  );
+
+  // (d) Reabrir (PERDIDO → ativo) limpa os 3 — não pode sobrar "perdemos pra Gama" numa
+  // negociação viva de novo.
+  await moverEstagio({ negociacaoId: negF510.id, para: "LEVANTAMENTO", autorId: user.id });
+  const negF510Reaberta = await prisma.negociacao.findUnique({
+    where: { id: negF510.id },
+    select: { motivoPerdaId: true, concorrente: true, observacaoPerda: true },
+  });
+  check(
+    "(d) reabrir limpa motivo, concorrente E observação",
+    negF510Reaberta?.motivoPerdaId === null &&
+      negF510Reaberta.concorrente === null &&
+      negF510Reaberta.observacaoPerda === null,
+    JSON.stringify(negF510Reaberta),
+  );
+
+  console.log("\n── F5.10: perda estruturada — Proposta recusada (a parte nova) ────\n");
+
+  const negF510b = await prisma.negociacao.create({
+    data: { titulo: `${TAG}_NegF510b`, clienteId: cliF510.id, estagio: "PROPOSTA_ENVIADA" },
+  });
+  const pF510 = await criarProposta({ titulo: `${TAG} F510`, clienteId: cliF510.id, negociacaoId: negF510b.id }, user.id);
+  await mudarStatusProposta({ id: pF510.id, status: "enviada" }, user.id);
+
+  // (e) Recusar SEM motivo é recusado — critério literal da tarefa.
+  let recusouRecusaSemMotivo = "";
+  try {
+    await mudarStatusProposta({ id: pF510.id, status: "recusada" }, user.id);
+  } catch (e) {
+    recusouRecusaSemMotivo = (e as Error).message;
+  }
+  check(
+    "(e) recusar a proposta sem motivo é recusado",
+    /motivo da recusa/i.test(recusouRecusaSemMotivo),
+    recusouRecusaSemMotivo,
+  );
+  const pF510AindaEnviada = await prisma.proposta.findUnique({ where: { id: pF510.id }, select: { status: true } });
+  check("(e) o status NÃO mudou na tentativa recusada", pF510AindaEnviada?.status === "enviada");
+
+  // (f) Motivo que exige concorrente, sem preencher — recusado, do lado da Proposta também.
+  let recusouPropostaSemConcorrente = "";
+  try {
+    await mudarStatusProposta(
+      { id: pF510.id, status: "recusada", motivoPerdaId: motivoComConcorrente.id },
+      user.id,
+    );
+  } catch (e) {
+    recusouPropostaSemConcorrente = (e as Error).message;
+  }
+  check(
+    "(f) motivo que exige concorrente, sem concorrente, é recusado na proposta também",
+    /exige informar o concorrente/i.test(recusouPropostaSemConcorrente),
+    recusouPropostaSemConcorrente,
+  );
+
+  // (g) Com motivo (sem exigência de concorrente) + observação — grava, vira PROPOSTA_RECUSADA
+  // na timeline (evento PRÓPRIO, não NEGOCIACAO_PERDIDA).
+  await mudarStatusProposta(
+    {
+      id: pF510.id,
+      status: "recusada",
+      motivoPerdaId: motivoSemConcorrente.id,
+      observacaoRecusa: `${TAG} — cliente achou caro`,
+    },
+    user.id,
+  );
+  const pF510Recusada = await prisma.proposta.findUnique({
+    where: { id: pF510.id },
+    select: { status: true, motivoPerdaId: true, concorrente: true, observacaoRecusa: true },
+  });
+  check(
+    "(g) status recusada e os 3 campos gravados na Proposta",
+    pF510Recusada?.status === "recusada" &&
+      pF510Recusada.motivoPerdaId === motivoSemConcorrente.id &&
+      pF510Recusada.observacaoRecusa === `${TAG} — cliente achou caro`,
+    JSON.stringify(pF510Recusada),
+  );
+  const eventoRecusadaF510 = await prisma.atividade.findFirst({
+    where: { propostaId: pF510.id },
+    orderBy: { createdAt: "desc" },
+    select: { metadata: true },
+  });
+  check(
+    "(g) o evento é PROPOSTA_RECUSADA — não NEGOCIACAO_PERDIDA disfarçado",
+    (eventoRecusadaF510?.metadata as { evento?: string } | null)?.evento === "PROPOSTA_RECUSADA",
+    JSON.stringify(eventoRecusadaF510?.metadata),
+  );
+  check(
+    "(g) o metadata carrega a observação exata",
+    (eventoRecusadaF510?.metadata as { observacao?: string } | null)?.observacao ===
+      `${TAG} — cliente achou caro`,
+  );
+
+  // (h) `recusada` é reversível (F5.5) — voltar pra `enviada` LIMPA os 3, senão um reenvio
+  // carregaria "cliente achou caro" escondido.
+  await mudarStatusProposta({ id: pF510.id, status: "enviada" }, user.id);
+  const pF510Reenviada = await prisma.proposta.findUnique({
+    where: { id: pF510.id },
+    select: { status: true, motivoPerdaId: true, concorrente: true, observacaoRecusa: true },
+  });
+  check(
+    "(h) reenviar limpa motivo, concorrente E observação da recusa anterior",
+    pF510Reenviada?.status === "enviada" &&
+      pF510Reenviada.motivoPerdaId === null &&
+      pF510Reenviada.concorrente === null &&
+      pF510Reenviada.observacaoRecusa === null,
+    JSON.stringify(pF510Reenviada),
   );
 
   console.log(`\n${ok ? "✔ Fase 5: tudo verde." : "✖ Fase 5: há falhas acima."}`);

@@ -14,10 +14,11 @@ describe("descreverEvento — todo evento automático é SISTEMA", () => {
     { evento: "DESCONTO_JUSTIFICADO", numero: "PR-260001", percentual: 15, justificativa: "Cliente antigo, projeto grande" },
     { evento: "PROPOSTA_ACEITA", numero: "PR-260001" },
     { evento: "PROJETO_CRIADO", codigo: "260031", nome: "N" },
-    { evento: "NEGOCIACAO_PERDIDA", motivo: null, concorrente: null },
+    { evento: "NEGOCIACAO_PERDIDA", motivo: null, concorrente: null, observacao: null },
+    { evento: "PROPOSTA_RECUSADA", numero: "PR-260001", motivo: "Preço", concorrente: null, observacao: null },
   ];
 
-  it("os 12 eventos produzem tipo SISTEMA", () => {
+  it("os 13 eventos produzem tipo SISTEMA", () => {
     // O registro MANUAL (F3.4) é que usa LIGACAO/EMAIL/NOTA. Estes aqui ninguém digita.
     for (const ev of todos) expect(descreverEvento(ev).tipo).toBe("SISTEMA");
   });
@@ -113,13 +114,15 @@ describe("PROPOSTA_ENVIADA", () => {
 describe("NEGOCIACAO_PERDIDA", () => {
   it("sem motivo, só o fato", () => {
     expect(
-      descreverEvento({ evento: "NEGOCIACAO_PERDIDA", motivo: null, concorrente: null }).descricao,
+      descreverEvento({ evento: "NEGOCIACAO_PERDIDA", motivo: null, concorrente: null, observacao: null })
+        .descricao,
     ).toBe("Negociação perdida");
   });
 
   it("com motivo, acrescenta", () => {
     expect(
-      descreverEvento({ evento: "NEGOCIACAO_PERDIDA", motivo: "Preço", concorrente: null }).descricao,
+      descreverEvento({ evento: "NEGOCIACAO_PERDIDA", motivo: "Preço", concorrente: null, observacao: null })
+        .descricao,
     ).toBe("Negociação perdida — Preço");
   });
 
@@ -128,10 +131,63 @@ describe("NEGOCIACAO_PERDIDA", () => {
       evento: "NEGOCIACAO_PERDIDA",
       motivo: "Perdemos para concorrente",
       concorrente: "Alfa Projetos",
+      observacao: null,
     });
     expect(d.descricao).toBe(
       "Negociação perdida — Perdemos para concorrente (concorrente: Alfa Projetos)",
     );
     expect(d.metadata.concorrente).toBe("Alfa Projetos");
+  });
+
+  it("com observação (F5.10), acrescenta ao final", () => {
+    const d = descreverEvento({
+      evento: "NEGOCIACAO_PERDIDA",
+      motivo: "Preço",
+      concorrente: null,
+      observacao: "Cliente achou o valor alto pro escopo",
+    });
+    expect(d.descricao).toBe("Negociação perdida — Preço · Cliente achou o valor alto pro escopo");
+    expect(d.metadata.observacao).toBe("Cliente achou o valor alto pro escopo");
+  });
+});
+
+describe("PROPOSTA_RECUSADA (F5.10)", () => {
+  it("sem motivo — não deveria acontecer na prática (recusa exige motivo), mas o texto não quebra", () => {
+    expect(
+      descreverEvento({
+        evento: "PROPOSTA_RECUSADA",
+        numero: "PR-260007",
+        motivo: null,
+        concorrente: null,
+        observacao: null,
+      }).descricao,
+    ).toBe("Proposta PR-260007 recusada");
+  });
+
+  it("com motivo e concorrente, monta a frase completa", () => {
+    const d = descreverEvento({
+      evento: "PROPOSTA_RECUSADA",
+      numero: "PR-260007",
+      motivo: "Perdemos para concorrente",
+      concorrente: "Beta Engenharia",
+      observacao: null,
+    });
+    expect(d.descricao).toBe(
+      "Proposta PR-260007 recusada — Perdemos para concorrente (concorrente: Beta Engenharia)",
+    );
+    expect(d.metadata.numero).toBe("PR-260007");
+  });
+
+  it("é evento PRÓPRIO — não usa NEGOCIACAO_PERDIDA disfarçado", () => {
+    // A distinção importa pra Fase 6: recusar uma proposta não é desistir do negócio (pode vir
+    // uma v2). Confirma que o `evento` gravado no metadata é o específico, não o genérico.
+    const d = descreverEvento({
+      evento: "PROPOSTA_RECUSADA",
+      numero: "PR-1",
+      motivo: "Preço",
+      concorrente: null,
+      observacao: null,
+    });
+    expect(d.metadata.evento).toBe("PROPOSTA_RECUSADA");
   });
 });

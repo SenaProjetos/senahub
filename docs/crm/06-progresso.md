@@ -20,6 +20,75 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F5.10 — perda estruturada: Negociacao ganha observação, Proposta ganha o trio · 2026-08-22 · Sonnet
+
+**Consultei o advisor antes de desenhar** — o achado principal: metade da tarefa já estava
+pronta. `Negociacao.motivoPerdaId`/`concorrente`, `jornada.ts` (`exigeMotivoPerda`,
+`exigeConcorrente`, `validarMovimento`) e o diálogo `MotivoPerdaNegociacaoDialog` já existiam de
+uma fase anterior — só faltava **observação livre** ali, e o trio inteiro do lado de `Proposta`
+recusada (a lacuna que o 00-auditoria §E.7 já apontava). Reconstruir o que já existia teria sido
+o desperdício que o advisor sinalizou.
+
+**Feito:** `Proposta` ganha `motivoPerdaId`/`concorrente`/`observacaoRecusa`, reusando o MESMO
+catálogo `MotivoPerda` de `Negociacao` — nunca um segundo catálogo pra mesma classificação, erro
+que o `DisciplinaCatalogo` já ensinou a não repetir. `Negociacao` ganha só `observacaoPerda`, que
+faltava. `mudarStatusProposta` valida via `validarMotivoRecusaProposta` (nova, `jornada.ts`,
+reusa `exigeConcorrente` — só o "recusar exige motivo" é novo, análogo a `exigeMotivoPerda`) e
+grava/limpa os três exatamente como `aplicarMovimentoEstagio` já fazia para `Negociacao`: **os
+três somem ao sair de `recusada`**, porque F5.5 deixou esse status reversível (proposta pode
+voltar a `enviada` e ganhar uma v2) — sem a limpeza, um reenvio carregaria "cliente achou caro"
+escondido atrás da v2. `moverEstagio` ganha o mesmo tratamento para `observacaoPerda` do lado da
+negociação.
+
+**Dois eventos de timeline, não um disfarçado de outro.** `NEGOCIACAO_PERDIDA` ganha o campo
+`observacao`; `PROPOSTA_RECUSADA` é evento NOVO, não um `NEGOCIACAO_PERDIDA` reaproveitado —
+recusar UMA proposta não é desistir do negócio inteiro (pode vir uma v2), e a Fase 6 precisa
+poder distinguir os dois na hora de agrupar "por que perdemos".
+
+**UI:** diálogo novo `MotivoRecusaPropostaDialog`, mesmo desenho do `MotivoPerdaNegociacaoDialog`
+(motivo do catálogo obrigatório, concorrente condicional, observação opcional) — diálogo PRÓPRIO,
+não o mesmo componente disfarçando a diferença Proposta/Negociação. O botão "Recusar" no editor
+abre o diálogo em vez de chamar `status("recusada")` direto. `MotivoPerdaNegociacaoDialog` ganhou
+o campo de observação e o 3º parâmetro em `onConfirmar`.
+
+**Migration:** `Negociacao.observacaoPerda` (nullable) + `Proposta.motivoPerdaId`/`concorrente`/
+`observacaoRecusa` (nullable) + índice + FK para `motivo_perda`, escrita à mão (skill
+`/nova-migracao`) e conferida contra o DDL real (`information_schema`/`pg_constraint`) antes de
+salvar — `ON DELETE SET NULL`/`ON UPDATE CASCADE` iguais à FK que `Negociacao` já tinha.
+
+**Arquivos:** `prisma/schema.prisma` (`Negociacao.observacaoPerda`, trio em `Proposta`,
+`MotivoPerda.propostas` inverso) ·
+`prisma/migrations/20260822220000_crm_f510_perda_estruturada/migration.sql` (novo) ·
+`src/modules/comercial/jornada.ts` (`validarMotivoRecusaProposta`) ·
+`src/modules/comercial/service.ts` (`moverEstagio`/`aplicarMovimentoEstagio` +observação,
+`mudarStatusProposta` reescrito) · `src/modules/comercial/schemas.ts` (`statusPropostaSchema`,
+`moverEstagioSchema` +campos) · `src/modules/comercial/actions.ts` (passthrough dos campos novos
+nas duas actions) · `src/modules/comercial/atividade-eventos.ts` + `.test.ts`
+(`NEGOCIACAO_PERDIDA.observacao`, `PROPOSTA_RECUSADA` novo, 12→13 eventos) ·
+`src/components/comercial/motivo-perda-negociacao-dialog.tsx` (campo observação) ·
+`src/components/comercial/motivo-recusa-proposta-dialog.tsx` (novo) ·
+`src/components/comercial/negociacao-board.tsx` (thread do 3º parâmetro) ·
+`src/components/comercial/proposta-editor.tsx` (diálogo no lugar do clique direto) ·
+`src/app/(dashboard)/comercial/propostas/[id]/page.tsx` (`motivosPerdaAtivos()`) ·
+`scripts/smoke-crm-fase5.ts` (+12, seções a–h).
+
+**Verificação:** eslint limpo, tsc limpo, **2291 testes** (+4), build ok. `smoke:crm-fase5`
+**123/123**: perder sem motivo recusado, motivo com `exigeConcorrente` sem concorrente recusado
+(nos DOIS lados — Negociacao e Proposta), motivo+concorrente+observação gravam os 3 e emitem o
+evento certo, reabrir/reenviar limpa os 3, `PROPOSTA_RECUSADA` é evento distinto de
+`NEGOCIACAO_PERDIDA` no metadata. Motivos lidos do catálogo seedado (nunca hardcoded — mesmo
+princípio do `getConfigComercial()` na F5.8). Sem regressão em `fase1`–`fase4`. Resíduo `SMKF5_`
+em zero após a rodada.
+
+**Pendente:** verificação em browser dos dois diálogos novos (mesma lacuna registrada desde a
+F5.3 — sem chromium-cli neste ambiente). F5.11 (reabrir negociação perdida, com `Atividade` +
+`AuditLog`) é a próxima — depende desta.
+
+**Riscos:** nenhum novo. Coluna nova é 100% nullable, sem backfill necessário — nenhum registro
+histórico tem motivo, e não há como inventar um.
+
+---
+
 ## F5.8 — desconto acima do limite exige justificativa (Q6/ADR-19) · 2026-08-22 · Sonnet
 
 **Feito:** `salvarProposta` ganha `desconto` (VALOR, não percentual — `calcularValoresVersao`

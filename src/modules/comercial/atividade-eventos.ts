@@ -27,7 +27,19 @@ export type EventoAtividade =
   | { evento: "DESCONTO_JUSTIFICADO"; numero: string; percentual: number; justificativa: string }
   | { evento: "PROPOSTA_ACEITA"; numero: string }
   | { evento: "PROJETO_CRIADO"; codigo: string; nome: string }
-  | { evento: "NEGOCIACAO_PERDIDA"; motivo: string | null; concorrente: string | null };
+  | {
+      evento: "NEGOCIACAO_PERDIDA";
+      motivo: string | null;
+      concorrente: string | null;
+      observacao: string | null;
+    }
+  | {
+      evento: "PROPOSTA_RECUSADA";
+      numero: string;
+      motivo: string | null;
+      concorrente: string | null;
+      observacao: string | null;
+    };
 
 export type AtividadeDescrita = {
   tipo: TipoAtividade;
@@ -136,10 +148,38 @@ export function descreverEvento(ev: EventoAtividade): AtividadeDescrita {
       const partes = ["Negociação perdida"];
       if (ev.motivo) partes.push(`— ${ev.motivo}`);
       if (ev.concorrente) partes.push(`(concorrente: ${ev.concorrente})`);
+      if (ev.observacao) partes.push(`· ${ev.observacao}`);
       return {
         tipo: "SISTEMA",
         descricao: partes.join(" "),
-        metadata: { evento: ev.evento, motivo: ev.motivo, concorrente: ev.concorrente },
+        metadata: {
+          evento: ev.evento,
+          motivo: ev.motivo,
+          concorrente: ev.concorrente,
+          observacao: ev.observacao,
+        },
+      };
+    }
+
+    case "PROPOSTA_RECUSADA": {
+      // F5.10 (Q6/ADR-19, mesmo trio que NEGOCIACAO_PERDIDA) — proposta recusada NÃO é
+      // negociação perdida: o cliente pode responder com uma v2. Por isso é evento PRÓPRIO, não
+      // um `NEGOCIACAO_PERDIDA` disfarçado — a Fase 6 precisa distinguir "recusou esta proposta"
+      // de "desistiu do negócio inteiro".
+      const partes = [`Proposta ${ev.numero} recusada`];
+      if (ev.motivo) partes.push(`— ${ev.motivo}`);
+      if (ev.concorrente) partes.push(`(concorrente: ${ev.concorrente})`);
+      if (ev.observacao) partes.push(`· ${ev.observacao}`);
+      return {
+        tipo: "SISTEMA",
+        descricao: partes.join(" "),
+        metadata: {
+          evento: ev.evento,
+          numero: ev.numero,
+          motivo: ev.motivo,
+          concorrente: ev.concorrente,
+          observacao: ev.observacao,
+        },
       };
     }
   }

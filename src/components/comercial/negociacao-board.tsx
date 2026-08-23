@@ -74,7 +74,13 @@ export function NegociacaoBoard({
     });
   }, [colunas, movidos]);
 
-  function mover(id: string, destino: EstagioNegociacao, motivoPerdaId?: string, concorrente?: string) {
+  function mover(
+    id: string,
+    destino: EstagioNegociacao,
+    motivoPerdaId?: string,
+    concorrente?: string,
+    observacao?: string,
+  ) {
     setMovidos((m) => ({ ...m, [id]: destino }));
     start(async () => {
       const r = await moverEstagioNegociacao({
@@ -82,6 +88,7 @@ export function NegociacaoBoard({
         para: destino,
         motivoPerdaId: motivoPerdaId ?? "",
         concorrente: concorrente ?? "",
+        observacao: observacao ?? "",
       });
       if (r.ok) router.refresh();
       else {
@@ -137,10 +144,10 @@ export function NegociacaoBoard({
           titulo={perda.titulo}
           motivos={motivos}
           onCancelar={() => setPerda(null)}
-          onConfirmar={(motivoPerdaId, concorrente) => {
+          onConfirmar={(motivoPerdaId, concorrente, observacao) => {
             const alvo = perda.id;
             setPerda(null);
-            mover(alvo, "PERDIDO", motivoPerdaId, concorrente);
+            mover(alvo, "PERDIDO", motivoPerdaId, concorrente, observacao);
           }}
         />
       )}

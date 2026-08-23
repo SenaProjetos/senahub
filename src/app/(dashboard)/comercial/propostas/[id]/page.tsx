@@ -4,7 +4,7 @@ import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { nomeDisciplinaItem } from "@/modules/comercial/disciplinas";
 import { obterProposta } from "@/modules/comercial/queries";
-import { listarTabelasPreco } from "@/modules/comercial/queries";
+import { listarTabelasPreco, motivosPerdaAtivos } from "@/modules/comercial/queries";
 import { catalogoDisciplinas } from "@/modules/projetos/queries";
 import { modelosPorFonte } from "@/modules/documentos/queries";
 import { versoesComparaveis } from "@/modules/comercial/propostas-extras/queries";
@@ -19,7 +19,7 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
   const user = await requirePermission("comercial", "ver");
   const podeGerir = await can(user, "comercial", "gerir");
   const { id } = await params;
-  const [p, catalogo, tabelas, modelosDoc, documentos, versoesComp, config] = await Promise.all([
+  const [p, catalogo, tabelas, modelosDoc, documentos, versoesComp, config, motivos] = await Promise.all([
     obterProposta(id),
     catalogoDisciplinas(),
     listarTabelasPreco(),
@@ -27,6 +27,7 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
     documentosDaProposta(id),
     versoesComparaveis(id),
     getConfigComercial(),
+    motivosPerdaAtivos(),
   ]);
   if (!p) notFound();
 
@@ -63,6 +64,7 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
       catalogo={catalogo.map((d) => d.nome)}
       tabelas={tabelas}
       descontoMaxSemJustificativa={config.descontoMaxSemJustificativa}
+      motivosPerda={motivos}
     />
     <PropostaExtras propostaId={p.id} clienteId={p.clienteId} documentos={documentos} versoes={versoesComp} podeGerir={podeGerir} />
     </div>

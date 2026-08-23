@@ -27,6 +27,8 @@ import {
 } from "@/modules/comercial/actions";
 import { STATUS_PROPOSTA_TONE } from "./propostas-view";
 import { STATUS_PROPOSTA_LABEL } from "@/modules/comercial/labels";
+import { MotivoRecusaPropostaDialog } from "./motivo-recusa-proposta-dialog";
+import type { MotivoPerdaOpcao } from "@/modules/comercial/queries";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,6 +81,7 @@ export function PropostaEditor({
   baseUrl,
   modelosDoc,
   descontoMaxSemJustificativa,
+  motivosPerda,
 }: {
   proposta: Proposta;
   catalogo: string[];
@@ -87,6 +90,7 @@ export function PropostaEditor({
   baseUrl: string;
   modelosDoc: { id: string; nome: string }[];
   descontoMaxSemJustificativa: number;
+  motivosPerda: MotivoPerdaOpcao[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -98,6 +102,7 @@ export function PropostaEditor({
   const [condicoes, setCondicoes] = useState<Condicao[]>(proposta.condicoes);
   const [desconto, setDesconto] = useState("");
   const [justificativaDesconto, setJustificativaDesconto] = useState("");
+  const [recusando, setRecusando] = useState(false);
 
   const aceita = proposta.status === "aceita";
   const editavel = podeGerir && !aceita;
@@ -180,9 +185,12 @@ export function PropostaEditor({
     });
   }
 
-  function status(s: "enviada" | "em_negociacao" | "recusada" | "rascunho") {
+  function status(
+    s: "enviada" | "em_negociacao" | "recusada" | "rascunho",
+    motivo?: { motivoPerdaId: string; concorrente: string; observacaoRecusa: string },
+  ) {
     start(async () => {
-      const r = await mudarStatusProposta({ id: proposta.id, status: s });
+      const r = await mudarStatusProposta({ id: proposta.id, status: s, ...motivo });
       if (r.ok) {
         toast.success("Status atualizado.");
         router.refresh();
@@ -261,7 +269,7 @@ export function PropostaEditor({
                       <MessageSquareText className="size-3.5" /> Em negociação
                     </Button>
                   )}
-                  <Button variant="outline" size="sm" onClick={() => status("recusada")} disabled={pending}>
+                  <Button variant="outline" size="sm" onClick={() => setRecusando(true)} disabled={pending}>
                     <X className="size-3.5" /> Recusar
                   </Button>
                   <Button size="sm" onClick={aceitar} disabled={pending}>
@@ -529,6 +537,18 @@ export function PropostaEditor({
             <Save className="size-4" /> {pending ? "Salvando…" : "Salvar proposta"}
           </Button>
         </div>
+      )}
+
+      {recusando && (
+        <MotivoRecusaPropostaDialog
+          numero={proposta.numero}
+          motivos={motivosPerda}
+          onCancelar={() => setRecusando(false)}
+          onConfirmar={(motivoPerdaId, concorrente, observacaoRecusa) => {
+            setRecusando(false);
+            status("recusada", { motivoPerdaId, concorrente, observacaoRecusa });
+          }}
+        />
       )}
     </div>
   );

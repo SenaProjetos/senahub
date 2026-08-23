@@ -130,6 +130,11 @@ export const salvarPropostaSchema = z.object({
 export const statusPropostaSchema = z.object({
   id: z.string().min(1),
   status: z.enum(["rascunho", "enviada", "em_negociacao", "aceita", "recusada"]),
+  // F5.10 — só usados/exigidos quando status = "recusada"; a regra de negócio mora em
+  // `validarMotivoRecusaProposta` (jornada.ts), não aqui (Zod checa forma, não regra).
+  motivoPerdaId: opt(z.string()),
+  concorrente: opt(z.string()),
+  observacaoRecusa: opt(z.string()),
 });
 
 export type SalvarPropostaInput = z.infer<typeof salvarPropostaSchema>;
@@ -187,6 +192,8 @@ export const moverEstagioSchema = z.object({
   ]),
   motivoPerdaId: opt(z.string()),
   concorrente: opt(z.string()),
+  /** F5.10 — observação livre da perda, ao lado do motivo do catálogo. */
+  observacao: opt(z.string()),
 });
 
 export const qualificarProspeccaoSchema = z.object({

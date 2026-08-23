@@ -22,6 +22,7 @@ import type {
 import {
   probabilidadeDe,
   validarMovimento,
+  validarMotivoRecusaProposta,
   type TabelaProbabilidade,
 } from "@/modules/comercial/jornada";
 import { calcularValoresVersao, proximoNumeroVersao, percentualDesconto } from "@/modules/comercial/versoes";
@@ -126,9 +127,21 @@ export async function criarProposta(
  * propósito: `enviada → rascunho` (puxar de volta pra editar) e `em_negociacao → enviada`
  * (reenviar) são idas e vindas legítimas — travar demais aqui repetiria o erro que o ADR-02 já
  * documentou para `Negociacao`.
+ *
+ * **F5.10 — `recusada` passa a exigir motivo do catálogo `MotivoPerda`** (mesmo catálogo que
+ * `Negociacao`, `validarMotivoRecusaProposta` em `jornada.ts`), com `concorrente` quando o motivo
+ * pede e `observacaoRecusa` livre. Os três são LIMPOS ao sair de `recusada` — `recusada` continua
+ * reversível (a proposta pode voltar a `enviada` e ganhar uma v2), e uma recusa antiga não pode
+ * sobreviver escondida atrás de um reenvio.
  */
 export async function mudarStatusProposta(
-  input: { id: string; status: Exclude<StatusProposta, "aceita"> },
+  input: {
+    id: string;
+    status: Exclude<StatusProposta, "aceita">;
+    motivoPerdaId?: string | null;
+    concorrente?: string | null;
+    observacaoRecusa?: string | null;
+  },
   autorId: string,
 ): Promise<{ id: string }> {
   const atual = await prisma.proposta.findUnique({ where: { id: input.id }, select: { status: true } });
@@ -137,14 +150,37 @@ export async function mudarStatusProposta(
     throw new ActionError("Proposta aceita não pode mudar de status — ela já virou projeto.");
   }
 
+  const motivo = input.motivoPerdaId
+    ? await prisma.motivoPerda.findUnique({
+        where: { id: input.motivoPerdaId },
+        select: { id: true, nome: true, exigeConcorrente: true },
+      })
+    : null;
+  if (input.motivoPerdaId && !motivo) throw new ActionError("Motivo de recusa não encontrado.");
+  validarMotivoRecusaProposta({
+    status: input.status,
+    motivoPerdaId: input.motivoPerdaId,
+    concorrente: input.concorrente,
+    motivo,
+  });
+
   const p = await prisma.proposta.update({
     where: { id: input.id },
-    data: { status: input.status, enviadaEm: input.status === "enviada" ? new Date() : undefined },
+    data: {
+      status: input.status,
+      enviadaEm: input.status === "enviada" ? new Date() : undefined,
+      // Mesmo padrão de `aplicarMovimentoEstagio` para `Negociacao.motivoPerdaId`: só faz
+      // sentido em `recusada`; sair dela limpa os três, para o reenvio não carregar a recusa
+      // anterior escondida.
+      motivoPerdaId: input.status === "recusada" ? (input.motivoPerdaId ?? null) : null,
+      concorrente: input.status === "recusada" ? (input.concorrente?.trim() || null) : null,
+      observacaoRecusa: input.status === "recusada" ? (input.observacaoRecusa?.trim() || null) : null,
+    },
     select: { id: true, numero: true, clienteId: true },
   });
 
-  // F3.2 — só "enviada" vira evento. Rascunho/em_negociacao/recusada são idas e vindas de
-  // edição; encher a timeline com elas afogaria os eventos que importam.
+  // F3.2 — "enviada" e "recusada" (F5.10) viram evento. Rascunho/em_negociacao continuam sendo
+  // idas e vindas de edição; encher a timeline com elas afogaria os eventos que importam.
   if (input.status === "enviada") {
     await registrarAtividade(
       { evento: "PROPOSTA_ENVIADA", numero: p.numero, porEmail: false },
@@ -153,6 +189,18 @@ export async function mudarStatusProposta(
     // F5.13 — congela o PDF do que está sendo enviado. Nunca lança (ver docblock do módulo): o
     // envio não pode falhar por causa do arquivo.
     await arquivarPdfDaVersao(p.id);
+  }
+  if (input.status === "recusada") {
+    await registrarAtividade(
+      {
+        evento: "PROPOSTA_RECUSADA",
+        numero: p.numero,
+        motivo: motivo?.nome ?? null,
+        concorrente: input.concorrente?.trim() || null,
+        observacao: input.observacaoRecusa?.trim() || null,
+      },
+      { autorId, clienteId: p.clienteId, propostaId: p.id },
+    );
   }
 
   return { id: p.id };
@@ -629,6 +677,8 @@ export async function moverEstagio(input: {
   para: EstagioNegociacao;
   motivoPerdaId?: string | null;
   concorrente?: string | null;
+  /** F5.10: observação livre da perda, ao lado do motivo do catálogo. */
+  observacao?: string | null;
   /** F3.2: autor do evento de timeline. Opcional só para não quebrar chamadas de script/smoke. */
   autorId?: string;
 }): Promise<{ id: string; de: EstagioNegociacao; para: EstagioNegociacao; probabilidade: number }> {
@@ -685,6 +735,7 @@ export async function moverEstagio(input: {
       encerra,
       motivoPerdaId: input.motivoPerdaId,
       concorrente: input.concorrente,
+      observacao: input.observacao,
       motivoNome: motivo?.nome ?? null,
       autorId: input.autorId,
     }),
@@ -714,6 +765,8 @@ async function aplicarMovimentoEstagio(
     encerra: boolean;
     motivoPerdaId?: string | null;
     concorrente?: string | null;
+    /** F5.10: observação livre da perda — mesmo ciclo de vida de motivo/concorrente. */
+    observacao?: string | null;
     motivoNome?: string | null;
     autorId?: string;
   },
@@ -726,10 +779,12 @@ async function aplicarMovimentoEstagio(
       estagio: para,
       probabilidade,
       dataFechamento: encerra ? new Date() : null,
-      // Motivo e concorrente só fazem sentido no encerramento sem contrato; ao sair de PERDIDO
-      // (reabertura) eles são zerados, para não sobrar "perdemos para X" numa negociação viva.
+      // Motivo, concorrente e observação só fazem sentido no encerramento sem contrato; ao sair
+      // de PERDIDO (reabertura) eles são zerados, para não sobrar "perdemos para X" numa
+      // negociação viva.
       motivoPerdaId: para === "PERDIDO" ? (args.motivoPerdaId ?? null) : null,
       concorrente: para === "PERDIDO" ? (args.concorrente?.trim() || null) : null,
+      observacaoPerda: para === "PERDIDO" ? (args.observacao?.trim() || null) : null,
     },
   });
 
@@ -750,6 +805,7 @@ async function aplicarMovimentoEstagio(
           evento: "NEGOCIACAO_PERDIDA",
           motivo: args.motivoNome ?? null,
           concorrente: args.concorrente?.trim() || null,
+          observacao: args.observacao?.trim() || null,
         },
         { autorId, clienteId: negociacao.clienteId, negociacaoId: negociacao.id, tx },
       );

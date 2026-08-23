@@ -3790,6 +3790,9 @@ model Negociacao {
   motivoPerdaRef MotivoPerda? @relation(fields: [motivoPerdaId], references: [id])
   /// Preenchido só quando `MotivoPerda.exigeConcorrente = true`.
   concorrente   String?
+  /// Observação livre da perda, ao lado do motivo do catálogo (F5.10) — o motivo classifica,
+  /// isto conta o caso específico. Mesmo ciclo de vida: limpo ao sair de PERDIDO (reabertura).
+  observacaoPerda String?
 
   previsaoFechamento DateTime?
   /// Preenchido quando `estagio` vira CONTRATADO ou PERDIDO.
@@ -4063,6 +4066,9 @@ model MotivoPerda {
   /// Quando true, a UI exige preencher o concorrente ao selecionar este motivo.
   exigeConcorrente Boolean @default(false)
   negociacoes Negociacao[]
+  /// F5.10: mesmo catálogo também classifica proposta recusada — evita um 2º catálogo para a
+  /// mesma coisa.
+  propostas   Proposta[]
 
   @@map("motivo_perda")
 }
@@ -4275,6 +4281,17 @@ model Proposta {
   /// materializar estado que a data já responde. Esta coluna registra só o AVISO, não o estado.
   alertaValidadeEm DateTime?
 
+  /// Perda estruturada (F5.10) — mesmo catálogo `MotivoPerda` de `Negociacao`, para não repetir
+  /// o erro do `DisciplinaCatalogo` (duas fontes de verdade para a mesma classificação). Só faz
+  /// sentido quando `status = recusada`; `mudarStatusProposta` LIMPA os três ao sair de recusada
+  /// (F5.5 deixou o status reversível), senão uma proposta reenviada carregaria "cliente achou
+  /// caro" de uma recusa anterior.
+  motivoPerdaId    String?
+  motivoPerdaRef   MotivoPerda? @relation(fields: [motivoPerdaId], references: [id])
+  /// Preenchido só quando `MotivoPerda.exigeConcorrente = true`.
+  concorrente      String?
+  observacaoRecusa String?
+
   itens         PropostaItem[]
   condicoes     PropostaCondicao[]
   versoes       PropostaVersao[]
@@ -4289,6 +4306,8 @@ model Proposta {
   @@index([clienteId])
   /// F5.2: "quais propostas desta negociação" — o Prisma não cria índice sozinho no lado da FK.
   @@index([negociacaoId])
+  /// F5.10: mesmo motivo, o Prisma não cria índice sozinho no lado da FK.
+  @@index([motivoPerdaId])
   /// F3.1: timeline unificada.
   atividades Atividade[]
   @@map("proposta")

@@ -623,7 +623,16 @@ export const mudarStatusProposta = defineAction(
     if (i.status === "aceita") {
       throw new ActionError("Use a ação de aceitar (gera o projeto).");
     }
-    const r = await servicoMudarStatusProposta({ id: i.id, status: i.status }, ctx.user.id);
+    const r = await servicoMudarStatusProposta(
+      {
+        id: i.id,
+        status: i.status,
+        motivoPerdaId: i.motivoPerdaId || null,
+        concorrente: i.concorrente || null,
+        observacaoRecusa: i.observacaoRecusa || null,
+      },
+      ctx.user.id,
+    );
     rev();
     revalidatePath(`/comercial/propostas/${i.id}`);
     return r;
@@ -712,7 +721,7 @@ export const moverEstagioNegociacao = defineAction(
     capturarAntes: async (i) =>
       prisma.negociacao.findUnique({
         where: { id: (i as { negociacaoId: string }).negociacaoId },
-        select: { estagio: true, probabilidade: true, motivoPerdaId: true, concorrente: true },
+        select: { estagio: true, probabilidade: true, motivoPerdaId: true, concorrente: true, observacaoPerda: true },
       }),
   },
   async (i, { user }) => {
@@ -721,6 +730,7 @@ export const moverEstagioNegociacao = defineAction(
       para: i.para,
       motivoPerdaId: i.motivoPerdaId || null,
       concorrente: i.concorrente || null,
+      observacao: i.observacao || null,
       autorId: user.id,
     });
     rev();

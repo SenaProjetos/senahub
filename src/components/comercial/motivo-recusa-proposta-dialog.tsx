@@ -22,21 +22,22 @@ import {
 } from "@/components/ui/dialog";
 
 /**
- * Pede o motivo ANTES de mover para PERDIDO (F2.14).
+ * Pede o motivo ANTES de marcar a proposta como recusada (F5.10) — mesmo catálogo `MotivoPerda`
+ * de `Negociacao` (não um segundo catálogo para a mesma classificação), mesmo desenho de tela
+ * que `MotivoPerdaNegociacaoDialog`. Motivo é obrigatório; concorrente vira obrigatório quando o
+ * motivo escolhido pede.
  *
- * O motivo é obrigatório (`exigeMotivoPerda`) e o concorrente vira obrigatório quando o motivo
- * escolhido pede — regra que mora no DADO (`MotivoPerda.exigeConcorrente`), não numa lista no
- * código, para o catálogo crescer sem deploy.
- *
- * Perguntar aqui, e não depois num toast de erro, evita obrigar a arrastar o card duas vezes.
+ * Recusar a PROPOSTA não é o mesmo que perder a NEGOCIAÇÃO — o cliente pode responder com uma v2
+ * (o status é reversível, F5.5). Por isso um diálogo próprio, não o mesmo componente reaproveitado
+ * escondendo a diferença.
  */
-export function MotivoPerdaNegociacaoDialog({
-  titulo,
+export function MotivoRecusaPropostaDialog({
+  numero,
   motivos,
   onCancelar,
   onConfirmar,
 }: {
-  titulo: string;
+  numero: string;
   motivos: MotivoPerdaOpcao[];
   onCancelar: () => void;
   onConfirmar: (motivoPerdaId: string, concorrente: string, observacao: string) => void;
@@ -52,12 +53,12 @@ export function MotivoPerdaNegociacaoDialog({
     <Dialog open onOpenChange={(o) => { if (!o) onCancelar(); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Marcar como perdida</DialogTitle>
+          <DialogTitle>Recusar proposta</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">{titulo}</p>
+          <p className="text-sm text-muted-foreground">{numero}</p>
           <div className="space-y-1.5">
-            <Label>Motivo da perda</Label>
+            <Label>Motivo da recusa</Label>
             <Select value={motivoId} onValueChange={(v) => setMotivoId(v ?? "")}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecione o motivo" />
@@ -100,7 +101,7 @@ export function MotivoPerdaNegociacaoDialog({
             disabled={!podeConfirmar}
             onClick={() => onConfirmar(motivoId, concorrente.trim(), observacao.trim())}
           >
-            Confirmar perda
+            Confirmar recusa
           </Button>
         </DialogFooter>
       </DialogContent>
