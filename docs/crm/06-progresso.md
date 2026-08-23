@@ -20,6 +20,111 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## Lote 1 (Opus) — F6.1 · F6.3 · F7.1 · F6.10 · 2026-08-22 · Opus
+
+> **Fases 6 e 7 estão sendo executadas em lotes agrupados por modelo**, a pedido do usuário
+> ("pode misturar as etapas... quanto mais otimizada, melhor"), respeitando as dependências do
+> `04-plano-fases.md`. São 6 lotes e 5 trocas de modelo, no lugar de 22 tarefas avulsas. A
+> verificação pesada (vitest completo, build, smoke fase1–5) roda **na fronteira do lote**, não
+> por tarefa; `tsc` continua a cada tarefa.
+
+### F6.1 — `docs/crm/05-metricas.md`, o dicionário de métricas
+
+Bloqueante da Fase 6 inteira. As **6 ambiguidades** do P15 resolvidas por escrito, mais **3 que
+apareceram** ao conferir contra o schema real:
+
+| # | Ambiguidade | Resolução |
+|---|---|---|
+| 2.1 | Coorte × eventos | **Coorte de criação**, com o efeito de leitura documentado (coorte recente é sempre pessimista) |
+| 2.2 | Ticket por contrato × por empresa | **Por contrato**, com o por-empresa ao lado como métrica de concentração |
+| 2.3 | Novo × recorrente: marco e janela | 1º contrato; janela **retroativa infinita** (ciclo de engenharia é longo) |
+| 2.4 | Canceladas/em espera no denominador | **Entram** — tirá-las é escolher não contar os desfechos incômodos |
+| 2.5 | `EM_ESPERA` no pipeline aberto | **Inclui**, alinhado ao código (`ESTAGIOS_ENCERRADOS` não a contém; ADR-12 "pausar não é perder"), com a parcela exibida separada |
+| 2.6 | Valor contratado: negociado × versão aceita | **`Negociacao.valorNegociado`** — os três campos são iguais no aceite, mas divergem depois por caminhos diferentes (tabela no doc) |
+| **2.7** | *(extra)* `Negociacao.desconto` | **Coluna morta** — zero escritores em todo o código. Desconto real vive em `PropostaVersao`, em R$ |
+| **2.8** | *(extra)* Desconto médio | **Ponderado** (`Σdesconto ÷ Σoriginal`), não média de percentuais — as duas divergem e respondem perguntas diferentes |
+| **2.9** | *(extra)* Negociação sem `leadId` | Fora do funil ponta a ponta, dentro dos demais, e **reportada** — funil que cobre 40% sem avisar é pior que nenhum |
+
+**🐞 Bug financeiro encontrado e corrigido (F6.1a).** Ao resolver a ambiguidade 2.6, verifiquei
+contra o banco: `aceitarProposta` calculava `valorFinal` como a **soma crua dos itens**, ignorando
+`PropostaVersao.desconto`, e sobrescrevia com ela o `valorVersao` que `salvarProposta` já tinha
+gravado certo. Reproduzido: proposta de R$ 10.000 com R$ 2.000 de desconto justificado virava
+**R$ 10.000** em `valorVersao`, `Negociacao.valorNegociado` **e** `Projeto.valorContrato`. Um
+desconto auditado, justificado (F5.8) e registrado na timeline **sumia de todo número de receita**,
+e a versão ficava internamente inconsistente (`valorOriginal 10000` + `desconto 2000` +
+`valorVersao 10000`), violando o invariante que `versoes.ts` documenta. Corrigido em
+`aceitarProposta`; **4 checks novos** em `smoke-crm-fase5.ts`. Passou batido pela F5.8, F5.9 e
+F5.12 porque **nenhum cenário de smoke aceitava proposta com desconto** — a lacuna era do teste,
+não do código de teste.
+
+**As 14 queries de referência do §3 foram executadas** contra o dev, uma a uma — dicionário com
+SQL que não roda é decoração. 14/14 verdes, e a execução rendeu 3 achados que viraram regra:
+tempo de fechamento **−7,75 dias** no seed (→ regra de descarte de duração negativa), 2 contratos
+sem valor (→ confirma que a regra de nulos não é hipotética) e funil devolvendo 0 numa coorte de 17
+(→ confirma o limite "coorte anterior à timeline").
+
+### F6.3 — `metricas.ts` + `.test.ts` (puro)
+
+Todas as fórmulas do dicionário: pipeline aberto/ponderado, valor contratado, ticket por contrato,
+conversão entre etapas e ponta a ponta, tempo de fechamento (média + mediana), desconto médio nas
+duas leituras, novos × recorrentes, recompra 6/12/24m, forecast. **50 testes**, cada resultado
+calculado à mão no próprio teste. Zero import de runtime do Prisma (só `import type`, apagado na
+compilação — mesmo padrão do `jornada.ts`), zero `new Date()`.
+
+A regra transversal que a fase inteira depende tem teste próprio: **denominador zero devolve
+`null`, nunca `0`** — "não houve proposta" e "houve e nenhuma fechou" não podem ter a mesma
+aparência na tela.
+
+### F7.1 — `regras.ts` + `.test.ts` (puro, datas fixas)
+
+Interface `RegraComercial` + as 6 regras (follow-up vencido, proposta perto da validade, negociação
+sem interação há X, negociação parada no estágio há Z, cliente inativo há Y, cliente elegível a
+reativação). **34 testes**, todos com `hoje` fixo — nenhum é bomba-relógio que quebra sozinha.
+
+Decisões que valem registro:
+- **As regras 3 e 4 são independentes de propósito** — uma mede contato, a outra mede
+  **progresso**. Teste dedicado prova que negociação com contato diário e estágio parado há 60
+  dias dispara só a 4.
+- **Regra 4 não dispara sem histórico de estágio.** Negociação anterior à F3.2 ou sintética da F5.2
+  não tem `ESTAGIO_ALTERADO`; chutar a data de criação acusaria toda negociação antiga de "parada"
+  no primeiro tick — ruído em massa no dia do deploy.
+- **Regra 2 não colide com a F5.7**: esta avisa *antes* de vencer, a F5.7 *depois*. Proposta já
+  vencida não entra aqui, senão o time receberia em dobro.
+- **Promovi o `× 2` da regra 6 a parâmetro próprio (`diasParaReativar`)** ainda nesta tarefa: era
+  um número mágico que quebraria o `grep` de aceite da F7.2. "Está inativo" e "vale um telefonema"
+  são decisões diferentes e devem ser ajustáveis separadamente.
+
+### F6.10 — `score.ts` + `.test.ts` (puro)
+
+Score como **heurística transparente**, 10 regras com peso declarado (positivos somam exatamente
+100, o que torna o total legível "de 100"). **25 testes**. O veredito do dono contra ML foi
+preservado e virou propriedade estrutural, não só ausência de dependência:
+
+1. Exibido como **faixa** (frio/morno/quente), nunca número seco de precisão falsa.
+2. **Não existe caminho no módulo que produza score sem os detalhes** — `calcularScore` sempre
+   devolve quais regras pontuaram, com rótulo pt-BR e peso. Se a tela pudesse pedir só o número,
+   uma hora pediria, e o score viraria a autoridade sem argumento que o veredito quis evitar.
+3. Nada no sistema **age** sozinho por causa do score: ele ordena uma lista.
+4. Há uma regra **negativa** de peso alto (silêncio prolongado, −20), com teste provando que um
+   negócio com todos os sinais bons esfria por silêncio. Sem ela o score seria só um retrato do
+   entusiasmo de quem cadastrou.
+
+**Arquivos:** `docs/crm/05-metricas.md` (novo) · `src/modules/comercial/metricas.ts` + `.test.ts`
+(novos) · `regras.ts` + `.test.ts` (novos) · `score.ts` + `.test.ts` (novos) ·
+`src/modules/comercial/service.ts` (correção F6.1a no aceite) · `scripts/smoke-crm-fase5.ts` (+4).
+
+**Verificação (fronteira do lote):** eslint limpo, tsc limpo, **2411 testes** (+109), build ok,
+**smoke fase1–5 todos verdes**. Sem regressão. Resíduo de scratch conferido e removido (uma
+execução abortada minha deixou 1 cliente + 1 proposta, limpos antes do commit).
+
+**Pendente:** F6.2 (seed de volume) e F6.4 (decisão de gráfico) abrem o lote 2, em Sonnet.
+
+**Riscos:** nenhum novo. A correção F6.1a **muda número em produção** — propostas aceitas com
+desconto passarão a reportar o valor líquido. É a correção de um erro, não uma mudança de regra,
+mas vale o aviso no deploy: relatórios antigos e novos vão divergir para esses casos.
+
+---
+
 ## F5.14 — Fecho da Fase 5 · 2026-08-22 · Sonnet
 
 **Feito:** as 4 verificações rodadas de novo, do zero, sobre o estado final da fase — não reaproveitando

@@ -1450,6 +1450,54 @@ async function main() {
     `${clientesAntes} → ${clientesDepois}`,
   );
 
+  console.log("\n── F6.1a: o desconto SOBREVIVE ao aceite (regressão achada na F6.1) ──\n");
+
+  // O aceite somava os itens CRUS e escrevia em 3 lugares, ignorando o desconto da versão: um
+  // abatimento justificado sumia de todo número de receita. Nenhum smoke pegava porque nenhum
+  // cenário aceitava proposta COM desconto — este cenário é exatamente essa lacuna.
+  const cliDesc = await prisma.cliente.create({ data: { nome: `${TAG}_EmpresaDesconto`, tipo: "PJ" } });
+  const negDesc = await prisma.negociacao.create({
+    data: { titulo: `${TAG}_NegDesconto`, clienteId: cliDesc.id, estagio: "PROPOSTA_ENVIADA" },
+  });
+  const pDesc = await criarProposta({ titulo: `${TAG} desconto`, clienteId: cliDesc.id, negociacaoId: negDesc.id }, user.id);
+  await salvarProposta(
+    {
+      id: pDesc.id, titulo: `${TAG} desconto`, areaM2: undefined, validade: "", observacoes: "",
+      itens: [{ disciplina: "Arquitetura", descricao: "", valor: 10000 }], condicoes: [],
+      desconto: 2000, justificativaDesconto: `${TAG} — parceria antiga`,
+    },
+    user.id,
+  );
+  const resultadoDesc = await aceitarProposta(pDesc.id, user.id);
+  const [versaoDesc, negDescDepois, projDesc] = await Promise.all([
+    prisma.propostaVersao.findFirst({
+      where: { propostaId: pDesc.id }, orderBy: { numero: "desc" },
+      select: { valorOriginal: true, valorVersao: true, desconto: true },
+    }),
+    prisma.negociacao.findUnique({ where: { id: negDesc.id }, select: { valorNegociado: true } }),
+    prisma.projeto.findUnique({ where: { id: resultadoDesc.projetoId }, select: { valorContrato: true } }),
+  ]);
+  check(
+    "valorVersao da versão aceita é 8000 (10000 − 2000), não a soma crua",
+    Number(versaoDesc?.valorVersao) === 8000,
+    `${versaoDesc?.valorVersao}`,
+  );
+  check(
+    "o invariante de versoes.ts se mantém: valorVersao = valorOriginal − desconto",
+    Number(versaoDesc?.valorVersao) === Number(versaoDesc?.valorOriginal) - Number(versaoDesc?.desconto),
+    `${versaoDesc?.valorOriginal} − ${versaoDesc?.desconto} ≠ ${versaoDesc?.valorVersao}`,
+  );
+  check(
+    "Negociacao.valorNegociado é o valor COM desconto (o forecast não infla)",
+    Number(negDescDepois?.valorNegociado) === 8000,
+    `${negDescDepois?.valorNegociado}`,
+  );
+  check(
+    "Projeto.valorContrato é o valor COM desconto (é o que o cliente paga)",
+    Number(projDesc?.valorContrato) === 8000,
+    `${projDesc?.valorContrato}`,
+  );
+
   console.log(`\n${ok ? "✔ Fase 5: tudo verde." : "✖ Fase 5: há falhas acima."}`);
   if (!ok) process.exitCode = 1;
 }

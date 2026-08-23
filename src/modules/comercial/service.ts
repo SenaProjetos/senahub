@@ -485,7 +485,12 @@ export async function aceitarProposta(propostaId: string, autorId?: string) {
         },
       },
       // F5.4 — a versão vigente recebe o carimbo de "foi esta que o cliente aceitou".
-      versoes: { orderBy: { numero: "desc" }, take: 1, select: { id: true, numero: true } },
+      // F6.1a — `desconto` entra no select porque o valor contratado é o valor COM abatimento.
+      versoes: {
+        orderBy: { numero: "desc" },
+        take: 1,
+        select: { id: true, numero: true, desconto: true },
+      },
     },
   });
   if (!p) throw new ActionError("Proposta não encontrada.");
@@ -515,7 +520,22 @@ export async function aceitarProposta(propostaId: string, autorId?: string) {
     });
   }
 
-  const valorFinal = p.itens.reduce((s, it) => s + Number(it.valor), 0);
+  // ── O valor contratado é o valor COM desconto (correção F6.1a) ──────────────────────────────
+  // Até aqui o aceite somava os itens CRUS e escrevia esse número em três lugares
+  // (`PropostaVersao.valorVersao`, `Negociacao.valorNegociado`, `Projeto.valorContrato`),
+  // ignorando o `desconto` que a F5.8 grava na versão. Efeito: um desconto justificado, auditado
+  // e registrado na timeline sumia de TODO número de receita — e a versão ficava internamente
+  // inconsistente (`valorVersao` voltava a ser igual a `valorOriginal` mesmo com `desconto`
+  // preenchido), violando o invariante que `versoes.ts` documenta: "valorVersao = o que o
+  // cliente paga = valorOriginal − desconto".
+  //
+  // O desconto vem da versão VIGENTE (a mesma que recebe o carimbo de aceita logo abaixo), não
+  // de um parâmetro: é a versão que o cliente aceitou que define o preço. Proposta sem versão
+  // nenhuma (itens inseridos direto, sem passar por `salvarProposta`) não tem desconto — soma
+  // crua, que é o comportamento correto para esse caso.
+  const somaItens = p.itens.reduce((s, it) => s + Number(it.valor), 0);
+  const descontoVigente = p.versoes[0]?.desconto != null ? Number(p.versoes[0].desconto) : 0;
+  const valorFinal = somaItens - descontoVigente;
   const aceitaEm = new Date();
 
   const projeto = await prisma.$transaction(async (tx) => {
@@ -530,8 +550,8 @@ export async function aceitarProposta(propostaId: string, autorId?: string) {
         clienteId: p.clienteId,
         areaM2: p.areaM2,
         // F5.12 — a lacuna financeira do aceite: o projeto nascia sem o valor do contrato que
-        // acabou de ser assinado. `valorFinal` é a MESMA soma dos itens que já vira
-        // `Negociacao.valorNegociado` linhas abaixo — um só número, duas leituras.
+        // acabou de ser assinado. `valorFinal` é o MESMO número que vira
+        // `Negociacao.valorNegociado` e `PropostaVersao.valorVersao` — uma fonte, três leituras.
         valorContrato: valorFinal,
         // §8.5, metade 1 de 2 — a outra é o `projetoId` logo abaixo, na mesma transação.
         negociacaoId: p.negociacao?.id ?? null,
