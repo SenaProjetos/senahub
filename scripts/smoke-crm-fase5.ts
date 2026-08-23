@@ -52,6 +52,7 @@ import {
   pdfArquivadoDaVersao,
   pdfArquivadoDaProposta,
 } from "../src/modules/comercial/pdf-proposta";
+import { getConfigComercial } from "../src/modules/comercial/config/queries";
 
 const TAG = `SMKF5_${Date.now()}`;
 
@@ -890,6 +891,152 @@ async function main() {
   );
   const aindaAceita = await prisma.proposta.findUnique({ where: { id: pF55b.id }, select: { status: true } });
   check("a proposta continua aceita, intocada", aindaAceita?.status === "aceita");
+
+  console.log("\n── F5.8: desconto acima do limite exige justificativa (Q6/ADR-19) ─\n");
+
+  const configComercial = await getConfigComercial();
+  const limite = configComercial.descontoMaxSemJustificativa;
+
+  const cliF58 = await prisma.cliente.create({ data: { nome: `${TAG}_EmpresaF58`, tipo: "PJ" } });
+  const negF58 = await prisma.negociacao.create({
+    data: { titulo: `${TAG}_NegF58`, clienteId: cliF58.id, estagio: "PROPOSTA_ENVIADA" },
+  });
+  const pF58 = await criarProposta({ titulo: `${TAG} F58`, clienteId: cliF58.id, negociacaoId: negF58.id }, user.id);
+
+  // (a) Desconto ABAIXO do limite — passa sem justificativa nenhuma.
+  const abaixoDoLimite = Math.max(0, limite - 1); // ex.: limite=10 → 9%
+  await salvarProposta(
+    {
+      id: pF58.id,
+      titulo: `${TAG} F58 v1`,
+      areaM2: undefined,
+      validade: "",
+      observacoes: "",
+      itens: [{ disciplina: "Arquitetura", descricao: "", valor: 10000 }],
+      condicoes: [],
+      desconto: (abaixoDoLimite / 100) * 10000,
+    },
+    user.id,
+  );
+  const versaoA = await prisma.propostaVersao.findFirst({
+    where: { propostaId: pF58.id },
+    orderBy: { numero: "desc" },
+    select: { desconto: true },
+  });
+  check(
+    `(a) desconto de ${abaixoDoLimite}% (abaixo do limite de ${limite}%) grava sem justificativa`,
+    Number(versaoA?.desconto) === (abaixoDoLimite / 100) * 10000,
+    `${versaoA?.desconto}`,
+  );
+
+  // (b) Desconto ACIMA do limite, SEM justificativa — recusado, e a versão NÃO nasce.
+  const acimaDoLimite = limite + 20; // bem acima, sem ambiguidade de arredondamento
+  const versoesAntesDoB = await prisma.propostaVersao.count({ where: { propostaId: pF58.id } });
+  let recusouSemJustificativa = "";
+  try {
+    await salvarProposta(
+      {
+        id: pF58.id,
+        titulo: `${TAG} F58 v2 sem justificativa`,
+        areaM2: undefined,
+        validade: "",
+        observacoes: "",
+        itens: [{ disciplina: "Arquitetura", descricao: "", valor: 10000 }],
+        condicoes: [],
+        desconto: (acimaDoLimite / 100) * 10000,
+      },
+      user.id,
+    );
+  } catch (e) {
+    recusouSemJustificativa = (e as Error).message;
+  }
+  check(
+    `(b) desconto de ${acimaDoLimite}% sem justificativa é recusado`,
+    /exige justificativa/i.test(recusouSemJustificativa),
+    recusouSemJustificativa,
+  );
+  check(
+    "(b) a versão recusada NÃO foi criada (nenhuma versão a mais)",
+    (await prisma.propostaVersao.count({ where: { propostaId: pF58.id } })) === versoesAntesDoB,
+  );
+
+  // (c) MESMO desconto acima do limite, agora COM justificativa — grava, e a timeline ganha um
+  // evento DESCONTO_JUSTIFICADO próprio, distinto do PROPOSTA_REVISADA de toda revisão.
+  const justificativaTexto = `${TAG} — cliente antigo, projeto grande`;
+  await salvarProposta(
+    {
+      id: pF58.id,
+      titulo: `${TAG} F58 v2 justificada`,
+      areaM2: undefined,
+      validade: "",
+      observacoes: "",
+      itens: [{ disciplina: "Arquitetura", descricao: "", valor: 10000 }],
+      condicoes: [],
+      desconto: (acimaDoLimite / 100) * 10000,
+      justificativaDesconto: justificativaTexto,
+    },
+    user.id,
+  );
+  const versaoC = await prisma.propostaVersao.findFirst({
+    where: { propostaId: pF58.id },
+    orderBy: { numero: "desc" },
+    select: { numero: true, desconto: true },
+  });
+  check(
+    "(c) com justificativa, a versão nasce normalmente",
+    versaoC?.numero === 2 && Number(versaoC.desconto) === (acimaDoLimite / 100) * 10000,
+    `v${versaoC?.numero} desconto=${versaoC?.desconto}`,
+  );
+
+  const eventosF58 = await prisma.atividade.findMany({
+    where: { clienteId: cliF58.id },
+    select: { metadata: true },
+  });
+  const descontoJustificadoEv = eventosF58.find(
+    (e) => (e.metadata as { evento?: string } | null)?.evento === "DESCONTO_JUSTIFICADO",
+  );
+  check(
+    "(c) a timeline ganhou UM evento DESCONTO_JUSTIFICADO",
+    !!descontoJustificadoEv,
+    JSON.stringify(eventosF58.map((e) => (e.metadata as { evento?: string } | null)?.evento)),
+  );
+  check(
+    "(c) o metadata do evento carrega o percentual e a justificativa exatos",
+    (descontoJustificadoEv?.metadata as { percentual?: number; justificativa?: string } | undefined)
+      ?.justificativa === justificativaTexto,
+    JSON.stringify(descontoJustificadoEv?.metadata),
+  );
+  check(
+    "(c) PROPOSTA_REVISADA continua dispando em toda revisão, sem ser afogado pelo evento novo",
+    eventosF58.filter((e) => (e.metadata as { evento?: string } | null)?.evento === "PROPOSTA_REVISADA").length === 2,
+    `${eventosF58.filter((e) => (e.metadata as { evento?: string } | null)?.evento === "PROPOSTA_REVISADA").length}`,
+  );
+
+  // (d) Exatamente NO limite (fronteira `>`, não `>=`) — não exige justificativa.
+  const pF58d = await criarProposta({ titulo: `${TAG} F58d`, clienteId: cliF58.id, negociacaoId: negF58.id }, user.id);
+  let recusouNoLimite = "";
+  try {
+    await salvarProposta(
+      {
+        id: pF58d.id,
+        titulo: `${TAG} F58d`,
+        areaM2: undefined,
+        validade: "",
+        observacoes: "",
+        itens: [{ disciplina: "Arquitetura", descricao: "", valor: 10000 }],
+        condicoes: [],
+        desconto: (limite / 100) * 10000,
+      },
+      user.id,
+    );
+  } catch (e) {
+    recusouNoLimite = (e as Error).message;
+  }
+  check(
+    `(d) desconto EXATAMENTE no limite (${limite}%) NÃO exige justificativa (fronteira é '>', não '>=')`,
+    recusouNoLimite === "",
+    recusouNoLimite,
+  );
 
   console.log(`\n${ok ? "✔ Fase 5: tudo verde." : "✖ Fase 5: há falhas acima."}`);
   if (!ok) process.exitCode = 1;

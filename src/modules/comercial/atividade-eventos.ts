@@ -24,6 +24,7 @@ export type EventoAtividade =
   | { evento: "PROPOSTA_CRIADA"; numero: string; titulo: string }
   | { evento: "PROPOSTA_ENVIADA"; numero: string; porEmail: boolean }
   | { evento: "PROPOSTA_REVISADA"; numero: string; versao: number }
+  | { evento: "DESCONTO_JUSTIFICADO"; numero: string; percentual: number; justificativa: string }
   | { evento: "PROPOSTA_ACEITA"; numero: string }
   | { evento: "PROJETO_CRIADO"; codigo: string; nome: string }
   | { evento: "NEGOCIACAO_PERDIDA"; motivo: string | null; concorrente: string | null };
@@ -104,6 +105,17 @@ export function descreverEvento(ev: EventoAtividade): AtividadeDescrita {
         tipo: "SISTEMA",
         descricao: `Proposta ${ev.numero} revisada (versão ${ev.versao})`,
         metadata: { evento: ev.evento, numero: ev.numero, versao: ev.versao },
+      };
+
+    case "DESCONTO_JUSTIFICADO":
+      // F5.8 (Q6/ADR-19) — só existe quando o desconto passou do limite configurado; abaixo
+      // dele, `salvarProposta` nem chama isto. A narrativa carrega o percentual redondo (uma
+      // casa) porque é o que faz sentido ler numa timeline; o valor exato já está na `Atividade`
+      // seguinte de qualquer versão (o `PROPOSTA_REVISADA` desta mesma revisão).
+      return {
+        tipo: "SISTEMA",
+        descricao: `Desconto de ${ev.percentual.toFixed(1)}% na proposta ${ev.numero} — ${ev.justificativa}`,
+        metadata: { evento: ev.evento, numero: ev.numero, percentual: ev.percentual, justificativa: ev.justificativa },
       };
 
     case "PROPOSTA_ACEITA":

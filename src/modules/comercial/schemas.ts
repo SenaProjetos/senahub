@@ -105,6 +105,13 @@ export const criarPropostaDeLeadSchema = z.object({
   confirmarReativacao: z.boolean().optional(),
 });
 
+/**
+ * F5.8 (Q6/ADR-19): `desconto` em VALOR (não percentual — mesmo motivo de `versoes.ts`: o
+ * percentual é derivado, persistir o derivado deixaria os dois discordarem).
+ * `justificativaDesconto` só é OBRIGATÓRIA quando o percentual resultante passa do limite
+ * configurado — e isso depende dos itens (soma), então não dá pra validar aqui no Zod; a
+ * checagem de verdade é em `salvarProposta` (service.ts), contra `ConfigSistema`.
+ */
 export const salvarPropostaSchema = z.object({
   id: z.string().min(1),
   titulo: z.string().min(1),
@@ -113,6 +120,8 @@ export const salvarPropostaSchema = z.object({
   observacoes: opt(z.string()),
   itens: z.array(itemPropostaSchema),
   condicoes: z.array(condicaoPropostaSchema),
+  desconto: z.number().nonnegative().optional(),
+  justificativaDesconto: opt(z.string()),
 });
 
 /** F5.5: `em_negociacao` entra no leque de status que esta action aceita definir. `aceita`

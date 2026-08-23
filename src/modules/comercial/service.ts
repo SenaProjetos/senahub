@@ -24,8 +24,10 @@ import {
   validarMovimento,
   type TabelaProbabilidade,
 } from "@/modules/comercial/jornada";
-import { calcularValoresVersao, proximoNumeroVersao } from "@/modules/comercial/versoes";
+import { calcularValoresVersao, proximoNumeroVersao, percentualDesconto } from "@/modules/comercial/versoes";
 import { isoParaDataValidade } from "@/modules/comercial/validade";
+import { getConfigComercial } from "@/modules/comercial/config/queries";
+import { exigeJustificativaDesconto } from "@/modules/comercial/config/padroes";
 import { calcularStatusComercial } from "@/modules/comercial/status";
 import { arquivarPdfDaVersao } from "@/modules/comercial/pdf-proposta";
 import {
@@ -250,6 +252,18 @@ export async function criarPropostaDeLead(
  * **e**, desde a F5.4, os campos estruturados ao lado — valor, desconto, status, validade,
  * observação. Os dois não competem: o JSON é o detalhe, as colunas são o que relatório e
  * comparação leem sem parsear nada.
+ *
+ * ── F5.8 (Q6/ADR-19): desconto acima do limite exige justificativa ──────────────────────────
+ * O limite é `ConfigSistema` (`getConfigComercial`), não uma constante — é o ÚNICO lugar do
+ * módulo que ainda lia esse número sem chamador (F1.7 construiu a peça, ninguém a ligou até
+ * agora). A checagem só é POSSÍVEL depois de somar os itens (`calcularValoresVersao`), por isso
+ * não dá pra validar no Zod: o schema não sabe se 15% está acima do limite sem saber os itens.
+ *
+ * Quando exige e a justificativa vem preenchida, um `DESCONTO_JUSTIFICADO` entra na timeline —
+ * evento PRÓPRIO, não afogado dentro do `PROPOSTA_REVISADA` genérico que toda revisão já
+ * dispara: é uma decisão comercial que vale aparecer sozinha na Empresa 360, não escondida
+ * dentro de "revisão nº 3". O `AuditLog` fica coberto de graça — `justificativaDesconto` está
+ * no input validado, e `defineAction` audita o input inteiro por padrão.
  */
 export async function salvarProposta(i: SalvarPropostaInput, autorId: string) {
   const p = await prisma.proposta.findUnique({
@@ -268,10 +282,21 @@ export async function salvarProposta(i: SalvarPropostaInput, autorId: string) {
     condicoes: i.condicoes,
   };
 
-  // F5.4 — os mesmos números do snapshot, agora em coluna. `desconto` fica `null` até a F5.8
-  // dar a UI: hoje não há de onde o usuário informá-lo, e inventar zero seria afirmar que uma
-  // decisão comercial foi tomada. `valorVersao === valorOriginal` é o estado "sem desconto".
-  const valores = calcularValoresVersao(i.itens, null);
+  // F5.4/F5.8 — os mesmos números do snapshot, agora em coluna. `desconto` ausente/zero vira
+  // `null` dentro de `calcularValoresVersao` — `valorVersao === valorOriginal` é o estado "sem
+  // desconto".
+  const valores = calcularValoresVersao(i.itens, i.desconto ?? null);
+  const percentual = percentualDesconto(valores);
+  const justificativa = i.justificativaDesconto?.trim() || null;
+  if (percentual !== null) {
+    const config = await getConfigComercial();
+    if (exigeJustificativaDesconto(percentual, config) && !justificativa) {
+      throw new ActionError(
+        `Desconto de ${percentual.toFixed(1)}% acima do limite de ${config.descontoMaxSemJustificativa}% ` +
+          "exige justificativa.",
+      );
+    }
+  }
   const numeroVersao = proximoNumeroVersao(p.versoes);
 
   // Resolve as disciplinas do catálogo por nome EXATO (F1.19). O que não casar grava só o texto,
@@ -344,6 +369,17 @@ export async function salvarProposta(i: SalvarPropostaInput, autorId: string) {
     { evento: "PROPOSTA_REVISADA", numero: p.numero, versao: numeroVersao },
     { autorId, clienteId: p.clienteId, propostaId: p.id },
   );
+  // F5.8 — só quando o desconto de fato passou do limite (não todo desconto com justificativa
+  // preenchida à toa gera ruído na timeline).
+  if (percentual !== null && justificativa) {
+    const config = await getConfigComercial();
+    if (exigeJustificativaDesconto(percentual, config)) {
+      await registrarAtividade(
+        { evento: "DESCONTO_JUSTIFICADO", numero: p.numero, percentual, justificativa },
+        { autorId, clienteId: p.clienteId, propostaId: p.id },
+      );
+    }
+  }
 
   return { id: i.id };
 }

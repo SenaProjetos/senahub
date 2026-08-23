@@ -47,6 +47,7 @@ import {
   type TabelaPrecoParaEditor,
 } from "@/components/comercial/aplicar-tabela-dialog";
 import { itensPersistiveis, totalItens, type ItemProposta } from "@/modules/comercial/honorarios";
+import { calcularValoresVersao, percentualDesconto } from "@/modules/comercial/versoes";
 import { brl } from "@/lib/utils";
 
 type Item = ItemProposta;
@@ -77,6 +78,7 @@ export function PropostaEditor({
   podeGerir,
   baseUrl,
   modelosDoc,
+  descontoMaxSemJustificativa,
 }: {
   proposta: Proposta;
   catalogo: string[];
@@ -84,6 +86,7 @@ export function PropostaEditor({
   podeGerir: boolean;
   baseUrl: string;
   modelosDoc: { id: string; nome: string }[];
+  descontoMaxSemJustificativa: number;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -93,6 +96,8 @@ export function PropostaEditor({
   const [observacoes, setObservacoes] = useState(proposta.observacoes);
   const [itens, setItens] = useState<Item[]>(proposta.itens);
   const [condicoes, setCondicoes] = useState<Condicao[]>(proposta.condicoes);
+  const [desconto, setDesconto] = useState("");
+  const [justificativaDesconto, setJustificativaDesconto] = useState("");
 
   const aceita = proposta.status === "aceita";
   const editavel = podeGerir && !aceita;
@@ -104,6 +109,15 @@ export function PropostaEditor({
   // um valor digitado com 3 casas somaria na tela de um jeito e seria gravado de outro.
   const paraSalvar = itensPersistiveis(itens);
   const total = totalItens(paraSalvar);
+
+  // F5.8 (Q6/ADR-19) — mesma conta pura do backend, aqui só pra avisar ANTES do clique em
+  // salvar; quem decide de verdade é `salvarProposta` (o limite é `ConfigSistema`, pode mudar
+  // sem redeploy, então a checagem no servidor é a que vale).
+  const descontoNum = desconto ? Number(desconto) : null;
+  const valoresPreview = calcularValoresVersao(paraSalvar, descontoNum);
+  const percentualPreview = percentualDesconto(valoresPreview);
+  const exigeJustificativa =
+    percentualPreview !== null && percentualPreview > descontoMaxSemJustificativa;
 
   function addItem() {
     const usadas = new Set(itens.map((i) => i.disciplina));
@@ -131,6 +145,12 @@ export function PropostaEditor({
   }
 
   function salvar() {
+    if (exigeJustificativa && !justificativaDesconto.trim()) {
+      toast.error(
+        `Desconto de ${percentualPreview!.toFixed(1)}% acima do limite de ${descontoMaxSemJustificativa}% exige justificativa.`,
+      );
+      return;
+    }
     start(async () => {
       const r = await salvarProposta({
         id: proposta.id,
@@ -140,6 +160,8 @@ export function PropostaEditor({
         observacoes,
         itens: paraSalvar,
         condicoes: condicoes.filter((c) => c.descricao),
+        desconto: descontoNum ?? undefined,
+        justificativaDesconto: justificativaDesconto.trim() || undefined,
       });
       if (r.ok) {
         toast.success("Proposta salva (nova versão).");
@@ -376,6 +398,39 @@ export function PropostaEditor({
                   onChange={(e) => setObservacoes(e.target.value)}
                 />
               </div>
+              <div className="space-y-1.5">
+                <Label>Desconto (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={desconto}
+                  disabled={!editavel}
+                  onChange={(e) => setDesconto(e.target.value)}
+                />
+                {percentualPreview !== null && (
+                  <p className="text-xs text-muted-foreground">
+                    {percentualPreview.toFixed(1)}% sobre {brl(valoresPreview.valorOriginal)}
+                  </p>
+                )}
+              </div>
+              {/* F5.8 (Q6/ADR-19) — só aparece quando o desconto de fato passa do limite
+                  configurado; abaixo dele ninguém precisa explicar nada. */}
+              {editavel && exigeJustificativa && (
+                <div className="space-y-1.5">
+                  <Label className="text-amber-600 dark:text-amber-400">
+                    Justificativa do desconto ({percentualPreview!.toFixed(1)}% — acima de{" "}
+                    {descontoMaxSemJustificativa}%)
+                  </Label>
+                  <textarea
+                    rows={2}
+                    className="w-full resize-y rounded-sm border border-amber-500 bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
+                    placeholder="Por que este desconto?"
+                    value={justificativaDesconto}
+                    onChange={(e) => setJustificativaDesconto(e.target.value)}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
 

@@ -20,6 +20,64 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F5.8 — desconto acima do limite exige justificativa (Q6/ADR-19) · 2026-08-22 · Sonnet
+
+**Feito:** `salvarProposta` ganha `desconto` (VALOR, não percentual — `calcularValoresVersao`
+já trabalhava assim desde a F5.4) e `justificativaDesconto`, opcionais os dois. O percentual é
+derivado (`percentualDesconto`) e comparado contra `ConfigSistema.descontoMaxSemJustificativa`
+(`getConfigComercial`) — o **primeiro chamador real** desse par desde que a F1.7 o deixou
+pronto e sem uso. Acima do limite sem justificativa: `ActionError` ANTES de tocar o banco (a
+versão recusada não nasce). Acima do limite COM justificativa: grava normal, e a timeline ganha
+um evento `DESCONTO_JUSTIFICADO` **próprio**, ao lado do `PROPOSTA_REVISADA` que toda revisão já
+dispara — narrativa específica ("desconto de 30% — cliente antigo, projeto grande"), não afogada
+dentro do genérico. A fronteira é `>`, não `>=`: exatamente no limite passa livre (comentário já
+deixado em `padroes.ts` desde a F1.7, agora finalmente exercitado).
+
+**UI no editor:** campo "Desconto (R$)" com o percentual calculado ao lado (mesma conta pura do
+backend, `calcularValoresVersao`/`percentualDesconto` — client-safe, sem `server-only`), e um
+campo de justificativa que só aparece quando o percentual ultrapassa o limite (buscado do
+servidor via `getConfigComercial()` na página, não hardcoded — o limite é dado configurável).
+Confere no cliente antes do clique, pra não gastar um roundtrip com um erro previsível — mas
+quem decide de verdade é o servidor, porque o limite pode mudar sem redeploy.
+
+**Achado ao revisar antes de rodar:** o campo tinha nascido rotulado "Desconto (%)" com
+`max="100"` — leitura errada de `calcularValoresVersao`, cujo segundo parâmetro é o abatimento
+em REAIS, não em percentual (`valorVersao = valorOriginal - desconto`; o percentual é sempre
+derivado, nunca persistido, porque persistir os dois abriria espaço para discordarem — comentário
+já deixado em `versoes.ts` na F5.4). Corrigido antes de qualquer verificação rodar: rótulo
+"Desconto (R$)", sem teto de 100, com o percentual mostrado como texto auxiliar abaixo do campo.
+
+**`getConfigComercial`/`exigeJustificativaDesconto`/`percentualDesconto` faltavam no import de
+`service.ts`** — os identificadores já estavam em uso no corpo de `salvarProposta` de uma edição
+anterior nesta mesma tarefa, sem a linha de import correspondente. Pego pelo `tsc` antes de
+qualquer outra verificação, não em produção.
+
+**Arquivos:** `src/modules/comercial/schemas.ts` (`salvarPropostaSchema` +2 campos) ·
+`src/modules/comercial/atividade-eventos.ts` + `.test.ts` (`DESCONTO_JUSTIFICADO`, 11→12
+eventos) · `src/modules/comercial/service.ts` (`salvarProposta`: valida, grava, registra
+atividade condicional) · `src/components/comercial/proposta-editor.tsx` (campos desconto +
+justificativa condicional) · `src/app/(dashboard)/comercial/propostas/[id]/page.tsx`
+(`descontoMaxSemJustificativa` via `getConfigComercial()`) · `scripts/smoke-crm-fase5.ts` (+8,
+seções a–d).
+
+**Verificação:** eslint limpo, tsc limpo, **2287 testes** (2 novos), build ok. `smoke:crm-fase5`
+**111/111**: desconto abaixo do limite grava livre, acima sem justificativa é recusado ANTES de
+criar a versão, acima COM justificativa grava e emite o evento com percentual/justificativa
+exatos no metadata, `PROPOSTA_REVISADA` continua disparando em toda revisão (não é substituído),
+e a fronteira exata no limite não exige nada. Sem regressão em `fase1`–`fase4`. Resíduo `SMKF5_`
+conferido em zero após a rodada (clientes/leads/negociações/propostas/atividades).
+
+**Pendente:** verificação em browser dos dois campos novos (mais um item na fila já registrada
+desde a F5.3/F5.5 — sem chromium-cli neste ambiente). `AuditLog` da mutação não foi exercitado
+por este smoke — ele chama `service.ts` direto, não a `action` (`defineAction` audita o input
+inteiro automaticamente, `justificativaDesconto` incluso, mas isso é coberto pelo padrão já
+estabelecido do wrapper, não por um teste desta tarefa). F5.10 (perda estruturada) é a próxima.
+
+**Riscos:** nenhum novo. O limite é 100% dado (`ConfigSistema`) — mudar o valor em produção não
+exige deploy nem migration.
+
+---
+
 ## F5.5 — `StatusProposta.em_negociacao` + transições · 2026-08-22 · Sonnet
 
 **Feito:** enum ganha `em_negociacao` (entre `enviada` e `aceita`); `mudarStatusProposta`

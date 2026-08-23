@@ -11,12 +11,13 @@ describe("descreverEvento — todo evento automático é SISTEMA", () => {
     { evento: "PROPOSTA_CRIADA", numero: "PR-260001", titulo: "T" },
     { evento: "PROPOSTA_ENVIADA", numero: "PR-260001", porEmail: true },
     { evento: "PROPOSTA_REVISADA", numero: "PR-260001", versao: 2 },
+    { evento: "DESCONTO_JUSTIFICADO", numero: "PR-260001", percentual: 15, justificativa: "Cliente antigo, projeto grande" },
     { evento: "PROPOSTA_ACEITA", numero: "PR-260001" },
     { evento: "PROJETO_CRIADO", codigo: "260031", nome: "N" },
     { evento: "NEGOCIACAO_PERDIDA", motivo: null, concorrente: null },
   ];
 
-  it("os 11 eventos produzem tipo SISTEMA", () => {
+  it("os 12 eventos produzem tipo SISTEMA", () => {
     // O registro MANUAL (F3.4) é que usa LIGACAO/EMAIL/NOTA. Estes aqui ninguém digita.
     for (const ev of todos) expect(descreverEvento(ev).tipo).toBe("SISTEMA");
   });
@@ -49,6 +50,29 @@ describe("ESTAGIO_ALTERADO", () => {
     // no dia em que alguém mudasse o rótulo.
     const d = descreverEvento({ evento: "ESTAGIO_ALTERADO", de: "ORCAMENTO", para: "NEGOCIACAO" });
     expect(d.metadata).toMatchObject({ de: "ORCAMENTO", para: "NEGOCIACAO" });
+  });
+});
+
+describe("DESCONTO_JUSTIFICADO (F5.8)", () => {
+  it("a descrição carrega percentual, número da proposta e a justificativa", () => {
+    const d = descreverEvento({
+      evento: "DESCONTO_JUSTIFICADO",
+      numero: "PR-260007",
+      percentual: 15,
+      justificativa: "Cliente antigo, projeto grande",
+    });
+    expect(d.descricao).toBe("Desconto de 15.0% na proposta PR-260007 — Cliente antigo, projeto grande");
+  });
+
+  it("percentual quebrado arredonda pra 1 casa na narrativa, mas o metadata guarda o exato", () => {
+    const d = descreverEvento({
+      evento: "DESCONTO_JUSTIFICADO",
+      numero: "PR-260007",
+      percentual: 12.345,
+      justificativa: "x",
+    });
+    expect(d.descricao).toContain("12.3%");
+    expect(d.metadata.percentual).toBe(12.345);
   });
 });
 
