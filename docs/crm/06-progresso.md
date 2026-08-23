@@ -20,6 +20,67 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F5.11 — reabrir negociação perdida volta ao estágio anterior · 2026-08-22 · Sonnet
+
+**Consultei o advisor antes de desenhar** — a dúvida era se "volta ao estágio anterior" (texto
+literal do critério) precisava de uma coluna nova pra guardar onde a negociação estava antes de
+perder. Resposta: não. `aplicarMovimentoEstagio` já grava `ESTAGIO_ALTERADO` com `de`/`para`
+CRUS toda vez que o estágio muda (F3.2) — o `ESTAGIO_ALTERADO` mais recente cujo `para` é o
+estágio encerrado JÁ TEM o `de` que se procura. Uma coluna nova seria uma segunda fonte de
+verdade pro mesmo fato, o erro do `DisciplinaCatalogo` de novo.
+
+**Feito:** `estagioAnteriorAoEncerramento` (nova, pura, `jornada.ts`) recebe a timeline da
+negociação (mais recente primeiro) e devolve o `de` do último `ESTAGIO_ALTERADO` que levou ao
+estágio encerrado — `null` quando não há histórico algum (negociação de antes da F3.2, ou
+sintética da migração F5.2 com `needsReview: true`), caso em que `reabrirNegociacao` (nova,
+`service.ts`) cai em `LEVANTAMENTO` como fallback documentado, não erro. Por baixo é
+`moverEstagio` de sempre — mesma validação, mesmo evento `ESTAGIO_ALTERADO` novo na timeline,
+mesma limpeza de motivo/concorrente/observação que a F5.10 já fazia (esta tarefa é a primeira
+chamadora que DEPENDE dessa limpeza, então o smoke agora afirma isso em vez de só confiar).
+
+**"A timeline mostra os dois eventos" (critério literal):** o `NEGOCIACAO_PERDIDA` da perda
+original continua lá, intocado; o reabrir soma um `ESTAGIO_ALTERADO` novo (`PERDIDO` →
+estágio restaurado) — os dois convivem na timeline, nenhum sobrescreve o outro.
+
+**A armadilha do ciclo perder→reabrir→perder de novo**, que o advisor apontou antes de eu
+escrever: depois de duas perdas, existe mais de um `ESTAGIO_ALTERADO` com `para === "PERDIDO"` —
+pegar "o primeiro que achar" pegaria a perda ERRADA. `estagioAnteriorAoEncerramento` exige a
+lista já ordenada `createdAt desc` e devolve o primeiro match (= o mais recente); o smoke cobre
+o ciclo de 2 perdas explicitamente (seção d).
+
+**AuditLog** já vem de graça — `reabrirNegociacao` (a action) tem `capturarAntes` igual a
+`moverEstagioNegociacao`, mesmo padrão que todo `defineAction` já dá. Nenhum trabalho extra aqui.
+
+**UI:** botão "↺" no card das colunas `PERDIDO`/`CANCELADO` do kanban (`negociacao-board.tsx`) —
+sem diálogo, sem perguntar destino, porque o destino não é uma escolha do usuário, é um fato da
+timeline. Escopo estendido a `CANCELADO` também (não só `PERDIDO` como o título da tarefa sugere
+literalmente): o helper é genérico por estágio, o custo de cobrir os dois é zero, e ADR-10
+("vendas reais reabrem negociação depois de meses") não distingue os dois motivos de
+encerramento.
+
+**Arquivos:** `src/modules/comercial/jornada.ts` (`estagioAnteriorAoEncerramento`) + `.test.ts`
+(+13 testes: 6 do helper novo, 5 de `validarMotivoRecusaProposta` que a F5.10 tinha deixado sem
+teste puro — só smoke — e ficaram cobertos aqui de passagem) · `src/modules/comercial/service.ts`
+(`reabrirNegociacao`) · `src/modules/comercial/schemas.ts` (`reabrirNegociacaoSchema`) ·
+`src/modules/comercial/actions.ts` (`reabrirNegociacao`) ·
+`src/components/comercial/negociacao-board.tsx` (botão reabrir no card) ·
+`scripts/smoke-crm-fase5.ts` (+6, seções a–d).
+
+**Verificação:** eslint limpo, tsc limpo, **2302 testes** (+11), build ok. `smoke:crm-fase5`
+**129/129**: reabrir volta ao estágio real anterior (não `LEVANTAMENTO` fixo, não um destino
+escolhido), limpa motivo/concorrente/observação/`dataFechamento`, os dois eventos convivem na
+timeline, fallback sem histórico funciona, negociação ativa recusa reabrir, ciclo de 2 perdas
+pega o ciclo certo. Sem regressão em `fase1`–`fase4`. Resíduo `SMKF5_` em zero.
+
+**Pendente:** verificação em browser do botão novo (mesma lacuna registrada desde a F5.3). F5.12
+(fechar lacunas da conversão no aceite — equipe, cronograma, financeiro) é a próxima; já hoje
+`aceitarProposta` é grande (lê 4 relações, escreve 5 tabelas) — vale considerar se a F5.12 cabe
+ali ou precisa sair pra função própria antes de crescer mais.
+
+**Riscos:** nenhum novo. Nenhuma coluna nova — reusa dado que já existia.
+
+---
+
 ## F5.10 — perda estruturada: Negociacao ganha observação, Proposta ganha o trio · 2026-08-22 · Sonnet
 
 **Consultei o advisor antes de desenhar** — o achado principal: metade da tarefa já estava

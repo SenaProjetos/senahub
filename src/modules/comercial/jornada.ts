@@ -210,3 +210,32 @@ export function validarMotivoRecusaProposta(args: {
     throw new ActionError("Este motivo exige informar o concorrente.");
   }
 }
+
+/**
+ * F5.11 — em que estágio a negociação estava ANTES de ser encerrada (`PERDIDO`/`CANCELADO`)?
+ *
+ * Pura de propósito, e SEM coluna nova: o dado já existe na timeline. `aplicarMovimentoEstagio`
+ * grava `ESTAGIO_ALTERADO` com `de`/`para` CRUS toda vez que o estágio muda — o `para === estagioEncerrado`
+ * mais recente tem o `de` que se procura. Uma coluna `estagioAntesDeEncerrar` seria uma SEGUNDA
+ * fonte de verdade pro mesmo fato que a timeline já registra — o erro que o `DisciplinaCatalogo`
+ * já ensinou a não repetir.
+ *
+ * As atividades precisam vir **mais recente primeiro** (`orderBy: createdAt desc`) — depois de um
+ * ciclo reabrir→perder de novo, existe mais de um `ESTAGIO_ALTERADO` apontando para o mesmo
+ * `estagioEncerrado`, e é o ÚLTIMO que descreve a perda atual.
+ *
+ * `null` quando não há registro (negociação de antes da F3.2, ou sintética da migração F5.2,
+ * `needsReview: true`) — quem chama decide o fallback (hoje, `LEVANTAMENTO`).
+ */
+export function estagioAnteriorAoEncerramento(
+  atividadesRecentePrimeiro: readonly { metadata: unknown }[],
+  estagioEncerrado: EstagioNegociacao,
+): EstagioNegociacao | null {
+  for (const a of atividadesRecentePrimeiro) {
+    const m = a.metadata as { evento?: string; de?: EstagioNegociacao; para?: EstagioNegociacao } | null;
+    if (m?.evento === "ESTAGIO_ALTERADO" && m.para === estagioEncerrado && m.de) {
+      return m.de;
+    }
+  }
+  return null;
+}

@@ -44,6 +44,7 @@ import {
   criarPropostaDeLead,
   mudarStatusProposta,
   moverEstagio,
+  reabrirNegociacao,
 } from "../src/modules/comercial/service";
 import { versoesComparaveis } from "../src/modules/comercial/propostas-extras/queries";
 import { versaoVigente } from "../src/modules/comercial/versoes";
@@ -1224,6 +1225,105 @@ async function main() {
       pF510Reenviada.concorrente === null &&
       pF510Reenviada.observacaoRecusa === null,
     JSON.stringify(pF510Reenviada),
+  );
+
+  console.log("\n── F5.11: reabrir volta ao estágio ANTERIOR (ADR-10) ──────────────\n");
+
+  const cliF511 = await prisma.cliente.create({ data: { nome: `${TAG}_EmpresaF511`, tipo: "PJ" } });
+
+  // (a) Caminho normal: LEVANTAMENTO → ORCAMENTO → NEGOCIACAO → PERDIDO. Reabrir deve voltar
+  // pra NEGOCIACAO (o estágio de onde ela perdeu), não pro LEVANTAMENTO inicial nem pra um
+  // estágio escolhido na hora.
+  const negF511a = await prisma.negociacao.create({
+    data: { titulo: `${TAG}_NegF511a`, clienteId: cliF511.id, estagio: "LEVANTAMENTO" },
+  });
+  await moverEstagio({ negociacaoId: negF511a.id, para: "ORCAMENTO", autorId: user.id });
+  await moverEstagio({ negociacaoId: negF511a.id, para: "NEGOCIACAO", autorId: user.id });
+  await moverEstagio({
+    negociacaoId: negF511a.id,
+    para: "PERDIDO",
+    motivoPerdaId: motivoSemConcorrente.id,
+    observacao: `${TAG} — sem verba este ano`,
+    autorId: user.id,
+  });
+  const reaberta = await reabrirNegociacao(negF511a.id, user.id);
+  check(
+    "(a) reabrir volta para NEGOCIACAO — o estágio de onde perdeu, não LEVANTAMENTO",
+    reaberta.de === "PERDIDO" && reaberta.para === "NEGOCIACAO",
+    `${reaberta.de} → ${reaberta.para}`,
+  );
+  const negF511aDepois = await prisma.negociacao.findUnique({
+    where: { id: negF511a.id },
+    select: { estagio: true, motivoPerdaId: true, concorrente: true, observacaoPerda: true, dataFechamento: true },
+  });
+  check(
+    "(a) motivo, concorrente, observação E dataFechamento limpos na reabertura",
+    negF511aDepois?.estagio === "NEGOCIACAO" &&
+      negF511aDepois.motivoPerdaId === null &&
+      negF511aDepois.observacaoPerda === null &&
+      negF511aDepois.dataFechamento === null,
+    JSON.stringify(negF511aDepois),
+  );
+  const eventosF511a = await prisma.atividade.findMany({
+    where: { negociacaoId: negF511a.id },
+    orderBy: { createdAt: "asc" },
+    select: { metadata: true },
+  });
+  const eventosNomesF511a = eventosF511a.map((e) => (e.metadata as { evento?: string })?.evento);
+  check(
+    "(a) a timeline mostra os DOIS eventos do reabrir (ESTAGIO_ALTERADO de novo, sem duplicar NEGOCIACAO_PERDIDA)",
+    eventosNomesF511a.filter((e) => e === "ESTAGIO_ALTERADO").length === 4 && // ORC, NEG, PERDIDO, reabertura
+      eventosNomesF511a.filter((e) => e === "NEGOCIACAO_PERDIDA").length === 1,
+    eventosNomesF511a.join(", "),
+  );
+
+  // (b) Sem histórico de ESTAGIO_ALTERADO nenhum (negociação nasce e já é movida pra PERDIDO
+  // SEM autorId — simula o caso sem timeline) — cai em LEVANTAMENTO, o fallback documentado.
+  const negF511b = await prisma.negociacao.create({
+    data: {
+      titulo: `${TAG}_NegF511b`,
+      clienteId: cliF511.id,
+      estagio: "PERDIDO",
+      motivoPerdaId: motivoSemConcorrente.id,
+    },
+  });
+  const reabertaB = await reabrirNegociacao(negF511b.id, user.id);
+  check(
+    "(b) sem timeline nenhuma, cai em LEVANTAMENTO (fallback documentado, não erro)",
+    reabertaB.para === "LEVANTAMENTO",
+    reabertaB.para,
+  );
+
+  // (c) Reabrir uma negociação que NÃO está PERDIDO/CANCELADO é recusado.
+  const negF511c = await prisma.negociacao.create({
+    data: { titulo: `${TAG}_NegF511c`, clienteId: cliF511.id, estagio: "ORCAMENTO" },
+  });
+  let recusouReabrirAtiva = "";
+  try {
+    await reabrirNegociacao(negF511c.id, user.id);
+  } catch (e) {
+    recusouReabrirAtiva = (e as Error).message;
+  }
+  check(
+    "(c) reabrir negociação que já está ativa é recusado",
+    /perdida ou cancelada/i.test(recusouReabrirAtiva),
+    recusouReabrirAtiva,
+  );
+
+  // (d) Ciclo reabrir → perder de novo → reabrir: pega o ÚLTIMO estágio anterior, não o
+  // primeiro que aparecer na timeline (o caso que o advisor apontou como armadilha).
+  await moverEstagio({ negociacaoId: negF511a.id, para: "ORCAMENTO", autorId: user.id }); // NEGOCIACAO → ORCAMENTO
+  await moverEstagio({
+    negociacaoId: negF511a.id,
+    para: "PERDIDO",
+    motivoPerdaId: motivoSemConcorrente.id,
+    autorId: user.id,
+  }); // perde de novo, desta vez de ORCAMENTO
+  const reabertaDeNovo = await reabrirNegociacao(negF511a.id, user.id);
+  check(
+    "(d) 2ª perda foi de ORCAMENTO — reabrir pega o ÚLTIMO ciclo, não o primeiro (NEGOCIACAO)",
+    reabertaDeNovo.para === "ORCAMENTO",
+    reabertaDeNovo.para,
   );
 
   console.log(`\n${ok ? "✔ Fase 5: tudo verde." : "✖ Fase 5: há falhas acima."}`);

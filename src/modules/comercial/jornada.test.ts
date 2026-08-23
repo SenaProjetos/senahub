@@ -4,8 +4,10 @@ import { ActionError } from "@/lib/action-error";
 import {
   ESTAGIOS_ATIVOS,
   validarMovimento,
+  validarMotivoRecusaProposta,
   exigeConcorrente,
   exigeMotivoPerda,
+  estagioAnteriorAoEncerramento,
   probabilidadeDe,
   transicaoPermitida,
 } from "./jornada";
@@ -280,5 +282,93 @@ describe("transicaoPermitida — porAceiteDeProposta (F5.9)", () => {
     expect(() =>
       validarMovimento({ de: "ORCAMENTO", para: "CONTRATADO", porAceiteDeProposta: true }),
     ).not.toThrow();
+  });
+});
+
+describe("validarMotivoRecusaProposta (F5.10)", () => {
+  it("status diferente de 'recusada' nunca exige nada — nem motivo, nem concorrente", () => {
+    expect(() => validarMotivoRecusaProposta({ status: "enviada" })).not.toThrow();
+    expect(() => validarMotivoRecusaProposta({ status: "rascunho" })).not.toThrow();
+    expect(() => validarMotivoRecusaProposta({ status: "em_negociacao" })).not.toThrow();
+  });
+
+  it("'recusada' sem motivoPerdaId é recusado", () => {
+    expect(() => validarMotivoRecusaProposta({ status: "recusada" })).toThrow(/motivo da recusa/i);
+  });
+
+  it("'recusada' com motivo que NÃO exige concorrente passa sem concorrente", () => {
+    expect(() =>
+      validarMotivoRecusaProposta({
+        status: "recusada",
+        motivoPerdaId: "m1",
+        motivo: { exigeConcorrente: false },
+      }),
+    ).not.toThrow();
+  });
+
+  it("'recusada' com motivo que exige concorrente, sem concorrente, é recusado", () => {
+    expect(() =>
+      validarMotivoRecusaProposta({
+        status: "recusada",
+        motivoPerdaId: "m1",
+        motivo: { exigeConcorrente: true },
+      }),
+    ).toThrow(/exige informar o concorrente/i);
+  });
+
+  it("'recusada' com motivo que exige concorrente, COM concorrente, passa", () => {
+    expect(() =>
+      validarMotivoRecusaProposta({
+        status: "recusada",
+        motivoPerdaId: "m1",
+        concorrente: "Beta Engenharia",
+        motivo: { exigeConcorrente: true },
+      }),
+    ).not.toThrow();
+  });
+});
+
+describe("estagioAnteriorAoEncerramento (F5.11)", () => {
+  const evento = (de: EstagioNegociacao, para: EstagioNegociacao, quandoAtras: number) => ({
+    metadata: { evento: "ESTAGIO_ALTERADO", de, para },
+    createdAt: new Date(2026, 0, 1, 0, 0, -quandoAtras),
+  });
+
+  it("sem nenhuma atividade, devolve null (quem chama decide o fallback)", () => {
+    expect(estagioAnteriorAoEncerramento([], "PERDIDO")).toBeNull();
+  });
+
+  it("acha o `de` do ESTAGIO_ALTERADO que levou a PERDIDO", () => {
+    // Já vem ORDENADO recente-primeiro — é contrato da função, não ordenação interna.
+    const atividades = [evento("NEGOCIACAO", "PERDIDO", 0), evento("ORCAMENTO", "NEGOCIACAO", 10)];
+    expect(estagioAnteriorAoEncerramento(atividades, "PERDIDO")).toBe("NEGOCIACAO");
+  });
+
+  it("ignora ESTAGIO_ALTERADO que não é PARA o estágio encerrado procurado", () => {
+    const atividades = [evento("ORCAMENTO", "NEGOCIACAO", 5)];
+    expect(estagioAnteriorAoEncerramento(atividades, "PERDIDO")).toBeNull();
+  });
+
+  it("ignora eventos que não são ESTAGIO_ALTERADO (ex.: NEGOCIACAO_PERDIDA logo depois)", () => {
+    const atividades = [
+      { metadata: { evento: "NEGOCIACAO_PERDIDA", motivo: "Preço" }, createdAt: new Date() },
+      evento("NEGOCIACAO", "PERDIDO", 1),
+    ];
+    expect(estagioAnteriorAoEncerramento(atividades, "PERDIDO")).toBe("NEGOCIACAO");
+  });
+
+  it("ciclo reabrir→perder de novo: pega o ÚLTIMO (mais recente), não o primeiro que achar", () => {
+    // Ordem recente-primeiro: perdeu de ORCAMENTO agora; da vez anterior tinha perdido de NEGOCIACAO.
+    const atividades = [
+      evento("ORCAMENTO", "PERDIDO", 0), // perda mais recente
+      evento("PERDIDO", "ORCAMENTO", 1), // a reabertura no meio
+      evento("NEGOCIACAO", "PERDIDO", 2), // a perda anterior
+    ];
+    expect(estagioAnteriorAoEncerramento(atividades, "PERDIDO")).toBe("ORCAMENTO");
+  });
+
+  it("funciona igual para CANCELADO — o parâmetro não é hardcoded em PERDIDO", () => {
+    const atividades = [evento("EM_ESPERA", "CANCELADO", 0)];
+    expect(estagioAnteriorAoEncerramento(atividades, "CANCELADO")).toBe("EM_ESPERA");
   });
 });

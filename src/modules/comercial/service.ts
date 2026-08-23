@@ -23,6 +23,7 @@ import {
   probabilidadeDe,
   validarMovimento,
   validarMotivoRecusaProposta,
+  estagioAnteriorAoEncerramento,
   type TabelaProbabilidade,
 } from "@/modules/comercial/jornada";
 import { calcularValoresVersao, proximoNumeroVersao, percentualDesconto } from "@/modules/comercial/versoes";
@@ -742,6 +743,43 @@ export async function moverEstagio(input: {
   );
 
   return { id: negociacao.id, de: negociacao.estagio, para: input.para, probabilidade };
+}
+
+/**
+ * Reabre uma negociação `PERDIDO`/`CANCELADO` (F5.11, ADR-10) — volta ao estágio em que ela
+ * estava ANTES de ser encerrada, não a um estágio escolhido na hora. É `moverEstagio` por baixo
+ * (mesma validação, mesmo evento `ESTAGIO_ALTERADO`, mesma limpeza de motivo/concorrente/
+ * observação da F5.10) — o único trabalho daqui é achar o alvo lendo a PRÓPRIA timeline
+ * (`estagioAnteriorAoEncerramento`, `jornada.ts`), sem coluna nova pra guardar o que a timeline
+ * já registra.
+ *
+ * Sem `ESTAGIO_ALTERADO` na timeline (negociação de antes da F3.2, ou sintética da migração F5.2
+ * — `needsReview: true`), cai em `LEVANTAMENTO`: é o único ponto de partida que faz sentido sem
+ * histórico, não uma adivinhação.
+ */
+export async function reabrirNegociacao(
+  negociacaoId: string,
+  autorId: string,
+): Promise<{ id: string; de: EstagioNegociacao; para: EstagioNegociacao }> {
+  const negociacao = await prisma.negociacao.findUnique({
+    where: { id: negociacaoId },
+    select: { id: true, estagio: true },
+  });
+  if (!negociacao) throw new ActionError("Negociação não encontrada.");
+  if (negociacao.estagio !== "PERDIDO" && negociacao.estagio !== "CANCELADO") {
+    throw new ActionError("Só é possível reabrir uma negociação perdida ou cancelada.");
+  }
+
+  // `evento` mora DENTRO do `metadata` (JSON) — não é coluna, então o filtro é feito em memória
+  // por `estagioAnteriorAoEncerramento`, não aqui no `where`.
+  const atividades = await prisma.atividade.findMany({
+    where: { negociacaoId },
+    orderBy: { createdAt: "desc" },
+    select: { metadata: true },
+  });
+  const alvo = estagioAnteriorAoEncerramento(atividades, negociacao.estagio) ?? "LEVANTAMENTO";
+
+  return moverEstagio({ negociacaoId, para: alvo, autorId });
 }
 
 /**

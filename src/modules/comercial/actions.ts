@@ -33,6 +33,7 @@ import {
   editarCampanhaSchema,
   campanhaIdSchema,
   moverEstagioSchema,
+  reabrirNegociacaoSchema,
   qualificarProspeccaoSchema,
   agendarProximaAcaoSchema,
   concluirProximaAcaoSchema,
@@ -61,6 +62,7 @@ import {
   salvarProposta as servicoSalvarProposta,
   aceitarProposta as servicoAceitarProposta,
   moverEstagio as servicoMoverEstagio,
+  reabrirNegociacao as servicoReabrirNegociacao,
   qualificarProspeccao as servicoQualificarProspeccao,
   agendarProximaAcao as servicoAgendarProximaAcao,
   concluirProximaAcao as servicoConcluirProximaAcao,
@@ -733,6 +735,33 @@ export const moverEstagioNegociacao = defineAction(
       observacao: i.observacao || null,
       autorId: user.id,
     });
+    rev();
+    return r;
+  },
+);
+
+/**
+ * Reabre negociação `PERDIDO`/`CANCELADO` (F5.11, ADR-10) — volta ao estágio anterior ao
+ * encerramento, achado sozinho pelo service lendo a própria timeline; esta action não recebe
+ * destino nenhum. `capturarAntes` guarda o estágio (`PERDIDO`/`CANCELADO`) e o trio de perda no
+ * `AuditLog` — o `ESTAGIO_ALTERADO` na `Atividade` (a metade "timeline" do critério) já sai de
+ * dentro de `moverEstagio`, que `reabrirNegociacao` chama por baixo.
+ */
+export const reabrirNegociacao = defineAction(
+  {
+    ...base,
+    acao: "reabrir-negociacao",
+    entidade: "Negociacao",
+    schema: reabrirNegociacaoSchema,
+    entidadeId: (_d, i) => (i as { negociacaoId: string }).negociacaoId,
+    capturarAntes: async (i) =>
+      prisma.negociacao.findUnique({
+        where: { id: (i as { negociacaoId: string }).negociacaoId },
+        select: { estagio: true, motivoPerdaId: true, concorrente: true, observacaoPerda: true },
+      }),
+  },
+  async (i, { user }) => {
+    const r = await servicoReabrirNegociacao(i.negociacaoId, user.id);
     rev();
     return r;
   },

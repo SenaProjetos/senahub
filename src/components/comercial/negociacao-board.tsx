@@ -14,9 +14,9 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { GripVertical, CalendarClock, Users } from "lucide-react";
+import { GripVertical, CalendarClock, Users, RotateCcw } from "lucide-react";
 import type { EstagioNegociacao } from "@/generated/prisma/client";
-import { moverEstagioNegociacao } from "@/modules/comercial/actions";
+import { moverEstagioNegociacao, reabrirNegociacao } from "@/modules/comercial/actions";
 import type {
   ColunaNegociacao,
   CardNegociacao,
@@ -34,6 +34,7 @@ import { diasSemInteracao, followUpAtrasado } from "@/modules/comercial/frescor"
 import { MotivoPerdaNegociacaoDialog } from "./motivo-perda-negociacao-dialog";
 import { RegistrarInteracaoPopover } from "@/components/comercial/registrar-interacao-popover";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { brlInteiro } from "@/lib/utils";
 
 /**
@@ -200,12 +201,26 @@ function Card({
   agora: Date;
   overlay?: boolean;
 }) {
+  const router = useRouter();
+  const [reabrindo, startReabrir] = useTransition();
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: card.id });
   const dias = diasSemInteracao(new Date(card.updatedAt), agora);
   const atrasado = card.proximaAcao
     ? followUpAtrasado(new Date(card.proximaAcao.inicio), agora)
     : false;
   const valor = card.valorProposto ?? card.valorEstimado;
+  // F5.11 — só nas colunas encerradas; volta ao estágio anterior sozinha, sem perguntar destino.
+  const podeReabrir = card.estagio === "PERDIDO" || card.estagio === "CANCELADO";
+
+  function reabrir() {
+    startReabrir(async () => {
+      const r = await reabrirNegociacao({ negociacaoId: card.id });
+      if (r.ok) {
+        toast.success("Negociação reaberta.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
 
   return (
     <div
@@ -226,7 +241,20 @@ function Card({
         )}
         <div className="min-w-0 flex-1">
           {!overlay && (
-            <div className="float-right ml-1">
+            <div className="float-right ml-1 flex items-center gap-0.5">
+              {podeReabrir && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  aria-label="Reabrir negociação"
+                  title="Reabrir — volta ao estágio anterior"
+                  disabled={reabrindo}
+                  onClick={reabrir}
+                >
+                  <RotateCcw className="size-3" />
+                </Button>
+              )}
               <RegistrarInteracaoPopover entidadeTipo="NEGOCIACAO" entidadeId={card.id} />
             </div>
           )}

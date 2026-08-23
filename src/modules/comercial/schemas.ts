@@ -196,6 +196,11 @@ export const moverEstagioSchema = z.object({
   observacao: opt(z.string()),
 });
 
+/** F5.11 — reabrir não pede destino: `service.ts` acha o estágio anterior sozinho, lendo a timeline. */
+export const reabrirNegociacaoSchema = z.object({
+  negociacaoId: z.string().min(1),
+});
+
 export const qualificarProspeccaoSchema = z.object({
   leadId: z.string().min(1),
   titulo: opt(z.string()),
