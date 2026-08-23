@@ -20,6 +20,167 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## Lote 5 (Terra) — F6.12 · F7.8 · F7.9 · F7.10 · 2026-08-23 · Terra
+
+### Fecho técnico e manual
+
+O manual do Comercial foi reescrito para o fluxo atual (Empresa/Contato → Prospecção → Negociação
+→ Proposta → Projeto), sem o termo legado “oportunidade”. O índice de busca e as notas de novidade
+foram atualizados. O aceite P20 está mapeado em `08-aceite-e2e.md`, e `smoke:crm-e2e` encadeia os
+smokes que cobrem os 20 critérios. O roadmap A–F já estava corretamente marcado como **SUPERSEDED**
+em `docs/superpowers/specs/2026-07-24-crm-comercial-roadmap.md` apontando para este plano.
+
+**Validação concluída:** `npm test` — 222 arquivos / 2.436 testes; `npm run lint`; `npm run build`
+verde com 160 páginas e a rota `/api/comercial/export/inteligencia` presente. `git diff --check`
+verde. A busca textual confirma ausência de “oportunidade” nos dois manuais reescritos.
+
+**Aceite consolidado:** em 2026-08-23, `npm run smoke:crm-e2e` passou todas as fases 1–6 e as
+automações. O agregador foi ajustado para executar o CLI do npm pelo Node, pois `execFileSync` não
+suporta invocar `npm.cmd` diretamente no Windows. O Browser integrado continua indisponível para a
+inspeção visual automatizada, mas a evidência funcional dos 20 critérios está executada e registrada
+em `08-aceite-e2e.md`.
+
+---
+
+## Lote 4 (Terra) — F6.6 · F6.9 · F7.5 · F7.7 · 2026-08-23 · Terra
+
+### F6.6 — Meus × todos
+
+A Home do Comercial agora aceita `?visao=meus` e alterna entre a operação inteira e a carteira do
+usuário conectado. O recorte usa somente `responsavelId`: negociações, leads, propostas ligadas a
+negociação e compromissos ancorados em lead/negociação do responsável. `criadorId` não foi usado
+como atalho de atribuição. A URL conserva o estado e pode ser compartilhada.
+
+### F6.9 — CSV da Inteligência
+
+O botão **Exportar CSV** aparece para quem pode gerir o Comercial e leva todos os filtros atuais
+para `/api/comercial/export/inteligencia`. A rota reutiliza `lerFiltrosInteligencia()` e
+`inteligenciaComercial()`; o CSV é uma projeção do mesmo DTO que renderiza a tela (métricas,
+funil, canal, campanha, tipo, disciplina e novos × recorrentes), sem cálculo duplicado.
+
+### F7.5 — Preferência Comercial
+
+Incluída a preferência `notif_comercial` em Preferências. O motor filtra os responsáveis ativos
+antes de criar o sino e a marca de deduplicação, portanto um opt-out não deixa notificação oculta
+nem bloqueia o fato para uma entrega futura. O smoke cobre esse caminho. Não há uso de
+`lib/notifications` no módulo Comercial.
+
+### F7.7 — Extensão segura
+
+[07-automacoes.md](07-automacoes.md) documenta a interface pura, a chave estável de deduplicação,
+o registro `REGRAS_COMERCIAIS`, o carregamento em lote e a prova necessária. Uma sétima regra toca
+apenas `regras.ts` (regra + uma linha no registro), salvo se realmente exigir novo dado agregado.
+
+**Validação:** `npx vitest run src/modules/comercial/inteligencia/exportacao.test.ts
+src/modules/comercial/automacoes-dedup.test.ts src/modules/comercial/regras.test.ts` — 39 testes
+verdes; `npm run lint` verde; `npm run smoke:crm-automacoes` verde (incluindo opt-out) e
+`npm run smoke:crm-fase6` verde. `tsc --noEmit` só reporta os dois casts preexistentes em
+`src/lib/backup-storage.test.ts:106/112`; nenhum erro deste lote.
+
+**Pendente para o próximo lote:** F6.12 (fecho da fase), F7.8 (aceite E2E), F7.9 (manual pós-reforma)
+e F7.10 (fecho/documentos de roadmap). A inspeção visual automatizada continua pendente porque o
+runtime integrado do Browser não inicia neste ambiente.
+
+**Riscos:** o CSV é um relatório agregado, não uma lista de registros individuais; isso garante que
+suas linhas batem com a tela, mas uma exportação operacional de negócios exigirá outra especificação.
+O recorte **Meus** exclui propostas históricas sem negociação, pois não há `responsavelId` de negócio
+nelas e atribuí-las pelo autor violaria a ADR-15.
+
+---
+
+## Lote 3 (Sol) — F6.7 · F6.8 · F6.11 · F7.3 · F7.4 · 2026-08-23 · Sol
+
+### F6.7 — Inteligência Comercial
+
+Nova rota `/comercial/inteligencia`, alimentada por dados reais e pelas fórmulas puras de
+`metricas.ts`: resumo executivo, funil com conversão entre etapas e ponta a ponta, canal/campanha
+com taxa (não só quantidade), tipo de empreendimento, disciplina com desconto proporcionalmente
+alocado, novos × recorrentes e recompra 6/12/24 meses. Filtros globais vivem na URL e estendem o
+mesmo `FiltrosComerciais`; recorte com base e zero contratos exibe **0% com explicação**, enquanto
+ausência de base continua `null`/“sem base”. Primeiro contrato é calculado no histórico global da
+empresa — não só dentro do período — para não reclassificar recorrente como novo ao mudar a janela.
+
+### F6.8 — Listas de reativação e filtros salvos
+
+Cinco filas determinísticas, limitadas a 50 itens: prospects qualificados sem contato, empresas sem
+interação, clientes inativos, negociações em espera e recorrentes elegíveis a reativação. X/Y/Z vêm
+de `ConfigSistema`. Filtros nomeados são persistidos em `UserPreference.dados` sob a chave
+`comercial_filtros_inteligencia`, preservando as demais preferências; salvar com o mesmo nome
+substitui, e cada usuário fica limitado a 20. As mutations passam por `defineAction` e auditoria.
+
+### F6.11 — Auditoria de performance
+
+`scripts/audit-crm-performance.ts` mede os cinco caminhos com mediana de três execuções aquecidas;
+`scripts/explain-crm-performance.ts` executa e **falha** se qualquer um dos cinco planos não usar
+índice ou contiver `Seq Scan`. Volume em ambas as medições: 2.000 empresas, 4.000 prospecções,
+1.500 negociações, 3.000 propostas e 50.000 atividades.
+
+| Fluxo | Antes (SQL / ms) | Depois (SQL / ms) | Resultado |
+|---|---:|---:|---|
+| Empresa 360 | 14 / 41,4 | 14 / 19,4 | listas já eram limitadas; sem N+1 |
+| Kanban de prospecção | 5 / 61,1 | 11 / 12,4 | banco devolve no máximo 25 por coluna |
+| Kanban de negociação | 7 / 28,8 | 15 / 16,8 | banco devolve no máximo 25 por estágio |
+| Home / Meu Dia | 17 / 34,3 | 17 / 25,7 | contagem constante, listas limitadas |
+| Inteligência | 17 / 136,3 | 17 / 125,2 | contagem constante; saída é agregada |
+
+Os Kanbans agora fazem oito buscas **fixas** de ids (uma por coluna), seguidas das relações e ações
+em lote. O número de statements subiu, mas deixou de crescer o payload: antes as 4.000/1.500 linhas
+eram carregadas e descartadas em JS; agora aumentar a base não altera os 25 cards/coluna. Isso não
+é N+1 — são oito consultas invariantes, independentes do número de cards. A UI ganhou “Carregar
+mais”, total real do banco e reset automático da página ao mudar filtros.
+
+Os cinco `EXPLAIN (ANALYZE, BUFFERS)` passaram usando `lead_status_idx`,
+`negociacao_estagio_idx`, `atividade_clienteId_createdAt_idx`, o novo
+`proposta_status_enviadaEm_idx` e `proposta_negociacaoId_idx`, sem `Seq Scan`. A migration
+`20260823090000_crm_f611_performance_indexes` adiciona os compostos dos Kanbans e filas da Home.
+Como há drift histórico já registrado, `migrate dev` pediu reset; o reset foi recusado e o caminho
+seguro foi `db push` + SQL revisado + `migrate resolve`, conforme a skill `nova-migracao`.
+
+### F7.3/F7.4 — motor de automações e idempotência
+
+`carregarContextoAutomacoesComerciais()` monta em lote as entradas das seis regras puras da F7.1;
+o registro `REGRAS_COMERCIAIS` continua sendo o único ponto de extensão. O job diário
+`automacoes-comerciais` (08:20, somente sob `dev:server`/produção) avalia os fatos, entrega ao
+responsável ativo e grava link direto. Proposta histórica sem negociação usa o autor como fallback;
+follow-up de entidade sem dono usa o criador; fato realmente sem responsável não vira ruído global.
+
+A migration `20260823100000_crm_f74_automacoes_dedup` cria
+`AutomacaoComercialEnviada` com `@@unique([userId, chave])`. Sino + marca são persistidos na mesma
+transação; conflito P2002 desfaz o sino concorrente, e push é best-effort depois do commit. A chave
+inclui a data civil de Recife. `smoke-crm-automacoes.ts` provou no PostgreSQL real: tick 1 cria um
+sino, tick 2 no mesmo dia cria zero, dia seguinte cria um novo; os dois apontam para a ficha real e
+pertencem ao responsável.
+
+O deep-link de negociação, antes inexistente, agora usa
+`/comercial/negociacoes?negociacao=<id>`: a query inclui o alvo mesmo fora da primeira página e o
+board rola/destaca o card. Lead usa a ficha já existente `/comercial/<id>`; proposta e cliente já
+tinham rotas próprias.
+
+**Arquivos principais:** `src/modules/comercial/inteligencia/**` ·
+`src/components/comercial/inteligencia-comercial-view.tsx` ·
+`filtros-salvos-inteligencia.tsx` · `listas-reativacao-view.tsx` ·
+`src/modules/comercial/automacoes.ts` · `automacoes-dedup.ts` + teste · `regras.ts` ·
+`src/lib/jobs.ts`/`jobs-handlers.ts` · `src/modules/comercial/queries.ts` · os dois Kanbans ·
+`prisma/schema.prisma` + 2 migrations · 3 scripts de auditoria/smoke.
+
+**Verificação:** lint completo limpo · **221 arquivos / 2.435 testes verdes** · build de produção
+verde (159 páginas) · 100 testes focados do lote verdes · smoke Fase 2 verde · smoke Fase 6 verde ·
+smoke F7.3/F7.4 verde · cinco EXPLAIN com índice/sem seq scan. `tsc --incremental false` não aponta erro do lote; restam somente os dois
+casts preexistentes de `src/lib/backup-storage.test.ts:106/112`. A inspeção visual automatizada
+ficou sem prova porque o runtime integrado do Browser não iniciou (`os error 3`), não por falha da
+aplicação.
+
+**Pendente para o próximo lote:** F6.6 (meus × todos), F6.9 (CSV de qualquer recorte), F7.5
+(opt-out Comercial) e F7.7 (documentar extensão); depois F6.12/F7.8–F7.10 fecham validação, manual e
+roadmap.
+
+**Riscos:** o primeiro tick real pode produzir vários sinos legítimos se a operação já estiver
+acumulada; a deduplicação impede repetição no mesmo dia, não silencia fatos antigos. A categoria de
+opt-out `notif_comercial` é deliberadamente F7.5 e ainda não está aplicada. Os índices compostos
+aumentam marginalmente o custo de escrita de Lead/Negociação/Proposta/Compromisso.
+
+---
+
 ## Lote 2 (Sonnet) — F6.2 · F6.4 · F7.2 · F7.6 · F6.5 · 2026-08-22/23 · Sonnet
 
 > F6.8 (listas de reativação + filtros salvos) **saiu deste lote** — P17 item 7 põe essas listas

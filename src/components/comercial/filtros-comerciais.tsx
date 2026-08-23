@@ -4,6 +4,12 @@ import { useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
 import { useSetParams } from "@/lib/use-set-param";
 import { PERIODOS, PERIODO_LABEL } from "@/modules/comercial/filtros";
+import {
+  PERFIS_CLIENTE,
+  PERFIL_CLIENTE_LABEL,
+  FOCOS_REATIVACAO,
+  FOCO_REATIVACAO_LABEL,
+} from "@/modules/comercial/inteligencia/filtros";
 import { TEMPERATURAS, TEMPERATURA_ICONE, TEMPERATURA_LABEL } from "@/modules/comercial/temperatura";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +31,13 @@ export type OpcoesFiltro = {
   disciplinas: { id: string; nome: string }[];
 };
 
+export type OpcoesFiltroInteligencia = {
+  segmentos: { id: string; nome: string }[];
+  tiposEmpreendimento: { id: string; nome: string }[];
+  ufs: string[];
+  parceiros: { id: string; nome: string }[];
+};
+
 /**
  * Filtros dos boards comerciais (F2.15) — **um componente só, usado pelos dois**.
  *
@@ -38,9 +51,11 @@ export type OpcoesFiltro = {
 export function FiltrosComerciais({
   opcoes,
   mostrarDisciplina = false,
+  inteligencia,
 }: {
   opcoes: OpcoesFiltro;
   mostrarDisciplina?: boolean;
+  inteligencia?: OpcoesFiltroInteligencia;
 }) {
   const sp = useSearchParams();
   const setParams = useSetParams();
@@ -48,9 +63,21 @@ export function FiltrosComerciais({
   const trocar = (k: string) => (v: string | null) =>
     setParams({ [k]: v && v !== TODOS ? v : null });
 
-  const ativos = ["resp", "camp", "canal", "empresa", "temp", "periodo", "disc"].filter((k) =>
-    sp.get(k),
-  );
+  const ativos = [
+    "resp",
+    "camp",
+    "canal",
+    "empresa",
+    "temp",
+    "periodo",
+    "disc",
+    "segmento",
+    "tipo",
+    "uf",
+    "perfil",
+    "parceiro",
+    "foco",
+  ].filter((k) => sp.get(k));
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -107,6 +134,58 @@ export function FiltrosComerciais({
           vazio="Todas as disciplinas"
           itens={opcoes.disciplinas}
         />
+      )}
+      {inteligencia && (
+        <>
+          <Campo
+            valor={val("segmento")}
+            onTrocar={trocar("segmento")}
+            placeholder="Segmento"
+            vazio="Todos os segmentos"
+            itens={inteligencia.segmentos}
+          />
+          <Campo
+            valor={val("tipo")}
+            onTrocar={trocar("tipo")}
+            placeholder="Empreendimento"
+            vazio="Todos os tipos"
+            itens={inteligencia.tiposEmpreendimento}
+          />
+          <Campo
+            valor={val("uf")}
+            onTrocar={trocar("uf")}
+            placeholder="UF"
+            vazio="Todas as UFs"
+            itens={inteligencia.ufs.map((uf) => ({ id: uf, nome: uf }))}
+          />
+          <Campo
+            valor={val("perfil")}
+            onTrocar={trocar("perfil")}
+            placeholder="Novo ou recorrente"
+            vazio="Novos e recorrentes"
+            itens={PERFIS_CLIENTE.map((perfil) => ({
+              id: perfil,
+              nome: PERFIL_CLIENTE_LABEL[perfil],
+            }))}
+          />
+          <Campo
+            valor={val("parceiro")}
+            onTrocar={trocar("parceiro")}
+            placeholder="Parceiro"
+            vazio="Todos os parceiros"
+            itens={inteligencia.parceiros}
+          />
+          <Campo
+            valor={val("foco")}
+            onTrocar={trocar("foco")}
+            placeholder="Lista de reativação"
+            vazio="Todas as listas"
+            itens={FOCOS_REATIVACAO.map((foco) => ({
+              id: foco,
+              nome: FOCO_REATIVACAO_LABEL[foco],
+            }))}
+          />
+        </>
       )}
 
       {ativos.length > 0 && (

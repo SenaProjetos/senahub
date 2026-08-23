@@ -93,7 +93,7 @@ export async function obterLead(id: string) {
 }
 
 // ── Dashboard / metas ─────────────────────────────────────────
-export async function resumoComercial() {
+export async function resumoComercial(responsavelId?: string) {
   const agora = new Date();
   const ano = agora.getFullYear();
   const mes = agora.getMonth() + 1;
@@ -103,11 +103,17 @@ export async function resumoComercial() {
   const [meta, aceitas, enviadas, leadsAtivos] = await Promise.all([
     prisma.metaComercial.findUnique({ where: { ano_mes: { ano, mes } } }),
     prisma.proposta.findMany({
-      where: { status: "aceita", aceitaEm: { gte: ini, lte: fim } },
+      where: {
+        status: "aceita",
+        aceitaEm: { gte: ini, lte: fim },
+        negociacao: responsavelId ? { responsavelId } : undefined,
+      },
       select: { versoes: { select: { numero: true, valorVersao: true } } },
     }),
-    prisma.proposta.count({ where: { status: "enviada" } }),
-    prisma.lead.count({ where: { arquivado: false } }),
+    prisma.proposta.count({
+      where: { status: "enviada", negociacao: responsavelId ? { responsavelId } : undefined },
+    }),
+    prisma.lead.count({ where: { arquivado: false, responsavelId } }),
   ]);
 
   // `valorVersao` da versão VIGENTE (a de maior número), não a soma crua dos itens — mesmo bug
@@ -378,20 +384,46 @@ export async function proximasAcoesDe(entidadeTipo: TipoAncoraCompromisso, entid
 }
 
 // ── Kanban de Prospecção (F2.13) ─────────────────────────────
+/** Quantos cards de cada coluna os Kanbans carregam por página. */
+export const PAGINA_COLUNA = 25;
+
 /**
  * Board de prospecção agrupado por `status` (o funil novo), não por `FunilEtapa` (deprecado).
  *
- * **Uma query só** para montar o board inteiro, com os contatos e a próxima ação resolvidos em
- * lote — o N+1 clássico aqui seria buscar a próxima ação por card, e numa coluna de 200 isso são
- * 200 idas ao banco só para desenhar uma etiqueta.
+ * A paginação é feita no banco, separadamente por coluna. As oito buscas de ids são um custo
+ * fixo — nunca uma consulta por card — e permitem buscar detalhes/relações e próximas ações em
+ * lote. Assim, aumentar o seed de 4 mil para 40 mil leads não aumenta o payload da página.
  */
-export async function funilProspeccao(filtros?: FiltrosComerciais, agora: Date = new Date()) {
+export async function funilProspeccao(opts?: {
+  pagina?: number;
+  filtros?: FiltrosComerciais;
+  agora?: Date;
+}) {
+  const take = PAGINA_COLUNA * Math.max(1, opts?.pagina ?? 1);
+  const whereBase = {
+    arquivado: false,
+    ...(opts?.filtros ? whereProspeccao(opts.filtros, opts.agora ?? new Date()) : {}),
+  };
+  const [totais, idsPorStatus] = await Promise.all([
+    prisma.lead.groupBy({
+      by: ["status"],
+      where: { ...whereBase, status: { in: [...COLUNAS_PROSPECCAO] } },
+      _count: true,
+    }),
+    Promise.all(
+      COLUNAS_PROSPECCAO.map((status) =>
+        prisma.lead.findMany({
+          where: { ...whereBase, status },
+          orderBy: { updatedAt: "desc" },
+          take,
+          select: { id: true },
+        }),
+      ),
+    ),
+  ]);
+  const ids = idsPorStatus.flatMap((lista) => lista.map((lead) => lead.id));
   const leads = await prisma.lead.findMany({
-    where: {
-      status: { in: [...COLUNAS_PROSPECCAO] },
-      arquivado: false,
-      ...(filtros ? whereProspeccao(filtros, agora) : {}),
-    },
+    where: { id: { in: ids } },
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,
@@ -437,10 +469,16 @@ export async function funilProspeccao(filtros?: FiltrosComerciais, agora: Date =
     };
   });
 
-  return COLUNAS_PROSPECCAO.map((status) => ({
-    status,
-    leads: comAcao.filter((l) => l.status === status),
-  }));
+  const totalPorStatus = new Map(totais.map((total) => [total.status, total._count]));
+  return COLUNAS_PROSPECCAO.map((status) => {
+    const total = totalPorStatus.get(status) ?? 0;
+    return {
+      status,
+      leads: comAcao.filter((lead) => lead.status === status),
+      total,
+      temMais: total > take,
+    };
+  });
 }
 export type ColunaProspeccao = Awaited<ReturnType<typeof funilProspeccao>>[number];
 export type LeadProspeccao = ColunaProspeccao["leads"][number];
@@ -458,20 +496,12 @@ export const COLUNAS_NEGOCIACAO = [
   "CANCELADO",
 ] as const;
 
-/** Quantos cards por coluna vêm na primeira carga (F2.14 pede paginação por coluna). */
-export const PAGINA_COLUNA = 25;
-
 /**
  * Board de negociações.
  *
- * **Duas consultas no total, independentemente de quantas colunas ou cards** — é o aceite
- * ("1 query para montar o board, sem N+1"). A primeira traz as negociações com tudo do card
- * resolvido por `select` (cliente, responsável, disciplinas contadas); a segunda traz as próximas
- * ações de todas elas em lote, porque a âncora é polimórfica e sem FK (ver F2.10) e o Prisma não
- * junta relação que não existe no schema.
- *
- * O ingênuo aqui seria uma consulta por coluna (8) mais uma por card para a próxima ação — com
- * 200 cards seriam 208 idas ao banco para desenhar uma tela.
+ * A paginação segue o mesmo desenho fixo da prospecção: oito buscas pequenas de ids, uma por
+ * estágio, e todos os detalhes/relacionamentos resolvidos em lote. O número de consultas não
+ * depende da quantidade de cards e o banco não envia negociações que serão descartadas em JS.
  *
  * **Contagem e soma vêm do banco, não do array paginado.** Se viessem do array, uma coluna com
  * 200 registros mostraria "25" e somaria só a primeira página — o número no topo da coluna
@@ -481,23 +511,48 @@ export async function funilNegociacao(opts?: {
   pagina?: number;
   filtros?: FiltrosComerciais;
   agora?: Date;
+  alvoId?: string | null;
 }) {
-  const take = PAGINA_COLUNA * (opts?.pagina ?? 1);
+  const take = PAGINA_COLUNA * Math.max(1, opts?.pagina ?? 1);
   // MESMO `where` no groupBy e no findMany: se divergissem, o contador da coluna deixaria de
   // bater com os cards exibidos exatamente quando houvesse filtro — o pior momento possível.
   const where = opts?.filtros ? whereNegociacao(opts.filtros, opts.agora ?? new Date()) : {};
 
-  const [totais, negociacoes] = await Promise.all([
+  const [totais, idsPorEstagio, alvo] = await Promise.all([
     prisma.negociacao.groupBy({
       by: ["estagio"],
       where,
       _count: true,
       _sum: { valorEstimado: true },
     }),
-    prisma.negociacao.findMany({
-      where,
-      orderBy: { updatedAt: "desc" },
-      select: {
+    Promise.all(
+      COLUNAS_NEGOCIACAO.map((estagio) =>
+        prisma.negociacao.findMany({
+          where: { ...where, estagio },
+          orderBy: { updatedAt: "desc" },
+          take,
+          select: { id: true },
+        }),
+      ),
+    ),
+    opts?.alvoId
+      ? prisma.negociacao.findFirst({
+          where: { id: opts.alvoId },
+          select: { id: true, estagio: true },
+        })
+      : Promise.resolve(null),
+  ]);
+  if (alvo) {
+    const indice = COLUNAS_NEGOCIACAO.indexOf(alvo.estagio);
+    if (indice >= 0 && !idsPorEstagio[indice].some((item) => item.id === alvo.id)) {
+      idsPorEstagio[indice].push({ id: alvo.id });
+    }
+  }
+  const ids = idsPorEstagio.flatMap((lista) => lista.map((negociacao) => negociacao.id));
+  const negociacoes = await prisma.negociacao.findMany({
+    where: { id: { in: ids } },
+    orderBy: { updatedAt: "desc" },
+    select: {
         id: true,
         titulo: true,
         estagio: true,
@@ -509,9 +564,8 @@ export async function funilNegociacao(opts?: {
         cliente: { select: { id: true, nome: true } },
         responsavel: { select: { id: true, name: true } },
         _count: { select: { disciplinas: true, contatos: true } },
-      },
-    }),
-  ]);
+    },
+  });
 
   const acoes = await prisma.compromisso.findMany({
     where: {
@@ -595,11 +649,11 @@ export async function funilNegociacao(opts?: {
     const agregado = totalPorEstagio.get(estagio);
     return {
       estagio,
-      cards: doEstagio.slice(0, take),
+      cards: doEstagio,
       /** Total REAL no banco — não o tamanho da página. */
       total: agregado?._count ?? 0,
       soma: Number(agregado?._sum.valorEstimado ?? 0),
-      temMais: doEstagio.length > take,
+      temMais: (agregado?._count ?? 0) > take,
     };
   });
 }
@@ -794,7 +848,7 @@ function inicioDoMes(d: Date): Date {
  * 2 (propostas) + 1 (negociações sem contato) = **11 queries**, para qualquer volume de dados —
  * é o número que fica no `06-progresso.md` junto do tempo medido contra o seed da F6.2.
  */
-export async function homeComercial(agora: Date) {
+export async function homeComercial(agora: Date, responsavelId?: string) {
   const config = await getConfigComercial();
 
   const inicioMesAtual = inicioDoMes(agora);
@@ -808,9 +862,10 @@ export async function homeComercial(agora: Date) {
     inicioAmanha.getTime() + config.diasHorizonteProximasAcoes * 86_400_000,
   );
 
-  const [negRowsRaw, followUpsHojeCount, followUpsAtrasadosCount, atrasados, hoje, proximas, propostasAguardando, propostasVencendoBruto, semContato] =
+  const [negRowsRaw, leadsDoResponsavel] =
     await Promise.all([
       prisma.negociacao.findMany({
+        where: { responsavelId },
         select: {
           id: true,
           estagio: true,
@@ -826,18 +881,45 @@ export async function homeComercial(agora: Date) {
           cliente: { select: { fundidoEmId: true } },
         },
       }),
+      responsavelId
+        ? prisma.lead.findMany({ where: { responsavelId }, select: { id: true } })
+        : Promise.resolve([]),
+    ]);
+
+  const idsDeEntidadesDoResponsavel = {
+    lead: leadsDoResponsavel.map((lead) => lead.id),
+    negociacao: negRowsRaw.map((negociacao) => negociacao.id),
+  };
+  const whereCompromissoDoResponsavel = responsavelId
+    ? {
+        OR: [
+          { entidadeTipo: "LEAD" as const, entidadeId: { in: idsDeEntidadesDoResponsavel.lead } },
+          { entidadeTipo: "NEGOCIACAO" as const, entidadeId: { in: idsDeEntidadesDoResponsavel.negociacao } },
+        ],
+      }
+    : {};
+
+  const [followUpsHojeCount, followUpsAtrasadosCount, atrasados, hoje, proximas, propostasAguardando, propostasVencendoBruto, semContato] =
+    await Promise.all([
       prisma.compromisso.count({
         where: {
           tipo: { not: null },
           concluidoEm: null,
           inicio: { gte: inicioHoje, lt: inicioAmanha },
+          ...whereCompromissoDoResponsavel,
         },
       }),
       prisma.compromisso.count({
-        where: { tipo: { not: null }, concluidoEm: null, inicio: { lt: inicioHoje } },
+        where: {
+          tipo: { not: null }, concluidoEm: null, inicio: { lt: inicioHoje },
+          ...whereCompromissoDoResponsavel,
+        },
       }),
       prisma.compromisso.findMany({
-        where: { tipo: { not: null }, concluidoEm: null, inicio: { lt: inicioHoje } },
+        where: {
+          tipo: { not: null }, concluidoEm: null, inicio: { lt: inicioHoje },
+          ...whereCompromissoDoResponsavel,
+        },
         orderBy: { inicio: "asc" },
         take: 8,
         select: { id: true, titulo: true, inicio: true, tipo: true, entidadeTipo: true, entidadeId: true },
@@ -847,6 +929,7 @@ export async function homeComercial(agora: Date) {
           tipo: { not: null },
           concluidoEm: null,
           inicio: { gte: inicioHoje, lt: inicioAmanha },
+          ...whereCompromissoDoResponsavel,
         },
         orderBy: { inicio: "asc" },
         take: 8,
@@ -857,13 +940,14 @@ export async function homeComercial(agora: Date) {
           tipo: { not: null },
           concluidoEm: null,
           inicio: { gte: inicioAmanha, lt: fimHorizonte },
+          ...whereCompromissoDoResponsavel,
         },
         orderBy: { inicio: "asc" },
         take: 8,
         select: { id: true, titulo: true, inicio: true, tipo: true, entidadeTipo: true, entidadeId: true },
       }),
       prisma.proposta.findMany({
-        where: { status: "enviada" },
+        where: { status: "enviada", negociacao: responsavelId ? { responsavelId } : undefined },
         orderBy: { enviadaEm: "asc" },
         take: 8,
         select: { id: true, numero: true, titulo: true, enviadaEm: true, cliente: { select: { nome: true } } },
@@ -874,6 +958,7 @@ export async function homeComercial(agora: Date) {
       prisma.proposta.findMany({
         where: {
           status: "enviada",
+          negociacao: responsavelId ? { responsavelId } : undefined,
           validade: {
             not: null,
             lte: new Date(agora.getTime() + (config.diasAvisoValidadeProposta + 1) * 86_400_000),
@@ -884,6 +969,7 @@ export async function homeComercial(agora: Date) {
       prisma.negociacao.findMany({
         where: {
           estagio: { in: [...ESTAGIOS_PIPELINE_ABERTO] },
+          responsavelId,
           updatedAt: { lt: new Date(agora.getTime() - config.diasSemContato * 86_400_000) },
         },
         orderBy: { updatedAt: "asc" },

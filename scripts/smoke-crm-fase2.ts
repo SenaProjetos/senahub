@@ -83,7 +83,9 @@ async function main() {
   });
   check("lead nasce com status de prospecção", true, "IDENTIFICADO");
 
-  const boardP = await funilProspeccao();
+  // Recorta a empresa da fixture: com a paginação real da F6.11, o seed de volume pode ter
+  // datas sintéticas futuras e ocupar os 25 primeiros lugares da coluna global.
+  const boardP = await funilProspeccao({ filtros: lerFiltros({ empresa: emp.id }) });
   const naColuna = boardP.find((c) => c.status === "IDENTIFICADO")?.leads.some((l) => l.id === lead.id);
   check("board de prospecção mostra o lead na coluna certa", naColuna === true);
 

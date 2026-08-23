@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useSetParams } from "@/lib/use-set-param";
 import { toast } from "sonner";
 import {
   DndContext,
@@ -29,6 +30,7 @@ import {
 import { diasSemInteracao, followUpAtrasado } from "@/modules/comercial/frescor";
 import { RegistrarInteracaoPopover } from "@/components/comercial/registrar-interacao-popover";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { brlInteiro } from "@/lib/utils";
 
@@ -44,8 +46,15 @@ import { brlInteiro } from "@/lib/utils";
  * simplesmente remove a sobreposição — o card volta para onde estava, sem precisar guardar cópia
  * do board inteiro.
  */
-export function ProspeccaoBoard({ colunas }: { colunas: ColunaProspeccao[] }) {
+export function ProspeccaoBoard({
+  colunas,
+  pagina,
+}: {
+  colunas: ColunaProspeccao[];
+  pagina: number;
+}) {
   const router = useRouter();
+  const setParams = useSetParams();
   const [, start] = useTransition();
   const [arrastando, setArrastando] = useState<LeadProspeccao | null>(null);
   /** leadId → status otimista. Sobrepõe o que veio do servidor até a próxima leitura. */
@@ -56,10 +65,10 @@ export function ProspeccaoBoard({ colunas }: { colunas: ColunaProspeccao[] }) {
 
   const colunasExibidas = useMemo(() => {
     const todos = colunas.flatMap((c) => c.leads);
-    return colunas.map((c) => ({
-      ...c,
-      leads: todos.filter((l) => (movidos[l.id] ?? l.status) === c.status),
-    }));
+    return colunas.map((c) => {
+      const leads = todos.filter((l) => (movidos[l.id] ?? l.status) === c.status);
+      return { ...c, leads, total: c.total + leads.length - c.leads.length };
+    });
   }, [colunas, movidos]);
 
   function onDragStart(e: DragStartEvent) {
@@ -98,31 +107,44 @@ export function ProspeccaoBoard({ colunas }: { colunas: ColunaProspeccao[] }) {
     });
   }
 
+  const temMais = colunas.some((coluna) => coluna.temMais);
+
   return (
-    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-      {/* F2.17: em tela pequena as colunas EMPILHAM (flex-col) e ocupam a largura toda —
-          sem scroll horizontal, que é o aceite. A partir de `sm` volta a ser board lado a lado.
-          Feito por CSS e não por media query em JS de propósito: `useMediaQuery` renderiza o
-          layout errado no servidor e corrige depois da hidratação, fazendo o board piscar. */}
-      <div className="flex flex-col gap-3 pb-2 sm:flex-row sm:overflow-x-auto">
-        {colunasExibidas.map((c) => (
-          <Coluna key={c.status} status={c.status} leads={c.leads} agora={agora} />
-        ))}
-      </div>
-      <DragOverlay>
-        {arrastando ? <Card lead={arrastando} agora={agora} arrastandoOverlay /> : null}
-      </DragOverlay>
-    </DndContext>
+    <>
+      <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+        {/* F2.17: em tela pequena as colunas EMPILHAM (flex-col) e ocupam a largura toda —
+            sem scroll horizontal, que é o aceite. A partir de `sm` volta a ser board lado a lado.
+            Feito por CSS e não por media query em JS de propósito: `useMediaQuery` renderiza o
+            layout errado no servidor e corrige depois da hidratação, fazendo o board piscar. */}
+        <div className="flex flex-col gap-3 pb-2 sm:flex-row sm:overflow-x-auto">
+          {colunasExibidas.map((c) => (
+            <Coluna key={c.status} status={c.status} leads={c.leads} total={c.total} agora={agora} />
+          ))}
+        </div>
+        <DragOverlay>
+          {arrastando ? <Card lead={arrastando} agora={agora} arrastandoOverlay /> : null}
+        </DragOverlay>
+      </DndContext>
+      {temMais && (
+        <div className="flex justify-center">
+          <Button variant="outline" onClick={() => setParams({ page: String(pagina + 1) })}>
+            Carregar mais prospecções
+          </Button>
+        </div>
+      )}
+    </>
   );
 }
 
 function Coluna({
   status,
   leads,
+  total,
   agora,
 }: {
   status: StatusProspeccao;
   leads: LeadProspeccao[];
+  total: number;
   agora: Date;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
@@ -135,10 +157,9 @@ function Coluna({
     >
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="truncate text-sm font-semibold">{STATUS_PROSPECCAO_LABEL[status]}</span>
-        {/* Contador por coluna — o aceite exige que confira com a lista, então ele conta
-            exatamente o array renderizado, nunca um total vindo separado do servidor. */}
+        {/* Total real da coluna no banco; a lista abaixo pode estar paginada. */}
         <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
-          {leads.length}
+          {total}
         </Badge>
       </div>
       <div className="space-y-2">

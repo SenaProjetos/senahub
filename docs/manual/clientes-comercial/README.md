@@ -15,6 +15,6 @@ Documentação do cadastro de clientes e do módulo comercial.
 | --- | --- | --- |
 | [Guia do Comercial para iniciantes](guia-iniciante.md) — comece por aqui se nunca trabalhou com vendas | — | ✅ documentado |
 | [Clientes](clientes.md) | `/clientes` | ✅ documentado |
-| [Comercial (funil, propostas, tabelas, metas)](comercial.md) | `/comercial` | ✅ documentado |
+| [Comercial (prospecção, negociações, propostas e inteligência)](comercial.md) | `/comercial` | ✅ documentado |
 
 [← Índice do manual](../README.md)

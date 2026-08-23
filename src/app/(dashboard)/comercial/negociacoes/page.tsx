@@ -39,8 +39,10 @@ export default async function NegociacoesPage({
   const podeGerir = await can(user, "comercial", "gerir");
   const sp = await searchParams;
   const filtros = lerFiltros(sp);
+  const pagina = Math.max(1, Number(Array.isArray(sp.page) ? sp.page[0] : sp.page) || 1);
+  const alvoId = Array.isArray(sp.negociacao) ? sp.negociacao[0] : sp.negociacao;
   const [colunas, motivos, opcoes] = await Promise.all([
-    funilNegociacao({ filtros }),
+    funilNegociacao({ filtros, pagina, alvoId }),
     motivosPerdaAtivos(),
     opcoesFiltroComercial(),
   ]);
@@ -82,7 +84,7 @@ export default async function NegociacoesPage({
           description="Qualifique uma prospecção para criar a primeira."
         />
       ) : (
-        <NegociacaoBoard colunas={colunas} motivos={motivos} />
+        <NegociacaoBoard colunas={colunas} motivos={motivos} pagina={pagina} />
       )}
     </div>
   );

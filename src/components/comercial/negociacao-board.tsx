@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useSetParams } from "@/lib/use-set-param";
 import { toast } from "sonner";
 import {
   DndContext,
@@ -52,11 +53,15 @@ import { brlInteiro } from "@/lib/utils";
 export function NegociacaoBoard({
   colunas,
   motivos,
+  pagina,
 }: {
   colunas: ColunaNegociacao[];
   motivos: MotivoPerdaOpcao[];
+  pagina: number;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const setParams = useSetParams();
   const [, start] = useTransition();
   const [arrastando, setArrastando] = useState<CardNegociacao | null>(null);
   const [movidos, setMovidos] = useState<Record<string, EstagioNegociacao>>({});
@@ -64,6 +69,16 @@ export function NegociacaoBoard({
   const [perda, setPerda] = useState<{ id: string; titulo: string } | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const agora = useMemo(() => new Date(), []);
+  const alvoId = searchParams.get("negociacao");
+
+  useEffect(() => {
+    if (!alvoId) return;
+    document.getElementById(`negociacao-${alvoId}`)?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+      inline: "center",
+    });
+  }, [alvoId]);
 
   const colunasExibidas = useMemo(() => {
     const todos = colunas.flatMap((c) => c.cards);
@@ -133,13 +148,21 @@ export function NegociacaoBoard({
             a partir de `sm`. Ver comentário lá para o porquê de ser CSS e não JS. */}
         <div className="flex flex-col gap-3 pb-2 sm:flex-row sm:overflow-x-auto">
           {colunasExibidas.map((c) => (
-            <Coluna key={c.estagio} coluna={c} agora={agora} />
+            <Coluna key={c.estagio} coluna={c} agora={agora} alvoId={alvoId} />
           ))}
         </div>
         <DragOverlay>
           {arrastando ? <Card card={arrastando} agora={agora} overlay /> : null}
         </DragOverlay>
       </DndContext>
+
+      {colunas.some((coluna) => coluna.temMais) && (
+        <div className="flex justify-center">
+          <Button variant="outline" onClick={() => setParams({ page: String(pagina + 1) })}>
+            Carregar mais negociações
+          </Button>
+        </div>
+      )}
 
       {perda && (
         <MotivoPerdaNegociacaoDialog
@@ -157,7 +180,15 @@ export function NegociacaoBoard({
   );
 }
 
-function Coluna({ coluna, agora }: { coluna: ColunaNegociacao; agora: Date }) {
+function Coluna({
+  coluna,
+  agora,
+  alvoId,
+}: {
+  coluna: ColunaNegociacao;
+  agora: Date;
+  alvoId: string | null;
+}) {
   const { setNodeRef, isOver } = useDroppable({ id: coluna.estagio });
   return (
     <div
@@ -181,7 +212,7 @@ function Coluna({ coluna, agora }: { coluna: ColunaNegociacao; agora: Date }) {
         {coluna.cards.length === 0 ? (
           <p className="px-1 py-4 text-center text-[11px] text-muted-foreground/60">—</p>
         ) : (
-          coluna.cards.map((n) => <Card key={n.id} card={n} agora={agora} />)
+          coluna.cards.map((n) => <Card key={n.id} card={n} agora={agora} destacado={n.id === alvoId} />)
         )}
         {coluna.temMais && (
           <p className="px-1 py-1 text-center text-[10px] text-muted-foreground">
@@ -197,10 +228,12 @@ function Card({
   card,
   agora,
   overlay,
+  destacado,
 }: {
   card: CardNegociacao;
   agora: Date;
   overlay?: boolean;
+  destacado?: boolean;
 }) {
   const router = useRouter();
   const [reabrindo, startReabrir] = useTransition();
@@ -225,8 +258,11 @@ function Card({
 
   return (
     <div
+      id={overlay ? undefined : `negociacao-${card.id}`}
       ref={overlay ? undefined : setNodeRef}
-      className={`rounded-sm border bg-card p-2 text-sm ${isDragging && !overlay ? "opacity-40" : ""}`}
+      className={`rounded-sm border bg-card p-2 text-sm ${
+        destacado ? "border-primary ring-2 ring-primary/30" : ""
+      } ${isDragging && !overlay ? "opacity-40" : ""}`}
     >
       <div className="flex items-start gap-1.5">
         {!overlay && (

@@ -1,111 +1,110 @@
 ---
-titulo: Comercial (funil, propostas, tabelas, metas)
-descricao: Funil de vendas com leads/oportunidades, propostas, tabelas de preço e meta mensal.
-resumo: Acompanhe leads no funil, registre oportunidades, monte propostas (itens e condições), gerencie tabelas de preço por m² e a meta mensal de vendas.
-tags: [comercial, funil, leads, oportunidades, propostas, tabelas de preço, meta, vendas]
-palavras-chave: [comercial, funil, lead, oportunidade, proposta, tabela de preço, valor por m2, meta, realizado, etapa, perdido]
+titulo: Comercial
+descricao: Processo comercial completo, da prospecção ao projeto.
+resumo: Registre empresas e contatos, acompanhe prospecções e negociações, envie propostas e transforme um aceite em projeto.
+tags: [comercial, crm, prospecção, negociação, proposta, empresa, contato, projeto]
+palavras-chave: [comercial, prospecção, negociação, proposta, follow-up, interação, empresa 360, inteligência comercial]
 sinonimos: [crm, vendas, pipeline, pré-venda]
 ---
 
-# Comercial (funil, propostas, tabelas, metas)
+# Comercial
 
-## Objetivo
+O Comercial acompanha a venda desde o primeiro contato até o projeto que a equipe vai executar.
+Use-o para não perder conversas, saber quem precisa de retorno e manter o histórico da empresa em
+um só lugar.
 
-Gerir o processo comercial: do **lead** no funil à **proposta** aceita, com **tabelas de
-preço** e acompanhamento de **meta** mensal.
+> A área exige a permissão **Comercial**. Quem só pode visualizar consulta os dados; criar,
+> editar, mover cards, enviar proposta e ajustar configurações exige acesso de gestão.
 
-## Quando utilizar
+## O fluxo
 
-- Para registrar e mover leads, montar propostas e acompanhar resultado de vendas.
+**Empresa e contatos → Prospecção → Negociação → Proposta → Aceite → Projeto**
 
-## Como acessar
+- **Empresa** é o cadastro da organização ou pessoa atendida. Pode ter vários contatos.
+- **Prospecção** é o trabalho de encontrar e abordar um possível cliente.
+- **Negociação** começa quando a prospecção foi qualificada e concentra escopo, disciplinas,
+  valores e avanço comercial.
+- **Proposta** é a oferta formal enviada ao cliente.
+- **Projeto** nasce quando a proposta é aceita; as disciplinas e o cliente são reaproveitados.
 
-- Menu → **Comercial** (`/comercial`). Exige `comercial:ver`.
-- Disponível a admin, supervisor e administrativo. **Criar/editar exige
-  `comercial:gerir`** (perfis sem essa permissão veem em modo leitura).
+## Dia a dia
 
-## Visão geral (tela inicial)
+### 1. Cadastre ou reaproveite a empresa
 
-- **Resumo:** leads ativos, propostas enviadas, **aceitas no mês**.
-- **Meta do mês:** meta × realizado (editável por quem tem `comercial:gerir`).
-- **Funil (kanban):** leads organizados por **etapa**.
-- Botões para **Oportunidades**, **Tabelas de preço** e **Propostas**.
+Em **Clientes**, pesquise antes de cadastrar. Ao criar uma prospecção, o sistema também procura por
+empresas com nome parecido e histórico: o **sinal de reativação** permite vinculá-la ao cadastro já
+existente. Aceite o vínculo quando for a mesma empresa; assim o histórico anterior continua unido.
 
-## Funil e leads
+Cadastre todos os contatos úteis da mesma empresa e marque o principal. A mesma empresa pode ter
+mais de uma prospecção ativa para obras diferentes; dentro de uma mesma campanha, porém, não crie
+uma duplicada.
 
-- Cada **lead** tem nome, contato, e-mail, telefone, origem, valor estimado, etapa e
-  observações.
-- **Mover lead** entre etapas. Ao mover para uma etapa de **"Perdido"**, o **motivo da
-  perda é obrigatório**.
-- É possível adicionar **notas** ao lead, **agendar follow-up** (cria compromisso na
-  Agenda), **virar cliente** e **criar proposta** direto da ficha do lead.
-- **Etapas do funil** são configuráveis (nome e cor) — em Configurações.
+### 2. Trabalhe a prospecção
 
-### Criar proposta a partir do lead
+Abra **Comercial → Prospecção** para ver o quadro. Crie uma prospecção, informe empresa, contato,
+origem/canal, campanha e responsável quando souber. Mova o card conforme a abordagem avança.
 
-Na ficha do lead (`/comercial/{id}`), o botão **Nova proposta** cria a proposta já
-**vinculada ao lead** (`leadId`). Se o lead ainda não tiver um cliente associado, o
-sistema **cria o cliente automaticamente** (copiando nome, e-mail, telefone e
-observações do lead) antes de criar a proposta — equivalente a converter o lead. Por
-causa desse vínculo, a ficha do lead lista suas propostas e o cartão do funil mostra a
-contagem de propostas.
+No card ou na ficha, use **Registrar interação** para guardar ligação, WhatsApp, e-mail, LinkedIn,
+reunião ou nota. Para notas recorrentes, escolha um texto pronto e complete o que for específico da
+conversa. Use **Agendar próxima ação** para criar um follow-up; ele aparece na Agenda e no bloco
+**Meu Dia** da página Comercial.
 
-Propostas criadas em `/comercial/propostas` (fora da ficha do lead) exigem escolher o
-cliente manualmente e **não** ficam vinculadas a nenhum lead.
+Quando houver interesse real e informações mínimas, escolha **Qualificar**. A prospecção permanece
+no histórico e passa a ter uma negociação vinculada — não crie outro cadastro para continuar a
+mesma conversa.
 
-## Oportunidades
+### 3. Conduza a negociação
 
-- Tela `/comercial/oportunidades`: lista de oportunidades com suas opções de
-  classificação. Mesma permissão do módulo (`comercial:ver`/`gerir`).
+Em **Comercial → Negociações**, avance o card pelos estágios. Informe empreendimento, disciplinas,
+responsável, previsão e valores conforme o levantamento amadurece. O sistema atualiza a
+probabilidade pelo estágio; ela pode ser ajustada quando houver motivo para isso.
 
-## Propostas
+Se a venda não seguir, mova para **Perdido** e informe o motivo. Uma negociação perdida pode ser
+reaberta depois, preservando o que aconteceu. O checklist do estágio é apenas um lembrete: ele não
+impede o avanço do card.
 
-- Tela `/comercial/propostas`: lista com **número**, título, cliente, **status**,
-  **total** e nº de **visualizações** (quando enviada por link ao cliente).
-- **Status:** rascunho → enviada → aceita / recusada. Filtro por status.
-- **Montar proposta:** título, cliente, **área (m²)**, validade, observações, **itens**
-  (disciplina + descrição + valor) e **condições** (percentual ou valor).
-- O **total** é calculado a partir dos itens.
+### 4. Prepare e envie a proposta
 
-## Tabelas de preço
+Na negociação, crie a proposta e preencha itens por disciplina, área, condições de pagamento,
+validade e observações. Uma tabela de preço pode calcular os valores por metro quadrado.
 
-- Tela `/comercial/tabelas`: tabelas com itens **disciplina × valor por m²**, usadas como
-  base para precificar propostas. Exige `comercial:gerir` para editar.
+Cada salvamento registra uma versão. Envie por e-mail ou compartilhe o link; a lista mostra o
+status e as aberturas. Caso seja necessário mudar uma proposta já aceita, crie uma cópia em vez de
+alterar o documento que originou o projeto.
 
-## Permissões
+### 5. Feche e acompanhe
 
-| Ação | Permissão |
+Ao aceitar a proposta, use **Aceitar → projeto**. O SenaHub cria o projeto, suas disciplinas e os
+canais de comunicação necessários. A empresa, a prospecção, a negociação, a proposta e o projeto
+continuam consultáveis na **Empresa 360**.
+
+## Painéis e listas
+
+- **Comercial**: visão do mês e **Meu Dia**. Alterne entre **Todos** e **Meus** para ver a carteira
+  inteira ou somente registros sob sua responsabilidade.
+- **Inteligência**: filtros por período, responsável, canal, campanha, empresa, disciplina e outros
+  recortes; mostra conversão, receita, ticket, origem e recompra. Quem tem gestão pode baixar o
+  recorte atual em **Exportar CSV**.
+- **Listas de reativação**: ajudam a encontrar prospecções sem contato, clientes inativos e
+  negociações em espera. Os limites são definidos pela gestão.
+- **Empresa 360**: abre o histórico consolidado de contatos, prospecções, negociações, propostas,
+  projetos, interações e próximas ações da empresa.
+
+## Lembretes automáticos
+
+O sistema pode avisar sobre follow-up vencido, proposta perto de vencer, negociação sem contato ou
+parada, cliente inativo e reativação. O aviso chega ao responsável do registro e contém um link
+direto. Em **Preferências → Notificações automáticas**, desligue **Automações comerciais** se não
+quiser recebê-los.
+
+## Dúvidas comuns
+
+| Situação | O que fazer |
 | --- | --- |
-| Ver funil, propostas, tabelas | `comercial:ver` |
-| Criar/editar leads, propostas, tabelas, meta, etapas | `comercial:gerir` |
+| Encontrei uma empresa já cadastrada | Vincule a nova prospecção à empresa para manter o histórico. |
+| Não consigo qualificar | Vincule primeiro uma empresa e reative a prospecção se ela estiver encerrada. |
+| Não consigo marcar como perdido | Informe o motivo solicitado. |
+| A proposta não calcula preço | Preencha a área e selecione uma tabela de preço com os itens necessários. |
+| Preciso rever uma venda antiga | Abra a Empresa 360; não crie um segundo cadastro da empresa. |
 
-## Regras de negócio
-
-- **Motivo da perda obrigatório** ao mover lead para "Perdido".
-- Proposta tem ciclo de status definido (rascunho/enviada/aceita/recusada).
-- **Visualizações** contam aberturas do link público da proposta pelo cliente.
-
-## Erros possíveis e soluções
-
-| Situação | Causa | Solução |
-| --- | --- | --- |
-| Não consigo criar proposta/lead | Falta `comercial:gerir` | Solicitar permissão |
-| Não deixa mover lead para "Perdido" | Motivo da perda em branco | Informar o motivo |
-
-## Funcionalidades relacionadas
-
-- [Guia do Comercial para iniciantes](guia-iniciante.md) — vocabulário e caminho natural,
-  para quem nunca trabalhou com vendas.
-- [Clientes](clientes.md) · [Projetos](../projetos/projetos.md) · [Configurações](../sistema/README.md) (etapas do funil)
-
-## FAQ
-
-**Qual a diferença entre lead e proposta?** O lead é a oportunidade no funil; a proposta
-é o documento comercial formal (com itens e valores) gerado para o cliente.
-
-**O cliente vê quando abro o link da proposta?** O sistema conta as **visualizações** da
-proposta enviada.
-
-**Toda proposta fica ligada a um lead?** Não. Só as criadas pelo botão **Nova proposta**
-na ficha do lead. Propostas criadas em `/comercial/propostas` ficam ligadas só ao
-cliente, sem lead.
+Veja também o [Guia do Comercial para iniciantes](guia-iniciante.md) e [Clientes](clientes.md).

@@ -206,6 +206,7 @@ model User {
   diarioEntradas                DiarioEntrada[]             @relation("DiarioAutor")
   alertasPontoEnviados          AlertaPontoEnviado[]
   alertasLicitacaoEnviados      AlertaLicitacaoEnviado[]
+  automacoesComerciaisEnviadas  AutomacaoComercialEnviada[]
   abonos                        AbonoFalta[]                @relation("AbonoUser")
   abonosValidados               AbonoFalta[]                @relation("AbonoValidador")
   ferias                        Ferias[]                    @relation("FeriasUser")
@@ -704,7 +705,8 @@ model Notificacao {
   lida      Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  alertaLicitacaoEnviado AlertaLicitacaoEnviado?
+  alertaLicitacaoEnviado    AlertaLicitacaoEnviado?
+  automacaoComercialEnviada AutomacaoComercialEnviada?
 
   @@index([userId, lida])
   @@map("notificacao")
@@ -3015,6 +3017,22 @@ model AlertaLicitacaoEnviado {
   @@map("alerta_licitacao_enviado")
 }
 
+/// F7.4: dedup persistente das automações comerciais. A data civil faz parte de `chave`, então
+/// o mesmo fato gera no máximo um sino por responsável/dia e volta a poder avisar no dia seguinte.
+model AutomacaoComercialEnviada {
+  id            String       @id @default(cuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chave         String
+  notificacaoId String?      @unique
+  notificacao   Notificacao? @relation(fields: [notificacaoId], references: [id], onDelete: SetNull)
+  enviadoEm     DateTime     @default(now())
+
+  @@unique([userId, chave])
+  @@index([enviadoEm])
+  @@map("automacao_comercial_enviada")
+}
+
 /// Valor por disciplina dentro de uma licitação/edital (E5).
 model DisciplinaValorLicitacao {
   id          String    @id @default(cuid())
@@ -3430,6 +3448,8 @@ model Compromisso {
   @@index([inicio])
   @@index([entidadeTipo, entidadeId])
   @@index([tipo, concluidoEm])
+  /// F6.11: Home/Meu Dia filtra pendentes e percorre a agenda por data.
+  @@index([concluidoEm, inicio])
   @@map("compromisso")
 }
 
@@ -3743,6 +3763,8 @@ model Lead {
   @@index([clienteId])
   @@index([status])
   @@index([createdAt])
+  /// F6.11: página por coluna do Kanban sem sort/scan sobre todo o funil.
+  @@index([status, arquivado, excluidoEm, updatedAt])
   @@map("lead")
 }
 
@@ -3839,6 +3861,8 @@ model Negociacao {
   @@index([parceiroId])
   @@index([createdAt])
   @@index([excluidoEm])
+  /// F6.11: página por estágio do Kanban, já respeitando soft delete e ordenação.
+  @@index([estagio, excluidoEm, updatedAt])
   @@map("negociacao")
 }
 
@@ -4348,6 +4372,9 @@ model Proposta {
   @@index([negociacaoId])
   /// F5.10: mesmo motivo, o Prisma não cria índice sozinho no lado da FK.
   @@index([motivoPerdaId])
+  /// F6.11: filas da Home ordenadas por envio e validade.
+  @@index([status, enviadaEm])
+  @@index([status, validade])
   @@map("proposta")
 }
 

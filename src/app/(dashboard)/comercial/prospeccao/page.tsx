@@ -39,12 +39,13 @@ export default async function ProspeccaoPage({
   const podeGerir = await can(user, "comercial", "gerir");
   const sp = await searchParams;
   const filtros = lerFiltros(sp);
+  const pagina = Math.max(1, Number(Array.isArray(sp.page) ? sp.page[0] : sp.page) || 1);
   const [colunas, opcoes, campanhas] = await Promise.all([
-    funilProspeccao(filtros),
+    funilProspeccao({ filtros, pagina }),
     opcoesFiltroComercial(),
     campanhasAtivas(),
   ]);
-  const total = colunas.reduce((s, c) => s + c.leads.length, 0);
+  const total = colunas.reduce((s, c) => s + c.total, 0);
   const qs = paraQueryString(sp);
 
   return (
@@ -74,7 +75,7 @@ export default async function ProspeccaoPage({
 
       <FiltrosComerciais opcoes={opcoes} />
 
-      {total === 0 ? <ProspeccaoVazia /> : <ProspeccaoBoard colunas={colunas} />}
+      {total === 0 ? <ProspeccaoVazia /> : <ProspeccaoBoard colunas={colunas} pagina={pagina} />}
     </div>
   );
 }

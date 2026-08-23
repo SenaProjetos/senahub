@@ -27,10 +27,17 @@ process.env.PRISMA_LOG_QUERIES = "1";
 require("dotenv/config");
 const { execSync } = require("node:child_process") as typeof import("node:child_process");
 const { prisma } = require("../src/lib/prisma") as typeof import("../src/lib/prisma");
+const { Prisma } = require("../src/generated/prisma/client") as typeof import("../src/generated/prisma/client");
 const { homeComercial, resumoComercial } =
   require("../src/modules/comercial/queries") as typeof import("../src/modules/comercial/queries");
 const { reagendarProximaAcao } =
   require("../src/modules/comercial/service") as typeof import("../src/modules/comercial/service");
+const { inteligenciaComercial, listasReativacao, filtrosSalvosInteligencia } =
+  require("../src/modules/comercial/inteligencia/queries") as typeof import("../src/modules/comercial/inteligencia/queries");
+const { lerFiltrosInteligencia } =
+  require("../src/modules/comercial/inteligencia/filtros") as typeof import("../src/modules/comercial/inteligencia/filtros");
+const { CHAVE_FILTROS_SALVOS } =
+  require("../src/modules/comercial/inteligencia/filtros-salvos") as typeof import("../src/modules/comercial/inteligencia/filtros-salvos");
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const TAG = "SEED_VOL_";
@@ -185,6 +192,202 @@ async function main() {
     "as 6 listas do Meu Dia vieram (arrays, mesmo vazios)",
     Object.values(dados.meuDia).every((l) => Array.isArray(l)),
   );
+
+  console.log("\n── F6.7: Inteligência Comercial — métricas reais e recorte vazio honesto ──\n");
+
+  const agoraInteligencia = new Date();
+  const filtrosInteligencia = lerFiltrosInteligencia({});
+  const { r: inteligencia, c: cInteligencia, ms: msInteligencia } = await contando(() =>
+    inteligenciaComercial(filtrosInteligencia, agoraInteligencia),
+  );
+  console.log(
+    `  Medido: inteligenciaComercial() → ${cInteligencia.total} statements SQL em ${msInteligencia.toFixed(0)}ms.`,
+  );
+  check(
+    `Inteligência dentro do orçamento inicial de queries (orçamento 20, medido ${cInteligencia.total})`,
+    cInteligencia.total <= 20,
+    cInteligencia.sqls.slice(0, 5).join(" | "),
+  );
+
+  const [leadsDireto, negociacoesDireto, propostasDireto, contratosDireto] = await Promise.all([
+    prisma.lead.count({ where: { createdAt: { lte: agoraInteligencia } } }),
+    prisma.negociacao.count({ where: { createdAt: { lte: agoraInteligencia } } }),
+    prisma.proposta.count({
+      where: { enviadaEm: { not: null, lte: agoraInteligencia } },
+    }),
+    prisma.negociacao.aggregate({
+      where: {
+        estagio: "CONTRATADO",
+        dataFechamento: { not: null, lte: agoraInteligencia },
+      },
+      _count: { id: true },
+      _sum: { valorNegociado: true },
+    }),
+  ]);
+  check(
+    "prospecções da tela batem com COUNT direto",
+    inteligencia.resumo.prospeccoes === leadsDireto,
+    `${inteligencia.resumo.prospeccoes} vs ${leadsDireto}`,
+  );
+  check(
+    "negociações da tela batem com COUNT direto",
+    inteligencia.resumo.negociacoes === negociacoesDireto,
+    `${inteligencia.resumo.negociacoes} vs ${negociacoesDireto}`,
+  );
+  check(
+    "propostas enviadas batem com COUNT por enviadaEm",
+    inteligencia.resumo.propostas === propostasDireto,
+    `${inteligencia.resumo.propostas} vs ${propostasDireto}`,
+  );
+  check(
+    "contratos da tela batem com COUNT direto",
+    inteligencia.resumo.contratos === contratosDireto._count.id,
+    `${inteligencia.resumo.contratos} vs ${contratosDireto._count.id}`,
+  );
+  check(
+    "receita da tela bate com SUM(valorNegociado)",
+    inteligencia.resumo.receita === Number(contratosDireto._sum.valorNegociado ?? 0),
+    `${inteligencia.resumo.receita} vs ${contratosDireto._sum.valorNegociado}`,
+  );
+  check(
+    "análises por canal, campanha, tipo e disciplina foram produzidas",
+    inteligencia.porCanal.length > 0 &&
+      inteligencia.porCampanha.length > 0 &&
+      inteligencia.porTipoEmpreendimento.length > 0 &&
+      inteligencia.porDisciplina.length > 0,
+  );
+
+  const etapaLegada = await prisma.funilEtapa.findFirst({ select: { id: true } });
+  if (!etapaLegada) throw new Error("nenhuma FunilEtapa para criar a fixture do recorte vazio.");
+  const sufixo = Date.now().toString(36);
+  const canalSemContrato = await prisma.canalAquisicao.create({
+    data: { nome: `${TAG}CanalSemContrato_${sufixo}`, ativo: true, ordem: 999 },
+    select: { id: true },
+  });
+  const clienteSemContrato = await prisma.cliente.create({
+    data: { nome: `${TAG}ClienteSemContrato_${sufixo}` },
+    select: { id: true },
+  });
+  const leadSemContrato = await prisma.lead.create({
+    data: {
+      nome: `${TAG}LeadSemContrato_${sufixo}`,
+      etapaId: etapaLegada.id,
+      clienteId: clienteSemContrato.id,
+      canalId: canalSemContrato.id,
+    },
+    select: { id: true },
+  });
+  const recorteSemContrato = await inteligenciaComercial(
+    lerFiltrosInteligencia({ canal: canalSemContrato.id }),
+    new Date(Date.now() + 1_000),
+  );
+  const linhaSemContrato = recorteSemContrato.porCanal.find(
+    (linha) => linha.chave === canalSemContrato.id,
+  );
+  check(
+    "canal com prospecção e sem contrato mostra 0% (não 'sem base')",
+    linhaSemContrato?.prospeccoes === 1 &&
+      linhaSemContrato.contratos === 0 &&
+      linhaSemContrato.conversao === 0,
+  );
+  await prisma.lead.delete({ where: { id: leadSemContrato.id } });
+  await prisma.cliente.delete({ where: { id: clienteSemContrato.id } });
+  await prisma.canalAquisicao.delete({ where: { id: canalSemContrato.id } });
+
+  console.log("\n── F6.8: listas determinísticas e filtros salvos ──────────────────\n");
+
+  const listas = await listasReativacao(new Date());
+  check(
+    "as 5 listas são limitadas a 50 itens",
+    [
+      listas.prospectsEsquecidos,
+      listas.empresasSemInteracao,
+      listas.clientesInativos,
+      listas.negociacoesEmEspera,
+      listas.clientesParaReativar,
+    ].every((lista) => lista.length <= 50),
+  );
+  check(
+    "os três limiares exibidos vêm da ConfigSistema",
+    Object.values(listas.limiares).every((valor) => typeof valor === "number" && valor >= 0),
+    JSON.stringify(listas.limiares),
+  );
+
+  const configAntes = await prisma.configSistema.findUnique({ where: { chave: "comercial.config" } });
+  const valorAntes = (configAntes?.valor as Record<string, unknown> | null) ?? {};
+  try {
+    await prisma.configSistema.upsert({
+      where: { chave: "comercial.config" },
+      create: { chave: "comercial.config", valor: { ...valorAntes, diasSemContato: 0 } },
+      update: { valor: { ...valorAntes, diasSemContato: 0 } },
+    });
+    const comZero = await listasReativacao(new Date());
+    await prisma.configSistema.update({
+      where: { chave: "comercial.config" },
+      data: { valor: { ...valorAntes, diasSemContato: 10_000 } },
+    });
+    const comDezMil = await listasReativacao(new Date());
+    check(
+      "mudar X em ConfigSistema muda as filas de falta de contato",
+      comZero.prospectsEsquecidos.length + comZero.empresasSemInteracao.length >
+        comDezMil.prospectsEsquecidos.length + comDezMil.empresasSemInteracao.length,
+      `${comZero.prospectsEsquecidos.length + comZero.empresasSemInteracao.length} vs ${comDezMil.prospectsEsquecidos.length + comDezMil.empresasSemInteracao.length}`,
+    );
+  } finally {
+    if (configAntes) {
+      await prisma.configSistema.update({
+        where: { chave: "comercial.config" },
+        data: { valor: configAntes.valor ?? Prisma.JsonNull },
+      });
+    } else {
+      await prisma.configSistema.delete({ where: { chave: "comercial.config" } });
+    }
+  }
+
+  const usuarioFiltro = await prisma.user.findFirst({ select: { id: true } });
+  if (!usuarioFiltro) throw new Error("nenhum usuário para provar o filtro salvo.");
+  const preferenciaAntes = await prisma.userPreference.findUnique({
+    where: { userId: usuarioFiltro.id },
+  });
+  const dadosAntes = (preferenciaAntes?.dados as Record<string, unknown> | null) ?? {};
+  try {
+    await prisma.userPreference.upsert({
+      where: { userId: usuarioFiltro.id },
+      create: {
+        userId: usuarioFiltro.id,
+        dados: {
+          ...dadosAntes,
+          [CHAVE_FILTROS_SALVOS]: [
+            { id: "smoke-filtro", nome: "Clientes inativos", params: { foco: "clientes_inativos" } },
+          ],
+        },
+      },
+      update: {
+        dados: {
+          ...dadosAntes,
+          [CHAVE_FILTROS_SALVOS]: [
+            { id: "smoke-filtro", nome: "Clientes inativos", params: { foco: "clientes_inativos" } },
+          ],
+        },
+      },
+    });
+    const recarregados = await filtrosSalvosInteligencia(usuarioFiltro.id);
+    check(
+      "filtro salvo é reencontrado depois de nova leitura",
+      recarregados.some(
+        (filtro) => filtro.nome === "Clientes inativos" && filtro.params.foco === "clientes_inativos",
+      ),
+    );
+  } finally {
+    if (preferenciaAntes) {
+      await prisma.userPreference.update({
+        where: { userId: usuarioFiltro.id },
+        data: { dados: preferenciaAntes.dados ?? Prisma.JsonNull },
+      });
+    } else {
+      await prisma.userPreference.delete({ where: { userId: usuarioFiltro.id } });
+    }
+  }
 
   console.log("\n── F6.5: reagendarProximaAcao — guardas ──────────────────────────\n");
 

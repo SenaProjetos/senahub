@@ -51,6 +51,7 @@ export function PreferenciasView({
   notifAprovacaoArquivo: notifAprovacaoArquivoInicial,
   notifAprovacaoDisciplina: notifAprovacaoDisciplinaInicial,
   notifInputCliente: notifInputClienteInicial,
+  notifComercial: notifComercialInicial,
   notifProposta: notifPropostaInicial,
   notifPagamento: notifPagamentoInicial,
   notifDespesa: notifDespesaInicial,
@@ -73,6 +74,7 @@ export function PreferenciasView({
   notifAprovacaoArquivo: boolean;
   notifAprovacaoDisciplina: boolean;
   notifInputCliente: boolean;
+  notifComercial: boolean;
   notifProposta: boolean;
   notifPagamento: boolean;
   notifDespesa: boolean;
@@ -95,6 +97,7 @@ export function PreferenciasView({
   const [notifAprovacaoArquivo, setNotifAprovacaoArquivo] = useState(notifAprovacaoArquivoInicial);
   const [notifAprovacaoDisciplina, setNotifAprovacaoDisciplina] = useState(notifAprovacaoDisciplinaInicial);
   const [notifInputCliente, setNotifInputCliente] = useState(notifInputClienteInicial);
+  const [notifComercial, setNotifComercial] = useState(notifComercialInicial);
   const [notifProposta, setNotifProposta] = useState(notifPropostaInicial);
   const [notifPagamento, setNotifPagamento] = useState(notifPagamentoInicial);
   const [notifDespesa, setNotifDespesa] = useState(notifDespesaInicial);
@@ -211,6 +214,13 @@ export function PreferenciasView({
       descricao: "Quando o cliente responde o briefing ou as perguntas do link público do projeto.",
       valor: notifInputCliente,
       set: setNotifInputCliente,
+    },
+    {
+      chave: "notif_comercial",
+      titulo: "Automações comerciais",
+      descricao: "Lembretes de follow-up, propostas, negociações e clientes que precisam de atenção.",
+      valor: notifComercial,
+      set: setNotifComercial,
     },
     {
       chave: "notif_proposta",

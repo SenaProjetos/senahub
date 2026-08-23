@@ -17,6 +17,14 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Comercial — reforma do CRM
+
+O Comercial foi reorganizado em um fluxo claro de **prospecção → negociação → proposta → projeto**.
+Agora é possível registrar interações e próximos passos, retomar empresas com histórico, consultar a
+Empresa 360, acompanhar **Meu Dia**, analisar conversão por canal e baixar o recorte atual em CSV.
+Os lembretes comerciais também podem ser desligados individualmente em **Preferências**. →
+[Comercial](clientes-comercial/comercial.md)
+
 ## v1.1.0 — 07/07/2026
 
 Grande atualização que reúne meses de trabalho. Destaques por área:

@@ -49,6 +49,7 @@ import { limitePurga } from "@/modules/uploads/lixeira";
 import { executarImportacaoCusto } from "@/modules/custos/composicoes/service";
 import { dispatcharAviso } from "@/modules/notificacoes/avisos/service";
 import { Prisma } from "@/generated/prisma/client";
+import { executarAutomacoesComerciais } from "@/modules/comercial/automacoes";
 
 /** Rotinas das automações (chamadas pelos jobs do pg-boss em lib/jobs.ts). */
 
@@ -58,6 +59,17 @@ async function gestores(roles: string[] = ["admin", "supervisor", "administrativ
     select: { id: true },
   });
   return us.map((u) => u.id);
+}
+
+/** Tick diário das seis regras determinísticas do Comercial (F7.3/F7.4). */
+export async function automacoesComerciais(): Promise<number> {
+  const resultado = await executarAutomacoesComerciais(new Date());
+  console.log(
+    `[comercial] automações avaliadas=${resultado.avaliadas} enviadas=${resultado.enviadas} ` +
+      `duplicadas=${resultado.duplicadas} sem-responsável=${resultado.semResponsavel} ` +
+      `responsável-inativo=${resultado.responsavelInativo} push-falhou=${resultado.pushFalhou}`,
+  );
+  return resultado.enviadas;
 }
 
 /**
