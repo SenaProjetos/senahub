@@ -33,6 +33,7 @@ import {
 import { diasSemInteracao, followUpAtrasado } from "@/modules/comercial/frescor";
 import { MotivoPerdaNegociacaoDialog } from "./motivo-perda-negociacao-dialog";
 import { RegistrarInteracaoPopover } from "@/components/comercial/registrar-interacao-popover";
+import { ChecklistNegociacaoPopover } from "@/components/comercial/checklist-negociacao-popover";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { brlInteiro } from "@/lib/utils";
@@ -281,6 +282,9 @@ function Card({
               <span className="font-mono text-[10px] text-muted-foreground" title="Dias sem movimentação">
                 {dias}d
               </span>
+            )}
+            {card.checklist && (
+              <ChecklistNegociacaoPopover negociacaoId={card.id} checklist={card.checklist} />
             )}
           </div>
 

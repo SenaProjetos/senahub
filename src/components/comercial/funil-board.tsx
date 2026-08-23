@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSetParams } from "@/lib/use-set-param";
 import { toast } from "sonner";
@@ -62,6 +62,21 @@ export function FunilBoard({
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const origem = searchParams.get("origem");
+
+  // Deep-link `?lead=<id>` (F6.5 — Meu Dia manda pra cá "direto para o registro"). Só abre uma
+  // vez: sem isso, fechar o diálogo e o `searchParams` não mudar faria o efeito reabrir sozinho.
+  const leadAlvo = searchParams.get("lead");
+  useEffect(() => {
+    if (!leadAlvo || dialogLead !== null) return;
+    for (const et of etapas) {
+      const achado = et.leads.find((l) => l.id === leadAlvo);
+      if (achado) {
+        setDialogLead(achado);
+        break;
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leadAlvo]);
 
   // Origens distintas a partir dos leads carregados.
   const opcoesOrigem = useMemo(() => {

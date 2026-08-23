@@ -837,6 +837,31 @@ export async function reabrirNegociacao(
 }
 
 /**
+ * Alterna um item do checklist SOFT (F7.6, roadmap #14) — a PRESENÇA da linha em
+ * `NegociacaoChecklistItem` é o "marcado", nada aqui grava um booleano. Deliberadamente NÃO
+ * consulta `moverEstagio`/`jornada.ts` nem é consultado por eles: o checklist nunca autoriza ou
+ * bloqueia transição de estágio (veredito do dono) — só informa a UI.
+ */
+export async function alternarChecklistItem(input: {
+  negociacaoId: string;
+  itemId: string;
+  usuarioId: string;
+}): Promise<{ marcado: boolean }> {
+  const existente = await prisma.negociacaoChecklistItem.findUnique({
+    where: { negociacaoId_itemId: { negociacaoId: input.negociacaoId, itemId: input.itemId } },
+    select: { id: true },
+  });
+  if (existente) {
+    await prisma.negociacaoChecklistItem.delete({ where: { id: existente.id } });
+    return { marcado: false };
+  }
+  await prisma.negociacaoChecklistItem.create({
+    data: { negociacaoId: input.negociacaoId, itemId: input.itemId, marcadoPorId: input.usuarioId },
+  });
+  return { marcado: true };
+}
+
+/**
  * A ESCRITA do movimento de estágio, recebendo `tx` de fora.
  *
  * Extraída do corpo de `moverEstagio` na F5.9 — sem mudança de comportamento — porque o aceite
@@ -1524,6 +1549,30 @@ export async function concluirProximaAcao(input: {
   }
 
   return { id: c.id, atividadeRegistrada };
+}
+
+/**
+ * Reagenda uma Próxima Ação sem concluir/recriar (F6.5, Meu Dia) — só move `inicio`. Mesma
+ * guarda de `concluirProximaAcao` (não existe / já concluída), mas SEM registrar `Atividade`:
+ * adiar não é uma interação que aconteceu, é o oposto — ainda não aconteceu.
+ */
+export async function reagendarProximaAcao(input: {
+  compromissoId: string;
+  novoInicio: Date;
+}): Promise<{ id: string }> {
+  const c = await prisma.compromisso.findUnique({
+    where: { id: input.compromissoId },
+    select: { id: true, tipo: true, concluidoEm: true },
+  });
+  if (!c) throw new ActionError("Ação não encontrada.");
+  if (!c.tipo) throw new ActionError("Este compromisso não é uma ação comercial.");
+  if (c.concluidoEm) throw new ActionError("Esta ação já foi concluída — não dá para reagendar.");
+
+  await prisma.compromisso.update({
+    where: { id: c.id },
+    data: { inicio: input.novoInicio },
+  });
+  return { id: c.id };
 }
 
 /**

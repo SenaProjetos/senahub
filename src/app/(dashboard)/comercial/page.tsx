@@ -1,25 +1,23 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { FileText, Table2, Handshake, KanbanSquare, Megaphone, Upload } from "lucide-react";
+import { FileText, Table2, Handshake, KanbanSquare, Megaphone, Upload, SlidersHorizontal } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
-import { funilCompleto, resumoComercial, parceirosAtivos, campanhasAtivas } from "@/modules/comercial/queries";
-import { FunilBoard } from "@/components/comercial/funil-board";
+import { resumoComercial, homeComercial } from "@/modules/comercial/queries";
 import { MetaCard } from "@/components/comercial/meta-card";
+import { HomeComercialView } from "@/components/comercial/home-comercial-view";
 import { Button } from "@/components/ui/button";
-import { KpiCard } from "@/components/ui/kpi-card";
 
 export const metadata: Metadata = { title: "Comercial" };
 
+/**
+ * Home do Comercial (F6.5, P16) — deixou de ser o Kanban de prospecção (que já tem rota própria,
+ * `/comercial/prospeccao`) e virou central operacional: cards do mês + Meu Dia.
+ */
 export default async function ComercialPage() {
   const user = await requirePermission("comercial", "ver");
   const podeGerir = await can(user, "comercial", "gerir");
-  const [etapas, resumo, parceiros, campanhas] = await Promise.all([
-    funilCompleto(),
-    resumoComercial(),
-    parceirosAtivos(),
-    campanhasAtivas(),
-  ]);
+  const [resumo, dados] = await Promise.all([resumoComercial(), homeComercial(new Date())]);
 
   return (
     <div className="space-y-6">
@@ -52,24 +50,27 @@ export default async function ComercialPage() {
           <Button size="sm" render={<Link href="/comercial/propostas" />}>
             <FileText className="size-4" /> Propostas
           </Button>
+          {podeGerir && (
+            <Button
+              variant="outline"
+              size="icon"
+              render={<Link href="/comercial/configuracoes" aria-label="Configurações" />}
+            >
+              <SlidersHorizontal className="size-4" />
+            </Button>
+          )}
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <MetaCard
-          ano={resumo.ano}
-          mes={resumo.mes}
-          meta={resumo.meta}
-          realizado={resumo.realizado}
-          podeGerir={podeGerir}
-        />
-        <KpiCard label="Aceitas no mês" valor={resumo.aceitasNoMes} />
-        <KpiCard label="Leads ativos" valor={resumo.leadsAtivos} />
-      </div>
+      <MetaCard
+        ano={resumo.ano}
+        mes={resumo.mes}
+        meta={resumo.meta}
+        realizado={resumo.realizado}
+        podeGerir={podeGerir}
+      />
 
-      <div className="space-y-3">
-        <FunilBoard etapas={etapas} parceiros={parceiros} campanhas={campanhas} />
-      </div>
+      <HomeComercialView dados={dados} />
     </div>
   );
 }

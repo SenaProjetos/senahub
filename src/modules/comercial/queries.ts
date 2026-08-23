@@ -6,13 +6,25 @@ import {
   COLUNAS_PROSPECCAO,
 } from "@/modules/comercial/prospeccao";
 import { ESTAGIOS_ATIVOS } from "@/modules/comercial/jornada";
-import type { TipoAncoraCompromisso } from "@/generated/prisma/client";
+import type { TipoAncoraCompromisso, EstagioNegociacao } from "@/generated/prisma/client";
 import {
   whereProspeccao,
   whereNegociacao,
   type FiltrosComerciais,
 } from "@/modules/comercial/filtros";
 import { candidatosDuplicata } from "@/modules/comercial/dedupe";
+import { versaoVigente } from "@/modules/comercial/versoes";
+import {
+  pipelineAberto,
+  pipelinePonderado,
+  valorContratado,
+  ticketMedioPorContrato,
+  ESTAGIOS_PIPELINE_ABERTO,
+  type LinhaNegociacao,
+  type Periodo as PeriodoMetrica,
+} from "@/modules/comercial/metricas";
+import { diasAteVencer } from "@/modules/comercial/validade";
+import { getConfigComercial } from "@/modules/comercial/config/queries";
 import { clientesParaDedupe } from "@/modules/clientes/queries";
 
 // ── Funil ─────────────────────────────────────────────────────
@@ -92,16 +104,20 @@ export async function resumoComercial() {
     prisma.metaComercial.findUnique({ where: { ano_mes: { ano, mes } } }),
     prisma.proposta.findMany({
       where: { status: "aceita", aceitaEm: { gte: ini, lte: fim } },
-      include: { itens: { select: { valor: true } } },
+      select: { versoes: { select: { numero: true, valorVersao: true } } },
     }),
     prisma.proposta.count({ where: { status: "enviada" } }),
     prisma.lead.count({ where: { arquivado: false } }),
   ]);
 
-  const realizado = aceitas.reduce(
-    (s, p) => s + p.itens.reduce((x, i) => x + Number(i.valor), 0),
-    0,
-  );
+  // `valorVersao` da versão VIGENTE (a de maior número), não a soma crua dos itens — mesmo bug
+  // que a F6.1a corrigiu em `aceitarProposta`: somar `itens.valor` ignora `PropostaVersao.desconto`
+  // e infla a meta batida sempre que alguém aceitou com desconto (achado revisando esta query
+  // enquanto a F6.5 trocava o "realizado" do card por `valorContratado`, que já é líquido).
+  const realizado = aceitas.reduce((s, p) => {
+    const vigente = versaoVigente(p.versoes);
+    return s + (vigente ? Number(vigente.valorVersao) : 0);
+  }, 0);
   return {
     ano,
     mes,
@@ -512,8 +528,38 @@ export async function funilNegociacao(opts?: {
     if (a.entidadeId && !proxima.has(a.entidadeId)) proxima.set(a.entidadeId, a);
   }
 
+  // Checklist SOFT (F7.6): itens + marcado por card, sem N+1 — 2 queries no total (uma para o
+  // catálogo inteiro, uma para as marcações de todas as negociações da página), não 1 por card
+  // (o funil já roda em cima da carga sintética de 1.500 negociações da F6.2). Estágio sem item
+  // no catálogo não entra no mapa → card fica sem `checklist` (null), não "0%".
+  const [itensCatalogo, marcacoes] = await Promise.all([
+    prisma.checklistItemPadrao.findMany({
+      where: { ativo: true },
+      orderBy: { ordem: "asc" },
+      select: { id: true, texto: true, estagio: true },
+    }),
+    prisma.negociacaoChecklistItem.findMany({
+      where: { negociacaoId: { in: negociacoes.map((n) => n.id) }, item: { ativo: true } },
+      select: { negociacaoId: true, itemId: true },
+    }),
+  ]);
+  const itensPorEstagio = new Map<EstagioNegociacao, { id: string; texto: string }[]>();
+  for (const it of itensCatalogo) {
+    const lista = itensPorEstagio.get(it.estagio) ?? [];
+    lista.push({ id: it.id, texto: it.texto });
+    itensPorEstagio.set(it.estagio, lista);
+  }
+  const marcadosPorNegociacao = new Map<string, Set<string>>();
+  for (const m of marcacoes) {
+    const s = marcadosPorNegociacao.get(m.negociacaoId) ?? new Set<string>();
+    s.add(m.itemId);
+    marcadosPorNegociacao.set(m.negociacaoId, s);
+  }
+
   const cards = negociacoes.map((n) => {
     const p = proxima.get(n.id);
+    const itens = itensPorEstagio.get(n.estagio) ?? [];
+    const marcadosSet = marcadosPorNegociacao.get(n.id);
     return {
       id: n.id,
       titulo: n.titulo,
@@ -530,6 +576,15 @@ export async function funilNegociacao(opts?: {
       proximaAcao: p
         ? { inicio: p.inicio.toISOString(), tipo: p.tipo, titulo: p.titulo }
         : null,
+      checklist:
+        itens.length > 0
+          ? {
+              total: itens.length,
+              marcados: marcadosSet?.size ?? 0,
+              percentual: Math.round(((marcadosSet?.size ?? 0) / itens.length) * 100),
+              itens: itens.map((it) => ({ ...it, marcado: marcadosSet?.has(it.id) ?? false })),
+            }
+          : null,
     };
   });
 
@@ -712,4 +767,229 @@ export async function buscarContatoNaEmpresa(clienteId: string, termo: string) {
     take: 5,
     select: { id: true, nome: true, cargo: true, email: true, telefone: true, optOut: true },
   });
+}
+
+// ── Home / Meu Dia (F6.5) ────────────────────────────────────────────────────────────────────
+
+export type HomeComercialDados = Awaited<ReturnType<typeof homeComercial>>;
+
+/** Início do mês (dia 1, meia-noite) de um instante — usado só para os dois recortes de período. */
+function inicioDoMes(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+/**
+ * Home do Comercial + Meu Dia (F6.5) — cards do mês (comparados com o mês anterior) e as 6 listas
+ * operacionais do dia. **Poucas queries agregadas, medidas de propósito** (critério de aceite):
+ *
+ * 1 query traz TODAS as negociações (linha mínima de `LinhaNegociacao`) — os 4 cards de
+ * pipeline/contratado/ticket são todos `metricas.ts` puro rodando em cima do MESMO array, cortado
+ * em JS pelos dois `Periodo`s (não duas queries por card, não uma query por período).
+ *
+ * As 3 listas ancoradas em `Compromisso` (atrasados/hoje/próximas) resolvem nome de LEAD/
+ * NEGOCIACAO em 2 queries EM LOTE (todos os ids de uma vez), não 1 por item — é o N+1 que
+ * `resolverAncoraComercial` teria produzido se chamado por linha.
+ *
+ * Total: 1 (negociações) + 2 (contadores follow-up) + 3 (compromissos) + 2 (resolução em lote) +
+ * 2 (propostas) + 1 (negociações sem contato) = **11 queries**, para qualquer volume de dados —
+ * é o número que fica no `06-progresso.md` junto do tempo medido contra o seed da F6.2.
+ */
+export async function homeComercial(agora: Date) {
+  const config = await getConfigComercial();
+
+  const inicioMesAtual = inicioDoMes(agora);
+  const inicioMesAnterior = inicioDoMes(new Date(agora.getFullYear(), agora.getMonth() - 1, 1));
+  const periodoAtual: PeriodoMetrica = { inicio: inicioMesAtual, fim: agora };
+  const periodoAnterior: PeriodoMetrica = { inicio: inicioMesAnterior, fim: inicioMesAtual };
+
+  const inicioHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  const inicioAmanha = new Date(inicioHoje.getTime() + 86_400_000);
+  const fimHorizonte = new Date(
+    inicioAmanha.getTime() + config.diasHorizonteProximasAcoes * 86_400_000,
+  );
+
+  const [negRowsRaw, followUpsHojeCount, followUpsAtrasadosCount, atrasados, hoje, proximas, propostasAguardando, propostasVencendoBruto, semContato] =
+    await Promise.all([
+      prisma.negociacao.findMany({
+        select: {
+          id: true,
+          estagio: true,
+          createdAt: true,
+          dataFechamento: true,
+          previsaoFechamento: true,
+          valorNegociado: true,
+          valorProposto: true,
+          valorEstimado: true,
+          probabilidade: true,
+          leadId: true,
+          clienteId: true,
+          cliente: { select: { fundidoEmId: true } },
+        },
+      }),
+      prisma.compromisso.count({
+        where: {
+          tipo: { not: null },
+          concluidoEm: null,
+          inicio: { gte: inicioHoje, lt: inicioAmanha },
+        },
+      }),
+      prisma.compromisso.count({
+        where: { tipo: { not: null }, concluidoEm: null, inicio: { lt: inicioHoje } },
+      }),
+      prisma.compromisso.findMany({
+        where: { tipo: { not: null }, concluidoEm: null, inicio: { lt: inicioHoje } },
+        orderBy: { inicio: "asc" },
+        take: 8,
+        select: { id: true, titulo: true, inicio: true, tipo: true, entidadeTipo: true, entidadeId: true },
+      }),
+      prisma.compromisso.findMany({
+        where: {
+          tipo: { not: null },
+          concluidoEm: null,
+          inicio: { gte: inicioHoje, lt: inicioAmanha },
+        },
+        orderBy: { inicio: "asc" },
+        take: 8,
+        select: { id: true, titulo: true, inicio: true, tipo: true, entidadeTipo: true, entidadeId: true },
+      }),
+      prisma.compromisso.findMany({
+        where: {
+          tipo: { not: null },
+          concluidoEm: null,
+          inicio: { gte: inicioAmanha, lt: fimHorizonte },
+        },
+        orderBy: { inicio: "asc" },
+        take: 8,
+        select: { id: true, titulo: true, inicio: true, tipo: true, entidadeTipo: true, entidadeId: true },
+      }),
+      prisma.proposta.findMany({
+        where: { status: "enviada" },
+        orderBy: { enviadaEm: "asc" },
+        take: 8,
+        select: { id: true, numero: true, titulo: true, enviadaEm: true, cliente: { select: { nome: true } } },
+      }),
+      // Pré-filtro grosso em SQL (folga de 1 dia pro fuso — o corte fino é `diasAteVencer`, que
+      // decide em America/Recife, mesmo motivo do F5.6). O que decide "entra na lista" é o
+      // `diasAteVencer` abaixo, não este `where`.
+      prisma.proposta.findMany({
+        where: {
+          status: "enviada",
+          validade: {
+            not: null,
+            lte: new Date(agora.getTime() + (config.diasAvisoValidadeProposta + 1) * 86_400_000),
+          },
+        },
+        select: { id: true, numero: true, titulo: true, validade: true, cliente: { select: { nome: true } } },
+      }),
+      prisma.negociacao.findMany({
+        where: {
+          estagio: { in: [...ESTAGIOS_PIPELINE_ABERTO] },
+          updatedAt: { lt: new Date(agora.getTime() - config.diasSemContato * 86_400_000) },
+        },
+        orderBy: { updatedAt: "asc" },
+        take: 8,
+        select: { id: true, titulo: true, updatedAt: true, cliente: { select: { nome: true } } },
+      }),
+    ]);
+
+  const negRows: LinhaNegociacao[] = negRowsRaw.map((n) => ({
+    id: n.id,
+    estagio: n.estagio,
+    criadoEm: n.createdAt,
+    dataFechamento: n.dataFechamento,
+    previsaoFechamento: n.previsaoFechamento,
+    valorNegociado: n.valorNegociado != null ? Number(n.valorNegociado) : null,
+    valorProposto: n.valorProposto != null ? Number(n.valorProposto) : null,
+    valorEstimado: n.valorEstimado != null ? Number(n.valorEstimado) : null,
+    probabilidade: n.probabilidade,
+    empresaId: n.cliente.fundidoEmId ?? n.clienteId,
+    leadId: n.leadId,
+  }));
+
+  // Resolução em LOTE dos itens de Compromisso (evita N+1 de `resolverAncoraComercial`).
+  const todosCompromissos = [...atrasados, ...hoje, ...proximas];
+  const leadIds = [...new Set(todosCompromissos.filter((c) => c.entidadeTipo === "LEAD").map((c) => c.entidadeId!))];
+  const negIds = [...new Set(todosCompromissos.filter((c) => c.entidadeTipo === "NEGOCIACAO").map((c) => c.entidadeId!))];
+  const [leadsResolvidos, negsResolvidas] = await Promise.all([
+    leadIds.length
+      ? prisma.lead.findMany({ where: { id: { in: leadIds } }, select: { id: true, nome: true } })
+      : Promise.resolve([]),
+    negIds.length
+      ? prisma.negociacao.findMany({
+          where: { id: { in: negIds } },
+          select: { id: true, titulo: true, cliente: { select: { nome: true } } },
+        })
+      : Promise.resolve([]),
+  ]);
+  const nomeLead = new Map(leadsResolvidos.map((l) => [l.id, l.nome]));
+  const nomeNeg = new Map(negsResolvidas.map((n) => [n.id, `${n.cliente.nome} — ${n.titulo}`]));
+
+  const resolverItem = (c: (typeof todosCompromissos)[number]) => ({
+    id: c.id,
+    titulo: c.titulo,
+    inicio: c.inicio.toISOString(),
+    tipo: c.tipo,
+    href:
+      c.entidadeTipo === "LEAD"
+        ? `/comercial/prospeccao?lead=${c.entidadeId}`
+        : "/comercial/negociacoes",
+    nomeEntidade:
+      (c.entidadeTipo === "LEAD" ? nomeLead.get(c.entidadeId!) : nomeNeg.get(c.entidadeId!)) ??
+      "(sem nome)",
+  });
+
+  const propostasVencendo = propostasVencendoBruto
+    .map((p) => ({ ...p, dias: diasAteVencer(p.validade, agora) }))
+    .filter((p) => p.dias != null && p.dias >= 0 && p.dias <= config.diasAvisoValidadeProposta)
+    .sort((a, b) => (a.dias ?? 0) - (b.dias ?? 0))
+    .slice(0, 8);
+
+  return {
+    cards: {
+      contratadoMes: {
+        atual: valorContratado(negRows, periodoAtual).total,
+        anterior: valorContratado(negRows, periodoAnterior).total,
+      },
+      contratosFechados: {
+        atual: valorContratado(negRows, periodoAtual).quantidade,
+        anterior: valorContratado(negRows, periodoAnterior).quantidade,
+      },
+      ticketMedio: {
+        atual: ticketMedioPorContrato(negRows, periodoAtual),
+        anterior: ticketMedioPorContrato(negRows, periodoAnterior),
+      },
+      pipelineAberto: pipelineAberto(negRows).total,
+      pipelinePonderado: pipelinePonderado(negRows),
+      followUpsHoje: followUpsHojeCount,
+      followUpsAtrasados: followUpsAtrasadosCount,
+    },
+    meuDia: {
+      followUpsAtrasados: atrasados.map(resolverItem),
+      contatosHoje: hoje.map(resolverItem),
+      proximasAcoes: proximas.map(resolverItem),
+      propostasAguardandoRetorno: propostasAguardando.map((p) => ({
+        id: p.id,
+        numero: p.numero,
+        titulo: p.titulo,
+        clienteNome: p.cliente.nome,
+        enviadaEm: p.enviadaEm?.toISOString() ?? null,
+        href: `/comercial/propostas/${p.id}`,
+      })),
+      propostasPertoDoVencimento: propostasVencendo.map((p) => ({
+        id: p.id,
+        numero: p.numero,
+        titulo: p.titulo,
+        clienteNome: p.cliente.nome,
+        dias: p.dias,
+        href: `/comercial/propostas/${p.id}`,
+      })),
+      oportunidadesSemContato: semContato.map((n) => ({
+        id: n.id,
+        titulo: n.titulo,
+        clienteNome: n.cliente.nome,
+        diasSemContato: Math.floor((agora.getTime() - n.updatedAt.getTime()) / 86_400_000),
+        href: "/comercial/negociacoes",
+      })),
+    },
+  };
 }

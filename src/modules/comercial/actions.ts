@@ -34,9 +34,11 @@ import {
   campanhaIdSchema,
   moverEstagioSchema,
   reabrirNegociacaoSchema,
+  alternarChecklistItemSchema,
   qualificarProspeccaoSchema,
   agendarProximaAcaoSchema,
   concluirProximaAcaoSchema,
+  reagendarProximaAcaoSchema,
   definirTemperaturaSchema,
   moverProspeccaoSchema,
   registrarInteracaoSchema,
@@ -44,7 +46,9 @@ import {
   buscarEmpresaParaProspeccaoRapidaSchema,
   buscarContatoNaEmpresaSchema,
   criarProspeccaoRapidaSchema,
+  configComercialSchema,
 } from "@/modules/comercial/schemas";
+import { CHAVE_CONFIG_COMERCIAL } from "@/modules/comercial/config/queries";
 import { removerArquivo } from "@/lib/storage";
 import { etapaEhPerdido } from "@/modules/comercial/status";
 import { exigeQualificacao } from "@/modules/comercial/prospeccao";
@@ -63,9 +67,11 @@ import {
   aceitarProposta as servicoAceitarProposta,
   moverEstagio as servicoMoverEstagio,
   reabrirNegociacao as servicoReabrirNegociacao,
+  alternarChecklistItem as servicoAlternarChecklistItem,
   qualificarProspeccao as servicoQualificarProspeccao,
   agendarProximaAcao as servicoAgendarProximaAcao,
   concluirProximaAcao as servicoConcluirProximaAcao,
+  reagendarProximaAcao as servicoReagendarProximaAcao,
   moverProspeccao as servicoMoverProspeccao,
   registrarAtividade,
   registrarInteracaoManual as servicoRegistrarInteracaoManual,
@@ -768,6 +774,30 @@ export const reabrirNegociacao = defineAction(
 );
 
 /**
+ * Alterna item do checklist SOFT (F7.6) — NUNCA valida estágio nem autoriza `moverEstagio`;
+ * a validação estrutural de que `moverEstagio`/`jornada.ts` não consultam checklist mora em
+ * `service.test.ts`, não aqui.
+ */
+export const alternarChecklistItem = defineAction(
+  {
+    ...base,
+    acao: "alternar-checklist-item",
+    entidade: "Negociacao",
+    schema: alternarChecklistItemSchema,
+    entidadeId: (_d, i) => (i as { negociacaoId: string }).negociacaoId,
+  },
+  async (i, { user }) => {
+    const r = await servicoAlternarChecklistItem({
+      negociacaoId: i.negociacaoId,
+      itemId: i.itemId,
+      usuarioId: user.id,
+    });
+    rev();
+    return r;
+  },
+);
+
+/**
  * Qualifica a prospecção (F2.8). Delega ao service; o lead sobrevive apontando para a negociação.
  * `entidadeId` aponta para o LEAD — é a entidade que o usuário tinha em mãos ao agir, e é por ela
  * que alguém vai procurar no histórico depois.
@@ -866,6 +896,26 @@ export const concluirProximaAcao = defineAction(
       compromissoId: i.compromissoId,
       userId: user.id,
       quando: new Date(),
+    });
+    rev();
+    revalidatePath("/agenda");
+    return r;
+  },
+);
+
+/** F6.5 — Meu Dia: reagendar sem sair da tela (só move `inicio`, não conclui nem registra nada). */
+export const reagendarProximaAcao = defineAction(
+  {
+    ...base,
+    acao: "reagendar-proxima-acao",
+    entidade: "Compromisso",
+    schema: reagendarProximaAcaoSchema,
+    entidadeId: (_d, i) => (i as { compromissoId: string }).compromissoId,
+  },
+  async (i) => {
+    const r = await servicoReagendarProximaAcao({
+      compromissoId: i.compromissoId,
+      novoInicio: new Date(i.novoInicio),
     });
     rev();
     revalidatePath("/agenda");
@@ -1003,5 +1053,35 @@ export const criarProspeccaoRapida = defineAction(
     const r = await servicoCriarProspeccaoRapida({ ...i, autorId: ctx.user.id });
     rev();
     return r;
+  },
+);
+
+/**
+ * F7.2 — salva os 6 parâmetros de `ConfigComercial` (`config/padroes.ts`) em `ConfigSistema`,
+ * mesmo padrão de `financeiro/config`, `licitacoes/config` e `rh/encargos`: uma chave, um
+ * `upsert`, `revalidatePath` da tela. `entidade: "ConfigSistema"` faz o `AuditLog` registrar
+ * exatamente o que mudou — é a tela mais barata de auditar do módulo, porque `defineAction` já
+ * grava o input inteiro sem código a mais.
+ */
+export const salvarConfigComercial = defineAction(
+  {
+    modulo: "comercial",
+    recurso: "comercial",
+    permissao: "gerir",
+    acao: "salvar-config-comercial",
+    entidade: "ConfigSistema",
+    schema: configComercialSchema,
+    // Singleton (uma linha, chave fixa) — não tem cuid próprio, então a chave É o identificador
+    // (mesmo papel que um `id` teria: qual linha da tabela foi tocada).
+    entidadeId: () => CHAVE_CONFIG_COMERCIAL,
+  },
+  async (i) => {
+    await prisma.configSistema.upsert({
+      where: { chave: CHAVE_CONFIG_COMERCIAL },
+      create: { chave: CHAVE_CONFIG_COMERCIAL, valor: i },
+      update: { valor: i },
+    });
+    revalidatePath("/comercial/configuracoes");
+    return { ok: true };
   },
 );

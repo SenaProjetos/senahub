@@ -402,6 +402,13 @@ async function main() {
 
   console.log("\n── F5.7: alerta de validade — tick 2× dá 1 notificação só ────────\n");
 
+  // Prime: drena ANTES de criar as fixtures o que já estiver "enviada + vencida + nunca avisada"
+  // no banco inteiro — `alertaPropostasExpiradas` varre TODA a tabela, sem filtro por tag, e a
+  // carga sintética da F6.2 (3 mil propostas, validade aleatória) inevitavelmente inclui algumas
+  // nessa condição. Sem o prime, o "2º tick" deste smoke conta esse backlog alheio, não a
+  // proposta da fixture (achado rodando de verdade após a F6.2 popular o banco de dev).
+  await alertaPropostasExpiradas();
+
   const ONTEM_EM_RECIFE = "2020-01-01"; // bem no passado: expirada sem depender do relógio real
   const pExpirada = await criarPropostaFixture("EXPIRADA", {
     status: "enviada",

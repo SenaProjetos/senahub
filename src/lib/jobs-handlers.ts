@@ -274,6 +274,12 @@ export async function alertaPropostasExpiradas(agora: Date = new Date()): Promis
       autorId: true,
       cliente: { select: { nome: true } },
     },
+    // `validade` ascendente: com a tabela grande (a carga sintética da F6.2 tem milhares de
+    // propostas ainda não vencidas), um `take: 50` sem ordem é um scan arbitrário — a fila
+    // "não vencida ainda" pode encher os 50 pra sempre e a mais vencida nunca chega a ser vista.
+    // Ordenar garante que a mais atrasada entra primeiro nesta e em toda leva seguinte (achado
+    // rodando `smoke-crm-fase5` contra o banco de dev depois da F6.2 existir).
+    orderBy: { validade: "asc" },
     take: 50,
   });
   if (candidatas.length === 0) return 0;

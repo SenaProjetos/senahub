@@ -201,6 +201,12 @@ export const reabrirNegociacaoSchema = z.object({
   negociacaoId: z.string().min(1),
 });
 
+/** F7.6 — alterna marcado/desmarcado; não recebe estado, o service decide pela presença da linha. */
+export const alternarChecklistItemSchema = z.object({
+  negociacaoId: z.string().min(1),
+  itemId: z.string().min(1),
+});
+
 export const qualificarProspeccaoSchema = z.object({
   leadId: z.string().min(1),
   titulo: opt(z.string()),
@@ -232,6 +238,12 @@ export const agendarProximaAcaoSchema = z.object({
 });
 
 export const concluirProximaAcaoSchema = z.object({ compromissoId: z.string().min(1) });
+
+/** F6.5 — Meu Dia: reagendar sem sair da tela. */
+export const reagendarProximaAcaoSchema = z.object({
+  compromissoId: z.string().min(1),
+  novoInicio: z.string().min(1),
+});
 
 /** F2.12: `null` limpa a classificação (volta a "não classificado"). */
 export const definirTemperaturaSchema = z.object({
@@ -294,4 +306,16 @@ export const criarProspeccaoRapidaSchema = z.object({
     tipo: z.enum(["LIGACAO", "WHATSAPP", "EMAIL", "LINKEDIN", "REUNIAO", "NOTA"]),
     nota: z.string().min(1, "Escreva o que aconteceu."),
   }),
+});
+
+// ── Configuração do módulo (F1.7/F7.2) ──────────────────────────
+/** Os 6 parâmetros de `ConfigComercial` — tela em `/comercial/configuracoes`. */
+export const configComercialSchema = z.object({
+  descontoMaxSemJustificativa: z.number().nonnegative(),
+  diasSemContato: z.number().nonnegative(),
+  diasAvisoValidadeProposta: z.number().nonnegative(),
+  diasClienteInativo: z.number().nonnegative(),
+  diasParadoNoEstagio: z.number().nonnegative(),
+  diasParaReativar: z.number().nonnegative(),
+  diasHorizonteProximasAcoes: z.number().nonnegative(),
 });

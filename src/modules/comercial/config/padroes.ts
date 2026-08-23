@@ -17,6 +17,12 @@ export type ConfigComercial = {
   diasAvisoValidadeProposta: number;
   /** Dias sem nova contratação para o cliente entrar na lista de reativação. */
   diasClienteInativo: number;
+  /** Z (F7.1) — dias parado no MESMO estágio para a negociação virar alerta de automação. */
+  diasParadoNoEstagio: number;
+  /** F7.1/regra 6 — dias parado para um cliente RECORRENTE virar sugestão de reativação. */
+  diasParaReativar: number;
+  /** F6.5 — janela (dias à frente) da lista "Próximas ações" da Home/Meu Dia. */
+  diasHorizonteProximasAcoes: number;
 };
 
 /**
@@ -30,6 +36,9 @@ export const CONFIG_COMERCIAL_PADRAO: ConfigComercial = {
   diasSemContato: 15,
   diasAvisoValidadeProposta: 7,
   diasClienteInativo: 180,
+  diasParadoNoEstagio: 30,
+  diasParaReativar: 360,
+  diasHorizonteProximasAcoes: 7,
 };
 
 /**
@@ -62,6 +71,36 @@ export function parseConfigComercial(valor: unknown): ConfigComercial {
       CONFIG_COMERCIAL_PADRAO.diasAvisoValidadeProposta,
     ),
     diasClienteInativo: numero(v.diasClienteInativo, CONFIG_COMERCIAL_PADRAO.diasClienteInativo),
+    diasParadoNoEstagio: numero(v.diasParadoNoEstagio, CONFIG_COMERCIAL_PADRAO.diasParadoNoEstagio),
+    diasParaReativar: numero(v.diasParaReativar, CONFIG_COMERCIAL_PADRAO.diasParaReativar),
+    diasHorizonteProximasAcoes: numero(
+      v.diasHorizonteProximasAcoes,
+      CONFIG_COMERCIAL_PADRAO.diasHorizonteProximasAcoes,
+    ),
+  };
+}
+
+/**
+ * `ConfigComercial` → `ParametrosRegras` (F7.1/`regras.ts`).
+ *
+ * As regras de automação não leem `ConfigSistema` diretamente — recebem os números já resolvidos,
+ * porque `regras.ts` é puro (sem Prisma). Esta function é o único lugar que faz a ponte, e é
+ * exatamente o que garante o aceite literal da F7.2: `grep` por limiar solto em `regras.ts` ou no
+ * handler que o chama não pode achar nada — os números vêm sempre daqui.
+ */
+export function paraParametrosRegras(config: ConfigComercial): {
+  diasSemContato: number;
+  diasAvisoValidadeProposta: number;
+  diasClienteInativo: number;
+  diasParadoNoEstagio: number;
+  diasParaReativar: number;
+} {
+  return {
+    diasSemContato: config.diasSemContato,
+    diasAvisoValidadeProposta: config.diasAvisoValidadeProposta,
+    diasClienteInativo: config.diasClienteInativo,
+    diasParadoNoEstagio: config.diasParadoNoEstagio,
+    diasParaReativar: config.diasParaReativar,
   };
 }
 

@@ -124,52 +124,52 @@ model User {
   // Item 4 — cadastro completo do colaborador (replicado do RH do sistema antigo).
   // Tipo de contrato = `role`; jornada = `EscalaRole`/`EscalaUsuario` (Ponto v2).
   // Dados pessoais
-  cpf                   String?
-  rg                    String?
-  dataNascimento        DateTime? @db.Date
-  sexo                  String? // masculino | feminino | outro | nao_informado
-  estadoCivil           String? // solteiro | casado | divorciado | viuvo | uniao_estavel | outro
-  nacionalidade         String?
+  cpf                      String?
+  rg                       String?
+  dataNascimento           DateTime?                  @db.Date
+  sexo                     String? // masculino | feminino | outro | nao_informado
+  estadoCivil              String? // solteiro | casado | divorciado | viuvo | uniao_estavel | outro
+  nacionalidade            String?
   // Endereço / contato
-  enderecoCep           String?
-  enderecoLogradouro    String?
-  enderecoNumero        String?
-  enderecoComplemento   String?
-  enderecoBairro        String?
-  enderecoCidade        String?
-  enderecoUf            String?
-  telefone              String?
-  telefoneEmergencia    String?
-  contatoEmergenciaNome String?
-  emailPessoal          String?
+  enderecoCep              String?
+  enderecoLogradouro       String?
+  enderecoNumero           String?
+  enderecoComplemento      String?
+  enderecoBairro           String?
+  enderecoCidade           String?
+  enderecoUf               String?
+  telefone                 String?
+  telefoneEmergencia       String?
+  contatoEmergenciaNome    String?
+  emailPessoal             String?
   // Dados bancários: 1:N em `ContaBancariaColaborador` desde 2.2. As 4 colunas escalares que
   // existiam aqui (banco/agencia/conta/tipoContaBancaria) foram copiadas e então removidas.
   /// Conta usada por padrão (folha, reembolso). `@unique` = no máximo uma principal por pessoa,
   /// garantido pelo schema — mesmo padrão de `vinculoAtivoId`.
-  contaBancariaPrincipalId String?                   @unique
-  contaBancariaPrincipal   ContaBancariaColaborador? @relation("ContaPrincipal", fields: [contaBancariaPrincipalId], references: [id])
+  contaBancariaPrincipalId String?                    @unique
+  contaBancariaPrincipal   ContaBancariaColaborador?  @relation("ContaPrincipal", fields: [contaBancariaPrincipalId], references: [id])
   // Profissional
   /// CACHE do rótulo de `cargoRef` — mesmo padrão de `setor`/`contratacao` acima. Quem escreve
   /// é o service do catálogo (inclusive ao renomear o Cargo), nunca a tela. Existe para os
   /// leitores fora do RH não precisarem de join: projetos, dashboard e preferências.
-  cargo                 String?
+  cargo                    String?
   /// CACHE do rótulo de `departamentoRef` — mesma regra de `cargo`.
-  departamento          String?
+  departamento             String?
   /// Fonte de verdade do cargo. Nulo = ainda não classificado no catálogo.
-  contasBancarias       ContaBancariaColaborador[] @relation("ContasDoColaborador")
-  historicoContratual   HistoricoContratual[]      @relation("HistoricoDoColaborador")
-  historicoRegistrado   HistoricoContratual[]      @relation("HistoricoAutor")
-  cargoId               String?
-  cargoRef              Cargo?        @relation(fields: [cargoId], references: [id])
+  contasBancarias          ContaBancariaColaborador[] @relation("ContasDoColaborador")
+  historicoContratual      HistoricoContratual[]      @relation("HistoricoDoColaborador")
+  historicoRegistrado      HistoricoContratual[]      @relation("HistoricoAutor")
+  cargoId                  String?
+  cargoRef                 Cargo?                     @relation(fields: [cargoId], references: [id])
   /// Fonte de verdade do departamento. Nulo = ainda não classificado no catálogo.
-  departamentoId        String?
-  departamentoRef       Departamento? @relation(fields: [departamentoId], references: [id])
+  departamentoId           String?
+  departamentoRef          Departamento?              @relation(fields: [departamentoId], references: [id])
   /// Conselho profissional: "CREA" | "CAU" | "CFT" | outro. Nulo = não é profissional registrado.
-  conselho              String?
+  conselho                 String?
   /// Número do registro no conselho (ex.: "1234567890"). Exibido como "CREA-SP 1234567890".
-  registroProfissional  String?
+  registroProfissional     String?
   /// UF do registro (sigla). Separada do número para montar o rótulo e permitir filtro.
-  registroUf            String?
+  registroUf               String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -182,60 +182,60 @@ model User {
   projetosMembro                ProjetoMembro[]
   disciplinasResponsavel        DisciplinaResponsavel[]
   revisoes                      RevisaoDisciplina[]
-  uploadsAutor                  Upload[]                  @relation("UploadAutor")
-  uploadsValidados              Upload[]                  @relation("UploadValidador")
-  uploadsRevisados              Upload[]                  @relation("UploadRevisor")
-  revisoesDocumento             DocumentoRevisao[]        @relation("RevisaoAutor")
+  uploadsAutor                  Upload[]                    @relation("UploadAutor")
+  uploadsValidados              Upload[]                    @relation("UploadValidador")
+  uploadsRevisados              Upload[]                    @relation("UploadRevisor")
+  revisoesDocumento             DocumentoRevisao[]          @relation("RevisaoAutor")
   exclusoesSolicitadas          SolicitacaoExclusaoUpload[] @relation("ExclusaoSolicitante")
   exclusoesDecididas            SolicitacaoExclusaoUpload[] @relation("ExclusaoDecisor")
-  documentosAutor               Documento[]               @relation("DocumentoAutor")
-  pagamentos                    PagamentoProjetista[]     @relation("PagamentoProjetista")
+  documentosAutor               Documento[]                 @relation("DocumentoAutor")
+  pagamentos                    PagamentoProjetista[]       @relation("PagamentoProjetista")
   socio                         Socio?
-  lancamentosAutor              Lancamento[]              @relation("LancamentoAutor")
-  importacoesFinanceiras        ImportacaoFinanceira[]    @relation("ImportacaoFinanceiraAutor")
+  lancamentosAutor              Lancamento[]                @relation("LancamentoAutor")
+  importacoesFinanceiras        ImportacaoFinanceira[]      @relation("ImportacaoFinanceiraAutor")
   canaisMembro                  CanalMembro[]
-  canaisCriados                 Canal[]                   @relation("CanaisCriados")
+  canaisCriados                 Canal[]                     @relation("CanaisCriados")
   mensagens                     Mensagem[]
   sessoes                       SessaoTrabalho[]
   batidas                       Batida[]
-  batidasAjustadas              Batida[]                  @relation("BatidaCriador")
+  batidasAjustadas              Batida[]                    @relation("BatidaCriador")
   escalasUsuario                EscalaUsuario[]
   espelhoAceites                EspelhoAceite[]
-  ajustesPonto                  AjustePonto[]             @relation("AjustePontoUsuario")
-  ajustesPontoEditados          AjustePonto[]             @relation("AjustePontoEditor")
-  diarioEntradas                DiarioEntrada[]           @relation("DiarioAutor")
+  ajustesPonto                  AjustePonto[]               @relation("AjustePontoUsuario")
+  ajustesPontoEditados          AjustePonto[]               @relation("AjustePontoEditor")
+  diarioEntradas                DiarioEntrada[]             @relation("DiarioAutor")
   alertasPontoEnviados          AlertaPontoEnviado[]
   alertasLicitacaoEnviados      AlertaLicitacaoEnviado[]
-  abonos                        AbonoFalta[]              @relation("AbonoUser")
-  abonosValidados               AbonoFalta[]              @relation("AbonoValidador")
-  ferias                        Ferias[]                  @relation("FeriasUser")
-  feriasValidadas               Ferias[]                  @relation("FeriasValidador")
+  abonos                        AbonoFalta[]                @relation("AbonoUser")
+  abonosValidados               AbonoFalta[]                @relation("AbonoValidador")
+  ferias                        Ferias[]                    @relation("FeriasUser")
+  feriasValidadas               Ferias[]                    @relation("FeriasValidador")
   emocoes                       RegistroEmocao[]
   feedbacksHumor                FeedbackHumor[]
   holerites                     Holerite[]
   onboarding                    OnboardingProcesso?
-  notasFiscais                  NotaFiscalPJ[]            @relation("NfUser")
-  nfsValidadas                  NotaFiscalPJ[]            @relation("NfValidador")
+  notasFiscais                  NotaFiscalPJ[]              @relation("NfUser")
+  nfsValidadas                  NotaFiscalPJ[]              @relation("NfValidador")
   documentoVersoes              DocumentoModeloVersao[]
   atividadesLead                AtividadeLead[]
-  propostasAutor                Proposta[]                @relation("PropostaAutor")
-  propostaVersoes               PropostaVersao[]          @relation("PropostaVersaoAutor")
-  tarefasCriadas                Tarefa[]                  @relation("TarefaCriador")
+  propostasAutor                Proposta[]                  @relation("PropostaAutor")
+  propostaVersoes               PropostaVersao[]            @relation("PropostaVersaoAutor")
+  tarefasCriadas                Tarefa[]                    @relation("TarefaCriador")
   tarefasResponsavel            TarefaResponsavel[]
   docJuridicoVersoes            DocJuridicoVersao[]
   docLicitacaoVersoes           DocLicitacaoVersao[]
-  compromissosCriados           Compromisso[]             @relation("CompromissoCriador")
+  compromissosCriados           Compromisso[]               @relation("CompromissoCriador")
   compromissosConvites          CompromissoParticipante[]
-  ticketsAutor                  TicketSuporte[]           @relation("TicketAutor")
-  ticketMensagens               TicketMensagem[]          @relation("TicketMensagemAutor")
+  ticketsAutor                  TicketSuporte[]             @relation("TicketAutor")
+  ticketMensagens               TicketMensagem[]            @relation("TicketMensagemAutor")
   recurso                       Recurso?
   dependentes                   Dependente[]
-  tarefaComentarios             TarefaComentario[]        @relation("TarefaComentarioAutor")
+  tarefaComentarios             TarefaComentario[]          @relation("TarefaComentarioAutor")
   habilidades                   UserHabilidade[]
   rateios                       RateioHora[]
-  funcDocumentos                FuncionarioDocumento[]    @relation("FuncDocumentos")
+  funcDocumentos                FuncionarioDocumento[]      @relation("FuncDocumentos")
   bancoHoras                    BancoHorasMensal[]
-  feedbacksRecebidos            FeedbackRH[]              @relation("FeedbackAlvo")
+  feedbacksRecebidos            FeedbackRH[]                @relation("FeedbackAlvo")
   mensagensLidas                MensagemLeitura[]
   mensagensEntregues            MensagemEntrega[]
   mensagensOuvidas              MensagemAudicao[]
@@ -244,36 +244,37 @@ model User {
   planejamentos                 PlanejamentoPagamento[]
   fechamentos                   FechamentoMensal[]
   responsavelTecnico            ResponsavelTecnico?
-  viabilidadesDecididas         ViabilidadeLicitacao[]    @relation("ViabilidadeDecisor")
-  aceitesGerados                AceiteCliente[]           @relation("AceiteGerador")
-  pendenciasExcluidas           Pendencia[]               @relation("PendenciaExcluidaPor")
-  pendenciaRespostas            PendenciaResposta[]       @relation("PendenciaRespostaAutor")
-  pendenciaAnexos               PendenciaAnexo[]          @relation("PendenciaAnexoAutor")
-  calibracoesPrancha            CalibracaoPrancha[]       @relation("CalibracaoAutor")
-  apontamentosPadrao            ApontamentoPadrao[]       @relation("ApontamentoPadraoAutor")
-  referenciasPendencia          ReferenciaPendencia[]     @relation("ReferenciaAutor")
-  leiturasDocumento             LeituraDocumento[]        @relation("LeituraDocumentoUsuario")
+  viabilidadesDecididas         ViabilidadeLicitacao[]      @relation("ViabilidadeDecisor")
+  aceitesGerados                AceiteCliente[]             @relation("AceiteGerador")
+  pendenciasExcluidas           Pendencia[]                 @relation("PendenciaExcluidaPor")
+  pendenciaRespostas            PendenciaResposta[]         @relation("PendenciaRespostaAutor")
+  pendenciaAnexos               PendenciaAnexo[]            @relation("PendenciaAnexoAutor")
+  calibracoesPrancha            CalibracaoPrancha[]         @relation("CalibracaoAutor")
+  apontamentosPadrao            ApontamentoPadrao[]         @relation("ApontamentoPadraoAutor")
+  referenciasPendencia          ReferenciaPendencia[]       @relation("ReferenciaAutor")
+  leiturasDocumento             LeituraDocumento[]          @relation("LeituraDocumentoUsuario")
   calculosFerramenta            CalculoFerramenta[]
   aceitesTermo                  AceiteTermo[]
-  ativosResponsavel             Ativo[]                   @relation("AtivoResponsavel")
-  certidoesResponsavel          Certidao[]                @relation("CertidaoResponsavel")
-  maquinasResponsavel           MaquinaTI[]               @relation("MaquinaResponsavel")
-  leadsResponsavel              Lead[]                    @relation("LeadResponsavel")
-  atividadesComerciais          Atividade[]               @relation("AtividadeAutor")
-  negociacoesResponsavel        Negociacao[]              @relation("NegociacaoResponsavel")
-  campanhasResponsavel          Campanha[]                @relation("CampanhaResponsavel")
-  avisosCriados                 Aviso[]                   @relation("AvisosCriados")
-  avisosRecebidos               AvisoDestinatario[]       @relation("AvisosRecebidos")
-  artsResponsavel               Art[]                     @relation("ArtResponsavel")
-  artsCriadas                   Art[]                     @relation("ArtAutor")
-  artVersoesCriadas             ArtVersao[]               @relation("ArtVersaoAutor")
-  orcamentosCustoCriados        CustoOrcamento[]          @relation("CustoOrcamentoCriador")
-  orcamentoRevisoesCustoCriadas CustoOrcamentoRevisao[]   @relation("CustoOrcamentoRevisaoCriador")
+  ativosResponsavel             Ativo[]                     @relation("AtivoResponsavel")
+  certidoesResponsavel          Certidao[]                  @relation("CertidaoResponsavel")
+  maquinasResponsavel           MaquinaTI[]                 @relation("MaquinaResponsavel")
+  leadsResponsavel              Lead[]                      @relation("LeadResponsavel")
+  atividadesComerciais          Atividade[]                 @relation("AtividadeAutor")
+  negociacoesResponsavel        Negociacao[]                @relation("NegociacaoResponsavel")
+  campanhasResponsavel          Campanha[]                  @relation("CampanhaResponsavel")
+  checklistItensMarcados        NegociacaoChecklistItem[]
+  avisosCriados                 Aviso[]                     @relation("AvisosCriados")
+  avisosRecebidos               AvisoDestinatario[]         @relation("AvisosRecebidos")
+  artsResponsavel               Art[]                       @relation("ArtResponsavel")
+  artsCriadas                   Art[]                       @relation("ArtAutor")
+  artVersoesCriadas             ArtVersao[]                 @relation("ArtVersaoAutor")
+  orcamentosCustoCriados        CustoOrcamento[]            @relation("CustoOrcamentoCriador")
+  orcamentoRevisoesCustoCriadas CustoOrcamentoRevisao[]     @relation("CustoOrcamentoRevisaoCriador")
   importacoesCusto              CustoImportacao[]
   quantitativosCustoCriados     CustoQuantitativo[]
-  rfqsCriadas                   CustoRfq[]                @relation("RfqCriadoPor")
-  propostasCustoCriadas         CustoProposta[]           @relation("PropostaCriadaPor")
-  propostasCustoEscolhidas      CustoProposta[]           @relation("PropostaEscolhidaPor")
+  rfqsCriadas                   CustoRfq[]                  @relation("RfqCriadoPor")
+  propostasCustoCriadas         CustoProposta[]             @relation("PropostaCriadaPor")
+  propostasCustoEscolhidas      CustoProposta[]             @relation("PropostaEscolhidaPor")
   propostaAnexosCusto           CustoPropostaAnexo[]
 
   @@index([role])
@@ -326,7 +327,7 @@ model Vinculo {
   atualizadoEm DateTime @updatedAt
 
   /// Lado inverso de `User.vinculoAtivoId`.
-  usuarioAtivo User? @relation("VinculoAtivo")
+  usuarioAtivo User?                 @relation("VinculoAtivo")
   /// Alterações datadas de cargo/departamento/remuneração DENTRO deste vínculo.
   historico    HistoricoContratual[]
 
@@ -404,10 +405,10 @@ model HistoricoContratual {
 
   vigenciaEm DateTime @db.Date
 
-  cargoId        String?
-  cargo          Cargo?        @relation(fields: [cargoId], references: [id])
-  departamentoId String?
-  departamento   Departamento? @relation(fields: [departamentoId], references: [id])
+  cargoId          String?
+  cargo            Cargo?        @relation(fields: [cargoId], references: [id])
+  departamentoId   String?
+  departamento     Departamento? @relation(fields: [departamentoId], references: [id])
   /// Rótulos CONGELADOS na data. Renomear um item de catálogo corrige a grafia do presente —
   /// não pode reescrever o que estava escrito num registro contratual passado.
   cargoNome        String?
@@ -906,17 +907,21 @@ model Cliente {
   /// por `findUnique` — de propósito: um projeto antigo continua mostrando de quem era.
   excluidoEm DateTime?
 
-  contatos        ContatoCliente[]
-  projetos        Projeto[]
-  lancamentos     Lancamento[]
-  leads           Lead[]
-  propostas       Proposta[]
-  usuarios        User[]              @relation("ClienteUsuarios")
-  docsJuridicos   DocumentoJuridico[]
-  documentos      Documento[]
-  orcamentosCusto CustoOrcamento[]
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  contatos             ContatoCliente[]
+  projetos             Projeto[]
+  lancamentos          Lancamento[]
+  leads                Lead[]
+  propostas            Proposta[]
+  usuarios             User[]              @relation("ClienteUsuarios")
+  docsJuridicos        DocumentoJuridico[]
+  documentos           Documento[]
+  orcamentosCusto      CustoOrcamento[]
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  /// F2.4: negociações desta empresa.
+  negociacoes          Negociacao[]
+  /// F3.1: timeline unificada do Comercial.
+  atividadesComerciais Atividade[]
 
   @@index([ativo])
   @@index([nome])
@@ -931,10 +936,6 @@ model Cliente {
   @@index([segmentoId])
   @@index([fundidoEmId])
   @@index([excluidoEm])
-  /// F2.4: negociações desta empresa.
-  negociacoes Negociacao[]
-  /// F3.1: timeline unificada do Comercial.
-  atividadesComerciais Atividade[]
   @@map("cliente")
 }
 
@@ -952,11 +953,11 @@ model ContatoCliente {
   /// Descadastro. Contato com optOut NUNCA entra em lista de abordagem nem em exportação
   /// de prospecção. A checagem é centralizada em `modules/comercial/lgpd.ts` (F1.10) —
   /// não repetir esta condição solta em query.
-  optOut     Boolean   @default(false)
-  optOutAt   DateTime?
+  optOut               Boolean       @default(false)
+  optOutAt             DateTime?
   /// Base legal da coleta. Prospecção B2B fria = legítimo interesse. É campo, e não
   /// constante, para não travar o dia em que houver outra base.
-  baseLegal  BaseLegalLgpd @default(LEGITIMO_INTERESSE)
+  baseLegal            BaseLegalLgpd @default(LEGITIMO_INTERESSE)
   /// De onde veio o dado (Sales Navigator, indicação, site…) e quando foi coletado.
   dataCollectionSource String?
   dataCollectedAt      DateTime?
@@ -984,7 +985,11 @@ model ContatoCliente {
   excluidoEm DateTime?
 
   /// F2.3: prospecções em que este contato aparece.
-  leads LeadContato[]
+  leads       LeadContato[]
+  /// F2.4: negociações em que este contato aparece.
+  negociacoes NegociacaoContato[]
+  /// F3.1: eventos da timeline em que este contato aparece.
+  atividades  Atividade[]
 
   @@index([clienteId])
   /// Filtro das listas de abordagem: "quem posso contatar".
@@ -992,10 +997,6 @@ model ContatoCliente {
   @@index([excluidoEm])
   /// Filtro "lista SN" (F4.1), mesmo motivo do índice em `Cliente`.
   @@index([listaSalesNavigator])
-  /// F2.4: negociações em que este contato aparece.
-  negociacoes NegociacaoContato[]
-  /// F3.1: eventos da timeline em que este contato aparece.
-  atividades Atividade[]
   @@map("contato_cliente")
 }
 
@@ -1045,15 +1046,15 @@ model DisciplinaCatalogo {
   ativo     Boolean @default(true)
   ordem     Int     @default(0)
 
-  padroes       PadraoTecnico[]
+  padroes          PadraoTecnico[]
   /// Itens de proposta que já apontam para este catálogo (CRM F1.19).
-  propostaItens PropostaItem[]
+  propostaItens    PropostaItem[]
   /// Itens de tabela de preço que já apontam para este catálogo (CRM F1.20).
   itensTabelaPreco ItemTabelaPreco[]
   /// Disciplinas de projeto que já apontam para este catálogo (CRM F1.19c).
-  disciplinas   Disciplina[]
+  disciplinas      Disciplina[]
   /// Negociações que já apontam para este catálogo (CRM F2.4).
-  negociacoes NegociacaoDisciplina[]
+  negociacoes      NegociacaoDisciplina[]
 
   @@map("disciplina_catalogo")
 }
@@ -1297,18 +1298,18 @@ model BriefingProjeto {
 /// Mesma convenção de LinkPublicoArquivos: `ativo=false` revoga na hora e `expiraEm`
 /// no passado desliga o link (regra única em `lib/link-publico.ts`).
 model LinkPublicoInput {
-  id        String   @id @default(cuid())
-  projetoId String   @unique
-  projeto   Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
-  token     String   @unique
-  ativo     Boolean  @default(true)
+  id           String    @id @default(cuid())
+  projetoId    String    @unique
+  projeto      Projeto   @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  token        String    @unique
+  ativo        Boolean   @default(true)
   /// Data/hora de expiração (opcional). Nulo = não expira.
-  expiraEm  DateTime?
+  expiraEm     DateTime?
   /// Última vez que a equipe foi avisada de preenchimento por este link. Serve de
   /// trava de janela: o formulário salva sozinho a cada campo, e sem isso cada
   /// tecla viraria notificação.
   notificadoEm DateTime?
-  createdAt DateTime @default(now())
+  createdAt    DateTime  @default(now())
 
   @@map("link_publico_input")
 }
@@ -1937,22 +1938,22 @@ enum StatusSolicCadastro {
 
 /// Pedido público de cadastro (auto-cadastro → admin aprova) (E7).
 model SolicitacaoCadastro {
-  id        String              @id @default(cuid())
-  nome      String
-  email     String
-  telefone  String?
-  mensagem  String?
+  id                    String              @id @default(cuid())
+  nome                  String
+  email                 String
+  telefone              String?
+  mensagem              String?
   /// Vínculo PRETENDIDO informado pela própria pessoa (palpite — o admin decide na criação).
   /// Era um `role` único até 2026-08-20; virou os dois eixos da reforma de acesso porque o
   /// dado mostrou que um enum só não expressava a resposta: 27 dos 32 pedidos eram `cliente`,
   /// que é `tipo: externo` e contratação NENHUMA. Ver R6 do plano de acesso.
   /// Ganho de tabela: a pessoa PJ agora se declara `pj` ou `autonomo_rpa` na origem, então
   /// pedidos novos não entram na fila de reclassificação manual do §9.2.
-  tipoPretendido        TipoUsuario  @default(externo)
+  tipoPretendido        TipoUsuario         @default(externo)
   /// Null quando `tipoPretendido = externo` (cliente do portal não tem contratação).
   contratacaoPretendida Contratacao?
-  status    StatusSolicCadastro @default(pendente)
-  createdAt DateTime            @default(now())
+  status                StatusSolicCadastro @default(pendente)
+  createdAt             DateTime            @default(now())
 
   @@index([status])
   @@map("solicitacao_cadastro")
@@ -2331,9 +2332,9 @@ model ProjetoMembro {
 }
 
 model Disciplina {
-  id           String           @id @default(cuid())
-  projetoId    String
-  projeto      Projeto          @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  id        String  @id @default(cuid())
+  projetoId String
+  projeto   Projeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
 
   // ── Disciplina: texto livre → catálogo (CRM F1.19c, mesmo padrão da F1.19/F1.20) ──
   /// Texto original digitado antes da migração. `@map` mantém a COLUNA FÍSICA com o nome
@@ -2383,14 +2384,14 @@ model Disciplina {
   apontamentosCoordenacao ApontamentoCoordenacao[]
   documentos              DocumentoDisciplina[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  apontamentosPadrao ApontamentoPadrao[]
 
   @@index([projetoId])
   @@index([status])
   @@index([disciplinaId])
   @@map("disciplina")
-  apontamentosPadrao  ApontamentoPadrao[]
 }
 
 /// Diário de projeto por disciplina: projetistas registram a evolução diária dos
@@ -2832,10 +2833,10 @@ model AceiteDocumento {
 }
 
 model CertidaoTipo {
-  id          String     @id @default(cuid())
-  nome        String     @unique
+  id          String  @id @default(cuid())
+  nome        String  @unique
   /// Tipo obrigatório p/ o checklist de compliance (módulo certidões) — não afeta dado existente.
-  obrigatoria Boolean    @default(false)
+  obrigatoria Boolean @default(false)
 
   certidoes Certidao[]
 
@@ -3650,38 +3651,38 @@ model FunilEtapa {
 }
 
 model Lead {
-  id            String     @id @default(cuid())
+  id            String   @id @default(cuid())
   nome          String
   contato       String?
   email         String?
   telefone      String?
   origem        String?
-  valorEstimado Decimal?   @db.Decimal(14, 2)
+  valorEstimado Decimal? @db.Decimal(14, 2)
 
   // ── F2.3: funil de prospecção vira enum fixo (ADR-01/16, 02-schema §2.3 e §8.3) ──────
   /// Estágio da prospecção. Substitui `etapaId`/`FunilEtapa` (abaixo, DEPRECADOS): enum fixo
   /// elimina de vez o `etapaEhPerdido()` por substring, que era dívida flagada na auditoria.
   /// `@default(IDENTIFICADO)` é o que preenche os leads existentes na migration — sem ele a
   /// coluna NOT NULL não poderia nascer numa tabela populada.
-  status        StatusProspeccao @default(IDENTIFICADO)
+  status      StatusProspeccao @default(IDENTIFICADO)
   /// F2.12: manual, sem IA nem scoring automático (veredito do dono no roadmap). Nullable =
   /// "ninguém classificou ainda", que é diferente de FRIO — o card não pinta nada nesse caso.
-  temperatura   Temperatura?
+  temperatura Temperatura?
   /// Marcado quando a classificação automática ficou ambígua e um humano precisa conferir
   /// (ADR-16). A F2.18 migra os 8 leads reais todos com `needsReview = true`.
-  needsReview   Boolean          @default(false)
+  needsReview Boolean          @default(false)
 
   // ── DEPRECADOS pela F2.3, mantidos por decisão (02-schema §8.3): não são apagados ──────
   /// DEPRECADO — use `status`. Mantido só para leitura do histórico pré-migração; a tabela
   /// `FunilEtapa` continua existindo e órfã até o CONTRACT. Continua NOT NULL porque toda
   /// linha atual tem valor e removê-lo agora seria mudança destrutiva sem ganho.
-  etapaId       String
-  etapa         FunilEtapa @relation(fields: [etapaId], references: [id])
+  etapaId     String
+  etapa       FunilEtapa @relation(fields: [etapaId], references: [id])
   /// DEPRECADO — `arquivado` e `motivoPerda` (texto livre) são substituídos por `status`
   /// (SEM_OPORTUNIDADE/DESCARTADO) e pelo catálogo `MotivoPerda`. Ver §8.3.
-  observacoes   String?
-  motivoPerda   String?
-  arquivado     Boolean    @default(false)
+  observacoes String?
+  motivoPerda String?
+  arquivado   Boolean    @default(false)
 
   /// ⚠️ ADR-01 diz "obrigatório", e AQUI ELE CONTINUA NULLABLE — desvio deliberado, mesmo
   /// padrão já decidido para `Proposta.negociacaoId` no P5: a obrigatoriedade mora na camada
@@ -3693,27 +3694,27 @@ model Lead {
   /// Sequência correta: F2.18 preenche os 8 à mão → depois disso, e só depois, uma migration
   /// de CONTRACT pode fechar a coluna. Fechar antes seria trocar um deploy que funciona por um
   /// que aborta.
-  clienteId     String?
-  cliente       Cliente?   @relation(fields: [clienteId], references: [id])
+  clienteId  String?
+  cliente    Cliente?  @relation(fields: [clienteId], references: [id])
   /// Soft delete (ADR-11). Distinto de `arquivado`: arquivar tira do funil mas mantem o lead
   /// como registro vivo; excluir e remocao logica. Leituras top-level sao auto-filtradas pela
   /// extensao em `lib/prisma.ts`; as ANINHADAS (funil le leads via FunilEtapa) precisam do
   /// filtro explicito -- ver `funilCompleto`.
-  excluidoEm    DateTime?
+  excluidoEm DateTime?
 
   // ── F1.23: atribuicao/origem estruturada, nao gate de permissao (ADR-15 revisado, Q4) ──
   /// So exibicao/atribuicao ("Meus x Todos", Fase 2) -- NUNCA usar para checagem de acesso.
   /// Backfill inicial em `scripts/backfill-lead-f123.ts` (nao ha `autorId` no lead nem
   /// `entidadeId` no AuditLog de `criarLead` para derivar isso automaticamente na migration).
-  responsavelId String?
-  responsavel   User?           @relation("LeadResponsavel", fields: [responsavelId], references: [id], onDelete: SetNull)
-  canalId       String?
-  canal         CanalAquisicao? @relation(fields: [canalId], references: [id])
+  responsavelId   String?
+  responsavel     User?           @relation("LeadResponsavel", fields: [responsavelId], references: [id], onDelete: SetNull)
+  canalId         String?
+  canal           CanalAquisicao? @relation(fields: [canalId], references: [id])
   /// Complemento em texto livre ao canal (ex.: nome do empreendimento). Backfill: `origem` vira
   /// canal "Outro" + o texto original preservado aqui (docs/crm/03-migracao.md §3).
   origemDetalhada String?
   campaignId      String?
-  campanha        Campanha? @relation(fields: [campaignId], references: [id])
+  campanha        Campanha?       @relation(fields: [campaignId], references: [id])
 
   // ── F1.23a (ADR-19): indicacao mensuravel, escolhida de lista -- nunca texto livre ──
   parceiroId String?
@@ -3726,8 +3727,12 @@ model Lead {
   /// mantido como fallback de exibição para leads antigos sem contato estruturado.
   contatos   LeadContato[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+  /// F2.4: a negociação nascida desta prospecção (1:1 opcional).
+  negociacao           Negociacao?
+  /// F3.1: timeline unificada (substitui AtividadeLead para escrita nova).
+  atividadesComerciais Atividade[]
 
   @@index([etapaId, arquivado])
   @@index([excluidoEm])
@@ -3738,10 +3743,6 @@ model Lead {
   @@index([clienteId])
   @@index([status])
   @@index([createdAt])
-  /// F2.4: a negociação nascida desta prospecção (1:1 opcional).
-  negociacao Negociacao?
-  /// F3.1: timeline unificada (substitui AtividadeLead para escrita nova).
-  atividadesComerciais Atividade[]
   @@map("lead")
 }
 
@@ -3786,10 +3787,10 @@ model Negociacao {
   temperatura Temperatura?
   estagio     EstagioNegociacao @default(LEVANTAMENTO)
 
-  motivoPerdaId String?
-  motivoPerdaRef MotivoPerda? @relation(fields: [motivoPerdaId], references: [id])
+  motivoPerdaId   String?
+  motivoPerdaRef  MotivoPerda? @relation(fields: [motivoPerdaId], references: [id])
   /// Preenchido só quando `MotivoPerda.exigeConcorrente = true`.
-  concorrente   String?
+  concorrente     String?
   /// Observação livre da perda, ao lado do motivo do catálogo (F5.10) — o motivo classifica,
   /// isto conta o caso específico. Mesmo ciclo de vida: limpo ao sair de PERDIDO (reabertura).
   observacaoPerda String?
@@ -3816,14 +3817,18 @@ model Negociacao {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  contatos    NegociacaoContato[]
-  disciplinas NegociacaoDisciplina[]
+  contatos         NegociacaoContato[]
+  disciplinas      NegociacaoDisciplina[]
   /// 1:N (ADR-06) — a FK mora no lado `Projeto` (ver §2.13).
-  projetos    Projeto[]
+  projetos         Projeto[]
   /// F5.2 (ADR-21): as propostas emitidas nesta negociação. A FK mora no lado `Proposta` e é
   /// nullable de propósito — proposta histórica pode não ter negociação, e é isso que impede a
   /// obrigatoriedade de virar constraint.
-  propostas   Proposta[]
+  propostas        Proposta[]
+  /// F7.6: itens do checklist SOFT marcados nesta negociação.
+  checklistMarcado NegociacaoChecklistItem[]
+  /// F3.1: timeline unificada.
+  atividades       Atividade[]
 
   @@index([clienteId])
   @@index([responsavelId])
@@ -3834,8 +3839,6 @@ model Negociacao {
   @@index([parceiroId])
   @@index([createdAt])
   @@index([excluidoEm])
-  /// F3.1: timeline unificada.
-  atividades Atividade[]
   @@map("negociacao")
 }
 
@@ -3907,11 +3910,11 @@ model Campanha {
   ativo         Boolean         @default(true)
   createdAt     DateTime        @default(now())
 
-  leads Lead[]
+  leads       Lead[]
+  negociacoes Negociacao[]
 
   @@index([canalId])
   @@index([responsavelId])
-  negociacoes Negociacao[]
   @@map("campanha")
 }
 
@@ -3923,24 +3926,24 @@ model Campanha {
 /// sera implementado sem essa regra definida (fabricar politica financeira nao e opcao). CRUD +
 /// selecao por lista e a F1.23b; relatorio "negocios por parceiro" e a F1.23c.
 model Parceiro {
-  id         String    @id @default(cuid())
+  id         String     @id @default(cuid())
   nome       String
   tipo       TipoPessoa @default(PF)
   documento  String?
   email      String?
   telefone   String?
   observacao String?
-  ativo      Boolean   @default(true)
+  ativo      Boolean    @default(true)
   /// Soft delete: campo explicito no backlog (F1.23a), mesmo padrao de Cliente/Lead/ContatoCliente
   /// (ADR-11) apesar de Parceiro nao estar entre os 4 models originais da ADR -- registrado na
   /// extensao de `lib/prisma.ts` do mesmo jeito.
   excluidoEm DateTime?
-  createdAt  DateTime  @default(now())
+  createdAt  DateTime   @default(now())
 
-  leads Lead[]
+  leads       Lead[]
+  negociacoes Negociacao[]
 
   @@index([excluidoEm])
-  negociacoes Negociacao[]
   @@map("parceiro")
 }
 
@@ -4048,10 +4051,10 @@ model MetaComercial {
 
 /// Tipo de empreendimento da negociação (residencial, galpão, hospital…).
 model TipoEmpreendimento {
-  id    String  @id @default(cuid())
-  nome  String  @unique
-  ativo Boolean @default(true)
-  ordem Int     @default(0)
+  id          String       @id @default(cuid())
+  nome        String       @unique
+  ativo       Boolean      @default(true)
+  ordem       Int          @default(0)
   negociacoes Negociacao[]
 
   @@map("tipo_empreendimento")
@@ -4059,16 +4062,16 @@ model TipoEmpreendimento {
 
 /// Motivo padronizado de perda — substitui o `Lead.motivoPerda` de texto livre.
 model MotivoPerda {
-  id    String  @id @default(cuid())
-  nome  String  @unique
-  ativo Boolean @default(true)
-  ordem Int     @default(0)
+  id               String       @id @default(cuid())
+  nome             String       @unique
+  ativo            Boolean      @default(true)
+  ordem            Int          @default(0)
   /// Quando true, a UI exige preencher o concorrente ao selecionar este motivo.
-  exigeConcorrente Boolean @default(false)
-  negociacoes Negociacao[]
+  exigeConcorrente Boolean      @default(false)
+  negociacoes      Negociacao[]
   /// F5.10: mesmo catálogo também classifica proposta recusada — evita um 2º catálogo para a
   /// mesma coisa.
-  propostas   Proposta[]
+  propostas        Proposta[]
 
   @@map("motivo_perda")
 }
@@ -4081,11 +4084,46 @@ model CanalAquisicao {
   ativo Boolean @default(true)
   ordem Int     @default(0)
 
-  leads     Lead[]
-  campanhas Campanha[]
+  leads       Lead[]
+  campanhas   Campanha[]
   negociacoes Negociacao[]
 
   @@map("canal_aquisicao")
+}
+
+/// Checklist por estágio (F7.6) — SOFT: só exibe percentual/aviso no card, nunca trava
+/// `moverEstagio` (veredito do dono, roadmap #14). Nasce VAZIO como `CanalAquisicao`: ninguém
+/// decidiu ainda o que prova que "Orçamento" está pronto — inventar um item padrão seria
+/// autoridade falsa. Estágio sem nenhum item aqui não mostra checklist (percentual null, não 0).
+model ChecklistItemPadrao {
+  id      String            @id @default(cuid())
+  estagio EstagioNegociacao
+  texto   String
+  ativo   Boolean           @default(true)
+  ordem   Int               @default(0)
+
+  marcacoes NegociacaoChecklistItem[]
+
+  @@index([estagio])
+  @@map("checklist_item_padrao")
+}
+
+/// Item marcado numa negociação. A PRESENÇA da linha é o "marcado" — sem coluna de estado pra
+/// desincronizar. `marcadoPor`/`marcadoEm` são o rastro auditável de quem/quando.
+model NegociacaoChecklistItem {
+  id           String              @id @default(cuid())
+  negociacaoId String
+  negociacao   Negociacao          @relation(fields: [negociacaoId], references: [id], onDelete: Cascade)
+  itemId       String
+  item         ChecklistItemPadrao @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  marcadoPorId String
+  marcadoPor   User                @relation(fields: [marcadoPorId], references: [id])
+  marcadoEm    DateTime            @default(now())
+
+  @@unique([negociacaoId, itemId])
+  @@index([negociacaoId])
+  @@index([itemId])
+  @@map("negociacao_checklist_item")
 }
 
 /// Segmento de mercado do cliente.
@@ -4239,16 +4277,16 @@ model PropostaSequencia {
 }
 
 model Proposta {
-  id          String         @id @default(cuid())
-  ano         Int
-  sequencial  Int
+  id         String  @id @default(cuid())
+  ano        Int
+  sequencial Int
   /// Número de exibição: PR-260001
-  numero      String         @unique
-  titulo      String
-  clienteId   String
-  cliente     Cliente        @relation(fields: [clienteId], references: [id])
-  leadId      String?
-  lead        Lead?          @relation(fields: [leadId], references: [id])
+  numero     String  @unique
+  titulo     String
+  clienteId  String
+  cliente    Cliente @relation(fields: [clienteId], references: [id])
+  leadId     String?
+  lead       Lead?   @relation(fields: [leadId], references: [id])
 
   /// De qual negociação esta proposta nasceu (CRM F5.2, ADR-21).
   ///
@@ -4271,8 +4309,8 @@ model Proposta {
   projetoId   String?        @unique
   projeto     Projeto?       @relation(fields: [projetoId], references: [id])
 
-  enviadaEm DateTime?
-  aceitaEm  DateTime?
+  enviadaEm        DateTime?
+  aceitaEm         DateTime?
   /// Quando o alerta de validade vencida foi disparado (F5.7). É a marca de compare-and-swap
   /// que torna o tick idempotente — mesmo papel de `Aviso.enviadoEm` em `dispararAvisosAgendados`.
   ///
@@ -4298,8 +4336,10 @@ model Proposta {
   visualizacoes PropostaVisualizacao[]
   documentos    Documento[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  /// F3.1: timeline unificada.
+  atividades Atividade[]
 
   @@unique([ano, sequencial])
   @@index([status])
@@ -4308,8 +4348,6 @@ model Proposta {
   @@index([negociacaoId])
   /// F5.10: mesmo motivo, o Prisma não cria índice sozinho no lado da FK.
   @@index([motivoPerdaId])
-  /// F3.1: timeline unificada.
-  atividades Atividade[]
   @@map("proposta")
 }
 
@@ -4330,9 +4368,9 @@ model PropostaItem {
   disciplinaId          String?
   disciplina            DisciplinaCatalogo? @relation(fields: [disciplinaId], references: [id])
 
-  descricao  String?
-  valor      Decimal  @db.Decimal(14, 2)
-  ordem      Int      @default(0)
+  descricao String?
+  valor     Decimal @db.Decimal(14, 2)
+  ordem     Int     @default(0)
 
   @@index([propostaId])
   @@index([disciplinaId])
@@ -4568,22 +4606,22 @@ model EncargoFaixa {
 
 /// Dependente de um colaborador (p/ dedução de IRRF e cadastro de RH).
 model Dependente {
-  id         String    @id @default(cuid())
-  userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  nome       String
-  cpf        String?
-  nascimento DateTime? @db.Date
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nome           String
+  cpf            String?
+  nascimento     DateTime? @db.Date
   /// Texto livre (select fixo na UI, sem enum) — evita migrar valores desconhecidos de quem
   /// já tem dependente cadastrado.
-  parentesco String?
+  parentesco     String?
   /// Entra na dedução de IRRF da folha (`funcionarios/queries.ts` → `dependentesPorUsuario`).
   /// Default `false` para linha NOVA: o RH confirma ativamente, em vez de reter IRRF a menos
   /// por esquecer de desmarcar. As linhas que já existiam antes deste campo foram migradas
   /// para `true` (preserva o número que a folha já usava).
-  dependenteIrrf Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  atualizadoEm   DateTime @updatedAt
+  dependenteIrrf Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  atualizadoEm   DateTime  @updatedAt
 
   @@index([userId])
   @@map("dependente")
@@ -4953,9 +4991,9 @@ model Upload {
 
   aceite                AceiteCliente?
   solicitacoesExclusao  SolicitacaoExclusaoUpload[]
-  pendencias            Pendencia[]       @relation("UploadPendencias")
-  pendenciasVerificadas Pendencia[]       @relation("PendenciaVerificacao")
-  calibracoes           CalibracaoPrancha[] @relation("UploadCalibracoes")
+  pendencias            Pendencia[]                 @relation("UploadPendencias")
+  pendenciasVerificadas Pendencia[]                 @relation("PendenciaVerificacao")
+  calibracoes           CalibracaoPrancha[]         @relation("UploadCalibracoes")
   conversao             ConversaoModelo?
   conversaoDesenho      ConversaoDesenho?
 
@@ -4982,9 +5020,9 @@ enum StatusSolicitacaoExclusao {
 /// Só um pedido `pendente` por arquivo (índice parcial único, criado na migração — o
 /// Prisma não expressa `WHERE status = 'pendente'`).
 model SolicitacaoExclusaoUpload {
-  id       String @id @default(cuid())
-  uploadId String
-  upload   Upload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  id            String                    @id @default(cuid())
+  uploadId      String
+  upload        Upload                    @relation(fields: [uploadId], references: [id], onDelete: Cascade)
   /// Denormalizado (sem FK) para filtrar/agrupar por projeto sem join triplo. A limpeza
   /// vem pela cascata do Upload (disciplina → projeto).
   projetoId     String
@@ -5016,9 +5054,9 @@ model SolicitacaoExclusaoUpload {
 /// âncora estável para apontamentos. Segue o padrão pai/versão já usado por
 /// Documento/DocumentoVersao, DocumentoJuridico/DocJuridicoVersao, Art/ArtVersao etc.
 model DocumentoDisciplina {
-  id           String     @id @default(cuid())
+  id           String           @id @default(cuid())
   disciplinaId String
-  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+  disciplina   Disciplina       @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
   /// Chave de AGRUPAMENTO (dedupe/lookup) — NÃO é a identidade. A identidade é `id`, e é
   /// ela que Pendencia referencia; por isso renomear só reescreve esta chave e não
   /// desancora nada. Normalizada como "A/planta.pdf" ou "pasta:<pastaId>/planta.pdf"
@@ -5038,7 +5076,7 @@ model DocumentoDisciplina {
   fase         PranchaCatalogo? @relation(fields: [faseId], references: [id], onDelete: SetNull)
   statusId     String?
   status       DocumentoStatus? @relation(fields: [statusId], references: [id], onDelete: SetNull)
-  createdAt    DateTime   @default(now())
+  createdAt    DateTime         @default(now())
 
   /// Documento que absorveu este (merge por nome-base, M4). Quando preenchido, esta linha
   /// é um APELIDO histórico: nada novo se pendura nela, mas ela continua existindo para
@@ -5048,11 +5086,11 @@ model DocumentoDisciplina {
   substituidoPor   DocumentoDisciplina?  @relation("MergeDocumento", fields: [substituidoPorId], references: [id], onDelete: SetNull)
   substituidos     DocumentoDisciplina[] @relation("MergeDocumento")
 
-  uploads    Upload[]
-  revisoes   DocumentoRevisao[]
-  pendencias Pendencia[]
+  uploads     Upload[]
+  revisoes    DocumentoRevisao[]
+  pendencias  Pendencia[]
   calibracoes CalibracaoPrancha[]
-  leituras   LeituraDocumento[]
+  leituras    LeituraDocumento[]
 
   @@unique([disciplinaId, chave])
   @@index([disciplinaId])
@@ -5079,13 +5117,13 @@ model DocumentoDisciplina {
 /// `StatusDisciplina` (enum) continua existindo e não se confunde com este: aquele é o estado
 /// da DISCIPLINA inteira; este é de um documento.
 model DocumentoStatus {
-  id     String  @id @default(cuid())
-  nome   String  @unique
-  ordem  Int     @default(0)
-  cor    String?
+  id    String  @id @default(cuid())
+  nome  String  @unique
+  ordem Int     @default(0)
+  cor   String?
   /// Estado terminal: o documento não deve mais receber revisão (obsoleto/arquivado).
-  final  Boolean @default(false)
-  ativo  Boolean @default(true)
+  final Boolean @default(false)
+  ativo Boolean @default(true)
 
   documentos DocumentoDisciplina[]
 
@@ -5183,12 +5221,12 @@ model Pendencia {
   /// como curva, escaneada) ou linha anterior a esta feature: o pino cai de volta em (x,y).
   /// NÃO existe coluna "posição incerta": a incerteza é POR VERSÃO (o mesmo pino é exato na
   /// revisão em que nasceu e pode ser incerto na seguinte), então é derivada na leitura.
-  ancoraTexto   String?
+  ancoraTexto  String?
   /// Offset (chars) do item-âncora dentro de `ancoraTexto` — o trecho é maior que o item.
-  ancoraOffset  Int?
+  ancoraOffset Int?
   /// Deslocamento normalizado do item-âncora até o ponto clicado.
-  ancoraDx      Float?
-  ancoraDy      Float?
+  ancoraDx     Float?
+  ancoraDy     Float?
 
   /// Classificação estruturada (item 11). Catálogo em `pendencias/helpers.ts` (código, não
   /// tabela — é vocabulário fixo do escritório, não dado editável pelo usuário).
@@ -5196,32 +5234,32 @@ model Pendencia {
   /// o item 19 bloqueia a aprovação enquanto houver aberto com `severidade = "impeditivo"`.
   /// Nulos = linha anterior à feature ou apontamento não classificado — a UI mostra "—".
   /// severidade: impeditivo | alta | media | baixa
-  severidade    String?
+  severidade String?
   /// tipo: incompatibilidade | falta_informacao | erro_tecnico | norma | representacao | outro
-  tipo          String?
+  tipo       String?
 
   /// Marcação vetorial (item 9) — ver `modules/projetos/pendencias/marcacao.ts`.
   /// `x`/`y` acima seguem sendo a ÂNCORA canônica (onde o arrasto começou); a forma vem por
   /// cima. Nulo (ou "ponto") = pino simples, o comportamento de sempre.
   /// marcacaoTipo: ponto | retangulo | seta | nuvem | medida
-  marcacaoTipo  String?
+  marcacaoTipo String?
   /// `{ pontos: [{ dx, dy }] }` — **offsets normalizados relativos a (x,y)**, nunca coordenada
   /// absoluta de página. É o que faz a forma acompanhar de graça a relocalização da âncora
   /// textual (item 3): reposicionar o pino numa revisão de layout deslocado move o desenho
   /// junto. Com coordenada absoluta o pino iria pro lugar certo e a forma ficaria pra trás.
-  marcacaoGeo   Json?
+  marcacaoGeo  Json?
 
   /// Prazo do apontamento (item 18) — data FIXA definida na criação (R8), não calculada por
   /// severidade. O relógio só corre a partir de `publicadoEm`: rascunho não queima prazo,
   /// porque o projetista não pode agir sobre o que ainda não enxerga. Adiar e reativar NÃO
   /// mexem no prazo (decisão do solicitante em 2026-08-08: reativar PRESERVA).
-  prazo          DateTime?
+  prazo DateTime?
 
   /// Rascunho → publicado (item 31). Nulo = RASCUNHO: existe só para quem escreveu, não conta
   /// em badge/KPI/visão gerencial, não bloqueia validação e não sai em export nenhum. A
   /// publicação acontece no envio da rodada (`enviarApontamentos`) — não há um segundo passo
   /// de "publicar", porque o envio já É o lote (cria a tarefa, notifica e abre revisão).
-  publicadoEm    DateTime?
+  publicadoEm DateTime?
 
   /// Justificativa obrigatória ao marcar "não procede" (item 22). Nullable na coluna porque
   /// linha antiga descartada não tem uma — a obrigatoriedade é validada no schema Zod, não por
@@ -5229,23 +5267,23 @@ model Pendencia {
   justificativaDescarte String?
   /// Quantas vezes o apontamento foi reaberto (item 23). Default 0, nunca nulo: a contagem
   /// entra em média/KPI e um nulo obrigaria guarda em todo lugar que soma.
-  reaberturas    Int       @default(0)
+  reaberturas           Int     @default(0)
 
   /// Medição (item 28) — só em `marcacaoTipo = "medida"`. O valor é CONGELADO na criação,
   /// junto do fator e do modo que o produziram: recalibrar a prancha depois não pode mudar
   /// silenciosamente um número que já virou apontamento, e guardar o fator é o que permite
   /// explicar de onde veio a medida meses depois.
-  medidaMm      Float?
+  medidaMm    Float?
   /// mm reais por ponto do PDF usados no cálculo (ver `pendencias/medicao.ts`).
-  medidaFator   Float?
+  medidaFator Float?
   /// escala | dois_pontos
-  medidaModo    String?
+  medidaModo  String?
 
   /// Miniatura do recorte da prancha (item 14, R6 pediu que PERSISTA) — caminho relativo em
   /// `STORAGE_BASE_PATH`, servido por `/api/pendencias/thumb/[id]`. Só existe para apontamento
   /// com FORMA: o recorte é a área selecionada, e pino simples não tem recorte (além de ser a
   /// interação mais quente do viewer, que não deve pagar um upload a mais).
-  thumbPath     String?
+  thumbPath String?
 
   /// Soft delete (item 24). Pendencia NÃO entra na extension de `lib/prisma.ts` de propósito:
   /// a numeração é sequencial por documento (`_max: { numero }`), e esconder linhas excluídas
@@ -5255,9 +5293,9 @@ model Pendencia {
   excluidoPorId String?
   excluidoPor   User?     @relation("PendenciaExcluidaPor", fields: [excluidoPorId], references: [id], onDelete: SetNull)
 
-  respostas     PendenciaResposta[]
-  anexos        PendenciaAnexo[]
-  referenciasFeitas   ReferenciaPendencia[] @relation("ReferenciaOrigem")
+  respostas            PendenciaResposta[]
+  anexos               PendenciaAnexo[]
+  referenciasFeitas    ReferenciaPendencia[] @relation("ReferenciaOrigem")
   referenciasRecebidas ReferenciaPendencia[] @relation("ReferenciaDestino")
 
   @@index([uploadId, numero])

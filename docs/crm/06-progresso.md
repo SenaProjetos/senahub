@@ -20,6 +20,130 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## Lote 2 (Sonnet) — F6.2 · F6.4 · F7.2 · F7.6 · F6.5 · 2026-08-22/23 · Sonnet
+
+> F6.8 (listas de reativação + filtros salvos) **saiu deste lote** — P17 item 7 põe essas listas
+> na página de Inteligência (F6.7), não na Home. Movida pro Lote 3 (Opus), ao lado de F6.7, pela
+> mesma lógica de agrupar por tela que gerou os lotes (sugestão do advisor, aceita). F6.4 não
+> precisou de trabalho novo aqui — a decisão (ADR-22, SVG à mão) já saiu completa no Lote 1.
+
+### F6.2 — `seed-crm-volume.ts` (recapeado do fim do Lote 1)
+
+Seed de volume idempotente: 2.000 clientes, 6.000 contatos, 4.000 prospecções, 1.500 negociações
+(com trajetória de estágio completa via `Atividade`), 3.000 propostas, 50.000 atividades. Guarda
+anti-produção por NOME do banco (`_remake`/`_dev`/`_test`), não por host/porta — prod e dev rodam
+na mesma máquina. `smoke-crm-fase6.ts` roda o script real 2× via `execSync` e prova idempotência
+por contagem exata. Fixture **fica no banco de propósito** para as próximas tarefas da Fase 6.
+
+### F7.2 — Tela de configuração do Comercial
+
+`salvarConfigComercial` (action) + `/comercial/configuracoes` (RSC + view client) sobre o
+`ConfigSistema` já existente (F1.7). Os 6 números que hoje só existiam como default no código
+(desconto sem justificativa, 4 limiares de dias da F7.1, mais o novo de F6.5) agora têm tela —
+mudar não pede deploy. `paraParametrosRegras` continua sendo a única ponte com `regras.ts`.
+
+### F7.6 — Checklist SOFT por estágio
+
+`ChecklistItemPadrao` + `NegociacaoChecklistItem` (join — a PRESENÇA da linha é o "marcado",
+`@@unique([negociacaoId, itemId])` impede duplicata). **Catálogo nasce VAZIO, por design** — mesmo
+espírito do `CanalAquisicao`: ninguém decidiu ainda que itens provam "Orçamento pronto", e um
+default inventado seria autoridade falsa sobre um processo que a equipe nunca aprovou. Badge +
+popover no card do Kanban (`negociacao-board.tsx`), percentual dobrado em 2 queries agregadas no
+`funilNegociacao` (não 1 por card).
+
+**⚠️ Pendência que fica registrada:** sem os itens cadastrados, o checklist nunca aparece em
+nenhum card — a feature está "desligada" até alguém popular o catálogo. Não há tela de CRUD para
+isso nesta tarefa (mesmo padrão do `MotivoPerda`/`CanalAquisicao`: hoje só via seed/Prisma Studio).
+Quem decide os itens por estágio, e quando, fica em aberto — não é dívida técnica, é uma decisão
+de processo que ainda não foi tomada pelo escritório.
+
+**Aceite estrutural provado por teste, não só por leitura:** `checklist-soft.test.ts` extrai o
+CORPO de `moverEstagio`/`aplicarMovimentoEstagio` (mesma técnica de recorte por chave de
+`auditoria.test.ts`) e afirma que a string `"checklist"` não aparece — um catálogo vazio faria
+qualquer teste de COMPORTAMENTO passar mesmo com um hard-gate escondido atrás de "só ativa se
+houver item"; só ler o código-fonte prova a metade estrutural do aceite.
+
+### F6.5 — Home do Comercial / Meu Dia
+
+Substitui o Kanban de prospecção como tela inicial (`/comercial` — prospecção já tem rota própria
+em `/comercial/prospeccao`). 7 cards (contratado no mês, contratos fechados, ticket médio —
+comparados com o mês anterior; pipeline aberto/ponderado, sem comparação — são FOTO de estoque,
+não fluxo, e não há snapshot histórico no schema pra comparar "hoje" com "30 dias atrás"; follow-
+ups hoje/atrasados) + 6 listas de "Meu Dia" (follow-ups atrasados, contatos hoje, próximas ações,
+propostas aguardando retorno, propostas perto do vencimento, negociações sem contato).
+
+**"Conversão de propostas" saiu da lista de cards** (era item do P16 original) — §3.10 do
+dicionário exige mostrar a janela da coorte e o corte "sem timeline" junto de qualquer taxa de
+conversão; um card compacto não tem espaço pra isso sem quebrar o próprio contrato que o F6.1
+escreveu. Fica pra F6.7 (Inteligência Comercial), que já vai ter o funil visual completo — decisão
+do advisor, não corte por preguiça.
+
+**Medido, não estimado (critério de aceite):** `homeComercial()` roda em **17 statements SQL**,
+**~160-180ms**, contra a fixture inteira da F6.2 (2.000/6.000/4.000/1.500/3.000/50.000) — 1 query
+traz TODAS as negociações e os 4 cards de valor rodam `metricas.ts` puro em cima do MESMO array
+cortado por período em JS (não 1 query por card, não 1 por período); as 3 listas ancoradas em
+`Compromisso` resolvem nome de LEAD/NEGOCIACAO em 2 queries EM LOTE, não 1 por item. Números em
+`smoke-crm-fase6.ts` (seção F6.5), que falha se algum dia virar N+1.
+
+**Deep-link real, não só "leva pra lista":** `?lead=<id>` em `/comercial/prospeccao` agora abre o
+`LeadDialog` sozinho (`funil-board.tsx`, `useEffect` guardado por `dialogLead !== null` — só abre
+uma vez). Item de Compromisso ancorado em NEGOCIACAO ainda leva só para o board (`/comercial/
+negociacoes`) sem abrir nada — não existe dialog/rota de detalhe de negociação hoje, então não há
+"registro" pra abrir além do próprio card no Kanban.
+
+**Reagendar sem sair da tela:** `reagendarProximaAcao` (service+action novos) só move `inicio` —
+não registra `Atividade` (adiar não é uma interação que aconteceu) e recusa compromisso concluído/
+inexistente, mesma guarda de `concluirProximaAcao`.
+
+**Novo campo de config:** `diasHorizonteProximasAcoes` (default 7) — janela da lista "Próximas
+ações". Mesmo padrão defensivo da F7.2 (`numero()`, cai no default se ausente/negativo/NaN).
+
+**🐞 2 bugs de desconto a mais, achados de propósito indo atrás do mesmo padrão da F6.1a:**
+1. `resumoComercial()` (o "realizado" do `MetaCard`) somava `itens.valor` cru — mesma classe de
+   bug do `aceitarProposta`, função DIFERENTE. Corrigido pra usar `valorVersao` da versão vigente.
+   Prova: soma manual independente bate exato com a function, no `smoke-crm-fase6.ts`.
+2. `alertaPropostasExpiradas` (F5.7) tinha `take: 50` **sem `orderBy`** — inofensivo até a F6.2
+   existir; com 3.000 propostas sintéticas (boa parte com validade ainda no futuro, legitimamente
+   fora do alerta), um scan sem ordem podia nunca alcançar a proposta genuinamente vencida se ela
+   caísse "depois" na ordem física da tabela. Corrigido com `orderBy: { validade: "asc" }` — a
+   mais atrasada sempre entra primeiro no lote. `seed-crm-volume.ts` também passou a marcar
+   `alertaValidadeEm` retroativamente em propostas sintéticas cuja validade já era passado no
+   momento do seed (senão o seed cria, ele mesmo, milhares de "vencida e nunca avisada" — estado
+   que não ocorre na operação real, onde o job roda todo dia).
+
+**Flake observado 1×, não reproduzido em 5 reruns limpos:** uma execução do `smoke-crm-fase5`
+falhou no bloco F5.7 logo depois de várias rodadas do `smoke-crm-fase6` (que ressemeia o volume).
+Análise: `pExpirada` usa `validade = 2020-01-01`, sempre a mais antiga possível (o seed nunca gera
+nada antes de ~90 dias atrás) — com o `orderBy` novo ela deveria SEMPRE cair em 1º lugar no lote de
+50. Suspeita: sobreposição transitória com o processo filho do reseed do fase6 (contenção de
+conexão), não bug de lógica. Registrado para o caso de reaparecer.
+
+**Arquivos:** `prisma/schema.prisma` (+ migration `20260822230000_crm_f76_checklist_estagio`) ·
+`src/modules/comercial/service.ts` (+`alternarChecklistItem`, +`reagendarProximaAcao`) ·
+`queries.ts` (+`homeComercial`, +`checklist` no `funilNegociacao`, fix `resumoComercial`) ·
+`schemas.ts`/`actions.ts` (+3 actions) · `config/padroes.ts` (+2 campos, F7.2 e F6.5) ·
+`lib/jobs-handlers.ts` (fix `orderBy` do F5.7) · `checklist-soft.test.ts` (novo, estrutural) ·
+`checklist-negociacao-popover.tsx`, `home-comercial-view.tsx`, `configuracoes-view.tsx` (novos/
+tocados) · `app/(dashboard)/comercial/page.tsx` + `loading.tsx` (nova Home) ·
+`app/(dashboard)/comercial/configuracoes/page.tsx` (novo) · `funil-board.tsx` (+deep-link `?lead=`)
+· `scripts/smoke-crm-fase6.ts` (+seção F6.5) · `scripts/smoke-crm-fase7.ts` (novo).
+
+**Verificação (fronteira do lote):** eslint limpo, tsc limpo, **2419 testes** (+8), build ok,
+**smoke fase1–7 todos verdes** (fase6 e fase7 novos/estendidos nesta rodada). Sem resíduo —
+3 scripts de scratch usados e apagados, 1 leftover (`SMK7_` cliente órfão por FK não prevista de
+`Atividade.clienteId`) achado e corrigido no próprio smoke antes do commit.
+
+**Pendente:** Lote 3 (Opus) — F6.7 (Inteligência Comercial) → F6.8 (reativação + filtros salvos,
+agora aqui) → F6.11 (auditoria de performance) → F7.3 (motor de automação) → F7.4 (idempotência).
+
+**Riscos:** a correção de `resumoComercial` **muda o "realizado" do MetaCard em produção** — o
+mesmo aviso da F6.1a: números com desconto vão aparecer menores (e corretos). A correção do
+`orderBy` da F5.7 é comportamento novo em produção real (não só no seed): propostas vencidas
+passam a ser alertadas na ordem "mais atrasada primeiro" em vez de ordem arbitrária — mudança
+estritamente melhor, mas é uma mudança.
+
+---
+
 ## Lote 1 (Opus) — F6.1 · F6.3 · F7.1 · F6.10 · 2026-08-22 · Opus
 
 > **Fases 6 e 7 estão sendo executadas em lotes agrupados por modelo**, a pedido do usuário

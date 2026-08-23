@@ -3,6 +3,7 @@ import {
   CONFIG_COMERCIAL_PADRAO,
   parseConfigComercial,
   exigeJustificativaDesconto,
+  paraParametrosRegras,
 } from "./padroes";
 
 describe("parseConfigComercial", () => {
@@ -24,13 +25,30 @@ describe("parseConfigComercial", () => {
       diasSemContato: 30,
       diasAvisoValidadeProposta: 3,
       diasClienteInativo: 365,
+      diasParadoNoEstagio: 45,
+      diasParaReativar: 400,
+      diasHorizonteProximasAcoes: 14,
     });
     expect(r).toEqual({
       descontoMaxSemJustificativa: 5,
       diasSemContato: 30,
       diasAvisoValidadeProposta: 3,
       diasClienteInativo: 365,
+      diasParadoNoEstagio: 45,
+      diasParaReativar: 400,
+      diasHorizonteProximasAcoes: 14,
     });
+  });
+
+  it("os dois campos novos da F7.2 caem no default quando ausentes", () => {
+    const r = parseConfigComercial({ diasSemContato: 20 });
+    expect(r.diasParadoNoEstagio).toBe(CONFIG_COMERCIAL_PADRAO.diasParadoNoEstagio);
+    expect(r.diasParaReativar).toBe(CONFIG_COMERCIAL_PADRAO.diasParaReativar);
+  });
+
+  it("o campo novo da F6.5 cai no default quando ausente", () => {
+    const r = parseConfigComercial({ diasSemContato: 20 });
+    expect(r.diasHorizonteProximasAcoes).toBe(CONFIG_COMERCIAL_PADRAO.diasHorizonteProximasAcoes);
   });
 
   it("um campo inválido não derruba os outros", () => {
@@ -79,5 +97,30 @@ describe("exigeJustificativaDesconto", () => {
     const zero = { ...cfg, descontoMaxSemJustificativa: 0 };
     expect(exigeJustificativaDesconto(0, zero)).toBe(false);
     expect(exigeJustificativaDesconto(0.5, zero)).toBe(true);
+  });
+});
+
+describe("paraParametrosRegras (F7.2 — a ponte com regras.ts)", () => {
+  it("repassa os 5 números que as regras de automação consultam, sem inventar nenhum", () => {
+    const config = {
+      ...CONFIG_COMERCIAL_PADRAO,
+      diasSemContato: 20,
+      diasAvisoValidadeProposta: 5,
+      diasClienteInativo: 200,
+      diasParadoNoEstagio: 40,
+      diasParaReativar: 500,
+    };
+    expect(paraParametrosRegras(config)).toEqual({
+      diasSemContato: 20,
+      diasAvisoValidadeProposta: 5,
+      diasClienteInativo: 200,
+      diasParadoNoEstagio: 40,
+      diasParaReativar: 500,
+    });
+  });
+
+  it("NÃO repassa descontoMaxSemJustificativa — regras.ts não tem regra de desconto", () => {
+    const r = paraParametrosRegras(CONFIG_COMERCIAL_PADRAO);
+    expect(r).not.toHaveProperty("descontoMaxSemJustificativa");
   });
 });

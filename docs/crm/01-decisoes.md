@@ -484,6 +484,45 @@ que reescreveu o PDF de um documento já enviado.
 **F5.13** (PDF imutável arquivado por versão enviada) tem portão próprio: custo de storage e
 dependência de `CHROME_PATH`. Aprovar o vínculo Proposta↔Negociação não aprova o arquivamento.
 
+## ADR-22 — Primitivo de gráfico da Fase 6: SVG à mão, não biblioteca (F6.4)
+
+- **Contexto:** F6.5 (Home/"Meu Dia") e F6.7 (Inteligência Comercial) precisam de barras, funil de
+  conversão e comparação de período. Hoje o único primitivo de gráfico do repo é
+  `components/ui/sparkline.tsx` — SVG puro, ~30 linhas, `aria-hidden`. `grep -rn` por
+  `recharts|chart.js|d3|victory|visx` em `package.json` não acha nada: zero dependência de UI
+  pesada para visualização em todo o projeto, confirmado antes desta decisão, não presumido.
+- **Decisão:** **SVG/CSS à mão**, no mesmo estilo do `Sparkline` — sem adicionar biblioteca de
+  gráfico.
+- **O que isso cobre, concretamente:**
+  - **Barras** (comparação por canal/disciplina, F6.7): `<div>` com `width`/`height` percentual, ou
+    `<rect>` em SVG — o caso mais simples, sem justificar dependência nenhuma.
+  - **Funil de conversão** (F6.7): trapézios em SVG com `<path>`, largura proporcional à taxa de
+    cada etapa — geometria fixa (5 etapas conhecidas), não um layout genérico que precise de
+    biblioteca para calcular.
+  - **Comparação com período anterior** (F6.5): não é gráfico — é texto (`+12%`) com uma seta/cor,
+    resolvido sem SVG nenhum.
+- **Trade-off, registrado sem meias-palavras:**
+  - **(a) SVG à mão** — zero dependência nova, consistente com a casa, bundle inalterado. Custo:
+    funil e barras empilhadas dão mais trabalho de implementar que `<BarChart data={...} />`.
+  - **(b) Biblioteca** (Recharts era a candidata natural, já usada em projetos Next similares) —
+    entrega mais rápido, mas seria a **primeira dependência de UI pesada** do projeto: nem
+    `three.js`/`web-ifc` (Coordenação BIM) nem `docx`/`exceljs` (documentos) são carregados no
+    bundle inicial — todos ficam atrás de rota dinâmica ou rodam em worker/servidor. Um gráfico na
+    Home carregaria uma lib de renderização **no primeiro paint** do módulo mais usado do sistema.
+- **Por que (a) vence aqui:** o que a Fase 6 pede (P17) é literalmente "barras e funil" — nunca
+  linha temporal densa, scatter, ou qualquer coisa que precise de eixo interativo, zoom, tooltip
+  complexo. É a faixa exata que SVG à mão cobre bem, e abaixo da faixa onde uma biblioteca começa a
+  se pagar. Se uma fase futura pedir série temporal de verdade (12+ meses, zoom, comparação
+  multi-série), a decisão é revisitável ali — não é uma trava para sempre, é a resposta certa para
+  o escopo desta fase.
+- **Consequência prática:** `Sparkline` ganha vizinhos (`BarraHorizontal`, `Funil`, …) no mesmo
+  arquivo/estilo — `role="img"`, `aria-hidden` quando decorativo, cor via token CSS (nunca hex
+  solto — `design-system-guardian` cobra isso em revisão), paridade claro/escuro automática por
+  herdar de `--color-primary`/`--color-status-*`.
+- **Alternativas descartadas:** nenhuma terceira opção fazia sentido — CSS puro sem SVG não
+  desenha funil (trapézio precisa de path), e `<canvas>` perderia a acessibilidade/tema que SVG dá
+  de graça via CSS custom properties.
+
 ### Alternativas descartadas para o `criarPropostaDeLead` (item 5)
 
 - **Aposentar o caminho** — prospecção qualifica → negociação → proposta como único fluxo. Era a
