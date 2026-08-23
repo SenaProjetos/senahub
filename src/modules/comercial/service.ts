@@ -455,6 +455,14 @@ export async function salvarProposta(i: SalvarPropostaInput, autorId: string) {
  * ⚠️ Os canais de chat e as notificações rodam FORA da transação, de propósito e como sempre
  * foi: se o fan-out falhar, o projeto continua criado e a proposta aceita. Mover para dentro
  * mudaria comportamento observável (uma falha de notificação desfaria o aceite).
+ *
+ * ── F5.12: as lacunas que sobraram da conversão ────────────────────────────────────────────
+ * "equipe" e "financeiro" fecham aqui — `valorContrato` gravado no `Projeto` (mesma soma que já
+ * virava `valorNegociado`) e um `ProjetoMembro` (`coordenador`) a partir de
+ * `Negociacao.responsavelId`, quando existe. "cronograma" (EAP) fica de FORA — nada na proposta
+ * diz que tarefas o projeto tem nem quando; inventar EAP seria escrever regra de negócio que
+ * ninguém pediu. Responsável POR DISCIPLINA também fica de fora, mesmo motivo: a proposta não
+ * diz quem faz o Estrutural, só o responsável da negociação como um todo.
  */
 export async function aceitarProposta(propostaId: string, autorId?: string) {
   const p = await prisma.proposta.findUnique({
@@ -465,7 +473,17 @@ export async function aceitarProposta(propostaId: string, autorId?: string) {
       itens: { orderBy: { ordem: "asc" }, include: { disciplina: { select: { nome: true } } } },
       cliente: { select: { nome: true, statusOverride: true } },
       // F5.2 — de qual negociação esta proposta nasceu. `null` nas históricas.
-      negociacao: { select: { id: true, estagio: true, clienteId: true, probabilidade: true, probabilidadeOverride: true } },
+      // F5.12 — `responsavelId` vira o coordenador inicial do projeto (`ProjetoMembro`).
+      negociacao: {
+        select: {
+          id: true,
+          estagio: true,
+          clienteId: true,
+          probabilidade: true,
+          probabilidadeOverride: true,
+          responsavelId: true,
+        },
+      },
       // F5.4 — a versão vigente recebe o carimbo de "foi esta que o cliente aceitou".
       versoes: { orderBy: { numero: "desc" }, take: 1, select: { id: true, numero: true } },
     },
@@ -511,6 +529,10 @@ export async function aceitarProposta(propostaId: string, autorId?: string) {
         nome: p.titulo,
         clienteId: p.clienteId,
         areaM2: p.areaM2,
+        // F5.12 — a lacuna financeira do aceite: o projeto nascia sem o valor do contrato que
+        // acabou de ser assinado. `valorFinal` é a MESMA soma dos itens que já vira
+        // `Negociacao.valorNegociado` linhas abaixo — um só número, duas leituras.
+        valorContrato: valorFinal,
         // §8.5, metade 1 de 2 — a outra é o `projetoId` logo abaixo, na mesma transação.
         negociacaoId: p.negociacao?.id ?? null,
         disciplinas: {
@@ -518,6 +540,18 @@ export async function aceitarProposta(propostaId: string, autorId?: string) {
         },
       },
     });
+
+    // F5.12 — "equipe": o responsável da negociação vira o coordenador inicial do projeto.
+    // Só isso é dado real; responsável POR DISCIPLINA não tem fonte nenhuma na proposta (nada diz
+    // quem faz o Estrutural) — inventar aqui escreveria mentira que `/recursos` e o pagamento de
+    // projetista leriam como verdade. DEVE entrar na transação: `ensureCanaisProjeto` (fora dela,
+    // logo abaixo) sincroniza os canais a partir de quem já é membro — criado depois, ficaria de
+    // fora do canal na primeira sincronização.
+    if (p.negociacao?.responsavelId) {
+      await tx.projetoMembro.create({
+        data: { projetoId: projeto.id, userId: p.negociacao.responsavelId, papel: "coordenador" },
+      });
+    }
     // §8.5, metade 2 de 2. `projeto.id` vem do RETORNO do create acima — nunca de um valor
     // montado antes da transação (o `P2003` da F2.18 nasceu exatamente desse descuido).
     await tx.proposta.update({

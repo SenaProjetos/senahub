@@ -1326,6 +1326,130 @@ async function main() {
     reabertaDeNovo.para,
   );
 
+  console.log("\n── F5.12: aceite fecha 'equipe' e 'financeiro' — sem duplicar empresa/contato ──\n");
+
+  // (a) Negociação COM responsável: o aceite cria o projeto já com o coordenador — e com o
+  // valorContrato preenchido (a lacuna "financeiro").
+  const cliF512 = await prisma.cliente.create({ data: { nome: `${TAG}_EmpresaF512`, tipo: "PJ" } });
+  const contatosAntes = await prisma.contatoCliente.count();
+  const clientesAntes = await prisma.cliente.count();
+
+  const negF512 = await prisma.negociacao.create({
+    data: {
+      titulo: `${TAG}_NegF512`,
+      clienteId: cliF512.id,
+      estagio: "PROPOSTA_ENVIADA",
+      responsavelId: user.id,
+    },
+  });
+  const pF512 = await prisma.proposta.create({
+    data: {
+      ano,
+      sequencial: 940000 + Math.floor(Math.random() * 9000),
+      numero: `${TAG}_F512`,
+      titulo: `${TAG} F512`,
+      clienteId: cliF512.id,
+      negociacaoId: negF512.id,
+      token: randomBytes(18).toString("hex"),
+      autorId: user.id,
+      status: "enviada",
+    },
+    select: { id: true },
+  });
+  await salvarProposta(
+    {
+      id: pF512.id,
+      titulo: `${TAG} F512`,
+      areaM2: undefined,
+      validade: "",
+      observacoes: "",
+      itens: [{ disciplina: "Arquitetura", descricao: "", valor: 15000 }],
+      condicoes: [],
+    },
+    user.id,
+  );
+  const resultadoF512 = await aceitarProposta(pF512.id, user.id);
+  const projetoF512 = await prisma.projeto.findUnique({
+    where: { id: resultadoF512.projetoId },
+    select: { valorContrato: true, membros: { select: { userId: true, papel: true } } },
+  });
+  check(
+    "(a) projeto nasceu com valorContrato = valor final da proposta (15000)",
+    Number(projetoF512?.valorContrato) === 15000,
+    `${projetoF512?.valorContrato}`,
+  );
+  check(
+    "(a) projeto nasceu com o responsável da negociação como coordenador (equipe)",
+    projetoF512?.membros.length === 1 &&
+      projetoF512.membros[0].userId === user.id &&
+      projetoF512.membros[0].papel === "coordenador",
+    JSON.stringify(projetoF512?.membros),
+  );
+
+  // (b) Negociação SEM responsável (responsavelId null) — aceita normalmente, projeto nasce
+  // SEM membro nenhum (não inventa quem seria o coordenador).
+  const negF512b = await prisma.negociacao.create({
+    data: { titulo: `${TAG}_NegF512b`, clienteId: cliF512.id, estagio: "PROPOSTA_ENVIADA" },
+  });
+  const pF512b = await criarProposta({ titulo: `${TAG} F512b`, clienteId: cliF512.id, negociacaoId: negF512b.id }, user.id);
+  await salvarProposta(
+    { id: pF512b.id, titulo: `${TAG} F512b`, areaM2: undefined, validade: "", observacoes: "",
+      itens: [{ disciplina: "Arquitetura", descricao: "", valor: 5000 }], condicoes: [] },
+    user.id,
+  );
+  const resultadoF512b = await aceitarProposta(pF512b.id, user.id);
+  const projetoF512b = await prisma.projeto.findUnique({
+    where: { id: resultadoF512b.projetoId },
+    select: { valorContrato: true, membros: { select: { userId: true } } },
+  });
+  check(
+    "(b) sem responsável na negociação, o projeto nasce SEM membro (não inventa)",
+    projetoF512b?.membros.length === 0,
+    `${projetoF512b?.membros.length}`,
+  );
+  check("(b) valorContrato ainda grava mesmo sem membro", Number(projetoF512b?.valorContrato) === 5000);
+
+  // (c) Proposta histórica SEM negociação (o caso já coberto na F5.3) — aceita normalmente,
+  // sem membro, sem erro por causa de `p.negociacao` ser null.
+  const pF512c = await prisma.proposta.create({
+    data: {
+      ano, sequencial: 930000 + Math.floor(Math.random() * 9000), numero: `${TAG}_F512C`,
+      titulo: `${TAG} F512c`, clienteId: cliF512.id, token: randomBytes(18).toString("hex"), autorId: user.id,
+    },
+    select: { id: true },
+  });
+  await salvarProposta(
+    { id: pF512c.id, titulo: `${TAG} F512c`, areaM2: undefined, validade: "", observacoes: "",
+      itens: [{ disciplina: "Arquitetura", descricao: "", valor: 3000 }], condicoes: [] },
+    user.id,
+  );
+  let falhouSemNegociacao = "";
+  let resultadoF512c: { projetoId: string } | null = null;
+  try {
+    resultadoF512c = await aceitarProposta(pF512c.id, user.id);
+  } catch (e) {
+    falhouSemNegociacao = (e as Error).message;
+  }
+  check("(c) aceitar proposta histórica (sem negociação) NÃO quebra", falhouSemNegociacao === "", falhouSemNegociacao);
+  const projetoF512c = resultadoF512c
+    ? await prisma.projeto.findUnique({ where: { id: resultadoF512c.projetoId }, select: { membros: true } })
+    : null;
+  check("(c) sem negociação, também sem membro — nenhum crash lendo `p.negociacao`", projetoF512c?.membros.length === 0);
+
+  // (d) O critério literal: nenhum Cliente/ContatoCliente novo em NENHUM dos 3 aceites acima.
+  const contatosDepois = await prisma.contatoCliente.count();
+  const clientesDepois = await prisma.cliente.count();
+  check(
+    "(d) nenhum ContatoCliente novo foi criado pelos 3 aceites",
+    contatosDepois === contatosAntes,
+    `${contatosAntes} → ${contatosDepois}`,
+  );
+  check(
+    "(d) nenhum Cliente novo foi criado pelos 3 aceites (`cliF512` já existia quando contei)",
+    clientesDepois === clientesAntes,
+    `${clientesAntes} → ${clientesDepois}`,
+  );
+
   console.log(`\n${ok ? "✔ Fase 5: tudo verde." : "✖ Fase 5: há falhas acima."}`);
   if (!ok) process.exitCode = 1;
 }

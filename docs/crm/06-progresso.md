@@ -20,6 +20,57 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## F5.12 — aceite fecha equipe e financeiro (cronograma fica de fora) · 2026-08-22 · Sonnet
+
+**Consultei o advisor antes de desenhar** — a descrição da tarefa lista três lacunas (equipe,
+cronograma, financeiro), mas o critério de aceite verificável só fala em "responsáveis e
+canais" + "nenhum Cliente/ContatoCliente novo". Confirmado: **cronograma fica de fora,
+deliberadamente.** Nada na proposta diz que tarefas o projeto tem nem quando — gerar uma EAP
+aqui seria inventar regra de negócio sem especificação, o mesmo risco que o advisor já tinha
+sinalizado no F5.9/F5.11 sobre `aceitarProposta` estar crescendo. `duplicarProjeto` (que também
+mexe em EAP) só COPIA uma EAP que já existe — não é gerador, não dava pra emprestar dali.
+
+**Feito:** dois acréscimos pequenos e sem invenção dentro de `aceitarProposta`:
+- **Financeiro:** `Projeto.valorContrato` gravado com `valorFinal` (a mesma soma dos itens que
+  já virava `Negociacao.valorNegociado` — um número, duas leituras). Campo existia desde antes,
+  só nunca era preenchido pelo aceite.
+- **Equipe:** `Negociacao.responsavelId`, quando existe, vira um `ProjetoMembro` com
+  `papel: "coordenador"`. Responsável POR DISCIPLINA fica de fora — nada na proposta diz quem faz
+  o Estrutural, e chutar aqui escreveria dado falso que `/recursos` (`matrizRecursos`,
+  `cargaSemanalPorRecurso`) e o fluxo de pagamento de projetista leriam como verdade.
+
+**A armadilha de ordem que o advisor apontou antes de eu escrever:** `ProjetoMembro` PRECISA
+nascer DENTRO da `$transaction` — `ensureCanaisProjeto` roda DEPOIS dela (como sempre foi, de
+propósito, para não deixar notificação derrubar o aceite) e sincroniza os canais a partir de
+quem JÁ é membro no banco. Um membro criado depois dessa chamada ficaria fora do canal do
+projeto na primeira sincronização — quebrando silenciosamente a metade "canais" do próprio
+critério desta tarefa.
+
+**Dois nulls tratados, não um:** `p.negociacao` pode ser `null` (proposta histórica, já coberto
+desde a F5.3) E `p.negociacao.responsavelId` pode ser `null` mesmo com negociação (campo sempre
+foi opcional). Os dois caminhos terminam em "sem membro", nunca em erro.
+
+**Arquivos:** `src/modules/comercial/service.ts` (`aceitarProposta`: `responsavelId` no select,
+`valorContrato` no create, `ProjetoMembro` condicional dentro da transação) ·
+`scripts/smoke-crm-fase5.ts` (+8, seções a–d).
+
+**Verificação:** eslint limpo, tsc limpo, 2302 testes (sem teste puro novo — a lógica é
+condicional simples dentro de uma function já coberta por smoke, não um algoritmo isolável),
+build ok. `smoke:crm-fase5` **137/137**: `valorContrato` gravado com/sem responsável, membro
+criado só quando há `responsavelId`, proposta sem negociação não quebra, e o critério literal —
+contagem de `Cliente`/`ContatoCliente` idêntica antes/depois dos 3 aceites do teste. Um bug
+achado e corrigido no PRÓPRIO smoke antes de fechar (contava `clientesAntes` depois de já ter
+criado a empresa do cenário — não no código de produção). Sem regressão em `fase1`–`fase4`.
+Resíduo `SMKF5_` em zero, incluindo `Projeto` (novo na checagem desta tarefa).
+
+**Pendente:** verificação em browser (mesma lacuna registrada desde a F5.3). F5.14 (fecho da
+fase: lint+test+build+smoke, 4 verdes) é a última tarefa Sonnet/Haiku da Fase 5.
+
+**Riscos:** nenhum novo. Dois campos a mais numa transação que já escrevia 5 tabelas — sem
+mudança de forma, só de conteúdo.
+
+---
+
 ## F5.11 — reabrir negociação perdida volta ao estágio anterior · 2026-08-22 · Sonnet
 
 **Consultei o advisor antes de desenhar** — a dúvida era se "volta ao estágio anterior" (texto
