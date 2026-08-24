@@ -175,6 +175,27 @@ export function ComparadorRevisoes({
   const [opacidadeB, setOpacidadeB] = useState(0.6);
   const colunaRef = useRef<HTMLDivElement | null>(null);
   const [larguraAlvo, setLarguraAlvo] = useState(700);
+  const painelARef = useRef<HTMLDivElement | null>(null);
+  const painelBRef = useRef<HTMLDivElement | null>(null);
+  // Espelha o scroll de um painel no outro no modo lado-a-lado. Sem esta trava, o `scrollTop`
+  // ajustado no painel destino dispararia o `onScroll` dele, que tentaria realimentar o painel
+  // de origem — um laço infinito de eventos.
+  const sincronizandoScrollRef = useRef(false);
+  const sincronizarScroll = useCallback((origem: "A" | "B") => {
+    if (sincronizandoScrollRef.current) return;
+    const fonte = origem === "A" ? painelARef.current : painelBRef.current;
+    const destino = origem === "A" ? painelBRef.current : painelARef.current;
+    if (!fonte || !destino) return;
+    sincronizandoScrollRef.current = true;
+    destino.scrollTop = fonte.scrollTop;
+    destino.scrollLeft = fonte.scrollLeft;
+    // O evento `scroll` que essa atribuição dispara no destino é assíncrono (não sincrônico
+    // como um `.click()`) — liberar a trava só no próximo frame garante que o eco ainda a
+    // encontre travada. Liberar aqui mesmo (síncrono) a tornaria inútil.
+    requestAnimationFrame(() => {
+      sincronizandoScrollRef.current = false;
+    });
+  }, []);
 
   const docA = useDocumento(uploadA);
   const docB = useDocumento(uploadB);
@@ -197,6 +218,25 @@ export function ComparadorRevisoes({
   }, []);
 
   useEffect(() => setPagina((p) => Math.min(p, numPages)), [numPages]);
+
+  // Ctrl+scroll dentro de um painel do modo lado-a-lado ajusta o zoom compartilhado (aplica
+  // nos dois painéis, já que `zoom` é um único state). Listener nativo (não o `onWheel` do
+  // React) porque handlers de wheel são passivos por padrão em React — `preventDefault()`
+  // dentro do synthetic event geraria warning e não bloquearia o scroll/zoom nativo do navegador.
+  useEffect(() => {
+    // Os painéis só entram no DOM (refs deixam de ser null) depois que os dois PDFs terminam
+    // de carregar — por isso o guard usa `docA.pdf`/`docB.pdf` em vez de só `modo`.
+    if (modo !== "lado-a-lado" || !docA.pdf || !docB.pdf) return;
+    const paineis = [painelARef.current, painelBRef.current].filter((el): el is HTMLDivElement => !!el);
+    if (paineis.length === 0) return;
+    const aoRolar = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      ajustarZoom(e.deltaY < 0 ? 0.1 : -0.1);
+    };
+    paineis.forEach((el) => el.addEventListener("wheel", aoRolar, { passive: false }));
+    return () => paineis.forEach((el) => el.removeEventListener("wheel", aoRolar));
+  }, [modo, ajustarZoom, docA.pdf, docB.pdf]);
 
   const rotulo = (r: RevisaoDocumento) => `${rotuloRevisao(r.versao)}${r.excluido ? " (excluída)" : ""}`;
 
@@ -271,9 +311,10 @@ export function ComparadorRevisoes({
               step={0.05}
               value={opacidadeB}
               onChange={(e) => setOpacidadeB(+e.target.value)}
-              className="w-28"
+              className="w-28 cursor-pointer accent-primary"
               aria-label="Opacidade da revisão B"
             />
+            <span className="w-10 text-center text-xs tabular-nums text-muted-foreground">{Math.round(opacidadeB * 100)}%</span>
           </>
         )}
       </div>
@@ -286,12 +327,20 @@ export function ComparadorRevisoes({
             <Loader2 className="size-4 animate-spin" /> Carregando as duas revisões…
           </p>
         ) : modo === "lado-a-lado" ? (
-          <div className="grid grid-cols-2 gap-4">
-            <div>
+          <div className="grid h-full grid-cols-2 gap-4">
+            <div
+              ref={painelARef}
+              onScroll={() => sincronizarScroll("A")}
+              className="h-full overflow-auto"
+            >
               <p className="mb-1 text-center text-xs font-medium text-destructive">{rotulo(ordenadas.find((r) => r.uploadId === uploadA)!)}</p>
               <PdfPagina pdf={docA.pdf} pagina={Math.min(pagina, docA.numPages || 1)} largura={larguraAlvo * zoom} />
             </div>
-            <div>
+            <div
+              ref={painelBRef}
+              onScroll={() => sincronizarScroll("B")}
+              className="h-full overflow-auto"
+            >
               <p className="mb-1 text-center text-xs font-medium text-blue-600">{rotulo(ordenadas.find((r) => r.uploadId === uploadB)!)}</p>
               <PdfPagina pdf={docB.pdf} pagina={Math.min(pagina, docB.numPages || 1)} largura={larguraAlvo * zoom} />
             </div>

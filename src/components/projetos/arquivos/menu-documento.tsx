@@ -8,6 +8,7 @@ import {
   Download,
   Eye,
   GitCompare,
+  History,
   MoreHorizontal,
   Pencil,
   ShieldCheck,
@@ -42,6 +43,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { HistoricoRevisoesDialog } from "@/components/projetos/arquivos/historico-revisoes-dialog";
 import type { LinhaDocumento } from "@/modules/uploads/lista-documentos";
 
 type Formulario = "renomear" | "ajuste" | "solicitar-exclusao" | null;
@@ -50,9 +52,9 @@ type Formulario = "renomear" | "ajuste" | "solicitar-exclusao" | null;
  * Menu "..." por linha da tabela de documentos (F1-PR5, item 10 da spec).
  *
  * Só reúne ações que JÁ existem como Server Action/rota — nada novo é implementado aqui.
- * As ações da spec que dependem de schema novo ("Alterar status", "Adicionar a lista",
- * "Histórico de revisões" como painel próprio) chegam na Fase 2 e por isso NÃO aparecem
- * nem desabilitadas: item invisível é mais honesto que item morto.
+ * As ações da spec que dependem de schema novo ("Alterar status", "Adicionar a lista")
+ * chegam numa onda futura e por isso NÃO aparecem nem desabilitadas: item invisível é
+ * mais honesto que item morto. "Histórico de revisões" (painel próprio) já chegou — F2-PR8.
  *
  * Permissões: cada item é escondido quando o usuário não pode executá-lo (requisito do
  * prompt da Fase 1). Os gates aqui são só de UI — o gate real continua no `defineAction`
@@ -77,6 +79,7 @@ export function MenuDocumento({
   const [form, setForm] = useState<Formulario>(null);
   const [novoNome, setNovoNome] = useState(linha.nome);
   const [texto, setTexto] = useState("");
+  const [historicoAberto, setHistoricoAberto] = useState(false);
 
   const ehPdf = linha.ext === "pdf";
   // Validação por-arquivo só existe em arquivo de pacote (`validado` null = PastaProjeto).
@@ -150,6 +153,9 @@ export function MenuDocumento({
           <DropdownMenuItem render={<a href={linha.downloadUrl} />}>
             <Download /> Baixar
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setHistoricoAberto(true)}>
+            <History /> Histórico de revisões
+          </DropdownMenuItem>
 
           {podeValidar && temValidacao && (
             <>
@@ -216,6 +222,13 @@ export function MenuDocumento({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <HistoricoRevisoesDialog
+        uploadId={linha.id}
+        nomeDocumento={linha.nome}
+        open={historicoAberto}
+        onOpenChange={setHistoricoAberto}
+      />
 
       <Dialog open={form === "renomear"} onOpenChange={(v) => !v && fechar()}>
         <DialogContent className="sm:max-w-md">
