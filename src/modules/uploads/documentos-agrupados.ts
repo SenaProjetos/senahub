@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { arquivosDaRevisaoAtual, revisaoAtualDosUploads } from "@/modules/uploads/documentos-agrupados-utils";
 
 /**
  * Listagem de documentos AGRUPADA POR DOCUMENTO (Fase 2 — F2-PR6a).
@@ -202,6 +203,7 @@ export async function listarDocumentosAgrupados(opts: {
           validado: true,
           pastaId: true,
           revisaoId: true,
+          revisao: { select: { numero: true } },
           createdAt: true,
           autor: { select: { name: true } },
         },
@@ -215,13 +217,13 @@ export async function listarDocumentosAgrupados(opts: {
   for (const id of ids) {
     const d = porId.get(id);
     if (!d) continue;
-    const revisaoAtual = d.revisoes.length ? Math.max(...d.revisoes.map((r) => r.numero)) : null;
-    const idRevisaoAtual = d.revisoes.find((r) => r.numero === revisaoAtual)?.id ?? null;
-    // Mostra os arquivos da revisão ATUAL. Upload legado sem revisão entra junto: sumir da
-    // tela seria pior do que aparecer sem número.
-    const daAtual = idRevisaoAtual
-      ? d.uploads.filter((u) => u.revisaoId === idRevisaoAtual || u.revisaoId === null)
-      : d.uploads;
+    // A revisão vigente é a maior que ainda tem ao menos um upload FORA da lixeira. Usar
+    // `d.revisoes` aqui escolheria uma R02 inteiramente excluída e deixaria a linha da R01
+    // ativa sem badges acionáveis (A-04 da auditoria de 2026-08-23).
+    const revisaoAtual = revisaoAtualDosUploads(d.uploads);
+    // Upload legado sem revisão continua visível: escondê-lo só porque outro arquivo do
+    // documento já foi migrado seria uma perda de acesso na tela.
+    const daAtual = arquivosDaRevisaoAtual(d.uploads);
     const maisRecente = [...d.uploads].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
     linhas.push({
       id: d.id,

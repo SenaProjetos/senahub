@@ -18,6 +18,7 @@ import { BarraSelecaoDocumentos } from "@/components/projetos/arquivos/barra-sel
 import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { BadgeExtensao } from "@/components/projetos/arquivos/badge-extensao";
 import { MenuDocumento } from "@/components/projetos/arquivos/menu-documento";
+import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
 import type { LinhaDocumento } from "@/modules/uploads/lista-documentos";
 import { formatarData, rotuloRevisao } from "@/lib/utils";
 
@@ -27,6 +28,34 @@ function fmtBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function estadoValidacao(arquivos: LinhaDoc["arquivos"]): "validado" | "pendente" | "parcial" | null {
+  const validaveis = arquivos.filter((a) => a.validado !== null);
+  if (validaveis.length === 0) return null;
+  if (validaveis.every((a) => a.validado)) return "validado";
+  if (validaveis.every((a) => !a.validado)) return "pendente";
+  return "parcial";
+}
+
+/** O menu legado ainda recebe um Upload; o primeiro arquivo da revisão vigente o ancora. */
+function linhaParaMenu(linha: LinhaDoc): LinhaDocumento | null {
+  const arquivo = linha.arquivos[0];
+  if (!arquivo) return null;
+  return {
+    id: arquivo.id,
+    nome: arquivo.nome,
+    ext: arquivo.ext,
+    disciplinaId: linha.disciplinaId,
+    disciplinaNome: linha.disciplinaNome,
+    versao: linha.revisaoAtual ?? 0,
+    validado: arquivo.validado,
+    autor: linha.autor,
+    data: linha.atualizadoEm,
+    tamanho: linha.tamanhoTotal,
+    downloadUrl: arquivo.downloadUrl,
+    podeGerir: linha.podeGerir,
+  };
+}
+
 /**
  * Tabela densa de documentos (F1-PR3 + paginação server-side em F1-PR10).
  *
@@ -34,8 +63,8 @@ function fmtBytes(n: number): string {
  * confirmou que o componente não tem limitação técnica — já é usado em 38 telas densas do
  * sistema e já trata checkbox de linha.
  *
- * Fase 1 = uma linha POR ARQUIVO. Agrupar PDF+DWG da mesma prancha numa linha só depende do
- * merge de chave da Fase 2 (D1) — não é simulado aqui.
+ * A unidade da tabela é o DocumentoDisciplina. Os arquivos da revisão vigente aparecem como
+ * badges na mesma linha — por exemplo, PDF e DWG da mesma prancha.
  *
  * Ordenação e paginação são do BANCO: `SortableHead`/`Pagination` só escrevem na URL
  * (`?sort=&dir=&page=`) e o servidor devolve a página pronta. Nada de fatiar em memória —
@@ -53,7 +82,7 @@ export function TabelaDocumentos({
   colunas,
 }: {
   projetoId: string;
-  linhas: LinhaDocumento[];
+  linhas: LinhaDoc[];
   filtradaPorDisciplina: boolean;
   temFiltroAtivo: boolean;
   podeCoordenacao: boolean;
@@ -70,15 +99,21 @@ export function TabelaDocumentos({
   const [selecao, setSelecao] = useState<Set<string>>(new Set());
   // Só conta o que ainda está na tela: trocar de disciplina (ou filtrar, em F1-PR7) troca as
   // linhas, e uma seleção fantasma de linha invisível viraria ação em lote surpresa.
-  const selecionados = useMemo(
-    () => ordenadas.filter((l) => selecao.has(l.id)).map((l) => l.id),
+  const documentosSelecionados = useMemo(
+    () => ordenadas.filter((l) => selecao.has(l.id)),
     [ordenadas, selecao],
+  );
+  // As ações existentes trabalham com Upload. Selecionar um documento inclui todos os
+  // arquivos da revisão vigente, sem atingir revisões históricas.
+  const selecionados = useMemo(
+    () => documentosSelecionados.flatMap((l) => l.arquivos.map((a) => a.id)),
+    [documentosSelecionados],
   );
   const validaveis = useMemo(
-    () => ordenadas.filter((l) => selecao.has(l.id) && l.validado === false).length,
-    [ordenadas, selecao],
+    () => documentosSelecionados.flatMap((l) => l.arquivos).filter((a) => a.validado === false).length,
+    [documentosSelecionados],
   );
-  const todasMarcadas = ordenadas.length > 0 && selecionados.length === ordenadas.length;
+  const todasMarcadas = ordenadas.length > 0 && documentosSelecionados.length === ordenadas.length;
 
   function alternar(id: string) {
     setSelecao((atual) => {
@@ -132,7 +167,7 @@ export function TabelaDocumentos({
             </TableHead>
             <SortableHead field="disciplina">Disciplina</SortableHead>
             <SortableHead field="nome">Documento</SortableHead>
-            {colunas.has("revisao") && <SortableHead field="versao" className="text-right">Revisão</SortableHead>}
+            {colunas.has("revisao") && <SortableHead field="revisao" className="text-right">Revisão</SortableHead>}
             {colunas.has("validado") && <TableHead>Validado</TableHead>}
             {colunas.has("extensao") && <TableHead>Extensão</TableHead>}
             {colunas.has("responsavel") && <TableHead>Responsável</TableHead>}
@@ -142,7 +177,10 @@ export function TabelaDocumentos({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {ordenadas.map((l) => (
+          {ordenadas.map((l) => {
+            const validacao = estadoValidacao(l.arquivos);
+            const linhaMenu = linhaParaMenu(l);
+            return (
             <TableRow key={l.id} data-state={selecao.has(l.id) ? "selected" : undefined}>
               <TableCell>
                 <Checkbox
@@ -160,18 +198,22 @@ export function TabelaDocumentos({
               <TableCell className="max-w-[22rem] font-medium whitespace-normal">{l.nome}</TableCell>
               {colunas.has("revisao") && (
                 <TableCell className="text-right font-mono text-xs tabular-nums">
-                  {rotuloRevisao(l.versao)}
+                  {l.revisaoAtual === null ? "—" : rotuloRevisao(l.revisaoAtual)}
                 </TableCell>
               )}
               {colunas.has("validado") && (
                 <TableCell>
-                  {l.validado === null ? (
+                  {validacao === null ? (
                     <span className="text-xs text-muted-foreground" title="Arquivos em pasta não passam por validação">
                       —
                     </span>
-                  ) : l.validado ? (
+                  ) : validacao === "validado" ? (
                     <Badge variant="outline" className="border-success/40 bg-success/10 text-success">
                       Validado
+                    </Badge>
+                  ) : validacao === "parcial" ? (
+                    <Badge variant="outline" className="text-muted-foreground">
+                      Parcial
                     </Badge>
                   ) : (
                     <Badge variant="outline" className="text-muted-foreground">
@@ -182,36 +224,44 @@ export function TabelaDocumentos({
               )}
               {colunas.has("extensao") && (
                 <TableCell>
-                  <BadgeExtensao
-                    projetoId={projetoId}
-                    uploadId={l.id}
-                    nome={l.nome}
-                    ext={l.ext}
-                    downloadUrl={l.downloadUrl}
-                    podeCoordenacao={podeCoordenacao}
-                  />
+                  <div className="flex flex-wrap items-center gap-1">
+                    {l.arquivos.map((arquivo) => (
+                      <BadgeExtensao
+                        key={arquivo.id}
+                        projetoId={projetoId}
+                        uploadId={arquivo.id}
+                        nome={arquivo.nome}
+                        ext={arquivo.ext}
+                        downloadUrl={arquivo.downloadUrl}
+                        podeCoordenacao={podeCoordenacao}
+                      />
+                    ))}
+                  </div>
                 </TableCell>
               )}
               {colunas.has("responsavel") && <TableCell className="text-muted-foreground">{l.autor}</TableCell>}
               {colunas.has("data") && (
-                <TableCell className="tabular-nums text-muted-foreground">{formatarData(l.data)}</TableCell>
+                <TableCell className="tabular-nums text-muted-foreground">{formatarData(l.atualizadoEm)}</TableCell>
               )}
               {colunas.has("tamanho") && (
                 <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {fmtBytes(l.tamanho)}
+                  {fmtBytes(l.tamanhoTotal)}
                 </TableCell>
               )}
               <TableCell className="text-right">
-                <MenuDocumento
-                  projetoId={projetoId}
-                  linha={l}
-                  podeValidar={podeValidar}
-                  podeExcluir={podeExcluir}
-                  podeSolicitarExclusao={podeSolicitarExclusao}
-                />
+                {linhaMenu && (
+                  <MenuDocumento
+                    projetoId={projetoId}
+                    linha={linhaMenu}
+                    podeValidar={podeValidar}
+                    podeExcluir={podeExcluir}
+                    podeSolicitarExclusao={podeSolicitarExclusao}
+                  />
+                )}
               </TableCell>
             </TableRow>
-          ))}
+            );
+          })}
         </TableBody>
       </Table>
       </div>
@@ -219,6 +269,7 @@ export function TabelaDocumentos({
       <BarraSelecaoDocumentos
         projetoId={projetoId}
         selecionados={selecionados}
+        totalDocumentosSelecionados={documentosSelecionados.length}
         totalValidaveis={validaveis}
         podeValidar={podeValidar}
         podeExcluir={podeExcluir}

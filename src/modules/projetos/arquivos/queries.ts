@@ -39,6 +39,7 @@ export async function arvoreArquivosProjeto(
         orderBy: [{ pacote: "asc" }, { nomeArquivo: "asc" }, { versao: "desc" }],
         select: {
           id: true,
+          documentoId: true,
           pacote: true,
           pastaId: true,
           nomeArquivo: true,
@@ -103,6 +104,7 @@ export async function arvoreArquivosProjeto(
             ),
         arquivos: uploadsPacote.map((u) => ({
           id: u.id,
+          documentoId: u.documentoId,
           nome: u.nomeArquivo,
           pacote: u.pacote as "A" | "B" | "OUTROS" | "RECEBIDOS",
           versao: u.versao,
@@ -117,6 +119,7 @@ export async function arvoreArquivosProjeto(
         })),
         arquivosPasta: uploadsPasta.map((u) => ({
           id: u.id,
+          documentoId: u.documentoId,
           nome: u.nomeArquivo,
           pastaId: u.pastaId!,
           versao: u.versao,

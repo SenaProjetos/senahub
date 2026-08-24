@@ -19,6 +19,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 export function BarraSelecaoDocumentos({
   projetoId,
   selecionados,
+  totalDocumentosSelecionados,
   totalValidaveis,
   podeValidar,
   podeExcluir,
@@ -26,6 +27,8 @@ export function BarraSelecaoDocumentos({
 }: {
   projetoId: string;
   selecionados: string[];
+  /** Quando a tabela agrupa arquivos, separa documentos selecionados de arquivos afetados. */
+  totalDocumentosSelecionados?: number;
   /** Quantos dos selecionados ainda podem ser validados (pacote, ainda não validados). */
   totalValidaveis: number;
   podeValidar: boolean;
@@ -39,7 +42,10 @@ export function BarraSelecaoDocumentos({
   if (selecionados.length === 0) return null;
 
   const n = selecionados.length;
-  const rotulo = `${n} ${n === 1 ? "documento selecionado" : "documentos selecionados"}`;
+  const totalDocumentos = totalDocumentosSelecionados ?? n;
+  const rotulo = totalDocumentosSelecionados === undefined
+    ? `${n} ${n === 1 ? "documento selecionado" : "documentos selecionados"}`
+    : `${totalDocumentos} ${totalDocumentos === 1 ? "documento selecionado" : "documentos selecionados"} · ${n} ${n === 1 ? "arquivo" : "arquivos"}`;
 
   function baixar() {
     // Mesma rota de .zip já usada pelo explorer atual (limite de 500 ids é do servidor).
@@ -62,8 +68,10 @@ export function BarraSelecaoDocumentos({
 
   async function excluir() {
     const ok = await confirm({
-      title: n === 1 ? "Enviar 1 documento para a lixeira?" : `Enviar ${n} documentos para a lixeira?`,
-      description: "Eles saem da árvore do projeto e podem ser restaurados enquanto estiverem na lixeira.",
+      title: totalDocumentos === 1
+        ? "Enviar 1 documento para a lixeira?"
+        : `Enviar ${totalDocumentos} documentos para a lixeira?`,
+      description: "Todos os arquivos selecionados saem da árvore do projeto e podem ser restaurados enquanto estiverem na lixeira.",
       confirmLabel: "Excluir",
       variant: "destructive",
     });
@@ -71,7 +79,7 @@ export function BarraSelecaoDocumentos({
     start(async () => {
       const r = await excluirUploadsLote({ projetoId, uploadIds: selecionados });
       if (r.ok) {
-        toast.success(n === 1 ? "Documento enviado para a lixeira." : "Documentos enviados para a lixeira.");
+        toast.success(totalDocumentos === 1 ? "Documento enviado para a lixeira." : "Documentos enviados para a lixeira.");
         onLimpar();
         router.refresh();
       } else {

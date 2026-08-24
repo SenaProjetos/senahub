@@ -31,6 +31,23 @@ export function baseSemExtensao(nomeArquivo: string): string {
   return base.toLowerCase();
 }
 
+/** Nome sem extensão final, preservando a caixa para o nome que a pessoa vê. */
+export function nomeSemExtensao(nomeArquivo: string): string {
+  const i = nomeArquivo.lastIndexOf(".");
+  return i > 0 ? nomeArquivo.slice(0, i) : nomeArquivo;
+}
+
+/**
+ * Aplica o novo nome-base, preservando a extensão de cada arquivo do documento lógico.
+ * Assim, renomear uma prancha com PDF e DWG não transforma o DWG em um arquivo `.pdf`.
+ */
+export function nomeComExtensaoOriginal(novoNome: string, nomeOriginal: string): string {
+  const base = nomeSemExtensao(novoNome).trim();
+  const i = nomeOriginal.lastIndexOf(".");
+  const extensao = i > 0 ? nomeOriginal.slice(i) : "";
+  return `${base}${extensao}`;
+}
+
 /**
  * `"A/est-for-001-r03"` (pacote) ou `"pasta:<pastaId>/est-for-001-r03"` (árvore de pastas).
  *

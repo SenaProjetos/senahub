@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { chaveDocumento, chaveDocumentoLegada, baseSemExtensao } from "./documento";
+import {
+  chaveDocumento,
+  chaveDocumentoLegada,
+  baseSemExtensao,
+  nomeComExtensaoOriginal,
+  nomeSemExtensao,
+} from "./documento";
 
 describe("baseSemExtensao", () => {
   it("tira a extensão final e normaliza a caixa", () => {
@@ -17,6 +23,18 @@ describe("baseSemExtensao", () => {
 
   it("dotfile não vira string vazia", () => {
     expect(baseSemExtensao(".env")).toBe(".env");
+  });
+});
+
+describe("nomeComExtensaoOriginal", () => {
+  it("preserva a extensão de cada arquivo ao renomear um documento com PDF e DWG", () => {
+    expect(nomeComExtensaoOriginal("Planta térreo.pdf", "EST-001.pdf")).toBe("Planta térreo.pdf");
+    expect(nomeComExtensaoOriginal("Planta térreo.pdf", "EST-001.dwg")).toBe("Planta térreo.dwg");
+  });
+
+  it("aceita o nome-base sem extensão", () => {
+    expect(nomeSemExtensao("Planta térreo")).toBe("Planta térreo");
+    expect(nomeComExtensaoOriginal("Planta térreo", "EST-001.pdf")).toBe("Planta térreo.pdf");
   });
 });
 

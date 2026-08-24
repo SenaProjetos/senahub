@@ -13,7 +13,7 @@ import { can } from "@/lib/permissions";
 import type { SessionUser } from "@/lib/session";
 import { whereAudiencia } from "@/lib/audiencias";
 import { statusValidacao } from "@/modules/uploads/validacao";
-import { chaveDocumento } from "@/modules/uploads/documento";
+import { chaveDocumento, nomeComExtensaoOriginal, nomeSemExtensao } from "@/modules/uploads/documento";
 import { liberarPagamentosProjetista } from "@/modules/uploads/pagamento";
 import { bloqueioValorDisciplina } from "@/modules/uploads/rateio";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
@@ -21,12 +21,6 @@ import { projetoVisivel } from "@/modules/planejamento/queries";
 import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
 import { STATUS_ABERTOS } from "@/modules/projetos/pendencias/helpers";
 import { historicoRevisoesDocumento } from "@/modules/uploads/queries";
-
-/** Extensão com o ponto, no case original (`.pdf`). Sem ponto (ou dotfile) → vazio. */
-function extComPonto(nome: string): string {
-  const i = nome.lastIndexOf(".");
-  return i > 0 ? nome.slice(i) : "";
-}
 
 const validarSchema = z.object({ disciplinaId: z.string().min(1) });
 
@@ -476,20 +470,13 @@ export const renomearUpload = defineAction(
       throw new ActionError("Sem permissão para renomear este arquivo.");
     }
 
-    // A extensão do arquivo não pode ser alterada: força a extensão original,
-    // trocando o que o cliente eventualmente tenha enviado (case-insensitive).
-    const extOriginal = extComPonto(up.nomeArquivo);
-    let nomeFinal = input.nome;
-    if (extOriginal) {
-      const extNova = extComPonto(nomeFinal);
-      if (extNova.toLowerCase() !== extOriginal.toLowerCase()) {
-        const base = extNova ? nomeFinal.slice(0, nomeFinal.length - extNova.length) : nomeFinal;
-        nomeFinal = `${base}${extOriginal}`;
-      }
-    }
-    if (!nomeFinal.trim() || nomeFinal.trim() === extOriginal) {
+    // O nome informado é o nome-base do documento. Cada Upload conserva sua própria
+    // extensão: uma prancha com PDF+DWG continua com os dois formatos após o rename.
+    const nomeBase = nomeSemExtensao(input.nome).trim();
+    if (!nomeBase) {
       throw new ActionError("Informe um nome antes da extensão.");
     }
+    const nomeFinal = nomeComExtensaoOriginal(nomeBase, up.nomeArquivo);
 
     // Renomeia a cadeia inteira (todas as versões deste arquivo lógico), não só a
     // versão-alvo — assim o agrupamento por nome não se quebra e o histórico se mantém.
@@ -507,7 +494,7 @@ export const renomearUpload = defineAction(
     const chaveNova = chaveDocumento({
       pacote: up.pacote,
       pastaId: up.pastaId,
-      nomeArquivo: nomeFinal,
+      nomeArquivo: nomeBase,
     });
 
     // Colisão: já existe OUTRO documento com esse nome no mesmo local. Antes o rename
@@ -527,10 +514,19 @@ export const renomearUpload = defineAction(
       if (up.documentoId) {
         await tx.documentoDisciplina.update({
           where: { id: up.documentoId },
-          data: { nomeArquivo: nomeFinal, chave: chaveNova },
+          data: { nomeArquivo: nomeBase, chave: chaveNova },
         });
       }
-      return tx.upload.updateMany({ where: alvo, data: { nomeArquivo: nomeFinal } });
+      const uploads = await tx.upload.findMany({ where: alvo, select: { id: true, nomeArquivo: true } });
+      await Promise.all(
+        uploads.map((upload) =>
+          tx.upload.update({
+            where: { id: upload.id },
+            data: { nomeArquivo: nomeComExtensaoOriginal(nomeBase, upload.nomeArquivo) },
+          }),
+        ),
+      );
+      return { count: uploads.length };
     });
     revalidatePath(`/projetos/${up.disciplina.projetoId}/arquivos`);
     return { disciplinaId: up.disciplinaId, de: up.nomeArquivo, para: nomeFinal, versoes: count };

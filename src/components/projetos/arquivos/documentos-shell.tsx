@@ -5,7 +5,7 @@ import { TabelaDocumentos } from "@/components/projetos/arquivos/tabela-document
 import { FiltrosDocumentos } from "@/components/projetos/arquivos/filtros-documentos";
 import { SeletorColunas } from "@/components/projetos/arquivos/seletor-colunas";
 import { Pagination } from "@/components/ui/pagination";
-import type { LinhaDocumento } from "@/modules/uploads/lista-documentos";
+import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
 
 /**
  * Casca da nova tela de Documentos (Fase 1, F1-PR1 — ver docs/auditoria/03-plano-refatoracao.md).
@@ -41,7 +41,7 @@ export function DocumentosShell({
 }: {
   projeto: { id: string; nome: string; codigo: string };
   disciplinas: DisciplinaArvore[];
-  linhas: LinhaDocumento[];
+  linhas: LinhaDoc[];
   extensoes: string[];
   autores: string[];
   temFiltroAtivo: boolean;

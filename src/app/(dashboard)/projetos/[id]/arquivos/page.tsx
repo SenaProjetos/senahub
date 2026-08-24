@@ -8,12 +8,13 @@ import { arvoreArquivosProjeto } from "@/modules/projetos/arquivos/queries";
 import {
   lixeiraDoProjeto,
   pedidosExclusaoPendentesDoProjeto,
-  listarDocumentosProjeto,
-  linhasDeUploads,
   opcoesFiltroDocumentos,
-  CAMPOS_ORDENACAO_DOCUMENTOS,
-  type CampoOrdenacaoDocumento,
 } from "@/modules/uploads/queries";
+import {
+  CAMPOS_ORDENACAO_DOC,
+  campoOrdenacaoDocValido,
+  listarDocumentosAgrupados,
+} from "@/modules/uploads/documentos-agrupados";
 import { parseListParams, pageCount } from "@/lib/list-params";
 import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
 import { resolverColunasVisiveis, CHAVE_PREF_COLUNAS, idsOcultaveis } from "@/modules/uploads/colunas-documento";
@@ -108,7 +109,9 @@ export default async function ArquivosPage({
       id: d.id,
       nome: d.nome,
       status: d.status,
-      total: d.arquivos.length + d.arquivosPasta.length,
+      // O painel e o cabeçalho passam a contar documentos lógicos, não Uploads. Arquivos
+      // legados sem pai ainda contam como uma unidade, para o número nunca esconder dado.
+      total: new Set([...d.arquivos, ...d.arquivosPasta].map((arquivo) => arquivo.documentoId ?? arquivo.id)).size,
       podeEnviar: d.podeEnviar,
     }));
     const totalDocumentos = disciplinasArvore.reduce((soma, d) => soma + d.total, 0);
@@ -127,23 +130,24 @@ export default async function ArquivosPage({
       validado: sp?.val,
     };
     const lp = parseListParams(sp ?? {}, {
-      sortFields: CAMPOS_ORDENACAO_DOCUMENTOS,
+      sortFields: CAMPOS_ORDENACAO_DOC,
       defaultPageSize: 24,
     });
     const [pagina, opcoes] = await Promise.all([
-      listarDocumentosProjeto({
+      listarDocumentosAgrupados({
         projetoId: id,
         userId: user.id,
         veTodas,
+        ehGlobal,
+        podeEnviarCap,
         filtros,
         skip: lp.skip,
         take: lp.take,
-        sort: lp.sort as CampoOrdenacaoDocumento | null,
+        sort: campoOrdenacaoDocValido(lp.sort),
         dir: lp.dir,
       }),
       opcoesFiltroDocumentos({ projetoId: id, userId: user.id, veTodas, disciplinaId: selecionadaId }),
     ]);
-    const linhas = linhasDeUploads(pagina.uploads, { podeEnviarCap, ehGlobal, userId: user.id });
     // Colunas visíveis: preferência do USUÁRIO (vale em qualquer projeto), resolvida no
     // servidor para a tabela já nascer com o recorte certo — sem piscar mostrando tudo.
     const prefs = await getPreferencias(user.id);
@@ -157,7 +161,7 @@ export default async function ArquivosPage({
       <DocumentosShell
         projeto={projeto}
         disciplinas={disciplinasArvore}
-        linhas={linhas}
+        linhas={pagina.linhas}
         extensoes={opcoes.extensoes}
         autores={opcoes.autores}
         temFiltroAtivo={filtrosAtivos > 0}
