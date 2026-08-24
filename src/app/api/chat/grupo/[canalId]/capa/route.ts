@@ -12,11 +12,18 @@ const MIME_POR_EXT: Record<string, string> = {
 };
 const PODE_MODERAR = ["admin", "supervisor"];
 
-/** Serve a imagem de capa do grupo (qualquer usuário autenticado do chat). */
+/** Serve a imagem de capa somente a membros do grupo ou moderadores do chat. */
 export async function GET(_req: Request, ctx: { params: Promise<{ canalId: string }> }) {
   const session = await getSession();
   if (!session) return new Response("Não autenticado", { status: 401 });
   const { canalId } = await ctx.params;
+  if (!PODE_MODERAR.includes(session.user.role)) {
+    const membro = await prisma.canalMembro.findUnique({
+      where: { canalId_userId: { canalId, userId: session.user.id } },
+      select: { canalId: true },
+    });
+    if (!membro) return new Response("Sem acesso", { status: 403 });
+  }
   const canal = await prisma.canal.findUnique({ where: { id: canalId }, select: { imagemCapa: true } });
   if (!canal?.imagemCapa || !(await existeArquivo(canal.imagemCapa))) {
     return new Response("Não encontrado", { status: 404 });

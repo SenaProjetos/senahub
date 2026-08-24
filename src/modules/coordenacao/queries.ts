@@ -2,6 +2,8 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { refDocumento } from "@/modules/coordenacao/modelo-ref";
+import type { SessionUser } from "@/lib/session";
+import { escopoProjeto } from "@/modules/projetos/queries";
 
 /** Rótulo do "grupo" onde os IFCs recebidos do cliente aparecem no painel. */
 export const GRUPO_RECEBIDOS = "Recebido do cliente";
@@ -293,9 +295,9 @@ export async function vistasDoProjeto(projetoId: string): Promise<VistaView[]> {
 export type VersaoConvertida = { uploadId: string; versao: number; createdAt: string };
 
 /** Versões CONVERTIDAS (.frag pronto) do mesmo grupo de um upload — escolha de "antiga"×"nova" no diff. */
-export async function versoesConvertidasDoUpload(uploadId: string): Promise<VersaoConvertida[]> {
-  const upload = await prisma.upload.findUnique({
-    where: { id: uploadId },
+export async function versoesConvertidasDoUpload(user: SessionUser, uploadId: string): Promise<VersaoConvertida[]> {
+  const upload = await prisma.upload.findFirst({
+    where: { id: uploadId, disciplina: { projeto: escopoProjeto(user) } },
     select: { disciplinaId: true, pacote: true, nomeArquivo: true },
   });
   if (!upload) return [];

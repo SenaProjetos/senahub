@@ -90,7 +90,7 @@ export default async function CoordenacaoPage({
           orderBy: { ordem: "asc" },
           select: { id: true, nome: true },
         }),
-        opcoesTarefa(),
+        opcoesTarefa(user),
       ])
     : [[], null];
 

@@ -2,6 +2,8 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { GLOBAL_ROLES, type Role } from "@/lib/roles";
+import type { SessionUser } from "@/lib/session";
+import { escopoProjeto } from "@/modules/projetos/queries";
 
 type Viewer = { id: string; role: Role };
 
@@ -104,7 +106,7 @@ export async function colunasTarefaAtivas() {
   });
 }
 
-export async function opcoesTarefa() {
+export async function opcoesTarefa(viewer: SessionUser) {
   const [internos, projetos, tarefas, disciplinas] = await Promise.all([
     prisma.user.findMany({
       where: { ativo: true, role: { not: "cliente" } },
@@ -112,18 +114,18 @@ export async function opcoesTarefa() {
       orderBy: { name: "asc" },
     }),
     prisma.projeto.findMany({
-      where: { situacao: "em_andamento" },
+      where: { situacao: "em_andamento", AND: [escopoProjeto(viewer)] },
       orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
       select: { id: true, codigo: true, nome: true },
     }),
     prisma.tarefa.findMany({
-      where: { arquivada: false },
+      where: { arquivada: false, ...escopoTarefa(viewer) },
       select: { id: true, titulo: true },
       orderBy: { updatedAt: "desc" },
       take: 100,
     }),
     prisma.disciplina.findMany({
-      where: { projeto: { situacao: "em_andamento" } },
+      where: { projeto: { situacao: "em_andamento", AND: [escopoProjeto(viewer)] } },
       orderBy: [{ ordem: "asc" }, { disciplinaTextoLegado: "asc" }],
       select: { id: true, disciplinaTextoLegado: true, projetoId: true },
     }),

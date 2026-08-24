@@ -148,7 +148,7 @@ export default async function ProjetoDetalhePage({
   if (podeVerTarefas) {
     [tarefaColunas, tarefaOpcoes, tarefasProjeto] = await Promise.all([
       colunasTarefaAtivas(),
-      opcoesTarefa(),
+      opcoesTarefa(user),
       tarefasDoProjeto(user, projeto.id),
     ]);
     // Garante o projeto atual + suas disciplinas nas opções do diálogo (mesmo fora de "em_andamento").

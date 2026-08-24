@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { enfileirarConversaoDwg, enfileirarConversaoDwgDocumento } from "@/modules/dwg/service";
 import { parseDesenhoId } from "@/modules/dwg/desenho-ref";
-import { resolverAcessoDesenho } from "@/modules/dwg/acesso";
+import { podeAcessarDesenho, resolverAcessoDesenho } from "@/modules/dwg/acesso";
 import { converterDwgSchema } from "@/modules/dwg/schemas";
 
 export type StatusConversaoDwgProbe = { status: string; progresso: number | null; erro: string | null } | null;
@@ -50,7 +50,10 @@ export const converterDwg = defineAction(
     schema: converterDwgSchema,
     entidadeId: (_d, i) => i.desenhoId,
   },
-  async (input) => {
+  async (input, { user }) => {
+    if (!(await podeAcessarDesenho(user, input.desenhoId))) {
+      throw new ActionError("Arquivo não encontrado.");
+    }
     const ref = parseDesenhoId(input.desenhoId);
     let projetoId: string | null;
     let r: Awaited<ReturnType<typeof enfileirarConversaoDwg>>;

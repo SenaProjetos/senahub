@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { HR_ADMIN_ROLES } from "@/lib/roles";
 import { whereAudiencia } from "@/lib/audiencias";
 import { notificar, notificarMuitos } from "@/lib/notificar";
+import { podeResponderTicket } from "@/modules/suporte/acesso";
 
 const rev = () => revalidatePath("/suporte");
 
@@ -79,6 +80,7 @@ export const responderTicket = defineAction(
   async (i, { user }) => {
     const t = await prisma.ticketSuporte.findUnique({ where: { id: i.ticketId } });
     if (!t) throw new ActionError("Ticket não encontrado.");
+    if (!podeResponderTicket(t.autorId, user)) throw new ActionError("Ticket não encontrado.");
     await prisma.ticketMensagem.create({
       data: {
         ticketId: i.ticketId,

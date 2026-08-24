@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { escopoProjeto } from "@/modules/projetos/queries";
+import { escopoTarefa } from "@/modules/tarefas/queries";
 import { buscarManual } from "@/lib/manual";
 
 export type ResultadoBusca = {
@@ -73,7 +74,11 @@ export async function buscaGlobal(termo: string): Promise<ResultadoBusca> {
       : Promise.resolve([]),
     podeTarefas
       ? prisma.tarefa.findMany({
-          where: { arquivada: false, titulo: { contains: t, mode: "insensitive" } },
+          where: {
+            arquivada: false,
+            ...escopoTarefa(user),
+            titulo: { contains: t, mode: "insensitive" },
+          },
           take: 6,
           orderBy: { createdAt: "desc" },
           select: { id: true, titulo: true },

@@ -7,6 +7,9 @@ import { prisma } from "@/lib/prisma";
 import { INTERNAL_ROLES, GLOBAL_ROLES } from "@/lib/roles";
 import { notificarMuitos } from "@/lib/notificar";
 import { PRIORIDADES } from "@/modules/tarefas/prioridade";
+import { escopoTarefa } from "@/modules/tarefas/queries";
+import { projetoVisivel } from "@/modules/planejamento/queries";
+import type { SessionUser } from "@/lib/session";
 
 const base = { modulo: "tarefas", roles: INTERNAL_ROLES } as const;
 const rev = () => revalidatePath("/tarefas");
@@ -25,6 +28,42 @@ async function resolverDisciplina(projetoId: string, disciplinaId: string): Prom
   });
   if (!d || d.projetoId !== projetoId) throw new ActionError("Disciplina não pertence ao projeto.");
   return disciplinaId;
+}
+
+async function exigirProjetoVisivel(
+  user: Pick<SessionUser, "id" | "role" | "superUsuario" | "escopoGlobalPerfil">,
+  projetoId?: string,
+) {
+  if (!projetoId || !(await projetoVisivel(user, projetoId))) {
+    throw new ActionError("Projeto não encontrado.");
+  }
+}
+
+async function exigirDependenciasVisiveis(user: Pick<SessionUser, "id" | "role">, dependeDeIds: readonly string[]) {
+  const ids = [...new Set(dependeDeIds)];
+  if (ids.length === 0) return;
+  const encontradas = await prisma.tarefa.count({
+    where: { id: { in: ids }, ...escopoTarefa(user) },
+  });
+  if (encontradas !== ids.length) throw new ActionError("Dependência não encontrada.");
+}
+
+async function exigirResponsaveisInternos(responsaveisIds: readonly string[]) {
+  const ids = [...new Set(responsaveisIds)];
+  if (ids.length === 0) return;
+  const encontrados = await prisma.user.count({
+    where: { id: { in: ids }, ativo: true, role: { not: "cliente" } },
+  });
+  if (encontrados !== ids.length) throw new ActionError("Responsável não encontrado.");
+}
+
+async function exigirAcessoTarefa(tarefaId: string, user: Pick<SessionUser, "id" | "role">) {
+  const tarefa = await prisma.tarefa.findFirst({
+    where: { id: tarefaId, ...escopoTarefa(user) },
+    select: { id: true },
+  });
+  if (!tarefa) throw new ActionError("Tarefa não encontrada.");
+  return tarefa;
 }
 
 const tarefaSchema = z.object({
@@ -53,6 +92,9 @@ const toggleItemSchema = z.object({ id: z.string().min(1), concluido: z.boolean(
 export const criarTarefa = defineAction(
   { ...base, acao: "criar-tarefa", entidade: "Tarefa", schema: tarefaSchema },
   async (i, { user }) => {
+    if (i.projetoId) await exigirProjetoVisivel(user, i.projetoId);
+    await exigirDependenciasVisiveis(user, i.dependeDeIds);
+    await exigirResponsaveisInternos(i.responsaveisIds);
     // Item 7: se já nasce num status final, registra a conclusão.
     const statusInicial = await prisma.tarefaStatus.findUnique({ where: { id: i.statusId }, select: { concluido: true } });
     const disciplinaId = await resolverDisciplina(i.projetoId ?? "", i.disciplinaId ?? "");
@@ -100,6 +142,9 @@ export const editarTarefa = defineAction(
   async (i, { user }) => {
     const { id, ...r } = i;
     await exigirCriadorOuGlobal(id, user);
+    if (r.projetoId) await exigirProjetoVisivel(user, r.projetoId);
+    await exigirDependenciasVisiveis(user, r.dependeDeIds);
+    await exigirResponsaveisInternos(r.responsaveisIds);
     if (r.dependeDeIds.includes(id)) throw new ActionError("Tarefa não pode depender dela mesma.");
     // Item 7: mantém concluidaEm coerente com o status escolhido na edição.
     const [destino, atual, antigosResp, itensAtuais] = await Promise.all([
@@ -210,8 +255,13 @@ export const moverTarefa = defineAction(
 
 export const toggleItemTarefa = defineAction(
   { ...base, acao: "toggle-item-tarefa", entidade: "TarefaItem", schema: toggleItemSchema },
-  async (i) => {
-    await prisma.tarefaItem.update({ where: { id: i.id }, data: { concluido: i.concluido } });
+  async (i, { user }) => {
+    const item = await prisma.tarefaItem.findFirst({
+      where: { id: i.id, tarefa: escopoTarefa(user) },
+      select: { id: true },
+    });
+    if (!item) throw new ActionError("Item da tarefa não encontrado.");
+    await prisma.tarefaItem.update({ where: { id: item.id }, data: { concluido: i.concluido } });
     rev();
     return { id: i.id };
   },
@@ -240,6 +290,7 @@ const comentarioSchema = z
 export const comentarTarefa = defineAction(
   { ...base, acao: "comentar-tarefa", entidade: "TarefaComentario", schema: comentarioSchema },
   async (i, { user }) => {
+    await exigirAcessoTarefa(i.tarefaId, user);
     const c = await prisma.tarefaComentario.create({
       data: {
         tarefaId: i.tarefaId,
@@ -258,7 +309,10 @@ export const comentarTarefa = defineAction(
 export const removerComentario = defineAction(
   { ...base, acao: "rm-comentario-tarefa", entidade: "TarefaComentario", schema: idSchema },
   async (i, { user }) => {
-    const c = await prisma.tarefaComentario.findUnique({ where: { id: i.id }, select: { autorId: true } });
+    const c = await prisma.tarefaComentario.findFirst({
+      where: { id: i.id, tarefa: escopoTarefa(user) },
+      select: { autorId: true },
+    });
     if (!c) throw new ActionError("Comentário não encontrado.");
     if (c.autorId !== user.id && user.role !== "admin") throw new ActionError("Só o autor remove.");
     await prisma.tarefaComentario.delete({ where: { id: i.id } });

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { docSchemaZ, docVazio, type DocSchema } from "@/modules/documentos/schema";
 import { whereAudiencia } from "@/lib/audiencias";
 import type { Prisma } from "@/generated/prisma/client";
+import { acessoGlobal, type EscopoDeDados } from "@/lib/roles";
 
 /**
  * `perfilChave` é a `PerfilAcesso.chave` do viewer (null = sem perfil atribuído), e
@@ -10,6 +11,17 @@ import type { Prisma } from "@/generated/prisma/client";
  * exatamente os admins), agora sem depender do enum `Role`, que sai na Onda F.
  */
 export type Viewer = { id: string; perfilChave: string | null; superUsuario: boolean };
+
+export type DocumentoGeradoViewer = Pick<Viewer, "id" | "superUsuario"> & EscopoDeDados;
+
+/**
+ * Snapshot pode conter dados de uma fonte que o leitor atual não pode consultar.
+ * Até existir escopo por fonte persistido no histórico, somente quem gerou ou quem
+ * possui escopo global pode reabri-lo.
+ */
+export function escopoDocumentoGerado(viewer: DocumentoGeradoViewer): Prisma.DocumentoGeradoWhereInput {
+  return acessoGlobal(viewer) ? {} : { geradoPorId: viewer.id };
+}
 
 /**
  * Filtro de visibilidade aplicado no `where` do Prisma. O viewer pode ver um modelo se:
@@ -82,8 +94,9 @@ export async function modelosPorFonte(fonte: string) {
 }
 
 /** Histórico de documentos gerados (imutável), mais recentes primeiro. */
-export async function documentosGerados(limite = 50) {
+export async function documentosGerados(viewer: DocumentoGeradoViewer, limite = 50) {
   return prisma.documentoGerado.findMany({
+    where: escopoDocumentoGerado(viewer),
     orderBy: { createdAt: "desc" },
     take: limite,
     select: {
@@ -102,9 +115,9 @@ export async function documentosGerados(limite = 50) {
 }
 
 /** Carrega um DocumentoGerado pelo id (snapshot imutável para reabrir). */
-export async function obterDocumentoGerado(id: string) {
-  return prisma.documentoGerado.findUnique({
-    where: { id },
+export async function obterDocumentoGerado(viewer: DocumentoGeradoViewer, id: string) {
+  return prisma.documentoGerado.findFirst({
+    where: { id, ...escopoDocumentoGerado(viewer) },
     select: {
       id: true,
       modeloId: true,

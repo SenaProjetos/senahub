@@ -597,5 +597,5 @@ export const excluirVistaCoordenacao = defineAction(
 export async function buscarVersoesConvertidas(uploadId: string) {
   const session = await getSession();
   if (!session || !(await can(session.user, "coordenacao", "ver"))) return [];
-  return versoesConvertidasDoUpload(uploadId);
+  return versoesConvertidasDoUpload(session.user, uploadId);
 }

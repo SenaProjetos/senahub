@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Tarefas" };
 
 export default async function TarefasPage() {
   const user = await requireRole(...INTERNAL_ROLES);
-  const [colunas, opcoes] = await Promise.all([quadroTarefas(user), opcoesTarefa()]);
+  const [colunas, opcoes] = await Promise.all([quadroTarefas(user), opcoesTarefa(user)]);
 
   // Atalho "ver no 3D" nos itens de checklist gerados por apontamentos de coordenação.
   const itemIds = colunas.flatMap((c) => c.tarefas.flatMap((t) => t.itens.map((it) => it.id)));

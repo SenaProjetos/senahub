@@ -132,6 +132,13 @@ export const enviarMensagem = defineAction(
   { ...base, acao: "enviar-mensagem", entidade: "Mensagem", schema: enviarSchema, audit: false },
   async (i, { user }) => {
     await exigirMembro(i.canalId, user.id);
+    if (i.respostaAId) {
+      const resposta = await prisma.mensagem.findFirst({
+        where: { id: i.respostaAId, canalId: i.canalId },
+        select: { id: true },
+      });
+      if (!resposta) throw new ActionError("Mensagem de referência não encontrada neste canal.");
+    }
 
     const msg = await prisma.mensagem.create({
       data: {

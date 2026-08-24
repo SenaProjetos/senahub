@@ -138,7 +138,7 @@ export default async function VisualizarPage({
           orderBy: { ordem: "asc" },
           select: { id: true, nome: true },
         }),
-        opcoesTarefa(),
+        opcoesTarefa(user),
       ])
     : [[], null];
   const responsaveisPadrao = upload.disciplina.responsaveis.map((r) => r.userId);
@@ -167,7 +167,11 @@ export default async function VisualizarPage({
       versao={upload.versao}
       revisionNumber={revisaoAtual?.numero ?? upload.versao}
       revisionId={upload.revisaoId}
-      documentStatus={documentoCanonico?.status ?? null}
+      documentStatus={
+        documentoCanonico?.status
+          ? { name: documentoCanonico.status.nome, final: documentoCanonico.status.final }
+          : null
+      }
       revisionFiles={revisionFiles}
       canViewCoordination={podeCoordenacao}
       versaoAtual={!maisNova}

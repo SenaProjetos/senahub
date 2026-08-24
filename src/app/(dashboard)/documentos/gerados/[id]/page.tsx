@@ -22,9 +22,9 @@ export default async function DocumentoGeradoPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requirePermission("documentos", "ver");
+  const user = await requirePermission("documentos", "ver");
   const { id } = await params;
-  const g = await obterDocumentoGerado(id);
+  const g = await obterDocumentoGerado(user, id);
   if (!g) notFound();
 
   const schemaParsed = docSchemaZ.safeParse(g.schemaSnapshot);

@@ -15,8 +15,8 @@ function paramsResumo(params: unknown): string {
 }
 
 export default async function DocumentosGeradosPage() {
-  await requirePermission("documentos", "ver");
-  const gerados = await documentosGerados();
+  const user = await requirePermission("documentos", "ver");
+  const gerados = await documentosGerados(user);
 
   return (
     <div className="space-y-5">

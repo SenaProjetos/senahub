@@ -5,6 +5,7 @@ import { getSession } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { docSchemaZ } from "@/modules/documentos/schema";
+import { escopoDocumentoGerado } from "@/modules/documentos/queries";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -18,8 +19,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   }
 
   const { id } = await params;
-  const g = await prisma.documentoGerado.findUnique({
-    where: { id },
+  const g = await prisma.documentoGerado.findFirst({
+    where: { id, ...escopoDocumentoGerado(session.user) },
     select: { modeloNome: true, schemaSnapshot: true, arquivoPath: true },
   });
   if (!g) return new Response("Documento não encontrado", { status: 404 });
