@@ -30,8 +30,9 @@
 | F2-PR8 — histórico de revisões | Implementada | Drawer em `historico-revisoes-dialog.tsx`, query e action com escopo de projeto/disciplina. |
 | F2-PR10 — colunas configuráveis | Implementada | `src/modules/uploads/colunas-documento.ts`, `seletor-colunas.tsx` e testes associados. |
 | F3-PR1 — cabeçalho do visualizador | Implementado no código; validação manual pendente | Breadcrumb contextual com projeto/disciplina/documento, revisão lógica, status documental e arquivos ativos da mesma revisão; o comparador agora só aparece para outra revisão da mesma extensão. |
+| F3-PR2 — painel de tarefas do documento | Componente implementado; integração visual depende de F3-PR3 | `painel-tarefas-documento.tsx` é controlado pelo visualizador, filtra a mesma coleção mutável de `Pendencia` e preserva o envio em lote já decidido. |
 | F4-PR4 — comparador avançado | Implementada | Percentual de opacidade e zoom/scroll sincronizados em `comparador-revisoes.tsx`. |
-| F3-PR2 a F3-PR5 e F4-PR1 a F4-PR3 | Não implementado | Ainda não há painel de tarefas, workspace de três painéis, relações `revisaoOrigemId`/`revisaoResolucaoId` nem UI de resolução entre revisões. |
+| F3-PR3 a F3-PR5 e F4-PR1 a F4-PR3 | Não implementado | Ainda não há workspace de três painéis, relações `revisaoOrigemId`/`revisaoResolucaoId` nem UI de resolução entre revisões. |
 
 ## Integração da branch de refatoração
 
@@ -87,6 +88,16 @@ F3-PR1 foi implementada sem migration, alteração de banco ou endpoint novo. A 
 Uma decisão de implementação foi registrada após conselho técnico: `DocumentoStatus` é o único status exibido no cabeçalho, em `Badge` textual sem inventar mapeamento para `DocumentoStatus.cor`; a validação do arquivo e o status da disciplina continuam nos controles já existentes. A alternância se limita aos arquivos ativos da mesma `revisaoId`. O formato aberto fica marcado como atual; PDF e IFC mantêm suas ações existentes, enquanto DWG e demais formatos mantêm download no cabeçalho compacto. O preview DWG permanece no diretório de arquivos, evitando iniciar polling de conversão na tela já pesada do PDF. Para upload legado sem `revisaoId`, a tela mostra apenas o próprio arquivo e não infere par por nome ou número de versão.
 
 O predicado de `temOutraRevisao` também foi alinhado ao comparador: usa o documento canônico e a mesma extensão do arquivo aberto. Assim, PDF+DWG numa única revisão não expõe mais o link de comparação que não teria duas versões de PDF para abrir. A revisão lógica mostrada no cabeçalho não substitui `Upload.versao`, que permanece como origem de apontamentos para preservar os dados legados.
+
+## Continuação — F3-PR2, painel de tarefas do documento
+
+F3-PR2 criou `src/components/projetos/arquivos/painel-tarefas-documento.tsx` como componente controlado, pronto para ser posicionado à esquerda pelo workspace de F3-PR3. Ele recebe a mesma coleção mutável de `Pendencia` já carregada por `pendenciasDoUpload()` e o id selecionado do `PdfViewer`; por isso não cria uma segunda consulta que poderia divergir depois de criar, editar, enviar ou excluir um apontamento. A lista tem pesquisa textual, filtros por status e severidade, cards compactos com número, miniatura quando existente, texto, classificação, prazo/atraso, autoria, página, contagens de comentários/anexos e estado de encaminhamento para tarefa.
+
+Foi feito um conselho técnico curto antes da implementação porque a especificação usa o termo "responsável" para o card, enquanto `Pendencia` só tem autor e um `tarefaId` escalar. A decisão registrada D4/R4 já determina uma única `Tarefa` por lote de apontamentos, e não uma tarefa individual por pin. O conselho concluiu que chamar o autor de responsável seria semanticamente incorreto e que enriquecer a leitura com `Tarefa.responsaveis` sem aplicar `escopoTarefa(user)` vazaria dados: o visualizador também pode ser aberto por membro do projeto, mas a tarefa só é visível a global, criador ou responsável. Assim, nesta etapa o card diz explicitamente "Criado por", "Aguardando envio para tarefa" ou "Incluído em tarefa". F3-PR5 exibirá detalhes e responsáveis da tarefa no painel contextual, sob a muralha própria das tarefas.
+
+O botão `+ Tarefa` é uma prop controlada e só será entregue a quem já tem `uploads:validar`; F3-PR3 o conectará ao fluxo existente `enviarApontamentos`/`TarefaDialog`, que cria uma tarefa e um item por pendência dentro da mesma transação. Não foi usado `criarTarefa`, pois ele perderia o vínculo `Pendencia` → `TarefaItem`. Também foi alinhado o cliente ao servidor: o cálculo de pendências enviáveis e a atualização otimista agora usam os helpers `enviaveis()`/`estaAberta()`, incluindo `em_correcao` como a action já fazia.
+
+O componente ainda não é montado antes de F3-PR3 de propósito: o painel direito atual já contém a lista completa de apontamentos, e montá-lo agora duplicaria informação e seleção. F3-PR3 moverá a composição para as três colunas; F3-PR4 conectará a seleção à centralização/zoom e F3-PR5 acrescentará o detalhe contextual de tarefa.
 
 ## Achados que exigem decisão antes de executar o merge de dados
 
@@ -148,17 +159,21 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 
 | Verificação | Resultado |
 | --- | --- |
-| `npm run lint` | Passou após F3-PR1. |
-| `npm test` | Passou após F3-PR1: 226 arquivos, 2.453 testes. |
+| `npm run lint` | Passou após F3-PR2. |
+| `npm test` | Passou após F3-PR2: 226 arquivos, 2.453 testes. |
 | Testes focados da continuação | Passaram: 9 testes em `acesso` e `lixeira`; a regra nova de acesso tem três cenários unitários. |
 | Revisão de acessibilidade de F3-PR1 | Sem achados concretos no breadcrumb e nos controles novos do cabeçalho. |
 | Revisão de fronteira cliente de F3-PR1 | Detectou que montar `VisualizarDwgButton` no cabeçalho poderia expor spinner de conversão persistente; o cabeçalho usa o download de DWG e não monta esse probe. |
+| Conselho técnico de F3-PR2 | Convergiu para preservar tarefa em lote, não atribuir um responsável artificial a `Pendencia` e deixar dados de `Tarefa` para F3-PR5, quando a query aplicar o escopo próprio de tarefas. |
+| Revisão de acessibilidade de F3-PR2 | Encontrou conteúdo de fluxo dentro do botão do card e contadores sem texto para leitor de tela; ambos foram corrigidos com spans de conteúdo textual e rótulos `sr-only`. |
+| Revisão de fronteira cliente de F3-PR2 | Sem achados: o componente recebe dados serializáveis já obtidos pela página e não importa consulta/ação de servidor em tempo de execução. |
 | Validação manual do envio V2 | Pendente: requer operar o diálogo com uma disciplina de teste e confirmar envio, aviso de revisão e atualização da tabela. |
 | Validação manual de F2-PR6c | Pendente: em desenvolvimento, editar metadados, alterar status, filtrar por status/fase e confirmar o bloqueio de nova revisão para status final. |
 | Validação manual de F2-PR6b | Pendente: em um projeto de teste, ligar/desligar "Exige fases"; confirmar herança global, sugestão por nome no padrão, alteração manual por arquivo, bloqueio sem fase e persistência no detalhe do documento, nos uploaders V2 e legado. |
 | Validação manual de F2-PR7 | Pendente: na V2 e em um projeto de teste, criar uma lista, selecionar dois documentos e adicioná-los, selecionar a lista, remover um documento e confirmar contagem/tabela sem recarregar manualmente. Repetir com responsável de disciplina e com gestão do projeto para confirmar a muralha de escrita. |
 | Validação manual de F2-PR9 | Pendente: em uma disciplina de teste, selecionar PDF e DWG com mesmo nome-base numa única operação, confirmar o toast da mesma revisão e o drawer de histórico com ambos os arquivos na mesma Rxx. Repetir com arquivos de nome-base ou destino diferentes para confirmar que seguem independentes. |
 | Validação manual de F3-PR1 | Pendente: em desenvolvimento, abrir PDF único, PDF+DWG na mesma revisão e histórico legado com revisão sem par; conferir breadcrumb contextual, status nulo/final, formato atual, ações dos formatos irmãos e ausência do botão Comparar quando só houver outra extensão na mesma revisão. |
+| Validação manual de F3-PR2 | Pertence à composição de F3-PR3: abrir o workspace em 1366 px, pesquisar/filtrar cards, confirmar foco por teclado, seleção única e o encaminhamento em lote para tarefa. |
 | `scripts/verificar-fase2-documentos.ts` | Não executado: `tsx` falhou antes de conectar ao banco com `uv_os_get_passwd` / `ENOMEM`. Evidência em `06-evidencia-verificacao-fase2-documentos-dev-2026-08-23.md`. |
 | `npx prisma migrate status` | Passou após M7: 192 migrations encontradas; schema do banco de desenvolvimento atualizado. As tentativas diretas de `migrate dev` estão documentadas acima e não houve reset. |
 | `npx prisma db:seed` | Não executado: é uma escrita no banco de desenvolvimento e M7/M8 não exigem alteração no seed (a nova coluna tem default e listas não possuem catálogo inicial). A idempotência do seed permanece pendente de uma execução deliberada. |
@@ -167,4 +182,4 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 
 ## Próximo passo seguro
 
-Não executar `--aplicar` nos scripts da Fase 2 até haver decisão registrada para A-01. Antes de ativar `NEXT_PUBLIC_DOCUMENTOS_V2`, comprovar A-05 e validar manualmente o envio V2/F2-PR6b/F2-PR6c/F2-PR7/F2-PR9. Registrar também a decisão de A-06 antes de esperar que perfis não administrativos editem metadados ou status. F3-PR2 pode seguir em desenvolvimento sem migration, mas não transforma as pendências manuais da Fase 2 em comprovadas. Depois da correção/decisão, executar `scripts/verificar-fase2-documentos.ts` em cada ambiente relevante e anexar a saída datada a esta pasta, para transformar a execução de scripts manuais em evidência auditável.
+Não executar `--aplicar` nos scripts da Fase 2 até haver decisão registrada para A-01. Antes de ativar `NEXT_PUBLIC_DOCUMENTOS_V2`, comprovar A-05 e validar manualmente o envio V2/F2-PR6b/F2-PR6c/F2-PR7/F2-PR9. Registrar também a decisão de A-06 antes de esperar que perfis não administrativos editem metadados ou status. O próximo recorte de implementação é F3-PR3, que monta o workspace de três painéis e passa a usar o componente de F3-PR2; ele não transforma as pendências manuais da Fase 2 em comprovadas. Depois da correção/decisão, executar `scripts/verificar-fase2-documentos.ts` em cada ambiente relevante e anexar a saída datada a esta pasta, para transformar a execução de scripts manuais em evidência auditável.

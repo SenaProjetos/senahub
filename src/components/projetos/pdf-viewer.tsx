@@ -36,6 +36,8 @@ import {
   STATUS_TERMINAIS,
   contaComoTrabalho,
   ehRascunho,
+  enviaveis as pendenciasEnviaveis,
+  estaAberta,
   temImpeditivoAberto,
   type PapeisPendencia,
   type StatusPendencia,
@@ -1101,7 +1103,9 @@ export function PdfViewer(props: Props) {
   }
 
   function aplicarEnvio(data: { tarefaId: string; total: number; revisaoAberta: number | null }) {
-    setPendencias((ps) => ps.map((p) => (p.status === "aberta" && !p.tarefaId ? { ...p, tarefaId: data.tarefaId } : p)));
+    setPendencias((ps) =>
+      ps.map((p) => (estaAberta(p.status) && !p.tarefaId ? { ...p, tarefaId: data.tarefaId } : p)),
+    );
     toast.success(
       data.revisaoAberta != null
         ? `Revisão R${data.revisaoAberta} aberta · tarefa com ${data.total} apontamento(s).`
@@ -1183,8 +1187,7 @@ export function PdfViewer(props: Props) {
     colunaRef.current?.releasePointerCapture?.(e.pointerId);
   }
 
-  const enviaveis = pendencias
-    .filter((p) => p.status === "aberta" && !p.tarefaId)
+  const enviaveis = pendenciasEnviaveis(pendencias)
     .slice()
     .sort((a, b) => a.numero - b.numero);
   const abertasSemTarefa = enviaveis.length;
