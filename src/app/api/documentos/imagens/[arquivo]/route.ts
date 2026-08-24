@@ -12,7 +12,6 @@ const MIME: Record<string, string> = {
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
   webp: "image/webp",
-  svg: "image/svg+xml",
 };
 
 /**
@@ -50,6 +49,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ arquivo: strin
     headers: {
       "Content-Type": contentType,
       "Content-Disposition": "inline",
+      "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, max-age=3600",
     },
   });

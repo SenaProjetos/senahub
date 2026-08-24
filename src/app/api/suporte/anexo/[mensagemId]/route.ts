@@ -19,11 +19,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ mensage
   if (!(await existeArquivo(m.anexoPath))) return new Response("Arquivo ausente", { status: 404 });
 
   const buf = await lerArquivo(m.anexoPath);
-  const mime = m.anexoMime ?? "application/octet-stream";
   return new Response(new Uint8Array(buf), {
     headers: {
-      "Content-Type": mime,
-      "Content-Disposition": `${mime.startsWith("image/") || mime.startsWith("video/") ? "inline" : "attachment"}; filename="${encodeURIComponent(m.anexoNome ?? "anexo")}"`,
+      "Content-Type": "application/octet-stream",
+      "Content-Disposition": `attachment; filename="${encodeURIComponent(m.anexoNome ?? "anexo")}"`,
+      "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, max-age=300",
     },
   });

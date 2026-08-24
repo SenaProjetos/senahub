@@ -2,21 +2,11 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { salvarArquivo, removerArquivo, nomeArquivoLimpo } from "@/lib/storage";
+import { salvarArquivo, removerArquivo, nomeArquivoLimpo, lerInicioArquivo } from "@/lib/storage";
 import { montarChunksEm, limparChunks } from "@/lib/upload-chunks";
+import { ATTACHMENT_EXTENSIONS, validateGeneralAttachment } from "@/lib/upload-policy";
 
 const MAX = 500 * 1024 * 1024; // 500 MB
-
-// Extensões permitidas no chat — imagens, documentos Office, PDF, CAD e compactados (C5-4).
-const EXTENSOES_PERMITIDAS = new Set([
-  "jpg", "jpeg", "png", "gif", "webp", "svg",
-  "pdf",
-  "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp",
-  "txt", "csv", "rtf",
-  "zip", "rar", "7z",
-  "dwg", "dxf", "ifc", "rvt", "skp", "dwf",
-  "mp4", "mp3", "webm", "ogg", "oga", "opus", "m4a", "wav", "aac",
-]);
 
 function extDe(nome: string): string {
   return (nome.includes(".") ? nome.slice(nome.lastIndexOf(".") + 1) : "").toLowerCase();
@@ -65,9 +55,8 @@ export async function POST(req: Request) {
     const nome = nomeArquivoLimpo(String(form.get("nome") ?? "").trim() || "arquivo");
     const total = Number(form.get("total"));
     const tamanhoDeclarado = Number(form.get("tamanho"));
-    const mime = String(form.get("mime") ?? "") || "application/octet-stream";
     const ext = extDe(nome);
-    if (!EXTENSOES_PERMITIDAS.has(ext)) {
+    if (!ATTACHMENT_EXTENSIONS.has(ext)) {
       await limparChunks(user.id, sessaoId);
       return erroTipo(ext);
     }
@@ -85,7 +74,12 @@ export async function POST(req: Request) {
         await removerArquivo(salvo.caminho);
         return NextResponse.json({ error: "Arquivo muito grande (máximo 500 MB)." }, { status: 400 });
       }
-      return NextResponse.json({ anexoPath: rel, anexoNome: nome, anexoMime: mime });
+      const validado = validateGeneralAttachment(nome, await lerInicioArquivo(rel));
+      if (!validado.ok) {
+        await removerArquivo(rel);
+        return NextResponse.json({ error: validado.error }, { status: 415 });
+      }
+      return NextResponse.json({ anexoPath: rel, anexoNome: nome, anexoMime: validado.mime });
     } catch (err) {
       console.error("[chat/anexo] falha ao montar chunks:", err);
       await limparChunks(user.id, sessaoId);
@@ -100,17 +94,19 @@ export async function POST(req: Request) {
   }
   if (file.size > MAX) return NextResponse.json({ error: "Arquivo muito grande (máximo 500 MB)." }, { status: 400 });
   const ext = extDe(file.name);
-  if (!EXTENSOES_PERMITIDAS.has(ext)) return erroTipo(ext);
+  if (!ATTACHMENT_EXTENSIONS.has(ext)) return erroTipo(ext);
 
   const nome = nomeArquivoLimpo(file.name || "arquivo");
   const sufixo = nome.includes(".") ? nome.slice(nome.lastIndexOf(".")) : "";
   const rel = `chat/${canalId}/${randomBytes(12).toString("hex")}${sufixo}`;
   const buf = Buffer.from(await file.arrayBuffer());
+  const validado = validateGeneralAttachment(nome, buf);
+  if (!validado.ok) return NextResponse.json({ error: validado.error }, { status: 415 });
   await salvarArquivo(rel, buf);
 
   return NextResponse.json({
     anexoPath: rel,
     anexoNome: nome,
-    anexoMime: file.type || "application/octet-stream",
+    anexoMime: validado.mime,
   });
 }

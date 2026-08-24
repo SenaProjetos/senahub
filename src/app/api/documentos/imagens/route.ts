@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
+import sharp from "sharp";
 import { getSession } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { logAudit, getClientIp } from "@/lib/audit";
@@ -9,21 +10,10 @@ export const dynamic = "force-dynamic";
 
 const MAX = 8 * 1024 * 1024; // 8 MB — logos/carimbos/fotos
 
-// Tipos aceitos → extensão canônica usada ao salvar.
-const TIPOS: Record<string, string> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/jpg": "jpg",
-  "image/webp": "webp",
-  "image/svg+xml": "svg",
-};
-
-const EXT_VALIDAS = new Set(["png", "jpg", "jpeg", "webp", "svg"]);
-
 /**
  * Upload de imagem (logo/carimbo/foto) para usar no elemento `imagem` do
- * Estúdio de Documentos. Salva via lib/storage em "documentos/imagens" e
- * retorna a URL servível (rota GET abaixo). Requer documentos:gerir.
+ * Estúdio de Documentos. Reencoda para JPEG, removendo conteúdo ativo e fazendo
+ * o tipo persistido derivar dos bytes processados, não do navegador.
  */
 export async function POST(req: Request) {
   const session = await getSession();
@@ -47,18 +37,21 @@ export async function POST(req: Request) {
 
   const nome = nomeArquivoLimpo(file.name || "imagem");
   const extOriginal = nome.includes(".") ? nome.slice(nome.lastIndexOf(".") + 1).toLowerCase() : "";
-  // Aceita por mime OU por extensão (alguns navegadores não setam mime de SVG).
-  const extPorMime = TIPOS[file.type];
-  if (!extPorMime && !EXT_VALIDAS.has(extOriginal)) {
-    return NextResponse.json(
-      { error: "Formato inválido. Use PNG, JPG, WEBP ou SVG." },
-      { status: 415 },
-    );
+  if (file.type === "image/svg+xml" || extOriginal === "svg") {
+    return NextResponse.json({ error: "SVG não é aceito. Envie PNG, JPG ou WEBP." }, { status: 415 });
   }
-  const ext = extPorMime ?? (extOriginal === "jpeg" ? "jpg" : extOriginal);
 
-  const rel = `documentos/imagens/${randomBytes(16).toString("hex")}.${ext}`;
-  const buf = Buffer.from(await file.arrayBuffer());
+  let buf: Buffer;
+  try {
+    buf = await sharp(Buffer.from(await file.arrayBuffer()))
+      .rotate()
+      .jpeg({ quality: 90 })
+      .toBuffer();
+  } catch {
+    return NextResponse.json({ error: "A imagem enviada é inválida." }, { status: 415 });
+  }
+
+  const rel = `documentos/imagens/${randomBytes(16).toString("hex")}.jpg`;
   await salvarArquivo(rel, buf);
 
   // Nome do arquivo (sem o prefixo da pasta) é o id servível da rota GET.
@@ -72,7 +65,7 @@ export async function POST(req: Request) {
     resultado: "sucesso",
     entidade: "DocumentoImagem",
     entidadeId: arquivo,
-    detalhe: { nome, tamanho: buf.length, mime: file.type || null },
+    detalhe: { nome, tamanho: buf.length, mime: "image/jpeg" },
     ip: await getClientIp(),
   });
 

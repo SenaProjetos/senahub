@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { salvarArquivo, nomeArquivoLimpo } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { TAMANHO_MAX, TAMANHO_MAX_LABEL } from "@/modules/uploads/limites";
+import { validateGeneralAttachment } from "@/lib/upload-policy";
 
 // Limite de arquivos recebidos por link numa mesma proposta (barreira anti-flood).
 const MAX_DOCS_LINK = 100;
@@ -37,9 +38,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const enviadoPor = String(form.get("enviadoPor") ?? "").trim().slice(0, 120) || null;
 
   const nome = nomeArquivoLimpo(file.name || "arquivo");
+  const conteudo = Buffer.from(await file.arrayBuffer());
+  const validado = validateGeneralAttachment(nome, conteudo);
+  if (!validado.ok) return NextResponse.json({ error: validado.error }, { status: 415 });
   const ext = nome.includes(".") ? nome.slice(nome.lastIndexOf(".")) : "";
   const rel = `documentos/${proposta.clienteId}/${randomBytes(12).toString("hex")}${ext}`;
-  const salvo = await salvarArquivo(rel, Buffer.from(await file.arrayBuffer()));
+  const salvo = await salvarArquivo(rel, conteudo);
 
   const doc = await prisma.documento.create({
     data: {
@@ -54,7 +58,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
           numero: 1,
           caminho: salvo.caminho,
           nomeArquivo: nome,
-          mime: file.type || "application/octet-stream",
+          mime: validado.mime,
           tamanho: salvo.tamanho,
           hashSha256: salvo.hashSha256,
         },

@@ -58,6 +58,18 @@ export async function lerArquivo(relativo: string): Promise<Buffer> {
   return fs.readFile(resolverCaminho(relativo));
 }
 
+/** Lê somente o cabeçalho de um arquivo, para validar assinatura sem carregar upload grande na RAM. */
+export async function lerInicioArquivo(relativo: string, maxBytes = 128): Promise<Buffer> {
+  const arquivo = await fs.open(resolverCaminho(relativo), "r");
+  try {
+    const buffer = Buffer.allocUnsafe(maxBytes);
+    const { bytesRead } = await arquivo.read(buffer, 0, maxBytes, 0);
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    await arquivo.close();
+  }
+}
+
 export async function existeArquivo(relativo: string): Promise<boolean> {
   try {
     await fs.access(resolverCaminho(relativo));

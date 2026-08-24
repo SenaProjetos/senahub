@@ -24,12 +24,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ anexoId
   if (!(await existeArquivo(anexo.path))) return new Response("Arquivo ausente", { status: 404 });
 
   const buf = await lerArquivo(anexo.path);
-  const mime = anexo.mime ?? "application/octet-stream";
-  const inline = mime.startsWith("image/");
   return new Response(new Uint8Array(buf), {
     headers: {
-      "Content-Type": mime,
-      "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${encodeURIComponent(anexo.nome ?? "anexo")}"`,
+      "Content-Type": "application/octet-stream",
+      "Content-Disposition": `attachment; filename="${encodeURIComponent(anexo.nome ?? "anexo")}"`,
+      "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, max-age=300",
     },
   });
