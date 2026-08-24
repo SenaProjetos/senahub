@@ -11,6 +11,7 @@ import {
   temImpeditivoAberto,
   estaAberta,
   podeTransicionar,
+  revisaoPosteriorDaOrigem,
   transicoesPossiveis,
   STATUS_PENDENCIA,
   STATUS_LABEL,
@@ -53,6 +54,18 @@ describe("enviaveis", () => {
   });
   it("vazio quando nada é enviável", () => {
     expect(enviaveis([{ status: "fechada", tarefaId: null }])).toHaveLength(0);
+  });
+});
+
+describe("revisaoPosteriorDaOrigem", () => {
+  it("aceita somente revisão posterior à origem", () => {
+    expect(revisaoPosteriorDaOrigem(2, 3)).toBe(true);
+    expect(revisaoPosteriorDaOrigem(2, 2)).toBe(false);
+    expect(revisaoPosteriorDaOrigem(2, 1)).toBe(false);
+  });
+
+  it("não inventa origem para pendência legada", () => {
+    expect(revisaoPosteriorDaOrigem(null, 3)).toBe(false);
   });
 });
 

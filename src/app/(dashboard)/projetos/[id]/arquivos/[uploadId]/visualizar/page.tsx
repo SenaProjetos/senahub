@@ -166,6 +166,7 @@ export default async function VisualizarPage({
       disciplinaNome={upload.disciplina.disciplinaTextoLegado}
       versao={upload.versao}
       revisionNumber={revisaoAtual?.numero ?? upload.versao}
+      revisionId={upload.revisaoId}
       documentStatus={documentoCanonico?.status ?? null}
       revisionFiles={revisionFiles}
       canViewCoordination={podeCoordenacao}

@@ -159,6 +159,11 @@ export function transicoesPossiveis(de: string, papeis: PapeisPendencia): Status
   return TRANSICOES[de as StatusPendencia].filter((r) => r.quem(papeis)).map((r) => r.para);
 }
 
+/** A resolução entre revisões só faz sentido numa revisão posterior à de origem. */
+export function revisaoPosteriorDaOrigem(origem: number | null, resolucao: number): boolean {
+  return origem != null && resolucao > origem;
+}
+
 /**
  * Classificação estruturada (item 11) — catálogo em CÓDIGO, não tabela: é vocabulário fixo
  * do escritório (não é dado que o usuário cadastra, ao contrário da futura biblioteca de

@@ -12,6 +12,7 @@ import {
   editarPendencia,
   excluirPendencia,
   enviarApontamentos,
+  marcarPendenciaResolvidaEmRevisao,
   resolverPendencia,
   reabrirPendencia,
   fecharPendencia,
@@ -160,6 +161,7 @@ type Props = {
   versao: number;
   /** Número da revisão lógica; `versao` continua sendo a versão do Upload usada pelos apontamentos. */
   revisionNumber: number;
+  revisionId: string | null;
   documentStatus: DocumentStatus | null;
   /** Arquivos ativos da mesma DocumentoRevisao; legado sem revisão contém só o arquivo atual. */
   revisionFiles: RevisionFile[];
@@ -339,7 +341,7 @@ function CamposClassificacao({
 
 export function PdfViewer(props: Props) {
   const router = useRouter();
-  const { uploadId, projetoId, disciplinaId, nomeArquivo, codigo, projetoNome, disciplinaNome, versao, revisionNumber, documentStatus, revisionFiles, canViewCoordination, versaoAtual, validado, finalizada, podeValidar, ehResponsavel, ehAdmin, colunasTarefa, opcoesTarefa, responsaveisPadrao, temOutraRevisao, documentoId, pranchasParaReplicar, pinInicial, paginaInicial } = props;
+  const { uploadId, projetoId, disciplinaId, nomeArquivo, codigo, projetoNome, disciplinaNome, versao, revisionNumber, revisionId, documentStatus, revisionFiles, canViewCoordination, versaoAtual, validado, finalizada, podeValidar, ehResponsavel, ehAdmin, colunasTarefa, opcoesTarefa, responsaveisPadrao, temOutraRevisao, documentoId, pranchasParaReplicar, pinInicial, paginaInicial } = props;
 
   const downloadUrl = `/api/uploads/${uploadId}/download?disposition=inline`;
   // Apontar é permitido mesmo com a entrega já validada — nesse caso o envio abre revisão
@@ -1133,6 +1135,21 @@ export function PdfViewer(props: Props) {
       if (r.ok) {
         setPendencias((ps) => ps.map((p) => (p.id === id ? { ...p, status: novo } : p)));
         toast.success(msg);
+      } else toast.error(r.error ?? "Erro.");
+    });
+  }
+
+  function resolverEmRevisao(id: string) {
+    if (!revisionId) return;
+    start(async () => {
+      const r = await marcarPendenciaResolvidaEmRevisao({ id, revisaoResolucaoId: revisionId });
+      if (r.ok) {
+        setPendencias((ps) =>
+          ps.map((p) =>
+            p.id === id ? { ...p, status: r.data.status, revisaoResolucaoId: r.data.revisaoResolucaoId } : p,
+          ),
+        );
+        toast.success(`Marcada como resolvida na ${rotuloRevisao(revisionNumber)}.`);
       } else toast.error(r.error ?? "Erro.");
     });
   }
@@ -1983,7 +2000,17 @@ export function PdfViewer(props: Props) {
                           {transicoesPossiveis(p.status, papeisNaTela).map((destino) => {
                             const meta = ACAO_TRANSICAO[destino];
                             const Icone = meta.icone;
-                            const rotulo = destino === "aberta" && p.status === "resolvida" ? "reabrir" : meta.rotulo;
+                            const resolverNestaRevisao =
+                              destino === "resolvida" &&
+                              p.deOutraRevisao &&
+                              revisionId != null &&
+                              p.revisaoOrigemId != null &&
+                              p.revisaoOrigemId !== revisionId;
+                            const rotulo = resolverNestaRevisao
+                              ? `resolver na ${rotuloRevisao(revisionNumber)}`
+                              : destino === "aberta" && p.status === "resolvida"
+                                ? "reabrir"
+                                : meta.rotulo;
                             return (
                               <Button
                                 key={destino}
@@ -1993,7 +2020,8 @@ export function PdfViewer(props: Props) {
                                 onClick={() => {
                                   // "Não procede" precisa de justificativa: abre a janela.
                                   // Sem action direta = precisa de janela (só "não procede" hoje).
-                                  if (!meta.acao) setDescartarId(p.id);
+                                  if (resolverNestaRevisao) resolverEmRevisao(p.id);
+                                  else if (!meta.acao) setDescartarId(p.id);
                                   else mudarStatus(p.id, meta.acao, destino, meta.sucesso);
                                 }}
                                 disabled={pending}

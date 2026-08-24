@@ -108,6 +108,8 @@ export type PendenciaView = {
   autor: string;
   tarefaId: string | null;
   tarefaItemId: string | null;
+  revisaoOrigemId: string | null;
+  revisaoResolucaoId: string | null;
   resolvidoEm: string | null;
   fechadoEm: string | null;
   createdAt: string;
@@ -366,6 +368,8 @@ export async function pendenciasDoUpload(
       autor: nome.get(r.autorId) ?? "—",
       tarefaId: r.tarefaId,
       tarefaItemId: r.tarefaItemId,
+      revisaoOrigemId: r.revisaoOrigemId,
+      revisaoResolucaoId: r.revisaoResolucaoId,
       resolvidoEm: r.resolvidoEm?.toISOString() ?? null,
       fechadoEm: r.fechadoEm?.toISOString() ?? null,
       createdAt: r.createdAt.toISOString(),

@@ -13,6 +13,7 @@ import { can } from "@/lib/permissions";
 import {
   rotuloItemPendencia,
   podeTransicionar,
+  revisaoPosteriorDaOrigem,
   type PapeisPendencia,
   type StatusPendencia,
   mencionadosNovos,
@@ -139,6 +140,7 @@ const replicarSchema = z.object({
   uploadIds: z.array(z.string().min(1)).min(1).max(30),
 });
 const idSchema = z.object({ id: z.string().min(1) });
+const resolverEmRevisaoSchema = z.object({ id: z.string().min(1), revisaoResolucaoId: z.string().min(1) });
 // Envio dos apontamentos = criação da tarefa. Campos opcionais vêm da janela de confirmação
 // (TarefaDialog); quando ausentes, caem nos defaults. O checklist é SEMPRE as pendências
 // (montado no servidor), garantindo o vínculo pendência↔item.
@@ -704,6 +706,7 @@ async function transicionar(
   } else if (destino === "aberta") {
     dados.resolvidoPorId = null;
     dados.resolvidoEm = null;
+    dados.revisaoResolucaoId = null;
     itemConcluido = false;
     // Item 23: só a volta de "resolvida" é reabertura de fato.
     if (p.status === "resolvida") dados.reaberturas = p.reaberturas + 1;
@@ -754,6 +757,57 @@ export const assumirCorrecaoPendencia = defineAction(
 export const resolverPendencia = defineAction(
   { ...baseProjetista, acao: "resolver-pendencia", schema: idSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId },
   async (input, { user }) => transicionar(input, user, "resolvida"),
+);
+
+/** Resolve uma pendência trazida de revisão anterior, registrando explicitamente a revisão atual. */
+export const marcarPendenciaResolvidaEmRevisao = defineAction(
+  {
+    ...baseProjetista,
+    acao: "resolver-pendencia-em-revisao",
+    schema: resolverEmRevisaoSchema,
+    entidadeId: (d) => (d as { projetoId: string }).projetoId,
+  },
+  async (input, { user }) => {
+    const p = await prisma.pendencia.findUnique({ where: { id: input.id } });
+    if (!p || p.excluidoEm) throw new ActionError("Pendência não encontrada.");
+    if (!p.documentoId || !p.revisaoOrigemId) throw new ActionError("Esta pendência não possui revisão de origem identificável.");
+
+    const papeis = await papeisSobre(p, user);
+    const veredito = podeTransicionar(p.status, "resolvida", papeis);
+    if (!veredito.ok) throw new ActionError(veredito.motivo);
+
+    const revisoes = await prisma.documentoRevisao.findMany({
+      where: { id: { in: [p.revisaoOrigemId, input.revisaoResolucaoId] } },
+      select: { id: true, documentoId: true, numero: true },
+    });
+    const origem = revisoes.find((revisao) => revisao.id === p.revisaoOrigemId);
+    const resolucao = revisoes.find((revisao) => revisao.id === input.revisaoResolucaoId);
+    if (!origem || !resolucao || origem.documentoId !== p.documentoId || resolucao.documentoId !== p.documentoId) {
+      throw new ActionError("A revisão escolhida não pertence ao documento desta pendência.");
+    }
+    if (!revisaoPosteriorDaOrigem(origem.numero, resolucao.numero)) {
+      throw new ActionError("Escolha uma revisão posterior à revisão de origem.");
+    }
+
+    const agora = new Date();
+    await prisma.$transaction(async (tx) => {
+      await tx.pendencia.update({
+        where: { id: p.id },
+        data: {
+          status: "resolvida",
+          resolvidoPorId: user.id,
+          resolvidoEm: agora,
+          revisaoResolucaoId: resolucao.id,
+        },
+      });
+      if (p.tarefaItemId) await tx.tarefaItem.updateMany({ where: { id: p.tarefaItemId }, data: { concluido: true } });
+    });
+
+    revalidarViewer(p.projetoId, p.uploadId);
+    revalidatePath("/tarefas");
+    revalidatePath("/pendencias");
+    return { id: p.id, projetoId: p.projetoId, status: "resolvida", revisaoResolucaoId: resolucao.id };
+  },
 );
 
 /** Volta pra fila: reabrir (de resolvida), largar a correção, ou reativar um adiado. */
