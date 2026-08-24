@@ -61,7 +61,7 @@ Após o merge `e56c293`, a continuação em `dev` concluiu a parte de interface 
 - [`documentos-agrupados.ts`](../../src/modules/uploads/documentos-agrupados.ts) calcula a revisão atual pelos uploads ativos, não pelo histórico completo de revisões. A regra foi isolada e coberta por [`documentos-agrupados-utils.test.ts`](../../src/modules/uploads/documentos-agrupados-utils.test.ts).
 - O renomear de um documento com múltiplas extensões agora preserva a extensão de cada `Upload` (PDF permanece PDF e DWG permanece DWG). A regra está coberta em [`documento.test.ts`](../../src/modules/uploads/documento.test.ts).
 
-Esta entrega não inclui F2-PR6c (metadados/status/fases), F2-PR6b do plano (exigir fases), F2-PR7, F2-PR9 nem o uploader da superfície V2.
+Esta entrega não inclui F2-PR6c (metadados/status/fases), F2-PR6b do plano (exigir fases), F2-PR7 nem F2-PR9. Após a auditoria inicial, o CTA da superfície V2 foi conectado ao uploader já existente; o fluxo agrupado de múltiplas extensões de F2-PR9 continua pendente.
 
 ## Achados que exigem decisão antes de executar o merge de dados
 
@@ -107,7 +107,7 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 
 ### A-05 — alto — a ativação da V2 ainda depende de confirmar os uploads sem documento lógico
 
-`listarDocumentosAgrupados()` usa `join upload u on u."documentoId" = d.id`; por definição, uploads ativos sem `documentoId` não aparecem na tabela agrupada. A F2-PR2 possui script para reconciliá-los, porém sua execução não foi comprovada nesta auditoria porque o diagnóstico de dados falhou com `ENOMEM`.
+`listarDocumentosAgrupados()` usa `join upload u on u."documentoId" = d.id`; por definição, uploads ativos sem `documentoId` não aparecem na tabela agrupada. A F2-PR2 possui script para reconciliá-los, porém sua execução não foi comprovada nesta auditoria porque o diagnóstico de dados falhou no bootstrap de `tsx` com `ENOMEM`; a tentativa e seu escopo somente leitura estão registrados em `06-evidencia-verificacao-fase2-documentos-dev-2026-08-23.md`.
 
 **Risco:** em um ambiente que ainda tenha órfãos, a tela V2 pode omitir arquivos enquanto o explorer legado continua a exibi-los.
 
@@ -121,6 +121,7 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 | `npm test` | Passou após A-03: 225 arquivos, 2.449 testes. |
 | Testes focados da continuação | Passaram: 9 testes em `acesso` e `lixeira`; a regra nova de acesso tem três cenários unitários. |
 | Validação manual do envio V2 | Pendente: requer operar o diálogo com uma disciplina de teste e confirmar envio, aviso de revisão e atualização da tabela. |
+| `scripts/verificar-fase2-documentos.ts` | Não executado: `tsx` falhou antes de conectar ao banco com `uv_os_get_passwd` / `ENOMEM`. Evidência em `06-evidencia-verificacao-fase2-documentos-dev-2026-08-23.md`. |
 | `npx prisma migrate status` | Passou: 190 migrations encontradas; schema do banco de desenvolvimento atualizado. |
 | `npx tsc --noEmit` | Não concluído: esgotou o heap padrão do Node após 85,4 s. Não é evidência de erro de tipos. |
 | `npm run build` | Não executado: havia processos Node ativos; o repositório proíbe build concorrente com `next dev` no mesmo `.next`. |
