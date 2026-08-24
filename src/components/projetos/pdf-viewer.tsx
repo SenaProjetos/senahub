@@ -603,15 +603,33 @@ export function PdfViewer(props: Props) {
 
   const pendenciaSelecionada = pinsPosicionados.find((p) => p.id === selecionadaId) ?? null;
 
+  const centralizarPin = useCallback(
+    (pendencia: PinPosicionado) => {
+      setZoom((atual) => Math.max(atual, 1.25));
+      irParaPagina(pendencia.pagina);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const seletor = `[data-pendencia-id="${CSS.escape(pendencia.id)}"]`;
+          colunaRef.current?.querySelector<HTMLElement>(seletor)?.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+            inline: "center",
+          });
+        });
+      });
+    },
+    [irParaPagina],
+  );
+
   const selecionarPendencia = useCallback(
     (id: string, navegarParaPin = true) => {
       const alvo = pinsPosicionados.find((p) => p.id === id);
       if (!alvo) return;
       setSelecionadaId(id);
       setPainelDetalhesAberto(true);
-      if (navegarParaPin) irParaPagina(alvo.pagina);
+      if (navegarParaPin) centralizarPin(alvo);
     },
-    [irParaPagina, pinsPosicionados],
+    [centralizarPin, pinsPosicionados],
   );
 
   function recolherPainelTarefas() {
@@ -2583,6 +2601,7 @@ function Pagina({
               <button
                 key={p.id}
                 type="button"
+                data-pendencia-id={p.id}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
