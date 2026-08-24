@@ -95,6 +95,20 @@ export function HistoricoRevisoesDialog({ uploadId, nomeDocumento, open, onOpenC
                     <span className="text-xs text-muted-foreground tabular-nums">{formatarDataHora(r.criadoEm)}</span>
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">Enviado por {r.autor ?? "—"}</p>
+                  {(r.pendenciasCriadas > 0 || r.pendenciasResolvidas > 0) && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {r.pendenciasCriadas > 0 && (
+                        <Badge variant="outline" className="text-[10px]">
+                          {r.pendenciasCriadas === 1 ? "1 apontamento criado" : `${r.pendenciasCriadas} apontamentos criados`}
+                        </Badge>
+                      )}
+                      {r.pendenciasResolvidas > 0 && (
+                        <Badge variant="outline" className="text-[10px]">
+                          {r.pendenciasResolvidas === 1 ? "1 apontamento resolvido" : `${r.pendenciasResolvidas} apontamentos resolvidos`}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
 
                   {r.arquivos.length === 0 ? (
                     <p className="mt-2 text-xs text-muted-foreground">Nenhum arquivo nesta revisão.</p>

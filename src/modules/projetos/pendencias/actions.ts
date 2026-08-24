@@ -806,7 +806,13 @@ export const marcarPendenciaResolvidaEmRevisao = defineAction(
     revalidarViewer(p.projetoId, p.uploadId);
     revalidatePath("/tarefas");
     revalidatePath("/pendencias");
-    return { id: p.id, projetoId: p.projetoId, status: "resolvida", revisaoResolucaoId: resolucao.id };
+    return {
+      id: p.id,
+      projetoId: p.projetoId,
+      status: "resolvida",
+      revisaoResolucaoId: resolucao.id,
+      revisaoResolucaoNumero: resolucao.numero,
+    };
   },
 );
 

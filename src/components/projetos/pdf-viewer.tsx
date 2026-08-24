@@ -1146,7 +1146,14 @@ export function PdfViewer(props: Props) {
       if (r.ok) {
         setPendencias((ps) =>
           ps.map((p) =>
-            p.id === id ? { ...p, status: r.data.status, revisaoResolucaoId: r.data.revisaoResolucaoId } : p,
+            p.id === id
+              ? {
+                  ...p,
+                  status: r.data.status,
+                  revisaoResolucaoId: r.data.revisaoResolucaoId,
+                  revisaoResolucaoNumero: r.data.revisaoResolucaoNumero,
+                }
+              : p,
           ),
         );
         toast.success(`Marcada como resolvida na ${rotuloRevisao(revisionNumber)}.`);

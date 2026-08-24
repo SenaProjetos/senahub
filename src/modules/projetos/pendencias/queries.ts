@@ -110,6 +110,8 @@ export type PendenciaView = {
   tarefaItemId: string | null;
   revisaoOrigemId: string | null;
   revisaoResolucaoId: string | null;
+  revisaoOrigemNumero: number | null;
+  revisaoResolucaoNumero: number | null;
   resolvidoEm: string | null;
   fechadoEm: string | null;
   createdAt: string;
@@ -327,6 +329,8 @@ export async function pendenciasDoUpload(
     orderBy: { numero: "asc" },
     include: {
       upload: { select: { versao: true } },
+      revisaoOrigem: { select: { numero: true } },
+      revisaoResolucao: { select: { numero: true } },
       respostas: { orderBy: { createdAt: "asc" } },
       anexos: { orderBy: { createdAt: "asc" } },
     },
@@ -370,6 +374,8 @@ export async function pendenciasDoUpload(
       tarefaItemId: r.tarefaItemId,
       revisaoOrigemId: r.revisaoOrigemId,
       revisaoResolucaoId: r.revisaoResolucaoId,
+      revisaoOrigemNumero: r.revisaoOrigem?.numero ?? null,
+      revisaoResolucaoNumero: r.revisaoResolucao?.numero ?? null,
       resolvidoEm: r.resolvidoEm?.toISOString() ?? null,
       fechadoEm: r.fechadoEm?.toISOString() ?? null,
       createdAt: r.createdAt.toISOString(),

@@ -16,7 +16,7 @@ import {
   type TipoPendencia,
 } from "@/modules/projetos/pendencias/helpers";
 import { diasAtePrazo, rotuloPrazo, situacaoPrazo } from "@/modules/projetos/pendencias/prazo";
-import { formatarData, cn } from "@/lib/utils";
+import { formatarData, rotuloRevisao, cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -232,6 +232,8 @@ export function PainelTarefasDocumento({
                         <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
                           <span>Criado por {pendencia.autor}</span>
                           <span>Pág. {pendencia.pagina}</span>
+                          {pendencia.revisaoOrigemNumero != null && <span>Criada na {rotuloRevisao(pendencia.revisaoOrigemNumero)}</span>}
+                          {pendencia.revisaoResolucaoNumero != null && <span>Resolvida na {rotuloRevisao(pendencia.revisaoResolucaoNumero)}</span>}
                           {pendencia.prazo && prazo !== "sem_prazo" && <span>Prazo {formatarData(pendencia.prazo)}</span>}
                           {pendencia.tarefaId ? (
                             <span>Incluído em tarefa</span>

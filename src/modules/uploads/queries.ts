@@ -440,6 +440,8 @@ export type HistoricoRevisao = {
   autor: string | null;
   /** `true` na revisão de maior número (a lista já vem ordenada da mais recente pra mais antiga). */
   atual: boolean;
+  pendenciasCriadas: number;
+  pendenciasResolvidas: number;
   arquivos: ArquivoHistoricoRevisao[];
 };
 
@@ -477,6 +479,7 @@ export async function historicoRevisoesDocumento(uploadId: string): Promise<Hist
       numero: true,
       createdAt: true,
       createdBy: { select: { name: true } },
+      _count: { select: { pendenciasOrigem: true, pendenciasResolucao: true } },
       uploads: { select: { id: true, nomeArquivo: true, excluidoEm: true } },
     },
   });
@@ -488,6 +491,8 @@ export async function historicoRevisoesDocumento(uploadId: string): Promise<Hist
     criadoEm: r.createdAt.toISOString(),
     autor: r.createdBy?.name ?? null,
     atual: r.numero === maiorNumero,
+    pendenciasCriadas: r._count.pendenciasOrigem,
+    pendenciasResolvidas: r._count.pendenciasResolucao,
     arquivos: r.uploads.map((u) => ({
       id: u.id,
       nome: u.nomeArquivo,

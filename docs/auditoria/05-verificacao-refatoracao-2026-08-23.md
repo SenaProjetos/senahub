@@ -36,8 +36,8 @@
 | F3-PR5 — detalhe contextual de tarefa | Implementado no código; validação manual pendente | A tarefa, responsáveis e item vinculado são consultados no servidor somente após `escopoTarefa`; ausência no resultado não expõe metadados. |
 | F4-PR1 — M9 e backfill de origem | Implementado no código e no banco de desenvolvimento | M9 adiciona FKs opcionais para origem/resolução; o script idempotente vinculou 8 pendências de desenvolvimento à revisão do upload, sem preencher resolução. |
 | F4-PR2 — resolução em revisão posterior | Implementado no código; validação manual pendente | Action auditada valida o mesmo documento e revisão posterior; o card herdado passa a oferecer “resolver na Rxx”. |
+| F4-PR3 — rótulos de origem e resolução | Implementado no código; validação manual pendente | Cards mostram “Criada na Rxx” e “Resolvida na Rxx”; o histórico resume apontamentos criados/resolvidos por revisão. |
 | F4-PR4 — comparador avançado | Implementada | Percentual de opacidade e zoom/scroll sincronizados em `comparador-revisoes.tsx`. |
-| F4-PR3 | Não implementado | Ainda faltam os rótulos de origem/resolução no card e no histórico de revisões. |
 
 ## Integração da branch de refatoração
 
@@ -140,6 +140,10 @@ A action `marcarPendenciaResolvidaEmRevisao` usa `defineAction`, aplica os mesmo
 
 No visualizador, somente pendência trazida de outra revisão, com origem identificada e revisão lógica atual, substitui o botão comum por “resolver na Rxx”. O comparador já existente continua disponível no cabeçalho quando há outra revisão da mesma extensão. A interface atualiza o estado otimista com o id da revisão de resolução; não cria endpoint nem muda permissões.
 
+## Continuação — F4-PR3, rótulos de rastreabilidade
+
+`pendenciasDoUpload()` agora devolve os números das revisões de origem e resolução junto dos ids já adicionados em M9. O card do painel de tarefas mostra “Criada na Rxx” quando a origem é conhecida e “Resolvida na Rxx” após a resolução entre revisões. No histórico, cada revisão resume quantos apontamentos foram criados nela e quantos foram resolvidos nela; a consulta usa os contadores das duas relações em `DocumentoRevisao`, sem carregar pendências desnecessariamente.
+
 ## Achados que exigem decisão antes de executar o merge de dados
 
 ### A-01 — crítico — o script de merge descarta registros, contrariando o plano
@@ -217,6 +221,7 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 | Validação manual de F3-PR2/F3-PR5 | Pendente: em 1366 px, abrir o workspace, pesquisar/filtrar cards, confirmar foco por teclado, seleção única, recolher/expandir ambos os painéis sem perder a seleção, selecionar card em outra página e confirmar centralização do pin com zoom mínimo de 125%, abrir detalhes pelo pin, ausência de scroll horizontal, encaminhamento em lote e contexto de tarefa visível somente a criador/responsável. |
 | Validação manual de F4-PR1 | Pendente: em desenvolvimento, abrir uma pendência criada em revisão conhecida e confirmar no banco que `revisaoOrigemId` aponta para a mesma `DocumentoRevisao` de seu upload; confirmar `revisaoResolucaoId` nulo antes de F4-PR2. |
 | Validação manual de F4-PR2 | Pendente: criar pendência em R02, abrir R03 como responsável da disciplina, usar “resolver na R03” e confirmar `revisaoResolucaoId`; reabrir e confirmar que o vínculo volta a nulo. Repetir com R02/mesmo documento e outra disciplina para confirmar a recusa no servidor. |
+| Validação manual de F4-PR3 | Pendente: após o cenário R02 → R03, confirmar os rótulos no card e os contadores correspondentes no drawer de histórico; confirmar que linha legada sem origem não mostra rótulo inventado. |
 | `scripts/verificar-fase2-documentos.ts` | Não executado: `tsx` falhou antes de conectar ao banco com `uv_os_get_passwd` / `ENOMEM`. Evidência em `06-evidencia-verificacao-fase2-documentos-dev-2026-08-23.md`. |
 | `npx prisma migrate status` | Passou após M9: 193 migrations encontradas; schema do banco de desenvolvimento atualizado. As tentativas diretas de `migrate dev` estão documentadas acima e não houve reset. |
 | `npx prisma db:seed` | Não executado: é uma escrita no banco de desenvolvimento e M7/M8 não exigem alteração no seed (a nova coluna tem default e listas não possuem catálogo inicial). A idempotência do seed permanece pendente de uma execução deliberada. |
@@ -225,4 +230,4 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 
 ## Próximo passo seguro
 
-Não executar `--aplicar` nos scripts da Fase 2 até haver decisão registrada para A-01. Antes de ativar `NEXT_PUBLIC_DOCUMENTOS_V2`, comprovar A-05 e validar manualmente o envio V2/F2-PR6b/F2-PR6c/F2-PR7/F2-PR9. Registrar também a decisão de A-06 antes de esperar que perfis não administrativos editem metadados ou status. A Fase 3 e F4-PR1/PR2 estão implementadas no código; a Fase 3 aguarda validação manual. O próximo recorte técnico é F4-PR3, os rótulos de origem e resolução nos cards e no histórico. Depois da correção/decisão, executar `scripts/verificar-fase2-documentos.ts` em cada ambiente relevante e anexar a saída datada a esta pasta, para transformar a execução de scripts manuais em evidência auditável.
+Não executar `--aplicar` nos scripts da Fase 2 até haver decisão registrada para A-01. Antes de ativar `NEXT_PUBLIC_DOCUMENTOS_V2`, comprovar A-05 e validar manualmente o envio V2/F2-PR6b/F2-PR6c/F2-PR7/F2-PR9. Registrar também a decisão de A-06 antes de esperar que perfis não administrativos editem metadados ou status. As Fases 3 e 4 estão implementadas no código; resta a validação manual registrada nesta auditoria. Depois da correção/decisão, executar `scripts/verificar-fase2-documentos.ts` em cada ambiente relevante e anexar a saída datada a esta pasta, para transformar a execução de scripts manuais em evidência auditável.
