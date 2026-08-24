@@ -1,9 +1,8 @@
-import { Upload as UploadIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { PainelDisciplinas, type DisciplinaArvore } from "@/components/projetos/arquivos/painel-disciplinas";
 import { TabelaDocumentos } from "@/components/projetos/arquivos/tabela-documentos";
 import { FiltrosDocumentos } from "@/components/projetos/arquivos/filtros-documentos";
 import { SeletorColunas } from "@/components/projetos/arquivos/seletor-colunas";
+import { EnviarDocumentosDialog, type DadosEnviarDocumentos } from "@/components/projetos/arquivos/enviar-documentos-dialog";
 import { Pagination } from "@/components/ui/pagination";
 import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
 
@@ -33,7 +32,7 @@ export function DocumentosShell({
   totalDocumentos,
   totalDisciplinas,
   disciplinaSelecionadaId,
-  podeEnviar,
+  dadosUploader,
   podeCoordenacao,
   podeValidar,
   podeExcluir,
@@ -53,7 +52,7 @@ export function DocumentosShell({
   totalDocumentos: number;
   totalDisciplinas: number;
   disciplinaSelecionadaId: string | null;
-  podeEnviar: boolean;
+  dadosUploader: DadosEnviarDocumentos | null;
   podeCoordenacao: boolean;
   podeValidar: boolean;
   podeExcluir: boolean;
@@ -70,11 +69,7 @@ export function DocumentosShell({
             {totalDisciplinas === 1 ? "disciplina" : "disciplinas"}
           </p>
         </div>
-        {podeEnviar && (
-          <Button size="sm">
-            <UploadIcon className="size-3.5" /> Enviar documentos
-          </Button>
-        )}
+        {dadosUploader && <EnviarDocumentosDialog dados={dadosUploader} />}
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[260px_1fr] md:items-start">

@@ -1,0 +1,391 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, FolderOpen, Trash2, Upload as UploadIcon } from "lucide-react";
+import { toast } from "sonner";
+import { foraDoPadrao } from "@/modules/projetos/pranchas/codigo";
+import type { PastaFlat } from "@/modules/projetos/pastas/arvore";
+import { TAMANHO_MAX_BACKUP_LABEL, TAMANHO_MAX_LABEL, limiteDoPacote, limiteLabelDoPacote } from "@/modules/uploads/limites";
+import { detectarNovasRevisoes, mensagemNovasRevisoes, type ArquivoExistente } from "@/modules/uploads/revisao-nova";
+import { enviarArquivoComProgresso, PainelProgressoEnvio, type LinhaEnvio } from "@/components/projetos/upload-progresso";
+import { SeletorPasta } from "@/components/projetos/pasta-tree-view";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import { useDropzone } from "@/lib/use-dropzone";
+
+type PacoteEnvio = "A" | "B";
+type ItemEnvio = { file: File; nome: string; alvo: PacoteEnvio; pastaId?: string; fora: boolean };
+type LinhaEnvioComArquivo = ItemEnvio & LinhaEnvio;
+
+export type DadosEnviarDocumentos = {
+  disciplinas: { id: string; nome: string; usaPastas: boolean; pastas: PastaFlat[] }[];
+  nomenclatura: { exigir: boolean; padrao: string | null };
+  existentesPorDisciplina: Record<string, ArquivoExistente[]>;
+};
+
+/**
+ * Mesmo fluxo de upload da aba legada, na superfície V2: disciplina/pasta ou pacote,
+ * dropzone, aviso de revisão e progresso individual por arquivo. A rota continua sendo
+ * a única dona da persistência (`POST /api/uploads`).
+ */
+export function EnviarDocumentosDialog({ dados }: { dados: DadosEnviarDocumentos }) {
+  const [aberto, setAberto] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+
+  return (
+    <Dialog
+      open={aberto}
+      onOpenChange={(proximoAberto) => {
+        if (!enviando) setAberto(proximoAberto);
+      }}
+    >
+      <DialogTrigger
+        render={
+          <Button size="sm">
+            <UploadIcon className="size-3.5" /> Enviar documentos
+          </Button>
+        }
+      />
+      <DialogContent
+        className="max-h-[90svh] overflow-y-auto sm:max-w-3xl"
+        showCloseButton={!enviando}
+      >
+        <DialogHeader>
+          <DialogTitle>Enviar documentos</DialogTitle>
+          <DialogDescription>
+            Escolha a disciplina e o destino antes de selecionar ou arrastar os arquivos.
+          </DialogDescription>
+        </DialogHeader>
+        <UploaderDocumentos dados={dados} onEnviarChange={setEnviando} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function UploaderDocumentos({
+  dados,
+  onEnviarChange,
+}: {
+  dados: DadosEnviarDocumentos;
+  onEnviarChange: (enviando: boolean) => void;
+}) {
+  const router = useRouter();
+  const [disciplinaId, setDisciplinaId] = useState("");
+  const [pacote, setPacote] = useState<PacoteEnvio>("A");
+  const [pastaId, setPastaId] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [pendentes, setPendentes] = useState<ItemEnvio[] | null>(null);
+  const [progresso, setProgresso] = useState<LinhaEnvioComArquivo[] | null>(null);
+  const inputArquivos = useRef<HTMLInputElement>(null);
+  const inputPasta = useRef<HTMLInputElement>(null);
+
+  const disciplina = dados.disciplinas.find((item) => item.id === disciplinaId);
+  const usaPastas = disciplina?.usaPastas ?? false;
+  const { arrastando, dropProps } = useDropzone((files) => prepararEnvio(files), enviando);
+
+  function selecionarDisciplina(id: string) {
+    setDisciplinaId(id);
+    setPastaId("");
+  }
+
+  function prepararEnvio(lista: FileList | File[] | null) {
+    if (!disciplinaId) {
+      toast.error("Selecione a disciplina.");
+      return;
+    }
+    if (usaPastas && !pastaId) {
+      toast.error("Selecione a pasta de destino.");
+      return;
+    }
+
+    const files = lista ? Array.from(lista) : [];
+    if (files.length === 0) return;
+
+    const itens: ItemEnvio[] = [];
+    const limite = limiteDoPacote(usaPastas ? "" : pacote);
+    for (const file of files) {
+      if (file.size > limite) {
+        toast.error(`${file.name}: excede o limite de ${limiteLabelDoPacote(usaPastas ? "" : pacote)}.`);
+        continue;
+      }
+      itens.push({
+        file,
+        nome: file.name,
+        alvo: pacote,
+        ...(usaPastas ? { pastaId } : {}),
+        fora: !usaPastas && dados.nomenclatura.exigir && pacote === "A" && foraDoPadrao(file.name, dados.nomenclatura.padrao),
+      });
+    }
+    if (itens.length === 0) return;
+
+    if (itens.some((item) => item.fora)) {
+      setPendentes(itens);
+      return;
+    }
+    void enviar(itens);
+  }
+
+  async function enviar(itens: ItemEnvio[]) {
+    setPendentes(null);
+    const revisoes = detectarNovasRevisoes(
+      itens.map((item) => item.nome),
+      dados.existentesPorDisciplina[disciplinaId] ?? [],
+      usaPastas ? { pastaId } : { pacote: itens[0]?.alvo },
+    );
+    if (revisoes.length > 0) toast.info(mensagemNovasRevisoes(revisoes), { duration: 6000 });
+
+    const linhas: LinhaEnvioComArquivo[] = itens.map((item) => ({
+      ...item,
+      tamanho: item.file.size,
+      status: "pendente",
+      progresso: 0,
+    }));
+    setProgresso(linhas);
+    setEnviando(true);
+    onEnviarChange(true);
+    try {
+      let enviados = 0;
+      let realocados = 0;
+      for (let i = 0; i < linhas.length; i++) {
+        atualizarLinha(i, { status: "enviando" });
+        try {
+          const resultado = await enviarArquivoComProgresso(
+            linhas[i].file,
+            {
+              nome: linhas[i].nome,
+              disciplinaId,
+              ...(linhas[i].pastaId ? { pastaId: linhas[i].pastaId } : { pacote: linhas[i].alvo }),
+            },
+            (pct) => atualizarLinha(i, { progresso: pct }),
+          );
+          if (resultado.ok) {
+            enviados += 1;
+            if (resultado.realocado) realocados += 1;
+            atualizarLinha(i, { status: "ok", progresso: 100, realocado: resultado.realocado });
+          } else {
+            atualizarLinha(i, { status: "erro", motivo: resultado.motivo ?? "Falha ao salvar." });
+          }
+        } catch (error) {
+          atualizarLinha(i, { status: "erro", motivo: (error as Error).message });
+        }
+      }
+      if (enviados > 0) toast.success(`${enviados} arquivo(s) enviado(s).`);
+      if (realocados > 0) toast.info(`${realocados} arquivo(s) não suportado(s) foram para "Outros".`);
+      router.refresh();
+    } finally {
+      setEnviando(false);
+      onEnviarChange(false);
+      if (inputArquivos.current) inputArquivos.current.value = "";
+      if (inputPasta.current) inputPasta.current.value = "";
+    }
+  }
+
+  function atualizarLinha(indice: number, patch: Partial<LinhaEnvio>) {
+    setProgresso((atual) => {
+      if (!atual) return atual;
+      return atual.map((linha, i) => (i === indice ? { ...linha, ...patch } : linha));
+    });
+  }
+
+  return (
+    <div
+      className={cn(
+        "space-y-3 rounded-md border border-dashed p-3 transition-colors",
+        arrastando && "border-primary bg-primary/5",
+      )}
+      {...dropProps}
+    >
+      <RevisarNomesDialog
+        itens={pendentes}
+        onCancel={() => setPendentes(null)}
+        onChange={setPendentes}
+        onConfirm={() => pendentes && void enviar(pendentes)}
+      />
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={disciplinaId} onValueChange={(value) => value && selecionarDisciplina(value)}>
+          <SelectTrigger className={cn("w-52", !disciplinaId && "text-muted-foreground")}>
+            <SelectValue placeholder="Selecione a disciplina…" />
+          </SelectTrigger>
+          <SelectContent>
+            {dados.disciplinas.map((item) => (
+              <SelectItem key={item.id} value={item.id}>
+                {item.nome}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {!disciplinaId ? (
+          <Select<string> disabled>
+            <SelectTrigger className="w-44 text-muted-foreground">
+              <SelectValue placeholder="Selecione a disciplina…" />
+            </SelectTrigger>
+            <SelectContent />
+          </Select>
+        ) : usaPastas ? (
+          <SeletorPasta pastas={disciplina!.pastas} value={pastaId} onChange={setPastaId} />
+        ) : (
+          <Select value={pacote} onValueChange={(value) => value && setPacote(value as PacoteEnvio)}>
+            <SelectTrigger className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="A">Pranchas e arquivos</SelectItem>
+              <SelectItem value="B">Backup do modelo</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={enviando || !disciplinaId || (usaPastas && !pastaId)}
+          onClick={() => inputArquivos.current?.click()}
+        >
+          <UploadIcon className="size-3.5" /> Arquivos
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={enviando || !disciplinaId || (usaPastas && !pastaId)}
+          onClick={() => inputPasta.current?.click()}
+        >
+          <FolderOpen className="size-3.5" /> Pasta
+        </Button>
+
+        <input ref={inputArquivos} type="file" multiple className="hidden" onChange={(event) => prepararEnvio(event.target.files)} />
+        <input
+          ref={inputPasta}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(event) => prepararEnvio(event.target.files)}
+          {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
+        />
+      </div>
+
+      {progresso && progresso.length > 0 && (
+        <PainelProgressoEnvio
+          linhas={progresso}
+          enviando={enviando}
+          onFechar={() => setProgresso(null)}
+        />
+      )}
+
+      <p className="text-xs text-muted-foreground">
+        {usaPastas ? (
+          <>Envie arquivos soltos ou uma pasta inteira (ou arraste aqui) para a pasta escolhida. Limite por arquivo: {TAMANHO_MAX_LABEL}.</>
+        ) : (
+          <>
+            Envie arquivos soltos ou uma pasta inteira (ou arraste aqui). Vai para a disciplina escolhida. Limite por arquivo: {TAMANHO_MAX_BACKUP_LABEL} em Backup do modelo, {TAMANHO_MAX_LABEL} nos demais.
+            {dados.nomenclatura.exigir && " Nomes fora do padrão em Pranchas pedem revisão antes do envio."}
+          </>
+        )}
+      </p>
+    </div>
+  );
+}
+
+function RevisarNomesDialog({
+  itens,
+  onCancel,
+  onChange,
+  onConfirm,
+}: {
+  itens: ItemEnvio[] | null;
+  onCancel: () => void;
+  onChange: (itens: ItemEnvio[]) => void;
+  onConfirm: () => void;
+}) {
+  const foraDoPadraoCount = itens?.filter((item) => item.fora).length ?? 0;
+
+  function atualizarNome(indice: number, nome: string) {
+    if (!itens) return;
+    onChange(itens.map((item, i) => (i === indice ? { ...item, nome } : item)));
+  }
+
+  function remover(indice: number) {
+    if (!itens) return;
+    const proxima = itens.filter((_, i) => i !== indice);
+    if (proxima.length === 0) onCancel();
+    else onChange(proxima);
+  }
+
+  return (
+    <Dialog open={!!itens} onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent className="max-h-[85svh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Revisar envio</DialogTitle>
+          <DialogDescription>
+            {foraDoPadraoCount} arquivo(s) de Pranchas fora do padrão. Renomeie, remova ou envie assim.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          {itens?.map((item, indice) => {
+            const { extensao } = separarExtensao(item.file.name);
+            const nomeBase = item.nome.endsWith(extensao) ? item.nome.slice(0, item.nome.length - extensao.length) : item.nome;
+            return (
+              <div key={`${item.file.name}-${indice}`} className="flex items-start gap-2 rounded-md border p-2">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={item.file.name}>
+                      {item.file.name}
+                    </span>
+                    {item.fora && (
+                      <span className="flex shrink-0 items-center gap-1 text-xs text-warning">
+                        <AlertTriangle className="size-3" /> fora do padrão
+                      </span>
+                    )}
+                  </div>
+                  {item.fora && (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        value={nomeBase}
+                        className="flex-1 font-mono text-xs"
+                        onChange={(event) => atualizarNome(indice, event.target.value + extensao)}
+                      />
+                      {extensao && <span className="shrink-0 rounded-md border bg-muted px-1.5 py-1 font-mono text-xs text-muted-foreground">{extensao}</span>}
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                  aria-label={`Remover ${item.file.name} do envio`}
+                  title="Remover deste envio"
+                  onClick={() => remover(indice)}
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+          <Button onClick={onConfirm} disabled={!itens || itens.length === 0}>
+            Enviar {itens?.length ?? 0} arquivo(s)
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function separarExtensao(nome: string) {
+  const indice = nome.lastIndexOf(".");
+  return indice > 0 ? { base: nome.slice(0, indice), extensao: nome.slice(indice) } : { base: nome, extensao: "" };
+}

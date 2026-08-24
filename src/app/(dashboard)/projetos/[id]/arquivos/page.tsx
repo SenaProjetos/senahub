@@ -28,6 +28,7 @@ import {
 } from "@/modules/documentos-cliente/queries";
 import { podeGerirDocumento } from "@/modules/documentos-cliente/acesso";
 import { podeVerTodasDisciplinas, podeEnviarArquivo } from "@/modules/arquivos/acesso";
+import type { ArquivoExistente } from "@/modules/uploads/revisao-nova";
 import { linkArquivosDoProjeto } from "@/modules/projetos/arquivos/link-publico";
 import { listarArtsDoProjeto } from "@/modules/projetos/art/queries";
 import { ArquivosExplorer } from "@/components/projetos/arquivos-explorer";
@@ -114,6 +115,28 @@ export default async function ArquivosPage({
       total: new Set([...d.arquivos, ...d.arquivosPasta].map((arquivo) => arquivo.documentoId ?? arquivo.id)).size,
       podeEnviar: d.podeEnviar,
     }));
+    const disciplinasEnviaveis = arvore.disciplinas
+      .filter((d) => d.podeEnviar)
+      .map((d) => ({ id: d.id, nome: d.nome, usaPastas: d.usaPastas, pastas: d.pastas }));
+    const existentesPorDisciplina: Record<string, ArquivoExistente[]> = Object.fromEntries(
+      arvore.disciplinas.map((d) => [
+        d.id,
+        [
+          ...d.arquivos.map((arquivo) => ({
+            nome: arquivo.nome,
+            pacote: arquivo.pacote,
+            pastaId: null,
+            versao: arquivo.versao,
+          })),
+          ...d.arquivosPasta.map((arquivo) => ({
+            nome: arquivo.nome,
+            pacote: null,
+            pastaId: arquivo.pastaId,
+            versao: arquivo.versao,
+          })),
+        ],
+      ]),
+    );
     const totalDocumentos = disciplinasArvore.reduce((soma, d) => soma + d.total, 0);
     // Seleção do painel esquerdo: id inválido/de outro projeto cai em "todas" — a árvore já
     // veio filtrada pela muralha por disciplina, então filtrar por ela nunca amplia o escopo.
@@ -172,7 +195,11 @@ export default async function ArquivosPage({
         totalDisciplinas={disciplinasArvore.length}
         disciplinaSelecionadaId={selecionadaId}
         paginacao={{ page: pagina.pagina, pageCount: pageCount(pagina.total, lp.pageSize), pageSize: lp.pageSize }}
-        podeEnviar={podeEnviarCap}
+        dadosUploader={
+          disciplinasEnviaveis.length > 0
+            ? { disciplinas: disciplinasEnviaveis, nomenclatura, existentesPorDisciplina }
+            : null
+        }
         podeCoordenacao={podeCoordenacao}
         podeValidar={podeValidar}
         podeExcluir={podeExcluirArquivo}

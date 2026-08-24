@@ -89,15 +89,15 @@ Na versão inicialmente auditada, as ações de renomear e gerir a lixeira usava
 
 `responsavelOuVeTodas()` em `src/modules/arquivos/acesso.ts` tem cobertura unitária para os três ramos da decisão.
 
-### A-03 — alto — a nova tela não permite enviar documentos
+### A-03 — resolvido para envio — a nova tela agora reutiliza o fluxo de upload
 
-Quando a flag da nova tela está ligada, a rota retorna apenas `DocumentosShell`; o `ArquivosExplorer` legado, que contém o uploader, deixa de ser renderizado. Em `src/components/projetos/arquivos/documentos-shell.tsx`, o CTA “Enviar documentos” é um `Button` sem `href`, `onClick`, formulário ou componente de upload. A busca em todo o diretório `src/components/projetos/arquivos/` não encontrou `Uploader`, `input[type=file]` nem chamada a `POST /api/uploads`.
+Na versão inicialmente auditada, quando a flag da nova tela estava ligada a rota retornava apenas `DocumentosShell`; o `ArquivosExplorer` legado, que contém o uploader, deixava de ser renderizado. O CTA “Enviar documentos” não possuía ação.
 
-O menu por documento também não oferece “Nova revisão”. Portanto, na superfície nova não há caminho de UI para criar um documento nem uma revisão; somente operações sobre uploads já existentes.
+**Correção aplicada:** o CTA abre `enviar-documentos-dialog.tsx`, que usa a mesma rota `POST /api/uploads` e o motor compartilhado `enviarArquivoComProgresso()`. A pessoa escolhe disciplina e pacote/pasta, pode arrastar arquivos ou uma pasta inteira, acompanha o progresso individual e recebe o aviso de nova revisão já existente no fluxo legado.
 
-**Risco:** ativar `NEXT_PUBLIC_DOCUMENTOS_V2` transforma uma função central da aba Arquivos em CTA inoperante. O critério de aceite F1-PR8 (“upload [...] mostra a mesma dropzone/barra de progresso”) não está atendido pela tela que a flag expõe.
+O fluxo explícito de múltiplas extensões sob uma revisão escolhida pela pessoa continua pendente em F2-PR9; a correção aqui não cria uma rota ou regra de versionamento paralela.
 
-**Decisão necessária:** integrar o uploader unificado à nova tela antes de ativar a flag para usuários reais, incluindo o fluxo explícito de nova revisão.
+O bloqueio funcional de ativação da flag foi removido, sujeito à validação manual do envio e à comprovação de A-05.
 
 ### A-04 — resolvido no código — query agrupada podia deixar a linha sem arquivos
 
@@ -117,13 +117,14 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 
 | Verificação | Resultado |
 | --- | --- |
-| `npm run lint` | Passou após F2-PR6a e A-02. |
-| `npm test` | Passou após A-02: 225 arquivos, 2.449 testes. |
+| `npm run lint` | Passou após A-03. |
+| `npm test` | Passou após A-03: 225 arquivos, 2.449 testes. |
 | Testes focados da continuação | Passaram: 9 testes em `acesso` e `lixeira`; a regra nova de acesso tem três cenários unitários. |
+| Validação manual do envio V2 | Pendente: requer operar o diálogo com uma disciplina de teste e confirmar envio, aviso de revisão e atualização da tabela. |
 | `npx prisma migrate status` | Passou: 190 migrations encontradas; schema do banco de desenvolvimento atualizado. |
 | `npx tsc --noEmit` | Não concluído: esgotou o heap padrão do Node após 85,4 s. Não é evidência de erro de tipos. |
 | `npm run build` | Não executado: havia processos Node ativos; o repositório proíbe build concorrente com `next dev` no mesmo `.next`. |
 
 ## Próximo passo seguro
 
-Não executar `--aplicar` nos scripts da Fase 2 até haver decisão registrada para A-01. Antes de ativar `NEXT_PUBLIC_DOCUMENTOS_V2`, resolver A-03 e comprovar A-05. Depois da correção/decisão, executar `scripts/verificar-fase2-documentos.ts` em cada ambiente relevante e anexar a saída datada a esta pasta, para transformar a execução de scripts manuais em evidência auditável.
+Não executar `--aplicar` nos scripts da Fase 2 até haver decisão registrada para A-01. Antes de ativar `NEXT_PUBLIC_DOCUMENTOS_V2`, comprovar A-05 e validar manualmente o envio V2. Depois da correção/decisão, executar `scripts/verificar-fase2-documentos.ts` em cada ambiente relevante e anexar a saída datada a esta pasta, para transformar a execução de scripts manuais em evidência auditável.
