@@ -79,15 +79,15 @@ Além da divergência funcional, o JSON de execução gravado no fim do script r
 
 **Decisão necessária:** definir se as relações colidentes devem ser preservadas em histórico/alias, se o plano deve ser revisado para autorizar descarte explícito, ou se o script deve ser corrigido antes de qualquer execução em dados relevantes.
 
-### A-02 — alto — gate de lixeira não respeita o escopo de dados no servidor
+### A-02 — resolvido no código — escrita de arquivos agora respeita o escopo de dados
 
-As ações de renomear e gerir a lixeira continuam configuradas com `recurso: "projetos"` e `permissao: "ver"` em `defineAction` (`src/modules/uploads/actions.ts`, a partir da linha 443). A capacidade nova `arquivos:renomear`/`arquivos:excluir` é verificada dentro do handler (linhas 474 e 552), mas as ações de lixeira não verificam se o usuário pode acessar o projeto/disciplina do `Upload` recebido.
+Na versão inicialmente auditada, as ações de renomear e gerir a lixeira usavam `recurso: "projetos"` e `permissao: "ver"` em `defineAction`. A capacidade nova `arquivos:renomear`/`arquivos:excluir` era verificada dentro do handler, mas as ações de lixeira não verificavam se o usuário podia acessar o projeto/disciplina do `Upload` recebido.
 
-`defineAction` verifica a permissão fina, mas não aplica escopo de projeto automaticamente (`src/lib/with-action.ts`). Assim, uma pessoa que possua as duas capabilities globais pode atuar sobre um `uploadId` fora de sua carteira, caso consiga informar o identificador.
+`defineAction` verifica a permissão fina, mas não aplica escopo de projeto automaticamente (`src/lib/with-action.ts`). Naquele estado, uma pessoa que possuísse as duas capabilities globais poderia atuar sobre um `uploadId` fora de sua carteira, caso conseguisse informar o identificador.
 
-**Risco:** a correção planejada do gate hard-coded ampliou o poder de uma capability sem reproduzir a muralha de dados aplicada nas leituras.
+**Correção aplicada:** `renomearUpload`, `excluirUpload`, `excluirUploadsLote`, `restaurarUpload` e `excluirUploadDefinitivo` agora declaram o recurso `arquivos` e exigem, no servidor, `projetos:ver`, `projetoVisivel()` e a muralha `responsável ou ver_todas_disciplinas`. A exclusão em lote reproduz a muralha no `where` Prisma, portanto IDs de disciplinas alheias são ignorados. As capabilities `arquivos:renomear` e `arquivos:excluir` continuam complementares aos gates históricos; não ampliam escopo de dados.
 
-**Decisão necessária:** corrigir as actions para declarar o recurso/permissão de arquivos e aplicar, no handler, o mesmo escopo de projeto e disciplina usado nas rotas de download/listagem antes de liberar a capability.
+`responsavelOuVeTodas()` em `src/modules/arquivos/acesso.ts` tem cobertura unitária para os três ramos da decisão.
 
 ### A-03 — alto — a nova tela não permite enviar documentos
 
@@ -117,9 +117,9 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 
 | Verificação | Resultado |
 | --- | --- |
-| `npm run lint` | Passou após a continuação F2-PR6a. |
-| `npm test` | Passou após a continuação F2-PR6a: 224 arquivos, 2.446 testes. |
-| Testes focados da continuação | Passaram: 16 testes em `documento` e `documentos-agrupados-utils`. |
+| `npm run lint` | Passou após F2-PR6a e A-02. |
+| `npm test` | Passou após A-02: 225 arquivos, 2.449 testes. |
+| Testes focados da continuação | Passaram: 9 testes em `acesso` e `lixeira`; a regra nova de acesso tem três cenários unitários. |
 | `npx prisma migrate status` | Passou: 190 migrations encontradas; schema do banco de desenvolvimento atualizado. |
 | `npx tsc --noEmit` | Não concluído: esgotou o heap padrão do Node após 85,4 s. Não é evidência de erro de tipos. |
 | `npm run build` | Não executado: havia processos Node ativos; o repositório proíbe build concorrente com `next dev` no mesmo `.next`. |

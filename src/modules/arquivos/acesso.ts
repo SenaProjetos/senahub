@@ -33,3 +33,12 @@ export async function podeVerTodasDisciplinas(
   if (acessoGlobal(user)) return true;
   return can(user, "arquivos", "ver_todas_disciplinas");
 }
+
+/** A muralha por disciplina: sem visão ampla, a pessoa só alcança sua própria disciplina. */
+export function responsavelOuVeTodas(
+  userId: string,
+  veTodas: boolean,
+  responsaveis: readonly { userId: string }[],
+): boolean {
+  return veTodas || responsaveis.some((responsavel) => responsavel.userId === userId);
+}

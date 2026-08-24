@@ -18,7 +18,7 @@ import { liberarPagamentosProjetista } from "@/modules/uploads/pagamento";
 import { bloqueioValorDisciplina } from "@/modules/uploads/rateio";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { projetoVisivel } from "@/modules/planejamento/queries";
-import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
+import { podeVerTodasDisciplinas, responsavelOuVeTodas } from "@/modules/arquivos/acesso";
 import { STATUS_ABERTOS } from "@/modules/projetos/pendencias/helpers";
 import { historicoRevisoesDocumento } from "@/modules/uploads/queries";
 
@@ -439,7 +439,7 @@ export const renomearUpload = defineAction(
   {
     modulo: "uploads",
     acao: "renomear-arquivo",
-    recurso: "projetos",
+    recurso: "arquivos",
     permissao: "ver",
     entidade: "Upload",
     schema: renomearSchema,
@@ -461,6 +461,7 @@ export const renomearUpload = defineAction(
       },
     });
     if (!up) throw new ActionError("Arquivo não encontrado.");
+    await exigirEscopoArquivo(user, up.disciplina);
 
     // Global/responsável continuam valendo como sempre; `arquivos:renomear` é uma porta a
     // MAIS, agora visível na tela de Permissões (antes a regra só existia aqui no código).
@@ -553,6 +554,41 @@ async function exigirPermissaoLixeira(user: SessionUser) {
 }
 
 /**
+ * Muralha de escrita de arquivos: além da capability da ação, exige que a pessoa veja o
+ * projeto e a disciplina do Upload. Não usar `podeVerTudo` aqui: só o escopo de leitura
+ * estabelecido para arquivos pode autorizar uma mutação.
+ */
+async function exigirEscopoArquivo(
+  user: SessionUser,
+  disciplina: { projetoId: string; responsaveis: { userId: string }[] },
+) {
+  const [podeVerProjeto, projeto, veTodas] = await Promise.all([
+    can(user, "projetos", "ver"),
+    projetoVisivel(user, disciplina.projetoId),
+    podeVerTodasDisciplinas(user),
+  ]);
+  if (!podeVerProjeto) throw new ActionError("Sem permissão para gerir arquivos.");
+
+  const naoEncontrado = new ActionError("Arquivo não encontrado.");
+  if (!projeto) throw naoEncontrado;
+  if (!responsavelOuVeTodas(user.id, veTodas, disciplina.responsaveis)) {
+    throw naoEncontrado;
+  }
+}
+
+/** Retorna se a pessoa enxerga todas as disciplinas do projeto para operações em lote. */
+async function exigirEscopoProjetoArquivos(user: SessionUser, projetoId: string) {
+  const [podeVerProjeto, projeto, veTodas] = await Promise.all([
+    can(user, "projetos", "ver"),
+    projetoVisivel(user, projetoId),
+    podeVerTodasDisciplinas(user),
+  ]);
+  if (!podeVerProjeto) throw new ActionError("Sem permissão para gerir arquivos.");
+  if (!projeto) throw new ActionError("Projeto não encontrado.");
+  return veTodas;
+}
+
+/**
  * Manda um arquivo (Upload) para a LIXEIRA do projeto (soft delete). RESTRITO A ADMIN,
  * override total (mesmo entregas já validadas). Não apaga nada do disco — o arquivo some
  * das listagens/downloads (filtro `excluidoEm` em lib/prisma.ts + leituras aninhadas) e
@@ -563,7 +599,7 @@ export const excluirUpload = defineAction(
   {
     modulo: "uploads",
     acao: "excluir-arquivo",
-    recurso: "projetos",
+    recurso: "arquivos",
     permissao: "ver",
     entidade: "Upload",
     schema: excluirSchema,
@@ -583,10 +619,11 @@ export const excluirUpload = defineAction(
         nomeArquivo: true,
         excluidoEm: true,
         disciplinaId: true,
-        disciplina: { select: { projetoId: true } },
+        disciplina: { select: { projetoId: true, responsaveis: { select: { userId: true } } } },
       },
     });
     if (!upload) throw new ActionError("Arquivo não encontrado.");
+    await exigirEscopoArquivo(user, upload.disciplina);
     if (upload.excluidoEm) throw new ActionError("Arquivo já está na lixeira.");
 
     await prisma.upload.update({
@@ -617,7 +654,7 @@ export const excluirUploadsLote = defineAction(
   {
     modulo: "uploads",
     acao: "excluir-arquivos-lote",
-    recurso: "projetos",
+    recurso: "arquivos",
     permissao: "ver",
     entidade: "Upload",
     schema: excluirLoteSchema,
@@ -625,12 +662,16 @@ export const excluirUploadsLote = defineAction(
   },
   async (input, { user }) => {
     await exigirPermissaoLixeira(user);
+    const veTodas = await exigirEscopoProjetoArquivos(user, input.projetoId);
     // Só arquivos DESTE projeto e ainda fora da lixeira (escopo + idempotência).
     const uploads = await prisma.upload.findMany({
       where: {
         id: { in: input.uploadIds },
         excluidoEm: null,
-        disciplina: { projetoId: input.projetoId },
+        disciplina: {
+          projetoId: input.projetoId,
+          ...(veTodas ? {} : { responsaveis: { some: { userId: user.id } } }),
+        },
       },
       select: { id: true },
     });
@@ -656,7 +697,7 @@ export const restaurarUpload = defineAction(
   {
     modulo: "uploads",
     acao: "restaurar-arquivo",
-    recurso: "projetos",
+    recurso: "arquivos",
     permissao: "ver",
     entidade: "Upload",
     schema: excluirSchema,
@@ -676,10 +717,11 @@ export const restaurarUpload = defineAction(
         nomeArquivo: true,
         excluidoEm: true,
         disciplinaId: true,
-        disciplina: { select: { projetoId: true } },
+        disciplina: { select: { projetoId: true, responsaveis: { select: { userId: true } } } },
       },
     });
     if (!upload) throw new ActionError("Arquivo não encontrado.");
+    await exigirEscopoArquivo(user, upload.disciplina);
     if (!upload.excluidoEm) throw new ActionError("Este arquivo não está na lixeira.");
 
     await prisma.upload.update({
@@ -704,7 +746,7 @@ export const excluirUploadDefinitivo = defineAction(
   {
     modulo: "uploads",
     acao: "excluir-arquivo-definitivo",
-    recurso: "projetos",
+    recurso: "arquivos",
     permissao: "ver",
     entidade: "Upload",
     schema: excluirSchema,
@@ -725,11 +767,12 @@ export const excluirUploadDefinitivo = defineAction(
         caminho: true,
         excluidoEm: true,
         disciplinaId: true,
-        disciplina: { select: { projetoId: true } },
+        disciplina: { select: { projetoId: true, responsaveis: { select: { userId: true } } } },
         conversao: { select: { caminhoFrag: true } },
       },
     });
     if (!upload) throw new ActionError("Arquivo não encontrado.");
+    await exigirEscopoArquivo(user, upload.disciplina);
     if (!upload.excluidoEm) {
       throw new ActionError("Só é possível excluir em definitivo arquivos que estão na lixeira.");
     }
