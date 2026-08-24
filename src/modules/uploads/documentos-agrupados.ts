@@ -56,6 +56,7 @@ export type FiltrosDoc = {
   validado?: string;
   fase?: string;
   status?: string;
+  listaId?: string | null;
 };
 
 export type ArquivoDaLinha = {
@@ -148,6 +149,13 @@ export async function listarDocumentosAgrupados(opts: {
       and ($10::text is null or d."faseId" = $10)
       and ($11::boolean is null or (u.validado = true and u."pastaId" is null))
       and ($12::boolean is null or (u.validado = false and u."pastaId" is null))
+      and ($13::text is null or exists (
+            select 1
+            from lista_documento_item ldi
+            join lista_documentos ld on ld.id = ldi."listaId"
+            where ldi."documentoId" = d.id
+              and ldi."listaId" = $13
+              and ld."projetoId" = $1))
     group by d.id
   `;
   const params = [
@@ -163,6 +171,7 @@ export async function listarDocumentosAgrupados(opts: {
     filtros.fase ?? null,
     validadoSim,
     validadoNao,
+    filtros.listaId ?? null,
   ];
 
   const totalRows = await prisma.$queryRawUnsafe<{ n: bigint }[]>(

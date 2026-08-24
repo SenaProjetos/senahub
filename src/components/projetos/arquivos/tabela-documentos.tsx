@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { BarraSelecaoDocumentos } from "@/components/projetos/arquivos/barra-selecao-documentos";
+import type { ListaPainel } from "@/components/projetos/arquivos/painel-listas";
 import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { BadgeExtensao } from "@/components/projetos/arquivos/badge-extensao";
 import { MenuDocumento } from "@/components/projetos/arquivos/menu-documento";
@@ -76,11 +77,15 @@ export function TabelaDocumentos({
   projetoId,
   linhas,
   filtradaPorDisciplina,
+  filtradaPorLista,
   temFiltroAtivo,
   podeCoordenacao,
   podeValidar,
   podeExcluir,
   podeSolicitarExclusao,
+  podeGerirListas,
+  listas,
+  listaSelecionadaId,
   fases,
   status,
   colunas,
@@ -88,11 +93,15 @@ export function TabelaDocumentos({
   projetoId: string;
   linhas: LinhaDoc[];
   filtradaPorDisciplina: boolean;
+  filtradaPorLista: boolean;
   temFiltroAtivo: boolean;
   podeCoordenacao: boolean;
   podeValidar: boolean;
   podeExcluir: boolean;
   podeSolicitarExclusao: boolean;
+  podeGerirListas: boolean;
+  listas: ListaPainel[];
+  listaSelecionadaId: string | null;
   fases: OpcaoFaseDocumento[];
   status: OpcaoStatusDocumento[];
   /** Ids das colunas que o usuário escolheu ver (resolvido no servidor). */
@@ -147,6 +156,11 @@ export function TabelaDocumentos({
             title: "Nenhum documento nesta disciplina",
             description: "Selecione outra disciplina no painel ao lado ou envie o primeiro arquivo.",
           }
+        : filtradaPorLista
+          ? {
+              title: "Nenhum documento nesta lista",
+              description: "Selecione outra lista no painel ao lado ou adicione documentos a esta lista.",
+            }
         : {
             title: "Nenhum documento neste projeto",
             description: "Envie o primeiro arquivo para começar.",
@@ -293,10 +307,14 @@ export function TabelaDocumentos({
       <BarraSelecaoDocumentos
         projetoId={projetoId}
         selecionados={selecionados}
+        documentoIds={documentosSelecionados.map((documento) => documento.id)}
         totalDocumentosSelecionados={documentosSelecionados.length}
         totalValidaveis={validaveis}
         podeValidar={podeValidar}
         podeExcluir={podeExcluir}
+        podeGerirListas={podeGerirListas}
+        listas={listas}
+        listaSelecionadaId={listaSelecionadaId}
         onLimpar={() => setSelecao(new Set())}
       />
     </div>

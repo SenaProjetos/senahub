@@ -65,7 +65,7 @@ export function PainelDisciplinas({
         <li>
           <button
             type="button"
-            onClick={() => setParams({ disciplinaId: null })}
+            onClick={() => setParams({ disciplinaId: null, listaId: null })}
             className={cn(
               "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-xs font-semibold transition-colors",
               selecionadaId === null ? "bg-accent text-foreground" : "text-foreground hover:bg-accent/60",
@@ -80,7 +80,7 @@ export function PainelDisciplinas({
           <li key={d.id}>
             <button
               type="button"
-              onClick={() => setParams({ disciplinaId: d.id })}
+              onClick={() => setParams({ disciplinaId: d.id, listaId: null })}
               title={STATUS_LABEL[d.status]}
               className={cn(
                 "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors",

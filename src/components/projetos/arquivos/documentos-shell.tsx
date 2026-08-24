@@ -1,4 +1,6 @@
-import { PainelDisciplinas, type DisciplinaArvore } from "@/components/projetos/arquivos/painel-disciplinas";
+import { type DisciplinaArvore } from "@/components/projetos/arquivos/painel-disciplinas";
+import { PainelNavegacaoDocumentos } from "@/components/projetos/arquivos/painel-navegacao-documentos";
+import type { ListaPainel } from "@/components/projetos/arquivos/painel-listas";
 import { TabelaDocumentos } from "@/components/projetos/arquivos/tabela-documentos";
 import { FiltrosDocumentos } from "@/components/projetos/arquivos/filtros-documentos";
 import { SeletorColunas } from "@/components/projetos/arquivos/seletor-colunas";
@@ -34,6 +36,9 @@ export function DocumentosShell({
   totalDocumentos,
   totalDisciplinas,
   disciplinaSelecionadaId,
+  listas,
+  listaSelecionadaId,
+  podeGerirListas,
   dadosUploader,
   fases,
   status,
@@ -56,6 +61,9 @@ export function DocumentosShell({
   totalDocumentos: number;
   totalDisciplinas: number;
   disciplinaSelecionadaId: string | null;
+  listas: ListaPainel[];
+  listaSelecionadaId: string | null;
+  podeGerirListas: boolean;
   dadosUploader: DadosEnviarDocumentos | null;
   fases: OpcaoFaseDocumento[];
   status: OpcaoStatusDocumento[];
@@ -80,10 +88,14 @@ export function DocumentosShell({
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[260px_1fr] md:items-start">
         <aside className="rounded-md border border-border bg-card md:sticky md:top-20">
-          <PainelDisciplinas
+          <PainelNavegacaoDocumentos
+            projetoId={projeto.id}
             disciplinas={disciplinas}
             totalGeral={totalDocumentos}
-            selecionadaId={disciplinaSelecionadaId}
+            disciplinaSelecionadaId={disciplinaSelecionadaId}
+            listas={listas}
+            listaSelecionadaId={listaSelecionadaId}
+            podeGerirListas={podeGerirListas}
           />
         </aside>
 
@@ -97,11 +109,15 @@ export function DocumentosShell({
             projetoId={projeto.id}
             linhas={linhas}
             filtradaPorDisciplina={disciplinaSelecionadaId !== null}
+            filtradaPorLista={listaSelecionadaId !== null}
             temFiltroAtivo={temFiltroAtivo}
             podeCoordenacao={podeCoordenacao}
             podeValidar={podeValidar}
             podeExcluir={podeExcluir}
             podeSolicitarExclusao={podeSolicitarExclusao}
+            podeGerirListas={podeGerirListas}
+            listas={listas}
+            listaSelecionadaId={listaSelecionadaId}
             fases={fases}
             status={status}
             colunas={colunas}

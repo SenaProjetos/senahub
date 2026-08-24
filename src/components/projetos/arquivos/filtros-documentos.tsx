@@ -49,7 +49,8 @@ const VALIDADO_LABEL: Record<string, string> = {
  * estados divergentes na mesma tela.
  *
  * A fase usa um seletor horizontal próprio (mais útil para navegar por etapas), enquanto o
- * status documental fica no drawer junto dos filtros detalhados. Listas continuam fora até F2-PR7.
+ * status documental fica no drawer junto dos filtros detalhados. A lista é escolhida no painel
+ * esquerdo, pois é uma navegação compartilhada, não um filtro detalhado concorrente.
  */
 export function FiltrosDocumentos({
   extensoes,

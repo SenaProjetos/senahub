@@ -52,9 +52,9 @@ type Formulario = "renomear" | "ajuste" | "solicitar-exclusao" | null;
  * Menu "..." por linha da tabela de documentos (F1-PR5, item 10 da spec).
  *
  * Só reúne ações que JÁ existem como Server Action/rota — nada novo é implementado aqui.
- * As ações da spec que dependem de schema novo ("Alterar status", "Adicionar a lista")
- * chegam numa onda futura e por isso NÃO aparecem nem desabilitadas: item invisível é
- * mais honesto que item morto. "Histórico de revisões" (painel próprio) já chegou — F2-PR8.
+ * A inclusão em lista é uma ação em lote da tabela, para operar mais de um documento de uma
+ * vez; este menu continua concentrado nas ações próprias do Upload selecionado. "Histórico
+ * de revisões" (painel próprio) já chegou — F2-PR8.
  *
  * Permissões: cada item é escondido quando o usuário não pode executá-lo (requisito do
  * prompt da Fase 1). Os gates aqui são só de UI — o gate real continua no `defineAction`

@@ -1,43 +1,71 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Download, ShieldCheck, Trash2, X } from "lucide-react";
+import { Download, ListMinus, ListPlus, ShieldCheck, Trash2, X } from "lucide-react";
 import { validarArquivosLote, excluirUploadsLote } from "@/modules/uploads/actions";
+import { adicionarDocumentoLista, removerDocumentoLista } from "@/modules/uploads/listas";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+type ListaDisponivel = { id: string; nome: string };
 
 /**
  * Barra de ações em lote (F1-PR6, item 11 da spec) — aparece só quando há seleção.
  *
- * Fase 1 expõe as três ações em lote que JÁ existem no backend: baixar (.zip),
- * validar (`validarArquivosLote`) e excluir (`excluirUploadsLote`). As demais da spec
- * (alterar disciplina/fase/status/responsável, adicionar/remover de lista) dependem de
- * schema que só chega na Fase 2 — não aparecem aqui nem desabilitadas.
+ * Baixar (.zip), validar e excluir operam os Uploads da revisão vigente. Desde F2-PR7,
+ * adicionar/remover lista opera o DocumentoDisciplina selecionado, sem duplicar arquivo.
  */
 export function BarraSelecaoDocumentos({
   projetoId,
   selecionados,
+  documentoIds,
   totalDocumentosSelecionados,
   totalValidaveis,
   podeValidar,
   podeExcluir,
+  podeGerirListas,
+  listas,
+  listaSelecionadaId,
   onLimpar,
 }: {
   projetoId: string;
   selecionados: string[];
+  documentoIds: string[];
   /** Quando a tabela agrupa arquivos, separa documentos selecionados de arquivos afetados. */
   totalDocumentosSelecionados?: number;
   /** Quantos dos selecionados ainda podem ser validados (pacote, ainda não validados). */
   totalValidaveis: number;
   podeValidar: boolean;
   podeExcluir: boolean;
+  /** Espelho visual do gate das Actions; o servidor continua validando o escopo. */
+  podeGerirListas: boolean;
+  listas: ListaDisponivel[];
+  listaSelecionadaId: string | null;
   onLimpar: () => void;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [pendente, start] = useTransition();
+  const [dialogoListaAberto, setDialogoListaAberto] = useState(false);
+  const [listaDestinoId, setListaDestinoId] = useState<string | null>(null);
 
   if (selecionados.length === 0) return null;
 
@@ -88,6 +116,59 @@ export function BarraSelecaoDocumentos({
     });
   }
 
+  function adicionarNaLista() {
+    if (!listaDestinoId) return;
+    start(async () => {
+      const resultados = await Promise.all(
+        documentoIds.map((documentoId) => adicionarDocumentoLista({ listaId: listaDestinoId, documentoId })),
+      );
+      const concluidos = resultados.filter((resultado) => resultado.ok).length;
+      const falhou = resultados.find((resultado) => !resultado.ok);
+      if (concluidos === 0) {
+        toast.error(falhou?.error ?? "Não foi possível adicionar os documentos à lista.");
+        return;
+      }
+      if (concluidos < documentoIds.length) {
+        toast.warning(`${concluidos} documento(s) adicionado(s); alguns não puderam ser incluídos.`);
+      } else {
+        toast.success(concluidos === 1 ? "Documento adicionado à lista." : "Documentos adicionados à lista.");
+      }
+      setDialogoListaAberto(false);
+      setListaDestinoId(null);
+      onLimpar();
+      router.refresh();
+    });
+  }
+
+  async function removerDaLista() {
+    if (!listaSelecionadaId) return;
+    const ok = await confirm({
+      title: totalDocumentos === 1 ? "Remover 1 documento desta lista?" : `Remover ${totalDocumentos} documentos desta lista?`,
+      description: "Os documentos continuam no projeto; apenas os vínculos desta lista serão removidos.",
+      confirmLabel: "Remover da lista",
+      variant: "destructive",
+    });
+    if (!ok) return;
+    start(async () => {
+      const resultados = await Promise.all(
+        documentoIds.map((documentoId) => removerDocumentoLista({ listaId: listaSelecionadaId, documentoId })),
+      );
+      const concluidos = resultados.filter((resultado) => resultado.ok).length;
+      const falhou = resultados.find((resultado) => !resultado.ok);
+      if (concluidos === 0) {
+        toast.error(falhou?.error ?? "Não foi possível remover os documentos da lista.");
+        return;
+      }
+      if (concluidos < documentoIds.length) {
+        toast.warning(`${concluidos} documento(s) removido(s); alguns não puderam ser alterados.`);
+      } else {
+        toast.success(concluidos === 1 ? "Documento removido da lista." : "Documentos removidos da lista.");
+      }
+      onLimpar();
+      router.refresh();
+    });
+  }
+
   return (
     <div
       role="region"
@@ -109,10 +190,56 @@ export function BarraSelecaoDocumentos({
             <Trash2 className="size-3.5" /> Excluir
           </Button>
         )}
+        {podeGerirListas && listas.length > 0 && (
+          <Button size="sm" variant="outline" onClick={() => setDialogoListaAberto(true)} disabled={pendente}>
+            <ListPlus className="size-3.5" /> Adicionar à lista
+          </Button>
+        )}
+        {podeGerirListas && listaSelecionadaId && (
+          <Button size="sm" variant="outline" onClick={() => void removerDaLista()} disabled={pendente}>
+            <ListMinus className="size-3.5" /> Remover da lista
+          </Button>
+        )}
         <Button size="sm" variant="ghost" onClick={onLimpar} aria-label="Limpar seleção">
           <X className="size-3.5" />
         </Button>
       </div>
+
+      <Dialog
+        open={dialogoListaAberto}
+        onOpenChange={(aberto) => {
+          setDialogoListaAberto(aberto);
+          if (!aberto) setListaDestinoId(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Adicionar à lista</DialogTitle>
+            <DialogDescription>
+              {totalDocumentos === 1 ? "O documento selecionado" : `${totalDocumentos} documentos selecionados`} continuará no projeto e será incluído na lista escolhida.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="lista-destino">Lista</Label>
+            <Select value={listaDestinoId} onValueChange={setListaDestinoId}>
+              <SelectTrigger id="lista-destino" className="w-full">
+                <SelectValue placeholder="Selecione uma lista…" />
+              </SelectTrigger>
+              <SelectContent>
+                {listas.map((lista) => (
+                  <SelectItem key={lista.id} value={lista.id}>{lista.nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogoListaAberto(false)} disabled={pendente}>Cancelar</Button>
+            <Button onClick={adicionarNaLista} disabled={pendente || !listaDestinoId}>
+              {pendente ? "Adicionando…" : "Adicionar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

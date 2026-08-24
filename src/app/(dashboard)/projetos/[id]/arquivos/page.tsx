@@ -35,6 +35,7 @@ import { linkArquivosDoProjeto } from "@/modules/projetos/arquivos/link-publico"
 import { listarArtsDoProjeto } from "@/modules/projetos/art/queries";
 import { ArquivosExplorer } from "@/components/projetos/arquivos-explorer";
 import { DocumentosShell } from "@/components/projetos/arquivos/documentos-shell";
+import { listarListasDocumentos, podeGerirListasDocumentos } from "@/modules/uploads/listas-queries";
 
 export const metadata: Metadata = { title: "Arquivos" };
 
@@ -46,6 +47,7 @@ export default async function ArquivosPage({
   searchParams: Promise<{
     docsv2?: string;
     disciplinaId?: string;
+    listaId?: string;
     q?: string;
     ext?: string;
     autor?: string;
@@ -106,11 +108,13 @@ export default async function ArquivosPage({
   if (documentosV2) {
     // Badge IFC abre a aba Coordenação (viewer BIM): sem a permissão, o badge vira download.
     // `arquivos:excluir` espelha na UI o gate da action (admin OU capability concedida).
-    const [podeCoordenacao, podeExcluirCap, podeEditarMetadados, podeAlterarStatus] = await Promise.all([
+    const [podeCoordenacao, podeExcluirCap, podeEditarMetadados, podeAlterarStatus, listas, podeGerirListas] = await Promise.all([
       can(user, "coordenacao", "ver"),
       can(user, "arquivos", "excluir"),
       can(user, "arquivos", "editar_metadados"),
       can(user, "arquivos", "alterar_status"),
+      listarListasDocumentos({ projetoId: id, userId: user.id, veTodas }),
+      podeGerirListasDocumentos(user, id),
     ]);
     const podeExcluirArquivo = ehAdmin || podeExcluirCap;
     const disciplinasArvore = arvore.disciplinas.map((d) => ({
@@ -149,10 +153,12 @@ export default async function ArquivosPage({
     // veio filtrada pela muralha por disciplina, então filtrar por ela nunca amplia o escopo.
     const selecionadaId =
       sp?.disciplinaId && disciplinasArvore.some((d) => d.id === sp.disciplinaId) ? sp.disciplinaId : null;
+    const listaSelecionadaId = sp?.listaId && listas.some((lista) => lista.id === sp.listaId) ? sp.listaId : null;
     // Filtro, ordenação e recorte acontecem no Postgres (F1-PR10): projeto com milhares de
     // arquivos não pode trafegar inteiro até o client a cada carga da tela.
     const filtros = {
       disciplinaId: selecionadaId,
+      listaId: listaSelecionadaId,
       q: sp?.q,
       ext: sp?.ext,
       autor: sp?.autor,
@@ -206,6 +212,9 @@ export default async function ArquivosPage({
         totalFiltrado={pagina.total}
         totalDisciplinas={disciplinasArvore.length}
         disciplinaSelecionadaId={selecionadaId}
+        listas={listas}
+        listaSelecionadaId={listaSelecionadaId}
+        podeGerirListas={podeGerirListas}
         paginacao={{ page: pagina.pagina, pageCount: pageCount(pagina.total, lp.pageSize), pageSize: lp.pageSize }}
         dadosUploader={
           disciplinasEnviaveis.length > 0

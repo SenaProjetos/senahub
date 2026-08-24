@@ -254,6 +254,7 @@ model User {
   apontamentosPadrao            ApontamentoPadrao[]         @relation("ApontamentoPadraoAutor")
   referenciasPendencia          ReferenciaPendencia[]       @relation("ReferenciaAutor")
   leiturasDocumento             LeituraDocumento[]          @relation("LeituraDocumentoUsuario")
+  listasDocumentosCriadas       ListaDocumentos[]           @relation("ListaDocumentosCriador")
   calculosFerramenta            CalculoFerramenta[]
   aceitesTermo                  AceiteTermo[]
   ativosResponsavel             Ativo[]                     @relation("AtivoResponsavel")
@@ -1186,6 +1187,7 @@ model Projeto {
   lmConfig                LmConfig?
   pranchaCatalogos        PranchaCatalogo[]
   nomenclaturaConfig      NomenclaturaConfig?
+  listasDocumentos        ListaDocumentos[]
   linhasBase              LinhaBase[]
   planejamentos           PlanejamentoPagamento[]
   checklist               ChecklistItemProjeto[]
@@ -5120,6 +5122,7 @@ model DocumentoDisciplina {
   pendencias  Pendencia[]
   calibracoes CalibracaoPrancha[]
   leituras    LeituraDocumento[]
+  listas      ListaDocumentoItem[]
 
   @@unique([disciplinaId, chave])
   @@index([disciplinaId])
@@ -5127,6 +5130,38 @@ model DocumentoDisciplina {
   @@index([faseId])
   @@index([statusId])
   @@map("documento_disciplina")
+}
+
+/// Coleção lógica compartilhada de documentos de um projeto (ex.: "Entrega 03").
+/// Não duplica Upload nem altera a árvore física: os itens só apontam para o Documento lógico.
+model ListaDocumentos {
+  id          String   @id @default(cuid())
+  nome        String
+  projetoId   String
+  projeto     Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  criadoPorId String
+  criadoPor   User     @relation("ListaDocumentosCriador", fields: [criadoPorId], references: [id])
+  createdAt   DateTime @default(now())
+
+  itens ListaDocumentoItem[]
+
+  @@index([projetoId])
+  @@index([criadoPorId])
+  @@map("lista_documentos")
+}
+
+/// Vínculo N:N entre uma ListaDocumentos e um DocumentoDisciplina.
+model ListaDocumentoItem {
+  id          String              @id @default(cuid())
+  listaId     String
+  lista       ListaDocumentos     @relation(fields: [listaId], references: [id], onDelete: Cascade)
+  documentoId String
+  documento   DocumentoDisciplina @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  adicionadoEm DateTime           @default(now())
+
+  @@unique([listaId, documentoId])
+  @@index([documentoId])
+  @@map("lista_documento_item")
 }
 
 /// Revisão de um documento: o nível que faltava entre o documento lógico e o arquivo.
