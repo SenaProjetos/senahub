@@ -3,7 +3,7 @@
 **Data inicial:** 2026-08-23
 **Atualizado em:** 2026-08-24
 **Escopo:** confronto entre `01-arquitetura-atual.md`, `02-matriz-gap.md`, `03-plano-refatoracao.md`, o código atual e o banco de desenvolvimento configurado neste repositório.
-**Método:** a auditoria inicial usou somente leitura do código, Git, migrations e validações automatizadas. A continuação registrada neste arquivo implementa F2-PR6a, F2-PR6c, F2-PR6b, F2-PR7, F2-PR9, F3-PR1 e a correção A-03. As únicas alterações no banco de desenvolvimento foram as migrations aditivas M8 e M7, registradas abaixo; nenhum script de reconciliação, backfill ou merge de dados foi executado.
+**Método:** a auditoria inicial usou somente leitura do código, Git, migrations e validações automatizadas. A continuação registrada neste arquivo implementa F2-PR6a, F2-PR6c, F2-PR6b, F2-PR7, F2-PR9, F3-PR1 a F3-PR5, F4-PR1 e a correção A-03. No banco de desenvolvimento foram aplicadas as migrations aditivas M8, M7 e M9; o único backfill executado foi o de M9, descrito abaixo. Nenhum script de reconciliação ou merge de dados foi executado.
 
 ## Limites de evidência
 
@@ -34,8 +34,9 @@
 | F3-PR3 — workspace de três painéis recolhíveis | Implementado no código; validação manual pendente | `PdfViewer` monta tarefas, prancha e detalhes em uma única área flexível; os painéis laterais preservam a seleção ao recolher. |
 | F3-PR4 — sincronização card ↔ pin | Implementado no código; validação manual pendente | Selecionar um card centraliza o pin no canvas e eleva o zoom ao mínimo de 125%; selecionar o pin abre o detalhe. |
 | F3-PR5 — detalhe contextual de tarefa | Implementado no código; validação manual pendente | A tarefa, responsáveis e item vinculado são consultados no servidor somente após `escopoTarefa`; ausência no resultado não expõe metadados. |
+| F4-PR1 — M9 e backfill de origem | Implementado no código e no banco de desenvolvimento | M9 adiciona FKs opcionais para origem/resolução; o script idempotente vinculou 8 pendências de desenvolvimento à revisão do upload, sem preencher resolução. |
 | F4-PR4 — comparador avançado | Implementada | Percentual de opacidade e zoom/scroll sincronizados em `comparador-revisoes.tsx`. |
-| F4-PR1 a F4-PR3 | Não implementado | Ainda faltam relações `revisaoOrigemId`/`revisaoResolucaoId` e UI de resolução entre revisões. |
+| F4-PR2 a F4-PR3 | Não implementado | Ainda falta a action/UI de resolução em nova revisão e os rótulos de origem/resolução no card e histórico. |
 
 ## Integração da branch de refatoração
 
@@ -124,6 +125,14 @@ Quando a pendência selecionada possui contexto autorizado, o painel direito mos
 
 Esta etapa não altera schema, migration, endpoint ou permissões. A validação manual deve usar dois perfis: criador/responsável da tarefa deve ver o contexto e um membro do projeto que não seja criador nem responsável deve continuar vendo apenas a pendência, sem título, responsáveis ou item da tarefa.
 
+## Continuação — F4-PR1, M9 e backfill de origem
+
+M9 acrescenta a `Pendencia` as colunas opcionais `revisaoOrigemId` e `revisaoResolucaoId`, com FKs `ON DELETE SET NULL` para `DocumentoRevisao` e índices próprios. A nulidade preserva qualquer linha legada cujo upload ainda não tenha revisão identificável. A revisão de resolução fica nula por desenho: não há evidência para declarar uma correção histórica como resolvida entre revisões.
+
+`npx prisma migrate dev --name pendencia_revisao` identificou o drift histórico já conhecido e pediu reset; ele não foi aceito. No banco de desenvolvimento, `npx prisma db push` aplicou o schema aditivo, o SQL mínimo de M9 foi revisado em `prisma/migrations/20260824090000_pendencia_revisao/migration.sql` e `npx prisma migrate resolve --applied 20260824090000_pendencia_revisao` registrou a migration. `npm run db:generate` regenerou o cliente Prisma.
+
+O script idempotente `scripts/backfill-pendencia-revisao-origem.ts` primeiro rodou em relatório: 8 pendências a vincular, 0 sem revisão no upload e 0 com origem já preenchida. A execução com `--aplicar` vinculou as 8; o relatório subsequente confirmou 8 preenchidas, 0 pendentes e 0 revisões de resolução alteradas. `npx prisma migrate status` informou 193 migrations e schema de desenvolvimento atualizado. Esta evidência não diz respeito a produção.
+
 ## Achados que exigem decisão antes de executar o merge de dados
 
 ### A-01 — crítico — o script de merge descarta registros, contrariando o plano
@@ -199,12 +208,13 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 | Validação manual de F2-PR9 | Pendente: em uma disciplina de teste, selecionar PDF e DWG com mesmo nome-base numa única operação, confirmar o toast da mesma revisão e o drawer de histórico com ambos os arquivos na mesma Rxx. Repetir com arquivos de nome-base ou destino diferentes para confirmar que seguem independentes. |
 | Validação manual de F3-PR1 | Pendente: em desenvolvimento, abrir PDF único, PDF+DWG na mesma revisão e histórico legado com revisão sem par; conferir breadcrumb contextual, status nulo/final, formato atual, ações dos formatos irmãos e ausência do botão Comparar quando só houver outra extensão na mesma revisão. |
 | Validação manual de F3-PR2/F3-PR5 | Pendente: em 1366 px, abrir o workspace, pesquisar/filtrar cards, confirmar foco por teclado, seleção única, recolher/expandir ambos os painéis sem perder a seleção, selecionar card em outra página e confirmar centralização do pin com zoom mínimo de 125%, abrir detalhes pelo pin, ausência de scroll horizontal, encaminhamento em lote e contexto de tarefa visível somente a criador/responsável. |
+| Validação manual de F4-PR1 | Pendente: em desenvolvimento, abrir uma pendência criada em revisão conhecida e confirmar no banco que `revisaoOrigemId` aponta para a mesma `DocumentoRevisao` de seu upload; confirmar `revisaoResolucaoId` nulo antes de F4-PR2. |
 | `scripts/verificar-fase2-documentos.ts` | Não executado: `tsx` falhou antes de conectar ao banco com `uv_os_get_passwd` / `ENOMEM`. Evidência em `06-evidencia-verificacao-fase2-documentos-dev-2026-08-23.md`. |
-| `npx prisma migrate status` | Passou após M7: 192 migrations encontradas; schema do banco de desenvolvimento atualizado. As tentativas diretas de `migrate dev` estão documentadas acima e não houve reset. |
+| `npx prisma migrate status` | Passou após M9: 193 migrations encontradas; schema do banco de desenvolvimento atualizado. As tentativas diretas de `migrate dev` estão documentadas acima e não houve reset. |
 | `npx prisma db:seed` | Não executado: é uma escrita no banco de desenvolvimento e M7/M8 não exigem alteração no seed (a nova coluna tem default e listas não possuem catálogo inicial). A idempotência do seed permanece pendente de uma execução deliberada. |
 | `npx tsc --noEmit` | Não concluído: esgotou o heap padrão do Node após 85,4 s. Não é evidência de erro de tipos. |
 | `npm run build` | Não executado: havia processos Node ativos; o repositório proíbe build concorrente com `next dev` no mesmo `.next`. |
 
 ## Próximo passo seguro
 
-Não executar `--aplicar` nos scripts da Fase 2 até haver decisão registrada para A-01. Antes de ativar `NEXT_PUBLIC_DOCUMENTOS_V2`, comprovar A-05 e validar manualmente o envio V2/F2-PR6b/F2-PR6c/F2-PR7/F2-PR9. Registrar também a decisão de A-06 antes de esperar que perfis não administrativos editem metadados ou status. A Fase 3 está implementada no código e aguarda sua validação manual; o próximo recorte técnico é F4-PR1, uma migration aditiva para vincular a pendência às revisões de origem e resolução. Ele não transforma as pendências manuais da Fase 2 em comprovadas. Depois da correção/decisão, executar `scripts/verificar-fase2-documentos.ts` em cada ambiente relevante e anexar a saída datada a esta pasta, para transformar a execução de scripts manuais em evidência auditável.
+Não executar `--aplicar` nos scripts da Fase 2 até haver decisão registrada para A-01. Antes de ativar `NEXT_PUBLIC_DOCUMENTOS_V2`, comprovar A-05 e validar manualmente o envio V2/F2-PR6b/F2-PR6c/F2-PR7/F2-PR9. Registrar também a decisão de A-06 antes de esperar que perfis não administrativos editem metadados ou status. A Fase 3 e F4-PR1 estão implementadas no código; a Fase 3 aguarda validação manual. O próximo recorte técnico é F4-PR2, a action/UI que grava explicitamente a revisão de resolução. Depois da correção/decisão, executar `scripts/verificar-fase2-documentos.ts` em cada ambiente relevante e anexar a saída datada a esta pasta, para transformar a execução de scripts manuais em evidência auditável.

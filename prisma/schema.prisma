@@ -5207,6 +5207,8 @@ model DocumentoRevisao {
   createdBy   User?               @relation("RevisaoAutor", fields: [createdById], references: [id], onDelete: SetNull)
 
   uploads Upload[]
+  pendenciasOrigem    Pendencia[] @relation("PendenciaRevisaoOrigem")
+  pendenciasResolucao Pendencia[] @relation("PendenciaRevisaoResolucao")
 
   @@unique([documentoId, numero])
   @@index([documentoId])
@@ -5265,6 +5267,12 @@ model Pendencia {
   autorId        String
   tarefaId       String?
   tarefaItemId   String?
+  /// Revisão lógica em que o apontamento foi criado (M9). Nula até o backfill ou em legado órfão.
+  revisaoOrigemId     String?
+  revisaoOrigem       DocumentoRevisao? @relation("PendenciaRevisaoOrigem", fields: [revisaoOrigemId], references: [id], onDelete: SetNull)
+  /// Revisão em que a correção foi validada; nunca é inferida retroativamente.
+  revisaoResolucaoId  String?
+  revisaoResolucao    DocumentoRevisao? @relation("PendenciaRevisaoResolucao", fields: [revisaoResolucaoId], references: [id], onDelete: SetNull)
   resolvidoPorId String?
   resolvidoEm    DateTime?
   fechadoPorId   String?
@@ -5367,6 +5375,8 @@ model Pendencia {
   @@index([projetoId, status])
   @@index([documentoId, numero])
   @@index([uploadVerificacaoId])
+  @@index([revisaoOrigemId])
+  @@index([revisaoResolucaoId])
   @@index([excluidoPorId])
   @@map("pendencia")
 }
