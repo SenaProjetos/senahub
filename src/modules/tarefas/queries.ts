@@ -62,6 +62,39 @@ export async function tarefasDoProjeto(viewer: Viewer, projetoId: string) {
 }
 export type TarefaDoProjeto = Awaited<ReturnType<typeof tarefasDoProjeto>>[number];
 
+/** Resumo mínimo para o contexto de uma pendência, sempre filtrado por `escopoTarefa`. */
+export type TarefaContextual = {
+  id: string;
+  titulo: string;
+  status: { nome: string; concluido: boolean };
+  responsaveis: { id: string; nome: string }[];
+  itens: { id: string; descricao: string; concluido: boolean }[];
+};
+
+export async function contextoTarefasDasPendencias(viewer: Viewer, tarefaIds: readonly string[]): Promise<TarefaContextual[]> {
+  const ids = [...new Set(tarefaIds)];
+  if (ids.length === 0) return [];
+
+  const tarefas = await prisma.tarefa.findMany({
+    where: { id: { in: ids }, arquivada: false, ...escopoTarefa(viewer) },
+    select: {
+      id: true,
+      titulo: true,
+      status: { select: { nome: true, concluido: true } },
+      responsaveis: { select: { user: { select: { id: true, name: true } } } },
+      itens: { orderBy: { ordem: "asc" }, select: { id: true, descricao: true, concluido: true } },
+    },
+  });
+
+  return tarefas.map((tarefa) => ({
+    id: tarefa.id,
+    titulo: tarefa.titulo,
+    status: tarefa.status,
+    responsaveis: tarefa.responsaveis.map((responsavel) => ({ id: responsavel.user.id, nome: responsavel.user.name })),
+    itens: tarefa.itens,
+  }));
+}
+
 /** Colunas ativas (id + nome) — para montar o TarefaDialog fora do board. */
 export async function colunasTarefaAtivas() {
   return prisma.tarefaStatus.findMany({

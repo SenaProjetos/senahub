@@ -8,7 +8,7 @@ import { formatarCodigo } from "@/modules/projetos/numbering";
 import { pendenciasDoUpload, calibracoesDaPrancha, padroesDaDisciplina, novidadesDoDocumento } from "@/modules/projetos/pendencias/queries";
 import { pranchasVigentesDisciplina, resolverDocumentoCanonico, revisoesDoDocumento } from "@/modules/uploads/queries";
 import { extensao } from "@/modules/uploads/destino";
-import { opcoesTarefa } from "@/modules/tarefas/queries";
+import { contextoTarefasDasPendencias, opcoesTarefa } from "@/modules/tarefas/queries";
 import { PdfViewer } from "@/components/projetos/pdf-viewer";
 
 export const metadata: Metadata = { title: "Visualizar prancha" };
@@ -125,6 +125,10 @@ export default async function VisualizarPage({
     // Rascunho (item 31) só aparece pra quem escreveu.
     viewerId: user.id,
   });
+  const tarefasContextuais = await contextoTarefasDasPendencias(
+    user,
+    pendencias.flatMap((pendencia) => (pendencia.tarefaId ? [pendencia.tarefaId] : [])),
+  );
 
   // Janela de confirmação da tarefa (só quem valida envia apontamentos).
   const [colunasTarefa, opcoes] = podeValidar
@@ -174,6 +178,7 @@ export default async function VisualizarPage({
       ehGlobal={ehGlobal}
       currentUserId={user.id}
       pendenciasIniciais={pendencias}
+      tarefasContextuais={tarefasContextuais}
       colunasTarefa={colunasTarefa}
       opcoesTarefa={opcoes}
       responsaveisPadrao={responsaveisPadrao}

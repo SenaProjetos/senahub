@@ -2,9 +2,11 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, ArrowRight, BookmarkPlus, Check, CopyPlus, Expand, FileArchive, GitCompare, Loader2, Maximize2, MapPin, MessageSquare, Minimize, PauseCircle, Pencil, RotateCcw, RotateCw, Ruler, Send, Sparkles, Stamp, Table2, Tags, Trash2, Undo2, Wrench, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { PendenciaView, ReincidenciaView } from "@/modules/projetos/pendencias/queries";
+import type { TarefaContextual } from "@/modules/tarefas/queries";
 import {
   criarPendencia,
   editarPendencia,
@@ -172,6 +174,7 @@ type Props = {
   ehGlobal: boolean;
   currentUserId: string;
   pendenciasIniciais: PendenciaView[];
+  tarefasContextuais: TarefaContextual[];
   colunasTarefa: { id: string; nome: string }[];
   opcoesTarefa: OpcoesUI | null;
   responsaveisPadrao: string[];
@@ -335,6 +338,7 @@ function CamposClassificacao({
 }
 
 export function PdfViewer(props: Props) {
+  const router = useRouter();
   const { uploadId, projetoId, disciplinaId, nomeArquivo, codigo, projetoNome, disciplinaNome, versao, revisionNumber, documentStatus, revisionFiles, canViewCoordination, versaoAtual, validado, finalizada, podeValidar, ehResponsavel, ehAdmin, colunasTarefa, opcoesTarefa, responsaveisPadrao, temOutraRevisao, documentoId, pranchasParaReplicar, pinInicial, paginaInicial } = props;
 
   const downloadUrl = `/api/uploads/${uploadId}/download?disposition=inline`;
@@ -602,6 +606,10 @@ export function PdfViewer(props: Props) {
   );
 
   const pendenciaSelecionada = pinsPosicionados.find((p) => p.id === selecionadaId) ?? null;
+  const tarefasContextuaisPorId = useMemo(
+    () => new Map(props.tarefasContextuais.map((tarefa) => [tarefa.id, tarefa])),
+    [props.tarefasContextuais],
+  );
 
   const centralizarPin = useCallback(
     (pendencia: PinPosicionado) => {
@@ -1133,6 +1141,7 @@ export function PdfViewer(props: Props) {
     setPendencias((ps) =>
       ps.map((p) => (estaAberta(p.status) && !p.tarefaId ? { ...p, tarefaId: data.tarefaId } : p)),
     );
+    router.refresh();
     toast.success(
       data.revisaoAberta != null
         ? `Revisão R${data.revisaoAberta} aberta · tarefa com ${data.total} apontamento(s).`
@@ -1759,6 +1768,8 @@ export function PdfViewer(props: Props) {
               <ul className="divide-y">
                 {[pendenciaSelecionada].map((p) => {
                     const meta = STATUS_META[p.status] ?? STATUS_META.aberta;
+                    const tarefa = p.tarefaId ? tarefasContextuaisPorId.get(p.tarefaId) : null;
+                    const itemTarefa = tarefa?.itens.find((item) => item.id === p.tarefaItemId) ?? null;
                     // Editar/excluir: só quem criou o apontamento (ou admin), enquanto aberto e sem tarefa.
                     const editavel =
                       (p.autorId === props.currentUserId || ehAdmin) && p.status === "aberta" && !p.tarefaId;
@@ -1848,6 +1859,26 @@ export function PdfViewer(props: Props) {
                           />
                         )}
                         <p className="mt-1 whitespace-pre-wrap break-words text-xs">{textoComMencao(p.texto)}</p>
+                        {tarefa && (
+                          <section className="mt-2 rounded-sm border bg-muted/30 p-2" aria-label="Tarefa vinculada">
+                            <div className="flex items-center gap-1.5">
+                              <h3 className="min-w-0 flex-1 truncate text-xs font-semibold">{tarefa.titulo}</h3>
+                              <Badge variant="outline" className="h-5 shrink-0 px-1.5 text-[10px]">
+                                {tarefa.status.nome}
+                              </Badge>
+                            </div>
+                            {tarefa.responsaveis.length > 0 && (
+                              <p className="mt-1 text-[11px] text-muted-foreground">
+                                Responsáveis: {tarefa.responsaveis.map((responsavel) => responsavel.nome).join(", ")}
+                              </p>
+                            )}
+                            {itemTarefa && (
+                              <p className="mt-1 text-[11px] text-muted-foreground">
+                                Item {itemTarefa.concluido ? "concluído" : "em aberto"}: {itemTarefa.descricao}
+                              </p>
+                            )}
+                          </section>
+                        )}
                         {/* Anexos (item 12) — evidência da pendência. Aparece quando já existe
                             algum, ou quando a thread está aberta (é a hora natural de juntar). */}
                         {(p.anexos.length > 0 || threadId === p.id) && (

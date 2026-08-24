@@ -33,8 +33,9 @@
 | F3-PR2 — painel de tarefas do documento | Implementado no código; validação manual pendente | `painel-tarefas-documento.tsx` é controlado pelo visualizador, filtra a mesma coleção mutável de `Pendencia` e preserva o envio em lote já decidido. |
 | F3-PR3 — workspace de três painéis recolhíveis | Implementado no código; validação manual pendente | `PdfViewer` monta tarefas, prancha e detalhes em uma única área flexível; os painéis laterais preservam a seleção ao recolher. |
 | F3-PR4 — sincronização card ↔ pin | Implementado no código; validação manual pendente | Selecionar um card centraliza o pin no canvas e eleva o zoom ao mínimo de 125%; selecionar o pin abre o detalhe. |
+| F3-PR5 — detalhe contextual de tarefa | Implementado no código; validação manual pendente | A tarefa, responsáveis e item vinculado são consultados no servidor somente após `escopoTarefa`; ausência no resultado não expõe metadados. |
 | F4-PR4 — comparador avançado | Implementada | Percentual de opacidade e zoom/scroll sincronizados em `comparador-revisoes.tsx`. |
-| F3-PR5 e F4-PR1 a F4-PR3 | Não implementado | Ainda falta contexto de tarefa sob `escopoTarefa`, relações `revisaoOrigemId`/`revisaoResolucaoId` e UI de resolução entre revisões. |
+| F4-PR1 a F4-PR3 | Não implementado | Ainda faltam relações `revisaoOrigemId`/`revisaoResolucaoId` e UI de resolução entre revisões. |
 
 ## Integração da branch de refatoração
 
@@ -115,6 +116,14 @@ F3-PR4 mantém a seleção como estado único no `PdfViewer`. Ao escolher um car
 
 O comportamento usa duas animações de quadro antes da centralização para esperar a renderização decorrente do zoom. A validação manual deve confirmar que o card selecionado em outra página chega ao pin correto, com zoom de pelo menos 125%, e que pin, card e painel direito continuam apontando para a mesma pendência.
 
+## Continuação — F3-PR5, detalhe contextual de tarefa
+
+`Pendencia` mantém apenas os ponteiros escalares `tarefaId` e `tarefaItemId`. Para não transformar esses ponteiros em vazamento de dados, `contextoTarefasDasPendencias()` recebe somente os ids já presentes nas pendências visíveis e aplica `escopoTarefa(viewer)` dentro do `where` Prisma. Ela devolve apenas título, status textual, responsáveis e itens da tarefa não arquivada. A página do visualizador faz essa leitura no servidor e o cliente recebe somente as tarefas que a pessoa já poderia abrir no módulo de tarefas.
+
+Quando a pendência selecionada possui contexto autorizado, o painel direito mostra o título da tarefa, status, responsáveis e o item de checklist correspondente. Se a tarefa não estiver no resultado — por escopo, arquivamento ou item histórico removido — nada adicional é mostrado; a interface não informa a causa nem os metadados da tarefa. Após encaminhar uma rodada, o visualizador atualiza sua coleção otimista e faz `router.refresh()` para obter o novo contexto autorizado sem adicionar fetch de cliente.
+
+Esta etapa não altera schema, migration, endpoint ou permissões. A validação manual deve usar dois perfis: criador/responsável da tarefa deve ver o contexto e um membro do projeto que não seja criador nem responsável deve continuar vendo apenas a pendência, sem título, responsáveis ou item da tarefa.
+
 ## Achados que exigem decisão antes de executar o merge de dados
 
 ### A-01 — crítico — o script de merge descarta registros, contrariando o plano
@@ -189,7 +198,7 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 | Validação manual de F2-PR7 | Pendente: na V2 e em um projeto de teste, criar uma lista, selecionar dois documentos e adicioná-los, selecionar a lista, remover um documento e confirmar contagem/tabela sem recarregar manualmente. Repetir com responsável de disciplina e com gestão do projeto para confirmar a muralha de escrita. |
 | Validação manual de F2-PR9 | Pendente: em uma disciplina de teste, selecionar PDF e DWG com mesmo nome-base numa única operação, confirmar o toast da mesma revisão e o drawer de histórico com ambos os arquivos na mesma Rxx. Repetir com arquivos de nome-base ou destino diferentes para confirmar que seguem independentes. |
 | Validação manual de F3-PR1 | Pendente: em desenvolvimento, abrir PDF único, PDF+DWG na mesma revisão e histórico legado com revisão sem par; conferir breadcrumb contextual, status nulo/final, formato atual, ações dos formatos irmãos e ausência do botão Comparar quando só houver outra extensão na mesma revisão. |
-| Validação manual de F3-PR2/F3-PR4 | Pendente: em 1366 px, abrir o workspace, pesquisar/filtrar cards, confirmar foco por teclado, seleção única, recolher/expandir ambos os painéis sem perder a seleção, selecionar card em outra página e confirmar centralização do pin com zoom mínimo de 125%, abrir detalhes pelo pin, ausência de scroll horizontal e encaminhamento em lote para tarefa. |
+| Validação manual de F3-PR2/F3-PR5 | Pendente: em 1366 px, abrir o workspace, pesquisar/filtrar cards, confirmar foco por teclado, seleção única, recolher/expandir ambos os painéis sem perder a seleção, selecionar card em outra página e confirmar centralização do pin com zoom mínimo de 125%, abrir detalhes pelo pin, ausência de scroll horizontal, encaminhamento em lote e contexto de tarefa visível somente a criador/responsável. |
 | `scripts/verificar-fase2-documentos.ts` | Não executado: `tsx` falhou antes de conectar ao banco com `uv_os_get_passwd` / `ENOMEM`. Evidência em `06-evidencia-verificacao-fase2-documentos-dev-2026-08-23.md`. |
 | `npx prisma migrate status` | Passou após M7: 192 migrations encontradas; schema do banco de desenvolvimento atualizado. As tentativas diretas de `migrate dev` estão documentadas acima e não houve reset. |
 | `npx prisma db:seed` | Não executado: é uma escrita no banco de desenvolvimento e M7/M8 não exigem alteração no seed (a nova coluna tem default e listas não possuem catálogo inicial). A idempotência do seed permanece pendente de uma execução deliberada. |
@@ -198,4 +207,4 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 
 ## Próximo passo seguro
 
-Não executar `--aplicar` nos scripts da Fase 2 até haver decisão registrada para A-01. Antes de ativar `NEXT_PUBLIC_DOCUMENTOS_V2`, comprovar A-05 e validar manualmente o envio V2/F2-PR6b/F2-PR6c/F2-PR7/F2-PR9. Registrar também a decisão de A-06 antes de esperar que perfis não administrativos editem metadados ou status. O próximo recorte de implementação é F3-PR5, que precisa obter o contexto da tarefa somente depois de aplicar `escopoTarefa` para não vazar dados entre membros do projeto. Ele não transforma as pendências manuais da Fase 2 em comprovadas. Depois da correção/decisão, executar `scripts/verificar-fase2-documentos.ts` em cada ambiente relevante e anexar a saída datada a esta pasta, para transformar a execução de scripts manuais em evidência auditável.
+Não executar `--aplicar` nos scripts da Fase 2 até haver decisão registrada para A-01. Antes de ativar `NEXT_PUBLIC_DOCUMENTOS_V2`, comprovar A-05 e validar manualmente o envio V2/F2-PR6b/F2-PR6c/F2-PR7/F2-PR9. Registrar também a decisão de A-06 antes de esperar que perfis não administrativos editem metadados ou status. A Fase 3 está implementada no código e aguarda sua validação manual; o próximo recorte técnico é F4-PR1, uma migration aditiva para vincular a pendência às revisões de origem e resolução. Ele não transforma as pendências manuais da Fase 2 em comprovadas. Depois da correção/decisão, executar `scripts/verificar-fase2-documentos.ts` em cada ambiente relevante e anexar a saída datada a esta pasta, para transformar a execução de scripts manuais em evidência auditável.
