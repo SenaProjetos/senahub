@@ -103,13 +103,13 @@ describe("guardas de destino", () => {
 
 describe("resolverDestinoStorage", () => {
   it("prefere STORAGE_BACKUP_PATH", () => {
-    expect(resolverDestinoStorage({ STORAGE_BACKUP_PATH: "D:\\bkp", BACKUP_PATH: "F:\\b" } as NodeJS.ProcessEnv)).toBe(
+    expect(resolverDestinoStorage({ STORAGE_BACKUP_PATH: "D:\\bkp", BACKUP_PATH: "F:\\b" } as unknown as NodeJS.ProcessEnv)).toBe(
       "D:\\bkp",
     );
   });
 
   it("cai em BACKUP_PATH/storage", () => {
-    const d = resolverDestinoStorage({ BACKUP_PATH: "F:\\backups" } as NodeJS.ProcessEnv);
+    const d = resolverDestinoStorage({ BACKUP_PATH: "F:\\backups" } as unknown as NodeJS.ProcessEnv);
     expect(d.replace(/\//g, "\\")).toBe("F:\\backups\\storage");
   });
 });
