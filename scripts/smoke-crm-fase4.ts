@@ -6,8 +6,8 @@
  * ⚠️ Existe um `scripts/smoke-fase4.ts` NÃO RELACIONADO (outra fase, outro sistema) — o prefixo
  * `smoke-crm-` deste arquivo é deliberado, ver F4.7 no `04-plano-fases.md`.
  *
- * ── F4.3 ── `criarProspeccaoRapida` é uma transação de 5 passos (empresa → contato →
- * prospecção → vínculo → abordagem) com duas regras que só se provam contra Postgres real —
+ * ── F4.3 ── `criarProspeccaoRapida` é uma transação de até 6 passos (empresa → contato →
+ * prospecção → vínculo → interação → negociação opcional) com regras que só se provam contra Postgres real —
  * "tudo-ou-nada" (uma falha no meio não deixa `Cliente` órfão) e "2º prospect da mesma empresa
  * reaproveita a empresa E a prospecção ativa" — nenhuma das duas é alcançável por `vitest`.
  *
@@ -53,6 +53,15 @@ async function main() {
 
   const user = await prisma.user.findFirst({ where: { role: "admin", ativo: true }, select: { id: true } });
   if (!user) throw new Error("dev incompleto — rode `npm run db:seed`.");
+  const [canalLinkedin, canalIndicacao] = await Promise.all([
+    prisma.canalAquisicao.findFirst({
+      where: { nome: "LinkedIn / Sales Navigator", ativo: true },
+      select: { id: true },
+    }),
+    prisma.canalAquisicao.findFirst({ where: { nome: "Indicação", ativo: true }, select: { id: true } }),
+  ]);
+  if (!canalLinkedin || !canalIndicacao) throw new Error("dev incompleto — rode `npm run db:seed`.");
+  const parceiroIndicador = await prisma.parceiro.create({ data: { nome: `${TAG}_Indicador`, tipo: "PF" } });
 
   console.log("\n── F4.3: empresa nova + contato novo (1º prospect) ────────────────\n");
 
@@ -63,6 +72,7 @@ async function main() {
     empresa: { nome: nomeEmpresa },
     contato: { nome: `${TAG}_Contato1`, email: "contato1@exemplo-smoke.com", cargo: "Diretor" },
     campanhaId: null,
+    canalId: canalLinkedin.id,
     abordagem: { tipo: "LIGACAO", nota: "Ligação de teste do smoke." },
     autorId: user.id,
   });
@@ -84,8 +94,8 @@ async function main() {
   });
   check("ContatoCliente.statusAbordagem = ABORDADO", contato1?.statusAbordagem === "ABORDADO");
   check(
-    "ContatoCliente.dataCollectionSource = Sales Navigator (LGPD/T1)",
-    contato1?.dataCollectionSource === "Sales Navigator",
+    "ContatoCliente.dataCollectionSource registra o canal real (LGPD/T1)",
+    contato1?.dataCollectionSource === "LinkedIn / Sales Navigator",
   );
   check("ContatoCliente.dataCollectedAt preenchida", contato1?.dataCollectedAt != null);
 
@@ -215,6 +225,10 @@ async function main() {
     buscaEmpresa.some((c) => c.id === clienteId),
     `${buscaEmpresa.length} candidato(s)`,
   );
+  check(
+    "busca informa as demandas ativas para a escolha explícita da UI",
+    buscaEmpresa.find((c) => c.id === clienteId)?.prospeccoesAtivas.some((lead) => lead.id === r1.leadId) === true,
+  );
   const buscaVazia = await buscarEmpresaParaProspeccaoRapida("ab");
   check("busca de empresa com menos de 3 caracteres não roda", buscaVazia.length === 0);
 
@@ -226,6 +240,69 @@ async function main() {
   );
   const buscaContatoOutraEmpresa = await buscarContatoNaEmpresa("id-que-nao-existe", `${TAG}_Contato1`);
   check("busca de contato é escopada por empresa — não vaza pra outra", buscaContatoOutraEmpresa.length === 0);
+
+  console.log("\n── Entrada por indicação: nova demanda abre negociação direta ──────\n");
+
+  const campanhaIndicacao = await prisma.campanha.create({ data: { nome: `${TAG}_CampanhaIndicacao` } });
+  // Simula outra demanda ATIVA da mesma empresa na mesma campanha. A nova entrada direta precisa
+  // atravessar o status ativo e chegar a OPORTUNIDADE_CRIADA sem colidir com o índice parcial.
+  await prisma.lead.update({ where: { id: r1.leadId }, data: { campaignId: campanhaIndicacao.id } });
+  const rIndicacao = await criarProspeccaoRapida({
+    urlAlvo: "contato",
+    empresa: { clienteId },
+    contato: {
+      nome: `${TAG}_ContatoIndicado`,
+      email: "indicado@exemplo-smoke.com",
+      cargo: "Arquiteta",
+    },
+    canalId: canalIndicacao.id,
+    parceiroId: parceiroIndicador.id,
+    campanhaId: campanhaIndicacao.id,
+    criarNovaDemanda: true,
+    tituloDemanda: `${TAG}_EdificioAurora`,
+    destino: "ABRIR_NEGOCIACAO",
+    abordagem: { tipo: "NOTA", nota: "Demanda recebida por indicação." },
+    autorId: user.id,
+  });
+  check("reaproveita a empresa sem misturar a demanda anterior", rIndicacao.reaproveitouEmpresa);
+  check(
+    "cria um Lead próprio para o novo projeto",
+    !rIndicacao.reaproveitouProspeccaoAtiva && rIndicacao.leadId !== r1.leadId,
+  );
+  check("abre a negociação na mesma operação", rIndicacao.negociacaoId != null);
+
+  const [contatoIndicado, leadIndicado, negociacaoIndicada] = await Promise.all([
+    prisma.contatoCliente.findUnique({
+      where: { id: rIndicacao.contatoId },
+      select: { listaSalesNavigator: true, dataCollectionSource: true },
+    }),
+    prisma.lead.findUnique({
+      where: { id: rIndicacao.leadId },
+      select: { status: true, canalId: true, parceiroId: true, campaignId: true, responsavelId: true },
+    }),
+    prisma.negociacao.findUnique({
+      where: { id: rIndicacao.negociacaoId! },
+      select: { leadId: true, titulo: true, canalId: true, parceiroId: true, campaignId: true },
+    }),
+  ]);
+  check("indicação não marca o contato como Sales Navigator", contatoIndicado?.listaSalesNavigator === false);
+  check("origem LGPD do contato é Indicação", contatoIndicado?.dataCollectionSource === "Indicação");
+  check(
+    "Lead guarda origem, indicador, responsável e status convertido",
+      leadIndicado?.canalId === canalIndicacao.id &&
+      leadIndicado.parceiroId === parceiroIndicador.id &&
+      leadIndicado.campaignId === campanhaIndicacao.id &&
+      leadIndicado.responsavelId === user.id &&
+      leadIndicado.status === "OPORTUNIDADE_CRIADA",
+  );
+  check(
+    "Negociação mantém o mesmo Lead e herda a atribuição comercial",
+    negociacaoIndicada?.leadId === rIndicacao.leadId &&
+      negociacaoIndicada.titulo === `${TAG}_EdificioAurora` &&
+      negociacaoIndicada.canalId === canalIndicacao.id &&
+      negociacaoIndicada.parceiroId === parceiroIndicador.id &&
+      negociacaoIndicada.campaignId === campanhaIndicacao.id,
+  );
 
   console.log("\n── F4.5: importação CSV — 100 linhas com 10 duplicatas ─────────────\n");
 
@@ -427,8 +504,8 @@ async function main() {
 
   console.log(`\n${ok ? "✔ Fase 4: tudo verde." : "✖ Fase 4: há falhas acima."}`);
   console.log(
-    "\n  Proxy medível do aceite '<60s': 1 chamada de service = 1 `$transaction` (5 passos " +
-      "internos: empresa, contato, prospecção, vínculo, abordagem), 0 idas a mais ao servidor " +
+    "\n  Proxy medível do aceite '<60s': 1 chamada de service = 1 `$transaction` (até 6 passos " +
+      "internos: empresa, contato, prospecção, vínculo, interação e negociação), 0 idas a mais ao servidor " +
       "depois de preencher o formulário. O cronômetro em si é verificação de usuário — mesma " +
       "lacuna já registrada desde a F3.4 (sem chromium-cli neste ambiente).",
   );
@@ -454,6 +531,7 @@ async function limpar() {
   // Campanhas (F4.6) DEPOIS dos leads: `Lead.campaignId` é FK sem `onDelete` — apagar a
   // campanha antes violaria a constraint enquanto algum lead ainda apontava pra ela.
   await prisma.campanha.deleteMany({ where: { nome: { contains: TAG } } });
+  await prisma.parceiro.deleteMany({ where: { nome: { contains: TAG } } });
 }
 
 main()

@@ -1167,9 +1167,9 @@ export async function comProspeccaoAtivaUnica<T>(fn: () => Promise<T>): Promise<
   }
 }
 
-// ── Fluxo rápido de prospecção (F4.3, "Sales Navigator numa tela só") ─────────────────────────
+// ── Entrada comercial em uma tela (evolução compatível do fluxo rápido da F4.3) ───────────────
 export type ProspeccaoRapidaInput = {
-  /** Link colado (perfil LinkedIn/Sales Navigator da empresa OU da pessoa) — nunca "raspado". */
+  /** Link colado do LinkedIn da empresa OU da pessoa — nunca "raspado". */
   urlPerfil?: string | null;
   /** A quem o `urlPerfil` pertence — decide se vira `Cliente.salesNavigatorUrl` ou
    * `ContatoCliente.salesNavigatorUrl`. Sem isso o link de uma PESSOA acabaria gravado como se
@@ -1179,6 +1179,13 @@ export type ProspeccaoRapidaInput = {
   contato: { contatoId?: string | null; nome?: string; email?: string; telefone?: string; cargo?: string };
   campanhaId?: string | null;
   canalId?: string | null;
+  parceiroId?: string | null;
+  /** Se informado, continua exatamente esta demanda ativa. Nunca resolve só por nome. */
+  leadExistenteId?: string | null;
+  /** `true` permite uma nova demanda para uma empresa que já tenha outra prospecção ativa. */
+  criarNovaDemanda?: boolean;
+  destino?: "ACOMPANHAR" | "ABRIR_NEGOCIACAO";
+  tituloDemanda?: string | null;
   abordagem: {
     tipo: Extract<TipoAtividade, "LIGACAO" | "WHATSAPP" | "EMAIL" | "LINKEDIN" | "REUNIAO" | "NOTA">;
     nota: string;
@@ -1192,49 +1199,71 @@ export type ProspeccaoRapidaResultado = {
   contatoId: string;
   reaproveitouEmpresa: boolean;
   reaproveitouContato: boolean;
-  /** A empresa já tinha prospecção ATIVA — o contato entrou nela em vez de abrir uma 2ª. */
+  /** O usuário escolheu continuar uma prospecção ativa em vez de abrir uma nova demanda. */
   reaproveitouProspeccaoAtiva: boolean;
+  negociacaoId: string | null;
 };
 
 /**
- * "Colar URL → criar/vincular empresa → criar/vincular contato → criar prospecção → registrar
- * abordagem", tudo numa transação só (F4.3). É a resposta a como os 8 leads reais da F2.18
- * chegaram órfãos: nada aqui deixa a etapa seguinte para "depois" — sai tudo junto ou nada sai.
+ * "Registrar origem → criar/vincular empresa e contato → resolver a demanda → registrar a
+ * interação → opcionalmente abrir a negociação", tudo numa transação só. É uma evolução
+ * compatível do fluxo rápido da F4.3: continua aceitando as chamadas antigas, mas a interface
+ * atual torna explícitos canal, demanda e próximo destino.
  *
  * ── Por que uma transação, e não 5 chamadas separadas ──────────────────────────────────────
  * Empresa nova + contato novo + prospecção só fazem sentido juntos. Um erro no passo 4 depois de
  * já ter criado a empresa nos passos 1–2 deixaria um `Cliente` órfão, sem prospecção nenhuma —
  * pior que o problema que a F3.8 existe para resolver. `$transaction` garante tudo-ou-nada.
  *
- * ── "2º prospect da mesma empresa reaproveita a empresa" (aceite da tarefa) ────────────────
- * Não é só a EMPRESA que não duplica — uma empresa com prospecção ATIVA não ganha uma segunda: o
- * novo contato entra na existente (`LeadContato`) e a abordagem é registrada nela. É a mesma
- * regra que o índice parcial `lead_prospeccao_ativa_campanha_unica` (F2.5/ADR-02) já impõe no
- * banco quando há campanha — aqui a checagem é PROATIVA (antes do INSERT, então nunca aparece
- * como erro pro usuário) e vale mesmo sem campanha selecionada, que é o caso mais comum deste
- * fluxo. `comProspeccaoAtivaUnica` continua como rede de segurança para a corrida entre o SELECT
- * e o INSERT — cinturão e suspensório, não redundância inútil.
+ * ── Empresa não é demanda ──────────────────────────────────────────────────────────────────
+ * A empresa e o contato podem ser reaproveitados sem misturar projetos diferentes. A interface
+ * envia `leadExistenteId` quando o novo contato pertence ao mesmo escopo e
+ * `criarNovaDemanda=true` quando se trata de outro projeto. A resolução automática da versão
+ * antiga é mantida somente para chamadores que ainda não enviam nenhuma dessas escolhas.
  *
  * ── `listaSalesNavigator`/`statusAbordagem` (dívida deixada pela F4.1) ─────────────────────
- * Só nasce `true`/`ABORDADO` em registro NOVO. Num registro REAPROVEITADO, só o
- * `statusAbordagem` avança para `ABORDADO` — `dataInclusaoLista` não é tocada, porque a empresa
- * não "entrou na lista" hoje, entrou quando entrou; reescrever essa data seria mentir sobre o
- * histórico (mesmo cuidado do docblock da migration da F4.1).
+ * `listaSalesNavigator` só nasce `true` quando o canal selecionado é realmente
+ * "LinkedIn / Sales Navigator". Indicação, site, cliente recorrente e outras entradas guardam
+ * sua origem real em `dataCollectionSource`; todos avançam `statusAbordagem` para `ABORDADO`.
  */
 export async function criarProspeccaoRapida(
   input: ProspeccaoRapidaInput,
 ): Promise<ProspeccaoRapidaResultado> {
   return prisma.$transaction(async (tx) => {
+    const tituloDemanda = input.tituloDemanda?.trim() ?? "";
+    const abrirNegociacaoDireta = (input.destino ?? "ACOMPANHAR") === "ABRIR_NEGOCIACAO";
+    if (abrirNegociacaoDireta && !input.leadExistenteId && !tituloDemanda) {
+      throw new ActionError("Informe o nome da demanda ou empreendimento.");
+    }
+
+    const [canal, parceiro, campanha] = await Promise.all([
+      input.canalId
+        ? tx.canalAquisicao.findFirst({ where: { id: input.canalId, ativo: true }, select: { id: true, nome: true } })
+        : null,
+      input.parceiroId
+        ? tx.parceiro.findFirst({ where: { id: input.parceiroId, ativo: true }, select: { id: true } })
+        : null,
+      input.campanhaId
+        ? tx.campanha.findFirst({ where: { id: input.campanhaId, ativo: true }, select: { id: true } })
+        : null,
+    ]);
+    if (input.canalId && !canal) throw new ActionError("Canal de entrada não encontrado ou inativo.");
+    if (input.parceiroId && !parceiro) throw new ActionError("Parceiro não encontrado ou inativo.");
+    if (input.campanhaId && !campanha) throw new ActionError("Campanha não encontrada ou inativa.");
+    const veioDoSalesNavigator = canal?.nome === "LinkedIn / Sales Navigator";
+
     // ── 1. Empresa: reaproveita ou cria ───────────────────────────────────────────────────
     let clienteId: string;
+    let nomeEmpresa: string;
     let reaproveitouEmpresa: boolean;
     if (input.empresa.clienteId) {
       const existe = await tx.cliente.findUnique({
         where: { id: input.empresa.clienteId },
-        select: { id: true },
+        select: { id: true, nome: true },
       });
       if (!existe) throw new ActionError("Empresa não encontrada.");
       clienteId = existe.id;
+      nomeEmpresa = existe.nome;
       reaproveitouEmpresa = true;
       await tx.cliente.update({ where: { id: clienteId }, data: { statusAbordagem: "ABORDADO" } });
     } else {
@@ -1245,13 +1274,13 @@ export async function criarProspeccaoRapida(
           nome,
           tipo: "PJ",
           ...(input.urlAlvo === "cliente" && input.urlPerfil ? { salesNavigatorUrl: input.urlPerfil } : {}),
-          listaSalesNavigator: true,
-          dataInclusaoLista: new Date(),
+          ...(veioDoSalesNavigator ? { listaSalesNavigator: true, dataInclusaoLista: new Date() } : {}),
           statusAbordagem: "ABORDADO",
         },
         select: { id: true },
       });
       clienteId = novo.id;
+      nomeEmpresa = nome;
       reaproveitouEmpresa = false;
       await registrarAtividade(
         { evento: "EMPRESA_CADASTRADA", nome },
@@ -1286,12 +1315,10 @@ export async function criarProspeccaoRapida(
           telefone: input.contato.telefone || null,
           cargo: input.contato.cargo || null,
           ...(input.urlAlvo === "contato" && input.urlPerfil ? { salesNavigatorUrl: input.urlPerfil } : {}),
-          listaSalesNavigator: true,
-          dataInclusaoLista: new Date(),
+          ...(veioDoSalesNavigator ? { listaSalesNavigator: true, dataInclusaoLista: new Date() } : {}),
           statusAbordagem: "ABORDADO",
-          // LGPD (T1): de onde veio o dado e quando — exatamente o caso que esses dois campos
-          // foram criados para cobrir (F1.9), não um genérico "createdAt" que já existia.
-          dataCollectionSource: "Sales Navigator",
+          // LGPD (T1): a origem real da entrada, sem carimbar indicação/site como Sales Navigator.
+          dataCollectionSource: canal?.nome ?? "Entrada comercial",
           dataCollectedAt: new Date(),
         },
         select: { id: true },
@@ -1312,16 +1339,27 @@ export async function criarProspeccaoRapida(
     });
     if (!etapaPadrao) throw new ActionError("Nenhuma etapa de funil configurada.");
 
-    const ativa = await tx.lead.findFirst({
-      where: {
-        clienteId,
-        status: { in: [...STATUS_PROSPECCAO_ATIVOS] },
-        arquivado: false,
-        excluidoEm: null,
-      },
-      orderBy: { updatedAt: "desc" },
-      select: { id: true },
-    });
+    const ondeAtiva: Prisma.LeadWhereInput = {
+      clienteId,
+      status: { in: [...STATUS_PROSPECCAO_ATIVOS] },
+      arquivado: false,
+      excluidoEm: null,
+    };
+    const ativa = input.leadExistenteId
+      ? await tx.lead.findFirst({
+          where: { ...ondeAtiva, id: input.leadExistenteId },
+          select: { id: true },
+        })
+      : input.criarNovaDemanda
+        ? null
+        : await tx.lead.findFirst({
+            where: ondeAtiva,
+            orderBy: { updatedAt: "desc" },
+            select: { id: true },
+          });
+    if (input.leadExistenteId && !ativa) {
+      throw new ActionError("A demanda escolhida não está ativa nesta empresa.");
+    }
 
     let leadId: string;
     let reaproveitouProspeccaoAtiva: boolean;
@@ -1329,15 +1367,21 @@ export async function criarProspeccaoRapida(
       leadId = ativa.id;
       reaproveitouProspeccaoAtiva = true;
     } else {
-      const nomeEmpresa = input.empresa.nome?.trim() ?? "";
       const novoLead = await comProspeccaoAtivaUnica(() =>
         tx.lead.create({
           data: {
-            nome: nomeEmpresa || "Prospecção",
+            nome: tituloDemanda || nomeEmpresa || "Entrada comercial",
             clienteId,
             etapaId: etapaPadrao.id,
-            campaignId: input.campanhaId || null,
-            canalId: input.canalId || null,
+            // Uma entrada direta passa pelo status ativo por poucos milissegundos antes da
+            // qualificação. O índice parcial aceita só um ativo por empresa+campanha; por isso a
+            // campanha entra depois que o status já virou OPORTUNIDADE_CRIADA. Sem isso, um novo
+            // projeto indicado pela mesma campanha colidiria com outra demanda ainda ativa.
+            campaignId: abrirNegociacaoDireta ? null : campanha?.id ?? null,
+            canalId: canal?.id ?? null,
+            parceiroId: parceiro?.id ?? null,
+            origemDetalhada: tituloDemanda || null,
+            responsavelId: input.autorId,
           },
           select: { id: true },
         }),
@@ -1368,7 +1412,48 @@ export async function criarProspeccaoRapida(
       },
     });
 
-    return { leadId, clienteId, contatoId, reaproveitouEmpresa, reaproveitouContato, reaproveitouProspeccaoAtiva };
+    let negociacaoId: string | null = null;
+    if (abrirNegociacaoDireta) {
+      const lead = await tx.lead.findUnique({
+        where: { id: leadId },
+        select: {
+          id: true,
+          nome: true,
+          status: true,
+          clienteId: true,
+          canalId: true,
+          campaignId: true,
+          parceiroId: true,
+          origemDetalhada: true,
+          valorEstimado: true,
+          responsavelId: true,
+          contatos: { select: { contatoId: true, principal: true } },
+        },
+      });
+      if (!lead) throw new ActionError("Entrada comercial não encontrada.");
+      validarQualificacao(lead);
+      const aberta = await aplicarQualificacao(tx, lead, {
+        titulo: tituloDemanda,
+        autorId: input.autorId,
+      });
+      negociacaoId = aberta.negociacaoId;
+      if (campanha && !reaproveitouProspeccaoAtiva) {
+        await Promise.all([
+          tx.lead.update({ where: { id: leadId }, data: { campaignId: campanha.id } }),
+          tx.negociacao.update({ where: { id: negociacaoId }, data: { campaignId: campanha.id } }),
+        ]);
+      }
+    }
+
+    return {
+      leadId,
+      clienteId,
+      contatoId,
+      reaproveitouEmpresa,
+      reaproveitouContato,
+      reaproveitouProspeccaoAtiva,
+      negociacaoId,
+    };
   });
 }
 

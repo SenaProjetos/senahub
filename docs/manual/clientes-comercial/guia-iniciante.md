@@ -1,9 +1,9 @@
 ---
 titulo: Guia do Comercial para iniciantes
-descricao: Passo a passo simples para transformar um primeiro contato em projeto.
-resumo: Entenda empresa, contato, prospecção, negociação, proposta e projeto antes de começar a operar o Comercial.
-tags: [comercial, guia iniciante, prospecção, negociação, proposta, projeto]
-palavras-chave: [como vender, primeiro contato, qualificar, follow-up, proposta, aceite, projeto]
+descricao: Passo a passo simples para registrar uma indicação ou outro contato e transformá-lo em projeto.
+resumo: Entenda entrada comercial, empresa, contato, lead, negociação, proposta e projeto antes de operar o Comercial.
+tags: [comercial, guia iniciante, entrada comercial, indicação, prospecção, negociação, proposta, projeto]
+palavras-chave: [indicação, demanda espontânea, cliente recorrente, como vender, primeiro contato, qualificar, follow-up, proposta, aceite, projeto]
 sinonimos: [crm, vendas, treinamento comercial, onboarding]
 ---
 
@@ -12,37 +12,43 @@ sinonimos: [crm, vendas, treinamento comercial, onboarding]
 O Comercial não serve só para guardar nomes: ele evita que uma conversa se perca e transforma um
 aceite em um projeto pronto para a equipe. O caminho é simples:
 
-**Empresa → Contato → Prospecção → Negociação → Proposta → Projeto**
+**Entrada comercial → Empresa e contato → Lead → Negociação → Proposta → Projeto**
 
 ## O que cada nome significa
 
 - **Empresa**: quem pode contratar o escritório. Uma empresa pode ter vários contatos e várias
   obras ao longo do tempo.
 - **Contato**: a pessoa com quem você conversa dentro da empresa.
-- **Prospecção**: o primeiro acompanhamento de uma obra ou demanda possível.
+- **Entrada comercial**: o registro de como a demanda chegou — indicação, site, cliente recorrente,
+  prospecção ativa ou outro canal.
+- **Lead / prospecção**: o acompanhamento inicial de uma obra ou demanda possível.
 - **Negociação**: o momento em que a demanda é real e você define escopo, disciplinas e valores.
 - **Proposta**: a oferta formal que o cliente recebe.
 - **Follow-up**: um retorno programado para não deixar a conversa parar.
 
 ## Faça a primeira venda no sistema
 
-1. **Pesquise a empresa.** Se ela já existir, use o cadastro existente e adicione o contato que
-   faltar. Ao digitar o nome em uma nova prospecção, observe o sinal de reativação: ele mostra que
-   há histórico e evita duplicar a empresa.
-2. **Crie a prospecção.** Em **Comercial → Prospecção**, informe a empresa, o contato, o canal de
-   origem e, se souber, a campanha e o responsável.
-3. **Registre cada conversa.** Use **Registrar interação** no card ou na ficha. Escolha o canal e
+1. **Abra a entrada.** Vá a **Comercial → Prospecção** e clique em **Nova entrada**.
+2. **Informe a origem.** Escolha como o contato chegou. Para uma indicação, selecione
+   **Indicação** e, se o indicador estiver cadastrado, escolha-o em **Quem indicou / parceiro**.
+3. **Pesquise a empresa.** Se ela já existir, use o cadastro encontrado. A mesma empresa pode
+   contratar várias obras: escolha uma demanda ativa somente se for o mesmo trabalho; para outra
+   obra ou outro escopo, escolha **Nova demanda / novo projeto**.
+4. **Escolha o próximo passo.** Use **Acompanhar como lead** se o contato ainda precisa ser
+   desenvolvido. Se já chegou um pedido concreto de orçamento ou projeto, informe a demanda e use
+   **Abrir negociação agora**.
+5. **Registre cada conversa.** Use **Registrar interação** no card ou na ficha. Escolha o canal e
    escreva o resumo; uma nota pronta pode acelerar mensagens repetidas.
-4. **Agende o próximo passo.** Clique em **Agendar próxima ação**, escolha data e tipo de contato.
+6. **Agende o próximo passo.** Clique em **Agendar próxima ação**, escolha data e tipo de contato.
    O item aparecerá na Agenda e em **Meu Dia**.
-5. **Qualifique quando houver demanda real.** O botão **Qualificar** cria a negociação ligada à
-   prospecção. Nada do que você já registrou é perdido.
-6. **Complete a negociação.** Informe empreendimento, disciplinas, valores e previsão. Avance o
+7. **Qualifique quando houver demanda real.** Para os leads acompanhados no quadro, arraste o card
+   para **Negociação criada**. O sistema cria a negociação ligada ao lead e preserva o histórico.
+8. **Complete a negociação.** Informe empreendimento, disciplinas, valores e previsão. Avance o
    card conforme as conversas progridem. Se a venda não acontecer, marque **Perdido** e explique o
    motivo; depois é possível reabrir.
-7. **Monte a proposta.** Adicione disciplinas, área, condições e validade. Use uma tabela de preço
+9. **Monte a proposta.** Adicione disciplinas, área, condições e validade. Use uma tabela de preço
    quando houver uma disponível. Salve, revise e envie ao cliente.
-8. **Transforme o aceite em trabalho.** Quando o cliente aprovar, clique em **Aceitar → projeto**.
+10. **Transforme o aceite em trabalho.** Quando o cliente aprovar, clique em **Aceitar → projeto**.
    O projeto nasce com as disciplinas e a equipe pode começar a executar.
 
 ## Onde encontrar as informações depois

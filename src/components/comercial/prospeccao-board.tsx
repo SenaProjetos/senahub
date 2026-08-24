@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSetParams } from "@/lib/use-set-param";
 import { toast } from "sonner";
@@ -213,10 +214,24 @@ function Card({
               <RegistrarInteracaoPopover entidadeTipo="LEAD" entidadeId={lead.id} />
             </div>
           )}
-          <p className="truncate font-medium">{lead.cliente?.nome ?? lead.nome}</p>
-          <p className="truncate text-xs text-muted-foreground">
-            {lead.origemDetalhada ?? lead.nome}
-          </p>
+          {!arrastandoOverlay ? (
+            <Link
+              href={`/comercial/${lead.id}`}
+              className="block rounded-sm outline-none underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <p className="truncate font-medium">{lead.cliente?.nome ?? lead.nome}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {lead.origemDetalhada ?? lead.nome}
+              </p>
+            </Link>
+          ) : (
+            <>
+              <p className="truncate font-medium">{lead.cliente?.nome ?? lead.nome}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {lead.origemDetalhada ?? lead.nome}
+              </p>
+            </>
+          )}
 
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             {lead.valorEstimado != null && (

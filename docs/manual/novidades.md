@@ -22,7 +22,11 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 O Comercial foi reorganizado em um fluxo claro de **prospecção → negociação → proposta → projeto**.
 Agora é possível registrar interações e próximos passos, retomar empresas com histórico, consultar a
 Empresa 360, acompanhar **Meu Dia**, analisar conversão por canal e baixar o recorte atual em CSV.
-Os lembretes comerciais também podem ser desligados individualmente em **Preferências**. →
+O botão **Nova entrada** também atende indicações, demandas espontâneas e clientes recorrentes:
+registra o canal e o indicador corretos, separa demandas diferentes da mesma empresa e permite abrir
+uma negociação imediatamente quando já existe um pedido concreto.
+O novo botão **Guia de uso** explica o fluxo completo, com as telas e os botões de cada etapa. Os
+lembretes comerciais também podem ser desligados individualmente em **Preferências**. →
 [Comercial](clientes-comercial/comercial.md)
 
 ## v1.1.0 — 07/07/2026

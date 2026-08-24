@@ -3,13 +3,14 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Zap, Search, X, Check, ShieldAlert } from "lucide-react";
+import { Inbox, Search, X, Check, ShieldAlert } from "lucide-react";
 import {
   criarProspeccaoRapida,
   buscarEmpresaParaProspeccaoRapidaAction,
   buscarContatoNaEmpresaAction,
 } from "@/modules/comercial/actions";
 import type { EmpresaCandidata } from "@/modules/comercial/queries";
+import { STATUS_PROSPECCAO_LABEL } from "@/modules/comercial/labels";
 import { ATIVIDADE_ICONE } from "@/components/comercial/atividade-icones";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,21 +31,25 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-type TipoRapido = "LIGACAO" | "WHATSAPP" | "EMAIL" | "LINKEDIN" | "REUNIAO";
+type TipoRapido = "LIGACAO" | "WHATSAPP" | "EMAIL" | "LINKEDIN" | "REUNIAO" | "NOTA";
+type DestinoEntrada = "ACOMPANHAR" | "ABRIR_NEGOCIACAO";
 
-/** Mesmos 5 tipos + nota padrão de `RegistrarInteracaoPopover` (F3.4) — consistência entre os
- * dois pontos que registram o primeiro toque com uma empresa. */
+/** Mesmos tipos de `RegistrarInteracaoPopover` — consistência entre os dois pontos de registro. */
 const TIPOS_ABORDAGEM: { tipo: TipoRapido; label: string; nota: string }[] = [
-  { tipo: "LIGACAO", label: "Ligação", nota: "Ligação realizada." },
-  { tipo: "WHATSAPP", label: "WhatsApp", nota: "Mensagem enviada por WhatsApp." },
-  { tipo: "EMAIL", label: "E-mail", nota: "E-mail enviado." },
-  { tipo: "LINKEDIN", label: "LinkedIn", nota: "Contato via LinkedIn." },
-  { tipo: "REUNIAO", label: "Reunião", nota: "Reunião realizada." },
+  { tipo: "LIGACAO", label: "Ligação", nota: "Ligação registrada." },
+  { tipo: "WHATSAPP", label: "WhatsApp", nota: "Conversa por WhatsApp registrada." },
+  { tipo: "EMAIL", label: "E-mail", nota: "E-mail registrado." },
+  { tipo: "LINKEDIN", label: "LinkedIn", nota: "Contato via LinkedIn registrado." },
+  { tipo: "REUNIAO", label: "Reunião", nota: "Reunião registrada." },
+  { tipo: "NOTA", label: "Nota", nota: "Entrada comercial registrada." },
 ];
 
 type ContatoCandidato = { id: string; nome: string; cargo: string | null; email: string | null; telefone: string | null; optOut: boolean };
 
 const SEM_CAMPANHA = "nenhuma";
+const SEM_CANAL = "nenhum";
+const SEM_PARCEIRO = "nenhum";
+const NOVA_DEMANDA = "nova";
 
 const VAZIO = {
   urlPerfil: "",
@@ -57,24 +62,31 @@ const VAZIO = {
   email: "",
   telefone: "",
   cargo: "",
+  canalId: SEM_CANAL,
+  parceiroId: SEM_PARCEIRO,
   campanhaId: SEM_CAMPANHA,
+  leadExistenteId: NOVA_DEMANDA,
+  tituloDemanda: "",
+  destino: "ACOMPANHAR" as DestinoEntrada,
   tipoAbordagem: "LIGACAO" as TipoRapido,
   nota: TIPOS_ABORDAGEM[0].nota,
 };
 
 /**
- * F4.3 — "Sales Navigator numa tela só": colar link → empresa → contato → prospecção →
- * abordagem, sem trocar de tela. Mora em `/comercial/prospeccao` de propósito — é o único board
- * comercial que hoje NÃO tem ponto de criação nenhum (o `FunilBoard` legado em `/comercial` é a
- * única forma de nascer um lead, e não é onde a prospecção de verdade acontece pós-F2.13).
- *
- * Cada busca ("essa empresa já existe?", "esse contato já existe?") reusa exatamente a mesma
- * lógica que já existe — não é UI nova sobre regra nova, é a composição de F1.12/F3.4/F3.8 numa
- * tela otimizada pra velocidade. O tempo é o aceite: por isso NENHUM campo é obrigatório além do
- * nome da empresa, do nome do contato e do tipo de abordagem — Etapa e Canal saem do formulário
- * (a `service.ts` escolhe a etapa inicial sozinha).
+ * Porta de entrada única para indicação, demanda espontânea, cliente recorrente e prospecção ativa.
+ * Reaproveita cadastros de empresa/contato, mas exige que a pessoa escolha se o assunto pertence a
+ * uma demanda ativa ou se representa um novo projeto. A entrada pode ficar no quadro para
+ * acompanhamento ou virar uma negociação imediatamente, sem perder o mesmo `Lead.id` de origem.
  */
-export function ProspeccaoRapidaDialog({ campanhas }: { campanhas: { id: string; nome: string }[] }) {
+export function ProspeccaoRapidaDialog({
+  campanhas,
+  canais,
+  parceiros,
+}: {
+  campanhas: { id: string; nome: string }[];
+  canais: { id: string; nome: string }[];
+  parceiros: { id: string; nome: string }[];
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
@@ -82,6 +94,7 @@ export function ProspeccaoRapidaDialog({ campanhas }: { campanhas: { id: string;
 
   const [candidatosEmpresa, setCandidatosEmpresa] = useState<EmpresaCandidata[]>([]);
   const [buscandoEmpresa, setBuscandoEmpresa] = useState(false);
+  const [prospeccoesAtivas, setProspeccoesAtivas] = useState<EmpresaCandidata["prospeccoesAtivas"]>([]);
   const [candidatosContato, setCandidatosContato] = useState<ContatoCandidato[]>([]);
   const [buscandoContato, setBuscandoContato] = useState(false);
 
@@ -92,6 +105,7 @@ export function ProspeccaoRapidaDialog({ campanhas }: { campanhas: { id: string;
     setForm(VAZIO);
     setCandidatosEmpresa([]);
     setCandidatosContato([]);
+    setProspeccoesAtivas([]);
   }
 
   // ── Busca de empresa (debounce 400ms, mesmo valor do F3.8) ─────────────────────────────
@@ -143,13 +157,19 @@ export function ProspeccaoRapidaDialog({ campanhas }: { campanhas: { id: string;
 
   function mudarNomeEmpresa(v: string) {
     set("empresaNome", v);
-    if (form.empresaId) set("empresaId", null); // digitar de novo destrava o vínculo
+    if (form.empresaId) {
+      set("empresaId", null); // digitar de novo destrava o vínculo
+      set("leadExistenteId", NOVA_DEMANDA);
+      setProspeccoesAtivas([]);
+    }
     setCandidatosContato([]);
   }
 
   function usarEmpresa(c: EmpresaCandidata) {
     set("empresaId", c.id);
     set("empresaNome", c.nome);
+    set("leadExistenteId", NOVA_DEMANDA);
+    setProspeccoesAtivas(c.prospeccoesAtivas);
     setCandidatosEmpresa([]);
   }
 
@@ -182,7 +202,15 @@ export function ProspeccaoRapidaDialog({ campanhas }: { campanhas: { id: string;
     if (!form.empresaId && !form.empresaNome.trim()) return toast.error("Informe a empresa.");
     if (!form.contatoId && !form.contatoNome.trim()) return toast.error("Informe o contato.");
     if (form.contatoOptOut) return toast.error("Este contato pediu descadastro — não pode ser abordado.");
-    if (!form.nota.trim()) return toast.error("Descreva a abordagem.");
+    if (form.canalId === SEM_CANAL) return toast.error("Informe como este contato chegou.");
+    if (
+      form.destino === "ABRIR_NEGOCIACAO" &&
+      form.leadExistenteId === NOVA_DEMANDA &&
+      !form.tituloDemanda.trim()
+    ) {
+      return toast.error("Informe a demanda ou o empreendimento para abrir a negociação.");
+    }
+    if (!form.nota.trim()) return toast.error("Descreva a primeira interação.");
 
     start(async () => {
       const r = await criarProspeccaoRapida({
@@ -192,18 +220,32 @@ export function ProspeccaoRapidaDialog({ campanhas }: { campanhas: { id: string;
         contato: form.contatoId
           ? { contatoId: form.contatoId }
           : { nome: form.contatoNome, email: form.email, telefone: form.telefone, cargo: form.cargo },
+        canalId: form.canalId,
+        parceiroId: form.parceiroId === SEM_PARCEIRO ? "" : form.parceiroId,
         campanhaId: form.campanhaId === SEM_CAMPANHA ? "" : form.campanhaId,
+        leadExistenteId: form.leadExistenteId === NOVA_DEMANDA ? "" : form.leadExistenteId,
+        criarNovaDemanda: form.leadExistenteId === NOVA_DEMANDA,
+        tituloDemanda: form.tituloDemanda,
+        destino: form.destino,
         abordagem: { tipo: form.tipoAbordagem, nota: form.nota },
       });
       if (r.ok) {
-        toast.success(
-          r.data.reaproveitouProspeccaoAtiva
-            ? "Contato adicionado à prospecção já ativa desta empresa."
-            : "Prospecção criada.",
-        );
+        if (r.data.negociacaoId) {
+          toast.success("Entrada registrada e negociação aberta.");
+        } else {
+          toast.success(
+            r.data.reaproveitouProspeccaoAtiva
+              ? "Contato adicionado à demanda ativa escolhida."
+              : "Entrada registrada para acompanhamento.",
+          );
+        }
         setOpen(false);
         reiniciar();
-        router.refresh();
+        if (r.data.negociacaoId) {
+          router.push(`/comercial/negociacoes?negociacao=${r.data.negociacaoId}`);
+        } else {
+          router.refresh();
+        }
       } else toast.error(r.error);
     });
   }
@@ -217,28 +259,93 @@ export function ProspeccaoRapidaDialog({ campanhas }: { campanhas: { id: string;
       }}
     >
       <Button size="sm" onClick={() => setOpen(true)}>
-        <Zap className="size-4" /> Prospecção rápida
+        <Inbox className="size-4" /> Nova entrada
       </Button>
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Prospecção rápida</DialogTitle>
+          <DialogTitle>Nova entrada comercial</DialogTitle>
           <DialogDescription>
-            Cole o link do perfil, preencha empresa e contato, registre a abordagem — tudo aqui.
+            Registre como o contato chegou e escolha o próximo passo da demanda.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
+          <div className="space-y-3 rounded-sm border bg-muted/30 p-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="entrada-canal">Como este contato chegou?</Label>
+              <Select value={form.canalId} onValueChange={(v) => set("canalId", v ?? SEM_CANAL)}>
+                <SelectTrigger id="entrada-canal">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SEM_CANAL}>Selecione a origem</SelectItem>
+                  {canais.map((canal) => (
+                    <SelectItem key={canal.id} value={canal.id}>
+                      {canal.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Ex.: indicação, site, cliente recorrente ou prospecção ativa.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="entrada-parceiro">Quem indicou / parceiro (opcional)</Label>
+                <Select
+                  value={form.parceiroId}
+                  onValueChange={(v) => set("parceiroId", v ?? SEM_PARCEIRO)}
+                >
+                  <SelectTrigger id="entrada-parceiro">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={SEM_PARCEIRO}>Sem parceiro informado</SelectItem>
+                    {parceiros.map((parceiro) => (
+                      <SelectItem key={parceiro.id} value={parceiro.id}>
+                        {parceiro.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="entrada-campanha">Campanha (opcional)</Label>
+                <Select
+                  value={form.campanhaId}
+                  onValueChange={(v) => set("campanhaId", v ?? SEM_CAMPANHA)}
+                >
+                  <SelectTrigger id="entrada-campanha">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={SEM_CAMPANHA}>Sem campanha</SelectItem>
+                    {campanhas.map((campanha) => (
+                      <SelectItem key={campanha.id} value={campanha.id}>
+                        {campanha.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-1.5">
-            <Label>Link do perfil (LinkedIn/Sales Navigator) — opcional</Label>
+            <Label htmlFor="entrada-linkedin">Perfil no LinkedIn — opcional</Label>
             <div className="flex gap-2">
               <Input
+                id="entrada-linkedin"
                 value={form.urlPerfil}
                 onChange={(e) => set("urlPerfil", e.target.value)}
                 placeholder="https://www.linkedin.com/…"
                 className="flex-1"
               />
               <Select value={form.urlAlvo} onValueChange={(v) => set("urlAlvo", (v as "cliente" | "contato") ?? "contato")}>
-                <SelectTrigger className="w-36">
+                <SelectTrigger className="w-36" aria-label="O perfil pertence a">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -251,7 +358,7 @@ export function ProspeccaoRapidaDialog({ campanhas }: { campanhas: { id: string;
 
           {/* ── Empresa ────────────────────────────────────────────────────────────────── */}
           <div className="space-y-1.5">
-            <Label>Empresa</Label>
+            <Label htmlFor={form.empresaId ? undefined : "entrada-empresa"}>Empresa</Label>
             {form.empresaId ? (
               <div className="flex items-center gap-2 rounded-sm border border-primary/40 bg-primary/5 px-2.5 py-1.5 text-sm">
                 <Check className="size-3.5 shrink-0 text-primary" />
@@ -271,6 +378,7 @@ export function ProspeccaoRapidaDialog({ campanhas }: { campanhas: { id: string;
             ) : (
               <>
                 <Input
+                  id="entrada-empresa"
                   value={form.empresaNome}
                   onChange={(e) => mudarNomeEmpresa(e.target.value)}
                   placeholder="Nome da empresa…"
@@ -300,9 +408,39 @@ export function ProspeccaoRapidaDialog({ campanhas }: { campanhas: { id: string;
             )}
           </div>
 
+          {form.empresaId && prospeccoesAtivas.length > 0 && (
+            <div className="space-y-1.5 rounded-sm border border-dashed p-3">
+              <Label htmlFor="entrada-demanda-existente">Esta entrada pertence a qual demanda?</Label>
+              <Select
+                value={form.leadExistenteId}
+                onValueChange={(v) => {
+                  const escolhido = v ?? NOVA_DEMANDA;
+                  set("leadExistenteId", escolhido);
+                  if (escolhido !== NOVA_DEMANDA) set("tituloDemanda", "");
+                }}
+              >
+                <SelectTrigger id="entrada-demanda-existente">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NOVA_DEMANDA}>Nova demanda / novo projeto</SelectItem>
+                  {prospeccoesAtivas.map((lead) => (
+                    <SelectItem key={lead.id} value={lead.id}>
+                      {lead.nome} — {STATUS_PROSPECCAO_LABEL[lead.status]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Use uma demanda existente somente quando for o mesmo escopo. Para outro projeto,
+                mantenha “Nova demanda”.
+              </p>
+            </div>
+          )}
+
           {/* ── Contato ────────────────────────────────────────────────────────────────── */}
           <div className="space-y-1.5">
-            <Label>Contato</Label>
+            <Label htmlFor={form.contatoId ? undefined : "entrada-contato"}>Contato</Label>
             {form.contatoId ? (
               <div
                 className={`flex items-center gap-2 rounded-sm border px-2.5 py-1.5 text-sm ${
@@ -332,6 +470,7 @@ export function ProspeccaoRapidaDialog({ campanhas }: { campanhas: { id: string;
             ) : (
               <>
                 <Input
+                  id="entrada-contato"
                   value={form.contatoNome}
                   onChange={(e) => mudarNomeContato(e.target.value)}
                   placeholder="Nome do contato…"
@@ -362,18 +501,21 @@ export function ProspeccaoRapidaDialog({ campanhas }: { campanhas: { id: string;
                     ))}
                   </ul>
                 )}
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid gap-2 sm:grid-cols-3">
                   <Input
+                    aria-label="Cargo do contato"
                     value={form.cargo}
                     onChange={(e) => set("cargo", e.target.value)}
                     placeholder="Cargo"
                   />
                   <Input
+                    aria-label="E-mail do contato"
                     value={form.email}
                     onChange={(e) => set("email", e.target.value)}
                     placeholder="E-mail"
                   />
                   <Input
+                    aria-label="Telefone do contato"
                     value={form.telefone}
                     onChange={(e) => set("telefone", e.target.value)}
                     placeholder="Telefone"
@@ -383,28 +525,60 @@ export function ProspeccaoRapidaDialog({ campanhas }: { campanhas: { id: string;
             )}
           </div>
 
-          {campanhas.length > 0 && (
+          {form.leadExistenteId === NOVA_DEMANDA && (
             <div className="space-y-1.5">
-              <Label>Campanha (opcional)</Label>
-              <Select value={form.campanhaId} onValueChange={(v) => set("campanhaId", v ?? SEM_CAMPANHA)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={SEM_CAMPANHA}>Sem campanha</SelectItem>
-                  {campanhas.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="entrada-demanda">
+                Demanda / empreendimento{form.destino === "ABRIR_NEGOCIACAO" ? " *" : " (opcional)"}
+              </Label>
+              <Input
+                id="entrada-demanda"
+                value={form.tituloDemanda}
+                onChange={(e) => set("tituloDemanda", e.target.value)}
+                placeholder="Ex.: Projeto estrutural do Edifício Aurora"
+              />
+              <p className="text-xs text-muted-foreground">
+                Dê um nome que permita distinguir este trabalho de outras demandas da mesma empresa.
+              </p>
             </div>
           )}
 
-          {/* ── Abordagem ──────────────────────────────────────────────────────────────── */}
+          <fieldset className="space-y-1.5">
+            <legend className="text-sm font-medium">O que fazer depois de salvar?</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                aria-pressed={form.destino === "ACOMPANHAR"}
+                onClick={() => set("destino", "ACOMPANHAR")}
+                className={`rounded-sm border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  form.destino === "ACOMPANHAR" ? "border-primary bg-primary/5" : "hover:bg-muted"
+                }`}
+              >
+                <span className="block text-sm font-medium">Acompanhar como lead</span>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  Para contatos iniciais que ainda precisam ser trabalhados.
+                </span>
+              </button>
+              <button
+                type="button"
+                aria-pressed={form.destino === "ABRIR_NEGOCIACAO"}
+                onClick={() => set("destino", "ABRIR_NEGOCIACAO")}
+                className={`rounded-sm border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  form.destino === "ABRIR_NEGOCIACAO" ? "border-primary bg-primary/5" : "hover:bg-muted"
+                }`}
+              >
+                <span className="block text-sm font-medium">Abrir negociação agora</span>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  Para pedido concreto de orçamento ou projeto já identificado.
+                </span>
+              </button>
+            </div>
+          </fieldset>
+
+          {/* ── Primeira interação ─────────────────────────────────────────────────────── */}
           <div className="space-y-1.5 rounded-sm border border-dashed p-3">
-            <Label className="text-xs text-muted-foreground">O que aconteceu</Label>
+            <Label htmlFor="entrada-primeira-interacao" className="text-xs text-muted-foreground">
+              Primeira interação
+            </Label>
             <div className="flex flex-wrap gap-1.5">
               {TIPOS_ABORDAGEM.map((t) => {
                 const Icone = ATIVIDADE_ICONE[t.tipo];
@@ -423,6 +597,7 @@ export function ProspeccaoRapidaDialog({ campanhas }: { campanhas: { id: string;
               })}
             </div>
             <textarea
+              id="entrada-primeira-interacao"
               rows={2}
               className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
               value={form.nota}
@@ -436,7 +611,11 @@ export function ProspeccaoRapidaDialog({ campanhas }: { campanhas: { id: string;
             Cancelar
           </Button>
           <Button onClick={salvar} disabled={pending}>
-            {pending ? "Salvando…" : "Criar prospecção"}
+            {pending
+              ? "Salvando…"
+              : form.destino === "ABRIR_NEGOCIACAO"
+                ? "Salvar e abrir negociação"
+                : "Salvar para acompanhar"}
           </Button>
         </DialogFooter>
       </DialogContent>

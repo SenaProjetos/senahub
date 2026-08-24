@@ -302,10 +302,30 @@ export const criarProspeccaoRapidaSchema = z.object({
   }),
   campanhaId: opt(z.string()),
   canalId: opt(z.string()),
+  parceiroId: opt(z.string()),
+  leadExistenteId: opt(z.string()),
+  criarNovaDemanda: z.boolean().optional(),
+  destino: z.enum(["ACOMPANHAR", "ABRIR_NEGOCIACAO"]).optional().default("ACOMPANHAR"),
+  tituloDemanda: opt(z.string()),
   abordagem: z.object({
     tipo: z.enum(["LIGACAO", "WHATSAPP", "EMAIL", "LINKEDIN", "REUNIAO", "NOTA"]),
     nota: z.string().min(1, "Escreva o que aconteceu."),
   }),
+}).superRefine((dados, ctx) => {
+  if (dados.criarNovaDemanda && dados.leadExistenteId) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["leadExistenteId"],
+      message: "Escolha entre criar uma nova demanda e continuar uma existente.",
+    });
+  }
+  if (dados.destino === "ABRIR_NEGOCIACAO" && !dados.leadExistenteId && !dados.tituloDemanda?.trim()) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["tituloDemanda"],
+      message: "Informe o nome da demanda ou empreendimento.",
+    });
+  }
 });
 
 // ── Configuração do módulo (F1.7/F7.2) ──────────────────────────

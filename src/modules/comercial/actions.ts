@@ -93,6 +93,8 @@ const idResultadoOuInput = (d: unknown, i: unknown): string | undefined =>
   ((d ?? i) as { id?: string } | undefined)?.id;
 const rev = () => {
   revalidatePath("/comercial");
+  revalidatePath("/comercial/prospeccao");
+  revalidatePath("/comercial/negociacoes");
   revalidatePath("/comercial/propostas");
   revalidatePath("/comercial/parceiros");
 };
@@ -1034,7 +1036,10 @@ export async function buscarContatoNaEmpresaAction(input: unknown) {
 }
 
 /**
- * F4.3 — "Novo lead" numa tela só. Diferente das outras actions do Comercial, a lógica NÃO fica
+ * Entrada comercial numa tela só. Evolui o fluxo F4.3 sem trocar a action pública: empresa,
+ * contato, origem e primeira interação são gravados juntos; se solicitado, a negociação também
+ * nasce na mesma transação.
+ * Diferente das outras actions do Comercial, a lógica NÃO fica
  * em `service.ts` chamada por um handler fino — aqui ela É `criarProspeccaoRapida` (já em
  * `service.ts`, dentro de uma `$transaction`): esta action só faz sessão/permissão/Zod/auditoria,
  * o padrão de sempre.

@@ -6,7 +6,7 @@ import {
   COLUNAS_PROSPECCAO,
 } from "@/modules/comercial/prospeccao";
 import { ESTAGIOS_ATIVOS } from "@/modules/comercial/jornada";
-import type { TipoAncoraCompromisso, EstagioNegociacao } from "@/generated/prisma/client";
+import type { TipoAncoraCompromisso, EstagioNegociacao, StatusProspeccao } from "@/generated/prisma/client";
 import {
   whereProspeccao,
   whereNegociacao,
@@ -781,7 +781,11 @@ export async function buscarEmpresaParaVincular(nome: string): Promise<EmpresaPa
 }
 
 // ── Fluxo rápido de prospecção (F4.3) ────────────────────────────
-export type EmpresaCandidata = { id: string; nome: string };
+export type EmpresaCandidata = {
+  id: string;
+  nome: string;
+  prospeccoesAtivas: { id: string; nome: string; status: StatusProspeccao }[];
+};
 
 /**
  * Busca empresa por nome/domínio enquanto o usuário digita no fluxo rápido (F4.3). Reusa
@@ -794,10 +798,29 @@ export type EmpresaCandidata = { id: string; nome: string };
 export async function buscarEmpresaParaProspeccaoRapida(nome: string): Promise<EmpresaCandidata[]> {
   if (!nome || nome.trim().length < 3) return [];
   const existentes = await clientesParaDedupe();
-  return candidatosDuplicata(existentes, { nome, tipo: "PJ" })
+  const candidatos = candidatosDuplicata(existentes, { nome, tipo: "PJ" })
     .filter((c) => c.motivo === "nome_exato" || (c.motivo === "nome_similar" && c.score >= 0.85))
-    .slice(0, 5)
-    .map((c) => ({ id: c.cliente.id, nome: c.cliente.nome }));
+    .slice(0, 5);
+  if (candidatos.length === 0) return [];
+  const ids = candidatos.map((c) => c.cliente.id);
+  const ativas = await prisma.lead.findMany({
+    where: {
+      clienteId: { in: ids },
+      status: { in: [...STATUS_PROSPECCAO_ATIVOS] },
+      arquivado: false,
+      excluidoEm: null,
+    },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, nome: true, status: true, clienteId: true },
+  });
+
+  return candidatos.map((c) => ({
+    id: c.cliente.id,
+    nome: c.cliente.nome,
+    prospeccoesAtivas: ativas
+      .filter((lead) => lead.clienteId === c.cliente.id)
+      .map(({ id, nome, status }) => ({ id, nome, status })),
+  }));
 }
 
 /**

@@ -3,7 +3,13 @@ import Link from "next/link";
 import { ArrowLeft, Download } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
-import { funilProspeccao, opcoesFiltroComercial, campanhasAtivas } from "@/modules/comercial/queries";
+import {
+  campanhasAtivas,
+  canaisAtivos,
+  funilProspeccao,
+  opcoesFiltroComercial,
+  parceirosAtivos,
+} from "@/modules/comercial/queries";
 import { lerFiltros } from "@/modules/comercial/filtros";
 import { FiltrosComerciais } from "@/components/comercial/filtros-comerciais";
 import { ProspeccaoBoard, ProspeccaoVazia } from "@/components/comercial/prospeccao-board";
@@ -40,10 +46,12 @@ export default async function ProspeccaoPage({
   const sp = await searchParams;
   const filtros = lerFiltros(sp);
   const pagina = Math.max(1, Number(Array.isArray(sp.page) ? sp.page[0] : sp.page) || 1);
-  const [colunas, opcoes, campanhas] = await Promise.all([
+  const [colunas, opcoes, campanhas, canais, parceiros] = await Promise.all([
     funilProspeccao({ filtros, pagina }),
     opcoesFiltroComercial(),
     campanhasAtivas(),
+    canaisAtivos(),
+    parceirosAtivos(),
   ]);
   const total = colunas.reduce((s, c) => s + c.total, 0);
   const qs = paraQueryString(sp);
@@ -68,7 +76,7 @@ export default async function ProspeccaoPage({
             <Button variant="outline" size="sm" render={<a href={`/api/comercial/export/contatos?${qs}`} />}>
               <Download className="size-4" /> Contatos
             </Button>
-            <ProspeccaoRapidaDialog campanhas={campanhas} />
+            <ProspeccaoRapidaDialog campanhas={campanhas} canais={canais} parceiros={parceiros} />
           </>
         )}
       </div>

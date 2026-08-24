@@ -76,7 +76,7 @@ export const STATUS_PROSPECCAO_LABEL: Record<StatusProspeccao, string> = {
   CONTATO_INICIADO: "Contato iniciado",
   EM_CONTATO: "Em contato",
   QUALIFICADO: "Qualificado",
-  OPORTUNIDADE_CRIADA: "Oportunidade criada",
+  OPORTUNIDADE_CRIADA: "Negociação criada",
   SEM_OPORTUNIDADE: "Sem oportunidade",
   EM_ESPERA: "Em espera",
   DESCARTADO: "Descartado",

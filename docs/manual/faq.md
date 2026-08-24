@@ -58,6 +58,18 @@ peça ao administrador.
 O perfil **Cliente** é uma visão externa reduzida: **Meus projetos** (portal) e seu
 **Financeiro** (extrato), além do Suporte.
 
+## Comercial
+
+**O cliente chegou por indicação. Preciso passar por toda a prospecção?**
+Não. Abra **Comercial → Prospecção → Nova entrada**, escolha o canal **Indicação** e,
+quando possível, informe **Quem indicou / parceiro**. Se já existe um pedido concreto de
+orçamento ou projeto, escolha **Abrir negociação agora**. Use **Acompanhar como lead** apenas
+quando o contato ainda precisa ser desenvolvido.
+
+**A empresa já é cliente e trouxe outra obra. Devo criar outra empresa?**
+Não. Selecione a empresa existente e escolha **Nova demanda / novo projeto**. Assim o histórico
+da empresa fica reunido, mas cada obra segue em seu próprio lead e em sua própria negociação.
+
 ## Problemas comuns
 
 **Chat ou notificações em tempo real não atualizam.**

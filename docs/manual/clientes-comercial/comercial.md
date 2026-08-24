@@ -1,9 +1,9 @@
 ---
 titulo: Comercial
 descricao: Processo comercial completo, da prospecção ao projeto.
-resumo: Registre empresas e contatos, acompanhe prospecções e negociações, envie propostas e transforme um aceite em projeto.
-tags: [comercial, crm, prospecção, negociação, proposta, empresa, contato, projeto]
-palavras-chave: [comercial, prospecção, negociação, proposta, follow-up, interação, empresa 360, inteligência comercial]
+resumo: Registre indicações e outras entradas, acompanhe leads e negociações, envie propostas e transforme um aceite em projeto.
+tags: [comercial, crm, entrada comercial, indicação, prospecção, negociação, proposta, empresa, contato, projeto]
+palavras-chave: [comercial, indicação, demanda espontânea, cliente recorrente, prospecção, negociação, proposta, follow-up, interação, empresa 360, inteligência comercial]
 sinonimos: [crm, vendas, pipeline, pré-venda]
 ---
 
@@ -13,14 +13,20 @@ O Comercial acompanha a venda desde o primeiro contato até o projeto que a equi
 Use-o para não perder conversas, saber quem precisa de retorno e manter o histórico da empresa em
 um só lugar.
 
+Na página **Comercial**, clique em **Guia de uso** para abrir uma trilha detalhada dentro do próprio
+sistema. Ela mostra, em ordem, em qual tela entrar e qual botão clicar desde o primeiro cadastro até
+o projeto contratado.
+
 > A área exige a permissão **Comercial**. Quem só pode visualizar consulta os dados; criar,
 > editar, mover cards, enviar proposta e ajustar configurações exige acesso de gestão.
 
 ## O fluxo
 
-**Empresa e contatos → Prospecção → Negociação → Proposta → Aceite → Projeto**
+**Entrada comercial → Empresa e contatos → Lead → Negociação → Proposta → Aceite → Projeto**
 
 - **Empresa** é o cadastro da organização ou pessoa atendida. Pode ter vários contatos.
+- **Entrada comercial** registra como o contato chegou: indicação, site, cliente recorrente,
+  prospecção ativa ou outro canal.
 - **Prospecção** é o trabalho de encontrar e abordar um possível cliente.
 - **Negociação** começa quando a prospecção foi qualificada e concentra escopo, disciplinas,
   valores e avanço comercial.
@@ -29,29 +35,38 @@ um só lugar.
 
 ## Dia a dia
 
-### 1. Cadastre ou reaproveite a empresa
+### 1. Registre a entrada e reaproveite a empresa
 
-Em **Clientes**, pesquise antes de cadastrar. Ao criar uma prospecção, o sistema também procura por
-empresas com nome parecido e histórico: o **sinal de reativação** permite vinculá-la ao cadastro já
-existente. Aceite o vínculo quando for a mesma empresa; assim o histórico anterior continua unido.
+Em **Comercial → Prospecção**, clique em **Nova entrada**. Informe como o contato chegou. Se foi uma
+indicação, selecione o canal **Indicação** e escolha **Quem indicou / parceiro**, quando houver um
+cadastro correspondente. Para site, cliente recorrente ou prospecção ativa, escolha o canal real —
+o sistema não trata essas entradas como Sales Navigator.
 
-Cadastre todos os contatos úteis da mesma empresa e marque o principal. A mesma empresa pode ter
-mais de uma prospecção ativa para obras diferentes; dentro de uma mesma campanha, porém, não crie
-uma duplicada.
+Ao digitar a empresa, selecione o cadastro encontrado quando for a mesma organização; assim o
+histórico anterior continua unido. Se ela já tiver uma demanda ativa, escolha essa demanda somente
+quando o novo contato falar do mesmo escopo. Para outra obra ou outro projeto, escolha
+**Nova demanda / novo projeto**.
+
+Preencha o contato e a primeira interação. Termine escolhendo:
+
+- **Acompanhar como lead**: para contato inicial que ainda precisa ser desenvolvido no quadro.
+- **Abrir negociação agora**: para uma demanda concreta, como um pedido de orçamento ou projeto já
+  identificado. Informe o nome da demanda ou empreendimento.
 
 ### 2. Trabalhe a prospecção
 
-Abra **Comercial → Prospecção** para ver o quadro. Crie uma prospecção, informe empresa, contato,
-origem/canal, campanha e responsável quando souber. Mova o card conforme a abordagem avança.
+Abra **Comercial → Prospecção** para ver o quadro das entradas escolhidas para acompanhamento.
+Mova o card conforme a conversa avança. Entradas abertas diretamente como negociação não precisam
+percorrer esse quadro primeiro.
 
 No card ou na ficha, use **Registrar interação** para guardar ligação, WhatsApp, e-mail, LinkedIn,
 reunião ou nota. Para notas recorrentes, escolha um texto pronto e complete o que for específico da
-conversa. Use **Agendar próxima ação** para criar um follow-up; ele aparece na Agenda e no bloco
-**Meu Dia** da página Comercial.
+conversa. Clique no nome da empresa no card para abrir a ficha e use **Agendar follow-up**; ele
+aparece na Agenda e no bloco **Meu Dia** da página Comercial.
 
-Quando houver interesse real e informações mínimas, escolha **Qualificar**. A prospecção permanece
-no histórico e passa a ter uma negociação vinculada — não crie outro cadastro para continuar a
-mesma conversa.
+Quando houver interesse real e informações mínimas, arraste o card para **Negociação criada**. O
+lead permanece no histórico e ganha uma negociação vinculada — não crie outro cadastro para
+continuar a mesma conversa.
 
 ### 3. Conduza a negociação
 
@@ -101,7 +116,8 @@ quiser recebê-los.
 
 | Situação | O que fazer |
 | --- | --- |
-| Encontrei uma empresa já cadastrada | Vincule a nova prospecção à empresa para manter o histórico. |
+| O cliente chegou por indicação | Use **Nova entrada**, escolha **Indicação** e o indicador. Abra a negociação direto se já houver demanda concreta. |
+| Encontrei uma empresa já cadastrada | Reaproveite a empresa. Para outro trabalho, escolha **Nova demanda / novo projeto**. |
 | Não consigo qualificar | Vincule primeiro uma empresa e reative a prospecção se ela estiver encerrada. |
 | Não consigo marcar como perdido | Informe o motivo solicitado. |
 | A proposta não calcula preço | Preencha a área e selecione uma tabela de preço com os itens necessários. |

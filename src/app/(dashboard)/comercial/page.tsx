@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BarChart3, FileText, Table2, Handshake, KanbanSquare, Megaphone, Upload, SlidersHorizontal } from "lucide-react";
+import { BarChart3, BookOpenText, FileText, Table2, Handshake, KanbanSquare, Megaphone, Upload, SlidersHorizontal } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { resumoComercial, homeComercial } from "@/modules/comercial/queries";
@@ -39,7 +39,10 @@ export default async function ComercialPage({
             {resumo.leadsAtivos} lead(s) ativo(s) · {resumo.enviadas} proposta(s) enviada(s)
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="secondary" size="sm" render={<Link href="/comercial/guia" />}>
+            <BookOpenText className="size-4" /> Guia de uso
+          </Button>
           <Button variant="outline" size="sm" render={<Link href="/comercial/inteligencia" />}>
             <BarChart3 className="size-4" /> Inteligência
           </Button>

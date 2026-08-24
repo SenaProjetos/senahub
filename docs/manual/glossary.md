@@ -75,6 +75,13 @@ você está e permite voltar.
 
 ## Termos de engenharia/negócio
 
+**Entrada comercial** — Registro inicial de uma indicação, demanda espontânea, cliente recorrente,
+prospecção ativa ou outro contato que possa se tornar um trabalho. A entrada guarda a origem e pode
+ser acompanhada como lead ou abrir uma negociação imediatamente.
+
+**Lead** — Demanda ou interesse comercial ainda em acompanhamento. Uma mesma empresa pode ter
+leads diferentes para obras ou escopos diferentes.
+
 **Disciplina** — Subárea técnica de um projeto (ex.: estrutural, hidráulica). 🚧
 
 **CPM (Caminho Crítico)** — Método que identifica a sequência de tarefas que define o

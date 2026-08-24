@@ -17,7 +17,7 @@
       "descricao": "O que mudou em cada atualização do SenaHub, em linguagem para o dia a dia.",
       "resumo": "Histórico das novidades entregues a cada versão do sistema — funcionalidades novas e melhorias visíveis para quem usa.",
       "tags": ["novidades", "notas de versão", "changelog", "atualizações", "versão", "o que mudou"],
-      "palavrasChave": ["novidades", "notas de versão", "changelog", "atualização", "versão", "lançamento", "o que há de novo", "release"],
+      "palavrasChave": ["novidades", "notas de versão", "changelog", "atualização", "versão", "lançamento", "o que há de novo", "release", "nova entrada comercial", "indicação"],
       "sinonimos": ["release notes", "changelog", "o que mudou", "atualizações do sistema"]
     },
     {
@@ -35,7 +35,7 @@
       "descricao": "Dúvidas e erros comuns do SenaHub com solução objetiva.",
       "resumo": "Respostas rápidas para acesso, senha, permissões, busca e problemas do dia a dia.",
       "tags": ["faq", "dúvidas", "erros", "problemas", "suporte", "ajuda"],
-      "palavrasChave": ["faq", "perguntas", "dúvida", "erro", "não consigo", "esqueci a senha", "permissão", "acesso negado"],
+      "palavrasChave": ["faq", "perguntas", "dúvida", "erro", "não consigo", "esqueci a senha", "permissão", "acesso negado", "cliente por indicação", "nova obra", "nova demanda"],
       "sinonimos": ["perguntas frequentes", "troubleshooting", "solução de problemas", "ajuda comum"]
     },
     {
@@ -44,7 +44,7 @@
       "descricao": "Termos do SenaHub explicados em linguagem simples.",
       "resumo": "Significado dos termos, perfis, módulos e conceitos usados no sistema e neste manual.",
       "tags": ["glossário", "termos", "definições", "conceitos", "perfis", "módulos"],
-      "palavrasChave": ["glossário", "significado", "o que é", "definição", "termo", "sigla"],
+      "palavrasChave": ["glossário", "significado", "o que é", "definição", "termo", "sigla", "entrada comercial", "lead"],
       "sinonimos": ["dicionário", "vocabulário", "terminologia"]
     },
     {
@@ -132,18 +132,18 @@
       "titulo": "Comercial",
       "path": "clientes-comercial/comercial.md",
       "descricao": "Processo comercial completo, da prospecção ao projeto.",
-      "resumo": "Registre empresas e contatos, acompanhe prospecções e negociações, envie propostas e transforme um aceite em projeto.",
-      "tags": ["comercial", "crm", "prospecção", "negociação", "proposta", "empresa", "contato", "projeto"],
-      "palavrasChave": ["comercial", "prospecção", "negociação", "proposta", "follow-up", "interação", "empresa 360", "inteligência comercial"],
+      "resumo": "Use o guia passo a passo, registre indicações e outras entradas, acompanhe leads e negociações, envie propostas e transforme um aceite em projeto.",
+      "tags": ["comercial", "crm", "entrada comercial", "indicação", "prospecção", "negociação", "proposta", "empresa", "contato", "projeto"],
+      "palavrasChave": ["comercial", "guia de uso", "passo a passo", "nova entrada", "indicação", "demanda espontânea", "cliente recorrente", "prospecção", "negociação", "proposta", "follow-up", "interação", "empresa 360", "inteligência comercial"],
       "sinonimos": ["crm", "vendas", "pipeline", "pré-venda"]
     },
     {
       "titulo": "Guia do Comercial para iniciantes",
       "path": "clientes-comercial/guia-iniciante.md",
-      "descricao": "Passo a passo simples para transformar um primeiro contato em projeto.",
-      "resumo": "Entenda empresa, contato, prospecção, negociação, proposta e projeto antes de começar a operar o Comercial.",
-      "tags": ["comercial", "guia iniciante", "prospecção", "negociação", "proposta", "projeto"],
-      "palavrasChave": ["como vender", "primeiro contato", "qualificar", "follow-up", "proposta", "aceite", "projeto"],
+      "descricao": "Passo a passo simples para registrar uma indicação ou outro contato e transformá-lo em projeto.",
+      "resumo": "Entenda entrada comercial, empresa, contato, lead, negociação, proposta e projeto e abra o Guia de uso dentro do Comercial.",
+      "tags": ["comercial", "guia iniciante", "entrada comercial", "indicação", "prospecção", "negociação", "proposta", "projeto"],
+      "palavrasChave": ["indicação", "demanda espontânea", "cliente recorrente", "como vender", "primeiro contato", "qualificar", "follow-up", "proposta", "aceite", "projeto"],
       "sinonimos": ["crm", "vendas", "treinamento comercial", "onboarding"]
     },
     {
