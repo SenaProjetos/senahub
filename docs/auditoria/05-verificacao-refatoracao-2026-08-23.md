@@ -2,7 +2,7 @@
 
 **Data:** 2026-08-23
 **Escopo:** confronto entre `01-arquitetura-atual.md`, `02-matriz-gap.md`, `03-plano-refatoracao.md`, o código atual e o banco de desenvolvimento configurado neste repositório.
-**Método:** a auditoria inicial usou somente leitura do código, Git, migrations e validações automatizadas. A continuação registrada neste arquivo implementa F2-PR6a no código, sem executar migration ou script de dados.
+**Método:** a auditoria inicial usou somente leitura do código, Git, migrations e validações automatizadas. A continuação registrada neste arquivo implementa F2-PR6a, F2-PR6c e a correção A-03 no código, sem executar migration ou script de dados.
 
 ## Limites de evidência
 
@@ -14,15 +14,16 @@
 
 | Fase/PR do plano | Estado | Evidência |
 | --- | --- | --- |
-| Fase 1, F1-PR1 a F1-PR11 | Componentes e commits presentes, mas não pronta para ativação | Commits `cd4bcba`, `c33e1b4`, `609f8cd`, `d68429e` e `cf637de`; componentes em `src/components/projetos/arquivos/`; paginação em `src/modules/uploads/queries.ts`. A-03 bloqueia o critério de aceite de upload. |
+| Fase 1, F1-PR1 a F1-PR11 | Componentes e commits presentes, mas não pronta para ativação | Commits `cd4bcba`, `c33e1b4`, `609f8cd`, `d68429e` e `cf637de`; componentes em `src/components/projetos/arquivos/`; paginação em `src/modules/uploads/queries.ts`. O CTA de A-03 foi conectado; A-05 e a validação manual ainda bloqueiam a ativação. |
 | Corte da Fase 1 | Não comprovado como ativado | A rota só usa a nova tela com `NEXT_PUBLIC_DOCUMENTOS_V2=1` ou `?docsv2=1` (`src/app/(dashboard)/projetos/[id]/arquivos/page.tsx`). O arquivo `.env` local não declara a flag. Isto é compatível com o plano de convivência; não permite concluir o estado de outro ambiente. |
 | F2-PR1 — `DocumentoRevisao` + `Upload.revisaoId` | Código e migration presentes; execução do backfill não comprovada | Migration `20260814140000_documento_revisao`; script `scripts/backfill-documento-revisao.ts`. |
 | F2-PR2 — reconciliação de órfãos | Script presente; execução não comprovada | `scripts/reconciliar-uploads-orfaos.ts`, com modo relatório e `--aplicar`. |
 | F2-PR3 — merge por nome-base | Código, migration e script presentes; execução não comprovada | `chaveDocumento()` agrupa sem extensão; migration `20260814150000_documento_substituido_por`; `scripts/merge-documentos-por-base.ts`. |
 | F2-PR4 — resolver canônico e gravação de revisão no upload | Implementada no código | `resolverDocumentoCanonico()` em `src/modules/uploads/queries.ts`; persistência de `revisaoId` em `src/app/api/uploads/route.ts`. |
-| F2-PR5 — metadados e status | Schema, migration e seed presentes; UI/action ainda ausentes | Migration `20260814160000_documento_metadados_status`; seed em `prisma/seed.ts`. Não há ação/UI para `editar_metadados` ou `alterar_status`. |
+| F2-PR5 — metadados e status | Schema, migration e seed presentes; UI/action entregue por F2-PR6c | Migration `20260814160000_documento_metadados_status`; seed em `prisma/seed.ts`; edição e status na V2 descritos abaixo. |
 | F2-PR6a — agrupamento da tabela | Implementado no código; validação visual/manual pendente | A rota V2 usa `listarDocumentosAgrupados()`; `TabelaDocumentos` mostra uma linha por `DocumentoDisciplina`, badges da revisão ativa e seleção que expande para os seus `Upload`s. O caso de revisão integralmente na lixeira tem teste unitário. |
-| F2-PR6c, F2-PR6b do plano, F2-PR7 e F2-PR9 | Não implementados | Não existem `exigirFase`, modelos de listas, painel de metadados, painel de listas nem fluxo explícito de upload de revisão agrupada. |
+| F2-PR6c — metadados, status e filtro de fases | Implementado no código; validação manual pendente | Painel de detalhe, Actions auditadas, filtro de status e seletor horizontal de fase; a atribuição padrão das novas permissões exige decisão A-06. |
+| F2-PR6b do plano, F2-PR7 e F2-PR9 | Não implementados | Não existem `exigirFase`, modelos de listas, painel de listas nem fluxo explícito de upload de revisão agrupada. |
 | F2-PR8 — histórico de revisões | Implementada | Drawer em `historico-revisoes-dialog.tsx`, query e action com escopo de projeto/disciplina. |
 | F2-PR10 — colunas configuráveis | Implementada | `src/modules/uploads/colunas-documento.ts`, `seletor-colunas.tsx` e testes associados. |
 | F4-PR4 — comparador avançado | Implementada | Percentual de opacidade e zoom/scroll sincronizados em `comparador-revisoes.tsx`. |
@@ -51,7 +52,7 @@ Em verificação posterior, as branches locais `worktree-agent-aca730b53cb77bd3d
 
 Portanto, essas referências **não devem ser mescladas novamente**. Elas podem ser removidas somente em uma limpeza de branches locais deliberada, sem impacto no conteúdo já integrado.
 
-## Continuação — F2-PR6a (tabela agrupada)
+## Continuação — F2-PR6a e F2-PR6c
 
 Após o merge `e56c293`, a continuação em `dev` concluiu a parte de interface da F2-PR6a:
 
@@ -61,7 +62,9 @@ Após o merge `e56c293`, a continuação em `dev` concluiu a parte de interface 
 - [`documentos-agrupados.ts`](../../src/modules/uploads/documentos-agrupados.ts) calcula a revisão atual pelos uploads ativos, não pelo histórico completo de revisões. A regra foi isolada e coberta por [`documentos-agrupados-utils.test.ts`](../../src/modules/uploads/documentos-agrupados-utils.test.ts).
 - O renomear de um documento com múltiplas extensões agora preserva a extensão de cada `Upload` (PDF permanece PDF e DWG permanece DWG). A regra está coberta em [`documento.test.ts`](../../src/modules/uploads/documento.test.ts).
 
-Esta entrega não inclui F2-PR6c (metadados/status/fases), F2-PR6b do plano (exigir fases), F2-PR7 nem F2-PR9. Após a auditoria inicial, o CTA da superfície V2 foi conectado ao uploader já existente; o fluxo agrupado de múltiplas extensões de F2-PR9 continua pendente.
+Após a auditoria inicial, o CTA da superfície V2 foi conectado ao uploader já existente. A F2-PR6c acrescentou o painel de detalhe do documento: título, descrição e fase são salvos pela Action `editarMetadadosDocumento`; o status é salvo separadamente por `atualizarStatusDocumento`, ambas com auditoria automática e muralha de projeto/disciplina. A tabela mostra fase/status, o drawer de filtros aceita status e o seletor horizontal grava `fase` na URL. Status final impede uma nova revisão antes da gravação física em `POST /api/uploads`.
+
+Esta entrega não inclui F2-PR6b do plano (exigir fases), F2-PR7 nem F2-PR9. O fluxo agrupado de múltiplas extensões de F2-PR9 continua pendente.
 
 ## Achados que exigem decisão antes de executar o merge de dados
 
@@ -113,14 +116,21 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 
 **Decisão/validação necessária antes de ativar a flag:** executar e arquivar o resultado de `scripts/verificar-fase2-documentos.ts` no ambiente alvo, com contagem de uploads ativos sem `documentoId` igual a zero; ou alterar a consulta para representar explicitamente os órfãos.
 
+### A-06 — decisão operacional pendente — permissões novas não têm concessão padrão
+
+`arquivos:editar_metadados` e `arquivos:alterar_status` já existem no catálogo de permissões e as Actions F2-PR6c exigem cada uma delas. Porém, nenhuma das duas está em `PERMISSOES_BASE` de `prisma/seed.ts`. O comportamento atual é deliberadamente fail-closed: só administrador/superusuário ou perfil configurado explicitamente pode editar os campos.
+
+**Decisão necessária:** registrar quais perfis recebem cada capability por padrão, se houver concessão padrão desejada. Não foi alterado o seed por não haver essa regra nos documentos do projeto.
+
 ## Verificações executadas
 
 | Verificação | Resultado |
 | --- | --- |
-| `npm run lint` | Passou após A-03. |
-| `npm test` | Passou após A-03: 225 arquivos, 2.449 testes. |
+| `npm run lint` | Passou após F2-PR6c. |
+| `npm test` | Passou após F2-PR6c: 225 arquivos, 2.449 testes. |
 | Testes focados da continuação | Passaram: 9 testes em `acesso` e `lixeira`; a regra nova de acesso tem três cenários unitários. |
 | Validação manual do envio V2 | Pendente: requer operar o diálogo com uma disciplina de teste e confirmar envio, aviso de revisão e atualização da tabela. |
+| Validação manual de F2-PR6c | Pendente: em desenvolvimento, editar metadados, alterar status, filtrar por status/fase e confirmar o bloqueio de nova revisão para status final. |
 | `scripts/verificar-fase2-documentos.ts` | Não executado: `tsx` falhou antes de conectar ao banco com `uv_os_get_passwd` / `ENOMEM`. Evidência em `06-evidencia-verificacao-fase2-documentos-dev-2026-08-23.md`. |
 | `npx prisma migrate status` | Passou: 190 migrations encontradas; schema do banco de desenvolvimento atualizado. |
 | `npx tsc --noEmit` | Não concluído: esgotou o heap padrão do Node após 85,4 s. Não é evidência de erro de tipos. |
@@ -128,4 +138,4 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 
 ## Próximo passo seguro
 
-Não executar `--aplicar` nos scripts da Fase 2 até haver decisão registrada para A-01. Antes de ativar `NEXT_PUBLIC_DOCUMENTOS_V2`, comprovar A-05 e validar manualmente o envio V2. Depois da correção/decisão, executar `scripts/verificar-fase2-documentos.ts` em cada ambiente relevante e anexar a saída datada a esta pasta, para transformar a execução de scripts manuais em evidência auditável.
+Não executar `--aplicar` nos scripts da Fase 2 até haver decisão registrada para A-01. Antes de ativar `NEXT_PUBLIC_DOCUMENTOS_V2`, comprovar A-05 e validar manualmente o envio V2/F2-PR6c. Registrar também a decisão de A-06 antes de esperar que perfis não administrativos editem metadados ou status. Depois da correção/decisão, executar `scripts/verificar-fase2-documentos.ts` em cada ambiente relevante e anexar a saída datada a esta pasta, para transformar a execução de scripts manuais em evidência auditável.

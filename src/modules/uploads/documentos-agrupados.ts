@@ -71,15 +71,22 @@ export type LinhaDoc = {
   id: string;
   nome: string;
   titulo: string | null;
+  descricao: string | null;
   disciplinaId: string;
   disciplinaNome: string;
   revisaoAtual: number | null;
+  statusId: string | null;
   statusNome: string | null;
+  statusFinal: boolean;
+  faseId: string | null;
   faseSigla: string | null;
+  faseNome: string | null;
   atualizadoEm: string;
   tamanhoTotal: number;
   autor: string;
   podeGerir: boolean;
+  podeEditarMetadados: boolean;
+  podeAlterarStatus: boolean;
   /** Arquivos da revisão ATUAL — é o que vira badge clicável na linha. */
   arquivos: ArquivoDaLinha[];
   totalRevisoes: number;
@@ -97,6 +104,8 @@ export async function listarDocumentosAgrupados(opts: {
   veTodas: boolean;
   ehGlobal: boolean;
   podeEnviarCap: boolean;
+  podeEditarMetadados: boolean;
+  podeAlterarStatus: boolean;
   filtros: FiltrosDoc;
   skip: number;
   take: number;
@@ -120,7 +129,6 @@ export async function listarDocumentosAgrupados(opts: {
     left join disciplina_catalogo cat on cat.id = disc."disciplinaId"
     join upload u on u."documentoId" = d.id and u."excluidoEm" is null
     left join documento_revisao r on r.id = u."revisaoId"
-    left join documento_status st on st.id = d."statusId"
     left join "user" au on au.id = u."autorId"
     where d."substituidoPorId" is null
       and disc."projetoId" = $1
@@ -136,7 +144,7 @@ export async function listarDocumentosAgrupados(opts: {
       and ($6::text is null or lower(u."nomeArquivo") like '%.' || lower($6))
       and ($7::text is null or au.name = $7)
       and ($8::timestamptz is null or u."createdAt" >= $8)
-      and ($9::text is null or st.nome = $9)
+      and ($9::text is null or d."statusId" = $9)
       and ($10::text is null or d."faseId" = $10)
       and ($11::boolean is null or (u.validado = true and u."pastaId" is null))
       and ($12::boolean is null or (u.validado = false and u."pastaId" is null))
@@ -183,8 +191,9 @@ export async function listarDocumentosAgrupados(opts: {
       id: true,
       nomeArquivo: true,
       titulo: true,
-      status: { select: { nome: true } },
-      fase: { select: { sigla: true } },
+      descricao: true,
+      status: { select: { id: true, nome: true, final: true } },
+      fase: { select: { id: true, sigla: true, nome: true } },
       disciplina: {
         select: {
           id: true,
@@ -229,17 +238,28 @@ export async function listarDocumentosAgrupados(opts: {
       id: d.id,
       nome: d.nomeArquivo,
       titulo: d.titulo,
+      descricao: d.descricao,
       disciplinaId: d.disciplina.id,
       disciplinaNome: d.disciplina.catalogo?.nome ?? d.disciplina.disciplinaTextoLegado ?? "—",
       revisaoAtual,
+      statusId: d.status?.id ?? null,
       statusNome: d.status?.nome ?? null,
+      statusFinal: d.status?.final ?? false,
+      faseId: d.fase?.id ?? null,
       faseSigla: d.fase?.sigla ?? null,
+      faseNome: d.fase?.nome ?? null,
       atualizadoEm: (maisRecente?.createdAt ?? new Date()).toISOString(),
       tamanhoTotal: d.uploads.reduce((s, u) => s + u.tamanho, 0),
       autor: maisRecente?.autor?.name ?? "—",
       podeGerir:
         opts.podeEnviarCap &&
         (opts.ehGlobal || d.disciplina.responsaveis.some((r) => r.userId === userId)),
+      podeEditarMetadados:
+        opts.podeEditarMetadados &&
+        (veTodas || d.disciplina.responsaveis.some((r) => r.userId === userId)),
+      podeAlterarStatus:
+        opts.podeAlterarStatus &&
+        (veTodas || d.disciplina.responsaveis.some((r) => r.userId === userId)),
       arquivos: daAtual.map((u) => ({
         id: u.id,
         nome: u.nomeArquivo,
@@ -251,4 +271,27 @@ export async function listarDocumentosAgrupados(opts: {
     });
   }
   return { total, pagina, linhas };
+}
+
+/** Catálogos usados pela edição e pelos filtros da superfície V2. */
+export async function opcoesMetadadosDocumento(projetoId: string) {
+  const [fases, status] = await Promise.all([
+    prisma.pranchaCatalogo.findMany({
+      where: {
+        categoria: "fase",
+        ativo: true,
+        OR: [{ projetoId: null }, { projetoId }],
+      },
+      orderBy: [{ ordem: "asc" }, { sigla: "asc" }],
+      select: { id: true, sigla: true, nome: true },
+    }),
+    // Inclui itens inativos para que documentos históricos continuem identificáveis e
+    // filtráveis; a ação de escrita aceita apenas status ativos.
+    prisma.documentoStatus.findMany({
+      orderBy: [{ ordem: "asc" }, { nome: "asc" }],
+      select: { id: true, nome: true, final: true, ativo: true },
+    }),
+  ]);
+
+  return { fases, status };
 }

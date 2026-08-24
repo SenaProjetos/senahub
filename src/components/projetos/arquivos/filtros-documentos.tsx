@@ -23,6 +23,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useSetParams } from "@/lib/use-set-param";
+import type { OpcaoStatusDocumento } from "@/components/projetos/arquivos/painel-documento-detalhe";
 
 const DEBOUNCE_MS = 400;
 
@@ -47,16 +48,18 @@ const VALIDADO_LABEL: Record<string, string> = {
  * o seletor de disciplina (`?disciplinaId=`). Dois controles para o mesmo filtro dariam
  * estados divergentes na mesma tela.
  *
- * Fase/status documental e listas também ficam fora — os campos não existem em `Upload`,
- * chegam com o modelo de Documento da Fase 2. Filtro que não filtra nada seria mock de UI.
+ * A fase usa um seletor horizontal próprio (mais útil para navegar por etapas), enquanto o
+ * status documental fica no drawer junto dos filtros detalhados. Listas continuam fora até F2-PR7.
  */
 export function FiltrosDocumentos({
   extensoes,
   autores,
+  status,
   totalFiltrado,
 }: {
   extensoes: string[];
   autores: string[];
+  status: OpcaoStatusDocumento[];
   totalFiltrado: number;
 }) {
   const sp = useSearchParams();
@@ -67,6 +70,7 @@ export function FiltrosDocumentos({
   const autor = sp.get("autor") ?? "";
   const periodo = sp.get("periodo") ?? "";
   const validado = sp.get("val") ?? "";
+  const statusId = sp.get("status") ?? "";
 
   const [aberto, setAberto] = useState(false);
   const [texto, setTexto] = useState(q);
@@ -87,10 +91,11 @@ export function FiltrosDocumentos({
     autor ? { chave: "autor", rotulo: autor } : null,
     periodo ? { chave: "periodo", rotulo: PERIODO_LABEL[periodo] ?? periodo } : null,
     validado ? { chave: "val", rotulo: VALIDADO_LABEL[validado] ?? validado } : null,
+    statusId ? { chave: "status", rotulo: status.find((item) => item.id === statusId)?.nome ?? "Status" } : null,
   ].filter((c): c is { chave: string; rotulo: string } => c !== null);
 
   function limparTudo() {
-    setParams({ q: null, ext: null, autor: null, periodo: null, val: null });
+    setParams({ q: null, ext: null, autor: null, periodo: null, val: null, status: null, fase: null });
   }
 
   return (
@@ -229,6 +234,26 @@ export function FiltrosDocumentos({
               <p className="text-xs text-muted-foreground">
                 Arquivos guardados em pastas não passam por validação e ficam de fora destes dois.
               </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="filtro-status">Status documental</Label>
+              <Select
+                value={statusId || "todos"}
+                onValueChange={(value) => setParams({ status: !value || value === "todos" ? null : value })}
+              >
+                <SelectTrigger id="filtro-status">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  {status.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.nome}{!item.ativo ? " (inativo)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

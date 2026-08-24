@@ -1163,3 +1163,128 @@ export const carregarHistoricoRevisoes = defineAction(
   },
 );
 
+// ── Metadados e status do documento lógico (F2-PR6c) ──────────────────────
+
+const editarMetadadosDocumentoSchema = z.object({
+  documentoId: z.string().min(1),
+  titulo: z.string().trim().max(160, "O título pode ter no máximo 160 caracteres.").nullable(),
+  descricao: z.string().trim().max(2_000, "A descrição pode ter no máximo 2.000 caracteres.").nullable(),
+  faseId: z.string().min(1).nullable(),
+});
+
+const atualizarStatusDocumentoSchema = z.object({
+  documentoId: z.string().min(1),
+  statusId: z.string().min(1).nullable(),
+});
+
+type DisciplinaDoDocumento = { projetoId: string; responsaveis: { userId: string }[] };
+
+/** A muralha de escrita é a mesma de Upload, mas o id público desta ação é o DocumentoDisciplina. */
+async function exigirEscopoDocumento(user: SessionUser, disciplina: DisciplinaDoDocumento) {
+  const [podeVerProjeto, projeto, veTodas] = await Promise.all([
+    can(user, "projetos", "ver"),
+    projetoVisivel(user, disciplina.projetoId),
+    podeVerTodasDisciplinas(user),
+  ]);
+  if (!podeVerProjeto) throw new ActionError("Sem permissão para gerir documentos.");
+
+  const naoEncontrado = new ActionError("Documento não encontrado.");
+  if (!projeto) throw naoEncontrado;
+  if (!responsavelOuVeTodas(user.id, veTodas, disciplina.responsaveis)) throw naoEncontrado;
+}
+
+async function carregarDocumentoEditavel(documentoId: string) {
+  const documento = await prisma.documentoDisciplina.findUnique({
+    where: { id: documentoId },
+    select: {
+      id: true,
+      disciplinaId: true,
+      substituidoPorId: true,
+      disciplina: { select: { projetoId: true, responsaveis: { select: { userId: true } } } },
+    },
+  });
+  if (!documento || documento.substituidoPorId) throw new ActionError("Documento não encontrado.");
+  return documento;
+}
+
+export const editarMetadadosDocumento = defineAction(
+  {
+    modulo: "uploads",
+    acao: "editar-metadados-documento",
+    recurso: "arquivos",
+    permissao: "editar_metadados",
+    entidade: "DocumentoDisciplina",
+    schema: editarMetadadosDocumentoSchema,
+    entidadeId: (data) => (data as { documentoId: string }).documentoId,
+    capturarAntes: (input) =>
+      prisma.documentoDisciplina.findUnique({
+        where: { id: input.documentoId },
+        select: { titulo: true, descricao: true, faseId: true, disciplinaId: true },
+      }),
+  },
+  async (input, { user }) => {
+    const documento = await carregarDocumentoEditavel(input.documentoId);
+    await exigirEscopoDocumento(user, documento.disciplina);
+
+    if (input.faseId) {
+      const fase = await prisma.pranchaCatalogo.findFirst({
+        where: {
+          id: input.faseId,
+          categoria: "fase",
+          ativo: true,
+          OR: [{ projetoId: null }, { projetoId: documento.disciplina.projetoId }],
+        },
+        select: { id: true },
+      });
+      if (!fase) throw new ActionError("A fase selecionada não está disponível para este projeto.");
+    }
+
+    await prisma.documentoDisciplina.update({
+      where: { id: documento.id },
+      data: {
+        titulo: input.titulo || null,
+        descricao: input.descricao || null,
+        faseId: input.faseId,
+      },
+    });
+    revalidarArquivos(documento.disciplina.projetoId);
+    return { documentoId: documento.id };
+  },
+);
+
+export const atualizarStatusDocumento = defineAction(
+  {
+    modulo: "uploads",
+    acao: "atualizar-status-documento",
+    recurso: "arquivos",
+    permissao: "alterar_status",
+    entidade: "DocumentoDisciplina",
+    schema: atualizarStatusDocumentoSchema,
+    entidadeId: (data) => (data as { documentoId: string }).documentoId,
+    capturarAntes: (input) =>
+      prisma.documentoDisciplina.findUnique({
+        where: { id: input.documentoId },
+        select: { statusId: true, disciplinaId: true },
+      }),
+  },
+  async (input, { user }) => {
+    const documento = await carregarDocumentoEditavel(input.documentoId);
+    await exigirEscopoDocumento(user, documento.disciplina);
+
+    if (input.statusId) {
+      const status = await prisma.documentoStatus.findFirst({
+        where: { id: input.statusId, ativo: true },
+        select: { id: true },
+      });
+      if (!status) throw new ActionError("O status selecionado não está ativo.");
+    }
+
+    await prisma.documentoDisciplina.update({
+      where: { id: documento.id },
+      data: { statusId: input.statusId },
+    });
+    revalidarArquivos(documento.disciplina.projetoId);
+    return { documentoId: documento.id };
+  },
+);
+

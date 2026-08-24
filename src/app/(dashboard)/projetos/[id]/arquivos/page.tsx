@@ -14,6 +14,7 @@ import {
   CAMPOS_ORDENACAO_DOC,
   campoOrdenacaoDocValido,
   listarDocumentosAgrupados,
+  opcoesMetadadosDocumento,
 } from "@/modules/uploads/documentos-agrupados";
 import { parseListParams, pageCount } from "@/lib/list-params";
 import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
@@ -49,6 +50,8 @@ export default async function ArquivosPage({
     autor?: string;
     periodo?: string;
     val?: string;
+    fase?: string;
+    status?: string;
     page?: string;
     pageSize?: string;
     sort?: string;
@@ -101,9 +104,11 @@ export default async function ArquivosPage({
   if (documentosV2) {
     // Badge IFC abre a aba Coordenação (viewer BIM): sem a permissão, o badge vira download.
     // `arquivos:excluir` espelha na UI o gate da action (admin OU capability concedida).
-    const [podeCoordenacao, podeExcluirCap] = await Promise.all([
+    const [podeCoordenacao, podeExcluirCap, podeEditarMetadados, podeAlterarStatus] = await Promise.all([
       can(user, "coordenacao", "ver"),
       can(user, "arquivos", "excluir"),
+      can(user, "arquivos", "editar_metadados"),
+      can(user, "arquivos", "alterar_status"),
     ]);
     const podeExcluirArquivo = ehAdmin || podeExcluirCap;
     const disciplinasArvore = arvore.disciplinas.map((d) => ({
@@ -151,18 +156,22 @@ export default async function ArquivosPage({
       autor: sp?.autor,
       periodo: sp?.periodo,
       validado: sp?.val,
+      fase: sp?.fase,
+      status: sp?.status,
     };
     const lp = parseListParams(sp ?? {}, {
       sortFields: CAMPOS_ORDENACAO_DOC,
       defaultPageSize: 24,
     });
-    const [pagina, opcoes] = await Promise.all([
+    const [pagina, opcoes, opcoesMetadados] = await Promise.all([
       listarDocumentosAgrupados({
         projetoId: id,
         userId: user.id,
         veTodas,
         ehGlobal,
         podeEnviarCap,
+        podeEditarMetadados,
+        podeAlterarStatus,
         filtros,
         skip: lp.skip,
         take: lp.take,
@@ -170,13 +179,14 @@ export default async function ArquivosPage({
         dir: lp.dir,
       }),
       opcoesFiltroDocumentos({ projetoId: id, userId: user.id, veTodas, disciplinaId: selecionadaId }),
+      opcoesMetadadosDocumento(id),
     ]);
     // Colunas visíveis: preferência do USUÁRIO (vale em qualquer projeto), resolvida no
     // servidor para a tabela já nascer com o recorte certo — sem piscar mostrando tudo.
     const prefs = await getPreferencias(user.id);
     const colunas = resolverColunasVisiveis(prefs[CHAVE_PREF_COLUNAS]);
     const colunasOcultas = idsOcultaveis().filter((id) => !colunas.has(id));
-    const filtrosAtivos = [sp?.q, sp?.ext, sp?.autor, sp?.periodo, sp?.val].filter(
+    const filtrosAtivos = [sp?.q, sp?.ext, sp?.autor, sp?.periodo, sp?.val, sp?.fase, sp?.status].filter(
       (v) => typeof v === "string" && v.trim() !== "",
     ).length;
 
@@ -200,6 +210,8 @@ export default async function ArquivosPage({
             ? { disciplinas: disciplinasEnviaveis, nomenclatura, existentesPorDisciplina }
             : null
         }
+        fases={opcoesMetadados.fases}
+        status={opcoesMetadados.status}
         podeCoordenacao={podeCoordenacao}
         podeValidar={podeValidar}
         podeExcluir={podeExcluirArquivo}

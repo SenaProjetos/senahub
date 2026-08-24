@@ -18,6 +18,8 @@ import { BarraSelecaoDocumentos } from "@/components/projetos/arquivos/barra-sel
 import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { BadgeExtensao } from "@/components/projetos/arquivos/badge-extensao";
 import { MenuDocumento } from "@/components/projetos/arquivos/menu-documento";
+import { PainelDocumentoDetalhe, type OpcaoStatusDocumento } from "@/components/projetos/arquivos/painel-documento-detalhe";
+import type { OpcaoFaseDocumento } from "@/components/projetos/arquivos/seletor-fases-documentos";
 import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
 import type { LinhaDocumento } from "@/modules/uploads/lista-documentos";
 import { formatarData, rotuloRevisao } from "@/lib/utils";
@@ -79,6 +81,8 @@ export function TabelaDocumentos({
   podeValidar,
   podeExcluir,
   podeSolicitarExclusao,
+  fases,
+  status,
   colunas,
 }: {
   projetoId: string;
@@ -89,6 +93,8 @@ export function TabelaDocumentos({
   podeValidar: boolean;
   podeExcluir: boolean;
   podeSolicitarExclusao: boolean;
+  fases: OpcaoFaseDocumento[];
+  status: OpcaoStatusDocumento[];
   /** Ids das colunas que o usuário escolheu ver (resolvido no servidor). */
   colunas: Set<string>;
 }) {
@@ -195,7 +201,25 @@ export function TabelaDocumentos({
                   <span className="truncate">{l.disciplinaNome}</span>
                 </span>
               </TableCell>
-              <TableCell className="max-w-[22rem] font-medium whitespace-normal">{l.nome}</TableCell>
+              <TableCell className="max-w-[22rem] whitespace-normal">
+                <div className="space-y-1">
+                  <PainelDocumentoDetalhe linha={l} fases={fases} status={status} />
+                  {(l.faseSigla || l.statusNome) && (
+                    <div className="flex flex-wrap items-center gap-1">
+                      {l.faseSigla && (
+                        <Badge variant="secondary" title={l.faseNome ?? undefined}>
+                          {l.faseSigla}
+                        </Badge>
+                      )}
+                      {l.statusNome && (
+                        <Badge variant="outline" title={l.statusFinal ? "Status final" : undefined}>
+                          {l.statusNome}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </TableCell>
               {colunas.has("revisao") && (
                 <TableCell className="text-right font-mono text-xs tabular-nums">
                   {l.revisaoAtual === null ? "—" : rotuloRevisao(l.revisaoAtual)}

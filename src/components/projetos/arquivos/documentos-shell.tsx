@@ -3,6 +3,8 @@ import { TabelaDocumentos } from "@/components/projetos/arquivos/tabela-document
 import { FiltrosDocumentos } from "@/components/projetos/arquivos/filtros-documentos";
 import { SeletorColunas } from "@/components/projetos/arquivos/seletor-colunas";
 import { EnviarDocumentosDialog, type DadosEnviarDocumentos } from "@/components/projetos/arquivos/enviar-documentos-dialog";
+import { SeletorFasesDocumentos, type OpcaoFaseDocumento } from "@/components/projetos/arquivos/seletor-fases-documentos";
+import type { OpcaoStatusDocumento } from "@/components/projetos/arquivos/painel-documento-detalhe";
 import { Pagination } from "@/components/ui/pagination";
 import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
 
@@ -33,6 +35,8 @@ export function DocumentosShell({
   totalDisciplinas,
   disciplinaSelecionadaId,
   dadosUploader,
+  fases,
+  status,
   podeCoordenacao,
   podeValidar,
   podeExcluir,
@@ -53,6 +57,8 @@ export function DocumentosShell({
   totalDisciplinas: number;
   disciplinaSelecionadaId: string | null;
   dadosUploader: DadosEnviarDocumentos | null;
+  fases: OpcaoFaseDocumento[];
+  status: OpcaoStatusDocumento[];
   podeCoordenacao: boolean;
   podeValidar: boolean;
   podeExcluir: boolean;
@@ -83,9 +89,10 @@ export function DocumentosShell({
 
         <main className="min-w-0 space-y-3">
           <div className="flex flex-wrap items-start justify-between gap-2">
-            <FiltrosDocumentos extensoes={extensoes} autores={autores} totalFiltrado={totalFiltrado} />
+            <FiltrosDocumentos extensoes={extensoes} autores={autores} status={status} totalFiltrado={totalFiltrado} />
             <SeletorColunas ocultas={colunasOcultas} />
           </div>
+          <SeletorFasesDocumentos fases={fases} />
           <TabelaDocumentos
             projetoId={projeto.id}
             linhas={linhas}
@@ -95,6 +102,8 @@ export function DocumentosShell({
             podeValidar={podeValidar}
             podeExcluir={podeExcluir}
             podeSolicitarExclusao={podeSolicitarExclusao}
+            fases={fases}
+            status={status}
             colunas={colunas}
           />
           <Pagination

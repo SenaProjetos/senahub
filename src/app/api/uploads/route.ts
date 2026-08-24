@@ -119,6 +119,21 @@ export async function POST(req: Request) {
     // pacote — o destino já é a pasta escolhida no client.
     const destino = pastaAlvo ? null : destinoArquivo(nome, alvo);
     const realocado = destino === "OUTROS" && alvo === "A";
+    const chave = chaveDocumento({
+      pacote: pastaAlvo ? null : destino,
+      pastaId: pastaAlvo?.id ?? null,
+      nomeArquivo: nome,
+    });
+
+    // O status final pertence ao documento lógico, não ao Upload: a consulta antecede a
+    // gravação física para não deixar arquivo no disco quando uma nova revisão é vedada.
+    const documentoExistente = await prisma.documentoDisciplina.findUnique({
+      where: { disciplinaId_chave: { disciplinaId, chave } },
+      select: { status: { select: { final: true } } },
+    });
+    if (documentoExistente?.status?.final) {
+      return { nome, ok: false, motivo: "Este documento está com status final e não aceita novas revisões." };
+    }
 
     // Versionamento: mesma disciplina + (pacote OU pasta) + nome → incrementa versão.
     const anterior = await prisma.upload.findFirst({
@@ -140,11 +155,6 @@ export async function POST(req: Request) {
     // Documento lógico (pai) que agrupa as versões deste arquivo. `upsert` sobre o unique
     // (disciplinaId, chave) resolve o existente OU cria — e é o que impede dois envios
     // simultâneos do mesmo nome de criarem dois pais para a mesma cadeia.
-    const chave = chaveDocumento({
-      pacote: pastaAlvo ? null : destino,
-      pastaId: pastaAlvo?.id ?? null,
-      nomeArquivo: nome,
-    });
     const documento = await prisma.documentoDisciplina.upsert({
       where: { disciplinaId_chave: { disciplinaId, chave } },
       create: { disciplinaId, chave, nomeArquivo: nome },
