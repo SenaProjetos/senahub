@@ -27,7 +27,7 @@ import {
   ShieldCheck,
   FileText,
 } from "lucide-react";
-import { foraDoPadrao } from "@/modules/projetos/pranchas/codigo";
+import { foraDoPadrao, parsePranchaFilename } from "@/modules/projetos/pranchas/codigo";
 import type {
   ArvoreDisciplina,
   ArvoreArquivoItem,
@@ -588,6 +588,7 @@ export function ArquivosExplorer({
   podeGerirGeral,
   podeValidar,
   nomenclatura,
+  fases,
   recebidos,
   baseArquitetonica,
   podeGerirBaseArquitetonica,
@@ -609,7 +610,8 @@ export function ArquivosExplorer({
   geral: DocumentoItem[];
   podeGerirGeral: boolean;
   podeValidar: boolean;
-  nomenclatura: { exigir: boolean; padrao: string | null };
+  nomenclatura: { exigir: boolean; exigirFase: boolean; padrao: string | null };
+  fases: FaseUpload[];
   recebidos: DocumentoItem[];
   /** Pasta "Base Arquitetônica" (referência fixa do projeto) — sempre renderizada, mesmo vazia. */
   baseArquitetonica: DocumentoItem[];
@@ -805,6 +807,7 @@ export function ArquivosExplorer({
           disciplinas={enviaveis}
           nomenclatura={nomenclatura}
           existentesPorDisciplina={existentesPorDisciplina}
+          fases={fases}
         />
       )}
 
@@ -2059,7 +2062,8 @@ function LixeiraPasta({ itens }: { itens: LixeiraItem[] }) {
 type PacoteEnvio = "A" | "B";
 
 /** `pastaId` presente = disciplina usa árvore de pastas (aprovação/laudo) — `alvo` é ignorado nesse caso. */
-type ItemEnvio = { file: File; nome: string; alvo: PacoteEnvio; pastaId?: string; fora: boolean };
+type FaseUpload = { id: string; sigla: string; nome: string };
+type ItemEnvio = { file: File; nome: string; alvo: PacoteEnvio; pastaId?: string; faseId?: string; fora: boolean };
 
 // ── Estado de progresso por arquivo (feedback visual do envio) ──
 type StatusEnvio = "pendente" | "enviando" | "ok" | "erro";
@@ -2087,6 +2091,7 @@ async function enviarUm(
     const meta = await enviarEmChunks(item.file, onProgress);
     const fd = new FormData();
     fd.set("disciplinaId", disciplinaId);
+    if (item.faseId) fd.set("faseId", item.faseId);
     if (item.pastaId) fd.set("pastaId", item.pastaId);
     else fd.set("pacote", item.alvo);
     fd.set("sessaoId", meta.sessaoId);
@@ -2103,6 +2108,7 @@ async function enviarUm(
   return new Promise((resolve, reject) => {
     const fd = new FormData();
     fd.set("disciplinaId", disciplinaId);
+    if (item.faseId) fd.set("faseId", item.faseId);
     if (item.pastaId) fd.set("pastaId", item.pastaId);
     else fd.set("pacote", item.alvo);
     fd.append("files", item.file);
@@ -2153,11 +2159,13 @@ function Uploader({
   disciplinas,
   nomenclatura,
   existentesPorDisciplina,
+  fases,
 }: {
   disciplinas: { id: string; nome: string; usaPastas: boolean; pastas: PastaFlat[] }[];
-  nomenclatura: { exigir: boolean; padrao: string | null };
+  nomenclatura: { exigir: boolean; exigirFase: boolean; padrao: string | null };
   /** Arquivos já enviados, por disciplina — usado só para avisar que o envio vira nova versão. */
   existentesPorDisciplina: Record<string, ArquivoExistente[]>;
+  fases: FaseUpload[];
 }) {
   const router = useRouter();
   // Sem disciplina pré-selecionada: força a escolha consciente e evita envio no alvo errado.
@@ -2200,9 +2208,20 @@ function Uploader({
           toast.error(`${f.name}: excede o limite de ${limiteLabelDoPacote("")}.`);
           continue;
         }
-        itens.push({ file: f, nome: f.name, alvo: "A", pastaId, fora: false });
+        itens.push({
+          file: f,
+          nome: f.name,
+          alvo: "A",
+          pastaId,
+          ...(nomenclatura.exigirFase ? { faseId: faseDoNome(f.name, fases) } : {}),
+          fora: false,
+        });
       }
       if (itens.length === 0) return;
+      if (nomenclatura.exigirFase) {
+        setPendentes(itens);
+        return;
+      }
       void uploadFinal(itens);
       return;
     }
@@ -2217,12 +2236,18 @@ function Uploader({
         continue;
       }
       const fora = nomenclatura.exigir && alvo === "A" && foraDoPadrao(f.name, nomenclatura.padrao);
-      itens.push({ file: f, nome: f.name, alvo, fora });
+      itens.push({
+        file: f,
+        nome: f.name,
+        alvo,
+        ...(nomenclatura.exigirFase ? { faseId: faseDoNome(f.name, fases) } : {}),
+        fora,
+      });
     }
     if (itens.length === 0) return;
 
     // Nome fora do padrão em Pranchas → revisa antes (renomear no ato ou manter).
-    if (itens.some((i) => i.fora)) {
+    if (itens.some((i) => i.fora) || nomenclatura.exigirFase) {
       setPendentes(itens);
       return;
     }
@@ -2291,6 +2316,8 @@ function Uploader({
     >
       <RevisarNomesDialog
         itens={pendentes}
+        exigirFase={nomenclatura.exigirFase}
+        fases={fases}
         onCancel={() => setPendentes(null)}
         onChange={setPendentes}
         onConfirm={() => pendentes && uploadFinal(pendentes)}
@@ -2389,6 +2416,7 @@ function Uploader({
             &quot;Recebidos do cliente&quot; (pasta de topo).
             {" "}Limite por arquivo: {TAMANHO_MAX_BACKUP_LABEL} em Backup do modelo, {TAMANHO_MAX_LABEL} nos demais.
             {nomenclatura.exigir && " Nomes fora do padrão em Pranchas pedem revisão antes do envio."}
+            {nomenclatura.exigirFase && " A fase de cada documento é obrigatória e pode ser revista antes do envio."}
           </>
         )}
       </p>
@@ -2473,11 +2501,15 @@ function PainelProgresso({
 
 function RevisarNomesDialog({
   itens,
+  exigirFase,
+  fases,
   onCancel,
   onChange,
   onConfirm,
 }: {
   itens: ItemEnvio[] | null;
+  exigirFase: boolean;
+  fases: FaseUpload[];
   onCancel: () => void;
   onChange: (itens: ItemEnvio[]) => void;
   onConfirm: () => void;
@@ -2488,6 +2520,12 @@ function RevisarNomesDialog({
     if (!itens) return;
     const copia = itens.slice();
     copia[i] = { ...copia[i], nome };
+    onChange(copia);
+  }
+  function atualizarFase(i: number, faseId: string | null) {
+    if (!itens) return;
+    const copia = itens.slice();
+    copia[i] = { ...copia[i], faseId: faseId || undefined };
     onChange(copia);
   }
   function remover(i: number) {
@@ -2504,9 +2542,15 @@ function RevisarNomesDialog({
         <DialogHeader>
           <DialogTitle>Revisar envio</DialogTitle>
           <DialogDescription>
-            {foraCount} arquivo(s) de Pranchas fora do padrão{" "}
-            <span className="font-mono">{"{proj}-{disc}-{fase}-{nº}-{tipo}[-Rnn]"}</span>. Renomeie, remova o que não
-            quiser enviar, ou envie assim (fora do padrão fica com alerta na lista).
+            {exigirFase ? (
+              "Confirme a fase de cada documento antes de enviar. A sugestão vem do nome do arquivo e pode ser alterada."
+            ) : (
+              <>
+                {foraCount} arquivo(s) de Pranchas fora do padrão{" "}
+                <span className="font-mono">{"{proj}-{disc}-{fase}-{nº}-{tipo}[-Rnn]"}</span>. Renomeie, remova o que não
+                quiser enviar, ou envie assim (fora do padrão fica com alerta na lista).
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
@@ -2544,6 +2588,22 @@ function RevisarNomesDialog({
                       </div>
                     );
                   })()}
+                {exigirFase && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Fase</Label>
+                    <Select value={it.faseId ?? ""} onValueChange={(value) => atualizarFase(i, value)}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Selecione a fase…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {fases.map((fase) => (
+                          <SelectItem key={fase.id} value={fase.id}>{fase.sigla} · {fase.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {fases.length === 0 && <p className="text-xs text-destructive">Cadastre uma fase ativa para este projeto antes de enviar.</p>}
+                  </div>
+                )}
               </div>
               <button
                 type="button"
@@ -2559,11 +2619,16 @@ function RevisarNomesDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>Cancelar</Button>
-          <Button onClick={onConfirm} disabled={!itens || itens.length === 0}>
+          <Button onClick={onConfirm} disabled={!itens || itens.length === 0 || (exigirFase && itens.some((item) => !item.faseId))}>
             Enviar {itens?.length ?? 0} arquivo(s)
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
+}
+
+function faseDoNome(nome: string, fases: FaseUpload[]): string | undefined {
+  const sigla = parsePranchaFilename(nome)?.fase;
+  return sigla ? fases.find((fase) => fase.sigla.toUpperCase() === sigla)?.id : undefined;
 }

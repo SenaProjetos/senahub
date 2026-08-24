@@ -20,11 +20,12 @@ export function NomenclaturaForm({
   global,
 }: {
   escopo: "global" | { projetoId: string };
-  inicial: { exigir: boolean; padrao: string; definido?: boolean };
-  global?: { exigir: boolean; padrao: string };
+  inicial: { exigir: boolean; exigirFase: boolean; padrao: string; definido?: boolean };
+  global?: { exigir: boolean; exigirFase: boolean; padrao: string };
 }) {
   const router = useRouter();
   const [exigir, setExigir] = useState(inicial.exigir);
+  const [exigirFase, setExigirFase] = useState(inicial.exigirFase);
   const [padrao, setPadrao] = useState(inicial.padrao);
   const [pending, start] = useTransition();
   const isProjeto = escopo !== "global";
@@ -32,8 +33,8 @@ export function NomenclaturaForm({
   function salvar() {
     start(async () => {
       const r = isProjeto
-        ? await salvarNomenclaturaProjeto({ projetoId: escopo.projetoId, exigir, padrao: padrao || undefined })
-        : await salvarNomenclaturaGlobal({ exigir, padrao: padrao || undefined });
+        ? await salvarNomenclaturaProjeto({ projetoId: escopo.projetoId, exigir, exigirFase, padrao: padrao || undefined })
+        : await salvarNomenclaturaGlobal({ exigir, exigirFase, padrao: padrao || undefined });
       if (r.ok) {
         toast.success("Nomenclatura salva.");
         router.refresh();
@@ -59,13 +60,16 @@ export function NomenclaturaForm({
         <p className="text-xs text-muted-foreground">
           Quando exigida, arquivos de Pranchas fora do padrão recebem um alerta na lista.
           {isProjeto && global && (
-            <> Global: <span className="font-medium">{global.exigir ? "exige" : "livre"}</span>.</>
+            <> Global: <span className="font-medium">{global.exigir ? "exige" : "livre"}</span>, fase {global.exigirFase ? "obrigatória" : "opcional"}.</>
           )}
         </p>
       </div>
       <div className="flex flex-wrap items-end gap-2">
         <Button type="button" size="sm" variant={exigir ? "secondary" : "outline"} onClick={() => setExigir((v) => !v)}>
           {exigir ? "Exige padrão" : "Nomenclatura livre"}
+        </Button>
+        <Button type="button" size="sm" variant={exigirFase ? "secondary" : "outline"} onClick={() => setExigirFase((v) => !v)}>
+          {exigirFase ? "Exige fases" : "Fase opcional"}
         </Button>
         <div className="min-w-[16rem] flex-1 space-y-1">
           <Label className="text-xs">Padrão custom (regex, opcional)</Label>

@@ -24,15 +24,15 @@ export const salvarNomenclaturaGlobal = defineAction(
     ...cfg,
     acao: "salvar-nomenclatura-global",
     entidade: "NomenclaturaConfig",
-    schema: z.object({ exigir: z.boolean(), padrao: z.string().max(500).optional() }),
+    schema: z.object({ exigir: z.boolean(), exigirFase: z.boolean(), padrao: z.string().max(500).optional() }),
   },
   async (i) => {
     const padrao = validarPadrao(i.padrao);
     const existe = await prisma.nomenclaturaConfig.findFirst({ where: { projetoId: null }, select: { id: true } });
     if (existe) {
-      await prisma.nomenclaturaConfig.update({ where: { id: existe.id }, data: { exigir: i.exigir, padrao } });
+      await prisma.nomenclaturaConfig.update({ where: { id: existe.id }, data: { exigir: i.exigir, exigirFase: i.exigirFase, padrao } });
     } else {
-      await prisma.nomenclaturaConfig.create({ data: { projetoId: null, exigir: i.exigir, padrao } });
+      await prisma.nomenclaturaConfig.create({ data: { projetoId: null, exigir: i.exigir, exigirFase: i.exigirFase, padrao } });
     }
     revalidatePath("/configuracoes/lista-mestre");
     return { ok: true };
@@ -48,6 +48,7 @@ export const salvarNomenclaturaProjeto = defineAction(
     schema: z.object({
       projetoId: z.string().min(1),
       exigir: z.boolean(),
+      exigirFase: z.boolean(),
       padrao: z.string().max(500).optional(),
     }),
   },
@@ -55,8 +56,8 @@ export const salvarNomenclaturaProjeto = defineAction(
     const padrao = validarPadrao(i.padrao);
     await prisma.nomenclaturaConfig.upsert({
       where: { projetoId: i.projetoId },
-      create: { projetoId: i.projetoId, exigir: i.exigir, padrao },
-      update: { exigir: i.exigir, padrao },
+      create: { projetoId: i.projetoId, exigir: i.exigir, exigirFase: i.exigirFase, padrao },
+      update: { exigir: i.exigir, exigirFase: i.exigirFase, padrao },
     });
     revalidatePath(`/projetos/${i.projetoId}/lista-mestre`);
     revalidatePath(`/projetos/${i.projetoId}/arquivos`);

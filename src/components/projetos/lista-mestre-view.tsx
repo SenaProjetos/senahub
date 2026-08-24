@@ -54,8 +54,8 @@ export function ListaMestreView({
   disciplinas: PranchasDisciplina[];
   catalogos: Catalogo;
   catalogosProjeto: PranchaCatalogoRow[];
-  nomenclaturaProjeto: { exigir: boolean; padrao: string; definido: boolean };
-  nomenclaturaGlobal: { exigir: boolean; padrao: string };
+  nomenclaturaProjeto: { exigir: boolean; exigirFase: boolean; padrao: string; definido: boolean };
+  nomenclaturaGlobal: { exigir: boolean; exigirFase: boolean; padrao: string };
   podeGerir: boolean;
   podeConfigSiglas: boolean;
 }) {

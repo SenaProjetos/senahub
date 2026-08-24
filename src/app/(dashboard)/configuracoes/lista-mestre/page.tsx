@@ -24,7 +24,7 @@ export default async function ListaMestreConfigPage() {
           Siglas de folha, tipo e fase usadas na composição do código das folhas técnicas (globais a todos os projetos).
         </p>
       </div>
-      <NomenclaturaForm escopo="global" inicial={{ exigir: nomencla.exigir, padrao: nomencla.padrao }} />
+      <NomenclaturaForm escopo="global" inicial={{ exigir: nomencla.exigir, exigirFase: nomencla.exigirFase, padrao: nomencla.padrao }} />
       <ListaMestreConfigView catalogos={catalogos} />
     </div>
   );

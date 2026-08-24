@@ -48,6 +48,7 @@ export async function POST(req: Request) {
   const disciplinaId = String(form.get("disciplinaId") ?? "");
   const alvo = String(form.get("pacote") ?? "") as PacoteAlvo;
   const pastaId = String(form.get("pastaId") ?? "") || null;
+  const faseIdInformada = String(form.get("faseId") ?? "") || null;
   if (!disciplinaId || (!pastaId && alvo !== "A" && alvo !== "B" && alvo !== "RECEBIDOS")) {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
   }
@@ -95,6 +96,32 @@ export async function POST(req: Request) {
   // Refs não-nulas p/ uso dentro de closures (o narrowing do guard `!disciplina` não
   // atravessa funções aninhadas como `avisarValidadores`).
   const { projeto, disciplinaTextoLegado: disciplinaNome } = disciplina;
+  // Fase é uma configuração efetiva: o projeto sobrescreve o global; ausência de ambos
+  // preserva o padrão da migration M8 (opcional). A validação acontece aqui, antes de
+  // qualquer gravação física, para que uma chamada direta à rota não contorne o formulário.
+  const configsNomenclatura = await prisma.nomenclaturaConfig.findMany({
+    where: { OR: [{ projetoId: projeto.id }, { projetoId: null }] },
+    select: { projetoId: true, exigirFase: true },
+  });
+  const configProjeto = configsNomenclatura.find((config) => config.projetoId === projeto.id);
+  const configGlobal = configsNomenclatura.find((config) => config.projetoId === null);
+  const exigeFase = configProjeto?.exigirFase ?? configGlobal?.exigirFase ?? false;
+  const faseSelecionada = faseIdInformada
+    ? await prisma.pranchaCatalogo.findFirst({
+        where: {
+          id: faseIdInformada,
+          categoria: "fase",
+          ativo: true,
+          OR: [{ projetoId: null }, { projetoId: projeto.id }],
+        },
+        select: { id: true },
+      })
+    : null;
+  const erroFase = exigeFase && !faseIdInformada
+    ? "Selecione a fase do documento antes de enviar."
+    : faseIdInformada && !faseSelecionada
+      ? "A fase selecionada não está disponível para este projeto."
+      : null;
   // Item 15: nomenclatura usa a sigla do catálogo (ex.: ELE) quando existir; senão, o nome.
   const cat = await prisma.disciplinaCatalogo.findFirst({
     where: { nome: disciplina.disciplinaTextoLegado },
@@ -115,6 +142,7 @@ export async function POST(req: Request) {
    * chama `gravar(relativo)` (buffer direto OU montagem de chunks) e cria o registro.
    */
   async function persistir(nome: string, gravar: (relativo: string) => Promise<ArquivoSalvo>, mime: string | null): Promise<Resultado> {
+    if (erroFase) return { nome, ok: false, motivo: erroFase };
     // Pasta-mode (aprovação/laudo, pasta personalizada): sem roteamento por extensão nem
     // pacote — o destino já é a pasta escolhida no client.
     const destino = pastaAlvo ? null : destinoArquivo(nome, alvo);
@@ -157,8 +185,11 @@ export async function POST(req: Request) {
     // simultâneos do mesmo nome de criarem dois pais para a mesma cadeia.
     const documento = await prisma.documentoDisciplina.upsert({
       where: { disciplinaId_chave: { disciplinaId, chave } },
-      create: { disciplinaId, chave, nomeArquivo: nome },
-      update: {},
+      create: { disciplinaId, chave, nomeArquivo: nome, faseId: faseSelecionada?.id ?? null },
+      // No upload, a fase revisada antes da confirmação passa a ser a metainformação atual
+      // do documento lógico. Se a fase não foi informada (projeto opcional), não apaga a
+      // classificação já feita em uma revisão anterior.
+      update: faseSelecionada ? { faseId: faseSelecionada.id } : {},
       select: { id: true },
     });
 
@@ -278,7 +309,13 @@ export async function POST(req: Request) {
       resultado: resultados.some((r) => r.ok) ? "sucesso" : "falha",
       entidade: "Upload",
       entidadeId: disciplinaId,
-      detalhe: { pacote: alvo, total: 1, ok: resultados.filter((r) => r.ok).length, chunked: true },
+      detalhe: {
+        pacote: alvo,
+        faseId: faseSelecionada?.id ?? null,
+        total: 1,
+        ok: resultados.filter((r) => r.ok).length,
+        chunked: true,
+      },
       ip: await getClientIp(),
     });
     await avisarValidadores(resultados).catch((e) =>
@@ -320,7 +357,7 @@ export async function POST(req: Request) {
     resultado: resultados.some((r) => r.ok) ? "sucesso" : "falha",
     entidade: "Upload",
     entidadeId: disciplinaId,
-    detalhe: { pacote: alvo, total: arquivos.length, ok: resultados.filter((r) => r.ok).length },
+    detalhe: { pacote: alvo, faseId: faseSelecionada?.id ?? null, total: arquivos.length, ok: resultados.filter((r) => r.ok).length },
     ip: await getClientIp(),
   });
 

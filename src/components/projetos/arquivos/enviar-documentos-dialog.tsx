@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, FolderOpen, Trash2, Upload as UploadIcon } from "lucide-react";
 import { toast } from "sonner";
-import { foraDoPadrao } from "@/modules/projetos/pranchas/codigo";
+import { foraDoPadrao, parsePranchaFilename } from "@/modules/projetos/pranchas/codigo";
 import type { PastaFlat } from "@/modules/projetos/pastas/arvore";
 import { TAMANHO_MAX_BACKUP_LABEL, TAMANHO_MAX_LABEL, limiteDoPacote, limiteLabelDoPacote } from "@/modules/uploads/limites";
 import { detectarNovasRevisoes, mensagemNovasRevisoes, type ArquivoExistente } from "@/modules/uploads/revisao-nova";
@@ -21,18 +21,21 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useDropzone } from "@/lib/use-dropzone";
 
 type PacoteEnvio = "A" | "B";
-type ItemEnvio = { file: File; nome: string; alvo: PacoteEnvio; pastaId?: string; fora: boolean };
+type FaseUpload = { id: string; sigla: string; nome: string };
+type ItemEnvio = { file: File; nome: string; alvo: PacoteEnvio; pastaId?: string; faseId?: string; fora: boolean };
 type LinhaEnvioComArquivo = ItemEnvio & LinhaEnvio;
 
 export type DadosEnviarDocumentos = {
   disciplinas: { id: string; nome: string; usaPastas: boolean; pastas: PastaFlat[] }[];
-  nomenclatura: { exigir: boolean; padrao: string | null };
+  nomenclatura: { exigir: boolean; exigirFase: boolean; padrao: string | null };
   existentesPorDisciplina: Record<string, ArquivoExistente[]>;
+  fases: FaseUpload[];
 };
 
 /**
@@ -125,12 +128,13 @@ function UploaderDocumentos({
         nome: file.name,
         alvo: pacote,
         ...(usaPastas ? { pastaId } : {}),
+        ...(dados.nomenclatura.exigirFase ? { faseId: faseDoNome(file.name, dados.fases) } : {}),
         fora: !usaPastas && dados.nomenclatura.exigir && pacote === "A" && foraDoPadrao(file.name, dados.nomenclatura.padrao),
       });
     }
     if (itens.length === 0) return;
 
-    if (itens.some((item) => item.fora)) {
+    if (itens.some((item) => item.fora) || dados.nomenclatura.exigirFase) {
       setPendentes(itens);
       return;
     }
@@ -166,6 +170,7 @@ function UploaderDocumentos({
             {
               nome: linhas[i].nome,
               disciplinaId,
+              faseId: linhas[i].faseId,
               ...(linhas[i].pastaId ? { pastaId: linhas[i].pastaId } : { pacote: linhas[i].alvo }),
             },
             (pct) => atualizarLinha(i, { progresso: pct }),
@@ -209,6 +214,8 @@ function UploaderDocumentos({
     >
       <RevisarNomesDialog
         itens={pendentes}
+        exigirFase={dados.nomenclatura.exigirFase}
+        fases={dados.fases}
         onCancel={() => setPendentes(null)}
         onChange={setPendentes}
         onConfirm={() => pendentes && void enviar(pendentes)}
@@ -292,6 +299,7 @@ function UploaderDocumentos({
           <>
             Envie arquivos soltos ou uma pasta inteira (ou arraste aqui). Vai para a disciplina escolhida. Limite por arquivo: {TAMANHO_MAX_BACKUP_LABEL} em Backup do modelo, {TAMANHO_MAX_LABEL} nos demais.
             {dados.nomenclatura.exigir && " Nomes fora do padrão em Pranchas pedem revisão antes do envio."}
+            {dados.nomenclatura.exigirFase && " A fase de cada documento é obrigatória e pode ser revista antes do envio."}
           </>
         )}
       </p>
@@ -301,11 +309,15 @@ function UploaderDocumentos({
 
 function RevisarNomesDialog({
   itens,
+  exigirFase,
+  fases,
   onCancel,
   onChange,
   onConfirm,
 }: {
   itens: ItemEnvio[] | null;
+  exigirFase: boolean;
+  fases: FaseUpload[];
   onCancel: () => void;
   onChange: (itens: ItemEnvio[]) => void;
   onConfirm: () => void;
@@ -315,6 +327,11 @@ function RevisarNomesDialog({
   function atualizarNome(indice: number, nome: string) {
     if (!itens) return;
     onChange(itens.map((item, i) => (i === indice ? { ...item, nome } : item)));
+  }
+
+  function atualizarFase(indice: number, faseId: string | null) {
+    if (!itens) return;
+    onChange(itens.map((item, i) => (i === indice ? { ...item, faseId: faseId || undefined } : item)));
   }
 
   function remover(indice: number) {
@@ -330,7 +347,9 @@ function RevisarNomesDialog({
         <DialogHeader>
           <DialogTitle>Revisar envio</DialogTitle>
           <DialogDescription>
-            {foraDoPadraoCount} arquivo(s) de Pranchas fora do padrão. Renomeie, remova ou envie assim.
+            {exigirFase
+              ? "Confirme a fase de cada documento antes de enviar. A sugestão vem do nome do arquivo e pode ser alterada."
+              : `${foraDoPadraoCount} arquivo(s) de Pranchas fora do padrão. Renomeie, remova ou envie assim.`}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
@@ -360,6 +379,22 @@ function RevisarNomesDialog({
                       {extensao && <span className="shrink-0 rounded-md border bg-muted px-1.5 py-1 font-mono text-xs text-muted-foreground">{extensao}</span>}
                     </div>
                   )}
+                  {exigirFase && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">Fase</Label>
+                      <Select value={item.faseId ?? ""} onValueChange={(value) => atualizarFase(indice, value)}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Selecione a fase…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {fases.map((fase) => (
+                            <SelectItem key={fase.id} value={fase.id}>{fase.sigla} · {fase.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {fases.length === 0 && <p className="text-xs text-destructive">Cadastre uma fase ativa para este projeto antes de enviar.</p>}
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -376,13 +411,18 @@ function RevisarNomesDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>Cancelar</Button>
-          <Button onClick={onConfirm} disabled={!itens || itens.length === 0}>
+          <Button onClick={onConfirm} disabled={!itens || itens.length === 0 || (exigirFase && itens.some((item) => !item.faseId))}>
             Enviar {itens?.length ?? 0} arquivo(s)
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
+}
+
+function faseDoNome(nome: string, fases: FaseUpload[]): string | undefined {
+  const sigla = parsePranchaFilename(nome)?.fase;
+  return sigla ? fases.find((fase) => fase.sigla.toUpperCase() === sigla)?.id : undefined;
 }
 
 function separarExtensao(nome: string) {

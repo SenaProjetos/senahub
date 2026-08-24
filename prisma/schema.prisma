@@ -4689,6 +4689,8 @@ model NomenclaturaConfig {
   projetoId String?  @unique
   projeto   Projeto? @relation(fields: [projetoId], references: [id], onDelete: Cascade)
   exigir    Boolean  @default(true)
+  /// Quando ativo no projeto, todo documento lógico precisa ter uma fase do catálogo atribuída.
+  exigirFase Boolean @default(false)
   padrao    String?
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())

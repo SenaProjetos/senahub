@@ -20,6 +20,7 @@ import { parseListParams, pageCount } from "@/lib/list-params";
 import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
 import { resolverColunasVisiveis, CHAVE_PREF_COLUNAS, idsOcultaveis } from "@/modules/uploads/colunas-documento";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
+import { catalogosPrancha } from "@/modules/projetos/pranchas/queries";
 import {
   recebidosDoProjeto,
   geralDoProjeto,
@@ -75,7 +76,7 @@ export default async function ArquivosPage({
     podeVerTodasDisciplinas(user),
     podeEnviarArquivo(user),
   ]);
-  const [arvore, podeVerGeral, podeGerirGeral, podeValidar, nomenclatura, recebidos, baseArquitetonica, clienteId, podeGerirRecebidos, podeGerirLink, linkPublico, clienteEmail] =
+  const [arvore, podeVerGeral, podeGerirGeral, podeValidar, nomenclatura, recebidos, baseArquitetonica, clienteId, podeGerirRecebidos, podeGerirLink, linkPublico, clienteEmail, catalogos] =
     await Promise.all([
       arvoreArquivosProjeto(id, user.id, ehGlobal, { veTodas, podeEnviarCap }),
       can(user, "arquivos_gerais", "ver"),
@@ -89,6 +90,7 @@ export default async function ArquivosPage({
       can(user, "projetos", "gerir"),
       linkArquivosDoProjeto(id),
       emailClienteDoProjeto(id),
+      catalogosPrancha(id),
     ]);
   const arts = await listarArtsDoProjeto(id);
   const baseUrl = process.env.APP_URL ?? "";
@@ -207,7 +209,7 @@ export default async function ArquivosPage({
         paginacao={{ page: pagina.pagina, pageCount: pageCount(pagina.total, lp.pageSize), pageSize: lp.pageSize }}
         dadosUploader={
           disciplinasEnviaveis.length > 0
-            ? { disciplinas: disciplinasEnviaveis, nomenclatura, existentesPorDisciplina }
+            ? { disciplinas: disciplinasEnviaveis, nomenclatura, existentesPorDisciplina, fases: catalogos.fase }
             : null
         }
         fases={opcoesMetadados.fases}
@@ -228,6 +230,7 @@ export default async function ArquivosPage({
       podeGerirGeral={podeGerirGeral}
       podeValidar={podeValidar}
       nomenclatura={nomenclatura}
+      fases={catalogos.fase}
       recebidos={recebidos}
       baseArquitetonica={baseArquitetonica}
       podeGerirBaseArquitetonica={podeGerirRecebidos}

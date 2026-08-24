@@ -29,14 +29,15 @@ export type LinhaEnvio = {
  */
 export async function enviarArquivoComProgresso(
   file: File,
-  opts: { nome: string; disciplinaId: string; pacote?: string; pastaId?: string },
+  opts: { nome: string; disciplinaId: string; pacote?: string; pastaId?: string; faseId?: string },
   onProgress: (pct: number) => void,
 ): Promise<ResultadoUpload> {
-  const { nome, disciplinaId, pacote, pastaId } = opts;
+  const { nome, disciplinaId, pacote, pastaId, faseId } = opts;
   if (precisaChunk(file)) {
     const meta = await enviarEmChunks(file, onProgress);
     const fd = new FormData();
     fd.set("disciplinaId", disciplinaId);
+    if (faseId) fd.set("faseId", faseId);
     if (pastaId) fd.set("pastaId", pastaId);
     else fd.set("pacote", pacote ?? "");
     fd.set("sessaoId", meta.sessaoId);
@@ -53,6 +54,7 @@ export async function enviarArquivoComProgresso(
   return new Promise((resolve, reject) => {
     const fd = new FormData();
     fd.set("disciplinaId", disciplinaId);
+    if (faseId) fd.set("faseId", faseId);
     if (pastaId) fd.set("pastaId", pastaId);
     else fd.set("pacote", pacote ?? "");
     fd.append("files", file);

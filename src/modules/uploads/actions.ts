@@ -21,6 +21,7 @@ import { projetoVisivel } from "@/modules/planejamento/queries";
 import { podeVerTodasDisciplinas, responsavelOuVeTodas } from "@/modules/arquivos/acesso";
 import { STATUS_ABERTOS } from "@/modules/projetos/pendencias/helpers";
 import { historicoRevisoesDocumento } from "@/modules/uploads/queries";
+import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 
 const validarSchema = z.object({ disciplinaId: z.string().min(1) });
 
@@ -1225,6 +1226,11 @@ export const editarMetadadosDocumento = defineAction(
   async (input, { user }) => {
     const documento = await carregarDocumentoEditavel(input.documentoId);
     await exigirEscopoDocumento(user, documento.disciplina);
+
+    const nomenclatura = await resolverNomenclatura(documento.disciplina.projetoId);
+    if (nomenclatura.exigirFase && !input.faseId) {
+      throw new ActionError("Selecione a fase do documento.");
+    }
 
     if (input.faseId) {
       const fase = await prisma.pranchaCatalogo.findFirst({

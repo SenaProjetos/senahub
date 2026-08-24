@@ -2,7 +2,7 @@
 
 **Data:** 2026-08-23
 **Escopo:** confronto entre `01-arquitetura-atual.md`, `02-matriz-gap.md`, `03-plano-refatoracao.md`, o código atual e o banco de desenvolvimento configurado neste repositório.
-**Método:** a auditoria inicial usou somente leitura do código, Git, migrations e validações automatizadas. A continuação registrada neste arquivo implementa F2-PR6a, F2-PR6c e a correção A-03 no código, sem executar migration ou script de dados.
+**Método:** a auditoria inicial usou somente leitura do código, Git, migrations e validações automatizadas. A continuação registrada neste arquivo implementa F2-PR6a, F2-PR6c, F2-PR6b e a correção A-03. A única alteração no banco de desenvolvimento foi a migration aditiva M8, registrada abaixo; nenhum script de reconciliação, backfill ou merge de dados foi executado.
 
 ## Limites de evidência
 
@@ -23,7 +23,8 @@
 | F2-PR5 — metadados e status | Schema, migration e seed presentes; UI/action entregue por F2-PR6c | Migration `20260814160000_documento_metadados_status`; seed em `prisma/seed.ts`; edição e status na V2 descritos abaixo. |
 | F2-PR6a — agrupamento da tabela | Implementado no código; validação visual/manual pendente | A rota V2 usa `listarDocumentosAgrupados()`; `TabelaDocumentos` mostra uma linha por `DocumentoDisciplina`, badges da revisão ativa e seleção que expande para os seus `Upload`s. O caso de revisão integralmente na lixeira tem teste unitário. |
 | F2-PR6c — metadados, status e filtro de fases | Implementado no código; validação manual pendente | Painel de detalhe, Actions auditadas, filtro de status e seletor horizontal de fase; a atribuição padrão das novas permissões exige decisão A-06. |
-| F2-PR6b do plano, F2-PR7 e F2-PR9 | Não implementados | Não existem `exigirFase`, modelos de listas, painel de listas nem fluxo explícito de upload de revisão agrupada. |
+| F2-PR6b — exigir fases por projeto | Implementado no código e schema de desenvolvimento; validação manual pendente | M8 cria `NomenclaturaConfig.exigirFase` com padrão `false`; configuração global/projeto, os dois uploaders e a rota validam/persistem a fase. |
+| F2-PR7 e F2-PR9 | Não implementados | Não existem modelos/painel de listas nem fluxo explícito de upload de revisão agrupada. |
 | F2-PR8 — histórico de revisões | Implementada | Drawer em `historico-revisoes-dialog.tsx`, query e action com escopo de projeto/disciplina. |
 | F2-PR10 — colunas configuráveis | Implementada | `src/modules/uploads/colunas-documento.ts`, `seletor-colunas.tsx` e testes associados. |
 | F4-PR4 — comparador avançado | Implementada | Percentual de opacidade e zoom/scroll sincronizados em `comparador-revisoes.tsx`. |
@@ -64,7 +65,11 @@ Após o merge `e56c293`, a continuação em `dev` concluiu a parte de interface 
 
 Após a auditoria inicial, o CTA da superfície V2 foi conectado ao uploader já existente. A F2-PR6c acrescentou o painel de detalhe do documento: título, descrição e fase são salvos pela Action `editarMetadadosDocumento`; o status é salvo separadamente por `atualizarStatusDocumento`, ambas com auditoria automática e muralha de projeto/disciplina. A tabela mostra fase/status, o drawer de filtros aceita status e o seletor horizontal grava `fase` na URL. Status final impede uma nova revisão antes da gravação física em `POST /api/uploads`.
 
-Esta entrega não inclui F2-PR6b do plano (exigir fases), F2-PR7 nem F2-PR9. O fluxo agrupado de múltiplas extensões de F2-PR9 continua pendente.
+F2-PR6b foi implementada em desenvolvimento. A migration `20260823110000_exigir_fase_nomenclatura` acrescenta a coluna booleana obrigatória `NomenclaturaConfig.exigirFase`, com padrão `false`; portanto não há backfill e o comportamento dos projetos já existentes permanece fase opcional. A configuração é herdada do global pelo projeto até que este tenha uma linha própria. Ao ligar "Exige fases", os uploaders V2 e legado sempre abrem a revisão antes da confirmação, sugerem a fase pela sigla extraída por `parsePranchaFilename()` e exigem uma seleção ativa; a pessoa pode alterar a sugestão por arquivo. `POST /api/uploads` repete a resolução projeto→global, valida que a fase pertence ao catálogo ativo global ou do projeto e a persiste no `DocumentoDisciplina` antes de criar o `Upload`. A Action de metadados também recusa fase vazia quando o toggle está ligado, fechando a rota alternativa de edição.
+
+Na primeira tentativa, `npx prisma migrate dev --name exigir_fase_nomenclatura` recusou executar porque o banco de desenvolvimento acusou três migrations históricas modificadas e três índices ausentes; ele solicitou reset do schema. O reset não foi aceito. Conforme o procedimento de drift, `npx prisma db push` sincronizou o schema do dev, a migration SQL M8 foi registrada manualmente e `npx prisma migrate resolve --applied 20260823110000_exigir_fase_nomenclatura` registrou sua aplicação. A checagem posterior `npx prisma migrate status` encontrou 191 migrations e informou schema atualizado. Isso é evidência somente do ambiente de desenvolvimento, não de produção.
+
+F2-PR7 e F2-PR9 continuam pendentes; em particular, F2-PR6b não altera o agrupamento de PDF/DWG em uma operação explícita de revisão.
 
 ## Achados que exigem decisão antes de executar o merge de dados
 
@@ -126,16 +131,18 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 
 | Verificação | Resultado |
 | --- | --- |
-| `npm run lint` | Passou após F2-PR6c. |
-| `npm test` | Passou após F2-PR6c: 225 arquivos, 2.449 testes. |
+| `npm run lint` | Passou após F2-PR6b. |
+| `npm test` | Passou após F2-PR6b: 225 arquivos, 2.449 testes. |
 | Testes focados da continuação | Passaram: 9 testes em `acesso` e `lixeira`; a regra nova de acesso tem três cenários unitários. |
 | Validação manual do envio V2 | Pendente: requer operar o diálogo com uma disciplina de teste e confirmar envio, aviso de revisão e atualização da tabela. |
 | Validação manual de F2-PR6c | Pendente: em desenvolvimento, editar metadados, alterar status, filtrar por status/fase e confirmar o bloqueio de nova revisão para status final. |
+| Validação manual de F2-PR6b | Pendente: em um projeto de teste, ligar/desligar "Exige fases"; confirmar herança global, sugestão por nome no padrão, alteração manual por arquivo, bloqueio sem fase e persistência no detalhe do documento, nos uploaders V2 e legado. |
 | `scripts/verificar-fase2-documentos.ts` | Não executado: `tsx` falhou antes de conectar ao banco com `uv_os_get_passwd` / `ENOMEM`. Evidência em `06-evidencia-verificacao-fase2-documentos-dev-2026-08-23.md`. |
-| `npx prisma migrate status` | Passou: 190 migrations encontradas; schema do banco de desenvolvimento atualizado. |
+| `npx prisma migrate status` | Passou após M8: 191 migrations encontradas; schema do banco de desenvolvimento atualizado. A tentativa direta de `migrate dev` anterior está documentada acima; não houve reset. |
+| `npx prisma db:seed` | Não executado: é uma escrita no banco de desenvolvimento e M8 não exige alteração no seed (o catálogo de fases já existia e a nova coluna tem default). A idempotência do seed permanece pendente de uma execução deliberada. |
 | `npx tsc --noEmit` | Não concluído: esgotou o heap padrão do Node após 85,4 s. Não é evidência de erro de tipos. |
 | `npm run build` | Não executado: havia processos Node ativos; o repositório proíbe build concorrente com `next dev` no mesmo `.next`. |
 
 ## Próximo passo seguro
 
-Não executar `--aplicar` nos scripts da Fase 2 até haver decisão registrada para A-01. Antes de ativar `NEXT_PUBLIC_DOCUMENTOS_V2`, comprovar A-05 e validar manualmente o envio V2/F2-PR6c. Registrar também a decisão de A-06 antes de esperar que perfis não administrativos editem metadados ou status. Depois da correção/decisão, executar `scripts/verificar-fase2-documentos.ts` em cada ambiente relevante e anexar a saída datada a esta pasta, para transformar a execução de scripts manuais em evidência auditável.
+Não executar `--aplicar` nos scripts da Fase 2 até haver decisão registrada para A-01. Antes de ativar `NEXT_PUBLIC_DOCUMENTOS_V2`, comprovar A-05 e validar manualmente o envio V2/F2-PR6b/F2-PR6c. Registrar também a decisão de A-06 antes de esperar que perfis não administrativos editem metadados ou status. Depois da correção/decisão, executar `scripts/verificar-fase2-documentos.ts` em cada ambiente relevante e anexar a saída datada a esta pasta, para transformar a execução de scripts manuais em evidência auditável.
