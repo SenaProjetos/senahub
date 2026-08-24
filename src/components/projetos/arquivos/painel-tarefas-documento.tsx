@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { ClipboardList, MessageSquare, Paperclip, Plus, Search } from "lucide-react";
 import type { PendenciaView } from "@/modules/projetos/pendencias/queries";
 import {
@@ -33,6 +33,9 @@ export type PainelTarefasDocumentoProps = {
   quantidadeSemTarefa: number;
   onCriarTarefa?: () => void;
   pending?: boolean;
+  /** Controle externo do workspace, como recolher este painel sem perder seus filtros locais. */
+  acaoCabecalho?: ReactNode;
+  tituloId?: string;
 };
 
 const SEM_CLASSIFICACAO = "__sem_classificacao";
@@ -49,6 +52,8 @@ export function PainelTarefasDocumento({
   quantidadeSemTarefa,
   onCriarTarefa,
   pending = false,
+  acaoCabecalho,
+  tituloId = "tarefas-documento-titulo",
 }: PainelTarefasDocumentoProps) {
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
@@ -73,25 +78,28 @@ export function PainelTarefasDocumento({
   }, [busca, filtroSeveridade, filtroStatus, pendencias]);
 
   return (
-    <aside className="flex min-h-0 w-full flex-col" aria-labelledby="tarefas-documento-titulo">
+    <aside className="flex min-h-0 w-full flex-col" aria-labelledby={tituloId}>
       <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
         <div className="min-w-0">
-          <h2 id="tarefas-documento-titulo" className="truncate text-sm font-semibold">
+          <h2 id={tituloId} className="truncate text-sm font-semibold">
             Tarefas do documento
           </h2>
           <p className="text-xs text-muted-foreground">{pendencias.length} apontamento(s)</p>
         </div>
-        {podeCriarTarefa && onCriarTarefa && (
-          <Button
-            size="sm"
-            className="h-7 shrink-0 gap-1 px-2 text-xs"
-            onClick={onCriarTarefa}
-            disabled={pending || quantidadeSemTarefa === 0}
-            title="Agrupa os apontamentos abertos sem tarefa em uma nova tarefa"
-          >
-            <Plus className="size-3.5" /> Tarefa{quantidadeSemTarefa > 0 ? ` (${quantidadeSemTarefa})` : ""}
-          </Button>
-        )}
+        <div className="flex shrink-0 items-center gap-1">
+          {podeCriarTarefa && onCriarTarefa && (
+            <Button
+              size="sm"
+              className="h-7 gap-1 px-2 text-xs"
+              onClick={onCriarTarefa}
+              disabled={pending || quantidadeSemTarefa === 0}
+              title="Agrupa os apontamentos abertos sem tarefa em uma nova tarefa"
+            >
+              <Plus className="size-3.5" /> Tarefa{quantidadeSemTarefa > 0 ? ` (${quantidadeSemTarefa})` : ""}
+            </Button>
+          )}
+          {acaoCabecalho}
+        </div>
       </div>
 
       <div className="space-y-2 border-b p-3">

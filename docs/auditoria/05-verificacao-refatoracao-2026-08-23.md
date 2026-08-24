@@ -30,9 +30,10 @@
 | F2-PR8 — histórico de revisões | Implementada | Drawer em `historico-revisoes-dialog.tsx`, query e action com escopo de projeto/disciplina. |
 | F2-PR10 — colunas configuráveis | Implementada | `src/modules/uploads/colunas-documento.ts`, `seletor-colunas.tsx` e testes associados. |
 | F3-PR1 — cabeçalho do visualizador | Implementado no código; validação manual pendente | Breadcrumb contextual com projeto/disciplina/documento, revisão lógica, status documental e arquivos ativos da mesma revisão; o comparador agora só aparece para outra revisão da mesma extensão. |
-| F3-PR2 — painel de tarefas do documento | Componente implementado; integração visual depende de F3-PR3 | `painel-tarefas-documento.tsx` é controlado pelo visualizador, filtra a mesma coleção mutável de `Pendencia` e preserva o envio em lote já decidido. |
+| F3-PR2 — painel de tarefas do documento | Implementado no código; validação manual pendente | `painel-tarefas-documento.tsx` é controlado pelo visualizador, filtra a mesma coleção mutável de `Pendencia` e preserva o envio em lote já decidido. |
+| F3-PR3 — workspace de três painéis recolhíveis | Implementado no código; validação manual pendente | `PdfViewer` monta tarefas, prancha e detalhes em uma única área flexível; os painéis laterais preservam a seleção ao recolher. |
 | F4-PR4 — comparador avançado | Implementada | Percentual de opacidade e zoom/scroll sincronizados em `comparador-revisoes.tsx`. |
-| F3-PR3 a F3-PR5 e F4-PR1 a F4-PR3 | Não implementado | Ainda não há workspace de três painéis, relações `revisaoOrigemId`/`revisaoResolucaoId` nem UI de resolução entre revisões. |
+| F3-PR4 a F3-PR5 e F4-PR1 a F4-PR3 | Não implementado | Ainda falta centralizar/zoom do pin selecionado, contexto de tarefa sob `escopoTarefa`, relações `revisaoOrigemId`/`revisaoResolucaoId` e UI de resolução entre revisões. |
 
 ## Integração da branch de refatoração
 
@@ -99,6 +100,14 @@ O botão `+ Tarefa` é uma prop controlada e só será entregue a quem já tem `
 
 O componente ainda não é montado antes de F3-PR3 de propósito: o painel direito atual já contém a lista completa de apontamentos, e montá-lo agora duplicaria informação e seleção. F3-PR3 moverá a composição para as três colunas; F3-PR4 conectará a seleção à centralização/zoom e F3-PR5 acrescentará o detalhe contextual de tarefa.
 
+## Continuação — F3-PR3, workspace de três painéis
+
+F3-PR3 montou o componente de F3-PR2 à esquerda, preservou a coluna da prancha como centro do workspace e converteu a lateral direita em detalhe da pendência selecionada. `PdfViewer` continua dono de `pendencias`, seleção, envio e ações; o painel novo não consulta nem mantém uma cópia própria dos dados. Assim, criar, editar, excluir ou encaminhar um apontamento atualiza os três painéis pela mesma coleção otimista.
+
+Os dois painéis laterais são recolhíveis no layout desktop (`lg`): tarefas usam 288 px, detalhes usam 320 px e a prancha mantém `min-w-0 flex-1`, sem largura fixa concorrente. Ao fechar um painel, a seleção do pin fica no pai e o foco volta ao botão que o reabre caso estivesse dentro do painel fechado. Os painéis não recolhidos deixam de ser montados, evitando controles invisíveis na navegação por teclado. A lista esquerda seleciona o apontamento, abre o detalhe e rola à página correspondente; clicar no pin também abre o detalhe. A centralização e o zoom exatos do pin continuam sendo o recorte seguinte, F3-PR4.
+
+Esta etapa não altera schema, migration, endpoint, permissão ou banco. A composição é desktop-first; a validação manual deve ser feita em 1366 px, incluindo recolher/expandir cada lado, percorrer a lista por teclado, selecionar card e pin, verificar ausência de scroll horizontal e confirmar que as ações existentes do detalhe ainda funcionam.
+
 ## Achados que exigem decisão antes de executar o merge de dados
 
 ### A-01 — crítico — o script de merge descarta registros, contrariando o plano
@@ -159,8 +168,8 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 
 | Verificação | Resultado |
 | --- | --- |
-| `npm run lint` | Passou após F3-PR2. |
-| `npm test` | Passou após F3-PR2: 226 arquivos, 2.453 testes. |
+| `npm run lint` | Passou após F3-PR3. |
+| `npm test` | Passou após F3-PR3: 226 arquivos, 2.453 testes. |
 | Testes focados da continuação | Passaram: 9 testes em `acesso` e `lixeira`; a regra nova de acesso tem três cenários unitários. |
 | Revisão de acessibilidade de F3-PR1 | Sem achados concretos no breadcrumb e nos controles novos do cabeçalho. |
 | Revisão de fronteira cliente de F3-PR1 | Detectou que montar `VisualizarDwgButton` no cabeçalho poderia expor spinner de conversão persistente; o cabeçalho usa o download de DWG e não monta esse probe. |
@@ -173,7 +182,7 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 | Validação manual de F2-PR7 | Pendente: na V2 e em um projeto de teste, criar uma lista, selecionar dois documentos e adicioná-los, selecionar a lista, remover um documento e confirmar contagem/tabela sem recarregar manualmente. Repetir com responsável de disciplina e com gestão do projeto para confirmar a muralha de escrita. |
 | Validação manual de F2-PR9 | Pendente: em uma disciplina de teste, selecionar PDF e DWG com mesmo nome-base numa única operação, confirmar o toast da mesma revisão e o drawer de histórico com ambos os arquivos na mesma Rxx. Repetir com arquivos de nome-base ou destino diferentes para confirmar que seguem independentes. |
 | Validação manual de F3-PR1 | Pendente: em desenvolvimento, abrir PDF único, PDF+DWG na mesma revisão e histórico legado com revisão sem par; conferir breadcrumb contextual, status nulo/final, formato atual, ações dos formatos irmãos e ausência do botão Comparar quando só houver outra extensão na mesma revisão. |
-| Validação manual de F3-PR2 | Pertence à composição de F3-PR3: abrir o workspace em 1366 px, pesquisar/filtrar cards, confirmar foco por teclado, seleção única e o encaminhamento em lote para tarefa. |
+| Validação manual de F3-PR2/F3-PR3 | Pendente: em 1366 px, abrir o workspace, pesquisar/filtrar cards, confirmar foco por teclado, seleção única, recolher/expandir ambos os painéis sem perder a seleção, abrir detalhes pelo card e pelo pin, ausência de scroll horizontal e encaminhamento em lote para tarefa. |
 | `scripts/verificar-fase2-documentos.ts` | Não executado: `tsx` falhou antes de conectar ao banco com `uv_os_get_passwd` / `ENOMEM`. Evidência em `06-evidencia-verificacao-fase2-documentos-dev-2026-08-23.md`. |
 | `npx prisma migrate status` | Passou após M7: 192 migrations encontradas; schema do banco de desenvolvimento atualizado. As tentativas diretas de `migrate dev` estão documentadas acima e não houve reset. |
 | `npx prisma db:seed` | Não executado: é uma escrita no banco de desenvolvimento e M7/M8 não exigem alteração no seed (a nova coluna tem default e listas não possuem catálogo inicial). A idempotência do seed permanece pendente de uma execução deliberada. |
@@ -182,4 +191,4 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 
 ## Próximo passo seguro
 
-Não executar `--aplicar` nos scripts da Fase 2 até haver decisão registrada para A-01. Antes de ativar `NEXT_PUBLIC_DOCUMENTOS_V2`, comprovar A-05 e validar manualmente o envio V2/F2-PR6b/F2-PR6c/F2-PR7/F2-PR9. Registrar também a decisão de A-06 antes de esperar que perfis não administrativos editem metadados ou status. O próximo recorte de implementação é F3-PR3, que monta o workspace de três painéis e passa a usar o componente de F3-PR2; ele não transforma as pendências manuais da Fase 2 em comprovadas. Depois da correção/decisão, executar `scripts/verificar-fase2-documentos.ts` em cada ambiente relevante e anexar a saída datada a esta pasta, para transformar a execução de scripts manuais em evidência auditável.
+Não executar `--aplicar` nos scripts da Fase 2 até haver decisão registrada para A-01. Antes de ativar `NEXT_PUBLIC_DOCUMENTOS_V2`, comprovar A-05 e validar manualmente o envio V2/F2-PR6b/F2-PR6c/F2-PR7/F2-PR9. Registrar também a decisão de A-06 antes de esperar que perfis não administrativos editem metadados ou status. O próximo recorte de implementação é F3-PR4: centralizar e aplicar zoom ao pin selecionado, sem criar deep-link nem alterar o modelo de dados. Ele não transforma as pendências manuais da Fase 2 em comprovadas. Depois da correção/decisão, executar `scripts/verificar-fase2-documentos.ts` em cada ambiente relevante e anexar a saída datada a esta pasta, para transformar a execução de scripts manuais em evidência auditável.

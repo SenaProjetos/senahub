@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, BookmarkPlus, Check, CopyPlus, Expand, FileArchive, GitCompare, Loader2, Maximize2, MapPin, MessageSquare, Minimize, PauseCircle, Pencil, RotateCcw, RotateCw, Ruler, Send, Sparkles, Stamp, Table2, Tags, Trash2, Undo2, Wrench, X, ZoomIn, ZoomOut } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookmarkPlus, Check, CopyPlus, Expand, FileArchive, GitCompare, Loader2, Maximize2, MapPin, MessageSquare, Minimize, PauseCircle, Pencil, RotateCcw, RotateCw, Ruler, Send, Sparkles, Stamp, Table2, Tags, Trash2, Undo2, Wrench, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { PendenciaView, ReincidenciaView } from "@/modules/projetos/pendencias/queries";
 import {
   criarPendencia,
@@ -29,7 +29,6 @@ import { TarefaDialog, type OpcoesUI } from "@/components/tarefas/tarefa-dialog"
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
 import {
   rotuloItemPendencia,
-  pesoSeveridade,
   transicoesPossiveis,
   temEvidencia,
   STATUS_LABEL,
@@ -92,6 +91,7 @@ import { usePinchZoom } from "@/components/pdf/use-pinch-zoom";
 import { usePresencaDocumento } from "@/components/pdf/use-presenca-documento";
 import { Breadcrumb } from "@/components/shell/breadcrumb";
 import { BadgeExtensao } from "@/components/projetos/arquivos/badge-extensao";
+import { PainelTarefasDocumento } from "@/components/projetos/arquivos/painel-tarefas-documento";
 import type { ItemPagina } from "@/lib/pdf-busca";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -382,11 +382,12 @@ export function PdfViewer(props: Props) {
   // aberto (força resolver/fechar as pendências antes de dar por validada).
   const podeValidarArquivo = podeValidar && versaoAtual && !finalizada && !temApontamentoAberto;
   const [selecionadaId, setSelecionadaId] = useState<string | null>(null);
-  // Filtro/ordenação da lista lateral (item 15) — só a lista; os pinos no canvas continuam
-  // mostrando tudo, senão "filtrar a lista" viraria "esconder pino da prancha", o que não
-  // foi pedido.
-  const [filtroStatus, setFiltroStatus] = useState<"todos" | keyof typeof STATUS_META>("todos");
-  const [ordenacao, setOrdenacao] = useState<"numero" | "pagina" | "recente" | "severidade">("numero");
+  const [painelTarefasAberto, setPainelTarefasAberto] = useState(true);
+  const [painelDetalhesAberto, setPainelDetalhesAberto] = useState(true);
+  const painelTarefasRef = useRef<HTMLDivElement | null>(null);
+  const painelDetalhesRef = useRef<HTMLElement | null>(null);
+  const abrirTarefasRef = useRef<HTMLButtonElement | null>(null);
+  const abrirDetalhesRef = useRef<HTMLButtonElement | null>(null);
   const [modoApontar, setModoApontar] = useState(false);
   // Ferramenta de marcação (item 9). "ponto" = clique simples, o comportamento de sempre.
   const [ferramenta, setFerramenta] = useState<TipoMarcacao>("ponto");
@@ -600,21 +601,30 @@ export function PdfViewer(props: Props) {
     [pendencias, busca.versaoTexto, busca.itensDaPagina],
   );
 
-  /** Lista lateral filtrada por status e ordenada (item 15) — só a lista, ver nota acima. */
-  const pinsDaLista = useMemo(() => {
-    const filtrados =
-      filtroStatus === "todos" ? pinsPosicionados : pinsPosicionados.filter((p) => p.status === filtroStatus);
-    return filtrados.slice().sort((a, b) => {
-      if (ordenacao === "pagina") return a.pagina - b.pagina || a.numero - b.numero;
-      if (ordenacao === "recente") return b.createdAt.localeCompare(a.createdAt);
-      // Gravidade (item 11): impeditivo primeiro, não classificado por último; empate volta
-      // pro número, pra ordem não "dançar" entre renders.
-      if (ordenacao === "severidade") {
-        return pesoSeveridade(a.severidade) - pesoSeveridade(b.severidade) || a.numero - b.numero;
-      }
-      return a.numero - b.numero;
-    });
-  }, [pinsPosicionados, filtroStatus, ordenacao]);
+  const pendenciaSelecionada = pinsPosicionados.find((p) => p.id === selecionadaId) ?? null;
+
+  const selecionarPendencia = useCallback(
+    (id: string, navegarParaPin = true) => {
+      const alvo = pinsPosicionados.find((p) => p.id === id);
+      if (!alvo) return;
+      setSelecionadaId(id);
+      setPainelDetalhesAberto(true);
+      if (navegarParaPin) irParaPagina(alvo.pagina);
+    },
+    [irParaPagina, pinsPosicionados],
+  );
+
+  function recolherPainelTarefas() {
+    const devolverFoco = painelTarefasRef.current?.contains(document.activeElement);
+    setPainelTarefasAberto(false);
+    if (devolverFoco) requestAnimationFrame(() => abrirTarefasRef.current?.focus());
+  }
+
+  function recolherPainelDetalhes() {
+    const devolverFoco = painelDetalhesRef.current?.contains(document.activeElement);
+    setPainelDetalhesAberto(false);
+    if (devolverFoco) requestAnimationFrame(() => abrirDetalhesRef.current?.focus());
+  }
 
   // Ao navegar pra uma ocorrência de busca: rola até a página e, na sequência, até a marca exata.
   useEffect(() => {
@@ -707,8 +717,7 @@ export function PdfViewer(props: Props) {
     if (pinInicial != null) {
       const alvo = props.pendenciasIniciais.find((p) => p.numero === pinInicial);
       if (alvo) {
-        setSelecionadaId(alvo.id);
-        if (!paginaInicial) irParaPagina(alvo.pagina);
+        selecionarPendencia(alvo.id, !paginaInicial);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1543,6 +1552,52 @@ export function PdfViewer(props: Props) {
       )}
 
       <div className="flex min-h-0 flex-1">
+        {painelTarefasAberto ? (
+          <div
+            ref={painelTarefasRef}
+            id="painel-tarefas-workspace"
+            className="hidden w-72 shrink-0 overflow-hidden border-r lg:flex"
+          >
+            <PainelTarefasDocumento
+              pendencias={pendencias}
+              selecionadaId={selecionadaId}
+              onSelecionarPendencia={selecionarPendencia}
+              podeCriarTarefa={podeApontar}
+              quantidadeSemTarefa={abertasSemTarefa}
+              onCriarTarefa={enviar}
+              pending={pending}
+              tituloId="tarefas-documento-titulo-desktop"
+              acaoCabecalho={
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-7"
+                  onClick={recolherPainelTarefas}
+                  aria-label="Recolher painel de tarefas"
+                  title="Recolher painel de tarefas"
+                >
+                  <ArrowLeft className="size-3.5" />
+                </Button>
+              }
+            />
+          </div>
+        ) : (
+          <div className="hidden w-10 shrink-0 items-start justify-center border-r pt-2 lg:flex">
+            <Button
+              ref={abrirTarefasRef}
+              size="icon"
+              variant="ghost"
+              className="size-7"
+              onClick={() => setPainelTarefasAberto(true)}
+              aria-expanded={false}
+              aria-controls="painel-tarefas-workspace"
+              aria-label="Abrir painel de tarefas"
+              title="Abrir painel de tarefas"
+            >
+              <ArrowRight className="size-3.5" />
+            </Button>
+          </div>
+        )}
         {/* Coluna de páginas */}
         <div
           ref={colunaRef}
@@ -1590,7 +1645,7 @@ export function PdfViewer(props: Props) {
                     setTracandoReferencia(null);
                     setCalibrarPagina(pagina);
                   }}
-                  onSelecionar={setSelecionadaId}
+                  onSelecionar={(id) => selecionarPendencia(id, false)}
                   onApontar={(x, y, marcacao, medida) => abrirNovo(n, x, y, marcacao, medida)}
                   onTexto={busca.registrarTexto}
                   marcas={busca.ocorrenciasPorPagina(n)}
@@ -1608,11 +1663,17 @@ export function PdfViewer(props: Props) {
           )}
         </div>
 
-        {/* Painel lateral */}
-        <aside className="flex w-80 shrink-0 flex-col border-l">
-          <div className="flex items-center justify-between border-b px-3 py-2">
-            <span className="text-sm font-semibold">Apontamentos</span>
-            <div className="flex items-center gap-1.5">
+        {/* Painel de detalhes */}
+        {painelDetalhesAberto ? (
+        <aside
+          ref={painelDetalhesRef}
+          id="painel-detalhes-workspace"
+          className="hidden w-80 shrink-0 flex-col border-l lg:flex"
+          aria-labelledby="detalhe-apontamento-titulo"
+        >
+          <div className="flex items-center justify-between gap-1 border-b px-3 py-2">
+            <h2 id="detalhe-apontamento-titulo" className="min-w-0 truncate text-sm font-semibold">Detalhes do apontamento</h2>
+            <div className="flex shrink-0 items-center gap-0.5">
               <Badge variant="outline" className="text-xs">
                 {pendencias.length}
               </Badge>
@@ -1653,30 +1714,18 @@ export function PdfViewer(props: Props) {
                   {carimbando ? <Loader2 className="size-3.5 animate-spin" /> : <Stamp className="size-3.5" />}
                 </Button>
               )}
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-6"
+                aria-label="Recolher painel de detalhes"
+                title="Recolher painel de detalhes"
+                onClick={recolherPainelDetalhes}
+              >
+                <ArrowRight className="size-3.5" />
+              </Button>
             </div>
           </div>
-          {pendencias.length > 0 && (
-            <div className="flex items-center gap-1.5 border-b px-3 py-1.5">
-              <Select value={filtroStatus} onValueChange={(v) => setFiltroStatus((v as typeof filtroStatus) ?? "todos")}>
-                <SelectTrigger className="h-7 flex-1 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos os status</SelectItem>
-                  {Object.entries(STATUS_META).map(([v, m]) => (
-                    <SelectItem key={v} value={v}>{m.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={ordenacao} onValueChange={(v) => setOrdenacao((v as typeof ordenacao) ?? "numero")}>
-                <SelectTrigger className="h-7 flex-1 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="numero">Nº</SelectItem>
-                  <SelectItem value="pagina">Página</SelectItem>
-                  <SelectItem value="recente">Mais recente</SelectItem>
-                  <SelectItem value="severidade">Gravidade</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
           <div className="min-h-0 flex-1 overflow-y-auto">
             {pendencias.length === 0 ? (
               <p className="px-3 py-6 text-center text-xs text-muted-foreground">
@@ -1684,26 +1733,21 @@ export function PdfViewer(props: Props) {
                   ? "Clique em “Apontar” e toque na prancha para criar uma pendência."
                   : "Nenhum apontamento nesta prancha."}
               </p>
-            ) : pinsDaLista.length === 0 ? (
+            ) : !pendenciaSelecionada ? (
               <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-                Nenhum apontamento com esse filtro.
+                Selecione um apontamento na lista ou na prancha para ver os detalhes.
               </p>
             ) : (
               <ul className="divide-y">
-                {pinsDaLista.map((p) => {
+                {[pendenciaSelecionada].map((p) => {
                     const meta = STATUS_META[p.status] ?? STATUS_META.aberta;
-                    const sel = selecionadaId === p.id;
                     // Editar/excluir: só quem criou o apontamento (ou admin), enquanto aberto e sem tarefa.
                     const editavel =
                       (p.autorId === props.currentUserId || ehAdmin) && p.status === "aberta" && !p.tarefaId;
                     return (
                       <li
                         key={p.id}
-                        className={cn("cursor-pointer px-3 py-2 text-sm hover:bg-muted/50", sel && "bg-muted")}
-                        onClick={() => {
-                          setSelecionadaId(p.id);
-                          irParaPagina(p.pagina);
-                        }}
+                        className="px-3 py-2 text-sm"
                       >
                         <div className="flex items-center gap-2">
                           <span className={cn("flex size-5 items-center justify-center rounded-full text-[11px] font-bold", meta.pin)}>
@@ -1938,6 +1982,23 @@ export function PdfViewer(props: Props) {
             )}
           </div>
         </aside>
+        ) : (
+          <div className="hidden w-10 shrink-0 items-start justify-center border-l pt-2 lg:flex">
+            <Button
+              ref={abrirDetalhesRef}
+              size="icon"
+              variant="ghost"
+              className="size-7"
+              onClick={() => setPainelDetalhesAberto(true)}
+              aria-expanded={false}
+              aria-controls="painel-detalhes-workspace"
+              aria-label="Abrir detalhes do apontamento"
+              title="Abrir detalhes do apontamento"
+            >
+              <ArrowLeft className="size-3.5" />
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Dialog de texto (novo / editar) */}
