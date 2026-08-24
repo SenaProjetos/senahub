@@ -40,6 +40,17 @@ O contexto do Claude descreve trabalho posterior na branch local `refactor/docum
 
 O relato da sessão informa que build, lint e testes passaram na branch de origem. Esta auditoria repetiu lint e testes depois do merge em `dev`; o build continua não executado porque há processos Node ativos no workspace.
 
+### Referências locais duplicadas de agentes
+
+Em verificação posterior, as branches locais `worktree-agent-aca730b53cb77bd3d` e `worktree-agent-a04b6fd11d28e4454` apontavam, respectivamente, para `3dedaa7` e `95cb25f`. Não há worktree ativo para elas (`git worktree list` contém somente `dev`) e elas não representam trabalho adicional:
+
+| Referência encontrada | Patch já presente em `dev` | Evidência |
+| --- | --- | --- |
+| `3dedaa7` — comparador avançado | `c7813de` | Os dois commits têm o mesmo `patch-id` estável `7029b82b…`; `c7813de` está no histórico de `dev`. |
+| `95cb25f` — drawer de histórico | `85d9f0e` | Os dois commits têm o mesmo `patch-id` estável `cb6d56b8…`; `4ff6505` acrescenta a correção posterior de hora e também está em `dev`. |
+
+Portanto, essas referências **não devem ser mescladas novamente**. Elas podem ser removidas somente em uma limpeza de branches locais deliberada, sem impacto no conteúdo já integrado.
+
 ## Continuação — F2-PR6a (tabela agrupada)
 
 Após o merge `e56c293`, a continuação em `dev` concluiu a parte de interface da F2-PR6a:
