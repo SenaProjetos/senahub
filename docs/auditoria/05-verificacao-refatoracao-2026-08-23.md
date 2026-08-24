@@ -3,7 +3,7 @@
 **Data inicial:** 2026-08-23
 **Atualizado em:** 2026-08-24
 **Escopo:** confronto entre `01-arquitetura-atual.md`, `02-matriz-gap.md`, `03-plano-refatoracao.md`, o código atual e o banco de desenvolvimento configurado neste repositório.
-**Método:** a auditoria inicial usou somente leitura do código, Git, migrations e validações automatizadas. A continuação registrada neste arquivo implementa F2-PR6a, F2-PR6c, F2-PR6b, F2-PR7, F2-PR9, F3-PR1 a F3-PR5, F4-PR1 e a correção A-03. No banco de desenvolvimento foram aplicadas as migrations aditivas M8, M7 e M9; o único backfill executado foi o de M9, descrito abaixo. Nenhum script de reconciliação ou merge de dados foi executado.
+**Método:** a auditoria inicial usou somente leitura do código, Git, migrations e validações automatizadas. A continuação registrada neste arquivo implementa F2-PR6a, F2-PR6c, F2-PR6b, F2-PR7, F2-PR9, F3-PR1 a F3-PR5, F4-PR1 a F4-PR3 e as correções A-01 e A-03. No banco de desenvolvimento foram aplicadas as migrations aditivas M8, M7 e M9; o único backfill executado foi o de M9, descrito abaixo. Nenhum script de reconciliação ou merge de dados foi executado.
 
 ## Limites de evidência
 
@@ -146,19 +146,13 @@ No visualizador, somente pendência trazida de outra revisão, com origem identi
 
 ## Achados que exigem decisão antes de executar o merge de dados
 
-### A-01 — crítico — o script de merge descarta registros, contrariando o plano
+### A-01 — resolvido no código — colisões do merge são preservadas no alias
 
-O plano estabelece que nenhum registro é descartado no merge de documentos. Entretanto, `scripts/merge-documentos-por-base.ts` faz `delete` de:
+A decisão registrada para o merge é preservar o histórico, sem descarte. Em colisão de número de revisão, os uploads passam para a revisão canônica, mas a revisão original permanece no `DocumentoDisciplina` alias, que é soft-retirado e ligado pelo `substituidoPorId`. Em colisão de calibração ou leitura, a linha original também permanece no alias; a linha canônica não é sobrescrita.
 
-- revisões duplicadas após repontar seus uploads (linha 125);
-- calibrações em colisões de `(documentoId, pagina)` (linhas 150 e 154);
-- leituras em colisões de `(documentoId, userId)` (linhas 171 e 175).
+O relatório JSON de uma execução agora guarda, por grupo, os ids canônico e alias de cada conflito, mais seus totais. O script não faz mais `delete` de `DocumentoRevisao`, `CalibracaoPrancha` ou `LeituraDocumento`.
 
-Além da divergência funcional, o JSON de execução gravado no fim do script registra apenas o mapa canônico → absorvidos. Os ids e a quantidade de calibrações/leituras descartadas não entram nesse arquivo, embora o contador `descartadas` exista no código.
-
-**Risco:** perda irreversível de histórico operacional ao rodar `--aplicar`, sem trilha suficiente para restaurar seletivamente.
-
-**Decisão necessária:** definir se as relações colidentes devem ser preservadas em histórico/alias, se o plano deve ser revisado para autorizar descarte explícito, ou se o script deve ser corrigido antes de qualquer execução em dados relevantes.
+**Execução pendente:** `--aplicar` continua deliberadamente não executado. Antes dele, revisar o relatório de uma execução somente-leitura e providenciar backup do ambiente-alvo.
 
 ### A-02 — resolvido no código — escrita de arquivos agora respeita o escopo de dados
 
@@ -194,18 +188,18 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 
 **Decisão/validação necessária antes de ativar a flag:** executar e arquivar o resultado de `scripts/verificar-fase2-documentos.ts` no ambiente alvo, com contagem de uploads ativos sem `documentoId` igual a zero; ou alterar a consulta para representar explicitamente os órfãos.
 
-### A-06 — decisão operacional pendente — permissões novas não têm concessão padrão
+### A-06 — decisão registrada — permissões novas permanecem fail-closed
 
 `arquivos:editar_metadados` e `arquivos:alterar_status` já existem no catálogo de permissões e as Actions F2-PR6c exigem cada uma delas. Porém, nenhuma das duas está em `PERMISSOES_BASE` de `prisma/seed.ts`. O comportamento atual é deliberadamente fail-closed: só administrador/superusuário ou perfil configurado explicitamente pode editar os campos.
 
-**Decisão necessária:** registrar quais perfis recebem cada capability por padrão, se houver concessão padrão desejada. Não foi alterado o seed por não haver essa regra nos documentos do projeto.
+**Decisão aplicada:** não há concessão padrão no seed. A capacidade segue liberada apenas para administrador/superusuário ou perfil configurado explicitamente, até nova decisão registrada.
 
 ## Verificações executadas
 
 | Verificação | Resultado |
 | --- | --- |
-| `npm run lint` | Passou após F3-PR3. |
-| `npm test` | Passou após F3-PR3: 226 arquivos, 2.453 testes. |
+| `npm run lint` | Passou após F4-PR3. |
+| `npm test` | Passou após F4-PR3: 226 arquivos, 2.455 testes. |
 | Testes focados da continuação | Passaram: 9 testes em `acesso` e `lixeira`; a regra nova de acesso tem três cenários unitários. |
 | Revisão de acessibilidade de F3-PR1 | Sem achados concretos no breadcrumb e nos controles novos do cabeçalho. |
 | Revisão de fronteira cliente de F3-PR1 | Detectou que montar `VisualizarDwgButton` no cabeçalho poderia expor spinner de conversão persistente; o cabeçalho usa o download de DWG e não monta esse probe. |
@@ -230,4 +224,4 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 
 ## Próximo passo seguro
 
-Não executar `--aplicar` nos scripts da Fase 2 até haver decisão registrada para A-01. Antes de ativar `NEXT_PUBLIC_DOCUMENTOS_V2`, comprovar A-05 e validar manualmente o envio V2/F2-PR6b/F2-PR6c/F2-PR7/F2-PR9. Registrar também a decisão de A-06 antes de esperar que perfis não administrativos editem metadados ou status. As Fases 3 e 4 estão implementadas no código; resta a validação manual registrada nesta auditoria. Depois da correção/decisão, executar `scripts/verificar-fase2-documentos.ts` em cada ambiente relevante e anexar a saída datada a esta pasta, para transformar a execução de scripts manuais em evidência auditável.
+Não executar `--aplicar` nos scripts da Fase 2 sem revisar previamente seu relatório somente-leitura e providenciar backup do ambiente-alvo. Antes de ativar `NEXT_PUBLIC_DOCUMENTOS_V2`, comprovar A-05 e validar manualmente o envio V2/F2-PR6b/F2-PR6c/F2-PR7/F2-PR9. A-06 permanece fail-closed. As Fases 3 e 4 estão implementadas no código; resta a validação manual registrada nesta auditoria. Executar `scripts/verificar-fase2-documentos.ts` em cada ambiente relevante e anexar a saída datada a esta pasta, para transformar a execução de scripts manuais em evidência auditável.

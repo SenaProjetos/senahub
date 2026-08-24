@@ -96,21 +96,32 @@ async function main() {
     return;
   }
 
-  const log: { canonico: string; absorvidos: string[] }[] = [];
-  // Linhas descartadas por colisão de UNIQUE (fica a mais recente) — reportado no fim.
-  const descartadas = { calibracoes: 0, leituras: 0 };
+  const log: {
+    canonico: string;
+    absorvidos: string[];
+    conflitos: {
+      revisoes: { mantidaId: string; aliasId: string; numero: number }[];
+      calibracoes: { mantidaId: string; aliasId: string; pagina: number }[];
+      leituras: { mantidaId: string; aliasId: string; userId: string }[];
+    };
+  }[] = [];
   for (const [, ds] of paraMesclar) {
     const ordenados = [...ds].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
     const canonico = ordenados[0];
     const perdedores = ordenados.slice(1);
+    const conflitos = {
+      revisoes: [] as { mantidaId: string; aliasId: string; numero: number }[],
+      calibracoes: [] as { mantidaId: string; aliasId: string; pagina: number }[],
+      leituras: [] as { mantidaId: string; aliasId: string; userId: string }[],
+    };
 
     await prisma.$transaction(async (tx) => {
       for (const p of perdedores) {
         // Revisões primeiro, uma a uma: `documento_revisao` tem UNIQUE (documentoId, numero),
         // e canônico e perdedor quase sempre têm ambos a R01 — mover em bloco colide. Quando o
-        // número já existe no canônico, os arquivos migram para a revisão dele e a duplicata
-        // é apagada: é exatamente o resultado que a Fase 2 quer (PDF R01 + DWG R01 = uma R01
-        // com dois arquivos). Quando não existe, a revisão só troca de dono.
+        // número já existe no canônico, os arquivos migram para a revisão dele, mas a revisão
+        // do documento-alias é PRESERVADA para manter a história e entra no relatório. Quando
+        // não existe, a revisão só troca de dono.
         const revsPerdedor = await tx.documentoRevisao.findMany({
           where: { documentoId: p.id },
           select: { id: true, numero: true },
@@ -122,7 +133,7 @@ async function main() {
           });
           if (equivalente) {
             await tx.upload.updateMany({ where: { revisaoId: rev.id }, data: { revisaoId: equivalente.id } });
-            await tx.documentoRevisao.delete({ where: { id: rev.id } });
+            conflitos.revisoes.push({ mantidaId: equivalente.id, aliasId: rev.id, numero: rev.numero });
           } else {
             await tx.documentoRevisao.update({ where: { id: rev.id }, data: { documentoId: canonico.id } });
           }
@@ -132,48 +143,38 @@ async function main() {
         await tx.pendencia.updateMany({ where: { documentoId: p.id }, data: { documentoId: canonico.id } });
 
         // Calibração e leitura têm UNIQUE com `documentoId` — mover em bloco estoura quando o
-        // canônico já tem a mesma página calibrada, ou quando a mesma pessoa leu os dois lados
-        // (foi o que derrubou a execução em produção, no 67º grupo). Em colisão fica a linha
-        // MAIS RECENTE: é a que reflete a última calibração feita e a última leitura real.
+        // canônico já tem a mesma página calibrada, ou quando a mesma pessoa leu os dois lados.
+        // Em colisão, a linha do alias fica presa ao documento soft-retirado: não é apagada nem
+        // sobrescreve a linha canônica. O relatório mantém os dois ids para decisão futura.
         const calibs = await tx.calibracaoPrancha.findMany({
           where: { documentoId: p.id },
-          select: { id: true, pagina: true, updatedAt: true },
+          select: { id: true, pagina: true },
         });
         for (const c of calibs) {
           const existente = await tx.calibracaoPrancha.findUnique({
             where: { documentoId_pagina: { documentoId: canonico.id, pagina: c.pagina } },
-            select: { id: true, updatedAt: true },
+            select: { id: true },
           });
           if (!existente) {
             await tx.calibracaoPrancha.update({ where: { id: c.id }, data: { documentoId: canonico.id } });
-          } else if (c.updatedAt > existente.updatedAt) {
-            await tx.calibracaoPrancha.delete({ where: { id: existente.id } });
-            await tx.calibracaoPrancha.update({ where: { id: c.id }, data: { documentoId: canonico.id } });
-            descartadas.calibracoes += 1;
           } else {
-            await tx.calibracaoPrancha.delete({ where: { id: c.id } });
-            descartadas.calibracoes += 1;
+            conflitos.calibracoes.push({ mantidaId: existente.id, aliasId: c.id, pagina: c.pagina });
           }
         }
 
         const leituras = await tx.leituraDocumento.findMany({
           where: { documentoId: p.id },
-          select: { id: true, userId: true, lidoEm: true },
+          select: { id: true, userId: true },
         });
         for (const l of leituras) {
           const existente = await tx.leituraDocumento.findUnique({
             where: { documentoId_userId: { documentoId: canonico.id, userId: l.userId } },
-            select: { id: true, lidoEm: true },
+            select: { id: true },
           });
           if (!existente) {
             await tx.leituraDocumento.update({ where: { id: l.id }, data: { documentoId: canonico.id } });
-          } else if (l.lidoEm > existente.lidoEm) {
-            await tx.leituraDocumento.delete({ where: { id: existente.id } });
-            await tx.leituraDocumento.update({ where: { id: l.id }, data: { documentoId: canonico.id } });
-            descartadas.leituras += 1;
           } else {
-            await tx.leituraDocumento.delete({ where: { id: l.id } });
-            descartadas.leituras += 1;
+            conflitos.leituras.push({ mantidaId: existente.id, aliasId: l.id, userId: l.userId });
           }
         }
         // Soft-retire + chave neutralizada, para não brigar pelo UNIQUE com o canônico.
@@ -187,7 +188,7 @@ async function main() {
         data: { chave: chaveNovaDoDocumento(canonico) },
       });
     });
-    log.push({ canonico: canonico.id, absorvidos: perdedores.map((p) => p.id) });
+    log.push({ canonico: canonico.id, absorvidos: perdedores.map((p) => p.id), conflitos });
   }
 
   // Grupos de um só documento também precisam da chave nova (a extensão sai da chave).
@@ -203,8 +204,17 @@ async function main() {
   }
 
   const arquivo = `merge-documentos-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "")}.json`;
-  writeFileSync(arquivo, JSON.stringify({ quando: new Date().toISOString(), grupos: log }, null, 2), "utf8");
+  const totaisConflitos = log.reduce(
+    (total, grupo) => ({
+      revisoes: total.revisoes + grupo.conflitos.revisoes.length,
+      calibracoes: total.calibracoes + grupo.conflitos.calibracoes.length,
+      leituras: total.leituras + grupo.conflitos.leituras.length,
+    }),
+    { revisoes: 0, calibracoes: 0, leituras: 0 },
+  );
+  writeFileSync(arquivo, JSON.stringify({ quando: new Date().toISOString(), grupos: log, totaisConflitos }, null, 2), "utf8");
   console.log(`\ngrupos mesclados: ${log.length} | chaves atualizadas sem merge: ${renomeados}`);
+  console.log(`conflitos preservados: revisões=${totaisConflitos.revisoes} | calibrações=${totaisConflitos.calibracoes} | leituras=${totaisConflitos.leituras}`);
   console.log(`mapa canônico→absorvidos em ${arquivo}`);
   await prisma.$disconnect();
 }
