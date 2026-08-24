@@ -36,11 +36,11 @@ function looksLikeId(segment: string): boolean {
   );
 }
 
-type Crumb = { href: string; label: string };
+export type BreadcrumbItem = { href?: string; label: string };
 
-function buildCrumbs(pathname: string): Crumb[] {
+function buildCrumbs(pathname: string): BreadcrumbItem[] {
   const segments = pathname.split("/").filter(Boolean);
-  const crumbs: Crumb[] = [{ href: "/", label: "Início" }];
+  const crumbs: BreadcrumbItem[] = [{ href: "/", label: "Início" }];
 
   let acc = "";
   segments.forEach((segment, index) => {
@@ -62,26 +62,36 @@ function buildCrumbs(pathname: string): Crumb[] {
   return crumbs;
 }
 
-export function Breadcrumb() {
+export function Breadcrumb({
+  items,
+  ariaLabel = "Trilha de navegação",
+}: {
+  /**
+   * Trilhas com nomes já resolvidos pelo servidor, como projeto/disciplina/documento.
+   * Sem este valor, preserva a montagem automática a partir da URL usada pelo shell.
+   */
+  items?: BreadcrumbItem[];
+  ariaLabel?: string;
+} = {}) {
   const pathname = usePathname();
 
   // Raiz: sem breadcrumb.
-  if (pathname === "/") return null;
+  if ((!items && pathname === "/") || items?.length === 0) return null;
 
-  const crumbs = buildCrumbs(pathname);
+  const crumbs = items ?? buildCrumbs(pathname);
 
   return (
-    <nav aria-label="Trilha de navegação" className="min-w-0">
+    <nav aria-label={ariaLabel} className="min-w-0">
       <ol className="flex items-center gap-1 text-xs text-muted-foreground">
         {crumbs.map((crumb, index) => {
           const isLast = index === crumbs.length - 1;
           return (
-            <Fragment key={crumb.href}>
+            <Fragment key={crumb.href ?? `${crumb.label}-${index}`}>
               {index > 0 && (
                 <ChevronRight className="size-3 shrink-0 text-muted-foreground/60" aria-hidden />
               )}
               <li className="min-w-0">
-                {isLast ? (
+                {isLast || !crumb.href ? (
                   <span className="truncate font-medium text-foreground" aria-current="page">
                     {crumb.label}
                   </span>

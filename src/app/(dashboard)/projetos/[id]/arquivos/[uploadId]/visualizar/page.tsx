@@ -6,7 +6,8 @@ import { acessoGlobal } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { pendenciasDoUpload, calibracoesDaPrancha, padroesDaDisciplina, novidadesDoDocumento } from "@/modules/projetos/pendencias/queries";
-import { pranchasVigentesDisciplina } from "@/modules/uploads/queries";
+import { pranchasVigentesDisciplina, resolverDocumentoCanonico, revisoesDoDocumento } from "@/modules/uploads/queries";
+import { extensao } from "@/modules/uploads/destino";
 import { opcoesTarefa } from "@/modules/tarefas/queries";
 import { PdfViewer } from "@/components/projetos/pdf-viewer";
 
@@ -33,6 +34,7 @@ export default async function VisualizarPage({
       versao: true,
       validado: true,
       documentoId: true,
+      revisaoId: true,
       disciplinaId: true,
       // Lixeira: `Upload` não está no filtro global (lib/prisma.ts) → checagem explícita,
       // igual à rota de download.
@@ -72,7 +74,49 @@ export default async function VisualizarPage({
     select: { id: true },
   });
 
-  const podeValidar = await can(user, "uploads", "validar");
+  // O cabeçalho usa a revisão lógica quando ela existe. A versão do Upload continua a
+  // alimentar pendências, pois linhas legadas podem ter PDF/DWG com contadores distintos.
+  const documentoCanonicoId = upload.documentoId ? await resolverDocumentoCanonico(upload.documentoId) : null;
+  const [podeValidar, podeCoordenacao, revisoesMesmaExtensao, documentoCanonico, revisaoAtual] = await Promise.all([
+    can(user, "uploads", "validar"),
+    can(user, "coordenacao", "ver"),
+    documentoCanonicoId
+      ? revisoesDoDocumento(documentoCanonicoId, { mesmaExtensaoDe: upload.nomeArquivo })
+      : Promise.resolve([]),
+    documentoCanonicoId
+      ? prisma.documentoDisciplina.findUnique({
+          where: { id: documentoCanonicoId },
+          select: { status: { select: { nome: true, final: true } } },
+        })
+      : Promise.resolve(null),
+    upload.revisaoId
+      ? prisma.documentoRevisao.findUnique({
+          where: { id: upload.revisaoId },
+          select: {
+            numero: true,
+            uploads: {
+              where: { excluidoEm: null },
+              select: { id: true, nomeArquivo: true },
+            },
+          },
+        })
+      : Promise.resolve(null),
+  ]);
+  const revisionFiles = revisaoAtual?.uploads.length
+    ? revisaoAtual.uploads.map((arquivo) => ({
+        id: arquivo.id,
+        name: arquivo.nomeArquivo,
+        ext: extensao(arquivo.nomeArquivo),
+        downloadUrl: `/api/uploads/${arquivo.id}/download`,
+      }))
+    : [
+        {
+          id: upload.id,
+          name: upload.nomeArquivo,
+          ext: extensao(upload.nomeArquivo),
+          downloadUrl: `/api/uploads/${upload.id}/download`,
+        },
+      ];
   // Escopo do documento (todas as revisões): apontamento aberto na R01 continua aparecendo
   // na R02 — carry-over. `versaoAtual` deixa a UI marcar o que veio de revisão anterior.
   const pendencias = await pendenciasDoUpload(uploadId, {
@@ -94,10 +138,9 @@ export default async function VisualizarPage({
       ])
     : [[], null];
   const responsaveisPadrao = upload.disciplina.responsaveis.map((r) => r.userId);
-  // Só mostra o link de comparar quando há de fato outra revisão pra comparar (itens 4/5).
-  const temOutraRevisao = upload.documentoId
-    ? (await prisma.upload.count({ where: { documentoId: upload.documentoId } })) > 1
-    : false;
+  // Mesma regra do comparador: outro arquivo (ex.: DWG) na mesma revisão não habilita
+  // comparação de PDF, que exige ao menos duas revisões DA MESMA extensão.
+  const temOutraRevisao = revisoesMesmaExtensao.length > 1;
   // Candidatas a destino do "replicar apontamento" (item 30) — só quem valida aponta mesmo.
   const pranchasParaReplicar = podeValidar ? await pranchasVigentesDisciplina(upload.disciplinaId, uploadId) : [];
   // Escala calibrada por página (item 28) — escopo do documento, então revisão nova herda.
@@ -118,6 +161,10 @@ export default async function VisualizarPage({
       projetoNome={upload.disciplina.projeto.nome}
       disciplinaNome={upload.disciplina.disciplinaTextoLegado}
       versao={upload.versao}
+      revisionNumber={revisaoAtual?.numero ?? upload.versao}
+      documentStatus={documentoCanonico?.status ?? null}
+      revisionFiles={revisionFiles}
+      canViewCoordination={podeCoordenacao}
       versaoAtual={!maisNova}
       validado={upload.validado}
       finalizada={upload.disciplina.status === "aprovado"}

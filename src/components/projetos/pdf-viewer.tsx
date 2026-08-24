@@ -88,6 +88,8 @@ import { usePdfCamadas } from "@/components/pdf/use-pdf-camadas";
 import { CamadasPdf } from "@/components/pdf/camadas-pdf";
 import { usePinchZoom } from "@/components/pdf/use-pinch-zoom";
 import { usePresencaDocumento } from "@/components/pdf/use-presenca-documento";
+import { Breadcrumb } from "@/components/shell/breadcrumb";
+import { BadgeExtensao } from "@/components/projetos/arquivos/badge-extensao";
 import type { ItemPagina } from "@/lib/pdf-busca";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -113,6 +115,8 @@ type PdfDoc = any;
  * textual. `incerta` = herdado sem conseguir confirmar onde fica agora.
  */
 type PinPosicionado = PendenciaView & { incerta: boolean; relocalizado: boolean };
+type RevisionFile = { id: string; name: string; ext: string; downloadUrl: string };
+type DocumentStatus = { name: string; final: boolean };
 
 /**
  * Realça tokens @nome no texto do apontamento (item 33). O servidor já resolveu quem foi
@@ -150,6 +154,12 @@ type Props = {
   projetoNome: string;
   disciplinaNome: string;
   versao: number;
+  /** Número da revisão lógica; `versao` continua sendo a versão do Upload usada pelos apontamentos. */
+  revisionNumber: number;
+  documentStatus: DocumentStatus | null;
+  /** Arquivos ativos da mesma DocumentoRevisao; legado sem revisão contém só o arquivo atual. */
+  revisionFiles: RevisionFile[];
+  canViewCoordination: boolean;
   versaoAtual: boolean;
   validado: boolean;
   finalizada: boolean;
@@ -323,7 +333,7 @@ function CamposClassificacao({
 }
 
 export function PdfViewer(props: Props) {
-  const { uploadId, projetoId, disciplinaId, nomeArquivo, codigo, projetoNome, disciplinaNome, versao, versaoAtual, validado, finalizada, podeValidar, ehResponsavel, ehAdmin, colunasTarefa, opcoesTarefa, responsaveisPadrao, temOutraRevisao, documentoId, pranchasParaReplicar, pinInicial, paginaInicial } = props;
+  const { uploadId, projetoId, disciplinaId, nomeArquivo, codigo, projetoNome, disciplinaNome, versao, revisionNumber, documentStatus, revisionFiles, canViewCoordination, versaoAtual, validado, finalizada, podeValidar, ehResponsavel, ehAdmin, colunasTarefa, opcoesTarefa, responsaveisPadrao, temOutraRevisao, documentoId, pranchasParaReplicar, pinInicial, paginaInicial } = props;
 
   const downloadUrl = `/api/uploads/${uploadId}/download?disposition=inline`;
   // Apontar é permitido mesmo com a entrega já validada — nesse caso o envio abre revisão
@@ -1207,7 +1217,18 @@ export function PdfViewer(props: Props) {
   return (
     <div ref={raizRef} className="flex h-[calc(100vh-2rem)] flex-col bg-background data-fullscreen:h-screen data-fullscreen:p-3" data-fullscreen={emTelaCheia || undefined}>
       {/* Cabeçalho */}
-      <div className="flex flex-wrap items-center gap-3 border-b pb-3">
+      <div className="border-b pb-3">
+        <div className="mb-3">
+          <Breadcrumb
+            ariaLabel="Localização do documento"
+            items={[
+              { label: projetoNome, href: `/projetos/${projetoId}` },
+              { label: disciplinaNome, href: `/projetos/${projetoId}/arquivos` },
+              { label: nomeArquivo },
+            ]}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
         <Link
           href={`/projetos/${projetoId}/arquivos`}
           className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
@@ -1217,9 +1238,43 @@ export function PdfViewer(props: Props) {
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-lg font-bold leading-tight">{nomeArquivo}</h1>
           <p className="truncate text-xs text-muted-foreground">
-            {codigo} · {projetoNome} · {disciplinaNome} · {rotuloRevisao(versao)}
+            {codigo} · {projetoNome} · {disciplinaNome}
             {!versaoAtual && " (versão anterior)"}
           </p>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <Badge variant="outline" className="font-mono text-[10px] tracking-wide" title="Revisão do documento">
+              {rotuloRevisao(revisionNumber)}
+            </Badge>
+            <Badge variant="outline" className="text-xs" title="Status documental">
+              {documentStatus ? `${documentStatus.name}${documentStatus.final ? " (final)" : ""}` : "Sem status"}
+            </Badge>
+            <nav className="flex flex-wrap items-center gap-1" aria-label="Arquivos desta revisão">
+              <span className="text-xs text-muted-foreground">Extensões:</span>
+              {revisionFiles.map((file) =>
+                file.id === uploadId ? (
+                  <Badge
+                    key={file.id}
+                    variant="secondary"
+                    className="font-mono text-[10px] tracking-wide uppercase"
+                    title={`${file.name} (arquivo atual)`}
+                  >
+                    <span aria-current="page">{file.ext || "sem extensão"}</span>
+                  </Badge>
+                ) : (
+                  <BadgeExtensao
+                    key={file.id}
+                    projetoId={projetoId}
+                    uploadId={file.id}
+                    nome={file.name}
+                    ext={file.ext}
+                    downloadUrl={file.downloadUrl}
+                    podeCoordenacao={canViewCoordination}
+                    showDwgViewer={false}
+                  />
+                ),
+              )}
+            </nav>
+          </div>
         </div>
         {/* Busca textual */}
         {pdf && (
@@ -1435,6 +1490,7 @@ export function PdfViewer(props: Props) {
         ) : podeValidar ? (
           <span className="text-xs text-muted-foreground">Versão anterior — aponte na versão atual.</span>
         ) : null}
+        </div>
       </div>
 
       {/* Aviso: apontar numa entrega já validada abre revisão */}

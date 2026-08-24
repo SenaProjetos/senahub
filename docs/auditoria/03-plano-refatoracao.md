@@ -105,7 +105,7 @@ M1–M8 entram na Fase 2. M9 entra na Fase 4, isolada das demais (nenhum PR toca
 
 **Ponto de rollback**: cada PR é revertível individualmente via `git revert` — nenhum PR desta fase altera schema, então reverter não deixa dado inconsistente. Se um PR já em produção causar regressão, reverter o PR específico não afeta os demais (componentes novos vivem em arquivos próprios, não substituem `arquivos-explorer.tsx` até estarem prontos — ver seção 6, feature flag).
 
-### Fase 2 — Documento, Revisão, Extensões, Histórico (com migrations M1–M7)
+### Fase 2 — Documento, Revisão, Extensões, Histórico (com migrations M1–M8)
 
 **Objetivo**: introduzir o nível de Revisão, unificar PDF+DWG de uma revisão sob um Documento, adicionar status documental e Listas.
 
@@ -166,7 +166,7 @@ M1–M8 entram na Fase 2. M9 entra na Fase 4, isolada das demais (nenhum PR toca
 
 **Ponto de rollback**: reversão de PR individual via `git revert` — nenhuma migration nesta fase, nenhum risco de dado.
 
-### Fase 4 — Comparação avançada e resolução entre revisões (com migration M8)
+### Fase 4 — Comparação avançada e resolução entre revisões (com migration M9)
 
 **Objetivo**: rastrear pendência entre revisões (`revisaoOrigem`/`revisaoResolucao`) e completar a comparação de revisões com opacidade ajustável e zoom/pan sincronizado.
 

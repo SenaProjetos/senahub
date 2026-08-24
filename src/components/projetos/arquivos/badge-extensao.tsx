@@ -27,6 +27,7 @@ export function BadgeExtensao({
   ext,
   downloadUrl,
   podeCoordenacao,
+  showDwgViewer = true,
 }: {
   projetoId: string;
   uploadId: string;
@@ -34,6 +35,8 @@ export function BadgeExtensao({
   ext: string;
   downloadUrl: string;
   podeCoordenacao: boolean;
+  /** Cabeçalhos compactos mantêm o download, mas não iniciam o probe de conversão DWG. */
+  showDwgViewer?: boolean;
 }) {
   if (!ext) {
     return <span className="text-xs text-muted-foreground">—</span>;
@@ -93,6 +96,7 @@ export function BadgeExtensao({
   );
 
   if (ext === "dwg") {
+    if (!showDwgViewer) return baixar;
     return (
       <span className="flex items-center gap-1">
         {baixar}

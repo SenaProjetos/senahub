@@ -1,8 +1,9 @@
 # Verificação de execução — refatoração de arquivos e plantas
 
-**Data:** 2026-08-23
+**Data inicial:** 2026-08-23
+**Atualizado em:** 2026-08-24
 **Escopo:** confronto entre `01-arquitetura-atual.md`, `02-matriz-gap.md`, `03-plano-refatoracao.md`, o código atual e o banco de desenvolvimento configurado neste repositório.
-**Método:** a auditoria inicial usou somente leitura do código, Git, migrations e validações automatizadas. A continuação registrada neste arquivo implementa F2-PR6a, F2-PR6c, F2-PR6b, F2-PR7, F2-PR9 e a correção A-03. As únicas alterações no banco de desenvolvimento foram as migrations aditivas M8 e M7, registradas abaixo; nenhum script de reconciliação, backfill ou merge de dados foi executado.
+**Método:** a auditoria inicial usou somente leitura do código, Git, migrations e validações automatizadas. A continuação registrada neste arquivo implementa F2-PR6a, F2-PR6c, F2-PR6b, F2-PR7, F2-PR9, F3-PR1 e a correção A-03. As únicas alterações no banco de desenvolvimento foram as migrations aditivas M8 e M7, registradas abaixo; nenhum script de reconciliação, backfill ou merge de dados foi executado.
 
 ## Limites de evidência
 
@@ -28,8 +29,9 @@
 | F2-PR9 — upload explícito de revisão agrupada | Implementado no código; validação manual pendente | PDF/DWG (ou outras extensões distintas) com mesmo nome-base e destino passam a compartilhar a próxima `DocumentoRevisao`, sem alterar o upload comum. |
 | F2-PR8 — histórico de revisões | Implementada | Drawer em `historico-revisoes-dialog.tsx`, query e action com escopo de projeto/disciplina. |
 | F2-PR10 — colunas configuráveis | Implementada | `src/modules/uploads/colunas-documento.ts`, `seletor-colunas.tsx` e testes associados. |
+| F3-PR1 — cabeçalho do visualizador | Implementado no código; validação manual pendente | Breadcrumb contextual com projeto/disciplina/documento, revisão lógica, status documental e arquivos ativos da mesma revisão; o comparador agora só aparece para outra revisão da mesma extensão. |
 | F4-PR4 — comparador avançado | Implementada | Percentual de opacidade e zoom/scroll sincronizados em `comparador-revisoes.tsx`. |
-| Restante das Fases 3 e 4 | Não implementado | Não há workspace de três painéis, relações `revisaoOrigemId`/`revisaoResolucaoId` nem UI de resolução entre revisões. |
+| F3-PR2 a F3-PR5 e F4-PR1 a F4-PR3 | Não implementado | Ainda não há painel de tarefas, workspace de três painéis, relações `revisaoOrigemId`/`revisaoResolucaoId` nem UI de resolução entre revisões. |
 
 ## Integração da branch de refatoração
 
@@ -78,6 +80,14 @@ Assim como em M8, `npx prisma migrate dev --name listas_documentos` detectou o d
 
 F2-PR9 foi implementada sem migration e sem endpoint novo. A regra confirmada para esta implementação é: numa mesma seleção, arquivos de extensões diferentes, mesmo nome-base e mesmo destino formam uma revisão conjunta automaticamente; os demais arquivos mantêm exatamente o fluxo anterior. O primeiro arquivo da dupla cria a próxima `DocumentoRevisao` do documento lógico e recebe `novaRevisaoAgrupada=1`; na mesma requisição a rota mantém esse id por documento, e entre requisições (inclusive chunks) os seguintes recebem `revisaoDeId`. A rota valida, antes de gravar no disco, que esse id pertence ao mesmo documento e que a revisão ainda não tem arquivo da mesma extensão. Isso permite PDF+DWG (e outras extensões distintas) no mesmo ponto do histórico, inclusive no caminho de chunks, sem abrir escrita em outro documento nem sobrescrever uma extensão histórica. Após a operação, ambos os uploaders confirmam em toast a revisão comum. Os campos são opcionais: sem eles, a rota continua calculando a revisão pela versão do arquivo como antes. A auditoria do upload registra `revisaoAgrupada`.
 
+## Continuação — F3-PR1, cabeçalho do visualizador
+
+F3-PR1 foi implementada sem migration, alteração de banco ou endpoint novo. A rota do visualizador agora resolve o `documentoId` canônico apenas para leitura do status e da comparação, busca a `DocumentoRevisao` do `Upload` aberto e entrega ao cliente somente seus arquivos ativos. O cabeçalho mostra a trilha contextual projeto → disciplina → documento, nome/código, a revisão lógica (`DocumentoRevisao.numero`, com fallback seguro para `Upload.versao`), o status documental e os formatos da mesma revisão.
+
+Uma decisão de implementação foi registrada após conselho técnico: `DocumentoStatus` é o único status exibido no cabeçalho, em `Badge` textual sem inventar mapeamento para `DocumentoStatus.cor`; a validação do arquivo e o status da disciplina continuam nos controles já existentes. A alternância se limita aos arquivos ativos da mesma `revisaoId`. O formato aberto fica marcado como atual; PDF e IFC mantêm suas ações existentes, enquanto DWG e demais formatos mantêm download no cabeçalho compacto. O preview DWG permanece no diretório de arquivos, evitando iniciar polling de conversão na tela já pesada do PDF. Para upload legado sem `revisaoId`, a tela mostra apenas o próprio arquivo e não infere par por nome ou número de versão.
+
+O predicado de `temOutraRevisao` também foi alinhado ao comparador: usa o documento canônico e a mesma extensão do arquivo aberto. Assim, PDF+DWG numa única revisão não expõe mais o link de comparação que não teria duas versões de PDF para abrir. A revisão lógica mostrada no cabeçalho não substitui `Upload.versao`, que permanece como origem de apontamentos para preservar os dados legados.
+
 ## Achados que exigem decisão antes de executar o merge de dados
 
 ### A-01 — crítico — o script de merge descarta registros, contrariando o plano
@@ -110,7 +120,7 @@ Na versão inicialmente auditada, quando a flag da nova tela estava ligada a rot
 
 **Correção aplicada:** o CTA abre `enviar-documentos-dialog.tsx`, que usa a mesma rota `POST /api/uploads` e o motor compartilhado `enviarArquivoComProgresso()`. A pessoa escolhe disciplina e pacote/pasta, pode arrastar arquivos ou uma pasta inteira, acompanha o progresso individual e recebe o aviso de nova revisão já existente no fluxo legado.
 
-O fluxo explícito de múltiplas extensões sob uma revisão escolhida pela pessoa continua pendente em F2-PR9; a correção aqui não cria uma rota ou regra de versionamento paralela.
+Naquele ponto, o fluxo explícito de múltiplas extensões sob uma revisão escolhida pela pessoa ainda estava pendente; ele foi entregue depois por F2-PR9, sem criar uma rota ou regra de versionamento paralela.
 
 O bloqueio funcional de ativação da flag foi removido, sujeito à validação manual do envio e à comprovação de A-05.
 
@@ -138,14 +148,17 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 
 | Verificação | Resultado |
 | --- | --- |
-| `npm run lint` | Passou após F2-PR9. |
-| `npm test` | Passou após F2-PR9: 226 arquivos, 2.453 testes. |
+| `npm run lint` | Passou após F3-PR1. |
+| `npm test` | Passou após F3-PR1: 226 arquivos, 2.453 testes. |
 | Testes focados da continuação | Passaram: 9 testes em `acesso` e `lixeira`; a regra nova de acesso tem três cenários unitários. |
+| Revisão de acessibilidade de F3-PR1 | Sem achados concretos no breadcrumb e nos controles novos do cabeçalho. |
+| Revisão de fronteira cliente de F3-PR1 | Detectou que montar `VisualizarDwgButton` no cabeçalho poderia expor spinner de conversão persistente; o cabeçalho usa o download de DWG e não monta esse probe. |
 | Validação manual do envio V2 | Pendente: requer operar o diálogo com uma disciplina de teste e confirmar envio, aviso de revisão e atualização da tabela. |
 | Validação manual de F2-PR6c | Pendente: em desenvolvimento, editar metadados, alterar status, filtrar por status/fase e confirmar o bloqueio de nova revisão para status final. |
 | Validação manual de F2-PR6b | Pendente: em um projeto de teste, ligar/desligar "Exige fases"; confirmar herança global, sugestão por nome no padrão, alteração manual por arquivo, bloqueio sem fase e persistência no detalhe do documento, nos uploaders V2 e legado. |
 | Validação manual de F2-PR7 | Pendente: na V2 e em um projeto de teste, criar uma lista, selecionar dois documentos e adicioná-los, selecionar a lista, remover um documento e confirmar contagem/tabela sem recarregar manualmente. Repetir com responsável de disciplina e com gestão do projeto para confirmar a muralha de escrita. |
 | Validação manual de F2-PR9 | Pendente: em uma disciplina de teste, selecionar PDF e DWG com mesmo nome-base numa única operação, confirmar o toast da mesma revisão e o drawer de histórico com ambos os arquivos na mesma Rxx. Repetir com arquivos de nome-base ou destino diferentes para confirmar que seguem independentes. |
+| Validação manual de F3-PR1 | Pendente: em desenvolvimento, abrir PDF único, PDF+DWG na mesma revisão e histórico legado com revisão sem par; conferir breadcrumb contextual, status nulo/final, formato atual, ações dos formatos irmãos e ausência do botão Comparar quando só houver outra extensão na mesma revisão. |
 | `scripts/verificar-fase2-documentos.ts` | Não executado: `tsx` falhou antes de conectar ao banco com `uv_os_get_passwd` / `ENOMEM`. Evidência em `06-evidencia-verificacao-fase2-documentos-dev-2026-08-23.md`. |
 | `npx prisma migrate status` | Passou após M7: 192 migrations encontradas; schema do banco de desenvolvimento atualizado. As tentativas diretas de `migrate dev` estão documentadas acima e não houve reset. |
 | `npx prisma db:seed` | Não executado: é uma escrita no banco de desenvolvimento e M7/M8 não exigem alteração no seed (a nova coluna tem default e listas não possuem catálogo inicial). A idempotência do seed permanece pendente de uma execução deliberada. |
@@ -154,4 +167,4 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 
 ## Próximo passo seguro
 
-Não executar `--aplicar` nos scripts da Fase 2 até haver decisão registrada para A-01. Antes de ativar `NEXT_PUBLIC_DOCUMENTOS_V2`, comprovar A-05 e validar manualmente o envio V2/F2-PR6b/F2-PR6c. Registrar também a decisão de A-06 antes de esperar que perfis não administrativos editem metadados ou status. Depois da correção/decisão, executar `scripts/verificar-fase2-documentos.ts` em cada ambiente relevante e anexar a saída datada a esta pasta, para transformar a execução de scripts manuais em evidência auditável.
+Não executar `--aplicar` nos scripts da Fase 2 até haver decisão registrada para A-01. Antes de ativar `NEXT_PUBLIC_DOCUMENTOS_V2`, comprovar A-05 e validar manualmente o envio V2/F2-PR6b/F2-PR6c/F2-PR7/F2-PR9. Registrar também a decisão de A-06 antes de esperar que perfis não administrativos editem metadados ou status. F3-PR2 pode seguir em desenvolvimento sem migration, mas não transforma as pendências manuais da Fase 2 em comprovadas. Depois da correção/decisão, executar `scripts/verificar-fase2-documentos.ts` em cada ambiente relevante e anexar a saída datada a esta pasta, para transformar a execução de scripts manuais em evidência auditável.
