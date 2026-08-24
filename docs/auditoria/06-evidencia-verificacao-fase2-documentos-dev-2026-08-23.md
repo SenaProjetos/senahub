@@ -1,7 +1,8 @@
 # Evidência — verificação da Fase 2 de documentos (desenvolvimento)
 
-Data: 2026-08-23  
-Ambiente: desenvolvimento local  
+Data: 2026-08-23
+
+Ambiente: desenvolvimento local
 Comando: `npx tsx --tsconfig tsconfig.server.json scripts/verificar-fase2-documentos.ts`
 
 ## Escopo confirmado antes da execução
