@@ -31,6 +31,7 @@ export function AceitePublicoForm({
   observacaoAnterior: string | null;
 }) {
   const [obs, setObs] = useState("");
+  const [nome, setNome] = useState("");
   const [loading, setLoading] = useState(false);
   const [situacao, setSituacao] = useState(situacaoAtual);
   const [erro, setErro] = useState<string | null>(null);
@@ -42,7 +43,7 @@ export function AceitePublicoForm({
       const res = await fetch(`/api/p/aceite/${token}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ situacao: s, observacao: obs }),
+        body: JSON.stringify({ situacao: s, nome, observacao: obs }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -100,8 +101,21 @@ export function AceitePublicoForm({
       ) : (
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Observação (opcional)</label>
+            <label htmlFor="nome-aceite" className="text-sm font-medium">Seu nome completo</label>
+            <input
+              id="nome-aceite"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              placeholder="Nome de quem responde"
+              maxLength={120}
+              required
+              className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="observacao-aceite" className="text-sm font-medium">Observação (opcional)</label>
             <textarea
+              id="observacao-aceite"
               value={obs}
               onChange={(e) => setObs(e.target.value)}
               placeholder="Descreva pontos de revisão ou comentários…"
@@ -114,7 +128,7 @@ export function AceitePublicoForm({
             <Button
               className="flex-1"
               onClick={() => responder("aceito")}
-              disabled={loading}
+              disabled={loading || nome.trim().length < 2}
             >
               <CheckCircle className="size-4" /> Aceitar entrega
             </Button>
@@ -122,7 +136,7 @@ export function AceitePublicoForm({
               className="flex-1"
               variant="outline"
               onClick={() => responder("revisao")}
-              disabled={loading}
+              disabled={loading || nome.trim().length < 2}
             >
               <XCircle className="size-4" /> Solicitar revisão
             </Button>

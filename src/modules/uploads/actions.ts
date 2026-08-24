@@ -22,6 +22,7 @@ import { podeVerTodasDisciplinas, responsavelOuVeTodas } from "@/modules/arquivo
 import { STATUS_ABERTOS } from "@/modules/projetos/pendencias/helpers";
 import { historicoRevisoesDocumento } from "@/modules/uploads/queries";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
+import { expiraAceiteEm, linkAceiteEstaAtivo } from "@/modules/uploads/aceite";
 
 const validarSchema = z.object({ disciplinaId: z.string().min(1) });
 
@@ -1090,6 +1091,7 @@ export const recusarSolicitacaoExclusao = defineAction(
 // ── Aceite digital do cliente (N-43) ───────────────────────────
 
 const gerarAceiteSchema = z.object({ uploadId: z.string().min(1) });
+const revogarAceiteSchema = z.object({ uploadId: z.string().min(1) });
 
 export const gerarAceiteCliente = defineAction(
   {
@@ -1104,20 +1106,85 @@ export const gerarAceiteCliente = defineAction(
   async (input, { user }) => {
     const upload = await prisma.upload.findUnique({
       where: { id: input.uploadId },
-      select: { id: true, validado: true, disciplina: { select: { projetoId: true } } },
+      select: {
+        id: true,
+        validado: true,
+        disciplina: { select: { projetoId: true, responsaveis: { select: { userId: true } } } },
+      },
     });
-    if (!upload) throw new ActionError("Entrega não encontrada.");
+    const naoEncontrado = new ActionError("Entrega não encontrada.");
+    if (!upload) throw naoEncontrado;
+    await exigirEscopoArquivo(user, upload.disciplina);
     if (!upload.validado) throw new ActionError("A entrega precisa ser validada antes de gerar o link de aceite.");
 
-    const existing = await prisma.aceiteCliente.findUnique({ where: { uploadId: input.uploadId } });
-    if (existing) return { token: existing.token };
+    const agora = new Date();
+    const existing = await prisma.aceiteCliente.findUnique({
+      where: { uploadId: input.uploadId },
+      select: { id: true, token: true, situacao: true, expiraEm: true, revogadoEm: true },
+    });
+    if (existing && existing.situacao !== "pendente") {
+      throw new ActionError("Este aceite já foi respondido. Envie uma nova versão da entrega para solicitar outro aceite.");
+    }
+    if (existing && linkAceiteEstaAtivo(existing, agora)) return { token: existing.token };
 
     const token = randomBytes(24).toString("hex");
-    const aceite = await prisma.aceiteCliente.create({
-      data: { uploadId: input.uploadId, token, geradoPorId: user.id },
-    });
+    const expiraEm = expiraAceiteEm(agora);
+    const aceite = existing
+      ? await prisma.aceiteCliente.update({
+          where: { id: existing.id },
+          data: {
+            token,
+            expiraEm,
+            revogadoEm: null,
+            respondidoEm: null,
+            respondidoPor: null,
+            respondidoIp: null,
+            respondidoUserAgent: null,
+            observacao: null,
+          },
+        })
+      : await prisma.aceiteCliente.create({
+          data: { uploadId: input.uploadId, token, expiraEm, geradoPorId: user.id },
+        });
     revalidatePath(`/projetos/${upload.disciplina.projetoId}`);
     return { token: aceite.token };
+  },
+);
+
+/** Revoga imediatamente um link público pendente. A geração posterior emite outro token. */
+export const revogarAceiteCliente = defineAction(
+  {
+    modulo: "uploads",
+    acao: "revogar-aceite-cliente",
+    recurso: "uploads",
+    permissao: "validar",
+    entidade: "AceiteCliente",
+    schema: revogarAceiteSchema,
+    entidadeId: (d) => (d as { id: string }).id,
+  },
+  async (input, { user }) => {
+    const upload = await prisma.upload.findUnique({
+      where: { id: input.uploadId },
+      select: {
+        id: true,
+        disciplina: { select: { projetoId: true, responsaveis: { select: { userId: true } } } },
+        aceite: { select: { id: true, situacao: true, revogadoEm: true } },
+      },
+    });
+    if (!upload) throw new ActionError("Entrega não encontrada.");
+    await exigirEscopoArquivo(user, upload.disciplina);
+    if (!upload.aceite) throw new ActionError("Não há link de aceite para esta entrega.");
+    if (upload.aceite.situacao !== "pendente") {
+      throw new ActionError("Só é possível revogar links de aceite ainda pendentes.");
+    }
+    if (upload.aceite.revogadoEm) return { id: upload.aceite.id, jaRevogado: true };
+
+    await prisma.aceiteCliente.update({
+      where: { id: upload.aceite.id },
+      data: { revogadoEm: new Date() },
+    });
+    revalidatePath(`/projetos/${upload.disciplina.projetoId}`);
+    return { id: upload.aceite.id, jaRevogado: false };
   },
 );
 

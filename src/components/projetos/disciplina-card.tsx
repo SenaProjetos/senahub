@@ -46,7 +46,7 @@ import {
 import { ehGlobal } from "@/modules/projetos/diario/acesso";
 import { DiarioEntradaDialog } from "@/components/projetos/diario-entrada-dialog";
 import { DisciplinaEditDialog, DisciplinaDeleteButton } from "@/components/projetos/disciplina-edit-dialog";
-import { validarEntrega, gerarAceiteCliente } from "@/modules/uploads/actions";
+import { validarEntrega, gerarAceiteCliente, revogarAceiteCliente } from "@/modules/uploads/actions";
 import { statusValidacao, entregaveisAtuais, type StatusValidacao } from "@/modules/uploads/validacao";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
 import { IconeArquivo, StatusArquivo, VersaoToggle } from "@/components/projetos/arquivos-explorer";
@@ -121,6 +121,8 @@ type UploadItem = {
   data: string;
   aceiteToken: string | null;
   aceiteSituacao: string | null;
+  aceiteExpiraEm: string | null;
+  aceiteRevogadoEm: string | null;
 };
 
 type Disc = {
@@ -819,6 +821,13 @@ function ArquivosDialog({
   const uploadValidado = disciplina.uploads.find((u) => u.validado);
   const aceiteToken = uploadValidado?.aceiteToken ?? null;
   const aceiteSituacao = uploadValidado?.aceiteSituacao ?? null;
+  const aceiteExpiraEm = uploadValidado?.aceiteExpiraEm ?? null;
+  const aceiteRevogadoEm = uploadValidado?.aceiteRevogadoEm ?? null;
+  const aceiteAtivo =
+    aceiteSituacao === "pendente" &&
+    aceiteRevogadoEm === null &&
+    aceiteExpiraEm !== null &&
+    new Date(aceiteExpiraEm) > new Date();
 
   function gerarLinkAceite() {
     if (!uploadValidado) return;
@@ -828,6 +837,19 @@ function ArquivosDialog({
         const url = `${window.location.origin}/p/aceite/${res.data.token}`;
         await navigator.clipboard.writeText(url);
         toast.success("Link de aceite copiado para a área de transferência.");
+        router.refresh();
+      } else {
+        toast.error(res.error);
+      }
+    });
+  }
+
+  function revogarLinkAceite() {
+    if (!uploadValidado) return;
+    start(async () => {
+      const res = await revogarAceiteCliente({ uploadId: uploadValidado.id });
+      if (res.ok) {
+        toast.success("Link de aceite revogado.");
         router.refresh();
       } else {
         toast.error(res.error);
@@ -1208,7 +1230,13 @@ function ArquivosDialog({
                     </span>
                   )}
                   {aceiteSituacao === "pendente" && (
-                    <span className="text-xs text-muted-foreground">Aguardando aceite</span>
+                    <span className="text-xs text-muted-foreground">
+                      {aceiteRevogadoEm
+                        ? "Link revogado"
+                        : aceiteAtivo
+                          ? "Aguardando aceite"
+                          : "Link expirado"}
+                    </span>
                   )}
                   <Button
                     size="sm"
@@ -1216,10 +1244,22 @@ function ArquivosDialog({
                     className="h-7 px-2 text-xs"
                     onClick={gerarLinkAceite}
                     disabled={validando}
-                    title="Copiar link de aceite"
+                    title={aceiteAtivo ? "Copiar link de aceite" : "Gerar novo link de aceite"}
                   >
                     <Link2 className="size-3.5" />
                   </Button>
+                  {aceiteSituacao === "pendente" && aceiteAtivo && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                      onClick={revogarLinkAceite}
+                      disabled={validando}
+                      title="Revogar link de aceite"
+                    >
+                      <XCircle className="size-3.5" />
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <Button variant="outline" size="sm" onClick={gerarLinkAceite} disabled={validando}>

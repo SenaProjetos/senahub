@@ -93,6 +93,8 @@ export default async function ProjetoDetalhePage({
       data: new Date(u.createdAt).toISOString(),
       aceiteToken: u.aceite?.token ?? null,
       aceiteSituacao: u.aceite?.situacao ?? null,
+      aceiteExpiraEm: u.aceite?.expiraEm?.toISOString() ?? null,
+      aceiteRevogadoEm: u.aceite?.revogadoEm?.toISOString() ?? null,
     }));
     return {
       id: d.id,

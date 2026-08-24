@@ -256,7 +256,7 @@ export async function obterProjeto(viewer: Viewer, id: string) {
               revisaoEm: true,
               createdAt: true,
               autor: { select: { name: true } },
-              aceite: { select: { token: true, situacao: true } },
+              aceite: { select: { token: true, situacao: true, expiraEm: true, revogadoEm: true } },
             },
           },
           pastas: {

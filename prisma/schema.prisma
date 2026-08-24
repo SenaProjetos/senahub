@@ -5524,7 +5524,14 @@ model AceiteCliente {
   token        String    @unique
   /// pendente | aceito | revisao
   situacao     String    @default("pendente")
+  /// Nulo só para links legados: a aplicação os considera expirados até a regeneração.
+  expiraEm     DateTime?
+  revogadoEm   DateTime?
   respondidoEm DateTime?
+  /// Declaração informada no formulário público; não substitui autenticação forte.
+  respondidoPor String?
+  respondidoIp String?
+  respondidoUserAgent String?
   observacao   String?
   geradoPorId  String
   geradoPor    User      @relation("AceiteGerador", fields: [geradoPorId], references: [id])

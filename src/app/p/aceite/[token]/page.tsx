@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { AceitePublicoForm } from "@/components/uploads/aceite-publico-form";
+import { linkAceiteEstaAtivo } from "@/modules/uploads/aceite";
 
-export const metadata: Metadata = { title: "Aceite de entrega", robots: { index: false } };
+export const metadata: Metadata = { title: "Aceite de entrega", robots: { index: false }, referrer: "no-referrer" };
+export const dynamic = "force-dynamic";
 
 export default async function AceitePublicoPage({
   params,
@@ -15,6 +17,8 @@ export default async function AceitePublicoPage({
     where: { token },
     select: {
       situacao: true,
+      expiraEm: true,
+      revogadoEm: true,
       respondidoEm: true,
       observacao: true,
       upload: {
@@ -33,6 +37,7 @@ export default async function AceitePublicoPage({
     },
   });
   if (!aceite) notFound();
+  if (!linkAceiteEstaAtivo(aceite)) notFound();
 
   const { upload } = aceite;
   // Aceite só existe p/ upload validado (gerarAceiteCliente exige validado=true), e só
