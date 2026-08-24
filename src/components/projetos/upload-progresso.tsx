@@ -12,7 +12,14 @@ import { limiteLabelDoPacote } from "@/modules/uploads/limites";
  */
 
 export type StatusEnvio = "pendente" | "enviando" | "ok" | "erro";
-export type ResultadoUpload = { nome: string; ok: boolean; realocado?: boolean; motivo?: string };
+export type ResultadoUpload = {
+  nome: string;
+  ok: boolean;
+  realocado?: boolean;
+  motivo?: string;
+  revisaoId?: string;
+  revisaoNumero?: number;
+};
 export type LinhaEnvio = {
   nome: string;
   tamanho: number;
@@ -29,15 +36,25 @@ export type LinhaEnvio = {
  */
 export async function enviarArquivoComProgresso(
   file: File,
-  opts: { nome: string; disciplinaId: string; pacote?: string; pastaId?: string; faseId?: string },
+  opts: {
+    nome: string;
+    disciplinaId: string;
+    pacote?: string;
+    pastaId?: string;
+    faseId?: string;
+    revisaoDeId?: string;
+    novaRevisaoAgrupada?: boolean;
+  },
   onProgress: (pct: number) => void,
 ): Promise<ResultadoUpload> {
-  const { nome, disciplinaId, pacote, pastaId, faseId } = opts;
+  const { nome, disciplinaId, pacote, pastaId, faseId, revisaoDeId, novaRevisaoAgrupada } = opts;
   if (precisaChunk(file)) {
     const meta = await enviarEmChunks(file, onProgress);
     const fd = new FormData();
     fd.set("disciplinaId", disciplinaId);
     if (faseId) fd.set("faseId", faseId);
+    if (revisaoDeId) fd.set("revisaoDeId", revisaoDeId);
+    if (novaRevisaoAgrupada) fd.set("novaRevisaoAgrupada", "1");
     if (pastaId) fd.set("pastaId", pastaId);
     else fd.set("pacote", pacote ?? "");
     fd.set("sessaoId", meta.sessaoId);
@@ -55,6 +72,8 @@ export async function enviarArquivoComProgresso(
     const fd = new FormData();
     fd.set("disciplinaId", disciplinaId);
     if (faseId) fd.set("faseId", faseId);
+    if (revisaoDeId) fd.set("revisaoDeId", revisaoDeId);
+    if (novaRevisaoAgrupada) fd.set("novaRevisaoAgrupada", "1");
     if (pastaId) fd.set("pastaId", pastaId);
     else fd.set("pacote", pacote ?? "");
     fd.append("files", file);

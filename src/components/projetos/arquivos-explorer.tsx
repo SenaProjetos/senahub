@@ -69,6 +69,7 @@ import {
 import { precisaChunk, enviarEmChunks } from "@/lib/upload-grande";
 import { useDropzone } from "@/lib/use-dropzone";
 import { detectarNovasRevisoes, mensagemNovasRevisoes, type ArquivoExistente } from "@/modules/uploads/revisao-nova";
+import { gruposRevisaoAgrupada } from "@/modules/uploads/revisao-agrupada";
 import { cn, formatarData, rotuloRevisao } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -2074,7 +2075,14 @@ type LinhaEnvio = ItemEnvio & {
   realocado?: boolean;
 };
 
-type ResultadoUpload = { nome: string; ok: boolean; realocado?: boolean; motivo?: string };
+type ResultadoUpload = {
+  nome: string;
+  ok: boolean;
+  realocado?: boolean;
+  motivo?: string;
+  revisaoId?: string;
+  revisaoNumero?: number;
+};
 
 /**
  * Envia UM arquivo via XHR para expor `upload.onprogress` (fetch não reporta
@@ -2086,12 +2094,15 @@ async function enviarUm(
   item: ItemEnvio,
   disciplinaId: string,
   onProgress: (pct: number) => void,
+  opts: { revisaoDeId?: string; novaRevisaoAgrupada?: boolean } = {},
 ): Promise<ResultadoUpload> {
   if (precisaChunk(item.file)) {
     const meta = await enviarEmChunks(item.file, onProgress);
     const fd = new FormData();
     fd.set("disciplinaId", disciplinaId);
     if (item.faseId) fd.set("faseId", item.faseId);
+    if (opts.revisaoDeId) fd.set("revisaoDeId", opts.revisaoDeId);
+    if (opts.novaRevisaoAgrupada) fd.set("novaRevisaoAgrupada", "1");
     if (item.pastaId) fd.set("pastaId", item.pastaId);
     else fd.set("pacote", item.alvo);
     fd.set("sessaoId", meta.sessaoId);
@@ -2109,6 +2120,8 @@ async function enviarUm(
     const fd = new FormData();
     fd.set("disciplinaId", disciplinaId);
     if (item.faseId) fd.set("faseId", item.faseId);
+    if (opts.revisaoDeId) fd.set("revisaoDeId", opts.revisaoDeId);
+    if (opts.novaRevisaoAgrupada) fd.set("novaRevisaoAgrupada", "1");
     if (item.pastaId) fd.set("pastaId", item.pastaId);
     else fd.set("pacote", item.alvo);
     fd.append("files", item.file);
@@ -2266,6 +2279,18 @@ function Uploader({
     );
     if (revisoes.length > 0) toast.info(mensagemNovasRevisoes(revisoes), { duration: 6000 });
 
+    const grupos = gruposRevisaoAgrupada(itens.map((item) => ({
+      nome: item.nome,
+      pacote: usaPastas ? null : item.alvo,
+      pastaId: item.pastaId ?? null,
+    })));
+    const grupoPorIndice = new Map<number, string>(
+      grupos.flatMap((grupo) => grupo.indices.map((indice): [number, string] => [indice, grupo.chave])),
+    );
+    const revisoesPorGrupo = new Map<string, { id: string; numero: number }>();
+    const gruposComErro = new Set<string>();
+    const enviadosPorGrupo = new Map<string, number>();
+
     // Envia arquivo a arquivo (XHR) para exibir a lista e o progresso de cada um.
     const linhas: LinhaEnvio[] = itens.map((it) => ({ ...it, status: "pendente", progresso: 0 }));
     setProgresso(linhas);
@@ -2274,29 +2299,52 @@ function Uploader({
       let ok = 0;
       let realocados = 0;
       for (let i = 0; i < linhas.length; i++) {
+        const grupo = grupoPorIndice.get(i);
+        if (grupo && gruposComErro.has(grupo)) {
+          setProgresso((prev) => (
+            prev ? patchLinha(prev, i, { status: "erro", motivo: "Não foi possível iniciar a revisão conjunta deste documento." }) : prev
+          ));
+          continue;
+        }
         setProgresso((prev) => (prev ? patchLinha(prev, i, { status: "enviando" }) : prev));
         try {
+          const revisaoDoGrupo = grupo ? revisoesPorGrupo.get(grupo) : undefined;
           const r = await enviarUm(linhas[i], disciplinaId, (pct) =>
             setProgresso((prev) => (prev ? patchLinha(prev, i, { progresso: pct }) : prev)),
+            grupo
+              ? revisaoDoGrupo
+                ? { revisaoDeId: revisaoDoGrupo.id }
+                : { novaRevisaoAgrupada: true }
+              : {},
           );
           if (r.ok) {
             ok += 1;
             if (r.realocado) realocados += 1;
+            if (grupo && r.revisaoId && r.revisaoNumero !== undefined) {
+              revisoesPorGrupo.set(grupo, { id: r.revisaoId, numero: r.revisaoNumero });
+              enviadosPorGrupo.set(grupo, (enviadosPorGrupo.get(grupo) ?? 0) + 1);
+            }
             setProgresso((prev) =>
               prev ? patchLinha(prev, i, { status: "ok", progresso: 100, realocado: r.realocado }) : prev,
             );
           } else {
+            if (grupo) gruposComErro.add(grupo);
             setProgresso((prev) =>
               prev ? patchLinha(prev, i, { status: "erro", motivo: r.motivo ?? "Falha ao salvar." }) : prev,
             );
           }
         } catch (e) {
+          if (grupo) gruposComErro.add(grupo);
           setProgresso((prev) =>
             prev ? patchLinha(prev, i, { status: "erro", motivo: (e as Error).message }) : prev,
           );
         }
       }
       if (ok > 0) toast.success(`${ok} arquivo(s) enviado(s).`);
+      for (const [grupo, total] of enviadosPorGrupo) {
+        const revisao = revisoesPorGrupo.get(grupo);
+        if (total > 1 && revisao) toast.success(`${total} arquivos foram enviados juntos na revisão ${rotuloRevisao(revisao.numero)}.`);
+      }
       if (realocados > 0) toast.info(`${realocados} arquivo(s) não suportado(s) foram para "Outros".`);
       router.refresh();
     } finally {

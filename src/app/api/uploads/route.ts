@@ -21,6 +21,8 @@ type Resultado = {
   pacote?: string;
   motivo?: string;
   realocado?: boolean;
+  revisaoId?: string;
+  revisaoNumero?: number;
 };
 
 /** Arquivo remontado maior que o teto do pacote — mensagem segura p/ o cliente. */
@@ -49,8 +51,13 @@ export async function POST(req: Request) {
   const alvo = String(form.get("pacote") ?? "") as PacoteAlvo;
   const pastaId = String(form.get("pastaId") ?? "") || null;
   const faseIdInformada = String(form.get("faseId") ?? "") || null;
+  const revisaoDeId = String(form.get("revisaoDeId") ?? "") || null;
+  const novaRevisaoAgrupada = form.get("novaRevisaoAgrupada") === "1";
   if (!disciplinaId || (!pastaId && alvo !== "A" && alvo !== "B" && alvo !== "RECEBIDOS")) {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
+  }
+  if (revisaoDeId && novaRevisaoAgrupada) {
+    return NextResponse.json({ error: "Parâmetros de revisão inválidos." }, { status: 400 });
   }
 
   const disciplina = await prisma.disciplina.findUnique({
@@ -136,6 +143,10 @@ export async function POST(req: Request) {
     disciplinaNome: disciplina.disciplinaTextoLegado,
     siglaDisciplina: codDisc,
   });
+  // Quando uma chamada multipart já traz PDF+DWG, o próprio request mantém o id criado
+  // para o primeiro arquivo. O mesmo contrato também funciona entre chamadas (chunks),
+  // quando o cliente devolve esse id em `revisaoDeId`.
+  const revisoesAgrupadas = new Map<string, { id: string; numero: number }>();
 
   /**
    * Persiste UM arquivo já validado por tamanho: resolve destino (roteamento/versão),
@@ -152,15 +163,32 @@ export async function POST(req: Request) {
       pastaId: pastaAlvo?.id ?? null,
       nomeArquivo: nome,
     });
+    const revisaoDeIdEfetiva = revisaoDeId ?? revisoesAgrupadas.get(chave)?.id ?? null;
 
     // O status final pertence ao documento lógico, não ao Upload: a consulta antecede a
     // gravação física para não deixar arquivo no disco quando uma nova revisão é vedada.
     const documentoExistente = await prisma.documentoDisciplina.findUnique({
       where: { disciplinaId_chave: { disciplinaId, chave } },
-      select: { status: { select: { final: true } } },
+      select: { id: true, status: { select: { final: true } } },
     });
     if (documentoExistente?.status?.final) {
       return { nome, ok: false, motivo: "Este documento está com status final e não aceita novas revisões." };
+    }
+
+    // O segundo arquivo de uma revisão agrupada recebe o id criado pelo primeiro. Antes de
+    // gravar no disco, confirma que a revisão pertence ao mesmo documento e ainda não contém
+    // esta extensão — PDF e DWG podem coexistir; dois PDFs não podem reescrever o histórico.
+    const revisaoExistente = revisaoDeIdEfetiva
+      ? await prisma.documentoRevisao.findUnique({
+          where: { id: revisaoDeIdEfetiva },
+          select: { id: true, documentoId: true, numero: true, uploads: { select: { nomeArquivo: true } } },
+        })
+      : null;
+    if (revisaoDeIdEfetiva && (!documentoExistente || !revisaoExistente || revisaoExistente.documentoId !== documentoExistente.id)) {
+      return { nome, ok: false, motivo: "A revisão informada não pertence a este documento." };
+    }
+    if (revisaoExistente?.uploads.some((upload) => extensao(upload.nomeArquivo) === extensao(nome))) {
+      return { nome, ok: false, motivo: "Esta revisão já contém um arquivo dessa extensão." };
     }
 
     // Versionamento: mesma disciplina + (pacote OU pasta) + nome → incrementa versão.
@@ -193,15 +221,33 @@ export async function POST(req: Request) {
       select: { id: true },
     });
 
-    // Revisão do documento (Fase 2): o ponto no tempo a que este arquivo pertence. PDF e
-    // DWG enviados como a mesma versão do mesmo documento caem na MESMA revisão — é o que
-    // o `upsert` sobre (documentoId, numero) garante, inclusive em envios concorrentes.
-    const revisao = await prisma.documentoRevisao.upsert({
-      where: { documentoId_numero: { documentoId: documento.id, numero: versao } },
-      create: { documentoId: documento.id, numero: versao, createdById: user.id },
-      update: {},
-      select: { id: true },
-    });
+    // Sem os campos novos, preserva a regra legada: a versão do arquivo determina a
+    // revisão. Em uma operação agrupada, só o primeiro arquivo cria a próxima revisão do
+    // documento; os demais recebem `revisaoDeId` e entram exatamente no mesmo ponto no tempo.
+    let revisao: { id: string; numero: number };
+    if (revisaoExistente) {
+      revisao = revisaoExistente;
+    } else if (novaRevisaoAgrupada) {
+      const ultima = await prisma.documentoRevisao.aggregate({
+        where: { documentoId: documento.id },
+        _max: { numero: true },
+      });
+      const numero = (ultima._max.numero ?? 0) + 1;
+      revisao = await prisma.documentoRevisao.upsert({
+        where: { documentoId_numero: { documentoId: documento.id, numero } },
+        create: { documentoId: documento.id, numero, createdById: user.id },
+        update: {},
+        select: { id: true, numero: true },
+      });
+    } else {
+      revisao = await prisma.documentoRevisao.upsert({
+        where: { documentoId_numero: { documentoId: documento.id, numero: versao } },
+        create: { documentoId: documento.id, numero: versao, createdById: user.id },
+        update: {},
+        select: { id: true, numero: true },
+      });
+    }
+    if (novaRevisaoAgrupada) revisoesAgrupadas.set(chave, revisao);
 
     const criado = await prisma.upload.create({
       data: {
@@ -234,7 +280,9 @@ export async function POST(req: Request) {
         console.error("[upload] falha ao enfileirar conversão DWG:", err),
       );
     }
-    return pastaAlvo ? { nome, ok: true, realocado: false } : { nome, ok: true, pacote: destino!, realocado };
+    return pastaAlvo
+      ? { nome, ok: true, realocado: false, revisaoId: revisao.id, revisaoNumero: revisao.numero }
+      : { nome, ok: true, pacote: destino!, realocado, revisaoId: revisao.id, revisaoNumero: revisao.numero };
   }
 
   /**
@@ -315,6 +363,7 @@ export async function POST(req: Request) {
         total: 1,
         ok: resultados.filter((r) => r.ok).length,
         chunked: true,
+        revisaoAgrupada: novaRevisaoAgrupada || revisaoDeId !== null,
       },
       ip: await getClientIp(),
     });
@@ -357,7 +406,13 @@ export async function POST(req: Request) {
     resultado: resultados.some((r) => r.ok) ? "sucesso" : "falha",
     entidade: "Upload",
     entidadeId: disciplinaId,
-    detalhe: { pacote: alvo, faseId: faseSelecionada?.id ?? null, total: arquivos.length, ok: resultados.filter((r) => r.ok).length },
+    detalhe: {
+      pacote: alvo,
+      faseId: faseSelecionada?.id ?? null,
+      total: arquivos.length,
+      ok: resultados.filter((r) => r.ok).length,
+      revisaoAgrupada: novaRevisaoAgrupada || revisaoDeId !== null,
+    },
     ip: await getClientIp(),
   });
 

@@ -8,6 +8,7 @@ import { foraDoPadrao, parsePranchaFilename } from "@/modules/projetos/pranchas/
 import type { PastaFlat } from "@/modules/projetos/pastas/arvore";
 import { TAMANHO_MAX_BACKUP_LABEL, TAMANHO_MAX_LABEL, limiteDoPacote, limiteLabelDoPacote } from "@/modules/uploads/limites";
 import { detectarNovasRevisoes, mensagemNovasRevisoes, type ArquivoExistente } from "@/modules/uploads/revisao-nova";
+import { gruposRevisaoAgrupada } from "@/modules/uploads/revisao-agrupada";
 import { enviarArquivoComProgresso, PainelProgressoEnvio, type LinhaEnvio } from "@/components/projetos/upload-progresso";
 import { SeletorPasta } from "@/components/projetos/pasta-tree-view";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { cn, rotuloRevisao } from "@/lib/utils";
 import { useDropzone } from "@/lib/use-dropzone";
 
 type PacoteEnvio = "A" | "B";
@@ -150,6 +151,18 @@ function UploaderDocumentos({
     );
     if (revisoes.length > 0) toast.info(mensagemNovasRevisoes(revisoes), { duration: 6000 });
 
+    const grupos = gruposRevisaoAgrupada(itens.map((item) => ({
+      nome: item.nome,
+      pacote: usaPastas ? null : item.alvo,
+      pastaId: item.pastaId ?? null,
+    })));
+    const grupoPorIndice = new Map<number, string>(
+      grupos.flatMap((grupo) => grupo.indices.map((indice): [number, string] => [indice, grupo.chave])),
+    );
+    const revisoesPorGrupo = new Map<string, { id: string; numero: number }>();
+    const gruposComErro = new Set<string>();
+    const enviadosPorGrupo = new Map<string, number>();
+
     const linhas: LinhaEnvioComArquivo[] = itens.map((item) => ({
       ...item,
       tamanho: item.file.size,
@@ -163,8 +176,14 @@ function UploaderDocumentos({
       let enviados = 0;
       let realocados = 0;
       for (let i = 0; i < linhas.length; i++) {
+        const grupo = grupoPorIndice.get(i);
+        if (grupo && gruposComErro.has(grupo)) {
+          atualizarLinha(i, { status: "erro", motivo: "Não foi possível iniciar a revisão conjunta deste documento." });
+          continue;
+        }
         atualizarLinha(i, { status: "enviando" });
         try {
+          const revisaoDoGrupo = grupo ? revisoesPorGrupo.get(grupo) : undefined;
           const resultado = await enviarArquivoComProgresso(
             linhas[i].file,
             {
@@ -172,21 +191,36 @@ function UploaderDocumentos({
               disciplinaId,
               faseId: linhas[i].faseId,
               ...(linhas[i].pastaId ? { pastaId: linhas[i].pastaId } : { pacote: linhas[i].alvo }),
+              ...(grupo
+                ? revisaoDoGrupo
+                  ? { revisaoDeId: revisaoDoGrupo.id }
+                  : { novaRevisaoAgrupada: true }
+                : {}),
             },
             (pct) => atualizarLinha(i, { progresso: pct }),
           );
           if (resultado.ok) {
             enviados += 1;
             if (resultado.realocado) realocados += 1;
+            if (grupo && resultado.revisaoId && resultado.revisaoNumero !== undefined) {
+              revisoesPorGrupo.set(grupo, { id: resultado.revisaoId, numero: resultado.revisaoNumero });
+              enviadosPorGrupo.set(grupo, (enviadosPorGrupo.get(grupo) ?? 0) + 1);
+            }
             atualizarLinha(i, { status: "ok", progresso: 100, realocado: resultado.realocado });
           } else {
+            if (grupo) gruposComErro.add(grupo);
             atualizarLinha(i, { status: "erro", motivo: resultado.motivo ?? "Falha ao salvar." });
           }
         } catch (error) {
+          if (grupo) gruposComErro.add(grupo);
           atualizarLinha(i, { status: "erro", motivo: (error as Error).message });
         }
       }
       if (enviados > 0) toast.success(`${enviados} arquivo(s) enviado(s).`);
+      for (const [grupo, total] of enviadosPorGrupo) {
+        const revisao = revisoesPorGrupo.get(grupo);
+        if (total > 1 && revisao) toast.success(`${total} arquivos foram enviados juntos na revisão ${rotuloRevisao(revisao.numero)}.`);
+      }
       if (realocados > 0) toast.info(`${realocados} arquivo(s) não suportado(s) foram para "Outros".`);
       router.refresh();
     } finally {

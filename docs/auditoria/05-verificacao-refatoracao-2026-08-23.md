@@ -2,7 +2,7 @@
 
 **Data:** 2026-08-23
 **Escopo:** confronto entre `01-arquitetura-atual.md`, `02-matriz-gap.md`, `03-plano-refatoracao.md`, o código atual e o banco de desenvolvimento configurado neste repositório.
-**Método:** a auditoria inicial usou somente leitura do código, Git, migrations e validações automatizadas. A continuação registrada neste arquivo implementa F2-PR6a, F2-PR6c, F2-PR6b, F2-PR7 e a correção A-03. As únicas alterações no banco de desenvolvimento foram as migrations aditivas M8 e M7, registradas abaixo; nenhum script de reconciliação, backfill ou merge de dados foi executado.
+**Método:** a auditoria inicial usou somente leitura do código, Git, migrations e validações automatizadas. A continuação registrada neste arquivo implementa F2-PR6a, F2-PR6c, F2-PR6b, F2-PR7, F2-PR9 e a correção A-03. As únicas alterações no banco de desenvolvimento foram as migrations aditivas M8 e M7, registradas abaixo; nenhum script de reconciliação, backfill ou merge de dados foi executado.
 
 ## Limites de evidência
 
@@ -25,7 +25,7 @@
 | F2-PR6c — metadados, status e filtro de fases | Implementado no código; validação manual pendente | Painel de detalhe, Actions auditadas, filtro de status e seletor horizontal de fase; a atribuição padrão das novas permissões exige decisão A-06. |
 | F2-PR6b — exigir fases por projeto | Implementado no código e schema de desenvolvimento; validação manual pendente | M8 cria `NomenclaturaConfig.exigirFase` com padrão `false`; configuração global/projeto, os dois uploaders e a rota validam/persistem a fase. |
 | F2-PR7 — Listas de documentos | Implementado no código e schema de desenvolvimento; validação manual pendente | M7 cria `ListaDocumentos`/`ListaDocumentoItem`; Actions auditadas, aba Listas, filtro pela URL e ações em lote estão descritos abaixo. |
-| F2-PR9 — upload explícito de revisão agrupada | Não implementado | Não há fluxo explícito de upload de revisão agrupada. |
+| F2-PR9 — upload explícito de revisão agrupada | Implementado no código; validação manual pendente | PDF/DWG (ou outras extensões distintas) com mesmo nome-base e destino passam a compartilhar a próxima `DocumentoRevisao`, sem alterar o upload comum. |
 | F2-PR8 — histórico de revisões | Implementada | Drawer em `historico-revisoes-dialog.tsx`, query e action com escopo de projeto/disciplina. |
 | F2-PR10 — colunas configuráveis | Implementada | `src/modules/uploads/colunas-documento.ts`, `seletor-colunas.tsx` e testes associados. |
 | F4-PR4 — comparador avançado | Implementada | Percentual de opacidade e zoom/scroll sincronizados em `comparador-revisoes.tsx`. |
@@ -74,7 +74,9 @@ F2-PR7 foi implementada em desenvolvimento. A migration `20260823120000_listas_d
 
 A regra de acesso foi definida durante esta implementação: todas as pessoas que já podem ver o projeto veem os nomes das listas, mas a contagem é limitada aos documentos que cada pessoa pode ver. Criar, renomear e excluir lista exige `projetos:gerir` ou ser responsável por ao menos uma disciplina daquele projeto. Para adicionar ou remover um documento, a gestão do projeto pode operar qualquer disciplina; um responsável por disciplina só pode operar documentos das disciplinas pelas quais responde. Essas verificações são repetidas nas Server Actions `criarListaDocumentos`, `renomearListaDocumentos`, `excluirListaDocumentos`, `adicionarDocumentoLista` e `removerDocumentoLista`, todas por `defineAction`, com auditoria e revalidação da página do projeto. A UI espelha o gate, mas não o substitui.
 
-Assim como em M8, `npx prisma migrate dev --name listas_documentos` detectou o drift histórico já conhecido e ofereceu reset do schema; o reset foi recusado. No banco de desenvolvimento, `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` foi usado para conferir o SQL, `npx prisma db push` aplicou apenas o schema atual, a migration M7 foi registrada manualmente e `npx prisma migrate resolve --applied 20260823120000_listas_documentos` registrou sua aplicação. Esta sequência é evidência somente de desenvolvimento; não foi executada em servidor nem em produção. F2-PR9 continua pendente: F2-PR6b e F2-PR7 não mudam o fluxo explícito de PDF/DWG sob uma revisão escolhida pela pessoa.
+Assim como em M8, `npx prisma migrate dev --name listas_documentos` detectou o drift histórico já conhecido e ofereceu reset do schema; o reset foi recusado. No banco de desenvolvimento, `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` foi usado para conferir o SQL, `npx prisma db push` aplicou apenas o schema atual, a migration M7 foi registrada manualmente e `npx prisma migrate resolve --applied 20260823120000_listas_documentos` registrou sua aplicação. Esta sequência é evidência somente de desenvolvimento; não foi executada em servidor nem em produção.
+
+F2-PR9 foi implementada sem migration e sem endpoint novo. A regra confirmada para esta implementação é: numa mesma seleção, arquivos de extensões diferentes, mesmo nome-base e mesmo destino formam uma revisão conjunta automaticamente; os demais arquivos mantêm exatamente o fluxo anterior. O primeiro arquivo da dupla cria a próxima `DocumentoRevisao` do documento lógico e recebe `novaRevisaoAgrupada=1`; na mesma requisição a rota mantém esse id por documento, e entre requisições (inclusive chunks) os seguintes recebem `revisaoDeId`. A rota valida, antes de gravar no disco, que esse id pertence ao mesmo documento e que a revisão ainda não tem arquivo da mesma extensão. Isso permite PDF+DWG (e outras extensões distintas) no mesmo ponto do histórico, inclusive no caminho de chunks, sem abrir escrita em outro documento nem sobrescrever uma extensão histórica. Após a operação, ambos os uploaders confirmam em toast a revisão comum. Os campos são opcionais: sem eles, a rota continua calculando a revisão pela versão do arquivo como antes. A auditoria do upload registra `revisaoAgrupada`.
 
 ## Achados que exigem decisão antes de executar o merge de dados
 
@@ -136,13 +138,14 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 
 | Verificação | Resultado |
 | --- | --- |
-| `npm run lint` | Passou após F2-PR7. |
-| `npm test` | Passou após F2-PR7: 225 arquivos, 2.449 testes. |
+| `npm run lint` | Passou após F2-PR9. |
+| `npm test` | Passou após F2-PR9: 226 arquivos, 2.453 testes. |
 | Testes focados da continuação | Passaram: 9 testes em `acesso` e `lixeira`; a regra nova de acesso tem três cenários unitários. |
 | Validação manual do envio V2 | Pendente: requer operar o diálogo com uma disciplina de teste e confirmar envio, aviso de revisão e atualização da tabela. |
 | Validação manual de F2-PR6c | Pendente: em desenvolvimento, editar metadados, alterar status, filtrar por status/fase e confirmar o bloqueio de nova revisão para status final. |
 | Validação manual de F2-PR6b | Pendente: em um projeto de teste, ligar/desligar "Exige fases"; confirmar herança global, sugestão por nome no padrão, alteração manual por arquivo, bloqueio sem fase e persistência no detalhe do documento, nos uploaders V2 e legado. |
 | Validação manual de F2-PR7 | Pendente: na V2 e em um projeto de teste, criar uma lista, selecionar dois documentos e adicioná-los, selecionar a lista, remover um documento e confirmar contagem/tabela sem recarregar manualmente. Repetir com responsável de disciplina e com gestão do projeto para confirmar a muralha de escrita. |
+| Validação manual de F2-PR9 | Pendente: em uma disciplina de teste, selecionar PDF e DWG com mesmo nome-base numa única operação, confirmar o toast da mesma revisão e o drawer de histórico com ambos os arquivos na mesma Rxx. Repetir com arquivos de nome-base ou destino diferentes para confirmar que seguem independentes. |
 | `scripts/verificar-fase2-documentos.ts` | Não executado: `tsx` falhou antes de conectar ao banco com `uv_os_get_passwd` / `ENOMEM`. Evidência em `06-evidencia-verificacao-fase2-documentos-dev-2026-08-23.md`. |
 | `npx prisma migrate status` | Passou após M7: 192 migrations encontradas; schema do banco de desenvolvimento atualizado. As tentativas diretas de `migrate dev` estão documentadas acima e não houve reset. |
 | `npx prisma db:seed` | Não executado: é uma escrita no banco de desenvolvimento e M7/M8 não exigem alteração no seed (a nova coluna tem default e listas não possuem catálogo inicial). A idempotência do seed permanece pendente de uma execução deliberada. |
