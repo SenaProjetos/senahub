@@ -75,6 +75,8 @@
 
 ### 0.3 Hardening P1 pÃ³s-auditoria â€” 24/08/2026
 
+- [x] 🛠️ PÓS (parcial) — **SEC-015 (dependências):** atualização dedicada corrigiu Better Auth, PDF.js, Puppeteer, Prisma 7.9, Sharp direto e Socket.IO Parser; o audit de produção caiu de 24 para 7 vulnerabilidades. Evidência: `package.json`, `package-lock.json` e `npm audit --omit=dev --json`.
+- [ ] ⏳ — **Limite residual do SEC-015:** os 7 achados restantes exigem Next 16, mudança incompatível de Prisma ou downgrade inseguro de ExcelJS; programar migração específica, sem `npm audit fix --force`.
 - [x] 🛠️ PÓS (parcial) — **SEC-014 (disponibilidade):** rate limit em memória por IP/usuário é aplicado antes de payloads públicos e uploads caros; devolve `429`/`Retry-After`, audita o primeiro bloqueio e limita a duas gerações Puppeteer com oito na fila. Evidência: `src/lib/{rate-limit,execution-limit}.ts` e rotas de aceite, inputs, proposta, uploads, chat e PDFs cobertas.
 - [ ] ⏳ — **Limite residual do SEC-014:** faltam backend compartilhado entre réplicas, quotas persistentes de bytes/armazenamento, limite nas demais rotas caras (PDF/ZIP/conversões) e validação operacional de Cloudflare/WAF.
 - [x] 🛠️ PÓS — **SEC-013 (exportações):** endpoints recebem apenas IDs/filtros por schemas Zod estritos, reidratam e recalculam as linhas no servidor; CSV e XLSX tornam literais textos que começam por `=`, `+`, `-` ou `@`, inclusive depois de espaço/tab. Evidência: `src/app/api/financeiro/{contas,relatorios/rentabilidade}/export/route.ts`, `src/lib/export/csv.ts` e `csv.test.ts`.
@@ -619,6 +621,7 @@ Aplicar especialmente em:
 - [x] ðŸ”Ž PRÃ‰ â€” `npm audit --omit=dev` executado na linha de base: 24 vulnerabilidades de produÃ§Ã£o, 17 altas.
 - [x] âœ… PRÃ‰ â€” CVEs altas foram identificadas e registradas em `SEC-015`.
 - [ ] âŒ PRÃ‰ â€” Atualizar dependÃªncias vulnerÃ¡veis. A linha de base ainda possui vulnerabilidades altas em Better Auth, Next, PDF.js, Prisma, Puppeteer, Sharp e transitivas.
+- [x] 🛠️ PÓS (parcial) — **SEC-015:** a atualização reduziu o audit de produção de 24 para 7 vulnerabilidades. Permanecem migrações incompatíveis de Next/Prisma/ExcelJS antes de encerrar o achado.
 - [ ] Remover pacotes nÃ£o utilizados.
 - [ ] Evitar pacotes abandonados.
 - [ ] Revisar dependÃªncias transitivas crÃ­ticas.

@@ -43,6 +43,7 @@ ValidaÃ§Ã£o executada: `vitest` focado (**38 testes em 7 arquivos**), ESLint
 | SEC-012 | ðŸ› ï¸ PÃ“S (parcial) | MigraÃ§Ã£o aditiva com validade/revogaÃ§Ã£o/evidÃªncias; validade de 30 dias, renovaÃ§Ã£o segura, revogaÃ§Ã£o interna, resposta condicional atÃ´mica, auditoria de resposta e `no-store`/`no-referrer`. | O token ainda Ã© armazenado em texto claro; nome Ã© declaraÃ§Ã£o, nÃ£o autenticaÃ§Ã£o do cliente; falta auditoria de visualizaÃ§Ã£o e rate limit especÃ­fico. |
 | SEC-013 | 🛠️ PÓS | Rotas de exportação aceitam somente parâmetros estritos validados e reidratam dados no servidor; CSV e XLSX neutralizam texto que inicia fórmulas. | A proteção cobre a camada de exportação; seguem pendentes limites de taxa gerais (SEC-014). |
 | SEC-014 | 🛠️ PÓS (parcial) | Limite por IP/usuário antes de payloads caros, `429` com `Retry-After`, auditoria do primeiro bloqueio e semáforo de dois Puppeteers com fila de oito. | O limite é em memória por processo; faltam centralização entre réplicas, quotas persistentes e cobertura integral das rotas caras. |
+| SEC-015 | 🛠️ PÓS (parcial) | Atualização dedicada de dependências diretas e transitivas corrigiu 17 dos 24 achados do audit de produção. | Permanecem 7 vulnerabilidades que pedem Next 16, mudança incompatível de Prisma ou downgrade inseguro de ExcelJS. |
 
 ## Achados P0 â€” bloquear a liberaÃ§Ã£o
 
@@ -352,6 +353,8 @@ As dependÃªncias afetam autenticaÃ§Ã£o, Route Handlers/Server Actions, vis
 **CorreÃ§Ã£o**
 
 Abrir atualizaÃ§Ã£o dedicada: atualizar as versÃµes corrigidas indicadas pelo audit, revisar notas de breaking change, regenerar lockfile e executar `npm run lint`, `npm test`, build e smoke tests. Prioridade imediata para `better-auth`, `next`, `pdfjs-dist`, `sharp` e `socket.io-parser`; nÃ£o usar `npm audit fix --force` sem revisar o diff. Adicionar audit/SCA bloqueante ou com SLA no pipeline.
+
+**Status pós-auditoria (parcial, 24/08/2026):** a atualização dedicada levou `better-auth` a `1.6.22`, `next` a `15.5.23`, `pdfjs-dist` a `6.2.108`, a família Prisma a `7.9.1`, `puppeteer-core` a `25.8.0`, `sharp` direto a `0.35.3` e `socket.io-parser` a `4.2.7`. `npm audit --omit=dev --json` caiu de **24** (17 altas, 6 moderadas, 1 baixa) para **7** (5 altas, 2 moderadas). As sete remanescentes são a cadeia `deepmerge-ts`/Prisma, o `sharp` aninhado no Next 15 e `uuid` via ExcelJS; o npm só sugere, respectivamente, regressão para Prisma 6, Next 16 e ExcelJS 3.4. Elas exigem uma migração dedicada, portanto `npm audit fix --force` não foi usado.
 
 ### SEC-016 â€” Backups de banco e storage nÃ£o possuem criptografia ou validaÃ§Ã£o de ACL no cÃ³digo
 
