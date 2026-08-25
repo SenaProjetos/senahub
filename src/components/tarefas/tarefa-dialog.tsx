@@ -318,7 +318,7 @@ export function TarefaDialog({
               {!itensReadonly && " Você ainda pode marcar os itens do checklist."}
             </p>
           )}
-          <fieldset disabled={!podeEditar} className="contents">
+          <fieldset disabled={!podeEditar} className="m-0 min-w-0 space-y-3 border-0 p-0">
           <div className="space-y-1.5">
             <Label>Título</Label>
             <Input value={form.titulo} onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))} />
@@ -332,45 +332,24 @@ export function TarefaDialog({
               onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
             />
           </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <Label>Coluna</Label>
-              <Select value={form.statusId} onValueChange={(v) => setForm((f) => ({ ...f, statusId: v ?? f.statusId }))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {colunas.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Prazo</Label>
-              <Input type="date" value={form.prazo} onChange={(e) => setForm((f) => ({ ...f, prazo: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Projeto</Label>
-              <Select
-                value={form.projetoId}
-                onValueChange={(v) => setForm((f) => ({ ...f, projetoId: v ?? NONE, disciplinaId: NONE }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>—</SelectItem>
-                  {opcoes.projetos.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {formatarCodigo(p.codigo)} — {p.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-1.5">
+            <Label>Projeto</Label>
+            <Select
+              value={form.projetoId}
+              onValueChange={(v) => setForm((f) => ({ ...f, projetoId: v ?? NONE, disciplinaId: NONE }))}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>—</SelectItem>
+                {opcoes.projetos.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {formatarCodigo(p.codigo)} — {p.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {disciplinasProjeto.length > 0 && (
@@ -380,7 +359,7 @@ export function TarefaDialog({
                 value={form.disciplinaId}
                 onValueChange={(v) => setForm((f) => ({ ...f, disciplinaId: v ?? NONE }))}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -395,46 +374,72 @@ export function TarefaDialog({
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label>Prioridade</Label>
-              <Select
-                value={form.prioridade || NONE}
-                onValueChange={(v) => setForm((f) => ({ ...f, prioridade: v === NONE ? "" : (v ?? "") }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="—" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>—</SelectItem>
-                  {PRIORIDADES.map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {PRIORIDADE_LABEL[p]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Atalhos de prazo</Label>
-              <div className="flex flex-wrap gap-1">
-                {PRESETS_PRAZO.map((p) => (
-                  <Button
-                    key={p.label}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setForm((f) => ({ ...f, prazo: p.calc() }))}
-                  >
-                    {p.label}
-                  </Button>
-                ))}
+          <section className="rounded-lg border bg-muted/20 p-3">
+            <p className="font-mono text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Execução</p>
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Coluna</Label>
+                <Select value={form.statusId} onValueChange={(v) => setForm((f) => ({ ...f, statusId: v ?? f.statusId }))}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {colunas.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Prioridade</Label>
+                <Select
+                  value={form.prioridade || NONE}
+                  onValueChange={(v) => setForm((f) => ({ ...f, prioridade: v === NONE ? "" : (v ?? "") }))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="—" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE}>—</SelectItem>
+                    {PRIORIDADES.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {PRIORIDADE_LABEL[p]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-          </div>
+            <div className="mt-3 space-y-1.5 border-t pt-3">
+              <Label>Prazo</Label>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Input
+                  type="date"
+                  className="w-full sm:w-40"
+                  value={form.prazo}
+                  onChange={(e) => setForm((f) => ({ ...f, prazo: e.target.value }))}
+                />
+                <div className="flex flex-wrap gap-1" aria-label="Atalhos de prazo">
+                  {PRESETS_PRAZO.map((p) => (
+                    <Button
+                      key={p.label}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs"
+                      onClick={() => setForm((f) => ({ ...f, prazo: p.calc() }))}
+                    >
+                      {p.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
 
-          <div className="space-y-1.5">
+          <div className="space-y-2.5">
             <Label>Vínculos</Label>
             <div className="divide-y rounded-sm border">
               <div className="flex min-h-10 items-center gap-2 px-2.5 py-1.5">
@@ -593,10 +598,13 @@ export function TarefaDialog({
 
           </fieldset>
 
-          <div className="space-y-1.5">
+          <div className="mt-4 space-y-2.5">
             <Label>Checklist{itensReadonly && " (apontamentos)"}</Label>
+            {form.itens.length > 0 || (podeEditar && !itensReadonly) ? (
+              <div className="overflow-hidden rounded-sm border">
+                <div className="divide-y">
             {form.itens.map((it, i) => (
-              <div key={i} className="flex items-center gap-2">
+              <div key={i} className="flex min-h-10 items-center gap-2 px-2.5 py-1.5">
                 <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
                   <input
                     type="checkbox"
@@ -633,8 +641,9 @@ export function TarefaDialog({
                 )}
               </div>
             ))}
+                </div>
             {podeEditar && !itensReadonly && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 border-t p-2">
                 <Input
                   placeholder="Novo item…"
                   value={novoItem}
@@ -659,10 +668,14 @@ export function TarefaDialog({
                 </Button>
               </div>
             )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Nenhum item no checklist.</p>
+            )}
           </div>
 
           {tarefa && (
-            <div className="space-y-1.5 border-t pt-3">
+            <div className="space-y-2.5 border-t pt-3">
               <Label>Comentários</Label>
               {comentarios.length > 0 && (
                 <ul className="max-h-40 space-y-1.5 overflow-y-auto">
