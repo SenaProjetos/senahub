@@ -222,11 +222,11 @@ export const editarTarefa = defineAction(
   },
 );
 
-/** Drag do Kanban. Bloqueada não entra em coluna concluída. Restrito ao criador ou admin/supervisor (movimentação = edição de status). */
+/** Drag do Kanban. Responsáveis, criador e perfis globais podem mover; tarefa bloqueada não entra em coluna concluída. */
 export const moverTarefa = defineAction(
   { ...base, acao: "mover-tarefa", entidade: "Tarefa", schema: moverSchema },
   async (i, { user }) => {
-    await exigirCriadorOuGlobal(i.id, user);
+    await exigirAcessoTarefa(i.id, user);
     const destino = await prisma.tarefaStatus.findUnique({ where: { id: i.statusId } });
     if (!destino) throw new ActionError("Status não encontrado.");
     if (destino.concluido) {

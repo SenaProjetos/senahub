@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tarefaBloqueada, escopoTarefa } from "./queries";
+import { tarefaBloqueada, escopoTarefa, whereQuadroTarefas } from "./queries";
 import type { TarefaItemBoard } from "./queries";
 
 type Dep = TarefaItemBoard["dependeDe"][number];
@@ -52,5 +52,42 @@ describe("escopoTarefa", () => {
     for (const role of ["clt", "estagiario", "freelancer", "ti"] as const) {
       expect(escopoTarefa({ id: "x", role }).OR).toBeDefined();
     }
+  });
+});
+
+describe("whereQuadroTarefas", () => {
+  it("combina filtros de texto, vínculos e responsável com o escopo do usuário", () => {
+    expect(
+      whereQuadroTarefas(
+        { id: "u1", role: "projetista_pj" },
+        { q: "compatibilização", projetoId: "p1", disciplinaId: "d1", responsavelId: "u2", prioridade: "alta" },
+        new Date(2026, 7, 25),
+      ),
+    ).toEqual({
+      AND: [
+        { arquivada: false, status: { ativo: true } },
+        { OR: [{ responsaveis: { some: { userId: "u1" } } }, { criadorId: "u1" }] },
+        {
+          OR: [
+            { titulo: { contains: "compatibilização", mode: "insensitive" } },
+            { descricao: { contains: "compatibilização", mode: "insensitive" } },
+          ],
+        },
+        { projetoId: "p1" },
+        { disciplinaId: "d1" },
+        { responsaveis: { some: { userId: "u2" } } },
+        { prioridade: "alta" },
+      ],
+    });
+  });
+
+  it("filtra atrasadas sem incluir tarefas concluídas", () => {
+    expect(whereQuadroTarefas({ id: "u1", role: "admin" }, { periodo: "atrasadas" }, new Date(2026, 7, 25))).toEqual({
+      AND: [
+        { arquivada: false, status: { ativo: true } },
+        {},
+        { prazo: { lt: new Date(2026, 7, 25) }, status: { concluido: false } },
+      ],
+    });
   });
 });

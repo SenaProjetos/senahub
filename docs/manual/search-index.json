@@ -86,10 +86,10 @@
     {
       "titulo": "Tarefas",
       "path": "projetos/tarefas.md",
-      "descricao": "Quadro de tarefas (kanban) em colunas por status, com checklist, dependências e comentários.",
-      "resumo": "Organize tarefas em colunas, atribua responsáveis, defina prazo e prioridade, vincule a projetos, use checklists, dependências e comentários com anexo.",
-      "tags": ["tarefas", "kanban", "quadro", "checklist", "dependências", "comentários", "prioridade", "prazo"],
-      "palavrasChave": ["tarefa", "kanban", "quadro", "coluna", "status", "checklist", "dependência", "bloqueada", "comentário", "anexo", "prioridade"],
+      "descricao": "Quadro de tarefas (kanban) em colunas por status, com checklist, dependências, comentários e filtros.",
+      "resumo": "Organize tarefas em colunas, atribua responsáveis, defina prazo e prioridade, filtre os resultados e acompanhe o progresso do checklist.",
+      "tags": ["tarefas", "kanban", "quadro", "checklist", "dependências", "comentários", "prioridade", "prazo", "filtros"],
+      "palavrasChave": ["tarefa", "kanban", "quadro", "coluna", "status", "checklist", "dependência", "bloqueada", "comentário", "anexo", "prioridade", "filtro", "paginação"],
       "sinonimos": ["to-do", "board", "atividades", "cartões"]
     },
     {

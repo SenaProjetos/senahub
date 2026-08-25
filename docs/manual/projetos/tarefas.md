@@ -33,13 +33,17 @@ em colunas de status, com responsáveis, prazo, prioridade, checklists e depend�
   de "concluído"). As tarefas ficam organizadas pela coluna do seu status.
 - Cada **cartão** mostra: título, descrição, prazo, prioridade, projeto vinculado
   (código), responsáveis, **checklist** de itens, **dependências** e **comentários**.
+- Use os filtros para encontrar tarefas por texto, projeto, disciplina, responsável,
+  prazo ou prioridade. O quadro mostra os resultados por página.
 
 ## Recursos do cartão
 
-- **Responsáveis:** uma ou mais pessoas.
+- **Responsáveis:** uma ou mais pessoas. Os responsáveis podem mover o cartão entre
+  colunas e marcar o checklist; somente quem criou a tarefa (ou admin/supervisor)
+  altera os demais dados.
 - **Prazo e prioridade.**
 - **Vínculo a projeto** (opcional) — mostra o código do projeto.
-- **Checklist:** subitens marcáveis como concluídos.
+- **Checklist:** subitens marcáveis como concluídos, com contador e barra de progresso.
 - **Dependências:** uma tarefa que depende de outra fica **bloqueada** até a dependência
   ser concluída.
 - **Comentários:** texto e **anexo** (arquivo), com autor e data.

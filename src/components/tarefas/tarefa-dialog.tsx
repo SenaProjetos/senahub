@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Plus, Trash2, Archive, Paperclip, Send, FileText, X, Box } from "lucide-react";
+import { Plus, Trash2, Archive, Paperclip, Send, FileText, X, Box, Link2, UsersRound } from "lucide-react";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
   criarTarefa,
@@ -33,6 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 export type TarefaUI = {
   id: string;
@@ -50,13 +51,13 @@ export type TarefaUI = {
   itens: { id?: string; descricao: string; concluido: boolean; apontamentoHref?: string }[];
   dependeDeIds: string[];
   bloqueada: boolean;
-  comentarios?: { id: string; texto: string; autor: string; data: string; anexoMime: string | null; anexoNome: string | null }[];
+  comentarios?: { id: string; autorId: string; texto: string; autor: string; data: string; anexoMime: string | null; anexoNome: string | null }[];
 };
 
 export type OpcoesUI = {
   internos: { id: string; name: string }[];
   projetos: { id: string; codigo: string; nome: string }[];
-  tarefas: { id: string; titulo: string }[];
+  tarefas: { id: string; titulo: string; projetoCodigo: string | null; statusNome: string }[];
   disciplinas: { id: string; nome: string; projetoId: string }[];
 };
 
@@ -155,6 +156,7 @@ export function TarefaDialog({
   const [comentFile, setComentFile] = useState<File | null>(null);
   const comentFileRef = useRef<HTMLInputElement>(null);
   const [buscaResp, setBuscaResp] = useState("");
+  const [buscaDependencia, setBuscaDependencia] = useState("");
   const key = tarefa?.id ?? "nova";
   const [lastKey, setLastKey] = useState(key);
   if (lastKey !== key) {
@@ -165,6 +167,7 @@ export function TarefaDialog({
     setNovoComent("");
     setComentFile(null);
     setBuscaResp("");
+    setBuscaDependencia("");
   }
 
   function enviarComentario() {
@@ -190,7 +193,7 @@ export function TarefaDialog({
       if (r.ok) {
         setComentarios((cs) => [
           ...cs,
-          { id: r.data.id, texto, autor: "Você", data: new Date().toISOString(), anexoMime: meta.anexoMime ?? null, anexoNome: meta.anexoNome ?? null },
+          { id: r.data.id, autorId: meId, texto, autor: "Você", data: new Date().toISOString(), anexoMime: meta.anexoMime ?? null, anexoNome: meta.anexoNome ?? null },
         ]);
       } else toast.error(r.error);
     });
@@ -219,7 +222,16 @@ export function TarefaDialog({
     // persiste imediato se item já existe no banco
     if (tarefa && it.id) {
       start(async () => {
-        await toggleItemTarefa({ id: it.id!, concluido: !it.concluido });
+        const r = await toggleItemTarefa({ id: it.id!, concluido: !it.concluido });
+        if (r.ok) {
+          router.refresh();
+          return;
+        }
+        setForm((f) => ({
+          ...f,
+          itens: f.itens.map((item) => (item.id === it.id ? { ...item, concluido: it.concluido } : item)),
+        }));
+        toast.error(r.error);
       });
     }
   }
@@ -273,6 +285,24 @@ export function TarefaDialog({
   const tarefasDep = opcoes.tarefas.filter((t) => t.id !== tarefa?.id);
   const disciplinasProjeto =
     form.projetoId === NONE ? [] : opcoes.disciplinas.filter((d) => d.projetoId === form.projetoId);
+  const responsaveisSelecionados = form.responsaveisIds
+    .map((id) => opcoes.internos.find((u) => u.id === id))
+    .filter((u): u is NonNullable<typeof u> => !!u);
+  const dependenciasSelecionadas = form.dependeDeIds
+    .map((id) => tarefasDep.find((t) => t.id === id))
+    .filter((t): t is NonNullable<typeof t> => !!t);
+  const termoResponsavel = buscaResp.trim().toLowerCase();
+  const responsaveisEncontrados = termoResponsavel
+    ? opcoes.internos
+        .filter((u) => !form.responsaveisIds.includes(u.id) && u.name.toLowerCase().includes(termoResponsavel))
+        .slice(0, 8)
+    : [];
+  const termoDependencia = buscaDependencia.trim().toLowerCase();
+  const dependenciasEncontradas = termoDependencia.length >= 2
+    ? tarefasDep
+        .filter((t) => !form.dependeDeIds.includes(t.id) && t.titulo.toLowerCase().includes(termoDependencia))
+        .slice(0, 8)
+    : [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -284,7 +314,8 @@ export function TarefaDialog({
         <div className="space-y-3">
           {!podeEditar && (
             <p className="rounded-sm border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning-foreground">
-              Só quem criou esta tarefa (ou admin/supervisor) pode editá-la.
+              Só quem criou esta tarefa (ou admin/supervisor) pode editar seus dados.
+              {!itensReadonly && " Você ainda pode marcar os itens do checklist."}
             </p>
           )}
           <fieldset disabled={!podeEditar} className="contents">
@@ -404,61 +435,180 @@ export function TarefaDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label>Responsáveis</Label>
-            {form.responsaveisIds.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {form.responsaveisIds.map((id) => {
-                  const u = opcoes.internos.find((x) => x.id === id);
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => toggleArr("responsaveisIds", id)}
-                      className="inline-flex items-center gap-1 rounded-sm border border-primary bg-primary px-2 py-1 text-xs text-primary-foreground"
-                    >
-                      {u?.name ?? id}
-                      <X className="size-3" />
-                    </button>
-                  );
-                })}
+            <Label>Vínculos</Label>
+            <div className="divide-y rounded-sm border">
+              <div className="flex min-h-10 items-center gap-2 px-2.5 py-1.5">
+                <UsersRound className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                <span className="w-24 shrink-0 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">Responsáveis</span>
+                <span className="min-w-0 flex-1 truncate text-sm" title={responsaveisSelecionados.map((u) => u.name).join(", ")}>
+                  {responsaveisSelecionados.length === 0
+                    ? <span className="text-muted-foreground">Ninguém atribuído</span>
+                    : <>{responsaveisSelecionados.slice(0, 2).map((u) => u.name).join(" · ")}{responsaveisSelecionados.length > 2 && <span className="font-mono text-xs text-muted-foreground"> +{responsaveisSelecionados.length - 2}</span>}</>}
+                </span>
+                <Popover onOpenChange={(open) => !open && setBuscaResp("")}>
+                  <PopoverTrigger
+                    render={
+                      <Button type="button" variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-xs">
+                        {responsaveisSelecionados.length > 0 ? "Alterar" : "Adicionar"}
+                      </Button>
+                    }
+                  />
+                  <PopoverContent align="end" className="w-80 gap-0 p-0">
+                    <div className="border-b px-3 py-2">
+                      <p className="text-sm font-semibold">Responsáveis</p>
+                      <p className="text-xs text-muted-foreground">Busque e atribua pessoas à tarefa.</p>
+                    </div>
+                    {responsaveisSelecionados.length > 0 && (
+                      <div className="border-b px-3 py-2">
+                        <p className="mb-1 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">Atribuídos</p>
+                        <div className="flex flex-wrap gap-1">
+                          {responsaveisSelecionados.map((u) => (
+                            <button
+                              key={u.id}
+                              type="button"
+                              onClick={() => toggleArr("responsaveisIds", u.id)}
+                              className="inline-flex items-center gap-1 rounded-sm border border-primary bg-primary px-1.5 py-0.5 text-xs text-primary-foreground"
+                            >
+                              {u.name} <X className="size-3" aria-hidden />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="p-2.5">
+                      <Input
+                        value={buscaResp}
+                        onChange={(e) => setBuscaResp(e.target.value)}
+                        placeholder="Buscar por nome…"
+                        aria-label="Buscar responsável"
+                        className="h-8 text-sm"
+                      />
+                      {termoResponsavel ? (
+                        responsaveisEncontrados.length > 0 ? (
+                          <div className="mt-2 divide-y rounded-sm border">
+                            {responsaveisEncontrados.map((u) => (
+                              <button
+                                key={u.id}
+                                type="button"
+                                onClick={() => toggleArr("responsaveisIds", u.id)}
+                                className="flex w-full items-center justify-between px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                              >
+                                <span>{u.name}</span>
+                                <span className="text-primary">+ atribuir</span>
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="px-1 pt-2 text-xs text-muted-foreground">Nenhuma pessoa encontrada.</p>
+                        )
+                      ) : (
+                        <p className="px-1 pt-2 text-xs text-muted-foreground">Digite um nome para buscar.</p>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
-            )}
-            <Input
-              value={buscaResp}
-              onChange={(e) => setBuscaResp(e.target.value)}
-              placeholder="Buscar por nome…"
-              className="h-8 text-sm"
-            />
-            <div className="max-h-36 divide-y overflow-y-auto rounded-sm border">
-              {opcoes.internos
-                .filter((u) => !form.responsaveisIds.includes(u.id) && u.name.toLowerCase().includes(buscaResp.trim().toLowerCase()))
-                .map((u) => (
-                  <button
-                    key={u.id}
-                    type="button"
-                    onClick={() => toggleArr("responsaveisIds", u.id)}
-                    className="flex w-full items-center justify-between px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-                  >
-                    <span>{u.name}</span>
-                    <span className="text-primary">+ adicionar</span>
-                  </button>
-                ))}
-              {opcoes.internos.filter((u) => !form.responsaveisIds.includes(u.id) && u.name.toLowerCase().includes(buscaResp.trim().toLowerCase())).length === 0 && (
-                <p className="px-2 py-2 text-xs text-muted-foreground">
-                  {form.responsaveisIds.length > 0 ? "Todos os internos adicionados." : "Nenhum usuário encontrado."}
-                </p>
+
+              {tarefasDep.length > 0 && (
+                <div className="flex min-h-10 items-center gap-2 px-2.5 py-1.5">
+                  <Link2 className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                  <span className="w-24 shrink-0 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">Dependências</span>
+                  <span className="min-w-0 flex-1 truncate text-sm" title={dependenciasSelecionadas.map((t) => t.titulo).join(", ")}>
+                    {dependenciasSelecionadas.length === 0
+                      ? <span className="text-muted-foreground">Nenhuma</span>
+                      : <>{dependenciasSelecionadas.slice(0, 1).map((t) => t.titulo)}{dependenciasSelecionadas.length > 1 && <span className="font-mono text-xs text-muted-foreground"> +{dependenciasSelecionadas.length - 1}</span>}</>}
+                  </span>
+                  <Popover onOpenChange={(open) => !open && setBuscaDependencia("")}>
+                    <PopoverTrigger
+                      render={
+                        <Button type="button" variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-xs">
+                          {dependenciasSelecionadas.length > 0 ? "Alterar" : "Adicionar"}
+                        </Button>
+                      }
+                    />
+                    <PopoverContent align="end" className="w-80 gap-0 p-0">
+                      <div className="border-b px-3 py-2">
+                        <p className="text-sm font-semibold">Dependências</p>
+                        <p className="text-xs text-muted-foreground">Escolha tarefas que precisam ser concluídas antes desta.</p>
+                      </div>
+                      {dependenciasSelecionadas.length > 0 && (
+                        <div className="border-b px-3 py-2">
+                          <p className="mb-1 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">Selecionadas</p>
+                          <div className="space-y-1">
+                            {dependenciasSelecionadas.map((t) => (
+                              <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => toggleArr("dependeDeIds", t.id)}
+                                className="flex w-full items-center justify-between gap-2 rounded-sm px-1.5 py-1 text-left text-xs hover:bg-muted/50"
+                              >
+                                <span className="truncate">{t.titulo}</span>
+                                <X className="size-3 shrink-0 text-muted-foreground" aria-hidden />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div className="p-2.5">
+                        <Input
+                          value={buscaDependencia}
+                          onChange={(e) => setBuscaDependencia(e.target.value)}
+                          placeholder="Buscar tarefa…"
+                          aria-label="Buscar dependência"
+                          className="h-8 text-sm"
+                        />
+                        {termoDependencia.length >= 2 ? (
+                          dependenciasEncontradas.length > 0 ? (
+                            <div className="mt-2 divide-y rounded-sm border">
+                              {dependenciasEncontradas.map((t) => (
+                                <button
+                                  key={t.id}
+                                  type="button"
+                                  onClick={() => toggleArr("dependeDeIds", t.id)}
+                                  className="flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                                >
+                                  <span className="min-w-0">
+                                    <span className="block truncate">{t.titulo}</span>
+                                    <span className="block truncate font-mono text-[10px] text-muted-foreground">
+                                      {t.projetoCodigo ? formatarCodigo(t.projetoCodigo) : "Sem projeto"} · {t.statusNome}
+                                    </span>
+                                  </span>
+                                  <span className="shrink-0 text-primary">+ adicionar</span>
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="px-1 pt-2 text-xs text-muted-foreground">Nenhuma tarefa encontrada.</p>
+                          )
+                        ) : (
+                          <p className="px-1 pt-2 text-xs text-muted-foreground">Digite ao menos 2 caracteres para buscar.</p>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               )}
             </div>
           </div>
+
+          </fieldset>
 
           <div className="space-y-1.5">
             <Label>Checklist{itensReadonly && " (apontamentos)"}</Label>
             {form.itens.map((it, i) => (
               <div key={i} className="flex items-center gap-2">
-                <input type="checkbox" checked={it.concluido} onChange={() => toggleChecklist(i)} disabled={itensReadonly} />
-                <span className={`flex-1 text-sm ${it.concluido ? "text-muted-foreground line-through" : ""}`}>
-                  {it.descricao}
-                </span>
+                <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={it.concluido}
+                    onChange={() => toggleChecklist(i)}
+                    disabled={itensReadonly || pending}
+                    className="size-4 accent-primary"
+                  />
+                  <span className={`text-sm ${it.concluido ? "text-muted-foreground line-through" : ""}`}>
+                    {it.descricao}
+                  </span>
+                </label>
                 {it.apontamentoHref && (
                   <Button
                     size="icon"
@@ -471,7 +621,7 @@ export function TarefaDialog({
                     <Box className="size-3.5" />
                   </Button>
                 )}
-                {!itensReadonly && (
+                {podeEditar && !itensReadonly && (
                   <Button
                     size="icon"
                     variant="ghost"
@@ -483,7 +633,7 @@ export function TarefaDialog({
                 )}
               </div>
             ))}
-            {!itensReadonly && (
+            {podeEditar && !itensReadonly && (
               <div className="flex items-center gap-2">
                 <Input
                   placeholder="Novo item…"
@@ -511,30 +661,6 @@ export function TarefaDialog({
             )}
           </div>
 
-          {tarefasDep.length > 0 && (
-            <div className="space-y-1.5">
-              <Label>Depende de</Label>
-              <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
-                {tarefasDep.map((t) => {
-                  const sel = form.dependeDeIds.includes(t.id);
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => toggleArr("dependeDeIds", t.id)}
-                      className={`rounded-sm border px-2 py-1 text-xs transition-colors ${
-                        sel ? "border-warning bg-warning/15 text-warning" : "border-border text-muted-foreground hover:border-warning/50"
-                      }`}
-                    >
-                      {t.titulo}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          </fieldset>
-
           {tarefa && (
             <div className="space-y-1.5 border-t pt-3">
               <Label>Comentários</Label>
@@ -544,9 +670,11 @@ export function TarefaDialog({
                     <li key={c.id} className="rounded-sm bg-muted/50 px-2 py-1 text-sm">
                       <div className="flex items-start justify-between gap-2">
                         <span className="text-[11px] font-semibold text-muted-foreground">{c.autor}</span>
-                        <button type="button" onClick={() => excluirComentario(c.id)} aria-label="Remover" className="text-muted-foreground hover:text-foreground">
-                          <X className="size-3" />
-                        </button>
+                        {(c.autorId === meId || meRole === "admin") && (
+                          <button type="button" onClick={() => excluirComentario(c.id)} aria-label="Remover comentário" className="text-muted-foreground hover:text-foreground">
+                            <X className="size-3" />
+                          </button>
+                        )}
                       </div>
                       {c.texto && <p className="whitespace-pre-wrap break-words">{c.texto}</p>}
                       {c.anexoMime && (

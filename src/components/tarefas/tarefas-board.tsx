@@ -32,6 +32,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Pagination } from "@/components/ui/pagination";
 import {
   Table,
   TableBody,
@@ -53,55 +54,9 @@ type Coluna = {
 const TODOS = "__todos";
 type Periodo = "atrasadas" | "semana" | "mes";
 
-/** Movimentação no kanban = edição de status: só o criador ou perfil global. Espelha `exigirCriadorOuGlobal` do servidor. */
+/** Movimentação no kanban: responsáveis, criador e perfis globais. Espelha o escopo do servidor. */
 function podeMoverTarefa(t: TarefaUI, meId: string, meRole: string): boolean {
-  return t.criadorId === meId || GLOBAL_ROLES.includes(meRole as never);
-}
-
-/** Aplica os filtros de URL ao conjunto plano de tarefas (cliente-side). */
-function filtrarTarefa(
-  t: TarefaUI,
-  concluida: boolean,
-  filtros: { q: string; projeto: string | null; disciplina: string | null; responsavel: string | null; periodo: string | null; prioridade: string | null },
-): boolean {
-  const { q, projeto, disciplina, responsavel, periodo, prioridade } = filtros;
-
-  if (q) {
-    const termo = q.toLowerCase();
-    const alvo = `${t.titulo} ${t.descricao ?? ""}`.toLowerCase();
-    if (!alvo.includes(termo)) return false;
-  }
-
-  if (projeto && t.projetoId !== projeto) return false;
-
-  if (disciplina && t.disciplinaId !== disciplina) return false;
-
-  if (responsavel && !t.responsaveis.some((r) => r.id === responsavel)) return false;
-
-  if (prioridade && t.prioridade !== prioridade) return false;
-
-  if (periodo) {
-    if (!t.prazo) return false;
-    // prazo é "YYYY-MM-DD"; interpreta como data local à meia-noite.
-    const [ano, mes, dia] = t.prazo.split("-").map(Number);
-    if (!ano || !mes || !dia) return false;
-    const prazo = new Date(ano, mes - 1, dia);
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-
-    if (periodo === "atrasadas") {
-      if (concluida || prazo >= hoje) return false;
-    } else if (periodo === "semana") {
-      const limite = new Date(hoje);
-      limite.setDate(limite.getDate() + 7);
-      if (prazo < hoje || prazo > limite) return false;
-    } else if (periodo === "mes") {
-      if (prazo.getMonth() !== hoje.getMonth() || prazo.getFullYear() !== hoje.getFullYear())
-        return false;
-    }
-  }
-
-  return true;
+  return t.criadorId === meId || t.responsaveis.some((r) => r.id === meId) || GLOBAL_ROLES.includes(meRole as never);
 }
 
 export function TarefasBoard({
@@ -109,11 +64,19 @@ export function TarefasBoard({
   opcoes,
   meId,
   meRole,
+  page,
+  pageCount,
+  pageSize,
+  total,
 }: {
   colunas: Coluna[];
   opcoes: OpcoesUI;
   meId: string;
   meRole: string;
+  page: number;
+  pageCount: number;
+  pageSize: number;
+  total: number;
 }) {
   const router = useRouter();
   const setParams = useSetParams();
@@ -135,42 +98,16 @@ export function TarefasBoard({
   const [busca, setBusca] = useState(q);
   useEffect(() => setBusca(q), [q]);
 
-  // Opções distintas a partir das tarefas carregadas (com fallback nos rótulos via opcoes).
+  // As opções não dependem da página corrente: os filtros são aplicados no servidor.
   const { opcoesProjeto, opcoesResponsavel, opcoesDisciplina } = useMemo(() => {
-    const todas = colunas.flatMap((c) => c.tarefas);
-    const projMap = new Map<string, string>();
-    const respMap = new Map<string, string>();
-    const discMap = new Map<string, string>();
-    for (const t of todas) {
-      if (t.projetoId) {
-        const rotulo = opcoes.projetos.find((p) => p.id === t.projetoId)?.codigo ?? t.projetoCodigo ?? t.projetoId;
-        projMap.set(t.projetoId, rotulo);
-      }
-      // Disciplinas do projeto filtrado (ou de todos, se nenhum projeto selecionado).
-      if (t.disciplinaId && (!projeto || t.projetoId === projeto)) {
-        const nome = opcoes.disciplinas.find((d) => d.id === t.disciplinaId)?.nome ?? t.disciplinaId;
-        discMap.set(t.disciplinaId, nome);
-      }
-      for (const r of t.responsaveis) respMap.set(r.id, r.nome);
-    }
     return {
-      opcoesProjeto: [...projMap].map(([id, rotulo]) => ({ id, rotulo })).sort((a, b) => a.rotulo.localeCompare(b.rotulo)),
-      opcoesResponsavel: [...respMap].map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome)),
-      opcoesDisciplina: [...discMap].map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome)),
+      opcoesProjeto: opcoes.projetos.map((p) => ({ id: p.id, rotulo: p.codigo })),
+      opcoesResponsavel: opcoes.internos.map((u) => ({ id: u.id, nome: u.name })),
+      opcoesDisciplina: opcoes.disciplinas
+        .filter((d) => !projeto || d.projetoId === projeto)
+        .map((d) => ({ id: d.id, nome: d.nome })),
     };
-  }, [colunas, opcoes.projetos, opcoes.disciplinas, projeto]);
-
-  const filtros = { q, projeto, disciplina, responsavel, periodo, prioridade };
-  // Reaplica os filtros mantendo a estrutura de colunas (preserva o dnd-kit).
-  const colunasFiltradas = useMemo<Coluna[]>(
-    () =>
-      colunas.map((c) => ({
-        ...c,
-        tarefas: c.tarefas.filter((t) => filtrarTarefa(t, c.concluido, filtros)),
-      })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [colunas, q, projeto, disciplina, responsavel, periodo, prioridade],
-  );
+  }, [opcoes.disciplinas, opcoes.internos, opcoes.projetos, projeto]);
 
   const temFiltro = Boolean(q || projeto || disciplina || responsavel || periodo || prioridade);
 
@@ -190,7 +127,7 @@ export function TarefasBoard({
     if (!origem || origem.id === statusId) return;
     const tarefa = origem.tarefas.find((t) => t.id === tarefaId);
     if (!tarefa || !podeMoverTarefa(tarefa, meId, meRole)) {
-      toast.error("Só quem criou a tarefa (ou admin/supervisor) pode movê-la.");
+      toast.error("Somente responsáveis, quem criou a tarefa ou admin/supervisor podem movê-la.");
       return;
     }
     start(async () => {
@@ -350,18 +287,20 @@ export function TarefasBoard({
       </div>
 
       {vista === "lista" ? (
-        <ListaView colunas={colunasFiltradas} onAbrir={(t) => setDialog(t)} />
+        <ListaView colunas={colunas} onAbrir={(t) => setDialog(t)} />
       ) : (
         <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
           {/* Grid responsivo: colunas preenchem a largura e quebram em telas estreitas (sem scroll-h / corte). */}
           <div className="grid grid-cols-1 gap-3 pb-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            {colunasFiltradas.map((col) => (
+            {colunas.map((col) => (
               <ColunaView key={col.id} col={col} onAbrir={(t) => setDialog(t)} meId={meId} meRole={meRole} />
             ))}
           </div>
           <DragOverlay>{arrastando ? <CardTarefa t={arrastando} overlay /> : null}</DragOverlay>
         </DndContext>
       )}
+
+      <Pagination page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
 
       <TarefaDialog
         tarefa={dialog === "nova" ? null : dialog}
@@ -539,8 +478,8 @@ function CardTarefa({
         <button
           type="button"
           className={podeMover ? "mt-0.5 cursor-grab text-muted-foreground" : "mt-0.5 cursor-not-allowed text-muted-foreground/30"}
-          aria-label={podeMover ? "Arrastar" : "Só quem criou a tarefa (ou admin/supervisor) pode movê-la"}
-          title={podeMover ? undefined : "Só quem criou a tarefa (ou admin/supervisor) pode movê-la"}
+          aria-label={podeMover ? "Arrastar" : "Somente responsáveis, quem criou a tarefa ou admin/supervisor podem movê-la"}
+          title={podeMover ? undefined : "Somente responsáveis, quem criou a tarefa ou admin/supervisor podem movê-la"}
           disabled={!podeMover}
           {...dragProps}
         >
@@ -569,12 +508,22 @@ function CardTarefa({
                 {formatarData(t.prazo)}
               </span>
             )}
-            {t.itens.length > 0 && (
-              <span>
-                ☑ {feitos}/{t.itens.length}
-              </span>
-            )}
           </div>
+          {t.itens.length > 0 && (
+            <div className="mt-2 flex items-center gap-2" aria-label={`Checklist: ${feitos} de ${t.itens.length} itens concluídos`}>
+              <span className="shrink-0 font-mono text-[10px] text-muted-foreground">☑ {feitos}/{t.itens.length}</span>
+              <div
+                className="h-1.5 min-w-10 flex-1 overflow-hidden rounded-sm bg-muted"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={t.itens.length}
+                aria-valuenow={feitos}
+                aria-label="Progresso do checklist"
+              >
+                <div className="h-full bg-primary transition-[width] duration-200" style={{ width: `${(feitos / t.itens.length) * 100}%` }} />
+              </div>
+            </div>
+          )}
           {t.responsaveis.length > 0 && (
             <p className="mt-1 truncate text-xs text-muted-foreground">
               {t.responsaveis.map((r) => r.nome).join(", ")}

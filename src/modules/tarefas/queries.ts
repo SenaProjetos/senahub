@@ -38,20 +38,75 @@ const includeTarefaBoard = {
   },
 } satisfies Prisma.TarefaInclude;
 
-/** Quadro completo: colunas + tarefas com bloqueio por dependência (escopadas ao viewer). */
-export async function quadroTarefas(viewer: Viewer) {
-  const colunas = await prisma.tarefaStatus.findMany({
-    where: { ativo: true },
-    orderBy: { ordem: "asc" },
-    include: {
-      tarefas: {
-        where: { arquivada: false, ...escopoTarefa(viewer) },
-        orderBy: { updatedAt: "desc" },
-        include: includeTarefaBoard,
-      },
-    },
-  });
-  return colunas;
+export type FiltrosQuadroTarefas = {
+  q?: string;
+  projetoId?: string;
+  disciplinaId?: string;
+  responsavelId?: string;
+  prioridade?: string;
+  periodo?: "atrasadas" | "semana" | "mes";
+};
+
+/** Filtros do quadro aplicados no banco, inclusive busca e prazo. */
+export function whereQuadroTarefas(
+  viewer: Viewer,
+  filtros: FiltrosQuadroTarefas,
+  referencia = new Date(),
+): Prisma.TarefaWhereInput {
+  const and: Prisma.TarefaWhereInput[] = [{ arquivada: false, status: { ativo: true } }, escopoTarefa(viewer)];
+  if (filtros.q) {
+    and.push({
+      OR: [
+        { titulo: { contains: filtros.q, mode: "insensitive" } },
+        { descricao: { contains: filtros.q, mode: "insensitive" } },
+      ],
+    });
+  }
+  if (filtros.projetoId) and.push({ projetoId: filtros.projetoId });
+  if (filtros.disciplinaId) and.push({ disciplinaId: filtros.disciplinaId });
+  if (filtros.responsavelId) and.push({ responsaveis: { some: { userId: filtros.responsavelId } } });
+  if (filtros.prioridade) and.push({ prioridade: filtros.prioridade });
+
+  const inicioHoje = new Date(referencia.getFullYear(), referencia.getMonth(), referencia.getDate());
+  if (filtros.periodo === "atrasadas") {
+    and.push({ prazo: { lt: inicioHoje }, status: { concluido: false } });
+  } else if (filtros.periodo === "semana") {
+    const fimSemana = new Date(inicioHoje);
+    fimSemana.setDate(fimSemana.getDate() + 7);
+    and.push({ prazo: { gte: inicioHoje, lte: fimSemana } });
+  } else if (filtros.periodo === "mes") {
+    const inicioMes = new Date(inicioHoje.getFullYear(), inicioHoje.getMonth(), 1);
+    const proximoMes = new Date(inicioHoje.getFullYear(), inicioHoje.getMonth() + 1, 1);
+    and.push({ prazo: { gte: inicioMes, lt: proximoMes } });
+  }
+  return { AND: and };
+}
+
+/** Quadro paginado: colunas ativas + tarefas filtradas e escopadas ao viewer. */
+export async function quadroTarefas(
+  viewer: Viewer,
+  filtros: FiltrosQuadroTarefas = {},
+  paginacao = { skip: 0, take: 24 },
+) {
+  const where = whereQuadroTarefas(viewer, filtros);
+  const [status, tarefas, total] = await Promise.all([
+    prisma.tarefaStatus.findMany({ where: { ativo: true }, orderBy: { ordem: "asc" } }),
+    prisma.tarefa.findMany({
+      where,
+      orderBy: { updatedAt: "desc" },
+      skip: paginacao.skip,
+      take: paginacao.take,
+      include: includeTarefaBoard,
+    }),
+    prisma.tarefa.count({ where }),
+  ]);
+  return {
+    colunas: status.map((coluna) => ({
+      ...coluna,
+      tarefas: tarefas.filter((tarefa) => tarefa.statusId === coluna.id),
+    })),
+    total,
+  };
 }
 
 /** Tarefas de um projeto vinculadas a uma disciplina, escopadas ao viewer (ficha do projeto). */
@@ -120,7 +175,12 @@ export async function opcoesTarefa(viewer: SessionUser) {
     }),
     prisma.tarefa.findMany({
       where: { arquivada: false, ...escopoTarefa(viewer) },
-      select: { id: true, titulo: true },
+      select: {
+        id: true,
+        titulo: true,
+        projeto: { select: { codigo: true } },
+        status: { select: { nome: true } },
+      },
       orderBy: { updatedAt: "desc" },
       take: 100,
     }),
@@ -136,12 +196,17 @@ export async function opcoesTarefa(viewer: SessionUser) {
   return {
     internos,
     projetos,
-    tarefas,
+    tarefas: tarefas.map((t) => ({
+      id: t.id,
+      titulo: t.titulo,
+      projetoCodigo: t.projeto?.codigo ?? null,
+      statusNome: t.status.nome,
+    })),
     disciplinas: disciplinas.map((d) => ({ id: d.id, nome: d.disciplinaTextoLegado, projetoId: d.projetoId })),
   };
 }
 
-export type ColunaTarefas = Awaited<ReturnType<typeof quadroTarefas>>[number];
+export type ColunaTarefas = Awaited<ReturnType<typeof quadroTarefas>>["colunas"][number];
 export type TarefaItemBoard = ColunaTarefas["tarefas"][number];
 
 /** Tarefa bloqueada = alguma dependência ainda não concluída. */

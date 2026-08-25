@@ -182,6 +182,7 @@ export default async function ProjetoDetalhePage({
       bloqueada: tarefaBloqueada(t),
       comentarios: t.comentarios.map((c) => ({
         id: c.id,
+        autorId: c.autorId,
         texto: c.texto,
         autor: c.autor.name,
         data: c.createdAt.toISOString(),

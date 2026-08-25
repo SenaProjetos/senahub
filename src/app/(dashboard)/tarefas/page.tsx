@@ -1,15 +1,47 @@
 import type { Metadata } from "next";
 import { requireRole } from "@/lib/session";
 import { INTERNAL_ROLES } from "@/lib/roles";
-import { quadroTarefas, opcoesTarefa, tarefaBloqueada } from "@/modules/tarefas/queries";
+import { quadroTarefas, opcoesTarefa, tarefaBloqueada, type FiltrosQuadroTarefas } from "@/modules/tarefas/queries";
 import { hrefsApontamentoPorItem } from "@/modules/coordenacao/queries";
 import { TarefasBoard } from "@/components/tarefas/tarefas-board";
+import { pageCount, parseListParams } from "@/lib/list-params";
 
 export const metadata: Metadata = { title: "Tarefas" };
 
-export default async function TarefasPage() {
+type SP = {
+  q?: string;
+  projeto?: string;
+  disciplina?: string;
+  responsavel?: string;
+  periodo?: string;
+  prioridade?: string;
+  page?: string;
+  pageSize?: string;
+};
+
+export default async function TarefasPage({ searchParams }: { searchParams: Promise<SP> }) {
   const user = await requireRole(...INTERNAL_ROLES);
-  const [colunas, opcoes] = await Promise.all([quadroTarefas(user), opcoesTarefa(user)]);
+  const sp = await searchParams;
+  const { page, pageSize, skip, take, q } = parseListParams(sp, {
+    sortFields: [],
+    defaultPageSize: 24,
+  });
+  const periodo = ["atrasadas", "semana", "mes"].includes(sp.periodo ?? "")
+    ? (sp.periodo as FiltrosQuadroTarefas["periodo"])
+    : undefined;
+  const filtros: FiltrosQuadroTarefas = {
+    q,
+    projetoId: sp.projeto,
+    disciplinaId: sp.disciplina,
+    responsavelId: sp.responsavel,
+    prioridade: sp.prioridade,
+    periodo,
+  };
+  const [quadro, opcoes] = await Promise.all([
+    quadroTarefas(user, filtros, { skip, take }),
+    opcoesTarefa(user),
+  ]);
+  const { colunas } = quadro;
 
   // Atalho "ver no 3D" nos itens de checklist gerados por apontamentos de coordenação.
   const itemIds = colunas.flatMap((c) => c.tarefas.flatMap((t) => t.itens.map((it) => it.id)));
@@ -20,6 +52,10 @@ export default async function TarefasPage() {
       meId={user.id}
       meRole={user.role}
       opcoes={opcoes}
+      page={page}
+      pageCount={pageCount(quadro.total, pageSize)}
+      pageSize={pageSize}
+      total={quadro.total}
       colunas={colunas.map((c) => ({
         id: c.id,
         nome: c.nome,
@@ -48,6 +84,7 @@ export default async function TarefasPage() {
           bloqueada: tarefaBloqueada(t),
           comentarios: t.comentarios.map((c) => ({
             id: c.id,
+            autorId: c.autorId,
             texto: c.texto,
             autor: c.autor.name,
             data: c.createdAt.toISOString(),
