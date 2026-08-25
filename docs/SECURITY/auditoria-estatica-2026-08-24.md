@@ -42,6 +42,7 @@ ValidaÃ§Ã£o executada: `vitest` focado (**38 testes em 7 arquivos**), ESLint
 | SEC-010/011 | ðŸ› ï¸ PÃ“S (parcial) | PolÃ­tica compartilhada de assinaturas/allowlist e download forÃ§ado para os anexos cobertos; imagens do EstÃºdio sÃ£o reencodificadas. | Outros pontos de upload, allowlists por uso e anÃ¡lise/quarentena de Office/CAD/ZIP. |
 | SEC-012 | ðŸ› ï¸ PÃ“S (parcial) | MigraÃ§Ã£o aditiva com validade/revogaÃ§Ã£o/evidÃªncias; validade de 30 dias, renovaÃ§Ã£o segura, revogaÃ§Ã£o interna, resposta condicional atÃ´mica, auditoria de resposta e `no-store`/`no-referrer`. | O token ainda Ã© armazenado em texto claro; nome Ã© declaraÃ§Ã£o, nÃ£o autenticaÃ§Ã£o do cliente; falta auditoria de visualizaÃ§Ã£o e rate limit especÃ­fico. |
 | SEC-013 | 🛠️ PÓS | Rotas de exportação aceitam somente parâmetros estritos validados e reidratam dados no servidor; CSV e XLSX neutralizam texto que inicia fórmulas. | A proteção cobre a camada de exportação; seguem pendentes limites de taxa gerais (SEC-014). |
+| SEC-014 | 🛠️ PÓS (parcial) | Limite por IP/usuário antes de payloads caros, `429` com `Retry-After`, auditoria do primeiro bloqueio e semáforo de dois Puppeteers com fila de oito. | O limite é em memória por processo; faltam centralização entre réplicas, quotas persistentes e cobertura integral das rotas caras. |
 
 ## Achados P0 â€” bloquear a liberaÃ§Ã£o
 
@@ -320,6 +321,8 @@ Mesmo usuÃ¡rios autenticados, links pÃºblicos ou automaÃ§Ã£o podem esgot
 **CorreÃ§Ã£o**
 
 Introduzir rate limiter persistente/compartilhado por IP + usuÃ¡rio + token conforme a rota, retornar `429` e registrar bloqueios. Criar limite de concorrÃªncia e fila para Puppeteer, conversÃµes e remontagem de chunks; aplicar quotas de armazenamento por usuÃ¡rio/projeto/link. Confirmar e documentar limites equivalentes no Cloudflare/WAF, sem depender somente deles.
+
+**Status pós-auditoria (parcial, 24/08/2026):** `src/lib/rate-limit.ts` aplica janela fixa em `globalThis`, devolve `429`/`Retry-After` e registra somente o primeiro bloqueio de cada janela. As rotas públicas de aceite, inputs, briefing, documentos de proposta e PDF, além de uploads/chunks/chat e PDF de documento gerado, verificam o limite antes de consumir o corpo ou iniciar Chrome. `src/lib/execution-limit.ts` compartilha um semáforo de duas gerações Puppeteer e oito posições de espera entre o PDF público de proposta e o PDF de documento gerado. Em múltiplas réplicas o limite ainda não é compartilhado; conversões, demais PDFs/ZIPs, quotas de bytes e WAF/Cloudflare permanecem pendentes.
 
 ### SEC-015 â€” DependÃªncias de produÃ§Ã£o com vulnerabilidades conhecidas
 

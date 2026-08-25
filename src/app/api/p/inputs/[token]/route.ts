@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { linkVigente } from "@/lib/link-publico";
+import { auditarBloqueioRateLimit, limitarRequisicao, respostaLimiteRequisicoes } from "@/lib/rate-limit";
 import { notificarPreenchimentoInput } from "@/modules/inputs/notificar-preenchimento";
 
 const putSchema = z.object({
@@ -17,8 +18,18 @@ async function projetoDoToken(token: string) {
   return link.projeto;
 }
 
-export async function GET(_req: Request, ctx: { params: Promise<{ token: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
+  const limite = limitarRequisicao(req, {
+    escopo: "inputs-publicos-leitura",
+    identificador: "publico",
+    maximo: 120,
+    janelaMs: 5 * 60_000,
+  });
+  if (!limite.permitido) {
+    await auditarBloqueioRateLimit(limite, { modulo: "inputs", acao: "consultar-link-publico", entidade: "LinkPublicoInput" });
+    return respostaLimiteRequisicoes(limite);
+  }
   const projeto = await projetoDoToken(token);
   if (!projeto) return NextResponse.json({ error: "Link inválido." }, { status: 404 });
 
@@ -32,6 +43,16 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
 
 export async function PUT(req: Request, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
+  const limite = limitarRequisicao(req, {
+    escopo: "inputs-publicos-gravacao",
+    identificador: "publico",
+    maximo: 300,
+    janelaMs: 10 * 60_000,
+  });
+  if (!limite.permitido) {
+    await auditarBloqueioRateLimit(limite, { modulo: "inputs", acao: "responder-link-publico", entidade: "LinkPublicoInput" });
+    return respostaLimiteRequisicoes(limite);
+  }
   const projeto = await projetoDoToken(token);
   if (!projeto) return NextResponse.json({ error: "Link inválido." }, { status: 404 });
 

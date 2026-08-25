@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { calcularStatusBriefing } from "@/modules/inputs/briefing-schema";
 import { linkVigente } from "@/lib/link-publico";
+import { auditarBloqueioRateLimit, limitarRequisicao, respostaLimiteRequisicoes } from "@/lib/rate-limit";
 import { notificarPreenchimentoInput } from "@/modules/inputs/notificar-preenchimento";
 
 const putSchema = z.object({ respostas: z.record(z.string(), z.unknown()).default({}) });
@@ -20,6 +21,16 @@ async function projetoDoToken(token: string) {
 /** Salva o briefing de Start preenchido pelo cliente via link público (sem login). */
 export async function PUT(req: Request, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
+  const limite = limitarRequisicao(req, {
+    escopo: "briefing-publico-gravacao",
+    identificador: "publico",
+    maximo: 120,
+    janelaMs: 10 * 60_000,
+  });
+  if (!limite.permitido) {
+    await auditarBloqueioRateLimit(limite, { modulo: "inputs", acao: "responder-briefing-publico", entidade: "LinkPublicoInput" });
+    return respostaLimiteRequisicoes(limite);
+  }
   const projeto = await projetoDoToken(token);
   if (!projeto) return NextResponse.json({ error: "Link inválido." }, { status: 404 });
 

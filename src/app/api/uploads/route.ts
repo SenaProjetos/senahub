@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { auditarBloqueioRateLimit, limitarRequisicao, respostaLimiteRequisicoes } from "@/lib/rate-limit";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { GLOBAL_ROLES } from "@/lib/roles";
 import { whereAudiencia } from "@/lib/audiencias";
@@ -34,6 +35,17 @@ export async function POST(req: Request) {
   const user = session.user;
   if (user.mustChangePassword || !user.ativo) {
     return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
+  }
+
+  const limite = limitarRequisicao(req, {
+    escopo: "upload-finalizacao",
+    identificador: user.id,
+    maximo: 30,
+    janelaMs: 10 * 60_000,
+  });
+  if (!limite.permitido) {
+    await auditarBloqueioRateLimit(limite, { modulo: "uploads", acao: "enviar-arquivos", userId: user.id, entidade: "Upload" });
+    return respostaLimiteRequisicoes(limite);
   }
 
   // Corpo multipart pode falhar (payload gigante / conexão abortada) — responde JSON, nunca corpo vazio.

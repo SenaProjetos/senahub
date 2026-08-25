@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { ExecutionCapacityError } from "@/lib/execution-limit";
+import { auditarBloqueioRateLimit, limitarRequisicao, respostaLimiteRequisicoes } from "@/lib/rate-limit";
 import { gerarPdfDaPaginaPublica, pdfArquivadoDaProposta } from "@/modules/comercial/pdf-proposta";
 
 export const dynamic = "force-dynamic";
@@ -13,8 +15,18 @@ export const maxDuration = 60;
  * anterior à F5.13, ou nunca enviada), cai na geração ao vivo, exatamente como sempre funcionou.
  * Esse fallback é o que dispensa backfill: nada muda para o que já existe.
  */
-export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  const limite = limitarRequisicao(req, {
+    escopo: "proposta-publica-pdf",
+    identificador: "publico",
+    maximo: 10,
+    janelaMs: 10 * 60_000,
+  });
+  if (!limite.permitido) {
+    await auditarBloqueioRateLimit(limite, { modulo: "comercial", acao: "gerar-pdf-publico", entidade: "Proposta" });
+    return respostaLimiteRequisicoes(limite);
+  }
 
   const p = await prisma.proposta.findUnique({
     where: { token },
@@ -42,6 +54,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
     const pdf = await gerarPdfDaPaginaPublica(token);
     return new Response(new Uint8Array(pdf), { headers: headers() });
   } catch (e) {
+    if (e instanceof ExecutionCapacityError) {
+      return new Response("Servidor ocupado. Tente novamente em instantes.", { status: 503, headers: headers({ "Retry-After": "15" }) });
+    }
     const msg = e instanceof Error ? e.message : "";
     if (msg.includes("CHROME_PATH")) {
       return new Response("CHROME_PATH não configurado no servidor.", { status: 503 });

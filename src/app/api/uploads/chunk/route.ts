@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
+import { auditarBloqueioRateLimit, limitarRequisicao, respostaLimiteRequisicoes } from "@/lib/rate-limit";
 import { guardarChunk } from "@/lib/upload-chunks";
 
 /**
@@ -15,6 +16,17 @@ export async function POST(req: Request) {
   const user = session.user;
   if (user.mustChangePassword || !user.ativo) {
     return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
+  }
+
+  const limite = limitarRequisicao(req, {
+    escopo: "upload-chunk",
+    identificador: user.id,
+    maximo: 180,
+    janelaMs: 10 * 60_000,
+  });
+  if (!limite.permitido) {
+    await auditarBloqueioRateLimit(limite, { modulo: "uploads", acao: "enviar-chunk", userId: user.id, entidade: "Upload" });
+    return respostaLimiteRequisicoes(limite);
   }
 
   const { searchParams } = new URL(req.url);

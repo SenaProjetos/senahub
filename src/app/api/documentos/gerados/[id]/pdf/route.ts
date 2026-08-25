@@ -4,6 +4,8 @@ import fs from "fs";
 import { getSession } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { acquireExecutionSlot, ExecutionCapacityError } from "@/lib/execution-limit";
+import { auditarBloqueioRateLimit, limitarRequisicao, respostaLimiteRequisicoes } from "@/lib/rate-limit";
 import { docSchemaZ } from "@/modules/documentos/schema";
 import { escopoDocumentoGerado } from "@/modules/documentos/queries";
 
@@ -16,6 +18,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!session) return new Response("Não autenticado", { status: 401 });
   if (!(await can(session.user, "documentos", "ver"))) {
     return new Response("Sem acesso", { status: 403 });
+  }
+
+  const limite = limitarRequisicao(req, {
+    escopo: "documentos-gerados-pdf",
+    identificador: session.user.id,
+    maximo: 12,
+    janelaMs: 10 * 60_000,
+  });
+  if (!limite.permitido) {
+    await auditarBloqueioRateLimit(limite, {
+      modulo: "documentos",
+      acao: "gerar-pdf-documento",
+      userId: session.user.id,
+      entidade: "DocumentoGerado",
+    });
+    return respostaLimiteRequisicoes(limite);
   }
 
   const { id } = await params;
@@ -52,12 +70,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const previewUrl = `http://localhost:${port}/documentos/gerados/${id}`;
   const cookie = req.headers.get("cookie") ?? "";
 
-  const browser = await puppeteer.launch({
-    executablePath: chrome,
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  });
+  let liberar: (() => void) | null = null;
+  let browser: Awaited<ReturnType<typeof puppeteer.launch>> | null = null;
   try {
+    liberar = await acquireExecutionSlot({ name: "puppeteer-pdf", maximum: 2, maximumQueue: 8, queueTimeoutMs: 45_000 });
+    browser = await puppeteer.launch({
+      executablePath: chrome,
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
     const page = await browser.newPage();
     if (cookie) await page.setExtraHTTPHeaders({ cookie });
     await page.goto(previewUrl, { waitUntil: "networkidle0", timeout: 30000 });
@@ -103,9 +124,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         "Content-Disposition": `inline; filename="${encodeURIComponent(g.modeloNome)}.pdf"`,
       },
     });
-  } catch {
+  } catch (erro) {
+    if (erro instanceof ExecutionCapacityError) {
+      return new Response("Servidor ocupado. Tente novamente em instantes.", { status: 503, headers: { "Retry-After": "15" } });
+    }
     return new Response("Falha ao gerar o PDF.", { status: 500 });
   } finally {
-    await browser.close();
+    try {
+      await browser?.close();
+    } finally {
+      liberar?.();
+    }
   }
 }

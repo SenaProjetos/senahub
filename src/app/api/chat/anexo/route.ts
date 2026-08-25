@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { auditarBloqueioRateLimit, limitarRequisicao, respostaLimiteRequisicoes } from "@/lib/rate-limit";
 import { salvarArquivo, removerArquivo, nomeArquivoLimpo, lerInicioArquivo } from "@/lib/storage";
 import { montarChunksEm, limparChunks } from "@/lib/upload-chunks";
 import { ATTACHMENT_EXTENSIONS, validateGeneralAttachment } from "@/lib/upload-policy";
@@ -34,6 +35,17 @@ export async function POST(req: Request) {
   const user = session.user;
   if (user.mustChangePassword || !user.ativo) {
     return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
+  }
+
+  const limite = limitarRequisicao(req, {
+    escopo: "chat-anexo",
+    identificador: user.id,
+    maximo: 24,
+    janelaMs: 10 * 60_000,
+  });
+  if (!limite.permitido) {
+    await auditarBloqueioRateLimit(limite, { modulo: "chat", acao: "enviar-anexo", userId: user.id, entidade: "AnexoChat" });
+    return respostaLimiteRequisicoes(limite);
   }
 
   const form = await req.formData();

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
+import { auditarBloqueioRateLimit, ipDaRequisicao, limitarRequisicao, respostaLimiteRequisicoes } from "@/lib/rate-limit";
 import { linkAceiteEstaAtivo } from "@/modules/uploads/aceite";
 
 const CAPABILITY_HEADERS = {
@@ -34,18 +35,22 @@ async function aceiteDoToken(token: string) {
   });
 }
 
-function ipDaRequisicao(req: Request): string | null {
-  const forwarded = req.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0]?.trim() || null;
-  return req.headers.get("x-real-ip");
-}
-
 function indisponivel(): NextResponse {
   return NextResponse.json({ error: "Este link não está mais disponível." }, { status: 410 });
 }
 
-export async function GET(_req: Request, ctx: { params: Promise<{ token: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
+  const limite = limitarRequisicao(req, {
+    escopo: "aceite-publico-leitura",
+    identificador: "publico",
+    maximo: 60,
+    janelaMs: 5 * 60_000,
+  });
+  if (!limite.permitido) {
+    await auditarBloqueioRateLimit(limite, { modulo: "uploads", acao: "consultar-aceite-publico", entidade: "AceiteCliente" });
+    return respostaLimiteRequisicoes(limite);
+  }
   const aceite = await aceiteDoToken(token);
   if (!aceite) return NextResponse.json({ error: "Link inválido." }, { status: 404 });
   if (!linkAceiteEstaAtivo(aceite)) return indisponivel();
@@ -65,6 +70,16 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
 
 export async function POST(req: Request, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
+  const limite = limitarRequisicao(req, {
+    escopo: "aceite-publico-resposta",
+    identificador: "publico",
+    maximo: 6,
+    janelaMs: 60 * 60_000,
+  });
+  if (!limite.permitido) {
+    await auditarBloqueioRateLimit(limite, { modulo: "uploads", acao: "responder-aceite-cliente", entidade: "AceiteCliente" });
+    return respostaLimiteRequisicoes(limite);
+  }
   const parsed = postSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
 

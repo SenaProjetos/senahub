@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { salvarArquivo, nomeArquivoLimpo } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
+import { auditarBloqueioRateLimit, limitarRequisicao, respostaLimiteRequisicoes } from "@/lib/rate-limit";
 import { TAMANHO_MAX, TAMANHO_MAX_LABEL } from "@/modules/uploads/limites";
 import { validateGeneralAttachment } from "@/lib/upload-policy";
 
@@ -16,6 +17,16 @@ const MAX_DOCS_LINK = 100;
  */
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  const limite = limitarRequisicao(req, {
+    escopo: "proposta-publica-documentos",
+    identificador: "publico",
+    maximo: 12,
+    janelaMs: 10 * 60_000,
+  });
+  if (!limite.permitido) {
+    await auditarBloqueioRateLimit(limite, { modulo: "documentos_cliente", acao: "receber-por-link", entidade: "Documento" });
+    return respostaLimiteRequisicoes(limite);
+  }
   const proposta = await prisma.proposta.findUnique({ where: { token }, select: { id: true, clienteId: true } });
   if (!proposta) return NextResponse.json({ error: "Link inválido." }, { status: 404 });
 
