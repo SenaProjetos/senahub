@@ -83,8 +83,8 @@ export async function startJobs(): Promise<PgBoss> {
   await boss.createQueue(FILA_BACKUP);
   await boss.work(FILA_BACKUP, async () => {
     try {
-      const { arquivo, bytes } = await executarBackup();
-      console.log(`[backup] ok: ${arquivo} (${(bytes / 1e6).toFixed(1)} MB)`);
+      const { arquivo, bytes, sha256 } = await executarBackup();
+      console.log(`[backup] ok: ${arquivo} (${(bytes / 1e6).toFixed(1)} MB, sha256 ${sha256})`);
     } catch (err) {
       console.error("[backup] falhou:", err);
       await notificarAdmins({

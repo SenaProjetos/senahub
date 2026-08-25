@@ -44,6 +44,7 @@ ValidaÃ§Ã£o executada: `vitest` focado (**38 testes em 7 arquivos**), ESLint
 | SEC-013 | 🛠️ PÓS | Rotas de exportação aceitam somente parâmetros estritos validados e reidratam dados no servidor; CSV e XLSX neutralizam texto que inicia fórmulas. | A proteção cobre a camada de exportação; seguem pendentes limites de taxa gerais (SEC-014). |
 | SEC-014 | 🛠️ PÓS (parcial) | Limite por IP/usuário antes de payloads caros, `429` com `Retry-After`, auditoria do primeiro bloqueio e semáforo de dois Puppeteers com fila de oito. | O limite é em memória por processo; faltam centralização entre réplicas, quotas persistentes e cobertura integral das rotas caras. |
 | SEC-015 | 🛠️ PÓS (parcial) | Atualização dedicada de dependências diretas e transitivas corrigiu 17 dos 24 achados do audit de produção. | Permanecem 7 vulnerabilidades que pedem Next 16, mudança incompatível de Prisma ou downgrade inseguro de ExcelJS. |
+| SEC-016 | 🛠️ PÓS (parcial) | Dump é temporário, validado por `pg_restore --list`, hasheado em SHA-256 e publicado somente após essas verificações. | Criptografia, ACL dedicada, cópia externa e ensaio de restore seguem como controles operacionais pendentes. |
 
 ## Achados P0 â€” bloquear a liberaÃ§Ã£o
 
@@ -373,6 +374,8 @@ Quem conseguir ler a pasta de backup lÃª banco e documentos. A retenÃ§Ã£o 
 **CorreÃ§Ã£o**
 
 Definir destino fora do volume de produÃ§Ã£o, ACL de conta de serviÃ§o dedicada e criptografia em repouso verificÃ¡vel (BitLocker/servidor de backup com evidÃªncia, ou envelope encryption dos artefatos). Registrar checksum, Ãªxito/falha e realizar restore testado periodicamente em ambiente isolado. Documentar RPO/RTO e retenÃ§Ã£o aprovada.
+
+**Status pós-auditoria (parcial, 24/08/2026):** o dump diário agora é gravado em `*.backup.partial`, validado por `pg_restore --list`, calculado em SHA-256 e renomeado para `*.backup` somente depois do sucesso; a falha remove o parcial e a retenção também o reconhece. O job registra o checksum completo junto do tamanho. Isso melhora integridade e evita publicar dump truncado, mas não cifra o banco nem o espelho de storage e não verifica ACL, destino externo ou restore periódico.
 
 ### SEC-017 â€” NumeraÃ§Ã£o de documento gerado Ã© vulnerÃ¡vel a corrida
 

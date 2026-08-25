@@ -75,6 +75,8 @@
 
 ### 0.3 Hardening P1 pÃ³s-auditoria â€” 24/08/2026
 
+- [x] 🛠️ PÓS (parcial) — **SEC-016 (backup):** dump do banco é temporário, validado por `pg_restore --list`, hasheado em SHA-256 e publicado atomicamente apenas após sucesso; falha remove o parcial. Evidência: `src/lib/backup.ts`, `jobs.ts` e `backup.test.ts`.
+- [ ] ⏳ — **Limite residual do SEC-016:** criptografia em repouso, ACL de conta de serviço, cópia externa, RPO/RTO e restore periódico exigem configuração e evidência operacional.
 - [x] 🛠️ PÓS (parcial) — **SEC-015 (dependências):** atualização dedicada corrigiu Better Auth, PDF.js, Puppeteer, Prisma 7.9, Sharp direto e Socket.IO Parser; o audit de produção caiu de 24 para 7 vulnerabilidades. Evidência: `package.json`, `package-lock.json` e `npm audit --omit=dev --json`.
 - [ ] ⏳ — **Limite residual do SEC-015:** os 7 achados restantes exigem Next 16, mudança incompatível de Prisma ou downgrade inseguro de ExcelJS; programar migração específica, sem `npm audit fix --force`.
 - [x] 🛠️ PÓS (parcial) — **SEC-014 (disponibilidade):** rate limit em memória por IP/usuário é aplicado antes de payloads públicos e uploads caros; devolve `429`/`Retry-After`, audita o primeiro bloqueio e limita a duas gerações Puppeteer com oito na fila. Evidência: `src/lib/{rate-limit,execution-limit}.ts` e rotas de aceite, inputs, proposta, uploads, chat e PDFs cobertas.
@@ -722,6 +724,7 @@ Aplicar especialmente em:
 **Severidade:** ðŸŸ  Alta
 
 - [ ] âŒ PRÃ‰ â€” Backup criptografado. O cÃ³digo grava dump/cÃ³pia de storage sem criptografia ou verificaÃ§Ã£o de ACL (`SEC-016`).
+- [x] 🛠️ PÓS (parcial) — **SEC-016:** o dump publicado passou por verificação estrutural e SHA-256 antes da publicação atômica; criptografia e ACL continuam pendentes de configuração operacional.
 - [ ] Backup nÃ£o pÃºblico.
 - [ ] Credencial de backup separada.
 - [ ] Acesso restrito.

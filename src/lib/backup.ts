@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
-import { mkdir, readdir, stat, unlink } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdir, readdir, rename, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 
 /**
@@ -20,7 +22,7 @@ const RETENCAO_DIAS = 30;
  */
 export function ehArquivoDeBackup(nome: string): boolean {
   const prefixoOk = nome.startsWith("senahub_") || nome.startsWith("pre-restauracao_");
-  return prefixoOk && (nome.endsWith(".backup") || nome.endsWith(".dump"));
+  return prefixoOk && (nome.endsWith(".backup") || nome.endsWith(".dump") || nome.endsWith(".backup.partial"));
 }
 
 /** Carimbo local compacto (o servidor opera em America/Sao_Paulo; ISO-UTC confundia o operador). */
@@ -40,7 +42,36 @@ function parseDbUrl(url: string) {
   };
 }
 
-export async function executarBackup(): Promise<{ arquivo: string; bytes: number }> {
+function executarPrograma(comando: string, args: string[], env: NodeJS.ProcessEnv, erroPadrao: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const proc = spawn(comando, args, { env, windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
+    let stderr = "";
+    proc.stderr?.on("data", (d) => {
+      if (stderr.length < 4_096) stderr += d.toString();
+    });
+    proc.on("error", reject);
+    proc.on("close", (code) =>
+      code === 0 ? resolve() : reject(new Error(`${erroPadrao} saiu com código ${code}: ${stderr}`)),
+    );
+  });
+}
+
+async function sha256Arquivo(arquivo: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = createHash("sha256");
+    const stream = createReadStream(arquivo);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("error", reject);
+    stream.on("end", () => resolve(hash.digest("hex")));
+  });
+}
+
+function resolverPgRestore(pgDump: string): string {
+  if (process.env.PG_RESTORE_PATH) return process.env.PG_RESTORE_PATH;
+  return path.isAbsolute(pgDump) ? path.join(path.dirname(pgDump), "pg_restore.exe") : "pg_restore";
+}
+
+export async function executarBackup(): Promise<{ arquivo: string; bytes: number; sha256: string }> {
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) throw new Error("DATABASE_URL ausente.");
   const db = parseDbUrl(dbUrl);
@@ -49,32 +80,38 @@ export async function executarBackup(): Promise<{ arquivo: string; bytes: number
   await mkdir(dir, { recursive: true });
 
   const arquivo = path.join(dir, `senahub_${carimbo()}.backup`);
+  const parcial = `${arquivo}.partial`;
 
   const pgDump = process.env.PG_DUMP_PATH || "pg_dump";
+  const pgRestore = resolverPgRestore(pgDump);
+  let publicado = false;
 
-  await new Promise<void>((resolve, reject) => {
-    const proc = spawn(
+  try {
+    await executarPrograma(
       pgDump,
-      ["-h", db.host, "-p", db.port, "-U", db.user, "-Fc", "-f", arquivo, db.database],
-      { env: { ...process.env, PGPASSWORD: db.password } },
+      ["-h", db.host, "-p", db.port, "-U", db.user, "-Fc", "-f", parcial, db.database],
+      { ...process.env, PGPASSWORD: db.password },
+      "pg_dump",
     );
-    let stderr = "";
-    proc.stderr.on("data", (d) => (stderr += d.toString()));
-    proc.on("error", reject);
-    proc.on("close", (code) =>
-      code === 0 ? resolve() : reject(new Error(`pg_dump saiu com código ${code}: ${stderr}`)),
-    );
-  });
+    // Um exit 0 não basta se o arquivo estiver truncado por disco/conexão. pg_restore
+    // valida o catálogo do formato -Fc antes de o backup entrar na lista recuperável.
+    await executarPrograma(pgRestore, ["--list", parcial], process.env, "pg_restore --list");
+    const sha256 = await sha256Arquivo(parcial);
+    await rename(parcial, arquivo);
+    publicado = true;
 
-  // Retenção
-  const limite = Date.now() - RETENCAO_DIAS * 86_400_000;
-  for (const nome of await readdir(dir)) {
-    if (!ehArquivoDeBackup(nome)) continue;
-    const full = path.join(dir, nome);
-    const info = await stat(full);
-    if (info.mtimeMs < limite) await unlink(full);
+    // Retenção
+    const limite = Date.now() - RETENCAO_DIAS * 86_400_000;
+    for (const nome of await readdir(dir)) {
+      if (!ehArquivoDeBackup(nome)) continue;
+      const full = path.join(dir, nome);
+      const info = await stat(full);
+      if (info.mtimeMs < limite) await unlink(full);
+    }
+
+    const info = await stat(arquivo);
+    return { arquivo, bytes: info.size, sha256 };
+  } finally {
+    if (!publicado) await unlink(parcial).catch(() => undefined);
   }
-
-  const info = await stat(arquivo);
-  return { arquivo, bytes: info.size };
 }

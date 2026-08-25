@@ -199,6 +199,10 @@ Ambos exigem `ENABLE_BACKUP=1`. O do banco exige `BACKUP_PATH` + `PG_DUMP_PATH`
 dias (`.backup` e `.dump` legado). O espelho de arquivos é **aditivo** — copia o que mudou e
 nunca apaga no destino, então um arquivo excluído por engano continua recuperável.
 
+O dump do banco primeiro é salvo como `*.backup.partial`, validado com `pg_restore --list`
+e calculado em SHA-256; somente então é renomeado para `*.backup`. O job registra o hash
+completo no log. Um dump parcial ou inválido não é publicado e é removido ao falhar.
+
 > **Ponha o backup em outro disco.** `BACKUP_PATH` no mesmo volume do `STORAGE_BASE_PATH`
 > não protege contra perda de disco. O menu avisa quando detecta isso.
 
