@@ -75,6 +75,7 @@
 
 ### 0.3 Hardening P1 pÃ³s-auditoria â€” 24/08/2026
 
+- [x] 🛠️ PÓS — **SEC-018 (templates comerciais):** a leitura de templates exige sessão e `comercial:gerir`, seguindo as demais buscas de UI; não cria audit log por não ser mutação. Evidência: `src/modules/comercial/actions.ts`.
 - [x] 🛠️ PÓS (parcial) — **SEC-016 (backup):** dump do banco é temporário, validado por `pg_restore --list`, hasheado em SHA-256 e publicado atomicamente apenas após sucesso; falha remove o parcial. Evidência: `src/lib/backup.ts`, `jobs.ts` e `backup.test.ts`.
 - [ ] ⏳ — **Limite residual do SEC-016:** criptografia em repouso, ACL de conta de serviço, cópia externa, RPO/RTO e restore periódico exigem configuração e evidência operacional.
 - [x] 🛠️ PÓS (parcial) — **SEC-015 (dependências):** atualização dedicada corrigiu Better Auth, PDF.js, Puppeteer, Prisma 7.9, Sharp direto e Socket.IO Parser; o audit de produção caiu de 24 para 7 vulnerabilidades. Evidência: `package.json`, `package-lock.json` e `npm audit --omit=dev --json`.

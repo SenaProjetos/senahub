@@ -45,6 +45,7 @@ ValidaÃ§Ã£o executada: `vitest` focado (**38 testes em 7 arquivos**), ESLint
 | SEC-014 | 🛠️ PÓS (parcial) | Limite por IP/usuário antes de payloads caros, `429` com `Retry-After`, auditoria do primeiro bloqueio e semáforo de dois Puppeteers com fila de oito. | O limite é em memória por processo; faltam centralização entre réplicas, quotas persistentes e cobertura integral das rotas caras. |
 | SEC-015 | 🛠️ PÓS (parcial) | Atualização dedicada de dependências diretas e transitivas corrigiu 17 dos 24 achados do audit de produção. | Permanecem 7 vulnerabilidades que pedem Next 16, mudança incompatível de Prisma ou downgrade inseguro de ExcelJS. |
 | SEC-016 | 🛠️ PÓS (parcial) | Dump é temporário, validado por `pg_restore --list`, hasheado em SHA-256 e publicado somente após essas verificações. | Criptografia, ACL dedicada, cópia externa e ensaio de restore seguem como controles operacionais pendentes. |
+| SEC-018 | 🛠️ PÓS | Leitura de templates comerciais passou a exigir sessão e `comercial:gerir`, sem audit por ser leitura de UI. | Sem limite residual específico identificado para a action. |
 
 ## Achados P0 â€” bloquear a liberaÃ§Ã£o
 
@@ -412,6 +413,8 @@ Os templates podem ser invocados fora da interface prevista por qualquer chamado
 **CorreÃ§Ã£o**
 
 Exigir `requireUser()` e a permissÃ£o mÃ­nima de leitura/gestÃ£o de comercial, ou migrar para `defineAction` com schema vazio e `audit: false` se leitura nÃ£o precisar produzir audit log. Criar teste de chamada sem sessÃ£o e sem permissÃ£o.
+
+**Status pós-auditoria (corrigido, 24/08/2026):** `obterTemplatosNotas` aplica o mesmo `requireUser()` e `can(user, "comercial", "gerir")` das buscas comerciais adjacentes. Usuário sem a permissão recebe lista vazia e a consulta não é auditada, pois é leitura de configuração acionada pela interface.
 
 ## Achados P2 â€” endurecimento e validaÃ§Ã£o operacional
 

@@ -980,10 +980,15 @@ export const moverProspeccao = defineAction(
 
 /**
  * F3.5 — Fetch templates para preencher na popover do registro manual de interação.
- * Sem permissão/audit — é só leitura de configuração.
+ * É leitura sem audit (chamada pela UI), mas exige a mesma sessão e permissão de
+ * quem registra a interação — Server Actions continuam sendo fronteira pública.
  */
 export async function obterTemplatosNotas() {
   "use server";
+  const { requireUser } = await import("@/lib/session");
+  const { can } = await import("@/lib/permissions");
+  const user = await requireUser();
+  if (!(await can(user, "comercial", "gerir"))) return [];
   return await lerTemplatosNotas();
 }
 
