@@ -42,22 +42,11 @@ export function RentabilidadeView({
   }
 
   function exportar(formato: "xlsx" | "csv") {
-    const linhas = dados.projetos.map((p) => ({
-      codigo: formatarCodigo(p.codigo),
-      projeto: p.nome,
-      cliente: p.cliente ?? "",
-      receita: p.receita,
-      diretos: p.diretos,
-      indireto: p.indiretoRateado,
-      lucroLiquido: p.lucroLiquido,
-      margemLiquida: p.margemLiquida,
-      roi: p.roi,
-    }));
     startExport(async () => {
       const res = await fetch("/api/financeiro/relatorios/rentabilidade/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ formato, titulo: `Rentabilidade_${dados.de}_${dados.ate}`, linhas }),
+        body: JSON.stringify({ formato, de: dados.de, ate: dados.ate, margem: dados.margemMinima }),
       });
       if (!res.ok) {
         toast.error("Falha ao exportar.");

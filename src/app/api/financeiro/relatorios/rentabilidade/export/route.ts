@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { createRequire } from "node:module";
+import { z } from "zod";
 import { getSession } from "@/lib/session";
 import { can } from "@/lib/permissions";
+import { arquivoCsv, headersDownloadCsv, protegerFormulaPlanilha, type CelulaPlanilha } from "@/lib/export/csv";
+import { formatarCodigo } from "@/modules/projetos/numbering";
+import { rentabilidadePorProjeto } from "@/modules/financeiro/relatorios/queries";
 
 const require = createRequire(import.meta.url);
 const ExcelJS = require("exceljs") as typeof import("exceljs");
@@ -28,18 +32,32 @@ const COLUNAS = [
   { header: "Lucro líquido", key: "lucroLiquido", width: 16 },
   { header: "Margem líq. %", key: "margemLiquida", width: 14 },
   { header: "ROI %", key: "roi", width: 12 },
-];
+] as const;
 
-function csv(linhas: Linha[]): string {
-  const esc = (v: string | number | null) => {
-    const s = String(v ?? "");
-    return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const head = COLUNAS.map((c) => c.header).join(";");
-  const body = linhas
-    .map((l) => COLUNAS.map((c) => esc((l as unknown as Record<string, string | number | null>)[c.key])).join(";"))
-    .join("\n");
-  return "﻿" + head + "\n" + body; // BOM p/ Excel reconhecer UTF-8
+const dataSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((valor) => {
+    const data = new Date(`${valor}T00:00:00.000Z`);
+    return Number.isFinite(data.getTime()) && data.toISOString().startsWith(valor);
+  });
+
+const exportSchema = z
+  .object({
+    formato: z.enum(["csv", "xlsx"]),
+    de: dataSchema,
+    ate: dataSchema,
+    margem: z.number().finite(),
+  })
+  .strict();
+
+function valoresDaLinha(linha: Linha): CelulaPlanilha[] {
+  return COLUNAS.map(({ key }) => linha[key]);
+}
+
+function adicionarLinhaSegura(ws: import("exceljs").Worksheet, linha: Linha) {
+  const valores = valoresDaLinha(linha).map(protegerFormulaPlanilha);
+  ws.addRow(Object.fromEntries(COLUNAS.map(({ key }, indice) => [key, valores[indice]])));
 }
 
 export async function POST(req: Request) {
@@ -49,35 +67,49 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 
-  const body = (await req.json()) as { formato?: string; titulo?: string; linhas?: Linha[] };
-  const formato = body.formato === "csv" ? "csv" : "xlsx";
-  const linhas = Array.isArray(body.linhas) ? body.linhas : [];
-  const titulo = body.titulo || "Rentabilidade";
-  const arquivo = `${titulo.replace(/[^a-zA-Z0-9-]+/g, "_")}.${formato}`;
+  const parsed = exportSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "Dados de exportação inválidos." }, { status: 400 });
+
+  const { formato, de, ate, margem } = parsed.data;
+  const inicio = new Date(`${de}T00:00:00.000Z`);
+  const fim = new Date(`${ate}T23:59:59.999Z`);
+  if (inicio > fim) return NextResponse.json({ error: "O início do período deve vir antes do fim." }, { status: 400 });
+
+  const dados = await rentabilidadePorProjeto(inicio, fim, margem);
+  const linhas = dados.projetos.map((projeto) => ({
+    codigo: formatarCodigo(projeto.codigo),
+    projeto: projeto.nome,
+    cliente: projeto.cliente ?? "",
+    receita: projeto.receita,
+    diretos: projeto.diretos,
+    indireto: projeto.indiretoRateado,
+    lucroLiquido: projeto.lucroLiquido,
+    margemLiquida: projeto.margemLiquida,
+    roi: projeto.roi,
+  }));
+  const titulo = `Rentabilidade_${dados.de}_${dados.ate}`;
+  const arquivo = `${titulo}.${formato}`;
 
   if (formato === "csv") {
-    return new NextResponse(csv(linhas), {
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${arquivo}"`,
-      },
+    return new NextResponse(arquivoCsv(COLUNAS.map((coluna) => coluna.header), linhas.map(valoresDaLinha)), {
+      headers: headersDownloadCsv(arquivo),
     });
   }
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(titulo.slice(0, 28));
-  ws.columns = COLUNAS;
+  ws.columns = [...COLUNAS];
   ws.getRow(1).font = { bold: true };
-  for (const l of linhas) ws.addRow(l);
+  for (const linha of linhas) adicionarLinhaSegura(ws, linha);
   for (const key of ["receita", "diretos", "indireto", "lucroLiquido"]) {
     ws.getColumn(key).numFmt = '#,##0.00;[Red]-#,##0.00';
   }
   const totais = linhas.reduce(
-    (s, l) => ({
-      receita: s.receita + (Number(l.receita) || 0),
-      diretos: s.diretos + (Number(l.diretos) || 0),
-      indireto: s.indireto + (Number(l.indireto) || 0),
-      lucroLiquido: s.lucroLiquido + (Number(l.lucroLiquido) || 0),
+    (soma, linha) => ({
+      receita: soma.receita + linha.receita,
+      diretos: soma.diretos + linha.diretos,
+      indireto: soma.indireto + linha.indireto,
+      lucroLiquido: soma.lucroLiquido + linha.lucroLiquido,
     }),
     { receita: 0, diretos: 0, indireto: 0, lucroLiquido: 0 },
   );

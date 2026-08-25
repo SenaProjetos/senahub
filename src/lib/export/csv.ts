@@ -10,20 +10,31 @@
 
 const SEPARADOR = ";";
 
-type Celula = string | number | boolean | null | undefined;
+export type CelulaPlanilha = string | number | boolean | null | undefined;
 
-function escaparCelula(v: Celula): string {
+/**
+ * Evita que conteúdo controlado por usuário seja interpretado como fórmula por
+ * Excel/LibreOffice. Espaços e tabs iniciais também são significativos para
+ * alguns importadores, portanto entram na guarda.
+ */
+export function protegerFormulaPlanilha(v: CelulaPlanilha): CelulaPlanilha {
+  if (typeof v !== "string") return v;
+  return /^[ \t\r\n]*[=+\-@]/.test(v) ? `'${v}` : v;
+}
+
+function escaparCelula(v: CelulaPlanilha): string {
   if (v == null) return "";
-  const s = typeof v === "boolean" ? (v ? "sim" : "não") : String(v);
+  const seguro = protegerFormulaPlanilha(v);
+  const s = typeof seguro === "boolean" ? (seguro ? "sim" : "não") : String(seguro);
   return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export function linhaCsv(celulas: Celula[]): string {
+export function linhaCsv(celulas: CelulaPlanilha[]): string {
   return celulas.map(escaparCelula).join(SEPARADOR);
 }
 
 /** Cabeçalho + linhas → texto CSV completo, com BOM. Pronto pro `body` de uma `NextResponse`. */
-export function arquivoCsv(headers: string[], linhas: Celula[][]): string {
+export function arquivoCsv(headers: string[], linhas: CelulaPlanilha[][]): string {
   const todas = [headers, ...linhas].map(linhaCsv);
   return "﻿" + todas.join("\r\n");
 }

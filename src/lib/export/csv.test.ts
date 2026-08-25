@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { linhaCsv, arquivoCsv } from "@/lib/export/csv";
+import { linhaCsv, arquivoCsv, protegerFormulaPlanilha } from "@/lib/export/csv";
 
 describe("linhaCsv", () => {
   it("junta células com ';' (não ',')", () => {
@@ -28,6 +28,17 @@ describe("linhaCsv", () => {
 
   it("número não é tocado (sem aspas, sem separador de milhar)", () => {
     expect(linhaCsv([1234.5])).toBe("1234.5");
+  });
+
+  it.each(["=1+1", "+SOMA(A1:A2)", "-1+2", "@HIPERLINK(\"https://x\")", " \t=1+1"])(
+    "neutraliza fórmula iniciada por %s",
+    (valor) => {
+      expect(protegerFormulaPlanilha(valor)).toBe(`'${valor}`);
+    },
+  );
+
+  it("aplica a neutralização antes de codificar CSV", () => {
+    expect(linhaCsv(["=1+1"])).toBe("'=1+1");
   });
 });
 

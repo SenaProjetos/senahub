@@ -287,21 +287,15 @@ export function ContasPagarReceberView({
   }
 
   function exportar(formato: "xlsx" | "csv") {
-    const linhas = lista.map((l) => ({
-      vencimento: dt(l.vencimento ?? l.data),
-      descricao: l.descricao,
-      categoria: `${l.categoria?.codigo ?? ""} ${l.categoria?.nome ?? ""}`.trim(),
-      contato: l.fornecedor?.nome ?? l.cliente?.nome ?? "",
-      conta: l.conta?.nome ?? "",
-      centro: l.centro?.nome ?? "",
-      situacao: situacaoDe(l),
-      valor: sinal * Number(l.valor),
-    }));
     start(async () => {
       const res = await fetch("/api/financeiro/contas/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ formato, titulo: tab === "despesa" ? "Contas-a-pagar" : "Contas-a-receber", linhas }),
+        body: JSON.stringify({
+          formato,
+          tipo: tab === "despesa" ? "contas_pagar" : "contas_receber",
+          ids: lista.map((l) => l.id),
+        }),
       });
       if (!res.ok) {
         toast.error("Falha ao exportar.");

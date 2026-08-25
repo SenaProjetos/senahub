@@ -75,6 +75,7 @@
 
 ### 0.3 Hardening P1 pÃ³s-auditoria â€” 24/08/2026
 
+- [x] 🛠️ PÓS — **SEC-013 (exportações):** endpoints recebem apenas IDs/filtros por schemas Zod estritos, reidratam e recalculam as linhas no servidor; CSV e XLSX tornam literais textos que começam por `=`, `+`, `-` ou `@`, inclusive depois de espaço/tab. Evidência: `src/app/api/financeiro/{contas,relatorios/rentabilidade}/export/route.ts`, `src/lib/export/csv.ts` e `csv.test.ts`.
 - [x] ðŸ› ï¸ PÃ“S (parcial) â€” **SEC-012 (aceite pÃºblico):** novos links expiram em 30 dias, podem ser revogados no projeto e os legados sem `expiraEm` ficam bloqueados atÃ© regeneraÃ§Ã£o. A resposta exige nome declarado, armazena IP/user-agent, Ã© auditada e usa `updateMany` condicional para aceitar uma Ãºnica resposta concorrente. A capability recebe `no-store`/`no-referrer`. EvidÃªncia: `prisma/migrations/20260824123000_endurecer_aceite_cliente`, `src/modules/uploads/aceite.ts`, `actions.ts`, rota e pÃ¡gina pÃºblicas.
 - [ ] â³ â€” **Limite residual do SEC-012:** o nome declarado nÃ£o autentica o destinatÃ¡rio; token ainda estÃ¡ em texto claro no banco, visualizaÃ§Ãµes nÃ£o sÃ£o auditadas e falta rate limit especÃ­fico. O achado P1 permanece parcialmente aberto.
 
@@ -418,6 +419,7 @@ Especialmente relevante para:
 **Severidade:** ðŸŸ  Alta
 
 - [ ] âŒ PRÃ‰ â€” Todas as APIs possuem schema. Server Actions centrais usam Zod, mas Route Handlers de exportaÃ§Ã£o/upload aceitam `FormData`/JSON sem schema de execuÃ§Ã£o uniforme (`SEC-011`, `SEC-013`).
+- [x] 🛠️ PÓS — **SEC-013:** as duas rotas de exportação financeira usam Zod estrito, rejeitam campos inesperados e não aceitam mais linhas/títulos do navegador; permanece a auditoria dos demais Route Handlers (`SEC-011`).
 - [ ] âŒ PRÃ‰ â€” Usar Zod/Joi/Valibot/equivalente em toda fronteira de API. Cobertura Ã© parcial.
 - [ ] Validar tipo.
 - [ ] Validar tamanho.

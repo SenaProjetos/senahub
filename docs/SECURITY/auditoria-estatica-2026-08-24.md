@@ -41,6 +41,7 @@ ValidaÃ§Ã£o executada: `vitest` focado (**38 testes em 7 arquivos**), ESLint
 |---|---|---|---|
 | SEC-010/011 | ðŸ› ï¸ PÃ“S (parcial) | PolÃ­tica compartilhada de assinaturas/allowlist e download forÃ§ado para os anexos cobertos; imagens do EstÃºdio sÃ£o reencodificadas. | Outros pontos de upload, allowlists por uso e anÃ¡lise/quarentena de Office/CAD/ZIP. |
 | SEC-012 | ðŸ› ï¸ PÃ“S (parcial) | MigraÃ§Ã£o aditiva com validade/revogaÃ§Ã£o/evidÃªncias; validade de 30 dias, renovaÃ§Ã£o segura, revogaÃ§Ã£o interna, resposta condicional atÃ´mica, auditoria de resposta e `no-store`/`no-referrer`. | O token ainda Ã© armazenado em texto claro; nome Ã© declaraÃ§Ã£o, nÃ£o autenticaÃ§Ã£o do cliente; falta auditoria de visualizaÃ§Ã£o e rate limit especÃ­fico. |
+| SEC-013 | 🛠️ PÓS | Rotas de exportação aceitam somente parâmetros estritos validados e reidratam dados no servidor; CSV e XLSX neutralizam texto que inicia fórmulas. | A proteção cobre a camada de exportação; seguem pendentes limites de taxa gerais (SEC-014). |
 
 ## Achados P0 â€” bloquear a liberaÃ§Ã£o
 
@@ -298,6 +299,8 @@ Um valor que chegue Ã  exportaÃ§Ã£o â€” ou uma chamada direta Ã  ro
 **CorreÃ§Ã£o**
 
 NÃ£o aceitar as linhas de relatÃ³rio do cliente: receber somente filtros validados com Zod e recalcular os dados no servidor. Para CSV, prefixar valores textuais perigosos com apÃ³strofo antes do escape. Definir schemas com limites de quantidade/tamanho mesmo para payloads internos e testar `=1+1`, `+...`, `-...` e `@...`.
+
+**Status pós-auditoria (corrigido, 24/08/2026):** as duas rotas usam schemas Zod estritos. A exportação de lançamentos recebe somente até 5.000 IDs CUID e reidrata as linhas por `dadosLivroCaixa`/`dadosContas`; a de rentabilidade recebe somente período ISO e margem e recalcula por `rentabilidadePorProjeto`. `src/lib/export/csv.ts` prefixa com apóstrofo texto que começa, inclusive depois de espaço ou tab, por `=`, `+`, `-` ou `@`; o mesmo helper é aplicado às células textuais do XLSX. A suíte focal cobre os quatro prefixos e a serialização CSV.
 
 ### SEC-014 â€” NÃ£o hÃ¡ limitador geral para capabilities pÃºblicas e rotas caras
 
