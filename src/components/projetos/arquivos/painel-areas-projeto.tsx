@@ -1,0 +1,95 @@
+"use client";
+
+import { FileCheck2, FolderOpen, Inbox, Ruler, Trash2 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { useSetParams } from "@/lib/use-set-param";
+import { cn } from "@/lib/utils";
+
+/**
+ * Áreas do projeto que NÃO são documentos de disciplina (paridade com a tela antiga).
+ *
+ * Recebidos, Base Arquitetônica, Geral, ARTs e Lixeira existiam só no explorer antigo e
+ * ficaram de fora quando a tela nova nasceu focada no documento de engenharia — quem ligasse
+ * a tela nova perdia acesso a tudo isso. Aqui elas voltam como destinos de navegação, ao lado
+ * de Disciplinas e Listas.
+ *
+ * A seleção vive na URL (`?area=`), igual a disciplina e lista: assim o servidor decide o que
+ * renderizar e o link é compartilhável.
+ */
+
+export const AREAS_PROJETO = ["recebidos", "base", "geral", "arts", "lixeira"] as const;
+export type AreaProjeto = (typeof AREAS_PROJETO)[number];
+
+export function areaValida(v: string | null | undefined): AreaProjeto | null {
+  return (AREAS_PROJETO as readonly string[]).includes(v ?? "") ? (v as AreaProjeto) : null;
+}
+
+export type AreaDisponivel = {
+  id: AreaProjeto;
+  total: number;
+  /** Área sem permissão simplesmente não é listada — item invisível é melhor que item morto. */
+  visivel: boolean;
+};
+
+const META: Record<AreaProjeto, { rotulo: string; icone: LucideIcon; descricao: string }> = {
+  recebidos: { rotulo: "Recebidos do cliente", icone: Inbox, descricao: "Material enviado pelo cliente" },
+  base: { rotulo: "Base Arquitetônica", icone: Ruler, descricao: "Referência do arquiteto" },
+  geral: { rotulo: "Geral", icone: FolderOpen, descricao: "Arquivos gerais do projeto" },
+  arts: { rotulo: "ARTs", icone: FileCheck2, descricao: "Registros de responsabilidade técnica" },
+  lixeira: { rotulo: "Lixeira", icone: Trash2, descricao: "Excluídos, restauráveis por 30 dias" },
+};
+
+export function PainelAreasProjeto({
+  areas,
+  selecionada,
+}: {
+  areas: AreaDisponivel[];
+  selecionada: AreaProjeto | null;
+}) {
+  const setParams = useSetParams();
+  const visiveis = areas.filter((a) => a.visivel);
+  if (visiveis.length === 0) return null;
+
+  return (
+    <div className="border-t border-border p-2">
+      <p className="px-2 pb-1 font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
+        Áreas do projeto
+      </p>
+      <ul className="space-y-0.5" role="list">
+        {visiveis.map((a) => {
+          const meta = META[a.id];
+          const Icone = meta.icone;
+          const ativa = selecionada === a.id;
+          return (
+            <li key={a.id}>
+              <button
+                type="button"
+                // Escolher uma área limpa a disciplina e a lista: são navegações concorrentes,
+                // e manter as três na URL mostraria um recorte que a tela não representa.
+                onClick={() =>
+                  setParams({ area: ativa ? null : a.id, disciplinaId: null, listaId: null })
+                }
+                title={meta.descricao}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors",
+                  ativa ? "bg-accent text-foreground" : "text-foreground hover:bg-accent/60",
+                )}
+              >
+                <Icone className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                <span className="min-w-0 flex-1 truncate">{meta.rotulo}</span>
+                {a.total > 0 && (
+                  <span className="shrink-0 tabular-nums text-muted-foreground">{a.total}</span>
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/** Rótulo da área — usado no título do conteúdo principal. */
+export function rotuloArea(area: AreaProjeto): string {
+  return META[area].rotulo;
+}

@@ -35,6 +35,7 @@ import { linkArquivosDoProjeto } from "@/modules/projetos/arquivos/link-publico"
 import { listarArtsDoProjeto } from "@/modules/projetos/art/queries";
 import { ArquivosExplorer } from "@/components/projetos/arquivos-explorer";
 import { DocumentosShell } from "@/components/projetos/arquivos/documentos-shell";
+import { areaValida, type AreaDisponivel } from "@/components/projetos/arquivos/painel-areas-projeto";
 import { listarListasDocumentos, podeGerirListasDocumentos } from "@/modules/uploads/listas-queries";
 
 export const metadata: Metadata = { title: "Arquivos" };
@@ -48,6 +49,7 @@ export default async function ArquivosPage({
     docsv2?: string;
     disciplinaId?: string;
     listaId?: string;
+    area?: string;
     q?: string;
     ext?: string;
     autor?: string;
@@ -204,9 +206,53 @@ export default async function ArquivosPage({
       (v) => typeof v === "string" && v.trim() !== "",
     ).length;
 
+    // Áreas do projeto (paridade com o explorer antigo): Recebidos, Base, Geral, ARTs e
+    // Lixeira. Cada uma só é listada para quem pode vê-la — a permissão já foi resolvida
+    // acima, aqui só decide a visibilidade do item de navegação.
+    const areaSelecionada = areaValida(sp?.area);
+    const areas: AreaDisponivel[] = [
+      { id: "recebidos", total: recebidos.length, visivel: recebidos.length > 0 || podeGerirRecebidos },
+      { id: "base", total: baseArquitetonica.length, visivel: true },
+      { id: "geral", total: geral.length, visivel: podeVerGeral },
+      { id: "arts", total: arts.length, visivel: arts.length > 0 },
+      { id: "lixeira", total: lixeira.length, visivel: ehAdmin },
+    ];
+
     return (
       <DocumentosShell
         projeto={projeto}
+        exclusoesPendentes={new Set(exclusoesPendentes)}
+        areas={areas}
+        areaSelecionada={areaSelecionada}
+        dadosAreas={{
+          projetoId: id,
+          clienteId,
+          recebidos,
+          baseArquitetonica,
+          geral,
+          arts,
+          lixeira,
+          podeGerirRecebidos,
+          podeGerirGeral,
+          podeExcluirDocumento: ehGlobal,
+        }}
+        linkPublico={
+          podeGerirLink
+            ? {
+                disciplinas: arvore.disciplinas.map((d) => ({ id: d.id, nome: d.nome })),
+                baseUrl,
+                clienteEmail,
+                link: linkPublico
+                  ? {
+                      token: linkPublico.token,
+                      ativo: linkPublico.ativo,
+                      expiraEm: linkPublico.expiraEm ? linkPublico.expiraEm.toISOString() : null,
+                      disciplinaIds: linkPublico.disciplinaIds,
+                    }
+                  : null,
+              }
+            : null
+        }
         disciplinas={disciplinasArvore}
         linhas={pagina.linhas}
         extensoes={opcoes.extensoes}

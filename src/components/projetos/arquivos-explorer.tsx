@@ -1099,7 +1099,7 @@ function LinhaVersaoDocumento({
   );
 }
 
-function RecebidosPasta({
+export function RecebidosPasta({
   projetoId,
   clienteId,
   recebidos,
@@ -1332,7 +1332,7 @@ function RecebidosPasta({
 // de capability, mesmo espírito de "Recebidos do cliente" mas em pasta própria. Sempre
 // renderizada pelo caller (mesmo sem nenhum arquivo ainda) — não entra na conta de "vazio".
 
-function PastaBaseArquitetonica({
+export function PastaBaseArquitetonica({
   projetoId,
   clienteId,
   arquivos,
@@ -1551,7 +1551,7 @@ function PastaBaseArquitetonica({
 
 // ── Pasta "Geral": Documento(origem=interno), gated por `arquivos_gerais` (Fase 5a) ──
 
-function PastaGeral({
+export function PastaGeral({
   projetoId,
   clienteId,
   geral,
@@ -1926,7 +1926,7 @@ function PastaGeral({
 
 // ── Pasta "ARTs": read-only. O cadastro (criar/versionar/anexar) fica na aba ARTs. ──
 
-function ArtsPasta({ projetoId, arts }: { projetoId: string; arts: ArtListItem[] }) {
+export function ArtsPasta({ projetoId, arts }: { projetoId: string; arts: ArtListItem[] }) {
   return (
     <Pasta
       nome="ARTs"
@@ -1968,7 +1968,7 @@ function ArtsPasta({ projetoId, arts }: { projetoId: string; arts: ArtListItem[]
 
 // ── Pasta "Lixeira": arquivos de disciplina na lixeira (soft delete), só admin ──
 
-function LixeiraPasta({ itens }: { itens: LixeiraItem[] }) {
+export function LixeiraPasta({ itens }: { itens: LixeiraItem[] }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [pending, start] = useTransition();
