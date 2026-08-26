@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { formatarDataHora } from "@/lib/utils";
+import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 
 type Disciplinas = Awaited<ReturnType<typeof diarioDoProjeto>>;
 
@@ -156,7 +157,8 @@ function DisciplinaDiario({ disciplina, projetoId }: { disciplina: Disciplinas[n
                       )}
                     </div>
                     <p className="mt-1 whitespace-pre-wrap break-words">{e.texto}</p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">
+                    <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+                      <AvatarUsuario nome={e.autorNome} image={e.autorImage} size="sm" className="size-4" title={e.autorNome} />
                       {e.autorNome} · {formatarDataHora(e.criadoEm)}
                       {e.editado && " · editado"}
                     </p>
