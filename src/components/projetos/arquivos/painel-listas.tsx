@@ -48,16 +48,20 @@ export function PainelListas({
   function salvar() {
     if (!edicao) return;
     start(async () => {
-      const resultado = edicao.modo === "criar"
-        ? await criarListaDocumentos({ projetoId, nome })
-        : await renomearListaDocumentos({ listaId: edicao.lista.id, nome });
-      if (!resultado.ok) {
-        toast.error(resultado.error);
-        return;
+      try {
+        const resultado = edicao.modo === "criar"
+          ? await criarListaDocumentos({ projetoId, nome })
+          : await renomearListaDocumentos({ listaId: edicao.lista.id, nome });
+        if (!resultado.ok) {
+          toast.error(resultado.error);
+          return;
+        }
+        toast.success(edicao.modo === "criar" ? "Lista criada." : "Lista renomeada.");
+        setEdicao(null);
+        router.refresh();
+      } catch {
+        toast.error("Não foi possível salvar a lista. Tente novamente.");
       }
-      toast.success(edicao.modo === "criar" ? "Lista criada." : "Lista renomeada.");
-      setEdicao(null);
-      router.refresh();
     });
   }
 
@@ -70,14 +74,18 @@ export function PainelListas({
     });
     if (!confirmou) return;
     start(async () => {
-      const resultado = await excluirListaDocumentos({ listaId: lista.id });
-      if (!resultado.ok) {
-        toast.error(resultado.error);
-        return;
+      try {
+        const resultado = await excluirListaDocumentos({ listaId: lista.id });
+        if (!resultado.ok) {
+          toast.error(resultado.error);
+          return;
+        }
+        if (selecionadaId === lista.id) setParams({ listaId: null });
+        toast.success("Lista excluída.");
+        router.refresh();
+      } catch {
+        toast.error("Não foi possível excluir a lista. Tente novamente.");
       }
-      if (selecionadaId === lista.id) setParams({ listaId: null });
-      toast.success("Lista excluída.");
-      router.refresh();
     });
   }
 

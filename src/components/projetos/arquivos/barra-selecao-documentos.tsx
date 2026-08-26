@@ -177,11 +177,11 @@ export function BarraSelecaoDocumentos({
     >
       <span className="text-sm font-medium tabular-nums">{rotulo}</span>
       <div className="flex flex-wrap items-center gap-1.5">
-        <Button size="sm" variant="outline" onClick={baixar} disabled={pendente}>
+        <Button size="sm" variant="outline" className="bg-background text-foreground hover:bg-muted hover:text-foreground" onClick={baixar} disabled={pendente}>
           <Download className="size-3.5" /> Baixar
         </Button>
         {podeValidar && totalValidaveis > 0 && (
-          <Button size="sm" variant="outline" onClick={validar} disabled={pendente}>
+          <Button size="sm" variant="outline" className="bg-background text-foreground hover:bg-muted hover:text-foreground" onClick={validar} disabled={pendente}>
             <ShieldCheck className="size-3.5" /> Validar ({totalValidaveis})
           </Button>
         )}
@@ -191,12 +191,12 @@ export function BarraSelecaoDocumentos({
           </Button>
         )}
         {podeGerirListas && listas.length > 0 && (
-          <Button size="sm" variant="outline" onClick={() => setDialogoListaAberto(true)} disabled={pendente}>
+          <Button size="sm" variant="outline" className="bg-background text-foreground hover:bg-muted hover:text-foreground" onClick={() => setDialogoListaAberto(true)} disabled={pendente}>
             <ListPlus className="size-3.5" /> Adicionar à lista
           </Button>
         )}
         {podeGerirListas && listaSelecionadaId && (
-          <Button size="sm" variant="outline" onClick={() => void removerDaLista()} disabled={pendente}>
+          <Button size="sm" variant="outline" className="bg-background text-foreground hover:bg-muted hover:text-foreground" onClick={() => void removerDaLista()} disabled={pendente}>
             <ListMinus className="size-3.5" /> Remover da lista
           </Button>
         )}
