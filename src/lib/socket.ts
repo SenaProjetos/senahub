@@ -50,6 +50,7 @@ export function initSocket(server: HttpServer): SocketServer {
       socket.data.userId = session.user.id;
       socket.data.role = (session.user as { role?: string }).role;
       socket.data.nome = session.user.name;
+      socket.data.image = (session.user as { image?: string | null }).image ?? null;
       nextFn();
     } catch (err) {
       nextFn(err instanceof Error ? err : new Error("falha de autenticação"));
@@ -97,6 +98,7 @@ export function initSocket(server: HttpServer): SocketServer {
         documentoId,
         userId,
         nome: socket.data.nome as string,
+        image: socket.data.image as string | null,
         entrou: true,
       });
       socket.emit("presenca-documento-inicial", { documentoId, usuarios: quemVeDocumento(documentoId, userId) });
@@ -203,19 +205,22 @@ export function emitParaCanal(canalId: string, evento: string, payload: unknown)
  * Quem mais está com o mesmo documento aberto no viewer agora (item 32), excluindo o próprio
  * socket que está perguntando. Deduplica por userId (a mesma pessoa pode ter 2 abas abertas).
  */
-export function quemVeDocumento(documentoId: string, excluirUserId?: string): { userId: string; nome: string }[] {
+export function quemVeDocumento(
+  documentoId: string,
+  excluirUserId?: string,
+): { userId: string; nome: string; image: string | null }[] {
   const io = getIoInterno();
   if (!io) return [];
   const room = io.sockets.adapter.rooms.get(`documento:${documentoId}`);
   if (!room) return [];
-  const vistos = new Map<string, string>();
+  const vistos = new Map<string, { nome: string; image: string | null }>();
   for (const socketId of room) {
     const s = io.sockets.sockets.get(socketId);
     const uid = s?.data.userId as string | undefined;
     if (!uid || uid === excluirUserId) continue;
-    vistos.set(uid, (s?.data.nome as string) ?? "—");
+    vistos.set(uid, { nome: (s?.data.nome as string) ?? "—", image: (s?.data.image as string | null) ?? null });
   }
-  return [...vistos.entries()].map(([userId, nome]) => ({ userId, nome }));
+  return [...vistos.entries()].map(([userId, v]) => ({ userId, ...v }));
 }
 
 /** Emite um evento para um usuário específico (todos os dispositivos). */

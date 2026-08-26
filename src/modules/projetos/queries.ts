@@ -228,14 +228,14 @@ export async function obterProjeto(viewer: Viewer, id: string) {
     where: { id, AND: [escopoProjeto(viewer)] },
     include: {
       cliente: true,
-      membros: { include: { user: { select: { id: true, name: true, role: true } } } },
+      membros: { include: { user: { select: { id: true, name: true, role: true, image: true } } } },
       disciplinas: {
         orderBy: { ordem: "asc" },
         include: {
           // Nome do catálogo, para o rótulo secundário quando difere do texto da disciplina
           // (`rotuloCatalogo`). Null enquanto a disciplina não tiver FK — estado legítimo.
           catalogo: { select: { nome: true } },
-          responsaveis: { include: { user: { select: { id: true, name: true, role: true } } } },
+          responsaveis: { include: { user: { select: { id: true, name: true, role: true, image: true } } } },
           revisoes: { orderBy: { numero: "desc" }, include: { autor: { select: { name: true } } } },
           uploads: {
             // Lixeira: leitura aninhada não passa pelo filtro global (lib/prisma.ts) → explícito.
