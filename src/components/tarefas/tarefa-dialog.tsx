@@ -34,6 +34,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 
 export type TarefaUI = {
   id: string;
@@ -47,11 +48,11 @@ export type TarefaUI = {
   projetoNome: string | null;
   disciplinaId: string;
   criadorId: string;
-  responsaveis: { id: string; nome: string }[];
+  responsaveis: { id: string; nome: string; image?: string | null }[];
   itens: { id?: string; descricao: string; concluido: boolean; apontamentoHref?: string }[];
   dependeDeIds: string[];
   bloqueada: boolean;
-  comentarios?: { id: string; autorId: string; texto: string; autor: string; data: string; anexoMime: string | null; anexoNome: string | null }[];
+  comentarios?: { id: string; autorId: string; texto: string; autor: string; autorImage?: string | null; data: string; anexoMime: string | null; anexoNome: string | null }[];
 };
 
 export type OpcoesUI = {
@@ -682,7 +683,10 @@ export function TarefaDialog({
                   {comentarios.map((c) => (
                     <li key={c.id} className="rounded-sm bg-muted/50 px-2 py-1 text-sm">
                       <div className="flex items-start justify-between gap-2">
-                        <span className="text-[11px] font-semibold text-muted-foreground">{c.autor}</span>
+                        <span className="flex items-center gap-1.5">
+                          <AvatarUsuario nome={c.autor} image={c.autorImage} className="size-4" fallbackClassName="text-[8px]" />
+                          <span className="text-[11px] font-semibold text-muted-foreground">{c.autor}</span>
+                        </span>
                         {(c.autorId === meId || meRole === "admin") && (
                           <button type="button" onClick={() => excluirComentario(c.id)} aria-label="Remover comentário" className="text-muted-foreground hover:text-foreground">
                             <X className="size-3" />
