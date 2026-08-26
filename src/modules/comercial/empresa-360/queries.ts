@@ -142,7 +142,7 @@ export async function empresa360(clienteId: string) {
             tipo: true,
             descricao: true,
             createdAt: true,
-            autor: { select: { name: true } },
+            autor: { select: { name: true, image: true } },
           },
         },
 

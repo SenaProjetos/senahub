@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
@@ -135,7 +136,10 @@ export function ApontamentosLista({
                       {meta.label}
                     </Badge>
                   </div>
-                  <p className="mt-1 truncate text-[11px] text-muted-foreground">{a.disciplinaNome}</p>
+                  <p className="mt-1 flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+                    <AvatarUsuario nome={a.autor} image={a.autorImage} size="sm" className="size-4" title={a.autor} />
+                    {a.disciplinaNome}
+                  </p>
                   <p className="mt-1 whitespace-pre-wrap break-words text-xs">{a.texto}</p>
                   <div className="mt-1.5 flex flex-wrap items-center gap-1" onClick={(e) => e.stopPropagation()}>
                     {editavel && (

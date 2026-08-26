@@ -70,7 +70,7 @@ export async function listarCanais(userId: string, role?: string) {
             },
             membros: {
               where: { userId: { not: userId } },
-              include: { user: { select: { id: true, name: true, chatStatus: true } } },
+              include: { user: { select: { id: true, name: true, chatStatus: true, image: true } } },
             },
             projeto: { select: { codigo: true, situacao: true } },
             disciplina: {
@@ -85,15 +85,15 @@ export async function listarCanais(userId: string, role?: string) {
 
   // Batch-fetch dos membros de canais do tipo "grupo" (evita N+1) — C5-2.
   const grupoIds = membros.filter((m) => m.canal.tipo === "grupo").map((m) => m.canalId);
-  const grupoMembrosMap = new Map<string, { id: string; name: string }[]>();
+  const grupoMembrosMap = new Map<string, { id: string; name: string; image: string | null }[]>();
   if (grupoIds.length > 0) {
     const gm = await prisma.canalMembro.findMany({
       where: { canalId: { in: grupoIds } },
-      select: { canalId: true, user: { select: { id: true, name: true } } },
+      select: { canalId: true, user: { select: { id: true, name: true, image: true } } },
     });
     for (const entry of gm) {
       const arr = grupoMembrosMap.get(entry.canalId) ?? [];
-      arr.push({ id: entry.user.id, name: entry.user.name });
+      arr.push({ id: entry.user.id, name: entry.user.name, image: entry.user.image });
       grupoMembrosMap.set(entry.canalId, arr);
     }
   }
@@ -122,6 +122,7 @@ export async function listarCanais(userId: string, role?: string) {
       disciplinaId: m.canal.disciplinaId,
       outroUserId: m.canal.tipo === "dm" ? (outro?.id ?? null) : null,
       outroUserStatus: m.canal.tipo === "dm" ? (outro?.chatStatus ?? null) : null,
+      outroUserImage: m.canal.tipo === "dm" ? (outro?.image ?? null) : null,
       ultima: ultima
         ? {
             id: ultima.id,
@@ -162,7 +163,7 @@ export async function listarCanais(userId: string, role?: string) {
         take: 1,
         include: { autor: { select: { name: true } }, anexos: { select: { mime: true } } },
       },
-      membros: { include: { user: { select: { id: true, name: true } } } },
+      membros: { include: { user: { select: { id: true, name: true, image: true } } } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -177,13 +178,14 @@ export async function listarCanais(userId: string, role?: string) {
       icone: c.icone ?? null,
       imagemCapa: c.imagemCapa ?? null,
       criadoPorId: c.criadoPorId ?? null,
-      grupoMembros: c.tipo === "grupo" ? c.membros.map((m) => ({ id: m.user.id, name: m.user.name })) : null,
+      grupoMembros: c.tipo === "grupo" ? c.membros.map((m) => ({ id: m.user.id, name: m.user.name, image: m.user.image })) : null,
       projetoId: null,
       projetoCodigo: null,
       projetoSituacao: null,
       disciplinaId: null,
       outroUserId: null,
       outroUserStatus: null,
+      outroUserImage: null,
       ultima: ultima
         ? {
             id: ultima.id,
@@ -417,7 +419,7 @@ export async function membrosCanal(canalId: string) {
 export async function usuariosParaDM(userId: string) {
   return prisma.user.findMany({
     where: { ...whereAudiencia("chat_dm"), id: { not: userId } },
-    select: { id: true, name: true, role: true, chatStatus: true },
+    select: { id: true, name: true, role: true, chatStatus: true, image: true },
     orderBy: { name: "asc" },
   });
 }

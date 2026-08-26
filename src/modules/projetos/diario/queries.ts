@@ -10,6 +10,7 @@ export type EntradaDiario = {
   texto: string;
   autorId: string;
   autorNome: string;
+  autorImage: string | null;
   editado: boolean;
   criadoEm: string;
   podeGerir: boolean;
@@ -46,7 +47,7 @@ export async function diarioDoProjeto(user: SessionUser, projetoId: string): Pro
           autorId: true,
           createdAt: true,
           updatedAt: true,
-          autor: { select: { name: true } },
+          autor: { select: { name: true, image: true } },
         },
       },
     },
@@ -65,6 +66,7 @@ export async function diarioDoProjeto(user: SessionUser, projetoId: string): Pro
         texto: e.texto,
         autorId: e.autorId,
         autorNome: e.autor.name,
+        autorImage: e.autor.image,
         editado: e.updatedAt.getTime() - e.createdAt.getTime() > 1000,
         criadoEm: e.createdAt.toISOString(),
         podeGerir: podeGerirEntrada({ userId: user.id, role: user.role, autorId: e.autorId }),
@@ -78,6 +80,7 @@ export type UltimaEntradaDiario = {
   data: string; // ISO YYYY-MM-DD
   texto: string;
   autorNome: string;
+  autorImage: string | null;
   criadoEm: string;
   editado: boolean;
 };
@@ -88,13 +91,14 @@ export async function ultimasEntradasDisciplina(disciplinaId: string, n = 5): Pr
     where: { disciplinaId },
     orderBy: [{ data: "desc" }, { createdAt: "desc" }],
     take: n,
-    select: { id: true, data: true, texto: true, createdAt: true, updatedAt: true, autor: { select: { name: true } } },
+    select: { id: true, data: true, texto: true, createdAt: true, updatedAt: true, autor: { select: { name: true, image: true } } },
   });
   return entradas.map((e) => ({
     id: e.id,
     data: e.data.toISOString().slice(0, 10),
     texto: e.texto,
     autorNome: e.autor.name,
+    autorImage: e.autor.image,
     criadoEm: e.createdAt.toISOString(),
     editado: e.updatedAt.getTime() - e.createdAt.getTime() > 1000,
   }));

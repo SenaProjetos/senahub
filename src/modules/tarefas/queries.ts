@@ -25,7 +25,7 @@ export function escopoTarefa(viewer: Viewer): Prisma.TarefaWhereInput {
 const includeTarefaBoard = {
   projeto: { select: { codigo: true, nome: true } },
   disciplina: { select: { id: true, disciplinaTextoLegado: true } },
-  responsaveis: { include: { user: { select: { id: true, name: true } } } },
+  responsaveis: { include: { user: { select: { id: true, name: true, image: true } } } },
   itens: { orderBy: { ordem: "asc" } },
   dependeDe: {
     include: {
@@ -34,7 +34,7 @@ const includeTarefaBoard = {
   },
   comentarios: {
     orderBy: { createdAt: "asc" },
-    include: { autor: { select: { name: true } } },
+    include: { autor: { select: { name: true, image: true } } },
   },
 } satisfies Prisma.TarefaInclude;
 

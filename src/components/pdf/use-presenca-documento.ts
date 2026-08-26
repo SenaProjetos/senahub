@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { getSocket } from "@/lib/chat-client";
 
-export type UsuarioPresente = { userId: string; nome: string };
+export type UsuarioPresente = { userId: string; nome: string; image: string | null };
 
 /**
  * Quem mais está olhando o MESMO documento agora (item 32) — só funciona sob `dev:server`/
@@ -23,12 +23,12 @@ export function usePresencaDocumento(documentoId: string | null): UsuarioPresent
     function onInicial(p: { documentoId: string; usuarios: UsuarioPresente[] }) {
       if (p.documentoId === documentoId) setOutros(p.usuarios);
     }
-    function onPresenca(p: { documentoId: string; userId: string; nome?: string; entrou: boolean }) {
+    function onPresenca(p: { documentoId: string; userId: string; nome?: string; image?: string | null; entrou: boolean }) {
       if (p.documentoId !== documentoId) return;
       setOutros((prev) => {
         if (p.entrou) {
           if (prev.some((u) => u.userId === p.userId)) return prev;
-          return [...prev, { userId: p.userId, nome: p.nome ?? "—" }];
+          return [...prev, { userId: p.userId, nome: p.nome ?? "—", image: p.image ?? null }];
         }
         return prev.filter((u) => u.userId !== p.userId);
       });

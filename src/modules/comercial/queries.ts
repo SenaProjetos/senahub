@@ -49,7 +49,7 @@ export async function funilCompleto() {
           campanha: { select: { id: true, nome: true } },
           atividades: {
             orderBy: { createdAt: "desc" },
-            include: { autor: { select: { name: true } } },
+            include: { autor: { select: { name: true, image: true } } },
           },
           anexos: {
             orderBy: { createdAt: "desc" },
@@ -75,13 +75,13 @@ export async function obterLead(id: string) {
       cliente: { select: { id: true, nome: true } },
       parceiro: { select: { id: true, nome: true } },
       campanha: { select: { id: true, nome: true } },
-      atividades: { orderBy: { createdAt: "desc" }, include: { autor: { select: { name: true } } } },
+      atividades: { orderBy: { createdAt: "desc" }, include: { autor: { select: { name: true, image: true } } } },
       // F3.1: timeline nova. Nome do relation (`atividadesComerciais`) mantido distinto de
       // `atividades` (a legada) — a mesclagem dos dois em ordem cronológica única acontece na
       // camada de exibição (`mesclarTimeline`, F2.11), não aqui.
       atividadesComerciais: {
         orderBy: { createdAt: "desc" },
-        include: { autor: { select: { name: true } } },
+        include: { autor: { select: { name: true, image: true } } },
       },
       anexos: {
         orderBy: { createdAt: "desc" },
@@ -163,7 +163,7 @@ export async function obterProposta(id: string) {
       ...INCLUDE_PROPOSTA,
       lead: { select: { id: true, nome: true } },
       visualizacoes: { orderBy: { createdAt: "desc" }, take: 10 },
-      versoes: { orderBy: { numero: "desc" }, take: 10, include: { autor: { select: { name: true } } } },
+      versoes: { orderBy: { numero: "desc" }, take: 10, include: { autor: { select: { name: true, image: true } } } },
     },
   });
 }

@@ -99,7 +99,7 @@ import type { ItemPagina } from "@/lib/pdf-busca";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
@@ -1403,6 +1403,7 @@ export function PdfViewer(props: Props) {
           >
             {presentes.slice(0, 3).map((u) => (
               <Avatar key={u.userId} className="size-6 border-2 border-background">
+                {u.image && <AvatarImage src={u.image} alt={u.nome} />}
                 <AvatarFallback className="text-[10px]">{u.nome.slice(0, 2).toUpperCase()}</AvatarFallback>
               </Avatar>
             ))}

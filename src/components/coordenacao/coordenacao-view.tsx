@@ -406,7 +406,7 @@ export function CoordenacaoView({
       return false;
     }
     setVistas((vs) => [
-      { id: r.data.id, nome, camera, modelosVisiveis: [...carregados], corte, autorId: currentUserId, autor: "Você", createdAt: new Date().toISOString() },
+      { id: r.data.id, nome, camera, modelosVisiveis: [...carregados], corte, autorId: currentUserId, autor: "Você", autorImage: null, createdAt: new Date().toISOString() },
       ...vs,
     ]);
     toast.success(`Vista "${nome}" salva.`);
@@ -464,6 +464,7 @@ export function CoordenacaoView({
         status: "aberta",
         autorId: currentUserId,
         autor: "Você",
+        autorImage: null,
         tarefaId: null,
         createdAt: new Date().toISOString(),
       };

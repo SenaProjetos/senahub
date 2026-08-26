@@ -32,6 +32,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { AvatarGroup } from "@/components/ui/avatar";
+import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import { Pagination } from "@/components/ui/pagination";
 import {
   Table,
@@ -394,9 +396,18 @@ function ListaView({
                     )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {t.responsaveis.length > 0
-                      ? t.responsaveis.map((r) => r.nome).join(", ")
-                      : "—"}
+                    {t.responsaveis.length > 0 ? (
+                      <span className="flex items-center gap-1.5">
+                        <AvatarGroup>
+                          {t.responsaveis.slice(0, 3).map((r) => (
+                            <AvatarUsuario key={r.id} nome={r.nome} image={r.image} size="sm" className="size-5" fallbackClassName="text-[9px]" />
+                          ))}
+                        </AvatarGroup>
+                        <span className="truncate">{t.responsaveis.map((r) => r.nome).join(", ")}</span>
+                      </span>
+                    ) : (
+                      "—"
+                    )}
                   </TableCell>
                   <TableCell className={`text-sm ${atrasada ? "text-destructive" : ""}`}>
                     {t.prazo ? formatarData(t.prazo) : "—"}
@@ -525,9 +536,16 @@ function CardTarefa({
             </div>
           )}
           {t.responsaveis.length > 0 && (
-            <p className="mt-1 truncate text-xs text-muted-foreground">
-              {t.responsaveis.map((r) => r.nome).join(", ")}
-            </p>
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <AvatarGroup>
+                {t.responsaveis.slice(0, 4).map((r) => (
+                  <AvatarUsuario key={r.id} nome={r.nome} image={r.image} size="sm" className="size-5" fallbackClassName="text-[9px]" />
+                ))}
+              </AvatarGroup>
+              {t.responsaveis.length > 4 && (
+                <span className="text-[10px] text-muted-foreground">+{t.responsaveis.length - 4}</span>
+              )}
+            </div>
           )}
         </button>
       </div>
