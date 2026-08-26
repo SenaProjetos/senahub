@@ -25,7 +25,7 @@ import { rotuloCatalogo } from "@/modules/projetos/disciplina-rotulo";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount } from "@/components/ui/avatar";
+import { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from "@/components/ui/avatar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
@@ -464,17 +464,17 @@ function TeamSummary({
   internos,
   papeisSugeridos,
 }: Pick<Props, "projeto" | "podeGerir" | "internos" | "papeisSugeridos">) {
-  const equipeMap = new Map<string, { nome: string; role: string; papel: string | null }>();
+  const equipeMap = new Map<string, { nome: string; role: string; image: string | null; papel: string | null }>();
   for (const disciplina of projeto.disciplinas) {
     for (const responsavel of disciplina.responsaveis) {
       if (!equipeMap.has(responsavel.userId)) {
-        equipeMap.set(responsavel.userId, { nome: responsavel.user.name, role: responsavel.user.role, papel: "projetista" });
+        equipeMap.set(responsavel.userId, { nome: responsavel.user.name, role: responsavel.user.role, image: responsavel.user.image, papel: "projetista" });
       }
     }
   }
   for (const membro of projeto.membros) {
     const atual = equipeMap.get(membro.userId);
-    equipeMap.set(membro.userId, { nome: membro.user.name, role: membro.user.role, papel: membro.papel ?? atual?.papel ?? null });
+    equipeMap.set(membro.userId, { nome: membro.user.name, role: membro.user.role, image: membro.user.image, papel: membro.papel ?? atual?.papel ?? null });
   }
   const onlineIds = new Set(usuariosOnline());
   const equipe = [...equipeMap.entries()].map(([userId, membro]) => ({ ...membro, userId, online: onlineIds.has(userId) }));
@@ -492,7 +492,7 @@ function TeamSummary({
       <CardContent className="min-h-0 flex-1 overflow-auto">
         {equipe.length === 0 ? <EmptyState icon={Users} title="Sem membros adicionais" /> : <>
           <AvatarGroup>
-            {visiveis.map((membro) => <Avatar key={membro.userId} size="sm" title={membro.nome}><AvatarFallback>{iniciais(membro.nome)}</AvatarFallback>{membro.online && <AvatarBadge className="bg-success" />}</Avatar>)}
+            {visiveis.map((membro) => <Avatar key={membro.userId} size="sm" title={membro.nome}>{membro.image && <AvatarImage src={membro.image} alt={membro.nome} />}<AvatarFallback>{iniciais(membro.nome)}</AvatarFallback>{membro.online && <AvatarBadge className="bg-success" />}</Avatar>)}
             {equipe.length > visiveis.length && <AvatarGroupCount>+{equipe.length - visiveis.length}</AvatarGroupCount>}
           </AvatarGroup>
           <details className="mt-3 text-xs">

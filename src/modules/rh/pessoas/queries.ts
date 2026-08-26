@@ -91,7 +91,7 @@ export async function fichaPessoa(userId: string, acessos: AcessosFichaPessoa) {
   const u = await prisma.user.findUnique({
     where: { id: userId },
     select: {
-      id: true, name: true, nomeCompleto: true, email: true, role: true, ativo: true,
+      id: true, name: true, nomeCompleto: true, email: true, role: true, ativo: true, image: true,
       dataAdmissao: true, cpf: true, rg: true, dataNascimento: true, cargo: true, departamento: true,
       cargoId: true, departamentoId: true, telefone: true,
       enderecoCep: true, enderecoLogradouro: true, enderecoNumero: true, enderecoBairro: true,
@@ -181,6 +181,7 @@ export async function fichaPessoa(userId: string, acessos: AcessosFichaPessoa) {
     email: u.email,
     role: u.role,
     ativo: u.ativo,
+    image: u.image,
     // Null significa "não consultado/não autorizado", não um valor falso inventado.
     mustChangePassword: acesso?.mustChangePassword ?? null,
     criadoEm: acesso?.createdAt.toISOString() ?? null,

@@ -143,7 +143,7 @@ export async function listarAuditoria(filtro: AuditFiltro) {
       orderBy: { createdAt: "desc" },
       take: PAGE_SIZE,
       skip: (page - 1) * PAGE_SIZE,
-      include: { user: { select: { name: true, email: true } } },
+      include: { user: { select: { name: true, email: true, image: true } } },
     }),
     prisma.auditLog.count({ where }),
     prisma.auditLog.findMany({

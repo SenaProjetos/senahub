@@ -54,6 +54,7 @@ import { cn, formatarDiaMes } from "@/lib/utils";
 import { INTERNAL_ROLES } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { CATEGORIAS_EMOJI } from "@/lib/emoji-catalogo";
 import {
@@ -117,7 +118,7 @@ function iniciaisAutor(nome: string): string {
 }
 type Fixada = { id: string; conteudo: string; autor: { name: string } };
 type ResultadoBusca = { id: string; canalId: string; conteudo: string; autorNome: string; createdAt: string };
-type Usuario = { id: string; name: string; role: string; chatStatus: string };
+type Usuario = { id: string; name: string; role: string; chatStatus: string; image?: string | null };
 type ReferenciaChat = { tipo: "projeto" | "documento"; id: string; rotulo: string; href: string };
 type UploadChatItem = { id: string; nomeArquivo: string; mimeType: string | null; disciplina: string };
 type ChatStatus = "disponivel" | "ocupado" | "reuniao";
@@ -478,7 +479,7 @@ function CanalBtn({
         />
         {c.tipo === "dm" ? (
           <div className="relative shrink-0">
-            <AtSign className="size-4 text-muted-foreground" />
+            <AvatarUsuario nome={c.nome} image={c.outroUserImage} size="sm" className="size-6" />
             {c.outroUserId && statusAtual && (
               <StatusDot status={statusAtual} className="absolute -right-0.5 -bottom-0.5 size-1.5" />
             )}
@@ -1378,6 +1379,7 @@ export function ChatView({
         disciplinaId: null,
         outroUserId: usuarioId,
         outroUserStatus: (u?.chatStatus ?? null) as CanalListItem["outroUserStatus"],
+        outroUserImage: u?.image ?? null,
         ultima: null,
         naoLidas: 0,
         silenciado: false,
@@ -2197,7 +2199,7 @@ export function ChatView({
               <Button variant="ghost" size="sm" className="lg:hidden" onClick={() => setSel(null)}>
                 ←
               </Button>
-              {canalSel.tipo === "dm" ? <AtSign className="size-4" /> : canalSel.tipo === "grupo" ? <CapaGrupo c={canalSel} size={20} /> : canalSel.tipo === "socios" ? <Briefcase className="size-4" /> : <Hash className="size-4" />}
+              {canalSel.tipo === "dm" ? <AvatarUsuario nome={canalSel.nome} image={canalSel.outroUserImage} size="sm" className="size-6" /> : canalSel.tipo === "grupo" ? <CapaGrupo c={canalSel} size={20} /> : canalSel.tipo === "socios" ? <Briefcase className="size-4" /> : <Hash className="size-4" />}
               <span className="font-semibold">{canalSel.nome}</span>
               {/* C5-2: gerenciar grupo */}
               {canalSel.tipo === "grupo" && (
@@ -3466,7 +3468,7 @@ function EncaminharDialog({
   }
 
   function icone(c: CanalListItem) {
-    if (c.tipo === "dm") return <AtSign className="size-4 shrink-0 text-muted-foreground" />;
+    if (c.tipo === "dm") return <AvatarUsuario nome={c.nome} image={c.outroUserImage} size="sm" className="size-5 shrink-0" />;
     if (c.tipo === "grupo") return <CapaGrupo c={c} size={16} />;
     if (c.tipo === "socios") return <Briefcase className="size-4 shrink-0 text-muted-foreground" />;
     return <Hash className="size-4 shrink-0 text-muted-foreground" />;
@@ -3511,7 +3513,7 @@ function CriarGrupoDialog({
 }: {
   open: boolean;
   onClose: () => void;
-  usuarios: { id: string; name: string; role: string }[];
+  usuarios: { id: string; name: string; role: string; image?: string | null }[];
   onCriar: (nome: string, membroIds: string[]) => Promise<void>;
 }) {
   const [nome, setNome] = useState("");
@@ -3556,6 +3558,7 @@ function CriarGrupoDialog({
                   onChange={() => toggleMembro(u.id)}
                   className="rounded"
                 />
+                <AvatarUsuario nome={u.name} image={u.image} size="sm" className="size-6" />
                 <span className="flex-1 truncate">{u.name}</span>
                 <span className="text-xs text-muted-foreground">{u.role}</span>
               </label>
@@ -3703,7 +3706,10 @@ function GerenciarGrupoDialog({
             <div className="max-h-48 space-y-0.5 overflow-y-auto">
               {membros.map((m) => (
                 <div key={m.id} className="flex items-center justify-between rounded-sm px-2 py-1 text-sm hover:bg-muted/30">
-                  <span className="truncate">{m.name}</span>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <AvatarUsuario nome={m.name} image={m.image} size="sm" className="size-6 shrink-0" />
+                    <span className="truncate">{m.name}</span>
+                  </span>
                   {podeGerenciar && m.id !== meId && (
                     <button
                       onClick={() => run(() => onRemoverMembro(m.id))}
@@ -3797,6 +3803,7 @@ function DMDialog({
                     isOnline ? STATUS_COR[st] ?? STATUS_COR.disponivel : "text-muted-foreground/40",
                   )}
                 />
+                <AvatarUsuario nome={u.name} image={u.image} size="sm" className="size-6" />
                 <span className="flex-1">{u.name}</span>
                 <span className="text-xs text-muted-foreground">{u.role}</span>
               </button>

@@ -73,7 +73,7 @@ export default async function TarefasPage({ searchParams }: { searchParams: Prom
           projetoNome: t.projeto?.nome ?? null,
           disciplinaId: t.disciplinaId ?? "",
           criadorId: t.criadorId,
-          responsaveis: t.responsaveis.map((r) => ({ id: r.user.id, nome: r.user.name })),
+          responsaveis: t.responsaveis.map((r) => ({ id: r.user.id, nome: r.user.name, image: r.user.image })),
           itens: t.itens.map((it) => ({
             id: it.id,
             descricao: it.descricao,
@@ -87,6 +87,7 @@ export default async function TarefasPage({ searchParams }: { searchParams: Prom
             autorId: c.autorId,
             texto: c.texto,
             autor: c.autor.name,
+            autorImage: c.autor.image,
             data: c.createdAt.toISOString(),
             anexoMime: c.anexoMime,
             anexoNome: c.anexoNome,

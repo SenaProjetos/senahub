@@ -21,6 +21,7 @@ import { DocumentosEditor } from "@/components/rh/documentos-editor";
 import { OverridesUsuario, type OverrideItem } from "@/components/rh/overrides-usuario";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -176,9 +177,10 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
       {/* Cabeçalho / resumo */}
       <Card>
         <CardContent className="flex flex-wrap items-start gap-4 pt-6">
-          <div className="grid size-14 shrink-0 place-items-center rounded-full bg-primary/10 text-lg font-bold text-primary">
-            {iniciais(pessoa.name)}
-          </div>
+          <Avatar className="size-14 shrink-0">
+            {pessoa.image && <AvatarImage src={pessoa.image} alt={pessoa.name} />}
+            <AvatarFallback className="bg-primary/10 text-lg font-bold text-primary">{iniciais(pessoa.name)}</AvatarFallback>
+          </Avatar>
           <div className="min-w-0 flex-1 space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-xl font-bold tracking-tight">{pessoa.name}</h2>

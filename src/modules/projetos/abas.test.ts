@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { aplicarConfigAbas, abasParaEdicao, ABAS_CONFIGURAVEIS } from "./abas";
+import { aplicarConfigAbas, abasParaEdicao, ordenarPorAtividade, ABAS_CONFIGURAVEIS } from "./abas";
 
 const TODAS = ["", ...ABAS_CONFIGURAVEIS];
 
@@ -31,6 +31,35 @@ describe("aplicarConfigAbas", () => {
     const ordem = aplicarConfigAbas(TODAS, [{ suffix: "/diario", oculta: false }]);
     expect(ordem[ordem.length - 1]).not.toBe("/diario");
     expect(ordem).toContain("/extras");
+  });
+});
+
+describe("ordenarPorAtividade", () => {
+  it("sem conteudoPorAba, mantém a ordem original", () => {
+    expect(ordenarPorAtividade(TODAS, undefined)).toEqual(TODAS);
+  });
+
+  it("move abas vazias para o final, preservando ordem configurada em cada grupo", () => {
+    const ordem = ["", "/disciplinas", "/inputs", "/financeiro", "/arquivos"];
+    const conteudo = { "/disciplinas": true, "/inputs": false, "/financeiro": true, "/arquivos": false };
+    expect(ordenarPorAtividade(ordem, conteudo)).toEqual([
+      "",
+      "/disciplinas",
+      "/financeiro",
+      "/inputs",
+      "/arquivos",
+    ]);
+  });
+
+  it("trata suffix ausente em conteudoPorAba como ativa (não avaliada)", () => {
+    const ordem = ["", "/disciplinas", "/historico"];
+    const conteudo = { "/disciplinas": false };
+    expect(ordenarPorAtividade(ordem, conteudo)).toEqual(["", "/historico", "/disciplinas"]);
+  });
+
+  it("mantém Visão Geral sempre primeiro", () => {
+    const ordem = ["", "/diario"];
+    expect(ordenarPorAtividade(ordem, { "/diario": false })[0]).toBe("");
   });
 });
 

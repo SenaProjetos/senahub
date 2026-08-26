@@ -29,7 +29,7 @@ export async function versoesComparaveis(propostaId: string) {
   const vs = await prisma.propostaVersao.findMany({
     where: { propostaId },
     orderBy: { numero: "desc" },
-    include: { autor: { select: { name: true } } },
+    include: { autor: { select: { name: true, image: true } } },
   });
   return vs.map((v) => {
     const s = (v.snapshot ?? {}) as { titulo?: string; itens?: SnapItem[] };
