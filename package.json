@@ -46,7 +46,7 @@
     "release:minor": "commit-and-tag-version --release-as minor",
     "release:major": "commit-and-tag-version --release-as major",
     "release:dry": "commit-and-tag-version --dry-run",
-    "postinstall": "prisma generate"
+    "postinstall": "node scripts/sincronizar-pdf-worker.mjs && prisma generate"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
