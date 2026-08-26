@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,7 +33,7 @@ type Row = {
   entidade: string | null;
   ip: string | null;
   createdAt: Date;
-  user: { name: string; email: string } | null;
+  user: { name: string; email: string; image: string | null } | null;
 };
 
 const RESULTADO_VARIANT: Record<string, string> = {
@@ -176,7 +177,16 @@ export function AuditoriaTabela({
                   <TableCell className="font-mono text-xs tabular-nums text-muted-foreground">
                     {format(new Date(r.createdAt), "dd/MM/yy HH:mm:ss", { locale: ptBR })}
                   </TableCell>
-                  <TableCell className="text-sm">{r.user?.name ?? "—"}</TableCell>
+                  <TableCell className="text-sm">
+                    {r.user ? (
+                      <span className="flex items-center gap-1.5">
+                        <AvatarUsuario nome={r.user.name} image={r.user.image} size="sm" className="size-5" fallbackClassName="text-[9px]" />
+                        {r.user.name}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
                   <TableCell>
                     <span className="font-mono text-xs">{r.modulo}</span>
                   </TableCell>
