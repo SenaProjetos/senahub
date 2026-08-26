@@ -196,6 +196,8 @@ Este achado vale para `refactor/documentos-cde`, antes de integrar F2-PR6a parte
 
 ## Verificações executadas
 
+Em 2026-08-26, os apontamentos visuais de documentos e pranchas recebidos em D:\DOWNLOADS\erros.pdf foram planejados em docs/superpowers/plans/2026-08-26-correcao-erros-visuais-documentos.md e implementados nos commits c42c93f, 337d8fe, 4f595f8 e b35fea2. A validação automática final passou com 241 arquivos e 2.507 testes; as verificações visuais descritas no plano continuam pendentes.
+
 | Verificação | Resultado |
 | --- | --- |
 | `npm run lint` | Passou após F4-PR3. |

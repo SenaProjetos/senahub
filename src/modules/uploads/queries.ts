@@ -183,6 +183,40 @@ export async function pranchasVigentesDisciplina(disciplinaId: string, excluirUp
   return vigentes;
 }
 
+export type PranchaNavegavel = { uploadId: string; nomeArquivo: string; revisao: number };
+
+/** PDFs vigentes da disciplina, ordenados pelo nome para navegação linear no visualizador. */
+export async function pranchasPdfVigentesDisciplina(disciplinaId: string): Promise<PranchaNavegavel[]> {
+  const uploads = await prisma.upload.findMany({
+    where: {
+      disciplinaId,
+      nomeArquivo: { endsWith: ".pdf", mode: "insensitive" },
+    },
+    select: {
+      id: true,
+      nomeArquivo: true,
+      documentoId: true,
+      versao: true,
+      pacote: true,
+      revisao: { select: { numero: true } },
+    },
+    orderBy: { versao: "desc" },
+  });
+  const vistos = new Set<string>();
+  const vigentes: PranchaNavegavel[] = [];
+  for (const upload of uploads) {
+    const chave = upload.documentoId ?? `${upload.pacote ?? ""}/${upload.nomeArquivo}`;
+    if (vistos.has(chave)) continue;
+    vistos.add(chave);
+    vigentes.push({
+      uploadId: upload.id,
+      nomeArquivo: upload.nomeArquivo,
+      revisao: upload.revisao?.numero ?? upload.versao,
+    });
+  }
+  return vigentes.sort((a, b) => a.nomeArquivo.localeCompare(b.nomeArquivo, "pt-BR"));
+}
+
 export async function revisoesDoDocumento(
   documentoId: string,
   opts: { mesmaExtensaoDe?: string } = {},

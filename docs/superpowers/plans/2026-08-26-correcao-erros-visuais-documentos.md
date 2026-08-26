@@ -1,8 +1,18 @@
 # Correção dos apontamentos visuais — documentos e pranchas
 
-**Estado:** planejado — aguarda decisões D1 e D2 e autorização para implementação
+**Estado:** implementado no código — validação visual/manual pendente
 **Data:** 2026-08-26
 **Origem:** D:\DOWNLOADS\erros.pdf (três páginas, lido nesta data)
+
+## Execução
+
+- D1 aplicada: o nome técnico só é composto após confirmação humana de fase, tipo, numeração e revisão; o sistema não inventa valores.
+- D2 aplicada: o visualizador oferece anterior/próxima entre PDFs vigentes da mesma disciplina.
+- P4: worker sincronizado no commit c42c93f.
+- P3 e P7: tratamento de falha de listas e contraste no commit 337d8fe.
+- P2: limite de lote e reenvio no commit 4f595f8.
+- P1, P5 e P6: correção assistida, navegação e origem da configuração no commit b35fea2.
+- Validação automática final: npm run lint e npm test passaram em 2026-08-26, com 241 arquivos e 2.507 testes.
 
 ## Contexto
 
@@ -105,12 +115,12 @@ Não há migration nem seed. Nomenclatura usa dados existentes; navegação cons
 
 | Fase | Entrega verificável |
 | --- | --- |
-| F0 | Resolver D1/D2 e criar testes puros do composer e reenvio. |
-| F1 | Corrigir worker PDF e guarda de sincronização. |
-| F2 | Corrigir limite, reenvio e modal de lista resiliente. |
-| F3 | Entregar nomenclatura assistida e requisitos de fase. |
-| F4 | Entregar navegação entre arquivos e contraste da barra. |
-| F5 | Lint, testes, validação manual e atualização da auditoria. |
+| F0 | Concluída: D1/D2 confirmadas; teste puro do composer criado. |
+| F1 | Concluída: worker PDF e guarda de sincronização. |
+| F2 | Concluída: limite, reenvio e modal de lista resiliente. |
+| F3 | Concluída: nomenclatura assistida e origem do requisito de fase. |
+| F4 | Concluída: navegação entre arquivos e contraste da barra. |
+| F5 | Automação concluída; validação manual pendente. |
 
 Não é necessária troca de modelo: o trabalho é local, delimitado e testável.
 
