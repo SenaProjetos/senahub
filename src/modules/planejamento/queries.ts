@@ -217,7 +217,7 @@ export async function cargaSemanalPorRecurso(semanas = 12) {
     orderBy: { inicio: "asc" },
   });
 
-  if (sessoes.length === 0) return { semanas: [] as string[], linhas: [] as { userId: string; nome: string; porSemana: Record<string, number> }[] };
+  if (sessoes.length === 0) return { semanas: [] as string[], linhas: [] as { userId: string; nome: string; image: string | null; porSemana: Record<string, number> }[] };
 
   const minutosPorUserSemana = new Map<string, Map<string, number>>();
   const isoWeek = (d: Date): string => {
@@ -242,8 +242,9 @@ export async function cargaSemanalPorRecurso(semanas = 12) {
 
   const semanasOrdenadas = [...semanasSet].sort();
   const userIds = [...minutosPorUserSemana.keys()];
-  const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } });
+  const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, image: true } });
   const nome = new Map(users.map((u) => [u.id, u.name]));
+  const imagem = new Map(users.map((u) => [u.id, u.image]));
 
   const linhas = userIds.map((uid) => {
     const porSemana: Record<string, number> = {};
@@ -252,7 +253,7 @@ export async function cargaSemanalPorRecurso(semanas = 12) {
       const mins = mapa.get(wk) ?? 0;
       porSemana[wk] = Math.round((mins / 60) * 10) / 10;
     }
-    return { userId: uid, nome: nome.get(uid) ?? "—", porSemana };
+    return { userId: uid, nome: nome.get(uid) ?? "—", image: imagem.get(uid) ?? null, porSemana };
   }).sort((a, b) => a.nome.localeCompare(b.nome));
 
   return { semanas: semanasOrdenadas, linhas };
@@ -271,7 +272,7 @@ export async function matrizRecursos() {
     prisma.recurso.findMany({
       where: { ativo: true },
       include: {
-        user: { select: { id: true, name: true, role: true } },
+        user: { select: { id: true, name: true, role: true, image: true } },
         alocacoes: {
           include: { projeto: { select: { id: true, codigo: true, nome: true } } },
         },
@@ -284,7 +285,7 @@ export async function matrizRecursos() {
     }),
     prisma.user.findMany({
       where: { ...whereAudiencia("planejamento_recurso"), recurso: null },
-      select: { id: true, name: true, role: true },
+      select: { id: true, name: true, role: true, image: true },
       orderBy: { name: "asc" },
     }),
     prisma.ferias.findMany({
@@ -319,6 +320,7 @@ export async function matrizRecursos() {
         recursoId: r.id,
         userId: r.user.id,
         nome: r.user.name,
+        image: r.user.image,
         role: r.user.role,
         capacidade: Number(r.capacidade),
         capacidadePct,

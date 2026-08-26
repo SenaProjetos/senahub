@@ -10,6 +10,7 @@ import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -42,6 +43,7 @@ type Linha = {
   recursoId: string;
   userId: string;
   nome: string;
+  image: string | null;
   role: string;
   capacidade: number;
   capacidadePct: number;
@@ -410,6 +412,7 @@ export function RecursosMatrix({
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2">
                       <span className="size-2.5 shrink-0 rounded-full" style={{ background: l.cor }} />
+                      <AvatarUsuario nome={l.nome} image={l.image} size="sm" className="size-6 shrink-0" />
                       <div>
                         <div className="flex items-center gap-1.5 font-medium">
                           {l.nome}
@@ -676,6 +679,7 @@ function HeatmapView({
                 <td className="sticky left-0 z-10 bg-background px-3 py-2">
                   <div className="flex items-center gap-2">
                     <span className="size-2.5 shrink-0 rounded-full" style={{ background: l.cor }} />
+                    <AvatarUsuario nome={l.nome} image={l.image} size="sm" className="size-6 shrink-0" />
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 truncate font-medium">
                         {l.nome}
@@ -735,7 +739,7 @@ function HeatmapView({
 }
 
 // ── Heatmap de carga real semanal (N-33) ────────────────────────────
-type CargaSemanal = { semanas: string[]; linhas: { userId: string; nome: string; porSemana: Record<string, number> }[] };
+type CargaSemanal = { semanas: string[]; linhas: { userId: string; nome: string; image: string | null; porSemana: Record<string, number> }[] };
 
 function wkLabel(wk: string) {
   // "2026-W23" → "Sem 23/26"
@@ -775,7 +779,12 @@ function CargaRealView({ cargaSemanal }: { cargaSemanal: CargaSemanal }) {
           <tbody className="divide-y">
             {cargaSemanal.linhas.map((l) => (
               <tr key={l.userId}>
-                <td className="sticky left-0 z-10 bg-background px-3 py-2 font-medium">{l.nome}</td>
+                <td className="sticky left-0 z-10 bg-background px-3 py-2 font-medium">
+                  <div className="flex items-center gap-2">
+                    <AvatarUsuario nome={l.nome} image={l.image} size="sm" className="size-6 shrink-0" />
+                    {l.nome}
+                  </div>
+                </td>
                 {cargaSemanal.semanas.map((wk) => {
                   const h = l.porSemana[wk] ?? 0;
                   return (
