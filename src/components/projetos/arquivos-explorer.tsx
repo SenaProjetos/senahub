@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, Fragment, useCallback, useContext, useMemo, useRef, useState, useTransition } from "react";
+import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -70,6 +70,7 @@ import { precisaChunk, enviarEmChunks } from "@/lib/upload-grande";
 import { useDropzone } from "@/lib/use-dropzone";
 import { detectarNovasRevisoes, mensagemNovasRevisoes, type ArquivoExistente } from "@/modules/uploads/revisao-nova";
 import { gruposRevisaoAgrupada } from "@/modules/uploads/revisao-agrupada";
+import { enviarArquivoComProgresso, ErroEnvio } from "@/components/projetos/upload-progresso";
 import { cn, formatarData, rotuloRevisao } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -2073,15 +2074,9 @@ type LinhaEnvio = ItemEnvio & {
   progresso: number; // 0–100
   motivo?: string;
   realocado?: boolean;
-};
-
-type ResultadoUpload = {
-  nome: string;
-  ok: boolean;
-  realocado?: boolean;
-  motivo?: string;
-  revisaoId?: string;
-  revisaoNumero?: number;
+  retryAfterAt?: number;
+  grupoRevisao?: string;
+  revisaoAgrupadaId?: string;
 };
 
 /**
@@ -2095,67 +2090,18 @@ async function enviarUm(
   disciplinaId: string,
   onProgress: (pct: number) => void,
   opts: { revisaoDeId?: string; novaRevisaoAgrupada?: boolean } = {},
-): Promise<ResultadoUpload> {
-  if (precisaChunk(item.file)) {
-    const meta = await enviarEmChunks(item.file, onProgress);
-    const fd = new FormData();
-    fd.set("disciplinaId", disciplinaId);
-    if (item.faseId) fd.set("faseId", item.faseId);
-    if (opts.revisaoDeId) fd.set("revisaoDeId", opts.revisaoDeId);
-    if (opts.novaRevisaoAgrupada) fd.set("novaRevisaoAgrupada", "1");
-    if (item.pastaId) fd.set("pastaId", item.pastaId);
-    else fd.set("pacote", item.alvo);
-    fd.set("sessaoId", meta.sessaoId);
-    fd.set("nome", item.nome);
-    fd.set("total", String(meta.total));
-    fd.set("tamanho", String(meta.tamanho));
-    fd.set("mime", item.file.type || "");
-    const res = await fetch("/api/uploads", { method: "POST", body: fd });
-    const data = (await res.json().catch(() => null)) as { error?: string; resultados?: ResultadoUpload[] } | null;
-    if (res.ok && data?.resultados?.[0]) return data.resultados[0];
-    throw new Error(data?.error ?? `Falha ao finalizar o envio (HTTP ${res.status}).`);
-  }
-
-  return new Promise((resolve, reject) => {
-    const fd = new FormData();
-    fd.set("disciplinaId", disciplinaId);
-    if (item.faseId) fd.set("faseId", item.faseId);
-    if (opts.revisaoDeId) fd.set("revisaoDeId", opts.revisaoDeId);
-    if (opts.novaRevisaoAgrupada) fd.set("novaRevisaoAgrupada", "1");
-    if (item.pastaId) fd.set("pastaId", item.pastaId);
-    else fd.set("pacote", item.alvo);
-    fd.append("files", item.file);
-    fd.append("nomes", item.nome); // renomeia no ato do upload
-
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/api/uploads");
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
-    };
-    xhr.onload = () => {
-      let data: { error?: string; resultados?: ResultadoUpload[] } | null = null;
-      try {
-        data = JSON.parse(xhr.responseText);
-      } catch {
-        data = null;
-      }
-      if (xhr.status >= 200 && xhr.status < 300 && data?.resultados?.[0]) {
-        resolve(data.resultados[0]);
-      } else {
-        reject(
-          new Error(
-            data?.error ??
-              (xhr.status === 413
-                ? `Arquivo muito grande — limite de ${limiteLabelDoPacote(item.pastaId ? "" : item.alvo)}.`
-                : `Falha no envio (HTTP ${xhr.status}).`),
-          ),
-        );
-      }
-    };
-    xhr.onerror = () =>
-      reject(new Error("Falha de rede durante o envio — verifique a conexão."));
-    xhr.send(fd);
-  });
+): ReturnType<typeof enviarArquivoComProgresso> {
+  return enviarArquivoComProgresso(
+    item.file,
+    {
+      nome: item.nome,
+      disciplinaId,
+      faseId: item.faseId,
+      ...(item.pastaId ? { pastaId: item.pastaId } : { pacote: item.alvo }),
+      ...opts,
+    },
+    onProgress,
+  );
 }
 
 function patchLinha(
@@ -2292,7 +2238,12 @@ function Uploader({
     const enviadosPorGrupo = new Map<string, number>();
 
     // Envia arquivo a arquivo (XHR) para exibir a lista e o progresso de cada um.
-    const linhas: LinhaEnvio[] = itens.map((it) => ({ ...it, status: "pendente", progresso: 0 }));
+    const linhas: LinhaEnvio[] = itens.map((it, indice) => ({
+      ...it,
+      status: "pendente",
+      progresso: 0,
+      grupoRevisao: grupoPorIndice.get(indice),
+    }));
     setProgresso(linhas);
     setEnviando(true);
     try {
@@ -2325,7 +2276,15 @@ function Uploader({
               enviadosPorGrupo.set(grupo, (enviadosPorGrupo.get(grupo) ?? 0) + 1);
             }
             setProgresso((prev) =>
-              prev ? patchLinha(prev, i, { status: "ok", progresso: 100, realocado: r.realocado }) : prev,
+              prev
+                ? patchLinha(prev, i, {
+                    status: "ok",
+                    progresso: 100,
+                    realocado: r.realocado,
+                    revisaoAgrupadaId: grupo ? r.revisaoId : undefined,
+                    retryAfterAt: undefined,
+                  })
+                : prev,
             );
           } else {
             if (grupo) gruposComErro.add(grupo);
@@ -2336,7 +2295,15 @@ function Uploader({
         } catch (e) {
           if (grupo) gruposComErro.add(grupo);
           setProgresso((prev) =>
-            prev ? patchLinha(prev, i, { status: "erro", motivo: (e as Error).message }) : prev,
+            prev
+              ? patchLinha(prev, i, {
+                  status: "erro",
+                  motivo: (e as Error).message,
+                  retryAfterAt: e instanceof ErroEnvio && e.retryDepoisSegundos
+                    ? Date.now() + e.retryDepoisSegundos * 1_000
+                    : undefined,
+                })
+              : prev,
           );
         }
       }
@@ -2351,6 +2318,90 @@ function Uploader({
       setEnviando(false);
       if (inputArquivos.current) inputArquivos.current.value = "";
       if (inputPasta.current) inputPasta.current.value = "";
+    }
+  }
+
+  async function reenviar(indices: number[]) {
+    const atuais = progresso;
+    if (enviando || !atuais || indices.length === 0) return;
+    const indicesEfetivos = new Set<number>();
+    for (const indice of indices) {
+      const linha = atuais[indice];
+      if (!linha || linha.status !== "erro") continue;
+      const haRevisaoDoGrupo = linha.grupoRevisao && atuais.some(
+        (outra) => outra.grupoRevisao === linha.grupoRevisao && !!outra.revisaoAgrupadaId,
+      );
+      if (linha.grupoRevisao && !haRevisaoDoGrupo) {
+        atuais.forEach((outra, outroIndice) => {
+          if (outra.grupoRevisao === linha.grupoRevisao && outra.status === "erro") indicesEfetivos.add(outroIndice);
+        });
+      } else {
+        indicesEfetivos.add(indice);
+      }
+    }
+    if (indicesEfetivos.size === 0) return;
+
+    const revisoesPorGrupo = new Map<string, { id: string; numero: number }>();
+    atuais.forEach((linha) => {
+      if (linha.grupoRevisao && linha.revisaoAgrupadaId) {
+        revisoesPorGrupo.set(linha.grupoRevisao, { id: linha.revisaoAgrupadaId, numero: 0 });
+      }
+    });
+    setEnviando(true);
+    try {
+      for (const indice of [...indicesEfetivos].sort((a, b) => a - b)) {
+        const linha = atuais[indice];
+        if (!linha) continue;
+        setProgresso((prev) => (
+          prev ? patchLinha(prev, indice, { status: "enviando", progresso: 0, motivo: undefined, retryAfterAt: undefined }) : prev
+        ));
+        const revisao = linha.grupoRevisao ? revisoesPorGrupo.get(linha.grupoRevisao) : undefined;
+        try {
+          const resultado = await enviarUm(
+            linha,
+            disciplinaId,
+            (pct) => setProgresso((prev) => (prev ? patchLinha(prev, indice, { progresso: pct }) : prev)),
+            linha.grupoRevisao
+              ? revisao
+                ? { revisaoDeId: revisao.id }
+                : { novaRevisaoAgrupada: true }
+              : {},
+          );
+          if (!resultado.ok) {
+            setProgresso((prev) => (
+              prev ? patchLinha(prev, indice, { status: "erro", motivo: resultado.motivo ?? "Falha ao salvar." }) : prev
+            ));
+            continue;
+          }
+          if (linha.grupoRevisao && resultado.revisaoId) {
+            revisoesPorGrupo.set(linha.grupoRevisao, { id: resultado.revisaoId, numero: resultado.revisaoNumero ?? 0 });
+          }
+          setProgresso((prev) => (
+            prev
+              ? patchLinha(prev, indice, {
+                  status: "ok",
+                  progresso: 100,
+                  realocado: resultado.realocado,
+                  revisaoAgrupadaId: linha.grupoRevisao ? resultado.revisaoId : undefined,
+                })
+              : prev
+          ));
+        } catch (error) {
+          const espera = error instanceof ErroEnvio ? error.retryDepoisSegundos : undefined;
+          setProgresso((prev) => (
+            prev
+              ? patchLinha(prev, indice, {
+                  status: "erro",
+                  motivo: (error as Error).message,
+                  retryAfterAt: espera ? Date.now() + espera * 1_000 : undefined,
+                })
+              : prev
+          ));
+        }
+      }
+      router.refresh();
+    } finally {
+      setEnviando(false);
     }
   }
 
@@ -2451,6 +2502,7 @@ function Uploader({
           linhas={progresso}
           enviando={enviando}
           onFechar={() => setProgresso(null)}
+          onReenviar={(indices) => void reenviar(indices)}
         />
       )}
 
@@ -2485,13 +2537,32 @@ function PainelProgresso({
   linhas,
   enviando,
   onFechar,
+  onReenviar,
 }: {
   linhas: LinhaEnvio[];
   enviando: boolean;
   onFechar: () => void;
+  onReenviar: (indices: number[]) => void;
 }) {
+  const [agora, setAgora] = useState(Date.now());
   const feitos = linhas.filter((l) => l.status === "ok" || l.status === "erro").length;
   const erros = linhas.filter((l) => l.status === "erro").length;
+  const errosProntos = linhas
+    .map((linha, indice) => ({ linha, indice }))
+    .filter(({ linha }) => linha.status === "erro" && (!linha.retryAfterAt || linha.retryAfterAt <= agora));
+
+  useEffect(() => {
+    if (!linhas.some((linha) => linha.status === "erro" && linha.retryAfterAt && linha.retryAfterAt > agora)) return;
+    const timer = window.setTimeout(() => setAgora(Date.now()), 1_000);
+    return () => window.clearTimeout(timer);
+  }, [linhas, agora]);
+
+  function segundosParaReenviar(linha: LinhaEnvio) {
+    return linha.retryAfterAt && linha.retryAfterAt > agora
+      ? Math.ceil((linha.retryAfterAt - agora) / 1_000)
+      : null;
+  }
+
   return (
     <div className="rounded-sm border bg-background/60 p-2">
       <div className="mb-1.5 flex items-center justify-between px-1">
@@ -2500,13 +2571,25 @@ function PainelProgresso({
           {erros > 0 && <span className="ml-1 text-destructive">({erros} com erro)</span>}
         </span>
         {!enviando && (
-          <button
-            type="button"
-            onClick={onFechar}
-            className="text-xs text-muted-foreground hover:text-foreground"
-          >
-            Fechar
-          </button>
+          <div className="flex items-center gap-2">
+            {erros > 0 && (
+              <button
+                type="button"
+                onClick={() => onReenviar(errosProntos.map(({ indice }) => indice))}
+                disabled={errosProntos.length === 0}
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RotateCcw className="size-3" /> Reenviar erros
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onFechar}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Fechar
+            </button>
+          </div>
         )}
       </div>
       <div className="max-h-64 space-y-1 overflow-y-auto">
@@ -2533,6 +2616,23 @@ function PainelProgresso({
               )}
               {l.status === "erro" && l.motivo && (
                 <p className="mt-0.5 text-[11px] text-destructive">{l.motivo}</p>
+              )}
+              {l.status === "erro" && (
+                <div className="mt-1">
+                  {segundosParaReenviar(l) ? (
+                    <span className="text-[11px] text-muted-foreground">
+                      Nova tentativa em {segundosParaReenviar(l)} s.
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onReenviar([i])}
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+                    >
+                      <RotateCcw className="size-3" /> Reenviar
+                    </button>
+                  )}
+                </div>
               )}
               {l.status === "ok" && l.realocado && (
                 <p className="mt-0.5 text-[11px] text-warning">

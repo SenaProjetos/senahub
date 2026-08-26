@@ -11,6 +11,9 @@ export const TAMANHO_MAX_LABEL = "500 MB";
 export const TAMANHO_MAX_BACKUP = 1536 * 1024 * 1024; // 1,5 GB por arquivo
 export const TAMANHO_MAX_BACKUP_LABEL = "1,5 GB";
 
+/** Finalizações multipart por usuário/IP; cada arquivo usa uma para manter progresso individual. */
+export const LIMITE_FINALIZACOES_UPLOAD = { maximo: 120, janelaMs: 10 * 60_000 } as const;
+
 /** Limite de tamanho (bytes) conforme o pacote de destino. B (backup) = 1,5 GB; demais = 500 MB. */
 export function limiteDoPacote(pacote: string): number {
   return pacote === "B" ? TAMANHO_MAX_BACKUP : TAMANHO_MAX;

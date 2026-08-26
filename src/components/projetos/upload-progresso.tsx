@@ -1,6 +1,7 @@
 "use client";
 
-import { CheckCircle2, XCircle, Loader2, Clock, FileText } from "lucide-react";
+import { useEffect, useState } from "react";
+import { CheckCircle2, XCircle, Loader2, Clock, FileText, RotateCcw } from "lucide-react";
 import { precisaChunk, enviarEmChunks } from "@/lib/upload-grande";
 import { limiteLabelDoPacote } from "@/modules/uploads/limites";
 
@@ -20,6 +21,18 @@ export type ResultadoUpload = {
   revisaoId?: string;
   revisaoNumero?: number;
 };
+
+export class ErroEnvio extends Error {
+  constructor(message: string, readonly retryDepoisSegundos?: number) {
+    super(message);
+    this.name = "ErroEnvio";
+  }
+}
+
+function retryDepois(headers: Headers): number | undefined {
+  const segundos = Number(headers.get("Retry-After"));
+  return Number.isFinite(segundos) && segundos > 0 ? segundos : undefined;
+}
 export type LinhaEnvio = {
   nome: string;
   tamanho: number;
@@ -27,6 +40,8 @@ export type LinhaEnvio = {
   progresso: number; // 0–100
   motivo?: string;
   realocado?: boolean;
+  /** Momento local em que o servidor permite nova tentativa após HTTP 429. */
+  retryAfterAt?: number;
 };
 
 /**
@@ -65,7 +80,7 @@ export async function enviarArquivoComProgresso(
     const res = await fetch("/api/uploads", { method: "POST", body: fd });
     const data = (await res.json().catch(() => null)) as { error?: string; resultados?: ResultadoUpload[] } | null;
     if (res.ok && data?.resultados?.[0]) return data.resultados[0];
-    throw new Error(data?.error ?? `Falha ao finalizar o envio (HTTP ${res.status}).`);
+    throw new ErroEnvio(data?.error ?? `Falha ao finalizar o envio (HTTP ${res.status}).`, retryDepois(res.headers));
   }
 
   return new Promise((resolve, reject) => {
@@ -95,11 +110,15 @@ export async function enviarArquivoComProgresso(
         resolve(data.resultados[0]);
       } else {
         reject(
-          new Error(
+          new ErroEnvio(
             data?.error ??
               (xhr.status === 413
                 ? `Arquivo muito grande — limite de ${limiteLabelDoPacote(pacote ?? "")}.`
                 : `Falha no envio (HTTP ${xhr.status}).`),
+            (() => {
+              const segundos = Number(xhr.getResponseHeader("Retry-After"));
+              return Number.isFinite(segundos) && segundos > 0 ? segundos : undefined;
+            })(),
           ),
         );
       }
@@ -134,13 +153,31 @@ export function PainelProgressoEnvio({
   linhas,
   enviando,
   onFechar,
+  onReenviar,
 }: {
   linhas: LinhaEnvio[];
   enviando: boolean;
   onFechar: () => void;
+  onReenviar?: (indices: number[]) => void;
 }) {
+  const [agora, setAgora] = useState(Date.now());
   const feitos = linhas.filter((l) => l.status === "ok" || l.status === "erro").length;
   const erros = linhas.filter((l) => l.status === "erro").length;
+  const errosProntos = linhas
+    .map((linha, indice) => ({ linha, indice }))
+    .filter(({ linha }) => linha.status === "erro" && (!linha.retryAfterAt || linha.retryAfterAt <= agora));
+
+  useEffect(() => {
+    if (!linhas.some((linha) => linha.status === "erro" && linha.retryAfterAt && linha.retryAfterAt > agora)) return;
+    const timer = window.setTimeout(() => setAgora(Date.now()), 1_000);
+    return () => window.clearTimeout(timer);
+  }, [linhas, agora]);
+
+  function rotuloEspera(linha: LinhaEnvio) {
+    if (!linha.retryAfterAt || linha.retryAfterAt <= agora) return null;
+    return Math.ceil((linha.retryAfterAt - agora) / 1_000);
+  }
+
   return (
     <div className="rounded-sm border bg-background/60 p-2">
       <div className="mb-1.5 flex items-center justify-between px-1">
@@ -149,9 +186,21 @@ export function PainelProgressoEnvio({
           {erros > 0 && <span className="ml-1 text-destructive">({erros} com erro)</span>}
         </span>
         {!enviando && (
-          <button type="button" onClick={onFechar} className="text-xs text-muted-foreground hover:text-foreground">
-            Fechar
-          </button>
+          <div className="flex items-center gap-2">
+            {onReenviar && erros > 0 && (
+              <button
+                type="button"
+                onClick={() => onReenviar(errosProntos.map(({ indice }) => indice))}
+                disabled={errosProntos.length === 0}
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RotateCcw className="size-3" /> Reenviar erros
+              </button>
+            )}
+            <button type="button" onClick={onFechar} className="text-xs text-muted-foreground hover:text-foreground">
+              Fechar
+            </button>
+          </div>
         )}
       </div>
       <div className="max-h-64 space-y-1 overflow-y-auto">
@@ -172,6 +221,21 @@ export function PainelProgressoEnvio({
                 </div>
               )}
               {l.status === "erro" && l.motivo && <p className="mt-0.5 text-[11px] text-destructive">{l.motivo}</p>}
+              {l.status === "erro" && onReenviar && (
+                <div className="mt-1 flex items-center gap-2">
+                  {rotuloEspera(l) ? (
+                    <span className="text-[11px] text-muted-foreground">Nova tentativa em {rotuloEspera(l)} s.</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onReenviar([i])}
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+                    >
+                      <RotateCcw className="size-3" /> Reenviar
+                    </button>
+                  )}
+                </div>
+              )}
               {l.status === "ok" && l.realocado && (
                 <p className="mt-0.5 text-[11px] text-warning">Formato não suportado — enviado para &quot;Outros&quot;.</p>
               )}

@@ -9,7 +9,7 @@ import type { PastaFlat } from "@/modules/projetos/pastas/arvore";
 import { TAMANHO_MAX_BACKUP_LABEL, TAMANHO_MAX_LABEL, limiteDoPacote, limiteLabelDoPacote } from "@/modules/uploads/limites";
 import { detectarNovasRevisoes, mensagemNovasRevisoes, type ArquivoExistente } from "@/modules/uploads/revisao-nova";
 import { gruposRevisaoAgrupada } from "@/modules/uploads/revisao-agrupada";
-import { enviarArquivoComProgresso, PainelProgressoEnvio, type LinhaEnvio } from "@/components/projetos/upload-progresso";
+import { enviarArquivoComProgresso, ErroEnvio, PainelProgressoEnvio, type LinhaEnvio } from "@/components/projetos/upload-progresso";
 import { SeletorPasta } from "@/components/projetos/pasta-tree-view";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +30,10 @@ import { useDropzone } from "@/lib/use-dropzone";
 type PacoteEnvio = "A" | "B";
 type FaseUpload = { id: string; sigla: string; nome: string };
 type ItemEnvio = { file: File; nome: string; alvo: PacoteEnvio; pastaId?: string; faseId?: string; fora: boolean };
-type LinhaEnvioComArquivo = ItemEnvio & LinhaEnvio;
+type LinhaEnvioComArquivo = ItemEnvio & LinhaEnvio & {
+  grupoRevisao?: string;
+  revisaoAgrupadaId?: string;
+};
 
 export type DadosEnviarDocumentos = {
   disciplinas: { id: string; nome: string; usaPastas: boolean; pastas: PastaFlat[] }[];
@@ -163,11 +166,12 @@ function UploaderDocumentos({
     const gruposComErro = new Set<string>();
     const enviadosPorGrupo = new Map<string, number>();
 
-    const linhas: LinhaEnvioComArquivo[] = itens.map((item) => ({
+    const linhas: LinhaEnvioComArquivo[] = itens.map((item, indice) => ({
       ...item,
       tamanho: item.file.size,
       status: "pendente",
       progresso: 0,
+      grupoRevisao: grupoPorIndice.get(indice),
     }));
     setProgresso(linhas);
     setEnviando(true);
@@ -206,14 +210,25 @@ function UploaderDocumentos({
               revisoesPorGrupo.set(grupo, { id: resultado.revisaoId, numero: resultado.revisaoNumero });
               enviadosPorGrupo.set(grupo, (enviadosPorGrupo.get(grupo) ?? 0) + 1);
             }
-            atualizarLinha(i, { status: "ok", progresso: 100, realocado: resultado.realocado });
+            atualizarLinha(i, {
+              status: "ok",
+              progresso: 100,
+              realocado: resultado.realocado,
+              revisaoAgrupadaId: grupo ? resultado.revisaoId : undefined,
+              retryAfterAt: undefined,
+            });
           } else {
             if (grupo) gruposComErro.add(grupo);
-            atualizarLinha(i, { status: "erro", motivo: resultado.motivo ?? "Falha ao salvar." });
+          atualizarLinha(i, { status: "erro", motivo: resultado.motivo ?? "Falha ao salvar." });
           }
         } catch (error) {
           if (grupo) gruposComErro.add(grupo);
-          atualizarLinha(i, { status: "erro", motivo: (error as Error).message });
+          const espera = error instanceof ErroEnvio ? error.retryDepoisSegundos : undefined;
+          atualizarLinha(i, {
+            status: "erro",
+            motivo: (error as Error).message,
+            retryAfterAt: espera ? Date.now() + espera * 1_000 : undefined,
+          });
         }
       }
       if (enviados > 0) toast.success(`${enviados} arquivo(s) enviado(s).`);
@@ -236,6 +251,85 @@ function UploaderDocumentos({
       if (!atual) return atual;
       return atual.map((linha, i) => (i === indice ? { ...linha, ...patch } : linha));
     });
+  }
+
+  async function reenviar(indices: number[]) {
+    const atuais = progresso;
+    if (enviando || !atuais || indices.length === 0) return;
+    const indicesEfetivos = new Set<number>();
+    for (const indice of indices) {
+      const linha = atuais[indice];
+      if (!linha || linha.status !== "erro") continue;
+      const haRevisaoDoGrupo = linha.grupoRevisao && atuais.some(
+        (outra) => outra.grupoRevisao === linha.grupoRevisao && !!outra.revisaoAgrupadaId,
+      );
+      if (linha.grupoRevisao && !haRevisaoDoGrupo) {
+        atuais.forEach((outra, outroIndice) => {
+          if (outra.grupoRevisao === linha.grupoRevisao && outra.status === "erro") indicesEfetivos.add(outroIndice);
+        });
+      } else {
+        indicesEfetivos.add(indice);
+      }
+    }
+    if (indicesEfetivos.size === 0) return;
+
+    const revisoesPorGrupo = new Map<string, { id: string; numero: number }>();
+    atuais.forEach((linha) => {
+      if (linha.grupoRevisao && linha.revisaoAgrupadaId) {
+        revisoesPorGrupo.set(linha.grupoRevisao, { id: linha.revisaoAgrupadaId, numero: 0 });
+      }
+    });
+    setEnviando(true);
+    onEnviarChange(true);
+    try {
+      for (const indice of [...indicesEfetivos].sort((a, b) => a - b)) {
+        const linha = atuais[indice];
+        if (!linha) continue;
+        atualizarLinha(indice, { status: "enviando", progresso: 0, motivo: undefined, retryAfterAt: undefined });
+        const revisao = linha.grupoRevisao ? revisoesPorGrupo.get(linha.grupoRevisao) : undefined;
+        try {
+          const resultado = await enviarArquivoComProgresso(
+            linha.file,
+            {
+              nome: linha.nome,
+              disciplinaId,
+              faseId: linha.faseId,
+              ...(linha.pastaId ? { pastaId: linha.pastaId } : { pacote: linha.alvo }),
+              ...(linha.grupoRevisao
+                ? revisao
+                  ? { revisaoDeId: revisao.id }
+                  : { novaRevisaoAgrupada: true }
+                : {}),
+            },
+            (pct) => atualizarLinha(indice, { progresso: pct }),
+          );
+          if (!resultado.ok) {
+            atualizarLinha(indice, { status: "erro", motivo: resultado.motivo ?? "Falha ao salvar." });
+            continue;
+          }
+          if (linha.grupoRevisao && resultado.revisaoId) {
+            revisoesPorGrupo.set(linha.grupoRevisao, { id: resultado.revisaoId, numero: resultado.revisaoNumero ?? 0 });
+          }
+          atualizarLinha(indice, {
+            status: "ok",
+            progresso: 100,
+            realocado: resultado.realocado,
+            revisaoAgrupadaId: linha.grupoRevisao ? resultado.revisaoId : undefined,
+          });
+        } catch (error) {
+          const espera = error instanceof ErroEnvio ? error.retryDepoisSegundos : undefined;
+          atualizarLinha(indice, {
+            status: "erro",
+            motivo: (error as Error).message,
+            retryAfterAt: espera ? Date.now() + espera * 1_000 : undefined,
+          });
+        }
+      }
+      router.refresh();
+    } finally {
+      setEnviando(false);
+      onEnviarChange(false);
+    }
   }
 
   return (
@@ -323,6 +417,7 @@ function UploaderDocumentos({
           linhas={progresso}
           enviando={enviando}
           onFechar={() => setProgresso(null)}
+          onReenviar={(indices) => void reenviar(indices)}
         />
       )}
 

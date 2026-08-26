@@ -13,6 +13,7 @@ import { montarChunksEm, limparChunks } from "@/lib/upload-chunks";
 import { destinoArquivo, extensao, limiteDoPacote, limiteLabelDoPacote, type PacoteAlvo } from "@/modules/uploads/service";
 import { baseDirDisciplina, nomeFisico } from "@/modules/uploads/caminho";
 import { chaveDocumento } from "@/modules/uploads/documento";
+import { LIMITE_FINALIZACOES_UPLOAD } from "@/modules/uploads/limites";
 import { enfileirarConversao } from "@/modules/coordenacao/service";
 import { enfileirarConversaoDwg } from "@/modules/dwg/service";
 
@@ -40,8 +41,8 @@ export async function POST(req: Request) {
   const limite = limitarRequisicao(req, {
     escopo: "upload-finalizacao",
     identificador: user.id,
-    maximo: 30,
-    janelaMs: 10 * 60_000,
+    // Cada arquivo conclui em sua própria requisição para preservar o progresso individual.
+    ...LIMITE_FINALIZACOES_UPLOAD,
   });
   if (!limite.permitido) {
     await auditarBloqueioRateLimit(limite, { modulo: "uploads", acao: "enviar-arquivos", userId: user.id, entidade: "Upload" });
