@@ -35,7 +35,7 @@ import { linkArquivosDoProjeto } from "@/modules/projetos/arquivos/link-publico"
 import { listarArtsDoProjeto } from "@/modules/projetos/art/queries";
 import { ArquivosExplorer } from "@/components/projetos/arquivos-explorer";
 import { DocumentosShell } from "@/components/projetos/arquivos/documentos-shell";
-import { areaValida, type AreaDisponivel } from "@/components/projetos/arquivos/painel-areas-projeto";
+import { areaValida, type AreaDisponivel } from "@/modules/uploads/areas-projeto";
 import { listarListasDocumentos, podeGerirListasDocumentos } from "@/modules/uploads/listas-queries";
 
 export const metadata: Metadata = { title: "Arquivos" };

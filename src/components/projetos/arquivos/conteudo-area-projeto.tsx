@@ -7,7 +7,7 @@ import {
   ArtsPasta,
   LixeiraPasta,
 } from "@/components/projetos/arquivos-explorer";
-import type { AreaProjeto } from "@/components/projetos/arquivos/painel-areas-projeto";
+import type { AreaProjeto } from "@/modules/uploads/areas-projeto";
 import type { DocumentoItem } from "@/modules/documentos-cliente/queries";
 import type { LixeiraItem } from "@/modules/uploads/queries";
 import type { ArtListItem } from "@/modules/projetos/art/queries";

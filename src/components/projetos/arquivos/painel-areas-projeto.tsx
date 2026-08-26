@@ -2,6 +2,7 @@
 
 import { FileCheck2, FolderOpen, Inbox, Ruler, Trash2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { AREA_ROTULO, type AreaDisponivel, type AreaProjeto } from "@/modules/uploads/areas-projeto";
 import { useSetParams } from "@/lib/use-set-param";
 import { cn } from "@/lib/utils";
 
@@ -14,29 +15,16 @@ import { cn } from "@/lib/utils";
  * de Disciplinas e Listas.
  *
  * A seleção vive na URL (`?area=`), igual a disciplina e lista: assim o servidor decide o que
- * renderizar e o link é compartilhável.
+ * renderizar e o link é compartilhável. Rótulos e validação moram em
+ * `modules/uploads/areas-projeto.ts`, que a página (server) também importa.
  */
 
-export const AREAS_PROJETO = ["recebidos", "base", "geral", "arts", "lixeira"] as const;
-export type AreaProjeto = (typeof AREAS_PROJETO)[number];
-
-export function areaValida(v: string | null | undefined): AreaProjeto | null {
-  return (AREAS_PROJETO as readonly string[]).includes(v ?? "") ? (v as AreaProjeto) : null;
-}
-
-export type AreaDisponivel = {
-  id: AreaProjeto;
-  total: number;
-  /** Área sem permissão simplesmente não é listada — item invisível é melhor que item morto. */
-  visivel: boolean;
-};
-
-const META: Record<AreaProjeto, { rotulo: string; icone: LucideIcon; descricao: string }> = {
-  recebidos: { rotulo: "Recebidos do cliente", icone: Inbox, descricao: "Material enviado pelo cliente" },
-  base: { rotulo: "Base Arquitetônica", icone: Ruler, descricao: "Referência do arquiteto" },
-  geral: { rotulo: "Geral", icone: FolderOpen, descricao: "Arquivos gerais do projeto" },
-  arts: { rotulo: "ARTs", icone: FileCheck2, descricao: "Registros de responsabilidade técnica" },
-  lixeira: { rotulo: "Lixeira", icone: Trash2, descricao: "Excluídos, restauráveis por 30 dias" },
+const ICONE: Record<AreaProjeto, LucideIcon> = {
+  recebidos: Inbox,
+  base: Ruler,
+  geral: FolderOpen,
+  arts: FileCheck2,
+  lixeira: Trash2,
 };
 
 export function PainelAreasProjeto({
@@ -57,8 +45,8 @@ export function PainelAreasProjeto({
       </p>
       <ul className="space-y-0.5" role="list">
         {visiveis.map((a) => {
-          const meta = META[a.id];
-          const Icone = meta.icone;
+          const meta = AREA_ROTULO[a.id];
+          const Icone = ICONE[a.id];
           const ativa = selecionada === a.id;
           return (
             <li key={a.id}>
@@ -87,9 +75,4 @@ export function PainelAreasProjeto({
       </ul>
     </div>
   );
-}
-
-/** Rótulo da área — usado no título do conteúdo principal. */
-export function rotuloArea(area: AreaProjeto): string {
-  return META[area].rotulo;
 }

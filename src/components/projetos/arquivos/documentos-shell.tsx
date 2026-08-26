@@ -1,6 +1,7 @@
 import { type DisciplinaArvore } from "@/components/projetos/arquivos/painel-disciplinas";
 import { PainelNavegacaoDocumentos } from "@/components/projetos/arquivos/painel-navegacao-documentos";
-import { PainelAreasProjeto, rotuloArea, type AreaDisponivel, type AreaProjeto } from "@/components/projetos/arquivos/painel-areas-projeto";
+import { PainelAreasProjeto } from "@/components/projetos/arquivos/painel-areas-projeto";
+import { rotuloArea, type AreaDisponivel, type AreaProjeto } from "@/modules/uploads/areas-projeto";
 import { ConteudoAreaProjeto, type DadosAreas } from "@/components/projetos/arquivos/conteudo-area-projeto";
 import { LinkPublicoArquivosButton } from "@/components/projetos/link-publico-arquivos-dialog";
 import type { ListaPainel } from "@/components/projetos/arquivos/painel-listas";
