@@ -6,6 +6,24 @@ interface MargemDonutProps {
   custoHoras: number;
   margem: number;
   margemPct: number | null;
+  custo?: {
+    projetistasConfirmado: number;
+    servicosConfirmado: number;
+    outrasConfirmado: number;
+  };
+  rateioHoras?: {
+    cltEstagiarios: number;
+    demaisColaboradores: number;
+  };
+}
+
+function LinhaComposicao({ label, valor }: { label: string; valor: number }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-mono tabular-nums">{brl(valor)}</span>
+    </div>
+  );
 }
 
 function DonutArc({
@@ -49,6 +67,8 @@ export function MargemDonut({
   custoHoras,
   margem,
   margemPct,
+  custo,
+  rateioHoras,
 }: MargemDonutProps) {
   const totalDespesa = despesaDireta + custoHoras;
   const total = receitaConfirmada || 1; // evita div/0
@@ -64,7 +84,7 @@ export function MargemDonut({
   const positiva = margem >= 0;
 
   return (
-    <div className="flex items-center gap-6">
+    <div className="resultado-financeiro-resumo flex flex-wrap items-start gap-6">
       {/* SVG donut */}
       <div className="shrink-0">
         <svg width={120} height={120} viewBox="0 0 120 120" aria-hidden>
@@ -120,7 +140,7 @@ export function MargemDonut({
       <div className="flex flex-col gap-2 text-sm">
         <div className="flex items-center gap-2">
           <span className="size-2.5 rounded-full bg-success shrink-0" />
-          <span className="text-muted-foreground">Receita confirmada</span>
+          <span className="text-muted-foreground">Faturamento confirmado</span>
           <span className="ml-auto font-mono">{brl(receitaConfirmada)}</span>
         </div>
         <div className="flex items-center gap-2">
@@ -143,6 +163,21 @@ export function MargemDonut({
           </span>
         </div>
       </div>
+
+      {custo && rateioHoras && (
+        <div className="resultado-financeiro-composicao min-w-52 border-l pl-4">
+          <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            Composição confirmada
+          </p>
+          <div className="space-y-1.5">
+            <LinhaComposicao label="Pagamentos a projetistas" valor={custo.projetistasConfirmado} />
+            <LinhaComposicao label="Serviços terceirizados" valor={custo.servicosConfirmado} />
+            <LinhaComposicao label="Custos extras" valor={custo.outrasConfirmado} />
+            <LinhaComposicao label="Rateio CLT e estagiários" valor={rateioHoras.cltEstagiarios} />
+            <LinhaComposicao label="Rateio demais colaboradores" valor={rateioHoras.demaisColaboradores} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

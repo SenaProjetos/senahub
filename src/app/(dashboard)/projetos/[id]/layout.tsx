@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, MessageSquare } from "lucide-react";
+import { ArrowLeft, ChevronRight, MessageSquare } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { INTERNAL_ROLES } from "@/lib/roles";
@@ -62,31 +62,39 @@ export default async function ProjetoLayout({
   return (
     <div className="space-y-0">
       {/* Cabeçalho */}
-      <div className="flex items-start gap-3 pb-4">
-        <Button variant="ghost" size="icon" render={<Link href="/projetos" aria-label="Voltar" />}>
-          <ArrowLeft className="size-4" />
-        </Button>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-sm text-muted-foreground">
-              {formatarCodigo(projeto.codigo)}
-            </span>
-            <h2 className="truncate text-2xl font-extrabold tracking-tight">{projeto.nome}</h2>
-            <Badge variant="outline">{TIPO_PROJETO_LABEL[projeto.tipo] ?? projeto.tipo}</Badge>
-            <Badge variant="outline">{SITUACAO_PROJETO_LABEL[projeto.situacao]}</Badge>
-            {diasAtraso > 0 && (
-              <Badge variant="destructive">
-                {diasAtraso} {diasAtraso === 1 ? "dia" : "dias"} de atraso
-              </Badge>
-            )}
+      <div className="border-b pb-4">
+        <nav aria-label="Navegação estrutural" className="mb-3 flex items-center gap-1 text-xs text-muted-foreground">
+          <Link href="/" className="hover:text-foreground">Início</Link>
+          <ChevronRight className="size-3" aria-hidden />
+          <Link href="/projetos" className="hover:text-foreground">Projetos</Link>
+          <ChevronRight className="size-3" aria-hidden />
+          <span aria-current="page">Detalhe</span>
+        </nav>
+        <div className="flex items-start gap-3">
+          <Button variant="ghost" size="icon" render={<Link href="/projetos" aria-label="Voltar para projetos" />}>
+            <ArrowLeft className="size-4" />
+          </Button>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-sm font-semibold text-muted-foreground">
+                {formatarCodigo(projeto.codigo)}
+              </span>
+              <h1 className="truncate text-xl font-extrabold tracking-tight sm:text-2xl">{projeto.nome}</h1>
+              <Badge variant="outline">{TIPO_PROJETO_LABEL[projeto.tipo] ?? projeto.tipo}</Badge>
+              <Badge variant="outline">{SITUACAO_PROJETO_LABEL[projeto.situacao]}</Badge>
+              {diasAtraso > 0 && (
+                <Badge variant="destructive">
+                  {diasAtraso} {diasAtraso === 1 ? "dia" : "dias"} de atraso
+                </Badge>
+              )}
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              <Link href={`/clientes/${projeto.cliente.id}`} className="hover:underline">
+                {projeto.cliente.nome}
+              </Link>
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            <Link href={`/clientes/${projeto.cliente.id}`} className="hover:underline">
-              {projeto.cliente.nome}
-            </Link>
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 flex-wrap justify-end gap-2">
           {canalChat && (
             <Button variant="outline" size="sm" render={<Link href={`/chat?c=${canalChat.id}`} />}>
               <MessageSquare className="size-4" /> Chat
@@ -113,6 +121,7 @@ export default async function ProjetoLayout({
           {podeGerir && <DuplicarProjetoButton projetoId={id} />}
           <GerarDocumentoButton modelos={modelosDoc} paramId="projetoId" valor={id} />
           {podeGerir && <ProjetoAcoesMenu projetoId={id} situacao={projeto.situacao} />}
+          </div>
         </div>
       </div>
 
@@ -123,6 +132,7 @@ export default async function ProjetoLayout({
         abasConfig={projeto.abasConfig as AbaConfigItem[] | null}
         abasVisiveis={[
           "",
+          "/disciplinas",
           "/inputs",
           ...(podeVerFinanceiro ? ["/financeiro"] : []),
           "/lista-mestre",

@@ -4,6 +4,7 @@
  * personalização (ou quando uma aba nova ainda não entrou na config salva).
  */
 export const ABAS_CONFIGURAVEIS = [
+  "/disciplinas",
   "/inputs",
   "/financeiro",
   "/lista-mestre",
@@ -21,6 +22,7 @@ export type AbaSuffix = (typeof ABAS_CONFIGURAVEIS)[number];
 
 export const ABA_LABEL: Record<"" | AbaSuffix, string> = {
   "": "Visão Geral",
+  "/disciplinas": "Disciplinas",
   "/inputs": "Inputs",
   "/financeiro": "Financeiro",
   "/lista-mestre": "Lista Mestre",

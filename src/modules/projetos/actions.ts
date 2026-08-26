@@ -28,6 +28,7 @@ import {
   editarDisciplinaCatalogoSchema,
   idDisciplinaCatalogoSchema,
   moverDisciplinaCatalogoSchema,
+  salvarLayoutPainelProjetoSchema,
 } from "@/modules/projetos/schemas";
 import { notificarMuitos } from "@/lib/notificar";
 import { sanitizeSvg } from "@/lib/sanitize-svg";
@@ -36,6 +37,8 @@ import { usaEstruturaCustom, disciplinaUsaPastas } from "@/modules/projetos/estr
 import { transicaoDisciplinaPermitida, mensagemTransicaoDisciplina } from "@/modules/projetos/status";
 import { semearPastasTemplate, projetoUsaTemplate } from "@/modules/projetos/pastas/seed";
 import { sincronizarPagamentosPorDisciplinaId } from "@/modules/uploads/pagamento";
+import { escopoProjeto } from "@/modules/projetos/queries";
+import { chaveLayoutPainelProjeto } from "@/modules/projetos/painel-layout";
 
 function isGlobal(role: Role) {
   return role === "admin" || GLOBAL_ROLES.includes(role);
@@ -70,6 +73,36 @@ function parseData(s?: string): Date | undefined {
   const d = new Date(s);
   return isNaN(d.getTime()) ? undefined : d;
 }
+
+/** Salva a organização pessoal da Visão Geral, restrita aos projetos que a pessoa pode acessar. */
+export const salvarLayoutPainelProjeto = defineAction(
+  {
+    modulo: "projetos",
+    acao: "salvar-layout-painel",
+    recurso: "projetos",
+    permissao: "ver",
+    entidade: "UserPreference",
+    audit: false,
+    schema: salvarLayoutPainelProjetoSchema,
+  },
+  async (input, ctx) => {
+    const projeto = await prisma.projeto.findFirst({
+      where: { id: input.projetoId, AND: [escopoProjeto(ctx.user)] },
+      select: { id: true },
+    });
+    if (!projeto) throw new ActionError("Projeto não encontrado.");
+
+    const preferencia = await prisma.userPreference.findUnique({ where: { userId: ctx.user.id } });
+    const dados = { ...((preferencia?.dados as Record<string, unknown> | null) ?? {}) };
+    dados[chaveLayoutPainelProjeto(projeto.id)] = input.layout;
+    await prisma.userPreference.upsert({
+      where: { userId: ctx.user.id },
+      create: { userId: ctx.user.id, dados: dados as Prisma.InputJsonObject },
+      update: { dados: dados as Prisma.InputJsonObject },
+    });
+    return { ok: true };
+  },
+);
 
 export const criarProjeto = defineAction(
   {

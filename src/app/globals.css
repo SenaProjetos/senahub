@@ -269,10 +269,100 @@
 .animate-sunglow { animation: sunglow 5s ease-in-out infinite; }
 .animate-twinkle { animation: twinkle 3.2s ease-in-out infinite; }
 
+/* Visão Geral de projetos — quadro pessoal, editável apenas em telas amplas. */
+.projeto-painel-grid .react-grid-placeholder {
+  background: var(--primary);
+  opacity: 0.14;
+}
+.projeto-painel-grid--editando .react-grid-item > div {
+  outline: 1px dashed color-mix(in srgb, var(--primary) 45%, transparent);
+  outline-offset: 2px;
+}
+.painel-projeto-dimensao-minima {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 20;
+  box-sizing: border-box;
+  pointer-events: none;
+  border: 2px dashed color-mix(in srgb, var(--primary) 70%, transparent);
+  background: color-mix(in srgb, var(--primary) 5%, transparent);
+}
+.painel-projeto-dimensao-minima__legenda {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  padding: 1px 4px;
+  background: var(--background);
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.projeto-painel-grid--editando .painel-projeto-troca-armada {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--primary) 8%, transparent);
+}
+.painel-projeto-troca-legenda {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 20;
+  padding: 2px 6px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  pointer-events: none;
+}
+.projeto-painel-grid--editando {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--primary) 20%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--primary) 20%, transparent) 1px, transparent 1px);
+  background-size: var(--painel-grade-coluna) 38px;
+}
+.projeto-painel-grid .react-grid-item > .react-resizable-handle::after {
+  width: 7px;
+  height: 7px;
+  border-color: var(--primary);
+}
+
+/* A tabela só aparece quando o próprio card tem largura suficiente. */
+.disciplinas-resumo-conteudo {
+  container-type: inline-size;
+}
+.disciplinas-resumo-tabela {
+  display: none;
+}
+.resultado-financeiro-resumo {
+  container-type: inline-size;
+}
+.resultado-financeiro-composicao {
+  display: none;
+}
+@container (min-width: 66rem) {
+  .disciplinas-resumo-tabela {
+    display: block;
+  }
+  .disciplinas-resumo-cards {
+    display: none;
+  }
+}
+@container (min-width: 40rem) {
+  .resultado-financeiro-composicao {
+    display: block;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-sunglow,
-  .animate-twinkle {
+  .animate-twinkle,
+  .projeto-painel-grid,
+  .projeto-painel-grid .react-grid-item {
     animation: none !important;
+    transition: none !important;
   }
 }
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ABAS_CONFIGURAVEIS } from "@/modules/projetos/abas";
+import { PAINEIS_PROJETO } from "@/modules/projetos/painel-layout";
 
 export const abaConfigItemSchema = z.object({
   suffix: z.enum(ABAS_CONFIGURAVEIS),
@@ -154,6 +155,56 @@ export const idDisciplinaCatalogoSchema = z.object({ id: z.string().min(1) });
 export const moverDisciplinaCatalogoSchema = z.object({
   id: z.string().min(1),
   vizinhoId: z.string().min(1),
+});
+
+/** Layout particular da Visão Geral; os limites de leitura são reaplicados no cliente. */
+export const salvarLayoutPainelProjetoSchema = z.object({
+  projetoId: z.string().min(1),
+  layout: z
+    .object({
+      versao: z.literal(4),
+      itens: z
+        .array(
+          z.object({
+            id: z.enum(PAINEIS_PROJETO),
+            x: z.number().int("Posição horizontal inválida.").min(0, "Posição horizontal inválida.").max(23, "O painel ultrapassa a largura disponível."),
+            y: z.number().int("Posição vertical inválida.").min(0, "Posição vertical inválida.").max(200, "Posição vertical inválida."),
+            w: z.number().int("Largura inválida.").min(1, "Largura inválida.").max(24, "A largura do painel é maior que a grade disponível."),
+            h: z.number().int("Altura inválida.").min(1, "Altura inválida.").max(24, "A altura do painel é maior que a grade disponível."),
+          }),
+        )
+        .min(1)
+        .max(PAINEIS_PROJETO.length),
+    })
+    .superRefine((layout, ctx) => {
+      const ids = new Set<string>();
+      for (const [indice, item] of layout.itens.entries()) {
+        if (ids.has(item.id)) {
+          ctx.addIssue({ code: "custom", path: ["itens", indice, "id"], message: "Painel repetido." });
+        }
+        ids.add(item.id);
+        if (item.x + item.w > 24) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["itens", indice, "w"],
+            message: "O card precisa caber dentro da largura do painel.",
+          });
+        }
+        const sobrepoeOutro = layout.itens.slice(0, indice).some((outro) =>
+          item.x < outro.x + outro.w &&
+          item.x + item.w > outro.x &&
+          item.y < outro.y + outro.h &&
+          item.y + item.h > outro.y,
+        );
+        if (sobrepoeOutro) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["itens", indice],
+            message: "Os cards não podem ocupar a mesma área do painel.",
+          });
+        }
+      }
+    }),
 });
 
 export type CriarProjetoInput = z.infer<typeof criarProjetoSchema>;

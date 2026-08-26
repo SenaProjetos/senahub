@@ -68,11 +68,11 @@
     {
       "titulo": "Projetos",
       "path": "projetos/projetos.md",
-      "descricao": "Cadastro e acompanhamento de projetos, disciplinas, responsáveis, revisões e ciclo de vida.",
-      "resumo": "Liste e filtre projetos, crie/edite, gerencie disciplinas e seus status, responsáveis, membros, revisões, duplicação e cancelamento/arquivamento.",
-      "tags": ["projetos", "disciplinas", "status", "responsáveis", "membros", "revisões", "duplicar", "cancelar", "arquivar", "progresso", "inputs", "briefing", "link público"],
-      "palavrasChave": ["projeto", "disciplina", "status", "em andamento", "em revisão", "entregue", "aprovado", "responsável", "membro", "revisão", "duplicar projeto", "cancelar projeto", "prazo", "link do formulário", "cliente sem cadastro", "preencher sem login", "briefing de start", "revogar link", "link expirado"],
-      "sinonimos": ["obras", "jobs", "contratos de projeto", "formulário do cliente", "link externo do projeto"]
+      "descricao": "Cadastro e acompanhamento de projetos, com visão geral executiva personalizável, disciplinas, riscos, horas registradas, resultado financeiro, revisões e ciclo de vida.",
+      "resumo": "Liste e filtre projetos, acompanhe prazo, progresso, pendências, riscos, cronograma, horas da equipe e resultado financeiro; organize o painel pessoal, gerencie disciplinas, responsáveis, arquivos, revisões, duplicação e cancelamento/arquivamento.",
+      "tags": ["projetos", "visão geral", "personalizar painel", "painel pessoal", "arrastar", "redimensionar", "trocar cards", "horas registradas", "jornada", "apontamento", "resultado financeiro", "faturamento", "rateio de horas", "custos extras", "disciplinas", "status", "riscos", "pendências", "cronograma", "responsáveis", "membros", "revisões", "duplicar", "cancelar", "arquivar", "progresso", "inputs", "briefing", "link público"],
+      "palavrasChave": ["projeto", "visão geral", "painel do projeto", "personalizar painel", "organizar painel", "mover card", "trocar cards", "solte para trocar", "redimensionar card", "restaurar padrão", "horas registradas", "horas da equipe", "jornada no projeto", "apontamento no projeto", "registro diário", "resultado financeiro", "faturamento confirmado", "pagamentos a projetistas", "serviços terceirizados", "custos extras", "rateio clt", "rateio estagiário", "margem realizada", "disciplina", "status", "em andamento", "em revisão", "entregue", "aprovado", "risco", "pendência", "cronograma", "eap", "responsável", "membro", "revisão", "duplicar projeto", "cancelar projeto", "prazo", "link do formulário", "cliente sem cadastro", "preencher sem login", "briefing de start", "revogar link", "link expirado"],
+      "sinonimos": ["obras", "jobs", "contratos de projeto", "dashboard do projeto", "painel executivo", "painel customizável", "layout do painel", "formulário do cliente", "link externo do projeto"]
     },
     {
       "titulo": "Meu trabalho",

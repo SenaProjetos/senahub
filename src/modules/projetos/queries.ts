@@ -8,6 +8,7 @@ import { calcularRateioDetalhado } from "@/modules/rh/rateio/queries";
 import { normalizar } from "@/lib/disciplinas-core";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { prontidaoAprovacao, type Prontidao } from "@/modules/projetos/prontidao";
+import { separarRateioPorVinculo } from "@/modules/projetos/rateio-composicao";
 
 type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
 
@@ -393,7 +394,7 @@ export async function papeisUsados(): Promise<string[]> {
  * Custo de horas vem do snapshot fechado (`RateioHora`); valores previstos retornam à parte.
  */
 export async function margemProjeto(projetoId: string) {
-  const [lancs, rateio] = await Promise.all([
+  const [lancs, rateios] = await Promise.all([
     prisma.lancamento.findMany({
       where: { projetoId, status: { not: "cancelado" } },
       select: {
@@ -405,7 +406,10 @@ export async function margemProjeto(projetoId: string) {
         categoria: { select: { codigo: true } },
       },
     }),
-    prisma.rateioHora.aggregate({ where: { projetoId }, _sum: { custo: true } }),
+    prisma.rateioHora.findMany({
+      where: { projetoId },
+      select: { custo: true, user: { select: { role: true } } },
+    }),
   ]);
 
   let receitaConfirmada = 0;
@@ -445,7 +449,10 @@ export async function margemProjeto(projetoId: string) {
     }
   }
 
-  const custoHoras = Number(rateio._sum.custo ?? 0);
+  const rateioHoras = separarRateioPorVinculo(
+    rateios.map((rateio) => ({ custo: Number(rateio.custo), role: rateio.user.role })),
+  );
+  const custoHoras = rateioHoras.total;
 
   // P-26: estimativa do custo de horas do mês corrente (ainda não fechado).
   // Só conta se o mês ainda não tem RateioHora (senão já está em `custoHoras`).
@@ -477,6 +484,7 @@ export async function margemProjeto(projetoId: string) {
     despesaDireta: despesaConfirmada,
     despesaDiretaPrevista: despesaPrevista,
     custoHoras,
+    rateioHoras,
     custoHorasMesCorrente,
     custo,
     margem,

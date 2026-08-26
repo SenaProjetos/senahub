@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Schibsted_Grotesk, Red_Hat_Mono } from "next/font/google";
 import { Providers } from "@/components/providers";
+import "react-grid-layout/css/styles.css";
+import "react-resizable/css/styles.css";
 import "./globals.css";
 
 const schibstedGrotesk = Schibsted_Grotesk({

@@ -17,6 +17,29 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Visão Geral de Projetos
+
+A ficha de projeto agora abre com uma **Visão Geral** mais compacta: prazo, progresso,
+entregas, pendências, riscos, cronograma e atividade recente ficam reunidos para uma leitura
+rápida. O trabalho detalhado de cada disciplina — kanban, arquivos, revisões, validações,
+tarefas e responsáveis — passou para a nova aba **Disciplinas**. →
+[Projetos](projetos/projetos.md)
+
+A Visão Geral também pode ser organizada por cada pessoa: em tela ampla, **Personalizar
+painel** permite mover e redimensionar os blocos. A configuração é individual e fica salva
+somente para o projeto aberto. Para trocar dois blocos, mantenha um sobre o outro até aparecer
+**Solte para trocar**. → [Projetos](projetos/projetos.md)
+
+Administradores, coordenadores e equipe administrativa agora têm o bloco **Horas registradas no
+projeto**, com jornadas e apontamentos da equipe nos últimos 7 dias. →
+[Projetos](projetos/projetos.md)
+
+O bloco **Resultado financeiro** passou a mostrar sua composição confirmada em cards largos,
+incluindo pagamentos, serviços, custos extras e rateio de horas. →
+[Projetos](projetos/projetos.md)
+
+---
+
 ## Comercial — reforma do CRM
 
 O Comercial foi reorganizado em um fluxo claro de **prospecção → negociação → proposta → projeto**.

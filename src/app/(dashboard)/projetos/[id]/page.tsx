@@ -1,37 +1,19 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { CalendarDays, MapPin, Ruler, Users } from "lucide-react";
-import { usuariosOnline } from "@/lib/socket";
-import { ROLE_LABELS, CLT_ROLES, INTERNAL_ROLES } from "@/lib/roles";
-import { Avatar, AvatarFallback, AvatarBadge } from "@/components/ui/avatar";
 import { requirePermission } from "@/lib/session";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
-import { obterProjeto, usuariosInternos, papeisUsados, margemProjeto, catalogoDisciplinas, disciplinasForaDeSLA, SLA_VALIDACAO_DIAS, timelineStatusProjeto, nomesUsuarios } from "@/modules/projetos/queries";
-import { StatusTimeline } from "@/components/projetos/status-timeline";
-import { formatarData } from "@/lib/utils";
-import { progressoProjeto } from "@/modules/projetos/status";
-import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { DisciplinaCard, type TarefaDaDisciplina } from "@/components/projetos/disciplina-card";
-import { tarefasDoProjeto, opcoesTarefa, colunasTarefaAtivas, tarefaBloqueada } from "@/modules/tarefas/queries";
-import { EquipeManager } from "@/components/projetos/equipe-manager";
-import { EmptyState } from "@/components/ui/empty-state";
-import { ProjetoKpis } from "@/components/projetos/projeto-kpis";
-import { PendenciasKpis } from "@/components/projetos/pendencias-kpis";
-import { estatisticasPendencias } from "@/modules/projetos/pendencias/queries";
-import { DisciplinasKanban } from "@/components/projetos/disciplinas-kanban";
-import { DisciplinasGantt } from "@/components/projetos/disciplinas-gantt";
-import { MargemDonut } from "@/components/projetos/margem-donut";
-import { AdicionarDisciplinaButton } from "@/components/projetos/adicionar-disciplina-button";
-import { AdicionarDoCatalogoButton } from "@/components/projetos/adicionar-do-catalogo-button";
-import { canalDoProjeto, canaisDasDisciplinas } from "@/modules/chat/queries";
-import { sessaoAberta } from "@/modules/ponto/queries";
-import { PontoProjeto } from "@/components/ponto/ponto-projeto";
-
-function fmtData(d: Date | null) {
-  return d ? formatarData(d) : null;
-}
+import { HR_ADMIN_ROLES, INTERNAL_ROLES } from "@/lib/roles";
+import {
+  margemProjeto,
+  obterProjeto,
+  papeisUsados,
+  timelineStatusProjeto,
+  usuariosInternos,
+} from "@/modules/projetos/queries";
+import { visaoGeralProjeto } from "@/modules/projetos/visao-geral";
+import { registrosDiariosProjeto, sessaoAberta } from "@/modules/ponto/queries";
+import { ProjetoVisaoGeral } from "@/components/projetos/projeto-visao-geral";
+import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
+import { chaveLayoutPainelProjeto } from "@/modules/projetos/painel-layout";
 
 export default async function ProjetoDetalhePage({
   params,
@@ -43,398 +25,49 @@ export default async function ProjetoDetalhePage({
   const projeto = await obterProjeto(user, id);
   if (!projeto) notFound();
 
-  const [podeGerir, podeValidar, verFinanceiro] = await Promise.all([
+  const [podeGerir, verFinanceiro, podeVerApontamentos, podeVerCoordenacao, podeVerHistorico, podeVerPlanejamento] = await Promise.all([
     can(user, "projetos", "gerir"),
-    can(user, "uploads", "validar"),
     podeVerFinanceiro(user),
+    can(user, "arquivos", "ver"),
+    can(user, "coordenacao", "ver"),
+    can(user, "projetos", "historico"),
+    can(user, "planejamento", "ver"),
   ]);
+  const podeVerTarefas = INTERNAL_ROLES.includes(user.role);
+  const podeVerRegistrosDaEquipe = HR_ADMIN_ROLES.includes(user.role);
 
-  const [internos, papeis, margem, catalogo, slaFora, canalChat, canaisDisc, sessaoPonto, timelineStatus, statsPendencias] = await Promise.all([
+  const [margem, internos, papeisSugeridos, eventos, dados, sessaoAtiva, registrosPontoEquipe, preferencias] = await Promise.all([
+    verFinanceiro ? margemProjeto(projeto.id) : Promise.resolve(null),
     podeGerir ? usuariosInternos() : Promise.resolve([]),
     podeGerir ? papeisUsados() : Promise.resolve([]),
-    verFinanceiro ? margemProjeto(projeto.id) : Promise.resolve(null),
-    podeGerir ? catalogoDisciplinas() : Promise.resolve([]),
-    podeValidar ? disciplinasForaDeSLA(user) : Promise.resolve([]),
-    canalDoProjeto(projeto.id),
-    canaisDasDisciplinas(projeto.id),
-    user.role !== "cliente" ? sessaoAberta(user.id) : Promise.resolve(null),
     timelineStatusProjeto(projeto.id),
-    user.role !== "cliente" ? estatisticasPendencias(projeto.id) : Promise.resolve(null),
+    visaoGeralProjeto(projeto.id, user, {
+      incluirApontamentosPrancha: podeVerApontamentos,
+      incluirCoordenacao: podeVerCoordenacao,
+      incluirTarefas: podeVerTarefas,
+    }),
+    !podeVerRegistrosDaEquipe && user.role !== "cliente" && user.role !== "ti" ? sessaoAberta(user.id) : Promise.resolve(null),
+    podeVerRegistrosDaEquipe ? registrosDiariosProjeto(projeto.id) : Promise.resolve([]),
+    getPreferencias(user.id),
   ]);
 
-  // Item 26 (beta): CLT/estagiário são remunerados por salário/bolsa (RH), não por
-  // disciplina — o valor pago ao projetista PJ/freelancer não deve aparecer para eles.
-  const ocultarValorDisciplina = CLT_ROLES.includes(user.role);
-
-  // Nome de quem solicitou aprovação (aprovação/laudo) — FK sem relation no schema,
-  // resolvida à parte (mesmo padrão de `nomeAutor` em `arquivos/queries.ts`).
-  const solicitantesIds = [
-    ...new Set(projeto.disciplinas.map((d) => d.aprovacaoSolicitadaPorId).filter((id): id is string => !!id)),
-  ];
-  const solicitantes = await nomesUsuarios(solicitantesIds);
-  const nomeSolicitante = new Map(solicitantes.map((u) => [u.id, u.name]));
-
-  const disciplinas = projeto.disciplinas.map((d) => {
-    // Aprovação/laudo (só projetos novos): árvore de PastaProjeto no lugar do pacote A/B.
-    const usaPastas = disciplinaUsaPastas(d.pastas);
-    const uploadsPacote = d.uploads.filter((u) => u.pastaId == null);
-    const uploadsPasta = d.uploads.filter((u) => u.pastaId != null);
-    const uploads = uploadsPacote.map((u) => ({
-      id: u.id,
-      pacote: u.pacote as "A" | "B" | "OUTROS" | "RECEBIDOS",
-      nomeArquivo: u.nomeArquivo,
-      versao: u.versao,
-      tamanho: u.tamanho,
-      validado: u.validado,
-      origem: u.origem,
-      ajusteObs: u.revisaoObs,
-      ajusteEm: u.revisaoEm ? new Date(u.revisaoEm).toISOString() : null,
-      autor: u.autor.name,
-      data: new Date(u.createdAt).toISOString(),
-      aceiteToken: u.aceite?.token ?? null,
-      aceiteSituacao: u.aceite?.situacao ?? null,
-      aceiteExpiraEm: u.aceite?.expiraEm?.toISOString() ?? null,
-      aceiteRevogadoEm: u.aceite?.revogadoEm?.toISOString() ?? null,
-    }));
-    return {
-      id: d.id,
-      nome: d.disciplinaTextoLegado,
-      // Só o nome cru: quem decide se aparece é `rotuloCatalogo`, no componente.
-      catalogoNome: d.catalogo?.nome ?? null,
-      status: d.status,
-      prazo: d.prazo ? new Date(d.prazo).toISOString() : null,
-      valor: ocultarValorDisciplina ? null : d.valor != null ? Number(d.valor) : null,
-      responsaveis: d.responsaveis.map((r) => ({ userId: r.userId, name: r.user.name, role: r.user.role })),
-      ehResponsavel: d.responsaveis.some((r) => r.userId === user.id),
-      revisoes: d.revisoes.map((rv) => ({
-        id: rv.id,
-        numero: rv.numero,
-        motivo: rv.motivo,
-        autor: rv.autor.name,
-        data: new Date(rv.createdAt).toISOString(),
-      })),
-      uploads,
-      temA: uploads.some((u) => u.pacote === "A"),
-      temB: uploads.some((u) => u.pacote === "B"),
-      jaValidado: d.status === "aprovado",
-      // Reabertura mantém o pagamento já liberado — o card avisa para ninguém achar que
-      // reaprovar vai pagar de novo (`validarEntrega`/`confirmarAprovacaoDisciplina` não pagam).
-      temPagamento: d._count.pagamentos > 0,
-      exigePacoteA: d.exigePacoteA,
-      exigePacoteB: d.exigePacoteB,
-      usaPastas,
-      pastas: d.pastas,
-      arquivosPasta: uploadsPasta.map((u) => ({
-        id: u.id,
-        nome: u.nomeArquivo,
-        pastaId: u.pastaId!,
-        versao: u.versao,
-        tamanho: u.tamanho,
-        autor: u.autor.name,
-        data: new Date(u.createdAt).toISOString(),
-        downloadUrl: `/api/uploads/${u.id}/download`,
-      })),
-      aprovacaoSolicitadaEm: d.aprovacaoSolicitadaEm ? d.aprovacaoSolicitadaEm.toISOString() : null,
-      aprovacaoSolicitadaPorNome: d.aprovacaoSolicitadaPorId
-        ? (nomeSolicitante.get(d.aprovacaoSolicitadaPorId) ?? null)
-        : null,
-    };
-  });
-
-  // Tarefas por disciplina (só usuários internos; escopadas ao viewer: admin/supervisor veem
-  // todas, os demais só as atribuídas a eles ou que criaram).
-  const podeVerTarefas = INTERNAL_ROLES.includes(user.role);
-  let tarefaColunas: { id: string; nome: string }[] | null = null;
-  let tarefaOpcoes: Awaited<ReturnType<typeof opcoesTarefa>> | null = null;
-  let tarefasProjeto: Awaited<ReturnType<typeof tarefasDoProjeto>> = [];
-  if (podeVerTarefas) {
-    [tarefaColunas, tarefaOpcoes, tarefasProjeto] = await Promise.all([
-      colunasTarefaAtivas(),
-      opcoesTarefa(user),
-      tarefasDoProjeto(user, projeto.id),
-    ]);
-    // Garante o projeto atual + suas disciplinas nas opções do diálogo (mesmo fora de "em_andamento").
-    if (!tarefaOpcoes.projetos.some((p) => p.id === projeto.id))
-      tarefaOpcoes.projetos.unshift({ id: projeto.id, codigo: projeto.codigo, nome: projeto.nome });
-    for (const d of projeto.disciplinas) {
-      if (!tarefaOpcoes.disciplinas.some((x) => x.id === d.id))
-        tarefaOpcoes.disciplinas.push({ id: d.id, nome: d.disciplinaTextoLegado, projetoId: projeto.id });
-    }
-  }
-  const tarefasPorDisciplina = new Map<string, TarefaDaDisciplina[]>();
-  for (const t of tarefasProjeto) {
-    if (!t.disciplinaId) continue;
-    const ui: TarefaDaDisciplina = {
-      id: t.id,
-      titulo: t.titulo,
-      descricao: t.descricao ?? "",
-      statusId: t.statusId,
-      prazo: t.prazo ? new Date(t.prazo).toISOString().slice(0, 10) : "",
-      prioridade: t.prioridade ?? "",
-      projetoId: t.projetoId ?? "",
-      projetoCodigo: t.projeto?.codigo ?? null,
-      projetoNome: t.projeto?.nome ?? null,
-      disciplinaId: t.disciplinaId,
-      criadorId: t.criadorId,
-      responsaveis: t.responsaveis.map((r) => ({ id: r.user.id, nome: r.user.name })),
-      itens: t.itens.map((it) => ({ id: it.id, descricao: it.descricao, concluido: it.concluido })),
-      dependeDeIds: t.dependeDe.map((d) => d.dependeDe.id),
-      bloqueada: tarefaBloqueada(t),
-      comentarios: t.comentarios.map((c) => ({
-        id: c.id,
-        autorId: c.autorId,
-        texto: c.texto,
-        autor: c.autor.name,
-        data: c.createdAt.toISOString(),
-        anexoMime: c.anexoMime,
-        anexoNome: c.anexoNome,
-      })),
-      statusNome: t.status.nome,
-      statusCor: t.status.cor,
-      concluido: t.status.concluido,
-    };
-    const lista = tarefasPorDisciplina.get(t.disciplinaId);
-    if (lista) lista.push(ui);
-    else tarefasPorDisciplina.set(t.disciplinaId, [ui]);
-  }
-
-  const progressoGeral = progressoProjeto(projeto.disciplinas.map((d) => d.status));
-
-  const equipeMap = new Map<string, { nome: string; role: string; papel: string | null }>();
-  for (const d of projeto.disciplinas) {
-    for (const r of d.responsaveis) {
-      if (!equipeMap.has(r.userId))
-        equipeMap.set(r.userId, { nome: r.user.name, role: r.user.role, papel: "projetista" });
-    }
-  }
-  for (const m of projeto.membros) {
-    const cur = equipeMap.get(m.userId);
-    equipeMap.set(m.userId, {
-      nome: m.user.name,
-      role: m.user.role,
-      papel: m.papel ?? cur?.papel ?? null,
-    });
-  }
-  const onlineIds = new Set(usuariosOnline());
-  const equipe = [...equipeMap.entries()].map(([userId, v]) => ({
-    userId,
-    ...v,
-    online: onlineIds.has(userId),
-  }));
-
   return (
-    <div className="space-y-6">
-      {/* Barra de progresso + meta */}
-      <div>
-        <div className="mb-1.5 flex items-center justify-between gap-2">
-          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-            Progresso geral
-          </span>
-          <span className="font-mono text-sm font-bold tabular-nums">{progressoGeral}%</span>
-        </div>
-        <div
-          className="h-2 w-full overflow-hidden rounded-full bg-muted"
-          role="progressbar"
-          aria-valuenow={progressoGeral}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label={`Progresso geral: ${progressoGeral}%`}
-        >
-          <div
-            className="h-full rounded-full bg-primary transition-all"
-            style={{ width: `${progressoGeral}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Meta */}
-      {(projeto.prazoFinal || projeto.areaM2 != null || projeto.endereco) && (
-        <div className="flex flex-wrap gap-4 text-sm">
-          {projeto.prazoFinal && (() => {
-            const diasAtraso = projeto.situacao === "em_andamento"
-              ? Math.max(0, Math.round((Date.now() - new Date(projeto.prazoFinal).getTime()) / 86400000))
-              : 0;
-            return (
-              <div className="flex items-center gap-2">
-                <CalendarDays className="size-4 text-muted-foreground" />
-                Prazo final: {fmtData(projeto.prazoFinal)}
-                {diasAtraso > 0 && (
-                  <Badge variant="destructive" className="text-[10px]">Atrasado {diasAtraso}d</Badge>
-                )}
-              </div>
-            );
-          })()}
-          {projeto.areaM2 != null && (
-            <div className="flex items-center gap-2">
-              <Ruler className="size-4 text-muted-foreground" /> {Number(projeto.areaM2)} m²
-            </div>
-          )}
-          {projeto.endereco && (
-            <div className="flex items-center gap-2">
-              <MapPin className="size-4 text-muted-foreground" /> {projeto.endereco}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* N-29: Ponto por projeto — direciona a jornada aberta a este projeto */}
-      {user.role !== "cliente" && (
-        <PontoProjeto
-          projetoId={projeto.id}
-          sessaoAtiva={sessaoPonto ? { id: sessaoPonto.id, projetoId: sessaoPonto.projetoId, inicio: sessaoPonto.inicio } : null}
-        />
-      )}
-
-      {/* P-43: KPIs */}
-      <ProjetoKpis
-        disciplinas={disciplinas.map((d) => ({ status: d.status, prazo: d.prazo }))}
-        prazoFinal={projeto.prazoFinal}
-        situacao={projeto.situacao}
-        margemPct={margem?.margemPct ?? null}
-      />
-      {statsPendencias && <PendenciasKpis stats={statsPendencias} />}
-
-      {/* P-44: Mini-gantt de disciplinas */}
-      {disciplinas.some((d) => d.prazo) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Linha do tempo</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <DisciplinasGantt disciplinas={disciplinas} />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* N-38/P-17: banner de SLA — disciplinas aguardando validação */}
-      {slaFora.filter((d) => d.projetoId === projeto.id).length > 0 && (
-        <div className="rounded-md border border-warning/40 bg-warning/10 px-4 py-2.5 text-sm text-warning-foreground">
-          <span className="font-medium">Validação pendente há mais de {SLA_VALIDACAO_DIAS} dias:</span>{" "}
-          {slaFora
-            .filter((d) => d.projetoId === projeto.id)
-            .map((d) => d.disciplinaTextoLegado)
-            .join(", ")}
-        </div>
-      )}
-
-      {/* P-47: Kanban + P-48: ações em massa */}
-      <div>
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <h3 className="text-lg font-bold tracking-tight">Disciplinas</h3>
-          {podeGerir && (
-            <div className="flex items-center gap-1">
-              <AdicionarDisciplinaButton
-                projetoId={projeto.id}
-                internos={internos.map((u) => ({ id: u.id, name: u.name }))}
-                prazoFinal={projeto.prazoFinal?.toISOString() ?? null}
-              />
-              {catalogo.length > 0 && (
-                <AdicionarDoCatalogoButton projetoId={projeto.id} catalogo={catalogo} />
-              )}
-            </div>
-          )}
-        </div>
-        <DisciplinasKanban
-          projetoId={projeto.id}
-          disciplinas={disciplinas}
-          podeGerir={podeGerir}
-          internos={internos.map((u) => ({ id: u.id, name: u.name }))}
-        />
-      </div>
-
-      {/* Grade detalhada (upload, revisão, validação) */}
-      <div className="grid gap-3 md:grid-cols-2">
-        {disciplinas.map((d) => (
-          <DisciplinaCard
-            key={d.id}
-            projetoId={projeto.id}
-            disciplina={d}
-            podeGerir={podeGerir}
-            podeValidar={podeValidar}
-            internos={internos}
-            canalChatId={canaisDisc.get(d.id) ?? canalChat?.id}
-            tarefas={tarefasPorDisciplina.get(d.id) ?? []}
-            tarefaOpcoes={tarefaOpcoes ?? undefined}
-            tarefaColunas={tarefaColunas ?? undefined}
-            meId={user.id}
-            meRole={user.role}
-          />
-        ))}
-      </div>
-
-      {/* P-45: Donut financeiro */}
-      {margem && margem.receitaConfirmada > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Resultado financeiro</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <MargemDonut
-              receitaConfirmada={margem.receitaConfirmada}
-              despesaDireta={margem.despesaDireta}
-              custoHoras={margem.custoHoras}
-              margem={margem.margem}
-              margemPct={margem.margemPct}
-            />
-            <p className="mt-3 text-xs text-muted-foreground">
-              Dados confirmados. Para o detalhamento completo (previstos, composição, plano×real),
-              acesse a aba{" "}
-              <Link href={`/projetos/${projeto.id}/financeiro`} className="underline">
-                Financeiro
-              </Link>
-              .
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Equipe */}
-      <Card>
-        <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
-          <CardTitle className="text-base">Equipe do projeto</CardTitle>
-          {podeGerir && (
-            <EquipeManager
-              projetoId={projeto.id}
-              internos={internos}
-              papeisSugeridos={papeis}
-              membrosAtuais={projeto.membros.map((m) => ({ userId: m.userId, papel: m.papel ?? null }))}
-            />
-          )}
-        </CardHeader>
-        <CardContent>
-          {equipe.length === 0 ? (
-            <EmptyState icon={Users} title="Sem membros adicionais" />
-          ) : (
-            <div className="flex flex-wrap gap-4">
-              {equipe.map((m) => {
-                const iniciais = m.nome
-                  .split(" ")
-                  .filter(Boolean)
-                  .slice(0, 2)
-                  .map((p) => p[0].toUpperCase())
-                  .join("");
-                return (
-                  <div key={m.userId} className="flex flex-col items-center gap-1 text-center">
-                    <Avatar>
-                      <AvatarFallback>{iniciais}</AvatarFallback>
-                      {m.online && <AvatarBadge className="bg-success" title="Online" />}
-                    </Avatar>
-                    <span className="max-w-[80px] truncate text-xs font-medium leading-tight">
-                      {m.nome.split(" ")[0]}
-                    </span>
-                    <span className="text-[10px] leading-none text-muted-foreground">
-                      {m.papel ?? ROLE_LABELS[m.role as keyof typeof ROLE_LABELS] ?? m.role}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* N-07: linha do tempo de status */}
-      <StatusTimeline eventos={timelineStatus} />
-    </div>
+    <ProjetoVisaoGeral
+      projeto={projeto}
+      dados={dados}
+      eventos={eventos}
+      podeGerir={podeGerir}
+      podeVerHistorico={podeVerHistorico}
+      podeVerPlanejamento={podeVerPlanejamento}
+      podeVerPendencias={podeVerApontamentos}
+      internos={internos}
+      papeisSugeridos={papeisSugeridos}
+      user={user}
+      sessaoAtiva={sessaoAtiva}
+      podeVerRegistrosPontoEquipe={podeVerRegistrosDaEquipe}
+      registrosPontoEquipe={registrosPontoEquipe}
+      margem={margem}
+      layoutSalvo={preferencias[chaveLayoutPainelProjeto(projeto.id)]}
+    />
   );
 }

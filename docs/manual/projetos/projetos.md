@@ -106,10 +106,73 @@ Cada disciplina passa por um ciclo de status:
 
 ## Abas do detalhe do projeto
 
-Ao abrir um projeto, além da visão geral há abas para: **Lista Mestre**, **Serviços**,
-**Arquivos**, **Extras**, **Financeiro** e **Inputs** (formulários de start). Cada uma
-será detalhada em sua própria página do manual. (A aba **Lista Mestre** organiza as folhas
-técnicas por disciplina — substitui a antiga aba "Pranchas".)
+Ao abrir um projeto, a **Visão Geral** mostra a situação executiva: progresso, prazo final,
+área, disciplinas entregues, pendências que requerem atenção, última atualização, riscos,
+equipe e atividade recente.
+
+- O progresso é estimado pelos status das disciplinas.
+- A **Linha do tempo** usa somente o planejamento cadastrado na EAP. Sem planejamento,
+  ela informa que o cronograma ainda não foi cadastrado.
+- O total de pendências reúne somente itens abertos aos quais você tem acesso: apontamentos,
+  apontamentos de compatibilização, tarefas, solicitações de revisão e aprovações pendentes.
+- A tabela **Disciplinas do projeto** é um resumo. Clique em uma disciplina ou em
+  **Abrir disciplinas** para acompanhar e trabalhar nos detalhes.
+
+A aba **Disciplinas** concentra o trabalho operacional: kanban, alteração de status,
+responsáveis, arquivos, validações, revisões, tarefas e diário. Ela preserva todas as ações
+do acompanhamento detalhado em uma área própria.
+
+### Organizar a Visão Geral
+
+Em uma tela ampla, use **Personalizar painel** para ajustar a Visão Geral à sua rotina.
+
+- Arraste cada bloco pelo marcador no canto superior direito.
+- Para trocar dois blocos, mantenha um sobre o outro até aparecer **Solte para trocar** e então solte.
+  Uma passagem rápida não reorganiza o painel, e o sistema só oferece a troca quando os dois tamanhos
+  cabem nos respectivos espaços.
+- Redimensione o bloco pelo canto inferior direito. O sistema mantém tamanhos mínimos para
+  que tabelas, cronograma e indicadores continuem legíveis.
+- Clique em **Concluir personalização** quando terminar. As alterações são salvas apenas
+  para você e somente naquele projeto; os demais membros continuam com seus próprios painéis.
+- Use **Restaurar padrão** para voltar ao arranjo inicial.
+
+No celular, a Visão Geral permanece em uma coluna para leitura. A personalização volta a
+ficar disponível ao abrir o projeto em uma tela ampla.
+
+### Horas registradas no projeto
+
+Para **Administrador**, **Coordenador** e **Administrativo**, a Visão Geral mostra o bloco
+**Horas registradas no projeto**. Ele reúne os registros dos últimos 7 dias, separados por
+dia e pessoa:
+
+- jornadas de colaboradores CLT e estagiários;
+- apontamentos de horas de projetistas PJ e freelancers;
+- horário de início e fim, ou a indicação **Em andamento** quando o registro ainda está aberto;
+- duração de cada registro e o total acumulado em cada dia.
+
+Essa lista é apenas para acompanhamento: ela não altera jornadas nem apontamentos. Quem trabalha
+no projeto continua vendo somente o próprio bloco **Ponto no projeto**. Os perfis **TI** e
+**Cliente** não veem registros de horas da equipe.
+
+### Resultado financeiro
+
+Quem tem acesso ao financeiro do projeto vê o bloco **Resultado financeiro** quando houver
+faturamento confirmado. Além do resumo de faturamento, despesas, rateio de horas e margem
+realizada, o card exibe a composição confirmada automaticamente quando está largo o suficiente:
+
+- pagamentos a projetistas;
+- serviços terceirizados;
+- custos extras;
+- rateio de horas de CLT e estagiários;
+- rateio dos demais colaboradores.
+
+Em um card menor, o resumo permanece compacto. Use **Ver detalhamento financeiro** para consultar
+os valores previstos e a análise completa.
+
+Além disso, há abas para: **Lista Mestre**, **Serviços**, **Arquivos**, **Extras**,
+**Financeiro** e **Inputs** (formulários de start). Cada uma será detalhada em sua própria
+página do manual. (A aba **Lista Mestre** organiza as folhas técnicas por disciplina —
+substitui a antiga aba "Pranchas".)
 
 ### Link do formulário para o cliente (aba Inputs)
 

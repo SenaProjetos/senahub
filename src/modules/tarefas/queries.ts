@@ -119,6 +119,18 @@ export async function tarefasDoProjeto(viewer: Viewer, projetoId: string) {
 }
 export type TarefaDoProjeto = Awaited<ReturnType<typeof tarefasDoProjeto>>[number];
 
+/** Contagem de tarefas em aberto visíveis ao usuário no contexto de um projeto. */
+export async function contarTarefasAbertasDoProjeto(viewer: Viewer, projetoId: string) {
+  return prisma.tarefa.count({
+    where: {
+      projetoId,
+      arquivada: false,
+      status: { ativo: true, concluido: false },
+      ...escopoTarefa(viewer),
+    },
+  });
+}
+
 /** Resumo mínimo para o contexto de uma pendência, sempre filtrado por `escopoTarefa`. */
 export type TarefaContextual = {
   id: string;

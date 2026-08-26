@@ -51,7 +51,7 @@ export function ProjetoTabNav({
             aria-current={isActive ? "page" : undefined}
           >
             {label}
-            {vazia && <span className="ml-1 text-xs">(vazio)</span>}
+            {vazia && <span className="sr-only"> — nenhuma entrada registrada neste projeto</span>}
           </Link>
         );
       })}

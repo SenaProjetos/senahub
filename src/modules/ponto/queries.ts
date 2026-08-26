@@ -1,6 +1,11 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { PROJETO_MEMBRO_ROLES } from "@/lib/roles";
 import { minutosSessao } from "@/modules/ponto/format";
+import {
+  agruparRegistrosDiariosProjeto,
+  type RegistrosDiariosProjeto,
+} from "@/modules/ponto/registros-projeto";
 import { feriadosParaCalculo } from "@/modules/rh/feriados/queries";
 import { escalaContratacaoGrade, escalaUsuarioGrade, type DiaGrade } from "@/modules/rh/escalas/queries";
 import { acumuladoAte } from "@/modules/rh/banco/queries";
@@ -321,6 +326,33 @@ export async function sessaoAberta(userId: string) {
     include: { projeto: { select: { id: true, codigo: true, nome: true } } },
     orderBy: { inicio: "desc" },
   });
+}
+
+/**
+ * Registros da equipe no projeto para o painel gerencial. Usa a mesma sessão
+ * que alimenta o rateio: jornada para CLT/estagiário e apontamento para PJ ou
+ * freelancer. A lista é limitada aos últimos sete dias locais.
+ */
+export async function registrosDiariosProjeto(projetoId: string): Promise<RegistrosDiariosProjeto[]> {
+  const agora = new Date();
+  const [ano, mes, dia] = diaLocal(agora).split("-").map(Number);
+  const inicioJanelaUtc = new Date(Date.UTC(ano, mes - 1, dia - 6, 3));
+  const sessoes = await prisma.sessaoTrabalho.findMany({
+    where: {
+      projetoId,
+      inicio: { gte: inicioJanelaUtc, lte: agora },
+      user: { role: { in: PROJETO_MEMBRO_ROLES } },
+    },
+    select: {
+      id: true,
+      inicio: true,
+      fim: true,
+      user: { select: { id: true, name: true, role: true } },
+    },
+    orderBy: { inicio: "desc" },
+  });
+
+  return agruparRegistrosDiariosProjeto(sessoes, agora);
 }
 
 /** Projetos em que o usuário participa (para o seletor do ponto). */
