@@ -28,15 +28,12 @@ async function main() {
     return;
   }
 
-  const link = porToken
-    ? await prisma.linkPublicoArquivos.findUnique({
-        where: { token: porToken },
-        include: { projeto: { select: { id: true, codigo: true, nome: true } } },
-      })
-    : await prisma.linkPublicoArquivos.findFirst({
-        where: { projeto: { codigo } },
-        include: { projeto: { select: { id: true, codigo: true, nome: true } } },
-      });
+  // Ternário com dois `include` confunde a inferência do Prisma — busca em duas etapas.
+  const where = porToken ? { token: porToken } : { projeto: { codigo: codigo! } };
+  const link = await prisma.linkPublicoArquivos.findFirst({
+    where,
+    include: { projeto: { select: { id: true, codigo: true, nome: true } } },
+  });
 
   if (!link) {
     console.log("Nenhum link público encontrado para esse projeto/token.");
