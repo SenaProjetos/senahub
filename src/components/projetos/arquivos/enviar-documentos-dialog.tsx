@@ -249,7 +249,7 @@ function UploaderDocumentos({
     }
   }
 
-  function atualizarLinha(indice: number, patch: Partial<LinhaEnvio>) {
+  function atualizarLinha(indice: number, patch: Partial<LinhaEnvioComArquivo>) {
     setProgresso((atual) => {
       if (!atual) return atual;
       return atual.map((linha, i) => (i === indice ? { ...linha, ...patch } : linha));
