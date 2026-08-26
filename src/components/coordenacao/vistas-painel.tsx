@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import { cn } from "@/lib/utils";
 
 export function VistasPanel({
@@ -194,9 +195,12 @@ export function VistasPanel({
                         autoFocus
                       />
                     ) : (
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium">{v.nome}</p>
-                        <p className="truncate text-xs text-muted-foreground">{v.autor}</p>
+                      <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                        <AvatarUsuario nome={v.autor} image={v.autorImage} size="sm" className="size-6 shrink-0" title={v.autor} />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{v.nome}</p>
+                          <p className="truncate text-xs text-muted-foreground">{v.autor}</p>
+                        </div>
                       </div>
                     )}
                     <div className="flex shrink-0 gap-1">

@@ -162,6 +162,7 @@ export type ApontamentoView = {
   status: string;
   autorId: string;
   autor: string;
+  autorImage: string | null;
   tarefaId: string | null;
   createdAt: string;
 };
@@ -180,13 +181,14 @@ export async function apontamentosDoProjeto(projetoId: string): Promise<Apontame
   const disciplinaIds = [...new Set(rows.map((r) => r.disciplinaId).filter((x): x is string => !!x))];
   const [users, disciplinas] = await Promise.all([
     autorIds.length
-      ? prisma.user.findMany({ where: { id: { in: autorIds } }, select: { id: true, name: true } })
+      ? prisma.user.findMany({ where: { id: { in: autorIds } }, select: { id: true, name: true, image: true } })
       : Promise.resolve([]),
     disciplinaIds.length
       ? prisma.disciplina.findMany({ where: { id: { in: disciplinaIds } }, select: { id: true, disciplinaTextoLegado: true } })
       : Promise.resolve([]),
   ]);
   const nome = new Map(users.map((u) => [u.id, u.name]));
+  const imagemAutor = new Map(users.map((u) => [u.id, u.image]));
   const nomeDisciplina = new Map(disciplinas.map((d) => [d.id, d.disciplinaTextoLegado]));
   return rows.map((r) => ({
     id: r.id,
@@ -202,6 +204,7 @@ export async function apontamentosDoProjeto(projetoId: string): Promise<Apontame
     status: r.status,
     autorId: r.autorId,
     autor: nome.get(r.autorId) ?? "—",
+    autorImage: imagemAutor.get(r.autorId) ?? null,
     tarefaId: r.tarefaId,
     createdAt: r.createdAt.toISOString(),
   }));
@@ -262,6 +265,7 @@ export type VistaView = {
   corte: { eixo: "x" | "y" | "z"; posicao: number; invertido: boolean } | null;
   autorId: string;
   autor: string;
+  autorImage: string | null;
   createdAt: string;
 };
 
@@ -273,9 +277,10 @@ export async function vistasDoProjeto(projetoId: string): Promise<VistaView[]> {
   });
   const autorIds = [...new Set(rows.map((r) => r.autorId))];
   const users = autorIds.length
-    ? await prisma.user.findMany({ where: { id: { in: autorIds } }, select: { id: true, name: true } })
+    ? await prisma.user.findMany({ where: { id: { in: autorIds } }, select: { id: true, name: true, image: true } })
     : [];
   const nome = new Map(users.map((u) => [u.id, u.name]));
+  const imagemAutor = new Map(users.map((u) => [u.id, u.image]));
   return rows.map((r) => ({
     id: r.id,
     nome: r.nome,
@@ -284,6 +289,7 @@ export async function vistasDoProjeto(projetoId: string): Promise<VistaView[]> {
     corte: (r.corte as VistaView["corte"]) ?? null,
     autorId: r.autorId,
     autor: nome.get(r.autorId) ?? "—",
+    autorImage: imagemAutor.get(r.autorId) ?? null,
     createdAt: r.createdAt.toISOString(),
   }));
 }
