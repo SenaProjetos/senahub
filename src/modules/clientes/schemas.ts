@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { validarCpfCnpj } from "@/lib/documento";
+import { validarCNPJ, validarCpfCnpj } from "@/lib/documento";
 
 /** Documento opcional, mas se preenchido deve ser CPF/CNPJ válido. */
 const docValido = (d: { documento?: string }) => !d.documento?.trim() || validarCpfCnpj(d.documento);
@@ -80,6 +80,11 @@ export const buscarCandidatosDuplicataSchema = z.object({
   tipo: z.enum(["PF", "PJ"]).optional(),
   documento: z.string().optional(),
   email: z.string().optional(),
+});
+
+/** Consulta cadastral pública para preencher um formulário de cliente PJ. */
+export const consultarCnpjSchema = z.object({
+  cnpj: z.string().refine(validarCNPJ, "CNPJ inválido."),
 });
 
 export type CriarClienteInput = z.infer<typeof criarClienteSchema>;

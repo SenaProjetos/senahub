@@ -12,12 +12,14 @@ import {
   editarContatoSchema,
   buscarContatosClienteSchema,
   buscarCandidatosDuplicataSchema,
+  consultarCnpjSchema,
   mesclarClientesSchema,
 } from "@/modules/clientes/schemas";
 import { contatosDoCliente, clientesParaDedupe } from "@/modules/clientes/queries";
 import { candidatosDuplicata } from "@/modules/comercial/dedupe";
 import { soDigitos } from "@/lib/documento";
 import { mesclarClientes, capturarClientesDaFusao } from "@/modules/clientes/fusao";
+import { buscarDadosCnpj } from "@/modules/clientes/cnpj";
 
 const REVALIDATE = "/clientes";
 
@@ -258,6 +260,24 @@ export const buscarCandidatosDuplicata = defineAction(
   async (input) => {
     const existentes = await clientesParaDedupe();
     return candidatosDuplicata(existentes, input);
+  },
+);
+
+/** Consulta uma fonte pública e devolve os dados para revisão no formulário, sem persistir nada. */
+export const consultarCnpj = defineAction(
+  {
+    modulo: "clientes",
+    acao: "consultar-cnpj",
+    recurso: "clientes",
+    permissao: "gerir",
+    schema: consultarCnpjSchema,
+  },
+  async ({ cnpj }) => {
+    const dados = await buscarDadosCnpj(cnpj);
+    if (!dados) {
+      throw new ActionError("Não foi possível consultar este CNPJ. Preencha o cadastro manualmente.");
+    }
+    return dados;
   },
 );
 

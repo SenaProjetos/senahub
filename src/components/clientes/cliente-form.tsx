@@ -3,14 +3,16 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Loader2, TriangleAlert } from "lucide-react";
+import { Download, Loader2, TriangleAlert } from "lucide-react";
 import {
   criarCliente,
   editarCliente,
   buscarCandidatosDuplicata,
+  consultarCnpj,
 } from "@/modules/clientes/actions";
 import { CATEGORIAS_CLIENTE, type CriarClienteInput } from "@/modules/clientes/schemas";
-import { validarCpfCnpj } from "@/lib/documento";
+import { validarCNPJ, validarCpfCnpj } from "@/lib/documento";
+import { PORTES_CLIENTE } from "@/modules/clientes/porte";
 import { STATUS_COMERCIAL_LABEL } from "@/modules/comercial/labels";
 import type { CandidatoDuplicata, MotivoCandidato } from "@/modules/comercial/dedupe";
 import { Button } from "@/components/ui/button";
@@ -65,6 +67,7 @@ export function ClienteForm({
   const [visitouContatos, setVisitouContatos] = useState(false);
   const [pending, startTransition] = useTransition();
   const [buscandoCep, setBuscandoCep] = useState(false);
+  const [importandoCnpj, setImportandoCnpj] = useState(false);
   const [candidatos, setCandidatos] = useState<CandidatoDuplicata[]>([]);
   const [alertaDispensado, setAlertaDispensado] = useState(false);
 
@@ -147,7 +150,45 @@ export function ClienteForm({
     }
   }
 
+  async function importarDadosCnpj() {
+    const cnpj = form.documento ?? "";
+    if (!validarCNPJ(cnpj)) {
+      toast.error("Informe um CNPJ válido para importar os dados.");
+      return;
+    }
+
+    setImportandoCnpj(true);
+    try {
+      const res = await consultarCnpj({ cnpj });
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      setForm((f) => ({
+        ...f,
+        nome: res.data.nome,
+        nomeFantasia: res.data.nomeFantasia ?? f.nomeFantasia,
+        email: res.data.email ?? f.email,
+        telefone: res.data.telefone ?? f.telefone,
+        cep: res.data.cep ?? f.cep,
+        logradouro: res.data.logradouro ?? f.logradouro,
+        numero: res.data.numero ?? f.numero,
+        complemento: res.data.complemento ?? f.complemento,
+        bairro: res.data.bairro ?? f.bairro,
+        cidade: res.data.cidade ?? f.cidade,
+        uf: res.data.uf ?? f.uf,
+        porte: res.data.porte ?? f.porte,
+      }));
+      toast.success("Dados importados. Revise antes de salvar.");
+    } finally {
+      setImportandoCnpj(false);
+    }
+  }
+
   const docInvalido = (form.documento ?? "").trim() !== "" && !validarCpfCnpj(form.documento ?? "");
+  const porteLegado = form.porte && !PORTES_CLIENTE.some((porte) => porte.valor === form.porte)
+    ? form.porte
+    : undefined;
 
   function salvar() {
     if (docInvalido) {
@@ -267,7 +308,26 @@ export function ClienteForm({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>{form.tipo === "PJ" ? "CNPJ" : "CPF"}</Label>
+                <div className="flex items-center justify-between gap-2">
+                  <Label>{form.tipo === "PJ" ? "CNPJ" : "CPF"}</Label>
+                  {form.tipo === "PJ" && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-1.5 text-xs"
+                      onClick={importarDadosCnpj}
+                      disabled={importandoCnpj || !validarCNPJ(form.documento ?? "")}
+                    >
+                      {importandoCnpj ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Download className="size-3.5" />
+                      )}
+                      Importar dados
+                    </Button>
+                  )}
+                </div>
                 <Input
                   value={form.documento ?? ""}
                   onChange={(e) => set("documento", e.target.value)}
@@ -398,11 +458,24 @@ export function ClienteForm({
               </div>
               <div className="space-y-1.5">
                 <Label>Porte</Label>
-                <Input
+                <Select
                   value={form.porte ?? ""}
-                  onChange={(e) => set("porte", e.target.value)}
-                  placeholder="pequeno, médio, grande…"
-                />
+                  onValueChange={(v) => set("porte", v || undefined)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {porteLegado && (
+                      <SelectItem value={porteLegado}>{porteLegado} (legado)</SelectItem>
+                    )}
+                    {PORTES_CLIENTE.map((porte) => (
+                      <SelectItem key={porte.valor} value={porte.valor}>
+                        {porte.rotulo}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

@@ -122,10 +122,10 @@
     {
       "titulo": "Clientes",
       "path": "clientes-comercial/clientes.md",
-      "descricao": "Cadastro de clientes (PF/PJ), contatos, filtros e ativação/desativação.",
-      "resumo": "Liste e filtre clientes, cadastre PF ou PJ, adicione contatos e ative/desative cadastros sem apagar o histórico.",
-      "tags": ["clientes", "cadastro", "contatos", "pf", "pj", "desativar", "reativar", "categoria", "uf"],
-      "palavrasChave": ["cliente", "cadastro", "pessoa física", "pessoa jurídica", "contato", "desativar", "reativar", "categoria", "cidade", "uf"],
+      "descricao": "Cadastro de clientes (PF/PJ), importação por CNPJ, contatos, filtros e ativação/desativação.",
+      "resumo": "Liste e filtre clientes, cadastre PF ou PJ, importe dados cadastrais por CNPJ, adicione contatos e ative/desative cadastros sem apagar o histórico.",
+      "tags": ["clientes", "cadastro", "contatos", "pf", "pj", "cnpj", "porte", "desativar", "reativar", "categoria", "uf"],
+      "palavrasChave": ["cliente", "cadastro", "pessoa física", "pessoa jurídica", "cnpj", "importar dados", "porte", "contato", "desativar", "reativar", "categoria", "cidade", "uf"],
       "sinonimos": ["clientela", "contatos", "cadastro de clientes"]
     },
     {

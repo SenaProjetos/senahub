@@ -1,9 +1,9 @@
 ---
 titulo: Clientes
-descricao: Cadastro de clientes (PF/PJ), contatos, filtros e ativação/desativação.
-resumo: Liste e filtre clientes, cadastre PF ou PJ, adicione contatos e ative/desative cadastros sem apagar o histórico.
-tags: [clientes, cadastro, contatos, pf, pj, desativar, reativar, categoria, uf]
-palavras-chave: [cliente, cadastro, pessoa física, pessoa jurídica, contato, desativar, reativar, categoria, cidade, uf]
+descricao: Cadastro de clientes (PF/PJ), importação por CNPJ, contatos, filtros e ativação/desativação.
+resumo: Liste e filtre clientes, cadastre PF ou PJ, importe dados cadastrais por CNPJ, adicione contatos e ative/desative cadastros sem apagar o histórico.
+tags: [clientes, cadastro, contatos, pf, pj, cnpj, porte, desativar, reativar, categoria, uf]
+palavras-chave: [cliente, cadastro, pessoa física, pessoa jurídica, cnpj, importar dados, porte, contato, desativar, reativar, categoria, cidade, uf]
 sinonimos: [clientela, contatos, cadastro de clientes]
 ---
 
@@ -34,7 +34,11 @@ para projetos, propostas e financeiro.
 
 1. Clique em **Novo cliente**.
 2. Informe os dados (nome, tipo PF/PJ, documento, endereço, categoria, e-mail etc.).
-3. **Salvar**.
+   Para pessoa jurídica, após preencher um CNPJ válido, use **Importar dados** para sugerir
+   razão social, nome fantasia, contato, endereço e porte. Revise os dados antes de salvar.
+   Se a consulta não encontrar o CNPJ, preencha os campos manualmente.
+3. Na aba **Comercial**, escolha o **Porte** da empresa na lista disponível.
+4. **Salvar**.
 
 ## Contatos
 
