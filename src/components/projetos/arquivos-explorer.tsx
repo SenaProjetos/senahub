@@ -71,6 +71,7 @@ import { useDropzone } from "@/lib/use-dropzone";
 import { detectarNovasRevisoes, mensagemNovasRevisoes, type ArquivoExistente } from "@/modules/uploads/revisao-nova";
 import { gruposRevisaoAgrupada } from "@/modules/uploads/revisao-agrupada";
 import { enviarArquivoComProgresso, ErroEnvio } from "@/components/projetos/upload-progresso";
+import { CorrecaoNomeUpload, type DadosCorrecaoNomeUpload } from "@/components/projetos/arquivos/correcao-nome-upload";
 import { cn, formatarData, rotuloRevisao } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -591,6 +592,7 @@ export function ArquivosExplorer({
   podeValidar,
   nomenclatura,
   fases,
+  tipos,
   recebidos,
   baseArquitetonica,
   podeGerirBaseArquitetonica,
@@ -614,6 +616,7 @@ export function ArquivosExplorer({
   podeValidar: boolean;
   nomenclatura: { exigir: boolean; exigirFase: boolean; padrao: string | null };
   fases: FaseUpload[];
+  tipos: FaseUpload[];
   recebidos: DocumentoItem[];
   /** Pasta "Base Arquitetônica" (referência fixa do projeto) — sempre renderizada, mesmo vazia. */
   baseArquitetonica: DocumentoItem[];
@@ -810,6 +813,8 @@ export function ArquivosExplorer({
           nomenclatura={nomenclatura}
           existentesPorDisciplina={existentesPorDisciplina}
           fases={fases}
+          tipos={tipos}
+          codigoProjeto={projeto.codigo}
         />
       )}
 
@@ -2119,12 +2124,16 @@ function Uploader({
   nomenclatura,
   existentesPorDisciplina,
   fases,
+  tipos,
+  codigoProjeto,
 }: {
-  disciplinas: { id: string; nome: string; usaPastas: boolean; pastas: PastaFlat[] }[];
+  disciplinas: { id: string; nome: string; sigla: string | null; usaPastas: boolean; pastas: PastaFlat[] }[];
   nomenclatura: { exigir: boolean; exigirFase: boolean; padrao: string | null };
   /** Arquivos já enviados, por disciplina — usado só para avisar que o envio vira nova versão. */
   existentesPorDisciplina: Record<string, ArquivoExistente[]>;
   fases: FaseUpload[];
+  tipos: FaseUpload[];
+  codigoProjeto: string;
 }) {
   const router = useRouter();
   // Sem disciplina pré-selecionada: força a escolha consciente e evita envio no alvo errado.
@@ -2417,6 +2426,8 @@ function Uploader({
         itens={pendentes}
         exigirFase={nomenclatura.exigirFase}
         fases={fases}
+        dadosCorrecao={discSel ? { codigoProjeto, siglaDisciplina: discSel.sigla, fases, tipos } : null}
+        padrao={nomenclatura.padrao}
         onCancel={() => setPendentes(null)}
         onChange={setPendentes}
         onConfirm={() => pendentes && uploadFinal(pendentes)}
@@ -2651,6 +2662,8 @@ function RevisarNomesDialog({
   itens,
   exigirFase,
   fases,
+  dadosCorrecao,
+  padrao,
   onCancel,
   onChange,
   onConfirm,
@@ -2658,6 +2671,8 @@ function RevisarNomesDialog({
   itens: ItemEnvio[] | null;
   exigirFase: boolean;
   fases: FaseUpload[];
+  dadosCorrecao: DadosCorrecaoNomeUpload | null;
+  padrao: string | null;
   onCancel: () => void;
   onChange: (itens: ItemEnvio[]) => void;
   onConfirm: () => void;
@@ -2699,6 +2714,11 @@ function RevisarNomesDialog({
                 quiser enviar, ou envie assim (fora do padrão fica com alerta na lista).
               </>
             )}
+            {foraCount > 0 && (
+              <span className="mt-1 block font-mono text-[11px]">
+                Padrão: {padrao?.trim() || "{proj}-{disc}-{fase}-{nº}-{tipo}[-Rnn]"}
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
@@ -2736,6 +2756,15 @@ function RevisarNomesDialog({
                       </div>
                     );
                   })()}
+                {it.fora && dadosCorrecao && (
+                  <CorrecaoNomeUpload
+                    nomeOriginal={it.file.name}
+                    faseId={it.faseId}
+                    dados={dadosCorrecao}
+                    onFaseChange={(faseId) => atualizarFase(i, faseId)}
+                    onAplicar={(nome) => renomear(i, nome)}
+                  />
+                )}
                 {exigirFase && (
                   <div className="space-y-1">
                     <Label className="text-xs">Fase</Label>

@@ -64,10 +64,17 @@ export async function arvoreArquivosProjeto(
   });
 
   const autorIds = [...new Set(disciplinas.flatMap((d) => d.uploads.map((u) => u.autorId)))];
-  const autores = autorIds.length
-    ? await prisma.user.findMany({ where: { id: { in: autorIds } }, select: { id: true, name: true } })
-    : [];
+  const [autores, catalogosDisciplinas] = await Promise.all([
+    autorIds.length
+      ? prisma.user.findMany({ where: { id: { in: autorIds } }, select: { id: true, name: true } })
+      : [],
+    prisma.disciplinaCatalogo.findMany({
+      where: { nome: { in: [...new Set(disciplinas.map((disciplina) => disciplina.disciplinaTextoLegado))] } },
+      select: { nome: true, codigo: true },
+    }),
+  ]);
   const nomeAutor = new Map(autores.map((u) => [u.id, u.name]));
+  const siglaDisciplina = new Map(catalogosDisciplinas.map((disciplina) => [disciplina.nome, disciplina.codigo]));
 
   return {
     disciplinas: disciplinas.map((d) => {
@@ -82,6 +89,7 @@ export async function arvoreArquivosProjeto(
       return {
         id: d.id,
         nome: d.disciplinaTextoLegado,
+        sigla: siglaDisciplina.get(d.disciplinaTextoLegado) ?? null,
         status: d.status,
         finalizado: d.status === "aprovado",
         podeEnviar: podeEnviarCap && (ehGlobal || d.responsaveis.some((r) => r.userId === userId)),

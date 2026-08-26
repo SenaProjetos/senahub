@@ -6,7 +6,7 @@ import { acessoGlobal } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { pendenciasDoUpload, calibracoesDaPrancha, padroesDaDisciplina, novidadesDoDocumento } from "@/modules/projetos/pendencias/queries";
-import { pranchasVigentesDisciplina, resolverDocumentoCanonico, revisoesDoDocumento } from "@/modules/uploads/queries";
+import { pranchasPdfVigentesDisciplina, pranchasVigentesDisciplina, resolverDocumentoCanonico, revisoesDoDocumento } from "@/modules/uploads/queries";
 import { extensao } from "@/modules/uploads/destino";
 import { contextoTarefasDasPendencias, opcoesTarefa } from "@/modules/tarefas/queries";
 import { PdfViewer } from "@/components/projetos/pdf-viewer";
@@ -146,7 +146,10 @@ export default async function VisualizarPage({
   // comparação de PDF, que exige ao menos duas revisões DA MESMA extensão.
   const temOutraRevisao = revisoesMesmaExtensao.length > 1;
   // Candidatas a destino do "replicar apontamento" (item 30) — só quem valida aponta mesmo.
-  const pranchasParaReplicar = podeValidar ? await pranchasVigentesDisciplina(upload.disciplinaId, uploadId) : [];
+  const [pranchasParaReplicar, pranchasNavegaveis] = await Promise.all([
+    podeValidar ? pranchasVigentesDisciplina(upload.disciplinaId, uploadId) : [],
+    pranchasPdfVigentesDisciplina(upload.disciplinaId),
+  ]);
   // Escala calibrada por página (item 28) — escopo do documento, então revisão nova herda.
   const calibracoes = await calibracoesDaPrancha(uploadId, upload.documentoId);
   // Biblioteca de apontamentos-padrão (item 10) — só quem aponta usa.
@@ -190,6 +193,7 @@ export default async function VisualizarPage({
       temOutraRevisao={temOutraRevisao}
       documentoId={upload.documentoId}
       pranchasParaReplicar={pranchasParaReplicar}
+      pranchasNavegaveis={pranchasNavegaveis}
       calibracoesIniciais={calibracoes}
       padroes={padroes}
       novidades={novidades}

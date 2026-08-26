@@ -12,6 +12,7 @@ import { gruposRevisaoAgrupada } from "@/modules/uploads/revisao-agrupada";
 import { enviarArquivoComProgresso, ErroEnvio, PainelProgressoEnvio, type LinhaEnvio } from "@/components/projetos/upload-progresso";
 import { SeletorPasta } from "@/components/projetos/pasta-tree-view";
 import { Button } from "@/components/ui/button";
+import { CorrecaoNomeUpload, type DadosCorrecaoNomeUpload } from "@/components/projetos/arquivos/correcao-nome-upload";
 import {
   Dialog,
   DialogContent,
@@ -36,10 +37,12 @@ type LinhaEnvioComArquivo = ItemEnvio & LinhaEnvio & {
 };
 
 export type DadosEnviarDocumentos = {
-  disciplinas: { id: string; nome: string; usaPastas: boolean; pastas: PastaFlat[] }[];
+  disciplinas: { id: string; nome: string; sigla: string | null; usaPastas: boolean; pastas: PastaFlat[] }[];
   nomenclatura: { exigir: boolean; exigirFase: boolean; padrao: string | null };
   existentesPorDisciplina: Record<string, ArquivoExistente[]>;
   fases: FaseUpload[];
+  tipos: FaseUpload[];
+  codigoProjeto: string;
 };
 
 /**
@@ -344,6 +347,13 @@ function UploaderDocumentos({
         itens={pendentes}
         exigirFase={dados.nomenclatura.exigirFase}
         fases={dados.fases}
+        dadosCorrecao={disciplina ? {
+          codigoProjeto: dados.codigoProjeto,
+          siglaDisciplina: disciplina.sigla,
+          fases: dados.fases,
+          tipos: dados.tipos,
+        } : null}
+        padrao={dados.nomenclatura.padrao}
         onCancel={() => setPendentes(null)}
         onChange={setPendentes}
         onConfirm={() => pendentes && void enviar(pendentes)}
@@ -440,6 +450,8 @@ function RevisarNomesDialog({
   itens,
   exigirFase,
   fases,
+  dadosCorrecao,
+  padrao,
   onCancel,
   onChange,
   onConfirm,
@@ -447,6 +459,8 @@ function RevisarNomesDialog({
   itens: ItemEnvio[] | null;
   exigirFase: boolean;
   fases: FaseUpload[];
+  dadosCorrecao: DadosCorrecaoNomeUpload | null;
+  padrao: string | null;
   onCancel: () => void;
   onChange: (itens: ItemEnvio[]) => void;
   onConfirm: () => void;
@@ -479,6 +493,11 @@ function RevisarNomesDialog({
             {exigirFase
               ? "Confirme a fase de cada documento antes de enviar. A sugestão vem do nome do arquivo e pode ser alterada."
               : `${foraDoPadraoCount} arquivo(s) de Pranchas fora do padrão. Renomeie, remova ou envie assim.`}
+            {foraDoPadraoCount > 0 && (
+              <span className="mt-1 block font-mono text-[11px]">
+                Padrão: {padrao?.trim() || "{proj}-{disc}-{fase}-{nº}-{tipo}[-Rnn]"}
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
@@ -507,6 +526,15 @@ function RevisarNomesDialog({
                       />
                       {extensao && <span className="shrink-0 rounded-md border bg-muted px-1.5 py-1 font-mono text-xs text-muted-foreground">{extensao}</span>}
                     </div>
+                  )}
+                  {item.fora && dadosCorrecao && (
+                    <CorrecaoNomeUpload
+                      nomeOriginal={item.file.name}
+                      faseId={item.faseId}
+                      dados={dadosCorrecao}
+                      onFaseChange={(faseId) => atualizarFase(indice, faseId)}
+                      onAplicar={(nome) => atualizarNome(indice, nome)}
+                    />
                   )}
                   {exigirFase && (
                     <div className="space-y-1">

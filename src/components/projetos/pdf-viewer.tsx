@@ -26,7 +26,7 @@ import {
   classificarPendencia,
   excluirRespostaPendencia,
 } from "@/modules/projetos/pendencias/actions";
-import type { PranchaVigente } from "@/modules/uploads/queries";
+import type { PranchaNavegavel, PranchaVigente } from "@/modules/uploads/queries";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TarefaDialog, type OpcoesUI } from "@/components/tarefas/tarefa-dialog";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
@@ -186,6 +186,8 @@ type Props = {
   documentoId: string | null;
   /** Pranchas vigentes da mesma disciplina, exceto esta — destinos possíveis de "replicar" (item 30). */
   pranchasParaReplicar: PranchaVigente[];
+  /** PDFs vigentes e autorizados da disciplina, inclusive esta prancha. */
+  pranchasNavegaveis: PranchaNavegavel[];
   /** Calibração de escala por página (item 28) — vazio = nenhuma página calibrada ainda. */
   calibracoesIniciais: CalibracaoView[];
   /** Biblioteca de apontamentos-padrão aplicável a esta disciplina (item 10). */
@@ -341,9 +343,14 @@ function CamposClassificacao({
 
 export function PdfViewer(props: Props) {
   const router = useRouter();
-  const { uploadId, projetoId, disciplinaId, nomeArquivo, codigo, projetoNome, disciplinaNome, versao, revisionNumber, revisionId, documentStatus, revisionFiles, canViewCoordination, versaoAtual, validado, finalizada, podeValidar, ehResponsavel, ehAdmin, colunasTarefa, opcoesTarefa, responsaveisPadrao, temOutraRevisao, documentoId, pranchasParaReplicar, pinInicial, paginaInicial } = props;
+  const { uploadId, projetoId, disciplinaId, nomeArquivo, codigo, projetoNome, disciplinaNome, versao, revisionNumber, revisionId, documentStatus, revisionFiles, canViewCoordination, versaoAtual, validado, finalizada, podeValidar, ehResponsavel, ehAdmin, colunasTarefa, opcoesTarefa, responsaveisPadrao, temOutraRevisao, documentoId, pranchasParaReplicar, pranchasNavegaveis, pinInicial, paginaInicial } = props;
 
   const downloadUrl = `/api/uploads/${uploadId}/download?disposition=inline`;
+  const indicePrancha = pranchasNavegaveis.findIndex((prancha) => prancha.uploadId === uploadId);
+  const pranchaAnterior = indicePrancha > 0 ? pranchasNavegaveis[indicePrancha - 1] : null;
+  const proximaPrancha = indicePrancha >= 0 && indicePrancha < pranchasNavegaveis.length - 1
+    ? pranchasNavegaveis[indicePrancha + 1]
+    : null;
   // Apontar é permitido mesmo com a entrega já validada — nesse caso o envio abre revisão
   // (mantém a validação financeira). Só a versão vigente recebe pinos novos.
   const podeApontar = podeValidar && versaoAtual;
@@ -1342,6 +1349,33 @@ export function PdfViewer(props: Props) {
                 ),
               )}
             </nav>
+            {pranchasNavegaveis.length > 1 && (
+              <nav className="flex items-center gap-0.5 rounded-sm border px-1" aria-label="Navegação entre pranchas">
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  disabled={!pranchaAnterior}
+                  aria-label="Prancha anterior"
+                  title={pranchaAnterior ? `Anterior: ${pranchaAnterior.nomeArquivo}` : "Não há prancha anterior"}
+                  render={pranchaAnterior ? <Link href={`/projetos/${projetoId}/arquivos/${pranchaAnterior.uploadId}/visualizar`} /> : undefined}
+                >
+                  <ArrowLeft className="size-3" />
+                </Button>
+                <span className="max-w-40 truncate px-1 text-[11px] text-muted-foreground" title={nomeArquivo}>
+                  {indicePrancha + 1}/{pranchasNavegaveis.length} pranchas
+                </span>
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  disabled={!proximaPrancha}
+                  aria-label="Próxima prancha"
+                  title={proximaPrancha ? `Próxima: ${proximaPrancha.nomeArquivo}` : "Não há próxima prancha"}
+                  render={proximaPrancha ? <Link href={`/projetos/${projetoId}/arquivos/${proximaPrancha.uploadId}/visualizar`} /> : undefined}
+                >
+                  <ArrowRight className="size-3" />
+                </Button>
+              </nav>
+            )}
           </div>
         </div>
         {/* Busca textual */}

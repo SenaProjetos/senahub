@@ -128,7 +128,13 @@ export default async function ArquivosPage({
     }));
     const disciplinasEnviaveis = arvore.disciplinas
       .filter((d) => d.podeEnviar)
-      .map((d) => ({ id: d.id, nome: d.nome, usaPastas: d.usaPastas, pastas: d.pastas }));
+      .map((d) => ({
+        id: d.id,
+        nome: d.nome,
+        sigla: d.sigla,
+        usaPastas: d.usaPastas,
+        pastas: d.pastas,
+      }));
     const existentesPorDisciplina: Record<string, ArquivoExistente[]> = Object.fromEntries(
       arvore.disciplinas.map((d) => [
         d.id,
@@ -218,7 +224,14 @@ export default async function ArquivosPage({
         paginacao={{ page: pagina.pagina, pageCount: pageCount(pagina.total, lp.pageSize), pageSize: lp.pageSize }}
         dadosUploader={
           disciplinasEnviaveis.length > 0
-            ? { disciplinas: disciplinasEnviaveis, nomenclatura, existentesPorDisciplina, fases: catalogos.fase }
+            ? {
+                disciplinas: disciplinasEnviaveis,
+                nomenclatura,
+                existentesPorDisciplina,
+                fases: catalogos.fase,
+                tipos: catalogos.tipo,
+                codigoProjeto: projeto.codigo,
+              }
             : null
         }
         fases={opcoesMetadados.fases}
@@ -240,6 +253,7 @@ export default async function ArquivosPage({
       podeValidar={podeValidar}
       nomenclatura={nomenclatura}
       fases={catalogos.fase}
+      tipos={catalogos.tipo}
       recebidos={recebidos}
       baseArquitetonica={baseArquitetonica}
       podeGerirBaseArquitetonica={podeGerirRecebidos}

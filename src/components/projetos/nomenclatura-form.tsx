@@ -60,7 +60,12 @@ export function NomenclaturaForm({
         <p className="text-xs text-muted-foreground">
           Quando exigida, arquivos de Pranchas fora do padrão recebem um alerta na lista.
           {isProjeto && global && (
-            <> Global: <span className="font-medium">{global.exigir ? "exige" : "livre"}</span>, fase {global.exigirFase ? "obrigatória" : "opcional"}.</>
+            <>
+              Global: <span className="font-medium">{global.exigir ? "exige" : "livre"}</span>, fase {global.exigirFase ? "obrigatória" : "opcional"}.
+              {" "}{inicial.definido
+                ? "Este projeto possui configuração própria."
+                : "Este projeto herda a configuração global."}
+            </>
           )}
         </p>
       </div>
