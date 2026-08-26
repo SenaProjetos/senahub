@@ -66,6 +66,22 @@ export function aplicarConfigAbas(
 }
 
 /**
+ * Reordena `ordem` (já filtrada/ordenada por `aplicarConfigAbas`) colocando as abas com
+ * conteúdo (ou não avaliadas) antes das vazias — dentro de cada grupo, mantém a ordem
+ * configurada. "" (Visão Geral) sempre fica primeiro.
+ */
+export function ordenarPorAtividade(
+  ordem: readonly string[],
+  conteudoPorAba: Record<string, boolean> | undefined,
+): string[] {
+  if (!conteudoPorAba) return [...ordem];
+  const [fixa, resto] = ordem[0] === "" ? [[ordem[0]], ordem.slice(1)] : [[], ordem];
+  const ativas = resto.filter((suffix) => conteudoPorAba[suffix] !== false);
+  const vazias = resto.filter((suffix) => conteudoPorAba[suffix] === false);
+  return [...fixa, ...ativas, ...vazias];
+}
+
+/**
  * Lista completa (todas as `ABAS_CONFIGURAVEIS`, mesmo ocultas) para o editor de
  * configuração: preserva a ordem salva e acrescenta, no final, o que ainda não foi
  * configurado — visível por padrão.

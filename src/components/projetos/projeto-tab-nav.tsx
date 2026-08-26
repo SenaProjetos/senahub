@@ -4,7 +4,13 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { ABA_LABEL, ABAS_CONFIGURAVEIS, aplicarConfigAbas, type AbaConfigItem } from "@/modules/projetos/abas";
+import {
+  ABA_LABEL,
+  ABAS_CONFIGURAVEIS,
+  aplicarConfigAbas,
+  ordenarPorAtividade,
+  type AbaConfigItem,
+} from "@/modules/projetos/abas";
 
 const TODAS_ABAS = ["", ...ABAS_CONFIGURAVEIS] as const;
 
@@ -23,7 +29,10 @@ export function ProjetoTabNav({
 }) {
   const pathname = usePathname();
   const base = `/projetos/${projetoId}`;
-  const ordem = useMemo(() => aplicarConfigAbas(abasVisiveis, abasConfig), [abasVisiveis, abasConfig]);
+  const ordem = useMemo(() => {
+    const base = aplicarConfigAbas(abasVisiveis, abasConfig);
+    return ordenarPorAtividade(base, conteudoPorAba);
+  }, [abasVisiveis, abasConfig, conteudoPorAba]);
 
   return (
     <nav
