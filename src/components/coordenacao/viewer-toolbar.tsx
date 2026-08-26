@@ -33,7 +33,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const EIXO_LABEL: Record<EixoCorte, string> = {
-  y: "Altura (pavimentos)",
+  y: "Eixo Y",
   x: "Eixo X",
   z: "Eixo Z",
 };

@@ -28,7 +28,13 @@ import {
   type AtributoItem,
   type PsetItem,
 } from "@/modules/coordenacao/viewer/item-data";
-import { threeParaIfc, ifcParaThree, type Vec3 } from "@/modules/coordenacao/viewer/coords";
+import {
+  threeParaIfc,
+  ifcParaThree,
+  planoCorteIfcParaThree,
+  type EixoIfc,
+  type Vec3,
+} from "@/modules/coordenacao/viewer/coords";
 import { arrastePlanoParaIfc } from "@/modules/coordenacao/realinhamento";
 import {
   normalizarNo,
@@ -79,7 +85,7 @@ export type SelecaoInfo = {
   psets: PsetItem[];
 };
 
-export type EixoCorte = "x" | "y" | "z";
+export type EixoCorte = EixoIfc;
 
 export type CorteConfig = {
   eixo: EixoCorte;
@@ -507,21 +513,16 @@ export class ViewerEngine {
     if (config) {
       const box = this.bboxGlobal();
       if (box) {
-        const eixo = config.eixo;
-        const min = box.min[eixo];
-        const max = box.max[eixo];
-        const pos = min + (max - min) * config.posicao;
-        const normal = new THREE.Vector3(
-          eixo === "x" ? -1 : 0,
-          eixo === "y" ? -1 : 0,
-          eixo === "z" ? -1 : 0,
+        const plano = planoCorteIfcParaThree(
+          config.eixo,
+          config.posicao,
+          [box.min.x, box.min.y, box.min.z],
+          [box.max.x, box.max.y, box.max.z],
         );
+        const normal = new THREE.Vector3(...plano.normal);
         if (config.invertido) normal.negate();
         // O lado onde normal·p + constant ≥ 0 é mantido; o resto é cortado.
-        const ponto = new THREE.Vector3().setComponent(
-          eixo === "x" ? 0 : eixo === "y" ? 1 : 2,
-          pos,
-        );
+        const ponto = new THREE.Vector3(...plano.ponto);
         this.planosCorte.push(new THREE.Plane().setFromNormalAndCoplanarPoint(normal, ponto));
       }
     }
@@ -571,16 +572,52 @@ export class ViewerEngine {
   // filtros (#5), broadphase de clash (#1) e diff (#4). Cache por modelo — só
   // recalcula se o modelo for recarregado (descarregarModelo invalida).
 
-  /** Índice de elementos do modelo, com pavimento resolvido (nome real, não só a categoria). */
+  /**
+   * Índice de itens que de fato têm geometria no .frag, com pavimento resolvido
+   * quando a árvore espacial do IFC o informa.
+   *
+   * Alguns exportadores MEP deixam a árvore espacial vazia/incompleta, embora
+   * as malhas e seus localIds estejam corretos. Por isso a geometria é a fonte
+   * de verdade para a lista; a árvore só complementa o pavimento dos itens.
+   */
   async indiceDoModelo(modeloId: string): Promise<ElementoIndex[]> {
     const cache = this.indiceCache.get(modeloId);
     if (cache) return cache;
     const model = this.modelos.get(modeloId);
     if (!model) return [];
 
-    const bruto = (await model.getSpatialStructure()) as unknown as NoArvoreBruto;
-    const raiz = normalizarNo(bruto);
-    let elementos = listarElementos(raiz);
+    const [elementosEspaciais, idsComGeometria, categoriasComGeometria] = await Promise.all([
+      model
+        .getSpatialStructure()
+        .then((bruto) => listarElementos(normalizarNo(bruto as unknown as NoArvoreBruto)))
+        // A árvore é complementar: uma falha nela não pode esconder as malhas
+        // já carregadas no viewer.
+        .catch(() => [] as ElementoIndex[]),
+      model.getItemsIdsWithGeometry(),
+      // Categoria é apenas o rótulo de fallback para itens fora da árvore.
+      model.getItemsWithGeometryCategories().catch(() => [] as (string | null)[]),
+    ]);
+    const espacialPorLocalId = new Map(elementosEspaciais.map((elemento) => [elemento.localId, elemento]));
+    const vistos = new Set<number>();
+    let elementos: ElementoIndex[] = [];
+
+    for (let indice = 0; indice < idsComGeometria.length; indice += 1) {
+      const localId = idsComGeometria[indice];
+      if (vistos.has(localId)) continue;
+      vistos.add(localId);
+
+      // A hierarquia espacial, quando disponível, continua sendo a fonte do
+      // pavimento e prevalece para a categoria já associada ao item.
+      const espacial = espacialPorLocalId.get(localId);
+      elementos.push(
+        espacial ?? {
+          localId,
+          category: categoriasComGeometria[indice] ?? "IFCPRODUCT",
+          pavimentoLocalId: null,
+          pavimentoNome: null,
+        },
+      );
+    }
 
     // A árvore só traz a CATEGORIA do pavimento (ex.: "IFCBUILDINGSTOREY"); resolve o
     // Name real (ex.: "Pavimento 2") via getItemsData, igual ao painel de propriedades.
@@ -760,8 +797,9 @@ export class ViewerEngine {
   // ── Clash (detecção de conflitos) ────────────────────────────
   //
   // v1 = AABB + tolerância, client-side (decisão do F0, ver docs/superpowers/plans/
-  // 2026-07-21-…). Junta índice+boxes de cada modelo (Onda 0) e roda o núcleo puro
-  // de clash.ts. Efêmero — não persiste; o chamador decide o que virar apontamento.
+  // 2026-07-21-…). Junta os itens com geometria+boxes de cada modelo e roda o núcleo
+  // puro de clash.ts. A árvore espacial não é usada: exportadores MEP podem omitir
+  // produtos dessa hierarquia mesmo quando eles têm geometria renderizável.
 
   /** Número de triângulos declarados no buffer, antes de alocar vértices transformados. */
   private totalTriangulosDaMalha(malha: MeshData): number {
@@ -826,12 +864,14 @@ export class ViewerEngine {
     modeloIdB: string,
     opcoes: OpcoesClash = {},
   ): Promise<ConflitoView[]> {
-    const [elementosA, elementosB] = await Promise.all([
-      this.indiceDoModelo(modeloIdA),
-      this.indiceDoModelo(modeloIdB),
+    const [modelA, modelB] = [this.modelos.get(modeloIdA), this.modelos.get(modeloIdB)];
+    if (!modelA || !modelB) return [];
+    const [idsA, idsB] = await Promise.all([
+      modelA.getItemsIdsWithGeometry(),
+      modelB.getItemsIdsWithGeometry(),
     ]);
-    const localIdsA = elementosA.map((e) => e.localId);
-    const localIdsB = elementosB.map((e) => e.localId);
+    const localIdsA = [...new Set(idsA)];
+    const localIdsB = [...new Set(idsB)];
     const [boxesA, boxesB] = await Promise.all([
       this.bboxesDoModelo(modeloIdA, localIdsA),
       this.bboxesDoModelo(modeloIdB, localIdsB),
