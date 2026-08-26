@@ -1,5 +1,9 @@
 import { type DisciplinaArvore } from "@/components/projetos/arquivos/painel-disciplinas";
 import { PainelNavegacaoDocumentos } from "@/components/projetos/arquivos/painel-navegacao-documentos";
+import { PainelAreasProjeto } from "@/components/projetos/arquivos/painel-areas-projeto";
+import { rotuloArea, type AreaDisponivel, type AreaProjeto } from "@/modules/uploads/areas-projeto";
+import { ConteudoAreaProjeto, type DadosAreas } from "@/components/projetos/arquivos/conteudo-area-projeto";
+import { LinkPublicoArquivosButton } from "@/components/projetos/link-publico-arquivos-dialog";
 import type { ListaPainel } from "@/components/projetos/arquivos/painel-listas";
 import { TabelaDocumentos } from "@/components/projetos/arquivos/tabela-documentos";
 import { FiltrosDocumentos } from "@/components/projetos/arquivos/filtros-documentos";
@@ -22,6 +26,14 @@ import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
  * cabeçalho do projeto mostra código e nome logo acima — uma segunda trilha aqui só empilhava
  * a mesma informação duas vezes (visto ao rodar a tela).
  */
+/** Props do botão de link público — o shell só repassa, quem monta é a page. */
+type LinkPublicoProps = {
+  disciplinas: { id: string; nome: string }[];
+  baseUrl: string;
+  clienteEmail: string | null;
+  link: React.ComponentProps<typeof LinkPublicoArquivosButton>["link"];
+};
+
 export function DocumentosShell({
   projeto,
   disciplinas,
@@ -46,6 +58,11 @@ export function DocumentosShell({
   podeValidar,
   podeExcluir,
   podeSolicitarExclusao,
+  areas,
+  areaSelecionada,
+  dadosAreas,
+  linkPublico,
+  exclusoesPendentes,
 }: {
   projeto: { id: string; nome: string; codigo: string };
   disciplinas: DisciplinaArvore[];
@@ -71,6 +88,12 @@ export function DocumentosShell({
   podeValidar: boolean;
   podeExcluir: boolean;
   podeSolicitarExclusao: boolean;
+  areas: AreaDisponivel[];
+  areaSelecionada: AreaProjeto | null;
+  dadosAreas: DadosAreas;
+  /** `null` quando o usuário não pode gerir o link público — o botão nem aparece. */
+  linkPublico: LinkPublicoProps | null;
+  exclusoesPendentes: Set<string>;
 }) {
   return (
     <div className="space-y-4">
@@ -83,7 +106,18 @@ export function DocumentosShell({
             {totalDisciplinas === 1 ? "disciplina" : "disciplinas"}
           </p>
         </div>
-        {dadosUploader && <EnviarDocumentosDialog dados={dadosUploader} />}
+        <div className="flex flex-wrap items-center gap-2">
+          {linkPublico && (
+            <LinkPublicoArquivosButton
+              projetoId={projeto.id}
+              disciplinas={linkPublico.disciplinas}
+              baseUrl={linkPublico.baseUrl}
+              clienteEmail={linkPublico.clienteEmail}
+              link={linkPublico.link}
+            />
+          )}
+          {dadosUploader && <EnviarDocumentosDialog dados={dadosUploader} />}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[260px_1fr] md:items-start">
@@ -97,9 +131,19 @@ export function DocumentosShell({
             listaSelecionadaId={listaSelecionadaId}
             podeGerirListas={podeGerirListas}
           />
+          <PainelAreasProjeto areas={areas} selecionada={areaSelecionada} />
         </aside>
 
         <main className="min-w-0 space-y-3">
+          {areaSelecionada ? (
+            // Área do projeto escolhida: o conteúdo dela ocupa o lugar da tabela. Filtros e
+            // paginação são de documento de disciplina e não se aplicam aqui.
+            <section className="rounded-md border border-border bg-card p-3">
+              <h3 className="mb-2 text-sm font-semibold">{rotuloArea(areaSelecionada)}</h3>
+              <ConteudoAreaProjeto area={areaSelecionada} dados={dadosAreas} />
+            </section>
+          ) : (
+          <>
           <div className="flex flex-wrap items-start justify-between gap-2">
             <FiltrosDocumentos extensoes={extensoes} autores={autores} status={status} totalFiltrado={totalFiltrado} />
             <SeletorColunas ocultas={colunasOcultas} />
@@ -121,6 +165,7 @@ export function DocumentosShell({
             fases={fases}
             status={status}
             colunas={colunas}
+            exclusoesPendentes={exclusoesPendentes}
           />
           <Pagination
             page={paginacao.page}
@@ -128,6 +173,8 @@ export function DocumentosShell({
             pageSize={paginacao.pageSize}
             total={totalFiltrado}
           />
+          </>
+          )}
         </main>
       </div>
     </div>

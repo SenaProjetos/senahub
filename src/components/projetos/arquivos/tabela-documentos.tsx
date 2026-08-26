@@ -89,6 +89,7 @@ export function TabelaDocumentos({
   fases,
   status,
   colunas,
+  exclusoesPendentes,
 }: {
   projetoId: string;
   linhas: LinhaDoc[];
@@ -106,6 +107,8 @@ export function TabelaDocumentos({
   status: OpcaoStatusDocumento[];
   /** Ids das colunas que o usuário escolheu ver (resolvido no servidor). */
   colunas: Set<string>;
+  /** Ids de Upload com pedido de exclusão pendente — sinal na linha do documento dono. */
+  exclusoesPendentes: Set<string>;
 }) {
   // A página já vem ordenada e recortada do banco (F1-PR10) — o `SortableHead` só empurra
   // `?sort=&dir=` para a URL, e a query do servidor faz o trabalho.
@@ -218,8 +221,16 @@ export function TabelaDocumentos({
               <TableCell className="max-w-[22rem] whitespace-normal">
                 <div className="space-y-1">
                   <PainelDocumentoDetalhe linha={l} fases={fases} status={status} />
-                  {(l.faseSigla || l.statusNome) && (
+                  {(l.faseSigla || l.statusNome || l.arquivos.some((a) => exclusoesPendentes.has(a.id))) && (
                     <div className="flex flex-wrap items-center gap-1">
+                      {/* Alguém pediu a exclusão de um arquivo deste documento e um admin ainda
+                          não decidiu — o arquivo continua valendo, mas quem olha a lista
+                          precisa saber que há um pedido em aberto. */}
+                      {l.arquivos.some((a) => exclusoesPendentes.has(a.id)) && (
+                        <Badge variant="outline" className="border-warning/40 bg-warning/10 text-warning">
+                          exclusão solicitada
+                        </Badge>
+                      )}
                       {l.faseSigla && (
                         <Badge variant="secondary" title={l.faseNome ?? undefined}>
                           {l.faseSigla}
