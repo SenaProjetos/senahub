@@ -20,17 +20,27 @@ const base = { modulo: "chat" } as const;
 
 const PODE_MODERAR = ["admin", "supervisor"] as const;
 
+/** Rótulo do canal p/ notificação (identifica DM × grupo × canal de projeto/disciplina). */
+function rotuloCanal(tipo: string, nome: string | null): string | null {
+  if (tipo === "dm") return null; // autor já deixa claro que é DM
+  if (tipo === "grupo") return `grupo ${nome ?? "sem nome"}`;
+  if (tipo === "projeto") return `projeto ${nome ?? ""}`.trim();
+  if (tipo === "disciplina") return `disciplina ${nome ?? ""}`.trim();
+  return nome ?? tipo; // geral, sócios
+}
+
 /** Monta a notificação (sino + push) de uma mensagem nova — padroniza título/corpo/tag/href. */
 function montarNotificacaoMensagem(
   autorNome: string,
   conteudo: string,
   canalId: string,
+  canal: { tipo: string; nome: string | null },
   opcoes?: { mencao?: boolean },
 ): NotificacaoInput {
+  const rotulo = rotuloCanal(canal.tipo, canal.nome);
+  const base = opcoes?.mencao ? `Você foi mencionado por ${autorNome}` : `Mensagem de ${autorNome}`;
   return {
-    titulo: opcoes?.mencao
-      ? `Você foi mencionado por ${autorNome}`
-      : `Mensagem de ${autorNome}`,
+    titulo: rotulo ? `${base} (${rotulo})` : base,
     corpo: conteudo ? textoParaPreview(conteudo).slice(0, 120) : "📎 Anexo",
     href: `/chat?c=${canalId}`,
     tag: `chat-${canalId}`,
@@ -94,7 +104,13 @@ async function notificarMembros(canalId: string, autorId: string, autorNome: str
   await Promise.all(
     destinatarios.map(async (m) => {
       const mencao = mencionadosIds.has(m.userId);
-      const n = montarNotificacaoMensagem(autorNome, conteudo, canalId, mencao ? { mencao: true } : undefined);
+      const n = montarNotificacaoMensagem(
+        autorNome,
+        conteudo,
+        canalId,
+        { tipo: canal!.tipo, nome: canal!.nome },
+        mencao ? { mencao: true } : undefined,
+      );
       const push = !m.silenciado && m.user.chatStatus !== "reuniao";
       if (!usuarioOnline(m.userId)) {
         await notificar(m.userId, n, { push });
