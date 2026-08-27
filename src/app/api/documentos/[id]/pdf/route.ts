@@ -2,6 +2,7 @@ import puppeteer from "puppeteer-core";
 import { getSession } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { FAIXA_RODAPE, FOOTER_PAGINACAO, reservarFaixaDoRodape } from "@/modules/documentos/rodape-pdf";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -56,14 +57,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const page = await browser.newPage();
     if (cookie) await page.setExtraHTTPHeaders({ cookie });
     await page.goto(previewUrl, { waitUntil: "networkidle0", timeout: 30000 });
-    await page.emulateMediaType("print");
     // OPT-IN: com numerarPaginas, ligamos o header/footer nativo do Chrome e
-    // RESERVAMOS margem inferior (~14mm) para o rodapé caber; header vazio.
+    // RESERVAMOS a faixa inferior para o rodapé caber; header vazio.
     // Sem isso, mantemos o full-bleed original (margem 0, sem header/footer).
-    const footerTemplate =
-      '<div style="width:100%;font-size:9px;color:#666;text-align:center;padding:0 6mm;">' +
-      'Página <span class="pageNumber"></span> / <span class="totalPages"></span>' +
-      "</div>";
+    if (numerarPaginas) await reservarFaixaDoRodape(page);
+    await page.emulateMediaType("print");
     const pdf = await page.pdf({
       format: formatoPdf,
       landscape,
@@ -72,8 +70,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       ...(numerarPaginas
         ? {
             headerTemplate: "<span></span>",
-            footerTemplate,
-            margin: { top: "0", right: "0", bottom: "14mm", left: "0" },
+            footerTemplate: FOOTER_PAGINACAO,
+            margin: { top: "0", right: "0", bottom: FAIXA_RODAPE, left: "0" },
           }
         : { margin: { top: "0", right: "0", bottom: "0", left: "0" } }),
     });

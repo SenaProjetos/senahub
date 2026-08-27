@@ -8,6 +8,7 @@ import { acquireExecutionSlot, ExecutionCapacityError } from "@/lib/execution-li
 import { auditarBloqueioRateLimit, limitarRequisicao, respostaLimiteRequisicoes } from "@/lib/rate-limit";
 import { docSchemaZ } from "@/modules/documentos/schema";
 import { escopoDocumentoGerado } from "@/modules/documentos/queries";
+import { FAIXA_RODAPE, FOOTER_PAGINACAO, reservarFaixaDoRodape } from "@/modules/documentos/rodape-pdf";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -82,11 +83,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const page = await browser.newPage();
     if (cookie) await page.setExtraHTTPHeaders({ cookie });
     await page.goto(previewUrl, { waitUntil: "networkidle0", timeout: 30000 });
+    // Reserva a faixa do rodapé ANTES de imprimir — sem isso o `@page` do globals.css anula o
+    // `margin.bottom` abaixo e o rodapé sai por cima do texto. Ver `rodape-pdf.ts`.
+    if (numerarPaginas) await reservarFaixaDoRodape(page);
     await page.emulateMediaType("print");
-    const footerTemplate =
-      '<div style="width:100%;font-size:9px;color:#666;text-align:center;padding:0 6mm;">' +
-      'Página <span class="pageNumber"></span> / <span class="totalPages"></span>' +
-      "</div>";
     const pdf = await page.pdf({
       format: formatoPdf,
       landscape,
@@ -95,8 +95,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       ...(numerarPaginas
         ? {
             headerTemplate: "<span></span>",
-            footerTemplate,
-            margin: { top: "0", right: "0", bottom: "14mm", left: "0" },
+            footerTemplate: FOOTER_PAGINACAO,
+            margin: { top: "0", right: "0", bottom: FAIXA_RODAPE, left: "0" },
           }
         : { margin: { top: "0", right: "0", bottom: "0", left: "0" } }),
     });
