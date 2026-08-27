@@ -6,7 +6,7 @@
 export type ParamFonte = {
   id: string;
   label: string;
-  tipo: "projeto" | "cliente" | "usuario" | "mes" | "proposta" | "licitacao" | "holerite";
+  tipo: "projeto" | "cliente" | "usuario" | "mes" | "proposta" | "licitacao" | "holerite" | "contrato";
 };
 export type CampoDoc = { chave: string; label: string };
 
@@ -229,6 +229,68 @@ export const FONTES: FonteDef[] = [
         { chave: "Descricao", label: "Descrição" },
         { chave: "TipoRubrica", label: "Tipo (provento/desconto)" },
         { chave: "Valor", label: "Valor" },
+      ],
+    },
+  },
+  {
+    id: "contrato",
+    label: "Contrato (equipe ou cliente)",
+    /**
+     * ⚠️ Este `permissao` é o gate MÍNIMO, e sozinho NÃO basta.
+     *
+     * Contrato de EQUIPE carrega salário, CPF e RG e exige `HR_ADMIN_ROLES`; contrato de CLIENTE
+     * não. Como a permissão aqui é estática por fonte, a checagem que de fato protege é POR
+     * REGISTRO, dentro de `modules/juridico/contrato/fonte.ts` — que devolve VAZIO quando o
+     * contrato é de equipe e o viewer não é RH. Mexer numa sem olhar a outra reabre o vazamento.
+     */
+    permissao: { recurso: "juridico", acao: "ver" },
+    params: [{ id: "contratoId", label: "Contrato", tipo: "contrato" }],
+    escalares: [
+      // Do próprio contrato (valem nos dois tipos).
+      { chave: "ContratoTitulo", label: "Título do contrato" },
+      { chave: "ContratoValor", label: "Valor do contrato" },
+      { chave: "ContratoVencimento", label: "Vencimento do contrato" },
+      // Equipe.
+      { chave: "Nome", label: "Equipe — nome completo" },
+      { chave: "CPF", label: "Equipe — CPF" },
+      { chave: "RG", label: "Equipe — RG" },
+      { chave: "DataNascimento", label: "Equipe — data de nascimento" },
+      { chave: "EstadoCivil", label: "Equipe — estado civil" },
+      { chave: "Email", label: "Equipe — e-mail" },
+      { chave: "Telefone", label: "Equipe — telefone" },
+      { chave: "Endereco", label: "Equipe — endereço" },
+      { chave: "Cidade", label: "Equipe — cidade" },
+      { chave: "UF", label: "Equipe — UF" },
+      { chave: "CEP", label: "Equipe — CEP" },
+      { chave: "Cargo", label: "Equipe — cargo" },
+      { chave: "Contratacao", label: "Equipe — tipo de contratação" },
+      { chave: "Setor", label: "Equipe — setor" },
+      { chave: "CargaSemanal", label: "Equipe — carga semanal" },
+      { chave: "Salario", label: "Equipe — salário/bolsa/honorário" },
+      { chave: "DataInicio", label: "Equipe — início do vínculo" },
+      { chave: "DataFim", label: "Equipe — fim do vínculo" },
+      { chave: "PjRazaoSocial", label: "PJ — razão social" },
+      { chave: "PjCnpj", label: "PJ — CNPJ" },
+      { chave: "PjNomeFantasia", label: "PJ — nome fantasia" },
+      // Cliente.
+      { chave: "PropostaNumero", label: "Cliente — número da proposta" },
+      { chave: "PropostaTitulo", label: "Cliente — título da proposta" },
+      { chave: "PropostaValor", label: "Cliente — valor da proposta" },
+      { chave: "AreaM2", label: "Cliente — área (m²)" },
+      { chave: "ClienteNome", label: "Cliente — nome" },
+      { chave: "ClienteDocumento", label: "Cliente — CPF/CNPJ" },
+      { chave: "ClienteEmail", label: "Cliente — e-mail" },
+      { chave: "ClienteTelefone", label: "Cliente — telefone" },
+      { chave: "ClienteEndereco", label: "Cliente — endereço" },
+      { chave: "ProjetoCodigo", label: "Cliente — código do projeto" },
+    ],
+    colecao: {
+      label: "Parcelas do contrato",
+      campos: [
+        { chave: "Parcela", label: "Nº da parcela" },
+        { chave: "Descricao", label: "Descrição" },
+        { chave: "Valor", label: "Valor" },
+        { chave: "Vencimento", label: "Vencimento" },
       ],
     },
   },

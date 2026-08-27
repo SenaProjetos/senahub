@@ -68,7 +68,7 @@ export async function resolverModelo(
         porFonte[fonteId] = { escalar: {}, linhas: [] };
         return;
       }
-      porFonte[fonteId] = await resolverFonte(fonteId, paramsPorFonte[fonteId] ?? {});
+      porFonte[fonteId] = await resolverFonte(fonteId, paramsPorFonte[fonteId] ?? {}, viewer);
     }),
   );
 
@@ -89,10 +89,25 @@ export function isFonteDataset(fonteId: string | null | undefined): boolean {
   return typeof fonteId === "string" && fonteId.startsWith(DATASET_PREFIX);
 }
 
-/** Resolve a fonte com os parâmetros → dados prontos para o motor de tokens. */
+/**
+ * Resolve a fonte com os parâmetros → dados prontos para o motor de tokens.
+ *
+ * ## Por que `viewer` é OBRIGATÓRIO
+ *
+ * `podeVerFonte` (em `fontes-perm.ts`) autoriza POR FONTE, com um `recurso:acao` estático. Isso
+ * basta enquanto a permissão de uma fonte não depende de QUAL registro está sendo lido — o que
+ * deixou de ser verdade com a fonte `contrato`: contrato de EQUIPE carrega salário, CPF e RG e
+ * exige `HR_ADMIN_ROLES`, enquanto contrato de CLIENTE não.
+ *
+ * O parâmetro é obrigatório, e não opcional com default, de propósito: um chamador novo que
+ * esquecesse de repassar o viewer passaria a gerar documento sem o gate por registro — falha
+ * ABERTA, silenciosa, vazando salário sem erro nenhum. Sendo obrigatório, o compilador recusa
+ * antes de chegar a produção.
+ */
 export async function resolverFonte(
   fonteId: string,
   params: Record<string, string>,
+  viewer: SubjectAutorizacao,
 ): Promise<DadosResolvidos> {
   // Dataset de CSV como fonte (convenção: "dataset:<datasetId>").
   // Cada linha é um objeto coluna→valor; os tokens [Coluna] resolvem direto.
@@ -394,6 +409,14 @@ export async function resolverFonte(
           Valor: l.valor,
         })),
       };
+    }
+
+    case "contrato": {
+      // Delegado ao módulo jurídico: o escalar de contrato já existe lá (`contrato/campos.ts`),
+      // construído e testado para a geração por modelo. Duplicar aqui criaria duas verdades sobre
+      // o que é "o salário do contrato" — exatamente o que este arquivo evita nas outras fontes.
+      const { resolverFonteContrato } = await import("@/modules/juridico/contrato/fonte");
+      return resolverFonteContrato(params.contratoId ?? "", viewer);
     }
 
     default:

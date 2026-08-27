@@ -34,8 +34,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   const sp = Object.fromEntries(new URL(req.url).searchParams.entries());
   const temParams = Object.keys(sp).length > 0;
+  // `session.user` também vai para `resolverFonte`: o `podeVerFonte` acima é o gate POR FONTE, e
+  // fontes como `contrato` ainda precisam decidir por REGISTRO lá dentro (contrato de equipe exige
+  // RH). Passar o viewer é obrigatório justamente para esta checagem não ficar de fora.
   const dados =
-    modelo.fonte && temParams && podeFonte ? await resolverFonte(modelo.fonte, sp) : undefined;
+    modelo.fonte && temParams && podeFonte
+      ? await resolverFonte(modelo.fonte, sp, session.user)
+      : undefined;
 
   const dxf = gerarDxf(parsed.data, dados);
   return new Response(dxf, {
