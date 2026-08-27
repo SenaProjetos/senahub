@@ -301,4 +301,32 @@ de verdade — remover o caminho antigo antes disso deixaria o jurídico sem nen
     texto** (sem perda) antes do drop — não converter o layout para `DocSchema`, que seria estimar
     altura de parágrafo às cegas sobre dado invisível, com o original já apagado.
   - **E7a (Haiku)** — M4 (`arquivoPath` via `resolverCaminho`) + M5 (rate limit configurável).
-  - **M2 (Opus, investigação antes de estimar)** — rubrica por página.
+
+### M2 — investigação concluída (rubrica por página)
+
+A pergunta era se a rubrica cabe no `headerTemplate`/`footerTemplate` do Puppeteer. **Cabe, e é a
+única via** — medido em spike com Chrome real, PDF de 2 páginas lido de volta com `pdfjs-dist`.
+
+Ponto de partida que muda o desenho: `doc-render.tsx` emite **fluxo HTML único**, uma `.doc-pagina`
+só. As bandas não se repetem por página física — quem pagina é o Chrome. Logo `rodapePagina` NÃO
+serve de rubrica, e `[Paginas]` é estimativa por altura, não a contagem real.
+
+| Via | Repete em toda página? | Reserva espaço? | Aceita imagem? |
+|---|---|---|---|
+| `footerTemplate` nativo | **sim** | **sim** (via `@page`) | **sim** (data-URI) |
+| `position: fixed` | sim | **não — sobrepõe** | sim |
+| banda `rodapePagina` | não (fluxo único) | — | — |
+
+`position: fixed` repete mas passa por cima do texto, e nem `padding-bottom` do body nem o `margin`
+do `page.pdf()` corrigem isso sozinhos — **só o `@page` reserva faixa em toda página física**.
+
+> **Achado colateral, mais valioso que a própria M2:** essa mesma precedência do `@page` era um
+> **defeito ativo** no `numerarPaginas` — o `@page { margin: 0 }` do `globals.css` anulava a faixa
+> de 14mm das rotas de PDF, e o número da página saía **sobre** o texto (−1.3pt de folga medidos,
+> com o schema do modelo CLT de fábrica). Corrigido em `a34a1b4`; ver `modules/documentos/rodape-pdf.ts`.
+
+**Estimativa:** a parte técnica é pequena (o mecanismo já está em produção e agora corrigido). O que
+falta é **decisão de produto, não de engenharia**: de onde vem a rubrica de cada signatário — imagem
+digitalizada, iniciais em texto, ou derivada da assinatura eletrônica já registrada? Não existe campo
+para isso no schema, e a resposta muda o que é preciso guardar. Enquanto essa decisão não for tomada,
+M2 não deve virar tarefa.
