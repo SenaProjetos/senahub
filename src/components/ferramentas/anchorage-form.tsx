@@ -20,6 +20,7 @@ import { SavefileButtons } from "./savefile-buttons";
 import { versaoCalcDe } from "@/modules/ferramentas/registry";
 import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
 import { AnchorageSchematic } from "./guia/schematics/ancoragem";
+import { CampoPercentual } from "@/components/ferramentas/campo-percentual";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
@@ -29,7 +30,7 @@ export function AnchorageForm({ initialEntradas, onSalvo }: Props) {
   const [fck, setFck] = useState(String((initialEntradas?.fck as number) ?? 25));
   const [aderencia, setAderencia] = useState((initialEntradas?.aderencia as string) ?? "boa");
   const [gancho, setGancho] = useState(Boolean(initialEntradas?.gancho));
-  const [pct, setPct] = useState(String((initialEntradas?.pctEmendadas as number) ?? 100));
+  const [pct, setPct] = useState<number | null>((initialEntradas?.pctEmendadas as number) ?? 100);
   const [salvarOpen, setSalvarOpen] = useState(false);
 
   useEffect(() => {
@@ -39,7 +40,7 @@ export function AnchorageForm({ initialEntradas, onSalvo }: Props) {
     setFck(String((initialEntradas.fck as number) ?? 25));
     setAderencia((initialEntradas.aderencia as string) ?? "boa");
     setGancho(Boolean(initialEntradas.gancho));
-    setPct(String((initialEntradas.pctEmendadas as number) ?? 100));
+    setPct((initialEntradas.pctEmendadas as number) ?? 100);
   }, [initialEntradas]);
 
   const entrada = useMemo<EntradaAncoragemInput | null>(() => {
@@ -50,7 +51,7 @@ export function AnchorageForm({ initialEntradas, onSalvo }: Props) {
       fck: Number(fck),
       aderencia: aderencia as "boa" | "ma",
       gancho,
-      pctEmendadas: Number(pct) || 100,
+      pctEmendadas: pct ?? 100,
     };
   }, [phi, aco, fck, aderencia, gancho, pct]);
 
@@ -69,7 +70,7 @@ export function AnchorageForm({ initialEntradas, onSalvo }: Props) {
     setFck(String((n.fck as number) ?? 25));
     setAderencia((n.aderencia as string) ?? "boa");
     setGancho(Boolean(n.gancho));
-    setPct(String((n.pctEmendadas as number) ?? 100));
+    setPct((n.pctEmendadas as number) ?? 100);
   }
 
   return (
@@ -121,10 +122,7 @@ export function AnchorageForm({ initialEntradas, onSalvo }: Props) {
 
         <GuiaGrupo n={3}>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="anc-pct">% emendadas</Label>
-              <Input id="anc-pct" type="number" value={pct} onChange={(e) => setPct(e.target.value)} className="font-mono" />
-            </div>
+            <CampoPercentual id="anc-pct" label="Emendadas" value={pct} onChange={setPct} />
             <div className="flex items-center gap-2 pt-6">
               <Switch checked={gancho} onCheckedChange={setGancho} id="anc-gancho" />
               <Label htmlFor="anc-gancho">Com gancho</Label>

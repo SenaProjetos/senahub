@@ -16,10 +16,13 @@ import { Footer } from "./anchorage-form";
 import { DxfPreview } from "./dxf-preview";
 import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
 import { FootingSchematic } from "./guia/schematics/sapata-isolada";
+import { CampoPercentual } from "@/components/ferramentas/campo-percentual";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
 const s = (v: unknown, d: string) => (v != null ? String(v) : d);
+/** Igual ao `s`, mas para os campos que guardam número cru (percentual). */
+const num = (v: unknown, d: number) => (v != null ? Number(v) : d);
 
 export function FootingForm({ initialEntradas, onSalvo }: Props) {
   const [nk, setNk] = useState(s(initialEntradas?.nk, ""));
@@ -29,21 +32,21 @@ export function FootingForm({ initialEntradas, onSalvo }: Props) {
   const [h, setH] = useState(s(initialEntradas?.h, ""));
   const [fck, setFck] = useState(s(initialEntradas?.fck, "25"));
   const [aco, setAco] = useState(s(initialEntradas?.aco, "CA-50"));
-  const [pp, setPp] = useState(s(initialEntradas?.pesoProprioPct, "5"));
+  const [pp, setPp] = useState<number | null>((initialEntradas?.pesoProprioPct as number) ?? 5);
   const [salvarOpen, setSalvarOpen] = useState(false);
 
   useEffect(() => {
     if (!initialEntradas) return;
     const i = initialEntradas;
     setNk(s(i.nk, "")); setSigmaAdm(s(i.sigmaAdm, "300")); setAp(s(i.ap, "30")); setBp(s(i.bp, "30"));
-    setH(s(i.h, "")); setFck(s(i.fck, "25")); setAco(s(i.aco, "CA-50")); setPp(s(i.pesoProprioPct, "5"));
+    setH(s(i.h, "")); setFck(s(i.fck, "25")); setAco(s(i.aco, "CA-50")); setPp(num(i.pesoProprioPct, 5));
   }, [initialEntradas]);
 
   const entrada = useMemo<EntradaSapataInput | null>(() => {
     if (!(Number(nk) > 0 && Number(sigmaAdm) > 0 && Number(ap) > 0 && Number(bp) > 0 && Number(h) > 0)) return null;
     return {
       nk: Number(nk), sigmaAdm: Number(sigmaAdm), ap: Number(ap), bp: Number(bp), h: Number(h),
-      fck: Number(fck), aco: aco as "CA-25" | "CA-50" | "CA-60", pesoProprioPct: Number(pp) || 5,
+      fck: Number(fck), aco: aco as "CA-25" | "CA-50" | "CA-60", pesoProprioPct: pp ?? 5,
     };
   }, [nk, sigmaAdm, ap, bp, h, fck, aco, pp]);
 
@@ -68,7 +71,7 @@ export function FootingForm({ initialEntradas, onSalvo }: Props) {
         <GuiaGrupo n={2}>
           <div className="grid grid-cols-2 gap-3">
             <Campo id="e21-sa" label="σadm (kPa)" value={sigmaAdm} onChange={setSigmaAdm} />
-            <Campo id="e21-pp" label="Peso próprio (%)" value={pp} onChange={setPp} />
+            <CampoPercentual id="e21-pp" label="Peso próprio" value={pp} onChange={setPp} />
           </div>
         </GuiaGrupo>
 
@@ -128,7 +131,7 @@ export function FootingForm({ initialEntradas, onSalvo }: Props) {
         setSalvarOpen={setSalvarOpen}
         onImport={(n) => {
           setNk(s(n.nk, "")); setSigmaAdm(s(n.sigmaAdm, "300")); setAp(s(n.ap, "30")); setBp(s(n.bp, "30"));
-          setH(s(n.h, "")); setFck(s(n.fck, "25")); setAco(s(n.aco, "CA-50")); setPp(s(n.pesoProprioPct, "5"));
+          setH(s(n.h, "")); setFck(s(n.fck, "25")); setAco(s(n.aco, "CA-50")); setPp(num(n.pesoProprioPct, 5));
         }}
         onSalvo={onSalvo}
       />

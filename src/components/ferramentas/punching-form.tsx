@@ -15,11 +15,14 @@ import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
 import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
 import { PuncaoSchematic } from "./guia/schematics/puncao";
+import { CampoPercentual } from "@/components/ferramentas/campo-percentual";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
 const POS_KEYS = Object.keys(POSICOES) as Posicao[];
 const s = (v: unknown, d: string) => (v != null ? String(v) : d);
+/** Igual ao `s`, mas para os campos que guardam número cru (percentual). */
+const num = (v: unknown, d: number) => (v != null ? Number(v) : d);
 
 export function PunchingForm({ initialEntradas, onSalvo }: Props) {
   const [posicao, setPosicao] = useState(s(initialEntradas?.posicao, "interno"));
@@ -29,8 +32,8 @@ export function PunchingForm({ initialEntradas, onSalvo }: Props) {
   const [fck, setFck] = useState(s(initialEntradas?.fck, "25"));
   const [fSd, setFSd] = useState(s(initialEntradas?.fSd, ""));
   const [mSd, setMSd] = useState(s(initialEntradas?.mSd, "0"));
-  const [rhoX, setRhoX] = useState(s(initialEntradas?.rhoX, "0.5"));
-  const [rhoY, setRhoY] = useState(s(initialEntradas?.rhoY, "0.5"));
+  const [rhoX, setRhoX] = useState<number | null>((initialEntradas?.rhoX as number) ?? 0.5);
+  const [rhoY, setRhoY] = useState<number | null>((initialEntradas?.rhoY as number) ?? 0.5);
   const [salvarOpen, setSalvarOpen] = useState(false);
 
   useEffect(() => {
@@ -38,7 +41,7 @@ export function PunchingForm({ initialEntradas, onSalvo }: Props) {
     const i = initialEntradas;
     setPosicao(s(i.posicao, "interno")); setC1(s(i.c1, "")); setC2(s(i.c2, "")); setD(s(i.d, ""));
     setFck(s(i.fck, "25")); setFSd(s(i.fSd, "")); setMSd(s(i.mSd, "0"));
-    setRhoX(s(i.rhoX, "0.5")); setRhoY(s(i.rhoY, "0.5"));
+    setRhoX(num(i.rhoX, 0.5)); setRhoY(num(i.rhoY, 0.5));
   }, [initialEntradas]);
 
   const entrada = useMemo<EntradaPuncaoInput | null>(() => {
@@ -46,7 +49,7 @@ export function PunchingForm({ initialEntradas, onSalvo }: Props) {
     return {
       posicao: posicao as Posicao, c1: Number(c1), c2: Number(c2), d: Number(d),
       fck: Number(fck), fSd: Number(fSd), mSd: Number(mSd) || 0,
-      rhoX: Number(rhoX) || 0.5, rhoY: Number(rhoY) || 0.5,
+      rhoX: rhoX ?? 0.5, rhoY: rhoY ?? 0.5,
     };
   }, [posicao, c1, c2, d, fck, fSd, mSd, rhoX, rhoY]);
 
@@ -95,8 +98,8 @@ export function PunchingForm({ initialEntradas, onSalvo }: Props) {
               <Label htmlFor="e07-fck">fck (MPa)</Label>
               <Input id="e07-fck" type="number" value={fck} onChange={(e) => setFck(e.target.value)} className="font-mono" />
             </div>
-            <Campo id="e07-rx" label="ρx (%)" value={rhoX} onChange={setRhoX} />
-            <Campo id="e07-ry" label="ρy (%)" value={rhoY} onChange={setRhoY} />
+            <CampoPercentual id="e07-rx" label="ρx" decimais={3} value={rhoX} onChange={setRhoX} />
+            <CampoPercentual id="e07-ry" label="ρy" decimais={3} value={rhoY} onChange={setRhoY} />
           </div>
         </GuiaGrupo>
       </GuiaFerramenta>
@@ -142,7 +145,7 @@ export function PunchingForm({ initialEntradas, onSalvo }: Props) {
         onImport={(n) => {
           setPosicao(s(n.posicao, "interno")); setC1(s(n.c1, "")); setC2(s(n.c2, "")); setD(s(n.d, ""));
           setFck(s(n.fck, "25")); setFSd(s(n.fSd, "")); setMSd(s(n.mSd, "0"));
-          setRhoX(s(n.rhoX, "0.5")); setRhoY(s(n.rhoY, "0.5"));
+          setRhoX(num(n.rhoX, 0.5)); setRhoY(num(n.rhoY, 0.5));
         }}
         onSalvo={onSalvo}
       />

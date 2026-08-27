@@ -4,12 +4,12 @@ import { useState, useEffect, useMemo } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { calcular, type EntradaResumoAcoInput } from "@/modules/ferramentas/calc/steel-summary";
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
 import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
 import { SteelSummarySchematic } from "./guia/schematics/resumo-aco";
+import { CampoPercentual } from "@/components/ferramentas/campo-percentual";
 
 type Item = { bitolaMm: string; quantidade: string; comprimentoM: string };
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
@@ -28,13 +28,13 @@ function itensIniciais(e?: Record<string, unknown>): Item[] {
 
 export function SteelSummaryForm({ initialEntradas, onSalvo }: Props) {
   const [itens, setItens] = useState<Item[]>(() => itensIniciais(initialEntradas));
-  const [perda, setPerda] = useState(String((initialEntradas?.perdaPct as number) ?? 10));
+  const [perda, setPerda] = useState<number | null>((initialEntradas?.perdaPct as number) ?? 10);
   const [salvarOpen, setSalvarOpen] = useState(false);
 
   useEffect(() => {
     if (!initialEntradas) return;
     setItens(itensIniciais(initialEntradas));
-    setPerda(String((initialEntradas.perdaPct as number) ?? 10));
+    setPerda((initialEntradas.perdaPct as number) ?? 10);
   }, [initialEntradas]);
 
   const entrada = useMemo<EntradaResumoAcoInput | null>(() => {
@@ -42,7 +42,7 @@ export function SteelSummaryForm({ initialEntradas, onSalvo }: Props) {
       .filter((it) => Number(it.bitolaMm) > 0 && Number(it.quantidade) > 0 && Number(it.comprimentoM) > 0)
       .map((it) => ({ bitolaMm: Number(it.bitolaMm), quantidade: Math.round(Number(it.quantidade)), comprimentoM: Number(it.comprimentoM) }));
     if (validos.length === 0) return null;
-    return { itens: validos, perdaPct: Number(perda) || 0 };
+    return { itens: validos, perdaPct: perda ?? 0 };
   }, [itens, perda]);
 
   const resultado = useMemo(() => {
@@ -86,9 +86,8 @@ export function SteelSummaryForm({ initialEntradas, onSalvo }: Props) {
 
         <GuiaGrupo n={2}>
           <div className="flex items-end gap-3">
-            <div className="space-y-1.5 w-32">
-              <Label htmlFor="e11-perda">Perda (%)</Label>
-              <Input id="e11-perda" type="number" value={perda} onChange={(e) => setPerda(e.target.value)} className="font-mono" />
+            <div className="w-32">
+              <CampoPercentual id="e11-perda" label="Perda" value={perda} onChange={setPerda} />
             </div>
           </div>
         </GuiaGrupo>
@@ -132,7 +131,7 @@ export function SteelSummaryForm({ initialEntradas, onSalvo }: Props) {
         setSalvarOpen={setSalvarOpen}
         onImport={(n) => {
           setItens(itensIniciais(n));
-          setPerda(String((n.perdaPct as number) ?? 10));
+          setPerda((n.perdaPct as number) ?? 10);
         }}
         onSalvo={onSalvo}
       />

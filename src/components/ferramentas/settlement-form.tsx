@@ -17,6 +17,7 @@ import { SOLOS, type TipoSolo } from "@/modules/ferramentas/calc/spt-shared";
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
 import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
+import { CampoPercentual } from "@/components/ferramentas/campo-percentual";
 
 type Camada = { solo: string; nspt: string; espessuraM: string };
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
@@ -24,6 +25,8 @@ type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) 
 const SOLO_KEYS = Object.keys(SOLOS) as TipoSolo[];
 const VAZIA: Camada = { solo: "argila_arenosa", nspt: "", espessuraM: "" };
 const s = (v: unknown, d: string) => (v != null ? String(v) : d);
+/** Igual ao `s`, mas para os campos que guardam número cru (percentual). */
+const num = (v: unknown, d: number) => (v != null ? Number(v) : d);
 
 const MODOS = [
   { key: "elastico", label: "Imediato — elástico (Iw)" },
@@ -67,7 +70,7 @@ export function SettlementForm({ initialEntradas, onSalvo }: Props) {
   const [tDias, setTDias] = useState(s(initialEntradas?.tDias, "30"));
   const [drenagem, setDrenagem] = useState(s(initialEntradas?.drenagem, "dupla"));
   // secundaria
-  const [caPct, setCaPct] = useState(s(initialEntradas?.caPct, "0.6"));
+  const [caPct, setCaPct] = useState<number | null>((initialEntradas?.caPct as number) ?? 0.6);
   const [t1Anos, setT1Anos] = useState(s(initialEntradas?.t1Anos, ""));
   const [t2Anos, setT2Anos] = useState(s(initialEntradas?.t2Anos, "50"));
   const [rhoImediatoCm, setRhoImediatoCm] = useState(s(initialEntradas?.rhoImediatoCm, "0"));
@@ -87,7 +90,7 @@ export function SettlementForm({ initialEntradas, onSalvo }: Props) {
     setDqKpa(s(i.dqKpa, "")); setHM(s(i.hM, "")); setCc(s(i.cc, "0.3")); setE0(s(i.e0, "1.8"));
     setSigmaIniKpa(s(i.sigmaIniKpa, "")); setMu(s(i.mu, "1")); setCvCm2s(s(i.cvCm2s, "0.004"));
     setTDias(s(i.tDias, "30")); setDrenagem(s(i.drenagem, "dupla"));
-    setCaPct(s(i.caPct, "0.6")); setT1Anos(s(i.t1Anos, "")); setT2Anos(s(i.t2Anos, "50"));
+    setCaPct(num(i.caPct, 0.6)); setT1Anos(s(i.t1Anos, "")); setT2Anos(s(i.t2Anos, "50"));
     setRhoImediatoCm(s(i.rhoImediatoCm, "0")); setRhoAdensamentoCm(s(i.rhoAdensamentoCm, "0"));
     setRhoAdmCm(s(i.rhoAdmCm, "5"));
   }, [initialEntradas]);
@@ -116,9 +119,9 @@ export function SettlementForm({ initialEntradas, onSalvo }: Props) {
         drenagem: drenagem as "dupla" | "simples",
       };
     }
-    if (!(n(caPct) > 0 && n(t1Anos) > 0 && n(t2Anos) > n(t1Anos) && n(hM) > 0 && n(rhoAdmCm) > 0)) return null;
+    if (!((caPct ?? 0) > 0 && n(t1Anos) > 0 && n(t2Anos) > n(t1Anos) && n(hM) > 0 && n(rhoAdmCm) > 0)) return null;
     return {
-      modo: "secundaria", caPct: n(caPct), t1Anos: n(t1Anos), t2Anos: n(t2Anos), hM: n(hM),
+      modo: "secundaria", caPct: caPct ?? 0, t1Anos: n(t1Anos), t2Anos: n(t2Anos), hM: n(hM),
       rhoImediatoCm: n(rhoImediatoCm) || 0, rhoAdensamentoCm: n(rhoAdensamentoCm) || 0, rhoAdmCm: n(rhoAdmCm),
     };
   }, [
@@ -235,7 +238,7 @@ export function SettlementForm({ initialEntradas, onSalvo }: Props) {
         {modo === "secundaria" && (
           <GuiaGrupo n={2}>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <Campo id="e28-ca" label="Cα (%)" value={caPct} onChange={setCaPct} step="0.1" />
+              <CampoPercentual id="e28-ca" label="Cα" value={caPct} onChange={setCaPct} />
               <Campo id="e28-h2" label="H da argila (m)" value={hM} onChange={setHM} step="0.5" />
               <Campo id="e28-t1" label="t₁ — fim do primário (anos)" value={t1Anos} onChange={setT1Anos} step="0.1" />
               <Campo id="e28-t2" label="t₂ — vida útil (anos)" value={t2Anos} onChange={setT2Anos} />
@@ -306,7 +309,7 @@ export function SettlementForm({ initialEntradas, onSalvo }: Props) {
           setDqKpa(s(n.dqKpa, "")); setHM(s(n.hM, "")); setCc(s(n.cc, "0.3")); setE0(s(n.e0, "1.8"));
           setSigmaIniKpa(s(n.sigmaIniKpa, "")); setMu(s(n.mu, "1")); setCvCm2s(s(n.cvCm2s, "0.004"));
           setTDias(s(n.tDias, "30")); setDrenagem(s(n.drenagem, "dupla"));
-          setCaPct(s(n.caPct, "0.6")); setT1Anos(s(n.t1Anos, "")); setT2Anos(s(n.t2Anos, "50"));
+          setCaPct(num(n.caPct, 0.6)); setT1Anos(s(n.t1Anos, "")); setT2Anos(s(n.t2Anos, "50"));
           setRhoImediatoCm(s(n.rhoImediatoCm, "0")); setRhoAdensamentoCm(s(n.rhoAdensamentoCm, "0"));
           setRhoAdmCm(s(n.rhoAdmCm, "5"));
         }}
