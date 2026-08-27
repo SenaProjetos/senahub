@@ -1,12 +1,14 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { whereAudiencia } from "@/lib/audiencias";
+import { diaLocal, minutosPorDiaSessao } from "@/modules/ponto/engine";
 
 /**
  * Item 7 — Produtividade por projetista (semanal/mensal).
  *
  * MÉTRICA (somente dados realmente coletados hoje — nada inventado):
- *  - horas:    soma da duração de `SessaoTrabalho` (ponto) com fim preenchido.
+ *  - horas:    soma da duração de `SessaoTrabalho` (ponto), incluindo a sessão
+ *              ainda aberta até o instante da consulta.
  *  - entregas: nº de `PagamentoProjetista` liberados (`liberadoEm`) — entregas validadas.
  *  - tarefas:  nº de `Tarefa` concluídas (`concluidaEm`) por responsável.
  *  - atrasos:  disciplinas entregues COM atraso (`entregueEm > prazo`) + tarefas da EAP
@@ -42,6 +44,14 @@ export type ProjetistaProdutividade = {
   totalTarefas: number;
   totalAtrasos: number;
   periodos: PeriodoProdutividade[];
+};
+
+export type ProjetistaHorasDiarias = {
+  userId: string;
+  nome: string;
+  role: string;
+  totalHoras: number;
+  dias: { dia: string; horas: number }[];
 };
 
 /** Chave ISO-8601 da semana (YYYY-Www) de uma data. */
@@ -102,7 +112,11 @@ export async function produtividadeProjetistas(
   const agora = new Date();
   const [sessoes, pagamentos, tarefas, disciplinas, eapAtrasadas] = await Promise.all([
     prisma.sessaoTrabalho.findMany({
-      where: { userId: { in: ids }, inicio: { gte: inicio }, fim: { not: null } },
+      where: {
+        userId: { in: ids },
+        inicio: { lt: agora },
+        OR: [{ fim: { gte: inicio } }, { fim: null }],
+      },
       select: { userId: true, inicio: true, fim: true },
     }),
     prisma.pagamentoProjetista.findMany({
@@ -134,9 +148,10 @@ export async function produtividadeProjetistas(
   const atrasos = new Map<string, Map<string, number>>();
 
   for (const s of sessoes) {
-    const mins = (s.fim!.getTime() - s.inicio.getTime()) / 60_000;
-    if (mins <= 0) continue;
-    incr(horas, s.userId, chaveDe(s.inicio), mins / 60);
+    for (const [dia, minutos] of minutosPorDiaSessao(s.inicio, s.fim, agora)) {
+      const chave = chaveDe(new Date(`${dia}T12:00:00Z`));
+      if (periodosValidos.has(chave)) incr(horas, s.userId, chave, minutos / 60);
+    }
   }
   for (const p of pagamentos) {
     if (!p.liberadoEm) continue;
@@ -191,4 +206,68 @@ export async function produtividadeProjetistas(
   );
 
   return { periodos, granularidade, projetistas: projetistasAtivos };
+}
+
+/** Horas registradas por dia local para a leitura rápida e comparativa do RH. */
+export async function horasDiariasProjetistas(): Promise<{
+  dias: string[];
+  projetistas: ProjetistaHorasDiarias[];
+}> {
+  const agora = new Date();
+  const hoje = diaLocal(agora);
+  const [ano, mes, dia] = hoje.split("-").map(Number);
+  const dias: string[] = [];
+  for (let atraso = 13; atraso >= 0; atraso--) {
+    const data = new Date(Date.UTC(ano, mes - 1, dia - atraso));
+    dias.push(data.toISOString().slice(0, 10));
+  }
+  const inicio = new Date(`${dias[0]}T00:00:00-03:00`);
+
+  const projetistas = await prisma.user.findMany({
+    where: whereAudiencia("projeto_membro"),
+    select: { id: true, name: true, role: true },
+    orderBy: { name: "asc" },
+  });
+  if (projetistas.length === 0) return { dias, projetistas: [] };
+
+  const ids = projetistas.map((p) => p.id);
+  const sessoes = await prisma.sessaoTrabalho.findMany({
+    where: {
+      userId: { in: ids },
+      inicio: { lt: agora },
+      OR: [{ fim: { gte: inicio } }, { fim: null }],
+    },
+    select: { userId: true, inicio: true, fim: true },
+  });
+
+  const porUsuario = new Map<string, Map<string, number>>();
+  const diasVisiveis = new Set(dias);
+  for (const sessao of sessoes) {
+    const porDia = porUsuario.get(sessao.userId) ?? new Map<string, number>();
+    for (const [diaSessao, minutos] of minutosPorDiaSessao(sessao.inicio, sessao.fim, agora)) {
+      if (!diasVisiveis.has(diaSessao)) continue;
+      porDia.set(diaSessao, (porDia.get(diaSessao) ?? 0) + minutos / 60);
+    }
+    porUsuario.set(sessao.userId, porDia);
+  }
+
+  const arredondar = (valor: number) => Math.round(valor * 10) / 10;
+  return {
+    dias,
+    projetistas: projetistas
+      .map((p) => {
+        const porDia = porUsuario.get(p.id);
+        const totalHoras = [...(porDia?.values() ?? [])].reduce((total, horas) => total + horas, 0);
+        const serie = dias.map((dia) => ({ dia, horas: arredondar(porDia?.get(dia) ?? 0) }));
+        return {
+          userId: p.id,
+          nome: p.name,
+          role: p.role,
+          totalHoras: arredondar(totalHoras),
+          dias: serie,
+        };
+      })
+      .filter((p) => p.totalHoras > 0)
+      .sort((a, b) => b.totalHoras - a.totalHoras || a.nome.localeCompare(b.nome)),
+  };
 }

@@ -18,6 +18,7 @@
  */
 
 import { minutosSessao } from "@/modules/ponto/format";
+import type { TipoAlocacaoPonto } from "@/modules/ponto/alocacao";
 
 export type TipoBatida = "entrada" | "inicio_descanso" | "fim_descanso" | "saida";
 
@@ -205,37 +206,40 @@ export function trabalhadoPorDia(
  * (F5), que recria uma SessaoTrabalho por intervalo preservando o projeto.
  */
 export function intervalosComProjeto(
-  batidas: (BatidaCalc & { projetoId?: string | null })[],
+  batidas: (BatidaCalc & { projetoId?: string | null; tipoAlocacao?: TipoAlocacaoPonto })[],
   diaCorrente: boolean,
-): { inicio: Date; fim: Date | null; projetoId: string | null }[] {
+): { inicio: Date; fim: Date | null; projetoId: string | null; tipoAlocacao: TipoAlocacaoPonto }[] {
   const ordenadas = [...batidas].sort((a, b) => a.horario.getTime() - b.horario.getTime());
-  const intervalos: { inicio: Date; fim: Date | null; projetoId: string | null }[] = [];
+  const intervalos: { inicio: Date; fim: Date | null; projetoId: string | null; tipoAlocacao: TipoAlocacaoPonto }[] = [];
   let estado: EstadoJornada = "fora";
   let marco: Date | null = null;
   let marcoProj: string | null = null;
+  let marcoAlocacao: TipoAlocacaoPonto = "sem_projeto";
 
   for (const b of ordenadas) {
     if (estado === "fora" && b.tipo === "entrada") {
       estado = "trabalhando";
       marco = b.horario;
       marcoProj = b.projetoId ?? null;
+      marcoAlocacao = b.tipoAlocacao ?? (marcoProj ? "projeto" : "sem_projeto");
     } else if (estado === "trabalhando" && b.tipo === "inicio_descanso") {
-      intervalos.push({ inicio: marco!, fim: b.horario, projetoId: marcoProj });
+      intervalos.push({ inicio: marco!, fim: b.horario, projetoId: marcoProj, tipoAlocacao: marcoAlocacao });
       estado = "descansando";
       marco = b.horario;
     } else if (estado === "descansando" && b.tipo === "fim_descanso") {
       estado = "trabalhando";
       marco = b.horario;
       marcoProj = b.projetoId ?? null;
+      marcoAlocacao = b.tipoAlocacao ?? (marcoProj ? "projeto" : "sem_projeto");
     } else if (estado === "trabalhando" && b.tipo === "saida") {
-      intervalos.push({ inicio: marco!, fim: b.horario, projetoId: marcoProj });
+      intervalos.push({ inicio: marco!, fim: b.horario, projetoId: marcoProj, tipoAlocacao: marcoAlocacao });
       estado = "fora";
       marco = null;
     }
   }
 
   if (marco && estado === "trabalhando" && diaCorrente) {
-    intervalos.push({ inicio: marco, fim: null, projetoId: marcoProj });
+    intervalos.push({ inicio: marco, fim: null, projetoId: marcoProj, tipoAlocacao: marcoAlocacao });
   }
   return intervalos;
 }
@@ -284,6 +288,33 @@ const FMT_HORA = new Intl.DateTimeFormat("en-GB", {
 /** Dia local `YYYY-MM-DD` no fuso de Brasília. */
 export function diaLocal(d: Date): string {
   return FMT_DIA.format(d);
+}
+
+function proximoDiaLocal(dia: string): string {
+  const [ano, mes, diaDoMes] = dia.split("-").map(Number);
+  return new Date(Date.UTC(ano, mes - 1, diaDoMes + 1)).toISOString().slice(0, 10);
+}
+
+/** Distribui uma sessão pelos dias locais de Brasília que ela atravessa. */
+export function minutosPorDiaSessao(
+  inicio: Date,
+  fim: Date | null,
+  agora = new Date(),
+): Map<string, number> {
+  const termino = fim ?? agora;
+  if (termino <= inicio) return new Map();
+
+  const minutos = new Map<string, number>();
+  let cursor = new Date(inicio);
+  while (cursor < termino) {
+    const dia = diaLocal(cursor);
+    const proximaMeiaNoite = new Date(`${proximoDiaLocal(dia)}T00:00:00-03:00`);
+    const limite = proximaMeiaNoite < termino ? proximaMeiaNoite : termino;
+    const trecho = (limite.getTime() - cursor.getTime()) / MS_MIN;
+    minutos.set(dia, (minutos.get(dia) ?? 0) + trecho);
+    cursor = limite;
+  }
+  return minutos;
 }
 
 /**

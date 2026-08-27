@@ -1995,6 +1995,9 @@ model SessaoTrabalho {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   projetoId String?
   projeto   Projeto?  @relation(fields: [projetoId], references: [id])
+  /// Destino das horas quando não há um projeto. Mantém reuniões separadas de
+  /// "sem projeto" no ponto e no rateio gerencial.
+  tipoAlocacao TipoAlocacaoPonto @default(sem_projeto)
   inicio    DateTime
   fim       DateTime?
   createdAt DateTime  @default(now())
@@ -2044,6 +2047,15 @@ model BancoHorasMensal {
   @@unique([userId, ano, mes])
   @@index([userId])
   @@map("banco_horas_mensal")
+}
+
+/// Categoria de alocação de uma sessão de trabalho. Projeto usa `projetoId`;
+/// as demais opções não têm vínculo com um projeto.
+enum TipoAlocacaoPonto {
+  projeto
+  sem_projeto
+  reuniao_interna
+  reuniao_externa
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -3875,7 +3887,7 @@ model Alocacao {
 
   createdAt DateTime @default(now())
 
-  @@unique([recursoId, projetoId])
+  @@index([recursoId, projetoId, inicio])
   @@index([projetoId])
   @@map("alocacao")
 }

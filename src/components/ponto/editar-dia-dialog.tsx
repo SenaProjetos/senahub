@@ -7,6 +7,11 @@ import { Plus, Trash2, Pencil } from "lucide-react";
 import { ajustarPontoProprio, ajustarPontoEquipe } from "@/modules/ponto/actions";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
+  ALOCACAO_REUNIAO_EXTERNA,
+  ALOCACAO_REUNIAO_INTERNA,
+  ALOCACAO_SEM_PROJETO,
+} from "@/modules/ponto/alocacao";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -26,8 +31,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-const NONE = "__none";
 
 type Projeto = { id: string; codigo: string; nome: string };
 type Descanso = { inicio: string; fim: string };
@@ -67,14 +70,14 @@ export function EditarDiaDialog({
   const [entrada, setEntrada] = useState(inicial.entrada ?? "");
   const [saida, setSaida] = useState(inicial.saida ?? "");
   const [descansos, setDescansos] = useState<Descanso[]>(inicial.descansos);
-  const [projetoId, setProjetoId] = useState(NONE);
+  const [alocacao, setAlocacao] = useState(ALOCACAO_SEM_PROJETO);
   const [justificativa, setJustificativa] = useState("");
 
   function reset() {
     setEntrada(inicial.entrada ?? "");
     setSaida(inicial.saida ?? "");
     setDescansos(inicial.descansos);
-    setProjetoId(NONE);
+    setAlocacao(ALOCACAO_SEM_PROJETO);
     setJustificativa("");
   }
 
@@ -83,12 +86,11 @@ export function EditarDiaDialog({
       toast.error("Descreva o motivo do ajuste (mín. 5 caracteres).");
       return;
     }
-    const proj = projetoId === NONE ? null : projetoId;
     const itens: { tipo: "entrada" | "inicio_descanso" | "fim_descanso" | "saida"; hora: string; projetoId?: string | null }[] = [];
-    if (entrada) itens.push({ tipo: "entrada", hora: entrada, projetoId: proj });
+    if (entrada) itens.push({ tipo: "entrada", hora: entrada, projetoId: alocacao });
     for (const d of [...descansos].sort((a, b) => a.inicio.localeCompare(b.inicio))) {
       if (d.inicio) itens.push({ tipo: "inicio_descanso", hora: d.inicio });
-      if (d.fim) itens.push({ tipo: "fim_descanso", hora: d.fim, projetoId: proj });
+      if (d.fim) itens.push({ tipo: "fim_descanso", hora: d.fim, projetoId: alocacao });
     }
     if (saida) itens.push({ tipo: "saida", hora: saida });
 
@@ -190,13 +192,15 @@ export function EditarDiaDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs">Projeto (rateio da jornada)</Label>
-            <Select value={projetoId} onValueChange={(v) => setProjetoId(v ?? NONE)}>
+            <Label className="text-xs">Alocação da jornada</Label>
+            <Select value={alocacao} onValueChange={(v) => setAlocacao(v ?? ALOCACAO_SEM_PROJETO)}>
               <SelectTrigger>
                 <SelectValue placeholder="Sem projeto" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NONE}>Sem projeto</SelectItem>
+                <SelectItem value={ALOCACAO_SEM_PROJETO}>Sem projeto</SelectItem>
+                <SelectItem value={ALOCACAO_REUNIAO_INTERNA}>Reunião interna</SelectItem>
+                <SelectItem value={ALOCACAO_REUNIAO_EXTERNA}>Reunião externa</SelectItem>
                 {projetos.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {formatarCodigo(p.codigo)} · {p.nome}

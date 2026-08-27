@@ -6,6 +6,7 @@ import { addDays } from "date-fns";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { reagendarPorDependencias } from "@/modules/planejamento/caminho-critico";
+import { faixaTemPeriodoValido, haConflitoDeFaixa } from "@/modules/planejamento/alocacao-faixas";
 
 const plan = { modulo: "planejamento", recurso: "planejamento", permissao: "gerir" } as const;
 const rec = { modulo: "recursos", recurso: "recursos", permissao: "gerir" } as const;
@@ -397,6 +398,7 @@ const recursoSchema = z.object({
   ativo: z.boolean().default(true),
 });
 const alocacaoSchema = z.object({
+  id: z.string().min(1).optional(),
   recursoId: z.string().min(1),
   projetoId: z.string().min(1),
   percentual: z.number().int().min(1, "Mínimo 1%.").max(100, "Máximo 100% por projeto."),
@@ -431,28 +433,55 @@ export const salvarRecurso = defineAction(
 );
 
 export const salvarAlocacao = defineAction(
-  { ...rec, acao: "salvar-alocacao", entidade: "Alocacao", schema: alocacaoSchema },
+  {
+    ...rec,
+    acao: "salvar-alocacao",
+    entidade: "Alocacao",
+    schema: alocacaoSchema,
+    capturarAntes: async (i) => i.id
+      ? prisma.alocacao.findUnique({ where: { id: i.id } })
+      : null,
+  },
   async (i) => {
-    if (i.inicio && i.fim && new Date(i.fim) < new Date(i.inicio)) {
+    const faixa = { id: i.id, inicio: i.inicio || null, fim: i.fim || null };
+    if (!faixaTemPeriodoValido(faixa)) {
       throw new ActionError("Fim não pode ser antes do início.");
     }
-    const a = await prisma.alocacao.upsert({
-      where: { recursoId_projetoId: { recursoId: i.recursoId, projetoId: i.projetoId } },
-      create: {
+    if (i.id) {
+      const atual = await prisma.alocacao.findUnique({
+        where: { id: i.id },
+        select: { recursoId: true, projetoId: true },
+      });
+      if (!atual || atual.recursoId !== i.recursoId || atual.projetoId !== i.projetoId) {
+        throw new ActionError("Alocação não encontrada.");
+      }
+    }
+
+    const existentes = await prisma.alocacao.findMany({
+      where: {
         recursoId: i.recursoId,
         projetoId: i.projetoId,
-        percentual: i.percentual,
-        inicio: i.inicio ? new Date(i.inicio) : null,
-        fim: i.fim ? new Date(i.fim) : null,
-        observacao: i.observacao || null,
+        ...(i.id ? { id: { not: i.id } } : {}),
       },
-      update: {
-        percentual: i.percentual,
-        inicio: i.inicio ? new Date(i.inicio) : null,
-        fim: i.fim ? new Date(i.fim) : null,
-        observacao: i.observacao || null,
-      },
+      select: { id: true, inicio: true, fim: true },
     });
+    if (haConflitoDeFaixa(faixa, existentes.map((a) => ({
+      id: a.id,
+      inicio: a.inicio?.toISOString().slice(0, 10) ?? null,
+      fim: a.fim?.toISOString().slice(0, 10) ?? null,
+    })))) {
+      throw new ActionError("Já existe uma faixa para este projeto que se sobrepõe ao período informado.");
+    }
+
+    const dados = {
+      percentual: i.percentual,
+      inicio: i.inicio ? new Date(i.inicio) : null,
+      fim: i.fim ? new Date(i.fim) : null,
+      observacao: i.observacao || null,
+    };
+    const a = i.id
+      ? await prisma.alocacao.update({ where: { id: i.id }, data: dados })
+      : await prisma.alocacao.create({ data: { recursoId: i.recursoId, projetoId: i.projetoId, ...dados } });
     revRecursos();
     return { id: a.id };
   },

@@ -5,7 +5,8 @@ import { Clock, PackageCheck, ListChecks, TriangleAlert, TrendingDown, Users, Do
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
-import type { Granularidade, ProjetistaProdutividade } from "@/modules/rh/produtividade/queries";
+import type { Granularidade, ProjetistaHorasDiarias, ProjetistaProdutividade } from "@/modules/rh/produtividade/queries";
+import { HorasDiariasChart } from "@/components/rh/horas-diarias-chart";
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
@@ -21,10 +22,12 @@ export function ProdutividadeView({
   periodos,
   granularidade,
   projetistas,
+  horasDiarias,
 }: {
   periodos: string[];
   granularidade: Granularidade;
   projetistas: ProjetistaProdutividade[];
+  horasDiarias: { dias: string[]; projetistas: ProjetistaHorasDiarias[] };
 }) {
   return (
     <div className="space-y-5">
@@ -63,6 +66,8 @@ export function ProdutividadeView({
         <span className="inline-flex items-center gap-1"><TriangleAlert className="size-3.5" /> entregas atrasadas</span>
         <span className="inline-flex items-center gap-1"><TrendingDown className="size-3.5 text-destructive" /> produção &lt; 70% da média do projetista</span>
       </div>
+
+      <HorasDiariasChart dias={horasDiarias.dias} projetistas={horasDiarias.projetistas} />
 
       {projetistas.length === 0 ? (
         <Card>

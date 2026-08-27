@@ -10,6 +10,14 @@ import {
   fecharApontamentoAction,
 } from "@/modules/ponto/apontamento-actions";
 import { fmtHoras } from "@/modules/ponto/format";
+import {
+  ALOCACAO_REUNIAO_EXTERNA,
+  ALOCACAO_REUNIAO_INTERNA,
+  ALOCACAO_SEM_PROJETO,
+  rotuloAlocacaoSemProjeto,
+  selecaoDaAlocacaoPonto,
+  type TipoAlocacaoPonto,
+} from "@/modules/ponto/alocacao";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,10 +29,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const NONE = "__none";
-
 type Projeto = { id: string; codigo: string; nome: string };
-type ApontamentoAberto = { id: string; projetoId: string | null; inicio: string | Date; projeto: { codigo: string; nome: string } | null };
+type ApontamentoAberto = {
+  id: string;
+  projetoId: string | null;
+  tipoAlocacao: TipoAlocacaoPonto;
+  inicio: string | Date;
+  projeto: { codigo: string; nome: string } | null;
+};
 
 /** Cronômetro ao vivo do apontamento aberto. */
 function useDecorrido(inicio: string | Date | null): number {
@@ -70,15 +82,15 @@ export function ApontamentoHoras({
   projetos: Projeto[];
 }) {
   const router = useRouter();
-  const [projetoId, setProjetoId] = useState(aberto?.projetoId ?? NONE);
+  const [alocacao, setAlocacao] = useState(
+    selecaoDaAlocacaoPonto(aberto?.projetoId ?? null, aberto?.tipoAlocacao ?? "sem_projeto"),
+  );
   const [pending, start] = useTransition();
   const decorrido = useDecorrido(aberto?.inicio ?? null);
 
-  const proj = (id: string) => (id === NONE ? undefined : id);
-
   function iniciar() {
     start(async () => {
-      const r = await abrirApontamentoAction({ projetoId: proj(projetoId) });
+      const r = await abrirApontamentoAction({ projetoId: alocacao });
       if (r.ok) {
         toast.success("Apontamento iniciado.");
         router.refresh();
@@ -88,9 +100,9 @@ export function ApontamentoHoras({
 
   function trocar() {
     start(async () => {
-      const r = await trocarApontamentoAction({ projetoId: proj(projetoId) });
+      const r = await trocarApontamentoAction({ projetoId: alocacao });
       if (r.ok) {
-        toast.success("Projeto trocado.");
+        toast.success("Alocação atualizada.");
         router.refresh();
       } else toast.error(r.error);
     });
@@ -117,19 +129,21 @@ export function ApontamentoHoras({
           <Relogio ms={decorrido} />
           <p className="text-xs text-muted-foreground">
             {aberto
-              ? `Em andamento${aberto.projeto ? ` · ${formatarCodigo(aberto.projeto.codigo)} ${aberto.projeto.nome}` : ""}`
+              ? `Em andamento · ${aberto.projeto ? `${formatarCodigo(aberto.projeto.codigo)} ${aberto.projeto.nome}` : rotuloAlocacaoSemProjeto(aberto.tipoAlocacao)}`
               : "Parado"}
             {" · "}Hoje: {fmtHoras(hojeMin)}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-2">
-          <Select value={projetoId} onValueChange={(v) => setProjetoId(v ?? NONE)}>
+          <Select value={alocacao} onValueChange={(v) => setAlocacao(v ?? ALOCACAO_SEM_PROJETO)}>
             <SelectTrigger className="w-64">
-              <SelectValue placeholder="Projeto (opcional)…" />
+              <SelectValue placeholder="Alocação…" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={NONE}>Sem projeto</SelectItem>
+              <SelectItem value={ALOCACAO_SEM_PROJETO}>Sem projeto</SelectItem>
+              <SelectItem value={ALOCACAO_REUNIAO_INTERNA}>Reunião interna</SelectItem>
+              <SelectItem value={ALOCACAO_REUNIAO_EXTERNA}>Reunião externa</SelectItem>
               {projetos.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   {formatarCodigo(p.codigo)} · {p.nome}
@@ -139,7 +153,7 @@ export function ApontamentoHoras({
           </Select>
           {aberto && (
             <Button variant="outline" disabled={pending} onClick={trocar}>
-              <Repeat className="size-4" /> Trocar projeto
+              <Repeat className="size-4" /> Trocar alocação
             </Button>
           )}
         </div>

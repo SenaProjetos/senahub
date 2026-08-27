@@ -20,6 +20,7 @@ import {
   escalaUsuarioGrade,
   type DiaGrade,
 } from "@/modules/rh/escalas/queries";
+import { normalizarAlocacaoPonto, type TipoAlocacaoPonto } from "@/modules/ponto/alocacao";
 
 /** Origem da batida (espelha o enum Prisma OrigemBatida). */
 export type OrigemBatida = "app" | "offline" | "ajuste_proprio" | "ajuste_admin" | "migracao";
@@ -137,6 +138,7 @@ export async function aplicarBatida(params: {
   criadoPorId?: string | null;
 }): Promise<ResultadoBatida> {
   const { userId, tipo, horario, projetoId, geo, origem, criadoPorId } = params;
+  const alocacao = normalizarAlocacaoPonto(projetoId);
 
   return prisma.$transaction(async (tx) => {
     const { diaJornada, batidas, estado } = await jornadaCorrente(tx, userId, horario, tipo);
@@ -163,7 +165,12 @@ export async function aplicarBatida(params: {
     // Acoplamento com a sessão (rateio).
     if (tipo === "entrada" || tipo === "fim_descanso") {
       await tx.sessaoTrabalho.create({
-        data: { userId, projetoId: projetoId || null, inicio: horario },
+        data: {
+          userId,
+          projetoId: alocacao.projetoId,
+          tipoAlocacao: alocacao.tipoAlocacao,
+          inicio: horario,
+        },
       });
     } else {
       await fecharSessaoAberta(tx, userId, horario);
@@ -175,7 +182,7 @@ export async function aplicarBatida(params: {
         dia: diaJornada,
         tipo,
         horario,
-        projetoId: projetoId || null,
+        projetoId: alocacao.projetoId,
         origem,
         criadoPorId: criadoPorId ?? null,
         geo: geo ?? undefined,
@@ -230,13 +237,14 @@ function instanteLocal(diaISO: string, hora: string): Date {
 export function montarBatidasEdicao(
   diaISO: string,
   itens: ItemEdicaoBatida[],
-): { tipo: TipoBatida; horario: Date; projetoId: string | null }[] {
+): { tipo: TipoBatida; horario: Date; projetoId: string | null; tipoAlocacao: TipoAlocacaoPonto }[] {
   let anterior = 0;
   return itens.map((it) => {
     let inst = instanteLocal(diaISO, it.hora).getTime();
     while (anterior && inst <= anterior) inst += DIA_MS;
     anterior = inst;
-    return { tipo: it.tipo, horario: new Date(inst), projetoId: it.projetoId ?? null };
+    const alocacao = normalizarAlocacaoPonto(it.projetoId);
+    return { tipo: it.tipo, horario: new Date(inst), ...alocacao };
   });
 }
 
@@ -251,7 +259,7 @@ export async function reconciliarSessoesDoDia(
   tx: Prisma.TransactionClient,
   userId: string,
   dia: Date,
-  batidas: { tipo: TipoBatida; horario: Date; projetoId: string | null }[],
+  batidas: { tipo: TipoBatida; horario: Date; projetoId: string | null; tipoAlocacao: TipoAlocacaoPonto }[],
 ): Promise<void> {
   // `dia` é a meia-noite UTC do dia local → o próprio ISO (não aplicar diaLocal,
   // que deslocaria -3h e cairia no dia anterior).
@@ -270,7 +278,13 @@ export async function reconciliarSessoesDoDia(
   const intervalos = intervalosComProjeto(batidas, diaCorrente);
   for (const it of intervalos) {
     await tx.sessaoTrabalho.create({
-      data: { userId, projetoId: it.projetoId, inicio: it.inicio, fim: it.fim },
+      data: {
+        userId,
+        projetoId: it.projetoId,
+        tipoAlocacao: it.tipoAlocacao,
+        inicio: it.inicio,
+        fim: it.fim,
+      },
     });
   }
 }

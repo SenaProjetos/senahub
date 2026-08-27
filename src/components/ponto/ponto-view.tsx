@@ -13,6 +13,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { fmtHoras } from "@/modules/ponto/format";
+import type { TipoAlocacaoPonto } from "@/modules/ponto/alocacao";
 import { brl, formatarData } from "@/lib/utils";
 import { RegistroPonto, type EstadoDiaProp, type AjustePendenteProp } from "@/components/ponto/registro-view";
 import { ApontamentoHoras } from "@/components/ponto/apontamento-view";
@@ -104,6 +105,8 @@ function dataPtBr(iso: string): string {
 type Rateio = {
   porProjeto: { projeto: string; minutos: number; custo: number }[];
   semProjeto: number;
+  reuniaoInterna: number;
+  reuniaoExterna: number;
   custoTotal: number;
   fechado: boolean;
   fechadoEm: string | Date | null;
@@ -135,7 +138,13 @@ export function PontoView({
   /** PJ/freelancer: registra horas por projeto, sem vocabulário de ponto (ver apontamento.ts). */
   usaApontamento: boolean;
   apontamento: {
-    aberto: { id: string; projetoId: string | null; inicio: string | Date; projeto: { codigo: string; nome: string } | null } | null;
+    aberto: {
+      id: string;
+      projetoId: string | null;
+      tipoAlocacao: TipoAlocacaoPonto;
+      inicio: string | Date;
+      projeto: { codigo: string; nome: string } | null;
+    } | null;
     hojeMin: number;
   } | null;
 }) {
@@ -428,6 +437,20 @@ export function PontoView({
                   <li className="flex items-center justify-between gap-3 py-2 text-muted-foreground">
                     <span className="min-w-0 flex-1 truncate">Sem projeto</span>
                     <span className="font-mono">{fmtHoras(rateio.semProjeto)}</span>
+                    <span className="w-28 text-right font-mono">—</span>
+                  </li>
+                )}
+                {rateio.reuniaoInterna > 0 && (
+                  <li className="flex items-center justify-between gap-3 py-2 text-muted-foreground">
+                    <span className="min-w-0 flex-1 truncate">Reunião interna</span>
+                    <span className="font-mono">{fmtHoras(rateio.reuniaoInterna)}</span>
+                    <span className="w-28 text-right font-mono">—</span>
+                  </li>
+                )}
+                {rateio.reuniaoExterna > 0 && (
+                  <li className="flex items-center justify-between gap-3 py-2 text-muted-foreground">
+                    <span className="min-w-0 flex-1 truncate">Reunião externa</span>
+                    <span className="font-mono">{fmtHoras(rateio.reuniaoExterna)}</span>
                     <span className="w-28 text-right font-mono">—</span>
                   </li>
                 )}

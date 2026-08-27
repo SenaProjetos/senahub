@@ -23,6 +23,7 @@ import {
   cienciaAjusteSchema,
   contestarAjusteSchema,
 } from "@/modules/ponto/schemas";
+import { normalizarAlocacaoPonto } from "@/modules/ponto/alocacao";
 import type { Prisma } from "@/generated/prisma/client";
 
 /**
@@ -50,7 +51,12 @@ export async function buscarResumoJornada(): Promise<ResumoHeader | null> {
     return {
       modo: "apontamento" as const,
       aberto: aberto
-        ? { inicio: aberto.inicio, projetoId: aberto.projetoId, projeto: aberto.projeto }
+        ? {
+            inicio: aberto.inicio,
+            projetoId: aberto.projetoId,
+            tipoAlocacao: aberto.tipoAlocacao,
+            projeto: aberto.projeto,
+          }
         : null,
       hojeMin,
       agora: new Date(),
@@ -153,10 +159,11 @@ export const trocarProjeto = defineAction(
     const aberta = await prisma.sessaoTrabalho.findFirst({ where: { userId: user.id, fim: null } });
     if (!aberta) throw new ActionError("Nenhuma jornada aberta para trocar de projeto.");
     const agora = new Date();
+    const alocacao = normalizarAlocacaoPonto(i.projetoId);
     await prisma.$transaction([
       prisma.sessaoTrabalho.update({ where: { id: aberta.id }, data: { fim: agora } }),
       prisma.sessaoTrabalho.create({
-        data: { userId: user.id, projetoId: i.projetoId || null, inicio: agora },
+        data: { userId: user.id, ...alocacao, inicio: agora },
       }),
     ]);
     rev();

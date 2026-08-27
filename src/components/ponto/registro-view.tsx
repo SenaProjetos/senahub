@@ -19,6 +19,14 @@ import { useBatida, useCronometro } from "@/components/ponto/use-batida";
 import { ESTADO_LABEL, TIPO_LABEL, BOTAO, COR_ESTADO } from "@/components/ponto/batida-meta";
 import { transicoesPermitidas, type EstadoJornada } from "@/modules/ponto/engine";
 import { fmtHoras } from "@/modules/ponto/format";
+import {
+  ALOCACAO_REUNIAO_EXTERNA,
+  ALOCACAO_REUNIAO_INTERNA,
+  ALOCACAO_SEM_PROJETO,
+  rotuloAlocacaoSemProjeto,
+  selecaoDaAlocacaoPonto,
+  type TipoAlocacaoPonto,
+} from "@/modules/ponto/alocacao";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import type { DisciplinaEscrevivel } from "@/modules/projetos/diario/queries";
 import { DiarioEntradaDialog } from "@/components/projetos/diario-entrada-dialog";
@@ -44,8 +52,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const NONE = "__none";
-
 type Projeto = { id: string; codigo: string; nome: string };
 type LinhaTimeline = {
   key: string;
@@ -54,6 +60,7 @@ type LinhaTimeline = {
   editada: boolean;
   projeto: { codigo: string; nome: string } | null;
   projetoId: string | null;
+  tipoAlocacao: TipoAlocacaoPonto;
   adicionadoMin: number | null;
   totalDiaProjMin: number | null;
   historicoProjMin: number | null;
@@ -65,6 +72,7 @@ export type EstadoDiaProp = {
   incompleto: boolean;
   aberturaInicio: string | Date | null;
   projetoAtivo: Projeto | null;
+  tipoAlocacaoAtiva: TipoAlocacaoPonto | null;
   timeline: LinhaTimeline[];
   agora: string | Date;
 };
@@ -239,7 +247,9 @@ export function RegistroPonto({
   /** Disciplinas em que o usuário pode escrever no diário, por projeto — projeto sem nenhuma não entra aqui (atalho some). */
   diarioPorProjeto: Record<string, DisciplinaEscrevivel[]>;
 }) {
-  const [projetoId, setProjetoId] = useState(estadoDia.projetoAtivo?.id ?? NONE);
+  const [alocacao, setAlocacao] = useState(
+    selecaoDaAlocacaoPonto(estadoDia.projetoAtivo?.id ?? null, estadoDia.tipoAlocacaoAtiva ?? "sem_projeto"),
+  );
   const { bater, trocar, busy, pendentes, sincronizarFila } = useBatida();
 
   const trabalhadoMs = useCronometro(
@@ -248,8 +258,6 @@ export function RegistroPonto({
     estadoDia.estado === "trabalhando",
   );
   const permitidas = transicoesPermitidas(estadoDia.estado);
-  const proj = (id: string) => (id === NONE ? undefined : id);
-
   const podeEscolherProjeto = estadoDia.estado === "fora" || estadoDia.estado === "descansando";
 
   return (
@@ -275,6 +283,11 @@ export function RegistroPonto({
                 · {formatarCodigo(estadoDia.projetoAtivo.codigo)} {estadoDia.projetoAtivo.nome}
               </span>
             )}
+            {!estadoDia.projetoAtivo && estadoDia.estado === "trabalhando" && estadoDia.tipoAlocacaoAtiva && (
+              <span className="text-muted-foreground">
+                · {rotuloAlocacaoSemProjeto(estadoDia.tipoAlocacaoAtiva)}
+              </span>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">
             Trabalhado hoje: {fmtHoras(estadoDia.trabalhadoMin)}
@@ -284,12 +297,14 @@ export function RegistroPonto({
 
         {/* Seletor de projeto — para anexar à próxima entrada / volta de descanso, ou trocar durante o trabalho. */}
         <div className="flex flex-wrap items-center justify-center gap-2">
-          <Select value={projetoId} onValueChange={(v) => setProjetoId(v ?? NONE)}>
+          <Select value={alocacao} onValueChange={(v) => setAlocacao(v ?? ALOCACAO_SEM_PROJETO)}>
             <SelectTrigger className="w-64">
-              <SelectValue placeholder="Projeto (opcional)…" />
+              <SelectValue placeholder="Alocação da jornada…" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={NONE}>Sem projeto</SelectItem>
+              <SelectItem value={ALOCACAO_SEM_PROJETO}>Sem projeto</SelectItem>
+              <SelectItem value={ALOCACAO_REUNIAO_INTERNA}>Reunião interna</SelectItem>
+              <SelectItem value={ALOCACAO_REUNIAO_EXTERNA}>Reunião externa</SelectItem>
               {projetos.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   {formatarCodigo(p.codigo)} · {p.nome}
@@ -298,8 +313,8 @@ export function RegistroPonto({
             </SelectContent>
           </Select>
           {estadoDia.estado === "trabalhando" && (
-            <Button variant="outline" disabled={busy} onClick={() => void trocar(proj(projetoId))}>
-              <Repeat className="size-4" /> Trocar projeto
+            <Button variant="outline" disabled={busy} onClick={() => void trocar(alocacao)}>
+              <Repeat className="size-4" /> Trocar alocação
             </Button>
           )}
         </div>
@@ -314,7 +329,7 @@ export function RegistroPonto({
                 key={tipo}
                 variant={b.variant}
                 disabled={busy}
-                onClick={() => void bater(tipo, proj(projetoId))}
+                onClick={() => void bater(tipo, alocacao)}
               >
                 <Icon className="size-4" /> {b.label}
               </Button>
@@ -349,7 +364,7 @@ export function RegistroPonto({
             <ul className="divide-y text-sm">
               {estadoDia.timeline.map((item) => {
                 const isTroca = item.kind === "troca";
-                const label = isTroca ? "Troca de projeto" : TIPO_LABEL[item.kind as TipoBatida];
+                const label = isTroca ? "Troca de alocação" : TIPO_LABEL[item.kind as TipoBatida];
                 const abertura = item.adicionadoMin != null; // entrada/fim_descanso/troca
                 return (
                   <li
@@ -366,7 +381,7 @@ export function RegistroPonto({
                             ·{" "}
                             {item.projeto
                               ? `${formatarCodigo(item.projeto.codigo)} ${item.projeto.nome}`
-                              : "Sem projeto"}
+                              : rotuloAlocacaoSemProjeto(item.tipoAlocacao)}
                           </span>
                         )}
                         {abertura && item.projetoId && diarioPorProjeto[item.projetoId] && (

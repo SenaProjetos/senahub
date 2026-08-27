@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import { minutosSessao } from "@/modules/ponto/format";
+import { normalizarAlocacaoPonto, type TipoAlocacaoPonto } from "@/modules/ponto/alocacao";
 
 /**
  * Apontamento de horas — jornada aberta/fechada em `SessaoTrabalho`, SEM o vocabulário de
@@ -29,7 +30,13 @@ import { minutosSessao } from "@/modules/ponto/format";
  */
 
 export type ApontamentoAtual = {
-  aberto: { id: string; projetoId: string | null; inicio: Date; projeto: { codigo: string; nome: string } | null } | null;
+  aberto: {
+    id: string;
+    projetoId: string | null;
+    tipoAlocacao: TipoAlocacaoPonto;
+    inicio: Date;
+    projeto: { codigo: string; nome: string } | null;
+  } | null;
   hojeMin: number;
 };
 
@@ -40,6 +47,7 @@ export async function apontamentoAtual(userId: string): Promise<ApontamentoAtual
     select: {
       id: true,
       projetoId: true,
+      tipoAlocacao: true,
       inicio: true,
       projeto: { select: { codigo: true, nome: true } },
     },
@@ -59,7 +67,9 @@ export async function apontamentoAtual(userId: string): Promise<ApontamentoAtual
 export async function abrirApontamento(userId: string, projetoId: string | null) {
   const aberto = await prisma.sessaoTrabalho.findFirst({ where: { userId, fim: null } });
   if (aberto) throw new ActionError("Já existe um apontamento em aberto — encerre antes de iniciar outro.");
-  return prisma.sessaoTrabalho.create({ data: { userId, projetoId, inicio: new Date() } });
+  return prisma.sessaoTrabalho.create({
+    data: { userId, ...normalizarAlocacaoPonto(projetoId), inicio: new Date() },
+  });
 }
 
 /** Troca de projeto SEM perder o tempo: fecha a sessão atual e abre outra no mesmo instante. */
@@ -67,9 +77,10 @@ export async function trocarApontamento(userId: string, projetoId: string | null
   const aberto = await prisma.sessaoTrabalho.findFirst({ where: { userId, fim: null } });
   if (!aberto) throw new ActionError("Nenhum apontamento em aberto para trocar de projeto.");
   const agora = new Date();
+  const alocacao = normalizarAlocacaoPonto(projetoId);
   await prisma.$transaction([
     prisma.sessaoTrabalho.update({ where: { id: aberto.id }, data: { fim: agora } }),
-    prisma.sessaoTrabalho.create({ data: { userId, projetoId, inicio: agora } }),
+    prisma.sessaoTrabalho.create({ data: { userId, ...alocacao, inicio: agora } }),
   ]);
 }
 

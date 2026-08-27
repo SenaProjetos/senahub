@@ -11,6 +11,7 @@ import { escalaContratacaoGrade, escalaUsuarioGrade, type DiaGrade } from "@/mod
 import { acumuladoAte } from "@/modules/rh/banco/queries";
 import { esperadoPorDiaMes, somarEsperadoAte } from "@/modules/ponto/esperado";
 import { contextoApuracao } from "@/modules/ponto/apuracao";
+import { rotuloAlocacaoSemProjeto, type TipoAlocacaoPonto } from "@/modules/ponto/alocacao";
 import {
   calcularDia,
   trabalhadoPorDia,
@@ -53,6 +54,7 @@ export type LinhaTimeline = {
   editada: boolean;
   projeto: { codigo: string; nome: string } | null;
   projetoId: string | null;
+  tipoAlocacao: TipoAlocacaoPonto;
   /** Minutos deste trecho (sessão aberta usa `agora`). */
   adicionadoMin: number | null;
   /** Total do projeto no DIA. */
@@ -69,6 +71,7 @@ export type EstadoDia = {
   /** Início da sessão aberta (para o cronômetro ao vivo) — só quando trabalhando. */
   aberturaInicio: Date | null;
   projetoAtivo: { id: string; codigo: string; nome: string } | null;
+  tipoAlocacaoAtiva: TipoAlocacaoPonto | null;
   batidas: BatidaDia[];
   /** Timeline do dia: batidas + trocas de projeto, com métricas por projeto. */
   timeline: LinhaTimeline[];
@@ -113,11 +116,13 @@ export type ResumoJornada = {
   trabalhadoMin: number;
   descansoMin: number;
   projetoAtivo: { id: string; codigo: string; nome: string } | null;
+  tipoAlocacaoAtiva: TipoAlocacaoPonto | null;
   /**
    * Projeto da última sessão da jornada corrente — usado pelo header ao voltar do
    * descanso, para reabrir no mesmo projeto sem exigir o seletor da tela cheia.
    */
   retomarProjeto: { id: string; codigo: string; nome: string } | null;
+  retomarTipoAlocacao: TipoAlocacaoPonto | null;
   /** Instante do cálculo no servidor — âncora do cronômetro ao vivo no cliente. */
   agora: Date;
 };
@@ -135,6 +140,7 @@ export type ResumoHeader =
       aberto: {
         inicio: Date;
         projetoId: string | null;
+        tipoAlocacao: TipoAlocacaoPonto;
         projeto: { codigo: string; nome: string } | null;
       } | null;
       hojeMin: number;
@@ -158,7 +164,7 @@ export async function resumoJornada(userId: string): Promise<ResumoJornada> {
       : await prisma.sessaoTrabalho.findFirst({
           where: { userId, ...(calc.estado === "trabalhando" ? { fim: null } : {}) },
           orderBy: { inicio: "desc" },
-          select: { projeto: { select: { id: true, codigo: true, nome: true } } },
+          select: { tipoAlocacao: true, projeto: { select: { id: true, codigo: true, nome: true } } },
         });
 
   return {
@@ -166,7 +172,9 @@ export async function resumoJornada(userId: string): Promise<ResumoJornada> {
     trabalhadoMin: calc.trabalhadoMin,
     descansoMin: calc.descansoMin,
     projetoAtivo: calc.estado === "trabalhando" ? sessao?.projeto ?? null : null,
+    tipoAlocacaoAtiva: calc.estado === "trabalhando" ? sessao?.tipoAlocacao ?? null : null,
     retomarProjeto: sessao?.projeto ?? null,
+    retomarTipoAlocacao: sessao?.tipoAlocacao ?? null,
     agora,
   };
 }
@@ -200,6 +208,7 @@ export async function estadoDoDia(userId: string): Promise<EstadoDia> {
     incompleto: calc.incompleto,
     aberturaInicio: sessao?.inicio ?? null,
     projetoAtivo: sessao?.projeto ?? null,
+    tipoAlocacaoAtiva: sessao?.tipoAlocacao ?? null,
     batidas,
     timeline,
     agora,
@@ -223,7 +232,7 @@ async function montarTimeline(
   const sessoes = await prisma.sessaoTrabalho.findMany({
     where: { userId, inicio: { gte: batidas[0].horario } },
     orderBy: { inicio: "asc" },
-    select: { inicio: true, fim: true, projetoId: true },
+    select: { inicio: true, fim: true, projetoId: true, tipoAlocacao: true },
   });
 
   const projIds = [
@@ -241,14 +250,15 @@ async function montarTimeline(
     : [];
   const projMap = new Map(projs.map((p) => [p.id, { codigo: p.codigo, nome: p.nome }]));
 
-  const NONE = "__none";
-  const chaveProj = (id: string | null) => id ?? NONE;
+  const chaveAlocacao = (s: { projetoId: string | null; tipoAlocacao: TipoAlocacaoPonto }) =>
+    s.projetoId ? `projeto:${s.projetoId}` : s.tipoAlocacao;
 
   // Total do projeto no DIA (sessões da jornada).
   const totalDiaProj = new Map<string, number>();
   for (const s of sessoes) {
     const m = minutosSessao(s.inicio, s.fim ?? agora);
-    totalDiaProj.set(chaveProj(s.projetoId), (totalDiaProj.get(chaveProj(s.projetoId)) ?? 0) + m);
+    const k = chaveAlocacao(s);
+    totalDiaProj.set(k, (totalDiaProj.get(k) ?? 0) + m);
   }
 
   // Acumulado DESDE SEMPRE por projeto (todas as sessões do usuário nesses projetos).
@@ -259,7 +269,7 @@ async function montarTimeline(
       select: { inicio: true, fim: true, projetoId: true },
     });
     for (const s of historico) {
-      const k = chaveProj(s.projetoId);
+      const k = `projeto:${s.projetoId}`;
       historicoProj.set(k, (historicoProj.get(k) ?? 0) + minutosSessao(s.inicio, s.fim ?? agora));
     }
   }
@@ -267,13 +277,20 @@ async function montarTimeline(
   // Métrica por instante de abertura (= início de sessão).
   const metricaPorInstante = new Map<
     number,
-    { projetoId: string | null; adicionadoMin: number; totalDiaProjMin: number; historicoProjMin: number | null }
+    {
+      projetoId: string | null;
+      tipoAlocacao: TipoAlocacaoPonto;
+      adicionadoMin: number;
+      totalDiaProjMin: number;
+      historicoProjMin: number | null;
+    }
   >();
   for (const s of sessoes) {
     const m = minutosSessao(s.inicio, s.fim ?? agora);
-    const k = chaveProj(s.projetoId);
+    const k = chaveAlocacao(s);
     metricaPorInstante.set(s.inicio.getTime(), {
       projetoId: s.projetoId,
+      tipoAlocacao: s.tipoAlocacao,
       adicionadoMin: m,
       totalDiaProjMin: totalDiaProj.get(k)!,
       historicoProjMin: s.projetoId ? historicoProj.get(k) ?? m : null,
@@ -291,6 +308,7 @@ async function montarTimeline(
       editada: b.editada,
       projeto: met?.projetoId ? projMap.get(met.projetoId) ?? null : null,
       projetoId: met?.projetoId ?? null,
+      tipoAlocacao: met?.tipoAlocacao ?? "sem_projeto",
       adicionadoMin: met?.adicionadoMin ?? null,
       totalDiaProjMin: met?.totalDiaProjMin ?? null,
       historicoProjMin: met?.historicoProjMin ?? null,
@@ -308,6 +326,7 @@ async function montarTimeline(
         editada: false,
         projeto: s.projetoId ? projMap.get(s.projetoId) ?? null : null,
         projetoId: s.projetoId,
+        tipoAlocacao: s.tipoAlocacao,
         adicionadoMin: met.adicionadoMin,
         totalDiaProjMin: met.totalDiaProjMin,
         historicoProjMin: met.historicoProjMin,
@@ -458,7 +477,7 @@ export async function espelhoMes(userId: string, ano: number, mes: number) {
         inicio: s.inicio,
         fim: s.fim,
         minutos: minutosSessao(s.inicio, s.fim),
-        projeto: s.projeto ? `${s.projeto.codigo}` : null,
+        projeto: s.projeto ? `${s.projeto.codigo}` : rotuloAlocacaoSemProjeto(s.tipoAlocacao),
       })),
     };
   });
@@ -678,6 +697,11 @@ export async function espelhoDetalhado(
     orderBy: { horario: "asc" },
     select: { id: true, tipo: true, horario: true, projetoId: true, geo: true, editada: true, dia: true },
   });
+  const sessoes = await prisma.sessaoTrabalho.findMany({
+    where: { userId, inicio: { gte: diaIni, lt: diaFim } },
+    select: { inicio: true, tipoAlocacao: true },
+  });
+  const sessaoPorInicio = new Map(sessoes.map((sessao) => [sessao.inicio.getTime(), sessao]));
   const batPorDia = new Map<string, typeof batidas>();
   for (const b of batidas) pushMap(batPorDia, b.dia.toISOString().slice(0, 10), b);
 
@@ -787,15 +811,22 @@ export async function espelhoDetalhado(
       atrasado: atraso.atrasado,
       atrasoMin: atraso.atrasoMin,
       status,
-      batidas: bat.map((b) => ({
-        id: b.id,
-        tipo: b.tipo,
-        horario: b.horario,
-        projeto: b.projetoId ? (projMap.get(b.projetoId) ?? null) : null,
-        projetoId: b.projetoId,
-        geo: b.geo,
-        editada: b.editada,
-      })),
+      batidas: bat.map((b) => {
+        const sessao = sessaoPorInicio.get(b.horario.getTime());
+        return {
+          id: b.id,
+          tipo: b.tipo,
+          horario: b.horario,
+          projeto: b.projetoId
+            ? (projMap.get(b.projetoId) ?? null)
+            : sessao
+              ? rotuloAlocacaoSemProjeto(sessao.tipoAlocacao)
+              : null,
+          projetoId: b.projetoId,
+          geo: b.geo,
+          editada: b.editada,
+        };
+      }),
       ajustes: ajusteInfoPorDia.get(iso) ?? [],
     });
   }
@@ -848,7 +879,12 @@ export async function equipeAgora(): Promise<EquipeAgoraItem[]> {
   for (const s of abertas) {
     if (vistos.has(s.userId)) continue;
     vistos.add(s.userId);
-    itens.push({ userId: s.userId, nome: s.user.name, estado: "trabalhando", projeto: s.projeto?.codigo ?? null });
+    itens.push({
+      userId: s.userId,
+      nome: s.user.name,
+      estado: "trabalhando",
+      projeto: s.projeto?.codigo ?? rotuloAlocacaoSemProjeto(s.tipoAlocacao),
+    });
   }
 
   const hoje = diaLocalDate(new Date());

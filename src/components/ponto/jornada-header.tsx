@@ -14,6 +14,13 @@ import {
 import { transicoesPermitidas } from "@/modules/ponto/engine";
 import type { ResumoHeader } from "@/modules/ponto/queries";
 import { fmtHoras } from "@/modules/ponto/format";
+import {
+  ALOCACAO_REUNIAO_EXTERNA,
+  ALOCACAO_REUNIAO_INTERNA,
+  ALOCACAO_SEM_PROJETO,
+  rotuloAlocacaoSemProjeto,
+  selecaoDaAlocacaoPonto,
+} from "@/modules/ponto/alocacao";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { useBatida, useCronometro, EVENTO_PONTO, avisarPontoAtualizado } from "@/components/ponto/use-batida";
 import { BOTAO, COR_ESTADO, ESTADO_LABEL } from "@/components/ponto/batida-meta";
@@ -29,7 +36,6 @@ import {
 
 type Projeto = { id: string; codigo: string; nome: string };
 
-const NONE = "__none";
 const POLL_MS = 60_000;
 /** Âncora estável enquanto não há resumo (cronômetro parado) — evita recriar a data a cada render. */
 const EPOCH = new Date(0);
@@ -63,7 +69,7 @@ export function JornadaHeader() {
   const [resumo, setResumo] = useState<ResumoHeader | null | undefined>(undefined);
   // Projetos do seletor: carregados só ao abrir o popover (não pesam a navegação).
   const [projetos, setProjetos] = useState<Projeto[] | null>(null);
-  const [projetoId, setProjetoId] = useState<string>(NONE);
+  const [alocacao, setAlocacao] = useState<string>(ALOCACAO_SEM_PROJETO);
   const [aplicando, setAplicando] = useState(false);
   const { bater, trocar, busy } = useBatida();
 
@@ -119,9 +125,15 @@ export function JornadaHeader() {
       ? (resumo.projetoAtivo?.id ?? resumo.retomarProjeto?.id ?? null)
       : (resumo.aberto?.projetoId ?? null);
 
+  const tipoAlocacaoCorrente = !resumo
+    ? "sem_projeto"
+    : resumo.modo === "ponto"
+      ? (resumo.tipoAlocacaoAtiva ?? resumo.retomarTipoAlocacao ?? "sem_projeto")
+      : (resumo.aberto?.tipoAlocacao ?? "sem_projeto");
+
   useEffect(() => {
-    setProjetoId(projetoCorrenteId ?? NONE);
-  }, [projetoCorrenteId]);
+    setAlocacao(selecaoDaAlocacaoPonto(projetoCorrenteId, tipoAlocacaoCorrente));
+  }, [projetoCorrenteId, tipoAlocacaoCorrente]);
 
   const carregarProjetos = useCallback(async () => {
     if (projetos !== null) return;
@@ -148,6 +160,9 @@ export function JornadaHeader() {
 
   const projeto =
     resumo.modo === "ponto" ? resumo.projetoAtivo : (resumo.aberto?.projeto ?? null);
+  const tipoAlocacao = resumo.modo === "ponto"
+    ? resumo.tipoAlocacaoAtiva ?? resumo.retomarTipoAlocacao ?? "sem_projeto"
+    : resumo.aberto?.tipoAlocacao ?? "sem_projeto";
   const estadoTexto =
     resumo.modo === "ponto"
       ? ESTADO_LABEL[resumo.estado]
@@ -161,8 +176,6 @@ export function JornadaHeader() {
         ? "animate-pulse bg-success"
         : "bg-muted-foreground/40";
   const Icone = !rodando ? Clock : resumo.modo === "ponto" && resumo.estado === "descansando" ? Coffee : TimerReset;
-
-  const proj = projetoId === NONE ? undefined : projetoId;
 
   /** Ações do apontamento (PJ/freelancer) — o ponto usa `useBatida`, que já faz isso. */
   async function apontar(
@@ -191,7 +204,7 @@ export function JornadaHeader() {
           <button
             type="button"
             data-tour="jornada"
-            aria-label={`Jornada: ${estadoTexto}${projeto ? ` em ${projetoLabel(projeto)}` : ""}`}
+            aria-label={`Jornada: ${estadoTexto}${projeto ? ` em ${projetoLabel(projeto)}` : rodando ? ` em ${rotuloAlocacaoSemProjeto(tipoAlocacao)}` : ""}`}
             className={`flex h-8 min-w-[74px] items-center gap-1.5 rounded-sm px-1.5 font-mono text-xs tabular-nums outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring ${
               rodando ? "text-foreground" : "text-muted-foreground"
             }`}
@@ -232,7 +245,7 @@ export function JornadaHeader() {
           {projeto ? (
             <span className="max-w-full truncate text-xs">{projetoLabel(projeto)}</span>
           ) : (
-            rodando && <span className="text-xs text-muted-foreground">Sem projeto</span>
+            rodando && <span className="text-xs text-muted-foreground">{rotuloAlocacaoSemProjeto(tipoAlocacao)}</span>
           )}
           {resumo.modo === "ponto" && resumo.descansoMin > 0 && (
             <span className="text-[11px] text-muted-foreground">
@@ -245,12 +258,14 @@ export function JornadaHeader() {
           {/* Seletor de projeto — mesmo papel do da tela cheia: define o projeto da
               próxima abertura de sessão (entrada / volta do descanso / apontamento)
               ou o destino da troca durante o trabalho. */}
-          <Select value={projetoId} onValueChange={(v) => setProjetoId(v ?? NONE)}>
+          <Select value={alocacao} onValueChange={(v) => setAlocacao(v ?? ALOCACAO_SEM_PROJETO)}>
             <SelectTrigger size="sm" className="w-full" aria-label="Projeto da jornada">
-              <SelectValue placeholder="Projeto (opcional)…" />
+              <SelectValue placeholder="Alocação da jornada…" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={NONE}>Sem projeto</SelectItem>
+              <SelectItem value={ALOCACAO_SEM_PROJETO}>Sem projeto</SelectItem>
+              <SelectItem value={ALOCACAO_REUNIAO_INTERNA}>Reunião interna</SelectItem>
+              <SelectItem value={ALOCACAO_REUNIAO_EXTERNA}>Reunião externa</SelectItem>
               {(projetos ?? []).map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   {formatarCodigo(p.codigo)} · {p.nome}
@@ -270,10 +285,10 @@ export function JornadaHeader() {
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={ocupado || proj === projetoCorrenteId || (!proj && !projetoCorrenteId)}
-                  onClick={() => void trocar(proj)}
+                  disabled={ocupado || alocacao === selecaoDaAlocacaoPonto(projetoCorrenteId, tipoAlocacaoCorrente)}
+                  onClick={() => void trocar(alocacao)}
                 >
-                  <Repeat className="size-4" /> Trocar projeto
+                  <Repeat className="size-4" /> Trocar alocação
                 </Button>
               )}
               {transicoesPermitidas(resumo.estado).map((tipo) => {
@@ -288,7 +303,7 @@ export function JornadaHeader() {
                     size="sm"
                     variant={b.variant}
                     disabled={ocupado}
-                    onClick={() => void bater(tipo, abreSessao ? proj : undefined)}
+                    onClick={() => void bater(tipo, abreSessao ? alocacao : undefined)}
                   >
                     <Icon className="size-4" /> {b.label}
                   </Button>
@@ -300,12 +315,12 @@ export function JornadaHeader() {
               <Button
                 size="sm"
                 variant="outline"
-                disabled={ocupado || proj === projetoCorrenteId || (!proj && !projetoCorrenteId)}
+                disabled={ocupado || alocacao === selecaoDaAlocacaoPonto(projetoCorrenteId, tipoAlocacaoCorrente)}
                 onClick={() =>
-                  void apontar(() => trocarApontamentoAction({ projetoId: proj }), "Projeto trocado.")
+                  void apontar(() => trocarApontamentoAction({ projetoId: alocacao }), "Alocação atualizada.")
                 }
               >
-                <Repeat className="size-4" /> Trocar projeto
+                <Repeat className="size-4" /> Trocar alocação
               </Button>
               <Button
                 size="sm"
@@ -322,7 +337,7 @@ export function JornadaHeader() {
               disabled={ocupado}
               onClick={() =>
                 void apontar(
-                  () => abrirApontamentoAction({ projetoId: proj }),
+                  () => abrirApontamentoAction({ projetoId: alocacao }),
                   "Apontamento iniciado.",
                 )
               }

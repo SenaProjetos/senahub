@@ -116,7 +116,7 @@ export function useBatida() {
       setBusy(true);
       try {
         const r = await trocarProjeto({ projetoId });
-        if (r.ok) concluir("Projeto trocado.");
+        if (r.ok) concluir("Alocação atualizada.");
         else toast.error(r.error);
       } catch {
         enfileirar();

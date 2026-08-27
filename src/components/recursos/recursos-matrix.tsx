@@ -8,6 +8,7 @@ import { salvarRecurso, salvarAlocacao, removerAlocacao } from "@/modules/planej
 import { criarHabilidade, alternarHabilidadeUsuario } from "@/modules/rh/habilidades/actions";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { formatarCodigo } from "@/modules/projetos/numbering";
+import { percentualAlocadoNoDia, superalocadoNaJanela as temSuperalocacaoNaJanela } from "@/modules/planejamento/disponibilidade";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AvatarUsuario } from "@/components/ui/avatar-usuario";
@@ -50,6 +51,7 @@ type Linha = {
   capacidadeEfetivaPct: number;
   ausente: boolean;
   motivoAusencia: string | null;
+  indisponibilidades: { inicio: string; fim: string; motivo: string }[];
   cor: string;
   custoHora: number | null;
   totalAlocado: number;
@@ -90,6 +92,12 @@ function mesesEntre(de: Date, ate: Date): string[] {
   return out;
 }
 
+function diasDoMes(ym: string): string[] {
+  const [ano, mes] = ym.split("-").map(Number);
+  const total = new Date(ano, mes, 0).getDate();
+  return Array.from({ length: total }, (_, indice) => `${ym}-${String(indice + 1).padStart(2, "0")}`);
+}
+
 /**
  * Constrói a janela de meses visível e a matriz pessoa→(mês→%).
  * A janela vai do mês mais antigo de início até o mais distante de fim;
@@ -126,19 +134,11 @@ function montarHeatmap(linhas: Linha[]) {
     : new Date(hoje.getFullYear(), hoje.getMonth() + 5, 1);
 
   const meses = mesesEntre(de, ate);
-  const mesSet = new Set(meses);
-
   const matriz = linhas.map((l) => {
-    const porMes = new Map<string, number>();
-    for (const a of l.alocacoes) {
-      const aDe = a.inicio ? parse(a.inicio) : de;
-      const aAte = a.fim ? parse(a.fim) : ate;
-      if (aAte < aDe) continue;
-      for (const ym of mesesEntre(aDe, aAte)) {
-        if (mesSet.has(ym)) porMes.set(ym, (porMes.get(ym) ?? 0) + a.percentual);
-      }
-    }
-    const cells: MesCell[] = meses.map((ym) => ({ ym, pct: porMes.get(ym) ?? 0 }));
+    const cells: MesCell[] = meses.map((ym) => ({
+      ym,
+      pct: Math.max(0, ...diasDoMes(ym).map((dia) => percentualAlocadoNoDia(dia, l.alocacoes))),
+    }));
     return { linha: l, cells };
   });
 
@@ -146,23 +146,8 @@ function montarHeatmap(linhas: Linha[]) {
 }
 
 /** N-31: Verifica superalocação durante uma janela: qualquer mês com carga > capacidade. */
-function superalocadoNaJanela(l: Linha, janelaIni: Date, janelaFim: Date): boolean {
-  const parse = (s: string) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
-  const jIni = ymKey(janelaIni);
-  const jFim = ymKey(janelaFim);
-  const porMes = new Map<string, number>();
-  for (const a of l.alocacoes) {
-    const aIni = a.inicio ? ymKey(parse(a.inicio)) : jIni;
-    const aFim = a.fim ? ymKey(parse(a.fim)) : jFim;
-    for (const ym of mesesEntre(
-      parse(aIni + "-01"),
-      parse(aFim + "-01"),
-    )) {
-      if (ym >= jIni && ym <= jFim) porMes.set(ym, (porMes.get(ym) ?? 0) + a.percentual);
-    }
-  }
-  for (const pct of porMes.values()) if (pct > l.capacidadePct) return true;
-  return false;
+function superalocadoNaJanela(l: Linha, inicio: string, fim: string): boolean {
+  return temSuperalocacaoNaJanela(inicio, fim, l.capacidadePct, l.alocacoes, l.indisponibilidades);
 }
 
 /** Cor graduada por ocupação: verde (folga) → amarelo (~100%) → vermelho (>100%). */
@@ -246,9 +231,7 @@ export function RecursosMatrix({
 
   const totalSuper = linhasFiltradas.filter((l) => l.superalocado).length;
   const totalSuperJanela = useMemo(() => {
-    const ini = new Date(janelaIni + "T00:00:00");
-    const fim = new Date(janelaFim + "T00:00:00");
-    return linhasFiltradas.filter((l) => superalocadoNaJanela(l, ini, fim)).length;
+    return linhasFiltradas.filter((l) => superalocadoNaJanela(l, janelaIni, janelaFim)).length;
   }, [linhasFiltradas, janelaIni, janelaFim]);
 
   return (
@@ -406,7 +389,7 @@ export function RecursosMatrix({
               </tr>
             ) : (
               linhasFiltradas.map((l) => {
-                const superJanela = superalocadoNaJanela(l, new Date(janelaIni + "T00:00:00"), new Date(janelaFim + "T00:00:00"));
+                const superJanela = superalocadoNaJanela(l, janelaIni, janelaFim);
                 return (
                 <tr key={l.recursoId} className={l.superalocado ? "bg-destructive/5" : superJanela ? "bg-warning/5" : ""}>
                   <td className="px-3 py-2">
@@ -739,7 +722,16 @@ function HeatmapView({
 }
 
 // ── Heatmap de carga real semanal (N-33) ────────────────────────────
-type CargaSemanal = { semanas: string[]; linhas: { userId: string; nome: string; image: string | null; porSemana: Record<string, number> }[] };
+type CargaSemanal = {
+  semanas: string[];
+  linhas: {
+    userId: string;
+    nome: string;
+    image: string | null;
+    porSemana: Record<string, number>;
+    capacidadePorSemana: Record<string, number>;
+  }[];
+};
 
 function wkLabel(wk: string) {
   // "2026-W23" → "Sem 23/26"
@@ -747,20 +739,21 @@ function wkLabel(wk: string) {
   return `Sem ${w}/${y.slice(2)}`;
 }
 
-function heatCarga(horas: number) {
+function heatCarga(horas: number, capacidade: number) {
   if (horas === 0) return "transparent";
-  if (horas < 8) return "hsl(210 60% 85%)";   // pouco
-  if (horas < 20) return "hsl(210 60% 68%)";  // moderado
-  if (horas < 36) return "hsl(210 70% 52%)";  // normal
-  if (horas < 44) return "hsl(28 90% 64%)";   // intenso
-  return "hsl(0 75% 60%)";                     // muito intenso
+  const proporcao = capacidade > 0 ? horas / capacidade : Infinity;
+  if (proporcao < 0.2) return "hsl(210 60% 85%)";
+  if (proporcao < 0.5) return "hsl(210 60% 68%)";
+  if (proporcao <= 0.9) return "hsl(210 70% 52%)";
+  if (proporcao <= 1.1) return "hsl(28 90% 64%)";
+  return "hsl(0 75% 60%)";
 }
 
 function CargaRealView({ cargaSemanal }: { cargaSemanal: CargaSemanal }) {
   if (cargaSemanal.linhas.length === 0) {
     return (
       <div className="rounded-sm border px-3 py-8">
-        <EmptyState icon={Users} title="Nenhum registro de sessão nos últimos 3 meses." />
+        <EmptyState icon={Users} title="Nenhum recurso ativo cadastrado." />
       </div>
     );
   }
@@ -787,15 +780,17 @@ function CargaRealView({ cargaSemanal }: { cargaSemanal: CargaSemanal }) {
                 </td>
                 {cargaSemanal.semanas.map((wk) => {
                   const h = l.porSemana[wk] ?? 0;
+                  const capacidade = l.capacidadePorSemana[wk] ?? 0;
+                  const acimaDaCapacidade = capacidade === 0 ? h > 0 : h > capacidade;
                   return (
                     <td
                       key={wk}
                       className="border-l px-1 py-2 text-center"
-                      style={{ background: heatCarga(h) }}
-                      title={`${l.nome} · ${wkLabel(wk)} — ${h}h`}
+                      style={{ background: heatCarga(h, capacidade) }}
+                      title={`${l.nome} · ${wkLabel(wk)} — ${h}h registradas de ${capacidade}h disponíveis`}
                     >
-                      <span className={`font-mono text-[10px] ${h >= 44 ? "font-bold text-white" : "text-foreground/70"}`}>
-                        {h > 0 ? `${h}h` : ""}
+                      <span className={`font-mono text-[10px] ${acimaDaCapacidade ? "font-bold text-white" : "text-foreground/70"}`}>
+                        {`${h}/${capacidade}`}
                       </span>
                     </td>
                   );
@@ -806,12 +801,12 @@ function CargaRealView({ cargaSemanal }: { cargaSemanal: CargaSemanal }) {
         </table>
       </div>
       <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
-        <span className="font-medium text-foreground">Horas/semana:</span>
-        <Legenda cor="hsl(210 60% 85%)" texto="<8h" />
-        <Legenda cor="hsl(210 60% 68%)" texto="8–20h" />
-        <Legenda cor="hsl(210 70% 52%)" texto="20–36h" />
-        <Legenda cor="hsl(28 90% 64%)" texto="36–44h (intenso)" />
-        <Legenda cor="hsl(0 75% 60%)" texto=">44h (muito intenso)" />
+        <span className="font-medium text-foreground">Uso da capacidade:</span>
+        <Legenda cor="hsl(210 60% 85%)" texto="<20%" />
+        <Legenda cor="hsl(210 60% 68%)" texto="20–50%" />
+        <Legenda cor="hsl(210 70% 52%)" texto="50–90%" />
+        <Legenda cor="hsl(28 90% 64%)" texto="90–110%" />
+        <Legenda cor="hsl(0 75% 60%)" texto=">110%" />
       </div>
     </div>
   );
@@ -1165,6 +1160,7 @@ function AlocacaoDialog({
   onOpenChange: (o: boolean) => void;
   pending: boolean;
   onSalvar: (p: {
+    id?: string;
     recursoId: string;
     projetoId: string;
     percentual: number;
@@ -1261,6 +1257,7 @@ function AlocacaoDialog({
               disabled={pending || projetoId === NONE}
               onClick={() =>
                 onSalvar({
+                  id: aloc?.id,
                   recursoId: l.recursoId,
                   projetoId,
                   percentual: Number(percentual),

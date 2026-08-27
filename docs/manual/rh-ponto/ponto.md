@@ -1,9 +1,9 @@
 ---
 titulo: Ponto (registro de jornada)
-descricao: Autoatendimento de ponto — iniciar/encerrar sessão por projeto e ver o espelho do mês.
-resumo: Cada colaborador registra a jornada iniciando/encerrando sessões vinculadas a um projeto; o espelho do mês mostra as horas, e gestores veem o rateio por projeto.
-tags: [ponto, jornada, batida, sessão, espelho, banco de horas, rateio]
-palavras-chave: [ponto, registrar ponto, bater ponto, jornada, sessão, projeto, espelho, banco de horas, rateio]
+descricao: Autoatendimento de ponto — registre a jornada por projeto, reunião ou sem projeto e veja o espelho do mês.
+resumo: Cada colaborador registra a jornada por projeto, reunião interna, reunião externa ou sem projeto; o espelho consolida as horas e gestores veem o rateio mensal.
+tags: [ponto, jornada, batida, sessão, reunião, espelho, banco de horas, rateio]
+palavras-chave: [ponto, registrar ponto, bater ponto, jornada, sessão, projeto, reunião interna, reunião externa, sem projeto, espelho, banco de horas, rateio]
 sinonimos: [registro de jornada, controle de horas, timesheet, folha de ponto]
 ---
 
@@ -11,8 +11,8 @@ sinonimos: [registro de jornada, controle de horas, timesheet, folha de ponto]
 
 ## Objetivo
 
-Registrar a jornada de trabalho por **sessões vinculadas a um projeto**, gerando o
-**espelho do mês** (horas) e a base de banco de horas e rateio.
+Registrar a jornada de trabalho por **sessões com uma alocação**, gerando o **espelho do mês**
+(horas) e a base de banco de horas e rateio.
 
 ## Quando utilizar
 
@@ -21,27 +21,28 @@ Registrar a jornada de trabalho por **sessões vinculadas a um projeto**, gerand
 ## Como acessar
 
 - Menu → **Ponto** (`/ponto`). Autoatendimento de **todos os internos** (admin,
-  supervisor, administrativo, clt, estagiário, projetista_pj, freelancer). Cliente não
-  acessa.
+  supervisor, administrativo, clt, estagiário, projetista_pj, freelancer). Cliente não acessa.
 
 ## Como funciona
 
-1. **Iniciar sessão:** escolha o **projeto** e registre o início.
-2. Enquanto houver uma **sessão aberta**, o sistema mostra desde quando e em qual
-   projeto.
+1. **Iniciar sessão:** escolha a alocação e registre o início. Além dos projetos em andamento,
+   há as opções **Sem projeto**, **Reunião interna** e **Reunião externa**.
+2. Enquanto houver uma **sessão aberta**, o sistema mostra desde quando e em qual alocação você
+   está trabalhando.
 3. **Encerrar sessão** para fechar o período.
 4. O **espelho do mês** consolida suas horas do mês corrente.
 
 ## Para gestores (RH)
 
 - Quem é gestor de RH (admin/supervisor/administrativo) vê também o **rateio do mês** —
-  distribuição das horas por projeto.
+  distribuição das horas por projeto, reunião interna, reunião externa e sem projeto.
 
 ## Regras de negócio
 
-- Cada sessão fica vinculada a **um projeto**.
-- O espelho é por **mês corrente**; o histórico alimenta o **banco de horas** (fechado
-  pela administração — ver [RH — administração](rh-admin.md)).
+- Cada sessão fica vinculada a um **projeto** ou a uma das categorias gerais: **Sem projeto**,
+  **Reunião interna** ou **Reunião externa**.
+- O espelho é por **mês corrente**; o histórico alimenta o **banco de horas** (fechado pela
+  administração — ver [RH — administração](rh-admin.md)).
 
 ## Funcionalidades relacionadas
 
@@ -49,8 +50,8 @@ Registrar a jornada de trabalho por **sessões vinculadas a um projeto**, gerand
 
 ## FAQ
 
-**Esqueci de encerrar a sessão.** Procure a administração do RH para ajuste (ponto
-manual).
+**Esqueci de encerrar a sessão.** Procure a administração do RH para ajuste (ponto manual).
 
-**O ponto é por projeto?** Sim — cada sessão é registrada em um projeto, o que permite o
-rateio de horas.
+**Posso registrar uma reunião?** Sim. Escolha **Reunião interna** ou **Reunião externa** na
+lista de alocação antes de iniciar a jornada, voltar do descanso ou trocar a alocação. As horas
+ficam separadas no rateio mensal.

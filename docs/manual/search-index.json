@@ -113,9 +113,9 @@
     {
       "titulo": "Recursos (alocação da equipe)",
       "path": "projetos/recursos.md",
-      "descricao": "Matriz de alocação de pessoas em projetos, com carga semanal e habilidades.",
-      "resumo": "Veja quem está alocado em quais projetos, a carga de trabalho por semana e as habilidades de cada pessoa.",
-      "tags": ["recursos", "alocação", "carga", "equipe", "habilidades", "capacidade"],
+      "descricao": "Matriz de alocação de pessoas em projetos, carga semanal disponível e habilidades.",
+      "resumo": "Veja alocações por faixa, horas registradas versus capacidade disponível e habilidades de cada pessoa.",
+      "tags": ["recursos", "alocação", "carga", "equipe", "habilidades", "capacidade", "férias", "abonos"],
       "palavrasChave": ["recursos", "alocação", "carga semanal", "capacidade", "equipe", "habilidade", "competência"],
       "sinonimos": ["alocação de equipe", "capacity", "planejamento de recursos"]
     },
@@ -216,7 +216,7 @@
       "resumo": "Cada colaborador registra a jornada iniciando/encerrando sessões vinculadas a um projeto; gestores veem o rateio por projeto.",
       "tags": ["ponto", "jornada", "batida", "sessão", "espelho", "banco de horas", "rateio"],
       "palavrasChave": ["ponto", "registrar ponto", "bater ponto", "jornada", "sessão", "projeto", "espelho", "banco de horas", "rateio"],
-      "sinonimos": ["registro de jornada", "controle de horas", "timesheet", "folha de ponto"]
+      "sinonimos": ["registro de jornada", "controle de horas", "timesheet", "folha de ponto", "reuniao interna", "reuniao externa", "horas sem projeto"]
     },
     {
       "titulo": "RH (autoatendimento do colaborador)",
@@ -261,7 +261,7 @@
       "resumo": "Painel que mostra a produtividade dos projetistas ao longo do tempo, com granularidade semanal ou mensal.",
       "tags": ["produtividade", "projetistas", "desempenho", "semana", "mês"],
       "palavrasChave": ["produtividade", "projetista", "desempenho", "entregas", "semana", "mês", "granularidade"],
-      "sinonimos": ["desempenho", "rendimento", "performance"]
+      "sinonimos": ["desempenho", "rendimento", "performance", "horas diarias", "grafico de horas", "comparacao de horas"]
     },
     {
       "titulo": "Pessoas Jurídicas",

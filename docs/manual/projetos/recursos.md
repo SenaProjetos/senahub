@@ -26,7 +26,12 @@ trabalho e as **habilidades** de cada um.
 ## O que a tela mostra
 
 - **Matriz** de recursos: linhas = pessoas, colunas = projetos, com a alocação.
-- **Carga semanal** por recurso (janela de 12 semanas).
+- **Carga semanal** por recurso, nas últimas 12 semanas. Cada célula mostra
+  `horas registradas / horas disponíveis` e usa a escala, o fator de capacidade,
+  feriados, férias e abonos aprovados.
+- **Faixas de alocação** por projeto: uma pessoa pode encerrar uma participação e
+  voltar ao mesmo projeto em outro período, preservando o histórico. Faixas que se
+  sobrepõem para a mesma pessoa e projeto são bloqueadas.
 - **Habilidades** de cada pessoa (catálogo de competências).
 - **Usuários sem recurso** (ainda não mapeados) são destacados.
 
@@ -43,5 +48,10 @@ trabalho e as **habilidades** de cada um.
 
 ## FAQ
 
-**O que é a carga semanal?** Quanto de trabalho está alocado para cada pessoa por semana,
-nas próximas 12 semanas — ajuda a evitar sobrecarga.
+**O que é a carga semanal?** Ela compara, por pessoa e semana, as horas realmente
+registradas com a capacidade que estava disponível. Uma semana sem horas também aparece;
+férias, abonos e feriados reduzem a capacidade exibida.
+
+**Posso alocar a mesma pessoa no mesmo projeto mais de uma vez?** Sim, desde que as faixas
+de datas não coincidam. Por exemplo, uma faixa pode terminar em junho e outra começar em
+setembro, sem apagar a participação anterior.

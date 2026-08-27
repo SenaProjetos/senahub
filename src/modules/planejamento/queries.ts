@@ -4,7 +4,9 @@ import { acessoGlobal, type Role, type EscopoDeDados } from "@/lib/roles";
 import { whereAudiencia } from "@/lib/audiencias";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { progressoDoStatus } from "@/modules/projetos/status";
-import { minutosSessao } from "@/modules/ponto/format";
+import { diaLocal, minutosPorDiaSessao } from "@/modules/ponto/engine";
+import { gradesEmLote } from "@/modules/rh/escalas/queries";
+import { chaveSemanaIso, diaEstaNaFaixa, minutosDisponiveisNoDia, percentualAlocadoNoDia } from "@/modules/planejamento/disponibilidade";
 
 type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
 
@@ -151,33 +153,58 @@ export async function planoVsRealProjeto(projetoId: string) {
   const agora = new Date();
   const ano = agora.getFullYear();
   const mes = agora.getMonth() + 1;
-  const ini = new Date(ano, mes - 1, 1);
-  const fim = new Date(ano, mes, 1);
+  const inicioIso = `${ano}-${String(mes).padStart(2, "0")}-01`;
+  const fimIso = new Date(Date.UTC(ano, mes, 1)).toISOString().slice(0, 10);
+  // Alocação tem vigência por data; sessão tem horário local de Brasília.
+  const inicioVigencia = new Date(`${inicioIso}T00:00:00Z`);
+  const fimVigencia = new Date(`${fimIso}T00:00:00Z`);
+  const inicioSessao = new Date(`${inicioIso}T00:00:00-03:00`);
+  const fimSessao = new Date(`${fimIso}T00:00:00-03:00`);
 
   const [alocacoes, sessoes] = await Promise.all([
     prisma.alocacao.findMany({
       where: {
         projetoId,
-        AND: [{ OR: [{ inicio: null }, { inicio: { lt: fim } }] }, { OR: [{ fim: null }, { fim: { gte: ini } }] }],
+        AND: [{ OR: [{ inicio: null }, { inicio: { lt: fimVigencia } }] }, { OR: [{ fim: null }, { fim: { gte: inicioVigencia } }] }],
       },
       include: { recurso: { include: { user: { select: { id: true, name: true } } } } },
     }),
     prisma.sessaoTrabalho.findMany({
-      where: { projetoId, inicio: { gte: ini, lt: fim } },
+      where: {
+        projetoId,
+        inicio: { lt: fimSessao },
+        OR: [{ fim: { gte: inicioSessao } }, { fim: null }],
+      },
       select: { userId: true, inicio: true, fim: true },
     }),
   ]);
 
   const horasPorUser = new Map<string, number>();
   for (const s of sessoes) {
-    horasPorUser.set(s.userId, (horasPorUser.get(s.userId) ?? 0) + minutosSessao(s.inicio, s.fim));
+    let minutosNoMes = 0;
+    for (const [dia, minutos] of minutosPorDiaSessao(s.inicio, s.fim, agora)) {
+      if (dia >= inicioIso && dia < fimIso) minutosNoMes += minutos;
+    }
+    horasPorUser.set(s.userId, (horasPorUser.get(s.userId) ?? 0) + minutosNoMes);
   }
 
-  const linhas = alocacoes.map((a) => ({
-    userId: a.recurso.user.id,
-    nome: a.recurso.user.name,
-    percentual: a.percentual,
-    horasReais: Math.round(((horasPorUser.get(a.recurso.user.id) ?? 0) / 60) * 10) / 10,
+  const diasDoMes = Array.from({ length: new Date(ano, mes, 0).getDate() }, (_, indice) => {
+    return `${ano}-${String(mes).padStart(2, "0")}-${String(indice + 1).padStart(2, "0")}`;
+  }).filter((dia) => dia >= inicioIso && dia < fimIso);
+  const alocacoesPorUser = new Map<string, typeof alocacoes>();
+  for (const alocacao of alocacoes) {
+    const userId = alocacao.recurso.user.id;
+    alocacoesPorUser.set(userId, [...(alocacoesPorUser.get(userId) ?? []), alocacao]);
+  }
+  const linhas = [...alocacoesPorUser.entries()].map(([userId, alocacoesDaPessoa]) => ({
+    userId,
+    nome: alocacoesDaPessoa[0].recurso.user.name,
+    percentual: Math.max(0, ...diasDoMes.map((dia) => percentualAlocadoNoDia(dia, alocacoesDaPessoa.map((a) => ({
+      inicio: a.inicio ? iso(a.inicio) : null,
+      fim: a.fim ? iso(a.fim) : null,
+      percentual: a.percentual,
+    }))))),
+    horasReais: Math.round(((horasPorUser.get(userId) ?? 0) / 60) * 10) / 10,
   }));
 
   // Quem trabalhou no projeto sem alocação planejada.
@@ -207,56 +234,111 @@ export async function planoVsRealProjeto(projetoId: string) {
  * Cada semana = chave ISO "YYYY-Www". Horas arredondadas a 1 decimal.
  */
 export async function cargaSemanalPorRecurso(semanas = 12) {
-  const hoje = new Date();
-  const ini = new Date(hoje);
-  ini.setDate(hoje.getDate() - semanas * 7);
+  const agora = new Date();
+  const hoje = diaLocal(agora);
+  const inicioSemanaAtual = inicioDaSemana(hoje);
+  const inicio = adicionarDias(inicioSemanaAtual, -7 * (semanas - 1));
+  const fimExclusivo = adicionarDias(inicioSemanaAtual, 7);
+  const chavesSemana = Array.from({ length: semanas }, (_, indice) => chaveSemanaIso(adicionarDias(inicio, indice * 7)));
+  const inicioSessao = new Date(`${inicio}T00:00:00-03:00`);
+  const fimSessao = new Date(`${fimExclusivo}T00:00:00-03:00`);
+  const inicioVigencia = new Date(`${inicio}T00:00:00Z`);
+  const fimVigencia = new Date(`${fimExclusivo}T00:00:00Z`);
 
-  const sessoes = await prisma.sessaoTrabalho.findMany({
-    where: { inicio: { gte: ini }, fim: { not: null } },
-    select: { userId: true, inicio: true, fim: true },
-    orderBy: { inicio: "asc" },
+  const recursos = await prisma.recurso.findMany({
+    where: { ativo: true },
+    select: {
+      capacidade: true,
+      user: { select: { id: true, name: true, image: true, contratacao: true } },
+    },
+    orderBy: { user: { name: "asc" } },
   });
+  if (recursos.length === 0) return { semanas: chavesSemana, linhas: [] };
 
-  if (sessoes.length === 0) return { semanas: [] as string[], linhas: [] as { userId: string; nome: string; image: string | null; porSemana: Record<string, number> }[] };
+  const userIds = recursos.map((recurso) => recurso.user.id);
+  const [sessoes, grades, feriadosDb, ferias, abonos] = await Promise.all([
+    prisma.sessaoTrabalho.findMany({
+      where: {
+        userId: { in: userIds },
+        inicio: { lt: fimSessao },
+        OR: [{ fim: { gte: inicioSessao } }, { fim: null }],
+      },
+      select: { userId: true, inicio: true, fim: true },
+      orderBy: { inicio: "asc" },
+    }),
+    gradesEmLote(recursos.map((recurso) => ({ id: recurso.user.id, contratacao: recurso.user.contratacao }))),
+    prisma.feriado.findMany({
+      where: { data: { gte: new Date(`${inicio}T00:00:00Z`), lt: new Date(`${fimExclusivo}T00:00:00Z`) } },
+      select: { data: true },
+    }),
+    prisma.ferias.findMany({
+      where: { userId: { in: userIds }, status: "aprovado", inicio: { lt: fimVigencia }, fim: { gte: inicioVigencia } },
+      select: { userId: true, inicio: true, fim: true },
+    }),
+    prisma.abonoFalta.findMany({
+      where: { userId: { in: userIds }, status: "aprovado", dataInicio: { lt: fimVigencia }, dataFim: { gte: inicioVigencia } },
+      select: { userId: true, dataInicio: true, dataFim: true },
+    }),
+  ]);
 
-  const minutosPorUserSemana = new Map<string, Map<string, number>>();
-  const isoWeek = (d: Date): string => {
-    const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-    const jan4 = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 4));
-    const startOfWeek1 = new Date(jan4);
-    startOfWeek1.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() + 6) % 7));
-    const weekNum = Math.ceil(((tmp.getTime() - startOfWeek1.getTime()) / 86_400_000 + 1) / 7);
-    return `${tmp.getUTCFullYear()}-W${String(weekNum).padStart(2, "0")}`;
-  };
-
-  const semanasSet = new Set<string>();
-  for (const s of sessoes) {
-    const mins = minutosSessao(s.inicio, s.fim);
-    if (mins <= 0) continue;
-    const wk = isoWeek(s.inicio);
-    semanasSet.add(wk);
-    if (!minutosPorUserSemana.has(s.userId)) minutosPorUserSemana.set(s.userId, new Map());
-    const m = minutosPorUserSemana.get(s.userId)!;
-    m.set(wk, (m.get(wk) ?? 0) + mins);
+  const feriados = new Set(feriadosDb.map((feriado) => iso(feriado.data)));
+  const ausenciasPorUsuario = new Map<string, Set<string>>();
+  for (const ausencia of [...ferias.map((f) => ({ userId: f.userId, inicio: f.inicio, fim: f.fim })), ...abonos.map((a) => ({ userId: a.userId, inicio: a.dataInicio, fim: a.dataFim }))]) {
+    const dias = ausenciasPorUsuario.get(ausencia.userId) ?? new Set<string>();
+    for (let dia = iso(ausencia.inicio); dia <= iso(ausencia.fim); dia = adicionarDias(dia, 1)) {
+      if (dia >= inicio && dia < fimExclusivo) dias.add(dia);
+    }
+    ausenciasPorUsuario.set(ausencia.userId, dias);
   }
 
-  const semanasOrdenadas = [...semanasSet].sort();
-  const userIds = [...minutosPorUserSemana.keys()];
-  const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, image: true } });
-  const nome = new Map(users.map((u) => [u.id, u.name]));
-  const imagem = new Map(users.map((u) => [u.id, u.image]));
-
-  const linhas = userIds.map((uid) => {
-    const porSemana: Record<string, number> = {};
-    const mapa = minutosPorUserSemana.get(uid)!;
-    for (const wk of semanasOrdenadas) {
-      const mins = mapa.get(wk) ?? 0;
-      porSemana[wk] = Math.round((mins / 60) * 10) / 10;
+  const minutosPorUsuarioSemana = new Map<string, Map<string, number>>();
+  for (const sessao of sessoes) {
+    const porSemana = minutosPorUsuarioSemana.get(sessao.userId) ?? new Map<string, number>();
+    for (const [dia, minutos] of minutosPorDiaSessao(sessao.inicio, sessao.fim, agora)) {
+      if (dia < inicio || dia >= fimExclusivo) continue;
+      const semana = chaveSemanaIso(dia);
+      porSemana.set(semana, (porSemana.get(semana) ?? 0) + minutos);
     }
-    return { userId: uid, nome: nome.get(uid) ?? "—", image: imagem.get(uid) ?? null, porSemana };
-  }).sort((a, b) => a.nome.localeCompare(b.nome));
+    minutosPorUsuarioSemana.set(sessao.userId, porSemana);
+  }
 
-  return { semanas: semanasOrdenadas, linhas };
+  const arredondar = (minutos: number) => Math.round((minutos / 60) * 10) / 10;
+  const linhas = recursos.map((recurso) => {
+    const porSemana: Record<string, number> = {};
+    const capacidadePorSemana: Record<string, number> = {};
+    const grade = grades.get(recurso.user.id) ?? [];
+    const ausencias = ausenciasPorUsuario.get(recurso.user.id) ?? new Set<string>();
+    const realizado = minutosPorUsuarioSemana.get(recurso.user.id) ?? new Map<string, number>();
+    for (let dia = inicio; dia < fimExclusivo; dia = adicionarDias(dia, 1)) {
+      const semana = chaveSemanaIso(dia);
+      const diaDaSemana = new Date(`${dia}T00:00:00Z`).getUTCDay();
+      const jornada = grade.find((item) => item.diaSemana === diaDaSemana);
+      const minutosDisponiveis = minutosDisponiveisNoDia(
+        jornada?.ativo ? jornada.horasDia * 60 : 0,
+        Number(recurso.capacidade),
+        feriados.has(dia) || ausencias.has(dia),
+      );
+      capacidadePorSemana[semana] = (capacidadePorSemana[semana] ?? 0) + minutosDisponiveis;
+    }
+    for (const semana of chavesSemana) {
+      porSemana[semana] = arredondar(realizado.get(semana) ?? 0);
+      capacidadePorSemana[semana] = arredondar(capacidadePorSemana[semana] ?? 0);
+    }
+    return { userId: recurso.user.id, nome: recurso.user.name, image: recurso.user.image, porSemana, capacidadePorSemana };
+  });
+
+  return { semanas: chavesSemana, linhas };
+}
+
+function adicionarDias(dia: string, quantidade: number): string {
+  const [ano, mes, diaDoMes] = dia.split("-").map(Number);
+  return new Date(Date.UTC(ano, mes - 1, diaDoMes + quantidade)).toISOString().slice(0, 10);
+}
+
+function inicioDaSemana(dia: string): string {
+  const [ano, mes, diaDoMes] = dia.split("-").map(Number);
+  const data = new Date(Date.UTC(ano, mes - 1, diaDoMes));
+  return adicionarDias(dia, -((data.getUTCDay() + 6) % 7));
 }
 
 /**
@@ -265,10 +347,9 @@ export async function cargaSemanalPorRecurso(semanas = 12) {
  * P-30: capacidade efetiva desconta ausências de hoje (férias/abono aprovados, feriado).
  */
 export async function matrizRecursos() {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
+  const hojeIso = diaLocal(new Date());
 
-  const [recursos, projetos, usuariosSemRecurso, ferias, abonos, feriado] = await Promise.all([
+  const [recursos, projetos, usuariosSemRecurso, ferias, abonos, feriados] = await Promise.all([
     prisma.recurso.findMany({
       where: { ativo: true },
       include: {
@@ -289,33 +370,50 @@ export async function matrizRecursos() {
       orderBy: { name: "asc" },
     }),
     prisma.ferias.findMany({
-      where: { status: "aprovado", inicio: { lte: hoje }, fim: { gte: hoje } },
-      select: { userId: true },
+      where: { status: "aprovado" },
+      select: { userId: true, inicio: true, fim: true },
     }),
     prisma.abonoFalta.findMany({
-      where: { status: "aprovado", dataInicio: { lte: hoje }, dataFim: { gte: hoje } },
-      select: { userId: true },
+      where: { status: "aprovado" },
+      select: { userId: true, dataInicio: true, dataFim: true },
     }),
-    prisma.feriado.findFirst({ where: { data: hoje }, select: { nome: true } }),
+    prisma.feriado.findMany({ select: { data: true, nome: true } }),
   ]);
 
   // Motivo de ausência de hoje por usuário (feriado afeta todos).
   const ausenciaPorUser = new Map<string, string>();
-  for (const f of ferias) ausenciaPorUser.set(f.userId, "férias");
-  for (const a of abonos) if (!ausenciaPorUser.has(a.userId)) ausenciaPorUser.set(a.userId, "abono");
-  const feriadoHoje = feriado?.nome ?? null;
+  for (const f of ferias) {
+    if (diaEstaNaFaixa(hojeIso, { inicio: iso(f.inicio), fim: iso(f.fim) })) ausenciaPorUser.set(f.userId, "férias");
+  }
+  for (const a of abonos) {
+    if (!ausenciaPorUser.has(a.userId) && diaEstaNaFaixa(hojeIso, { inicio: iso(a.dataInicio), fim: iso(a.dataFim) })) {
+      ausenciaPorUser.set(a.userId, "abono");
+    }
+  }
+  const feriadoHoje = feriados.find((feriado) => iso(feriado.data) === hojeIso)?.nome ?? null;
 
   const ativaHoje = (a: { inicio: Date | null; fim: Date | null }) =>
-    (!a.inicio || a.inicio <= hoje) && (!a.fim || a.fim >= hoje);
+    diaEstaNaFaixa(hojeIso, {
+      inicio: a.inicio ? iso(a.inicio) : null,
+      fim: a.fim ? iso(a.fim) : null,
+    });
 
   const linhas = recursos
     .map((r) => {
       const capacidadePct = Math.round(Number(r.capacidade) * 100);
-      const total = r.alocacoes.reduce((s, a) => s + a.percentual, 0);
       const alocadoHoje = r.alocacoes.filter(ativaHoje).reduce((s, a) => s + a.percentual, 0);
       const motivoAusencia = feriadoHoje ? `feriado (${feriadoHoje})` : (ausenciaPorUser.get(r.user.id) ?? null);
       const ausente = motivoAusencia != null;
       const capacidadeEfetivaPct = ausente ? 0 : capacidadePct;
+      const indisponibilidades = [
+        ...ferias
+          .filter((f) => f.userId === r.user.id)
+          .map((f) => ({ inicio: iso(f.inicio), fim: iso(f.fim), motivo: "férias" })),
+        ...abonos
+          .filter((a) => a.userId === r.user.id)
+          .map((a) => ({ inicio: iso(a.dataInicio), fim: iso(a.dataFim), motivo: "abono" })),
+        ...feriados.map((f) => ({ inicio: iso(f.data), fim: iso(f.data), motivo: `feriado (${f.nome})` })),
+      ];
       return {
         recursoId: r.id,
         userId: r.user.id,
@@ -327,9 +425,10 @@ export async function matrizRecursos() {
         capacidadeEfetivaPct,
         ausente,
         motivoAusencia,
+        indisponibilidades,
         cor: r.cor,
         custoHora: r.custoHora != null ? Number(r.custoHora) : null,
-        totalAlocado: total,
+        totalAlocado: alocadoHoje,
         alocadoHoje,
         // P-29: superalocação avalia a carga de HOJE contra a capacidade efetiva.
         superalocado: alocadoHoje > capacidadeEfetivaPct,

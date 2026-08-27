@@ -7,6 +7,7 @@ import {
   transicoesPermitidas,
   podeBater,
   diaLocal,
+  minutosPorDiaSessao,
   diaLocalDate,
   diaSemanaLocal,
   horaLocal,
@@ -337,6 +338,31 @@ describe("engine — avaliarAtraso (S3)", () => {
   it("sem escala ou sem entrada não avalia", () => {
     expect(avaliarAtraso(null, "08:00", 10).atrasado).toBe(false);
     expect(avaliarAtraso(entrada("09:00"), null, 10).atrasado).toBe(false);
+  });
+});
+
+describe("minutosPorDiaSessao", () => {
+  it("divide uma sessão que atravessa a meia-noite local", () => {
+    const r = minutosPorDiaSessao(
+      new Date("2026-07-06T23:30:00-03:00"),
+      new Date("2026-07-07T00:30:00-03:00"),
+    );
+    expect([...r.entries()]).toEqual([
+      ["2026-07-06", 30],
+      ["2026-07-07", 30],
+    ]);
+  });
+
+  it("usa o instante informado para a sessão aberta", () => {
+    const r = minutosPorDiaSessao(
+      new Date("2026-07-06T23:30:00-03:00"),
+      null,
+      new Date("2026-07-07T01:30:00-03:00"),
+    );
+    expect([...r.entries()]).toEqual([
+      ["2026-07-06", 30],
+      ["2026-07-07", 90],
+    ]);
   });
 });
 

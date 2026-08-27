@@ -89,12 +89,12 @@ export async function calcularRateioDetalhado(ano: number, mes: number): Promise
 export async function rateioMesGestor(ano: number, mes: number) {
   const ini = new Date(ano, mes - 1, 1);
   const fim = new Date(ano, mes, 1);
-  const [rows, fechadas, semProj] = await Promise.all([
+  const [rows, fechadas, sessoesSemProjeto] = await Promise.all([
     calcularRateioDetalhado(ano, mes),
     prisma.rateioHora.findMany({ where: { ano, mes }, select: { fechadoEm: true }, take: 1, orderBy: { fechadoEm: "desc" } }),
     prisma.sessaoTrabalho.findMany({
       where: { inicio: { gte: ini, lt: fim }, projetoId: null },
-      select: { inicio: true, fim: true },
+      select: { inicio: true, fim: true, tipoAlocacao: true },
     }),
   ]);
 
@@ -117,11 +117,17 @@ export async function rateioMesGestor(ano: number, mes: number) {
     agg.set(r.projetoId, cur);
   }
 
-  const semProjeto = semProj.reduce((acc, s) => acc + minutosSessao(s.inicio, s.fim), 0);
+  const alocacoesSemProjeto = { semProjeto: 0, reuniaoInterna: 0, reuniaoExterna: 0 };
+  for (const s of sessoesSemProjeto) {
+    const minutos = minutosSessao(s.inicio, s.fim);
+    if (s.tipoAlocacao === "reuniao_interna") alocacoesSemProjeto.reuniaoInterna += minutos;
+    else if (s.tipoAlocacao === "reuniao_externa") alocacoesSemProjeto.reuniaoExterna += minutos;
+    else alocacoesSemProjeto.semProjeto += minutos;
+  }
 
   return {
     porProjeto: [...agg.values()].sort((a, b) => b.minutos - a.minutos),
-    semProjeto,
+    ...alocacoesSemProjeto,
     custoTotal,
     fechado: fechadas.length > 0,
     fechadoEm: fechadas[0]?.fechadoEm ?? null,
