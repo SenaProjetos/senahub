@@ -70,7 +70,7 @@ export const criarLinkArquivos = defineAction(
       uploadIds: z.array(z.string()).default([]),
       expiraEm: z.string().datetime().nullable().optional(),
     }),
-    entidadeId: (d) => (d as { linkId: string } | undefined)?.linkId ?? "",
+    entidadeId: (d) => (d as { linkId: string } | undefined)?.linkId,
   },
   async (input, { user }) => {
     if (input.escopo === "selecao" && input.uploadIds.length === 0) {
