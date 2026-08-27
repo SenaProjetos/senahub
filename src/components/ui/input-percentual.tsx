@@ -96,8 +96,12 @@ function InputPercentual({
 
   if (semSufixo) return campo;
 
+  // O wrapper NÃO leva `w-full`: numa linha flex ele tem de encolher junto com a largura que
+  // o chamador deu ao input (`w-24`, `w-32`). Com `w-full` ele tomava 100% da linha, empurrava
+  // os vizinhos para baixo e deixava o símbolo — ancorado na borda do wrapper — longe do campo.
+  // Como div de bloco, segue preenchendo a célula de um grid normalmente.
   return (
-    <div className="relative w-full">
+    <div className="relative">
       {campo}
       <span
         aria-hidden="true"

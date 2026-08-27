@@ -296,7 +296,7 @@ function FornRow({ f, onAlternar, onEditar }: { f: Fornecedor; onAlternar: () =>
           )}
           <div className="flex flex-wrap items-end gap-2">
             <Input placeholder="Serviço (ex.: Sondagem SPT)" value={desc} onChange={(e) => setDesc(e.target.value)} className="min-w-40 flex-1" />
-            <InputMoeda semPrefixo placeholder="Valor ref. (R$)" value={valor} onChange={setValor} className="w-32" />
+            <InputMoeda semPrefixo placeholder="Valor ref. (R$)" value={valor} onChange={setValor} className="w-36" />
             <Button size="sm" variant="outline" onClick={addServico} disabled={pending}>
               <Plus className="size-3.5" /> Serviço
             </Button>

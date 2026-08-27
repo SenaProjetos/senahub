@@ -698,7 +698,7 @@ function LicViabilidade({
             <div className="flex flex-wrap items-center gap-1.5">
               <InputPercentual
                 permiteNegativo
-                className="h-7 w-28 text-xs"
+                className="h-7 w-36 text-xs"
                 placeholder="Margem esperada"
                 value={margem}
                 onChange={setMargem}
@@ -1528,7 +1528,7 @@ function LicReajuste({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
               </p>
               <div className="flex flex-wrap items-center gap-1.5">
                 <Input className="h-7 w-28 text-xs" placeholder="Índice (ex.: INPC)" value={indice} onChange={(e) => setIndice(e.target.value)} />
-                <InputPercentual permiteNegativo className="h-7 w-24 text-xs" placeholder="Percentual" value={percentual} onChange={setPercentual} />
+                <InputPercentual permiteNegativo className="h-7 w-28 text-xs" placeholder="Percentual" value={percentual} onChange={setPercentual} />
                 <Input type="date" className="h-7 w-36 text-xs" value={dataBase} onChange={(e) => setDataBase(e.target.value)} />
                 <Input type="date" className="h-7 w-36 text-xs" value={aniversario} onChange={(e) => setAniversario(e.target.value)} />
                 <Button size="sm" variant="outline" className="h-7" onClick={add} disabled={pending || !indice.trim() || !aniversario}>
@@ -1644,7 +1644,7 @@ function LicContrato({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
         <Input className="h-7 w-28 text-xs" placeholder="Garantia tipo" value={garantiaTipo} onChange={(e) => setGarantiaTipo(e.target.value)} />
         <InputMoeda semPrefixo className="h-7 w-28 text-xs" placeholder="Garantia (R$)" value={garantiaValor} onChange={setGarantiaValor} />
         <Input type="date" className="h-7 w-36 text-xs" value={garantiaValidade} onChange={(e) => setGarantiaValidade(e.target.value)} />
-        <InputPercentual className="h-7 w-32 text-xs" placeholder="Limite acréscimo" value={limiteAcrescimoPct} onChange={setLimiteAcrescimoPct} />
+        <InputPercentual className="h-7 w-40 text-xs" placeholder="Limite acréscimo" value={limiteAcrescimoPct} onChange={setLimiteAcrescimoPct} />
       </div>
       <Button size="sm" variant="outline" className="h-7" onClick={salvarContrato} disabled={pending}>
         Salvar contrato
@@ -1739,7 +1739,7 @@ function LicContrato({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
                   <SelectItem value="objeto">Objeto</SelectItem>
                 </SelectContent>
               </Select>
-              <InputMoeda semPrefixo permiteNegativo className="h-7 w-28 text-xs" placeholder="Delta (R$) — use - p/ supressão" value={aditValor} onChange={setAditValor} />
+              <InputMoeda semPrefixo permiteNegativo className="h-7 w-32 text-xs" placeholder="Delta (R$)" title="Delta do aditivo em reais. Use valor negativo para supressão." value={aditValor} onChange={setAditValor} />
               <Input type="date" className="h-7 w-36 text-xs" value={aditData} onChange={(e) => setAditData(e.target.value)} />
               <Input type="date" className="h-7 w-36 text-xs" value={aditVigencia} onChange={(e) => setAditVigencia(e.target.value)} />
               <Input className="h-7 w-40 text-xs" placeholder="Justificativa" value={aditJustif} onChange={(e) => setAditJustif(e.target.value)} />
@@ -2180,7 +2180,7 @@ function LicResultado({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
             />
             <InputMoeda
               semPrefixo
-              className="h-7 w-32 text-xs"
+              className="h-7 w-40 text-xs"
               placeholder="Valor vencedor (R$)"
               value={vv}
               onChange={setVv}
