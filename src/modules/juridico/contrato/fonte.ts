@@ -1,9 +1,16 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { HR_ADMIN_ROLES, type Role } from "@/lib/roles";
-import type { SubjectAutorizacao } from "@/lib/permissions";
 import type { Escalar, Linha } from "@/modules/documentos/tokens";
 import { camposDaProposta, camposDoVinculo, montarEnderecoCliente } from "./campos";
+
+/**
+ * O bastante para decidir o gate — id+role, não o `SubjectAutorizacao` inteiro do Estúdio.
+ * `resolverFonte` (chamador via `fontes.ts`) passa um `SubjectAutorizacao` normalmente, que
+ * satisfaz este tipo por estrutura; `gerar.ts` (chamador via a action do jurídico) passa um
+ * `SessionUser` reduzido, sem precisar montar os campos extras que não usa aqui.
+ */
+export type ViewerMinimo = { id: string; role: string };
 
 /**
  * Fonte de dados "contrato" do Estúdio de Documentos (spec
@@ -54,7 +61,7 @@ export function podeVerContrato(
  */
 export async function resolverFonteContrato(
   contratoId: string,
-  viewer: SubjectAutorizacao,
+  viewer: ViewerMinimo,
 ): Promise<DadosFonte> {
   if (!contratoId) return VAZIO;
 
@@ -79,6 +86,7 @@ export async function resolverFonteContrato(
     titulo: doc.titulo,
     valor: doc.valor ? doc.valor.toNumber() : null,
     dataVencimento: doc.dataVencimento,
+    clausulasAdicionais: doc.clausulasAdicionais,
   };
 
   // Parcelas viram as LINHAS da fonte: alimentam um elemento `tabela` com o cronograma de
@@ -175,6 +183,7 @@ export async function resolverFonteContrato(
       ContratoTitulo: dadosContrato.titulo,
       ContratoValor: dadosContrato.valor,
       ContratoVencimento: dadosContrato.dataVencimento,
+      ClausulasAdicionais: dadosContrato.clausulasAdicionais,
     },
     linhas,
   };

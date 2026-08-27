@@ -2781,6 +2781,14 @@ model DocumentoJuridico {
   /// Parcelas já geradas a partir deste contrato.
   lancamentos        Lancamento[] @relation("LancamentosDoContrato")
 
+  /// ── Cláusulas específicas (Fase E3) ───────────────────────────────────────────────────────
+  /// Texto livre injetado no token `[ClausulasAdicionais]` do modelo do Estúdio. Resolve a
+  /// pergunta original que motivou este spec: "dá pra alterar detalhes de um contrato específico
+  /// usando o modelo como base?" — sim, mas como DADO, não como edição de layout. Editar o layout
+  /// por contrato criaria um layout órfão a cada exceção; um modelo com esse token cita o campo,
+  /// e cada contrato preenche o que for específico dele. Nulo = nenhuma cláusula adicional.
+  clausulasAdicionais String?
+
   versoes DocJuridicoVersao[]
 
   @@index([projetoId])
@@ -2963,11 +2971,22 @@ model DocJuridicoVersao {
   autor       User              @relation(fields: [autorId], references: [id])
   createdAt   DateTime          @default(now())
 
+  /// Qual `DocumentoGerado` do Estúdio produziu o PDF desta versão (spec
+  /// `2026-08-27-contratos-no-estudio.md`, Fase E2). Nulo em versão enviada por upload manual ou
+  /// gerada pelo pipeline antigo (`ModeloContrato`, deprecado) — rastreabilidade adicional, não
+  /// substitui `arquivoPath`: o PDF em si é sempre copiado para a convenção de storage do
+  /// jurídico, nunca lido do caminho do `DocumentoGerado` na hora do download/assinatura.
+  /// `onDelete: SetNull` — apagar o `DocumentoGerado` (relatório do Estúdio) não pode apagar uma
+  /// versão de contrato já potencialmente assinada.
+  documentoGeradoId String?
+  documentoGerado   DocumentoGerado? @relation(fields: [documentoGeradoId], references: [id], onDelete: SetNull)
+
   aceites           AceiteDocumento[]
   eventosAssinatura EventoAssinatura[]
   linksAssinatura   LinkPublicoAssinatura[]
   aceitesExternos   AceiteExternoDocumento[]
 
+  @@index([documentoGeradoId])
   @@unique([documentoId, numero])
   @@map("doc_juridico_versao")
 }
@@ -4828,6 +4847,12 @@ model DocumentoGerado {
   /// Caminho do PDF salvo em storage (opcional; setado quando PDF é gerado e salvo automaticamente).
   arquivoPath    String?
   createdAt      DateTime @default(now())
+
+  /// Versão de contrato que este relatório do Estúdio produziu (spec
+  /// `2026-08-27-contratos-no-estudio.md`, Fase E2) — lado inverso de
+  /// `DocJuridicoVersao.documentoGeradoId`. Vazio para todo `DocumentoGerado` fora do fluxo
+  /// jurídico (a esmagadora maioria).
+  versaoJuridica DocJuridicoVersao[]
 
   @@index([modeloId])
   @@index([createdAt])

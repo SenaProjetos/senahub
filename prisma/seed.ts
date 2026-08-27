@@ -2,6 +2,7 @@ import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { auth } from "../src/lib/auth";
 import { docVazio, novoId, type DocSchema } from "../src/modules/documentos/schema";
+import { modelosDeFabrica } from "../src/modules/documentos/modelos-fabrica-contrato";
 import { MODALIDADES_PADRAO } from "../src/modules/licitacoes/modalidade";
 import { semearEscalaRolePadrao, semearEscalaContratacao } from "./escalas-padrao";
 import { feriadosNacionais } from "../src/modules/rh/feriados/queries";
@@ -777,6 +778,24 @@ async function main() {
       },
     });
     console.log("✔ Modelo de documento exemplo (licitação) criado.");
+  }
+
+  // 10b) Modelos de fábrica de contrato (Fase E5) — CLT/estágio/PJ/cliente prontos no Estúdio.
+  // Idempotente por nome, igual aos exemplos acima: só cria o que falta, nunca sobrescreve um
+  // modelo que o jurídico já editou (o nome "[Fábrica] ..." é só a semente inicial).
+  for (const m of modelosDeFabrica()) {
+    const existe = await prisma.documentoModelo.findFirst({ where: { nome: m.nome } });
+    if (!existe) {
+      await prisma.documentoModelo.create({
+        data: {
+          nome: m.nome,
+          tipo: "contrato",
+          fonte: "contrato",
+          schemaJson: m.schema as unknown as Prisma.InputJsonValue,
+        },
+      });
+      console.log(`✔ Modelo de fábrica "${m.nome}" criado.`);
+    }
   }
 
   // 11) Escala padrão por perfil (corrige a jornada legal do estagiário — 6h/dia)

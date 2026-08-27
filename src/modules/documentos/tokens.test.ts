@@ -4,6 +4,7 @@ import {
   formatar,
   avaliarAritmetica,
   paraNumero,
+  extrairTokens,
   type ContextoDados,
 } from "@/modules/documentos/tokens";
 
@@ -143,5 +144,23 @@ describe("campo calculado [= EXPR]", () => {
 
   it("fórmula inválida resolve para vazio", () => {
     expect(resolverTexto("[= [Total] / 0 ]", ctx)).toBe("");
+  });
+});
+
+describe("extrairTokens", () => {
+  it("acha tokens simples", () => {
+    expect(extrairTokens("olá [ClienteNome], código [ProjetoCodigo].")).toEqual(["ClienteNome", "ProjetoCodigo"]);
+  });
+
+  it("respeita aninhamento de calculado — [Total] dentro de [= ...] não é dois tokens", () => {
+    expect(extrairTokens("total [= [Total] * 2 ]")).toEqual(["= [Total] * 2 "]);
+  });
+
+  it("ignora colchete sem fechamento em vez de travar", () => {
+    expect(extrairTokens("texto [Campo sem fechar")).toEqual([]);
+  });
+
+  it("texto sem token nenhum devolve lista vazia", () => {
+    expect(extrairTokens("texto plano, sem colchete")).toEqual([]);
   });
 });

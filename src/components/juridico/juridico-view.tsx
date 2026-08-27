@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { formatarData, formatarDataHora, brl } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Upload, Download, Trash2, Folder, FolderPlus, X, FileText, Eye, PenLine, ShieldAlert, Pencil, FilePlus2, ShieldCheck, Send, Receipt } from "lucide-react";
+import { Plus, Upload, Download, Trash2, Folder, FolderPlus, X, FileText, Eye, PenLine, ShieldAlert, Pencil, FilePlus2, ShieldCheck, Send, Receipt, FileEdit } from "lucide-react";
 import {
   criarDocJuridico,
   excluirDocJuridico,
@@ -20,6 +20,7 @@ import {
   criarAditivoEquipe,
   criarLinkAssinatura,
   definirCondicaoPagamento,
+  atualizarClausulasAdicionais,
 } from "@/modules/juridico/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -142,10 +143,14 @@ type Doc = {
   statusContrato: StatusContrato | null;
   parcelas: number | null;
   primeiroVencimento: string | null;
+  clausulasAdicionais: string | null;
   versoes: VersaoDoc[];
 };
 type Pasta = { id: string; nome: string; total: number };
 type Modelo = { id: string; nome: string; categoria: string | null; conteudo: string };
+/** Modelo do ESTÚDIO (`DocumentoModelo`, tipo=contrato) — a fonte real desde a Fase E2. Distinto
+ * de `Modelo` acima (`ModeloContrato`, pipeline em texto puro, deprecado até a Fase E6). */
+type ModeloEstudio = { id: string; nome: string };
 type VinculoOpt = { id: string; label: string; contratacao: string };
 type AtivoDevolucao = { id: string; nome: string; tipo: string };
 type CargoOpt = { id: string; nome: string };
@@ -181,6 +186,7 @@ const STATUS_TONE: Record<StatusContrato, "neutral" | "warning" | "success" | "d
 export function JuridicoView({
   docs,
   modelos,
+  modelosContrato,
   projetos,
   clientes,
   pastas,
@@ -192,6 +198,7 @@ export function JuridicoView({
 }: {
   docs: Doc[];
   modelos: Modelo[];
+  modelosContrato: ModeloEstudio[];
   projetos: { id: string; label: string }[];
   clientes: { id: string; label: string }[];
   pastas: Pasta[];
@@ -231,11 +238,11 @@ export function JuridicoView({
         <Card className="mt-3">
           <CardContent className="pt-5">
             <TabsContent value="docs">
-              <DocsTab docs={docsGerais} projetos={projetos} clientes={clientes} pastas={pastas} modelos={modelos} podeGerir={podeGerir} />
+              <DocsTab docs={docsGerais} projetos={projetos} clientes={clientes} pastas={pastas} modelosContrato={modelosContrato} podeGerir={podeGerir} />
             </TabsContent>
             {podeVerEquipe && (
               <TabsContent value="equipe">
-                <ContratosEquipeTab docs={docsEquipe} vinculos={vinculos} cargos={cargos} ativosPorUsuario={ativosPorUsuario} modelos={modelos} podeGerir={podeGerir} />
+                <ContratosEquipeTab docs={docsEquipe} vinculos={vinculos} cargos={cargos} ativosPorUsuario={ativosPorUsuario} modelosContrato={modelosContrato} podeGerir={podeGerir} />
               </TabsContent>
             )}
             <TabsContent value="modelos">
@@ -348,6 +355,69 @@ function EnviarParaAssinatura({ versaoId, rotulo }: { versaoId: string; rotulo: 
 }
 
 /** Fase G — plano de parcelas do contrato de cliente. As parcelas nascem na ASSINATURA. */
+/**
+ * Fase E3 — cláusulas específicas deste contrato, sem editar o layout do modelo. É a resposta à
+ * pergunta que originou o spec de integração com o Estúdio: um modelo com `[ClausulasAdicionais]`
+ * (idealmente dentro de um elemento condicional, `naoVazio([ClausulasAdicionais])`) puxa este
+ * texto — o layout continua único e padronizado, só o conteúdo muda por contrato.
+ */
+function ClausulasAdicionaisDialog({ doc }: { doc: Doc }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [aberto, setAberto] = useState(false);
+  const [texto, setTexto] = useState("");
+
+  function abrir() {
+    setTexto(doc.clausulasAdicionais ?? "");
+    setAberto(true);
+  }
+
+  function salvar() {
+    start(async () => {
+      const r = await atualizarClausulasAdicionais({ id: doc.id, clausulasAdicionais: texto });
+      if (r.ok) {
+        toast.success("Cláusulas salvas.");
+        setAberto(false);
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  return (
+    <>
+      <Button size="sm" variant="outline" onClick={abrir}>
+        <FileEdit className="size-3.5" />
+        Cláusulas{doc.clausulasAdicionais ? " •" : ""}
+      </Button>
+      <Dialog open={aberto} onOpenChange={(o) => !o && setAberto(false)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Cláusulas adicionais — {doc.titulo}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Texto específico deste contrato. Só aparece no PDF se o modelo escolhido citar o
+              campo &quot;Cláusulas adicionais&quot;. Deixe em branco se este contrato não tem
+              nenhuma exceção ao padrão.
+            </p>
+            <textarea
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              rows={8}
+              className="w-full rounded-sm border bg-transparent p-2 text-sm"
+              placeholder="Ex.: Cláusula 12 — Confidencialidade estendida por 24 meses após o encerramento."
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAberto(false)}>Cancelar</Button>
+            <Button onClick={salvar} disabled={pending}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function CondicaoPagamento({ doc }: { doc: Doc }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -430,7 +500,7 @@ function CondicaoPagamento({ doc }: { doc: Doc }) {
  * A ação recusa quando falta dado obrigatório, e a mensagem já diz se o defeito é no modelo ou no
  * cadastro — por isso o erro vai inteiro para o toast, sem encurtar.
  */
-function GerarDoModelo({ docId, modelos }: { docId: string; modelos: Modelo[] }) {
+function GerarDoModelo({ docId, modelos }: { docId: string; modelos: ModeloEstudio[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [aberto, setAberto] = useState(false);
@@ -495,14 +565,14 @@ function DocsTab({
   projetos,
   clientes,
   pastas,
-  modelos,
+  modelosContrato,
   podeGerir,
 }: {
   docs: Doc[];
   projetos: { id: string; label: string }[];
   clientes: { id: string; label: string }[];
   pastas: Pasta[];
-  modelos: Modelo[];
+  modelosContrato: ModeloEstudio[];
   podeGerir: boolean;
 }) {
   const router = useRouter();
@@ -754,8 +824,9 @@ function DocsTab({
                           ))}
                         </SelectContent>
                       </Select>
-                      {d.tipo === "contrato" && <GerarDoModelo docId={d.id} modelos={modelos} />}
+                      {d.tipo === "contrato" && <GerarDoModelo docId={d.id} modelos={modelosContrato} />}
                       {d.tipo === "contrato" && <CondicaoPagamento doc={d} />}
+                      {d.tipo === "contrato" && <ClausulasAdicionaisDialog doc={d} />}
                       <Button
                         size="sm"
                         variant="outline"
@@ -1013,14 +1084,14 @@ function ContratosEquipeTab({
   vinculos,
   cargos,
   ativosPorUsuario,
-  modelos,
+  modelosContrato,
   podeGerir,
 }: {
   docs: Doc[];
   vinculos: VinculoOpt[];
   cargos: CargoOpt[];
   ativosPorUsuario: Record<string, AtivoDevolucao[]>;
-  modelos: Modelo[];
+  modelosContrato: ModeloEstudio[];
   podeGerir: boolean;
 }) {
   const router = useRouter();
@@ -1232,8 +1303,9 @@ function ContratosEquipeTab({
                       <Button size="sm" variant="outline" onClick={() => abrirEdicao(d)}>
                         <Pencil className="size-3.5" /> Editar
                       </Button>
-                      <GerarDoModelo docId={d.id} modelos={modelos} />
+                      <GerarDoModelo docId={d.id} modelos={modelosContrato} />
                       <NovoAditivo contrato={d} cargos={cargos} />
+                      <ClausulasAdicionaisDialog doc={d} />
                       <Button
                         size="sm"
                         variant="outline"
@@ -1354,7 +1426,7 @@ function ContratosEquipeTab({
                     <div className="ml-auto flex items-center gap-1.5">
                       {podeGerir && (
                         <>
-                          <GerarDoModelo docId={a.id} modelos={modelos} />
+                          <GerarDoModelo docId={a.id} modelos={modelosContrato} />
                           <Button
                             size="sm"
                             variant="outline"

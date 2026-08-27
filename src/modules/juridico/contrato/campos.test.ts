@@ -18,6 +18,7 @@ const contrato: DadosContrato = {
   titulo: "Contrato de Estágio",
   valor: 1500,
   dataVencimento: new Date("2027-01-31T00:00:00.000Z"),
+  clausulasAdicionais: null,
 };
 
 function vinculo(over: Partial<DadosVinculo> = {}): DadosVinculo {
@@ -69,6 +70,18 @@ const proposta: DadosProposta = {
   },
   projetoCodigo: "26-0142",
 };
+
+describe("ClausulasAdicionais (Fase E3)", () => {
+  it("passa pelo escalar comum, disponível nos dois tipos de contrato", () => {
+    const comCla = { ...contrato, clausulasAdicionais: "Cláusula extra combinada." };
+    expect(camposDoVinculo(vinculo(), comCla).ClausulasAdicionais).toBe("Cláusula extra combinada.");
+    expect(camposDaProposta(proposta, comCla).ClausulasAdicionais).toBe("Cláusula extra combinada.");
+  });
+
+  it("nulo quando o contrato não tem cláusula adicional — é o caso comum, não uma falha", () => {
+    expect(camposDoVinculo(vinculo(), contrato).ClausulasAdicionais).toBeNull();
+  });
+});
 
 describe("camposDoVinculo", () => {
   it("usa nomeCompleto no lugar do nome de exibição — é documento formal", () => {

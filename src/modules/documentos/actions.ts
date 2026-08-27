@@ -11,6 +11,8 @@ import { chaveParamFonte, fonteDef } from "@/modules/documentos/fontes-meta";
 import { podeVerFonte } from "@/modules/documentos/fontes-perm";
 import { CHAVE_FONTES } from "@/modules/documentos/fontes-config";
 import { FONTES_TIPOGRAFICAS } from "@/modules/documentos/fontes-tipograficas";
+import { camposBloqueados, mensagemCamposBloqueados } from "@/modules/documentos/bloqueio";
+import type { Escalar } from "@/modules/documentos/tokens";
 import {
   criarModeloSchema,
   salvarModeloSchema,
@@ -314,6 +316,16 @@ export const registrarDocumentoGerado = defineAction(
     const resolvido = schema
       ? await resolverModelo(modelo.fonte, schema, paramsPorFonte, user)
       : { escalarPrimaria: {} as Record<string, unknown>, linhasPrimaria: [], porFonte: {} };
+
+    // Fase E4 — opt-in por modelo (`pagina.bloquearCamposVazios`). Barato quando desligado (a
+    // maioria dos modelos): `camposBloqueados` faz early-return antes de tocar no schema.
+    if (schema) {
+      const bloqueados = camposBloqueados(schema, modelo.fonte, resolvido.escalarPrimaria as Escalar);
+      if (bloqueados.length > 0) {
+        throw new ActionError(`Não dá para gerar o documento. ${mensagemCamposBloqueados(bloqueados)}`);
+      }
+    }
+
     const dados = {
       escalar: resolvido.escalarPrimaria as Record<string, unknown>,
       linhas: resolvido.linhasPrimaria,

@@ -101,6 +101,33 @@ const contratoEquipeUpdateSchema = z.object({
 });
 
 /** Edita vencimento/valor/status de um contrato de equipe já criado. Mesmo gate da criação. */
+/**
+ * Fase E3 — texto livre por contrato ("dá pra usar o modelo como base e mudar detalhes de um
+ * contrato específico?"). Vale para os DOIS tipos: gate de RH só entra quando o documento É de
+ * equipe, igual ao resto do módulo — contrato de cliente não tem `HR_ADMIN_ROLES` para checar.
+ */
+export const atualizarClausulasAdicionais = defineAction(
+  {
+    ...base,
+    acao: "atualizar-clausulas-adicionais",
+    entidade: "DocumentoJuridico",
+    schema: z.object({ id: z.string().min(1), clausulasAdicionais: opt(z.string()) }),
+  },
+  async (i, ctx) => {
+    const alvo = await prisma.documentoJuridico.findUnique({ where: { id: i.id }, select: { vinculoId: true } });
+    if (!alvo) throw new ActionError("Documento não encontrado.");
+    if (alvo.vinculoId && !ehHrAdmin(ctx.user.role)) {
+      throw new ActionError("Só RH pode editar contrato de equipe.");
+    }
+    await prisma.documentoJuridico.update({
+      where: { id: i.id },
+      data: { clausulasAdicionais: i.clausulasAdicionais || null },
+    });
+    rev();
+    return { id: i.id };
+  },
+);
+
 export const atualizarContratoEquipe = defineAction(
   { ...base, acao: "atualizar-contrato-equipe", entidade: "DocumentoJuridico", schema: contratoEquipeUpdateSchema },
   async (i, ctx) => {
@@ -308,7 +335,7 @@ export const gerarVersaoDeModelo = defineAction(
     }
 
     const r = await gerarVersaoDeModeloContrato(
-      { documentoId: i.documentoId, modeloId: i.modeloId, autorId: ctx.user.id },
+      { documentoId: i.documentoId, modeloId: i.modeloId, viewer: { id: ctx.user.id, role: ctx.user.role } },
     );
     rev();
     return r;

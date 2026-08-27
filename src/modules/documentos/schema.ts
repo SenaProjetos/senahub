@@ -194,6 +194,14 @@ export const docSchemaZ = z.object({
      * footer opt-in abaixo.
      */
     numerarPaginas: z.boolean().optional(),
+    /**
+     * Bloqueia a geração quando um token CITADO num elemento sem `condicao` resolve vazio (Fase
+     * E4 — `documentos/bloqueio.ts`). Opt-in por modelo, não global: um relatório gerencial
+     * legitimamente tolera lacuna ("célula vazia é célula vazia"); um documento assinável não
+     * ("salário mensal de R$ " entregável é pior que um erro). Default `undefined`/`false` =
+     * comportamento de sempre, sem bloqueio — retrocompat total com todo modelo existente.
+     */
+    bloquearCamposVazios: z.boolean().optional(),
   }),
   bandas: z.array(bandaSchema),
   /**

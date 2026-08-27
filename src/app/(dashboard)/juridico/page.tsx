@@ -16,7 +16,7 @@ export default async function JuridicoPage() {
   // nem enxerga a linha (spec 2026-08-26-gerenciador-contratos.md, Fase A §3).
   const podeVerEquipe = HR_ADMIN_ROLES.includes(user.role);
 
-  const [docs, projetos, clientes, pastas, modelos, vinculos, cargos] = await Promise.all([
+  const [docs, projetos, clientes, pastas, modelos, modelosContrato, vinculos, cargos] = await Promise.all([
     prisma.documentoJuridico.findMany({
       where: podeVerEquipe ? {} : { vinculoId: null },
       orderBy: { createdAt: "desc" },
@@ -46,7 +46,16 @@ export default async function JuridicoPage() {
       orderBy: [{ ordem: "asc" }, { nome: "asc" }],
       select: { id: true, nome: true, _count: { select: { documentos: true } } },
     }),
+    // Legado (Fase B, deprecado — pipeline em texto puro). Fica só até a Fase E6 remover
+    // `ModeloContrato`; a `ModelosTab` continua mostrando o que já existir.
     prisma.modeloContrato.findMany({ orderBy: { nome: "asc" } }),
+    // Fase E2 — modelos do ESTÚDIO usáveis para gerar contrato: só tipo=contrato e ativos.
+    // `ativo:false` existia no schema sem nenhum uso até aqui — passa a filtrar de verdade.
+    prisma.documentoModelo.findMany({
+      where: { tipo: "contrato", ativo: true },
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true },
+    }),
     // Lista de vínculos é ela mesma dado de RH (nome+cargo+contratação) — só carrega se o
     // usuário já passou no gate; ninguém além de HR precisa dela pra nada nesta tela.
     podeVerEquipe
@@ -123,6 +132,7 @@ export default async function JuridicoPage() {
         statusContrato: d.statusContrato,
         parcelas: d.parcelas,
         primeiroVencimento: d.primeiroVencimento ? d.primeiroVencimento.toISOString() : null,
+        clausulasAdicionais: d.clausulasAdicionais,
         versoes: d.versoes.map((v) => ({
           id: v.id,
           numero: v.numero,
@@ -148,6 +158,7 @@ export default async function JuridicoPage() {
         })),
       }))}
       modelos={modelos.map((m) => ({ id: m.id, nome: m.nome, categoria: m.categoria, conteudo: m.conteudo }))}
+      modelosContrato={modelosContrato}
       projetos={projetos.map((p) => ({ id: p.id, label: `${p.codigo} · ${p.nome}` }))}
       clientes={clientes.map((c) => ({ id: c.id, label: c.nome }))}
       vinculos={vinculos.map((v) => ({ id: v.id, label: `${v.user.name} · ${v.cargo ?? v.contratacao}`, contratacao: v.contratacao }))}

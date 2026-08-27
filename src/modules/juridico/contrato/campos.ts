@@ -1,4 +1,4 @@
-import { splitFormato, type Escalar } from "@/modules/documentos/tokens";
+import { extrairTokens, splitFormato, type Escalar } from "@/modules/documentos/tokens";
 
 /**
  * Campos de preenchimento automático de contrato (spec
@@ -84,6 +84,17 @@ export const CAMPOS_CONTRATO: CampoContrato[] = [
   { chave: "ContratoTitulo", label: "Título do contrato" },
   { chave: "ContratoValor", label: "Valor do contrato" },
   { chave: "ContratoVencimento", label: "Vencimento do contrato" },
+  /**
+   * Fase E3 — texto livre por contrato ("dá pra alterar detalhes de um contrato específico
+   * usando o modelo como base?"). É citável como qualquer outro campo — cita → precisa ter valor
+   * — mas na PRÁTICA nem todo contrato tem cláusula adicional, e a maioria não tem. Quem desenha
+   * o modelo no Estúdio deve colocar este token dentro de um elemento com
+   * `condicao: naoVazio([ClausulasAdicionais])`, que só renderiza quando há texto — o Estúdio já
+   * suporta isso (elemento condicional). Um modelo que cite o token FORA de condição está
+   * deliberadamente tornando a cláusula obrigatória para aquele tipo de contrato, o que é decisão
+   * de quem desenha, não deste catálogo.
+   */
+  { chave: "ClausulasAdicionais", label: "Cláusulas adicionais deste contrato" },
 ];
 
 export function catalogo(tipo: "equipe" | "cliente"): CampoContrato[] {
@@ -147,6 +158,7 @@ export type DadosContrato = {
   titulo: string;
   valor: number | null;
   dataVencimento: Date | null;
+  clausulasAdicionais: string | null;
 };
 
 /** Junta logradouro/número/complemento/bairro pulando os pedaços que faltam. */
@@ -179,6 +191,7 @@ function comuns(c: DadosContrato): Escalar {
     ContratoTitulo: c.titulo,
     ContratoValor: c.valor,
     ContratoVencimento: c.dataVencimento,
+    ClausulasAdicionais: c.clausulasAdicionais,
   };
 }
 
@@ -240,33 +253,13 @@ export function camposDaProposta(p: DadosProposta, c: DadosContrato): Escalar {
 // ── Validação antes de gerar ─────────────────────────────────────────────────────────────────
 
 /**
- * Extrai os tokens de um texto respeitando aninhamento — mesma varredura por profundidade de
- * colchete que `resolverTexto` faz, porque `[= [Total] * 2]` tem `[...]` dentro.
+ * `extrairTokens` mora agora em `documentos/tokens.ts` (o motor) — o Estúdio também precisa dela
+ * na Fase E4 para saber quais campos um modelo cita, e ter duas cópias da mesma varredura por
+ * profundidade de colchete é o tipo de divergência que este spec vem evitando desde a Fase G
+ * (achado do `dividirEmParcelas` duplicado). Reexportada aqui para não quebrar quem já importa
+ * daqui — `tokensNaoResolvidos` abaixo usa a mesma função importada acima.
  */
-export function extrairTokens(texto: string): string[] {
-  const tokens: string[] = [];
-  let i = 0;
-  while (i < texto.length) {
-    if (texto[i] === "[") {
-      let depth = 0;
-      let j = i;
-      for (; j < texto.length; j++) {
-        if (texto[j] === "[") depth++;
-        else if (texto[j] === "]") {
-          depth--;
-          if (depth === 0) break;
-        }
-      }
-      if (j < texto.length) {
-        tokens.push(texto.slice(i + 1, j));
-        i = j + 1;
-        continue;
-      }
-    }
-    i++;
-  }
-  return tokens;
-}
+export { extrairTokens };
 
 /**
  * Tokens que impediriam o contrato de sair correto.

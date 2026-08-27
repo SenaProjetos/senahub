@@ -207,6 +207,38 @@ export function resolverTexto(texto: string, ctx: ContextoDados): string {
 }
 
 /**
+ * Extrai os tokens de um texto — mesma varredura por PROFUNDIDADE DE COLCHETE que
+ * `resolverTexto` faz, porque `[= [Total] * 2]` tem `[...]` dentro; um regex simples de token não
+ * casaria isso. Não resolve nada, só devolve o conteúdo entre colchetes de cada ocorrência —
+ * usado por quem precisa saber QUAIS campos um texto cita, sem montar o resultado
+ * (`contrato/campos.ts` para validar antes de gerar, `documentos/bloqueio.ts` para o Estúdio).
+ */
+export function extrairTokens(texto: string): string[] {
+  const tokens: string[] = [];
+  let i = 0;
+  while (i < texto.length) {
+    if (texto[i] === "[") {
+      let depth = 0;
+      let j = i;
+      for (; j < texto.length; j++) {
+        if (texto[j] === "[") depth++;
+        else if (texto[j] === "]") {
+          depth--;
+          if (depth === 0) break;
+        }
+      }
+      if (j < texto.length) {
+        tokens.push(texto.slice(i + 1, j));
+        i = j + 1;
+        continue;
+      }
+    }
+    i++;
+  }
+  return tokens;
+}
+
+/**
  * Resolve um campo calculado `= EXPR` (conteúdo do token, já sem colchetes
  * externos). Passos:
  *  1. separa o sufixo de formato externo opcional (ex.: `:c2` no fim);
