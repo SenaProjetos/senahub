@@ -232,13 +232,20 @@ export const atualizarLinkArquivos = defineAction(
 
     const disciplinaIds =
       escopo === "disciplinas" ? await disciplinasValidas(link.projetoId, input.disciplinaIds) : [];
-    const uploadIds =
-      escopo === "selecao"
-        ? await uploadsValidos(link.projetoId, input.uploadIds ?? link.uploadIds)
-        : [];
 
-    if (escopo === "selecao" && uploadIds.length === 0) {
-      throw new ActionError("Um link de seleção precisa de ao menos um arquivo publicável.");
+    // `undefined` = não mexe na lista de arquivos. Sem isso, renomear ou REVOGAR um link
+    // de seleção cujos arquivos foram todos para a lixeira falharia com um erro sem
+    // sentido — justo quando revogar é o que se quer fazer.
+    let uploadIds: string[] | undefined;
+    if (escopo !== "selecao") {
+      uploadIds = [];
+    } else if (input.uploadIds !== undefined) {
+      uploadIds = await uploadsValidos(link.projetoId, input.uploadIds);
+      if (uploadIds.length === 0) {
+        throw new ActionError("Um link de seleção precisa de ao menos um arquivo publicável.");
+      }
+    } else if (link.escopo !== "selecao") {
+      throw new ActionError("Informe os arquivos ao transformar o link em seleção.");
     }
 
     await prisma.linkPublicoArquivos.update({

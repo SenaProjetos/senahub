@@ -59,6 +59,7 @@ import { PreviewPdfButton } from "@/components/pdf/preview-pdf-button";
 import { VisualizarDwgButton } from "@/components/dwg/visualizar-dwg-button";
 import { refDocumentoDwg } from "@/modules/dwg/desenho-ref";
 import { LinkPublicoArquivosButton, type LinkData } from "@/components/projetos/link-publico-arquivos-dialog";
+import { LinkSelecaoArquivosButton } from "@/components/projetos/link-selecao-arquivos-button";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
   TAMANHO_MAX_LABEL,
@@ -819,6 +820,7 @@ export function ArquivosExplorer({
           <Button size="sm" onClick={() => baixarZipIds([...sel], `${projeto.codigo}-selecao`)}>
             <Download className="size-3.5" /> Baixar .zip
           </Button>
+          {podeGerirLink && <LinkSelecaoArquivosButton projetoId={projeto.id} uploadIds={[...sel]} />}
           {selValidaveis.length > 0 && (
             <Button
               size="sm"

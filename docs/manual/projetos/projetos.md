@@ -188,6 +188,44 @@ cadastro**, e as respostas caem direto nesta aba (salvam sozinhas, campo a campo
   aviso quando o briefing fica completo). Para não receber, desligue **Formulário
   preenchido pelo cliente** em *Preferências → Notificações*.
 
+### Links públicos de arquivos (aba Arquivos)
+
+No topo da aba **Arquivos**, o botão **Link público** abre o gerenciador. Um projeto pode
+ter **vários links** ao mesmo tempo — um para o cliente, outro para a prefeitura, outro
+para um consultor — cada um com o seu nome, a sua validade e o seu recorte. Revogar um
+não derruba os outros. Quem acessa não faz login: só vê e baixa.
+
+**O que cada tipo de link mostra:**
+
+| Tipo | Mostra |
+| --- | --- |
+| Disciplinas escolhidas | Só as disciplinas marcadas |
+| Projeto inteiro | Todas as disciplinas, inclusive as criadas depois do link |
+| Arquivos escolhidos | Exatamente os arquivos que você marcou na tabela |
+
+**Nos dois primeiros tipos, o link mostra apenas a entrega corrente.** Ficam de fora:
+
+- as **revisões anteriores** — de cada documento sai só a última;
+- o **backup do modelo** (pacote B), que é arquivo de software, não entrega;
+- tudo o que está na **lixeira**;
+- tudo o que ainda **não foi validado** — enviar não basta, é preciso aprovar.
+
+Se o cliente diz que o link está vazio, quase sempre a causa é a última: os arquivos
+foram enviados mas ninguém validou.
+
+**Para mandar algo fora dessas regras** — uma revisão antiga, um backup — marque os
+arquivos na tabela e use **Link público** na barra de seleção que aparece embaixo. Esse
+link mostra exatamente o que foi marcado. Só a lixeira continua valendo: arquivo na
+lixeira é apagado de vez em 30 dias e deixaria o link quebrado na mão do cliente.
+
+**Em cada link você pode:** copiar ou abrir o endereço, enviar por e-mail ao cliente
+(quem não tem cadastro recebe junto um convite), dar um nome, definir validade,
+**desligar** para revogar na hora, **trocar o endereço** (invalida o anterior — use se o
+link vazou) ou **apagar** de vez.
+
+As **ARTs** continuam saindo com o histórico completo de versões: são documento legal e o
+cliente precisa da série inteira.
+
 ## Permissões (resumo)
 
 | Ação | Permissão |
