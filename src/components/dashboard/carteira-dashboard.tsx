@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ShieldAlert } from "lucide-react";
 import { saudeProjeto } from "@/modules/projetos/health";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import type { carteiraProjetosDashboard } from "@/modules/dashboard/queries";
@@ -37,9 +38,14 @@ function ProjetoChip({ p }: { p: Projeto }) {
     >
       <div className="flex items-start justify-between gap-1">
         <span className="font-mono text-[11px] text-muted-foreground">{formatarCodigo(p.codigo)}</span>
-        {saude && (
-          <span className={`text-[10px] font-medium ${SAUDE_TEXT[saude]}`}>{SAUDE_LABEL[saude]}</span>
-        )}
+        <span className="flex items-center gap-1">
+          {p.contratoPendente && (
+            <ShieldAlert className="size-3 text-warning" role="img" aria-label="Contrato pendente de assinatura" />
+          )}
+          {saude && (
+            <span className={`text-[10px] font-medium ${SAUDE_TEXT[saude]}`}>{SAUDE_LABEL[saude]}</span>
+          )}
+        </span>
       </div>
       <p className="mt-0.5 truncate text-sm font-medium">{p.nome}</p>
       <p className="truncate text-[11px] text-muted-foreground">{p.cliente}</p>

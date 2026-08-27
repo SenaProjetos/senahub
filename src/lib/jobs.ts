@@ -235,7 +235,7 @@ export async function startJobs(): Promise<PgBoss> {
       cron: "0 1 * * *", // diário 01:00 — propostas vencidas, férias do dia
       handler: async () => {
         const r = await rotinasRhDiarias();
-        console.log(`[rh] propostas vencidas=${r.propostas} férias iniciando=${r.ferias}`);
+        console.log(`[rh] propostas vencidas=${r.propostas} férias iniciando=${r.ferias} contratos de equipe vencendo=${r.contratosEquipe}`);
       },
     },
     {

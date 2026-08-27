@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import type { Role } from "@/lib/roles";
 import { STATUS_ABERTOS } from "@/modules/projetos/pendencias/helpers";
 import { contarTarefasAbertasDoProjeto } from "@/modules/tarefas/queries";
+import { STATUS_PENDENTES, TIPOS_CONTRATUAIS } from "@/modules/juridico/contrato/estado";
 
 type Viewer = { id: string; role: Role };
 
@@ -31,6 +32,7 @@ export async function visaoGeralProjeto(
     apontamentosPrancha,
     apontamentosCoordenacao,
     tarefasAbertas,
+    contratosPendentes,
   ] = await Promise.all([
     prisma.riscoProjeto.findMany({
       where: { projetoId },
@@ -79,6 +81,18 @@ export async function visaoGeralProjeto(
     fontes.incluirTarefas
       ? contarTarefasAbertasDoProjeto(viewer, projetoId)
       : Promise.resolve(null),
+    // Badge "contrato pendente" (spec 2026-08-26-gerenciador-contratos.md, Fase I). Allowlist
+    // explícito (rascunho/aguardando_assinatura) em vez de `notIn: [assinado]` — um contrato
+    // criado ANTES desta feature tem `statusContrato: null`, e não queremos que os 32 projetos
+    // já existentes acendam o badge sem nunca terem passado por este fluxo.
+    // `tipo` vem do predicado único: aditivo pendente também é pendência (Fase B2).
+    prisma.documentoJuridico.count({
+      where: {
+        projetoId,
+        tipo: { in: [...TIPOS_CONTRATUAIS] },
+        statusContrato: { in: [...STATUS_PENDENTES] },
+      },
+    }),
   ]);
 
   const pendencias = {
@@ -90,6 +104,7 @@ export async function visaoGeralProjeto(
   };
 
   return {
+    contratoPendente: contratosPendentes > 0,
     pendencias: {
       ...pendencias,
       total: Object.values(pendencias).reduce<number>((total, quantidade) => total + (quantidade ?? 0), 0),

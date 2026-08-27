@@ -615,6 +615,34 @@ export async function aceitarProposta(propostaId: string, autorId?: string) {
       data: { status: calcularStatusComercial(true, p.cliente.statusOverride) },
     });
 
+    // ── Fase C: a ponte comercial → jurídico ────────────────────────────────────────────────
+    // (spec `docs/superpowers/specs/2026-08-26-gerenciador-contratos.md`)
+    //
+    // O aceite abre o CONTRATO do cliente já ligado à proposta, ao cliente e ao projeto. É só a
+    // casca em rascunho: o documento em si é gerado depois, pelo botão "Gerar do modelo" (Fase
+    // B), porque depende de escolher QUAL modelo e de `CHROME_PATH` — I/O pesado que não pode
+    // entrar no caminho do aceite.
+    //
+    // DENTRO da transação porque é um insert barato e sem I/O: ou o aceite inteiro acontece, ou
+    // nada acontece. Não confundir com os canais de chat e as notificações logo abaixo, que
+    // ficam de fora justamente por serem fan-out sujeito a falha externa.
+    //
+    // Isto NÃO reabre a decisão de o `Projeto` nascer direto no aceite: o contrato ACOMPANHA o
+    // projeto, nunca o precede. Se o escritório não quiser formalizar, apaga o rascunho.
+    await tx.documentoJuridico.create({
+      data: {
+        titulo: `Contrato — ${p.numero} — ${p.titulo}`,
+        tipo: "contrato",
+        clienteId: p.clienteId,
+        projetoId: projeto.id,
+        propostaId: p.id,
+        statusContrato: "rascunho",
+        // Mesmo `valorFinal` do projeto e da negociação — uma fonte, agora quatro leituras.
+        // Alimenta a alçada de aprovação (H4) e, futuramente, o cronograma de faturamento (G).
+        valor: valorFinal,
+      },
+    });
+
     // F3.2 — os eventos entram na mesma transação: se qualquer etapa falhar, nem o projeto nem
     // a timeline existem. São dois aqui (o terceiro, `ESTAGIO_ALTERADO`, veio de
     // `aplicarMovimentoEstagio` acima) porque respondem a perguntas diferentes na Empresa 360:

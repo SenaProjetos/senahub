@@ -50,6 +50,8 @@ import { executarImportacaoCusto } from "@/modules/custos/composicoes/service";
 import { dispatcharAviso } from "@/modules/notificacoes/avisos/service";
 import { Prisma } from "@/generated/prisma/client";
 import { executarAutomacoesComerciais } from "@/modules/comercial/automacoes";
+import { diasAvisoVencimentoContrato } from "@/modules/juridico/config";
+import { vencimentoEfetivo } from "@/modules/juridico/contrato/estado";
 
 /** Rotinas das automações (chamadas pelos jobs do pg-boss em lib/jobs.ts). */
 
@@ -334,6 +336,94 @@ export async function alertaPropostasExpiradas(agora: Date = new Date()): Promis
   return avisadas;
 }
 
+/**
+ * Alerta de vencimento de CONTRATO DE EQUIPE (spec `2026-08-26-gerenciador-contratos.md`, Fase A).
+ * Mesmo formato de `alertaPropostasExpiradas`: "vencer" é uma pergunta que `dataVencimento`
+ * responde sozinha, o job só AVISA — não muda `statusContrato` (nenhum "vencido" automático;
+ * quem decide renovar/rescindir é humano). Idempotência por compare-and-swap em
+ * `alertaVencimentoEm`, igual a `alertaValidadeEm` — sem isso o tick reavisaria todo dia
+ * enquanto a data estiver dentro da janela.
+ *
+ * Destinatário é sempre RH (`HR_ADMIN_ROLES`, via `gestores()`), nunca o dono do vínculo — avisar
+ * o funcionário que o próprio contrato está vencendo é feature diferente (self-service, Fase E).
+ *
+ * ## Aditivo não vence — ele MUDA o vencimento (Fase B2)
+ * Só documentos `tipo = "contrato"` são candidatos. O aditivo não é uma coisa que expira; é o que
+ * prorroga (ou encurta) o prazo do contrato, e entra aqui através de `vencimentoEfetivo()`.
+ * Alertar o aditivo separadamente daria dois avisos para o mesmo prazo. O que ele precisa —
+ * assinatura pendente — é sinalizado pelo badge, não por este job.
+ */
+export async function alertaContratosEquipeVencendo(agora: Date = new Date()): Promise<number> {
+  const dias = await diasAvisoVencimentoContrato();
+  const limite = addDays(agora, dias);
+
+  const candidatos = await prisma.documentoJuridico.findMany({
+    where: {
+      vinculoId: { not: null },
+      tipo: "contrato",
+      dataVencimento: { not: null, lte: limite },
+      alertaVencimentoEm: null,
+      statusContrato: { notIn: ["rescindido"] },
+    },
+    select: {
+      id: true,
+      titulo: true,
+      dataVencimento: true,
+      vinculo: { select: { user: { select: { name: true } }, contratacao: true } },
+      // Aditivos ASSINADOS podem ter prorrogado o prazo — quem manda é o mais recente.
+      aditivos: {
+        where: { statusContrato: "assinado" },
+        select: { assinadoEm: true, aditivoEquipe: { select: { novoVencimento: true } } },
+      },
+    },
+    orderBy: { dataVencimento: "asc" },
+    take: 50,
+  });
+  if (candidatos.length === 0) return 0;
+
+  // Filtro fino em memória (mesmo padrão de `alertaPropostasExpiradas`): o `where` acima reduziu
+  // pelo vencimento ORIGINAL, mas quem manda é o efetivo. Contrato já prorrogado por aditivo
+  // assinado sai da lista — cobrar um prazo que não vale mais é ruído puro.
+  const aVencer = candidatos
+    .map((c) => ({
+      ...c,
+      vencimento: vencimentoEfetivo(
+        c.dataVencimento,
+        c.aditivos.map((a) => ({ vigenciaNova: a.aditivoEquipe?.novoVencimento ?? null, assinadoEm: a.assinadoEm })),
+      ),
+    }))
+    .filter((c) => c.vencimento !== null && c.vencimento.getTime() <= limite.getTime());
+  if (aVencer.length === 0) return 0;
+
+  const idsRh = await gestores();
+  let avisados = 0;
+
+  for (const c of aVencer) {
+    const { count } = await prisma.documentoJuridico.updateMany({
+      where: { id: c.id, alertaVencimentoEm: null },
+      data: { alertaVencimentoEm: agora },
+    });
+    if (count !== 1) continue; // outro tick chegou primeiro
+
+    try {
+      await notificarMuitos(
+        idsRh,
+        {
+          titulo: "Contrato de equipe vencendo",
+          corpo: `${c.vinculo?.user.name ?? c.titulo} (${c.vinculo?.contratacao ?? ""}) — vence em ${formatarData(c.vencimento!)}`,
+          href: "/juridico",
+          tag: `contrato-equipe-vencendo-${c.id}`,
+        },
+        { categoria: "contrato_equipe_vencendo" },
+      );
+      avisados++;
+    } catch (err) {
+      console.error(`[juridico] falha ao avisar vencimento de contrato ${c.id}:`, err);
+    }
+  }
+  return avisados;
+}
+
 /** Prazos de proposta de licitação em 15/7/1 dias → gestores. */
 export async function alertaLicitacoes(): Promise<number> {
   let n = 0;
@@ -424,7 +514,7 @@ export async function snapshotLicitacaoMensal() {
 }
 
 /** Rotinas noturnas de RH/comercial: propostas vencidas e férias que iniciam hoje. */
-export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: number }> {
+export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: number; contratosEquipe: number }> {
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
   const amanha = addDays(hoje, 1);
@@ -458,7 +548,8 @@ export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: n
       tag: `ferias-inicio-${f.id}`,
     });
   }
-  return { propostas: props.length, ferias: fer.length };
+  const contratosEquipe = await alertaContratosEquipeVencendo(hoje);
+  return { propostas: props.length, ferias: fer.length, contratosEquipe };
 }
 
 /** Diário: grava a foto dos KPIs do dashboard (série histórica). */

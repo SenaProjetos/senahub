@@ -113,6 +113,21 @@ function NivelSaude({ projeto }: { projeto: ProjetoDetalhe }) {
   );
 }
 
+/** Fase I (spec 2026-08-26-gerenciador-contratos.md): sinal, não bloqueio — pura leitura. */
+function ContratoPendenteBadge({ pendente }: { pendente: boolean }) {
+  if (!pendente) return null;
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<span />}>
+        <Badge variant="outline" className="gap-1 border-warning/40 bg-warning/10 text-warning">
+          <ShieldAlert className="size-3" aria-hidden /> Contrato pendente
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent>Há contrato de cliente em rascunho ou aguardando assinatura em Jurídico.</TooltipContent>
+    </Tooltip>
+  );
+}
+
 function ProgressDonut({ value }: { value: number }) {
   const radius = 38;
   const circumference = 2 * Math.PI * radius;
@@ -670,7 +685,7 @@ export function ProjetoVisaoGeral({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2"><h2 className="text-sm font-bold">Visão Geral</h2><NivelSaude projeto={projeto} /></div>
+        <div className="flex items-center gap-2"><h2 className="text-sm font-bold">Visão Geral</h2><NivelSaude projeto={projeto} /><ContratoPendenteBadge pendente={dados.contratoPendente} /></div>
         <p className="text-xs text-muted-foreground">Leitura executiva baseada nos dados registrados no projeto.</p>
       </div>
 

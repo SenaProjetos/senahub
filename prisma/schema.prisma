@@ -332,6 +332,8 @@ model Vinculo {
   usuarioAtivo User?                 @relation("VinculoAtivo")
   /// Alterações datadas de cargo/departamento/remuneração DENTRO deste vínculo.
   historico    HistoricoContratual[]
+  /// Contratos de equipe ancorados neste vínculo (spec `2026-08-26-gerenciador-contratos.md`).
+  docsJuridicos DocumentoJuridico[]
 
   @@index([userId, dataInicio])
   @@index([userId, ativo])
@@ -355,8 +357,10 @@ model Cargo {
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
-  users     User[]
-  historico HistoricoContratual[]
+  users            User[]
+  historico        HistoricoContratual[]
+  /// Aditivos de equipe que promovem/transferem para este cargo.
+  aditivosDeEquipe AditivoEquipe[]
 
   @@map("cargo")
 }
@@ -1609,6 +1613,11 @@ model Lancamento {
 
   observacao            String?
   recorrenciaGrupo      String?
+  /// Parcela gerada a partir de um contrato de cliente (Fase G do gerenciador de contratos).
+  /// `SetNull`: apagar o contrato não pode apagar o recebível — o dinheiro previsto continua
+  /// existindo. Nulo em todo lançamento criado à mão, que segue sendo o caminho normal.
+  contratoId            String?
+  contrato              DocumentoJuridico?          @relation("LancamentosDoContrato", fields: [contratoId], references: [id], onDelete: SetNull)
   /// Etiquetas livres (A6).
   tags                  String[]                    @default([])
   /// Documento-fonte (NF/contrato/proposta/medição) — rastreabilidade de origem (Fase 2).
@@ -1646,6 +1655,7 @@ model Lancamento {
   @@index([projetoId])
   @@index([excluidoEm])
   @@index([documentoFinanceiroId])
+  @@index([contratoId])
   @@index([importLoteId])
   @@index([importHash])
   @@map("lancamento")
@@ -2662,6 +2672,17 @@ model TarefaDependencia {
 // Jurídico (Onda 5b)
 // ─────────────────────────────────────────────────────────────
 
+/// Ciclo de vida de um `DocumentoJuridico` do tipo "contrato" — equipe (`vinculoId`) ou cliente
+/// (`propostaId`). Nulo em todo documento fora desse escopo (aditivo avulso, procuração, etc.) —
+/// não é o status do `DocumentoJuridico` inteiro, só da faceta "contrato" dele.
+enum StatusContrato {
+  rascunho
+  aguardando_assinatura
+  assinado
+  vencido
+  rescindido
+}
+
 model DocumentoJuridico {
   id         String         @id @default(cuid())
   titulo     String
@@ -2676,11 +2697,104 @@ model DocumentoJuridico {
   observacao String?
   createdAt  DateTime       @default(now())
 
+  /// Contrato de EQUIPE (CLT/estágio/PJ/freelancer) — âncora é o vínculo, não o usuário direto,
+  /// porque um aditivo/rescisão é um novo `DocumentoJuridico` para o MESMO vínculo (spec
+  /// `docs/superpowers/specs/2026-08-26-gerenciador-contratos.md`, Fase A). Dado sensível de RH
+  /// (salário, CPF) — leitura/escrita quando setado exige `HR_ADMIN_ROLES`, não só `juridico:gerir`.
+  vinculoId String?
+  vinculo   Vinculo? @relation(fields: [vinculoId], references: [id])
+
+  /// Contrato de CLIENTE nascido de uma proposta aceita — a ponte comercial→projeto (spec acima,
+  /// Fase C). Preenchido junto com `clienteId`; `projetoId` chega quando o projeto já existe.
+  propostaId String?
+  proposta   Proposta? @relation(fields: [propostaId], references: [id])
+
+  /// Vencimento do contrato (fim de vigência) — alimenta o alerta automático (Fase A) e, futuramente,
+  /// o motor único de vencimento (Fase H2). Nulo = sem prazo definido ou não é um "contrato".
+  dataVencimento DateTime?       @db.Date
+  /// Valor do contrato — alçada de aprovação (Fase H4) e cronograma de faturamento (Fase G) leem
+  /// daqui. Nulo até o contrato ter um valor definido.
+  valor          Decimal?        @db.Decimal(14, 2)
+  statusContrato StatusContrato?
+  /// Quando o documento passou a `assinado`. Carimbado na transição (`registrarAceite`), não a
+  /// cada aceite — com vários signatários, é a data em que o documento ficou assinado.
+  /// Ordena os aditivos em `vencimentoEfetivo()`: entre duas prorrogações, vale a acordada por
+  /// último, que não é necessariamente a de data mais distante.
+  assinadoEm     DateTime?
+  /// Marca de compare-and-swap do alerta de vencimento — mesmo papel de `Proposta.alertaValidadeEm`
+  /// (`alertaPropostasExpiradas`, F5.7 do CRM). "Vence em breve" fica true por vários dias
+  /// seguidos até o vencimento passar; sem esta marca o job reavisaria todo dia.
+  alertaVencimentoEm DateTime?
+
+  /// Contrato que este ADITIVO altera (`tipo = "aditivo"`). Auto-relação: o aditivo é um documento
+  /// próprio — assinado à parte, com versões e trilha próprias — que COEXISTE com o original, e
+  /// não uma nova versão dele (versão substitui a redação; aditivo altera um contrato que segue
+  /// valendo). Nulo em contrato, procuração e nos aditivos históricos, criados quando não havia
+  /// como apontar para a origem.
+  contratoOrigemId String?
+  contratoOrigem   DocumentoJuridico?  @relation("AditivosDoContrato", fields: [contratoOrigemId], references: [id], onDelete: SetNull)
+  aditivos         DocumentoJuridico[] @relation("AditivosDoContrato")
+
+  /// Delta contratual, quando este aditivo é de EQUIPE (1:1).
+  aditivoEquipe AditivoEquipe?
+
+  /// ── Condição de pagamento (Fase G) ────────────────────────────────────────────────────────
+  /// Em quantas parcelas o `valor` é cobrado e quando vence a primeira. Só contrato de CLIENTE
+  /// usa; contrato de equipe é pago pela folha, não por `Lancamento`.
+  /// Nulos = ainda não definida — o contrato existe, o cronograma ainda não foi gerado.
+  parcelas           Int?
+  primeiroVencimento DateTime? @db.Date
+  /// Parcelas já geradas a partir deste contrato.
+  lancamentos        Lancamento[] @relation("LancamentosDoContrato")
+
   versoes DocJuridicoVersao[]
 
   @@index([projetoId])
   @@index([pastaId])
+  @@index([vinculoId])
+  @@index([propostaId])
+  @@index([statusContrato])
+  @@index([contratoOrigemId])
   @@map("documento_juridico")
+}
+
+/// Delta contratual de um aditivo de EQUIPE (1:1 com o `DocumentoJuridico` de `tipo = "aditivo"`).
+///
+/// Tabela separada em vez de colunas no `DocumentoJuridico` porque aquele model também guarda
+/// procuração, proposta e contrato de cliente — nenhum deles tem cargo nem remuneração.
+///
+/// Ao ASSINAR o aditivo, estes campos alimentam `registrarAlteracaoContratual`
+/// (`modules/rh/contratual/service.ts`), que é o ponto único de escrita de cargo/remuneração e
+/// mantém `HistoricoContratual` + o cache do `User` coerentes. Nada aqui escreve nesses campos
+/// direto: o próprio service avisa que fazer isso quebra o histórico como prova.
+model AditivoEquipe {
+  id          String            @id @default(cuid())
+  documentoId String            @unique
+  documento   DocumentoJuridico @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+
+  /// Data a partir da qual o novo estado vale — NÃO é a data da assinatura. Um aditivo assinado
+  /// em 15/02 pode vigorar a partir de 01/03; sem este campo, `registrarAlteracaoContratual` cairia
+  /// no default "hoje" e todo reajuste futuro passaria a valer no clique de assinar.
+  vigenciaEm DateTime @db.Date
+
+  /// Eixos alterados. Nulo = este aditivo não mexe nesse eixo.
+  /// `cargoId` é FK do catálogo (não texto livre) porque `resolverClassificacao` valida a
+  /// existência e recusa item arquivado.
+  cargoId      String?
+  cargo        Cargo?   @relation(fields: [cargoId], references: [id])
+  remuneracao  Decimal? @db.Decimal(12, 2)
+  cargaSemanal Decimal? @db.Decimal(4, 1)
+  /// Prorrogação/antecipação de prazo — entra em `vencimentoEfetivo()` (`contrato/estado.ts`).
+  novoVencimento DateTime? @db.Date
+
+  /// Motivo contratual (`modules/rh/contratual/motivos.ts`): reajuste | promocao | transferencia…
+  motivo     String?
+  observacao String?
+
+  criadoEm DateTime @default(now())
+
+  @@index([cargoId])
+  @@map("aditivo_equipe")
 }
 
 /// Pasta (árvore) para organizar documentos jurídicos.
@@ -2815,10 +2929,73 @@ model DocJuridicoVersao {
   autor       User              @relation(fields: [autorId], references: [id])
   createdAt   DateTime          @default(now())
 
-  aceites AceiteDocumento[]
+  aceites           AceiteDocumento[]
+  eventosAssinatura EventoAssinatura[]
+  linksAssinatura   LinkPublicoAssinatura[]
+  aceitesExternos   AceiteExternoDocumento[]
 
   @@unique([documentoId, numero])
   @@map("doc_juridico_versao")
+}
+
+/// Link público (sem login) para um NÃO-USUÁRIO assinar uma versão de documento (spec
+/// `2026-08-26-gerenciador-contratos.md`, Fase F).
+///
+/// Mesma convenção de `LinkPublicoArquivos`/`LinkPublicoCertidoes` e da regra única de
+/// `lib/link-publico.ts`: `ativo = false` revoga na hora, `expiraEm` no passado desliga.
+///
+/// UM link por signatário esperado, não um link genérico: o nome fica gravado ANTES do envio, e
+/// é isso que permite dizer "o link foi enviado para Fulano no e-mail X" quando a assinatura for
+/// questionada. Link genérico compartilhável não prova quem recebeu.
+model LinkPublicoAssinatura {
+  id       String            @id @default(cuid())
+  token    String            @unique
+  versaoId String
+  versao   DocJuridicoVersao @relation(fields: [versaoId], references: [id], onDelete: Cascade)
+
+  /// Signatário esperado, congelado na criação do link.
+  nome  String
+  email String?
+
+  ativo    Boolean   @default(true)
+  expiraEm DateTime?
+
+  criadoPorId String?
+  criadoEm    DateTime @default(now())
+
+  /// 1:1 — um link assina uma vez. Reabrir depois de assinado só mostra o comprovante.
+  aceite AceiteExternoDocumento?
+
+  @@index([versaoId])
+  @@map("link_publico_assinatura")
+}
+
+/// Assinatura de quem NÃO é usuário do sistema (Fase F).
+///
+/// Tabela própria, e não uma linha de `AceiteDocumento` com `userId` nulo: aquele model exige
+/// `userId` NOT NULL e o significado é outro — lá a identidade vem da sessão autenticada, aqui
+/// vem da posse do link somada ao que a pessoa declarou (nome/CPF). Misturar os dois apagaria
+/// justamente a diferença de força probatória entre eles.
+model AceiteExternoDocumento {
+  id     String                @id @default(cuid())
+  linkId String                @unique
+  link   LinkPublicoAssinatura @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  versaoId String
+  versao   DocJuridicoVersao @relation(fields: [versaoId], references: [id], onDelete: Cascade)
+
+  /// Declarados por quem assinou, no ato.
+  nome String
+  cpf  String?
+
+  /// Hash SHA-256 do arquivo no momento da assinatura — mesma prova de integridade do interno.
+  hashArquivo String
+  ip          String?
+  userAgent   String?
+  assinadoEm  DateTime @default(now())
+
+  @@index([versaoId])
+  @@map("aceite_externo_documento")
 }
 
 /// Registro de aceite/assinatura interna (on-prem) de uma versão de documento jurídico:
@@ -2831,9 +3008,57 @@ model AceiteDocumento {
   userNome    String
   hashArquivo String
   assinadoEm  DateTime          @default(now())
+  /// Prova de manifestação de vontade (MP 2.200-2/2001, Lei 12.965/2014) — mesmo trio já usado em
+  /// `AceiteTermo` (`modules/legal/actions.ts`). Nullable: aceites gravados antes da Fase D não têm.
+  ip          String?
+  userAgent   String?
 
   @@index([versaoId])
   @@map("aceite_documento")
+}
+
+/// Tipo de evento na trilha de assinatura. `visualizado` = abriu o documento, `autenticado` =
+/// provou identidade (login, ou OTP no fluxo externo da Fase F), `assinado` = manifestou vontade.
+enum TipoEventoAssinatura {
+  visualizado
+  autenticado
+  assinado
+}
+
+/// Trilha de evidência encadeada por hash de uma versão de documento (spec
+/// `2026-08-26-gerenciador-contratos.md`, Fase D). Cada evento carrega o hash do anterior; o motor
+/// puro que calcula e confere está em `modules/juridico/assinatura/cadeia.ts`.
+///
+/// APPEND-ONLY por convenção: nada no código atualiza ou apaga evento. Adulterar um registro do
+/// meio quebra o elo de todos os seguintes e `verificarCadeia()` aponta onde — o que isto entrega
+/// é DETECÇÃO de edição pontual, não impossibilidade (ver o comentário do motor).
+model EventoAssinatura {
+  id       String            @id @default(cuid())
+  versaoId String
+  versao   DocJuridicoVersao @relation(fields: [versaoId], references: [id], onDelete: Cascade)
+  /// Posição na cadeia, começando em 1. A unique com `versaoId` é o que impede a cadeia de
+  /// BIFURCAR silenciosamente: dois appends concorrentes leem o mesmo "último" e calculam a mesma
+  /// próxima sequência — um grava, o outro leva P2002 e tenta de novo, em vez de criar dois ramos
+  /// que verificam isoladamente e nenhum é a história real.
+  sequencia Int
+  tipo      TipoEventoAssinatura
+  /// Relógio do servidor (NTP). Carimbo do tempo formal (ITI/RFC 3161) fica como upgrade futuro.
+  ocorridoEm DateTime @default(now())
+  /// `userId` (assinatura interna) ou identificação do signatário externo (Fase F) — os dois
+  /// mundos não compartilham id, então é texto.
+  ator       String
+  /// Nome exibível no certificado de conclusão, congelado no momento do evento.
+  atorNome   String
+  ip         String?
+  userAgent  String?
+  /// Hash SHA-256 do arquivo assinado — só no evento `assinado`.
+  hashArquivo   String?
+  hashAnterior  String
+  hash          String
+
+  @@unique([versaoId, sequencia])
+  @@index([versaoId, sequencia])
+  @@map("evento_assinatura")
 }
 
 model CertidaoTipo {
@@ -4361,6 +4586,8 @@ model Proposta {
   versoes       PropostaVersao[]
   visualizacoes PropostaVisualizacao[]
   documentos    Documento[]
+  /// Contrato(s) de cliente nascido(s) desta proposta (spec `2026-08-26-gerenciador-contratos.md`).
+  docsJuridicos DocumentoJuridico[]
 
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt

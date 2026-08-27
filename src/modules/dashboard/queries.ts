@@ -5,6 +5,7 @@ import { acessoGlobal, type Role, type EscopoDeDados } from "@/lib/roles";
 import { kpisHome } from "@/modules/qualidade/queries";
 import { montarSerieReceita } from "@/modules/dashboard/serie-receita";
 import { PESO_STATUS } from "@/modules/projetos/status";
+import { STATUS_PENDENTES, TIPOS_CONTRATUAIS } from "@/modules/juridico/contrato/estado";
 
 type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
 
@@ -178,6 +179,20 @@ export async function carteiraProjetosDashboard() {
       },
     },
   });
+
+  // Badge "contrato pendente" (spec 2026-08-26-gerenciador-contratos.md, Fase I) — mesmo
+  // allowlist explícito de `visaoGeralProjeto`: só rascunho/aguardando_assinatura acende,
+  // contrato sem `statusContrato` (anterior a esta feature) fica em silêncio.
+  const comContratoPendente = await prisma.documentoJuridico.findMany({
+    where: {
+      projetoId: { in: projetos.map((p) => p.id) },
+      tipo: { in: [...TIPOS_CONTRATUAIS] },
+      statusContrato: { in: [...STATUS_PENDENTES] },
+    },
+    select: { projetoId: true },
+  });
+  const projetosComContratoPendente = new Set(comContratoPendente.map((d) => d.projetoId));
+
   return projetos.map((p) => ({
     id: p.id,
     codigo: p.codigo,
@@ -193,6 +208,7 @@ export async function carteiraProjetosDashboard() {
       status: d.status,
       prazo: d.prazo?.toISOString().slice(0, 10) ?? null,
     })),
+    contratoPendente: projetosComContratoPendente.has(p.id),
   }));
 }
 

@@ -155,7 +155,8 @@ export function resolverToken(token: string, ctx: ContextoDados): string {
   return formatar(buscar(expr, ctx), fmt);
 }
 
-function splitFormato(token: string): [string, string | undefined] {
+/** Separa `Campo:c2` em `["Campo", "c2"]`. Exportado p/ quem precisa validar token sem resolver. */
+export function splitFormato(token: string): [string, string | undefined] {
   const i = token.lastIndexOf(":");
   // ':' só é formato se o que vem depois parece um código curto (c2, d, p0, n2)
   if (i > 0 && /^[a-z]\d?$/i.test(token.slice(i + 1))) {
