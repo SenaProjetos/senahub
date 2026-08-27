@@ -1,6 +1,6 @@
 # Contratos no Estúdio de Documentos — integração e evolução
 
-**Data:** 2026-08-27 · **Status:** planejamento (não iniciado) · **Branch alvo:** `dev`
+**Data:** 2026-08-27 · **Status:** E1–E5 e E7b entregues; E6/E7a/M2 pendentes (ver §9) · **Branch alvo:** `dev`
 
 Substitui o pipeline de modelo de contrato em texto puro (`ModeloContrato` + `montarHtml`, entregue
 em `2026-08-26-gerenciador-contratos.md` Fase B) pelo **Estúdio de Documentos**, que já resolve
@@ -254,3 +254,33 @@ de verdade — remover o caminho antigo antes disso deixaria o jurídico sem nen
 - **Adoção.** O Estúdio é mais poderoso e mais difícil que um textarea. Sem M6 (modelos prontos), o
   risco não é técnico — é o jurídico continuar fazendo contrato no Word, que é o fracasso que o
   módulo Comercial já viveu.
+
+---
+
+## 9. Progresso (execução)
+
+- **E1** (`2c974e9` da série anterior, commit `d138c4e`) — fonte `contrato` + gate por registro.
+  Verificado contra o banco: contrato de equipe/cliente/sem-âncora, RH×não-RH.
+- **E2 + E3** (commit `2c974e9`) — `gerarVersaoDeModelo` via `DocumentoGerado`; `clausulasAdicionais`
+  + UI de edição. Migration `20260827195414_contratos_estudio_geracao` (aditiva: 1 FK nullable + 1
+  coluna nullable). Verificado contra o banco: gate real, numeração v1/v2, FK gravada, bytes salvos
+  sob a convenção do jurídico (não o caminho do `DocumentoGerado`), reset de status ao regerar sobre
+  contrato assinado, modelo de tipo errado recusado.
+- **E4** (commit `2c974e9`) — bloqueio de campo vazio/desconhecido, opt-in por modelo
+  (`pagina.bloquearCamposVazios`). 11 testes.
+- **E5** (commit `2c974e9`) — 4 modelos de fábrica (CLT/estágio/PJ/cliente), semeados via `db:seed`
+  idempotente. O teste que verifica cada token citado contra o catálogo real pegou um bug antes de
+  chegar a runtime: o aviso de revisão do modelo estava escrito entre colchetes — sintaxe de token
+  do próprio motor — e teria sido lido como campo desconhecido, bloqueando (via E4) a geração de
+  todo contrato de fábrica, sempre. Corrigido antes do commit.
+- **E7b** (commit `386cd72`) — token `[UltimaAssinaturaResumo]`: nome/data/hash-prefixo de quem
+  assinou a versão anterior, para um documento novo (ex.: aditivo) citar sem reescrever o PDF já
+  assinado (imutável — é o objeto hasheado pela cadeia de evidência). Verificado contra o banco:
+  nulo antes do aceite, presente e com hash truncado depois.
+- **Pendente — precisa de troca de modelo:**
+  - **E6 (Opus)** — depreciar `ModeloContrato`/`montarHtml`/`gerarPdfDoHtml`. Bloqueado até conferir
+    a contagem de `ModeloContrato` em PRODUÇÃO (0 no dev, não confere sozinho). Nota: o certificado
+    de conclusão (`api/juridico/versoes/[id]/certificado/route.ts`) importa `gerarPdfDoHtml` — E6
+    precisa decidir o destino dessa rota antes de remover a função, não só do pipeline de contrato.
+  - **E7a (Haiku)** — M4 (`arquivoPath` via `resolverCaminho`) + M5 (rate limit configurável).
+  - **M2 (Opus, investigação antes de estimar)** — rubrica por página.
