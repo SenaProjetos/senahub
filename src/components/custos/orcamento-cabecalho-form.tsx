@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import { InputPercentual } from "@/components/ui/input-percentual";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
@@ -157,21 +158,11 @@ export function OrcamentoCabecalhoForm({ orcamento }: { orcamento: OrcamentoDeta
           {CAMPOS_BDI.map(({ chave, label }) => (
             <div key={chave} className="space-y-1.5">
               <Label htmlFor={`bdi-${chave}`}>{label}</Label>
-              <div className="relative">
-                <Input
-                  id={`bdi-${chave}`}
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  max={100}
-                  value={bdi[chave]}
-                  onChange={(e) => setBdi((f) => ({ ...f, [chave]: Number(e.target.value) }))}
-                  className="pr-7"
-                />
-                <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-muted-foreground">
-                  %
-                </span>
-              </div>
+              <InputPercentual
+                id={`bdi-${chave}`}
+                value={bdi[chave]}
+                onChange={(v) => setBdi((f) => ({ ...f, [chave]: v ?? 0 }))}
+              />
             </div>
           ))}
         </div>

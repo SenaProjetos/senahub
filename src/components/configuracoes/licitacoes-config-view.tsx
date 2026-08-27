@@ -9,6 +9,7 @@ import { salvarConfigLicitacoes } from "@/modules/licitacoes/config/actions";
 import type { ConfigLicitacoes } from "@/modules/licitacoes/config/defaults";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputPercentual } from "@/components/ui/input-percentual";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -59,8 +60,8 @@ export function LicitacoesConfigView({ config }: { config: ConfigLicitacoes }) {
   const [recursoAlertas, setRecursoAlertas] = useState(
     config.recurso.alertaDiasPadrao.join(", "),
   );
-  const [limiteAcrescimo, setLimiteAcrescimo] = useState(
-    String(config.aditivo.limiteAcrescimoPctPadrao),
+  const [limiteAcrescimo, setLimiteAcrescimo] = useState<number | null>(
+    config.aditivo.limiteAcrescimoPctPadrao,
   );
   const [fatorAviso, setFatorAviso] = useState(String(config.aditivo.fatorAviso));
   const [modoPncp, setModoPncp] = useState<"manual" | "api">(config.pncp.modo);
@@ -72,8 +73,8 @@ export function LicitacoesConfigView({ config }: { config: ConfigLicitacoes }) {
     config.reajuste.modo,
   );
   const [indices, setIndices] = useState(config.reajuste.indices.join(", "));
-  const [percentualPadraoReajuste, setPercentualPadraoReajuste] = useState(
-    String(config.reajuste.percentualPadrao),
+  const [percentualPadraoReajuste, setPercentualPadraoReajuste] = useState<number | null>(
+    config.reajuste.percentualPadrao,
   );
   const [datasChaveAlertas, setDatasChaveAlertas] = useState(
     config.datasChave.alertaDiasPadrao.join(", "),
@@ -92,7 +93,7 @@ export function LicitacoesConfigView({ config }: { config: ConfigLicitacoes }) {
       const r = await salvarConfigLicitacoes({
         recurso: { alertaDiasPadrao: parseDiasAlerta(recursoAlertas) },
         aditivo: {
-          limiteAcrescimoPctPadrao: parseFloat(limiteAcrescimo) || 0,
+          limiteAcrescimoPctPadrao: limiteAcrescimo ?? 0,
           fatorAviso: parseFloat(fatorAviso) || 0,
         },
         pncp: {
@@ -105,7 +106,7 @@ export function LicitacoesConfigView({ config }: { config: ConfigLicitacoes }) {
         reajuste: {
           modo: modoReajuste,
           indices: parseIndices(indices),
-          percentualPadrao: Number(percentualPadraoReajuste) || 0,
+          percentualPadrao: percentualPadraoReajuste ?? 0,
         },
         datasChave: { alertaDiasPadrao: parseDiasAlerta(datasChaveAlertas) },
       });
@@ -170,11 +171,9 @@ export function LicitacoesConfigView({ config }: { config: ConfigLicitacoes }) {
         <CardContent className="space-y-4">
           <div className="space-y-1">
             <label className="text-sm font-medium">Limite de acréscimo (%)</label>
-            <Input
-              type="number"
-              min={0}
+            <InputPercentual
               value={limiteAcrescimo}
-              onChange={(e) => setLimiteAcrescimo(e.target.value)}
+              onChange={setLimiteAcrescimo}
               placeholder="Ex.: 25"
               className="max-w-xs"
             />
@@ -331,13 +330,11 @@ export function LicitacoesConfigView({ config }: { config: ConfigLicitacoes }) {
               Usado quando o reajuste está em modo automático para sugerir o reajuste no
               aniversário.
             </p>
-            <Input
-              type="number"
-              min={0}
-              step={0.01}
+            <InputPercentual
+              permiteNegativo
               value={percentualPadraoReajuste}
-              onChange={(e) => setPercentualPadraoReajuste(e.target.value)}
-              placeholder="Ex.: 5.5"
+              onChange={setPercentualPadraoReajuste}
+              placeholder="Ex.: 5,5"
               className="max-w-xs"
             />
           </div>

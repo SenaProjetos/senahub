@@ -10,6 +10,7 @@ import type { CoordenadorRentab } from "@/modules/financeiro/relatorios/dre-proj
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputPercentual } from "@/components/ui/input-percentual";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { brl } from "@/lib/utils";
@@ -34,11 +35,11 @@ export function RentabilidadeView({
   const router = useRouter();
   const [de, setDe] = useState(dados.de);
   const [ate, setAte] = useState(dados.ate);
-  const [margem, setMargem] = useState(String(dados.margemMinima));
+  const [margem, setMargem] = useState<number | null>(dados.margemMinima);
   const [exportando, startExport] = useTransition();
 
   function aplicar() {
-    router.push(`/financeiro/rentabilidade?de=${de}&ate=${ate}&margem=${margem || 0}`);
+    router.push(`/financeiro/rentabilidade?de=${de}&ate=${ate}&margem=${margem ?? 0}`);
   }
 
   function exportar(formato: "xlsx" | "csv") {
@@ -84,7 +85,7 @@ export function RentabilidadeView({
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Margem mín. (%)</Label>
-            <Input type="number" value={margem} onChange={(e) => setMargem(e.target.value)} className="w-24" />
+            <InputPercentual value={margem} onChange={setMargem} className="w-24" />
           </div>
           <Button onClick={aplicar}>Aplicar</Button>
           <Button variant="outline" onClick={() => exportar("xlsx")} disabled={exportando || dados.projetos.length === 0}>

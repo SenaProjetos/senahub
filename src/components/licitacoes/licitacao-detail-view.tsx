@@ -84,6 +84,7 @@ import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { InputPercentual } from "@/components/ui/input-percentual";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -563,7 +564,7 @@ function LicViabilidade({
 
   // Edit state — initialised from server data or defaults
   const [modo, setModo] = useState<string>(v?.modo ?? "fixo");
-  const [margem, setMargem] = useState(v?.margemEsperadaPct != null ? String(v.margemEsperadaPct) : "");
+  const [margem, setMargem] = useState<number | null>(v?.margemEsperadaPct ?? null);
   const [equipe, setEquipe] = useState<boolean>(v?.equipeDisponivel ?? false);
   const [concorrencia, setConcorrencia] = useState(v?.concorrenciaPrevista ?? "");
 
@@ -584,7 +585,7 @@ function LicViabilidade({
       const r = await salvarViabilidade({
         licitacaoId: lic.id,
         modo: modo as "fixo" | "configuravel",
-        margemEsperadaPct: margem.trim() === "" ? undefined : Number(margem),
+        margemEsperadaPct: margem ?? undefined,
         equipeDisponivel: equipe,
         concorrenciaPrevista: concorrencia,
         criterios: modo === "configuravel" ? criteriosLimpos : undefined,
@@ -695,13 +696,12 @@ function LicViabilidade({
           {/* Fixo fields */}
           {modo === "fixo" && (
             <div className="flex flex-wrap items-center gap-1.5">
-              <Input
-                type="number"
-                step="0.01"
+              <InputPercentual
+                permiteNegativo
                 className="h-7 w-28 text-xs"
-                placeholder="Margem esperada %"
+                placeholder="Margem esperada"
                 value={margem}
-                onChange={(e) => setMargem(e.target.value)}
+                onChange={setMargem}
               />
               <label className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Checkbox
@@ -951,11 +951,11 @@ function LicSubcontratacao({
   const router = useRouter();
   const [pending, start] = useTransition();
 
-  const [tetoInput, setTetoInput] = useState(lic.subcontratacaoMaxPct != null ? String(lic.subcontratacaoMaxPct) : "");
+  const [tetoInput, setTetoInput] = useState<number | null>(lic.subcontratacaoMaxPct ?? null);
   const [fornId, setFornId] = useState("__none__");
   const [nomeLivre, setNomeLivre] = useState("");
   const [objeto, setObjeto] = useState("");
-  const [percentual, setPercentual] = useState("");
+  const [percentual, setPercentual] = useState<number | null>(null);
 
   const soma = lic.subcontratacoes.reduce((s, x) => s + x.percentual, 0);
   const teto = lic.subcontratacaoMaxPct;
@@ -963,15 +963,15 @@ function LicSubcontratacao({
 
   function salvarTeto() {
     start(async () => {
-      const r = await salvarSubcontratacaoMax({ licitacaoId: lic.id, subcontratacaoMaxPct: tetoInput.trim() === "" ? undefined : Number(tetoInput) });
+      const r = await salvarSubcontratacaoMax({ licitacaoId: lic.id, subcontratacaoMaxPct: tetoInput ?? undefined });
       if (r.ok) { toast.success("Teto salvo."); router.refresh(); } else toast.error(r.error);
     });
   }
 
   function adicionar() {
-    const pct = Number(percentual);
+    const pct = percentual;
     if (!objeto.trim()) { toast.error("Informe o objeto."); return; }
-    if (!Number.isFinite(pct) || pct <= 0) { toast.error("Percentual inválido."); return; }
+    if (pct === null || pct <= 0) { toast.error("Percentual inválido."); return; }
     start(async () => {
       const r = await adicionarSubcontratacao({
         licitacaoId: lic.id,
@@ -985,7 +985,7 @@ function LicSubcontratacao({
         setFornId("__none__");
         setNomeLivre("");
         setObjeto("");
-        setPercentual("");
+        setPercentual(null);
         router.refresh();
       } else toast.error(r.error);
     });
@@ -1017,7 +1017,7 @@ function LicSubcontratacao({
 
       {podeGerir && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <Input type="number" step="0.01" min="0" className="h-7 w-24 text-xs" placeholder="Teto %" value={tetoInput} onChange={(e) => setTetoInput(e.target.value)} />
+          <InputPercentual className="h-7 w-24 text-xs" placeholder="Teto" value={tetoInput} onChange={setTetoInput} />
           <Button size="sm" variant="outline" className="h-7" onClick={salvarTeto} disabled={pending}>
             Salvar teto
           </Button>
@@ -1062,8 +1062,8 @@ function LicSubcontratacao({
             <Input className="h-7 w-36 text-xs" placeholder="Nome do subcontratado" value={nomeLivre} onChange={(e) => setNomeLivre(e.target.value)} />
           )}
           <Input className="h-7 flex-1 text-xs min-w-32" placeholder="Objeto" value={objeto} onChange={(e) => setObjeto(e.target.value)} />
-          <Input type="number" step="0.01" min="0" className="h-7 w-20 text-xs" placeholder="%" value={percentual} onChange={(e) => setPercentual(e.target.value)} />
-          <Button size="sm" variant="outline" className="h-7" onClick={adicionar} disabled={pending || !objeto.trim() || !percentual}>
+          <InputPercentual className="h-7 w-24 text-xs" value={percentual} onChange={setPercentual} />
+          <Button size="sm" variant="outline" className="h-7" onClick={adicionar} disabled={pending || !objeto.trim() || percentual === null}>
             <Plus className="size-3" /> Subcontratado
           </Button>
         </div>
@@ -1431,21 +1431,21 @@ function LicReajuste({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
   const [pending, start] = useTransition();
 
   const [indice, setIndice] = useState("");
-  const [percentual, setPercentual] = useState("");
+  const [percentual, setPercentual] = useState<number | null>(null);
   const [dataBase, setDataBase] = useState("");
   const [aniversario, setAniversario] = useState(new Date().toISOString().slice(0, 10));
 
   function add() {
     if (!indice.trim()) { toast.error("Informe o índice."); return; }
-    const pct = Number(percentual);
-    if (!Number.isFinite(pct)) { toast.error("Percentual inválido."); return; }
+    const pct = percentual;
+    if (pct === null) { toast.error("Percentual inválido."); return; }
     if (!aniversario) { toast.error("Informe o aniversário."); return; }
     start(async () => {
       const r = await registrarReajuste({ licitacaoId: lic.id, indice, percentual: pct, dataBase, aniversario });
       if (r.ok) {
         toast.success("Reajuste registrado e aplicado.");
         setIndice("");
-        setPercentual("");
+        setPercentual(null);
         setDataBase("");
         setAniversario(new Date().toISOString().slice(0, 10));
         router.refresh();
@@ -1528,7 +1528,7 @@ function LicReajuste({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
               </p>
               <div className="flex flex-wrap items-center gap-1.5">
                 <Input className="h-7 w-28 text-xs" placeholder="Índice (ex.: INPC)" value={indice} onChange={(e) => setIndice(e.target.value)} />
-                <Input type="number" step="0.01" className="h-7 w-24 text-xs" placeholder="Percentual" value={percentual} onChange={(e) => setPercentual(e.target.value)} />
+                <InputPercentual permiteNegativo className="h-7 w-24 text-xs" placeholder="Percentual" value={percentual} onChange={setPercentual} />
                 <Input type="date" className="h-7 w-36 text-xs" value={dataBase} onChange={(e) => setDataBase(e.target.value)} />
                 <Input type="date" className="h-7 w-36 text-xs" value={aniversario} onChange={(e) => setAniversario(e.target.value)} />
                 <Button size="sm" variant="outline" className="h-7" onClick={add} disabled={pending || !indice.trim() || !aniversario}>
@@ -1566,7 +1566,7 @@ function LicContrato({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
   const [garantiaTipo, setGarantiaTipo] = useState(c?.garantiaTipo ?? "");
   const [garantiaValor, setGarantiaValor] = useState<number | null>(c?.garantiaValor ?? null);
   const [garantiaValidade, setGarantiaValidade] = useState(c?.garantiaValidade ?? "");
-  const [limiteAcrescimoPct, setLimiteAcrescimoPct] = useState(c?.limiteAcrescimoPct != null ? String(c.limiteAcrescimoPct) : "");
+  const [limiteAcrescimoPct, setLimiteAcrescimoPct] = useState<number | null>(c?.limiteAcrescimoPct ?? null);
 
   // Form aditivo state
   const [aditTipo, setAditTipo] = useState("valor");
@@ -1586,7 +1586,7 @@ function LicContrato({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
         vigenciaInicio, vigenciaFim, reajuste, garantiaTipo,
         garantiaValor: garantiaValor ?? undefined,
         garantiaValidade,
-        limiteAcrescimoPct: limiteAcrescimoPct.trim() === "" ? undefined : Number(limiteAcrescimoPct),
+        limiteAcrescimoPct: limiteAcrescimoPct ?? undefined,
       });
       if (r.ok) { toast.success("Contrato salvo."); router.refresh(); } else toast.error(r.error);
     });
@@ -1644,7 +1644,7 @@ function LicContrato({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
         <Input className="h-7 w-28 text-xs" placeholder="Garantia tipo" value={garantiaTipo} onChange={(e) => setGarantiaTipo(e.target.value)} />
         <InputMoeda semPrefixo className="h-7 w-28 text-xs" placeholder="Garantia (R$)" value={garantiaValor} onChange={setGarantiaValor} />
         <Input type="date" className="h-7 w-36 text-xs" value={garantiaValidade} onChange={(e) => setGarantiaValidade(e.target.value)} />
-        <Input type="number" step="0.01" min="0" className="h-7 w-32 text-xs" placeholder="Limite acréscimo %" value={limiteAcrescimoPct} onChange={(e) => setLimiteAcrescimoPct(e.target.value)} />
+        <InputPercentual className="h-7 w-32 text-xs" placeholder="Limite acréscimo" value={limiteAcrescimoPct} onChange={setLimiteAcrescimoPct} />
       </div>
       <Button size="sm" variant="outline" className="h-7" onClick={salvarContrato} disabled={pending}>
         Salvar contrato

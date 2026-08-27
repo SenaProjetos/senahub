@@ -13,6 +13,7 @@ import { PAPEIS_APROVADORES, type FaixaAlcada } from "@/modules/financeiro/aprov
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputPercentual } from "@/components/ui/input-percentual";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -223,8 +224,8 @@ function AliquotasCard({ inicial }: { inicial: Aliquotas }) {
   const [pending, start] = useTransition();
   const [aliq, setAliq] = useState<Aliquotas>(inicial);
 
-  function set(k: keyof Aliquotas, v: string) {
-    setAliq((p) => ({ ...p, [k]: Math.max(0, Math.min(100, Number(v) || 0)) }));
+  function set(k: keyof Aliquotas, v: number | null) {
+    setAliq((p) => ({ ...p, [k]: Math.max(0, Math.min(100, v ?? 0)) }));
   }
   function salvar() {
     start(async () => {
@@ -247,7 +248,7 @@ function AliquotasCard({ inicial }: { inicial: Aliquotas }) {
           {CAMPOS_ALIQUOTA.map((c) => (
             <div key={c.key} className="space-y-1.5">
               <Label className="text-xs">{c.label}</Label>
-              <Input type="number" step="0.01" min={0} max={100} value={aliq[c.key]} onChange={(e) => set(c.key, e.target.value)} />
+              <InputPercentual value={aliq[c.key]} onChange={(v) => set(c.key, v)} />
             </div>
           ))}
         </div>

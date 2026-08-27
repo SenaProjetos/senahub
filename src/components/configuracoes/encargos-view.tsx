@@ -8,17 +8,17 @@ import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { salvarFaixasEncargo, salvarDeducaoDependente } from "@/modules/rh/encargos/actions";
 import type { FaixaDTO } from "@/modules/rh/encargos/queries";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { InputPercentual } from "@/components/ui/input-percentual";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-type Linha = { limite: number | null; aliquota: string; deduzir: number | null };
+type Linha = { limite: number | null; aliquota: number | null; deduzir: number | null };
 
 function paraLinhas(faixas: FaixaDTO[]): Linha[] {
   return faixas.map((f) => ({
     limite: f.limite,
-    aliquota: String(f.aliquota),
+    aliquota: f.aliquota,
     deduzir: f.deduzir,
   }));
 }
@@ -46,7 +46,7 @@ function TabelaFaixas({
 
   function salvar() {
     const faixas = linhas
-      .map((l) => ({ limite: l.limite ?? 0, aliquota: Number(l.aliquota), deduzir: l.deduzir ?? 0 }))
+      .map((l) => ({ limite: l.limite ?? 0, aliquota: l.aliquota ?? 0, deduzir: l.deduzir ?? 0 }))
       .filter((f) => f.limite > 0);
     start(async () => {
       const r = await salvarFaixasEncargo({ tipo, faixas });
@@ -73,7 +73,7 @@ function TabelaFaixas({
         {linhas.map((l, i) => (
           <div key={i} className={`grid ${colunas} items-center gap-2`}>
             <InputMoeda semPrefixo value={l.limite} onChange={(v) => set(i, "limite", v)} />
-            <Input type="number" step="0.001" value={l.aliquota} onChange={(e) => set(i, "aliquota", e.target.value)} />
+            <InputPercentual semSufixo decimais={3} value={l.aliquota} onChange={(v) => set(i, "aliquota", v)} />
             {comDeduzir ? (
               <InputMoeda semPrefixo value={l.deduzir} onChange={(v) => set(i, "deduzir", v)} />
             ) : null}
@@ -91,7 +91,7 @@ function TabelaFaixas({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setLinhas((ls) => [...ls, { limite: null, aliquota: "", deduzir: 0 }])}
+            onClick={() => setLinhas((ls) => [...ls, { limite: null, aliquota: null, deduzir: 0 }])}
           >
             <Plus className="size-3.5" /> Faixa
           </Button>

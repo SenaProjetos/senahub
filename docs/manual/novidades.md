@@ -33,6 +33,19 @@ o número de volta: `1.500,50` → `150,05`. Para recomeçar um valor, selecione
 
 ---
 
+## Campos de percentual padronizados
+
+Os campos de porcentagem também ficaram iguais em todo o sistema: **%** fixo no campo,
+número alinhado à direita e teclado numérico no celular.
+
+Diferente dos campos de valor, aqui **não** há a regra dos centavos: digite o número
+direto — `25` é 25%, `7,5` é 7,5%. O campo se arruma ao sair dele (`25,` vira `25`).
+Cada campo aceita só as casas decimais que o dado permite, e margem esperada e reajuste
+passam a aceitar percentual negativo (prejuízo previsto, deflação). →
+[Guia de Início Rápido](quick-start.md)
+
+---
+
 ## Visão Geral de Projetos
 
 A ficha de projeto agora abre com uma **Visão Geral** mais compacta: prazo, progresso,

@@ -14,6 +14,7 @@ import { brl, formatarData } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputPercentual } from "@/components/ui/input-percentual";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import {
@@ -34,22 +35,22 @@ export function SociosSection({ socios, usuarios }: { socios: Socio[]; usuarios:
   const router = useRouter();
   const [pending, start] = useTransition();
   const [userId, setUserId] = useState("");
-  const [percentual, setPercentual] = useState("");
+  const [percentual, setPercentual] = useState<number | null>(null);
 
   // Participação só conta sócios ativos (inativos ficam visíveis pelo histórico de retiradas).
   const total = socios.filter((x) => x.ativo).reduce((s, x) => s + x.percentual, 0);
 
   function adicionar() {
-    if (!userId || !percentual) {
+    if (!userId || percentual === null) {
       toast.error("Selecione o sócio e o percentual.");
       return;
     }
     start(async () => {
-      const r = await criarSocio({ userId, percentual: Number(percentual) });
+      const r = await criarSocio({ userId, percentual });
       if (r.ok) {
         toast.success("Sócio adicionado.");
         setUserId("");
-        setPercentual("");
+        setPercentual(null);
         router.refresh();
       } else toast.error(r.error);
     });
@@ -93,12 +94,8 @@ export function SociosSection({ socios, usuarios }: { socios: Socio[]; usuarios:
           </Select>
         </div>
         <div className="w-28 space-y-1.5">
-          <Label className="text-xs text-muted-foreground">%</Label>
-          <Input
-            type="number"
-            value={percentual}
-            onChange={(e) => setPercentual(e.target.value)}
-          />
+          <Label className="text-xs text-muted-foreground">Participação</Label>
+          <InputPercentual value={percentual} onChange={setPercentual} />
         </div>
         <Button onClick={adicionar} disabled={pending}>
           <Plus className="size-4" /> Adicionar

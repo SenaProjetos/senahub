@@ -127,6 +127,19 @@ Outros detalhes:
   valor informado" — diferente de digitar `R$ 0,00`.
 - No celular e no tablet, o **teclado numérico** abre automaticamente.
 
+### Campos de percentual (%)
+
+Percentual **não** segue a regra dos centavos: digite o número direto. Para 25%,
+digite `25`; para 7,5%, digite `7,5`. O símbolo **%** já aparece no campo.
+
+- Use **vírgula** para a casa decimal (o ponto também funciona e vira vírgula).
+- Cada campo aceita as casas que o dado permite: alíquota de encargo vai até três
+  casas, percentual de alocação em planejamento é inteiro. O campo simplesmente não
+  deixa digitar além do permitido.
+- O valor se arruma sozinho ao sair do campo: `25,` vira `25`, `25,50` vira `25,5`.
+- Onde faz sentido no negócio — margem esperada e reajuste — o campo aceita valor
+  **negativo** (prejuízo previsto, deflação). Nos demais, não.
+
 ---
 
 ## 6. Editar registros

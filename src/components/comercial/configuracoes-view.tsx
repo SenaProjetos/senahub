@@ -9,6 +9,7 @@ import { salvarConfigComercial } from "@/modules/comercial/actions";
 import type { ConfigComercial } from "@/modules/comercial/config/padroes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputPercentual } from "@/components/ui/input-percentual";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -74,10 +75,8 @@ export function ConfiguracoesComercialView({ config }: { config: ConfigComercial
   const [pending, start] = useTransition();
   const [valores, setValores] = useState<ConfigComercial>(config);
 
-  function alterar(key: keyof ConfigComercial, texto: string) {
-    const n = texto === "" ? 0 : Number(texto);
-    if (Number.isNaN(n)) return;
-    setValores((v) => ({ ...v, [key]: n }));
+  function alterar(key: keyof ConfigComercial, valor: number | null) {
+    setValores((v) => ({ ...v, [key]: valor ?? 0 }));
   }
 
   function salvar() {
@@ -114,16 +113,27 @@ export function ConfiguracoesComercialView({ config }: { config: ConfigComercial
             <div key={c.key} className="space-y-1.5">
               <Label htmlFor={c.key}>{c.label}</Label>
               <div className="flex items-center gap-2">
-                <Input
-                  id={c.key}
-                  type="number"
-                  min="0"
-                  step={c.sufixo === "%" ? "0.1" : "1"}
-                  className="w-32"
-                  value={valores[c.key]}
-                  onChange={(e) => alterar(c.key, e.target.value)}
-                />
-                <span className="text-sm text-muted-foreground">{c.sufixo}</span>
+                {c.sufixo === "%" ? (
+                  <InputPercentual
+                    id={c.key}
+                    decimais={1}
+                    className="w-32"
+                    value={valores[c.key]}
+                    onChange={(v) => alterar(c.key, v)}
+                  />
+                ) : (
+                  <Input
+                    id={c.key}
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    step="1"
+                    className="w-32 text-right tabular-nums"
+                    value={valores[c.key]}
+                    onChange={(e) => alterar(c.key, Number(e.target.value))}
+                  />
+                )}
+                {c.sufixo !== "%" && <span className="text-sm text-muted-foreground">{c.sufixo}</span>}
               </div>
               <p className="text-xs text-muted-foreground">{c.desc}</p>
             </div>
