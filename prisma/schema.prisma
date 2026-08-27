@@ -1174,7 +1174,7 @@ model Projeto {
   inputs                  InputProjeto[]
   briefing                BriefingProjeto?
   linkInput               LinkPublicoInput?
-  linkArquivos            LinkPublicoArquivos?
+  linkArquivos            LinkPublicoArquivos[]
   lancamentos             Lancamento[]
   canais                  Canal[]
   proposta                Proposta?
@@ -1326,20 +1326,42 @@ model LinkPublicoInput {
 /// Somente leitura: expõe apenas uploads validados (validado=true) das disciplinas
 /// listadas em `disciplinaIds` (whitelist editável — alterar a seleção reflete no
 /// MESMO token). `ativo=false` revoga na hora; `expiraEm` desliga após a data.
+/// Como o link decide QUAIS arquivos expõe. Coluna explícita de propósito: sem ela,
+/// `disciplinaIds` vazio teria de significar ao mesmo tempo "nada" (regra de hoje) e
+/// "tudo", e todo link já existente com whitelist vazia viraria um link do projeto
+/// inteiro na migração — um vazamento silencioso.
+enum EscopoLinkArquivos {
+  /// Whitelist de disciplinas (comportamento histórico; padrão na migração).
+  disciplinas
+  /// Todas as disciplinas do projeto, inclusive as criadas depois do link.
+  projeto_todo
+  /// Arquivos escolhidos a dedo — não segue as regras de revisão/backup.
+  selecao
+}
+
 model LinkPublicoArquivos {
-  id            String    @id @default(cuid())
-  projetoId     String    @unique
-  projeto       Projeto   @relation(fields: [projetoId], references: [id], onDelete: Cascade)
-  token         String    @unique
-  ativo         Boolean   @default(true)
+  id            String             @id @default(cuid())
+  /// Sem `@unique`: um projeto pode ter vários links (cliente, prefeitura, consultor…),
+  /// cada um com seu escopo e sua validade.
+  projetoId     String
+  projeto       Projeto            @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  token         String             @unique
+  /// Rótulo para diferenciar os links do mesmo projeto ("Prefeitura", "Cliente final").
+  nome          String?
+  escopo        EscopoLinkArquivos @default(disciplinas)
+  ativo         Boolean            @default(true)
   /// Data/hora de expiração (opcional). Nulo = não expira.
   expiraEm      DateTime?
   /// IDs das disciplinas liberadas no link. Vazio = nenhuma disciplina exposta.
-  disciplinaIds String[]  @default([])
+  /// Só vale para escopo=disciplinas.
+  disciplinaIds String[]           @default([])
+  /// Uploads escolhidos a dedo. Só vale para escopo=selecao.
+  uploadIds     String[]           @default([])
   criadoPorId   String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
+  @@index([projetoId])
   @@map("link_publico_arquivos")
 }
 

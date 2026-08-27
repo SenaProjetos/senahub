@@ -9,7 +9,14 @@ import { smtpConfigurado } from "@/lib/mail";
 import { enviarEmailTemplate } from "@/lib/email-templates";
 
 const base = { modulo: "projetos", recurso: "projetos", permissao: "gerir", entidade: "LinkPublicoArquivos" } as const;
-const idProjeto = (d: unknown, i: unknown) => ((d ?? i) as { projetoId: string }).projetoId;
+
+/**
+ * Um projeto tem VÁRIOS links, então a auditoria precisa apontar qual deles mudou —
+ * `entidadeId` é o id do link, não o do projeto.
+ */
+const idLink = (d: unknown, i: unknown) => ((d ?? i) as { linkId: string }).linkId;
+
+const escopoSchema = z.enum(["disciplinas", "projeto_todo", "selecao"]);
 
 /** IDs de disciplina que realmente pertencem ao projeto (barra lixo/whitelist forjada). */
 async function disciplinasValidas(projetoId: string, ids: string[]): Promise<string[]> {
@@ -22,37 +29,119 @@ async function disciplinasValidas(projetoId: string, ids: string[]): Promise<str
 }
 
 /**
- * Gera (ou regenera) o link público de arquivos do projeto. Na criação, libera
- * TODAS as disciplinas por padrão e ativa o link; ao regerar, troca só o token e
- * preserva a seleção/validade (o link antigo para de funcionar imediatamente).
+ * IDs de upload que realmente pertencem ao projeto e não estão na lixeira.
+ *
+ * A seleção manual dispensa as regras de revisão e de backup do modelo — foi escolha
+ * de alguém de dentro. Não dispensa a lixeira: o job de purga apaga o arquivo em 30
+ * dias e o link fica quebrado na mão do cliente.
  */
-export const gerarLinkArquivos = defineAction(
+async function uploadsValidos(projetoId: string, ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const ups = await prisma.upload.findMany({
+    where: { id: { in: ids }, excluidoEm: null, disciplina: { projetoId } },
+    select: { id: true },
+  });
+  return ups.map((u) => u.id);
+}
+
+/** Carrega o link garantindo que ele existe; devolve também o projeto para o revalidate. */
+async function carregarLink(linkId: string) {
+  const link = await prisma.linkPublicoArquivos.findUnique({ where: { id: linkId } });
+  if (!link) throw new ActionError("Link não encontrado.");
+  return link;
+}
+
+/**
+ * Cria mais um link público de arquivos no projeto. Cada link é independente: tem o seu
+ * escopo, a sua validade e o seu token, e revogar um não mexe nos outros.
+ *
+ * Sem `nome`, sem escopo e sem seleção, nasce liberando todas as disciplinas de hoje —
+ * que é como o link único funcionava.
+ */
+export const criarLinkArquivos = defineAction(
   {
     ...base,
-    acao: "gerar-link-arquivos",
-    schema: z.object({ projetoId: z.string().min(1) }),
-    entidadeId: idProjeto,
-    capturarAntes: (i) => prisma.linkPublicoArquivos.findUnique({ where: { projetoId: i.projetoId } }),
+    acao: "criar-link-arquivos",
+    schema: z.object({
+      projetoId: z.string().min(1),
+      nome: z.string().trim().max(80).optional(),
+      escopo: escopoSchema.default("disciplinas"),
+      disciplinaIds: z.array(z.string()).default([]),
+      uploadIds: z.array(z.string()).default([]),
+      expiraEm: z.string().datetime().nullable().optional(),
+    }),
+    entidadeId: (d) => (d as { linkId: string } | undefined)?.linkId ?? "",
   },
   async (input, { user }) => {
-    const token = randomBytes(18).toString("hex");
-    const existente = await prisma.linkPublicoArquivos.findUnique({ where: { projetoId: input.projetoId } });
-    if (existente) {
-      await prisma.linkPublicoArquivos.update({ where: { projetoId: input.projetoId }, data: { token } });
-    } else {
-      const todas = await prisma.disciplina.findMany({ where: { projetoId: input.projetoId }, select: { id: true } });
-      await prisma.linkPublicoArquivos.create({
-        data: {
-          projetoId: input.projetoId,
-          token,
-          ativo: true,
-          disciplinaIds: todas.map((d) => d.id),
-          criadoPorId: user.id,
-        },
-      });
+    if (input.escopo === "selecao" && input.uploadIds.length === 0) {
+      throw new ActionError("Selecione ao menos um arquivo para gerar um link de seleção.");
     }
+
+    const disciplinaIds =
+      input.escopo === "disciplinas"
+        ? input.disciplinaIds.length > 0
+          ? await disciplinasValidas(input.projetoId, input.disciplinaIds)
+          : (await prisma.disciplina.findMany({ where: { projetoId: input.projetoId }, select: { id: true } })).map(
+              (d) => d.id,
+            )
+        : [];
+
+    const uploadIds = input.escopo === "selecao" ? await uploadsValidos(input.projetoId, input.uploadIds) : [];
+    if (input.escopo === "selecao" && uploadIds.length === 0) {
+      throw new ActionError("Nenhum dos arquivos escolhidos pode ser publicado (podem estar na lixeira).");
+    }
+
+    const link = await prisma.linkPublicoArquivos.create({
+      data: {
+        projetoId: input.projetoId,
+        token: randomBytes(18).toString("hex"),
+        nome: input.nome?.trim() || null,
+        escopo: input.escopo,
+        ativo: true,
+        expiraEm: input.expiraEm ? new Date(input.expiraEm) : null,
+        disciplinaIds,
+        uploadIds,
+        criadoPorId: user.id,
+      },
+    });
+
     revalidatePath(`/projetos/${input.projetoId}/arquivos`);
-    return { projetoId: input.projetoId, token };
+    return { linkId: link.id, projetoId: input.projetoId, token: link.token };
+  },
+);
+
+/** Troca só o token: o endereço antigo para de funcionar na hora, o resto fica de pé. */
+export const regerarTokenLinkArquivos = defineAction(
+  {
+    ...base,
+    acao: "regerar-token-link-arquivos",
+    schema: z.object({ linkId: z.string().min(1) }),
+    entidadeId: idLink,
+    capturarAntes: (i) => prisma.linkPublicoArquivos.findUnique({ where: { id: i.linkId } }),
+  },
+  async (input) => {
+    const link = await carregarLink(input.linkId);
+    const token = randomBytes(18).toString("hex");
+    await prisma.linkPublicoArquivos.update({ where: { id: link.id }, data: { token } });
+    revalidatePath(`/projetos/${link.projetoId}/arquivos`);
+    return { linkId: link.id, projetoId: link.projetoId, token };
+  },
+);
+
+/** Apaga o link de vez. Revogar (`ativo=false`) já basta na maioria dos casos. */
+export const excluirLinkArquivos = defineAction(
+  {
+    ...base,
+    acao: "excluir-link-arquivos",
+    schema: z.object({ linkId: z.string().min(1) }),
+    entidadeId: idLink,
+    capturarAntes: (i) => prisma.linkPublicoArquivos.findUnique({ where: { id: i.linkId } }),
+  },
+  async (input) => {
+    const link = await carregarLink(input.linkId);
+    await prisma.linkPublicoArquivos.delete({ where: { id: link.id } });
+    revalidatePath(`/projetos/${link.projetoId}/arquivos`);
+    return { linkId: link.id, projetoId: link.projetoId };
   },
 );
 
@@ -74,22 +163,22 @@ export const enviarLinkProjetoEmail = defineAction(
   {
     ...base,
     acao: "enviar-link-projeto-email",
-    schema: z.object({ projetoId: z.string().min(1), email: z.string().email("E-mail inválido.") }),
-    entidadeId: idProjeto,
+    schema: z.object({ linkId: z.string().min(1), email: z.string().email("E-mail inválido.") }),
+    entidadeId: idLink,
   },
   async (input) => {
     if (!smtpConfigurado()) throw new ActionError("Envio de e-mail indisponível: SMTP não configurado.");
 
+    const link = await carregarLink(input.linkId);
+    if (!link.ativo) throw new ActionError("Ative o link antes de enviar por e-mail.");
+    if (link.expiraEm && link.expiraEm.getTime() <= Date.now()) throw new ActionError("O link público está expirado.");
+
     const email = input.email.toLowerCase().trim();
     const projeto = await prisma.projeto.findUnique({
-      where: { id: input.projetoId },
+      where: { id: link.projetoId },
       select: { nome: true, cliente: { select: { nome: true } } },
     });
     if (!projeto) throw new ActionError("Projeto não encontrado.");
-
-    const link = await prisma.linkPublicoArquivos.findUnique({ where: { projetoId: input.projetoId } });
-    if (!link || !link.ativo) throw new ActionError("Gere e ative o link público antes de enviar por e-mail.");
-    if (link.expiraEm && link.expiraEm.getTime() <= Date.now()) throw new ActionError("O link público está expirado.");
 
     const appUrl = process.env.APP_URL ?? "";
     const nomeCliente = projeto.cliente?.nome || email.split("@")[0] || "cliente";
@@ -116,35 +205,54 @@ ${vantagens}
     });
     if (!enviado) throw new ActionError("Não foi possível enviar o e-mail. Verifique a configuração de SMTP.");
 
-    return { projetoId: input.projetoId, email, convite: !usuario };
+    return { linkId: link.id, email, convite: !usuario };
   },
 );
 
-/** Atualiza a whitelist de disciplinas, o estado (ativo/revogado) e a validade do link. */
+/** Atualiza rótulo, escopo, recorte, estado (ativo/revogado) e validade de UM link. */
 export const atualizarLinkArquivos = defineAction(
   {
     ...base,
     acao: "atualizar-link-arquivos",
     schema: z.object({
-      projetoId: z.string().min(1),
+      linkId: z.string().min(1),
+      nome: z.string().trim().max(80).nullable().optional(),
+      escopo: escopoSchema.optional(),
       disciplinaIds: z.array(z.string()).default([]),
+      uploadIds: z.array(z.string()).optional(),
       ativo: z.boolean(),
       expiraEm: z.string().datetime().nullable().optional(),
     }),
-    entidadeId: idProjeto,
-    capturarAntes: (i) => prisma.linkPublicoArquivos.findUnique({ where: { projetoId: i.projetoId } }),
+    entidadeId: idLink,
+    capturarAntes: (i) => prisma.linkPublicoArquivos.findUnique({ where: { id: i.linkId } }),
   },
   async (input) => {
-    const disciplinaIds = await disciplinasValidas(input.projetoId, input.disciplinaIds);
+    const link = await carregarLink(input.linkId);
+    const escopo = input.escopo ?? link.escopo;
+
+    const disciplinaIds =
+      escopo === "disciplinas" ? await disciplinasValidas(link.projetoId, input.disciplinaIds) : [];
+    const uploadIds =
+      escopo === "selecao"
+        ? await uploadsValidos(link.projetoId, input.uploadIds ?? link.uploadIds)
+        : [];
+
+    if (escopo === "selecao" && uploadIds.length === 0) {
+      throw new ActionError("Um link de seleção precisa de ao menos um arquivo publicável.");
+    }
+
     await prisma.linkPublicoArquivos.update({
-      where: { projetoId: input.projetoId },
+      where: { id: link.id },
       data: {
+        nome: input.nome === undefined ? undefined : input.nome?.trim() || null,
+        escopo,
         disciplinaIds,
+        uploadIds,
         ativo: input.ativo,
         expiraEm: input.expiraEm ? new Date(input.expiraEm) : null,
       },
     });
-    revalidatePath(`/projetos/${input.projetoId}/arquivos`);
-    return { projetoId: input.projetoId };
+    revalidatePath(`/projetos/${link.projetoId}/arquivos`);
+    return { linkId: link.id, projetoId: link.projetoId };
   },
 );

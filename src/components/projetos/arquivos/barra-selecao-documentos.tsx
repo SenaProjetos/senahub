@@ -3,8 +3,10 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Download, ListMinus, ListPlus, ShieldCheck, Trash2, X } from "lucide-react";
+import { Download, ListMinus, ListPlus, ShieldCheck, Share2, Trash2, X } from "lucide-react";
 import { validarArquivosLote, excluirUploadsLote } from "@/modules/uploads/actions";
+import { criarLinkArquivos } from "@/modules/projetos/arquivos/link-publico-actions";
+import { Input } from "@/components/ui/input";
 import { adicionarDocumentoLista, removerDocumentoLista } from "@/modules/uploads/listas";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -42,6 +44,7 @@ export function BarraSelecaoDocumentos({
   podeValidar,
   podeExcluir,
   podeGerirListas,
+  podeGerirLink,
   listas,
   listaSelecionadaId,
   onLimpar,
@@ -57,6 +60,8 @@ export function BarraSelecaoDocumentos({
   podeExcluir: boolean;
   /** Espelho visual do gate das Actions; o servidor continua validando o escopo. */
   podeGerirListas: boolean;
+  /** Quem pode gerir o projeto pode publicar a seleção num link público. */
+  podeGerirLink: boolean;
   listas: ListaDisponivel[];
   listaSelecionadaId: string | null;
   onLimpar: () => void;
@@ -66,6 +71,9 @@ export function BarraSelecaoDocumentos({
   const [pendente, start] = useTransition();
   const [dialogoListaAberto, setDialogoListaAberto] = useState(false);
   const [listaDestinoId, setListaDestinoId] = useState<string | null>(null);
+  const [dialogoLinkAberto, setDialogoLinkAberto] = useState(false);
+  const [nomeLink, setNomeLink] = useState("");
+  const [urlGerada, setUrlGerada] = useState<string | null>(null);
 
   if (selecionados.length === 0) return null;
 
@@ -169,6 +177,29 @@ export function BarraSelecaoDocumentos({
     });
   }
 
+  /**
+   * Publica exatamente os arquivos marcados num link próprio. Diferente do link por
+   * disciplina, aqui a escolha manual vence as regras de recorte: dá para mandar uma
+   * revisão antiga ou um backup do modelo de propósito. A lixeira continua de fora — o
+   * servidor descarta o que estiver lá.
+   */
+  function criarLinkDaSelecao() {
+    start(async () => {
+      const r = await criarLinkArquivos({
+        projetoId,
+        nome: nomeLink.trim() || undefined,
+        escopo: "selecao",
+        disciplinaIds: [],
+        uploadIds: selecionados,
+      });
+      if (r.ok) {
+        setUrlGerada(`${window.location.origin}/p/arquivos/${r.data.token}`);
+        toast.success("Link criado com os arquivos selecionados.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
   return (
     <div
       role="region"
@@ -200,10 +231,80 @@ export function BarraSelecaoDocumentos({
             <ListMinus className="size-3.5" /> Remover da lista
           </Button>
         )}
+        {podeGerirLink && (
+          <Button size="sm" variant="outline" className="bg-background text-foreground hover:bg-muted hover:text-foreground" onClick={() => setDialogoLinkAberto(true)} disabled={pendente}>
+            <Share2 className="size-3.5" /> Link público
+          </Button>
+        )}
         <Button size="sm" variant="ghost" onClick={onLimpar} aria-label="Limpar seleção">
           <X className="size-3.5" />
         </Button>
       </div>
+
+      <Dialog
+        open={dialogoLinkAberto}
+        onOpenChange={(aberto) => {
+          setDialogoLinkAberto(aberto);
+          if (!aberto) {
+            setNomeLink("");
+            setUrlGerada(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Link público destes arquivos</DialogTitle>
+            <DialogDescription>
+              Acesso externo, sem login, só para ver e baixar. O link mostra exatamente os {n}{" "}
+              {n === 1 ? "arquivo marcado" : "arquivos marcados"} — inclusive revisão antiga ou backup do modelo,
+              se foi o que se marcou. Arquivo na lixeira não entra.
+            </DialogDescription>
+          </DialogHeader>
+          {urlGerada ? (
+            <div className="space-y-2">
+              <p className="rounded-sm bg-muted px-3 py-2 font-mono text-xs break-all">{urlGerada}</p>
+              <p className="text-xs text-muted-foreground">
+                Para renomear, revogar ou dar validade a este link, use &ldquo;Link público&rdquo; no topo da tela.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="nome-link-selecao">Nome do link (opcional)</Label>
+              <Input
+                id="nome-link-selecao"
+                placeholder="Prefeitura, cliente final, consultor…"
+                value={nomeLink}
+                onChange={(e) => setNomeLink(e.target.value)}
+              />
+            </div>
+          )}
+          <DialogFooter>
+            {urlGerada ? (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(urlGerada);
+                    toast.success("Link copiado.");
+                  }}
+                >
+                  Copiar link
+                </Button>
+                <Button onClick={() => setDialogoLinkAberto(false)}>Fechar</Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" onClick={() => setDialogoLinkAberto(false)} disabled={pendente}>
+                  Cancelar
+                </Button>
+                <Button onClick={criarLinkDaSelecao} disabled={pendente}>
+                  {pendente ? "Criando…" : "Criar link"}
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={dialogoListaAberto}

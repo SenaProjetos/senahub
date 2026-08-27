@@ -31,7 +31,8 @@ import {
 import { podeGerirDocumento } from "@/modules/documentos-cliente/acesso";
 import { podeVerTodasDisciplinas, podeEnviarArquivo } from "@/modules/arquivos/acesso";
 import type { ArquivoExistente } from "@/modules/uploads/revisao-nova";
-import { linkArquivosDoProjeto } from "@/modules/projetos/arquivos/link-publico";
+import { linksArquivosDoProjeto } from "@/modules/projetos/arquivos/link-publico";
+import type { LinkData } from "@/components/projetos/link-publico-arquivos-dialog";
 import { listarArtsDoProjeto } from "@/modules/projetos/art/queries";
 import { ArquivosExplorer } from "@/components/projetos/arquivos-explorer";
 import { DocumentosShell } from "@/components/projetos/arquivos/documentos-shell";
@@ -39,6 +40,29 @@ import { areaValida, type AreaDisponivel } from "@/modules/uploads/areas-projeto
 import { listarListasDocumentos, podeGerirListasDocumentos } from "@/modules/uploads/listas-queries";
 
 export const metadata: Metadata = { title: "Arquivos" };
+
+/** Linha do banco → formato que o gerenciador de links entende (datas em ISO). */
+function paraLinkData(l: {
+  id: string;
+  nome: string | null;
+  escopo: string;
+  token: string;
+  ativo: boolean;
+  expiraEm: Date | null;
+  disciplinaIds: string[];
+  uploadIds: string[];
+}): LinkData {
+  return {
+    id: l.id,
+    nome: l.nome,
+    escopo: l.escopo as LinkData["escopo"],
+    token: l.token,
+    ativo: l.ativo,
+    expiraEm: l.expiraEm ? l.expiraEm.toISOString() : null,
+    disciplinaIds: l.disciplinaIds,
+    uploadIds: l.uploadIds,
+  };
+}
 
 export default async function ArquivosPage({
   params,
@@ -80,7 +104,7 @@ export default async function ArquivosPage({
     podeVerTodasDisciplinas(user),
     podeEnviarArquivo(user),
   ]);
-  const [arvore, podeVerGeral, podeGerirGeral, podeValidar, nomenclatura, recebidos, baseArquitetonica, clienteId, podeGerirRecebidos, podeGerirLink, linkPublico, clienteEmail, catalogos] =
+  const [arvore, podeVerGeral, podeGerirGeral, podeValidar, nomenclatura, recebidos, baseArquitetonica, clienteId, podeGerirRecebidos, podeGerirLink, linksPublicos, clienteEmail, catalogos] =
     await Promise.all([
       arvoreArquivosProjeto(id, user.id, ehGlobal, { veTodas, podeEnviarCap }),
       can(user, "arquivos_gerais", "ver"),
@@ -92,7 +116,7 @@ export default async function ArquivosPage({
       clienteDoProjeto(id),
       podeGerirDocumento(user, { projetoId: id }),
       can(user, "projetos", "gerir"),
-      linkArquivosDoProjeto(id),
+      linksArquivosDoProjeto(id),
       emailClienteDoProjeto(id),
       catalogosPrancha(id),
     ]);
@@ -242,14 +266,7 @@ export default async function ArquivosPage({
                 disciplinas: arvore.disciplinas.map((d) => ({ id: d.id, nome: d.nome })),
                 baseUrl,
                 clienteEmail,
-                link: linkPublico
-                  ? {
-                      token: linkPublico.token,
-                      ativo: linkPublico.ativo,
-                      expiraEm: linkPublico.expiraEm ? linkPublico.expiraEm.toISOString() : null,
-                      disciplinaIds: linkPublico.disciplinaIds,
-                    }
-                  : null,
+                links: linksPublicos.map(paraLinkData),
               }
             : null
         }
@@ -314,16 +331,7 @@ export default async function ArquivosPage({
       podeGerirLink={podeGerirLink}
       baseUrl={baseUrl}
       clienteEmail={clienteEmail}
-      linkPublico={
-        linkPublico
-          ? {
-              token: linkPublico.token,
-              ativo: linkPublico.ativo,
-              expiraEm: linkPublico.expiraEm ? linkPublico.expiraEm.toISOString() : null,
-              disciplinaIds: linkPublico.disciplinaIds,
-            }
-          : null
-      }
+      linksPublicos={linksPublicos.map(paraLinkData)}
     />
   );
 }

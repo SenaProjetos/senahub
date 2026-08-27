@@ -31,7 +31,7 @@ type LinkPublicoProps = {
   disciplinas: { id: string; nome: string }[];
   baseUrl: string;
   clienteEmail: string | null;
-  link: React.ComponentProps<typeof LinkPublicoArquivosButton>["link"];
+  links: React.ComponentProps<typeof LinkPublicoArquivosButton>["links"];
 };
 
 export function DocumentosShell({
@@ -113,7 +113,7 @@ export function DocumentosShell({
               disciplinas={linkPublico.disciplinas}
               baseUrl={linkPublico.baseUrl}
               clienteEmail={linkPublico.clienteEmail}
-              link={linkPublico.link}
+              links={linkPublico.links}
             />
           )}
           {dadosUploader && <EnviarDocumentosDialog dados={dadosUploader} />}
@@ -160,6 +160,7 @@ export function DocumentosShell({
             podeExcluir={podeExcluir}
             podeSolicitarExclusao={podeSolicitarExclusao}
             podeGerirListas={podeGerirListas}
+            podeGerirLink={linkPublico !== null}
             listas={listas}
             listaSelecionadaId={listaSelecionadaId}
             fases={fases}

@@ -84,6 +84,7 @@ export function TabelaDocumentos({
   podeExcluir,
   podeSolicitarExclusao,
   podeGerirListas,
+  podeGerirLink,
   listas,
   listaSelecionadaId,
   fases,
@@ -101,6 +102,8 @@ export function TabelaDocumentos({
   podeExcluir: boolean;
   podeSolicitarExclusao: boolean;
   podeGerirListas: boolean;
+  /** Espelho do gate de `projetos:gerir`; o servidor revalida na action. */
+  podeGerirLink: boolean;
   listas: ListaPainel[];
   listaSelecionadaId: string | null;
   fases: OpcaoFaseDocumento[];
@@ -324,6 +327,7 @@ export function TabelaDocumentos({
         podeValidar={podeValidar}
         podeExcluir={podeExcluir}
         podeGerirListas={podeGerirListas}
+        podeGerirLink={podeGerirLink}
         listas={listas}
         listaSelecionadaId={listaSelecionadaId}
         onLimpar={() => setSelecao(new Set())}

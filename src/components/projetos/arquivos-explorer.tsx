@@ -58,7 +58,7 @@ import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arq
 import { PreviewPdfButton } from "@/components/pdf/preview-pdf-button";
 import { VisualizarDwgButton } from "@/components/dwg/visualizar-dwg-button";
 import { refDocumentoDwg } from "@/modules/dwg/desenho-ref";
-import { LinkPublicoArquivosButton } from "@/components/projetos/link-publico-arquivos-dialog";
+import { LinkPublicoArquivosButton, type LinkData } from "@/components/projetos/link-publico-arquivos-dialog";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
   TAMANHO_MAX_LABEL,
@@ -606,7 +606,7 @@ export function ArquivosExplorer({
   podeGerirLink,
   baseUrl,
   clienteEmail,
-  linkPublico,
+  linksPublicos,
   arts,
 }: {
   projeto: { id: string; codigo: string; nome: string };
@@ -639,13 +639,8 @@ export function ArquivosExplorer({
   baseUrl: string;
   /** E-mail do cliente do projeto — pré-preenche o envio do link (editável). */
   clienteEmail: string | null;
-  /** Link público de arquivos já configurado no projeto (ou null). */
-  linkPublico: {
-    token: string;
-    ativo: boolean;
-    expiraEm: string | null;
-    disciplinaIds: string[];
-  } | null;
+  /** Links públicos de arquivos já criados no projeto (um projeto pode ter vários). */
+  linksPublicos: LinkData[];
   /** ARTs do projeto — nó read-only; o cadastro fica na aba ARTs. */
   arts: ArtListItem[];
 }) {
@@ -801,7 +796,7 @@ export function ArquivosExplorer({
             projetoId={projeto.id}
             baseUrl={baseUrl}
             disciplinas={disciplinas.map((d) => ({ id: d.id, nome: d.nome }))}
-            link={linkPublico}
+            links={linksPublicos}
             clienteEmail={clienteEmail}
           />
         )}
