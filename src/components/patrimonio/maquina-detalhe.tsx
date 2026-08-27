@@ -15,6 +15,7 @@ import type { MaquinaDetalhe } from "@/modules/patrimonio/queries";
 import { brl, formatarData } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -23,7 +24,7 @@ export function MaquinaDetalheView({ maquina, podeTi }: { maquina: MaquinaDetalh
   const [pending, start] = useTransition();
 
   const [comp, setComp] = useState({ tipo: "", descricao: "", quantidade: "1" });
-  const [manut, setManut] = useState({ data: new Date().toISOString().slice(0, 10), descricao: "", custo: "" });
+  const [manut, setManut] = useState({ data: new Date().toISOString().slice(0, 10), descricao: "", custo: null as number | null });
 
   function addComponente() {
     if (!comp.tipo.trim() || !comp.descricao.trim()) return;
@@ -54,10 +55,10 @@ export function MaquinaDetalheView({ maquina, podeTi }: { maquina: MaquinaDetalh
         maquinaId: maquina.id,
         data: manut.data,
         descricao: manut.descricao.trim(),
-        custo: manut.custo.trim() ? Number(manut.custo) : null,
+        custo: manut.custo,
       });
       if (r.ok) {
-        setManut({ data: new Date().toISOString().slice(0, 10), descricao: "", custo: "" });
+        setManut({ data: new Date().toISOString().slice(0, 10), descricao: "", custo: null });
         router.refresh();
       } else toast.error(r.error);
     });
@@ -199,7 +200,7 @@ export function MaquinaDetalheView({ maquina, podeTi }: { maquina: MaquinaDetalh
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Custo (R$)</Label>
-                <Input className="h-8 w-24" type="number" min="0" step="0.01" value={manut.custo} onChange={(e) => setManut((m) => ({ ...m, custo: e.target.value }))} />
+                <InputMoeda semPrefixo className="h-8 w-24" value={manut.custo} onChange={(v) => setManut((m) => ({ ...m, custo: v }))} />
               </div>
               <Button size="sm" onClick={addManutencao} disabled={pending || !manut.descricao.trim() || !manut.data}>
                 <Plus className="size-3.5" /> Registrar

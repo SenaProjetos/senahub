@@ -15,6 +15,7 @@ import { brl } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -227,7 +228,7 @@ function FornRow({ f, onAlternar, onEditar }: { f: Fornecedor; onAlternar: () =>
   const [pending, start] = useTransition();
   const [aberto, setAberto] = useState(false);
   const [desc, setDesc] = useState("");
-  const [valor, setValor] = useState("");
+  const [valor, setValor] = useState<number | null>(null);
 
   function addServico() {
     if (!desc.trim()) {
@@ -235,11 +236,11 @@ function FornRow({ f, onAlternar, onEditar }: { f: Fornecedor; onAlternar: () =>
       return;
     }
     start(async () => {
-      const r = await criarFornecedorServico({ fornecedorId: f.id, descricao: desc, valorReferencia: valor ? Number(valor) : undefined });
+      const r = await criarFornecedorServico({ fornecedorId: f.id, descricao: desc, valorReferencia: valor ?? undefined });
       if (r.ok) {
         toast.success("Serviço adicionado ao catálogo.");
         setDesc("");
-        setValor("");
+        setValor(null);
         router.refresh();
       } else toast.error(r.error);
     });
@@ -295,7 +296,7 @@ function FornRow({ f, onAlternar, onEditar }: { f: Fornecedor; onAlternar: () =>
           )}
           <div className="flex flex-wrap items-end gap-2">
             <Input placeholder="Serviço (ex.: Sondagem SPT)" value={desc} onChange={(e) => setDesc(e.target.value)} className="min-w-40 flex-1" />
-            <Input type="number" step="0.01" placeholder="Valor ref." value={valor} onChange={(e) => setValor(e.target.value)} className="w-32" />
+            <InputMoeda semPrefixo placeholder="Valor ref. (R$)" value={valor} onChange={setValor} className="w-32" />
             <Button size="sm" variant="outline" onClick={addServico} disabled={pending}>
               <Plus className="size-3.5" /> Serviço
             </Button>

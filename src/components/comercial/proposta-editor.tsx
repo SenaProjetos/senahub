@@ -32,6 +32,7 @@ import type { MotivoPerdaOpcao } from "@/modules/comercial/queries";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -100,7 +101,7 @@ export function PropostaEditor({
   const [observacoes, setObservacoes] = useState(proposta.observacoes);
   const [itens, setItens] = useState<Item[]>(proposta.itens);
   const [condicoes, setCondicoes] = useState<Condicao[]>(proposta.condicoes);
-  const [desconto, setDesconto] = useState("");
+  const [desconto, setDesconto] = useState<number | null>(null);
   const [justificativaDesconto, setJustificativaDesconto] = useState("");
   const [recusando, setRecusando] = useState(false);
 
@@ -118,7 +119,7 @@ export function PropostaEditor({
   // F5.8 (Q6/ADR-19) — mesma conta pura do backend, aqui só pra avisar ANTES do clique em
   // salvar; quem decide de verdade é `salvarProposta` (o limite é `ConfigSistema`, pode mudar
   // sem redeploy, então a checagem no servidor é a que vale).
-  const descontoNum = desconto ? Number(desconto) : null;
+  const descontoNum = desconto;
   const valoresPreview = calcularValoresVersao(paraSalvar, descontoNum);
   const percentualPreview = percentualDesconto(valoresPreview);
   const exigeJustificativa =
@@ -408,14 +409,7 @@ export function PropostaEditor({
               </div>
               <div className="space-y-1.5">
                 <Label>Desconto (R$)</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={desconto}
-                  disabled={!editavel}
-                  onChange={(e) => setDesconto(e.target.value)}
-                />
+                <InputMoeda value={desconto} disabled={!editavel} onChange={setDesconto} />
                 {percentualPreview !== null && (
                   <p className="text-xs text-muted-foreground">
                     {percentualPreview.toFixed(1)}% sobre {brl(valoresPreview.valorOriginal)}
@@ -474,17 +468,30 @@ export function PropostaEditor({
                       <SelectItem value="valor">R$</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Input
-                    type="number"
-                    className="w-24"
-                    value={c.valor || ""}
-                    disabled={!editavel}
-                    onChange={(e) =>
-                      setCondicoes((arr) =>
-                        arr.map((x, idx) => (idx === i ? { ...x, valor: Number(e.target.value) } : x)),
-                      )
-                    }
-                  />
+                  {c.tipo === "valor" ? (
+                    <InputMoeda
+                      semPrefixo
+                      className="w-24"
+                      value={c.valor || null}
+                      disabled={!editavel}
+                      onChange={(v) =>
+                        setCondicoes((arr) => arr.map((x, idx) => (idx === i ? { ...x, valor: v ?? 0 } : x)))
+                      }
+                    />
+                  ) : (
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      className="w-24 text-right tabular-nums"
+                      value={c.valor || ""}
+                      disabled={!editavel}
+                      onChange={(e) =>
+                        setCondicoes((arr) =>
+                          arr.map((x, idx) => (idx === i ? { ...x, valor: Number(e.target.value) } : x)),
+                        )
+                      }
+                    />
+                  )}
                   {editavel && (
                     <Button
                       size="icon"

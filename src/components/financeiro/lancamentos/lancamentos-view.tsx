@@ -17,6 +17,7 @@ import { ConfirmarDialog } from "./confirmar-dialog";
 import { LancamentoDetalheDialog } from "./lancamento-detalhe-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -118,8 +119,8 @@ export function LancamentosView({
   const [centroId, setCentroId] = useState(NONE);
   const [formaId, setFormaId] = useState(NONE);
   const [projetoId, setProjetoId] = useState(defaultProjetoId ?? NONE);
-  const [valorMin, setValorMin] = useState("");
-  const [valorMax, setValorMax] = useState("");
+  const [valorMin, setValorMin] = useState<number | null>(null);
+  const [valorMax, setValorMax] = useState<number | null>(null);
   const [agruparPor, setAgruparPor] = useState("");
 
   const [larguras, setLarguras] = useState<Record<ColKey, number>>(LARGURAS_PADRAO);
@@ -235,8 +236,8 @@ export function LancamentosView({
     if (formaId !== NONE && l.formaId !== formaId) return false;
     if (projetoId !== NONE && l.projetoId !== projetoId) return false;
     const v = Math.abs(Number(l.valorEfetivo ?? l.valor));
-    if (valorMin && v < Number(valorMin)) return false;
-    if (valorMax && v > Number(valorMax)) return false;
+    if (valorMin !== null && v < valorMin) return false;
+    if (valorMax !== null && v > valorMax) return false;
     if (busca.trim()) {
       const q = normalize(busca);
       const alvo = normalize(`${l.descricao} ${l.fornecedor?.nome ?? ""} ${l.cliente?.nome ?? ""} ${l.documentoFinanceiro?.numero ?? ""}`);
@@ -421,12 +422,12 @@ export function LancamentosView({
 
   function temFiltro() {
     return modo !== "todos" || !!busca || situacoes.size > 0 || categoriaId !== NONE ||
-      centroId !== NONE || formaId !== NONE || projetoId !== NONE || !!valorMin || !!valorMax ||
+      centroId !== NONE || formaId !== NONE || projetoId !== NONE || valorMin !== null || valorMax !== null ||
       contasSel.size !== contas.length;
   }
   function limparFiltros() {
     setModo("todos"); setBusca(""); setSituacoes(new Set()); setCategoriaId(NONE);
-    setCentroId(NONE); setFormaId(NONE); setProjetoId(NONE); setValorMin(""); setValorMax("");
+    setCentroId(NONE); setFormaId(NONE); setProjetoId(NONE); setValorMin(null); setValorMax(null);
     setContasSel(new Set(contas.map((c) => c.id)));
   }
 
@@ -537,8 +538,8 @@ export function LancamentosView({
             <DimSelect label="Centro" value={centroId} onChange={setCentroId} options={opcoes.centros} />
             <DimSelect label="Forma" value={formaId} onChange={setFormaId} options={opcoes.formas} />
             <DimSelect label="Projeto" value={projetoId} onChange={setProjetoId} options={opcoes.projetos.map((p) => ({ id: p.id, nome: `${formatarCodigo(p.codigo)} ${p.nome}` }))} />
-            <Input value={valorMin} onChange={(e) => setValorMin(e.target.value)} placeholder="Valor mín" type="number" className="h-8 w-24" />
-            <Input value={valorMax} onChange={(e) => setValorMax(e.target.value)} placeholder="Valor máx" type="number" className="h-8 w-24" />
+            <InputMoeda semPrefixo value={valorMin} onChange={setValorMin} placeholder="Valor mín" className="h-8 w-24" />
+            <InputMoeda semPrefixo value={valorMax} onChange={setValorMax} placeholder="Valor máx" className="h-8 w-24" />
             {temFiltro() && <Button variant="ghost" size="sm" onClick={limparFiltros}><X className="size-3.5" /> Limpar</Button>}
           </div>
 

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Search, Link2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -71,7 +72,7 @@ const CATEGORIA_LABEL: Record<string, string> = {
 };
 
 const NOVO_COMPOSICAO = { codigo: "", descricao: "", unidade: "", grupo: "" };
-const NOVO_INSUMO = { codigo: "", descricao: "", unidade: "", categoria: "material", preco: "" };
+const NOVO_INSUMO = { codigo: "", descricao: "", unidade: "", categoria: "material", preco: null as number | null };
 
 /**
  * Busca composição OU insumo (parametrizado por `fonte`) e ou cria um serviço novo já vinculado
@@ -159,8 +160,8 @@ export function BuscaBancoDialog(props: Props) {
       toast.error("Código, descrição e unidade são obrigatórios.");
       return;
     }
-    const preco = novoInsumo.preco.trim() ? Number(novoInsumo.preco.replace(",", ".")) : undefined;
-    if (novoInsumo.preco.trim() && (!Number.isFinite(preco) || (preco ?? 0) <= 0)) {
+    const preco = novoInsumo.preco ?? undefined;
+    if (preco !== undefined && preco <= 0) {
       toast.error("Preço inválido.");
       return;
     }
@@ -354,11 +355,10 @@ export function BuscaBancoDialog(props: Props) {
                   </SelectContent>
                 </Select>
                 {basePrecoId && (
-                  <Input
+                  <InputMoeda
                     placeholder="Preço nesta base (opcional)"
-                    inputMode="decimal"
                     value={novoInsumo.preco}
-                    onChange={(e) => setNovoInsumo((f) => ({ ...f, preco: e.target.value }))}
+                    onChange={(v) => setNovoInsumo((f) => ({ ...f, preco: v }))}
                   />
                 )}
               </div>

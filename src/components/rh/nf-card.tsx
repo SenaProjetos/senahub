@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Upload, Download, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -29,13 +30,13 @@ const TONE: Record<NF["status"], "success" | "danger" | "info"> = {
 export function NfCard({ nfs }: { nfs: NF[] }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [valor, setValor] = useState("");
+  const [valor, setValor] = useState<number | null>(null);
   const [numero, setNumero] = useState("");
   const [enviando, setEnviando] = useState(false);
 
   async function enviar(file: File | null) {
     if (!file) return;
-    if (!valor || Number(valor) <= 0) {
+    if (valor === null || valor <= 0) {
       toast.error("Informe o valor da nota.");
       return;
     }
@@ -43,7 +44,7 @@ export function NfCard({ nfs }: { nfs: NF[] }) {
     try {
       const fd = new FormData();
       fd.set("file", file);
-      fd.set("valor", valor);
+      fd.set("valor", String(valor));
       fd.set("numero", numero);
       const res = await fetch("/api/rh/nf", { method: "POST", body: fd });
       const data = await res.json();
@@ -52,7 +53,7 @@ export function NfCard({ nfs }: { nfs: NF[] }) {
         return;
       }
       toast.success("Nota fiscal enviada para validação.");
-      setValor("");
+      setValor(null);
       setNumero("");
       router.refresh();
     } finally {
@@ -75,13 +76,7 @@ export function NfCard({ nfs }: { nfs: NF[] }) {
             value={numero}
             onChange={(e) => setNumero(e.target.value)}
           />
-          <Input
-            type="number"
-            placeholder="Valor (R$)"
-            className="w-36"
-            value={valor}
-            onChange={(e) => setValor(e.target.value)}
-          />
+          <InputMoeda placeholder="Valor da nota" className="w-36" value={valor} onChange={setValor} />
           <Button size="sm" onClick={() => inputRef.current?.click()} disabled={enviando}>
             <Upload className="size-3.5" /> {enviando ? "Enviando…" : "Enviar NF"}
           </Button>

@@ -28,6 +28,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -866,7 +867,7 @@ function NovoAditivo({ contrato, cargos }: { contrato: Doc; cargos: CargoOpt[] }
     titulo: "",
     vigenciaEm: "",
     cargoId: NONE,
-    remuneracao: "",
+    remuneracao: null as number | null,
     novoVencimento: "",
     motivo: "reajuste",
     observacao: "",
@@ -877,7 +878,7 @@ function NovoAditivo({ contrato, cargos }: { contrato: Doc; cargos: CargoOpt[] }
       titulo: `Aditivo — ${contrato.titulo}`,
       vigenciaEm: "",
       cargoId: NONE,
-      remuneracao: "",
+      remuneracao: null,
       novoVencimento: "",
       motivo: "reajuste",
       observacao: "",
@@ -887,7 +888,7 @@ function NovoAditivo({ contrato, cargos }: { contrato: Doc; cargos: CargoOpt[] }
 
   function salvar() {
     if (!form.vigenciaEm) return toast.error("Informe a data de vigência.");
-    const mexeEmAlgo = form.cargoId !== NONE || form.remuneracao || form.novoVencimento;
+    const mexeEmAlgo = form.cargoId !== NONE || form.remuneracao !== null || form.novoVencimento;
     if (!mexeEmAlgo) return toast.error("Informe ao menos uma alteração (cargo, remuneração ou prazo).");
     start(async () => {
       const r = await criarAditivoEquipe({
@@ -895,7 +896,7 @@ function NovoAditivo({ contrato, cargos }: { contrato: Doc; cargos: CargoOpt[] }
         titulo: form.titulo,
         vigenciaEm: form.vigenciaEm,
         cargoId: form.cargoId === NONE ? "" : form.cargoId,
-        remuneracao: form.remuneracao ? Number(form.remuneracao) : null,
+        remuneracao: form.remuneracao,
         novoVencimento: form.novoVencimento,
         motivo: form.motivo,
         observacao: form.observacao,
@@ -970,12 +971,10 @@ function NovoAditivo({ contrato, cargos }: { contrato: Doc; cargos: CargoOpt[] }
               </div>
               <div className="space-y-1.5">
                 <Label>Nova remuneração</Label>
-                <Input
-                  type="number"
-                  step="0.01"
+                <InputMoeda
                   placeholder="Sem mudança"
                   value={form.remuneracao}
-                  onChange={(e) => setForm({ ...form, remuneracao: e.target.value })}
+                  onChange={(v) => setForm({ ...form, remuneracao: v })}
                 />
               </div>
               <div className="space-y-1.5">
@@ -1030,9 +1029,9 @@ function ContratosEquipeTab({
   const [titulo, setTitulo] = useState("");
   const [vinculoId, setVinculoId] = useState(NONE);
   const [dataVencimento, setDataVencimento] = useState("");
-  const [valor, setValor] = useState("");
+  const [valor, setValor] = useState<number | null>(null);
   const [editando, setEditando] = useState<Doc | null>(null);
-  const [editForm, setEditForm] = useState({ dataVencimento: "", valor: "", statusContrato: "rascunho" as StatusContrato });
+  const [editForm, setEditForm] = useState({ dataVencimento: "", valor: null as number | null, statusContrato: "rascunho" as StatusContrato });
   const uploadRef = useRef<HTMLInputElement>(null);
   const [uploadDoc, setUploadDoc] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ url: string; nome: string } | null>(null);
@@ -1054,7 +1053,7 @@ function ContratosEquipeTab({
         tipo: "contrato" as never,
         vinculoId,
         dataVencimento,
-        valor: valor ? Number(valor) : undefined,
+        valor: valor ?? undefined,
         projetoId: "",
         clienteId: "",
         pastaId: "",
@@ -1065,7 +1064,7 @@ function ContratosEquipeTab({
         setTitulo("");
         setVinculoId(NONE);
         setDataVencimento("");
-        setValor("");
+        setValor(null);
         router.refresh();
       } else toast.error(r.error);
     });
@@ -1074,7 +1073,7 @@ function ContratosEquipeTab({
   function abrirEdicao(d: Doc) {
     setEditForm({
       dataVencimento: d.dataVencimento ? d.dataVencimento.slice(0, 10) : "",
-      valor: d.valor != null ? String(d.valor) : "",
+      valor: d.valor != null ? Number(d.valor) : null,
       statusContrato: d.statusContrato ?? "rascunho",
     });
     setEditando(d);
@@ -1086,7 +1085,7 @@ function ContratosEquipeTab({
       const r = await atualizarContratoEquipe({
         id: editando.id,
         dataVencimento: editForm.dataVencimento,
-        valor: editForm.valor ? Number(editForm.valor) : null,
+        valor: editForm.valor,
         statusContrato: editForm.statusContrato,
       });
       if (r.ok) {
@@ -1195,7 +1194,7 @@ function ContratosEquipeTab({
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Valor</Label>
-            <Input type="number" step="0.01" className="w-32" value={valor} onChange={(e) => setValor(e.target.value)} />
+            <InputMoeda className="w-32" value={valor} onChange={setValor} />
           </div>
           <Button size="sm" onClick={criar} disabled={pending}>
             <Plus className="size-3.5" /> Criar
@@ -1438,12 +1437,7 @@ function ContratosEquipeTab({
             </div>
             <div className="space-y-1.5">
               <Label>Valor</Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={editForm.valor}
-                onChange={(e) => setEditForm({ ...editForm, valor: e.target.value })}
-              />
+              <InputMoeda value={editForm.valor} onChange={(v) => setEditForm({ ...editForm, valor: v })} />
             </div>
             <div className="col-span-2 space-y-1.5">
               <Label>Status</Label>

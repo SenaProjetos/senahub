@@ -13,6 +13,7 @@ import { PAPEIS_APROVADORES, type FaixaAlcada } from "@/modules/financeiro/aprov
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -138,8 +139,8 @@ function NiveisAlcadaCard({ inicial }: { inicial: FaixaAlcada[] }) {
   const [pending, start] = useTransition();
   const [faixas, setFaixas] = useState<FaixaAlcada[]>(inicial.length > 0 ? inicial : [{ ate: null, papeis: [] }]);
 
-  function setAte(i: number, v: string) {
-    setFaixas((p) => p.map((f, idx) => (idx === i ? { ...f, ate: v === "" ? null : Math.max(0, Number(v) || 0) } : f)));
+  function setAte(i: number, v: number | null) {
+    setFaixas((p) => p.map((f, idx) => (idx === i ? { ...f, ate: v === null ? null : Math.max(0, v) } : f)));
   }
   function togglePapel(i: number, papel: string) {
     setFaixas((p) =>
@@ -177,11 +178,10 @@ function NiveisAlcadaCard({ inicial }: { inicial: FaixaAlcada[] }) {
           <div key={i} className="flex flex-wrap items-center gap-3 rounded-sm border px-3 py-2">
             <div className="flex items-center gap-1.5">
               <Label className="text-xs text-muted-foreground">até R$</Label>
-              <Input
-                type="number"
-                min={0}
-                value={f.ate ?? ""}
-                onChange={(e) => setAte(i, e.target.value)}
+              <InputMoeda
+                semPrefixo
+                value={f.ate}
+                onChange={(v) => setAte(i, v)}
                 placeholder="sem teto"
                 className="h-8 w-28"
               />

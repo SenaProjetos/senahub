@@ -15,6 +15,7 @@ import { sancaoAtiva } from "@/modules/licitacoes/sancoes/sancoes";
 import { brl, formatarData } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -88,7 +89,7 @@ export function SancoesView({ podeGerir, fornecedores, proprias, concorrentes }:
 
   // Form — sanções próprias
   const [pTipo, setPTipo] = useState<TipoSancao>("advertencia");
-  const [pValor, setPValor] = useState("");
+  const [pValor, setPValor] = useState<number | null>(null);
   const [pInicio, setPInicio] = useState("");
   const [pFim, setPFim] = useState("");
   const [pOrgao, setPOrgao] = useState("");
@@ -99,7 +100,7 @@ export function SancoesView({ podeGerir, fornecedores, proprias, concorrentes }:
   const [cFornId, setCFornId] = useState("__none__");
   const [cNomeLivre, setCNomeLivre] = useState("");
   const [cTipo, setCTipo] = useState<TipoSancao>("advertencia");
-  const [cValor, setCValor] = useState("");
+  const [cValor, setCValor] = useState<number | null>(null);
   const [cInicio, setCInicio] = useState("");
   const [cFim, setCFim] = useState("");
   const [cOrgao, setCOrgao] = useState("");
@@ -112,7 +113,7 @@ export function SancoesView({ podeGerir, fornecedores, proprias, concorrentes }:
     start(async () => {
       const r = await salvarSancaoPropria({
         tipo: pTipo,
-        valor: pValor.trim() === "" ? undefined : Number(pValor),
+        valor: pValor ?? undefined,
         inicio: pInicio,
         fim: pFim,
         orgao: pOrgao,
@@ -121,7 +122,7 @@ export function SancoesView({ podeGerir, fornecedores, proprias, concorrentes }:
       });
       if (r.ok) {
         toast.success("Sanção adicionada.");
-        setPValor("");
+        setPValor(null);
         setPInicio("");
         setPFim("");
         setPOrgao("");
@@ -148,7 +149,7 @@ export function SancoesView({ podeGerir, fornecedores, proprias, concorrentes }:
         tipo: cTipo,
         fornecedorId: cFornId === "__none__" ? "" : cFornId,
         nomeLivre: cFornId === "__none__" ? cNomeLivre : "",
-        valor: cValor.trim() === "" ? undefined : Number(cValor),
+        valor: cValor ?? undefined,
         inicio: cInicio,
         fim: cFim,
         orgao: cOrgao,
@@ -159,7 +160,7 @@ export function SancoesView({ podeGerir, fornecedores, proprias, concorrentes }:
         toast.success("Sanção de concorrente adicionada.");
         setCFornId("__none__");
         setCNomeLivre("");
-        setCValor("");
+        setCValor(null);
         setCInicio("");
         setCFim("");
         setCOrgao("");
@@ -258,15 +259,7 @@ export function SancoesView({ podeGerir, fornecedores, proprias, concorrentes }:
                     ))}
                   </SelectContent>
                 </Select>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  className="h-7 w-28 text-xs"
-                  placeholder="Valor (R$)"
-                  value={pValor}
-                  onChange={(e) => setPValor(e.target.value)}
-                />
+                <InputMoeda semPrefixo className="h-7 w-28 text-xs" placeholder="Valor (R$)" value={pValor} onChange={setPValor} />
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Label className="text-xs">De</Label>
                   <Input
@@ -397,15 +390,7 @@ export function SancoesView({ podeGerir, fornecedores, proprias, concorrentes }:
                     ))}
                   </SelectContent>
                 </Select>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  className="h-7 w-28 text-xs"
-                  placeholder="Valor (R$)"
-                  value={cValor}
-                  onChange={(e) => setCValor(e.target.value)}
-                />
+                <InputMoeda semPrefixo className="h-7 w-28 text-xs" placeholder="Valor (R$)" value={cValor} onChange={setCValor} />
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">

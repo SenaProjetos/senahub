@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Target, Pencil } from "lucide-react";
 import { definirMeta } from "@/modules/comercial/actions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { brlInteiro } from "@/lib/utils";
 
@@ -26,12 +26,12 @@ export function MetaCard({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [editando, setEditando] = useState(false);
-  const [valor, setValor] = useState(String(meta || ""));
+  const [valor, setValor] = useState<number | null>(meta || null);
   const pct = meta > 0 ? Math.min(100, Math.round((realizado / meta) * 100)) : 0;
 
   function salvar() {
     start(async () => {
-      const r = await definirMeta({ ano, mes, valor: Number(valor) || 0 });
+      const r = await definirMeta({ ano, mes, valor: valor ?? 0 });
       if (r.ok) {
         toast.success("Meta atualizada.");
         setEditando(false);
@@ -58,12 +58,7 @@ export function MetaCard({
         </CardDescription>
         {editando ? (
           <div className="flex items-center gap-2 pt-1">
-            <Input
-              type="number"
-              value={valor}
-              onChange={(e) => setValor(e.target.value)}
-              className="h-8"
-            />
+            <InputMoeda value={valor} onChange={setValor} className="h-8" />
             <Button size="sm" onClick={salvar} disabled={pending}>
               OK
             </Button>

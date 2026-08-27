@@ -11,6 +11,7 @@ import { STATUS_META, type StatusPlano } from "./status";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -108,7 +109,7 @@ function NovoCenarioDialog({ open, onClose, opcoes }: { open: boolean; onClose: 
   const router = useRouter();
   const [pending, start] = useTransition();
   const [nome, setNome] = useState("");
-  const [saldo, setSaldo] = useState("");
+  const [saldo, setSaldo] = useState<number | null>(null);
   const [ini, setIni] = useState("");
   const [fim, setFim] = useState("");
   const [contaId, setContaId] = useState(NONE);
@@ -117,14 +118,14 @@ function NovoCenarioDialog({ open, onClose, opcoes }: { open: boolean; onClose: 
   const [obs, setObs] = useState("");
 
   function salvar() {
-    if (!nome || !saldo) {
+    if (!nome || saldo === null) {
       toast.error("Informe nome e saldo disponível.");
       return;
     }
     start(async () => {
       const r = await criarPlano({
         nome,
-        saldoDisponivel: Number(saldo),
+        saldoDisponivel: saldo,
         periodoIni: ini || "",
         periodoFim: fim || "",
         contaId: contaId === NONE ? "" : contaId,
@@ -155,7 +156,7 @@ function NovoCenarioDialog({ open, onClose, opcoes }: { open: boolean; onClose: 
             </div>
             <div className="space-y-1.5">
               <Label>Saldo disponível (R$)</Label>
-              <Input type="number" value={saldo} onChange={(e) => setSaldo(e.target.value)} />
+              <InputMoeda value={saldo} onChange={setSaldo} />
             </div>
             <div className="space-y-1.5">
               <Label>Conta bancária</Label>

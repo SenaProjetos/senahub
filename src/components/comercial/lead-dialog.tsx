@@ -40,6 +40,7 @@ import { MotivoPerdaDialog, etapaEhPerdido } from "./motivo-perda-dialog";
 import { NotasHistorico } from "./notas-historico";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -62,7 +63,7 @@ type Form = {
   email: string;
   telefone: string;
   origem: string;
-  valorEstimado: string;
+  valorEstimado: number | null;
   etapaId: string;
   observacoes: string;
   parceiroId: string;
@@ -100,7 +101,7 @@ export function LeadDialog({
     email: "",
     telefone: "",
     origem: "",
-    valorEstimado: "",
+    valorEstimado: null,
     etapaId: etapas[0]?.id ?? "",
     observacoes: "",
     parceiroId: SEM_PARCEIRO,
@@ -113,7 +114,7 @@ export function LeadDialog({
     email: l.email ?? "",
     telefone: l.telefone ?? "",
     origem: l.origem ?? "",
-    valorEstimado: l.valorEstimado != null ? String(Number(l.valorEstimado)) : "",
+    valorEstimado: l.valorEstimado != null ? Number(l.valorEstimado) : null,
     etapaId: l.etapaId,
     observacoes: l.observacoes ?? "",
     parceiroId: l.parceiro?.id ?? SEM_PARCEIRO,
@@ -138,7 +139,7 @@ export function LeadDialog({
     setDispensouReativacao(false);
   }
 
-  const set = (k: keyof Form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   /**
    * F3.8 — enquanto o nome é digitado (só em criação), busca empresa já cadastrada com
@@ -172,7 +173,7 @@ export function LeadDialog({
       email: form.email,
       telefone: form.telefone,
       origem: form.origem,
-      valorEstimado: form.valorEstimado ? Number(form.valorEstimado) : undefined,
+      valorEstimado: form.valorEstimado ?? undefined,
       etapaId: form.etapaId,
       observacoes: form.observacoes,
       parceiroId: form.parceiroId === SEM_PARCEIRO ? "" : form.parceiroId,
@@ -396,11 +397,7 @@ export function LeadDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Valor estimado (R$)</Label>
-              <Input
-                type="number"
-                value={form.valorEstimado}
-                onChange={(e) => set("valorEstimado", e.target.value)}
-              />
+              <InputMoeda value={form.valorEstimado} onChange={(v) => set("valorEstimado", v)} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">

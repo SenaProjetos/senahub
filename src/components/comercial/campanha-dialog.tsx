@@ -7,6 +7,7 @@ import { criarCampanha, editarCampanha } from "@/modules/comercial/actions";
 import type { CampanhaItem } from "@/modules/comercial/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -29,7 +30,7 @@ type Form = {
   periodoInicio: string;
   periodoFim: string;
   responsavelId: string;
-  meta: string;
+  meta: number | null;
   observacao: string;
 };
 
@@ -43,7 +44,7 @@ const VAZIO: Form = {
   periodoInicio: "",
   periodoFim: "",
   responsavelId: SEM_RESPONSAVEL,
-  meta: "",
+  meta: null,
   observacao: "",
 };
 
@@ -72,7 +73,7 @@ export function CampanhaDialog({
     periodoInicio: c.periodoInicio ? c.periodoInicio.toISOString().slice(0, 10) : "",
     periodoFim: c.periodoFim ? c.periodoFim.toISOString().slice(0, 10) : "",
     responsavelId: c.responsavelId ?? SEM_RESPONSAVEL,
-    meta: c.meta != null ? String(Number(c.meta)) : "",
+    meta: c.meta != null ? Number(c.meta) : null,
     observacao: c.observacao ?? "",
   });
   const [form, setForm] = useState<Form>(campanha ? deCampanha(campanha) : VAZIO);
@@ -83,7 +84,7 @@ export function CampanhaDialog({
     setForm(campanha ? deCampanha(campanha) : VAZIO);
   }
 
-  const set = (k: keyof Form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   function salvar() {
     if (!form.nome.trim()) return toast.error("Informe o nome.");
@@ -93,7 +94,7 @@ export function CampanhaDialog({
       periodoInicio: form.periodoInicio,
       periodoFim: form.periodoFim,
       responsavelId: form.responsavelId === SEM_RESPONSAVEL ? "" : form.responsavelId,
-      meta: form.meta ? Number(form.meta) : undefined,
+      meta: form.meta ?? undefined,
       observacao: form.observacao,
     };
     start(async () => {
@@ -176,7 +177,7 @@ export function CampanhaDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Meta (R$)</Label>
-              <Input type="number" value={form.meta} onChange={(e) => set("meta", e.target.value)} />
+              <InputMoeda value={form.meta} onChange={(v) => set("meta", v)} />
             </div>
           </div>
           <div className="space-y-1.5">

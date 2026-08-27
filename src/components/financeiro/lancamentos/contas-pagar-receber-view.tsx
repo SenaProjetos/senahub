@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -89,8 +90,8 @@ export function ContasPagarReceberView({
   const [centroId, setCentroId] = useState(NONE);
   const [formaId, setFormaId] = useState(NONE);
   const [projetoId, setProjetoId] = useState(NONE);
-  const [valorMin, setValorMin] = useState("");
-  const [valorMax, setValorMax] = useState("");
+  const [valorMin, setValorMin] = useState<number | null>(null);
+  const [valorMax, setValorMax] = useState<number | null>(null);
   const [excluidas, setExcluidas] = useState<Set<string>>(new Set());
   const [agruparPor, setAgruparPor] = useState("");
   const [mostrarSaldo, setMostrarSaldo] = useState(false);
@@ -158,8 +159,8 @@ export function ContasPagarReceberView({
     if (formaId !== NONE && l.formaId !== formaId) return false;
     if (projetoId !== NONE && l.projetoId !== projetoId) return false;
     const v = Number(l.valor);
-    if (valorMin && v < Number(valorMin)) return false;
-    if (valorMax && v > Number(valorMax)) return false;
+    if (valorMin !== null && v < valorMin) return false;
+    if (valorMax !== null && v > valorMax) return false;
     if (busca.trim()) {
       const q = busca.trim().toLowerCase();
       const alvo = `${l.descricao} ${l.fornecedor?.nome ?? ""} ${l.cliente?.nome ?? ""} ${l.documentoFinanceiro?.numero ?? ""}`.toLowerCase();
@@ -342,13 +343,13 @@ export function ContasPagarReceberView({
     return (
       modo !== "todos" || !!busca || situacoes.size > 0 || !!aging || fornecedorId !== NONE ||
       clienteId !== NONE || centroId !== NONE || formaId !== NONE || projetoId !== NONE ||
-      !!valorMin || !!valorMax || excluidas.size > 0
+      valorMin !== null || valorMax !== null || excluidas.size > 0
     );
   }
   function limparFiltros() {
     setModo("todos"); setBusca(""); setSituacoes(new Set()); setAging("");
     setFornecedorId(NONE); setClienteId(NONE); setCentroId(NONE); setFormaId(NONE);
-    setProjetoId(NONE); setValorMin(""); setValorMax(""); setExcluidas(new Set());
+    setProjetoId(NONE); setValorMin(null); setValorMax(null); setExcluidas(new Set());
   }
 
   return (
@@ -474,8 +475,8 @@ export function ContasPagarReceberView({
             <DimSelect label="Centro" value={centroId} onChange={setCentroId} options={opcoes.centros} />
             <DimSelect label="Forma" value={formaId} onChange={setFormaId} options={opcoes.formas} />
             <DimSelect label="Projeto" value={projetoId} onChange={setProjetoId} options={opcoes.projetos.map((p) => ({ id: p.id, nome: `${formatarCodigo(p.codigo)} ${p.nome}` }))} />
-            <Input value={valorMin} onChange={(e) => setValorMin(e.target.value)} placeholder="Valor mín" type="number" className="h-8 w-24" />
-            <Input value={valorMax} onChange={(e) => setValorMax(e.target.value)} placeholder="Valor máx" type="number" className="h-8 w-24" />
+            <InputMoeda semPrefixo value={valorMin} onChange={setValorMin} placeholder="Valor mín" className="h-8 w-24" />
+            <InputMoeda semPrefixo value={valorMax} onChange={setValorMax} placeholder="Valor máx" className="h-8 w-24" />
             {temFiltro() && (
               <Button variant="ghost" size="sm" onClick={limparFiltros}><X className="size-3.5" /> Limpar</Button>
             )}

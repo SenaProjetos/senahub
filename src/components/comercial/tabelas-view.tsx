@@ -7,6 +7,7 @@ import { Plus, Save } from "lucide-react";
 import { criarTabelaPreco, editarTabelaPreco } from "@/modules/comercial/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Tabela = { id: string; nome: string; itens: { disciplina: string; valorM2: number }[] };
@@ -95,14 +96,12 @@ function TabelaCard({ tabela, catalogo }: { tabela: Tabela; catalogo: string[] }
         {itens.map((it, i) => (
           <div key={it.disciplina} className="flex items-center gap-2">
             <span className="flex-1 text-sm">{it.disciplina}</span>
-            <Input
-              type="number"
+            <InputMoeda
+              semPrefixo
               className="h-8 w-32"
-              value={it.valorM2 || ""}
-              onChange={(e) =>
-                setItens((arr) =>
-                  arr.map((x, idx) => (idx === i ? { ...x, valorM2: Number(e.target.value) } : x)),
-                )
+              value={it.valorM2 || null}
+              onChange={(v) =>
+                setItens((arr) => arr.map((x, idx) => (idx === i ? { ...x, valorM2: v ?? 0 } : x)))
               }
             />
           </div>

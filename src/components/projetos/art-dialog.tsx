@@ -9,6 +9,7 @@ import { TIPOS_ART, SITUACOES_ART } from "@/modules/projetos/art/service";
 import type { ArtListItem } from "@/modules/projetos/art/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { ResponsavelOpcao } from "./arts-view";
@@ -46,7 +47,7 @@ export function ArtDialog({ projetoId, art, responsaveis, disciplinas, podeNovaV
     descricao: art?.descricao ?? "",
     situacao: art?.situacao === "substituida" ? "registrada" : art?.situacao ?? "registrada",
     emitidaEm: art?.emitidaEm ?? "",
-    valor: art?.valor != null ? String(art.valor) : "",
+    valor: art?.valor ?? null,
     disciplinaId: art?.disciplina?.id ?? "",
     responsavelSel: art?.responsavelUserId ?? (art ? AVULSO : responsaveis[0]?.id ?? AVULSO),
     responsavelNome: art?.responsavelUserId ? "" : art?.responsavelNome ?? "",
@@ -108,7 +109,7 @@ export function ArtDialog({ projetoId, art, responsaveis, disciplinas, podeNovaV
           descricao: f.descricao,
           situacao: f.situacao as "rascunho" | "registrada" | "baixada" | "cancelada",
           emitidaEm: f.emitidaEm,
-          valor: f.valor ? Number(f.valor.replace(",", ".")) : null,
+          valor: f.valor,
           responsavelUserId: f.responsavelSel === AVULSO ? "" : f.responsavelSel,
           responsavelNome: f.responsavelNome,
           responsavelRegistro: f.responsavelRegistro,
@@ -189,7 +190,7 @@ export function ArtDialog({ projetoId, art, responsaveis, disciplinas, podeNovaV
               </select>
             </Campo>
             <Campo label="Taxa (R$)">
-              <Input value={f.valor} onChange={(e) => set("valor", e.target.value)} inputMode="decimal" disabled={modoVersao} />
+              <InputMoeda value={f.valor} onChange={(v) => set("valor", v)} disabled={modoVersao} />
             </Campo>
           </div>
 

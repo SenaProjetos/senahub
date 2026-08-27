@@ -29,6 +29,7 @@ import type { UsuarioListItem } from "@/modules/usuarios/queries";
 import { SolicitacoesCadastro, type PedidoCadastro } from "@/components/configuracoes/solicitacoes-cadastro";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -75,7 +76,7 @@ type FormState = {
   telefone: string;
   cargoId: string;
   dataAdmissao: string;
-  salarioBase: string;
+  salarioBase: number | null;
   pjId: string;
   onboardingTemplateId: string;
   perfilId: string;
@@ -84,7 +85,7 @@ type FormState = {
 
 const EMPTY: FormState = {
   name: "", nomeCompleto: "", email: "", role: "projetista_pj", clienteId: "", ehSocio: false,
-  cpf: "", telefone: "", cargoId: "", dataAdmissao: "", salarioBase: "", pjId: "", onboardingTemplateId: "",
+  cpf: "", telefone: "", cargoId: "", dataAdmissao: "", salarioBase: null, pjId: "", onboardingTemplateId: "",
   perfilId: "", superUsuario: false,
 };
 
@@ -196,7 +197,7 @@ export function UsuariosView({
                 ...(ehClt
                   ? {
                       dataAdmissao: form.dataAdmissao,
-                      salarioBase: form.salarioBase ? Number(form.salarioBase) : undefined,
+                      salarioBase: form.salarioBase ?? undefined,
                     }
                   : {}),
                 ...(ehPj ? { pjId: form.pjId } : {}),
@@ -483,7 +484,7 @@ export function UsuariosView({
                       </div>
                       <div className="space-y-1.5">
                         <Label htmlFor="u-sal">Salário base</Label>
-                        <Input id="u-sal" type="number" min="0" step="0.01" value={form.salarioBase} onChange={(e) => setForm({ ...form, salarioBase: e.target.value })} />
+                        <InputMoeda id="u-sal" value={form.salarioBase} onChange={(v) => setForm({ ...form, salarioBase: v })} />
                       </div>
                     </div>
                   )}

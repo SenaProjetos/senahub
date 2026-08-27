@@ -8,7 +8,7 @@ import type { Orcamento, LinhaOrcamento, MesResultado } from "@/modules/financei
 import { salvarOrcamentoItem } from "@/modules/financeiro/orcamento/actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Button } from "@/components/ui/button";
 import { ResultadoMensalChart } from "@/components/financeiro/resultado-mensal-chart";
 import {
@@ -25,10 +25,10 @@ type Categoria = { id: string; codigo: string; nome: string; tipo: string };
 function LinhaRow({ ano, l, podeGerir }: { ano: number; l: LinhaOrcamento; podeGerir: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [valor, setValor] = useState(l.planejado ? String(l.planejado) : "");
+  const [valor, setValor] = useState<number | null>(l.planejado || null);
 
   function salvar() {
-    const novo = Number(valor) || 0;
+    const novo = valor ?? 0;
     if (novo === l.planejado) return;
     start(async () => {
       const r = await salvarOrcamentoItem({ ano, categoriaId: l.categoriaId, valorPlanejado: novo });
@@ -47,17 +47,14 @@ function LinhaRow({ ano, l, podeGerir }: { ano: number; l: LinhaOrcamento; podeG
       </td>
       <td className="py-2 pr-3 text-right">
         {podeGerir ? (
-          <Input
-            type="number"
-            step="0.01"
-            min="0"
+          <InputMoeda
+            semPrefixo
             value={valor}
-            onChange={(e) => setValor(e.target.value)}
+            onChange={setValor}
             onBlur={salvar}
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
             disabled={pending}
-            className="h-8 w-28 text-right font-mono text-xs"
-            placeholder="0"
+            className="h-8 w-28 font-mono text-xs"
           />
         ) : (
           <span className="font-mono text-xs">{brlInteiro(l.planejado)}</span>
@@ -95,13 +92,13 @@ function Secao({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [novaCat, setNovaCat] = useState("");
-  const [novoValor, setNovoValor] = useState("");
+  const [novoValor, setNovoValor] = useState<number | null>(null);
 
   const presentes = new Set(linhas.map((l) => l.categoriaId));
   const disponiveis = categorias.filter((c) => c.tipo === tipo && !presentes.has(c.id));
 
   function adicionar() {
-    const valor = Number(novoValor) || 0;
+    const valor = novoValor ?? 0;
     if (!novaCat || valor <= 0) {
       toast.error("Selecione a categoria e informe um valor.");
       return;
@@ -110,7 +107,7 @@ function Secao({
       const r = await salvarOrcamentoItem({ ano, categoriaId: novaCat, valorPlanejado: valor });
       if (r.ok) {
         setNovaCat("");
-        setNovoValor("");
+        setNovoValor(null);
         router.refresh();
       } else toast.error(r.error);
     });
@@ -125,7 +122,7 @@ function Secao({
           <thead className="border-b text-left font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
             <tr>
               <th className="py-2 pr-3">Categoria</th>
-              <th className="py-2 pr-3 text-right">Planejado</th>
+              <th className="py-2 pr-3 text-right">Planejado (R$)</th>
               <th className="py-2 pr-3 text-right">Previsto</th>
               <th className="py-2 pr-3 text-right">Realizado</th>
               <th className="w-40 py-2">% do orçado</th>
@@ -153,14 +150,12 @@ function Secao({
               ))}
             </SelectContent>
           </Select>
-          <Input
-            type="number"
-            step="0.01"
-            min="0"
+          <InputMoeda
+            semPrefixo
             value={novoValor}
-            onChange={(e) => setNovoValor(e.target.value)}
+            onChange={setNovoValor}
             placeholder="Valor planejado"
-            className="h-9 w-40 text-right font-mono text-xs"
+            className="h-9 w-40 font-mono text-xs"
           />
           <Button size="sm" variant="outline" onClick={adicionar} disabled={pending || !novaCat}>
             <Plus className="size-3.5" /> Adicionar

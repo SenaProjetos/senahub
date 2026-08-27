@@ -7,6 +7,7 @@ import { registrarAlteracaoContratualAction } from "@/modules/rh/contratual/acti
 import { MOTIVO_LABELS, MOTIVOS_CONTRATUAIS, type MotivoContratual } from "@/modules/rh/contratual/motivos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -51,7 +52,7 @@ export function AlteracaoContratualDialog({
   const [f, setF] = useState(() => ({
     cargoId: cargoAtualId ?? "",
     departamentoId: departamentoAtualId ?? "",
-    salario: salarioAtual != null ? String(salarioAtual) : "",
+    salario: salarioAtual ?? null,
     vigenciaEm: hoje(),
     motivo: "reajuste" as MotivoContratual,
     observacao: "",
@@ -64,7 +65,7 @@ export function AlteracaoContratualDialog({
       setF({
         cargoId: cargoAtualId ?? "",
         departamentoId: departamentoAtualId ?? "",
-        salario: salarioAtual != null ? String(salarioAtual) : "",
+        salario: salarioAtual ?? null,
         vigenciaEm: hoje(),
         motivo: "reajuste",
         observacao: "",
@@ -81,7 +82,7 @@ export function AlteracaoContratualDialog({
         userId,
         cargoId: f.cargoId,
         departamentoId: f.departamentoId,
-        ...(podeEditarSalario ? { remuneracao: f.salario ? Number(f.salario.replace(",", ".")) : null } : {}),
+        ...(podeEditarSalario ? { remuneracao: f.salario } : {}),
         vigenciaEm: f.vigenciaEm,
         motivo: f.motivo,
         observacao: f.observacao,
@@ -128,7 +129,7 @@ export function AlteracaoContratualDialog({
           {podeEditarSalario && (
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Salário (R$)</Label>
-              <Input value={f.salario} onChange={(e) => setF({ ...f, salario: e.target.value })} inputMode="decimal" />
+              <InputMoeda value={f.salario} onChange={(v) => setF({ ...f, salario: v })} />
             </div>
           )}
 

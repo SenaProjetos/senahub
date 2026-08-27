@@ -84,6 +84,7 @@ import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -134,7 +135,7 @@ export function LicitacaoDetailView({
   const [pending, start] = useTransition();
   const uploadRef = useRef<HTMLInputElement>(null);
   const [docTitulo, setDocTitulo] = useState("");
-  const [medValor, setMedValor] = useState("");
+  const [medValor, setMedValor] = useState<number | null>(null);
   const [medData, setMedData] = useState(new Date().toISOString().slice(0, 10));
   const [clienteImport, setClienteImport] = useState("");
 
@@ -145,7 +146,7 @@ export function LicitacaoDetailView({
   const [eModalidade, setEModalidade] = useState("");
   const [eNumeroEdital, setENumeroEdital] = useState("");
   const [ePrazo, setEPrazo] = useState("");
-  const [eValor, setEValor] = useState("");
+  const [eValor, setEValor] = useState<number | null>(null);
   const [eObs, setEObs] = useState("");
 
   function abrirEdicao() {
@@ -154,7 +155,7 @@ export function LicitacaoDetailView({
     setEModalidade(lic.modalidade && modalidades.includes(lic.modalidade) ? lic.modalidade : "");
     setENumeroEdital(lic.numeroEdital ?? "");
     setEPrazo(lic.prazoProposta);
-    setEValor(lic.valorEstimado != null ? String(lic.valorEstimado) : "");
+    setEValor(lic.valorEstimado != null ? Number(lic.valorEstimado) : null);
     setEObs(lic.observacoes);
     setDialogEdit(true);
   }
@@ -164,7 +165,7 @@ export function LicitacaoDetailView({
       toast.error("Informe o título.");
       return;
     }
-    const valorNum = eValor.trim() === "" ? undefined : Number(eValor);
+    const valorNum = eValor ?? undefined;
     if (valorNum != null && (Number.isNaN(valorNum) || valorNum < 0)) {
       toast.error("Valor estimado inválido.");
       return;
@@ -236,13 +237,13 @@ export function LicitacaoDetailView({
       const r = await registrarMedicao({
         licitacaoId: lic.id,
         descricao: "",
-        valor: Number(medValor),
+        valor: medValor ?? 0,
         data: medData,
       });
       if (r.ok) {
         toast.success(`Medição ${r.data.numero} registrada — receita criada no financeiro.`);
         if (r.data.aviso) toast.warning(r.data.aviso);
-        setMedValor("");
+        setMedValor(null);
         router.refresh();
       } else toast.error(r.error);
     });
@@ -400,13 +401,7 @@ export function LicitacaoDetailView({
               </span>
               {podeGerir && lic.status === "em_execucao" && (
                 <>
-                  <Input
-                    type="number"
-                    className="h-7 w-28 text-xs"
-                    placeholder="Valor"
-                    value={medValor}
-                    onChange={(e) => setMedValor(e.target.value)}
-                  />
+                  <InputMoeda semPrefixo className="h-7 w-28 text-xs" placeholder="Valor (R$)" value={medValor} onChange={setMedValor} />
                   <Input
                     type="date"
                     className="h-7 w-36 text-xs"
@@ -414,7 +409,7 @@ export function LicitacaoDetailView({
                     onChange={(e) => setMedData(e.target.value)}
                   />
                   {lic.projeto ? (
-                    <Button size="sm" variant="outline" className="h-7" onClick={medir} disabled={pending || !medValor}>
+                    <Button size="sm" variant="outline" className="h-7" onClick={medir} disabled={pending || medValor === null}>
                       <Plus className="size-3" /> Medir
                     </Button>
                   ) : (
@@ -531,13 +526,7 @@ export function LicitacaoDetailView({
             </div>
             <div className="space-y-1.5">
               <Label>Valor estimado (R$)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={eValor}
-                onChange={(e) => setEValor(e.target.value)}
-              />
+              <InputMoeda value={eValor} onChange={setEValor} />
             </div>
             <div className="space-y-1.5">
               <Label>Observações</Label>
@@ -1570,24 +1559,24 @@ function LicContrato({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
   // Form contrato state
   const [numeroContrato, setNumeroContrato] = useState(c?.numeroContrato ?? "");
   const [numeroEmpenho, setNumeroEmpenho] = useState(c?.numeroEmpenho ?? "");
-  const [valorHomologado, setValorHomologado] = useState(c ? String(c.valorHomologado) : "");
+  const [valorHomologado, setValorHomologado] = useState<number | null>(c ? c.valorHomologado : null);
   const [vigenciaInicio, setVigenciaInicio] = useState(c?.vigenciaInicio ?? "");
   const [vigenciaFim, setVigenciaFim] = useState(c?.vigenciaFim ?? "");
   const [reajuste, setReajuste] = useState(c?.reajuste ?? "");
   const [garantiaTipo, setGarantiaTipo] = useState(c?.garantiaTipo ?? "");
-  const [garantiaValor, setGarantiaValor] = useState(c?.garantiaValor != null ? String(c.garantiaValor) : "");
+  const [garantiaValor, setGarantiaValor] = useState<number | null>(c?.garantiaValor ?? null);
   const [garantiaValidade, setGarantiaValidade] = useState(c?.garantiaValidade ?? "");
   const [limiteAcrescimoPct, setLimiteAcrescimoPct] = useState(c?.limiteAcrescimoPct != null ? String(c.limiteAcrescimoPct) : "");
 
   // Form aditivo state
   const [aditTipo, setAditTipo] = useState("valor");
-  const [aditValor, setAditValor] = useState("");
+  const [aditValor, setAditValor] = useState<number | null>(null);
   const [aditVigencia, setAditVigencia] = useState("");
   const [aditJustif, setAditJustif] = useState("");
   const [aditData, setAditData] = useState(new Date().toISOString().slice(0, 10));
 
   function salvarContrato() {
-    const vh = Number(valorHomologado);
+    const vh = valorHomologado ?? 0;
     if (!Number.isFinite(vh) || vh < 0) { toast.error("Valor homologado inválido."); return; }
     start(async () => {
       const r = await salvarContratoLicitacao({
@@ -1595,7 +1584,7 @@ function LicContrato({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
         numeroContrato, numeroEmpenho,
         valorHomologado: vh,
         vigenciaInicio, vigenciaFim, reajuste, garantiaTipo,
-        garantiaValor: garantiaValor.trim() === "" ? undefined : Number(garantiaValor),
+        garantiaValor: garantiaValor ?? undefined,
         garantiaValidade,
         limiteAcrescimoPct: limiteAcrescimoPct.trim() === "" ? undefined : Number(limiteAcrescimoPct),
       });
@@ -1608,14 +1597,14 @@ function LicContrato({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
       const r = await adicionarAditivoContrato({
         licitacaoId: lic.id,
         tipo: aditTipo as "valor" | "prazo" | "valor_prazo" | "objeto",
-        valorDelta: aditValor.trim() === "" ? undefined : Number(aditValor),
+        valorDelta: aditValor ?? undefined,
         novaVigencia: aditVigencia,
         justificativa: aditJustif,
         data: aditData,
       });
       if (r.ok) {
         toast.success("Aditivo adicionado.");
-        setAditValor("");
+        setAditValor(null);
         setAditVigencia("");
         setAditJustif("");
         setAditData(new Date().toISOString().slice(0, 10));
@@ -1644,7 +1633,7 @@ function LicContrato({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
       <div className="flex flex-wrap items-center gap-1.5">
         <Input className="h-7 w-36 text-xs" placeholder="Nº contrato" value={numeroContrato} onChange={(e) => setNumeroContrato(e.target.value)} />
         <Input className="h-7 w-36 text-xs" placeholder="Nº empenho" value={numeroEmpenho} onChange={(e) => setNumeroEmpenho(e.target.value)} />
-        <Input type="number" step="0.01" min="0" className="h-7 w-36 text-xs" placeholder="Valor homologado *" value={valorHomologado} onChange={(e) => setValorHomologado(e.target.value)} />
+        <InputMoeda semPrefixo className="h-7 w-36 text-xs" placeholder="Valor homologado *" value={valorHomologado} onChange={setValorHomologado} />
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <Input type="date" className="h-7 w-36 text-xs" value={vigenciaInicio} onChange={(e) => setVigenciaInicio(e.target.value)} />
@@ -1653,7 +1642,7 @@ function LicContrato({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <Input className="h-7 w-28 text-xs" placeholder="Garantia tipo" value={garantiaTipo} onChange={(e) => setGarantiaTipo(e.target.value)} />
-        <Input type="number" step="0.01" min="0" className="h-7 w-28 text-xs" placeholder="Garantia valor" value={garantiaValor} onChange={(e) => setGarantiaValor(e.target.value)} />
+        <InputMoeda semPrefixo className="h-7 w-28 text-xs" placeholder="Garantia (R$)" value={garantiaValor} onChange={setGarantiaValor} />
         <Input type="date" className="h-7 w-36 text-xs" value={garantiaValidade} onChange={(e) => setGarantiaValidade(e.target.value)} />
         <Input type="number" step="0.01" min="0" className="h-7 w-32 text-xs" placeholder="Limite acréscimo %" value={limiteAcrescimoPct} onChange={(e) => setLimiteAcrescimoPct(e.target.value)} />
       </div>
@@ -1750,7 +1739,7 @@ function LicContrato({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
                   <SelectItem value="objeto">Objeto</SelectItem>
                 </SelectContent>
               </Select>
-              <Input type="number" step="0.01" className="h-7 w-28 text-xs" placeholder="Valor delta" value={aditValor} onChange={(e) => setAditValor(e.target.value)} />
+              <InputMoeda semPrefixo permiteNegativo className="h-7 w-28 text-xs" placeholder="Delta (R$) — use - p/ supressão" value={aditValor} onChange={setAditValor} />
               <Input type="date" className="h-7 w-36 text-xs" value={aditData} onChange={(e) => setAditData(e.target.value)} />
               <Input type="date" className="h-7 w-36 text-xs" value={aditVigencia} onChange={(e) => setAditVigencia(e.target.value)} />
               <Input className="h-7 w-40 text-xs" placeholder="Justificativa" value={aditJustif} onChange={(e) => setAditJustif(e.target.value)} />
@@ -1773,19 +1762,19 @@ function LicComposicao({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
 
-  type LinhaItem = { descricao: string; quantidade: string; valorUnitario: string };
+  type LinhaItem = { descricao: string; quantidade: string; valorUnitario: number | null };
   const [itens, setItens] = useState<LinhaItem[]>(
-    lic.composicao?.itens.map((it) => ({ descricao: it.descricao, quantidade: String(it.quantidade), valorUnitario: String(it.valorUnitario) })) ?? [],
+    lic.composicao?.itens.map((it) => ({ descricao: it.descricao, quantidade: String(it.quantidade), valorUnitario: it.valorUnitario })) ?? [],
   );
   const [obs, setObs] = useState(lic.composicao?.observacao ?? "");
 
   const num = (s: string) => { const n = Number(s); return Number.isFinite(n) && n >= 0 ? n : 0; };
 
-  const total = totalComposicao(itens.map((l) => ({ quantidade: num(l.quantidade), valorUnitario: num(l.valorUnitario) })));
+  const total = totalComposicao(itens.map((l) => ({ quantidade: num(l.quantidade), valorUnitario: (l.valorUnitario ?? 0) })));
 
   function salvar() {
     const limpos = itens
-      .map((l) => ({ descricao: l.descricao.trim(), quantidade: num(l.quantidade), valorUnitario: num(l.valorUnitario) }))
+      .map((l) => ({ descricao: l.descricao.trim(), quantidade: num(l.quantidade), valorUnitario: (l.valorUnitario ?? 0) }))
       .filter((l) => l.descricao.length > 0);
     start(async () => {
       const r = await salvarComposicaoLicitacao({ licitacaoId: lic.id, observacao: obs, itens: limpos });
@@ -1824,9 +1813,9 @@ function LicComposicao({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
               {itens.map((l, i) => (
                 <li key={i} className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                   <span className="font-medium text-foreground">{l.descricao}</span>
-                  <span>{num(l.quantidade)} × {brl(num(l.valorUnitario))}</span>
+                  <span>{num(l.quantidade)} × {brl((l.valorUnitario ?? 0))}</span>
                   <span>=</span>
-                  <span className="font-mono">{brl(subtotalItem({ quantidade: num(l.quantidade), valorUnitario: num(l.valorUnitario) }))}</span>
+                  <span className="font-mono">{brl(subtotalItem({ quantidade: num(l.quantidade), valorUnitario: (l.valorUnitario ?? 0) }))}</span>
                 </li>
               ))}
             </ul>
@@ -1864,21 +1853,19 @@ function LicComposicao({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
                       setItens(next);
                     }}
                   />
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
+                  <InputMoeda
+                    semPrefixo
                     className="h-7 w-28 text-xs"
-                    placeholder="Unit."
+                    placeholder="Unit. (R$)"
                     value={l.valorUnitario}
-                    onChange={(e) => {
+                    onChange={(v) => {
                       const next = [...itens];
-                      next[i] = { ...next[i], valorUnitario: e.target.value };
+                      next[i] = { ...next[i], valorUnitario: v };
                       setItens(next);
                     }}
                   />
                   <span className="font-mono text-xs text-muted-foreground w-24 text-right">
-                    {brl(subtotalItem({ quantidade: num(l.quantidade), valorUnitario: num(l.valorUnitario) }))}
+                    {brl(subtotalItem({ quantidade: num(l.quantidade), valorUnitario: (l.valorUnitario ?? 0) }))}
                   </span>
                   <button
                     type="button"
@@ -1904,7 +1891,7 @@ function LicComposicao({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
               size="sm"
               variant="outline"
               className="h-7"
-              onClick={() => setItens([...itens, { descricao: "", quantidade: "1", valorUnitario: "0" }])}
+              onClick={() => setItens([...itens, { descricao: "", quantidade: "1", valorUnitario: 0 }])}
             >
               <Plus className="size-3" /> Item
             </Button>
@@ -2123,7 +2110,7 @@ function LicResultado({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
 
   const r = lic.resultado;
   const [vencedor, setVencedor] = useState(r?.vencedor ?? "");
-  const [vv, setVv] = useState(r?.valorVencedor != null ? String(r.valorVencedor) : "");
+  const [vv, setVv] = useState<number | null>(r?.valorVencedor ?? null);
   const [nc, setNc] = useState(r?.nossaClassificacao != null ? String(r.nossaClassificacao) : "");
   const [observacao, setObservacao] = useState(r?.observacao ?? "");
 
@@ -2132,7 +2119,7 @@ function LicResultado({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
       const res = await salvarResultado({
         licitacaoId: lic.id,
         vencedor,
-        valorVencedor: vv.trim() === "" ? undefined : Number(vv),
+        valorVencedor: vv ?? undefined,
         nossaClassificacao: nc.trim() === "" ? undefined : Number(nc),
         observacao,
       });
@@ -2191,14 +2178,12 @@ function LicResultado({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
               value={vencedor}
               onChange={(e) => setVencedor(e.target.value)}
             />
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
+            <InputMoeda
+              semPrefixo
               className="h-7 w-32 text-xs"
               placeholder="Valor vencedor (R$)"
               value={vv}
-              onChange={(e) => setVv(e.target.value)}
+              onChange={setVv}
             />
             <Input
               type="number"
@@ -2343,7 +2328,7 @@ function LicExtras({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
   const [pending, start] = useTransition();
   const [evento, setEvento] = useState("");
   const [disc, setDisc] = useState("");
-  const [valor, setValor] = useState("");
+  const [valor, setValor] = useState<number | null>(null);
   const totalDisc = lic.valoresDisciplina.reduce((s, v) => s + v.valor, 0);
 
   function addEvento() {
@@ -2357,12 +2342,12 @@ function LicExtras({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
     });
   }
   function addValor() {
-    if (!disc.trim() || !valor) return;
+    if (!disc.trim() || valor === null) return;
     start(async () => {
-      const r = await salvarValorDisciplinaLicitacao({ licitacaoId: lic.id, disciplina: disc, valor: Number(valor) });
+      const r = await salvarValorDisciplinaLicitacao({ licitacaoId: lic.id, disciplina: disc, valor });
       if (r.ok) {
         setDisc("");
-        setValor("");
+        setValor(null);
         router.refresh();
       } else toast.error(r.error);
     });
@@ -2419,7 +2404,7 @@ function LicExtras({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
         {podeGerir && (
           <div className="mt-1.5 flex gap-1.5">
             <Input value={disc} onChange={(e) => setDisc(e.target.value)} placeholder="Disciplina" className="h-8 flex-1 text-xs" />
-            <Input type="number" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="Valor" className="h-8 w-24 text-xs" />
+            <InputMoeda semPrefixo value={valor} onChange={setValor} placeholder="Valor (R$)" className="h-8 w-24 text-xs" />
             <Button size="sm" variant="outline" onClick={addValor} disabled={pending}>+</Button>
           </div>
         )}

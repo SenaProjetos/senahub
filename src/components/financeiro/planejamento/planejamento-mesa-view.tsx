@@ -30,6 +30,7 @@ import { STATUS_META, type StatusPlano } from "./status";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -62,7 +63,7 @@ export function PlanejamentoMesaView({ plano, disponiveis }: { plano: PlanoDetal
   const readOnly = plano.status === "executado" || plano.status === "cancelado";
 
   const [nome, setNome] = useState(plano.nome);
-  const [saldo, setSaldo] = useState(String(plano.saldoDisponivel));
+  const [saldo, setSaldo] = useState<number | null>(plano.saldoDisponivel);
   const [obs, setObs] = useState(plano.observacoes ?? "");
   const [linhas, setLinhas] = useState<LinhaLocal[]>(
     plano.linhas.map((l) => ({
@@ -77,7 +78,7 @@ export function PlanejamentoMesaView({ plano, disponiveis }: { plano: PlanoDetal
   const [agruparPor, setAgruparPor] = useState("");
   const [recolhidos, setRecolhidos] = useState<Set<string>>(new Set());
 
-  const saldoNum = Number(saldo) || 0;
+  const saldoNum = saldo ?? 0;
   const { linhas: calc, indicadores } = useMemo(
     () => calcularPlano(saldoNum, linhas.map((l) => ({ selecionada: l.selecionada, valorPlanejado: l.valorPlanejado }))),
     [linhas, saldoNum],
@@ -130,8 +131,8 @@ export function PlanejamentoMesaView({ plano, disponiveis }: { plano: PlanoDetal
     });
   }
 
-  function setValor(id: string, v: string) {
-    const n = Math.max(0, Number(v) || 0);
+  function setValor(id: string, v: number | null) {
+    const n = Math.max(0, v ?? 0);
     setLinhas((prev) => prev.map((l) => (l.id === id ? { ...l, valorPlanejado: n } : l)));
   }
   function toggleSel(id: string) {
@@ -244,7 +245,7 @@ export function PlanejamentoMesaView({ plano, disponiveis }: { plano: PlanoDetal
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Saldo disponível (R$)</Label>
-              <Input type="number" value={saldo} onChange={(e) => setSaldo(e.target.value)} disabled={readOnly} />
+              <InputMoeda value={saldo} onChange={setSaldo} disabled={readOnly} />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label className="text-xs">Observações</Label>
@@ -374,7 +375,7 @@ type LinhaProps = {
   linha: LinhaLocal;
   calc: { saldoAcumulado: number; contemplada: boolean };
   readOnly: boolean;
-  onValor: (id: string, v: string) => void;
+  onValor: (id: string, v: number | null) => void;
   onToggle: (id: string) => void;
   onRemover: (id: string) => void;
 };
@@ -417,12 +418,12 @@ function LinhaPlanoBase({
       <span className="font-mono text-xs">{dt(lc.vencimento)}</span>
       <span className="text-right font-mono text-xs text-muted-foreground">{brl(lc.valor)}</span>
       <span className="text-right">
-        <Input
-          type="number"
+        <InputMoeda
+          semPrefixo
           value={linha.valorPlanejado}
-          onChange={(e) => onValor(linha.id, e.target.value)}
+          onChange={(v) => onValor(linha.id, v)}
           disabled={readOnly || !linha.selecionada}
-          className="h-7 text-right font-mono text-xs"
+          className="h-7 font-mono text-xs"
         />
       </span>
       <span className={`text-right font-mono text-xs ${calc.saldoAcumulado < 0 ? "text-destructive" : ""}`}>{brl(calc.saldoAcumulado)}</span>

@@ -75,6 +75,7 @@ import { STATUS_DISCIPLINA } from "@/modules/projetos/schemas";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -690,13 +691,13 @@ function ConfirmarAprovacaoDialog({
   onConfirmar: (valor: number) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [valorTexto, setValorTexto] = useState(() => String(disciplina.valor ?? ""));
+  const [valorTexto, setValorTexto] = useState<number | null>(disciplina.valor ?? null);
 
   const responsaveisComRole = disciplina.responsaveis.map((r) => ({
     ...r,
     user: { role: r.role },
   }));
-  const valorNum = valorTexto.trim() === "" ? null : Number(valorTexto);
+  const valorNum = valorTexto;
   const valorValido = valorNum != null && !Number.isNaN(valorNum) && valorNum >= 0;
   const bloqueio = bloqueioValorDisciplina(responsaveisComRole, valorValido ? valorNum : null);
   const { pagaveis, salariados } = ratearPagamentoProjetista(
@@ -711,7 +712,7 @@ function ConfirmarAprovacaoDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) setValorTexto(String(disciplina.valor ?? "")); }}>
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) setValorTexto(disciplina.valor ?? null); }}>
       <DialogTrigger
         render={
           <Button size="sm" className="h-7 px-2">
@@ -730,15 +731,7 @@ function ConfirmarAprovacaoDialog({
 
         <div className="space-y-1.5">
           <Label htmlFor="valor-confirmacao">Valor total a pagar</Label>
-          <Input
-            id="valor-confirmacao"
-            type="number"
-            min={0}
-            step="0.01"
-            value={valorTexto}
-            onChange={(e) => setValorTexto(e.target.value)}
-            autoFocus
-          />
+          <InputMoeda id="valor-confirmacao" value={valorTexto} onChange={setValorTexto} autoFocus />
         </div>
 
         {valorValido && (pagaveis.length > 0 || salariados.length > 0) && (

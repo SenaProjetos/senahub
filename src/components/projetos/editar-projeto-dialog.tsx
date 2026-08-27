@@ -9,6 +9,7 @@ import { SITUACAO_PROJETO_LABEL } from "@/modules/projetos/status";
 import { ABA_LABEL, abasParaEdicao, type AbaConfigItem } from "@/modules/projetos/abas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import {
@@ -61,9 +62,7 @@ export function EditarProjetoDialog({
   const [areaM2, setAreaM2] = useState(projeto.areaM2 != null ? String(projeto.areaM2) : "");
   const [endereco, setEndereco] = useState(projeto.endereco ?? "");
   const [prazoFinal, setPrazoFinal] = useState(projeto.prazoFinal ?? "");
-  const [valorContrato, setValorContrato] = useState(
-    projeto.valorContrato != null ? String(projeto.valorContrato) : "",
-  );
+  const [valorContrato, setValorContrato] = useState<number | null>(projeto.valorContrato ?? null);
   const [abas, setAbas] = useState<AbaConfigItem[]>(() => abasParaEdicao(projeto.abasConfig));
 
   function moverAba(i: number, direcao: -1 | 1) {
@@ -90,7 +89,7 @@ export function EditarProjetoDialog({
     setAreaM2(projeto.areaM2 != null ? String(projeto.areaM2) : "");
     setEndereco(projeto.endereco ?? "");
     setPrazoFinal(projeto.prazoFinal ?? "");
-    setValorContrato(projeto.valorContrato != null ? String(projeto.valorContrato) : "");
+    setValorContrato(projeto.valorContrato ?? null);
     setAbas(abasParaEdicao(projeto.abasConfig));
     setOpen(true);
   }
@@ -111,7 +110,7 @@ export function EditarProjetoDialog({
         areaM2: areaM2 ? Number(areaM2) : undefined,
         endereco: endereco || undefined,
         prazoFinal: prazoFinal || undefined,
-        valorContrato: valorContrato ? Number(valorContrato) : undefined,
+        valorContrato: valorContrato ?? undefined,
         abasConfig: abas,
       });
       if (res.ok) {
@@ -217,11 +216,7 @@ export function EditarProjetoDialog({
               </div>
               <div className="space-y-1.5">
                 <Label>Valor de contrato (R$)</Label>
-                <Input
-                  type="number"
-                  value={valorContrato}
-                  onChange={(e) => setValorContrato(e.target.value)}
-                />
+                <InputMoeda value={valorContrato} onChange={setValorContrato} />
               </div>
             </div>
 

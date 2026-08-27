@@ -9,6 +9,7 @@ import { criarServico, editarServico, excluirServico } from "@/modules/projetos/
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,12 +36,12 @@ export function ServicosView({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [dlg, setDlg] = useState<Servico | null | "novo">(null);
-  const [form, setForm] = useState({ descricao: "", fornecedorId: NONE, valor: "", status: "contratado" });
+  const [form, setForm] = useState({ descricao: "", fornecedorId: NONE, valor: null as number | null, status: "contratado" });
 
   function abrir(s: Servico | "novo") {
     if (!podeGerir) return;
-    if (s === "novo") setForm({ descricao: "", fornecedorId: NONE, valor: "", status: "contratado" });
-    else setForm({ descricao: s.descricao, fornecedorId: s.fornecedorId ?? NONE, valor: s.valor != null ? String(s.valor) : "", status: s.status });
+    if (s === "novo") setForm({ descricao: "", fornecedorId: NONE, valor: null, status: "contratado" });
+    else setForm({ descricao: s.descricao, fornecedorId: s.fornecedorId ?? NONE, valor: s.valor, status: s.status });
     setDlg(s);
   }
   function salvar() {
@@ -49,7 +50,7 @@ export function ServicosView({
       projetoId: projeto.id,
       fornecedorId: form.fornecedorId === NONE ? "" : form.fornecedorId,
       descricao: form.descricao,
-      valor: form.valor ? Number(form.valor) : undefined,
+      valor: form.valor ?? undefined,
       status: form.status as "contratado" | "concluido" | "cancelado",
     };
     start(async () => {
@@ -170,7 +171,7 @@ export function ServicosView({
               </div>
               <div className="space-y-1.5">
                 <Label>Valor (R$)</Label>
-                <Input type="number" step="0.01" value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} />
+                <InputMoeda value={form.valor} onChange={(v) => setForm({ ...form, valor: v })} />
               </div>
             </div>
             <div className="space-y-1.5">

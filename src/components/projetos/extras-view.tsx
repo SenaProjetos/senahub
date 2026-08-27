@@ -23,6 +23,7 @@ import type { extrasDoProjeto } from "@/modules/projetos/extras/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -284,7 +285,7 @@ export function ExtrasView({
           {itens.length > 0 && (
             <table className="w-full text-sm">
               <thead className="border-b text-left font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                <tr><th className="py-1">Descrição</th><th className="w-20 py-1">Qtd</th><th className="w-28 py-1">Vlr unit.</th><th className="w-28 py-1 text-right">Total</th><th className="w-8" /></tr>
+                <tr><th className="py-1">Descrição</th><th className="w-20 py-1">Qtd</th><th className="w-28 py-1">Vlr unit. (R$)</th><th className="w-28 py-1 text-right">Total</th><th className="w-8" /></tr>
               </thead>
               <tbody>
                 {itens.map((it, idx) => (
@@ -296,7 +297,13 @@ export function ExtrasView({
                       <Input type="number" step="0.01" value={it.quantidade} disabled={!podeGerir} onChange={(e) => setItens(itens.map((x, i) => i === idx ? { ...x, quantidade: Number(e.target.value) || 0 } : x))} className="h-8" />
                     </td>
                     <td className="py-1 pr-2">
-                      <Input type="number" step="0.01" value={it.valorUnitario} disabled={!podeGerir} onChange={(e) => setItens(itens.map((x, i) => i === idx ? { ...x, valorUnitario: Number(e.target.value) || 0 } : x))} className="h-8" />
+                      <InputMoeda
+                        semPrefixo
+                        value={it.valorUnitario}
+                        disabled={!podeGerir}
+                        onChange={(v) => setItens(itens.map((x, i) => (i === idx ? { ...x, valorUnitario: v ?? 0 } : x)))}
+                        className="h-8"
+                      />
                     </td>
                     <td className="py-1 text-right font-mono text-xs">{brl(it.quantidade * it.valorUnitario)}</td>
                     <td className="py-1">

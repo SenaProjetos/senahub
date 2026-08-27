@@ -17,6 +17,22 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Campos de valor padronizados (atenção: muda o jeito de digitar)
+
+Todos os campos de dinheiro do sistema passaram a funcionar igual, **como a maquininha de
+cartão**: o valor cresce dos centavos para os reais e já aparece formatado enquanto você
+digita. O campo mostra **R$**, alinha o número à direita e abre o teclado numérico no
+celular.
+
+**O que muda na prática:** antes, digitar `1400` num campo de valor dava R$ 1.400,00. Agora
+`1400` dá **R$ 14,00** — para R$ 1.400,00 digite `140000`. Sempre inclua os centavos.
+
+Ponto e vírgula não precisam mais ser digitados (as teclas são ignoradas), e apagar desloca
+o número de volta: `1.500,50` → `150,05`. Para recomeçar um valor, selecione tudo
+(`Ctrl+A`) e digite de novo. → [Guia de Início Rápido](quick-start.md)
+
+---
+
 ## Visão Geral de Projetos
 
 A ficha de projeto agora abre com uma **Visão Geral** mais compacta: prazo, progresso,

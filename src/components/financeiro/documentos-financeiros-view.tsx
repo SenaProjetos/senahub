@@ -11,6 +11,7 @@ import {
 } from "@/modules/financeiro/documentos/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -70,7 +71,7 @@ export function DocumentosFinanceirosView({
     tipo: "nf_entrada",
     numero: "",
     dataEmissao: "",
-    valor: "",
+    valor: null as number | null,
     fornecedorId: NONE,
     clienteId: NONE,
     referenciaId: NONE,
@@ -82,7 +83,7 @@ export function DocumentosFinanceirosView({
 
   // Parcelas
   const [parcelasDoc, setParcelasDoc] = useState<Doc | null>(null);
-  const [pf, setPf] = useState({ tipoLancamento: "despesa", categoriaId: NONE, contaId: NONE, parcelas: "1", primeiroVencimento: "", valorTotal: "", descricao: "" });
+  const [pf, setPf] = useState({ tipoLancamento: "despesa", categoriaId: NONE, contaId: NONE, parcelas: "1", primeiroVencimento: "", valorTotal: null as number | null, descricao: "" });
 
   async function salvarNovo() {
     setBusy(true);
@@ -101,7 +102,7 @@ export function DocumentosFinanceirosView({
         tipo: form.tipo as "nf_entrada" | "nf_servico" | "contrato" | "proposta" | "medicao",
         numero: form.numero,
         dataEmissao: form.dataEmissao,
-        valorDocumento: form.valor ? Number(form.valor) : undefined,
+        valorDocumento: form.valor ?? undefined,
         fornecedorId: form.fornecedorId === NONE ? "" : form.fornecedorId,
         clienteId: form.clienteId === NONE ? "" : form.clienteId,
         referenciaId: form.referenciaId === NONE ? "" : form.referenciaId,
@@ -111,7 +112,7 @@ export function DocumentosFinanceirosView({
       if (r.ok) {
         toast.success("Documento criado.");
         setNovo(false);
-        setForm({ tipo: "nf_entrada", numero: "", dataEmissao: "", valor: "", fornecedorId: NONE, clienteId: NONE, referenciaId: NONE, observacao: "" });
+        setForm({ tipo: "nf_entrada", numero: "", dataEmissao: "", valor: null, fornecedorId: NONE, clienteId: NONE, referenciaId: NONE, observacao: "" });
         if (fileRef.current) fileRef.current.value = "";
         router.refresh();
       } else toast.error(r.error);
@@ -129,17 +130,18 @@ export function DocumentosFinanceirosView({
       contaId: NONE,
       parcelas: "1",
       primeiroVencimento: d.dataEmissao ?? "",
-      valorTotal: d.valorDocumento != null ? String(d.valorDocumento) : "",
+      valorTotal: d.valorDocumento != null ? Number(d.valorDocumento) : null,
       descricao: "",
     });
     setParcelasDoc(d);
   }
 
   function gerarParcelas() {
-    if (!parcelasDoc || pf.categoriaId === NONE || !pf.primeiroVencimento || !pf.valorTotal) {
+    if (!parcelasDoc || pf.categoriaId === NONE || !pf.primeiroVencimento || pf.valorTotal === null) {
       toast.error("Categoria, vencimento e valor são obrigatórios.");
       return;
     }
+    const valorTotal = pf.valorTotal;
     start(async () => {
       const r = await gerarParcelasDoDocumento({
         documentoId: parcelasDoc.id,
@@ -148,7 +150,7 @@ export function DocumentosFinanceirosView({
         contaId: pf.contaId === NONE ? "" : pf.contaId,
         parcelas: Number(pf.parcelas) || 1,
         primeiroVencimento: pf.primeiroVencimento,
-        valorTotal: Number(pf.valorTotal),
+        valorTotal,
         descricao: pf.descricao,
       });
       if (r.ok) {
@@ -289,7 +291,7 @@ export function DocumentosFinanceirosView({
               </div>
               <div className="space-y-1.5">
                 <Label>Valor (R$)</Label>
-                <Input type="number" step="0.01" value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} />
+                <InputMoeda value={form.valor} onChange={(v) => setForm({ ...form, valor: v })} />
               </div>
             </div>
 
@@ -379,7 +381,7 @@ export function DocumentosFinanceirosView({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Valor total (R$)</Label>
-                <Input type="number" step="0.01" value={pf.valorTotal} onChange={(e) => setPf({ ...pf, valorTotal: e.target.value })} />
+                <InputMoeda value={pf.valorTotal} onChange={(v) => setPf({ ...pf, valorTotal: v })} />
               </div>
               <div className="space-y-1.5">
                 <Label>Conta (opcional)</Label>

@@ -8,6 +8,7 @@ import { confirmarLancamento, adicionarAnexoLancamento } from "@/modules/finance
 import type { LancamentoItem } from "@/modules/financeiro/lancamentos/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -24,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { formatarMoeda } from "@/lib/moeda";
 import { brl } from "@/lib/utils";
 
 const NONE = "__none";
@@ -45,7 +47,7 @@ export function ConfirmarDialog({
   const [contaId, setContaId] = useState(NONE);
   const [formaId, setFormaId] = useState(NONE);
   const [dataConf, setDataConf] = useState(hoje);
-  const [valorEfetivo, setValorEfetivo] = useState("");
+  const [valorEfetivo, setValorEfetivo] = useState<number | null>(null);
   const [comprovante, setComprovante] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -54,7 +56,7 @@ export function ConfirmarDialog({
   const [prevKey, setPrevKey] = useState(lancKey);
   if (prevKey !== lancKey) {
     setPrevKey(lancKey);
-    setValorEfetivo(lancamento ? String(Number(lancamento.valor)) : "");
+    setValorEfetivo(lancamento ? Number(lancamento.valor) : null);
     setContaId(NONE);
     setFormaId(NONE);
     setDataConf(hoje);
@@ -62,7 +64,7 @@ export function ConfirmarDialog({
   }
 
   const total = lancamento ? Number(lancamento.valor) : 0;
-  const pago = valorEfetivo ? Number(valorEfetivo) : total;
+  const pago = valorEfetivo ?? total;
   const restante = pago < total ? Math.round((total - pago) * 100) / 100 : 0;
 
   function confirmar() {
@@ -74,7 +76,7 @@ export function ConfirmarDialog({
         contaId: contaId === NONE ? "" : contaId,
         formaId: formaId === NONE ? "" : formaId,
         dataConfirmacao: dataConf,
-        valorEfetivo: valorEfetivo ? Number(valorEfetivo) : undefined,
+        valorEfetivo: valorEfetivo ?? undefined,
       });
       if (!r.ok) {
         toast.error(r.error);
@@ -155,11 +157,10 @@ export function ConfirmarDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Valor pago</Label>
-              <Input
-                type="number"
-                placeholder={lancamento ? String(total) : ""}
+              <InputMoeda
+                placeholder={lancamento ? formatarMoeda(total) : undefined}
                 value={valorEfetivo}
-                onChange={(e) => setValorEfetivo(e.target.value)}
+                onChange={setValorEfetivo}
               />
             </div>
           </div>

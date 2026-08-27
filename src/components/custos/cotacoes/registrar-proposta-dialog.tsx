@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { FileInput } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,10 +21,10 @@ export function RegistrarPropostaDialog({ rfqId, itens, fornecedores }: { rfqId:
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [fornecedorId, setFornecedorId] = useState("");
-  const [precos, setPrecos] = useState<Record<string, string>>({});
-  const [frete, setFrete] = useState("0");
+  const [precos, setPrecos] = useState<Record<string, number | null>>({});
+  const [frete, setFrete] = useState<number | null>(0);
   const [impostosInclusos, setImpostosInclusos] = useState(true);
-  const [impostosValor, setImpostosValor] = useState("");
+  const [impostosValor, setImpostosValor] = useState<number | null>(null);
   const [prazoEntregaDias, setPrazoEntregaDias] = useState("");
   const [validadeAte, setValidadeAte] = useState("");
   const [condicoesPagamento, setCondicoesPagamento] = useState("");
@@ -33,9 +34,9 @@ export function RegistrarPropostaDialog({ rfqId, itens, fornecedores }: { rfqId:
     setOpen(false);
     setFornecedorId("");
     setPrecos({});
-    setFrete("0");
+    setFrete(0);
     setImpostosInclusos(true);
-    setImpostosValor("");
+    setImpostosValor(null);
     setPrazoEntregaDias("");
     setValidadeAte("");
     setCondicoesPagamento("");
@@ -48,8 +49,8 @@ export function RegistrarPropostaDialog({ rfqId, itens, fornecedores }: { rfqId:
       return;
     }
     const itensPreenchidos = itens
-      .filter((i) => precos[i.id] && Number(precos[i.id]) >= 0)
-      .map((i) => ({ rfqItemId: i.id, precoUnitario: Number(precos[i.id]) }));
+      .filter((i) => precos[i.id] != null && precos[i.id]! >= 0)
+      .map((i) => ({ rfqItemId: i.id, precoUnitario: precos[i.id]! }));
     if (itensPreenchidos.length === 0) {
       toast.error("Informe o preço de ao menos um item.");
       return;
@@ -59,9 +60,9 @@ export function RegistrarPropostaDialog({ rfqId, itens, fornecedores }: { rfqId:
         rfqId,
         fornecedorId,
         itens: itensPreenchidos,
-        frete: frete ? Number(frete) : 0,
+        frete: frete ?? 0,
         impostosInclusos,
-        impostosValor: !impostosInclusos && impostosValor ? Number(impostosValor) : undefined,
+        impostosValor: !impostosInclusos ? (impostosValor ?? undefined) : undefined,
         prazoEntregaDias: prazoEntregaDias ? Number(prazoEntregaDias) : undefined,
         validadeAte: validadeAte || undefined,
         condicoesPagamento: condicoesPagamento.trim() || undefined,
@@ -112,13 +113,11 @@ export function RegistrarPropostaDialog({ rfqId, itens, fornecedores }: { rfqId:
                   <span className="min-w-0 flex-1 truncate">
                     {item.descricao} <span className="text-muted-foreground">({item.quantidade} {item.unidade})</span>
                   </span>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min={0}
+                  <InputMoeda
+                    semPrefixo
                     placeholder="R$/un"
-                    value={precos[item.id] ?? ""}
-                    onChange={(e) => setPrecos((p) => ({ ...p, [item.id]: e.target.value }))}
+                    value={precos[item.id] ?? null}
+                    onChange={(v) => setPrecos((p) => ({ ...p, [item.id]: v }))}
                     className="w-28"
                   />
                 </div>
@@ -129,7 +128,7 @@ export function RegistrarPropostaDialog({ rfqId, itens, fornecedores }: { rfqId:
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="prop-frete">Frete (R$)</Label>
-              <Input id="prop-frete" type="number" step="0.01" min={0} value={frete} onChange={(e) => setFrete(e.target.value)} />
+              <InputMoeda id="prop-frete" value={frete} onChange={setFrete} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="prop-prazo">Prazo de entrega (dias)</Label>
@@ -143,13 +142,10 @@ export function RegistrarPropostaDialog({ rfqId, itens, fornecedores }: { rfqId:
               Preço já inclui impostos
             </label>
             {!impostosInclusos && (
-              <Input
-                type="number"
-                step="0.01"
-                min={0}
-                placeholder="Valor do imposto destacado (R$)"
+              <InputMoeda
+                placeholder="Valor do imposto destacado"
                 value={impostosValor}
-                onChange={(e) => setImpostosValor(e.target.value)}
+                onChange={setImpostosValor}
               />
             )}
             <p className="text-[11px] text-muted-foreground">

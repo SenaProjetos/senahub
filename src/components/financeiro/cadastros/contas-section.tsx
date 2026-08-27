@@ -7,6 +7,7 @@ import { Plus, Pencil, Star, Wallet } from "lucide-react";
 import { criarConta, editarConta } from "@/modules/financeiro/cadastros/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -211,10 +212,10 @@ function ContaDialog({
           <div className="grid grid-cols-2 items-end gap-3">
             <div className="space-y-1.5">
               <Label>Saldo inicial</Label>
-              <Input
-                type="number"
+              <InputMoeda
+                permiteNegativo
                 value={form.saldoInicial}
-                onChange={(e) => setForm({ ...form, saldoInicial: Number(e.target.value) })}
+                onChange={(v) => setForm({ ...form, saldoInicial: v ?? 0 })}
               />
             </div>
             <label className="flex items-center gap-2 pb-2 text-sm">

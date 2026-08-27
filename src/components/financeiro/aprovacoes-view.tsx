@@ -7,7 +7,7 @@ import { Check, X, ShieldCheck } from "lucide-react";
 import { aprovarLancamento, rejeitarLancamento, salvarLimiteAprovacao } from "@/modules/financeiro/aprovacao/actions";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -36,11 +36,11 @@ export function AprovacoesView({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [novoLimite, setNovoLimite] = useState(limite ? String(limite) : "");
+  const [novoLimite, setNovoLimite] = useState<number | null>(limite || null);
 
   function salvarLimite() {
     start(async () => {
-      const r = await salvarLimiteAprovacao({ limite: Number(novoLimite) || 0 });
+      const r = await salvarLimiteAprovacao({ limite: novoLimite ?? 0 });
       if (r.ok) {
         toast.success("Limite de alçada salvo.");
         router.refresh();
@@ -87,7 +87,7 @@ export function AprovacoesView({
             <div className="flex items-end gap-2">
               <div className="space-y-1.5">
                 <Label className="text-xs">Limite (R$)</Label>
-                <Input type="number" step="0.01" min="0" value={novoLimite} onChange={(e) => setNovoLimite(e.target.value)} className="w-44" />
+                <InputMoeda value={novoLimite} onChange={setNovoLimite} className="w-44" />
               </div>
               <Button size="sm" variant="outline" onClick={salvarLimite} disabled={pending}>Salvar</Button>
               <span className="pb-2 text-xs text-muted-foreground">

@@ -100,6 +100,33 @@ O padrão de cadastro é o mesmo na maioria dos módulos (clientes, projetos, ta
 > 💡 Não encontra o botão "Novo…"? Pode ser **permissão**: seu perfil talvez só tenha
 > acesso de leitura naquele módulo. Veja a seção 9.
 
+### Campos de valor (R$)
+
+Todo campo de dinheiro do sistema funciona **como a maquininha de cartão**: o número
+cresce dos centavos para os reais, e a formatação aparece enquanto você digita.
+
+| Você digita | O campo mostra |
+| --- | --- |
+| `5` | `0,05` |
+| `50` | `0,50` |
+| `500` | `5,00` |
+| `150050` | `1.500,50` |
+
+Ou seja: **para R$ 1.400,00, digite `140000`** — não `1400`. Digite sempre os centavos.
+
+Outros detalhes:
+
+- **Não digite ponto nem vírgula.** Os separadores entram sozinhos; essas teclas são
+  ignoradas.
+- **Apagar (Backspace)** desloca o número de volta: `1.500,50` → `150,05` → `15,00`.
+- **Para recomeçar**, selecione tudo (`Ctrl+A`) e digite o novo valor — ou apague até o
+  campo ficar vazio.
+- **Colar funciona nos dois formatos**: `1.500,50` (com vírgula) é lido como reais;
+  `150050` (só números) é lido como centavos.
+- **Campo vazio não é zero.** Onde o valor é opcional, deixar em branco significa "sem
+  valor informado" — diferente de digitar `R$ 0,00`.
+- No celular e no tablet, o **teclado numérico** abre automaticamente.
+
 ---
 
 ## 6. Editar registros

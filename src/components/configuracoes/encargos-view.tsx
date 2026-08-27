@@ -9,16 +9,17 @@ import { salvarFaixasEncargo, salvarDeducaoDependente } from "@/modules/rh/encar
 import type { FaixaDTO } from "@/modules/rh/encargos/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-type Linha = { limite: string; aliquota: string; deduzir: string };
+type Linha = { limite: number | null; aliquota: string; deduzir: number | null };
 
 function paraLinhas(faixas: FaixaDTO[]): Linha[] {
   return faixas.map((f) => ({
-    limite: String(f.limite),
+    limite: f.limite,
     aliquota: String(f.aliquota),
-    deduzir: String(f.deduzir),
+    deduzir: f.deduzir,
   }));
 }
 
@@ -40,12 +41,12 @@ function TabelaFaixas({
   const [linhas, setLinhas] = useState<Linha[]>(paraLinhas(inicial));
   const colunas = comDeduzir ? "grid-cols-[1fr_1fr_1fr_auto]" : "grid-cols-[1fr_1fr_auto]";
 
-  const set = (i: number, campo: keyof Linha, v: string) =>
+  const set = <K extends keyof Linha>(i: number, campo: K, v: Linha[K]) =>
     setLinhas((ls) => ls.map((l, idx) => (idx === i ? { ...l, [campo]: v } : l)));
 
   function salvar() {
     const faixas = linhas
-      .map((l) => ({ limite: Number(l.limite), aliquota: Number(l.aliquota), deduzir: Number(l.deduzir) || 0 }))
+      .map((l) => ({ limite: l.limite ?? 0, aliquota: Number(l.aliquota), deduzir: l.deduzir ?? 0 }))
       .filter((f) => f.limite > 0);
     start(async () => {
       const r = await salvarFaixasEncargo({ tipo, faixas });
@@ -71,15 +72,10 @@ function TabelaFaixas({
         </div>
         {linhas.map((l, i) => (
           <div key={i} className={`grid ${colunas} items-center gap-2`}>
-            <Input type="number" step="0.01" value={l.limite} onChange={(e) => set(i, "limite", e.target.value)} />
+            <InputMoeda semPrefixo value={l.limite} onChange={(v) => set(i, "limite", v)} />
             <Input type="number" step="0.001" value={l.aliquota} onChange={(e) => set(i, "aliquota", e.target.value)} />
             {comDeduzir ? (
-              <Input
-                type="number"
-                step="0.01"
-                value={l.deduzir}
-                onChange={(e) => set(i, "deduzir", e.target.value)}
-              />
+              <InputMoeda semPrefixo value={l.deduzir} onChange={(v) => set(i, "deduzir", v)} />
             ) : null}
             <Button
               size="icon"
@@ -95,7 +91,7 @@ function TabelaFaixas({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setLinhas((ls) => [...ls, { limite: "", aliquota: "", deduzir: "0" }])}
+            onClick={() => setLinhas((ls) => [...ls, { limite: null, aliquota: "", deduzir: 0 }])}
           >
             <Plus className="size-3.5" /> Faixa
           </Button>
@@ -111,7 +107,7 @@ function TabelaFaixas({
 function DeducaoDependente({ inicial }: { inicial: number }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [valor, setValor] = useState(String(inicial));
+  const [valor, setValor] = useState<number | null>(inicial);
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -122,14 +118,14 @@ function DeducaoDependente({ inicial }: { inicial: number }) {
         <div className="flex items-end gap-2">
           <div className="space-y-1.5">
             <Label>R$ por dependente</Label>
-            <Input type="number" step="0.01" min="0" value={valor} onChange={(e) => setValor(e.target.value)} className="w-40" />
+            <InputMoeda value={valor} onChange={setValor} className="w-40" />
           </div>
           <Button
             size="sm"
             disabled={pending}
             onClick={() =>
               start(async () => {
-                const r = await salvarDeducaoDependente({ valor: Number(valor) });
+                const r = await salvarDeducaoDependente({ valor: valor ?? 0 });
                 if (r.ok) {
                   toast.success("Dedução salva.");
                   router.refresh();

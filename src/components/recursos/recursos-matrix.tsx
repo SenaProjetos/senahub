@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -1074,13 +1075,13 @@ function RecursoDialog({
 }) {
   const l = state.linha;
   const [capacidade, setCapacidade] = useState("1.0");
-  const [custoHora, setCustoHora] = useState("");
+  const [custoHora, setCustoHora] = useState<number | null>(null);
   const [cor, setCor] = useState("#576980");
   const [lastId, setLastId] = useState<string | null>(null);
   if (l && lastId !== l.recursoId) {
     setLastId(l.recursoId);
     setCapacidade(String(l.capacidade));
-    setCustoHora(l.custoHora != null ? String(l.custoHora) : "");
+    setCustoHora(l.custoHora);
     setCor(l.cor);
   }
   if (!l) return null;
@@ -1104,13 +1105,7 @@ function RecursoDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Custo/hora (R$)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={custoHora}
-                onChange={(e) => setCustoHora(e.target.value)}
-              />
+              <InputMoeda value={custoHora} onChange={setCustoHora} />
             </div>
           </div>
           <div className="space-y-1.5">
@@ -1133,7 +1128,7 @@ function RecursoDialog({
               onSalvar({
                 userId: l.userId,
                 capacidade: Number(capacidade),
-                custoHora: custoHora ? Number(custoHora) : undefined,
+                custoHora: custoHora ?? undefined,
                 cor,
                 ativo: true,
               })

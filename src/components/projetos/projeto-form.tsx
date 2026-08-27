@@ -7,6 +7,7 @@ import { Plus, Trash2, Layers } from "lucide-react";
 import { criarProjeto } from "@/modules/projetos/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -26,7 +27,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 
 type Interno = { id: string; name: string; role: string };
-type DiscDraft = { nome: string; prazo: string; valor: string; responsaveisIds: string[] };
+type DiscDraft = { nome: string; prazo: string; valor: number | null; responsaveisIds: string[] };
 
 export function ProjetoForm({
   open,
@@ -48,13 +49,13 @@ export function ProjetoForm({
   const [clienteId, setClienteId] = useState("");
   const [areaM2, setAreaM2] = useState("");
   const [prazoFinal, setPrazoFinal] = useState("");
-  const [valorContrato, setValorContrato] = useState("");
+  const [valorContrato, setValorContrato] = useState<number | null>(null);
   const [disciplinas, setDisciplinas] = useState<DiscDraft[]>([]);
 
   function addDisciplina() {
     const usada = new Set(disciplinas.map((d) => d.nome));
     const proxima = catalogo.find((c) => !usada.has(c)) ?? catalogo[0] ?? "";
-    setDisciplinas((d) => [...d, { nome: proxima, prazo: "", valor: "", responsaveisIds: [] }]);
+    setDisciplinas((d) => [...d, { nome: proxima, prazo: "", valor: null, responsaveisIds: [] }]);
   }
 
   function setDisc(i: number, patch: Partial<DiscDraft>) {
@@ -92,12 +93,12 @@ export function ProjetoForm({
         clienteId,
         areaM2: areaM2 ? Number(areaM2) : undefined,
         prazoFinal: prazoFinal || undefined,
-        valorContrato: valorContrato ? Number(valorContrato) : undefined,
+        valorContrato: valorContrato ?? undefined,
         membrosIds: [],
         disciplinas: disciplinas.map((d) => ({
           nome: d.nome,
           prazo: d.prazo || undefined,
-          valor: d.valor ? Number(d.valor) : undefined,
+          valor: d.valor ?? undefined,
           responsaveisIds: d.responsaveisIds,
         })),
       });
@@ -108,7 +109,7 @@ export function ProjetoForm({
         setClienteId("");
         setAreaM2("");
         setPrazoFinal("");
-        setValorContrato("");
+        setValorContrato(null);
         setDisciplinas([]);
         router.push(`/projetos/${res.data.id}`);
       } else {
@@ -178,10 +179,9 @@ export function ProjetoForm({
 
           <div className="space-y-1.5">
             <Label>Valor de contrato (R$)</Label>
-            <Input
-              type="number"
+            <InputMoeda
               value={valorContrato}
-              onChange={(e) => setValorContrato(e.target.value)}
+              onChange={setValorContrato}
               placeholder="Receita contratada — base para gerar parcelas"
             />
           </div>
@@ -234,11 +234,7 @@ export function ProjetoForm({
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Valor projetista (R$)</Label>
-                    <Input
-                      type="number"
-                      value={d.valor}
-                      onChange={(e) => setDisc(i, { valor: e.target.value })}
-                    />
+                    <InputMoeda value={d.valor} onChange={(v) => setDisc(i, { valor: v })} />
                   </div>
                 </div>
                 <div className="space-y-1">

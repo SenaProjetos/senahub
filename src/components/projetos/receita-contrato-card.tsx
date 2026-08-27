@@ -7,6 +7,7 @@ import { Receipt, Wand2, Trash2 } from "lucide-react";
 import { definirValorContrato, gerarParcelas, limparParcelas, faturarEntrega } from "@/modules/projetos/receita/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -39,16 +40,16 @@ type Receita = {
 export function ReceitaContratoCard({ projetoId, receita }: { projetoId: string; receita: Receita }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [valor, setValor] = useState(receita.valorContrato != null ? String(receita.valorContrato) : "");
+  const [valor, setValor] = useState<number | null>(receita.valorContrato ?? null);
   const [gerar, setGerar] = useState(false);
 
   function salvarContrato(novo?: number) {
-    const v = novo ?? (valor ? Number(valor) : null);
+    const v = novo ?? valor;
     start(async () => {
       const r = await definirValorContrato({ projetoId, valorContrato: v });
       if (r.ok) {
         toast.success("Valor de contrato salvo.");
-        if (novo != null) setValor(String(novo));
+        if (novo != null) setValor(novo);
         router.refresh();
       } else toast.error(r.error);
     });
@@ -99,13 +100,7 @@ export function ReceitaContratoCard({ projetoId, receita }: { projetoId: string;
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Valor de contrato (R$)</Label>
             <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                value={valor}
-                onChange={(e) => setValor(e.target.value)}
-                className="w-44"
-                placeholder="0,00"
-              />
+              <InputMoeda value={valor} onChange={setValor} className="w-44" />
               <Button size="sm" onClick={() => salvarContrato()} disabled={pending}>
                 Salvar
               </Button>
@@ -221,7 +216,7 @@ function GerarParcelasDialog({
   const router = useRouter();
   const [pending, start] = useTransition();
   const hoje = new Date().toISOString().slice(0, 10);
-  const [valorTotal, setValorTotal] = useState(valorSugerido ? String(valorSugerido) : "");
+  const [valorTotal, setValorTotal] = useState<number | null>(valorSugerido ?? null);
   const [numero, setNumero] = useState("3");
   const [dataPrimeira, setDataPrimeira] = useState(hoje);
   const [intervalo, setIntervalo] = useState("1");
@@ -230,7 +225,7 @@ function GerarParcelasDialog({
     start(async () => {
       const res = await gerarParcelas({
         projetoId,
-        valorTotal: Number(valorTotal),
+        valorTotal: valorTotal ?? 0,
         numeroParcelas: Number(numero),
         dataPrimeira,
         intervaloMeses: Number(intervalo),
@@ -256,7 +251,7 @@ function GerarParcelasDialog({
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label>Valor total (R$)</Label>
-            <Input type="number" value={valorTotal} onChange={(e) => setValorTotal(e.target.value)} />
+            <InputMoeda value={valorTotal} onChange={setValorTotal} />
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">

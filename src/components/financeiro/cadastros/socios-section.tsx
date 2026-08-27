@@ -14,6 +14,7 @@ import { brl, formatarData } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -111,25 +112,26 @@ function SocioRow({ s, onRemover }: { s: Socio; onRemover: (id: string) => void 
   const router = useRouter();
   const [pending, start] = useTransition();
   const [aberto, setAberto] = useState(false);
-  const [form, setForm] = useState({ data: "", valor: "", tipo: "pro_labore", observacao: "" });
+  const [form, setForm] = useState({ data: "", valor: null as number | null, tipo: "pro_labore", observacao: "" });
   const totalRet = s.retiradas.reduce((a, r) => a + r.valor, 0);
 
   function addRetirada() {
-    if (!form.data || !form.valor) {
+    if (!form.data || form.valor === null) {
       toast.error("Informe data e valor.");
       return;
     }
+    const valor = form.valor;
     start(async () => {
       const r = await criarRetiradaSocio({
         socioId: s.id,
         data: form.data,
-        valor: Number(form.valor),
+        valor,
         tipo: form.tipo as "pro_labore" | "distribuicao" | "adiantamento",
         observacao: form.observacao,
       });
       if (r.ok) {
         toast.success("Retirada registrada.");
-        setForm({ data: "", valor: "", tipo: "pro_labore", observacao: "" });
+        setForm({ data: "", valor: null, tipo: "pro_labore", observacao: "" });
         router.refresh();
       } else toast.error(r.error);
     });
@@ -187,7 +189,7 @@ function SocioRow({ s, onRemover }: { s: Socio; onRemover: (id: string) => void 
           )}
           <div className="flex flex-wrap items-end gap-2">
             <Input type="date" value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} className="w-36" />
-            <Input type="number" step="0.01" placeholder="Valor" value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} className="w-28" />
+            <InputMoeda semPrefixo placeholder="Valor (R$)" value={form.valor} onChange={(v) => setForm({ ...form, valor: v })} className="w-32" />
             <Select value={form.tipo} onValueChange={(v) => setForm({ ...form, tipo: v ?? "pro_labore" })}>
               <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
               <SelectContent>

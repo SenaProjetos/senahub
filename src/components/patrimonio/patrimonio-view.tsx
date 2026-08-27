@@ -10,6 +10,7 @@ import type { AtivoListItem } from "@/modules/patrimonio/queries";
 import { brl, formatarData } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -32,11 +33,11 @@ type FormState = {
   localizacao: string;
   responsavelId: string;
   dataAquisicao: string;
-  valor: string;
+  valor: number | null;
   status: (typeof STATUS_ATIVO)[number];
   observacao: string;
 };
-const vazio: FormState = { nome: "", categoria: "", localizacao: "", responsavelId: NONE, dataAquisicao: "", valor: "", status: "ativo", observacao: "" };
+const vazio: FormState = { nome: "", categoria: "", localizacao: "", responsavelId: NONE, dataAquisicao: "", valor: null, status: "ativo", observacao: "" };
 
 export function PatrimonioView({
   ativos,
@@ -76,7 +77,7 @@ export function PatrimonioView({
         localizacao: alvo.localizacao ?? "",
         responsavelId: alvo.responsavelId ?? NONE,
         dataAquisicao: alvo.dataAquisicao ? new Date(alvo.dataAquisicao).toISOString().slice(0, 10) : "",
-        valor: alvo.valor != null ? String(Number(alvo.valor)) : "",
+        valor: alvo.valor != null ? Number(alvo.valor) : null,
         status: alvo.status as FormState["status"],
         observacao: alvo.observacao ?? "",
       });
@@ -90,7 +91,7 @@ export function PatrimonioView({
       localizacao: form.localizacao,
       responsavelId: form.responsavelId === NONE ? "" : form.responsavelId,
       dataAquisicao: form.dataAquisicao,
-      valor: form.valor.trim() ? Number(form.valor) : null,
+      valor: form.valor,
       status: form.status,
       observacao: form.observacao,
     };
@@ -255,7 +256,7 @@ export function PatrimonioView({
             </div>
             <div className="space-y-1.5">
               <Label>Valor (R$)</Label>
-              <Input type="number" min="0" step="0.01" value={form.valor} onChange={(e) => setForm((f) => ({ ...f, valor: e.target.value }))} />
+              <InputMoeda value={form.valor} onChange={(v) => setForm((f) => ({ ...f, valor: v }))} />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label>Observação</Label>

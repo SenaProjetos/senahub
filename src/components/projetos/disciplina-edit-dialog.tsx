@@ -5,6 +5,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -39,11 +40,10 @@ export function DisciplinaEditDialog({
   exigePacoteB: exigeBInicial = true,
   usaEstruturaPastas = false,
 }: EditProps) {
-  const valorInicialTexto = valorInicial != null ? String(valorInicial) : "";
   const [open, setOpen] = useState(false);
   const [nome, setNome] = useState(nomeInicial);
   const [prazo, setPrazo] = useState(prazoInicial?.slice(0, 10) ?? "");
-  const [valor, setValor] = useState(valorInicialTexto);
+  const [valor, setValor] = useState<number | null>(valorInicial ?? null);
   const [respIds, setRespIds] = useState<string[]>(respInicial);
   const [exigeA, setExigeA] = useState(exigeAInicial);
   const [exigeB, setExigeB] = useState(exigeBInicial);
@@ -59,7 +59,7 @@ export function DisciplinaEditDialog({
         // o valor da disciplina (CLT/estágio, `ocultarValorDisciplina`) abre o diálogo com
         // o campo vazio; mandar `null` daí limparia o valor e cancelaria os pagamentos
         // pendentes. Limpar continua possível — basta apagar um campo que estava preenchido.
-        valor: valor === valorInicialTexto ? undefined : valor ? parseFloat(valor) : null,
+        valor: valor === (valorInicial ?? null) ? undefined : valor,
         responsaveisIds: respIds,
         exigePacoteA: exigeA,
         exigePacoteB: exigeB,
@@ -115,15 +115,7 @@ export function DisciplinaEditDialog({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="valor-disc">Valor (R$)</Label>
-              <Input
-                id="valor-disc"
-                type="number"
-                min="0"
-                step="0.01"
-                value={valor}
-                onChange={(e) => setValor(e.target.value)}
-                placeholder="0,00"
-              />
+              <InputMoeda id="valor-disc" value={valor} onChange={setValor} />
             </div>
           </div>
           {internos.length > 0 && (

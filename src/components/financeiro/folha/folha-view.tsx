@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -207,17 +208,17 @@ function CancelarPagamentoButton({ pagamento }: { pagamento: FolhaItem }) {
 function EditarValorDialog({ pagamento, onClose }: { pagamento: FolhaItem | null; onClose: () => void }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [valor, setValor] = useState("");
+  const [valor, setValor] = useState<number | null>(null);
 
   // Aberto imperativamente (botão de lápis na linha, não um DialogTrigger interno) —
   // `onOpenChange` só dispara ao FECHAR, então o valor precisa ser sincronizado aqui.
   useEffect(() => {
-    if (pagamento) setValor(String(Number(pagamento.valor)));
+    if (pagamento) setValor(Number(pagamento.valor));
   }, [pagamento]);
 
   function salvar() {
     if (!pagamento) return;
-    const num = Number(valor);
+    const num = valor ?? 0;
     if (!(num > 0)) {
       toast.error("Informe um valor maior que zero.");
       return;
@@ -241,15 +242,7 @@ function EditarValorDialog({ pagamento, onClose }: { pagamento: FolhaItem | null
         </DialogHeader>
         <div className="space-y-1.5">
           <Label htmlFor="valor-pagamento">Valor (R$)</Label>
-          <Input
-            id="valor-pagamento"
-            type="number"
-            min="0.01"
-            step="0.01"
-            value={valor}
-            onChange={(e) => setValor(e.target.value)}
-            autoFocus
-          />
+          <InputMoeda id="valor-pagamento" value={valor} onChange={setValor} autoFocus />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={pending}>

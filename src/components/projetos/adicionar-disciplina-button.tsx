@@ -5,6 +5,7 @@ import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -25,14 +26,14 @@ export function AdicionarDisciplinaButton({ projetoId, internos, prazoFinal }: P
   const [open, setOpen] = useState(false);
   const [nome, setNome] = useState("");
   const [prazo, setPrazo] = useState("");
-  const [valor, setValor] = useState("");
+  const [valor, setValor] = useState<number | null>(null);
   const [respIds, setRespIds] = useState<string[]>([]);
   const [pending, startTransition] = useTransition();
 
   const reset = () => {
     setNome("");
     setPrazo("");
-    setValor("");
+    setValor(null);
     setRespIds([]);
   };
 
@@ -42,7 +43,7 @@ export function AdicionarDisciplinaButton({ projetoId, internos, prazoFinal }: P
         projetoId,
         nome,
         prazo: prazo || undefined,
-        valor: valor ? parseFloat(valor) : undefined,
+        valor: valor ?? undefined,
         responsaveisIds: respIds,
       });
       if (!res?.ok) {
@@ -106,15 +107,7 @@ export function AdicionarDisciplinaButton({ projetoId, internos, prazoFinal }: P
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="valor-nova">Valor (R$)</Label>
-              <Input
-                id="valor-nova"
-                type="number"
-                min="0"
-                step="0.01"
-                value={valor}
-                onChange={(e) => setValor(e.target.value)}
-                placeholder="0,00"
-              />
+              <InputMoeda id="valor-nova" value={valor} onChange={setValor} />
             </div>
           </div>
           {internos.length > 0 && (

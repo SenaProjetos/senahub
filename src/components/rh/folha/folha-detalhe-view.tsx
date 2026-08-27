@@ -15,6 +15,7 @@ import {
 } from "@/modules/rh/folha/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
@@ -503,13 +504,12 @@ function HoleriteEditor({
                   <SelectItem value="desconto">Desconto</SelectItem>
                 </SelectContent>
               </Select>
-              <Input
-                type="number"
-                step="0.01"
+              <InputMoeda
+                semPrefixo
                 className="w-28"
-                value={it.valor || ""}
-                onChange={(e) => setItem(i, { valor: Number(e.target.value) })}
-                placeholder="Valor"
+                value={it.valor || null}
+                onChange={(v) => setItem(i, { valor: v ?? 0 })}
+                placeholder="Valor (R$)"
               />
               <Button
                 size="icon"

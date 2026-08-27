@@ -8,6 +8,7 @@ import type { OpcoesLancamento, LancamentoItem } from "@/modules/financeiro/lanc
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -52,7 +53,7 @@ export function LancamentoForm({
 
   const [tipo, setTipo] = useState<"receita" | "despesa">(tipoInicial);
   const [descricao, setDescricao] = useState("");
-  const [valor, setValor] = useState("");
+  const [valor, setValor] = useState<number | null>(null);
   const [dataMov, setDataMov] = useState(hoje);
   const [vencimento, setVencimento] = useState("");
   const [dataCompetencia, setDataCompetencia] = useState("");
@@ -73,7 +74,7 @@ export function LancamentoForm({
     if (editar) {
       setTipo(editar.tipo);
       setDescricao(editar.descricao);
-      setValor(String(Number(editar.valor)));
+      setValor(Number(editar.valor));
       setDataMov(inputDate(editar.data) || hoje);
       setVencimento(inputDate(editar.vencimento));
       setDataCompetencia(inputDate(editar.dataCompetencia));
@@ -95,7 +96,7 @@ export function LancamentoForm({
 
   function reset() {
     setDescricao("");
-    setValor("");
+    setValor(null);
     setVencimento("");
     setDataCompetencia("");
     setCategoriaId("");
@@ -109,7 +110,7 @@ export function LancamentoForm({
   }
 
   function salvar() {
-    if (!descricao || !valor || !categoriaId) {
+    if (!descricao || valor === null || !categoriaId) {
       toast.error("Preencha descrição, valor e categoria.");
       return;
     }
@@ -118,7 +119,7 @@ export function LancamentoForm({
         const r = await editarLancamento({
           id: editar.id,
           descricao,
-          valor: Number(valor),
+          valor,
           data: dataMov,
           vencimento: vencimento || "",
           dataCompetencia: dataCompetencia || "",
@@ -139,7 +140,7 @@ export function LancamentoForm({
       const r = await criarLancamento({
         tipo,
         descricao,
-        valor: Number(valor),
+        valor,
         data: dataMov,
         vencimento: vencimento || "",
         dataCompetencia: dataCompetencia || "",
@@ -198,7 +199,7 @@ export function LancamentoForm({
             </div>
             <div className="space-y-1.5">
               <Label>Valor (R$)</Label>
-              <Input type="number" value={valor} onChange={(e) => setValor(e.target.value)} />
+              <InputMoeda value={valor} onChange={setValor} />
             </div>
           </div>
 

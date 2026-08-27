@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -39,7 +40,7 @@ export function ItemDialog({
   const [descricao, setDescricao] = useState("");
   const [unidade, setUnidade] = useState("");
   const [quantidade, setQuantidade] = useState("0");
-  const [custoUnitario, setCustoUnitario] = useState("0");
+  const [custoUnitario, setCustoUnitario] = useState<number | null>(0);
 
   useEffect(() => {
     if (!open || !alvo) return;
@@ -47,12 +48,12 @@ export function ItemDialog({
       setDescricao(alvo.item.descricao);
       setUnidade(alvo.item.unidade ?? "");
       setQuantidade(String(alvo.item.quantidade));
-      setCustoUnitario(String(alvo.item.custoUnitario));
+      setCustoUnitario(alvo.item.custoUnitario);
     } else {
       setDescricao("");
       setUnidade("");
       setQuantidade("0");
-      setCustoUnitario("0");
+      setCustoUnitario(0);
     }
   }, [open, alvo]);
 
@@ -83,7 +84,7 @@ export function ItemDialog({
               unidade: unidade.trim() || null,
               ...(ehServico ? { quantidade: Number(quantidade) } : {}),
               // Custo só vai quando não há composição vinculada nem trava (senão o service recusa).
-              ...(ehServico && !vinculado && !travado ? { custoUnitario: Number(custoUnitario) } : {}),
+              ...(ehServico && !vinculado && !travado ? { custoUnitario: custoUnitario ?? 0 } : {}),
             });
 
       if (r.ok) {
@@ -147,13 +148,10 @@ export function ItemDialog({
 
               <div className="space-y-1.5">
                 <Label htmlFor="item-custo">Custo unitário (R$)</Label>
-                <Input
+                <InputMoeda
                   id="item-custo"
-                  type="number"
-                  step="0.01"
-                  min={0}
                   value={custoUnitario}
-                  onChange={(e) => setCustoUnitario(e.target.value)}
+                  onChange={setCustoUnitario}
                   disabled={vinculado || travado}
                 />
                 {vinculado && (
