@@ -311,9 +311,14 @@ export const criarAditivoEquipe = defineAction(
 );
 
 /**
- * Fase B — gera uma versão do contrato preenchendo um `ModeloContrato` com os dados do próprio
- * documento (vínculo ou proposta). Bloqueia quando sobra token obrigatório sem valor: cláusula em
+ * Gera uma versão do contrato a partir de um modelo do **Estúdio de Documentos** (fonte
+ * `contrato`), preenchido com os dados do próprio documento — vínculo, proposta ou cliente.
+ *
+ * Bloqueia quando sobra campo citado sem valor (`bloquearCamposVazios`, Fase E4): cláusula em
  * branco num contrato assinável é pior que erro, porque é entregável.
+ *
+ * Era a Fase B em texto puro (`ModeloContrato`); passou ao Estúdio na Fase E2, e o caminho antigo
+ * saiu na E6.
  */
 export const gerarVersaoDeModelo = defineAction(
   {

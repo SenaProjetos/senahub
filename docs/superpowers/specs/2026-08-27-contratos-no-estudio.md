@@ -277,10 +277,28 @@ de verdade — remover o caminho antigo antes disso deixaria o jurídico sem nen
   assinou a versão anterior, para um documento novo (ex.: aditivo) citar sem reescrever o PDF já
   assinado (imutável — é o objeto hasheado pela cadeia de evidência). Verificado contra o banco:
   nulo antes do aceite, presente e com hash truncado depois.
+- **E6 — Parte A (código órfão)** — removidos `gerarVersaoDeModeloTextoPuro` (já órfã desde a E2:
+  a action passou a chamar o caminho do Estúdio) e `montarHtml` (sem outro chamador), com os 4
+  testes dela. Verificado contra o banco que a geração ativa segue intacta, e por script que o
+  certificado de conclusão continua montando.
+
+  > **Correção ao §7:** a linha da tabela dizia "remover `montarHtml`/`gerarPdfDoHtml`" — **errado
+  > quanto a `gerarPdfDoHtml`**. Ela nunca foi do pipeline de texto puro: quem a usa é o certificado
+  > de conclusão da assinatura, gerado AO VIVO e nunca arquivado (`assinatura/certificado.ts` +
+  > `api/juridico/versoes/[id]/certificado`), que monta o próprio HTML. `escaparHtml` idem. As duas
+  > ficam. Removê-las quebraria a prova de assinatura, que é o oposto do objetivo deste spec.
+
 - **Pendente — precisa de troca de modelo:**
-  - **E6 (Opus)** — depreciar `ModeloContrato`/`montarHtml`/`gerarPdfDoHtml`. Bloqueado até conferir
-    a contagem de `ModeloContrato` em PRODUÇÃO (0 no dev, não confere sozinho). Nota: o certificado
-    de conclusão (`api/juridico/versoes/[id]/certificado/route.ts`) importa `gerarPdfDoHtml` — E6
-    precisa decidir o destino dessa rota antes de remover a função, não só do pipeline de contrato.
+  - **E6 — Parte B (Opus, BLOQUEADA)** — actions `criar/editar/excluirModeloContrato`, `ModelosTab`,
+    a query em `page.tsx` e o `DROP TABLE modelo_contrato`. Bloqueada até a contagem em PRODUÇÃO
+    (0 no dev; a tabela é isolada, sem FK, então o que se perde é o TEXTO que alguém escreveu).
+    Conferir com:
+    ```sql
+    SELECT count(*), sum(length(conteudo)) FROM modelo_contrato;
+    ```
+    `sum(length(conteudo))` importa tanto quanto a contagem: linha com `conteudo = ''` é rascunho
+    que ninguém escreveu e não precisa ser preservada. Se houver texto real, o certo é **exportar o
+    texto** (sem perda) antes do drop — não converter o layout para `DocSchema`, que seria estimar
+    altura de parágrafo às cegas sobre dado invisível, com o original já apagado.
   - **E7a (Haiku)** — M4 (`arquivoPath` via `resolverCaminho`) + M5 (rate limit configurável).
   - **M2 (Opus, investigação antes de estimar)** — rubrica por página.
