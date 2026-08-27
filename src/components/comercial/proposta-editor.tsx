@@ -341,19 +341,16 @@ export function PropostaEditor({
                         setItens((arr) => arr.map((x, idx) => (idx === i ? { ...x, descricao: e.target.value } : x)))
                       }
                     />
-                    {/* `step` em centavos: a coluna é Decimal(14,2), então 3 casas digitadas à
-                        mão seriam arredondadas pelo banco e o total da tela divergiria do PDF. */}
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
+                    {/* A coluna é Decimal(14,2): `InputMoeda` já entra em centavos, então não há
+                        3ª casa para o banco arredondar e o total da tela nunca diverge do PDF. */}
+                    <InputMoeda
+                      semPrefixo
+                      placeholder="Valor (R$)"
                       className="w-32"
-                      value={it.valor || ""}
+                      value={it.valor || null}
                       disabled={!editavel}
-                      onChange={(e) =>
-                        setItens((arr) =>
-                          arr.map((x, idx) => (idx === i ? { ...x, valor: Number(e.target.value) } : x)),
-                        )
+                      onChange={(v) =>
+                        setItens((arr) => arr.map((x, idx) => (idx === i ? { ...x, valor: v ?? 0 } : x)))
                       }
                     />
                     {editavel && (
