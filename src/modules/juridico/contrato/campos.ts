@@ -1,4 +1,5 @@
 import { extrairTokens, splitFormato, type Escalar } from "@/modules/documentos/tokens";
+import { formatarDataHora } from "@/lib/utils";
 
 /**
  * Campos de preenchimento automático de contrato (spec
@@ -95,6 +96,16 @@ export const CAMPOS_CONTRATO: CampoContrato[] = [
    * de quem desenha, não deste catálogo.
    */
   { chave: "ClausulasAdicionais", label: "Cláusulas adicionais deste contrato" },
+  /**
+   * Fase E7b/M3 — quem assinou a versão anterior deste contrato, quando, e o hash do arquivo que
+   * assinou. Existe para um documento NOVO citar a assinatura de um contrato JÁ assinado (ex.: um
+   * aditivo dizendo "em aditamento ao contrato assinado por [UltimaAssinaturaResumo]") — nunca
+   * para reescrever o próprio PDF assinado, que é imutável: é o objeto que a cadeia de evidência
+   * hasheou, e regenerá-lo com dado novo invalidaria o hash já registrado em cada
+   * `AceiteDocumento`/`AceiteExternoDocumento`. Nulo quando nenhuma versão foi assinada ainda — a
+   * maioria dos contratos no momento em que são gerados pela primeira vez.
+   */
+  { chave: "UltimaAssinaturaResumo", label: "Resumo de quem assinou a versão anterior" },
 ];
 
 export function catalogo(tipo: "equipe" | "cliente"): CampoContrato[] {
@@ -159,7 +170,24 @@ export type DadosContrato = {
   valor: number | null;
   dataVencimento: Date | null;
   clausulasAdicionais: string | null;
+  /** Já formatado — ver o comentário de `UltimaAssinaturaResumo` no catálogo acima. */
+  ultimaAssinaturaResumo: string | null;
 };
+
+export type AssinaturaResumoItem = { nome: string; assinadoEm: Date; hashArquivo: string };
+
+/**
+ * Formata quem assinou uma versão do contrato — alimenta o token `[UltimaAssinaturaResumo]`.
+ * Prefixo de 12 caracteres do hash: identificável o bastante pra conferência visual rápida, sem
+ * tornar a cláusula ilegível com um SHA-256 inteiro (o hash completo continua no certificado de
+ * conclusão e na trilha, ambos auditáveis à parte).
+ */
+export function formatarResumoAssinaturas(itens: AssinaturaResumoItem[]): string | null {
+  if (itens.length === 0) return null;
+  return itens
+    .map((i) => `${i.nome} — ${formatarDataHora(i.assinadoEm)} — hash ${i.hashArquivo.slice(0, 12)}…`)
+    .join("; ");
+}
 
 /** Junta logradouro/número/complemento/bairro pulando os pedaços que faltam. */
 export function montarEndereco(e: DadosVinculo["user"]): string | null {
@@ -192,6 +220,7 @@ function comuns(c: DadosContrato): Escalar {
     ContratoValor: c.valor,
     ContratoVencimento: c.dataVencimento,
     ClausulasAdicionais: c.clausulasAdicionais,
+    UltimaAssinaturaResumo: c.ultimaAssinaturaResumo,
   };
 }
 

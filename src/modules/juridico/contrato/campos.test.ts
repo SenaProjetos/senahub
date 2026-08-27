@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { resolverTexto } from "@/modules/documentos/tokens";
+import { formatarDataHora } from "@/lib/utils";
 import {
   camposDaProposta,
   camposDoVinculo,
   catalogo,
   extrairTokens,
+  formatarResumoAssinaturas,
   mensagemTokensNaoResolvidos,
   montarEndereco,
   montarEnderecoCliente,
@@ -19,6 +21,7 @@ const contrato: DadosContrato = {
   valor: 1500,
   dataVencimento: new Date("2027-01-31T00:00:00.000Z"),
   clausulasAdicionais: null,
+  ultimaAssinaturaResumo: null,
 };
 
 function vinculo(over: Partial<DadosVinculo> = {}): DadosVinculo {
@@ -80,6 +83,36 @@ describe("ClausulasAdicionais (Fase E3)", () => {
 
   it("nulo quando o contrato não tem cláusula adicional — é o caso comum, não uma falha", () => {
     expect(camposDoVinculo(vinculo(), contrato).ClausulasAdicionais).toBeNull();
+  });
+});
+
+describe("UltimaAssinaturaResumo (Fase E7b/M3)", () => {
+  it("nulo sem assinatura — a maioria dos contratos na primeira geração", () => {
+    expect(formatarResumoAssinaturas([])).toBeNull();
+    expect(camposDoVinculo(vinculo(), contrato).UltimaAssinaturaResumo).toBeNull();
+  });
+
+  it("formata nome, data e um PREFIXO do hash — não o SHA-256 inteiro", () => {
+    const r = formatarResumoAssinaturas([
+      { nome: "José da Silva Santos", assinadoEm: new Date("2026-03-01T14:30:00.000Z"), hashArquivo: "a".repeat(64) },
+    ]);
+    expect(r).toBe(`José da Silva Santos — ${formatarDataHora(new Date("2026-03-01T14:30:00.000Z"))} — hash ${"a".repeat(12)}…`);
+    expect(r).not.toContain("a".repeat(64));
+  });
+
+  it("junta múltiplos signatários (interno + externo) num único resumo legível", () => {
+    const r = formatarResumoAssinaturas([
+      { nome: "Sena Projetos", assinadoEm: new Date("2026-03-01T10:00:00.000Z"), hashArquivo: "b".repeat(64) },
+      { nome: "Cliente Externo", assinadoEm: new Date("2026-03-02T09:00:00.000Z"), hashArquivo: "c".repeat(64) },
+    ]);
+    expect(r).toContain("Sena Projetos");
+    expect(r).toContain("Cliente Externo");
+  });
+
+  it("passa pelo escalar comum, disponível nos dois tipos de contrato", () => {
+    const assinado = { ...contrato, ultimaAssinaturaResumo: "Fulano — 01/03/2026 10:00 — hash abc…" };
+    expect(camposDoVinculo(vinculo(), assinado).UltimaAssinaturaResumo).toBe(assinado.ultimaAssinaturaResumo);
+    expect(camposDaProposta(proposta, assinado).UltimaAssinaturaResumo).toBe(assinado.ultimaAssinaturaResumo);
   });
 });
 

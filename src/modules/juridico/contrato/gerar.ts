@@ -141,6 +141,9 @@ export async function gerarVersaoDeModeloTextoPuro(
     valor: doc.valor ? doc.valor.toNumber() : null,
     dataVencimento: doc.dataVencimento,
     clausulasAdicionais: doc.clausulasAdicionais,
+    // Pipeline deprecado (texto puro) não busca a trilha de assinatura — `[UltimaAssinaturaResumo]`
+    // (Fase E7b/M3) só existe no caminho novo, via `resolverFonteContrato`.
+    ultimaAssinaturaResumo: null,
   };
 
   let escalar;

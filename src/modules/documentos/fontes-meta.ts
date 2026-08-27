@@ -251,6 +251,7 @@ export const FONTES: FonteDef[] = [
       { chave: "ContratoValor", label: "Valor do contrato" },
       { chave: "ContratoVencimento", label: "Vencimento do contrato" },
       { chave: "ClausulasAdicionais", label: "Cláusulas adicionais (texto livre deste contrato)" },
+      { chave: "UltimaAssinaturaResumo", label: "Resumo de quem assinou a versão anterior" },
       // Equipe.
       { chave: "Nome", label: "Equipe — nome completo" },
       { chave: "CPF", label: "Equipe — CPF" },

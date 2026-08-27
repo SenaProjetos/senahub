@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { HR_ADMIN_ROLES, type Role } from "@/lib/roles";
 import type { Escalar, Linha } from "@/modules/documentos/tokens";
-import { camposDaProposta, camposDoVinculo, montarEnderecoCliente } from "./campos";
+import { camposDaProposta, camposDoVinculo, formatarResumoAssinaturas, montarEnderecoCliente } from "./campos";
 
 /**
  * O bastante para decidir o gate — id+role, não o `SubjectAutorizacao` inteiro do Estúdio.
@@ -75,6 +75,15 @@ export async function resolverFonteContrato(
       cliente: true,
       projeto: { select: { codigo: true } },
       lancamentos: { orderBy: { vencimento: "asc" } },
+      // Fase E7b/M3: quem assinou a versão anterior — só a MAIS RECENTE com alguma assinatura
+      // interna/externa importa aqui, então já vem ordenada e enxuta (não a trilha inteira).
+      versoes: {
+        orderBy: { numero: "desc" },
+        select: {
+          aceites: { select: { userNome: true, assinadoEm: true, hashArquivo: true } },
+          aceitesExternos: { select: { nome: true, assinadoEm: true, hashArquivo: true } },
+        },
+      },
     },
   });
   if (!doc) return VAZIO;
@@ -82,11 +91,20 @@ export async function resolverFonteContrato(
   // ── O gate por registro ──────────────────────────────────────────────────────────────────
   if (!podeVerContrato(doc, viewer)) return VAZIO;
 
+  const versaoAssinada = doc.versoes.find((v) => v.aceites.length > 0 || v.aceitesExternos.length > 0);
+  const ultimaAssinaturaResumo = versaoAssinada
+    ? formatarResumoAssinaturas([
+        ...versaoAssinada.aceites.map((a) => ({ nome: a.userNome, assinadoEm: a.assinadoEm, hashArquivo: a.hashArquivo })),
+        ...versaoAssinada.aceitesExternos.map((a) => ({ nome: a.nome, assinadoEm: a.assinadoEm, hashArquivo: a.hashArquivo })),
+      ])
+    : null;
+
   const dadosContrato = {
     titulo: doc.titulo,
     valor: doc.valor ? doc.valor.toNumber() : null,
     dataVencimento: doc.dataVencimento,
     clausulasAdicionais: doc.clausulasAdicionais,
+    ultimaAssinaturaResumo,
   };
 
   // Parcelas viram as LINHAS da fonte: alimentam um elemento `tabela` com o cronograma de
@@ -184,6 +202,7 @@ export async function resolverFonteContrato(
       ContratoValor: dadosContrato.valor,
       ContratoVencimento: dadosContrato.dataVencimento,
       ClausulasAdicionais: dadosContrato.clausulasAdicionais,
+      UltimaAssinaturaResumo: dadosContrato.ultimaAssinaturaResumo,
     },
     linhas,
   };
