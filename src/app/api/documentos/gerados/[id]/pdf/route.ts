@@ -1,11 +1,10 @@
 import puppeteer from "puppeteer-core";
-import path from "path";
-import fs from "fs";
 import { getSession } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { acquireExecutionSlot, ExecutionCapacityError } from "@/lib/execution-limit";
 import { auditarBloqueioRateLimit, limitarRequisicao, respostaLimiteRequisicoes } from "@/lib/rate-limit";
+import { salvarArquivo, lerArquivo } from "@/lib/storage";
 import { docSchemaZ } from "@/modules/documentos/schema";
 import { escopoDocumentoGerado } from "@/modules/documentos/queries";
 import { FAIXA_RODAPE, FOOTER_PAGINACAO, reservarFaixaDoRodape } from "@/modules/documentos/rodape-pdf";
@@ -45,14 +44,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!g) return new Response("Documento não encontrado", { status: 404 });
 
   // Se o PDF já foi salvo anteriormente, servir direto do storage.
-  if (g.arquivoPath && fs.existsSync(g.arquivoPath)) {
-    const buf = fs.readFileSync(g.arquivoPath);
-    return new Response(buf, {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="${encodeURIComponent(g.modeloNome)}.pdf"`,
-      },
-    });
+  if (g.arquivoPath) {
+    try {
+      const buf = await lerArquivo(g.arquivoPath);
+      return new Response(new Uint8Array(buf), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `inline; filename="${encodeURIComponent(g.modeloNome)}.pdf"`,
+        },
+      });
+    } catch {
+      // Arquivo não existe ou inacessível — regenerar abaixo
+    }
   }
 
   const schemaParsed = docSchemaZ.safeParse(g.schemaSnapshot);
@@ -102,20 +105,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     });
 
     // Salvar no storage se configurado.
-    const storageBase = process.env.STORAGE_BASE_PATH;
-    if (storageBase) {
-      try {
-        const dir = path.join(storageBase, "documentos", "gerados");
-        fs.mkdirSync(dir, { recursive: true });
-        const filePath = path.join(dir, `${id}.pdf`);
-        fs.writeFileSync(filePath, pdf);
-        await prisma.documentoGerado.update({
-          where: { id },
-          data: { arquivoPath: filePath },
-        });
-      } catch {
-        // Falha ao salvar não impede download
-      }
+    try {
+      const salvo = await salvarArquivo(`documentos/gerados/${id}.pdf`, Buffer.from(pdf));
+      await prisma.documentoGerado.update({
+        where: { id },
+        data: { arquivoPath: salvo.caminho },
+      });
+    } catch {
+      // Falha ao salvar não impede download (é cache, best-effort)
     }
 
     return new Response(new Uint8Array(pdf), {
