@@ -8,6 +8,7 @@ import { salvarArquivo, lerArquivo } from "@/lib/storage";
 import { docSchemaZ } from "@/modules/documentos/schema";
 import { escopoDocumentoGerado } from "@/modules/documentos/queries";
 import { FAIXA_RODAPE, FOOTER_PAGINACAO, reservarFaixaDoRodape } from "@/modules/documentos/rodape-pdf";
+import { getConfigGeracaoPdf } from "@/modules/documentos/config/queries";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -20,11 +21,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     return new Response("Sem acesso", { status: 403 });
   }
 
+  const config = await getConfigGeracaoPdf();
   const limite = limitarRequisicao(req, {
     escopo: "documentos-gerados-pdf",
     identificador: session.user.id,
-    maximo: 12,
-    janelaMs: 10 * 60_000,
+    maximo: config.limiteRequisicoes,
+    janelaMs: config.janelaMs,
   });
   if (!limite.permitido) {
     await auditarBloqueioRateLimit(limite, {
