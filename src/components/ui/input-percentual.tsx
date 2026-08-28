@@ -100,6 +100,11 @@ function InputPercentual({
   // o chamador deu ao input (`w-24`, `w-32`). Com `w-full` ele tomava 100% da linha, empurrava
   // os vizinhos para baixo e deixava o símbolo — ancorado na borda do wrapper — longe do campo.
   // Como div de bloco, segue preenchendo a célula de um grid normalmente.
+  //
+  // Consequência a saber: `className` vai para o INPUT, não para o wrapper. Classe de
+  // crescimento (`flex-1`, `grow`) passada pelo chamador não faz o campo esticar numa flex —
+  // ela cai dentro de um wrapper que já encolheu. Sem largura declarada o campo assume a
+  // largura intrínseca do input (~229px), que é utilizável; hoje ninguém passa `flex-1`.
   return (
     <div className="relative">
       {campo}

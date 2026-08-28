@@ -33,6 +33,7 @@ import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-bu
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
+import { InputPercentual } from "@/components/ui/input-percentual";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -476,16 +477,13 @@ export function PropostaEditor({
                       }
                     />
                   ) : (
-                    <Input
-                      type="number"
-                      inputMode="decimal"
-                      className="w-24 text-right tabular-nums"
-                      value={c.valor || ""}
+                    <InputPercentual
+                      semSufixo
+                      className="w-24"
+                      value={c.valor || null}
                       disabled={!editavel}
-                      onChange={(e) =>
-                        setCondicoes((arr) =>
-                          arr.map((x, idx) => (idx === i ? { ...x, valor: Number(e.target.value) } : x)),
-                        )
+                      onChange={(v) =>
+                        setCondicoes((arr) => arr.map((x, idx) => (idx === i ? { ...x, valor: v ?? 0 } : x)))
                       }
                     />
                   )}
