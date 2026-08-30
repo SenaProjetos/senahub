@@ -6996,7 +6996,10 @@ model Credencial {
   // Categorização
   categoriaId   String
   categoria     CredencialCategoria @relation(fields: [categoriaId], references: [id])
-  estado        String?   @db.VarChar(2) // UF (AC..TO) ou NULL
+  /// UF (AC..TO), ou os dois valores não-geográficos que o filtro de Estado exige (§10/§15):
+  /// `NACIONAL` (software sem UF) e `NA` (não aplicável). Por isso NÃO é VarChar(2) — nasceu
+  /// assim e só não quebrou porque a tabela estava vazia.
+  estado        String?   @db.VarChar(16)
   descricao     String?
   url           String?   @db.VarChar(2000)
 

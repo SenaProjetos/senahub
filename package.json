@@ -47,7 +47,8 @@
     "release:major": "commit-and-tag-version --release-as major",
     "release:dry": "commit-and-tag-version --dry-run",
     "postinstall": "node scripts/sincronizar-pdf-worker.mjs && prisma generate",
-    "smoke:acessos": "tsx --tsconfig tsconfig.server.json scripts/smoke-acessos.ts"
+    "smoke:acessos": "tsx --tsconfig tsconfig.server.json scripts/smoke-acessos.ts",
+    "seed:acessos-demo": "tsx --tsconfig tsconfig.server.json scripts/seed-acessos-demo.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

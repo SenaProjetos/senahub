@@ -6,7 +6,12 @@ import { defineAction } from "@/lib/with-action";
 import { ActionError } from "@/lib/action-error";
 import { criptografarSenha } from "@/lib/encryption";
 import type { SessionUser } from "@/lib/session";
-import { permissoesDoViewer, viewerDe, revelarCredencialPara } from "./queries";
+import {
+  permissoesDoViewer,
+  viewerDe,
+  revelarCredencialPara,
+  buscarCredencial,
+} from "./queries";
 import { normalizarCompartilhamentos, type PermissoesNaCredencial } from "./service";
 import {
   criarCredencialSchema,
@@ -333,6 +338,33 @@ export const marcarComoRevisada = defineAction(
     revalidatePath(ROTA);
     revalidatePath(`${ROTA}/${input.id}`);
     return { id: input.id, revisadaEm: agora };
+  },
+);
+
+/**
+ * Detalhe do cadastro para o drawer. LEITURA — não muta nada e não devolve campo cifrado.
+ *
+ * É action, e não query chamada pela página, porque o drawer abre sob demanda no cliente: a
+ * alternativa seria mandar o detalhe de TODAS as linhas no HTML inicial só porque uma pode ser
+ * aberta.
+ *
+ * `audit: false` de propósito: §50 enumera os eventos que interessam, e "abriu o cadastro" não
+ * está entre eles. Auditar cada abertura afogaria revelações de senha no meio do ruído, que é
+ * justamente o que §87 quer poder ler.
+ */
+export const obterDetalheCredencial = defineAction(
+  {
+    modulo: "acessos",
+    acao: "obter-detalhe",
+    recurso: "acessos",
+    permissao: "ver",
+    schema: idSchema,
+    audit: false,
+  },
+  async (input, ctx) => {
+    const r = await buscarCredencial(viewerDe(ctx.user), input.id);
+    if (!r) throw new ActionError("Acesso não encontrado ou sem permissão.");
+    return r;
   },
 );
 

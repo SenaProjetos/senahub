@@ -34,6 +34,7 @@ import {
   BookMarked,
   Notebook,
   Coins,
+  KeyRound,
   type LucideIcon,
 } from "lucide-react";
 import type { Setor } from "@/generated/prisma/enums";
@@ -133,6 +134,15 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/clientes",
         icon: Users,
         permissao: "clientes:ver",
+      },
+      {
+        // Cofre de contas, portais e licenças. Fica junto dos itens administrativos, não em
+        // Configurações: é ferramenta de trabalho do dia a dia (§4), não ajuste de sistema.
+        title: "Acessos",
+        href: "/acessos",
+        icon: KeyRound,
+        permissao: "acessos:ver",
+        tipo: "interno",
       },
       {
         title: "Comercial",
