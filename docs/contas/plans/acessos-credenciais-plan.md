@@ -2,7 +2,7 @@
 
 **Data do plano:** 2026-08-28  
 **Especificação:** `docs/contas/specs/acessos-credenciais.md`  
-**Status:** 🟢 **Fases 1–5 concluídas** (2026-08-28 / 2026-08-30) · Fases 6–8 não iniciadas
+**Status:** ✅ **Fases 1–8 concluídas** (2026-08-28 / 2026-08-30)
 
 | Fase | Estado |
 |---|---|
@@ -11,9 +11,9 @@
 | 3 — Queries, filtros, busca | ✅ concluída |
 | 4 — Página, tabela, drawer | ✅ concluída (referência visual fornecida) |
 | 5 — Reveal, copy, auditoria | ✅ concluída |
-| 6 — Formulário criar/editar | ⬜ não iniciada |
-| 7 — Licenças, alertas, projetos | ⬜ não iniciada |
-| 8 — Testes, docs, polish | ⬜ não iniciada |
+| 6 — Formulário criar/editar | ✅ concluída |
+| 7 — Licenças, alertas, projetos | ✅ concluída |
+| 8 — Testes, docs, polish | ✅ concluída |
 
 > **Como ler os checkboxes:** `[x]` significa "um comando confirmou". Até 2026-08-28 o documento
 > tinha 49 itens marcados de fases que nunca rodaram — foram todos zerados e só os da Fase 1
@@ -1451,6 +1451,62 @@ TI e cliente ficam de fora da semente. Liberação é ato explícito na tela de 
   (`modulo="acessos"`, `userId` do próprio usuário, ações de revelar/abrir). Entra na **Fase 5**,
   quando esses eventos passam a ser gravados — antes disso não haveria o que ler.
   §42 exige "não expor atividade de outros usuários": a query filtra por `userId` da sessão.
+
+---
+
+## ✅ ENTREGA — 2026-08-30
+
+Todas as oito fases concluídas, mais a **UI de compartilhamento**, que não estava no plano e
+sem a qual o módulo não seria usável por mais de uma pessoa (todo acesso criado pela tela
+nascia visível só para administradores).
+
+| Commit | O quê |
+|---|---|
+| `2dcba8c` | F1 — schema, criptografia, permissões |
+| `a79f8c5` | F2a — regras puras, schemas, escopo IDOR |
+| `2f4dab9` | F2b — 7 actions de CRUD com gate por registro |
+| `8cd9704` | F2c — revelar e copiar, com dois gates |
+| `8444316` | F3+F4 — listagem, filtros e a Central |
+| `a82e462` | debounce, tamanho do drawer, favoritar fora do X |
+| `842d2c2` | redesenho conforme a referência visual definitiva |
+| `c618b2f` | F5 — histórico, recentes, auditoria do cofre |
+| `50ab6ea` | F6 — formulário de cadastro e edição |
+| `19eb18f` | UI de compartilhamento |
+| `f1c5d0d` | F7 — alertas agendados e vínculo com projetos |
+| `785f089` | F8 — manual do usuário e cobertura de `nivelDeAcesso` |
+
+**Verificação final:** lint limpo · 2831 testes / 268 arquivos · `smoke:acessos` com 55
+checagens · build compila.
+
+### O que foi verificado no navegador, não só por leitura
+
+- criar pelo formulário grava a credencial, a senha **não** fica em claro na coluna, decifra
+  de volta ao que foi digitado, e o `AuditLog` **não** contém a senha (o `redact` provado no
+  dado real);
+- o drawer mede 520px no desktop e 100% no celular, e a tabela cabe sem cortar Status/Ação
+  em 1600 e 1920 — medido, depois de dois ajustes;
+- o status exibido concorda com a área de Atenção (antes mentia).
+
+### Decisões que fogem do plano original, e por quê
+
+| O quê | Por quê |
+|---|---|
+| Coluna `Usuário / Conta` na tabela | A referência visual do dono a mostra e §16 a permite. Decifra **por linha**, só onde há `podeVerCredencial`; sem permissão vem `—`, nunca `•••`. A senha continua absoluta. |
+| `copiarCredencial` devolve o valor | O desenho original (auditar aqui, UI chama revelar) faria cada cópia disparar dois eventos e registrar uma revelação que ninguém viu. |
+| Busca por debounce com `replace` | Preferência do dono. `replace` porque cada pausa virando histórico faria o Voltar desfazer a busca letra por letra. |
+| Alerta não vai para "todos os gestores" | O cofre é opt-in por compartilhamento; avisar quem não alcança contaria que o registro existe. |
+| Responsável não revela | Ser dono do cadastro não é autorização para ler a senha. Custo assumido: revisar (§44) exige concessão explícita. |
+
+### Pendências declaradas
+
+- **Duplicar acesso (§54)** — não implementado.
+- **Exportação (§79)** — não implementada, e §79 recomenda não implementar exportação de
+  senha nesta versão.
+- **Responsável backup (§40)**, **valor/periodicidade/contrato de licença (§36)**,
+  **equipamentos via `MaquinaTI` (§74)** e **período de aviso configurável (§37)** seguem
+  como lacunas da spec — ver a seção própria acima.
+- O ensaio do formulário no navegador foi feito com script descartável (exige Chrome + dev
+  server), então **não** está no `smoke:acessos`, que roda só contra o banco.
 
 ---
 

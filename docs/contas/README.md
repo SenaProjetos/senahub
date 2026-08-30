@@ -44,9 +44,9 @@ Tradução da especificação em plano de implementação verificável:
 | 3 | Queries + Filtros | 1d | ✅ **concluída** (2026-08-30) |
 | 4 | UI: Página + Tabela + Drawer | 2d | ✅ **concluída** (2026-08-30) |
 | 5 | Reveal + Audit UI | 1d | ✅ **concluída** (2026-08-30) |
-| 6 | Form Criar/Editar | 1.5d | ⬜ |
-| 7 | Licenças + Alertas + Jobs | 1.5d | ⬜ |
-| 8 | Testes + Docs + Polish | 1d | ⬜ |
+| 6 | Form Criar/Editar | 1.5d | ✅ **concluída** (2026-08-30) |
+| 7 | Licenças + Alertas + Jobs | 1.5d | ✅ **concluída** (2026-08-30) |
+| 8 | Testes + Docs + Polish | 1d | ✅ **concluída** (2026-08-30) |
 
 #### Seções Principais
 - Pendências bloqueantes (§1-6: imagem ref, dept check, env var, etc.)
@@ -209,6 +209,7 @@ Semana 2 (Thu–Fri):
 |------|------|-------|
 | 2026-08-28 | Claude Code (Auditoria) | Spec completa validada; plano 8-fase criado |
 | 2026-08-28 | Claude Code (Fase 1) | Schema (5 tabelas), `lib/encryption.ts` + 12 testes, permissões no catálogo **e no seed**, migration gerada pelo Prisma e ensaiada; env var documentada |
+| 2026-08-30 | Claude Code (Fases 5-8) | histórico + recentes + auditoria do cofre; formulário; UI de compartilhamento; alertas agendados e vínculo com projetos; manual do usuário |
 | 2026-08-30 | Claude Code (Fases 3-4) | listagem paginada + filtros + busca; `/acessos` no menu, tabela, atenção, acesso rápido e drawer; 2 bugs achados na revisão visual (status mentindo, estado VARCHAR(2)) |
 | 2026-08-30 | Claude Code (Fase 2) | service puro + schemas + queries com escopo IDOR, 7 actions de CRUD, revelar/copiar com dois gates; smoke com 32 checagens contra o banco |
 | 2026-08-28 | Claude Code (Revisão) | Auditoria do que a Fase 1 entregou: 2 testes falhando corrigidos, 4 divergências migration↔schema eliminadas, 49 checkboxes falsos zerados, lacunas da spec (§40/§41/§42/§36/§37) registradas |
