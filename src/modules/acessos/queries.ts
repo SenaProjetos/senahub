@@ -24,6 +24,7 @@ import type { SessionUser } from "@/lib/session";
 export function viewerDe(user: SessionUser): ViewerCofre {
   return {
     id: user.id,
+    ativo: user.ativo,
     perfilId: user.perfilId,
     setor: user.setor,
     superUsuario: user.superUsuario,
@@ -198,6 +199,71 @@ export async function permissoesDoViewer(
   return permissoesNaCredencial(viewer, cred.compartilhamentos, {
     ehResponsavel: cred.responsavelId === viewer.id,
   });
+}
+
+/** O que uma revelação devolve. `null` em cada campo = a credencial não tem aquele dado gravado. */
+export type CredencialRevelada = { usuario: string | null; senha: string | null };
+
+/** Motivo da recusa. Nunca chega ao usuário separado — só alimenta o log. */
+export type MotivoRecusa = "sem-permissao-de-tela" | "sem-permissao-no-registro" | "nao-encontrada";
+
+export type ResultadoRevelacao =
+  | { ok: true; dados: CredencialRevelada }
+  | { ok: false; motivo: MotivoRecusa };
+
+/**
+ * Decifra a credencial de UM registro. É o único caminho do sistema que devolve texto em claro.
+ *
+ * Aplica os DOIS gates aqui dentro, e não só na action, de propósito:
+ *
+ *   - o de TELA (`acessos:credencial` por `permissaoEfetiva`) — a action já o aplica via
+ *     `defineAction`, mas repeti-lo aqui significa que qualquer chamador futuro (um job, um
+ *     script de migração) não consegue pular o gate por descuido;
+ *   - o de REGISTRO (`podeVerCredencial`) — este `defineAction` não tem como fazer, porque não
+ *     conhece compartilhamento. Sem ele, quem tivesse a permissão de tela leria QUALQUER senha
+ *     do cofre trocando o id: o IDOR da §83, e o modo de falha que passa despercebido porque o
+ *     caminho autorizado continua funcionando.
+ *
+ * Devolve motivo estruturado em vez de lançar, para quem chama poder auditar a recusa com
+ * precisão e ainda assim responder ao usuário com uma mensagem única (§84 cenário D — distinguir
+ * "não existe" de "sem permissão" na resposta seria um oráculo de existência).
+ *
+ * NÃO faz auditoria: quem chama audita, porque é lá que estão o IP e a identidade da sessão.
+ * Chamar isto sem auditar é bug — ver `revelarCredencial`/`copiarCredencial` em `actions.ts`.
+ */
+export async function revelarCredencialPara(
+  viewer: ViewerCofre,
+  credencialId: string,
+): Promise<ResultadoRevelacao> {
+  const { permissaoEfetiva } = await import("@/lib/permissao-efetiva");
+  const podeNaTela = await permissaoEfetiva(
+    { id: viewer.id, ativo: viewer.ativo, superUsuario: viewer.superUsuario, perfilId: viewer.perfilId },
+    "acessos",
+    "credencial",
+  );
+  if (!podeNaTela) return { ok: false, motivo: "sem-permissao-de-tela" };
+
+  const permissoes = await permissoesDoViewer(viewer, credencialId);
+  if (!permissoes) return { ok: false, motivo: "nao-encontrada" };
+  if (!permissoes.verCredencial) return { ok: false, motivo: "sem-permissao-no-registro" };
+
+  const cred = await prisma.credencial.findUnique({
+    where: { id: credencialId },
+    select: { usuarioEncriptado: true, senhaEncriptada: true },
+  });
+  if (!cred) return { ok: false, motivo: "nao-encontrada" };
+
+  const { descriptografarSenha } = await import("@/lib/encryption");
+  const decifrar = async (v: string | null) =>
+    v ? descriptografarSenha(JSON.parse(v) as Parameters<typeof descriptografarSenha>[0]) : null;
+
+  return {
+    ok: true,
+    dados: {
+      usuario: await decifrar(cred.usuarioEncriptado),
+      senha: await decifrar(cred.senhaEncriptada),
+    },
+  };
 }
 
 /** Categorias ativas, para filtro e formulário. */

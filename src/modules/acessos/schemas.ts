@@ -87,6 +87,12 @@ export const gerenciarCompartilhamentoSchema = z.object({
   compartilhamentos: z.array(compartilhamentoSchema).max(200),
 });
 
+/** Copiar distingue o campo: copiar o usuário não pode entregar a senha junto (§20/§26). */
+export const copiarCredencialSchema = z.object({
+  id: z.string().min(1),
+  campo: z.enum(["usuario", "senha"]),
+});
+
 export const alternarFavoritoSchema = z.object({
   id: z.string().min(1),
   favorito: z.boolean(),

@@ -25,6 +25,8 @@ export type StatusCredencial = (typeof STATUS_CREDENCIAL)[number];
  */
 export type ViewerCofre = {
   id: string;
+  /** Usuário desativado não alcança nada — `permissaoEfetiva` também nega, e os dois concordam. */
+  ativo: boolean;
   /** Perfil de acesso (motor da Onda D). Nulo = sem perfil, não casa com alvo `perfil`. */
   perfilId: string | null;
   /** Setor do vínculo ativo. Nulo = não casa com alvo `setor`. */

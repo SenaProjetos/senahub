@@ -9,7 +9,7 @@ import {
   type ViewerCofre,
 } from "./service";
 
-const VIEWER: ViewerCofre = { id: "u1", perfilId: "p1", setor: "engenharia", superUsuario: false };
+const VIEWER: ViewerCofre = { id: "u1", ativo: true, perfilId: "p1", setor: "engenharia", superUsuario: false };
 
 function linha(over: Partial<LinhaCompartilhamento>): LinhaCompartilhamento {
   return {

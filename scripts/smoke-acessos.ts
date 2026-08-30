@@ -1,6 +1,11 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
-import { escopoCredencial, permissoesDoViewer, buscarCredencial } from "../src/modules/acessos/queries";
+import {
+  escopoCredencial,
+  permissoesDoViewer,
+  buscarCredencial,
+  revelarCredencialPara,
+} from "../src/modules/acessos/queries";
 import { criptografarSenha, descriptografarSenha } from "../src/lib/encryption";
 import type { ViewerCofre } from "../src/modules/acessos/service";
 
@@ -11,8 +16,9 @@ import type { ViewerCofre } from "../src/modules/acessos/service";
  * ele filtra, e vitest aqui roda sem sessão nem HTTP. Este script cria o cenário, consulta como
  * cada perfil e apaga tudo no fim.
  *
- * Cobre escopo de leitura (§84 A-E), soft delete e criptografia em repouso (§83/§90).
- * Revelar/copiar entram na 2c, junto das actions que os implementam.
+ * Cobre escopo de leitura (§84 A-E), soft delete, criptografia em repouso (§83/§90) e os dois
+ * gates da revelação (§25/§48). As actions em si não são chamáveis daqui — dependem de sessão —
+ * então o smoke exercita `revelarCredencialPara`, que é onde os gates moram.
  */
 
 let falhas = 0;
@@ -73,6 +79,7 @@ async function main() {
 
   const viewer = (u: { id: string; perfilId: string | null; setor: string | null }, superUsuario = false): ViewerCofre => ({
     id: u.id,
+    ativo: true,
     perfilId: u.perfilId,
     setor: u.setor as ViewerCofre["setor"],
     superUsuario,
@@ -167,6 +174,101 @@ async function main() {
       !("senhaEncriptada" in lido.credencial) &&
       !("usuarioEncriptado" in lido.credencial),
   );
+
+  console.log("\nRevelação — os DOIS gates (§25/§48/§84)");
+  // Ninguém tem `acessos:credencial` por padrão (saiu da semente por decisão do dono). O
+  // override individual é o caminho de concessão, e `permissaoEfetiva` NÃO o cacheia — a linha
+  // inserida agora vale na próxima chamada, que é justamente a garantia de §5.2 do motor.
+  async function concederTela(userId: string) {
+    await prisma.permissaoUsuario.upsert({
+      where: { userId_recurso_acao: { userId, recurso: "acessos", acao: "credencial" } },
+      create: {
+        userId,
+        recurso: "acessos",
+        acao: "credencial",
+        permitido: true,
+        motivo: "smoke de teste — concessão temporária",
+      },
+      update: { permitido: true },
+    });
+  }
+  async function revogarTela(userId: string) {
+    await prisma.permissaoUsuario.deleteMany({
+      where: { userId, recurso: "acessos", acao: "credencial" },
+    });
+  }
+
+  // Uma credencial nova (a anterior foi soft-deletada acima).
+  const viva = await prisma.credencial.create({
+    data: {
+      nome: `${marca}-VIVA`,
+      categoriaId: categoria.id,
+      responsavelId: dono.id,
+      usuarioEncriptado: JSON.stringify(await criptografarSenha(USUARIO)),
+      senhaEncriptada: JSON.stringify(await criptografarSenha(SENHA)),
+      compartilhamentos: {
+        create: [
+          { tipoAlvo: "perfil", alvoId: perfil.id, podeVerCadastro: true, podeVerCredencial: true },
+          { tipoAlvo: "setor", alvoId: "engenharia", podeVerCadastro: true, podeVerCredencial: false },
+        ],
+      },
+    },
+    select: { id: true },
+  });
+
+  // Gate 1 sozinho não basta: SEM a permissão de tela, nem quem tem o registro compartilhado revela.
+  await revogarTela(autorizado.id);
+  const semTela = await revelarCredencialPara(vB, viva.id);
+  checar(
+    "sem `acessos:credencial`, recusa mesmo com o registro compartilhado",
+    semTela.ok === false && semTela.motivo === "sem-permissao-de-tela",
+  );
+
+  // Gate 2 sozinho não basta — ESTE é o teste que separa dois gates de um gate com cerimônia:
+  // o `limitado` recebe a permissão de TELA, mas o registro não lhe dá `podeVerCredencial`.
+  await concederTela(limitado.id);
+  const semRegistro = await revelarCredencialPara(vC, viva.id);
+  checar(
+    "com `acessos:credencial` mas sem `podeVerCredencial`, recusa (IDOR §83)",
+    semRegistro.ok === false && semRegistro.motivo === "sem-permissao-no-registro",
+  );
+
+  // Os dois juntos: revela.
+  await concederTela(autorizado.id);
+  const comAmbos = await revelarCredencialPara(vB, viva.id);
+  checar("com os dois gates, revela", comAmbos.ok === true);
+  checar(
+    "devolve exatamente o que foi cifrado",
+    comAmbos.ok === true && comAmbos.dados.senha === SENHA && comAmbos.dados.usuario === USUARIO,
+  );
+
+  // Trocar o id no payload não alcança o que não é compartilhado.
+  const outroId = await prisma.credencial.create({
+    data: {
+      nome: `${marca}-ALHEIA`,
+      categoriaId: categoria.id,
+      senhaEncriptada: JSON.stringify(await criptografarSenha("nao-pode-vazar")),
+    },
+    select: { id: true },
+  });
+  const alheia = await revelarCredencialPara(vB, outroId.id);
+  checar(
+    "trocar o id para uma credencial alheia recusa",
+    alheia.ok === false && alheia.motivo === "sem-permissao-no-registro",
+  );
+
+  const inexistente = await revelarCredencialPara(vB, "id-que-nao-existe");
+  checar("id inexistente recusa", inexistente.ok === false && inexistente.motivo === "nao-encontrada");
+
+  // Usuário desativado não revela, mesmo com tudo concedido.
+  const desativado = await revelarCredencialPara({ ...vB, ativo: false }, viva.id);
+  checar(
+    "usuário inativo não revela",
+    desativado.ok === false && desativado.motivo === "sem-permissao-de-tela",
+  );
+
+  await revogarTela(autorizado.id);
+  await revogarTela(limitado.id);
 
   console.log("\nLimpando...");
   await prisma.credencial.deleteMany({ where: { nome: { startsWith: marca } } });

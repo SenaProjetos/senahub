@@ -6,13 +6,14 @@ import { defineAction } from "@/lib/with-action";
 import { ActionError } from "@/lib/action-error";
 import { criptografarSenha } from "@/lib/encryption";
 import type { SessionUser } from "@/lib/session";
-import { permissoesDoViewer, viewerDe } from "./queries";
+import { permissoesDoViewer, viewerDe, revelarCredencialPara } from "./queries";
 import { normalizarCompartilhamentos, type PermissoesNaCredencial } from "./service";
 import {
   criarCredencialSchema,
   atualizarCredencialSchema,
   gerenciarCompartilhamentoSchema,
   alternarFavoritoSchema,
+  copiarCredencialSchema,
   idSchema,
 } from "./schemas";
 
@@ -31,7 +32,9 @@ const ROTA = "/acessos";
  * credencial trocando o id no payload, que é exatamente o IDOR da §83. `defineAction` não sabe
  * nada sobre compartilhamento — essa parte é sempre nossa.
  *
- * Revelar/copiar credencial NÃO mora aqui: é a Fase 2c, com auditoria própria.
+ * `revelarCredencial`/`copiarCredencial` seguem a mesma regra, mas os gates ficam dentro de
+ * `revelarCredencialPara` (em `queries.ts`) para poderem ser exercitados sem sessão pelo
+ * `smoke:acessos` — a action fica com sessão, auditoria e a mensagem de recusa.
  */
 
 /**
@@ -330,6 +333,85 @@ export const marcarComoRevisada = defineAction(
     revalidatePath(ROTA);
     revalidatePath(`${ROTA}/${input.id}`);
     return { id: input.id, revisadaEm: agora };
+  },
+);
+
+/**
+ * Traduz a recusa numa mensagem ÚNICA, igual para os três motivos.
+ *
+ * O motivo NÃO entra na mensagem: `ActionError` é exibida ao usuário, e uma mensagem que
+ * distinguisse "não encontrada" de "sem permissão no registro" seria o oráculo de existência que
+ * §84 (cenário D) quer fechar — bastaria varrer ids e ler a diferença para mapear o cofre inteiro
+ * sem ter acesso a nada.
+ *
+ * O `AuditLog` fica sabendo o que importa mesmo assim: `defineAction` grava `resultado:
+ * "rejeitado"` com `entidadeId` da credencial e o `userId`, o que já responde "fulano tentou
+ * revelar a credencial X e foi negado" para quem lê §87. O motivo fino é o único detalhe que se
+ * perde, e vale menos que não vazar existência.
+ */
+function recusar(): never {
+  throw new ActionError("Acesso não encontrado ou sem permissão para ver a credencial.");
+}
+
+/**
+ * §25/§48 — revelar a credencial. É a ação sensível do módulo.
+ *
+ * `defineAction` cobre sessão, o gate de tela `acessos:credencial` e a auditoria automática;
+ * `revelarCredencialPara` refaz esse gate e acrescenta o de REGISTRO, que é o que impede ler
+ * qualquer senha trocando o id.
+ *
+ * O que NÃO acontece aqui, e é intencional:
+ *   - **sem `revalidatePath`**: revelar é leitura que por acaso é POST. Nada mudou, e revalidar
+ *     dispararia refetch de tela à toa.
+ *   - **sem `redact`**: o input é só `{ id }`. O texto em claro vive no RETORNO, e o retorno
+ *     nunca é auditado — `defineAction` grava `detalhe: input`, não o resultado.
+ *
+ * O plaintext trafega uma vez, na resposta desta chamada, e não é persistido em lugar nenhum.
+ */
+export const revelarCredencial = defineAction(
+  {
+    modulo: "acessos",
+    acao: "revelar-credencial",
+    recurso: "acessos",
+    permissao: "credencial",
+    entidade: "Credencial",
+    schema: idSchema,
+    entidadeId: (_d, i) => i.id,
+  },
+  async (input, ctx) => {
+    const r = await revelarCredencialPara(viewerDe(ctx.user), input.id);
+    if (!r.ok) recusar();
+    return r.dados;
+  },
+);
+
+/**
+ * §26 — copiar. Evento de auditoria PRÓPRIO, separado de revelar, porque a spec quer distinguir
+ * "olhou" de "levou para a área de transferência".
+ *
+ * Devolve o valor em vez de só registrar: a alternativa desenhada no plano (auditar aqui e
+ * mandar a UI chamar `revelar` para pegar o texto) faria cada cópia disparar dois eventos e duas
+ * autorizações, e deixaria no histórico uma revelação que ninguém viu na tela. Uma chamada, uma
+ * autorização, um evento.
+ *
+ * `campo` decide o que volta — copiar o usuário não entrega a senha junto.
+ */
+export const copiarCredencial = defineAction(
+  {
+    modulo: "acessos",
+    acao: "copiar-credencial",
+    recurso: "acessos",
+    permissao: "credencial",
+    entidade: "Credencial",
+    schema: copiarCredencialSchema,
+    entidadeId: (_d, i) => i.id,
+  },
+  async (input, ctx) => {
+    const r = await revelarCredencialPara(viewerDe(ctx.user), input.id);
+    if (!r.ok) recusar();
+    return input.campo === "usuario"
+      ? { campo: "usuario" as const, valor: r.dados.usuario }
+      : { campo: "senha" as const, valor: r.dados.senha };
   },
 );
 
