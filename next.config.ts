@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { execSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { version as appVersion } from "./package.json";
 
 // SHA curto do commit em build-time. Guardado em try/catch porque o deploy pode
@@ -25,6 +26,8 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=(), payment=()" },
 ];
 
+const visualInspectorLoader = fileURLToPath(new URL("./dev/visual-inspector-loader.cjs", import.meta.url));
+
 const nextConfig: NextConfig = {
   // Permite acessar o dev server a partir de outros dispositivos da rede local
   // (ex.: celular em http://192.168.0.52:3000) sem o aviso de cross-origin do Next 15.5.
@@ -35,6 +38,18 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_APP_VERSION: appVersion,
     NEXT_PUBLIC_GIT_SHA: gitSha(),
   },
+  ...(process.env.NODE_ENV === "development"
+    ? {
+        turbopack: {
+          rules: {
+            "src/**/*.tsx": {
+              loaders: [visualInspectorLoader],
+              as: "*.js",
+            },
+          },
+        },
+      }
+    : {}),
   async headers() {
     return [
       {

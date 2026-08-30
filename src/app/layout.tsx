@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Schibsted_Grotesk, Red_Hat_Mono } from "next/font/google";
 import { Providers } from "@/components/providers";
+import { VisualInspector } from "@/components/dev/visual-inspector";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import "./globals.css";
@@ -56,7 +57,10 @@ export default function RootLayout({
       className={`${schibstedGrotesk.variable} ${redHatMono.variable}`}
     >
       <body className="brand-backdrop antialiased">
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+          {process.env.NODE_ENV === "development" ? <VisualInspector /> : null}
+        </Providers>
       </body>
     </html>
   );
