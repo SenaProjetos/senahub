@@ -2,6 +2,18 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.14.0](https://github.com/SenaProjetos/senahub/compare/v1.13.0...v1.14.0) (2026-08-30)
+
+
+### ✨ Funcionalidades
+
+* **versoes:** histórico de versões clicável a partir do sidebar ([bd4cc87](https://github.com/SenaProjetos/senahub/commit/bd4cc87b8da484b6354ba9f7046109a58254a2cf))
+
+
+### 🐛 Correções
+
+* **release:** URLs do changelog usavam variável inexistente ([16bceac](https://github.com/SenaProjetos/senahub/commit/16bceacd23b78afb2c39590b0a5261d994e4211e))
+
 ## [1.13.0](https://github.com/SenaProjetos//compare/v1.12.0...v1.13.0) (2026-08-30)
 
 
