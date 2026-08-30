@@ -294,6 +294,42 @@ async function main() {
   const listaD = await listarCredenciaisPaginado(vD, {}, pag);
   checar("estranho não vê a linha na listagem", !listaD.items.some((i) => i.id === viva.id));
 
+  console.log("\nHistórico e recentes (§33/§42)");
+  const { historicoDaCredencial, acessadosRecentemente } = await import(
+    "../src/modules/acessos/queries"
+  );
+
+  // Um evento de revelação, como o `defineAction` gravaria.
+  await prisma.auditLog.create({
+    data: {
+      userId: autorizado.id,
+      modulo: "acessos",
+      acao: "revelar-credencial",
+      resultado: "sucesso",
+      entidade: "Credencial",
+      entidadeId: viva.id,
+      detalhe: { id: viva.id },
+    },
+  });
+
+  const hist = await historicoDaCredencial(vB, viva.id);
+  checar("quem alcança a credencial lê o histórico dela", (hist?.length ?? 0) > 0);
+  checar(
+    "o histórico não devolve o campo `detalhe`",
+    hist !== null && hist.every((e) => !("detalhe" in e)),
+  );
+  checar("quem NÃO alcança recebe null (não um histórico vazio)", (await historicoDaCredencial(vD, viva.id)) === null);
+
+  const recentesB = await acessadosRecentemente(vB);
+  checar("o próprio usuário vê o que usou", recentesB.some((r) => r.id === viva.id));
+  const recentesC = await acessadosRecentemente(vC);
+  checar(
+    "§42 — recentes não expõem atividade alheia",
+    !recentesC.some((r) => r.id === viva.id),
+  );
+
+  await prisma.auditLog.deleteMany({ where: { entidadeId: viva.id } });
+
   console.log("\nLimpando...");
   await prisma.credencial.deleteMany({ where: { nome: { startsWith: marca } } });
   await prisma.credencialCategoria.delete({ where: { id: categoria.id } });

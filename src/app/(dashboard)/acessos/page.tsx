@@ -11,6 +11,7 @@ import {
   contagemPorCategoria,
   contagemPorStatus,
   alertasAcessos,
+  acessadosRecentemente,
   viewerDe,
   SORT_ACESSOS,
 } from "@/modules/acessos/queries";
@@ -68,8 +69,10 @@ export default async function AcessosPage({ searchParams }: { searchParams: Prom
     porCategoria,
     contagemStatus,
     alertas,
+    recentes,
     podeGerir,
     podeRevelar,
+    podeAuditar,
   ] = await Promise.all([
     listarCredenciaisPaginado(viewer, filtros, { skip, take, sort, dir }),
     listarCategorias(),
@@ -79,11 +82,13 @@ export default async function AcessosPage({ searchParams }: { searchParams: Prom
     contagemPorCategoria(viewer),
     contagemPorStatus(viewer),
     alertasAcessos(viewer),
+    acessadosRecentemente(viewer),
     can(user, "acessos", "gerir"),
     // Gate de TELA do botão de revelar. Não é a autorização real — essa é por registro, no
     // servidor (§51: esconder botão não é segurança). Serve para não oferecer o que sempre
     // falharia.
     can(user, "acessos", "credencial"),
+    can(user, "acessos", "auditoria"),
   ]);
 
   return (
@@ -99,8 +104,10 @@ export default async function AcessosPage({ searchParams }: { searchParams: Prom
       indicadores={{ ...indicadores, novos }}
       contagemStatus={contagemStatus}
       alertas={alertas}
+      recentes={recentes}
       podeGerir={podeGerir}
       podeRevelar={podeRevelar}
+      podeAuditar={podeAuditar}
       filtros={{
         q,
         categoriaId: sp.categoriaId ?? "",

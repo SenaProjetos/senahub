@@ -25,6 +25,17 @@ export const ACAO_LABEL: Record<string, string> = {
   "excluir-compromisso": "Excluiu compromisso",
   "confirmar-presenca": "Confirmou presença",
 
+  // Acessos e Credenciais (cofre). As três primeiras são as sensíveis: §50 quer poder
+  // reconstituir quem leu qual segredo, e §87 as lê de volta na auditoria administrativa.
+  "revelar-credencial": "Revelou uma credencial",
+  "copiar-credencial": "Copiou uma credencial",
+  "alterar-compartilhamento": "Alterou quem acessa o acesso",
+  "criar-credencial": "Cadastrou um acesso",
+  "atualizar-credencial": "Editou um acesso",
+  "desativar-credencial": "Desativou um acesso",
+  "reativar-credencial": "Restaurou um acesso",
+  "marcar-revisada": "Marcou a credencial como revisada",
+
   // Documentos
   "criar-modelo": "Criou modelo de documento",
   "salvar-modelo": "Salvou modelo de documento",
@@ -338,6 +349,7 @@ export const MODULO_LABEL: Record<string, string> = {
   busca: "Busca",
   dashboard: "Dashboard",
   ferramentas: "Ferramentas",
+  acessos: "Acessos e Credenciais",
 };
 
 export function moduloLabel(modulo: string): string {

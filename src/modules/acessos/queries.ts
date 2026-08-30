@@ -693,6 +693,107 @@ export async function revelarCredencialPara(
   };
 }
 
+export type EventoHistorico = {
+  id: string;
+  acao: string;
+  resultado: string;
+  criadoEm: Date;
+  autor: { id: string; name: string; image: string | null } | null;
+};
+
+/**
+ * §33 — histórico de UMA credencial, para a aba do drawer.
+ *
+ * Lê o `AuditLog` que o `defineAction` já grava; não há tabela de histórico própria (§66 — não
+ * duplicar o que existe). Filtra por `entidadeId`, que é por isso que toda action do módulo
+ * declara `entidade: "Credencial"` + `entidadeId`.
+ *
+ * **Devolve só o cabeçalho do evento — nunca `detalhe`.** O `detalhe` carrega o antes/depois do
+ * cadastro, e ainda que a senha esteja redigida ali (`redact`), mandar o payload inteiro para o
+ * cliente entrega mais do que a linha do tempo precisa: quem, o quê, quando (§33: "Registrar
+ * somente eventos necessários e seguros").
+ *
+ * Gate: quem chama precisa ter alcançado a credencial. `historicoDaCredencial` confere o escopo
+ * ela mesma, para não depender de o chamador lembrar.
+ */
+export async function historicoDaCredencial(
+  viewer: ViewerCofre,
+  credencialId: string,
+  limite = 30,
+): Promise<EventoHistorico[] | null> {
+  const alcanca = await prisma.credencial.count({
+    where: { AND: [{ id: credencialId }, escopoCredencial(viewer)] },
+  });
+  if (alcanca === 0) return null;
+
+  const linhas = await prisma.auditLog.findMany({
+    where: { modulo: "acessos", entidade: "Credencial", entidadeId: credencialId },
+    orderBy: { createdAt: "desc" },
+    take: limite,
+    select: {
+      id: true,
+      acao: true,
+      resultado: true,
+      createdAt: true,
+      user: { select: { id: true, name: true, image: true } },
+    },
+  });
+
+  return linhas.map((l) => ({
+    id: l.id,
+    acao: l.acao,
+    resultado: l.resultado,
+    criadoEm: l.createdAt,
+    autor: l.user,
+  }));
+}
+
+/**
+ * §42 — "Acessados recentemente", do PRÓPRIO usuário.
+ *
+ * Sem tabela nova: sai do `AuditLog`, filtrado por `userId` da sessão. §42 é explícito que a
+ * seção não pode expor atividade de terceiros, e filtrar pelo próprio id é o que garante isso —
+ * não é otimização, é o requisito.
+ *
+ * Conta como "acesso recente" apenas revelar/copiar: abrir o cadastro não é uso da credencial, e
+ * incluir isso encheria a lista de coisas que a pessoa só espiou.
+ */
+export async function acessadosRecentemente(viewer: ViewerCofre, limite = 5) {
+  const eventos = await prisma.auditLog.findMany({
+    where: {
+      modulo: "acessos",
+      userId: viewer.id,
+      resultado: "sucesso",
+      acao: { in: ["revelar-credencial", "copiar-credencial"] },
+      entidadeId: { not: null },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { entidadeId: true, createdAt: true },
+    take: 60,
+  });
+
+  // Deduplica preservando a ordem: a credencial aparece uma vez, no uso mais recente.
+  const vistos = new Map<string, Date>();
+  for (const e of eventos) {
+    if (e.entidadeId && !vistos.has(e.entidadeId)) vistos.set(e.entidadeId, e.createdAt);
+  }
+  const ids = [...vistos.keys()].slice(0, limite);
+  if (ids.length === 0) return [];
+
+  // Passa pelo escopo de novo: quem perdeu o compartilhamento depois de ter usado NÃO deve
+  // continuar vendo o item na lista só porque o log lembra.
+  const credenciais = await prisma.credencial.findMany({
+    where: { AND: [{ id: { in: ids } }, escopoCredencial(viewer)] },
+    select: { id: true, nome: true, categoria: { select: { nome: true } } },
+  });
+  const porId = new Map(credenciais.map((c) => [c.id, c]));
+
+  return ids.flatMap((id) => {
+    const c = porId.get(id);
+    return c ? [{ ...c, usadoEm: vistos.get(id)! }] : [];
+  });
+}
+
 /** Categorias ativas, para filtro e formulário. */
 export async function listarCategorias() {
   return prisma.credencialCategoria.findMany({

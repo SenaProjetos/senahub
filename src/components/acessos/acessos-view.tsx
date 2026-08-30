@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Star } from "lucide-react";
+import Link from "next/link";
+import { Plus, Star, History } from "lucide-react";
 import { useSetParams } from "@/lib/use-set-param";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -11,6 +12,7 @@ import { AcessoRapido, type CategoriaAtalho } from "./acesso-rapido";
 import { PainelAtencao, type AlertaUI } from "./painel-atencao";
 import { CardsIndicadores, type Indicadores } from "./cards-indicadores";
 import { ResumoStatus, type ContagemStatus } from "./resumo-status";
+import { PainelRecentes, type AcessoRecente } from "./painel-recentes";
 import { RodapeSeguranca } from "./rodape-seguranca";
 import { AcessoDrawer } from "./acesso-drawer";
 
@@ -35,8 +37,10 @@ export function AcessosView({
   indicadores,
   contagemStatus,
   alertas,
+  recentes,
   podeGerir,
   podeRevelar,
+  podeAuditar,
   filtros,
 }: {
   items: LinhaAcesso[];
@@ -50,8 +54,10 @@ export function AcessosView({
   indicadores: Indicadores;
   contagemStatus: ContagemStatus;
   alertas: AlertaUI[];
+  recentes: AcessoRecente[];
   podeGerir: boolean;
   podeRevelar: boolean;
+  podeAuditar: boolean;
   filtros: FiltrosAtuais;
 }) {
   const setParams = useSetParams();
@@ -82,6 +88,12 @@ export function AcessosView({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {podeAuditar && (
+            <Button variant="outline" render={<Link href="/acessos/auditoria" />}>
+              <History className="size-4" aria-hidden />
+              Histórico
+            </Button>
+          )}
           <Button
             variant={filtros.favoritos ? "secondary" : "outline"}
             onClick={() => setParams({ favoritos: filtros.favoritos ? null : "1" })}
@@ -141,6 +153,7 @@ export function AcessosView({
 
         <div className="order-3 space-y-4">
           <PainelAtencao alertas={alertas} onAbrir={setAberto} />
+          <PainelRecentes recentes={recentes} onAbrir={setAberto} />
           <ResumoStatus contagem={contagemStatus} />
         </div>
       </div>

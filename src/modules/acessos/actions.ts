@@ -11,6 +11,7 @@ import {
   viewerDe,
   revelarCredencialPara,
   buscarCredencial,
+  historicoDaCredencial,
 } from "./queries";
 import { normalizarCompartilhamentos, type PermissoesNaCredencial } from "./service";
 import {
@@ -365,6 +366,28 @@ export const obterDetalheCredencial = defineAction(
     const r = await buscarCredencial(viewerDe(ctx.user), input.id);
     if (!r) throw new ActionError("Acesso não encontrado ou sem permissão.");
     return r;
+  },
+);
+
+/**
+ * §33 — histórico de uma credencial, para a aba do drawer.
+ *
+ * `audit: false`: ler a trilha não é evento da trilha. Auditar isto criaria uma linha nova a
+ * cada abertura da aba, e o histórico passaria a ser majoritariamente "fulano abriu o histórico".
+ */
+export const obterHistoricoCredencial = defineAction(
+  {
+    modulo: "acessos",
+    acao: "obter-historico",
+    recurso: "acessos",
+    permissao: "ver",
+    schema: idSchema,
+    audit: false,
+  },
+  async (input, ctx) => {
+    const eventos = await historicoDaCredencial(viewerDe(ctx.user), input.id);
+    if (!eventos) throw new ActionError("Acesso não encontrado ou sem permissão.");
+    return eventos;
   },
 );
 

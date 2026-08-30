@@ -10,6 +10,8 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { HistoricoCredencial } from "./historico-credencial";
 import { formatarData, formatarDataHora } from "@/lib/utils";
 import {
   obterDetalheCredencial,
@@ -167,7 +169,23 @@ function Conteudo({
         </div>
       </SheetHeader>
 
-      <div className="space-y-5 px-4 pb-6">
+      {/* §72 — abas só porque o conteúdo justifica: o histórico é longo e de outra natureza,
+          e empilhá-lo abaixo do cadastro faria rolar a ficha inteira para chegar nele. */}
+      <Tabs defaultValue="geral" className="px-4 pb-6">
+        <TabsList className="mb-4 w-full">
+          <TabsTrigger value="geral" className="flex-1">
+            Geral
+          </TabsTrigger>
+          <TabsTrigger value="historico" className="flex-1">
+            Histórico
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="historico">
+          <HistoricoCredencial credencialId={c.id} />
+        </TabsContent>
+
+        <TabsContent value="geral" className="space-y-5">
         {/* §23 — identificação */}
         <Secao titulo="Identificação">
           <Campo rotulo="Responsável interno">
@@ -299,7 +317,8 @@ function Conteudo({
             {c.atualizadoPor?.name ?? "—"} · {formatarDataHora(c.atualizadoEm)}
           </Campo>
         </Secao>
-      </div>
+        </TabsContent>
+      </Tabs>
     </>
   );
 }
