@@ -2,6 +2,67 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.13.0](https://github.com/SenaProjetos//compare/v1.12.0...v1.13.0) (2026-08-30)
+
+
+### ✨ Funcionalidades
+
+* **acessos:** Fase 1 — schema do cofre, criptografia e permissões ([2dcba8c](https://github.com/SenaProjetos//commit/2dcba8c06e498f2fa78ab575e30cea9e4260aaff))
+* **acessos:** Fase 2a — regras puras, schemas e escopo de leitura ([a79f8c5](https://github.com/SenaProjetos//commit/a79f8c53e68df0d840f64007e5be499efda176b1))
+* **acessos:** Fase 2b — actions de CRUD com gate por registro ([2f4dab9](https://github.com/SenaProjetos//commit/2f4dab932bad147612e4894bd762fd7fb4a991df))
+* **acessos:** Fase 2c — revelar e copiar credencial, com dois gates ([8cd9704](https://github.com/SenaProjetos//commit/8cd97040081855d75cce339c3246614842bbd5ad))
+* **acessos:** Fase 5 — histórico da credencial, recentes e auditoria do cofre ([c618b2f](https://github.com/SenaProjetos//commit/c618b2f4fdb250801b51f691e006b1ff4fae5e94))
+* **acessos:** Fase 6 — formulário de cadastro e edição ([50ab6ea](https://github.com/SenaProjetos//commit/50ab6eaef892913f5edfabfe967a1a72d5585495))
+* **acessos:** Fase 7 — alertas agendados e vínculo com projetos ([f1c5d0d](https://github.com/SenaProjetos//commit/f1c5d0d44ed42ff5775334d5bc117d6f71bbe9f7))
+* **acessos:** Fases 3 e 4 — listagem, filtros e a Central de Acessos ([8444316](https://github.com/SenaProjetos//commit/844431650054dc6d5ad6c3211e4be677767e61c9))
+* **acessos:** redesenho da Central conforme a nova referência visual ([842d2c2](https://github.com/SenaProjetos//commit/842d2c2709bd9c9b7d9738bce3f5ed91629792e2))
+* **acessos:** UI de compartilhamento — define quem enxerga cada acesso ([19eb18f](https://github.com/SenaProjetos//commit/19eb18f0017f9a4039d6a1693a0fa646c830cb96))
+* **arquivos:** link de seleção também no explorer antigo, e manual ([a5b3626](https://github.com/SenaProjetos//commit/a5b36261cc3648eb744b8dbbfcdcf9bc430a3b74))
+* **arquivos:** vários links públicos por projeto, com escopo e recorte ([de32124](https://github.com/SenaProjetos//commit/de32124455a7567215194b845412ac87383cd1c9))
+* **auditoria:** foto do usuário na tabela de auditoria ([763a410](https://github.com/SenaProjetos//commit/763a410c40bf2a253ead5a9d05d6c12452aa08b2))
+* **chat:** foto do usuário nas conversas (DM, grupos, pickers) ([5758eb8](https://github.com/SenaProjetos//commit/5758eb8005310d2bbb16a2f48960fdb13ae15523))
+* **chat:** identifica origem da notificação (DM/grupo/projeto/disciplina) ([2b4113f](https://github.com/SenaProjetos//commit/2b4113f483657e013ce4feef89c2cdaad1d488b2))
+* **clientes:** importar dados por CNPJ ([174f947](https://github.com/SenaProjetos//commit/174f947723e7afef1fd271cc124f8dff041e3eeb))
+* **comercial:** foto do autor no histórico de notas/atividades ([5c54b3d](https://github.com/SenaProjetos//commit/5c54b3db77e6895fc439e6eb523fa66060a67fee))
+* **coordenacao:** foto do autor em apontamentos e vistas salvas ([a9a7940](https://github.com/SenaProjetos//commit/a9a7940cd7c32eaf89ced96c8dc5e11cfdd82a8c))
+* **dev:** inspetor visual de desenvolvimento com origem JSX ([fe452ed](https://github.com/SenaProjetos//commit/fe452ed91da0619227c5cd654ae52dfe6ee2e0b1))
+* **diario:** foto do autor nas entradas do diário de obra ([4387708](https://github.com/SenaProjetos//commit/43877081b4914013ae166ad9d239a84d9ff5798e))
+* **documentos:** ConfigSistema para rate limit geração PDF ([efafec2](https://github.com/SenaProjetos//commit/efafec2cc0478e7f194b419edf892bd37555c33d))
+* **documentos:** fonte de dados "contrato" no Estúdio (E1) ([d138c4e](https://github.com/SenaProjetos//commit/d138c4eaca953c17adce3020b0f162a8c6d14e6a))
+* **documentos:** traz as áreas do projeto para a tela nova ([f466a75](https://github.com/SenaProjetos//commit/f466a75367f9ea3ad5c0911e4d6ed281acc5a90e))
+* **ferramentas:** campo de percentual nos formulários de engenharia ([9cc9a64](https://github.com/SenaProjetos//commit/9cc9a64780ecc3663eea2ecb3071a601f3d052a4))
+* **juridico:** geração de contrato via Estúdio de Documentos (E2-E5) ([2c974e9](https://github.com/SenaProjetos//commit/2c974e90089dedb29bcd8bf539f5dca7666dcbc5))
+* **juridico:** gerenciador de contratos de equipe e cliente ([c8d1ca5](https://github.com/SenaProjetos//commit/c8d1ca5119d58c2188e32c76ea46c74a863b9c05))
+* **juridico:** token de resumo da última assinatura no contrato (E7b/M3) ([386cd72](https://github.com/SenaProjetos//commit/386cd72e01bb99fde84ac114c9f2c03c88f304ce))
+* **projetos:** abas com conteúdo aparecem antes das vazias no menu do projeto ([281f644](https://github.com/SenaProjetos//commit/281f644a1a6d73104d610be0b18f7e0f80b59fc6))
+* **recursos:** foto do usuário na matriz de recursos ([e7eab4c](https://github.com/SenaProjetos//commit/e7eab4cbc9b3b9d9a610083e393082efb21401e6))
+* **rh:** aprimora controle de horas e capacidade ([25db95a](https://github.com/SenaProjetos//commit/25db95a5bd35b1a77d043c986dede9a7c8514f9d))
+* **ui:** campo de percentual padronizado ([8ba2ed9](https://github.com/SenaProjetos//commit/8ba2ed9ca1c4fbb5c99d4d1670f167f7f1e6a2f1))
+* **ui:** campo de valor monetário padronizado ([95ec511](https://github.com/SenaProjetos//commit/95ec5114669a97b6634c4bacaf4523ffe95634bc))
+* **ui:** componente AvatarUsuario compartilhado + fotos em tarefas ([5fef3d3](https://github.com/SenaProjetos//commit/5fef3d36fed2e8af2d78cd8b84f24a2bace07027))
+
+
+### 🐛 Correções
+
+* **acessos:** busca com debounce, drawer no tamanho certo e favoritar fora do X ([a82e462](https://github.com/SenaProjetos//commit/a82e462f51667ca5ea0be81c7e416600537d9a03))
+* **acesso:** UI mentia sobre o motor por perfil ([34bbff8](https://github.com/SenaProjetos//commit/34bbff82c949189dea6f68851aab796f989448d2))
+* **arquivos:** corrige tipo de atualizarLinha no envio de documentos ([00ebb4c](https://github.com/SenaProjetos//commit/00ebb4c4ba4fa1e77e95d6e1e80143612d9045e9))
+* **arquivos:** entidadeId do link segue a convenção das actions de criação ([6bcccd9](https://github.com/SenaProjetos//commit/6bcccd9a87af47f3fd5f232d6573f91777afe4e9))
+* **arquivos:** tipagem do diagnóstico de link público ([c090249](https://github.com/SenaProjetos//commit/c090249e1121dc9d40ef89bed21cf7c4d5295e2d))
+* **comercial:** condição percentual da proposta usa InputPercentual ([ac8296b](https://github.com/SenaProjetos//commit/ac8296b2f87227f9c9f21283bd9fb9256c499bc7))
+* **comercial:** valor do item da proposta também usa InputMoeda ([200e672](https://github.com/SenaProjetos//commit/200e6729f81d5ca717c31a5d67b4b4235d7d1a8e))
+* **coordenacao:** corrige índice e eixos do viewer ([fab46b5](https://github.com/SenaProjetos//commit/fab46b50ad15f672b8e751d9222b534e0fbdd7de))
+* **documentos:** áreas do projeto quebravam a tela inteira ([5f2ff9c](https://github.com/SenaProjetos//commit/5f2ff9c4f6261ec15e4f2ba071790b0b1981f6db))
+* **documentos:** rodapé de paginação saía por cima do texto ([a34a1b4](https://github.com/SenaProjetos//commit/a34a1b4bc4575e9d28ea9bf95cb1cd8eef6e472c))
+* **ui:** exibe foto do usuário nas bolinhas de equipe, presença e ficha ([59104ff](https://github.com/SenaProjetos//commit/59104ff03ef7e9a37071b62874b57278d6e956c9))
+* **ui:** símbolo escapava do campo em InputMoeda e InputPercentual ([d57addd](https://github.com/SenaProjetos//commit/d57addd149ddf3f4ad976af712eed14792038d7c))
+
+
+### ♻️ Refatorações
+
+* **documentos:** M4 — arquivoPath via resolverCaminho ([840521d](https://github.com/SenaProjetos//commit/840521de560ddd2e9899cf63de11028a8f7960e4))
+* **juridico:** remove pipeline de contrato em texto puro (E6 parte A) ([063ffb7](https://github.com/SenaProjetos//commit/063ffb7c3ec0e0cf055096a8dfb98efe5ad3a3d2))
+
 ## [1.12.0](https://github.com/SenaProjetos//compare/v1.11.0...v1.12.0) (2026-08-26)
 
 
