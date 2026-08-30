@@ -74,7 +74,13 @@ export function AcessoDrawer({
 
   return (
     <Sheet open={!!credencialId} onOpenChange={(o) => !o && onFechar()}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-[520px]">
+      <SheetContent
+        // As classes repetem `data-[side=right]:` de propósito: o componente base define
+        // `w-3/4` + `sm:max-w-sm` (384px) nesse seletor, e uma classe sem ele não conflita
+        // para o tailwind-merge — ficava 293px no celular e 384px no desktop, medido.
+        // §59 pede a tela quase toda no mobile; §21 pede 420-560px no desktop.
+        className="overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-[520px]"
+      >
         {carregando && <EsqueletoDetalhe />}
 
         {erro && !carregando && (
@@ -109,25 +115,39 @@ function Conteudo({
   return (
     <>
       <SheetHeader className="space-y-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-start gap-2">
-            <Icone className="mt-1 size-5 shrink-0 text-muted-foreground" aria-hidden />
-            <div>
-              <SheetTitle className="text-lg leading-tight">
-                {c.nome}
-                {c.estado && c.estado !== "NA" && ` — ${estadoLabel(c.estado)}`}
-              </SheetTitle>
-              <p className="text-xs text-muted-foreground">
-                {c.categoria.nome}
-                {c.nomeCompleto && ` • ${c.nomeCompleto}`}
-              </p>
-            </div>
+        {/* `pr-10` reserva a coluna do botão de fechar, que o SheetContent posiciona no canto
+            superior direito. Sem isso, título longo passa por baixo dele. */}
+        <div className="flex items-start gap-2 pr-10">
+          <Icone className="mt-1 size-5 shrink-0 text-muted-foreground" aria-hidden />
+          <div className="min-w-0">
+            <SheetTitle className="text-lg leading-tight">
+              {c.nome}
+              {c.estado && c.estado !== "NA" && ` — ${estadoLabel(c.estado)}`}
+            </SheetTitle>
+            <p className="text-xs text-muted-foreground">
+              {c.categoria.nome}
+              {c.nomeCompleto && ` • ${c.nomeCompleto}`}
+            </p>
           </div>
+        </div>
+
+        {/* Status/tags à esquerda, favoritar à direita.
+            O favoritar saiu do canto superior: lá ele encostava no X de fechar, e duas ações
+            de significado oposto (uma marca, a outra descarta) a poucos pixels convidam ao
+            clique errado. O canto superior direito é do chrome do drawer; ação sobre o
+            registro pertence à área de conteúdo. Ganhou rótulo junto: ícone sozinho não diz
+            se a estrela é estado atual ou ação, e o texto também dá alvo de toque maior. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge tone={STATUS_TONE[c.statusExibido]}>{STATUS_LABEL[c.statusExibido]}</StatusBadge>
+          {c.tags.map((t) => (
+            <Badge key={t.tag} variant="outline" className="font-normal">
+              {t.tag}
+            </Badge>
+          ))}
           <Button
             variant="ghost"
             size="sm"
-            className="size-8 shrink-0 p-0"
-            aria-label={favorita ? "Remover dos favoritos" : "Marcar como favorito"}
+            className="ml-auto h-8 shrink-0 px-2 text-xs"
             aria-pressed={favorita}
             disabled={pendente}
             onClick={() =>
@@ -138,16 +158,12 @@ function Conteudo({
               })
             }
           >
-            <Star className={favorita ? "size-4 fill-warning text-warning" : "size-4"} aria-hidden />
+            <Star
+              className={favorita ? "size-3.5 fill-warning text-warning" : "size-3.5"}
+              aria-hidden
+            />
+            {favorita ? "Favorito" : "Favoritar"}
           </Button>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <StatusBadge tone={STATUS_TONE[c.statusExibido]}>{STATUS_LABEL[c.statusExibido]}</StatusBadge>
-          {c.tags.map((t) => (
-            <Badge key={t.tag} variant="outline" className="font-normal">
-              {t.tag}
-            </Badge>
-          ))}
         </div>
       </SheetHeader>
 
@@ -411,7 +427,7 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
 
 function Campo({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[9rem_1fr] items-start gap-2 text-sm">
+    <div className="grid grid-cols-1 items-start gap-x-2 gap-y-0.5 text-sm sm:grid-cols-[9rem_1fr] sm:gap-y-2">
       <span className="text-xs text-muted-foreground">{rotulo}</span>
       <div>{children}</div>
     </div>

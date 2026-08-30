@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { KeyRound, Landmark, Monitor, ShieldCheck, Search, X, Star } from "lucide-react";
 import { useSetParams } from "@/lib/use-set-param";
 import { KpiCard } from "@/components/ui/kpi-card";
@@ -64,6 +64,22 @@ export function AcessosView({
   const [busca, setBusca] = useState(filtros.q);
   const [aberto, setAberto] = useState<string | null>(null);
 
+  /**
+   * Busca com debounce (§9 — "não realizar pesquisas excessivas no servidor").
+   *
+   * Dispara em `replace`, não `push`: cada tecla que virasse entrada de histórico faria o
+   * botão Voltar do navegador desfazer a busca letra por letra.
+   *
+   * A guarda `busca === filtros.q` é o que impede o laço — depois que a navegação acontece,
+   * o servidor devolve `filtros.q` igual ao estado local e o efeito não redispara. Também
+   * evita disparar na montagem quando a página já veio com `?q=` na URL.
+   */
+  useEffect(() => {
+    if (busca === filtros.q) return;
+    const t = setTimeout(() => setParams({ q: busca || null }, { replace: true }), 400);
+    return () => clearTimeout(t);
+  }, [busca, filtros.q, setParams]);
+
   const temFiltro =
     Boolean(filtros.categoriaId || filtros.estado || filtros.responsavelId || filtros.status || filtros.q) ||
     filtros.favoritos;
@@ -121,6 +137,7 @@ export function AcessosView({
       {/* Busca (§9) + filtros (§10) */}
       <div className="space-y-3">
         <form
+          // Enter continua submetendo — quem digita e aperta não espera o debounce.
           onSubmit={(e) => {
             e.preventDefault();
             setParams({ q: busca || null });

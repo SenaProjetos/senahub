@@ -136,15 +136,6 @@ export const NAV_GROUPS: NavGroup[] = [
         permissao: "clientes:ver",
       },
       {
-        // Cofre de contas, portais e licenças. Fica junto dos itens administrativos, não em
-        // Configurações: é ferramenta de trabalho do dia a dia (§4), não ajuste de sistema.
-        title: "Acessos",
-        href: "/acessos",
-        icon: KeyRound,
-        permissao: "acessos:ver",
-        tipo: "interno",
-      },
-      {
         title: "Comercial",
         href: "/comercial",
         icon: TrendingUp,
@@ -330,6 +321,15 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/certidoes",
         icon: ShieldCheck,
         permissao: "certidoes:ver",
+      },
+      {
+        // Cofre de contas, portais e licenças. Fica em Gestão, ao lado de Certidões: as duas
+        // tratam de vínculo com órgão e de coisa que vence.
+        title: "Acessos",
+        href: "/acessos",
+        icon: KeyRound,
+        permissao: "acessos:ver",
+        tipo: "interno",
       },
       {
         title: "Licitações",
