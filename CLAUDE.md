@@ -172,6 +172,13 @@ in `lib/prisma.ts`. To see deleted rows, pass `excluidoEm` explicitly in the `wh
 
 **Termos de uso (legal)** (`modules/legal/termos.ts`) — single source of truth for the on-screen acceptance text, by `TipoTermo` (`colaborador | cliente`). Pure (no `server-only`): RSC reads it, passes text to a client form; the server hashes (SHA-256) the accepted text as proof in `actions.ts`. Bump `versao` to force everyone to re-accept. `docs/legal/*.md` is the rich/print version for legal review — keep both in sync. (Spec: `docs/superpowers/plans/2026-06-23-termo-aceite.md`.)
 
+**Histórico de versões (`/versoes`):** changelog versão a versão, lido em runtime do
+`CHANGELOG.md` da raiz por `lib/changelog.ts` (`parseChangelog` puro + testado). O arquivo é
+regerado pelo `commit-and-tag-version` no `npm run release` — a página se atualiza sozinha a
+cada publicação, sem passo de build. Rota gated em `INTERNAL_ROLES` (é linguagem de commit);
+o rótulo de versão no rodapé do sidebar linka pra ela quando `nav.tipo === "interno"`. A
+versão em linguagem de usuário continua em `docs/manual/novidades.md` → `/ajuda/novidades`.
+
 **Ajuda / Manual (in-app):** the `/ajuda` route (+ `[...slug]` catch-all) renders the user manual straight from `docs/manual/**` markdown via `lib/manual.ts` (`lerManifesto`/`listarSecoes`/`pathParaSlug`) + `react-markdown`. No DB — edit the markdown to change the docs. Visible to **all** roles (no `roles[]` on the nav item, cliente included). Keep `docs/manual/` current when features change.
 
 **Cross-module pages (not their own module folder):** `/recursos` = resource-allocation matrix built from `modules/planejamento/queries.ts` (`matrizRecursos`, `cargaSemanalPorRecurso`) + `modules/rh/habilidades/queries.ts`, gated `recursos:ver`/`recursos:gerir`.

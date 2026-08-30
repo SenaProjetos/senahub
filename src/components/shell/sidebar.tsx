@@ -13,6 +13,8 @@ const COLLAPSED_KEY = "senahub:sidebar-collapsed";
 
 export function Sidebar({ nav }: { nav: ContextoNav }) {
   const [collapsed, setCollapsed] = useState(false);
+  // Cliente (tipo "externo") não vê o histórico técnico de versões — é linguagem de commit.
+  const interno = nav.tipo === "interno";
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -74,14 +76,26 @@ export function Sidebar({ nav }: { nav: ContextoNav }) {
             </>
           )}
         </Button>
-        {!collapsed && (
-          <p
-            className="mt-1 px-2 text-center text-[10px] tracking-wide text-muted-foreground/70 select-all"
-            title={VERSION_LABEL}
-          >
-            {VERSION_LABEL}
-          </p>
-        )}
+        {!collapsed &&
+          (interno ? (
+            // Interno: a versão abre o histórico de mudanças. `select-all` sai porque o
+            // clique agora navega — quem precisa copiar a versão para o suporte tem o
+            // rótulo completo no `title` e no topo da própria página.
+            <Link
+              href="/versoes"
+              title={`${VERSION_LABEL} — ver histórico de versões`}
+              className="mt-1 block px-2 text-center text-[10px] tracking-wide text-muted-foreground/70 transition-colors hover:text-foreground hover:underline"
+            >
+              {VERSION_LABEL}
+            </Link>
+          ) : (
+            <p
+              className="mt-1 px-2 text-center text-[10px] tracking-wide text-muted-foreground/70 select-all"
+              title={VERSION_LABEL}
+            >
+              {VERSION_LABEL}
+            </p>
+          ))}
         {collapsed && (
           <span className="sr-only" title={VERSION_LABEL}>
             {APP_VERSION}

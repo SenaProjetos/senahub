@@ -15,6 +15,11 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 > Dúvida sobre alguma novidade? Abra um chamado em **Suporte** ou pergunte no **Chat**.
 
+> **Procurando a lista técnica, versão a versão?** Clique no número da versão no rodapé do
+> menu lateral (ex.: `v1.13.0`) ou acesse **/versoes**. Aquela página é gerada
+> automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
+> inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
+
 ---
 
 ## Acessos e Credenciais — o cofre da empresa

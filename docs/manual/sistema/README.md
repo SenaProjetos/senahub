@@ -17,6 +17,7 @@ Documentação de configuração e administração.
 | [Configurações](configuracoes.md) | `/configuracoes` | ✅ documentado |
 | [Auditoria](auditoria.md) | `/auditoria` | ✅ documentado |
 | [Uso por seção](auditoria.md) | `/auditoria/uso` | ✅ documentado |
+| [Histórico de versões](../novidades.md) | `/versoes` | ✅ documentado |
 
 > Sub-telas de Configurações (Usuários, Permissões, Encargos, Feriados, Inputs padrão,
 > Modalidades/Parâmetros/Habilitação de licitação, Etapas do funil, Aviso geral) estão
