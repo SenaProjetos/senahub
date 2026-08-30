@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { permissoesNaCredencial, type ViewerCofre, type PermissoesNaCredencial } from "./service";
+import type { SessionUser } from "@/lib/session";
 
 /**
  * Leituras do cofre de Acessos.
@@ -11,6 +12,23 @@ import { permissoesNaCredencial, type ViewerCofre, type PermissoesNaCredencial }
  * listagem"). Os `select` abaixo são explícitos justamente para que incluir a coluna cifrada por
  * descuido seja uma edição visível no diff, e não o efeito silencioso de um `include`.
  */
+
+/**
+ * `SessionUser` → `ViewerCofre`. Um lugar só, para o `setor` não ser esquecido num gate e o
+ * compartilhamento por setor falhar em silêncio.
+ *
+ * Mora aqui, e não em `actions.ts`, porque naquele arquivo vale `"use server"`: todo export
+ * de um módulo `"use server"` vira endpoint RPC chamável pelo cliente, e uma função que
+ * RECEBE o usuário como argumento seria um convite a passar um usuário forjado.
+ */
+export function viewerDe(user: SessionUser): ViewerCofre {
+  return {
+    id: user.id,
+    perfilId: user.perfilId,
+    setor: user.setor,
+    superUsuario: user.superUsuario,
+  };
+}
 
 /** Campos seguros de uma credencial — o que uma listagem pode devolver. */
 const SELECT_LISTA = {

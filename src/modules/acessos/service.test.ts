@@ -4,6 +4,7 @@ import {
   permissoesNaCredencial,
   statusCredencial,
   diasAte,
+  normalizarCompartilhamentos,
   type LinhaCompartilhamento,
   type ViewerCofre,
 } from "./service";
@@ -151,5 +152,46 @@ describe("diasAte", () => {
   it("sem data devolve null", () => {
     expect(diasAte(null, hoje)).toBeNull();
     expect(diasAte(undefined, hoje)).toBeNull();
+  });
+});
+
+describe("normalizarCompartilhamentos", () => {
+  const base = {
+    podeVerCadastro: false,
+    podeVerCredencial: false,
+    podeEditar: false,
+    podeGerenciarPermissoes: false,
+  };
+
+  it("funde linhas do mesmo alvo somando as concessões", () => {
+    const r = normalizarCompartilhamentos([
+      { ...base, tipoAlvo: "usuario", alvoId: "u1", podeVerCadastro: true },
+      { ...base, tipoAlvo: "usuario", alvoId: "u1", podeVerCredencial: true },
+    ]);
+    expect(r).toHaveLength(1);
+    expect(r[0].podeVerCadastro).toBe(true);
+    expect(r[0].podeVerCredencial).toBe(true);
+  });
+
+  it("mantém alvos distintos separados", () => {
+    const r = normalizarCompartilhamentos([
+      { ...base, tipoAlvo: "usuario", alvoId: "u1", podeVerCadastro: true },
+      { ...base, tipoAlvo: "perfil", alvoId: "u1", podeVerCadastro: true },
+      { ...base, tipoAlvo: "usuario", alvoId: "u2", podeVerCadastro: true },
+    ]);
+    expect(r).toHaveLength(3);
+  });
+
+  it("descarta linha que não concede nada", () => {
+    const r = normalizarCompartilhamentos([
+      { ...base, tipoAlvo: "usuario", alvoId: "u1" },
+      { ...base, tipoAlvo: "setor", alvoId: "engenharia", podeEditar: true },
+    ]);
+    expect(r).toHaveLength(1);
+    expect(r[0].tipoAlvo).toBe("setor");
+  });
+
+  it("lista vazia continua vazia", () => {
+    expect(normalizarCompartilhamentos([])).toEqual([]);
   });
 });

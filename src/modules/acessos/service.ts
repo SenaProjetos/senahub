@@ -157,3 +157,47 @@ export function statusCredencial(cred: CredencialParaStatus, hoje: Date): Status
 
   return "ativo";
 }
+
+/** Uma concessão vinda do formulário, antes de virar linha no banco. */
+export type ConcessaoEntrada = {
+  tipoAlvo: string;
+  alvoId: string;
+  podeVerCadastro: boolean;
+  podeVerCredencial: boolean;
+  podeEditar: boolean;
+  podeGerenciarPermissoes: boolean;
+};
+
+/**
+ * Normaliza a lista de compartilhamentos vinda do formulário.
+ *
+ * Funde linhas repetidas do MESMO alvo somando as concessões (mesma regra aditiva de
+ * `permissoesNaCredencial`) — a tabela tem `@@unique(credencialId, tipoAlvo, alvoId)`, e duas
+ * linhas do mesmo alvo estourariam a transação inteira em vez de só a linha ruim.
+ *
+ * Descarta quem não concede nada: compartilhamento é lista de CONCESSÕES, então uma linha com
+ * tudo `false` não significa "negue para este alvo" — significa nada, e guardá-la sugeriria a
+ * quem lesse a tela que existe uma negação explícita ali.
+ */
+export function normalizarCompartilhamentos<T extends ConcessaoEntrada>(linhas: T[]): T[] {
+  const porAlvo = new Map<string, T>();
+  for (const l of linhas) {
+    const chave = `${l.tipoAlvo}::${l.alvoId}`;
+    const anterior = porAlvo.get(chave);
+    porAlvo.set(
+      chave,
+      anterior
+        ? {
+            ...l,
+            podeVerCadastro: anterior.podeVerCadastro || l.podeVerCadastro,
+            podeVerCredencial: anterior.podeVerCredencial || l.podeVerCredencial,
+            podeEditar: anterior.podeEditar || l.podeEditar,
+            podeGerenciarPermissoes: anterior.podeGerenciarPermissoes || l.podeGerenciarPermissoes,
+          }
+        : l,
+    );
+  }
+  return [...porAlvo.values()].filter(
+    (l) => l.podeVerCadastro || l.podeVerCredencial || l.podeEditar || l.podeGerenciarPermissoes,
+  );
+}

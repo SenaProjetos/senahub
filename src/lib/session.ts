@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import type { Role } from "@/lib/roles";
+import type { Setor } from "@/generated/prisma/enums";
 
 export type SessionUser = {
   id: string;
@@ -36,6 +37,17 @@ export type SessionUser = {
    * `permissaoEfetiva` consome este campo. Já era lido pelo `getSession` desde a Onda A.
    */
   superUsuario: boolean;
+  /**
+   * Setor do vínculo ativo (cache denormalizado em `User`, escrito por `aplicarVinculo()`).
+   * NÃO autoriza nada — Setor é endereço, não crachá (§2.1 do plano de Setor × Contratação ×
+   * Perfil), e `permissaoEfetiva` deliberadamente não tem passo de setor.
+   *
+   * Está na sessão porque o cofre de Acessos compartilha registros POR SETOR
+   * (`CredencialCompartilhamento.tipoAlvo = "setor"`), e sem o dado aqui esse alvo nunca
+   * casaria — falha fechada e silenciosa, do tipo que ninguém percebe até alguém reclamar
+   * que não vê o que deveria.
+   */
+  setor: Setor | null;
 };
 
 /** Sessão atual (ou null). Memoizada por request. */
@@ -44,7 +56,7 @@ export const getSession = cache(async () => {
   if (!session) return null;
   const base = session.user as unknown as Omit<
     SessionUser,
-    "ehSocio" | "perfilId" | "perfilChave" | "escopoGlobalPerfil" | "superUsuario"
+    "ehSocio" | "perfilId" | "perfilChave" | "escopoGlobalPerfil" | "superUsuario" | "setor"
   >;
 
   // Sócio + perfil/superUsuário num único round-trip (mesmo lookup que já existia, ampliado).
@@ -54,6 +66,7 @@ export const getSession = cache(async () => {
     select: {
       perfilId: true,
       superUsuario: true,
+      setor: true,
       perfil: { select: { chave: true } },
       socio: { select: { ativo: true } },
     },
@@ -78,6 +91,7 @@ export const getSession = cache(async () => {
       perfilId: dados?.perfilId ?? null,
       perfilChave: dados?.perfil?.chave ?? null,
       superUsuario: dados?.superUsuario ?? false,
+      setor: dados?.setor ?? null,
       escopoGlobalPerfil,
     } as SessionUser,
     session: session.session,

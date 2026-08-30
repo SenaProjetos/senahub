@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
-import { escopoCredencial, permissoesDoViewer } from "../src/modules/acessos/queries";
+import { escopoCredencial, permissoesDoViewer, buscarCredencial } from "../src/modules/acessos/queries";
+import { criptografarSenha, descriptografarSenha } from "../src/lib/encryption";
 import type { ViewerCofre } from "../src/modules/acessos/service";
 
 /**
@@ -10,7 +11,8 @@ import type { ViewerCofre } from "../src/modules/acessos/service";
  * ele filtra, e vitest aqui roda sem sessão nem HTTP. Este script cria o cenário, consulta como
  * cada perfil e apaga tudo no fim.
  *
- * Cobre nesta etapa (2a) o ESCOPO DE LEITURA. Revelar/copiar entram quando `actions.ts` existir.
+ * Cobre escopo de leitura (§84 A-E), soft delete e criptografia em repouso (§83/§90).
+ * Revelar/copiar entram na 2c, junto das actions que os implementam.
  */
 
 let falhas = 0;
@@ -123,6 +125,47 @@ async function main() {
     (await prisma.credencial.count({
       where: { AND: [{ id: cred.id }, escopoCredencial(admin, { incluirDeletadas: true })] },
     })) > 0,
+  );
+
+  console.log("\nCriptografia em repouso (§83/§90)");
+  const SENHA = "S3nh@-do-portal-CBMMG";
+  const USUARIO = "projetos@senaengenharia.com.br";
+  await prisma.credencial.update({
+    where: { id: secreta.id },
+    data: {
+      usuarioEncriptado: JSON.stringify(await criptografarSenha(USUARIO)),
+      senhaEncriptada: JSON.stringify(await criptografarSenha(SENHA)),
+    },
+  });
+
+  // Lê a coluna CRUA, como quem abrisse o banco ou o dump — é o que §90 quer garantir.
+  const [cru] = await prisma.$queryRaw<Array<{ senhaEncriptada: string; usuarioEncriptado: string }>>`
+    SELECT "senhaEncriptada", "usuarioEncriptado" FROM credencial WHERE id = ${secreta.id}`;
+  checar("a coluna não contém a senha em claro", !cru.senhaEncriptada.includes(SENHA));
+  checar("a coluna não contém o usuário em claro", !cru.usuarioEncriptado.includes(USUARIO));
+  checar(
+    "o payload gravado é o envelope AES-GCM",
+    (() => {
+      const p = JSON.parse(cru.senhaEncriptada);
+      return typeof p.iv === "string" && typeof p.authTag === "string" && p.keyVersion === 1;
+    })(),
+  );
+  checar(
+    "decifra de volta ao original",
+    (await descriptografarSenha(JSON.parse(cru.senhaEncriptada))) === SENHA,
+  );
+  checar(
+    "duas gravações da MESMA senha geram cifras distintas (IV por operação)",
+    JSON.stringify(await criptografarSenha(SENHA)) !== JSON.stringify(await criptografarSenha(SENHA)),
+  );
+
+  console.log("\nLeitura nunca devolve campo cifrado");
+  const lido = await buscarCredencial(admin, secreta.id);
+  checar(
+    "buscarCredencial não expõe senhaEncriptada nem usuarioEncriptado",
+    lido !== null &&
+      !("senhaEncriptada" in lido.credencial) &&
+      !("usuarioEncriptado" in lido.credencial),
   );
 
   console.log("\nLimpando...");
