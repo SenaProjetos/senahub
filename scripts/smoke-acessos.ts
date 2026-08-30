@@ -330,6 +330,37 @@ async function main() {
 
   await prisma.auditLog.deleteMany({ where: { entidadeId: viva.id } });
 
+  console.log("\nCompartilhamento muda quem alcança, na hora");
+  // Estado inicial: `estranho` não alcança `viva` (nenhuma linha aponta para ele).
+  checar("antes: estranho não alcança", !(await alcanca(vD, viva.id)));
+
+  // Concede só o CADASTRO, como o diálogo faz ao adicionar alguém.
+  await prisma.credencialCompartilhamento.create({
+    data: { credencialId: viva.id, tipoAlvo: "usuario", alvoId: estranho.id, podeVerCadastro: true },
+  });
+  checar("depois: alcança o cadastro", await alcanca(vD, viva.id));
+  const pDepois = await permissoesDoViewer(vD, viva.id);
+  checar("…mas NÃO a credencial (§27 — as duas são independentes)", pDepois?.verCredencial === false);
+  const revelaSemCred = await revelarCredencialPara(vD, viva.id);
+  checar(
+    "…e revelar continua recusando",
+    revelaSemCred.ok === false && revelaSemCred.motivo === "sem-permissao-de-tela",
+  );
+
+  // Agora concede a credencial no MESMO alvo.
+  await prisma.credencialCompartilhamento.updateMany({
+    where: { credencialId: viva.id, tipoAlvo: "usuario", alvoId: estranho.id },
+    data: { podeVerCredencial: true },
+  });
+  const pComCred = await permissoesDoViewer(vD, viva.id);
+  checar("com a credencial marcada, o registro autoriza", pComCred?.verCredencial === true);
+
+  // Remover a linha revoga o alcance — é assim que o diálogo desfaz um compartilhamento.
+  await prisma.credencialCompartilhamento.deleteMany({
+    where: { credencialId: viva.id, tipoAlvo: "usuario", alvoId: estranho.id },
+  });
+  checar("remover a linha revoga o alcance", !(await alcanca(vD, viva.id)));
+
   console.log("\nLimpando...");
   await prisma.credencial.deleteMany({ where: { nome: { startsWith: marca } } });
   await prisma.credencialCategoria.delete({ where: { id: categoria.id } });

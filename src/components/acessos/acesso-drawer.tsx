@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Copy, Eye, EyeOff, ExternalLink, Lock, Star, ShieldAlert, Pencil, CheckCheck } from "lucide-react";
+import {
+  Copy, Eye, EyeOff, ExternalLink, Lock, Star, ShieldAlert, Pencil, CheckCheck, Users,
+} from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +15,9 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HistoricoCredencial } from "./historico-credencial";
 import { CredencialDialog } from "./credencial-dialog";
+import { CompartilhamentoDialog } from "./compartilhamento-dialog";
 import type { OpcoesFormulario } from "@/modules/acessos/queries";
+import { SETOR_LABELS } from "@/modules/usuarios/vinculo/labels";
 import { formatarData, formatarDataHora } from "@/lib/utils";
 import {
   obterDetalheCredencial,
@@ -126,6 +130,7 @@ function Conteudo({
   const Icone = iconeDaCategoria(c.categoria.nome);
   const [pendente, iniciar] = useTransition();
   const [editando, setEditando] = useState(false);
+  const [compartilhando, setCompartilhando] = useState(false);
 
   return (
     <>
@@ -213,9 +218,30 @@ function Conteudo({
               <CheckCheck className="size-3.5" aria-hidden />
               Marcar como revisada
             </Button>
+            {permissoes.gerenciarPermissoes && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => setCompartilhando(true)}
+              >
+                <Users className="size-3.5" aria-hidden />
+                Compartilhar
+              </Button>
+            )}
           </div>
         )}
       </SheetHeader>
+
+      {compartilhando && (
+        <CompartilhamentoDialog
+          aberto
+          onFechar={() => setCompartilhando(false)}
+          credencialId={c.id}
+          opcoes={opcoesForm}
+          inicial={c.compartilhamentos}
+        />
+      )}
 
       {editando && (
         <CredencialDialog
@@ -338,17 +364,22 @@ function Conteudo({
         </Secao>
 
         {/* §18/§29 — compartilhamento */}
-        {permissoes.gerenciarPermissoes && c.compartilhamentos.length > 0 && (
+        {permissoes.editar && c.compartilhamentos.length > 0 && (
           <>
             <Separator />
             <Secao titulo="Compartilhamento">
               <ul className="space-y-1">
                 {c.compartilhamentos.map((s) => (
                   <li key={s.id} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="text-muted-foreground">
-                      {TIPO_ALVO_LABEL[s.tipoAlvo] ?? s.tipoAlvo}
+                    <span className="min-w-0">
+                      {/* Resolve o NOME do alvo: `alvoId` guarda userId/perfilId/valor de Setor,
+                          e mostrar o id cru não diz nada a quem está conferindo quem alcança. */}
+                      <span className="block truncate">{nomeDoAlvo(s, opcoesForm)}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {TIPO_ALVO_LABEL[s.tipoAlvo] ?? s.tipoAlvo}
+                      </span>
                     </span>
-                    <span className="flex gap-1">
+                    <span className="flex shrink-0 gap-1">
                       {s.podeVerCadastro && (
                         <Badge variant="outline" className="font-normal">
                           Cadastro
@@ -539,6 +570,20 @@ function EsqueletoDetalhe() {
       <Skeleton className="h-32 w-full" />
     </div>
   );
+}
+
+/** `alvoId` → nome legível. Sem isto a lista mostraria cuid, que não ajuda a conferir acesso. */
+function nomeDoAlvo(
+  s: { tipoAlvo: string; alvoId: string },
+  opcoes: OpcoesFormulario,
+): string {
+  if (s.tipoAlvo === "usuario") {
+    return opcoes.pessoas.find((p) => p.id === s.alvoId)?.name ?? "Pessoa removida";
+  }
+  if (s.tipoAlvo === "perfil") {
+    return opcoes.perfis.find((p) => p.id === s.alvoId)?.nome ?? "Perfil removido";
+  }
+  return SETOR_LABELS[s.alvoId as keyof typeof SETOR_LABELS] ?? s.alvoId;
 }
 
 /** Só o domínio na tela (§23), mas o href continua a URL completa. */
