@@ -15,6 +15,8 @@ import { ResumoStatus, type ContagemStatus } from "./resumo-status";
 import { PainelRecentes, type AcessoRecente } from "./painel-recentes";
 import { RodapeSeguranca } from "./rodape-seguranca";
 import { AcessoDrawer } from "./acesso-drawer";
+import { CredencialDialog } from "./credencial-dialog";
+import type { OpcoesFormulario } from "@/modules/acessos/queries";
 
 /**
  * Central de Acessos (§6–§20), no arranjo da referência visual do dono:
@@ -41,6 +43,7 @@ export function AcessosView({
   podeGerir,
   podeRevelar,
   podeAuditar,
+  opcoesForm,
   filtros,
 }: {
   items: LinhaAcesso[];
@@ -58,10 +61,12 @@ export function AcessosView({
   podeGerir: boolean;
   podeRevelar: boolean;
   podeAuditar: boolean;
+  opcoesForm: OpcoesFormulario;
   filtros: FiltrosAtuais;
 }) {
   const setParams = useSetParams();
   const [aberto, setAberto] = useState<string | null>(null);
+  const [criando, setCriando] = useState(false);
   // Abre já expandido quando a URL trouxe filtro: esconder um filtro ativo dentro de um painel
   // fechado é como o usuário perde a noção de por que a lista está curta.
   const [avancados, setAvancados] = useState(
@@ -103,7 +108,7 @@ export function AcessosView({
             Favoritos
           </Button>
           {podeGerir && (
-            <Button disabled title="O formulário de cadastro entra na Fase 6">
+            <Button onClick={() => setCriando(true)}>
               <Plus className="size-4" aria-hidden />
               Nova conta
             </Button>
@@ -142,6 +147,7 @@ export function AcessosView({
               podeGerir={podeGerir}
               podeRevelar={podeRevelar}
               onAbrir={setAberto}
+              onCriar={() => setCriando(true)}
               total={total}
               skip={skip}
               page={page}
@@ -160,7 +166,23 @@ export function AcessosView({
 
       <RodapeSeguranca />
 
-      <AcessoDrawer credencialId={aberto} onFechar={() => setAberto(null)} podeRevelar={podeRevelar} />
+      <AcessoDrawer
+        credencialId={aberto}
+        onFechar={() => setAberto(null)}
+        podeRevelar={podeRevelar}
+        opcoesForm={opcoesForm}
+      />
+
+      {/* Montado só quando aberto: `useState` inicializa o formulário a partir de `inicial`, e
+          um dialog sempre montado guardaria o rascunho do cadastro anterior. */}
+      {criando && (
+        <CredencialDialog
+          aberto
+          onFechar={() => setCriando(false)}
+          opcoes={opcoesForm}
+          podeGerenciarPermissoes={false}
+        />
+      )}
     </div>
   );
 }

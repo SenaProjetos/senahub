@@ -794,6 +794,42 @@ export async function acessadosRecentemente(viewer: ViewerCofre, limite = 5) {
   });
 }
 
+/**
+ * Tudo que o formulário de acesso precisa escolher, num round-trip.
+ *
+ * Os projetos vêm limitados aos 200 mais recentes e NÃO passam por `escopoProjeto`: associar um
+ * acesso a um projeto é ato de quem administra o cofre (gate `acessos:gerir`), não de quem
+ * participa daquele projeto — filtrar pela carteira esconderia justamente os projetos alheios
+ * que precisam do acesso de um órgão. O vínculo é referência, não concede nada (§39).
+ */
+export async function opcoesFormulario() {
+  const [categorias, pessoas, perfis, projetos] = await Promise.all([
+    prisma.credencialCategoria.findMany({
+      where: { ativo: true },
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true },
+    }),
+    prisma.user.findMany({
+      where: { ativo: true, tipo: "interno" },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, cargo: true },
+    }),
+    prisma.perfilAcesso.findMany({
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true },
+    }),
+    prisma.projeto.findMany({
+      where: { situacao: { notIn: ["cancelado", "arquivado"] } },
+      orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
+      take: 200,
+      select: { id: true, codigo: true, nome: true },
+    }),
+  ]);
+  return { categorias, pessoas, perfis, projetos };
+}
+
+export type OpcoesFormulario = Awaited<ReturnType<typeof opcoesFormulario>>;
+
 /** Categorias ativas, para filtro e formulário. */
 export async function listarCategorias() {
   return prisma.credencialCategoria.findMany({

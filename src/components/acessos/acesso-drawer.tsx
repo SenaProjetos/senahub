@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Copy, Eye, EyeOff, ExternalLink, Lock, Star, ShieldAlert } from "lucide-react";
+import { Copy, Eye, EyeOff, ExternalLink, Lock, Star, ShieldAlert, Pencil, CheckCheck } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,12 +12,15 @@ import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HistoricoCredencial } from "./historico-credencial";
+import { CredencialDialog } from "./credencial-dialog";
+import type { OpcoesFormulario } from "@/modules/acessos/queries";
 import { formatarData, formatarDataHora } from "@/lib/utils";
 import {
   obterDetalheCredencial,
   revelarCredencial,
   copiarCredencial,
   alternarFavorito,
+  marcarComoRevisada,
 } from "@/modules/acessos/actions";
 import {
   iconeDaCategoria,
@@ -44,10 +47,12 @@ export function AcessoDrawer({
   credencialId,
   onFechar,
   podeRevelar,
+  opcoesForm,
 }: {
   credencialId: string | null;
   onFechar: () => void;
   podeRevelar: boolean;
+  opcoesForm: OpcoesFormulario;
 }) {
   const [detalhe, setDetalhe] = useState<Detalhe | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -94,7 +99,12 @@ export function AcessoDrawer({
         )}
 
         {detalhe && !carregando && (
-          <Conteudo detalhe={detalhe} podeRevelar={podeRevelar} onAtualizar={setDetalhe} />
+          <Conteudo
+            detalhe={detalhe}
+            podeRevelar={podeRevelar}
+            opcoesForm={opcoesForm}
+            onAtualizar={setDetalhe}
+          />
         )}
       </SheetContent>
     </Sheet>
@@ -104,15 +114,18 @@ export function AcessoDrawer({
 function Conteudo({
   detalhe,
   podeRevelar,
+  opcoesForm,
   onAtualizar,
 }: {
   detalhe: Detalhe;
   podeRevelar: boolean;
+  opcoesForm: OpcoesFormulario;
   onAtualizar: (d: Detalhe) => void;
 }) {
   const { credencial: c, permissoes, favorita } = detalhe;
   const Icone = iconeDaCategoria(c.categoria.nome);
   const [pendente, iniciar] = useTransition();
+  const [editando, setEditando] = useState(false);
 
   return (
     <>
@@ -167,7 +180,71 @@ function Conteudo({
             {favorita ? "Favorito" : "Favoritar"}
           </Button>
         </div>
+
+        {/* §22/§44 — ações do registro. Só aparecem para quem `permissoesNaCredencial` autoriza
+            NAQUELE registro; o servidor confere de novo, esconder botão não é segurança (§51). */}
+        {permissoes.editar && (
+          <div className="flex flex-wrap gap-2 border-t pt-2">
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setEditando(true)}>
+              <Pencil className="size-3.5" aria-hidden />
+              Editar
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              disabled={pendente}
+              // §44 — "revisada" NÃO é trocar a senha: é declarar que o portal ainda funciona,
+              // o usuário está certo e o responsável está atualizado.
+              title="Confirma que o portal, o usuário e o responsável seguem válidos"
+              onClick={() =>
+                iniciar(async () => {
+                  const r = await marcarComoRevisada({ id: c.id });
+                  if (r.ok) {
+                    toast.success("Credencial marcada como revisada.");
+                    onAtualizar({
+                      ...detalhe,
+                      credencial: { ...c, ultimaRevisaoEm: r.data.revisadaEm },
+                    });
+                  } else toast.error(r.error);
+                })
+              }
+            >
+              <CheckCheck className="size-3.5" aria-hidden />
+              Marcar como revisada
+            </Button>
+          </div>
+        )}
       </SheetHeader>
+
+      {editando && (
+        <CredencialDialog
+          aberto
+          onFechar={() => setEditando(false)}
+          opcoes={opcoesForm}
+          podeGerenciarPermissoes={permissoes.gerenciarPermissoes}
+          inicial={{
+            id: c.id,
+            nome: c.nome,
+            nomeCompleto: c.nomeCompleto,
+            categoriaId: c.categoria.id,
+            estado: c.estado,
+            descricao: c.descricao,
+            url: c.url,
+            responsavelId: c.responsavel?.id ?? null,
+            status: c.status,
+            vencimentoEm: c.vencimentoEm,
+            proximaRevisaoEm: c.proximaRevisaoEm,
+            renovacaoAutomatica: c.renovacaoAutomatica,
+            fornecedor: c.fornecedor,
+            tipoLicenca: c.tipoLicenca,
+            numeroLicenca: c.numeroLicenca,
+            assentos: c.assentos,
+            tags: c.tags,
+            projetos: c.projetos,
+          }}
+        />
+      )}
 
       {/* §72 — abas só porque o conteúdo justifica: o histórico é longo e de outra natureza,
           e empilhá-lo abaixo do cadastro faria rolar a ficha inteira para chegar nele. */}

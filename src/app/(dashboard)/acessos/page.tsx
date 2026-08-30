@@ -12,6 +12,7 @@ import {
   contagemPorStatus,
   alertasAcessos,
   acessadosRecentemente,
+  opcoesFormulario,
   viewerDe,
   SORT_ACESSOS,
 } from "@/modules/acessos/queries";
@@ -73,6 +74,7 @@ export default async function AcessosPage({ searchParams }: { searchParams: Prom
     podeGerir,
     podeRevelar,
     podeAuditar,
+    opcoesForm,
   ] = await Promise.all([
     listarCredenciaisPaginado(viewer, filtros, { skip, take, sort, dir }),
     listarCategorias(),
@@ -89,6 +91,7 @@ export default async function AcessosPage({ searchParams }: { searchParams: Prom
     // falharia.
     can(user, "acessos", "credencial"),
     can(user, "acessos", "auditoria"),
+    opcoesFormulario(),
   ]);
 
   return (
@@ -108,6 +111,7 @@ export default async function AcessosPage({ searchParams }: { searchParams: Prom
       podeGerir={podeGerir}
       podeRevelar={podeRevelar}
       podeAuditar={podeAuditar}
+      opcoesForm={opcoesForm}
       filtros={{
         q,
         categoriaId: sp.categoriaId ?? "",

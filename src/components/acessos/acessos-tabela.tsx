@@ -83,6 +83,7 @@ export function AcessosTabela({
   podeGerir,
   podeRevelar,
   onAbrir,
+  onCriar,
   total,
   skip,
   page,
@@ -94,6 +95,7 @@ export function AcessosTabela({
   podeGerir: boolean;
   podeRevelar: boolean;
   onAbrir: (id: string) => void;
+  onCriar: () => void;
   total: number;
   skip: number;
   page: number;
@@ -116,9 +118,7 @@ export function AcessosTabela({
             description="Cadastre portais, contas e softwares utilizados pela empresa."
             action={
               podeGerir ? (
-                <Button disabled title="O formulário de cadastro entra na Fase 6">
-                  Cadastrar primeiro acesso
-                </Button>
+                <Button onClick={onCriar}>Cadastrar primeiro acesso</Button>
               ) : undefined
             }
           />
