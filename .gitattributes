@@ -4,3 +4,8 @@
 *.bat text eol=crlf
 *.cmd text eol=crlf
 *.ps1 text eol=crlf
+
+# O worker do pdf.js e uma copia vendorizada do pacote: o npm reescreve o arquivo
+# com LF puro, e o autocrlf entao marca ele como modificado a cada recopia mesmo
+# sem nenhuma diferenca real de conteudo. -text desliga a conversao de EOL nele.
+public/pdf.worker.min.mjs -text
