@@ -2,7 +2,7 @@
 
 **Data do plano:** 2026-08-28  
 **Especificação:** `docs/contas/specs/acessos-credenciais.md`  
-**Status:** 🟢 **Fases 1–4 concluídas** (2026-08-28 / 2026-08-30) · Fases 5–8 não iniciadas
+**Status:** 🟢 **Fases 1–5 concluídas** (2026-08-28 / 2026-08-30) · Fases 6–8 não iniciadas
 
 | Fase | Estado |
 |---|---|
@@ -10,7 +10,7 @@
 | 2 — Server Actions + autorização | ✅ concluída (2a+2b+2c) |
 | 3 — Queries, filtros, busca | ✅ concluída |
 | 4 — Página, tabela, drawer | ✅ concluída (referência visual fornecida) |
-| 5 — Reveal, copy, auditoria | ⬜ não iniciada |
+| 5 — Reveal, copy, auditoria | ✅ concluída |
 | 6 — Formulário criar/editar | ⬜ não iniciada |
 | 7 — Licenças, alertas, projetos | ⬜ não iniciada |
 | 8 — Testes, docs, polish | ⬜ não iniciada |
@@ -906,15 +906,27 @@ npm run dev                           # Visual
 
 Fase 2, Fase 4.
 
-#### Critérios de Validação
+#### ✅ EXECUÇÃO — 2026-08-30 (commits `8cd9704` na 2c e `c618b2f`)
 
-- [ ] `revelarCredencial` retorna plaintext após permissão
-- [ ] Sem permissão, retorna erro
-- [ ] AuditLog registra revela/copy
-- [ ] Redact funciona (senha não aparece em log)
-- [ ] Timeout fade-out automático (ou user dismiss)
-- [ ] Auditoria UI filtra por usuário/ação
-- [ ] Smoke test rodas, 5 cenários passam
+Revelar e copiar saíram antes, na **Fase 2c**. Restava a leitura da trilha:
+
+- [x] `revelarCredencial` devolve o texto em claro após os dois gates
+- [x] Sem permissão, recusa com mensagem única (o motivo fica no log, não na tela)
+- [x] `AuditLog` registra revelar/copiar — e as 8 ações do módulo entraram em `ACAO_LABEL`,
+      então saem em português também na auditoria global
+- [x] `redact: ["usuario","senha"]` nas actions que os recebem; o RETORNO nunca é auditado
+- [x] Senha se oculta sozinha após 30s no drawer
+- [x] Auditoria filtra por usuário, ação, resultado e data — `/acessos/auditoria`
+- [x] Smoke: 42 checagens verdes
+
+**Sem tabela de histórico própria** (§66): tudo sai do `AuditLog` que o `defineAction` já grava.
+
+| Entrega | Onde | Decisão |
+|---|---|---|
+| Histórico da credencial (§33/§73) | aba do drawer | Devolve quem/o quê/quando; o `detalhe` **não sai do servidor** — carrega o antes/depois do cadastro e a timeline não precisa dele. Tentativa negada aparece com a palavra, não só a cor. |
+| Abas no drawer (§72) | Geral \| Histórico | Entram só agora porque só agora o conteúdo justifica: empilhar o histórico abaixo do cadastro faria rolar a ficha inteira. |
+| Recentes (§42) | painel lateral | `AuditLog` filtrado pelo `userId` da sessão — o filtro **é** o requisito, não otimização. Conta revelar/copiar, não abrir. Revalida o escopo na volta: quem perdeu o compartilhamento não continua vendo. |
+| Auditoria do cofre (§87) | `/acessos/auditoria` | Separada de `/auditoria` pela PERMISSÃO, não pelo conteúdo: aquela é `role === "admin"`, e §87 fala em "usuários autorizados". Reusa `listarAuditoria` + `AuditoriaTabela` com o módulo fixo. |
 
 #### Testes Necessários
 

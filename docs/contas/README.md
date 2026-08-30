@@ -43,7 +43,7 @@ Tradução da especificação em plano de implementação verificável:
 | 2 | Server Actions + Authz | 2d | ✅ **concluída** (2026-08-30) |
 | 3 | Queries + Filtros | 1d | ✅ **concluída** (2026-08-30) |
 | 4 | UI: Página + Tabela + Drawer | 2d | ✅ **concluída** (2026-08-30) |
-| 5 | Reveal + Audit UI | 1d | ⬜ |
+| 5 | Reveal + Audit UI | 1d | ✅ **concluída** (2026-08-30) |
 | 6 | Form Criar/Editar | 1.5d | ⬜ |
 | 7 | Licenças + Alertas + Jobs | 1.5d | ⬜ |
 | 8 | Testes + Docs + Polish | 1d | ⬜ |
