@@ -5,6 +5,7 @@ import {
   statusCredencial,
   diasAte,
   normalizarCompartilhamentos,
+  nivelDeAcesso,
   type LinhaCompartilhamento,
   type ViewerCofre,
 } from "./service";
@@ -193,5 +194,35 @@ describe("normalizarCompartilhamentos", () => {
 
   it("lista vazia continua vazia", () => {
     expect(normalizarCompartilhamentos([])).toEqual([]);
+  });
+});
+
+describe("nivelDeAcesso", () => {
+  const c = (tipoAlvo: string, podeVerCredencial = true) => ({ tipoAlvo, podeVerCredencial });
+
+  it("prioriza o alcance mais largo: setor vence perfil e pessoa", () => {
+    expect(nivelDeAcesso([c("usuario"), c("perfil"), c("setor")])).toBe("setor");
+    expect(nivelDeAcesso([c("usuario"), c("perfil")])).toBe("perfil");
+  });
+
+  it("só pessoas nominais é `restrito`", () => {
+    expect(nivelDeAcesso([c("usuario"), c("usuario")])).toBe("restrito");
+  });
+
+  it("sem compartilhamento nenhum é `restrito`", () => {
+    expect(nivelDeAcesso([])).toBe("restrito");
+  });
+
+  it("ignora quem NÃO pode ver a credencial — a coluna fala de alcance à SENHA", () => {
+    // Compartilhado com o setor inteiro, mas só para ver o cadastro: a senha segue restrita.
+    expect(nivelDeAcesso([c("setor", false), c("usuario", true)])).toBe("restrito");
+  });
+
+  it("bate com a definição de 'restrito' do card §7-04 (sem setor nem perfil com credencial)", () => {
+    // Este par de casos é o contrato entre a coluna "Acesso" e o contador de restritos:
+    // se um mudar sem o outro, a tela passa a se contradizer.
+    expect(nivelDeAcesso([c("setor", true)])).not.toBe("restrito");
+    expect(nivelDeAcesso([c("perfil", true)])).not.toBe("restrito");
+    expect(nivelDeAcesso([c("usuario", true)])).toBe("restrito");
   });
 });

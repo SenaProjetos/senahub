@@ -17,6 +17,38 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Acessos e Credenciais — o cofre da empresa
+
+Chegou uma tela nova em **Gestão → Acessos**: o lugar único para as contas que a
+empresa usa para trabalhar — portais de Corpo de Bombeiros e CREA de cada estado,
+prefeituras, TQS, AltoQi, Autodesk, plataformas de cliente.
+
+Não é uma planilha de senhas. Duas coisas mudam:
+
+- **A senha fica cifrada** e nunca aparece numa listagem. Ela só é mostrada quando alguém
+  autorizado clica para revelar, some sozinha depois de 30 segundos, e o clique fica
+  registrado no histórico daquele acesso.
+- **Ver o cadastro e ver a senha são permissões separadas.** Dá para alguém saber que a
+  conta do CREA-SP existe, quem é o responsável e quando vence, sem poder ler a senha.
+
+Também entrou:
+
+- **Atenção necessária** — licenças perto de vencer, contas bloqueadas e credenciais sem
+  revisão há muito tempo, no alto da tela.
+- **Aviso automático** de licença vencendo (90, 30 e 7 dias) e de credencial sem revisão,
+  para o responsável e para quem tem o acesso compartilhado. Dá para desligar em
+  **Minha conta → Preferências → Notificações**.
+- **Marcar como revisada** — confirma que você conferiu que o portal ainda funciona e o
+  usuário está certo. Não troca a senha.
+- **Acessos relacionados** dentro do projeto, na aba **Mais**.
+
+Um acesso recém-cadastrado nasce visível só para administradores: use **Compartilhar**
+para liberar para pessoas, perfis ou setores.
+
+Detalhes em [Acessos e Credenciais](gestao/acessos.md).
+
+---
+
 ## Campos de valor padronizados (atenção: muda o jeito de digitar)
 
 Todos os campos de dinheiro do sistema passaram a funcionar igual, **como a maquininha de

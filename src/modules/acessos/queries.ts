@@ -4,9 +4,11 @@ import type { Prisma } from "@/generated/prisma/client";
 import {
   permissoesNaCredencial,
   statusCredencial,
+  nivelDeAcesso,
   type ViewerCofre,
   type PermissoesNaCredencial,
   type StatusCredencial,
+  type NivelAcesso,
 } from "./service";
 import type { SessionUser } from "@/lib/session";
 
@@ -119,24 +121,6 @@ export type LinhaListagem = Omit<
   usuario: string | null;
   nivelAcesso: NivelAcesso;
 };
-
-export type NivelAcesso = "setor" | "perfil" | "usuario" | "restrito";
-
-/**
- * §18 — como a credencial é ALCANÇADA, resumido numa palavra para a coluna "Acesso".
- *
- * Prioriza o alcance mais largo: quem é partilhado com um setor inteiro é "Setor", ainda que
- * também tenha pessoas nominais. `restrito` é o caso sem alcance coletivo nenhum — é a mesma
- * definição que o card "Acessos restritos" (§7-04) conta, e as duas leituras precisam bater.
- */
-export function nivelDeAcesso(
-  compartilhamentos: Array<{ tipoAlvo: string; podeVerCredencial: boolean }>,
-): NivelAcesso {
-  const comCredencial = compartilhamentos.filter((c) => c.podeVerCredencial);
-  if (comCredencial.some((c) => c.tipoAlvo === "setor")) return "setor";
-  if (comCredencial.some((c) => c.tipoAlvo === "perfil")) return "perfil";
-  return "restrito";
-}
 
 /**
  * Status EXIBIDO, resolvido no servidor.

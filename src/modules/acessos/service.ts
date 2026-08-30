@@ -203,3 +203,21 @@ export function normalizarCompartilhamentos<T extends ConcessaoEntrada>(linhas: 
     (l) => l.podeVerCadastro || l.podeVerCredencial || l.podeEditar || l.podeGerenciarPermissoes,
   );
 }
+
+export type NivelAcesso = "setor" | "perfil" | "usuario" | "restrito";
+
+/**
+ * §18 — como a credencial é ALCANÇADA, resumido numa palavra para a coluna "Acesso".
+ *
+ * Prioriza o alcance mais largo: quem é partilhado com um setor inteiro é "Setor", ainda que
+ * também tenha pessoas nominais. `restrito` é o caso sem alcance coletivo nenhum — é a mesma
+ * definição que o card "Acessos restritos" (§7-04) conta, e as duas leituras precisam bater.
+ */
+export function nivelDeAcesso(
+  compartilhamentos: Array<{ tipoAlvo: string; podeVerCredencial: boolean }>,
+): NivelAcesso {
+  const comCredencial = compartilhamentos.filter((c) => c.podeVerCredencial);
+  if (comCredencial.some((c) => c.tipoAlvo === "setor")) return "setor";
+  if (comCredencial.some((c) => c.tipoAlvo === "perfil")) return "perfil";
+  return "restrito";
+}
