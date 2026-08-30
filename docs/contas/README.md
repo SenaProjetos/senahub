@@ -41,8 +41,8 @@ Tradução da especificação em plano de implementação verificável:
 |----|------|---------|--------|
 | 1 | Schema + Crypto + Perms | 1d | ✅ **concluída** (2026-08-28) |
 | 2 | Server Actions + Authz | 2d | ✅ **concluída** (2026-08-30) |
-| 3 | Queries + Filtros | 1d | ⬜ |
-| 4 | UI: Página + Tabela + Drawer | 2d | ⬜ falta referência visual |
+| 3 | Queries + Filtros | 1d | ✅ **concluída** (2026-08-30) |
+| 4 | UI: Página + Tabela + Drawer | 2d | ✅ **concluída** (2026-08-30) |
 | 5 | Reveal + Audit UI | 1d | ⬜ |
 | 6 | Form Criar/Editar | 1.5d | ⬜ |
 | 7 | Licenças + Alertas + Jobs | 1.5d | ⬜ |
@@ -108,11 +108,12 @@ Tradução da especificação em plano de implementação verificável:
 (só `administrativo` na semente · `acessos:credencial` separada de `gerir` · favoritos e
 recentes entram na v1). Detalhes em "DECISÕES DO DONO" no plano.
 
-**Antes da Fase 4 (UI):**
+**Antes da Fase 4 (UI):** ✅ resolvido — referência visual fornecida em `ref_img.png`
+(2026-08-30) e aplicada.
 
-- [ ] **Imagem de referência** (§3): não encontrada em `docs/contas/`. Fornecer, ou autorizar
-  o padrão visual de `/clientes` e `/projetos`?
-- [ ] Drawer mobile: full-screen ou lateral?
+**Antes da Fase 6 (formulário):**
+
+- [ ] Drawer/formulário em mobile: full-screen ou lateral? (§59 não especifica)
 
 **Resolvidas:**
 
@@ -208,6 +209,7 @@ Semana 2 (Thu–Fri):
 |------|------|-------|
 | 2026-08-28 | Claude Code (Auditoria) | Spec completa validada; plano 8-fase criado |
 | 2026-08-28 | Claude Code (Fase 1) | Schema (5 tabelas), `lib/encryption.ts` + 12 testes, permissões no catálogo **e no seed**, migration gerada pelo Prisma e ensaiada; env var documentada |
+| 2026-08-30 | Claude Code (Fases 3-4) | listagem paginada + filtros + busca; `/acessos` no menu, tabela, atenção, acesso rápido e drawer; 2 bugs achados na revisão visual (status mentindo, estado VARCHAR(2)) |
 | 2026-08-30 | Claude Code (Fase 2) | service puro + schemas + queries com escopo IDOR, 7 actions de CRUD, revelar/copiar com dois gates; smoke com 32 checagens contra o banco |
 | 2026-08-28 | Claude Code (Revisão) | Auditoria do que a Fase 1 entregou: 2 testes falhando corrigidos, 4 divergências migration↔schema eliminadas, 49 checkboxes falsos zerados, lacunas da spec (§40/§41/§42/§36/§37) registradas |
 

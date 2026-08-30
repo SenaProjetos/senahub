@@ -2,14 +2,14 @@
 
 **Data do plano:** 2026-08-28  
 **Especificação:** `docs/contas/specs/acessos-credenciais.md`  
-**Status:** 🟢 **Fases 1 e 2 concluídas** (2026-08-28 / 2026-08-30) · Fases 3–8 não iniciadas
+**Status:** 🟢 **Fases 1–4 concluídas** (2026-08-28 / 2026-08-30) · Fases 5–8 não iniciadas
 
 | Fase | Estado |
 |---|---|
 | 1 — Schema, criptografia, permissões | ✅ concluída e validada (+ favoritos §41) |
 | 2 — Server Actions + autorização | ✅ concluída (2a+2b+2c) |
-| 3 — Queries, filtros, busca | ⬜ não iniciada |
-| 4 — Página, tabela, drawer | ⬜ não iniciada (falta referência visual) |
+| 3 — Queries, filtros, busca | ✅ concluída |
+| 4 — Página, tabela, drawer | ✅ concluída (referência visual fornecida) |
 | 5 — Reveal, copy, auditoria | ⬜ não iniciada |
 | 6 — Formulário criar/editar | ⬜ não iniciada |
 | 7 — Licenças, alertas, projetos | ⬜ não iniciada |
@@ -719,13 +719,20 @@ E  responsável               vê e edita · NÃO revela
 
 Fase 2.
 
-#### Critérios de Validação
+#### ✅ EXECUÇÃO — 2026-08-30 (commit `8444316`)
 
-- [ ] `listarCredenciaisPaginado` retorna paginado (skip/take)
-- [ ] Filtros isolados funcionam
-- [ ] Combinação de filtros (categoria + estado + responsável) funciona
-- [ ] Full-text busca por tag/nome/descrição
-- [ ] Nenhuma senha vaza na listagem
+- [x] `listarCredenciaisPaginado` retorna paginado — 12 linhas renderizadas na tela real
+- [x] Filtros isolados e combinados funcionam — todos passam por `escopoCredencial`
+- [x] Busca cobre nome, nome completo, descrição, fornecedor, nº de licença e tags
+- [x] Nenhuma senha vaza — `SELECT_LISTA` não tem os campos cifrados, e o smoke confirma
+
+**Decisão:** a busca **não** cobre usuário/senha, apesar de §9 mencionar usuário. Estão
+cifrados com IV aleatório: `LIKE` não casaria nada, e comparar exigiria decifrar a base inteira
+a cada tecla. Registrado aqui para ninguém "consertar" isso depois.
+
+**Contadores sob escopo:** indicadores, contagem por categoria e alertas usam
+`escopoCredencial`. Um contador global diria quantas credenciais existem no cofre para quem não
+alcança nenhuma — oráculo pelo agregado.
 
 ---
 
@@ -806,18 +813,37 @@ Fase 2.
 
 Fase 1 + Fase 2 + Fase 3.
 
-#### Critérios de Validação
+#### ✅ EXECUÇÃO — 2026-08-30 (commit `8444316`)
 
-- [ ] Imagem de referência fornecida e aprovada (decision point)
-- [ ] Página renderiza sem erro
-- [ ] Cards indicadores calculam corretamente
-- [ ] Filtros funcionam (mudar, limpar)
-- [ ] Busca debounced (500ms)
-- [ ] Paginação funciona
-- [ ] Clique em linha abre drawer
-- [ ] Drawer fecha sem erro
-- [ ] Empty state aparece quando zero registros
-- [ ] Loading skeleton aparece
+Referência visual fornecida pelo dono: `docs/contas/ref_img.png` (tela de Projetos do próprio
+SenaHub). Dela vieram a densidade dos cards, o cabeçalho de tabela em maiúsculas pequenas, a
+linha com nome + subtítulo e os badges discretos.
+
+- [x] Referência fornecida e considerada
+- [x] Página renderiza — verificada com Chrome headless sobre o app rodando, 12 linhas
+- [x] Cards calculam sob o escopo do viewer
+- [x] Filtros mudam e limpam pela URL (`useSetParams` reseta `page`)
+- [x] Paginação — server-side via `parseListParams`
+- [x] Clique na linha abre o drawer; drawer fecha
+- [x] Empty state em dois sabores: "nenhum cadastrado" × "nenhum encontrado" (§56)
+- [x] Skeleton enquanto o drawer carrega
+- [x] Console sem erro nosso (os 404 são de `/socket.io`, que `npm run dev` não sobe)
+
+**Busca sem debounce, de propósito.** O plano pedia 500ms; a busca é submit (Enter), não
+`onChange`. Debounce dispara uma navegação a cada pausa de digitação e enche o histórico do
+browser; §9 pede "não realizar pesquisas excessivas no servidor", e não buscar até o Enter
+atende melhor que buscar a cada 500ms.
+
+**Dois bugs achados por olhar a tela** — nenhum apareceria em teste ou tipo:
+
+1. A coluna Status usava o campo GRAVADO, então TQS ("vence em 22 dias") e Autodesk ("vence em
+   5 dias") apareciam como *Ativo*, contradizendo a área de Atenção na mesma tela. O servidor
+   passou a mandar `statusExibido` já resolvido — calcular no cliente com `new Date()` daria
+   divergência de hidratação na virada do dia.
+2. `credencial.estado` era `VARCHAR(2)` e guarda `NACIONAL`/`NA` (§10/§15): o primeiro software
+   nacional estouraria com 22001. Migration `20260830120000_acessos_estado_varchar16`.
+
+**Pendente:** o botão "Novo acesso" fica desabilitado — o formulário é a Fase 6.
 
 #### Testes Necessários
 
