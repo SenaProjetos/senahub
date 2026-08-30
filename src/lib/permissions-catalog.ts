@@ -268,4 +268,27 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
       { acao: "catalogos", label: "Administrar os catálogos de cargos e departamentos" },
     ],
   },
+  {
+    // Cofre corporativo de credenciais. Duas regras que não são óbvias pela lista:
+    //
+    // 1. NENHUMA destas ações decide QUAIS registros a pessoa vê — isso sai de
+    //    `CredencialCompartilhamento`, por registro. Aqui é só o gate de tela.
+    // 2. `credencial` (revelar senha) é INDEPENDENTE de `gerir` (§27/§29/§91): quem
+    //    administra o cofre não revela senha por consequência. Por isso ela fica fora
+    //    da semente do `db:seed` — é concessão explícita, nunca herdada.
+    recurso: "acessos",
+    label: "Acessos e Credenciais",
+    acoes: [
+      { acao: "ver", label: "Ver a Central de Acessos", leitura: true },
+      { acao: "gerir", label: "Criar/editar acessos (sem revelar senha)" },
+      // NÃO é `leitura: true`: o piso de sócio materializa override em toda ação marcada como
+      // leitura (ver `AcaoCatalogo.leitura` no topo), e revelar credencial é exatamente o que
+      // não pode ser concedido por piso automático. Ler senha do cofre é ato auditado, não
+      // consulta. Mesmo espírito de `documentos:ver`/`ferramentas:usar` acima.
+      { acao: "credencial", label: "Revelar/copiar credenciais (ação auditada)" },
+      { acao: "permissoes", label: "Definir com quem cada acesso é compartilhado" },
+      { acao: "auditoria", label: "Ver o histórico de auditoria do cofre", leitura: true },
+      { acao: "categorias", label: "Gerenciar as categorias de acesso" },
+    ],
+  },
 ];

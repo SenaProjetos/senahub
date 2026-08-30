@@ -68,6 +68,12 @@ Preencha (ver [.env.production.example](../.env.production.example)):
 - `APP_URL` **e** `BETTER_AUTH_URL` = `https://hub.seudominio.com.br` (exatamente a origem pública)
 - `BETTER_AUTH_SECRET` = segredo **novo**: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
 - `STORAGE_BASE_PATH` = pasta existente (ex.: `F:\SenaHub\storage`)
+- `ACESSOS_ENCRYPTION_KEY` = chave do cofre de credenciais (**Acessos**), 32 bytes em base64:
+  `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`.
+  **Guarde uma cópia fora do servidor**: sem ela nenhuma senha do módulo Acessos pode ser
+  descriptografada — o dump do banco sozinho não recupera nada. Trocar a chave torna todas as
+  credenciais já gravadas ilegíveis (não há rotação automática nesta versão). Nunca reaproveitar
+  `BETTER_AUTH_SECRET` aqui: comprometer uma não pode comprometer a outra.
 - `CHROME_PATH` = `C:\Program Files\Google\Chrome\Application\chrome.exe`
 - `ODA_CONVERTER_PATH` = executável do **ODA File Converter** (ver seção 4.1) — sem ele, todo upload de
   DWG falha na conversão com *"Conversor de DWG não está configurado neste servidor"*
@@ -365,6 +371,8 @@ vermelho = SenaHub ou banco fora do ar. O `.bat` continua funcionando como alter
 | Login falha / CSRF | `BETTER_AUTH_URL` ≠ origem pública exata. Ajuste no `.env` e `Restart-Service SenaHub`. |
 | Chat não conecta | Serviço parado (o WS vem do mesmo `server.ts`). Cloudflare Tunnel já passa WS. |
 | PDF não gera | `CHROME_PATH` errado/ausente. |
+| Acessos: erro ao salvar/revelar credencial | `ACESSOS_ENCRYPTION_KEY` ausente ou fora de 32 bytes base64 — o módulo falha fechado de propósito, nunca grava em texto plano. |
+| Acessos: "Descriptografia falhou" em credenciais que funcionavam | A chave foi trocada. Restaure a anterior; não há rotação automática nesta versão. |
 | "Conversor de DWG não está configurado" | `ODA_CONVERTER_PATH` ausente/errado no `.env` — ver seção 4.1. Se o log mostra `spawn "C:\... ENOENT` (aspa antes do `C:`), é aspa sem par no `.env`. Se mostra um caminho de versão que não existe mais, o ODA foi atualizado e a pasta mudou de nome. |
 | DWG fica em "na fila" pra sempre | Serviço parado: o worker pg-boss vive dentro do `server.ts`. |
 | DWG estoura o timeout de 9 min sem gerar `.dxf` | `QT_QPA_PLATFORM` definido no `AppEnvironmentExtra` do serviço apontando para um plugin Qt que o ODA não distribui — ver o aviso da seção 4.1. |

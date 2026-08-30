@@ -75,6 +75,29 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "administrativo", recurso: "rh", acao: "folha" },
   // Catálogos de cargo/departamento: quem cadastra pessoa precisa manter as listas.
   { role: "administrativo", recurso: "rh", acao: "catalogos" },
+  // ── Acessos e Credenciais (cofre corporativo) ────────────────────────────────
+  // Semente MÍNIMA e deliberada: só `administrativo`, que neste sistema já é o perfil de
+  // confiança alta (tem `financeiro:gerir`, `rh:folha` = salários, `usuarios:gerir`).
+  // Ninguém mais entra por padrão — §97 da spec pede "restrição rigorosa para quem não
+  // possui autorização", e o cofre nasce vazio: liberar depois pela tela de Permissões é
+  // barato, retirar acesso que já foi concedido não é. Confirmado pelo dono em 2026-08-28.
+  //
+  // ATENÇÃO: `acessos:ver` NÃO é o que faz alguém enxergar um cadastro — é só o gate de
+  // TELA. Quais registros a pessoa vê sai de `CredencialCompartilhamento` (Fase 2), e
+  // `acessos:credencial` é gate de tela para revelar, sempre somado ao compartilhamento
+  // individual daquele registro (§27/§85). Uma coisa nunca substitui a outra.
+  //
+  // `acessos:credencial` está FORA da semente de propósito (decisão do dono, 2026-08-28):
+  // §27/§29/§91 exigem que "vê o cadastro" e "vê a credencial" sejam independentes, e uma
+  // separação que a semente já concede junto é separação só no papel. Quem gere o cofre
+  // (`gerir`) não revela senha por consequência — revelar é concessão explícita, feita na
+  // tela de Permissões, pessoa a pessoa. Enquanto ninguém a receber, só `admin` revela (por
+  // `superUsuario`), que é o estado fail-closed correto para um cofre recém-criado.
+  { role: "administrativo", recurso: "acessos", acao: "ver" },
+  { role: "administrativo", recurso: "acessos", acao: "gerir" },
+  { role: "administrativo", recurso: "acessos", acao: "permissoes" },
+  { role: "administrativo", recurso: "acessos", acao: "auditoria" },
+  { role: "administrativo", recurso: "acessos", acao: "categorias" },
   // Arquivos gerais do projeto (pasta "Geral"): gestores administrativos por padrão.
   { role: "administrativo", recurso: "arquivos_gerais", acao: "ver" },
   { role: "administrativo", recurso: "arquivos_gerais", acao: "gerir" },

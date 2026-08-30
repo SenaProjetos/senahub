@@ -279,6 +279,12 @@ model User {
   propostasCustoEscolhidas      CustoProposta[]             @relation("PropostaEscolhidaPor")
   propostaAnexosCusto           CustoPropostaAnexo[]
 
+  // Acessos e Credenciais (Fase 1)
+  credenciaisResponsavel        Credencial[]
+  credenciaisCriados            Credencial[]                @relation("CredencialCriadoPor")
+  credenciaisAtualizados        Credencial[]                @relation("CredencialAtualizadoPor")
+  credenciaisFavoritas          CredencialFavorito[]
+
   @@index([role])
   @@index([tipo, setor])
   @@index([contratacao])
@@ -1201,6 +1207,7 @@ model Projeto {
   arts                    Art[]
   apontamentosCoordenacao ApontamentoCoordenacao[]
   orcamentosCusto         CustoOrcamento[]
+  credenciais             CredencialProjeto[]
 
   // ── F2.4 (ADR-06): de onde veio este projeto, do lado comercial ────────────────────────
   /// Nullable: todo projeto anterior à reforma (e todo projeto criado fora do funil, que hoje é
@@ -6963,4 +6970,152 @@ model LeituraDocumento {
   @@unique([documentoId, userId])
   @@index([userId])
   @@map("leitura_documento")
+}
+
+// ─────────────────────────────────────────────────────────────
+// FASE 1: Acessos e Credenciais (módulo novo)
+// ─────────────────────────────────────────────────────────────
+
+model CredencialCategoria {
+  id        String       @id @default(cuid())
+  nome      String       @unique @db.VarChar(100)
+  icone     String?      @db.VarChar(50)
+  ativo     Boolean      @default(true)
+  createdAt DateTime     @default(now())
+
+  credenciais Credencial[]
+
+  @@map("credencial_categoria")
+}
+
+model Credencial {
+  id            String    @id @default(cuid())
+  nome          String    @db.VarChar(150)
+  nomeCompleto  String?   @db.VarChar(255)
+
+  // Categorização
+  categoriaId   String
+  categoria     CredencialCategoria @relation(fields: [categoriaId], references: [id])
+  estado        String?   @db.VarChar(2) // UF (AC..TO) ou NULL
+  descricao     String?
+  url           String?   @db.VarChar(2000)
+
+  // Credenciais (sempre criptografadas como JSON)
+  usuarioEncriptado String? @db.VarChar(500)
+  senhaEncriptada   String?
+
+  // Gestão
+  responsavelId String?
+  responsavel   User?     @relation(fields: [responsavelId], references: [id], onDelete: SetNull)
+  departamento  String?   @db.VarChar(100) // Fase 2
+  status        String    @default("ativo") // ativo | atencao | expirado | bloqueado | inativo
+
+  // Validade
+  vencimentoEm        DateTime? @db.Date
+  proximaRevisaoEm    DateTime? @db.Date
+  ultimaRevisaoEm     DateTime?
+  renovacaoAutomatica Boolean   @default(false)
+
+  // Licença (preenchido quando categoria = Software/Licença)
+  fornecedor        String?   @db.VarChar(255)
+  tipoLicenca       String?   @db.VarChar(100)
+  numeroLicenca     String?   @db.VarChar(255)
+  assentos          Int?
+  dataContratacao   DateTime? @db.Date
+  dataRenovacao     DateTime? @db.Date
+
+  // Soft delete
+  deletadoEm DateTime?
+
+  // Auditoria
+  criadoEm        DateTime @default(now())
+  criadoPorId     String?
+  criadoPor       User?    @relation("CredencialCriadoPor", fields: [criadoPorId], references: [id], onDelete: SetNull)
+  atualizadoEm    DateTime @default(now())
+  atualizadoPorId String?
+  atualizadoPor   User?    @relation("CredencialAtualizadoPor", fields: [atualizadoPorId], references: [id], onDelete: SetNull)
+
+  // Relacionamentos
+  compartilhamentos CredencialCompartilhamento[]
+  projetos          CredencialProjeto[]
+  tags              CredencialTag[]
+  favoritos         CredencialFavorito[]
+
+  @@index([categoriaId])
+  @@index([responsavelId])
+  @@index([status])
+  @@index([vencimentoEm])
+  @@index([deletadoEm])
+  @@map("credencial")
+}
+
+model CredencialCompartilhamento {
+  id String @id @default(cuid())
+
+  credencialId String
+  credencial   Credencial @relation(fields: [credencialId], references: [id], onDelete: Cascade)
+
+  // Alvo: usuario | perfil | setor
+  tipoAlvo String  @db.VarChar(50)
+  alvoId   String  // userId | perfilId | Setor enum value
+
+  // Dois níveis independentes
+  podeVerCadastro         Boolean @default(false)
+  podeVerCredencial       Boolean @default(false)
+  podeEditar              Boolean @default(false)
+  podeGerenciarPermissoes Boolean @default(false)
+
+  criadoEm DateTime @default(now())
+
+  @@unique([credencialId, tipoAlvo, alvoId])
+  @@index([credencialId])
+  @@index([tipoAlvo])
+  @@map("credencial_compartilhamento")
+}
+
+model CredencialProjeto {
+  credencialId String
+  credencial   Credencial @relation(fields: [credencialId], references: [id], onDelete: Cascade)
+
+  projetoId String
+  projeto   Projeto    @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+
+  @@id([credencialId, projetoId])
+  /// A PK composta já indexa `credencialId` (prefixo), mas não `projetoId`. Este índice é o
+  /// que sustenta "quais acessos pertencem a este projeto" (§39 da spec) sem seq scan.
+  @@index([projetoId])
+  @@map("credencial_projeto")
+}
+
+model CredencialTag {
+  credencialId String
+  credencial   Credencial @relation(fields: [credencialId], references: [id], onDelete: Cascade)
+  tag          String     @db.VarChar(100)
+
+  @@id([credencialId, tag])
+  /// Busca por tag (§31) é filtro de primeira classe na listagem; a PK indexa na ordem errada.
+  @@index([tag])
+  @@map("credencial_tag")
+}
+
+/// §41 — favorito é preferência INDIVIDUAL: marcar não afeta o que ninguém mais vê.
+///
+/// Tabela própria, e não um campo em `UserPreference`: aquela é 1:1 com o usuário e guarda
+/// um JSON de preferências de tela, então uma lista de N credenciais viraria array em JSON —
+/// sem FK, sem cascade, e o filtro "só favoritos" (§10) sairia do banco para a memória.
+///
+/// Marcar favorito NÃO concede acesso: a listagem continua passando pelo mesmo escopo de
+/// `CredencialCompartilhamento`. Uma linha órfã aqui (credencial que deixou de ser
+/// compartilhada com a pessoa) some da tela pelo escopo, não por esta tabela.
+model CredencialFavorito {
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credencialId String
+  credencial   Credencial @relation(fields: [credencialId], references: [id], onDelete: Cascade)
+  criadoEm     DateTime   @default(now())
+
+  /// `userId` primeiro: a consulta dominante é "meus favoritos", que assim usa o prefixo da PK.
+  @@id([userId, credencialId])
+  @@index([credencialId])
+  @@map("credencial_favorito")
 }
