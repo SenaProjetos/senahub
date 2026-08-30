@@ -65,10 +65,30 @@ export async function overridesDeUsuario(userId: string) {
   }));
 }
 
+/**
+ * Perfis para o seletor da tela de Usuários. Traz `escopoGlobal` porque a tela precisa dizer,
+ * ANTES de salvar, se aquele perfil faz a pessoa enxergar todos os projetos — `acessoGlobal()` é
+ * `superUsuario ||` esta permissão sintética, e nenhum perfil semente a tem (§9.7). Sem isso a
+ * tela só poderia chutar, e chutar sobre escopo de dados é como se perde acesso sem ninguém ver.
+ */
 export async function perfisAtivosParaSelect() {
-  return prisma.perfilAcesso.findMany({
+  const perfis = await prisma.perfilAcesso.findMany({
     where: { ativo: true },
-    select: { id: true, nome: true, chave: true },
+    select: {
+      id: true,
+      nome: true,
+      chave: true,
+      // Mesmo par literal que `lib/session.ts` usa para calcular `escopoGlobalPerfil` — não há
+      // constante compartilhada, então renomear no catálogo tem que mudar os dois. O teste
+      // `resumo-acesso.test.ts` guarda o par contra `PERMISSOES_CATALOGO`: se sumir dali, quebra
+      // vermelho em vez de a tela passar a dizer "só os próprios projetos" para quem vê tudo.
+      permissoes: {
+        where: { recurso: "escopo", acao: "global", permitido: true },
+        select: { id: true },
+        take: 1,
+      },
+    },
     orderBy: { nome: "asc" },
   });
+  return perfis.map(({ permissoes, ...p }) => ({ ...p, escopoGlobal: permissoes.length > 0 }));
 }

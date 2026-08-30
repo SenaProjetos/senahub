@@ -116,7 +116,8 @@ export function PerfisView({ perfis }: { perfis: PerfilItem[] }) {
           <h2 className="text-2xl font-extrabold tracking-tight">Perfis de acesso</h2>
           <p className="text-sm text-muted-foreground">
             O que cada perfil pode fazer no sistema. Setor e Contratação não concedem acesso — só o
-            Perfil concede.
+            Perfil concede. Fora daqui ficam a fila de Aprovações e a jornada (ponto × apontamento),
+            que ainda dependem do <span className="font-medium">Papel</span> em Usuários.
           </p>
         </div>
         <Button onClick={abrirCriar}>
@@ -162,7 +163,11 @@ export function PerfisView({ perfis }: { perfis: PerfilItem[] }) {
                   <TableCell>
                     <div className="flex items-center gap-1.5">
                       <span className="font-mono text-xs text-muted-foreground">{p.chave}</span>
-                      {p.sistema && <Badge variant="outline">sistema</Badge>}
+                      {p.sistema && (
+                        <Badge variant="outline" title="Perfil de sistema: o db:seed do deploy regrava a matriz e descarta edições feitas na tela.">
+                          sistema
+                        </Badge>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell className="text-center text-sm">{p.permissoesCount}</TableCell>

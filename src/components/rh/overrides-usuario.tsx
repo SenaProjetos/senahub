@@ -41,8 +41,12 @@ function rotuloAcao(recurso: string, acao: string): string {
 
 /**
  * Overrides individuais de permissão. `motivo` é obrigatório no schema — sem isso vira lixo
- * em 12 meses (exigência do conselho). Hoje isso ainda NÃO concede nem revoga acesso real
- * (motor por perfil inerte até a Onda D) — a tela existe agora pra já nascer auditável.
+ * em 12 meses (exigência do conselho).
+ *
+ * Desde a Onda D isto **concede e revoga acesso real**: `permissaoEfetiva` consulta o override
+ * antes da matriz do perfil, e ele não é cacheado (§5.2), então vale já no próximo request. O
+ * texto da tela dizia o contrário desde que o motor era inerte — mentira perigosa numa tela cuja
+ * outra metade é revogar permissão.
  */
 export function OverridesUsuario({
   userId,
@@ -126,8 +130,10 @@ export function OverridesUsuario({
           <ShieldPlus className="size-4" /> Overrides de permissão
         </CardTitle>
         <CardDescription>
-          Permissões concedidas ou revogadas manualmente, além do que o perfil já dá. Hoje ainda não
-          têm efeito no acesso real — só ficam registradas pra quando o motor por perfil entrar em vigor.
+          Permissões concedidas ou revogadas manualmente para esta pessoa. Valem no próximo
+          carregamento de página e <span className="font-medium">vencem o perfil</span> — inclusive
+          para negar o que o perfil concede. Sobrevivem ao <span className="font-medium">db:seed</span>,
+          então é aqui que mora uma exceção duradoura.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

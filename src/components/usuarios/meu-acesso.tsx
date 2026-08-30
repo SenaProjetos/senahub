@@ -40,13 +40,14 @@ export function MeuAcesso({ acesso }: { acesso: Acesso }) {
       </CardHeader>
 
       <CardContent className="space-y-5">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <Campo label="Setor" valor={acesso.setor ?? "Não definido"} />
           <Campo label="Contratação" valor={acesso.contratacao ?? "Não definida"} />
           <Campo label="Cargo" valor={acesso.cargo ?? "Não informado"} />
+          <Campo label="Papel" valor={acesso.papel} />
           <div>
             <p className="text-xs text-muted-foreground">Perfil de acesso</p>
-            <p className="font-medium">{acesso.perfil}</p>
+            <p className="font-medium">{acesso.perfil ?? "Nenhum"}</p>
           </div>
         </div>
 

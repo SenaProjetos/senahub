@@ -27,6 +27,7 @@ export async function meuAcesso(userId: string) {
       tipo: true,
       setor: true,
       contratacao: true,
+      perfil: { select: { nome: true } },
       vinculoAtivo: {
         select: { cargo: true, dataInicio: true, cargaSemanal: true, pj: { select: { razaoSocial: true } } },
       },
@@ -51,9 +52,15 @@ export async function meuAcesso(userId: string) {
   const total = grupos.reduce((n, g) => n + g.acoes.length, 0);
 
   return {
-    perfil: ROLE_LABELS[role],
-    /** admin tem bypass total no código — a matriz não se aplica a ele. */
-    acessoTotal: role === "admin",
+    /**
+     * Dois eixos, dois campos. Antes havia só `perfil`, preenchido com o rótulo do PAPEL — a tela
+     * exibia "CLT" sob o rótulo "Perfil de acesso", que é a confusão exata que esta tela existe
+     * para desfazer.
+     */
+    papel: ROLE_LABELS[role],
+    perfil: u.perfil?.nome ?? null,
+    /** Bypass total é `superUsuario`, não `role === "admin"` — mudou na Onda D, junto com `can()`. */
+    acessoTotal: u.superUsuario,
     tipo: u.tipo,
     setor: u.setor ? SETOR_LABELS[u.setor] : null,
     contratacao: u.contratacao ? CONTRATACAO_LABELS[u.contratacao] : null,

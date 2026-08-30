@@ -19,6 +19,12 @@ export async function listarUsuarios(opts?: { incluirInativos?: boolean }) {
       perfilId: true,
       superUsuario: true,
       perfil: { select: { nome: true } },
+      // Só exibição: esta tela NÃO grava vínculo (quem grava é `rh/funcionarios/actions.ts`).
+      // Aparece aqui para o admin ver, sem sair da tela, se Setor/Contratação estão preenchidos —
+      // desde a Onda E a jornada resolve por `Contratacao`, então vínculo vazio ou errado é uma
+      // falha silenciosa que nenhuma outra tela de configuração denuncia.
+      setor: true,
+      contratacao: true,
     },
   });
 }

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, TriangleAlert } from "lucide-react";
 import { setPermissaoPerfil } from "@/modules/perfis/actions";
 import { PERMISSOES_CATALOGO } from "@/lib/permissions-catalog";
 import { Badge } from "@/components/ui/badge";
@@ -50,10 +50,20 @@ export function PerfilMatrizView({
           {sistema && <Badge variant="outline">sistema</Badge>}
         </div>
         <p className="text-sm text-muted-foreground">
-          Alterações valem imediatamente para quem tem este perfil — {" "}
-          <span className="font-medium">hoje isso ainda não muda o acesso real de ninguém</span>{" "}
-          (o motor por perfil entra em vigor numa etapa futura da migração).
+          Alterações <span className="font-medium">valem imediatamente</span> para quem tem este
+          perfil — inclusive para revogar. Não cobre a fila de Aprovações nem a jornada, que ainda
+          dependem do Papel do usuário.
         </p>
+        {sistema && (
+          <p className="mt-2 flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+            <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+            <span>
+              Perfil de sistema: o <span className="font-medium">db:seed</span> do deploy regrava
+              esta matriz inteira a partir das permissões por papel e descarta o que for editado
+              aqui. Para uma exceção que dure, use um override na ficha da pessoa.
+            </span>
+          </p>
+        )}
       </div>
 
       <div className="overflow-x-auto rounded-sm border">

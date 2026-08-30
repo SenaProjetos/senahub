@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -12,6 +13,7 @@ import {
   UserCheck,
   Copy,
   Trash2,
+  TriangleAlert,
 } from "lucide-react";
 import {
   criarUsuario,
@@ -25,6 +27,9 @@ import { avaliarSolicitacaoCadastro } from "@/modules/auth/cadastro/actions";
 import { criarOnboarding } from "@/modules/rh/onboarding/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ROLES, ROLE_LABELS, CLT_ROLES, PJ_ROLES, type Role } from "@/lib/roles";
+import { resumirAcesso, type LinhaResumo } from "@/modules/usuarios/resumo-acesso";
+import { CONTRATACAO_LABELS, SETOR_LABELS } from "@/modules/usuarios/vinculo/labels";
+import type { Contratacao, Setor } from "@/generated/prisma/client";
 import type { UsuarioListItem } from "@/modules/usuarios/queries";
 import { SolicitacoesCadastro, type PedidoCadastro } from "@/components/configuracoes/solicitacoes-cadastro";
 import { Button } from "@/components/ui/button";
@@ -81,13 +86,49 @@ type FormState = {
   onboardingTemplateId: string;
   perfilId: string;
   superUsuario: boolean;
+  /** Só leitura — o resumo de acesso precisa saber, porque conta inativa não libera nada. */
+  ativo: boolean;
+  /** Só leitura, do vínculo ativo — esta tela não grava vínculo. */
+  setor: Setor | null;
+  contratacao: Contratacao | null;
 };
 
 const EMPTY: FormState = {
   name: "", nomeCompleto: "", email: "", role: "projetista_pj", clienteId: "", ehSocio: false,
   cpf: "", telefone: "", cargoId: "", dataAdmissao: "", salarioBase: null, pjId: "", onboardingTemplateId: "",
-  perfilId: "", superUsuario: false,
+  perfilId: "", superUsuario: false, ativo: true, setor: null, contratacao: null,
 };
+
+/**
+ * Traduz o resumo puro (`resumirAcesso`) para a tela. Só apresentação — nenhuma regra de acesso
+ * mora aqui, e é de propósito: a regra é testada em `resumo-acesso.test.ts`.
+ */
+function ResumoAcesso({ linhas }: { linhas: LinhaResumo[] }) {
+  return (
+    <div className="space-y-2 rounded-sm border bg-muted/40 p-3">
+      <p className="text-xs font-medium text-muted-foreground">O que essa combinação libera</p>
+      <dl className="space-y-1.5">
+        {linhas.map((l) => (
+          <div key={l.chave} className="grid grid-cols-[7.5rem_1fr] gap-2 text-xs">
+            <dt className="text-muted-foreground">{l.titulo}</dt>
+            <dd
+              className={
+                l.tom === "aviso"
+                  ? "flex items-start gap-1 font-medium text-warning"
+                  : l.tom === "ok"
+                    ? "text-foreground"
+                    : "text-muted-foreground"
+              }
+            >
+              {l.tom === "aviso" && <TriangleAlert aria-hidden className="mt-0.5 size-3 shrink-0" />}
+              <span>{l.valor}</span>
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
 
 export function UsuariosView({
   usuarios,
@@ -106,7 +147,7 @@ export function UsuariosView({
   pedidos: PedidoCadastro[];
   pessoasJuridicas: { id: string; label: string }[];
   templates: { id: string; nome: string }[];
-  perfis: { id: string; nome: string }[];
+  perfis: { id: string; nome: string; chave: string; escopoGlobal: boolean }[];
   /** Catálogo de cargos ativo (2.1) — esta tela também cria pessoa, então também precisa dele. */
   cargos: { id: string; nome: string }[];
   podeDefinirSocio: boolean;
@@ -158,6 +199,21 @@ export function UsuariosView({
   }
 
   const visiveis = usuarios.filter((u) => mostrarInativos || u.ativo);
+
+  // Resumo do que a combinação Papel × Perfil de acesso libera, recalculado a cada mudança do
+  // formulário — a tela responde "é assim mesmo?" antes de salvar, não depois da reclamação.
+  const perfilSel = form ? (perfis.find((p) => p.id === form.perfilId) ?? null) : null;
+  const linhasResumo = form
+    ? resumirAcesso({
+        role: form.role,
+        ativo: form.ativo,
+        temPerfil: !!form.perfilId,
+        perfilNome: perfilSel?.nome ?? null,
+        perfilEscopoGlobal: perfilSel?.escopoGlobal ?? false,
+        superUsuario: form.superUsuario,
+        ehSocio: form.ehSocio,
+      })
+    : [];
 
   function salvar() {
     if (!form) return;
@@ -261,7 +317,8 @@ export function UsuariosView({
             <TableRow>
               <TableHead>Nome</TableHead>
               <TableHead>E-mail</TableHead>
-              <TableHead>Perfil</TableHead>
+              <TableHead>Papel</TableHead>
+              <TableHead>Perfil de acesso</TableHead>
               <TableHead>Situação</TableHead>
               <TableHead className="w-12" />
             </TableRow>
@@ -276,6 +333,19 @@ export function UsuariosView({
                     <Badge variant="outline">{ROLE_LABELS[u.role as Role]}</Badge>
                     {u.socio?.ativo && <Badge variant="secondary">Sócio</Badge>}
                   </span>
+                </TableCell>
+                <TableCell>
+                  {/* Sem perfil, `permissaoEfetiva` nega tudo — é o estado mais perigoso da tela
+                      e o único que não dá erro em lugar nenhum, então precisa gritar aqui. */}
+                  {u.superUsuario ? (
+                    <Badge variant="secondary">Acesso total</Badge>
+                  ) : u.perfil ? (
+                    <span className="text-sm">{u.perfil.nome}</span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-warning">
+                      <TriangleAlert aria-hidden className="size-3" /> sem perfil — sem acesso
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell>
                   {u.ativo ? (
@@ -310,6 +380,9 @@ export function UsuariosView({
                             ehSocio: u.socio?.ativo === true,
                             perfilId: u.perfilId ?? "",
                             superUsuario: u.superUsuario,
+                            ativo: u.ativo,
+                            setor: u.setor,
+                            contratacao: u.contratacao,
                           })
                         }
                       >
@@ -357,7 +430,7 @@ export function UsuariosView({
             <DialogTitle>{form?.id ? "Editar usuário" : "Nova pessoa"}</DialogTitle>
             <DialogDescription>
               {form?.id
-                ? "Atualize o nome e o perfil de acesso."
+                ? "Papel define jornada e aprovações; Perfil de acesso define as telas. O resumo abaixo mostra o resultado."
                 : "Cria o acesso (senha temporária, troca no 1º acesso) e já registra o cadastro inicial."}
             </DialogDescription>
           </DialogHeader>
@@ -395,7 +468,7 @@ export function UsuariosView({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Perfil</Label>
+                <Label>Papel (jornada e aprovações)</Label>
                 <Select
                   value={form.role}
                   onValueChange={(v) => setForm({ ...form, role: v as Role })}
@@ -411,6 +484,12 @@ export function UsuariosView({
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Não define telas. Define ponto × apontamento, folha e férias, e quem vê a fila de
+                  Aprovações. <span className="font-medium">&quot;Coordenador&quot; aqui não é o
+                  mesmo que o Perfil de acesso &quot;Coordenador&quot;</span> — quem coordena mas é
+                  contratado CLT fica com Papel <span className="font-medium">CLT</span>.
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label>Perfil de acesso</Label>
@@ -431,14 +510,35 @@ export function UsuariosView({
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Ainda não muda o acesso real — o motor por perfil entra em vigor numa etapa futura.
+                  Decide as telas e ações liberadas — vale imediatamente ao salvar.{" "}
+                  {perfilSel ? (
+                    <Link href={`/configuracoes/perfis/${perfilSel.id}`} className="underline">
+                      Ver o que o perfil {perfilSel.nome} concede
+                    </Link>
+                  ) : (
+                    "Sem perfil, o sistema nega tudo."
+                  )}
                 </p>
               </div>
+              <ResumoAcesso linhas={linhasResumo} />
+              {form.id && form.role !== "cliente" && (
+                <p className="text-xs text-muted-foreground">
+                  Vínculo: <span className="font-medium">{form.setor ? SETOR_LABELS[form.setor] : "setor não definido"}</span>
+                  {" · "}
+                  <span className="font-medium">{form.contratacao ? CONTRATACAO_LABELS[form.contratacao] : "contratação não definida"}</span>
+                  . Setor e Contratação não concedem acesso, mas a contratação define a jornada —
+                  edite em <Link href="/rh/pessoas" className="underline">RH → Pessoas</Link>, esta
+                  tela não grava vínculo.
+                </p>
+              )}
               {ehAdmin && (
                 <div className="flex items-center justify-between rounded-sm border p-3">
                   <div>
                     <Label htmlFor="u-super">Acesso total (superusuário)</Label>
-                    <p className="text-xs text-muted-foreground">Bypass total — mesmo nível do perfil admin.</p>
+                    <p className="text-xs text-muted-foreground">
+                      Ignora o Perfil de acesso e libera tudo. É o bypass real do sistema — o Papel
+                      Administrador, sozinho, não faz isso.
+                    </p>
                   </div>
                   <Switch
                     id="u-super"
@@ -523,7 +623,7 @@ export function UsuariosView({
                   <div className="space-y-0.5">
                     <Label htmlFor="u-socio">Sócio</Label>
                     <p className="text-xs text-muted-foreground">
-                      Acesso de leitura ampliado (piso de supervisor) e canal Sócios no chat.
+                      Piso de acesso do Papel Coordenador, somado ao perfil, e canal Sócios no chat.
                       Percentual de participação é gerido em Financeiro → Cadastros.
                     </p>
                   </div>
