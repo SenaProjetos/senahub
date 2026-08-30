@@ -270,6 +270,30 @@ async function main() {
   await revogarTela(autorizado.id);
   await revogarTela(limitado.id);
 
+  console.log("\nListagem — o login só sai para quem pode ver a credencial (§16)");
+  // `viva` é compartilhada com o PERFIL (com credencial) e com o SETOR (só cadastro).
+  const { listarCredenciaisPaginado } = await import("../src/modules/acessos/queries");
+  const pag = { skip: 0, take: 50, sort: "nome", dir: "asc" as const };
+
+  const listaB = await listarCredenciaisPaginado(vB, {}, pag);
+  const linhaB = listaB.items.find((i) => i.id === viva.id);
+  checar("autorizado recebe o usuário decifrado", linhaB?.usuario === USUARIO);
+
+  const listaC = await listarCredenciaisPaginado(vC, {}, pag);
+  const linhaC = listaC.items.find((i) => i.id === viva.id);
+  checar("limitado ALCANÇA a linha (vê o cadastro)", linhaC !== undefined);
+  checar("…mas recebe usuario = null, não mascarado", linhaC?.usuario === null);
+
+  checar(
+    "nenhuma linha da listagem carrega campo cifrado",
+    listaB.items.every(
+      (i) => !("usuarioEncriptado" in i) && !("senhaEncriptada" in i) && !("compartilhamentos" in i),
+    ),
+  );
+
+  const listaD = await listarCredenciaisPaginado(vD, {}, pag);
+  checar("estranho não vê a linha na listagem", !listaD.items.some((i) => i.id === viva.id));
+
   console.log("\nLimpando...");
   await prisma.credencial.deleteMany({ where: { nome: { startsWith: marca } } });
   await prisma.credencialCategoria.delete({ where: { id: categoria.id } });

@@ -7,12 +7,14 @@ import {
   listarCategorias,
   responsaveisComAcessos,
   indicadoresAcessos,
+  novosNoMes,
   contagemPorCategoria,
+  contagemPorStatus,
   alertasAcessos,
   viewerDe,
   SORT_ACESSOS,
 } from "@/modules/acessos/queries";
-import { CATEGORIAS_PUBLICAS } from "@/modules/acessos/labels";
+import { CATEGORIAS_PUBLICAS, NIVEL_ACESSO_LABEL } from "@/modules/acessos/labels";
 import { STATUS_CREDENCIAL } from "@/modules/acessos/service";
 import { AcessosView } from "@/components/acessos/acessos-view";
 
@@ -23,6 +25,7 @@ type SP = {
   categoriaId?: string;
   estado?: string;
   responsavelId?: string;
+  nivelAcesso?: string;
   status?: string;
   favoritos?: string;
   sort?: string;
@@ -42,30 +45,46 @@ export default async function AcessosPage({ searchParams }: { searchParams: Prom
   });
 
   const viewer = viewerDe(user);
+  // Valores da URL passam por whitelist antes de virar `where` — nenhum deles é interpolado.
+  const status = STATUS_CREDENCIAL.includes(sp.status as never) ? sp.status : undefined;
+  const nivelAcesso = sp.nivelAcesso && sp.nivelAcesso in NIVEL_ACESSO_LABEL ? sp.nivelAcesso : undefined;
+
   const filtros = {
     q: q || undefined,
     categoriaId: sp.categoriaId || undefined,
     estado: sp.estado || undefined,
     responsavelId: sp.responsavelId || undefined,
-    status: STATUS_CREDENCIAL.includes(sp.status as never) ? sp.status : undefined,
+    nivelAcesso,
+    status,
     favoritos: sp.favoritos === "1" || undefined,
   };
 
-  // Tudo em paralelo: são seis leituras independentes e a página não renderiza sem todas.
-  const [lista, categorias, responsaveis, indicadores, porCategoria, alertas, podeGerir, podeRevelar] =
-    await Promise.all([
-      listarCredenciaisPaginado(viewer, filtros, { skip, take, sort, dir }),
-      listarCategorias(),
-      responsaveisComAcessos(viewer),
-      indicadoresAcessos(viewer, CATEGORIAS_PUBLICAS),
-      contagemPorCategoria(viewer),
-      alertasAcessos(viewer),
-      can(user, "acessos", "gerir"),
-      // Gate de TELA do botão de revelar. Não é a autorização real — essa é por registro, no
-      // servidor (§51: esconder botão não é segurança). Serve para não oferecer o que sempre
-      // falharia.
-      can(user, "acessos", "credencial"),
-    ]);
+  const [
+    lista,
+    categorias,
+    responsaveis,
+    indicadores,
+    novos,
+    porCategoria,
+    contagemStatus,
+    alertas,
+    podeGerir,
+    podeRevelar,
+  ] = await Promise.all([
+    listarCredenciaisPaginado(viewer, filtros, { skip, take, sort, dir }),
+    listarCategorias(),
+    responsaveisComAcessos(viewer),
+    indicadoresAcessos(viewer, CATEGORIAS_PUBLICAS),
+    novosNoMes(viewer, CATEGORIAS_PUBLICAS),
+    contagemPorCategoria(viewer),
+    contagemPorStatus(viewer),
+    alertasAcessos(viewer),
+    can(user, "acessos", "gerir"),
+    // Gate de TELA do botão de revelar. Não é a autorização real — essa é por registro, no
+    // servidor (§51: esconder botão não é segurança). Serve para não oferecer o que sempre
+    // falharia.
+    can(user, "acessos", "credencial"),
+  ]);
 
   return (
     <AcessosView
@@ -74,9 +93,11 @@ export default async function AcessosPage({ searchParams }: { searchParams: Prom
       page={page}
       pageCount={pageCount(lista.total, pageSize)}
       pageSize={pageSize}
+      skip={skip}
       categorias={categorias.map((c) => ({ ...c, quantidade: porCategoria.get(c.id) ?? 0 }))}
       responsaveis={responsaveis}
-      indicadores={indicadores}
+      indicadores={{ ...indicadores, novos }}
+      contagemStatus={contagemStatus}
       alertas={alertas}
       podeGerir={podeGerir}
       podeRevelar={podeRevelar}
@@ -85,7 +106,8 @@ export default async function AcessosPage({ searchParams }: { searchParams: Prom
         categoriaId: sp.categoriaId ?? "",
         estado: sp.estado ?? "",
         responsavelId: sp.responsavelId ?? "",
-        status: sp.status ?? "",
+        nivelAcesso: nivelAcesso ?? "",
+        status: status ?? "",
         favoritos: sp.favoritos === "1",
       }}
     />

@@ -13,10 +13,17 @@ import type { SessionUser } from "@/lib/session";
 /**
  * Leituras do cofre de Acessos.
  *
- * REGRA DO MÓDULO: nenhuma função daqui devolve `senhaEncriptada`/`usuarioEncriptado`. Revelar é
- * caminho próprio e auditado, em `actions.ts` (§45: "NÃO retornar senha junto ao endpoint de
- * listagem"). Os `select` abaixo são explícitos justamente para que incluir a coluna cifrada por
- * descuido seja uma edição visível no diff, e não o efeito silencioso de um `include`.
+ * REGRA DO MÓDULO: a SENHA nunca sai daqui, em nenhuma função, sob nenhuma permissão — revelar
+ * é caminho próprio e auditado, em `actions.ts` (§45).
+ *
+ * O USUÁRIO tem UMA exceção, explícita: `listarCredenciaisPaginado` o devolve decifrado nas
+ * linhas em que o viewer tem `podeVerCredencial`, porque §16 o permite a quem tem a permissão e
+ * a referência visual do dono o mostra na coluna "Usuário / Conta". Nas demais linhas vem
+ * `null` — nunca mascarado, para não anunciar o que existe. Fora dessa função, campo cifrado
+ * nenhum é devolvido.
+ *
+ * Os `select` são explícitos justamente para que incluir uma coluna cifrada por descuido seja
+ * uma edição visível no diff, e não o efeito silencioso de um `include`.
  */
 
 /**
@@ -54,6 +61,19 @@ const SELECT_LISTA = {
   categoria: { select: { id: true, nome: true, icone: true } },
   responsavel: { select: { id: true, name: true, image: true, cargo: true } },
   tags: { select: { tag: true } },
+  // Necessários para resolver, POR LINHA, se este viewer alcança a credencial. Nenhum dos dois
+  // chega ao cliente: `montarLinha` os consome e devolve só `usuario` (ou null) e `nivelAcesso`.
+  usuarioEncriptado: true,
+  compartilhamentos: {
+    select: {
+      tipoAlvo: true,
+      alvoId: true,
+      podeVerCadastro: true,
+      podeVerCredencial: true,
+      podeEditar: true,
+      podeGerenciarPermissoes: true,
+    },
+  },
 } satisfies Prisma.CredencialSelect;
 
 /** Detalhe = lista + o resto dos campos não sensíveis. */
@@ -87,6 +107,38 @@ const SELECT_DETALHE = {
 export type CredencialLista = Prisma.CredencialGetPayload<{ select: typeof SELECT_LISTA }>;
 
 /**
+ * Uma linha pronta para a tabela: sem campo cifrado, com `usuario` já resolvido pela permissão
+ * daquela linha e com o nível de acesso derivado.
+ */
+export type LinhaListagem = Omit<
+  CredencialLista,
+  "usuarioEncriptado" | "compartilhamentos" | "responsavelId"
+> & {
+  favorita: boolean;
+  statusExibido: StatusCredencial;
+  usuario: string | null;
+  nivelAcesso: NivelAcesso;
+};
+
+export type NivelAcesso = "setor" | "perfil" | "usuario" | "restrito";
+
+/**
+ * §18 — como a credencial é ALCANÇADA, resumido numa palavra para a coluna "Acesso".
+ *
+ * Prioriza o alcance mais largo: quem é partilhado com um setor inteiro é "Setor", ainda que
+ * também tenha pessoas nominais. `restrito` é o caso sem alcance coletivo nenhum — é a mesma
+ * definição que o card "Acessos restritos" (§7-04) conta, e as duas leituras precisam bater.
+ */
+export function nivelDeAcesso(
+  compartilhamentos: Array<{ tipoAlvo: string; podeVerCredencial: boolean }>,
+): NivelAcesso {
+  const comCredencial = compartilhamentos.filter((c) => c.podeVerCredencial);
+  if (comCredencial.some((c) => c.tipoAlvo === "setor")) return "setor";
+  if (comCredencial.some((c) => c.tipoAlvo === "perfil")) return "perfil";
+  return "restrito";
+}
+
+/**
  * Status EXIBIDO, resolvido no servidor.
  *
  * O campo `status` da tabela é o que alguém DECLAROU; o exibido também considera vencimento e
@@ -104,7 +156,8 @@ export type CredencialDetalhe = Prisma.CredencialGetPayload<{ select: typeof SEL
 
 /** O que o drawer recebe: cadastro + o que ESTE viewer pode fazer nele + se é favorito dele. */
 export type DetalheCredencial = {
-  credencial: CredencialDetalhe & { statusExibido: StatusCredencial };
+  /** `usuarioEncriptado` é removido em `buscarCredencial` — o detalhe nunca leva cifra. */
+  credencial: Omit<CredencialDetalhe, "usuarioEncriptado"> & { statusExibido: StatusCredencial };
   permissoes: PermissoesNaCredencial;
   favorita: boolean;
 };
@@ -190,7 +243,13 @@ export async function buscarCredencial(
     ehResponsavel: credencial.responsavelId === viewer.id,
   });
 
-  return { credencial: comStatusExibido(credencial, new Date()), permissoes, favorita };
+  // `SELECT_DETALHE` herda `SELECT_LISTA`, que carrega o login cifrado para a listagem resolver
+  // a permissão por linha. O drawer não precisa dele: revelar é ação própria e auditada, e
+  // mandar a cifra junto do cadastro devolveria material sensível a quem só abriu a ficha.
+  const { usuarioEncriptado, ...semCifra } = credencial;
+  void usuarioEncriptado;
+
+  return { credencial: comStatusExibido(semCifra, new Date()), permissoes, favorita };
 }
 
 /**
@@ -238,6 +297,8 @@ export type FiltrosAcessos = {
   projetoId?: string;
   /** Só os marcados como favoritos POR ESTE viewer (§41). */
   favoritos?: boolean;
+  /** §10 — `setor` | `perfil` | `usuario` | `restrito`. Ver `nivelDeAcesso`. */
+  nivelAcesso?: string;
 };
 
 type Dir = "asc" | "desc";
@@ -306,6 +367,12 @@ function whereAcessos(viewer: ViewerCofre, f: FiltrosAcessos): Prisma.Credencial
   if (f.status) and.push({ status: f.status });
   if (f.projetoId) and.push({ projetos: { some: { projetoId: f.projetoId } } });
   if (f.favoritos) and.push({ favoritos: { some: { userId: viewer.id } } });
+  if (f.nivelAcesso === "restrito") {
+    // "Restrito" é AUSÊNCIA de alcance coletivo — mesma definição do card §7-04.
+    and.push({ compartilhamentos: { none: { podeVerCredencial: true, tipoAlvo: { in: ["setor", "perfil"] } } } });
+  } else if (f.nivelAcesso) {
+    and.push({ compartilhamentos: { some: { podeVerCredencial: true, tipoAlvo: f.nivelAcesso } } });
+  }
 
   return { AND: and };
 }
@@ -320,7 +387,7 @@ export async function listarCredenciaisPaginado(
   viewer: ViewerCofre,
   filtros: FiltrosAcessos,
   paginacao: { skip: number; take: number; sort: string | null; dir: Dir },
-): Promise<{ items: Array<CredencialLista & { favorita: boolean; statusExibido: StatusCredencial }>; total: number }> {
+): Promise<{ items: LinhaListagem[]; total: number }> {
   const where = whereAcessos(viewer, filtros);
 
   const [items, total] = await Promise.all([
@@ -346,10 +413,46 @@ export async function listarCredenciaisPaginado(
     : new Set<string>();
 
   const hoje = new Date();
-  return {
-    items: items.map((i) => comStatusExibido({ ...i, favorita: favoritas.has(i.id) }, hoje)),
-    total,
-  };
+  const { descriptografarSenha } = await import("@/lib/encryption");
+
+  const linhas = await Promise.all(
+    items.map(async (i) => {
+      const permissoes = permissoesNaCredencial(viewer, i.compartilhamentos, {
+        ehResponsavel: i.responsavelId === viewer.id,
+      });
+
+      // §16 — o login só é decifrado para quem pode ver a credencial DESTE registro. Sem esta
+      // resolução por linha, a permissão de tela sozinha entregaria o usuário de tudo que o
+      // escopo alcança, e escopo é mais largo que `podeVerCredencial` de propósito.
+      let usuario: string | null = null;
+      if (permissoes.verCredencial && i.usuarioEncriptado) {
+        try {
+          usuario = await descriptografarSenha(JSON.parse(i.usuarioEncriptado));
+        } catch {
+          // Registro cifrado com outra chave, ou payload corrompido: a listagem não é lugar de
+          // falhar por isso — mostra `—` e segue. O erro real aparece ao revelar, com mensagem.
+          usuario = null;
+        }
+      }
+
+      // Descarta o que não pode sair daqui: o login cifrado e a política de compartilhamento
+      // (já consumida acima). `responsavelId` também sai — a tabela usa o objeto `responsavel`.
+      const { usuarioEncriptado, compartilhamentos, responsavelId, ...publico } = i;
+      void usuarioEncriptado;
+      void responsavelId;
+      return comStatusExibido(
+        {
+          ...publico,
+          favorita: favoritas.has(i.id),
+          usuario,
+          nivelAcesso: nivelDeAcesso(compartilhamentos),
+        },
+        hoje,
+      );
+    }),
+  );
+
+  return { items: linhas, total };
 }
 
 /**
@@ -378,6 +481,55 @@ export async function indicadoresAcessos(viewer: ViewerCofre, categoriasPublicas
               none: { podeVerCredencial: true, tipoAlvo: { in: ["setor", "perfil"] } },
             },
           },
+        ],
+      },
+    }),
+  ]);
+  return { total, portais, softwares, restritos };
+}
+
+/**
+ * Distribuição por status EXIBIDO, para o donut do resumo.
+ *
+ * Conta em memória, não por `groupBy`: o status exibido não é a coluna `status` — deriva de
+ * vencimento e revisão (§19), e o banco não sabe disso. O escopo já limita o volume, e o mesmo
+ * `statusCredencial()` da tabela é usado aqui, para os dois números nunca discordarem.
+ */
+export async function contagemPorStatus(viewer: ViewerCofre, hoje = new Date()) {
+  const linhas = await prisma.credencial.findMany({
+    where: escopoCredencial(viewer),
+    select: { status: true, vencimentoEm: true, ultimaRevisaoEm: true },
+  });
+  const acc: Record<StatusCredencial, number> = {
+    ativo: 0,
+    atencao: 0,
+    expirando: 0,
+    bloqueado: 0,
+    inativo: 0,
+  };
+  for (const l of linhas) acc[statusCredencial(l, hoje)]++;
+  return acc;
+}
+
+/** Quantos acessos entraram no mês corrente, por card (§7 — a linha "+N este mês"). */
+export async function novosNoMes(viewer: ViewerCofre, categoriasPublicas: string[], hoje = new Date()) {
+  const inicio = new Date(Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth(), 1));
+  const base: Prisma.CredencialWhereInput = {
+    AND: [escopoCredencial(viewer), { criadoEm: { gte: inicio } }],
+  };
+  const [total, portais, softwares, restritos] = await Promise.all([
+    prisma.credencial.count({ where: base }),
+    prisma.credencial.count({
+      where: { AND: [base, { categoria: { nome: { in: categoriasPublicas } } }] },
+    }),
+    prisma.credencial.count({
+      where: { AND: [base, { categoria: { nome: { contains: "Software", mode: "insensitive" } } }] },
+    }),
+    prisma.credencial.count({
+      where: {
+        AND: [
+          base,
+          { compartilhamentos: { none: { podeVerCredencial: true, tipoAlvo: { in: ["setor", "perfil"] } } } },
         ],
       },
     }),
