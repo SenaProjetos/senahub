@@ -1,6 +1,10 @@
 {
   "name": "senahub",
   "version": "1.13.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SenaProjetos/senahub.git"
+  },
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",

@@ -13,6 +13,6 @@
     { "type": "build", "hidden": true },
     { "type": "ci", "hidden": true }
   ],
-  "commitUrlFormat": "{{host}}/{{owner}}/{{repo}}/commit/{{hash}}",
-  "compareUrlFormat": "{{host}}/{{owner}}/{{repo}}/compare/{{previousTag}}...{{currentTag}}"
+  "commitUrlFormat": "{{host}}/{{owner}}/{{repository}}/commit/{{hash}}",
+  "compareUrlFormat": "{{host}}/{{owner}}/{{repository}}/compare/{{previousTag}}...{{currentTag}}"
 }
