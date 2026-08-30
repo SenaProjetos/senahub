@@ -2,12 +2,12 @@
 
 **Data do plano:** 2026-08-28  
 **Especificação:** `docs/contas/specs/acessos-credenciais.md`  
-**Status:** 🟢 **Fase 1 concluída** (2026-08-28) · Fases 2–8 não iniciadas
+**Status:** 🟢 **Fases 1 e 2 concluídas** (2026-08-28 / 2026-08-30) · Fases 3–8 não iniciadas
 
 | Fase | Estado |
 |---|---|
 | 1 — Schema, criptografia, permissões | ✅ concluída e validada (+ favoritos §41) |
-| 2 — Server Actions + autorização | ⬜ não iniciada — **desbloqueada**, decisões tomadas |
+| 2 — Server Actions + autorização | ✅ concluída (2a+2b+2c) |
 | 3 — Queries, filtros, busca | ⬜ não iniciada |
 | 4 — Página, tabela, drawer | ⬜ não iniciada (falta referência visual) |
 | 5 — Reveal, copy, auditoria | ⬜ não iniciada |
@@ -607,27 +607,78 @@ Nenhuma (migration anterior).
 
 Fase 1 (schema, crypto).
 
-#### Critérios de Validação
+---
 
-- [ ] Actions compilam
-- [ ] Schemas Zod validam entrada
-- [ ] Encrypt/decrypt bidirecional em queries
-- [ ] Permissões gates funcionam (mock server)
-- [ ] AuditLog insere eventos
+#### ✅ EXECUÇÃO — 2026-08-30
 
-#### Testes Necessários
+Entregue em três fatias, cada uma com commit próprio. A divisão foi feita porque escrever oito
+actions — incluindo a de revelar senha — antes de verificar qualquer coisa concentra o risco
+exatamente onde ele é mais caro.
 
-```bash
-npm test -- acessos/actions.test.ts          # Permissões, validação
-npm run smoke:acessos                         # (script Fase 5) cenários A–E
+| Fatia | Commit | Conteúdo |
+|---|---|---|
+| 2a | `a79f8c5` | `service.ts` (puro) + `schemas.ts` + `queries.ts` + `smoke-acessos.ts` |
+| 2b | `2f4dab9` | 7 actions de CRUD com gate por registro |
+| 2c | `8cd9704` | `revelarCredencial` + `copiarCredencial` + smoke dos dois gates |
+
+**Critérios de Validação**
+
+- [x] Actions compilam — `tsc --noEmit` sem erro; `npm run build` compila (o build é o que
+      valida `"use server"`, que `tsc` não checa).
+- [x] Schemas Zod validam entrada — inclui a URL do portal restrita a `http/https`, porque
+      `javascript:` viraria XSS no botão "Abrir plataforma" (§55) com href vindo do banco.
+- [x] Encrypt/decrypt bidirecional — o smoke lê a coluna **crua** via SQL, como quem abrisse o
+      dump: sem plaintext, envelope AES-GCM, decifra de volta, IV distinto a cada gravação.
+- [x] Permissões — **32 checagens verdes** no `npm run smoke:acessos`, contra o banco real.
+- [x] AuditLog — `defineAction` grava `detalhe: input` e **nunca o retorno** (verificado em
+      `with-action.ts:118`, não presumido); `redact: ["usuario","senha"]` nas actions que os
+      recebem.
+- [x] Suíte completa: 2826 testes / 268 arquivos. Lint limpo.
+
+**Os dois gates** (o ponto da fase)
+
+Toda action passa por dois, e o segundo é o que importa:
+
+1. `defineAction({ recurso: "acessos" })` — gate de TELA: "esta pessoa mexe no módulo?"
+2. `exigir()` / `revelarCredencialPara()` — gate de REGISTRO: "…nesta credencial específica?"
+
+Sem o segundo, quem tem `acessos:gerir` editaria (ou leria) qualquer credencial trocando o id no
+payload — o IDOR da §83. `defineAction` não conhece compartilhamento; essa metade é sempre do
+módulo. **É invisível na leitura**: sem o gate 2, o caminho autorizado continua funcionando
+igual. Por isso o smoke tem o caso que o distingue — usuário COM `acessos:credencial` e SEM
+`podeVerCredencial` naquele registro.
+
+**Decisões tomadas durante a execução, que não estavam no plano**
+
+| O que | Por quê |
+|---|---|
+| `SessionUser` ganhou **`setor`** | Sem ele `ViewerCofre.setor` seria sempre `null` e todo compartilhamento por SETOR falharia **em silêncio** — o modo de falha mais caro, porque parece funcionar. O dado já era cache denormalizado em `User`, no round-trip que `getSession` já fazia. Não autoriza nada. |
+| `reativarCredencial` exige **`superUsuario`** | Soft-deletada, a credencial sai do escopo de todos — `exigir()` responderia "não encontrado" até para quem a criou, e afrouxar o escopo para permitir restaurar reabriria a porta que o soft delete fechou. |
+| **Responsável não revela** | Ganha `verCadastro` + `editar`, nunca `verCredencial`. Se ser responsável desse a senha, definir alguém como responsável viraria porta lateral para o cofre. Custo assumido: revisar (§44) exige concessão explícita. |
+| `copiarCredencial` **devolve o valor** | O desenho original (auditar aqui, UI chama `revelar` para pegar o texto) faria cada cópia disparar dois eventos e duas autorizações, e deixaria no histórico uma revelação que ninguém viu. Uma chamada, uma autorização, um evento. |
+| Mensagem de recusa **única** | A primeira versão carregava o motivo na `ActionError` — que é exibida ao usuário. Isso recriava o oráculo de existência da §84: varrer ids e ler a diferença entre "não encontrada" e "sem permissão" mapearia o cofre sem acesso a nada. |
+| `viewerDe` mora em `queries.ts` | Em `actions.ts` vale `"use server"`, onde todo export vira endpoint RPC chamável pelo cliente — uma função que recebe o usuário por argumento seria convite a forjar um. |
+| Gates dentro de `revelarCredencialPara` | Actions dependem de sessão e não são chamáveis de script. Pondo os gates na função, o smoke consegue exercitá-los. |
+
+**Cobertura do smoke** (`npm run smoke:acessos`)
+
+```
+A  admin (superUsuario)      vê tudo, inclusive credencial sem compartilhamento
+B  autorizado por perfil     vê cadastro + revela · não alcança a não compartilhada
+C  limitado por setor        vê cadastro · NÃO revela (§27)
+D  estranho                  não encontra o registro (§84-D)
+E  responsável               vê e edita · NÃO revela
+   soft delete               some até para o admin; volta com incluirDeletadas
+   criptografia em repouso   coluna crua sem plaintext, IV por operação (§83/§90)
+   revelação                 gate de tela sozinho recusa · gate de registro sozinho recusa ·
+                             os dois juntos revelam · id alheio recusa · id inexistente recusa ·
+                             usuário inativo recusa
 ```
 
-Cenários de teste (vitest + smoke):
-- Usuário admin revela credencial → audita
-- Usuário projetista sem permissão tenta revelar → erro
-- Usuário sem acesso à credencial tenta chamar endpoint direto → erro no server
-- Copiar usuário vs copiar senha — eventos distintos auditados
-- Alterar compartilhamento de um acesso — audit log registra
+**Pendente da Fase 2**
+
+- [ ] Chamar as actions ponta a ponta (com sessão real) — só é possível pela UI, na Fase 4.
+      O smoke cobre os gates; o que falta é o trajeto HTTP.
 
 ---
 
@@ -792,9 +843,12 @@ npm run dev                           # Visual
   - Botão "Copiar" durante revelado
   - Erro: "Sem permissão para revelar"
 
-**`src/modules/acessos/actions.ts`** — completar:
-- `revelarCredencial(id)` — já planejado Fase 2, implementar agora
-- `copiarSenha(id)` — já planejado, implementar agora
+**~~`src/modules/acessos/actions.ts`~~ — JÁ FEITO na Fase 2c:**
+- `revelarCredencial(id)` ✅
+- `copiarCredencial({ id, campo })` ✅ — substitui o `copiarSenha` desenhado aqui. O desenho
+  original ("só audita; a UI chama revelar e copia do DOM") faria cada cópia disparar dois
+  eventos e duas autorizações, e registraria uma revelação que ninguém viu na tela.
+  **A UI da Fase 5 deve chamar `copiarCredencial` uma vez, não a dupla revelar+copiar.**
 
 **`src/components/acessos/acessos-auditoria-tabela.tsx`**
 - Tabela: Data | Usuário | Ação | Resultado | Detalhes (redacted)
