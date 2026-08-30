@@ -56,6 +56,7 @@ export function PreferenciasView({
   notifPagamento: notifPagamentoInicial,
   notifDespesa: notifDespesaInicial,
   notifCustos: notifCustosInicial,
+  notifAcessos: notifAcessosInicial,
   pontoEmailModo: pontoEmailModoInicial,
   mostrarAlertasPonto,
 }: {
@@ -79,6 +80,7 @@ export function PreferenciasView({
   notifPagamento: boolean;
   notifDespesa: boolean;
   notifCustos: boolean;
+  notifAcessos: boolean;
   pontoEmailModo: PontoEmailModo;
   /** Alertas de jornada por horário são só p/ CLT/estagiário — controla a seção de e-mail. */
   mostrarAlertasPonto: boolean;
@@ -102,6 +104,7 @@ export function PreferenciasView({
   const [notifPagamento, setNotifPagamento] = useState(notifPagamentoInicial);
   const [notifDespesa, setNotifDespesa] = useState(notifDespesaInicial);
   const [notifCustos, setNotifCustos] = useState(notifCustosInicial);
+  const [notifAcessos, setNotifAcessos] = useState(notifAcessosInicial);
   const [pontoEmailModo, setPontoEmailModo] = useState<PontoEmailModo>(pontoEmailModoInicial);
   const [, start] = useTransition();
 
@@ -249,6 +252,13 @@ export function PreferenciasView({
       descricao: "Prazo de resposta de RFQ perto do fim, ou fornecedor convidado sem retorno.",
       valor: notifCustos,
       set: setNotifCustos,
+    },
+    {
+      chave: "notif_acessos",
+      titulo: "Acessos e credenciais",
+      descricao: "Licença perto do vencimento ou credencial sem revisão há muito tempo.",
+      valor: notifAcessos,
+      set: setNotifAcessos,
     },
   ];
 

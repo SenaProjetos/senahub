@@ -52,6 +52,7 @@ export async function carregarPreferenciasDaConta(userId: string) {
     notifPagamento: prefs.notif_pagamento !== false,
     notifDespesa: prefs.notif_despesa !== false,
     notifCustos: prefs.notif_custos !== false,
+    notifAcessos: prefs.notif_acessos !== false,
     pontoEmailModo: (modoValido ? prefs.ponto_email_modo : "todos") as "todos" | "resumo_diario" | "nenhum",
     mostrarAlertasPonto: CLT_ROLES.includes(role),
   };

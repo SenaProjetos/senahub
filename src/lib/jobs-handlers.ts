@@ -1722,3 +1722,94 @@ export async function alertasPrazoApontamento(): Promise<number> {
   }
   return enviados;
 }
+
+/**
+ * Alertas do cofre de Acessos (§37/§43) — licença vencendo e credencial sem revisão.
+ *
+ * ── Para quem vai ─────────────────────────────────────────────────────────────────────────
+ * Responsável pelo acesso + quem o alcança por compartilhamento com `podeVerCadastro`. NÃO vai
+ * para "todos os gestores" como os outros alertas: o cofre é opt-in por compartilhamento, e
+ * avisar gestor que não alcança o registro contaria que ele existe — a mesma fuga de existência
+ * que o módulo fecha em toda leitura. Sem ninguém para avisar, o alerta é silencioso de
+ * propósito; ele reaparece na tela, na área "Atenção necessária", para quem tem acesso.
+ *
+ * ── Idempotência ──────────────────────────────────────────────────────────────────────────
+ * Pela `tag` da notificação (`acesso-<id>-venc-<dias>`), igual a `alertaCertidoes`. O job roda
+ * uma vez ao dia e `diaAlvo` casa a data exata, então cada marco dispara num dia só; a `tag`
+ * cobre o retry do pg-boss depois de uma falha no meio do fan-out.
+ *
+ * Não avisa sobre `bloqueado`/`inativo`: são estados declarados por gente, que já sabe.
+ */
+export async function alertaAcessos(): Promise<number> {
+  const { DIAS_REVISAO } = await import("@/modules/acessos/service");
+  let enviados = 0;
+
+  async function destinatarios(credencialId: string, responsavelId: string | null) {
+    const linhas = await prisma.credencialCompartilhamento.findMany({
+      where: { credencialId, podeVerCadastro: true, tipoAlvo: "usuario" },
+      select: { alvoId: true },
+    });
+    const ids = new Set(linhas.map((l) => l.alvoId));
+    if (responsavelId) ids.add(responsavelId);
+    return [...ids];
+  }
+
+  // §37 — marcos de aviso antes do vencimento.
+  for (const dias of [90, 30, 7]) {
+    const vencendo = await prisma.credencial.findMany({
+      where: {
+        deletadoEm: null,
+        status: { notIn: ["bloqueado", "inativo"] },
+        vencimentoEm: diaAlvo(dias),
+      },
+      select: { id: true, nome: true, responsavelId: true },
+    });
+    for (const c of vencendo) {
+      const alvos = await destinatarios(c.id, c.responsavelId);
+      if (alvos.length === 0) continue;
+      await notificarMuitos(
+        alvos,
+        {
+          titulo: `Acesso vence em ${dias} dia(s)`,
+          corpo: c.nome,
+          href: "/acessos",
+          tag: `acesso-${c.id}-venc-${dias}`,
+        },
+        { categoria: "acessos" },
+      );
+      enviados++;
+    }
+  }
+
+  // §43 — credencial sem revisão há muito tempo. Avisa uma vez por mês (dia 1) para não
+  // repetir todo dia: passado o limite, a condição continua verdadeira indefinidamente.
+  if (new Date().getDate() === 1) {
+    const limite = addDays(new Date(), -DIAS_REVISAO);
+    const semRevisao = await prisma.credencial.findMany({
+      where: {
+        deletadoEm: null,
+        status: { notIn: ["bloqueado", "inativo"] },
+        OR: [{ ultimaRevisaoEm: null }, { ultimaRevisaoEm: { lte: limite } }],
+      },
+      select: { id: true, nome: true, responsavelId: true },
+      take: 200,
+    });
+    for (const c of semRevisao) {
+      const alvos = await destinatarios(c.id, c.responsavelId);
+      if (alvos.length === 0) continue;
+      await notificarMuitos(
+        alvos,
+        {
+          titulo: "Credencial sem revisão",
+          corpo: `${c.nome} não é revisada há mais de ${DIAS_REVISAO} dias.`,
+          href: "/acessos",
+          tag: `acesso-${c.id}-revisao-${new Date().toISOString().slice(0, 7)}`,
+        },
+        { categoria: "acessos" },
+      );
+      enviados++;
+    }
+  }
+
+  return enviados;
+}

@@ -47,6 +47,7 @@ import {
   resumoPontoEmailDiario,
   encerrarJornadasEsquecidas,
   automacoesComerciais,
+  alertaAcessos,
 } from "@/lib/jobs-handlers";
 
 /**
@@ -341,6 +342,16 @@ export async function startJobs(): Promise<PgBoss> {
       handler: async () => {
         const n = await dispararAvisosAgendados();
         if (n > 0) console.log(`[avisos] ${n} aviso(s) agendado(s) disparado(s).`);
+      },
+    },
+    {
+      fila: "alerta-acessos",
+      // 07:10 — antes do expediente, depois do backup das 03h. Uma vez ao dia basta: os marcos
+      // de vencimento são por DIA, não por hora.
+      cron: "10 7 * * *",
+      handler: async () => {
+        const n = await alertaAcessos();
+        if (n > 0) console.log(`[acessos] ${n} alerta(s) de acesso enviado(s).`);
       },
     },
     {

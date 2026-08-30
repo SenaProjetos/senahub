@@ -830,6 +830,38 @@ export async function opcoesFormulario() {
 
 export type OpcoesFormulario = Awaited<ReturnType<typeof opcoesFormulario>>;
 
+/**
+ * §38/§39 — acessos vinculados a um projeto, para a seção "Acessos relacionados".
+ *
+ * Passa pelo escopo do cofre, não pelo escopo do PROJETO: quem abre a ficha do projeto vê ali
+ * apenas os acessos que já alcançaria em `/acessos`. Sem isso, a página do projeto viraria uma
+ * porta lateral para descobrir que credenciais existem — o vínculo é referência, e referência
+ * não concede acesso (§39: "single source of truth", não uma segunda via).
+ *
+ * Nunca devolve campo cifrado: o card leva ao cofre, onde revelar segue auditado.
+ */
+export async function acessosDoProjeto(viewer: ViewerCofre, projetoId: string) {
+  return prisma.credencial.findMany({
+    where: {
+      AND: [escopoCredencial(viewer), { projetos: { some: { projetoId } } }],
+    },
+    orderBy: { nome: "asc" },
+    select: {
+      id: true,
+      nome: true,
+      nomeCompleto: true,
+      estado: true,
+      status: true,
+      url: true,
+      vencimentoEm: true,
+      ultimaRevisaoEm: true,
+      categoria: { select: { nome: true } },
+    },
+  });
+}
+
+export type AcessoDoProjeto = Awaited<ReturnType<typeof acessosDoProjeto>>[number];
+
 /** Categorias ativas, para filtro e formulário. */
 export async function listarCategorias() {
   return prisma.credencialCategoria.findMany({

@@ -361,6 +361,67 @@ async function main() {
   });
   checar("remover a linha revoga o alcance", !(await alcanca(vD, viva.id)));
 
+  console.log("\nVínculo com projeto (§38/§39)");
+  const projeto = await prisma.projeto.findFirst({
+    where: { situacao: { notIn: ["cancelado", "arquivado"] } },
+    select: { id: true },
+  });
+  if (projeto) {
+    const { acessosDoProjeto } = await import("../src/modules/acessos/queries");
+    await prisma.credencialProjeto.create({
+      data: { credencialId: viva.id, projetoId: projeto.id },
+    });
+    const doProjetoB = await acessosDoProjeto(vB, projeto.id);
+    checar("quem alcança o acesso vê o vínculo no projeto", doProjetoB.some((a) => a.id === viva.id));
+
+    const doProjetoD = await acessosDoProjeto(vD, projeto.id);
+    checar(
+      "quem NÃO alcança o acesso não o vê pelo projeto (§39 não é porta lateral)",
+      !doProjetoD.some((a) => a.id === viva.id),
+    );
+    checar(
+      "a lista do projeto não carrega campo cifrado",
+      doProjetoB.every((a) => !("senhaEncriptada" in a) && !("usuarioEncriptado" in a)),
+    );
+    await prisma.credencialProjeto.deleteMany({ where: { credencialId: viva.id } });
+  } else {
+    console.log("  (sem projeto no banco — vínculo não exercitado)");
+  }
+
+  console.log("\nAlerta agendado (§37/§43)");
+  const { alertaAcessos } = await import("../src/lib/jobs-handlers");
+  // Vence exatamente daqui a 30 dias: é um dos marcos que o job procura.
+  const em30 = new Date();
+  em30.setDate(em30.getDate() + 30);
+  const alvo = await prisma.credencial.create({
+    data: {
+      nome: `${marca}-VENCE30`,
+      categoriaId: categoria.id,
+      responsavelId: dono.id,
+      vencimentoEm: new Date(em30.toISOString().slice(0, 10)),
+    },
+    select: { id: true },
+  });
+  const enviados = await alertaAcessos();
+  checar("o job encontra a credencial que vence em 30 dias", enviados > 0);
+  const notif = await prisma.notificacao.findFirst({
+    where: { userId: dono.id, titulo: { contains: "vence em 30" } },
+    select: { id: true, corpo: true },
+  });
+  checar("notifica o responsável", !!notif);
+  checar("a notificação não carrega credencial", !notif?.corpo?.includes("S3nh@"));
+
+  // Bloqueada não gera alerta: é estado declarado por gente, que já sabe.
+  await prisma.notificacao.deleteMany({ where: { userId: dono.id } });
+  await prisma.credencial.update({ where: { id: alvo.id }, data: { status: "bloqueado" } });
+  await alertaAcessos();
+  const aposBloqueio = await prisma.notificacao.count({
+    where: { userId: dono.id, titulo: { contains: "vence em 30" } },
+  });
+  checar("credencial bloqueada não gera alerta de vencimento", aposBloqueio === 0);
+
+  await prisma.notificacao.deleteMany({ where: { userId: { in: [dono.id, autorizado.id, limitado.id, estranho.id] } } });
+
   console.log("\nLimpando...");
   await prisma.credencial.deleteMany({ where: { nome: { startsWith: marca } } });
   await prisma.credencialCategoria.delete({ where: { id: categoria.id } });
