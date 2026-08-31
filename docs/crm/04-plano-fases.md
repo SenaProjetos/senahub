@@ -2,7 +2,7 @@
 
 **Data:** 2026-08-14 · **Status:** planejamento (P5) · **Branch alvo:** `dev` · **Modelo:** Opus
 
-Absorve e **supersede** [`docs/superpowers/specs/2026-07-24-crm-comercial-roadmap.md`](../superpowers/specs/2026-07-24-crm-comercial-roadmap.md) (Ondas A–F, 34 ideias). Aquele documento passa a ser **histórico**: os vereditos do dono continuam valendo, a ordenação por Ondas não. A ordem é a das 7 fases do playbook.
+Absorve e **supersede** [`docs/concluidos/specs/2026-07-24-crm-comercial-roadmap.md`](../concluidos/specs/2026-07-24-crm-comercial-roadmap.md) (Ondas A–F, 34 ideias). Aquele documento passa a ser **histórico**: os vereditos do dono continuam valendo, a ordenação por Ondas não. A ordem é a das 7 fases do playbook.
 
 Base: `00-auditoria.md`, `01-decisoes.md`, `02-schema.md`, `03-migracao.md`, `99-playbook.md`.
 

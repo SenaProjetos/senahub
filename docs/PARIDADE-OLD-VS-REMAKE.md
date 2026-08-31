@@ -28,7 +28,7 @@
 > Remake = livro-razão único (`Lancamento`: previsto→confirmado, `valorEfetivo` parcial,
 > `recorrenciaGrupo`). Páginas `contas-a-pagar`/`-receber` são **filtros sobre Lancamento**.
 >
-> **Spec do financeiro recebida** (`docs/senahub-financeiro-prompts.md`, Fases 2–5). Direção
+> **Spec do financeiro recebida** (`docs/concluidos/financeiro/senahub-financeiro-prompts.md`, Fases 2–5). Direção
 > real ≠ "restaurar entidades AP/AR separadas": é **enhancement do `Lancamento`** (vínculo a
 > documento, aging, aprovação por alçada). Reconciliação completa em **§G**. Isso reenquadra
 > A1/A2/A3 abaixo.
@@ -147,7 +147,7 @@ Itens que aparecem no diff de modelos mas têm capacidade equivalente no remake 
 
 ## G) Financeiro AP/AR — spec recebida × realidade do remake
 
-Fonte: `docs/senahub-financeiro-prompts.md` (Fases 2–5). **Os prompts foram escritos para o
+Fonte: `docs/concluidos/financeiro/senahub-financeiro-prompts.md` (Fases 2–5). **Os prompts foram escritos para o
 stack ANTIGO** e precisam de adaptação antes de executar — os próprios prompts mandam pausar
 para revisão humana quando o stack diverge, e diverge bastante:
 

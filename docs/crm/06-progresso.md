@@ -28,7 +28,7 @@ O manual do Comercial foi reescrito para o fluxo atual (Empresa/Contato → Pros
 → Proposta → Projeto), sem o termo legado “oportunidade”. O índice de busca e as notas de novidade
 foram atualizados. O aceite P20 está mapeado em `08-aceite-e2e.md`, e `smoke:crm-e2e` encadeia os
 smokes que cobrem os 20 critérios. O roadmap A–F já estava corretamente marcado como **SUPERSEDED**
-em `docs/superpowers/specs/2026-07-24-crm-comercial-roadmap.md` apontando para este plano.
+em `docs/concluidos/specs/2026-07-24-crm-comercial-roadmap.md` apontando para este plano.
 
 **Validação concluída:** `npm test` — 222 arquivos / 2.436 testes; `npm run lint`; `npm run build`
 verde com 160 páginas e a rota `/api/comercial/export/inteligencia` presente. `git diff --check`
@@ -3581,7 +3581,7 @@ corrigido com o genérico antes do commit.
   dependências, critério de aceite verificável, ideia de origem, marca de risco alto, modelo de IA
   recomendado e se exige migration / `db:seed` no deploy / teste puro / smoke.
 - **Fusão dos dois planos concorrentes** (decisão do usuário): o roadmap de Ondas A–F
-  (`docs/superpowers/specs/2026-07-24-crm-comercial-roadmap.md`) foi absorvido e marcado como
+  (`docs/concluidos/specs/2026-07-24-crm-comercial-roadmap.md`) foi absorvido e marcado como
   **superseded**. Os vereditos do dono foram todos preservados; só a ordenação por Ondas mudou.
 - `CLAUDE.md` — um bullet novo em `## Architecture` apontando para `docs/crm/`, no formato dos
   bullets vizinhos (`legal`, Ajuda/Manual). Nada do que já existia foi reescrito.
@@ -3593,7 +3593,7 @@ corrigido com o genérico antes do commit.
 - **Ordem das 7 fases do playbook** (em vez de "adoção primeiro").
 
 **Arquivos:** `docs/crm/04-plano-fases.md` (novo), `docs/crm/06-progresso.md`, `CLAUDE.md`,
-`docs/superpowers/specs/2026-07-24-crm-comercial-roadmap.md` (cabeçalho de superseded).
+`docs/concluidos/specs/2026-07-24-crm-comercial-roadmap.md` (cabeçalho de superseded).
 
 **Verificação** (P5 é planejamento — nenhum código mudou, lint/test/build não se aplicam):
 99 tarefas com ID · **zero** critérios de aceite vagos · as **34 ideias A–F todas endereçadas**

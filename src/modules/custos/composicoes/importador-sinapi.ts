@@ -12,7 +12,7 @@
  *   da composição (própria descrição/unidade nas colunas 5/6); linhas seguintes = itens (`Tipo
  *   Item` = INSUMO ou COMPOSICAO), até a próxima linha de cabeçalho.
  * - CSD/CCD/CSE (custo total por UF) e "Analítico com Custo" (planilha-modelo) **não são lidos**
- *   aqui — ver docs/superpowers/plans/2026-07-28-custos-c1-bancos.md §2.1.
+ *   aqui — ver docs/concluidos/plans/2026-07-28-custos-c1-bancos.md §2.1.
  */
 import "server-only";
 import type ExcelJS from "exceljs";

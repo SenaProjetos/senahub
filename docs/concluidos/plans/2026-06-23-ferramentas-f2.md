@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Implemente por sub-onda, na ordem. Engines normativos: **conferir contra exemplo
 > de bibliografia/norma** com teste antes de fiar UI. Spec: [.../2026-06-23-ferramentas-engenharia-design.md]
-> (§2 escopo da Viga, §6.2 E01/E10/E11/E23, §5.4 auto-store). Onda anterior: [.../2026-06-23-ferramentas-f1.md].
+> (§2 escopo da Viga, §6.2 E01/E10/E11/E23, §5.4 auto-store). Onda anterior: [../../concluidos/plans/2026-06-23-ferramentas-f1.md].
 
 **Goal:** Lote 1 (Estrutural/Fundações): a ferramenta 🔧 completa **Viga de concreto E01 (NBR 6118:2023)**,
 as rápidas **E10 (ancoragem)**, **E11 (resumo de aço)**, **E23 (estaca por SPT)**, e a **associação a

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Implemente passo a passo, na ordem. Marque `- [x]` ao concluir e atualize o
 > **Status** no topo. Spec de origem: [docs/superpowers/specs/2026-06-23-ferramentas-engenharia-design.md]
-> (§5.3 pipeline de export, §7 onda F1). Onda anterior: [docs/superpowers/plans/2026-06-23-ferramentas-f0.md].
+> (§5.3 pipeline de export, §7 onda F1). Onda anterior: [docs/concluidos/plans/2026-06-23-ferramentas-f0.md].
 
 **Goal:** Construir o pipeline genérico de **memória de cálculo + exportação** (PDF, Word, Excel, DXF) operando
 sobre um **cálculo salvo** (`CalculoFerramenta`), e provar end-to-end na ferramenta **U02 — Propriedades
