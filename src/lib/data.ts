@@ -64,3 +64,42 @@ export function inicioDoDiaLocal(agora: Date = new Date()): Date {
 export function inicioDoDiaUtc(agora: Date = new Date()): Date {
   return new Date(Date.UTC(agora.getFullYear(), agora.getMonth(), agora.getDate()))
 }
+
+/**
+ * Diferença em DIAS inteiros entre duas datas-calendário (`ate - de`), normalizando
+ * as duas pontas. Positivo = `ate` está à frente. `null` se qualquer ponta faltar.
+ */
+export function diferencaEmDias(
+  de: Date | string | null | undefined,
+  ate: Date | string | null | undefined,
+): number | null {
+  const a = inicioDoDia(de)
+  const b = inicioDoDia(ate)
+  if (!a || !b) return null
+  return Math.round((b.getTime() - a.getTime()) / 86_400_000)
+}
+
+/**
+ * O prazo já venceu? **Só depois de o dia passar** — no próprio dia do prazo ainda
+ * dá tempo, então retorna `false`.
+ *
+ * Existe porque `prazo < new Date()` (ou `< new Date(new Date().toDateString())`)
+ * marcava vencido logo na virada do dia: o prazo vem do banco em meia-noite UTC e
+ * qualquer hora do dia local já é maior que ele.
+ */
+export function prazoVencido(
+  prazo: Date | string | null | undefined,
+  agora: Date = new Date(),
+): boolean {
+  const venc = inicioDoDia(prazo)
+  return venc != null && venc < inicioDoDiaLocal(agora)
+}
+
+/** Dias inteiros de atraso de um prazo (0 quando ainda no prazo ou sem prazo). */
+export function diasVencidos(
+  prazo: Date | string | null | undefined,
+  agora: Date = new Date(),
+): number {
+  const dias = diferencaEmDias(prazo, inicioDoDiaLocal(agora))
+  return dias != null && dias > 0 ? dias : 0
+}

@@ -98,14 +98,15 @@ import { TarefaDialog, type TarefaUI, type OpcoesUI } from "@/components/tarefas
 import { PRIORIDADE_LABEL, PRIORIDADE_CLASS, ehPrioridade } from "@/modules/tarefas/prioridade";
 import { Badge } from "@/components/ui/badge";
 import { brl, formatarData, rotuloRevisao } from "@/lib/utils";
+import { prazoVencido } from "@/lib/data";
 
 /** Tarefa da disciplina para a lista (formato do board + nome/cor/concluído do status). */
 export type TarefaDaDisciplina = TarefaUI & { statusNome: string; statusCor: string | null; concluido: boolean };
 
-/** Tarefa atrasada = tem prazo passado e não está numa coluna final. */
+/** Tarefa atrasada = o prazo já PASSOU (o próprio dia ainda vale) e não está numa coluna final. */
 function tarefaAtrasada(t: TarefaDaDisciplina): boolean {
-  if (!t.prazo || t.concluido) return false;
-  return new Date(t.prazo) < new Date(new Date().toDateString());
+  if (t.concluido) return false;
+  return prazoVencido(t.prazo);
 }
 
 type UploadItem = {

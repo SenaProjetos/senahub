@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { paraData, inicioDoDia, inicioDoDiaLocal, inicioDoDiaUtc } from "./data";
+import {
+  paraData,
+  inicioDoDia,
+  inicioDoDiaLocal,
+  inicioDoDiaUtc,
+  diferencaEmDias,
+  prazoVencido,
+  diasVencidos,
+} from "./data";
 
 /**
  * Regressão do bug "um dia a menos": o banco devolve prazos como meia-noite UTC
@@ -77,5 +85,51 @@ describe("inicioDoDiaLocal", () => {
     const d = inicioDoDiaLocal(new Date(2026, 8, 2, 21, 0, 0, 0));
     expect(d.getDate()).toBe(2);
     expect(d.getHours()).toBe(0);
+  });
+});
+
+// Prazo do banco: meia-noite UTC. "Agora": instante local qualquer do dia.
+const prazoDia = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+
+describe("prazoVencido", () => {
+  it("não vence no próprio dia do prazo, nem no fim da tarde", () => {
+    expect(prazoVencido(prazoDia("2026-09-02"), new Date(2026, 8, 2, 0, 1))).toBe(false);
+    expect(prazoVencido(prazoDia("2026-09-02"), new Date(2026, 8, 2, 23, 59))).toBe(false);
+  });
+
+  it("vence no dia seguinte", () => {
+    expect(prazoVencido(prazoDia("2026-09-02"), new Date(2026, 8, 3, 0, 1))).toBe(true);
+  });
+
+  it("é falso sem prazo", () => {
+    expect(prazoVencido(null)).toBe(false);
+  });
+});
+
+describe("diasVencidos", () => {
+  it("zero no próprio dia do prazo", () => {
+    expect(diasVencidos(prazoDia("2026-09-02"), new Date(2026, 8, 2, 18, 0))).toBe(0);
+  });
+
+  it("conta dias inteiros depois", () => {
+    expect(diasVencidos(prazoDia("2026-09-02"), new Date(2026, 8, 5, 7, 0))).toBe(3);
+  });
+
+  it("zero quando ainda falta", () => {
+    expect(diasVencidos(prazoDia("2026-09-10"), new Date(2026, 8, 2, 7, 0))).toBe(0);
+  });
+});
+
+describe("diferencaEmDias", () => {
+  it("conta dias-calendário, ignorando a hora", () => {
+    expect(diferencaEmDias(new Date(2026, 8, 2, 23, 0), prazoDia("2026-09-05"))).toBe(3);
+  });
+
+  it("zero quando entrega cai no dia do prazo", () => {
+    expect(diferencaEmDias(prazoDia("2026-09-02"), new Date(2026, 8, 2, 16, 30))).toBe(0);
+  });
+
+  it("null sem uma das pontas", () => {
+    expect(diferencaEmDias(null, prazoDia("2026-09-02"))).toBeNull();
   });
 });

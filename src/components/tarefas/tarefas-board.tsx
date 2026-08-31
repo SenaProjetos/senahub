@@ -35,6 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { AvatarGroup } from "@/components/ui/avatar";
 import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import { Pagination } from "@/components/ui/pagination";
+import { prazoVencido } from "@/lib/data";
 import {
   Table,
   TableBody,
@@ -376,7 +377,7 @@ function ListaView({
             </TableRow>
           ) : (
             linhas.map(({ t, statusNome, statusCor }) => {
-              const atrasada = t.prazo && new Date(t.prazo) < new Date(new Date().toDateString());
+              const atrasada = prazoVencido(t.prazo);
               return (
                 <TableRow key={t.id} className="cursor-pointer" onClick={() => onAbrir(t)}>
                   <TableCell className="font-medium">
@@ -482,7 +483,7 @@ function CardTarefa({
   overlay?: boolean;
 }) {
   const feitos = t.itens.filter((i) => i.concluido).length;
-  const atrasada = t.prazo && new Date(t.prazo) < new Date(new Date().toDateString());
+  const atrasada = prazoVencido(t.prazo);
   return (
     <div className={`rounded-sm border bg-card p-2.5 text-sm shadow-sm ${overlay ? "rotate-2" : ""}`}>
       <div className="flex items-start gap-1.5">

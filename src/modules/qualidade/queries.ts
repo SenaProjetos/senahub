@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
+import { diasVencidos, diferencaEmDias, prazoVencido } from "@/lib/data";
 
 /** Índice de retrabalho atual: % de disciplinas (não arquivadas) com ≥1 revisão. */
 export async function indiceQualidadeAtual() {
@@ -69,7 +70,8 @@ export async function slaEntregas() {
     const entregue = d.status === "entregue" || d.status === "aprovado";
     if (entregue) {
       if (d.entregueEm) {
-        const dias = Math.round((d.entregueEm.getTime() - d.prazo!.getTime()) / 86400000);
+        // Compara por DIA: entregar às 18h do dia do prazo é no prazo, não 1 dia de atraso.
+        const dias = diferencaEmDias(d.prazo, d.entregueEm) ?? 0;
         if (dias <= 0) noPrazo++;
         else {
           atrasadasEntregues++;
@@ -78,9 +80,9 @@ export async function slaEntregas() {
       } else {
         noPrazo++; // entregue sem data registrada → considera no prazo
       }
-    } else if (d.prazo! < hoje) {
+    } else if (prazoVencido(d.prazo, hoje)) {
       pendentesVencidas++;
-      const dias = Math.round((hoje.getTime() - d.prazo!.getTime()) / 86400000);
+      const dias = diasVencidos(d.prazo, hoje);
       atrasos.push({ projeto: d.projeto.codigo, projetoId: d.projeto.id, nome: d.disciplinaTextoLegado, dias, entregue: false });
     } else {
       pendentesEmDia++;

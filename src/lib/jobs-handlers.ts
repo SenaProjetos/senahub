@@ -52,7 +52,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { executarAutomacoesComerciais } from "@/modules/comercial/automacoes";
 import { diasAvisoVencimentoContrato } from "@/modules/juridico/config";
 import { vencimentoEfetivo } from "@/modules/juridico/contrato/estado";
-import { inicioDoDia, inicioDoDiaLocal, inicioDoDiaUtc } from "@/lib/data";
+import { inicioDoDia, inicioDoDiaLocal, inicioDoDiaUtc, prazoVencido } from "@/lib/data";
 
 /** Rotinas das automações (chamadas pelos jobs do pg-boss em lib/jobs.ts). */
 
@@ -1288,7 +1288,7 @@ export async function statusReportSemanal(): Promise<number> {
     if (uids.size === 0) continue;
 
     const atrasadas = p.disciplinas.filter(
-      (d) => d.prazo && new Date(d.prazo) < hoje && d.status !== "aprovado",
+      (d) => prazoVencido(d.prazo, hoje) && d.status !== "aprovado",
     );
     const aprovadas = p.disciplinas.filter((d) => d.status === "aprovado").length;
     const total = p.disciplinas.length;

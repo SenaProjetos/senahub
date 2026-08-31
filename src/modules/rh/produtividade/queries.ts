@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { whereAudiencia } from "@/lib/audiencias";
 import { diaLocal, minutosPorDiaSessao } from "@/modules/ponto/engine";
+import { diferencaEmDias } from "@/lib/data";
 
 /**
  * Item 7 — Produtividade por projetista (semanal/mensal).
@@ -163,7 +164,10 @@ export async function produtividadeProjetistas(
     for (const r of t.responsaveis) if (ids.includes(r.userId)) incr(tarefasMap, r.userId, chave, 1);
   }
   for (const d of disciplinas) {
-    if (!d.entregueEm || !d.prazo || d.entregueEm <= d.prazo) continue; // só atrasadas
+    if (!d.entregueEm) continue;
+    // Por DIA: entregar no próprio dia do prazo é no prazo (ver `lib/data.ts`).
+    const atraso = diferencaEmDias(d.prazo, d.entregueEm);
+    if (atraso == null || atraso <= 0) continue; // só atrasadas
     const chave = chaveDe(d.entregueEm);
     if (!periodosValidos.has(chave)) continue;
     for (const r of d.responsaveis) if (ids.includes(r.userId)) incr(atrasos, r.userId, chave, 1);
