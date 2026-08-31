@@ -176,7 +176,7 @@ export async function DisciplinasOperacionais({ projetoId }: { projetoId: string
         </div>
         {podeGerir && (
           <div className="flex items-center gap-1">
-            <AdicionarDisciplinaButton projetoId={projeto.id} internos={internos.map((interno) => ({ id: interno.id, name: interno.name }))} prazoFinal={projeto.prazoFinal?.toISOString() ?? null} />
+            <AdicionarDisciplinaButton projetoId={projeto.id} internos={internos.map((interno) => ({ id: interno.id, name: interno.name }))} prazoContrato={projeto.prazoPlanejado?.toISOString() ?? null} />
             {catalogo.length > 0 && <AdicionarDoCatalogoButton projetoId={projeto.id} catalogo={catalogo} />}
           </div>
         )}

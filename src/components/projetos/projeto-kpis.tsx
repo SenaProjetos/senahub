@@ -7,7 +7,7 @@ import { saudeProjeto } from "@/modules/projetos/health";
 
 interface ProjetoKpisProps {
   disciplinas: { status: StatusDisciplina; prazo: string | null }[];
-  prazoFinal: Date | null;
+  prazoPlanejado: Date | null;
   situacao: string;
   /** Opcional: margem % para exibir o KPI financeiro. */
   margemPct?: number | null;
@@ -47,7 +47,7 @@ function KpiCard({
   );
 }
 
-export function ProjetoKpis({ disciplinas, prazoFinal, situacao, margemPct }: ProjetoKpisProps) {
+export function ProjetoKpis({ disciplinas, prazoPlanejado, situacao, margemPct }: ProjetoKpisProps) {
   const total = disciplinas.length;
   const aprovadas = disciplinas.filter((d) => d.status === "aprovado").length;
   const entregues = disciplinas.filter(
@@ -64,7 +64,7 @@ export function ProjetoKpis({ disciplinas, prazoFinal, situacao, margemPct }: Pr
   // Prazo — `inicioDoDia` normaliza a meia-noite UTC do banco (ver `lib/data.ts`);
   // `setHours(0,…)` direto recuava o vencimento um dia em America/Sao_Paulo.
   const hoje = inicioDoDiaLocal();
-  const venc = situacao === "em_andamento" ? inicioDoDia(prazoFinal) : null;
+  const venc = situacao === "em_andamento" ? inicioDoDia(prazoPlanejado) : null;
   const diasAtraso = venc ? Math.max(0, Math.floor((hoje.getTime() - venc.getTime()) / 86_400_000)) : 0;
   const diasRestantes = (() => {
     if (!venc) return null;
@@ -79,7 +79,7 @@ export function ProjetoKpis({ disciplinas, prazoFinal, situacao, margemPct }: Pr
     return p != null && p < hoje;
   }).length;
 
-  const saude = saudeProjeto(disciplinas, prazoFinal, situacao);
+  const saude = saudeProjeto(disciplinas, prazoPlanejado, situacao);
   const saudeConfig = {
     ok: { Icon: ShieldCheck, label: "Saudável", cls: "text-success" },
     atencao: { Icon: ShieldAlert, label: "Atenção", cls: "text-warning" },
@@ -121,7 +121,7 @@ export function ProjetoKpis({ disciplinas, prazoFinal, situacao, margemPct }: Pr
             ? "prazo vencido"
             : diasRestantes != null
               ? "até o prazo final"
-              : prazoFinal
+              : prazoPlanejado
                 ? "prazo sem restrição"
                 : "sem prazo definido"
         }

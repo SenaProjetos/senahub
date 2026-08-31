@@ -103,12 +103,21 @@ Cada disciplina passa por um ciclo de status:
   arquivos, revisões ou pagamentos.
 - **Cancelar / Arquivar:** muda a situação e notifica os membros; o motivo é registrado
   na descrição.
+- **Reabrir disciplina aprovada:** exige **motivo** e **novo prazo**. Se o novo prazo
+  ultrapassar o prazo planejado do projeto, o planejado desloca junto e o deslocamento fica
+  registrado no **Histórico** do projeto. O prazo de contrato não se move por aqui.
 
 ## Abas do detalhe do projeto
 
-Ao abrir um projeto, a **Visão Geral** mostra a situação executiva: progresso, prazo final,
+Ao abrir um projeto, a **Visão Geral** mostra a situação executiva: progresso, prazos,
 área, disciplinas entregues, pendências que requerem atenção, última atualização, riscos,
 equipe e atividade recente.
+
+Todo projeto tem **dois prazos**: o **prazo de contrato** (o combinado com o cliente,
+obrigatório no cadastro) e o **prazo planejado** (a meta interna da equipe). Ao criar o
+projeto, deixar o planejado em branco faz ele nascer igual ao contrato. A contagem de dias,
+a saúde e os alertas seguem o **planejado**; o cliente, no portal, enxerga o **contrato**.
+O card de prazos avisa quando o planejado estoura o contrato.
 
 - O progresso é estimado pelos status das disciplinas.
 - A **Linha do tempo** usa somente o planejamento cadastrado na EAP. Sem planejamento,

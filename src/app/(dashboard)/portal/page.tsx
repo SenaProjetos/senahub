@@ -66,7 +66,7 @@ export default async function PortalPage() {
                 <CardContent className="space-y-2">
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span>{p.totalDisciplinas} disciplina(s)</span>
-                    <span className="font-mono">Prazo: {fmt(p.prazoFinal)}</span>
+                    <span className="font-mono">Prazo: {fmt(p.prazoContrato)}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="h-2 flex-1 overflow-hidden rounded-sm bg-muted">

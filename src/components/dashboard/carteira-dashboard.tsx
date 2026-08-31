@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ShieldAlert } from "lucide-react";
+import { inicioDoDia, inicioDoDiaLocal } from "@/lib/data";
 import { saudeProjeto } from "@/modules/projetos/health";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import type { carteiraProjetosDashboard } from "@/modules/dashboard/queries";
@@ -18,17 +19,16 @@ const SAUDE_TEXT = {
   critico: "text-destructive",
 } as const;
 
-function diasAtraso(prazoFinal: string | null): number {
-  if (!prazoFinal) return 0;
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const venc = new Date(prazoFinal + "T00:00:00");
-  return Math.max(0, Math.floor((hoje.getTime() - venc.getTime()) / 86_400_000));
+/** Atraso pelo prazo PLANEJADO — a carteira é painel interno. */
+function diasAtraso(prazoPlanejado: string | null): number {
+  const venc = inicioDoDia(prazoPlanejado);
+  if (!venc) return 0;
+  return Math.max(0, Math.floor((inicioDoDiaLocal().getTime() - venc.getTime()) / 86_400_000));
 }
 
 function ProjetoChip({ p }: { p: Projeto }) {
-  const saude = saudeProjeto(p.disciplinas, p.prazoFinal ? new Date(p.prazoFinal) : null, "em_andamento");
-  const atraso = diasAtraso(p.prazoFinal);
+  const saude = saudeProjeto(p.disciplinas, inicioDoDia(p.prazoPlanejado), "em_andamento");
+  const atraso = diasAtraso(p.prazoPlanejado);
   return (
     <Link
       href={`/projetos/${p.id}`}
@@ -68,10 +68,10 @@ function ProjetoChip({ p }: { p: Projeto }) {
 export function CarteiraDashboard({ projetos }: { projetos: Projeto[] }) {
   if (projetos.length === 0) return null;
   const criticos = projetos.filter((p) =>
-    saudeProjeto(p.disciplinas, p.prazoFinal ? new Date(p.prazoFinal) : null, "em_andamento") === "critico",
+    saudeProjeto(p.disciplinas, inicioDoDia(p.prazoPlanejado), "em_andamento") === "critico",
   ).length;
   const atencao = projetos.filter((p) =>
-    saudeProjeto(p.disciplinas, p.prazoFinal ? new Date(p.prazoFinal) : null, "em_andamento") === "atencao",
+    saudeProjeto(p.disciplinas, inicioDoDia(p.prazoPlanejado), "em_andamento") === "atencao",
   ).length;
 
   return (

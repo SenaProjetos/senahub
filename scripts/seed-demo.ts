@@ -212,7 +212,8 @@ async function main() {
           nome: d.nome,
           clienteId: clientes[d.cli].id,
           areaM2: d.area,
-          prazoFinal: dia(d.prazo),
+          prazoContrato: dia(d.prazo),
+          prazoPlanejado: dia(d.prazo),
           endereco: `Quadra ${pi + 1}, Lote ${10 + pi} — ${clientes[d.cli].cidade ?? "Goiânia"}/GO`,
           disciplinas: {
             create: Array.from({ length: d.discs }, (_, j) => ({

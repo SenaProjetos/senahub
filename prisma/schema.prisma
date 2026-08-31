@@ -1167,7 +1167,17 @@ model Projeto {
   cliente       Cliente         @relation(fields: [clienteId], references: [id])
   areaM2        Decimal?        @db.Decimal(12, 2)
   endereco      String?
-  prazoFinal    DateTime?
+  /// Prazo de CONTRATO — o compromisso com o cliente. Manda no que é externo:
+  /// portal, contrato/jurídico e tokens do Estúdio. A coluna continua se
+  /// chamando "prazoFinal" (@map) para que este rename fosse só de código: um
+  /// RENAME COLUMN derrubaria o código antigo na janela entre a migração e o
+  /// deploy.
+  prazoContrato  DateTime? @map("prazoFinal")
+  /// Prazo PLANEJADO — a data que a equipe persegue. Manda no que é interno:
+  /// saúde do projeto, atraso, alertas, KPIs e EAP. Nasce copiando o contrato
+  /// (inclusive no backfill dos projetos antigos) e desloca sozinho quando uma
+  /// reabertura de disciplina estoura o prazo (`reabrirDisciplina`).
+  prazoPlanejado DateTime?
   /// Valor de contrato (referência de receita). Base para gerar parcelas/recebíveis.
   valorContrato Decimal?        @db.Decimal(14, 2)
   /// Personalização da navegação por abas deste projeto: `[{ suffix, oculta }]` na ordem

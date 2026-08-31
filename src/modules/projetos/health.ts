@@ -5,10 +5,15 @@ export type NivelSaude = "ok" | "atencao" | "critico";
 
 type DiscInfo = { status: StatusDisciplina; prazo: Date | string | null };
 
-/** Saúde do projeto para projetos `em_andamento`. Retorna `null` para outros status. */
+/**
+ * Saúde do projeto para projetos `em_andamento`. Retorna `null` para outros status.
+ *
+ * Lê o prazo **planejado**: saúde é indicador interno da equipe. O prazo de
+ * contrato é o compromisso com o cliente e manda nas telas externas.
+ */
 export function saudeProjeto(
   disciplinas: DiscInfo[],
-  prazoFinal: Date | null,
+  prazoPlanejado: Date | null,
   situacao: string,
   agora: Date = new Date(),
 ): NivelSaude | null {
@@ -17,7 +22,7 @@ export function saudeProjeto(
   // `inicioDoDia` normaliza a meia-noite UTC que o banco devolve — comparar com
   // `getDate()` direto adiantava o vencimento em um dia em America/Sao_Paulo.
   const hoje = inicioDoDiaLocal(agora);
-  const vencProjeto = inicioDoDia(prazoFinal);
+  const vencProjeto = inicioDoDia(prazoPlanejado);
 
   const projetoAtrasado = vencProjeto != null && vencProjeto < hoje;
 

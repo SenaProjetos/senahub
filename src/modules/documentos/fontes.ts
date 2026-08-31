@@ -152,7 +152,7 @@ export async function resolverFonte(
           Tipo: p.tipo === "licitacao" ? "Licitação" : "Particular",
           AreaM2: p.areaM2 != null ? Number(p.areaM2) : "",
           Endereco: p.endereco ?? "",
-          PrazoFinal: p.prazoFinal ?? "",
+          PrazoFinal: p.prazoContrato ?? "",
           ClienteNome: p.cliente.nome,
           ClienteDocumento: p.cliente.documento ?? "",
           ClienteEmail: p.cliente.email ?? "",
@@ -293,7 +293,7 @@ export async function resolverFonte(
           Codigo: formatarCodigo(p.codigo),
           Projeto: p.nome,
           Situacao: p.situacao.replace("_", " "),
-          PrazoFinal: p.prazoFinal ?? "",
+          PrazoFinal: p.prazoContrato ?? "",
         })),
       };
     }

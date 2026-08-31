@@ -91,7 +91,7 @@ function rotuloAtualizacao(evento: Evento | undefined) {
 }
 
 function NivelSaude({ projeto }: { projeto: ProjetoDetalhe }) {
-  const nivel = saudeProjeto(projeto.disciplinas, projeto.prazoFinal, projeto.situacao);
+  const nivel = saudeProjeto(projeto.disciplinas, projeto.prazoPlanejado, projeto.situacao);
   if (!nivel) return null;
 
   const config = {
@@ -565,8 +565,13 @@ export function ProjetoVisaoGeral({
 }: Props) {
   const progresso = progressoProjeto(projeto.disciplinas.map((disciplina) => disciplina.status));
   const hoje = inicioDoDiaLocal();
-  const prazoFinal = projeto.prazoFinal ? inicioDoDia(projeto.prazoFinal) : null;
-  const diasPrazo = prazoFinal ? diasEntre(hoje, prazoFinal) : null;
+  const prazoContrato = projeto.prazoContrato ? inicioDoDia(projeto.prazoContrato) : null;
+  // A contagem de dias é interna → segue o prazo planejado; o contrato aparece
+  // ao lado como o compromisso com o cliente.
+  const prazoPlanejado = projeto.prazoPlanejado ? inicioDoDia(projeto.prazoPlanejado) : null;
+  const diasPrazo = prazoPlanejado ? diasEntre(hoje, prazoPlanejado) : null;
+  const planejadoEstourou =
+    prazoPlanejado != null && prazoContrato != null && prazoPlanejado > prazoContrato;
   const disciplinasEntregues = projeto.disciplinas.filter((disciplina) => disciplina.status === "entregue" || disciplina.status === "aprovado").length;
   const disciplinasAtrasadas = projeto.disciplinas.filter((disciplina) => disciplina.prazo && disciplina.status !== "aprovado" && inicioDoDia(disciplina.prazo) < hoje).length;
   const ultimaAtualizacao = eventos[0];
@@ -586,8 +591,12 @@ export function ProjetoVisaoGeral({
       id: "prazo",
       conteudo: (
         <SummaryCard href={podeVerPlanejamento && dados.tarefasEap.length > 0 ? `/planejamento/${projeto.id}` : undefined}>
-          <KpiLabel>Prazo final</KpiLabel>
-          <div className="mt-5 flex items-start gap-2"><CalendarDays className={cn("mt-0.5 size-5", diasPrazo != null && diasPrazo < 0 ? "text-destructive" : diasPrazo != null && diasPrazo <= 14 ? "text-warning" : "text-primary")} /><div><p className="font-mono text-lg font-extrabold tabular-nums">{prazoFinal ? formatarData(prazoFinal) : "—"}</p><p className={cn("mt-1 text-xs", diasPrazo != null && diasPrazo < 0 ? "text-destructive" : "text-muted-foreground")}>{diasPrazo == null ? "Sem prazo definido" : diasPrazo < 0 ? `${Math.abs(diasPrazo)} dias de atraso` : `${diasPrazo} dias restantes`}</p></div></div>
+          <KpiLabel tooltip="A contagem segue o prazo planejado (meta interna). O prazo de contrato é o compromisso com o cliente e só muda por decisão de quem gerencia.">Prazos</KpiLabel>
+          <div className="mt-5 flex items-start gap-2"><CalendarDays className={cn("mt-0.5 size-5", diasPrazo != null && diasPrazo < 0 ? "text-destructive" : diasPrazo != null && diasPrazo <= 14 ? "text-warning" : "text-primary")} /><div><p className="font-mono text-lg font-extrabold tabular-nums">{prazoPlanejado ? formatarData(prazoPlanejado) : "—"}</p><p className={cn("mt-1 text-xs", diasPrazo != null && diasPrazo < 0 ? "text-destructive" : "text-muted-foreground")}>{diasPrazo == null ? "Sem prazo planejado" : diasPrazo < 0 ? `${Math.abs(diasPrazo)} dias de atraso` : `${diasPrazo} dias restantes`}</p></div></div>
+          <p className={cn("mt-3 text-xs", planejadoEstourou ? "font-medium text-destructive" : "text-muted-foreground")}>
+            Contrato: {prazoContrato ? formatarData(prazoContrato) : "—"}
+            {planejadoEstourou && " — planejado estourou o contrato"}
+          </p>
           {podeVerPlanejamento && dados.tarefasEap.length > 0 && <p className="mt-3 text-xs font-medium text-primary">Ver cronograma</p>}
         </SummaryCard>
       ),
@@ -637,7 +646,7 @@ export function ProjetoVisaoGeral({
         <Card size="sm">
           <CardHeader className="border-b"><CardTitle className="text-sm">Indicadores críticos</CardTitle></CardHeader>
           <CardContent className="pt-4"><div className="grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-4">
-            <IndicadorCritico label="Atraso no prazo" value={diasPrazo != null && diasPrazo < 0 ? `${Math.abs(diasPrazo)}d` : "—"} description={diasPrazo != null && diasPrazo < 0 ? "Prazo vencido" : prazoFinal ? "Dentro do prazo" : "Sem prazo definido"} tone={diasPrazo != null && diasPrazo < 0 ? "danger" : "success"} />
+            <IndicadorCritico label="Atraso no prazo" value={diasPrazo != null && diasPrazo < 0 ? `${Math.abs(diasPrazo)}d` : "—"} description={diasPrazo != null && diasPrazo < 0 ? "Prazo vencido" : prazoPlanejado ? "Dentro do prazo" : "Sem prazo definido"} tone={diasPrazo != null && diasPrazo < 0 ? "danger" : "success"} />
             <IndicadorCritico label="Desvios de entregas" value={`${disciplinasAtrasadas} / ${projeto.disciplinas.length}`} description={disciplinasAtrasadas > 0 ? "Com prazo vencido" : "Nenhuma em atraso"} tone={disciplinasAtrasadas > 0 ? "danger" : "success"} />
             <IndicadorCritico label="Revisões em atraso" value={String(dados.pendencias.revisoes)} description={dados.pendencias.revisoes > 0 ? "Solicitações pendentes" : "Nenhuma pendente"} tone={dados.pendencias.revisoes > 0 ? "warning" : "success"} />
             <IndicadorCritico label="Aprovações pendentes" value={String(dados.pendencias.aprovacoes)} description={dados.pendencias.aprovacoes > 0 ? "Aguardando retorno" : "Nenhuma pendente"} tone={dados.pendencias.aprovacoes > 0 ? "warning" : "success"} />

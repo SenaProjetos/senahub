@@ -31,6 +31,7 @@ import {
   salvarLayoutPainelProjetoSchema,
 } from "@/modules/projetos/schemas";
 import { notificarMuitos } from "@/lib/notificar";
+import { logAudit } from "@/lib/audit";
 import { sanitizeSvg } from "@/lib/sanitize-svg";
 import { normalizar } from "@/lib/disciplinas-core";
 import { usaEstruturaCustom, disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
@@ -128,7 +129,9 @@ export const criarProjeto = defineAction(
           descricao: input.descricao,
           areaM2: input.areaM2,
           endereco: input.endereco,
-          prazoFinal: parseData(input.prazoFinal),
+          prazoContrato: parseData(input.prazoContrato),
+          // Planejado em branco acompanha o contrato — divergir é ato deliberado.
+          prazoPlanejado: parseData(input.prazoPlanejado ?? input.prazoContrato),
           valorContrato: input.valorContrato,
           membros: {
             create: input.membrosIds.map((userId) => ({ userId })),
@@ -180,7 +183,8 @@ export const editarProjeto = defineAction(
         descricao: rest.descricao,
         areaM2: rest.areaM2,
         endereco: rest.endereco,
-        prazoFinal: parseData(rest.prazoFinal),
+        prazoContrato: parseData(rest.prazoContrato),
+        prazoPlanejado: parseData(rest.prazoPlanejado ?? rest.prazoContrato),
         valorContrato: rest.valorContrato,
         abasConfig: rest.abasConfig,
         // P-03: troca de cliente.
@@ -303,9 +307,15 @@ export const atualizarStatusDisciplina = defineAction(
 
 /**
  * Reabrir uma disciplina aprovada — exceção sancionada à máquina de estados (mantém registro).
- * `aprovado → em_revisao`, só gestores (`projetos:gerir`), com motivo auditado. NÃO desfaz o
- * pagamento já liberado; a reaprovação posterior (`validarEntrega`) fecha de volta para "aprovado"
- * sem gerar pagamento novo.
+ * `aprovado → em_revisao`, só gestores (`projetos:gerir`), com motivo E novo prazo auditados.
+ * NÃO desfaz o pagamento já liberado; a reaprovação posterior (`validarEntrega`) fecha de volta
+ * para "aprovado" sem gerar pagamento novo.
+ *
+ * **O novo prazo pode deslocar o prazo PLANEJADO do projeto.** A validação P-08 exige
+ * disciplina ≤ prazo planejado; reabrir para uma data além dele criaria justamente o estado
+ * que P-08 impede. Então o planejado acompanha, com registro próprio no histórico do projeto.
+ * O prazo de CONTRATO nunca se move por aqui: é compromisso com o cliente e sai de uma
+ * decisão comercial, não de uma reabertura interna.
  */
 export const reabrirDisciplina = defineAction(
   {
@@ -319,23 +329,62 @@ export const reabrirDisciplina = defineAction(
     capturarAntes: (input) =>
       prisma.disciplina.findUnique({
         where: { id: input.disciplinaId },
-        select: { disciplinaTextoLegado: true, status: true },
+        select: { disciplinaTextoLegado: true, status: true, prazo: true },
       }),
   },
-  async (input) => {
+  async (input, ctx) => {
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: input.disciplinaId },
-      include: { responsaveis: true, projeto: { select: { id: true, codigo: true } } },
+      include: {
+        responsaveis: true,
+        projeto: { select: { id: true, codigo: true, prazoPlanejado: true } },
+      },
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
     if (disciplina.status !== "aprovado") {
       throw new ActionError("Só é possível reabrir uma disciplina aprovada.");
     }
 
-    await prisma.disciplina.update({
-      where: { id: input.disciplinaId },
-      data: { status: "em_revisao" },
+    const novoPrazo = parseData(input.novoPrazo);
+    if (!novoPrazo) throw new ActionError("Novo prazo inválido.");
+
+    const prazoAntigoDoProjeto = disciplina.projeto.prazoPlanejado;
+    const deslocaProjeto = prazoAntigoDoProjeto == null || novoPrazo > prazoAntigoDoProjeto;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.disciplina.update({
+        where: { id: input.disciplinaId },
+        data: { status: "em_revisao", prazo: novoPrazo },
+      });
+      if (deslocaProjeto) {
+        await tx.projeto.update({
+          where: { id: disciplina.projetoId },
+          data: { prazoPlanejado: novoPrazo },
+        });
+      }
     });
+
+    // Registro próprio no histórico do projeto: `entidadeId` precisa cair no
+    // id-set que `historicoDocumentosProjeto` reconstrói — daí o `projetoId`.
+    if (deslocaProjeto) {
+      await logAudit({
+        userId: ctx.user.id,
+        modulo: "projetos",
+        acao: "deslocar-prazo-planejado",
+        entidade: "Projeto",
+        entidadeId: disciplina.projetoId,
+        detalhe: {
+          antes: { prazoPlanejado: prazoAntigoDoProjeto?.toISOString().slice(0, 10) ?? null },
+          novo: {
+            prazoPlanejado: input.novoPrazo,
+            motivo: `Reabertura de ${disciplina.disciplinaTextoLegado}: ${input.motivo}`,
+            disciplinaId: disciplina.id,
+          },
+        },
+        ip: ctx.ip,
+      });
+    }
+
     revalidatePath(`/projetos/${disciplina.projetoId}`);
     revalidatePath("/planejamento/cronograma");
     revalidatePath("/");
@@ -346,12 +395,16 @@ export const reabrirDisciplina = defineAction(
     if (respIds.length > 0) {
       await notificarMuitos(respIds, {
         titulo: "Disciplina reaberta",
-        corpo: `${disciplina.disciplinaTextoLegado} (${codigo}) reaberta para revisão. Motivo: ${input.motivo}`,
+        corpo: `${disciplina.disciplinaTextoLegado} (${codigo}) reaberta para revisão até ${input.novoPrazo}. Motivo: ${input.motivo}`,
         href,
         tag: `reabertura-${disciplina.id}`,
       });
     }
-    return { disciplinaId: input.disciplinaId, status: "em_revisao" as const };
+    return {
+      disciplinaId: input.disciplinaId,
+      status: "em_revisao" as const,
+      prazoProjetoDeslocado: deslocaProjeto,
+    };
   },
 );
 
@@ -527,7 +580,8 @@ export const duplicarProjeto = defineAction(
         descricao: true,
         areaM2: true,
         endereco: true,
-        prazoFinal: true,
+        prazoContrato: true,
+        prazoPlanejado: true,
         valorContrato: true,
         membros: { select: { userId: true } },
         disciplinas: {
@@ -580,7 +634,8 @@ export const duplicarProjeto = defineAction(
           descricao: origem.descricao,
           areaM2: origem.areaM2,
           endereco: origem.endereco,
-          prazoFinal: origem.prazoFinal,
+          prazoContrato: origem.prazoContrato,
+          prazoPlanejado: origem.prazoPlanejado,
           valorContrato: origem.valorContrato,
           disciplinas: {
             create: origem.disciplinas.map((d) => ({
@@ -774,16 +829,17 @@ export const criarDisciplina = defineAction(
   async (input) => {
     const projeto = await prisma.projeto.findUnique({
       where: { id: input.projetoId },
-      select: { id: true, tipo: true, prazoFinal: true },
+      select: { id: true, tipo: true, prazoPlanejado: true },
     });
     if (!projeto) throw new ActionError("Projeto não encontrado.");
 
-    // P-08: prazo da disciplina ≤ prazo do projeto.
-    if (input.prazo && projeto.prazoFinal) {
+    // P-08: prazo da disciplina ≤ prazo PLANEJADO do projeto — o teto do trabalho
+    // é a meta interna, não o compromisso de contrato (que só a reabertura move).
+    if (input.prazo && projeto.prazoPlanejado) {
       const prazoD = new Date(input.prazo);
-      if (prazoD > projeto.prazoFinal) {
+      if (prazoD > projeto.prazoPlanejado) {
         throw new ActionError(
-          `O prazo da disciplina (${input.prazo}) não pode ultrapassar o prazo do projeto (${projeto.prazoFinal.toISOString().slice(0, 10)}).`,
+          `O prazo da disciplina (${input.prazo}) não pode ultrapassar o prazo planejado do projeto (${projeto.prazoPlanejado.toISOString().slice(0, 10)}).`,
         );
       }
     }
@@ -860,15 +916,15 @@ export const editarDisciplina = defineAction(
   async (input, ctx) => {
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: input.disciplinaId },
-      select: { projetoId: true, valor: true, projeto: { select: { prazoFinal: true } } },
+      select: { projetoId: true, valor: true, projeto: { select: { prazoPlanejado: true } } },
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
 
-    // P-08: prazo da disciplina ≤ prazo do projeto.
-    if (input.prazo && disciplina.projeto.prazoFinal) {
-      if (new Date(input.prazo) > disciplina.projeto.prazoFinal) {
+    // P-08: prazo da disciplina ≤ prazo PLANEJADO do projeto (ver `adicionarDisciplina`).
+    if (input.prazo && disciplina.projeto.prazoPlanejado) {
+      if (new Date(input.prazo) > disciplina.projeto.prazoPlanejado) {
         throw new ActionError(
-          `O prazo da disciplina não pode ultrapassar o prazo do projeto.`,
+          `O prazo da disciplina não pode ultrapassar o prazo planejado do projeto.`,
         );
       }
     }

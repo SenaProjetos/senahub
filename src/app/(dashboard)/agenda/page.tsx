@@ -38,8 +38,8 @@ export default async function AgendaPage({
       // explícito no mapeamento abaixo porque é o campo que a F2.1a filtra (CRM, ADR-17).
     }),
     prisma.projeto.findMany({
-      where: { situacao: "em_andamento", prazoFinal: { gte: iniQuery, lte: fimQuery } },
-      select: { id: true, codigo: true, nome: true, prazoFinal: true },
+      where: { situacao: "em_andamento", prazoPlanejado: { gte: iniQuery, lte: fimQuery } },
+      select: { id: true, codigo: true, nome: true, prazoPlanejado: true },
     }),
     prisma.disciplina.findMany({
       where: {
@@ -105,7 +105,7 @@ export default async function AgendaPage({
       }))}
       prazos={[
         ...prazosProjeto.map((p) => ({
-          data: p.prazoFinal!.toISOString().slice(0, 10),
+          data: p.prazoPlanejado!.toISOString().slice(0, 10),
           rotulo: `${p.codigo} · ${p.nome}`,
           href: `/projetos/${p.id}`,
           tipo: "projeto" as const,

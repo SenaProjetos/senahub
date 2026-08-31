@@ -36,7 +36,8 @@ type ProjetoEditavel = {
   descricao: string | null;
   areaM2: number | null;
   endereco: string | null;
-  prazoFinal: string | null; // ISO date (yyyy-mm-dd)
+  prazoContrato: string | null; // ISO date (yyyy-mm-dd)
+  prazoPlanejado: string | null; // ISO date (yyyy-mm-dd)
   valorContrato: number | null;
   clienteId: string;
   abasConfig: AbaConfigItem[] | null;
@@ -61,7 +62,8 @@ export function EditarProjetoDialog({
   const [descricao, setDescricao] = useState(projeto.descricao ?? "");
   const [areaM2, setAreaM2] = useState(projeto.areaM2 != null ? String(projeto.areaM2) : "");
   const [endereco, setEndereco] = useState(projeto.endereco ?? "");
-  const [prazoFinal, setPrazoFinal] = useState(projeto.prazoFinal ?? "");
+  const [prazoContrato, setPrazoContrato] = useState(projeto.prazoContrato ?? "");
+  const [prazoPlanejado, setPrazoPlanejado] = useState(projeto.prazoPlanejado ?? "");
   const [valorContrato, setValorContrato] = useState<number | null>(projeto.valorContrato ?? null);
   const [abas, setAbas] = useState<AbaConfigItem[]>(() => abasParaEdicao(projeto.abasConfig));
 
@@ -88,7 +90,8 @@ export function EditarProjetoDialog({
     setDescricao(projeto.descricao ?? "");
     setAreaM2(projeto.areaM2 != null ? String(projeto.areaM2) : "");
     setEndereco(projeto.endereco ?? "");
-    setPrazoFinal(projeto.prazoFinal ?? "");
+    setPrazoContrato(projeto.prazoContrato ?? "");
+    setPrazoPlanejado(projeto.prazoPlanejado ?? "");
     setValorContrato(projeto.valorContrato ?? null);
     setAbas(abasParaEdicao(projeto.abasConfig));
     setOpen(true);
@@ -109,7 +112,8 @@ export function EditarProjetoDialog({
         descricao: descricao || undefined,
         areaM2: areaM2 ? Number(areaM2) : undefined,
         endereco: endereco || undefined,
-        prazoFinal: prazoFinal || undefined,
+        prazoContrato,
+        prazoPlanejado: prazoPlanejado || undefined,
         valorContrato: valorContrato ?? undefined,
         abasConfig: abas,
       });
@@ -205,14 +209,18 @@ export function EditarProjetoDialog({
               <Input value={endereco} onChange={(e) => setEndereco(e.target.value)} />
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Área (m²)</Label>
                 <Input type="number" value={areaM2} onChange={(e) => setAreaM2(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label>Prazo final</Label>
-                <Input type="date" value={prazoFinal} onChange={(e) => setPrazoFinal(e.target.value)} />
+                <Label>Prazo de contrato *</Label>
+                <Input type="date" value={prazoContrato} onChange={(e) => setPrazoContrato(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Prazo planejado</Label>
+                <Input type="date" value={prazoPlanejado} onChange={(e) => setPrazoPlanejado(e.target.value)} />
               </div>
               <div className="space-y-1.5">
                 <Label>Valor de contrato (R$)</Label>

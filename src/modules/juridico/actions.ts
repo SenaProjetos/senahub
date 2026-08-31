@@ -459,7 +459,7 @@ export const registrarAceite = defineAction(
             dataVencimento: true,
             projetoId: true,
             titulo: true,
-            projeto: { select: { prazoFinal: true, disciplinas: { select: { prazo: true } } } },
+            projeto: { select: { prazoContrato: true, disciplinas: { select: { prazo: true } } } },
           },
         },
       },
@@ -581,13 +581,13 @@ export const registrarAceite = defineAction(
           if (doc.projetoId && doc.projeto) {
             const decisao = decidirPrazoDoProjeto(
               doc.dataVencimento,
-              doc.projeto.prazoFinal,
+              doc.projeto.prazoContrato,
               doc.projeto.disciplinas.map((d) => d.prazo),
             );
             if (decisao.define) {
               await tx.projeto.update({
                 where: { id: doc.projetoId },
-                data: { prazoFinal: doc.dataVencimento },
+                data: { prazoContrato: doc.dataVencimento, prazoPlanejado: doc.dataVencimento },
               });
             }
           }

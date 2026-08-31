@@ -44,6 +44,8 @@ const ACOES_HISTORICO = [
   "editar-disciplinas-em-massa",
   "adicionar-disciplinas-catalogo",
   "atualizar-status-disciplina",
+  "reabrir-disciplina",
+  "deslocar-prazo-planejado",
   "definir-responsaveis",
   "registrar-revisao",
   "definir-membros",

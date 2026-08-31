@@ -52,7 +52,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { executarAutomacoesComerciais } from "@/modules/comercial/automacoes";
 import { diasAvisoVencimentoContrato } from "@/modules/juridico/config";
 import { vencimentoEfetivo } from "@/modules/juridico/contrato/estado";
-import { inicioDoDiaUtc } from "@/lib/data";
+import { inicioDoDia, inicioDoDiaLocal, inicioDoDiaUtc } from "@/lib/data";
 
 /** Rotinas das automações (chamadas pelos jobs do pg-boss em lib/jobs.ts). */
 
@@ -1225,15 +1225,17 @@ export async function alertaRiscoProjeto(): Promise<number> {
   const atrasados = await prisma.projeto.findMany({
     where: {
       situacao: "em_andamento",
-      prazoFinal: { lt: hoje },
+      // Alerta interno → prazo planejado. Fronteira em meia-noite UTC: com
+      // meia-noite local o projeto que vence hoje já entraria como atrasado.
+      prazoPlanejado: { lt: inicioDoDiaUtc(hoje) },
       disciplinas: { some: { status: { notIn: ["aprovado"] } } },
     },
-    select: { id: true, codigo: true, nome: true, prazoFinal: true },
+    select: { id: true, codigo: true, nome: true, prazoPlanejado: true },
   });
 
   let enviados = 0;
   for (const p of atrasados) {
-    const diasAtraso = differenceInCalendarDays(hoje, p.prazoFinal!);
+    const diasAtraso = differenceInCalendarDays(inicioDoDiaLocal(hoje), inicioDoDia(p.prazoPlanejado)!);
     await notificarMuitos(
       gestoresIds,
       {

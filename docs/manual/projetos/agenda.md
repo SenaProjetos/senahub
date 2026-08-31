@@ -29,7 +29,7 @@ relevantes (projetos, disciplinas e tarefas) em um só lugar.
   e fim, criador e a lista de participantes.
 - **Sua confirmação** no compromisso (confirmado/não), além do status dos demais.
 - **Prazos sobrepostos** no calendário, de três origens, cada um clicável:
-  - **Projeto** — prazo final de projetos em andamento;
+  - **Projeto** — prazo planejado de projetos em andamento;
   - **Disciplina** — prazo de disciplinas não aprovadas (projetos ativos);
   - **Tarefa** — prazo de tarefas suas (responsável ou criador) não concluídas.
 
