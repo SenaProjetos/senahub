@@ -15,6 +15,7 @@ import {
 import type { StatusDisciplina } from "@/generated/prisma/client";
 import { usuariosOnline } from "@/lib/socket";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
+import { inicioDoDia as inicioDoDiaOuInvalida, inicioDoDiaLocal } from "@/lib/data";
 import { cn, formatarData, formatarDataHora } from "@/lib/utils";
 import type { margemProjeto, ProjetoDetalhe, timelineStatusProjeto } from "@/modules/projetos/queries";
 import type { VisaoGeralProjeto } from "@/modules/projetos/visao-geral";
@@ -59,8 +60,9 @@ type Props = {
 
 const MS_DIA = 86_400_000;
 
-function inicioDoDia(data: Date) {
-  return new Date(data.getFullYear(), data.getMonth(), data.getDate());
+/** Meia-noite local, normalizando a meia-noite UTC que o banco devolve (ver `lib/data.ts`). */
+function inicioDoDia(data: Date | string) {
+  return inicioDoDiaOuInvalida(data) ?? new Date(NaN);
 }
 
 function diasEntre(inicio: Date, fim: Date) {
@@ -79,7 +81,7 @@ function iniciais(nome: string) {
 function rotuloAtualizacao(evento: Evento | undefined) {
   if (!evento) return "—";
   const data = new Date(evento.createdAt);
-  const hoje = inicioDoDia(new Date());
+  const hoje = inicioDoDiaLocal();
   const ontem = new Date(hoje);
   ontem.setDate(ontem.getDate() - 1);
   const hora = data.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -226,8 +228,10 @@ function TimelineOverview({
 }) {
   const porDisciplina = new Map<string, { inicio: Date; fim: Date }>();
   for (const tarefa of tarefas) {
-    const inicio = new Date(tarefa.inicioPrevisto);
-    const fim = new Date(tarefa.fimPrevisto);
+    // Normaliza a meia-noite UTC do banco antes de qualquer conta de dia/mês —
+    // os rótulos de mês são montados com getters locais logo abaixo.
+    const inicio = inicioDoDia(tarefa.inicioPrevisto);
+    const fim = inicioDoDia(tarefa.fimPrevisto);
     const atual = porDisciplina.get(tarefa.disciplinaId);
     porDisciplina.set(tarefa.disciplinaId, {
       inicio: !atual || inicio < atual.inicio ? inicio : atual.inicio,
@@ -252,8 +256,7 @@ function TimelineOverview({
   const inicio = new Date(Math.min(...intervalos.map((intervalo) => intervalo.inicio.getTime())));
   const fim = new Date(Math.max(...intervalos.map((intervalo) => intervalo.fim.getTime())));
   const intervaloTotal = Math.max(1, fim.getTime() - inicio.getTime());
-  const hoje = new Date();
-  const hojePct = ((inicioDoDia(hoje).getTime() - inicio.getTime()) / intervaloTotal) * 100;
+  const hojePct = ((inicioDoDiaLocal().getTime() - inicio.getTime()) / intervaloTotal) * 100;
   const meses: Date[] = [];
   const cursor = new Date(inicio.getFullYear(), inicio.getMonth(), 1);
   const ultimoMes = new Date(fim.getFullYear(), fim.getMonth(), 1);
@@ -361,7 +364,7 @@ function RiskHighlights({ projetoId, riscos }: { projetoId: string; riscos: Visa
 
 function DisciplinesTable({ projeto, dados }: { projeto: ProjetoDetalhe; dados: VisaoGeralProjeto }) {
   const revisoesPendentes = new Map(dados.revisoesPendentesPorDisciplina.map((item) => [item.disciplinaId, item.quantidade]));
-  const hoje = inicioDoDia(new Date());
+  const hoje = inicioDoDiaLocal();
 
   const linha = (disciplina: ProjetoDetalhe["disciplinas"][number]) => {
     const entregue = disciplina.status === "entregue" || disciplina.status === "aprovado";
@@ -561,7 +564,7 @@ export function ProjetoVisaoGeral({
   layoutSalvo,
 }: Props) {
   const progresso = progressoProjeto(projeto.disciplinas.map((disciplina) => disciplina.status));
-  const hoje = inicioDoDia(new Date());
+  const hoje = inicioDoDiaLocal();
   const prazoFinal = projeto.prazoFinal ? inicioDoDia(projeto.prazoFinal) : null;
   const diasPrazo = prazoFinal ? diasEntre(hoje, prazoFinal) : null;
   const disciplinasEntregues = projeto.disciplinas.filter((disciplina) => disciplina.status === "entregue" || disciplina.status === "aprovado").length;

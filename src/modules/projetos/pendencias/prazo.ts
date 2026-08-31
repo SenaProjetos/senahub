@@ -10,6 +10,8 @@
  * tabela de regra, e mudar a severidade depois não mexe no prazo.
  */
 
+import { inicioDoDia as inicioDoDiaData } from "@/lib/data";
+
 export const SITUACOES_PRAZO = ["sem_prazo", "no_prazo", "vence_em_breve", "vencido"] as const;
 export type SituacaoPrazo = (typeof SITUACOES_PRAZO)[number];
 
@@ -25,9 +27,13 @@ export const DIAS_ALERTA = 3;
 
 const DIA_MS = 86_400_000;
 
-/** Meia-noite local — comparar prazo por DIA, não por hora: prazo é data, não horário. */
-function inicioDoDia(d: Date): number {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+/**
+ * Meia-noite local em ms — comparar prazo por DIA, não por hora: prazo é data.
+ * Passa por `lib/data.ts` porque o banco devolve a data em meia-noite UTC e os
+ * getters locais recuavam um dia em America/Sao_Paulo.
+ */
+function inicioDoDia(d: Date | string): number {
+  return (inicioDoDiaData(d) ?? new Date(NaN)).getTime();
 }
 
 /**

@@ -19,6 +19,7 @@ import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-bu
 import { ProjetoTabNav } from "@/components/projetos/projeto-tab-nav";
 import { ProjetoAcoesMenu } from "@/components/projetos/projeto-acoes-menu";
 import { EditarProjetoDialog } from "@/components/projetos/editar-projeto-dialog";
+import { inicioDoDia, inicioDoDiaLocal } from "@/lib/data";
 
 export const metadata: Metadata = { title: "Projeto" };
 
@@ -52,11 +53,11 @@ export default async function ProjetoLayout({
 
   const diasAtraso = (() => {
     if (!projeto.prazoFinal || projeto.situacao !== "em_andamento") return 0;
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    const venc = new Date(projeto.prazoFinal);
-    venc.setHours(0, 0, 0, 0);
-    return Math.max(0, Math.floor((hoje.getTime() - venc.getTime()) / 86_400_000));
+    // `inicioDoDia` normaliza a meia-noite UTC do banco: `setHours(0,…)` direto
+    // recuava o vencimento um dia em America/Sao_Paulo.
+    const venc = inicioDoDia(projeto.prazoFinal);
+    if (!venc) return 0;
+    return Math.max(0, Math.floor((inicioDoDiaLocal().getTime() - venc.getTime()) / 86_400_000));
   })();
 
   return (

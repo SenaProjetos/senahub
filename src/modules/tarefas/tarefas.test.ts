@@ -86,7 +86,9 @@ describe("whereQuadroTarefas", () => {
       AND: [
         { arquivada: false, status: { ativo: true } },
         {},
-        { prazo: { lt: new Date(2026, 7, 25) }, status: { concluido: false } },
+        // Fronteira em meia-noite UTC: `Tarefa.prazo` é `@db.Date`; com meia-noite
+        // local a tarefa que vence hoje entraria em "atrasadas".
+        { prazo: { lt: new Date(Date.UTC(2026, 7, 25)) }, status: { concluido: false } },
       ],
     });
   });

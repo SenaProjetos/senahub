@@ -3,11 +3,13 @@ import { saudeProjeto } from "./health";
 import type { NivelSaude } from "./health";
 import type { StatusDisciplina } from "@/generated/prisma/client";
 
-const hoje = new Date("2026-06-22");
-const ontem = new Date("2026-06-21");
-const amanha = new Date("2026-06-23");
-const em14 = new Date("2026-07-06"); // 14 dias à frente (limite exato de atenção)
-const em30 = new Date("2026-07-22"); // 30 dias à frente
+// `hoje` é um INSTANTE (o "agora" da função); os prazos são datas-calendário e
+// chegam do banco em meia-noite UTC — daí a diferença de construção.
+const hoje = new Date(2026, 5, 22, 9, 0);
+const ontem = new Date("2026-06-21T00:00:00.000Z");
+const amanha = new Date("2026-06-23T00:00:00.000Z");
+const em14 = new Date("2026-07-06T00:00:00.000Z"); // 14 dias à frente (limite exato de atenção)
+const em30 = new Date("2026-07-22T00:00:00.000Z"); // 30 dias à frente
 
 function disc(status: StatusDisciplina, prazo?: Date | null) {
   return { status, prazo: prazo ?? null };
@@ -94,5 +96,26 @@ describe("saudeProjeto", () => {
   it("retorna 'ok' sem disciplinas e sem prazo", () => {
     const r = saudeProjeto([], null, "em_andamento", hoje);
     expect(r).toBe<NivelSaude>("ok");
+  });
+});
+
+describe("saudeProjeto — prazo em meia-noite UTC (regressão do dia a menos)", () => {
+  // Prazo 02/09 às 00:00Z: em America/Sao_Paulo os getters locais davam 01/09 e o
+  // projeto virava "atrasado" um dia antes do que o card de /projetos mostrava.
+  const prazoUtc = new Date("2026-09-02T00:00:00.000Z");
+  const noDiaDoPrazo = new Date(2026, 8, 2, 10, 0);
+  const diaSeguinte = new Date(2026, 8, 3, 10, 0);
+
+  it("não considera atrasado no próprio dia do prazo", () => {
+    expect(saudeProjeto([disc("em_andamento")], prazoUtc, "em_andamento", noDiaDoPrazo)).toBe("atencao");
+  });
+
+  it("considera atrasado só no dia seguinte", () => {
+    expect(saudeProjeto([disc("em_andamento")], prazoUtc, "em_andamento", diaSeguinte)).toBe("critico");
+  });
+
+  it("aplica a mesma regra ao prazo da disciplina", () => {
+    expect(saudeProjeto([disc("em_andamento", prazoUtc)], null, "em_andamento", noDiaDoPrazo)).toBe("ok");
+    expect(saudeProjeto([disc("em_andamento", prazoUtc)], null, "em_andamento", diaSeguinte)).toBe("critico");
   });
 });

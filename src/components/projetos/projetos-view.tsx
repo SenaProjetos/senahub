@@ -52,6 +52,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SortableHead } from "@/components/ui/sortable-head";
 import { Pagination } from "@/components/ui/pagination";
 import { useSetParams } from "@/lib/use-set-param";
+import { inicioDoDia, inicioDoDiaLocal } from "@/lib/data";
 import { formatarData } from "@/lib/utils";
 import { saudeProjeto, type NivelSaude } from "@/modules/projetos/health";
 
@@ -74,7 +75,11 @@ const SAUDE_ORDEM: Record<NivelSaude, number> = { critico: 0, atencao: 1, ok: 2 
 /** Dias de atraso de um projeto em andamento (0 se sem prazo ou no prazo). */
 function diasAtraso(p: ProjetoListItem): number {
   if (!p.prazoFinal || p.situacao !== "em_andamento") return 0;
-  return Math.max(0, Math.round((Date.now() - new Date(p.prazoFinal).getTime()) / 86400000));
+  // Compara por DIA (prazo é data, não horário) e normaliza a meia-noite UTC do
+  // banco — o diff de ms cru dava um dia a mais/menos conforme a hora do acesso.
+  const venc = inicioDoDia(p.prazoFinal);
+  if (!venc) return 0;
+  return Math.max(0, Math.round((inicioDoDiaLocal().getTime() - venc.getTime()) / 86400000));
 }
 
 /** Cor do texto do prazo conforme a saúde do projeto. */

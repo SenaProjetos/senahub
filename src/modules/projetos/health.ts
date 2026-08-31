@@ -1,4 +1,5 @@
 import type { StatusDisciplina } from "@/generated/prisma/client";
+import { inicioDoDia, inicioDoDiaLocal } from "@/lib/data";
 
 export type NivelSaude = "ok" | "atencao" | "critico";
 
@@ -13,36 +14,23 @@ export function saudeProjeto(
 ): NivelSaude | null {
   if (situacao !== "em_andamento") return null;
 
-  const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  // `inicioDoDia` normaliza a meia-noite UTC que o banco devolve — comparar com
+  // `getDate()` direto adiantava o vencimento em um dia em America/Sao_Paulo.
+  const hoje = inicioDoDiaLocal(agora);
+  const vencProjeto = inicioDoDia(prazoFinal);
 
-  const projetoAtrasado =
-    prazoFinal != null &&
-    new Date(
-      prazoFinal.getFullYear(),
-      prazoFinal.getMonth(),
-      prazoFinal.getDate(),
-    ) < hoje;
+  const projetoAtrasado = vencProjeto != null && vencProjeto < hoje;
 
   const projetoProximo =
     !projetoAtrasado &&
-    prazoFinal != null &&
-    (() => {
-      const venc = new Date(
-        prazoFinal.getFullYear(),
-        prazoFinal.getMonth(),
-        prazoFinal.getDate(),
-      );
-      return Math.floor((venc.getTime() - hoje.getTime()) / 86_400_000) <= 14;
-    })();
+    vencProjeto != null &&
+    Math.floor((vencProjeto.getTime() - hoje.getTime()) / 86_400_000) <= 14;
 
   const total = disciplinas.length;
   const ativas = disciplinas.filter((d) => d.status !== "aprovado");
   const atrasadas = ativas.filter((d) => {
-    if (!d.prazo) return false;
-    const p = new Date(d.prazo);
-    if (Number.isNaN(p.getTime())) return false;
-    const venc = new Date(p.getFullYear(), p.getMonth(), p.getDate());
-    return venc < hoje;
+    const venc = inicioDoDia(d.prazo);
+    return venc != null && venc < hoje;
   }).length;
 
   const pctAtrasadas = total > 0 ? atrasadas / total : 0;

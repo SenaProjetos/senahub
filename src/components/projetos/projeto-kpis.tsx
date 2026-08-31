@@ -1,5 +1,6 @@
 import { CheckCircle2, Clock, AlertCircle, TrendingUp, ShieldCheck, ShieldAlert, ShieldX } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { inicioDoDia, inicioDoDiaLocal } from "@/lib/data";
 import type { StatusDisciplina } from "@/generated/prisma/client";
 import { PESO_STATUS } from "@/modules/projetos/status";
 import { saudeProjeto } from "@/modules/projetos/health";
@@ -60,29 +61,22 @@ export function ProjetoKpis({ disciplinas, prazoFinal, situacao, margemPct }: Pr
           (disciplinas.reduce((s, d) => s + PESO_STATUS[d.status], 0) / total) * 100,
         );
 
-  // Prazo
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const diasAtraso = (() => {
-    if (!prazoFinal || situacao !== "em_andamento") return 0;
-    const venc = new Date(prazoFinal);
-    venc.setHours(0, 0, 0, 0);
-    return Math.max(0, Math.floor((hoje.getTime() - venc.getTime()) / 86_400_000));
-  })();
+  // Prazo — `inicioDoDia` normaliza a meia-noite UTC do banco (ver `lib/data.ts`);
+  // `setHours(0,…)` direto recuava o vencimento um dia em America/Sao_Paulo.
+  const hoje = inicioDoDiaLocal();
+  const venc = situacao === "em_andamento" ? inicioDoDia(prazoFinal) : null;
+  const diasAtraso = venc ? Math.max(0, Math.floor((hoje.getTime() - venc.getTime()) / 86_400_000)) : 0;
   const diasRestantes = (() => {
-    if (!prazoFinal || situacao !== "em_andamento") return null;
-    const venc = new Date(prazoFinal);
-    venc.setHours(0, 0, 0, 0);
+    if (!venc) return null;
     const diff = Math.floor((venc.getTime() - hoje.getTime()) / 86_400_000);
     return diff >= 0 ? diff : null;
   })();
 
   // Disciplinas com prazo vencido (não aprovadas).
   const atrasadas = disciplinas.filter((d) => {
-    if (!d.prazo || d.status === "aprovado") return false;
-    const p = new Date(d.prazo);
-    p.setHours(0, 0, 0, 0);
-    return p < hoje;
+    if (d.status === "aprovado") return false;
+    const p = inicioDoDia(d.prazo);
+    return p != null && p < hoje;
   }).length;
 
   const saude = saudeProjeto(disciplinas, prazoFinal, situacao);
