@@ -249,8 +249,9 @@ de verdade — remover o caminho antigo antes disso deixaria o jurídico sem nen
 - **Bytes do PDF.** A integração depende de `arquivoPath` ser servido sem re-render. Se alguma
   rota regenerar, o hash da assinatura diverge e a trilha acusa adulteração de um documento
   íntegro — falha pior que não ter trilha. Verificar contra o banco antes de E2 fechar.
-- **`ModeloContrato` em produção.** Contagem é 0 no dev; produção não foi conferida. E6 não começa
-  sem isso.
+- ~~**`ModeloContrato` em produção.** Contagem é 0 no dev; produção não foi conferida. E6 não começa
+  sem isso.~~ **Resolvido em 2026-08-30:** produção conferida (0 linhas / 0 bytes), tabela removida
+  na E6 Parte B — ver §9.
 - **Adoção.** O Estúdio é mais poderoso e mais difícil que um textarea. Sem M6 (modelos prontos), o
   risco não é técnico — é o jurídico continuar fazendo contrato no Word, que é o fracasso que o
   módulo Comercial já viveu.
@@ -288,19 +289,25 @@ de verdade — remover o caminho antigo antes disso deixaria o jurídico sem nen
   > `api/juridico/versoes/[id]/certificado`), que monta o próprio HTML. `escaparHtml` idem. As duas
   > ficam. Removê-las quebraria a prova de assinatura, que é o oposto do objetivo deste spec.
 
-- **Pendente — precisa de troca de modelo:**
-  - **E6 — Parte B (Opus, BLOQUEADA)** — actions `criar/editar/excluirModeloContrato`, `ModelosTab`,
-    a query em `page.tsx` e o `DROP TABLE modelo_contrato`. Bloqueada até a contagem em PRODUÇÃO
-    (0 no dev; a tabela é isolada, sem FK, então o que se perde é o TEXTO que alguém escreveu).
-    Conferir com:
-    ```sql
-    SELECT count(*), sum(length(conteudo)) FROM modelo_contrato;
-    ```
-    `sum(length(conteudo))` importa tanto quanto a contagem: linha com `conteudo = ''` é rascunho
-    que ninguém escreveu e não precisa ser preservada. Se houver texto real, o certo é **exportar o
-    texto** (sem perda) antes do drop — não converter o layout para `DocSchema`, que seria estimar
-    altura de parágrafo às cegas sobre dado invisível, com o original já apagado.
-  - **E7a (Haiku)** — M4 (`arquivoPath` via `resolverCaminho`) + M5 (rate limit configurável).
+- **E7a (Haiku)** — M4 (`arquivoPath` via `resolverCaminho`, commit `840521d`) + M5 (rate limit
+  configurável via `ConfigSistema`, chave `documentos.geracaoPdf`, commit `efafec2`).
+
+- **E6 — Parte B (2026-08-30)** — desbloqueada e concluída. A contagem em produção saiu **0 linhas /
+  0 bytes** (mesmo resultado do dev), então não houve texto a exportar: nada se perdeu. Removidos as
+  actions `criar/editar/excluirModeloContrato`, a `ModelosTab` e sua aba, a query em `page.tsx`, o
+  model do `schema.prisma` e a tabela.
+
+  A conferência rodou por `scripts/e6-limpar-modelo-contrato.py` (também há variante `.sh` e `.sql`,
+  ver `scripts/E6-LEIA-ME.md`): o script mede `count` **e** `sum(length(conteudo))` e só dropa
+  sozinho quando os dois são nulos — com texto real ele exporta CSV+JSON e para, exigindo aprovação
+  manual, exatamente a regra que este spec definia.
+
+  > **Pegadinha da migration.** O drop em produção foi feito por esse script, **fora do Prisma** — o
+  > `_prisma_migrations` de lá não sabe dele. Por isso `20260830120000_e6_remove_modelo_contrato`
+  > usa `DROP TABLE IF EXISTS`: sem o guard, o `migrate deploy` do próximo release quebraria naquele
+  > servidor, tentando dropar o que já não existe. No dev a tabela foi dropada à mão (também vazia,
+  > conferida antes) e a migration marcada com `migrate resolve --applied`, seguindo `/nova-migracao`
+  > para não arriscar reset por drift.
 
 ### M2 — investigação concluída (rubrica por página)
 

@@ -1961,17 +1961,9 @@ model MensagemReacao {
 }
 
 /// Biblioteca de modelos de contrato (texto base) (E2).
-model ModeloContrato {
-  id        String   @id @default(cuid())
-  nome      String
-  categoria String?
-  conteudo  String   @default("")
-  ativo     Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("modelo_contrato")
-}
+// `ModeloContrato` (modelo de contrato em texto puro, Fase B) saiu na Fase E6 — substituído por
+// `DocumentoModelo` (tipo=contrato) do Estúdio de Documentos. A tabela estava vazia em dev e em
+// produção; ver `docs/superpowers/specs/2026-08-27-contratos-no-estudio.md`.
 
 enum StatusSolicCadastro {
   pendente

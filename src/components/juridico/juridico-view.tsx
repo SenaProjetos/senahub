@@ -11,9 +11,6 @@ import {
   criarPastaJuridica,
   excluirPastaJuridica,
   moverDocPasta,
-  criarModeloContrato,
-  editarModeloContrato,
-  excluirModeloContrato,
   registrarAceite,
   atualizarContratoEquipe,
   gerarVersaoDeModelo,
@@ -147,9 +144,8 @@ type Doc = {
   versoes: VersaoDoc[];
 };
 type Pasta = { id: string; nome: string; total: number };
-type Modelo = { id: string; nome: string; categoria: string | null; conteudo: string };
-/** Modelo do ESTÚDIO (`DocumentoModelo`, tipo=contrato) — a fonte real desde a Fase E2. Distinto
- * de `Modelo` acima (`ModeloContrato`, pipeline em texto puro, deprecado até a Fase E6). */
+/** Modelo do ESTÚDIO (`DocumentoModelo`, tipo=contrato) — fonte única desde a Fase E2. O pipeline
+ * em texto puro (`ModeloContrato` + aba "Modelos") saiu na E6. */
 type ModeloEstudio = { id: string; nome: string };
 type VinculoOpt = { id: string; label: string; contratacao: string };
 type AtivoDevolucao = { id: string; nome: string; tipo: string };
@@ -185,7 +181,6 @@ const STATUS_TONE: Record<StatusContrato, "neutral" | "warning" | "success" | "d
 
 export function JuridicoView({
   docs,
-  modelos,
   modelosContrato,
   projetos,
   clientes,
@@ -197,7 +192,6 @@ export function JuridicoView({
   podeVerEquipe,
 }: {
   docs: Doc[];
-  modelos: Modelo[];
   modelosContrato: ModeloEstudio[];
   projetos: { id: string; label: string }[];
   clientes: { id: string; label: string }[];
@@ -233,7 +227,6 @@ export function JuridicoView({
               {docsEquipe.length > 0 && <Badge variant="outline" className="ml-1.5">{docsEquipe.length}</Badge>}
             </TabsTrigger>
           )}
-          <TabsTrigger value="modelos">Modelos</TabsTrigger>
         </TabsList>
         <Card className="mt-3">
           <CardContent className="pt-5">
@@ -245,9 +238,6 @@ export function JuridicoView({
                 <ContratosEquipeTab docs={docsEquipe} vinculos={vinculos} cargos={cargos} ativosPorUsuario={ativosPorUsuario} modelosContrato={modelosContrato} podeGerir={podeGerir} />
               </TabsContent>
             )}
-            <TabsContent value="modelos">
-              <ModelosTab modelos={modelos} podeGerir={podeGerir} />
-            </TabsContent>
           </CardContent>
         </Card>
       </Tabs>
@@ -1540,98 +1530,5 @@ function ContratosEquipeTab({
   );
 }
 
-function ModelosTab({ modelos, podeGerir }: { modelos: Modelo[]; podeGerir: boolean }) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const [edit, setEdit] = useState<Modelo | "novo" | null>(null);
-  const [form, setForm] = useState({ nome: "", categoria: "", conteudo: "" });
-
-  function abrir(m: Modelo | "novo") {
-    if (m === "novo") setForm({ nome: "", categoria: "", conteudo: "" });
-    else setForm({ nome: m.nome, categoria: m.categoria ?? "", conteudo: m.conteudo });
-    setEdit(m);
-  }
-  function salvar() {
-    if (!form.nome.trim()) return toast.error("Informe o nome.");
-    start(async () => {
-      const r = edit && edit !== "novo"
-        ? await editarModeloContrato({ id: edit.id, nome: form.nome, categoria: form.categoria, conteudo: form.conteudo })
-        : await criarModeloContrato({ nome: form.nome, categoria: form.categoria, conteudo: form.conteudo });
-      if (r.ok) {
-        toast.success("Modelo salvo.");
-        setEdit(null);
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
-  function excluir(id: string) {
-    start(async () => {
-      const r = await excluirModeloContrato({ id });
-      if (r.ok) router.refresh();
-      else toast.error(r.error);
-    });
-  }
-
-  return (
-    <div className="space-y-4">
-      {podeGerir && (
-        <div className="flex justify-end">
-          <Button size="sm" onClick={() => abrir("novo")}><Plus className="size-3.5" /> Novo modelo</Button>
-        </div>
-      )}
-      {modelos.length === 0 ? (
-        <EmptyState icon={FileText} title="Nenhum modelo de contrato." />
-      ) : (
-        <ul className="divide-y rounded-sm border">
-          {modelos.map((m) => (
-            <li key={m.id} className="flex items-center gap-3 p-3 text-sm">
-              <span className="font-medium">{m.nome}</span>
-              {m.categoria && <Badge variant="outline">{m.categoria}</Badge>}
-              <span className="ml-auto font-mono text-xs text-muted-foreground">{m.conteudo.length} car.</span>
-              {podeGerir && (
-                <>
-                  <Button size="sm" variant="ghost" onClick={() => abrir(m)}>Editar</Button>
-                  <Button size="icon" variant="ghost" aria-label="Excluir" onClick={() => excluir(m.id)}>
-                    <Trash2 className="size-4" />
-                  </Button>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <Dialog open={!!edit} onOpenChange={(o) => !o && setEdit(null)}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader><DialogTitle>{edit && edit !== "novo" ? "Editar modelo" : "Novo modelo"}</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Nome</Label>
-                <Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Categoria</Label>
-                <Input value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} placeholder="prestação de serviço…" />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Conteúdo</Label>
-              <textarea
-                value={form.conteudo}
-                onChange={(e) => setForm({ ...form, conteudo: e.target.value })}
-                rows={8}
-                className="w-full rounded-sm border bg-transparent p-2 font-mono text-xs"
-                placeholder="Cláusulas do modelo…"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEdit(null)}>Cancelar</Button>
-            <Button onClick={salvar} disabled={pending}>Salvar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
+// `ModelosTab` (CRUD de `ModeloContrato`, pipeline em texto puro da Fase B) saiu na Fase E6.
+// Modelo de contrato agora é `DocumentoModelo` (tipo=contrato) e se edita no Estúdio de Documentos.
