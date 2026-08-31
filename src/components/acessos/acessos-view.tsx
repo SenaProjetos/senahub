@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Plus, Star, History } from "lucide-react";
+import { Plus, Star, History, Tags } from "lucide-react";
 import { useSetParams } from "@/lib/use-set-param";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -43,6 +43,7 @@ export function AcessosView({
   podeGerir,
   podeRevelar,
   podeAuditar,
+  podeCategorias,
   opcoesForm,
   filtros,
 }: {
@@ -61,6 +62,7 @@ export function AcessosView({
   podeGerir: boolean;
   podeRevelar: boolean;
   podeAuditar: boolean;
+  podeCategorias: boolean;
   opcoesForm: OpcoesFormulario;
   filtros: FiltrosAtuais;
 }) {
@@ -93,6 +95,12 @@ export function AcessosView({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {podeCategorias && (
+            <Button variant="outline" render={<Link href="/acessos/categorias" />}>
+              <Tags className="size-4" aria-hidden />
+              Categorias
+            </Button>
+          )}
           {podeAuditar && (
             <Button variant="outline" render={<Link href="/acessos/auditoria" />}>
               <History className="size-4" aria-hidden />

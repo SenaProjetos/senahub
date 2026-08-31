@@ -82,6 +82,19 @@ export const atualizarCredencialSchema = z.object({
 
 export const idSchema = z.object({ id: z.string().min(1) });
 
+/** Catálogo de categorias (§10). `icone` casa com os nomes do lucide usados em `labels.ts`. */
+export const criarCategoriaSchema = z.object({
+  nome: z.string().trim().min(1, "Informe o nome da categoria.").max(100),
+  icone: textoOpcional(50),
+});
+
+export const editarCategoriaSchema = z.object({
+  id: z.string().min(1),
+  nome: z.string().trim().min(1, "Informe o nome da categoria.").max(100),
+  icone: textoOpcional(50),
+  ativo: z.boolean().default(true),
+});
+
 export const gerenciarCompartilhamentoSchema = z.object({
   id: z.string().min(1),
   compartilhamentos: z.array(compartilhamentoSchema).max(200),

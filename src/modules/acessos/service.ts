@@ -5,7 +5,7 @@
  * autorização sem banco, e o que deixa `queries.ts` e `actions.ts` compartilharem a MESMA
  * decisão em vez de cada um reimplementar a sua. Mesma forma de `lib/dxf.ts`/`lib/aging.ts`.
  *
- * Spec: docs/contas/specs/acessos-credenciais.md · Plano: docs/contas/plans/
+ * Spec: docs/contas/specs/acessos-credenciais.md · Plano: docs/concluidos/contas/
  */
 
 import type { Setor } from "@/generated/prisma/enums";
