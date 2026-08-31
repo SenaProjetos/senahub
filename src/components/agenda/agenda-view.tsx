@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Plus, Check, X, Trash2, MapPin, CalendarDays, Download, Pencil } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Check, X, Trash2, MapPin, CalendarDays, Download, Pencil, Search } from "lucide-react";
 import {
   criarCompromisso,
   editarCompromisso,
@@ -70,6 +70,26 @@ function addDias(d: Date, n: number): Date {
 }
 function fmtHora(iso: string): string {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+/** Data local no formato do `<input type="datetime-local">` ("YYYY-MM-DDTHH:mm"). */
+function paraLocalDT(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+/** Soma minutos a um valor de datetime-local; "" quando a entrada ainda está incompleta. */
+function somarMinutosDT(valor: string, minutos: number): string {
+  const d = new Date(valor);
+  if (Number.isNaN(d.getTime())) return "";
+  d.setMinutes(d.getMinutes() + minutos);
+  return paraLocalDT(d);
+}
+/** Duração em minutos entre dois valores de datetime-local (null se algum for inválido). */
+function minutosEntreDT(inicio: string, fim: string): number | null {
+  const a = new Date(inicio);
+  const b = new Date(fim);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null;
+  return Math.round((b.getTime() - a.getTime()) / 60000);
 }
 // expande os intervalos de férias (inclusivos) num conjunto de chaves YYYY-MM-DD locais
 function expandirFerias(ferias: Feria[]): Set<string> {
@@ -728,7 +748,14 @@ function NovoCompromissoDialog({
   const [local, setLocal] = useState("");
   const [inicio, setInicio] = useState("");
   const [fim, setFim] = useState("");
+  // enquanto o usuário não mexe no fim, ele acompanha o início (+1h)
+  const [fimEditado, setFimEditado] = useState(false);
   const [participantes, setParticipantes] = useState<string[]>([]);
+
+  function mudarInicio(valor: string) {
+    setInicio(valor);
+    if (!fimEditado) setFim(somarMinutosDT(valor, 60));
+  }
 
   function criar() {
     start(async () => {
@@ -747,6 +774,7 @@ function NovoCompromissoDialog({
         setLocal("");
         setInicio("");
         setFim("");
+        setFimEditado(false);
         setParticipantes([]);
         router.refresh();
       } else toast.error(r.error);
@@ -767,11 +795,18 @@ function NovoCompromissoDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Início</Label>
-              <Input type="datetime-local" value={inicio} onChange={(e) => setInicio(e.target.value)} />
+              <Input type="datetime-local" value={inicio} onChange={(e) => mudarInicio(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label>Fim</Label>
-              <Input type="datetime-local" value={fim} onChange={(e) => setFim(e.target.value)} />
+              <Input
+                type="datetime-local"
+                value={fim}
+                onChange={(e) => {
+                  setFim(e.target.value);
+                  setFimEditado(true);
+                }}
+              />
             </div>
           </div>
           <div className="space-y-1.5">
@@ -780,25 +815,13 @@ function NovoCompromissoDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Convidados</Label>
-            <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
-              {internos.map((u) => {
-                const sel = participantes.includes(u.id);
-                return (
-                  <button
-                    key={u.id}
-                    type="button"
-                    onClick={() =>
-                      setParticipantes((p) => (sel ? p.filter((x) => x !== u.id) : [...p, u.id]))
-                    }
-                    className={`rounded-sm border px-2 py-1 text-xs transition-colors ${
-                      sel ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:border-primary/50"
-                    }`}
-                  >
-                    {u.name}
-                  </button>
-                );
-              })}
-            </div>
+            {/* o dialog fica sempre montado: a key limpa a busca a cada abertura */}
+            <SeletorConvidados
+              key={open ? "aberto" : "fechado"}
+              internos={internos}
+              selecionados={participantes}
+              onChange={setParticipantes}
+            />
           </div>
         </div>
         <DialogFooter>
@@ -814,6 +837,115 @@ function NovoCompromissoDialog({
   );
 }
 
+/** `toLowerCase + NFD` sem marcas combinantes — busca de convidado ignora acento. */
+function normalizarNome(texto: string) {
+  return texto.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+}
+
+/**
+ * Seleção de convidados por lista com busca: os selecionados sobem como chips
+ * (clique remove) e a lista abaixo filtra por nome, sem acento.
+ */
+function SeletorConvidados({
+  internos,
+  selecionados,
+  onChange,
+}: {
+  internos: { id: string; name: string }[];
+  selecionados: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [busca, setBusca] = useState("");
+
+  const filtrados = useMemo(() => {
+    const termo = normalizarNome(busca.trim());
+    if (!termo) return internos;
+    return internos.filter((u) => normalizarNome(u.name).includes(termo));
+  }, [internos, busca]);
+
+  const escolhidos = useMemo(
+    () => internos.filter((u) => selecionados.includes(u.id)),
+    [internos, selecionados],
+  );
+
+  function alternar(id: string) {
+    onChange(
+      selecionados.includes(id) ? selecionados.filter((x) => x !== id) : [...selecionados, id],
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="relative">
+        <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar pessoa…"
+          aria-label="Buscar convidados"
+          className="pl-8"
+        />
+      </div>
+
+      {escolhidos.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {escolhidos.map((u) => (
+            <button
+              key={u.id}
+              type="button"
+              onClick={() => alternar(u.id)}
+              aria-label={`Remover ${u.name}`}
+              className="inline-flex items-center gap-1 rounded-sm border border-primary bg-primary px-2 py-0.5 text-xs text-primary-foreground"
+            >
+              {u.name}
+              <X className="size-3" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="max-h-44 overflow-y-auto rounded-md border border-border">
+        {filtrados.length === 0 ? (
+          <p className="px-3 py-4 text-center text-xs text-muted-foreground">
+            Nenhuma pessoa encontrada.
+          </p>
+        ) : (
+          filtrados.map((u) => {
+            const sel = selecionados.includes(u.id);
+            return (
+              // linha inteira clicável; a caixinha é desenhada à mão porque o `Checkbox` do
+              // base-ui renderiza um <button> e não pode ficar dentro deste.
+              <button
+                key={u.id}
+                type="button"
+                onClick={() => alternar(u.id)}
+                aria-pressed={sel}
+                className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-muted/50"
+              >
+                <span
+                  aria-hidden
+                  className={`flex size-4 shrink-0 items-center justify-center rounded-[4px] border ${
+                    sel ? "border-primary bg-primary text-primary-foreground" : "border-input"
+                  }`}
+                >
+                  {sel && <Check className="size-3.5" />}
+                </span>
+                <span className={sel ? "font-medium" : "text-muted-foreground"}>{u.name}</span>
+              </button>
+            );
+          })
+        )}
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        {escolhidos.length === 0
+          ? "Nenhum convidado selecionado"
+          : `${escolhidos.length} convidado(s) selecionado(s)`}
+      </p>
+    </div>
+  );
+}
+
 function EditarCompromissoDialog({
   comp,
   internos,
@@ -826,17 +958,20 @@ function EditarCompromissoDialog({
   const router = useRouter();
   const [pending, start] = useTransition();
 
-  function toLocalDT(iso: string) {
-    const d = new Date(iso);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  }
+  const toLocalDT = (iso: string) => paraLocalDT(new Date(iso));
 
   const [titulo, setTitulo] = useState(comp.titulo);
   const [local, setLocal] = useState(comp.local ?? "");
   const [inicio, setInicio] = useState(toLocalDT(comp.inicio));
   const [fim, setFim] = useState(comp.fim ? toLocalDT(comp.fim) : "");
   const [participantes, setParticipantes] = useState<string[]>(comp.participantesIds);
+
+  // remarcar o início arrasta o fim mantendo a duração; compromisso sem fim continua sem fim
+  function mudarInicio(valor: string) {
+    const duracao = minutosEntreDT(inicio, fim);
+    setInicio(valor);
+    if (duracao !== null && duracao > 0) setFim(somarMinutosDT(valor, duracao));
+  }
 
   function salvar() {
     start(async () => {
@@ -871,7 +1006,7 @@ function EditarCompromissoDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Início</Label>
-              <Input type="datetime-local" value={inicio} onChange={(e) => setInicio(e.target.value)} />
+              <Input type="datetime-local" value={inicio} onChange={(e) => mudarInicio(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label>Fim</Label>
@@ -884,25 +1019,11 @@ function EditarCompromissoDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Convidados</Label>
-            <div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
-              {internos.map((u) => {
-                const sel = participantes.includes(u.id);
-                return (
-                  <button
-                    key={u.id}
-                    type="button"
-                    onClick={() =>
-                      setParticipantes((p) => (sel ? p.filter((x) => x !== u.id) : [...p, u.id]))
-                    }
-                    className={`rounded-sm border px-2 py-1 text-xs transition-colors ${
-                      sel ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:border-primary/50"
-                    }`}
-                  >
-                    {u.name}
-                  </button>
-                );
-              })}
-            </div>
+            <SeletorConvidados
+              internos={internos}
+              selecionados={participantes}
+              onChange={setParticipantes}
+            />
           </div>
         </div>
         <DialogFooter>
