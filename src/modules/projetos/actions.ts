@@ -40,6 +40,7 @@ import { semearPastasTemplate, projetoUsaTemplate } from "@/modules/projetos/pas
 import { sincronizarPagamentosPorDisciplinaId } from "@/modules/uploads/pagamento";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { chaveLayoutPainelProjeto } from "@/modules/projetos/painel-layout";
+import { deveDeslocarPrazoDoProjeto } from "@/modules/projetos/prazo-reabertura";
 
 function isGlobal(role: Role) {
   return role === "admin" || GLOBAL_ROLES.includes(role);
@@ -349,7 +350,7 @@ export const reabrirDisciplina = defineAction(
     if (!novoPrazo) throw new ActionError("Novo prazo inválido.");
 
     const prazoAntigoDoProjeto = disciplina.projeto.prazoPlanejado;
-    const deslocaProjeto = prazoAntigoDoProjeto == null || novoPrazo > prazoAntigoDoProjeto;
+    const deslocaProjeto = deveDeslocarPrazoDoProjeto(novoPrazo, prazoAntigoDoProjeto);
 
     await prisma.$transaction(async (tx) => {
       await tx.disciplina.update({
