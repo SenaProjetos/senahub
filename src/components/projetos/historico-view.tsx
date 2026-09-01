@@ -43,6 +43,8 @@ const ACAO_LABEL: Record<string, string> = {
   "editar-disciplinas-em-massa": "Editou disciplinas em massa",
   "adicionar-disciplinas-catalogo": "Adicionou disciplinas do catálogo",
   "atualizar-status-disciplina": "Mudou o status da disciplina",
+  "reabrir-disciplina": "Reabriu disciplina",
+  "deslocar-prazo-planejado": "Deslocou o prazo planejado do projeto",
   "definir-responsaveis": "Alterou responsáveis",
   "registrar-revisao": "Registrou revisão",
   "definir-membros": "Atualizou a equipe",

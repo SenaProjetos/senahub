@@ -15,6 +15,7 @@ import {
 import type { StatusDisciplina } from "@/generated/prisma/client";
 import { usuariosOnline } from "@/lib/socket";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
+import { inicioDoDia as inicioDoDiaOuInvalida, inicioDoDiaLocal } from "@/lib/data";
 import { cn, formatarData, formatarDataHora } from "@/lib/utils";
 import type { margemProjeto, ProjetoDetalhe, timelineStatusProjeto } from "@/modules/projetos/queries";
 import type { VisaoGeralProjeto } from "@/modules/projetos/visao-geral";
@@ -59,8 +60,9 @@ type Props = {
 
 const MS_DIA = 86_400_000;
 
-function inicioDoDia(data: Date) {
-  return new Date(data.getFullYear(), data.getMonth(), data.getDate());
+/** Meia-noite local, normalizando a meia-noite UTC que o banco devolve (ver `lib/data.ts`). */
+function inicioDoDia(data: Date | string) {
+  return inicioDoDiaOuInvalida(data) ?? new Date(NaN);
 }
 
 function diasEntre(inicio: Date, fim: Date) {
@@ -79,7 +81,7 @@ function iniciais(nome: string) {
 function rotuloAtualizacao(evento: Evento | undefined) {
   if (!evento) return "—";
   const data = new Date(evento.createdAt);
-  const hoje = inicioDoDia(new Date());
+  const hoje = inicioDoDiaLocal();
   const ontem = new Date(hoje);
   ontem.setDate(ontem.getDate() - 1);
   const hora = data.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -89,7 +91,7 @@ function rotuloAtualizacao(evento: Evento | undefined) {
 }
 
 function NivelSaude({ projeto }: { projeto: ProjetoDetalhe }) {
-  const nivel = saudeProjeto(projeto.disciplinas, projeto.prazoFinal, projeto.situacao);
+  const nivel = saudeProjeto(projeto.disciplinas, projeto.prazoPlanejado, projeto.situacao);
   if (!nivel) return null;
 
   const config = {
@@ -226,8 +228,10 @@ function TimelineOverview({
 }) {
   const porDisciplina = new Map<string, { inicio: Date; fim: Date }>();
   for (const tarefa of tarefas) {
-    const inicio = new Date(tarefa.inicioPrevisto);
-    const fim = new Date(tarefa.fimPrevisto);
+    // Normaliza a meia-noite UTC do banco antes de qualquer conta de dia/mês —
+    // os rótulos de mês são montados com getters locais logo abaixo.
+    const inicio = inicioDoDia(tarefa.inicioPrevisto);
+    const fim = inicioDoDia(tarefa.fimPrevisto);
     const atual = porDisciplina.get(tarefa.disciplinaId);
     porDisciplina.set(tarefa.disciplinaId, {
       inicio: !atual || inicio < atual.inicio ? inicio : atual.inicio,
@@ -252,8 +256,7 @@ function TimelineOverview({
   const inicio = new Date(Math.min(...intervalos.map((intervalo) => intervalo.inicio.getTime())));
   const fim = new Date(Math.max(...intervalos.map((intervalo) => intervalo.fim.getTime())));
   const intervaloTotal = Math.max(1, fim.getTime() - inicio.getTime());
-  const hoje = new Date();
-  const hojePct = ((inicioDoDia(hoje).getTime() - inicio.getTime()) / intervaloTotal) * 100;
+  const hojePct = ((inicioDoDiaLocal().getTime() - inicio.getTime()) / intervaloTotal) * 100;
   const meses: Date[] = [];
   const cursor = new Date(inicio.getFullYear(), inicio.getMonth(), 1);
   const ultimoMes = new Date(fim.getFullYear(), fim.getMonth(), 1);
@@ -361,7 +364,7 @@ function RiskHighlights({ projetoId, riscos }: { projetoId: string; riscos: Visa
 
 function DisciplinesTable({ projeto, dados }: { projeto: ProjetoDetalhe; dados: VisaoGeralProjeto }) {
   const revisoesPendentes = new Map(dados.revisoesPendentesPorDisciplina.map((item) => [item.disciplinaId, item.quantidade]));
-  const hoje = inicioDoDia(new Date());
+  const hoje = inicioDoDiaLocal();
 
   const linha = (disciplina: ProjetoDetalhe["disciplinas"][number]) => {
     const entregue = disciplina.status === "entregue" || disciplina.status === "aprovado";
@@ -561,9 +564,14 @@ export function ProjetoVisaoGeral({
   layoutSalvo,
 }: Props) {
   const progresso = progressoProjeto(projeto.disciplinas.map((disciplina) => disciplina.status));
-  const hoje = inicioDoDia(new Date());
-  const prazoFinal = projeto.prazoFinal ? inicioDoDia(projeto.prazoFinal) : null;
-  const diasPrazo = prazoFinal ? diasEntre(hoje, prazoFinal) : null;
+  const hoje = inicioDoDiaLocal();
+  const prazoContrato = projeto.prazoContrato ? inicioDoDia(projeto.prazoContrato) : null;
+  // A contagem de dias é interna → segue o prazo planejado; o contrato aparece
+  // ao lado como o compromisso com o cliente.
+  const prazoPlanejado = projeto.prazoPlanejado ? inicioDoDia(projeto.prazoPlanejado) : null;
+  const diasPrazo = prazoPlanejado ? diasEntre(hoje, prazoPlanejado) : null;
+  const planejadoEstourou =
+    prazoPlanejado != null && prazoContrato != null && prazoPlanejado > prazoContrato;
   const disciplinasEntregues = projeto.disciplinas.filter((disciplina) => disciplina.status === "entregue" || disciplina.status === "aprovado").length;
   const disciplinasAtrasadas = projeto.disciplinas.filter((disciplina) => disciplina.prazo && disciplina.status !== "aprovado" && inicioDoDia(disciplina.prazo) < hoje).length;
   const ultimaAtualizacao = eventos[0];
@@ -583,8 +591,12 @@ export function ProjetoVisaoGeral({
       id: "prazo",
       conteudo: (
         <SummaryCard href={podeVerPlanejamento && dados.tarefasEap.length > 0 ? `/planejamento/${projeto.id}` : undefined}>
-          <KpiLabel>Prazo final</KpiLabel>
-          <div className="mt-5 flex items-start gap-2"><CalendarDays className={cn("mt-0.5 size-5", diasPrazo != null && diasPrazo < 0 ? "text-destructive" : diasPrazo != null && diasPrazo <= 14 ? "text-warning" : "text-primary")} /><div><p className="font-mono text-lg font-extrabold tabular-nums">{prazoFinal ? formatarData(prazoFinal) : "—"}</p><p className={cn("mt-1 text-xs", diasPrazo != null && diasPrazo < 0 ? "text-destructive" : "text-muted-foreground")}>{diasPrazo == null ? "Sem prazo definido" : diasPrazo < 0 ? `${Math.abs(diasPrazo)} dias de atraso` : `${diasPrazo} dias restantes`}</p></div></div>
+          <KpiLabel tooltip="A contagem segue o prazo planejado (meta interna). O prazo de contrato é o compromisso com o cliente e só muda por decisão de quem gerencia.">Prazos</KpiLabel>
+          <div className="mt-5 flex items-start gap-2"><CalendarDays className={cn("mt-0.5 size-5", diasPrazo != null && diasPrazo < 0 ? "text-destructive" : diasPrazo != null && diasPrazo <= 14 ? "text-warning" : "text-primary")} /><div><p className="font-mono text-lg font-extrabold tabular-nums">{prazoPlanejado ? formatarData(prazoPlanejado) : "—"}</p><p className={cn("mt-1 text-xs", diasPrazo != null && diasPrazo < 0 ? "text-destructive" : "text-muted-foreground")}>{diasPrazo == null ? "Sem prazo planejado" : diasPrazo < 0 ? `${Math.abs(diasPrazo)} dias de atraso` : `${diasPrazo} dias restantes`}</p></div></div>
+          <p className={cn("mt-3 text-xs", planejadoEstourou ? "font-medium text-destructive" : "text-muted-foreground")}>
+            Contrato: {prazoContrato ? formatarData(prazoContrato) : "—"}
+            {planejadoEstourou && " — planejado estourou o contrato"}
+          </p>
           {podeVerPlanejamento && dados.tarefasEap.length > 0 && <p className="mt-3 text-xs font-medium text-primary">Ver cronograma</p>}
         </SummaryCard>
       ),
@@ -634,7 +646,7 @@ export function ProjetoVisaoGeral({
         <Card size="sm">
           <CardHeader className="border-b"><CardTitle className="text-sm">Indicadores críticos</CardTitle></CardHeader>
           <CardContent className="pt-4"><div className="grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-4">
-            <IndicadorCritico label="Atraso no prazo" value={diasPrazo != null && diasPrazo < 0 ? `${Math.abs(diasPrazo)}d` : "—"} description={diasPrazo != null && diasPrazo < 0 ? "Prazo vencido" : prazoFinal ? "Dentro do prazo" : "Sem prazo definido"} tone={diasPrazo != null && diasPrazo < 0 ? "danger" : "success"} />
+            <IndicadorCritico label="Atraso no prazo" value={diasPrazo != null && diasPrazo < 0 ? `${Math.abs(diasPrazo)}d` : "—"} description={diasPrazo != null && diasPrazo < 0 ? "Prazo vencido" : prazoPlanejado ? "Dentro do prazo" : "Sem prazo definido"} tone={diasPrazo != null && diasPrazo < 0 ? "danger" : "success"} />
             <IndicadorCritico label="Desvios de entregas" value={`${disciplinasAtrasadas} / ${projeto.disciplinas.length}`} description={disciplinasAtrasadas > 0 ? "Com prazo vencido" : "Nenhuma em atraso"} tone={disciplinasAtrasadas > 0 ? "danger" : "success"} />
             <IndicadorCritico label="Revisões em atraso" value={String(dados.pendencias.revisoes)} description={dados.pendencias.revisoes > 0 ? "Solicitações pendentes" : "Nenhuma pendente"} tone={dados.pendencias.revisoes > 0 ? "warning" : "success"} />
             <IndicadorCritico label="Aprovações pendentes" value={String(dados.pendencias.aprovacoes)} description={dados.pendencias.aprovacoes > 0 ? "Aguardando retorno" : "Nenhuma pendente"} tone={dados.pendencias.aprovacoes > 0 ? "warning" : "success"} />

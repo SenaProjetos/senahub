@@ -70,3 +70,15 @@ describe("diasDeAtraso", () => {
     }
   });
 });
+
+describe("diasDeAtraso — prazo em meia-noite UTC (regressão do dia a menos)", () => {
+  const prazoUtc = new Date("2026-09-02T00:00:00.000Z");
+
+  it("zero no próprio dia do prazo", () => {
+    expect(diasDeAtraso(prazoUtc, "em_andamento", new Date(2026, 8, 2, 23, 0))).toBe(0);
+  });
+
+  it("um dia de atraso no dia seguinte", () => {
+    expect(diasDeAtraso(prazoUtc, "em_andamento", new Date(2026, 8, 3, 1, 0))).toBe(1);
+  });
+});

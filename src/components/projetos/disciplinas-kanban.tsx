@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { STATUS_LABEL, STATUS_CHIP } from "@/modules/projetos/status";
 import { formatarData } from "@/lib/utils";
+import { inicioDoDia, inicioDoDiaLocal } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -65,12 +66,10 @@ function KanbanCard({
   onToggle: () => void;
   podeGerir: boolean;
 }) {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const prazoVencido =
-    disc.prazo &&
-    disc.status !== "aprovado" &&
-    new Date(disc.prazo) < hoje;
+  // `inicioDoDia` normaliza a meia-noite UTC do banco (ver `lib/data.ts`).
+  const hoje = inicioDoDiaLocal();
+  const venc = inicioDoDia(disc.prazo);
+  const prazoVencido = venc != null && disc.status !== "aprovado" && venc < hoje;
 
   return (
     <div

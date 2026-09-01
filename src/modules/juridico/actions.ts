@@ -219,31 +219,9 @@ export const excluirDocJuridico = defineAction(
   },
 );
 
-// ── E2 Modelos de contrato ────────────────────────────────────
-export const criarModeloContrato = defineAction(
-  { ...base, acao: "criar-modelo", entidade: "ModeloContrato", schema: z.object({ nome: z.string().min(1, "Informe o nome."), categoria: opt(z.string()), conteudo: z.string().default("") }) },
-  async (i) => {
-    const m = await prisma.modeloContrato.create({ data: { nome: i.nome, categoria: i.categoria || null, conteudo: i.conteudo || "" } });
-    rev();
-    return { id: m.id };
-  },
-);
-export const editarModeloContrato = defineAction(
-  { ...base, acao: "editar-modelo", entidade: "ModeloContrato", schema: z.object({ id: z.string().min(1), nome: z.string().min(1), categoria: opt(z.string()), conteudo: z.string() }) },
-  async (i) => {
-    await prisma.modeloContrato.update({ where: { id: i.id }, data: { nome: i.nome, categoria: i.categoria || null, conteudo: i.conteudo } });
-    rev();
-    return { id: i.id };
-  },
-);
-export const excluirModeloContrato = defineAction(
-  { ...base, acao: "excluir-modelo", entidade: "ModeloContrato", schema: idSchema },
-  async (i) => {
-    await prisma.modeloContrato.delete({ where: { id: i.id } });
-    rev();
-    return { id: i.id };
-  },
-);
+// ── E2 Modelos de contrato (LEGADO — tabela dropada em E6) ────────
+// criarModeloContrato, editarModeloContrato, excluirModeloContrato removidas.
+// Fonte: Estúdio de Documentos (módulo/documentos/fontes-meta.ts, fonte "contrato").
 
 /**
  * Fase B2 — cria um ADITIVO de um contrato de equipe, com o delta que ele altera.
@@ -481,7 +459,7 @@ export const registrarAceite = defineAction(
             dataVencimento: true,
             projetoId: true,
             titulo: true,
-            projeto: { select: { prazoFinal: true, disciplinas: { select: { prazo: true } } } },
+            projeto: { select: { prazoContrato: true, disciplinas: { select: { prazo: true } } } },
           },
         },
       },
@@ -603,13 +581,13 @@ export const registrarAceite = defineAction(
           if (doc.projetoId && doc.projeto) {
             const decisao = decidirPrazoDoProjeto(
               doc.dataVencimento,
-              doc.projeto.prazoFinal,
+              doc.projeto.prazoContrato,
               doc.projeto.disciplinas.map((d) => d.prazo),
             );
             if (decisao.define) {
               await tx.projeto.update({
                 where: { id: doc.projetoId },
-                data: { prazoFinal: doc.dataVencimento },
+                data: { prazoContrato: doc.dataVencimento, prazoPlanejado: doc.dataVencimento },
               });
             }
           }

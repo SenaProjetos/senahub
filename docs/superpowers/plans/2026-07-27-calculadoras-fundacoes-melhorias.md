@@ -811,7 +811,7 @@ As Fases 3 a 6 foram desmembradas em planos independentes, cada um com **todo o 
 
 | Fase | Situações | Plano próprio |
 |---|---|---|
-| **3 — `recalque-fundacao`** | VIII, IX, X, XI (recalque imediato elástico/fatias, adensamento, secundária) | [2026-07-27-recalque-fundacao.md](2026-07-27-recalque-fundacao.md) |
+| **3 — `recalque-fundacao`** | VIII, IX, X, XI (recalque imediato elástico/fatias, adensamento, secundária) | [2026-07-27-recalque-fundacao.md](../../concluidos/plans/2026-07-27-recalque-fundacao.md) |
 | **4 — `sapata-prova-carga`** | I (ensaio de placa / Boston) | [2026-07-27-sapata-prova-carga.md](2026-07-27-sapata-prova-carga.md) |
 | **5 — Enriquecimentos** | V (deslizamento + c/φ por SPT), VI (preset de divisa) sobre `eccentric-footing.ts` | [2026-07-27-enriquecimentos-sapata-excentrica.md](2026-07-27-enriquecimentos-sapata-excentrica.md) |
 | **6 — `sapata-associada`** | IV (2 pilares + viga de rigidez + DEC/DMF) | [2026-07-27-sapata-associada.md](2026-07-27-sapata-associada.md) |
@@ -828,7 +828,7 @@ As Fases 3 a 6 foram desmembradas em planos independentes, cada um com **todo o 
 
 A Task 1.3 entregou o **render** do cabeçalho (`MemoriaIdentificacao`), mas só obra/cliente/local têm origem
 no banco: `responsavel`/`registro`/`art` ficam vazios porque não existe campo para eles. Isso é resolvido
-por um plano próprio: [2026-07-27-art-crea-responsavel-tecnico.md](2026-07-27-art-crea-responsavel-tecnico.md)
+por um plano próprio: [2026-07-27-art-crea-responsavel-tecnico.md](../../concluidos/plans/2026-07-27-art-crea-responsavel-tecnico.md)
 — CREA/CAU no cadastro do usuário, cadastro de ARTs versionadas por projeto (visíveis nos Arquivos) e o
 seletor de ART/responsável no memorial. Tem 4 decisões a confirmar antes de executar.
 

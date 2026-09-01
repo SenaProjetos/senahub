@@ -63,11 +63,11 @@ export type DecisaoPrazoProjeto =
   | { define: false; motivo: "sem_prazo_no_contrato" | "projeto_ja_tem_prazo" | "disciplina_ultrapassa" };
 
 /**
- * O prazo do contrato pode virar `Projeto.prazoFinal`? (Fase H3)
+ * O prazo do contrato pode virar `Projeto.prazoContrato`? (Fase H3)
  *
  * Duas guardas, e nenhuma é excesso de zelo:
  *
- * 1. **Nunca sobrescreve prazo existente.** `Projeto.prazoFinal` é editável à mão em
+ * 1. **Nunca sobrescreve prazo existente.** `Projeto.prazoContrato` é editável à mão em
  *    `projetos/actions.ts`; se alguém já definiu, essa pessoa sabe algo que o contrato não diz.
  *    Propagar por cima apagaria a decisão dela em silêncio.
  * 2. **Não define prazo ANTES de disciplina já agendada.** O mesmo `projetos/actions.ts` recusa

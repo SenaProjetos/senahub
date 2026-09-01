@@ -24,7 +24,7 @@ const SITUACAO_PT: Record<string, string> = {
   cancelado: "Cancelado",
 };
 const TIPO_PT: Record<string, string> = { particular: "Particular", licitacao: "Licitação" };
-const CABECALHO = ["Código", "Nome", "Cliente", "Tipo", "Situação", "Prazo", "Valor Contrato (R$)", "Disciplinas Total", "Aprovadas", "Criado em"];
+const CABECALHO = ["Código", "Nome", "Cliente", "Tipo", "Situação", "Prazo de contrato", "Prazo planejado", "Valor Contrato (R$)", "Disciplinas Total", "Aprovadas", "Criado em"];
 
 export async function GET(request: Request) {
   // `getSession` (lib/session) traz o sujeito completo que `can()` agora exige — a sessão crua
@@ -47,7 +47,8 @@ export async function GET(request: Request) {
       nome: true,
       situacao: true,
       tipo: true,
-      prazoFinal: true,
+      prazoContrato: true,
+      prazoPlanejado: true,
       valorContrato: true,
       createdAt: true,
       cliente: { select: { nome: true } },
@@ -61,7 +62,8 @@ export async function GET(request: Request) {
     cliente: p.cliente.nome,
     tipo: TIPO_PT[p.tipo] ?? p.tipo,
     situacao: SITUACAO_PT[p.situacao] ?? p.situacao,
-    prazo: p.prazoFinal ? p.prazoFinal.toISOString().slice(0, 10) : "",
+    prazoContrato: p.prazoContrato ? p.prazoContrato.toISOString().slice(0, 10) : "",
+    prazoPlanejado: p.prazoPlanejado ? p.prazoPlanejado.toISOString().slice(0, 10) : "",
     valor: p.valorContrato != null ? Number(p.valorContrato) : null,
     total: p.disciplinas.length,
     aprovadas: p.disciplinas.filter((d) => d.status === "aprovado").length,
@@ -73,7 +75,7 @@ export async function GET(request: Request) {
   if (formato === "csv") {
     const out: string[] = [csvRow(CABECALHO)];
     for (const l of linhas) {
-      out.push(csvRow([l.codigo, l.nome, l.cliente, l.tipo, l.situacao, l.prazo, l.valor != null ? l.valor.toFixed(2) : "", l.total, l.aprovadas, l.criado]));
+      out.push(csvRow([l.codigo, l.nome, l.cliente, l.tipo, l.situacao, l.prazoContrato, l.prazoPlanejado, l.valor != null ? l.valor.toFixed(2) : "", l.total, l.aprovadas, l.criado]));
     }
     const csv = "﻿" + out.join("\r\n"); // BOM para Excel pt-BR
     return new Response(csv, {
@@ -92,7 +94,8 @@ export async function GET(request: Request) {
     { header: "Cliente", key: "cliente", width: 28 },
     { header: "Tipo", key: "tipo", width: 12 },
     { header: "Situação", key: "situacao", width: 14 },
-    { header: "Prazo", key: "prazo", width: 12 },
+    { header: "Prazo de contrato", key: "prazoContrato", width: 16 },
+    { header: "Prazo planejado", key: "prazoPlanejado", width: 16 },
     { header: "Valor Contrato (R$)", key: "valor", width: 18 },
     { header: "Disciplinas Total", key: "total", width: 16 },
     { header: "Aprovadas", key: "aprovadas", width: 11 },

@@ -98,14 +98,15 @@ import { TarefaDialog, type TarefaUI, type OpcoesUI } from "@/components/tarefas
 import { PRIORIDADE_LABEL, PRIORIDADE_CLASS, ehPrioridade } from "@/modules/tarefas/prioridade";
 import { Badge } from "@/components/ui/badge";
 import { brl, formatarData, rotuloRevisao } from "@/lib/utils";
+import { prazoVencido } from "@/lib/data";
 
 /** Tarefa da disciplina para a lista (formato do board + nome/cor/concluído do status). */
 export type TarefaDaDisciplina = TarefaUI & { statusNome: string; statusCor: string | null; concluido: boolean };
 
-/** Tarefa atrasada = tem prazo passado e não está numa coluna final. */
+/** Tarefa atrasada = o prazo já PASSOU (o próprio dia ainda vale) e não está numa coluna final. */
 function tarefaAtrasada(t: TarefaDaDisciplina): boolean {
-  if (!t.prazo || t.concluido) return false;
-  return new Date(t.prazo) < new Date(new Date().toDateString());
+  if (t.concluido) return false;
+  return prazoVencido(t.prazo);
 }
 
 type UploadItem = {
@@ -1277,10 +1278,15 @@ function ArquivosDialog({
   );
 }
 
-/** Reabrir disciplina aprovada (gestor). Volta para "em revisão" com motivo — fica na auditoria. */
+/**
+ * Reabrir disciplina aprovada (gestor). Volta para "em revisão" com motivo e novo
+ * prazo — ambos ficam na auditoria. Se o novo prazo passar do prazo planejado do
+ * projeto, o servidor desloca o planejado junto e registra no histórico.
+ */
 function ReabrirDisciplinaDialog({ disciplina }: { disciplina: Disc }) {
   const [open, setOpen] = useState(false);
   const [motivo, setMotivo] = useState("");
+  const [novoPrazo, setNovoPrazo] = useState("");
   const [pending, start] = useTransition();
 
   function reabrir() {
@@ -1288,11 +1294,24 @@ function ReabrirDisciplinaDialog({ disciplina }: { disciplina: Disc }) {
       toast.error("Explique o motivo da reabertura.");
       return;
     }
+    if (!novoPrazo) {
+      toast.error("Informe o novo prazo da disciplina.");
+      return;
+    }
     start(async () => {
-      const res = await reabrirDisciplina({ disciplinaId: disciplina.id, motivo: motivo.trim() });
+      const res = await reabrirDisciplina({
+        disciplinaId: disciplina.id,
+        motivo: motivo.trim(),
+        novoPrazo,
+      });
       if (res.ok) {
-        toast.success("Disciplina reaberta para revisão.");
+        toast.success(
+          res.data.prazoProjetoDeslocado
+            ? "Disciplina reaberta. O prazo planejado do projeto foi deslocado junto."
+            : "Disciplina reaberta para revisão.",
+        );
         setMotivo("");
+        setNovoPrazo("");
         setOpen(false);
       } else {
         toast.error(res.error);
@@ -1315,6 +1334,7 @@ function ReabrirDisciplinaDialog({ disciplina }: { disciplina: Disc }) {
           <DialogDescription>
             Volta para &ldquo;em revisão&rdquo; para novos ajustes. O pagamento já liberado é mantido — a
             reaprovação posterior não gera pagamento novo. A reabertura fica registrada na auditoria.
+            Se o novo prazo passar do prazo planejado do projeto, ele desloca junto.
           </DialogDescription>
         </DialogHeader>
         <Input
@@ -1323,6 +1343,15 @@ function ReabrirDisciplinaDialog({ disciplina }: { disciplina: Disc }) {
           placeholder="Motivo da reabertura"
           autoFocus
         />
+        <div className="space-y-1.5">
+          <Label htmlFor={`reabrir-prazo-${disciplina.id}`}>Novo prazo da disciplina</Label>
+          <Input
+            id={`reabrir-prazo-${disciplina.id}`}
+            type="date"
+            value={novoPrazo}
+            onChange={(e) => setNovoPrazo(e.target.value)}
+          />
+        </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)} disabled={pending}>
             Cancelar

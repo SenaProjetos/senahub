@@ -2,8 +2,8 @@
 
 **Data:** 2026-07-29 · **Status:** plano aguardando OK — **implementação bloqueada** (ver §0) · **Branch:** `dev` · **Modelo:** Opus
 
-Depende de: [C0](2026-07-27-custos-c0-fundacao.md) (`9c0c2d5`), [C1](2026-07-28-custos-c1-bancos.md) (`3bd05d9`),
-[C2](2026-07-28-custos-c2-orcamento.md) (`0223f85`) — todas implementadas.
+Depende de: [C0](../../concluidos/plans/2026-07-27-custos-c0-fundacao.md) (`9c0c2d5`), [C1](../../concluidos/plans/2026-07-28-custos-c1-bancos.md) (`3bd05d9`),
+[C2](../../concluidos/plans/2026-07-28-custos-c2-orcamento.md) (`0223f85`) — todas implementadas.
 Fonte arquitetural: [design de conformidade](../specs/2026-07-27-engenharia-custos-design.md) §4 (itens 2, 3) e §8.
 
 ---

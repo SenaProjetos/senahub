@@ -74,6 +74,7 @@ export default async function AcessosPage({ searchParams }: { searchParams: Prom
     podeGerir,
     podeRevelar,
     podeAuditar,
+    podeCategorias,
     opcoesForm,
   ] = await Promise.all([
     listarCredenciaisPaginado(viewer, filtros, { skip, take, sort, dir }),
@@ -91,6 +92,7 @@ export default async function AcessosPage({ searchParams }: { searchParams: Prom
     // falharia.
     can(user, "acessos", "credencial"),
     can(user, "acessos", "auditoria"),
+    can(user, "acessos", "categorias"),
     opcoesFormulario(),
   ]);
 
@@ -111,6 +113,7 @@ export default async function AcessosPage({ searchParams }: { searchParams: Prom
       podeGerir={podeGerir}
       podeRevelar={podeRevelar}
       podeAuditar={podeAuditar}
+      podeCategorias={podeCategorias}
       opcoesForm={opcoesForm}
       filtros={{
         q,

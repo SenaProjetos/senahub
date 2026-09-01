@@ -4,6 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { GLOBAL_ROLES, type Role } from "@/lib/roles";
 import type { SessionUser } from "@/lib/session";
 import { escopoProjeto } from "@/modules/projetos/queries";
+import { inicioDoDiaUtc } from "@/lib/data";
 
 type Viewer = { id: string; role: Role };
 
@@ -67,7 +68,10 @@ export function whereQuadroTarefas(
   if (filtros.responsavelId) and.push({ responsaveis: { some: { userId: filtros.responsavelId } } });
   if (filtros.prioridade) and.push({ prioridade: filtros.prioridade });
 
-  const inicioHoje = new Date(referencia.getFullYear(), referencia.getMonth(), referencia.getDate());
+  // Fronteira em meia-noite UTC: `Tarefa.prazo` é `@db.Date` (o banco guarda
+  // 00:00Z). Com meia-noite local (03:00Z) a tarefa que vence HOJE caía em
+  // "atrasadas" e ficava de fora da semana/mês.
+  const inicioHoje = inicioDoDiaUtc(referencia);
   if (filtros.periodo === "atrasadas") {
     and.push({ prazo: { lt: inicioHoje }, status: { concluido: false } });
   } else if (filtros.periodo === "semana") {

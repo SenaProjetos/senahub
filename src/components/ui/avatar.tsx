@@ -75,7 +75,10 @@ function AvatarGroup({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="avatar-group"
       className={cn(
-        "group/avatar-group flex -space-x-2 *:data-[slot=avatar]:ring-2 *:data-[slot=avatar]:ring-background",
+        // A sobreposição acompanha o tamanho do avatar: -8px come um terço de um
+        // avatar `sm` (24px) e amassa as fotos + o ponto de online, enquanto no
+        // tamanho padrão (32px) é a proporção certa.
+        "group/avatar-group flex -space-x-2 has-data-[size=sm]:-space-x-1 has-data-[size=lg]:-space-x-2.5 *:data-[slot=avatar]:ring-2 *:data-[slot=avatar]:ring-background",
         className
       )}
       {...props}

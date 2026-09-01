@@ -48,9 +48,9 @@ export default async function PortalProjetoPage({
           <Badge variant="outline">{SITUACAO_PROJETO_LABEL[projeto.situacao]}</Badge>
         </div>
         <div className="mt-1 flex flex-wrap gap-4 text-sm text-muted-foreground">
-          {projeto.prazoFinal && (
+          {projeto.prazoContrato && (
             <span className="flex items-center gap-1.5">
-              <CalendarDays className="size-4" /> Prazo: {fmt(projeto.prazoFinal)}
+              <CalendarDays className="size-4" /> Prazo: {fmt(projeto.prazoContrato)}
             </span>
           )}
           {projeto.endereco && (

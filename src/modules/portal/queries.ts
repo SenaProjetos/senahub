@@ -25,7 +25,7 @@ export async function projetosDoCliente(clienteId: string) {
       codigo: true,
       nome: true,
       situacao: true,
-      prazoFinal: true,
+      prazoContrato: true,
       disciplinas: { select: { status: true } },
     },
   });
@@ -34,7 +34,7 @@ export async function projetosDoCliente(clienteId: string) {
     codigo: p.codigo,
     nome: p.nome,
     situacao: p.situacao,
-    prazoFinal: p.prazoFinal ? p.prazoFinal.toISOString().slice(0, 10) : null,
+    prazoContrato: p.prazoContrato ? p.prazoContrato.toISOString().slice(0, 10) : null,
     totalDisciplinas: p.disciplinas.length,
     progresso: progresso(p.disciplinas),
   }));
@@ -49,7 +49,7 @@ export async function projetoDoCliente(clienteId: string, projetoId: string) {
       codigo: true,
       nome: true,
       situacao: true,
-      prazoFinal: true,
+      prazoContrato: true,
       endereco: true,
       disciplinas: {
         orderBy: { ordem: "asc" },
@@ -64,7 +64,7 @@ export async function projetoDoCliente(clienteId: string, projetoId: string) {
     nome: p.nome,
     situacao: p.situacao,
     endereco: p.endereco,
-    prazoFinal: p.prazoFinal ? p.prazoFinal.toISOString().slice(0, 10) : null,
+    prazoContrato: p.prazoContrato ? p.prazoContrato.toISOString().slice(0, 10) : null,
     progresso: progresso(p.disciplinas),
     disciplinas: p.disciplinas.map((d) => ({
       id: d.id,

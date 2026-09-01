@@ -2,6 +2,18 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.15.0](https://github.com/SenaProjetos/senahub/compare/v1.14.0...v1.15.0) (2026-08-31)
+
+
+### ✨ Funcionalidades
+
+* **juridico:** E6 Parte B — remove o pipeline de modelo em texto puro ([85e8a8b](https://github.com/SenaProjetos/senahub/commit/85e8a8b5f15d210731569ada557a83b3b594505f))
+
+
+### 🐛 Correções
+
+* **e6:** script paliativo para recriar modelo_contrato vazia ([a125f8c](https://github.com/SenaProjetos/senahub/commit/a125f8c3a540c17fce270bb54446d8183c7423b1))
+
 ## [1.14.0](https://github.com/SenaProjetos/senahub/compare/v1.13.0...v1.14.0) (2026-08-30)
 
 

@@ -69,7 +69,7 @@ async function main() {
       disciplinaTextoLegado: true,
       disciplinaId: true,
       projetoId: true,
-      projeto: { select: { codigo: true, nome: true, tipo: true, situacao: true, prazoFinal: true } },
+      projeto: { select: { codigo: true, nome: true, tipo: true, situacao: true, prazoContrato: true } },
       responsaveis: { select: { userId: true } },
     },
   });
@@ -177,7 +177,7 @@ async function main() {
 
   // ── Efeito colateral que vale conferir antes, não descobrir por notificação ──────────────
   // `alertaRiscoProjeto` (lib/jobs-handlers.ts) notifica admin+supervisor sobre projeto
-  // `em_andamento` com `prazoFinal` vencido QUE TENHA alguma disciplina não-aprovada. A CFTV
+  // `em_andamento` com `prazoContrato` vencido QUE TENHA alguma disciplina não-aprovada. A CFTV
   // nova nasce `aguardando`, então um projeto atrasado cujas disciplinas estavam TODAS
   // aprovadas passa a alertar. O alerta é deduplicado por dia (tag `risco-prazo-<id>-<data>`),
   // então não vira enxurrada — mas é melhor saber antes.
@@ -190,18 +190,18 @@ async function main() {
         select: {
           codigo: true,
           situacao: true,
-          prazoFinal: true,
+          prazoContrato: true,
           disciplinas: { select: { status: true } },
         },
       });
       if (!pj) continue;
-      const atrasado = pj.situacao === "em_andamento" && pj.prazoFinal != null && pj.prazoFinal < hoje;
+      const atrasado = pj.situacao === "em_andamento" && pj.prazoContrato != null && pj.prazoContrato < hoje;
       const naoAprovadas = pj.disciplinas.filter((x) => x.status !== "aprovado").length;
       const alertaNovo = atrasado && naoAprovadas > 0;
       const marca = alertaNovo ? "⚠" : "✓";
       console.log(
         `  ${marca} ${pj.codigo} — situação=${pj.situacao}` +
-          `, prazoFinal=${pj.prazoFinal ? pj.prazoFinal.toISOString().slice(0, 10) : "(sem)"}` +
+          `, prazoContrato=${pj.prazoContrato ? pj.prazoContrato.toISOString().slice(0, 10) : "(sem)"}` +
           `, ${naoAprovadas} de ${pj.disciplinas.length} disciplina(s) não aprovada(s)` +
           (alertaNovo ? " → JÁ entra em `alertaRiscoProjeto`" : ""),
       );

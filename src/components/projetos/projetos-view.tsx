@@ -52,6 +52,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SortableHead } from "@/components/ui/sortable-head";
 import { Pagination } from "@/components/ui/pagination";
 import { useSetParams } from "@/lib/use-set-param";
+import { inicioDoDia, inicioDoDiaLocal } from "@/lib/data";
 import { formatarData } from "@/lib/utils";
 import { saudeProjeto, type NivelSaude } from "@/modules/projetos/health";
 
@@ -73,8 +74,23 @@ const SAUDE_ORDEM: Record<NivelSaude, number> = { critico: 0, atencao: 1, ok: 2 
 
 /** Dias de atraso de um projeto em andamento (0 se sem prazo ou no prazo). */
 function diasAtraso(p: ProjetoListItem): number {
-  if (!p.prazoFinal || p.situacao !== "em_andamento") return 0;
-  return Math.max(0, Math.round((Date.now() - new Date(p.prazoFinal).getTime()) / 86400000));
+  if (!p.prazoPlanejado || p.situacao !== "em_andamento") return 0;
+  // Compara por DIA (prazo é data, não horário) e normaliza a meia-noite UTC do
+  // banco — o diff de ms cru dava um dia a mais/menos conforme a hora do acesso.
+  const venc = inicioDoDia(p.prazoPlanejado);
+  if (!venc) return 0;
+  return Math.max(0, Math.round((inicioDoDiaLocal().getTime() - venc.getTime()) / 86400000));
+}
+
+/**
+ * Tooltip do prazo: a lista mostra o PLANEJADO (é tela interna) e só cita o
+ * contrato quando os dois divergem — repetir a mesma data seria ruído.
+ */
+function tituloPrazo(p: ProjetoListItem): string {
+  const planejado = formatarData(p.prazoPlanejado);
+  const contrato = formatarData(p.prazoContrato);
+  if (!contrato || contrato === planejado) return `Prazo planejado: ${planejado}`;
+  return `Prazo planejado: ${planejado} · Contrato: ${contrato}`;
 }
 
 /** Cor do texto do prazo conforme a saúde do projeto. */
@@ -140,8 +156,8 @@ export function ProjetosView({
 
   const items = sortRisco
     ? [...itemsOriginais].sort((a, b) => {
-        const sa = saudeProjeto(a.disciplinas, a.prazoFinal, a.situacao) ?? "ok";
-        const sb = saudeProjeto(b.disciplinas, b.prazoFinal, b.situacao) ?? "ok";
+        const sa = saudeProjeto(a.disciplinas, a.prazoPlanejado, a.situacao) ?? "ok";
+        const sb = saudeProjeto(b.disciplinas, b.prazoPlanejado, b.situacao) ?? "ok";
         return SAUDE_ORDEM[sa] - SAUDE_ORDEM[sb];
       })
     : itemsOriginais;
@@ -382,7 +398,7 @@ function ProjetosTabela({ items, prontas }: { items: ProjetoListItem[]; prontas:
         </TableHeader>
         <TableBody>
           {items.map((p) => {
-            const saude = saudeProjeto(p.disciplinas, p.prazoFinal, p.situacao);
+            const saude = saudeProjeto(p.disciplinas, p.prazoPlanejado, p.situacao);
             const atraso = diasAtraso(p);
             return (
               <TableRow key={p.id}>
@@ -409,9 +425,9 @@ function ProjetosTabela({ items, prontas }: { items: ProjetoListItem[]; prontas:
                   <DisciplinaIcones disciplinas={p.disciplinas} />
                 </TableCell>
                 <TableCell className="hidden lg:table-cell">
-                  {p.prazoFinal ? (
-                    <span className={`inline-flex items-center gap-1 text-xs ${corPrazo(saude)}`}>
-                      {formatarData(p.prazoFinal)}
+                  {p.prazoPlanejado ? (
+                    <span className={`inline-flex items-center gap-1 text-xs ${corPrazo(saude)}`} title={tituloPrazo(p)}>
+                      {formatarData(p.prazoPlanejado)}
                       {atraso > 0 && (
                         <Badge variant="destructive" className="text-[9px] leading-tight">
                           +{atraso}d
@@ -449,7 +465,7 @@ function ProjetosCards({ items, prontas }: { items: ProjetoListItem[]; prontas: 
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {items.map((p) => {
         const prog = progressoProjeto(p.disciplinas.map((d) => d.status));
-        const saude = saudeProjeto(p.disciplinas, p.prazoFinal, p.situacao);
+        const saude = saudeProjeto(p.disciplinas, p.prazoPlanejado, p.situacao);
         const atraso = diasAtraso(p);
         return (
           <Link
@@ -472,10 +488,10 @@ function ProjetosCards({ items, prontas }: { items: ProjetoListItem[]; prontas: 
             </div>
             <DisciplinaIcones disciplinas={p.disciplinas} />
             <div className="mt-auto flex items-center justify-between gap-2 pt-1 text-xs">
-              {p.prazoFinal ? (
-                <span className={`inline-flex items-center gap-1 ${corPrazo(saude)}`}>
+              {p.prazoPlanejado ? (
+                <span className={`inline-flex items-center gap-1 ${corPrazo(saude)}`} title={tituloPrazo(p)}>
                   <CalendarClock className="size-3.5" aria-hidden />
-                  {formatarData(p.prazoFinal)}
+                  {formatarData(p.prazoPlanejado)}
                   {atraso > 0 && (
                     <Badge variant="destructive" className="text-[9px] leading-tight">
                       +{atraso}d

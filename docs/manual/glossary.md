@@ -84,6 +84,13 @@ leads diferentes para obras ou escopos diferentes.
 
 **Disciplina** — Subárea técnica de um projeto (ex.: estrutural, hidráulica). 🚧
 
+**Prazo de contrato** — A data combinada com o cliente. É o compromisso externo: aparece no
+portal do cliente e nos contratos, e só muda por decisão de quem gerencia o projeto.
+
+**Prazo planejado** — A data que a equipe persegue internamente. Nasce igual ao prazo de
+contrato e é ela que manda na saúde do projeto, no atraso, nos alertas e na EAP. Quando uma
+disciplina é reaberta para uma data mais distante, o prazo planejado desloca junto.
+
 **CPM (Caminho Crítico)** — Método que identifica a sequência de tarefas que define o
 prazo final do projeto. 🚧
 

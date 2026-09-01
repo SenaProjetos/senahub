@@ -29,7 +29,10 @@ export const criarProjetoSchema = z.object({
   descricao: z.string().optional(),
   areaM2: z.number().nonnegative().optional(),
   endereco: z.string().optional(),
-  prazoFinal: z.string().optional(),
+  /** Compromisso com o cliente — obrigatório: todo projeto nasce com prazo de contrato. */
+  prazoContrato: z.string().min(1, "Informe o prazo de contrato."),
+  /** Meta interna. Vazio = nasce copiando o prazo de contrato. */
+  prazoPlanejado: z.string().optional(),
   valorContrato: z.number().nonnegative().optional(),
   disciplinas: z.array(disciplinaInputSchema).min(1, "Adicione ao menos uma disciplina."),
   membrosIds: z.array(z.string()).default([]),
@@ -45,7 +48,9 @@ export const editarProjetoSchema = z.object({
   descricao: z.string().optional(),
   areaM2: z.number().nonnegative().optional(),
   endereco: z.string().optional(),
-  prazoFinal: z.string().optional(),
+  prazoContrato: z.string().min(1, "Informe o prazo de contrato."),
+  /** Vazio = acompanha o prazo de contrato. */
+  prazoPlanejado: z.string().optional(),
   valorContrato: z.number().nonnegative().optional(),
   abasConfig: z.array(abaConfigItemSchema).optional(),
 });
@@ -55,10 +60,16 @@ export const atualizarStatusDisciplinaSchema = z.object({
   status: z.enum(STATUS_DISCIPLINA),
 });
 
-/** Reabertura de disciplina aprovada — exige motivo (fica no registro de auditoria). */
+/**
+ * Reabertura de disciplina aprovada — exige motivo E novo prazo (ambos ficam no
+ * registro de auditoria). Reabrir sem repactuar a data deixaria a disciplina
+ * viva com o prazo antigo, já vencido, e nasceria atrasada.
+ */
 export const reabrirDisciplinaSchema = z.object({
   disciplinaId: z.string().min(1),
   motivo: z.string().min(3, "Explique o motivo da reabertura.").max(500),
+  /** ISO date (yyyy-mm-dd). Se passar do prazo planejado do projeto, ele desloca junto. */
+  novoPrazo: z.string().min(1, "Informe o novo prazo da disciplina."),
 });
 
 export const responsaveisDisciplinaSchema = z.object({

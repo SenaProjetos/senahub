@@ -31,7 +31,7 @@ const PAVIMENTO_SEM_NOME = "Sem pavimento";
  * Árvore de navegação do modelo: Pavimento → Categoria (IfcClass), com contagem.
  * Clicar numa categoria isola só aqueles elementos na cena (via ViewerEngine);
  * "Mostrar tudo" reverte. Busca o índice sob demanda (client fragments API, Onda 0
- * — ver docs/superpowers/plans/2026-07-21-compatibilizacao-ferramentas.md).
+ * — ver docs/concluidos/plans/2026-07-21-compatibilizacao-ferramentas.md).
  */
 export function ArvoreModelo({
   engine,

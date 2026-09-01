@@ -19,6 +19,7 @@ import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-bu
 import { ProjetoTabNav } from "@/components/projetos/projeto-tab-nav";
 import { ProjetoAcoesMenu } from "@/components/projetos/projeto-acoes-menu";
 import { EditarProjetoDialog } from "@/components/projetos/editar-projeto-dialog";
+import { inicioDoDia, inicioDoDiaLocal } from "@/lib/data";
 
 export const metadata: Metadata = { title: "Projeto" };
 
@@ -51,12 +52,13 @@ export default async function ProjetoLayout({
   const clientes = podeGerir ? await listarClientes({ incluirInativos: false }) : [];
 
   const diasAtraso = (() => {
-    if (!projeto.prazoFinal || projeto.situacao !== "em_andamento") return 0;
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    const venc = new Date(projeto.prazoFinal);
-    venc.setHours(0, 0, 0, 0);
-    return Math.max(0, Math.floor((hoje.getTime() - venc.getTime()) / 86_400_000));
+    // Banner interno → prazo planejado.
+    if (!projeto.prazoPlanejado || projeto.situacao !== "em_andamento") return 0;
+    // `inicioDoDia` normaliza a meia-noite UTC do banco: `setHours(0,…)` direto
+    // recuava o vencimento um dia em America/Sao_Paulo.
+    const venc = inicioDoDia(projeto.prazoPlanejado);
+    if (!venc) return 0;
+    return Math.max(0, Math.floor((inicioDoDiaLocal().getTime() - venc.getTime()) / 86_400_000));
   })();
 
   return (
@@ -110,7 +112,8 @@ export default async function ProjetoLayout({
                 descricao: projeto.descricao,
                 areaM2: projeto.areaM2 != null ? Number(projeto.areaM2) : null,
                 endereco: projeto.endereco,
-                prazoFinal: projeto.prazoFinal ? projeto.prazoFinal.toISOString().slice(0, 10) : null,
+                prazoContrato: projeto.prazoContrato ? projeto.prazoContrato.toISOString().slice(0, 10) : null,
+                prazoPlanejado: projeto.prazoPlanejado ? projeto.prazoPlanejado.toISOString().slice(0, 10) : null,
                 valorContrato: projeto.valorContrato != null ? Number(projeto.valorContrato) : null,
                 clienteId: projeto.cliente.id,
                 abasConfig: (projeto.abasConfig as AbaConfigItem[] | null) ?? null,

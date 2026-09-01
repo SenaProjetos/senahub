@@ -1,4 +1,5 @@
 import type { StatusDisciplina } from "@/generated/prisma/client";
+import { inicioDoDia, inicioDoDiaLocal } from "@/lib/data";
 
 /** Status que encerram a disciplina — não contam como atraso mesmo após o prazo. */
 const STATUS_CONCLUIDOS: ReadonlySet<StatusDisciplina> = new Set(["entregue", "aprovado"]);
@@ -14,10 +15,11 @@ export function diasDeAtraso(
   agora: Date = new Date(),
 ): number {
   if (!prazo || STATUS_CONCLUIDOS.has(status)) return 0;
-  const limite = new Date(prazo);
-  if (Number.isNaN(limite.getTime())) return 0;
-  const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
-  const venc = new Date(limite.getFullYear(), limite.getMonth(), limite.getDate());
+  // `inicioDoDia` normaliza a meia-noite UTC do banco: sem isso a disciplina
+  // aparecia atrasada um dia antes em America/Sao_Paulo.
+  const venc = inicioDoDia(prazo);
+  if (!venc) return 0;
+  const hoje = inicioDoDiaLocal(agora);
   const dias = Math.floor((hoje.getTime() - venc.getTime()) / 86_400_000);
   return dias > 0 ? dias : 0;
 }

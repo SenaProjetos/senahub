@@ -48,7 +48,8 @@ export function ProjetoForm({
   const [nome, setNome] = useState("");
   const [clienteId, setClienteId] = useState("");
   const [areaM2, setAreaM2] = useState("");
-  const [prazoFinal, setPrazoFinal] = useState("");
+  const [prazoContrato, setPrazoContrato] = useState("");
+  const [prazoPlanejado, setPrazoPlanejado] = useState("");
   const [valorContrato, setValorContrato] = useState<number | null>(null);
   const [disciplinas, setDisciplinas] = useState<DiscDraft[]>([]);
 
@@ -82,6 +83,10 @@ export function ProjetoForm({
       toast.error("Informe nome e cliente.");
       return;
     }
+    if (!prazoContrato) {
+      toast.error("Informe o prazo de contrato.");
+      return;
+    }
     if (disciplinas.length === 0) {
       toast.error("Adicione ao menos uma disciplina.");
       return;
@@ -92,7 +97,9 @@ export function ProjetoForm({
         nome,
         clienteId,
         areaM2: areaM2 ? Number(areaM2) : undefined,
-        prazoFinal: prazoFinal || undefined,
+        prazoContrato,
+        // Vazio = nasce igual ao contrato (o servidor faz a cópia).
+        prazoPlanejado: prazoPlanejado || undefined,
         valorContrato: valorContrato ?? undefined,
         membrosIds: [],
         disciplinas: disciplinas.map((d) => ({
@@ -108,7 +115,8 @@ export function ProjetoForm({
         setNome("");
         setClienteId("");
         setAreaM2("");
-        setPrazoFinal("");
+        setPrazoContrato("");
+        setPrazoPlanejado("");
         setValorContrato(null);
         setDisciplinas([]);
         router.push(`/projetos/${res.data.id}`);
@@ -166,14 +174,24 @@ export function ProjetoForm({
             <Input value={nome} onChange={(e) => setNome(e.target.value)} />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <Label>Área (m²)</Label>
               <Input type="number" value={areaM2} onChange={(e) => setAreaM2(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>Prazo final</Label>
-              <Input type="date" value={prazoFinal} onChange={(e) => setPrazoFinal(e.target.value)} />
+              <Label>Prazo de contrato *</Label>
+              <Input type="date" value={prazoContrato} onChange={(e) => setPrazoContrato(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Prazo planejado</Label>
+              <Input
+                type="date"
+                value={prazoPlanejado}
+                onChange={(e) => setPrazoPlanejado(e.target.value)}
+                placeholder="Igual ao contrato"
+              />
+              <p className="text-xs text-muted-foreground">Em branco, acompanha o contrato.</p>
             </div>
           </div>
 

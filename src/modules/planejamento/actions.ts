@@ -258,7 +258,7 @@ export const gerarEapDasDisciplinas = defineAction(
         where: { projetoId: i.projetoId, disciplinaId: { not: null } },
         select: { disciplinaId: true },
       }),
-      prisma.projeto.findUnique({ where: { id: i.projetoId }, select: { prazoFinal: true } }),
+      prisma.projeto.findUnique({ where: { id: i.projetoId }, select: { prazoPlanejado: true } }),
       prisma.eapTarefa.aggregate({ where: { projetoId: i.projetoId }, _max: { ordem: true } }),
     ]);
     const jaComEap = new Set(existentes.map((e) => e.disciplinaId));
@@ -273,8 +273,8 @@ export const gerarEapDasDisciplinas = defineAction(
         const fim =
           d.prazo && d.prazo > hoje
             ? d.prazo
-            : projeto?.prazoFinal && projeto.prazoFinal > hoje
-              ? projeto.prazoFinal
+            : projeto?.prazoPlanejado && projeto.prazoPlanejado > hoje
+              ? projeto.prazoPlanejado
               : addDays(hoje, 14);
         return prisma.eapTarefa.create({
           data: {

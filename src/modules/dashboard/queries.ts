@@ -168,7 +168,8 @@ export async function carteiraProjetosDashboard() {
       id: true,
       codigo: true,
       nome: true,
-      prazoFinal: true,
+      prazoContrato: true,
+      prazoPlanejado: true,
       situacao: true,
       cliente: { select: { nome: true } },
       disciplinas: {
@@ -198,7 +199,8 @@ export async function carteiraProjetosDashboard() {
     codigo: p.codigo,
     nome: p.nome,
     cliente: p.cliente.nome,
-    prazoFinal: p.prazoFinal?.toISOString().slice(0, 10) ?? null,
+    prazoContrato: p.prazoContrato?.toISOString().slice(0, 10) ?? null,
+    prazoPlanejado: p.prazoPlanejado?.toISOString().slice(0, 10) ?? null,
     progresso: p.disciplinas.length
       ? Math.round(
           (p.disciplinas.reduce((s, d) => s + PESO_STATUS[d.status], 0) / p.disciplinas.length) * 100,

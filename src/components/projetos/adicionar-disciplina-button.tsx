@@ -19,10 +19,10 @@ import { criarDisciplina } from "@/modules/projetos/actions";
 interface Props {
   projetoId: string;
   internos: { id: string; name: string }[];
-  prazoFinal?: string | null;
+  prazoContrato?: string | null;
 }
 
-export function AdicionarDisciplinaButton({ projetoId, internos, prazoFinal }: Props) {
+export function AdicionarDisciplinaButton({ projetoId, internos, prazoContrato }: Props) {
   const [open, setOpen] = useState(false);
   const [nome, setNome] = useState("");
   const [prazo, setPrazo] = useState("");
@@ -95,13 +95,13 @@ export function AdicionarDisciplinaButton({ projetoId, internos, prazoFinal }: P
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="prazo-nova">
-                Prazo{prazoFinal ? ` (máx. ${prazoFinal.slice(0, 10)})` : ""}
+                Prazo{prazoContrato ? ` (máx. ${prazoContrato.slice(0, 10)})` : ""}
               </Label>
               <Input
                 id="prazo-nova"
                 type="date"
                 value={prazo}
-                max={prazoFinal?.slice(0, 10) ?? undefined}
+                max={prazoContrato?.slice(0, 10) ?? undefined}
                 onChange={(e) => setPrazo(e.target.value)}
               />
             </div>

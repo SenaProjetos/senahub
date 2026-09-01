@@ -52,6 +52,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { executarAutomacoesComerciais } from "@/modules/comercial/automacoes";
 import { diasAvisoVencimentoContrato } from "@/modules/juridico/config";
 import { vencimentoEfetivo } from "@/modules/juridico/contrato/estado";
+import { inicioDoDia, inicioDoDiaLocal, inicioDoDiaUtc, prazoVencido } from "@/lib/data";
 
 /** Rotinas das automações (chamadas pelos jobs do pg-boss em lib/jobs.ts). */
 
@@ -515,8 +516,9 @@ export async function snapshotLicitacaoMensal() {
 
 /** Rotinas noturnas de RH/comercial: propostas vencidas e férias que iniciam hoje. */
 export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: number; contratosEquipe: number }> {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
+  // Fronteiras em meia-noite UTC: `validade`/`dataInicio` são colunas de data
+  // (00:00Z). Com meia-noite local (03:00Z) a proposta vencia um dia antes.
+  const hoje = inicioDoDiaUtc();
   const amanha = addDays(hoje, 1);
 
   const props = await prisma.proposta.findMany({
@@ -761,7 +763,7 @@ export async function encerrarJornadasEsquecidas(): Promise<number> {
 /** Alertas de eventos de licitação (datas-chave e recursos) em D-n → gestores. */
 export async function alertaEventosLicitacao(): Promise<number> {
   const cfg = await getConfigLicitacoes();
-  const hoje0 = new Date(); hoje0.setHours(0, 0, 0, 0);
+  const hoje0 = inicioDoDiaUtc();
   const hojeISO = hoje0.toISOString().slice(0, 10);
   const horizonte = addDays(hoje0, 60);
 
@@ -814,8 +816,8 @@ export async function alertaCertidoesAntesDaSessao(): Promise<number> {
     ...new Set(cfg.datasChave.alertaDiasPadrao.filter((dias) => Number.isInteger(dias) && dias >= 0)),
   ];
 
-  const hoje0 = new Date();
-  hoje0.setHours(0, 0, 0, 0);
+  // Meia-noite UTC: as colunas comparadas abaixo são datas (00:00Z).
+  const hoje0 = inicioDoDiaUtc();
   const hojeISO = hoje0.toISOString().slice(0, 10);
 
   const sessoes = await prisma.licitacaoEvento.findMany({
@@ -918,8 +920,8 @@ export async function alertaVencimentosContrato(): Promise<number> {
   ];
   if (diasPadrao.length === 0) return 0;
 
-  const hoje0 = new Date();
-  hoje0.setHours(0, 0, 0, 0);
+  // Meia-noite UTC: as colunas comparadas abaixo são datas (00:00Z).
+  const hoje0 = inicioDoDiaUtc();
   const hojeISO = hoje0.toISOString().slice(0, 10);
 
   const contratos = await prisma.contratoLicitacao.findMany({
@@ -1114,8 +1116,8 @@ export async function importarPncpDiario(): Promise<{ importados: number; verifi
 /** Aniversário de reajuste do contrato (anual, por vigenciaInicio). Manual → notifica; automático → cria reajuste pendente sugerido. */
 export async function alertaReajusteContrato(): Promise<number> {
   const cfg = await getConfigLicitacoes();
-  const hoje0 = new Date();
-  hoje0.setHours(0, 0, 0, 0);
+  // Meia-noite UTC: as colunas comparadas abaixo são datas (00:00Z).
+  const hoje0 = inicioDoDiaUtc();
   const hojeISO = hoje0.toISOString().slice(0, 10);
   const contratos = await prisma.contratoLicitacao.findMany({
     where: { vigenciaInicio: { not: null } },
@@ -1223,15 +1225,17 @@ export async function alertaRiscoProjeto(): Promise<number> {
   const atrasados = await prisma.projeto.findMany({
     where: {
       situacao: "em_andamento",
-      prazoFinal: { lt: hoje },
+      // Alerta interno → prazo planejado. Fronteira em meia-noite UTC: com
+      // meia-noite local o projeto que vence hoje já entraria como atrasado.
+      prazoPlanejado: { lt: inicioDoDiaUtc(hoje) },
       disciplinas: { some: { status: { notIn: ["aprovado"] } } },
     },
-    select: { id: true, codigo: true, nome: true, prazoFinal: true },
+    select: { id: true, codigo: true, nome: true, prazoPlanejado: true },
   });
 
   let enviados = 0;
   for (const p of atrasados) {
-    const diasAtraso = differenceInCalendarDays(hoje, p.prazoFinal!);
+    const diasAtraso = differenceInCalendarDays(inicioDoDiaLocal(hoje), inicioDoDia(p.prazoPlanejado)!);
     await notificarMuitos(
       gestoresIds,
       {
@@ -1284,7 +1288,7 @@ export async function statusReportSemanal(): Promise<number> {
     if (uids.size === 0) continue;
 
     const atrasadas = p.disciplinas.filter(
-      (d) => d.prazo && new Date(d.prazo) < hoje && d.status !== "aprovado",
+      (d) => prazoVencido(d.prazo, hoje) && d.status !== "aprovado",
     );
     const aprovadas = p.disciplinas.filter((d) => d.status === "aprovado").length;
     const total = p.disciplinas.length;

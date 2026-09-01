@@ -1167,7 +1167,17 @@ model Projeto {
   cliente       Cliente         @relation(fields: [clienteId], references: [id])
   areaM2        Decimal?        @db.Decimal(12, 2)
   endereco      String?
-  prazoFinal    DateTime?
+  /// Prazo de CONTRATO — o compromisso com o cliente. Manda no que é externo:
+  /// portal, contrato/jurídico e tokens do Estúdio. A coluna continua se
+  /// chamando "prazoFinal" (@map) para que este rename fosse só de código: um
+  /// RENAME COLUMN derrubaria o código antigo na janela entre a migração e o
+  /// deploy.
+  prazoContrato  DateTime? @map("prazoFinal")
+  /// Prazo PLANEJADO — a data que a equipe persegue. Manda no que é interno:
+  /// saúde do projeto, atraso, alertas, KPIs e EAP. Nasce copiando o contrato
+  /// (inclusive no backfill dos projetos antigos) e desloca sozinho quando uma
+  /// reabertura de disciplina estoura o prazo (`reabrirDisciplina`).
+  prazoPlanejado DateTime?
   /// Valor de contrato (referência de receita). Base para gerar parcelas/recebíveis.
   valorContrato Decimal?        @db.Decimal(14, 2)
   /// Personalização da navegação por abas deste projeto: `[{ suffix, oculta }]` na ordem
@@ -1961,17 +1971,9 @@ model MensagemReacao {
 }
 
 /// Biblioteca de modelos de contrato (texto base) (E2).
-model ModeloContrato {
-  id        String   @id @default(cuid())
-  nome      String
-  categoria String?
-  conteudo  String   @default("")
-  ativo     Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("modelo_contrato")
-}
+// `ModeloContrato` (modelo de contrato em texto puro, Fase B) saiu na Fase E6 — substituído por
+// `DocumentoModelo` (tipo=contrato) do Estúdio de Documentos. A tabela estava vazia em dev e em
+// produção; ver `docs/superpowers/specs/2026-08-27-contratos-no-estudio.md`.
 
 enum StatusSolicCadastro {
   pendente

@@ -15,6 +15,33 @@ const ADMIN_NAME = "Tádrio";
 const ADMIN_SENHA_INICIAL = "SenaHub@2026";
 
 /**
+ * Categorias do cofre de Acessos (§10 da spec).
+ *
+ * Vai no `db:seed`, não no seed de DEMO: sem nenhuma categoria o formulário de acesso não
+ * consegue ser submetido — o campo é obrigatório —, então o módulo chega em produção travado.
+ * Foi exatamente o que aconteceu no deploy de 2026-08-30.
+ *
+ * `update: {}` de propósito, como CERTIDAO_TIPOS: renomear ou desativar categoria é ato de quem
+ * gere o cofre pela tela; o seed só garante que os itens-base existam. Rodar de novo não desfaz
+ * o que o admin ajustou.
+ *
+ * Os nomes casam com `CATEGORIAS_PUBLICAS` e com `iconeDaCategoria`/`corDaCategoria`
+ * (`modules/acessos/labels.ts`), que fazem match FROUXO por nome — renomear "CREA" para
+ * "Conselhos" continua pegando o ícone certo, mas trocar por algo sem relação cai no genérico.
+ */
+const CREDENCIAL_CATEGORIAS = [
+  { nome: "Corpo de Bombeiros", icone: "Flame" },
+  { nome: "CREA", icone: "Landmark" },
+  { nome: "Prefeitura", icone: "Building2" },
+  { nome: "Governo", icone: "Globe" },
+  { nome: "Software", icone: "Monitor" },
+  { nome: "Plataforma", icone: "Globe" },
+  { nome: "Cliente", icone: "Briefcase" },
+  { nome: "Serviço", icone: "Briefcase" },
+  { nome: "Outros", icone: "KeyRound" },
+];
+
+/**
  * Matriz base de permissões finas (recurso:ação) por perfil.
  * admin tem bypass total no código — não precisa estar aqui.
  */
@@ -675,7 +702,13 @@ async function main() {
   for (const t of CERTIDAO_TIPOS) {
     await prisma.certidaoTipo.upsert({ where: { nome: t.nome }, create: t, update: {} });
   }
-  console.log(`✔ ${TAREFA_STATUS.length} status de tarefa, ${CERTIDAO_TIPOS.length} tipos de certidão.`);
+  for (const c of CREDENCIAL_CATEGORIAS) {
+    await prisma.credencialCategoria.upsert({ where: { nome: c.nome }, create: c, update: {} });
+  }
+  console.log(
+    `✔ ${TAREFA_STATUS.length} status de tarefa, ${CERTIDAO_TIPOS.length} tipos de certidão, ` +
+      `${CREDENCIAL_CATEGORIAS.length} categorias de acesso.`,
+  );
 
   // 8c) Status documental (Fase 2 de Documentos) — catálogo do status de cada documento,
   // distinto do status da disciplina (enum) e do status de tarefa (acima).

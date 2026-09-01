@@ -1,6 +1,10 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
+import { paraData } from "./data"
+
+export { paraData, inicioDoDia } from "./data"
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
@@ -11,29 +15,6 @@ export function cn(...inputs: ClassValue[]) {
  */
 export function rotuloRevisao(n: number): string {
   return `R${String(n).padStart(2, "0")}`
-}
-
-/** Converte Date | string (ISO ou yyyy-mm-dd) em Date local; null se inválido. */
-function paraData(d: Date | string | null | undefined): Date | null {
-  if (d == null) return null
-  let date: Date
-  if (d instanceof Date) {
-    date = d
-  } else {
-    // yyyy-mm-dd puro: já é uma data local (sem fuso).
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d)
-    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
-    date = new Date(d)
-  }
-  if (isNaN(date.getTime())) return null
-  // Campos @db.Date do Prisma chegam como meia-noite UTC — seja como objeto Date
-  // ou já serializados em string ISO ("2026-07-15T00:00:00.000Z"). Reconstrói em
-  // horário local com o mesmo ano/mês/dia para não exibir um dia a menos em fusos
-  // atrás de UTC (ex.: America/Sao_Paulo).
-  if (date.getUTCHours() === 0 && date.getUTCMinutes() === 0 && date.getUTCSeconds() === 0 && date.getUTCMilliseconds() === 0) {
-    return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
-  }
-  return date
 }
 
 /** Moeda BRL: R$ 81.000,00 */

@@ -20,6 +20,8 @@ import {
   gerenciarCompartilhamentoSchema,
   alternarFavoritoSchema,
   copiarCredencialSchema,
+  criarCategoriaSchema,
+  editarCategoriaSchema,
   idSchema,
 } from "./schemas";
 
@@ -502,5 +504,86 @@ export const alternarFavorito = defineAction(
 
     revalidatePath(ROTA);
     return { id: input.id, favorito: input.favorito };
+  },
+);
+
+// ── Catálogo de categorias (§10/§76) ─────────────────────────────────────────────────────
+// Gate `acessos:categorias`, separado de `gerir`: mexer no catálogo afeta TODOS os acessos —
+// renomear "Software" desfaz o match de ícone e do card "Softwares/Licenças", que casam por
+// nome. Quem cadastra uma conta não precisa desse poder.
+
+export const criarCategoria = defineAction(
+  {
+    modulo: "acessos",
+    acao: "criar-categoria",
+    recurso: "acessos",
+    permissao: "categorias",
+    entidade: "CredencialCategoria",
+    schema: criarCategoriaSchema,
+    entidadeId: (d) => (d as { id: string }).id,
+  },
+  async (input) => {
+    const existente = await prisma.credencialCategoria.findUnique({ where: { nome: input.nome } });
+    if (existente) throw new ActionError("Já existe uma categoria com esse nome.");
+    const c = await prisma.credencialCategoria.create({
+      data: { nome: input.nome, icone: input.icone ?? null },
+      select: { id: true },
+    });
+    revalidatePath(ROTA);
+    return c;
+  },
+);
+
+export const editarCategoria = defineAction(
+  {
+    modulo: "acessos",
+    acao: "editar-categoria",
+    recurso: "acessos",
+    permissao: "categorias",
+    entidade: "CredencialCategoria",
+    schema: editarCategoriaSchema,
+    entidadeId: (_d, i) => i.id,
+    capturarAntes: (i) => prisma.credencialCategoria.findUnique({ where: { id: i.id } }),
+  },
+  async (input) => {
+    const duplicado = await prisma.credencialCategoria.findFirst({
+      where: { nome: input.nome, NOT: { id: input.id } },
+    });
+    if (duplicado) throw new ActionError("Já existe uma categoria com esse nome.");
+    await prisma.credencialCategoria.update({
+      where: { id: input.id },
+      data: { nome: input.nome, icone: input.icone ?? null, ativo: input.ativo },
+    });
+    revalidatePath(ROTA);
+    return { id: input.id };
+  },
+);
+
+/**
+ * Exclui só categoria SEM acesso usando. Com acessos, a saída é desativar (`ativo: false`):
+ * some do formulário, e os acessos existentes continuam mostrando a categoria que têm — a FK
+ * é `RESTRICT`, então apagar quebraria a leitura de quem já está cadastrado.
+ */
+export const excluirCategoria = defineAction(
+  {
+    modulo: "acessos",
+    acao: "excluir-categoria",
+    recurso: "acessos",
+    permissao: "categorias",
+    entidade: "CredencialCategoria",
+    schema: idSchema,
+    entidadeId: (_d, i) => i.id,
+    capturarAntes: (i) => prisma.credencialCategoria.findUnique({ where: { id: i.id } }),
+  },
+  async (input) => {
+    const emUso = await prisma.credencial.count({ where: { categoriaId: input.id } });
+    if (emUso > 0) {
+      throw new ActionError(
+        `Esta categoria está em ${emUso} acesso(s). Desative-a em vez de excluir.`,
+      );
+    }
+    await prisma.credencialCategoria.delete({ where: { id: input.id } });
+    revalidatePath(ROTA);
+    return { id: input.id };
   },
 );
