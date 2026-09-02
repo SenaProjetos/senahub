@@ -99,6 +99,7 @@ export function MedirDxfDialog({
                 url={`/api/dwg/${encodeURIComponent(desenhoId)}/dxf`}
                 onCena={setCena}
                 onCamadasVisiveisChange={setCamadasVisiveis}
+                camadasAbertasPorPadrao
               />
             ) : (
               <div className="flex size-full items-center justify-center text-sm text-muted-foreground">
