@@ -52,8 +52,8 @@ const GRUPOS: Grupo[] = [
       {
         href: "/configuracoes/permissoes",
         icon: ShieldCheck,
-        titulo: "Permissões",
-        descricao: "Matriz de acesso por perfil (recurso × ação).",
+        titulo: "Piso de sócio",
+        descricao: "O que um sócio ativo alcança além do Perfil de acesso dele.",
       },
       {
         href: "/configuracoes/perfis",

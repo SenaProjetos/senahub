@@ -1,12 +1,12 @@
 import { PERMISSOES_CATALOGO, type AcaoCatalogo, type RecursoCatalogo } from "@/lib/permissions-catalog";
 
 /**
- * Apresentação do catálogo de permissões: como as duas telas de matriz
- * (`/configuracoes/permissoes` e `/configuracoes/perfis/[id]`) agrupam, ordenam, filtram e
+ * Apresentação do catálogo de permissões: como as telas de acesso
+ * (`/configuracoes/perfis/[id]` e `/configuracoes/permissoes`) agrupam, ordenam, filtram e
  * rotulam os pares `recurso:acao`.
  *
- * Puro e client-safe de propósito — as duas telas são componentes client, e a alternativa
- * (cada uma com sua cópia de `generoDa`/filtro) já tinha começado a divergir. Nada aqui decide
+ * Puro e client-safe de propósito — as telas são componentes client, e a alternativa (cada uma
+ * com sua cópia de `generoDa`/filtro) já tinha começado a divergir. Nada aqui decide
  * autorização: é só como o catálogo é EXIBIDO. A verdade continua em `permissions-catalog.ts`.
  */
 
