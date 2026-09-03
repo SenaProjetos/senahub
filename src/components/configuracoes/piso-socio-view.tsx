@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Info, TriangleAlert, Users } from "lucide-react";
-import type { ParDoPiso } from "@/modules/permissoes/queries";
+import type { ParDoPiso, SocioDoPiso } from "@/modules/permissoes/queries";
 import { PERMISSOES_CATALOGO } from "@/lib/permissions-catalog";
 import { generoDa, GENERO_META, normalizarBusca } from "@/lib/permissao-genero";
 import { cn } from "@/lib/utils";
@@ -25,10 +25,10 @@ import { BuscaPermissao, SeloGenero } from "@/components/configuracoes/permissao
  */
 export function PisoSocioView({
   pares,
-  sociosAtivos,
+  socios,
 }: {
   pares: ParDoPiso[];
-  sociosAtivos: number;
+  socios: SocioDoPiso[];
 }) {
   const [busca, setBusca] = useState("");
 
@@ -73,7 +73,7 @@ export function PisoSocioView({
 
         <div className="grid gap-2 sm:grid-cols-3">
           <Cartao rotulo="Permissões no piso" valor={pares.length} />
-          <Cartao rotulo="Sócios ativos" valor={sociosAtivos} icone={<Users className="size-3.5" />} />
+          <CartaoSocios socios={socios} />
           <Cartao rotulo="De escrita (fora da regra)" valor={escritas} alerta={escritas > 0} />
         </div>
 
@@ -170,6 +170,61 @@ export function PisoSocioView({
         )}
       </div>
     </TooltipProvider>
+  );
+}
+
+/**
+ * Quem o piso realmente alcança. Nomear em vez de contar é o ponto: "3 sócios ativos" não diz
+ * se o piso importa, e para sócio superusuário ele é inerte — o `can()` já resolve antes.
+ */
+function CartaoSocios({ socios }: { socios: SocioDoPiso[] }) {
+  const efetivos = socios.filter((s) => !s.bypass).length;
+  return (
+    <div className="rounded-sm border bg-card px-3 py-2">
+      <div className="flex items-center gap-1.5 text-[11px] tracking-wide text-muted-foreground uppercase">
+        <Users className="size-3.5" />
+        Sócios ativos
+      </div>
+      {socios.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Nenhum — o piso não alcança ninguém hoje.
+        </p>
+      ) : (
+        <>
+          <div className="text-lg font-semibold tabular-nums">
+            {socios.length}
+            {efetivos !== socios.length && (
+              <span className="text-sm font-normal text-muted-foreground">
+                {" "}
+                · {efetivos} {efetivos === 1 ? "alcançado" : "alcançados"}
+              </span>
+            )}
+          </div>
+          <ul className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+            {socios.map((s) => (
+              <li key={s.id} className="flex items-center gap-1">
+                <span className={cn(s.bypass && "line-through decoration-dotted")}>{s.nome}</span>
+                {s.bypass && (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <span className="cursor-help rounded-sm border px-1 text-[10px]">
+                          bypass
+                        </span>
+                      }
+                    />
+                    <TooltipContent>
+                      Superusuário: o `can()` já concede tudo antes de o piso ser consultado, então
+                      o piso não muda nada para esta pessoa.
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
   );
 }
 

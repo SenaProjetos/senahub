@@ -24,18 +24,34 @@ export type ParDoPiso = {
   escrita: boolean;
 };
 
-export async function pisoDeSocio(): Promise<{ pares: ParDoPiso[]; sociosAtivos: number }> {
-  const [rows, sociosAtivos] = await Promise.all([
+export type SocioDoPiso = {
+  id: string;
+  nome: string;
+  /**
+   * `true` = o piso é INERTE para esta pessoa. `requirePermission` resolve
+   * `can(user, …) || (ehSocio && canRole(…))`, e para um superusuário o `can()` já devolve true
+   * — o `||` nem chega a consultar o piso. Marcar evita ler a lista como "estas N pessoas
+   * dependem do piso" quando parte delas já passa por bypass.
+   */
+  bypass: boolean;
+};
+
+export async function pisoDeSocio(): Promise<{ pares: ParDoPiso[]; socios: SocioDoPiso[] }> {
+  const [rows, socios] = await Promise.all([
     prisma.permissao.findMany({
       where: { role: "supervisor", permitido: true },
       select: { recurso: true, acao: true },
       orderBy: [{ recurso: "asc" }, { acao: "asc" }],
     }),
-    prisma.socio.count({ where: { ativo: true } }),
+    prisma.socio.findMany({
+      where: { ativo: true, user: { ativo: true } },
+      select: { user: { select: { id: true, name: true, superUsuario: true } } },
+      orderBy: { user: { name: "asc" } },
+    }),
   ]);
 
   return {
     pares: rows.map((r) => ({ recurso: r.recurso, acao: r.acao, escrita: !ehLeitura(r.recurso, r.acao) })),
-    sociosAtivos,
+    socios: socios.map((s) => ({ id: s.user.id, nome: s.user.name, bypass: s.user.superUsuario })),
   };
 }

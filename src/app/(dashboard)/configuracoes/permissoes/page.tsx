@@ -9,6 +9,6 @@ export const metadata: Metadata = { title: "Piso de sócio" };
 // auditoria; o conteúdo é que deixou de ser a matriz — ver `piso-socio-view.tsx`.
 export default async function PisoSocioPage() {
   await requireRole("admin", "supervisor", "administrativo");
-  const { pares, sociosAtivos } = await pisoDeSocio();
-  return <PisoSocioView pares={pares} sociosAtivos={sociosAtivos} />;
+  const { pares, socios } = await pisoDeSocio();
+  return <PisoSocioView pares={pares} socios={socios} />;
 }
