@@ -80,18 +80,50 @@ export async function ensureCanalSocios(): Promise<SincroniaCanal> {
   };
 }
 
-/** Garante o canal #geral com todos os perfis internos elegíveis. */
-export async function ensureCanalGeral() {
+/**
+ * Garante o canal #geral e RECONCILIA os membros com quem tem `chat:geral` — adiciona e
+ * **remove** (F3, 2026-09-02).
+ *
+ * A remoção é a parte que importa. Antes isto usava `syncMembros`, que é append-only, com uma
+ * audiência por papel que nunca mudava em runtime. Agora que a entrada no #geral é um checkbox
+ * por perfil, append-only faria revogar não ter efeito nenhum: a pessoa continuaria no canal
+ * lendo tudo, e o checkbox mentiria. Mesma forma de `ensureCanalSocios`, pelo mesmo motivo.
+ */
+export async function ensureCanalGeral(): Promise<SincroniaCanal> {
   let canal = await prisma.canal.findFirst({ where: { tipo: "geral" } });
   if (!canal) {
     canal = await prisma.canal.create({ data: { tipo: "geral", nome: "#geral" } });
   }
-  const internos = await prisma.user.findMany({
+  const elegiveis = await prisma.user.findMany({
     where: whereAudiencia("chat_participante"),
     select: { id: true },
   });
-  await syncMembros(canal.id, internos.map((u) => u.id));
-  return canal;
+  const desejados = new Set(elegiveis.map((u) => u.id));
+  const atuais = await prisma.canalMembro.findMany({
+    where: { canalId: canal.id },
+    select: { userId: true },
+  });
+  const setAtual = new Set(atuais.map((m) => m.userId));
+
+  const aAdicionar = [...desejados].filter((id) => !setAtual.has(id));
+  const aRemover = [...setAtual].filter((id) => !desejados.has(id));
+
+  if (aAdicionar.length > 0) {
+    await prisma.canalMembro.createMany({
+      data: aAdicionar.map((userId) => ({ canalId: canal!.id, userId })),
+      skipDuplicates: true,
+    });
+  }
+  if (aRemover.length > 0) {
+    await prisma.canalMembro.deleteMany({
+      where: { canalId: canal.id, userId: { in: aRemover } },
+    });
+  }
+  return {
+    canalId: canal.id,
+    adicionados: aAdicionar.map((userId) => ({ canalId: canal!.id, userId })),
+    removidos: aRemover.map((userId) => ({ canalId: canal!.id, userId })),
+  };
 }
 
 /**
@@ -166,10 +198,17 @@ export async function getOrCreateDM(userA: string, userB: string) {
   });
 }
 
-/** Sincroniza todos os canais relevantes ao usuário (lazy, idempotente). */
-export async function sincronizarCanaisDoUsuario() {
-  await ensureCanalGeral();
-  await ensureCanalSocios();
+/**
+ * Sincroniza todos os canais relevantes ao usuário (lazy, idempotente).
+ *
+ * Devolve as saídas de #geral e Sócios para o chamador emitir `sair-canal` no socket: quem
+ * perdeu `chat:geral` precisa ver o canal sumir sem recarregar a página, senão continua com a
+ * lista aberta na tela até o próximo F5. As entradas seguem sendo tratadas pelo bootstrap.
+ */
+export async function sincronizarCanaisDoUsuario(): Promise<{ removidos: NovoMembroCanal[] }> {
+  const geral = await ensureCanalGeral();
+  const socios = await ensureCanalSocios();
   const projetos = await prisma.projeto.findMany({ select: { id: true } });
   for (const p of projetos) await ensureCanaisProjeto(p.id);
+  return { removidos: [...geral.removidos, ...socios.removidos] };
 }

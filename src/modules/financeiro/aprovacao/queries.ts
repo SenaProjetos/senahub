@@ -1,7 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@/lib/roles";
-import { whereAudiencia } from "@/lib/audiencias";
 import type { FaixaAlcada } from "@/modules/financeiro/aprovacao/niveis";
 
 export const CHAVE_LIMITE_APROVACAO = "financeiro.limiteAprovacao";
@@ -9,7 +8,18 @@ export const CHAVE_NIVEIS_APROVACAO = "financeiro.niveisAprovacao";
 
 /**
  * Níveis de alçada (faixas de valor → papéis aprovadores). Se não configurado,
- * deriva do limite único legado (até o limite = automático; acima = admin/supervisor).
+ * deriva do limite único legado (até o limite = automático; acima = só admin).
+ *
+ * O default deixou de incluir `supervisor` em 2026-09-02 (decisão do dono). Ele nomeava
+ * admin+supervisor como aprovadores, mas o coordenador nunca conseguiu aprovar: o gate de
+ * entrada `financeiro:aprovar` não existia no catálogo, então só `superUsuario` passava. O
+ * resultado era o pior dos dois mundos — o coordenador **recebia** a notificação "aprove este
+ * lançamento" e levava 403 no clique. Some-se a isso o recorte do Coordenador (dono,
+ * 2026-07-27), que tirou financeiro daquele perfil de propósito.
+ *
+ * ⚠️ Isto é só o DEFAULT — vale quando `ConfigSistema` não tem linha de níveis. Onde a alçada
+ * já foi configurada pela tela (Financeiro → Configurações), a linha salva continua mandando e
+ * esta mudança não tem efeito: lá, tirar o coordenador é edição na tela, não deploy.
  */
 export async function getNiveisAprovacao(): Promise<FaixaAlcada[]> {
   const [c, limite] = await Promise.all([
@@ -25,7 +35,7 @@ export async function getNiveisAprovacao(): Promise<FaixaAlcada[]> {
       };
     });
   }
-  if (limite > 0) return [{ ate: limite, papeis: [] }, { ate: null, papeis: ["admin", "supervisor"] }];
+  if (limite > 0) return [{ ate: limite, papeis: [] }, { ate: null, papeis: ["admin"] }];
   return [{ ate: null, papeis: [] }];
 }
 
@@ -40,15 +50,6 @@ export async function aprovadoresPorPapeis(papeis: string[]): Promise<string[]> 
 export async function limiteAprovacao(): Promise<number> {
   const c = await prisma.configSistema.findUnique({ where: { chave: CHAVE_LIMITE_APROVACAO } });
   return typeof c?.valor === "number" ? c.valor : Number(c?.valor ?? 0);
-}
-
-/** Usuários que podem aprovar (admin/supervisor) — destinatários das notificações. */
-export async function aprovadores(): Promise<string[]> {
-  const us = await prisma.user.findMany({
-    where: whereAudiencia("global"),
-    select: { id: true },
-  });
-  return us.map((u) => u.id);
 }
 
 /** Despesas aguardando aprovação, com nomes resolvidos. */

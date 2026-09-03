@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
+import { can } from "@/lib/permissions";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { contarNaoLidasTotal, listarCanaisSilenciados } from "@/modules/chat/queries";
 import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
-import { CHAT_ROLES } from "@/modules/chat/roles";
 
 /**
  * Estado leve do chat para o provider global (badge + som + não perturbe).
@@ -12,7 +12,8 @@ import { CHAT_ROLES } from "@/modules/chat/roles";
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  if (!(CHAT_ROLES as readonly string[]).includes(session.user.role)) {
+  // `chat:usar` em vez de `CHAT_ROLES` — ver o comentário em `chat/page.tsx`.
+  if (!(await can(session.user, "chat", "usar"))) {
     return NextResponse.json({ error: "Sem acesso ao chat." }, { status: 403 });
   }
   const userId = session.user.id;

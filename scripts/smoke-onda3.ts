@@ -54,12 +54,12 @@ async function main() {
   // 2) Chat: #geral inclui CLT, exclui freelancer
   const geral = await ensureCanalGeral();
   const membrosGeral = await prisma.canalMembro.findMany({
-    where: { canalId: geral.id },
+    where: { canalId: geral.canalId },
     select: { userId: true },
   });
   const setGeral = new Set(membrosGeral.map((m) => m.userId));
   check("#geral inclui CLT", setGeral.has(clt.id));
-  check("#geral exclui freelancer (regra de negócio)", !setGeral.has(freela.id));
+  check("#geral exclui freelancer (sem `chat:geral` na semente)", !setGeral.has(freela.id));
 
   // 3) DM idempotente: mesma dupla → mesmo canal
   const admin = await prisma.user.findFirst({ where: { role: "admin" } });

@@ -3,11 +3,11 @@
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
+import { whereAudiencia } from "@/lib/audiencias";
 import { notificar, type NotificacaoInput } from "@/lib/notificar";
 import { enviarPush } from "@/lib/push";
 import { emitParaCanal, emitParaUsuario, usuarioOnline } from "@/lib/socket";
 import { getOrCreateDM } from "@/modules/chat/service";
-import { DM_ROLES_EXCLUIDAS } from "@/modules/chat/roles";
 import { randomBytes } from "node:crypto";
 import { removerArquivo, salvarArquivo, lerArquivo } from "@/lib/storage";
 import { extrairMencoes, mencionouTodos } from "@/modules/chat/mencoes";
@@ -721,6 +721,10 @@ export const criarGrupo = defineAction(
   {
     ...base,
     acao: "criar-grupo",
+    // Gate NOVO: `criarGrupo` só exigia sessão. Semeado para quem alcança o chat, então não
+    // tira o grupo de ninguém que já criava — passa a poder ser tirado pela tela.
+    recurso: "chat",
+    permissao: "grupo",
     entidade: "Canal",
     schema: z.object({
       nome: z.string().min(1).max(80),
@@ -844,19 +848,22 @@ export const abrirDM = defineAction(
   {
     ...base,
     acao: "abrir-dm",
+    recurso: "chat",
+    permissao: "dm",
     entidade: "Canal",
     schema: z.object({ usuarioId: z.string().min(1) }),
     audit: false,
   },
   async (i, { user }) => {
     if (i.usuarioId === user.id) throw new ActionError("Não é possível abrir DM consigo mesmo.");
-    const alvo = await prisma.user.findUnique({
-      where: { id: i.usuarioId },
-      select: { role: true, ativo: true },
+    // O ALVO também precisa de `chat:dm` — era `DM_ROLES_EXCLUIDAS` (F3, 2026-09-02). Conferir
+    // o alvo (e não só quem abre) é o que impede usar a DM para furar a revogação do outro lado.
+    // `whereAudiencia("chat_dm")` já embute `ativo: true` e a mesma ordem de `permissaoEfetiva`.
+    const alvo = await prisma.user.findFirst({
+      where: { ...whereAudiencia("chat_dm"), id: i.usuarioId },
+      select: { id: true },
     });
-    if (!alvo || !alvo.ativo || (DM_ROLES_EXCLUIDAS as readonly string[]).includes(alvo.role)) {
-      throw new ActionError("Usuário indisponível para conversa.");
-    }
+    if (!alvo) throw new ActionError("Usuário indisponível para conversa.");
     const canal = await getOrCreateDM(user.id, i.usuarioId);
     emitParaUsuario(user.id, "entrar-canal-novo", { canalId: canal.id });
     emitParaUsuario(i.usuarioId, "entrar-canal-novo", { canalId: canal.id });

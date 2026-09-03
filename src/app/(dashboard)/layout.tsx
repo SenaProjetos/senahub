@@ -16,7 +16,6 @@ import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
 import { DisciplinasIconeProvider } from "@/components/projetos/disciplina-icone";
 import { mapaIconesDisciplina } from "@/modules/projetos/queries";
 import { GOOGLE_FONTS_HREF } from "@/modules/documentos/fontes-tipograficas";
-import { CHAT_ROLES } from "@/modules/chat/roles";
 
 export default async function DashboardLayout({
   children,
@@ -30,7 +29,6 @@ export default async function DashboardLayout({
   // A tela /termo vive no grupo (auth), fora deste layout — sem loop de redirect.
   if (await precisaAceitarTermo(user)) redirect("/termo");
 
-  const participaDoChat = (CHAT_ROLES as readonly string[]).includes(user.role);
   const [iconesDisciplina, prefs] = await Promise.all([
     mapaIconesDisciplina(),
     getPreferencias(user.id),
@@ -57,6 +55,13 @@ export default async function DashboardLayout({
     tipo: eixos?.tipo ?? null,
     setor: eixos?.setor ?? null,
   };
+
+  // Mesmo eixo do gate de `/chat` e das rotas de API — ver o comentário em `chat/page.tsx`.
+  // Derivado de `nav.permitidas` e NÃO de um `can()` próprio: este layout embrulha toda rota do
+  // dashboard, e `can()` faz uma consulta não-cacheada por chamada (override não é cacheado, de
+  // propósito). `permissoesEfetivas` já pagou essa leitura uma vez acima — um `can()` aqui seria
+  // um round-trip extra em CADA navegação, para responder o que já está na mão.
+  const participaDoChat = nav.permitidas.includes("chat:usar");
 
   const conteudo = (
     <ConfirmProvider>

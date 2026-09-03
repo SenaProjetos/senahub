@@ -1,6 +1,6 @@
 import type { Role } from "@/lib/roles";
-import { CLT_ROLES, GLOBAL_ROLES, HR_ADMIN_ROLES, INTERNAL_ROLES, PJ_ROLES, PROJETO_MEMBRO_ROLES } from "@/lib/roles";
-import { CHAT_ROLES, DM_ROLES_EXCLUIDAS, ROLES_GLOBAIS_CHAT } from "@/modules/chat/roles";
+import { CLT_ROLES, INTERNAL_ROLES, PJ_ROLES, PROJETO_MEMBRO_ROLES } from "@/lib/roles";
+import { ROLES_GLOBAIS_CHAT } from "@/modules/chat/roles";
 
 /**
  * Registro das **audiências** do sistema: os conjuntos de usuários resolvidos por `role` para
@@ -29,25 +29,53 @@ import { CHAT_ROLES, DM_ROLES_EXCLUIDAS, ROLES_GLOBAIS_CHAT } from "@/modules/ch
 
 export type ModoAudiencia = "in" | "notIn";
 
-export type Audiencia = {
+/** Fragmento de `where` de `User`. Tipado à mão para o arquivo seguir puro (sem importar Prisma). */
+export type WhereAudiencia = { ativo: true } & Record<string, unknown>;
+
+/**
+ * Audiência resolvida por PAPEL — o formato original. Continua sendo o certo para os conjuntos
+ * que **não são acesso**: vínculo trabalhista (`clt`, `pj`), interno × externo (`interno`),
+ * elegibilidade a virar membro de projeto/recurso. Não existe `recurso:acao` que signifique
+ * "é CLT" ou "é gente de dentro", e inventar pares falsos seria pior (ver a docstring de
+ * `nav-config.ts`): eles seriam semeados em todo perfil e medidos pelo gate como se fossem
+ * acesso a alguma coisa.
+ */
+export type AudienciaPorPapel = {
   /** pt-BR: o que este conjunto de pessoas significa no negócio. */
   descricao: string;
   modo: ModoAudiencia;
   roles: readonly Role[];
 };
 
+/**
+ * Audiência resolvida por PERMISSÃO — para os conjuntos que **são** decisão de acesso e por
+ * isso devem seguir a matriz configurável, não uma lista fixa em código.
+ *
+ * É a correção do risco R2 descrito no topo deste arquivo: enquanto a audiência resolvia por
+ * `role` e o gate resolvia por `can()`, os dois podiam divergir sem que nada quebrasse — a
+ * pessoa recebia a notificação e levava 403, ou deixava de receber sem que ninguém percebesse.
+ */
+export type AudienciaPorPermissao = {
+  descricao: string;
+  modo: "permissao";
+  /** `"recurso:acao"` — precisa existir em `PERMISSOES_CATALOGO`. */
+  permissao: string;
+};
+
+export type Audiencia = AudienciaPorPapel | AudienciaPorPermissao;
+
 export const AUDIENCIAS = {
   /** admin + supervisor. */
   global: {
-    descricao: "Gestão global — vê tudo, aprova tudo (notificarAdmins, aprovadores do financeiro, suporte, digest semanal, aprovação de disciplina, validação de arquivo)",
-    modo: "in",
-    roles: GLOBAL_ROLES,
+    descricao: "Gestão global — notificarAdmins, aprovadores do financeiro, suporte, digest semanal, aprovação de disciplina, validação de arquivo",
+    modo: "permissao",
+    permissao: "notificacoes:gestao",
   },
   /** admin + supervisor + administrativo, com intenção de RH. */
   rh_admin: {
     descricao: "Quem administra RH (ponto, escala, folha, banco de horas) — destinatário de NF, abono, conta bancária, pedido de cadastro",
-    modo: "in",
-    roles: HR_ADMIN_ROLES,
+    modo: "permissao",
+    permissao: "notificacoes:rh",
   },
   /**
    * Mesmo conjunto de `rh_admin` HOJE, chave separada de propósito: a intenção é "gestão
@@ -56,8 +84,8 @@ export const AUDIENCIAS = {
    */
   gestao_operacional: {
     descricao: "Gestão operacional do escritório — entrega de disciplina, pagamento, certidões, projeto ganho no comercial",
-    modo: "in",
-    roles: HR_ADMIN_ROLES,
+    modo: "permissao",
+    permissao: "notificacoes:operacional",
   },
   /** clt + estagiario. */
   clt: {
@@ -82,9 +110,9 @@ export const AUDIENCIAS = {
     roles: PJ_ROLES,
   },
   chat_participante: {
-    descricao: "Participantes do chat — entram no canal #geral (cliente, freelancer e ti ficam de fora)",
-    modo: "in",
-    roles: CHAT_ROLES,
+    descricao: "Quem entra no canal #geral do chat — segue a permissão `chat:geral`, configurável por perfil",
+    modo: "permissao",
+    permissao: "chat:geral",
   },
   chat_global: {
     descricao: "Visíveis em todos os canais de projeto/disciplina do chat",
@@ -92,9 +120,9 @@ export const AUDIENCIAS = {
     roles: ROLES_GLOBAIS_CHAT,
   },
   chat_dm: {
-    descricao: "Elegíveis a conversa direta no chat — exclui cliente e freelancer",
-    modo: "notIn",
-    roles: DM_ROLES_EXCLUIDAS,
+    descricao: "Elegíveis a conversa direta no chat — segue a permissão `chat:dm`, configurável por perfil",
+    modo: "permissao",
+    permissao: "chat:dm",
   },
   planejamento_recurso: {
     descricao: "Usuários que podem virar Recurso no planejamento — exclui cliente e freelancer",
@@ -112,13 +140,58 @@ export const AUDIENCIA_KEYS = Object.keys(AUDIENCIAS) as AudienciaKey[];
  * objeto (`where: { ...whereAudiencia("global"), id: { not: user.id } }`) para que exista uma
  * única definição, compartilhada com o arnês.
  */
-export function whereAudiencia(chave: AudienciaKey): {
-  ativo: true;
-  role: { in: Role[] } | { notIn: Role[] };
-} {
+export function whereAudiencia(chave: AudienciaKey, agora: Date = new Date()): WhereAudiencia {
   const a = AUDIENCIAS[chave];
+  if (a.modo === "permissao") {
+    const [recurso, acao] = a.permissao.split(":");
+    return wherePermissao(recurso, acao, agora);
+  }
   const roles = [...a.roles] as Role[];
   return { ativo: true, role: a.modo === "in" ? { in: roles } : { notIn: roles } };
+}
+
+/**
+ * Fragmento de `where` que resolve **quem tem `recurso:acao`** — o espelho, em SQL, da ordem de
+ * resolução de `permissaoEfetiva` (`lib/permissao-efetiva.ts`):
+ *
+ *   1. inativo             → fora (o `ativo: true` de fora do OR)
+ *   2. `superUsuario`      → dentro, sem passar pela matriz
+ *   3. override vigente    → vale o override, inclusive para NEGAR o que o perfil concede
+ *   4. permissão do perfil → dentro, se não houver override negando
+ *
+ * As duas resoluções PRECISAM continuar iguais: é o ponto do R2. Se `permissaoEfetiva` mudar de
+ * ordem, este `where` muda junto — senão a pessoa recebe notificação e leva 403, ou some do
+ * seletor sem motivo. `perfil.ativo` NÃO é conferido aqui de propósito: `permissaoEfetiva`
+ * também não confere (carrega por `perfilId`), e divergir "para melhorar" é como o R2 nasce.
+ *
+ * PURO e SÍNCRONO de propósito: é só a montagem do filtro, o banco resolve. Assim nenhum
+ * call-site precisa virar `async` e o arnês continua fotografando sem I/O extra.
+ *
+ * COMPOSIÇÃO: usa `AND` no topo justamente para poder ser espalhado (`{ ...wherePermissao(...),
+ * id: { not: x } }`) sem colidir com um `OR` do call-site. Só não espalhe junto de outro `AND`.
+ */
+export function wherePermissao(recurso: string, acao: string, agora: Date = new Date()): WhereAudiencia {
+  // Override só conta enquanto vigente — expirado é como se não existisse (§5.2).
+  const overrideVigente = {
+    recurso,
+    acao,
+    OR: [{ expiraEm: null }, { expiraEm: { gt: agora } }],
+  };
+  return {
+    ativo: true,
+    AND: [
+      {
+        OR: [
+          { superUsuario: true },
+          { overrides: { some: { ...overrideVigente, permitido: true } } },
+          {
+            perfil: { permissoes: { some: { recurso, acao, permitido: true } } },
+            NOT: { overrides: { some: { ...overrideVigente, permitido: false } } },
+          },
+        ],
+      },
+    ],
+  };
 }
 
 /**
