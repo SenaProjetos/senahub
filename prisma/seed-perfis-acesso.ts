@@ -23,15 +23,31 @@ import { CHAVE_POR_ROLE, NOME_POR_ROLE } from "@/modules/usuarios/vinculo/perfil
 export { CHAVE_POR_ROLE };
 
 export type ResultadoSeedPerfis = {
-  perfis: { role: Role; chave: string; perfilId: string; linhas: number }[];
+  /** `semeado: false` = o perfil já existia e a matriz dele foi preservada. */
+  perfis: { role: Role; chave: string; perfilId: string; linhas: number; semeado: boolean }[];
 };
 
 /**
- * Idempotente: `upsert` em `chave` para o perfil, e regrava a matriz inteira do perfil a
- * partir do legado a cada execução (delete + createMany) — assim, se uma permissão for
- * retirada de um role em `Permissao`, o espelho reflete a retirada no próximo `db:seed`,
- * em vez de acumular permissão morta. Overrides individuais (`PermissaoUsuario`) não são
- * tocados por esta função.
+ * Idempotente e **create-only na matriz** (decisão do dono, 2026-09-02 — §5-A de
+ * docs/superpowers/specs/2026-09-02-ampliacao-escopo-permissoes.md).
+ *
+ * Até 2026-09-02 esta função fazia `deleteMany` + `createMany` a cada execução, "para o espelho
+ * refletir retiradas". O efeito colateral era pior que o problema: **todo `db:seed` do deploy
+ * apagava o que tivesse sido configurado em `/configuracoes/perfis`**. Pior, de forma
+ * assimétrica — revogar sobrevivia (o `upsert` de `PERMISSOES_BASE` não mexe em linha
+ * existente), conceder morria. Configuração que evapora no deploy, sem erro e sem log.
+ *
+ * Agora a matriz é escrita **só quando o perfil é criado**. `PERMISSOES_BASE` volta a ser o que
+ * sempre deveria ter sido: ponto de partida de banco novo, não verdade reimposta a cada deploy.
+ *
+ * O PREÇO, que é real e precisa ser pago à mão: par de permissão novo **não se distribui
+ * sozinho** aos perfis que já existem. Quem adiciona um par ao catálogo tem que escrever a
+ * migration de dados que o concede a quem já tem o par equivalente — ver
+ * `20260902120000_perfis_tarefas_ver` como modelo. Sem isso, o par nasce negado para todo mundo
+ * e alguém perde acesso silenciosamente.
+ *
+ * O metadado do perfil (`nome`, `sistema`) continua sincronizando a cada execução: é rótulo,
+ * não autorização. Overrides individuais (`PermissaoUsuario`) nunca foram tocados aqui.
  */
 export async function seedPerfisAcesso(prisma: PrismaClient): Promise<ResultadoSeedPerfis> {
   const resultado: ResultadoSeedPerfis = { perfis: [] };
@@ -40,15 +56,26 @@ export async function seedPerfisAcesso(prisma: PrismaClient): Promise<ResultadoS
     const chave = CHAVE_POR_ROLE[role];
     if (!chave) continue; // admin
 
-    const linhasLegado = await prisma.permissao.findMany({
-      where: { role },
-      select: { recurso: true, acao: true, permitido: true },
-    });
+    // Existia ANTES desta execução? É o que decide se a matriz é semeada. Precisa ser lido
+    // antes do `upsert` — depois dele, todo perfil "existe" e a distinção some.
+    const existente = await prisma.perfilAcesso.findUnique({ where: { chave }, select: { id: true } });
 
     const perfil = await prisma.perfilAcesso.upsert({
       where: { chave },
       create: { chave, nome: NOME_POR_ROLE[role] ?? role, sistema: true, ativo: true },
       update: { nome: NOME_POR_ROLE[role] ?? role, sistema: true },
+    });
+
+    if (existente) {
+      // Perfil já existia: a matriz dele é do dono, não da semente. Não tocar.
+      const linhasAtuais = await prisma.permissaoPerfil.count({ where: { perfilId: perfil.id } });
+      resultado.perfis.push({ role, chave, perfilId: perfil.id, linhas: linhasAtuais, semeado: false });
+      continue;
+    }
+
+    const linhasLegado = await prisma.permissao.findMany({
+      where: { role },
+      select: { recurso: true, acao: true, permitido: true },
     });
 
     const linhas = linhasLegado
@@ -64,12 +91,9 @@ export async function seedPerfisAcesso(prisma: PrismaClient): Promise<ResultadoS
     // futuro perfil "gestor de setor" que precise de escopo mais amplo que um projeto (mas
     // não necessariamente global) é desenho novo, não este par binário — feito quando existir.
 
-    await prisma.$transaction([
-      prisma.permissaoPerfil.deleteMany({ where: { perfilId: perfil.id } }),
-      ...(linhas.length ? [prisma.permissaoPerfil.createMany({ data: linhas })] : []),
-    ]);
+    if (linhas.length) await prisma.permissaoPerfil.createMany({ data: linhas });
 
-    resultado.perfis.push({ role, chave, perfilId: perfil.id, linhas: linhas.length });
+    resultado.perfis.push({ role, chave, perfilId: perfil.id, linhas: linhas.length, semeado: true });
   }
 
   return resultado;

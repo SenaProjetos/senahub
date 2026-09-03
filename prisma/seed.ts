@@ -54,6 +54,27 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "clt", recurso: "chat", acao: "usar" },
   { role: "estagiario", recurso: "chat", acao: "usar" },
   { role: "projetista_pj", recurso: "chat", acao: "usar" },
+  // Quebra do chat por TipoCanal (F3, 2026-09-02). Reproduz o comportamento de hoje:
+  //   `chat:geral` = quem entrava no #geral, que era a audiência `chat_participante` = CHAT_ROLES;
+  //   `chat:dm`    = CHAT_ROLES menos `DM_ROLES_EXCLUIDAS` — que já não se cruzam, mesma lista;
+  //   `chat:grupo` = gate NOVO onde não havia nenhum (`criarGrupo` só exigia sessão). Semeado
+  //                  para CHAT_ROLES porque é quem alcança o chat — é reprodução do alcance
+  //                  real, não espelho de uma regra que existisse.
+  { role: "supervisor", recurso: "chat", acao: "geral" },
+  { role: "administrativo", recurso: "chat", acao: "geral" },
+  { role: "clt", recurso: "chat", acao: "geral" },
+  { role: "estagiario", recurso: "chat", acao: "geral" },
+  { role: "projetista_pj", recurso: "chat", acao: "geral" },
+  { role: "supervisor", recurso: "chat", acao: "dm" },
+  { role: "administrativo", recurso: "chat", acao: "dm" },
+  { role: "clt", recurso: "chat", acao: "dm" },
+  { role: "estagiario", recurso: "chat", acao: "dm" },
+  { role: "projetista_pj", recurso: "chat", acao: "dm" },
+  { role: "supervisor", recurso: "chat", acao: "grupo" },
+  { role: "administrativo", recurso: "chat", acao: "grupo" },
+  { role: "clt", recurso: "chat", acao: "grupo" },
+  { role: "estagiario", recurso: "chat", acao: "grupo" },
+  { role: "projetista_pj", recurso: "chat", acao: "grupo" },
   // ── Coordenador (valor do enum: `supervisor`) ────────────────────────────────
   // Lista definida pelo dono em 2026-07-27, conferida contra Configurações → Permissões.
   // Recorte de COORDENAÇÃO TÉCNICA: projeto, arquivos, planejamento, coordenação BIM,
@@ -175,6 +196,74 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "freelancer", recurso: "projetos", acao: "ver" },
   // P-60: cliente vê os próprios projetos (escopo via clienteId no escopoProjeto).
   { role: "cliente", recurso: "projetos", acao: "ver" },
+  // Tarefas na busca global (Ctrl+K). Restaura a PARIDADE com a rota `/tarefas`, que é
+  // `requireRole(...INTERNAL_ROLES)`: quem já podia abrir a página e ver estas mesmas tarefas
+  // não as encontrava no Ctrl+K, porque `tarefas:ver` era consultado sem existir no catálogo
+  // (par ausente = negado). Não expõe nada novo — a busca já recorta por `escopoTarefa(user)`.
+  // `cliente` fica de fora: não é interno e não alcança `/tarefas`.
+  { role: "supervisor", recurso: "tarefas", acao: "ver" },
+  { role: "administrativo", recurso: "tarefas", acao: "ver" },
+  { role: "clt", recurso: "tarefas", acao: "ver" },
+  { role: "estagiario", recurso: "tarefas", acao: "ver" },
+  { role: "projetista_pj", recurso: "tarefas", acao: "ver" },
+  { role: "freelancer", recurso: "tarefas", acao: "ver" },
+  { role: "ti", recurso: "tarefas", acao: "ver" },
+  // NOTA — `financeiro:aprovar` entrou no catálogo mas NÃO é semeado aqui, de propósito.
+  // A alçada padrão (`getNiveisAprovacao`) nomeia admin+supervisor como aprovadores, mas o
+  // recorte do Coordenador (dono, 2026-07-27, ver o bloco do `supervisor` acima) deixou
+  // financeiro DELIBERADAMENTE fora do perfil. Semear aqui reverteria essa decisão em silêncio.
+  // Fica grantável pela tela de Permissões/Perfis; quem concede é o dono.
+  // ── F4 (2026-09-02): recorte fino, reproduzindo o acesso de HOJE linha a linha. ──
+  // Financeiro: `conciliar`, `fechar` e `folha_pj` saem de quem tinha `financeiro:gerir`;
+  // `resultados` de quem tinha `financeiro:ver`. Hoje é `administrativo` nos dois casos.
+  { role: "administrativo", recurso: "financeiro", acao: "conciliar" },
+  { role: "administrativo", recurso: "financeiro", acao: "fechar" },
+  { role: "administrativo", recurso: "financeiro", acao: "folha_pj" },
+  { role: "administrativo", recurso: "financeiro", acao: "resultados" },
+  // Configurações: `/configuracoes/disciplinas` era `requireRole("admin","supervisor")`.
+  // `configuracoes:licitacoes` era `requireRole("admin")` — ninguém além do bypass, logo
+  // nenhuma linha aqui. Idem `projetos:pastas`, que era `roles: ["admin"]`.
+  { role: "supervisor", recurso: "configuracoes", acao: "disciplinas" },
+  // Abas do projeto: apareciam para QUALQUER um que abrisse o projeto, sem gate — logo a
+  // reprodução fiel é "quem tem `projetos:ver`". `diario` era `INTERNAL_ROLES`, mas quem não
+  // alcança o projeto nunca vê a aba — o conjunto real é `projetos:ver` menos o cliente. (`ti`
+  // não tem `projetos:ver`, então não entra: a linha seria inerte e divergiria da migration.)
+  { role: "supervisor", recurso: "projetos", acao: "servicos" },
+  { role: "administrativo", recurso: "projetos", acao: "servicos" },
+  { role: "clt", recurso: "projetos", acao: "servicos" },
+  { role: "estagiario", recurso: "projetos", acao: "servicos" },
+  { role: "projetista_pj", recurso: "projetos", acao: "servicos" },
+  { role: "freelancer", recurso: "projetos", acao: "servicos" },
+  { role: "cliente", recurso: "projetos", acao: "servicos" },
+  { role: "supervisor", recurso: "projetos", acao: "arts" },
+  { role: "administrativo", recurso: "projetos", acao: "arts" },
+  { role: "clt", recurso: "projetos", acao: "arts" },
+  { role: "estagiario", recurso: "projetos", acao: "arts" },
+  { role: "projetista_pj", recurso: "projetos", acao: "arts" },
+  { role: "freelancer", recurso: "projetos", acao: "arts" },
+  { role: "cliente", recurso: "projetos", acao: "arts" },
+  { role: "supervisor", recurso: "projetos", acao: "extras" },
+  { role: "administrativo", recurso: "projetos", acao: "extras" },
+  { role: "clt", recurso: "projetos", acao: "extras" },
+  { role: "estagiario", recurso: "projetos", acao: "extras" },
+  { role: "projetista_pj", recurso: "projetos", acao: "extras" },
+  { role: "freelancer", recurso: "projetos", acao: "extras" },
+  { role: "cliente", recurso: "projetos", acao: "extras" },
+  { role: "supervisor", recurso: "projetos", acao: "diario" },
+  { role: "administrativo", recurso: "projetos", acao: "diario" },
+  { role: "clt", recurso: "projetos", acao: "diario" },
+  { role: "estagiario", recurso: "projetos", acao: "diario" },
+  { role: "projetista_pj", recurso: "projetos", acao: "diario" },
+  { role: "freelancer", recurso: "projetos", acao: "diario" },
+  // ── F5 (2026-09-02): quem RECEBE escalonamento vira permissão. ──────────────────────────
+  // Semeado exatamente para os papéis das audiências de hoje, então nenhuma notificação muda
+  // de destinatário: `notificacoes:gestao` = GLOBAL_ROLES, `rh`/`operacional` = HR_ADMIN_ROLES
+  // (admin sai das duas listas porque passa pelo bypass de `superUsuario`).
+  { role: "supervisor", recurso: "notificacoes", acao: "gestao" },
+  { role: "supervisor", recurso: "notificacoes", acao: "rh" },
+  { role: "administrativo", recurso: "notificacoes", acao: "rh" },
+  { role: "supervisor", recurso: "notificacoes", acao: "operacional" },
+  { role: "administrativo", recurso: "notificacoes", acao: "operacional" },
   // Extrato próprio (sem ver o financeiro completo)
   { role: "clt", recurso: "financeiro", acao: "extrato" },
   { role: "projetista_pj", recurso: "financeiro", acao: "extrato" },

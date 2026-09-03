@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ehLeitura, PERMISSOES_CATALOGO } from "@/lib/permissions-catalog";
+import { ehLeitura, PERMISSOES_CATALOGO, telaQueAbre } from "@/lib/permissions-catalog";
+import { NAV_GROUPS } from "@/lib/nav-config";
 
 describe("ehLeitura", () => {
   it("reconhece as ações de leitura marcadas", () => {
@@ -37,5 +38,37 @@ describe("ehLeitura", () => {
         }
       }
     }
+  });
+});
+
+describe("abre (acesso a tela)", () => {
+  it("toda permissão exigida pelo menu está marcada como acesso a tela", () => {
+    // Guarda de deriva: a tela de Permissões separa "abre tela" de "funcionalidade" a partir
+    // de `abre`. Se um item novo do menu passar a exigir `recurso:acao` e ninguém marcar,
+    // a matriz vai mentir dizendo que aquilo não dá acesso a nada.
+    for (const grupo of NAV_GROUPS) {
+      for (const item of grupo.items) {
+        if (!item.permissao) continue;
+        for (const chave of [item.permissao].flat()) {
+          const [recurso, acao] = chave.split(":");
+          expect(telaQueAbre(recurso, acao), `${chave} (menu: ${item.title})`).not.toBeNull();
+        }
+      }
+    }
+  });
+
+  it("escopo de dados não abre tela nem é confundido com funcionalidade", () => {
+    for (const r of PERMISSOES_CATALOGO) {
+      for (const a of r.acoes) {
+        if (a.dados) expect(a.abre, `${r.recurso}:${a.acao}`).toBeUndefined();
+      }
+    }
+    expect(PERMISSOES_CATALOGO.flatMap((r) => r.acoes.filter((a) => a.dados).map((a) => `${r.recurso}:${a.acao}`)))
+      .toEqual(["arquivos:ver_todas_disciplinas", "escopo:global"]);
+  });
+
+  it("é fail-closed: ação desconhecida não abre tela", () => {
+    expect(telaQueAbre("recurso_que_nao_existe", "ver")).toBeNull();
+    expect(telaQueAbre("projetos", "gerir")).toBeNull();
   });
 });
