@@ -15,6 +15,7 @@ export const EXT_SUBPASTA: Record<string, Subpasta> = {
   doc: "DOCs", docx: "DOCs", xls: "DOCs", xlsx: "DOCs", txt: "DOCs",
   ifc: "IFC", ifcxml: "IFC", ifczip: "IFC",
   rvt: "BACKUP", skp: "BACKUP", tqs: "BACKUP", zip: "BACKUP", rar: "BACKUP", "7z": "BACKUP", qibzip: "BACKUP",
+  ed3: "BACKUP", // CYPE 3D
 };
 
 // "Recebidos do cliente" saiu daqui (virou repositório Documento) — pacotes de disciplina.
