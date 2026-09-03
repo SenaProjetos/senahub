@@ -44,6 +44,8 @@ export type ArquivoPublico = {
   nome: string;
   tamanho: number;
   ehPdf: boolean;
+  /** Revisão do upload (1, 2, 3...) — a página mostra como R01, R02. */
+  versao: number;
 };
 export type DisciplinaPublica = {
   id: string;
@@ -173,6 +175,7 @@ async function conteudoDaSelecao(uploadIds: string[]): Promise<DisciplinaPublica
       id: true,
       nomeArquivo: true,
       tamanho: true,
+      versao: true,
       disciplina: { select: { id: true, disciplinaTextoLegado: true } },
     },
   });
@@ -189,6 +192,7 @@ async function conteudoDaSelecao(uploadIds: string[]): Promise<DisciplinaPublica
       nome: u.nomeArquivo,
       tamanho: u.tamanho,
       ehPdf: ehPdf(u.nomeArquivo),
+      versao: u.versao,
     });
   }
   return [...porDisciplina.values()];
@@ -226,7 +230,7 @@ export async function conteudoPublicoPorToken(token: string): Promise<ConteudoPu
       uploads: {
         where: { validado: true, excluidoEm: null },
         orderBy: [{ nomeArquivo: "asc" }, { versao: "desc" }],
-        select: { id: true, nomeArquivo: true, tamanho: true, ...SELECT_REGRAS },
+        select: { id: true, nomeArquivo: true, tamanho: true, versao: true, ...SELECT_REGRAS },
       },
     },
   });
@@ -246,6 +250,7 @@ export async function conteudoPublicoPorToken(token: string): Promise<ConteudoPu
           nome: u.nomeArquivo,
           tamanho: u.tamanho,
           ehPdf: ehPdf(u.nomeArquivo),
+          versao: u.versao,
         })),
       }))
       // Disciplina sem nenhum arquivo liberado não aparece (nada a baixar).

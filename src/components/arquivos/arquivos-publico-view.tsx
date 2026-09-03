@@ -11,7 +11,7 @@ import {
   FolderOpen,
 } from "lucide-react";
 import type { ConteudoPublico } from "@/modules/projetos/arquivos/link-publico";
-import { cn } from "@/lib/utils";
+import { cn, rotuloRevisao } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -70,6 +70,12 @@ function Disciplina({
               )}
               <span className="min-w-0 flex-1 truncate" title={a.nome}>
                 {a.nome}
+              </span>
+              <span
+                className="shrink-0 font-mono text-xs text-muted-foreground"
+                title={`Revisão ${a.versao}`}
+              >
+                {rotuloRevisao(a.versao)}
               </span>
               <span className="shrink-0 font-mono text-xs text-muted-foreground">{fmtBytes(a.tamanho)}</span>
               {a.ehPdf && (
