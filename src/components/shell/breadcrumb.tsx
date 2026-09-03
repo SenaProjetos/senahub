@@ -22,6 +22,15 @@ const HREF_TO_TITLE: Record<string, string> = (() => {
   return map;
 })();
 
+/**
+ * Rotas cujo SEGMENTO não descreve mais o que a página é. `capitalize()` deriva do caminho, e
+ * caminho é contrato (link salvo, histórico de auditoria) — quando o conteúdo muda e a rota fica,
+ * a trilha passa a mentir. Manter curto: cada linha aqui é uma divergência entre URL e conteúdo.
+ */
+const ROTULO_POR_ROTA: Record<string, string> = {
+  "/configuracoes/permissoes": "Piso de sócio",
+};
+
 function capitalize(segment: string): string {
   const text = decodeURIComponent(segment).replace(/[-_]/g, " ");
   return text.charAt(0).toUpperCase() + text.slice(1);
@@ -46,7 +55,9 @@ function buildCrumbs(pathname: string): BreadcrumbItem[] {
   segments.forEach((segment, index) => {
     acc += "/" + segment;
     let label: string;
-    if (index === 0 && HREF_TO_TITLE[acc]) {
+    if (ROTULO_POR_ROTA[acc]) {
+      label = ROTULO_POR_ROTA[acc];
+    } else if (index === 0 && HREF_TO_TITLE[acc]) {
       label = HREF_TO_TITLE[acc];
     } else if (index === 1 && segments[0] === "ferramentas") {
       // Slug da ferramenta → nome amigável do registry (nunca expor a chave crua).

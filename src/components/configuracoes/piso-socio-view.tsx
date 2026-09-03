@@ -203,7 +203,9 @@ function CartaoSocios({ socios }: { socios: SocioDoPiso[] }) {
           <ul className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
             {socios.map((s) => (
               <li key={s.id} className="flex items-center gap-1">
-                <span className={cn(s.bypass && "line-through decoration-dotted")}>{s.nome}</span>
+                {/* Sem `line-through`: numa tela de acesso, nome riscado lê como "usuário
+                    desativado". O chip + a opacidade dizem "não conta" sem dizer "não existe". */}
+                <span className={cn(s.bypass && "opacity-60")}>{s.nome}</span>
                 {s.bypass && (
                   <Tooltip>
                     <TooltipTrigger
