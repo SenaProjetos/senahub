@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Inbox, Search, X, Check, ShieldAlert } from "lucide-react";
+import { Inbox, Search, X, Check, ShieldAlert, ListFilter } from "lucide-react";
 import {
   criarProspeccaoRapida,
   buscarEmpresaParaProspeccaoRapidaAction,
   buscarContatoNaEmpresaAction,
+  prospeccoesAtivasDoClienteAction,
 } from "@/modules/comercial/actions";
-import type { EmpresaCandidata } from "@/modules/comercial/queries";
-import { STATUS_PROSPECCAO_LABEL } from "@/modules/comercial/labels";
+import type { ClienteSelecionavel, EmpresaCandidata } from "@/modules/comercial/queries";
+import { STATUS_PROSPECCAO_LABEL, TIPO_PESSOA_LABEL } from "@/modules/comercial/labels";
 import { ATIVIDADE_ICONE } from "@/components/comercial/atividade-icones";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,7 @@ import {
 
 type TipoRapido = "LIGACAO" | "WHATSAPP" | "EMAIL" | "LINKEDIN" | "REUNIAO" | "NOTA";
 type DestinoEntrada = "ACOMPANHAR" | "ABRIR_NEGOCIACAO";
+type TipoPessoa = "PF" | "PJ";
 
 /** Mesmos tipos de `RegistrarInteracaoPopover` — consistência entre os dois pontos de registro. */
 const TIPOS_ABORDAGEM: { tipo: TipoRapido; label: string; nota: string }[] = [
@@ -51,9 +53,20 @@ const SEM_CANAL = "nenhum";
 const SEM_PARCEIRO = "nenhum";
 const NOVA_DEMANDA = "nova";
 
+/** Campos do contato zerados — trocar de cliente sempre invalida o contato já escolhido. */
+const CONTATO_LIMPO = {
+  contatoId: null as string | null,
+  contatoNome: "",
+  contatoOptOut: false,
+  email: "",
+  telefone: "",
+  cargo: "",
+};
+
 const VAZIO = {
   urlPerfil: "",
   urlAlvo: "contato" as "cliente" | "contato",
+  tipoPessoa: "PJ" as TipoPessoa,
   empresaNome: "",
   empresaId: null as string | null,
   contatoNome: "",
@@ -82,10 +95,13 @@ export function ProspeccaoRapidaDialog({
   campanhas,
   canais,
   parceiros,
+  clientes,
 }: {
   campanhas: { id: string; nome: string }[];
   canais: { id: string; nome: string }[];
   parceiros: { id: string; nome: string }[];
+  /** Cadastros já existentes, para escolher em vez de digitar de novo. */
+  clientes: ClienteSelecionavel[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -97,15 +113,22 @@ export function ProspeccaoRapidaDialog({
   const [prospeccoesAtivas, setProspeccoesAtivas] = useState<EmpresaCandidata["prospeccoesAtivas"]>([]);
   const [candidatosContato, setCandidatosContato] = useState<ContatoCandidato[]>([]);
   const [buscandoContato, setBuscandoContato] = useState(false);
+  const [listaAberta, setListaAberta] = useState(false);
+  const [filtroLista, setFiltroLista] = useState("");
+  /** Última escolha feita NA LISTA — só a resposta dela ainda vale (ver `usarClienteDaLista`). */
+  const escolhaNaListaRef = useRef<string | null>(null);
 
   const set = <K extends keyof typeof VAZIO>(k: K, v: (typeof VAZIO)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
   function reiniciar() {
+    escolhaNaListaRef.current = null;
     setForm(VAZIO);
     setCandidatosEmpresa([]);
     setCandidatosContato([]);
     setProspeccoesAtivas([]);
+    setListaAberta(false);
+    setFiltroLista("");
   }
 
   // ── Busca de empresa (debounce 400ms, mesmo valor do F3.8) ─────────────────────────────
@@ -118,20 +141,26 @@ export function ProspeccaoRapidaDialog({
       return;
     }
     const nome = form.empresaNome.trim();
-    if (nome.length < 3) {
+    // 2, e não 3: a busca agora casa por pedaço do nome, e nomes curtos ("Sá") são cadastros
+    // inteiros — esperar o 3º caractere escondia justamente eles.
+    if (nome.length < 2) {
       setCandidatosEmpresa([]);
       setBuscandoEmpresa(false);
       return;
     }
     setBuscandoEmpresa(true);
+    // `tipo` vai junto porque muda a normalização do nome buscado: em PJ o sufixo societário
+    // ("ltda", "me", "sa") é descartado, e aplicar isso a uma pessoa física comeria pedaço do
+    // nome dela ("Maria Sá") — o cadastro existente nunca casaria.
+    const tipo = form.tipoPessoa;
     const timer = setTimeout(() => {
-      buscarEmpresaParaProspeccaoRapidaAction({ nome }).then((r) => {
+      buscarEmpresaParaProspeccaoRapidaAction({ nome, tipo }).then((r) => {
         setCandidatosEmpresa(Array.isArray(r) ? r : []);
         setBuscandoEmpresa(false);
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [form.empresaNome, form.empresaId, open]);
+  }, [form.empresaNome, form.empresaId, form.tipoPessoa, open]);
 
   useEffect(() => {
     if (form.contatoId || !form.empresaId) {
@@ -156,21 +185,82 @@ export function ProspeccaoRapidaDialog({
   }, [form.contatoNome, form.contatoId, form.empresaId]);
 
   function mudarNomeEmpresa(v: string) {
+    escolhaNaListaRef.current = null;
     set("empresaNome", v);
     if (form.empresaId) {
-      set("empresaId", null); // digitar de novo destrava o vínculo
-      set("leadExistenteId", NOVA_DEMANDA);
+      // Destravar o vínculo derruba junto o contato: ele pertencia ao cliente que acabou de sair.
+      setForm((f) => ({ ...f, empresaId: null, leadExistenteId: NOVA_DEMANDA, ...CONTATO_LIMPO }));
       setProspeccoesAtivas([]);
     }
     setCandidatosContato([]);
   }
 
   function usarEmpresa(c: EmpresaCandidata) {
-    set("empresaId", c.id);
-    set("empresaNome", c.nome);
-    set("leadExistenteId", NOVA_DEMANDA);
+    escolhaNaListaRef.current = null;
+    setForm((f) => ({
+      ...f,
+      empresaId: c.id,
+      empresaNome: c.nome,
+      // O tipo do CADASTRO manda — escolher um cliente existente não pode ser reclassificação.
+      tipoPessoa: c.tipo,
+      leadExistenteId: NOVA_DEMANDA,
+      // Trocar de cliente invalida o contato já escolhido: ele pertence ao cliente ANTERIOR.
+      ...CONTATO_LIMPO,
+    }));
     setProspeccoesAtivas(c.prospeccoesAtivas);
     setCandidatosEmpresa([]);
+    setCandidatosContato([]);
+  }
+
+  /**
+   * Escolha direta na lista de cadastros. Diferente da busca-enquanto-digita (que só reage a
+   * partir de 3 caracteres e exige acertar a grafia), aqui o cliente recorrente é reaproveitado
+   * sem depender de memória — que é justamente como nasciam os cadastros duplicados.
+   */
+  function usarClienteDaLista(c: ClienteSelecionavel) {
+    setForm((f) => ({
+      ...f,
+      empresaId: c.id,
+      empresaNome: c.nome,
+      tipoPessoa: c.tipo,
+      leadExistenteId: NOVA_DEMANDA,
+      ...CONTATO_LIMPO,
+    }));
+    setCandidatosEmpresa([]);
+    setCandidatosContato([]);
+    setListaAberta(false);
+    setFiltroLista("");
+    // As demandas ativas vêm junto na busca por digitação; por aqui precisam de uma leitura
+    // própria, ou a pergunta "esta entrada pertence a qual demanda?" sumiria no caminho do
+    // cliente recorrente — onde ela mais importa.
+    setProspeccoesAtivas([]);
+    // Descarta resposta obsoleta: escolher A e logo B pode fazer a resposta de A chegar por
+    // último e mostrar, sob B, as demandas de A. Mesmo cuidado da busca por digitação.
+    escolhaNaListaRef.current = c.id;
+    prospeccoesAtivasDoClienteAction({ clienteId: c.id }).then((r) => {
+      if (escolhaNaListaRef.current !== c.id) return;
+      setProspeccoesAtivas(Array.isArray(r) ? r : []);
+    });
+  }
+
+  function trocarTipoPessoa(v: TipoPessoa) {
+    if (v === form.tipoPessoa) return;
+    escolhaNaListaRef.current = null;
+    // Troca de tipo muda o significado do nome (razão social ↔ nome da pessoa); limpa o que já
+    // foi digitado, como faz o cadastro de clientes.
+    setForm((f) => ({
+      ...f,
+      tipoPessoa: v,
+      empresaId: null,
+      empresaNome: "",
+      leadExistenteId: NOVA_DEMANDA,
+      ...CONTATO_LIMPO,
+      // "Da pessoa / Da empresa" não faz sentido em PF: o perfil é da própria pessoa cadastrada.
+      urlAlvo: v === "PF" ? "cliente" : f.urlAlvo,
+    }));
+    setCandidatosEmpresa([]);
+    setCandidatosContato([]);
+    setProspeccoesAtivas([]);
   }
 
   function mudarNomeContato(v: string) {
@@ -198,9 +288,26 @@ export function ProspeccaoRapidaDialog({
     if (TIPOS_ABORDAGEM.some((x) => x.nota === form.nota)) set("nota", t.nota);
   }
 
+  /** Em PF a pessoa é o próprio cliente — não há um segundo nome de contato a exigir. */
+  const contatoSeparado = form.tipoPessoa === "PJ";
+  const rotuloCliente = contatoSeparado ? "Empresa" : "Cliente (pessoa física)";
+  // Lista de escolha: PF e PJ juntos, com o tipo à direita de cada linha. Esconder o outro tipo
+  // esconderia exatamente o cadastro que o usuário duplicaria — o seletor de tipo diz o que
+  // CRIAR, não o que procurar. `correspondentes` (antes do corte) é o que decide se há mais para
+  // achar; comparar com `clientes` inteiro avisaria de um corte inexistente.
+  const termoLista = filtroLista.trim().toLowerCase();
+  const correspondentes = termoLista
+    ? clientes.filter((c) => c.nome.toLowerCase().includes(termoLista))
+    : clientes;
+  const clientesFiltrados = correspondentes.slice(0, 50);
+
   function salvar() {
-    if (!form.empresaId && !form.empresaNome.trim()) return toast.error("Informe a empresa.");
-    if (!form.contatoId && !form.contatoNome.trim()) return toast.error("Informe o contato.");
+    if (!form.empresaId && !form.empresaNome.trim()) {
+      return toast.error(form.tipoPessoa === "PF" ? "Informe o cliente." : "Informe a empresa.");
+    }
+    if (contatoSeparado && !form.contatoId && !form.contatoNome.trim()) {
+      return toast.error("Informe o contato.");
+    }
     if (form.contatoOptOut) return toast.error("Este contato pediu descadastro — não pode ser abordado.");
     if (form.canalId === SEM_CANAL) return toast.error("Informe como este contato chegou.");
     if (
@@ -216,10 +323,19 @@ export function ProspeccaoRapidaDialog({
       const r = await criarProspeccaoRapida({
         urlPerfil: form.urlPerfil,
         urlAlvo: form.urlAlvo,
-        empresa: form.empresaId ? { clienteId: form.empresaId } : { nome: form.empresaNome },
+        empresa: form.empresaId
+          ? { clienteId: form.empresaId }
+          : { nome: form.empresaNome, tipo: form.tipoPessoa },
         contato: form.contatoId
           ? { contatoId: form.contatoId }
-          : { nome: form.contatoNome, email: form.email, telefone: form.telefone, cargo: form.cargo },
+          : {
+              // PF manda o nome vazio de propósito: o serviço espelha o contato a partir do
+              // próprio cliente (e reaproveita o espelho se a pessoa já tiver um).
+              nome: contatoSeparado ? form.contatoNome : "",
+              email: form.email,
+              telefone: form.telefone,
+              cargo: form.cargo,
+            },
         canalId: form.canalId,
         parceiroId: form.parceiroId === SEM_PARCEIRO ? "" : form.parceiroId,
         campanhaId: form.campanhaId === SEM_CAMPANHA ? "" : form.campanhaId,
@@ -344,32 +460,110 @@ export function ProspeccaoRapidaDialog({
                 placeholder="https://www.linkedin.com/…"
                 className="flex-1"
               />
-              <Select value={form.urlAlvo} onValueChange={(v) => set("urlAlvo", (v as "cliente" | "contato") ?? "contato")}>
-                <SelectTrigger className="w-36" aria-label="O perfil pertence a">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="contato">Da pessoa</SelectItem>
-                  <SelectItem value="cliente">Da empresa</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* Em PF cliente e pessoa são o mesmo registro — perguntar de quem é o perfil só
+                  criaria a chance de gravar no lugar errado. */}
+              {contatoSeparado && (
+                <Select value={form.urlAlvo} onValueChange={(v) => set("urlAlvo", (v as "cliente" | "contato") ?? "contato")}>
+                  <SelectTrigger className="w-36" aria-label="O perfil pertence a">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="contato">Da pessoa</SelectItem>
+                    <SelectItem value="cliente">Da empresa</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
 
-          {/* ── Empresa ────────────────────────────────────────────────────────────────── */}
+          {/* ── Cliente (empresa ou pessoa física) ─────────────────────────────────────── */}
           <div className="space-y-1.5">
-            <Label htmlFor={form.empresaId ? undefined : "entrada-empresa"}>Empresa</Label>
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <Label htmlFor={form.empresaId ? undefined : "entrada-empresa"}>{rotuloCliente}</Label>
+              {!form.empresaId && (
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={form.tipoPessoa}
+                    onValueChange={(v) => trocarTipoPessoa((v as TipoPessoa) ?? "PJ")}
+                  >
+                    <SelectTrigger className="h-8 w-40" aria-label="Tipo de cliente">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PJ">{TIPO_PESSOA_LABEL.PJ}</SelectItem>
+                      <SelectItem value="PF">{TIPO_PESSOA_LABEL.PF}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    aria-expanded={listaAberta}
+                    onClick={() => {
+                      setListaAberta((a) => !a);
+                      setFiltroLista("");
+                    }}
+                  >
+                    <ListFilter className="size-3.5" />
+                    {listaAberta ? "Fechar lista" : "Escolher da lista"}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {!form.empresaId && listaAberta && (
+              <div className="space-y-1.5 rounded-sm border border-dashed p-2">
+                <Input
+                  aria-label="Filtrar clientes cadastrados"
+                  value={filtroLista}
+                  onChange={(e) => setFiltroLista(e.target.value)}
+                  placeholder="Filtrar por nome…"
+                />
+                {clientesFiltrados.length === 0 ? (
+                  <p className="px-1 py-2 text-xs text-muted-foreground">
+                    {termoLista ? "Nenhum cadastro corresponde ao filtro." : "Nenhum cliente cadastrado ainda."}{" "}
+                    Feche a lista e digite o nome para cadastrar um novo.
+                  </p>
+                ) : (
+                  <ul className="max-h-56 space-y-0.5 overflow-y-auto">
+                    {clientesFiltrados.map((c) => (
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          onClick={() => usarClienteDaLista(c)}
+                          className="flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1 text-left text-sm hover:bg-muted"
+                        >
+                          <span className="min-w-0 truncate">{c.nome}</span>
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {c.tipo === "PF" ? "pessoa física" : "empresa"}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {correspondentes.length > clientesFiltrados.length && (
+                  <p className="px-1 text-xs text-muted-foreground">
+                    Mostrando {clientesFiltrados.length} de {correspondentes.length} — refine o
+                    filtro para achar os demais.
+                  </p>
+                )}
+              </div>
+            )}
+
             {form.empresaId ? (
               <div className="flex items-center gap-2 rounded-sm border border-primary/40 bg-primary/5 px-2.5 py-1.5 text-sm">
                 <Check className="size-3.5 shrink-0 text-primary" />
                 <span className="min-w-0 flex-1 truncate font-medium">{form.empresaNome}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">empresa existente</span>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {form.tipoPessoa === "PF" ? "pessoa física cadastrada" : "empresa existente"}
+                </span>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
                   className="size-6 shrink-0"
-                  aria-label="Trocar empresa"
+                  aria-label={form.tipoPessoa === "PF" ? "Trocar cliente" : "Trocar empresa"}
                   onClick={() => mudarNomeEmpresa("")}
                 >
                   <X className="size-3.5" />
@@ -381,7 +575,9 @@ export function ProspeccaoRapidaDialog({
                   id="entrada-empresa"
                   value={form.empresaNome}
                   onChange={(e) => mudarNomeEmpresa(e.target.value)}
-                  placeholder="Nome da empresa…"
+                  placeholder={
+                    form.tipoPessoa === "PF" ? "Nome da pessoa…" : "Nome da empresa…"
+                  }
                 />
                 {buscandoEmpresa && (
                   <p className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -397,7 +593,14 @@ export function ProspeccaoRapidaDialog({
                           onClick={() => usarEmpresa(c)}
                           className="flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1 text-left text-sm hover:bg-muted"
                         >
-                          <span className="truncate">{c.nome}</span>
+                          <span className="min-w-0 truncate">
+                            {c.nome}
+                            {/* A busca não filtra por tipo — o rótulo evita confundir a PF
+                                "Alfa Silva" com a empresa "Alfa Engenharia". */}
+                            <span className="ml-1.5 text-xs text-muted-foreground">
+                              {c.tipo === "PF" ? "pessoa física" : "empresa"}
+                            </span>
+                          </span>
                           <span className="shrink-0 text-xs text-primary">usar esta ↵</span>
                         </button>
                       </li>
@@ -440,7 +643,9 @@ export function ProspeccaoRapidaDialog({
 
           {/* ── Contato ────────────────────────────────────────────────────────────────── */}
           <div className="space-y-1.5">
-            <Label htmlFor={form.contatoId ? undefined : "entrada-contato"}>Contato</Label>
+            <Label htmlFor={form.contatoId || !contatoSeparado ? undefined : "entrada-contato"}>
+              {contatoSeparado ? "Contato" : "Dados de contato da pessoa"}
+            </Label>
             {form.contatoId ? (
               <div
                 className={`flex items-center gap-2 rounded-sm border px-2.5 py-1.5 text-sm ${
@@ -469,19 +674,21 @@ export function ProspeccaoRapidaDialog({
               </div>
             ) : (
               <>
-                <Input
-                  id="entrada-contato"
-                  value={form.contatoNome}
-                  onChange={(e) => mudarNomeContato(e.target.value)}
-                  placeholder="Nome do contato…"
-                  disabled={!form.empresaId && !form.empresaNome.trim()}
-                />
-                {buscandoContato && (
+                {contatoSeparado && (
+                  <Input
+                    id="entrada-contato"
+                    value={form.contatoNome}
+                    onChange={(e) => mudarNomeContato(e.target.value)}
+                    placeholder="Nome do contato…"
+                    disabled={!form.empresaId && !form.empresaNome.trim()}
+                  />
+                )}
+                {contatoSeparado && buscandoContato && (
                   <p className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Search className="size-3" /> buscando…
                   </p>
                 )}
-                {candidatosContato.length > 0 && (
+                {contatoSeparado && candidatosContato.length > 0 && (
                   <ul className="space-y-1 rounded-sm border border-dashed p-1.5">
                     {candidatosContato.map((c) => (
                       <li key={c.id}>

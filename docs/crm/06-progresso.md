@@ -20,6 +20,80 @@ Uma entrada por prompt executado, do mais recente para o mais antigo.
 
 ---
 
+## Cliente PF + lista de seleção na entrada comercial · 2026-09-02 · Opus 5
+
+**Feito:** a "Nova entrada comercial" só sabia cadastrar empresa (`tipo: "PJ"` fixo no serviço) e só
+achava cadastro existente por busca-enquanto-digita a partir de 3 caracteres. Agora:
+
+- **Pessoa física** — seletor PJ/PF no diálogo (mesmos rótulos do cadastro de clientes), rótulo e
+  placeholder trocando para "Cliente (pessoa física)", e `Cliente.tipo` gravado de verdade. Em PF a
+  seção de contato vira "Dados de contato da pessoa" (sem segundo nome) e o "Da pessoa / Da empresa"
+  do LinkedIn some — em PF os dois são o mesmo registro.
+- **Contato-espelho de PF** — todo o comercial (LGPD `podeAbordar`/`optOut`/`dataCollectionSource`,
+  atividades, negociação) pendura em `ContatoCliente`, e `ProspeccaoRapidaResultado.contatoId` não é
+  nulável. Então PF ganha um contato criado a partir do próprio cliente, em vez de tornar o contato
+  opcional (que obrigaria auditar cada consumidor de `contatoId`). Escolher a mesma PF duas vezes
+  **reaproveita** o espelho (`findFirst` por nome, insensitive) — senão a duplicata voltaria um nível
+  abaixo. O reaproveitamento passa pelo mesmo `podeAbordar` do contato escolhido à mão.
+- **Lista de seleção** — botão "Escolher da lista" com filtro, ao lado da busca por digitação (que
+  continua: ela pega erro de grafia em nome novo, a lista pega o cliente recorrente de quem não lembra
+  o nome exato). Fonte: `clientesParaSelecao()`, filtrando `ativo: true` **e `fundidoEmId: null`** —
+  oferecer um cadastro absorvido por fusão (F1.14) recriaria a duplicata que a fusão resolveu.
+  Escolher pela lista busca as demandas ativas do cliente (`prospeccoesAtivasDoCliente`), ou a
+  pergunta "esta entrada pertence a qual demanda?" sumiria justamente no caminho do recorrente.
+- **Bug de busca corrigido** — `buscarEmpresaParaProspeccaoRapida` fixava `tipo: "PJ"` ao chamar
+  `candidatosDuplicata`. Como `normalizarNomeEmpresa` só corta sufixo societário (`ltda`, `me`, `sa`)
+  em PJ, procurar a PF "Maria Sá" era normalizado para "maria" e o cadastro existente **nunca**
+  casava. Agora o tipo escolhido na tela vai junto na busca.
+
+- **Higiene de estado no diálogo** — trocar de cliente (pela lista, pela busca ou pelo "X") agora
+  sempre zera o contato: ele pertencia ao cliente anterior, e mandá-lo junto só produzia o erro
+  "Contato não encontrado nesta empresa". A resposta das demandas ativas tem guarda de obsolescência
+  (`escolhaNaListaRef`), como a busca por digitação já tinha.
+- **Permissão** — `clientesParaSelecao()` só roda para quem tem `comercial:gerir`, que é quem vê o
+  diálogo; sem o gate, até 500 nomes de clientes iriam no payload de quem só tem `comercial:ver`.
+
+**Arquivos:** `src/modules/comercial/{schemas,queries,actions,service,labels}.ts`,
+`src/components/comercial/prospeccao-rapida-dialog.tsx`,
+`src/app/(dashboard)/comercial/prospeccao/page.tsx`,
+`src/modules/comercial/entrada-comercial.test.ts` (3 casos novos).
+
+**Pendente:** CPF/CNPJ e endereço continuam fora da entrada rápida — quem precisa completa a ficha em
+`/clientes`. A lista carrega até 500 clientes como prop do RSC e mostra 50 por vez com filtro no
+cliente; se a base passar disso, vira busca no servidor. Falta smoke no navegador (typecheck, lint,
+2872 testes e build passaram).
+
+**Correção (mesmo dia, após teste no navegador):** a busca por digitação usava o motor de
+**dedupe** (`candidatosDuplicata`: Levenshtein sobre a string inteira, ≥0.85) para responder a uma
+pergunta que não é a dele. "constr" contra "Construtora Alfa Ltda" dá ~0.3 de similaridade → nada na
+tela; só aparecia quando o texto digitado já estava quase idêntico a **um** cadastro. Agora a busca
+é por texto, em duas camadas: `contains` token a token no `nome`/`nomeFantasia` (AND entre tokens,
+então "alfa" acha "Construtora **Alfa**" e "alfa constr" acha o mesmo com as palavras trocadas), com
+a dedupe entrando só como complemento para erro de grafia, e apenas se o texto trouxe menos de 8
+resultados — ela carrega a tabela inteira; a condição é "o `contains` não saturou o teto de 200
+linhas", **não** "sobrou espaço na tela": o `contains` do banco compara texto cru e
+`relevanciaNome` compara sem acento, então "Construtora São-José" casa com "sao" só do lado
+normalizado — atrelar isso ao espaço restante faria o cadastro aparecer ou sumir conforme quantas
+OUTRAS linhas casaram, com o mesmo texto digitado. Ordenação por relevância (`relevanciaNome`: começa com o
+termo → palavra começa com o termo → contém), porque com a lista curta o corte alfabético deixava o
+nome exato de fora. Mínimo caiu de 3 para 2 caracteres. Teto de 200 linhas lidas antes do ranking (acima disso o corte
+volta a ser alfabético — refinar o termo resolve), ao lado do cap de 500 da lista de seleção. `tokensDeBusca`/`relevanciaNome` são puros,
+em `dedupe.ts`, com 5 casos de teste. A busca e a lista **não filtram por PF/PJ** — o cadastro do
+outro tipo que some da tela é exatamente o que seria duplicado; o tipo aparece como rótulo em cada
+linha e o seletor passa a significar só "o que vou criar".
+
+**LGPD:** a base legal registrada em `01-decisoes.md` (T1) é *legítimo interesse*, escrita para
+prospecção **B2B fria**. Um cliente PF entra por indicação/procura espontânea, não por prospecção
+fria — o contato-espelho grava `dataCollectionSource` com o canal real, mas se a operação passar a
+prospectar PF ativamente, a base legal precisa ser revista antes.
+
+**Riscos:** o tipo de um cliente **reaproveitado** vem sempre do registro, nunca da tela — reclassificar
+PF↔PJ continua sendo só pelo cadastro de clientes, de propósito. `empresa.tipo` é `.optional()` sem
+`.default()` no Zod: com `.default()` o campo viraria obrigatório no tipo de entrada inferido e
+quebraria as chamadas antigas; o padrão PJ é aplicado no serviço.
+
+---
+
 ## Lote 5 (Terra) — F6.12 · F7.8 · F7.9 · F7.10 · 2026-08-23 · Terra
 
 ### Fecho técnico e manual

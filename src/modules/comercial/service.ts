@@ -1203,7 +1203,9 @@ export type ProspeccaoRapidaInput = {
    * `ContatoCliente.salesNavigatorUrl`. Sem isso o link de uma PESSOA acabaria gravado como se
    * fosse o perfil da EMPRESA (ou vice-versa), o que é pior que não guardar o link nenhum. */
   urlAlvo: "cliente" | "contato";
-  empresa: { clienteId?: string | null; nome?: string };
+  /** `tipo` decide se `nome` é razão social (PJ) ou o nome da pessoa (PF). Ausente = PJ, que é
+   * como todas as chamadas anteriores a este campo se comportavam. */
+  empresa: { clienteId?: string | null; nome?: string; tipo?: "PF" | "PJ" };
   contato: { contatoId?: string | null; nome?: string; email?: string; telefone?: string; cargo?: string };
   campanhaId?: string | null;
   canalId?: string | null;
@@ -1284,23 +1286,37 @@ export async function criarProspeccaoRapida(
     let clienteId: string;
     let nomeEmpresa: string;
     let reaproveitouEmpresa: boolean;
+    let tipoCliente: "PF" | "PJ";
     if (input.empresa.clienteId) {
       const existe = await tx.cliente.findUnique({
         where: { id: input.empresa.clienteId },
-        select: { id: true, nome: true },
+        select: { id: true, nome: true, tipo: true },
       });
       if (!existe) throw new ActionError("Empresa não encontrada.");
       clienteId = existe.id;
       nomeEmpresa = existe.nome;
+      // O tipo vem SEMPRE do registro quando o cadastro é reaproveitado — o que a tela mandou é
+      // só a intenção de quem digitava, e não pode reclassificar um cliente que já existe.
+      tipoCliente = existe.tipo;
       reaproveitouEmpresa = true;
       await tx.cliente.update({ where: { id: clienteId }, data: { statusAbordagem: "ABORDADO" } });
     } else {
       const nome = input.empresa.nome?.trim();
-      if (!nome) throw new ActionError("Informe o nome da empresa.");
+      tipoCliente = input.empresa.tipo ?? "PJ";
+      if (!nome) {
+        throw new ActionError(
+          tipoCliente === "PF" ? "Informe o nome do cliente." : "Informe o nome da empresa.",
+        );
+      }
       const novo = await tx.cliente.create({
         data: {
           nome,
-          tipo: "PJ",
+          tipo: tipoCliente,
+          // PF: os dados de contato digitados são os da própria pessoa — guardá-los também no
+          // cliente evita uma ficha de pessoa física que só tem o nome.
+          ...(tipoCliente === "PF"
+            ? { email: input.contato.email || null, telefone: input.contato.telefone || null }
+            : {}),
           ...(input.urlAlvo === "cliente" && input.urlPerfil ? { salesNavigatorUrl: input.urlPerfil } : {}),
           ...(veioDoSalesNavigator ? { listaSalesNavigator: true, dataInclusaoLista: new Date() } : {}),
           statusAbordagem: "ABORDADO",
@@ -1333,30 +1349,59 @@ export async function criarProspeccaoRapida(
       reaproveitouContato = true;
       await tx.contatoCliente.update({ where: { id: contatoId }, data: { statusAbordagem: "ABORDADO" } });
     } else {
-      const nome = input.contato.nome?.trim();
+      // ── PF: a pessoa É o contato ─────────────────────────────────────────────────────
+      // Nada no comercial se pendura só em `Cliente`: LGPD (`podeAbordar`, `optOut`,
+      // `dataCollectionSource`), atividades e negociação exigem um `ContatoCliente`, e
+      // `ProspeccaoRapidaResultado.contatoId` não é nulável. Então PF ganha um contato-espelho
+      // com os próprios dados, em vez de tornar o contato opcional — o que obrigaria auditar
+      // cada consumidor de `contatoId`.
+      const ehEspelhoPf = tipoCliente === "PF" && !input.contato.nome?.trim();
+      const nome = ehEspelhoPf ? nomeEmpresa : input.contato.nome?.trim();
       if (!nome) throw new ActionError("Informe o nome do contato.");
-      const novo = await tx.contatoCliente.create({
-        data: {
-          clienteId,
-          nome,
-          email: input.contato.email || null,
-          telefone: input.contato.telefone || null,
-          cargo: input.contato.cargo || null,
-          ...(input.urlAlvo === "contato" && input.urlPerfil ? { salesNavigatorUrl: input.urlPerfil } : {}),
-          ...(veioDoSalesNavigator ? { listaSalesNavigator: true, dataInclusaoLista: new Date() } : {}),
-          statusAbordagem: "ABORDADO",
-          // LGPD (T1): a origem real da entrada, sem carimbar indicação/site como Sales Navigator.
-          dataCollectionSource: canal?.nome ?? "Entrada comercial",
-          dataCollectedAt: new Date(),
-        },
-        select: { id: true },
-      });
-      contatoId = novo.id;
-      reaproveitouContato = false;
-      await registrarAtividade(
-        { evento: "CONTATO_CADASTRADO", nome, cargo: input.contato.cargo ?? null },
-        { autorId: input.autorId, clienteId, contatoId, tx },
-      );
+
+      // Escolher a MESMA pessoa física duas vezes não pode gerar dois espelhos no mesmo
+      // cliente — seria recriar, um nível abaixo, a duplicata que a lista de seleção evita.
+      const espelho = ehEspelhoPf
+        ? await tx.contatoCliente.findFirst({
+            where: { clienteId, excluidoEm: null, nome: { equals: nome, mode: "insensitive" } },
+            select: { id: true, optOut: true, telefone: true, email: true },
+          })
+        : null;
+      if (espelho) {
+        // LGPD (T1): o espelho reaproveitado passa pela MESMA porta do contato escolhido à mão.
+        if (!podeAbordar(espelho)) {
+          throw new ActionError("Este contato pediu descadastro (opt-out) — não pode ser abordado.");
+        }
+        await tx.contatoCliente.update({
+          where: { id: espelho.id },
+          data: { statusAbordagem: "ABORDADO" },
+        });
+        contatoId = espelho.id;
+        reaproveitouContato = true;
+      } else {
+        const novo = await tx.contatoCliente.create({
+          data: {
+            clienteId,
+            nome,
+            email: input.contato.email || null,
+            telefone: input.contato.telefone || null,
+            cargo: input.contato.cargo || null,
+            ...(input.urlAlvo === "contato" && input.urlPerfil ? { salesNavigatorUrl: input.urlPerfil } : {}),
+            ...(veioDoSalesNavigator ? { listaSalesNavigator: true, dataInclusaoLista: new Date() } : {}),
+            statusAbordagem: "ABORDADO",
+            // LGPD (T1): a origem real da entrada, sem carimbar indicação/site como Sales Navigator.
+            dataCollectionSource: canal?.nome ?? "Entrada comercial",
+            dataCollectedAt: new Date(),
+          },
+          select: { id: true },
+        });
+        contatoId = novo.id;
+        reaproveitouContato = false;
+        await registrarAtividade(
+          { evento: "CONTATO_CADASTRADO", nome, cargo: input.contato.cargo ?? null },
+          { autorId: input.autorId, clienteId, contatoId, tx },
+        );
+      }
     }
 
     // ── 3. Prospecção: reaproveita a ATIVA (se houver) ou cria ───────────────────────────

@@ -130,6 +130,41 @@ export function similaridade(a: string, b: string): number {
   return 1 - levenshtein(a, b) / tamanhoMax;
 }
 
+// ── Busca por texto digitado (entrada comercial) ────────────────────────────
+//
+// Separada da dedupe de propósito. `candidatosDuplicata` responde "este nome QUASE INTEIRO já
+// existe?" — Levenshtein sobre a string toda. Quem está digitando faz outra pergunta: "quem já
+// tenho que CONTÉM isto?". Com o motor de dedupe, "constr" contra "Construtora Alfa Ltda" dá
+// similaridade ~0.3 e some da tela, e nada aparecia até o texto estar quase completo — que é
+// justamente quando a busca já não ajuda mais.
+
+/** Termo digitado → tokens normalizados. "  Constr  ALFA " → ["constr", "alfa"]. */
+export function tokensDeBusca(termo: string, limite = 5): string[] {
+  return normalizarNomeEmpresa(termo, "PF") // "PF": não corta sufixo — quem digita "me" quis "me"
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, limite);
+}
+
+/**
+ * Relevância de um nome para os tokens digitados, do melhor (0) ao pior (3):
+ * 0 = o nome começa com o texto digitado · 1 = alguma PALAVRA do nome começa com todo token
+ * (é o que faz "alfa" achar "Construtora **Alfa** Ltda") · 2 = contém em qualquer posição ·
+ * 3 = não casa por texto (veio da dedupe, por semelhança).
+ *
+ * Ordenar importa porque a lista é curta: sem isto, "constr" mostraria as 8 primeiras por ordem
+ * alfabética e a empresa exata poderia ficar de fora do corte.
+ */
+export function relevanciaNome(nome: string, tokens: string[]): number {
+  if (tokens.length === 0) return 3;
+  const alvo = normalizarNomeEmpresa(nome, "PF");
+  if (alvo.startsWith(tokens.join(" "))) return 0;
+  const palavras = alvo.split(" ").filter(Boolean);
+  if (tokens.every((t) => palavras.some((p) => p.startsWith(t)))) return 1;
+  if (tokens.every((t) => alvo.includes(t))) return 2;
+  return 3;
+}
+
 // ── Busca de candidatos (F1.13) ─────────────────────────────────────────────
 
 export type ClienteResumoDedupe = {

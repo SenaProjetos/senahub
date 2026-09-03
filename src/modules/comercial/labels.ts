@@ -30,6 +30,7 @@ import type {
   BaseLegalLgpd,
   StatusRelacionamentoContato,
   StatusProposta,
+  TipoPessoa,
 } from "@/generated/prisma/enums";
 
 export type {
@@ -154,6 +155,16 @@ export const STATUS_RELACIONAMENTO_CONTATO_LABEL = {
 export const BASE_LEGAL_LGPD_LABEL = {
   LEGITIMO_INTERESSE: "Legítimo interesse",
 } satisfies Record<BaseLegalLgpd, string>;
+
+/**
+ * Pessoa física × jurídica (`TipoPessoa`, enum já existente fora do CRM). Os mesmos rótulos do
+ * cadastro de clientes — a entrada comercial não pode chamar de outro nome o que `/clientes`
+ * chama de "Pessoa Jurídica".
+ */
+export const TIPO_PESSOA_LABEL = {
+  PJ: "Pessoa Jurídica",
+  PF: "Pessoa Física",
+} satisfies Record<TipoPessoa, string>;
 
 /**
  * Monta as opções de um `<Select>` a partir de um mapa de rótulos, preservando a ordem de

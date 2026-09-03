@@ -12,7 +12,7 @@ import {
   whereNegociacao,
   type FiltrosComerciais,
 } from "@/modules/comercial/filtros";
-import { candidatosDuplicata } from "@/modules/comercial/dedupe";
+import { candidatosDuplicata, relevanciaNome, tokensDeBusca } from "@/modules/comercial/dedupe";
 import { versaoVigente } from "@/modules/comercial/versoes";
 import {
   pipelineAberto,
@@ -784,25 +784,133 @@ export async function buscarEmpresaParaVincular(nome: string): Promise<EmpresaPa
 export type EmpresaCandidata = {
   id: string;
   nome: string;
+  tipo: "PF" | "PJ";
   prospeccoesAtivas: { id: string; nome: string; status: StatusProspeccao }[];
 };
 
+/** Item da lista de clientes já cadastrados oferecida na entrada comercial. */
+export type ClienteSelecionavel = { id: string; nome: string; tipo: "PF" | "PJ" };
+
 /**
- * Busca empresa por nome/domínio enquanto o usuário digita no fluxo rápido (F4.3). Reusa
- * `candidatosDuplicata` (F1.12), como o sinal de reativação (F3.8) — mas SEM o filtro "só com
- * histórico" daquele: aqui a pergunta não é "vale a pena reativar", é "essa empresa já existe,
- * sim ou não" — e uma empresa recém-criada AGORA MESMO (2º prospect da mesma sessão, ainda sem
- * projeto/negociação nenhum) tem que aparecer igual, ou o aceite "reaproveita sem duplicar"
- * falha exatamente no caso que ele testa.
+ * Clientes oferecidos para escolha direta na entrada comercial — o caminho "já atendi essa
+ * pessoa antes" para quem não lembra o nome e não tem o que digitar: a busca por texto só ajuda
+ * quem sabe ao menos um pedaço do nome.
+ *
+ * `ativo: true` + `fundidoEmId: null` de propósito: cliente arquivado ou ABSORVIDO por uma fusão
+ * (F1.14) continua existindo no banco, e oferecê-lo aqui recriaria exatamente a duplicata que a
+ * fusão resolveu. O `excluidoEm` já é filtrado pela extensão de soft delete em `lib/prisma.ts`.
  */
-export async function buscarEmpresaParaProspeccaoRapida(nome: string): Promise<EmpresaCandidata[]> {
-  if (!nome || nome.trim().length < 3) return [];
-  const existentes = await clientesParaDedupe();
-  const candidatos = candidatosDuplicata(existentes, { nome, tipo: "PJ" })
-    .filter((c) => c.motivo === "nome_exato" || (c.motivo === "nome_similar" && c.score >= 0.85))
-    .slice(0, 5);
+export async function clientesParaSelecao(): Promise<ClienteSelecionavel[]> {
+  return prisma.cliente.findMany({
+    where: { ativo: true, fundidoEmId: null },
+    orderBy: { nome: "asc" },
+    take: 500,
+    select: { id: true, nome: true, tipo: true },
+  });
+}
+
+/**
+ * Demandas ativas de um cliente escolhido na lista. A busca por digitação já devolve isso junto
+ * (`EmpresaCandidata.prospeccoesAtivas`); escolher pela lista pula aquela busca e precisa da
+ * mesma informação, ou a pergunta "esta entrada pertence a qual demanda?" sumiria justamente no
+ * caminho do cliente recorrente — que é onde ela mais importa.
+ */
+export async function prospeccoesAtivasDoCliente(
+  clienteId: string,
+): Promise<EmpresaCandidata["prospeccoesAtivas"]> {
+  return prisma.lead.findMany({
+    where: {
+      clienteId,
+      status: { in: [...STATUS_PROSPECCAO_ATIVOS] },
+      arquivado: false,
+      excluidoEm: null,
+    },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, nome: true, status: true },
+  });
+}
+
+/** Quantos candidatos a busca por digitação chega a mostrar de uma vez. */
+const LIMITE_BUSCA_CLIENTE = 8;
+/**
+ * Teto de linhas lidas antes de ordenar por relevância. Alto de propósito: o `orderBy` do banco é
+ * alfabético, então um corte apertado aconteceria ANTES do ranking e poderia descartar o nome
+ * exato por causa de homônimos que só contêm o termo ("Construtora …" é prefixo comum na base).
+ * Acima deste teto a ordenação volta a ser alfabética — refinar o termo resolve.
+ */
+const TETO_BUSCA_TEXTO = 200;
+
+/**
+ * Busca cliente enquanto o usuário digita na entrada comercial. Duas camadas, nesta ordem:
+ *
+ * 1. **Texto** (`contains`, token a token) — "constr" acha "Construtora Alfa" e "Construtora
+ *    Beta"; "alfa" acha "Construtora Alfa" mesmo sem o começo do nome. Cada token precisa casar
+ *    (AND), então digitar mais só restringe — nunca troca o resultado por outro.
+ * 2. **Semelhança** (`candidatosDuplicata`, F1.12) — complementa o texto para o caso que ele não
+ *    pega: erro de grafia ("konstrutora"). Só entra se o texto trouxe pouca coisa, porque exige
+ *    carregar a tabela inteira (`clientesParaDedupe`).
+ *
+ * A busca **não** filtra por PF/PJ: um cadastro do outro tipo que some da tela é exatamente o
+ * cadastro que o usuário vai duplicar. O tipo do registro escolhido é que passa a valer.
+ *
+ * Sem o filtro "só com histórico" do sinal de reativação (F3.8): aqui a pergunta não é "vale a
+ * pena reativar", é "esse cliente já existe" — e um cliente criado AGORA MESMO (2º prospect da
+ * mesma sessão, ainda sem projeto/negociação) tem que aparecer igual.
+ */
+export async function buscarEmpresaParaProspeccaoRapida(
+  nome: string,
+  tipo: "PF" | "PJ" = "PJ",
+): Promise<EmpresaCandidata[]> {
+  const termo = nome?.trim() ?? "";
+  // 2 caracteres, não 3: "Sá", "TJ" e afins são nomes inteiros de cliente.
+  if (termo.length < 2) return [];
+  const tokens = tokensDeBusca(termo);
+  if (tokens.length === 0) return [];
+
+  const porTexto = await prisma.cliente.findMany({
+    where: {
+      ativo: true,
+      fundidoEmId: null,
+      // AND dos tokens, cada um podendo casar no nome OU no nome fantasia — "alfa construtora"
+      // (ordem trocada) e "alfa" sozinho chegam no mesmo cadastro.
+      AND: tokens.map((t) => ({
+        OR: [
+          { nome: { contains: t, mode: "insensitive" as const } },
+          { nomeFantasia: { contains: t, mode: "insensitive" as const } },
+        ],
+      })),
+    },
+    orderBy: { nome: "asc" },
+    take: TETO_BUSCA_TEXTO,
+    select: { id: true, nome: true, tipo: true },
+  });
+
+  const achados = new Map(porTexto.map((c) => [c.id, c]));
+  // A condição é "o `contains` NÃO saturou", e não "achei menos que o limite da tela": o
+  // `contains` do banco compara texto CRU, enquanto `relevanciaNome` compara sem acento nem
+  // pontuação. "Construtora São-José" casa com "sao" só do lado normalizado — se a dedupe
+  // dependesse de sobrar espaço na tela, esse cadastro apareceria ou sumiria conforme quantas
+  // OUTRAS linhas casaram, com o mesmo texto digitado.
+  if (porTexto.length < TETO_BUSCA_TEXTO) {
+    const existentes = await clientesParaDedupe();
+    for (const c of candidatosDuplicata(existentes, { nome: termo, tipo })) {
+      if (achados.size >= LIMITE_BUSCA_CLIENTE) break;
+      if (c.motivo !== "nome_exato" && !(c.motivo === "nome_similar" && c.score >= 0.85)) continue;
+      if (!achados.has(c.cliente.id)) {
+        achados.set(c.cliente.id, { id: c.cliente.id, nome: c.cliente.nome, tipo: c.cliente.tipo });
+      }
+    }
+  }
+
+  const candidatos = [...achados.values()]
+    .sort(
+      (a, b) =>
+        relevanciaNome(a.nome, tokens) - relevanciaNome(b.nome, tokens) ||
+        a.nome.localeCompare(b.nome, "pt-BR"),
+    )
+    .slice(0, LIMITE_BUSCA_CLIENTE);
   if (candidatos.length === 0) return [];
-  const ids = candidatos.map((c) => c.cliente.id);
+  const ids = candidatos.map((c) => c.id);
   const ativas = await prisma.lead.findMany({
     where: {
       clienteId: { in: ids },
@@ -815,10 +923,11 @@ export async function buscarEmpresaParaProspeccaoRapida(nome: string): Promise<E
   });
 
   return candidatos.map((c) => ({
-    id: c.cliente.id,
-    nome: c.cliente.nome,
+    id: c.id,
+    nome: c.nome,
+    tipo: c.tipo,
     prospeccoesAtivas: ativas
-      .filter((lead) => lead.clienteId === c.cliente.id)
+      .filter((lead) => lead.clienteId === c.id)
       .map(({ id, nome, status }) => ({ id, nome, status })),
   }));
 }

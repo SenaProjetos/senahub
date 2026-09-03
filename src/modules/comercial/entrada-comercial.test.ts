@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { candidatosDuplicata, relevanciaNome, tokensDeBusca } from "./dedupe";
 import { criarProspeccaoRapidaSchema } from "./schemas";
 
 const entradaBase = {
@@ -53,5 +54,76 @@ describe("schema da entrada comercial", () => {
       criarNovaDemanda: true,
     });
     expect(parsed.success).toBe(false);
+  });
+});
+
+describe("cliente pessoa física na entrada comercial", () => {
+  it("aceita a entrada sem contato separado quando o cliente é PF", () => {
+    const parsed = criarProspeccaoRapidaSchema.safeParse({
+      ...entradaBase,
+      empresa: { nome: "Maria Sá", tipo: "PF" },
+      contato: { email: "maria@exemplo.com" },
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.empresa.tipo).toBe("PF");
+  });
+
+  it("não exige o tipo — chamadas antigas continuam válidas", () => {
+    const parsed = criarProspeccaoRapidaSchema.safeParse(entradaBase);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.empresa.tipo).toBeUndefined();
+  });
+
+  it("encontra a PF já cadastrada cujo nome termina em sufixo societário", () => {
+    // Buscar como PJ cortaria o "Sá" (tratado como sufixo) e o cadastro não casaria — é o que
+    // acontecia enquanto a busca da entrada comercial fixava `tipo: "PJ"`.
+    const existentes = [
+      { id: "c1", nome: "Maria Sá", tipo: "PF" as const, documento: null, email: null },
+    ];
+    expect(candidatosDuplicata(existentes, { nome: "Maria Sá", tipo: "PF" })[0]?.motivo).toBe(
+      "nome_exato",
+    );
+    expect(candidatosDuplicata(existentes, { nome: "Maria Sá", tipo: "PJ" })).toHaveLength(0);
+  });
+});
+
+describe("busca por texto na entrada comercial", () => {
+  const cadastrados = [
+    "Construtora Alfa Ltda",
+    "Construtora Beta",
+    "Alfa Engenharia",
+    "Incorporadora Delta",
+  ];
+  const acha = (termo: string) => {
+    const tokens = tokensDeBusca(termo);
+    return cadastrados
+      .filter((n) => relevanciaNome(n, tokens) < 3)
+      .sort((a, b) => relevanciaNome(a, tokens) - relevanciaNome(b, tokens) || a.localeCompare(b));
+  };
+
+  it("mostra TODOS os compatíveis com um pedaço do começo, não só quando sobra um", () => {
+    // Era o defeito relatado: com o motor de dedupe, "constr" não devolvia nada até o texto
+    // digitado ficar quase idêntico a um único cadastro.
+    expect(acha("constr")).toEqual(["Construtora Alfa Ltda", "Construtora Beta"]);
+  });
+
+  it("acha pelo miolo do nome", () => {
+    expect(acha("alfa")).toEqual(["Alfa Engenharia", "Construtora Alfa Ltda"]);
+  });
+
+  it("aceita as palavras em qualquer ordem", () => {
+    expect(acha("alfa constr")).toEqual(["Construtora Alfa Ltda"]);
+  });
+
+  it("ignora acento e caixa", () => {
+    expect(acha("INCORPORADORA")).toEqual(["Incorporadora Delta"]);
+    expect(tokensDeBusca("  Construtora   ALFA ")).toEqual(["construtora", "alfa"]);
+  });
+
+  it("classifica quem começa com o termo à frente de quem só o contém", () => {
+    expect(relevanciaNome("Construtora Alfa Ltda", tokensDeBusca("constr"))).toBe(0);
+    expect(relevanciaNome("Construtora Alfa Ltda", tokensDeBusca("alfa"))).toBe(1);
+    expect(relevanciaNome("Incorporadora Delta", tokensDeBusca("corpora"))).toBe(2);
+    expect(relevanciaNome("Incorporadora Delta", tokensDeBusca("zzz"))).toBe(3);
   });
 });

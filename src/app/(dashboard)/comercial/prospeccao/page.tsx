@@ -6,6 +6,7 @@ import { can } from "@/lib/permissions";
 import {
   campanhasAtivas,
   canaisAtivos,
+  clientesParaSelecao,
   funilProspeccao,
   opcoesFiltroComercial,
   parceirosAtivos,
@@ -46,12 +47,16 @@ export default async function ProspeccaoPage({
   const sp = await searchParams;
   const filtros = lerFiltros(sp);
   const pagina = Math.max(1, Number(Array.isArray(sp.page) ? sp.page[0] : sp.page) || 1);
-  const [colunas, opcoes, campanhas, canais, parceiros] = await Promise.all([
+  const [colunas, opcoes, campanhas, canais, parceiros, clientes] = await Promise.all([
     funilProspeccao({ filtros, pagina }),
     opcoesFiltroComercial(),
     campanhasAtivas(),
     canaisAtivos(),
     parceirosAtivos(),
+    // Lista de cadastros existentes para a entrada comercial escolher em vez de redigitar.
+    // Só para quem pode gerir: é quem vê o diálogo — sem o gate, os nomes de até 500 clientes
+    // iriam no payload de quem só tem `comercial:ver` e não consegue nem abrir a entrada.
+    podeGerir ? clientesParaSelecao() : [],
   ]);
   const total = colunas.reduce((s, c) => s + c.total, 0);
   const qs = paraQueryString(sp);
@@ -76,7 +81,12 @@ export default async function ProspeccaoPage({
             <Button variant="outline" size="sm" render={<a href={`/api/comercial/export/contatos?${qs}`} />}>
               <Download className="size-4" /> Contatos
             </Button>
-            <ProspeccaoRapidaDialog campanhas={campanhas} canais={canais} parceiros={parceiros} />
+            <ProspeccaoRapidaDialog
+              campanhas={campanhas}
+              canais={canais}
+              parceiros={parceiros}
+              clientes={clientes}
+            />
           </>
         )}
       </div>

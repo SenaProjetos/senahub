@@ -278,7 +278,15 @@ export const registrarInteracaoSchema = z.object({
 export const buscarEmpresaParaVincularSchema = z.object({ nome: z.string() });
 
 // ── Fluxo rápido de prospecção (F4.3) ───────────────────────────
-export const buscarEmpresaParaProspeccaoRapidaSchema = z.object({ nome: z.string() });
+export const buscarEmpresaParaProspeccaoRapidaSchema = z.object({
+  nome: z.string(),
+  /// O tipo muda a NORMALIZAÇÃO do nome buscado (`normalizarNomeEmpresa` só corta sufixo
+  /// societário em PJ). Sem ele, procurar a PF "Maria Sá" era normalizado como se "Sá" fosse
+  /// sufixo de empresa e o cadastro existente nunca casava.
+  tipo: z.enum(["PF", "PJ"]).optional(),
+});
+
+export const prospeccoesAtivasDoClienteSchema = z.object({ clienteId: z.string().min(1) });
 
 /** Busca contato DENTRO de uma empresa já resolvida — escopo menor que a dedupe do F3.8. */
 export const buscarContatoNaEmpresaSchema = z.object({
@@ -292,6 +300,9 @@ export const criarProspeccaoRapidaSchema = z.object({
   empresa: z.object({
     clienteId: opt(z.string()),
     nome: opt(z.string()),
+    /// Opcional, e não `.default("PJ")`: o default do Zod tornaria o campo OBRIGATÓRIO no tipo
+    /// de entrada inferido, quebrando quem já chama sem ele. O padrão PJ é aplicado no serviço.
+    tipo: z.enum(["PF", "PJ"]).optional(),
   }),
   contato: z.object({
     contatoId: opt(z.string()),

@@ -44,6 +44,7 @@ import {
   registrarInteracaoSchema,
   buscarEmpresaParaVincularSchema,
   buscarEmpresaParaProspeccaoRapidaSchema,
+  prospeccoesAtivasDoClienteSchema,
   buscarContatoNaEmpresaSchema,
   criarProspeccaoRapidaSchema,
   configComercialSchema,
@@ -56,6 +57,7 @@ import {
   lerTemplatosNotas,
   buscarEmpresaParaVincular,
   buscarEmpresaParaProspeccaoRapida,
+  prospeccoesAtivasDoCliente,
   buscarContatoNaEmpresa,
 } from "@/modules/comercial/queries";
 import {
@@ -1022,8 +1024,22 @@ export async function buscarEmpresaParaProspeccaoRapidaAction(input: unknown) {
   const { can } = await import("@/lib/permissions");
   const user = await requireUser();
   if (!(await can(user, "comercial", "gerir"))) return [];
-  const { nome } = buscarEmpresaParaProspeccaoRapidaSchema.parse(input);
-  return buscarEmpresaParaProspeccaoRapida(nome);
+  const { nome, tipo } = buscarEmpresaParaProspeccaoRapidaSchema.parse(input);
+  return buscarEmpresaParaProspeccaoRapida(nome, tipo);
+}
+
+/**
+ * Demandas ativas do cliente escolhido na lista de cadastros existentes. Leitura, então segue
+ * fora de `defineAction`, como as duas buscas acima.
+ */
+export async function prospeccoesAtivasDoClienteAction(input: unknown) {
+  "use server";
+  const { requireUser } = await import("@/lib/session");
+  const { can } = await import("@/lib/permissions");
+  const user = await requireUser();
+  if (!(await can(user, "comercial", "gerir"))) return [];
+  const { clienteId } = prospeccoesAtivasDoClienteSchema.parse(input);
+  return prospeccoesAtivasDoCliente(clienteId);
 }
 
 /**
