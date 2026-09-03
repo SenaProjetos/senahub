@@ -6,7 +6,7 @@ import { FechamentoView } from "@/components/financeiro/fechamento/fechamento-vi
 export const metadata: Metadata = { title: "Fechamento mensal" };
 
 export default async function FechamentoPage() {
-  await requirePermission("financeiro", "gerir");
+  await requirePermission("financeiro", "fechar");
   const fechamentos = await listarFechamentos();
   const hoje = new Date();
   return <FechamentoView fechamentos={fechamentos} anoAtual={hoje.getFullYear()} mesAtual={hoje.getMonth() + 1} />;

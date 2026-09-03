@@ -23,7 +23,7 @@ export default async function RelatoriosPage({
 }: {
   searchParams: Promise<{ de?: string; ate?: string; base?: string }>;
 }) {
-  await requirePermission("financeiro", "ver");
+  await requirePermission("financeiro", "resultados");
   const sp = await searchParams;
   const { de, ate } = periodoPadrao(sp);
   const base = sp.base === "competencia" ? "competencia" : "caixa";

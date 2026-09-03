@@ -23,7 +23,7 @@ export default async function RentabilidadePage({
 }: {
   searchParams: Promise<{ de?: string; ate?: string; margem?: string }>;
 }) {
-  await requirePermission("financeiro", "ver");
+  await requirePermission("financeiro", "resultados");
   const sp = await searchParams;
   const { de, ate } = periodoPadrao(sp);
   const margem = sp.margem ? Number(sp.margem) : 0;

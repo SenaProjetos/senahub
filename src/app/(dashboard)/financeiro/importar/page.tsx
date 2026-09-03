@@ -6,7 +6,7 @@ import { ImportadorView } from "@/components/financeiro/importacao/importador-vi
 export const metadata: Metadata = { title: "Importar dados financeiros" };
 
 export default async function ImportarFinanceiroPage() {
-  await requirePermission("financeiro", "gerir");
+  await requirePermission("financeiro", "conciliar");
   const importacoes = await listarImportacoes();
   return <ImportadorView importacoes={importacoes} />;
 }

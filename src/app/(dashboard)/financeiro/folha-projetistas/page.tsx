@@ -9,7 +9,7 @@ import { FolhaLotesSection } from "@/components/financeiro/folha/folha-lotes-sec
 export const metadata: Metadata = { title: "Produção" };
 
 export default async function FolhaProjetistasPage() {
-  await requirePermission("financeiro", "ver");
+  await requirePermission("financeiro", "folha_pj");
   const [{ itens, pendente, pago }, opcoes, lotes] = await Promise.all([
     listarFolha(),
     opcoesLancamento(),

@@ -26,9 +26,11 @@ export const criarPastaPersonalizada = defineAction(
   {
     modulo: "projetos",
     acao: "criar-pasta-personalizada",
+    // F4 (2026-09-02): era `projetos:gerir` SOMADO a `roles: ["admin"]`. Vira o par próprio
+    // `projetos:pastas`, que não é semeado para ninguém — mesma população de antes (só o
+    // bypass de `superUsuario`), mas agora concedível pela tela, sem deploy.
     recurso: "projetos",
-    permissao: "gerir",
-    roles: ["admin"],
+    permissao: "pastas",
     entidade: "PastaProjeto",
     schema: criarPastaPersonalizadaSchema,
     entidadeId: (d) => (d as { pastaId: string } | undefined)?.pastaId,
@@ -84,9 +86,11 @@ export const renomearPastaPersonalizada = defineAction(
   {
     modulo: "projetos",
     acao: "renomear-pasta-personalizada",
+    // F4 (2026-09-02): era `projetos:gerir` SOMADO a `roles: ["admin"]`. Vira o par próprio
+    // `projetos:pastas`, que não é semeado para ninguém — mesma população de antes (só o
+    // bypass de `superUsuario`), mas agora concedível pela tela, sem deploy.
     recurso: "projetos",
-    permissao: "gerir",
-    roles: ["admin"],
+    permissao: "pastas",
     entidade: "PastaProjeto",
     schema: renomearPastaPersonalizadaSchema,
     entidadeId: (d, i) => ((d ?? i) as { pastaId: string }).pastaId,
@@ -111,9 +115,11 @@ export const excluirPastaPersonalizada = defineAction(
   {
     modulo: "projetos",
     acao: "excluir-pasta-personalizada",
+    // F4 (2026-09-02): era `projetos:gerir` SOMADO a `roles: ["admin"]`. Vira o par próprio
+    // `projetos:pastas`, que não é semeado para ninguém — mesma população de antes (só o
+    // bypass de `superUsuario`), mas agora concedível pela tela, sem deploy.
     recurso: "projetos",
-    permissao: "gerir",
-    roles: ["admin"],
+    permissao: "pastas",
     entidade: "PastaProjeto",
     schema: excluirPastaPersonalizadaSchema,
     entidadeId: (d, i) => ((d ?? i) as { pastaId: string }).pastaId,
@@ -149,9 +155,11 @@ export const moverArquivoDePasta = defineAction(
   {
     modulo: "projetos",
     acao: "mover-arquivo-de-pasta",
+    // F4 (2026-09-02): era `projetos:gerir` SOMADO a `roles: ["admin"]`. Vira o par próprio
+    // `projetos:pastas`, que não é semeado para ninguém — mesma população de antes (só o
+    // bypass de `superUsuario`), mas agora concedível pela tela, sem deploy.
     recurso: "projetos",
-    permissao: "gerir",
-    roles: ["admin"],
+    permissao: "pastas",
     entidade: "Upload",
     schema: moverArquivoDePastaSchema,
     entidadeId: (d, i) => ((d ?? i) as { uploadId: string }).uploadId,

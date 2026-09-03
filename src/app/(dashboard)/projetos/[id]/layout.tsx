@@ -4,7 +4,6 @@ import Link from "next/link";
 import { ArrowLeft, ChevronRight, MessageSquare } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
-import { INTERNAL_ROLES } from "@/lib/roles";
 import { obterProjetoMinimo, abasComConteudo } from "@/modules/projetos/queries";
 import type { AbaConfigItem } from "@/modules/projetos/abas";
 import { listarClientes } from "@/modules/clientes/queries";
@@ -35,19 +34,37 @@ export default async function ProjetoLayout({
   const projeto = await obterProjetoMinimo(user, id);
   if (!projeto) notFound();
 
-  const [podeGerir, podeVerFinanceiro, podeHistorico, podeCoordenacao, podeCustos, canalChat, modelosDoc, conteudoPorAba] =
-    await Promise.all([
-      can(user, "projetos", "gerir"),
-      can(user, "financeiro", "ver"),
-      can(user, "projetos", "historico"),
-      can(user, "coordenacao", "ver"),
-      can(user, "custos", "ver"),
-      canalDoProjeto(id),
-      modelosPorFonte("projeto"),
-      abasComConteudo(id),
-    ]);
-  // Diário de projeto: equipe interna lê/escreve; cliente nunca vê (gate fino de escrita fica no módulo).
-  const podeDiario = INTERNAL_ROLES.includes(user.role as never);
+  const [
+    podeGerir,
+    podeVerFinanceiro,
+    podeHistorico,
+    podeCoordenacao,
+    podeCustos,
+    podeServicos,
+    podeArts,
+    podeDiario,
+    podeExtras,
+    canalChat,
+    modelosDoc,
+    conteudoPorAba,
+  ] = await Promise.all([
+    can(user, "projetos", "gerir"),
+    can(user, "financeiro", "ver"),
+    can(user, "projetos", "historico"),
+    can(user, "coordenacao", "ver"),
+    can(user, "custos", "ver"),
+    // F4 (2026-09-02): Serviços, ARTs, Diário e Extras não tinham gate nenhum (Diário só
+    // `INTERNAL_ROLES`). A permissão é o TETO e o `abasConfig` do projeto recorta DENTRO dela
+    // (decisão do dono, opção C): sem o par, a aba nunca aparece; com o par, aparece se aquele
+    // projeto a mantiver ligada. Semeadas para quem tem `projetos:ver`, então ninguém perdeu aba.
+    can(user, "projetos", "servicos"),
+    can(user, "projetos", "arts"),
+    can(user, "projetos", "diario"),
+    can(user, "projetos", "extras"),
+    canalDoProjeto(id),
+    modelosPorFonte("projeto"),
+    abasComConteudo(id),
+  ]);
   // Item 12 (beta): editar todos os campos do projeto — só busca clientes se puder editar.
   const clientes = podeGerir ? await listarClientes({ incluirInativos: false }) : [];
 
@@ -139,13 +156,13 @@ export default async function ProjetoLayout({
           "/inputs",
           ...(podeVerFinanceiro ? ["/financeiro"] : []),
           "/lista-mestre",
-          "/servicos",
+          ...(podeServicos ? ["/servicos"] : []),
           "/arquivos",
-          "/arts",
+          ...(podeArts ? ["/arts"] : []),
           ...(podeCoordenacao ? ["/coordenacao"] : []),
           ...(podeCustos ? ["/custos"] : []),
           ...(podeDiario ? ["/diario"] : []),
-          "/extras",
+          ...(podeExtras ? ["/extras"] : []),
           // Histórico (CDE) só para admin ou cargos autorizados em Configurações.
           ...(podeHistorico ? ["/historico"] : []),
         ]}

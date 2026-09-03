@@ -19,7 +19,7 @@ import {
   Shapes,
   LayoutList,
 } from "lucide-react";
-import { requireRole } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -156,7 +156,11 @@ const GRUPOS: Grupo[] = [
 ];
 
 export default async function ConfiguracoesPage() {
-  await requireRole("admin", "supervisor", "administrativo");
+  // F4 (2026-09-02): era `requireRole("admin","supervisor","administrativo")`. O par
+  // `configuracoes:gerir` só está semeado em `administrativo`, então **o Coordenador perde
+  // o acesso** — redução deliberada, decidida pelo dono em 2026-09-02. Para devolver,
+  // basta marcar o par no perfil Coordenador (a tela agora resolve isso sem deploy).
+  await requirePermission("configuracoes", "gerir");
 
   // Status das integrações on-prem (lido das variáveis de ambiente no servidor).
   // Apenas booleanos — nenhum segredo é exposto ao cliente.

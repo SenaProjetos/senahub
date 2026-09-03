@@ -11,7 +11,10 @@ import { AcessosDoProjeto } from "@/components/acessos/acessos-do-projeto";
 export const metadata: Metadata = { title: "Mais — projeto" };
 
 export default async function ExtrasPage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await requirePermission("projetos", "ver");
+  // F4 (2026-09-02): o par próprio da aba, não `projetos:ver`. Esconder a aba no layout sem
+  // fechar a página deixaria a permissão valendo só como enfeite de menu — a URL continuaria
+  // aberta. Semeado para quem tem `projetos:ver`, então ninguém perdeu acesso.
+  const user = await requirePermission("projetos", "extras");
   const { id } = await params;
   const projeto = await projetoVisivel(user, id);
   if (!projeto) notFound();

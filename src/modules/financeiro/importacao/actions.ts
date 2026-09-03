@@ -14,7 +14,10 @@ import { normalizarLinhas, contarDryRun, type Mapeamento } from "@/modules/finan
 import { carregarExistentes, hashesExistentes } from "@/modules/financeiro/importacao/queries";
 import { executarCommit, executarDesfazer } from "@/modules/financeiro/importacao/commit-core";
 
-const base = { modulo: "financeiro", recurso: "financeiro", permissao: "gerir" } as const;
+// Recorte fino da F4 (2026-09-02): era `permissao: "gerir"`, o mesmo interruptor de lançar
+// boleto. Semeado para quem tinha `gerir`, então ninguém perdeu nada — passa a poder ser
+// separado pela tela. Ver docs/superpowers/specs/2026-09-02-ampliacao-escopo-permissoes.md.
+const base = { modulo: "financeiro", recurso: "financeiro", permissao: "conciliar" } as const;
 
 function revalida() {
   for (const p of [

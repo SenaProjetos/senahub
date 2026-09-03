@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { requireRole } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { analiseUso } from "@/modules/auditoria/queries";
 import { PeriodoSelect } from "@/components/auditoria/periodo-select";
 import { UsoCards } from "@/components/auditoria/uso-cards";
@@ -15,7 +15,11 @@ export const metadata: Metadata = { title: "Uso por seção" };
 const PERIODOS = [7, 14, 30, 90];
 
 export default async function UsoPage({ searchParams }: { searchParams: Promise<{ dias?: string }> }) {
-  await requireRole("admin");
+  // `auditoria:ver` em vez de `requireRole("admin")` (F2 de
+  // docs/superpowers/specs/2026-09-02-ampliacao-escopo-permissoes.md): o par já existia no
+  // catálogo e governava só o item de menu. Sem mudança de acesso — ninguém tem `auditoria:ver`
+  // na semente, e o admin continua passando pelo bypass de `superUsuario`.
+  await requirePermission("auditoria", "ver");
   const sp = await searchParams;
   const dias = PERIODOS.includes(Number(sp.dias)) ? Number(sp.dias) : 14;
   const data = await analiseUso(dias);

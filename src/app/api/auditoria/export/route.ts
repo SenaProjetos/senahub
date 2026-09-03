@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { format } from "date-fns";
 import { getSession } from "@/lib/session";
+import { can } from "@/lib/permissions";
 import { auditoriaParaExport } from "@/modules/auditoria/queries";
 import { ACAO_LABEL } from "@/modules/auditoria/labels";
 
@@ -22,10 +23,10 @@ function csvCell(value: string | null | undefined): string {
 }
 
 export async function GET(req: Request) {
-  // A página de auditoria é restrita a admin (requireRole("admin")).
+  // Mesmo eixo da página de auditoria: `auditoria:ver` (ver o comentário lá).
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  if (session.user.role !== "admin") {
+  if (!(await can(session.user, "auditoria", "ver"))) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 

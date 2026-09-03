@@ -7,7 +7,10 @@ import { prisma } from "@/lib/prisma";
 import { notificarMuitos } from "@/lib/notificar";
 import { confirmarDespesaProjetista } from "@/modules/financeiro/custo/lancamento-custo";
 
-const base = { modulo: "financeiro", recurso: "financeiro", permissao: "gerir" } as const;
+// Recorte fino da F4 (2026-09-02): era `permissao: "gerir"`, o mesmo interruptor de lançar
+// boleto. Semeado para quem tinha `gerir`, então ninguém perdeu nada — passa a poder ser
+// separado pela tela. Ver docs/superpowers/specs/2026-09-02-ampliacao-escopo-permissoes.md.
+const base = { modulo: "financeiro", recurso: "financeiro", permissao: "folha_pj" } as const;
 
 /**
  * Agrupa em um lote mensal os pagamentos de projetistas liberados no mês e ainda sem lote.

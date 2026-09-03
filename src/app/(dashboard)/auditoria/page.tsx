@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireRole } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { listarAuditoria } from "@/modules/auditoria/queries";
 import { AuditoriaTabela } from "@/components/auditoria/auditoria-tabela";
 
@@ -17,7 +17,11 @@ export default async function AuditoriaPage({
     page?: string;
   }>;
 }) {
-  await requireRole("admin");
+  // `auditoria:ver` em vez de `requireRole("admin")` (F2 de
+  // docs/superpowers/specs/2026-09-02-ampliacao-escopo-permissoes.md): o par já existia no
+  // catálogo e governava só o item de menu. Sem mudança de acesso — ninguém tem `auditoria:ver`
+  // na semente, e o admin continua passando pelo bypass de `superUsuario`.
+  await requirePermission("auditoria", "ver");
   const sp = await searchParams;
 
   const data = await listarAuditoria({

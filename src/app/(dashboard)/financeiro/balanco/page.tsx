@@ -7,7 +7,7 @@ import { brlInteiro } from "@/lib/utils";
 export const metadata: Metadata = { title: "Balanço" };
 
 export default async function BalancoPage() {
-  await requirePermission("financeiro", "ver");
+  await requirePermission("financeiro", "resultados");
   const b = await balancoGerencial();
 
   const linha = (rotulo: string, valor: number, forte = false) => (

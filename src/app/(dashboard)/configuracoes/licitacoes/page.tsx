@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { requireRole } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { getConfigLicitacoes } from "@/modules/licitacoes/config/queries";
 import { LicitacoesConfigView } from "@/components/configuracoes/licitacoes-config-view";
 
 export const metadata: Metadata = { title: "Licitações — Configurações" };
 
 export default async function LicitacoesConfigPage() {
-  await requireRole("admin");
+  await requirePermission("configuracoes", "licitacoes");
   const config = await getConfigLicitacoes();
   return <LicitacoesConfigView config={config} />;
 }

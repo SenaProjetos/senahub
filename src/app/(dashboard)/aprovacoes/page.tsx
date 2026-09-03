@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
-import { GLOBAL_ROLES } from "@/lib/roles";
+import { can } from "@/lib/permissions";
 import { pendentesAprovacao } from "@/modules/arquivos/queries";
 import { disciplinasProntasParaAprovar } from "@/modules/projetos/queries";
 import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
@@ -13,19 +13,28 @@ import { PedidosExclusaoView } from "@/components/arquivos/pedidos-exclusao-view
 export const metadata: Metadata = { title: "Aprovações" };
 
 export default async function AprovacoesPage() {
-  // Painel de validação = escrita: só admin/supervisor (sem piso de sócio, que é leitura).
+  // Painel de validação = escrita. `can()` puro e NÃO `requirePermission`: este último aplica o
+  // piso de sócio, que é read-only por decisão de 2026-08-08 (§15.7) e não pode abrir escrita.
+  // Era `GLOBAL_ROLES.includes(user.role)` — o menu já exigia `uploads:validar`, então conceder
+  // o par mostrava o item e mandava para /sem-permissao no clique (F2 de
+  // docs/superpowers/specs/2026-09-02-ampliacao-escopo-permissoes.md). Sem mudança de acesso:
+  // `uploads:validar` está semeado no coordenador, e o admin passa por `superUsuario`.
   const user = await requireUser();
-  if (!GLOBAL_ROLES.includes(user.role)) redirect("/sem-permissao");
+  const [podeValidar, podeExcluir] = await Promise.all([
+    can(user, "uploads", "validar"),
+    // Decidir exclusão segue o mesmo eixo da lixeira do projeto: `arquivos:excluir` (ninguém o
+    // tem na semente, então continua sendo só o admin, via bypass). O coordenador não vê a fila.
+    can(user, "arquivos", "excluir"),
+  ]);
+  if (!podeValidar) redirect("/sem-permissao");
 
-  // Decidir exclusão é só-admin (mesmo gate da lixeira) — supervisor não vê a fila.
-  const ehAdmin = user.role === "admin";
   // Perfis globais já retornam true aqui — derivar em vez de fixar `true` mantém a muralha
   // por disciplina caso o gate da tela um dia se abra para outro perfil.
   const veTodasDisc = await podeVerTodasDisciplinas(user);
   const [pendentes, prontas, pedidosExclusao] = await Promise.all([
     pendentesAprovacao(),
     disciplinasProntasParaAprovar(user, veTodasDisc),
-    ehAdmin ? pedidosExclusaoPendentes() : Promise.resolve([]),
+    podeExcluir ? pedidosExclusaoPendentes() : Promise.resolve([]),
   ]);
 
   return (
@@ -49,7 +58,7 @@ export default async function AprovacoesPage() {
         <ProntasAprovacaoView prontas={prontas} />
       </div>
 
-      {ehAdmin && (
+      {podeExcluir && (
         <div className="space-y-4">
           <div>
             <h2 className="text-lg font-semibold">Pedidos de exclusão</h2>

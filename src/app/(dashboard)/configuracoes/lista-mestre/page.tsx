@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { requireRole } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { catalogosPranchaConfig } from "@/modules/projetos/pranchas/queries";
 import { nomenclaturaGlobal } from "@/modules/projetos/nomenclatura/queries";
 import { ListaMestreConfigView } from "@/components/configuracoes/lista-mestre-config-view";
@@ -10,7 +10,11 @@ import { NomenclaturaForm } from "@/components/projetos/nomenclatura-form";
 export const metadata: Metadata = { title: "Lista Mestre" };
 
 export default async function ListaMestreConfigPage() {
-  await requireRole("admin", "supervisor", "administrativo");
+  // F4 (2026-09-02): era `requireRole("admin","supervisor","administrativo")`. O par
+  // `configuracoes:gerir` só está semeado em `administrativo`, então **o Coordenador perde
+  // o acesso** — redução deliberada, decidida pelo dono em 2026-09-02. Para devolver,
+  // basta marcar o par no perfil Coordenador (a tela agora resolve isso sem deploy).
+  await requirePermission("configuracoes", "gerir");
   const [catalogos, nomencla] = await Promise.all([catalogosPranchaConfig(null), nomenclaturaGlobal()]);
 
   return (

@@ -8,7 +8,10 @@ import { consolidarMes } from "@/modules/financeiro/fechamento/queries";
 import { getAliquotas } from "@/modules/financeiro/config/queries";
 import { calcularFechamento } from "@/modules/financeiro/fechamento/calculo";
 
-const base = { modulo: "financeiro", recurso: "financeiro", permissao: "gerir" } as const;
+// Recorte fino da F4 (2026-09-02): era `permissao: "gerir"`, o mesmo interruptor de lançar
+// boleto. Semeado para quem tinha `gerir`, então ninguém perdeu nada — passa a poder ser
+// separado pela tela. Ver docs/superpowers/specs/2026-09-02-ampliacao-escopo-permissoes.md.
+const base = { modulo: "financeiro", recurso: "financeiro", permissao: "fechar" } as const;
 
 function rev() {
   revalidatePath("/financeiro/fechamento");

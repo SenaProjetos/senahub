@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireRole } from "@/lib/session";
+import { requirePermission } from "@/lib/session";
 import { listarUsuarios } from "@/modules/usuarios/queries";
 import { listarClientes } from "@/modules/clientes/queries";
 import { solicitacoesCadastroPendentes } from "@/modules/auth/cadastro/queries";
@@ -10,7 +10,11 @@ import { UsuariosView } from "@/components/configuracoes/usuarios-view";
 export const metadata: Metadata = { title: "Usuários" };
 
 export default async function UsuariosPage() {
-  const user = await requireRole("admin", "supervisor", "administrativo");
+  // F4 (2026-09-02): era `requireRole("admin","supervisor","administrativo")`. O par
+  // `configuracoes:gerir` só está semeado em `administrativo`, então **o Coordenador perde
+  // o acesso** — redução deliberada, decidida pelo dono em 2026-09-02. Para devolver,
+  // basta marcar o par no perfil Coordenador (a tela agora resolve isso sem deploy).
+  const user = await requirePermission("usuarios", "gerir");
   const [usuarios, clientes, pedidos, opcoes, perfis] = await Promise.all([
     listarUsuarios({ incluirInativos: true }),
     listarClientes({ incluirInativos: false }),

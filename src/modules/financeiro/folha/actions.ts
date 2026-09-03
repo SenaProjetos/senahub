@@ -26,7 +26,8 @@ export const pagarProjetista = defineAction(
     modulo: "financeiro",
     acao: "pagar-projetista",
     recurso: "financeiro",
-    permissao: "gerir",
+    // F4: `folha_pj` no lugar de `gerir` — ver conciliacao/actions.ts.
+    permissao: "folha_pj",
     entidade: "PagamentoProjetista",
     schema: pagarSchema,
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
@@ -106,7 +107,8 @@ export const editarPagamentoProjetista = defineAction(
     modulo: "financeiro",
     acao: "editar-pagamento-projetista",
     recurso: "financeiro",
-    permissao: "gerir",
+    // F4: `folha_pj` no lugar de `gerir` — ver conciliacao/actions.ts.
+    permissao: "folha_pj",
     entidade: "PagamentoProjetista",
     schema: editarValorSchema,
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
@@ -182,7 +184,8 @@ export const cancelarPagamentoProjetista = defineAction(
     modulo: "financeiro",
     acao: "cancelar-pagamento-projetista",
     recurso: "financeiro",
-    permissao: "gerir",
+    // F4: `folha_pj` no lugar de `gerir` — ver conciliacao/actions.ts.
+    permissao: "folha_pj",
     entidade: "PagamentoProjetista",
     schema: cancelarSchema,
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,

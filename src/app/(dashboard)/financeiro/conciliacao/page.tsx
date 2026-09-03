@@ -7,7 +7,7 @@ import { ConciliacaoView } from "@/components/financeiro/conciliacao/conciliacao
 export const metadata: Metadata = { title: "Conciliação bancária" };
 
 export default async function ConciliacaoPage() {
-  await requirePermission("financeiro", "gerir");
+  await requirePermission("financeiro", "conciliar");
   const [transacoes, contas, categorias] = await Promise.all([
     transacoesPendentes(),
     listarContasBancarias(),

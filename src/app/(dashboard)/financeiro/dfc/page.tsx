@@ -7,7 +7,7 @@ import { DfcView } from "@/components/financeiro/dfc-view";
 export const metadata: Metadata = { title: "DFC" };
 
 export default async function DfcPage({ searchParams }: { searchParams: Promise<{ ano?: string }> }) {
-  const user = await requirePermission("financeiro", "ver");
+  const user = await requirePermission("financeiro", "resultados");
   const sp = await searchParams;
   const ano = Number(sp.ano) || new Date().getFullYear();
   const [dfc, categorias, podeGerir] = await Promise.all([
