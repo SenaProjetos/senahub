@@ -2,6 +2,41 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.16.0](https://github.com/SenaProjetos/senahub/compare/v1.14.0...v1.16.0) (2026-09-04)
+
+
+### ✨ Funcionalidades
+
+* **agenda:** convidados com busca e fim automático no compromisso ([c960be8](https://github.com/SenaProjetos/senahub/commit/c960be80378535790b5dc868cd28bc8ba2609fe5))
+* **arquivos:** exibe número da revisão no link público ([0ab4191](https://github.com/SenaProjetos/senahub/commit/0ab4191a01e1cd848ee7b5660f65b3d650ff76c0))
+* **arquivos:** reconhece .ed3 (CYPE 3D) como backup do modelo ([73e6141](https://github.com/SenaProjetos/senahub/commit/73e6141086cbc17d28793c8ee6e1aa5f9594976a))
+* **chat:** quebra o chat por tipo de canal e tira audiência de papel fixo ([53811b6](https://github.com/SenaProjetos/senahub/commit/53811b609155427061af049c8dc85d6055579117))
+* **comercial:** cliente PF e busca por texto na entrada comercial ([10efa05](https://github.com/SenaProjetos/senahub/commit/10efa05f0c33d380dde1e3a59c4a054ada9e2e49))
+* **juridico:** E6 Parte B — remove o pipeline de modelo em texto puro ([85e8a8b](https://github.com/SenaProjetos/senahub/commit/85e8a8b5f15d210731569ada557a83b3b594505f))
+* **permissoes:** amplia o catálogo e para de regravar perfil no seed ([f177b8d](https://github.com/SenaProjetos/senahub/commit/f177b8d9e9210c8f308f4bf98874cc1b884d873e))
+* **permissoes:** nomeia os sócios no card do piso e marca quem tem bypass ([8d86c31](https://github.com/SenaProjetos/senahub/commit/8d86c311b224584cc532d47d9e65242e188ac514))
+* **permissoes:** separa acesso a tela de funcionalidade nas matrizes ([3513e03](https://github.com/SenaProjetos/senahub/commit/3513e03cb31eb3cab88b4a78b3886e0bb17f8164))
+* **permissoes:** tira gates de papel fixo de auditoria, financeiro e projeto ([68d7d0c](https://github.com/SenaProjetos/senahub/commit/68d7d0caa8be90e64aa283c6bf99900596dac497))
+* **projetos:** prazo de contrato e prazo planejado ([0e5e185](https://github.com/SenaProjetos/senahub/commit/0e5e18556f0550ff0abcb06d13b97eeb55f5c48f))
+
+
+### 🐛 Correções
+
+* **acessos:** categorias no db:seed e tela para gerenciá-las ([5f4e673](https://github.com/SenaProjetos/senahub/commit/5f4e673eefc5a4b265244b453130e8ca4be54ff3))
+* **dwg:** camadas em painel lateral, fora do cabeçalho ([147d89d](https://github.com/SenaProjetos/senahub/commit/147d89d257e0cc1f101e78503e266f7db5faf23b))
+* **e6:** script paliativo para recriar modelo_contrato vazia ([a125f8c](https://github.com/SenaProjetos/senahub/commit/a125f8c3a540c17fce270bb54446d8183c7423b1))
+* **permissoes:** corrige a trilha e o risco no nome do sócio com bypass ([50d2c89](https://github.com/SenaProjetos/senahub/commit/50d2c896f55b5333e0855f315a220caa09f52bff))
+* **prazos:** trata prazo como dia-calendário, sem deslocar por fuso ([099513b](https://github.com/SenaProjetos/senahub/commit/099513bba60a933479ecc7b3e5b339ec063cae47))
+* **prazos:** vencido só depois de o dia passar ([84c09db](https://github.com/SenaProjetos/senahub/commit/84c09db38109255f164799656ef036ec5a10b858))
+* **ui:** dá rolagem ao diálogo e dobra as seções do cadastro de usuário ([4f24836](https://github.com/SenaProjetos/senahub/commit/4f248369422f8f66969a5208a42e0102d21a3b7e))
+* **ui:** sobreposição do AvatarGroup acompanha o tamanho do avatar ([3bf08da](https://github.com/SenaProjetos/senahub/commit/3bf08da82b56a763f5684a0fd8a91b64e830afda))
+
+
+### ♻️ Refatorações
+
+* **permissoes:** /configuracoes/permissoes vira a tela do piso de sócio ([3a9de29](https://github.com/SenaProjetos/senahub/commit/3a9de29fa492dc1004425e77dacb46cf846ff244))
+* **projetos:** isola a regra de deslocamento do prazo na reabertura ([640e43c](https://github.com/SenaProjetos/senahub/commit/640e43c0334c155e9b52bdd5ac1465b86a592b00))
+
 ## [1.15.0](https://github.com/SenaProjetos/senahub/compare/v1.14.0...v1.15.0) (2026-08-31)
 
 
