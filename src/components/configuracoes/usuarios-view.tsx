@@ -38,6 +38,7 @@ import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { CollapsibleSection } from "@/components/ui/collapsible";
 import {
   Table,
   TableBody,
@@ -55,6 +56,7 @@ import {
 } from "@/components/ui/select";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -203,6 +205,17 @@ export function UsuariosView({
   // Resumo do que a combinação Papel × Perfil de acesso libera, recalculado a cada mudança do
   // formulário — a tela responde "é assim mesmo?" antes de salvar, não depois da reclamação.
   const perfilSel = form ? (perfis.find((p) => p.id === form.perfilId) ?? null) : null;
+
+  // Quais seções dobráveis existem nesta abertura do diálogo — e se a seção fechada esconde algo
+  // preenchido, para denunciar no cabeçalho dela em vez de obrigar a abrir para descobrir.
+  // Só na edição: `criarUsuarioSchema` não tem `superUsuario` e `salvar` não o envia na criação —
+  // mostrar o interruptor ali seria prometer um bypass que não é gravado.
+  const mostrarSuper = ehAdmin && !!form?.id;
+  const mostrarSocio = !!form?.id && podeDefinirSocio && form.role !== "cliente";
+  const cadastroPreenchido = !!form && (
+    !!form.nomeCompleto || !!form.cpf || !!form.telefone || !!form.cargoId ||
+    !!form.dataAdmissao || form.salarioBase != null || !!form.pjId || !!form.onboardingTemplateId
+  );
   const linhasResumo = form
     ? resumirAcesso({
         role: form.role,
@@ -425,7 +438,9 @@ export function UsuariosView({
 
       {/* Dialog criar/editar */}
       <Dialog open={!!form} onOpenChange={(o) => !o && setForm(null)}>
-        <DialogContent className="sm:max-w-md">
+        {/* `lg` e não `md`: é o formulário mais longo da tela e sobra largura no desktop —
+            campo mais largo = menos rolagem. No celular a largura é a mesma dos outros. */}
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{form?.id ? "Editar usuário" : "Nova pessoa"}</DialogTitle>
             <DialogDescription>
@@ -435,7 +450,7 @@ export function UsuariosView({
             </DialogDescription>
           </DialogHeader>
           {form && (
-            <div className="space-y-3">
+            <DialogBody className="space-y-3 py-1">
               <div className="space-y-1.5">
                 <Label htmlFor="u-name">Nome de exibição</Label>
                 <Input
@@ -520,120 +535,6 @@ export function UsuariosView({
                   )}
                 </p>
               </div>
-              <ResumoAcesso linhas={linhasResumo} />
-              {form.id && form.role !== "cliente" && (
-                <p className="text-xs text-muted-foreground">
-                  Vínculo: <span className="font-medium">{form.setor ? SETOR_LABELS[form.setor] : "setor não definido"}</span>
-                  {" · "}
-                  <span className="font-medium">{form.contratacao ? CONTRATACAO_LABELS[form.contratacao] : "contratação não definida"}</span>
-                  . Setor e Contratação não concedem acesso, mas a contratação define a jornada —
-                  edite em <Link href="/rh/pessoas" className="underline">RH → Pessoas</Link>, esta
-                  tela não grava vínculo.
-                </p>
-              )}
-              {ehAdmin && (
-                <div className="flex items-center justify-between rounded-sm border p-3">
-                  <div>
-                    <Label htmlFor="u-super">Acesso total (superusuário)</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Ignora o Perfil de acesso e libera tudo. É o bypass real do sistema — o Papel
-                      Administrador, sozinho, não faz isso.
-                    </p>
-                  </div>
-                  <Switch
-                    id="u-super"
-                    checked={form.superUsuario}
-                    onCheckedChange={(v) => setForm({ ...form, superUsuario: v })}
-                  />
-                </div>
-              )}
-              {!form.id && form.role !== "cliente" && (
-                <div className="space-y-3 rounded-sm border p-3">
-                  <p className="text-xs font-medium text-muted-foreground">Cadastro inicial (opcional) — evita deixar a pessoa cadastrada pela metade.</p>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="u-nc-novo">Nome completo</Label>
-                    <Input id="u-nc-novo" value={form.nomeCompleto} placeholder="Como em documentos formais" onChange={(e) => setForm({ ...form, nomeCompleto: e.target.value })} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="u-cpf">CPF</Label>
-                      <Input id="u-cpf" value={form.cpf} onChange={(e) => setForm({ ...form, cpf: e.target.value })} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="u-tel">Telefone</Label>
-                      <Input id="u-tel" value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="u-cargo">Cargo</Label>
-                    <select
-                      id="u-cargo"
-                      className="h-9 w-full rounded-sm border border-input bg-background px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      value={form.cargoId}
-                      onChange={(e) => setForm({ ...form, cargoId: e.target.value })}
-                    >
-                      <option value="">— não definido —</option>
-                      {cargos.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                    </select>
-                  </div>
-                  {CLT_ROLES.includes(form.role) && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="u-adm">Admissão</Label>
-                        <Input id="u-adm" type="date" value={form.dataAdmissao} onChange={(e) => setForm({ ...form, dataAdmissao: e.target.value })} />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="u-sal">Salário base</Label>
-                        <InputMoeda id="u-sal" value={form.salarioBase} onChange={(v) => setForm({ ...form, salarioBase: v })} />
-                      </div>
-                    </div>
-                  )}
-                  {PJ_ROLES.includes(form.role) && pessoasJuridicas.length > 0 && (
-                    <div className="space-y-1.5">
-                      <Label>Pessoa Jurídica (CNPJ)</Label>
-                      <Select value={form.pjId || "__none"} onValueChange={(v) => setForm({ ...form, pjId: v === "__none" ? "" : (v ?? "") })}>
-                        <SelectTrigger><SelectValue placeholder="Selecione a PJ" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none">— não vinculada</SelectItem>
-                          {pessoasJuridicas.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                  {templates.length > 0 && (
-                    <div className="space-y-1.5">
-                      <Label>Iniciar onboarding (opcional)</Label>
-                      <Select value={form.onboardingTemplateId || "__none"} onValueChange={(v) => setForm({ ...form, onboardingTemplateId: v === "__none" ? "" : (v ?? "") })}>
-                        <SelectTrigger><SelectValue placeholder="Sem onboarding" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none">— sem onboarding</SelectItem>
-                          {templates.map((t) => (
-                            <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </div>
-              )}
-              {form.id && podeDefinirSocio && form.role !== "cliente" && (
-                <div className="flex items-start justify-between gap-3 rounded-sm border p-3">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="u-socio">Sócio</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Piso de acesso do Papel Coordenador, somado ao perfil, e canal Sócios no chat.
-                      Percentual de participação é gerido em Financeiro → Cadastros.
-                    </p>
-                  </div>
-                  <Switch
-                    id="u-socio"
-                    checked={form.ehSocio}
-                    onCheckedChange={(v) => setForm({ ...form, ehSocio: v })}
-                  />
-                </div>
-              )}
               {form.role === "cliente" && (
                 <div className="space-y-1.5">
                   <Label>Cliente vinculado (portal)</Label>
@@ -655,7 +556,143 @@ export function UsuariosView({
                   </Select>
                 </div>
               )}
-            </div>
+              <ResumoAcesso linhas={linhasResumo} />
+              {form.id && form.role !== "cliente" && (
+                <p className="text-xs text-muted-foreground">
+                  Vínculo: <span className="font-medium">{form.setor ? SETOR_LABELS[form.setor] : "setor não definido"}</span>
+                  {" · "}
+                  <span className="font-medium">{form.contratacao ? CONTRATACAO_LABELS[form.contratacao] : "contratação não definida"}</span>
+                  . Setor e Contratação não concedem acesso, mas a contratação define a jornada —
+                  edite em <Link href="/rh/pessoas" className="underline">RH → Pessoas</Link>, esta
+                  tela não grava vínculo.
+                </p>
+              )}
+              {!form.id && form.role !== "cliente" && (
+                <CollapsibleSection
+                  titulo="Cadastro inicial"
+                  descricao="Opcional — evita deixar a pessoa cadastrada pela metade."
+                  /* Aprovar um pedido de acesso já traz telefone preenchido: abrir a seção evita
+                     que o dado chegue escondido atrás de um cabeçalho fechado. */
+                  defaultOpen={cadastroPreenchido}
+                  resumo={cadastroPreenchido ? <Badge variant="secondary">preenchido</Badge> : null}
+                >
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="u-nc-novo">Nome completo</Label>
+                      <Input id="u-nc-novo" value={form.nomeCompleto} placeholder="Como em documentos formais" onChange={(e) => setForm({ ...form, nomeCompleto: e.target.value })} />
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="u-cpf">CPF</Label>
+                        <Input id="u-cpf" value={form.cpf} onChange={(e) => setForm({ ...form, cpf: e.target.value })} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="u-tel">Telefone</Label>
+                        <Input id="u-tel" value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="u-cargo">Cargo</Label>
+                      <select
+                        id="u-cargo"
+                        className="h-9 w-full rounded-sm border border-input bg-background px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        value={form.cargoId}
+                        onChange={(e) => setForm({ ...form, cargoId: e.target.value })}
+                      >
+                        <option value="">— não definido —</option>
+                        {cargos.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                      </select>
+                    </div>
+                    {CLT_ROLES.includes(form.role) && (
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="u-adm">Admissão</Label>
+                          <Input id="u-adm" type="date" value={form.dataAdmissao} onChange={(e) => setForm({ ...form, dataAdmissao: e.target.value })} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="u-sal">Salário base</Label>
+                          <InputMoeda id="u-sal" value={form.salarioBase} onChange={(v) => setForm({ ...form, salarioBase: v })} />
+                        </div>
+                      </div>
+                    )}
+                    {PJ_ROLES.includes(form.role) && pessoasJuridicas.length > 0 && (
+                      <div className="space-y-1.5">
+                        <Label>Pessoa Jurídica (CNPJ)</Label>
+                        <Select value={form.pjId || "__none"} onValueChange={(v) => setForm({ ...form, pjId: v === "__none" ? "" : (v ?? "") })}>
+                          <SelectTrigger><SelectValue placeholder="Selecione a PJ" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none">— não vinculada</SelectItem>
+                            {pessoasJuridicas.map((p) => (
+                              <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    {templates.length > 0 && (
+                      <div className="space-y-1.5">
+                        <Label>Iniciar onboarding (opcional)</Label>
+                        <Select value={form.onboardingTemplateId || "__none"} onValueChange={(v) => setForm({ ...form, onboardingTemplateId: v === "__none" ? "" : (v ?? "") })}>
+                          <SelectTrigger><SelectValue placeholder="Sem onboarding" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none">— sem onboarding</SelectItem>
+                            {templates.map((t) => (
+                              <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+                </CollapsibleSection>
+              )}
+              {(mostrarSuper || mostrarSocio) && (
+                <CollapsibleSection
+                  titulo="Acesso avançado"
+                  descricao="Bypass total e piso de sócio."
+                  resumo={
+                    form.superUsuario || (mostrarSocio && form.ehSocio) ? (
+                      <Badge variant="destructive">
+                        {form.superUsuario ? "acesso total" : "sócio"}
+                      </Badge>
+                    ) : null
+                  }
+                >
+                  {mostrarSuper && (
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="u-super">Acesso total (superusuário)</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Ignora o Perfil de acesso e libera tudo. É o bypass real do sistema — o Papel
+                          Administrador, sozinho, não faz isso.
+                        </p>
+                      </div>
+                      <Switch
+                        id="u-super"
+                        checked={form.superUsuario}
+                        onCheckedChange={(v) => setForm({ ...form, superUsuario: v })}
+                      />
+                    </div>
+                  )}
+                  {form.id && podeDefinirSocio && form.role !== "cliente" && (
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="u-socio">Sócio</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Piso de acesso do Papel Coordenador, somado ao perfil, e canal Sócios no chat.
+                          Percentual de participação é gerido em Financeiro → Cadastros.
+                        </p>
+                      </div>
+                      <Switch
+                        id="u-socio"
+                        checked={form.ehSocio}
+                        onCheckedChange={(v) => setForm({ ...form, ehSocio: v })}
+                      />
+                    </div>
+                  )}
+                </CollapsibleSection>
+              )}
+            </DialogBody>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setForm(null)}>
