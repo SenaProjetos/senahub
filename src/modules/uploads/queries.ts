@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { diasRestantesLixeira, DIAS_LIXEIRA } from "./lixeira";
+import { agruparPorDocumento } from "./exclusao-escopo";
 
 export async function listarUploadsDisciplina(disciplinaId: string) {
   const uploads = await prisma.upload.findMany({
@@ -47,12 +48,25 @@ export async function lixeiraDoProjeto(projetoId: string) {
       excluidoPorId: true,
       disciplinaId: true,
       disciplina: { select: { disciplinaTextoLegado: true } },
+      // Documento (+ canônico do merge): a restauração agrupa por documento para não
+      // remontar linhagem capenga — 1 revisão de 3 restaurada vira "corrente" no link.
+      documentoId: true,
+      documento: { select: { substituidoPorId: true } },
+      // Envio original (quem/quando mandou), distinto de quem excluiu.
+      createdAt: true,
+      autorId: true,
     },
   });
 
-  const autorIds = [...new Set(uploads.map((u) => u.excluidoPorId).filter((v): v is string => !!v))];
-  const autores = autorIds.length
-    ? await prisma.user.findMany({ where: { id: { in: autorIds } }, select: { id: true, name: true } })
+  // Um mapa só para os dois papéis (quem excluiu e quem enviou): são o mesmo `User`.
+  const pessoaIds = [
+    ...new Set([
+      ...uploads.map((u) => u.excluidoPorId).filter((v): v is string => !!v),
+      ...uploads.map((u) => u.autorId),
+    ]),
+  ];
+  const autores = pessoaIds.length
+    ? await prisma.user.findMany({ where: { id: { in: pessoaIds } }, select: { id: true, name: true } })
     : [];
   const nomePor = new Map(autores.map((u) => [u.id, u.name]));
 
@@ -64,6 +78,10 @@ export async function lixeiraDoProjeto(projetoId: string) {
     tamanho: u.tamanho,
     disciplinaId: u.disciplinaId,
     disciplina: u.disciplina.disciplinaTextoLegado,
+    documentoId: u.documentoId,
+    documentoCanonicoId: u.documento?.substituidoPorId ?? null,
+    enviadoEm: u.createdAt.toISOString(),
+    enviadoPor: nomePor.get(u.autorId) ?? null,
     excluidoEm: u.excluidoEm!.toISOString(),
     excluidoPor: u.excluidoPorId ? nomePor.get(u.excluidoPorId) ?? null : null,
     diasRestantes: diasRestantesLixeira(u.excluidoEm!),
@@ -355,6 +373,9 @@ export async function listarDocumentosProjeto(opts: {
         validado: true,
         pastaId: true,
         createdAt: true,
+        // Documento (+ canônico do merge): o diálogo de escopo agrupa as revisões por ele.
+        documentoId: true,
+        documento: { select: { substituidoPorId: true } },
         // `responsaveis` alimenta o `podeGerir` da linha (renomear é de global/responsável).
         disciplina: { select: { id: true, disciplinaTextoLegado: true, responsaveis: { select: { userId: true } } } },
         autor: { select: { name: true } },
@@ -389,6 +410,8 @@ export function linhasDeUploads(
     disciplinaNome: u.disciplina.disciplinaTextoLegado,
     versao: u.versao,
     validado: u.pastaId ? null : u.validado,
+    documentoId: u.documentoId,
+    documentoCanonicoId: u.documento?.substituidoPorId ?? null,
     autor: u.autor?.name ?? "—",
     data: u.createdAt.toISOString(),
     tamanho: u.tamanho,
@@ -457,6 +480,131 @@ export async function resolverDocumentoCanonico(
     atual = doc.substituidoPorId;
   }
   return atual;
+}
+
+/**
+ * Todas as linhas de `upload` do MESMO documento lógico de `uploadId`, num estado só
+ * (vivas ou na lixeira) — é o conjunto que o escopo "documento inteiro" move de uma vez
+ * (`modules/uploads/exclusao-escopo.ts`).
+ *
+ * O `OR` é obrigatório e NÃO pode virar `documentoId: canonico`: documentos fundidos por
+ * nome-base (M4) deixam apelidos apontando para o canônico via `substituidoPorId`, e casar
+ * só o canônico deixaria as revisões do lado do apelido para trás — que é exatamente a
+ * ponta solta que o escopo por documento existe para eliminar. Mesmo `OR` de
+ * `modules/projetos/arquivos/link-publico.ts`.
+ *
+ * `excluidoEm` vai SEMPRE explícito: `prisma.upload.findMany` é leitura top-level e recebe
+ * `excluidoEm: null` injetado pela extensão de soft delete (lib/prisma.ts) — sem o valor
+ * explícito, o caso "irmãos na lixeira" (usado pela restauração) voltaria vazio.
+ *
+ * Upload sem documento lógico é arquivo solto: devolve só ele mesmo.
+ */
+export async function irmaosDoDocumento(uploadId: string, naLixeira = false): Promise<string[]> {
+  const upload = await prisma.upload.findUnique({
+    where: { id: uploadId },
+    select: { id: true, documentoId: true },
+  });
+  if (!upload) return [];
+  if (!upload.documentoId) return [upload.id];
+
+  const documentoId = await resolverDocumentoCanonico(upload.documentoId);
+  const irmaos = await prisma.upload.findMany({
+    where: {
+      excluidoEm: naLixeira ? { not: null } : null,
+      OR: [{ documentoId }, { documento: { substituidoPorId: documentoId } }],
+    },
+    select: { id: true },
+    orderBy: [{ versao: "asc" }, { nomeArquivo: "asc" }],
+  });
+  return irmaos.map((i) => i.id);
+}
+
+/** Uma linha de arquivo no diálogo de escopo da exclusão/restauração. */
+export type LinhaEscopoExclusao = {
+  id: string;
+  nome: string;
+  versao: number;
+  /** `true` quando a linha já veio marcada pela pessoa (vs. irmã trazida junto). */
+  selecionada: boolean;
+};
+
+/** Um documento afetado pela operação, com as linhas marcadas e as irmãs que existem. */
+export type CasoEscopoExclusao = {
+  /** `null` = arquivo solto (sem documento lógico): não há escopo a escolher. */
+  documentoId: string | null;
+  /** Rótulo do grupo na UI — nome do arquivo marcado mais recente. */
+  rotulo: string;
+  linhas: LinhaEscopoExclusao[];
+};
+
+/**
+ * Monta os casos que o diálogo de escopo mostra: agrupa a seleção por documento canônico e
+ * traz, de cada um, as revisões irmãs que a pessoa NÃO marcou — é a informação que falta
+ * para ela decidir "só estas" ou "o documento inteiro", por caso.
+ *
+ * `naLixeira` inverte o estado consultado (restauração trabalha sobre o que está na lixeira).
+ * Grupos sem irmã fora da seleção continuam na lista: o diálogo os mostra sem escolha, para
+ * a pessoa ver tudo que a ação vai tocar.
+ */
+export async function casosEscopoExclusao(
+  uploadIds: string[],
+  naLixeira = false,
+): Promise<CasoEscopoExclusao[]> {
+  if (uploadIds.length === 0) return [];
+
+  const selecionados = await prisma.upload.findMany({
+    where: { id: { in: uploadIds }, excluidoEm: naLixeira ? { not: null } : null },
+    select: { id: true, nomeArquivo: true, versao: true, documentoId: true },
+    orderBy: [{ nomeArquivo: "asc" }, { versao: "desc" }],
+  });
+  if (selecionados.length === 0) return [];
+
+  // Resolve o canônico UMA vez por documentoId distinto (a cadeia é I/O por salto).
+  const canonicoPorDocumento = new Map<string, string>();
+  for (const documentoId of new Set(selecionados.map((s) => s.documentoId).filter((d): d is string => d !== null))) {
+    canonicoPorDocumento.set(documentoId, await resolverDocumentoCanonico(documentoId));
+  }
+
+  // Agrupamento pelo módulo PURO (`exclusao-escopo.ts`): a mesma função que a expansão do
+  // lote usa. Duplicar a regra de chave aqui é como diálogo e ação passam a discordar.
+  const marcados = new Set(selecionados.map((s) => s.id));
+  const grupos = agruparPorDocumento(
+    selecionados.map((s) => ({
+      id: s.id,
+      nome: s.nomeArquivo,
+      versao: s.versao,
+      documentoId: s.documentoId,
+      documentoCanonicoId: s.documentoId ? canonicoPorDocumento.get(s.documentoId)! : null,
+    })),
+  );
+
+  const casos = new Map<string, CasoEscopoExclusao>();
+  for (const grupo of grupos) {
+    casos.set(grupo.chave, {
+      documentoId: grupo.documentoId,
+      rotulo: grupo.linhas[0].nome,
+      linhas: grupo.linhas.map((l) => ({ id: l.id, nome: l.nome, versao: l.versao, selecionada: true })),
+    });
+  }
+
+  // Irmãs não marcadas, por documento — o que a pessoa ganha ao escolher "documento inteiro".
+  for (const caso of casos.values()) {
+    if (!caso.documentoId) continue;
+    const irmaos = await prisma.upload.findMany({
+      where: {
+        excluidoEm: naLixeira ? { not: null } : null,
+        OR: [{ documentoId: caso.documentoId }, { documento: { substituidoPorId: caso.documentoId } }],
+      },
+      select: { id: true, nomeArquivo: true, versao: true },
+      orderBy: [{ nomeArquivo: "asc" }, { versao: "desc" }],
+    });
+    for (const irmao of irmaos) {
+      if (marcados.has(irmao.id)) continue;
+      caso.linhas.push({ id: irmao.id, nome: irmao.nomeArquivo, versao: irmao.versao, selecionada: false });
+    }
+  }
+
+  return [...casos.values()];
 }
 
 export type ArquivoHistoricoRevisao = {

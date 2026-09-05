@@ -19,6 +19,10 @@ export type LinhaDocumento = {
   versao: number;
   /** `null` para arquivo dentro de `PastaProjeto`: lá não existe validação por arquivo. */
   validado: boolean | null;
+  /** Documento lógico que agrupa as revisões — `null` em linha legada/gerada por ferramenta. */
+  documentoId: string | null;
+  /** Documento que absorveu `documentoId` num merge por nome-base (M4), quando houve. */
+  documentoCanonicoId?: string | null;
   autor: string;
   /** ISO — data de envio (`createdAt`). */
   data: string;

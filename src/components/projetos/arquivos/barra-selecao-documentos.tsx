@@ -6,6 +6,10 @@ import { toast } from "sonner";
 import { Download, ListMinus, ListPlus, ShieldCheck, Trash2, X } from "lucide-react";
 import { validarArquivosLote, excluirUploadsLote } from "@/modules/uploads/actions";
 import { LinkSelecaoArquivosButton } from "@/components/projetos/link-selecao-arquivos-button";
+import {
+  EscopoExclusaoDialog,
+  type EscolhaEscopo,
+} from "@/components/projetos/arquivos/escopo-exclusao-dialog";
 import { adicionarDocumentoLista, removerDocumentoLista } from "@/modules/uploads/listas";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -69,6 +73,8 @@ export function BarraSelecaoDocumentos({
   const confirm = useConfirm();
   const [pendente, start] = useTransition();
   const [dialogoListaAberto, setDialogoListaAberto] = useState(false);
+  // Ids no diálogo de escopo da exclusão (`null` = fechado).
+  const [escopo, setEscopo] = useState<string[] | null>(null);
   const [listaDestinoId, setListaDestinoId] = useState<string | null>(null);
 
   if (selecionados.length === 0) return null;
@@ -98,20 +104,27 @@ export function BarraSelecaoDocumentos({
     });
   }
 
-  async function excluir() {
-    const ok = await confirm({
-      title: totalDocumentos === 1
-        ? "Enviar 1 documento para a lixeira?"
-        : `Enviar ${totalDocumentos} documentos para a lixeira?`,
-      description: "Todos os arquivos selecionados saem da árvore do projeto e podem ser restaurados enquanto estiverem na lixeira.",
-      confirmLabel: "Excluir",
-      variant: "destructive",
-    });
-    if (!ok) return;
+  /**
+   * Abre o diálogo de ESCOPO, com uma escolha por documento. O confirm de antes prometia
+   * "todos os arquivos selecionados" mas mandava só as linhas marcadas — quando o documento
+   * tinha revisão anterior viva, ela sobrevivia e virava a entrega corrente no link público.
+   */
+  function excluir() {
+    if (selecionados.length > 0) setEscopo(selecionados);
+  }
+
+  function confirmarEscopo(escolha: EscolhaEscopo) {
     start(async () => {
-      const r = await excluirUploadsLote({ projetoId, uploadIds: selecionados });
+      const r = await excluirUploadsLote({
+        projetoId,
+        uploadIds: escolha.uploadIds,
+        documentosInteiros: escolha.documentosInteiros,
+      });
       if (r.ok) {
-        toast.success(totalDocumentos === 1 ? "Documento enviado para a lixeira." : "Documentos enviados para a lixeira.");
+        toast.success(
+          r.data.total === 1 ? "Documento enviado para a lixeira." : `${r.data.total} arquivos enviados para a lixeira.`,
+        );
+        setEscopo(null);
         onLimpar();
         router.refresh();
       } else {
@@ -251,6 +264,14 @@ export function BarraSelecaoDocumentos({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <EscopoExclusaoDialog
+        uploadIds={escopo}
+        onFechar={() => setEscopo(null)}
+        modo="excluir"
+        pendente={pendente}
+        onConfirmar={confirmarEscopo}
+      />
     </div>
   );
 }

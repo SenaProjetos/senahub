@@ -23,7 +23,7 @@ import { PainelDocumentoDetalhe, type OpcaoStatusDocumento } from "@/components/
 import type { OpcaoFaseDocumento } from "@/components/projetos/arquivos/seletor-fases-documentos";
 import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
 import type { LinhaDocumento } from "@/modules/uploads/lista-documentos";
-import { formatarData, rotuloRevisao } from "@/lib/utils";
+import { formatarData, formatarDataHora, rotuloRevisao } from "@/lib/utils";
 
 function fmtBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -51,6 +51,10 @@ function linhaParaMenu(linha: LinhaDoc): LinhaDocumento | null {
     disciplinaNome: linha.disciplinaNome,
     versao: linha.revisaoAtual ?? 0,
     validado: arquivo.validado,
+    // `LinhaDoc.id` JÁ é o id do DocumentoDisciplina que agrupa a linha (a tabela da V2 é
+    // agrupada por documento), então ele é a chave direta — não há apelido a resolver aqui.
+    documentoId: linha.id,
+    documentoCanonicoId: null,
     autor: linha.autor,
     data: linha.atualizadoEm,
     tamanho: linha.tamanhoTotal,
@@ -293,7 +297,14 @@ export function TabelaDocumentos({
               )}
               {colunas.has("responsavel") && <TableCell className="text-muted-foreground">{l.autor}</TableCell>}
               {colunas.has("data") && (
-                <TableCell className="tabular-nums text-muted-foreground">{formatarData(l.atualizadoEm)}</TableCell>
+                // Data visível, hora no title: a coluna precisa caber, mas "que hora entrou"
+                // é o que resolve dúvida de reenvio no mesmo dia.
+                <TableCell
+                  className="tabular-nums text-muted-foreground"
+                  title={`Enviado em ${formatarDataHora(l.atualizadoEm)} por ${l.autor}`}
+                >
+                  {formatarData(l.atualizadoEm)}
+                </TableCell>
               )}
               {colunas.has("tamanho") && (
                 <TableCell className="text-right tabular-nums text-muted-foreground">

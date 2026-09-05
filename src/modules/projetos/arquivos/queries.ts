@@ -40,6 +40,10 @@ export async function arvoreArquivosProjeto(
         select: {
           id: true,
           documentoId: true,
+          // Canônico do merge por nome-base (M4): sem ele o cliente agruparia apelido e
+          // canônico como documentos distintos, e o diálogo de escopo mostraria menos
+          // revisões do que a ação vai de fato mover.
+          documento: { select: { substituidoPorId: true } },
           pacote: true,
           pastaId: true,
           nomeArquivo: true,
@@ -113,6 +117,7 @@ export async function arvoreArquivosProjeto(
         arquivos: uploadsPacote.map((u) => ({
           id: u.id,
           documentoId: u.documentoId,
+          documentoCanonicoId: u.documento?.substituidoPorId ?? null,
           nome: u.nomeArquivo,
           pacote: u.pacote as "A" | "B" | "OUTROS" | "RECEBIDOS",
           versao: u.versao,
@@ -122,18 +127,24 @@ export async function arvoreArquivosProjeto(
           ajusteObs: u.revisaoObs,
           ajusteEm: u.revisaoEm ? u.revisaoEm.toISOString() : null,
           autor: nomeAutor.get(u.autorId) ?? "—",
+          // `data` é a data da ENTREGA (validação quando houve) — mantida como estava porque
+          // as colunas existentes dependem dela. `enviadoEm` é o envio de fato: são coisas
+          // diferentes e a tela precisa das duas ("quem mandou, quando" vs "quando aprovou").
           data: (u.validadoEm ?? u.createdAt).toISOString(),
+          enviadoEm: u.createdAt.toISOString(),
           downloadUrl: `/api/uploads/${u.id}/download`,
         })),
         arquivosPasta: uploadsPasta.map((u) => ({
           id: u.id,
           documentoId: u.documentoId,
+          documentoCanonicoId: u.documento?.substituidoPorId ?? null,
           nome: u.nomeArquivo,
           pastaId: u.pastaId!,
           versao: u.versao,
           tamanho: u.tamanho,
           autor: nomeAutor.get(u.autorId) ?? "—",
           data: u.createdAt.toISOString(),
+          enviadoEm: u.createdAt.toISOString(),
           downloadUrl: `/api/uploads/${u.id}/download`,
         })),
       };

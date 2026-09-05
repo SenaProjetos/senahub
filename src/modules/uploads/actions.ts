@@ -20,7 +20,8 @@ import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { projetoVisivel } from "@/modules/planejamento/queries";
 import { podeVerTodasDisciplinas, responsavelOuVeTodas } from "@/modules/arquivos/acesso";
 import { STATUS_ABERTOS } from "@/modules/projetos/pendencias/helpers";
-import { historicoRevisoesDocumento } from "@/modules/uploads/queries";
+import { historicoRevisoesDocumento, irmaosDoDocumento, casosEscopoExclusao } from "@/modules/uploads/queries";
+import { expandirSelecao } from "@/modules/uploads/exclusao-escopo";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import { expiraAceiteEm, linkAceiteEstaAtivo } from "@/modules/uploads/aceite";
 
@@ -541,6 +542,20 @@ export const renomearUpload = defineAction(
 const excluirSchema = z.object({ uploadId: z.string().min(1) });
 
 /**
+ * Escopo da operação de lixeira. `revisao` (padrão) mantém o comportamento histórico —
+ * uma linha por vez; `documento` leva todas as revisões do mesmo documento lógico junto.
+ *
+ * O default é `revisao` de propósito: chamador antigo que não conhece o campo continua
+ * fazendo exatamente o que sempre fez. Quem pré-marca `documento` é a UI, no diálogo.
+ */
+const escopoExclusaoSchema = excluirSchema.extend({
+  // `.optional()` e não `.default()`: `defineAction` tipa o input pelo OUTPUT do schema, e
+  // com `.default()` o campo vira obrigatório na chamada — o que anularia a compatibilidade
+  // que este default existe para dar. O valor ausente é resolvido no corpo.
+  escopo: z.enum(["revisao", "documento"]).optional(),
+});
+
+/**
  * Gate da lixeira: admin OU quem tiver `arquivos:excluir` concedido na matriz.
  *
  * Era `role === "admin"` cravado em código, invisível para a tela de Permissões
@@ -591,11 +606,71 @@ async function exigirEscopoProjetoArquivos(user: SessionUser, projetoId: string)
 }
 
 /**
+ * Lê os casos que o diálogo de escopo mostra: para cada documento tocado pela seleção,
+ * quais revisões estão marcadas e quais são irmãs que a pessoa pode arrastar junto.
+ *
+ * É leitura, mas vai por `defineAction` de propósito: expõe nomes de arquivo e precisa do
+ * mesmo gate da lixeira. A entrada de auditoria é bem-vinda — "quem estava prestes a apagar
+ * o quê" é justamente o rastro que faltou quando uma limpeza manual deixou revisão vencida
+ * viva no link do cliente.
+ */
+export const consultarEscopoExclusao = defineAction(
+  {
+    modulo: "uploads",
+    acao: "consultar-escopo-exclusao",
+    recurso: "arquivos",
+    permissao: "ver",
+    entidade: "Upload",
+    schema: z.object({
+      uploadIds: z.array(z.string().min(1)).min(1).max(500),
+      naLixeira: z.boolean().optional(),
+    }),
+  },
+  async (input, { user }) => {
+    await exigirPermissaoLixeira(user);
+    if (!(await can(user, "projetos", "ver"))) throw new ActionError("Sem permissão para gerir arquivos.");
+
+    /**
+     * Recorta os ids ao que a pessoa REALMENTE enxerga antes de devolver nome de arquivo e
+     * número de revisão. A capability da lixeira sozinha não diz de QUAIS disciplinas — sem
+     * isto, qualquer um com `arquivos:excluir` leria o acervo de qualquer projeto por id.
+     *
+     * Basta filtrar a seleção: as irmãs vivem no mesmo documento, que é único por disciplina,
+     * então elas herdam a visibilidade já verificada aqui.
+     */
+    const veTodas = await podeVerTodasDisciplinas(user);
+    const visiveis = await prisma.upload.findMany({
+      where: {
+        id: { in: input.uploadIds },
+        excluidoEm: input.naLixeira ? { not: null } : null,
+        ...(veTodas ? {} : { disciplina: { responsaveis: { some: { userId: user.id } } } }),
+      },
+      select: { id: true },
+    });
+    if (visiveis.length === 0) return { casos: [] };
+
+    return {
+      casos: await casosEscopoExclusao(
+        visiveis.map((v) => v.id),
+        input.naLixeira ?? false,
+      ),
+    };
+  },
+);
+
+/**
  * Manda um arquivo (Upload) para a LIXEIRA do projeto (soft delete). RESTRITO A ADMIN,
  * override total (mesmo entregas já validadas). Não apaga nada do disco — o arquivo some
  * das listagens/downloads (filtro `excluidoEm` em lib/prisma.ts + leituras aninhadas) e
  * pode ser restaurado por até `DIAS_LIXEIRA` dias, quando o job de purga o remove em
  * definitivo. Auditado (entidadeId = disciplinaId p/ correlação no histórico do projeto).
+ *
+ * `escopo: "documento"` leva TODAS as revisões vivas do mesmo documento lógico junto. É a
+ * diferença entre "descartei esta revisão, vale a anterior" e "este documento não existe":
+ * excluir de uma em uma e esquecer a mais antiga faz o recorte do link público promover a
+ * revisão esquecida a entrega corrente (ver `link-publico-regras.ts`). Um `exigirEscopoArquivo`
+ * cobre o conjunto inteiro: documento é único por disciplina, então todas as irmãs vivem na
+ * mesma disciplina já checada.
  */
 export const excluirUpload = defineAction(
   {
@@ -604,7 +679,7 @@ export const excluirUpload = defineAction(
     recurso: "arquivos",
     permissao: "ver",
     entidade: "Upload",
-    schema: excluirSchema,
+    schema: escopoExclusaoSchema,
     entidadeId: (d) => (d as { disciplinaId?: string } | undefined)?.disciplinaId,
     capturarAntes: (input) =>
       prisma.upload.findUnique({
@@ -628,21 +703,36 @@ export const excluirUpload = defineAction(
     await exigirEscopoArquivo(user, upload.disciplina);
     if (upload.excluidoEm) throw new ActionError("Arquivo já está na lixeira.");
 
-    await prisma.upload.update({
-      where: { id: upload.id },
+    const alvos = input.escopo === "documento" ? await irmaosDoDocumento(upload.id) : [upload.id];
+
+    await prisma.upload.updateMany({
+      where: { id: { in: alvos } },
       data: { excluidoEm: new Date(), excluidoPorId: user.id },
     });
-    // Pedido de exclusão em aberto neste arquivo: fecha e avisa quem pediu.
-    await fecharPedidosDeExclusao([upload.id], user.id);
+    // Pedido de exclusão em aberto em qualquer um deles: fecha e avisa quem pediu.
+    await fecharPedidosDeExclusao(alvos, user.id);
     revalidarArquivos(upload.disciplina.projetoId);
     revalidatePath("/aprovacoes");
-    return { disciplinaId: upload.disciplinaId, nome: upload.nomeArquivo };
+    return {
+      disciplinaId: upload.disciplinaId,
+      nome: upload.nomeArquivo,
+      escopo: input.escopo,
+      total: alvos.length,
+      ids: alvos,
+    };
   },
 );
 
 const excluirLoteSchema = z.object({
   projetoId: z.string().min(1),
   uploadIds: z.array(z.string().min(1)).min(1, "Selecione ao menos um arquivo.").max(500),
+  /**
+   * Documentos que a pessoa escolheu levar INTEIROS (todas as revisões vivas), decididos um
+   * a um no diálogo. Fica ao lado de `uploadIds` em vez de reformatar a seleção: chamador
+   * antigo continua válido, e upload sem documento lógico simplesmente não aparece aqui
+   * (não há documento a levar inteiro).
+   */
+  documentosInteiros: z.array(z.string().min(1)).max(500).optional(),
 });
 
 /**
@@ -675,25 +765,71 @@ export const excluirUploadsLote = defineAction(
           ...(veTodas ? {} : { responsaveis: { some: { userId: user.id } } }),
         },
       },
-      select: { id: true },
+      select: { id: true, documentoId: true, documento: { select: { substituidoPorId: true } } },
     });
     if (uploads.length === 0) {
       throw new ActionError("Nenhum arquivo válido para mover à lixeira.");
     }
 
+    /**
+     * `documentosInteiros` vem do cliente: só vale para documento que a SELEÇÃO já toca.
+     * Sem este cruzamento, mandar um id qualquer expandiria revisões que a pessoa nunca
+     * marcou (limitado às disciplinas que ela escreve, mas ainda assim "apaguei o que não
+     * escolhi"). O diálogo só oferece documentos da seleção, então isto não custa nada na UI.
+     */
+    const documentosDaSelecao = new Set(
+      uploads.map((u) => u.documento?.substituidoPorId ?? u.documentoId).filter((d): d is string => d !== null),
+    );
+    const documentosInteiros = (input.documentosInteiros ?? []).filter((d) => documentosDaSelecao.has(d));
+
+    // Irmãs dos documentos marcados "inteiro". Cada uma passa pelo MESMO filtro de escopo
+    // acima antes de entrar: expandir por documento não pode virar caminho para tocar
+    // arquivo de disciplina que a pessoa não enxerga.
+    const irmaosPorDocumento = new Map<string, string[]>();
+    for (const documentoId of new Set(documentosInteiros)) {
+      const irmaos = await prisma.upload.findMany({
+        where: {
+          excluidoEm: null,
+          OR: [{ documentoId }, { documento: { substituidoPorId: documentoId } }],
+          disciplina: {
+            projetoId: input.projetoId,
+            ...(veTodas ? {} : { responsaveis: { some: { userId: user.id } } }),
+          },
+        },
+        select: { id: true },
+        orderBy: [{ versao: "asc" }, { nomeArquivo: "asc" }],
+      });
+      irmaosPorDocumento.set(documentoId, irmaos.map((i) => i.id));
+    }
+
+    const alvos = expandirSelecao(uploads.map((u) => u.id), documentosInteiros, irmaosPorDocumento);
+
     await prisma.upload.updateMany({
-      where: { id: { in: uploads.map((u) => u.id) } },
+      where: { id: { in: alvos } },
       data: { excluidoEm: new Date(), excluidoPorId: user.id },
     });
-    await fecharPedidosDeExclusao(uploads.map((u) => u.id), user.id);
+    await fecharPedidosDeExclusao(alvos, user.id);
     revalidarArquivos(input.projetoId);
     revalidatePath("/aprovacoes");
-    return { total: uploads.length, ids: uploads.map((u) => u.id) };
+    // `marcados` vs `total`: a auditoria precisa distinguir o que a pessoa clicou do que a
+    // expansão por documento arrastou junto — foi a falta desse rastro que tornou difícil
+    // reconstruir a limpeza que originou o chamado do link público.
+    return {
+      total: alvos.length,
+      marcados: uploads.length,
+      documentosInteiros: documentosInteiros.length,
+      ids: alvos,
+    };
   },
 );
 
 /**
  * Restaura um arquivo da lixeira (limpa `excluidoEm`). Só admin. Auditado.
+ *
+ * `escopo: "documento"` traz todas as revisões do documento que estão na lixeira, não só a
+ * linha clicada — simétrico ao da exclusão e pelo mesmo motivo: restaurar 1 de 3 remonta um
+ * documento capenga, cuja revisão sobrevivente vira "corrente" no link público sem ninguém
+ * ter decidido isso.
  */
 export const restaurarUpload = defineAction(
   {
@@ -702,7 +838,7 @@ export const restaurarUpload = defineAction(
     recurso: "arquivos",
     permissao: "ver",
     entidade: "Upload",
-    schema: excluirSchema,
+    schema: escopoExclusaoSchema,
     entidadeId: (d) => (d as { disciplinaId?: string } | undefined)?.disciplinaId,
     capturarAntes: (input) =>
       prisma.upload.findUnique({
@@ -726,12 +862,21 @@ export const restaurarUpload = defineAction(
     await exigirEscopoArquivo(user, upload.disciplina);
     if (!upload.excluidoEm) throw new ActionError("Este arquivo não está na lixeira.");
 
-    await prisma.upload.update({
-      where: { id: upload.id },
+    // `true`: aqui os irmãos que interessam são os que ESTÃO na lixeira.
+    const alvos = input.escopo === "documento" ? await irmaosDoDocumento(upload.id, true) : [upload.id];
+
+    await prisma.upload.updateMany({
+      where: { id: { in: alvos } },
       data: { excluidoEm: null, excluidoPorId: null },
     });
     revalidarArquivos(upload.disciplina.projetoId);
-    return { disciplinaId: upload.disciplinaId, nome: upload.nomeArquivo };
+    return {
+      disciplinaId: upload.disciplinaId,
+      nome: upload.nomeArquivo,
+      escopo: input.escopo,
+      total: alvos.length,
+      ids: alvos,
+    };
   },
 );
 
