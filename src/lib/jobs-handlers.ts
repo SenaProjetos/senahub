@@ -713,9 +713,18 @@ export async function alertasPontoTick(): Promise<number> {
   return enviados;
 }
 
+/** Rótulo legível de cada tipo de batida (espelha o enum Prisma TipoBatidaPonto). */
+const LABEL_TIPO_BATIDA: Record<string, string> = {
+  entrada: "Entrada",
+  inicio_descanso: "Início do descanso",
+  fim_descanso: "Fim do descanso",
+  saida: "Saída",
+};
+
 /**
  * Dias úteis 19:30: para quem escolheu resumo diário (`ponto_email_modo` =
- * "resumo_diario"), envia 1 e-mail com os alertas de ponto do dia (se houver).
+ * "resumo_diario"), envia 1 e-mail com os alertas E as batidas de ponto do
+ * dia (se houve pelo menos um alerta).
  */
 export async function resumoPontoEmailDiario(): Promise<number> {
   if (!smtpConfigurado()) return 0;
@@ -732,16 +741,25 @@ export async function resumoPontoEmailDiario(): Promise<number> {
 
   let enviados = 0;
   for (const u of alvo) {
-    const alertas = await prisma.alertaPontoEnviado.findMany({
-      where: { userId: u.id, dia: hoje },
-      orderBy: { enviadoEm: "asc" },
-    });
+    const [alertas, batidasDoDia] = await Promise.all([
+      prisma.alertaPontoEnviado.findMany({ where: { userId: u.id, dia: hoje }, orderBy: { enviadoEm: "asc" } }),
+      prisma.batida.findMany({ where: { userId: u.id, dia: hoje }, orderBy: { horario: "asc" } }),
+    ]);
     if (alertas.length === 0) continue;
     // Rótulo legível (não a chave crua) — o mesmo texto que o admin vê no catálogo.
     const linhas = alertas
       .map((a) => `- ${a.enviadoEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} — ${labelAlertaPonto(a.chave)}`)
       .join("\n");
-    const ok = await enviarEmailTemplate(u.email, "resumo-ponto-diario", { linhas, nome: u.name.split(" ")[0] });
+    const batidas = batidasDoDia.length
+      ? batidasDoDia
+          .map((b) => `- ${b.horario.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} — ${LABEL_TIPO_BATIDA[b.tipo] ?? b.tipo}`)
+          .join("\n")
+      : "_Nenhuma batida registrada hoje._";
+    const ok = await enviarEmailTemplate(u.email, "resumo-ponto-diario", {
+      linhas,
+      batidas,
+      nome: u.name.split(" ")[0],
+    });
     if (ok) enviados++;
   }
   return enviados;

@@ -1,23 +1,14 @@
 import "server-only";
-import { marked } from "marked";
 import { prisma } from "@/lib/prisma";
 import { enviarEmail, type EmailAnexo } from "@/lib/mail";
 import { metaTemplate } from "@/lib/email-templates-meta";
+import { substituirVariaveis, markdownParaHtml, type TemplateVars } from "@/lib/email-markdown";
 
-export type TemplateVars = Record<string, string | number | null | undefined>;
-
-/** Substitui `{{variavel}}` pelo valor (cru). Aplicado antes do Markdown. */
-export function substituirVariaveis(tpl: string, vars: TemplateVars): string {
-  return tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, chave: string) => {
-    const v = vars[chave];
-    return v === null || v === undefined ? "" : String(v);
-  });
-}
-
-/** Converte o corpo (Markdown, GFM) em HTML para o e-mail. */
-export function markdownParaHtml(md: string): string {
-  return marked.parse(md, { async: false, gfm: true, breaks: true }) as string;
-}
+export type { TemplateVars };
+// Reexportadas por compatibilidade — quem só precisa de substituir/renderizar Markdown
+// (inclusive client components, como a prévia de `/configuracoes/emails`) deve importar
+// direto de `@/lib/email-markdown`, que não carrega `server-only`.
+export { substituirVariaveis, markdownParaHtml };
 
 /**
  * Escolhe o modelo (sorteio entre os ativos; 1 ativo = fixo; nenhum = padrão do

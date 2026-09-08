@@ -28,9 +28,12 @@ function escaparHtml(s: string): string {
  * Envolve o HTML interno na moldura branded do SenaHub.
  * @param innerHtml corpo já em HTML (saída do Markdown).
  * @param opts.preheader texto de pré-visualização (oculto no corpo, aparece na lista do inbox).
+ * @param opts.appUrl override de `APP_URL` — usado pela prévia ao vivo em
+ *   `/configuracoes/emails` (client component, sem acesso a env do servidor),
+ *   que passa `window.location.origin`. Envio real não passa isso; usa a env.
  */
-export function wrapEmail(innerHtml: string, opts?: { preheader?: string }): string {
-  const appUrl = process.env.APP_URL || "";
+export function wrapEmail(innerHtml: string, opts?: { preheader?: string; appUrl?: string }): string {
+  const appUrl = opts?.appUrl || process.env.APP_URL || "";
   const ano = new Date().getFullYear();
   const preheader = opts?.preheader
     ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;height:0;width:0">${escaparHtml(opts.preheader)}</div>`

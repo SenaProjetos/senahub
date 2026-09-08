@@ -1,10 +1,8 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { Mail, Send, Save, Plus, Pencil, Trash2, X, Shuffle, Pin } from "lucide-react";
 import {
   salvarVariante,
@@ -12,6 +10,8 @@ import {
   excluirVariante,
   enviarEmailTeste,
 } from "@/modules/configuracoes/emails/actions";
+import { substituirVariaveis, markdownParaHtml } from "@/lib/email-markdown";
+import { wrapEmail } from "@/lib/email-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,11 +36,6 @@ type Categoria = {
 };
 
 type Editando = { id: string | null; nome: string; assunto: string; corpo: string; ativo: boolean };
-
-/** Substitui `{{var}}` pelos valores de exemplo (preview client-side). */
-function substituir(tpl: string, exemplos: Record<string, string>): string {
-  return tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, k: string) => exemplos[k] ?? "");
-}
 
 export function EmailsView({ categorias, smtpAtivo }: { categorias: Categoria[]; smtpAtivo: boolean }) {
   const router = useRouter();
@@ -67,6 +62,29 @@ export function EmailsView({ categorias, smtpAtivo }: { categorias: Categoria[];
     () => Object.fromEntries((atual?.variaveis ?? []).map((v) => [v.nome, v.exemplo])),
     [atual],
   );
+
+  // Origem do e-mail (client) — mesma janela, pra logo resolver igual à real (`APP_URL` do
+  // servidor não existe no bundle do navegador). Só depois do mount pra não divergir do SSR.
+  const [appUrl, setAppUrl] = useState("");
+  useEffect(() => setAppUrl(window.location.origin), []);
+
+  // O que a prévia mostra: o rascunho em edição; senão, o modelo ativo (se só 1); senão, o
+  // padrão do sistema. É "mesmo que seja padrão" — sempre há algo pra mostrar.
+  const fontePrevia = useMemo(() => {
+    if (editando) return { assunto: editando.assunto, corpo: editando.corpo };
+    if (!atual) return null;
+    const unicoAtivo = atual.ativos === 1 ? atual.variantes.find((v) => v.ativo) : undefined;
+    return unicoAtivo
+      ? { assunto: unicoAtivo.assunto, corpo: unicoAtivo.corpoHtml }
+      : { assunto: atual.assuntoPadrao, corpo: atual.corpoPadrao };
+  }, [editando, atual]);
+
+  const previaAssunto = fontePrevia ? substituirVariaveis(fontePrevia.assunto, exemplos) : "";
+  const previaHtml = useMemo(() => {
+    if (!fontePrevia) return "";
+    const corpo = substituirVariaveis(fontePrevia.corpo, exemplos);
+    return wrapEmail(markdownParaHtml(corpo), { preheader: previaAssunto, appUrl });
+  }, [fontePrevia, exemplos, appUrl, previaAssunto]);
 
   function selecionarCategoria(c: Categoria) {
     setSlug(c.slug);
@@ -233,6 +251,26 @@ export function EmailsView({ categorias, smtpAtivo }: { categorias: Categoria[];
               );
             })()}
 
+            {/* Prévia — sempre visível, mesmo sem editar nada (usa o padrão do sistema, ou o
+                modelo ativo, ou o rascunho em edição). Mesmo layout do e-mail real (wrapEmail),
+                não é uma aproximação — é o HTML que realmente sairia, com valores de exemplo. */}
+            {fontePrevia && (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">
+                  Pré-visualização {editando ? "(rascunho, com valores de exemplo)" : "(com valores de exemplo)"}
+                </Label>
+                <div className="overflow-hidden rounded-lg border bg-muted/30">
+                  <p className="border-b bg-background px-3 py-2 text-sm font-semibold">{previaAssunto}</p>
+                  <iframe
+                    key={slug}
+                    title={`Prévia — ${atual.label}`}
+                    srcDoc={previaHtml}
+                    className="h-[420px] w-full border-0 bg-[#eff1f3]"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               {atual.variantes.map((v) => (
                 <div
@@ -335,18 +373,6 @@ export function EmailsView({ categorias, smtpAtivo }: { categorias: Categoria[];
                       </div>
                     </div>
                   )}
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Pré-visualização (com valores de exemplo)</Label>
-                    <div className="rounded-lg border bg-muted/30 p-3">
-                      <p className="mb-1 text-sm font-semibold">{substituir(editando.assunto, exemplos)}</p>
-                      <div className="prose prose-sm max-w-none text-sm dark:prose-invert">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {substituir(editando.corpo, exemplos)}
-                        </ReactMarkdown>
-                      </div>
-                    </div>
-                  </div>
 
                   <div className="flex items-center justify-between gap-3 rounded-sm border p-3">
                     <div>

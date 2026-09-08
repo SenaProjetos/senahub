@@ -211,11 +211,18 @@ Sena Projetos`,
     variaveis: [
       NOME_VAR("Maria"),
       { nome: "linhas", descricao: "Lista de alertas do dia, já com rótulo legível (Markdown, um item por linha)", exemplo: "- 08:15 — Entrada não registrada\n- 12:40 — Fim do descanso se aproximando" },
+      { nome: "batidas", descricao: "Lista das batidas de ponto do dia (Markdown, um item por linha)", exemplo: "- 08:15 — Entrada\n- 12:00 — Início do descanso\n- 13:05 — Fim do descanso\n- 18:02 — Saída" },
     ],
     assuntoPadrao: "Seu resumo de ponto de hoje",
-    corpoPadrao: `Oi, {{nome}}! Aqui está um resumo dos avisos de jornada que você recebeu hoje:
+    corpoPadrao: `Oi, {{nome}}! Aqui está um resumo do seu dia.
+
+**Avisos que você recebeu:**
 
 {{linhas}}
+
+**Batidas registradas:**
+
+{{batidas}}
 
 Se algo parecer errado, você pode ajustar o registro em Ponto → Espelho.`,
   },
