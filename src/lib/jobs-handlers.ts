@@ -8,7 +8,7 @@ import { textoParaPreview } from "@/modules/chat/formatacao";
 import type { MensagemAgendadaJob } from "@/modules/chat/agendamento";
 import { enviarEmail, smtpConfigurado } from "@/lib/mail";
 import { enviarEmailTemplate, resolverTemplate, markdownParaHtml } from "@/lib/email-templates";
-import { slugAlertaPonto } from "@/lib/email-templates-meta";
+import { slugAlertaPonto, labelAlertaPonto } from "@/lib/email-templates-meta";
 import { gravarSnapshotQualidade } from "@/modules/qualidade/queries";
 import { gravarSnapshotDashboard } from "@/modules/dashboard/queries";
 import { gravarSnapshotLicitacaoMensal } from "@/modules/licitacoes/dashboard/queries";
@@ -693,7 +693,8 @@ export async function alertasPontoTick(): Promise<number> {
       // Resolve o modelo UMA vez (sorteio entre ativos) e usa o MESMO conteúdo
       // no sino/push e no e-mail — texto editável idêntico nos dois canais.
       const slug = slugAlertaPonto(evento.chave);
-      const modelo = slug ? await resolverTemplate(slug, { hora: evento.hora }) : null;
+      const primeiroNome = u.name.split(" ")[0];
+      const modelo = slug ? await resolverTemplate(slug, { hora: evento.hora, nome: primeiroNome }) : null;
       const titulo = modelo?.assunto ?? evento.titulo;
       const corpo = modelo?.corpo ?? evento.corpo;
 
@@ -723,7 +724,7 @@ export async function resumoPontoEmailDiario(): Promise<number> {
 
   const usuarios = await prisma.user.findMany({
     where: { ...whereAudiencia("clt"), email: { not: "" } },
-    select: { id: true, email: true },
+    select: { id: true, email: true, name: true },
   });
   const modos = await emailModosPorUsuario(usuarios.map((u) => u.id));
   const alvo = usuarios.filter((u) => modos.get(u.id) === "resumo_diario");
@@ -736,10 +737,11 @@ export async function resumoPontoEmailDiario(): Promise<number> {
       orderBy: { enviadoEm: "asc" },
     });
     if (alertas.length === 0) continue;
+    // Rótulo legível (não a chave crua) — o mesmo texto que o admin vê no catálogo.
     const linhas = alertas
-      .map((a) => `- ${a.enviadoEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} — ${a.chave}`)
+      .map((a) => `- ${a.enviadoEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} — ${labelAlertaPonto(a.chave)}`)
       .join("\n");
-    const ok = await enviarEmailTemplate(u.email, "resumo-ponto-diario", { linhas });
+    const ok = await enviarEmailTemplate(u.email, "resumo-ponto-diario", { linhas, nome: u.name.split(" ")[0] });
     if (ok) enviados++;
   }
   return enviados;
