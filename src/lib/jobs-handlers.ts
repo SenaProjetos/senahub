@@ -608,18 +608,32 @@ export async function lembretePontoNaoBatido(): Promise<number> {
 
 type EmailModo = "todos" | "resumo_diario" | "nenhum";
 
-/** Preferência de e-mail dos alertas de ponto por usuário (default "todos"). */
+/** Default sem preferência salva: 1 e-mail-resumo no fim do dia, não um a cada evento. */
+const EMAIL_MODO_DEFAULT: EmailModo = "resumo_diario";
+
+/**
+ * Preferência de e-mail dos alertas de ponto de cada `userId` (sempre resolvida —
+ * quem não salvou nada cai no default). Mesma resolução usada pelo tick em tempo
+ * real e pelo resumo diário, pra não haver dois defaults divergentes.
+ */
 async function emailModosPorUsuario(userIds: string[]): Promise<Map<string, EmailModo>> {
   const prefs = await prisma.userPreference.findMany({
     where: { userId: { in: userIds } },
     select: { userId: true, dados: true },
   });
-  const mapa = new Map<string, EmailModo>();
+  const salvos = new Map<string, EmailModo>();
   for (const p of prefs) {
     const modo = (p.dados as Record<string, unknown>)?.ponto_email_modo;
-    if (modo === "resumo_diario" || modo === "nenhum") mapa.set(p.userId, modo);
+    if (modo === "todos" || modo === "resumo_diario" || modo === "nenhum") salvos.set(p.userId, modo);
   }
-  return mapa;
+  return new Map(userIds.map((id) => [id, salvos.get(id) ?? EMAIL_MODO_DEFAULT]));
+}
+
+/** Eventos "atingido" (horário já passou) — os únicos com e-mail em tempo real no
+ * modo "todos". "prox" (chegando a hora) e "jornada_cumprida" são informativos —
+ * já vão no sino/push; e-mail só se acumulam no resumo diário. */
+function eventoAtingido(chave: string): boolean {
+  return chave.endsWith(":atingido");
 }
 
 /**
@@ -666,7 +680,7 @@ export async function alertasPontoTick(): Promise<number> {
     const eventos = avaliarAlertasDoDia({ agora, grade, batidasHoje: batidasPorUser.get(u.id) ?? [] });
     if (eventos.length === 0) continue;
 
-    const modo = emailModos.get(u.id) ?? "todos";
+    const modo = emailModos.get(u.id) ?? EMAIL_MODO_DEFAULT;
     for (const evento of eventos) {
       try {
         await prisma.alertaPontoEnviado.create({ data: { userId: u.id, dia: hoje, chave: evento.chave } });
@@ -689,7 +703,7 @@ export async function alertasPontoTick(): Promise<number> {
         href: "/ponto",
         tag: `ponto-${evento.chave}-${diaLocal(agora)}`,
       });
-      if (modo === "todos" && u.email && smtpConfigurado()) {
+      if (modo === "todos" && eventoAtingido(evento.chave) && u.email && smtpConfigurado()) {
         await enviarEmail({ to: u.email, subject: titulo, html: markdownParaHtml(corpo) });
       }
       enviados++;

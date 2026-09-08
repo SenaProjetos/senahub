@@ -38,6 +38,12 @@ export function wrapEmail(innerHtml: string, opts?: { preheader?: string }): str
   const rodapeLink = appUrl
     ? `<a href="${escaparHtml(appUrl)}" style="color:${COR_PRIMARIA};text-decoration:none">${escaparHtml(appUrl.replace(/^https?:\/\//, ""))}</a>`
     : "SenaHub";
+  // Logo servida do próprio app (não vai como anexo — client de e-mail busca por URL,
+  // mesmo padrão de "clique para exibir imagens" de qualquer e-mail com imagem remota).
+  const logoUrl = appUrl ? `${appUrl}/MARCA/email-logo.png` : "";
+  const logo = logoUrl
+    ? `<img src="${escaparHtml(logoUrl)}" width="140" height="56" alt="Sena Projetos" style="display:block;border:0;outline:none;height:56px;width:140px">`
+    : `<span style="font-size:20px;font-weight:800;letter-spacing:0.5px;color:${COR_PRIMARIA}">SenaHub</span>`;
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -53,8 +59,11 @@ ${preheader}
     <td align="center">
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:${COR_CARTAO};border:1px solid ${COR_BORDA};border-radius:8px;overflow:hidden">
         <tr>
-          <td style="background:${COR_PRIMARIA};padding:20px 28px">
-            <span style="font-size:20px;font-weight:800;letter-spacing:0.5px;color:#ffffff">SenaHub</span>
+          <td style="background:${COR_PRIMARIA};height:4px;font-size:0;line-height:0">&nbsp;</td>
+        </tr>
+        <tr>
+          <td style="padding:24px 28px 16px;border-bottom:1px solid ${COR_BORDA}">
+            ${logo}
           </td>
         </tr>
         <tr>

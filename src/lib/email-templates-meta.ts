@@ -63,7 +63,9 @@ const templatesPonto: EmailTemplateMeta[] = PONTO_ALERTAS.map((p) => ({
   slug: p.slug,
   grupo: "Alertas de ponto",
   label: p.label,
-  descricao: "Alerta de ponto por e-mail. Só o horário ({{hora}}) varia — vem da escala do funcionário.",
+  descricao: p.chave.endsWith(":atingido")
+    ? "Alerta de ponto. Só o horário ({{hora}}) varia — vem da escala do funcionário. Vai por e-mail na hora pra quem escolheu \"todos\" nas Preferências; sempre entra no resumo diário de quem escolheu essa opção."
+    : "Alerta de ponto informativo (sem atraso). Não dispara e-mail avulso — só aparece no sino/Push e, se o usuário escolher, no resumo diário de fim do dia.",
   variaveis: [HORA_VAR(p.exemploHora)],
   assuntoPadrao: p.assunto,
   corpoPadrao: p.corpo,
