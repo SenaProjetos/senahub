@@ -2,7 +2,7 @@
 
 - **Data:** 2026-09-09
 - **Origem:** dono pediu replicar o padrão de `/comercial/guia` para os setores mais usados.
-- **Estado:** aprovado, aguardando execução da F0.
+- **Estado:** F0 entregue em 2026-09-09 (branch `feat/guias-de-uso`). F1–F4 pendentes.
 - **Supersede:** [`2026-07-20-guias-iniciante-setores.md`](2026-07-20-guias-iniciante-setores.md).
 - **ADR:** [`docs/adr/0001-guias-de-uso-in-app.md`](../../adr/0001-guias-de-uso-in-app.md).
 
@@ -38,7 +38,7 @@ resolve escolhendo **uma** superfície canônica e reduzindo a outra a um pontei
 | **N3** | **O `.md` vira stub** de ~5 linhas em `docs/manual/<secao>/guia-iniciante.md` apontando para a rota, com entrada no `search-index.json`. | Preserva o único canal de busca por palavra (`/ajuda`) sem manter uma segunda cópia do conteúdo. |
 | **N4** | **Rota `/guias` (índice) + `/guias/[setor]`.** `/comercial/guia` fica como redirect permanente. | Setor≠rota inviabiliza `/[modulo]/guia`. Índice único resolve a descoberta, que hoje é zero. |
 | **N5** | **Gate: colaborador interno**, independente da permissão do módulo. `cliente` fora. | Ler sobre Financeiro sem ter `financeiro:ver` é o caso de uso central de um guia de formação. |
-| **N6** | Novo helper **`requireInterno()`** em `lib/session.ts`, pelo eixo `tipo`. **Não** usar `INTERNAL_ROLES`. | A Onda D aposentou `role` como gate; abrir 5 usos novos de `INTERNAL_ROLES` reabriria o eixo morto. |
+| **N6** | Novo helper **`requireInterno()`** em `lib/session.ts`, pelo eixo `tipo` — **não** `INTERNAL_ROLES` como gate. | A Onda D aposentou `role` como gate; abrir 5 usos novos de `INTERNAL_ROLES` reabriria o eixo morto. `INTERNAL_ROLES` sobrou num lugar só, dentro de `tipoEfetivo()`, para resolver `tipo` nulo — ver §6.3. |
 | **N7** | **Primitivas extraídas para `src/components/guias/` antes do 2º guia**, migrando o Comercial junto. | Sem isso, 9 guias = milhares de linhas de JSX quase idêntico. |
 | **N8** | **Template = estrutura do Comercial + `#vocabulario` e `#armadilhas` obrigatórias.** | Financeiro e RH travam a pessoa no *termo*, não no clique. Sem glossário o guia falha no público-alvo. |
 | **N9** | **Fronteira editorial mantida** (§4): guia = significado, porquê, encadeamento. Manual = permissões, regras, campo a campo, erros. O guia **linka**. | Última defesa contra o guia virar segunda cópia do manual. |
@@ -112,9 +112,12 @@ Extraídos de `guia-comercial-view.tsx` sem mudança visual:
 | `Dica` | 65 | Callout com lâmpada |
 | `Etapa` | 74 | Seção numerada com ícone, título, resumo e trilha vertical |
 | `Atalho` | 122 | Link-pílula para uma tela relacionada |
-| `MarcosNav` | 29 + 179 | Timeline horizontal a partir de uma lista de marcos |
-| `IndiceGuia` | 199 | `<aside>` sticky "Nesta página" |
-| `GuiaShell` | — | Novo: envelope `max-w-6xl` + grid `[14rem_1fr]`, para os 5 guias não repetirem o layout |
+| `SecaoGuia` | — | Novo: seção de largura cheia fora da trilha (vocabulário, armadilhas, dúvidas) |
+| `GuiaShell` | — | Novo: envelope, cabeçalho, régua de marcos, índice sticky e as 3 seções fixas |
+
+A régua de marcos e o índice lateral **não** viraram componentes soltos: ficaram dentro do
+`GuiaShell`, que monta o índice a partir de `indice` + as seções fixas. Duas listas de âncoras para
+manter em sincronia era exatamente o defeito do original.
 
 São primitivas de **apresentação**, sem lógica de negócio nem estado — extrair com um exemplo é
 seguro. A alternativa (copiar o arquivo e refatorar depois) nunca volta para ser refatorada.
@@ -169,36 +172,47 @@ Existe precedente que o plano velho não citava: `/versoes` gateia a **rota** em
 (`versoes/page.tsx:23`) e usa `nav.tipo === "interno"` só para **exibir** o link no rodapé. O eixo
 `role` foi mantido no gate provavelmente por causa desta nullability.
 
-**F0 começa medindo**, com o Postgres de dev de pé:
+**Medição feita na F0** (2026-09-09, banco de dev):
 
 ```sql
 SELECT tipo, role, COUNT(*) FROM "User" WHERE ativo = true GROUP BY 1, 2 ORDER BY 1, 2;
 ```
 
-Se `tipo` estiver preenchido em todo mundo, `requireInterno()` pode ser puro. Enquanto não estiver,
-o gate carrega o fallback abaixo — que **falha fechado** para `cliente`, o único perfil fora de
-`INTERNAL_ROLES` ("todos exceto cliente", `roles.ts:35`):
+Resultado: **9 `interno`, 2 `externo`, zero nulos**. Mas o banco de dev é recriado por
+`seed:demo` (que aplica vínculo a todo mundo) e a coluna segue opcional — produção não foi medida.
+O fallback fica.
+
+**Implementado assim (F0):** a regra do nulo virou um helper único, `tipoEfetivo()` em
+`lib/roles.ts` — porque ela precisa valer em **dois** lugares que não podem divergir, sob pena da
+assimetria "vê o link e toma 404" (ou o inverso):
 
 ```ts
-/**
- * Exige colaborador interno. Eixo primário é `tipo` (o vigente desde a Onda D); `role` entra só
- * como rede para quem ainda não tem `Vinculo` aplicado — `User.tipo` é nullable e só
- * `aplicarVinculo()` o escreve, então `null` NÃO significa "externo".
- */
+// lib/roles.ts — falha fechada: INTERNAL_ROLES é "todos exceto cliente".
+export function tipoEfetivo(tipo: "interno" | "externo" | null | undefined, role: Role) {
+  if (tipo) return tipo;
+  return INTERNAL_ROLES.includes(role) ? "interno" : "externo";
+}
+
+// lib/session.ts
 export async function requireInterno(): Promise<SessionUser> {
-  const u = await requireUser();
-  const interno = u.tipo === "interno" || (u.tipo == null && INTERNAL_ROLES.includes(u.role));
-  if (!interno) notFound();
-  return u;
+  const user = await requireUser();
+  if (tipoEfetivo(user.tipo, user.role) !== "interno") notFound();
+  return user;
 }
 ```
 
 `notFound()` e não `redirect("/")`: para quem é externo a página simplesmente não existe, e não
 vaza que existe uma área interna com esse nome.
 
-O item de nav precisa da **mesma** regra, senão volta a assimetria "vê o link e toma 404" (ou o
-inverso). `NavItem.tipo` compara com `ContextoNav.tipo` de forma estrita hoje — conferir o
-comportamento com `tipo: null` antes de fechar a fase.
+**O contexto do menu passou a usar o mesmo helper.** `(dashboard)/layout.tsx` monta
+`ContextoNav.tipo` com `tipoEfetivo(eixos?.tipo, user.role)` em vez do valor cru, porque o filtro
+compara `item.tipo === ctx.tipo` de forma estrita (`nav-config.ts:419`) — com `tipo: null` os **14**
+itens desse eixo desapareciam do menu, em silêncio, para um colaborador de verdade.
+
+⚠️ **Isso alcança mais que os guias**, e é decisão deliberada, não efeito colateral: muda a
+visibilidade de menu de todos os itens com eixo `tipo` (Início, Tarefas, Agenda, Ponto, RH…) para
+usuários sem vínculo aplicado. A alternativa era manter o menu vazio para quem tem acesso às
+páginas. Registrado nas Divergências da deliberação da F0.
 
 #### ⚠️ A armadilha do `Omit<>` compila limpa
 
@@ -211,16 +225,13 @@ tranca todo mundo. `lint` e `build` passam. É a mesma forma do bug de export n�
 
 **Acrescentar `"tipo"` ao `Omit<>` é parte da mudança, não um detalhe.**
 
-**Fora de escopo (mas anotado):** com `tipo` em `SessionUser`, a query duplicada do
-`(dashboard)/layout.tsx` pode ser encolhida. Não fazer nesta entrega — mexer no contexto do menu
-tem alcance grande demais para caber aqui.
-
-Item de nav correspondente: `{ title: "Guias de uso", href: "/guias", icon: BookOpenText, tipo: "interno" }`,
+Item de nav correspondente: `{ title: "Guias de uso", href: "/guias", icon: BookMarked, tipo: "interno" }`,
 no primeiro grupo, logo **acima** de "Ajuda" — o par formação/referência fica junto.
 
-**Fora de escopo (mas anotado):** com `tipo` em `SessionUser`, a query duplicada do
-`(dashboard)/layout.tsx` pode ser encolhida. Não fazer nesta entrega — mexer no contexto do menu
-tem alcance grande demais para caber aqui.
+**Fora de escopo (mas anotado):** com `tipo` em `SessionUser`, a query própria do
+`(dashboard)/layout.tsx` pode ser encolhida — ela busca `tipo`, `setor`, `superUsuario` e `perfilId`,
+que a sessão agora já tem. Não feito na F0: é otimização, não correção, e o contexto do menu embrulha
+toda rota do dashboard.
 
 ---
 
@@ -231,7 +242,7 @@ modelo diferente do ativo, PARAR e esperar a troca via `/model` — não apenas 
 
 | Fase | Escopo | Modelo |
 | --- | --- | --- |
-| **F0** | Infra, nesta ordem: **medir `tipo` no banco (§6.3)** → `tipo` em `SessionUser` (+ no `Omit<>`!) + `requireInterno()` → `components/guias/` extraído + `GuiaShell` → `/guias` índice (9 setores, 4 "em breve") + `/guias/[setor]` → item de nav → redirect de `/comercial/guia` → Comercial migrado **com `#vocabulario` e `#armadilhas`** → stub `.md` + `search-index.json` do Comercial | **Opus** |
+| **F0** ✅ | Infra, nesta ordem: **medir `tipo` no banco (§6.3)** → `tipo` em `SessionUser` (+ no `Omit<>`!) + `requireInterno()` → `components/guias/` extraído + `GuiaShell` → `/guias` índice (9 setores, 4 "em breve") + `/guias/[setor]` → item de nav → redirect de `/comercial/guia` → Comercial migrado **com `#vocabulario` e `#armadilhas`** → stub `.md` + `search-index.json` do Comercial | **Opus** |
 | **F1** | Guia de **Projetos** | **Opus** |
 | **F2** | Guia de **Financeiro** | **Opus** |
 | **F3** | Guia de **RH e Ponto** | **Opus** |
@@ -360,7 +371,23 @@ leigo no domínio, é leigo no *sistema*, e disso o manual de referência já d�
 
 ---
 
-## 12. Relacionados
+## 12. Divergências encontradas (fase C)
+
+O item 2 do DoD manda entregar as divergências entre o que a UI promete e o que ela faz. Esta é a
+lista acumulada, uma entrada por fase.
+
+### F0 — infra + migração do Comercial
+
+A F0 é infraestrutura, não conteúdo novo: a fase C **de verdade** começa na F1, com o primeiro guia
+escrito de zero. Uma divergência veio à tona ao redigir o `#armadilhas` do Comercial:
+
+| # | Divergência | Onde | Situação |
+| --- | --- | --- | --- |
+| F0-1 | `Comercial → Propostas → Nova proposta` cria a proposta só com `clienteId`; `Proposta.leadId` fica **nulo** e a proposta desaparece do histórico da prospecção. O caminho correto (`criarPropostaDeLead`, botão **Nova proposta** na ficha do lead) preenche os dois. | `modules/comercial/actions.ts`, `/comercial/propostas` | **Aberta.** Documentada como armadilha no guia; o caminho avulso continua existindo. Já era conhecida — ver a deliberação de 2026-07-21, seção "Caminho antigo permanece". Decidir se vira validação, aviso na tela, ou fica como é. |
+
+---
+
+## 13. Relacionados
 
 - [ADR-0001 — Guias de uso in-app](../../adr/0001-guias-de-uso-in-app.md) — revoga D1
 - [Plano anterior, superseded](2026-07-20-guias-iniciante-setores.md)
