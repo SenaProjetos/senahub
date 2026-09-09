@@ -275,7 +275,8 @@ export function AvisoGeralView({
               </Button>
             )}
             <p className="text-xs text-muted-foreground">
-              Aparece no aviso em tela e no e-mail. Reduzida automaticamente (máx 1000px).
+              Aparece no aviso em tela e no e-mail. Reduzida automaticamente (máx 1000px, sem cortar). Ideal:
+              paisagem, ~1000×560px (16:9) — imagens muito altas ficam espremidas na exibição.
             </p>
           </div>
 
