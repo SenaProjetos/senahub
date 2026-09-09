@@ -34,11 +34,14 @@ async function main() {
   await startJobs();
 
   server.listen(port, hostname, () => {
-    console.log(`▲ SenaHub pronto em http://${hostname}:${port} (${dev ? "dev" : "prod"})`);
+    // Timestamp explícito: o NSSM concatena o stdout cru em logs/senahub.out.log, então sem
+    // isso não dá para saber QUANDO cada início aconteceu — e é justamente esse o histórico
+    // que interessa depois de um boot automático (queda de energia).
+    console.log(`[${new Date().toISOString()}] ▲ SenaHub pronto em http://${hostname}:${port} (${dev ? "dev" : "prod"})`);
   });
 
   async function shutdown(signal: string) {
-    console.log(`\n${signal} recebido — encerrando…`);
+    console.log(`\n[${new Date().toISOString()}] ${signal} recebido — encerrando…`);
     server.close();
     await stopJobs();
     process.exit(0);

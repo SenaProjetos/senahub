@@ -21,7 +21,10 @@ export async function carregarPreferenciasDaConta(userId: string) {
     }),
   ]);
   const role = (perfilDb?.role ?? "clt") as Role;
-  const modoValido = prefs.ponto_email_modo === "resumo_diario" || prefs.ponto_email_modo === "nenhum";
+  const modoValido =
+    prefs.ponto_email_modo === "todos" ||
+    prefs.ponto_email_modo === "resumo_diario" ||
+    prefs.ponto_email_modo === "nenhum";
   return {
     perfil: {
       name: perfilDb?.name ?? "",
@@ -53,7 +56,9 @@ export async function carregarPreferenciasDaConta(userId: string) {
     notifDespesa: prefs.notif_despesa !== false,
     notifCustos: prefs.notif_custos !== false,
     notifAcessos: prefs.notif_acessos !== false,
-    pontoEmailModo: (modoValido ? prefs.ponto_email_modo : "todos") as "todos" | "resumo_diario" | "nenhum",
+    // Default = resumo diário (1 e-mail/dia). Sino+Push cobrem tempo real sempre;
+    // "todos" é opt-in pra quem quer e-mail a cada horário atingido.
+    pontoEmailModo: (modoValido ? prefs.ponto_email_modo : "resumo_diario") as "todos" | "resumo_diario" | "nenhum",
     mostrarAlertasPonto: CLT_ROLES.includes(role),
   };
 }

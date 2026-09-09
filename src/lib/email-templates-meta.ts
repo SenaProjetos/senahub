@@ -22,7 +22,8 @@ export type EmailTemplateMeta = {
 
 // ── Alertas de ponto ──────────────────────────────────────────────────────
 // Cada tipo de alerta é uma CATEGORIA de e-mail própria: texto totalmente
-// editável, com apenas `{{hora}}` variável (vem da escala do funcionário).
+// editável, com `{{hora}}` (vem da escala do funcionário) e `{{nome}}`
+// (primeiro nome, pro tom ficar pessoal — sino/Push usam o MESMO texto).
 // A chave espelha modules/ponto/alertas.ts; jobs-handlers roteia por ela.
 
 type PontoAlertaDef = {
@@ -35,15 +36,15 @@ type PontoAlertaDef = {
 };
 
 const PONTO_ALERTAS: PontoAlertaDef[] = [
-  { chave: "entrada:prox", slug: "ponto-entrada-prox", label: "Entrada se aproximando", assunto: "Hora de bater o ponto", corpo: "Sua entrada está prevista para {{hora}}.", exemploHora: "08:00" },
-  { chave: "entrada:atingido", slug: "ponto-entrada-atingido", label: "Entrada não registrada", assunto: "Você ainda não bateu a entrada", corpo: "Horário previsto: {{hora}}.", exemploHora: "08:00" },
-  { chave: "descanso_inicio:prox", slug: "ponto-descanso-inicio-prox", label: "Descanso se aproximando", assunto: "Descanso se aproximando", corpo: "Seu descanso está previsto para começar às {{hora}}.", exemploHora: "12:00" },
-  { chave: "descanso_inicio:atingido", slug: "ponto-descanso-inicio-atingido", label: "Hora do descanso", assunto: "Hora do descanso", corpo: "Horário previsto: {{hora}}.", exemploHora: "12:00" },
-  { chave: "descanso_fim:prox", slug: "ponto-descanso-fim-prox", label: "Fim do descanso se aproximando", assunto: "Fim do descanso se aproximando", corpo: "Previsão de retorno: {{hora}}.", exemploHora: "13:00" },
-  { chave: "descanso_fim:atingido", slug: "ponto-descanso-fim-atingido", label: "Hora de voltar do descanso", assunto: "Hora de voltar do descanso", corpo: "Horário previsto: {{hora}}.", exemploHora: "13:00" },
-  { chave: "saida:prox", slug: "ponto-saida-prox", label: "Fim da jornada se aproximando", assunto: "Fim da jornada se aproximando", corpo: "Sua saída está prevista para {{hora}}.", exemploHora: "17:00" },
-  { chave: "saida:atingido", slug: "ponto-saida-atingido", label: "Passou do horário de saída", assunto: "Já passou do horário de saída", corpo: "Horário previsto: {{hora}}.", exemploHora: "17:00" },
-  { chave: "jornada_cumprida", slug: "ponto-jornada-cumprida", label: "Jornada cumprida", assunto: "Jornada do dia cumprida", corpo: "Você completou {{hora}} hoje. Aviso informativo — não é cálculo de hora extra.", exemploHora: "8h00" },
+  { chave: "entrada:prox", slug: "ponto-entrada-prox", label: "Entrada se aproximando", assunto: "Sua entrada está chegando", corpo: "Oi, {{nome}}! Faltam poucos minutos para o horário previsto da sua entrada, às {{hora}}. Não esqueça de bater o ponto.", exemploHora: "08:00" },
+  { chave: "entrada:atingido", slug: "ponto-entrada-atingido", label: "Entrada não registrada", assunto: "Ainda não vimos sua entrada hoje", corpo: "Oi, {{nome}}! Sua entrada estava prevista para {{hora}} e ainda não foi registrada. Se você já chegou, é só bater o ponto no SenaHub.", exemploHora: "08:00" },
+  { chave: "descanso_inicio:prox", slug: "ponto-descanso-inicio-prox", label: "Descanso se aproximando", assunto: "Seu descanso está chegando", corpo: "Oi, {{nome}}! Seu horário de descanso começa às {{hora}}. Lembre-se de registrar a saída para o intervalo.", exemploHora: "12:00" },
+  { chave: "descanso_inicio:atingido", slug: "ponto-descanso-inicio-atingido", label: "Hora do descanso", assunto: "Hora de fazer seu descanso", corpo: "Oi, {{nome}}! O horário previsto para o início do seu descanso era {{hora}}. Se ainda não bateu, aproveite para registrar agora.", exemploHora: "12:00" },
+  { chave: "descanso_fim:prox", slug: "ponto-descanso-fim-prox", label: "Fim do descanso se aproximando", assunto: "Seu descanso está terminando", corpo: "Oi, {{nome}}! Seu retorno do descanso está previsto para {{hora}}. Não esqueça de bater o ponto ao voltar.", exemploHora: "13:00" },
+  { chave: "descanso_fim:atingido", slug: "ponto-descanso-fim-atingido", label: "Hora de voltar do descanso", assunto: "Já passou da hora de voltar do descanso", corpo: "Oi, {{nome}}! Seu retorno estava previsto para {{hora}}. Se você já voltou, registre sua entrada no sistema.", exemploHora: "13:00" },
+  { chave: "saida:prox", slug: "ponto-saida-prox", label: "Fim da jornada se aproximando", assunto: "Sua jornada está chegando ao fim", corpo: "Oi, {{nome}}! Sua saída está prevista para {{hora}}. Não esqueça de bater o ponto antes de encerrar o dia.", exemploHora: "17:00" },
+  { chave: "saida:atingido", slug: "ponto-saida-atingido", label: "Passou do horário de saída", assunto: "Já passou do seu horário de saída", corpo: "Oi, {{nome}}! Sua saída estava prevista para {{hora}} e ainda não foi registrada. Se você já encerrou o expediente, é só bater o ponto.", exemploHora: "17:00" },
+  { chave: "jornada_cumprida", slug: "ponto-jornada-cumprida", label: "Jornada cumprida", assunto: "Você completou sua jornada de hoje", corpo: "Oi, {{nome}}! Você já somou {{hora}} de trabalho hoje. Este é só um aviso informativo — não representa cálculo de hora extra.", exemploHora: "8h00" },
 ];
 
 /** chave do alerta (alertas.ts) → slug da categoria de e-mail. */
@@ -53,9 +54,22 @@ export function slugAlertaPonto(chave: string): string | undefined {
   return PONTO_ALERTA_SLUG.get(chave);
 }
 
+/** chave do alerta → rótulo legível (usado no resumo diário — nunca a chave crua). */
+const PONTO_ALERTA_LABEL = new Map(PONTO_ALERTAS.map((p) => [p.chave, p.label]));
+
+export function labelAlertaPonto(chave: string): string {
+  return PONTO_ALERTA_LABEL.get(chave) ?? chave;
+}
+
 const HORA_VAR = (exemplo: string): EmailVariavel => ({
   nome: "hora",
   descricao: "Horário previsto (ou duração, na jornada cumprida) — vem da escala do funcionário.",
+  exemplo,
+});
+
+const NOME_VAR = (exemplo: string): EmailVariavel => ({
+  nome: "nome",
+  descricao: "Primeiro nome do funcionário.",
   exemplo,
 });
 
@@ -63,8 +77,10 @@ const templatesPonto: EmailTemplateMeta[] = PONTO_ALERTAS.map((p) => ({
   slug: p.slug,
   grupo: "Alertas de ponto",
   label: p.label,
-  descricao: "Alerta de ponto por e-mail. Só o horário ({{hora}}) varia — vem da escala do funcionário.",
-  variaveis: [HORA_VAR(p.exemploHora)],
+  descricao: p.chave.endsWith(":atingido")
+    ? "Alerta de ponto. Horário ({{hora}}) e nome ({{nome}}) vêm da escala/cadastro do funcionário. Vai por e-mail na hora pra quem escolheu \"todos\" nas Preferências; sempre entra no resumo diário de quem escolheu essa opção."
+    : "Alerta de ponto informativo (sem atraso). Não dispara e-mail avulso — só aparece no sino/Push e, se o usuário escolher, no resumo diário de fim do dia.",
+  variaveis: [HORA_VAR(p.exemploHora), NOME_VAR("Maria")],
   assuntoPadrao: p.assunto,
   corpoPadrao: p.corpo,
 }));
@@ -193,12 +209,22 @@ Sena Projetos`,
     label: "Resumo diário de ponto",
     descricao: "1 e-mail no fim do dia com os alertas de ponto acumulados (para quem escolheu resumo diário).",
     variaveis: [
-      { nome: "linhas", descricao: "Lista de alertas do dia (Markdown, um item por linha)", exemplo: "- 08:15 — atraso_entrada\n- 12:40 — intervalo_curto" },
+      NOME_VAR("Maria"),
+      { nome: "linhas", descricao: "Lista de alertas do dia, já com rótulo legível (Markdown, um item por linha)", exemplo: "- 08:15 — Entrada não registrada\n- 12:40 — Fim do descanso se aproximando" },
+      { nome: "batidas", descricao: "Lista das batidas de ponto do dia (Markdown, um item por linha)", exemplo: "- 08:15 — Entrada\n- 12:00 — Início do descanso\n- 13:05 — Fim do descanso\n- 18:02 — Saída" },
     ],
-    assuntoPadrao: "Resumo dos alertas de ponto de hoje",
-    corpoPadrao: `Alertas de jornada de hoje:
+    assuntoPadrao: "Seu resumo de ponto de hoje",
+    corpoPadrao: `Oi, {{nome}}! Aqui está um resumo do seu dia.
 
-{{linhas}}`,
+**Avisos que você recebeu:**
+
+{{linhas}}
+
+**Batidas registradas:**
+
+{{batidas}}
+
+Se algo parecer errado, você pode ajustar o registro em Ponto → Espelho.`,
   },
   ...templatesPonto,
 ];

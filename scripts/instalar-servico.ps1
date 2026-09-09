@@ -20,7 +20,8 @@
 param(
   [string]$ServiceName = "SenaHub",
   [int]$Port = 3000,
-  [string]$NssmPath = "nssm"
+  [string]$NssmPath = "nssm",
+  [string]$DependsOn = "postgresql-x64-17"
 )
 
 $ErrorActionPreference = "Stop"
@@ -64,6 +65,12 @@ if ($existe) {
 & $NssmPath set $ServiceName Description "SenaHub (Next + Socket.io + pg-boss)"
 & $NssmPath set $ServiceName Start SERVICE_AUTO_START
 & $NssmPath set $ServiceName AppEnvironmentExtra "NODE_ENV=production" "PORT=$Port"
+
+# Ordem de boot: sem isto, num boot pós-queda de energia o server.ts pode subir antes de o
+# Postgres aceitar conexão e morrer (o AppExit Restart abaixo recupera, mas com 502 no meio).
+# Não garante que o banco esteja pronto para query — só que o serviço está running —, por
+# isso o reinício automático continua sendo a rede de segurança.
+& $NssmPath set $ServiceName DependOnService $DependsOn
 
 # Logs com rotação (10 MB).
 & $NssmPath set $ServiceName AppStdout (Join-Path $logDir "senahub.out.log")

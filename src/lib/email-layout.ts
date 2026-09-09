@@ -28,9 +28,12 @@ function escaparHtml(s: string): string {
  * Envolve o HTML interno na moldura branded do SenaHub.
  * @param innerHtml corpo já em HTML (saída do Markdown).
  * @param opts.preheader texto de pré-visualização (oculto no corpo, aparece na lista do inbox).
+ * @param opts.appUrl override de `APP_URL` — usado pela prévia ao vivo em
+ *   `/configuracoes/emails` (client component, sem acesso a env do servidor),
+ *   que passa `window.location.origin`. Envio real não passa isso; usa a env.
  */
-export function wrapEmail(innerHtml: string, opts?: { preheader?: string }): string {
-  const appUrl = process.env.APP_URL || "";
+export function wrapEmail(innerHtml: string, opts?: { preheader?: string; appUrl?: string }): string {
+  const appUrl = opts?.appUrl || process.env.APP_URL || "";
   const ano = new Date().getFullYear();
   const preheader = opts?.preheader
     ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;height:0;width:0">${escaparHtml(opts.preheader)}</div>`
@@ -38,6 +41,12 @@ export function wrapEmail(innerHtml: string, opts?: { preheader?: string }): str
   const rodapeLink = appUrl
     ? `<a href="${escaparHtml(appUrl)}" style="color:${COR_PRIMARIA};text-decoration:none">${escaparHtml(appUrl.replace(/^https?:\/\//, ""))}</a>`
     : "SenaHub";
+  // Logo servida do próprio app (não vai como anexo — client de e-mail busca por URL,
+  // mesmo padrão de "clique para exibir imagens" de qualquer e-mail com imagem remota).
+  const logoUrl = appUrl ? `${appUrl}/MARCA/email-logo.png` : "";
+  const logo = logoUrl
+    ? `<img src="${escaparHtml(logoUrl)}" width="140" height="56" alt="Sena Projetos" style="display:block;border:0;outline:none;height:56px;width:140px">`
+    : `<span style="font-size:20px;font-weight:800;letter-spacing:0.5px;color:${COR_PRIMARIA}">SenaHub</span>`;
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -53,8 +62,11 @@ ${preheader}
     <td align="center">
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:${COR_CARTAO};border:1px solid ${COR_BORDA};border-radius:8px;overflow:hidden">
         <tr>
-          <td style="background:${COR_PRIMARIA};padding:20px 28px">
-            <span style="font-size:20px;font-weight:800;letter-spacing:0.5px;color:#ffffff">SenaHub</span>
+          <td style="background:${COR_PRIMARIA};height:4px;font-size:0;line-height:0">&nbsp;</td>
+        </tr>
+        <tr>
+          <td style="padding:24px 28px 16px;border-bottom:1px solid ${COR_BORDA}">
+            ${logo}
           </td>
         </tr>
         <tr>

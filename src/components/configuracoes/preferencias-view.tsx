@@ -325,7 +325,9 @@ export function PreferenciasView({
               <div className="min-w-0">
                 <Label className="text-sm font-medium">E-mail dos alertas de jornada</Label>
                 <p className="text-xs text-muted-foreground">
-                  Sino e Push continuam ativos independente desta escolha.
+                  Sino e Push continuam ativos independente desta escolha. &quot;Horário passou&quot;
+                  manda um e-mail na hora só quando você atrasa (não nos avisos de &quot;está
+                  chegando a hora&quot; nem na jornada cumprida).
                 </p>
               </div>
               <Select
@@ -337,12 +339,12 @@ export function PreferenciasView({
                   salvar("ponto_email_modo", modo);
                 }}
               >
-                <SelectTrigger className="w-44">
+                <SelectTrigger className="w-48">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="todos">Todos os alertas</SelectItem>
                   <SelectItem value="resumo_diario">Resumo diário</SelectItem>
+                  <SelectItem value="todos">Horário passou (tempo real)</SelectItem>
                   <SelectItem value="nenhum">Nenhum e-mail</SelectItem>
                 </SelectContent>
               </Select>

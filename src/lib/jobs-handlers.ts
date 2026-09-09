@@ -8,7 +8,7 @@ import { textoParaPreview } from "@/modules/chat/formatacao";
 import type { MensagemAgendadaJob } from "@/modules/chat/agendamento";
 import { enviarEmail, smtpConfigurado } from "@/lib/mail";
 import { enviarEmailTemplate, resolverTemplate, markdownParaHtml } from "@/lib/email-templates";
-import { slugAlertaPonto } from "@/lib/email-templates-meta";
+import { slugAlertaPonto, labelAlertaPonto } from "@/lib/email-templates-meta";
 import { gravarSnapshotQualidade } from "@/modules/qualidade/queries";
 import { gravarSnapshotDashboard } from "@/modules/dashboard/queries";
 import { gravarSnapshotLicitacaoMensal } from "@/modules/licitacoes/dashboard/queries";
@@ -608,18 +608,32 @@ export async function lembretePontoNaoBatido(): Promise<number> {
 
 type EmailModo = "todos" | "resumo_diario" | "nenhum";
 
-/** Preferência de e-mail dos alertas de ponto por usuário (default "todos"). */
+/** Default sem preferência salva: 1 e-mail-resumo no fim do dia, não um a cada evento. */
+const EMAIL_MODO_DEFAULT: EmailModo = "resumo_diario";
+
+/**
+ * Preferência de e-mail dos alertas de ponto de cada `userId` (sempre resolvida —
+ * quem não salvou nada cai no default). Mesma resolução usada pelo tick em tempo
+ * real e pelo resumo diário, pra não haver dois defaults divergentes.
+ */
 async function emailModosPorUsuario(userIds: string[]): Promise<Map<string, EmailModo>> {
   const prefs = await prisma.userPreference.findMany({
     where: { userId: { in: userIds } },
     select: { userId: true, dados: true },
   });
-  const mapa = new Map<string, EmailModo>();
+  const salvos = new Map<string, EmailModo>();
   for (const p of prefs) {
     const modo = (p.dados as Record<string, unknown>)?.ponto_email_modo;
-    if (modo === "resumo_diario" || modo === "nenhum") mapa.set(p.userId, modo);
+    if (modo === "todos" || modo === "resumo_diario" || modo === "nenhum") salvos.set(p.userId, modo);
   }
-  return mapa;
+  return new Map(userIds.map((id) => [id, salvos.get(id) ?? EMAIL_MODO_DEFAULT]));
+}
+
+/** Eventos "atingido" (horário já passou) — os únicos com e-mail em tempo real no
+ * modo "todos". "prox" (chegando a hora) e "jornada_cumprida" são informativos —
+ * já vão no sino/push; e-mail só se acumulam no resumo diário. */
+function eventoAtingido(chave: string): boolean {
+  return chave.endsWith(":atingido");
 }
 
 /**
@@ -666,7 +680,7 @@ export async function alertasPontoTick(): Promise<number> {
     const eventos = avaliarAlertasDoDia({ agora, grade, batidasHoje: batidasPorUser.get(u.id) ?? [] });
     if (eventos.length === 0) continue;
 
-    const modo = emailModos.get(u.id) ?? "todos";
+    const modo = emailModos.get(u.id) ?? EMAIL_MODO_DEFAULT;
     for (const evento of eventos) {
       try {
         await prisma.alertaPontoEnviado.create({ data: { userId: u.id, dia: hoje, chave: evento.chave } });
@@ -679,7 +693,8 @@ export async function alertasPontoTick(): Promise<number> {
       // Resolve o modelo UMA vez (sorteio entre ativos) e usa o MESMO conteúdo
       // no sino/push e no e-mail — texto editável idêntico nos dois canais.
       const slug = slugAlertaPonto(evento.chave);
-      const modelo = slug ? await resolverTemplate(slug, { hora: evento.hora }) : null;
+      const primeiroNome = u.name.split(" ")[0];
+      const modelo = slug ? await resolverTemplate(slug, { hora: evento.hora, nome: primeiroNome }) : null;
       const titulo = modelo?.assunto ?? evento.titulo;
       const corpo = modelo?.corpo ?? evento.corpo;
 
@@ -689,7 +704,7 @@ export async function alertasPontoTick(): Promise<number> {
         href: "/ponto",
         tag: `ponto-${evento.chave}-${diaLocal(agora)}`,
       });
-      if (modo === "todos" && u.email && smtpConfigurado()) {
+      if (modo === "todos" && eventoAtingido(evento.chave) && u.email && smtpConfigurado()) {
         await enviarEmail({ to: u.email, subject: titulo, html: markdownParaHtml(corpo) });
       }
       enviados++;
@@ -698,9 +713,18 @@ export async function alertasPontoTick(): Promise<number> {
   return enviados;
 }
 
+/** Rótulo legível de cada tipo de batida (espelha o enum Prisma TipoBatidaPonto). */
+const LABEL_TIPO_BATIDA: Record<string, string> = {
+  entrada: "Entrada",
+  inicio_descanso: "Início do descanso",
+  fim_descanso: "Fim do descanso",
+  saida: "Saída",
+};
+
 /**
  * Dias úteis 19:30: para quem escolheu resumo diário (`ponto_email_modo` =
- * "resumo_diario"), envia 1 e-mail com os alertas de ponto do dia (se houver).
+ * "resumo_diario"), envia 1 e-mail com os alertas E as batidas de ponto do
+ * dia (se houve pelo menos um alerta).
  */
 export async function resumoPontoEmailDiario(): Promise<number> {
   if (!smtpConfigurado()) return 0;
@@ -709,7 +733,7 @@ export async function resumoPontoEmailDiario(): Promise<number> {
 
   const usuarios = await prisma.user.findMany({
     where: { ...whereAudiencia("clt"), email: { not: "" } },
-    select: { id: true, email: true },
+    select: { id: true, email: true, name: true },
   });
   const modos = await emailModosPorUsuario(usuarios.map((u) => u.id));
   const alvo = usuarios.filter((u) => modos.get(u.id) === "resumo_diario");
@@ -717,15 +741,25 @@ export async function resumoPontoEmailDiario(): Promise<number> {
 
   let enviados = 0;
   for (const u of alvo) {
-    const alertas = await prisma.alertaPontoEnviado.findMany({
-      where: { userId: u.id, dia: hoje },
-      orderBy: { enviadoEm: "asc" },
-    });
+    const [alertas, batidasDoDia] = await Promise.all([
+      prisma.alertaPontoEnviado.findMany({ where: { userId: u.id, dia: hoje }, orderBy: { enviadoEm: "asc" } }),
+      prisma.batida.findMany({ where: { userId: u.id, dia: hoje }, orderBy: { horario: "asc" } }),
+    ]);
     if (alertas.length === 0) continue;
+    // Rótulo legível (não a chave crua) — o mesmo texto que o admin vê no catálogo.
     const linhas = alertas
-      .map((a) => `- ${a.enviadoEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} — ${a.chave}`)
+      .map((a) => `- ${a.enviadoEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} — ${labelAlertaPonto(a.chave)}`)
       .join("\n");
-    const ok = await enviarEmailTemplate(u.email, "resumo-ponto-diario", { linhas });
+    const batidas = batidasDoDia.length
+      ? batidasDoDia
+          .map((b) => `- ${b.horario.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} — ${LABEL_TIPO_BATIDA[b.tipo] ?? b.tipo}`)
+          .join("\n")
+      : "_Nenhuma batida registrada hoje._";
+    const ok = await enviarEmailTemplate(u.email, "resumo-ponto-diario", {
+      linhas,
+      batidas,
+      nome: u.name.split(" ")[0],
+    });
     if (ok) enviados++;
   }
   return enviados;

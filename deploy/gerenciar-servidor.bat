@@ -389,7 +389,8 @@ echo(
 echo   1. Log do SenaHub (aplicacao)
 echo   2. Log do Cloudflared (tunel)
 echo   3. Contar reinicios recentes (detector de crash-loop)
-echo   4. Abrir pasta de logs no Explorer
+echo   4. Historico de boot e inicio automatico (precisa de Admin)
+echo   5. Abrir pasta de logs no Explorer
 echo(
 echo   0. Voltar
 echo(
@@ -411,6 +412,11 @@ if "%subop%"=="3" (
   goto :menu_logs
 )
 if "%subop%"=="4" (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao HistoricoBoot
+  pause
+  goto :menu_logs
+)
+if "%subop%"=="5" (
   explorer "%APP_DIR%\logs"
   goto :menu_logs
 )
