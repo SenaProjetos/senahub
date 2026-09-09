@@ -152,6 +152,46 @@ Start-Service SenaHub
 > processo** — nada na máquina é alterado. Vale para todos os `.ps1` deste runbook.
 Teste local: abra `http://localhost:3000` no servidor. Logs em `F:\SenaHub\app\logs`.
 
+### 5.1 Boot sem login (queda de energia)
+
+O serviço é `SERVICE_AUTO_START`: sobe no boot, **antes de qualquer login do Windows** — não
+existe passo de "abrir sessão no servidor". Com a BIOS configurada para religar após falta de
+energia, a máquina volta sozinha e o SenaHub junto.
+
+O que precisa estar certo é a **ordem**. Os serviços sobem em paralelo por padrão, e o
+`server.ts` morre se o Postgres ainda não aceitar conexão. Por isso o `instalar-servico.ps1`
+grava `DependOnService postgresql-x64-17` no serviço — o Windows passa a serializar
+`postgresql-x64-17` → `SenaHub`. Conferir:
+
+```powershell
+Get-CimInstance Win32_Service -Filter "Name='SenaHub'" |
+  Select-Object Name, StartMode, State, @{n='Depende';e={$_.ServicesDependedOn}}
+```
+
+> `DependOnService` espera o serviço reportar *running*, não *pronto para aceitar query* — e um
+> Postgres voltando de queda de energia pode reportar running com o recovery ainda rodando. Por
+> isso o `AppExit Restart` (delay 5 s) do serviço continua sendo a rede de segurança: os dois
+> juntos é que cobrem o caso.
+
+**O `cloudflared` de propósito NÃO depende do `SenaHub`.** Ele é proxy reverso: tolera origem
+morta e reconecta sozinho, então subir antes custa alguns segundos de 502 e nada mais. Já a
+dependência obrigaria `-Force` em todo `Stop-Service SenaHub` do runbook (§8.1, §9) e quebraria
+o próprio `instalar-servico.ps1`, cujo `nssm stop` + `nssm remove` falha com dependente rodando
+— deixando o serviço *marked for deletion*. Se alguém tiver criado essa aresta, remova num
+PowerShell **como Administrador**:
+
+```powershell
+cmd /c 'sc config cloudflared depend= ""'
+sc.exe qc cloudflared     # DEPENDÊNCIAS deve sair em branco
+```
+
+> Três pegadinhas, todas já pagas aqui: `nssm set <svc> DependOnService ""` não limpa nada (o
+> nssm lê como argumento faltando e imprime o usage); `nssm reset <svc> DependOnService` **diz
+> que limpou e não limpa** quando o prompt não está elevado — falha silenciosa, sem "Acesso
+> negado"; e o `sc.exe` precisa do espaço depois de `depend=`, mas o PowerShell 5.1 descarta
+> argumento de string vazia ao chamar exe nativo, então o `""` some se você não passar pelo
+> `cmd`. Verifique sempre no `sc.exe qc`, nunca no `nssm get`.
+
 ---
 
 ## 6. Cloudflare Tunnel
