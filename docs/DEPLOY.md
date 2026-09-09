@@ -192,6 +192,37 @@ sc.exe qc cloudflared     # DEPENDÊNCIAS deve sair em branco
 > argumento de string vazia ao chamar exe nativo, então o `""` some se você não passar pelo
 > `cmd`. Verifique sempre no `sc.exe qc`, nunca no `nssm get`.
 
+### 5.2 Conferir o histórico de inícios automáticos
+
+Menu do servidor → **7. Ver logs recentes** → **4. Histórico de boot e início automático**
+(ou `-Acao HistoricoBoot`). É só leitura: consulta o log de Sistema do Windows, que já é o
+registro autoritativo disso — **não** mantemos log paralelo de boot.
+
+Eventos que ele cruza:
+
+| ID | Significa |
+|---|---|
+| `6005` | log de eventos iniciou = **boot** |
+| `6008` | desligamento inesperado — o marcador de **queda de energia** |
+| `7000` | serviço falhou ao iniciar |
+| `7001` | serviço falhou porque a **dependência** falhou (§5.1) |
+| `7036` | serviço mudou de estado (iniciou/parou) |
+
+> O `6008` é gravado no boot *seguinte*, então aparece com o mesmo carimbo do `6005` que o
+> sucede: ele descreve o desligamento **anterior**, não aquele instante.
+
+O carimbo de hora de cada início da aplicação em si vem de `logs/senahub.out.log` (opção 1 do
+mesmo submenu): o `server.ts` prefixa a linha `▲ SenaHub pronto em…` com um ISO timestamp, já
+que o NSSM concatena o stdout cru e sem isso as linhas de início são indistinguíveis entre si.
+
+Equivalente direto na linha de comando, se preferir:
+
+```powershell
+Get-WinEvent -FilterHashtable @{LogName='System'; Id=6005,6008,7000,7001,7036; StartTime=(Get-Date).AddDays(-30)} |
+  Where-Object { $_.Id -in 6005,6008 -or $_.Message -match 'SenaHub|cloudflared|postgresql-x64-17' } |
+  Sort-Object TimeCreated | Format-Table TimeCreated, Id, Message -Wrap
+```
+
 ---
 
 ## 6. Cloudflare Tunnel

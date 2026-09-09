@@ -247,6 +247,61 @@ function Invoke-CrashLoopCheck {
     Write-Host "  (mais de 5 reinicios/hora pode indicar crash-loop - veja os logs de erro)" -ForegroundColor DarkGray
 }
 
+function Invoke-HistoricoBoot {
+    param([int]$Dias = 30)
+    Write-Host ""
+    Write-Host "---- Historico de boot e inicio automatico (ultimos $Dias dias) ----" -ForegroundColor Cyan
+
+    # O Windows ja e o registro autoritativo disso - nao mantemos log paralelo.
+    #   6005 = log de eventos iniciou (= boot)   6008 = desligamento inesperado (queda de energia)
+    #   7000 = servico falhou ao iniciar         7001 = falhou porque a dependencia falhou
+    #   7036 = servico mudou de estado (running/stopped)
+    $desde = (Get-Date).AddDays(-$Dias)
+    try {
+        $eventos = Get-WinEvent -FilterHashtable @{ LogName = 'System'; Id = 6005, 6008, 7000, 7001, 7036; StartTime = $desde } -ErrorAction Stop
+    } catch {
+        # Leitura do log do sistema costuma funcionar sem elevacao, mas nem toda politica
+        # permite - se cair aqui, reabrir o menu como Administrador e o primeiro teste.
+        Write-Host "  (nenhum evento no periodo, ou log do sistema inacessivel)" -ForegroundColor Yellow
+        Write-Host "  Detalhe: $($_.Exception.Message)" -ForegroundColor DarkGray
+        Write-Host "  Se for acesso negado, reabra o menu como Administrador." -ForegroundColor DarkGray
+        return
+    }
+
+    $nossos = $eventos | Where-Object {
+        $_.Id -in 6005, 6008 -or $_.Message -match 'SenaHub|cloudflared|postgresql-x64-17'
+    } | Sort-Object TimeCreated
+
+    if (-not $nossos) {
+        Write-Host "  (nenhum evento relevante no periodo)" -ForegroundColor DarkGray
+        return
+    }
+
+    foreach ($e in $nossos) {
+        $quando = $e.TimeCreated.ToString("yyyy-MM-dd HH:mm:ss")
+        switch ($e.Id) {
+            6005 { $cor = "Cyan";   $txt = "BOOT      - Windows iniciou" }
+            6008 { $cor = "Red";    $txt = "QUEDA     - desligamento inesperado (energia/travamento)" }
+            7000 { $cor = "Red";    $txt = "FALHA     - " + (($e.Message -split "`n")[0]).Trim() }
+            7001 { $cor = "Red";    $txt = "DEPEND.   - " + (($e.Message -split "`n")[0]).Trim() }
+            default {
+                $estado = if ($e.Message -match 'em execu|running') { "iniciou" } else { "parou" }
+                $svc = if ($e.Message -match '(SenaHub|cloudflared|postgresql-x64-17)') { $Matches[1] } else { "?" }
+                $cor = if ($estado -eq "iniciou") { "Green" } else { "Yellow" }
+                $txt = "SERVICO   - {0} {1}" -f $svc, $estado
+            }
+        }
+        Write-Host ("  {0}  {1}" -f $quando, $txt) -ForegroundColor $cor
+    }
+
+    Write-Host ""
+    Write-Host "  Leitura: o evento QUEDA e gravado no boot seguinte, entao ele aparece junto do" -ForegroundColor DarkGray
+    Write-Host "  BOOT que o sucedeu - refere-se ao desligamento ANTERIOR, nao aquele instante." -ForegroundColor DarkGray
+    Write-Host "  Depois de um BOOT, a ordem esperada e postgresql-x64-17 -> SenaHub." -ForegroundColor DarkGray
+    Write-Host "  Um 7001 no SenaHub significa que a dependencia do Postgres barrou o inicio." -ForegroundColor DarkGray
+    Write-Host "  Carimbo de hora de cada inicio da aplicacao: opcao 1 deste submenu (senahub.out.log)." -ForegroundColor DarkGray
+}
+
 function Invoke-Diagnostico {
     param([string]$Tipo)
     switch ($Tipo) {
@@ -1292,6 +1347,7 @@ switch ($Acao) {
     "LogsSenaHub"        { Invoke-TailLog -Nome "SenaHub" }
     "LogsCloudflared"    { Invoke-TailLog -Nome "Cloudflared" }
     "CrashLoop"          { Invoke-CrashLoopCheck }
+    "HistoricoBoot"      { Invoke-HistoricoBoot }
     "Diagnostico"        { Invoke-Diagnostico -Tipo $Sub }
     "Backup"             { Invoke-Backup | Out-Null }
     "BackupStorage"      { Invoke-BackupStorage | Out-Null }
