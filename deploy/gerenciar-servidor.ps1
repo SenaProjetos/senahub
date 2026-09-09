@@ -96,7 +96,10 @@ function Assert-Admin {
 }
 
 function Get-BranchAtual {
-    $b = git -C $AppRoot rev-parse --abbrev-ref HEAD 2>$null | Select-Object -First 1
+    # @(...)[0] e nao '| Select-Object -First 1': o Select-Object encerra o pipeline assim
+    # que tem o primeiro objeto e, sobre um .exe, o PS 5.1 marca $LASTEXITCODE = -1 (que
+    # vira 255 no exit do processo). O -Acao VerificarDeploy saia 255 mesmo passando.
+    $b = @(git -C $AppRoot rev-parse --abbrev-ref HEAD 2>$null)[0]
     if ($b) { return $b.Trim() }
     return "(desconhecido)"
 }
@@ -779,10 +782,18 @@ function Invoke-DeployCompleto {
     try {
         Write-Host ""
         Write-Host "---- Verificando mudancas locais nao commitadas ----" -ForegroundColor Cyan
-        $statusGit = git status --porcelain
-        if ($statusGit) {
-            Write-Host "[ERRO] Ha mudancas locais nao commitadas. Resolva antes de atualizar." -ForegroundColor Red
-            Write-Host $statusGit
+        $estadoGit = Get-EstadoGit
+        if (-not $estadoGit.Ok) {
+            Write-Host "[ERRO] 'git status --porcelain' falhou (exit $($estadoGit.Codigo)). Deploy abortado." -ForegroundColor Red
+            return
+        }
+        if ($estadoGit.NaoRastreados.Count -gt 0) {
+            Write-Host ("[INFO] {0} arquivo(s) nao rastreado(s) no checkout - nao bloqueiam o deploy:" -f $estadoGit.NaoRastreados.Count) -ForegroundColor DarkGray
+            foreach ($l in $estadoGit.NaoRastreados) { Write-Host "         $l" -ForegroundColor DarkGray }
+        }
+        if ($estadoGit.Sujo) {
+            Write-Host "[ERRO] Ha mudancas em arquivos versionados. Resolva antes de atualizar." -ForegroundColor Red
+            foreach ($l in $estadoGit.Bloqueantes) { Write-Host "  $l" }
             return
         }
         Write-Host "[OK] Nada pendente." -ForegroundColor Green
@@ -890,7 +901,8 @@ function Get-ToplevelGit {
     # Raiz do repositorio SEGUNDO O GIT, normalizada para separador do Windows. Serve para
     # provar no log que o status rodou no checkout certo - a tarefa agendada roda como
     # SYSTEM, cujo diretorio inicial e C:\Windows\system32, e um dia isso vai importar.
-    $t = git -C $AppRoot rev-parse --show-toplevel 2>$null | Select-Object -First 1
+    # @(...)[0] pelo mesmo motivo de Get-BranchAtual: nao sujar o $LASTEXITCODE com -1.
+    $t = @(git -C $AppRoot rev-parse --show-toplevel 2>$null)[0]
     if (-not $t) { return $null }
     return [System.IO.Path]::GetFullPath($t.Trim().Replace("/", "\"))
 }
@@ -903,13 +915,26 @@ function Get-EstadoGit {
     # ownership") sumiria atras de uma excecao generica. Com o codigo na mao da para
     # separar "o git falhou" de "a arvore esta suja" - dois problemas muito diferentes
     # que o log antigo reportava com a MESMA frase.
+    #
+    # Arquivo NAO rastreado ('??') nao bloqueia mais o deploy. Ele nao entra em conflito
+    # com o 'git pull', e no unico caso em que entraria (um commit novo criando o mesmo
+    # caminho) o proprio git recusa o pull - e ali ja caimos no ramo 'FALHOU: git pull',
+    # que roda ANTES do Stop-Service, sem tocar no servico. Bloquear neles derrubou o
+    # deploy automatico 13 noites seguidas (28/08 a 09/09/2026) por causa de um
+    # .claude/settings.local.json que so o SYSTEM enxergava: a regra que o ignorava estava
+    # no gitignore GLOBAL do usuario interativo, e o perfil do SYSTEM nao le esse arquivo.
+    # Quem olhava o 'git status' via a arvore limpa e nao conseguia reproduzir.
     $linhas = @(git -C $AppRoot status --porcelain)
     $codigo = $LASTEXITCODE
+    $naoRastreados = @($linhas | Where-Object { $_ -match '^\?\?' })
+    $bloqueantes   = @($linhas | Where-Object { $_ -notmatch '^\?\?' })
     return [PSCustomObject]@{
-        Ok     = ($codigo -eq 0)
-        Codigo = $codigo
-        Linhas = $linhas
-        Sujo   = (($codigo -eq 0) -and (@($linhas).Count -gt 0))
+        Ok            = ($codigo -eq 0)
+        Codigo        = $codigo
+        Linhas        = $linhas
+        NaoRastreados = $naoRastreados
+        Bloqueantes   = $bloqueantes
+        Sujo          = (($codigo -eq 0) -and ($bloqueantes.Count -gt 0))
     }
 }
 
@@ -968,11 +993,18 @@ function Invoke-VerificarDeploy {
             Write-Host "       'dubious ownership' -> git config --system --add safe.directory $AppRoot" -ForegroundColor Yellow
         } elseif ($estado.Sujo) {
             $problemas += "arvore suja"
-            Write-Host "[ERRO] Working tree SUJO - o deploy automatico abortaria aqui." -ForegroundColor Red
-            Write-Host "       Saida completa de 'git status --porcelain':" -ForegroundColor Yellow
-            foreach ($l in $estado.Linhas) { Write-Host "         $l" }
+            Write-Host "[ERRO] Ha mudancas em arquivos versionados - o deploy automatico abortaria aqui." -ForegroundColor Red
+            Write-Host "       Linhas bloqueantes de 'git status --porcelain':" -ForegroundColor Yellow
+            foreach ($l in $estado.Bloqueantes) { Write-Host "         $l" }
         } else {
-            Write-Host "[OK] Working tree limpo." -ForegroundColor Green
+            Write-Host "[OK] Nenhuma mudanca em arquivo versionado." -ForegroundColor Green
+        }
+
+        # Informativo, nunca bloqueante. Vale a pena mostrar porque este pre-voo existe
+        # para ser rodado COMO SYSTEM, que enxerga arquivos que o usuario interativo nao ve.
+        if ($estado.Ok -and $estado.NaoRastreados.Count -gt 0) {
+            Write-Host ("[INFO] {0} arquivo(s) nao rastreado(s) - nao bloqueiam o deploy:" -f $estado.NaoRastreados.Count) -ForegroundColor DarkGray
+            foreach ($l in $estado.NaoRastreados) { Write-Host "         $l" -ForegroundColor DarkGray }
         }
 
         if ($branch -ne $BranchProducao) {
@@ -986,13 +1018,16 @@ function Invoke-VerificarDeploy {
             Write-Host "[OK] Pre-voo limpo - o deploy automatico passaria deste ponto." -ForegroundColor Green
         } else {
             $detalhe = "PROBLEMAS: " + ($problemas -join "; ")
-            if ($estado.Sujo) { $detalhe += " - " + (Format-ResumoSujeira -Linhas $estado.Linhas) }
+            if ($estado.Sujo) { $detalhe += " - " + (Format-ResumoSujeira -Linhas $estado.Bloqueantes) }
             Write-Host "[FALHOU] O deploy automatico abortaria: $($problemas -join '; ')" -ForegroundColor Red
         }
 
         Write-DeployLog "VerificarDeploy (usuario=$env:USERNAME): $detalhe"
         if ($estado.Sujo) {
-            foreach ($l in $estado.Linhas) { Write-DeployLog "  $l" }
+            foreach ($l in $estado.Bloqueantes) { Write-DeployLog "  $l" }
+        }
+        if ($estado.Ok -and $estado.NaoRastreados.Count -gt 0) {
+            Write-DeployLog "  (nao rastreados, nao bloqueiam: $($estado.NaoRastreados.Count))"
         }
         Write-Audit -AcaoNome "VerificarDeploy" -Detalhe $detalhe
     } finally {
@@ -1037,11 +1072,16 @@ function Invoke-DeployAutomatico {
             Write-Audit -AcaoNome "DeployAutomatico" -Detalhe "ABORTADO: git status falhou (exit $($estadoGit.Codigo))"
             return
         }
+        if ($estadoGit.NaoRastreados.Count -gt 0) {
+            # Registrado, nunca bloqueante - ver o porque no comentario de Get-EstadoGit.
+            Write-DeployLog "Aviso: $($estadoGit.NaoRastreados.Count) arquivo(s) nao rastreado(s) no checkout (nao bloqueiam o deploy):"
+            foreach ($linhaStatus in $estadoGit.NaoRastreados) { Write-DeployLog "  $linhaStatus" }
+        }
         if ($estadoGit.Sujo) {
-            $resumoSujeira = Format-ResumoSujeira -Linhas $estadoGit.Linhas
-            Write-DeployLog "ABORTADO: ha mudancas locais nao commitadas. Saida completa de 'git status --porcelain':"
-            foreach ($linhaStatus in $estadoGit.Linhas) { Write-DeployLog "  $linhaStatus" }
-            Invoke-Notificacao -Status "falhou" -Detalhe "Mudancas locais nao commitadas impediram o deploy automatico ($resumoSujeira). Servico NAO foi tocado."
+            $resumoSujeira = Format-ResumoSujeira -Linhas $estadoGit.Bloqueantes
+            Write-DeployLog "ABORTADO: ha mudancas em arquivos versionados. Linhas bloqueantes de 'git status --porcelain':"
+            foreach ($linhaStatus in $estadoGit.Bloqueantes) { Write-DeployLog "  $linhaStatus" }
+            Invoke-Notificacao -Status "falhou" -Detalhe "Mudancas em arquivos versionados impediram o deploy automatico ($resumoSujeira). Servico NAO foi tocado."
             Write-Audit -AcaoNome "DeployAutomatico" -Detalhe "ABORTADO: git status sujo - $resumoSujeira"
             return
         }
