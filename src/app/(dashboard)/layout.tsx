@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Shell } from "@/components/shell/shell";
 import { requireUser } from "@/lib/session";
+import { tipoEfetivo } from "@/lib/roles";
 import { permissoesEfetivas } from "@/lib/permissao-efetiva";
 import { prisma } from "@/lib/prisma";
 import type { ContextoNav } from "@/lib/nav-config";
@@ -52,7 +53,11 @@ export default async function DashboardLayout({
       superUsuario: eixos?.superUsuario ?? false,
       perfilId: eixos?.perfilId ?? null,
     }),
-    tipo: eixos?.tipo ?? null,
+    // `tipoEfetivo` e não `eixos.tipo` cru: a coluna é nullable, e `null` quer dizer "sem vínculo
+    // aplicado", não "externo". Sem a rede, um colaborador sem vínculo perde os 14 itens de menu
+    // que usam este eixo — em silêncio. É o MESMO helper de `requireInterno()`, de propósito:
+    // menu e gate divergirem produz "vê o link e toma 404".
+    tipo: tipoEfetivo(eixos?.tipo, user.role),
     setor: eixos?.setor ?? null,
   };
 
