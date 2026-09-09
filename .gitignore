@@ -68,6 +68,11 @@ next-env.d.ts
 
 # tooling de agente (config/cache local por máquina — AGENTS.md e CLAUDE.md são versionados)
 /.agents/
+# Só o settings.local.json: o resto de .claude/ (agents, hooks, skills, settings.json) é
+# versionado. A regra precisa morar AQUI, e não no gitignore global do usuário: a tarefa
+# agendada do deploy roda como SYSTEM, cujo perfil não lê ~/.config/git/ignore — o arquivo
+# ficava invisível para quem olhava o `git status` e sujo para o deploy automático.
+/.claude/settings.local.json
 /.codex/
 /.vscode/
 /m.mjs
