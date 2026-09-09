@@ -2,6 +2,11 @@ import { defineConfig } from "vitest/config";
 import path from "node:path";
 
 export default defineConfig({
+  // O tsconfig do Next usa `jsx: "preserve"` (quem transforma é o bundler dele). Sem isto o
+  // vitest engasga ao importar um `.tsx` de dentro de um teste — é o caso de
+  // `corpo-aviso-markdown.test.ts`, que renderiza o componente pra provar que HTML cru e
+  // link `javascript:` não passam. Vale só para os testes; o build do Next não lê esta config.
+  oxc: { jsx: { runtime: "automatic" } },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

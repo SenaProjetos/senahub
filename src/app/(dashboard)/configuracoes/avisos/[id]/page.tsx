@@ -7,6 +7,7 @@ import { detalheAviso } from "@/modules/notificacoes/avisos/queries";
 import { statusAviso } from "@/modules/notificacoes/avisos/agendamento";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { formatarDataHora } from "@/lib/utils";
+import { CorpoAviso } from "@/components/notificacoes/corpo-aviso";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -34,7 +35,7 @@ export default async function AvisoDetalhePage({ params }: { params: Promise<{ i
 
       <div>
         <h2 className="text-2xl font-extrabold tracking-tight">{aviso.titulo}</h2>
-        {aviso.corpo && <p className="mt-1 text-sm whitespace-pre-wrap text-muted-foreground">{aviso.corpo}</p>}
+        {aviso.corpo && <CorpoAviso corpo={aviso.corpo} className="mt-1 text-muted-foreground" />}
         {status === "enviado" ? (
           <p className="mt-2 text-xs text-muted-foreground">
             Enviado por {aviso.criadoPor.name} em {formatarDataHora(aviso.enviadoEm ?? aviso.criadoEm)} ·{" "}

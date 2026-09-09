@@ -7,6 +7,7 @@ import { emitParaUsuario } from "@/lib/socket";
 import { enviarEmail, smtpConfigurado, type EmailAnexo } from "@/lib/mail";
 import { renderTemplate } from "@/lib/email-templates";
 import { lerArquivo, existeArquivo } from "@/lib/storage";
+import { escaparHtml, markdownParaTexto } from "./formatacao";
 import type { CriarAvisoInput } from "./schemas";
 
 type AlvoInput = Pick<
@@ -118,10 +119,11 @@ export async function dispatcharAviso(
     skipDuplicates: true,
   });
 
-  // Sino + Web Push interno (reusa a fan-out existente).
+  // Sino + Web Push interno (reusa a fan-out existente). O corpo é achatado: sino, lista
+  // e notificação do SO mostram texto puro, então o Markdown apareceria literal ali.
   await notificarMuitos(destinatarios, {
     titulo: aviso.titulo,
-    corpo: aviso.corpo || undefined,
+    corpo: aviso.corpo ? markdownParaTexto(aviso.corpo) || undefined : undefined,
     href: "/",
     tag: `aviso-${aviso.id}`,
   });
@@ -138,9 +140,12 @@ export async function dispatcharAviso(
       where: { id: { in: destinatarios }, email: { not: "" } },
       select: { email: true },
     });
+    // O corpo entra CRU no template Markdown (o `marked` do template converte **negrito**,
+    // títulos e listas junto com o resto), só com o HTML neutralizado — quem tem
+    // `avisos:enviar` não é necessariamente admin e não pode injetar tag no e-mail da empresa.
     const tpl = await renderTemplate("aviso-geral", {
       titulo: aviso.titulo,
-      corpo: aviso.corpo || "",
+      corpo: escaparHtml(aviso.corpo || ""),
     });
 
     // Imagem inline (CID): anexo referenciado no HTML — funciona em qualquer cliente,

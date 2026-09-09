@@ -3,7 +3,20 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Clock, ImagePlus, Mail, Megaphone, Monitor, Search, Trash2 } from "lucide-react";
+import {
+  Bold,
+  Clock,
+  Heading1,
+  Heading2,
+  ImagePlus,
+  Italic,
+  List,
+  Mail,
+  Megaphone,
+  Monitor,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { criarAviso } from "@/modules/notificacoes/avisos/actions";
 import { validarAgendamentoAviso } from "@/modules/notificacoes/avisos/agendamento";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
@@ -17,6 +30,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { CorpoAviso } from "@/components/notificacoes/corpo-aviso";
 import { cn } from "@/lib/utils";
 
 export type UsuarioAlvo = { id: string; name: string; role: Role };
@@ -58,9 +72,50 @@ export function AvisoGeralView({
   const confirm = useConfirm();
   const router = useRouter();
   const imagemRef = useRef<HTMLInputElement>(null);
+  const corpoRef = useRef<HTMLTextAreaElement>(null);
 
   const tituloTrim = titulo.trim();
   const corpoTrim = corpo.trim();
+
+  /**
+   * Barra de formatação: escreve a marcação Markdown direto no textarea (sem editor
+   * WYSIWYG). O corpo é guardado como Markdown e renderizado por `CorpoAviso` na tela e
+   * pelo `marked` do template no e-mail — os dois leem o mesmo texto.
+   */
+
+  /** Envolve a seleção com `marcador` (negrito/itálico) e devolve o foco selecionando o miolo. */
+  function envolverSelecao(marcador: string, exemplo: string) {
+    const ta = corpoRef.current;
+    if (!ta) return;
+    const ini = ta.selectionStart;
+    const fim = ta.selectionEnd;
+    const selecionado = corpo.slice(ini, fim) || exemplo;
+    setCorpo(corpo.slice(0, ini) + marcador + selecionado + marcador + corpo.slice(fim));
+    // Depois do re-render: cursor em cima do texto formatado, pronto pra sobrescrever.
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(ini + marcador.length, ini + marcador.length + selecionado.length);
+    });
+  }
+
+  /** Liga/desliga um prefixo de linha (título ou item de lista) na linha do cursor. */
+  function prefixarLinha(prefixo: string) {
+    const ta = corpoRef.current;
+    if (!ta) return;
+    const pos = ta.selectionStart;
+    const ini = corpo.lastIndexOf("\n", pos - 1) + 1;
+    const quebra = corpo.indexOf("\n", pos);
+    const fim = quebra === -1 ? corpo.length : quebra;
+    const linha = corpo.slice(ini, fim);
+    const nua = linha.replace(/^(#{1,6}\s+|[-*+]\s+)/, "");
+    const nova = linha.startsWith(prefixo) ? nua : prefixo + nua;
+    setCorpo(corpo.slice(0, ini) + nova + corpo.slice(fim));
+    const delta = nova.length - linha.length;
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(Math.max(ini, pos + delta), Math.max(ini, pos + delta));
+    });
+  }
 
   async function escolherImagem(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -231,13 +286,42 @@ export function AvisoGeralView({
           </div>
           <div className="space-y-1.5">
             <Label>Mensagem</Label>
+            <div className="flex flex-wrap items-center gap-0.5 rounded-lg border border-input bg-muted/40 p-1">
+              {(
+                [
+                  ["Negrito", Bold, () => envolverSelecao("**", "texto em negrito")],
+                  ["Itálico", Italic, () => envolverSelecao("_", "texto em itálico")],
+                  ["Título grande", Heading1, () => prefixarLinha("# ")],
+                  ["Título menor", Heading2, () => prefixarLinha("## ")],
+                  ["Item de lista", List, () => prefixarLinha("- ")],
+                ] as [string, typeof Bold, () => void][]
+              ).map(([rotulo, Icone, aplicar], i) => (
+                <Button
+                  key={rotulo}
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={cn("size-7", i === 2 && "ml-1 border-l pl-1")}
+                  title={rotulo}
+                  aria-label={rotulo}
+                  onClick={aplicar}
+                >
+                  <Icone className="size-3.5" />
+                </Button>
+              ))}
+            </div>
             <textarea
+              ref={corpoRef}
               value={corpo}
               onChange={(e) => setCorpo(e.target.value)}
               placeholder="Detalhes do aviso"
-              rows={4}
-              className="w-full resize-y rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+              rows={6}
+              className="w-full resize-y rounded-lg border border-input bg-transparent px-2.5 py-1.5 font-mono text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
             />
+            <p className="text-xs text-muted-foreground">
+              Aceita formatação Markdown: <code>**negrito**</code>, <code>_itálico_</code>,{" "}
+              <code># título</code>, <code>- lista</code>. Veja como fica na pré-visualização ao lado.
+            </p>
           </div>
 
           {/* Imagem opcional */}
@@ -275,8 +359,9 @@ export function AvisoGeralView({
               </Button>
             )}
             <p className="text-xs text-muted-foreground">
-              Aparece no aviso em tela e no e-mail. Reduzida automaticamente (máx 1000px, sem cortar). Ideal:
-              paisagem, ~1000×560px (16:9) — imagens muito altas ficam espremidas na exibição.
+              Aparece no aviso em tela e no e-mail, e abre em tamanho original ao clicar. Reduzida
+              automaticamente (máx 1600px, sem cortar). Ideal: paisagem, ~1600×900px (16:9) — imagens
+              muito altas ficam espremidas na exibição.
             </p>
           </div>
 
@@ -482,12 +567,10 @@ export function AvisoGeralView({
                   <Megaphone className="size-4 text-primary" />
                   {tituloTrim || <span className="font-normal text-muted-foreground italic">Título do aviso…</span>}
                 </p>
-                {corpoTrim ? (
-                  <p className="mt-1 text-sm break-words whitespace-pre-wrap text-muted-foreground">{corpoTrim}</p>
-                ) : null}
+                {corpoTrim ? <CorpoAviso corpo={corpoTrim} className="mt-1 text-muted-foreground" /> : null}
                 {imagemPreview ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={imagemPreview} alt="" className="mt-3 max-h-56 w-full rounded-md object-contain" />
+                  <img src={imagemPreview} alt="" className="mt-3 max-h-[26rem] w-full rounded-md object-contain" />
                 ) : null}
                 <div className="mt-3 flex justify-end">
                   <span className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground">
@@ -516,12 +599,10 @@ export function AvisoGeralView({
                   <h2 className="text-lg font-bold">
                     {tituloTrim || <span className="font-normal text-neutral-400 italic">Título do aviso…</span>}
                   </h2>
-                  {corpoTrim ? (
-                    <p className="mt-2 text-sm break-words whitespace-pre-wrap">{corpoTrim}</p>
-                  ) : null}
+                  {corpoTrim ? <CorpoAviso corpo={corpoTrim} className="mt-2" /> : null}
                   {imagemPreview ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={imagemPreview} alt="" className="mt-3 max-h-56 rounded-md object-contain" />
+                    <img src={imagemPreview} alt="" className="mt-3 max-h-[26rem] w-full rounded-md object-contain" />
                   ) : null}
                   <p className="mt-4 text-xs text-neutral-500 italic">
                     Comunicado do SenaHub — confirme a leitura ao acessar o sistema.

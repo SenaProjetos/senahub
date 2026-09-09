@@ -16,6 +16,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { CorpoAviso } from "@/components/notificacoes/corpo-aviso";
+import { cn } from "@/lib/utils";
 
 type Pendente = {
   avisoId: string;
@@ -93,8 +95,16 @@ export function AvisoProvider() {
         if (!aberto && !atual.exigeConfirmacao) setFila((f) => f.slice(1));
       }}
     >
-      {/* flex + max-h: corpo/imagem rolam e o rodapé (confirmação) fica sempre visível */}
-      <DialogContent showCloseButton={false} className="flex max-h-[85dvh] flex-col sm:max-w-md">
+      {/* flex + max-h: corpo/imagem rolam e o rodapé (confirmação) fica sempre visível.
+          Com imagem o modal abre largo: comunicado ilustrado costuma ser infográfico com
+          texto miúdo, que a 448px (`sm:max-w-md`) fica ilegível. */}
+      <DialogContent
+        showCloseButton={false}
+        className={cn(
+          "flex max-h-[85dvh] flex-col",
+          atual.temImagem ? "sm:max-w-3xl" : "sm:max-w-md",
+        )}
+      >
         <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Megaphone className="size-4 text-primary" /> {atual.titulo}
@@ -102,15 +112,27 @@ export function AvisoProvider() {
         </DialogHeader>
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
           {atual.corpo ? (
-            <DialogDescription className="whitespace-pre-wrap">{atual.corpo}</DialogDescription>
+            /* `render={<div />}`: o corpo formatado tem <p>/<ul> dentro, e o <p> padrão da
+               Description não pode aninhar bloco. Mantém o aria-describedby do diálogo. */
+            <DialogDescription render={<div />}>
+              <CorpoAviso corpo={atual.corpo} />
+            </DialogDescription>
           ) : null}
           {atual.temImagem ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={`/api/avisos/${atual.avisoId}/imagem`}
-              alt=""
-              className="w-full rounded-md object-contain"
-            />
+            /* Abre em aba nova no tamanho cheio — infográfico raramente cabe legível no modal. */
+            <a
+              href={`/api/avisos/${atual.avisoId}/imagem`}
+              target="_blank"
+              rel="noreferrer"
+              title="Abrir a imagem em tamanho original"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`/api/avisos/${atual.avisoId}/imagem`}
+                alt="Imagem do aviso"
+                className="w-full rounded-md object-contain"
+              />
+            </a>
           ) : null}
           {fila.length > 1 ? (
             <p className="text-xs text-muted-foreground">

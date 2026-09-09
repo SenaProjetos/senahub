@@ -43,6 +43,14 @@ lugar.
 - **Aviso geral** — enviar um comunicado (**modal em tela cheia + sino/push** e, se quiser,
   **e-mail**) para todos, por categoria de perfil ou por nome. Pode **exigir confirmação de
   leitura** e levar uma **imagem**.
+  - **Formatação da mensagem** — a barra acima do campo escreve **negrito**, *itálico*,
+    **títulos** (dois tamanhos) e **listas**; dá para digitar a marcação direto
+    (`**negrito**`, `_itálico_`, `# título`, `- lista`). A formatação aparece no modal, no
+    detalhe do aviso e no e-mail. No **sino** e no **push do sistema** o texto chega sem
+    formatação, porque essas telas não a exibem.
+  - **Imagem** — reduzida sozinha para no máximo **1600px** de lado maior, **sem cortar**.
+    O ideal é **paisagem, ~1600×900px**. Quando o aviso tem imagem, o modal abre **largo**,
+    e clicar na imagem a abre em **tamanho original** numa aba nova.
   - **Agendar envio** — em vez de disparar na hora, escolha data e hora (até **90 dias**).
     O aviso fica na aba **Agendados** e pode ser **cancelado** enquanto não disparar.
     Os destinatários são apurados **no momento do envio** — quem entrar na equipe até lá

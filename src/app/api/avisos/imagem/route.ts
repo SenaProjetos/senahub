@@ -8,7 +8,14 @@ import { salvarArquivo } from "@/lib/storage";
 const MAX = 8 * 1024 * 1024; // 8 MB de entrada
 
 /**
- * Recebe a imagem de um Aviso Geral, normaliza (sharp: reorienta + limita a 1000px,
+ * Lado maior depois da normalização. 1600 (e não os 1000 de antes) porque o modal do
+ * destinatário abre a 768px quando o aviso tem imagem, e comunicado ilustrado costuma ser
+ * infográfico com texto miúdo: a 1000px o miolo já chegava borrado em tela retina.
+ */
+const LADO_MAX = 1600;
+
+/**
+ * Recebe a imagem de um Aviso Geral, normaliza (sharp: reorienta + limita a `LADO_MAX`,
  * JPEG) e devolve o caminho relativo p/ a action persistir em `Aviso.imagemPath`.
  * A imagem é enviada ANTES de o aviso existir, por isso o nome é aleatório (sem id).
  */
@@ -33,8 +40,8 @@ export async function POST(req: Request) {
     const entrada = Buffer.from(await file.arrayBuffer());
     const jpg = await sharp(entrada)
       .rotate()
-      .resize(1000, 1000, { fit: "inside", withoutEnlargement: true })
-      .jpeg({ quality: 82 })
+      .resize(LADO_MAX, LADO_MAX, { fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 85 })
       .toBuffer();
     const rel = `avisos/${randomBytes(12).toString("hex")}.jpg`;
     const salvo = await salvarArquivo(rel, jpg);
