@@ -1,8 +1,21 @@
 # Plano — Guias para iniciantes, um por setor (camada de formação sobre o manual)
 
+> ⚠️ **SUPERSEDED em 2026-09-09** por
+> [`2026-09-09-guias-de-uso-in-app.md`](2026-09-09-guias-de-uso-in-app.md).
+>
+> **Não aplique D1 deste documento.** A decisão "fonte da verdade = markdown, o artifact é uma
+> saída gerada dele" foi **revogada** por
+> [ADR-0001](../../adr/0001-guias-de-uso-in-app.md): a fonte de um guia de uso é a página React
+> em `/guias/[setor]`, e o `.md` em `docs/manual/<secao>/guia-iniciante.md` é um stub que aponta
+> para ela. D3 (Onda 1 = Projetos, sozinha) também mudou de forma — virou a fase F1 do plano novo.
+>
+> O que **continua válido** e foi herdado: a fronteira editorial (§3), a estrutura de seções (§4,
+> ampliada), o processo de produção em 4 fases (§6), os insumos da Onda 1 (§7), a ordem das ondas
+> (§8) e os riscos (§10). Este arquivo fica como histórico do raciocínio.
+
 - **Data:** 2026-07-20
 - **Origem:** guia do Comercial produzido sob demanda (piloto involuntário) → dono pediu o mesmo para os demais setores.
-- **Estado:** proposto, aguardando execução da Onda 1.
+- **Estado:** superseded (2026-09-09). Nunca executado além do piloto do Comercial.
 
 ---
 

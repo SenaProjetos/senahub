@@ -163,6 +163,11 @@ export const NAV_GROUPS: NavGroup[] = [
         permissao: "chat:usar",
         mobile: true,
       },
+      // Guias de uso — formação por setor. `tipo: "interno"` e NÃO uma permissão de módulo: é
+      // material de treinamento, e ler sobre o Financeiro sem ter `financeiro:ver` é o caso de uso
+      // (quem ainda não trabalha no setor é o público). Fica colado na Ajuda: formação e
+      // referência são o par, e o guia linka para o manual o tempo todo.
+      { title: "Guias de uso", href: "/guias", icon: BookMarked, tipo: "interno" },
       // Ajuda/Manual — sem `roles`: visível a todos os perfis (inclusive cliente).
       { title: "Ajuda", href: "/ajuda", icon: BookOpen, mobile: true },
     ],

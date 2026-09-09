@@ -11,7 +11,17 @@ sinonimos: [registro de decisão, decision record]
 
 - **Data da revisão:** 2026-06-30
 - **Responsáveis:** Conselho Permanente de Documentação (Presidente + membros)
-- **Estado:** Aceito
+- **Estado:** Aceito, com **alcance reduzido** desde 2026-09-09 (ver nota abaixo)
+
+> ⚠️ **Alcance reduzido (2026-09-09).** Este ADR continua valendo integralmente para o **manual de
+> referência** — markdown sob `docs/manual/`, com metadados e `search-index.json`. Ele **não** vale
+> mais para os **guias de uso** (a camada de formação por setor): esses são páginas React em
+> `/guias/[setor]`, e o `.md` correspondente é apenas um stub que aponta para a rota.
+> Ver [`docs/adr/0001-guias-de-uso-in-app.md`](../../adr/0001-guias-de-uso-in-app.md), que também
+> revoga a decisão D1 do plano de 2026-07-20.
+>
+> Nota de numeração: a série `ADR-00N` desta pasta é a **legada**. ADRs novos seguem a convenção de
+> `docs/agents/domain.md` — `docs/adr/000N-slug.md` na raiz.
 
 ## Contexto
 

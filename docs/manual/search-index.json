@@ -556,8 +556,8 @@
     {
       "titulo": "Guia do Comercial para iniciantes",
       "path": "clientes-comercial/guia-iniciante.md",
-      "descricao": "Passo a passo simples para registrar uma indicação ou outro contato e transformá-lo em projeto.",
-      "resumo": "Entenda entrada comercial, empresa, contato, lead, negociação, proposta e projeto e abra o Guia de uso dentro do Comercial.",
+      "descricao": "Onde encontrar o guia de formação do Comercial — vocabulário, caminho natural e armadilhas.",
+      "resumo": "O guia do Comercial vive dentro do sistema, em Guias de uso. Esta página é só o ponteiro para ele.",
       "tags": [
         "comercial",
         "guia iniciante",
@@ -578,7 +578,8 @@
         "follow-up",
         "proposta",
         "aceite",
-        "projeto"
+        "projeto",
+        "lead"
       ],
       "sinonimos": [
         "crm",

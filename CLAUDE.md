@@ -217,4 +217,4 @@ The five canonical roles, each label string equal to its name (`needs-triage`, `
 
 ### Domain docs
 
-Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root (neither exists yet — created lazily by `/domain-modeling`). See `docs/agents/domain.md`.
+Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root — both exist since 2026-09-09. See `docs/agents/domain.md`. Note the two ADR series: `docs/adr/000N-slug.md` is the current convention; `docs/manual/decisions/ADR-00N-*.md` is the legacy one and still valid.
