@@ -96,7 +96,10 @@ function Assert-Admin {
 }
 
 function Get-BranchAtual {
-    $b = git -C $AppRoot rev-parse --abbrev-ref HEAD 2>$null | Select-Object -First 1
+    # @(...)[0] e nao '| Select-Object -First 1': o Select-Object encerra o pipeline assim
+    # que tem o primeiro objeto e, sobre um .exe, o PS 5.1 marca $LASTEXITCODE = -1 (que
+    # vira 255 no exit do processo). O -Acao VerificarDeploy saia 255 mesmo passando.
+    $b = @(git -C $AppRoot rev-parse --abbrev-ref HEAD 2>$null)[0]
     if ($b) { return $b.Trim() }
     return "(desconhecido)"
 }
@@ -843,7 +846,8 @@ function Get-ToplevelGit {
     # Raiz do repositorio SEGUNDO O GIT, normalizada para separador do Windows. Serve para
     # provar no log que o status rodou no checkout certo - a tarefa agendada roda como
     # SYSTEM, cujo diretorio inicial e C:\Windows\system32, e um dia isso vai importar.
-    $t = git -C $AppRoot rev-parse --show-toplevel 2>$null | Select-Object -First 1
+    # @(...)[0] pelo mesmo motivo de Get-BranchAtual: nao sujar o $LASTEXITCODE com -1.
+    $t = @(git -C $AppRoot rev-parse --show-toplevel 2>$null)[0]
     if (-not $t) { return $null }
     return [System.IO.Path]::GetFullPath($t.Trim().Replace("/", "\"))
 }
