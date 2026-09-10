@@ -222,6 +222,13 @@ export function LancamentoForm({
           <div className="space-y-1.5">
             <Label>Data de competência (opcional)</Label>
             <Input type="date" value={dataCompetencia} onChange={(e) => setDataCompetencia(e.target.value)} />
+            {/* Issue #4 do plano de Guias de uso: este campo só é lido pelo comparativo de
+                Relatórios (seletor Caixa/Competência) — todo o resto do Financeiro (painel, fluxo
+                de caixa, DFC, balanço, série mensal, rentabilidade) usa a data de confirmação. */}
+            <p className="text-xs text-muted-foreground">
+              Usada só no comparativo Caixa/Competência em Relatórios. Os outros números do
+              Financeiro seguem a data de confirmação.
+            </p>
           </div>
 
           <div className="space-y-1.5">

@@ -55,7 +55,8 @@ export function RelatoriosView({
         <div>
           <h2 className="text-2xl font-extrabold tracking-tight">Relatórios</h2>
           <p className="text-sm text-muted-foreground">
-            DRE por competência, com análise vertical (AV), horizontal (AH) e EBITDA.
+            DRE com análise vertical (AV), horizontal (AH) e EBITDA. Só o DRE respeita o regime
+            escolhido abaixo — os demais cartões desta página são sempre confirmados por caixa.
           </p>
         </div>
         <div className="flex items-end gap-2">
@@ -68,7 +69,9 @@ export function RelatoriosView({
             <Input type="date" value={ate} onChange={(e) => setAte(e.target.value)} className="w-40" />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Regime</Label>
+            <Label className="text-xs text-muted-foreground" title="Afeta só o card do DRE abaixo — os demais cartões desta página seguem caixa sempre.">
+              Regime (só o DRE)
+            </Label>
             <Select value={regime} onValueChange={(v) => setRegime((v as "caixa" | "competencia") ?? "caixa")}>
               <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
               <SelectContent>
