@@ -38,7 +38,7 @@ O que você vê no financeiro depende de **3 níveis**:
 | [Estúdio de Documentos](estudio-documentos.md) | `/documentos` | ✅ documentado |
 
 ### Ainda a documentar (rodada futura)
-Folha de projetistas (`/financeiro/folha-projetistas`), Planejamento de pagamentos
+Produção — pagamento de projetistas (`/financeiro/folha-projetistas`), Planejamento de pagamentos
 (`/financeiro/planejamento`), Fechamento mensal (`/financeiro/fechamento`), Cadastros
 (`/financeiro/cadastros`), Configurações (`/financeiro/configuracoes`) e os documentos
 financeiros (`/financeiro/documentos`).

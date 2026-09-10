@@ -1,31 +1,74 @@
 import type { Metadata } from "next";
+import { TriangleAlert } from "lucide-react";
 import { requirePermission } from "@/lib/session";
-import { listarFolha } from "@/modules/financeiro/folha/queries";
+import { listarFolha, contarPendentesSemValor } from "@/modules/financeiro/folha/queries";
 import { listarFolhasProjetista } from "@/modules/financeiro/folha-lote/queries";
 import { opcoesLancamento } from "@/modules/financeiro/lancamentos/queries";
 import { FolhaView } from "@/components/financeiro/folha/folha-view";
 import { FolhaLotesSection } from "@/components/financeiro/folha/folha-lotes-section";
+import { ProducaoAbas } from "@/components/financeiro/folha/producao-abas";
 
 export const metadata: Metadata = { title: "Produção" };
 
-export default async function FolhaProjetistasPage() {
+const ABAS = ["pagar", "lotes"] as const;
+type Aba = (typeof ABAS)[number];
+
+export default async function FolhaProjetistasPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ aba?: string }>;
+}) {
   await requirePermission("financeiro", "folha_pj");
-  const [{ itens, pendente, pago, semValor }, opcoes, lotes] = await Promise.all([
-    listarFolha(),
-    opcoesLancamento(),
-    listarFolhasProjetista(),
-  ]);
+  const sp = await searchParams;
+  const aba: Aba = (ABAS as readonly string[]).includes(sp.aba ?? "") ? (sp.aba as Aba) : "pagar";
+
+  // Só a aba ativa é buscada — combinar as duas queries pesadas num Promise.all só
+  // fazia sentido quando as duas apareciam na mesma tela (ver D1/D14 no plano).
+  // `semValor` é exceção: é o aviso da F0a, que é da PÁGINA (as duas abas), não da
+  // lista de pagamentos — por isso é buscado nas duas ramificações.
+  let conteudo: React.ReactNode;
+  let semValor: number;
+  if (aba === "pagar") {
+    const [{ itens, pendente, pago, semValor: sv }, opcoes] = await Promise.all([
+      listarFolha(),
+      opcoesLancamento(),
+    ]);
+    semValor = sv;
+    conteudo = (
+      <FolhaView itens={itens} pendente={pendente} pago={pago} contas={opcoes.contas} formas={opcoes.formas} />
+    );
+  } else {
+    const [lotes, opcoes, sv] = await Promise.all([
+      listarFolhasProjetista(),
+      opcoesLancamento(),
+      contarPendentesSemValor(),
+    ]);
+    semValor = sv;
+    conteudo = <FolhaLotesSection folhas={lotes} contas={opcoes.contas} formas={opcoes.formas} />;
+  }
+
   return (
     <div className="space-y-5">
-      <FolhaLotesSection folhas={lotes} contas={opcoes.contas} formas={opcoes.formas} />
-      <FolhaView
-        itens={itens}
-        pendente={pendente}
-        pago={pago}
-        semValor={semValor}
-        contas={opcoes.contas}
-        formas={opcoes.formas}
-      />
+      <div>
+        <h1 className="text-2xl font-extrabold tracking-tight">Produção</h1>
+        <p className="text-sm text-muted-foreground">
+          Pagamentos de projetistas PJ/freelancer liberados por entregas validadas.
+        </p>
+      </div>
+
+      {semValor > 0 && (
+        <div role="alert" className="flex items-start gap-2 rounded-sm border border-warning/40 bg-warning/10 p-3 text-sm">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+          <p>
+            <strong>
+              {semValor === 1 ? "1 pagamento está sem valor." : `${semValor} pagamentos estão sem valor.`}
+            </strong>{" "}
+            Não é possível pagar com R$ 0,00 — use <strong>Corrigir valor</strong> na linha antes de pagar.
+          </p>
+        </div>
+      )}
+
+      <ProducaoAbas aba={aba}>{conteudo}</ProducaoAbas>
     </div>
   );
 }

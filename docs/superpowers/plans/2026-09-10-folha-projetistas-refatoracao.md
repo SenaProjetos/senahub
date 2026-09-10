@@ -2,9 +2,11 @@
 
 - **Data:** 2026-09-10
 - **Origem:** dono pediu revisão de UI/UX e de funções da tela.
-- **Estado:** **F0a entregue** — `tsc`, `eslint`, 64 testes do financeiro e `smoke:sync-pagamento` (19/19) verdes. F0–F7 pendentes.
-  - **Falta smoke em navegador.** O banco de dev não tinha linha zerada (a tela nova fica invisível sem ela); **1 pagamento pendente de dev foi zerado de propósito** para o teste. Conferir: aviso no topo, badge "sem valor", botão "Corrigir valor"; gerar o lote do mês dele e ver o "Pagar lote" deixar a linha zerada de fora.
-  - O `smoke:sync-pagamento` não chama as actions de pagar (exigem sessão) — a guarda nova é coberta pelos testes de `folha/service.ts`.
+- **Estado:** **F0a e F0 entregues** — `tsc`, `eslint`, 64 testes do financeiro e `smoke:sync-pagamento` (19/19) verdes em ambas. F1–F7 pendentes.
+  - **Falta smoke em navegador nas duas fases**, com login de verdade — sem sessão o `middleware` redireciona pra `/login` antes de renderizar a página (confirmado: `next dev` compilou e serviu o 307 sem erro, mas isso não exercita `page.tsx`/`FolhaView`/`ProducaoAbas`). Criar sessão de teste (reset de senha do admin, ou usuário próprio) não é decisão para tomar sozinho num banco de dev compartilhado — fica para quem tem credencial.
+  - F0a: o banco de dev não tinha linha zerada (a tela nova fica invisível sem ela); **1 pagamento pendente de dev foi zerado de propósito** para o teste. Conferir: aviso no topo, badge "sem valor", botão "Corrigir valor"; gerar o lote do mês dele e ver o "Pagar lote" deixar a linha zerada de fora.
+  - F0: conferir a troca de aba (`?aba=pagar` ↔ `?aba=lotes`) e que o título "Produção" aparece uma vez só, no topo.
+  - O `smoke:sync-pagamento` não chama as actions de pagar nem renderiza páginas (exige sessão) — cobre só a camada de dados.
   - Levantamento somente leitura (F0a.4 + §7.3), no servidor, na pasta do sistema:
     `npx tsx --tsconfig tsconfig.server.json scripts/levantar-folha-projetistas.ts`
 - **Escopo:** UI + camada de query. Mudanças em assinatura de action ficam confinadas a F0a/F4/F5, sinalizadas.
@@ -147,9 +149,11 @@ Resolve **D25**. Pequena, isolada, e é a única fase que impede dano contábil 
 Resolve **D1, D2, D3, N2, N4**.
 
 1. `<h1>Produção</h1>` + descrição sobem para `page.tsx` (RSC). Saem de `folha-view.tsx`.
-2. Abas `?aba=pagar|lotes` (default `pagar`) com `components/ui/tabs.tsx`, lidas **no servidor** a partir de `searchParams`, para o link ser compartilhável. **Divergência deliberada** de `contas-pagar-receber-view` (servidor passa `tabInicial`, cliente guarda em `useState`) — não "corrigir" de volta. Consequência: `page.tsx` busca **só os dados da aba ativa**, em vez do `Promise.all` com as 3 queries a cada render.
+2. Abas `?aba=pagar|lotes` (default `pagar`) com `components/ui/tabs.tsx` + `useSetParams` (mesmo padrão de `orcamento-detalhe-view`/`bancos-view`), lidas **no servidor** a partir de `searchParams`, para o link ser compartilhável. **Divergência deliberada** de `contas-pagar-receber-view` (servidor passa `tabInicial`, cliente guarda em `useState`) — não "corrigir" de volta. Consequência: `page.tsx` busca **só os dados da aba ativa**, em vez do `Promise.all` com as 3 queries a cada render. Aba nomeada **"Pagamentos"**, não "A pagar" — a lista mostra pendente+pago+cancelado, "A pagar" fica só para o KPI e o badge, onde é literal.
 3. Rótulo "Produção" no `metadata.title`, no `<h1>`, no tile do hub e no manual.
-4. Mapa de rótulos de status (`pendente → "A pagar"`, `pago → "Pago"`, `cancelado → "Cancelado"`).
+4. Mapa de rótulos de status (`pendente → "A pagar"`, `pago → "Pago"`, `cancelado → "Cancelado"`) em `modules/financeiro/folha/status.ts` (mesmo formato de `modules/custos/status.ts`).
+5. **O aviso "N pagamentos sem valor" (F0a) é da PÁGINA, não da lista** — hoisted pra `page.tsx`, acima das abas, visível nas duas. Antes vivia dentro de `FolhaView` e ficava invisível na aba de lotes, que é justamente onde "Pagar lote" pode tropeçar nele. `contarPendentesSemValor()` (novo, `folha/queries.ts`) é chamado nas duas ramificações — pequena exceção ao "sem tocar em query" do título desta fase, mas é aditiva e não muda a forma de nenhuma query existente.
+6. Conferido: `Pagination` já usa `useSetParams` internamente (preserva `aba` ao trocar de página) — sem risco de a paginação da aba de lotes derrubar a aba ativa.
 
 ### F1 — Camada de dados · **paginar e agregar são o mesmo trabalho**
 

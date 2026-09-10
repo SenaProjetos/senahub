@@ -3,13 +3,14 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Wallet, Pencil, Ban, TriangleAlert } from "lucide-react";
+import { Wallet, Pencil, Ban } from "lucide-react";
 import {
   pagarProjetista,
   editarPagamentoProjetista,
   cancelarPagamentoProjetista,
 } from "@/modules/financeiro/folha/actions";
 import { temValorPagavel } from "@/modules/financeiro/folha/service";
+import { STATUS_PAGAMENTO_LABEL, STATUS_PAGAMENTO_TONE } from "@/modules/financeiro/folha/status";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { FolhaItem } from "@/modules/financeiro/folha/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -51,14 +52,12 @@ export function FolhaView({
   itens,
   pendente,
   pago,
-  semValor,
   contas,
   formas,
 }: {
   itens: FolhaItem[];
   pendente: number;
   pago: number;
-  semValor: number;
   contas: { id: string; nome: string }[];
   formas: { id: string; nome: string }[];
 }) {
@@ -67,25 +66,6 @@ export function FolhaView({
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Produção</h2>
-        <p className="text-sm text-muted-foreground">
-          Pagamentos de projetistas PJ/freelancer liberados por entregas validadas.
-        </p>
-      </div>
-
-      {semValor > 0 && (
-        <div role="alert" className="flex items-start gap-2 rounded-sm border border-warning/40 bg-warning/10 p-3 text-sm">
-          <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
-          <p>
-            <strong>
-              {semValor === 1 ? "1 pagamento está sem valor." : `${semValor} pagamentos estão sem valor.`}
-            </strong>{" "}
-            Não é possível pagar com R$ 0,00 — use <strong>Corrigir valor</strong> na linha antes de pagar.
-          </p>
-        </div>
-      )}
-
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
@@ -138,18 +118,10 @@ export function FolhaView({
                   <TableCell className="text-right font-mono">{brl(Number(p.valor))}</TableCell>
                   <TableCell>
                     {p.status === "pendente" && !temValorPagavel(p.valor) ? (
-                      <StatusBadge tone="danger">sem valor</StatusBadge>
+                      <StatusBadge tone="danger">Sem valor</StatusBadge>
                     ) : (
-                      <StatusBadge
-                        tone={
-                          p.status === "pago"
-                            ? "success"
-                            : p.status === "pendente"
-                              ? "warning"
-                              : "neutral"
-                        }
-                      >
-                        {p.status}
+                      <StatusBadge tone={STATUS_PAGAMENTO_TONE[p.status] ?? "neutral"}>
+                        {STATUS_PAGAMENTO_LABEL[p.status] ?? p.status}
                       </StatusBadge>
                     )}
                   </TableCell>
