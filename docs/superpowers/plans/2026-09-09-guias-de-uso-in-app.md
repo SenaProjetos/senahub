@@ -2,7 +2,7 @@
 
 - **Data:** 2026-09-09
 - **Origem:** dono pediu replicar o padrão de `/comercial/guia` para os setores mais usados.
-- **Estado:** F0 a F3 entregues (branch `feat/guias-de-uso`). Falta a F4 (Gestão, Sonnet).
+- **Estado:** **Completo — F0 a F4 entregues** (branch `feat/guias-de-uso`). 5 dos 9 guias publicados; 4 em backlog aberto (§10).
 - **Supersede:** [`2026-07-20-guias-iniciante-setores.md`](2026-07-20-guias-iniciante-setores.md).
 - **ADR:** [`docs/adr/0001-guias-de-uso-in-app.md`](../../adr/0001-guias-de-uso-in-app.md).
 
@@ -252,7 +252,7 @@ modelo diferente do ativo, PARAR e esperar a troca via `/model` — não apenas 
 | **F1** ✅ | Guia de **Projetos** | **Opus** |
 | **F2** ✅ | Guia de **Financeiro** | **Opus** |
 | **F3** ✅ | Guia de **RH e Ponto** | **Opus** |
-| **F4** | Guia de **Gestão** | **Sonnet** |
+| **F4** ✅ | Guia de **Gestão** | **Sonnet** |
 
 F0 em Opus por tocar autorização: um `requireInterno()` errado abre página interna para `cliente`.
 F1–F3 em Opus pela densidade de jargão e sensibilidade (financeira em F2, trabalhista em F3).
@@ -425,6 +425,14 @@ escrito de zero. Uma divergência veio à tona ao redigir o `#armadilhas` do Com
 papéis internos (`cliente` toma 307), então o sinal seria código morto. O precedente de F1-2 vale
 para páginas que **renderizam** para externo — `/projetos` e `/financeiro` —, não para toda
 página-âncora. Medido: supervisor e projetista PJ veem o botão, `cliente` não chega à página.
+
+### F4 — Gestão
+
+| # | Divergência | Onde | Situação |
+| --- | --- | --- | --- |
+| F4-1 | Gestão não tem fluxo ponta a ponta como os outros 4 setores — são 6 rotas independentes. O template (§5) pressupõe um caminho sequencial; a F4 reusou os componentes mas o conteúdo de `#antes` e `#rotina` não fez sentido, e os 6 marcos mapeiam 1:1 às 6 rotas, não a etapas de um processo. | `components/gestao/guia-gestao-view.tsx` | **Não é bug — é o setor.** Documentado no comentário de topo do arquivo e na regra do guia ("são seis gavetas, não um fluxo"). Fica registrado para quem for escrever os 4 guias do backlog (§10): nem todo setor tem forma de jornada. |
+| F4-2 | Nenhuma das 6 rotas de Gestão renderiza para `cliente` (todas 307). Medido antes de escrever o botão, ao contrário de F1/F2 onde o defeito só apareceu depois. | `(dashboard)/{licitacoes,juridico,qualidade,patrimonio,certidoes,acessos}/page.tsx` | **Resolvida por medição prévia.** Botão sem `mostrarGuia` — confirmado no plano de F3 que o gate só é necessário para página que renderiza para externo. |
+| F4-3 | O botão do guia só aparece para quem tem a permissão granular `licitacoes:ver` — `supervisor` no seed de demo não tem essa permissão (só `administrativo` a recebe por padrão em `PERMISSOES_BASE`), e `GLOBAL_ROLES`/`acessoGlobal` não bypassa `can()` para esta ação. Verificado com `paulo@demo.senahub` (administrativo): botão aparece. | `prisma/seed.ts:182-183`, `lib/permissions.ts` | **Não é bug.** Comportamento correto de `requirePermission`; a suposição inicial de testar com `supervisor` estava errada, não o código. |
 
 ---
 

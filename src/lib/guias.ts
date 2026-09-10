@@ -92,7 +92,7 @@ export const SETORES_GUIA: readonly SetorGuia[] = [
     // Gestão não tem página-âncora natural: são seis rotas independentes. `/licitacoes` é a de
     // maior movimento; se ficar esquisito na prática, o sidebar e o índice cobrem o caso.
     ancora: "/licitacoes",
-    estado: "em-breve",
+    estado: "pronto",
   },
   {
     chave: "comunicacao",

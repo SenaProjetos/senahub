@@ -1426,6 +1426,42 @@
       ]
     },
     {
+      "titulo": "Guia de Gestão para iniciantes",
+      "path": "gestao/guia-iniciante.md",
+      "descricao": "Onde encontrar o guia de formação de Gestão — vocabulário, as seis áreas e as armadilhas de cada uma.",
+      "resumo": "O guia de Gestão vive dentro do sistema, em Guias de uso. Esta página é só o ponteiro para ele.",
+      "tags": [
+        "gestão",
+        "guia iniciante",
+        "licitações",
+        "certidões",
+        "jurídico",
+        "qualidade",
+        "patrimônio",
+        "acessos",
+        "credenciais"
+      ],
+      "palavrasChave": [
+        "licitação",
+        "habilitação",
+        "sanção",
+        "certidão",
+        "contrato",
+        "retrabalho",
+        "patrimônio",
+        "ti",
+        "credencial",
+        "cofre",
+        "compartilhamento"
+      ],
+      "sinonimos": [
+        "licitações e contratos",
+        "jurídico e compliance",
+        "cofre de senhas",
+        "gestão para leigos"
+      ]
+    },
+    {
       "titulo": "Chat",
       "path": "comunicacao/chat.md",
       "descricao": "Comunicação interna em tempo real — canais de projeto e mensagens diretas, com status e recibos.",
