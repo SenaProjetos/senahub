@@ -576,7 +576,7 @@ export function ContasPagarReceberView({
           <span className="block truncate text-xs text-muted-foreground">
             {topoDe(l)}
             {par && <Badge variant="outline" className="ml-1 px-1 py-0 text-[10px]">{par}</Badge>}
-            {l.projeto && ` · ${formatarCodigo(l.projeto.codigo)}`}
+            {l.projeto && ` · ${formatarCodigo(l.projeto.codigo)} ${l.projeto.nome}`}
           </span>
         </span>
         <span className="truncate text-xs text-muted-foreground">{l.fornecedor?.nome ?? l.cliente?.nome ?? "—"}</span>
