@@ -1117,6 +1117,49 @@
       ]
     },
     {
+      "titulo": "Guia de RH e Ponto para iniciantes",
+      "path": "rh-ponto/guia-iniciante.md",
+      "descricao": "Onde encontrar o guia de formação de RH e Ponto — vocabulário, caminho natural e armadilhas.",
+      "resumo": "O guia de RH e Ponto vive dentro do sistema, em Guias de uso. Esta página é só o ponteiro para ele.",
+      "tags": [
+        "rh",
+        "ponto",
+        "guia iniciante",
+        "vínculo",
+        "contratação",
+        "banco de horas",
+        "férias",
+        "folha",
+        "encargos"
+      ],
+      "palavrasChave": [
+        "vínculo",
+        "contratação",
+        "clt",
+        "estágio",
+        "pj",
+        "jornada controlada",
+        "batida",
+        "espelho de ponto",
+        "banco de horas",
+        "horas esperadas",
+        "escala",
+        "período aquisitivo",
+        "período concessivo",
+        "férias vencidas",
+        "inss",
+        "irrf",
+        "folha",
+        "produção"
+      ],
+      "sinonimos": [
+        "recursos humanos",
+        "departamento pessoal",
+        "controle de ponto",
+        "rh para leigos"
+      ]
+    },
+    {
       "titulo": "Ferramentas de Engenharia",
       "path": "engenharia/ferramentas.md",
       "descricao": "Galeria de calculadoras de engenharia (normas NBR) com geração de memória de cálculo, desenho e exportação.",

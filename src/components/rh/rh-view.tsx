@@ -4,8 +4,9 @@ import { useRef, useState, useTransition } from "react";
 import { formatarData } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plane, FileText, Smile, Paperclip, X, ClipboardList } from "lucide-react";
+import { Plane, FileText, Smile, Paperclip, X, ClipboardList, BookOpenText } from "lucide-react";
 import { solicitarFerias, registrarHumor } from "@/modules/rh/actions";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,11 +45,21 @@ export function RhView({
 }) {
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">RH</h2>
-        <p className="text-sm text-muted-foreground">
-          {podeSolicitarFerias ? "Abono, férias e clima." : "Abono e clima."}
-        </p>
+      {/*
+        Sem gate de `tipoEfetivo` no botão, ao contrário de /projetos e /financeiro: o
+        `requireRole` da própria página (`(dashboard)/rh/page.tsx`) já admite só papéis internos —
+        `cliente` nem chega aqui. Um gate a mais seria código morto.
+      */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-extrabold tracking-tight">RH</h2>
+          <p className="text-sm text-muted-foreground">
+            {podeSolicitarFerias ? "Abono, férias e clima." : "Abono e clima."}
+          </p>
+        </div>
+        <Button variant="secondary" size="sm" render={<Link href="/guias/rh-ponto" />}>
+          <BookOpenText className="size-4" /> Guia de uso
+        </Button>
       </div>
 
       <ClimaCard humorAtual={humorAtual} />

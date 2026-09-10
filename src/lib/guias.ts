@@ -74,7 +74,7 @@ export const SETORES_GUIA: readonly SetorGuia[] = [
     descricao: "Ponto, escala, férias e folha — e onde CLT e projetista PJ seguem caminhos diferentes.",
     icone: HeartPulse,
     ancora: "/rh",
-    estado: "em-breve",
+    estado: "pronto",
   },
   {
     chave: "engenharia",
