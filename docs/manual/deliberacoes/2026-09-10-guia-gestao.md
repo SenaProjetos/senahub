@@ -86,12 +86,13 @@ Nenhuma. O plano encerra com as 5 fases entregues.
 - Ao retomar o backlog, decidir se o template de fluxo (marcos sequenciais) se aplica a Início e
   Portal e Comunicação, ou se seguem o padrão de "áreas independentes" que a F4 estabeleceu para
   Gestão.
-- Abrir como issues, quando `gh` estiver autenticado: F0-1 (`Proposta.leadId`), F1-1 (cartão de
-  pendências), F2-1 (seletor de competência) — as três com impacto real de produto, acumuladas ao
-  longo das 4 fases.
+- F0-1, F1-1 e F2-1 abertas como issues em 2026-09-10, após `gh auth login`:
+  [#2](https://github.com/SenaProjetos/senahub/issues/2),
+  [#3](https://github.com/SenaProjetos/senahub/issues/3),
+  [#4](https://github.com/SenaProjetos/senahub/issues/4).
 
 ## Pendências
 
-- F2-1, F3-2, F3-3 seguem abertas como decisões de produto (ver §12 do plano).
-- Issues de F0-1, F1-1 e F2-1 continuam pendentes de `gh auth login`.
+- F2-1, F3-2, F3-3 seguem abertas como decisões de produto (ver §12 do plano; F0-1, F1-1, F2-1
+  agora rastreadas como issues #2, #3, #4).
 - Backlog dos 4 setores restantes (§10 do plano), sem data.
