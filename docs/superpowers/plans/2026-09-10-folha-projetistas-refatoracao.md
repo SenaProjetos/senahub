@@ -2,7 +2,9 @@
 
 - **Data:** 2026-09-10
 - **Origem:** dono pediu revisão de UI/UX e de funções da tela.
-- **Estado:** **F0a entregue** (código + testes; falta smoke em navegador e rodar o levantamento em produção). F0–F7 pendentes.
+- **Estado:** **F0a entregue** — `tsc`, `eslint`, 64 testes do financeiro e `smoke:sync-pagamento` (19/19) verdes. F0–F7 pendentes.
+  - **Falta smoke em navegador.** O banco de dev não tinha linha zerada (a tela nova fica invisível sem ela); **1 pagamento pendente de dev foi zerado de propósito** para o teste. Conferir: aviso no topo, badge "sem valor", botão "Corrigir valor"; gerar o lote do mês dele e ver o "Pagar lote" deixar a linha zerada de fora.
+  - O `smoke:sync-pagamento` não chama as actions de pagar (exigem sessão) — a guarda nova é coberta pelos testes de `folha/service.ts`.
   - Levantamento somente leitura (F0a.4 + §7.3), no servidor, na pasta do sistema:
     `npx tsx --tsconfig tsconfig.server.json scripts/levantar-folha-projetistas.ts`
 - **Escopo:** UI + camada de query. Mudanças em assinatura de action ficam confinadas a F0a/F4/F5, sinalizadas.
@@ -157,6 +159,7 @@ Resolve **D11, D12, D13, D14**. **Nenhuma fase seguinte pode paginar antes desta
 2. **O `resumo` vem de `prisma.pagamentoProjetista.groupBy({ by: ["status"], _sum: { valor } })`**, consulta separada do `findMany`. Nunca mais de `.reduce()` sobre a página. O mesmo `groupBy` entrega de graça o **terceiro card de KPI, "Cancelado"** (hoje esse valor não aparece em lugar nenhum) — ele fica aqui e **não** na F0, porque na F0 só daria para somá-lo no cliente, que é o próprio D11 com outro nome.
 3. `listarFolhasProjetista` troca o `include` por `_count` + `groupBy` por status; paginação vai para `skip`/`take` no servidor.
 4. Usa o parâmetro `opts.status` que já existe (D13) em vez de deixá-lo pendurado.
+   **Atenção (herdado da F0a):** o `semValor` de `listarFolha` conta com `where` fixo (`pendente` + `valor <= 0`), ignorando filtros. Quando os filtros forem ligados, decidir se o aviso reflete o recorte filtrado ou continua global — e dizer isso no texto do aviso.
 5. **Índice: não criar.** Produção tem 15 linhas (§1). Reavaliar só se passar da casa dos milhares.
 
 ### F2 — Tabela "por pagamento"
