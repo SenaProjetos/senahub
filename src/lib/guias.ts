@@ -66,7 +66,7 @@ export const SETORES_GUIA: readonly SetorGuia[] = [
     descricao: "Lançamentos, contas, aging, conciliação e o que cada relatório responde.",
     icone: Wallet,
     ancora: "/financeiro",
-    estado: "em-breve",
+    estado: "pronto",
   },
   {
     chave: "rh-ponto",

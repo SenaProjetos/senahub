@@ -858,6 +858,47 @@
       ]
     },
     {
+      "titulo": "Guia do Financeiro para iniciantes",
+      "path": "financeiro/guia-iniciante.md",
+      "descricao": "Onde encontrar o guia de formação do Financeiro — vocabulário, caminho natural e armadilhas.",
+      "resumo": "O guia do Financeiro vive dentro do sistema, em Guias de uso. Esta página é só o ponteiro para ele.",
+      "tags": [
+        "financeiro",
+        "guia iniciante",
+        "lançamento",
+        "aging",
+        "conciliação",
+        "dre",
+        "dfc",
+        "fechamento",
+        "alçada"
+      ],
+      "palavrasChave": [
+        "previsto",
+        "confirmado",
+        "vencimento",
+        "data de confirmação",
+        "competência",
+        "regime de caixa",
+        "aging",
+        "alçada",
+        "aprovação de despesa",
+        "ofx",
+        "conciliação",
+        "dre",
+        "dfc",
+        "rentabilidade",
+        "fechamento do mês",
+        "valor efetivo"
+      ],
+      "sinonimos": [
+        "contas a pagar",
+        "contas a receber",
+        "tesouraria",
+        "financeiro para leigos"
+      ]
+    },
+    {
       "titulo": "Ponto (registro de jornada)",
       "path": "rh-ponto/ponto.md",
       "descricao": "Autoatendimento de ponto — iniciar/encerrar sessão por projeto e ver o espelho do mês.",

@@ -2,7 +2,7 @@
 
 - **Data:** 2026-09-09
 - **Origem:** dono pediu replicar o padrão de `/comercial/guia` para os setores mais usados.
-- **Estado:** F0 e F1 entregues (branch `feat/guias-de-uso`). F2–F4 pendentes.
+- **Estado:** F0, F1 e F2 entregues (branch `feat/guias-de-uso`). F3 e F4 pendentes.
 - **Supersede:** [`2026-07-20-guias-iniciante-setores.md`](2026-07-20-guias-iniciante-setores.md).
 - **ADR:** [`docs/adr/0001-guias-de-uso-in-app.md`](../../adr/0001-guias-de-uso-in-app.md).
 
@@ -250,7 +250,7 @@ modelo diferente do ativo, PARAR e esperar a troca via `/model` — não apenas 
 | --- | --- | --- |
 | **F0** ✅ | Infra, nesta ordem: **medir `tipo` no banco (§6.3)** → `tipo` em `SessionUser` (+ no `Omit<>`!) + `requireInterno()` → `components/guias/` extraído + `GuiaShell` → `/guias` índice (9 setores, 4 "em breve") + `/guias/[setor]` → item de nav → redirect de `/comercial/guia` → Comercial migrado **com `#vocabulario` e `#armadilhas`** → stub `.md` + `search-index.json` do Comercial | **Opus** |
 | **F1** ✅ | Guia de **Projetos** | **Opus** |
-| **F2** | Guia de **Financeiro** | **Opus** |
+| **F2** ✅ | Guia de **Financeiro** | **Opus** |
 | **F3** | Guia de **RH e Ponto** | **Opus** |
 | **F4** | Guia de **Gestão** | **Sonnet** |
 
@@ -404,6 +404,14 @@ escrito de zero. Uma divergência veio à tona ao redigir o `#armadilhas` do Com
 | F1-3 | O nome no código é `Pendencia`; a UI chama de **apontamento** em praticamente todo lugar (título da rota, botão "Apontar", visão consolidada). Não é bug, mas garante que quem lê código e quem lê tela falem línguas diferentes. | `modules/projetos/pendencias/**` | **Aberta, baixa prioridade.** Renomear o modelo é migração; o glossário do `CONTEXT.md` pode resolver mais barato. |
 
 **Correção ao plano de 2026-07-20:** o glossário previsto lá definia "Pendência — item aberto que trava o andamento". Está errado nos dois sentidos — no código `Pendencia` é o pino em prancha, e na Visão Geral "pendências" é o guarda-chuva das cinco filas. As fases seguintes não devem reusar aquele glossário sem conferir.
+
+### F2 — Financeiro
+
+| # | Divergência | Onde | Situação |
+| --- | --- | --- | --- |
+| F2-1 | O seletor **Caixa / Competência** em `/financeiro/relatorios` alimenta **um único** consumidor: `linhasDREPeriodo`, usada só pelo DRE comparativo. Todo o resto (`relatorioDRE`, fluxo de caixa, DFC, balanço, série mensal de resultado, rentabilidade) lê `dataConfirmacao` fixo — regime de caixa, sem opção. Consequência: o campo **Data de competência** do formulário de lançamento é gravado, mas ignorado por todos os números exceto aquele quadro. | `modules/financeiro/relatorios/queries.ts:529-539` × `:23,89,229,343,379`; `caixa/queries.ts`; `lancamento-form.tsx:224` | **Aberta.** Documentada como armadilha no guia. Decidir entre: estender a base de competência aos demais relatórios, restringir o campo à tela que o usa, ou rotular o campo dizendo onde ele vale. |
+| F2-2 | `devePassarPorAprovacao` usa `limite > 0` — limite **zero desliga** a alçada em vez de exigir aprovação para tudo, que é a leitura intuitiva. E a comparação é `valor >= limite`, então o valor exatamente igual ao limite trava. | `lib/aprovacao.ts` | **Aberta, por design.** Sem defeito de código; é a UI da configuração que não avisa. Documentado como armadilha. |
+| F2-3 | O botão do guia em `/financeiro` **não** podia usar `podeVerFinanceiro` como gate: quem cai no "Meu extrato" por não gerir o Financeiro — o `projetista_pj`, por exemplo — é justamente o leitor que a N5 quer alcançar. | `(dashboard)/financeiro/page.tsx` | **Resolvida na F2.** Botão nas **duas** ramificações da página, gateado por `tipoEfetivo`. Verificado com três sessões: supervisor vê no painel, projetista PJ vê no extrato, `cliente` não vê em lugar nenhum. |
 
 ---
 
