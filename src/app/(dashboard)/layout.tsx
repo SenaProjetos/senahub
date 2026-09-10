@@ -6,6 +6,7 @@ import { permissoesEfetivas } from "@/lib/permissao-efetiva";
 import { prisma } from "@/lib/prisma";
 import type { ContextoNav } from "@/lib/nav-config";
 import { precisaAceitarTermo } from "@/modules/legal/queries";
+import { contarCertidoesAtencao } from "@/modules/certidoes/queries";
 import { PushManager } from "@/components/notificacoes/push-manager";
 import { AvisoProvider } from "@/components/notificacoes/aviso-provider";
 import { AcessoTracker } from "@/components/uso/acesso-tracker";
@@ -60,6 +61,30 @@ export default async function DashboardLayout({
     tipo: tipoEfetivo(eixos?.tipo, user.role),
     setor: eixos?.setor ?? null,
   };
+
+  // Bolinha numerada de Certidões. Derivada de `nav.permitidas` (já pago acima) e não de um
+  // `can()`, pelo mesmo motivo do `participaDoChat` abaixo: este layout embrulha toda rota do
+  // dashboard, e uma consulta a mais por navegação para quem nem vê o item é desperdício.
+  // São dois `count` sobre o índice de `validade` — ver `contarCertidoesAtencao`.
+  if (nav.permitidas.includes("certidoes:ver")) {
+    const { vencidas, venceEmBreve } = await contarCertidoesAtencao();
+    const total = vencidas + venceEmBreve;
+    if (total > 0) {
+      nav.alertas = {
+        "/certidoes": {
+          total,
+          // Vermelho só para o que JÁ venceu; "vence em breve" sozinho é âmbar.
+          critico: vencidas > 0,
+          descricao: [
+            vencidas > 0 ? `${vencidas} vencida${vencidas > 1 ? "s" : ""}` : null,
+            venceEmBreve > 0 ? `${venceEmBreve} vence${venceEmBreve > 1 ? "m" : ""} em breve` : null,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        },
+      };
+    }
+  }
 
   // Mesmo eixo do gate de `/chat` e das rotas de API — ver o comentário em `chat/page.tsx`.
   // Derivado de `nav.permitidas` e NÃO de um `can()` próprio: este layout embrulha toda rota do

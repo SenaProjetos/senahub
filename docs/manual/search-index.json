@@ -1264,8 +1264,8 @@
     {
       "titulo": "Certidões",
       "path": "gestao/certidoes.md",
-      "descricao": "Controle de certidões da empresa — versionamento, download individual ou em zip, link público e alertas de vencimento.",
-      "resumo": "Registre certidões, anexe e renove arquivos com histórico de versões, baixe individualmente ou em zip, compartilhe por link público e acompanhe vencimentos.",
+      "descricao": "Controle de certidões da empresa — versionamento, visualização de PDF na tela, exclusão reversível, download individual ou em zip, link público e alertas de vencimento.",
+      "resumo": "Centro de conformidade documental: resumo de vencidas/a vencer/regulares/sem documento, lista ordenada por prioridade, busca e filtros combináveis, painel de detalhes com histórico de versões, visualização do PDF na tela, link público e exclusão reversível.",
       "tags": [
         "certidão",
         "validade",
@@ -1273,7 +1273,9 @@
         "versão",
         "zip",
         "link público",
-        "compliance"
+        "compliance",
+        "excluir",
+        "restaurar"
       ],
       "palavrasChave": [
         "certidão",
@@ -1284,10 +1286,24 @@
         "histórico",
         "zip",
         "download",
+        "visualizar pdf",
         "link público",
         "compartilhar",
         "responsável",
-        "compliance"
+        "compliance",
+        "excluir",
+        "restaurar",
+        "excluídas",
+        "bolinha no menu",
+        "aviso no menu",
+        "dias para vencer",
+        "filtrar",
+        "buscar certidão",
+        "ordenar",
+        "obrigatória",
+        "sem documento",
+        "atualizar certidão",
+        "conformidade"
       ],
       "sinonimos": [
         "documentos de regularidade",

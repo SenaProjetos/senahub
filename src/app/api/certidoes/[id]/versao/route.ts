@@ -29,6 +29,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     include: { tipo: true, versoes: { orderBy: { numero: "desc" }, take: 1 } },
   });
   if (!certidao) return NextResponse.json({ error: "Certidão não encontrada." }, { status: 404 });
+  if (certidao.excluidoEm) return NextResponse.json({ error: "Certidão excluída — restaure antes de enviar." }, { status: 409 });
 
   const form = await req.formData();
   const file = form.get("file");

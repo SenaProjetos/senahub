@@ -249,6 +249,7 @@ export const ACAO_LABEL: Record<string, string> = {
   "criar-certidao": "Criou certidão",
   "editar-certidao": "Editou dados da certidão",
   "excluir-certidao": "Excluiu certidão",
+  "restaurar-certidao": "Restaurou certidão",
   "criar-tipo-certidao": "Criou tipo de certidão",
   "editar-tipo-certidao": "Editou tipo de certidão",
   "excluir-tipo-certidao": "Excluiu tipo de certidão",
