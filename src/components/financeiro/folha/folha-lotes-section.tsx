@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Layers, Wallet } from "lucide-react";
 import { gerarFolhaDoMes, pagarFolhaProjetista } from "@/modules/financeiro/folha-lote/actions";
+import type { FolhaLoteItem } from "@/modules/financeiro/folha-lote/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,7 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
-import { PAGE_SIZES, PAGE_SIZE_PADRAO, pageCount as calcPageCount } from "@/lib/list-params";
+import { pageCount } from "@/lib/list-params";
 import { brl } from "@/lib/utils";
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -35,40 +36,30 @@ const NONE = "__none";
 // "fechada" = fechada aguardando pagamento → warning; "paga" → success
 const TONE: Record<string, "success" | "warning"> = { aberta: "warning", fechada: "warning", paga: "success" };
 
-type Folha = {
-  id: string;
-  ano: number;
-  mes: number;
-  status: string;
-  total: number;
-  qtd: number;
-  pagos: number;
-  todosPagos: boolean;
-  /** Pendentes com R$ 0,00 — ficam de fora do "Pagar lote". */
-  semValor: number;
-  /** Pendentes com valor, que o "Pagar lote" efetiva. */
-  pagaveis: number;
-};
 type Opcao = { id: string; nome: string };
 
-export function FolhaLotesSection({ folhas, contas, formas }: { folhas: Folha[]; contas: Opcao[]; formas: Opcao[] }) {
+export function FolhaLotesSection({
+  folhas,
+  total,
+  page,
+  pageSize,
+  contas,
+  formas,
+}: {
+  folhas: FolhaLoteItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  contas: Opcao[];
+  formas: Opcao[];
+}) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [pending, start] = useTransition();
-  const [pagarLote, setPagarLote] = useState<Folha | null>(null);
+  const [pagarLote, setPagarLote] = useState<FolhaLoteItem | null>(null);
   const ref = new Date();
   ref.setMonth(ref.getMonth() - 1);
   const [ano, setAno] = useState(String(ref.getFullYear()));
   const [mes, setMes] = useState(String(ref.getMonth() + 1));
-
-  // Histórico paginado client-side: a query já traz todos os lotes (desc).
-  const total = folhas.length;
-  const psRaw = Number(searchParams.get("pageSize"));
-  const pageSize = (PAGE_SIZES as readonly number[]).includes(psRaw) ? psRaw : PAGE_SIZE_PADRAO;
-  const pageCount = calcPageCount(total, pageSize);
-  const pageRaw = Number(searchParams.get("page"));
-  const page = Number.isInteger(pageRaw) && pageRaw >= 1 ? Math.min(pageRaw, pageCount) : 1;
-  const visiveis = folhas.slice((page - 1) * pageSize, page * pageSize);
 
   function gerar() {
     start(async () => {
@@ -103,7 +94,7 @@ export function FolhaLotesSection({ folhas, contas, formas }: { folhas: Folha[];
         ) : (
           <>
             <ul className="divide-y text-sm">
-              {visiveis.map((f) => (
+              {folhas.map((f) => (
                 <li key={f.id} className="flex items-center justify-between gap-3 py-2">
                   <span className="font-mono">{MESES[f.mes - 1]}/{f.ano}</span>
                   <span className="text-muted-foreground">{f.pagos}/{f.qtd} pagos</span>
@@ -123,7 +114,7 @@ export function FolhaLotesSection({ folhas, contas, formas }: { folhas: Folha[];
                 </li>
               ))}
             </ul>
-            <Pagination page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
+            <Pagination page={page} pageCount={pageCount(total, pageSize)} pageSize={pageSize} total={total} />
           </>
         )}
       </CardContent>
@@ -139,7 +130,7 @@ function PagarLoteDialog({
   contas,
   formas,
 }: {
-  folha: Folha | null;
+  folha: FolhaLoteItem | null;
   onClose: () => void;
   contas: Opcao[];
   formas: Opcao[];

@@ -2,11 +2,12 @@
 
 - **Data:** 2026-09-10
 - **Origem:** dono pediu revisão de UI/UX e de funções da tela.
-- **Estado:** **F0a e F0 entregues** — `tsc`, `eslint`, 64 testes do financeiro e `smoke:sync-pagamento` (19/19) verdes em ambas. F1–F7 pendentes.
-  - **Falta smoke em navegador nas duas fases**, com login de verdade — sem sessão o `middleware` redireciona pra `/login` antes de renderizar a página (confirmado: `next dev` compilou e serviu o 307 sem erro, mas isso não exercita `page.tsx`/`FolhaView`/`ProducaoAbas`). Criar sessão de teste (reset de senha do admin, ou usuário próprio) não é decisão para tomar sozinho num banco de dev compartilhado — fica para quem tem credencial.
-  - F0a: o banco de dev não tinha linha zerada (a tela nova fica invisível sem ela); **1 pagamento pendente de dev foi zerado de propósito** para o teste. Conferir: aviso no topo, badge "sem valor", botão "Corrigir valor"; gerar o lote do mês dele e ver o "Pagar lote" deixar a linha zerada de fora.
+- **Estado:** **F0a, F0 e F1 entregues** — `tsc`, `eslint`, 64 testes do financeiro e `smoke:sync-pagamento` (19/19) verdes nas três. F2–F7 pendentes.
+  - **Falta smoke em navegador nas três fases**, com login de verdade — sem sessão o `middleware` redireciona pra `/login` antes de renderizar a página (confirmado: `next dev` compilou e serviu o 307 sem erro, mas isso não exercita `page.tsx`/`FolhaView`/`ProducaoAbas`). Criar sessão de teste (reset de senha do admin, ou usuário próprio) não é decisão para tomar sozinho num banco de dev compartilhado — fica para quem tem credencial.
+  - **O banco de dev agora tem dado pra testar as duas abas de propósito:** 1 pagamento pendente zerado (F0a) e 1 lote real, 2026-04, com 3 pagamentos — 2 pagáveis + a linha zerada dentro dele. Isso deixa testável: aviso no topo (nas duas abas), badge "sem valor", botão "Corrigir valor", aba de lotes com conteúdo (antes mostrava "Nenhum lote gerado"), "Pagar lote" deixando a linha zerada de fora, e o 3º card de KPI "Cancelado" (ainda R$ 0 — nenhum pagamento cancelado em dev).
   - F0: conferir a troca de aba (`?aba=pagar` ↔ `?aba=lotes`) e que o título "Produção" aparece uma vez só, no topo.
-  - O `smoke:sync-pagamento` não chama as actions de pagar nem renderiza páginas (exige sessão) — cobre só a camada de dados.
+  - F1: conferir a paginação da tabela de pagamentos (`?page=`) e que os 3 cards de KPI não mudam ao trocar de página (são globais, não somados da página visível).
+  - O `smoke:sync-pagamento` não chama as actions de pagar nem renderiza páginas (exige sessão) — cobre só a camada de dados. As duas queries da F1 foram conferidas à parte, contra o banco de dev, com uma soma independente feita fora da própria query (ver F1 acima) — não é a mesma coisa que abrir a tela, mas é mais forte que só `tsc` passar.
   - Levantamento somente leitura (F0a.4 + §7.3), no servidor, na pasta do sistema:
     `npx tsx --tsconfig tsconfig.server.json scripts/levantar-folha-projetistas.ts`
 - **Escopo:** UI + camada de query. Mudanças em assinatura de action ficam confinadas a F0a/F4/F5, sinalizadas.
@@ -155,20 +156,23 @@ Resolve **D1, D2, D3, N2, N4**.
 5. **O aviso "N pagamentos sem valor" (F0a) é da PÁGINA, não da lista** — hoisted pra `page.tsx`, acima das abas, visível nas duas. Antes vivia dentro de `FolhaView` e ficava invisível na aba de lotes, que é justamente onde "Pagar lote" pode tropeçar nele. `contarPendentesSemValor()` (novo, `folha/queries.ts`) é chamado nas duas ramificações — pequena exceção ao "sem tocar em query" do título desta fase, mas é aditiva e não muda a forma de nenhuma query existente.
 6. Conferido: `Pagination` já usa `useSetParams` internamente (preserva `aba` ao trocar de página) — sem risco de a paginação da aba de lotes derrubar a aba ativa.
 
-### F1 — Camada de dados · **paginar e agregar são o mesmo trabalho**
+### F1 — Camada de dados · **paginar e agregar são o mesmo trabalho** ✅ entregue 2026-09-10 (Sonnet 5)
 
 Resolve **D11, D12, D13, D14**. **Nenhuma fase seguinte pode paginar antes desta.**
 
-1. `listarFolha` passa a receber `parseListParams(searchParams)` + filtros, e devolve `{ itens, total, resumo }`.
-2. **O `resumo` vem de `prisma.pagamentoProjetista.groupBy({ by: ["status"], _sum: { valor } })`**, consulta separada do `findMany`. Nunca mais de `.reduce()` sobre a página. O mesmo `groupBy` entrega de graça o **terceiro card de KPI, "Cancelado"** (hoje esse valor não aparece em lugar nenhum) — ele fica aqui e **não** na F0, porque na F0 só daria para somá-lo no cliente, que é o próprio D11 com outro nome.
-3. `listarFolhasProjetista` troca o `include` por `_count` + `groupBy` por status; paginação vai para `skip`/`take` no servidor.
-4. Usa o parâmetro `opts.status` que já existe (D13) em vez de deixá-lo pendurado.
-   **Atenção (herdado da F0a):** o `semValor` de `listarFolha` conta com `where` fixo (`pendente` + `valor <= 0`), ignorando filtros. Quando os filtros forem ligados, decidir se o aviso reflete o recorte filtrado ou continua global — e dizer isso no texto do aviso.
+1. `listarFolha(sp)` passa a receber os `searchParams` crus (mesmo idioma de `custos/composicoes/queries.ts`: a própria função chama `parseListParams` por dentro, o chamador só repassa `sp`) e devolve `{ itens, total, page, pageSize, resumo }`.
+2. **O `resumo` vem de `prisma.pagamentoProjetista.groupBy({ by: ["status"], _sum: { valor } })`**, consulta separada do `findMany`, sobre o mesmo `where` (não sobre a página). Nunca mais de `.reduce()` sobre a página. O mesmo `groupBy` entrega de graça o **terceiro card de KPI, "Cancelado"** (hoje esse valor não aparece em lugar nenhum) — ele fica aqui e **não** na F0, porque na F0 só daria para somá-lo no cliente, que é o próprio D11 com outro nome.
+   Conferido contra o banco de dev com uma soma independente (`aggregate` bruto sobre TODOS os status): `resumo.pendente+pago+cancelado` bate exatamente com a soma bruta (R$ 115.000 nos dois lados).
+3. `listarFolhasProjetista(sp)` troca o `include: { pagamentos: {...} }` por dois `groupBy` (`by: ["folhaId","status"]` para qtd/pagos; `by: ["folhaId"]` com `where: {status:"pendente", valor:{lte:0}}` para `semValor`) sobre os ids da página, e passa a devolver `{ folhas, total, page, pageSize }` em vez de um array solto. **Conferido contra um lote real criado no dev** (2026-04, 3 pagamentos incluindo a linha zerada da F0a): `qtd/pagos/semValor/pagaveis` bateram um a um contra uma contagem direta e independente. Esse lote **fica no banco de dev de propósito** — sem ele a aba de lotes mostra "Nenhum lote gerado" e não dava pra testar nada nela.
+4. `listarFolha` agora lê `?status=` (`pendente|pago|cancelado`) diretamente da URL, validado contra os 3 valores — fecha o D13 (o parâmetro existia e nada o alimentava). Sem Select ainda (isso é F2); já funciona se alguém digitar a URL.
+   **Atenção (herdado da F0a):** o `semValor` do aviso de página (`contarPendentesSemValor()`) continua com `where` fixo, ignorando `?status=`. Quando a F2 ligar o Select de status, decidir se o aviso deve refletir o recorte filtrado ou continuar global — e dizer isso no texto do aviso.
 5. **Índice: não criar.** Produção tem 15 linhas (§1). Reavaliar só se passar da casa dos milhares.
+6. **Pagination adiantada da F2** em `FolhaView` (a tabela de pagamentos) — o item formal "zero paginação" (D5) está listado como F2, mas mudar `listarFolha` pra `skip`/`take` sem nenhum controle de página na tela teria truncado a lista em 12 linhas sem forma de ver o resto. Reusa `<Pagination>` (mesmo componente que já existia em `FolhaLotesSection`). **F2 não tem mais esse item** — ver abaixo.
+7. `FolhaLotesSection` parou de fatiar `folhas` no cliente (`useSearchParams` + `.slice()`) — a página já vem pronta do servidor; o componente só exibe `folhas`/`total`/`page`/`pageSize` recebidos como prop. Tipo local `Folha` duplicado foi trocado pelo `FolhaLoteItem` exportado de `folha-lote/queries.ts`.
 
 ### F2 — Tabela "por pagamento"
 
-Resolve **D4, D5, D6, D7, D8, D9, D24**.
+Resolve **D4, D6, D7, D8, D9, D24** (D5 — paginação — já saiu na F1, ver item 6 acima).
 
 0. **Tudo clicável (D24) — o item de maior valor desta fase:**
    - projeto → `/projetos/[id]`; disciplina → aba da disciplina no projeto; projetista → ficha da pessoa.

@@ -44,20 +44,26 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Pagination } from "@/components/ui/pagination";
+import { pageCount } from "@/lib/list-params";
 import { brl } from "@/lib/utils";
 
 const NONE = "__none";
 
 export function FolhaView({
   itens,
-  pendente,
-  pago,
+  total,
+  page,
+  pageSize,
+  resumo,
   contas,
   formas,
 }: {
   itens: FolhaItem[];
-  pendente: number;
-  pago: number;
+  total: number;
+  page: number;
+  pageSize: number;
+  resumo: { pendente: number; pago: number; cancelado: number };
   contas: { id: string; nome: string }[];
   formas: { id: string; nome: string }[];
 }) {
@@ -66,13 +72,13 @@ export function FolhaView({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">
               A pagar
             </CardDescription>
-            <CardTitle className="text-2xl text-warning">{brl(pendente)}</CardTitle>
+            <CardTitle className="text-2xl text-warning">{brl(resumo.pendente)}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
@@ -80,7 +86,15 @@ export function FolhaView({
             <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">
               Pago
             </CardDescription>
-            <CardTitle className="text-2xl text-success">{brl(pago)}</CardTitle>
+            <CardTitle className="text-2xl text-success">{brl(resumo.pago)}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">
+              Cancelado
+            </CardDescription>
+            <CardTitle className="text-2xl text-muted-foreground">{brl(resumo.cancelado)}</CardTitle>
           </CardHeader>
         </Card>
       </div>
@@ -160,6 +174,8 @@ export function FolhaView({
           </TableBody>
         </Table>
       </div>
+
+      <Pagination page={page} pageCount={pageCount(total, pageSize)} pageSize={pageSize} total={total} />
 
       <PagarDialog pagamento={pagar} onClose={() => setPagar(null)} contas={contas} formas={formas} />
       <EditarValorDialog pagamento={editar} onClose={() => setEditar(null)} />

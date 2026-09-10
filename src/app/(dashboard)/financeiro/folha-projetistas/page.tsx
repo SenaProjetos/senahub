@@ -16,11 +16,14 @@ type Aba = (typeof ABAS)[number];
 export default async function FolhaProjetistasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ aba?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requirePermission("financeiro", "folha_pj");
   const sp = await searchParams;
-  const aba: Aba = (ABAS as readonly string[]).includes(sp.aba ?? "") ? (sp.aba as Aba) : "pagar";
+  const abaRaw = sp.aba;
+  const aba: Aba = (ABAS as readonly string[]).includes(typeof abaRaw === "string" ? abaRaw : "")
+    ? (abaRaw as Aba)
+    : "pagar";
 
   // Só a aba ativa é buscada — combinar as duas queries pesadas num Promise.all só
   // fazia sentido quando as duas apareciam na mesma tela (ver D1/D14 no plano).
@@ -29,22 +32,40 @@ export default async function FolhaProjetistasPage({
   let conteudo: React.ReactNode;
   let semValor: number;
   if (aba === "pagar") {
-    const [{ itens, pendente, pago, semValor: sv }, opcoes] = await Promise.all([
-      listarFolha(),
-      opcoesLancamento(),
-    ]);
-    semValor = sv;
-    conteudo = (
-      <FolhaView itens={itens} pendente={pendente} pago={pago} contas={opcoes.contas} formas={opcoes.formas} />
-    );
-  } else {
-    const [lotes, opcoes, sv] = await Promise.all([
-      listarFolhasProjetista(),
+    const [{ itens, total, page, pageSize, resumo }, opcoes, sv] = await Promise.all([
+      listarFolha(sp),
       opcoesLancamento(),
       contarPendentesSemValor(),
     ]);
     semValor = sv;
-    conteudo = <FolhaLotesSection folhas={lotes} contas={opcoes.contas} formas={opcoes.formas} />;
+    conteudo = (
+      <FolhaView
+        itens={itens}
+        total={total}
+        page={page}
+        pageSize={pageSize}
+        resumo={resumo}
+        contas={opcoes.contas}
+        formas={opcoes.formas}
+      />
+    );
+  } else {
+    const [{ folhas, total, page, pageSize }, opcoes, sv] = await Promise.all([
+      listarFolhasProjetista(sp),
+      opcoesLancamento(),
+      contarPendentesSemValor(),
+    ]);
+    semValor = sv;
+    conteudo = (
+      <FolhaLotesSection
+        folhas={folhas}
+        total={total}
+        page={page}
+        pageSize={pageSize}
+        contas={opcoes.contas}
+        formas={opcoes.formas}
+      />
+    );
   }
 
   return (
