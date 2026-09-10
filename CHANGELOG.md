@@ -2,6 +2,27 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.17.0](https://github.com/SenaProjetos/senahub/compare/v1.16.0...v1.17.0) (2026-09-10)
+
+
+### ✨ Funcionalidades
+
+* **acesso:** expõe `tipo` na sessão e adiciona `requireInterno()` ([3118798](https://github.com/SenaProjetos/senahub/commit/3118798f857ef95649b15826755d34f034aadb16))
+* **avisos:** formatação no corpo e imagem em tamanho útil ([8f621b6](https://github.com/SenaProjetos/senahub/commit/8f621b6b28d5c10a356bc0a0dc7f651db978a929))
+* **configuracoes:** prévia real do e-mail na tela + batidas no resumo diário ([4c333de](https://github.com/SenaProjetos/senahub/commit/4c333de97a72021000e208d2496914513b764584))
+* **deploy:** registra e mostra o histórico de inícios automáticos ([168a340](https://github.com/SenaProjetos/senahub/commit/168a3407e0dd95d52802857f8e0b30a9802c56c1))
+* **guias:** área Guias de uso por setor (F0) ([a485b77](https://github.com/SenaProjetos/senahub/commit/a485b7710cca9a8f160e861467ab8f69fbe95c7a))
+* **notificacoes:** deixa o texto dos alertas de ponto mais pessoal e claro ([53170ab](https://github.com/SenaProjetos/senahub/commit/53170abacbbec80fa535fc54e0dda5616c7c2492))
+* **notificacoes:** reduz volume de e-mail de ponto e dá timbrado ao layout ([5f84095](https://github.com/SenaProjetos/senahub/commit/5f84095ec483d35ee7d3631e15a881f982118cbb))
+
+
+### 🐛 Correções
+
+* **deploy:** arquivo não rastreado deixa de bloquear o deploy ([2269aba](https://github.com/SenaProjetos/senahub/commit/2269aba7d3612ea9a450a0e9c57e7af59d93822d))
+* **deploy:** ordena o boot do serviço após o Postgres ([df57e87](https://github.com/SenaProjetos/senahub/commit/df57e87c1b2dd404f42b4550e6c07b31e88a0e86))
+* **deploy:** pré-voo deixa de sair com 255 quando passa ([71d4d96](https://github.com/SenaProjetos/senahub/commit/71d4d96c10caa4a8d1d9b0eaf7d1baa20eff0970))
+* **deploy:** versiona a regra que ignora o settings.local.json do Claude ([9c818cc](https://github.com/SenaProjetos/senahub/commit/9c818ccfe4a0bd62c2ce8566867b17acbf0cc170))
+
 ## [1.16.0](https://github.com/SenaProjetos/senahub/compare/v1.14.0...v1.16.0) (2026-09-04)
 
 
