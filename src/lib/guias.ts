@@ -47,10 +47,10 @@ export const SETORES_GUIA: readonly SetorGuia[] = [
   {
     chave: "projetos",
     titulo: "Projetos",
-    descricao: "Do projeto contratado à entrega: disciplinas, planejamento, tarefas e pendências.",
+    descricao: "Do projeto contratado à entrega: disciplinas, planejamento, tarefas e apontamentos.",
     icone: FolderKanban,
     ancora: "/projetos",
-    estado: "em-breve",
+    estado: "pronto",
   },
   {
     chave: "clientes-comercial",

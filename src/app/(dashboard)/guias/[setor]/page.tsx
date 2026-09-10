@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { requireInterno } from "@/lib/session";
 import { acharGuiaPublicado } from "@/lib/guias";
 import { GuiaComercialView } from "@/components/comercial/guia-comercial-view";
+import { GuiaProjetosView } from "@/components/projetos/guia-projetos-view";
 
 /**
  * Uma página por setor com guia publicado. O conteúdo é uma view por setor — não há leitura de
@@ -14,6 +15,7 @@ import { GuiaComercialView } from "@/components/comercial/guia-comercial-view";
  */
 const VIEWS: Record<string, () => ReactNode> = {
   "clientes-comercial": GuiaComercialView,
+  projetos: GuiaProjetosView,
 };
 
 // Sem `generateStaticParams`: `requireInterno()` lê `headers()`, então a rota é dinâmica de todo

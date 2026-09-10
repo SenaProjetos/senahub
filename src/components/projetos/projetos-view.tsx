@@ -14,6 +14,7 @@ import {
   FileText,
   CalendarClock,
   ShieldCheck,
+  BookOpenText,
 } from "lucide-react";
 import type { ProjetoListItem } from "@/modules/projetos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -118,6 +119,7 @@ export function ProjetosView({
   catalogo,
   internos,
   prontasPorProjeto,
+  mostrarGuia,
 }: {
   items: ProjetoListItem[];
   podeGerir: boolean;
@@ -137,6 +139,12 @@ export function ProjetosView({
   internos: { id: string; name: string; role: string }[];
   /** projetoId → nº de disciplinas prontas para aprovar (já escopado no server). */
   prontasPorProjeto: Record<string, number>;
+  /**
+   * Mostra o botão do Guia de uso. Vem do servidor pelo MESMO eixo que gateia `/guias`
+   * (`tipoEfetivo`): esta página é alcançável por `cliente` — com os dados já limitados ao
+   * projeto dele —, e um botão visível que responde 404 é a assimetria "vê o link e toma 404".
+   */
+  mostrarGuia: boolean;
 }) {
   const setParams = useSetParams();
   const [q, setQ] = useState(busca);
@@ -180,6 +188,11 @@ export function ProjetosView({
           <p className="text-sm text-muted-foreground">{total} projeto(s).</p>
         </div>
         <div className="flex items-center gap-2">
+          {mostrarGuia && (
+            <Button variant="secondary" size="sm" render={<Link href="/guias/projetos" />}>
+              <BookOpenText className="size-4" /> Guia de uso
+            </Button>
+          )}
           <div className="flex items-center rounded-sm border p-0.5">
             {TOGGLES.map((t) => (
               <Button

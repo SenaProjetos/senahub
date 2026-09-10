@@ -2,7 +2,7 @@
 
 - **Data:** 2026-09-09
 - **Origem:** dono pediu replicar o padrão de `/comercial/guia` para os setores mais usados.
-- **Estado:** F0 entregue em 2026-09-09 (branch `feat/guias-de-uso`). F1–F4 pendentes.
+- **Estado:** F0 e F1 entregues (branch `feat/guias-de-uso`). F2–F4 pendentes.
 - **Supersede:** [`2026-07-20-guias-iniciante-setores.md`](2026-07-20-guias-iniciante-setores.md).
 - **ADR:** [`docs/adr/0001-guias-de-uso-in-app.md`](../../adr/0001-guias-de-uso-in-app.md).
 
@@ -243,7 +243,7 @@ modelo diferente do ativo, PARAR e esperar a troca via `/model` — não apenas 
 | Fase | Escopo | Modelo |
 | --- | --- | --- |
 | **F0** ✅ | Infra, nesta ordem: **medir `tipo` no banco (§6.3)** → `tipo` em `SessionUser` (+ no `Omit<>`!) + `requireInterno()` → `components/guias/` extraído + `GuiaShell` → `/guias` índice (9 setores, 4 "em breve") + `/guias/[setor]` → item de nav → redirect de `/comercial/guia` → Comercial migrado **com `#vocabulario` e `#armadilhas`** → stub `.md` + `search-index.json` do Comercial | **Opus** |
-| **F1** | Guia de **Projetos** | **Opus** |
+| **F1** ✅ | Guia de **Projetos** | **Opus** |
 | **F2** | Guia de **Financeiro** | **Opus** |
 | **F3** | Guia de **RH e Ponto** | **Opus** |
 | **F4** | Guia de **Gestão** | **Sonnet** |
@@ -384,6 +384,16 @@ escrito de zero. Uma divergência veio à tona ao redigir o `#armadilhas` do Com
 | # | Divergência | Onde | Situação |
 | --- | --- | --- | --- |
 | F0-1 | `Comercial → Propostas → Nova proposta` cria a proposta só com `clienteId`; `Proposta.leadId` fica **nulo** e a proposta desaparece do histórico da prospecção. O caminho correto (`criarPropostaDeLead`, botão **Nova proposta** na ficha do lead) preenche os dois. | `modules/comercial/actions.ts`, `/comercial/propostas` | **Aberta.** Documentada como armadilha no guia; o caminho avulso continua existindo. Já era conhecida — ver a deliberação de 2026-07-21, seção "Caminho antigo permanece". Decidir se vira validação, aviso na tela, ou fica como é. |
+
+### F1 — Projetos
+
+| # | Divergência | Onde | Situação |
+| --- | --- | --- | --- |
+| F1-1 | O cartão **Pendências críticas** soma **cinco** filas (apontamentos de prancha + de coordenação + tarefas abertas + solicitações de revisão + aprovações). O link "Ver pendências" leva a `/pendencias`, cujo título é **"Apontamentos"** e que lista **só** os de prancha — o número da tela de destino é menor que o do cartão, sem explicação na UI. | `modules/projetos/visao-geral.ts`, `projeto-visao-geral.tsx`, `(dashboard)/pendencias/page.tsx` | **Aberta.** Documentada como armadilha no guia. Decidir se o cartão vira detalhado (as 5 filas), se o link muda de destino, ou se os rótulos se alinham. |
+| F1-2 | Um `cliente` **alcança** `/projetos` (dados corretamente limitados ao projeto dele por `escopoProjeto`), e o botão "Guia de uso" acrescentado na F1 aparecia para ele — clicando, 404. | `projetos-view.tsx`, `(dashboard)/projetos/page.tsx` | **Corrigida na própria F1.** Botão passou a receber `mostrarGuia`, calculado no servidor pelo mesmo `tipoEfetivo()` que gateia `/guias`. Vale como precedente: **toda página-âncora alcançável por externo precisa desse sinal**, não só Projetos. |
+| F1-3 | O nome no código é `Pendencia`; a UI chama de **apontamento** em praticamente todo lugar (título da rota, botão "Apontar", visão consolidada). Não é bug, mas garante que quem lê código e quem lê tela falem línguas diferentes. | `modules/projetos/pendencias/**` | **Aberta, baixa prioridade.** Renomear o modelo é migração; o glossário do `CONTEXT.md` pode resolver mais barato. |
+
+**Correção ao plano de 2026-07-20:** o glossário previsto lá definia "Pendência — item aberto que trava o andamento". Está errado nos dois sentidos — no código `Pendencia` é o pino em prancha, e na Visão Geral "pendências" é o guarda-chuva das cinco filas. As fases seguintes não devem reusar aquele glossário sem conferir.
 
 ---
 
