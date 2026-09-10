@@ -6,6 +6,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificarMuitos } from "@/lib/notificar";
 import { confirmarDespesaProjetista } from "@/modules/financeiro/custo/lancamento-custo";
+import { MSG_LOTE_SEM_VALOR, separarPagaveis } from "@/modules/financeiro/folha/service";
 
 // Recorte fino da F4 (2026-09-02): era `permissao: "gerir"`, o mesmo interruptor de lançar
 // boleto. Semeado para quem tinha `gerir`, então ninguém perdeu nada — passa a poder ser
@@ -87,11 +88,14 @@ export const pagarFolhaProjetista = defineAction(
     });
     if (!folha) throw new ActionError("Lote não encontrado.");
     if (folha.pagamentos.length === 0) throw new ActionError("Nenhum pagamento pendente neste lote.");
+    // Linha zerada fica pendente no lote: pagá-la criaria um lançamento confirmado de R$ 0,00.
+    const { pagaveis, semValor } = separarPagaveis(folha.pagamentos);
+    if (pagaveis.length === 0) throw new ActionError(MSG_LOTE_SEM_VALOR);
 
     const quando = i.data ? new Date(i.data) : new Date();
 
     await prisma.$transaction(async (tx) => {
-      for (const pag of folha.pagamentos) {
+      for (const pag of pagaveis) {
         const lancamentoId = await confirmarDespesaProjetista(
           tx,
           {
@@ -111,13 +115,16 @@ export const pagarFolhaProjetista = defineAction(
           data: { status: "pago", pagoEm: quando, lancamentoId },
         });
       }
-      await tx.folhaProjetista.update({
-        where: { id: folha.id },
-        data: { status: "paga", pagaEm: quando },
-      });
+      // Com linha zerada sobrando, o lote continua `fechada` — ainda há o que pagar nele.
+      if (semValor.length === 0) {
+        await tx.folhaProjetista.update({
+          where: { id: folha.id },
+          data: { status: "paga", pagaEm: quando },
+        });
+      }
     });
 
-    const projetistas = [...new Set(folha.pagamentos.map((p) => p.projetista.id))];
+    const projetistas = [...new Set(pagaveis.map((p) => p.projetista.id))];
     await notificarMuitos(projetistas, {
       titulo: "Pagamento efetivado",
       corpo: `Seu pagamento da produção ${String(folha.mes).padStart(2, "0")}/${folha.ano} foi efetivado.`,
@@ -128,6 +135,6 @@ export const pagarFolhaProjetista = defineAction(
     revalidatePath("/financeiro/folha-projetistas");
     revalidatePath("/financeiro/lancamentos");
     revalidatePath("/financeiro/fluxo-caixa");
-    return { id: folha.id, pagos: folha.pagamentos.length };
+    return { id: folha.id, pagos: pagaveis.length, semValor: semValor.length };
   },
 );

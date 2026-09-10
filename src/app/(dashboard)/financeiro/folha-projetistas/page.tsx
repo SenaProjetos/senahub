@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Produção" };
 
 export default async function FolhaProjetistasPage() {
   await requirePermission("financeiro", "folha_pj");
-  const [{ itens, pendente, pago }, opcoes, lotes] = await Promise.all([
+  const [{ itens, pendente, pago, semValor }, opcoes, lotes] = await Promise.all([
     listarFolha(),
     opcoesLancamento(),
     listarFolhasProjetista(),
@@ -22,6 +22,7 @@ export default async function FolhaProjetistasPage() {
         itens={itens}
         pendente={pendente}
         pago={pago}
+        semValor={semValor}
         contas={opcoes.contas}
         formas={opcoes.formas}
       />

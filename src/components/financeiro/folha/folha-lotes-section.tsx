@@ -35,7 +35,20 @@ const NONE = "__none";
 // "fechada" = fechada aguardando pagamento → warning; "paga" → success
 const TONE: Record<string, "success" | "warning"> = { aberta: "warning", fechada: "warning", paga: "success" };
 
-type Folha = { id: string; ano: number; mes: number; status: string; total: number; qtd: number; pagos: number; todosPagos: boolean };
+type Folha = {
+  id: string;
+  ano: number;
+  mes: number;
+  status: string;
+  total: number;
+  qtd: number;
+  pagos: number;
+  todosPagos: boolean;
+  /** Pendentes com R$ 0,00 — ficam de fora do "Pagar lote". */
+  semValor: number;
+  /** Pendentes com valor, que o "Pagar lote" efetiva. */
+  pagaveis: number;
+};
 type Opcao = { id: string; nome: string };
 
 export function FolhaLotesSection({ folhas, contas, formas }: { folhas: Folha[]; contas: Opcao[]; formas: Opcao[] }) {
@@ -98,10 +111,12 @@ export function FolhaLotesSection({ folhas, contas, formas }: { folhas: Folha[];
                   <StatusBadge tone={TONE[f.todosPagos ? "paga" : f.status] ?? "neutral"}>
                     {f.todosPagos ? "paga" : f.status}
                   </StatusBadge>
-                  {f.qtd > f.pagos ? (
+                  {f.pagaveis > 0 ? (
                     <Button size="sm" variant="outline" onClick={() => setPagarLote(f)}>
                       <Wallet className="size-3.5" /> Pagar lote
                     </Button>
+                  ) : f.semValor > 0 ? (
+                    <StatusBadge tone="warning">{f.semValor} sem valor</StatusBadge>
                   ) : (
                     <span className="w-[104px]" aria-hidden />
                   )}
@@ -146,22 +161,26 @@ function PagarLoteDialog({
         data,
       });
       if (r.ok) {
-        toast.success(`Lote pago — ${r.data.pagos} pagamento(s) confirmado(s) no caixa.`);
+        const ficaram = r.data.semValor
+          ? ` ${r.data.semValor} sem valor continua(m) pendente(s) — corrija o valor para pagar.`
+          : "";
+        toast.success(`Lote pago — ${r.data.pagos} pagamento(s) confirmado(s) no caixa.${ficaram}`);
         onClose();
         router.refresh();
       } else toast.error(r.error);
     });
   }
 
-  const pendentes = folha ? folha.qtd - folha.pagos : 0;
+  const pendentes = folha?.pagaveis ?? 0;
 
   return (
     <Dialog open={!!folha} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Pagar lote inteiro</DialogTitle>
+          <DialogTitle>Pagar lote</DialogTitle>
           <DialogDescription>
-            {folha && `${MESES[folha.mes - 1]}/${folha.ano}`} — {pendentes} pagamento(s) pendente(s), {brl(folha?.total ?? 0)}
+            {folha && `${MESES[folha.mes - 1]}/${folha.ano}`} — {pendentes} pagamento(s) a efetivar, {brl(folha?.total ?? 0)}
+            {folha && folha.semValor > 0 && ` · ${folha.semValor} sem valor fica(m) de fora`}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">

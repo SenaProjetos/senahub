@@ -8,6 +8,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { notificar } from "@/lib/notificar";
 import { confirmarDespesaProjetista, criarDespesaProjetistaPrevista } from "@/modules/financeiro/custo/lancamento-custo";
 import { sincronizarValorDisciplina } from "@/modules/uploads/pagamento";
+import { MSG_PAGAMENTO_SEM_VALOR, temValorPagavel } from "@/modules/financeiro/folha/service";
 
 const pagarSchema = z.object({
   id: z.string().min(1),
@@ -42,6 +43,7 @@ export const pagarProjetista = defineAction(
     });
     if (!pag) throw new ActionError("Pagamento não encontrado.");
     if (pag.status === "pago") throw new ActionError("Pagamento já efetivado.");
+    if (!temValorPagavel(pag.valor)) throw new ActionError(MSG_PAGAMENTO_SEM_VALOR);
 
     const quando = i.data ? new Date(i.data) : new Date();
 

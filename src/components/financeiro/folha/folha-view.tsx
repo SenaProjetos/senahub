@@ -3,12 +3,13 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Wallet, Pencil, Ban } from "lucide-react";
+import { Wallet, Pencil, Ban, TriangleAlert } from "lucide-react";
 import {
   pagarProjetista,
   editarPagamentoProjetista,
   cancelarPagamentoProjetista,
 } from "@/modules/financeiro/folha/actions";
+import { temValorPagavel } from "@/modules/financeiro/folha/service";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { FolhaItem } from "@/modules/financeiro/folha/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -50,12 +51,14 @@ export function FolhaView({
   itens,
   pendente,
   pago,
+  semValor,
   contas,
   formas,
 }: {
   itens: FolhaItem[];
   pendente: number;
   pago: number;
+  semValor: number;
   contas: { id: string; nome: string }[];
   formas: { id: string; nome: string }[];
 }) {
@@ -70,6 +73,18 @@ export function FolhaView({
           Pagamentos de projetistas PJ/freelancer liberados por entregas validadas.
         </p>
       </div>
+
+      {semValor > 0 && (
+        <div role="alert" className="flex items-start gap-2 rounded-sm border border-warning/40 bg-warning/10 p-3 text-sm">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+          <p>
+            <strong>
+              {semValor === 1 ? "1 pagamento está sem valor." : `${semValor} pagamentos estão sem valor.`}
+            </strong>{" "}
+            Não é possível pagar com R$ 0,00 — use <strong>Corrigir valor</strong> na linha antes de pagar.
+          </p>
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
@@ -122,33 +137,47 @@ export function FolhaView({
                   <TableCell className="text-xs text-muted-foreground">{p.tipoProfissional}</TableCell>
                   <TableCell className="text-right font-mono">{brl(Number(p.valor))}</TableCell>
                   <TableCell>
-                    <StatusBadge
-                      tone={
-                        p.status === "pago"
-                          ? "success"
-                          : p.status === "pendente"
-                            ? "warning"
-                            : "neutral"
-                      }
-                    >
-                      {p.status}
-                    </StatusBadge>
+                    {p.status === "pendente" && !temValorPagavel(p.valor) ? (
+                      <StatusBadge tone="danger">sem valor</StatusBadge>
+                    ) : (
+                      <StatusBadge
+                        tone={
+                          p.status === "pago"
+                            ? "success"
+                            : p.status === "pendente"
+                              ? "warning"
+                              : "neutral"
+                        }
+                      >
+                        {p.status}
+                      </StatusBadge>
+                    )}
                   </TableCell>
                   <TableCell>
                     {p.status === "pendente" && (
                       <div className="flex flex-wrap gap-1">
-                        <Button size="sm" variant="outline" onClick={() => setPagar(p)}>
-                          <Wallet className="size-3.5" /> Pagar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="px-2"
-                          title="Editar valor"
-                          onClick={() => setEditar(p)}
-                        >
-                          <Pencil className="size-3.5" />
-                        </Button>
+                        {temValorPagavel(p.valor) ? (
+                          <>
+                            <Button size="sm" variant="outline" onClick={() => setPagar(p)}>
+                              <Wallet className="size-3.5" /> Pagar
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="px-2"
+                              title="Editar valor"
+                              aria-label="Editar valor"
+                              onClick={() => setEditar(p)}
+                            >
+                              <Pencil className="size-3.5" />
+                            </Button>
+                          </>
+                        ) : (
+                          // Pagar R$ 0,00 é recusado pela action — a saída é corrigir o valor.
+                          <Button size="sm" variant="outline" onClick={() => setEditar(p)}>
+                            <Pencil className="size-3.5" /> Corrigir valor
+                          </Button>
+                        )}
                         <CancelarPagamentoButton pagamento={p} />
                       </div>
                     )}
