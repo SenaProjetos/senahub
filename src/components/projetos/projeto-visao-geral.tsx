@@ -155,6 +155,27 @@ function ProgressDonut({ value }: { value: number }) {
   );
 }
 
+/**
+ * Explica o cartão "Pendências críticas" (issue #2 do plano de Guias de uso, F1-1): o número
+ * soma CINCO filas diferentes, mas o link "Ver apontamentos de prancha" leva a `/pendencias`,
+ * que mostra só a primeira delas — sem esta explicação, o número da tela de destino aparecia
+ * menor que o do cartão, sem nenhuma pista do motivo.
+ */
+function tooltipPendencias(p: VisaoGeralProjeto["pendencias"]): string {
+  // `apontamentosPrancha`/`apontamentosCoordenacao`/`tarefas` vêm `null` quando a fonte não foi
+  // consultada (sem permissão para aquela leitura, ver `FontesPendencias` em `visao-geral.ts`) —
+  // tratamos como "não conta", igual o `total` já faz com `?? 0`.
+  const partes = [
+    (p.apontamentosPrancha ?? 0) > 0 && `${p.apontamentosPrancha} apontamento(s) de prancha`,
+    (p.apontamentosCoordenacao ?? 0) > 0 && `${p.apontamentosCoordenacao} de compatibilização`,
+    (p.tarefas ?? 0) > 0 && `${p.tarefas} tarefa(s) aberta(s)`,
+    p.revisoes > 0 && `${p.revisoes} revisão(ões) pendente(s)`,
+    p.aprovacoes > 0 && `${p.aprovacoes} aprovação(ões) aguardando`,
+  ].filter(Boolean);
+  const resumo = partes.length > 0 ? partes.join(", ") : "nenhum item em aberto";
+  return `Soma cinco filas: ${resumo}. O link abre só os apontamentos de prancha — as outras filas ficam na própria Visão Geral.`;
+}
+
 function KpiLabel({ children, tooltip }: { children: React.ReactNode; tooltip?: string }) {
   if (!tooltip) {
     return <p className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{children}</p>;
@@ -624,9 +645,9 @@ export function ProjetoVisaoGeral({
       id: "pendencias",
       conteudo: (
         <SummaryCard href={podeVerPendencias ? "/pendencias" : undefined}>
-          <KpiLabel>Pendências críticas</KpiLabel>
+          <KpiLabel tooltip={tooltipPendencias(dados.pendencias)}>Pendências críticas</KpiLabel>
           <div className="mt-5 flex items-start gap-2"><CircleAlert className={cn("mt-0.5 size-5", dados.pendencias.total > 0 ? "text-destructive" : "text-success")} /><div><p className={cn("font-mono text-lg font-extrabold tabular-nums", dados.pendencias.total > 0 ? "text-destructive" : "text-success")}>{dados.pendencias.total}</p><p className="mt-1 text-xs text-muted-foreground">Itens abertos que requerem atenção</p></div></div>
-          {podeVerPendencias && <p className="mt-3 text-xs font-medium text-primary">Ver pendências</p>}
+          {podeVerPendencias && <p className="mt-3 text-xs font-medium text-primary">Ver apontamentos de prancha</p>}
         </SummaryCard>
       ),
     },
