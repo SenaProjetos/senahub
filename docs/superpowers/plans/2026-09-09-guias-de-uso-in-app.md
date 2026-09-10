@@ -97,6 +97,12 @@ Derivado da estrutura real de `guia-comercial-view.tsx`, com as duas seções qu
 O Comercial ganha `#vocabulario` e `#armadilhas` na migração da F0 — o glossário sai do `.md`
 ("O que cada nome significa") e vira seção da página antes de o `.md` ser reduzido a stub.
 
+**Os "quando aplicável" são mesmo opcionais.** A F1 (Projetos) não usou `#antes` nem `#rotina`: o
+setor não tem pré-requisito de configuração como o Comercial tinha, e o dia a dia coube dentro da
+etapa de execução. Projetos é a prova da forma mínima — F2 em diante não deve inventar um `#antes`
+para preencher a tabela. Vale o mesmo para a quantidade de marcos: use quantos o fluxo real tem
+(`COLUNAS_MARCOS` cobre 3 a 6), sem esticar para bater com o Comercial.
+
 ---
 
 ## 6. Arquitetura
@@ -265,7 +271,11 @@ Um guia só está pronto quando **todos** os cinco itens estão feitos:
    o código, não contra o manual** (ADR-001). As divergências entre o que a UI promete e o que ela
    faz são um entregável, não um subproduto.
 3. **Stub `.md`** em `docs/manual/<secao>/guia-iniciante.md` (~5 linhas, frontmatter completo,
-   aponta para a rota) **+ entrada em `docs/manual/search-index.json`**. ⚠️ Sem a entrada no
+   aponta para a rota) **+ entrada em `docs/manual/search-index.json`**. Só o **stub** entra no
+   manifesto: `deliberacoes/` e `decisions/` ficam **deliberadamente fora** (a ata do piloto de
+   2026-07-21 também está), porque são registro de processo, não manual de usuário — e `/ajuda` é
+   visível a todo perfil, `cliente` incluso. O hook de manual avisa em toda página alterada; nessas
+   duas pastas o aviso não se aplica. ⚠️ Sem a entrada no
    manifesto a página não aparece no `/ajuda` — `listarSecoes()` lê só o manifesto, não varre o
    disco (`lib/manual.ts:132`).
 4. **`npm run lint` e `npm run build` limpos.** Nunca rodar `build` com `next dev` ativo no mesmo
@@ -390,7 +400,7 @@ escrito de zero. Uma divergência veio à tona ao redigir o `#armadilhas` do Com
 | # | Divergência | Onde | Situação |
 | --- | --- | --- | --- |
 | F1-1 | O cartão **Pendências críticas** soma **cinco** filas (apontamentos de prancha + de coordenação + tarefas abertas + solicitações de revisão + aprovações). O link "Ver pendências" leva a `/pendencias`, cujo título é **"Apontamentos"** e que lista **só** os de prancha — o número da tela de destino é menor que o do cartão, sem explicação na UI. | `modules/projetos/visao-geral.ts`, `projeto-visao-geral.tsx`, `(dashboard)/pendencias/page.tsx` | **Aberta.** Documentada como armadilha no guia. Decidir se o cartão vira detalhado (as 5 filas), se o link muda de destino, ou se os rótulos se alinham. |
-| F1-2 | Um `cliente` **alcança** `/projetos` (dados corretamente limitados ao projeto dele por `escopoProjeto`), e o botão "Guia de uso" acrescentado na F1 aparecia para ele — clicando, 404. | `projetos-view.tsx`, `(dashboard)/projetos/page.tsx` | **Corrigida na própria F1.** Botão passou a receber `mostrarGuia`, calculado no servidor pelo mesmo `tipoEfetivo()` que gateia `/guias`. Vale como precedente: **toda página-âncora alcançável por externo precisa desse sinal**, não só Projetos. |
+| F1-2 | Um `cliente` **alcança** `/projetos` (dados corretamente limitados ao projeto dele por `escopoProjeto`), e o botão "Guia de uso" acrescentado na F1 aparecia para ele — clicando, 404. | `projetos-view.tsx`, `(dashboard)/projetos/page.tsx` | **Corrigida na própria F1.** Botão passou a receber `mostrarGuia`, calculado no servidor pelo mesmo `tipoEfetivo()` que gateia `/guias`. Vale como precedente: **toda página-âncora alcançável por externo precisa desse sinal**. Medido depois da correção, com sessão `cliente` real: `/comercial` responde `NEXT_REDIRECT` para `/sem-permissao` (F0 está limpa), `/rh` e `/licitacoes` redirecionam (307), mas **`/financeiro` renderiza de verdade** — a tela "Meu extrato". O botão da **F2 nasce precisando do gate**. |
 | F1-3 | O nome no código é `Pendencia`; a UI chama de **apontamento** em praticamente todo lugar (título da rota, botão "Apontar", visão consolidada). Não é bug, mas garante que quem lê código e quem lê tela falem línguas diferentes. | `modules/projetos/pendencias/**` | **Aberta, baixa prioridade.** Renomear o modelo é migração; o glossário do `CONTEXT.md` pode resolver mais barato. |
 
 **Correção ao plano de 2026-07-20:** o glossário previsto lá definia "Pendência — item aberto que trava o andamento". Está errado nos dois sentidos — no código `Pendencia` é o pino em prancha, e na Visão Geral "pendências" é o guarda-chuva das cinco filas. As fases seguintes não devem reusar aquele glossário sem conferir.
