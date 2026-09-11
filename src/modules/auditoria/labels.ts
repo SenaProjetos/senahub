@@ -107,6 +107,10 @@ export const ACAO_LABEL: Record<string, string> = {
   "gerar-folha-lote": "Gerou folha em lote",
   "fechar-folha": "Fechou folha de pagamento",
   "reabrir-folha": "Reabriu folha de pagamento",
+  // Produção (pagamento de projetista) — F8/F11/F12 do plano da folha-projetistas.
+  "anexar-comprovante-pagamento": "Anexou comprovante de pagamento de produção",
+  "corrigir-pagamento-efetivado": "Corrigiu pagamento de produção já efetivado",
+  "excluir-folha-lote": "Excluiu lote de produção",
   "salvar-holerite": "Salvou holerite",
   "remover-holerite": "Removeu holerite",
   "gerar-holerites-auto": "Gerou holerites automaticamente",

@@ -3,12 +3,14 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDown, Layers, Wallet } from "lucide-react";
+import { ChevronDown, Layers, Trash2, Wallet } from "lucide-react";
 import {
+  excluirFolhaProjetista,
   gerarFolhaDoMes,
   pagarFolhaProjetista,
   pagamentosDoLote,
 } from "@/modules/financeiro/folha-lote/actions";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { FolhaLoteItem, PagamentoDoLote } from "@/modules/financeiro/folha-lote/queries";
 import { TIPO_PROFISSIONAL_LABEL } from "@/modules/financeiro/folha/status";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -198,6 +200,7 @@ function LinhaLote({
         ) : (
           <span className="w-[104px]" aria-hidden />
         )}
+        <ExcluirLoteButton folha={folha} />
       </div>
       <CollapsiblePanel>
         <div className="overflow-x-auto border-t pb-2">
@@ -252,6 +255,56 @@ function LinhaLote({
         </div>
       </CollapsiblePanel>
     </Collapsible>
+  );
+}
+
+/**
+ * Excluir lote (F12/N7). Fora do `CollapsibleTrigger` (que já é um <button> — interativo
+ * dentro de interativo quebra teclado e leitor de tela) e sempre renderizado, para as
+ * colunas não mudarem de lugar entre lotes pagáveis e não pagáveis.
+ *
+ * O texto da confirmação sai de `FolhaLoteItem` (qtd, pagos) — sem query nova. A contagem
+ * de pagos é o ponto do aviso: eles NÃO voltam a um lote se o mês for gerado de novo.
+ */
+function ExcluirLoteButton({ folha }: { folha: FolhaLoteItem }) {
+  const router = useRouter();
+  const confirm = useConfirm();
+  const [pending, start] = useTransition();
+  const rotulo = `${MESES_CURTOS[folha.mes - 1]}/${folha.ano}`;
+
+  function excluir() {
+    start(async () => {
+      const avisoPagos =
+        folha.pagos > 0
+          ? ` ${folha.pagos} já pago(s) continua(m) pago(s), mas não volta(m) a um lote se você gerar ${rotulo} de novo — gerar lote só recolhe pendentes.`
+          : "";
+      const ok = await confirm({
+        title: `Excluir lote ${rotulo}`,
+        description: `Os ${folha.qtd} pagamento(s) deste lote voltam a ficar fora de lote. Nenhum pagamento e nenhum lançamento do caixa é apagado.${avisoPagos}`,
+        confirmLabel: "Excluir lote",
+        variant: "destructive",
+      });
+      if (!ok) return;
+      const r = await excluirFolhaProjetista({ id: folha.id });
+      if (r.ok) {
+        toast.success(`Lote ${rotulo} excluído — ${r.data.soltos} pagamento(s) ficaram fora de lote.`);
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      className="px-2 text-destructive"
+      title={`Excluir lote ${rotulo}`}
+      aria-label={`Excluir lote ${rotulo}`}
+      onClick={excluir}
+      disabled={pending}
+    >
+      <Trash2 className="size-3.5" />
+    </Button>
   );
 }
 

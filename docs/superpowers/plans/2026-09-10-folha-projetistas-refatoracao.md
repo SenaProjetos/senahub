@@ -2,7 +2,7 @@
 
 - **Data:** 2026-09-10
 - **Origem:** dono pediu revisão de UI/UX e de funções da tela.
-- **Estado:** **F0a a F11 entregues.** `tsc`, `eslint`, testes e `smoke:sync-pagamento` (19/19) verdes em todas. §7.3 já respondido em produção (0 pagamentos sem conta). Falta: **F12** (excluir lote, D30/N7, Opus 5, decisão travada) e o smoke completo em navegador com login real (checklist publicado como artefato, atualizado até a F11). Detalhe de cada fase na própria seção; F8–F12 estão na §9 "Backlog pós-smoke".
+- **Estado:** **F0a a F12 entregues — plano original e backlog pós-smoke completos.** `tsc`, `eslint`, testes e `smoke:sync-pagamento` (19/19) verdes em todas. §7.3 já respondido em produção (0 pagamentos sem conta). Falta só o smoke completo em navegador com login real (checklist publicado como artefato, atualizado até a F12) e o merge de `feat/folha-projetistas` em `dev`. Detalhe de cada fase na própria seção; F8–F12 estão na §9 "Backlog pós-smoke".
   - **Falta smoke em navegador nas três fases**, com login de verdade — sem sessão o `middleware` redireciona pra `/login` antes de renderizar a página (confirmado: `next dev` compilou e serviu o 307 sem erro, mas isso não exercita `page.tsx`/`FolhaView`/`ProducaoAbas`). Criar sessão de teste (reset de senha do admin, ou usuário próprio) não é decisão para tomar sozinho num banco de dev compartilhado — fica para quem tem credencial.
   - **O banco de dev agora tem dado pra testar as duas abas de propósito:** 1 pagamento pendente zerado (F0a) e 1 lote real, 2026-04, com 3 pagamentos — 2 pagáveis + a linha zerada dentro dele. Isso deixa testável: aviso no topo (nas duas abas), badge "sem valor", botão "Corrigir valor", aba de lotes com conteúdo (antes mostrava "Nenhum lote gerado"), "Pagar lote" deixando a linha zerada de fora, e o 3º card de KPI "Cancelado" (ainda R$ 0 — nenhum pagamento cancelado em dev).
   - F0: conferir a troca de aba (`?aba=pagar` ↔ `?aba=lotes`) e que o título "Produção" aparece uma vez só, no topo.
@@ -381,7 +381,7 @@ Smoke em navegador rodando (worktree, dados de dev) — nada quebrado, mas 5 ped
 | **D29** | **Lote muito opaco — listar os pagamentos dentro dele.** | Baixo risco. Mesmo padrão já construído em F3 (`Collapsible` por grupo): expandir a linha do lote mostra as linhas de `PagamentoProjetista` que o compõem, igual ao grupo por projetista já faz. Sem action nova, só query (`listarFolhasProjetista` já sabe contar; falta trazer as linhas). |
 | **D30** | **Permitir excluir ou editar um lote.** | **Decidido (2026-09-11, N7):** excluir um lote solta todos os pagamentos dele (`folhaId: null`, pagos inclusive) — mesmo padrão que cancelar um pagamento já usa. Nenhum `Lancamento` é tocado; só o agrupamento em lote desfaz. "Editar" (mover pagamento entre lotes) segue sem decisão fechada — não bloqueia a F12, que pode nascer só com "excluir". |
 
-### Fases do backlog pós-smoke (F8–F11 entregues; F12 pendente)
+### Fases do backlog pós-smoke (F8–F12 entregues)
 
 | Fase | Resolve | Modelo sugerido | Por quê |
 | --- | --- | --- | --- |
@@ -389,7 +389,7 @@ Smoke em navegador rodando (worktree, dados de dev) — nada quebrado, mas 5 ped
 | **F9** — Nome do arquivo de export | D28 | Sonnet 5 (ou junto com F8) | Trivial, uma função pura + teste. |
 | **F10** — Lote expandido (lista os pagamentos) | D29 | Sonnet 5 | Reusa `Collapsible` da F3, query aditiva. |
 | **F11** — Editar pagamento confirmado c/ justificativa ✅ | D27, N6 | **Opus 5** | Entregue 2026-09-11 — ver bloco abaixo. |
-| **F12** — Excluir lote | D30, N7 | **Opus 5** | Ação destrutiva sobre dado financeiro — mesmo padrão do cancelamento de pagamento (`folhaId: null`), decisão travada (N7). "Editar" lote fica fora do escopo por ora. |
+| **F12** — Excluir lote ✅ | D30, N7 | **Opus 5** | Entregue 2026-09-11 — ver bloco abaixo. "Editar" lote segue fora do escopo. |
 
 **✅ F8 entregue 2026-09-11 (Sonnet 5) — como ficou:**
 - **Rota própria, não reuso** — `POST /api/financeiro/folha-projetistas/comprovante` (upload) e as actions `anexarComprovantePagamento`/(sem `remover`, ver abaixo) em `folha/actions.ts`, cópia deliberada de `api/financeiro/lancamentos/anexo` + `adicionarAnexoLancamento`, não reuso: aquelas gate em `financeiro:gerir`, estas em `folha_pj` (opção **A** da comparação de prós/contras — não alargar o gate geral de anexos pra quem só tem acesso à Produção).
@@ -420,6 +420,16 @@ Smoke em navegador rodando (worktree, dados de dev) — nada quebrado, mas 5 ped
 - **Fora do corte, de propósito:** o painel do lote expandido (F10) segue só leitura, sem ação de corrigir. Nenhuma notificação vai para o projetista quando o valor de um pago muda.
 
 **Verificação (F11):** `tsc`, `eslint`, 112 testes do financeiro (+7), `smoke:sync-pagamento` 19/19 e conferência contra o banco de dev numa transação desfeita: o `conciliado` de `comLancamentos` bate com a `TransacaoBancaria` lida direto (2/2 pagos com lançamento); a guarda da escrita acha 1 linha no lançamento livre e **0** depois de conciliá-lo dentro da mesma transação; o rollback não deixou resíduo. O dev não tem nenhum lançamento de produção conciliado, então o "conciliado — não editável" da tela só aparece no navegador depois de conciliar um pelo extrato.
+
+**✅ F12 entregue 2026-09-11 (Opus 5) — como ficou:**
+- **`excluirFolhaProjetista`** (`folha-lote/actions.ts`, `folha_pj`): solta **todos** os pagamentos do lote (`folhaId: null`, pagos inclusive, N7) e apaga o `FolhaProjetista`, numa transação só. **Nenhum pagamento e nenhum `Lancamento` é apagado ou alterado.** O `updateMany` explícito não depende só do `onDelete: SetNull` do schema: a intenção fica no código e a contagem volta para a tela.
+- **Auditoria:** o lote some da tabela, então o `capturarAntes` grava o que ele era (ano, mês, status, total, datas) **e a lista de pagamentos que estavam dentro** (id, status, valor). É o único registro que permite remontar o agrupamento. A tela de Auditoria só mostra o nome da entidade, sem buscar pelo `entidadeId`, então os registros antigos que apontam para o lote excluído continuam aparecendo normalmente.
+- **Quem mais lê `FolhaProjetista`:** ninguém fora do próprio módulo (`rh/folha` é a folha CLT, outro model; `uploads/pagamento.ts` só solta e recalcula o lote). Nenhum relatório perde histórico.
+- **UI:** lixeira na linha do lote, fora do `CollapsibleTrigger` e sempre renderizada (colunas não se mexem). A confirmação é montada com `qtd`/`pagos` do `FolhaLoteItem`, sem query nova, e diz a consequência que não é óbvia: **pagos soltos não voltam a um lote se o mês for gerado de novo**, porque `gerarFolhaDoMes` só recolhe pendentes (carga do §5, que continua intacta).
+- **"Editar" lote** (mover pagamento entre lotes) segue fora, como previsto na N7.
+- Rótulos novos em `auditoria/labels.ts` para as 3 ações criadas no backlog (`anexar-comprovante-pagamento`, `corrigir-pagamento-efetivado`, `excluir-folha-lote`). A mensagem de `erroTransicao("editar","pago")` passou a apontar para "Corrigir pagamento", já que "não pode mais ser alterado" ficou falso com a F11.
+
+**Verificação (F12):** `tsc`, `eslint`, 121 testes (financeiro + auditoria), `smoke:sync-pagamento` 19/19 e conferência contra o banco de dev numa transação desfeita, com o lote 04/2026: 3/3 pagamentos soltos, os pagamentos **continuam existindo** (sem cascata), status inalterados, contagem total de pagamentos e lançamentos igual, os 2 lançamentos vinculados idênticos campo a campo, lote apagado, e rollback sem resíduo. Limite: o lote do dev só tem pendentes, então o caso "pago dentro do lote" não foi exercitado com dado real (é o mesmo `updateMany`, que só mexe no `folhaId`).
 
 ---
 

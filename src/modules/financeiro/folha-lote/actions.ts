@@ -178,3 +178,50 @@ export const pagarFolhaProjetista = defineAction(
     return { id: folha.id, pagos: efetivados.length, semValor: semValor.length };
   },
 );
+
+/**
+ * Exclui um lote (F12/D30, decisão N7): os pagamentos dele ficam SOLTOS (`folhaId: null`),
+ * pagos inclusive. Nenhum pagamento e nenhum `Lancamento` é apagado ou alterado — só o
+ * agrupamento some. Mesmo movimento que cancelar um pagamento já faz com o lote.
+ *
+ * Consequência que a tela diz na confirmação: gerar o mesmo mês de novo só recolhe
+ * PENDENTES (`status: "pendente"` em `gerarFolhaDoMes`, carga do §5 do plano) — os pagos
+ * soltos daqui não voltam para lote nenhum.
+ */
+export const excluirFolhaProjetista = defineAction(
+  {
+    ...base,
+    acao: "excluir-folha-lote",
+    entidade: "FolhaProjetista",
+    schema: z.object({ id: z.string().min(1) }),
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
+    // O lote some da tabela: a auditoria passa a ser o único lugar que guarda o que ele era
+    // e QUAIS pagamentos estavam dentro — o que permite remontar o agrupamento, se preciso.
+    capturarAntes: (input) =>
+      prisma.folhaProjetista.findUnique({
+        where: { id: input.id },
+        select: {
+          ano: true,
+          mes: true,
+          status: true,
+          total: true,
+          fechadaEm: true,
+          pagaEm: true,
+          pagamentos: { select: { id: true, status: true, valor: true }, orderBy: { liberadoEm: "asc" } },
+        },
+      }),
+  },
+  async ({ id }) => {
+    const soltos = await prisma.$transaction(async (tx) => {
+      const folha = await tx.folhaProjetista.findUnique({ where: { id }, select: { id: true } });
+      if (!folha) throw new ActionError("Lote não encontrado — atualize a tela.");
+      // Explícito, não só o `onDelete: SetNull` do schema: a intenção fica no código e a
+      // contagem volta para a mensagem da tela.
+      const r = await tx.pagamentoProjetista.updateMany({ where: { folhaId: id }, data: { folhaId: null } });
+      await tx.folhaProjetista.delete({ where: { id } });
+      return r.count;
+    });
+    revalidatePath("/financeiro/folha-projetistas");
+    return { id, soltos };
+  },
+);

@@ -165,7 +165,7 @@ describe("erroTransicao", () => {
   });
   it("editar cancelado ou pago é recusado", () => {
     expect(erroTransicao("editar", "cancelado")).toMatch(/cancelado — o valor não pode mais ser alterado/);
-    expect(erroTransicao("editar", "pago")).toMatch(/efetivado — o valor não pode mais ser alterado/);
+    expect(erroTransicao("editar", "pago")).toMatch(/efetivado — use "Corrigir pagamento"/);
   });
   it("cancelar de novo, ou cancelar o pago, é recusado", () => {
     expect(erroTransicao("cancelar", "cancelado")).toBe("Este pagamento já está cancelado.");

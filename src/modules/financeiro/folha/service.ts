@@ -99,7 +99,8 @@ const MSG_TRANSICAO: Record<AcaoPagamento, { pago: string; cancelado: string }> 
     cancelado: "Este pagamento foi cancelado — não pode ser pago.",
   },
   editar: {
-    pago: "Este pagamento já foi efetivado — o valor não pode mais ser alterado.",
+    // Desde a F11 o pago tem porta própria ("Corrigir pagamento"); esta só vale para pendente.
+    pago: "Este pagamento já foi efetivado — use \"Corrigir pagamento\" na linha dele.",
     cancelado: "Este pagamento foi cancelado — o valor não pode mais ser alterado.",
   },
   cancelar: {
