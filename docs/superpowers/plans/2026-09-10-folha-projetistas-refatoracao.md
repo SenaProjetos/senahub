@@ -2,7 +2,7 @@
 
 - **Data:** 2026-09-10
 - **Origem:** dono pediu revisão de UI/UX e de funções da tela.
-- **Estado:** **F0a, F0, F1 e F2 entregues** — `tsc`, `eslint`, testes do financeiro (77 após a F2) e `smoke:sync-pagamento` (19/19) verdes em todas. F3–F7 pendentes. Detalhe da F2 (e dado de dev adicional) na própria seção F2.
+- **Estado:** **F0a, F0, F1, F2 e F3 entregues** — `tsc`, `eslint`, testes do financeiro e `smoke:sync-pagamento` (19/19) verdes em todas. F4–F7 pendentes. Detalhe de cada fase (e dado de dev adicional) na própria seção.
   - **Falta smoke em navegador nas três fases**, com login de verdade — sem sessão o `middleware` redireciona pra `/login` antes de renderizar a página (confirmado: `next dev` compilou e serviu o 307 sem erro, mas isso não exercita `page.tsx`/`FolhaView`/`ProducaoAbas`). Criar sessão de teste (reset de senha do admin, ou usuário próprio) não é decisão para tomar sozinho num banco de dev compartilhado — fica para quem tem credencial.
   - **O banco de dev agora tem dado pra testar as duas abas de propósito:** 1 pagamento pendente zerado (F0a) e 1 lote real, 2026-04, com 3 pagamentos — 2 pagáveis + a linha zerada dentro dele. Isso deixa testável: aviso no topo (nas duas abas), badge "sem valor", botão "Corrigir valor", aba de lotes com conteúdo (antes mostrava "Nenhum lote gerado"), "Pagar lote" deixando a linha zerada de fora, e o 3º card de KPI "Cancelado" (ainda R$ 0 — nenhum pagamento cancelado em dev).
   - F0: conferir a troca de aba (`?aba=pagar` ↔ `?aba=lotes`) e que o título "Produção" aparece uma vez só, no topo.
@@ -212,12 +212,22 @@ Resolve **D4, D6, D7, D8, D9, D24** (D5 — paginação — já saiu na F1, ver 
    - **Notificação deduplicada por projetista.** `pagarProjetista` dispara um `notificar()` por pagamento — reusar esse caminho num loop manda 12 pushes para quem teve 12 entregas pagas. Copiar o que `pagarFolhaProjetista` já faz: `[...new Set(ids de projetista)]` + `notificarMuitos(..., { categoria: "pagamento" })`.
    - **`contaId: z.string().min(1)` já na criação** (N3 está decidido). Não nascer opcional para ser corrigido na F5 — a F5.2 fica só com as duas actions pré-existentes.
 
-### F3 — Modo "por projetista" (N1)
+### F3 — Modo "por projetista" (N1) ✅ entregue 2026-09-11 (Sonnet 5)
 
 1. Toggle `?modo=projetista|pagamento`, default **`projetista`**.
 2. Linha-mãe: projetista · nº de entregas · total pendente · botão "Pagar tudo". Expande nas disciplinas.
 3. Agregação por `groupBy({ by: ["projetistaId", "status"] })` — não somar no cliente (mesma armadilha de D11).
 4. "Pagar tudo do projetista" reusa a action em lote da F2 com o conjunto de ids do grupo — herda dela a notificação única por projetista e a conta obrigatória.
+
+**Como ficou (registro da entrega):**
+- **`listarFolhaAgrupada` NÃO pagina** — traz tudo agrupado de uma vez (§1: volume pequeno o bastante). `?sort=`/`?dir=` (da F2) são ignorados neste modo de propósito — não fazem sentido ordenando grupos de pessoa, não linhas.
+- **`qtd` respeita o filtro de status** (é a lista que o grupo mostra expandido); **`totalPendente` NÃO respeita** — mesma regra dos 3 cards de KPI (F2): filtrar `status=pago` não devia fazer "quanto devo a essa pessoa" sumir do cabeçalho do grupo. Os dois vêm de `groupBy` no banco, nunca de somar `itens` na mão.
+- **Refatoração de reuso, não just F3:** os pedaços que os dois modos compartilham (filtros, os 3 cards de KPI, `PagarDialog`, `EditarValorDialog`, badge de status, botões de ação de linha, célula "Pagamento") saíram de `folha-view.tsx` para `folha-linhas-compartilhadas.tsx`. `FolhaResumoFiltros` (filtro + KPI) subiu para `page.tsx` — é a MESMA barra nos dois modos, não faz sentido cada view desenhar a sua.
+- **Achado durante a implementação, corrigido antes do commit:** a 1ª versão do cabeçalho do grupo botão "Pagar tudo" DENTRO do `CollapsibleTrigger` (que já é um `<button>`) e, na correção, o LINK do nome também ficou dentro dele — mesmo defeito, disfarçado (botão-dentro-de-botão vira link-dentro-de-botão). Corrigido: nome-link e botão "Pagar tudo" são irmãos do trigger, fora dele; **só entra dentro do trigger quando não há link** (quem não tem `rh:cadastro` continua com a linha inteira clicável para expandir).
+- **Um só conjunto de dialogs para todos os grupos**, no componente de topo (`FolhaAgrupadaView`), não um conjunto por grupo — `PagarDialog`/`EditarValorDialog`/`EfetivarPagamentoDialog` usam ids fixos de campo (`valor-pagamento`, `efetivar-conta`...); um conjunto por grupo duplicaria esses ids e o `htmlFor` de um rótulo no grupo 3 focaria o campo do grupo 1.
+
+**Verificação:** `tsc`, `eslint`, 77 testes do financeiro, `smoke:sync-pagamento` 19/19, e conferência independente contra o banco de dev (agrupamento refeito em JS puro, sem reusar a query): nº de grupos, qtd e soma de itens por pessoa no padrão, `totalPendente` batendo com o pendente real mesmo filtrando `status=pago`, nº de grupos com `status=todos`, paridade de `resumo`/`canceladosOcultos` com o modo flat — 18/18.
+- **Não executado:** abrir a tela de verdade (exige sessão). Dois pontos para o smoke em navegador: (1) o chevron gira ao expandir (`data-panel-open` do base-ui — o mesmo mecanismo de `CollapsibleSection`, aqui escrito à mão); (2) a primeira impressão do modo padrão novo — a tela abre agora em grupos recolhidos por pessoa, não mais na tabela plana.
 
 ### F4 — Aba de lotes · *toca em `folha-lote/actions.ts`*
 
