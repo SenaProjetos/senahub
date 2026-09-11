@@ -56,7 +56,7 @@ export const pagarProjetista = defineAction(
 
     const quando = quandoDoPagamento(i.data);
 
-    await prisma.$transaction(async (tx) => {
+    const lancamentoId = await prisma.$transaction(async (tx) => {
       // Reserva antes de gerar o lançamento (mesmo padrão de `pagarProjetistasSelecionados`):
       // outro caminho que pagou esta linha entre a leitura e aqui deixa 0 linhas e aborta.
       const reserva = await tx.pagamentoProjetista.updateMany({
@@ -80,6 +80,7 @@ export const pagarProjetista = defineAction(
         { contaId: i.contaId, formaId: i.formaId || null, quando, autorId: user.id },
       );
       await tx.pagamentoProjetista.update({ where: { id: pag.id }, data: { lancamentoId } });
+      return lancamentoId;
     });
 
     await notificar(pag.projetista.id, {
@@ -92,9 +93,68 @@ export const pagarProjetista = defineAction(
     revalidatePath("/financeiro/folha-projetistas");
     revalidatePath("/financeiro/lancamentos");
     revalidatePath("/financeiro/fluxo-caixa");
-    return { id: pag.id };
+    // `lancamentoId` sai daqui pro dialog oferecer "anexar comprovante" (F8/D26) sem 2ª
+    // busca — o pagamento individual sempre tem exatamente um lançamento nesse ponto.
+    return { id: pag.id, lancamentoId };
   },
 );
+
+const anexarComprovanteSchema = z.object({
+  lancamentoId: z.string().min(1),
+  meta: z.object({
+    caminho: z.string().min(1),
+    nome: z.string().min(1),
+    mime: z.string().min(1),
+    tamanho: z.number().int().nonnegative(),
+  }),
+});
+
+/**
+ * Anexa o comprovante ao lançamento de um pagamento de produção (F8/D26). Escopo estreito
+ * de propósito (decisão do dono, opção A): mesma tabela e mesma mecânica de
+ * `adicionarAnexoLancamento` (`lancamentos/actions.ts`), mas gated `folha_pj` — não
+ * `financeiro:gerir`, que abriria anexo em QUALQUER lançamento do sistema pra quem só tem
+ * acesso à Produção (o mesmo recorte que a F4 fez de propósito, 2026-09-02). A guarda real
+ * é o `pagamentoProjetistaId` checado abaixo: `folha_pj` só anexa em lançamento que veio de
+ * um pagamento de projetista, mesmo que alguém tente passar o id de outro lançamento.
+ */
+export const anexarComprovantePagamento = defineAction(
+  {
+    modulo: "financeiro",
+    acao: "anexar-comprovante-pagamento",
+    recurso: "financeiro",
+    permissao: "folha_pj",
+    entidade: "LancamentoAnexo",
+    schema: anexarComprovanteSchema,
+  },
+  async (i, { user }) => {
+    const lanc = await prisma.lancamento.findUnique({
+      where: { id: i.lancamentoId },
+      select: { pagamentoProjetistaId: true },
+    });
+    if (!lanc) throw new ActionError("Lançamento não encontrado.");
+    if (!lanc.pagamentoProjetistaId) {
+      throw new ActionError("Este lançamento não é de um pagamento de produção.");
+    }
+    const a = await prisma.lancamentoAnexo.create({
+      data: {
+        lancamentoId: i.lancamentoId,
+        caminho: i.meta.caminho,
+        nome: i.meta.nome,
+        mime: i.meta.mime,
+        tamanho: i.meta.tamanho,
+        autorId: user.id,
+      },
+    });
+    revalidatePath("/financeiro/folha-projetistas");
+    revalidatePath("/financeiro/lancamentos");
+    return { id: a.id };
+  },
+);
+
+// Remoção de comprovante fica de fora deste corte (F8/D26): o pedido era anexar no ato do
+// pagamento. Gerenciar/remover o que já foi anexado é o caminho de sempre — abrir o
+// lançamento em Lançamentos (`financeiro:gerir`), que já tem essa UI.
 
 const editarValorSchema = z.object({
   id: z.string().min(1),

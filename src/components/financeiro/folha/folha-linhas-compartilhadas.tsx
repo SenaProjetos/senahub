@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Wallet, Pencil, Ban } from "lucide-react";
+import { Wallet, Pencil, Ban, Paperclip } from "lucide-react";
 import {
   pagarProjetista,
   editarPagamentoProjetista,
@@ -26,6 +26,7 @@ import { FieldError } from "@/components/ui/field-error";
 import { useFieldErrors } from "@/lib/use-field-errors";
 import { FolhaFiltros } from "./folha-filtros";
 import { EfetivarPagamentoDialog, type DadosEfetivacao } from "./efetivar-pagamento-dialog";
+import { AnexarComprovanteDialog } from "./anexar-comprovante-dialog";
 
 export const linkCls = "underline-offset-2 hover:underline";
 
@@ -155,6 +156,14 @@ export function CelulaPagamento({ p, linkLancamento }: { p: FolhaItem; linkLanca
             <span className={cn("block", l.conta ? "text-muted-foreground" : "text-warning")}>
               {l.conta ?? "sem conta bancária"}
               {l.forma ? ` · ${l.forma}` : ""}
+            </span>
+            {/* F8/D26: visibilidade do comprovante — "o ideal é que todo pagamento tenha o
+                comprovante anexado" só é verificável se a tela mostrar quem não tem. */}
+            <span className={cn("flex items-center gap-1", l.qtdAnexos > 0 ? "text-muted-foreground" : "text-warning")}>
+              <Paperclip className="size-3" aria-hidden />
+              {/* "anexo", não "comprovante": a contagem é de LancamentoAnexo (genérico) —
+                  um anexado direto em Lançamentos pode não ser um comprovante de pagamento. */}
+              {l.qtdAnexos > 0 ? `${l.qtdAnexos} anexo${l.qtdAnexos > 1 ? "s" : ""}` : "sem anexo"}
             </span>
             {linkLancamento && (
               <Link href={`/financeiro/lancamentos?lancamento=${l.id}`} className={cn("text-foreground", linkCls)}>
@@ -322,16 +331,28 @@ export function PagarDialog({
   formas: Opcao[];
 }) {
   const router = useRouter();
+  // Depois de efetivar (F8/D26), o dialog não fecha — oferece anexar o comprovante antes.
+  // `pagamento` continua truthy nas duas fases; só o CONTEÚDO troca (ver o `return` abaixo).
+  const [lancamentoId, setLancamentoId] = useState<string | null>(null);
 
   async function efetivar(d: DadosEfetivacao) {
     if (!pagamento) return { ok: false as const, error: "Pagamento não encontrado." };
     const r = await pagarProjetista({ id: pagamento.id, ...d });
     if (r.ok) {
       toast.success("Pagamento efetivado — lançamento criado no caixa.");
-      onClose();
+      setLancamentoId(r.data.lancamentoId);
       router.refresh();
     }
     return r;
+  }
+
+  function concluir() {
+    setLancamentoId(null);
+    onClose();
+  }
+
+  if (lancamentoId) {
+    return <AnexarComprovanteDialog lancamentoId={lancamentoId} onConcluir={concluir} />;
   }
 
   return (
