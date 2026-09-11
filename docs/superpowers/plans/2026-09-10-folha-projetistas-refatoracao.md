@@ -359,12 +359,7 @@ mais que filtro. F3 é o maior ganho de UX e depende só de F1.
 
 1. ~~Volume em produção~~ — **respondido: 15 pagamentos.** Paginação e índice deixam de ser prioridade (§1, F1.5).
 2. ~~Linhas de R$ 0,00 em produção~~ — **respondido: existem.** Virou a fase F0a e o achado D25.
-3. **Existe lançamento histórico sem conta?** — **ainda sem resposta em produção**, mas deixou de ser um achado (D24): a tela agora responde. Três caminhos, todos prontos:
-   - **Consulta somente-leitura** — `scripts/levantar-folha-projetistas.ts` (F0a.4), a rodar em produção.
-   - **Na tela (F2)** — cada linha paga mostra a conta (ou "sem conta bancária") e linka o lançamento.
-   - **Exportação (F7)** — CSV/XLSX com a coluna Conta, pra filtrar/somar fora do sistema.
-
-   N3 (conta obrigatória) vale só daqui para frente — nenhum lançamento antigo foi alterado; a resposta em produção continua pendente do dono.
+3. **Existe lançamento histórico sem conta?** — **respondido em produção, 2026-09-11: não.** `levantar-folha-projetistas.ts` rodado no servidor (script copiado manualmente — o branch ainda não foi mergeado/deployado): 15 pagamentos (12 pendentes, 3 pagos), 1 pendente zerado (o mesmo de sempre, já coberto pela F0a — `cmsro7g71036v74nu4g4r3wxq`, Carlos Augusto, Estrutural, projeto 260018), **0** lançamentos confirmados de R$ 0,00, **0** pagamentos efetivados sem conta bancária. N3 (conta obrigatória) segue valendo só daqui para frente — não havia nada pra corrigir retroativamente.
 
 ---
 
