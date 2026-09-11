@@ -363,6 +363,36 @@ mais que filtro. F3 é o maior ganho de UX e depende só de F1.
 
 ---
 
+## 9. Backlog pós-smoke (achados do dono em tela, 2026-09-11)
+
+Smoke em navegador rodando (worktree, dados de dev) — nada quebrado, mas 5 pedidos novos e 1 item do checklist sem dado pra testar.
+
+### Checklist
+
+- **10-3 "Gerar lote com pagamento pendente fora de lote"** — não testável: dev não tem pendente fora de lote em nenhum mês além de 04/2026 (já lotado). Não é bug — falta dado, não falta código. Pendente até alguém liberar uma entrega nova sem gerar lote antes.
+
+### Achados novos (D26–D30)
+
+| # | Pedido | Risco / decisão |
+| --- | --- | --- |
+| **D26** | **Anexar comprovante ao pagar.** | **Menor do que parece — já existe.** `LancamentoAnexo` + `adicionarAnexoLancamento`/`removerAnexoLancamento` (`lancamentos/actions.ts`) já fazem isso, usados hoje em `lancamento-detalhe-dialog.tsx`. Todo "Pagar" cria/confirma um `Lancamento`, e o D24 já linka pra ele ("ver lançamento"). Falta só encurtar o caminho: upload dentro do próprio `EfetivarPagamentoDialog`, ou abrir o detalhe do lançamento direto após pagar. Sem schema novo. |
+| **D27** | **Pagamento confirmado não permite edição — trocar por edição com justificativa auditável.** | **Decisão do dono antes de codar.** Reverte um invariante documentado no §5 ("carga estrutural"): hoje `erroTransicao` bloqueia editar/cancelar fora de `pendente` de propósito, e a reserva anti-duplicidade (F5/F2) assume que "pago" é o fim da linha. Editar depois de pago mexe num lançamento que já pode estar **conciliado no OFX** ou **num mês de DRE fechado** — o dado teria dois "valor certo" (o pago de fato × o editado depois). Preciso saber: o que pode mudar (só valor? conta? data?), e o que fazer se o lançamento já estiver conciliado. |
+| **D28** | **Nome do arquivo exportado deve incluir os filtros aplicados.** | Baixo risco, sem decisão pendente — troca `Producao.xlsx` fixo por algo como `Producao-pago-2026-09.xlsx` (status + período, quando houver). Evita o Windows empilhar `Producao (1).xlsx`, `(2)`… de exports diferentes (foi exatamente o que apareceu no histórico de downloads do teste). |
+| **D29** | **Lote muito opaco — listar os pagamentos dentro dele.** | Baixo risco. Mesmo padrão já construído em F3 (`Collapsible` por grupo): expandir a linha do lote mostra as linhas de `PagamentoProjetista` que o compõem, igual ao grupo por projetista já faz. Sem action nova, só query (`listarFolhasProjetista` já sabe contar; falta trazer as linhas). |
+| **D30** | **Permitir excluir ou editar um lote.** | **Decisão do dono antes de codar.** "Editar" o quê — mover pagamento de um lote pra outro, mudar mês/ano do lote? "Excluir" um lote que já tem pagamento **pago** dentro — o pagamento volta a `pendente` solto (`folhaId: null`, como já acontece ao cancelar), ou o lote fica bloqueado pra exclusão enquanto tiver algo pago? Sem essa resposta não dá pra desenhar a action com segurança (mesma classe de decisão da N3/N5 originais). |
+
+### Fases propostas (não iniciadas — aguardando modelo + as 2 decisões acima)
+
+| Fase | Resolve | Modelo sugerido | Por quê |
+| --- | --- | --- | --- |
+| **F8** — Comprovante no fluxo de pagar | D26 | Sonnet 5 | Reusa capability existente, sem schema novo — encanamento de UI. |
+| **F9** — Nome do arquivo de export | D28 | Sonnet 5 (ou junto com F8) | Trivial, uma função pura + teste. |
+| **F10** — Lote expandido (lista os pagamentos) | D29 | Sonnet 5 | Reusa `Collapsible` da F3, query aditiva. |
+| **F11** — Editar pagamento confirmado c/ justificativa | D27 | **Opus 5** | Muda invariante financeiro documentado; schema de auditoria + regra de conciliação. **Só começa depois da decisão do dono.** |
+| **F12** — Excluir/editar lote | D30 | **Opus 5** | Ação destrutiva sobre dado financeiro fechado. **Só começa depois da decisão do dono.** |
+
+---
+
 ## 8. Branch
 
 A branch atual (`feat/guias-de-uso`) tem ~25 arquivos modificados não commitados de trabalho
