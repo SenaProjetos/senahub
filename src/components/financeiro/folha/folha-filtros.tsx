@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ExportarFolhaButton } from "./exportar-folha-button";
 
 const TODOS = "__todos";
 const PADRAO = "__padrao";
@@ -84,6 +85,12 @@ export function FolhaFiltros({
             Limpar filtros
           </Button>
         )}
+        {/* Exporta o MESMO recorte da tela (D10) — por isso mora aqui, dentro da barra de
+            filtros, e não solto na página. Sem gate próprio: `FolhaFiltros` só é renderizado
+            dentro da aba Pagamentos, atrás de `folha_pj` (page.tsx) — a rota de export repete
+            esse gate (+ piso de sócio) por conta própria. Mover este componente para uma tela
+            sem esse gate exigiria dar ao botão sua própria checagem de permissão. */}
+        <ExportarFolhaButton />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">

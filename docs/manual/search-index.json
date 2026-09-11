@@ -820,6 +820,36 @@
       ]
     },
     {
+      "titulo": "Produção (pagamento de projetistas)",
+      "path": "financeiro/producao.md",
+      "descricao": "Pagamento de projetistas PJ e freelancers pelas entregas validadas, em dois modos de leitura e com lotes mensais.",
+      "resumo": "Veja e pague os pagamentos de produção liberados por entrega, agrupados por projetista ou em tabela, com filtros, rastreabilidade completa e exportação.",
+      "tags": [
+        "produção",
+        "folha de projetistas",
+        "pagamento",
+        "projetista",
+        "freelancer",
+        "lote",
+        "pj"
+      ],
+      "palavrasChave": [
+        "produção",
+        "folha de projetistas",
+        "pagamento de projetista",
+        "projetista pj",
+        "freelancer",
+        "lote mensal",
+        "pagar selecionados",
+        "conta obrigatória"
+      ],
+      "sinonimos": [
+        "folha de projetistas",
+        "pagamento de produção",
+        "folha pj"
+      ]
+    },
+    {
       "titulo": "Ponto (registro de jornada)",
       "path": "rh-ponto/ponto.md",
       "descricao": "Autoatendimento de ponto — iniciar/encerrar sessão por projeto e ver o espelho do mês.",

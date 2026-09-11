@@ -2,7 +2,7 @@
 
 - **Data:** 2026-09-10
 - **Origem:** dono pediu revisão de UI/UX e de funções da tela.
-- **Estado:** **F0a a F6 entregues** — `tsc`, `eslint`, testes e `smoke:sync-pagamento` (19/19) verdes em todas. F7 pendente (Sonnet 5 / Haiku 4.5). Detalhe de cada fase (e dado de dev adicional) na própria seção.
+- **Estado:** **F0a a F7 entregues — plano completo.** `tsc`, `eslint`, testes e `smoke:sync-pagamento` (19/19) verdes em todas. Falta só o smoke em navegador com login real (todas as fases) e rodar `levantar-folha-projetistas.ts` em produção — ver checklist logo abaixo. Detalhe de cada fase (e dado de dev adicional) na própria seção.
   - **Falta smoke em navegador nas três fases**, com login de verdade — sem sessão o `middleware` redireciona pra `/login` antes de renderizar a página (confirmado: `next dev` compilou e serviu o 307 sem erro, mas isso não exercita `page.tsx`/`FolhaView`/`ProducaoAbas`). Criar sessão de teste (reset de senha do admin, ou usuário próprio) não é decisão para tomar sozinho num banco de dev compartilhado — fica para quem tem credencial.
   - **O banco de dev agora tem dado pra testar as duas abas de propósito:** 1 pagamento pendente zerado (F0a) e 1 lote real, 2026-04, com 3 pagamentos — 2 pagáveis + a linha zerada dentro dele. Isso deixa testável: aviso no topo (nas duas abas), badge "sem valor", botão "Corrigir valor", aba de lotes com conteúdo (antes mostrava "Nenhum lote gerado"), "Pagar lote" deixando a linha zerada de fora, e o 3º card de KPI "Cancelado" (ainda R$ 0 — nenhum pagamento cancelado em dev).
   - F0: conferir a troca de aba (`?aba=pagar` ↔ `?aba=lotes`) e que o título "Produção" aparece uma vez só, no topo.
@@ -293,11 +293,22 @@ Resolve **D21, D22**.
 - **`efetivarPagamentos(tx, …)`** — o laço reserva → confirma lançamento → grava `lancamentoId` está repetido em `pagarProjetista`, `pagarFolhaProjetista` e `pagarProjetistasSelecionados`. Extraí-lo tornaria a reserva testável por smoke. Não entrou porque seria a **segunda reescrita do caminho do dinheiro em dois commits**, sem nenhuma execução real por trás — a reserva das duas actions antigas acabou de nascer na F5, também sem rodar. Fazer depois do smoke em navegador da F5, numa fase própria.
 - **Smoke da reserva concorrente** — o laço vive dentro do handler da action (que exige sessão). Um script só testaria uma cópia do laço, não o código de verdade; depende da extração acima.
 
-### F7 — Exportação + manual
+### F7 — Exportação + manual ✅ entregue 2026-09-11 (Sonnet 5 / manual em Sonnet 5)
 
 1. `GET /api/financeiro/folha-projetistas/export` (CSV/XLSX), espelhando `contas/export`, respeitando os filtros ativos.
    **Reusar `lerFiltrosFolha` (`folha/service.ts`) e o mesmo `where` de `listarFolha` (`whereSemStatus` + `whereDoStatus`, `folha/queries.ts`) — não montar o filtro de novo.** Um `where` derivado de novo diverge da lista na primeira vez que um dos dois mudar, e o export passa a baixar linhas diferentes das que a tela mostra. Se `whereSemStatus` for privado, exportá-lo em vez de copiar.
 2. Atualizar `docs/manual/financeiro/README.md` e `docs/manual/search-index.json` — obrigatório pelo `CLAUDE.md`.
+
+**Como ficou (registro da entrega):**
+- **GET, não POST+ids.** `contas/export` recebe uma seleção de ids de uma lista já carregada inteira no cliente — a Produção não tem essa lista (é paginada/agrupada no servidor). A rota lê os MESMOS search params da URL da tela e reconstrói o recorte no servidor, como `auditoria/export` já faz. "Espelhar `contas/export`" ficou nas colunas de planilha/CSV e no par de formatos, não no verbo HTTP.
+- **`dadosFolhaExport` (`folha/queries.ts`)** é a única função nova de dados: mesmo `lerFiltrosFolha`/`whereSemStatus`/`whereDoStatus`/`ordenacao`/`comLancamentos` de `listarFolha`, sem paginar, teto de 5.000 linhas. Devolve `{itens, total, truncado}` — `truncado` vira uma linha de aviso no arquivo (CSV: última linha de texto; XLSX: linha em itálico) em vez de cortar em silêncio, o que seria o D11 com outro nome. Produção tem 15 linhas hoje — nunca dispara.
+- **Colunas:** projetista, tipo, projeto, disciplina, valor, liberado em, status, pago em, conta, forma, observação — os mesmos dados que `CelulaPagamento` (D24) já mostra na tela, agora em planilha.
+- **Botão `ExportarFolhaButton`** dentro de `FolhaFiltros` (não solto na página): usa `useSearchParams` só pra REPASSAR os filtros atuais pra URL da rota, nunca reconstrói o filtro no cliente. `<a href>`, não `fetch`+blob — é download simples.
+- **Gate da rota espelha o da página, não só `folha_pj`:** `page.tsx` usa `requirePermission`, que inclui o piso de sócio (`can(...) || ehSocio && canRole("supervisor", ...)`, `lib/session.ts:131`). A rota não pode chamar `requirePermission` direto (ele redireciona; uma API precisa devolver JSON), então repete a mesma disjunção. Sem isso, um sócio abrindo a tela levaria 403 no botão que está bem ali na barra de filtros — achado da revisão, corrigido antes do commit.
+- **Manual:** `docs/manual/financeiro/producao.md` (novo) + linha na tabela de `financeiro/README.md` (saiu de "ainda a documentar") + entrada em `search-index.json`. Cobre os dois modos de leitura, o aviso de R$ 0, conta obrigatória, exportação e a aba de lotes.
+
+**Verificação:** `tsc`, `eslint`, 99 testes do financeiro, `smoke:sync-pagamento` 19/19, JSON do manifesto validado (`JSON.parse`), e conferência independente contra o banco de dev: `dadosFolhaExport` sem filtro bate com o `total` de `listarFolha` (13), `status=pago` bate com `count` direto (8), `status=todos` bate com a soma geral (14), `truncado` é `false` com as 15 linhas do dev.
+- **Não executado:** a rota em si e o botão no navegador (exigem sessão) — só a função de dados foi exercitada, contra o banco real. Falta confirmar no navegador: o download baixa de fato (CSV abre certo no Excel, acentos ok — o BOM já é testado em outras rotas), e que o filtro na URL no momento do clique é o que sai no arquivo.
 
 ---
 
@@ -348,11 +359,12 @@ mais que filtro. F3 é o maior ganho de UX e depende só de F1.
 
 1. ~~Volume em produção~~ — **respondido: 15 pagamentos.** Paginação e índice deixam de ser prioridade (§1, F1.5).
 2. ~~Linhas de R$ 0,00 em produção~~ — **respondido: existem.** Virou a fase F0a e o achado D25.
-3. **Existe lançamento histórico sem conta?** — **sem resposta, e a própria falta de resposta é um achado (D24):** a tela não deixa chegar ao lançamento. Duas saídas, não excludentes:
-   - **Agora:** consulta somente-leitura em produção — pagamentos `pago` cujo `Lancamento` tem `contaId` nulo — rodada junto com o levantamento da F0a.4.
-   - **Permanente:** F2.0 mostra a conta em cada linha paga e linka o lançamento.
+3. **Existe lançamento histórico sem conta?** — **ainda sem resposta em produção**, mas deixou de ser um achado (D24): a tela agora responde. Três caminhos, todos prontos:
+   - **Consulta somente-leitura** — `scripts/levantar-folha-projetistas.ts` (F0a.4), a rodar em produção.
+   - **Na tela (F2)** — cada linha paga mostra a conta (ou "sem conta bancária") e linka o lançamento.
+   - **Exportação (F7)** — CSV/XLSX com a coluna Conta, pra filtrar/somar fora do sistema.
 
-   Até lá, **N3 vale só daqui para frente** — nenhum lançamento antigo é alterado.
+   N3 (conta obrigatória) vale só daqui para frente — nenhum lançamento antigo foi alterado; a resposta em produção continua pendente do dono.
 
 ---
 

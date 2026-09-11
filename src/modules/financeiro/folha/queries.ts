@@ -205,6 +205,34 @@ export async function listarFolhaAgrupada(sp: RawParams) {
 
 export type FolhaGrupo = Awaited<ReturnType<typeof listarFolhaAgrupada>>["grupos"][number];
 
+const LIMITE_EXPORT = 5_000;
+
+/**
+ * Todas as linhas do recorte filtrado (sem paginação) para exportação (F7) — MESMO `where`
+ * de `listarFolha` (base + status): reusa `lerFiltrosFolha`/`whereSemStatus`/`whereDoStatus`
+ * em vez de remontar o filtro, senão o arquivo baixado diverge da tela na primeira mudança
+ * de um dos dois. Ordena pelo mesmo `?sort=`/`?dir=` da tabela (F2), sem paginar. Teto de
+ * 5.000 linhas — não trava um export gigante sem querer (produção tem 15 hoje, ver §1).
+ */
+export async function dadosFolhaExport(sp: RawParams) {
+  const filtros = lerFiltrosFolha(sp);
+  const { sort, dir } = parseListParams(sp, { sortFields: SORT_PAGAMENTO });
+  const where: Prisma.PagamentoProjetistaWhereInput = { AND: [whereSemStatus(filtros), whereDoStatus(filtros.status)] };
+  const [itensBrutos, total] = await Promise.all([
+    prisma.pagamentoProjetista.findMany({
+      where,
+      orderBy: ordenacao(sort, dir),
+      take: LIMITE_EXPORT,
+      include: INCLUDE_PAGAMENTO,
+    }),
+    prisma.pagamentoProjetista.count({ where }),
+  ]);
+  const itens = await comLancamentos(itensBrutos);
+  // `truncado`: o chamador precisa saber que o arquivo NÃO é o recorte inteiro — um corte
+  // silencioso em 5.000 linhas é a mesma classe de erro do D11, com outro nome.
+  return { itens, total, truncado: total > LIMITE_EXPORT };
+}
+
 /** Opções dos filtros: só quem/o que tem pagamento — não a empresa inteira. */
 export async function opcoesFiltroFolha() {
   const [projetistas, projetos] = await Promise.all([
