@@ -1,20 +1,28 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Wallet, Pencil, Ban } from "lucide-react";
 import {
   pagarProjetista,
+  pagarProjetistasSelecionados,
   editarPagamentoProjetista,
   cancelarPagamentoProjetista,
 } from "@/modules/financeiro/folha/actions";
-import { temValorPagavel } from "@/modules/financeiro/folha/service";
-import { STATUS_PAGAMENTO_LABEL, STATUS_PAGAMENTO_TONE } from "@/modules/financeiro/folha/status";
+import { temValorPagavel, temFiltroAlemDoStatus, diasPendenteParado } from "@/modules/financeiro/folha/service";
+import {
+  STATUS_PAGAMENTO_LABEL,
+  STATUS_PAGAMENTO_TONE,
+  TIPO_PROFISSIONAL_LABEL,
+  type FiltrosFolha,
+} from "@/modules/financeiro/folha/status";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { FolhaItem } from "@/modules/financeiro/folha/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -43,12 +51,24 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SortableHead } from "@/components/ui/sortable-head";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
 import { pageCount } from "@/lib/list-params";
-import { brl } from "@/lib/utils";
+import { brl, cn, formatarData } from "@/lib/utils";
+import { FolhaFiltros } from "./folha-filtros";
+import { EfetivarPagamentoDialog, type DadosEfetivacao } from "./efetivar-pagamento-dialog";
 
 const NONE = "__none";
+const linkCls = "underline-offset-2 hover:underline";
+
+type Opcao = { id: string; nome: string };
+/** Quais links a pessoa pode seguir — cada destino tem seu próprio gate de permissão. */
+export type LinksFolha = { projeto: boolean; pessoa: boolean; lancamento: boolean };
+
+function pagavel(p: FolhaItem) {
+  return p.status === "pendente" && temValorPagavel(p.valor);
+}
 
 export function FolhaView({
   itens,
@@ -56,6 +76,10 @@ export function FolhaView({
   page,
   pageSize,
   resumo,
+  canceladosOcultos,
+  filtros,
+  opcoesFiltro,
+  links,
   contas,
   formas,
 }: {
@@ -64,49 +88,114 @@ export function FolhaView({
   page: number;
   pageSize: number;
   resumo: { pendente: number; pago: number; cancelado: number };
-  contas: { id: string; nome: string }[];
-  formas: { id: string; nome: string }[];
+  canceladosOcultos: number;
+  filtros: FiltrosFolha;
+  opcoesFiltro: { projetistas: { id: string; name: string }[]; projetos: { id: string; codigo: string; nome: string }[] };
+  links: LinksFolha;
+  contas: Opcao[];
+  formas: Opcao[];
 }) {
+  const router = useRouter();
   const [pagar, setPagar] = useState<FolhaItem | null>(null);
   const [editar, setEditar] = useState<FolhaItem | null>(null);
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const [loteAberto, setLoteAberto] = useState(false);
+  const [pagandoLote, startLote] = useTransition();
+
+  // A seleção vale só para o que está na tela: trocar de página ou de filtro descarta o
+  // resto, e uma linha que deixou de ser pagável (alguém pagou/zerou) sai sozinha.
+  const pagaveisDaPagina = useMemo(() => itens.filter(pagavel), [itens]);
+  const selecao = useMemo(() => pagaveisDaPagina.filter((p) => selecionados.has(p.id)), [pagaveisDaPagina, selecionados]);
+  const totalSelecao = selecao.reduce((s, p) => s + p.valor, 0);
+  const todosMarcados = pagaveisDaPagina.length > 0 && selecao.length === pagaveisDaPagina.length;
+
+  function alternar(id: string) {
+    setSelecionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function pagarSelecionados(d: DadosEfetivacao) {
+    startLote(async () => {
+      const r = await pagarProjetistasSelecionados({ ids: selecao.map((p) => p.id), ...d });
+      if (r.ok) {
+        const ignorados = r.data.ignorados
+          ? ` ${r.data.ignorados} ignorado(s) — já pagos, cancelados ou sem valor.`
+          : "";
+        toast.success(`${r.data.pagos} pagamento(s) efetivado(s) — ${brl(r.data.total)} no caixa.${ignorados}`);
+        setLoteAberto(false);
+        setSelecionados(new Set());
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  const filtrado = temFiltroAlemDoStatus(filtros);
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">
-              A pagar
-            </CardDescription>
-            <CardTitle className="text-2xl text-warning">{brl(resumo.pendente)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">
-              Pago
-            </CardDescription>
-            <CardTitle className="text-2xl text-success">{brl(resumo.pago)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">
-              Cancelado
-            </CardDescription>
-            <CardTitle className="text-2xl text-muted-foreground">{brl(resumo.cancelado)}</CardTitle>
-          </CardHeader>
-        </Card>
+      <FolhaFiltros
+        filtros={filtros}
+        projetistas={opcoesFiltro.projetistas}
+        projetos={opcoesFiltro.projetos}
+        canceladosOcultos={canceladosOcultos}
+      />
+
+      <div className="space-y-1.5">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Kpi rotulo="A pagar" valor={resumo.pendente} className="text-warning" />
+          <Kpi rotulo="Pago" valor={resumo.pago} className="text-success" />
+          <Kpi rotulo="Cancelado" valor={resumo.cancelado} className="text-muted-foreground" />
+        </div>
+        {/* Os totais ignoram o filtro de status de propósito — ver `listarFolha`. */}
+        <p className="text-xs text-muted-foreground">
+          {filtrado ? "Totais do filtro aplicado" : "Totais gerais"}, somando todos os status — mesmo os que a tabela não está mostrando.
+        </p>
       </div>
 
-      <div className="rounded-sm border">
+      {selecao.length > 0 && (
+        <div
+          role="region"
+          aria-label="Pagamentos selecionados"
+          className="flex flex-wrap items-center gap-3 rounded-sm border border-primary/30 bg-primary/5 px-3 py-2 text-sm"
+        >
+          <span>
+            <strong>{selecao.length}</strong> selecionado(s) · <span className="font-mono">{brl(totalSelecao)}</span>
+          </span>
+          <Button size="sm" onClick={() => setLoteAberto(true)}>
+            <Wallet className="size-3.5" /> Pagar selecionados
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelecionados(new Set())}>
+            Limpar seleção
+          </Button>
+        </div>
+      )}
+
+      <div className="overflow-x-auto rounded-sm border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Projetista</TableHead>
+              <TableHead className="w-8">
+                <Checkbox
+                  checked={todosMarcados}
+                  indeterminate={selecao.length > 0 && !todosMarcados}
+                  disabled={pagaveisDaPagina.length === 0}
+                  onCheckedChange={() =>
+                    setSelecionados(todosMarcados ? new Set() : new Set(pagaveisDaPagina.map((p) => p.id)))
+                  }
+                  aria-label="Selecionar todos os pagáveis desta página"
+                />
+              </TableHead>
+              <SortableHead field="projetista">Projetista</SortableHead>
               <TableHead>Disciplina / Projeto</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead className="text-right">Valor</TableHead>
+              <SortableHead field="valor" className="text-right">
+                Valor
+              </SortableHead>
+              <SortableHead field="liberadoEm">Liberado em</SortableHead>
+              <TableHead>Pagamento</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-24" />
             </TableRow>
@@ -114,62 +203,109 @@ export function FolhaView({
           <TableBody>
             {itens.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6}>
-                  <EmptyState icon={Wallet} title="Nenhum pagamento." />
+                <TableCell colSpan={8}>
+                  <EmptyState
+                    icon={Wallet}
+                    title={filtrado || filtros.status ? "Nenhum pagamento neste filtro." : "Nenhum pagamento."}
+                  />
                 </TableCell>
               </TableRow>
             ) : (
-              itens.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell className="font-medium">{p.projetista.name}</TableCell>
-                  <TableCell className="text-sm">
-                    {p.disciplina.disciplinaTextoLegado}
-                    <span className="block text-xs text-muted-foreground">
-                      {formatarCodigo(p.disciplina.projeto.codigo)} · {p.disciplina.projeto.nome}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{p.tipoProfissional}</TableCell>
-                  <TableCell className="text-right font-mono">{brl(Number(p.valor))}</TableCell>
-                  <TableCell>
-                    {p.status === "pendente" && !temValorPagavel(p.valor) ? (
-                      <StatusBadge tone="danger">Sem valor</StatusBadge>
-                    ) : (
-                      <StatusBadge tone={STATUS_PAGAMENTO_TONE[p.status] ?? "neutral"}>
-                        {STATUS_PAGAMENTO_LABEL[p.status] ?? p.status}
-                      </StatusBadge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {p.status === "pendente" && (
-                      <div className="flex flex-wrap gap-1">
-                        {temValorPagavel(p.valor) ? (
-                          <>
-                            <Button size="sm" variant="outline" onClick={() => setPagar(p)}>
-                              <Wallet className="size-3.5" /> Pagar
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="px-2"
-                              title="Editar valor"
-                              aria-label="Editar valor"
-                              onClick={() => setEditar(p)}
-                            >
-                              <Pencil className="size-3.5" />
-                            </Button>
-                          </>
+              itens.map((p) => {
+                const parado = p.status === "pendente" ? diasPendenteParado(p.liberadoEm) : null;
+                return (
+                  <TableRow key={p.id} data-state={selecionados.has(p.id) ? "selected" : undefined}>
+                    <TableCell>
+                      {pagavel(p) && (
+                        <Checkbox
+                          checked={selecionados.has(p.id)}
+                          onCheckedChange={() => alternar(p.id)}
+                          aria-label={`Selecionar pagamento de ${p.projetista.name}`}
+                        />
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {links.pessoa ? (
+                        <Link href={`/rh/pessoas/${p.projetistaId}`} className={cn("font-medium", linkCls)}>
+                          {p.projetista.name}
+                        </Link>
+                      ) : (
+                        <span className="font-medium">{p.projetista.name}</span>
+                      )}
+                      <span className="block text-xs text-muted-foreground">
+                        {TIPO_PROFISSIONAL_LABEL[p.tipoProfissional] ?? p.tipoProfissional}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {p.disciplina.disciplinaTextoLegado}
+                      <span className="block text-xs text-muted-foreground">
+                        {links.projeto ? (
+                          <Link href={`/projetos/${p.disciplina.projetoId}/disciplinas`} className={linkCls}>
+                            {formatarCodigo(p.disciplina.projeto.codigo)} · {p.disciplina.projeto.nome}
+                          </Link>
                         ) : (
-                          // Pagar R$ 0,00 é recusado pela action — a saída é corrigir o valor.
-                          <Button size="sm" variant="outline" onClick={() => setEditar(p)}>
-                            <Pencil className="size-3.5" /> Corrigir valor
-                          </Button>
+                          <>
+                            {formatarCodigo(p.disciplina.projeto.codigo)} · {p.disciplina.projeto.nome}
+                          </>
                         )}
-                        <CancelarPagamentoButton pagamento={p} />
-                      </div>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
+                      </span>
+                      {p.observacao && (
+                        <span className="mt-0.5 line-clamp-2 block text-xs italic text-muted-foreground" title={p.observacao}>
+                          {p.observacao}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">{brl(p.valor)}</TableCell>
+                    <TableCell className="text-sm">
+                      {formatarData(p.liberadoEm)}
+                      {parado != null && (
+                        <span className="block text-xs text-warning">parado há {parado} dias</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <CelulaPagamento p={p} linkLancamento={links.lancamento} />
+                    </TableCell>
+                    <TableCell>
+                      {p.status === "pendente" && !temValorPagavel(p.valor) ? (
+                        <StatusBadge tone="danger">Sem valor</StatusBadge>
+                      ) : (
+                        <StatusBadge tone={STATUS_PAGAMENTO_TONE[p.status] ?? "neutral"}>
+                          {STATUS_PAGAMENTO_LABEL[p.status] ?? p.status}
+                        </StatusBadge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {p.status === "pendente" && (
+                        <div className="flex flex-wrap gap-1">
+                          {temValorPagavel(p.valor) ? (
+                            <>
+                              <Button size="sm" variant="outline" onClick={() => setPagar(p)}>
+                                <Wallet className="size-3.5" /> Pagar
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="px-2"
+                                title="Editar valor e observação"
+                                aria-label="Editar valor e observação"
+                                onClick={() => setEditar(p)}
+                              >
+                                <Pencil className="size-3.5" />
+                              </Button>
+                            </>
+                          ) : (
+                            // Pagar R$ 0,00 é recusado pela action — a saída é corrigir o valor.
+                            <Button size="sm" variant="outline" onClick={() => setEditar(p)}>
+                              <Pencil className="size-3.5" /> Corrigir valor
+                            </Button>
+                          )}
+                          <CancelarPagamentoButton pagamento={p} />
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
@@ -179,8 +315,70 @@ export function FolhaView({
 
       <PagarDialog pagamento={pagar} onClose={() => setPagar(null)} contas={contas} formas={formas} />
       <EditarValorDialog pagamento={editar} onClose={() => setEditar(null)} />
+      <EfetivarPagamentoDialog
+        open={loteAberto}
+        titulo="Pagar selecionados"
+        descricao={`${selecao.length} pagamento(s) de ${new Set(selecao.map((p) => p.projetistaId)).size} projetista(s) — ${brl(totalSelecao)}`}
+        contas={contas}
+        formas={formas}
+        contaObrigatoria
+        confirmarLabel="Pagar selecionados"
+        pending={pagandoLote}
+        onConfirmar={pagarSelecionados}
+        onClose={() => setLoteAberto(false)}
+      />
     </div>
   );
+}
+
+function Kpi({ rotulo, valor, className }: { rotulo: string; valor: number; className: string }) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">{rotulo}</CardDescription>
+        <CardTitle className={cn("text-2xl", className)}>{brl(valor)}</CardTitle>
+      </CardHeader>
+    </Card>
+  );
+}
+
+/**
+ * D24: de onde saiu o dinheiro. Pago → data, conta e forma do lançamento, com link para
+ * ele no livro caixa. Pendente → se já existe lançamento previsto (linhas zeradas não têm).
+ */
+function CelulaPagamento({ p, linkLancamento }: { p: FolhaItem; linkLancamento: boolean }) {
+  const l = p.lancamento;
+  if (p.status === "pago") {
+    return (
+      <div className="text-xs">
+        <span className="text-sm">{formatarData(p.pagoEm)}</span>
+        {!l ? (
+          <span className="block text-warning">sem lançamento</span>
+        ) : (
+          <>
+            <span className={cn("block", l.conta ? "text-muted-foreground" : "text-warning")}>
+              {l.conta ?? "sem conta bancária"}
+              {l.forma ? ` · ${l.forma}` : ""}
+            </span>
+            {linkLancamento && (
+              <Link href={`/financeiro/lancamentos?lancamento=${l.id}`} className={cn("text-foreground", linkCls)}>
+                ver lançamento
+              </Link>
+            )}
+          </>
+        )}
+      </div>
+    );
+  }
+  if (p.status === "pendente") {
+    const previsto = l && l.status !== "cancelado";
+    return (
+      <span className="text-xs text-muted-foreground">
+        {previsto ? "lançamento previsto" : "sem lançamento previsto"}
+      </span>
+    );
+  }
+  return <span className="text-xs text-muted-foreground">—</span>;
 }
 
 /**
@@ -210,27 +408,37 @@ function CancelarPagamentoButton({ pagamento }: { pagamento: FolhaItem }) {
   }
 
   return (
-    <Button size="sm" variant="ghost" className="px-2 text-destructive" title="Cancelar pagamento" onClick={cancelar} disabled={pending}>
+    <Button
+      size="sm"
+      variant="ghost"
+      className="px-2 text-destructive"
+      title="Cancelar pagamento"
+      aria-label="Cancelar pagamento"
+      onClick={cancelar}
+      disabled={pending}
+    >
       <Ban className="size-3.5" />
     </Button>
   );
 }
 
 /**
- * Corrige o valor de um pagamento pendente — a rota de conserto para as linhas de
- * R$ 0,00 que já existem em produção (F3 sincroniza a partir da disciplina; esta é a
- * via direta, para quando a disciplina já não existe mais editável ou o ajuste é só
- * no pagamento). Zerar não é permitido aqui — use "Cancelar".
+ * Corrige o valor (e a observação) de um pagamento pendente — a rota de conserto para as
+ * linhas de R$ 0,00 que já existem em produção. Zerar não é permitido aqui — use "Cancelar".
  */
 function EditarValorDialog({ pagamento, onClose }: { pagamento: FolhaItem | null; onClose: () => void }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [valor, setValor] = useState<number | null>(null);
+  const [observacao, setObservacao] = useState("");
 
-  // Aberto imperativamente (botão de lápis na linha, não um DialogTrigger interno) —
-  // `onOpenChange` só dispara ao FECHAR, então o valor precisa ser sincronizado aqui.
+  // Aberto imperativamente (botão na linha, não um DialogTrigger interno) — `onOpenChange`
+  // só dispara ao FECHAR, então os campos precisam ser sincronizados aqui.
   useEffect(() => {
-    if (pagamento) setValor(Number(pagamento.valor));
+    if (pagamento) {
+      setValor(Number(pagamento.valor));
+      setObservacao(pagamento.observacao ?? "");
+    }
   }, [pagamento]);
 
   function salvar() {
@@ -241,9 +449,9 @@ function EditarValorDialog({ pagamento, onClose }: { pagamento: FolhaItem | null
       return;
     }
     start(async () => {
-      const r = await editarPagamentoProjetista({ id: pagamento.id, valor: num });
+      const r = await editarPagamentoProjetista({ id: pagamento.id, valor: num, observacao });
       if (r.ok) {
-        toast.success("Valor atualizado.");
+        toast.success("Pagamento atualizado.");
         onClose();
         router.refresh();
       } else toast.error(r.error);
@@ -254,12 +462,23 @@ function EditarValorDialog({ pagamento, onClose }: { pagamento: FolhaItem | null
     <Dialog open={!!pagamento} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Editar valor do pagamento</DialogTitle>
+          <DialogTitle>Editar pagamento</DialogTitle>
           <DialogDescription>{pagamento?.projetista.name} — {pagamento?.disciplina.disciplinaTextoLegado}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-1.5">
-          <Label htmlFor="valor-pagamento">Valor (R$)</Label>
-          <InputMoeda id="valor-pagamento" value={valor} onChange={setValor} autoFocus />
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="valor-pagamento">Valor (R$)</Label>
+            <InputMoeda id="valor-pagamento" value={valor} onChange={setValor} autoFocus />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="observacao-pagamento">Observação</Label>
+            <Input
+              id="observacao-pagamento"
+              value={observacao}
+              maxLength={500}
+              onChange={(e) => setObservacao(e.target.value)}
+            />
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={pending}>
@@ -282,8 +501,8 @@ function PagarDialog({
 }: {
   pagamento: FolhaItem | null;
   onClose: () => void;
-  contas: { id: string; nome: string }[];
-  formas: { id: string; nome: string }[];
+  contas: Opcao[];
+  formas: Opcao[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();

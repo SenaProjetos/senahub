@@ -2,7 +2,7 @@
 
 - **Data:** 2026-09-10
 - **Origem:** dono pediu revisão de UI/UX e de funções da tela.
-- **Estado:** **F0a, F0 e F1 entregues** — `tsc`, `eslint`, 64 testes do financeiro e `smoke:sync-pagamento` (19/19) verdes nas três. F2–F7 pendentes.
+- **Estado:** **F0a, F0, F1 e F2 entregues** — `tsc`, `eslint`, testes do financeiro (77 após a F2) e `smoke:sync-pagamento` (19/19) verdes em todas. F3–F7 pendentes. Detalhe da F2 (e dado de dev adicional) na própria seção F2.
   - **Falta smoke em navegador nas três fases**, com login de verdade — sem sessão o `middleware` redireciona pra `/login` antes de renderizar a página (confirmado: `next dev` compilou e serviu o 307 sem erro, mas isso não exercita `page.tsx`/`FolhaView`/`ProducaoAbas`). Criar sessão de teste (reset de senha do admin, ou usuário próprio) não é decisão para tomar sozinho num banco de dev compartilhado — fica para quem tem credencial.
   - **O banco de dev agora tem dado pra testar as duas abas de propósito:** 1 pagamento pendente zerado (F0a) e 1 lote real, 2026-04, com 3 pagamentos — 2 pagáveis + a linha zerada dentro dele. Isso deixa testável: aviso no topo (nas duas abas), badge "sem valor", botão "Corrigir valor", aba de lotes com conteúdo (antes mostrava "Nenhum lote gerado"), "Pagar lote" deixando a linha zerada de fora, e o 3º card de KPI "Cancelado" (ainda R$ 0 — nenhum pagamento cancelado em dev).
   - F0: conferir a troca de aba (`?aba=pagar` ↔ `?aba=lotes`) e que o título "Produção" aparece uma vez só, no topo.
@@ -170,9 +170,25 @@ Resolve **D11, D12, D13, D14**. **Nenhuma fase seguinte pode paginar antes desta
 6. **Pagination adiantada da F2** em `FolhaView` (a tabela de pagamentos) — o item formal "zero paginação" (D5) está listado como F2, mas mudar `listarFolha` pra `skip`/`take` sem nenhum controle de página na tela teria truncado a lista em 12 linhas sem forma de ver o resto. Reusa `<Pagination>` (mesmo componente que já existia em `FolhaLotesSection`). **F2 não tem mais esse item** — ver abaixo.
 7. `FolhaLotesSection` parou de fatiar `folhas` no cliente (`useSearchParams` + `.slice()`) — a página já vem pronta do servidor; o componente só exibe `folhas`/`total`/`page`/`pageSize` recebidos como prop. Tipo local `Folha` duplicado foi trocado pelo `FolhaLoteItem` exportado de `folha-lote/queries.ts`.
 
-### F2 — Tabela "por pagamento"
+### F2 — Tabela "por pagamento" ✅ entregue 2026-09-10 (Opus 5)
 
 Resolve **D4, D6, D7, D8, D9, D24** (D5 — paginação — já saiu na F1, ver item 6 acima).
+
+**Como ficou (registro da entrega):**
+- **`?status=` mudou de significado.** Na F1, ausente = sem filtro. Agora ausente = **padrão, esconde cancelados**; `?status=todos` mostra tudo. Link salvo antes da F2 passa a esconder cancelados.
+- **Dois `where` em `listarFolha`, de propósito:** a tabela (e `total`/paginação) respeita o status; os **cards de totais não** — são o desdobramento por status do recorte filtrado. Senão o card "Cancelado" ficaria sempre zerado no padrão e não haveria de onde contar "N cancelados ocultos". A tela diz isso numa linha embaixo dos cards; o comentário na query diz para não unificar.
+- **Links condicionados à permissão de cada destino** (`projetos:ver`, `rh:cadastro`, `financeiro:ver`), calculados em `page.tsx` — quem só tem `folha_pj` vê texto, não um link que cai em "sem permissão". Pessoa → `/rh/pessoas/[userId]`; projeto → `/projetos/[id]/disciplinas` (a aba não aceita foco numa disciplina — o link cai na lista).
+- **Lançamento:** `/financeiro/lancamentos?lancamento=<id>` abre o detalhe que já existia no livro caixa (mudança mínima em `LancamentosView`: prop `defaultDetalheId` semeando o `useState`). Não há FK entre `PagamentoProjetista` e `Lancamento` — `listarFolha` faz uma 2ª consulta pelos dois vínculos soltos (`lancamentoId` e `pagamentoProjetistaId`), igual a `confirmarDespesaProjetista`.
+- **`pagarProjetistasSelecionados`** (nova): `folha_pj`, conta obrigatória no schema desde o nascimento, **relê tudo dentro da transação** (só `pendente` + valor > 0 — a guarda da F0a não ganha porta lateral) e **reserva cada linha com `updateMany where status=pendente` antes de gerar o lançamento** (envio duplicado concorrente pula em vez de pagar de novo). Uma notificação por projetista. Fallback de data = `inicioDoDiaUtc()`, não `new Date()` (ver bug abaixo).
+- **`observacao`** editável no dialog de edição e entrou no `capturarAntes` (o diff de auditoria mostra o campo).
+- **`EfetivarPagamentoDialog`** nasceu aqui (só o "Pagar selecionados" usa); a F5 migra os outros dois.
+- Regras puras novas em `folha/service.ts`, com teste: `lerFiltrosFolha`, `whereDoStatus`, `temFiltroAlemDoStatus`, `diasPendenteParado` (limite em `DIAS_PENDENTE_PARADO = 30`, via `lib/data.ts`).
+
+**Verificação:** `tsc`, `eslint`, 77 testes do financeiro, `smoke:sync-pagamento` 19/19, e **conferência independente contra o banco de dev** (todas as linhas buscadas uma vez e cada filtro refeito em JS, sem reusar a query): padrão/todos/pago, cancelados ocultos, totais ignorando status, projetista, projeto, período, busca, ordenação, paginação sem sobreposição, opções de filtro — 19/19.
+- **Não executado:** a action `pagarProjetistasSelecionados` em si (exige sessão). A releitura e a reserva estão no código e na revisão; o smoke em navegador cobre.
+- **Achado no dev:** os 7 "pagos" do `seed:demo` **não têm lançamento nenhum** (nem por vínculo, nem entre excluídos) — o seed cria `status: "pago"` sem passar pelo fluxo real. Na tela eles aparecem como "sem lançamento" (correto). Para exercitar o caminho principal da coluna, **1 pendente de dev foi pago pela mesma transação de `pagarProjetista`**, numa conta real: `listarFolha` achou o lançamento, conta e status confirmados.
+- **Dado de dev deixado para o smoke:** 1 pendente zerado (F0a), lote 2026-04 com a linha zerada (F1), **1 cancelado** (`cmr74tx...`, R$ 4.000 — o "N cancelados ocultos" tem o que mostrar) e **1 pago com lançamento real** (`cmr5skcyt...`, R$ 10.000).
+- **Bug pré-existente encontrado (vai para a F5):** `PagarDialog` e `PagarLoteDialog` preenchem a data padrão com `new Date().toISOString().slice(0,10)` — depois das 21h em BRT isso é **amanhã**, e o lançamento sai datado errado. O fallback `new Date()` das duas actions antigas tem o mesmo defeito. O `EfetivarPagamentoDialog` já usa o dia local; migrar os dois dialogs na F5 resolve a parte da tela.
 
 0. **Tudo clicável (D24) — o item de maior valor desta fase:**
    - projeto → `/projetos/[id]`; disciplina → aba da disciplina no projeto; projetista → ficha da pessoa.
@@ -209,7 +225,7 @@ Resolve **D16, D17, D18** + paginação server-side.
 
 Resolve **D15, D19, D20, D23** + **N3**.
 
-1. Extrair **`<EfetivarPagamentoDialog>`** compartilhado (conta / forma / data) usado pelo pagamento único, pelo lote e pelo "pagar selecionados".
+1. **Migrar os dois dialogs restantes** (pagamento único em `folha-view.tsx`, lote em `folha-lotes-section.tsx`) para o **`<EfetivarPagamentoDialog>`** que já nasceu na F2 (`components/financeiro/folha/efetivar-pagamento-dialog.tsx`, usado hoje só pelo "Pagar selecionados", com `contaObrigatoria`). Não extrair de novo.
 2. **Conta obrigatória, forma opcional** (N3): `contaId: z.string().min(1)` em `pagarProjetista` e `pagarFolhaProjetista`. **Verificar antes se existe lançamento histórico sem conta** — se existir, a mudança vale só para o caminho novo, sem retroação.
 3. **Esta tela vira o caso de referência da opção A da spec de formulários:** consumir `fieldErrors` do `ActionResult`, marcar `aria-invalid` e renderizar a mensagem sob o campo. O dado e o estilo já existem; só falta ligar o fio.
 4. `MESES` sai das duas cópias para um único lugar (`lib/utils.ts` ou `lib/data.ts`).

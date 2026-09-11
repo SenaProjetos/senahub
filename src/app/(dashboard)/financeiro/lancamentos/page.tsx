@@ -10,10 +10,10 @@ export const metadata: Metadata = { title: "Lançamentos de caixa" };
 export default async function LancamentosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ projetoId?: string; novo?: string }>;
+  searchParams: Promise<{ projetoId?: string; novo?: string; lancamento?: string }>;
 }) {
   await requirePermission("financeiro", "ver");
-  const { projetoId, novo } = await searchParams;
+  const { projetoId, novo, lancamento } = await searchParams;
   const [dados, opcoes, exclusao, modelosDoc] = await Promise.all([
     dadosLivroCaixa(),
     opcoesLancamento(),
@@ -29,6 +29,7 @@ export default async function LancamentosPage({
       modelosDoc={modelosDoc}
       defaultProjetoId={projetoId}
       defaultFormOpen={novo === "1"}
+      defaultDetalheId={lancamento}
     />
   );
 }

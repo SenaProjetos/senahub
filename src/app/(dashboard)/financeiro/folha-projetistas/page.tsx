@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { TriangleAlert } from "lucide-react";
 import { requirePermission } from "@/lib/session";
-import { listarFolha, contarPendentesSemValor } from "@/modules/financeiro/folha/queries";
+import { can } from "@/lib/permissions";
+import { listarFolha, contarPendentesSemValor, opcoesFiltroFolha } from "@/modules/financeiro/folha/queries";
 import { listarFolhasProjetista } from "@/modules/financeiro/folha-lote/queries";
 import { opcoesLancamento } from "@/modules/financeiro/lancamentos/queries";
 import { FolhaView } from "@/components/financeiro/folha/folha-view";
@@ -18,7 +19,7 @@ export default async function FolhaProjetistasPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requirePermission("financeiro", "folha_pj");
+  const user = await requirePermission("financeiro", "folha_pj");
   const sp = await searchParams;
   const abaRaw = sp.aba;
   const aba: Aba = (ABAS as readonly string[]).includes(typeof abaRaw === "string" ? abaRaw : "")
@@ -32,19 +33,29 @@ export default async function FolhaProjetistasPage({
   let conteudo: React.ReactNode;
   let semValor: number;
   if (aba === "pagar") {
-    const [{ itens, total, page, pageSize, resumo }, opcoes, sv] = await Promise.all([
+    const [lista, opcoes, opcoesFiltro, sv, podeProjeto, podePessoa, podeLancamento] = await Promise.all([
       listarFolha(sp),
       opcoesLancamento(),
+      opcoesFiltroFolha(),
       contarPendentesSemValor(),
+      // Cada link da tabela leva a uma tela com gate próprio — quem só tem `folha_pj`
+      // não ganha um link que cai em "sem permissão".
+      can(user, "projetos", "ver"),
+      can(user, "rh", "cadastro"),
+      can(user, "financeiro", "ver"),
     ]);
     semValor = sv;
     conteudo = (
       <FolhaView
-        itens={itens}
-        total={total}
-        page={page}
-        pageSize={pageSize}
-        resumo={resumo}
+        itens={lista.itens}
+        total={lista.total}
+        page={lista.page}
+        pageSize={lista.pageSize}
+        resumo={lista.resumo}
+        canceladosOcultos={lista.canceladosOcultos}
+        filtros={lista.filtros}
+        opcoesFiltro={opcoesFiltro}
+        links={{ projeto: podeProjeto, pessoa: podePessoa, lancamento: podeLancamento }}
         contas={opcoes.contas}
         formas={opcoes.formas}
       />

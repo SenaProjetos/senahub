@@ -3,8 +3,56 @@
  * Compartilhadas pelas actions de pagamento individual e de lote.
  */
 
+import { diferencaEmDias, inicioDoDiaLocal } from "@/lib/data";
+import { DIAS_PENDENTE_PARADO, type FiltroStatus, type FiltrosFolha } from "./status";
+
 /** Decimal do Prisma ou número já serializado — `Number()` resolve os dois. */
 type Valor = number | { toString(): string };
+
+type RawParams = Record<string, string | string[] | undefined>;
+
+const FILTROS_STATUS: readonly FiltroStatus[] = ["pendente", "pago", "cancelado", "todos"];
+const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+function primeiro(v: string | string[] | undefined): string {
+  return (Array.isArray(v) ? v[0] : v)?.trim() ?? "";
+}
+
+/** Lê e valida os filtros da aba Pagamentos. Valor inválido na URL cai no padrão, nunca quebra. */
+export function lerFiltrosFolha(sp: RawParams): FiltrosFolha {
+  const status = primeiro(sp.status);
+  const de = primeiro(sp.de);
+  const ate = primeiro(sp.ate);
+  return {
+    status: (FILTROS_STATUS as readonly string[]).includes(status) ? (status as FiltroStatus) : null,
+    projetistaId: primeiro(sp.projetistaId),
+    projetoId: primeiro(sp.projetoId),
+    de: DATA_ISO.test(de) ? de : "",
+    ate: DATA_ISO.test(ate) ? ate : "",
+    q: primeiro(sp.q),
+  };
+}
+
+/** Fragmento de `where` do status. Padrão (`null`) esconde cancelados; `todos` não filtra. */
+export function whereDoStatus(status: FiltroStatus | null): { status?: "pendente" | "pago" | "cancelado" | { not: "cancelado" } } {
+  if (status === null) return { status: { not: "cancelado" } };
+  if (status === "todos") return {};
+  return { status };
+}
+
+/** Algum filtro além do status? (decide o texto do vazio e a legenda dos totais) */
+export function temFiltroAlemDoStatus(f: FiltrosFolha): boolean {
+  return Boolean(f.projetistaId || f.projetoId || f.de || f.ate || f.q);
+}
+
+/**
+ * Dias que um pagamento pendente está parado desde a liberação, ou `null` se ainda não
+ * passou do limite (`DIAS_PENDENTE_PARADO`). Passa pela regra única de `lib/data.ts`.
+ */
+export function diasPendenteParado(liberadoEm: Date | string, agora: Date = new Date()): number | null {
+  const dias = diferencaEmDias(liberadoEm, inicioDoDiaLocal(agora));
+  return dias != null && dias >= DIAS_PENDENTE_PARADO ? dias : null;
+}
 
 export const MSG_PAGAMENTO_SEM_VALOR =
   "Este pagamento está sem valor — corrija o valor antes de pagar.";
