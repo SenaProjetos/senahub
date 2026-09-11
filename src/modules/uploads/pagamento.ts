@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { ActionError } from "@/lib/action-error";
 import { criarDespesaProjetistaPrevista } from "@/modules/financeiro/custo/lancamento-custo";
+import { recalcularTotalFolha } from "@/modules/financeiro/folha-lote/service";
 import { ratearPagamentoProjetista } from "@/modules/uploads/rateio";
 import {
   planejarSincronizacao,
@@ -249,13 +250,7 @@ export async function sincronizarPagamentosDisciplina(
     await tx.pagamentoProjetista.update({ where: { id: pag.id }, data: { lancamentoId } });
   }
 
-  for (const folhaId of lotesTocados) {
-    const agg = await tx.pagamentoProjetista.aggregate({
-      where: { folhaId, status: { not: "cancelado" } },
-      _sum: { valor: true },
-    });
-    await tx.folhaProjetista.update({ where: { id: folhaId }, data: { total: agg._sum.valor ?? 0 } });
-  }
+  for (const folhaId of lotesTocados) await recalcularTotalFolha(tx, folhaId);
 
   return {
     atualizados: plano.atualizar.length,

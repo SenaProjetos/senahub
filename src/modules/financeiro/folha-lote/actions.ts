@@ -8,6 +8,7 @@ import { notificarMuitos } from "@/lib/notificar";
 import { confirmarDespesaProjetista } from "@/modules/financeiro/custo/lancamento-custo";
 import { MSG_LOTE_SEM_VALOR, quandoDoPagamento, separarPagaveis } from "@/modules/financeiro/folha/service";
 import { contaPagamento, dataPagamento, formaPagamento } from "@/modules/financeiro/folha/schemas";
+import { recalcularTotalFolha } from "./service";
 
 // Recorte fino da F4 (2026-09-02): era `permissao: "gerir"`, o mesmo interruptor de lançar
 // boleto. Semeado para quem tinha `gerir`, então ninguém perdeu nada — passa a poder ser
@@ -45,13 +46,12 @@ export const gerarFolhaDoMes = defineAction(
       const existente = await tx.folhaProjetista.findUnique({ where: { ano_mes: { ano, mes } } });
       const f = existente ?? (await tx.folhaProjetista.create({ data: { ano, mes, status: "fechada", fechadaEm: new Date() } }));
       await tx.pagamentoProjetista.updateMany({ where: { id: { in: pend.map((p) => p.id) } }, data: { folhaId: f.id } });
-      const agg = await tx.pagamentoProjetista.aggregate({
-        where: { folhaId: f.id, status: { not: "cancelado" } },
-        _sum: { valor: true },
-      });
+      await recalcularTotalFolha(tx, f.id);
+      // Mesmo `tx`: total, status e `fechadaEm` entram juntos. Lote que já existia mantém o
+      // `fechadaEm` original — só um lote novo ganha a data de agora.
       return tx.folhaProjetista.update({
         where: { id: f.id },
-        data: { total: agg._sum.valor ?? 0, status: "fechada", fechadaEm: existente?.fechadaEm ?? new Date() },
+        data: { status: "fechada", fechadaEm: existente?.fechadaEm ?? new Date() },
       });
     });
     revalidatePath("/financeiro/folha-projetistas");

@@ -4,12 +4,13 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@/generated/prisma/client";
 import { notificar, notificarMuitos } from "@/lib/notificar";
 import { confirmarDespesaProjetista, criarDespesaProjetistaPrevista } from "@/modules/financeiro/custo/lancamento-custo";
 import { sincronizarValorDisciplina } from "@/modules/uploads/pagamento";
+import { recalcularTotalFolha } from "@/modules/financeiro/folha-lote/service";
 import {
   MSG_PAGAMENTO_SEM_VALOR,
+  erroTransicao,
   quandoDoPagamento,
   separarPagaveis,
   temValorPagavel,
@@ -49,13 +50,8 @@ export const pagarProjetista = defineAction(
       },
     });
     if (!pag) throw new ActionError("Pagamento não encontrado.");
-    // `pendente` explícito, não `!= pago`: antes da F5 um cancelado (tela aberta de antes do
-    // cancelamento) passava por aqui e virava pago com lançamento novo.
-    if (pag.status !== "pendente") {
-      throw new ActionError(
-        pag.status === "pago" ? "Pagamento já efetivado." : "Este pagamento foi cancelado — não pode ser pago.",
-      );
-    }
+    const bloqueio = erroTransicao("pagar", pag.status);
+    if (bloqueio) throw new ActionError(bloqueio);
     if (!temValorPagavel(pag.valor)) throw new ActionError(MSG_PAGAMENTO_SEM_VALOR);
 
     const quando = quandoDoPagamento(i.data);
@@ -100,15 +96,6 @@ export const pagarProjetista = defineAction(
   },
 );
 
-/** Recalcula `FolhaProjetista.total` (agregado gravado) excluindo cancelados. */
-async function recalcularTotalFolha(tx: Prisma.TransactionClient, folhaId: string) {
-  const agg = await tx.pagamentoProjetista.aggregate({
-    where: { folhaId, status: { not: "cancelado" } },
-    _sum: { valor: true },
-  });
-  await tx.folhaProjetista.update({ where: { id: folhaId }, data: { total: agg._sum.valor ?? 0 } });
-}
-
 const editarValorSchema = z.object({
   id: z.string().min(1),
   valor: z.number().positive("Informe um valor maior que zero."),
@@ -150,13 +137,8 @@ export const editarPagamentoProjetista = defineAction(
       },
     });
     if (!pag) throw new ActionError("Pagamento não encontrado.");
-    if (pag.status !== "pendente") {
-      throw new ActionError(
-        pag.status === "pago"
-          ? "Este pagamento já foi efetivado — o valor não pode mais ser alterado."
-          : "Este pagamento foi cancelado — o valor não pode mais ser alterado.",
-      );
-    }
+    const bloqueio = erroTransicao("editar", pag.status);
+    if (bloqueio) throw new ActionError(bloqueio);
 
     await prisma.$transaction(async (tx) => {
       await tx.pagamentoProjetista.update({
@@ -227,13 +209,8 @@ export const cancelarPagamentoProjetista = defineAction(
   async (input) => {
     const pag = await prisma.pagamentoProjetista.findUnique({ where: { id: input.id } });
     if (!pag) throw new ActionError("Pagamento não encontrado.");
-    if (pag.status !== "pendente") {
-      throw new ActionError(
-        pag.status === "pago"
-          ? "Este pagamento já foi efetivado — não pode mais ser cancelado por aqui."
-          : "Este pagamento já está cancelado.",
-      );
-    }
+    const bloqueio = erroTransicao("cancelar", pag.status);
+    if (bloqueio) throw new ActionError(bloqueio);
 
     await prisma.$transaction(async (tx) => {
       await tx.pagamentoProjetista.update({

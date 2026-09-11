@@ -7,6 +7,7 @@ import {
   temFiltroAlemDoStatus,
   diasPendenteParado,
   quandoDoPagamento,
+  erroTransicao,
 } from "@/modules/financeiro/folha/service";
 
 describe("lerFiltrosFolha", () => {
@@ -117,5 +118,30 @@ describe("quandoDoPagamento", () => {
     const agora = new Date(2026, 8, 11, 23, 30); // 23h30 local
     expect(quandoDoPagamento(undefined, agora).toISOString()).toBe("2026-09-11T00:00:00.000Z");
     expect(quandoDoPagamento("", agora).toISOString()).toBe("2026-09-11T00:00:00.000Z");
+  });
+});
+
+describe("erroTransicao", () => {
+  it("pendente pode pagar, editar e cancelar", () => {
+    expect(erroTransicao("pagar", "pendente")).toBeNull();
+    expect(erroTransicao("editar", "pendente")).toBeNull();
+    expect(erroTransicao("cancelar", "pendente")).toBeNull();
+  });
+  it("pagar o que já foi pago é recusado", () => {
+    expect(erroTransicao("pagar", "pago")).toBe("Pagamento já efetivado.");
+  });
+  it("pagar um cancelado é recusado (o furo que a F5 fechou)", () => {
+    expect(erroTransicao("pagar", "cancelado")).toBe("Este pagamento foi cancelado — não pode ser pago.");
+  });
+  it("editar cancelado ou pago é recusado", () => {
+    expect(erroTransicao("editar", "cancelado")).toMatch(/cancelado — o valor não pode mais ser alterado/);
+    expect(erroTransicao("editar", "pago")).toMatch(/efetivado — o valor não pode mais ser alterado/);
+  });
+  it("cancelar de novo, ou cancelar o pago, é recusado", () => {
+    expect(erroTransicao("cancelar", "cancelado")).toBe("Este pagamento já está cancelado.");
+    expect(erroTransicao("cancelar", "pago")).toMatch(/não pode mais ser cancelado/);
+  });
+  it("status fora do enum conhecido nunca passa", () => {
+    expect(erroTransicao("pagar", "estornado")).toBe("Este pagamento não está pendente.");
   });
 });

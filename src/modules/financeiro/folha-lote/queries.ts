@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { parseListParams } from "@/lib/list-params";
+import { resumirLotes, RESUMO_LOTE_VAZIO } from "./service";
 
 type RawParams = Record<string, string | string[] | undefined>;
 
@@ -40,36 +41,15 @@ export async function listarFolhasProjetista(sp: RawParams) {
     }),
   ]);
 
-  const contagens = new Map<string, Record<string, number>>();
-  for (const r of porStatus) {
-    if (!r.folhaId) continue;
-    const c = contagens.get(r.folhaId) ?? {};
-    c[r.status] = r._count._all;
-    contagens.set(r.folhaId, c);
-  }
-  const semValorMap = new Map(semValorPorFolha.flatMap((r) => (r.folhaId ? [[r.folhaId, r._count._all] as const] : [])));
-
-  const folhas = fs.map((f) => {
-    const c = contagens.get(f.id) ?? {};
-    const qtd = Object.values(c).reduce((s, n) => s + n, 0);
-    const pagos = c.pago ?? 0;
-    const pendentes = c.pendente ?? 0;
-    const semValor = semValorMap.get(f.id) ?? 0;
-    return {
-      id: f.id,
-      ano: f.ano,
-      mes: f.mes,
-      status: f.status,
-      total: Number(f.total),
-      qtd,
-      pagos,
-      todosPagos: qtd > 0 && pagos === qtd,
-      // Pendentes com R$ 0,00 — ficam de fora do "Pagar lote" (F0a).
-      semValor,
-      // Pendentes com valor, que o "Pagar lote" efetiva.
-      pagaveis: pendentes - semValor,
-    };
-  });
+  const resumo = resumirLotes(porStatus, semValorPorFolha);
+  const folhas = fs.map((f) => ({
+    id: f.id,
+    ano: f.ano,
+    mes: f.mes,
+    status: f.status,
+    total: Number(f.total),
+    ...(resumo.get(f.id) ?? RESUMO_LOTE_VAZIO),
+  }));
 
   return { folhas, total, page, pageSize };
 }

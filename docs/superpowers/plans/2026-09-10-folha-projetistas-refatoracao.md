@@ -2,7 +2,7 @@
 
 - **Data:** 2026-09-10
 - **Origem:** dono pediu revisão de UI/UX e de funções da tela.
-- **Estado:** **F0a, F0, F1, F2, F3, F4 e F5 entregues** — `tsc`, `eslint`, testes do financeiro e `smoke:sync-pagamento` (19/19) verdes em todas. F6–F7 pendentes. Detalhe de cada fase (e dado de dev adicional) na própria seção.
+- **Estado:** **F0a a F6 entregues** — `tsc`, `eslint`, testes e `smoke:sync-pagamento` (19/19) verdes em todas. F7 pendente (Sonnet 5 / Haiku 4.5). Detalhe de cada fase (e dado de dev adicional) na própria seção.
   - **Falta smoke em navegador nas três fases**, com login de verdade — sem sessão o `middleware` redireciona pra `/login` antes de renderizar a página (confirmado: `next dev` compilou e serviu o 307 sem erro, mas isso não exercita `page.tsx`/`FolhaView`/`ProducaoAbas`). Criar sessão de teste (reset de senha do admin, ou usuário próprio) não é decisão para tomar sozinho num banco de dev compartilhado — fica para quem tem credencial.
   - **O banco de dev agora tem dado pra testar as duas abas de propósito:** 1 pagamento pendente zerado (F0a) e 1 lote real, 2026-04, com 3 pagamentos — 2 pagáveis + a linha zerada dentro dele. Isso deixa testável: aviso no topo (nas duas abas), badge "sem valor", botão "Corrigir valor", aba de lotes com conteúdo (antes mostrava "Nenhum lote gerado"), "Pagar lote" deixando a linha zerada de fora, e o 3º card de KPI "Cancelado" (ainda R$ 0 — nenhum pagamento cancelado em dev).
   - F0: conferir a troca de aba (`?aba=pagar` ↔ `?aba=lotes`) e que o título "Produção" aparece uma vez só, no topo.
@@ -271,7 +271,7 @@ Resolve **D15, D19, D20, D23** + **N3**.
 - **Não executado:** as actions de verdade (exigem sessão). A reserva nas duas actions antigas não foi rodada — só revisada, e segue o padrão da F2. Os testes dela ficam para a F6, junto com os de `pagarProjetistasSelecionados`.
 - **Smoke em navegador:** (1) sem escolher conta, "Efetivar" deixa o Select de Conta vermelho, com a mensagem embaixo e o foco nele; (2) em "Editar", valor 0 mostra o erro sob o campo, não um toast; (3) o lançamento de um pagamento feito depois das 21h sai com a data de hoje; (4) os Selects de Conta/Forma ganharam `w-full` (a base é `w-fit`), então a linha de duas colunas do dialog mudou de largura — conferir o layout.
 
-### F6 — `service.ts` + testes
+### F6 — `service.ts` + testes ✅ entregue 2026-09-11 (Opus 5)
 
 Resolve **D21, D22**.
 
@@ -279,9 +279,24 @@ Resolve **D21, D22**.
 2. **`recalcularTotalFolha` passa a ser único**, usado também por `gerarFolhaDoMes` (D22).
 3. **Primeiros testes do módulo** (`service.test.ts`): recálculo excluindo cancelados, transições inválidas (pagar pago, editar cancelado), agregação de lote.
 
+**Como ficou (registro da entrega):**
+- **`folha/service.ts` já existia** (nasceu na F0a, cresceu na F2/F5). Nesta fase ganhou `erroTransicao(acao, status)`: pagar, editar e cancelar só valem para `pendente`. É a regra única das 3 actions, que antes repetiam o `if` inline. **Mensagens mantidas palavra por palavra** — nenhum texto de tela mudou.
+- **D22 tinha três cópias, não duas:** além de `folha/actions.ts` e `gerarFolhaDoMes`, `uploads/pagamento.ts` (`sincronizarPagamentosDisciplina`) recalculava o total do lote do mesmo jeito. As três chamam agora `recalcularTotalFolha(tx, folhaId)`, no novo `folha-lote/service.ts`. A dependência `uploads → financeiro` já existia (`lancamento-custo`); não entrou acoplamento novo.
+- **Contrato do `folha-lote/service.ts`** (escrito no cabeçalho): recebe `tx`, nunca importa `prisma` e nunca abre transação — o total precisa ser gravado na mesma transação de quem chama. Em `gerarFolhaDoMes`, total, `status` e `fechadaEm` continuam no mesmo `tx`, e um lote que já existia mantém o `fechadaEm` original.
+- **`resumirLotes`** (pura) saiu de `listarFolhasProjetista`: junta os dois `groupBy` em `{qtd, pagos, todosPagos, semValor, pagaveis}`. `pagaveis` é o número que mostra ou esconde o "Pagar lote" e nunca tinha tido teste. Ganhou piso em 0 (defensivo — os zerados são subconjunto dos pendentes).
+- **Testes:** `recalcularTotalFolha` com um `tx` falso (sem `vi.mock` — a função recebe o `tx` por parâmetro): o `where` exclui cancelados, e soma `null` grava 0. `resumirLotes`: lote misto, lote só com zerados (pagáveis 0), todos pagos, cancelado preso ao lote, linha de `groupBy` sem `folhaId`, contagem inconsistente, lote vazio. `erroTransicao`: as 9 combinações, mais um status desconhecido.
+
+**Verificação:** `tsc`, `eslint`, 220 testes (financeiro + `lib/data` + uploads), `smoke:sync-pagamento` 19/19 (cobre a cópia de `uploads`: "total do lote recalculado", "lote zera após cancelar tudo") e conferência independente contra o banco de dev. Um script temporário comparou o resumo de `listarFolhasProjetista` com uma contagem linha a linha, e o total gravado com a soma dos não cancelados. Lote 04/2026: bate nos dois (R$ 17.000). Script apagado.
+- **Limite da conferência:** o dev tem **um** lote, com 3 pagamentos. Os caminhos com vários lotes e com `folhaId` nulo em `resumirLotes` só são cobertos pelos testes unitários, não por dado real. Desta vez a conferência no banco foi mais estreita que os testes — o contrário das fases anteriores.
+
+**Ficou de fora, de propósito:**
+- **`efetivarPagamentos(tx, …)`** — o laço reserva → confirma lançamento → grava `lancamentoId` está repetido em `pagarProjetista`, `pagarFolhaProjetista` e `pagarProjetistasSelecionados`. Extraí-lo tornaria a reserva testável por smoke. Não entrou porque seria a **segunda reescrita do caminho do dinheiro em dois commits**, sem nenhuma execução real por trás — a reserva das duas actions antigas acabou de nascer na F5, também sem rodar. Fazer depois do smoke em navegador da F5, numa fase própria.
+- **Smoke da reserva concorrente** — o laço vive dentro do handler da action (que exige sessão). Um script só testaria uma cópia do laço, não o código de verdade; depende da extração acima.
+
 ### F7 — Exportação + manual
 
 1. `GET /api/financeiro/folha-projetistas/export` (CSV/XLSX), espelhando `contas/export`, respeitando os filtros ativos.
+   **Reusar `lerFiltrosFolha` (`folha/service.ts`) e o mesmo `where` de `listarFolha` (`whereSemStatus` + `whereDoStatus`, `folha/queries.ts`) — não montar o filtro de novo.** Um `where` derivado de novo diverge da lista na primeira vez que um dos dois mudar, e o export passa a baixar linhas diferentes das que a tela mostra. Se `whereSemStatus` for privado, exportá-lo em vez de copiar.
 2. Atualizar `docs/manual/financeiro/README.md` e `docs/manual/search-index.json` — obrigatório pelo `CLAUDE.md`.
 
 ---

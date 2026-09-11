@@ -90,3 +90,34 @@ export function separarPagaveis<T extends { valor: Valor }>(pagamentos: T[]) {
 export function quandoDoPagamento(data: string | undefined, agora: Date = new Date()): Date {
   return data ? new Date(data) : inicioDoDiaUtc(agora);
 }
+
+export type AcaoPagamento = "pagar" | "editar" | "cancelar";
+
+const MSG_TRANSICAO: Record<AcaoPagamento, { pago: string; cancelado: string }> = {
+  pagar: {
+    pago: "Pagamento já efetivado.",
+    cancelado: "Este pagamento foi cancelado — não pode ser pago.",
+  },
+  editar: {
+    pago: "Este pagamento já foi efetivado — o valor não pode mais ser alterado.",
+    cancelado: "Este pagamento foi cancelado — o valor não pode mais ser alterado.",
+  },
+  cancelar: {
+    pago: "Este pagamento já foi efetivado — não pode mais ser cancelado por aqui.",
+    cancelado: "Este pagamento já está cancelado.",
+  },
+};
+
+/**
+ * Regra única de transição de `PagamentoProjetista`: pagar, editar valor e cancelar só
+ * valem para `pendente`. Devolve a mensagem para o usuário, ou `null` se pode.
+ *
+ * `pendente` explícito, nunca `!= pago` (§5 do plano): até a F5 o pagamento individual só
+ * recusava `pago`, e um cancelado — com a tela aberta de antes — era pago de novo.
+ */
+export function erroTransicao(acao: AcaoPagamento, status: string): string | null {
+  if (status === "pendente") return null;
+  if (status === "pago") return MSG_TRANSICAO[acao].pago;
+  if (status === "cancelado") return MSG_TRANSICAO[acao].cancelado;
+  return "Este pagamento não está pendente.";
+}
