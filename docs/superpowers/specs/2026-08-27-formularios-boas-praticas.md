@@ -128,6 +128,8 @@ renderiza a mensagem sob ele e rola até o primeiro. Reusa dado e estilo que já
 ganho por esforço; destrava também "obrigatório que não deixa dúvida" e "rolagem até o erro".
 Aplicar primeiro em `cliente-form`, wizard do RH e um caso de licitações como referência.
 
+> **Padrão já existe (2026-09-11):** `useFieldErrors` (`lib/use-field-errors.ts`) + `FieldError` (`components/ui/field-error.tsx`), com implementação de referência nos dialogs de pagamento da tela Produção (`components/financeiro/folha/efetivar-pagamento-dialog.tsx`, `EditarValorDialog`). Plano: `docs/superpowers/plans/2026-09-10-folha-projetistas-refatoracao.md` §F5. Migrar outros formulários é trocar `toast.error` por `if (!fe.registrar(r)) toast.error(r.error)` e espalhar `fe.campo(...)`/`<FieldError>` nos campos.
+
 **B. Formulários longos** — barra de ações `sticky bottom-0` + rolagem até o primeiro erro nos 5
 arquivos da tabela. Ganho concentrado e visível; não resolve a mensagem de erro em si.
 

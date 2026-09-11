@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -35,7 +35,7 @@ import { EfetivarPagamentoDialog, type DadosEfetivacao } from "./efetivar-pagame
  *
  * Os 3 dialogs (pagar um, editar, pagar tudo de um grupo) moram AQUI, um conjunto só —
  * não um por grupo. Com N projetistas expandidos, N cópias de `PagarDialog` etc.
- * duplicariam ids de campo (`efetivar-conta`, `valor-pagamento`...) e um clique no rótulo
+ * duplicariam ids de campo (`valor-pagamento`, `observacao-pagamento`) e um clique no rótulo
  * de um grupo focaria o campo do primeiro grupo do DOM.
  */
 export function FolhaAgrupadaView({
@@ -57,24 +57,21 @@ export function FolhaAgrupadaView({
   const [pagar, setPagar] = useState<FolhaItem | null>(null);
   const [editar, setEditar] = useState<FolhaItem | null>(null);
   const [loteGrupo, setLoteGrupo] = useState<FolhaGrupo | null>(null);
-  const [pagando, startPagando] = useTransition();
 
   const pagaveisDoLote = useMemo(() => (loteGrupo ? loteGrupo.itens.filter(pagavel) : []), [loteGrupo]);
   const totalDoLote = pagaveisDoLote.reduce((s, p) => s + p.valor, 0);
 
-  function pagarTudo(d: DadosEfetivacao) {
-    if (!loteGrupo) return;
-    startPagando(async () => {
-      const r = await pagarProjetistasSelecionados({ ids: pagaveisDoLote.map((p) => p.id), ...d });
-      if (r.ok) {
-        const ignorados = r.data.ignorados
-          ? ` ${r.data.ignorados} ignorado(s) — já pagos, cancelados ou sem valor.`
-          : "";
-        toast.success(`${r.data.pagos} pagamento(s) efetivado(s) — ${brl(r.data.total)} no caixa.${ignorados}`);
-        setLoteGrupo(null);
-        router.refresh();
-      } else toast.error(r.error);
-    });
+  async function pagarTudo(d: DadosEfetivacao) {
+    const r = await pagarProjetistasSelecionados({ ids: pagaveisDoLote.map((p) => p.id), ...d });
+    if (r.ok) {
+      const ignorados = r.data.ignorados
+        ? ` ${r.data.ignorados} ignorado(s) — já pagos, cancelados ou sem valor.`
+        : "";
+      toast.success(`${r.data.pagos} pagamento(s) efetivado(s) — ${brl(r.data.total)} no caixa.${ignorados}`);
+      setLoteGrupo(null);
+      router.refresh();
+    }
+    return r;
   }
 
   if (grupos.length === 0) {
@@ -107,9 +104,7 @@ export function FolhaAgrupadaView({
         descricao={loteGrupo ? `${loteGrupo.projetistaNome} — ${pagaveisDoLote.length} pagamento(s), ${brl(totalDoLote)}` : ""}
         contas={contas}
         formas={formas}
-        contaObrigatoria
         confirmarLabel="Pagar tudo"
-        pending={pagando}
         onConfirmar={pagarTudo}
         onClose={() => setLoteGrupo(null)}
       />

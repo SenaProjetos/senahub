@@ -41,3 +41,9 @@ export type FiltrosFolha = {
   ate: string;
   q: string;
 };
+
+/**
+ * Mensagem da conta obrigatória (N3). Mora aqui, e não em `schemas.ts`, porque o dialog
+ * (cliente) também a usa — importar de `schemas.ts` levaria o zod para o bundle do navegador.
+ */
+export const MSG_CONTA_OBRIGATORIA = "Escolha a conta de onde sai o pagamento.";

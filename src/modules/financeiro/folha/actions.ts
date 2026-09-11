@@ -8,14 +8,20 @@ import type { Prisma } from "@/generated/prisma/client";
 import { notificar, notificarMuitos } from "@/lib/notificar";
 import { confirmarDespesaProjetista, criarDespesaProjetistaPrevista } from "@/modules/financeiro/custo/lancamento-custo";
 import { sincronizarValorDisciplina } from "@/modules/uploads/pagamento";
-import { MSG_PAGAMENTO_SEM_VALOR, separarPagaveis, temValorPagavel } from "@/modules/financeiro/folha/service";
-import { inicioDoDiaUtc } from "@/lib/data";
+import {
+  MSG_PAGAMENTO_SEM_VALOR,
+  quandoDoPagamento,
+  separarPagaveis,
+  temValorPagavel,
+} from "@/modules/financeiro/folha/service";
+import { contaPagamento, dataPagamento, formaPagamento } from "@/modules/financeiro/folha/schemas";
 
 const pagarSchema = z.object({
   id: z.string().min(1),
-  contaId: z.string().optional().or(z.literal("")),
-  formaId: z.string().optional().or(z.literal("")),
-  data: z.string().optional().or(z.literal("")),
+  // F5 (N3): conta obrigatória — antes opcional, o que deixava lançamento confirmado sem conta.
+  contaId: contaPagamento,
+  formaId: formaPagamento,
+  data: dataPagamento,
 });
 
 /**
@@ -43,12 +49,26 @@ export const pagarProjetista = defineAction(
       },
     });
     if (!pag) throw new ActionError("Pagamento não encontrado.");
-    if (pag.status === "pago") throw new ActionError("Pagamento já efetivado.");
+    // `pendente` explícito, não `!= pago`: antes da F5 um cancelado (tela aberta de antes do
+    // cancelamento) passava por aqui e virava pago com lançamento novo.
+    if (pag.status !== "pendente") {
+      throw new ActionError(
+        pag.status === "pago" ? "Pagamento já efetivado." : "Este pagamento foi cancelado — não pode ser pago.",
+      );
+    }
     if (!temValorPagavel(pag.valor)) throw new ActionError(MSG_PAGAMENTO_SEM_VALOR);
 
-    const quando = i.data ? new Date(i.data) : new Date();
+    const quando = quandoDoPagamento(i.data);
 
     await prisma.$transaction(async (tx) => {
+      // Reserva antes de gerar o lançamento (mesmo padrão de `pagarProjetistasSelecionados`):
+      // outro caminho que pagou esta linha entre a leitura e aqui deixa 0 linhas e aborta.
+      const reserva = await tx.pagamentoProjetista.updateMany({
+        where: { id: pag.id, status: "pendente" },
+        data: { status: "pago", pagoEm: quando },
+      });
+      if (reserva.count === 0) throw new ActionError("Pagamento já efetivado ou cancelado — atualize a tela.");
+
       const lancamentoId = await confirmarDespesaProjetista(
         tx,
         {
@@ -61,12 +81,9 @@ export const pagarProjetista = defineAction(
           projetoId: pag.disciplina.projetoId,
           projetoCodigo: pag.disciplina.projeto.codigo,
         },
-        { contaId: i.contaId || null, formaId: i.formaId || null, quando, autorId: user.id },
+        { contaId: i.contaId, formaId: i.formaId || null, quando, autorId: user.id },
       );
-      await tx.pagamentoProjetista.update({
-        where: { id: pag.id },
-        data: { status: "pago", pagoEm: quando, lancamentoId },
-      });
+      await tx.pagamentoProjetista.update({ where: { id: pag.id }, data: { lancamentoId } });
     });
 
     await notificar(pag.projetista.id, {
@@ -241,12 +258,10 @@ export const cancelarPagamentoProjetista = defineAction(
 
 const pagarSelecionadosSchema = z.object({
   ids: z.array(z.string().min(1)).min(1, "Selecione ao menos um pagamento.").max(200),
-  // Conta obrigatória desde a criação (decisão N3 do plano): sem conta o lançamento entra
-  // no caixa sem conta bancária e não concilia no extrato. As duas actions antigas
-  // (`pagarProjetista`, `pagarFolhaProjetista`) passam a exigir na F5.
-  contaId: z.string().min(1, "Escolha a conta de onde sai o pagamento."),
-  formaId: z.string().optional().or(z.literal("")),
-  data: z.string().optional().or(z.literal("")),
+  // Conta obrigatória desde a criação (decisão N3) — mesmo campo das outras duas (F5).
+  contaId: contaPagamento,
+  formaId: formaPagamento,
+  data: dataPagamento,
 });
 
 /**
@@ -270,9 +285,7 @@ export const pagarProjetistasSelecionados = defineAction(
     schema: pagarSelecionadosSchema,
   },
   async (i, { user }) => {
-    // Sem data: meia-noite UTC do dia LOCAL — `new Date()` (o que as actions antigas usam)
-    // grava o dia seguinte no lançamento (`@db.Date`) depois das 21h em BRT.
-    const quando = i.data ? new Date(i.data) : inicioDoDiaUtc();
+    const quando = quandoDoPagamento(i.data);
 
     const pagos = await prisma.$transaction(
       async (tx) => {

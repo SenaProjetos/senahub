@@ -20,12 +20,13 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { brl, cn, formatarData } from "@/lib/utils";
+import { FieldError } from "@/components/ui/field-error";
+import { useFieldErrors } from "@/lib/use-field-errors";
 import { FolhaFiltros } from "./folha-filtros";
+import { EfetivarPagamentoDialog, type DadosEfetivacao } from "./efetivar-pagamento-dialog";
 
-export const NONE = "__none";
 export const linkCls = "underline-offset-2 hover:underline";
 
 export type Opcao = { id: string; nome: string };
@@ -226,6 +227,7 @@ export function EditarValorDialog({ pagamento, onClose }: { pagamento: FolhaItem
   const [pending, start] = useTransition();
   const [valor, setValor] = useState<number | null>(null);
   const [observacao, setObservacao] = useState("");
+  const fe = useFieldErrors({ valor: "valor-pagamento", observacao: "observacao-pagamento" });
 
   // Aberto imperativamente (botão na linha, não um DialogTrigger interno) — `onOpenChange`
   // só dispara ao FECHAR, então os campos precisam ser sincronizados aqui.
@@ -233,14 +235,17 @@ export function EditarValorDialog({ pagamento, onClose }: { pagamento: FolhaItem
     if (pagamento) {
       setValor(Number(pagamento.valor));
       setObservacao(pagamento.observacao ?? "");
+      fe.limpar();
     }
+    // `fe` muda a cada render; só a troca de pagamento importa aqui.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pagamento]);
 
   function salvar() {
     if (!pagamento) return;
     const num = valor ?? 0;
     if (!(num > 0)) {
-      toast.error("Informe um valor maior que zero.");
+      fe.definir("valor", "Informe um valor maior que zero.");
       return;
     }
     start(async () => {
@@ -249,9 +254,12 @@ export function EditarValorDialog({ pagamento, onClose }: { pagamento: FolhaItem
         toast.success("Pagamento atualizado.");
         onClose();
         router.refresh();
-      } else toast.error(r.error);
+      } else if (!fe.registrar(r)) toast.error(r.error);
     });
   }
+
+  const campoValor = fe.campo("valor");
+  const campoObs = fe.campo("observacao");
 
   return (
     <Dialog open={!!pagamento} onOpenChange={(o) => !o && onClose()}>
@@ -262,17 +270,30 @@ export function EditarValorDialog({ pagamento, onClose }: { pagamento: FolhaItem
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="valor-pagamento">Valor (R$)</Label>
-            <InputMoeda id="valor-pagamento" value={valor} onChange={setValor} autoFocus />
+            <Label htmlFor={campoValor.id}>Valor (R$)</Label>
+            <InputMoeda
+              {...campoValor}
+              value={valor}
+              onChange={(v) => {
+                setValor(v);
+                fe.limpar("valor");
+              }}
+              autoFocus
+            />
+            <FieldError campo={campoValor.id} mensagem={fe.erros.valor} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="observacao-pagamento">Observação</Label>
+            <Label htmlFor={campoObs.id}>Observação</Label>
             <Input
-              id="observacao-pagamento"
+              {...campoObs}
               value={observacao}
               maxLength={500}
-              onChange={(e) => setObservacao(e.target.value)}
+              onChange={(e) => {
+                setObservacao(e.target.value);
+                fe.limpar("observacao");
+              }}
             />
+            <FieldError campo={campoObs.id} mensagem={fe.erros.observacao} />
           </div>
         </div>
         <DialogFooter>
@@ -288,6 +309,7 @@ export function EditarValorDialog({ pagamento, onClose }: { pagamento: FolhaItem
   );
 }
 
+/** Pagamento individual — o mesmo dialog de efetivação dos caminhos em lote (F5). */
 export function PagarDialog({
   pagamento,
   onClose,
@@ -300,87 +322,28 @@ export function PagarDialog({
   formas: Opcao[];
 }) {
   const router = useRouter();
-  const [pending, start] = useTransition();
-  const hoje = new Date().toISOString().slice(0, 10);
-  const [contaId, setContaId] = useState(NONE);
-  const [formaId, setFormaId] = useState(NONE);
-  const [data, setData] = useState(hoje);
 
-  function efetivar() {
-    if (!pagamento) return;
-    start(async () => {
-      const r = await pagarProjetista({
-        id: pagamento.id,
-        contaId: contaId === NONE ? "" : contaId,
-        formaId: formaId === NONE ? "" : formaId,
-        data,
-      });
-      if (r.ok) {
-        toast.success("Pagamento efetivado — lançamento criado no caixa.");
-        onClose();
-        router.refresh();
-      } else toast.error(r.error);
-    });
+  async function efetivar(d: DadosEfetivacao) {
+    if (!pagamento) return { ok: false as const, error: "Pagamento não encontrado." };
+    const r = await pagarProjetista({ id: pagamento.id, ...d });
+    if (r.ok) {
+      toast.success("Pagamento efetivado — lançamento criado no caixa.");
+      onClose();
+      router.refresh();
+    }
+    return r;
   }
 
   return (
-    <Dialog open={!!pagamento} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Efetivar pagamento</DialogTitle>
-          <DialogDescription>
-            {pagamento?.projetista.name} — {brl(Number(pagamento?.valor ?? 0))}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Conta</Label>
-              <Select value={contaId} onValueChange={(v) => setContaId(v ?? NONE)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="—" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>—</SelectItem>
-                  {contas.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Forma</Label>
-              <Select value={formaId} onValueChange={(v) => setFormaId(v ?? NONE)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="—" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>—</SelectItem>
-                  {formas.map((f) => (
-                    <SelectItem key={f.id} value={f.id}>
-                      {f.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Data do pagamento</Label>
-            <Input type="date" value={data} onChange={(e) => setData(e.target.value)} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button onClick={efetivar} disabled={pending}>
-            {pending ? "Pagando…" : "Efetivar pagamento"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <EfetivarPagamentoDialog
+      open={!!pagamento}
+      titulo="Efetivar pagamento"
+      descricao={pagamento ? `${pagamento.projetista.name} — ${brl(Number(pagamento.valor))}` : ""}
+      contas={contas}
+      formas={formas}
+      confirmarLabel="Efetivar pagamento"
+      onConfirmar={efetivar}
+      onClose={onClose}
+    />
   );
 }

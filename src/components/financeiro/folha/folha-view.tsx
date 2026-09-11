@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -58,7 +58,6 @@ export function FolhaView({
   const [editar, setEditar] = useState<FolhaItem | null>(null);
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [loteAberto, setLoteAberto] = useState(false);
-  const [pagandoLote, startLote] = useTransition();
 
   // A seleção vale só para o que está na tela: trocar de página ou de filtro descarta o
   // resto, e uma linha que deixou de ser pagável (alguém pagou/zerou) sai sozinha.
@@ -76,19 +75,18 @@ export function FolhaView({
     });
   }
 
-  function pagarSelecionados(d: DadosEfetivacao) {
-    startLote(async () => {
-      const r = await pagarProjetistasSelecionados({ ids: selecao.map((p) => p.id), ...d });
-      if (r.ok) {
-        const ignorados = r.data.ignorados
-          ? ` ${r.data.ignorados} ignorado(s) — já pagos, cancelados ou sem valor.`
-          : "";
-        toast.success(`${r.data.pagos} pagamento(s) efetivado(s) — ${brl(r.data.total)} no caixa.${ignorados}`);
-        setLoteAberto(false);
-        setSelecionados(new Set());
-        router.refresh();
-      } else toast.error(r.error);
-    });
+  async function pagarSelecionados(d: DadosEfetivacao) {
+    const r = await pagarProjetistasSelecionados({ ids: selecao.map((p) => p.id), ...d });
+    if (r.ok) {
+      const ignorados = r.data.ignorados
+        ? ` ${r.data.ignorados} ignorado(s) — já pagos, cancelados ou sem valor.`
+        : "";
+      toast.success(`${r.data.pagos} pagamento(s) efetivado(s) — ${brl(r.data.total)} no caixa.${ignorados}`);
+      setLoteAberto(false);
+      setSelecionados(new Set());
+      router.refresh();
+    }
+    return r;
   }
 
   return (
@@ -224,9 +222,7 @@ export function FolhaView({
         descricao={`${selecao.length} pagamento(s) de ${new Set(selecao.map((p) => p.projetistaId)).size} projetista(s) — ${brl(totalSelecao)}`}
         contas={contas}
         formas={formas}
-        contaObrigatoria
         confirmarLabel="Pagar selecionados"
-        pending={pagandoLote}
         onConfirmar={pagarSelecionados}
         onClose={() => setLoteAberto(false)}
       />

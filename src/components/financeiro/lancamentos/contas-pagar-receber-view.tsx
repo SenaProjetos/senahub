@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { brl, formatarData } from "@/lib/utils";
+import { MESES_CURTOS } from "@/lib/data";
 
 function dt(d: string | Date | null) {
   return d ? formatarData(d) : "—";
@@ -60,7 +61,6 @@ type Situacao = "pendente" | "agendado" | "aguardando";
 type Modo = "todos" | "mes" | "30" | "60" | "90" | "vencidas" | "custom";
 
 const NONE = "__none";
-const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
 export function ContasPagarReceberView({
   itens,
@@ -220,7 +220,7 @@ export function ContasPagarReceberView({
       if (agruparPor === "mes") {
         const ref = l.vencimento ?? l.data;
         const d = new Date(ref);
-        return `${MESES[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`;
+        return `${MESES_CURTOS[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`;
       }
       return "";
     };
@@ -621,7 +621,7 @@ function PeriodoCard({
         {modo === "mes" ? (
           <div className="flex items-center justify-between">
             <Button variant="ghost" size="icon" onClick={() => mudaMes(-1)}><ChevronLeft className="size-4" /></Button>
-            <span className="text-sm font-medium">{MESES[mesRef.getMonth()]} {mesRef.getFullYear()}</span>
+            <span className="text-sm font-medium">{MESES_CURTOS[mesRef.getMonth()]} {mesRef.getFullYear()}</span>
             <Button variant="ghost" size="icon" onClick={() => mudaMes(1)}><ChevronRight className="size-4" /></Button>
           </div>
         ) : null}

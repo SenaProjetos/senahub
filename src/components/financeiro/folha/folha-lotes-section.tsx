@@ -18,21 +18,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
 import { pageCount } from "@/lib/list-params";
 import { brl } from "@/lib/utils";
+import { MESES_CURTOS } from "@/lib/data";
+import { EfetivarPagamentoDialog, type DadosEfetivacao } from "./efetivar-pagamento-dialog";
 
-const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-const NONE = "__none";
 // "aberta" não aparece na UI de propósito (N5 do plano): `gerarFolhaDoMes` sempre cria o
 // lote como "fechada" — o valor fica só no enum do banco, sem virar um passo real da tela.
 // "fechada" = fechada aguardando pagamento → warning; "paga" → success.
@@ -70,7 +62,7 @@ export function FolhaLotesSection({
         if (r.data.vinculados === 0) {
           // Mês sem pagamento fora de lote é rotina (mês corrente, ou já coberto por outro
           // lote) — não é erro, então não é toast vermelho.
-          toast.info(`Nenhum pagamento liberado em ${MESES[Number(mes) - 1]}/${ano} fora de lote.`);
+          toast.info(`Nenhum pagamento liberado em ${MESES_CURTOS[Number(mes) - 1]}/${ano} fora de lote.`);
         } else {
           toast.success(`Lote gerado — ${r.data.vinculados} pagamento(s) vinculado(s).`);
           router.refresh();
@@ -95,7 +87,7 @@ export function FolhaLotesSection({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {MESES.map((nome, i) => (
+                  {MESES_CURTOS.map((nome, i) => (
                     <SelectItem key={nome} value={String(i + 1)}>
                       {nome}
                     </SelectItem>
@@ -121,7 +113,7 @@ export function FolhaLotesSection({
             <ul className="divide-y text-sm">
               {folhas.map((f) => (
                 <li key={f.id} className="flex items-center justify-between gap-3 py-2">
-                  <span className="font-mono">{MESES[f.mes - 1]}/{f.ano}</span>
+                  <span className="font-mono">{MESES_CURTOS[f.mes - 1]}/{f.ano}</span>
                   <span className="text-muted-foreground">{f.pagos}/{f.qtd} pagos</span>
                   <span className="font-mono">{brl(f.total)}</span>
                   <StatusBadge tone={TONE[f.todosPagos ? "paga" : f.status] ?? "neutral"}>
@@ -149,6 +141,7 @@ export function FolhaLotesSection({
   );
 }
 
+/** Pagar lote — o mesmo dialog de efetivação dos outros caminhos (F5), conta obrigatória. */
 function PagarLoteDialog({
   folha,
   onClose,
@@ -161,93 +154,36 @@ function PagarLoteDialog({
   formas: Opcao[];
 }) {
   const router = useRouter();
-  const [pending, start] = useTransition();
-  const hoje = new Date().toISOString().slice(0, 10);
-  const [contaId, setContaId] = useState(NONE);
-  const [formaId, setFormaId] = useState(NONE);
-  const [data, setData] = useState(hoje);
 
-  function efetivar() {
-    if (!folha) return;
-    start(async () => {
-      const r = await pagarFolhaProjetista({
-        id: folha.id,
-        contaId: contaId === NONE ? "" : contaId,
-        formaId: formaId === NONE ? "" : formaId,
-        data,
-      });
-      if (r.ok) {
-        const ficaram = r.data.semValor
-          ? ` ${r.data.semValor} sem valor continua(m) pendente(s) — corrija o valor para pagar.`
-          : "";
-        toast.success(`Lote pago — ${r.data.pagos} pagamento(s) confirmado(s) no caixa.${ficaram}`);
-        onClose();
-        router.refresh();
-      } else toast.error(r.error);
-    });
+  async function efetivar(d: DadosEfetivacao) {
+    if (!folha) return { ok: false as const, error: "Lote não encontrado." };
+    const r = await pagarFolhaProjetista({ id: folha.id, ...d });
+    if (r.ok) {
+      const ficaram = r.data.semValor
+        ? ` ${r.data.semValor} sem valor continua(m) pendente(s) — corrija o valor para pagar.`
+        : "";
+      toast.success(`Lote pago — ${r.data.pagos} pagamento(s) confirmado(s) no caixa.${ficaram}`);
+      onClose();
+      router.refresh();
+    }
+    return r;
   }
 
-  const pendentes = folha?.pagaveis ?? 0;
-
   return (
-    <Dialog open={!!folha} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Pagar lote</DialogTitle>
-          <DialogDescription>
-            {folha && `${MESES[folha.mes - 1]}/${folha.ano}`} — {pendentes} pagamento(s) a efetivar, {brl(folha?.total ?? 0)}
-            {folha && folha.semValor > 0 && ` · ${folha.semValor} sem valor fica(m) de fora`}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Conta</Label>
-              <Select value={contaId} onValueChange={(v) => setContaId(v ?? NONE)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="—" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>—</SelectItem>
-                  {contas.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Forma</Label>
-              <Select value={formaId} onValueChange={(v) => setFormaId(v ?? NONE)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="—" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>—</SelectItem>
-                  {formas.map((f) => (
-                    <SelectItem key={f.id} value={f.id}>
-                      {f.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Data do pagamento</Label>
-            <Input type="date" value={data} onChange={(e) => setData(e.target.value)} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button onClick={efetivar} disabled={pending}>
-            {pending ? "Pagando…" : "Pagar lote"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <EfetivarPagamentoDialog
+      open={!!folha}
+      titulo="Pagar lote"
+      descricao={
+        folha
+          ? `${MESES_CURTOS[folha.mes - 1]}/${folha.ano} — ${folha.pagaveis} pagamento(s) a efetivar, ${brl(folha.total)}` +
+            (folha.semValor > 0 ? ` · ${folha.semValor} sem valor fica(m) de fora` : "")
+          : ""
+      }
+      contas={contas}
+      formas={formas}
+      confirmarLabel="Pagar lote"
+      onConfirmar={efetivar}
+      onClose={onClose}
+    />
   );
 }

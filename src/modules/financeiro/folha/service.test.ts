@@ -6,6 +6,7 @@ import {
   whereDoStatus,
   temFiltroAlemDoStatus,
   diasPendenteParado,
+  quandoDoPagamento,
 } from "@/modules/financeiro/folha/service";
 
 describe("lerFiltrosFolha", () => {
@@ -105,5 +106,16 @@ describe("separarPagaveis", () => {
   });
   it("lote vazio devolve as duas listas vazias", () => {
     expect(separarPagaveis([])).toEqual({ pagaveis: [], semValor: [] });
+  });
+});
+
+describe("quandoDoPagamento", () => {
+  it("data do formulário vira meia-noite UTC daquele dia", () => {
+    expect(quandoDoPagamento("2026-09-11").toISOString()).toBe("2026-09-11T00:00:00.000Z");
+  });
+  it("sem data: meia-noite UTC do dia LOCAL, não o instante", () => {
+    const agora = new Date(2026, 8, 11, 23, 30); // 23h30 local
+    expect(quandoDoPagamento(undefined, agora).toISOString()).toBe("2026-09-11T00:00:00.000Z");
+    expect(quandoDoPagamento("", agora).toISOString()).toBe("2026-09-11T00:00:00.000Z");
   });
 });

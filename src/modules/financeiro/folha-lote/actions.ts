@@ -6,7 +6,8 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificarMuitos } from "@/lib/notificar";
 import { confirmarDespesaProjetista } from "@/modules/financeiro/custo/lancamento-custo";
-import { MSG_LOTE_SEM_VALOR, separarPagaveis } from "@/modules/financeiro/folha/service";
+import { MSG_LOTE_SEM_VALOR, quandoDoPagamento, separarPagaveis } from "@/modules/financeiro/folha/service";
+import { contaPagamento, dataPagamento, formaPagamento } from "@/modules/financeiro/folha/schemas";
 
 // Recorte fino da F4 (2026-09-02): era `permissao: "gerir"`, o mesmo interruptor de lançar
 // boleto. Semeado para quem tinha `gerir`, então ninguém perdeu nada — passa a poder ser
@@ -70,9 +71,10 @@ export const pagarFolhaProjetista = defineAction(
     entidade: "FolhaProjetista",
     schema: z.object({
       id: z.string().min(1),
-      contaId: z.string().optional().or(z.literal("")),
-      formaId: z.string().optional().or(z.literal("")),
-      data: z.string().optional().or(z.literal("")),
+      // F5 (N3): conta obrigatória, como no pagamento individual e no "Pagar selecionados".
+      contaId: contaPagamento,
+      formaId: formaPagamento,
+      data: dataPagamento,
     }),
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
@@ -97,10 +99,20 @@ export const pagarFolhaProjetista = defineAction(
     const { pagaveis, semValor } = separarPagaveis(folha.pagamentos);
     if (pagaveis.length === 0) throw new ActionError(MSG_LOTE_SEM_VALOR);
 
-    const quando = i.data ? new Date(i.data) : new Date();
+    const quando = quandoDoPagamento(i.data);
 
-    await prisma.$transaction(async (tx) => {
+    const efetivados = await prisma.$transaction(async (tx) => {
+      const feitos: typeof pagaveis = [];
       for (const pag of pagaveis) {
+        // A leitura acima é de FORA da transação: "Pagar selecionados" ou o pagamento
+        // individual podem ter pago a linha nesse meio-tempo. Sem reservar, ela seria
+        // reconfirmada — sobrescrevendo conta e data do lançamento já pago.
+        const reserva = await tx.pagamentoProjetista.updateMany({
+          where: { id: pag.id, status: "pendente" },
+          data: { status: "pago", pagoEm: quando },
+        });
+        if (reserva.count === 0) continue;
+
         const lancamentoId = await confirmarDespesaProjetista(
           tx,
           {
@@ -113,23 +125,24 @@ export const pagarFolhaProjetista = defineAction(
             projetoId: pag.disciplina.projetoId,
             projetoCodigo: pag.disciplina.projeto.codigo,
           },
-          { contaId: i.contaId || null, formaId: i.formaId || null, quando, autorId: user.id },
+          { contaId: i.contaId, formaId: i.formaId || null, quando, autorId: user.id },
         );
-        await tx.pagamentoProjetista.update({
-          where: { id: pag.id },
-          data: { status: "pago", pagoEm: quando, lancamentoId },
-        });
+        await tx.pagamentoProjetista.update({ where: { id: pag.id }, data: { lancamentoId } });
+        feitos.push(pag);
       }
+      if (feitos.length === 0) throw new ActionError("Os pagamentos deste lote já foram efetivados — atualize a tela.");
       // Com linha zerada sobrando, o lote continua `fechada` — ainda há o que pagar nele.
+      // Linha pulada pela reserva não conta: já está paga (por outro caminho).
       if (semValor.length === 0) {
         await tx.folhaProjetista.update({
           where: { id: folha.id },
           data: { status: "paga", pagaEm: quando },
         });
       }
-    });
+      return feitos;
+    }, { timeout: 30_000 });
 
-    const projetistas = [...new Set(pagaveis.map((p) => p.projetista.id))];
+    const projetistas = [...new Set(efetivados.map((p) => p.projetista.id))];
     await notificarMuitos(projetistas, {
       titulo: "Pagamento efetivado",
       corpo: `Seu pagamento da produção ${String(folha.mes).padStart(2, "0")}/${folha.ano} foi efetivado.`,
@@ -140,6 +153,6 @@ export const pagarFolhaProjetista = defineAction(
     revalidatePath("/financeiro/folha-projetistas");
     revalidatePath("/financeiro/lancamentos");
     revalidatePath("/financeiro/fluxo-caixa");
-    return { id: folha.id, pagos: pagaveis.length, semValor: semValor.length };
+    return { id: folha.id, pagos: efetivados.length, semValor: semValor.length };
   },
 );

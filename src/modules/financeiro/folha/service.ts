@@ -3,7 +3,7 @@
  * Compartilhadas pelas actions de pagamento individual e de lote.
  */
 
-import { diferencaEmDias, inicioDoDiaLocal } from "@/lib/data";
+import { diferencaEmDias, inicioDoDiaLocal, inicioDoDiaUtc } from "@/lib/data";
 import { DIAS_PENDENTE_PARADO, type FiltroStatus, type FiltrosFolha } from "./status";
 
 /** Decimal do Prisma ou número já serializado — `Number()` resolve os dois. */
@@ -78,4 +78,15 @@ export function separarPagaveis<T extends { valor: Valor }>(pagamentos: T[]) {
   const semValor: T[] = [];
   for (const p of pagamentos) (temValorPagavel(p.valor) ? pagaveis : semValor).push(p);
   return { pagaveis, semValor };
+}
+
+/**
+ * Instante gravado como data do pagamento (`pagoEm`, `dataConfirmacao` do lançamento).
+ * Com data do formulário (`yyyy-mm-dd`): `new Date` lê como meia-noite UTC — o mesmo que o
+ * Prisma grava de um `<input type="date">`. Sem data: meia-noite UTC do dia LOCAL. Não é
+ * `new Date()` — depois das 21h em BRT o instante já é o dia seguinte em UTC, e o
+ * lançamento (`@db.Date`) saía datado de amanhã.
+ */
+export function quandoDoPagamento(data: string | undefined, agora: Date = new Date()): Date {
+  return data ? new Date(data) : inicioDoDiaUtc(agora);
 }
