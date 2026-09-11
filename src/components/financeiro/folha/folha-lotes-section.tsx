@@ -33,8 +33,10 @@ import { brl } from "@/lib/utils";
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const NONE = "__none";
-// "fechada" = fechada aguardando pagamento → warning; "paga" → success
-const TONE: Record<string, "success" | "warning"> = { aberta: "warning", fechada: "warning", paga: "success" };
+// "aberta" não aparece na UI de propósito (N5 do plano): `gerarFolhaDoMes` sempre cria o
+// lote como "fechada" — o valor fica só no enum do banco, sem virar um passo real da tela.
+// "fechada" = fechada aguardando pagamento → warning; "paga" → success.
+const TONE: Partial<Record<string, "success" | "warning">> = { fechada: "warning", paga: "success" };
 
 type Opcao = { id: string; nome: string };
 
@@ -65,8 +67,14 @@ export function FolhaLotesSection({
     start(async () => {
       const r = await gerarFolhaDoMes({ ano: Number(ano), mes: Number(mes) });
       if (r.ok) {
-        toast.success(`Lote gerado — ${r.data.vinculados} pagamento(s) vinculado(s).`);
-        router.refresh();
+        if (r.data.vinculados === 0) {
+          // Mês sem pagamento fora de lote é rotina (mês corrente, ou já coberto por outro
+          // lote) — não é erro, então não é toast vermelho.
+          toast.info(`Nenhum pagamento liberado em ${MESES[Number(mes) - 1]}/${ano} fora de lote.`);
+        } else {
+          toast.success(`Lote gerado — ${r.data.vinculados} pagamento(s) vinculado(s).`);
+          router.refresh();
+        }
       } else toast.error(r.error);
     });
   }
@@ -80,8 +88,25 @@ export function FolhaLotesSection({
             <CardDescription>Agrupa os pagamentos de produção liberados no mês em um lote.</CardDescription>
           </div>
           <div className="flex items-end gap-2">
-            <Input type="number" min="1" max="12" value={mes} onChange={(e) => setMes(e.target.value)} className="w-16" />
-            <Input type="number" value={ano} onChange={(e) => setAno(e.target.value)} className="w-24" />
+            <div className="space-y-1.5">
+              <Label htmlFor="lote-mes">Mês</Label>
+              <Select value={mes} onValueChange={(v) => v && setMes(v)}>
+                <SelectTrigger id="lote-mes" className="w-28">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MESES.map((nome, i) => (
+                    <SelectItem key={nome} value={String(i + 1)}>
+                      {nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="lote-ano">Ano</Label>
+              <Input id="lote-ano" type="number" value={ano} onChange={(e) => setAno(e.target.value)} className="w-24" />
+            </div>
             <Button size="sm" variant="outline" onClick={gerar} disabled={pending}>
               <Layers className="size-3.5" /> Gerar lote
             </Button>

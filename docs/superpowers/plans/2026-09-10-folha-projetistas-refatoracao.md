@@ -2,7 +2,7 @@
 
 - **Data:** 2026-09-10
 - **Origem:** dono pediu revisão de UI/UX e de funções da tela.
-- **Estado:** **F0a, F0, F1, F2 e F3 entregues** — `tsc`, `eslint`, testes do financeiro e `smoke:sync-pagamento` (19/19) verdes em todas. F4–F7 pendentes. Detalhe de cada fase (e dado de dev adicional) na própria seção.
+- **Estado:** **F0a, F0, F1, F2, F3 e F4 entregues** — `tsc`, `eslint`, testes do financeiro e `smoke:sync-pagamento` (19/19) verdes em todas. F5–F7 pendentes. F5 exige Opus 5 (modelo atual: Sonnet 5). Detalhe de cada fase (e dado de dev adicional) na própria seção.
   - **Falta smoke em navegador nas três fases**, com login de verdade — sem sessão o `middleware` redireciona pra `/login` antes de renderizar a página (confirmado: `next dev` compilou e serviu o 307 sem erro, mas isso não exercita `page.tsx`/`FolhaView`/`ProducaoAbas`). Criar sessão de teste (reset de senha do admin, ou usuário próprio) não é decisão para tomar sozinho num banco de dev compartilhado — fica para quem tem credencial.
   - **O banco de dev agora tem dado pra testar as duas abas de propósito:** 1 pagamento pendente zerado (F0a) e 1 lote real, 2026-04, com 3 pagamentos — 2 pagáveis + a linha zerada dentro dele. Isso deixa testável: aviso no topo (nas duas abas), badge "sem valor", botão "Corrigir valor", aba de lotes com conteúdo (antes mostrava "Nenhum lote gerado"), "Pagar lote" deixando a linha zerada de fora, e o 3º card de KPI "Cancelado" (ainda R$ 0 — nenhum pagamento cancelado em dev).
   - F0: conferir a troca de aba (`?aba=pagar` ↔ `?aba=lotes`) e que o título "Produção" aparece uma vez só, no topo.
@@ -229,7 +229,7 @@ Resolve **D4, D6, D7, D8, D9, D24** (D5 — paginação — já saiu na F1, ver 
 **Verificação:** `tsc`, `eslint`, 77 testes do financeiro, `smoke:sync-pagamento` 19/19, e conferência independente contra o banco de dev (agrupamento refeito em JS puro, sem reusar a query): nº de grupos, qtd e soma de itens por pessoa no padrão, `totalPendente` batendo com o pendente real mesmo filtrando `status=pago`, nº de grupos com `status=todos`, paridade de `resumo`/`canceladosOcultos` com o modo flat — 18/18.
 - **Não executado:** abrir a tela de verdade (exige sessão). Dois pontos para o smoke em navegador: (1) o chevron gira ao expandir (`data-panel-open` do base-ui — o mesmo mecanismo de `CollapsibleSection`, aqui escrito à mão); (2) a primeira impressão do modo padrão novo — a tela abre agora em grupos recolhidos por pessoa, não mais na tabela plana.
 
-### F4 — Aba de lotes · *toca em `folha-lote/actions.ts`*
+### F4 — Aba de lotes · *toca em `folha-lote/actions.ts`* ✅ entregue 2026-09-11 (Sonnet 5)
 
 Resolve **D16, D17, D18** + paginação server-side.
 
@@ -237,6 +237,15 @@ Resolve **D16, D17, D18** + paginação server-side.
 2. **"Nenhum pagamento liberado no mês fora de lote" deixa de ser `ActionError`** → retorno `ok` com `vinculados: 0` e toast neutro. Desfecho rotineiro não é erro vermelho.
 3. Lotes viram lista paginada no servidor, com coluna de progresso (`pagos/qtd`) e total.
 4. `aberta` some da UI (N5); o `TONE` deixa de mapear valor morto.
+
+**Como ficou (registro da entrega):**
+- **Item 3 já tinha saído na F1** (`listarFolhasProjetista` com `groupBy` + `Pagination` em `FolhaLotesSection`) — não refeito aqui, só confirmado que segue de pé.
+- **`gerarFolhaDoMes` muda de contrato**: `{ id: string | null, vinculados: number }` em vez de lançar `ActionError` quando o mês não tem pagamento fora de lote. `id` é `null` só nesse caso e nunca existiu lote pro mês; se já existia (mês já coberto), devolve o `id` existente. Único chamador é `FolhaLotesSection.gerar()` (conferido: `grep -rn gerarFolhaDoMes src` só aparece na action e nesse componente) — `vinculados === 0` vira `toast.info`, o resto continua `toast.success` + `router.refresh()`.
+- **`TONE`**: de `Record<"fechada"|"paga", "success"|"warning">` (quebrava `tsc`, TS7053 — `f.status` é o enum inteiro do Prisma, que inclui `"aberta"`) para `Partial<Record<string, "success"|"warning">>`; `aberta` fica de fora do objeto de propósito (N5: o enum continua existindo no banco — `gerarFolhaDoMes` nunca cria um lote nesse status — só não vira um badge na tela). O `?? "neutral"` que já existia cobre a ausência.
+- Mês vira `Select` com nome (usa o array `MESES` já existente); ano ganha `<Label htmlFor>` — sem mudança de comportamento, só rótulo/semântica de formulário.
+
+**Verificação:** `tsc`, `eslint`, 77 testes do financeiro (nenhum teste puro novo — F4 não mexeu em `service.ts`), `smoke:sync-pagamento` 19/19, e conferência independente (script temporário replicando a leitura de `gerarFolhaDoMes` direto no banco, já que a action exige sessão): mês vazio de propósito (2999) → `{id: null, vinculados: 0}`; mês 2026-04 (lote de teste da F1/F3, sem pagamento novo fora de lote) → `{id: <id do lote existente>, vinculados: 0}`. Script apagado depois de rodar.
+- **Não executado:** gerar um lote de verdade pela tela (exige sessão) — o smoke em navegador é quem prova o toast neutro (não vermelho) no caminho `vinculados: 0`, que é a metade visível do D17 e só se confirma ali.
 
 ### F5 — Dialogs: dedup, conta obrigatória, `fieldErrors`
 

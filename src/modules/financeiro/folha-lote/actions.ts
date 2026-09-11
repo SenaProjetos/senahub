@@ -33,7 +33,12 @@ export const gerarFolhaDoMes = defineAction(
       where: { folhaId: null, status: "pendente", liberadoEm: { gte: ini, lt: fim } },
       select: { id: true },
     });
-    if (pend.length === 0) throw new ActionError("Nenhum pagamento liberado no mês fora de lote.");
+    // Mês sem pagamento fora de lote é o desfecho normal (mês corrente, mês já coberto por
+    // outro lote) — não um erro. `ActionError` aqui virava toast vermelho num clique de rotina.
+    if (pend.length === 0) {
+      const existente = await prisma.folhaProjetista.findUnique({ where: { ano_mes: { ano, mes } } });
+      return { id: existente?.id ?? null, vinculados: 0 };
+    }
 
     const folha = await prisma.$transaction(async (tx) => {
       const existente = await tx.folhaProjetista.findUnique({ where: { ano_mes: { ano, mes } } });
