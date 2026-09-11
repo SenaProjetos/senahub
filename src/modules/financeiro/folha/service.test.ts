@@ -8,6 +8,7 @@ import {
   diasPendenteParado,
   quandoDoPagamento,
   erroTransicao,
+  nomeArquivoExport,
 } from "@/modules/financeiro/folha/service";
 
 describe("lerFiltrosFolha", () => {
@@ -143,5 +144,32 @@ describe("erroTransicao", () => {
   });
   it("status fora do enum conhecido nunca passa", () => {
     expect(erroTransicao("pagar", "estornado")).toBe("Este pagamento não está pendente.");
+  });
+});
+
+describe("nomeArquivoExport", () => {
+  const vazio = { status: null, projetistaId: "", projetoId: "", de: "", ate: "", q: "" } as const;
+
+  it("sem filtro: nome genérico", () => {
+    expect(nomeArquivoExport(vazio, "xlsx")).toBe("Producao.xlsx");
+  });
+  it("status entra no nome", () => {
+    expect(nomeArquivoExport({ ...vazio, status: "pago" }, "csv")).toBe("Producao-pago.csv");
+  });
+  it("período entra no nome", () => {
+    expect(nomeArquivoExport({ ...vazio, de: "2026-04-01", ate: "2026-06-30" }, "xlsx")).toBe(
+      "Producao-de-2026-04-01-ate-2026-06-30.xlsx",
+    );
+  });
+  it("busca vira slug sem acento", () => {
+    expect(nomeArquivoExport({ ...vazio, q: "João Silva" }, "csv")).toBe("Producao-busca-joao-silva.csv");
+  });
+  it("busca só de símbolos não deixa segmento vazio", () => {
+    expect(nomeArquivoExport({ ...vazio, q: "***" }, "csv")).toBe("Producao.csv");
+  });
+  it("combina status + período + busca, na ordem", () => {
+    expect(nomeArquivoExport({ ...vazio, status: "pendente", de: "2026-09-01", q: "elétrico" }, "xlsx")).toBe(
+      "Producao-pendente-de-2026-09-01-busca-eletrico.xlsx",
+    );
   });
 });

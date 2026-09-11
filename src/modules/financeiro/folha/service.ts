@@ -121,3 +121,34 @@ export function erroTransicao(acao: AcaoPagamento, status: string): string | nul
   if (status === "cancelado") return MSG_TRANSICAO[acao].cancelado;
   return "Este pagamento não está pendente.";
 }
+
+/**
+ * Reduz um texto livre (a busca do filtro) a algo seguro num nome de arquivo: sem
+ * acento, minúsculo, só `a-z0-9` e `-`. Vazio quando o texto não sobra nada (só símbolos).
+ */
+function slug(texto: string): string {
+  return texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 24);
+}
+
+/**
+ * Nome do arquivo exportado (F7/D28), incluindo o filtro aplicado — sem isso, dois exports
+ * com filtro diferente caem os dois como "Producao.xlsx" e o Windows empilha
+ * "Producao (1).xlsx", "(2)"... sem dizer qual é qual.
+ */
+export function nomeArquivoExport(f: FiltrosFolha, formato: "csv" | "xlsx"): string {
+  const partes: string[] = ["Producao"];
+  if (f.status) partes.push(f.status);
+  if (f.de) partes.push(`de-${f.de}`);
+  if (f.ate) partes.push(`ate-${f.ate}`);
+  if (f.q) {
+    const s = slug(f.q);
+    if (s) partes.push(`busca-${s}`);
+  }
+  return `${partes.join("-")}.${formato}`;
+}

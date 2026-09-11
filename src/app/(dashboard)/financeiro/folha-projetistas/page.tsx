@@ -116,10 +116,13 @@ export default async function FolhaProjetistasPage({
       );
     }
   } else {
-    const [{ folhas, total, page, pageSize }, opcoes, sv] = await Promise.all([
+    const [{ folhas, total, page, pageSize }, opcoes, sv, podeLancamento] = await Promise.all([
       listarFolhasProjetista(sp),
       opcoesLancamento(),
       contarPendentesSemValor(),
+      // O mesmo gate de destino do modo Pagamentos (D24) — o lote expandido (F10) linka
+      // pro lançamento de cada pagamento dentro dele.
+      can(user, "financeiro", "ver"),
     ]);
     semValor = sv;
     conteudo = (
@@ -130,6 +133,7 @@ export default async function FolhaProjetistasPage({
         pageSize={pageSize}
         contas={opcoes.contas}
         formas={opcoes.formas}
+        podeLancamento={podeLancamento}
       />
     );
   }

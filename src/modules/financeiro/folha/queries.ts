@@ -10,7 +10,8 @@ type RawParams = Record<string, string | string[] | undefined>;
 
 const SORT_PAGAMENTO = ["projetista", "valor", "liberadoEm"] as const;
 
-const INCLUDE_PAGAMENTO = {
+/** Exportado: `folha-lote/queries.ts` reusa o mesmo formato pra listar o conteúdo de um lote (F10/D29). */
+export const INCLUDE_PAGAMENTO = {
   projetista: { select: { name: true } },
   disciplina: {
     select: { disciplinaTextoLegado: true, projetoId: true, projeto: { select: { codigo: true, nome: true } } },
@@ -90,8 +91,11 @@ async function resumoDoRecorte(base: Prisma.PagamentoProjetistaWhereInput, statu
  * Decimal → number. Não há FK entre as tabelas, só as colunas soltas
  * `PagamentoProjetista.lancamentoId` e `Lancamento.pagamentoProjetistaId`;
  * `confirmarDespesaProjetista` acha por qualquer uma das duas, então aqui também.
+ *
+ * Exportado: `folha-lote/queries.ts` reusa, pra o conteúdo do lote ter a MESMA rastreabilidade
+ * (D24) da lista de pagamentos — não uma versão mais pobre só porque é dentro de um lote.
  */
-async function comLancamentos<T extends PagamentoBruto>(itens: T[]) {
+export async function comLancamentos<T extends PagamentoBruto>(itens: T[]) {
   const ids = itens.map((i) => i.id);
   const lancIds = itens.flatMap((i) => (i.lancamentoId ? [i.lancamentoId] : []));
   const lancamentos = ids.length
@@ -230,7 +234,8 @@ export async function dadosFolhaExport(sp: RawParams) {
   const itens = await comLancamentos(itensBrutos);
   // `truncado`: o chamador precisa saber que o arquivo NÃO é o recorte inteiro — um corte
   // silencioso em 5.000 linhas é a mesma classe de erro do D11, com outro nome.
-  return { itens, total, truncado: total > LIMITE_EXPORT };
+  // `filtros` volta junto (F9/D28) pra quem monta o nome do arquivo não precisar reler a URL.
+  return { itens, total, truncado: total > LIMITE_EXPORT, filtros };
 }
 
 /** Opções dos filtros: só quem/o que tem pagamento — não a empresa inteira. */

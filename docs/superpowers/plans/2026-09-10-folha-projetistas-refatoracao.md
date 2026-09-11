@@ -391,6 +391,16 @@ Smoke em navegador rodando (worktree, dados de dev) — nada quebrado, mas 5 ped
 | **F11** — Editar pagamento confirmado c/ justificativa | D27, N6 | **Opus 5** | Muda invariante financeiro documentado; decisão travada (N6), falta fechar o escopo de campos editáveis no início da fase. |
 | **F12** — Excluir lote | D30, N7 | **Opus 5** | Ação destrutiva sobre dado financeiro — mesmo padrão do cancelamento de pagamento (`folhaId: null`), decisão travada (N7). "Editar" lote fica fora do escopo por ora. |
 
+**✅ F9 e F10 entregues 2026-09-11 (Sonnet 5) — como ficou:**
+- **F9:** `nomeArquivoExport(filtros, formato)` em `folha/service.ts` (pura, 6 testes) — monta `Producao-<status>-de-<data>-ate-<data>-busca-<slug>.<formato>`, cada segmento só entra se o filtro correspondente estiver ativo. `dadosFolhaExport` passou a devolver `filtros` junto (o chamador não precisa reler a URL). Sem filtro, o nome continua `Producao.xlsx` — igual a antes.
+- **F10:** `listarPagamentosDoLote(folhaId)` (`folha-lote/queries.ts`) reusa o MESMO `INCLUDE_PAGAMENTO`/`comLancamentos` de `listarFolha` (agora exportados) — o lote expandido tem a mesma rastreabilidade (D24) da lista principal, não uma versão mais pobre. Carregado sob demanda por lote ao expandir (mesmo raciocínio do D12: não carregar toda linha filha só pra montar a lista de lotes).
+  - **Leitura fora de `defineAction`:** `pagamentosDoLote` em `folha-lote/actions.ts` segue o padrão já usado em `buscarEmpresaParaVincularAction` (comercial) — é busca, não mutação, `AuditLog` a cada expandir/recolher poluiria a trilha. Ainda exige sessão + `folha_pj`.
+  - **Achado na revisão, corrigido antes do commit:** a 1ª versão devolvia `[]` quando a permissão faltava — igual ao precedente do comercial, mas ERRADO aqui: um lote "3/3 pagos" mostraria "este lote não tem pagamentos", uma afirmação falsa sobre dado financeiro que ninguém leria como erro (hoje inalcançável, a página já exige `folha_pj`, e é por isso que precisava ficar certo agora). Corrigido pra `{ok:true,itens}|{ok:false}`, com mensagem própria de "sem permissão" no painel.
+  - **2ª correção:** o painel só buscava na 1ª expansão e guardava em estado local — pagar o lote (ou corrigir um valor) com o painel aberto deixava a tabela expandida desatualizada mesmo depois do `router.refresh()`. Trocado pra recarregar a CADA abertura (3 linhas por lote, custo desprezível).
+  - `podeLancamento` plumbado em `page.tsx` (branch da aba Lotes), mesmo gate (`financeiro:ver`) do modo Pagamentos.
+
+**Verificação:** `tsc`, `eslint`, 105 testes do financeiro, `smoke:sync-pagamento` 19/19, e conferência independente contra o banco de dev (`listarPagamentosDoLote` do lote 04/2026 batendo com `count` direto e com `qtd` do resumo, 3/3).
+
 ---
 
 ## 8. Branch

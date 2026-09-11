@@ -9,11 +9,33 @@ import { confirmarDespesaProjetista } from "@/modules/financeiro/custo/lancament
 import { MSG_LOTE_SEM_VALOR, quandoDoPagamento, separarPagaveis } from "@/modules/financeiro/folha/service";
 import { contaPagamento, dataPagamento, formaPagamento } from "@/modules/financeiro/folha/schemas";
 import { recalcularTotalFolha } from "./service";
+import { listarPagamentosDoLote, type PagamentoDoLote } from "./queries";
 
 // Recorte fino da F4 (2026-09-02): era `permissao: "gerir"`, o mesmo interruptor de lançar
 // boleto. Semeado para quem tinha `gerir`, então ninguém perdeu nada — passa a poder ser
 // separado pela tela. Ver docs/superpowers/specs/2026-09-02-ampliacao-escopo-permissoes.md.
 const base = { modulo: "financeiro", recurso: "financeiro", permissao: "folha_pj" } as const;
+
+/**
+ * Pagamentos de um lote, pra expandir a linha na aba Lotes (F10/D29) — fora de `defineAction`
+ * de propósito, mesmo padrão de `buscarEmpresaParaVincularAction` (comercial/actions.ts):
+ * é busca, não mutação; gravar `AuditLog` a cada expandir/recolher poluiria a trilha sem
+ * "o quê mudou" pra registrar. Ainda exige sessão + `folha_pj`, o mesmo piso da tela.
+ *
+ * `{ ok: false }` na falta de permissão, NUNCA `[]` — um lote com 3/3 pagos que devolvesse
+ * `[]` renderizaria "este lote não tem pagamentos", uma mentira sobre dado financeiro que
+ * ninguém veria como erro. Hoje é inalcançável (a página já exige `folha_pj`), e é
+ * justamente por isso que precisa ficar certo agora — nada mais vai pegar esse caso.
+ */
+export async function pagamentosDoLote(
+  folhaId: string,
+): Promise<{ ok: true; itens: PagamentoDoLote[] } | { ok: false }> {
+  const { requireUser } = await import("@/lib/session");
+  const { can } = await import("@/lib/permissions");
+  const user = await requireUser();
+  if (!(await can(user, "financeiro", "folha_pj"))) return { ok: false };
+  return { ok: true, itens: await listarPagamentosDoLote(folhaId) };
+}
 
 /**
  * Agrupa em um lote mensal os pagamentos de projetistas liberados no mês e ainda sem lote.

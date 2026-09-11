@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { parseListParams } from "@/lib/list-params";
+import { INCLUDE_PAGAMENTO, comLancamentos } from "@/modules/financeiro/folha/queries";
 import { resumirLotes, RESUMO_LOTE_VAZIO } from "./service";
 
 type RawParams = Record<string, string | string[] | undefined>;
@@ -55,3 +56,22 @@ export async function listarFolhasProjetista(sp: RawParams) {
 }
 
 export type FolhaLoteItem = Awaited<ReturnType<typeof listarFolhasProjetista>>["folhas"][number];
+
+/**
+ * Pagamentos de um lote — pra expandir a linha na aba Lotes e responder "o que tem dentro
+ * desse lote" (F10/D29), sem abrir mão da rastreabilidade da F2 (D24): reusa o MESMO
+ * `INCLUDE_PAGAMENTO`/`comLancamentos` de `listarFolha`, não uma versão mais pobre só
+ * porque é dentro de um lote. Carregado sob demanda por lote (ver `pagamentosDoLote` em
+ * `actions.ts`), não junto com a lista de lotes — mesmo motivo do D12: carregar toda linha
+ * filha só pra montar a lista já foi o erro daqui uma vez.
+ */
+export async function listarPagamentosDoLote(folhaId: string) {
+  const itensBrutos = await prisma.pagamentoProjetista.findMany({
+    where: { folhaId },
+    orderBy: [{ status: "asc" }, { liberadoEm: "desc" }],
+    include: INCLUDE_PAGAMENTO,
+  });
+  return comLancamentos(itensBrutos);
+}
+
+export type PagamentoDoLote = Awaited<ReturnType<typeof listarPagamentosDoLote>>[number];
