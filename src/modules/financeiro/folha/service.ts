@@ -122,6 +122,35 @@ export function erroTransicao(acao: AcaoPagamento, status: string): string | nul
   return "Este pagamento não está pendente.";
 }
 
+/** O que a correção de um pagamento efetivado precisa saber do lançamento vinculado. */
+export type EstadoLancamentoCorrecao = {
+  status: string;
+  /** Tem `TransacaoBancaria` ligada — mesmo teste da tela de Lançamentos (`transacao != null`). */
+  conciliado: boolean;
+  /** Baixa parcial (`valorEfetivo` preenchido) — trocar o valor aqui deixaria o saldo ambíguo. */
+  parcial: boolean;
+};
+
+export const MSG_CORRECAO_CONCILIADO =
+  "Este pagamento já foi conciliado com o extrato bancário — não pode mais ser corrigido.";
+
+/**
+ * Regra da correção de um pagamento JÁ efetivado (F11, decisão N6): só `pago`, com
+ * lançamento confirmado no caixa, e nunca depois de conciliado — o extrato é o registro
+ * externo do que de fato saiu da conta. Separada de `erroTransicao` de propósito: aquela
+ * continua valendo "só pendente" para pagar/editar/cancelar.
+ *
+ * Pura — a tela usa a mesma regra para dizer o motivo sem abrir um dialog fadado a falhar.
+ */
+export function erroCorrecaoEfetivado(status: string, lanc: EstadoLancamentoCorrecao | null): string | null {
+  if (status !== "pago") return "Só um pagamento já efetivado é corrigido por aqui — pendente se edita pelo lápis da linha.";
+  if (!lanc) return "Este pagamento não tem lançamento no caixa — não há o que corrigir.";
+  if (lanc.status !== "confirmado") return "O lançamento deste pagamento não está confirmado no caixa — corrija pela tela de Lançamentos.";
+  if (lanc.conciliado) return MSG_CORRECAO_CONCILIADO;
+  if (lanc.parcial) return "O lançamento deste pagamento tem baixa parcial — corrija pela tela de Lançamentos.";
+  return null;
+}
+
 /**
  * Reduz um texto livre (a busca do filtro) a algo seguro num nome de arquivo: sem
  * acento, minúsculo, só `a-z0-9` e `-`. Vazio quando o texto não sobra nada (só símbolos).

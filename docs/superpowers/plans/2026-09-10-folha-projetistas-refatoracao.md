@@ -2,7 +2,7 @@
 
 - **Data:** 2026-09-10
 - **Origem:** dono pediu revisão de UI/UX e de funções da tela.
-- **Estado:** **F0a a F10 entregues.** `tsc`, `eslint`, testes e `smoke:sync-pagamento` (19/19) verdes em todas. §7.3 já respondido em produção (0 pagamentos sem conta). Falta: smoke completo em navegador com login real (checklist publicado como artefato, atualizado até F8/F9/F10) e F11/F12 (D27/D30, N6/N7 já travadas — decisões e escopo fechados, só falta trocar pra **Opus 5** e iniciar). Detalhe de cada fase na própria seção; F8-F12 estão na §9 "Backlog pós-smoke".
+- **Estado:** **F0a a F11 entregues.** `tsc`, `eslint`, testes e `smoke:sync-pagamento` (19/19) verdes em todas. §7.3 já respondido em produção (0 pagamentos sem conta). Falta: **F12** (excluir lote, D30/N7, Opus 5, decisão travada) e o smoke completo em navegador com login real (checklist publicado como artefato, atualizado até a F11). Detalhe de cada fase na própria seção; F8–F12 estão na §9 "Backlog pós-smoke".
   - **Falta smoke em navegador nas três fases**, com login de verdade — sem sessão o `middleware` redireciona pra `/login` antes de renderizar a página (confirmado: `next dev` compilou e serviu o 307 sem erro, mas isso não exercita `page.tsx`/`FolhaView`/`ProducaoAbas`). Criar sessão de teste (reset de senha do admin, ou usuário próprio) não é decisão para tomar sozinho num banco de dev compartilhado — fica para quem tem credencial.
   - **O banco de dev agora tem dado pra testar as duas abas de propósito:** 1 pagamento pendente zerado (F0a) e 1 lote real, 2026-04, com 3 pagamentos — 2 pagáveis + a linha zerada dentro dele. Isso deixa testável: aviso no topo (nas duas abas), badge "sem valor", botão "Corrigir valor", aba de lotes com conteúdo (antes mostrava "Nenhum lote gerado"), "Pagar lote" deixando a linha zerada de fora, e o 3º card de KPI "Cancelado" (ainda R$ 0 — nenhum pagamento cancelado em dev).
   - F0: conferir a troca de aba (`?aba=pagar` ↔ `?aba=lotes`) e que o título "Produção" aparece uma vez só, no topo.
@@ -381,14 +381,14 @@ Smoke em navegador rodando (worktree, dados de dev) — nada quebrado, mas 5 ped
 | **D29** | **Lote muito opaco — listar os pagamentos dentro dele.** | Baixo risco. Mesmo padrão já construído em F3 (`Collapsible` por grupo): expandir a linha do lote mostra as linhas de `PagamentoProjetista` que o compõem, igual ao grupo por projetista já faz. Sem action nova, só query (`listarFolhasProjetista` já sabe contar; falta trazer as linhas). |
 | **D30** | **Permitir excluir ou editar um lote.** | **Decidido (2026-09-11, N7):** excluir um lote solta todos os pagamentos dele (`folhaId: null`, pagos inclusive) — mesmo padrão que cancelar um pagamento já usa. Nenhum `Lancamento` é tocado; só o agrupamento em lote desfaz. "Editar" (mover pagamento entre lotes) segue sem decisão fechada — não bloqueia a F12, que pode nascer só com "excluir". |
 
-### Fases propostas (não iniciadas — aguardando modelo + as 2 decisões acima)
+### Fases do backlog pós-smoke (F8–F11 entregues; F12 pendente)
 
 | Fase | Resolve | Modelo sugerido | Por quê |
 | --- | --- | --- | --- |
 | **F8** — Comprovante no fluxo de pagar | D26 | Sonnet 5 | Reusa capability existente, sem schema novo — encanamento de UI. |
 | **F9** — Nome do arquivo de export | D28 | Sonnet 5 (ou junto com F8) | Trivial, uma função pura + teste. |
 | **F10** — Lote expandido (lista os pagamentos) | D29 | Sonnet 5 | Reusa `Collapsible` da F3, query aditiva. |
-| **F11** — Editar pagamento confirmado c/ justificativa | D27, N6 | **Opus 5** | Muda invariante financeiro documentado; decisão e escopo de campos (todos) já travados (N6) — pode iniciar direto. |
+| **F11** — Editar pagamento confirmado c/ justificativa ✅ | D27, N6 | **Opus 5** | Entregue 2026-09-11 — ver bloco abaixo. |
 | **F12** — Excluir lote | D30, N7 | **Opus 5** | Ação destrutiva sobre dado financeiro — mesmo padrão do cancelamento de pagamento (`folhaId: null`), decisão travada (N7). "Editar" lote fica fora do escopo por ora. |
 
 **✅ F8 entregue 2026-09-11 (Sonnet 5) — como ficou:**
@@ -409,6 +409,17 @@ Smoke em navegador rodando (worktree, dados de dev) — nada quebrado, mas 5 ped
   - `podeLancamento` plumbado em `page.tsx` (branch da aba Lotes), mesmo gate (`financeiro:ver`) do modo Pagamentos.
 
 **Verificação (F8, F9, F10):** `tsc`, `eslint`, 105 testes do financeiro, `smoke:sync-pagamento` 19/19 em cada rodada, e conferência independente contra o banco de dev — F10: `listarPagamentosDoLote` do lote 04/2026 batendo com `count` direto e com `qtd` do resumo (3/3); F8: `qtdAnexos` de `comLancamentos` batendo com `lancamentoAnexo.count` direto nos 2 sentidos (com e sem `pagamentoProjetistaId`). Checklist de smoke em navegador (artefato publicado) atualizado com os 3 itens novos (07, 10, 11).
+
+**✅ F11 entregue 2026-09-11 (Opus 5) — como ficou:**
+- **Porta nova, não afrouxamento:** `corrigirPagamentoEfetivado` (`folha/actions.ts`) é uma action separada. `editarPagamentoProjetista` continua só para pendente e `erroTransicao` não mudou (os 6 testes dela seguem iguais). Gate `folha_pj`, mesmo formato do F8: só alcança lançamentos que nascem de um `PagamentoProjetista`.
+- **Todos os campos (N6 refinado):** valor, conta, forma, data e observação, com **justificativa obrigatória** (10 a 500 caracteres). A justificativa entra no `AuditLog` pelo input (`detalhe.novo`); o `capturarAntes` grava **os dois lados** do estado anterior (pagamento + lançamento), porque conta e data moram no lançamento e "qual era a conta antes" é justamente o que a justificativa responde. Como não existe relação Prisma entre as tabelas, o lançamento é achado pela mesma precedência de `comLancamentos`/`confirmarDespesaProjetista` (`lancamentoId`, depois `pagamentoProjetistaId`).
+- **Regra pura `erroCorrecaoEfetivado`** (`folha/service.ts`, 7 testes): só `pago`; lançamento existente e `confirmado`; **não conciliado** (tem `TransacaoBancaria` ligada, o mesmo teste da tela de Lançamentos); sem baixa parcial (`valorEfetivo`). A tela usa a mesma regra: um conciliado mostra o texto "conciliado — não editável" no lugar do botão; os outros bloqueios (raros) mantêm o botão e o clique diz o motivo.
+- **Guardas repetidas na escrita:** pagamento reservado com `where status:"pago"`; lançamento atualizado com `updateMany where {status:"confirmado", valorEfetivo:null, transacao:{is:null}, excluidoEm:null}`. Se achar 0 linhas, a transação inteira volta. Isso estreita a janela contra um `conciliarComLancamento` concorrente, mas não é um lock entre as duas telas (está escrito no comentário).
+- **O que muda no caixa:** `valor`, `contaId`, `formaId` e `dataConfirmacao` do lançamento. `data` (competência) fica igual, como `confirmarDespesaProjetista` também preserva. Mantém as cargas do §5: `recalcularTotalFolha` e `sincronizarValorDisciplina` ("pool = soma dos vivos" inclui os pagos). Revalida `folha-projetistas`, `lancamentos` e `fluxo-caixa`.
+- **Dialog (`corrigir-pagamento-dialog.tsx`)** parte do que está gravado, nunca de campos vazios. A data é lida com getters UTC (é meia-noite UTC gravada); os locais dariam o dia anterior em BRT. A conta/forma atual entra na lista **mesmo se tiver sido desativada**, marcada "(inativa)": sem isso, corrigir só o valor obrigaria a mover o dinheiro para outra conta. Ligado nos dois modos (por pagamento e por projetista). Rótulo "Corrigir pagamento", diferente do "Corrigir valor" do pendente zerado.
+- **Fora do corte, de propósito:** o painel do lote expandido (F10) segue só leitura, sem ação de corrigir. Nenhuma notificação vai para o projetista quando o valor de um pago muda.
+
+**Verificação (F11):** `tsc`, `eslint`, 112 testes do financeiro (+7), `smoke:sync-pagamento` 19/19 e conferência contra o banco de dev numa transação desfeita: o `conciliado` de `comLancamentos` bate com a `TransacaoBancaria` lida direto (2/2 pagos com lançamento); a guarda da escrita acha 1 linha no lançamento livre e **0** depois de conciliá-lo dentro da mesma transação; o rollback não deixou resíduo. O dev não tem nenhum lançamento de produção conciliado, então o "conciliado — não editável" da tela só aparece no navegador depois de conciliar um pelo extrato.
 
 ---
 

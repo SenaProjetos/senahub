@@ -8,6 +8,8 @@ import {
   diasPendenteParado,
   quandoDoPagamento,
   erroTransicao,
+  erroCorrecaoEfetivado,
+  MSG_CORRECAO_CONCILIADO,
   nomeArquivoExport,
 } from "@/modules/financeiro/folha/service";
 
@@ -119,6 +121,33 @@ describe("quandoDoPagamento", () => {
     const agora = new Date(2026, 8, 11, 23, 30); // 23h30 local
     expect(quandoDoPagamento(undefined, agora).toISOString()).toBe("2026-09-11T00:00:00.000Z");
     expect(quandoDoPagamento("", agora).toISOString()).toBe("2026-09-11T00:00:00.000Z");
+  });
+});
+
+describe("erroCorrecaoEfetivado", () => {
+  const livre = { status: "confirmado", conciliado: false, parcial: false };
+  it("pago, com lançamento confirmado e não conciliado, pode ser corrigido", () => {
+    expect(erroCorrecaoEfetivado("pago", livre)).toBeNull();
+  });
+  it("pendente e cancelado não são corrigidos por aqui", () => {
+    expect(erroCorrecaoEfetivado("pendente", livre)).toMatch(/Só um pagamento já efetivado/);
+    expect(erroCorrecaoEfetivado("cancelado", livre)).toMatch(/Só um pagamento já efetivado/);
+  });
+  it("pago sem lançamento no caixa é recusado", () => {
+    expect(erroCorrecaoEfetivado("pago", null)).toMatch(/não tem lançamento/);
+  });
+  it("lançamento que não está confirmado é recusado", () => {
+    expect(erroCorrecaoEfetivado("pago", { ...livre, status: "previsto" })).toMatch(/não está confirmado/);
+    expect(erroCorrecaoEfetivado("pago", { ...livre, status: "cancelado" })).toMatch(/não está confirmado/);
+  });
+  it("conciliado com o extrato é recusado (N6)", () => {
+    expect(erroCorrecaoEfetivado("pago", { ...livre, conciliado: true })).toBe(MSG_CORRECAO_CONCILIADO);
+  });
+  it("baixa parcial é recusada", () => {
+    expect(erroCorrecaoEfetivado("pago", { ...livre, parcial: true })).toMatch(/baixa parcial/);
+  });
+  it("conciliado e parcial ao mesmo tempo: vale a mensagem do extrato", () => {
+    expect(erroCorrecaoEfetivado("pago", { ...livre, conciliado: true, parcial: true })).toBe(MSG_CORRECAO_CONCILIADO);
   });
 });
 

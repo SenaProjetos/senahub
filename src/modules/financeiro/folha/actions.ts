@@ -8,9 +8,11 @@ import { notificar, notificarMuitos } from "@/lib/notificar";
 import { confirmarDespesaProjetista, criarDespesaProjetistaPrevista } from "@/modules/financeiro/custo/lancamento-custo";
 import { sincronizarValorDisciplina } from "@/modules/uploads/pagamento";
 import { recalcularTotalFolha } from "@/modules/financeiro/folha-lote/service";
+import type { Prisma } from "@/generated/prisma/client";
 import {
   MSG_PAGAMENTO_SEM_VALOR,
   erroTransicao,
+  erroCorrecaoEfetivado,
   quandoDoPagamento,
   separarPagaveis,
   temValorPagavel,
@@ -238,6 +240,141 @@ export const editarPagamentoProjetista = defineAction(
 
     revalidatePath("/financeiro/folha-projetistas");
     revalidatePath("/financeiro/lancamentos");
+    return { id: pag.id };
+  },
+);
+
+const corrigirEfetivadoSchema = z.object({
+  id: z.string().min(1),
+  valor: z.number().positive("Informe um valor maior que zero."),
+  contaId: contaPagamento,
+  formaId: formaPagamento,
+  // Obrigatória aqui (no pagar, vazio = hoje): a correção sempre parte da data já gravada.
+  data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Informe a data do pagamento."),
+  observacao: z.string().trim().max(500, "Observação com no máximo 500 caracteres.").optional(),
+  justificativa: z
+    .string()
+    .trim()
+    .min(10, "Explique o motivo da correção (mínimo 10 caracteres).")
+    .max(500, "Justificativa com no máximo 500 caracteres."),
+});
+
+/**
+ * Lançamento de um pagamento: pelo `lancamentoId` do pagamento e, sem ele, pelo
+ * `pagamentoProjetistaId` do lançamento — mesma precedência de `comLancamentos` e de
+ * `confirmarDespesaProjetista` (não há FK entre as tabelas, só as duas colunas soltas).
+ * `excluidoEm: null` explícito: o filtro automático de soft delete não cobre toda leitura.
+ */
+async function lancamentoDoPagamento(db: Prisma.TransactionClient, pag: { id: string; lancamentoId: string | null }) {
+  const select = {
+    id: true,
+    status: true,
+    valor: true,
+    valorEfetivo: true,
+    contaId: true,
+    formaId: true,
+    dataConfirmacao: true,
+    transacao: { select: { id: true } },
+  } satisfies Prisma.LancamentoSelect;
+  const porId = pag.lancamentoId
+    ? await db.lancamento.findFirst({ where: { id: pag.lancamentoId, excluidoEm: null }, select })
+    : null;
+  return porId ?? db.lancamento.findFirst({ where: { pagamentoProjetistaId: pag.id, excluidoEm: null }, select });
+}
+
+/**
+ * Corrige um pagamento JÁ efetivado (F11/D27, decisão N6): valor, conta, forma, data e
+ * observação, com justificativa obrigatória — que vai para o `AuditLog` junto com o input
+ * (`detalhe.novo`), ao lado do estado anterior dos DOIS lados (`capturarAntes`).
+ *
+ * Regra em `erroCorrecaoEfetivado`: só `pago`, com lançamento confirmado, sem baixa parcial
+ * e nunca conciliado com o extrato. `editarPagamentoProjetista` segue só para pendentes —
+ * esta é outra porta, não um afrouxamento daquela.
+ *
+ * Mantém as mesmas cargas estruturais da edição de pendente (§5 do plano): total do lote e
+ * `sincronizarValorDisciplina` — "pool = soma dos vivos" inclui os pagos.
+ */
+export const corrigirPagamentoEfetivado = defineAction(
+  {
+    modulo: "financeiro",
+    acao: "corrigir-pagamento-efetivado",
+    recurso: "financeiro",
+    permissao: "folha_pj",
+    entidade: "PagamentoProjetista",
+    schema: corrigirEfetivadoSchema,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
+    // Os dois lados: "qual era a conta/data antes desta correção" é a pergunta que a
+    // justificativa existe para responder — e conta/data moram no lançamento, não no pagamento.
+    capturarAntes: async (input) => {
+      const pagamento = await prisma.pagamentoProjetista.findUnique({
+        where: { id: input.id },
+        select: { id: true, valor: true, status: true, pagoEm: true, observacao: true, lancamentoId: true },
+      });
+      if (!pagamento) return null;
+      const l = await lancamentoDoPagamento(prisma, pagamento);
+      return {
+        pagamento,
+        lancamento: l && { id: l.id, valor: l.valor, contaId: l.contaId, formaId: l.formaId, dataConfirmacao: l.dataConfirmacao },
+      };
+    },
+  },
+  async (i) => {
+    const pag = await prisma.pagamentoProjetista.findUnique({
+      where: { id: i.id },
+      select: { id: true, status: true, lancamentoId: true, folhaId: true, disciplinaId: true },
+    });
+    if (!pag) throw new ActionError("Pagamento não encontrado.");
+    const quando = quandoDoPagamento(i.data);
+
+    await prisma.$transaction(async (tx) => {
+      const lanc = await lancamentoDoPagamento(tx, pag);
+      const bloqueio = erroCorrecaoEfetivado(
+        pag.status,
+        lanc && { status: lanc.status, conciliado: lanc.transacao != null, parcial: lanc.valorEfetivo != null },
+      );
+      if (bloqueio || !lanc) throw new ActionError(bloqueio ?? "Lançamento não encontrado.");
+
+      // Id inválido viraria erro genérico de FK — diz qual campo.
+      const conta = await tx.contaBancaria.findUnique({ where: { id: i.contaId }, select: { id: true } });
+      if (!conta) throw new ActionError("Conta não encontrada.");
+      if (i.formaId) {
+        const forma = await tx.formaPagamento.findUnique({ where: { id: i.formaId }, select: { id: true } });
+        if (!forma) throw new ActionError("Forma de pagamento não encontrada.");
+      }
+
+      const reserva = await tx.pagamentoProjetista.updateMany({
+        where: { id: pag.id, status: "pago" },
+        data: {
+          valor: i.valor,
+          pagoEm: quando,
+          ...(i.observacao !== undefined ? { observacao: i.observacao || null } : {}),
+        },
+      });
+      if (reserva.count === 0) {
+        throw new ActionError("O pagamento mudou enquanto a tela estava aberta — atualize e tente de novo.");
+      }
+
+      // As mesmas guardas repetidas NA ESCRITA (não só na leitura acima): uma conciliação ou
+      // baixa parcial feita entre a leitura e aqui faz o update achar 0 linhas e a transação
+      // inteira volta. Estreita a janela contra `conciliarComLancamento` concorrente; não é
+      // um lock entre as duas telas.
+      // `data` (competência) fica como está — `confirmarDespesaProjetista` também a preserva
+      // ao confirmar um previsto; o que muda com o pagamento é `dataConfirmacao`.
+      const atualizado = await tx.lancamento.updateMany({
+        where: { id: lanc.id, status: "confirmado", excluidoEm: null, valorEfetivo: null, transacao: { is: null } },
+        data: { valor: i.valor, contaId: i.contaId, formaId: i.formaId || null, dataConfirmacao: quando },
+      });
+      if (atualizado.count === 0) {
+        throw new ActionError("O lançamento mudou enquanto a tela estava aberta (conciliado ou alterado) — atualize e tente de novo.");
+      }
+
+      if (pag.folhaId) await recalcularTotalFolha(tx, pag.folhaId);
+      await sincronizarValorDisciplina(tx, pag.disciplinaId);
+    });
+
+    revalidatePath("/financeiro/folha-projetistas");
+    revalidatePath("/financeiro/lancamentos");
+    revalidatePath("/financeiro/fluxo-caixa");
     return { id: pag.id };
   },
 );

@@ -106,8 +106,12 @@ export async function comLancamentos<T extends PagamentoBruto>(itens: T[]) {
           status: true,
           pagamentoProjetistaId: true,
           dataConfirmacao: true,
+          contaId: true,
+          formaId: true,
+          valorEfetivo: true,
           conta: { select: { nome: true } },
           forma: { select: { nome: true } },
+          transacao: { select: { id: true } },
           _count: { select: { anexos: true } },
         },
       })
@@ -129,6 +133,12 @@ export async function comLancamentos<T extends PagamentoBruto>(itens: T[]) {
             status: l.status as string,
             conta: l.conta?.nome ?? null,
             forma: l.forma?.nome ?? null,
+            // F11: ids para pré-preencher a correção (os nomes acima são só exibição).
+            contaId: l.contaId,
+            formaId: l.formaId,
+            // Mesmo teste de "conciliado" da tela de Lançamentos (`lancamentos/queries.ts`).
+            conciliado: l.transacao != null,
+            parcial: l.valorEfetivo != null,
             dataConfirmacao: l.dataConfirmacao,
             // F8/D26: só a contagem — mostra "tem/não tem comprovante" na tabela sem puxar
             // a lista inteira de anexos aqui (isso é papel do dialog do Lançamento).

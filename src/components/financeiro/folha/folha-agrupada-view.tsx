@@ -26,6 +26,7 @@ import {
   type LinksFolha,
   type Opcao,
 } from "./folha-linhas-compartilhadas";
+import { CorrigirPagamentoDialog } from "./corrigir-pagamento-dialog";
 import { EfetivarPagamentoDialog, type DadosEfetivacao } from "./efetivar-pagamento-dialog";
 
 /**
@@ -56,6 +57,7 @@ export function FolhaAgrupadaView({
   const router = useRouter();
   const [pagar, setPagar] = useState<FolhaItem | null>(null);
   const [editar, setEditar] = useState<FolhaItem | null>(null);
+  const [corrigir, setCorrigir] = useState<FolhaItem | null>(null);
   const [loteGrupo, setLoteGrupo] = useState<FolhaGrupo | null>(null);
 
   const pagaveisDoLote = useMemo(() => (loteGrupo ? loteGrupo.itens.filter(pagavel) : []), [loteGrupo]);
@@ -92,12 +94,14 @@ export function FolhaAgrupadaView({
           links={links}
           onPagar={setPagar}
           onEditar={setEditar}
+          onCorrigir={setCorrigir}
           onPagarTudo={setLoteGrupo}
         />
       ))}
 
       <PagarDialog pagamento={pagar} onClose={() => setPagar(null)} contas={contas} formas={formas} />
       <EditarValorDialog pagamento={editar} onClose={() => setEditar(null)} />
+      <CorrigirPagamentoDialog pagamento={corrigir} contas={contas} formas={formas} onClose={() => setCorrigir(null)} />
       <EfetivarPagamentoDialog
         open={!!loteGrupo}
         titulo="Pagar tudo"
@@ -117,12 +121,14 @@ function GrupoProjetista({
   links,
   onPagar,
   onEditar,
+  onCorrigir,
   onPagarTudo,
 }: {
   grupo: FolhaGrupo;
   links: LinksFolha;
   onPagar: (p: FolhaItem) => void;
   onEditar: (p: FolhaItem) => void;
+  onCorrigir: (p: FolhaItem) => void;
   onPagarTudo: (g: FolhaGrupo) => void;
 }) {
   const pagaveis = grupo.itens.filter(pagavel);
@@ -212,7 +218,7 @@ function GrupoProjetista({
                       <BadgeStatus p={p} />
                     </TableCell>
                     <TableCell>
-                      <AcoesPagamento p={p} onPagar={onPagar} onEditar={onEditar} />
+                      <AcoesPagamento p={p} onPagar={onPagar} onEditar={onEditar} onCorrigir={onCorrigir} />
                     </TableCell>
                   </TableRow>
                 );

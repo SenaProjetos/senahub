@@ -10,7 +10,7 @@ import {
   editarPagamentoProjetista,
   cancelarPagamentoProjetista,
 } from "@/modules/financeiro/folha/actions";
-import { temValorPagavel } from "@/modules/financeiro/folha/service";
+import { temValorPagavel, erroCorrecaoEfetivado, MSG_CORRECAO_CONCILIADO } from "@/modules/financeiro/folha/service";
 import { STATUS_PAGAMENTO_TONE, STATUS_PAGAMENTO_LABEL, type FiltrosFolha } from "@/modules/financeiro/folha/status";
 import type { FolhaItem } from "@/modules/financeiro/folha/queries";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -48,16 +48,22 @@ export function BadgeStatus({ p }: { p: FolhaItem }) {
   );
 }
 
-/** Botões de ação de uma linha pendente: Pagar/Corrigir valor + Editar + Cancelar. */
+/**
+ * Botões de ação: pendente → Pagar/Corrigir valor + Editar + Cancelar; pago → "Corrigir
+ * pagamento" (F11). Rótulo diferente de "Corrigir valor" de propósito: são duas ações.
+ */
 export function AcoesPagamento({
   p,
   onPagar,
   onEditar,
+  onCorrigir,
 }: {
   p: FolhaItem;
   onPagar: (p: FolhaItem) => void;
   onEditar: (p: FolhaItem) => void;
+  onCorrigir?: (p: FolhaItem) => void;
 }) {
+  if (p.status === "pago" && onCorrigir) return <CorrigirPagamentoButton p={p} onCorrigir={onCorrigir} />;
   if (p.status !== "pendente") return null;
   return (
     <div className="flex flex-wrap gap-1">
@@ -85,6 +91,28 @@ export function AcoesPagamento({
       )}
       <CancelarPagamentoButton pagamento={p} />
     </div>
+  );
+}
+
+/**
+ * Conciliado é estado permanente e informativo → vira texto na linha, não um botão que
+ * sempre recusa. Os outros bloqueios (sem lançamento, baixa parcial) são raros: o botão
+ * fica, e o clique diz o motivo em vez de abrir um dialog fadado a falhar.
+ */
+function CorrigirPagamentoButton({ p, onCorrigir }: { p: FolhaItem; onCorrigir: (p: FolhaItem) => void }) {
+  const l = p.lancamento;
+  const motivo = erroCorrecaoEfetivado(p.status, l && { status: l.status, conciliado: l.conciliado, parcial: l.parcial });
+  if (motivo === MSG_CORRECAO_CONCILIADO) {
+    return (
+      <span className="text-xs text-muted-foreground" title={motivo}>
+        conciliado — não editável
+      </span>
+    );
+  }
+  return (
+    <Button size="sm" variant="ghost" onClick={() => (motivo ? toast.info(motivo) : onCorrigir(p))}>
+      <Pencil className="size-3.5" /> Corrigir pagamento
+    </Button>
   );
 }
 
