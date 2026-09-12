@@ -5997,6 +5997,11 @@ model PagamentoProjetista {
   @@index([projetistaId, status])
   @@index([disciplinaId])
   @@index([folhaId])
+  /// G4/D40: a tela Produção filtra por status + período de liberação e ordena por
+  /// (status, liberadoEm desc) — este é o índice desse recorte. Hoje são 15 linhas em
+  /// produção (seq scan é mais rápido que índice nesse tamanho); entra agora para o
+  /// crescimento não encontrar a tabela sem índice depois.
+  @@index([status, liberadoEm])
   @@map("pagamento_projetista")
 }
 

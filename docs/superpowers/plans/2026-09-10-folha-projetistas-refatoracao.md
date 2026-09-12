@@ -545,3 +545,10 @@ Ordem agrupada **por modelo**, para não parar a cada etapa (pedido do dono):
 
 **Verificação (G3):** `tsc`, `eslint`, 129 testes, `smoke:sync-pagamento` 19/19 e conferência no banco de dev em transação desfeita: move, recalcula os dois lotes, destino fica com o valor movido, origem perde exatamente o mesmo, regra recusa pago e lote pago, rollback limpo.
 - **Achado do próprio teste:** a primeira asserção falhou por comparar diferença de floats (9734,57 − 8500,01 = 1234,5599999999995). Não era divergência de dado — conferi que o total gravado batia com a soma dos vivos antes do teste. A checagem passou a usar tolerância de meio centavo, que é o certo para `Decimal(14,2)` lido como `number`.
+
+**✅ G4 entregue 2026-09-12 (Opus 5) — índice `[status, liberadoEm]` (D40):**
+- `@@index([status, liberadoEm])` em `PagamentoProjetista` + migration `20260912130000_pagamento_projetista_status_liberado`. É o recorte exato da tela (filtro por status + período, ordenação padrão `status, liberadoEm desc`); os três índices que já existiam servem a outros caminhos (extrato do projetista, sincronização por disciplina, conteúdo do lote).
+- **Sem `CONCURRENTLY` de propósito:** migration do Prisma roda em transação e `CREATE INDEX CONCURRENTLY` não pode. Com esta tabela o lock de escrita dura milissegundos. Se um dia crescer muito, índice novo se cria à mão, fora da migration.
+- **Honestidade sobre o ganho:** com 15 linhas o planner continua fazendo `Seq Scan` — conferido com `EXPLAIN`. O índice entra agora (decisão do dono) para o crescimento não encontrar a tabela sem ele, não porque a tela esteja lenta hoje.
+
+**Verificação (G4):** `migrate deploy` aplicado no dev, índice presente em `pg_indexes` com o nome derivado do schema (`pagamento_projetista_status_liberadoEm_idx` — nome divergente viraria drift no próximo `migrate dev`), `prisma migrate status` = "Database schema is up to date", e o plano atual registrado acima.
