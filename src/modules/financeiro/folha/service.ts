@@ -92,6 +92,23 @@ export function quandoDoPagamento(data: string | undefined, agora: Date = new Da
   return data ? new Date(data) : inicioDoDiaUtc(agora);
 }
 
+/**
+ * A data de pagamento mudou? Compara por DIA calendário (UTC), não por instante exato
+ * (G8/B2). `pagoEm` é editada pela tela como um `<input type="date">`, então dois valores
+ * do mesmo dia são "a mesma data" mesmo que o instante gravado difira — o que acontece com
+ * dado legado/seed que não passou por `quandoDoPagamento` (tem hora real, não meia-noite).
+ * Comparar por instante geraria notificação falsa de "data mudou" quando o usuário nem
+ * tocou no campo, só reabriu e salvou.
+ */
+export function mudouDataPagamento(antes: Date | null, depois: Date): boolean {
+  if (!antes) return true;
+  return (
+    antes.getUTCFullYear() !== depois.getUTCFullYear() ||
+    antes.getUTCMonth() !== depois.getUTCMonth() ||
+    antes.getUTCDate() !== depois.getUTCDate()
+  );
+}
+
 export type AcaoPagamento = "pagar" | "editar" | "cancelar";
 
 const MSG_TRANSICAO: Record<AcaoPagamento, { pago: string; cancelado: string }> = {

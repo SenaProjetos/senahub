@@ -583,3 +583,11 @@ Decisões do dono nesta fase (2026-09-12): recibo **individual E mensal**; assin
 - Fora do escopo, mantido do F8: um comprovante por lançamento, nunca um arquivo só replicado — decisão já tomada na F8 e reafirmada aqui.
 
 **Verificação (G7):** `tsc`, `eslint`, 142 testes, `smoke:sync-pagamento` 19/19 e conferência no banco de dev em transação desfeita: o loop reproduzido devolve o par (id, lancamentoId) batendo com o gravado, cada lançamento aponta de volta ao pagamento certo, nenhum lancamentoId repetido entre os dois pagamentos testados.
+
+**✅ G8 entregue 2026-09-12 (Sonnet 5) — notificar só quando valor/data mudam (B2):**
+- `corrigirPagamentoEfetivado` passa a notificar o projetista (categoria `pagamento`) quando a correção muda **valor ou data** — nunca conta/forma/observação, por decisão do dono.
+- **Achado real na própria verificação, não do script:** comparar `pagoEm` por instante exato (`getTime()`) geraria notificação falsa. O dev tem pagamentos com `pagoEm` gravado com hora real (`2026-04-05T03:17:21.389Z`, dado legado/seed que não passou por `quandoDoPagamento`) — reabrir "Corrigir pagamento" sem tocar na data reconstrói meia-noite UTC a partir do `yyyy-mm-dd` mostrado, e comparar instantes diria "mudou" mesmo sem o usuário ter feito nada.
+- **Correção:** `mudouDataPagamento` (pura, 5 testes) compara por **dia calendário UTC**, não por instante — é a granularidade real do campo (`<input type="date">`). Tolerância de meio centavo no valor, mesma regra já usada em `erroCorrecaoConciliada`.
+- Notificação fora da transação — se falhar, não desfaz a correção.
+
+**Verificação (G8):** `tsc`, `eslint`, 147 testes (+5) e conferência no banco de dev usando um pagamento real com `pagoEm` fora de meia-noite: reabrir e salvar sem mudar nada não notifica; mudar valor notifica só por valor; mudar o dia notifica só por data; fração de centavo não notifica.

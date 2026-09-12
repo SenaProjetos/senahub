@@ -16,6 +16,7 @@ import {
   erroCorrecaoEfetivado,
   erroCorrecaoConciliada,
   erroEstornoEfetivado,
+  mudouDataPagamento,
   quandoDoPagamento,
   separarPagaveis,
   temValorPagavel,
@@ -386,10 +387,15 @@ export const corrigirPagamentoEfetivado = defineAction(
   async (i) => {
     const pag = await prisma.pagamentoProjetista.findUnique({
       where: { id: i.id },
-      select: { id: true, status: true, lancamentoId: true, folhaId: true, disciplinaId: true },
+      select: { id: true, status: true, lancamentoId: true, folhaId: true, disciplinaId: true, projetistaId: true, valor: true, pagoEm: true },
     });
     if (!pag) throw new ActionError("Pagamento não encontrado.");
     const quando = quandoDoPagamento(i.data);
+    // G8/B2: só notifica se valor ou data mudarem de verdade — conta/forma/observação são
+    // detalhe do registro, não algo que o projetista precise saber (decisão do dono).
+    const valorAntes = Number(pag.valor);
+    const pagoEmAntes = pag.pagoEm;
+    let quandoFinal = quando;
 
     await prisma.$transaction(async (tx) => {
       const lanc = await lancamentoDoPagamento(tx, pag);
@@ -418,7 +424,7 @@ export const corrigirPagamentoEfetivado = defineAction(
         );
         if (erro) throw new ActionError(erro);
       }
-      const quandoFinal = conciliada ? conciliada.data : quando;
+      quandoFinal = conciliada ? conciliada.data : quando;
 
       const reserva = await tx.pagamentoProjetista.updateMany({
         where: { id: pag.id, status: "pago" },
@@ -456,6 +462,18 @@ export const corrigirPagamentoEfetivado = defineAction(
       if (pag.folhaId) await recalcularTotalFolha(tx, pag.folhaId);
       await sincronizarValorDisciplina(tx, pag.disciplinaId);
     });
+
+    // G8/B2: fora da transação — notificação não pode fazer a correção voltar se falhar.
+    const mudouValor = Math.abs(valorAntes - i.valor) > 0.005;
+    const mudouData = mudouDataPagamento(pagoEmAntes, quandoFinal);
+    if (mudouValor || mudouData) {
+      await notificar(pag.projetistaId, {
+        titulo: "Pagamento corrigido",
+        corpo: "Um pagamento já efetivado foi corrigido — confira no seu extrato.",
+        href: "/financeiro",
+        tag: `corrigido-${pag.id}-${Date.now()}`,
+      }, { categoria: "pagamento" });
+    }
 
     revalidatePath("/financeiro/folha-projetistas");
     revalidatePath("/financeiro/lancamentos");

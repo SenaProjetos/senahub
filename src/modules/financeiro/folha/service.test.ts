@@ -7,6 +7,7 @@ import {
   temFiltroAlemDoStatus,
   diasPendenteParado,
   quandoDoPagamento,
+  mudouDataPagamento,
   erroTransicao,
   erroCorrecaoEfetivado,
   erroCorrecaoConciliada,
@@ -122,6 +123,30 @@ describe("quandoDoPagamento", () => {
     const agora = new Date(2026, 8, 11, 23, 30); // 23h30 local
     expect(quandoDoPagamento(undefined, agora).toISOString()).toBe("2026-09-11T00:00:00.000Z");
     expect(quandoDoPagamento("", agora).toISOString()).toBe("2026-09-11T00:00:00.000Z");
+  });
+});
+
+describe("mudouDataPagamento", () => {
+  it("sem data anterior conta como mudança", () => {
+    expect(mudouDataPagamento(null, new Date("2026-04-05T00:00:00.000Z"))).toBe(true);
+  });
+  it("mesmo dia, instante idêntico: não mudou", () => {
+    const d = new Date("2026-04-05T00:00:00.000Z");
+    expect(mudouDataPagamento(d, d)).toBe(false);
+  });
+  it("mesmo dia calendário, horário diferente (dado legado sem hora zerada): não mudou (G8)", () => {
+    // O caso real achado no dev: pagoEm gravado com hora real (seed), não meia-noite UTC.
+    // Reconstruir a MESMA data via <input type="date"> não pode virar notificação falsa.
+    const legado = new Date("2026-04-05T03:17:21.389Z");
+    const reconstruida = new Date("2026-04-05T00:00:00.000Z");
+    expect(mudouDataPagamento(legado, reconstruida)).toBe(false);
+  });
+  it("dia calendário diferente: mudou", () => {
+    expect(mudouDataPagamento(new Date("2026-04-05T00:00:00.000Z"), new Date("2026-04-06T00:00:00.000Z"))).toBe(true);
+  });
+  it("mês e ano diferentes também contam", () => {
+    expect(mudouDataPagamento(new Date("2026-04-05T00:00:00.000Z"), new Date("2026-05-05T00:00:00.000Z"))).toBe(true);
+    expect(mudouDataPagamento(new Date("2026-04-05T00:00:00.000Z"), new Date("2027-04-05T00:00:00.000Z"))).toBe(true);
   });
 });
 
