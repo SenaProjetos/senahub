@@ -472,3 +472,23 @@ Nada aqui está implementado. As duas tabelas saem de uma varredura do módulo d
 | **D38** | **Alerta de pendente parado** virar job semanal (pg-boss), não só o rótulo "parado há N dias" da linha | O rótulo só é visto por quem abre a tela. | Médio · Sonnet (cuidado com ruído de notificação) |
 | **D39** | **Testes de integração das actions** (hoje: puros + `smoke:sync-pagamento`) | As guardas novas (F11/F12) só são exercitadas por script temporário, que é apagado. | Médio · Sonnet |
 | **D40** | `@@index([status, liberadoEm])` em `PagamentoProjetista` | **Não fazer agora**: produção tem 15 linhas. Fica registrado para quando o volume crescer. | — |
+
+### 10.3 Decisões do dono (2026-09-12) e ordem de execução
+
+| # | Decisão |
+| --- | --- |
+| **B1** | Depois de pagar em lote, **lista com upload linha a linha**; deixar qualquer linha sem comprovante é permitido (nunca bloqueia). |
+| **B2** | Notificar o projetista **só quando muda valor ou data**. |
+| **B5 (N8)** | Mover pagamento entre lotes **só para pendentes** — pago não muda de lote. |
+| **D32** | Fazer **por último**: o manual acompanha o estado final, não cada etapa. |
+| **D35** | O projetista **não** vê a conta bancária da empresa no próprio extrato. |
+| **D36** | O recibo exige **assinatura do projetista** — não é só gerar PDF. |
+| **D40** | Fazer **agora**, para produção já crescer com o índice certo. |
+| — | B3, B4, D33, D34, D37, D38, D39: aprovados como descritos, sem ressalva. |
+
+Ordem agrupada **por modelo**, para não parar a cada etapa (pedido do dono):
+
+| Bloco | Fases | Por que juntas |
+| --- | --- | --- |
+| **Opus 5** | **G1** = D31 (saída do pago+conciliado) → **G2** = D37 (permissão separada para corrigir/excluir) → **G3** = B5/N8 (mover entre lotes) → **G4** = D40 (índice + migração) → **G5** = D36 (recibo com assinatura) | Invariante financeiro, fronteira de permissão, migração em produção e fluxo de assinatura. G2 antes de G3 para a ação nova já nascer com o gate certo. |
+| **Sonnet 5** | **G6** = B3 → **G7** = B1 → **G8** = B2 → **G9** = B4 → **G10** = D33 → **G11** = D34 → **G12** = D35 → **G13** = D38 → **G14** = D39 → **G15** = D32 (manual) | Encanamento de UI, query aditiva e texto. Comprovante (B3/B1) junto, depois lote, filtros, extrato, job, testes e por fim o manual. |
