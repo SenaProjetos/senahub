@@ -441,3 +441,34 @@ aqui é inofensivo; **implementar em cima desta pilha não é.**
 
 Pela regra do repo (memória `workflow-branch-dev`): refatoração grande sai em
 **`feat/folha-projetistas` a partir de `dev`**, com a pilha atual resolvida antes.
+
+---
+
+## 10. Backlog aberto (levantado 2026-09-12, a pedido do dono)
+
+Nada aqui está implementado. As duas tabelas saem de uma varredura do módulo depois da F12.
+
+### 10.1 O que ficou de fora das fases entregues
+
+| # | Item | Dá pra fazer? | Custo / modelo | Decisão pendente |
+| --- | --- | --- | --- | --- |
+| **B1** | Comprovante nos caminhos em lote (Pagar lote / selecionados / Pagar tudo) | Sim | Baixo–médio · Sonnet | **Sim:** um arquivo só, replicado como anexo nos N lançamentos, ou uma lista pós-pagamento com upload por linha. |
+| **B2** | Notificar o projetista quando um pagamento **pago** é corrigido (F11) | Sim — `notificar` + categoria `pagamento` já existem | Baixo · Sonnet | **Sim:** notificar sempre, ou só quando muda valor/data? (recomendado: só valor/data). |
+| **B3** | Anexar comprovante retroativo por quem só tem `folha_pj` (era a "F13") + remover anexo | Sim — a rota e a action da F8 já são `folha_pj`; falta UI | Baixo · Sonnet | Não. Fecha o beco do aviso "sem anexo" para quem não tem `financeiro:gerir`. |
+| **B4** | Ações (pagar/corrigir/cancelar) dentro do painel do lote expandido (F10) | Sim | Médio · Sonnet | Não. O cuidado é o refresh: o painel tem estado próprio e recarrega a cada abertura. |
+| **B5** | "Editar" lote = mover pagamento entre lotes (ficou fora na N7) | Sim | Médio–alto · **Opus** | **Sim (N8):** move pago junto? Recalcular os dois lotes; o mês do lote deixa de casar com `liberadoEm`. Recomendado: só pendentes. |
+
+### 10.2 Melhorias novas sugeridas (ordem de prioridade)
+
+| # | Achado | Por quê | Custo / modelo |
+| --- | --- | --- | --- |
+| **D31** | **Pagamento pago + conciliado com valor errado não tem saída.** Não existe ação de desconciliar no sistema (`conciliacao/actions.ts` só concilia/cria/ignora); cancelar pagamento pago é bloqueado (`erroTransicao`); `excluirLancamento` recusa lançamento de folha. Sobra `cancelarLancamento` (`gerir`), que **não** tem guarda de conciliado e deixa o pagamento pago apontando para lançamento cancelado — estado que a F11 depois recusa. | É o beco que a N6 criou ao travar em conciliado. Hoje a saída é um estado inconsistente, feito por outra tela. | Médio · **Opus** (mexe em invariante financeiro) |
+| **D32** | **Manual desatualizado.** `docs/manual/financeiro/producao.md` não cita comprovante, corrigir pagamento pago, conciliado ou excluir lote — tudo o que entrou de F8 a F12. | A F7 atualizou o manual; o backlog não. É a documentação que o usuário final lê. | Baixo · Sonnet |
+| **D33** | **Filtro "sem comprovante"** na aba Pagamentos | A F8 mostra o aviso linha a linha, mas não dá para listar todos os pagos sem comprovante — que é justamente a conferência que o dono quer fazer. | Baixo–médio · Sonnet |
+| **D34** | **Lote visível do lado do pagamento:** coluna/filtro de lote na aba Pagamentos, link para o lote, e export do conteúdo de um lote | Hoje o vínculo só aparece de dentro do lote (F10); o caminho inverso não existe. | Baixo · Sonnet |
+| **D35** | **Extrato do projetista** (`meuExtrato`, `financeiro/queries.ts`) mostrar conta/forma/comprovante e deixar baixar o comprovante | O PJ hoje vê só valor e status. Reduz a troca de e-mail de "me manda o comprovante". | Baixo · Sonnet + **decisão:** o PJ pode ver a conta da empresa? |
+| **D36** | **Recibo em PDF** por pagamento ou por mês (puppeteer + `CHROME_PATH` já existem) | Mesma dor do D35, do lado de quem paga. | Médio · Sonnet |
+| **D37** | **Segregação de funções:** `folha_pj` hoje faz tudo — pagar, corrigir pago e excluir lote. Separar as ações de correção numa permissão própria | Mesmo raciocínio do recorte da F4 (`folha_pj` × `gerir`): corrigir um pagamento já efetivado é um poder diferente de pagar. | Médio · **Opus** + decisão do dono |
+| **D38** | **Alerta de pendente parado** virar job semanal (pg-boss), não só o rótulo "parado há N dias" da linha | O rótulo só é visto por quem abre a tela. | Médio · Sonnet (cuidado com ruído de notificação) |
+| **D39** | **Testes de integração das actions** (hoje: puros + `smoke:sync-pagamento`) | As guardas novas (F11/F12) só são exercitadas por script temporário, que é apagado. | Médio · Sonnet |
+| **D40** | `@@index([status, liberadoEm])` em `PagamentoProjetista` | **Não fazer agora**: produção tem 15 linhas. Fica registrado para quando o volume crescer. | — |
