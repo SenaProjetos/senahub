@@ -10,13 +10,14 @@ import { lerArquivo } from "@/lib/storage";
  * usuário só-`folha_pj` não tem `ver`, então precisava desta rota própria para baixar o
  * comprovante que ele mesmo anexou. Mesma guarda de escopo das actions: só serve anexo de
  * um lançamento com `pagamentoProjetistaId`.
+ *
+ * D35: o TITULAR do pagamento (o próprio projetista, no extrato) também baixa — mesmo
+ * padrão "titular ou `folha_pj`" do PDF de recibo (G5). Sem permissão de `folha_pj`,
+ * projetista/freelancer só passam pela checagem de titularidade.
  */
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  if (!(await can(session.user, "financeiro", "folha_pj"))) {
-    return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
-  }
 
   const { id } = await ctx.params;
   const anexo = await prisma.lancamentoAnexo.findUnique({
@@ -25,6 +26,18 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   });
   if (!anexo?.lancamento.pagamentoProjetistaId) {
     return NextResponse.json({ error: "Anexo não encontrado." }, { status: 404 });
+  }
+
+  const podeStaff = await can(session.user, "financeiro", "folha_pj");
+  if (!podeStaff) {
+    const pagamento = await prisma.pagamentoProjetista.findUnique({
+      where: { id: anexo.lancamento.pagamentoProjetistaId },
+      select: { projetistaId: true },
+    });
+    if (pagamento?.projetistaId !== session.user.id) {
+      // Mesmo 404 do "não achou" acima — não revela pra quem não tem acesso que o id existe.
+      return NextResponse.json({ error: "Anexo não encontrado." }, { status: 404 });
+    }
   }
 
   let conteudo: Buffer;

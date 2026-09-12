@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Settings2, Receipt, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText, Upload, SlidersHorizontal, CalendarClock, TrendingUp, CalendarCheck, Wallet, Info } from "lucide-react";
+import { Settings2, Receipt, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText, Upload, SlidersHorizontal, CalendarClock, TrendingUp, CalendarCheck, Wallet, Info, Paperclip } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { ShieldCheck, AlertTriangle } from "lucide-react";
@@ -23,7 +23,7 @@ import { PeriodoSelector, type Periodo } from "@/components/financeiro/periodo-s
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Financeiro" };
 
@@ -314,15 +314,23 @@ export default async function FinanceiroPage({
           ) : (
             <ul className="divide-y text-sm">
               {pagamentos.map((p) => (
-                <li key={p.id} className="flex items-center justify-between gap-2 py-2.5">
+                <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
                   <div>
                     <p className="font-medium">{p.disciplina.disciplinaTextoLegado}</p>
                     <p className="text-xs text-muted-foreground">
                       {formatarCodigo(p.disciplina.projeto.codigo)} · {p.disciplina.projeto.nome}
                     </p>
+                    {/* D35: forma de pagamento, sem a conta — o projetista não vê de qual
+                        conta bancária da empresa saiu. */}
+                    {p.status === "pago" && (
+                      <p className="text-xs text-muted-foreground">
+                        Pago em {formatarData(p.pagoEm)}
+                        {p.forma ? ` · ${p.forma}` : ""}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="font-mono">{brl(Number(p.valor))}</span>
+                    <span className="font-mono">{brl(p.valor)}</span>
                     <Badge
                       variant="outline"
                       className={
@@ -336,6 +344,25 @@ export default async function FinanceiroPage({
                       {p.status}
                     </Badge>
                   </div>
+                  {p.anexos.length > 0 && (
+                    <div className="flex w-full flex-wrap items-center gap-2">
+                      {/* "Anexos", não "comprovantes": são todo `LancamentoAnexo` do
+                          lançamento — quem tem `financeiro:gerir` pode ter anexado algo ali
+                          que não é o comprovante do pagamento em si (mesma ressalva de
+                          `CelulaPagamento`, D26). O rótulo não promete mais do que o dado garante. */}
+                      <span className="text-xs text-muted-foreground">Anexos deste pagamento:</span>
+                      {p.anexos.map((c) => (
+                        <a
+                          key={c.id}
+                          href={`/api/financeiro/folha-projetistas/comprovante/${c.id}`}
+                          className="flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:underline"
+                        >
+                          <Paperclip className="size-3" aria-hidden />
+                          {c.nome}
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
