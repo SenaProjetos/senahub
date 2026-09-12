@@ -7,6 +7,7 @@ import { corrigirPagamentoEfetivado } from "@/modules/financeiro/folha/actions";
 import type { FolhaItem } from "@/modules/financeiro/folha/queries";
 import { MSG_CONTA_OBRIGATORIA } from "@/modules/financeiro/folha/status";
 import { erroCorrecaoConciliada } from "@/modules/financeiro/folha/service";
+import { desconciliarTransacao } from "@/modules/financeiro/conciliacao/actions";
 import { useFieldErrors } from "@/lib/use-field-errors";
 import { brl, formatarData } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -59,11 +60,14 @@ export function CorrigirPagamentoDialog({
   pagamento,
   contas,
   formas,
+  podeConciliar,
   onClose,
 }: {
   pagamento: FolhaItem | null;
   contas: Opcao[];
   formas: Opcao[];
+  /** `financeiro:conciliar` — só quem concilia pode desfazer uma conciliação (G1c). */
+  podeConciliar: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -110,6 +114,23 @@ export function CorrigirPagamentoDialog({
     // `fe` muda a cada render; só a troca de pagamento importa aqui.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pagamento]);
+
+  /**
+   * Só quando a conciliação está ERRADA (transação de outra despesa). Não mexe no status do
+   * lançamento: o pagamento continua pago. A transação volta para a fila de Conciliação, e
+   * lá dá para religá-la ao lançamento certo — inclusive a um já confirmado (G1c).
+   */
+  function desfazerConciliacao() {
+    if (!conciliada) return;
+    start(async () => {
+      const r = await desconciliarTransacao({ transacaoId: conciliada.id });
+      if (r.ok) {
+        toast.success("Conciliação desfeita — a transação voltou para a fila de Conciliação.");
+        onClose();
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
 
   function salvar() {
     if (!pagamento) return;
@@ -187,11 +208,18 @@ export function CorrigirPagamentoDialog({
         </DialogHeader>
         <DialogBody className="space-y-3">
           {conciliada && (
-            <p className="rounded-md border border-warning/40 bg-warning/10 p-2 text-xs text-muted-foreground">
-              Conciliado com o extrato em {formatarData(conciliada.data)}. Valor, conta e data seguem o banco e vêm
-              preenchidos — aqui só dá para acertar o registro. Se o que saiu da conta foi outro, registre um estorno
-              no caixa.
-            </p>
+            <div className="space-y-2 rounded-md border border-warning/40 bg-warning/10 p-2">
+              <p className="text-xs text-muted-foreground">
+                Conciliado com o extrato em {formatarData(conciliada.data)}. Valor, conta e data seguem o banco e vêm
+                preenchidos — aqui só dá para acertar o registro. Se o que saiu da conta foi outro, registre um estorno
+                no caixa.
+              </p>
+              {podeConciliar && (
+                <Button size="sm" variant="outline" disabled={pending} onClick={desfazerConciliacao}>
+                  Desfazer conciliação
+                </Button>
+              )}
+            </div>
           )}
           <div className="space-y-1.5">
             <Label htmlFor={cValor.id}>Valor (R$)</Label>

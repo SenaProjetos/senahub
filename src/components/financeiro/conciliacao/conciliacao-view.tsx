@@ -187,8 +187,15 @@ function TransacaoRow({
               variant="outline"
               disabled={pending}
               onClick={() => conciliar(s.id)}
+              // G1c: confirmado aparece na lista para dar volta a uma conciliação desfeita.
+              // O rótulo avisa, senão parece um previsto qualquer — e conciliar um
+              // confirmado é reconciliação, não baixa.
+              title={s.status === "confirmado" ? "Lançamento já confirmado — reconciliar" : undefined}
             >
               <Link2 className="size-3.5" /> {s.descricao}
+              {s.status === "confirmado" && (
+                <span className="ml-1 text-xs text-muted-foreground">(já confirmado)</span>
+              )}
             </Button>
           ))}
         <div className="flex items-center gap-1.5">

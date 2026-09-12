@@ -51,7 +51,7 @@ export default async function FolhaProjetistasPage({
   let conteudo: React.ReactNode;
   let semValor: number;
   if (aba === "pagar") {
-    const [opcoes, opcoesFiltro, sv, podeProjeto, podePessoa, podeLancamento] = await Promise.all([
+    const [opcoes, opcoesFiltro, sv, podeProjeto, podePessoa, podeLancamento, podeConciliar] = await Promise.all([
       opcoesLancamento(),
       opcoesFiltroFolha(),
       contarPendentesSemValor(),
@@ -60,6 +60,8 @@ export default async function FolhaProjetistasPage({
       can(user, "projetos", "ver"),
       can(user, "rh", "cadastro"),
       can(user, "financeiro", "ver"),
+      // G1c: desfazer conciliação é poder de quem concilia, não de quem paga.
+      can(user, "financeiro", "conciliar"),
     ]);
     semValor = sv;
     const links = { projeto: podeProjeto, pessoa: podePessoa, lancamento: podeLancamento };
@@ -88,6 +90,7 @@ export default async function FolhaProjetistasPage({
             links={links}
             contas={opcoes.contas}
             formas={opcoes.formas}
+            podeConciliar={podeConciliar}
           />
         </div>
       );
@@ -111,6 +114,7 @@ export default async function FolhaProjetistasPage({
             links={links}
             contas={opcoes.contas}
             formas={opcoes.formas}
+            podeConciliar={podeConciliar}
           />
         </div>
       );

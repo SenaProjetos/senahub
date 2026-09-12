@@ -515,3 +515,14 @@ Ordem agrupada **por modelo**, para não parar a cada etapa (pedido do dono):
 - **Fora:** notificação ao projetista quando o pagamento é estornado. Entra na G8 (B2), que é a fase de notificações.
 
 **Verificação (G1b):** `tsc`, `eslint`, 123 testes, `smoke:sync-pagamento` 19/19 e conferência no banco de dev em transação desfeita: pagamento vira cancelado e sai do lote, lançamento é cancelado, `pagoEm` permanece, `Disciplina.valor` volta a ser a soma dos vivos e, com o lançamento conciliado, a guarda da escrita acha 0 linhas. Rollback sem resíduo.
+
+**✅ G1c entregue 2026-09-12 (Opus 5) — desfazer conciliação, com volta:**
+- **`desconciliarTransacao`** (`financeiro:conciliar`, não `folha_pj` — desfazer conciliação é poder de quem concilia): derruba o vínculo (`conciliado: false`, `lancamentoId: null`) e **não mexe no status do lançamento**. Desconciliar é dizer "essa transação do banco não é esta despesa", não "esta despesa não aconteceu": o pagamento continua pago, e quem desfaz pagamento é o estorno (G1b).
+- **A metade que faltava:** `transacoesPendentes` passou a sugerir também lançamentos **`confirmado`** sem transação, não só `previsto`. Sem isso, desconciliar prenderia a transação — a única saída na tela seria "criar lançamento", duplicando a despesa. Na lista, o confirmado vem depois dos previstos e marcado "(já confirmado)".
+- **`conciliarComLancamento`** ficou mais rígida ao mesmo tempo: o alvo é lido com `transacao: { is: null }`, `status != cancelado` e `excluidoEm: null` — não dá para roubar o vínculo de outra transação nem ressuscitar cancelado. E, sendo de produção, `pagoEm` passa a acompanhar a data do extrato (mesma regra da G1a: o banco manda).
+- **Onde fica o botão:** dentro do dialog "Corrigir pagamento", no aviso de conciliado, só para quem tem `financeiro:conciliar` (`podeConciliar` desce da página). É onde a pessoa descobre que está travada.
+- `revalidatePath("/financeiro/folha-projetistas")` entrou no `rev()` da conciliação: conciliar/desconciliar muda o que a Produção mostra e permite.
+
+**Verificação (G1c):** `tsc`, `eslint`, 123 testes, `smoke:sync-pagamento` 19/19 e conferência no banco de dev em transação desfeita: confirmado sem transação entra nos candidatos, conciliado sai, alvo ocupado é recusado, desconciliar não mexe em lançamento nem em pagamento, o lançamento volta a ser candidato (ciclo fechado) e `pagoEm` acompanha o extrato. Rollback sem resíduo.
+
+**O beco do D31, fechado (G1a+G1b+G1c):** valor errado e conciliado → corrige batendo com o extrato. Pagamento errado e não conciliado → estorna. Conciliação feita no lançamento errado → desfaz e religa. Dinheiro que saiu de verdade e não devia → não se apaga do caixa: lança-se a devolução. E a porta dos fundos (cancelar o lançamento por Lançamentos) está fechada.

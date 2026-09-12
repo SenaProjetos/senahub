@@ -44,6 +44,7 @@ export function FolhaView({
   links,
   contas,
   formas,
+  podeConciliar,
 }: {
   itens: FolhaItem[];
   total: number;
@@ -54,6 +55,8 @@ export function FolhaView({
   links: LinksFolha;
   contas: Opcao[];
   formas: Opcao[];
+  /** `financeiro:conciliar` — habilita desfazer a conciliação pelo dialog (G1c). */
+  podeConciliar: boolean;
 }) {
   const router = useRouter();
   const [pagar, setPagar] = useState<FolhaItem | null>(null);
@@ -220,7 +223,13 @@ export function FolhaView({
 
       <PagarDialog pagamento={pagar} onClose={() => setPagar(null)} contas={contas} formas={formas} />
       <EditarValorDialog pagamento={editar} onClose={() => setEditar(null)} />
-      <CorrigirPagamentoDialog pagamento={corrigir} contas={contas} formas={formas} onClose={() => setCorrigir(null)} />
+      <CorrigirPagamentoDialog
+        pagamento={corrigir}
+        contas={contas}
+        formas={formas}
+        podeConciliar={podeConciliar}
+        onClose={() => setCorrigir(null)}
+      />
       <EstornarPagamentoDialog pagamento={estornar} onClose={() => setEstornar(null)} />
       <EfetivarPagamentoDialog
         open={loteAberto}

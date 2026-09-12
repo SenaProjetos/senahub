@@ -111,6 +111,8 @@ export const ACAO_LABEL: Record<string, string> = {
   "anexar-comprovante-pagamento": "Anexou comprovante de pagamento de produção",
   "corrigir-pagamento-efetivado": "Corrigiu pagamento de produção já efetivado",
   "excluir-folha-lote": "Excluiu lote de produção",
+  "estornar-pagamento-efetivado": "Estornou pagamento de produção",
+  "desconciliar-transacao": "Desfez a conciliação de uma transação",
   "salvar-holerite": "Salvou holerite",
   "remover-holerite": "Removeu holerite",
   "gerar-holerites-auto": "Gerou holerites automaticamente",
