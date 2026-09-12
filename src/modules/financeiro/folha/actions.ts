@@ -13,6 +13,7 @@ import {
   MSG_PAGAMENTO_SEM_VALOR,
   erroTransicao,
   erroCorrecaoEfetivado,
+  erroCorrecaoConciliada,
   quandoDoPagamento,
   separarPagaveis,
   temValorPagavel,
@@ -274,7 +275,9 @@ async function lancamentoDoPagamento(db: Prisma.TransactionClient, pag: { id: st
     contaId: true,
     formaId: true,
     dataConfirmacao: true,
-    transacao: { select: { id: true } },
+    // G1a: valor/conta/data do extrato — a correção de uma linha conciliada tem de bater
+    // com a transação, e é dela que sai a `dataConfirmacao` nesse caso.
+    transacao: { select: { id: true, valor: true, contaId: true, data: true } },
   } satisfies Prisma.LancamentoSelect;
   const porId = pag.lancamentoId
     ? await db.lancamento.findFirst({ where: { id: pag.lancamentoId, excluidoEm: null }, select })
@@ -342,11 +345,24 @@ export const corrigirPagamentoEfetivado = defineAction(
         if (!forma) throw new ActionError("Forma de pagamento não encontrada.");
       }
 
+      // G1a/D31: conciliado deixou de ser bloqueio — mas o extrato manda. A correção só
+      // passa se o resultado bater com a transação conciliada, e a data do pagamento passa
+      // a ser a do extrato (o banco já disse quando o dinheiro saiu; a tela não discute).
+      const conciliada = lanc.transacao;
+      if (conciliada) {
+        const erro = erroCorrecaoConciliada(
+          { valor: Number(conciliada.valor), contaId: conciliada.contaId },
+          { valor: i.valor, contaId: i.contaId },
+        );
+        if (erro) throw new ActionError(erro);
+      }
+      const quandoFinal = conciliada ? conciliada.data : quando;
+
       const reserva = await tx.pagamentoProjetista.updateMany({
         where: { id: pag.id, status: "pago" },
         data: {
           valor: i.valor,
-          pagoEm: quando,
+          pagoEm: quandoFinal,
           ...(i.observacao !== undefined ? { observacao: i.observacao || null } : {}),
         },
       });
@@ -354,18 +370,25 @@ export const corrigirPagamentoEfetivado = defineAction(
         throw new ActionError("O pagamento mudou enquanto a tela estava aberta — atualize e tente de novo.");
       }
 
-      // As mesmas guardas repetidas NA ESCRITA (não só na leitura acima): uma conciliação ou
-      // baixa parcial feita entre a leitura e aqui faz o update achar 0 linhas e a transação
-      // inteira volta. Estreita a janela contra `conciliarComLancamento` concorrente; não é
-      // um lock entre as duas telas.
+      // As mesmas guardas repetidas NA ESCRITA (não só na leitura acima): o vínculo com o
+      // extrato tem de estar do jeito que estava quando a regra acima decidiu. Livre
+      // continua livre (`transacao: { is: null }`); conciliada continua conciliada NA MESMA
+      // transação (`is: { id }`) — se alguém conciliar, desconciliar ou reconciliar com
+      // outra no meio, o update acha 0 linhas e a transação inteira volta.
       // `data` (competência) fica como está — `confirmarDespesaProjetista` também a preserva
       // ao confirmar um previsto; o que muda com o pagamento é `dataConfirmacao`.
       const atualizado = await tx.lancamento.updateMany({
-        where: { id: lanc.id, status: "confirmado", excluidoEm: null, valorEfetivo: null, transacao: { is: null } },
-        data: { valor: i.valor, contaId: i.contaId, formaId: i.formaId || null, dataConfirmacao: quando },
+        where: {
+          id: lanc.id,
+          status: "confirmado",
+          excluidoEm: null,
+          valorEfetivo: null,
+          transacao: conciliada ? { is: { id: conciliada.id } } : { is: null },
+        },
+        data: { valor: i.valor, contaId: i.contaId, formaId: i.formaId || null, dataConfirmacao: quandoFinal },
       });
       if (atualizado.count === 0) {
-        throw new ActionError("O lançamento mudou enquanto a tela estava aberta (conciliado ou alterado) — atualize e tente de novo.");
+        throw new ActionError("O lançamento mudou enquanto a tela estava aberta (conciliação ou edição em Lançamentos) — atualize e tente de novo.");
       }
 
       if (pag.folhaId) await recalcularTotalFolha(tx, pag.folhaId);

@@ -10,7 +10,7 @@ import {
   editarPagamentoProjetista,
   cancelarPagamentoProjetista,
 } from "@/modules/financeiro/folha/actions";
-import { temValorPagavel, erroCorrecaoEfetivado, MSG_CORRECAO_CONCILIADO } from "@/modules/financeiro/folha/service";
+import { temValorPagavel, erroCorrecaoEfetivado } from "@/modules/financeiro/folha/service";
 import { STATUS_PAGAMENTO_TONE, STATUS_PAGAMENTO_LABEL, type FiltrosFolha } from "@/modules/financeiro/folha/status";
 import type { FolhaItem } from "@/modules/financeiro/folha/queries";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -95,20 +95,14 @@ export function AcoesPagamento({
 }
 
 /**
- * Conciliado é estado permanente e informativo → vira texto na linha, não um botão que
- * sempre recusa. Os outros bloqueios (sem lançamento, baixa parcial) são raros: o botão
- * fica, e o clique diz o motivo em vez de abrir um dialog fadado a falhar.
+ * Conciliado deixou de ser bloqueio (G1a): a correção existe, só tem de bater com o
+ * extrato — quem barra é `erroCorrecaoConciliada`, dentro do dialog e da action. Os
+ * bloqueios que sobram (sem lançamento, baixa parcial) são raros: o botão fica e o clique
+ * diz o motivo, em vez de abrir um dialog fadado a falhar.
  */
 function CorrigirPagamentoButton({ p, onCorrigir }: { p: FolhaItem; onCorrigir: (p: FolhaItem) => void }) {
   const l = p.lancamento;
   const motivo = erroCorrecaoEfetivado(p.status, l && { status: l.status, conciliado: l.conciliado, parcial: l.parcial });
-  if (motivo === MSG_CORRECAO_CONCILIADO) {
-    return (
-      <span className="text-xs text-muted-foreground" title={motivo}>
-        conciliado — não editável
-      </span>
-    );
-  }
   return (
     <Button size="sm" variant="ghost" onClick={() => (motivo ? toast.info(motivo) : onCorrigir(p))}>
       <Pencil className="size-3.5" /> Corrigir pagamento

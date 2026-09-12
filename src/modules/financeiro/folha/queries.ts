@@ -111,7 +111,9 @@ export async function comLancamentos<T extends PagamentoBruto>(itens: T[]) {
           valorEfetivo: true,
           conta: { select: { nome: true } },
           forma: { select: { nome: true } },
-          transacao: { select: { id: true } },
+          // G1a: valor/conta/data da transação conciliada — a correção de uma linha
+          // conciliada tem de bater com o extrato, e a tela mostra o que ele diz.
+          transacao: { select: { id: true, valor: true, contaId: true, data: true } },
           _count: { select: { anexos: true } },
         },
       })
@@ -138,6 +140,9 @@ export async function comLancamentos<T extends PagamentoBruto>(itens: T[]) {
             formaId: l.formaId,
             // Mesmo teste de "conciliado" da tela de Lançamentos (`lancamentos/queries.ts`).
             conciliado: l.transacao != null,
+            transacao: l.transacao
+              ? { id: l.transacao.id, valor: Number(l.transacao.valor), contaId: l.transacao.contaId, data: l.transacao.data }
+              : null,
             parcial: l.valorEfetivo != null,
             dataConfirmacao: l.dataConfirmacao,
             // F8/D26: só a contagem — mostra "tem/não tem comprovante" na tabela sem puxar

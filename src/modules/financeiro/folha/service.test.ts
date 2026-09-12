@@ -9,7 +9,7 @@ import {
   quandoDoPagamento,
   erroTransicao,
   erroCorrecaoEfetivado,
-  MSG_CORRECAO_CONCILIADO,
+  erroCorrecaoConciliada,
   nomeArquivoExport,
 } from "@/modules/financeiro/folha/service";
 
@@ -140,14 +140,37 @@ describe("erroCorrecaoEfetivado", () => {
     expect(erroCorrecaoEfetivado("pago", { ...livre, status: "previsto" })).toMatch(/não está confirmado/);
     expect(erroCorrecaoEfetivado("pago", { ...livre, status: "cancelado" })).toMatch(/não está confirmado/);
   });
-  it("conciliado com o extrato é recusado (N6)", () => {
-    expect(erroCorrecaoEfetivado("pago", { ...livre, conciliado: true })).toBe(MSG_CORRECAO_CONCILIADO);
+  it("conciliado não é mais bloqueio aqui — quem decide é erroCorrecaoConciliada (G1a)", () => {
+    expect(erroCorrecaoEfetivado("pago", { ...livre, conciliado: true })).toBeNull();
   });
   it("baixa parcial é recusada", () => {
     expect(erroCorrecaoEfetivado("pago", { ...livre, parcial: true })).toMatch(/baixa parcial/);
   });
-  it("conciliado e parcial ao mesmo tempo: vale a mensagem do extrato", () => {
-    expect(erroCorrecaoEfetivado("pago", { ...livre, conciliado: true, parcial: true })).toBe(MSG_CORRECAO_CONCILIADO);
+});
+
+describe("erroCorrecaoConciliada", () => {
+  // OFX traz saída de dinheiro como negativo; o pagamento é positivo.
+  const extrato = { valor: -1450, contaId: "conta-1" };
+  it("bater com o extrato (valor e conta) passa", () => {
+    expect(erroCorrecaoConciliada(extrato, { valor: 1450, contaId: "conta-1" })).toBeNull();
+  });
+  it("valor diferente do extrato é recusado, e a mensagem diz qual é o do extrato", () => {
+    const erro = erroCorrecaoConciliada(extrato, { valor: 1500, contaId: "conta-1" });
+    expect(erro).toMatch(/conciliado com o extrato/);
+    expect(erro).toContain("1.450,00");
+  });
+  it("diferença de centavo dentro da tolerância passa; fora dela, não", () => {
+    expect(erroCorrecaoConciliada(extrato, { valor: 1450.004, contaId: "conta-1" })).toBeNull();
+    expect(erroCorrecaoConciliada(extrato, { valor: 1450.01, contaId: "conta-1" })).toMatch(/valor precisa ficar igual/);
+  });
+  it("trocar a conta de uma linha conciliada é recusado", () => {
+    expect(erroCorrecaoConciliada(extrato, { valor: 1450, contaId: "conta-2" })).toMatch(/conta precisa continuar/);
+  });
+  it("transação sem conta não trava a conta (dado legado)", () => {
+    expect(erroCorrecaoConciliada({ valor: -1450, contaId: null }, { valor: 1450, contaId: "conta-9" })).toBeNull();
+  });
+  it("receita (valor positivo no extrato) usa o mesmo módulo", () => {
+    expect(erroCorrecaoConciliada({ valor: 1450, contaId: "conta-1" }, { valor: 1450, contaId: "conta-1" })).toBeNull();
   });
 });
 

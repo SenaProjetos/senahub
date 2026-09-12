@@ -4,6 +4,7 @@
  */
 
 import { diferencaEmDias, inicioDoDiaLocal, inicioDoDiaUtc } from "@/lib/data";
+import { brl } from "@/lib/utils";
 import { DIAS_PENDENTE_PARADO, type FiltroStatus, type FiltrosFolha } from "./status";
 
 /** Decimal do Prisma ou número já serializado — `Number()` resolve os dois. */
@@ -132,14 +133,12 @@ export type EstadoLancamentoCorrecao = {
   parcial: boolean;
 };
 
-export const MSG_CORRECAO_CONCILIADO =
-  "Este pagamento já foi conciliado com o extrato bancário — não pode mais ser corrigido.";
-
 /**
  * Regra da correção de um pagamento JÁ efetivado (F11, decisão N6): só `pago`, com
- * lançamento confirmado no caixa, e nunca depois de conciliado — o extrato é o registro
- * externo do que de fato saiu da conta. Separada de `erroTransicao` de propósito: aquela
- * continua valendo "só pendente" para pagar/editar/cancelar.
+ * lançamento confirmado no caixa. Separada de `erroTransicao` de propósito: aquela continua
+ * valendo "só pendente" para pagar/editar/cancelar.
+ *
+ * Conciliado NÃO entra aqui — ver `erroCorrecaoConciliada` e o porquê da mudança (G1a).
  *
  * Pura — a tela usa a mesma regra para dizer o motivo sem abrir um dialog fadado a falhar.
  */
@@ -147,8 +146,36 @@ export function erroCorrecaoEfetivado(status: string, lanc: EstadoLancamentoCorr
   if (status !== "pago") return "Só um pagamento já efetivado é corrigido por aqui — pendente se edita pelo lápis da linha.";
   if (!lanc) return "Este pagamento não tem lançamento no caixa — não há o que corrigir.";
   if (lanc.status !== "confirmado") return "O lançamento deste pagamento não está confirmado no caixa — corrija pela tela de Lançamentos.";
-  if (lanc.conciliado) return MSG_CORRECAO_CONCILIADO;
   if (lanc.parcial) return "O lançamento deste pagamento tem baixa parcial — corrija pela tela de Lançamentos.";
+  return null;
+}
+
+/** O que a transação conciliada diz que saiu da conta — o extrato, em forma de dado. */
+export type TransacaoConciliada = { valor: number; contaId: string | null };
+
+/**
+ * Correção de uma linha CONCILIADA (G1a/D31). A F11 travava conciliado por completo, o que
+ * deixava um beco sem saída: o valor errado ficava errado para sempre, porque desfazer a
+ * conciliação também não existe e cancelar um pagamento pago é recusado.
+ *
+ * A saída é reconhecer quem manda: o extrato. Conciliado, a correção passa só se o
+ * resultado BATER com a transação — que é exatamente o caso comum ("lancei 1.500, o banco
+ * mostra 1.450"). Mudar o que de fato saiu do banco não é corrigir um registro: é um
+ * estorno no caixa, e a mensagem manda para lá.
+ */
+export function erroCorrecaoConciliada(
+  t: TransacaoConciliada,
+  novo: { valor: number; contaId: string },
+): string | null {
+  // `Math.abs`: saída de dinheiro vem negativa no OFX; o pagamento é sempre positivo.
+  const esperado = Math.abs(t.valor);
+  // Meio centavo de tolerância: de um lado `Decimal(14,2)`, do outro um campo de tela.
+  if (Math.abs(novo.valor - esperado) > 0.005) {
+    return `Este pagamento está conciliado com o extrato: o valor precisa ficar igual ao da transação (${brl(esperado)}). Se o que saiu do banco foi outro, registre um estorno no caixa.`;
+  }
+  if (t.contaId && novo.contaId !== t.contaId) {
+    return "Este pagamento está conciliado com o extrato: a conta precisa continuar sendo a da transação conciliada.";
+  }
   return null;
 }
 

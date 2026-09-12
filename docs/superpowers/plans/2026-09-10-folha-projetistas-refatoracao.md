@@ -492,3 +492,16 @@ Ordem agrupada **por modelo**, para não parar a cada etapa (pedido do dono):
 | --- | --- | --- |
 | **Opus 5** | **G1** = D31 (saída do pago+conciliado) → **G2** = D37 (permissão separada para corrigir/excluir) → **G3** = B5/N8 (mover entre lotes) → **G4** = D40 (índice + migração) → **G5** = D36 (recibo com assinatura) | Invariante financeiro, fronteira de permissão, migração em produção e fluxo de assinatura. G2 antes de G3 para a ação nova já nascer com o gate certo. |
 | **Sonnet 5** | **G6** = B3 → **G7** = B1 → **G8** = B2 → **G9** = B4 → **G10** = D33 → **G11** = D34 → **G12** = D35 → **G13** = D38 → **G14** = D39 → **G15** = D32 (manual) | Encanamento de UI, query aditiva e texto. Comprovante (B3/B1) junto, depois lote, filtros, extrato, job, testes e por fim o manual. |
+
+### 10.4 Execução do backlog
+
+**✅ G1a entregue 2026-09-12 (Opus 5) — correção de pagamento conciliado, batendo com o extrato:**
+- **Por que o desenho mudou no meio:** a ideia inicial era "desconciliar e corrigir". A tela de Conciliação, porém, só sugere lançamentos **`previsto`** com valor idêntico (`transacoesPendentes`), e um pagamento pago é `confirmado` — desfazer a conciliação deixaria a transação órfã, com uma única saída na tela: criar um lançamento novo, **duplicando a despesa**. Desconciliar sem consertar isso seria uma armadilha; virou a G1c.
+- **A saída:** conciliado deixa de ser bloqueio absoluto (a trava da F11/N6), e passa a valer a regra "o extrato manda". `erroCorrecaoConciliada` (pura, 6 testes) só deixa passar a correção que **bate com a transação** — valor igual (com `Math.abs`, porque saída vem negativa no OFX) e mesma conta. É exatamente o caso comum: "lancei 1.500, o banco mostra 1.450".
+- `erroCorrecaoEfetivado` perdeu a cláusula de conciliado; o resto (só pago, lançamento confirmado, sem baixa parcial) continua igual.
+- **Data vem do extrato** quando conciliado: `dataConfirmacao` e `pagoEm` recebem `transacao.data`. O banco já disse quando o dinheiro saiu.
+- **Guarda de escrita por caminho:** livre continua `transacao: { is: null }`; conciliada escreve com `transacao: { is: { id } }`, amarrada à MESMA transação bancária — conciliar, desconciliar ou reconciliar no meio faz o update achar 0 linhas e a transação inteira voltar.
+- **Tela:** o botão "Corrigir pagamento" passa a aparecer também na linha conciliada (antes era o texto "conciliado — não editável"). O dialog abre com valor/conta/data do extrato, trava conta e data, mostra "Extrato: R$ X" sob o valor e explica que mudar o que de fato saiu da conta é **estorno**, não correção.
+- **Fora do escopo daqui:** pagamento conciliado que não deveria ter existido (pagou a pessoa errada). Isso é estorno contábil — a mensagem manda para o caixa, e a G1b trata o caso não conciliado.
+
+**Verificação (G1a):** `tsc`, `eslint`, 117 testes e conferência contra o banco de dev em transação desfeita, conciliando um lançamento real com valor divergente: a regra recusa valor/conta que não batem, `transacao: { is: null }` acha 0 na linha conciliada, `transacao: { is: { id } }` escreve, amarrar a outra transação acha 0, `dataConfirmacao` vira a data do extrato, e o rollback não deixou resíduo.

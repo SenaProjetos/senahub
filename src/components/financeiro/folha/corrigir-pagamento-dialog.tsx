@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { corrigirPagamentoEfetivado } from "@/modules/financeiro/folha/actions";
 import type { FolhaItem } from "@/modules/financeiro/folha/queries";
 import { MSG_CONTA_OBRIGATORIA } from "@/modules/financeiro/folha/status";
+import { erroCorrecaoConciliada } from "@/modules/financeiro/folha/service";
 import { useFieldErrors } from "@/lib/use-field-errors";
 import { brl, formatarData } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -84,16 +85,24 @@ export function CorrigirPagamentoDialog({
   const [justificativa, setJustificativa] = useState("");
 
   const l = pagamento?.lancamento ?? null;
+  // Conciliada: o extrato manda (G1a). Conta e data ficam travadas no que o banco diz, e o
+  // valor só pode virar o da transação — o resto é estorno, não correção de registro.
+  const conciliada = l?.transacao ?? null;
+  const valorExtrato = conciliada ? Math.abs(conciliada.valor) : null;
   const opcoesConta = useMemo(() => comAtual(contas, l?.contaId ?? null, l?.conta ?? null, "Conta atual"), [contas, l]);
   const opcoesForma = useMemo(() => comAtual(formas, l?.formaId ?? null, l?.forma ?? null, "Forma atual"), [formas, l]);
 
   // Aberto imperativamente (botão na linha) — sincroniza com o que está gravado a cada abertura.
   useEffect(() => {
     if (pagamento) {
-      setValor(Number(pagamento.valor));
-      setContaId(pagamento.lancamento?.contaId ?? "");
+      const t = pagamento.lancamento?.transacao ?? null;
+      // Conciliada, os campos já abrem no que o extrato diz — que é o único destino que a
+      // correção aceita. A descrição do dialog mostra o valor de hoje ao lado, então trocar
+      // 1.500 por 1.450 aqui não é uma mudança escondida.
+      setValor(t ? Math.abs(t.valor) : Number(pagamento.valor));
+      setContaId(t?.contaId ?? pagamento.lancamento?.contaId ?? "");
       setFormaId(pagamento.lancamento?.formaId ?? NONE);
-      setData(diaGravado(pagamento.lancamento?.dataConfirmacao ?? pagamento.pagoEm));
+      setData(diaGravado(t?.data ?? pagamento.lancamento?.dataConfirmacao ?? pagamento.pagoEm));
       setObservacao(pagamento.observacao ?? "");
       setJustificativa("");
       fe.limpar();
@@ -122,6 +131,18 @@ export function CorrigirPagamentoDialog({
     if (justificativa.trim().length < MIN_JUSTIFICATIVA) {
       fe.definir("justificativa", `Explique o motivo da correção (mínimo ${MIN_JUSTIFICATIVA} caracteres).`);
       ok = false;
+    }
+    // Mesma regra pura da action (G1a) — aqui só para o erro aparecer sob o campo em vez de
+    // voltar como toast depois do round-trip.
+    if (ok && conciliada) {
+      const erro = erroCorrecaoConciliada(
+        { valor: conciliada.valor, contaId: conciliada.contaId },
+        { valor: num, contaId },
+      );
+      if (erro) {
+        fe.definir(erro.includes("conta") ? "contaId" : "valor", erro);
+        ok = false;
+      }
     }
     if (!ok) return;
 
@@ -165,6 +186,13 @@ export function CorrigirPagamentoDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="space-y-3">
+          {conciliada && (
+            <p className="rounded-md border border-warning/40 bg-warning/10 p-2 text-xs text-muted-foreground">
+              Conciliado com o extrato em {formatarData(conciliada.data)}. Valor, conta e data seguem o banco e vêm
+              preenchidos — aqui só dá para acertar o registro. Se o que saiu da conta foi outro, registre um estorno
+              no caixa.
+            </p>
+          )}
           <div className="space-y-1.5">
             <Label htmlFor={cValor.id}>Valor (R$)</Label>
             <InputMoeda
@@ -175,6 +203,7 @@ export function CorrigirPagamentoDialog({
                 fe.limpar("valor");
               }}
             />
+            {valorExtrato != null && <p className="text-xs text-muted-foreground">Extrato: {brl(valorExtrato)}</p>}
             <FieldError campo={cValor.id} mensagem={fe.erros.valor} />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -187,6 +216,7 @@ export function CorrigirPagamentoDialog({
               </Label>
               <Select
                 value={contaId || null}
+                disabled={!!conciliada}
                 onValueChange={(v) => {
                   setContaId(v ?? "");
                   fe.limpar("contaId");
@@ -235,6 +265,7 @@ export function CorrigirPagamentoDialog({
               {...cData}
               type="date"
               value={data}
+              disabled={!!conciliada}
               onChange={(e) => {
                 setData(e.target.value);
                 fe.limpar("data");
