@@ -46,6 +46,9 @@ Para quem tem **só** `financeiro:extrato`:
 - **Resumo:** Total, Recebido, Em aberto.
 - **Lista de pagamentos** por **entregas validadas** (disciplina + projeto), com valor e
   status (pago / pendente).
+- Um pagamento **pago** mostra também a **data** e a **forma** de pagamento (pix, TED
+  etc.), e os **anexos** do lançamento — clique para baixar. A **conta bancária da
+  empresa** não aparece: só quem gerencia Produção vê de onde o dinheiro saiu.
 
 ## Regras de negócio
 
