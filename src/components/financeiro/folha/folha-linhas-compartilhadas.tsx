@@ -23,6 +23,7 @@ import { InputMoeda } from "@/components/ui/input-moeda";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { brl, cn, formatarData } from "@/lib/utils";
+import { MESES_CURTOS } from "@/lib/data";
 import { FieldError } from "@/components/ui/field-error";
 import { useFieldErrors } from "@/lib/use-field-errors";
 import { FolhaFiltros } from "./folha-filtros";
@@ -215,7 +216,11 @@ export function FolhaResumoFiltros({
   filtrado,
 }: {
   filtros: FiltrosFolha;
-  opcoesFiltro: { projetistas: { id: string; name: string }[]; projetos: { id: string; codigo: string; nome: string }[] };
+  opcoesFiltro: {
+    projetistas: { id: string; name: string }[];
+    projetos: { id: string; codigo: string; nome: string }[];
+    lotes: { id: string; ano: number; mes: number }[];
+  };
   resumo: { pendente: number; pago: number; cancelado: number };
   canceladosOcultos: number;
   filtrado: boolean;
@@ -226,6 +231,7 @@ export function FolhaResumoFiltros({
         filtros={filtros}
         projetistas={opcoesFiltro.projetistas}
         projetos={opcoesFiltro.projetos}
+        lotes={opcoesFiltro.lotes}
         canceladosOcultos={canceladosOcultos}
       />
       <div className="space-y-1.5">
@@ -244,10 +250,38 @@ export function FolhaResumoFiltros({
 }
 
 /**
+ * D34: link para o lote do lado do pagamento — hoje o vínculo só aparecia de dentro do
+ * lote (F10), aqui é o caminho inverso. `null` quando o pagamento não está em nenhum lote.
+ */
+function LinkLote({ p }: { p: FolhaItem }) {
+  if (!p.folha) return null;
+  return (
+    <Link
+      href={`/financeiro/folha-projetistas?aba=lotes&loteId=${p.folha.id}`}
+      className={cn("block text-muted-foreground", linkCls)}
+    >
+      lote {MESES_CURTOS[p.folha.mes - 1]}/{p.folha.ano}
+    </Link>
+  );
+}
+
+/**
  * D24: de onde saiu o dinheiro. Pago → data, conta e forma do lançamento, com link para
  * ele no livro caixa. Pendente → se já existe lançamento previsto (linhas zeradas não têm).
+ * Em qualquer status, fecha com o link do lote (D34) quando o pagamento está em um.
  */
-export function CelulaPagamento({ p, linkLancamento }: { p: FolhaItem; linkLancamento: boolean }) {
+export function CelulaPagamento({
+  p,
+  linkLancamento,
+  mostrarLote = true,
+}: {
+  p: FolhaItem;
+  linkLancamento: boolean;
+  /** `false` dentro do próprio painel de lote (F10) — repetir "lote abr/2026" em toda
+   * linha de uma tabela já rotulada "abr/2026" no cabeçalho é ruído, não informação (D34
+   * é sobre o caminho inverso, do lado da aba Pagamentos). */
+  mostrarLote?: boolean;
+}) {
   const l = p.lancamento;
   if (p.status === "pago") {
     return (
@@ -276,18 +310,25 @@ export function CelulaPagamento({ p, linkLancamento }: { p: FolhaItem; linkLanca
             )}
           </>
         )}
+        {mostrarLote && <LinkLote p={p} />}
       </div>
     );
   }
   if (p.status === "pendente") {
     const previsto = l && l.status !== "cancelado";
     return (
-      <span className="text-xs text-muted-foreground">
-        {previsto ? "lançamento previsto" : "sem lançamento previsto"}
-      </span>
+      <div className="text-xs text-muted-foreground">
+        <span>{previsto ? "lançamento previsto" : "sem lançamento previsto"}</span>
+        {mostrarLote && <LinkLote p={p} />}
+      </div>
     );
   }
-  return <span className="text-xs text-muted-foreground">—</span>;
+  return (
+    <div className="text-xs text-muted-foreground">
+      <span>—</span>
+      {mostrarLote && <LinkLote p={p} />}
+    </div>
+  );
 }
 
 /**

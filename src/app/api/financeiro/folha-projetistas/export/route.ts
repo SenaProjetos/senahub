@@ -76,11 +76,11 @@ export async function GET(req: Request) {
 
   const sp = Object.fromEntries(new URL(req.url).searchParams);
   const formato = sp.formato === "xlsx" ? "xlsx" : "csv";
-  const { itens, total: totalDoRecorte, truncado, filtros } = await dadosFolhaExport(sp);
+  const { itens, total: totalDoRecorte, truncado, filtros, loteRotulo } = await dadosFolhaExport(sp);
   const linhas = itens.map(linhaDe);
   // Inclui o filtro no nome (F9/D28) — sem isso, dois exports com filtro diferente viram
   // "Producao.xlsx", "Producao (1).xlsx"... no histórico de downloads, sem dizer qual é qual.
-  const arquivo = nomeArquivoExport(filtros, formato);
+  const arquivo = nomeArquivoExport(filtros, formato, loteRotulo);
   // Corte silencioso em 5.000 linhas seria a mesma classe de erro do D11: o arquivo
   // pareceria completo sem estar. Uma linha extra avisa em vez de esconder.
   const avisoTruncado = truncado

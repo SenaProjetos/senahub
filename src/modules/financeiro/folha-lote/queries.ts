@@ -14,7 +14,27 @@ type RawParams = Record<string, string | string[] | undefined>;
  * (mesmo erro do D11 do plano de refatoração, com outro nome: D12).
  */
 export async function listarFolhasProjetista(sp: RawParams) {
-  const { page, pageSize, skip, take } = parseListParams(sp, { sortFields: [] });
+  const parsed = parseListParams(sp, { sortFields: [] });
+  const { pageSize } = parsed;
+  let { page, skip, take } = parsed;
+
+  // D34: veio do link "lote X/Y" da aba Pagamentos, sem `?page=` explícito — acha em que
+  // página esse lote cai na ordenação (ano desc, mes desc) pra abrir já na página certa, em
+  // vez de simplesmente não achar o lote se ele não estiver na primeira. Se o usuário já
+  // pediu uma página específica, ela manda — isso evita que paginar manualmente com um
+  // `loteId` velho ainda na URL puxe de volta pra página do lote a cada clique.
+  const loteAlvo = typeof sp.loteId === "string" ? sp.loteId : Array.isArray(sp.loteId) ? sp.loteId[0] : undefined;
+  if (loteAlvo && !sp.page) {
+    const alvo = await prisma.folhaProjetista.findUnique({ where: { id: loteAlvo }, select: { ano: true, mes: true } });
+    if (alvo) {
+      const antes = await prisma.folhaProjetista.count({
+        where: { OR: [{ ano: { gt: alvo.ano } }, { AND: [{ ano: alvo.ano }, { mes: { gt: alvo.mes } }] }] },
+      });
+      page = Math.floor(antes / pageSize) + 1;
+      skip = (page - 1) * pageSize;
+      take = pageSize;
+    }
+  }
 
   const [fs, total] = await Promise.all([
     prisma.folhaProjetista.findMany({

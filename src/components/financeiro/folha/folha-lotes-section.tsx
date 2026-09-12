@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeftRight, ChevronDown, Layers, Trash2, Wallet } from "lucide-react";
+import { ArrowLeftRight, ChevronDown, Download, FileSpreadsheet, Layers, Trash2, Wallet } from "lucide-react";
 import {
   excluirFolhaProjetista,
   gerarFolhaDoMes,
@@ -64,6 +64,7 @@ export function FolhaLotesSection({
   podeLancamento,
   podeCorrigir,
   podeConciliar,
+  loteAlvo,
 }: {
   folhas: FolhaLoteItem[];
   total: number;
@@ -76,6 +77,8 @@ export function FolhaLotesSection({
   podeCorrigir: boolean;
   /** `financeiro:conciliar` — habilita desfazer conciliação pelo dialog de corrigir (G1c). */
   podeConciliar: boolean;
+  /** D34: veio do link "lote X/Y" da aba Pagamentos (`?loteId=`) — abre esse lote sozinho. */
+  loteAlvo?: string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -177,6 +180,7 @@ export function FolhaLotesSection({
                   podeLancamento={podeLancamento}
                   podeCorrigir={podeCorrigir}
                   tokenRecarga={tokenRecarga}
+                  autoAbrir={f.id === loteAlvo}
                 />
               ))}
             </div>
@@ -233,6 +237,7 @@ function LinhaLote({
   podeLancamento,
   podeCorrigir,
   tokenRecarga,
+  autoAbrir,
 }: {
   folha: FolhaLoteItem;
   onPagar: (f: FolhaLoteItem) => void;
@@ -249,11 +254,14 @@ function LinhaLote({
   podeCorrigir: boolean;
   /** Sobe a cada movimentação: o painel aberto recarrega sem recolher/expandir (G3). */
   tokenRecarga: number;
+  /** D34: veio do link "lote X/Y" da aba Pagamentos — abre e rola até esta linha sozinho. */
+  autoAbrir: boolean;
 }) {
   const [itens, setItens] = useState<PagamentoDoLote[] | null>(null);
   const [semPermissao, setSemPermissao] = useState(false);
   const [aberto, setAberto] = useState(false);
   const [carregando, start] = useTransition();
+  const linhaRef = useRef<HTMLDivElement>(null);
 
   const carregar = useCallback(() => {
     start(async () => {
@@ -285,9 +293,18 @@ function LinhaLote({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tokenRecarga]);
 
+  // D34: chegou pelo link "lote X/Y" — abre sozinho e rola até a linha, só uma vez.
+  useEffect(() => {
+    if (!autoAbrir) return;
+    setAberto(true);
+    carregar();
+    linhaRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <Collapsible onOpenChange={alternar}>
-      <div className="flex items-center gap-3 py-2">
+    <Collapsible defaultOpen={autoAbrir} onOpenChange={alternar}>
+      <div ref={linhaRef} className="flex items-center gap-3 py-2">
         <CollapsibleTrigger
           className="group/lote flex flex-1 items-center gap-3 text-left"
           aria-label={`${MESES_CURTOS[folha.mes - 1]}/${folha.ano}, expandir`}
@@ -316,6 +333,30 @@ function LinhaLote({
       </div>
       <CollapsiblePanel>
         <div className="overflow-x-auto border-t pb-2">
+          {/* D34: exportar só o conteúdo deste lote — reusa a mesma rota da aba Pagamentos
+              (dadosFolhaExport), filtrando por folhaId; `status=todos` porque dentro do lote
+              o interesse é "o que tem aqui", não o recorte padrão que esconde cancelados.
+              Escondido junto com `semPermissao`: a rota tem piso de sócio que `pagamentosDoLote`
+              não tem, então um sócio pode ver "sem permissão" na tabela e mesmo assim ter
+              acesso à exportação — mostrar os dois juntos contradiz a mensagem da tela. */}
+          {!semPermissao && (
+            <div className="flex justify-end gap-2 px-1 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                render={<a href={`/api/financeiro/folha-projetistas/export?formato=xlsx&status=todos&folhaId=${folha.id}`} />}
+              >
+                <FileSpreadsheet className="size-3.5" /> XLSX
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                render={<a href={`/api/financeiro/folha-projetistas/export?formato=csv&status=todos&folhaId=${folha.id}`} />}
+              >
+                <Download className="size-3.5" /> CSV
+              </Button>
+            </div>
+          )}
           {carregando ? (
             <p className="py-3 text-xs text-muted-foreground">Carregando pagamentos do lote…</p>
           ) : semPermissao ? (
@@ -355,7 +396,7 @@ function LinhaLote({
                     <TableCell className="text-right font-mono">{brl(p.valor)}</TableCell>
                     <TableCell className="text-sm">{formatarData(p.liberadoEm)}</TableCell>
                     <TableCell>
-                      <CelulaPagamento p={p} linkLancamento={podeLancamento} />
+                      <CelulaPagamento p={p} linkLancamento={podeLancamento} mostrarLote={false} />
                     </TableCell>
                     <TableCell>
                       <BadgeStatus p={p} />

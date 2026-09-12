@@ -139,6 +139,7 @@ export default async function FolhaProjetistasPage({
         can(user, "financeiro", "conciliar"),
       ]);
     semValor = sv;
+    const loteIdRaw = sp.loteId;
     conteudo = (
       <FolhaLotesSection
         folhas={folhas}
@@ -150,6 +151,7 @@ export default async function FolhaProjetistasPage({
         podeLancamento={podeLancamento}
         podeCorrigir={podeCorrigirLotes}
         podeConciliar={podeConciliarLotes}
+        loteAlvo={typeof loteIdRaw === "string" ? loteIdRaw : undefined}
       />
     );
   }

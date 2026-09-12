@@ -35,6 +35,8 @@ export type FiltrosFolha = {
   status: FiltroStatus | null;
   projetistaId: string;
   projetoId: string;
+  /** D34: filtra pelo lote (`FolhaProjetista`) a que o pagamento pertence. */
+  folhaId: string;
   /** Liberação a partir de (yyyy-mm-dd, inclusive). */
   de: string;
   /** Liberação até (yyyy-mm-dd, inclusive). */

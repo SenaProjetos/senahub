@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { parseListParams } from "@/lib/list-params";
-import { paraData } from "@/lib/data";
+import { paraData, MESES_CURTOS } from "@/lib/data";
 import { lerFiltrosFolha, whereDoStatus } from "./service";
 import type { FiltrosFolha, FiltroStatus } from "./status";
 
@@ -16,6 +16,10 @@ export const INCLUDE_PAGAMENTO = {
   disciplina: {
     select: { disciplinaTextoLegado: true, projetoId: true, projeto: { select: { codigo: true, nome: true } } },
   },
+  // D34: de que lote o pagamento faz parte, do lado da aba Pagamentos — hoje o vínculo só
+  // aparecia de dentro do lote (F10). Relação de verdade (`folhaId`/`@relation`), diferente
+  // do lançamento (colunas soltas).
+  folha: { select: { id: true, ano: true, mes: true } },
 } satisfies Prisma.PagamentoProjetistaInclude;
 
 type PagamentoBruto = Prisma.PagamentoProjetistaGetPayload<{ include: typeof INCLUDE_PAGAMENTO }>;
@@ -35,6 +39,7 @@ function whereSemStatus(f: FiltrosFolha): Prisma.PagamentoProjetistaWhereInput {
   const and: Prisma.PagamentoProjetistaWhereInput[] = [];
   if (f.projetistaId) and.push({ projetistaId: f.projetistaId });
   if (f.projetoId) and.push({ disciplina: { projetoId: f.projetoId } });
+  if (f.folhaId) and.push({ folhaId: f.folhaId });
 
   // `liberadoEm` é um INSTANTE (`@default(now())`), não uma coluna `@db.Date` — então as
   // fronteiras do dia são meia-noite LOCAL, e `ate` é inclusivo (vira `< dia seguinte`).
@@ -288,7 +293,7 @@ export async function dadosFolhaExport(sp: RawParams) {
   const { sort, dir } = parseListParams(sp, { sortFields: SORT_PAGAMENTO });
   const base = await comFiltroSemComprovante(whereSemStatus(filtros), filtros.semComprovante);
   const where: Prisma.PagamentoProjetistaWhereInput = { AND: [base, whereDoStatus(filtros.status)] };
-  const [itensBrutos, total] = await Promise.all([
+  const [itensBrutos, total, lote] = await Promise.all([
     prisma.pagamentoProjetista.findMany({
       where,
       orderBy: ordenacao(sort, dir),
@@ -296,17 +301,25 @@ export async function dadosFolhaExport(sp: RawParams) {
       include: INCLUDE_PAGAMENTO,
     }),
     prisma.pagamentoProjetista.count({ where }),
+    // D34: mês/ano do lote pro NOME do arquivo — direto pelo id, não pelos itens (um lote
+    // pode estar vazio depois de mover tudo pra fora, e o nome ainda precisa identificá-lo).
+    filtros.folhaId
+      ? prisma.folhaProjetista.findUnique({ where: { id: filtros.folhaId }, select: { ano: true, mes: true } })
+      : Promise.resolve(null),
   ]);
   const itens = await comLancamentos(itensBrutos);
   // `truncado`: o chamador precisa saber que o arquivo NÃO é o recorte inteiro — um corte
   // silencioso em 5.000 linhas é a mesma classe de erro do D11, com outro nome.
   // `filtros` volta junto (F9/D28) pra quem monta o nome do arquivo não precisar reler a URL.
-  return { itens, total, truncado: total > LIMITE_EXPORT, filtros };
+  // `loteRotulo`: só existe quando `folhaId` resolveu pra um lote de verdade — `nomeArquivoExport`
+  // cai no genérico "lote" se vier `undefined` (id inválido/adivinhado na URL).
+  const loteRotulo = lote ? `${MESES_CURTOS[lote.mes - 1]}-${lote.ano}` : undefined;
+  return { itens, total, truncado: total > LIMITE_EXPORT, filtros, loteRotulo };
 }
 
 /** Opções dos filtros: só quem/o que tem pagamento — não a empresa inteira. */
 export async function opcoesFiltroFolha() {
-  const [projetistas, projetos] = await Promise.all([
+  const [projetistas, projetos, lotes] = await Promise.all([
     prisma.user.findMany({
       where: { pagamentos: { some: {} } },
       orderBy: { name: "asc" },
@@ -317,6 +330,12 @@ export async function opcoesFiltroFolha() {
       orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
       select: { id: true, codigo: true, nome: true },
     }),
+    // D34: só lotes com pagamento — mesmo critério de projetista/projeto acima.
+    prisma.folhaProjetista.findMany({
+      where: { pagamentos: { some: {} } },
+      orderBy: [{ ano: "desc" }, { mes: "desc" }],
+      select: { id: true, ano: true, mes: true },
+    }),
   ]);
-  return { projetistas, projetos };
+  return { projetistas, projetos, lotes };
 }

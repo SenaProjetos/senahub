@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Search, X } from "lucide-react";
 import { useSetParams } from "@/lib/use-set-param";
 import { formatarCodigo } from "@/modules/projetos/numbering";
+import { MESES_CURTOS } from "@/lib/data";
 import type { FiltrosFolha } from "@/modules/financeiro/folha/status";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,11 +32,14 @@ export function FolhaFiltros({
   filtros,
   projetistas,
   projetos,
+  lotes,
   canceladosOcultos,
 }: {
   filtros: FiltrosFolha;
   projetistas: { id: string; name: string }[];
   projetos: { id: string; codigo: string; nome: string }[];
+  /** D34: caminho inverso do F10 — filtrar a aba Pagamentos por lote. */
+  lotes: { id: string; ano: number; mes: number }[];
   canceladosOcultos: number;
 }) {
   const setParams = useSetParams();
@@ -52,6 +56,7 @@ export function FolhaFiltros({
     filtros.status ||
       filtros.projetistaId ||
       filtros.projetoId ||
+      filtros.folhaId ||
       filtros.de ||
       filtros.ate ||
       filtros.q ||
@@ -64,6 +69,7 @@ export function FolhaFiltros({
       status: null,
       projetistaId: null,
       projetoId: null,
+      folhaId: null,
       de: null,
       ate: null,
       q: null,
@@ -108,7 +114,7 @@ export function FolhaFiltros({
         <ExportarFolhaButton />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <div className="space-y-1.5">
           <Label htmlFor="filtro-status">Status</Label>
           <Select
@@ -160,6 +166,25 @@ export function FolhaFiltros({
               {projetos.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   {formatarCodigo(p.codigo)} · {p.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="filtro-lote">Lote</Label>
+          <Select
+            value={filtros.folhaId || TODOS}
+            onValueChange={(v) => v && setParams({ folhaId: v === TODOS ? null : v })}
+          >
+            <SelectTrigger id="filtro-lote" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODOS}>Todos</SelectItem>
+              {lotes.map((f) => (
+                <SelectItem key={f.id} value={f.id}>
+                  {MESES_CURTOS[f.mes - 1]}/{f.ano}
                 </SelectItem>
               ))}
             </SelectContent>

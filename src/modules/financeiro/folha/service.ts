@@ -28,6 +28,7 @@ export function lerFiltrosFolha(sp: RawParams): FiltrosFolha {
     status: (FILTROS_STATUS as readonly string[]).includes(status) ? (status as FiltroStatus) : null,
     projetistaId: primeiro(sp.projetistaId),
     projetoId: primeiro(sp.projetoId),
+    folhaId: primeiro(sp.folhaId),
     de: DATA_ISO.test(de) ? de : "",
     ate: DATA_ISO.test(ate) ? ate : "",
     q: primeiro(sp.q),
@@ -44,7 +45,7 @@ export function whereDoStatus(status: FiltroStatus | null): { status?: "pendente
 
 /** Algum filtro além do status? (decide o texto do vazio e a legenda dos totais) */
 export function temFiltroAlemDoStatus(f: FiltrosFolha): boolean {
-  return Boolean(f.projetistaId || f.projetoId || f.de || f.ate || f.q || f.semComprovante);
+  return Boolean(f.projetistaId || f.projetoId || f.folhaId || f.de || f.ate || f.q || f.semComprovante);
 }
 
 /**
@@ -237,9 +238,14 @@ function slug(texto: string): string {
  * com filtro diferente caem os dois como "Producao.xlsx" e o Windows empilha
  * "Producao (1).xlsx", "(2)"... sem dizer qual é qual.
  */
-export function nomeArquivoExport(f: FiltrosFolha, formato: "csv" | "xlsx"): string {
+export function nomeArquivoExport(f: FiltrosFolha, formato: "csv" | "xlsx", loteRotulo?: string): string {
   const partes: string[] = ["Producao"];
   if (f.status) partes.push(f.status);
+  // D34: `folhaId` sozinho é um cuid — inútil no nome do arquivo. O rótulo (mês-ano do
+  // lote, ex. "abr-2026") vem de fora porque esta função é pura (sem Prisma); sem ele, todo
+  // export de lote cairia no mesmo "Producao-lote.xlsx", justamente o problema que este
+  // nome existe para evitar (ver comentário do arquivo).
+  if (f.folhaId) partes.push(loteRotulo ? `lote-${loteRotulo}` : "lote");
   if (f.semComprovante) partes.push("sem-comprovante");
   if (f.de) partes.push(`de-${f.de}`);
   if (f.ate) partes.push(`ate-${f.ate}`);

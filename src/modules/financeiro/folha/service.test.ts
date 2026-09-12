@@ -21,6 +21,7 @@ describe("lerFiltrosFolha", () => {
       status: null,
       projetistaId: "",
       projetoId: "",
+      folhaId: "",
       de: "",
       ate: "",
       q: "",
@@ -73,6 +74,9 @@ describe("temFiltroAlemDoStatus", () => {
   });
   it("semComprovante conta (D33)", () => {
     expect(temFiltroAlemDoStatus({ ...base, semComprovante: true })).toBe(true);
+  });
+  it("folhaId conta (D34)", () => {
+    expect(temFiltroAlemDoStatus({ ...base, folhaId: "clx123" })).toBe(true);
   });
 });
 
@@ -269,6 +273,7 @@ describe("nomeArquivoExport", () => {
     status: null,
     projetistaId: "",
     projetoId: "",
+    folhaId: "",
     de: "",
     ate: "",
     q: "",
@@ -301,5 +306,15 @@ describe("nomeArquivoExport", () => {
     expect(nomeArquivoExport({ ...vazio, status: "pago", semComprovante: true }, "xlsx")).toBe(
       "Producao-pago-sem-comprovante.xlsx",
     );
+  });
+  it("lote sem rótulo cai no genérico 'lote' (D34)", () => {
+    expect(nomeArquivoExport({ ...vazio, status: "pago", folhaId: "clx123", semComprovante: true }, "xlsx")).toBe(
+      "Producao-pago-lote-sem-comprovante.xlsx",
+    );
+  });
+  it("lote com rótulo identifica QUAL lote — sem isso, todo export de lote colide no mesmo nome (D34)", () => {
+    expect(
+      nomeArquivoExport({ ...vazio, status: "pago", folhaId: "clx123", semComprovante: true }, "xlsx", "abr-2026"),
+    ).toBe("Producao-pago-lote-abr-2026-sem-comprovante.xlsx");
   });
 });
