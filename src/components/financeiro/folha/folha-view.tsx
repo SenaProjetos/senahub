@@ -32,6 +32,7 @@ import {
 import { CorrigirPagamentoDialog } from "./corrigir-pagamento-dialog";
 import { EstornarPagamentoDialog } from "./estornar-pagamento-dialog";
 import { GerenciarComprovantesDialog } from "./gerenciar-comprovantes-dialog";
+import { ComprovantesEmLoteDialog, type ItemPago } from "./comprovantes-em-lote-dialog";
 import { EfetivarPagamentoDialog, type DadosEfetivacao } from "./efetivar-pagamento-dialog";
 
 /** Modo "por pagamento" (F2): tabela plana, paginada. Filtros/KPI vivem no `page.tsx`. */
@@ -68,6 +69,7 @@ export function FolhaView({
   const [corrigir, setCorrigir] = useState<FolhaItem | null>(null);
   const [estornar, setEstornar] = useState<FolhaItem | null>(null);
   const [comprovantes, setComprovantes] = useState<FolhaItem | null>(null);
+  const [comprovantesLote, setComprovantesLote] = useState<ItemPago[] | null>(null);
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [loteAberto, setLoteAberto] = useState(false);
 
@@ -96,6 +98,8 @@ export function FolhaView({
       toast.success(`${r.data.pagos} pagamento(s) efetivado(s) — ${brl(r.data.total)} no caixa.${ignorados}`);
       setLoteAberto(false);
       setSelecionados(new Set());
+      // G7/B1: lista de comprovante linha a linha no lugar do fechamento direto.
+      setComprovantesLote(r.data.itens);
       router.refresh();
     }
     return r;
@@ -261,6 +265,7 @@ export function FolhaView({
         onConfirmar={pagarSelecionados}
         onClose={() => setLoteAberto(false)}
       />
+      <ComprovantesEmLoteDialog itens={comprovantesLote} onClose={() => setComprovantesLote(null)} />
     </div>
   );
 }

@@ -126,6 +126,9 @@ export const pagarFolhaProjetista = defineAction(
 
     const efetivados = await prisma.$transaction(async (tx) => {
       const feitos: typeof pagaveis = [];
+      // G7/B1: um lançamento por pagamento efetivado — a lista pós-pagamento (comprovante
+      // linha a linha) precisa do par (projetista, lancamentoId), não só da contagem.
+      const comLancamento: { id: string; projetistaNome: string; lancamentoId: string }[] = [];
       for (const pag of pagaveis) {
         // A leitura acima é de FORA da transação: "Pagar selecionados" ou o pagamento
         // individual podem ter pago a linha nesse meio-tempo. Sem reservar, ela seria
@@ -152,6 +155,7 @@ export const pagarFolhaProjetista = defineAction(
         );
         await tx.pagamentoProjetista.update({ where: { id: pag.id }, data: { lancamentoId } });
         feitos.push(pag);
+        comLancamento.push({ id: pag.id, projetistaNome: pag.projetista.name, lancamentoId });
       }
       if (feitos.length === 0) throw new ActionError("Os pagamentos deste lote já foram efetivados — atualize a tela.");
       // Com linha zerada sobrando, o lote continua `fechada` — ainda há o que pagar nele.
@@ -162,10 +166,10 @@ export const pagarFolhaProjetista = defineAction(
           data: { status: "paga", pagaEm: quando },
         });
       }
-      return feitos;
+      return { feitos, comLancamento };
     }, { timeout: 30_000 });
 
-    const projetistas = [...new Set(efetivados.map((p) => p.projetista.id))];
+    const projetistas = [...new Set(efetivados.feitos.map((p) => p.projetista.id))];
     await notificarMuitos(projetistas, {
       titulo: "Pagamento efetivado",
       corpo: `Seu pagamento da produção ${String(folha.mes).padStart(2, "0")}/${folha.ano} foi efetivado.`,
@@ -176,7 +180,13 @@ export const pagarFolhaProjetista = defineAction(
     revalidatePath("/financeiro/folha-projetistas");
     revalidatePath("/financeiro/lancamentos");
     revalidatePath("/financeiro/fluxo-caixa");
-    return { id: folha.id, pagos: efetivados.length, semValor: semValor.length };
+    return {
+      id: folha.id,
+      pagos: efetivados.feitos.length,
+      semValor: semValor.length,
+      // G7/B1: para a lista pós-pagamento oferecer upload linha a linha.
+      itens: efetivados.comLancamento,
+    };
   },
 );
 

@@ -659,6 +659,9 @@ export const pagarProjetistasSelecionados = defineAction(
         const { pagaveis } = separarPagaveis(pendentes);
 
         const efetivados: typeof pagaveis = [];
+        // G7/B1: par (projetista, lancamentoId) por pagamento — a lista pós-pagamento
+        // (comprovante linha a linha) precisa disso, não só da contagem.
+        const comLancamento: { id: string; projetistaNome: string; lancamentoId: string }[] = [];
         for (const pag of pagaveis) {
           const reserva = await tx.pagamentoProjetista.updateMany({
             where: { id: pag.id, status: "pendente" },
@@ -682,18 +685,19 @@ export const pagarProjetistasSelecionados = defineAction(
           );
           await tx.pagamentoProjetista.update({ where: { id: pag.id }, data: { lancamentoId } });
           efetivados.push(pag);
+          comLancamento.push({ id: pag.id, projetistaNome: pag.projetista.name, lancamentoId });
         }
-        return efetivados;
+        return { efetivados, comLancamento };
       },
       // Até 200 linhas, cada uma com 3-4 escritas: o padrão de 5 s do Prisma é curto.
       { timeout: 30_000 },
     );
 
-    if (pagos.length === 0) {
+    if (pagos.efetivados.length === 0) {
       throw new ActionError("Nenhum dos selecionados pode ser pago — já foram pagos, cancelados ou estão sem valor.");
     }
 
-    const projetistas = [...new Set(pagos.map((p) => p.projetista.id))];
+    const projetistas = [...new Set(pagos.efetivados.map((p) => p.projetista.id))];
     await notificarMuitos(projetistas, {
       titulo: "Pagamento efetivado",
       corpo: "Pagamento de produção efetivado — confira no seu extrato.",
@@ -705,9 +709,11 @@ export const pagarProjetistasSelecionados = defineAction(
     revalidatePath("/financeiro/lancamentos");
     revalidatePath("/financeiro/fluxo-caixa");
     return {
-      pagos: pagos.length,
-      ignorados: i.ids.length - pagos.length,
-      total: pagos.reduce((s, p) => s + Number(p.valor), 0),
+      pagos: pagos.efetivados.length,
+      ignorados: i.ids.length - pagos.efetivados.length,
+      total: pagos.efetivados.reduce((s, p) => s + Number(p.valor), 0),
+      // G7/B1: para a lista pós-pagamento oferecer upload linha a linha.
+      itens: pagos.comLancamento,
     };
   },
 );

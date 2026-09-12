@@ -36,6 +36,7 @@ import { MESES_CURTOS } from "@/lib/data";
 import { BadgeStatus, CelulaPagamento } from "./folha-linhas-compartilhadas";
 import { EfetivarPagamentoDialog, type DadosEfetivacao } from "./efetivar-pagamento-dialog";
 import { MoverPagamentoDialog } from "./mover-pagamento-dialog";
+import { ComprovantesEmLoteDialog, type ItemPago } from "./comprovantes-em-lote-dialog";
 
 // "aberta" não aparece na UI de propósito (N5 do plano): `gerarFolhaDoMes` sempre cria o
 // lote como "fechada" — o valor fica só no enum do banco, sem virar um passo real da tela.
@@ -378,6 +379,7 @@ function PagarLoteDialog({
   formas: Opcao[];
 }) {
   const router = useRouter();
+  const [comprovantesLote, setComprovantesLote] = useState<ItemPago[] | null>(null);
 
   async function efetivar(d: DadosEfetivacao) {
     if (!folha) return { ok: false as const, error: "Lote não encontrado." };
@@ -388,26 +390,31 @@ function PagarLoteDialog({
         : "";
       toast.success(`Lote pago — ${r.data.pagos} pagamento(s) confirmado(s) no caixa.${ficaram}`);
       onClose();
+      // G7/B1: lista de comprovante linha a linha no lugar do fechamento direto.
+      setComprovantesLote(r.data.itens);
       router.refresh();
     }
     return r;
   }
 
   return (
-    <EfetivarPagamentoDialog
-      open={!!folha}
-      titulo="Pagar lote"
-      descricao={
-        folha
-          ? `${MESES_CURTOS[folha.mes - 1]}/${folha.ano} — ${folha.pagaveis} pagamento(s) a efetivar, ${brl(folha.total)}` +
-            (folha.semValor > 0 ? ` · ${folha.semValor} sem valor fica(m) de fora` : "")
-          : ""
-      }
-      contas={contas}
-      formas={formas}
-      confirmarLabel="Pagar lote"
-      onConfirmar={efetivar}
-      onClose={onClose}
-    />
+    <>
+      <EfetivarPagamentoDialog
+        open={!!folha}
+        titulo="Pagar lote"
+        descricao={
+          folha
+            ? `${MESES_CURTOS[folha.mes - 1]}/${folha.ano} — ${folha.pagaveis} pagamento(s) a efetivar, ${brl(folha.total)}` +
+              (folha.semValor > 0 ? ` · ${folha.semValor} sem valor fica(m) de fora` : "")
+            : ""
+        }
+        contas={contas}
+        formas={formas}
+        confirmarLabel="Pagar lote"
+        onConfirmar={efetivar}
+        onClose={onClose}
+      />
+      <ComprovantesEmLoteDialog itens={comprovantesLote} onClose={() => setComprovantesLote(null)} />
+    </>
   );
 }

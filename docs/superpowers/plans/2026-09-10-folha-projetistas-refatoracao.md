@@ -575,3 +575,11 @@ Decisões do dono nesta fase (2026-09-12): recibo **individual E mensal**; assin
 - **Tela:** `GerenciarComprovantesDialog`, botão de clipe na linha paga (nos dois modos), lista com baixar/remover + upload — igual ao padrão já existente em `LancamentoDetalheDialog`, mas escopado.
 
 **Verificação (G6):** `tsc`, `eslint`, `smoke:sync-pagamento` 19/19, conferência no banco de dev em transação desfeita: lançamento de produção passa no filtro de escopo, lançamento comum é recusado, listagem traz o anexo certo, remover apaga de fato.
+
+**✅ G7 entregue 2026-09-12 (Sonnet 5) — comprovante em lote (B1):**
+- Decisão do dono: **lista pós-pagamento com upload linha a linha**, pular qualquer linha é sempre permitido. Aplica-se aos 3 caminhos em lote: "Pagar lote", "Pagar selecionados" e "Pagar tudo" (grupo).
+- `pagarFolhaProjetista` e `pagarProjetistasSelecionados` passaram a devolver `itens: {id, projetistaNome, lancamentoId}[]` além dos agregados — um lançamento por pagamento efetivado, coletado no mesmo loop que já confirmava a despesa (sem query extra).
+- **`ComprovantesEmLoteDialog`**, novo, abre no lugar do fechamento direto: uma linha por pagamento, upload independente (mesma rota/action da F8/G6), estado "Anexado" por linha, "Concluir" sempre disponível.
+- Fora do escopo, mantido do F8: um comprovante por lançamento, nunca um arquivo só replicado — decisão já tomada na F8 e reafirmada aqui.
+
+**Verificação (G7):** `tsc`, `eslint`, 142 testes, `smoke:sync-pagamento` 19/19 e conferência no banco de dev em transação desfeita: o loop reproduzido devolve o par (id, lancamentoId) batendo com o gravado, cada lançamento aponta de volta ao pagamento certo, nenhum lancamentoId repetido entre os dois pagamentos testados.

@@ -29,6 +29,7 @@ import {
 import { CorrigirPagamentoDialog } from "./corrigir-pagamento-dialog";
 import { EstornarPagamentoDialog } from "./estornar-pagamento-dialog";
 import { GerenciarComprovantesDialog } from "./gerenciar-comprovantes-dialog";
+import { ComprovantesEmLoteDialog, type ItemPago } from "./comprovantes-em-lote-dialog";
 import { ReciboMensalDialog } from "@/components/financeiro/recibo/recibo-mensal-dialog";
 import { EfetivarPagamentoDialog, type DadosEfetivacao } from "./efetivar-pagamento-dialog";
 
@@ -71,6 +72,7 @@ export function FolhaAgrupadaView({
   const [comprovantes, setComprovantes] = useState<FolhaItem | null>(null);
   const [reciboMensal, setReciboMensal] = useState<{ projetistaId: string; projetistaNome: string } | null>(null);
   const [loteGrupo, setLoteGrupo] = useState<FolhaGrupo | null>(null);
+  const [comprovantesLote, setComprovantesLote] = useState<ItemPago[] | null>(null);
 
   const pagaveisDoLote = useMemo(() => (loteGrupo ? loteGrupo.itens.filter(pagavel) : []), [loteGrupo]);
   const totalDoLote = pagaveisDoLote.reduce((s, p) => s + p.valor, 0);
@@ -83,6 +85,8 @@ export function FolhaAgrupadaView({
         : "";
       toast.success(`${r.data.pagos} pagamento(s) efetivado(s) — ${brl(r.data.total)} no caixa.${ignorados}`);
       setLoteGrupo(null);
+      // G7/B1: lista de comprovante linha a linha no lugar do fechamento direto.
+      setComprovantesLote(r.data.itens);
       router.refresh();
     }
     return r;
@@ -144,6 +148,7 @@ export function FolhaAgrupadaView({
         onConfirmar={pagarTudo}
         onClose={() => setLoteGrupo(null)}
       />
+      <ComprovantesEmLoteDialog itens={comprovantesLote} onClose={() => setComprovantesLote(null)} />
     </div>
   );
 }
