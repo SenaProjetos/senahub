@@ -150,6 +150,27 @@ export function erroCorrecaoEfetivado(status: string, lanc: EstadoLancamentoCorr
   return null;
 }
 
+/**
+ * Estorno de um pagamento JÁ efetivado (G1b/D31): desfaz o pagamento inteiro — vira
+ * `cancelado`, o lançamento é cancelado e a linha sai do lote. É a porta que a N6 supôs
+ * existir ("a saída é cancelar") e que nunca foi construída: `erroTransicao("cancelar")`
+ * recusa pago, de propósito, porque cancelar em silêncio um pagamento já no caixa seria pior.
+ *
+ * Conciliado NÃO estorna: o dinheiro saiu da conta de verdade, e o extrato registra isso.
+ * Apagar a saída do caixa deixaria o sistema divergente do banco — o certo é lançar a
+ * devolução (entrada) quando ela acontecer.
+ */
+export function erroEstornoEfetivado(status: string, lanc: EstadoLancamentoCorrecao | null): string | null {
+  if (status !== "pago") {
+    return "Só um pagamento efetivado é estornado por aqui — um pendente se cancela pelo botão de cancelar da linha.";
+  }
+  if (lanc?.conciliado) {
+    return "Este pagamento está conciliado com o extrato: o dinheiro saiu da conta de verdade. Estornar apagaria do caixa uma saída que o banco registrou — lance a devolução no caixa quando ela entrar.";
+  }
+  if (lanc?.parcial) return "O lançamento deste pagamento tem baixa parcial — resolva pela tela de Lançamentos.";
+  return null;
+}
+
 /** O que a transação conciliada diz que saiu da conta — o extrato, em forma de dado. */
 export type TransacaoConciliada = { valor: number; contaId: string | null };
 

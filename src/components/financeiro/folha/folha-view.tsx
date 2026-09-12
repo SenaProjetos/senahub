@@ -30,6 +30,7 @@ import {
   type Opcao,
 } from "./folha-linhas-compartilhadas";
 import { CorrigirPagamentoDialog } from "./corrigir-pagamento-dialog";
+import { EstornarPagamentoDialog } from "./estornar-pagamento-dialog";
 import { EfetivarPagamentoDialog, type DadosEfetivacao } from "./efetivar-pagamento-dialog";
 
 /** Modo "por pagamento" (F2): tabela plana, paginada. Filtros/KPI vivem no `page.tsx`. */
@@ -58,6 +59,7 @@ export function FolhaView({
   const [pagar, setPagar] = useState<FolhaItem | null>(null);
   const [editar, setEditar] = useState<FolhaItem | null>(null);
   const [corrigir, setCorrigir] = useState<FolhaItem | null>(null);
+  const [estornar, setEstornar] = useState<FolhaItem | null>(null);
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [loteAberto, setLoteAberto] = useState(false);
 
@@ -204,7 +206,7 @@ export function FolhaView({
                       <BadgeStatus p={p} />
                     </TableCell>
                     <TableCell>
-                      <AcoesPagamento p={p} onPagar={setPagar} onEditar={setEditar} onCorrigir={setCorrigir} />
+                      <AcoesPagamento p={p} onPagar={setPagar} onEditar={setEditar} onCorrigir={setCorrigir} onEstornar={setEstornar} />
                     </TableCell>
                   </TableRow>
                 );
@@ -219,6 +221,7 @@ export function FolhaView({
       <PagarDialog pagamento={pagar} onClose={() => setPagar(null)} contas={contas} formas={formas} />
       <EditarValorDialog pagamento={editar} onClose={() => setEditar(null)} />
       <CorrigirPagamentoDialog pagamento={corrigir} contas={contas} formas={formas} onClose={() => setCorrigir(null)} />
+      <EstornarPagamentoDialog pagamento={estornar} onClose={() => setEstornar(null)} />
       <EfetivarPagamentoDialog
         open={loteAberto}
         titulo="Pagar selecionados"

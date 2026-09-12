@@ -505,3 +505,13 @@ Ordem agrupada **por modelo**, para não parar a cada etapa (pedido do dono):
 - **Fora do escopo daqui:** pagamento conciliado que não deveria ter existido (pagou a pessoa errada). Isso é estorno contábil — a mensagem manda para o caixa, e a G1b trata o caso não conciliado.
 
 **Verificação (G1a):** `tsc`, `eslint`, 117 testes e conferência contra o banco de dev em transação desfeita, conciliando um lançamento real com valor divergente: a regra recusa valor/conta que não batem, `transacao: { is: null }` acha 0 na linha conciliada, `transacao: { is: { id } }` escreve, amarrar a outra transação acha 0, `dataConfirmacao` vira a data do extrato, e o rollback não deixou resíduo.
+
+**✅ G1b entregue 2026-09-12 (Opus 5) — estorno de pagamento efetivado + fim da porta dos fundos:**
+- **`estornarPagamentoEfetivado`** (`folha_pj`, justificativa obrigatória de 10 a 500): o pagamento vira `cancelado`, sai do lote (`folhaId: null`, mesma trava do §5 — cancelado preso a lote seria pago de novo), o lançamento é cancelado com registro em `LancamentoStatusHistorico` (o mesmo rastro que `cancelarLancamento` deixa) e o total do lote e o `Disciplina.valor` são recalculados.
+- **A porta que faltava:** a N6 dizia "a saída é cancelar", mas `erroTransicao("cancelar", "pago")` recusa — de propósito. Sem esta ação, um pagamento pago por engano não tinha saída **nenhuma** pela Produção.
+- **`pagoEm` fica gravado**: o pagamento aconteceu e depois foi desfeito. Apagar a data reescreveria a história; a linha já diz `cancelado` e a auditoria guarda o antes dos dois lados.
+- **Conciliado não estorna** (`erroEstornoEfetivado`, 6 testes): o dinheiro saiu de verdade e o extrato registra. Apagar a saída do caixa deixaria o sistema divergente do banco — a mensagem manda lançar a devolução quando ela entrar. A guarda se repete na escrita (`transacao: { is: null }`).
+- **Porta dos fundos fechada:** `cancelarLancamento` (módulo Lançamentos) passa a recusar lançamento de produção, espelhando a guarda que `excluirLancamento` já tinha. Era o caminho que deixava o pagamento `pago` apontando para lançamento cancelado — estado que a correção da F11 depois recusava. Só fecha agora porque a alternativa legítima (estorno) passou a existir na mesma entrega.
+- **Fora:** notificação ao projetista quando o pagamento é estornado. Entra na G8 (B2), que é a fase de notificações.
+
+**Verificação (G1b):** `tsc`, `eslint`, 123 testes, `smoke:sync-pagamento` 19/19 e conferência no banco de dev em transação desfeita: pagamento vira cancelado e sai do lote, lançamento é cancelado, `pagoEm` permanece, `Disciplina.valor` volta a ser a soma dos vivos e, com o lançamento conciliado, a guarda da escrita acha 0 linhas. Rollback sem resíduo.

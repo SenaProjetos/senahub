@@ -4,13 +4,13 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Wallet, Pencil, Ban, Paperclip } from "lucide-react";
+import { Wallet, Pencil, Ban, Paperclip, Undo2 } from "lucide-react";
 import {
   pagarProjetista,
   editarPagamentoProjetista,
   cancelarPagamentoProjetista,
 } from "@/modules/financeiro/folha/actions";
-import { temValorPagavel, erroCorrecaoEfetivado } from "@/modules/financeiro/folha/service";
+import { temValorPagavel, erroCorrecaoEfetivado, erroEstornoEfetivado } from "@/modules/financeiro/folha/service";
 import { STATUS_PAGAMENTO_TONE, STATUS_PAGAMENTO_LABEL, type FiltrosFolha } from "@/modules/financeiro/folha/status";
 import type { FolhaItem } from "@/modules/financeiro/folha/queries";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -57,13 +57,22 @@ export function AcoesPagamento({
   onPagar,
   onEditar,
   onCorrigir,
+  onEstornar,
 }: {
   p: FolhaItem;
   onPagar: (p: FolhaItem) => void;
   onEditar: (p: FolhaItem) => void;
   onCorrigir?: (p: FolhaItem) => void;
+  onEstornar?: (p: FolhaItem) => void;
 }) {
-  if (p.status === "pago" && onCorrigir) return <CorrigirPagamentoButton p={p} onCorrigir={onCorrigir} />;
+  if (p.status === "pago" && onCorrigir) {
+    return (
+      <div className="flex flex-wrap gap-1">
+        <CorrigirPagamentoButton p={p} onCorrigir={onCorrigir} />
+        {onEstornar && <EstornarPagamentoButton p={p} onEstornar={onEstornar} />}
+      </div>
+    );
+  }
   if (p.status !== "pendente") return null;
   return (
     <div className="flex flex-wrap gap-1">
@@ -106,6 +115,27 @@ function CorrigirPagamentoButton({ p, onCorrigir }: { p: FolhaItem; onCorrigir: 
   return (
     <Button size="sm" variant="ghost" onClick={() => (motivo ? toast.info(motivo) : onCorrigir(p))}>
       <Pencil className="size-3.5" /> Corrigir pagamento
+    </Button>
+  );
+}
+
+/**
+ * Estorno (G1b) — ícone, ao lado de "Corrigir pagamento", porque é a ação rara e mais
+ * grave das duas. Conciliado não estorna: o clique explica em vez de abrir o dialog.
+ */
+function EstornarPagamentoButton({ p, onEstornar }: { p: FolhaItem; onEstornar: (p: FolhaItem) => void }) {
+  const l = p.lancamento;
+  const motivo = erroEstornoEfetivado(p.status, l && { status: l.status, conciliado: l.conciliado, parcial: l.parcial });
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      className="px-2 text-destructive"
+      title="Estornar pagamento"
+      aria-label="Estornar pagamento"
+      onClick={() => (motivo ? toast.info(motivo) : onEstornar(p))}
+    >
+      <Undo2 className="size-3.5" />
     </Button>
   );
 }

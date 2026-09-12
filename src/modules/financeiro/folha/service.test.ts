@@ -10,6 +10,7 @@ import {
   erroTransicao,
   erroCorrecaoEfetivado,
   erroCorrecaoConciliada,
+  erroEstornoEfetivado,
   nomeArquivoExport,
 } from "@/modules/financeiro/folha/service";
 
@@ -145,6 +146,29 @@ describe("erroCorrecaoEfetivado", () => {
   });
   it("baixa parcial é recusada", () => {
     expect(erroCorrecaoEfetivado("pago", { ...livre, parcial: true })).toMatch(/baixa parcial/);
+  });
+});
+
+describe("erroEstornoEfetivado", () => {
+  const livre = { status: "confirmado", conciliado: false, parcial: false };
+  it("pago não conciliado pode ser estornado", () => {
+    expect(erroEstornoEfetivado("pago", livre)).toBeNull();
+  });
+  it("pendente e cancelado não passam por aqui", () => {
+    expect(erroEstornoEfetivado("pendente", livre)).toMatch(/Só um pagamento efetivado/);
+    expect(erroEstornoEfetivado("cancelado", livre)).toMatch(/Só um pagamento efetivado/);
+  });
+  it("conciliado é recusado — o dinheiro saiu de verdade", () => {
+    expect(erroEstornoEfetivado("pago", { ...livre, conciliado: true })).toMatch(/conciliado com o extrato/);
+  });
+  it("baixa parcial é recusada", () => {
+    expect(erroEstornoEfetivado("pago", { ...livre, parcial: true })).toMatch(/baixa parcial/);
+  });
+  it("pago sem lançamento nenhum pode ser estornado (limpa o estado inconsistente)", () => {
+    expect(erroEstornoEfetivado("pago", null)).toBeNull();
+  });
+  it("lançamento já cancelado não impede o estorno — é justamente o que se quer arrumar", () => {
+    expect(erroEstornoEfetivado("pago", { ...livre, status: "cancelado" })).toBeNull();
   });
 });
 

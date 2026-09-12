@@ -296,7 +296,19 @@ export const removerAnexoLancamento = defineAction(
 export const cancelarLancamento = defineAction(
   { ...base, acao: "cancelar-lancamento", entidade: "Lancamento", schema: idLancamentoSchema, capturarAntes: (i) => snapshotLancamento(i.id) },
   async (i, ctx) => {
-    const atual = await prisma.lancamento.findUnique({ where: { id: i.id }, select: { status: true } });
+    const atual = await prisma.lancamento.findUnique({
+      where: { id: i.id },
+      select: { status: true, pagamentoProjetistaId: true },
+    });
+    // G1b/D31: mesma guarda que `excluirLancamento` já tinha. Cancelar por aqui o lançamento
+    // de um pagamento de produção deixava o pagamento `pago` apontando para lançamento
+    // cancelado — estado que a própria correção (F11) depois recusa. A Produção tem as duas
+    // portas certas: corrigir (F11) e estornar (G1b).
+    if (atual?.pagamentoProjetistaId) {
+      throw new ActionError(
+        "Este lançamento é de um pagamento de produção — corrija ou estorne pela tela de Produção.",
+      );
+    }
     await prisma.lancamento.update({
       where: { id: i.id },
       data: {

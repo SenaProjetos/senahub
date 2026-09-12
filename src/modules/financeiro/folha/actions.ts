@@ -14,6 +14,7 @@ import {
   erroTransicao,
   erroCorrecaoEfetivado,
   erroCorrecaoConciliada,
+  erroEstornoEfetivado,
   quandoDoPagamento,
   separarPagaveis,
   temValorPagavel,
@@ -389,6 +390,106 @@ export const corrigirPagamentoEfetivado = defineAction(
       });
       if (atualizado.count === 0) {
         throw new ActionError("O lançamento mudou enquanto a tela estava aberta (conciliação ou edição em Lançamentos) — atualize e tente de novo.");
+      }
+
+      if (pag.folhaId) await recalcularTotalFolha(tx, pag.folhaId);
+      await sincronizarValorDisciplina(tx, pag.disciplinaId);
+    });
+
+    revalidatePath("/financeiro/folha-projetistas");
+    revalidatePath("/financeiro/lancamentos");
+    revalidatePath("/financeiro/fluxo-caixa");
+    return { id: pag.id };
+  },
+);
+
+const estornarSchema = z.object({
+  id: z.string().min(1),
+  justificativa: z
+    .string()
+    .trim()
+    .min(10, "Explique o motivo do estorno (mínimo 10 caracteres).")
+    .max(500, "Justificativa com no máximo 500 caracteres."),
+});
+
+/**
+ * Estorna um pagamento JÁ efetivado (G1b/D31): vira `cancelado`, o lançamento do caixa é
+ * cancelado e a linha sai do lote. É a porta que a N6 supôs existir — até aqui, um
+ * pagamento pago por engano não tinha saída nenhuma pela tela de Produção, e a única
+ * válvula era cancelar o lançamento por Lançamentos, que deixava o pagamento `pago`
+ * apontando para lançamento cancelado. Essa válvula fechou na mesma entrega
+ * (`cancelarLancamento` agora recusa lançamento de produção).
+ *
+ * Conciliado não estorna (`erroEstornoEfetivado`): o dinheiro saiu de verdade, e o extrato
+ * registra isso — o certo é lançar a devolução quando ela entrar.
+ *
+ * `pagoEm` fica gravado de propósito: o pagamento ACONTECEU e depois foi desfeito; apagar a
+ * data reescreveria a história. Quem lê a linha vê `cancelado`, e a auditoria tem o antes.
+ */
+export const estornarPagamentoEfetivado = defineAction(
+  {
+    modulo: "financeiro",
+    acao: "estornar-pagamento-efetivado",
+    recurso: "financeiro",
+    permissao: "folha_pj",
+    entidade: "PagamentoProjetista",
+    schema: estornarSchema,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
+    capturarAntes: async (input) => {
+      const pagamento = await prisma.pagamentoProjetista.findUnique({
+        where: { id: input.id },
+        select: { id: true, valor: true, status: true, pagoEm: true, folhaId: true, lancamentoId: true },
+      });
+      if (!pagamento) return null;
+      const l = await lancamentoDoPagamento(prisma, pagamento);
+      return {
+        pagamento,
+        lancamento: l && { id: l.id, valor: l.valor, status: l.status, contaId: l.contaId, dataConfirmacao: l.dataConfirmacao },
+      };
+    },
+  },
+  async (i, { user }) => {
+    const pag = await prisma.pagamentoProjetista.findUnique({
+      where: { id: i.id },
+      select: { id: true, status: true, lancamentoId: true, folhaId: true, disciplinaId: true },
+    });
+    if (!pag) throw new ActionError("Pagamento não encontrado.");
+
+    await prisma.$transaction(async (tx) => {
+      const lanc = await lancamentoDoPagamento(tx, pag);
+      const bloqueio = erroEstornoEfetivado(
+        pag.status,
+        lanc && { status: lanc.status, conciliado: lanc.transacao != null, parcial: lanc.valorEfetivo != null },
+      );
+      if (bloqueio) throw new ActionError(bloqueio);
+
+      // `folhaId: null` junto: mesma trava do cancelamento de pendente (§5 do plano) — um
+      // cancelado preso ao lote seria recolhido e pago de novo no "Pagar lote".
+      const reserva = await tx.pagamentoProjetista.updateMany({
+        where: { id: pag.id, status: "pago" },
+        data: { status: "cancelado", folhaId: null },
+      });
+      if (reserva.count === 0) {
+        throw new ActionError("O pagamento mudou enquanto a tela estava aberta — atualize e tente de novo.");
+      }
+
+      // Lançamento já cancelado (o estado inconsistente que esta ação existe para limpar)
+      // não precisa de update — só não pode ser tocado de novo.
+      if (lanc && lanc.status !== "cancelado") {
+        // `transacao: { is: null }` NA ESCRITA: se conciliarem entre a leitura e aqui, o
+        // update acha 0 linhas e tudo volta, em vez de apagar do caixa uma saída que o
+        // banco já registrou.
+        const cancelado = await tx.lancamento.updateMany({
+          where: { id: lanc.id, status: { not: "cancelado" }, excluidoEm: null, transacao: { is: null } },
+          data: { status: "cancelado" },
+        });
+        if (cancelado.count === 0) {
+          throw new ActionError("O lançamento mudou enquanto a tela estava aberta (conciliação ou edição em Lançamentos) — atualize e tente de novo.");
+        }
+        // Mesmo rastro que `cancelarLancamento` deixa na tela de Lançamentos.
+        await tx.lancamentoStatusHistorico.create({
+          data: { lancamentoId: lanc.id, de: lanc.status, para: "cancelado", autorId: user.id },
+        });
       }
 
       if (pag.folhaId) await recalcularTotalFolha(tx, pag.folhaId);

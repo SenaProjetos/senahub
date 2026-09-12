@@ -27,6 +27,7 @@ import {
   type Opcao,
 } from "./folha-linhas-compartilhadas";
 import { CorrigirPagamentoDialog } from "./corrigir-pagamento-dialog";
+import { EstornarPagamentoDialog } from "./estornar-pagamento-dialog";
 import { EfetivarPagamentoDialog, type DadosEfetivacao } from "./efetivar-pagamento-dialog";
 
 /**
@@ -58,6 +59,7 @@ export function FolhaAgrupadaView({
   const [pagar, setPagar] = useState<FolhaItem | null>(null);
   const [editar, setEditar] = useState<FolhaItem | null>(null);
   const [corrigir, setCorrigir] = useState<FolhaItem | null>(null);
+  const [estornar, setEstornar] = useState<FolhaItem | null>(null);
   const [loteGrupo, setLoteGrupo] = useState<FolhaGrupo | null>(null);
 
   const pagaveisDoLote = useMemo(() => (loteGrupo ? loteGrupo.itens.filter(pagavel) : []), [loteGrupo]);
@@ -95,6 +97,7 @@ export function FolhaAgrupadaView({
           onPagar={setPagar}
           onEditar={setEditar}
           onCorrigir={setCorrigir}
+          onEstornar={setEstornar}
           onPagarTudo={setLoteGrupo}
         />
       ))}
@@ -102,6 +105,7 @@ export function FolhaAgrupadaView({
       <PagarDialog pagamento={pagar} onClose={() => setPagar(null)} contas={contas} formas={formas} />
       <EditarValorDialog pagamento={editar} onClose={() => setEditar(null)} />
       <CorrigirPagamentoDialog pagamento={corrigir} contas={contas} formas={formas} onClose={() => setCorrigir(null)} />
+      <EstornarPagamentoDialog pagamento={estornar} onClose={() => setEstornar(null)} />
       <EfetivarPagamentoDialog
         open={!!loteGrupo}
         titulo="Pagar tudo"
@@ -122,6 +126,7 @@ function GrupoProjetista({
   onPagar,
   onEditar,
   onCorrigir,
+  onEstornar,
   onPagarTudo,
 }: {
   grupo: FolhaGrupo;
@@ -129,6 +134,7 @@ function GrupoProjetista({
   onPagar: (p: FolhaItem) => void;
   onEditar: (p: FolhaItem) => void;
   onCorrigir: (p: FolhaItem) => void;
+  onEstornar: (p: FolhaItem) => void;
   onPagarTudo: (g: FolhaGrupo) => void;
 }) {
   const pagaveis = grupo.itens.filter(pagavel);
@@ -218,7 +224,7 @@ function GrupoProjetista({
                       <BadgeStatus p={p} />
                     </TableCell>
                     <TableCell>
-                      <AcoesPagamento p={p} onPagar={onPagar} onEditar={onEditar} onCorrigir={onCorrigir} />
+                      <AcoesPagamento p={p} onPagar={onPagar} onEditar={onEditar} onCorrigir={onCorrigir} onEstornar={onEstornar} />
                     </TableCell>
                   </TableRow>
                 );
