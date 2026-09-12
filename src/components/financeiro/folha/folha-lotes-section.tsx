@@ -33,7 +33,16 @@ import { Pagination } from "@/components/ui/pagination";
 import { pageCount } from "@/lib/list-params";
 import { brl, formatarData } from "@/lib/utils";
 import { MESES_CURTOS } from "@/lib/data";
-import { BadgeStatus, CelulaPagamento } from "./folha-linhas-compartilhadas";
+import {
+  BadgeStatus,
+  CelulaPagamento,
+  AcoesPagamento,
+  EditarValorDialog,
+  PagarDialog as PagarIndividualDialog,
+} from "./folha-linhas-compartilhadas";
+import { CorrigirPagamentoDialog } from "./corrigir-pagamento-dialog";
+import { EstornarPagamentoDialog } from "./estornar-pagamento-dialog";
+import { GerenciarComprovantesDialog } from "./gerenciar-comprovantes-dialog";
 import { EfetivarPagamentoDialog, type DadosEfetivacao } from "./efetivar-pagamento-dialog";
 import { MoverPagamentoDialog } from "./mover-pagamento-dialog";
 import { ComprovantesEmLoteDialog, type ItemPago } from "./comprovantes-em-lote-dialog";
@@ -54,6 +63,7 @@ export function FolhaLotesSection({
   formas,
   podeLancamento,
   podeCorrigir,
+  podeConciliar,
 }: {
   folhas: FolhaLoteItem[];
   total: number;
@@ -62,18 +72,39 @@ export function FolhaLotesSection({
   contas: Opcao[];
   formas: Opcao[];
   podeLancamento: boolean;
-  /** `financeiro:folha_pj_corrigir` — excluir lote desfaz agrupamento já pago (G2). */
+  /** `financeiro:folha_pj_corrigir` — excluir lote e corrigir/estornar pago já dentro dele (G2). */
   podeCorrigir: boolean;
+  /** `financeiro:conciliar` — habilita desfazer conciliação pelo dialog de corrigir (G1c). */
+  podeConciliar: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [pagarLote, setPagarLote] = useState<FolhaLoteItem | null>(null);
   const [mover, setMover] = useState<{ pagamento: PagamentoDoLote; loteId: string } | null>(null);
   const [tokenRecarga, setTokenRecarga] = useState(0);
+  // G9/B4: ações individuais dentro do lote expandido — mesmos dialogs dos outros dois
+  // modos, sem duplicar lógica. Estado aqui (não em LinhaLote) porque um único conjunto de
+  // dialogs serve todas as linhas de todos os lotes, igual ao padrão de FolhaView.
+  const [pagarUm, setPagarUm] = useState<PagamentoDoLote | null>(null);
+  const [editar, setEditar] = useState<PagamentoDoLote | null>(null);
+  const [corrigir, setCorrigir] = useState<PagamentoDoLote | null>(null);
+  const [estornar, setEstornar] = useState<PagamentoDoLote | null>(null);
+  const [comprovantes, setComprovantes] = useState<PagamentoDoLote | null>(null);
   const ref = new Date();
   ref.setMonth(ref.getMonth() - 1);
   const [ano, setAno] = useState(String(ref.getFullYear()));
   const [mes, setMes] = useState(String(ref.getMonth() + 1));
+
+  // G9/B4: fecha o dialog E recarrega o painel expandido (se algum estiver aberto), igual
+  // ao token que a G3 já usa para "mover". Recarrega também ao só CANCELAR (sem ter mudado
+  // nada) — custo de uma query leve, e mais simples do que distinguir sucesso de
+  // cancelamento nos 4 dialogs reaproveitados, que só expõem `onClose`.
+  function fecharERecarregar<T>(setter: (v: T | null) => void) {
+    return () => {
+      setter(null);
+      setTokenRecarga((t) => t + 1);
+    };
+  }
 
   function gerar() {
     start(async () => {
@@ -137,6 +168,12 @@ export function FolhaLotesSection({
                   folha={f}
                   onPagar={setPagarLote}
                   onMover={setMover}
+                  onPagarUm={setPagarUm}
+                  onEditar={setEditar}
+                  onCorrigir={setCorrigir}
+                  onEstornar={setEstornar}
+                  onComprovantes={setComprovantes}
+                  onCancelado={() => setTokenRecarga((t) => t + 1)}
                   podeLancamento={podeLancamento}
                   podeCorrigir={podeCorrigir}
                   tokenRecarga={tokenRecarga}
@@ -154,6 +191,26 @@ export function FolhaLotesSection({
         onClose={() => setMover(null)}
         onMovido={() => setTokenRecarga((t) => t + 1)}
       />
+      {/* G9/B4: mesmos dialogs de FolhaView/FolhaAgrupadaView, um conjunto só pra todas as
+          linhas de todos os lotes — reusa a lógica em vez de duplicar. */}
+      <PagarIndividualDialog pagamento={pagarUm} onClose={fecharERecarregar(setPagarUm)} contas={contas} formas={formas} />
+      <EditarValorDialog pagamento={editar} onClose={fecharERecarregar(setEditar)} />
+      <CorrigirPagamentoDialog
+        pagamento={corrigir}
+        contas={contas}
+        formas={formas}
+        podeConciliar={podeConciliar}
+        onClose={fecharERecarregar(setCorrigir)}
+      />
+      <EstornarPagamentoDialog pagamento={estornar} onClose={fecharERecarregar(setEstornar)} />
+      <GerenciarComprovantesDialog
+        pagamento={
+          comprovantes?.lancamento
+            ? { id: comprovantes.id, projetistaNome: comprovantes.projetista.name, lancamentoId: comprovantes.lancamento.id }
+            : null
+        }
+        onClose={fecharERecarregar(setComprovantes)}
+      />
     </Card>
   );
 }
@@ -167,6 +224,12 @@ function LinhaLote({
   folha,
   onPagar,
   onMover,
+  onPagarUm,
+  onEditar,
+  onCorrigir,
+  onEstornar,
+  onComprovantes,
+  onCancelado,
   podeLancamento,
   podeCorrigir,
   tokenRecarga,
@@ -174,6 +237,14 @@ function LinhaLote({
   folha: FolhaLoteItem;
   onPagar: (f: FolhaLoteItem) => void;
   onMover: (alvo: { pagamento: PagamentoDoLote; loteId: string }) => void;
+  onPagarUm: (p: PagamentoDoLote) => void;
+  onEditar: (p: PagamentoDoLote) => void;
+  onCorrigir: (p: PagamentoDoLote) => void;
+  onEstornar: (p: PagamentoDoLote) => void;
+  onComprovantes: (p: PagamentoDoLote) => void;
+  /** G9: cancelar dentro do lote não passa por `fecharERecarregar` (não é dialog) — precisa
+   * do próprio bump de `tokenRecarga` pra a linha cancelada sumir sem recolher/expandir. */
+  onCancelado: () => void;
   podeLancamento: boolean;
   podeCorrigir: boolean;
   /** Sobe a cada movimentação: o painel aberto recarrega sem recolher/expandir (G3). */
@@ -263,9 +334,7 @@ function LinhaLote({
                   <TableHead>Liberado em</TableHead>
                   <TableHead>Pagamento</TableHead>
                   <TableHead>Status</TableHead>
-                  {/* G3: só pendente muda de lote (N8) — a coluna existe para todas as
-                      linhas para a tabela não mudar de largura entre lotes. */}
-                  <TableHead className="w-10" aria-label="Ações" />
+                  <TableHead aria-label="Ações" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -292,18 +361,31 @@ function LinhaLote({
                       <BadgeStatus p={p} />
                     </TableCell>
                     <TableCell>
-                      {p.status === "pendente" && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="px-2"
-                          title="Mover de lote"
-                          aria-label={`Mover pagamento de ${p.projetista.name} de lote`}
-                          onClick={() => onMover({ pagamento: p, loteId: folha.id })}
-                        >
-                          <ArrowLeftRight className="size-3.5" />
-                        </Button>
-                      )}
+                      {/* G9/B4: as mesmas ações de FolhaView/FolhaAgrupadaView, dentro do
+                          lote — reusa AcoesPagamento em vez de duplicar por status. */}
+                      <div className="flex flex-wrap items-center gap-1">
+                        <AcoesPagamento
+                          p={p}
+                          onPagar={onPagarUm}
+                          onEditar={onEditar}
+                          onCorrigir={podeCorrigir ? onCorrigir : undefined}
+                          onEstornar={podeCorrigir ? onEstornar : undefined}
+                          onComprovantes={onComprovantes}
+                          onCancelado={onCancelado}
+                        />
+                        {p.status === "pendente" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="px-2"
+                            title="Mover de lote"
+                            aria-label={`Mover pagamento de ${p.projetista.name} de lote`}
+                            onClick={() => onMover({ pagamento: p, loteId: folha.id })}
+                          >
+                            <ArrowLeftRight className="size-3.5" />
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

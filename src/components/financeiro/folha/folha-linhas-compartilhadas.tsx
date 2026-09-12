@@ -60,6 +60,7 @@ export function AcoesPagamento({
   onCorrigir,
   onEstornar,
   onComprovantes,
+  onCancelado,
 }: {
   p: FolhaItem;
   onPagar: (p: FolhaItem) => void;
@@ -67,11 +68,12 @@ export function AcoesPagamento({
   onCorrigir?: (p: FolhaItem) => void;
   onEstornar?: (p: FolhaItem) => void;
   onComprovantes?: (p: FolhaItem) => void;
+  onCancelado?: () => void;
 }) {
-  if (p.status === "pago" && onCorrigir) {
+  if (p.status === "pago") {
     return (
       <div className="flex flex-wrap gap-1">
-        <CorrigirPagamentoButton p={p} onCorrigir={onCorrigir} />
+        {onCorrigir && <CorrigirPagamentoButton p={p} onCorrigir={onCorrigir} />}
         {onEstornar && <EstornarPagamentoButton p={p} onEstornar={onEstornar} />}
         {onComprovantes && p.lancamento && (
           <Button
@@ -114,7 +116,7 @@ export function AcoesPagamento({
           <Pencil className="size-3.5" /> Corrigir valor
         </Button>
       )}
-      <CancelarPagamentoButton pagamento={p} />
+      <CancelarPagamentoButton pagamento={p} onCancelado={onCancelado} />
     </div>
   );
 }
@@ -292,7 +294,15 @@ export function CelulaPagamento({ p, linkLancamento }: { p: FolhaItem; linkLanca
  * Botão de cancelar direto na folha — confirmação via `useConfirm` (padrão do repo,
  * evita mais um dialog controlado). Só aparece em pendentes; a action recusa o resto.
  */
-export function CancelarPagamentoButton({ pagamento }: { pagamento: FolhaItem }) {
+export function CancelarPagamentoButton({
+  pagamento,
+  onCancelado,
+}: {
+  pagamento: FolhaItem;
+  /** G9: dentro do lote expandido, `router.refresh()` sozinho não atualiza `itens`
+   * (estado próprio do painel) — sem isso a linha cancelada fica presa na tabela. */
+  onCancelado?: () => void;
+}) {
   const router = useRouter();
   const confirm = useConfirm();
   const [pending, start] = useTransition();
@@ -309,6 +319,7 @@ export function CancelarPagamentoButton({ pagamento }: { pagamento: FolhaItem })
       const r = await cancelarPagamentoProjetista({ id: pagamento.id });
       if (r.ok) {
         toast.success("Pagamento cancelado.");
+        onCancelado?.();
         router.refresh();
       } else toast.error(r.error);
     });

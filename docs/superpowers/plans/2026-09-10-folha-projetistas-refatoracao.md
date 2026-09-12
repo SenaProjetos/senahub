@@ -591,3 +591,13 @@ Decisões do dono nesta fase (2026-09-12): recibo **individual E mensal**; assin
 - Notificação fora da transação — se falhar, não desfaz a correção.
 
 **Verificação (G8):** `tsc`, `eslint`, 147 testes (+5) e conferência no banco de dev usando um pagamento real com `pagoEm` fora de meia-noite: reabrir e salvar sem mudar nada não notifica; mudar valor notifica só por valor; mudar o dia notifica só por data; fração de centavo não notifica.
+
+**✅ G9 entregue 2026-09-12 (Sonnet 5) — ações dentro do lote expandido (B4):**
+- O painel de lote expandido (F10) só tinha "mover de lote" na coluna de ações — pagar, corrigir, estornar e comprovantes exigiam sair do lote e achar a mesma linha em Pagamentos/Agrupado. `AcoesPagamento` (de `folha-linhas-compartilhadas.tsx`) passou a ser reusado ali, ao lado do botão de mover.
+- **Achado de tipagem que evitou duplicar lógica pela terceira vez:** `PagamentoDoLote` (`folha-lote/queries.ts`) e `FolhaItem` (`folha/queries.ts`) são estruturalmente idênticos — ambos derivam de `comLancamentos`/`INCLUDE_PAGAMENTO`. `AcoesPagamento` (tipado em `FolhaItem`) aceita um `PagamentoDoLote` sem cast, então os mesmos dialogs de pagar/editar/corrigir/estornar/comprovantes de fora do lote entram direto, sem duplicar.
+- `podeConciliar` passou a ser threadado até `FolhaLotesSection` (novo prop), pois `CorrigirPagamentoDialog` reusado ali também sustenta "desfazer conciliação" (G1c).
+- **Dois achados do `advisor()`, ambos reais, corrigidos antes do commit:**
+  1. O ramo pago de `AcoesPagamento` só renderizava (corrigir **e** comprovantes **e** recibo) quando `onCorrigir` existia — um usuário com `folha_pj` mas sem `folha_pj_corrigir` (D37) perderia também o clipe de comprovante (G6) e o recibo (G5), que são gates de `folha_pj`, não de `folha_pj_corrigir`. Hoje inalcançável (a migration da G2 deu o par a todo mundo que já tinha `folha_pj`), mas a D37 existe pra revogar só a correção de um perfil — corrigido: cada botão agora só depende do seu próprio callback.
+  2. `CancelarPagamentoButton` não recebia callback (só `router.refresh()`) — dentro do lote, cancelar um pendente deixava a linha presa no painel (estado próprio de `itens`), com o cabeçalho do lote já refletindo a contagem nova. Corrigido com `onCancelado?: () => void`, alimentado só pela view de lotes via o mesmo bump de `tokenRecarga` que "mover" já usa.
+
+**Verificação (G9):** `tsc`, `eslint`, 147 testes, `smoke:sync-pagamento` 19/19. Sem script de banco — nenhuma action/query nova, só religação de UI sobre ações já verificadas (F8/G1a/G1c/G2/G5/G6). Os dois achados do `advisor()` foram conferidos por leitura + grep dos gates de servidor, não por script.

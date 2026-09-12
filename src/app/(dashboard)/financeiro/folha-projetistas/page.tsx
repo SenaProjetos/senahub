@@ -125,16 +125,19 @@ export default async function FolhaProjetistasPage({
       );
     }
   } else {
-    const [{ folhas, total, page, pageSize }, opcoes, sv, podeLancamento, podeCorrigirLotes] = await Promise.all([
-      listarFolhasProjetista(sp),
-      opcoesLancamento(),
-      contarPendentesSemValor(),
-      // O mesmo gate de destino do modo Pagamentos (D24) — o lote expandido (F10) linka
-      // pro lançamento de cada pagamento dentro dele.
-      can(user, "financeiro", "ver"),
-      // G2/D37: excluir lote entra no gate de correção.
-      can(user, "financeiro", "folha_pj_corrigir"),
-    ]);
+    const [{ folhas, total, page, pageSize }, opcoes, sv, podeLancamento, podeCorrigirLotes, podeConciliarLotes] =
+      await Promise.all([
+        listarFolhasProjetista(sp),
+        opcoesLancamento(),
+        contarPendentesSemValor(),
+        // O mesmo gate de destino do modo Pagamentos (D24) — o lote expandido (F10) linka
+        // pro lançamento de cada pagamento dentro dele.
+        can(user, "financeiro", "ver"),
+        // G2/D37: excluir lote e corrigir/estornar pago dentro dele entram no gate de correção.
+        can(user, "financeiro", "folha_pj_corrigir"),
+        // G9/B4: desfazer conciliação pelo dialog de corrigir, dentro do lote (G1c).
+        can(user, "financeiro", "conciliar"),
+      ]);
     semValor = sv;
     conteudo = (
       <FolhaLotesSection
@@ -146,6 +149,7 @@ export default async function FolhaProjetistasPage({
         formas={opcoes.formas}
         podeLancamento={podeLancamento}
         podeCorrigir={podeCorrigirLotes}
+        podeConciliar={podeConciliarLotes}
       />
     );
   }
