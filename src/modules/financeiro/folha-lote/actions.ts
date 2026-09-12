@@ -7,8 +7,9 @@ import { prisma } from "@/lib/prisma";
 import { notificarMuitos } from "@/lib/notificar";
 import { confirmarDespesaProjetista } from "@/modules/financeiro/custo/lancamento-custo";
 import { MSG_LOTE_SEM_VALOR, quandoDoPagamento, separarPagaveis } from "@/modules/financeiro/folha/service";
+import { erroMoverLote, recalcularTotalFolha } from "./service";
 import { contaPagamento, dataPagamento, formaPagamento } from "@/modules/financeiro/folha/schemas";
-import { recalcularTotalFolha } from "./service";
+
 import { listarPagamentosDoLote, type PagamentoDoLote } from "./queries";
 
 // Recorte fino da F4 (2026-09-02): era `permissao: "gerir"`, o mesmo interruptor de lançar
@@ -226,5 +227,98 @@ export const excluirFolhaProjetista = defineAction(
     });
     revalidatePath("/financeiro/folha-projetistas");
     return { id, soltos };
+  },
+);
+
+/**
+ * Lotes que podem receber um pagamento (G3/B5) — para o select do dialog de mover.
+ * Fora de `defineAction` pelo mesmo motivo de `pagamentosDoLote`: é busca, não mutação.
+ * Traz os `paga` junto, desabilitados na tela, para a pessoa entender por que aquele mês
+ * não aparece como opção em vez de achar que sumiu.
+ */
+export async function lotesParaMover(): Promise<
+  { ok: true; lotes: { id: string; ano: number; mes: number; status: string }[] } | { ok: false }
+> {
+  const { requireUser } = await import("@/lib/session");
+  const { can } = await import("@/lib/permissions");
+  const user = await requireUser();
+  if (!(await can(user, "financeiro", "folha_pj"))) return { ok: false };
+  const lotes = await prisma.folhaProjetista.findMany({
+    orderBy: [{ ano: "desc" }, { mes: "desc" }],
+    take: 24,
+    select: { id: true, ano: true, mes: true, status: true },
+  });
+  return { ok: true, lotes };
+}
+
+const moverSchema = z.object({
+  pagamentoId: z.string().min(1),
+  /** Vazio = tirar do lote (o pagamento fica fora de lote, como um recém-liberado). */
+  folhaId: z.string().optional(),
+});
+
+/**
+ * Move um pagamento PENDENTE de lote (G3/B5, decisão N8) — ou o tira do lote.
+ *
+ * Gate `folha_pj` (e não `folha_pj_corrigir`): mover pendente é organizar agrupamento, não
+ * desfazer pagamento. Quem pode gerar lote pode rearrumar o que ainda não foi pago.
+ *
+ * Recalcula o total dos DOIS lotes: `FolhaProjetista.total` é agregado gravado (D22), e
+ * mover sem recalcular deixaria os dois números errados de uma vez.
+ */
+export const moverPagamentoDeLote = defineAction(
+  {
+    ...base,
+    acao: "mover-pagamento-lote",
+    entidade: "PagamentoProjetista",
+    schema: moverSchema,
+    entidadeId: (_d, i) => (i as { pagamentoId: string }).pagamentoId,
+    capturarAntes: (i) =>
+      prisma.pagamentoProjetista.findUnique({
+        where: { id: i.pagamentoId },
+        select: { status: true, folhaId: true, valor: true },
+      }),
+  },
+  async (i) => {
+    const destinoId = i.folhaId || null;
+
+    const destino = await prisma.$transaction(async (tx) => {
+      const pag = await tx.pagamentoProjetista.findUnique({
+        where: { id: i.pagamentoId },
+        select: { id: true, status: true, folhaId: true },
+      });
+      if (!pag) throw new ActionError("Pagamento não encontrado.");
+
+      const alvo = destinoId
+        ? await tx.folhaProjetista.findUnique({
+            where: { id: destinoId },
+            select: { id: true, status: true, ano: true, mes: true },
+          })
+        : null;
+      if (destinoId && !alvo) throw new ActionError("Lote de destino não encontrado.");
+
+      const bloqueio = erroMoverLote(pag.status, pag.folhaId, alvo);
+      if (bloqueio) throw new ActionError(bloqueio);
+
+      // `status` e `folhaId` na condição: se pagarem ou moverem a linha entre a leitura e
+      // aqui, o update acha 0 e a transação inteira volta.
+      const movido = await tx.pagamentoProjetista.updateMany({
+        where: { id: pag.id, status: "pendente", folhaId: pag.folhaId },
+        data: { folhaId: destinoId },
+      });
+      if (movido.count === 0) {
+        throw new ActionError("O pagamento mudou enquanto a tela estava aberta — atualize e tente de novo.");
+      }
+
+      if (pag.folhaId) await recalcularTotalFolha(tx, pag.folhaId);
+      if (destinoId) await recalcularTotalFolha(tx, destinoId);
+      return alvo;
+    });
+
+    revalidatePath("/financeiro/folha-projetistas");
+    return {
+      id: i.pagamentoId,
+      destino: destino ? `${String(destino.mes).padStart(2, "0")}/${destino.ano}` : null,
+    };
   },
 );

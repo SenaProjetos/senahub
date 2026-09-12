@@ -1,6 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import type { Prisma } from "@/generated/prisma/client";
-import { recalcularTotalFolha, resumirLotes, RESUMO_LOTE_VAZIO } from "@/modules/financeiro/folha-lote/service";
+import {
+  recalcularTotalFolha,
+  resumirLotes,
+  erroMoverLote,
+  RESUMO_LOTE_VAZIO,
+} from "@/modules/financeiro/folha-lote/service";
 
 // `recalcularTotalFolha` recebe o `tx` por parâmetro — um objeto com os dois métodos que ela
 // usa basta; não precisa de `vi.mock` do módulo do prisma.
@@ -66,5 +71,28 @@ describe("resumirLotes", () => {
 
   it("lote sem linha nenhuma fica fora do mapa — o chamador usa o vazio", () => {
     expect(resumirLotes([], []).get("x") ?? RESUMO_LOTE_VAZIO).toEqual(RESUMO_LOTE_VAZIO);
+  });
+});
+
+describe("erroMoverLote", () => {
+  const aberto = { id: "lote-2", status: "fechada" };
+  it("pendente vai para outro lote aberto", () => {
+    expect(erroMoverLote("pendente", "lote-1", aberto)).toBeNull();
+  });
+  it("pendente pode sair do lote (destino nulo)", () => {
+    expect(erroMoverLote("pendente", "lote-1", null)).toBeNull();
+  });
+  it("pago e cancelado não mudam de lote (N8)", () => {
+    expect(erroMoverLote("pago", "lote-1", aberto)).toMatch(/Só pagamento pendente/);
+    expect(erroMoverLote("cancelado", "lote-1", aberto)).toMatch(/Só pagamento pendente/);
+  });
+  it("mover para o lote onde já está é recusado", () => {
+    expect(erroMoverLote("pendente", "lote-2", aberto)).toMatch(/já está neste lote/);
+  });
+  it("tirar do lote quem já está fora é recusado", () => {
+    expect(erroMoverLote("pendente", null, null)).toMatch(/já está neste lote/);
+  });
+  it("lote destino já pago não recebe pendente", () => {
+    expect(erroMoverLote("pendente", "lote-1", { id: "lote-3", status: "paga" })).toMatch(/já foi pago por inteiro/);
   });
 });

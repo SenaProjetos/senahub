@@ -71,3 +71,29 @@ export function resumirLotes(porStatus: LinhaPorStatus[], semValorPorFolha: Linh
   }
   return resumo;
 }
+
+/**
+ * Mover um pagamento de lote (G3/B5, decisão N8). Pura — a tela usa a mesma regra para
+ * esconder a ação em vez de oferecer algo que a action vai recusar.
+ *
+ * **Só pendente** (N8): pagamento pago fica onde está. Mover um pago reescreveria a
+ * composição de um lote já fechado no caixa — o lote é o agrupamento do que foi pago
+ * naquele mês, e o extrato já registrou a saída.
+ *
+ * Lote destino `paga` também não recebe: ele já foi dado como pago por inteiro, e um
+ * pendente dentro dele faria "3/3 pagos" virar mentira na própria linha.
+ */
+export function erroMoverLote(
+  statusPagamento: string,
+  origemId: string | null,
+  destino: { id: string; status: string } | null,
+): string | null {
+  if (statusPagamento !== "pendente") {
+    return "Só pagamento pendente muda de lote — um pagamento já efetivado fica no lote em que foi pago.";
+  }
+  if ((destino?.id ?? null) === origemId) return "Este pagamento já está neste lote.";
+  if (destino?.status === "paga") {
+    return "Este lote já foi pago por inteiro — não dá para mover um pendente para dentro dele.";
+  }
+  return null;
+}

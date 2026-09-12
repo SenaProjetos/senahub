@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDown, Layers, Trash2, Wallet } from "lucide-react";
+import { ArrowLeftRight, ChevronDown, Layers, Trash2, Wallet } from "lucide-react";
 import {
   excluirFolhaProjetista,
   gerarFolhaDoMes,
@@ -35,6 +35,7 @@ import { brl, formatarData } from "@/lib/utils";
 import { MESES_CURTOS } from "@/lib/data";
 import { BadgeStatus, CelulaPagamento } from "./folha-linhas-compartilhadas";
 import { EfetivarPagamentoDialog, type DadosEfetivacao } from "./efetivar-pagamento-dialog";
+import { MoverPagamentoDialog } from "./mover-pagamento-dialog";
 
 // "aberta" não aparece na UI de propósito (N5 do plano): `gerarFolhaDoMes` sempre cria o
 // lote como "fechada" — o valor fica só no enum do banco, sem virar um passo real da tela.
@@ -66,6 +67,8 @@ export function FolhaLotesSection({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [pagarLote, setPagarLote] = useState<FolhaLoteItem | null>(null);
+  const [mover, setMover] = useState<{ pagamento: PagamentoDoLote; loteId: string } | null>(null);
+  const [tokenRecarga, setTokenRecarga] = useState(0);
   const ref = new Date();
   ref.setMonth(ref.getMonth() - 1);
   const [ano, setAno] = useState(String(ref.getFullYear()));
@@ -132,8 +135,10 @@ export function FolhaLotesSection({
                   key={f.id}
                   folha={f}
                   onPagar={setPagarLote}
+                  onMover={setMover}
                   podeLancamento={podeLancamento}
                   podeCorrigir={podeCorrigir}
+                  tokenRecarga={tokenRecarga}
                 />
               ))}
             </div>
@@ -143,6 +148,11 @@ export function FolhaLotesSection({
       </CardContent>
 
       <PagarLoteDialog folha={pagarLote} onClose={() => setPagarLote(null)} contas={contas} formas={formas} />
+      <MoverPagamentoDialog
+        alvo={mover}
+        onClose={() => setMover(null)}
+        onMovido={() => setTokenRecarga((t) => t + 1)}
+      />
     </Card>
   );
 }
@@ -155,23 +165,25 @@ export function FolhaLotesSection({
 function LinhaLote({
   folha,
   onPagar,
+  onMover,
   podeLancamento,
   podeCorrigir,
+  tokenRecarga,
 }: {
   folha: FolhaLoteItem;
   onPagar: (f: FolhaLoteItem) => void;
+  onMover: (alvo: { pagamento: PagamentoDoLote; loteId: string }) => void;
   podeLancamento: boolean;
   podeCorrigir: boolean;
+  /** Sobe a cada movimentação: o painel aberto recarrega sem recolher/expandir (G3). */
+  tokenRecarga: number;
 }) {
   const [itens, setItens] = useState<PagamentoDoLote[] | null>(null);
   const [semPermissao, setSemPermissao] = useState(false);
+  const [aberto, setAberto] = useState(false);
   const [carregando, start] = useTransition();
 
-  // Recarrega A CADA abertura, não só na primeira — o painel expandido fica com estado
-  // próprio (não é `folhas` vindo do servidor), então "Pagar lote" ou "Corrigir valor" em
-  // outra linha da tela deixariam esta tabela desatualizada se ela só carregasse uma vez.
-  function alternar(aberto: boolean) {
-    if (!aberto) return;
+  const carregar = useCallback(() => {
     start(async () => {
       const r = await pagamentosDoLote(folha.id);
       if (r.ok) {
@@ -182,7 +194,24 @@ function LinhaLote({
         setSemPermissao(true);
       }
     });
+  }, [folha.id]);
+
+  // Recarrega A CADA abertura, não só na primeira — o painel expandido fica com estado
+  // próprio (não é `folhas` vindo do servidor), então "Pagar lote" ou "Corrigir valor" em
+  // outra linha da tela deixariam esta tabela desatualizada se ela só carregasse uma vez.
+  function alternar(novoAberto: boolean) {
+    setAberto(novoAberto);
+    if (novoAberto) carregar();
   }
+
+  // G3: mover um pagamento muda ESTE lote e o de destino. `router.refresh()` conserta a
+  // lista de lotes (dado do servidor), mas não esta tabela, que tem estado próprio — daí o
+  // token: subiu, o painel que estiver aberto busca de novo.
+  useEffect(() => {
+    if (aberto && tokenRecarga > 0) carregar();
+    // `aberto` não entra: recarregar ao abrir já é trabalho do `alternar`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokenRecarga]);
 
   return (
     <Collapsible onOpenChange={alternar}>
@@ -233,6 +262,9 @@ function LinhaLote({
                   <TableHead>Liberado em</TableHead>
                   <TableHead>Pagamento</TableHead>
                   <TableHead>Status</TableHead>
+                  {/* G3: só pendente muda de lote (N8) — a coluna existe para todas as
+                      linhas para a tabela não mudar de largura entre lotes. */}
+                  <TableHead className="w-10" aria-label="Ações" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -257,6 +289,20 @@ function LinhaLote({
                     </TableCell>
                     <TableCell>
                       <BadgeStatus p={p} />
+                    </TableCell>
+                    <TableCell>
+                      {p.status === "pendente" && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="px-2"
+                          title="Mover de lote"
+                          aria-label={`Mover pagamento de ${p.projetista.name} de lote`}
+                          onClick={() => onMover({ pagamento: p, loteId: folha.id })}
+                        >
+                          <ArrowLeftRight className="size-3.5" />
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

@@ -535,3 +535,13 @@ Ordem agrupada **por modelo**, para não parar a cada etapa (pedido do dono):
 - Catálogo + `PERMISSOES_BASE` cobrem banco novo; `db:seed` materializa a tabela legada (piso de sócio). Deploy exige `db:seed`, como todo par novo.
 
 **Verificação (G2):** `tsc`, `eslint`, 123 testes, `smoke:sync-pagamento` 19/19, `prisma migrate deploy` + `npm run db:seed` aplicados no dev, e conferência de neutralidade contra o banco: todo perfil com `folha_pj` tem o par novo (1/1), nenhum perfil a mais, overrides individuais equivalentes (0/0 no dev), par materializado na tabela legada (`administrativo`) e `can()` de um usuário real do perfil devolvendo `true` para pagar **e** para corrigir.
+
+**✅ G3 entregue 2026-09-12 (Opus 5) — mover pagamento entre lotes (B5/N8):**
+- **`moverPagamentoDeLote`** (gate `folha_pj`, e **não** `folha_pj_corrigir`: mover pendente é organizar agrupamento, não desfazer pagamento). Destino vazio = tirar do lote.
+- **Só pendente (N8):** `erroMoverLote` (pura, 6 testes) recusa pago e cancelado — o lote de um pagamento efetivado é o agrupamento do que saiu do caixa naquele mês. Também recusa lote destino `paga` (um pendente lá dentro faria "3/3 pagos" virar mentira na própria linha) e mover para onde já está.
+- **Os DOIS totais** são recalculados (`recalcularTotalFolha` na origem e no destino): `FolhaProjetista.total` é agregado gravado (D22), e mover sem recalcular erraria dois números de uma vez.
+- **Concorrência:** o update condiciona a `status: "pendente"` E `folhaId` da origem lida — se pagarem ou moverem a linha no meio, acha 0 e a transação volta.
+- **Tela:** ícone de mover na linha do pagamento dentro do lote expandido, só para pendentes. O dialog lista os lotes recentes e mostra os já pagos **desabilitados**, em vez de escondê-los — some-los faria procurar um mês que existe. Como o painel expandido tem estado próprio, a movimentação sobe um token que faz o painel aberto recarregar, sem recolher e abrir de novo.
+
+**Verificação (G3):** `tsc`, `eslint`, 129 testes, `smoke:sync-pagamento` 19/19 e conferência no banco de dev em transação desfeita: move, recalcula os dois lotes, destino fica com o valor movido, origem perde exatamente o mesmo, regra recusa pago e lote pago, rollback limpo.
+- **Achado do próprio teste:** a primeira asserção falhou por comparar diferença de floats (9734,57 − 8500,01 = 1234,5599999999995). Não era divergência de dado — conferi que o total gravado batia com a soma dos vivos antes do teste. A checagem passou a usar tolerância de meio centavo, que é o certo para `Decimal(14,2)` lido como `number`.
