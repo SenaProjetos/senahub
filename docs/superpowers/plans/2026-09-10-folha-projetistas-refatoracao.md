@@ -567,3 +567,11 @@ Decisões do dono nesta fase (2026-09-12): recibo **individual E mensal**; assin
 
 **Verificação (G5):** `tsc`, `eslint`, **2.503 testes** do repo inteiro, `smoke:sync-pagamento` 19/19, migration aplicada no dev (`migrate diff` mostrando só a divergência da outra branch, nenhuma das tabelas novas) e conferência no banco em transações desfeitas: hash confere depois do round-trip (acentuação intacta), valor = soma dos itens, unique impede o mesmo pagamento duas vezes no recibo, apagar recibo não apaga pagamento nem NF (que fica com `reciboId` nulo) e os itens saem em cascata.
 - **Dois achados dos próprios testes, ambos de formatação, não de dado:** comparar `brl()` com string literal quebra por causa do espaço não separável (U+00A0), e `Decimal.toString()` de 8500.00 devolve `"8500"` — comparação de dinheiro vai por número, com tolerância quando for diferença.
+
+**✅ G6 entregue 2026-09-12 (Sonnet 5) — comprovante retroativo e remoção (B3):**
+- **Fecha o beco da F8:** um usuário só-`folha_pj` (sem `financeiro:gerir`) via "sem anexo" numa linha antiga e não tinha como resolver — a rota de download de anexos de Lançamentos gate `financeiro:ver`, e `removerAnexoLancamento` gate `gerir`. Nenhum dos dois cobre quem só tem Produção.
+- **`comprovantesDoLancamento`** (leitura, fora de `defineAction`, mesmo padrão de `pagamentosDoLote`) e **`removerComprovantePagamento`** (par simétrico de `anexarComprovantePagamento`, que a F8 deixou de fora por falta de UI): mesma guarda de escopo — só alcança lançamento/anexo com `pagamentoProjetistaId`, mesmo que o id seja adivinhado.
+- **Rota de download própria** (`/api/financeiro/folha-projetistas/comprovante/[id]`), gate `folha_pj` + mesma checagem de escopo — a rota de Lançamentos não serviria a quem só tem Produção.
+- **Tela:** `GerenciarComprovantesDialog`, botão de clipe na linha paga (nos dois modos), lista com baixar/remover + upload — igual ao padrão já existente em `LancamentoDetalheDialog`, mas escopado.
+
+**Verificação (G6):** `tsc`, `eslint`, `smoke:sync-pagamento` 19/19, conferência no banco de dev em transação desfeita: lançamento de produção passa no filtro de escopo, lançamento comum é recusado, listagem traz o anexo certo, remover apaga de fato.

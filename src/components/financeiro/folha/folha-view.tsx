@@ -31,6 +31,7 @@ import {
 } from "./folha-linhas-compartilhadas";
 import { CorrigirPagamentoDialog } from "./corrigir-pagamento-dialog";
 import { EstornarPagamentoDialog } from "./estornar-pagamento-dialog";
+import { GerenciarComprovantesDialog } from "./gerenciar-comprovantes-dialog";
 import { EfetivarPagamentoDialog, type DadosEfetivacao } from "./efetivar-pagamento-dialog";
 
 /** Modo "por pagamento" (F2): tabela plana, paginada. Filtros/KPI vivem no `page.tsx`. */
@@ -66,6 +67,7 @@ export function FolhaView({
   const [editar, setEditar] = useState<FolhaItem | null>(null);
   const [corrigir, setCorrigir] = useState<FolhaItem | null>(null);
   const [estornar, setEstornar] = useState<FolhaItem | null>(null);
+  const [comprovantes, setComprovantes] = useState<FolhaItem | null>(null);
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [loteAberto, setLoteAberto] = useState(false);
 
@@ -218,6 +220,7 @@ export function FolhaView({
                         onEditar={setEditar}
                         onCorrigir={podeCorrigir ? setCorrigir : undefined}
                         onEstornar={podeCorrigir ? setEstornar : undefined}
+                        onComprovantes={setComprovantes}
                       />
                     </TableCell>
                   </TableRow>
@@ -240,6 +243,14 @@ export function FolhaView({
         onClose={() => setCorrigir(null)}
       />
       <EstornarPagamentoDialog pagamento={estornar} onClose={() => setEstornar(null)} />
+      <GerenciarComprovantesDialog
+        pagamento={
+          comprovantes && comprovantes.lancamento
+            ? { id: comprovantes.id, projetistaNome: comprovantes.projetista.name, lancamentoId: comprovantes.lancamento.id }
+            : null
+        }
+        onClose={() => setComprovantes(null)}
+      />
       <EfetivarPagamentoDialog
         open={loteAberto}
         titulo="Pagar selecionados"

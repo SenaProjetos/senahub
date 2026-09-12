@@ -5,6 +5,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificar, notificarMuitos } from "@/lib/notificar";
+import { removerArquivo } from "@/lib/storage";
 import { confirmarDespesaProjetista, criarDespesaProjetistaPrevista } from "@/modules/financeiro/custo/lancamento-custo";
 import { sincronizarValorDisciplina } from "@/modules/uploads/pagamento";
 import { recalcularTotalFolha } from "@/modules/financeiro/folha-lote/service";
@@ -156,9 +157,67 @@ export const anexarComprovantePagamento = defineAction(
   },
 );
 
-// Remoção de comprovante fica de fora deste corte (F8/D26): o pedido era anexar no ato do
-// pagamento. Gerenciar/remover o que já foi anexado é o caminho de sempre — abrir o
-// lançamento em Lançamentos (`financeiro:gerir`), que já tem essa UI.
+/**
+ * Comprovantes de um lançamento de produção (G6/B3) — para o dialog de gerenciar, fora do
+ * fluxo de pagar. Mesma mecânica de leitura de `pagamentosDoLote` (fora de `defineAction`:
+ * é busca, não mutação; `AuditLog` a cada abrir o dialog não teria "o quê mudou" pra
+ * registrar). `{ok:false}` na falta de permissão ou lançamento fora de escopo — nunca `[]`,
+ * que mentiria "sem comprovante" para um lançamento que a pessoa nem devia ver.
+ */
+export async function comprovantesDoLancamento(
+  lancamentoId: string,
+): Promise<{ ok: true; anexos: { id: string; nome: string; tamanho: number; createdAt: Date }[] } | { ok: false }> {
+  const { requireUser } = await import("@/lib/session");
+  const { can } = await import("@/lib/permissions");
+  const user = await requireUser();
+  if (!(await can(user, "financeiro", "folha_pj"))) return { ok: false };
+
+  const lanc = await prisma.lancamento.findUnique({
+    where: { id: lancamentoId },
+    select: { pagamentoProjetistaId: true },
+  });
+  if (!lanc?.pagamentoProjetistaId) return { ok: false };
+
+  const anexos = await prisma.lancamentoAnexo.findMany({
+    where: { lancamentoId },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, nome: true, tamanho: true, createdAt: true },
+  });
+  return { ok: true, anexos };
+}
+
+/**
+ * Remove um comprovante de pagamento de produção (G6/B3) — par simétrico de
+ * `anexarComprovantePagamento`, que ficou de fora do corte da F8 por falta de UI que o
+ * chamasse. Mesma guarda de escopo: só alcança anexo de um lançamento com
+ * `pagamentoProjetistaId`, mesmo que quem chame tenha adivinhado o id de outro anexo.
+ */
+export const removerComprovantePagamento = defineAction(
+  {
+    modulo: "financeiro",
+    acao: "remover-comprovante-pagamento",
+    recurso: "financeiro",
+    permissao: "folha_pj",
+    entidade: "LancamentoAnexo",
+    schema: z.object({ id: z.string().min(1) }),
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
+  },
+  async (i) => {
+    const a = await prisma.lancamentoAnexo.findUnique({
+      where: { id: i.id },
+      select: { caminho: true, lancamento: { select: { pagamentoProjetistaId: true } } },
+    });
+    if (!a) throw new ActionError("Anexo não encontrado.");
+    if (!a.lancamento.pagamentoProjetistaId) {
+      throw new ActionError("Este anexo não é de um pagamento de produção.");
+    }
+    await prisma.lancamentoAnexo.delete({ where: { id: i.id } });
+    await removerArquivo(a.caminho);
+    revalidatePath("/financeiro/folha-projetistas");
+    revalidatePath("/financeiro/lancamentos");
+    return { id: i.id };
+  },
+);
 
 const editarValorSchema = z.object({
   id: z.string().min(1),

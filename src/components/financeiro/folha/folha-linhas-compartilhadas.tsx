@@ -59,18 +59,32 @@ export function AcoesPagamento({
   onEditar,
   onCorrigir,
   onEstornar,
+  onComprovantes,
 }: {
   p: FolhaItem;
   onPagar: (p: FolhaItem) => void;
   onEditar: (p: FolhaItem) => void;
   onCorrigir?: (p: FolhaItem) => void;
   onEstornar?: (p: FolhaItem) => void;
+  onComprovantes?: (p: FolhaItem) => void;
 }) {
   if (p.status === "pago" && onCorrigir) {
     return (
       <div className="flex flex-wrap gap-1">
         <CorrigirPagamentoButton p={p} onCorrigir={onCorrigir} />
         {onEstornar && <EstornarPagamentoButton p={p} onEstornar={onEstornar} />}
+        {onComprovantes && p.lancamento && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="px-2"
+            title="Comprovantes deste pagamento"
+            aria-label="Comprovantes deste pagamento"
+            onClick={() => onComprovantes(p)}
+          >
+            <Paperclip className="size-3.5" />
+          </Button>
+        )}
         <ReciboIndividualButton p={p} />
       </div>
     );

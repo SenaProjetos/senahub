@@ -28,6 +28,7 @@ import {
 } from "./folha-linhas-compartilhadas";
 import { CorrigirPagamentoDialog } from "./corrigir-pagamento-dialog";
 import { EstornarPagamentoDialog } from "./estornar-pagamento-dialog";
+import { GerenciarComprovantesDialog } from "./gerenciar-comprovantes-dialog";
 import { ReciboMensalDialog } from "@/components/financeiro/recibo/recibo-mensal-dialog";
 import { EfetivarPagamentoDialog, type DadosEfetivacao } from "./efetivar-pagamento-dialog";
 
@@ -67,6 +68,7 @@ export function FolhaAgrupadaView({
   const [editar, setEditar] = useState<FolhaItem | null>(null);
   const [corrigir, setCorrigir] = useState<FolhaItem | null>(null);
   const [estornar, setEstornar] = useState<FolhaItem | null>(null);
+  const [comprovantes, setComprovantes] = useState<FolhaItem | null>(null);
   const [reciboMensal, setReciboMensal] = useState<{ projetistaId: string; projetistaNome: string } | null>(null);
   const [loteGrupo, setLoteGrupo] = useState<FolhaGrupo | null>(null);
 
@@ -106,6 +108,7 @@ export function FolhaAgrupadaView({
           onEditar={setEditar}
           onCorrigir={setCorrigir}
           onEstornar={setEstornar}
+          onComprovantes={setComprovantes}
           podeCorrigir={podeCorrigir}
           onReciboMensal={setReciboMensal}
           onPagarTudo={setLoteGrupo}
@@ -122,6 +125,14 @@ export function FolhaAgrupadaView({
         onClose={() => setCorrigir(null)}
       />
       <EstornarPagamentoDialog pagamento={estornar} onClose={() => setEstornar(null)} />
+      <GerenciarComprovantesDialog
+        pagamento={
+          comprovantes && comprovantes.lancamento
+            ? { id: comprovantes.id, projetistaNome: comprovantes.projetista.name, lancamentoId: comprovantes.lancamento.id }
+            : null
+        }
+        onClose={() => setComprovantes(null)}
+      />
       <ReciboMensalDialog alvo={reciboMensal} onClose={() => setReciboMensal(null)} />
       <EfetivarPagamentoDialog
         open={!!loteGrupo}
@@ -144,6 +155,7 @@ function GrupoProjetista({
   onEditar,
   onCorrigir,
   onEstornar,
+  onComprovantes,
   podeCorrigir,
   onPagarTudo,
   onReciboMensal,
@@ -154,6 +166,7 @@ function GrupoProjetista({
   onEditar: (p: FolhaItem) => void;
   onCorrigir: (p: FolhaItem) => void;
   onEstornar: (p: FolhaItem) => void;
+  onComprovantes: (p: FolhaItem) => void;
   podeCorrigir: boolean;
   onPagarTudo: (g: FolhaGrupo) => void;
   onReciboMensal: (alvo: { projetistaId: string; projetistaNome: string }) => void;
@@ -262,6 +275,7 @@ function GrupoProjetista({
                         onEditar={onEditar}
                         onCorrigir={podeCorrigir ? onCorrigir : undefined}
                         onEstornar={podeCorrigir ? onEstornar : undefined}
+                        onComprovantes={onComprovantes}
                       />
                     </TableCell>
                   </TableRow>
