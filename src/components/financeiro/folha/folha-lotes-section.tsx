@@ -51,6 +51,7 @@ export function FolhaLotesSection({
   contas,
   formas,
   podeLancamento,
+  podeCorrigir,
 }: {
   folhas: FolhaLoteItem[];
   total: number;
@@ -59,6 +60,8 @@ export function FolhaLotesSection({
   contas: Opcao[];
   formas: Opcao[];
   podeLancamento: boolean;
+  /** `financeiro:folha_pj_corrigir` — excluir lote desfaz agrupamento já pago (G2). */
+  podeCorrigir: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -125,7 +128,13 @@ export function FolhaLotesSection({
           <>
             <div className="divide-y text-sm">
               {folhas.map((f) => (
-                <LinhaLote key={f.id} folha={f} onPagar={setPagarLote} podeLancamento={podeLancamento} />
+                <LinhaLote
+                  key={f.id}
+                  folha={f}
+                  onPagar={setPagarLote}
+                  podeLancamento={podeLancamento}
+                  podeCorrigir={podeCorrigir}
+                />
               ))}
             </div>
             <Pagination page={page} pageCount={pageCount(total, pageSize)} pageSize={pageSize} total={total} />
@@ -147,10 +156,12 @@ function LinhaLote({
   folha,
   onPagar,
   podeLancamento,
+  podeCorrigir,
 }: {
   folha: FolhaLoteItem;
   onPagar: (f: FolhaLoteItem) => void;
   podeLancamento: boolean;
+  podeCorrigir: boolean;
 }) {
   const [itens, setItens] = useState<PagamentoDoLote[] | null>(null);
   const [semPermissao, setSemPermissao] = useState(false);
@@ -200,7 +211,7 @@ function LinhaLote({
         ) : (
           <span className="w-[104px]" aria-hidden />
         )}
-        <ExcluirLoteButton folha={folha} />
+        {podeCorrigir && <ExcluirLoteButton folha={folha} />}
       </div>
       <CollapsiblePanel>
         <div className="overflow-x-auto border-t pb-2">

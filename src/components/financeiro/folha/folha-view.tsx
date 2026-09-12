@@ -45,6 +45,7 @@ export function FolhaView({
   contas,
   formas,
   podeConciliar,
+  podeCorrigir,
 }: {
   itens: FolhaItem[];
   total: number;
@@ -57,6 +58,8 @@ export function FolhaView({
   formas: Opcao[];
   /** `financeiro:conciliar` — habilita desfazer a conciliação pelo dialog (G1c). */
   podeConciliar: boolean;
+  /** `financeiro:folha_pj_corrigir` — corrigir/estornar pagamento já efetivado (G2). */
+  podeCorrigir: boolean;
 }) {
   const router = useRouter();
   const [pagar, setPagar] = useState<FolhaItem | null>(null);
@@ -209,7 +212,13 @@ export function FolhaView({
                       <BadgeStatus p={p} />
                     </TableCell>
                     <TableCell>
-                      <AcoesPagamento p={p} onPagar={setPagar} onEditar={setEditar} onCorrigir={setCorrigir} onEstornar={setEstornar} />
+                      <AcoesPagamento
+                        p={p}
+                        onPagar={setPagar}
+                        onEditar={setEditar}
+                        onCorrigir={podeCorrigir ? setCorrigir : undefined}
+                        onEstornar={podeCorrigir ? setEstornar : undefined}
+                      />
                     </TableCell>
                   </TableRow>
                 );

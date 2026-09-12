@@ -48,6 +48,7 @@ export function FolhaAgrupadaView({
   contas,
   formas,
   podeConciliar,
+  podeCorrigir,
 }: {
   grupos: FolhaGrupo[];
   filtrado: boolean;
@@ -57,6 +58,8 @@ export function FolhaAgrupadaView({
   formas: Opcao[];
   /** `financeiro:conciliar` — habilita desfazer a conciliação pelo dialog (G1c). */
   podeConciliar: boolean;
+  /** `financeiro:folha_pj_corrigir` — corrigir/estornar pagamento já efetivado (G2). */
+  podeCorrigir: boolean;
 }) {
   const router = useRouter();
   const [pagar, setPagar] = useState<FolhaItem | null>(null);
@@ -101,6 +104,7 @@ export function FolhaAgrupadaView({
           onEditar={setEditar}
           onCorrigir={setCorrigir}
           onEstornar={setEstornar}
+          podeCorrigir={podeCorrigir}
           onPagarTudo={setLoteGrupo}
         />
       ))}
@@ -136,6 +140,7 @@ function GrupoProjetista({
   onEditar,
   onCorrigir,
   onEstornar,
+  podeCorrigir,
   onPagarTudo,
 }: {
   grupo: FolhaGrupo;
@@ -144,6 +149,7 @@ function GrupoProjetista({
   onEditar: (p: FolhaItem) => void;
   onCorrigir: (p: FolhaItem) => void;
   onEstornar: (p: FolhaItem) => void;
+  podeCorrigir: boolean;
   onPagarTudo: (g: FolhaGrupo) => void;
 }) {
   const pagaveis = grupo.itens.filter(pagavel);
@@ -233,7 +239,13 @@ function GrupoProjetista({
                       <BadgeStatus p={p} />
                     </TableCell>
                     <TableCell>
-                      <AcoesPagamento p={p} onPagar={onPagar} onEditar={onEditar} onCorrigir={onCorrigir} onEstornar={onEstornar} />
+                      <AcoesPagamento
+                        p={p}
+                        onPagar={onPagar}
+                        onEditar={onEditar}
+                        onCorrigir={podeCorrigir ? onCorrigir : undefined}
+                        onEstornar={podeCorrigir ? onEstornar : undefined}
+                      />
                     </TableCell>
                   </TableRow>
                 );

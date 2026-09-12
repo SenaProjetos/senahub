@@ -51,18 +51,21 @@ export default async function FolhaProjetistasPage({
   let conteudo: React.ReactNode;
   let semValor: number;
   if (aba === "pagar") {
-    const [opcoes, opcoesFiltro, sv, podeProjeto, podePessoa, podeLancamento, podeConciliar] = await Promise.all([
-      opcoesLancamento(),
-      opcoesFiltroFolha(),
-      contarPendentesSemValor(),
-      // Cada link da tabela leva a uma tela com gate próprio — quem só tem `folha_pj`
-      // não ganha um link que cai em "sem permissão".
-      can(user, "projetos", "ver"),
-      can(user, "rh", "cadastro"),
-      can(user, "financeiro", "ver"),
-      // G1c: desfazer conciliação é poder de quem concilia, não de quem paga.
-      can(user, "financeiro", "conciliar"),
-    ]);
+    const [opcoes, opcoesFiltro, sv, podeProjeto, podePessoa, podeLancamento, podeConciliar, podeCorrigir] =
+      await Promise.all([
+        opcoesLancamento(),
+        opcoesFiltroFolha(),
+        contarPendentesSemValor(),
+        // Cada link da tabela leva a uma tela com gate próprio — quem só tem `folha_pj`
+        // não ganha um link que cai em "sem permissão".
+        can(user, "projetos", "ver"),
+        can(user, "rh", "cadastro"),
+        can(user, "financeiro", "ver"),
+        // G1c: desfazer conciliação é poder de quem concilia, não de quem paga.
+        can(user, "financeiro", "conciliar"),
+        // G2/D37: corrigir/estornar/excluir lote saiu de dentro de `folha_pj`.
+        can(user, "financeiro", "folha_pj_corrigir"),
+      ]);
     semValor = sv;
     const links = { projeto: podeProjeto, pessoa: podePessoa, lancamento: podeLancamento };
 
@@ -91,6 +94,7 @@ export default async function FolhaProjetistasPage({
             contas={opcoes.contas}
             formas={opcoes.formas}
             podeConciliar={podeConciliar}
+            podeCorrigir={podeCorrigir}
           />
         </div>
       );
@@ -115,18 +119,21 @@ export default async function FolhaProjetistasPage({
             contas={opcoes.contas}
             formas={opcoes.formas}
             podeConciliar={podeConciliar}
+            podeCorrigir={podeCorrigir}
           />
         </div>
       );
     }
   } else {
-    const [{ folhas, total, page, pageSize }, opcoes, sv, podeLancamento] = await Promise.all([
+    const [{ folhas, total, page, pageSize }, opcoes, sv, podeLancamento, podeCorrigirLotes] = await Promise.all([
       listarFolhasProjetista(sp),
       opcoesLancamento(),
       contarPendentesSemValor(),
       // O mesmo gate de destino do modo Pagamentos (D24) — o lote expandido (F10) linka
       // pro lançamento de cada pagamento dentro dele.
       can(user, "financeiro", "ver"),
+      // G2/D37: excluir lote entra no gate de correção.
+      can(user, "financeiro", "folha_pj_corrigir"),
     ]);
     semValor = sv;
     conteudo = (
@@ -138,6 +145,7 @@ export default async function FolhaProjetistasPage({
         contas={opcoes.contas}
         formas={opcoes.formas}
         podeLancamento={podeLancamento}
+        podeCorrigir={podeCorrigirLotes}
       />
     );
   }

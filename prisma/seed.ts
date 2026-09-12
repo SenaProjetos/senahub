@@ -219,6 +219,11 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "administrativo", recurso: "financeiro", acao: "conciliar" },
   { role: "administrativo", recurso: "financeiro", acao: "fechar" },
   { role: "administrativo", recurso: "financeiro", acao: "folha_pj" },
+  // G2/D37 (2026-09-12): desfazer o que já foi pago (corrigir/estornar/excluir lote) saiu de
+  // dentro de `folha_pj`. Banco novo nasce com os dois no mesmo lugar — quem paga hoje também
+  // corrige, como era antes. Banco que já está no ar recebe pela migration
+  // `20260912120000_perfis_folha_pj_corrigir`, derivando de quem tem `folha_pj`.
+  { role: "administrativo", recurso: "financeiro", acao: "folha_pj_corrigir" },
   { role: "administrativo", recurso: "financeiro", acao: "resultados" },
   // Configurações: `/configuracoes/disciplinas` era `requireRole("admin","supervisor")`.
   // `configuracoes:licitacoes` era `requireRole("admin")` — ninguém além do bypass, logo

@@ -191,6 +191,9 @@ export const pagarFolhaProjetista = defineAction(
 export const excluirFolhaProjetista = defineAction(
   {
     ...base,
+    // G2/D37: excluir lote desfaz agrupamento de dinheiro já pago — sai de `folha_pj` e entra
+    // no gate de correção, junto com corrigir e estornar.
+    permissao: "folha_pj_corrigir",
     acao: "excluir-folha-lote",
     entidade: "FolhaProjetista",
     schema: z.object({ id: z.string().min(1) }),

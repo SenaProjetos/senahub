@@ -303,7 +303,9 @@ export const corrigirPagamentoEfetivado = defineAction(
     modulo: "financeiro",
     acao: "corrigir-pagamento-efetivado",
     recurso: "financeiro",
-    permissao: "folha_pj",
+    // G2/D37: desfazer o que já foi pago é outro poder que pagar. Semeado para quem tinha
+    // `folha_pj` (migration 20260912120000), então ninguém perdeu acesso ao separar.
+    permissao: "folha_pj_corrigir",
     entidade: "PagamentoProjetista",
     schema: corrigirEfetivadoSchema,
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
@@ -431,7 +433,8 @@ export const estornarPagamentoEfetivado = defineAction(
     modulo: "financeiro",
     acao: "estornar-pagamento-efetivado",
     recurso: "financeiro",
-    permissao: "folha_pj",
+    // G2/D37: mesmo gate da correção — as duas desfazem pagamento já efetivado.
+    permissao: "folha_pj_corrigir",
     entidade: "PagamentoProjetista",
     schema: estornarSchema,
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
