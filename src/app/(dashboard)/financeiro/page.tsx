@@ -6,6 +6,9 @@ import { requireUser } from "@/lib/session";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { ShieldCheck, AlertTriangle } from "lucide-react";
 import { meuExtrato } from "@/modules/financeiro/queries";
+import { recibosDoProjetista } from "@/modules/financeiro/recibo/queries";
+import { MeusRecibos } from "@/components/financeiro/recibo/meus-recibos";
+import { PJ_ROLES } from "@/lib/roles";
 import { agingReport } from "@/modules/financeiro/aging/queries";
 import { totalAguardando } from "@/modules/financeiro/aprovacao/queries";
 import { relatorioDRE, serieMensalResultado, despesasPorCategoria } from "@/modules/financeiro/relatorios/queries";
@@ -267,6 +270,9 @@ export default async function FinanceiroPage({
   if (!podeExtrato) redirect("/sem-permissao");
 
   const { pagamentos, total, pago, aberto } = await meuExtrato(user.id);
+  // G5/D36: recibos do próprio projetista — assinar, baixar PDF e (PJ) anexar a NF.
+  const recibos = await recibosDoProjetista(user.id);
+  const ehPJ = PJ_ROLES.includes(user.role as (typeof PJ_ROLES)[number]);
 
   return (
     <div className="space-y-6">
@@ -295,6 +301,8 @@ export default async function FinanceiroPage({
           </CardHeader>
         </Card>
       </div>
+
+      <MeusRecibos recibos={recibos} podeEnviarNf={ehPJ} />
 
       <Card>
         <CardHeader>

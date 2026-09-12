@@ -26,6 +26,20 @@ export async function POST(req: Request) {
   }
   if (file.size > MAX) return NextResponse.json({ error: "Arquivo muito grande (máx 25 MB)." }, { status: 400 });
 
+  // G5/D36: NF referente a um recibo de produção (pedido do dono). Opcional — o envio avulso
+  // continua valendo. Só o TITULAR do recibo pode amarrar uma NF nele: sem esta checagem,
+  // qualquer PJ mandaria nota para o recibo de outro adivinhando o id.
+  const reciboId = String(form.get("reciboId") ?? "");
+  if (reciboId) {
+    const recibo = await prisma.reciboProjetista.findUnique({
+      where: { id: reciboId },
+      select: { projetistaId: true },
+    });
+    if (!recibo || recibo.projetistaId !== user.id) {
+      return NextResponse.json({ error: "Recibo não encontrado." }, { status: 404 });
+    }
+  }
+
   const nome = nomeArquivoLimpo(file.name);
   const relativo = `nf-pj/${slug(user.name)}_${user.id.slice(0, 6)}/${Date.now()}_${slug(nome)}`;
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -38,6 +52,7 @@ export async function POST(req: Request) {
       valor,
       arquivoPath: salvo.caminho,
       arquivoNome: nome,
+      reciboId: reciboId || null,
     },
   });
 

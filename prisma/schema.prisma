@@ -190,6 +190,9 @@ model User {
   exclusoesDecididas            SolicitacaoExclusaoUpload[] @relation("ExclusaoDecisor")
   documentosAutor               Documento[]                 @relation("DocumentoAutor")
   pagamentos                    PagamentoProjetista[]       @relation("PagamentoProjetista")
+  recibosProjetista             ReciboProjetista[]          @relation("ReciboProjetistaTitular")
+  recibosGerados                ReciboProjetista[]          @relation("ReciboProjetistaAutor")
+  recibosAssinados              ReciboProjetista[]          @relation("ReciboProjetistaAssinante")
   socio                         Socio?
   lancamentosAutor              Lancamento[]                @relation("LancamentoAutor")
   importacoesFinanceiras        ImportacaoFinanceira[]      @relation("ImportacaoFinanceiraAutor")
@@ -280,10 +283,10 @@ model User {
   propostaAnexosCusto           CustoPropostaAnexo[]
 
   // Acessos e Credenciais (Fase 1)
-  credenciaisResponsavel        Credencial[]
-  credenciaisCriados            Credencial[]                @relation("CredencialCriadoPor")
-  credenciaisAtualizados        Credencial[]                @relation("CredencialAtualizadoPor")
-  credenciaisFavoritas          CredencialFavorito[]
+  credenciaisResponsavel Credencial[]
+  credenciaisCriados     Credencial[]         @relation("CredencialCriadoPor")
+  credenciaisAtualizados Credencial[]         @relation("CredencialAtualizadoPor")
+  credenciaisFavoritas   CredencialFavorito[]
 
   @@index([role])
   @@index([tipo, setor])
@@ -335,9 +338,9 @@ model Vinculo {
   atualizadoEm DateTime @updatedAt
 
   /// Lado inverso de `User.vinculoAtivoId`.
-  usuarioAtivo User?                 @relation("VinculoAtivo")
+  usuarioAtivo  User?                 @relation("VinculoAtivo")
   /// Alterações datadas de cargo/departamento/remuneração DENTRO deste vínculo.
-  historico    HistoricoContratual[]
+  historico     HistoricoContratual[]
   /// Contratos de equipe ancorados neste vínculo (spec `2026-08-26-gerenciador-contratos.md`).
   docsJuridicos DocumentoJuridico[]
 
@@ -1154,36 +1157,36 @@ model ProjetoSequencia {
 }
 
 model Projeto {
-  id            String          @id @default(cuid())
-  ano           Int
-  sequencial    Int
+  id             String          @id @default(cuid())
+  ano            Int
+  sequencial     Int
   /// Código de exibição AAXXXX (ex.: 260142).
-  codigo        String          @unique
-  tipo          TipoProjeto     @default(particular)
-  situacao      SituacaoProjeto @default(em_andamento)
-  nome          String
-  descricao     String?
-  clienteId     String
-  cliente       Cliente         @relation(fields: [clienteId], references: [id])
-  areaM2        Decimal?        @db.Decimal(12, 2)
-  endereco      String?
+  codigo         String          @unique
+  tipo           TipoProjeto     @default(particular)
+  situacao       SituacaoProjeto @default(em_andamento)
+  nome           String
+  descricao      String?
+  clienteId      String
+  cliente        Cliente         @relation(fields: [clienteId], references: [id])
+  areaM2         Decimal?        @db.Decimal(12, 2)
+  endereco       String?
   /// Prazo de CONTRATO — o compromisso com o cliente. Manda no que é externo:
   /// portal, contrato/jurídico e tokens do Estúdio. A coluna continua se
   /// chamando "prazoFinal" (@map) para que este rename fosse só de código: um
   /// RENAME COLUMN derrubaria o código antigo na janela entre a migração e o
   /// deploy.
-  prazoContrato  DateTime? @map("prazoFinal")
+  prazoContrato  DateTime?       @map("prazoFinal")
   /// Prazo PLANEJADO — a data que a equipe persegue. Manda no que é interno:
   /// saúde do projeto, atraso, alertas, KPIs e EAP. Nasce copiando o contrato
   /// (inclusive no backfill dos projetos antigos) e desloca sozinho quando uma
   /// reabertura de disciplina estoura o prazo (`reabrirDisciplina`).
   prazoPlanejado DateTime?
   /// Valor de contrato (referência de receita). Base para gerar parcelas/recebíveis.
-  valorContrato Decimal?        @db.Decimal(14, 2)
+  valorContrato  Decimal?        @db.Decimal(14, 2)
   /// Personalização da navegação por abas deste projeto: `[{ suffix, oculta }]` na ordem
   /// desejada. Abas ausentes da lista (novas, ou nunca configuradas) usam a ordem padrão
   /// e ficam visíveis. Editado em EditarProjetoDialog; aplicado em ProjetoTabNav.
-  abasConfig    Json?
+  abasConfig     Json?
 
   disciplinas             Disciplina[]
   membros                 ProjetoMembro[]
@@ -2021,17 +2024,17 @@ model UserPreference {
 /// Uma sessão de trabalho (cronômetro). fim=null = em andamento.
 /// Troca de projeto fecha a sessão atual e abre outra → tempo por projeto.
 model SessaoTrabalho {
-  id        String    @id @default(cuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  projetoId String?
-  projeto   Projeto?  @relation(fields: [projetoId], references: [id])
+  id           String            @id @default(cuid())
+  userId       String
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projetoId    String?
+  projeto      Projeto?          @relation(fields: [projetoId], references: [id])
   /// Destino das horas quando não há um projeto. Mantém reuniões separadas de
   /// "sem projeto" no ponto e no rateio gerencial.
   tipoAlocacao TipoAlocacaoPonto @default(sem_projeto)
-  inicio    DateTime
-  fim       DateTime?
-  createdAt DateTime  @default(now())
+  inicio       DateTime
+  fim          DateTime?
+  createdAt    DateTime          @default(now())
 
   @@index([userId, inicio])
   @@index([projetoId])
@@ -2754,16 +2757,16 @@ model DocumentoJuridico {
 
   /// Vencimento do contrato (fim de vigência) — alimenta o alerta automático (Fase A) e, futuramente,
   /// o motor único de vencimento (Fase H2). Nulo = sem prazo definido ou não é um "contrato".
-  dataVencimento DateTime?       @db.Date
+  dataVencimento     DateTime?       @db.Date
   /// Valor do contrato — alçada de aprovação (Fase H4) e cronograma de faturamento (Fase G) leem
   /// daqui. Nulo até o contrato ter um valor definido.
-  valor          Decimal?        @db.Decimal(14, 2)
-  statusContrato StatusContrato?
+  valor              Decimal?        @db.Decimal(14, 2)
+  statusContrato     StatusContrato?
   /// Quando o documento passou a `assinado`. Carimbado na transição (`registrarAceite`), não a
   /// cada aceite — com vários signatários, é a data em que o documento ficou assinado.
   /// Ordena os aditivos em `vencimentoEfetivo()`: entre duas prorrogações, vale a acordada por
   /// último, que não é necessariamente a de data mais distante.
-  assinadoEm     DateTime?
+  assinadoEm         DateTime?
   /// Marca de compare-and-swap do alerta de vencimento — mesmo papel de `Proposta.alertaValidadeEm`
   /// (`alertaPropostasExpiradas`, F5.7 do CRM). "Vence em breve" fica true por vários dias
   /// seguidos até o vencimento passar; sem esta marca o job reavisaria todo dia.
@@ -2786,7 +2789,7 @@ model DocumentoJuridico {
   /// usa; contrato de equipe é pago pela folha, não por `Lancamento`.
   /// Nulos = ainda não definida — o contrato existe, o cronograma ainda não foi gerado.
   parcelas           Int?
-  primeiroVencimento DateTime? @db.Date
+  primeiroVencimento DateTime?    @db.Date
   /// Parcelas já geradas a partir deste contrato.
   lancamentos        Lancamento[] @relation("LancamentosDoContrato")
 
@@ -2831,10 +2834,10 @@ model AditivoEquipe {
   /// Eixos alterados. Nulo = este aditivo não mexe nesse eixo.
   /// `cargoId` é FK do catálogo (não texto livre) porque `resolverClassificacao` valida a
   /// existência e recusa item arquivado.
-  cargoId      String?
-  cargo        Cargo?   @relation(fields: [cargoId], references: [id])
-  remuneracao  Decimal? @db.Decimal(12, 2)
-  cargaSemanal Decimal? @db.Decimal(4, 1)
+  cargoId        String?
+  cargo          Cargo?    @relation(fields: [cargoId], references: [id])
+  remuneracao    Decimal?  @db.Decimal(12, 2)
+  cargaSemanal   Decimal?  @db.Decimal(4, 1)
   /// Prorrogação/antecipação de prazo — entra em `vencimentoEfetivo()` (`contrato/estado.ts`).
   novoVencimento DateTime? @db.Date
 
@@ -2995,8 +2998,8 @@ model DocJuridicoVersao {
   linksAssinatura   LinkPublicoAssinatura[]
   aceitesExternos   AceiteExternoDocumento[]
 
-  @@index([documentoGeradoId])
   @@unique([documentoId, numero])
+  @@index([documentoGeradoId])
   @@map("doc_juridico_versao")
 }
 
@@ -3095,28 +3098,28 @@ enum TipoEventoAssinatura {
 /// meio quebra o elo de todos os seguintes e `verificarCadeia()` aponta onde — o que isto entrega
 /// é DETECÇÃO de edição pontual, não impossibilidade (ver o comentário do motor).
 model EventoAssinatura {
-  id       String            @id @default(cuid())
-  versaoId String
-  versao   DocJuridicoVersao @relation(fields: [versaoId], references: [id], onDelete: Cascade)
+  id           String               @id @default(cuid())
+  versaoId     String
+  versao       DocJuridicoVersao    @relation(fields: [versaoId], references: [id], onDelete: Cascade)
   /// Posição na cadeia, começando em 1. A unique com `versaoId` é o que impede a cadeia de
   /// BIFURCAR silenciosamente: dois appends concorrentes leem o mesmo "último" e calculam a mesma
   /// próxima sequência — um grava, o outro leva P2002 e tenta de novo, em vez de criar dois ramos
   /// que verificam isoladamente e nenhum é a história real.
-  sequencia Int
-  tipo      TipoEventoAssinatura
+  sequencia    Int
+  tipo         TipoEventoAssinatura
   /// Relógio do servidor (NTP). Carimbo do tempo formal (ITI/RFC 3161) fica como upgrade futuro.
-  ocorridoEm DateTime @default(now())
+  ocorridoEm   DateTime             @default(now())
   /// `userId` (assinatura interna) ou identificação do signatário externo (Fase F) — os dois
   /// mundos não compartilham id, então é texto.
-  ator       String
+  ator         String
   /// Nome exibível no certificado de conclusão, congelado no momento do evento.
-  atorNome   String
-  ip         String?
-  userAgent  String?
+  atorNome     String
+  ip           String?
+  userAgent    String?
   /// Hash SHA-256 do arquivo assinado — só no evento `assinado`.
-  hashArquivo   String?
-  hashAnterior  String
-  hash          String
+  hashArquivo  String?
+  hashAnterior String
+  hash         String
 
   @@unique([versaoId, sequencia])
   @@index([versaoId, sequencia])
@@ -4982,15 +4985,15 @@ enum CategoriaPranchaCatalogo {
 /// linha por projeto sobrescreve. `exigir` liga/desliga o alerta de nome fora do padrão;
 /// `padrao` é um regex custom (opcional) — vazio usa o padrão embutido.
 model NomenclaturaConfig {
-  id        String   @id @default(cuid())
-  projetoId String?  @unique
-  projeto   Projeto? @relation(fields: [projetoId], references: [id], onDelete: Cascade)
-  exigir    Boolean  @default(true)
+  id         String   @id @default(cuid())
+  projetoId  String?  @unique
+  projeto    Projeto? @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  exigir     Boolean  @default(true)
   /// Quando ativo no projeto, todo documento lógico precisa ter uma fase do catálogo atribuída.
-  exigirFase Boolean @default(false)
-  padrao    String?
-  updatedAt DateTime @updatedAt
-  createdAt DateTime @default(now())
+  exigirFase Boolean  @default(false)
+  padrao     String?
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
 
   @@map("nomenclatura_config")
 }
@@ -5215,10 +5218,16 @@ model NotaFiscalPJ {
   validadoPor   User?     @relation("NfValidador", fields: [validadoPorId], references: [id])
   validadoEm    DateTime?
 
-  createdAt DateTime                @default(now())
+  /// Recibo de produção a que esta NF se refere (G5/D36). Opcional: o envio avulso de NF,
+  /// que já existia, continua valendo. `SetNull` porque apagar o recibo não pode apagar a
+  /// nota fiscal — o documento fiscal é do PJ, não do agrupamento que o sistema montou.
+  reciboId  String?
+  recibo    ReciboProjetista?      @relation(fields: [reciboId], references: [id], onDelete: SetNull)
+  createdAt DateTime               @default(now())
   historico NotaFiscalPJHistorico[]
 
   @@index([userId, status])
+  @@index([reciboId])
   @@map("nota_fiscal_pj")
 }
 
@@ -5447,12 +5456,12 @@ model ListaDocumentos {
 
 /// Vínculo N:N entre uma ListaDocumentos e um DocumentoDisciplina.
 model ListaDocumentoItem {
-  id          String              @id @default(cuid())
-  listaId     String
-  lista       ListaDocumentos     @relation(fields: [listaId], references: [id], onDelete: Cascade)
-  documentoId String
-  documento   DocumentoDisciplina @relation(fields: [documentoId], references: [id], onDelete: Cascade)
-  adicionadoEm DateTime           @default(now())
+  id           String              @id @default(cuid())
+  listaId      String
+  lista        ListaDocumentos     @relation(fields: [listaId], references: [id], onDelete: Cascade)
+  documentoId  String
+  documento    DocumentoDisciplina @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  adicionadoEm DateTime            @default(now())
 
   @@unique([listaId, documentoId])
   @@index([documentoId])
@@ -5501,7 +5510,7 @@ model DocumentoRevisao {
   createdById String?
   createdBy   User?               @relation("RevisaoAutor", fields: [createdById], references: [id], onDelete: SetNull)
 
-  uploads Upload[]
+  uploads             Upload[]
   pendenciasOrigem    Pendencia[] @relation("PendenciaRevisaoOrigem")
   pendenciasResolucao Pendencia[] @relation("PendenciaRevisaoResolucao")
 
@@ -5542,37 +5551,37 @@ model PastaProjeto {
 /// de UMA tarefa por prancha. Refs de disciplina/projeto/usuário são denormalizadas
 /// (resolvidas por query), sem FK, para manter a migração enxuta.
 model Pendencia {
-  id             String    @id @default(cuid())
-  uploadId       String
-  upload         Upload    @relation("UploadPendencias", fields: [uploadId], references: [id], onDelete: Cascade)
-  disciplinaId   String
-  projetoId      String
-  numero         Int
-  pagina         Int
+  id                 String            @id @default(cuid())
+  uploadId           String
+  upload             Upload            @relation("UploadPendencias", fields: [uploadId], references: [id], onDelete: Cascade)
+  disciplinaId       String
+  projetoId          String
+  numero             Int
+  pagina             Int
   /// Âncora normalizada (0..1) relativa à página — sobrevive a zoom/DPI.
-  x              Float
-  y              Float
-  texto          String
+  x                  Float
+  y                  Float
+  texto              String
   /// aberta | em_correcao | resolvida | fechada | descartada | adiado
   /// A máquina de estados aprovada (item 22) vive em `pendencias/helpers.ts#podeTransicionar`.
   /// `descartada` é o valor GRAVADO do estado que a UI chama de "Não procede": manter o nome
   /// antigo no banco preserva a verdade do `AuditLog` já escrito e mantém a migração aditiva —
   /// é o MESMO estado, não um novo (a ficha do item 22 diz isso).
-  status         String    @default("aberta")
-  autorId        String
-  tarefaId       String?
-  tarefaItemId   String?
+  status             String            @default("aberta")
+  autorId            String
+  tarefaId           String?
+  tarefaItemId       String?
   /// Revisão lógica em que o apontamento foi criado (M9). Nula até o backfill ou em legado órfão.
-  revisaoOrigemId     String?
-  revisaoOrigem       DocumentoRevisao? @relation("PendenciaRevisaoOrigem", fields: [revisaoOrigemId], references: [id], onDelete: SetNull)
+  revisaoOrigemId    String?
+  revisaoOrigem      DocumentoRevisao? @relation("PendenciaRevisaoOrigem", fields: [revisaoOrigemId], references: [id], onDelete: SetNull)
   /// Revisão em que a correção foi validada; nunca é inferida retroativamente.
-  revisaoResolucaoId  String?
-  revisaoResolucao    DocumentoRevisao? @relation("PendenciaRevisaoResolucao", fields: [revisaoResolucaoId], references: [id], onDelete: SetNull)
-  resolvidoPorId String?
-  resolvidoEm    DateTime?
-  fechadoPorId   String?
-  fechadoEm      DateTime?
-  createdAt      DateTime  @default(now())
+  revisaoResolucaoId String?
+  revisaoResolucao   DocumentoRevisao? @relation("PendenciaRevisaoResolucao", fields: [revisaoResolucaoId], references: [id], onDelete: SetNull)
+  resolvidoPorId     String?
+  resolvidoEm        DateTime?
+  fechadoPorId       String?
+  fechadoEm          DateTime?
+  createdAt          DateTime          @default(now())
 
   /// Âncora ESTÁVEL do apontamento: o documento lógico, não a versão. `uploadId` acima
   /// continua sendo a versão de ORIGEM (onde o apontamento nasceu) e `uploadVerificacaoId`
@@ -5813,24 +5822,24 @@ model PendenciaResposta {
 
 /// N-43: Aceite digital do cliente para uma entrega validada.
 model AceiteCliente {
-  id           String    @id @default(cuid())
-  uploadId     String    @unique
-  upload       Upload    @relation(fields: [uploadId], references: [id], onDelete: Cascade)
-  token        String    @unique
+  id                  String    @id @default(cuid())
+  uploadId            String    @unique
+  upload              Upload    @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  token               String    @unique
   /// pendente | aceito | revisao
-  situacao     String    @default("pendente")
+  situacao            String    @default("pendente")
   /// Nulo só para links legados: a aplicação os considera expirados até a regeneração.
-  expiraEm     DateTime?
-  revogadoEm   DateTime?
-  respondidoEm DateTime?
+  expiraEm            DateTime?
+  revogadoEm          DateTime?
+  respondidoEm        DateTime?
   /// Declaração informada no formulário público; não substitui autenticação forte.
-  respondidoPor String?
-  respondidoIp String?
+  respondidoPor       String?
+  respondidoIp        String?
   respondidoUserAgent String?
-  observacao   String?
-  geradoPorId  String
-  geradoPor    User      @relation("AceiteGerador", fields: [geradoPorId], references: [id])
-  createdAt    DateTime  @default(now())
+  observacao          String?
+  geradoPorId         String
+  geradoPor           User      @relation("AceiteGerador", fields: [geradoPorId], references: [id])
+  createdAt           DateTime  @default(now())
 
   @@map("aceite_cliente")
 }
@@ -5994,6 +6003,8 @@ model PagamentoProjetista {
 
   createdAt DateTime @default(now())
 
+  recibos ReciboProjetistaItem[]
+
   @@index([projetistaId, status])
   @@index([disciplinaId])
   @@index([folhaId])
@@ -6003,6 +6014,60 @@ model PagamentoProjetista {
   /// crescimento não encontrar a tabela sem índice depois.
   @@index([status, liberadoEm])
   @@map("pagamento_projetista")
+}
+
+enum TipoRecibo {
+  individual // uma entrega paga
+  mensal // todas as entregas pagas do projetista no mês
+}
+
+/// Recibo de pagamento de produção (G5/D36). Documento do que JÁ foi pago — nasce depois do
+/// pagamento e nunca o trava (decisão do dono, 2026-09-12). Assinado pelo próprio projetista
+/// dentro do sistema, no mesmo padrão de prova dos Termos de Uso: guarda-se o TEXTO exato que
+/// ele leu e o SHA-256 dele, então adulteração posterior é detectável.
+model ReciboProjetista {
+  id           String     @id @default(cuid())
+  tipo         TipoRecibo
+  projetistaId String
+  projetista   User       @relation("ReciboProjetistaTitular", fields: [projetistaId], references: [id])
+  /// Competência do consolidado mensal; nulo no recibo individual.
+  ano          Int?
+  mes          Int?
+  valor        Decimal    @db.Decimal(14, 2)
+  /// O texto que o projetista leu ao assinar — é o documento, não um resumo dele.
+  texto        String
+  /// SHA-256 de `texto`. Mesma prova do aceite de Termos (`modules/legal`).
+  textoHash    String
+  geradoPorId  String
+  geradoPor    User       @relation("ReciboProjetistaAutor", fields: [geradoPorId], references: [id])
+  criadoEm     DateTime   @default(now())
+  assinadoEm   DateTime?
+  /// Sempre o próprio projetista (a action exige). Coluna própria para a trilha não depender
+  /// de o vínculo do titular mudar depois.
+  assinanteId  String?
+  assinante    User?      @relation("ReciboProjetistaAssinante", fields: [assinanteId], references: [id])
+
+  itens ReciboProjetistaItem[]
+  notas NotaFiscalPJ[]
+
+  @@index([projetistaId, assinadoEm])
+  @@index([ano, mes])
+  @@map("recibo_projetista")
+}
+
+/// Quais pagamentos entraram no recibo. Tabela própria (e não `reciboId` no pagamento) porque
+/// um mesmo pagamento pode estar num recibo individual E no consolidado do mês — o dono pediu
+/// os dois formatos.
+model ReciboProjetistaItem {
+  id          String              @id @default(cuid())
+  reciboId    String
+  recibo      ReciboProjetista    @relation(fields: [reciboId], references: [id], onDelete: Cascade)
+  pagamentoId String
+  pagamento   PagamentoProjetista @relation(fields: [pagamentoId], references: [id], onDelete: Cascade)
+
+  @@unique([reciboId, pagamentoId])
+  @@index([pagamentoId])
+  @@map("recibo_projetista_item")
 }
 
 enum StatusFolhaProjetista {
@@ -6984,11 +7049,11 @@ model LeituraDocumento {
 // ─────────────────────────────────────────────────────────────
 
 model CredencialCategoria {
-  id        String       @id @default(cuid())
-  nome      String       @unique @db.VarChar(100)
-  icone     String?      @db.VarChar(50)
-  ativo     Boolean      @default(true)
-  createdAt DateTime     @default(now())
+  id        String   @id @default(cuid())
+  nome      String   @unique @db.VarChar(100)
+  icone     String?  @db.VarChar(50)
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
 
   credenciais Credencial[]
 
@@ -6996,19 +7061,19 @@ model CredencialCategoria {
 }
 
 model Credencial {
-  id            String    @id @default(cuid())
-  nome          String    @db.VarChar(150)
-  nomeCompleto  String?   @db.VarChar(255)
+  id           String  @id @default(cuid())
+  nome         String  @db.VarChar(150)
+  nomeCompleto String? @db.VarChar(255)
 
   // Categorização
-  categoriaId   String
-  categoria     CredencialCategoria @relation(fields: [categoriaId], references: [id])
+  categoriaId String
+  categoria   CredencialCategoria @relation(fields: [categoriaId], references: [id])
   /// UF (AC..TO), ou os dois valores não-geográficos que o filtro de Estado exige (§10/§15):
   /// `NACIONAL` (software sem UF) e `NA` (não aplicável). Por isso NÃO é VarChar(2) — nasceu
   /// assim e só não quebrou porque a tabela estava vazia.
-  estado        String?   @db.VarChar(16)
-  descricao     String?
-  url           String?   @db.VarChar(2000)
+  estado      String?             @db.VarChar(16)
+  descricao   String?
+  url         String?             @db.VarChar(2000)
 
   // Credenciais (sempre criptografadas como JSON)
   usuarioEncriptado String? @db.VarChar(500)
@@ -7016,9 +7081,9 @@ model Credencial {
 
   // Gestão
   responsavelId String?
-  responsavel   User?     @relation(fields: [responsavelId], references: [id], onDelete: SetNull)
-  departamento  String?   @db.VarChar(100) // Fase 2
-  status        String    @default("ativo") // ativo | atencao | expirado | bloqueado | inativo
+  responsavel   User?   @relation(fields: [responsavelId], references: [id], onDelete: SetNull)
+  departamento  String? @db.VarChar(100) // Fase 2
+  status        String  @default("ativo") // ativo | atencao | expirado | bloqueado | inativo
 
   // Validade
   vencimentoEm        DateTime? @db.Date
@@ -7027,12 +7092,12 @@ model Credencial {
   renovacaoAutomatica Boolean   @default(false)
 
   // Licença (preenchido quando categoria = Software/Licença)
-  fornecedor        String?   @db.VarChar(255)
-  tipoLicenca       String?   @db.VarChar(100)
-  numeroLicenca     String?   @db.VarChar(255)
-  assentos          Int?
-  dataContratacao   DateTime? @db.Date
-  dataRenovacao     DateTime? @db.Date
+  fornecedor      String?   @db.VarChar(255)
+  tipoLicenca     String?   @db.VarChar(100)
+  numeroLicenca   String?   @db.VarChar(255)
+  assentos        Int?
+  dataContratacao DateTime? @db.Date
+  dataRenovacao   DateTime? @db.Date
 
   // Soft delete
   deletadoEm DateTime?
@@ -7066,8 +7131,8 @@ model CredencialCompartilhamento {
   credencial   Credencial @relation(fields: [credencialId], references: [id], onDelete: Cascade)
 
   // Alvo: usuario | perfil | setor
-  tipoAlvo String  @db.VarChar(50)
-  alvoId   String  // userId | perfilId | Setor enum value
+  tipoAlvo String @db.VarChar(50)
+  alvoId   String // userId | perfilId | Setor enum value
 
   // Dois níveis independentes
   podeVerCadastro         Boolean @default(false)
@@ -7088,7 +7153,7 @@ model CredencialProjeto {
   credencial   Credencial @relation(fields: [credencialId], references: [id], onDelete: Cascade)
 
   projetoId String
-  projeto   Projeto    @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  projeto   Projeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
 
   @@id([credencialId, projetoId])
   /// A PK composta já indexa `credencialId` (prefixo), mas não `projetoId`. Este índice é o

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDown, Users, Wallet } from "lucide-react";
+import { ChevronDown, FileText, Users, Wallet } from "lucide-react";
 import { pagarProjetistasSelecionados } from "@/modules/financeiro/folha/actions";
 import { diasPendenteParado } from "@/modules/financeiro/folha/service";
 import { TIPO_PROFISSIONAL_LABEL } from "@/modules/financeiro/folha/status";
@@ -28,6 +28,7 @@ import {
 } from "./folha-linhas-compartilhadas";
 import { CorrigirPagamentoDialog } from "./corrigir-pagamento-dialog";
 import { EstornarPagamentoDialog } from "./estornar-pagamento-dialog";
+import { ReciboMensalDialog } from "@/components/financeiro/recibo/recibo-mensal-dialog";
 import { EfetivarPagamentoDialog, type DadosEfetivacao } from "./efetivar-pagamento-dialog";
 
 /**
@@ -66,6 +67,7 @@ export function FolhaAgrupadaView({
   const [editar, setEditar] = useState<FolhaItem | null>(null);
   const [corrigir, setCorrigir] = useState<FolhaItem | null>(null);
   const [estornar, setEstornar] = useState<FolhaItem | null>(null);
+  const [reciboMensal, setReciboMensal] = useState<{ projetistaId: string; projetistaNome: string } | null>(null);
   const [loteGrupo, setLoteGrupo] = useState<FolhaGrupo | null>(null);
 
   const pagaveisDoLote = useMemo(() => (loteGrupo ? loteGrupo.itens.filter(pagavel) : []), [loteGrupo]);
@@ -105,6 +107,7 @@ export function FolhaAgrupadaView({
           onCorrigir={setCorrigir}
           onEstornar={setEstornar}
           podeCorrigir={podeCorrigir}
+          onReciboMensal={setReciboMensal}
           onPagarTudo={setLoteGrupo}
         />
       ))}
@@ -119,6 +122,7 @@ export function FolhaAgrupadaView({
         onClose={() => setCorrigir(null)}
       />
       <EstornarPagamentoDialog pagamento={estornar} onClose={() => setEstornar(null)} />
+      <ReciboMensalDialog alvo={reciboMensal} onClose={() => setReciboMensal(null)} />
       <EfetivarPagamentoDialog
         open={!!loteGrupo}
         titulo="Pagar tudo"
@@ -142,6 +146,7 @@ function GrupoProjetista({
   onEstornar,
   podeCorrigir,
   onPagarTudo,
+  onReciboMensal,
 }: {
   grupo: FolhaGrupo;
   links: LinksFolha;
@@ -151,6 +156,7 @@ function GrupoProjetista({
   onEstornar: (p: FolhaItem) => void;
   podeCorrigir: boolean;
   onPagarTudo: (g: FolhaGrupo) => void;
+  onReciboMensal: (alvo: { projetistaId: string; projetistaNome: string }) => void;
 }) {
   const pagaveis = grupo.itens.filter(pagavel);
   const rotuloEntregas = grupo.qtd === 1 ? "1 entrega" : `${grupo.qtd} entregas`;
@@ -186,6 +192,17 @@ function GrupoProjetista({
               <Wallet className="size-3.5" /> Pagar tudo
             </Button>
           )}
+          {/* G5/D36: recibo do mês desta pessoa — junta as entregas PAGAS da competência. */}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="px-2"
+            title={`Recibo do mês de ${grupo.projetistaNome}`}
+            aria-label={`Gerar recibo mensal de ${grupo.projetistaNome}`}
+            onClick={() => onReciboMensal({ projetistaId: grupo.projetistaId, projetistaNome: grupo.projetistaNome })}
+          >
+            <FileText className="size-3.5" />
+          </Button>
         </div>
       </div>
       <CollapsiblePanel>

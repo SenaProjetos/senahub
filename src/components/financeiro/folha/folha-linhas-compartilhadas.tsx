@@ -4,7 +4,8 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Wallet, Pencil, Ban, Paperclip, Undo2 } from "lucide-react";
+import { Wallet, Pencil, Ban, Paperclip, Undo2, FileText } from "lucide-react";
+import { gerarReciboIndividual } from "@/modules/financeiro/recibo/actions";
 import {
   pagarProjetista,
   editarPagamentoProjetista,
@@ -70,6 +71,7 @@ export function AcoesPagamento({
       <div className="flex flex-wrap gap-1">
         <CorrigirPagamentoButton p={p} onCorrigir={onCorrigir} />
         {onEstornar && <EstornarPagamentoButton p={p} onEstornar={onEstornar} />}
+        <ReciboIndividualButton p={p} />
       </div>
     );
   }
@@ -136,6 +138,40 @@ function EstornarPagamentoButton({ p, onEstornar }: { p: FolhaItem; onEstornar: 
       onClick={() => (motivo ? toast.info(motivo) : onEstornar(p))}
     >
       <Undo2 className="size-3.5" />
+    </Button>
+  );
+}
+
+/**
+ * Gera o recibo desta entrega paga (G5/D36) e avisa o projetista para assinar. Recibo nasce
+ * depois do pagamento e não trava nada — por isso é um botão discreto, não um passo do fluxo.
+ * A action recusa duplicata ("esta entrega já tem recibo individual").
+ */
+function ReciboIndividualButton({ p }: { p: FolhaItem }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+
+  function gerar() {
+    start(async () => {
+      const r = await gerarReciboIndividual({ pagamentoId: p.id });
+      if (r.ok) {
+        toast.success("Recibo gerado — o projetista foi avisado para assinar.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      className="px-2"
+      title="Gerar recibo desta entrega"
+      aria-label={`Gerar recibo do pagamento de ${p.projetista.name}`}
+      onClick={gerar}
+      disabled={pending}
+    >
+      <FileText className="size-3.5" />
     </Button>
   );
 }
