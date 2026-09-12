@@ -40,6 +40,8 @@ export type FiltrosFolha = {
   /** Liberação até (yyyy-mm-dd, inclusive). */
   ate: string;
   q: string;
+  /** D33: só pagos sem nenhum comprovante anexado — sempre restringe a `pago`. */
+  semComprovante: boolean;
 };
 
 /**

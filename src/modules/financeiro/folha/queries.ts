@@ -58,6 +58,52 @@ function whereSemStatus(f: FiltrosFolha): Prisma.PagamentoProjetistaWhereInput {
   return and.length ? { AND: and } : {};
 }
 
+/**
+ * Ids de pagamentos PAGOS sem nenhum comprovante anexado, dentro do recorte `base` (mesmos
+ * filtros de projetista/projeto/período/busca da tela, sem o de status) — usa a mesma
+ * mecânica de duas colunas soltas de `comLancamentos` pra achar o lançamento de cada um sem
+ * puxar `INCLUDE_PAGAMENTO` inteiro. Sempre restringe a `pago`: pendente/cancelado não têm
+ * comprovante pra conferir (D33).
+ */
+async function idsPagosSemComprovante(base: Prisma.PagamentoProjetistaWhereInput): Promise<string[]> {
+  const pagos = await prisma.pagamentoProjetista.findMany({
+    where: { AND: [base, { status: "pago" }] },
+    select: { id: true, lancamentoId: true },
+  });
+  if (pagos.length === 0) return [];
+  const ids = pagos.map((p) => p.id);
+  const lancIds = pagos.flatMap((p) => (p.lancamentoId ? [p.lancamentoId] : []));
+  const lancamentos = await prisma.lancamento.findMany({
+    where: { OR: [{ pagamentoProjetistaId: { in: ids } }, { id: { in: lancIds } }] },
+    select: { id: true, pagamentoProjetistaId: true, _count: { select: { anexos: true } } },
+  });
+  const lancPorId = new Map(lancamentos.map((l) => [l.id, l]));
+  const lancPorPagamento = new Map(
+    lancamentos.flatMap((l) => (l.pagamentoProjetistaId ? [[l.pagamentoProjetistaId, l] as const] : [])),
+  );
+  return pagos
+    .filter((p) => {
+      const l = (p.lancamentoId ? lancPorId.get(p.lancamentoId) : undefined) ?? lancPorPagamento.get(p.id);
+      return !l || l._count.anexos === 0;
+    })
+    .map((p) => p.id);
+}
+
+/**
+ * Aplica o filtro "Sem comprovante" (D33) a um `base` já montado por `whereSemStatus` — o
+ * resultado também vira a base dos totais de KPI (`resumoDoRecorte`), então os cards
+ * refletem só os pagos sem comprovante quando o filtro está ligado, igual a qualquer outro
+ * filtro (mesma lógica que já vale pra `q`/`projetistaId`).
+ */
+async function comFiltroSemComprovante(
+  base: Prisma.PagamentoProjetistaWhereInput,
+  semComprovante: boolean,
+): Promise<Prisma.PagamentoProjetistaWhereInput> {
+  if (!semComprovante) return base;
+  const ids = await idsPagosSemComprovante(base);
+  return { AND: [base, { id: { in: ids } }] };
+}
+
 function ordenacao(sort: string | null, dir: "asc" | "desc"): Prisma.PagamentoProjetistaOrderByWithRelationInput[] {
   if (sort === "projetista") return [{ projetista: { name: dir } }, { liberadoEm: "desc" }];
   if (sort === "valor") return [{ valor: dir }, { liberadoEm: "desc" }];
@@ -163,7 +209,7 @@ export async function listarFolha(sp: RawParams) {
   // TOTAIS não. Eles são o desdobramento por status do recorte filtrado: se herdassem o
   // padrão "esconde cancelados", o card "Cancelado" ficaria sempre zerado e não haveria de
   // onde tirar o "N cancelados ocultos". A tela diz isso em texto, embaixo dos cards.
-  const base = whereSemStatus(filtros);
+  const base = await comFiltroSemComprovante(whereSemStatus(filtros), filtros.semComprovante);
   const where: Prisma.PagamentoProjetistaWhereInput = { AND: [base, whereDoStatus(filtros.status)] };
 
   const [itensBrutos, total, agregado] = await Promise.all([
@@ -190,7 +236,7 @@ export type FolhaItem = Awaited<ReturnType<typeof listarFolha>>["itens"][number]
  */
 export async function listarFolhaAgrupada(sp: RawParams) {
   const filtros = lerFiltrosFolha(sp);
-  const base = whereSemStatus(filtros);
+  const base = await comFiltroSemComprovante(whereSemStatus(filtros), filtros.semComprovante);
   const where: Prisma.PagamentoProjetistaWhereInput = { AND: [base, whereDoStatus(filtros.status)] };
 
   const [itensBrutos, agregado, pendentePorProjetista] = await Promise.all([
@@ -240,7 +286,8 @@ const LIMITE_EXPORT = 5_000;
 export async function dadosFolhaExport(sp: RawParams) {
   const filtros = lerFiltrosFolha(sp);
   const { sort, dir } = parseListParams(sp, { sortFields: SORT_PAGAMENTO });
-  const where: Prisma.PagamentoProjetistaWhereInput = { AND: [whereSemStatus(filtros), whereDoStatus(filtros.status)] };
+  const base = await comFiltroSemComprovante(whereSemStatus(filtros), filtros.semComprovante);
+  const where: Prisma.PagamentoProjetistaWhereInput = { AND: [base, whereDoStatus(filtros.status)] };
   const [itensBrutos, total] = await Promise.all([
     prisma.pagamentoProjetista.findMany({
       where,

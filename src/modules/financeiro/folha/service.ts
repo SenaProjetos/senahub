@@ -31,6 +31,7 @@ export function lerFiltrosFolha(sp: RawParams): FiltrosFolha {
     de: DATA_ISO.test(de) ? de : "",
     ate: DATA_ISO.test(ate) ? ate : "",
     q: primeiro(sp.q),
+    semComprovante: primeiro(sp.semComprovante) === "1",
   };
 }
 
@@ -43,7 +44,7 @@ export function whereDoStatus(status: FiltroStatus | null): { status?: "pendente
 
 /** Algum filtro além do status? (decide o texto do vazio e a legenda dos totais) */
 export function temFiltroAlemDoStatus(f: FiltrosFolha): boolean {
-  return Boolean(f.projetistaId || f.projetoId || f.de || f.ate || f.q);
+  return Boolean(f.projetistaId || f.projetoId || f.de || f.ate || f.q || f.semComprovante);
 }
 
 /**
@@ -239,6 +240,7 @@ function slug(texto: string): string {
 export function nomeArquivoExport(f: FiltrosFolha, formato: "csv" | "xlsx"): string {
   const partes: string[] = ["Producao"];
   if (f.status) partes.push(f.status);
+  if (f.semComprovante) partes.push("sem-comprovante");
   if (f.de) partes.push(`de-${f.de}`);
   if (f.ate) partes.push(`ate-${f.ate}`);
   if (f.q) {

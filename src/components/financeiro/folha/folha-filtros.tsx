@@ -8,6 +8,7 @@ import type { FiltrosFolha } from "@/modules/financeiro/folha/status";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ExportarFolhaButton } from "./exportar-folha-button";
 
@@ -48,12 +49,26 @@ export function FolhaFiltros({
   }, [busca, filtros.q, setParams]);
 
   const temFiltro = Boolean(
-    filtros.status || filtros.projetistaId || filtros.projetoId || filtros.de || filtros.ate || filtros.q,
+    filtros.status ||
+      filtros.projetistaId ||
+      filtros.projetoId ||
+      filtros.de ||
+      filtros.ate ||
+      filtros.q ||
+      filtros.semComprovante,
   );
 
   function limpar() {
     setBusca("");
-    setParams({ status: null, projetistaId: null, projetoId: null, de: null, ate: null, q: null });
+    setParams({
+      status: null,
+      projetistaId: null,
+      projetoId: null,
+      de: null,
+      ate: null,
+      q: null,
+      semComprovante: null,
+    });
   }
 
   return (
@@ -170,6 +185,21 @@ export function FolhaFiltros({
             onChange={(e) => setParams({ ate: e.target.value || null })}
           />
         </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="filtro-sem-comprovante"
+          checked={filtros.semComprovante}
+          onCheckedChange={(v) =>
+            // Ligar o filtro força status=pago (D33): pendente/cancelado não têm comprovante
+            // pra conferir, e deixar o status como estava faria a lista vir sempre vazia.
+            setParams({ semComprovante: v ? "1" : null, status: v ? "pago" : filtros.status || null })
+          }
+        />
+        <Label htmlFor="filtro-sem-comprovante" className="cursor-pointer font-normal">
+          Só pagos sem comprovante
+        </Label>
       </div>
 
       {filtros.status === null && canceladosOcultos > 0 && (

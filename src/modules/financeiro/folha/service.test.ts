@@ -17,7 +17,20 @@ import {
 
 describe("lerFiltrosFolha", () => {
   it("URL vazia cai no padrão: status null (esconde cancelados), sem filtros", () => {
-    expect(lerFiltrosFolha({})).toEqual({ status: null, projetistaId: "", projetoId: "", de: "", ate: "", q: "" });
+    expect(lerFiltrosFolha({})).toEqual({
+      status: null,
+      projetistaId: "",
+      projetoId: "",
+      de: "",
+      ate: "",
+      q: "",
+      semComprovante: false,
+    });
+  });
+  it("semComprovante só liga com '1' exato (D33)", () => {
+    expect(lerFiltrosFolha({ semComprovante: "1" }).semComprovante).toBe(true);
+    expect(lerFiltrosFolha({ semComprovante: "true" }).semComprovante).toBe(false);
+    expect(lerFiltrosFolha({}).semComprovante).toBe(false);
   });
   it("aceita os quatro status válidos", () => {
     for (const s of ["pendente", "pago", "cancelado", "todos"]) {
@@ -57,6 +70,9 @@ describe("temFiltroAlemDoStatus", () => {
   it("qualquer outro filtro conta", () => {
     expect(temFiltroAlemDoStatus({ ...base, q: "ana" })).toBe(true);
     expect(temFiltroAlemDoStatus({ ...base, de: "2026-04-01" })).toBe(true);
+  });
+  it("semComprovante conta (D33)", () => {
+    expect(temFiltroAlemDoStatus({ ...base, semComprovante: true })).toBe(true);
   });
 });
 
@@ -249,7 +265,15 @@ describe("erroTransicao", () => {
 });
 
 describe("nomeArquivoExport", () => {
-  const vazio = { status: null, projetistaId: "", projetoId: "", de: "", ate: "", q: "" } as const;
+  const vazio = {
+    status: null,
+    projetistaId: "",
+    projetoId: "",
+    de: "",
+    ate: "",
+    q: "",
+    semComprovante: false,
+  } as const;
 
   it("sem filtro: nome genérico", () => {
     expect(nomeArquivoExport(vazio, "xlsx")).toBe("Producao.xlsx");
@@ -271,6 +295,11 @@ describe("nomeArquivoExport", () => {
   it("combina status + período + busca, na ordem", () => {
     expect(nomeArquivoExport({ ...vazio, status: "pendente", de: "2026-09-01", q: "elétrico" }, "xlsx")).toBe(
       "Producao-pendente-de-2026-09-01-busca-eletrico.xlsx",
+    );
+  });
+  it("sem comprovante entra no nome, logo após o status (D33)", () => {
+    expect(nomeArquivoExport({ ...vazio, status: "pago", semComprovante: true }, "xlsx")).toBe(
+      "Producao-pago-sem-comprovante.xlsx",
     );
   });
 });
