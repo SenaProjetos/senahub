@@ -81,10 +81,12 @@ model Holerite {
 
 model FolhaPagamento {
   ...
-  /// PDF original do contador, guardado para auditoria/reprocesso — Upload existente, não um
-  /// modelo novo.
-  origemPdfUploadId String? @unique
-  origemPdfUpload   Upload? @relation(fields: [origemPdfUploadId], references: [id])
+  /// PDF original do contador, guardado para auditoria/reprocesso. Caminho relativo a
+  /// STORAGE_BASE_PATH, mesmo padrão de NotaFiscalPJ.arquivoPath — NÃO é o modelo `Upload`
+  /// (achado ao desenhar o schema: Upload exige `disciplinaId`, é escopado a projeto/disciplina;
+  /// uma folha de pagamento não tem disciplina nenhuma).
+  origemPdfPath String?
+  origemPdfNome String?
 }
 ```
 
@@ -120,7 +122,7 @@ RH abre/cria a FolhaPagamento do mês (aberta)
   → tudo validado → upsert de Holerite/HoleriteItem por matrícula (mesmo formato que
      `salvarHolerite` já grava hoje), folha continua ABERTA. PDF original salvo via
      `lib/storage.ts` (`resolverCaminho`, mesma guarda anti-traversal de todo upload) e linkado
-     em `FolhaPagamento.origemPdfUploadId`.
+     em `FolhaPagamento.origemPdfPath`/`origemPdfNome`.
 RH revisa em `/rh/folha/[id]` (tela existente, sem mudança), ajusta se quiser, clica
 "Fechar folha" (ação existente `fecharFolha`, sem mudança) → Lançamento de despesa criado,
 folha fechada.
