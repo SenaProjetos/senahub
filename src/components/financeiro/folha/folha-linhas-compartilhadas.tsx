@@ -80,9 +80,9 @@ export function AcoesPagamento({
           <Button
             size="sm"
             variant="ghost"
-            className="px-2"
-            title="Comprovantes deste pagamento"
-            aria-label="Comprovantes deste pagamento"
+            className={cn("px-2", p.lancamento.qtdAnexos > 0 ? "text-muted-foreground" : "text-warning")}
+            title={p.lancamento.qtdAnexos > 0 ? `${p.lancamento.qtdAnexos} comprovante(s)` : "Sem comprovante"}
+            aria-label={p.lancamento.qtdAnexos > 0 ? `${p.lancamento.qtdAnexos} comprovante(s) anexado(s)` : "Sem comprovante anexado"}
             onClick={() => onComprovantes(p)}
           >
             <Paperclip className="size-3.5" />
