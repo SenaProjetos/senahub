@@ -34,6 +34,7 @@ import {
   BookMarked,
   Notebook,
   Coins,
+  HandCoins,
   KeyRound,
   type LucideIcon,
 } from "lucide-react";
@@ -210,12 +211,6 @@ export const NAV_GROUPS: NavGroup[] = [
         permissao: "rh:cadastro",
       },
       {
-        title: "Folha CLT",
-        href: "/rh/folha",
-        icon: Banknote,
-        permissao: "rh:folha",
-      },
-      {
         title: "Produtividade",
         href: "/rh/produtividade",
         icon: TrendingUp,
@@ -243,6 +238,18 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/financeiro",
         icon: Wallet,
         permissao: ["financeiro:ver", "financeiro:extrato"],
+      },
+      {
+        title: "Produção",
+        href: "/financeiro/folha-projetistas",
+        icon: HandCoins,
+        permissao: "financeiro:folha_pj",
+      },
+      {
+        title: "Folha CLT",
+        href: "/rh/folha",
+        icon: Banknote,
+        permissao: "rh:folha",
       },
       {
         title: "Doc Studio",
