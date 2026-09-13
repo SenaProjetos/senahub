@@ -59,7 +59,23 @@ const RE_COMPETENCIA = /^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2})\/(\d{2})\/(\d{4})\s
 // tela mostra como "Livro:"/"Folha.:" — não usados no import, só descartados aqui).
 const RE_CABECALHO_FUNCIONARIO =
   /^(\d{6})\s+(.+?)\s+([\d.,]+)\s+\d{3,4}\s+\d{3,4}$/;
-const RE_RUBRICA = /^(\d{3})\s+(.+?)\s+([\d.,]+)(?:\s+\d{1,3}:\d{2})?$/;
+// A rubrica sai em DUAS ordens diferentes dependendo da linha — confirmado num dump real do
+// pdfjs (2026-09-13), não suposição: normalmente código primeiro ("001 Salário Base 3.646,65
+// 220:00"), mas às vezes o código de 3 dígitos é o ÚLTIMO item da linha mesmo estando mais à
+// esquerda na tabela ("Salário Base 3.646,65 220:00 001") — o relatório desenha nessa ordem
+// própria (ver comentário no topo do arquivo), não visual. Duas formas, não uma tolerante:
+// juntas ficariam ambíguas (uma descrição que termina em 3 dígitos, tipo "verba 001", coincidiria
+// com as duas).
+const RE_RUBRICA_CODIGO_PRIMEIRO = /^(\d{3})\s+(.+?)\s+([\d.,]+)(?:\s+\d{1,3}:\d{2})?$/;
+const RE_RUBRICA_CODIGO_ULTIMO = /^(.+?)\s+([\d.,]+)(?:\s+\d{1,3}:\d{2})?\s+(\d{3})$/;
+
+function casarRubrica(linha: string): { codigo: string; descricao: string; valor: string } | null {
+  const primeiro = RE_RUBRICA_CODIGO_PRIMEIRO.exec(linha);
+  if (primeiro) return { codigo: primeiro[1], descricao: primeiro[2], valor: primeiro[3] };
+  const ultimo = RE_RUBRICA_CODIGO_ULTIMO.exec(linha);
+  if (ultimo) return { codigo: ultimo[3], descricao: ultimo[1], valor: ultimo[2] };
+  return null;
+}
 // Linha de totais do funcionário: proventos, descontos, líquido (mesma ordem sempre).
 const RE_TOTAIS_FUNCIONARIO = /^([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)$/;
 
@@ -109,9 +125,13 @@ export function parsearTextoFolha(texto: string): FolhaImportada {
     let totais: { proventos: number; descontos: number; liquido: number } | null = null;
     for (let i = inicio + 1; i < fim; i++) {
       const l = linhas[i];
-      const mRubrica = RE_RUBRICA.exec(l);
+      const mRubrica = casarRubrica(l);
       if (mRubrica) {
-        rubricas.push({ codigoExterno: mRubrica[1], descricao: mRubrica[2], valor: paraNumero(mRubrica[3]) });
+        rubricas.push({
+          codigoExterno: mRubrica.codigo,
+          descricao: mRubrica.descricao,
+          valor: paraNumero(mRubrica.valor),
+        });
         continue;
       }
       const mTotais = RE_TOTAIS_FUNCIONARIO.exec(l);
@@ -347,20 +367,73 @@ export function codigosRubricaDoImport(folha: FolhaImportada): string[] {
 }
 
 /**
- * Extrai o texto de um PDF via `pdfjs-dist` — thin wrapper de I/O, sem lógica (mesmo corte de
- * `dxf.ts`/`bcf/writer.ts`: I/O fino por fora, lógica pura testada por dentro). Não tem teste de
- * unidade — o que importa testar é `parsearTextoFolha`, com o texto real como fixture.
+ * Junta itens do `pdfjs` em linhas: ele entrega um item por CORRIDA de fonte/estilo, não por
+ * linha visual — a linha do período, por exemplo, sai como 6 itens separados mesmo lado a lado
+ * (achado no primeiro PDF real testado, 2026-09-13). Regra confirmada contra um dump real desse
+ * PDF (não suposição): itens CONSECUTIVOS na ordem de chegada que compartilham a mesma posição Y
+ * (mesmo baseline, com tolerância mínima pra ruído de ponto flutuante) formam uma linha; a ordem
+ * DENTRO da linha é a ordem de chegada, nunca reordenada por posição X.
+ *
+ * Por quê não ordenar por X: no mesmo PDF, o campo "a" do período aparece geometricamente ANTES
+ * de "31/07/2026" mas precisa ler DEPOIS — e o código da rubrica (3 dígitos) às vezes é o ÚLTIMO
+ * item da linha, não o primeiro, mesmo estando mais à esquerda na tabela. O relatório desenha
+ * numa ordem própria, não visual (ver comentário no topo do arquivo) — juntar por chegada
+ * preserva essa ordem; ordenar por X a destruiria.
+ *
+ * Por quê exigir Y IGUAL e não só "por perto": duas linhas legítimas do mesmo PDF ficam a 0,84
+ * unidade uma da outra (a linha de totais do funcionário e o traço de proteção "***" acima
+ * dela) — uma tolerância "generosa" juntaria as duas. Itens da MESMA linha, neste relatório,
+ * compartilham Y exato (mesmo baseline de desenho); só a tolerância cobre é arredondamento.
+ */
+function juntarLinhasPorSequenciaEY(itens: { str: string; y: number }[]): string[] {
+  const TOLERANCIA_Y = 0.1;
+  const linhas: string[] = [];
+  let bufferPartes: string[] = [];
+  let yAtual: number | null = null;
+
+  const fecharLinha = () => {
+    if (bufferPartes.length > 0) linhas.push(bufferPartes.join(" "));
+    bufferPartes = [];
+  };
+
+  for (const item of itens) {
+    if (yAtual !== null && Math.abs(item.y - yAtual) > TOLERANCIA_Y) fecharLinha();
+    yAtual = item.y;
+    const texto = item.str.trim();
+    if (texto.length > 0) bufferPartes.push(texto);
+  }
+  fecharLinha();
+  return linhas;
+}
+
+/**
+ * Extrai o texto de um PDF via `pdfjs-dist` — thin wrapper de I/O sobre a extração crua, mais a
+ * reconstrução de linha de `juntarLinhasPorSequenciaEY` (a lógica que importa testar, e que é
+ * testada via PDFs sintéticos + a prova de regressão com o texto real do primeiro PDF testado).
  */
 export async function extrairTextoPdf(buffer: Buffer): Promise<string> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  // Sem Web Worker de verdade em Node, o pdfjs recorre a um "fake worker" que importa o próprio
+  // arquivo do worker em vez de rodar numa thread separada. Sob o bundle do servidor Next
+  // (rota /api), esse import relativo automático resolve pra dentro de vendor-chunks, onde o
+  // arquivo não existe ("Setting up fake worker failed"). Apontar pro arquivo real em
+  // node_modules (caminho absoluto, calculado em runtime — não é literal pro webpack analisar
+  // e empacotar junto) resolve sem precisar copiar o worker pra lugar nenhum.
+  const { pathToFileURL } = await import("node:url");
+  const path = await import("node:path");
+  pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(
+    path.join(process.cwd(), "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.mjs"),
+  ).href;
   const doc = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise;
-  const partes: string[] = [];
+  const linhas: string[] = [];
   for (let i = 1; i <= doc.numPages; i++) {
     const pagina = await doc.getPage(i);
     const conteudo = await pagina.getTextContent();
+    const itens: { str: string; y: number }[] = [];
     for (const item of conteudo.items) {
-      if ("str" in item) partes.push(item.str);
+      if ("str" in item) itens.push({ str: item.str, y: item.transform[5] });
     }
+    linhas.push(...juntarLinhasPorSequenciaEY(itens));
   }
-  return partes.join("\n");
+  return linhas.join("\n");
 }

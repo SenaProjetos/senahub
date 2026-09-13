@@ -229,13 +229,33 @@ lógica pura testada por dentro).
 - Nenhum PDF de dezembro/13º ainda visto — o parser pode precisar de ajuste quando esse mês
   chegar; não é motivo pra não implementar agora, é motivo pra não prometer suporte a 13º de
   cara.
-- **Risco de fragmentação de linha do `pdfjs-dist` (achado do advisor na P1), primeira coisa que
-  P2 precisa confirmar contra um PDF real:** `extrairTextoPdf` junta os itens de texto com `\n`
-  supondo 1 item por linha lógica — verdade nas 4 fixtures (texto colado à mão) e no smoke test
-  com `pdf-lib` (que também emite 1 item por linha por construção), mas o pdfjs real pode
-  fragmentar uma linha em vários itens (um por "corrida" de texto/fonte). Se isso acontecer com o
-  PDF de verdade, todo regex do parser erra silenciosamente pra "nenhum funcionário encontrado" —
-  não corrige o regex, agrupa os itens por posição Y (`item.transform[5]`) antes de juntar.
+- **Risco de fragmentação de linha do `pdfjs-dist` — CONFIRMADO e corrigido no primeiro import
+  real (2026-09-13, fora do plano de fases, achado só ao testar no navegador):** a suposição "1
+  item = 1 linha" de `extrairTextoPdf` (que nunca tinha visto um PDF de verdade) quebrou de duas
+  formas diferentes no primeiro arquivo real testado (07-26):
+  1. Rota `/api/rh/folha/importar` roda no bundle do servidor Next — o "fake worker" do pdfjs
+     (Node não tem Web Worker de verdade) tentava importar `pdf.worker.mjs` por caminho relativo,
+     que sob o bundle resolve pra dentro de `vendor-chunks` onde o arquivo não existe. Corrigido
+     apontando `GlobalWorkerOptions.workerSrc` pro arquivo real em `node_modules` (caminho
+     absoluto calculado em runtime).
+  2. A linha do período saiu fragmentada em 6 itens separados — confirmado com um dump real dos
+     itens do pdfjs (script descartável, não é mais parte do repo). `juntarLinhasPorSequenciaEY`
+     junta itens CONSECUTIVOS na ordem de chegada que compartilham a mesma posição Y — nunca
+     ordena por X (o campo "a" do período aparece geometricamente ANTES de "31/07/2026" mas
+     precisa ler depois) e exige Y quase exato, não "por perto" (duas linhas legítimas do mesmo
+     PDF ficam a só 0,84 unidade uma da outra). Efeito colateral achado pela mesma correção: a
+     linha de rubrica às vezes traz o código de 3 dígitos por ÚLTIMO em vez de primeiro — mesmo
+     dado, ordem de desenho diferente — `casarRubrica` tenta as duas formas.
+  **As 4 fixtures hand-transcribed (05-08/2026) ficaram desatualizadas por este achado**: nenhuma
+  delas nunca passou pelo `extrairTextoPdf` de verdade, todas foram digitadas já na ordem
+  "código primeiro" — continuam úteis (cobrem a rubrica 081, o layout de 2 páginas, o resumo de
+  maio numa página só), mas não provam nada sobre a extração real. Só julho/2026 tem uma fixture
+  que passou pelo pipeline de ponta a ponta (reconstruída do dump real, parse+checksum+
+  classificação todos `ok:true`) — as outras 3 meses continuam sem nunca terem visto um PDF de
+  verdade; 06-26 é o mais arriscado de verificar depois, porque a descrição da rubrica 081
+  ("diferença salarial 05/2026") tem barra e dígitos que podem fragmentar diferente. **Não
+  remover `RE_RUBRICA_CODIGO_ULTIMO`/o fallback em `casarRubrica` achando que é código morto** —
+  é a forma que o PDF real usa, as fixtures antigas é que nunca a exercitaram.
 - **Requisito de UI pra P5 (não deixar pra quem escrever a tela decidir):** `vincularMatriculaExterna`
   MOVE a matrícula quando ela já estava em outra pessoa, e devolve `desvinculadaDe` com o nome de
   quem perdeu o vínculo. A tela **tem** que mostrar isso em destaque na confirmação — mover
