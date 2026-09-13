@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { checarChecksum, codigosRubricaDoImport, parsearTextoFolha } from "./importar-pdf";
+import {
+  checarChecksum,
+  codigosRubricaDoImport,
+  conferirClassificacao,
+  parsearTextoFolha,
+  sugerirTiposDesconhecidos,
+  type TipoRubricaImport,
+} from "./importar-pdf";
+
+/** Classificação real dos 4 códigos que aparecem nos meses de amostra. */
+const TIPOS: [string, TipoRubricaImport][] = [
+  ["001", "provento"],
+  ["081", "provento"],
+  ["604", "desconto"],
+  ["903", "desconto"],
+];
 
 /**
  * Fixtures = texto real extraído dos 4 PDFs que o dono enviou (05 a 08/2026, mesma empresa,
@@ -539,5 +554,61 @@ describe("checarChecksum", () => {
     const resultado = checarChecksum(folha);
     expect(resultado.ok).toBe(false);
     expect(!resultado.ok && resultado.motivo).toMatch(/000003.*nenhuma combinação/);
+  });
+});
+
+describe("conferirClassificacao", () => {
+  it("aceita a classificação correta nos 4 meses", () => {
+    for (const texto of [MAI_2026, JUN_2026, JUL_2026, AGO_2026]) {
+      const folha = parsearTextoFolha(texto);
+      expect(conferirClassificacao(folha, new Map(TIPOS))).toEqual({ ok: true });
+    }
+  });
+
+  it("recusa quando uma rubrica está cadastrada com o sinal trocado", () => {
+    // O erro mais caro do fluxo: 081 cadastrada como desconto em vez de provento. O checksum
+    // de página NÃO pega isso (compara o líquido do PDF com ele mesmo) — só esta checagem pega.
+    const folha = parsearTextoFolha(JUN_2026);
+    const errado = new Map<string, TipoRubricaImport>(TIPOS);
+    errado.set("081", "desconto");
+
+    expect(checarChecksum(folha)).toEqual({ ok: true });
+    const resultado = conferirClassificacao(folha, errado);
+    expect(resultado.ok).toBe(false);
+    expect(!resultado.ok && resultado.motivo).toMatch(/provento no lugar de desconto/);
+  });
+
+  it("recusa quando falta classificação pra alguma rubrica", () => {
+    const folha = parsearTextoFolha(JUN_2026);
+    const incompleto = new Map<string, TipoRubricaImport>(TIPOS.filter(([c]) => c !== "081"));
+    const resultado = conferirClassificacao(folha, incompleto);
+    expect(resultado.ok).toBe(false);
+    expect(!resultado.ok && resultado.motivo).toMatch(/081 sem classificação/);
+  });
+});
+
+describe("sugerirTiposDesconhecidos", () => {
+  it("deduz que 081 só pode ser provento (aritmética dos totais do PDF)", () => {
+    const folha = parsearTextoFolha(JUN_2026);
+    const conhecidos = new Map<string, TipoRubricaImport>(TIPOS.filter(([c]) => c !== "081"));
+    const sugestoes = sugerirTiposDesconhecidos(folha, conhecidos);
+    expect(sugestoes.get("081")).toBe("provento");
+  });
+
+  it("deduz 604 como desconto mesmo com 081 também desconhecido no mesmo funcionário", () => {
+    // Vanessa em junho tem 4 rubricas (001, 081, 604, 903) — com 2 desconhecidas, só uma
+    // combinação reproduz os totais impressos.
+    const folha = parsearTextoFolha(JUN_2026);
+    const conhecidos = new Map<string, TipoRubricaImport>(
+      TIPOS.filter(([c]) => c !== "081" && c !== "604"),
+    );
+    const sugestoes = sugerirTiposDesconhecidos(folha, conhecidos);
+    expect(sugestoes.get("604")).toBe("desconto");
+    expect(sugestoes.get("081")).toBe("provento");
+  });
+
+  it("não sugere nada quando não há código desconhecido", () => {
+    const folha = parsearTextoFolha(AGO_2026);
+    expect(sugerirTiposDesconhecidos(folha, new Map(TIPOS)).size).toBe(0);
   });
 });

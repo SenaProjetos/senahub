@@ -192,7 +192,7 @@ lógica pura testada por dentro).
 | --- | --- | --- |
 | P0 | Schema (3 campos) + migration | Sonnet 5 — mecânico, specado — **entregue** |
 | P1 | `parsearTextoFolha` puro + testes com os 4 PDFs reais como fixture de texto | Sonnet 5 — **entregue** |
-| P2 | Fluxo de pendência (rubrica/matrícula desconhecida) + commit transacional + checksum | Opus 5 — trava financeira, mesmo cuidado do F0a da Produção |
+| P2 | Fluxo de pendência (rubrica/matrícula desconhecida) + commit transacional + checksum | Opus 5 — trava financeira, mesmo cuidado do F0a da Produção — **entregue** |
 | P3 | Assinatura (`assinarHolerite`, PDF, `minha-ficha`) | Sonnet 5 — espelha G5, já resolvido lá |
 | P4 | Gate de acesso obrigatório (`precisaAssinarHolerite` + `/assinar-holerite`) | Opus 5 — mexe no layout que todo usuário passa; erro aqui tranca o sistema inteiro |
 | P5 | Indicador de pendência na tela de RH + lembrete | Sonnet 5 |
@@ -219,7 +219,27 @@ lógica pura testada por dentro).
   fragmentar uma linha em vários itens (um por "corrida" de texto/fonte). Se isso acontecer com o
   PDF de verdade, todo regex do parser erra silenciosamente pra "nenhum funcionário encontrado" —
   não corrige o regex, agrupa os itens por posição Y (`item.transform[5]`) antes de juntar.
-- **P1 entregue** (commit a seguir): `src/modules/rh/folha/importar-pdf.ts` +
+- **Requisito de UI pra P5 (não deixar pra quem escrever a tela decidir):** `vincularMatriculaExterna`
+  MOVE a matrícula quando ela já estava em outra pessoa, e devolve `desvinculadaDe` com o nome de
+  quem perdeu o vínculo. A tela **tem** que mostrar isso em destaque na confirmação — mover
+  matrícula é desatar uma pessoa da identidade de folha dela, e o operador precisa ver que isso
+  aconteceu (o `AuditLog` já registra; o que falta é o humano enxergar na hora).
+- **P2 entregue** (commit a seguir): `importar-service.ts` (análise + aplicação), rota multipart
+  `/api/rh/folha/importar`, e as actions `vincularRubricaExterna`/`vincularMatriculaExterna`.
+  Verificado contra o banco de dev com script temporário (apagado ao final, resíduo conferido
+  por query independente depois): pendências com tipo já deduzido, recusa de competência errada,
+  gravação real com tipo/valor certos, reimport substituindo em vez de duplicar (4 itens, não 8),
+  e recusa de rubrica com o sinal trocado. Achados do `advisor()` nesta fase: (1) **premissa dele
+  refutada com evidência** — alegou que trocar `RubricaFolha.tipo` reescreveria holerite antigo;
+  não reescreve, porque `HoleriteItem.tipo` é coluna própria copiada na escrita e `fecharFolha`
+  soma por `item.tipo` (conferido no schema e no código); (2) **defeito real achado no lugar**: o
+  `codigoExterno` era gravado antes da conferência e a guarda de unicidade deixava o código preso
+  na rubrica errada, sem conserto pela tela — agora o vínculo MOVE (solta o antigo, prende o
+  novo, na mesma transação), e o mesmo foi aplicado à matrícula; (3) o tipo da rubrica é relido
+  DENTRO da transação e a gravação aborta se mudou no meio do caminho (guarda na leitura, guarda
+  repetida na escrita, mesma disciplina da G14 da Produção); (4) no reimport o PDF anterior é
+  apagado do disco depois do commit, em vez de virar arquivo órfão.
+- **P1 entregue**: `src/modules/rh/folha/importar-pdf.ts` +
   `importar-pdf.test.ts` (11 testes, 4 meses reais como fixture). `advisor()` achou e foram
   corrigidos antes do commit: (1) linha de totais do funcionário nunca era cruzada contra as
   rubricas dela — `checarChecksum` comparava `liquido` lido do PDF contra o próprio `liquido`

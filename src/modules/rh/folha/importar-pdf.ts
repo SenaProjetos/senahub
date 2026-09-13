@@ -248,6 +248,97 @@ export function checarChecksum(folha: FolhaImportada): ChecksumFolha {
   return { ok: true };
 }
 
+export type TipoRubricaImport = "provento" | "desconto";
+
+/**
+ * Confere a classificação REAL (a do `RubricaFolha.tipo` que o RH cadastrou) contra a linha de
+ * totais de cada funcionário. É a trava que pega o erro mais caro do fluxo: se o RH cadastrar
+ * "081 diferença salarial" como desconto em vez de provento, o holerite guarda o valor com o
+ * sinal trocado, `fecharFolha` gera um Lançamento menor, e NADA mais no caminho perceberia —
+ * `checarChecksum` não pega, porque compara o líquido lido do PDF com ele mesmo (achado do
+ * advisor). Aqui a comparação é entre duas fontes independentes: o tipo vindo do banco e os
+ * totais impressos no PDF.
+ */
+export function conferirClassificacao(
+  folha: FolhaImportada,
+  tipoPorCodigo: Map<string, TipoRubricaImport>,
+): ChecksumFolha {
+  for (const f of folha.funcionarios) {
+    let proventos = 0;
+    let descontos = 0;
+    for (const r of f.rubricas) {
+      const tipo = tipoPorCodigo.get(r.codigoExterno);
+      if (!tipo) {
+        return { ok: false, motivo: `Rubrica ${r.codigoExterno} sem classificação — cadastre antes de importar.` };
+      }
+      if (tipo === "provento") proventos += r.valor;
+      else descontos += r.valor;
+    }
+    if (!bateComCentavo(proventos, f.totalProventos) || !bateComCentavo(descontos, f.totalDescontos)) {
+      return {
+        ok: false,
+        motivo:
+          `${f.matriculaExterna} (${f.nome}): com a classificação cadastrada dá proventos R$ ${proventos.toFixed(2)} / ` +
+          `descontos R$ ${descontos.toFixed(2)}, mas o PDF diz R$ ${f.totalProventos.toFixed(2)} / R$ ${f.totalDescontos.toFixed(2)}. ` +
+          `Provavelmente alguma rubrica está cadastrada como provento no lugar de desconto (ou o contrário).`,
+      };
+    }
+  }
+  return { ok: true };
+}
+
+/**
+ * Sugere provento/desconto pros códigos que o banco ainda não conhece, resolvendo a aritmética:
+ * com os códigos conhecidos fixos, só algumas divisões dos desconhecidos reproduzem os totais
+ * impressos. Quando todas as soluções possíveis concordam sobre um código, a sugestão é firme;
+ * quando discordam (ou não existe solução), devolve `null` e o RH decide sozinho.
+ *
+ * É só pré-preenchimento de tela — a trava de verdade é `conferirClassificacao`, que roda de
+ * novo com o que o RH efetivamente cadastrou.
+ */
+export function sugerirTiposDesconhecidos(
+  folha: FolhaImportada,
+  tipoPorCodigo: Map<string, TipoRubricaImport>,
+): Map<string, TipoRubricaImport | null> {
+  const sugestoes = new Map<string, TipoRubricaImport | null>();
+
+  for (const f of folha.funcionarios) {
+    const desconhecidos = [...new Set(f.rubricas.map((r) => r.codigoExterno))].filter(
+      (c) => !tipoPorCodigo.has(c),
+    );
+    if (desconhecidos.length === 0) continue;
+
+    const solucoes: Map<string, TipoRubricaImport>[] = [];
+    for (let mascara = 0; mascara < 1 << desconhecidos.length; mascara++) {
+      const tentativa = new Map<string, TipoRubricaImport>();
+      desconhecidos.forEach((c, i) => {
+        tentativa.set(c, mascara & (1 << i) ? "provento" : "desconto");
+      });
+      let proventos = 0;
+      let descontos = 0;
+      for (const r of f.rubricas) {
+        const tipo = tipoPorCodigo.get(r.codigoExterno) ?? tentativa.get(r.codigoExterno)!;
+        if (tipo === "provento") proventos += r.valor;
+        else descontos += r.valor;
+      }
+      if (bateComCentavo(proventos, f.totalProventos) && bateComCentavo(descontos, f.totalDescontos)) {
+        solucoes.push(tentativa);
+      }
+    }
+
+    for (const codigo of desconhecidos) {
+      const valores = new Set(solucoes.map((s) => s.get(codigo)!));
+      // Uma solução única pra este código neste funcionário; se outro funcionário já tinha
+      // sugerido o contrário, a sugestão morre (dado inconsistente — o RH decide).
+      const sugestaoAqui = valores.size === 1 ? [...valores][0] : null;
+      if (!sugestoes.has(codigo)) sugestoes.set(codigo, sugestaoAqui);
+      else if (sugestoes.get(codigo) !== sugestaoAqui) sugestoes.set(codigo, null);
+    }
+  }
+
+  return sugestoes;
+}
+
 /** Códigos de rubrica distintos encontrados no PDF — P2 cruza isso com `RubricaFolha.codigoExterno`. */
 export function codigosRubricaDoImport(folha: FolhaImportada): string[] {
   const set = new Set<string>();

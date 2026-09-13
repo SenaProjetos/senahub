@@ -267,3 +267,91 @@ export const enviarHolerites = defineAction(
     return { enviados, total: folha.holerites.length };
   },
 );
+
+// ── Import do PDF do contador (plano 2026-09-13-folha-clt-import-assinatura.md, P2) ──────────
+// O import em si é a rota multipart `/api/rh/folha/importar`. As duas actions abaixo resolvem as
+// pendências que ele levanta: código de rubrica e matrícula que o cadastro ainda não conhece.
+// Mapeamento é feito UMA vez por código/pessoa — do mês seguinte em diante o import passa direto.
+
+const vincularRubricaSchema = z
+  .object({
+    codigoExterno: z.string().regex(/^\d{3}$/, "Código do contador tem 3 dígitos."),
+    /** Vincular a uma rubrica que já existe… */
+    rubricaId: z.string().optional(),
+    /** …ou criar uma nova com este nome/tipo. */
+    nome: z.string().min(2).optional(),
+    tipo: z.enum(["provento", "desconto"]).optional(),
+  })
+  .refine((d) => Boolean(d.rubricaId) !== Boolean(d.nome && d.tipo), {
+    message: "Escolha uma rubrica existente OU informe nome e tipo da nova.",
+  });
+
+export const vincularRubricaExterna = defineAction(
+  { ...base, acao: "vincular-rubrica-externa", entidade: "RubricaFolha", schema: vincularRubricaSchema },
+  async (i) => {
+    // Vínculo errado tem que ter volta: se o RH apontar o código pra rubrica errada, o import
+    // recusa depois (a classificação não reproduz os totais do PDF) e ele precisa corrigir. Por
+    // isso o código MUDA de rubrica em vez de dar erro de "já vinculado" — recusar deixaria o
+    // código preso na rubrica errada, sem saída pela tela.
+    //
+    // Trocar o vínculo é seguro para o histórico: `HoleriteItem` guarda `tipo` e `descricao`
+    // próprios, copiados na gravação, e `fecharFolha` soma por `item.tipo` — holerite antigo
+    // não muda de sentido por causa disto (confirmado no schema e em `fecharFolha`).
+    const anterior = await prisma.rubricaFolha.findUnique({
+      where: { codigoExterno: i.codigoExterno },
+      select: { id: true, nome: true },
+    });
+
+    const rubrica = await prisma.$transaction(async (tx) => {
+      if (anterior && anterior.id !== i.rubricaId) {
+        await tx.rubricaFolha.update({ where: { id: anterior.id }, data: { codigoExterno: null } });
+      }
+      if (i.rubricaId) {
+        return tx.rubricaFolha.update({
+          where: { id: i.rubricaId },
+          data: { codigoExterno: i.codigoExterno },
+          select: { id: true, nome: true },
+        });
+      }
+      return tx.rubricaFolha.create({
+        data: { nome: i.nome!, tipo: i.tipo!, codigoExterno: i.codigoExterno },
+        select: { id: true, nome: true },
+      });
+    });
+
+    revalidatePath(PATH);
+    return { id: rubrica.id, nome: rubrica.nome, desvinculadaDe: anterior?.nome ?? null };
+  },
+);
+
+const vincularMatriculaSchema = z.object({
+  matriculaExterna: z.string().min(1),
+  userId: z.string().min(1),
+});
+
+export const vincularMatriculaExterna = defineAction(
+  { ...base, acao: "vincular-matricula-externa", entidade: "User", schema: vincularMatriculaSchema },
+  async (i) => {
+    // Mesma razão do vínculo de rubrica: apontar a matrícula pra pessoa errada precisa ter
+    // conserto pela tela. A matrícula é de UMA pessoa só (unique no banco), então corrigir é
+    // movê-la — o vínculo antigo cai, e a troca fica no AuditLog pelo `defineAction`.
+    const anterior = await prisma.user.findUnique({
+      where: { matriculaFolhaExterna: i.matriculaExterna },
+      select: { id: true, name: true },
+    });
+
+    const user = await prisma.$transaction(async (tx) => {
+      if (anterior && anterior.id !== i.userId) {
+        await tx.user.update({ where: { id: anterior.id }, data: { matriculaFolhaExterna: null } });
+      }
+      return tx.user.update({
+        where: { id: i.userId },
+        data: { matriculaFolhaExterna: i.matriculaExterna },
+        select: { id: true, name: true },
+      });
+    });
+
+    revalidatePath(PATH);
+    return { id: user.id, nome: user.name, desvinculadaDe: anterior && anterior.id !== i.userId ? anterior.name : null };
+  },
+);
