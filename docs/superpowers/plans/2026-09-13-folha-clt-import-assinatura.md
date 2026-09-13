@@ -194,7 +194,7 @@ lógica pura testada por dentro).
 | P1 | `parsearTextoFolha` puro + testes com os 4 PDFs reais como fixture de texto | Sonnet 5 — **entregue** |
 | P2 | Fluxo de pendência (rubrica/matrícula desconhecida) + commit transacional + checksum | Opus 5 — trava financeira, mesmo cuidado do F0a da Produção — **entregue** |
 | P3 | Assinatura (`assinarHolerite`, PDF, `minha-ficha`) | Sonnet 5 — espelha G5, já resolvido lá — **entregue** |
-| P4 | Gate de acesso obrigatório (`precisaAssinarHolerite` + `/assinar-holerite`) | Opus 5 — mexe no layout que todo usuário passa; erro aqui tranca o sistema inteiro |
+| P4 | Gate de acesso obrigatório (`precisaAssinarHolerite` + `/assinar-holerite`) | Opus 5 — mexe no layout que todo usuário passa; erro aqui tranca o sistema inteiro — **entregue** |
 | P5 | Indicador de pendência na tela de RH + lembrete | Sonnet 5 |
 | P6 | Manual (`docs/manual/rh/...`) | Sonnet 5 / Haiku 4.5 (redação) |
 
@@ -235,6 +235,32 @@ lógica pura testada por dentro).
   (`session.user.id === holerite.userId`) só foi provado contra `session.user` fabricado em teste.
   Antes de liberar pro uso real, confirmar manualmente que o funcionário A não consegue assinar o
   holerite do funcionário B.
+- **Data de corte da obrigatoriedade — o dono pode querer mexer antes do deploy:**
+  `ASSINATURA_HOLERITE_OBRIGATORIA_DESDE` (em `modules/rh/folha/queries.ts`) vale
+  `2026-09-13T15:00:00Z`, a data em que a migration criou a coluna `assinadoEm`. Antes disso
+  assinar era impossível, então nenhuma folha antiga tranca o acesso — sem isso, todo CLT cairia
+  numa fila com o histórico inteiro no primeiro login depois do deploy. **Só governa o bloqueio:**
+  holerite antigo continua assinável por vontade própria pela ficha (`assinarHolerite` não filtra
+  por data). Se o deploy demorar e o RH fechar folha nesse meio-tempo, essas folhas entram na
+  obrigatoriedade — se o dono preferir começar do zero, é só empurrar a constante pra frente.
+- **P4 entregue**: gate de acesso obrigatório. `precisaAssinarHolerite(user)` (consulta de layout:
+  `findFirst` + `select: {id:true}`, sem carregar item nenhum — medido em 0,55ms sem holerite e
+  0,80ms com) roda no `(dashboard)/layout.tsx` logo depois do gate do Termo de Uso e redireciona
+  pra `/assinar-holerite`. A tela vive no grupo `(auth)` (fora do layout do dashboard, sem loop) e
+  repete a MESMA cadeia de guardas do `/termo` — sessão → troca de senha → termo → pendências —
+  senão dava pra chegar nela pela URL e assinar antes de aceitar o termo. A fila mostra a tabela de
+  proventos/descontos/líquido do holerite (JSX, não o `renderHoleriteHtml`, que é HTML pro
+  puppeteer) + link do PDF, e usa caixa de confirmação no lugar de diálogo porque `(auth)` não tem
+  `<ConfirmProvider>` — `useConfirm` lançaria. Folha reaberta some da fila (volta a `aberta`): quem
+  teve assinatura revogada só é cobrado quando o RH fechar de novo. 8 testes novos
+  (`queries-assinatura.test.ts`), suíte em 284 arquivos/3085 testes; prova por mutação removendo o
+  filtro `fechadaEm` (exatamente os 2 testes do corte falharam, restaurado limpo); 14 cenários
+  contra o banco de dev (sem holerite, folha aberta, fechada antes do corte, fechada depois,
+  assinado, reaberta, custo) com resíduo conferido zerado por query independente. Achado do
+  `advisor()` corrigido antes do commit: a fila era um `useState` tirado no render, e erro de
+  assinatura não avançava o item — com a folha reaberta entre o render e o clique, a pessoa
+  repetiria o mesmo erro pra sempre numa tela cuja razão de existir é ser atravessada. Agora falha
+  também avança a fila, porque quem decide se ainda há pendência é o gate do layout, não a lista.
 - **P3 entregue**: `service.ts` (`renderHoleriteHtml`, puro, comentário no topo explica por que não
   tem hash de texto como o recibo — a integridade vem de só assinar com `folha.status === "fechada"`
   + `reabrirFolha` limpando assinatura ao reabrir, não de um snapshot). Nova action `assinarHolerite`

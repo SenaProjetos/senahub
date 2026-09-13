@@ -5,6 +5,7 @@ import { permissoesEfetivas } from "@/lib/permissao-efetiva";
 import { prisma } from "@/lib/prisma";
 import type { ContextoNav } from "@/lib/nav-config";
 import { precisaAceitarTermo } from "@/modules/legal/queries";
+import { precisaAssinarHolerite } from "@/modules/rh/folha/queries";
 import { PushManager } from "@/components/notificacoes/push-manager";
 import { AvisoProvider } from "@/components/notificacoes/aviso-provider";
 import { AcessoTracker } from "@/components/uso/acesso-tracker";
@@ -28,6 +29,11 @@ export default async function DashboardLayout({
   // requireUser já tratou a troca de senha pendente; o termo vem na sequência.
   // A tela /termo vive no grupo (auth), fora deste layout — sem loop de redirect.
   if (await precisaAceitarTermo(user)) redirect("/termo");
+
+  // Gate da assinatura do holerite: mesma mecânica do termo, e nesta ordem de propósito — termo
+  // primeiro (vale pra todo mundo), holerite depois (só quem tem folha fechada pendente).
+  // A tela /assinar-holerite também vive no grupo (auth), fora deste layout.
+  if (await precisaAssinarHolerite(user)) redirect("/assinar-holerite");
 
   const [iconesDisciplina, prefs] = await Promise.all([
     mapaIconesDisciplina(),
