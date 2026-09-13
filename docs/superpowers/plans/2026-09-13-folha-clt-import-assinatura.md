@@ -190,8 +190,8 @@ lógica pura testada por dentro).
 
 | Fase | O quê | Sugestão |
 | --- | --- | --- |
-| P0 | Schema (3 campos) + migration | Sonnet 5 — mecânico, specado |
-| P1 | `parsearFolhaPdf` puro + testes com os 4 PDFs reais como fixture de texto | Sonnet 5 |
+| P0 | Schema (3 campos) + migration | Sonnet 5 — mecânico, specado — **entregue** |
+| P1 | `parsearTextoFolha` puro + testes com os 4 PDFs reais como fixture de texto | Sonnet 5 — **entregue** |
 | P2 | Fluxo de pendência (rubrica/matrícula desconhecida) + commit transacional + checksum | Opus 5 — trava financeira, mesmo cuidado do F0a da Produção |
 | P3 | Assinatura (`assinarHolerite`, PDF, `minha-ficha`) | Sonnet 5 — espelha G5, já resolvido lá |
 | P4 | Gate de acesso obrigatório (`precisaAssinarHolerite` + `/assinar-holerite`) | Opus 5 — mexe no layout que todo usuário passa; erro aqui tranca o sistema inteiro |
@@ -212,3 +212,23 @@ lógica pura testada por dentro).
 - Nenhum PDF de dezembro/13º ainda visto — o parser pode precisar de ajuste quando esse mês
   chegar; não é motivo pra não implementar agora, é motivo pra não prometer suporte a 13º de
   cara.
+- **Risco de fragmentação de linha do `pdfjs-dist` (achado do advisor na P1), primeira coisa que
+  P2 precisa confirmar contra um PDF real:** `extrairTextoPdf` junta os itens de texto com `\n`
+  supondo 1 item por linha lógica — verdade nas 4 fixtures (texto colado à mão) e no smoke test
+  com `pdf-lib` (que também emite 1 item por linha por construção), mas o pdfjs real pode
+  fragmentar uma linha em vários itens (um por "corrida" de texto/fonte). Se isso acontecer com o
+  PDF de verdade, todo regex do parser erra silenciosamente pra "nenhum funcionário encontrado" —
+  não corrige o regex, agrupa os itens por posição Y (`item.transform[5]`) antes de juntar.
+- **P1 entregue** (commit a seguir): `src/modules/rh/folha/importar-pdf.ts` +
+  `importar-pdf.test.ts` (11 testes, 4 meses reais como fixture). `advisor()` achou e foram
+  corrigidos antes do commit: (1) linha de totais do funcionário nunca era cruzada contra as
+  rubricas dela — `checarChecksum` comparava `liquido` lido do PDF contra o próprio `liquido`
+  lido do PDF, checagem vazia contra rubrica mal capturada ou má classificação futura de
+  provento/desconto em P2 — corrigido com `reconciliarFuncionario` (força bruta 2^N nas
+  rubricas do funcionário, N pequeno); (2) competência lida só da data de início do período, sem
+  checar que início/fim caem no mesmo mês (rescisão/folha complementar quebraria a unique
+  `[ano,mes]` em silêncio); (3) resumo sem guarda contra a janela posicional deslizar (um 9º
+  total futuro empurraria a leitura toda uma casa) — corrigido com
+  `totalGeral - totalDescontos === totalLiquido` verificado na própria extração. Prova por
+  mutação: removida a chamada de `reconciliarFuncionario` de `checarChecksum`, rodada a suíte —
+  exatamente 1 dos 11 testes falhou como esperado — arquivo restaurado, `git diff` limpo depois.
