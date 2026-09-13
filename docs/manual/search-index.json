@@ -964,8 +964,8 @@
     {
       "titulo": "Folha CLT",
       "path": "rh-ponto/folha-clt.md",
-      "descricao": "Folhas de pagamento dos colaboradores CLT, com cálculo de encargos (INSS/IRRF).",
-      "resumo": "Gere e acompanhe as folhas de pagamento dos CLT; o sistema calcula encargos progressivos (INSS e IRRF).",
+      "descricao": "Folhas de pagamento dos colaboradores CLT — importação automática do PDF do contador, cálculo de encargos (INSS/IRRF) e assinatura obrigatória do holerite.",
+      "resumo": "Importe a folha direto do PDF do contador (ou gere à mão), acompanhe os holerites e a assinatura de cada colaborador; o sistema calcula encargos progressivos (INSS e IRRF).",
       "tags": [
         "folha",
         "clt",
@@ -973,7 +973,14 @@
         "encargos",
         "inss",
         "irrf",
-        "pagamento"
+        "pagamento",
+        "importar",
+        "assinatura",
+        "assinar",
+        "pdf",
+        "contador",
+        "rubrica",
+        "matrícula"
       ],
       "palavrasChave": [
         "folha",
@@ -984,12 +991,23 @@
         "inss",
         "irrf",
         "desconto",
-        "pagamento"
+        "pagamento",
+        "importar",
+        "importação",
+        "pdf",
+        "contador",
+        "assinatura",
+        "assinar",
+        "rubrica",
+        "matrícula",
+        "lembrete"
       ],
       "sinonimos": [
         "folha de pagamento",
         "holerite",
-        "payroll"
+        "payroll",
+        "assinatura do holerite",
+        "importar folha"
       ]
     },
     {

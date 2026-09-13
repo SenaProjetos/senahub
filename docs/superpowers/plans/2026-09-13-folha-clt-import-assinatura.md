@@ -196,12 +196,29 @@ lógica pura testada por dentro).
 | P3 | Assinatura (`assinarHolerite`, PDF, `minha-ficha`) | Sonnet 5 — espelha G5, já resolvido lá — **entregue** |
 | P4 | Gate de acesso obrigatório (`precisaAssinarHolerite` + `/assinar-holerite`) | Opus 5 — mexe no layout que todo usuário passa; erro aqui tranca o sistema inteiro — **entregue** |
 | P5 | Tela de import (upload/pendência/vínculo) + lembrete de assinatura | Sonnet 5 — **entregue** |
-| P6 | Manual (`docs/manual/rh/...`) | Sonnet 5 / Haiku 4.5 (redação) |
+| P6 | Manual (`docs/manual/rh-ponto/folha-clt.md`) | Sonnet 5 / Haiku 4.5 (redação) — **entregue** |
 
 ---
 
 ## 7. Riscos e pendências abertas
 
+- **As 6 fases (P0-P6) estão code-complete e commitadas em `feat/folha-clt-import`, mas
+  NENHUMA linha foi exercitada em navegador.** Toda verificação até aqui foi tsc/lint/testes
+  unitários/prova por mutação/script contra o banco de dev — nenhuma via sessão HTTP real. Antes
+  de considerar a feature pronta pro RH usar, falta smoke em navegador cobrindo, nesta ordem de
+  prioridade:
+  1. **`extrairTextoPdf` contra um PDF de verdade do contador, subindo pela tela.** É o item mais
+     caro da lista — os outros são bugs pontuais; este é "a feature inteira não funciona" se o
+     pdfjs fragmentar uma linha (ver risco abaixo, mitigação escrita mas não implementada).
+  2. As 4 telas do diálogo de import (escolher arquivo → pendência → resolver → reenviar) — a P5
+     já achou 2 bugs só de ler o código com cuidado, sinal de que pode haver um terceiro que só
+     aparece rodando de verdade.
+  3. O gate da P4 com sessão real: o redirect pra `/assinar-holerite` dispara, a fila mostra os
+     valores certos, drena até o dashboard.
+  4. O gate de titularidade da P3 com DUAS sessões reais (funcionário A não assina holerite de B).
+  5. O `useConfirm` do `reabrir()` mostrando a contagem certa de assinaturas que seriam revogadas.
+  6. Se qualquer passo tocar notificação (`lembrarAssinaturaHolerite` chama `notificar`), rodar sob
+     `npm run dev:server` — `npm run dev` não sobe pg-boss/Socket.io.
 - Rubrica nova não vista nos 4 meses de amostra (13º, férias em dinheiro, hora extra) — mitigado
   pelo cadastro obrigatório, não eliminado. Vai aparecer na prática assim que dezembro chegar.
 - `codigoExterno` único globalmente (decisão §0.2) — se a empresa trocar de contador ou abrir 2ª
@@ -235,6 +252,22 @@ lógica pura testada por dentro).
   (`session.user.id === holerite.userId`) só foi provado contra `session.user` fabricado em teste.
   Antes de liberar pro uso real, confirmar manualmente que o funcionário A não consegue assinar o
   holerite do funcionário B.
+- **P6 entregue**: `docs/manual/rh-ponto/folha-clt.md` (pasta real é `rh-ponto`, não `rh/` como o
+  §6 original dizia) ganhou seções de import (fluxo, pendência, vínculo que move, números que não
+  fecham) e de assinatura (lado do colaborador — fila obrigatória no próximo acesso, PDF, holerite
+  antigo continua opcional — e lado do RH — lembrete, reabrir apaga assinatura). `search-index.json`
+  atualizado com as tags/palavras-chave novas (importar, pdf, contador, assinatura, assinar,
+  rubrica, matrícula, lembrete) — conferido com um script contra `lerPaginaManual`/`buscarManual`
+  de verdade (não só lendo o markdown): página carrega, corpo tem as seções novas, busca por
+  palavra única acha "Folha CLT" pra cada termo novo (busca multi-palavra é substring literal da
+  frase inteira — comportamento pré-existente do buscador, não regressão desta página). Sem
+  entrada em `docs/manual/novidades.md`: nenhuma feature-irmã deste mesmo tipo (nem a refatoração
+  de Produção, já mergeada em `dev`) ganhou entrada lá ainda — aquele changelog em linguagem de
+  usuário parece ser escrito perto do deploy em produção, não na implementação. Achado do
+  `advisor()` corrigido antes do commit: o texto mandava o colaborador assinar holerite antigo em
+  "Minha conta" sem dizer onde fica — `/minha-ficha` não tem página nenhuma no manual (gap
+  pré-existente, fora do escopo desta fase criar), então a instrução precisa dizer "menu lateral"
+  pra quem procurar não ficar sem saída.
 - **Gap achado antes da P5, não coberto por nenhuma fase do §6 original:** P1/P2 só tinham
   backend (`parsearTextoFolha`, `importar-service.ts`, rota `/api/rh/folha/importar`) — não
   existia NENHUMA tela de upload/pendência, então ninguém conseguia usar o import pelo navegador.
