@@ -449,7 +449,7 @@ function CapaGrupo({
 }
 
 function CanalBtn({
-  c, sel, onSelect, indent, mostrarCodigo, isSilenciado, statusAtual, onSilenciar, onMarcarLido,
+  c, sel, onSelect, indent, mostrarCodigo, isSilenciado, statusAtual, isOnline, onSilenciar, onMarcarLido,
 }: {
   c: CanalListItem;
   sel: string | null;
@@ -458,6 +458,7 @@ function CanalBtn({
   mostrarCodigo?: boolean;
   isSilenciado?: boolean;
   statusAtual?: string;
+  isOnline?: boolean;
   onSilenciar?: () => void;
   onMarcarLido?: () => void;
 }) {
@@ -481,7 +482,13 @@ function CanalBtn({
           <div className="relative shrink-0">
             <AvatarUsuario nome={c.nome} image={c.outroUserImage} size="sm" className="size-6" />
             {c.outroUserId && statusAtual && (
-              <StatusDot status={statusAtual} className="absolute -right-0.5 -bottom-0.5 size-1.5" />
+              <StatusDot
+                status={statusAtual}
+                className={cn(
+                  "absolute -right-0.5 -bottom-0.5 size-1.5",
+                  !isOnline && "text-muted-foreground/40 fill-muted-foreground/40",
+                )}
+              />
             )}
           </div>
         ) : c.tipo === "grupo" ? (
@@ -2118,6 +2125,7 @@ export function ChatView({
                   onSelect={setSel}
                   isSilenciado={silenciados.has(c.id)}
                   statusAtual={c.outroUserId ? (statusUsuarios.get(c.outroUserId) ?? c.outroUserStatus ?? undefined) : undefined}
+                  isOnline={c.outroUserId ? online.has(c.outroUserId) : undefined}
                   onSilenciar={() => toggleSilenciar(c.id)}
                   onMarcarLido={() => marcarTudoLidoCanal(c.id)}
                 />
