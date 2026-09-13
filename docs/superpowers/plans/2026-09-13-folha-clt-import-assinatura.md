@@ -26,6 +26,11 @@
    gate que já existe pro Termo de Uso (`precisaAceitarTermo` em `(dashboard)/layout.tsx`, redireciona
    pra `/termo` fora do grupo autenticado) — aqui, `precisaAssinarHolerite` redireciona pra
    `/assinar-holerite` até não sobrar holerite fechado sem assinatura daquele usuário.
+4. **Imprimir/exportar em PDF, tanto holerite (CLT) quanto recibo (PJ) — pedido 2026-09-13.**
+   Lado PJ **já está pronto** (entregue no G5 da Produção, já mergeado em `dev`):
+   `/api/financeiro/recibos/[id]/pdf` + botão "PDF" em `meus-recibos.tsx` (self-service do
+   projetista) e em `recibos-section.tsx` (visão de quem gerencia). Nada novo a fazer ali. Lado
+   CLT é o que este plano cria — detalhado em §4.
 
 ---
 
@@ -137,9 +142,15 @@ lógica pura testada por dentro).
   acesso (abaixo), não por bloquear o fechamento da folha.
 - Nova action `assinarHolerite`: gate = `session.user.id === holerite.userId` (titular), só
   aceita se `folha.status === "fechada"`. Grava `assinadoEm` + `assinanteId`.
-- PDF do holerite: rota `GET /api/rh/holerite/[id]/pdf`, mesmo padrão de
-  `renderReciboHtml`/`/api/financeiro/recibos/[id]/pdf` (puppeteer-core, já no stack) — renderiza
-  assinado ou pendente. Serve tanto a visão do próprio funcionário quanto a do RH.
+- **PDF/impressão do holerite (pedido explícito 2026-09-13, mesmo padrão já entregue pro recibo
+  PJ):** rota `GET /api/rh/holerite/[id]/pdf`, mesmo `renderReciboHtml`/
+  `/api/financeiro/recibos/[id]/pdf` (puppeteer-core, já no stack) — renderiza assinado ou
+  pendente; abrir em nova aba deixa o navegador imprimir sem passo extra (mesma UX do recibo).
+  Botão "PDF" some em DOIS lugares, espelhando exatamente `meus-recibos.tsx`/`recibos-section.tsx`:
+  - **`minha-ficha`** (self-service, `holeritesDaPessoa`) — o funcionário baixa/imprime o próprio,
+    assinado ou não.
+  - **`/rh/folha/[id]`** — quem gerencia RH baixa/imprime o de qualquer colaborador da folha
+    (2ª via, conferência, entrega física a quem pedir).
 - **Gate de acesso obrigatório** (decisão §0.3) — mesma receita do Termo de Uso:
   ```ts
   // (dashboard)/layout.tsx, logo depois do gate de Termo de Uso já existente
