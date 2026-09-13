@@ -132,7 +132,13 @@ function CorrigirPagamentoButton({ p, onCorrigir }: { p: FolhaItem; onCorrigir: 
   const l = p.lancamento;
   const motivo = erroCorrecaoEfetivado(p.status, l && { status: l.status, conciliado: l.conciliado, parcial: l.parcial });
   return (
-    <Button size="sm" variant="ghost" onClick={() => (motivo ? toast.info(motivo) : onCorrigir(p))}>
+    <Button
+      size="sm"
+      variant="ghost"
+      disabled={Boolean(motivo)}
+      title={motivo ?? undefined}
+      onClick={() => onCorrigir(p)}
+    >
       <Pencil className="size-3.5" /> Corrigir pagamento
     </Button>
   );
@@ -140,7 +146,8 @@ function CorrigirPagamentoButton({ p, onCorrigir }: { p: FolhaItem; onCorrigir: 
 
 /**
  * Estorno (G1b) — ícone, ao lado de "Corrigir pagamento", porque é a ação rara e mais
- * grave das duas. Conciliado não estorna: o clique explica em vez de abrir o dialog.
+ * grave das duas. Conciliado não estorna: o botão fica desabilitado, com o motivo no title,
+ * em vez de clicável só pra explicar depois (mesmo ajuste do Corrigir).
  */
 function EstornarPagamentoButton({ p, onEstornar }: { p: FolhaItem; onEstornar: (p: FolhaItem) => void }) {
   const l = p.lancamento;
@@ -150,9 +157,10 @@ function EstornarPagamentoButton({ p, onEstornar }: { p: FolhaItem; onEstornar: 
       size="sm"
       variant="ghost"
       className="px-2 text-destructive"
-      title="Estornar pagamento"
+      disabled={Boolean(motivo)}
+      title={motivo ?? "Estornar pagamento"}
       aria-label="Estornar pagamento"
-      onClick={() => (motivo ? toast.info(motivo) : onEstornar(p))}
+      onClick={() => onEstornar(p)}
     >
       <Undo2 className="size-3.5" />
     </Button>
