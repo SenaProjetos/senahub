@@ -20,6 +20,8 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
+import { HoleriteLembreteButton } from "@/components/rh/holerite-lembrete-button";
+import { ImportarFolhaDialog } from "@/components/rh/folha/importar-folha-dialog";
 import { calcularEncargos, type Faixa } from "@/lib/encargos";
 import { brl } from "@/lib/utils";
 import {
@@ -176,6 +178,7 @@ export function FolhaDetalheView({
         <div className="flex flex-wrap gap-2">
           {aberta ? (
             <>
+              <ImportarFolhaDialog folhaId={folha.id} rubricas={rubricas} elegiveis={elegiveis} />
               <Button variant="outline" onClick={gerarAuto} disabled={pending}>
                 <Wand2 className="size-4" /> Gerar automático
               </Button>
@@ -240,6 +243,9 @@ export function FolhaDetalheView({
                   <GerarDocumentoButton modelos={modelosDoc} paramId="holeriteId" valor={h.id} variant="ghost" />
                   {h.enviadoEm && (
                     <StatusBadge tone="success">enviado</StatusBadge>
+                  )}
+                  {!aberta && !h.assinadoEm && (
+                    <HoleriteLembreteButton holeriteId={h.id} nome={h.user.name} />
                   )}
                   {!aberta && (
                     <StatusBadge tone={h.assinadoEm ? "success" : "warning"}>

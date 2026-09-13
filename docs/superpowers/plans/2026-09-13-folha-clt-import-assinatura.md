@@ -195,7 +195,7 @@ lógica pura testada por dentro).
 | P2 | Fluxo de pendência (rubrica/matrícula desconhecida) + commit transacional + checksum | Opus 5 — trava financeira, mesmo cuidado do F0a da Produção — **entregue** |
 | P3 | Assinatura (`assinarHolerite`, PDF, `minha-ficha`) | Sonnet 5 — espelha G5, já resolvido lá — **entregue** |
 | P4 | Gate de acesso obrigatório (`precisaAssinarHolerite` + `/assinar-holerite`) | Opus 5 — mexe no layout que todo usuário passa; erro aqui tranca o sistema inteiro — **entregue** |
-| P5 | Indicador de pendência na tela de RH + lembrete | Sonnet 5 |
+| P5 | Tela de import (upload/pendência/vínculo) + lembrete de assinatura | Sonnet 5 — **entregue** |
 | P6 | Manual (`docs/manual/rh/...`) | Sonnet 5 / Haiku 4.5 (redação) |
 
 ---
@@ -235,6 +235,39 @@ lógica pura testada por dentro).
   (`session.user.id === holerite.userId`) só foi provado contra `session.user` fabricado em teste.
   Antes de liberar pro uso real, confirmar manualmente que o funcionário A não consegue assinar o
   holerite do funcionário B.
+- **Gap achado antes da P5, não coberto por nenhuma fase do §6 original:** P1/P2 só tinham
+  backend (`parsearTextoFolha`, `importar-service.ts`, rota `/api/rh/folha/importar`) — não
+  existia NENHUMA tela de upload/pendência, então ninguém conseguia usar o import pelo navegador.
+  Perguntado ao dono, que confirmou incluir a tela na P5 (opção recomendada) em vez de adiar pra
+  uma fase futura indefinida.
+- **P5 entregue**: `ImportarFolhaDialog` (`components/rh/folha/importar-folha-dialog.tsx`), botão
+  "Importar PDF" na folha aberta. Fluxo bate com §3: escolhe o PDF → POST multipart → sem
+  pendência, some a tela e atualiza; com pendência, mostra cada rubrica/matrícula faltando com
+  vínculo a existente ou criação de nova, e reenvia o MESMO `File` em memória (decisão §0.1 — sem
+  escolher o arquivo de novo). Aviso de `desvinculadaDe` fica em destaque num banner que persiste
+  na tela (não só toast) enquanto o diálogo estiver aberto, atendendo a pendência de UI que já
+  estava anotada aqui. `lembrarAssinaturaHolerite` (mirror de `lembrarAssinaturaRecibo`) com botão
+  de sino em `folha-detalhe-view.tsx`, ao lado do badge assinado/pendente — mesmo cuidado de opt-out
+  já aplicado (toast avisa quando o funcionário desativou avisos de pagamento). Achados do
+  `advisor()` corrigidos antes do commit: (1) vincular uma rubrica pendente a uma EXISTENTE cujo
+  tipo diverge do sugerido pela aritmética do PDF não avisava nada — RH via "tudo resolvido",
+  reenviava, e `conferirClassificacao` recusava o arquivo inteiro sem apontar de volta pro vínculo
+  errado; agora a tela mostra o conflito na hora da escolha; (2) `res.json()` sem try/catch —
+  resposta não-JSON (corpo grande demais, redirect de auth, 502 do túnel) explodia dentro do
+  `useTransition` sem toast nenhum, deixando o botão parecendo travado. 5 testes novos
+  (`actions-lembrete.test.ts`), suíte em 285 arquivos/3090 testes, prova por mutação no filtro de
+  opt-out (removido `filtrarPorCategoria`, 1 teste falhou como esperado, restaurado limpo). Sem
+  script de banco de dev nesta fase — `lembrarAssinaturaHolerite` não tem invariante transacional,
+  e o resto da lógica (vincular, importar) já foi verificado contra o banco na P2. **A tela do
+  diálogo em si não tem teste automatizado** — este projeto não roda jsdom (`vitest.config.ts` é
+  ambiente node puro), então o fluxo de 4 estados (escolher → pendência → resolver → reenviar)
+  só foi conferido por leitura cuidadosa (achou os 2 bugs acima) — falta smoke em navegador.
+- **Risco não resolvido, o mais caro da lista pro dono saber antes do primeiro uso real:**
+  `extrairTextoPdf` nunca foi testado contra um PDF de verdade do contador — só contra texto
+  transcrito à mão (P1) e um PDF sintético gerado por `pdf-lib` (que não fragmenta linha por
+  construção). O `pdfjs-dist` real pode fragmentar uma linha em vários itens de texto por
+  fonte/corrida — se isso acontecer, o parser erra silenciosamente pra "nenhum funcionário
+  encontrado" na primeira tentativa real. Ver mitigação já anotada abaixo (agrupar por posição Y).
 - **Data de corte da obrigatoriedade — o dono pode querer mexer antes do deploy:**
   `ASSINATURA_HOLERITE_OBRIGATORIA_DESDE` (em `modules/rh/folha/queries.ts`) vale
   `2026-09-13T15:00:00Z`, a data em que a migration criou a coluna `assinadoEm`. Antes disso

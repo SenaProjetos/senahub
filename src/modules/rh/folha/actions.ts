@@ -7,6 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { HR_ADMIN_ROLES } from "@/lib/roles";
 import { smtpConfigurado } from "@/lib/mail";
 import { enviarEmailTemplate } from "@/lib/email-templates";
+import { notificar } from "@/lib/notificar";
+import { filtrarPorCategoria } from "@/modules/usuarios/preferencias/queries";
 import { calcularEncargos } from "@/lib/encargos";
 import { faixasPorTipo, deducaoDependente } from "@/modules/rh/encargos/queries";
 import { dependentesPorUsuario } from "@/modules/rh/funcionarios/queries";
@@ -405,5 +407,50 @@ export const assinarHolerite = defineAction(
     revalidatePath("/minha-ficha");
     revalidatePath(`${PATH}`);
     return { id: holerite.id };
+  },
+);
+
+const lembrarAssinaturaHoleriteSchema = z.object({ id: z.string().min(1) });
+
+/**
+ * Botão de RH pra cutucar quem ainda não assinou (espelha `lembrarAssinaturaRecibo`, achado do
+ * advisor aplicado de saída aqui: o toast precisa dizer se a pessoa desativou avisos, não afirmar
+ * "enviado" quando o canal estava fechado).
+ */
+export const lembrarAssinaturaHolerite = defineAction(
+  { ...base, acao: "lembrar-assinatura-holerite", entidade: "Holerite", schema: lembrarAssinaturaHoleriteSchema },
+  async (i) => {
+    const holerite = await prisma.holerite.findUnique({
+      where: { id: i.id },
+      select: {
+        id: true,
+        userId: true,
+        assinadoEm: true,
+        folha: { select: { status: true, ano: true, mes: true } },
+      },
+    });
+    if (!holerite) throw new ActionError("Holerite não encontrado.");
+    if (holerite.folha.status !== "fechada") {
+      throw new ActionError("Esta folha ainda não foi fechada — nada para lembrar.");
+    }
+    if (holerite.assinadoEm) throw new ActionError("Este holerite já foi assinado — não há o que lembrar.");
+
+    const liberados = await filtrarPorCategoria([holerite.userId], "pagamento");
+    const avisado = liberados.length > 0;
+    if (avisado) {
+      const competencia = `${String(holerite.folha.mes).padStart(2, "0")}/${holerite.folha.ano}`;
+      await notificar(
+        holerite.userId,
+        {
+          titulo: "Lembrete: holerite aguardando sua assinatura",
+          corpo: `O holerite de ${competencia} ainda não foi assinado — confira e assine na sua ficha.`,
+          href: "/minha-ficha",
+          tag: `holerite-lembrete-${holerite.id}-${Date.now()}`,
+        },
+        { categoria: "pagamento" },
+      );
+    }
+
+    return { id: holerite.id, avisado };
   },
 );
