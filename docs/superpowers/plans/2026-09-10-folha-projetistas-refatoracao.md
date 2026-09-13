@@ -653,3 +653,21 @@ Decisões do dono nesta fase (2026-09-12): recibo **individual E mensal**; assin
 ---
 
 **Bloco Sonnet (G6–G15) encerrado.** Junto com o bloco Opus (G1–G5) já entregue antes, todo o backlog aprovado (B1–B5, D31–D40) está implementado, testado e documentado. Pendências que seguem em aberto, não pedidas nesta rodada: smoke em navegador (checklist publicado, desatualizado desde antes do G1) e o merge de `feat/folha-projetistas` em `dev`.
+
+---
+
+**✅ Fora do backlog original — entregue 2026-09-12 (Sonnet 5): status de recibo (linha + aba dedicada).**
+
+Depois do encerramento do bloco Sonnet, o dono pediu mais quatro coisas pontuais, direto em tela: link de "Produção" no sidebar (grupo Financeiro, junto com "Folha CLT" que foi movido pra lá), o ícone de comprovante mudando de cor conforme tem/não tem anexo, os botões "Corrigir pagamento"/"Estornar" ficando desabilitados (em vez de clicáveis-e-depois-avisar) quando a ação não se aplica, e — o pedido maior — uma forma de acompanhar recibo gerado, já que "gerar" era **atirar e esquecer**: nada mostrava se o projetista assinou.
+
+Pro último pedido, apresentei 3 opções (indicador na linha / aba dedicada / as duas) via pergunta direta — o dono escolheu **as duas juntas**. Implementado:
+- `recibo/queries.ts`: `listarRecibos` (paginado, filtros `reciboStatus`/`reciboProjetistaId` — nomes DIFERENTES dos da aba Pagamentos de propósito, mesma razão do `loteId`/`folhaId` da G11: as duas abas leem a mesma URL) + `opcoesFiltroRecibos`.
+- `folha/queries.ts`: `comLancamentos` (compartilhada por `listarFolha`/`listarFolhaAgrupada` E `listarPagamentosDoLote`) ganhou o campo `recibos`, ativando o `recibosPorPagamento()` que existia desde a G5 sem nenhum consumidor.
+- Aba nova "Recibos" (`producao-abas.tsx` + `recibos-section.tsx` + `page.tsx`): filtro, resumo de pendentes (soma o recorte ignorando o filtro de status, mesmo padrão dos cards da aba Pagamentos), baixar PDF, lembrar projetista (`lembrarAssinaturaRecibo`, nova action).
+- `ReciboIndividualButton` (linha paga): sem recibo → gera; com recibo → mostra âmbar (pendente)/cinza (assinado) e leva pra aba Recibos filtrada por essa pessoa, em vez de duplicar ali o dialog de PDF/lembrete.
+
+**Dois achados do `advisor()`, corrigidos antes do commit:** (1) `listarRecibos` devolvia o sentinela interno `"todos"` como `filtros.status` quando não havia filtro, mas o componente usa `"__todos"` — o select de status abria em branco na primeira carga, e `Boolean(filtros.status)` nunca era `false` (mensagem de "vazio" sempre dizia "neste filtro", mesmo sem filtro nenhum). Corrigido: a função devolve `status: ""` no caso padrão, mantendo `"todos"` só internamente pro `where`. (2) `lembrarAssinaturaRecibo` chamava `notificar(..., {categoria: "pagamento"})` e sempre devolvia sucesso, mesmo quando o projetista tinha desligado essa categoria nas preferências — pra notificação original de geração isso é tolerável, mas pra um botão cuja função É a entrega, "lembrete enviado" seria uma afirmação falsa. Corrigido: a action agora chama `filtrarPorCategoria` ela mesma, devolve `{id, avisado}`, e o toast se ramifica.
+
+**Verificação:** `tsc`, `eslint`, suíte completa (279 arquivos, 3035 testes, sem teste novo — feature só verificada por tsc/eslint/scripts de banco), `smoke:sync-pagamento` 19/19. Dois scripts temporários em dev, apagados ao final: um cobrindo filtros/`opcoesFiltroRecibos`/sentinela de status/guarda do lembrete; outro criando de propósito um recibo mensal cobrindo um pagamento que já tinha recibo individual (cenário que o dev não tinha naturalmente) — confirmou que `recibosPorPagamento` retorna as 2 entradas e que `FolhaItem.recibos` reflete as duas, revertido no `finally`.
+
+Commit `e62aeca5`. Sidebar (`48b0f86b`), cor do comprovante (`24318bff`) e botões desabilitados (`880fd1b4`) já commitados antes, em separado.
