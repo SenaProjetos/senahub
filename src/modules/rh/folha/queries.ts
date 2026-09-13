@@ -38,6 +38,7 @@ export async function obterFolha(id: string) {
         include: {
           user: { select: { id: true, name: true, email: true, role: true } },
           itens: { orderBy: { descricao: "asc" } },
+          assinante: { select: { name: true } },
         },
         orderBy: { id: "asc" },
       },

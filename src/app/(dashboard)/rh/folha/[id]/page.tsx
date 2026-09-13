@@ -43,6 +43,8 @@ export default async function FolhaDetalhePage({
         holerites: folha.holerites.map((h) => ({
           id: h.id,
           enviadoEm: h.enviadoEm ? h.enviadoEm.toISOString() : null,
+          assinadoEm: h.assinadoEm ? h.assinadoEm.toISOString() : null,
+          assinanteNome: h.assinante?.name ?? null,
           user: { id: h.user.id, name: h.user.name, role: h.user.role },
           itens: h.itens.map((it) => ({
             id: it.id,

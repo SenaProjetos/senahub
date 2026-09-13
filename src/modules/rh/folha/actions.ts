@@ -208,7 +208,7 @@ export const reabrirFolha = defineAction(
     if (!folha) throw new ActionError("Folha não encontrada.");
     if (folha.status !== "fechada") throw new ActionError("Folha não está fechada.");
 
-    await prisma.$transaction(async (tx) => {
+    const assinaturasRevogadas = await prisma.$transaction(async (tx) => {
       await tx.folhaPagamento.update({
         where: { id: i.id },
         data: { status: "aberta", fechadaEm: null, lancamentoId: null },
@@ -216,11 +216,21 @@ export const reabrirFolha = defineAction(
       if (folha.lancamentoId) {
         await tx.lancamento.delete({ where: { id: folha.lancamentoId } }).catch(() => {});
       }
+      // Reabrir libera `salvarHolerite`/`removerHolerite` de novo (recusam com folha fechada) —
+      // quem já tinha assinado assinou um conjunto de itens que pode não ser mais o que fica
+      // gravado. Sem isto, o PDF mostraria "assinado" sobre itens potencialmente diferentes dos
+      // que a pessoa leu (mesma garantia que o recibo de produção dá com o hash do texto — aqui
+      // o holerite não tem texto fixo, então a garantia é esta).
+      const r = await tx.holerite.updateMany({
+        where: { folhaId: i.id, assinadoEm: { not: null } },
+        data: { assinadoEm: null, assinanteId: null },
+      });
+      return r.count;
     });
     revalidatePath(PATH);
     revalidatePath(`${PATH}/${i.id}`);
     revalidatePath("/financeiro/lancamentos");
-    return { id: i.id };
+    return { id: i.id, assinaturasRevogadas };
   },
 );
 
@@ -353,5 +363,47 @@ export const vincularMatriculaExterna = defineAction(
 
     revalidatePath(PATH);
     return { id: user.id, nome: user.name, desvinculadaDe: anterior && anterior.id !== i.userId ? anterior.name : null };
+  },
+);
+
+// ── Assinatura do holerite (P3 — espelha `assinarRecibo`, G5 da Produção) ─────────────────────
+
+const assinarHoleriteSchema = z.object({ id: z.string().min(1) });
+
+/**
+ * Assinatura eletrônica do funcionário, dentro do sistema. Não trava o pagamento (a folha já
+ * fechou antes disso existir) — mas é obrigatória a médio prazo via o gate de acesso
+ * (`precisaAssinarHolerite`, P4), não por bloquear nada aqui.
+ */
+export const assinarHolerite = defineAction(
+  {
+    modulo: "rh",
+    acao: "assinar-holerite",
+    entidade: "Holerite",
+    schema: assinarHoleriteSchema,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
+  },
+  async (i, { user }) => {
+    const holerite = await prisma.holerite.findUnique({
+      where: { id: i.id },
+      select: { id: true, userId: true, assinadoEm: true, folha: { select: { status: true } } },
+    });
+    if (!holerite) throw new ActionError("Holerite não encontrado.");
+    if (holerite.userId !== user.id) throw new ActionError("Só o próprio funcionário assina o holerite dele.");
+    if (holerite.folha.status !== "fechada") {
+      throw new ActionError("Este holerite ainda não foi fechado — nada para assinar.");
+    }
+    if (holerite.assinadoEm) throw new ActionError("Este holerite já foi assinado.");
+
+    // `assinadoEm: null` na condição: dois cliques simultâneos não geram duas assinaturas.
+    const assinado = await prisma.holerite.updateMany({
+      where: { id: holerite.id, assinadoEm: null },
+      data: { assinadoEm: new Date(), assinanteId: user.id },
+    });
+    if (assinado.count === 0) throw new ActionError("Este holerite já foi assinado.");
+
+    revalidatePath("/minha-ficha");
+    revalidatePath(`${PATH}`);
+    return { id: holerite.id };
   },
 );

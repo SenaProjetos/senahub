@@ -19,6 +19,7 @@ import type { ContaColaborador } from "@/modules/rh/contas/queries";
 import { DependentesEditor } from "@/components/rh/dependentes-editor";
 import { DocumentosEditor } from "@/components/rh/documentos-editor";
 import { OverridesUsuario, type OverrideItem } from "@/components/rh/overrides-usuario";
+import { HoleriteAssinaturaCell } from "@/components/rh/holerite-assinatura-cell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -535,7 +536,8 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                           <th className="py-2 pr-3 font-medium">Proventos</th>
                           <th className="py-2 pr-3 font-medium">Descontos</th>
                           <th className="py-2 pr-3 font-medium">Líquido</th>
-                          <th className="py-2 font-medium">Situação</th>
+                          <th className="py-2 pr-3 font-medium">Situação</th>
+                          <th className="py-2 font-medium">Assinatura</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -553,11 +555,20 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                             <td className="py-2 pr-3">{brl(h.proventos)}</td>
                             <td className="py-2 pr-3 text-destructive">{brl(h.descontos)}</td>
                             <td className="py-2 pr-3 font-medium">{brl(h.liquido)}</td>
-                            <td className="py-2">
+                            <td className="py-2 pr-3">
                               <span className={h.status === "fechada" ? "text-success" : "text-warning"}>
                                 {h.status === "fechada" ? "Fechada" : "Aberta"}
                               </span>
                               {h.enviadoEm && <span className="text-muted-foreground"> · enviado</span>}
+                            </td>
+                            <td className="py-2">
+                              <HoleriteAssinaturaCell
+                                holeriteId={h.id}
+                                status={h.status}
+                                assinadoEm={h.assinadoEm}
+                                assinanteNome={h.assinanteNome}
+                                self={self}
+                              />
                             </td>
                           </tr>
                         ))}

@@ -335,6 +335,8 @@ export async function holeritesDaPessoa(
     select: {
       id: true,
       enviadoEm: true,
+      assinadoEm: true,
+      assinante: { select: { name: true } },
       folha: { select: { id: true, ano: true, mes: true, status: true, fechadaEm: true } },
       itens: { select: { tipo: true, valor: true } },
     },
@@ -354,6 +356,8 @@ export async function holeritesDaPessoa(
       status: h.folha.status,
       fechadaEm: h.folha.fechadaEm?.toISOString() ?? null,
       enviadoEm: h.enviadoEm?.toISOString() ?? null,
+      assinadoEm: h.assinadoEm?.toISOString() ?? null,
+      assinanteNome: h.assinante?.name ?? null,
       proventos,
       descontos,
       liquido: proventos - descontos,

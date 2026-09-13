@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Lock, Unlock, Mail, Pencil, Wand2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Lock, Unlock, Mail, Pencil, Wand2, Download } from "lucide-react";
 import {
   salvarHolerite,
   removerHolerite,
@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { calcularEncargos, type Faixa } from "@/lib/encargos";
 import { brl } from "@/lib/utils";
@@ -47,6 +48,8 @@ type Item = {
 type HoleriteT = {
   id: string;
   enviadoEm: string | null;
+  assinadoEm: string | null;
+  assinanteNome: string | null;
   user: { id: string; name: string; role: string };
   itens: Item[];
 };
@@ -82,6 +85,7 @@ export function FolhaDetalheView({
   dependentesPorUser: Record<string, number>;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, start] = useTransition();
   const [editor, setEditor] = useState<{ userId: string; nome: string; itens: Item[] } | null>(null);
   const [preview, setPreview] = useState(false);
@@ -110,10 +114,23 @@ export function FolhaDetalheView({
     });
   }
   function reabrir() {
+    const assinados = folha.holerites.filter((h) => h.assinadoEm).length;
     start(async () => {
+      if (assinados > 0) {
+        const ok = await confirm({
+          title: "Reabrir folha",
+          description: `${assinados} holerite(s) já assinado(s) por quem recebeu. Reabrir a folha apaga essas assinaturas — cada pessoa vai precisar assinar de novo depois que a folha for fechada outra vez.`,
+          confirmLabel: "Reabrir mesmo assim",
+        });
+        if (!ok) return;
+      }
       const r = await reabrirFolha({ id: folha.id });
       if (r.ok) {
-        toast.success("Folha reaberta — lançamento removido.");
+        toast.success(
+          r.data.assinaturasRevogadas > 0
+            ? `Folha reaberta — lançamento removido e ${r.data.assinaturasRevogadas} assinatura(s) revogada(s).`
+            : "Folha reaberta — lançamento removido.",
+        );
         router.refresh();
       } else toast.error(r.error);
     });
@@ -215,9 +232,19 @@ export function FolhaDetalheView({
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base">{h.user.name}</CardTitle>
                 <div className="flex items-center gap-1">
+                  {!aberta && (
+                    <Button size="sm" variant="ghost" render={<a href={`/api/rh/holerite/${h.id}/pdf`} target="_blank" rel="noreferrer" />}>
+                      <Download className="size-3.5" /> PDF
+                    </Button>
+                  )}
                   <GerarDocumentoButton modelos={modelosDoc} paramId="holeriteId" valor={h.id} variant="ghost" />
                   {h.enviadoEm && (
                     <StatusBadge tone="success">enviado</StatusBadge>
+                  )}
+                  {!aberta && (
+                    <StatusBadge tone={h.assinadoEm ? "success" : "warning"}>
+                      {h.assinadoEm ? "assinado" : "assinatura pendente"}
+                    </StatusBadge>
                   )}
                   {aberta && (
                     <>

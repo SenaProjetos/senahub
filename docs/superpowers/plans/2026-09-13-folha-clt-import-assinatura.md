@@ -193,7 +193,7 @@ lógica pura testada por dentro).
 | P0 | Schema (3 campos) + migration | Sonnet 5 — mecânico, specado — **entregue** |
 | P1 | `parsearTextoFolha` puro + testes com os 4 PDFs reais como fixture de texto | Sonnet 5 — **entregue** |
 | P2 | Fluxo de pendência (rubrica/matrícula desconhecida) + commit transacional + checksum | Opus 5 — trava financeira, mesmo cuidado do F0a da Produção — **entregue** |
-| P3 | Assinatura (`assinarHolerite`, PDF, `minha-ficha`) | Sonnet 5 — espelha G5, já resolvido lá |
+| P3 | Assinatura (`assinarHolerite`, PDF, `minha-ficha`) | Sonnet 5 — espelha G5, já resolvido lá — **entregue** |
 | P4 | Gate de acesso obrigatório (`precisaAssinarHolerite` + `/assinar-holerite`) | Opus 5 — mexe no layout que todo usuário passa; erro aqui tranca o sistema inteiro |
 | P5 | Indicador de pendência na tela de RH + lembrete | Sonnet 5 |
 | P6 | Manual (`docs/manual/rh/...`) | Sonnet 5 / Haiku 4.5 (redação) |
@@ -224,6 +224,35 @@ lógica pura testada por dentro).
   quem perdeu o vínculo. A tela **tem** que mostrar isso em destaque na confirmação — mover
   matrícula é desatar uma pessoa da identidade de folha dela, e o operador precisa ver que isso
   aconteceu (o `AuditLog` já registra; o que falta é o humano enxergar na hora).
+- **Pergunta aberta pra quando o RH testar (achado do advisor na P3, ainda sem decisão):** o PDF do
+  holerite hoje é só a tabela de rubricas + linha de assinatura — sem CNPJ/razão social/período por
+  extenso. Pra uso interno tá bom; se o funcionário for levar pra um banco ou virar peça de reclamação
+  trabalhista, pode precisar de identificação do empregador (o PDF do próprio contador tem esse
+  cabeçalho por esse motivo). Não implementado a cegas — perguntar antes de mexer em
+  `renderHoleriteHtml`.
+- **Checklist de smoke em navegador (achado do advisor na P3):** nenhum teste automatizado (mock ou
+  banco real) passa por uma sessão HTTP de verdade — o gate de titularidade de `assinarHolerite`
+  (`session.user.id === holerite.userId`) só foi provado contra `session.user` fabricado em teste.
+  Antes de liberar pro uso real, confirmar manualmente que o funcionário A não consegue assinar o
+  holerite do funcionário B.
+- **P3 entregue**: `service.ts` (`renderHoleriteHtml`, puro, comentário no topo explica por que não
+  tem hash de texto como o recibo — a integridade vem de só assinar com `folha.status === "fechada"`
+  + `reabrirFolha` limpando assinatura ao reabrir, não de um snapshot). Nova action `assinarHolerite`
+  (gate por titularidade, sem `recurso` — mesmo modelo de acesso de `minha-ficha`, não o do recibo).
+  `reabrirFolha` agora roda em transação e zera `assinadoEm`/`assinanteId` de quem já tinha assinado,
+  devolvendo `assinaturasRevogadas`. Rota `GET /api/rh/holerite/[id]/pdf` (mesmo padrão puppeteer-core
+  do recibo). UI: `HoleriteAssinaturaCell` em `pessoa-360-view.tsx` (self-service) e botão de
+  PDF + badge assinado/pendente em `folha-detalhe-view.tsx` (RH). 7 testes novos
+  (`actions-assinatura.test.ts`), suíte completa em 283 arquivos/3077 testes. Prova por mutação:
+  removida a limpeza de assinatura de `reabrirFolha`, rodados os 7 testes — exatamente 1 falhou como
+  esperado, arquivo restaurado, `git diff` limpo depois. Verificado contra o banco de dev com script
+  temporário (6 cenários: folha aberta não deixa assinar, fechar de verdade, assinar de verdade,
+  corrida de 2 cliques recusada, PDF mostra "assinado eletronicamente", reabrir limpa a assinatura no
+  banco) — resíduo conferido zerado por query independente depois, script apagado. Achado do
+  `advisor()` corrigido antes do commit: `reabrirFolha` revogava assinatura em silêncio — a tela não
+  avisava nem antes (RH decidindo se reabre) nem depois (quantas foram derrubadas). Agora `reabrir()`
+  mostra um `useConfirm` com a contagem de assinados quando há algum, e o toast final informa quantas
+  assinaturas foram revogadas.
 - **P2 entregue** (commit a seguir): `importar-service.ts` (análise + aplicação), rota multipart
   `/api/rh/folha/importar`, e as actions `vincularRubricaExterna`/`vincularMatriculaExterna`.
   Verificado contra o banco de dev com script temporário (apagado ao final, resíduo conferido
