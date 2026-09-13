@@ -36,11 +36,11 @@ O que você vê no financeiro depende de **3 níveis**:
 | [Aprovações (alçadas)](aprovacoes.md) | `/financeiro/aprovacoes` | ✅ documentado |
 | [Relatórios gerenciais](relatorios.md) | `/financeiro/relatorios` e afins | ✅ documentado |
 | [Estúdio de Documentos](estudio-documentos.md) | `/documentos` | ✅ documentado |
+| [Produção (pagamento de projetistas)](producao.md) | `/financeiro/folha-projetistas` | ✅ documentado |
 
 ### Ainda a documentar (rodada futura)
-Folha de projetistas (`/financeiro/folha-projetistas`), Planejamento de pagamentos
-(`/financeiro/planejamento`), Fechamento mensal (`/financeiro/fechamento`), Cadastros
-(`/financeiro/cadastros`), Configurações (`/financeiro/configuracoes`) e os documentos
-financeiros (`/financeiro/documentos`).
+Planejamento de pagamentos (`/financeiro/planejamento`), Fechamento mensal
+(`/financeiro/fechamento`), Cadastros (`/financeiro/cadastros`), Configurações
+(`/financeiro/configuracoes`) e os documentos financeiros (`/financeiro/documentos`).
 
 [← Índice do manual](../README.md)

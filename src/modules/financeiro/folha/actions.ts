@@ -4,16 +4,31 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@/generated/prisma/client";
-import { notificar } from "@/lib/notificar";
+import { notificar, notificarMuitos } from "@/lib/notificar";
+import { removerArquivo } from "@/lib/storage";
 import { confirmarDespesaProjetista, criarDespesaProjetistaPrevista } from "@/modules/financeiro/custo/lancamento-custo";
 import { sincronizarValorDisciplina } from "@/modules/uploads/pagamento";
+import { recalcularTotalFolha } from "@/modules/financeiro/folha-lote/service";
+import type { Prisma } from "@/generated/prisma/client";
+import {
+  MSG_PAGAMENTO_SEM_VALOR,
+  erroTransicao,
+  erroCorrecaoEfetivado,
+  erroCorrecaoConciliada,
+  erroEstornoEfetivado,
+  mudouDataPagamento,
+  quandoDoPagamento,
+  separarPagaveis,
+  temValorPagavel,
+} from "@/modules/financeiro/folha/service";
+import { contaPagamento, dataPagamento, formaPagamento } from "@/modules/financeiro/folha/schemas";
 
 const pagarSchema = z.object({
   id: z.string().min(1),
-  contaId: z.string().optional().or(z.literal("")),
-  formaId: z.string().optional().or(z.literal("")),
-  data: z.string().optional().or(z.literal("")),
+  // F5 (N3): conta obrigatória — antes opcional, o que deixava lançamento confirmado sem conta.
+  contaId: contaPagamento,
+  formaId: formaPagamento,
+  data: dataPagamento,
 });
 
 /**
@@ -41,11 +56,21 @@ export const pagarProjetista = defineAction(
       },
     });
     if (!pag) throw new ActionError("Pagamento não encontrado.");
-    if (pag.status === "pago") throw new ActionError("Pagamento já efetivado.");
+    const bloqueio = erroTransicao("pagar", pag.status);
+    if (bloqueio) throw new ActionError(bloqueio);
+    if (!temValorPagavel(pag.valor)) throw new ActionError(MSG_PAGAMENTO_SEM_VALOR);
 
-    const quando = i.data ? new Date(i.data) : new Date();
+    const quando = quandoDoPagamento(i.data);
 
-    await prisma.$transaction(async (tx) => {
+    const lancamentoId = await prisma.$transaction(async (tx) => {
+      // Reserva antes de gerar o lançamento (mesmo padrão de `pagarProjetistasSelecionados`):
+      // outro caminho que pagou esta linha entre a leitura e aqui deixa 0 linhas e aborta.
+      const reserva = await tx.pagamentoProjetista.updateMany({
+        where: { id: pag.id, status: "pendente" },
+        data: { status: "pago", pagoEm: quando },
+      });
+      if (reserva.count === 0) throw new ActionError("Pagamento já efetivado ou cancelado — atualize a tela.");
+
       const lancamentoId = await confirmarDespesaProjetista(
         tx,
         {
@@ -58,12 +83,10 @@ export const pagarProjetista = defineAction(
           projetoId: pag.disciplina.projetoId,
           projetoCodigo: pag.disciplina.projeto.codigo,
         },
-        { contaId: i.contaId || null, formaId: i.formaId || null, quando, autorId: user.id },
+        { contaId: i.contaId, formaId: i.formaId || null, quando, autorId: user.id },
       );
-      await tx.pagamentoProjetista.update({
-        where: { id: pag.id },
-        data: { status: "pago", pagoEm: quando, lancamentoId },
-      });
+      await tx.pagamentoProjetista.update({ where: { id: pag.id }, data: { lancamentoId } });
+      return lancamentoId;
     });
 
     await notificar(pag.projetista.id, {
@@ -76,29 +99,140 @@ export const pagarProjetista = defineAction(
     revalidatePath("/financeiro/folha-projetistas");
     revalidatePath("/financeiro/lancamentos");
     revalidatePath("/financeiro/fluxo-caixa");
-    return { id: pag.id };
+    // `lancamentoId` sai daqui pro dialog oferecer "anexar comprovante" (F8/D26) sem 2ª
+    // busca — o pagamento individual sempre tem exatamente um lançamento nesse ponto.
+    return { id: pag.id, lancamentoId };
   },
 );
 
-/** Recalcula `FolhaProjetista.total` (agregado gravado) excluindo cancelados. */
-async function recalcularTotalFolha(tx: Prisma.TransactionClient, folhaId: string) {
-  const agg = await tx.pagamentoProjetista.aggregate({
-    where: { folhaId, status: { not: "cancelado" } },
-    _sum: { valor: true },
+const anexarComprovanteSchema = z.object({
+  lancamentoId: z.string().min(1),
+  meta: z.object({
+    caminho: z.string().min(1),
+    nome: z.string().min(1),
+    mime: z.string().min(1),
+    tamanho: z.number().int().nonnegative(),
+  }),
+});
+
+/**
+ * Anexa o comprovante ao lançamento de um pagamento de produção (F8/D26). Escopo estreito
+ * de propósito (decisão do dono, opção A): mesma tabela e mesma mecânica de
+ * `adicionarAnexoLancamento` (`lancamentos/actions.ts`), mas gated `folha_pj` — não
+ * `financeiro:gerir`, que abriria anexo em QUALQUER lançamento do sistema pra quem só tem
+ * acesso à Produção (o mesmo recorte que a F4 fez de propósito, 2026-09-02). A guarda real
+ * é o `pagamentoProjetistaId` checado abaixo: `folha_pj` só anexa em lançamento que veio de
+ * um pagamento de projetista, mesmo que alguém tente passar o id de outro lançamento.
+ */
+export const anexarComprovantePagamento = defineAction(
+  {
+    modulo: "financeiro",
+    acao: "anexar-comprovante-pagamento",
+    recurso: "financeiro",
+    permissao: "folha_pj",
+    entidade: "LancamentoAnexo",
+    schema: anexarComprovanteSchema,
+  },
+  async (i, { user }) => {
+    const lanc = await prisma.lancamento.findUnique({
+      where: { id: i.lancamentoId },
+      select: { pagamentoProjetistaId: true },
+    });
+    if (!lanc) throw new ActionError("Lançamento não encontrado.");
+    if (!lanc.pagamentoProjetistaId) {
+      throw new ActionError("Este lançamento não é de um pagamento de produção.");
+    }
+    const a = await prisma.lancamentoAnexo.create({
+      data: {
+        lancamentoId: i.lancamentoId,
+        caminho: i.meta.caminho,
+        nome: i.meta.nome,
+        mime: i.meta.mime,
+        tamanho: i.meta.tamanho,
+        autorId: user.id,
+      },
+    });
+    revalidatePath("/financeiro/folha-projetistas");
+    revalidatePath("/financeiro/lancamentos");
+    return { id: a.id };
+  },
+);
+
+/**
+ * Comprovantes de um lançamento de produção (G6/B3) — para o dialog de gerenciar, fora do
+ * fluxo de pagar. Mesma mecânica de leitura de `pagamentosDoLote` (fora de `defineAction`:
+ * é busca, não mutação; `AuditLog` a cada abrir o dialog não teria "o quê mudou" pra
+ * registrar). `{ok:false}` na falta de permissão ou lançamento fora de escopo — nunca `[]`,
+ * que mentiria "sem comprovante" para um lançamento que a pessoa nem devia ver.
+ */
+export async function comprovantesDoLancamento(
+  lancamentoId: string,
+): Promise<{ ok: true; anexos: { id: string; nome: string; tamanho: number; createdAt: Date }[] } | { ok: false }> {
+  const { requireUser } = await import("@/lib/session");
+  const { can } = await import("@/lib/permissions");
+  const user = await requireUser();
+  if (!(await can(user, "financeiro", "folha_pj"))) return { ok: false };
+
+  const lanc = await prisma.lancamento.findUnique({
+    where: { id: lancamentoId },
+    select: { pagamentoProjetistaId: true },
   });
-  await tx.folhaProjetista.update({ where: { id: folhaId }, data: { total: agg._sum.valor ?? 0 } });
+  if (!lanc?.pagamentoProjetistaId) return { ok: false };
+
+  const anexos = await prisma.lancamentoAnexo.findMany({
+    where: { lancamentoId },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, nome: true, tamanho: true, createdAt: true },
+  });
+  return { ok: true, anexos };
 }
+
+/**
+ * Remove um comprovante de pagamento de produção (G6/B3) — par simétrico de
+ * `anexarComprovantePagamento`, que ficou de fora do corte da F8 por falta de UI que o
+ * chamasse. Mesma guarda de escopo: só alcança anexo de um lançamento com
+ * `pagamentoProjetistaId`, mesmo que quem chame tenha adivinhado o id de outro anexo.
+ */
+export const removerComprovantePagamento = defineAction(
+  {
+    modulo: "financeiro",
+    acao: "remover-comprovante-pagamento",
+    recurso: "financeiro",
+    permissao: "folha_pj",
+    entidade: "LancamentoAnexo",
+    schema: z.object({ id: z.string().min(1) }),
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
+  },
+  async (i) => {
+    const a = await prisma.lancamentoAnexo.findUnique({
+      where: { id: i.id },
+      select: { caminho: true, lancamento: { select: { pagamentoProjetistaId: true } } },
+    });
+    if (!a) throw new ActionError("Anexo não encontrado.");
+    if (!a.lancamento.pagamentoProjetistaId) {
+      throw new ActionError("Este anexo não é de um pagamento de produção.");
+    }
+    await prisma.lancamentoAnexo.delete({ where: { id: i.id } });
+    await removerArquivo(a.caminho);
+    revalidatePath("/financeiro/folha-projetistas");
+    revalidatePath("/financeiro/lancamentos");
+    return { id: i.id };
+  },
+);
 
 const editarValorSchema = z.object({
   id: z.string().min(1),
   valor: z.number().positive("Informe um valor maior que zero."),
+  // Ausente = não mexe; string vazia = apaga a observação.
+  observacao: z.string().trim().max(500, "Observação com no máximo 500 caracteres.").optional(),
 });
 
 /**
- * Corrige o valor de um pagamento PENDENTE direto na folha — a rota de conserto para
- * as linhas de R$ 0,00 que já existem em produção (disciplinas concluídas sem valor
- * antes do gate de aprovação existir). Sincroniza o lançamento previsto (cria quando
- * falta, como nessas linhas) e o total do lote, se houver.
+ * Corrige o valor de um pagamento PENDENTE direto na folha — a rota de conserto para as
+ * linhas de R$ 0,00 que já existem em produção (disciplinas concluídas sem valor antes do
+ * gate de aprovação existir). Sincroniza o lançamento previsto (cria quando falta, como
+ * nessas linhas) e o total do lote, se houver. Também grava a `observacao` do pagamento
+ * (F2 — o campo existia no schema e nenhuma tela o lia ou escrevia).
  *
  * Zerar não é uma opção aqui — valor > 0 é exigido pelo schema; para zerar, cancele.
  */
@@ -115,7 +249,7 @@ export const editarPagamentoProjetista = defineAction(
     capturarAntes: (input) =>
       prisma.pagamentoProjetista.findUnique({
         where: { id: input.id },
-        select: { valor: true, status: true },
+        select: { valor: true, status: true, observacao: true },
       }),
   },
   async (input, { user }) => {
@@ -127,16 +261,17 @@ export const editarPagamentoProjetista = defineAction(
       },
     });
     if (!pag) throw new ActionError("Pagamento não encontrado.");
-    if (pag.status !== "pendente") {
-      throw new ActionError(
-        pag.status === "pago"
-          ? "Este pagamento já foi efetivado — o valor não pode mais ser alterado."
-          : "Este pagamento foi cancelado — o valor não pode mais ser alterado.",
-      );
-    }
+    const bloqueio = erroTransicao("editar", pag.status);
+    if (bloqueio) throw new ActionError(bloqueio);
 
     await prisma.$transaction(async (tx) => {
-      await tx.pagamentoProjetista.update({ where: { id: pag.id }, data: { valor: input.valor } });
+      await tx.pagamentoProjetista.update({
+        where: { id: pag.id },
+        data: {
+          valor: input.valor,
+          ...(input.observacao !== undefined ? { observacao: input.observacao || null } : {}),
+        },
+      });
 
       if (pag.lancamentoId) {
         await tx.lancamento.updateMany({
@@ -171,6 +306,283 @@ export const editarPagamentoProjetista = defineAction(
   },
 );
 
+const corrigirEfetivadoSchema = z.object({
+  id: z.string().min(1),
+  valor: z.number().positive("Informe um valor maior que zero."),
+  contaId: contaPagamento,
+  formaId: formaPagamento,
+  // Obrigatória aqui (no pagar, vazio = hoje): a correção sempre parte da data já gravada.
+  data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Informe a data do pagamento."),
+  observacao: z.string().trim().max(500, "Observação com no máximo 500 caracteres.").optional(),
+  justificativa: z
+    .string()
+    .trim()
+    .min(10, "Explique o motivo da correção (mínimo 10 caracteres).")
+    .max(500, "Justificativa com no máximo 500 caracteres."),
+});
+
+/**
+ * Lançamento de um pagamento: pelo `lancamentoId` do pagamento e, sem ele, pelo
+ * `pagamentoProjetistaId` do lançamento — mesma precedência de `comLancamentos` e de
+ * `confirmarDespesaProjetista` (não há FK entre as tabelas, só as duas colunas soltas).
+ * `excluidoEm: null` explícito: o filtro automático de soft delete não cobre toda leitura.
+ */
+async function lancamentoDoPagamento(db: Prisma.TransactionClient, pag: { id: string; lancamentoId: string | null }) {
+  const select = {
+    id: true,
+    status: true,
+    valor: true,
+    valorEfetivo: true,
+    contaId: true,
+    formaId: true,
+    dataConfirmacao: true,
+    // G1a: valor/conta/data do extrato — a correção de uma linha conciliada tem de bater
+    // com a transação, e é dela que sai a `dataConfirmacao` nesse caso.
+    transacao: { select: { id: true, valor: true, contaId: true, data: true } },
+  } satisfies Prisma.LancamentoSelect;
+  const porId = pag.lancamentoId
+    ? await db.lancamento.findFirst({ where: { id: pag.lancamentoId, excluidoEm: null }, select })
+    : null;
+  return porId ?? db.lancamento.findFirst({ where: { pagamentoProjetistaId: pag.id, excluidoEm: null }, select });
+}
+
+/**
+ * Corrige um pagamento JÁ efetivado (F11/D27, decisão N6): valor, conta, forma, data e
+ * observação, com justificativa obrigatória — que vai para o `AuditLog` junto com o input
+ * (`detalhe.novo`), ao lado do estado anterior dos DOIS lados (`capturarAntes`).
+ *
+ * Regra em `erroCorrecaoEfetivado`: só `pago`, com lançamento confirmado, sem baixa parcial
+ * e nunca conciliado com o extrato. `editarPagamentoProjetista` segue só para pendentes —
+ * esta é outra porta, não um afrouxamento daquela.
+ *
+ * Mantém as mesmas cargas estruturais da edição de pendente (§5 do plano): total do lote e
+ * `sincronizarValorDisciplina` — "pool = soma dos vivos" inclui os pagos.
+ */
+export const corrigirPagamentoEfetivado = defineAction(
+  {
+    modulo: "financeiro",
+    acao: "corrigir-pagamento-efetivado",
+    recurso: "financeiro",
+    // G2/D37: desfazer o que já foi pago é outro poder que pagar. Semeado para quem tinha
+    // `folha_pj` (migration 20260912120000), então ninguém perdeu acesso ao separar.
+    permissao: "folha_pj_corrigir",
+    entidade: "PagamentoProjetista",
+    schema: corrigirEfetivadoSchema,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
+    // Os dois lados: "qual era a conta/data antes desta correção" é a pergunta que a
+    // justificativa existe para responder — e conta/data moram no lançamento, não no pagamento.
+    capturarAntes: async (input) => {
+      const pagamento = await prisma.pagamentoProjetista.findUnique({
+        where: { id: input.id },
+        select: { id: true, valor: true, status: true, pagoEm: true, observacao: true, lancamentoId: true },
+      });
+      if (!pagamento) return null;
+      const l = await lancamentoDoPagamento(prisma, pagamento);
+      return {
+        pagamento,
+        lancamento: l && { id: l.id, valor: l.valor, contaId: l.contaId, formaId: l.formaId, dataConfirmacao: l.dataConfirmacao },
+      };
+    },
+  },
+  async (i) => {
+    const pag = await prisma.pagamentoProjetista.findUnique({
+      where: { id: i.id },
+      select: { id: true, status: true, lancamentoId: true, folhaId: true, disciplinaId: true, projetistaId: true, valor: true, pagoEm: true },
+    });
+    if (!pag) throw new ActionError("Pagamento não encontrado.");
+    const quando = quandoDoPagamento(i.data);
+    // G8/B2: só notifica se valor ou data mudarem de verdade — conta/forma/observação são
+    // detalhe do registro, não algo que o projetista precise saber (decisão do dono).
+    const valorAntes = Number(pag.valor);
+    const pagoEmAntes = pag.pagoEm;
+    let quandoFinal = quando;
+
+    await prisma.$transaction(async (tx) => {
+      const lanc = await lancamentoDoPagamento(tx, pag);
+      const bloqueio = erroCorrecaoEfetivado(
+        pag.status,
+        lanc && { status: lanc.status, conciliado: lanc.transacao != null, parcial: lanc.valorEfetivo != null },
+      );
+      if (bloqueio || !lanc) throw new ActionError(bloqueio ?? "Lançamento não encontrado.");
+
+      // Id inválido viraria erro genérico de FK — diz qual campo.
+      const conta = await tx.contaBancaria.findUnique({ where: { id: i.contaId }, select: { id: true } });
+      if (!conta) throw new ActionError("Conta não encontrada.");
+      if (i.formaId) {
+        const forma = await tx.formaPagamento.findUnique({ where: { id: i.formaId }, select: { id: true } });
+        if (!forma) throw new ActionError("Forma de pagamento não encontrada.");
+      }
+
+      // G1a/D31: conciliado deixou de ser bloqueio — mas o extrato manda. A correção só
+      // passa se o resultado bater com a transação conciliada, e a data do pagamento passa
+      // a ser a do extrato (o banco já disse quando o dinheiro saiu; a tela não discute).
+      const conciliada = lanc.transacao;
+      if (conciliada) {
+        const erro = erroCorrecaoConciliada(
+          { valor: Number(conciliada.valor), contaId: conciliada.contaId },
+          { valor: i.valor, contaId: i.contaId },
+        );
+        if (erro) throw new ActionError(erro);
+      }
+      quandoFinal = conciliada ? conciliada.data : quando;
+
+      const reserva = await tx.pagamentoProjetista.updateMany({
+        where: { id: pag.id, status: "pago" },
+        data: {
+          valor: i.valor,
+          pagoEm: quandoFinal,
+          ...(i.observacao !== undefined ? { observacao: i.observacao || null } : {}),
+        },
+      });
+      if (reserva.count === 0) {
+        throw new ActionError("O pagamento mudou enquanto a tela estava aberta — atualize e tente de novo.");
+      }
+
+      // As mesmas guardas repetidas NA ESCRITA (não só na leitura acima): o vínculo com o
+      // extrato tem de estar do jeito que estava quando a regra acima decidiu. Livre
+      // continua livre (`transacao: { is: null }`); conciliada continua conciliada NA MESMA
+      // transação (`is: { id }`) — se alguém conciliar, desconciliar ou reconciliar com
+      // outra no meio, o update acha 0 linhas e a transação inteira volta.
+      // `data` (competência) fica como está — `confirmarDespesaProjetista` também a preserva
+      // ao confirmar um previsto; o que muda com o pagamento é `dataConfirmacao`.
+      const atualizado = await tx.lancamento.updateMany({
+        where: {
+          id: lanc.id,
+          status: "confirmado",
+          excluidoEm: null,
+          valorEfetivo: null,
+          transacao: conciliada ? { is: { id: conciliada.id } } : { is: null },
+        },
+        data: { valor: i.valor, contaId: i.contaId, formaId: i.formaId || null, dataConfirmacao: quandoFinal },
+      });
+      if (atualizado.count === 0) {
+        throw new ActionError("O lançamento mudou enquanto a tela estava aberta (conciliação ou edição em Lançamentos) — atualize e tente de novo.");
+      }
+
+      if (pag.folhaId) await recalcularTotalFolha(tx, pag.folhaId);
+      await sincronizarValorDisciplina(tx, pag.disciplinaId);
+    });
+
+    // G8/B2: fora da transação — notificação não pode fazer a correção voltar se falhar.
+    const mudouValor = Math.abs(valorAntes - i.valor) > 0.005;
+    const mudouData = mudouDataPagamento(pagoEmAntes, quandoFinal);
+    if (mudouValor || mudouData) {
+      await notificar(pag.projetistaId, {
+        titulo: "Pagamento corrigido",
+        corpo: "Um pagamento já efetivado foi corrigido — confira no seu extrato.",
+        href: "/financeiro",
+        tag: `corrigido-${pag.id}-${Date.now()}`,
+      }, { categoria: "pagamento" });
+    }
+
+    revalidatePath("/financeiro/folha-projetistas");
+    revalidatePath("/financeiro/lancamentos");
+    revalidatePath("/financeiro/fluxo-caixa");
+    return { id: pag.id };
+  },
+);
+
+const estornarSchema = z.object({
+  id: z.string().min(1),
+  justificativa: z
+    .string()
+    .trim()
+    .min(10, "Explique o motivo do estorno (mínimo 10 caracteres).")
+    .max(500, "Justificativa com no máximo 500 caracteres."),
+});
+
+/**
+ * Estorna um pagamento JÁ efetivado (G1b/D31): vira `cancelado`, o lançamento do caixa é
+ * cancelado e a linha sai do lote. É a porta que a N6 supôs existir — até aqui, um
+ * pagamento pago por engano não tinha saída nenhuma pela tela de Produção, e a única
+ * válvula era cancelar o lançamento por Lançamentos, que deixava o pagamento `pago`
+ * apontando para lançamento cancelado. Essa válvula fechou na mesma entrega
+ * (`cancelarLancamento` agora recusa lançamento de produção).
+ *
+ * Conciliado não estorna (`erroEstornoEfetivado`): o dinheiro saiu de verdade, e o extrato
+ * registra isso — o certo é lançar a devolução quando ela entrar.
+ *
+ * `pagoEm` fica gravado de propósito: o pagamento ACONTECEU e depois foi desfeito; apagar a
+ * data reescreveria a história. Quem lê a linha vê `cancelado`, e a auditoria tem o antes.
+ */
+export const estornarPagamentoEfetivado = defineAction(
+  {
+    modulo: "financeiro",
+    acao: "estornar-pagamento-efetivado",
+    recurso: "financeiro",
+    // G2/D37: mesmo gate da correção — as duas desfazem pagamento já efetivado.
+    permissao: "folha_pj_corrigir",
+    entidade: "PagamentoProjetista",
+    schema: estornarSchema,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
+    capturarAntes: async (input) => {
+      const pagamento = await prisma.pagamentoProjetista.findUnique({
+        where: { id: input.id },
+        select: { id: true, valor: true, status: true, pagoEm: true, folhaId: true, lancamentoId: true },
+      });
+      if (!pagamento) return null;
+      const l = await lancamentoDoPagamento(prisma, pagamento);
+      return {
+        pagamento,
+        lancamento: l && { id: l.id, valor: l.valor, status: l.status, contaId: l.contaId, dataConfirmacao: l.dataConfirmacao },
+      };
+    },
+  },
+  async (i, { user }) => {
+    const pag = await prisma.pagamentoProjetista.findUnique({
+      where: { id: i.id },
+      select: { id: true, status: true, lancamentoId: true, folhaId: true, disciplinaId: true },
+    });
+    if (!pag) throw new ActionError("Pagamento não encontrado.");
+
+    await prisma.$transaction(async (tx) => {
+      const lanc = await lancamentoDoPagamento(tx, pag);
+      const bloqueio = erroEstornoEfetivado(
+        pag.status,
+        lanc && { status: lanc.status, conciliado: lanc.transacao != null, parcial: lanc.valorEfetivo != null },
+      );
+      if (bloqueio) throw new ActionError(bloqueio);
+
+      // `folhaId: null` junto: mesma trava do cancelamento de pendente (§5 do plano) — um
+      // cancelado preso ao lote seria recolhido e pago de novo no "Pagar lote".
+      const reserva = await tx.pagamentoProjetista.updateMany({
+        where: { id: pag.id, status: "pago" },
+        data: { status: "cancelado", folhaId: null },
+      });
+      if (reserva.count === 0) {
+        throw new ActionError("O pagamento mudou enquanto a tela estava aberta — atualize e tente de novo.");
+      }
+
+      // Lançamento já cancelado (o estado inconsistente que esta ação existe para limpar)
+      // não precisa de update — só não pode ser tocado de novo.
+      if (lanc && lanc.status !== "cancelado") {
+        // `transacao: { is: null }` NA ESCRITA: se conciliarem entre a leitura e aqui, o
+        // update acha 0 linhas e tudo volta, em vez de apagar do caixa uma saída que o
+        // banco já registrou.
+        const cancelado = await tx.lancamento.updateMany({
+          where: { id: lanc.id, status: { not: "cancelado" }, excluidoEm: null, transacao: { is: null } },
+          data: { status: "cancelado" },
+        });
+        if (cancelado.count === 0) {
+          throw new ActionError("O lançamento mudou enquanto a tela estava aberta (conciliação ou edição em Lançamentos) — atualize e tente de novo.");
+        }
+        // Mesmo rastro que `cancelarLancamento` deixa na tela de Lançamentos.
+        await tx.lancamentoStatusHistorico.create({
+          data: { lancamentoId: lanc.id, de: lanc.status, para: "cancelado", autorId: user.id },
+        });
+      }
+
+      if (pag.folhaId) await recalcularTotalFolha(tx, pag.folhaId);
+      await sincronizarValorDisciplina(tx, pag.disciplinaId);
+    });
+
+    revalidatePath("/financeiro/folha-projetistas");
+    revalidatePath("/financeiro/lancamentos");
+    revalidatePath("/financeiro/fluxo-caixa");
+    return { id: pag.id };
+  },
+);
+
 const cancelarSchema = z.object({ id: z.string().min(1) });
 
 /**
@@ -198,13 +610,8 @@ export const cancelarPagamentoProjetista = defineAction(
   async (input) => {
     const pag = await prisma.pagamentoProjetista.findUnique({ where: { id: input.id } });
     if (!pag) throw new ActionError("Pagamento não encontrado.");
-    if (pag.status !== "pendente") {
-      throw new ActionError(
-        pag.status === "pago"
-          ? "Este pagamento já foi efetivado — não pode mais ser cancelado por aqui."
-          : "Este pagamento já está cancelado.",
-      );
-    }
+    const bloqueio = erroTransicao("cancelar", pag.status);
+    if (bloqueio) throw new ActionError(bloqueio);
 
     await prisma.$transaction(async (tx) => {
       await tx.pagamentoProjetista.update({
@@ -224,5 +631,107 @@ export const cancelarPagamentoProjetista = defineAction(
     revalidatePath("/financeiro/folha-projetistas");
     revalidatePath("/financeiro/lancamentos");
     return { id: pag.id };
+  },
+);
+
+const pagarSelecionadosSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, "Selecione ao menos um pagamento.").max(200),
+  // Conta obrigatória desde a criação (decisão N3) — mesmo campo das outras duas (F5).
+  contaId: contaPagamento,
+  formaId: formaPagamento,
+  data: dataPagamento,
+});
+
+/**
+ * Efetiva vários pagamentos pendentes de uma vez ("Pagar selecionados" na tela Produção).
+ *
+ * Os ids vêm de uma tela renderizada antes do clique — por isso tudo é RELIDO dentro da
+ * transação: só entra o que ainda está `pendente` e com valor (a guarda de R$ 0,00 da F0a
+ * não pode ganhar uma porta lateral). Cada linha é reservada com
+ * `updateMany where status=pendente` ANTES de gerar o lançamento: um segundo envio
+ * concorrente espera o lock, encontra 0 linhas e pula, em vez de pagar de novo.
+ *
+ * Uma notificação por projetista, não por pagamento (quem teve 12 entregas pagas recebe 1).
+ */
+export const pagarProjetistasSelecionados = defineAction(
+  {
+    modulo: "financeiro",
+    acao: "pagar-projetistas-selecionados",
+    recurso: "financeiro",
+    permissao: "folha_pj",
+    entidade: "PagamentoProjetista",
+    schema: pagarSelecionadosSchema,
+  },
+  async (i, { user }) => {
+    const quando = quandoDoPagamento(i.data);
+
+    const pagos = await prisma.$transaction(
+      async (tx) => {
+        const pendentes = await tx.pagamentoProjetista.findMany({
+          where: { id: { in: i.ids }, status: "pendente" },
+          include: {
+            projetista: { select: { id: true, name: true } },
+            disciplina: { select: { disciplinaTextoLegado: true, projetoId: true, projeto: { select: { codigo: true } } } },
+          },
+        });
+        const { pagaveis } = separarPagaveis(pendentes);
+
+        const efetivados: typeof pagaveis = [];
+        // G7/B1: par (projetista, lancamentoId) por pagamento — a lista pós-pagamento
+        // (comprovante linha a linha) precisa disso, não só da contagem.
+        const comLancamento: { id: string; projetistaNome: string; lancamentoId: string }[] = [];
+        for (const pag of pagaveis) {
+          const reserva = await tx.pagamentoProjetista.updateMany({
+            where: { id: pag.id, status: "pendente" },
+            data: { status: "pago", pagoEm: quando },
+          });
+          if (reserva.count === 0) continue;
+
+          const lancamentoId = await confirmarDespesaProjetista(
+            tx,
+            {
+              id: pag.id,
+              lancamentoId: pag.lancamentoId,
+              valor: pag.valor,
+              tipoProfissional: pag.tipoProfissional,
+              projetistaNome: pag.projetista.name,
+              disciplinaNome: pag.disciplina.disciplinaTextoLegado,
+              projetoId: pag.disciplina.projetoId,
+              projetoCodigo: pag.disciplina.projeto.codigo,
+            },
+            { contaId: i.contaId, formaId: i.formaId || null, quando, autorId: user.id },
+          );
+          await tx.pagamentoProjetista.update({ where: { id: pag.id }, data: { lancamentoId } });
+          efetivados.push(pag);
+          comLancamento.push({ id: pag.id, projetistaNome: pag.projetista.name, lancamentoId });
+        }
+        return { efetivados, comLancamento };
+      },
+      // Até 200 linhas, cada uma com 3-4 escritas: o padrão de 5 s do Prisma é curto.
+      { timeout: 30_000 },
+    );
+
+    if (pagos.efetivados.length === 0) {
+      throw new ActionError("Nenhum dos selecionados pode ser pago — já foram pagos, cancelados ou estão sem valor.");
+    }
+
+    const projetistas = [...new Set(pagos.efetivados.map((p) => p.projetista.id))];
+    await notificarMuitos(projetistas, {
+      titulo: "Pagamento efetivado",
+      corpo: "Pagamento de produção efetivado — confira no seu extrato.",
+      href: "/financeiro",
+      tag: `pagos-selecionados-${quando.toISOString().slice(0, 10)}`,
+    }, { categoria: "pagamento" });
+
+    revalidatePath("/financeiro/folha-projetistas");
+    revalidatePath("/financeiro/lancamentos");
+    revalidatePath("/financeiro/fluxo-caixa");
+    return {
+      pagos: pagos.efetivados.length,
+      ignorados: i.ids.length - pagos.efetivados.length,
+      total: pagos.efetivados.reduce((s, p) => s + Number(p.valor), 0),
+      // G7/B1: para a lista pós-pagamento oferecer upload linha a linha.
+      itens: pagos.comLancamento,
+    };
   },
 );

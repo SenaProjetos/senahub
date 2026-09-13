@@ -48,6 +48,7 @@ import {
   encerrarJornadasEsquecidas,
   automacoesComerciais,
   alertaAcessos,
+  alertaPendenteParado,
 } from "@/lib/jobs-handlers";
 
 /**
@@ -352,6 +353,14 @@ export async function startJobs(): Promise<PgBoss> {
       handler: async () => {
         const n = await alertaAcessos();
         if (n > 0) console.log(`[acessos] ${n} alerta(s) de acesso enviado(s).`);
+      },
+    },
+    {
+      fila: "alerta-pendente-parado",
+      cron: "15 8 * * 1", // segunda 08:15 — junto com os outros lembretes semanais de segunda
+      handler: async () => {
+        const n = await alertaPendenteParado();
+        if (n > 0) console.log(`[folha] ${n} pagamento(s) de produção parado(s) — gestores avisados.`);
       },
     },
     {

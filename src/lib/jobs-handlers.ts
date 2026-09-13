@@ -1,5 +1,5 @@
 import "server-only";
-import { addDays, differenceInCalendarDays, subMonths } from "date-fns";
+import { addDays, differenceInCalendarDays, subMonths, getISOWeek } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { notificar, notificarMuitos } from "@/lib/notificar";
 import { enviarPush } from "@/lib/push";
@@ -38,6 +38,7 @@ import { acrescimoAcumuladoPct, somaAcrescimos, proximoDoLimite } from "@/module
 import { ehAniversarioReajuste, valorReajustado } from "@/modules/licitacoes/contrato/reajuste";
 import { importarEditaisPNCP } from "@/modules/licitacoes/pncp/import";
 import { fecharBancoDoMes } from "@/modules/rh/banco/service";
+import { DIAS_PENDENTE_PARADO } from "@/modules/financeiro/folha/status";
 import { ehFeriado } from "@/modules/rh/feriados/queries";
 import { resolverEscala } from "@/modules/ponto/service";
 import { avaliarAlertasDoDia } from "@/modules/ponto/alertas";
@@ -222,6 +223,49 @@ export async function alertaRateioAberto(): Promise<number> {
     tag: `rateio-aberto-${ano}-${mes}`,
   });
   return sessoes;
+}
+
+/**
+ * Semanal: pagamentos de produção pendentes parados (D38) — até aqui só era o rótulo
+ * "parado há N dias" na linha (F0a), visto só por quem abre a tela da Produção. Agrega TODOS
+ * os parados numa notificação só, nunca uma por pagamento — decisão do dono foi cuidado com
+ * ruído de notificação — e fica em silêncio quando não há nenhum, igual ao alerta mais
+ * parecido (`alertaRateioAberto`, acima). Sem `categoria`: é lembrete operacional pra quem
+ * gerencia Produção, não notificação pessoal do projetista (que é `notif_pagamento`, sobre
+ * a própria entrega/pagamento dele — audiência diferente).
+ */
+export async function alertaPendenteParado(): Promise<number> {
+  // Filtra no banco por INSTANTE, sem passar `liberadoEm` pela heurística de `paraData` (que
+  // `diasPendenteParado`/`inicioDoDia` usam) — essa heurística existe pra reconstruir campos
+  // de DATA gravados como meia-noite UTC (`@db.Date`), e mal-interpretaria um `liberadoEm`
+  // (instante real, `@default(now())`) que por acaso caia exatamente em meia-noite UTC,
+  // deslocando o dia-calendário em fusos atrás de UTC (ver o comentário no topo de
+  // lib/data.ts — já foi bug de produção uma vez). Pra um RÓTULO na tela isso é inofensivo;
+  // pra um gate de notificação semanal, o mesmo pagamento poderia entrar/sair do alerta de
+  // uma semana pra outra. `inicioDoDiaLocal` não tem essa heurística (é só pra "agora"), então
+  // a fronteira sai como comparação de instante puro, sem reler os componentes do `liberadoEm`.
+  const agora = new Date();
+  const fronteira = addDays(inicioDoDiaLocal(agora), -(DIAS_PENDENTE_PARADO - 1));
+  const parados = await prisma.pagamentoProjetista.findMany({
+    where: { status: "pendente", liberadoEm: { lt: fronteira } },
+    select: { valor: true },
+  });
+  if (parados.length === 0) return 0;
+
+  const total = parados.reduce((s, p) => s + Number(p.valor), 0);
+  const valorFmt = total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  const ids = await gestores(["admin", "supervisor", "administrativo"]);
+  await notificarMuitos(ids, {
+    titulo: parados.length === 1 ? "1 pagamento de produção parado" : `${parados.length} pagamentos de produção parados`,
+    corpo: `Sem pagar há mais de ${DIAS_PENDENTE_PARADO} dias, somando ${valorFmt}.`,
+    // Direto pra lista dos parados: pendentes, mais antigos primeiro — sem isso o gestor cai
+    // na tela inteira (padrão agrupado por projetista) e tem que caçar linha por linha o
+    // mesmo rótulo "parado há N dias" que o job existe pra resumir.
+    href: "/financeiro/folha-projetistas?aba=pagar&modo=pagamento&status=pendente&sort=liberadoEm&dir=asc",
+    tag: `pendente-parado-${agora.getFullYear()}-${getISOWeek(agora)}`,
+  });
+  return parados.length;
 }
 
 /** Certidões vencendo em 30/15/7 dias → gestores + responsável (se houver). */

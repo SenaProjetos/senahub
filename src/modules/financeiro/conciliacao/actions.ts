@@ -13,6 +13,9 @@ const rev = () => {
   revalidatePath("/financeiro/conciliacao");
   revalidatePath("/financeiro/lancamentos");
   revalidatePath("/financeiro/fluxo-caixa");
+  // G1c: conciliar/desconciliar muda o que a tela de Produção mostra e deixa (ou não)
+  // corrigir uma linha paga.
+  revalidatePath("/financeiro/folha-projetistas");
 };
 
 const conciliarSchema = z.object({ transacaoId: z.string().min(1), lancamentoId: z.string().min(1) });
@@ -27,16 +30,35 @@ export const conciliarComLancamento = defineAction(
     if (!t) throw new ActionError("Transação não encontrada.");
     if (t.conciliado) throw new ActionError("Transação já conciliada.");
 
-    await prisma.$transaction([
-      prisma.lancamento.update({
-        where: { id: i.lancamentoId },
+    await prisma.$transaction(async (tx) => {
+      // G1c: o alvo agora pode ser um lançamento JÁ confirmado (reconciliar um pagamento de
+      // produção depois de desfazer uma conciliação errada). O que continua proibido é
+      // roubar o vínculo de outra transação, ou ressuscitar cancelado/excluído.
+      const alvo = await tx.lancamento.findFirst({
+        where: { id: i.lancamentoId, excluidoEm: null, status: { not: "cancelado" }, transacao: { is: null } },
+        select: { id: true, pagamentoProjetistaId: true },
+      });
+      if (!alvo) {
+        throw new ActionError("Lançamento indisponível — cancelado, excluído ou já conciliado com outra transação.");
+      }
+
+      await tx.lancamento.update({
+        where: { id: alvo.id },
         data: { status: "confirmado", dataConfirmacao: t.data, contaId: t.contaId },
-      }),
-      prisma.transacaoBancaria.update({
+      });
+      await tx.transacaoBancaria.update({
         where: { id: t.id },
-        data: { conciliado: true, lancamentoId: i.lancamentoId },
-      }),
-    ]);
+        data: { conciliado: true, lancamentoId: alvo.id },
+      });
+      // Produção: `pagoEm` acompanha a data do extrato — senão a folha diria uma data e o
+      // caixa outra (mesma regra da G1a, onde o extrato manda).
+      if (alvo.pagamentoProjetistaId) {
+        await tx.pagamentoProjetista.updateMany({
+          where: { id: alvo.pagamentoProjetistaId, status: "pago" },
+          data: { pagoEm: t.data },
+        });
+      }
+    });
     rev();
     return { id: t.id };
   },
@@ -74,6 +96,50 @@ export const criarLancamentoDaTransacao = defineAction(
     });
     rev();
     return { id: t.id };
+  },
+);
+
+const desconciliarSchema = z.object({ transacaoId: z.string().min(1) });
+
+/**
+ * Desfaz uma conciliação (G1c/D31). A transação volta para a fila e o vínculo com o
+ * lançamento cai.
+ *
+ * O STATUS do lançamento NÃO muda de propósito: desconciliar é dizer "essa transação do
+ * banco não é esta despesa", não "esta despesa não aconteceu". Um pagamento de produção
+ * continua pago — desfazer o pagamento é o estorno (G1b), que é outra ação, com outra
+ * justificativa e outro gate.
+ *
+ * Só existe junto com a mudança em `transacoesPendentes` (sugerir também lançamentos já
+ * confirmados): sem ela, a transação solta não teria como voltar ao mesmo lançamento e a
+ * única saída na tela seria criar outro, duplicando a despesa no caixa.
+ */
+export const desconciliarTransacao = defineAction(
+  {
+    ...base,
+    acao: "desconciliar-transacao",
+    entidade: "TransacaoBancaria",
+    schema: desconciliarSchema,
+    capturarAntes: (i) =>
+      prisma.transacaoBancaria.findUnique({
+        where: { id: i.transacaoId },
+        select: { conciliado: true, lancamentoId: true, valor: true, data: true, descricao: true },
+      }),
+  },
+  async (i) => {
+    const t = await prisma.transacaoBancaria.findUnique({
+      where: { id: i.transacaoId },
+      select: { id: true, conciliado: true, lancamentoId: true },
+    });
+    if (!t) throw new ActionError("Transação não encontrada.");
+    if (!t.conciliado && !t.lancamentoId) throw new ActionError("Esta transação não está conciliada.");
+
+    await prisma.transacaoBancaria.update({
+      where: { id: t.id },
+      data: { conciliado: false, lancamentoId: null },
+    });
+    rev();
+    return { id: t.id, lancamentoId: t.lancamentoId };
   },
 );
 

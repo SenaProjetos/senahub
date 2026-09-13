@@ -103,3 +103,6 @@ export function diasVencidos(
   const dias = diferencaEmDias(prazo, inicioDoDiaLocal(agora))
   return dias != null && dias > 0 ? dias : 0
 }
+
+/** Abreviação minúscula dos meses, índice 0 = janeiro (rótulos `set/2026`). */
+export const MESES_CURTOS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"] as const

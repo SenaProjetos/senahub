@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Settings2, Receipt, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText, Upload, SlidersHorizontal, CalendarClock, TrendingUp, CalendarCheck, Wallet, Info } from "lucide-react";
+import { Settings2, Receipt, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText, Upload, SlidersHorizontal, CalendarClock, TrendingUp, CalendarCheck, Wallet, Info, Paperclip } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { ShieldCheck, AlertTriangle } from "lucide-react";
 import { meuExtrato } from "@/modules/financeiro/queries";
+import { recibosDoProjetista } from "@/modules/financeiro/recibo/queries";
+import { MeusRecibos } from "@/components/financeiro/recibo/meus-recibos";
+import { PJ_ROLES } from "@/lib/roles";
 import { agingReport } from "@/modules/financeiro/aging/queries";
 import { totalAguardando } from "@/modules/financeiro/aprovacao/queries";
 import { relatorioDRE, serieMensalResultado, despesasPorCategoria } from "@/modules/financeiro/relatorios/queries";
@@ -20,7 +23,7 @@ import { PeriodoSelector, type Periodo } from "@/components/financeiro/periodo-s
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Financeiro" };
 
@@ -267,6 +270,9 @@ export default async function FinanceiroPage({
   if (!podeExtrato) redirect("/sem-permissao");
 
   const { pagamentos, total, pago, aberto } = await meuExtrato(user.id);
+  // G5/D36: recibos do próprio projetista — assinar, baixar PDF e (PJ) anexar a NF.
+  const recibos = await recibosDoProjetista(user.id);
+  const ehPJ = PJ_ROLES.includes(user.role as (typeof PJ_ROLES)[number]);
 
   return (
     <div className="space-y-6">
@@ -296,6 +302,8 @@ export default async function FinanceiroPage({
         </Card>
       </div>
 
+      <MeusRecibos recibos={recibos} podeEnviarNf={ehPJ} />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Pagamentos</CardTitle>
@@ -306,15 +314,23 @@ export default async function FinanceiroPage({
           ) : (
             <ul className="divide-y text-sm">
               {pagamentos.map((p) => (
-                <li key={p.id} className="flex items-center justify-between gap-2 py-2.5">
+                <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
                   <div>
                     <p className="font-medium">{p.disciplina.disciplinaTextoLegado}</p>
                     <p className="text-xs text-muted-foreground">
                       {formatarCodigo(p.disciplina.projeto.codigo)} · {p.disciplina.projeto.nome}
                     </p>
+                    {/* D35: forma de pagamento, sem a conta — o projetista não vê de qual
+                        conta bancária da empresa saiu. */}
+                    {p.status === "pago" && (
+                      <p className="text-xs text-muted-foreground">
+                        Pago em {formatarData(p.pagoEm)}
+                        {p.forma ? ` · ${p.forma}` : ""}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="font-mono">{brl(Number(p.valor))}</span>
+                    <span className="font-mono">{brl(p.valor)}</span>
                     <Badge
                       variant="outline"
                       className={
@@ -328,6 +344,25 @@ export default async function FinanceiroPage({
                       {p.status}
                     </Badge>
                   </div>
+                  {p.anexos.length > 0 && (
+                    <div className="flex w-full flex-wrap items-center gap-2">
+                      {/* "Anexos", não "comprovantes": são todo `LancamentoAnexo` do
+                          lançamento — quem tem `financeiro:gerir` pode ter anexado algo ali
+                          que não é o comprovante do pagamento em si (mesma ressalva de
+                          `CelulaPagamento`, D26). O rótulo não promete mais do que o dado garante. */}
+                      <span className="text-xs text-muted-foreground">Anexos deste pagamento:</span>
+                      {p.anexos.map((c) => (
+                        <a
+                          key={c.id}
+                          href={`/api/financeiro/folha-projetistas/comprovante/${c.id}`}
+                          className="flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:underline"
+                        >
+                          <Paperclip className="size-3" aria-hidden />
+                          {c.nome}
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

@@ -164,6 +164,15 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
         leitura: true,
       },
       { acao: "folha_pj", label: "Gerir a folha de projetistas (libera pagamento a terceiro)", abre: "Financeiro → Folha de projetistas" },
+      // G2/D37 (2026-09-12): segregação de funções DENTRO da Produção. `folha_pj` paga; este
+      // par desfaz o que já foi pago — corrigir pagamento efetivado, estornar e excluir lote.
+      // Semeado para quem já tinha `folha_pj` (migration 20260912120000_perfis_folha_pj_corrigir),
+      // então ninguém perde acesso: o que muda é poder separar os dois na tela de perfis.
+      {
+        acao: "folha_pj_corrigir",
+        label: "Corrigir, estornar e excluir lote na Produção (desfaz pagamento já efetivado)",
+        abre: "Financeiro → Produção",
+      },
       { acao: "extrato", label: "Ver apenas o próprio extrato", abre: "Financeiro (só o próprio extrato)", leitura: true },
     ],
   },

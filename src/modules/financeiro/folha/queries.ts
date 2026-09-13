@@ -1,25 +1,348 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
+import { parseListParams } from "@/lib/list-params";
+import { paraData, MESES_CURTOS } from "@/lib/data";
+import { lerFiltrosFolha, whereDoStatus } from "./service";
+import type { FiltrosFolha, FiltroStatus } from "./status";
+import { recibosPorPagamento } from "@/modules/financeiro/recibo/queries";
 
-export async function listarFolha(opts?: { status?: "pendente" | "pago" | "cancelado" }) {
-  const where: Prisma.PagamentoProjetistaWhereInput = {};
-  if (opts?.status) where.status = opts.status;
-  const itens = await prisma.pagamentoProjetista.findMany({
-    where,
-    orderBy: [{ status: "asc" }, { liberadoEm: "desc" }],
-    include: {
-      projetista: { select: { name: true } },
-      disciplina: { select: { disciplinaTextoLegado: true, projeto: { select: { codigo: true, nome: true } } } },
-    },
+type RawParams = Record<string, string | string[] | undefined>;
+
+const SORT_PAGAMENTO = ["projetista", "valor", "liberadoEm"] as const;
+
+/** Exportado: `folha-lote/queries.ts` reusa o mesmo formato pra listar o conteúdo de um lote (F10/D29). */
+export const INCLUDE_PAGAMENTO = {
+  projetista: { select: { name: true } },
+  disciplina: {
+    select: { disciplinaTextoLegado: true, projetoId: true, projeto: { select: { codigo: true, nome: true } } },
+  },
+  // D34: de que lote o pagamento faz parte, do lado da aba Pagamentos — hoje o vínculo só
+  // aparecia de dentro do lote (F10). Relação de verdade (`folhaId`/`@relation`), diferente
+  // do lançamento (colunas soltas).
+  folha: { select: { id: true, ano: true, mes: true } },
+} satisfies Prisma.PagamentoProjetistaInclude;
+
+type PagamentoBruto = Prisma.PagamentoProjetistaGetPayload<{ include: typeof INCLUDE_PAGAMENTO }>;
+
+/**
+ * Pendentes com R$ 0,00 — contado no banco, nunca com `.filter()` sobre uma lista já
+ * paginada (ver D11 no plano de refatoração). Usado pelo aviso da F0a, que é da PÁGINA
+ * (aparece nas duas abas de Produção), não só da lista de pagamentos. Ignora os filtros
+ * de propósito: o aviso é sobre dinheiro travado em qualquer lugar da folha.
+ */
+export async function contarPendentesSemValor() {
+  return prisma.pagamentoProjetista.count({ where: { status: "pendente", valor: { lte: 0 } } });
+}
+
+/** Todos os filtros MENOS o status — é a base dos totais (ver comentário em `listarFolha`). */
+function whereSemStatus(f: FiltrosFolha): Prisma.PagamentoProjetistaWhereInput {
+  const and: Prisma.PagamentoProjetistaWhereInput[] = [];
+  if (f.projetistaId) and.push({ projetistaId: f.projetistaId });
+  if (f.projetoId) and.push({ disciplina: { projetoId: f.projetoId } });
+  if (f.folhaId) and.push({ folhaId: f.folhaId });
+
+  // `liberadoEm` é um INSTANTE (`@default(now())`), não uma coluna `@db.Date` — então as
+  // fronteiras do dia são meia-noite LOCAL, e `ate` é inclusivo (vira `< dia seguinte`).
+  const de = paraData(f.de);
+  const ate = paraData(f.ate);
+  if (de || ate) {
+    const depoisDoFim = ate ? new Date(ate.getFullYear(), ate.getMonth(), ate.getDate() + 1) : null;
+    and.push({ liberadoEm: { ...(de ? { gte: de } : {}), ...(depoisDoFim ? { lt: depoisDoFim } : {}) } });
+  }
+
+  if (f.q) {
+    const contem = { contains: f.q, mode: "insensitive" as const };
+    and.push({
+      OR: [
+        { projetista: { name: contem } },
+        { disciplina: { disciplinaTextoLegado: contem } },
+        { disciplina: { projeto: { nome: contem } } },
+      ],
+    });
+  }
+  return and.length ? { AND: and } : {};
+}
+
+/**
+ * Ids de pagamentos PAGOS sem nenhum comprovante anexado, dentro do recorte `base` (mesmos
+ * filtros de projetista/projeto/período/busca da tela, sem o de status) — usa a mesma
+ * mecânica de duas colunas soltas de `comLancamentos` pra achar o lançamento de cada um sem
+ * puxar `INCLUDE_PAGAMENTO` inteiro. Sempre restringe a `pago`: pendente/cancelado não têm
+ * comprovante pra conferir (D33).
+ */
+async function idsPagosSemComprovante(base: Prisma.PagamentoProjetistaWhereInput): Promise<string[]> {
+  const pagos = await prisma.pagamentoProjetista.findMany({
+    where: { AND: [base, { status: "pago" }] },
+    select: { id: true, lancamentoId: true },
   });
-  const pendente = itens
-    .filter((i) => i.status === "pendente")
-    .reduce((s, i) => s + Number(i.valor), 0);
-  const pago = itens.filter((i) => i.status === "pago").reduce((s, i) => s + Number(i.valor), 0);
-  // Serializa Decimal → number (Client Components não aceitam Decimal).
-  const itensSerial = itens.map((i) => ({ ...i, valor: Number(i.valor) }));
-  return { itens: itensSerial, pendente, pago };
+  if (pagos.length === 0) return [];
+  const ids = pagos.map((p) => p.id);
+  const lancIds = pagos.flatMap((p) => (p.lancamentoId ? [p.lancamentoId] : []));
+  const lancamentos = await prisma.lancamento.findMany({
+    where: { OR: [{ pagamentoProjetistaId: { in: ids } }, { id: { in: lancIds } }] },
+    select: { id: true, pagamentoProjetistaId: true, _count: { select: { anexos: true } } },
+  });
+  const lancPorId = new Map(lancamentos.map((l) => [l.id, l]));
+  const lancPorPagamento = new Map(
+    lancamentos.flatMap((l) => (l.pagamentoProjetistaId ? [[l.pagamentoProjetistaId, l] as const] : [])),
+  );
+  return pagos
+    .filter((p) => {
+      const l = (p.lancamentoId ? lancPorId.get(p.lancamentoId) : undefined) ?? lancPorPagamento.get(p.id);
+      return !l || l._count.anexos === 0;
+    })
+    .map((p) => p.id);
+}
+
+/**
+ * Aplica o filtro "Sem comprovante" (D33) a um `base` já montado por `whereSemStatus` — o
+ * resultado também vira a base dos totais de KPI (`resumoDoRecorte`), então os cards
+ * refletem só os pagos sem comprovante quando o filtro está ligado, igual a qualquer outro
+ * filtro (mesma lógica que já vale pra `q`/`projetistaId`).
+ */
+async function comFiltroSemComprovante(
+  base: Prisma.PagamentoProjetistaWhereInput,
+  semComprovante: boolean,
+): Promise<Prisma.PagamentoProjetistaWhereInput> {
+  if (!semComprovante) return base;
+  const ids = await idsPagosSemComprovante(base);
+  return { AND: [base, { id: { in: ids } }] };
+}
+
+function ordenacao(sort: string | null, dir: "asc" | "desc"): Prisma.PagamentoProjetistaOrderByWithRelationInput[] {
+  if (sort === "projetista") return [{ projetista: { name: dir } }, { liberadoEm: "desc" }];
+  if (sort === "valor") return [{ valor: dir }, { liberadoEm: "desc" }];
+  if (sort === "liberadoEm") return [{ liberadoEm: dir }];
+  // Sem ordenação escolhida: a de sempre — pendentes primeiro, mais recentes primeiro.
+  return [{ status: "asc" }, { liberadoEm: "desc" }];
+}
+
+/**
+ * Totais por status sobre `base` (SEM o filtro de status) + quantos cancelados o padrão
+ * esconde. Reusado pelos dois modos de leitura (por pagamento e por projetista) — os dois
+ * mostram os MESMOS 3 cards de KPI, então a conta não pode divergir entre eles.
+ */
+async function resumoDoRecorte(base: Prisma.PagamentoProjetistaWhereInput, statusFiltro: FiltroStatus | null) {
+  const porStatus = await prisma.pagamentoProjetista.groupBy({
+    by: ["status"],
+    where: base,
+    _sum: { valor: true },
+    _count: { _all: true },
+  });
+  const linha = (status: string) => porStatus.find((r) => r.status === status);
+  const somaDe = (status: string) => Number(linha(status)?._sum.valor ?? 0);
+  return {
+    resumo: { pendente: somaDe("pendente"), pago: somaDe("pago"), cancelado: somaDe("cancelado") },
+    canceladosOcultos: statusFiltro === null ? (linha("cancelado")?._count._all ?? 0) : 0,
+  };
+}
+
+/**
+ * Anexa o lançamento de cada pagamento (D24 — conta usada, previsto ou não) e serializa
+ * Decimal → number. Não há FK entre as tabelas, só as colunas soltas
+ * `PagamentoProjetista.lancamentoId` e `Lancamento.pagamentoProjetistaId`;
+ * `confirmarDespesaProjetista` acha por qualquer uma das duas, então aqui também.
+ *
+ * Exportado: `folha-lote/queries.ts` reusa, pra o conteúdo do lote ter a MESMA rastreabilidade
+ * (D24) da lista de pagamentos — não uma versão mais pobre só porque é dentro de um lote.
+ */
+export async function comLancamentos<T extends PagamentoBruto>(itens: T[]) {
+  const ids = itens.map((i) => i.id);
+  const lancIds = itens.flatMap((i) => (i.lancamentoId ? [i.lancamentoId] : []));
+  const [lancamentos, recibosMapa] = await Promise.all([
+    ids.length
+      ? prisma.lancamento.findMany({
+          where: { OR: [{ pagamentoProjetistaId: { in: ids } }, { id: { in: lancIds } }] },
+          select: {
+            id: true,
+            status: true,
+            pagamentoProjetistaId: true,
+            dataConfirmacao: true,
+            contaId: true,
+            formaId: true,
+            valorEfetivo: true,
+            conta: { select: { nome: true } },
+            forma: { select: { nome: true } },
+            // G1a: valor/conta/data da transação conciliada — a correção de uma linha
+            // conciliada tem de bater com o extrato, e a tela mostra o que ele diz.
+            transacao: { select: { id: true, valor: true, contaId: true, data: true } },
+            _count: { select: { anexos: true } },
+          },
+        })
+      : [],
+    // Se já tem recibo, e assinado ou não — a linha paga mostra o estado em vez de deixar
+    // "gerar recibo" convidando a duplicar (achado do dono, 2026-09-12).
+    recibosPorPagamento(ids),
+  ]);
+  const lancPorId = new Map(lancamentos.map((l) => [l.id, l]));
+  const lancPorPagamento = new Map(
+    lancamentos.flatMap((l) => (l.pagamentoProjetistaId ? [[l.pagamentoProjetistaId, l] as const] : [])),
+  );
+
+  return itens.map((i) => {
+    const l = (i.lancamentoId ? lancPorId.get(i.lancamentoId) : undefined) ?? lancPorPagamento.get(i.id);
+    return {
+      ...i,
+      // Serializa Decimal → number (Client Components não aceitam Decimal).
+      valor: Number(i.valor),
+      lancamento: l
+        ? {
+            id: l.id,
+            status: l.status as string,
+            conta: l.conta?.nome ?? null,
+            forma: l.forma?.nome ?? null,
+            // F11: ids para pré-preencher a correção (os nomes acima são só exibição).
+            contaId: l.contaId,
+            formaId: l.formaId,
+            // Mesmo teste de "conciliado" da tela de Lançamentos (`lancamentos/queries.ts`).
+            conciliado: l.transacao != null,
+            transacao: l.transacao
+              ? { id: l.transacao.id, valor: Number(l.transacao.valor), contaId: l.transacao.contaId, data: l.transacao.data }
+              : null,
+            parcial: l.valorEfetivo != null,
+            dataConfirmacao: l.dataConfirmacao,
+            // F8/D26: só a contagem — mostra "tem/não tem comprovante" na tabela sem puxar
+            // a lista inteira de anexos aqui (isso é papel do dialog do Lançamento).
+            qtdAnexos: l._count.anexos,
+          }
+        : null,
+      recibos: recibosMapa.get(i.id) ?? [],
+    };
+  });
+}
+
+/** Modo "por pagamento" (F2): tabela plana, paginada, com filtro/ordenação na URL. */
+export async function listarFolha(sp: RawParams) {
+  const filtros = lerFiltrosFolha(sp);
+  const { page, pageSize, skip, take, sort, dir } = parseListParams(sp, { sortFields: SORT_PAGAMENTO });
+
+  // DOIS `where`, de propósito — não unificar: a TABELA respeita o filtro de status; os
+  // TOTAIS não. Eles são o desdobramento por status do recorte filtrado: se herdassem o
+  // padrão "esconde cancelados", o card "Cancelado" ficaria sempre zerado e não haveria de
+  // onde tirar o "N cancelados ocultos". A tela diz isso em texto, embaixo dos cards.
+  const base = await comFiltroSemComprovante(whereSemStatus(filtros), filtros.semComprovante);
+  const where: Prisma.PagamentoProjetistaWhereInput = { AND: [base, whereDoStatus(filtros.status)] };
+
+  const [itensBrutos, total, agregado] = await Promise.all([
+    prisma.pagamentoProjetista.findMany({ where, orderBy: ordenacao(sort, dir), skip, take, include: INCLUDE_PAGAMENTO }),
+    prisma.pagamentoProjetista.count({ where }),
+    // Somado no banco sobre TODO o recorte, nunca com `.reduce()` sobre a página (D11).
+    resumoDoRecorte(base, filtros.status),
+  ]);
+  const itens = await comLancamentos(itensBrutos);
+
+  return { itens, total, page, pageSize, ...agregado, filtros };
 }
 
 export type FolhaItem = Awaited<ReturnType<typeof listarFolha>>["itens"][number];
+
+/**
+ * Modo "por projetista" (F3, N1): mesmo recorte de `listarFolha`, agrupado por pessoa —
+ * sem paginação (o volume de Produção é pequeno o bastante para caber inteiro agrupado,
+ * ver §1 do plano; reavaliar se passar da casa dos milhares).
+ *
+ * `qtd` respeita o filtro de status (é o que a lista expandida mostra); `totalPendente`
+ * NÃO respeita — mesma regra dos cards de KPI: "quanto essa pessoa tem a receber" não
+ * deveria sumir só porque a aba está filtrada em "pago".
+ */
+export async function listarFolhaAgrupada(sp: RawParams) {
+  const filtros = lerFiltrosFolha(sp);
+  const base = await comFiltroSemComprovante(whereSemStatus(filtros), filtros.semComprovante);
+  const where: Prisma.PagamentoProjetistaWhereInput = { AND: [base, whereDoStatus(filtros.status)] };
+
+  const [itensBrutos, agregado, pendentePorProjetista] = await Promise.all([
+    prisma.pagamentoProjetista.findMany({
+      where,
+      orderBy: [{ projetista: { name: "asc" } }, { status: "asc" }, { liberadoEm: "desc" }],
+      include: INCLUDE_PAGAMENTO,
+    }),
+    resumoDoRecorte(base, filtros.status),
+    prisma.pagamentoProjetista.groupBy({
+      by: ["projetistaId"],
+      where: { AND: [base, { status: "pendente" }] },
+      _sum: { valor: true },
+    }),
+  ]);
+  const itens = await comLancamentos(itensBrutos);
+  const pendentePorId = new Map(pendentePorProjetista.map((r) => [r.projetistaId, Number(r._sum.valor ?? 0)]));
+
+  // Agrupamento em JS é só estrutura de exibição — a soma exibida (`totalPendente`) vem do
+  // `groupBy` acima, nunca de somar `itens` na mão (mesma armadilha do D11).
+  const porId = new Map<string, { projetistaId: string; projetistaNome: string; itens: (typeof itens)[number][] }>();
+  for (const it of itens) {
+    const g = porId.get(it.projetistaId) ?? { projetistaId: it.projetistaId, projetistaNome: it.projetista.name, itens: [] };
+    g.itens.push(it);
+    porId.set(it.projetistaId, g);
+  }
+  const grupos = [...porId.values()].map((g) => ({
+    ...g,
+    qtd: g.itens.length,
+    totalPendente: pendentePorId.get(g.projetistaId) ?? 0,
+  }));
+
+  return { grupos, ...agregado, filtros };
+}
+
+export type FolhaGrupo = Awaited<ReturnType<typeof listarFolhaAgrupada>>["grupos"][number];
+
+const LIMITE_EXPORT = 5_000;
+
+/**
+ * Todas as linhas do recorte filtrado (sem paginação) para exportação (F7) — MESMO `where`
+ * de `listarFolha` (base + status): reusa `lerFiltrosFolha`/`whereSemStatus`/`whereDoStatus`
+ * em vez de remontar o filtro, senão o arquivo baixado diverge da tela na primeira mudança
+ * de um dos dois. Ordena pelo mesmo `?sort=`/`?dir=` da tabela (F2), sem paginar. Teto de
+ * 5.000 linhas — não trava um export gigante sem querer (produção tem 15 hoje, ver §1).
+ */
+export async function dadosFolhaExport(sp: RawParams) {
+  const filtros = lerFiltrosFolha(sp);
+  const { sort, dir } = parseListParams(sp, { sortFields: SORT_PAGAMENTO });
+  const base = await comFiltroSemComprovante(whereSemStatus(filtros), filtros.semComprovante);
+  const where: Prisma.PagamentoProjetistaWhereInput = { AND: [base, whereDoStatus(filtros.status)] };
+  const [itensBrutos, total, lote] = await Promise.all([
+    prisma.pagamentoProjetista.findMany({
+      where,
+      orderBy: ordenacao(sort, dir),
+      take: LIMITE_EXPORT,
+      include: INCLUDE_PAGAMENTO,
+    }),
+    prisma.pagamentoProjetista.count({ where }),
+    // D34: mês/ano do lote pro NOME do arquivo — direto pelo id, não pelos itens (um lote
+    // pode estar vazio depois de mover tudo pra fora, e o nome ainda precisa identificá-lo).
+    filtros.folhaId
+      ? prisma.folhaProjetista.findUnique({ where: { id: filtros.folhaId }, select: { ano: true, mes: true } })
+      : Promise.resolve(null),
+  ]);
+  const itens = await comLancamentos(itensBrutos);
+  // `truncado`: o chamador precisa saber que o arquivo NÃO é o recorte inteiro — um corte
+  // silencioso em 5.000 linhas é a mesma classe de erro do D11, com outro nome.
+  // `filtros` volta junto (F9/D28) pra quem monta o nome do arquivo não precisar reler a URL.
+  // `loteRotulo`: só existe quando `folhaId` resolveu pra um lote de verdade — `nomeArquivoExport`
+  // cai no genérico "lote" se vier `undefined` (id inválido/adivinhado na URL).
+  const loteRotulo = lote ? `${MESES_CURTOS[lote.mes - 1]}-${lote.ano}` : undefined;
+  return { itens, total, truncado: total > LIMITE_EXPORT, filtros, loteRotulo };
+}
+
+/** Opções dos filtros: só quem/o que tem pagamento — não a empresa inteira. */
+export async function opcoesFiltroFolha() {
+  const [projetistas, projetos, lotes] = await Promise.all([
+    prisma.user.findMany({
+      where: { pagamentos: { some: {} } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+    prisma.projeto.findMany({
+      where: { disciplinas: { some: { pagamentos: { some: {} } } } },
+      orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
+      select: { id: true, codigo: true, nome: true },
+    }),
+    // D34: só lotes com pagamento — mesmo critério de projetista/projeto acima.
+    prisma.folhaProjetista.findMany({
+      where: { pagamentos: { some: {} } },
+      orderBy: [{ ano: "desc" }, { mes: "desc" }],
+      select: { id: true, ano: true, mes: true },
+    }),
+  ]);
+  return { projetistas, projetos, lotes };
+}

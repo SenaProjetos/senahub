@@ -96,6 +96,7 @@ export function LancamentosView({
   modelosDoc = [],
   defaultProjetoId,
   defaultFormOpen = false,
+  defaultDetalheId,
 }: {
   itens: LivroCaixaItem[];
   contas: Conta[];
@@ -104,6 +105,8 @@ export function LancamentosView({
   modelosDoc?: { id: string; nome: string }[];
   defaultProjetoId?: string;
   defaultFormOpen?: boolean;
+  /** `?lancamento=<id>` — abre o detalhe desse lançamento (link vindo da tela Produção). */
+  defaultDetalheId?: string;
 }) {
   const router = useRouter();
   const [, start] = useTransition();
@@ -158,7 +161,9 @@ export function LancamentosView({
   const [formOpen, setFormOpen] = useState(defaultFormOpen);
   const [editar, setEditar] = useState<LivroCaixaItem | null>(null);
   const [confirmar, setConfirmar] = useState<LivroCaixaItem | null>(null);
-  const [detalhe, setDetalhe] = useState<LivroCaixaItem | null>(null);
+  const [detalhe, setDetalhe] = useState<LivroCaixaItem | null>(() =>
+    defaultDetalheId ? (itens.find((l) => l.id === defaultDetalheId) ?? null) : null,
+  );
   const [loteOpen, setLoteOpen] = useState(false);
 
   const topoDe = useMemo(() => {
