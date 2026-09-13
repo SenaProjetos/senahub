@@ -117,6 +117,7 @@ export const ACAO_LABEL: Record<string, string> = {
   "gerar-recibo-individual": "Gerou recibo de uma entrega",
   "gerar-recibo-mensal": "Gerou recibo mensal de produção",
   "assinar-recibo": "Assinou o próprio recibo de produção",
+  "lembrar-assinatura-recibo": "Lembrou o projetista de assinar um recibo",
   "remover-comprovante-pagamento": "Removeu comprovante de pagamento de produção",
   "salvar-holerite": "Salvou holerite",
   "remover-holerite": "Removeu holerite",

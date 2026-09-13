@@ -6,6 +6,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificar } from "@/lib/notificar";
+import { filtrarPorCategoria } from "@/modules/usuarios/preferencias/queries";
 import { textoRecibo, totalRecibo, type ItemRecibo } from "./service";
 
 /**
@@ -236,5 +237,55 @@ export const assinarRecibo = defineAction(
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/folha-projetistas");
     return { id: recibo.id };
+  },
+);
+
+const lembrarSchema = z.object({ id: z.string().min(1) });
+
+/**
+ * Reenvia o aviso de assinatura pendente — pra quem gerencia Produção acompanhar recibo
+ * gerado e "esquecido" (achado do dono, 2026-09-12: gerar era "atirar e esquecer", sem
+ * nenhum jeito de saber se o projetista nunca assinou). Não é uma fila/lembrete automático,
+ * é o gestor pedindo de novo quando achar que já demorou.
+ */
+export const lembrarAssinaturaRecibo = defineAction(
+  {
+    modulo: "financeiro",
+    acao: "lembrar-assinatura-recibo",
+    recurso: "financeiro",
+    permissao: "folha_pj",
+    entidade: "ReciboProjetista",
+    schema: lembrarSchema,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
+  },
+  async (i) => {
+    const recibo = await prisma.reciboProjetista.findUnique({
+      where: { id: i.id },
+      select: { id: true, projetistaId: true, assinadoEm: true, tipo: true, ano: true, mes: true },
+    });
+    if (!recibo) throw new ActionError("Recibo não encontrado.");
+    if (recibo.assinadoEm) throw new ActionError("Este recibo já foi assinado — não há o que lembrar.");
+
+    // Botão existe pra AVISAR — se o canal está fechado (opt-out), o toast precisa dizer
+    // isso em vez de afirmar "enviado" (achado do advisor: notificar() silencioso em opt-out
+    // era tolerável na notificação original de geração, mas não aqui, onde a função do
+    // botão é a entrega em si).
+    const liberados = await filtrarPorCategoria([recibo.projetistaId], "pagamento");
+    const avisado = liberados.length > 0;
+    if (avisado) {
+      const competencia = recibo.ano && recibo.mes ? ` de ${String(recibo.mes).padStart(2, "0")}/${recibo.ano}` : "";
+      await notificar(
+        recibo.projetistaId,
+        {
+          titulo: "Lembrete: recibo aguardando sua assinatura",
+          corpo: `O recibo${recibo.tipo === "mensal" ? " mensal" + competencia : ""} de produção ainda não foi assinado — confira e assine no seu extrato.`,
+          href: "/financeiro",
+          tag: `recibo-lembrete-${recibo.id}-${Date.now()}`,
+        },
+        { categoria: "pagamento" },
+      );
+    }
+
+    return { id: recibo.id, avisado };
   },
 );

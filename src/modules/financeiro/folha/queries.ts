@@ -5,6 +5,7 @@ import { parseListParams } from "@/lib/list-params";
 import { paraData, MESES_CURTOS } from "@/lib/data";
 import { lerFiltrosFolha, whereDoStatus } from "./service";
 import type { FiltrosFolha, FiltroStatus } from "./status";
+import { recibosPorPagamento } from "@/modules/financeiro/recibo/queries";
 
 type RawParams = Record<string, string | string[] | undefined>;
 
@@ -149,26 +150,31 @@ async function resumoDoRecorte(base: Prisma.PagamentoProjetistaWhereInput, statu
 export async function comLancamentos<T extends PagamentoBruto>(itens: T[]) {
   const ids = itens.map((i) => i.id);
   const lancIds = itens.flatMap((i) => (i.lancamentoId ? [i.lancamentoId] : []));
-  const lancamentos = ids.length
-    ? await prisma.lancamento.findMany({
-        where: { OR: [{ pagamentoProjetistaId: { in: ids } }, { id: { in: lancIds } }] },
-        select: {
-          id: true,
-          status: true,
-          pagamentoProjetistaId: true,
-          dataConfirmacao: true,
-          contaId: true,
-          formaId: true,
-          valorEfetivo: true,
-          conta: { select: { nome: true } },
-          forma: { select: { nome: true } },
-          // G1a: valor/conta/data da transação conciliada — a correção de uma linha
-          // conciliada tem de bater com o extrato, e a tela mostra o que ele diz.
-          transacao: { select: { id: true, valor: true, contaId: true, data: true } },
-          _count: { select: { anexos: true } },
-        },
-      })
-    : [];
+  const [lancamentos, recibosMapa] = await Promise.all([
+    ids.length
+      ? prisma.lancamento.findMany({
+          where: { OR: [{ pagamentoProjetistaId: { in: ids } }, { id: { in: lancIds } }] },
+          select: {
+            id: true,
+            status: true,
+            pagamentoProjetistaId: true,
+            dataConfirmacao: true,
+            contaId: true,
+            formaId: true,
+            valorEfetivo: true,
+            conta: { select: { nome: true } },
+            forma: { select: { nome: true } },
+            // G1a: valor/conta/data da transação conciliada — a correção de uma linha
+            // conciliada tem de bater com o extrato, e a tela mostra o que ele diz.
+            transacao: { select: { id: true, valor: true, contaId: true, data: true } },
+            _count: { select: { anexos: true } },
+          },
+        })
+      : [],
+    // Se já tem recibo, e assinado ou não — a linha paga mostra o estado em vez de deixar
+    // "gerar recibo" convidando a duplicar (achado do dono, 2026-09-12).
+    recibosPorPagamento(ids),
+  ]);
   const lancPorId = new Map(lancamentos.map((l) => [l.id, l]));
   const lancPorPagamento = new Map(
     lancamentos.flatMap((l) => (l.pagamentoProjetistaId ? [[l.pagamentoProjetistaId, l] as const] : [])),
@@ -201,6 +207,7 @@ export async function comLancamentos<T extends PagamentoBruto>(itens: T[]) {
             qtdAnexos: l._count.anexos,
           }
         : null,
+      recibos: recibosMapa.get(i.id) ?? [],
     };
   });
 }

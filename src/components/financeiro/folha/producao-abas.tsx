@@ -9,7 +9,7 @@ import { useSetParams } from "@/lib/use-set-param";
  * deliberada de `contas-pagar-receber-view` (lá o servidor só sugere a aba inicial).
  * Aqui a página busca só os dados da aba ativa, então o estado tem que morar na URL.
  */
-export function ProducaoAbas({ aba, children }: { aba: "pagar" | "lotes"; children: ReactNode }) {
+export function ProducaoAbas({ aba, children }: { aba: "pagar" | "lotes" | "recibos"; children: ReactNode }) {
   const setParams = useSetParams();
 
   return (
@@ -17,6 +17,7 @@ export function ProducaoAbas({ aba, children }: { aba: "pagar" | "lotes"; childr
       <TabsList>
         <TabsTrigger value="pagar">Pagamentos</TabsTrigger>
         <TabsTrigger value="lotes">Lotes mensais</TabsTrigger>
+        <TabsTrigger value="recibos">Recibos</TabsTrigger>
       </TabsList>
       <TabsContent value={aba}>{children}</TabsContent>
     </Tabs>

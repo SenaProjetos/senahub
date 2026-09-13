@@ -172,6 +172,12 @@ function EstornarPagamentoButton({ p, onEstornar }: { p: FolhaItem; onEstornar: 
  * depois do pagamento e não trava nada — por isso é um botão discreto, não um passo do fluxo.
  * A action recusa duplicata ("esta entrega já tem recibo individual").
  */
+/**
+ * Sem recibo: gera. Com recibo: mostra o estado (pendente/assinado) em vez de convidar a
+ * gerar outro — achado do dono, 2026-09-12 ("gerar era atirar e esquecer, sem saber se
+ * assinou"). Clicar num recibo existente leva pra aba Recibos, já filtrada por essa pessoa,
+ * em vez de duplicar aqui o dialog de ver PDF/lembrar (isso mora só na aba).
+ */
 function ReciboIndividualButton({ p }: { p: FolhaItem }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -186,15 +192,31 @@ function ReciboIndividualButton({ p }: { p: FolhaItem }) {
     });
   }
 
+  if (p.recibos.length === 0) {
+    return (
+      <Button
+        size="sm"
+        variant="ghost"
+        className="px-2"
+        title="Gerar recibo desta entrega"
+        aria-label={`Gerar recibo do pagamento de ${p.projetista.name}`}
+        onClick={gerar}
+        disabled={pending}
+      >
+        <FileText className="size-3.5" />
+      </Button>
+    );
+  }
+
+  const pendente = p.recibos.some((r) => !r.assinadoEm);
   return (
     <Button
       size="sm"
       variant="ghost"
-      className="px-2"
-      title="Gerar recibo desta entrega"
-      aria-label={`Gerar recibo do pagamento de ${p.projetista.name}`}
-      onClick={gerar}
-      disabled={pending}
+      className={cn("px-2", pendente ? "text-warning" : "text-muted-foreground")}
+      title={pendente ? "Recibo aguardando assinatura — ver na aba Recibos" : "Recibo assinado — ver na aba Recibos"}
+      aria-label={pendente ? "Recibo aguardando assinatura" : "Recibo assinado"}
+      onClick={() => router.push(`/financeiro/folha-projetistas?aba=recibos&reciboProjetistaId=${p.projetistaId}`)}
     >
       <FileText className="size-3.5" />
     </Button>

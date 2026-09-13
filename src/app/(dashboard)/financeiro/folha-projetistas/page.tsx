@@ -11,16 +11,18 @@ import {
 import { listarFolhasProjetista } from "@/modules/financeiro/folha-lote/queries";
 import { opcoesLancamento } from "@/modules/financeiro/lancamentos/queries";
 import { temFiltroAlemDoStatus } from "@/modules/financeiro/folha/service";
+import { listarRecibos, opcoesFiltroRecibos } from "@/modules/financeiro/recibo/queries";
 import { FolhaView } from "@/components/financeiro/folha/folha-view";
 import { FolhaAgrupadaView } from "@/components/financeiro/folha/folha-agrupada-view";
 import { FolhaResumoFiltros } from "@/components/financeiro/folha/folha-linhas-compartilhadas";
 import { ModoFolhaToggle } from "@/components/financeiro/folha/modo-folha-toggle";
 import { FolhaLotesSection } from "@/components/financeiro/folha/folha-lotes-section";
+import { RecibosSection } from "@/components/financeiro/recibo/recibos-section";
 import { ProducaoAbas } from "@/components/financeiro/folha/producao-abas";
 
 export const metadata: Metadata = { title: "Produção" };
 
-const ABAS = ["pagar", "lotes"] as const;
+const ABAS = ["pagar", "lotes", "recibos"] as const;
 type Aba = (typeof ABAS)[number];
 
 const MODOS = ["projetista", "pagamento"] as const;
@@ -124,7 +126,7 @@ export default async function FolhaProjetistasPage({
         </div>
       );
     }
-  } else {
+  } else if (aba === "lotes") {
     const [{ folhas, total, page, pageSize }, opcoes, sv, podeLancamento, podeCorrigirLotes, podeConciliarLotes] =
       await Promise.all([
         listarFolhasProjetista(sp),
@@ -152,6 +154,24 @@ export default async function FolhaProjetistasPage({
         podeCorrigir={podeCorrigirLotes}
         podeConciliar={podeConciliarLotes}
         loteAlvo={typeof loteIdRaw === "string" ? loteIdRaw : undefined}
+      />
+    );
+  } else {
+    const [lista, { projetistas }, sv] = await Promise.all([
+      listarRecibos(sp),
+      opcoesFiltroRecibos(),
+      contarPendentesSemValor(),
+    ]);
+    semValor = sv;
+    conteudo = (
+      <RecibosSection
+        recibos={lista.recibos}
+        total={lista.total}
+        page={lista.page}
+        pageSize={lista.pageSize}
+        pendentes={lista.pendentes}
+        filtros={lista.filtros}
+        projetistas={projetistas}
       />
     );
   }
