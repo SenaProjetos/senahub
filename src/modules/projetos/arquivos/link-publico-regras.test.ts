@@ -113,4 +113,27 @@ describe("recortarParaLinkPublico", () => {
     ]);
     expect(ids(r)).toEqual(["entrega"]);
   });
+
+  /**
+   * PINO DE COMPORTAMENTO — não é bug, é decisão. Não "consertar".
+   *
+   * O máximo é calculado sobre o que CHEGA aqui, e o que chega já passou pelo filtro
+   * `{ validado: true, excluidoEm: null }` da consulta. Logo, mandar a revisão corrente
+   * para a lixeira PROMOVE a anterior a "entrega corrente" no link público.
+   *
+   * Isso já foi um chamado real (projeto 260032, set/2026): R02 e R03 do desenho foram
+   * para a lixeira uma a uma, a R01 ficou para trás e o cliente passou a baixar a R01
+   * como se fosse a entrega. A correção NÃO foi mudar este cálculo — foi tornar o escopo
+   * da exclusão explícito na hora de excluir (`modules/uploads/exclusao-escopo.ts`):
+   *   - "excluir só esta revisão" = pedido deliberado de voltar para a anterior → é isto
+   *     que a promoção abaixo entrega;
+   *   - "excluir o documento inteiro" = todas as revisões vão juntas → não sobra ninguém
+   *     para promover e o documento simplesmente sai do link.
+   *
+   * Trocar isto por "documento some quando a corrente é excluída" quebra o primeiro caso.
+   */
+  it("promove a revisão anterior quando as posteriores não chegam (lixeira/não validadas)", () => {
+    const r = recortarParaLinkPublico([up("r1", { documentoId: "doc", revisaoNumero: 1 })]);
+    expect(ids(r)).toEqual(["r1"]);
+  });
 });

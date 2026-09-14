@@ -33,6 +33,10 @@ import type {
   ArvoreArquivoItem,
 } from "@/modules/projetos/arquivos/queries";
 import { renomearUpload, excluirUpload, excluirUploadsLote, validarArquivosLote, restaurarUpload, excluirUploadDefinitivo, solicitarExclusaoUpload } from "@/modules/uploads/actions";
+import {
+  EscopoExclusaoDialog,
+  type EscolhaEscopo,
+} from "@/components/projetos/arquivos/escopo-exclusao-dialog";
 import type { LixeiraItem } from "@/modules/uploads/queries";
 import type { ArtListItem } from "@/modules/projetos/art/queries";
 import { LABEL_SITUACAO_ART, rotuloArt } from "@/modules/projetos/art/service";
@@ -73,7 +77,7 @@ import { detectarNovasRevisoes, mensagemNovasRevisoes, type ArquivoExistente } f
 import { gruposRevisaoAgrupada } from "@/modules/uploads/revisao-agrupada";
 import { enviarArquivoComProgresso, ErroEnvio } from "@/components/projetos/upload-progresso";
 import { CorrecaoNomeUpload, type DadosCorrecaoNomeUpload } from "@/components/projetos/arquivos/correcao-nome-upload";
-import { cn, formatarData, rotuloRevisao } from "@/lib/utils";
+import { cn, formatarData, formatarDataHora, rotuloRevisao } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -343,6 +347,16 @@ function LinhaArquivo({
             nome={a.nome}
           />
         )}
+        {/* Envio: quem mandou e quando. É diferente de `a.data` (que prefere a validação) —
+            saber "quem subiu este arquivo, que hora" é o que permite reconstruir uma limpeza
+            ou um reenvio sem ir ao AuditLog. Escondido em telas estreitas: é contexto, não
+            ação, e a linha já é densa. */}
+        <span
+          className="hidden shrink-0 text-xs text-muted-foreground lg:inline"
+          title={`Enviado em ${formatarDataHora(a.enviadoEm)} por ${a.autor}`}
+        >
+          {a.autor} · {formatarDataHora(a.enviadoEm)}
+        </span>
         <span className="shrink-0 font-mono text-xs text-muted-foreground">{fmtBytes(a.tamanho)}</span>
         {onRenomear && !historico && (
           <button
@@ -646,7 +660,7 @@ export function ArquivosExplorer({
   arts: ArtListItem[];
 }) {
   const router = useRouter();
-  const confirm = useConfirm();
+  // Sem `useConfirm` aqui: exclusão passou a abrir o diálogo de escopo, que já confirma.
   const [excluindoPend, excluindo] = useTransition();
   const [validandoPend, validando] = useTransition();
   const [renomeando, setRenomeando] = useState<ArvoreArquivoItem | null>(null);
@@ -684,52 +698,51 @@ export function ArquivosExplorer({
     return [...sel].filter((id) => todos.has(id));
   }, [sel, validaveisPorDisciplina]);
 
-  const excluirArquivo = useCallback(
-    (a: ArvoreArquivoItem) => {
-      void (async () => {
-        const ok = await confirm({
-          title: "Mover para a lixeira?",
-          description: `"${a.nome}" vai para a lixeira do projeto e pode ser restaurado por até ${DIAS_LIXEIRA} dias. Depois disso é excluído em definitivo.`,
-          confirmLabel: "Mover para a lixeira",
-          variant: "destructive",
-        });
-        if (!ok) return;
-        excluindo(async () => {
-          const r = await excluirUpload({ uploadId: a.id });
-          if (r.ok) {
-            toast.success("Arquivo movido para a lixeira.");
-            router.refresh();
-          } else toast.error(r.error);
-        });
-      })();
+  // Ids no diálogo de escopo (exclusão). `null` = fechado. As revisões irmãs quem resolve é
+  // o servidor: só ele enxerga a cadeia de merge e o que a árvore da tela não carregou.
+  const [escopoExclusao, setEscopoExclusao] = useState<string[] | null>(null);
+
+  const excluirArquivo = useCallback((a: ArvoreArquivoItem) => setEscopoExclusao([a.id]), []);
+
+  /**
+   * Confirmação do diálogo. Uma linha só continua indo por `excluirUpload` (ação de auditoria
+   * `excluir-arquivo`); seleção múltipla vai pelo lote. Manter as duas preserva a leitura do
+   * histórico do projeto, que distingue as duas coisas desde sempre.
+   */
+  const confirmarEscopoExclusao = useCallback(
+    (escolha: EscolhaEscopo) => {
+      excluindo(async () => {
+        const r =
+          escolha.uploadIds.length === 1
+            ? await excluirUpload({
+                uploadId: escolha.uploadIds[0],
+                escopo: escolha.documentosInteiros.length > 0 ? "documento" : "revisao",
+              })
+            : await excluirUploadsLote({
+                projetoId: projeto.id,
+                uploadIds: escolha.uploadIds,
+                documentosInteiros: escolha.documentosInteiros,
+              });
+        if (r.ok) {
+          toast.success(
+            r.data.total === 1 ? "Arquivo movido para a lixeira." : `${r.data.total} arquivos movidos para a lixeira.`,
+          );
+          setEscopoExclusao(null);
+          setSel(new Set());
+          router.refresh();
+        } else toast.error(r.error);
+      });
     },
-    [confirm, router],
+    [projeto.id, router],
   );
   // Pedido de exclusão (quem não pode excluir): abre o diálogo da justificativa.
   const pendentesExclusao = useMemo(() => new Set(exclusoesPendentes), [exclusoesPendentes]);
   const solicitarExclusao = useCallback((a: ArvoreArquivoItem) => setPedindoExclusao(a), []);
   // Envio em lote da seleção para a lixeira (só admin — botão gateado por podeExcluirArquivo).
   const excluirSelecionados = useCallback(() => {
-    void (async () => {
-      const n = sel.size;
-      if (n === 0) return;
-      const ok = await confirm({
-        title: `Mover ${n} arquivo(s) para a lixeira?`,
-        description: `Os arquivos selecionados vão para a lixeira do projeto e podem ser restaurados por até ${DIAS_LIXEIRA} dias. Depois disso são excluídos em definitivo.`,
-        confirmLabel: "Mover para a lixeira",
-        variant: "destructive",
-      });
-      if (!ok) return;
-      excluindo(async () => {
-        const r = await excluirUploadsLote({ projetoId: projeto.id, uploadIds: [...sel] });
-        if (r.ok) {
-          toast.success(`${r.data.total} arquivo(s) movido(s) para a lixeira.`);
-          setSel(new Set());
-          router.refresh();
-        } else toast.error(r.error);
-      });
-    })();
-  }, [confirm, sel, projeto.id, router]);
+    if (sel.size === 0) return;
+    setEscopoExclusao([...sel]);
+  }, [sel]);
   // Validação em lote da seleção (só entregáveis validáveis — não-validáveis são ignorados na contagem).
   const validarSelecionados = useCallback(() => {
     const ids = selValidaveis;
@@ -1007,6 +1020,13 @@ export function ArquivosExplorer({
 
       <RenomearDialog item={renomeando} onClose={() => setRenomeando(null)} />
       <SolicitarExclusaoDialog item={pedindoExclusao} onClose={() => setPedindoExclusao(null)} />
+      <EscopoExclusaoDialog
+        uploadIds={escopoExclusao}
+        onFechar={() => setEscopoExclusao(null)}
+        modo="excluir"
+        pendente={excluindoPend}
+        onConfirmar={confirmarEscopoExclusao}
+      />
     </div>
   );
 }
@@ -1969,12 +1989,21 @@ export function LixeiraPasta({ itens }: { itens: LixeiraItem[] }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [pending, start] = useTransition();
+  const [escopoRestauro, setEscopoRestauro] = useState<string[] | null>(null);
 
   function restaurar(item: LixeiraItem) {
+    setEscopoRestauro([item.id]);
+  }
+
+  function confirmarRestauro(escolha: EscolhaEscopo) {
     start(async () => {
-      const r = await restaurarUpload({ uploadId: item.id });
+      const r = await restaurarUpload({
+        uploadId: escolha.uploadIds[0],
+        escopo: escolha.documentosInteiros.length > 0 ? "documento" : "revisao",
+      });
       if (r.ok) {
-        toast.success("Arquivo restaurado.");
+        toast.success(r.data.total === 1 ? "Arquivo restaurado." : `${r.data.total} arquivos restaurados.`);
+        setEscopoRestauro(null);
         router.refresh();
       } else toast.error(r.error);
     });
@@ -2000,6 +2029,7 @@ export function LixeiraPasta({ itens }: { itens: LixeiraItem[] }) {
   }
 
   return (
+    <>
     <Pasta nome="Lixeira" contagem={itens.length} nivel={0}>
       {itens.length === 0 ? (
         <p className="py-1.5 pl-10 text-xs text-muted-foreground">
@@ -2019,7 +2049,10 @@ export function LixeiraPasta({ itens }: { itens: LixeiraItem[] }) {
             <Badge variant="outline" className="hidden shrink-0 sm:inline-flex">{it.disciplina}</Badge>
             <span
               className="hidden shrink-0 text-xs text-muted-foreground md:inline"
-              title={`Excluído em ${formatarData(it.excluidoEm)}${it.excluidoPor ? ` por ${it.excluidoPor}` : ""}`}
+              title={
+                `Enviado em ${formatarDataHora(it.enviadoEm)}${it.enviadoPor ? ` por ${it.enviadoPor}` : ""}` +
+                `\nExcluído em ${formatarDataHora(it.excluidoEm)}${it.excluidoPor ? ` por ${it.excluidoPor}` : ""}`
+              }
             >
               {it.excluidoPor ? `por ${it.excluidoPor} · ` : ""}
               {formatarData(it.excluidoEm)}
@@ -2058,6 +2091,14 @@ export function LixeiraPasta({ itens }: { itens: LixeiraItem[] }) {
         ))
       )}
     </Pasta>
+    <EscopoExclusaoDialog
+      uploadIds={escopoRestauro}
+      onFechar={() => setEscopoRestauro(null)}
+      modo="restaurar"
+      pendente={pending}
+      onConfirmar={confirmarRestauro}
+    />
+    </>
   );
 }
 

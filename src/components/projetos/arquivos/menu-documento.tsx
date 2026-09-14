@@ -42,8 +42,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useConfirm } from "@/components/ui/confirm-dialog";
 import { HistoricoRevisoesDialog } from "@/components/projetos/arquivos/historico-revisoes-dialog";
+import {
+  EscopoExclusaoDialog,
+  type EscolhaEscopo,
+} from "@/components/projetos/arquivos/escopo-exclusao-dialog";
 import type { LinhaDocumento } from "@/modules/uploads/lista-documentos";
 
 type Formulario = "renomear" | "ajuste" | "solicitar-exclusao" | null;
@@ -74,12 +77,14 @@ export function MenuDocumento({
   podeSolicitarExclusao: boolean;
 }) {
   const router = useRouter();
-  const confirm = useConfirm();
+  // Sem `useConfirm`: a exclusão passou a abrir o diálogo de escopo, que já é a confirmação.
   const [pendente, start] = useTransition();
   const [form, setForm] = useState<Formulario>(null);
   const [novoNome, setNovoNome] = useState(linha.nome);
   const [texto, setTexto] = useState("");
   const [historicoAberto, setHistoricoAberto] = useState(false);
+  // Ids no diálogo de escopo da exclusão (`null` = fechado).
+  const [escopo, setEscopo] = useState<string[] | null>(null);
 
   const ehPdf = linha.ext === "pdf";
   // Validação por-arquivo só existe em arquivo de pacote (`validado` null = PastaProjeto).
@@ -103,15 +108,24 @@ export function MenuDocumento({
     });
   }
 
-  async function confirmarExclusao() {
-    const ok = await confirm({
-      title: "Enviar para a lixeira?",
-      description: `"${linha.nome}" sai da árvore do projeto e pode ser restaurado enquanto estiver na lixeira.`,
-      confirmLabel: "Excluir",
-      variant: "destructive",
-    });
-    if (!ok) return;
-    executar(() => excluirUpload({ uploadId: linha.id }), "Arquivo enviado para a lixeira.");
+  /**
+   * Abre o diálogo de ESCOPO em vez de um confirm simples: a linha aqui é um arquivo de uma
+   * revisão, e mandar só ele para a lixeira promove a revisão anterior a entrega corrente no
+   * link do cliente. Quem exclui decide qual das duas coisas quer.
+   */
+  function confirmarExclusao() {
+    setEscopo([linha.id]);
+  }
+
+  function confirmarEscopo(escolha: EscolhaEscopo) {
+    executar(
+      () =>
+        excluirUpload({
+          uploadId: escolha.uploadIds[0],
+          escopo: escolha.documentosInteiros.length > 0 ? "documento" : "revisao",
+        }),
+      "Arquivo enviado para a lixeira.",
+    );
   }
 
   return (
@@ -228,6 +242,14 @@ export function MenuDocumento({
         nomeDocumento={linha.nome}
         open={historicoAberto}
         onOpenChange={setHistoricoAberto}
+      />
+
+      <EscopoExclusaoDialog
+        uploadIds={escopo}
+        onFechar={() => setEscopo(null)}
+        modo="excluir"
+        pendente={pendente}
+        onConfirmar={confirmarEscopo}
       />
 
       <Dialog open={form === "renomear"} onOpenChange={(v) => !v && fechar()}>
