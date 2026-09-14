@@ -518,7 +518,9 @@ A trava do 13º (`pareceDecimoTerceiro`) reconhece o 13º **pelo nome da rubrica
 visto um PDF de 13º do contador. Cobre "13º/13°/13o salário", "décimo terceiro", "natalina",
 "Grat. Nat.". Se o contador usar um nome fora disso, um PDF de 13º importado na folha mensal
 **passa** e `aplicarImportacao` **substitui** os itens da mensal (não há tela de prévia antes de
-gravar). Recuperação: com a folha ainda aberta, importar de novo o PDF mensal certo. O manual
+gravar). Recuperação parcial: com a folha ainda aberta, reimportar o PDF mensal certo restaura
+quem está nele; item lançado à mão se perde, e quem está no PDF de 13º mas não no mensal fica
+com itens de 13º na mensal (apagar à mão). O manual
 avisa o RH para conferir o primeiro 13º antes de fechar. **Em dezembro**: rodar o primeiro PDF
 de 13º real contra `pareceDecimoTerceiro`, virar fixture, e ajustar a regex se preciso. Uma
 trava genérica ("itens novos não se parecem com os atuais") foi considerada e deixada de fora:

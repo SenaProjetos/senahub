@@ -69,9 +69,10 @@ holerites e as suas assinaturas.
 > **Atenção no primeiro 13º importado.** A trava reconhece o 13º **pelo nome da rubrica**,
 > e ainda não foi testada com um PDF de 13º real do contador. No primeiro import de 13º,
 > confira os holerites antes de fechar a folha. Se um PDF de 13º entrar na folha mensal por
-> engano, os itens da mensal são substituídos — enquanto a folha estiver **aberta**, basta
-> importar de novo o PDF mensal certo para voltar ao que era. Avise o suporte, para a trava
-> passar a reconhecer aquele nome de rubrica.
+> engano, os itens da mensal de quem está nesse PDF são substituídos. Com a folha ainda
+> **aberta**, importar de novo o PDF mensal certo devolve os valores de quem está nele; item
+> que tinha sido **lançado à mão** não volta e precisa ser lançado de novo. Avise o suporte,
+> para a trava passar a reconhecer aquele nome de rubrica.
 
 ## O que a tela mostra
 
