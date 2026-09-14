@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import {
@@ -659,6 +661,35 @@ describe("parsearTextoFolha", () => {
     });
     expect(checarChecksum(folha)).toEqual({ ok: true });
     expect(conferirClassificacao(folha, new Map(TIPOS))).toEqual({ ok: true });
+  });
+
+  // Mesma prova de ponta a ponta para os outros 3 meses: texto que `extrairTextoPdf` tirou dos
+  // PDFs reais do contador (2026-09-13), salvo em `__fixtures__/`. As fixtures `MAI/JUN/AGO_2026`
+  // acima foram digitadas à mão e nunca passaram pelo pdfjs — estas passaram.
+  it.each([
+    { mes: 5, liquidoTotal: 13734.9, vanessa: ["001", "604", "903"], nota: "maio — base" },
+    { mes: 6, liquidoTotal: 14860.07, vanessa: ["001", "081", "604", "903"], nota: "junho — 081 com barra e dígitos na descrição" },
+    { mes: 8, liquidoTotal: 12072.27, vanessa: ["001", "604", "903"], nota: "agosto — 2 páginas, mês parcial" },
+  ])("PROVA DE PONTA A PONTA: PDF real de $nota", ({ mes, liquidoTotal, vanessa }) => {
+    const texto = readFileSync(
+      path.join(__dirname, "__fixtures__", `folha-2026-${String(mes).padStart(2, "0")}-extraida-do-pdf-real.txt`),
+      "utf8",
+    );
+    const folha = parsearTextoFolha(texto);
+    expect(folha.ano).toBe(2026);
+    expect(folha.mes).toBe(mes);
+    expect(folha.funcionarios.map((f) => f.matriculaExterna).sort()).toEqual(["000001", "000002", "000003", "000004", "000005"]);
+    expect(folha.funcionarios.find((f) => f.matriculaExterna === "000001")!.rubricas.map((r) => r.codigoExterno)).toEqual(vanessa);
+    expect(folha.resumo.totalLiquido).toBe(liquidoTotal);
+    expect(checarChecksum(folha)).toEqual({ ok: true });
+    expect(conferirClassificacao(folha, new Map(TIPOS))).toEqual({ ok: true });
+  });
+
+  it("junho real: descrição da 081 sai com o código no FIM — o fallback de casarRubrica é usado em dado real", () => {
+    const texto = readFileSync(path.join(__dirname, "__fixtures__", "folha-2026-06-extraida-do-pdf-real.txt"), "utf8");
+    expect(texto).toContain("diferença salarial 05/2026 146,65 081");
+    const gicelly = parsearTextoFolha(texto).funcionarios.find((f) => f.matriculaExterna === "000003")!;
+    expect(gicelly.rubricas).toContainEqual({ codigoExterno: "081", descricao: "diferença salarial 05/2026", valor: 146.65 });
   });
 
   it("lê rubrica com o CÓDIGO NO FIM da linha (achado no primeiro PDF real, 2026-09-13)", () => {
