@@ -189,6 +189,19 @@ export function CertidoesView({
     });
   }
 
+  /** Seleciona o recorte visível (respeita filtros/busca); se já estão todas, desmarca esse recorte. */
+  function alternarTodasVisiveis() {
+    setSelecionadas((prev) => {
+      const s = new Set(prev);
+      const todas = visiveis.every((c) => s.has(c.id));
+      for (const c of visiveis) {
+        if (todas) s.delete(c.id);
+        else s.add(c.id);
+      }
+      return s;
+    });
+  }
+
   async function excluir(c: Certidao) {
     const ok = await confirm({
       title: `Excluir "${c.tipo}"?`,
@@ -356,6 +369,7 @@ export function CertidoesView({
           podeGerir={podeGerir}
           selecionadas={selecionadas}
           onAlternarSelecao={alternarSelecao}
+          onAlternarTodas={alternarTodasVisiveis}
           onAbrirDetalhe={setDetalhe}
           onAtualizar={setAtualizarPara}
           onEditar={setEditar}
@@ -790,6 +804,26 @@ function CompartilharDialog({
               </Button>
             </div>
           )}
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>
+              {marcadas.size} de {certidoes.length} selecionada(s)
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs"
+              disabled={certidoes.length === 0}
+              onClick={() =>
+                setMarcadas(
+                  certidoes.every((c) => marcadas.has(c.id)) ? new Set() : new Set(certidoes.map((c) => c.id)),
+                )
+              }
+            >
+              {certidoes.length > 0 && certidoes.every((c) => marcadas.has(c.id))
+                ? "Desmarcar todas"
+                : "Selecionar todas"}
+            </Button>
+          </div>
           <div className="max-h-40 space-y-1 overflow-y-auto rounded-sm border p-2">
             {certidoes.map((c) => (
               <label key={c.id} className="flex items-center gap-2 py-0.5 text-sm">

@@ -66,6 +66,7 @@ export function CertidoesTabela({
   podeGerir,
   selecionadas,
   onAlternarSelecao,
+  onAlternarTodas,
   onAbrirDetalhe,
   onAtualizar,
   onEditar,
@@ -76,6 +77,8 @@ export function CertidoesTabela({
   podeGerir: boolean;
   selecionadas: Set<string>;
   onAlternarSelecao: (id: string) => void;
+  /** Marca todas as linhas visíveis (recorte atual de filtros) ou, se já estão todas, desmarca. */
+  onAlternarTodas: () => void;
   onAbrirDetalhe: (c: Certidao) => void;
   /** Abre o fluxo de nova versão (§15) — o mesmo de sempre, só promovido a ação primária. */
   onAtualizar: (c: Certidao) => void;
@@ -83,12 +86,23 @@ export function CertidoesTabela({
   onExcluir: (c: Certidao) => void;
   onVisualizar: (c: Certidao) => void;
 }) {
+  const todasMarcadas = certidoes.length > 0 && certidoes.every((c) => selecionadas.has(c.id));
+
   return (
     <div className="overflow-x-auto rounded-sm border">
       <Table>
         <TableHeader>
           <TableRow>
-            {podeGerir && <TableHead className="w-8" />}
+            {podeGerir && (
+              <TableHead className="w-8 pr-0">
+                <Checkbox
+                  checked={todasMarcadas}
+                  onCheckedChange={onAlternarTodas}
+                  aria-label={todasMarcadas ? "Desmarcar todas as certidões" : "Selecionar todas as certidões"}
+                  title={todasMarcadas ? "Desmarcar todas" : "Selecionar todas"}
+                />
+              </TableHead>
+            )}
             <TableHead>Certidão</TableHead>
             <TableHead>Validade</TableHead>
             <TableHead>Situação</TableHead>
