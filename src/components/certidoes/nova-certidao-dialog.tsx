@@ -70,7 +70,8 @@ export function NovaCertidaoDialog({
     if (!file) return;
     setLendo(true);
     try {
-      const achada = extrairValidadeDoTexto(await lerTextoPdf(file));
+      const { texto, itens } = await lerTextoPdf(file);
+      const achada = extrairValidadeDoTexto(texto, itens);
       if (achada) {
         setSugerida(achada);
         setValidade((atual) => atual || achada);

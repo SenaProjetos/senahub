@@ -84,13 +84,19 @@ function buscarDataNaJanela(janela: string): string | null {
   return inicio.iso;
 }
 
-/**
- * Sugere a validade (ISO `AAAA-MM-DD`) a partir do texto extraído de um PDF, ou
- * `null` se nenhuma palavra-chave de validade tiver uma data reconhecível por perto.
- */
-export function extrairValidadeDoTexto(texto: string): string | null {
-  const t = normalizar(texto);
-  for (const chave of PALAVRAS_CHAVE) {
+// Âncoras da data de emissão, usadas só quando a validade vem como prazo em dias.
+const PALAVRAS_EMISSAO = [
+  "expedida em", "emitida em", "data de expedição", "data da expedição", "data de expedicao",
+  "data de emissão", "data da emissão", "data de emissao", "expedição:", "emissão:",
+];
+
+// "válida por 60 (sessenta) dias", "validade de 90 dias", "válido pelo prazo de 180 dias".
+const PRAZO_EM_DIAS =
+  /(?:v[aá]lid[ao]|validade)\s+(?:por\s+|de\s+|pelo\s+prazo\s+de\s+)?(\d{1,3})\s*(?:\([^)]*\)\s*)?dias/;
+
+/** Primeira data ancorada em alguma das palavras-chave (na ordem da lista), ou null. */
+function buscarDataAncorada(t: string, chaves: string[]): string | null {
+  for (const chave of chaves) {
     let pos = t.indexOf(chave);
     while (pos !== -1) {
       const janela = t.slice(pos + chave.length, pos + chave.length + JANELA);
@@ -100,4 +106,84 @@ export function extrairValidadeDoTexto(texto: string): string | null {
     }
   }
   return null;
+}
+
+function somarDias(iso: string, dias: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + dias));
+  return paraISO(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
+}
+
+/** Trecho de texto do PDF com posição (coordenadas PDF: y cresce para cima). */
+export interface ItemTextoPdf {
+  str: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  pagina: number;
+}
+
+// Célula que é SÓ o rótulo ("VALIDADE", "Data de validade:", "Vencimento") — o valor fica em outra célula.
+const ROTULO_VALIDADE = /^(?:data\s+de\s+)?(?:validade|vencimento|v[aá]lid[ao]\s+at[eé])\s*:?$/;
+
+/**
+ * Validade em layout de tabela/caixa: rótulo numa linha e a data na linha de baixo, na mesma
+ * coluna (ex.: CIM do Recife — "COMPETÊNCIA | VALIDADE | SITUAÇÃO" com os valores embaixo).
+ * No texto corrido isso vira "competência validade situação 2026/2 10/02/2027 ativo" e não dá
+ * para saber qual valor é de qual coluna — por isso usa a posição dos itens.
+ */
+function buscarDataAbaixoDoRotulo(itens: ItemTextoPdf[]): string | null {
+  const TOL_X = 4;
+  const TOL_LINHA = 2;
+  for (const rotulo of itens) {
+    if (!ROTULO_VALIDADE.test(normalizar(rotulo.str).trim())) continue;
+    const altura = rotulo.h > 0 ? rotulo.h : 10;
+    const naColuna = itens.filter(
+      (it) =>
+        it !== rotulo &&
+        it.pagina === rotulo.pagina &&
+        it.y < rotulo.y - TOL_LINHA &&
+        rotulo.y - it.y <= altura * 4 &&
+        it.x < rotulo.x + rotulo.w + TOL_X &&
+        it.x + it.w > rotulo.x - TOL_X &&
+        it.str.trim() !== "",
+    );
+    // Agrupa por linha (mesmo y) e testa da linha mais próxima do rótulo para baixo.
+    const linhas = new Map<number, ItemTextoPdf[]>();
+    for (const it of naColuna) {
+      const chave = [...linhas.keys()].find((y) => Math.abs(y - it.y) <= TOL_LINHA) ?? it.y;
+      linhas.set(chave, [...(linhas.get(chave) ?? []), it]);
+    }
+    for (const y of [...linhas.keys()].sort((a, b) => b - a)) {
+      const texto = linhas.get(y)!.sort((a, b) => a.x - b.x).map((it) => it.str).join(" ");
+      const achada = buscarDataNaJanela(normalizar(texto));
+      if (achada) return achada;
+    }
+  }
+  return null;
+}
+
+/**
+ * Sugere a validade (ISO `AAAA-MM-DD`) a partir do texto extraído de um PDF, ou
+ * `null` se nenhuma palavra-chave de validade tiver uma data reconhecível por perto.
+ *
+ * Ordem: (1) data explícita após palavra-chave de validade; (2) data na célula abaixo
+ * de um rótulo "Validade" (precisa dos `itens` com posição); (3) prazo em dias
+ * ("válida por 60 dias a contar da expedição") somado à data de emissão/expedição
+ * — só se as duas coisas forem encontradas.
+ */
+export function extrairValidadeDoTexto(texto: string, itens: ItemTextoPdf[] = []): string | null {
+  const t = normalizar(texto);
+  const explicita = buscarDataAncorada(t, PALAVRAS_CHAVE);
+  if (explicita) return explicita;
+
+  const emTabela = buscarDataAbaixoDoRotulo(itens);
+  if (emTabela) return emTabela;
+
+  const prazo = t.match(PRAZO_EM_DIAS);
+  const dias = prazo ? Number(prazo[1]) : 0;
+  if (dias < 1) return null;
+  const emissao = buscarDataAncorada(t, PALAVRAS_EMISSAO);
+  return emissao ? somarDias(emissao, dias) : null;
 }

@@ -432,8 +432,8 @@ function UploadVersaoDialog({
     if (!file) return;
     setLendo(true);
     try {
-      const texto = await lerTextoPdf(file);
-      const achada = extrairValidadeDoTexto(texto);
+      const { texto, itens } = await lerTextoPdf(file);
+      const achada = extrairValidadeDoTexto(texto, itens);
       if (achada) {
         setSugerida(achada);
         setValidade((atual) => atual || achada);
