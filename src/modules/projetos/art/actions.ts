@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
+import { sincronizarFinanceiroArt } from "./financeiro";
 import { salvarArtSchema, novaVersaoArtSchema, artIdSchema, anexarArquivoArtSchema } from "./schemas";
 import { proximoNumeroVersao, podeReceberNovaVersao } from "./service";
 import { artComVersoes } from "./queries";
@@ -19,6 +20,10 @@ const dataOuNull = (s?: string | null) => (s ? new Date(`${s}T00:00:00.000Z`) : 
 const rev = (projetoId: string) => {
   revalidatePath(`/projetos/${projetoId}/arts`);
   revalidatePath(`/projetos/${projetoId}/arquivos`);
+  revalidatePath(`/projetos/${projetoId}/financeiro`);
+  revalidatePath("/financeiro/lancamentos");
+  revalidatePath("/financeiro/contas-a-pagar");
+  revalidatePath("/financeiro/contas-a-receber");
 };
 
 /** Cria ou edita uma ART. Editar NÃO gera versão — para isso existe `novaVersaoArt`. */
@@ -54,15 +59,20 @@ export const salvarArt = defineAction(
       situacao: i.situacao,
       emitidaEm: dataOuNull(i.emitidaEm),
       valor: i.valor ?? null,
+      custeio: i.custeio,
       // Com usuário vinculado, os campos avulsos ficam nulos: a ficha da pessoa é a fonte.
       responsavelUserId: i.responsavelUserId || null,
       responsavelNome: i.responsavelUserId ? null : i.responsavelNome || null,
       responsavelRegistro: i.responsavelUserId ? null : i.responsavelRegistro || null,
     };
 
-    const art = i.id
-      ? await prisma.art.update({ where: { id: i.id }, data })
-      : await prisma.art.create({ data: { ...data, autorId: user.id } });
+    const art = await prisma.$transaction(async (tx) => {
+      const gravada = i.id
+        ? await tx.art.update({ where: { id: i.id }, data })
+        : await tx.art.create({ data: { ...data, autorId: user.id } });
+      await sincronizarFinanceiroArt(tx, gravada.id, user.id);
+      return gravada;
+    });
 
     rev(i.projetoId);
     return { id: art.id };
@@ -94,8 +104,9 @@ export const novaVersaoArt = defineAction(
 
     const numeroVersao = proximoNumeroVersao(art.versoes);
 
-    await prisma.$transaction([
-      prisma.artVersao.create({
+    // A situação nova pode mudar a taxa no Financeiro (ex.: cancelada cancela a despesa prevista).
+    await prisma.$transaction(async (tx) => {
+      await tx.artVersao.create({
         data: {
           artId: art.id,
           numero: numeroVersao,
@@ -107,8 +118,8 @@ export const novaVersaoArt = defineAction(
           observacao: i.observacao,
           autorId: user.id,
         },
-      }),
-      prisma.art.update({
+      });
+      await tx.art.update({
         where: { id: art.id },
         data: {
           numero: i.numero.trim(),
@@ -118,8 +129,9 @@ export const novaVersaoArt = defineAction(
           arquivoPath: null,
           arquivoNome: null,
         },
-      }),
-    ]);
+      });
+      await sincronizarFinanceiroArt(tx, art.id, user.id);
+    });
 
     rev(art.projetoId);
     return { id: art.id, versao: numeroVersao };
@@ -158,7 +170,12 @@ export const excluirArt = defineAction(
   async (i) => {
     const art = await prisma.art.findUnique({
       where: { id: i.id },
-      select: { projetoId: true, _count: { select: { calculos: true } } },
+      select: {
+        projetoId: true,
+        lancamentoId: true,
+        reembolsoLancamentoId: true,
+        _count: { select: { calculos: true } },
+      },
     });
     if (!art) throw new ActionError("ART não encontrada.");
     if (art._count.calculos > 0) {
@@ -166,7 +183,19 @@ export const excluirArt = defineAction(
         `Esta ART está vinculada a ${art._count.calculos} memorial(is) de cálculo. Cancele-a em vez de excluir.`,
       );
     }
-    await prisma.art.delete({ where: { id: i.id } });
+    const vinculados = [art.lancamentoId, art.reembolsoLancamentoId].filter((id): id is string => id != null);
+    const baixados = await prisma.lancamento.count({ where: { id: { in: vinculados }, status: "confirmado" } });
+    if (baixados > 0) {
+      throw new ActionError("A taxa desta ART já foi baixada no Financeiro. Cancele a ART em vez de excluir.");
+    }
+    await prisma.$transaction(async (tx) => {
+      // Cancela (não apaga) os lançamentos previstos: o histórico do Financeiro fica.
+      await tx.lancamento.updateMany({
+        where: { id: { in: vinculados }, status: { not: "cancelado" } },
+        data: { status: "cancelado" },
+      });
+      await tx.art.delete({ where: { id: i.id } });
+    });
     rev(art.projetoId);
     return { ok: true };
   },

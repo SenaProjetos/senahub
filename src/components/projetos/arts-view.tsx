@@ -107,7 +107,16 @@ export function ArtsView({ projetoId, arts, responsaveis, disciplinas, podeGerir
                       </span>
                     )}
                     {a.emitidaEm && <span>Emitida em {formatarData(a.emitidaEm)}</span>}
-                    {a.valor != null && <span>Taxa: {brl(a.valor)}</span>}
+                    {a.valor != null && (
+                      <span>
+                        Taxa: {brl(a.valor)}
+                        {a.custeio === "cliente" && " — paga pelo cliente"}
+                        {a.taxaStatus === "previsto" && " — a pagar"}
+                        {a.taxaStatus === "confirmado" && " — paga"}
+                        {a.custeio === "reembolso" && a.reembolsoStatus === "previsto" && " · reembolso a receber"}
+                        {a.custeio === "reembolso" && a.reembolsoStatus === "confirmado" && " · reembolsada"}
+                      </span>
+                    )}
                     {!a.temArquivo && <span className="italic">sem PDF anexado</span>}
                   </div>
                 </div>

@@ -6324,6 +6324,12 @@ model Art {
   emitidaEm DateTime? @db.Date
   /// Valor pago da taxa (controle de custo do projeto).
   valor     Decimal?  @db.Decimal(10, 2)
+  /// Quem paga a taxa: empresa | reembolso (empresa paga, cliente reembolsa) | cliente (paga direto).
+  custeio   String    @default("empresa")
+  /// Vínculo com o Financeiro (mesmo padrão de ServicoTerceirizado): despesa da taxa e, quando
+  /// `custeio = reembolso`, a receita do reembolso. Sincronizados por `sincronizarLancamentosArt`.
+  lancamentoId          String? @unique
+  reembolsoLancamentoId String? @unique
 
   /// Responsável técnico: usuário do sistema (preferencial) OU nome/registro avulsos.
   responsavelUserId   String?

@@ -45,3 +45,33 @@ export function podeReceberNovaVersao(situacao: string): boolean {
 export function rotuloArt(art: { tipo: string; numero: string }): string {
   return `${art.tipo} ${art.numero}`.trim();
 }
+
+/** Quem paga a taxa do conselho. Decide que lançamentos a ART gera no Financeiro. */
+export const CUSTEIOS_ART = [
+  { valor: "empresa", label: "Empresa (custo do projeto)" },
+  { valor: "reembolso", label: "Empresa, com reembolso do cliente" },
+  { valor: "cliente", label: "Cliente paga direto (sem custo)" },
+] as const;
+export type CusteioArt = (typeof CUSTEIOS_ART)[number]["valor"];
+
+export const LABEL_CUSTEIO_ART: Record<string, string> = Object.fromEntries(
+  CUSTEIOS_ART.map((c) => [c.valor, c.label]),
+);
+
+/**
+ * Que lançamentos a taxa da ART deve ter no Financeiro:
+ * - `despesa`: a empresa desembolsa a taxa (custeio `empresa` ou `reembolso`);
+ * - `reembolso`: receita a receber do cliente (só custeio `reembolso`).
+ *
+ * Rascunho ainda não foi emitido e cancelada não gera taxa — nenhum dos dois. Baixada segue
+ * valendo: a taxa foi paga quando a ART estava registrada. Sem valor, não há o que lançar.
+ */
+export function lancamentosDaTaxaArt(a: {
+  situacao: string;
+  custeio: string;
+  valor: number | null;
+}): { despesa: boolean; reembolso: boolean } {
+  const temTaxa = a.valor != null && a.valor > 0 && a.situacao !== "rascunho" && a.situacao !== "cancelada";
+  const empresaPaga = temTaxa && a.custeio !== "cliente";
+  return { despesa: empresaPaga, reembolso: empresaPaga && a.custeio === "reembolso" };
+}

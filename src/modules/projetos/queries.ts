@@ -3,7 +3,11 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { acessoGlobal, type Role, type EscopoDeDados } from "@/lib/roles";
 import { whereAudiencia } from "@/lib/audiencias";
-import { CATEGORIA_TERCEIRIZADO } from "@/modules/financeiro/custo/lancamento-custo";
+import {
+  CATEGORIA_TAXA_ART,
+  CATEGORIA_TERCEIRIZADO,
+  TAG_REEMBOLSO_ART,
+} from "@/modules/financeiro/custo/lancamento-custo";
 import { calcularRateioDetalhado } from "@/modules/rh/rateio/queries";
 import { normalizar } from "@/lib/disciplinas-core";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
@@ -392,6 +396,7 @@ export async function papeisUsados(): Promise<string[]> {
 /**
  * Margem econômica do projeto (vida inteira):
  * receitas confirmadas − despesas diretas confirmadas − custo de horas rateado.
+ * Reembolso de taxa de ART (tag `reembolso-art`) entra abatendo a despesa, não como receita.
  * Custo de horas vem do snapshot fechado (`RateioHora`); valores previstos retornam à parte.
  */
 export async function margemProjeto(projetoId: string) {
@@ -404,6 +409,7 @@ export async function margemProjeto(projetoId: string) {
         valor: true,
         valorEfetivo: true,
         pagamentoProjetistaId: true,
+        tags: true,
         categoria: { select: { codigo: true } },
       },
     }),
@@ -423,6 +429,9 @@ export async function margemProjeto(projetoId: string) {
     projetistasPrevisto: 0,
     servicosConfirmado: 0,
     servicosPrevisto: 0,
+    /** Taxas de ART/RRT, líquidas do reembolso do cliente. */
+    artsConfirmado: 0,
+    artsPrevisto: 0,
     outrasConfirmado: 0,
     outrasPrevisto: 0,
   };
@@ -430,6 +439,18 @@ export async function margemProjeto(projetoId: string) {
   for (const l of lancs) {
     const realizado = Number(l.valorEfetivo ?? l.valor);
     const previsto = Number(l.valor);
+    if (l.tipo === "receita" && l.tags.includes(TAG_REEMBOLSO_ART)) {
+      // Reembolso de taxa de ART abate o custo da taxa: não é receita do projeto, e contá-lo
+      // como receita inflaria a base da margem %.
+      if (l.status === "confirmado") {
+        despesaConfirmada -= realizado;
+        custo.artsConfirmado -= realizado;
+      } else {
+        despesaPrevista -= previsto;
+        custo.artsPrevisto -= previsto;
+      }
+      continue;
+    }
     if (l.tipo === "receita") {
       if (l.status === "confirmado") receitaConfirmada += realizado;
       else receitaPrevista += previsto;
@@ -440,7 +461,9 @@ export async function margemProjeto(projetoId: string) {
       ? "projetistas"
       : l.categoria?.codigo === CATEGORIA_TERCEIRIZADO
         ? "servicos"
-        : "outras";
+        : l.categoria?.codigo === CATEGORIA_TAXA_ART
+          ? "arts"
+          : "outras";
     if (l.status === "confirmado") {
       despesaConfirmada += realizado;
       custo[`${origem}Confirmado` as const] += realizado;

@@ -22,6 +22,18 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Taxa de ART entra no custo do projeto
+
+A taxa informada na ART agora vai sozinha para o Financeiro e aparece na **margem do
+projeto**. No cadastro da ART, escolha **quem paga a taxa**: a empresa (vai para contas a
+pagar), a empresa com reembolso do cliente (também gera o valor a receber) ou o cliente
+direto (não gera lançamento). Não é mais preciso lançar a taxa à mão — e não lance, para não
+contar duas vezes. Veja [Projetos](projetos/projetos.md).
+
+ARTs cadastradas antes desta versão só entram no financeiro quando forem editadas e salvas.
+
+---
+
 ## Folha CLT direto do PDF do contador, e holerite assinado no sistema
 
 A **Folha CLT** não precisa mais ser digitada rubrica por rubrica. Em **Folha CLT**, abra a

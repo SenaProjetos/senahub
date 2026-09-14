@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, Loader2, Upload } from "lucide-react";
 import { salvarArt, novaVersaoArt, anexarArquivoArt } from "@/modules/projetos/art/actions";
-import { TIPOS_ART, SITUACOES_ART } from "@/modules/projetos/art/service";
+import { TIPOS_ART, SITUACOES_ART, CUSTEIOS_ART } from "@/modules/projetos/art/service";
 import type { ArtListItem } from "@/modules/projetos/art/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +48,7 @@ export function ArtDialog({ projetoId, art, responsaveis, disciplinas, podeNovaV
     situacao: art?.situacao === "substituida" ? "registrada" : art?.situacao ?? "registrada",
     emitidaEm: art?.emitidaEm ?? "",
     valor: art?.valor ?? null,
+    custeio: art?.custeio ?? "empresa",
     disciplinaId: art?.disciplina?.id ?? "",
     responsavelSel: art?.responsavelUserId ?? (art ? AVULSO : responsaveis[0]?.id ?? AVULSO),
     responsavelNome: art?.responsavelUserId ? "" : art?.responsavelNome ?? "",
@@ -110,6 +111,7 @@ export function ArtDialog({ projetoId, art, responsaveis, disciplinas, podeNovaV
           situacao: f.situacao as "rascunho" | "registrada" | "baixada" | "cancelada",
           emitidaEm: f.emitidaEm,
           valor: f.valor,
+          custeio: f.custeio as "empresa" | "reembolso" | "cliente",
           responsavelUserId: f.responsavelSel === AVULSO ? "" : f.responsavelSel,
           responsavelNome: f.responsavelNome,
           responsavelRegistro: f.responsavelRegistro,
@@ -196,6 +198,19 @@ export function ArtDialog({ projetoId, art, responsaveis, disciplinas, podeNovaV
 
           {!modoVersao && (
             <>
+              <Campo label="Quem paga a taxa">
+                <select className={selectCls} value={f.custeio} onChange={(e) => set("custeio", e.target.value)}>
+                  {CUSTEIOS_ART.map((c) => <option key={c.valor} value={c.valor}>{c.label}</option>)}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  {f.custeio === "cliente"
+                    ? "Não gera lançamento: a taxa não é custo do projeto."
+                    : f.custeio === "reembolso"
+                      ? "Gera a taxa em contas a pagar e o reembolso em contas a receber."
+                      : "Gera a taxa em contas a pagar, como custo direto do projeto."}
+                </p>
+              </Campo>
+
               <Campo label="Descrição">
                 <Input value={f.descricao} onChange={(e) => set("descricao", e.target.value)} placeholder="Ex.: projeto estrutural — execução" />
               </Campo>

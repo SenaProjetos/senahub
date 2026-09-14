@@ -343,6 +343,8 @@ const PLANO_CONTAS: { codigo: string; nome: string; tipo: "receita" | "despesa";
   { codigo: "2.06", nome: "Despesas administrativas", tipo: "despesa", pai: "2" },
   { codigo: "2.07", nome: "Impostos", tipo: "despesa", pai: "2" },
   { codigo: "2.08", nome: "Pró-labore / retiradas", tipo: "despesa", pai: "2" },
+  // 2.09 também é criada pela migração 20260914120000_art_taxa_financeiro.
+  { codigo: "2.09", nome: "Taxas de ART/RRT", tipo: "despesa", pai: "2" },
 ];
 
 const FORMAS_PAGAMENTO = ["PIX", "Transferência", "Boleto", "Dinheiro", "Cartão"];

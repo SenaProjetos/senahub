@@ -38,6 +38,23 @@ function data(s?: string): Date | undefined {
   return isNaN(d.getTime()) ? undefined : d;
 }
 
+/**
+ * Lançamento gerado pela taxa de uma ART: cancelar ou excluir por aqui deixaria a ART apontando
+ * para um lançamento morto, e a próxima edição da ART o recriaria. A porta certa é a aba ARTs
+ * do projeto (mudar custeio/situação ou excluir a ART). Baixar segue liberado.
+ */
+async function barrarSeLancamentoDeArt(id: string) {
+  const art = await prisma.art.findFirst({
+    where: { OR: [{ lancamentoId: id }, { reembolsoLancamentoId: id }] },
+    select: { tipo: true, numero: true },
+  });
+  if (art) {
+    throw new ActionError(
+      `Este lançamento é da taxa da ${art.tipo} ${art.numero} — altere pela aba ARTs do projeto.`,
+    );
+  }
+}
+
 /** Snapshot JSON-safe do lançamento p/ auditoria valor-anterior × novo. */
 async function snapshotLancamento(id: string) {
   const l = await prisma.lancamento.findUnique({
@@ -309,6 +326,7 @@ export const cancelarLancamento = defineAction(
         "Este lançamento é de um pagamento de produção — corrija ou estorne pela tela de Produção.",
       );
     }
+    await barrarSeLancamentoDeArt(i.id);
     await prisma.lancamento.update({
       where: { id: i.id },
       data: {
@@ -340,6 +358,7 @@ export const excluirLancamento = defineAction(
     if (lanc.pagamentoProjetistaId) {
       throw new ActionError("Lançamento de folha não pode ser excluído aqui.");
     }
+    await barrarSeLancamentoDeArt(i.id);
     // Soft delete: marca excluidoEm; some das listagens/relatórios (filtro global no prisma).
     await prisma.lancamento.update({ where: { id: i.id }, data: { excluidoEm: new Date() } });
     rev();

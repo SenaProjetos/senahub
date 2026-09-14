@@ -16,6 +16,8 @@ export const salvarArtSchema = z.object({
   situacao: situacaoArt.default("registrada"),
   emitidaEm: opt(z.string()),
   valor: z.number().min(0).optional().nullable(),
+  /** Quem paga a taxa — decide os lançamentos no Financeiro (ver `lancamentosDaTaxaArt`). */
+  custeio: z.enum(["empresa", "reembolso", "cliente"]).default("empresa"),
   /** Usuário responsável; vazio = usar os campos avulsos abaixo. */
   responsavelUserId: opt(z.string()),
   responsavelNome: opt(z.string().max(120)),

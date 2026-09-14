@@ -34,6 +34,14 @@ export async function listarArtsDoProjeto(projetoId: string) {
     },
   });
 
+  // Situação no Financeiro dos lançamentos da taxa (a ART guarda só os ids, sem relação).
+  const idsLancamento = arts.flatMap((a) => [a.lancamentoId, a.reembolsoLancamentoId]).filter((id): id is string => id != null);
+  const lancamentos = idsLancamento.length
+    ? await prisma.lancamento.findMany({ where: { id: { in: idsLancamento } }, select: { id: true, status: true } })
+    : [];
+  const statusPorId = new Map(lancamentos.map((l) => [l.id, l.status]));
+  const statusDe = (id: string | null) => (id ? (statusPorId.get(id) ?? null) : null);
+
   return arts.map((a) => {
     const resp = responsavelDe(a);
     return {
@@ -44,6 +52,10 @@ export async function listarArtsDoProjeto(projetoId: string) {
       situacao: a.situacao,
       emitidaEm: ymd(a.emitidaEm),
       valor: a.valor != null ? Number(a.valor) : null,
+      custeio: a.custeio,
+      /** Status do lançamento da despesa / do reembolso no Financeiro (null = não há). */
+      taxaStatus: statusDe(a.lancamentoId),
+      reembolsoStatus: statusDe(a.reembolsoLancamentoId),
       disciplina: a.disciplina,
       responsavelUserId: a.responsavelUserId,
       responsavelNome: resp.nome,

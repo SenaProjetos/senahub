@@ -171,6 +171,7 @@ realizada, o card exibe a composição confirmada automaticamente quando está l
 
 - pagamentos a projetistas;
 - serviços terceirizados;
+- taxas de ART/RRT (já descontado o que o cliente reembolsou);
 - custos extras;
 - rateio de horas de CLT e estagiários;
 - rateio dos demais colaboradores.
@@ -182,6 +183,26 @@ Além disso, há abas para: **Lista Mestre**, **Serviços**, **Arquivos**, **Ext
 **Financeiro** e **Inputs** (formulários de start). Cada uma será detalhada em sua própria
 página do manual. (A aba **Lista Mestre** organiza as folhas técnicas por disciplina —
 substitui a antiga aba "Pranchas".)
+
+### Taxa de ART no financeiro (aba ARTs)
+
+A taxa da ART/RRT é custo direto do projeto. Ao cadastrar ou editar a ART, informe a
+**Taxa (R$)** e **Quem paga a taxa**:
+
+| Quem paga | O que o sistema lança no Financeiro |
+|---|---|
+| **Empresa** | A taxa em **contas a pagar**, ligada ao projeto. |
+| **Empresa, com reembolso do cliente** | A taxa em contas a pagar e o reembolso em **contas a receber**. Na margem do projeto, o reembolso abate o custo da taxa. |
+| **Cliente paga direto** | Nada — a taxa não é custo do projeto. |
+
+- ART em **rascunho** ainda não gera lançamento; **cancelar** a ART cancela a taxa ainda
+  não paga.
+- O pagamento é feito no Financeiro, baixando o lançamento normalmente. Na lista de ARTs
+  aparece se a taxa está *a pagar* ou *paga*.
+- Os lançamentos da taxa não podem ser cancelados ou excluídos pelo Financeiro — mude pela
+  aba ARTs. Depois de baixada, a taxa não muda mais de valor, e a ART não pode ser
+  excluída (cancele-a).
+- **Não lance a taxa da ART à mão no Financeiro**: ela seria contada duas vezes.
 
 ### Link do formulário para o cliente (aba Inputs)
 

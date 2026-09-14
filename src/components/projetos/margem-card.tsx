@@ -96,6 +96,11 @@ export function MargemCard({ margem }: { margem: Margem }) {
             prev={margem.custo.servicosPrevisto}
           />
           <CustoLinha
+            label="Taxas de ART/RRT (líquidas de reembolso)"
+            conf={margem.custo.artsConfirmado}
+            prev={margem.custo.artsPrevisto}
+          />
+          <CustoLinha
             label="Outras despesas diretas"
             conf={margem.custo.outrasConfirmado}
             prev={margem.custo.outrasPrevisto}

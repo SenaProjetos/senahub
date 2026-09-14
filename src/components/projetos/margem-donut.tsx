@@ -9,6 +9,7 @@ interface MargemDonutProps {
   custo?: {
     projetistasConfirmado: number;
     servicosConfirmado: number;
+    artsConfirmado: number;
     outrasConfirmado: number;
   };
   rateioHoras?: {
@@ -172,6 +173,7 @@ export function MargemDonut({
           <div className="space-y-1.5">
             <LinhaComposicao label="Pagamentos a projetistas" valor={custo.projetistasConfirmado} />
             <LinhaComposicao label="Serviços terceirizados" valor={custo.servicosConfirmado} />
+            <LinhaComposicao label="Taxas de ART/RRT" valor={custo.artsConfirmado} />
             <LinhaComposicao label="Custos extras" valor={custo.outrasConfirmado} />
             <LinhaComposicao label="Rateio CLT e estagiários" valor={rateioHoras.cltEstagiarios} />
             <LinhaComposicao label="Rateio demais colaboradores" valor={rateioHoras.demaisColaboradores} />
