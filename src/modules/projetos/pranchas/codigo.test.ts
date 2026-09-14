@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { revisaoLabel, codigoPrancha, foraDoPadrao, parsePranchaFilename } from "./codigo";
+import { revisaoLabel, codigoPrancha, foraDoPadrao, parsePranchaFilename, faseDoNomeArquivo } from "./codigo";
 
 describe("revisaoLabel", () => {
   it("formata com dois dígitos", () => {
@@ -107,5 +107,25 @@ describe("foraDoPadrao", () => {
 
   it("não alerta quando a regex é inválida", () => {
     expect(foraDoPadrao("qualquer.pdf", "[")).toBe(false);
+  });
+});
+
+describe("faseDoNomeArquivo", () => {
+  const fases = [
+    { id: "f-ep", sigla: "EP" },
+    { id: "f-bs", sigla: "bs" },
+  ];
+
+  it("acha a fase pela sigla do 3º campo, sem diferenciar maiúsculas", () => {
+    expect(faseDoNomeArquivo("260029-HDR-BS-6008-3D.ifc", fases)?.id).toBe("f-bs");
+    expect(faseDoNomeArquivo("260029-ppci-ep-7001-de-R01.dwg", fases)?.id).toBe("f-ep");
+  });
+
+  it("devolve undefined quando a sigla não está no catálogo", () => {
+    expect(faseDoNomeArquivo("260029-HDR-EX-6008-3D.ifc", fases)).toBeUndefined();
+  });
+
+  it("devolve undefined para nome fora do padrão", () => {
+    expect(faseDoNomeArquivo("planta baixa BS.pdf", fases)).toBeUndefined();
   });
 });

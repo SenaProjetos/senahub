@@ -13,6 +13,7 @@ import { montarChunksEm, limparChunks } from "@/lib/upload-chunks";
 import { destinoArquivo, extensao, limiteDoPacote, limiteLabelDoPacote, type PacoteAlvo } from "@/modules/uploads/service";
 import { baseDirDisciplina, nomeFisico } from "@/modules/uploads/caminho";
 import { chaveDocumento } from "@/modules/uploads/documento";
+import { faseDoNomeArquivo } from "@/modules/projetos/pranchas/codigo";
 import { LIMITE_FINALIZACOES_UPLOAD } from "@/modules/uploads/limites";
 import { enfileirarConversao } from "@/modules/coordenacao/service";
 import { enfileirarConversaoDwg } from "@/modules/dwg/service";
@@ -126,17 +127,12 @@ export async function POST(req: Request) {
   const configProjeto = configsNomenclatura.find((config) => config.projetoId === projeto.id);
   const configGlobal = configsNomenclatura.find((config) => config.projetoId === null);
   const exigeFase = configProjeto?.exigirFase ?? configGlobal?.exigirFase ?? false;
-  const faseSelecionada = faseIdInformada
-    ? await prisma.pranchaCatalogo.findFirst({
-        where: {
-          id: faseIdInformada,
-          categoria: "fase",
-          ativo: true,
-          OR: [{ projetoId: null }, { projetoId: projeto.id }],
-        },
-        select: { id: true },
-      })
-    : null;
+  // Catálogo efetivo do projeto (global + próprio), o mesmo recorte do filtro da tela V2.
+  const fasesDoProjeto = await prisma.pranchaCatalogo.findMany({
+    where: { categoria: "fase", ativo: true, OR: [{ projetoId: null }, { projetoId: projeto.id }] },
+    select: { id: true, sigla: true },
+  });
+  const faseSelecionada = faseIdInformada ? fasesDoProjeto.find((fase) => fase.id === faseIdInformada) ?? null : null;
   const erroFase = exigeFase && !faseIdInformada
     ? "Selecione a fase do documento antes de enviar."
     : faseIdInformada && !faseSelecionada
@@ -182,7 +178,7 @@ export async function POST(req: Request) {
     // gravação física para não deixar arquivo no disco quando uma nova revisão é vedada.
     const documentoExistente = await prisma.documentoDisciplina.findUnique({
       where: { disciplinaId_chave: { disciplinaId, chave } },
-      select: { id: true, status: { select: { final: true } } },
+      select: { id: true, faseId: true, status: { select: { final: true } } },
     });
     if (documentoExistente?.status?.final) {
       return { nome, ok: false, motivo: "Este documento está com status final e não aceita novas revisões." };
@@ -224,13 +220,20 @@ export async function POST(req: Request) {
     // Documento lógico (pai) que agrupa as versões deste arquivo. `upsert` sobre o unique
     // (disciplinaId, chave) resolve o existente OU cria — e é o que impede dois envios
     // simultâneos do mesmo nome de criarem dois pais para a mesma cadeia.
+    // Sem fase informada, a sigla do nome classifica o documento (fase opcional não pode
+    // significar "sem fase" quando o nome já diz qual é). Sigla fora do catálogo = sem fase.
+    const faseDoNome = faseSelecionada ? undefined : faseDoNomeArquivo(nome, fasesDoProjeto);
     const documento = await prisma.documentoDisciplina.upsert({
       where: { disciplinaId_chave: { disciplinaId, chave } },
-      create: { disciplinaId, chave, nomeArquivo: nome, faseId: faseSelecionada?.id ?? null },
+      create: { disciplinaId, chave, nomeArquivo: nome, faseId: (faseSelecionada ?? faseDoNome)?.id ?? null },
       // No upload, a fase revisada antes da confirmação passa a ser a metainformação atual
-      // do documento lógico. Se a fase não foi informada (projeto opcional), não apaga a
-      // classificação já feita em uma revisão anterior.
-      update: faseSelecionada ? { faseId: faseSelecionada.id } : {},
+      // do documento lógico. A fase deduzida do nome só preenche documento ainda sem fase:
+      // nunca apaga nem sobrescreve a classificação feita à mão numa revisão anterior.
+      update: faseSelecionada
+        ? { faseId: faseSelecionada.id }
+        : faseDoNome && !documentoExistente?.faseId
+          ? { faseId: faseDoNome.id }
+          : {},
       select: { id: true },
     });
 

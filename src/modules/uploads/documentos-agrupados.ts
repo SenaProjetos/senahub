@@ -282,6 +282,41 @@ export async function listarDocumentosAgrupados(opts: {
   return { total, pagina, linhas };
 }
 
+/**
+ * Documentos por fase, para o seletor apagar a fase vazia. Recorte = escopo da tela (projeto,
+ * muralha por disciplina, disciplina aberta), com os mesmos critérios de "documento vivo" da
+ * listagem; os demais filtros (busca, extensão...) ficam de fora de propósito — a contagem diz
+ * se a fase tem acervo, não se sobrevive à busca digitada.
+ */
+export async function contagemDocumentosPorFase(opts: {
+  projetoId: string;
+  userId: string;
+  veTodas: boolean;
+  disciplinaId?: string | null;
+}): Promise<Record<string, number>> {
+  const rows = await prisma.$queryRawUnsafe<{ faseId: string; n: bigint }[]>(
+    `select d."faseId" as "faseId", count(distinct d.id)::bigint as n
+     from documento_disciplina d
+     join disciplina disc on disc.id = d."disciplinaId"
+     where d."substituidoPorId" is null
+       and d."faseId" is not null
+       and disc."projetoId" = $1
+       and ($2::text is null or disc.id = $2)
+       and ($3::boolean is true or exists (
+             select 1 from disciplina_responsavel dr
+             where dr."disciplinaId" = disc.id and dr."userId" = $4))
+       and exists (
+             select 1 from upload u
+             where u."documentoId" = d.id and u."excluidoEm" is null)
+     group by d."faseId"`,
+    opts.projetoId,
+    opts.disciplinaId ?? null,
+    opts.veTodas,
+    opts.userId,
+  );
+  return Object.fromEntries(rows.map((r) => [r.faseId, Number(r.n)]));
+}
+
 /** Catálogos usados pela edição e pelos filtros da superfície V2. */
 export async function opcoesMetadadosDocumento(projetoId: string) {
   const [fases, status] = await Promise.all([

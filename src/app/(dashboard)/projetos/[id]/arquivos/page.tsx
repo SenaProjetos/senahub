@@ -15,6 +15,7 @@ import {
   campoOrdenacaoDocValido,
   listarDocumentosAgrupados,
   opcoesMetadadosDocumento,
+  contagemDocumentosPorFase,
 } from "@/modules/uploads/documentos-agrupados";
 import { parseListParams, pageCount } from "@/lib/list-params";
 import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
@@ -203,7 +204,7 @@ export default async function ArquivosPage({
       sortFields: CAMPOS_ORDENACAO_DOC,
       defaultPageSize: 24,
     });
-    const [pagina, opcoes, opcoesMetadados] = await Promise.all([
+    const [pagina, opcoes, opcoesMetadados, documentosPorFase] = await Promise.all([
       listarDocumentosAgrupados({
         projetoId: id,
         userId: user.id,
@@ -220,6 +221,7 @@ export default async function ArquivosPage({
       }),
       opcoesFiltroDocumentos({ projetoId: id, userId: user.id, veTodas, disciplinaId: selecionadaId }),
       opcoesMetadadosDocumento(id),
+      contagemDocumentosPorFase({ projetoId: id, userId: user.id, veTodas, disciplinaId: selecionadaId }),
     ]);
     // Colunas visíveis: preferência do USUÁRIO (vale em qualquer projeto), resolvida no
     // servidor para a tabela já nascer com o recorte certo — sem piscar mostrando tudo.
@@ -298,6 +300,7 @@ export default async function ArquivosPage({
             : null
         }
         fases={opcoesMetadados.fases}
+        documentosPorFase={documentosPorFase}
         status={opcoesMetadados.status}
         podeCoordenacao={podeCoordenacao}
         podeValidar={podeValidar}

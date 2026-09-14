@@ -27,7 +27,7 @@ import {
   ShieldCheck,
   FileText,
 } from "lucide-react";
-import { foraDoPadrao, parsePranchaFilename } from "@/modules/projetos/pranchas/codigo";
+import { faseDoNomeArquivo, foraDoPadrao } from "@/modules/projetos/pranchas/codigo";
 import type {
   ArvoreDisciplina,
   ArvoreArquivoItem,
@@ -2844,6 +2844,5 @@ function RevisarNomesDialog({
 }
 
 function faseDoNome(nome: string, fases: FaseUpload[]): string | undefined {
-  const sigla = parsePranchaFilename(nome)?.fase;
-  return sigla ? fases.find((fase) => fase.sigla.toUpperCase() === sigla)?.id : undefined;
+  return faseDoNomeArquivo(nome, fases)?.id;
 }

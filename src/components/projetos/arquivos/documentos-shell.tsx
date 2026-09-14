@@ -53,6 +53,7 @@ export function DocumentosShell({
   podeGerirListas,
   dadosUploader,
   fases,
+  documentosPorFase,
   status,
   podeCoordenacao,
   podeValidar,
@@ -83,6 +84,8 @@ export function DocumentosShell({
   podeGerirListas: boolean;
   dadosUploader: DadosEnviarDocumentos | null;
   fases: OpcaoFaseDocumento[];
+  /** Documentos por `faseId` no escopo da tela — fase ausente do mapa é fase vazia. */
+  documentosPorFase: Record<string, number>;
   status: OpcaoStatusDocumento[];
   podeCoordenacao: boolean;
   podeValidar: boolean;
@@ -149,7 +152,7 @@ export function DocumentosShell({
             <FiltrosDocumentos extensoes={extensoes} autores={autores} status={status} totalFiltrado={totalFiltrado} />
             <SeletorColunas ocultas={colunasOcultas} />
           </div>
-          <SeletorFasesDocumentos fases={fases} />
+          <SeletorFasesDocumentos fases={fases} documentosPorFase={documentosPorFase} />
           <TabelaDocumentos
             projetoId={projeto.id}
             linhas={linhas}

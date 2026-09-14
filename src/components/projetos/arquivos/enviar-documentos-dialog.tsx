@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, FolderOpen, Trash2, Upload as UploadIcon } from "lucide-react";
 import { toast } from "sonner";
-import { foraDoPadrao, parsePranchaFilename } from "@/modules/projetos/pranchas/codigo";
+import { faseDoNomeArquivo, foraDoPadrao } from "@/modules/projetos/pranchas/codigo";
 import type { PastaFlat } from "@/modules/projetos/pastas/arvore";
 import { TAMANHO_MAX_BACKUP_LABEL, TAMANHO_MAX_LABEL, limiteDoPacote, limiteLabelDoPacote } from "@/modules/uploads/limites";
 import { detectarNovasRevisoes, mensagemNovasRevisoes, type ArquivoExistente } from "@/modules/uploads/revisao-nova";
@@ -578,8 +578,7 @@ function RevisarNomesDialog({
 }
 
 function faseDoNome(nome: string, fases: FaseUpload[]): string | undefined {
-  const sigla = parsePranchaFilename(nome)?.fase;
-  return sigla ? fases.find((fase) => fase.sigla.toUpperCase() === sigla)?.id : undefined;
+  return faseDoNomeArquivo(nome, fases)?.id;
 }
 
 function separarExtensao(nome: string) {

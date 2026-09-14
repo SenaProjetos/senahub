@@ -7,7 +7,13 @@ import { cn } from "@/lib/utils";
 export type OpcaoFaseDocumento = { id: string; sigla: string; nome: string };
 
 /** Filtro de fase em uma linha: o id vive na URL para o servidor recortar a página. */
-export function SeletorFasesDocumentos({ fases }: { fases: OpcaoFaseDocumento[] }) {
+export function SeletorFasesDocumentos({
+  fases,
+  documentosPorFase,
+}: {
+  fases: OpcaoFaseDocumento[];
+  documentosPorFase: Record<string, number>;
+}) {
   const sp = useSearchParams();
   const setParams = useSetParams();
   const faseId = sp.get("fase");
@@ -28,23 +34,33 @@ export function SeletorFasesDocumentos({ fases }: { fases: OpcaoFaseDocumento[] 
         >
           Todas
         </button>
-        {fases.map((fase) => (
-          <button
-            key={fase.id}
-            type="button"
-            onClick={() => setParams({ fase: fase.id })}
-            aria-pressed={faseId === fase.id}
-            title={fase.nome}
-            className={cn(
-              "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-              faseId === fase.id
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-foreground",
-            )}
-          >
-            {fase.sigla}
-          </button>
-        ))}
+        {fases.map((fase) => {
+          const selecionada = faseId === fase.id;
+          const total = documentosPorFase[fase.id] ?? 0;
+          // Fase sem documento fica apagada e sem clique; a selecionada nunca apaga, senão
+          // um link com `?fase=` vazia deixaria o filtro ativo sem jeito aparente de sair.
+          const vazia = total === 0 && !selecionada;
+          return (
+            <button
+              key={fase.id}
+              type="button"
+              onClick={() => setParams({ fase: fase.id })}
+              disabled={vazia}
+              aria-pressed={selecionada}
+              title={vazia ? `${fase.nome} — nenhum documento nesta fase` : `${fase.nome} — ${total} ${total === 1 ? "documento" : "documentos"}`}
+              className={cn(
+                "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                selecionada
+                  ? "bg-primary text-primary-foreground"
+                  : vazia
+                    ? "cursor-not-allowed text-muted-foreground/40"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
+              )}
+            >
+              {fase.sigla}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

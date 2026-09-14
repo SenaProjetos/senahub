@@ -70,3 +70,13 @@ export function parsePranchaFilename(filename: string): PranchaParseada | null {
     revisao: m[6] != null ? parseInt(m[6], 10) : null,
   };
 }
+
+/**
+ * Fase do catálogo cuja sigla aparece no 3º campo do nome (`260029-HDR-BS-6008-3D` → BS).
+ * Nome fora do padrão ou sigla ausente do catálogo devolve `undefined` — quem chama decide
+ * se isso é "sem fase" (upload opcional, backfill) ou pede escolha manual.
+ */
+export function faseDoNomeArquivo<F extends { sigla: string }>(nome: string, fases: readonly F[]): F | undefined {
+  const sigla = parsePranchaFilename(nome)?.fase;
+  return sigla ? fases.find((fase) => fase.sigla.toUpperCase() === sigla) : undefined;
+}
