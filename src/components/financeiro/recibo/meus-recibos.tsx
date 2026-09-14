@@ -81,15 +81,15 @@ function LinhaRecibo({
   const competencia = competenciaRecibo(recibo.ano, recibo.mes);
   const rotulo = recibo.tipo === "mensal" ? `Recibo de ${competencia ?? "—"}` : "Recibo de entrega";
 
-  function assinar() {
+  async function assinar() {
+    const ok = await confirm({
+      title: "Assinar recibo",
+      description:
+        "Ao assinar, você declara que recebeu os valores listados neste recibo. Ficam registrados seu nome, a data e a hora.",
+      confirmLabel: "Assinar",
+    });
+    if (!ok) return;
     start(async () => {
-      const ok = await confirm({
-        title: "Assinar recibo",
-        description:
-          "Ao assinar, você declara que recebeu os valores listados neste recibo. Ficam registrados seu nome, a data e a hora.",
-        confirmLabel: "Assinar",
-      });
-      if (!ok) return;
       const r = await assinarRecibo({ id: recibo.id });
       if (r.ok) {
         toast.success("Recibo assinado.");

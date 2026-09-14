@@ -177,15 +177,15 @@ export function CertidoesView({
     });
   }
 
-  function excluir(c: Certidao) {
+  async function excluir(c: Certidao) {
+    const ok = await confirm({
+      title: `Excluir "${c.tipo}"?`,
+      description: "Remove a certidão e todo o histórico de versões. Esta ação não pode ser desfeita.",
+      confirmLabel: "Excluir",
+      variant: "destructive",
+    });
+    if (!ok) return;
     start(async () => {
-      const ok = await confirm({
-        title: `Excluir "${c.tipo}"?`,
-        description: "Remove a certidão e todo o histórico de versões. Esta ação não pode ser desfeita.",
-        confirmLabel: "Excluir",
-        variant: "destructive",
-      });
-      if (!ok) return;
       const r = await excluirCertidao({ id: c.id });
       if (r.ok) {
         toast.success("Certidão excluída.");

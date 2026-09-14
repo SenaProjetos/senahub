@@ -378,15 +378,15 @@ export function CancelarPagamentoButton({
   const confirm = useConfirm();
   const [pending, start] = useTransition();
 
-  function cancelar() {
+  async function cancelar() {
+    const ok = await confirm({
+      title: "Cancelar pagamento",
+      description: `${pagamento.projetista.name} — ${brl(Number(pagamento.valor))}. A linha sai do "a pagar" e não pode ser desfeita por aqui.`,
+      confirmLabel: "Cancelar pagamento",
+      variant: "destructive",
+    });
+    if (!ok) return;
     start(async () => {
-      const ok = await confirm({
-        title: "Cancelar pagamento",
-        description: `${pagamento.projetista.name} — ${brl(Number(pagamento.valor))}. A linha sai do "a pagar" e não pode ser desfeita por aqui.`,
-        confirmLabel: "Cancelar pagamento",
-        variant: "destructive",
-      });
-      if (!ok) return;
       const r = await cancelarPagamentoProjetista({ id: pagamento.id });
       if (r.ok) {
         toast.success("Pagamento cancelado.");
