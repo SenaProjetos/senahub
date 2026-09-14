@@ -14,6 +14,7 @@ export function PainelNavegacaoDocumentos({
   listas,
   listaSelecionadaId,
   podeGerirListas,
+  areaAtiva = false,
 }: {
   projetoId: string;
   disciplinas: DisciplinaArvore[];
@@ -22,6 +23,7 @@ export function PainelNavegacaoDocumentos({
   listas: ListaPainel[];
   listaSelecionadaId: string | null;
   podeGerirListas: boolean;
+  areaAtiva?: boolean;
 }) {
   const [aba, setAba] = useState(listaSelecionadaId ? "listas" : "disciplinas");
   return (
@@ -31,7 +33,7 @@ export function PainelNavegacaoDocumentos({
         <TabsTrigger value="listas" className="text-xs">Listas</TabsTrigger>
       </TabsList>
       <TabsContent value="disciplinas">
-        <PainelDisciplinas disciplinas={disciplinas} totalGeral={totalGeral} selecionadaId={disciplinaSelecionadaId} />
+        <PainelDisciplinas disciplinas={disciplinas} totalGeral={totalGeral} selecionadaId={disciplinaSelecionadaId} areaAtiva={areaAtiva} />
       </TabsContent>
       <TabsContent value="listas">
         <PainelListas projetoId={projetoId} listas={listas} selecionadaId={listaSelecionadaId} podeGerir={podeGerirListas} />

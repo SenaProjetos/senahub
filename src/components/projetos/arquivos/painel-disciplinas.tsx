@@ -30,10 +30,13 @@ export function PainelDisciplinas({
   disciplinas,
   totalGeral,
   selecionadaId,
+  areaAtiva = false,
 }: {
   disciplinas: DisciplinaArvore[];
   totalGeral: number;
   selecionadaId: string | null;
+  /** Área do projeto aberta: "Todos os documentos" não está em exibição, então não destaca. */
+  areaAtiva?: boolean;
 }) {
   const [busca, setBusca] = useState("");
   const setParams = useSetParams();
@@ -65,10 +68,10 @@ export function PainelDisciplinas({
         <li>
           <button
             type="button"
-            onClick={() => setParams({ disciplinaId: null, listaId: null })}
+            onClick={() => setParams({ disciplinaId: null, listaId: null, area: null })}
             className={cn(
               "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-xs font-semibold transition-colors",
-              selecionadaId === null ? "bg-accent text-foreground" : "text-foreground hover:bg-accent/60",
+              selecionadaId === null && !areaAtiva ? "bg-accent text-foreground" : "text-foreground hover:bg-accent/60",
             )}
           >
             <span>Todos os documentos</span>
@@ -80,7 +83,7 @@ export function PainelDisciplinas({
           <li key={d.id}>
             <button
               type="button"
-              onClick={() => setParams({ disciplinaId: d.id, listaId: null })}
+              onClick={() => setParams({ disciplinaId: d.id, listaId: null, area: null })}
               title={STATUS_LABEL[d.status]}
               className={cn(
                 "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors",

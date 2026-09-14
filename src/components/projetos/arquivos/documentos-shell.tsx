@@ -130,6 +130,7 @@ export function DocumentosShell({
             listas={listas}
             listaSelecionadaId={listaSelecionadaId}
             podeGerirListas={podeGerirListas}
+            areaAtiva={areaSelecionada !== null}
           />
           <PainelAreasProjeto areas={areas} selecionada={areaSelecionada} />
         </aside>

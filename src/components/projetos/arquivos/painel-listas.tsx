@@ -105,7 +105,7 @@ export function PainelListas({
           <li key={lista.id} className="group flex items-center gap-1">
             <button
               type="button"
-              onClick={() => setParams({ listaId: lista.id, disciplinaId: null })}
+              onClick={() => setParams({ listaId: lista.id, disciplinaId: null, area: null })}
               className={cn(
                 "flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors",
                 selecionadaId === lista.id ? "bg-accent text-foreground" : "text-foreground hover:bg-accent/60",
