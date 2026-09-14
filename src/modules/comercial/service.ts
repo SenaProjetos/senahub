@@ -84,6 +84,13 @@ export async function proximoNumeroProposta(tx: Prisma.TransactionClient) {
  * que a string não é vazia; esta função garante que a negociação EXISTE e é DAQUELE cliente —
  * sem isto, um Select mal montado (ou um payload editado à mão) poderia mandar a negociação de
  * OUTRA empresa, e a proposta nasceria apontando "de onde veio" para o negócio errado.
+ *
+ * **Herda `leadId` da negociação, quando ela tem um.** `Negociacao.leadId` é opcional — nasce
+ * preenchido quando a negociação veio de um lead qualificado, nulo quando foi criada direto. A
+ * proposta avulsa PRECISA copiar esse valor: sem isto, uma negociação com lead produzia uma
+ * proposta sem `leadId`, e o card "Propostas" da ficha do lead e o badge do funil ficavam
+ * vazios mesmo a proposta existindo e estando ligada à mesma negociação (issue #2). Não é
+ * "adivinhar" um lead — é propagar a FK que a negociação escolhida já resolveu.
  */
 export async function criarProposta(
   input: { titulo: string; clienteId: string; negociacaoId: string },
@@ -91,7 +98,7 @@ export async function criarProposta(
 ) {
   const negociacao = await prisma.negociacao.findUnique({
     where: { id: input.negociacaoId },
-    select: { id: true, clienteId: true },
+    select: { id: true, clienteId: true, leadId: true },
   });
   if (!negociacao) throw new ActionError("Negociação não encontrada.");
   if (negociacao.clienteId !== input.clienteId) {
@@ -108,6 +115,7 @@ export async function criarProposta(
         titulo: input.titulo,
         clienteId: input.clienteId,
         negociacaoId: input.negociacaoId,
+        leadId: negociacao.leadId,
         token: randomBytes(18).toString("hex"),
         autorId,
       },
