@@ -2,6 +2,94 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.17.0](https://github.com/SenaProjetos/senahub/compare/v1.16.0...v1.17.0) (2026-09-14)
+
+
+### ✨ Funcionalidades
+
+* **acesso:** expõe `tipo` na sessão e adiciona `requireInterno()` ([3118798](https://github.com/SenaProjetos/senahub/commit/3118798f857ef95649b15826755d34f034aadb16))
+* **avisos:** formatação no corpo e imagem em tamanho útil ([8f621b6](https://github.com/SenaProjetos/senahub/commit/8f621b6b28d5c10a356bc0a0dc7f651db978a929))
+* **certidoes:** centro de conformidade com exclusão reversível ([292f101](https://github.com/SenaProjetos/senahub/commit/292f101c31f4954b0208517a6b645efc795b0270))
+* **configuracoes:** prévia real do e-mail na tela + batidas no resumo diário ([4c333de](https://github.com/SenaProjetos/senahub/commit/4c333de97a72021000e208d2496914513b764584))
+* **configuracoes:** timbrado (razão social/CNPJ/endereço/logo) no PDF do holerite ([c5741c5](https://github.com/SenaProjetos/senahub/commit/c5741c5242dc7684f622f1e45ffdb0e683e1302b))
+* **deploy:** registra e mostra o histórico de inícios automáticos ([168a340](https://github.com/SenaProjetos/senahub/commit/168a3407e0dd95d52802857f8e0b30a9802c56c1))
+* **financeiro:** ações de pagamento dentro do lote expandido (G9/B4) ([e7a2077](https://github.com/SenaProjetos/senahub/commit/e7a20774d785d830d72005e17c3620519a083777))
+* **financeiro:** alerta semanal de pendente parado vira job (G13/D38) ([e409261](https://github.com/SenaProjetos/senahub/commit/e409261fd6aff0d39e95adde567fe804824a0b07))
+* **financeiro:** anexar comprovante ao pagar projetista (F8, D26) ([43a89e5](https://github.com/SenaProjetos/senahub/commit/43a89e559091ba5ecc8026252a1bfc832c2d5a5b))
+* **financeiro:** comprovante linha a linha nos pagamentos em lote (G7, B1) ([417f476](https://github.com/SenaProjetos/senahub/commit/417f4760f285554bec5276051c99d4fa3287c99e))
+* **financeiro:** comprovante retroativo + remoção para quem só tem folha_pj (G6, B3) ([e42aebb](https://github.com/SenaProjetos/senahub/commit/e42aebb9ba2059c92ef22618e0d29aa0587c3b09))
+* **financeiro:** corrigir pagamento conciliado acertando pelo extrato (G1a, D31) ([bc3b86d](https://github.com/SenaProjetos/senahub/commit/bc3b86d8eea747088e96979b980a103494ee47db))
+* **financeiro:** corrigir pagamento de produção já efetivado, com justificativa (F11, D27) ([b1d6554](https://github.com/SenaProjetos/senahub/commit/b1d6554a5b2ea891c337dd885182b7d3f1f1d3c2))
+* **financeiro:** desfazer conciliação, com caminho de volta (G1c, D31) ([1246f47](https://github.com/SenaProjetos/senahub/commit/1246f47682504542e10c56661fd92163f193f905))
+* **financeiro:** estorno de pagamento efetivado e fim do cancelamento por fora (G1b, D31) ([6eed567](https://github.com/SenaProjetos/senahub/commit/6eed567b008c85ac88e12718bc4028da1278f2a6))
+* **financeiro:** excluir lote de produção soltando os pagamentos (F12, D30) ([916af9d](https://github.com/SenaProjetos/senahub/commit/916af9d143283858c1d494be7f4d6d947ba4cf2c))
+* **financeiro:** extrato do projetista mostra forma e anexos (G12/D35) ([0acb5be](https://github.com/SenaProjetos/senahub/commit/0acb5be45e680ac316cb3c50349f8679fd3dfe97))
+* **financeiro:** F4 folha-projetistas — aba de lotes ([92f52cf](https://github.com/SenaProjetos/senahub/commit/92f52cfa06147d27a25256a924a4274c213882c1))
+* **financeiro:** F5 folha-projetistas — dialog único, conta obrigatória, erro por campo ([cd687dc](https://github.com/SenaProjetos/senahub/commit/cd687dce23bd45202b981819f6c1fce3bc3956d0))
+* **financeiro:** F7 folha-projetistas — exportação + manual ([5ddd629](https://github.com/SenaProjetos/senahub/commit/5ddd629022c84439515ac16b203c081b195ef2b0))
+* **financeiro:** F9+F10 folha-projetistas — nome do export com filtros, lote expandido ([aefb835](https://github.com/SenaProjetos/senahub/commit/aefb83528ea092cfef76629d46f144b0acadeac2))
+* **financeiro:** filtro "sem comprovante" na aba Pagamentos (G10/D33) ([6467806](https://github.com/SenaProjetos/senahub/commit/64678062738104752b45c3518c1cf323f3ff7cc1))
+* **financeiro:** filtros, rastreabilidade e pagar selecionados na Produção ([95177ec](https://github.com/SenaProjetos/senahub/commit/95177ec48d4a6073491acb57e2e7a5e389b17cdd))
+* **financeiro:** lote visível do lado do pagamento (G11/D34) ([62e1c82](https://github.com/SenaProjetos/senahub/commit/62e1c825434d2504ad952b6e75626d180396f338))
+* **financeiro:** modo por projetista na tela Produção ([e5354dd](https://github.com/SenaProjetos/senahub/commit/e5354dd430e2b353d42f8a58939bed39a1dd7d37))
+* **financeiro:** mostra nome do projeto ao lado do código nas listas ([1645e44](https://github.com/SenaProjetos/senahub/commit/1645e44855c497f9caf507b9412aadce1bfb49ae))
+* **financeiro:** mover pagamento pendente entre lotes (G3, B5/N8) ([14fb7bc](https://github.com/SenaProjetos/senahub/commit/14fb7bcd129a1f0a1b906b0347c3b6524d4f4cca))
+* **financeiro:** notificar projetista quando correção muda valor ou data (G8, B2) ([590c5c9](https://github.com/SenaProjetos/senahub/commit/590c5c9f86f51a9605a6303c7ede7d0e4056f37f))
+* **financeiro:** recibo de produção assinável pelo projetista, com NF do PJ (G5, D36) ([385a90e](https://github.com/SenaProjetos/senahub/commit/385a90ea3b99a5557c7926e9bf176ece6368b034))
+* **financeiro:** separa corrigir/estornar/excluir em financeiro:folha_pj_corrigir (G2, D37) ([967d281](https://github.com/SenaProjetos/senahub/commit/967d2816c822a373ff46fd983f9d750f618207d0))
+* **financeiro:** status de recibo na linha e aba Recibos dedicada ([e62aeca](https://github.com/SenaProjetos/senahub/commit/e62aeca5f05a056f15600036bc0a16be403a2c40))
+* **financeiro:** timbrado da empresa no PDF do recibo de produção ([0b5ab84](https://github.com/SenaProjetos/senahub/commit/0b5ab84e4043ac34c81312c39e0e9017415b6eab))
+* **folha:** folha de 13º salário separada da mensal no mesmo mês ([a25906f](https://github.com/SenaProjetos/senahub/commit/a25906ff9f7f2b4007fcb90b492daf6c3a4e1ab7))
+* **guias:** área Guias de uso por setor (F0) ([a485b77](https://github.com/SenaProjetos/senahub/commit/a485b7710cca9a8f160e861467ab8f69fbe95c7a))
+* **guias:** guia de uso de Gestão (F4) — encerra o plano ([01d2a6a](https://github.com/SenaProjetos/senahub/commit/01d2a6a9e231571a6fc94a8d7b13937a59036165))
+* **guias:** guia de uso de Projetos (F1) ([1104033](https://github.com/SenaProjetos/senahub/commit/110403339ce38142163ec0e05447f44e34d9a491))
+* **guias:** guia de uso de RH e Ponto (F3) ([a5ea132](https://github.com/SenaProjetos/senahub/commit/a5ea132d84476317f70b492fcc81ff7a72cd0b58))
+* **guias:** guia de uso do Financeiro (F2) ([ab59108](https://github.com/SenaProjetos/senahub/commit/ab5910828f4eaa0cfabba5aa96cc60c88e4079ed))
+* **links-publicos:** card de prévia no WhatsApp/Telegram para páginas por token ([a0e1f1f](https://github.com/SenaProjetos/senahub/commit/a0e1f1f345131ec170296c2cff9298f1f2164119))
+* **nav:** move Folha CLT para o grupo Financeiro e adiciona Produção ([48b0f86](https://github.com/SenaProjetos/senahub/commit/48b0f86b28224b1a585a3ddc271a47003553c775))
+* **notificacoes:** deixa o texto dos alertas de ponto mais pessoal e claro ([53170ab](https://github.com/SenaProjetos/senahub/commit/53170abacbbec80fa535fc54e0dda5616c7c2492))
+* **notificacoes:** reduz volume de e-mail de ponto e dá timbrado ao layout ([5f84095](https://github.com/SenaProjetos/senahub/commit/5f84095ec483d35ee7d3631e15a881f982118cbb))
+* **projetos:** promove layout otimizado da Visão Geral a padrão ([671f374](https://github.com/SenaProjetos/senahub/commit/671f374b494554e879f2d864e751917ede5ee477))
+* **rh:** assinatura eletrônica do holerite (P3) ([e2b3309](https://github.com/SenaProjetos/senahub/commit/e2b33094d532c6339d2b7bbe10523314f16a700e))
+* **rh:** exige assinatura do holerite no próximo acesso (P4) ([03b4720](https://github.com/SenaProjetos/senahub/commit/03b4720ab3dc0cc9166c83cc27a00c2379227f2a))
+* **rh:** import da folha CLT do PDF, com pendência e trava de sinal (P2) ([ebd4a62](https://github.com/SenaProjetos/senahub/commit/ebd4a6264d5c2f647c0aa88d54f31639924c10e3))
+* **rh:** parser puro da folha CLT em PDF, testado com 4 meses reais (P1) ([5ae0364](https://github.com/SenaProjetos/senahub/commit/5ae03649696db1b32f951881a86ea671c8e4564a))
+* **rh:** permite ignorar matrícula sem acesso ao sistema no import da folha ([37fd912](https://github.com/SenaProjetos/senahub/commit/37fd91223dbe00212e76998a50988624a97f946a))
+* **rh:** tela de import da folha CLT + lembrete de assinatura (P5) ([685bbaa](https://github.com/SenaProjetos/senahub/commit/685bbaaa9d33dca877194eb4a0cead13cca1138f))
+* **schema:** campos p/ import de folha CLT via PDF + assinatura (P0) ([d35aa70](https://github.com/SenaProjetos/senahub/commit/d35aa707050725ef8ded94c98fa6fa49441eb2d5))
+* **uploads:** escopo de documento na exclusão e restauração ([d0ebeae](https://github.com/SenaProjetos/senahub/commit/d0ebeaea309fad040d1724bcd1edd1c3bc9c7e90))
+
+
+### 🐛 Correções
+
+* botões com confirmação que não faziam nada em certidões e produção ([9bb753f](https://github.com/SenaProjetos/senahub/commit/9bb753f9cac51529ac67c3b1afeb1db7706f3d51))
+* **chat:** dot de status em DMs só colorido se usuário online ([9d85a82](https://github.com/SenaProjetos/senahub/commit/9d85a823df326829a8b9b8377a2949dc81436440))
+* **comercial:** proposta avulsa herda leadId da negociação ([b3c100f](https://github.com/SenaProjetos/senahub/commit/b3c100fd97896bdc6986938ce15e0c0fa3e3e57b)), closes [#2](https://github.com/SenaProjetos/senahub/issues/2)
+* **deploy:** arquivo não rastreado deixa de bloquear o deploy ([2269aba](https://github.com/SenaProjetos/senahub/commit/2269aba7d3612ea9a450a0e9c57e7af59d93822d))
+* **deploy:** ordena o boot do serviço após o Postgres ([df57e87](https://github.com/SenaProjetos/senahub/commit/df57e87c1b2dd404f42b4550e6c07b31e88a0e86))
+* **deploy:** pré-voo deixa de sair com 255 quando passa ([71d4d96](https://github.com/SenaProjetos/senahub/commit/71d4d96c10caa4a8d1d9b0eaf7d1baa20eff0970))
+* **deploy:** versiona a regra que ignora o settings.local.json do Claude ([9c818cc](https://github.com/SenaProjetos/senahub/commit/9c818ccfe4a0bd62c2ce8566867b17acbf0cc170))
+* **financeiro:** bloqueia pagamento de projetista com valor zero ([d9eaf7a](https://github.com/SenaProjetos/senahub/commit/d9eaf7a5920d29d8aeeec04a789ff090864da6ec))
+* **financeiro:** desabilita Corrigir/Estornar quando bloqueado, em vez de toast ([880fd1b](https://github.com/SenaProjetos/senahub/commit/880fd1b41598f64eba4c811c164e08e5c1d2cd97))
+* **financeiro:** ícone de comprovante muda de cor conforme anexo ([24318bf](https://github.com/SenaProjetos/senahub/commit/24318bff1772a4c8933e50ae64a33289bb834d25))
+* **financeiro:** rotula onde a Data de competência realmente vale ([0029cdf](https://github.com/SenaProjetos/senahub/commit/0029cdf076fbba1d6958b8937939aca120c92488)), closes [#4](https://github.com/SenaProjetos/senahub/issues/4)
+* **projetos:** explica o cartão "Pendências críticas" na Visão Geral ([4b0cef8](https://github.com/SenaProjetos/senahub/commit/4b0cef8818f01351125d6f7f2dc9ef7ee1682777)), closes [#3](https://github.com/SenaProjetos/senahub/issues/3)
+* **rh:** botão "sem acesso ao sistema" não respondia a clique no import de folha ([876a275](https://github.com/SenaProjetos/senahub/commit/876a2756e44e185cc3cb5d0463c536d84e63c619))
+* **rh:** confirm() travava dentro de startTransition (causa real do clique sem efeito) ([d8578ab](https://github.com/SenaProjetos/senahub/commit/d8578abfd1dd4b64797c73fd8ea4a939fa0a68ec))
+* **rh:** import da folha CLT falhava contra PDF real do contador ([af9c9ac](https://github.com/SenaProjetos/senahub/commit/af9c9accf8044a69f27ac36bac1fa0a98a05a934))
+
+
+### ⚡ Performance
+
+* **financeiro:** índice [status, liberadoEm] em PagamentoProjetista (G4, D40) ([a670729](https://github.com/SenaProjetos/senahub/commit/a670729ccec43ada8b0b42c9b88f720edf974903))
+
+
+### ♻️ Refatorações
+
+* **financeiro:** agrega totais e pagina no banco na tela Produção ([40c592c](https://github.com/SenaProjetos/senahub/commit/40c592cffb351b0110a6241883d8febf2a3d3cf3))
+* **financeiro:** F6 folha-projetistas — service do lote e primeiros testes ([b736e36](https://github.com/SenaProjetos/senahub/commit/b736e367399464b77b3220247fd10c7008b049e5))
+* **financeiro:** título e abas na tela Produção (folha-projetistas) ([c8d9db0](https://github.com/SenaProjetos/senahub/commit/c8d9db0294fae653442e8abad1b7f8a4a2f48083))
+
 ## [1.16.0](https://github.com/SenaProjetos/senahub/compare/v1.14.0...v1.16.0) (2026-09-04)
 
 
