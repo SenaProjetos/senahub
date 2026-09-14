@@ -11,7 +11,8 @@ export type ResultadoBuscaMensagem = {
 
 /**
  * Busca mensagens por conteúdo (case-insensitive), restrita aos canais de que o
- * usuário é membro e ignorando mensagens excluídas (C4-4, achado #24).
+ * usuário é membro e ignorando mensagens excluídas (C4-4, achado #24) e Anotações na lixeira
+ * (o resultado abriria um canal que não está na lista).
  */
 export async function buscarMensagens(
   userId: string,
@@ -24,7 +25,7 @@ export async function buscarMensagens(
     where: {
       excluidaEm: null,
       conteudo: { contains: t, mode: "insensitive" },
-      canal: { membros: { some: { userId } } },
+      canal: { membros: { some: { userId } }, excluidoEm: null },
     },
     orderBy: { createdAt: "desc" },
     take: limite,

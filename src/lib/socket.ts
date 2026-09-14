@@ -2,6 +2,7 @@ import type { Server as HttpServer } from "node:http";
 import { Server as SocketServer } from "socket.io";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { podeObservarCanal } from "@/modules/chat/acesso";
 
 /**
  * IMPORTANTE: o `server.ts` (rodado por tsx) e o código do Next (Server Actions,
@@ -81,9 +82,23 @@ export function initSocket(server: HttpServer): SocketServer {
       // sem DB no contexto → ignora (live cai para refresh)
     }
 
-    // Cliente pede para entrar em um canal recém-criado (ex.: nova DM).
-    socket.on("entrar-canal", (canalId: string) => {
-      if (typeof canalId === "string") socket.join(`canal:${canalId}`);
+    // Cliente pede para entrar em um canal recém-criado (ex.: nova DM) ou observado (admin).
+    // O room recebe as mensagens ao vivo, então só entra quem poderia ler o canal pela API:
+    // membro, ou perfil que observa aquele tipo (`podeObservarCanal` — Anotações só admin).
+    // `socket.data.role` é o papel no handshake: troca de perfil só vale após reconectar.
+    socket.on("entrar-canal", async (canalId: string) => {
+      if (typeof canalId !== "string" || !canalId) return;
+      try {
+        const canal = await prisma.canal.findUnique({
+          where: { id: canalId },
+          select: { tipo: true, membros: { where: { userId }, select: { userId: true } } },
+        });
+        if (!canal) return;
+        if (canal.membros.length === 0 && !podeObservarCanal(socket.data.role as string, canal.tipo)) return;
+        socket.join(`canal:${canalId}`);
+      } catch {
+        // sem DB no contexto → não entra (live cai para refresh)
+      }
     });
 
     // Presença no visualizador de PDF (item 32) — room por DOCUMENTO, não por versão: duas

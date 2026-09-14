@@ -3,7 +3,7 @@ import { addDays, differenceInCalendarDays, subMonths, getISOWeek } from "date-f
 import { prisma } from "@/lib/prisma";
 import { notificar, notificarMuitos } from "@/lib/notificar";
 import { enviarPush } from "@/lib/push";
-import { emitParaCanal, usuarioOnline } from "@/lib/socket";
+import { emitParaCanal, emitParaUsuario, usuarioOnline } from "@/lib/socket";
 import { textoParaPreview } from "@/modules/chat/formatacao";
 import type { MensagemAgendadaJob } from "@/modules/chat/agendamento";
 import { enviarEmail, smtpConfigurado } from "@/lib/mail";
@@ -1548,6 +1548,38 @@ export async function limparDxfOrfaos(): Promise<number> {
  * ConversaoModelo. Retorna quantos removeu.
  */
 /**
+ * Purga a lixeira das Anotações do chat: apaga EM DEFINITIVO os canais `anotacoes` na lixeira
+ * há mais de DIAS_LIXEIRA dias — canal, mensagens (cascata) e os arquivos anexados no disco.
+ * Idempotente: um canal já apagado simplesmente não volta na consulta. Avisa o dono pelo
+ * socket para a lixeira dele se atualizar ao vivo. Devolve quantos canais apagou.
+ */
+export async function purgarLixeiraAnotacoes(): Promise<number> {
+  const vencidos = await prisma.canal.findMany({
+    where: { tipo: "anotacoes", excluidoEm: { not: null, lt: limitePurga() } },
+    select: {
+      id: true,
+      criadoPorId: true,
+      mensagens: { select: { anexoPath: true, anexos: { select: { path: true } } } },
+    },
+  });
+  let removidos = 0;
+  for (const c of vencidos) {
+    try {
+      await prisma.canal.delete({ where: { id: c.id } });
+      for (const m of c.mensagens) {
+        if (m.anexoPath) await removerArquivo(m.anexoPath);
+        for (const a of m.anexos) await removerArquivo(a.path);
+      }
+      if (c.criadoPorId) emitParaUsuario(c.criadoPorId, "sair-canal", { canalId: c.id });
+      removidos++;
+    } catch (err) {
+      console.error(`[lixeira] falha ao purgar anotações ${c.id}:`, err);
+    }
+  }
+  return removidos;
+}
+
+/**
  * Purga a lixeira do projeto: apaga EM DEFINITIVO os Uploads na lixeira há mais de
  * DIAS_LIXEIRA dias. Bypassa o filtro global via `excluidoEm: { not: null, lt }`.
  * Remove o registro (cascata: Pendencia/AceiteCliente/ConversaoModelo) e os arquivos
@@ -1683,8 +1715,10 @@ export async function processarMensagemAgendada(data: unknown): Promise<void> {
 
   const membro = await prisma.canalMembro.findUnique({
     where: { canalId_userId: { canalId, userId: autorId } },
+    select: { canal: { select: { excluidoEm: true } } },
   });
   if (!membro) return; // autor saiu do canal → descarta
+  if (membro.canal.excluidoEm) return; // Anotações na lixeira estão congeladas → descarta
 
   const msg = await prisma.mensagem.create({
     data: { canalId, autorId, conteudo },

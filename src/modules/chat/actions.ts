@@ -15,6 +15,8 @@ import { textoParaPreview } from "@/modules/chat/formatacao";
 import { FILA_MENSAGEM_AGENDADA, validarAgendamento, type MensagemAgendadaJob } from "@/modules/chat/agendamento";
 import { getBoss } from "@/lib/jobs";
 import { agregarReacoes, detalhesMensagem } from "@/modules/chat/queries";
+import { podeModerarCanal, podeObservarCanal } from "@/modules/chat/acesso";
+import { tipoTermoPorRole } from "@/modules/legal/termos";
 
 const base = { modulo: "chat" } as const;
 
@@ -24,6 +26,7 @@ const PODE_MODERAR = ["admin", "supervisor"] as const;
 function rotuloCanal(tipo: string, nome: string | null): string | null {
   if (tipo === "dm") return null; // autor já deixa claro que é DM
   if (tipo === "grupo") return `grupo ${nome ?? "sem nome"}`;
+  if (tipo === "anotacoes") return nome ?? "anotações";
   if (tipo === "projeto") return `projeto ${nome ?? ""}`.trim();
   if (tipo === "disciplina") return `disciplina ${nome ?? ""}`.trim();
   return nome ?? tipo; // geral, sócios
@@ -73,8 +76,12 @@ const enviarSchema = z
 async function exigirMembro(canalId: string, userId: string) {
   const m = await prisma.canalMembro.findUnique({
     where: { canalId_userId: { canalId, userId } },
+    select: { canal: { select: { excluidoEm: true } } },
   });
   if (!m) throw new ActionError("Você não participa deste canal.");
+  // Anotações na lixeira ficam congeladas: nada entra (mensagem, reação, fixar, encaminhar
+  // para lá) até o dono restaurar — senão o conteúdo mudaria enquanto conta o prazo de purga.
+  if (m.canal.excluidoEm) throw new ActionError("Estas anotações estão na lixeira. Restaure para voltar a usar.");
 }
 
 /** Distribui notificações (sino/push) de uma mensagem nova aos membros do canal. */
@@ -335,13 +342,12 @@ export const encaminharMensagem = defineAction(
   async (i, { user }) => {
     const origem = await prisma.mensagem.findUnique({
       where: { id: i.mensagemId },
-      include: { anexos: { orderBy: { ordem: "asc" } } },
+      include: { anexos: { orderBy: { ordem: "asc" } }, canal: { select: { tipo: true } } },
     });
     if (!origem || origem.excluidaEm) throw new ActionError("Mensagem não encontrada.");
 
-    // Pode ler a origem? (membro do canal de origem ou perfil global)
-    const ehGlobal = (PODE_MODERAR as readonly string[]).includes(user.role);
-    if (!ehGlobal) {
+    // Pode ler a origem? (membro do canal de origem ou observador do tipo — `podeObservarCanal`)
+    if (!podeObservarCanal(user.role, origem.canal.tipo)) {
       const m = await prisma.canalMembro.findUnique({
         where: { canalId_userId: { canalId: origem.canalId, userId: user.id } },
       });
@@ -421,10 +427,13 @@ export const editarMensagem = defineAction(
     schema: z.object({ mensagemId: z.string().min(1), conteudo: z.string().min(1).max(4000) }),
   },
   async (i, { user }) => {
-    const msg = await prisma.mensagem.findUnique({ where: { id: i.mensagemId } });
+    const msg = await prisma.mensagem.findUnique({
+      where: { id: i.mensagemId },
+      include: { canal: { select: { tipo: true } } },
+    });
     if (!msg || msg.excluidaEm) throw new ActionError("Mensagem não encontrada.");
-    const podeEditar =
-      msg.autorId === user.id || (PODE_MODERAR as readonly string[]).includes(user.role);
+    // Moderação alcança só o que o moderador pode ler: supervisor não mexe em Anotações.
+    const podeEditar = msg.autorId === user.id || podeModerarCanal(user.role, msg.canal.tipo);
     if (!podeEditar) throw new ActionError("Sem permissão para editar esta mensagem.");
     const atualizada = await prisma.mensagem.update({
       where: { id: i.mensagemId },
@@ -450,11 +459,10 @@ export const excluirMensagem = defineAction(
   async (i, { user }) => {
     const msg = await prisma.mensagem.findUnique({
       where: { id: i.mensagemId },
-      include: { anexos: { select: { path: true } } },
+      include: { anexos: { select: { path: true } }, canal: { select: { tipo: true } } },
     });
     if (!msg || msg.excluidaEm) throw new ActionError("Mensagem não encontrada.");
-    const podeExcluir =
-      msg.autorId === user.id || (PODE_MODERAR as readonly string[]).includes(user.role);
+    const podeExcluir = msg.autorId === user.id || podeModerarCanal(user.role, msg.canal.tipo);
     if (!podeExcluir) throw new ActionError("Sem permissão para excluir esta mensagem.");
     await prisma.mensagem.update({
       where: { id: i.mensagemId },
@@ -838,6 +846,125 @@ export const definirIconeGrupo = defineAction(
       icone: i.icone,
       imagemCapa: null,
     });
+    return { canalId: i.canalId };
+  },
+);
+
+// ─── Anotações: espaço de trabalho do próprio usuário ───────────────────────
+//
+// Canal `anotacoes` com um único membro (o dono). Não aceita outros membros — as ações de
+// grupo recusam o tipo por `canal.tipo !== "grupo"`. Leitura fora do dono: só `admin`
+// (`podeObservarCanal`), declarada no Termo de Uso e auditada na rota de mensagens.
+
+/** Só quem aceita o termo de colaborador (que declara a leitura por admin) cria Anotações. */
+function exigirPerfilInterno(role: string) {
+  if (tipoTermoPorRole(role) !== "colaborador") {
+    throw new ActionError("Anotações estão disponíveis só para a equipe interna.");
+  }
+}
+
+export const criarAnotacoes = defineAction(
+  {
+    ...base,
+    acao: "criar-anotacoes",
+    recurso: "chat",
+    permissao: "usar",
+    entidade: "Canal",
+    schema: z.object({ nome: z.string().trim().min(1).max(80) }),
+  },
+  async (i, { user }) => {
+    exigirPerfilInterno(user.role);
+    const canal = await prisma.canal.create({
+      data: {
+        tipo: "anotacoes",
+        nome: i.nome,
+        criadoPorId: user.id,
+        membros: { create: [{ userId: user.id }] },
+      },
+    });
+    emitParaUsuario(user.id, "entrar-canal-novo", { canalId: canal.id });
+    return { canalId: canal.id };
+  },
+);
+
+/** Só o dono renomeia — moderação lê, mas não reorganiza o espaço de outra pessoa. */
+export const renomearAnotacoes = defineAction(
+  {
+    ...base,
+    acao: "renomear-anotacoes",
+    entidade: "Canal",
+    schema: z.object({ canalId: z.string().min(1), nome: z.string().trim().min(1).max(80) }),
+  },
+  async (i, { user }) => {
+    const canal = await prisma.canal.findUnique({ where: { id: i.canalId } });
+    if (!canal || canal.tipo !== "anotacoes") throw new ActionError("Anotações não encontradas.");
+    if (canal.criadoPorId !== user.id) throw new ActionError("Só o dono pode renomear estas anotações.");
+    if (canal.excluidoEm) throw new ActionError("Estas anotações estão na lixeira. Restaure para voltar a usar.");
+    await prisma.canal.update({ where: { id: i.canalId }, data: { nome: i.nome } });
+    emitParaCanal(i.canalId, "grupo-renomeado", { canalId: i.canalId, nome: i.nome });
+    return { canalId: i.canalId };
+  },
+);
+
+/**
+ * Manda um espaço de Anotações para a LIXEIRA (soft delete). Some das listas do dono, fica
+ * congelado (`exigirMembro` barra escrita) e restaurável por DIAS_LIXEIRA dias; depois o job
+ * `purgar-lixeira-anotacoes` apaga canal, mensagens e arquivos de vez. Só o dono: moderação lê,
+ * mas não apaga o que outra pessoa guardou. Admin continua podendo ler durante o prazo.
+ */
+export const excluirAnotacoes = defineAction(
+  {
+    ...base,
+    acao: "excluir-anotacoes",
+    entidade: "Canal",
+    schema: z.object({ canalId: z.string().min(1) }),
+    capturarAntes: async (input) =>
+      prisma.canal.findUnique({
+        where: { id: input.canalId },
+        select: { id: true, tipo: true, nome: true, criadoPorId: true, excluidoEm: true },
+      }),
+  },
+  async (i, { user }) => {
+    const canal = await prisma.canal.findUnique({
+      where: { id: i.canalId },
+      select: { tipo: true, criadoPorId: true, excluidoEm: true },
+    });
+    if (!canal || canal.tipo !== "anotacoes") throw new ActionError("Anotações não encontradas.");
+    if (canal.criadoPorId !== user.id) throw new ActionError("Só o dono pode excluir estas anotações.");
+    if (canal.excluidoEm) return { canalId: i.canalId, excluidoEm: canal.excluidoEm };
+
+    const { excluidoEm } = await prisma.canal.update({
+      where: { id: i.canalId },
+      data: { excluidoEm: new Date() },
+      select: { excluidoEm: true },
+    });
+    // Outras abas do dono movem o item para a lixeira sem recarregar.
+    emitParaUsuario(user.id, "anotacoes-lixeira", { canalId: i.canalId, excluidoEm });
+    return { canalId: i.canalId, excluidoEm };
+  },
+);
+
+/** Tira da lixeira. Vale enquanto o job de purga ainda não apagou o canal. */
+export const restaurarAnotacoes = defineAction(
+  {
+    ...base,
+    acao: "restaurar-anotacoes",
+    entidade: "Canal",
+    schema: z.object({ canalId: z.string().min(1) }),
+  },
+  async (i, { user }) => {
+    const canal = await prisma.canal.findUnique({
+      where: { id: i.canalId },
+      select: { tipo: true, criadoPorId: true, excluidoEm: true },
+    });
+    if (!canal || canal.tipo !== "anotacoes") {
+      throw new ActionError("Anotações não encontradas — o prazo da lixeira pode ter acabado.");
+    }
+    if (canal.criadoPorId !== user.id) throw new ActionError("Só o dono pode restaurar estas anotações.");
+    if (canal.excluidoEm) {
+      await prisma.canal.update({ where: { id: i.canalId }, data: { excluidoEm: null } });
+      emitParaUsuario(user.id, "anotacoes-lixeira", { canalId: i.canalId, excluidoEm: null });
+    }
     return { canalId: i.canalId };
   },
 );

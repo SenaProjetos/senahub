@@ -11,7 +11,7 @@ import {
   Check, CheckCheck, ChevronDown, Pin, PinOff, Pencil, Trash2, Reply,
   Bell, BellOff, ExternalLink, Search, Users, Settings2, Briefcase, Eye,
   ChevronsDownUp, ChevronsUpDown, Mic, Play, Pause, Forward, ChevronLeft, ChevronRight,
-  ZoomIn, ZoomOut, Info, Bold, Italic, Underline, Highlighter, EyeOff, Zap, Clock, FolderPlus,
+  ZoomIn, ZoomOut, Info, Bold, Italic, Underline, Highlighter, EyeOff, Zap, Clock, FolderPlus, NotebookPen,
 } from "lucide-react";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
@@ -48,7 +48,12 @@ import {
   infoMensagem,
   anexarUploadDoProjeto,
   agendarMensagem,
+  criarAnotacoes,
+  renomearAnotacoes,
+  excluirAnotacoes,
+  restaurarAnotacoes,
 } from "@/modules/chat/actions";
+import { DIAS_LIXEIRA, diasRestantesLixeira } from "@/modules/uploads/lixeira";
 import type { CanalListItem, ReacaoAgregada } from "@/modules/chat/queries";
 import { cn, formatarDiaMes } from "@/lib/utils";
 import { INTERNAL_ROLES } from "@/lib/roles";
@@ -493,6 +498,8 @@ function CanalBtn({
           </div>
         ) : c.tipo === "grupo" ? (
           <CapaGrupo c={c} size={16} />
+        ) : c.tipo === "anotacoes" ? (
+          <NotebookPen className="size-4 shrink-0 text-muted-foreground" />
         ) : c.tipo === "socios" ? (
           <Briefcase className="size-4 shrink-0 text-muted-foreground" />
         ) : (
@@ -637,6 +644,8 @@ export function ChatView({
   const [projetosAberto, setProjetosAberto] = useState(() => lerCategoria("chat-cat-projetos"));
   const [gruposAberto, setGruposAberto] = useState(() => lerCategoria("chat-cat-grupos"));
   const [dmsAberto, setDmsAberto] = useState(() => lerCategoria("chat-cat-dms"));
+  const [anotacoesAberto, setAnotacoesAberto] = useState(() => lerCategoria("chat-cat-anotacoes"));
+  const [lixeiraAnotacoesAberta, setLixeiraAnotacoesAberta] = useState(false);
   const [emojiAberto, setEmojiAberto] = useState(false);
   const [emojiCategoria, setEmojiCategoria] = useState(0);
   // Prévia da formatação e respostas rápidas (templates).
@@ -686,6 +695,8 @@ export function ChatView({
   // C5-2: grupos ad-hoc
   const [criarGrupoAberto, setCriarGrupoAberto] = useState(false);
   const [gerenciarGrupoId, setGerenciarGrupoId] = useState<string | null>(null);
+  // Anotações: diálogo de criar ("novo") ou renomear (id do canal); null = fechado.
+  const [anotacoesDialog, setAnotacoesDialog] = useState<string | null>(null);
   // C5-5: índice do item focado no popup de menção (-1 = nenhum)
   const [mencaoIndice, setMencaoIndice] = useState(-1);
 
@@ -764,6 +775,7 @@ export function ChatView({
   // Persiste o estado das categorias minimizáveis.
   useEffect(() => { localStorage.setItem("chat-cat-projetos", projetosAberto ? "1" : "0"); }, [projetosAberto]);
   useEffect(() => { localStorage.setItem("chat-cat-grupos", gruposAberto ? "1" : "0"); }, [gruposAberto]);
+  useEffect(() => { localStorage.setItem("chat-cat-anotacoes", anotacoesAberto ? "1" : "0"); }, [anotacoesAberto]);
   useEffect(() => { localStorage.setItem("chat-cat-dms", dmsAberto ? "1" : "0"); }, [dmsAberto]);
 
   // Adiciona arquivos ao composer (respeitando o teto), sintetizando nome p/ imagem colada sem nome.
@@ -994,6 +1006,11 @@ export function ChatView({
       });
     }
     // C5-2: remove o canal da lista quando o próprio usuário sai do grupo
+    // Anotações foram para a lixeira (excluidoEm) ou voltaram dela (null) em outra aba do dono.
+    function onAnotacoesLixeira(p: { canalId: string; excluidoEm: string | Date | null }) {
+      setCanais((cs) => cs.map((c) => (c.id === p.canalId ? { ...c, excluidoEm: p.excluidoEm ? new Date(p.excluidoEm) : null } : c)));
+      if (p.excluidoEm && selRef.current === p.canalId) setSel(null);
+    }
     function onSairCanal(p: { canalId: string }) {
       setCanais((cs) => cs.filter((c) => c.id !== p.canalId));
       if (selRef.current === p.canalId) setSel(null);
@@ -1043,6 +1060,7 @@ export function ChatView({
     s.on("status-chat", onStatusChat);
     s.on("digitando", onDigitando);
     s.on("sair-canal", onSairCanal);
+    s.on("anotacoes-lixeira", onAnotacoesLixeira);
     s.on("grupo-renomeado", onGrupoRenomeado);
     s.on("grupo-atualizado", onGrupoAtualizado);
     return () => {
@@ -1060,6 +1078,7 @@ export function ChatView({
       s.off("status-chat", onStatusChat);
       s.off("digitando", onDigitando);
       s.off("sair-canal", onSairCanal);
+      s.off("anotacoes-lixeira", onAnotacoesLixeira);
       s.off("grupo-renomeado", onGrupoRenomeado);
       s.off("grupo-atualizado", onGrupoAtualizado);
     };
@@ -1379,6 +1398,7 @@ export function ChatView({
         icone: null,
         imagemCapa: null,
         criadoPorId: null,
+        excluidoEm: null,
         grupoMembros: null,
         projetoId: null,
         projetoCodigo: null,
@@ -1417,6 +1437,47 @@ export function ChatView({
     if (!r.ok) toast.error(r.error);
     else if (usuarioId === meId) setGerenciarGrupoId(null);
     else router.refresh();
+  }
+  async function handleSalvarAnotacoes(nome: string) {
+    if (anotacoesDialog === "novo") {
+      const r = await criarAnotacoes({ nome });
+      if (!r.ok) { toast.error(r.error); return; }
+      setAnotacoesDialog(null);
+      setAnotacoesAberto(true);
+      router.refresh();
+      setSel(r.data.canalId);
+      return;
+    }
+    if (!anotacoesDialog) return;
+    const canalId = anotacoesDialog;
+    const r = await renomearAnotacoes({ canalId, nome });
+    if (!r.ok) { toast.error(r.error); return; }
+    setCanais((cs) => cs.map((c) => (c.id === canalId ? { ...c, nome } : c)));
+    setAnotacoesDialog(null);
+  }
+  async function handleExcluirAnotacoes(canalId: string, nome: string) {
+    // confirm ANTES de qualquer transição (ver useconfirm-dialog-aninhado).
+    const ok = await confirm({
+      title: "Mover anotações para a lixeira?",
+      description: `"${nome}" sai da lista e pode ser restaurado pela Lixeira em até ${DIAS_LIXEIRA} dias. Depois disso, as mensagens e os arquivos são apagados de vez.`,
+      confirmLabel: "Mover para a lixeira",
+      variant: "destructive",
+    });
+    if (!ok) return;
+    const r = await excluirAnotacoes({ canalId });
+    if (!r.ok) { toast.error(r.error); return; }
+    const excluidoEm = new Date(r.data.excluidoEm ?? Date.now());
+    setCanais((cs) => cs.map((c) => (c.id === canalId ? { ...c, excluidoEm } : c)));
+    if (selRef.current === canalId) setSel(null);
+    toast.success("Anotações movidas para a lixeira.");
+  }
+  async function handleRestaurarAnotacoes(canalId: string) {
+    const r = await restaurarAnotacoes({ canalId });
+    if (!r.ok) { toast.error(r.error); return; }
+    setCanais((cs) => cs.map((c) => (c.id === canalId ? { ...c, excluidoEm: null } : c)));
+    setAnotacoesAberto(true);
+    setSel(canalId);
+    toast.success("Anotações restauradas.");
   }
   async function handleRenomearGrupo(canalId: string, nome: string) {
     const r = await renomearGrupo({ canalId, nome });
@@ -1553,6 +1614,15 @@ export function ChatView({
   const socios = canais.filter((c) => c.tipo === "socios").sort(cmpCanal);
   const grupos = canais.filter((c) => c.tipo === "grupo" && !c.observador).sort(cmpCanal);
   const dms = canais.filter((c) => c.tipo === "dm" && !c.observador).sort(cmpCanal);
+  const anotacoes = canais.filter((c) => c.tipo === "anotacoes" && !c.observador && !c.excluidoEm).sort(cmpCanal);
+  // Lixeira: mais antiga primeiro (é a que será apagada antes).
+  const lixeiraAnotacoes = canais
+    .filter((c) => c.tipo === "anotacoes" && !c.observador && c.excluidoEm)
+    .sort((a, b) => new Date(a.excluidoEm!).getTime() - new Date(b.excluidoEm!).getTime());
+  // Mesma regra do servidor (`criarAnotacoes` → `tipoTermoPorRole`): cliente não aceita o
+  // termo de colaborador, que é o que declara a leitura por admin. Inline para não puxar o
+  // texto dos termos para o bundle do cliente.
+  const podeCriarAnotacoes = meRole !== "cliente";
   // Admin/supervisor: canais que observa (não participa) — somente leitura.
   // "Sócios" já entrou na seção própria acima, não duplica aqui.
   const observados = canais.filter((c) => c.observador && c.tipo !== "socios");
@@ -1910,6 +1980,14 @@ export function ChatView({
             usuarios={usuarios}
             onCriar={handleCriarGrupo}
           />
+          {anotacoesDialog && (
+            <AnotacoesDialog
+              nomeInicial={anotacoesDialog === "novo" ? "" : (canais.find((c) => c.id === anotacoesDialog)?.nome ?? "")}
+              novo={anotacoesDialog === "novo"}
+              onClose={() => setAnotacoesDialog(null)}
+              onSalvar={handleSalvarAnotacoes}
+            />
+          )}
           {encaminhandoMsg && (
             <EncaminharDialog
               canais={canais.filter((c) => !c.observador)}
@@ -2037,6 +2115,61 @@ export function ChatView({
               onMarcarLido={() => marcarTudoLidoCanal(c.id)}
             />
           ))}
+
+          {/* Categoria: Anotações do próprio usuário (minimizável) */}
+          {podeCriarAnotacoes && (
+            <>
+              <div className="flex items-center border-b bg-muted/10">
+                <button
+                  onClick={() => setAnotacoesAberto((v) => !v)}
+                  className="flex flex-1 items-center gap-1.5 px-2.5 py-1.5 text-left hover:bg-muted/30"
+                >
+                  <ChevronDown className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", !anotacoesAberto && "-rotate-90")} />
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Anotações</span>
+                </button>
+                <button
+                  onClick={() => setAnotacoesDialog("novo")}
+                  title="Criar anotações"
+                  aria-label="Criar anotações"
+                  className="mr-1 rounded-sm p-0.5 hover:bg-muted"
+                >
+                  <Plus className="size-3 text-muted-foreground" />
+                </button>
+              </div>
+              {anotacoesAberto && anotacoes.map((c) => (
+                <CanalBtn key={c.id} c={c} sel={sel} onSelect={setSel} isSilenciado={false} />
+              ))}
+              {anotacoesAberto && lixeiraAnotacoes.length > 0 && (
+                <div>
+                  <button
+                    onClick={() => setLixeiraAnotacoesAberta((v) => !v)}
+                    className="flex w-full items-center gap-1.5 border-b bg-muted/20 px-2.5 py-1.5 pl-6 text-left text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <ChevronDown className={cn("size-3.5 transition-transform", !lixeiraAnotacoesAberta && "-rotate-90")} />
+                    <Trash2 className="size-3.5" />
+                    Lixeira ({lixeiraAnotacoes.length})
+                  </button>
+                  {lixeiraAnotacoesAberta && lixeiraAnotacoes.map((c) => {
+                    const dias = diasRestantesLixeira(new Date(c.excluidoEm!));
+                    return (
+                      <div key={c.id} className="flex items-center gap-2 border-b px-2.5 py-2 pl-7 text-sm">
+                        <NotebookPen className="size-4 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-muted-foreground">{c.nome}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {dias === 0 ? "Será apagado hoje" : `Apagado de vez em ${dias} dia${dias !== 1 ? "s" : ""}`}
+                          </p>
+                        </div>
+                        <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => handleRestaurarAnotacoes(c.id)}>
+                          Restaurar
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
 
           {/* Categoria: Projetos (minimizável) — engloba projetos ativos + arquivados. */}
           {(projetosAtivos.size > 0 || projetosArquivados.size > 0) && (
@@ -2207,8 +2340,32 @@ export function ChatView({
               <Button variant="ghost" size="sm" className="lg:hidden" onClick={() => setSel(null)}>
                 ←
               </Button>
-              {canalSel.tipo === "dm" ? <AvatarUsuario nome={canalSel.nome} image={canalSel.outroUserImage} size="sm" className="size-6" /> : canalSel.tipo === "grupo" ? <CapaGrupo c={canalSel} size={20} /> : canalSel.tipo === "socios" ? <Briefcase className="size-4" /> : <Hash className="size-4" />}
+              {canalSel.tipo === "dm" ? <AvatarUsuario nome={canalSel.nome} image={canalSel.outroUserImage} size="sm" className="size-6" /> : canalSel.tipo === "grupo" ? <CapaGrupo c={canalSel} size={20} /> : canalSel.tipo === "anotacoes" ? <NotebookPen className="size-4" /> : canalSel.tipo === "socios" ? <Briefcase className="size-4" /> : <Hash className="size-4" />}
               <span className="font-semibold">{canalSel.nome}</span>
+              {/* Anotações: o aviso de quem lê fica sempre à vista — é o que o Termo de Uso declara. */}
+              {canalSel.tipo === "anotacoes" && !canalSel.observador && (
+                <>
+                  <span className="hidden truncate text-xs text-muted-foreground sm:inline">
+                    Visível só para você e para administradores do sistema
+                  </span>
+                  <button
+                    onClick={() => setAnotacoesDialog(canalSel.id)}
+                    title="Renomear anotações"
+                    aria-label="Renomear anotações"
+                    className="ml-auto p-1 text-muted-foreground hover:text-foreground"
+                  >
+                    <Pencil className="size-4" />
+                  </button>
+                  <button
+                    onClick={() => handleExcluirAnotacoes(canalSel.id, canalSel.nome)}
+                    title="Mover para a lixeira"
+                    aria-label="Mover anotações para a lixeira"
+                    className="p-1 text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </>
+              )}
               {/* C5-2: gerenciar grupo */}
               {canalSel.tipo === "grupo" && (
                 <button
@@ -3478,6 +3635,7 @@ function EncaminharDialog({
   function icone(c: CanalListItem) {
     if (c.tipo === "dm") return <AvatarUsuario nome={c.nome} image={c.outroUserImage} size="sm" className="size-5 shrink-0" />;
     if (c.tipo === "grupo") return <CapaGrupo c={c} size={16} />;
+    if (c.tipo === "anotacoes") return <NotebookPen className="size-4 shrink-0 text-muted-foreground" />;
     if (c.tipo === "socios") return <Briefcase className="size-4 shrink-0 text-muted-foreground" />;
     return <Hash className="size-4 shrink-0 text-muted-foreground" />;
   }
@@ -3507,6 +3665,59 @@ function EncaminharDialog({
               <span className="truncate">{c.nome}</span>
             </button>
           ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Criar ou renomear um espaço de Anotações — só nome; não há membros a escolher. */
+function AnotacoesDialog({
+  nomeInicial,
+  novo,
+  onClose,
+  onSalvar,
+}: {
+  nomeInicial: string;
+  novo: boolean;
+  onClose: () => void;
+  onSalvar: (nome: string) => Promise<void>;
+}) {
+  const [nome, setNome] = useState(nomeInicial);
+  const [salvando, setSalvando] = useState(false);
+
+  async function handleSubmit() {
+    if (!nome.trim() || salvando) return;
+    setSalvando(true);
+    try { await onSalvar(nome.trim()); }
+    finally { setSalvando(false); }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader><DialogTitle>{novo ? "Novas anotações" : "Renomear anotações"}</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <input
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") void handleSubmit(); }}
+            placeholder="Ex.: Anotações do projeto, Links úteis"
+            maxLength={80}
+            autoFocus
+            aria-label="Nome das anotações"
+            className="w-full rounded-sm border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          {novo && (
+            <p className="text-xs text-muted-foreground">
+              Um espaço só seu para anotações e links de trabalho. O conteúdo é visível para você
+              e para os administradores do sistema — não guarde aqui informações da sua vida
+              privada.
+            </p>
+          )}
+          <Button onClick={handleSubmit} disabled={!nome.trim() || salvando} className="w-full">
+            {salvando ? "Salvando…" : novo ? "Criar anotações" : "Salvar"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

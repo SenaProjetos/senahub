@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
+import { logAudit } from "@/lib/audit";
 import { mensagensCanal, mensagensFixadas, agregarReacoes, membrosCanal } from "@/modules/chat/queries";
 
 export async function GET(req: Request, ctx: { params: Promise<{ canalId: string }> }) {
@@ -10,6 +11,18 @@ export async function GET(req: Request, ctx: { params: Promise<{ canalId: string
 
   const resultado = await mensagensCanal(canalId, session.user.id, { antesDe: antes }, session.user.role);
   if (resultado === null) return NextResponse.json({ error: "Sem acesso." }, { status: 403 });
+
+  // Leitura das Anotações de outro usuário (só admin chega aqui) fica na trilha de auditoria —
+  // é o contrapeso do acesso declarado no Termo de Uso. Uma entrada por abertura, não por página.
+  if (resultado.observador && resultado.tipoCanal === "anotacoes" && !antes) {
+    await logAudit({
+      userId: session.user.id,
+      modulo: "chat",
+      acao: "ler-anotacoes-de-outro-usuario",
+      entidade: "Canal",
+      entidadeId: canalId,
+    });
+  }
 
   const mensagens = resultado.itens.map((m) => ({
     id: m.id,

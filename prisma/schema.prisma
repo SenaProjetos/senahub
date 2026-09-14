@@ -1829,6 +1829,9 @@ enum TipoCanal {
   dm
   grupo
   socios
+  /// Espaço de anotações de trabalho do próprio usuário (sem outros membros). Lido só pelo
+  /// dono e por `admin` — regra em `modules/chat/acesso.ts`, declarada no Termo de Uso.
+  anotacoes
 }
 
 enum ChatStatus {
@@ -1849,12 +1852,16 @@ model Canal {
   projeto      Projeto?    @relation(fields: [projetoId], references: [id], onDelete: Cascade)
   disciplinaId String?
   disciplina   Disciplina? @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+  /// Lixeira (só `anotacoes`): o dono excluiu; some das listas e fica restaurável até o job
+  /// `purgar-lixeira-anotacoes` apagar de vez após DIAS_LIXEIRA (modules/uploads/lixeira.ts).
+  excluidoEm   DateTime?
 
   membros   CanalMembro[]
   mensagens Mensagem[]
   createdAt DateTime      @default(now())
 
   @@index([tipo])
+  @@index([excluidoEm])
   @@index([projetoId])
   @@index([disciplinaId])
   @@index([criadoPorId])

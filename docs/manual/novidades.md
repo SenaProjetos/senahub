@@ -22,6 +22,20 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Anotações no chat
+
+No **Chat** agora dá para criar um espaço de **Anotações** só seu, sem outros membros, para
+guardar anotações, links e referências úteis aos projetos. Clique no **+** ao lado de
+**Anotações** na lista de conversas. Pode ter mais de um, renomear e excluir — o que
+for excluído fica 30 dias na **Lixeira** e pode ser restaurado. Dá para usar tudo que uma conversa já tem:
+anexos, áudio, fixar, buscar e encaminhar.
+
+As anotações são visíveis só para você e para os administradores do sistema, e o **Termo de
+Uso** foi atualizado para dizer isso — por isso ele será pedido de novo no próximo acesso.
+Veja [Chat](comunicacao/chat.md).
+
+---
+
 ## Taxa de ART entra no custo do projeto
 
 A taxa informada na ART agora vai sozinha para o Financeiro e aparece na **margem do

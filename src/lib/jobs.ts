@@ -13,6 +13,7 @@ import {
   limparFragsOrfaos,
   limparDxfOrfaos,
   purgarLixeiraArquivos,
+  purgarLixeiraAnotacoes,
   processarMensagemAgendada,
   processarImportacaoCusto,
   alertasPrazoApontamento,
@@ -369,6 +370,14 @@ export async function startJobs(): Promise<PgBoss> {
       handler: async () => {
         const n = await purgarLixeiraArquivos();
         if (n > 0) console.log(`[lixeira] ${n} arquivo(s) purgado(s) (retenção esgotada).`);
+      },
+    },
+    {
+      fila: "purgar-lixeira-anotacoes",
+      cron: "50 4 * * *", // diário 04:50 — apaga Anotações do chat na lixeira há >30 dias
+      handler: async () => {
+        const n = await purgarLixeiraAnotacoes();
+        if (n > 0) console.log(`[lixeira] ${n} anotação(ões) do chat purgada(s) (retenção esgotada).`);
       },
     },
   ];

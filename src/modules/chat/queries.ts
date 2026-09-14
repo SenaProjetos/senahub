@@ -1,6 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import type { TipoCanal } from "@/generated/prisma/client";
 import { whereAudiencia } from "@/lib/audiencias";
+import { podeObservarCanal, tiposModeracao } from "@/modules/chat/acesso";
 
 export type ReacaoAgregada = {
   emoji: string;
@@ -55,7 +57,8 @@ async function naoLidasPorCanal(userId: string): Promise<Map<string, number>> {
 }
 
 /** Canais do usuário com prévia da última mensagem e contagem de não lidas.
- *  Para `role` admin/supervisor, anexa os demais canais como observador (leitura). */
+ *  Para `role` admin/supervisor, anexa os demais canais como observador (leitura) —
+ *  quais tipos, decide `tiposModeracao` (Anotações só para admin). */
 export async function listarCanais(userId: string, role?: string) {
   const [membros, contagem] = await Promise.all([
     prisma.canalMembro.findMany({
@@ -115,6 +118,8 @@ export async function listarCanais(userId: string, role?: string) {
       icone: m.canal.icone ?? null,
       imagemCapa: m.canal.imagemCapa ?? null,
       criadoPorId: m.canal.criadoPorId ?? null,
+      // Só Anotações usam: não nulo = na lixeira (a UI mostra na seção Lixeira, não na lista).
+      excluidoEm: m.canal.excluidoEm,
       grupoMembros: m.canal.tipo === "grupo" ? (grupoMembrosMap.get(m.canalId) ?? []) : null,
       projetoId,
       projetoCodigo,
@@ -149,14 +154,16 @@ export async function listarCanais(userId: string, role?: string) {
     return tb - ta;
   });
 
-  // Admin/supervisor: anexa os canais de que NÃO participa (grupos + DMs + sócios)
-  // como OBSERVADOR — acesso de moderação, somente leitura. naoLidas=0 (não entra no
-  // badge). O envio segue barrado no servidor (exigirMembro em enviarMensagem).
-  if (role !== "admin" && role !== "supervisor") return ordenado;
+  // Admin/supervisor: anexa os canais de que NÃO participa (grupos + DMs + sócios; e, só
+  // para admin, as Anotações de cada usuário) como OBSERVADOR — acesso de moderação,
+  // somente leitura. naoLidas=0 (não entra no badge). O envio segue barrado no servidor
+  // (exigirMembro em enviarMensagem).
+  const tipos = tiposModeracao(role);
+  if (tipos.length === 0) return ordenado;
 
   const meusIds = new Set(membros.map((m) => m.canalId));
   const observaveis = await prisma.canal.findMany({
-    where: { tipo: { in: ["grupo", "dm", "socios"] }, id: { notIn: [...meusIds] } },
+    where: { tipo: { in: tipos as TipoCanal[] }, id: { notIn: [...meusIds] } },
     include: {
       mensagens: {
         orderBy: { createdAt: "desc" },
@@ -170,7 +177,11 @@ export async function listarCanais(userId: string, role?: string) {
   const observadorItens: typeof resultado = observaveis.map((c) => {
     const ultima = c.mensagens[0];
     const nome =
-      c.tipo === "dm" ? c.membros.map((m) => m.user.name).join(" ↔ ") : (c.nome ?? c.tipo);
+      c.tipo === "dm"
+        ? c.membros.map((m) => m.user.name).join(" ↔ ")
+        : c.tipo === "anotacoes"
+          ? `${c.nome ?? "Anotações"} · ${c.membros[0]?.user.name ?? "sem dono"}${c.excluidoEm ? " (na lixeira)" : ""}`
+          : (c.nome ?? c.tipo);
     return {
       id: c.id,
       tipo: c.tipo,
@@ -178,6 +189,7 @@ export async function listarCanais(userId: string, role?: string) {
       icone: c.icone ?? null,
       imagemCapa: c.imagemCapa ?? null,
       criadoPorId: c.criadoPorId ?? null,
+      excluidoEm: c.excluidoEm,
       grupoMembros: c.tipo === "grupo" ? c.membros.map((m) => ({ id: m.user.id, name: m.user.name, image: m.user.image })) : null,
       projetoId: null,
       projetoCodigo: null,
@@ -233,7 +245,8 @@ export async function ehMembro(canalId: string, userId: string) {
 }
 
 /**
- * Página de mensagens do canal (mais recentes ao fim). Exige ser membro.
+ * Página de mensagens do canal (mais recentes ao fim). Exige ser membro — ou poder observar o
+ * canal (`podeObservarCanal`); nesse caso `observador` vem true, para a rota auditar a leitura.
  * Paginação por cursor (C4-3): sem `antesDe`, devolve as últimas `limite`; com `antesDe`
  * (id da mensagem mais antiga já carregada), devolve as `limite` imediatamente anteriores.
  * `temMais` indica se há histórico ainda mais antigo. Recibos (`leituras`) são carregados
@@ -245,8 +258,14 @@ export async function mensagensCanal(
   opts: { limite?: number; antesDe?: string } = {},
   role?: string,
 ) {
-  const ehGlobal = role === "admin" || role === "supervisor";
-  if (!ehGlobal && !(await ehMembro(canalId, userId))) return null;
+  let observador = false;
+  let tipoCanal: string | null = null;
+  if (!(await ehMembro(canalId, userId))) {
+    const canal = await prisma.canal.findUnique({ where: { id: canalId }, select: { tipo: true } });
+    if (!canal || !podeObservarCanal(role, canal.tipo)) return null;
+    observador = true;
+    tipoCanal = canal.tipo;
+  }
   const limite = opts.limite ?? 100;
   const msgs = await prisma.mensagem.findMany({
     where: { canalId },
@@ -317,7 +336,7 @@ export async function mensagensCanal(
     entreguesIds: entreguesPorMsg.get(m.id) ?? [],
     ouvidasIds: ouvidasPorMsg.get(m.id) ?? [],
   }));
-  return { itens, temMais };
+  return { itens, temMais, observador, tipoCanal };
 }
 
 /**
@@ -339,8 +358,10 @@ export async function detalhesMensagem(mensagemId: string, userId: string, role?
     },
   });
   if (!msg) return null;
-  const ehGlobal = role === "admin" || role === "supervisor";
-  if (msg.autorId !== userId && !ehGlobal) return null;
+  if (msg.autorId !== userId) {
+    const canal = await prisma.canal.findUnique({ where: { id: msg.canalId }, select: { tipo: true } });
+    if (!canal || !podeObservarCanal(role, canal.tipo)) return null;
+  }
 
   const [leituras, entregas, audicoes, reacoes, membros] = await Promise.all([
     prisma.mensagemLeitura.findMany({

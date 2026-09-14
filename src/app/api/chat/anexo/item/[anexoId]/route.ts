@@ -1,8 +1,9 @@
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { lerArquivo, existeArquivo } from "@/lib/storage";
+import { podeObservarCanal } from "@/modules/chat/acesso";
 
-/** Serve um anexo (múltiplos por mensagem) da tabela MensagemAnexo. Requer ser membro do canal. */
+/** Serve um anexo (múltiplos por mensagem) da tabela MensagemAnexo. Requer ser membro do canal ou poder observá-lo (`podeObservarCanal`). */
 export async function GET(_req: Request, { params }: { params: Promise<{ anexoId: string }> }) {
   const session = await getSession();
   if (!session) return new Response("Não autenticado", { status: 401 });
@@ -10,12 +11,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ anexoId
 
   const anexo = await prisma.mensagemAnexo.findUnique({
     where: { id: anexoId },
-    select: { path: true, nome: true, mime: true, mensagem: { select: { canalId: true } } },
+    select: { path: true, nome: true, mime: true, mensagem: { select: { canalId: true, canal: { select: { tipo: true } } } } },
   });
   if (!anexo) return new Response("Não encontrado", { status: 404 });
 
-  const ehGlobal = session.user.role === "admin" || session.user.role === "supervisor";
-  if (!ehGlobal) {
+  if (!podeObservarCanal(session.user.role, anexo.mensagem.canal.tipo)) {
     const membro = await prisma.canalMembro.findUnique({
       where: { canalId_userId: { canalId: anexo.mensagem.canalId, userId: session.user.id } },
     });
