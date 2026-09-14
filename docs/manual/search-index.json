@@ -847,7 +847,8 @@
         "corrigir pagamento",
         "estornar pagamento",
         "conciliado",
-        "alerta parado"
+        "alerta parado",
+        "timbrado"
       ],
       "sinonimos": [
         "folha de projetistas",
@@ -980,7 +981,9 @@
         "pdf",
         "contador",
         "rubrica",
-        "matrícula"
+        "matrícula",
+        "13º salário",
+        "timbrado"
       ],
       "palavrasChave": [
         "folha",
@@ -1000,14 +1003,21 @@
         "assinar",
         "rubrica",
         "matrícula",
-        "lembrete"
+        "lembrete",
+        "13º",
+        "décimo terceiro",
+        "gratificação natalina",
+        "ignorar funcionário",
+        "timbrado"
       ],
       "sinonimos": [
         "folha de pagamento",
         "holerite",
         "payroll",
         "assinatura do holerite",
-        "importar folha"
+        "importar folha",
+        "folha de 13º",
+        "décimo terceiro salário"
       ]
     },
     {
@@ -1495,7 +1505,7 @@
     {
       "titulo": "Configurações (administração)",
       "path": "sistema/configuracoes.md",
-      "descricao": "Central de administração — usuários, permissões, parâmetros de folha, projetos, licitações, funil e avisos, além do status das integrações.",
+      "descricao": "Central de administração — usuários, permissões, parâmetros de folha, projetos, licitações, funil, avisos e dados da empresa, além do status das integrações.",
       "resumo": "Hub administrativo com cadastros e parâmetros do sistema e o status das integrações on-premise (SMTP/push).",
       "tags": [
         "configurações",
@@ -1508,7 +1518,9 @@
         "funil",
         "avisos",
         "agendamento",
-        "integrações"
+        "integrações",
+        "empresa",
+        "timbrado"
       ],
       "palavrasChave": [
         "configurações",
@@ -1533,7 +1545,14 @@
         "tamanho da fonte",
         "imagem do aviso",
         "smtp",
-        "push"
+        "push",
+        "dados da empresa",
+        "razão social",
+        "cnpj",
+        "logo",
+        "logo da empresa",
+        "timbrado",
+        "cabeçalho do pdf"
       ],
       "sinonimos": [
         "admin",

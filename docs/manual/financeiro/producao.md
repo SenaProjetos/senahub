@@ -3,7 +3,7 @@ titulo: Produção (pagamento de projetistas)
 descricao: Pagamento de projetistas PJ e freelancers pelas entregas validadas, com comprovantes, recibos assinados, correção/estorno de pago, lotes mensais e alerta de parado.
 resumo: Veja e pague os pagamentos de produção liberados por entrega, agrupados por projetista ou em tabela, com filtros, comprovante, recibo, rastreabilidade completa e exportação.
 tags: [produção, folha de projetistas, pagamento, projetista, freelancer, lote, pj]
-palavras-chave: [produção, folha de projetistas, pagamento de projetista, projetista pj, freelancer, lote mensal, pagar selecionados, conta obrigatória, comprovante, recibo, corrigir pagamento, estornar pagamento, conciliado, alerta parado]
+palavras-chave: [produção, folha de projetistas, pagamento de projetista, projetista pj, freelancer, lote mensal, pagar selecionados, conta obrigatória, comprovante, recibo, corrigir pagamento, estornar pagamento, conciliado, alerta parado, timbrado]
 sinonimos: [folha de projetistas, pagamento de produção, folha pj]
 ---
 
@@ -129,6 +129,10 @@ paga cria um **recibo** dessa entrega: um documento que o próprio projetista **
 dentro do sistema, no seu extrato (`/financeiro`) — o texto exato que ele leu fica
 gravado, com um código de verificação. Depois de assinado, dá para baixar em **PDF**; um
 PJ ainda pode anexar a **nota fiscal** referente ao recibo, direto da mesma tela.
+
+O PDF do recibo sai com o **timbrado da empresa** (logo, razão social, CNPJ, endereço), vindo
+de [Configurações → Empresa](../sistema/configuracoes.md#sistema). O timbrado fica fora do
+texto assinado — trocar os dados da empresa não invalida recibo já assinado.
 
 Gerar o recibo não trava nem refaz o pagamento — é só o documento, criado depois que o
 dinheiro já saiu.

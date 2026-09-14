@@ -202,6 +202,10 @@ lógica pura testada por dentro).
 
 ## 7. Riscos e pendências abertas
 
+> **Leia o §8 primeiro.** Os itens abaixo são o diário de cada fase, na ordem em que foram
+> achados; vários já foram resolvidos depois (smoke em navegador feito pelo dono, fixtures reais,
+> 13º). O §8 é o estado atual e o checklist de deploy.
+
 - **As 6 fases (P0-P6) estão code-complete e commitadas em `feat/folha-clt-import`, mas
   NENHUMA linha foi exercitada em navegador.** Toda verificação até aqui foi tsc/lint/testes
   unitários/prova por mutação/script contra o banco de dev — nenhuma via sessão HTTP real. Antes
@@ -475,3 +479,68 @@ lógica pura testada por dentro).
   `totalGeral - totalDescontos === totalLiquido` verificado na própria extração. Prova por
   mutação: removida a chamada de `reconciliarFuncionario` de `checarChecksum`, rodada a suíte —
   exatamente 1 dos 11 testes falhou como esperado — arquivo restaurado, `git diff` limpo depois.
+
+---
+
+## 8. Estado pré-deploy (2026-09-13)
+
+### Validado
+
+- **Smoke em navegador feito pelo dono** (análise visual, sessão real) de import, pendências,
+  ignorar funcionário, fila de assinatura, PDF do holerite com timbrado e tela de Empresa. Os
+  bugs achados ali estão no §7 (confirm travado pelo React 19, total líquido com ignorados,
+  Remover logo).
+- **Os 4 PDFs reais (05–08/2026) passam pelo pipeline de ponta a ponta.** As fixtures
+  `__fixtures__/folha-2026-0{5,6,8}-extraida-do-pdf-real.txt` foram extraídas por
+  `extrairTextoPdf` dos arquivos de verdade (não digitadas) e rodam no `importar-pdf.test.ts`
+  com parse + checksum + líquido total. Junho confirma a rubrica 081 com código por último.
+  Isso substitui o alerta de "fixtures desatualizadas" do §7.
+
+### Entregue depois das 6 fases
+
+- **Timbrado no recibo PJ** (`financeiro/recibo/service.ts`): mesmo `timbradoHtml` do holerite,
+  lido de Configurações → Empresa. Fica **fora** de `textoRecibo`, então `textoHash` de recibo
+  já assinado não muda.
+- **Folha de 13º salário** (`tipo-folha.ts`, migration `20260913233000_folha_tipo_decimo_terceiro`):
+  `FolhaPagamento.tipo` (`mensal | decimo_terceiro`), única por `(ano, mes, tipo)`. Geração
+  automática só na mensal. O import recusa rubrica de 13º na folha mensal e PDF sem rubrica de
+  13º na folha de 13º. Título do holerite, nome do arquivo (`13o-`), fila de assinatura,
+  Pessoa 360 e fonte do Estúdio mostram o tipo. Conferido no banco de dev: mensal + 13º no mesmo
+  mês convivem, duplicata do mesmo tipo dá P2002.
+- **Manual e Novidades**: `folha-clt.md` (ignorar funcionário, total importado, 13º, timbrado),
+  `configuracoes.md` (tela Empresa), `producao.md` (timbrado do recibo), entrada em
+  `novidades.md` (pedido do dono, 2026-09-13). `search-index.json` sincronizado e conferido com
+  `buscarManual` (13º, décimo terceiro, timbrado, ignorar funcionário, logo da empresa).
+
+### Limitação conhecida — 13º
+
+A trava do 13º (`pareceDecimoTerceiro`) reconhece o 13º **pelo nome da rubrica**, sem nunca ter
+visto um PDF de 13º do contador. Cobre "13º/13°/13o salário", "décimo terceiro", "natalina",
+"Grat. Nat.". Se o contador usar um nome fora disso, um PDF de 13º importado na folha mensal
+**passa** e `aplicarImportacao` **substitui** os itens da mensal (não há tela de prévia antes de
+gravar). Recuperação: com a folha ainda aberta, importar de novo o PDF mensal certo. O manual
+avisa o RH para conferir o primeiro 13º antes de fechar. **Em dezembro**: rodar o primeiro PDF
+de 13º real contra `pareceDecimoTerceiro`, virar fixture, e ajustar a regex se preciso. Uma
+trava genérica ("itens novos não se parecem com os atuais") foi considerada e deixada de fora:
+a mensal lançada à mão não tem `rubricaId` pra comparar, o falso positivo travaria o reimport.
+
+### Checklist de deploy
+
+1. **Merge**: esta branch parte de `dev`. `certidoes-view.tsx` foi corrigida aqui
+   (confirm dentro de `start`) e também foi reescrita em `feat/certidoes-conformidade` —
+   esperar conflito nesse arquivo; na resolução, manter `await confirm()` antes do `start()`
+   (o `confirm-dialog.test.ts` falha se voltar pra dentro). O bug de excluir certidão continua em produção até isto chegar em `master`.
+2. **Migrations** (3, só aditivas, todas com `IF EXISTS`/`DEFAULT` onde precisa):
+   `20260913150000_folha_clt_import_assinatura`, `20260913220000_matricula_externa_ignorada`,
+   `20260913233000_folha_tipo_decimo_terceiro`. A última troca a unique `(ano, mes)` por
+   `(ano, mes, tipo)`; folhas existentes viram `mensal`.
+3. **Sem `db:seed`**: nenhuma permissão, catálogo ou job novo (conferido no diff contra `dev`).
+4. **Configurações → Empresa em produção**: preencher razão social, CNPJ, endereço e logo reais.
+   O banco de dev tem `"(DEV — dado fictício)"` na razão social; isso não vai pra produção
+   (fica no `ConfigSistema` do banco, não no código), mas quem copiar dados de dev precisa trocar
+   a string inteira. Sem preencher, os PDFs saem sem timbrado (não quebram).
+5. **Data de corte da assinatura obrigatória**: `ASSINATURA_HOLERITE_OBRIGATORIA_DESDE` =
+   2026-09-13T15:00Z. Folha fechada entre essa data e o deploy entra na fila obrigatória.
+   Empurrar a constante se o dono quiser começar do zero.
+6. **Pós-deploy**: importar um PDF mensal real em produção, conferir total e um holerite; um
+   colaborador de teste assina; conferir que A não assina o holerite de B (§7).
