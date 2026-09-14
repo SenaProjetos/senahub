@@ -1,6 +1,6 @@
 ---
 titulo: Termo de Uso e Consentimento — Colaboradores
-versao: "2026-06-23"
+versao: "2026-09-14"
 publico: colaboradores_internos
 ---
 
@@ -9,10 +9,14 @@ publico: colaboradores_internos
 > jurídico.** Antes de colocar em produção, submeta a um(a) advogado(a) — em especial as
 > cláusulas de **monitoramento (trabalhista)**, **base legal da LGPD** e **propriedade
 > intelectual**. Preencha todos os campos entre colchetes `[ ]`.
+>
+> No sistema, os campos entre colchetes são preenchidos automaticamente com **Configurações →
+> Empresa** (razão social, CNPJ, endereço, encarregado de dados e foro) — ver
+> `src/modules/legal/marcadores-empresa.ts`. Campo vazio lá continua aparecendo entre colchetes.
 
 # Termo de Uso e Consentimento — SenaHub (Colaboradores)
 
-**Versão 2026-06-23**
+**Versão 2026-09-14**
 
 Este Termo regula o acesso e o uso do sistema **SenaHub** ("Sistema") por colaboradores,
 estagiários, prestadores de serviço pessoa jurídica (PJ) e freelancers (em conjunto,
@@ -62,6 +66,11 @@ credenciais.
 3.2. O conteúdo lançado pelo Usuário (mensagens, anexos, comentários, lançamentos) é de sua
 responsabilidade e deve observar a legislação e as políticas internas.
 
+3.3. O Sistema **não se destina a guardar arquivos ou informações da vida privada** do Usuário.
+O espaço de **"Anotações"** do chat serve exclusivamente a anotações, links e referências úteis
+ao trabalho e ao desenvolvimento dos projetos; não deve ser usado para armazenar conteúdo de
+cunho pessoal ou privado.
+
 ## 4. Monitoramento, registro e auditoria
 
 4.1. O Usuário está **ciente e concorda** que o Sistema é uma ferramenta de trabalho da Empresa
@@ -74,7 +83,9 @@ Empresa registra e pode auditar, de forma proporcional:
 - (a) o **histórico de ações** (criação, alteração, exclusão de registros), com data, hora e
   autor (log de auditoria);
 - (b) as **comunicações no chat corporativo** e demais canais internos do Sistema, que **não são
-  privadas** e podem ser acessadas pela Empresa;
+  privadas** e podem ser acessadas pela Empresa. O espaço de **"Anotações"** do chat é visível
+  **apenas ao próprio Usuário e aos administradores do Sistema**; o acesso de um administrador
+  às anotações de outro usuário fica registrado no log de auditoria;
 - (c) os **registros de ponto eletrônico**, inclusive metadados como data, hora, dispositivo e,
   quando aplicável, localização/endereço de rede da marcação.
 
@@ -202,4 +213,4 @@ IP e agente de navegação**, que servem como prova da manifestação de vontade
 ---
 
 **Ao clicar em "Li e aceito", declaro que li, compreendi e concordo com este Termo de Uso e
-Consentimento, na versão 2026-06-23.**
+Consentimento, na versão 2026-09-14.**

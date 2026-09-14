@@ -339,6 +339,16 @@ Nunca `migrate dev`/`seed:demo` em produção. `migrate deploy` só aplica o que
 > No dia a dia, prefira o menu de gerenciamento (seção 13) — a opção 10 faz exatamente esse
 > fluxo (com backup automático antes da migration), ou automatize com a seção 10.
 
+> **Deploy que troca a versão do Termo de Uso (ex.: v2026-09-14):** o termo bloqueia todo mundo,
+> admin inclusive, antes de chegar em Configurações → Empresa. Preencha os dados que ele usa
+> **antes** de subir a versão nova:
+> ```powershell
+> git pull                       # traz o script; o serviço antigo continua no ar
+> npm run empresa:dados-termo    # pergunta razão social, CNPJ, endereço, DPO e foro
+> ```
+> e só então rode a opção 10 do menu. Com o deploy automático noturno (seção 10) ligado, faça
+> isso antes da janela da noite — senão a versão nova sobe sem os dados.
+
 ---
 
 ## 10. Deploy automático noturno (opcional)

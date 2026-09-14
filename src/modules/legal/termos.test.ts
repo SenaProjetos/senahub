@@ -39,6 +39,14 @@ describe("TERMOS", () => {
     }
   });
 
+  // Guarda do acoplamento com `modules/chat/acesso.ts`: se a regra de quem lê as Anotações
+  // mudar, este texto (e a versão) precisa mudar junto.
+  it("o termo de colaborador declara quem lê as Anotações do chat e veda uso privado", () => {
+    const texto = TERMOS.colaborador.conteudo;
+    expect(texto).toContain('O espaço de "Anotações" do chat é visível apenas ao próprio Usuário e aos administradores do Sistema');
+    expect(texto).toContain("não se destina a guardar arquivos ou informações da vida privada");
+  });
+
   it("o texto declara a mesma versão registrada nos metadados", () => {
     for (const tipo of ["colaborador", "cliente"] as const) {
       const termo = TERMOS[tipo];

@@ -17,6 +17,10 @@ export type DadosEmpresa = {
   endereco: string | null;
   /** Caminho relativo no storage (`lib/storage.ts`), não a URL pública. `null` = sem logo. */
   logoPath: string | null;
+  /** Só Termo de Uso (não vai no timbrado): Encarregado de dados — nome e e-mail. */
+  encarregadoDados: string | null;
+  /** Só Termo de Uso: foro eleito — comarca/UF. */
+  foro: string | null;
 };
 
 function normalizar(valor: unknown): DadosEmpresa | null {
@@ -28,6 +32,8 @@ function normalizar(valor: unknown): DadosEmpresa | null {
     cnpj: typeof v.cnpj === "string" && v.cnpj.trim() ? v.cnpj : null,
     endereco: typeof v.endereco === "string" && v.endereco.trim() ? v.endereco : null,
     logoPath: typeof v.logoPath === "string" && v.logoPath.trim() ? v.logoPath : null,
+    encarregadoDados: typeof v.encarregadoDados === "string" && v.encarregadoDados.trim() ? v.encarregadoDados : null,
+    foro: typeof v.foro === "string" && v.foro.trim() ? v.foro : null,
   };
 }
 

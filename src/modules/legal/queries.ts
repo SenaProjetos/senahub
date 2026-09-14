@@ -1,6 +1,17 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { TERMOS, tipoTermoPorRole, type TipoTermo } from "./termos";
+import { dadosEmpresa } from "@/modules/configuracoes/empresa/queries";
+import { TERMOS, preencherTermo, tipoTermoPorRole, type Termo, type TipoTermo } from "./termos";
+
+/**
+ * Termo vigente do tipo, já com os dados de Configurações → Empresa. Fonte única do texto
+ * EXIBIDO na tela de aceite e do texto HASHEADO em `aceitarTermo` — os dois precisam passar por
+ * aqui, senão a prova registrada não corresponde ao que a pessoa leu.
+ */
+export async function termoVigente(tipo: TipoTermo): Promise<Termo> {
+  const empresa = await dadosEmpresa();
+  return preencherTermo(TERMOS[tipo], empresa);
+}
 
 /**
  * Verifica se o usuário ainda precisa aceitar a versão vigente do Termo aplicável

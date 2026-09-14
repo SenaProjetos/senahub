@@ -14,6 +14,8 @@ const salvarSchema = z.object({
   cnpj: z.string().trim().optional(),
   endereco: z.string().trim().optional(),
   logoPath: z.string().trim().optional(),
+  encarregadoDados: z.string().trim().max(200).optional(),
+  foro: z.string().trim().max(120).optional(),
 });
 
 /**
@@ -30,6 +32,8 @@ export const salvarDadosEmpresa = defineAction(
       cnpj: i.cnpj || null,
       endereco: i.endereco || null,
       logoPath: i.logoPath || null,
+      encarregadoDados: i.encarregadoDados || null,
+      foro: i.foro || null,
     };
     await prisma.configSistema.upsert({
       where: { chave: CHAVE_DADOS_EMPRESA },
@@ -40,6 +44,7 @@ export const salvarDadosEmpresa = defineAction(
       await removerArquivo(anterior.logoPath).catch(() => {});
     }
     revalidatePath("/configuracoes/empresa");
+    // O Termo de Uso lê estes dados na hora de exibir — nada a revalidar além da própria tela.
     return {};
   },
 );

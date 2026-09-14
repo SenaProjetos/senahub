@@ -7,6 +7,9 @@ publico: clientes_portal
 > ⚠️ **Modelo-base, não validado juridicamente.** Não é parecer jurídico. Revise com um(a)
 > advogado(a) — especialmente a **base legal da LGPD** e a articulação com o **contrato de
 > prestação de serviços**. Preencha os campos entre colchetes `[ ]`.
+>
+> No sistema, os campos entre colchetes são preenchidos automaticamente com **Configurações →
+> Empresa** — ver `src/modules/legal/marcadores-empresa.ts`.
 
 # Termo de Uso e Consentimento — Portal do Cliente (SenaHub)
 

@@ -4,7 +4,8 @@ import { createHash } from "node:crypto";
 import { headers } from "next/headers";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { TERMOS, tipoTermoPorRole } from "./termos";
+import { tipoTermoPorRole } from "./termos";
+import { termoVigente } from "./queries";
 import { aceitarTermoSchema } from "./schemas";
 
 /**
@@ -18,7 +19,8 @@ export const aceitarTermo = defineAction(
     const tipo = tipoTermoPorRole(ctx.user.role);
     if (input.tipo !== tipo) throw new ActionError("Termo não aplicável ao seu perfil.");
 
-    const termo = TERMOS[tipo];
+    // Mesmo texto da tela (com os dados da empresa) — é ele que vira prova no hash.
+    const termo = await termoVigente(tipo);
     if (input.versao !== termo.versao) {
       throw new ActionError("Versão do termo desatualizada. Recarregue a página.");
     }

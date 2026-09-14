@@ -8,7 +8,13 @@
  *
  * Módulo puro (sem `server-only`): a página (RSC) lê daqui e passa o texto como
  * prop para o formulário cliente. O hash é calculado no servidor (actions.ts).
+ *
+ * Os marcadores `[RAZÃO SOCIAL COMPLETA]`, `[CNPJ]` etc. ficam no texto-base e são preenchidos
+ * com Configurações → Empresa por `preencherTermo` (via `termoVigente` em queries.ts) — tanto no
+ * que o usuário lê quanto no que é hasheado, para a prova bater com a tela.
  */
+
+import { preencherMarcadoresEmpresa, type EmpresaTermo } from "./marcadores-empresa";
 
 export type TipoTermo = "colaborador" | "cliente";
 
@@ -24,7 +30,7 @@ export function tipoTermoPorRole(role: string): TipoTermo {
 }
 
 const COLABORADOR = `Termo de Uso e Consentimento — SenaHub (Colaboradores)
-Versão 2026-06-23
+Versão 2026-09-14
 
 Este Termo regula o acesso e o uso do sistema SenaHub ("Sistema") por colaboradores, estagiários, prestadores de serviço pessoa jurídica (PJ) e freelancers (em conjunto, "Usuário") de [RAZÃO SOCIAL COMPLETA], inscrita no CNPJ sob o nº [CNPJ], com sede em [ENDEREÇO COMPLETO — CIDADE/UF] ("Empresa").
 
@@ -47,12 +53,13 @@ Ao clicar em "Li e aceito", ou ao utilizar o Sistema, o Usuário declara que leu
 (d) inserir conteúdo malicioso, automatizar acessos de forma não autorizada ou comprometer a estabilidade do Sistema;
 (e) no chat e demais canais, praticar assédio, discriminação, ofensa ou qualquer conduta que viole a política interna e a dignidade dos demais.
 3.2. O conteúdo lançado pelo Usuário (mensagens, anexos, comentários, lançamentos) é de sua responsabilidade e deve observar a legislação e as políticas internas.
+3.3. O Sistema não se destina a guardar arquivos ou informações da vida privada do Usuário. O espaço de "Anotações" do chat serve exclusivamente a anotações, links e referências úteis ao trabalho e ao desenvolvimento dos projetos; não deve ser usado para armazenar conteúdo de cunho pessoal ou privado.
 
 4. MONITORAMENTO, REGISTRO E AUDITORIA
 4.1. O Usuário está ciente e concorda que o Sistema é uma ferramenta de trabalho da Empresa e que, por essa natureza, não há expectativa de privacidade sobre os dados nele inseridos ou trafegados.
 4.2. Para fins de segurança, conformidade, qualidade e apuração de responsabilidades, a Empresa registra e pode auditar, de forma proporcional:
 (a) o histórico de ações (criação, alteração, exclusão de registros), com data, hora e autor (log de auditoria);
-(b) as comunicações no chat corporativo e demais canais internos do Sistema, que não são privadas e podem ser acessadas pela Empresa;
+(b) as comunicações no chat corporativo e demais canais internos do Sistema, que não são privadas e podem ser acessadas pela Empresa. O espaço de "Anotações" do chat é visível apenas ao próprio Usuário e aos administradores do Sistema; o acesso de um administrador às anotações de outro usuário fica registrado no log de auditoria;
 (c) os registros de ponto eletrônico, inclusive metadados como data, hora, dispositivo e, quando aplicável, localização/endereço de rede da marcação.
 4.3. O monitoramento se limita às ferramentas corporativas e às finalidades acima; não alcança a esfera estritamente privada do Usuário fora do Sistema.
 
@@ -105,7 +112,7 @@ Ao clicar em "Li e aceito", ou ao utilizar o Sistema, o Usuário declara que leu
 14.1. O Usuário reconhece a validade jurídica do aceite eletrônico deste Termo (MP nº 2.200-2/2001 e Lei nº 12.965/2014 — Marco Civil da Internet).
 14.2. O aceite é registrado com data, hora, versão do Termo, identificação do Usuário, endereço IP e agente de navegação, que servem como prova da manifestação de vontade.
 
-Ao clicar em "Li e aceito", declaro que li, compreendi e concordo com este Termo de Uso e Consentimento, na versão 2026-06-23.`;
+Ao clicar em "Li e aceito", declaro que li, compreendi e concordo com este Termo de Uso e Consentimento, na versão 2026-09-14.`;
 
 const CLIENTE = `Termo de Uso e Consentimento — Portal do Cliente (SenaHub)
 Versão 2026-06-23
@@ -155,9 +162,14 @@ Ao clicar em "Li e aceito", ou ao utilizar o Portal, o Usuário declara que leu,
 
 Ao clicar em "Li e aceito", declaro que li, compreendi e concordo com este Termo, na versão 2026-06-23.`;
 
+/** Termo com os dados da empresa aplicados. Não muda `versao`: dado cadastral não força re-aceite. */
+export function preencherTermo(termo: Termo, empresa: EmpresaTermo | null): Termo {
+  return { ...termo, conteudo: preencherMarcadoresEmpresa(termo.conteudo, empresa) };
+}
+
 export const TERMOS: Record<TipoTermo, Termo> = {
   colaborador: {
-    versao: "2026-06-23",
+    versao: "2026-09-14",
     titulo: "Termo de Uso e Consentimento — Colaboradores",
     conteudo: COLABORADOR,
   },

@@ -25,18 +25,29 @@ describe("dadosEmpresa", () => {
       cnpj: null,
       endereco: null,
       logoPath: null,
+      encarregadoDados: null,
+      foro: null,
     });
   });
 
   it("devolve todos os campos quando preenchidos", async () => {
     mocks.findUnique.mockResolvedValue({
-      valor: { razaoSocial: "Sena Estruturas", cnpj: "00.000.000/0001-00", endereco: "Rua X", logoPath: "empresa/logo-1.png" },
+      valor: {
+        razaoSocial: "Sena Estruturas",
+        cnpj: "00.000.000/0001-00",
+        endereco: "Rua X",
+        logoPath: "empresa/logo-1.png",
+        encarregadoDados: "Fulana — dpo@sena.com",
+        foro: "Goiânia/GO",
+      },
     });
     expect(await dadosEmpresa()).toEqual({
       razaoSocial: "Sena Estruturas",
       cnpj: "00.000.000/0001-00",
       endereco: "Rua X",
       logoPath: "empresa/logo-1.png",
+      encarregadoDados: "Fulana — dpo@sena.com",
+      foro: "Goiânia/GO",
     });
   });
 });

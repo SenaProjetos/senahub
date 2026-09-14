@@ -4,9 +4,10 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowLeft, Building2, Upload, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Building2, FileSignature, Upload, X } from "lucide-react";
 import { salvarDadosEmpresa } from "@/modules/configuracoes/empresa/actions";
 import type { DadosEmpresa } from "@/modules/configuracoes/empresa/queries";
+import { camposTermoPendentes } from "@/modules/legal/marcadores-empresa";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +24,10 @@ export function EmpresaView({ dados }: { dados: DadosEmpresa | null }) {
   const [razaoSocial, setRazaoSocial] = useState(dados?.razaoSocial ?? "");
   const [cnpj, setCnpj] = useState(dados?.cnpj ?? "");
   const [endereco, setEndereco] = useState(dados?.endereco ?? "");
+  const [encarregadoDados, setEncarregadoDados] = useState(dados?.encarregadoDados ?? "");
+  const [foro, setForo] = useState(dados?.foro ?? "");
+  // Do que está SALVO (é o que o termo mostra agora), não do que está sendo digitado.
+  const pendentesTermo = camposTermoPendentes(dados);
   const [logoPath, setLogoPath] = useState<string | null>(dados?.logoPath ?? null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [enviandoLogo, setEnviandoLogo] = useState(false);
@@ -77,6 +82,8 @@ export function EmpresaView({ dados }: { dados: DadosEmpresa | null }) {
         cnpj: cnpj.trim(),
         endereco: endereco.trim(),
         logoPath: logoPath ?? "",
+        encarregadoDados: encarregadoDados.trim(),
+        foro: foro.trim(),
       });
       if (r.ok) {
         toast.success("Dados da empresa salvos.");
@@ -97,7 +104,7 @@ export function EmpresaView({ dados }: { dados: DadosEmpresa | null }) {
         <h2 className="text-2xl font-extrabold tracking-tight">Dados da empresa</h2>
         <p className="text-sm text-muted-foreground">
           Razão social, CNPJ, endereço e logo usados no timbrado dos PDFs gerados pelo sistema
-          (hoje: holerite do funcionário CLT).
+          (hoje: holerite do funcionário CLT) e na identificação da empresa no Termo de Uso.
         </p>
       </div>
 
@@ -177,6 +184,54 @@ export function EmpresaView({ dados }: { dados: DadosEmpresa | null }) {
             <p className="text-xs text-muted-foreground">PNG ou JPG, fundo transparente fica melhor no cabeçalho.</p>
           </div>
 
+          <Button onClick={salvar} disabled={pending}>
+            {pending ? "Salvando…" : "Salvar"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-xl">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FileSignature className="size-4" /> Termo de Uso
+          </CardTitle>
+          <CardDescription>
+            Razão social, CNPJ e endereço acima, mais os dois dados abaixo, preenchem a
+            identificação da empresa no Termo de Uso que colaboradores e clientes aceitam.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {pendentesTermo.length > 0 && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                O Termo de Uso está saindo com campos em branco (aparecem entre colchetes):{" "}
+                <strong>{pendentesTermo.join(", ")}</strong>.
+              </span>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label htmlFor="encarregado-dados">Encarregado de dados (DPO)</Label>
+            <Input
+              id="encarregado-dados"
+              value={encarregadoDados}
+              onChange={(e) => setEncarregadoDados(e.target.value)}
+              placeholder="Nome e e-mail — ex.: Maria Silva, privacidade@empresa.com.br"
+              maxLength={200}
+            />
+            <p className="text-xs text-muted-foreground">Contato para o titular exercer os direitos da LGPD.</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="foro">Foro (comarca/UF)</Label>
+            <Input
+              id="foro"
+              value={foro}
+              onChange={(e) => setForo(e.target.value)}
+              placeholder="Ex.: Goiânia/GO"
+              maxLength={120}
+              className="w-72"
+            />
+          </div>
           <Button onClick={salvar} disabled={pending}>
             {pending ? "Salvando…" : "Salvar"}
           </Button>

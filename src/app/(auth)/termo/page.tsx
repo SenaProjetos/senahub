@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
-import { precisaAceitarTermo } from "@/modules/legal/queries";
-import { TERMOS } from "@/modules/legal/termos";
+import { precisaAceitarTermo, termoVigente } from "@/modules/legal/queries";
 import { TermoAceiteForm } from "@/components/legal/termo-aceite-form";
 
 export const metadata: Metadata = { title: "Termo de Uso" };
@@ -15,7 +14,7 @@ export default async function TermoPage() {
   const pendencia = await precisaAceitarTermo(session.user);
   if (!pendencia) redirect("/");
 
-  const termo = TERMOS[pendencia.tipo];
+  const termo = await termoVigente(pendencia.tipo);
 
   return (
     <TermoAceiteForm

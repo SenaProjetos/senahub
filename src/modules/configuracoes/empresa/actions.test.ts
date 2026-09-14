@@ -46,10 +46,10 @@ describe("salvarDadosEmpresa", () => {
       where: { chave: "empresa.dados" },
       create: {
         chave: "empresa.dados",
-        valor: { razaoSocial: "Sena Estruturas", cnpj: "00.000.000/0001-00", endereco: "Rua X", logoPath: "empresa/logo-1.png" },
+        valor: { razaoSocial: "Sena Estruturas", cnpj: "00.000.000/0001-00", endereco: "Rua X", logoPath: "empresa/logo-1.png", encarregadoDados: null, foro: null },
       },
       update: {
-        valor: { razaoSocial: "Sena Estruturas", cnpj: "00.000.000/0001-00", endereco: "Rua X", logoPath: "empresa/logo-1.png" },
+        valor: { razaoSocial: "Sena Estruturas", cnpj: "00.000.000/0001-00", endereco: "Rua X", logoPath: "empresa/logo-1.png", encarregadoDados: null, foro: null },
       },
     });
     expect(mocks.removerArquivo).not.toHaveBeenCalled();
@@ -59,7 +59,18 @@ describe("salvarDadosEmpresa", () => {
     await salvarDadosEmpresa({ razaoSocial: "Sena Estruturas", cnpj: "", endereco: "", logoPath: "" });
     expect(mocks.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        create: expect.objectContaining({ valor: { razaoSocial: "Sena Estruturas", cnpj: null, endereco: null, logoPath: null } }),
+        create: expect.objectContaining({ valor: { razaoSocial: "Sena Estruturas", cnpj: null, endereco: null, logoPath: null, encarregadoDados: null, foro: null } }),
+      }),
+    );
+  });
+
+  it("salva encarregado de dados e foro usados pelo Termo de Uso", async () => {
+    await salvarDadosEmpresa({ razaoSocial: "Sena Estruturas", encarregadoDados: "Fulana — dpo@sena.com", foro: "Goiânia/GO" });
+    expect(mocks.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          valor: expect.objectContaining({ encarregadoDados: "Fulana — dpo@sena.com", foro: "Goiânia/GO" }),
+        }),
       }),
     );
   });
