@@ -87,7 +87,7 @@ export function AssinarHoleriteFila({ pendentes }: { pendentes: HoleritePendente
     <Card className="w-full max-w-2xl">
       <CardHeader>
         <CardTitle className="text-xl">
-          Holerite de {MESES[atual.mes - 1]} de {atual.ano}
+          {atual.tipo === "decimo_terceiro" ? "13º salário" : "Holerite"} de {MESES[atual.mes - 1]} de {atual.ano}
         </CardTitle>
         <CardDescription>
           {restantes > 1

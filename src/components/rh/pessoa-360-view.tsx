@@ -20,6 +20,7 @@ import { DependentesEditor } from "@/components/rh/dependentes-editor";
 import { DocumentosEditor } from "@/components/rh/documentos-editor";
 import { OverridesUsuario, type OverrideItem } from "@/components/rh/overrides-usuario";
 import { HoleriteAssinaturaCell } from "@/components/rh/holerite-assinatura-cell";
+import { rotuloFolha } from "@/modules/rh/folha/tipo-folha";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -545,10 +546,10 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                           <tr key={h.id} className="border-b">
                             <td className="py-2 pr-3">
                               {self ? (
-                                `${String(h.mes).padStart(2, "0")}/${h.ano}`
+                                rotuloFolha(h)
                               ) : (
                                 <Link href={`/rh/folha/${h.folhaId}`} className="font-medium hover:underline">
-                                  {String(h.mes).padStart(2, "0")}/{h.ano}
+                                  {rotuloFolha(h)}
                                 </Link>
                               )}
                             </td>

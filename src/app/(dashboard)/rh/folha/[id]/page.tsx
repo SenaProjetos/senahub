@@ -39,6 +39,7 @@ export default async function FolhaDetalhePage({
         id: folha.id,
         ano: folha.ano,
         mes: folha.mes,
+        tipo: folha.tipo,
         status: folha.status,
         holerites: folha.holerites.map((h) => ({
           id: h.id,

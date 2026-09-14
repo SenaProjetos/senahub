@@ -4,7 +4,7 @@ import { whereAudiencia } from "@/lib/audiencias";
 
 export async function listarFolhas() {
   const folhas = await prisma.folhaPagamento.findMany({
-    orderBy: [{ ano: "desc" }, { mes: "desc" }],
+    orderBy: [{ ano: "desc" }, { mes: "desc" }, { tipo: "asc" }],
     include: { holerites: { include: { itens: true } } },
   });
   return folhas.map((f) => {
@@ -20,6 +20,7 @@ export async function listarFolhas() {
       id: f.id,
       ano: f.ano,
       mes: f.mes,
+      tipo: f.tipo,
       status: f.status,
       fechadaEm: f.fechadaEm,
       holerites: f.holerites.length,
@@ -107,7 +108,7 @@ export async function holeritesPendentesDeAssinatura(user: { id: string }) {
     orderBy: [{ folha: { ano: "asc" } }, { folha: { mes: "asc" } }],
     select: {
       id: true,
-      folha: { select: { ano: true, mes: true, fechadaEm: true } },
+      folha: { select: { ano: true, mes: true, tipo: true, fechadaEm: true } },
       itens: { select: { descricao: true, tipo: true, valor: true }, orderBy: { descricao: "asc" } },
     },
   });
@@ -123,6 +124,7 @@ export async function holeritesPendentesDeAssinatura(user: { id: string }) {
       id: h.id,
       ano: h.folha.ano,
       mes: h.folha.mes,
+      tipo: h.folha.tipo,
       fechadaEm: h.folha.fechadaEm?.toISOString() ?? null,
       itens,
       proventos,

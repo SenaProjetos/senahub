@@ -10,6 +10,7 @@ import { fontesUsadasNoSchema } from "@/modules/documentos/fontes-usadas";
 import type { SubjectAutorizacao } from "@/lib/permissions";
 import type { DocSchema } from "@/modules/documentos/schema";
 import type { Escalar, Linha } from "@/modules/documentos/tokens";
+import { rotuloFolha } from "@/modules/rh/folha/tipo-folha";
 
 /**
  * Resolução das fontes de dados do Estúdio de Documentos (server).
@@ -366,7 +367,7 @@ export async function resolverFonte(
         where: { id: params.holeriteId ?? "" },
         include: {
           user: { select: { name: true } },
-          folha: { select: { ano: true, mes: true } },
+          folha: { select: { ano: true, mes: true, tipo: true } },
           itens: true,
         },
       });
@@ -376,7 +377,8 @@ export async function resolverFonte(
       return {
         escalar: {
           Colaborador: h.user.name,
-          Competencia: `${String(h.folha.mes).padStart(2, "0")}/${h.folha.ano}`,
+          // Mensal continua "07/2026" (modelos existentes não mudam); 13º vira "13º salário 12/2026".
+          Competencia: rotuloFolha(h.folha),
           TotalProventos: proventos,
           TotalDescontos: descontos,
           Liquido: proventos - descontos,

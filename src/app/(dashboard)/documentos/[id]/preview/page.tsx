@@ -13,6 +13,7 @@ import { podeVerFonte } from "@/modules/documentos/fontes-perm";
 import { colunasDoDataset } from "@/modules/documentos/dataset-queries";
 import { DocRender } from "@/components/documentos/doc-render";
 import { PreviewBar, type FonteBar } from "@/components/documentos/preview-bar";
+import { rotuloFolha } from "@/modules/rh/folha/tipo-folha";
 
 export const metadata: Metadata = { title: "Preview do documento" };
 
@@ -117,7 +118,7 @@ export default async function PreviewPage({
           licitacao: opcoes.licitacoes.map((l) => ({ id: l.id, label: l.titulo })),
           holerite: opcoes.holerites.map((h) => ({
             id: h.id,
-            label: `${h.user.name} · ${String(h.folha.mes).padStart(2, "0")}/${h.folha.ano}`,
+            label: `${h.user.name} · ${rotuloFolha(h.folha)}`,
           })),
         }}
       />

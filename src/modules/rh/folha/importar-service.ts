@@ -7,6 +7,7 @@ import {
   type FolhaImportada,
   type TipoRubricaImport,
 } from "./importar-pdf";
+import { pareceDecimoTerceiro } from "./tipo-folha";
 
 /**
  * Camada de banco do import da folha CLT (plano 2026-09-13-folha-clt-import-assinatura.md, P2).
@@ -104,6 +105,7 @@ export async function analisarImportacao(
       id: true,
       ano: true,
       mes: true,
+      tipo: true,
       status: true,
       holerites: { select: { userId: true, user: { select: { name: true } } } },
     },
@@ -120,6 +122,26 @@ export async function analisarImportacao(
     return {
       status: "erro",
       motivo: `Esta folha é de ${alvo}, mas o PDF é de ${doPdf}. Abra a folha da competência certa.`,
+    };
+  }
+  // Mesma competência não basta: em dezembro a folha mensal e a de 13º têm o mesmo mês, e o
+  // import SUBSTITUI os itens de cada holerite — o PDF errado apagaria o salário (ou o 13º).
+  // Lê todas as rubricas do PDF, inclusive de quem é ignorado: o que se quer saber é o tipo do
+  // arquivo, não de quem vai virar holerite.
+  const rubricas13 = [
+    ...new Set(folha.funcionarios.flatMap((f) => f.rubricas.map((r) => r.descricao)).filter(pareceDecimoTerceiro)),
+  ];
+  const competencia = `${String(folhaPagamento.mes).padStart(2, "0")}/${folhaPagamento.ano}`;
+  if (folhaPagamento.tipo === "mensal" && rubricas13.length > 0) {
+    return {
+      status: "erro",
+      motivo: `Este PDF tem rubrica de 13º salário ("${rubricas13[0]}"). Importe na folha de 13º salário de ${competencia} — crie em Folha CLT → Nova folha, tipo 13º salário.`,
+    };
+  }
+  if (folhaPagamento.tipo === "decimo_terceiro" && rubricas13.length === 0) {
+    return {
+      status: "erro",
+      motivo: `Nenhuma rubrica deste PDF é de 13º salário — parece a folha mensal. Importe na folha mensal de ${competencia}.`,
     };
   }
 

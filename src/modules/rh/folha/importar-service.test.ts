@@ -74,7 +74,7 @@ function folhaFake(over: Partial<FolhaImportada> = {}): FolhaImportada {
   };
 }
 
-const FOLHA_ABERTA = { id: "f1", ano: 2026, mes: 8, status: "aberta", holerites: [] };
+const FOLHA_ABERTA = { id: "f1", ano: 2026, mes: 8, tipo: "mensal", status: "aberta", holerites: [] };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -131,6 +131,46 @@ describe("analisarImportacao", () => {
     const r = await analisarImportacao("f1", folhaFake({ mes: 7 }));
     expect(r.status).toBe("erro");
     expect(r.status === "erro" && r.motivo).toMatch(/folha é de 08\/2026, mas o PDF é de 07\/2026/);
+  });
+
+  describe("13º salário × folha mensal no mesmo mês", () => {
+    const folha13 = () =>
+      folhaFake({
+        funcionarios: [
+          {
+            ...folhaFake().funcionarios[0],
+            rubricas: [
+              { codigoExterno: "070", descricao: "13º Salário", valor: 100 },
+              { codigoExterno: "904", descricao: "INSS 13º Salário", valor: 10 },
+            ],
+          },
+        ],
+      });
+
+    it("recusa PDF de 13º na folha MENSAL (substituiria os itens do salário)", async () => {
+      const r = await analisarImportacao("f1", folha13());
+      expect(r.status).toBe("erro");
+      expect(r.status === "erro" && r.motivo).toMatch(/rubrica de 13º salário \("13º Salário"\).*folha de 13º salário de 08\/2026/);
+    });
+
+    it("recusa PDF mensal na folha de 13º", async () => {
+      mocks.folhaFindUnique.mockResolvedValue({ ...FOLHA_ABERTA, tipo: "decimo_terceiro" });
+      const r = await analisarImportacao("f1", folhaFake());
+      expect(r.status).toBe("erro");
+      expect(r.status === "erro" && r.motivo).toMatch(/parece a folha mensal/);
+    });
+
+    it("PDF de 13º na folha de 13º segue o fluxo normal", async () => {
+      mocks.folhaFindUnique.mockResolvedValue({ ...FOLHA_ABERTA, tipo: "decimo_terceiro" });
+      const r = await analisarImportacao("f1", folha13());
+      expect(r.status).not.toBe("erro");
+    });
+
+    it("rubrica de 13º de pessoa IGNORADA ainda conta — o que importa é o tipo do arquivo", async () => {
+      mocks.matriculaIgnoradaFindMany.mockResolvedValue([{ matriculaExterna: "000001", nome: "FULANA DE TAL" }]);
+      const r = await analisarImportacao("f1", folha13());
+      expect(r.status).toBe("erro");
+    });
   });
 
   it("recusa folha já fechada", async () => {

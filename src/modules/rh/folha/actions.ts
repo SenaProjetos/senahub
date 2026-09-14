@@ -12,6 +12,7 @@ import { filtrarPorCategoria } from "@/modules/usuarios/preferencias/queries";
 import { calcularEncargos } from "@/lib/encargos";
 import { faixasPorTipo, deducaoDependente } from "@/modules/rh/encargos/queries";
 import { dependentesPorUsuario } from "@/modules/rh/funcionarios/queries";
+import { TIPOS_FOLHA, rotuloFolha } from "@/modules/rh/folha/tipo-folha";
 
 const base = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
 const PATH = "/rh/folha";
@@ -19,6 +20,7 @@ const PATH = "/rh/folha";
 const criarFolhaSchema = z.object({
   ano: z.number().int().min(2020).max(2100),
   mes: z.number().int().min(1).max(12),
+  tipo: z.enum(TIPOS_FOLHA).default("mensal"),
 });
 
 const itemSchema = z.object({
@@ -40,10 +42,10 @@ export const criarFolha = defineAction(
   { ...base, acao: "criar-folha", entidade: "FolhaPagamento", schema: criarFolhaSchema },
   async (i) => {
     const existe = await prisma.folhaPagamento.findUnique({
-      where: { ano_mes: { ano: i.ano, mes: i.mes } },
+      where: { ano_mes_tipo: { ano: i.ano, mes: i.mes, tipo: i.tipo } },
     });
-    if (existe) throw new ActionError("Folha deste mês já existe.");
-    const folha = await prisma.folhaPagamento.create({ data: { ano: i.ano, mes: i.mes } });
+    if (existe) throw new ActionError(`A folha ${rotuloFolha(i)} já existe.`);
+    const folha = await prisma.folhaPagamento.create({ data: { ano: i.ano, mes: i.mes, tipo: i.tipo } });
     revalidatePath(PATH);
     return { id: folha.id };
   },
@@ -67,6 +69,11 @@ export const gerarHoleritesAutomatico = defineAction(
     });
     if (!folha) throw new ActionError("Folha não encontrada.");
     if (folha.status === "fechada") throw new ActionError("Folha fechada — reabra para gerar.");
+    // O cálculo abaixo é do salário do mês (base + INSS/IRRF mensais). Numa folha de 13º ele
+    // lançaria um segundo salário com o rótulo errado.
+    if (folha.tipo !== "mensal") {
+      throw new ActionError("Geração automática é só para a folha mensal — na de 13º, importe o PDF do contador ou lance à mão.");
+    }
 
     const jaTem = folha.holerites.map((h) => h.userId);
     const funcionarios = await prisma.user.findMany({
@@ -181,7 +188,7 @@ export const fecharFolha = defineAction(
       const lanc = await tx.lancamento.create({
         data: {
           tipo: "despesa",
-          descricao: `Folha CLT ${String(folha.mes).padStart(2, "0")}/${folha.ano}`,
+          descricao: `Folha CLT ${rotuloFolha(folha)}`,
           valor: liquido,
           status: "confirmado",
           data: agora,
@@ -264,7 +271,7 @@ export const enviarHolerites = defineAction(
         0,
       );
       const ok = await enviarEmailTemplate(h.user.email, "holerite", {
-        competencia: `${String(folha.mes).padStart(2, "0")}/${folha.ano}`,
+        competencia: rotuloFolha(folha),
         // Documento formal: usa o nome completo de cadastro; cai no de exibição se vazio.
         nome: h.user.nomeCompleto?.trim() || h.user.name,
         linhas,
@@ -479,7 +486,7 @@ export const lembrarAssinaturaHolerite = defineAction(
         id: true,
         userId: true,
         assinadoEm: true,
-        folha: { select: { status: true, ano: true, mes: true } },
+        folha: { select: { status: true, ano: true, mes: true, tipo: true } },
       },
     });
     if (!holerite) throw new ActionError("Holerite não encontrado.");
@@ -491,7 +498,7 @@ export const lembrarAssinaturaHolerite = defineAction(
     const liberados = await filtrarPorCategoria([holerite.userId], "pagamento");
     const avisado = liberados.length > 0;
     if (avisado) {
-      const competencia = `${String(holerite.folha.mes).padStart(2, "0")}/${holerite.folha.ano}`;
+      const competencia = rotuloFolha(holerite.folha);
       await notificar(
         holerite.userId,
         {

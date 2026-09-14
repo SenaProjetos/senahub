@@ -27,7 +27,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       assinadoEm: true,
       user: { select: { name: true, nomeCompleto: true } },
       assinante: { select: { name: true } },
-      folha: { select: { ano: true, mes: true } },
+      folha: { select: { ano: true, mes: true, tipo: true } },
       itens: { select: { descricao: true, tipo: true, valor: true }, orderBy: { descricao: "asc" } },
     },
   });
@@ -48,6 +48,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     nomeFuncionario: holerite.user.nomeCompleto?.trim() || holerite.user.name,
     ano: holerite.folha.ano,
     mes: holerite.folha.mes,
+    tipo: holerite.folha.tipo,
     itens: holerite.itens.map((it) => ({ descricao: it.descricao, tipo: it.tipo, valor: Number(it.valor) })),
     assinadoEm: holerite.assinadoEm,
     assinanteNome: holerite.assinante?.name ?? null,
@@ -64,7 +65,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     await page.setContent(html, { waitUntil: "load", timeout: 30000 });
     await page.emulateMediaType("print");
     const pdf = await page.pdf({ format: "A4", printBackground: true });
-    const competencia = `${String(holerite.folha.mes).padStart(2, "0")}-${holerite.folha.ano}`;
+    const competencia = `${holerite.folha.tipo === "decimo_terceiro" ? "13o-" : ""}${String(holerite.folha.mes).padStart(2, "0")}-${holerite.folha.ano}`;
     return new NextResponse(Buffer.from(pdf), {
       headers: {
         "Content-Type": "application/pdf",

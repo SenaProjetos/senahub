@@ -11,11 +11,19 @@ const BASE: HoleritePdf = {
   nomeFuncionario: "Fulana da Silva",
   ano: 2026,
   mes: 8,
+  tipo: "mensal",
   itens: [{ descricao: "Salário base", tipo: "provento", valor: 3000 }],
   assinadoEm: null,
   assinanteNome: null,
   empresa: null,
 };
+
+describe("renderHoleriteHtml — tipo da folha", () => {
+  it("holerite de 13º diz isso no título — mesmo mês da folha mensal, documento diferente", () => {
+    expect(renderHoleriteHtml(BASE)).toContain("<h1>HOLERITE — Fulana da Silva</h1>");
+    expect(renderHoleriteHtml({ ...BASE, tipo: "decimo_terceiro" })).toContain("<h1>HOLERITE DE 13º SALÁRIO — Fulana da Silva</h1>");
+  });
+});
 
 describe("renderHoleriteHtml — timbrado", () => {
   it("sem dados de empresa configurados, sai sem timbrado (não quebra o PDF)", () => {

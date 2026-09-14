@@ -14,6 +14,7 @@
 
 import { brl, formatarData } from "@/lib/utils";
 import { MESES_CURTOS } from "@/lib/data";
+import type { TipoFolha } from "./tipo-folha";
 import { TIMBRADO_CSS, timbradoHtml, type EmpresaTimbrado } from "@/modules/configuracoes/empresa/timbrado";
 
 export type ItemHoleritePdf = {
@@ -27,6 +28,7 @@ export type HoleritePdf = {
   nomeFuncionario: string;
   ano: number;
   mes: number;
+  tipo: TipoFolha;
   itens: ItemHoleritePdf[];
   assinadoEm: Date | null;
   assinanteNome: string | null;
@@ -53,6 +55,7 @@ export function renderHoleriteHtml(h: HoleritePdf): string {
   const descontos = h.itens.filter((i) => i.tipo === "desconto").reduce((s, i) => s + i.valor, 0);
   const liquido = proventos - descontos;
   const competencia = `${MESES_CURTOS[h.mes - 1]}/${h.ano}`;
+  const titulo = h.tipo === "decimo_terceiro" ? "HOLERITE DE 13º SALÁRIO" : "HOLERITE";
 
   const assinatura = h.assinadoEm
     ? `<p><strong>Assinado eletronicamente por ${escapar(h.assinanteNome ?? "—")}</strong><br>em ${formatarData(h.assinadoEm)}</p>`
@@ -76,7 +79,7 @@ export function renderHoleriteHtml(h: HoleritePdf): string {
 </style></head>
 <body>
   ${timbradoHtml(h.empresa)}
-  <h1>HOLERITE — ${escapar(h.nomeFuncionario)}</h1>
+  <h1>${titulo} — ${escapar(h.nomeFuncionario)}</h1>
   <p class="sub">Competência: ${escapar(competencia)}</p>
   <table>
     ${h.itens.map(linhaItem).join("\n")}

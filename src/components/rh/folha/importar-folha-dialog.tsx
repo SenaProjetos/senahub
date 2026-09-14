@@ -397,7 +397,11 @@ function LinhaPendenciaRubrica({
         ) : (
           <>
             <Input value={nome} onChange={(e) => setNome(e.target.value)} className="w-56" placeholder="Nome da rubrica" />
-            <Select value={tipo} onValueChange={(v) => v && setTipo(v as TipoRubricaImport)}>
+            <Select
+              value={tipo}
+              items={{ provento: "Provento", desconto: "Desconto" }}
+              onValueChange={(v) => v && setTipo(v as TipoRubricaImport)}
+            >
               <SelectTrigger className="w-36">
                 <SelectValue />
               </SelectTrigger>

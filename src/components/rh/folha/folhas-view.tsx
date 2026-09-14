@@ -9,6 +9,8 @@ import { criarFolha } from "@/modules/rh/folha/actions";
 import type { FolhaResumo } from "@/modules/rh/folha/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ROTULO_TIPO_FOLHA, TIPOS_FOLHA, rotuloFolha, type TipoFolha } from "@/modules/rh/folha/tipo-folha";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   Table,
@@ -30,6 +32,7 @@ export function FolhasView({ folhas }: { folhas: FolhaResumo[] }) {
   const hoje = new Date();
   const [ano, setAno] = useState(String(hoje.getFullYear()));
   const [mes, setMes] = useState(String(hoje.getMonth() + 1));
+  const [tipo, setTipo] = useState<TipoFolha>("mensal");
 
   // Histórico paginado client-side: a query já traz todos os meses (desc).
   const total = folhas.length;
@@ -42,7 +45,7 @@ export function FolhasView({ folhas }: { folhas: FolhaResumo[] }) {
 
   function criar() {
     start(async () => {
-      const r = await criarFolha({ ano: Number(ano), mes: Number(mes) });
+      const r = await criarFolha({ ano: Number(ano), mes: Number(mes), tipo });
       if (r.ok) {
         toast.success("Folha criada.");
         router.push(`/rh/folha/${r.data.id}`);
@@ -56,10 +59,22 @@ export function FolhasView({ folhas }: { folhas: FolhaResumo[] }) {
         <div>
           <h2 className="text-2xl font-extrabold tracking-tight">Folha CLT</h2>
           <p className="text-sm text-muted-foreground">
-            Histórico de holerites mensais; fechar gera o custo na DRE (categoria 2.03).
+            Histórico de holerites (mensal e 13º salário); fechar gera o custo na DRE (categoria 2.03).
           </p>
         </div>
         <div className="flex items-end gap-2">
+          <Select value={tipo} items={ROTULO_TIPO_FOLHA} onValueChange={(v) => v && setTipo(v as TipoFolha)}>
+            <SelectTrigger className="w-36" aria-label="Tipo de folha">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TIPOS_FOLHA.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {ROTULO_TIPO_FOLHA[t]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Input
             type="number"
             className="w-20"
@@ -106,7 +121,7 @@ export function FolhasView({ folhas }: { folhas: FolhaResumo[] }) {
                 <TableRow key={f.id}>
                   <TableCell className="font-mono text-sm">
                     <Link href={`/rh/folha/${f.id}`} className="hover:underline">
-                      {String(f.mes).padStart(2, "0")}/{f.ano}
+                      {rotuloFolha(f)}
                     </Link>
                   </TableCell>
                   <TableCell>{f.holerites}</TableCell>

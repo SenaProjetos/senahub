@@ -24,6 +24,7 @@ import { HoleriteLembreteButton } from "@/components/rh/holerite-lembrete-button
 import { ImportarFolhaDialog } from "@/components/rh/folha/importar-folha-dialog";
 import { calcularEncargos, type Faixa } from "@/lib/encargos";
 import { brl } from "@/lib/utils";
+import { rotuloFolha, type TipoFolha } from "@/modules/rh/folha/tipo-folha";
 import {
   Select,
   SelectContent,
@@ -77,7 +78,7 @@ export function FolhaDetalheView({
   deducaoDep,
   dependentesPorUser,
 }: {
-  folha: { id: string; ano: number; mes: number; status: "aberta" | "fechada"; holerites: HoleriteT[] };
+  folha: { id: string; ano: number; mes: number; tipo: TipoFolha; status: "aberta" | "fechada"; holerites: HoleriteT[] };
   rubricas: Rubrica[];
   elegiveis: { id: string; name: string; role: string }[];
   modelosDoc: { id: string; nome: string }[];
@@ -165,7 +166,7 @@ export function FolhaDetalheView({
           </Button>
           <div>
             <h2 className="text-2xl font-extrabold tracking-tight">
-              Folha {String(folha.mes).padStart(2, "0")}/{folha.ano}
+              Folha {rotuloFolha(folha)}
             </h2>
             <p className="text-sm text-muted-foreground">
               {folha.holerites.length} holerite(s) · líquido {brl(total)}
@@ -179,9 +180,11 @@ export function FolhaDetalheView({
           {aberta ? (
             <>
               <ImportarFolhaDialog folhaId={folha.id} rubricas={rubricas} elegiveis={elegiveis} />
-              <Button variant="outline" onClick={gerarAuto} disabled={pending}>
-                <Wand2 className="size-4" /> Gerar automático
-              </Button>
+              {folha.tipo === "mensal" && (
+                <Button variant="outline" onClick={gerarAuto} disabled={pending}>
+                  <Wand2 className="size-4" /> Gerar automático
+                </Button>
+              )}
               <Button onClick={() => setPreview(true)} disabled={pending || folha.holerites.length === 0}>
                 <Lock className="size-4" /> Fechar folha
               </Button>
@@ -212,12 +215,14 @@ export function FolhaDetalheView({
                   userId: u.id,
                   nome: u.name,
                   itens: [
-                    {
-                      rubricaId: rubricas.find((r) => r.nome === "Salário base")?.id ?? null,
-                      descricao: "Salário base",
-                      tipo: "provento",
-                      valor: 0,
-                    },
+                    folha.tipo === "mensal"
+                      ? {
+                          rubricaId: rubricas.find((r) => r.nome === "Salário base")?.id ?? null,
+                          descricao: "Salário base",
+                          tipo: "provento",
+                          valor: 0,
+                        }
+                      : { rubricaId: null, descricao: "13º salário", tipo: "provento", valor: 0 },
                   ],
                 })
               }
@@ -313,8 +318,7 @@ export function FolhaDetalheView({
         onClose={() => setPreview(false)}
         onConfirm={fechar}
         pending={pending}
-        mes={folha.mes}
-        ano={folha.ano}
+        rotulo={rotuloFolha(folha)}
         holerites={folha.holerites}
         totalLiquido={total}
       />
@@ -328,8 +332,7 @@ function FecharFolhaPreview({
   onClose,
   onConfirm,
   pending,
-  mes,
-  ano,
+  rotulo,
   holerites,
   totalLiquido,
 }: {
@@ -337,8 +340,7 @@ function FecharFolhaPreview({
   onClose: () => void;
   onConfirm: () => void;
   pending: boolean;
-  mes: number;
-  ano: number;
+  rotulo: string;
   holerites: HoleriteT[];
   totalLiquido: number;
 }) {
@@ -350,7 +352,7 @@ function FecharFolhaPreview({
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
-            Pré-visualizar folha {String(mes).padStart(2, "0")}/{ano}
+            Pré-visualizar folha {rotulo}
           </DialogTitle>
           <DialogDescription>
             Confira os holerites antes de fechar. Ao confirmar, o líquido vira um lançamento de

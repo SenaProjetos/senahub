@@ -5112,10 +5112,19 @@ enum StatusFolha {
   fechada
 }
 
+/// Dezembro tem duas folhas no mesmo mês — a mensal e a de 13º — e o contador manda PDFs
+/// separados. Sem o tipo, `@@unique([ano, mes])` forçaria o 13º pra dentro da folha mensal e o
+/// import substituiria os itens do salário pelos do 13º.
+enum TipoFolha {
+  mensal
+  decimo_terceiro
+}
+
 model FolhaPagamento {
   id            String      @id @default(cuid())
   ano           Int
   mes           Int // 1-12
+  tipo          TipoFolha   @default(mensal)
   status        StatusFolha @default(aberta)
   fechadaEm     DateTime?
   /// Lançamento de despesa (2.03) criado ao fechar.
@@ -5130,7 +5139,7 @@ model FolhaPagamento {
   holerites Holerite[]
   createdAt DateTime   @default(now())
 
-  @@unique([ano, mes])
+  @@unique([ano, mes, tipo])
   @@map("folha_pagamento")
 }
 

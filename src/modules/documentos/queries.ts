@@ -166,7 +166,7 @@ export async function opcoesParametros() {
     }),
     prisma.holerite.findMany({
       orderBy: { folha: { ano: "desc" } },
-      select: { id: true, user: { select: { name: true } }, folha: { select: { ano: true, mes: true } } },
+      select: { id: true, user: { select: { name: true } }, folha: { select: { ano: true, mes: true, tipo: true } } },
       take: 100,
     }),
   ]);
