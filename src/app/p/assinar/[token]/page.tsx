@@ -4,10 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { linkVigente } from "@/lib/link-publico";
 import { formatarDataHora } from "@/lib/utils";
 import { AssinaturaPublicaForm } from "@/components/juridico/assinatura-publica-form";
+import { metadataPublica } from "@/lib/metadata-publica";
 
 export const metadata: Metadata = {
-  title: "Assinar documento",
-  robots: { index: false },
+  ...metadataPublica({
+    titulo: "Assinar documento",
+    descricao: "Assine o documento enviado pelo escritório.",
+  }),
   referrer: "no-referrer",
 };
 export const dynamic = "force-dynamic";

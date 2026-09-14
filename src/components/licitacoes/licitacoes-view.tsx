@@ -5,7 +5,7 @@ import { formatarData } from "@/lib/utils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, X, Gavel, AlertTriangle } from "lucide-react";
+import { Plus, X, Gavel, AlertTriangle, BookOpenText } from "lucide-react";
 import { PAGE_SIZE_PADRAO, PAGE_SIZES } from "@/modules/licitacoes/pagination";
 import { criarLicitacao } from "@/modules/licitacoes/actions";
 import type { ResumoLicitacao } from "@/modules/licitacoes/queries";
@@ -138,6 +138,11 @@ export function LicitacoesView({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Link href="/guias/gestao">
+            <Button variant="secondary">
+              <BookOpenText className="size-4" /> Guia de uso
+            </Button>
+          </Link>
           <Link href="/licitacoes/sancoes">
             <Button variant="outline">Sanções</Button>
           </Link>

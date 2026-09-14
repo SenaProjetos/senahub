@@ -73,12 +73,39 @@ export type NavItem = {
   mobile?: boolean;
 };
 
+/**
+ * Sinal de "tem coisa te esperando aqui" num item de menu — a bolinha numerada.
+ *
+ * `critico` separa vermelho de âmbar: vermelho é só para o que JÁ estourou (certidão vencida),
+ * âmbar para o que vai estourar (vence em breve). Mesma regra do `painel-atencao` de /acessos.
+ * A contagem some no `aria-label` junto com o motivo — a cor nunca é o único portador.
+ */
+export type AlertaNav = {
+  /** Quantos itens pedem ação. `0` = não renderiza nada. */
+  total: number;
+  /** Ao menos um já venceu/estourou → vermelho em vez de âmbar. */
+  critico: boolean;
+  /** Vai para o `aria-label` e o `title`. Ex.: "2 vencidas · 1 vence em breve". */
+  descricao: string;
+};
+
 /** O que o menu precisa saber sobre quem está olhando. Calculado no servidor, passado como prop. */
 export type ContextoNav = {
   /** `["recurso:acao", …]` — de `permissoesEfetivas()`. */
   permitidas: string[];
   tipo: "interno" | "externo" | null;
   setor: Setor | null;
+  /**
+   * Badges por `href` do item — ex.: `{ "/certidoes": { total: 3, … } }`.
+   *
+   * Vive no contexto (dado), e NÃO em `NavItem` (configuração estática): `NAV_GROUPS` é um módulo
+   * compartilhado, e escrever contagem de um usuário nele vazaria entre requests. Fica aqui também
+   * porque `Shell`/`Header`/`BottomNav`/`SidebarNav` já recebem `nav` — um prop novo custaria
+   * quatro assinaturas para o mesmo dado.
+   *
+   * O Chat não entra aqui: o badge dele é do socket (tempo real), não do servidor por request.
+   */
+  alertas?: Record<string, AlertaNav>;
 };
 
 export type NavGroup = {
@@ -164,6 +191,11 @@ export const NAV_GROUPS: NavGroup[] = [
         permissao: "chat:usar",
         mobile: true,
       },
+      // Guias de uso — formação por setor. `tipo: "interno"` e NÃO uma permissão de módulo: é
+      // material de treinamento, e ler sobre o Financeiro sem ter `financeiro:ver` é o caso de uso
+      // (quem ainda não trabalha no setor é o público). Fica colado na Ajuda: formação e
+      // referência são o par, e o guia linka para o manual o tempo todo.
+      { title: "Guias de uso", href: "/guias", icon: BookMarked, tipo: "interno" },
       // Ajuda/Manual — sem `roles`: visível a todos os perfis (inclusive cliente).
       { title: "Ajuda", href: "/ajuda", icon: BookOpen, mobile: true },
     ],

@@ -54,6 +54,10 @@ export const config = {
     // /api/auth/** (handler do better-auth).
     //
     // ATENÇÃO: rota de API nova DEVE se auto-autenticar — não há checagem de cookie aqui.
-    "/((?!api/|_next/static|_next/image|favicon.ico|MARCA|manifest.json|sw.js|robots.txt).*)",
+    // `icons` fica de fora junto com `MARCA`/`manifest.json`: são assets de marca, e o
+    // crawler de prévia de link (WhatsApp/Telegram/Slack) busca o og:image numa segunda
+    // requisição SEM cookie — dentro do matcher ele levaria redirect pro /login e o card
+    // sairia sem imagem. Vale igual para os ícones que o manifest.json referencia.
+    "/((?!api/|_next/static|_next/image|favicon.ico|MARCA|icons|manifest.json|sw.js|robots.txt).*)",
   ],
 };

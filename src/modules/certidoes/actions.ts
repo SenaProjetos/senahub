@@ -21,7 +21,12 @@ export const criarCertidao = defineAction(
   { ...base, acao: "criar-certidao", entidade: "Certidao", schema: certidaoSchema },
   async (i) => {
     const c = await prisma.certidao.create({
-      data: { tipoId: i.tipoId, descricao: i.descricao || null, validade: new Date(i.validade) },
+      data: {
+        tipoId: i.tipoId,
+        descricao: i.descricao || null,
+        validade: new Date(i.validade),
+        responsavelId: i.responsavelId || null,
+      },
     });
     rev();
     return { id: c.id };
@@ -46,20 +51,41 @@ export const editarCertidao = defineAction(
   },
 );
 
+/** "Excluir" arquiva (soft delete) — some da listagem/painel/alertas, mas preserva versões e auditoria. */
 export const excluirCertidao = defineAction(
-  { ...base, acao: "excluir-certidao", entidade: "Certidao", schema: idSchema },
+  {
+    ...base,
+    acao: "excluir-certidao",
+    entidade: "Certidao",
+    schema: idSchema,
+    capturarAntes: (i) => prisma.certidao.findUnique({ where: { id: i.id } }),
+  },
   async (i) => {
     const c = await prisma.certidao.findUnique({ where: { id: i.id } });
     if (!c) throw new ActionError("Certidão não encontrada.");
+    if (c.excluidoEm) throw new ActionError("Certidão já está excluída.");
 
-    const referencias = await prisma.licitacaoHabilitacaoItem.count({ where: { certidaoId: i.id } });
-    if (referencias > 0) {
-      throw new ActionError(
-        `Esta certidão está vinculada a ${referencias} item(ns) de habilitação de licitação — remova o vínculo antes de excluir.`,
-      );
-    }
+    await prisma.certidao.update({ where: { id: i.id }, data: { excluidoEm: new Date() } });
+    rev();
+    return { id: i.id };
+  },
+);
 
-    await prisma.certidao.delete({ where: { id: i.id } });
+/** Reverte a exclusão (arquivamento) de uma certidão. */
+export const restaurarCertidao = defineAction(
+  {
+    ...base,
+    acao: "restaurar-certidao",
+    entidade: "Certidao",
+    schema: idSchema,
+    capturarAntes: (i) => prisma.certidao.findUnique({ where: { id: i.id } }),
+  },
+  async (i) => {
+    const c = await prisma.certidao.findUnique({ where: { id: i.id } });
+    if (!c) throw new ActionError("Certidão não encontrada.");
+    if (!c.excluidoEm) throw new ActionError("Certidão não está excluída.");
+
+    await prisma.certidao.update({ where: { id: i.id }, data: { excluidoEm: null } });
     rev();
     return { id: i.id };
   },
@@ -97,7 +123,10 @@ export const editarTipoCertidao = defineAction(
 export const excluirTipoCertidao = defineAction(
   { ...base, acao: "excluir-tipo-certidao", entidade: "CertidaoTipo", schema: idSchema },
   async (i) => {
-    const referencias = await prisma.certidao.count({ where: { tipoId: i.id } });
+    // `excluidoEm: { not: undefined }` = escape hatch da extensão de soft delete (ver lib/prisma.ts):
+    // conta certidões ativas E arquivadas, senão um tipo com só arquivadas passaria aqui e a
+    // exclusão do tipo quebraria na FK (Certidao.tipoId é obrigatória).
+    const referencias = await prisma.certidao.count({ where: { tipoId: i.id, excluidoEm: { not: undefined } } });
     if (referencias > 0) {
       throw new ActionError(`Este tipo tem ${referencias} certidão(ões) cadastrada(s) — não é possível excluir.`);
     }

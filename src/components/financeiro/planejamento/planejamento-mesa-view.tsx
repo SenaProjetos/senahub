@@ -412,7 +412,7 @@ function LinhaPlanoBase({
         <span className="block truncate font-medium">{lc.favorecido ?? lc.descricao}</span>
         <span className="block truncate text-xs text-muted-foreground">
           {lc.categoria ?? "—"}
-          {lc.projeto && ` · ${formatarCodigo(lc.projeto.codigo)}`}
+          {lc.projeto && ` · ${formatarCodigo(lc.projeto.codigo)} ${lc.projeto.nome}`}
         </span>
       </span>
       <span className="font-mono text-xs">{dt(lc.vencimento)}</span>

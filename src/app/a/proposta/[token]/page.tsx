@@ -4,8 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { brl, formatarData } from "@/lib/utils";
 import { PropostaPublicaUpload } from "@/components/comercial/proposta-publica-upload";
 import { nomeDisciplinaItem } from "@/modules/comercial/disciplinas";
+import { metadataPublica } from "@/lib/metadata-publica";
 
-export const metadata: Metadata = { title: "Proposta — Sena Projetos", robots: { index: false } };
+export const metadata: Metadata = metadataPublica({
+  titulo: "Proposta — Sena Projetos",
+  descricao: "Veja a proposta enviada pela Sena Projetos.",
+});
 
 /**
  * Visualização pública da proposta pelo cliente (sem login, por token).

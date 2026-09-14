@@ -6,6 +6,9 @@ export const certidaoSchema = z.object({
   tipoId: z.string().min(1, "Selecione o tipo."),
   descricao: opt(z.string()),
   validade: z.string().min(1, "Informe a validade."),
+  // Opcional e sem mudança de banco: `Certidao.responsavelId` já existia (e o `editarCertidao` já
+  // o gravava) — só o cadastro não o oferecia, obrigando a criar e editar em seguida.
+  responsavelId: opt(z.string()),
 });
 
 export const editarCertidaoSchema = z.object({

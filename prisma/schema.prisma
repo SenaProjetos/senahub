@@ -3156,8 +3156,13 @@ model Certidao {
   versoes          CertidaoVersao[]
   habilitacaoItens LicitacaoHabilitacaoItem[]
 
+  /// Soft delete (ADR-11). "Excluir" na tela é arquivar: some da listagem/painel/alertas,
+  /// mas preserva versões e auditoria. Registrado na extensão de `lib/prisma.ts`.
+  excluidoEm DateTime?
+
   @@index([validade])
   @@index([responsavelId])
+  @@index([excluidoEm])
   @@map("certidao")
 }
 

@@ -12,8 +12,18 @@ export default async function CertidoesPage() {
   const user = await requirePermission("certidoes", "ver");
   const podeGerir = await can(user, "certidoes", "gerir");
 
-  const { certidoes, tipos, responsaveisPossiveis, links, auditLogs, habilitacoes, versaoIdParaCertidaoId, nomeDoUsuario } =
-    await dadosDaTela();
+  const {
+    certidoes,
+    excluidas,
+    tipos,
+    responsaveisPossiveis,
+    links,
+    auditLogs,
+    habilitacoes,
+    versaoIdParaCertidaoId,
+    nomeDoUsuario,
+    excluidoPorCertidao,
+  } = await dadosDaTela();
 
   const habilitacoesPorCertidao = new Map<string, typeof habilitacoes>();
   for (const h of habilitacoes) {
@@ -37,6 +47,9 @@ export default async function CertidoesPage() {
     id: c.id,
     tipoId: c.tipoId,
     tipo: c.tipo.nome,
+    // Obrigatoriedade é do TIPO — não existe campo por certidão no modelo. Desce resolvida para a
+    // UI não ter que cruzar `tipos` a cada linha na ordenação por prioridade (§8).
+    obrigatoria: c.tipo.obrigatoria,
     descricao: c.descricao,
     validade: c.validade.toISOString().slice(0, 10),
     arquivoNome: c.arquivoNome,
@@ -47,7 +60,9 @@ export default async function CertidoesPage() {
       numero: v.numero,
       validade: v.validade.toISOString().slice(0, 10),
       arquivoNome: v.arquivoNome,
+      mimeType: v.mimeType,
       data: v.createdAt.toISOString(),
+      autor: nomeDoUsuario.get(v.autorId) ?? null,
     })),
     licitacoes: (habilitacoesPorCertidao.get(c.id) ?? []).map((h) => ({
       licitacaoId: h.licitacao.id,
@@ -73,9 +88,22 @@ export default async function CertidoesPage() {
     certidoes.map((c) => ({ tipoId: c.tipoId, validade: c.validade.toISOString().slice(0, 10) })),
   );
 
+  const excluidasUI = excluidas.map((c) => {
+    const quem = excluidoPorCertidao.get(c.id);
+    return {
+      id: c.id,
+      tipo: c.tipo.nome,
+      descricao: c.descricao,
+      validade: c.validade.toISOString().slice(0, 10),
+      excluidoEm: c.excluidoEm!.toISOString(),
+      excluidoPor: (quem?.userId && nomeDoUsuario.get(quem.userId)) ?? null,
+    };
+  });
+
   return (
     <CertidoesView
       certidoes={certidoesUI}
+      excluidas={excluidasUI}
       tipos={tipos}
       responsaveis={responsaveisPossiveis}
       links={links.map((l) => ({

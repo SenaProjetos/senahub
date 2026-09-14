@@ -1,14 +1,13 @@
-import type { Metadata } from "next";
-import { requirePermission } from "@/lib/session";
-import { GuiaComercialView } from "@/components/comercial/guia-comercial-view";
+import { permanentRedirect } from "next/navigation";
+import { rotaGuia } from "@/lib/guias";
 
-export const metadata: Metadata = {
-  title: "Guia do Comercial",
-  description: "Passo a passo para usar o fluxo comercial do primeiro contato ao projeto.",
-};
-
-export default async function GuiaComercialPage() {
-  await requirePermission("comercial", "ver");
-
-  return <GuiaComercialView />;
+/**
+ * Endereço antigo do guia do Comercial. Os Guias de uso passaram a viver em `/guias/[setor]`
+ * (N4 do plano `docs/superpowers/plans/2026-09-09-guias-de-uso-in-app.md`), porque setor ≠ rota e
+ * `/[modulo]/guia` não generaliza — "Gestão" cobre seis telas independentes.
+ *
+ * Mantido como redirect: o link já circulou internamente.
+ */
+export default function GuiaComercialLegadoPage(): never {
+  permanentRedirect(rotaGuia("clientes-comercial"));
 }

@@ -1,11 +1,13 @@
 import { redirect } from "next/navigation";
 import { Shell } from "@/components/shell/shell";
 import { requireUser } from "@/lib/session";
+import { tipoEfetivo } from "@/lib/roles";
 import { permissoesEfetivas } from "@/lib/permissao-efetiva";
 import { prisma } from "@/lib/prisma";
 import type { ContextoNav } from "@/lib/nav-config";
 import { precisaAceitarTermo } from "@/modules/legal/queries";
 import { precisaAssinarHolerite } from "@/modules/rh/folha/queries";
+import { contarCertidoesAtencao } from "@/modules/certidoes/queries";
 import { PushManager } from "@/components/notificacoes/push-manager";
 import { AvisoProvider } from "@/components/notificacoes/aviso-provider";
 import { AcessoTracker } from "@/components/uso/acesso-tracker";
@@ -58,9 +60,37 @@ export default async function DashboardLayout({
       superUsuario: eixos?.superUsuario ?? false,
       perfilId: eixos?.perfilId ?? null,
     }),
-    tipo: eixos?.tipo ?? null,
+    // `tipoEfetivo` e não `eixos.tipo` cru: a coluna é nullable, e `null` quer dizer "sem vínculo
+    // aplicado", não "externo". Sem a rede, um colaborador sem vínculo perde os 14 itens de menu
+    // que usam este eixo — em silêncio. É o MESMO helper de `requireInterno()`, de propósito:
+    // menu e gate divergirem produz "vê o link e toma 404".
+    tipo: tipoEfetivo(eixos?.tipo, user.role),
     setor: eixos?.setor ?? null,
   };
+
+  // Bolinha numerada de Certidões. Derivada de `nav.permitidas` (já pago acima) e não de um
+  // `can()`, pelo mesmo motivo do `participaDoChat` abaixo: este layout embrulha toda rota do
+  // dashboard, e uma consulta a mais por navegação para quem nem vê o item é desperdício.
+  // São dois `count` sobre o índice de `validade` — ver `contarCertidoesAtencao`.
+  if (nav.permitidas.includes("certidoes:ver")) {
+    const { vencidas, venceEmBreve } = await contarCertidoesAtencao();
+    const total = vencidas + venceEmBreve;
+    if (total > 0) {
+      nav.alertas = {
+        "/certidoes": {
+          total,
+          // Vermelho só para o que JÁ venceu; "vence em breve" sozinho é âmbar.
+          critico: vencidas > 0,
+          descricao: [
+            vencidas > 0 ? `${vencidas} vencida${vencidas > 1 ? "s" : ""}` : null,
+            venceEmBreve > 0 ? `${venceEmBreve} vence${venceEmBreve > 1 ? "m" : ""} em breve` : null,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        },
+      };
+    }
+  }
 
   // Mesmo eixo do gate de `/chat` e das rotas de API — ver o comentário em `chat/page.tsx`.
   // Derivado de `nav.permitidas` e NÃO de um `can()` próprio: este layout embrulha toda rota do

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  criarLayoutPainelProjeto,
   layoutPadraoPainelProjeto,
   limitesPainelProjeto,
   normalizarLayoutPainelProjeto,
+  PAINEIS_PROJETO,
   trocarPosicoesPainelProjeto,
   type PainelProjetoId,
 } from "./painel-layout";
@@ -17,7 +19,7 @@ describe("layout do painel de projeto", () => {
 
   it("preserva a posição válida e respeita o tamanho mínimo do painel", () => {
     const [progresso] = normalizarLayoutPainelProjeto(
-      { versao: 4, itens: [{ id: "progresso", x: 8, y: 12, w: 1, h: 2 }] },
+      { versao: 5, itens: [{ id: "progresso", x: 8, y: 12, w: 1, h: 2 }] },
       ["progresso"],
     );
 
@@ -27,7 +29,7 @@ describe("layout do painel de projeto", () => {
   it("restaura o padrão quando uma preferência salva possui cards sobrepostos", () => {
     const layout = normalizarLayoutPainelProjeto(
       {
-        versao: 4,
+        versao: 5,
         itens: [
           { id: "progresso", x: 0, y: 0, w: 6, h: 5 },
           { id: "prazo", x: 0, y: 0, w: 6, h: 5 },
@@ -71,7 +73,7 @@ describe("layout do painel de projeto", () => {
   it("descarta itens desconhecidos, repetidos e inclui painéis novos no padrão", () => {
     const layout = normalizarLayoutPainelProjeto(
       {
-        versao: 4,
+        versao: 5,
         itens: [
           { id: "indicadores", x: 0, y: 18, w: 12, h: 6 },
           { id: "indicadores", x: 0, y: 0, w: 4, h: 5 },
@@ -86,27 +88,58 @@ describe("layout do painel de projeto", () => {
     expect(layout.find((item) => item.id === "cronograma")).toEqual(layoutPadraoPainelProjeto(["cronograma"])[0]);
   });
 
-  it("mantém indicadores e cronograma alinhados dentro da grade", () => {
-    const layout = layoutPadraoPainelProjeto(["indicadores", "cronograma"]);
-    const indicadores = layout.find((item) => item.id === "indicadores");
-    const cronograma = layout.find((item) => item.id === "cronograma");
+  // `normalizarLayoutPainelProjeto` cai no padrão quando o layout salvo se sobrepõe, mas não
+  // valida o próprio padrão: um arranjo inicial inválido quebraria a grade de todo mundo em
+  // silêncio. Como `layoutPadraoPainelProjeto` só REMOVE itens, checar os 14 cobre todo
+  // subconjunto que a filtragem por permissão/dados possa gerar.
+  it("mantém o arranjo padrão completo válido: sem sobreposição e dentro da grade", () => {
+    const layout = layoutPadraoPainelProjeto(PAINEIS_PROJETO);
 
-    expect(indicadores).toMatchObject({ x: 0, y: 10, w: 16 });
-    expect(cronograma).toMatchObject({ x: 16, y: 10, w: 8 });
-    expect(indicadores?.y).toBe(cronograma?.y);
-    expect((indicadores?.x ?? 0) + (indicadores?.w ?? 0)).toBe(cronograma?.x);
-    expect((indicadores?.x ?? 0) + (indicadores?.w ?? 0)).toBeLessThanOrEqual(24);
-    expect((cronograma?.x ?? 0) + (cronograma?.w ?? 0)).toBeLessThanOrEqual(24);
+    expect(layout).toHaveLength(PAINEIS_PROJETO.length);
+
+    for (const item of layout) {
+      const limites = limitesPainelProjeto(item.id);
+      expect(item.x).toBeGreaterThanOrEqual(0);
+      expect(item.y).toBeGreaterThanOrEqual(0);
+      expect(item.x + item.w).toBeLessThanOrEqual(24);
+      expect(item.w).toBeGreaterThanOrEqual(limites.minW);
+      expect(item.w).toBeLessThanOrEqual(limites.maxW);
+      expect(item.h).toBeGreaterThanOrEqual(limites.minH);
+      expect(item.h).toBeLessThanOrEqual(limites.maxH);
+    }
+
+    for (const [indice, item] of layout.entries()) {
+      for (const outro of layout.slice(indice + 1)) {
+        const sobrepoe =
+          item.x < outro.x + outro.w &&
+          item.x + item.w > outro.x &&
+          item.y < outro.y + outro.h &&
+          item.y + item.h > outro.y;
+        expect(sobrepoe, `${item.id} sobrepõe ${outro.id}`).toBe(false);
+      }
+    }
   });
 
-  it("permite reduzir os seis cards iniciais para metade da largura padrão", () => {
+  // Caminho real de salvamento: `paraLayoutPersistido` manda o layout atual para a action, e
+  // sem arrastar nada o layout atual É o padrão. O schema tem limites próprios (x <= 23) que
+  // os helpers de grade não checam, então o padrão precisa passar por ele também.
+  it("aceita salvar o arranjo padrão sem nenhuma personalização", () => {
+    const resultado = salvarLayoutPainelProjetoSchema.safeParse({
+      projetoId: "projeto-1",
+      layout: criarLayoutPainelProjeto(layoutPadraoPainelProjeto(PAINEIS_PROJETO)),
+    });
+
+    expect(resultado.success).toBe(true);
+  });
+
+  it("mantém os seis cards de topo estreitáveis até um terço da grade", () => {
     for (const id of ["progresso", "prazo", "area", "entregas", "pendencias", "atualizacao"] as const) {
-      expect(limitesPainelProjeto(id)).toMatchObject({ w: 6, minW: 3 });
+      expect(limitesPainelProjeto(id)).toMatchObject({ minW: 3, maxW: 12 });
     }
   });
 
   it("restaura o padrão para preferências de uma versão anterior", () => {
-    expect(normalizarLayoutPainelProjeto({ versao: 3, itens: [] }, paineis)).toEqual(layoutPadraoPainelProjeto(paineis));
+    expect(normalizarLayoutPainelProjeto({ versao: 4, itens: [] }, paineis)).toEqual(layoutPadraoPainelProjeto(paineis));
   });
 
   it("permite reduzir o resultado financeiro para metade da largura padrão", () => {
@@ -116,7 +149,7 @@ describe("layout do painel de projeto", () => {
   it("aceita salvar cards na segunda metade da grade", () => {
     const resultado = salvarLayoutPainelProjetoSchema.safeParse({
       projetoId: "projeto-1",
-      layout: { versao: 4, itens: [{ id: "atividade", x: 12, y: 30, w: 12, h: 8 }] },
+      layout: { versao: 5, itens: [{ id: "atividade", x: 12, y: 30, w: 12, h: 8 }] },
     });
 
     expect(resultado.success).toBe(true);
@@ -126,7 +159,7 @@ describe("layout do painel de projeto", () => {
     const resultado = salvarLayoutPainelProjetoSchema.safeParse({
       projetoId: "projeto-1",
       layout: {
-        versao: 4,
+        versao: 5,
         itens: [
           { id: "atividade", x: 0, y: 30, w: 12, h: 8 },
           { id: "equipe", x: 0, y: 30, w: 12, h: 8 },

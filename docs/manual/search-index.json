@@ -475,6 +475,43 @@
       ]
     },
     {
+      "titulo": "Guia de Projetos para iniciantes",
+      "path": "projetos/guia-iniciante.md",
+      "descricao": "Onde encontrar o guia de formação de Projetos — vocabulário, caminho natural e armadilhas.",
+      "resumo": "O guia de Projetos vive dentro do sistema, em Guias de uso. Esta página é só o ponteiro para ele.",
+      "tags": [
+        "projetos",
+        "guia iniciante",
+        "disciplina",
+        "planejamento",
+        "eap",
+        "caminho crítico",
+        "apontamento",
+        "entrega"
+      ],
+      "palavrasChave": [
+        "disciplina",
+        "prazo planejado",
+        "prazo de contrato",
+        "saúde do projeto",
+        "progresso",
+        "eap",
+        "wbs",
+        "caminho crítico",
+        "folga",
+        "apontamento",
+        "alocação",
+        "carga",
+        "meu trabalho",
+        "aprovar entrega"
+      ],
+      "sinonimos": [
+        "gestão de projetos",
+        "onboarding de projetos",
+        "treinamento de projetos"
+      ]
+    },
+    {
       "titulo": "Clientes",
       "path": "clientes-comercial/clientes.md",
       "descricao": "Cadastro de clientes (PF/PJ), importação por CNPJ, contatos, filtros e ativação/desativação.",
@@ -556,8 +593,8 @@
     {
       "titulo": "Guia do Comercial para iniciantes",
       "path": "clientes-comercial/guia-iniciante.md",
-      "descricao": "Passo a passo simples para registrar uma indicação ou outro contato e transformá-lo em projeto.",
-      "resumo": "Entenda entrada comercial, empresa, contato, lead, negociação, proposta e projeto e abra o Guia de uso dentro do Comercial.",
+      "descricao": "Onde encontrar o guia de formação do Comercial — vocabulário, caminho natural e armadilhas.",
+      "resumo": "O guia do Comercial vive dentro do sistema, em Guias de uso. Esta página é só o ponteiro para ele.",
       "tags": [
         "comercial",
         "guia iniciante",
@@ -578,7 +615,8 @@
         "follow-up",
         "proposta",
         "aceite",
-        "projeto"
+        "projeto",
+        "lead"
       ],
       "sinonimos": [
         "crm",
@@ -857,6 +895,47 @@
       ]
     },
     {
+      "titulo": "Guia do Financeiro para iniciantes",
+      "path": "financeiro/guia-iniciante.md",
+      "descricao": "Onde encontrar o guia de formação do Financeiro — vocabulário, caminho natural e armadilhas.",
+      "resumo": "O guia do Financeiro vive dentro do sistema, em Guias de uso. Esta página é só o ponteiro para ele.",
+      "tags": [
+        "financeiro",
+        "guia iniciante",
+        "lançamento",
+        "aging",
+        "conciliação",
+        "dre",
+        "dfc",
+        "fechamento",
+        "alçada"
+      ],
+      "palavrasChave": [
+        "previsto",
+        "confirmado",
+        "vencimento",
+        "data de confirmação",
+        "competência",
+        "regime de caixa",
+        "aging",
+        "alçada",
+        "aprovação de despesa",
+        "ofx",
+        "conciliação",
+        "dre",
+        "dfc",
+        "rentabilidade",
+        "fechamento do mês",
+        "valor efetivo"
+      ],
+      "sinonimos": [
+        "contas a pagar",
+        "contas a receber",
+        "tesouraria",
+        "financeiro para leigos"
+      ]
+    },
+    {
       "titulo": "Ponto (registro de jornada)",
       "path": "rh-ponto/ponto.md",
       "descricao": "Autoatendimento de ponto — iniciar/encerrar sessão por projeto e ver o espelho do mês.",
@@ -1102,6 +1181,49 @@
       ]
     },
     {
+      "titulo": "Guia de RH e Ponto para iniciantes",
+      "path": "rh-ponto/guia-iniciante.md",
+      "descricao": "Onde encontrar o guia de formação de RH e Ponto — vocabulário, caminho natural e armadilhas.",
+      "resumo": "O guia de RH e Ponto vive dentro do sistema, em Guias de uso. Esta página é só o ponteiro para ele.",
+      "tags": [
+        "rh",
+        "ponto",
+        "guia iniciante",
+        "vínculo",
+        "contratação",
+        "banco de horas",
+        "férias",
+        "folha",
+        "encargos"
+      ],
+      "palavrasChave": [
+        "vínculo",
+        "contratação",
+        "clt",
+        "estágio",
+        "pj",
+        "jornada controlada",
+        "batida",
+        "espelho de ponto",
+        "banco de horas",
+        "horas esperadas",
+        "escala",
+        "período aquisitivo",
+        "período concessivo",
+        "férias vencidas",
+        "inss",
+        "irrf",
+        "folha",
+        "produção"
+      ],
+      "sinonimos": [
+        "recursos humanos",
+        "departamento pessoal",
+        "controle de ponto",
+        "rh para leigos"
+      ]
+    },
+    {
       "titulo": "Ferramentas de Engenharia",
       "path": "engenharia/ferramentas.md",
       "descricao": "Galeria de calculadoras de engenharia (normas NBR) com geração de memória de cálculo, desenho e exportação.",
@@ -1206,8 +1328,8 @@
     {
       "titulo": "Certidões",
       "path": "gestao/certidoes.md",
-      "descricao": "Controle de certidões da empresa — versionamento, download individual ou em zip, link público e alertas de vencimento.",
-      "resumo": "Registre certidões, anexe e renove arquivos com histórico de versões, baixe individualmente ou em zip, compartilhe por link público e acompanhe vencimentos.",
+      "descricao": "Controle de certidões da empresa — versionamento, visualização de PDF na tela, exclusão reversível, download individual ou em zip, link público e alertas de vencimento.",
+      "resumo": "Centro de conformidade documental: resumo de vencidas/a vencer/regulares/sem documento, lista ordenada por prioridade, busca e filtros combináveis, painel de detalhes com histórico de versões, visualização do PDF na tela, link público e exclusão reversível.",
       "tags": [
         "certidão",
         "validade",
@@ -1215,7 +1337,9 @@
         "versão",
         "zip",
         "link público",
-        "compliance"
+        "compliance",
+        "excluir",
+        "restaurar"
       ],
       "palavrasChave": [
         "certidão",
@@ -1226,10 +1350,24 @@
         "histórico",
         "zip",
         "download",
+        "visualizar pdf",
         "link público",
         "compartilhar",
         "responsável",
-        "compliance"
+        "compliance",
+        "excluir",
+        "restaurar",
+        "excluídas",
+        "bolinha no menu",
+        "aviso no menu",
+        "dias para vencer",
+        "filtrar",
+        "buscar certidão",
+        "ordenar",
+        "obrigatória",
+        "sem documento",
+        "atualizar certidão",
+        "conformidade"
       ],
       "sinonimos": [
         "documentos de regularidade",
@@ -1365,6 +1503,42 @@
         "cofre de senhas",
         "gerenciador de senhas",
         "contas da empresa"
+      ]
+    },
+    {
+      "titulo": "Guia de Gestão para iniciantes",
+      "path": "gestao/guia-iniciante.md",
+      "descricao": "Onde encontrar o guia de formação de Gestão — vocabulário, as seis áreas e as armadilhas de cada uma.",
+      "resumo": "O guia de Gestão vive dentro do sistema, em Guias de uso. Esta página é só o ponteiro para ele.",
+      "tags": [
+        "gestão",
+        "guia iniciante",
+        "licitações",
+        "certidões",
+        "jurídico",
+        "qualidade",
+        "patrimônio",
+        "acessos",
+        "credenciais"
+      ],
+      "palavrasChave": [
+        "licitação",
+        "habilitação",
+        "sanção",
+        "certidão",
+        "contrato",
+        "retrabalho",
+        "patrimônio",
+        "ti",
+        "credencial",
+        "cofre",
+        "compartilhamento"
+      ],
+      "sinonimos": [
+        "licitações e contratos",
+        "jurídico e compliance",
+        "cofre de senhas",
+        "gestão para leigos"
       ]
     },
     {

@@ -3,8 +3,15 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { AceitePublicoForm } from "@/components/uploads/aceite-publico-form";
 import { linkAceiteEstaAtivo } from "@/modules/uploads/aceite";
+import { metadataPublica } from "@/lib/metadata-publica";
 
-export const metadata: Metadata = { title: "Aceite de entrega", robots: { index: false }, referrer: "no-referrer" };
+export const metadata: Metadata = {
+  ...metadataPublica({
+    titulo: "Aceite de entrega",
+    descricao: "Confirme o recebimento da entrega.",
+  }),
+  referrer: "no-referrer",
+};
 export const dynamic = "force-dynamic";
 
 export default async function AceitePublicoPage({

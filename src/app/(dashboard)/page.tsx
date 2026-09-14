@@ -18,6 +18,7 @@ import { projetosRecentes, serieReceita, snapshotsDashboard, carteiraProjetosDas
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { escopoProjeto, disciplinasProntasParaAprovar } from "@/modules/projetos/queries";
 import { contarPendentesAprovacao } from "@/modules/arquivos/queries";
+import { contarCertidoesAtencao } from "@/modules/certidoes/queries";
 import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
 import { STATUS_CHIP, STATUS_LABEL } from "@/modules/projetos/status";
 import { HeroCard } from "@/components/dashboard/hero-card";
@@ -26,7 +27,7 @@ import { TrendLine } from "@/components/qualidade/trend-line";
 import { CarteiraDashboard } from "@/components/dashboard/carteira-dashboard";
 import { brlInteiro as brl } from "@/lib/utils";
 import { acessoGlobal, GLOBAL_ROLES } from "@/lib/roles";
-import { podeVerFinanceiro } from "@/lib/permissions";
+import { can, podeVerFinanceiro } from "@/lib/permissions";
 
 const ACOES_RAPIDAS: { label: string; href: string; icon: LucideIcon }[] = [
   { label: "Enviar entrega", href: "/projetos/meu-trabalho", icon: Upload },
@@ -63,7 +64,10 @@ export default async function HomePage() {
   const verFin = await podeVerFinanceiro(user);
   // Muralha por disciplina (mesma do Diretório de arquivos) para a fila de conclusão.
   const veTodasDisc = await podeVerTodasDisciplinas(user);
-  const [kpis, projetos, snapshots, receita, agingReceita, carteira, aniversarios, humorHoje, kpisMeu, pendentesAprov, prontasParaAprovar] = await Promise.all([
+  // Certidões: mesmo gate do item de menu. `can()` (e não `nav.permitidas`) porque aqui não há
+  // o contexto de navegação em mãos — é uma página, não o layout.
+  const verCertidoes = await can(user, "certidoes", "ver");
+  const [kpis, projetos, snapshots, receita, agingReceita, carteira, aniversarios, humorHoje, kpisMeu, pendentesAprov, prontasParaAprovar, certidoes] = await Promise.all([
     // Perfis sem acesso global veem os KPIs restritos aos SEUS projetos (bug beta #9).
     kpisHome(isGlobal ? {} : escopoProjeto(user)),
     projetosRecentes(user, 15),
@@ -79,6 +83,7 @@ export default async function HomePage() {
     // `projetoIds`), então roda só para quem pode agir — mesmo gate do card de aprovações.
     // Os demais perfis recebem o mesmo sinal no badge da lista e no card da disciplina.
     podeAprovar ? disciplinasProntasParaAprovar(user, veTodasDisc) : Promise.resolve([]),
+    verCertidoes ? contarCertidoesAtencao() : Promise.resolve({ vencidas: 0, venceEmBreve: 0 }),
   ]);
 
   const cards = [
@@ -135,6 +140,22 @@ export default async function HomePage() {
             value: brl(agingReceita.totalVencido),
             delta: "receitas a receber em atraso",
             href: "/financeiro#aging",
+          },
+        ]
+      : []),
+    // Compliance: só aparece quando há o que renovar — mesma regra de "Prontas para aprovar".
+    // Certidão em dia não vira card (a grade não tem tratamento de "tudo certo", e um zero
+    // permanente aqui só competiria com o que precisa de ação).
+    ...(certidoes.vencidas + certidoes.venceEmBreve > 0
+      ? [
+          {
+            label: "Certidões a renovar",
+            value: String(certidoes.vencidas + certidoes.venceEmBreve),
+            delta:
+              certidoes.vencidas > 0
+                ? `${certidoes.vencidas} vencida(s) · ${certidoes.venceEmBreve} vence(m) em 30 dias`
+                : `${certidoes.venceEmBreve} vence(m) nos próximos 30 dias`,
+            href: "/certidoes",
           },
         ]
       : []),

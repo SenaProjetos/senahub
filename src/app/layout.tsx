@@ -17,12 +17,24 @@ const redHatMono = Red_Hat_Mono({
 });
 
 export const metadata: Metadata = {
+  // Base para resolver URLs relativas (og:image). server.ts é um HTTP server customizado, então
+  // a origem inferida pelo Next é o bind interno — APP_URL é a origem pública em todo ambiente.
+  // `||` (não `??`): APP_URL vazio quebraria `new URL("")`.
+  metadataBase: new URL(process.env.APP_URL || "https://hub.senaprojetos.com.br"),
   title: {
     default: "SenaHub",
     template: "%s · SenaHub",
   },
   description: "Plataforma de gestão integrada — engenharia BIM",
   robots: { index: false, follow: false },
+  // Card de prévia padrão (WhatsApp, Telegram, Slack). As páginas públicas por token
+  // sobrescrevem via `metadataPublica()` — openGraph não é mesclado em profundidade.
+  openGraph: {
+    siteName: "SenaHub",
+    locale: "pt_BR",
+    type: "website",
+    images: [{ url: "/icons/icon-512.png", width: 512, height: 512, alt: "SenaHub" }],
+  },
   manifest: "/manifest.json",
   appleWebApp: { capable: true, title: "SenaHub", statusBarStyle: "black-translucent" },
   icons: {

@@ -23,6 +23,10 @@ import { PrismaClient, Prisma } from '@/generated/prisma/client'
  *   de negociações lê `prisma.negociacao.findMany` direto, não via relação), então o filtro
  *   automático daqui cobre o caso principal — mas `Cliente.negociacoes` na Empresa 360 (Fase 3)
  *   é aninhada e vai precisar do `where` explícito, como já acontece com `lead`.
+ * - `certidao`: "excluir" na tela de Certidões arquiva em vez de apagar (mantém versões e
+ *   auditoria). ⚠️ `modules/certidoes/link-publico.ts` busca por `id`/`{id:{in:[...]}}` (lookup
+ *   isento do filtro automático) e por `findUnique` (não interceptado) — o `excluidoEm: null`
+ *   ali é explícito, senão um link público continua expondo certidão arquivada.
  *
  * ── COMO VER OS EXCLUÍDOS ───────────────────────────────────────────────────
  * Passe `excluidoEm` explicitamente no `where`. As formas foram VERIFICADAS contra o banco
@@ -69,6 +73,7 @@ const softDelete = Prisma.defineExtension({
     contatoCliente: { async $allOperations(ctx) { return filtroSoftDelete(ctx as never) } },
     parceiro: { async $allOperations(ctx) { return filtroSoftDelete(ctx as never) } },
     negociacao: { async $allOperations(ctx) { return filtroSoftDelete(ctx as never) } },
+    certidao: { async $allOperations(ctx) { return filtroSoftDelete(ctx as never) } },
   },
 })
 

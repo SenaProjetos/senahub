@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Settings2, Receipt, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText, Upload, SlidersHorizontal, CalendarClock, TrendingUp, CalendarCheck, Wallet, Info, Paperclip } from "lucide-react";
+import { Settings2, Receipt, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText, Upload, SlidersHorizontal, CalendarClock, TrendingUp, CalendarCheck, Wallet, Info, Paperclip, BookOpenText } from "lucide-react";
 import { requireUser } from "@/lib/session";
+import { tipoEfetivo } from "@/lib/roles";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { ShieldCheck, AlertTriangle } from "lucide-react";
 import { meuExtrato } from "@/modules/financeiro/queries";
@@ -23,6 +24,7 @@ import { PeriodoSelector, type Periodo } from "@/components/financeiro/periodo-s
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { brl, formatarData } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Financeiro" };
@@ -75,6 +77,16 @@ export default async function FinanceiroPage({
 }) {
   const user = await requireUser();
   const podeVer = await podeVerFinanceiro(user);
+  // Botão do Guia de uso: eixo interno × externo, NÃO `podeVerFinanceiro`. Quem cai no "Meu
+  // extrato" por não gerir o Financeiro (projetista PJ, por exemplo) é exatamente o leitor que o
+  // guia tem de alcançar — e `cliente` renderiza esta página, então o sinal também impede o par
+  // "vê o link e toma 404" (ver F1-2 no plano dos Guias de uso).
+  const mostrarGuia = tipoEfetivo(user.tipo, user.role) === "interno";
+  const botaoGuia = mostrarGuia ? (
+    <Button variant="secondary" size="sm" render={<Link href="/guias/financeiro" />}>
+      <BookOpenText className="size-4" /> Guia de uso
+    </Button>
+  ) : null;
 
   if (podeVer) {
     const sp = await searchParams;
@@ -121,7 +133,10 @@ export default async function FinanceiroPage({
             <h2 className="text-2xl font-extrabold tracking-tight">Financeiro</h2>
             <p className="text-sm text-muted-foreground">Visão geral · {mesRotulo}.</p>
           </div>
-          <PeriodoSelector periodo={periodo} />
+          <div className="flex flex-wrap items-center gap-2">
+            {botaoGuia}
+            <PeriodoSelector periodo={periodo} />
+          </div>
         </div>
 
         {vencidoTotal > 0 && (
@@ -276,9 +291,12 @@ export default async function FinanceiroPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Meu extrato</h2>
-        <p className="text-sm text-muted-foreground">Seus pagamentos por entregas validadas.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-extrabold tracking-tight">Meu extrato</h2>
+          <p className="text-sm text-muted-foreground">Seus pagamentos por entregas validadas.</p>
+        </div>
+        {botaoGuia}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">

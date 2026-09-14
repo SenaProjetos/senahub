@@ -1,35 +1,40 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Plus,
   Upload,
-  Download,
   Trash2,
   FileArchive,
-  FileText,
   ShieldCheck,
-  ShieldAlert,
   PenLine,
   Share2,
   FileSpreadsheet,
-  History,
   Copy,
   Ban,
   Tags,
+  ArchiveRestore,
+  SearchX,
+  Loader2,
 } from "lucide-react";
 import { formatarData, formatarDataHora } from "@/lib/utils";
-import { statusCertidao, type StatusCertidao, type PanoramaCompliance, type TipoObrigatorio } from "@/modules/certidoes/service";
-import { extrairValidadeDoTexto } from "@/modules/certidoes/extrair-validade";
 import {
-  criarCertidao,
-  editarCertidao,
-  excluirCertidao,
+  statusCertidao,
+  ordenarPorPrioridade,
+  type PanoramaCompliance,
+  type TipoObrigatorio,
+} from "@/modules/certidoes/service";
+import { extrairValidadeDoTexto } from "@/modules/certidoes/extrair-validade";
+import { lerTextoPdf } from "@/components/certidoes/ler-texto-pdf";
+import {
   criarTipoCertidao,
+  editarCertidao,
   editarTipoCertidao,
+  excluirCertidao,
   excluirTipoCertidao,
+  restaurarCertidao,
   criarLinkCertidoes,
   atualizarLinkCertidoes,
   revogarLinkCertidoes,
@@ -43,66 +48,46 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-
-type Versao = { id: string; numero: number; validade: string; arquivoNome: string | null; data: string };
-type LicitacaoRef = { licitacaoId: string; titulo: string; status: string; exigencia: string; atendido: boolean };
-type Auditoria = { id: string; acao: string; resultado: string; usuario: string | null; data: string };
-type Certidao = {
-  id: string;
-  tipoId: string;
-  tipo: string;
-  descricao: string | null;
-  validade: string;
-  arquivoNome: string | null;
-  responsavelId: string | null;
-  responsavelNome: string | null;
-  versoes: Versao[];
-  licitacoes: LicitacaoRef[];
-  auditoria: Auditoria[];
-};
-type Tipo = { id: string; nome: string; obrigatoria: boolean };
-type Responsavel = { id: string; name: string };
-type LinkPublico = { id: string; token: string; ativo: boolean; expiraEm: string | null; certidaoIds: string[]; createdAt: string };
+import { CertidoesResumo } from "@/components/certidoes/certidoes-resumo";
+import { CertidoesConformidade } from "@/components/certidoes/certidoes-conformidade";
+import { CertidoesFiltros } from "@/components/certidoes/certidoes-filtros";
+import { CertidoesTabela } from "@/components/certidoes/certidoes-tabela";
+import { CertidaoDrawer } from "@/components/certidoes/certidao-drawer";
+import { NovaCertidaoDialog } from "@/components/certidoes/nova-certidao-dialog";
+import { VisualizarDocumentoDialog } from "@/components/certidoes/visualizar-documento-dialog";
+import {
+  FILTROS_VAZIOS,
+  contarFiltrosAtivos,
+  type Aba,
+  type Certidao,
+  type CertidaoExcluida,
+  type Filtros,
+  type LinkPublico,
+  type Ordem,
+  type Responsavel,
+  type Tipo,
+} from "@/components/certidoes/tipos";
 
 const NONE = "__none";
 
-function badgeStatus(status: StatusCertidao) {
-  if (status === "vencida") return <Badge variant="outline" className="text-destructive border-destructive/40">vencida</Badge>;
-  if (status === "vence_em_breve") return <Badge variant="outline" className="text-warning border-warning/40">vence em breve</Badge>;
-  return <Badge variant="outline" className="text-success border-success/40">ok</Badge>;
-}
+/** Filtro de responsável: valor especial para "quem está sem ninguém atribuído" (§9). */
+const SEM_RESPONSAVEL = "__sem";
 
 /**
- * Lê o texto selecionável de um PDF no cliente (pdfjs, carregado dinamicamente —
- * mesmo padrão de `documento-viewer.tsx`). NÃO é OCR: PDF escaneado (imagem) não
- * tem camada de texto e retorna string vazia — a chamada nunca lança para o caller
- * tratar como "sem sugestão", já que quem chama está num fluxo de upload que não
- * pode travar por causa disso.
+ * Tela de Certidões — centro de controle da conformidade documental.
+ *
+ * Este componente é só o ORQUESTRADOR: segura o estado de recorte (aba, filtros, busca, ordem,
+ * seleção) e decide o que abre. O desenho de cada bloco vive em arquivo próprio, como em /acessos
+ * (`certidoes-resumo`, `certidoes-conformidade`, `certidoes-filtros`, `certidoes-tabela`,
+ * `certidao-drawer`), senão a tela inteira viraria um arquivo de 1500 linhas.
+ *
+ * Filtro/busca/ordem são `useState`, não parâmetros de URL: a lista inteira já chega num único
+ * carregamento do servidor, então recortar é trabalho de memória — virar navegação custaria um
+ * round-trip por clique para reordenar dado que já está na mão (§24).
  */
-async function lerTextoPdf(file: File): Promise<string> {
-  const pdfjs = await import("pdfjs-dist");
-  pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-  // pdfjs-dist tem tipos incômodos p/ uso solto (mesmo motivo de `documento-viewer.tsx` usar `any`).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const doc: any = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
-  try {
-    let texto = "";
-    for (let i = 1; i <= Math.min(doc.numPages, 2); i++) {
-      const page = await doc.getPage(i);
-      const conteudo = await page.getTextContent();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      texto += conteudo.items.map((it: any) => ("str" in it ? it.str : "")).join(" ") + " ";
-    }
-    return texto;
-  } finally {
-    doc.destroy?.();
-  }
-}
-
 export function CertidoesView({
   certidoes,
+  excluidas,
   tipos,
   responsaveis,
   links,
@@ -111,6 +96,7 @@ export function CertidoesView({
   podeGerir,
 }: {
   certidoes: Certidao[];
+  excluidas: CertidaoExcluida[];
   tipos: Tipo[];
   responsaveis: Responsavel[];
   links: LinkPublico[];
@@ -121,22 +107,78 @@ export function CertidoesView({
   const router = useRouter();
   const confirm = useConfirm();
   const [pending, start] = useTransition();
-  const [filtro, setFiltro] = useState<"todas" | StatusCertidao | "sem_arquivo">("todas");
+
+  const [aba, setAba] = useState<Aba>("todas");
+  const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS);
+  const [ordem, setOrdem] = useState<Ordem>("prioridade");
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
+
   const [detalhe, setDetalhe] = useState<Certidao | null>(null);
-  const [uploadPara, setUploadPara] = useState<Certidao | null>(null);
+  const [visualizar, setVisualizar] = useState<Certidao | null>(null);
+  const [atualizarPara, setAtualizarPara] = useState<Certidao | null>(null);
   const [editar, setEditar] = useState<Certidao | null>(null);
+  const [novaAberta, setNovaAberta] = useState(false);
   const [loteAberto, setLoteAberto] = useState(false);
   const [compartilharAberto, setCompartilharAberto] = useState(false);
   const [tiposAberto, setTiposAberto] = useState(false);
-  const [novo, setNovo] = useState({ tipoId: "", descricao: "", validade: "" });
-  const novoFileRef = useRef<HTMLInputElement>(null);
 
-  const visiveis = certidoes.filter((c) => {
-    if (filtro === "todas") return true;
-    if (filtro === "sem_arquivo") return !c.arquivoNome;
-    return statusCertidao(c.validade) === filtro;
-  });
+  // §9/§10 — filtros e busca combinam; a ordem (§8) é aplicada depois do recorte.
+  const visiveis = useMemo(() => {
+    const termo = filtros.busca.trim().toLowerCase();
+
+    const filtradas = certidoes.filter((c) => {
+      if (filtros.situacao && statusCertidao(c.validade) !== filtros.situacao) return false;
+
+      if (filtros.documento === "com" && !c.arquivoNome) return false;
+      if (filtros.documento === "sem" && c.arquivoNome) return false;
+
+      if (filtros.obrigatoriedade === "obrigatorias" && !c.obrigatoria) return false;
+      if (filtros.obrigatoriedade === "opcionais" && c.obrigatoria) return false;
+
+      if (filtros.responsavelId === SEM_RESPONSAVEL && c.responsavelId) return false;
+      if (
+        filtros.responsavelId &&
+        filtros.responsavelId !== SEM_RESPONSAVEL &&
+        c.responsavelId !== filtros.responsavelId
+      ) {
+        return false;
+      }
+
+      if (filtros.tipoId && c.tipoId !== filtros.tipoId) return false;
+
+      if (termo) {
+        const alvo = [c.tipo, c.descricao ?? "", c.responsavelNome ?? ""].join(" ").toLowerCase();
+        if (!alvo.includes(termo)) return false;
+      }
+      return true;
+    });
+
+    // Regra do §8 — pura e testada em `service.ts`, não reimplementada aqui.
+    if (ordem === "prioridade") return ordenarPorPrioridade(filtradas);
+    return [...filtradas].sort((a, b) => {
+      if (ordem === "nome") return a.tipo.localeCompare(b.tipo, "pt-BR");
+      const cmp = a.validade.localeCompare(b.validade);
+      return ordem === "validade_desc" ? -cmp : cmp;
+    });
+  }, [certidoes, filtros, ordem]);
+
+  const filtrosAtivos = contarFiltrosAtivos(filtros);
+
+  function aplicarFiltro(parcial: Partial<Filtros>) {
+    setAba("todas");
+    setFiltros((f) => ({ ...f, ...parcial }));
+  }
+
+  function limparFiltros() {
+    setFiltros(FILTROS_VAZIOS);
+  }
+
+  /** §4 — "Ver pendências": obrigatórias que não estão regulares. */
+  function verPendencias() {
+    setAba("todas");
+    setFiltros({ ...FILTROS_VAZIOS, obrigatoriedade: "obrigatorias" });
+    setOrdem("prioridade");
+  }
 
   function alternarSelecao(id: string) {
     setSelecionadas((prev) => {
@@ -147,40 +189,11 @@ export function CertidoesView({
     });
   }
 
-  function registrar() {
-    if (!novo.tipoId || !novo.validade) return toast.error("Selecione o tipo e informe a validade.");
-    const file = novoFileRef.current?.files?.[0] ?? null;
-    start(async () => {
-      const r = await criarCertidao(novo);
-      if (!r.ok) {
-        toast.error(r.error);
-        return;
-      }
-
-      if (file) {
-        const fd = new FormData();
-        fd.set("file", file);
-        fd.set("validade", novo.validade);
-        const res = await fetch(`/api/certidoes/${r.data.id}/versao`, { method: "POST", body: fd });
-        if (!res.ok) {
-          const data = await res.json().catch(() => null);
-          toast.error(data?.error ?? "Certidão registrada, mas falhou o envio do arquivo.");
-        } else {
-          toast.success("Certidão registrada com arquivo.");
-        }
-      } else {
-        toast.success("Certidão registrada — anexe o arquivo em seguida.");
-      }
-      setNovo({ tipoId: "", descricao: "", validade: "" });
-      if (novoFileRef.current) novoFileRef.current.value = "";
-      router.refresh();
-    });
-  }
-
   async function excluir(c: Certidao) {
     const ok = await confirm({
       title: `Excluir "${c.tipo}"?`,
-      description: "Remove a certidão e todo o histórico de versões. Esta ação não pode ser desfeita.",
+      description:
+        'A certidão sai da lista e dos alertas de vencimento, mas o histórico de versões e a auditoria são mantidos — dá para restaurar em "Excluídas".',
       confirmLabel: "Excluir",
       variant: "destructive",
     });
@@ -189,6 +202,17 @@ export function CertidoesView({
       const r = await excluirCertidao({ id: c.id });
       if (r.ok) {
         toast.success("Certidão excluída.");
+        setDetalhe(null);
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  function restaurar(c: CertidaoExcluida) {
+    start(async () => {
+      const r = await restaurarCertidao({ id: c.id });
+      if (r.ok) {
+        toast.success("Certidão restaurada.");
         router.refresh();
       } else toast.error(r.error);
     });
@@ -196,85 +220,70 @@ export function CertidoesView({
 
   return (
     <div className="space-y-4">
+      {/* §2 — hierarquia: título, subtítulo e a ação principal à direita. */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-2xl font-extrabold tracking-tight">Certidões</h2>
-          <p className="text-sm text-muted-foreground">Controle de validade, versionamento e compartilhamento das certidões da empresa.</p>
+          <p className="text-sm text-muted-foreground">
+            Controle de validade, versionamento e compartilhamento das certidões da empresa.
+          </p>
         </div>
         <div className="flex flex-wrap gap-1.5">
           <Button size="sm" variant="outline" render={<a href="/api/certidoes/exportar" rel="noopener" />}>
-            <FileSpreadsheet className="size-3.5" /> Exportar
+            <FileSpreadsheet className="size-3.5" aria-hidden /> Exportar
           </Button>
           {podeGerir && (
             <Button size="sm" variant="outline" onClick={() => setCompartilharAberto(true)}>
-              <Share2 className="size-3.5" /> Compartilhar
+              <Share2 className="size-3.5" aria-hidden /> Compartilhar
             </Button>
           )}
           {podeGerir && (
             <Button size="sm" variant="outline" onClick={() => setTiposAberto(true)}>
-              <Tags className="size-3.5" /> Gerenciar tipos
+              <Tags className="size-3.5" aria-hidden /> Gerenciar tipos
+            </Button>
+          )}
+          {podeGerir && (
+            <Button size="sm" onClick={() => setNovaAberta(true)}>
+              <Plus className="size-3.5" aria-hidden /> Nova certidão
             </Button>
           )}
         </div>
       </div>
 
-      <PainelVencimentos panorama={panorama} filtro={filtro} onFiltro={setFiltro} total={certidoes.length} />
+      <CertidoesResumo panorama={panorama} filtros={filtros} onFiltrar={aplicarFiltro} />
 
-      {faltando.length > 0 && (
-        <div className="flex items-start gap-2 rounded-sm border border-warning/40 bg-warning/10 p-3 text-sm">
-          <ShieldAlert className="mt-0.5 size-4 shrink-0 text-warning" />
-          <div>
-            <p className="font-medium">Tipos obrigatórios sem certidão vigente</p>
-            <p className="text-muted-foreground">{faltando.map((t) => t.nome).join(", ")}</p>
-          </div>
-        </div>
-      )}
+      <CertidoesConformidade
+        certidoes={certidoes}
+        faltando={faltando}
+        onVerPendencias={verPendencias}
+      />
 
-      {podeGerir && (
-        <div className="flex flex-wrap items-end gap-2 rounded-sm border border-dashed p-3">
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Tipo</Label>
-            <Select value={novo.tipoId} onValueChange={(v) => setNovo((n) => ({ ...n, tipoId: v ?? "" }))}>
-              <SelectTrigger className="w-52">
-                <SelectValue placeholder="Selecione…" />
-              </SelectTrigger>
-              <SelectContent>
-                {tipos.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.nome}
-                    {t.obrigatoria ? " *" : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Descrição</Label>
-            <Input className="w-52" value={novo.descricao} onChange={(e) => setNovo((n) => ({ ...n, descricao: e.target.value }))} />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Validade</Label>
-            <Input type="date" value={novo.validade} onChange={(e) => setNovo((n) => ({ ...n, validade: e.target.value }))} />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Arquivo (PDF, opcional)</Label>
-            <input ref={novoFileRef} type="file" accept="application/pdf" className="block w-52 text-sm" />
-          </div>
-          <Button size="sm" onClick={registrar} disabled={pending || !novo.tipoId || !novo.validade}>
-            <Plus className="size-3.5" /> Registrar
-          </Button>
-        </div>
-      )}
+      <CertidoesFiltros
+        filtros={filtros}
+        onFiltrar={aplicarFiltro}
+        onLimpar={limparFiltros}
+        aba={aba}
+        onAba={setAba}
+        totais={{ todas: certidoes.length, excluidas: excluidas.length, visiveis: visiveis.length }}
+        ordem={ordem}
+        onOrdem={setOrdem}
+        tipos={tipos}
+        responsaveis={responsaveis}
+      />
 
-      {selecionadas.size > 0 && (
+      {selecionadas.size > 0 && aba === "todas" && (
         <div className="flex flex-wrap items-center gap-2 rounded-sm border bg-muted/40 p-2 text-sm">
           <span className="font-medium">{selecionadas.size} selecionada(s)</span>
-          <Button size="sm" variant="outline" render={<a href={`/api/certidoes/zip?ids=${[...selecionadas].join(",")}`} rel="noopener" />}>
-            <FileArchive className="size-3.5" /> Baixar (.zip)
+          <Button
+            size="sm"
+            variant="outline"
+            render={<a href={`/api/certidoes/zip?ids=${[...selecionadas].join(",")}`} rel="noopener" />}
+          >
+            <FileArchive className="size-3.5" aria-hidden /> Baixar (.zip)
           </Button>
           {podeGerir && (
             <Button size="sm" variant="outline" onClick={() => setLoteAberto(true)}>
-              <Upload className="size-3.5" /> Renovar selecionadas
+              <Upload className="size-3.5" aria-hidden /> Renovar selecionadas
             </Button>
           )}
           <Button size="sm" variant="ghost" onClick={() => setSelecionadas(new Set())}>
@@ -283,60 +292,103 @@ export function CertidoesView({
         </div>
       )}
 
-      {visiveis.length === 0 ? (
-        <EmptyState icon={ShieldCheck} title="Nenhuma certidão." />
-      ) : (
-        <ul className="divide-y rounded-sm border">
-          {visiveis.map((c) => {
-            const status = statusCertidao(c.validade);
-            return (
-              <li key={c.id} className="flex flex-wrap items-center gap-3 p-3 text-sm">
+      {aba === "excluidas" ? (
+        // §16 — lixeira: o que foi excluído, quando, por quem, e o botão de voltar atrás.
+        excluidas.length === 0 ? (
+          <EmptyState icon={ArchiveRestore} title="Nenhuma certidão excluída." />
+        ) : (
+          <ul className="divide-y rounded-sm border">
+            {excluidas.map((c) => (
+              <li
+                key={c.id}
+                className="flex flex-wrap items-center gap-3 p-3 text-sm text-muted-foreground"
+              >
+                <span className="font-medium text-foreground">{c.tipo}</span>
+                {c.descricao && <span>{c.descricao}</span>}
+                <span className="ml-auto font-mono text-xs">validade {formatarData(c.validade)}</span>
+                <span className="font-mono text-[10px]">
+                  excluída {formatarDataHora(c.excluidoEm)}
+                  {c.excluidoPor && <> por {c.excluidoPor}</>}
+                </span>
                 {podeGerir && (
-                  <Checkbox checked={selecionadas.has(c.id)} onCheckedChange={() => alternarSelecao(c.id)} aria-label={`Selecionar ${c.tipo}`} />
-                )}
-                <span className="font-medium">{c.tipo}</span>
-                {c.descricao && <span className="text-muted-foreground">{c.descricao}</span>}
-                {c.responsavelNome && <Badge variant="outline">{c.responsavelNome}</Badge>}
-                {!c.arquivoNome && <Badge variant="outline" className="text-warning border-warning/40">sem arquivo</Badge>}
-                <span className="ml-auto font-mono text-xs">{formatarData(c.validade)}</span>
-                {badgeStatus(status)}
-                {c.versoes.length > 0 && (
-                  <span className="font-mono text-[10px] text-muted-foreground">{c.versoes.length} versão(ões)</span>
-                )}
-                <Button size="icon" variant="ghost" aria-label="Detalhes" title="Histórico e detalhes" onClick={() => setDetalhe(c)}>
-                  <History className="size-4" />
-                </Button>
-                {c.arquivoNome && (
-                  <a
-                    href={`/api/certidoes/${c.id}/download`}
-                    className="text-primary hover:text-primary/80"
-                    title="Baixar"
-                    aria-label={`Baixar ${c.tipo}`}
-                  >
-                    <Download className="size-4" />
-                  </a>
-                )}
-                {podeGerir && (
-                  <>
-                    <Button size="sm" variant="ghost" onClick={() => setUploadPara(c)}>
-                      <Upload className="size-3.5" /> Nova versão
-                    </Button>
-                    <Button size="icon" variant="ghost" aria-label="Editar" onClick={() => setEditar(c)}>
-                      <PenLine className="size-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" aria-label="Excluir" onClick={() => excluir(c)}>
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </>
+                  <Button size="sm" variant="ghost" onClick={() => restaurar(c)} disabled={pending}>
+                    <ArchiveRestore className="size-3.5" aria-hidden /> Restaurar
+                  </Button>
                 )}
               </li>
-            );
-          })}
-        </ul>
+            ))}
+          </ul>
+        )
+      ) : visiveis.length === 0 ? (
+        // §18 — estados vazios distintos: "nada cadastrado" pede cadastro, "nada encontrado"
+        // pede limpar filtro. O mesmo texto para os dois deixaria o usuário achando que a base
+        // está vazia quando só o filtro está apertado.
+        certidoes.length === 0 ? (
+          <EmptyState
+            icon={ShieldCheck}
+            title="Você ainda não cadastrou nenhuma certidão."
+            description="Registre as certidões da empresa para acompanhar validade e conformidade."
+            action={
+              podeGerir ? (
+                <Button onClick={() => setNovaAberta(true)}>
+                  <Plus className="size-4" aria-hidden /> Cadastrar certidão
+                </Button>
+              ) : undefined
+            }
+          />
+        ) : (
+          <EmptyState
+            icon={SearchX}
+            title="Nenhuma certidão encontrada."
+            description="Revise os termos da busca ou limpe os filtros."
+            action={
+              filtrosAtivos > 0 ? (
+                <Button variant="outline" onClick={limparFiltros}>
+                  Limpar filtros
+                </Button>
+              ) : undefined
+            }
+          />
+        )
+      ) : (
+        <CertidoesTabela
+          certidoes={visiveis}
+          podeGerir={podeGerir}
+          selecionadas={selecionadas}
+          onAlternarSelecao={alternarSelecao}
+          onAbrirDetalhe={setDetalhe}
+          onAtualizar={setAtualizarPara}
+          onEditar={setEditar}
+          onExcluir={excluir}
+          onVisualizar={setVisualizar}
+        />
       )}
 
-      <DetalheSheet certidao={detalhe} onClose={() => setDetalhe(null)} />
-      <UploadVersaoDialog certidao={uploadPara} onClose={() => setUploadPara(null)} onOk={() => router.refresh()} />
+      <CertidaoDrawer
+        certidao={detalhe}
+        podeGerir={podeGerir}
+        onClose={() => setDetalhe(null)}
+        onAtualizar={(c) => {
+          setDetalhe(null);
+          setAtualizarPara(c);
+        }}
+      />
+      <VisualizarDocumentoDialog
+        url={visualizar ? `/api/certidoes/${visualizar.id}/download?inline=1` : null}
+        titulo={visualizar?.tipo ?? ""}
+        onClose={() => setVisualizar(null)}
+      />
+      <NovaCertidaoDialog
+        aberto={novaAberta}
+        onClose={() => setNovaAberta(false)}
+        tipos={tipos}
+        responsaveis={responsaveis}
+      />
+      <UploadVersaoDialog
+        certidao={atualizarPara}
+        onClose={() => setAtualizarPara(null)}
+        onOk={() => router.refresh()}
+      />
       <EditarDialog certidao={editar} responsaveis={responsaveis} onClose={() => setEditar(null)} />
       <RenovacaoLoteDialog
         open={loteAberto}
@@ -356,130 +408,6 @@ export function CertidoesView({
       />
       <GerenciarTiposDialog open={tiposAberto} onClose={() => setTiposAberto(false)} tipos={tipos} />
     </div>
-  );
-}
-
-function PainelVencimentos({
-  panorama,
-  filtro,
-  onFiltro,
-  total,
-}: {
-  panorama: PanoramaCompliance;
-  filtro: "todas" | StatusCertidao | "sem_arquivo";
-  onFiltro: (f: "todas" | StatusCertidao | "sem_arquivo") => void;
-  total: number;
-}) {
-  const chips: { key: "todas" | StatusCertidao | "sem_arquivo"; label: string; n: number; cls: string }[] = [
-    { key: "todas", label: "Todas", n: total, cls: "text-foreground" },
-    { key: "vencida", label: "Vencidas", n: panorama.vencidas, cls: "text-destructive" },
-    { key: "vence_em_breve", label: "Vence em breve", n: panorama.venceEmBreve, cls: "text-warning" },
-    { key: "ok", label: "Ok", n: panorama.ok, cls: "text-success" },
-    { key: "sem_arquivo", label: "Sem arquivo", n: panorama.semArquivo, cls: "text-muted-foreground" },
-  ];
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {chips.map((c) => (
-        <button
-          key={c.key}
-          onClick={() => onFiltro(c.key)}
-          className={`rounded-sm border px-2.5 py-1 text-xs ${filtro === c.key ? "border-primary bg-primary/10" : ""} ${c.cls}`}
-        >
-          {c.label} ({c.n})
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function DetalheSheet({ certidao, onClose }: { certidao: Certidao | null; onClose: () => void }) {
-  return (
-    <Sheet open={!!certidao} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-        {certidao && (
-          <>
-            <SheetHeader>
-              <SheetTitle>{certidao.tipo}</SheetTitle>
-            </SheetHeader>
-            <div className="space-y-5 px-4 pb-4">
-              <section>
-                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Histórico de versões</h3>
-                {certidao.versoes.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhuma versão anterior.</p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Nº</TableHead>
-                        <TableHead>Validade</TableHead>
-                        <TableHead>Enviada em</TableHead>
-                        <TableHead />
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {certidao.versoes.map((v) => (
-                        <TableRow key={v.id}>
-                          <TableCell>v{v.numero}</TableCell>
-                          <TableCell>{formatarData(v.validade)}</TableCell>
-                          <TableCell>{formatarDataHora(v.data)}</TableCell>
-                          <TableCell className="text-right">
-                            {v.arquivoNome && (
-                              <a
-                                href={`/api/certidoes/versoes/${v.id}/download`}
-                                className="text-primary hover:text-primary/80"
-                                title="Baixar esta versão"
-                                aria-label={`Baixar versão ${v.numero}`}
-                              >
-                                <Download className="size-4" />
-                              </a>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </section>
-
-              <section>
-                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Licitações que exigem esta certidão</h3>
-                {certidao.licitacoes.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhuma.</p>
-                ) : (
-                  <ul className="space-y-1">
-                    {certidao.licitacoes.map((l) => (
-                      <li key={`${l.licitacaoId}-${l.exigencia}`} className="flex items-center gap-2 text-sm">
-                        <FileText className="size-3.5 shrink-0 text-muted-foreground" />
-                        <span className="min-w-0 flex-1 truncate">{l.titulo}</span>
-                        <Badge variant="outline" className={l.atendido ? "text-success border-success/40" : "text-warning border-warning/40"}>
-                          {l.atendido ? "atendido" : "pendente"}
-                        </Badge>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-
-              <section>
-                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Auditoria</h3>
-                {certidao.auditoria.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Sem eventos registrados.</p>
-                ) : (
-                  <ul className="space-y-1.5">
-                    {certidao.auditoria.map((a) => (
-                      <li key={a.id} className="text-xs text-muted-foreground">
-                        <span className="text-foreground">{a.acao}</span>
-                        {a.usuario && <> — {a.usuario}</>} · {formatarDataHora(a.data)}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            </div>
-          </>
-        )}
-      </SheetContent>
-    </Sheet>
   );
 }
 
@@ -536,32 +464,57 @@ function UploadVersaoDialog({
     } else toast.error(data.error ?? "Falha no upload.");
   }
 
+  // §15 — "Atualizar" e "Adicionar documento" são o MESMO fluxo (nova versão); só o rótulo muda,
+  // porque anexar o primeiro PDF e renovar uma certidão vencida são a mesma operação no backend.
+  const primeiroAnexo = !!certidao && !certidao.arquivoNome;
+
   return (
     <Dialog open={!!certidao} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Nova versão — {certidao?.tipo}</DialogTitle>
+          <DialogTitle>
+            {primeiroAnexo ? "Adicionar documento" : "Atualizar certidão"} — {certidao?.tipo}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
+          {!primeiroAnexo && (
+            <p className="rounded-sm border bg-muted/40 p-2 text-xs text-muted-foreground">
+              Validade atual: <span className="font-mono">{certidao && formatarData(certidao.validade)}</span>
+              . O arquivo anterior fica guardado no histórico de versões.
+            </p>
+          )}
           <div className="space-y-1.5">
-            <Label>Arquivo (PDF)</Label>
-            <input ref={fileRef} type="file" accept="application/pdf" className="w-full text-sm" onChange={onFileChange} />
+            <Label htmlFor="versao-arquivo">Arquivo (PDF)</Label>
+            <input
+              id="versao-arquivo"
+              ref={fileRef}
+              type="file"
+              accept="application/pdf"
+              className="w-full text-sm"
+              onChange={onFileChange}
+            />
             {lendo && <p className="text-xs text-muted-foreground">Lendo PDF em busca da validade…</p>}
           </div>
           <div className="space-y-1.5">
-            <Label>Nova validade</Label>
-            <Input type="date" value={validade} onChange={(e) => setValidade(e.target.value)} />
+            <Label htmlFor="versao-validade">Nova validade</Label>
+            <Input
+              id="versao-validade"
+              type="date"
+              value={validade}
+              onChange={(e) => setValidade(e.target.value)}
+            />
             {sugerida && validade === sugerida && (
               <p className="text-xs text-success">Validade detectada automaticamente no PDF — confira antes de enviar.</p>
             )}
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={enviando}>
             Cancelar
           </Button>
           <Button onClick={enviar} disabled={enviando}>
-            Enviar
+            {enviando && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
+            {enviando ? "Enviando…" : "Enviar"}
           </Button>
         </DialogFooter>
       </DialogContent>

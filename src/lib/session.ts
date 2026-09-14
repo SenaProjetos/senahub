@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import type { Role } from "@/lib/roles";
 import type { Setor } from "@/generated/prisma/enums";
@@ -48,15 +48,28 @@ export type SessionUser = {
    * que não vê o que deveria.
    */
   setor: Setor | null;
+  /**
+   * Interno × externo do vínculo ativo (mesmo cache denormalizado que `setor`, escrito por
+   * `aplicarVinculo()`). É o eixo que a Onda D pôs no lugar do antigo `roles[]` para a pergunta
+   * "é gente de dentro?" — ver a nota de topo de `nav-config.ts`.
+   *
+   * **`null` NÃO significa "externo"**: significa "sem vínculo aplicado". A coluna é opcional e
+   * sem default (`User.tipo TipoUsuario?`), então todo gate que ler este campo precisa tratar o
+   * nulo — ver `requireInterno()`.
+   */
+  tipo: "interno" | "externo" | null;
 };
 
 /** Sessão atual (ou null). Memoizada por request. */
 export const getSession = cache(async () => {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return null;
+  // Todo campo que NÃO vem do better-auth precisa estar neste Omit. Esquecer um faz o TypeScript
+  // acreditar que ele já existe em `base`: o objeto de retorno compila, e em runtime o campo é
+  // `undefined`. Falha silenciosa — `lint` e `build` passam.
   const base = session.user as unknown as Omit<
     SessionUser,
-    "ehSocio" | "perfilId" | "perfilChave" | "escopoGlobalPerfil" | "superUsuario" | "setor"
+    "ehSocio" | "perfilId" | "perfilChave" | "escopoGlobalPerfil" | "superUsuario" | "setor" | "tipo"
   >;
 
   // Sócio + perfil/superUsuário num único round-trip (mesmo lookup que já existia, ampliado).
@@ -67,6 +80,7 @@ export const getSession = cache(async () => {
       perfilId: true,
       superUsuario: true,
       setor: true,
+      tipo: true,
       perfil: { select: { chave: true } },
       socio: { select: { ativo: true } },
     },
@@ -92,6 +106,7 @@ export const getSession = cache(async () => {
       perfilChave: dados?.perfil?.chave ?? null,
       superUsuario: dados?.superUsuario ?? false,
       setor: dados?.setor ?? null,
+      tipo: dados?.tipo ?? null,
       escopoGlobalPerfil,
     } as SessionUser,
     session: session.session,
@@ -104,6 +119,25 @@ export async function requireUser(): Promise<SessionUser> {
   if (!session) redirect("/login");
   if (session.user.mustChangePassword) redirect("/trocar-senha");
   return session.user;
+}
+
+/**
+ * Exige colaborador **interno**, sem exigir permissão de módulo nenhum. É o gate dos Guias de uso
+ * (`/guias`): material de formação não é dado operacional, e ler sobre o Financeiro sem ter
+ * `financeiro:ver` é justamente o caso de uso — quem ainda não trabalha no setor é o público.
+ *
+ * Eixo primário é `tipo` (o vigente desde a Onda D); o nulo é resolvido por `tipoEfetivo()`, o
+ * mesmo helper que o contexto do menu usa — se os dois divergirem, aparece o par "vê o link e toma
+ * 404" (ou o inverso, pior).
+ *
+ * `notFound()` e não `redirect("/sem-permissao")`: para quem é externo a página simplesmente não
+ * existe, e não vaza que há uma área interna com esse endereço.
+ */
+export async function requireInterno(): Promise<SessionUser> {
+  const { tipoEfetivo } = await import("@/lib/roles");
+  const user = await requireUser();
+  if (tipoEfetivo(user.tipo, user.role) !== "interno") notFound();
+  return user;
 }
 
 /**

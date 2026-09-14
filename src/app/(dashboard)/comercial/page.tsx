@@ -40,7 +40,7 @@ export default async function ComercialPage({
           </p>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="secondary" size="sm" render={<Link href="/comercial/guia" />}>
+          <Button variant="secondary" size="sm" render={<Link href="/guias/clientes-comercial" />}>
             <BookOpenText className="size-4" /> Guia de uso
           </Button>
           <Button variant="outline" size="sm" render={<Link href="/comercial/inteligencia" />}>

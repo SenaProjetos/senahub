@@ -32,8 +32,11 @@ export async function conteudoPublicoPorToken(token: string): Promise<CertidaoPu
   const link = await prisma.linkPublicoCertidoes.findUnique({ where: { token } });
   if (!link || !linkVigente(link) || link.certidaoIds.length === 0) return null;
 
+  // `id: { in: [...] }` sozinho é lookup-por-id — isento do filtro automático de soft delete
+  // (ver lib/prisma.ts) — por isso `excluidoEm: null` explícito: certidão arquivada não deve
+  // continuar exposta num link público já compartilhado com terceiros.
   const certidoes = await prisma.certidao.findMany({
-    where: { id: { in: link.certidaoIds } },
+    where: { id: { in: link.certidaoIds }, excluidoEm: null },
     orderBy: { validade: "asc" },
     include: { tipo: true },
   });
@@ -53,11 +56,12 @@ export async function certidaoLiberadaNoLink(token: string, certidaoId: string) 
   const link = await prisma.linkPublicoCertidoes.findUnique({ where: { token } });
   if (!link || !linkVigente(link) || !link.certidaoIds.includes(certidaoId)) return null;
 
+  // `findUnique` não é interceptado pela extensão de soft delete — checar `excluidoEm` à mão.
   const c = await prisma.certidao.findUnique({
     where: { id: certidaoId },
-    select: { id: true, arquivoPath: true, arquivoNome: true },
+    select: { id: true, arquivoPath: true, arquivoNome: true, excluidoEm: true },
   });
-  if (!c?.arquivoPath) return null;
+  if (!c?.arquivoPath || c.excluidoEm) return null;
   return { caminho: c.arquivoPath, nome: c.arquivoNome ?? "certidao.pdf" };
 }
 

@@ -173,7 +173,7 @@ export const salvarLayoutPainelProjetoSchema = z.object({
   projetoId: z.string().min(1),
   layout: z
     .object({
-      versao: z.literal(4),
+      versao: z.literal(5),
       itens: z
         .array(
           z.object({
