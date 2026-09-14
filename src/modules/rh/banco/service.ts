@@ -16,9 +16,19 @@ import { acumuladoAte, usuariosComJornadaNoMes } from "@/modules/rh/banco/querie
  * O acumulado vem de `acumuladoAte`, que pega o fechamento anterior MAIS RECENTE
  * em vez do mês imediatamente anterior: um mês não fechado no meio do caminho
  * zerava a cadeia silenciosamente e o colaborador perdia todo o saldo anterior.
+ *
+ * Apaga as linhas do mês de quem NÃO tem jornada nele. Sem isso, um fechamento
+ * gravado antes da apuração por vínculo (jun/2026: jornada cheia negativa para
+ * quem só foi contratado em julho) sobrevivia a qualquer recálculo — o upsert só
+ * toca quem é elegível — e `acumuladoAte` seguia somando o débito nos meses
+ * seguintes. Um fechamento só vale para quem tinha vínculo no mês.
  */
 export async function fecharBancoDoMes(ano: number, mes: number): Promise<number> {
   const usuarios = await usuariosComJornadaNoMes(ano, mes);
+
+  await prisma.bancoHorasMensal.deleteMany({
+    where: { ano, mes, userId: { notIn: usuarios.map((u) => u.id) } },
+  });
 
   let fechados = 0;
   for (const { id: userId } of usuarios) {
