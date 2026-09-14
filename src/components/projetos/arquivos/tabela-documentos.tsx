@@ -195,7 +195,14 @@ export function TabelaDocumentos({
                 aria-label={todasMarcadas ? "Limpar seleção" : "Selecionar todos os documentos da lista"}
               />
             </TableHead>
-            <SortableHead field="disciplina">Disciplina</SortableHead>
+            {/* Disciplina só com ícone: o nome por extenso comia a largura que o Nº e o título
+                precisam, e o painel à esquerda já diz qual disciplina está aberta. */}
+            <SortableHead field="disciplina" className="w-12">
+              <span className="sr-only">Disciplina</span>
+              <span aria-hidden>Disc.</span>
+            </SortableHead>
+            {colunas.has("numero") && <TableHead>Nº</TableHead>}
+            {colunas.has("fase") && <TableHead>Fase</TableHead>}
             <SortableHead field="nome">Documento</SortableHead>
             {colunas.has("revisao") && <SortableHead field="revisao" className="text-right">Revisão</SortableHead>}
             {colunas.has("validado") && <TableHead>Validado</TableHead>}
@@ -220,35 +227,43 @@ export function TabelaDocumentos({
                 />
               </TableCell>
               <TableCell>
-                <span className="flex items-center gap-1.5">
-                  <DisciplinaIcone nome={l.disciplinaNome} className="size-3.5 shrink-0 text-muted-foreground" />
-                  <span className="truncate">{l.disciplinaNome}</span>
+                <span className="flex items-center" title={l.disciplinaNome}>
+                  <DisciplinaIcone nome={l.disciplinaNome} className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="sr-only">{l.disciplinaNome}</span>
                 </span>
               </TableCell>
-              <TableCell className="max-w-[22rem] whitespace-normal">
-                <div className="space-y-1">
+              {colunas.has("numero") && (
+                <TableCell className="font-mono text-xs tabular-nums">
+                  {l.numeroPrancha ?? <span className="text-muted-foreground">—</span>}
+                </TableCell>
+              )}
+              {colunas.has("fase") && (
+                <TableCell className="text-xs" title={l.faseNome ?? undefined}>
+                  {l.faseSigla ?? <span className="text-muted-foreground">—</span>}
+                </TableCell>
+              )}
+              <TableCell className="max-w-[32rem]">
+                <div className="flex min-w-0 items-center gap-2">
                   <PainelDocumentoDetalhe linha={l} fases={fases} status={status} />
-                  {(l.faseSigla || l.statusNome || l.arquivos.some((a) => exclusoesPendentes.has(a.id))) && (
-                    <div className="flex flex-wrap items-center gap-1">
-                      {/* Alguém pediu a exclusão de um arquivo deste documento e um admin ainda
-                          não decidiu — o arquivo continua valendo, mas quem olha a lista
-                          precisa saber que há um pedido em aberto. */}
-                      {l.arquivos.some((a) => exclusoesPendentes.has(a.id)) && (
-                        <Badge variant="outline" className="border-warning/40 bg-warning/10 text-warning">
-                          exclusão solicitada
-                        </Badge>
-                      )}
-                      {l.faseSigla && (
-                        <Badge variant="secondary" title={l.faseNome ?? undefined}>
-                          {l.faseSigla}
-                        </Badge>
-                      )}
-                      {l.statusNome && (
-                        <Badge variant="outline" title={l.statusFinal ? "Status final" : undefined}>
-                          {l.statusNome}
-                        </Badge>
-                      )}
-                    </div>
+                  {/* Com título, o nome do arquivo vira referência secundária; sem título, o
+                      próprio nome já é o texto do gatilho e repeti-lo seria ruído. */}
+                  {(l.titulo ?? l.tituloPrancha) && (
+                    <span className="min-w-0 truncate text-xs text-muted-foreground" title={l.nome}>
+                      {l.nome}
+                    </span>
+                  )}
+                  {/* Alguém pediu a exclusão de um arquivo deste documento e um admin ainda
+                      não decidiu — o arquivo continua valendo, mas quem olha a lista
+                      precisa saber que há um pedido em aberto. */}
+                  {l.arquivos.some((a) => exclusoesPendentes.has(a.id)) && (
+                    <Badge variant="outline" className="shrink-0 border-warning/40 bg-warning/10 text-warning">
+                      exclusão solicitada
+                    </Badge>
+                  )}
+                  {l.statusNome && (
+                    <Badge variant="outline" className="shrink-0" title={l.statusFinal ? "Status final" : undefined}>
+                      {l.statusNome}
+                    </Badge>
                   )}
                 </div>
               </TableCell>

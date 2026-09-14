@@ -1,3 +1,5 @@
+import { parsePranchaFilename } from "@/modules/projetos/pranchas/codigo";
+
 /** Forma mínima usada para decidir qual revisão ainda está disponível na tela. */
 export type UploadComRevisao = {
   revisaoId: string | null;
@@ -23,4 +25,21 @@ export function arquivosDaRevisaoAtual<T extends UploadComRevisao>(uploads: T[])
   const revisaoAtual = revisaoAtualDosUploads(uploads);
   if (revisaoAtual === null) return uploads;
   return uploads.filter((upload) => upload.revisao?.numero === revisaoAtual || upload.revisaoId === null);
+}
+
+/**
+ * Número da prancha para a coluna "Nº": numeração com 4 dígitos + tipo, lidos do nome no
+ * padrão da Lista Mestre (`260029-HDR-BS-6008-3D.ifc` → `6008-3D`). Fora do padrão → null.
+ */
+export function numeroPrancha(nomeArquivo: string): string | null {
+  const p = parsePranchaFilename(nomeArquivo);
+  return p ? `${String(p.numeracao).padStart(4, "0")}-${p.tipo}` : null;
+}
+
+/**
+ * Chave que liga um documento à prancha da Lista Mestre da MESMA disciplina: numeração + tipo
+ * + fase — a mesma trinca que o import da Lista Mestre usa para não duplicar prancha.
+ */
+export function chavePrancha(disciplinaId: string, p: { numeracao: number; tipo: string; fase: string }): string {
+  return `${disciplinaId}|${p.numeracao}|${p.tipo.toUpperCase()}|${p.fase.toUpperCase()}`;
 }

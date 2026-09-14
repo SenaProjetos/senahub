@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { editarMetadadosDocumento, atualizarStatusDocumento } from "@/modules/uploads/actions";
 import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
 import type { OpcaoFaseDocumento } from "@/components/projetos/arquivos/seletor-fases-documentos";
-import { rotuloRevisao } from "@/lib/utils";
+import { cn, rotuloRevisao } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +41,7 @@ export function PainelDocumentoDetalhe({
   const [aberto, setAberto] = useState(false);
   const [pendente, start] = useTransition();
   const [titulo, setTitulo] = useState(linha.titulo ?? "");
+  const tituloExibido = linha.titulo ?? linha.tituloPrancha;
   const [descricao, setDescricao] = useState(linha.descricao ?? "");
   const [faseId, setFaseId] = useState(linha.faseId ?? SEM_FASE);
   const [statusId, setStatusId] = useState(linha.statusId ?? SEM_STATUS);
@@ -96,13 +97,19 @@ export function PainelDocumentoDetalhe({
 
   return (
     <>
+      {/* Título manual > "Conteúdo" da Lista Mestre > nome do arquivo. Só título ganha peso:
+          quando o gatilho cai no nome, ele fica discreto para a numeração liderar a linha. */}
       <Button
         variant="link"
-        className="h-auto max-w-full justify-start p-0 text-left font-medium whitespace-normal"
+        className={cn(
+          "block h-auto min-w-0 max-w-full truncate p-0 text-left",
+          tituloExibido ? "font-medium" : "font-normal text-foreground/80",
+        )}
         onClick={abrir}
-        aria-label={`Abrir detalhes de ${linha.titulo ?? linha.nome}`}
+        title={tituloExibido ? `${tituloExibido} — ${linha.nome}` : linha.nome}
+        aria-label={`Abrir detalhes de ${tituloExibido ?? linha.nome}`}
       >
-        {linha.titulo ?? linha.nome}
+        {tituloExibido ?? linha.nome}
       </Button>
 
       <Sheet open={aberto} onOpenChange={setAberto}>
@@ -137,8 +144,11 @@ export function PainelDocumentoDetalhe({
                       maxLength={160}
                       disabled={pendente}
                       onChange={(event) => setTitulo(event.target.value)}
-                      placeholder="Ex.: Planta de forma do pavimento tipo"
+                      placeholder={linha.tituloPrancha ?? "Ex.: Planta de forma do pavimento tipo"}
                     />
+                    {!linha.titulo && linha.tituloPrancha && (
+                      <p className="text-xs text-muted-foreground">Vazio: a lista usa o conteúdo da prancha na Lista Mestre.</p>
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor={`descricao-${linha.id}`}>Descrição</Label>
@@ -176,7 +186,10 @@ export function PainelDocumentoDetalhe({
                 <dl className="space-y-2 text-sm">
                   <div>
                     <dt className="text-xs text-muted-foreground">Título</dt>
-                    <dd>{linha.titulo ?? "—"}</dd>
+                    <dd>
+                      {linha.titulo ?? linha.tituloPrancha ?? "—"}
+                      {!linha.titulo && linha.tituloPrancha && <span className="text-xs text-muted-foreground"> (Lista Mestre)</span>}
+                    </dd>
                   </div>
                   <div>
                     <dt className="text-xs text-muted-foreground">Descrição</dt>

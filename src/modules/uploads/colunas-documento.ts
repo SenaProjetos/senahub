@@ -28,6 +28,10 @@ export type ColunaDocumento = {
 /** Ordem aqui é a ordem das colunas na tabela. */
 export const COLUNAS_DOCUMENTO: ColunaDocumento[] = [
   { id: "disciplina", label: "Disciplina", essencial: true, prioridadeCorte: 0 },
+  // Nº e fase vêm antes do documento: numeração é como a equipe procura uma prancha, e tirar
+  // a fase de dentro da célula do nome devolveu a linha à altura de uma linha só.
+  { id: "numero", label: "Nº", prioridadeCorte: 1 },
+  { id: "fase", label: "Fase", prioridadeCorte: 2 },
   { id: "documento", label: "Documento", essencial: true, prioridadeCorte: 0 },
   { id: "revisao", label: "Revisão", prioridadeCorte: 1 },
   { id: "validado", label: "Validado", prioridadeCorte: 3 },

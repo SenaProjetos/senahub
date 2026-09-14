@@ -11,9 +11,10 @@ import { VisualizarDwgButton } from "@/components/dwg/visualizar-dwg-button";
  * Cada extensão abre o visualizador que JÁ existe no sistema — nada de visualizador novo:
  *  - `pdf`  → rota `/projetos/[id]/arquivos/[uploadId]/visualizar` (PdfViewer, com pinos)
  *  - `ifc`  → aba Coordenação do projeto (viewer BIM federado); sem `coordenacao:ver`, baixa
- *  - `dwg`  → baixa pelo badge e, ao lado, o `VisualizarDwgButton` existente, que já conhece
- *             o estado real da conversão (fila/processando/erro/pronto). Não dá para embutir
- *             esse estado no próprio badge sem refazer a consulta que aquele componente já faz.
+ *  - `dwg`  → grupo com rótulo + DOIS botões separados (baixar | visualizar). O badge único
+ *             "DWG ⬇" com o olho solto ao lado lia como um botão só; separados, cada ação tem
+ *             alvo e rótulo próprios. O visualizar é o `VisualizarDwgButton` existente, que já
+ *             conhece o estado real da conversão (fila/processando/erro/pronto).
  *  - resto  → download
  *
  * Fase 1 mostra UMA extensão por linha porque hoje cada `Upload` é um registro independente;
@@ -98,9 +99,23 @@ export function BadgeExtensao({
   if (ext === "dwg") {
     if (!showDwgViewer) return baixar;
     return (
-      <span className="flex items-center gap-1">
-        {baixar}
-        <VisualizarDwgButton desenhoId={uploadId} nomeArquivo={nome} titulo={nome} />
+      <span
+        className="inline-flex h-5 items-stretch divide-x divide-border overflow-hidden rounded-sm border border-border"
+        role="group"
+        aria-label={`Ações de ${nome}`}
+      >
+        <span className="flex items-center px-1.5 font-mono text-[10px] tracking-wide uppercase">{rotulo}</span>
+        <a
+          href={downloadUrl}
+          className="flex items-center px-1.5 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:outline-none"
+          title={`Baixar ${nome}`}
+          aria-label={`Baixar ${nome}`}
+        >
+          <Download className="size-3" aria-hidden />
+        </a>
+        <span className="flex items-center px-1.5 hover:bg-accent">
+          <VisualizarDwgButton desenhoId={uploadId} nomeArquivo={nome} titulo={nome} />
+        </span>
       </span>
     );
   }

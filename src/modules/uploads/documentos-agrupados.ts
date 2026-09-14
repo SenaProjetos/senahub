@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { arquivosDaRevisaoAtual, revisaoAtualDosUploads } from "@/modules/uploads/documentos-agrupados-utils";
+import { arquivosDaRevisaoAtual, chavePrancha, numeroPrancha, revisaoAtualDosUploads } from "@/modules/uploads/documentos-agrupados-utils";
+import { parsePranchaFilename } from "@/modules/projetos/pranchas/codigo";
 
 /**
  * Listagem de documentos AGRUPADA POR DOCUMENTO (Fase 2 — F2-PR6a).
@@ -71,7 +72,12 @@ export type ArquivoDaLinha = {
 export type LinhaDoc = {
   id: string;
   nome: string;
+  /** Título manual do documento (o que o painel de detalhe edita). */
   titulo: string | null;
+  /** "Conteúdo" da prancha correspondente na Lista Mestre — fallback de exibição do título. */
+  tituloPrancha: string | null;
+  /** Numeração + tipo lidos do nome (`6008-3D`); null fora do padrão. */
+  numeroPrancha: string | null;
   descricao: string | null;
   disciplinaId: string;
   disciplinaNome: string;
@@ -229,6 +235,16 @@ export async function listarDocumentosAgrupados(opts: {
     },
   });
 
+  // Título de fallback vem da Lista Mestre: uma consulta só para as disciplinas da página,
+  // casada em memória pela trinca numeração+tipo+fase do nome.
+  const pranchas = await prisma.prancha.findMany({
+    where: { disciplinaId: { in: [...new Set(docs.map((d) => d.disciplina.id))] }, conteudo: { not: null } },
+    select: { disciplinaId: true, numeracao: true, tipo: true, fase: true, conteudo: true },
+  });
+  const conteudoPorChave = new Map(
+    pranchas.filter((p) => p.conteudo?.trim()).map((p) => [chavePrancha(p.disciplinaId, p), p.conteudo!.trim()]),
+  );
+
   // Reordena pelo que o SQL decidiu — `findMany` com `in` não preserva a ordem dos ids.
   const porId = new Map(docs.map((d) => [d.id, d]));
   const linhas: LinhaDoc[] = [];
@@ -243,10 +259,13 @@ export async function listarDocumentosAgrupados(opts: {
     // documento já foi migrado seria uma perda de acesso na tela.
     const daAtual = arquivosDaRevisaoAtual(d.uploads);
     const maisRecente = [...d.uploads].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+    const parseado = parsePranchaFilename(d.nomeArquivo);
     linhas.push({
       id: d.id,
       nome: d.nomeArquivo,
       titulo: d.titulo,
+      tituloPrancha: parseado ? conteudoPorChave.get(chavePrancha(d.disciplina.id, parseado)) ?? null : null,
+      numeroPrancha: numeroPrancha(d.nomeArquivo),
       descricao: d.descricao,
       disciplinaId: d.disciplina.id,
       disciplinaNome: d.disciplina.catalogo?.nome ?? d.disciplina.disciplinaTextoLegado ?? "—",
